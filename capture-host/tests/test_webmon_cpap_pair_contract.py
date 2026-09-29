@@ -10,6 +10,7 @@ rather than pretending; the passkey must be 4–10 ASCII digits or the request 4
 an unknown action is 400; a malformed body is the shared bad-body 400; whatever the daemon's pairing
 session reports is passed straight through; the old single-shot `{passkey}` body still means the passkey
 step; and an exception in the pairing op becomes a 500 that never crashes the monitor."""
+
 import os
 import sys
 
@@ -25,6 +26,7 @@ def _post(tmp_path, body, cpap_pair):
     async def go(c):
         r = await c.post("/api/cpap/pair", json=body)
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -36,6 +38,7 @@ def _recorder(result=None, exc=None):
         if exc is not None:
             raise exc
         return result if result is not None else {"ok": True, "verified": True, "stored": True}
+
     return pair, calls
 
 
@@ -53,8 +56,9 @@ def test_start_without_an_address_forwards_an_empty_one_for_the_daemon_to_defaul
 
 
 def test_a_valid_passkey_reaches_the_session_and_the_result_passes_through(tmp_path):
-    pair, calls = _recorder(result={"ok": True, "verified": True, "clientId": "abc", "live": False,
-                                    "restart_required": True})
+    pair, calls = _recorder(
+        result={"ok": True, "verified": True, "clientId": "abc", "live": False, "restart_required": True}
+    )
     status, body = _post(tmp_path, {"action": "passkey", "passkey": "482913"}, pair)
     assert status == 200 and body["verified"] is True and body["restart_required"] is True
     assert calls == [("passkey", "482913", "")]
@@ -133,6 +137,7 @@ def test_a_malformed_body_is_the_shared_bad_body_response(tmp_path):
     async def go(c):
         r = await c.post("/api/cpap/pair", data=b"{not json", headers={"content-type": "application/json"})
         return r.status
+
     status = _serve(app, go)
     assert status == 400
     assert calls == []

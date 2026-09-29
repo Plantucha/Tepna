@@ -64,7 +64,7 @@ def test_the_probe_is_unprivileged_by_construction():
 
     fn = ast.parse(textwrap.dedent(inspect.getsource(cpap_harvest.reachable))).body[0]
     if fn.body and isinstance(fn.body[0], ast.Expr) and isinstance(fn.body[0].value, ast.Constant):
-        fn.body = fn.body[1:]                    # drop the docstring; keep the code
+        fn.body = fn.body[1:]  # drop the docstring; keep the code
     code = ast.unparse(fn)
     for banned in ("sudo", "_sh", "subprocess", "wpa_", "ip link", "ip addr"):
         assert banned not in code, f"the reachability probe must stay unprivileged — found {banned!r}"
@@ -79,9 +79,18 @@ import datetime as dt
 import capture
 
 
-CFG = {"cpap": {"enabled": True, "at_hour": 13, "wifi_profile": "ezshare",
-                "base_url": "http://192.168.4.1", "dest_subdir": "captures/cpap",
-                "max_run_sec": 60, "timeout_sec": 5, "retries": 2}}
+CFG = {
+    "cpap": {
+        "enabled": True,
+        "at_hour": 13,
+        "wifi_profile": "ezshare",
+        "base_url": "http://192.168.4.1",
+        "dest_subdir": "captures/cpap",
+        "max_run_sec": 60,
+        "timeout_sec": 5,
+        "retries": 2,
+    }
+}
 
 
 def _at(hour=13):
@@ -89,6 +98,7 @@ def _at(hour=13):
         @classmethod
         def now(cls, tz=None):
             return cls(2026, 7, 28, hour, 5, 0)
+
     return _DT
 
 
@@ -106,8 +116,16 @@ def _drive(monkeypatch, tmp_path, *, reachable, ticks=2):
 
     def _harvest(*a, **k):
         seen["harvest"] += 1
-        return {"files": 5, "bytes": 10, "skipped": 0, "nights": 1, "short": [], "errors": [],
-                "partial": False, "nights_on_card": 197}
+        return {
+            "files": 5,
+            "bytes": 10,
+            "skipped": 0,
+            "nights": 1,
+            "short": [],
+            "errors": [],
+            "partial": False,
+            "nights_on_card": 197,
+        }
 
     monkeypatch.setattr(cpap_harvest, "reachable", lambda base, timeout=5.0: reachable)
     monkeypatch.setattr(cpap_harvest, "default_route_dev", lambda: "eno1")
@@ -122,6 +140,7 @@ def _drive(monkeypatch, tmp_path, *, reachable, ticks=2):
         calls["n"] += 1
         if calls["n"] >= ticks:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     # HERMETIC. `_cpap_loop` skips the day when `blocking_devices(STATUS["devices"])` reports anything
     # streaming — connected AND worn AND not charging. STATUS is module-global and other tests leave
@@ -163,12 +182,13 @@ def test_the_teardown_never_closes_a_link_it_did_not_open(tmp_path, monkeypatch)
     # A ROOT EACH. Both drives share a frozen clock, so with one root the first run completes a
     # harvest job stamped for that window and the second is correctly skipped by reconciliation
     # (§6, 2026-09-06) — which zeroes the in-loop teardown this test is counting. Two runs, two boxes.
-    (tmp_path / "a").mkdir(); (tmp_path / "b").mkdir()
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
     direct = _drive(monkeypatch, tmp_path / "a", reachable=True)["down"]
     associated = _drive(monkeypatch, tmp_path / "b", reachable=False)["down"]
     assert associated - direct == 1, (
-        f"exactly one extra teardown belongs to the associated path (direct={direct}, "
-        f"associated={associated})")
+        f"exactly one extra teardown belongs to the associated path (direct={direct}, associated={associated})"
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -182,6 +202,7 @@ def test_the_teardown_never_closes_a_link_it_did_not_open(tmp_path, monkeypatch)
 #
 # The privilege was never necessary. wpa_supplicant runs as root and can write into any directory that
 # EXISTS; the directory itself does not have to be root-owned. Verified on the box.
+
 
 def test_the_wpa_control_dir_is_creatable_by_this_user(tmp_path, monkeypatch):
     """The regression, pinned: if this ever needs root again the harvest silently stops associating."""
@@ -274,6 +295,7 @@ def test_an_uncreatable_control_dir_warns_and_does_not_raise(monkeypatch, caplog
 #     up, not associated carrier=0    wpa_state=SCANNING
 #     associated         carrier=1    wpa_state=COMPLETED
 
+
 def _sysfs(tmp_path, carrier=None, operstate="up", iface="wlan9"):
     """A fake /sys/class/net. `carrier=None` means the file is absent — the EINVAL a DOWN link really
     produces. Injected as a path rather than by patching builtins.open, which reaches far beyond the
@@ -313,8 +335,7 @@ def test_the_poll_prefers_sysfs_and_never_shells_out_when_it_answers(monkeypatch
     the filesystem — its own reading is covered above; what is under test here is the PREFERENCE."""
     monkeypatch.setattr(cpap_harvest, "associated", lambda iface, sysfs="/sys/class/net": True)
     calls = []
-    monkeypatch.setattr(cpap_harvest, "_sh",
-                        lambda argv, t, sudo=False: (calls.append(argv[0]), (0, ""))[1])
+    monkeypatch.setattr(cpap_harvest, "_sh", lambda argv, t, sudo=False: (calls.append(argv[0]), (0, ""))[1])
     assert cpap_harvest._wpa_up("wlan9", "ez Share", "pw", "192.168.4.2/24", 5.0) is True
     assert "wpa_cli" not in calls, f"wpa_cli must not be consulted when /sys answered: {calls}"
     assert "ip" in calls, "the address must still be assigned"
@@ -328,6 +349,7 @@ def test_wpa_cli_is_still_the_fallback_when_sysfs_cannot_tell(monkeypatch):
     def sh(argv, t, sudo=False):
         calls.append(argv[0])
         return (0, "wpa_state=COMPLETED\n") if argv[0] == "wpa_cli" else (0, "")
+
     monkeypatch.setattr(cpap_harvest, "_sh", sh)
     assert cpap_harvest._wpa_up("wlan9", "ez Share", "pw", "192.168.4.2/24", 5.0) is True
     assert "wpa_cli" in calls, "the fallback must still be reachable"
@@ -338,9 +360,11 @@ def test_an_inherited_supplicant_can_still_associate(monkeypatch):
     is: the teardown's `wpa_cli terminate` is the only thing that reaps it and that is exactly the call
     that cannot run under the sandbox. A non-zero start must not abort an association that works."""
     monkeypatch.setattr(cpap_harvest, "associated", lambda iface, sysfs="/sys/class/net": True)
-    monkeypatch.setattr(cpap_harvest, "_sh",
-                        lambda argv, t, sudo=False: (1, "nl80211: deinit ifname=wlan9")
-                        if argv[0] == "wpa_supplicant" else (0, ""))
+    monkeypatch.setattr(
+        cpap_harvest,
+        "_sh",
+        lambda argv, t, sudo=False: (1, "nl80211: deinit ifname=wlan9") if argv[0] == "wpa_supplicant" else (0, ""),
+    )
     assert cpap_harvest._wpa_up("wlan9", "ez Share", "pw", "192.168.4.2/24", 5.0) is True
 
 

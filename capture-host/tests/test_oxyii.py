@@ -30,23 +30,23 @@ def test_decode_rejects_bad_crc():
 
 def test_decode_rejects_bad_complement():
     f = bytearray(oxyii.encode(oxyii.OP_LIVE, b"\x01"))
-    f[2] ^= 0xFF                       # break the ~cmd byte
-    f[-1] = oxyii.crc8(f[:-1])         # keep CRC valid so only the complement check can catch it
+    f[2] ^= 0xFF  # break the ~cmd byte
+    f[-1] = oxyii.crc8(f[:-1])  # keep CRC valid so only the complement check can catch it
     assert oxyii.decode(bytes(f)) is None
 
 
 def test_reassembler_splits_across_notifications():
     f = oxyii.encode(oxyii.OP_LIVE, b"\x01\x02\x03\x04")
     r = oxyii.Reassembler()
-    assert r.feed(f[:4]) == []                    # partial → nothing yet
-    out = r.feed(f[4:])                           # completes the frame
+    assert r.feed(f[:4]) == []  # partial → nothing yet
+    out = r.feed(f[4:])  # completes the frame
     assert len(out) == 1 and oxyii.decode(out[0])[1] == b"\x01\x02\x03\x04"
 
 
 def test_reassembler_resyncs_to_lead():
     f = oxyii.encode(oxyii.OP_LIVE, b"\xaa")
     r = oxyii.Reassembler()
-    out = r.feed(b"\x00\x99" + f)                 # leading garbage before the 0xA5 lead
+    out = r.feed(b"\x00\x99" + f)  # leading garbage before the 0xA5 lead
     assert len(out) == 1 and oxyii.decode(out[0])[0] == oxyii.OP_LIVE
 
 
@@ -62,23 +62,24 @@ def test_parse_live_offsets():
     # Pin the OFFSETS, not the exact dict: parse_live is allowed to gain fields (the contract is
     # additive — new data goes in a NEW key, per CLAUDE.md §🧪), and asserting equality would red on
     # every additive change.
-    for k, exp in {"spo2": 97, "pr": 62, "pi": 0.5, "motion": 9, "batt": 88,
-                   "contact": 0x01, "worn": True}.items():
+    for k, exp in {"spo2": 97, "pr": 62, "pi": 0.5, "motion": 9, "batt": 88, "contact": 0x01, "worn": True}.items():
         assert v[k] == exp, f"{k} offset moved"
 
 
 def test_parse_live_off_finger_is_none():
     p = bytearray(24)
-    p[5], p[6], p[8] = 0x00, 0, 0                 # no finger, invalid spo2/hr
+    p[5], p[6], p[8] = 0x00, 0, 0  # no finger, invalid spo2/hr
     v = oxyii.parse_live(bytes(p))
     assert v["spo2"] is None and v["pr"] is None and v["worn"] is False
 
 
 # ── live PPG waveform (Phase 1 decode) — fixture is a REAL captured cmd=0x04 reply ──────────────────
 _REAL_PPG_FRAME = bytes.fromhex(
-    "df290000020164053200c702005c000000000000000000003c00"       # 24-B header + count(0x3c=60) + flag
+    "df290000020164053200c702005c000000000000000000003c00"  # 24-B header + count(0x3c=60) + flag
     "c8c7c7c7c7c7c7c7c7c8c8c5bfb6ada6a19f9e9d9ea1a4a9adb2b7bbbdbcbab8b6b4"  # 60 one-byte PPG samples
-    "b1afadaba9a8a7a7a8a9abadafb0b1b1ada69d948b81766b6158")
+    "b1afadaba9a8a7a7a8a9abadafb0b1b1ada69d948b81766b6158"
+)
+
 
 def test_parse_ppg_real_frame_layout():
     # header still parses (worn, SpO2 100, HR 50 — HR cross-checked vs paired ECG @49 bpm)
@@ -87,11 +88,12 @@ def test_parse_ppg_real_frame_layout():
     # body = count(60) one-byte samples at [26:86]
     ppg = oxyii.parse_ppg(_REAL_PPG_FRAME)
     assert len(ppg) == 60 == _REAL_PPG_FRAME[24]
-    assert 24 + 2 + _REAL_PPG_FRAME[24] == len(_REAL_PPG_FRAME)   # the length invariant
+    assert 24 + 2 + _REAL_PPG_FRAME[24] == len(_REAL_PPG_FRAME)  # the length invariant
     assert ppg[:3] == [200, 199, 199] and all(0 <= v <= 255 for v in ppg)
 
+
 def test_parse_ppg_no_body():
-    assert oxyii.parse_ppg(bytes(24)) == []       # header-only / too short → no samples
+    assert oxyii.parse_ppg(bytes(24)) == []  # header-only / too short → no samples
 
 
 def test_auth_payload_is_deterministic_16b():
@@ -117,6 +119,8 @@ def test_file_start_frame_layout():
 def test_file_data_frame_offset_le():
     op, pl = oxyii.decode(oxyii.file_data_frame(512))
     assert op == oxyii.OP_FILE_DATA and pl == (512).to_bytes(4, "little")
+
+
 def _live_frame(duration=0, spo2=97, pi=14, pr=62, motion=0, batt=88, contact=0x01, flag=0xC7):
     b = bytearray(24)
     b[0:4] = int(duration).to_bytes(4, "little")
@@ -133,7 +137,7 @@ def test_pi_comes_from_byte7_and_motion_from_byte11_not_the_reverse():
     [7] is non-zero in 99.9% of frames (a perfusion index is continuously non-zero), while the vendor's
     own ViHealth Motion column is 99.4-99.8% ZERO (which is how [11] behaves)."""
     r = oxyii.parse_live(_live_frame(pi=136, motion=0))
-    assert r["pi"] == 13.6                     # 136/10 %
+    assert r["pi"] == 13.6  # 136/10 %
     assert r["motion"] == 0
     r2 = oxyii.parse_live(_live_frame(pi=0, motion=29))
     assert r2["pi"] == 0.0 and r2["motion"] == 29
@@ -144,7 +148,8 @@ def test_pulse_rate_is_u16_little_endian_not_a_single_byte():
     agree, which is why this stayed hidden."""
     assert oxyii.parse_live(_live_frame(pr=62))["pr"] == 62
     assert oxyii.parse_live(_live_frame(pr=200))["pr"] == 200
-    raw = bytearray(_live_frame()); raw[8], raw[9] = 0x2C, 0x01      # 300 -> out of range -> None
+    raw = bytearray(_live_frame())
+    raw[8], raw[9] = 0x2C, 0x01  # 300 -> out of range -> None
     assert oxyii.parse_live(bytes(raw))["pr"] is None
 
 
@@ -159,10 +164,10 @@ def test_session_restarted_replaces_the_phantom_frame_gap_counter():
     """The old frame_gap() read [0] as a frame counter and reported phantom loss (9 warnings in one
     evening, one claiming 111 dropped, which was a session starting). 2736 consecutive real frames read
     [0]=0 while the ring idled — impossible for a frame counter."""
-    assert not oxyii.session_restarted(None, 0)      # first frame is never a restart
-    assert not oxyii.session_restarted(100, 101)     # normal 1 Hz tick
-    assert not oxyii.session_restarted(100, 211)     # a big FORWARD jump is not loss, just elapsed time
-    assert oxyii.session_restarted(500, 3)           # duration went backwards => new session
+    assert not oxyii.session_restarted(None, 0)  # first frame is never a restart
+    assert not oxyii.session_restarted(100, 101)  # normal 1 Hz tick
+    assert not oxyii.session_restarted(100, 211)  # a big FORWARD jump is not loss, just elapsed time
+    assert oxyii.session_restarted(500, 3)  # duration went backwards => new session
     assert not hasattr(oxyii, "frame_gap"), "the phantom-loss counter must not come back"
 
 
@@ -195,7 +200,7 @@ def test_reassembler_rejects_an_implausible_declared_length():
     for bytes that never arrive — swallowing every VALID frame that follows into one bogus buffer. An
     implausible length means we have lost sync, so drop the lead byte and resync on the next 0xA5."""
     r = oxyii.Reassembler()
-    bogus = bytes([0xA5, 0x04, 0xFB, 0x00, 0x00, 0xFF, 0xFF])   # declares 65535 bytes of payload
+    bogus = bytes([0xA5, 0x04, 0xFB, 0x00, 0x00, 0xFF, 0xFF])  # declares 65535 bytes of payload
     good = oxyii.encode(oxyii.OP_LIVE, b"\x01\x02\x03")
     out = r.feed(bogus + good)
     assert good in out, "a valid frame after a bogus length must still be recovered"
@@ -205,7 +210,7 @@ def test_reassembler_still_accepts_a_large_but_plausible_frame():
     """The bound must not be so tight that a real stored-session chunk is rejected — that would break
     the .dat pull. A frame at the limit still reassembles."""
     r = oxyii.Reassembler()
-    big = oxyii.encode(oxyii.OP_FILE_DATA, b"\x5a" * 240)        # ~ATT MTU-sized chunk
+    big = oxyii.encode(oxyii.OP_FILE_DATA, b"\x5a" * 240)  # ~ATT MTU-sized chunk
     assert big in r.feed(big)
 
 
@@ -250,8 +255,8 @@ def test_flag_raw_is_the_whole_byte_beside_the_bit():
     assert live["flag"] == 1
     assert live["flag_raw"] == 0xC7
     off = oxyii.parse_live(_live_frame(flag=0xC6))
-    assert off["flag"] == 0            # bit 0 clear
-    assert off["flag_raw"] == 0xC6     # ...while the byte is still reported in full
+    assert off["flag"] == 0  # bit 0 clear
+    assert off["flag_raw"] == 0xC6  # ...while the byte is still reported in full
 
 
 # ── every field on its OWN byte, and every validity band on its OWN edge ─────────────────────────────
@@ -266,21 +271,22 @@ def test_flag_raw_is_the_whole_byte_beside_the_bit():
 # SpO2 CSV's Motion column for months, breaking OxyDex's `r.motion === 0` artifact filter. The layout
 # was corrected against the vendor SDK; what was missing is anything that holds it there.
 
+
 def _distinct_frame():
     """A 14-byte live frame whose every byte is DIFFERENT, so an off-by-one index cannot read the same
     number by luck. Values are chosen to stay inside each field's validity band where one exists, so a
     surviving offset mutant changes the VALUE rather than merely nulling it."""
     b = bytearray(14)
-    b[0:4] = (0x11223344).to_bytes(4, "little")   # duration
-    b[4] = 0x51                                    # run_status
-    b[5] = 0x52                                    # sensor contact
-    b[6] = 96                                      # spo2 (inside 50..100)
-    b[7] = 137                                     # pi/10 = 13.7 %
-    b[8:10] = (72).to_bytes(2, "little")           # pr (inside 20..250)
-    b[10] = 0xC7                                   # flag byte
-    b[11] = 0x5B                                   # motion
-    b[12] = 0x5C                                   # batt_state
-    b[13] = 0x5D                                   # batt percent
+    b[0:4] = (0x11223344).to_bytes(4, "little")  # duration
+    b[4] = 0x51  # run_status
+    b[5] = 0x52  # sensor contact
+    b[6] = 96  # spo2 (inside 50..100)
+    b[7] = 137  # pi/10 = 13.7 %
+    b[8:10] = (72).to_bytes(2, "little")  # pr (inside 20..250)
+    b[10] = 0xC7  # flag byte
+    b[11] = 0x5B  # motion
+    b[12] = 0x5C  # batt_state
+    b[13] = 0x5D  # batt percent
     return bytes(b)
 
 
@@ -310,7 +316,7 @@ def _with(idx, val, span=1):
     if span == 1:
         b[idx] = val
     else:
-        b[idx:idx + span] = int(val).to_bytes(span, "little")
+        b[idx : idx + span] = int(val).to_bytes(span, "little")
     return bytes(b)
 
 
@@ -344,9 +350,9 @@ def _rt_data(offset: int, n: int, duration: int = 100) -> bytes:
     at [20:24], size u16 LE at [24:26], then `n` one-byte samples."""
     param = bytearray(20)
     param[0:4] = duration.to_bytes(4, "little")
-    param[5], param[6], param[7] = 0x01, 97, 14          # contact, spo2, pi
-    param[8:10] = (62).to_bytes(2, "little")             # pr
-    param[10], param[11], param[13] = 0xC7, 0, 88        # flag byte, motion, battery
+    param[5], param[6], param[7] = 0x01, 97, 14  # contact, spo2, pi
+    param[8:10] = (62).to_bytes(2, "little")  # pr
+    param[10], param[11], param[13] = 0xC7, 0, 88  # flag byte, motion, battery
     return bytes(param) + offset.to_bytes(4, "little") + n.to_bytes(2, "little") + bytes([100] * n)
 
 
@@ -355,8 +361,7 @@ def test_ppg_offset_advances_by_exactly_the_declared_count():
     samples, so O_(i+1) - O_i == N_i. Reading the wrong four bytes, or the wrong endianness, breaks this
     while still producing a column full of integers."""
     frames = [(0, 126), (126, 127), (253, 125), (378, 126)]
-    got = [(oxyii.ppg_stream_offset(_rt_data(o, n)), oxyii.ppg_sample_count(_rt_data(o, n)))
-           for o, n in frames]
+    got = [(oxyii.ppg_stream_offset(_rt_data(o, n)), oxyii.ppg_sample_count(_rt_data(o, n))) for o, n in frames]
     assert got == frames, "offset/count did not round-trip out of a device-shaped frame"
     for (o1, n1), (o2, _n2) in zip(got, got[1:]):
         assert o2 - o1 == n1, f"delta offset {o2 - o1} != the declared count {n1} of the frame before it"
@@ -412,7 +417,7 @@ def test_parse_rt_ppg_is_bounded_by_the_buffer_not_the_declared_count():
     """A truncated reply must yield only whole records present in the bytes. Trusting the device's count
     would either raise or, worse, emit records zero-padded out of absent bytes — a fabricated sample."""
     full = _rt_ppg_payload([(7, 8, 1), (9, 10, 2), (11, 12, 3)])
-    assert oxyii.parse_rt_ppg(full[:2 + 9 + 4]) == [(7, 8, 1)]      # one whole record + a partial second
+    assert oxyii.parse_rt_ppg(full[: 2 + 9 + 4]) == [(7, 8, 1)]  # one whole record + a partial second
     assert oxyii.parse_rt_ppg(_rt_ppg_payload([(7, 8, 1)], declared=99)) == [(7, 8, 1)]
 
 
@@ -439,11 +444,12 @@ def test_parse_rt_ppg_reads_the_channels_as_SIGNED():
     actually appear on the wire.
     """
     recs = [(-342, -285410, 0), (1375820, 639833, 2)]
-    body = b"".join(a.to_bytes(4, "little", signed=True) + b.to_bytes(4, "little", signed=True) + bytes([m])
-                    for a, b, m in recs)
+    body = b"".join(
+        a.to_bytes(4, "little", signed=True) + b.to_bytes(4, "little", signed=True) + bytes([m]) for a, b, m in recs
+    )
     got = oxyii.parse_rt_ppg(len(recs).to_bytes(2, "little") + body)
     assert got == recs, "negatives must survive the round trip"
-    assert all(v > -2**31 for r in got for v in r[:2])
+    assert all(v > -(2**31) for r in got for v in r[:2])
     # the specific failure mode: an unsigned read yields 2**32 + x, which is what wrecked the statistics
     assert got[0][0] == -342 and got[0][0] != 2**32 - 342
 
@@ -475,14 +481,14 @@ def test_get_info_parses_firmware_and_serial():
     got = oxyii.parse_get_info(bytes(p))
     assert got["firmware"] == "2D010002"
     assert got["serial"] == "25B2303210"
-    assert oxyii.parse_get_info(b"\x00" * 40) is None          # too short → None, never a partial dict
+    assert oxyii.parse_get_info(b"\x00" * 40) is None  # too short → None, never a partial dict
 
 
 def test_get_info_decodes_the_rtc_from_the_hardware_bytes():
     """Bytes [24:31] measured on device 2592302100 on 2026-08-19 19:48:26, four minutes after a 0xC0
     sync — the readback matched the host to the second. Layout is set_time_frame's write payload."""
     p = bytearray(60)
-    p[24:31] = bytes([0xEA, 0x07, 0x08, 0x13, 0x13, 0x30, 0x1A])   # 2026-08-19 19:48:26
+    p[24:31] = bytes([0xEA, 0x07, 0x08, 0x13, 0x13, 0x30, 0x1A])  # 2026-08-19 19:48:26
     rtc = oxyii.parse_get_info(bytes(p))["rtc"]
     assert rtc == {"year": 2026, "month": 8, "day": 19, "hour": 19, "minute": 48, "second": 26}
 
@@ -491,10 +497,11 @@ def test_get_info_rtc_roundtrips_set_time_frame():
     """Pull must invert push: decode(set_time_frame(dt)'s fields placed at [24:31]) == dt's components.
     If either side's layout moves, this is the test that names it."""
     import datetime as dt
+
     when = dt.datetime(2031, 12, 5, 23, 59, 58)
     frame = oxyii.set_time_frame(when)
     p = bytearray(60)
-    p[24:31] = frame[7:14]               # the 7 time bytes of the 8-byte payload (skip the 0xCE tail)
+    p[24:31] = frame[7:14]  # the 7 time bytes of the 8-byte payload (skip the 0xCE tail)
     rtc = oxyii.parse_get_info(bytes(p))["rtc"]
     assert rtc == {"year": 2031, "month": 12, "day": 5, "hour": 23, "minute": 59, "second": 58}
 
@@ -502,30 +509,37 @@ def test_get_info_rtc_roundtrips_set_time_frame():
 def test_get_info_rtc_is_none_when_components_are_impossible():
     """Clock Contract §2.7: out-of-range components must be VISIBLE as absence, never rolled into a
     plausible wrong instant. An unset RTC region (all zeros: year 0, month 0) is the common case."""
-    assert oxyii.parse_get_info(bytes(60))["rtc"] is None                    # zeros: unset
+    assert oxyii.parse_get_info(bytes(60))["rtc"] is None  # zeros: unset
     p = bytearray(60)
-    p[24:31] = bytes([0xEA, 0x07, 13, 19, 19, 48, 26])                       # month 13
+    p[24:31] = bytes([0xEA, 0x07, 13, 19, 19, 48, 26])  # month 13
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
-    p[24:31] = bytes([0xEA, 0x07, 8, 19, 24, 0, 0])                          # hour 24
+    p[24:31] = bytes([0xEA, 0x07, 8, 19, 24, 0, 0])  # hour 24
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
-    p[24:31] = bytes([0xEA, 0x07, 8, 19, 19, 60, 0])                         # minute 60
+    p[24:31] = bytes([0xEA, 0x07, 8, 19, 19, 60, 0])  # minute 60
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
-    p[24:31] = bytes([0xEA, 0x07, 8, 32, 19, 48, 26])                        # day 32, alone
+    p[24:31] = bytes([0xEA, 0x07, 8, 32, 19, 48, 26])  # day 32, alone
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
-    p[24:31] = bytes([0xEA, 0x07, 8, 19, 19, 48, 60])                        # second 60, alone
+    p[24:31] = bytes([0xEA, 0x07, 8, 19, 19, 48, 60])  # second 60, alone
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
     # CALENDAR-impossible: each component is in its own range but the DATE does not exist. The original
     # per-field guard (1 <= d <= 31) let these through — and the consumer ring_clock_offset_s then throws
     # datetime()'s "day is out of range for month", silently killing the RTC-offset telemetry.
-    p[24:31] = bytes([0xEA, 0x07, 2, 31, 10, 0, 0])                           # Feb 31
+    p[24:31] = bytes([0xEA, 0x07, 2, 31, 10, 0, 0])  # Feb 31
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
-    p[24:31] = bytes([0xEA, 0x07, 4, 31, 10, 0, 0])                           # Apr 31
+    p[24:31] = bytes([0xEA, 0x07, 4, 31, 10, 0, 0])  # Apr 31
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
-    p[24:31] = bytes([0xEA, 0x07, 2, 30, 10, 0, 0])                           # Feb 30
+    p[24:31] = bytes([0xEA, 0x07, 2, 30, 10, 0, 0])  # Feb 30
     assert oxyii.parse_get_info(bytes(p))["rtc"] is None
     # and a REAL date still decodes (the guard rejects only the impossible)
     p[24:31] = bytes([0xEA, 0x07, 2, 28, 10, 0, 0])
-    assert oxyii.parse_get_info(bytes(p))["rtc"] == {"year": 2026, "month": 2, "day": 28, "hour": 10, "minute": 0, "second": 0}
+    assert oxyii.parse_get_info(bytes(p))["rtc"] == {
+        "year": 2026,
+        "month": 2,
+        "day": 28,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+    }
 
 
 def test_set_config_frame_builds_the_documented_payload():
@@ -541,6 +555,7 @@ def test_set_config_frame_refuses_off_whitelist_and_out_of_range():
     """The whitelist IS the safety gate: 0x01's opcode neighbours are factory resets, so nothing off the
     list may produce a frame, and brightness's documented 0..2 range is enforced."""
     import pytest
+
     with pytest.raises(ValueError, match="unknown SET_CONFIG field"):
         oxyii.set_config_frame("factory_reset", 1)
     with pytest.raises(ValueError, match="out of range"):
@@ -553,9 +568,9 @@ def test_set_config_frame_refuses_off_whitelist_and_out_of_range():
 
 def test_config_parses_the_settings_struct():
     p = bytearray(40)
-    p[1] = 88            # spo2_low
-    p[7] = 2             # brightness
-    p[8] = 4             # storage_interval
+    p[1] = 88  # spo2_low
+    p[7] = 2  # brightness
+    p[8] = 4  # storage_interval
     p[17], p[18] = 0x10, 0x00
     got = oxyii.parse_config(bytes(p))
     assert got["spo2_low"] == 88 and got["brightness"] == 2 and got["storage_interval"] == 4
@@ -564,7 +579,7 @@ def test_config_parses_the_settings_struct():
 
 
 def test_battery_parse():
-    assert oxyii.parse_battery(bytes([0x00, 0x5d])) == {"state": 0x00, "level": 0x5d}
+    assert oxyii.parse_battery(bytes([0x00, 0x5D])) == {"state": 0x00, "level": 0x5D}
     assert oxyii.parse_battery(b"\x00") is None
 
 
@@ -605,8 +620,8 @@ def test_oxy_trailer_start_time_is_a_FLOATING_wall_clock_epoch():
     import calendar
     import datetime
 
-    wall = datetime.datetime(2026, 7, 23, 22, 3, 22)               # the stamp a filename would carry
-    epoch = int(calendar.timegm(wall.timetuple()))                 # civil time encoded AS IF UTC
+    wall = datetime.datetime(2026, 7, 23, 22, 3, 22)  # the stamp a filename would carry
+    epoch = int(calendar.timegm(wall.timetuple()))  # civil time encoded AS IF UTC
     over = {8 + i: (epoch >> (8 * i)) & 0xFF for i in range(4)}
     tr = oxyii.parse_oxy_trailer(_fmt_a_file([(96, 50, 0)] * 300, over))
     assert tr["start_t_ms"] == epoch * 1000, "start_t_ms is seconds x 1000, unshifted"
@@ -650,9 +665,16 @@ def test_oxy_trailer_preexisting_keys_are_byte_identical():
     """Additive change: every key this parser returned before keeps its name, type and value."""
     tr = oxyii.parse_oxy_trailer(_fmt_a_file([(96, 50, 0)] * 300))
     for k, v in {
-        "finalized": True, "total_seconds": 300, "avg_spo2": 96, "min_spo2": 81,
-        "desat_ge3": 17, "desat_ge4": 12, "seconds_below_90": 48, "episodes_below_90": 3,
-        "o2_score_x10": 94, "avg_hr": 49,
+        "finalized": True,
+        "total_seconds": 300,
+        "avg_spo2": 96,
+        "min_spo2": 81,
+        "desat_ge3": 17,
+        "desat_ge4": 12,
+        "seconds_below_90": 48,
+        "episodes_below_90": 3,
+        "o2_score_x10": 94,
+        "avg_hr": 49,
     }.items():
         assert tr[k] == v, f"{k} changed"
 
@@ -670,18 +692,20 @@ def test_oxy_trailer_finalization_predicate_gates_incomplete_files():
     assert oxyii.oxy_is_finalized(unfinal) is False
     assert oxyii.parse_oxy_trailer(unfinal) is None
     assert oxyii.oxy_is_finalized(_fmt_a_file([(96, 50, 0)] * 300)) is True
-    assert oxyii.parse_oxy_trailer(b"\x00" * 20) is None       # shorter than a trailer
+    assert oxyii.parse_oxy_trailer(b"\x00" * 20) is None  # shorter than a trailer
 
 
 def test_readonly_frame_builders_emit_valid_empty_payload_reads():
     """The three query frames are empty-payload reads; assert each is a well-formed frame for its opcode
     (decode round-trips) rather than just that the function runs."""
-    for frame, op in ((oxyii.info_frame(2), oxyii.OP_GET_INFO),
-                      (oxyii.config_frame(), oxyii.OP_GET_CONFIG),
-                      (oxyii.battery_frame(), oxyii.OP_GET_BATTERY)):
+    for frame, op in (
+        (oxyii.info_frame(2), oxyii.OP_GET_INFO),
+        (oxyii.config_frame(), oxyii.OP_GET_CONFIG),
+        (oxyii.battery_frame(), oxyii.OP_GET_BATTERY),
+    ):
         got_op, payload = oxyii.decode(frame)
         assert got_op == op and payload == b""
-    assert oxyii.info_frame(2) == bytes.fromhex("a5e11e00020000bf")   # the byte-verified fixture
+    assert oxyii.info_frame(2) == bytes.fromhex("a5e11e00020000bf")  # the byte-verified fixture
 
 
 def test_pi_and_motion_cannot_be_swapped_section16():
@@ -691,8 +715,8 @@ def test_pi_and_motion_cannot_be_swapped_section16():
     samples were kept. Values chosen so a swap is UNAMBIGUOUS (PI high, motion zero — the real sleeping-
     subject shape). test_parse_live_offsets pins the offsets in general; this states the invariant."""
     p = bytearray(24)
-    p[5], p[6] = 0x03, 97                          # worn, valid SpO2
-    p[7], p[11] = 130, 0                           # PI raw 130 -> 13.0 % ; MOTION 0 (still subject)
+    p[5], p[6] = 0x03, 97  # worn, valid SpO2
+    p[7], p[11] = 130, 0  # PI raw 130 -> 13.0 % ; MOTION 0 (still subject)
     p[8:10] = (60).to_bytes(2, "little")
     v = oxyii.parse_live(bytes(p))
     assert v["pi"] == 13.0, "PI must come from payload[7]"
@@ -712,6 +736,7 @@ def _key(payload):
 
 def test_THE_AUTH_TIMESTAMP_IS_A_LITTLE_ENDIAN_UINT32():
     import struct
+
     ts = 1788096128
     assert _key(oxyii.auth_payload("1234", ts))[12:16] == struct.pack("<I", ts)
 
@@ -739,6 +764,7 @@ def test_THE_OBSERVED_BYTES_DECODE_TO_THE_CAPTURE_WINDOW():
     `2e 94 6a` as the top three bytes of an LE uint32 epoch is 2026-08-30 09:20–09:24 — when the
     capture was running. A wrong encoding does not produce the right time of day by accident."""
     import datetime as dt, struct
+
     ts = struct.unpack("<I", bytes([0x80, 0x2E, 0x94, 0x6A]))[0]
     when = dt.datetime.fromtimestamp(ts)
     assert (when.year, when.month, when.day) == (2026, 8, 30)
@@ -748,7 +774,7 @@ def test_THE_OBSERVED_BYTES_DECODE_TO_THE_CAPTURE_WINDOW():
 def test_AN_OUT_OF_RANGE_TIMESTAMP_DOES_NOT_RAISE():
     # `struct.pack("<I", ...)` raises outside uint32; the old shift form silently truncated. An auth
     # frame must not become an exception in 2106, or on a box whose clock is nonsense.
-    for ts in (2 ** 33, 0, 2 ** 32 - 1):
+    for ts in (2**33, 0, 2**32 - 1):
         assert len(oxyii.auth_payload("0000", ts)) == 16
 
 
@@ -756,6 +782,7 @@ def test_AN_OUT_OF_RANGE_TIMESTAMP_DOES_NOT_RAISE():
 # Residues `2026-09-02-oxyii-branchcode-named-firmware` + `2026-09-05-dis-firmware-compared-to-a-
 # branch-code`. One confusion, two sites: the parser named the branch "firmware", and the AES-session
 # guard compared the DIS Firmware Revision String to a BRANCH CODE.
+
 
 def _info_payload(branch: str = "2D010002", ver=(2, 0, 1, 13, 1)) -> bytes:
     """A 60-byte GET_INFO reply: hwV at [0], version bytes at [1..4] read as [4].[3].[2].[1],
@@ -766,7 +793,7 @@ def _info_payload(branch: str = "2D010002", ver=(2, 0, 1, 13, 1)) -> bytes:
 def test_parse_get_info_exposes_the_branch_and_the_real_version_separately():
     i = oxyii.parse_get_info(_info_payload())
     assert i["branch_code"] == "2D010002"
-    assert i["firmware_version"] == "1.13.1.0"      # §3a: the two COEXIST on one ring
+    assert i["firmware_version"] == "1.13.1.0"  # §3a: the two COEXIST on one ring
     assert i["hw_version"] == 2
     assert i["bootloader"] == "0.0.0.0"
 
@@ -781,6 +808,8 @@ def test_the_deprecated_firmware_key_keeps_its_branch_value():
 
 def test_a_short_payload_yields_None_not_a_half_parsed_identity():
     assert oxyii.parse_get_info(b"\x00" * 4) is None
+
+
 # ── ACK-ONLY COMMANDS: the reply is READ now ──────────────────────────────────────────────────────
 # Residue `2026-09-02-oxyii-acks-unparsed`. Five of thirteen opcodes are ack-only (0x10, 0xC0, 0xF2,
 # 0xF4, 0x01) and none had a reply parser, so a REJECTED command was indistinguishable from an
@@ -849,9 +878,11 @@ def test_an_unspecified_status_byte_is_surfaced_not_guessed():
 # declared_count` was 6 on EVERY reply and `body_len == declared_count` on every reply, which is what
 # fixes the 6-byte header and the one-byte sample. The rate was 125.058 Hz, the 125.000 ADC to 0.05 %.
 
+
 def _samples_a_payload(vals, count=None, trailer=b""):
     """A real 0x03 reply: 4 opaque header bytes, u16 LE count at [4:6], then 8-bit samples."""
     import struct
+
     n = len(vals) if count is None else count
     return b"\x00\x00\x00\x00" + struct.pack("<H", n) + bytes(vals) + trailer
 
@@ -953,6 +984,7 @@ def test_alarm_raw_is_byte_14_recorded_raw_and_ABSENT_when_the_frame_is_short():
 # entirely (six stored files: trailer epoch == the filename's local wall clock, +0.00 h on all six).
 # So these tests pin an honest value, not a behaviour change at the device.
 
+
 def test_the_box_in_winter_still_sends_the_byte_it_always_sent():
     """No regression where the constant happened to be right: New York in January is UTC-5 == 0xCE."""
     winter = dt.datetime(2026, 1, 15, 22, 0, tzinfo=zoneinfo.ZoneInfo("America/New_York"))
@@ -969,7 +1001,7 @@ def test_the_same_box_in_summer_no_longer_claims_a_winter_offset():
 
 def test_east_of_utc_is_positive_and_utc_itself_is_zero():
     east = dt.datetime(2026, 7, 15, 22, 0, tzinfo=zoneinfo.ZoneInfo("Europe/Warsaw"))
-    assert oxyii.tz_tenths(east) == 20                                   # CEST = UTC+2
+    assert oxyii.tz_tenths(east) == 20  # CEST = UTC+2
     assert oxyii.set_time_frame(east)[14] == 20
     assert oxyii.tz_tenths(dt.datetime(2026, 7, 15, 22, 0, tzinfo=dt.timezone.utc)) == 0
 
@@ -1002,8 +1034,8 @@ def test_a_naive_datetime_is_read_as_host_local_time_at_that_wall_clock():
     try:
         os.environ["TZ"] = "Europe/Warsaw"
         time.tzset()
-        assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, 12, 0)) == 20      # CEST, same process
-        assert oxyii.tz_tenths(dt.datetime(2026, 1, 1, 12, 0)) == 10      # CET,  same process
+        assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, 12, 0)) == 20  # CEST, same process
+        assert oxyii.tz_tenths(dt.datetime(2026, 1, 1, 12, 0)) == 10  # CET,  same process
     finally:
         if prev is None:
             os.environ.pop("TZ", None)

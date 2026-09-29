@@ -23,9 +23,9 @@ import subprocess
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SH = os.path.join(HERE, "tepna-btreset.sh")
 
-BT = ("e0", "01", "01")          # Wireless Controller / RF Controller / Bluetooth
-HUB = ("09", "00", "01")         # every hub on the real box
-DISK = ("08", "06", "50")        # USB mass storage — the boot disk on many builds
+BT = ("e0", "01", "01")  # Wireless Controller / RF Controller / Bluetooth
+HUB = ("09", "00", "01")  # every hub on the real box
+DISK = ("08", "06", "50")  # USB mass storage — the boot disk on many builds
 
 
 def _tree(tmp_path, devices, driver_writable=True, rebinds=True):
@@ -61,12 +61,18 @@ def _tree(tmp_path, devices, driver_writable=True, rebinds=True):
 
 
 def _run(root, drv, arg="1-2", settle="0", timeout="2"):
-    env = dict(os.environ, TEPNA_USB_SYSFS=str(root), TEPNA_USB_DRIVER=str(drv),
-               TEPNA_USB_SETTLE=settle, TEPNA_USB_TIMEOUT=timeout)
+    env = dict(
+        os.environ,
+        TEPNA_USB_SYSFS=str(root),
+        TEPNA_USB_DRIVER=str(drv),
+        TEPNA_USB_SETTLE=settle,
+        TEPNA_USB_TIMEOUT=timeout,
+    )
     return subprocess.run(["bash", SH, arg], capture_output=True, text=True, env=env, timeout=30)
 
 
 # ── the allowlist ────────────────────────────────────────────────────────────────────────────────────
+
 
 def test_a_hub_is_refused(tmp_path):
     """The realistic accident. Unbinding the hub takes every device below it — including the radio the
@@ -144,6 +150,7 @@ def test_a_dotted_hub_port_is_accepted(tmp_path):
 
 # ── the rebind itself ────────────────────────────────────────────────────────────────────────────────
 
+
 def test_the_happy_path_writes_the_port_to_both_files(tmp_path):
     root, drv = _tree(tmp_path, {"1-2": BT})
     r = _run(root, drv)
@@ -164,6 +171,7 @@ def test_running_unprivileged_says_so_instead_of_failing_obscurely(tmp_path):
     here and reported nothing above INFO."""
     if os.geteuid() == 0:
         import pytest
+
         pytest.skip("root can write a 0444 file")
     root, drv = _tree(tmp_path, {"1-2": BT}, driver_writable=False)
     r = _run(root, drv)
@@ -174,7 +182,7 @@ def test_a_device_that_never_rebinds_times_out_loudly(tmp_path):
     """Reporting success here would tell the watchdog its wedge is cleared and send it straight back to
     a dead radio — the false-'healthy' loop that cost ~110 minutes on 2026-07-23."""
     root, drv = _tree(tmp_path, {"1-2": BT})
-    (root / "1-2" / "driver").rmdir()          # never comes back
+    (root / "1-2" / "driver").rmdir()  # never comes back
     r = _run(root, drv, timeout="1")
     assert r.returncode == 5 and "did not re-bind" in r.stderr
 
@@ -187,6 +195,7 @@ def test_the_script_parses_and_is_strict_mode():
 
 
 # ── the invariant, not the behaviour ─────────────────────────────────────────────────────────────────
+
 
 def test_the_allowlist_is_a_literal_not_derived_from_the_argument():
     """Pins the invariant rather than a behaviour: if the class check ever starts interpolating the
@@ -206,7 +215,8 @@ def test_its_allowlist_is_disjoint_from_the_polar_dock_helpers():
     assert "0da4:0008" in allowed and "e0" not in allowed, allowed
     # CODE, not prose — btreset's header cites `0da4:0008` precisely to say it must never reach it, and a
     # whole-file scan would read that explanation as the violation it warns against.
-    code = "\n".join(l for l in open(SH, encoding="utf-8").read().splitlines()
-                     if l.strip() and not l.lstrip().startswith("#"))
+    code = "\n".join(
+        l for l in open(SH, encoding="utf-8").read().splitlines() if l.strip() and not l.lstrip().startswith("#")
+    )
     assert "0da4" not in code, "btreset must not know about the Polar dock"
     assert "authorized" not in code, "btreset rebinds a driver; it must not toggle `authorized`"

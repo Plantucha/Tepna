@@ -7,6 +7,7 @@ the same table), and every RPC builder including its refusals. The AES payload c
 NOT here — it is dependency-injected into as11_pull (see that module's header) so this gated
 module carries no non-stdlib crypto dependency.
 """
+
 import hashlib
 import hmac
 import json
@@ -193,10 +194,10 @@ def test_start_stream_report_interval_lower_bound_is_inclusive_at_one():
 
 def test_start_stream_report_interval_may_not_exceed_five_times_the_sample():
     with pytest.raises(ValueError, match="reportIntervalMs"):
-        L.start_stream(["PatientFlow"], 40, 201)   # 5× is 200
+        L.start_stream(["PatientFlow"], 40, 201)  # 5× is 200
     assert json.loads(L.start_stream(["PatientFlow"], 40, 200))["params"]["reportIntervalMs"] == 200
     with pytest.raises(ValueError, match="reportIntervalMs"):
-        L.start_stream(["PatientFlow"], 40, 0)     # must be ≥ 1
+        L.start_stream(["PatientFlow"], 40, 0)  # must be ≥ 1
 
 
 # ── FIG CRC verification (2026-09-19) ─────────────────────────────────────────

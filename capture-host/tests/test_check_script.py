@@ -38,8 +38,9 @@ def _write_exec(path, body):
     os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def _sandbox(tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0, mypy_found=None,
-             timeout_plugin=True, runtime_deps=True):
+def _sandbox(
+    tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0, mypy_found=None, timeout_plugin=True, runtime_deps=True
+):
     """A PATH where each gate is a stub that records that it ran and exits as scripted."""
     binn = tmp_path / "bin"
     binn.mkdir()
@@ -81,8 +82,8 @@ exit {shellcheck_rc}
     env = dict(os.environ)
     env["PATH"] = f"{binn}{os.pathsep}{env['PATH']}"
     env["PYTHON"] = str(binn / "fakepy")
-    env["CHECK_VERDICT_OUT"] = str(tmp_path / "check-verdict.json")   # never the real tree's file
-    env["MYPY_OUT"] = str(tmp_path / "mypy-latest.txt")              # per sandbox: eight boxes, eight files
+    env["CHECK_VERDICT_OUT"] = str(tmp_path / "check-verdict.json")  # never the real tree's file
+    env["MYPY_OUT"] = str(tmp_path / "mypy-latest.txt")  # per sandbox: eight boxes, eight files
     return env, log
 
 
@@ -180,6 +181,7 @@ def test_it_actually_names_all_three_gates(monkeypatch):
 
 # ── the per-test bound: a hang must have a verdict, and a missing bound must have a voice ────────
 
+
 def test_the_per_test_bound_is_passed_to_pytest(tmp_path):
     """The bound itself. Without it a hanging test has no upper limit — measured 2026-09-24 as a
     four-hour 99 %-CPU run for an already-merged PR, with no exit code and no failing test."""
@@ -210,7 +212,7 @@ def test_the_bound_agrees_with_the_one_CI_runs():
     workflow with a test asserting they agree. A bound that holds locally and not in CI is half-wired,
     and the half that is missing is the one nobody watches."""
     wf = pathlib.Path(HERE).parent / ".github" / "workflows" / "capture-host-ci.yml"
-    if not wf.exists():                                    # pragma: no cover - lane shipped alone
+    if not wf.exists():  # pragma: no cover - lane shipped alone
         pytest.skip("workflow not present in this checkout")
     src = open(CHECK, encoding="utf-8").read()
     local = re.search(r'PYTEST_TIMEOUT_S="\$\{PYTEST_TIMEOUT_S:-(\d+)\}"', src)
@@ -350,7 +352,7 @@ def test_a_count_WITHOUT_the_runtime_requirements_is_NOT_COMPARABLE_in_every_dir
         out = _mypy_run(d, base + delta, runtime_deps=False)
         assert _state_of(out, "mypy") == "NOT_COMPARABLE", out[-600:]
         assert "NOT COMPARABLE" in out and "import bleak" in out and "requirements.txt" in out
-        assert "RISEN" not in out and "BELOW" not in out          # never the direction, never the alarm
+        assert "RISEN" not in out and "BELOW" not in out  # never the direction, never the alarm
     # the positive control: the SAME below-baseline count with the requirements present still banks
     deps = tmp_path / "deps"
     deps.mkdir()
@@ -485,10 +487,18 @@ def test_a_green_run_writes_the_object_over_the_four_blocking_children_UNKNOWN_u
     assert p.returncode == 0, "the shell's verdict is unchanged — §3d: the exit code STAYS"
     v = _verdict(tmp_path)
     assert v["schema"] == "tepna.verdict/1" and v["gate"] == "capture-host-check"
-    assert v["status"] == "UNKNOWN" and v["result"]["statuses"]["unwired"] == "UNKNOWN"   # ours, unadopted: by provenance
-    assert {k: s for k, s in v["result"]["statuses"].items() if k != "unwired"} == {"ruff": "PASS", "shellcheck": "PASS", "pytest": "PASS"}
+    assert (
+        v["status"] == "UNKNOWN" and v["result"]["statuses"]["unwired"] == "UNKNOWN"
+    )  # ours, unadopted: by provenance
+    assert {k: s for k, s in v["result"]["statuses"].items() if k != "unwired"} == {
+        "ruff": "PASS",
+        "shellcheck": "PASS",
+        "pytest": "PASS",
+    }
     assert v["population"] == {"checked": 4, "eligible": 4, "excluded": 0}
-    assert v["result"]["advisory"]["mypy"] == "NO_COUNT"   # the fake mypy prints no summary line: an abort, carried as the token
+    assert (
+        v["result"]["advisory"]["mypy"] == "NO_COUNT"
+    )  # the fake mypy prints no summary line: an abort, carried as the token
     assert "verdict: UNKNOWN" in p.stdout
 
 
@@ -512,6 +522,7 @@ def test_a_MISSING_TOOL_is_NOT_RUN_for_that_child_and_leaves_the_run_UNKNOWN_nev
 
 def test_the_object_is_validated_by_verdict_js_the_contract_s_own_validator(tmp_path):
     from test_verdict import js_validate
+
     _run(tmp_path, ruff_rc=1)
     r = js_validate(_verdict(tmp_path))
     assert r["ok"], r["errors"]

@@ -292,7 +292,7 @@ def closed_at_ms(night_dir: str) -> int | None:
         try:
             mtimes.append(os.path.getmtime(path))
         except OSError:
-            continue                    # vanished under us — not a close time, and not a reason to raise
+            continue  # vanished under us — not a close time, and not a reason to raise
     if not mtimes:
         return None
     local = _dt.datetime.fromtimestamp(max(mtimes))

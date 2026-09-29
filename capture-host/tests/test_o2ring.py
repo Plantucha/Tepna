@@ -11,6 +11,7 @@ Two fakes:
              request payload to be AES/ECB/PKCS5 and encrypts every reply. The regression that
              matters is DIFFERENTIAL: the same recording pulled from both rings must be identical.
 """
+
 import hashlib
 import os
 import re
@@ -63,7 +64,7 @@ def _frame_reports(op, payload, flag=1):
     content = body + bytes([o2ring.crc8_smbus(body)])
     reports = []
     for i in range(0, len(content), 63):
-        chunk = content[i:i + 63]
+        chunk = content[i : i + 63]
         reports.append((bytes([len(chunk)]) + chunk).ljust(64, b"\x00"))
     return reports
 
@@ -71,8 +72,7 @@ def _frame_reports(op, payload, flag=1):
 class FakeRing:
     """Stateful O2Ring-S simulator. See module docstring for provenance of each behaviour."""
 
-    def __init__(self, sessions=None, encrypted=False, key=None, info=None,
-                 hello_after_auth=True, chunk=512):
+    def __init__(self, sessions=None, encrypted=False, key=None, info=None, hello_after_auth=True, chunk=512):
         self.sessions = dict(sessions or {})
         self.encrypted = encrypted
         self.key = key or bytes(range(0x10, 0x20))
@@ -82,16 +82,16 @@ class FakeRing:
         self.queue = []
         self.authed = False
         self.keyed = False
-        self.log = []                 # (op, plaintext_payload) of every well-formed request
-        self.auth_after_key = 0       # AUTH frames received after the encrypted session was in use
-        self.bad_requests = 0         # frames that did not decrypt / were not encrypted when required
+        self.log = []  # (op, plaintext_payload) of every well-formed request
+        self.auth_after_key = 0  # AUTH frames received after the encrypted session was in use
+        self.bad_requests = 0  # frames that did not decrypt / were not encrypted when required
         self.enc_requests = 0
 
     # -- transport side -----------------------------------------------------------------
     def write(self, data):
-        rep = bytes(data)[1:]         # strip the 0x00 report id
+        rep = bytes(data)[1:]  # strip the 0x00 report id
         n = rep[0]
-        body = rep[1:n]               # drop crc
+        body = rep[1:n]  # drop crc
         if len(body) < 7 or body[0] not in (0xA5, 0xAA):
             return len(data)
         if o2ring.crc8_smbus(body) != rep[n]:
@@ -99,7 +99,7 @@ class FakeRing:
             return len(data)
         op = body[1]
         plen = body[5] | (body[6] << 8)
-        payload = body[7:7 + plen]
+        payload = body[7 : 7 + plen]
         self._handle(body[0], op, payload)
         return len(data)
 
@@ -132,7 +132,7 @@ class FakeRing:
                 # SDK: r = content XOR md5 cyclic; r[0]=type, r[1]=len, key=r[4:4+len]
                 blob = bytes([0x01, len(self.key), 0, 0]) + self.key
                 enc = bytes(b ^ _LEPU[i % 16] for i, b in enumerate(blob))
-                self.queue += _frame_reports(o2ring.OP_AUTH, enc, flag=1)   # key blob is NOT AES
+                self.queue += _frame_reports(o2ring.OP_AUTH, enc, flag=1)  # key blob is NOT AES
                 self.keyed = True
             return
         if self.keyed:
@@ -145,7 +145,7 @@ class FakeRing:
                 # A plaintext frame AFTER the client has spoken AES is a client bug.
                 if self.enc_requests:
                     self.bad_requests += 1
-                return                # a new ring parsing garbage: no sane reply
+                return  # a new ring parsing garbage: no sane reply
         self.log.append((op, payload))
         if not self.authed:
             return
@@ -159,7 +159,7 @@ class FakeRing:
             self._reply(op, bytes([len(self.sessions)]) + slots)
         elif op == o2ring.OP_FILE_START:
             if len(payload) != 24:
-                return                # malformed (e.g. probe sweep): no answer
+                return  # malformed (e.g. probe sweep): no answer
             sid = payload[:14].split(b"\x00")[0].decode()
             self.cur = self.sessions.get(sid)
             self._reply(op, struct.pack("<I", len(self.cur)) if self.cur is not None else b"")
@@ -167,11 +167,11 @@ class FakeRing:
             if len(payload) != 4 or getattr(self, "cur", None) is None:
                 return
             (off,) = struct.unpack("<I", payload)
-            self._reply(op, self.cur[off:off + self.chunk])
+            self._reply(op, self.cur[off : off + self.chunk])
         elif op == o2ring.OP_FILE_END:
             self._reply(op)
         elif magic == 0xA5:
-            self._reply(op, b"\x11\x22")   # generic probe answer
+            self._reply(op, b"\x11\x22")  # generic probe answer
 
 
 def _synthetic_dat(n_samples=300):
@@ -184,6 +184,7 @@ def _synthetic_dat(n_samples=300):
 
 
 # ------------------------------------------------------------------ frames / auth -------
+
 
 def test_known_command_frames():
     assert o2ring.encode(o2ring.OP_HELLO)[:9].hex() == "08a5e01f0000000022"
@@ -235,12 +236,15 @@ def test_auth_payload_short_serial_padded():
 
 # ------------------------------------------------------------------ AES ----------------
 
-@pytest.mark.parametrize("key_hex,ct_hex", [
-    ("000102030405060708090a0b0c0d0e0f", "69c4e0d86a7b0430d8cdb78070b4c55a"),                  # FIPS-197 C.1
-    ("000102030405060708090a0b0c0d0e0f1011121314151617", "dda97ca4864cdfe06eaf70a0ec0d7191"),  # C.2
-    ("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
-     "8ea2b7ca516745bfeafc49904b496089"),                                                     # C.3
-])
+
+@pytest.mark.parametrize(
+    "key_hex,ct_hex",
+    [
+        ("000102030405060708090a0b0c0d0e0f", "69c4e0d86a7b0430d8cdb78070b4c55a"),  # FIPS-197 C.1
+        ("000102030405060708090a0b0c0d0e0f1011121314151617", "dda97ca4864cdfe06eaf70a0ec0d7191"),  # C.2
+        ("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "8ea2b7ca516745bfeafc49904b496089"),  # C.3
+    ],
+)
 def test_aes_fips197_vectors(key_hex, ct_hex):
     key, pt = bytes.fromhex(key_hex), bytes.fromhex("00112233445566778899aabbccddeeff")
     assert o2ring.aes_encrypt_block(key, pt).hex() == ct_hex
@@ -255,9 +259,9 @@ def test_aes_fips197_appendix_b():
 
 def test_aes_ecb_pkcs5_roundtrip_and_shapes():
     key = bytes(range(16))
-    assert len(o2ring.aes_ecb_encrypt(key, b"")) == 16            # SDK: empty payload -> one block
+    assert len(o2ring.aes_ecb_encrypt(key, b"")) == 16  # SDK: empty payload -> one block
     assert len(o2ring.aes_ecb_encrypt(key, b"x" * 16)) == 32
-    assert len(o2ring.aes_ecb_encrypt(key, b"x" * 512)) == 528    # FILE_DATA chunk
+    assert len(o2ring.aes_ecb_encrypt(key, b"x" * 512)) == 528  # FILE_DATA chunk
     for n in (0, 1, 15, 16, 17, 512):
         data = bytes((i * 7) & 0xFF for i in range(n))
         assert o2ring.aes_ecb_decrypt(key, o2ring.aes_ecb_encrypt(key, data)) == data
@@ -274,7 +278,7 @@ def test_aes_ecb_decrypt_rejects_garbage():
     with pytest.raises(ValueError, match="not a multiple of 16"):
         o2ring.aes_ecb_decrypt(key, b"\x00" * 15)
     with pytest.raises(ValueError, match="bad PKCS5 padding"):
-        o2ring.aes_ecb_decrypt(key, b"\x00" * 16)          # decrypts to junk -> bad padding
+        o2ring.aes_ecb_decrypt(key, b"\x00" * 16)  # decrypts to junk -> bad padding
     with pytest.raises(ValueError, match="must be 16, 24 or 32 bytes"):
         o2ring._expand_key(b"\x00" * 15)
 
@@ -290,7 +294,7 @@ def test_aes_ecb_decrypt_rejects_garbage():
 # everywhere instead of being skipped where `cryptography` is absent, which is how it behaved
 # before), and it is the reference the library itself is written against.
 _FIPS197_PLAINTEXT = bytes.fromhex("00112233445566778899aabbccddeeff")
-_FIPS197_ECB = {                       # key = bytes(range(klen))
+_FIPS197_ECB = {  # key = bytes(range(klen))
     16: "69c4e0d86a7b0430d8cdb78070b4c55a",
     24: "dda97ca4864cdfe06eaf70a0ec0d7191",
     32: "8ea2b7ca516745bfeafc49904b496089",
@@ -329,6 +333,7 @@ def test_aes_round_trips_across_sizes_and_key_lengths():
 
 # ------------------------------------------------------------------ handshake ---------
 
+
 def test_parse_key_reply_sdk_layout():
     key = bytes(range(0x30, 0x40))
     blob = bytes([1, 16, 0, 0]) + key
@@ -339,20 +344,20 @@ def test_parse_key_reply_sdk_layout():
 
 def test_parse_key_reply_rejects_short_or_odd_len():
     assert o2ring.parse_key_reply(b"\x00" * 19) is None
-    blob = bytes([1, 7, 0, 0]) + bytes(16)                    # 7 is not an AES key length
+    blob = bytes([1, 7, 0, 0]) + bytes(16)  # 7 is not an AES key length
     assert o2ring.parse_key_reply(bytes(b ^ _LEPU[i % 16] for i, b in enumerate(blob))) is None
-    blob = bytes([1, 32, 0, 0]) + bytes(16)                   # claims 32 B but only 16 present
+    blob = bytes([1, 32, 0, 0]) + bytes(16)  # claims 32 B but only 16 present
     assert o2ring.parse_key_reply(bytes(b ^ _LEPU[i % 16] for i, b in enumerate(blob))) is None
 
 
 def test_cipher_wrap_unwrap_rules(capsys):
     c = o2ring.Cipher()
-    assert c.wrap(o2ring.OP_GET_INFO, b"ab") == b"ab"             # no key: plaintext
+    assert c.wrap(o2ring.OP_GET_INFO, b"ab") == b"ab"  # no key: plaintext
     c.key = bytes(16)
-    assert c.wrap(o2ring.OP_AUTH, b"ab") == b"ab"                  # AUTH always plain
+    assert c.wrap(o2ring.OP_AUTH, b"ab") == b"ab"  # AUTH always plain
     assert c.unwrap(o2ring.OP_AUTH, b"ab") == b"ab"
     assert len(c.wrap(o2ring.OP_GET_INFO, b"")) == 16
-    assert c.unwrap(o2ring.OP_HELLO, b"") == b""                   # not AES-shaped: pass-through
+    assert c.unwrap(o2ring.OP_HELLO, b"") == b""  # not AES-shaped: pass-through
     assert c.unwrap(o2ring.OP_HELLO, b"\x01\x02\x03") == b"\x01\x02\x03"
     junk = b"\x00" * 16
     assert c.unwrap(o2ring.OP_GET_INFO, junk) == junk and c.errors == 1
@@ -374,9 +379,9 @@ def test_authenticate_new_ring_installs_key_then_hello(capsys):
     rep = o2ring.authenticate(ring)
     assert rep["op"] == o2ring.OP_HELLO
     assert o2ring.SESSION.key == ring.key
-    assert ring.auth_after_key == 0            # AUTH not re-sent once keyed (would re-key)
+    assert ring.auth_after_key == 0  # AUTH not re-sent once keyed (would re-key)
     assert ring.bad_requests == 0
-    assert ring.enc_requests >= 1              # the HELLO that got acked went out encrypted
+    assert ring.enc_requests >= 1  # the HELLO that got acked went out encrypted
     out = capsys.readouterr().out
     assert "128-bit AES session key installed" in out and "[AES session]" in out
 
@@ -407,12 +412,13 @@ def test_send_cmd_encrypts_when_keyed():
     o2ring.SESSION.key = bytes(16)
     o2ring.send_cmd(dev, o2ring.OP_GET_INFO)
     frame = dev.written[-1][1:]
-    assert frame[0] == 8 + 16 and frame[6] == 16                 # 16-byte ciphertext for empty payload
+    assert frame[0] == 8 + 16 and frame[6] == 16  # 16-byte ciphertext for empty payload
     o2ring.send_cmd(dev, o2ring.OP_AUTH, b"\x00" * 16)
-    assert dev.written[-1][1:][0] == 8 + 16                        # AUTH untouched
+    assert dev.written[-1][1:][0] == 8 + 16  # AUTH untouched
 
 
 # ------------------------------------------------------------------ transport --------
+
 
 def test_open_device_uses_fake_hid(monkeypatch):
     class FakeHidDev:
@@ -473,6 +479,7 @@ def test_read_reply_decrypts_when_keyed():
 
 # ------------------------------------------------------------------ file ops ---------
 
+
 def test_file_list_parses_slots():
     slot = b"20260830132000" + b"\x00\x00"
     dev = FakeDev([reply(o2ring.OP_FILE_LIST, bytes([1]) + slot)])
@@ -495,14 +502,13 @@ class RingNeedingAReset:
         self.ops = []
 
     def write(self, data):
-        frame = bytes(data)[1:]              # send() prepends the 0x00 report id
+        frame = bytes(data)[1:]  # send() prepends the 0x00 report id
         op = frame[2] if len(frame) > 2 else None
         self.ops.append(op)
         if op == o2ring.OP_FILE_END:
             self.reset_seen = True
         elif op == o2ring.OP_FILE_LIST and self.reset_seen:
-            self.pending = [bytes(r) for r in
-                            _frame_reports(o2ring.OP_FILE_LIST, bytes([1]) + self.slot)]
+            self.pending = [bytes(r) for r in _frame_reports(o2ring.OP_FILE_LIST, bytes([1]) + self.slot)]
         return len(data)
 
     def read(self, size, timeout_ms=0):
@@ -546,7 +552,7 @@ def test_an_actually_empty_ring_is_still_empty():
 def test_file_start_and_data_and_end():
     dev = FakeDev([reply(o2ring.OP_FILE_START, struct.pack("<I", 3))])
     assert o2ring.file_start(dev, "20260830132000") is not None
-    assert dev.written[0][1:][0] == 8 + 24                          # 24-byte session-id payload
+    assert dev.written[0][1:][0] == 8 + 24  # 24-byte session-id payload
     dev = FakeDev([reply(o2ring.OP_FILE_DATA, b"\x01\x02\x03")])
     assert o2ring.file_data(dev, 0)["payload"] == b"\x01\x02\x03"
     dev = FakeDev([reply(o2ring.OP_FILE_END)])
@@ -554,12 +560,14 @@ def test_file_start_and_data_and_end():
 
 
 def test_pull_session_reassembles(capsys):
-    dev = FakeDev([
-        reply(o2ring.OP_FILE_START, struct.pack("<I", 6)),
-        reply(o2ring.OP_FILE_DATA, b"\x01\x02\x03"),
-        reply(o2ring.OP_FILE_DATA, b"\x04\x05\x06"),
-        reply(o2ring.OP_FILE_END),
-    ])
+    dev = FakeDev(
+        [
+            reply(o2ring.OP_FILE_START, struct.pack("<I", 6)),
+            reply(o2ring.OP_FILE_DATA, b"\x01\x02\x03"),
+            reply(o2ring.OP_FILE_DATA, b"\x04\x05\x06"),
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
     assert o2ring.pull_session(dev, "sid") == b"\x01\x02\x03\x04\x05\x06"
 
 
@@ -569,22 +577,26 @@ def test_pull_session_raises_without_start():
 
 
 def test_pull_session_no_size_breaks_on_empty():
-    dev = FakeDev([
-        reply(o2ring.OP_FILE_START, b"\x00"),
-        reply(o2ring.OP_FILE_DATA, b""),
-        reply(o2ring.OP_FILE_END),
-    ])
+    dev = FakeDev(
+        [
+            reply(o2ring.OP_FILE_START, b"\x00"),
+            reply(o2ring.OP_FILE_DATA, b""),
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
     assert o2ring.pull_session(dev, "sid") == b""
 
 
 def test_pull_session_detects_complete_trailer(capsys):
     tail = bytearray(48)
     tail[4:8] = o2ring.OXY_TRAILER_MAGIC
-    dev = FakeDev([
-        reply(o2ring.OP_FILE_START, struct.pack("<I", 48)),
-        reply(o2ring.OP_FILE_DATA, bytes(tail)),
-        reply(o2ring.OP_FILE_END),
-    ])
+    dev = FakeDev(
+        [
+            reply(o2ring.OP_FILE_START, struct.pack("<I", 48)),
+            reply(o2ring.OP_FILE_DATA, bytes(tail)),
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
     o2ring.pull_session(dev, "sid")
     assert "complete-trailer=True" in capsys.readouterr().out
 
@@ -601,7 +613,7 @@ def _full_pull(ring):
 
 
 def test_differential_pull_plaintext_vs_encrypted_ring(capsys):
-    dat = _synthetic_dat(300)                       # 10 + 903 + 48 = 961 B -> two FILE_DATA chunks
+    dat = _synthetic_dat(300)  # 10 + 903 + 48 = 961 B -> two FILE_DATA chunks
     old = FakeRing({SID: dat})
     new = FakeRing({SID: dat}, encrypted=True, key=os.urandom(16))
     sids_old, data_old = _full_pull(old)
@@ -614,11 +626,14 @@ def test_differential_pull_plaintext_vs_encrypted_ring(capsys):
     assert o2ring.SESSION.errors == 0
     # ... and it saw the same plaintext requests the old ring did (minus the readiness chatter)
     chatter = {o2ring.OP_HELLO, 0x15}
-    assert [e for e in new.log if e[0] not in chatter] == \
-           [e for e in old.log if e[0] not in chatter]
-    assert [e[0] for e in new.log if e[0] not in chatter] == \
-           [o2ring.OP_FILE_LIST, o2ring.OP_FILE_START, o2ring.OP_FILE_DATA, o2ring.OP_FILE_DATA,
-            o2ring.OP_FILE_END]
+    assert [e for e in new.log if e[0] not in chatter] == [e for e in old.log if e[0] not in chatter]
+    assert [e[0] for e in new.log if e[0] not in chatter] == [
+        o2ring.OP_FILE_LIST,
+        o2ring.OP_FILE_START,
+        o2ring.OP_FILE_DATA,
+        o2ring.OP_FILE_DATA,
+        o2ring.OP_FILE_END,
+    ]
 
 
 def test_differential_get_info(capsys):
@@ -635,21 +650,23 @@ def test_differential_get_info(capsys):
 def test_encrypted_ring_breaks_a_plaintext_only_client():
     """The bug: a client that ignores the key reply parses ciphertext (SomnoTrace #180 symptom)."""
     ring = FakeRing(encrypted=True)
-    o2ring.send(ring, o2ring.build_auth())          # raw AUTH, reply ignored
-    o2ring.SESSION.reset()                          # client never installs the key
-    ring.queue.clear()                              # (drop the key reply, as the buggy client does)
-    o2ring.send(ring, o2ring.encode(o2ring.OP_GET_INFO))   # plaintext request ...
-    assert ring.queue == [] and ring.log == []      # ... which the ring cannot decrypt: silence
+    o2ring.send(ring, o2ring.build_auth())  # raw AUTH, reply ignored
+    o2ring.SESSION.reset()  # client never installs the key
+    ring.queue.clear()  # (drop the key reply, as the buggy client does)
+    o2ring.send(ring, o2ring.encode(o2ring.OP_GET_INFO))  # plaintext request ...
+    assert ring.queue == [] and ring.log == []  # ... which the ring cannot decrypt: silence
     # and whatever the ring does answer is ciphertext to a key-less client:
     o2ring.send(ring, o2ring.encode(o2ring.OP_GET_INFO, o2ring.aes_ecb_encrypt(ring.key, b"")))
     msg = o2ring.read_reply(ring, want_op=o2ring.OP_GET_INFO)
-    assert msg["payload"] != ring.info and len(msg["payload"]) == 32   # 31 B info -> 2 blocks
+    assert msg["payload"] != ring.info and len(msg["payload"]) == 32  # 31 B info -> 2 blocks
 
 
 # ------------------------------------------------------------------- _emit_csv --------
 
+
 def test_emit_csv_with_and_without_trailer(tmp_path, capsys):
     import parse_dat
+
     data, _, _ = parse_dat._build_synthetic_dat()
     p = tmp_path / "20260830132000.dat"
     p.write_bytes(data)
@@ -669,6 +686,7 @@ def test_emit_csv_import_error(monkeypatch, tmp_path, capsys):
 
 
 # ------------------------------------------------------------------- main CLI ---------
+
 
 def _main(monkeypatch, argv, dev):
     monkeypatch.setattr(o2ring, "open_device", lambda: dev)
@@ -714,8 +732,7 @@ def test_main_list(monkeypatch, capsys, encrypted):
 def test_main_pull(monkeypatch, tmp_path, capsys, encrypted):
     out = tmp_path / "rec.dat"
     dat = _synthetic_dat(20)
-    _main(monkeypatch, ["o2ring.py", "pull", SID, "-o", str(out)],
-          FakeRing({SID: dat}, encrypted=encrypted))
+    _main(monkeypatch, ["o2ring.py", "pull", SID, "-o", str(out)], FakeRing({SID: dat}, encrypted=encrypted))
     assert out.read_bytes() == dat
     assert "saved" in capsys.readouterr().out
 
@@ -723,12 +740,12 @@ def test_main_pull(monkeypatch, tmp_path, capsys, encrypted):
 @pytest.mark.parametrize("encrypted", [False, True])
 def test_main_pull_all(monkeypatch, tmp_path, encrypted):
     dat = _synthetic_dat(20)
-    _main(monkeypatch, ["o2ring.py", "pull-all", "-d", str(tmp_path)],
-          FakeRing({SID: dat}, encrypted=encrypted))
+    _main(monkeypatch, ["o2ring.py", "pull-all", "-d", str(tmp_path)], FakeRing({SID: dat}, encrypted=encrypted))
     assert (tmp_path / f"{SID}.dat").read_bytes() == dat
 
 
 # ------------------------------------------------------------------- probe ------------
+
 
 @pytest.mark.parametrize("encrypted", [False, True])
 def test_probe_safe_reports_replies(capsys, encrypted):
@@ -736,13 +753,13 @@ def test_probe_safe_reports_replies(capsys, encrypted):
     out = capsys.readouterr().out
     assert "safe read-only probe" in out
     assert "GET_INFO" in out and "GET_BATTERY" in out
-    assert "payload=11 22" in out                      # generic answers decrypted fine
+    assert "payload=11 22" in out  # generic answers decrypted fine
     assert "did not decrypt" not in out
 
 
 def test_probe_safe_handles_no_reply(monkeypatch, capsys):
-    monkeypatch.setattr(o2ring, "authenticate", lambda dev: None)   # skip the 90 s hello loop
-    o2ring.cmd_probe(FakeDev([]))                     # nothing answers
+    monkeypatch.setattr(o2ring, "authenticate", lambda dev: None)  # skip the 90 s hello loop
+    o2ring.cmd_probe(FakeDev([]))  # nothing answers
     assert "(no reply)" in capsys.readouterr().out
 
 
@@ -763,10 +780,10 @@ def test_main_probe(monkeypatch, capsys):
 
 def test_replay_refuses_destructive(monkeypatch, capsys):
     dev = FakeDev([])
-    _main(monkeypatch, ["o2ring.py", "replay", "18a5e3"], dev)   # op byte = 0xe3
+    _main(monkeypatch, ["o2ring.py", "replay", "18a5e3"], dev)  # op byte = 0xe3
     out = capsys.readouterr().out
     assert "REFUSED" in out
-    assert dev.written == []                                     # nothing sent
+    assert dev.written == []  # nothing sent
 
 
 def test_parse_key_reply_rejects_an_unknown_type_byte():
@@ -779,6 +796,7 @@ def test_parse_key_reply_rejects_an_unknown_type_byte():
     plain = bytes([0x02, 16, 0, 0]) + key
     blob = bytes(b ^ o2ring._LEPU[i % 16] for i, b in enumerate(plain))
     assert o2ring.parse_key_reply(blob) is None
+
 
 # ── the paths a real ring reaches only when something goes wrong ─────────────────────────
 #
@@ -858,8 +876,7 @@ def test_auth_returns_the_key_reply_when_the_hello_never_comes(monkeypatch, caps
     blob = bytes(b ^ o2ring._LEPU[i % 16] for i, b in enumerate(plain))
     dev = _TickingDev(clock, 3.0, [o2ring.encode(o2ring.OP_AUTH, blob, flag=1)])
     try:
-        got = o2ring.authenticate(dev, timeout_s=30.0, verbose=False,
-                                  keyed_grace_s=1.0)
+        got = o2ring.authenticate(dev, timeout_s=30.0, verbose=False, keyed_grace_s=1.0)
         assert got is not None and got["op"] == o2ring.OP_AUTH
         assert o2ring.SESSION.key == key
         assert capsys.readouterr().out == ""
@@ -873,11 +890,11 @@ def test_pull_stops_at_max_bytes_when_the_ring_reports_no_size():
     A reply too short to carry a u32 leaves the size unknown, and an unbounded read against an
     unknown size is how a pull runs away. The cap is the only thing ending the loop here.
     """
-    short_start = reply(o2ring.OP_FILE_START, b"\x01\x02")      # < 4 bytes -> size is None
-    chunk = reply(o2ring.OP_FILE_DATA, b"\xAA" * 8)
+    short_start = reply(o2ring.OP_FILE_START, b"\x01\x02")  # < 4 bytes -> size is None
+    chunk = reply(o2ring.OP_FILE_DATA, b"\xaa" * 8)
     dev = FakeDev([short_start, chunk, reply(o2ring.OP_FILE_END)])
     data = o2ring.pull_session(dev, SID, max_bytes=4)
-    assert data == b"\xAA" * 8, "the chunk that crossed the cap is kept whole"
+    assert data == b"\xaa" * 8, "the chunk that crossed the cap is kept whole"
 
 
 def test_pull_all_over_a_ring_with_no_recordings(monkeypatch, tmp_path, capsys):
@@ -889,13 +906,13 @@ def test_pull_all_over_a_ring_with_no_recordings(monkeypatch, tmp_path, capsys):
 
 def test_selftest_subcommand_exits_with_its_own_status(monkeypatch, capsys):
     """`o2ring.py selftest` is the offline proof-of-codec path and must not touch a device."""
-    monkeypatch.setattr(o2ring, "open_device",
-                        lambda: pytest.fail("selftest opened a device"))
+    monkeypatch.setattr(o2ring, "open_device", lambda: pytest.fail("selftest opened a device"))
     monkeypatch.setattr("sys.argv", ["o2ring.py", "selftest"])
     with pytest.raises(SystemExit) as exc:
         o2ring.main()
     assert exc.value.code == 0, "the shipped self-test does not pass"
     assert "OK" in capsys.readouterr().out
+
 
 def test_auth_ignores_a_frame_that_is_neither_auth_nor_hello(monkeypatch, capsys):
     """The ring interleaves status frames; the handshake must step over them, not stop.
@@ -911,6 +928,7 @@ def test_auth_ignores_a_frame_that_is_neither_auth_nor_hello(monkeypatch, capsys
     dev = _TickingDev(clock, 0.1, [other, hello])
     got = o2ring.authenticate(dev, timeout_s=8.0, verbose=False)
     assert got is not None and got["op"] == o2ring.OP_HELLO, "the hello after a status frame was lost"
+
 
 def test_every_registered_subcommand_is_dispatched():
     """The invariant that the `# pragma: no branch` on the pull-all guard rests on.
@@ -937,4 +955,5 @@ def test_every_registered_subcommand_is_dispatched():
     assert registered == dispatched, (
         f"registered but never dispatched (the subcommand would do nothing): "
         f"{sorted(registered - dispatched)}; "
-        f"dispatched but never registered (dead branch): {sorted(dispatched - registered)}")
+        f"dispatched but never registered (dead branch): {sorted(dispatched - registered)}"
+    )

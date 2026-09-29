@@ -50,7 +50,7 @@ class LocalStampResolver:
     def __init__(self) -> None:
         self.prev_host_ms: float | None = None
         self.prev_offset_ms: float | None = None
-        self.ambiguous = 0             # stamps that had two candidate instants
+        self.ambiguous = 0  # stamps that had two candidate instants
         self.ambiguous_unresolved = 0  # ...of which nothing could decide, so fold=0 was taken
 
     def resolve_ms(self, dt: datetime, dev_ms: float | None = None) -> float:

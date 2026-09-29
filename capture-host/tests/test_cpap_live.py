@@ -13,6 +13,7 @@ MIN = 60_000
 
 # ── freshness: the age is a fact, not an assumption ─────────────────────────────────────────────
 
+
 def test_the_stale_threshold_is_DERIVED_from_the_detector_poll_interval():
     """Not a felt number: three consecutive missed polls, so "unknown" means "older than the
     mechanism's own promise". Move the poll interval and the threshold moves with it."""
@@ -28,7 +29,7 @@ def test_age_is_computed_from_ONE_clock_domain_and_never_reads_from_the_future()
     """Both operands are the box's own clock; a browser aging a foreign stamp subtracts two clocks.
     A clock step between publish and serve yields 0, not a negative duration."""
     assert L.detector_age_s(100_000, 40_000) == 60.0
-    assert L.detector_age_s(100_000, 140_000) == 0.0     # stamp from the "future" -> 0, not -40
+    assert L.detector_age_s(100_000, 140_000) == 0.0  # stamp from the "future" -> 0, not -40
     assert L.detector_age_s(100_000, None) is None
     assert L.detector_age_s(None, 40_000) is None
     assert L.detector_age_s(100_000, "nope") is None
@@ -74,12 +75,13 @@ def test_a_missing_or_malformed_cpap_block_is_unknown_not_a_crash():
 
 # ── the therapy-end trigger ─────────────────────────────────────────────────────────────────────
 
+
 def test_None_IS_NOT_AN_END_and_cannot_start_the_clock():
     """🔴 THE DEFECT THIS GUARDS. The detector defers for the whole of a live stream, so `therapy` is
     None throughout. If None started the end clock, a harvest would fire in the MIDDLE of therapy —
     a 2.4 GHz transfer beside a sleeping body, the exact contention the daily window exists to avoid."""
-    w = L.observe(L.EndWatch(), True, 0)              # in therapy
-    for t in range(1, 40):                            # ...then 39 unreachable polls
+    w = L.observe(L.EndWatch(), True, 0)  # in therapy
+    for t in range(1, 40):  # ...then 39 unreachable polls
         w = L.observe(w, None, t * MIN)
     assert w.ended_at_ms is None, "ignorance started the end clock"
     assert L.harvest_due(w, 40 * MIN)[0] is False
@@ -99,9 +101,9 @@ def test_the_MASK_OFF_FLAP_does_not_fire_a_harvest():
     """The machine drops to standby and returns as the mask is refitted. An edge-trigger would already
     have harvested; the debounce is what makes the trigger safe at all."""
     w = L.observe(L.EndWatch(), True, 0)
-    w = L.observe(w, False, 1 * MIN)                  # mask off
+    w = L.observe(w, False, 1 * MIN)  # mask off
     assert L.harvest_due(w, 3 * MIN, debounce_s=600)[0] is False, "fired inside the debounce"
-    w = L.observe(w, True, 4 * MIN)                   # back on
+    w = L.observe(w, True, 4 * MIN)  # back on
     assert w.ended_at_ms is None, "a resumed therapy did not cancel the pending end"
     assert L.harvest_due(w, 30 * MIN, debounce_s=600)[0] is False
 
@@ -111,14 +113,14 @@ def test_a_REAL_end_fires_once_the_debounce_holds_and_only_ONCE():
     w = L.observe(w, False, 10 * MIN)
     due, why = L.harvest_due(w, 21 * MIN, debounce_s=600)
     assert due is True and "held for" in why
-    w.fired_for = w.ended_at_ms                       # the caller records the fire
+    w.fired_for = w.ended_at_ms  # the caller records the fire
     assert L.harvest_due(w, 30 * MIN, debounce_s=600)[0] is False, "re-fired on the next poll"
 
 
 def test_a_NEW_therapy_period_re_arms_the_trigger_after_a_previous_fire():
     w = L.EndWatch(seen_therapy=True, ended_at_ms=1000, fired_for=1000)
-    w = L.observe(w, True, 2 * MIN)                   # a second session starts
-    w = L.observe(w, False, 20 * MIN)                 # and ends
+    w = L.observe(w, True, 2 * MIN)  # a second session starts
+    w = L.observe(w, False, 20 * MIN)  # and ends
     assert w.ended_at_ms == 20 * MIN
     assert L.harvest_due(w, 31 * MIN, debounce_s=600)[0] is True
 

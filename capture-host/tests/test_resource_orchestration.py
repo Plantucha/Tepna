@@ -9,6 +9,7 @@ a retry that publishes nothing about itself (§O1), a tree walk on the event loo
 asserts that an attribute exists — each drives the real code path and checks the number/log/state
 that the 3am operator (or the next-morning analysis) would have to read.
 """
+
 import asyncio
 import datetime as _dt
 import errno
@@ -29,6 +30,7 @@ _WHEN = _dt.datetime(2026, 9, 5, 2, 0, 0)
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # §S1 — a row write that raises inside a callback is COUNTED, not a traceback per notification
 # ══════════════════════════════════════════════════════════════════════════════════════════════
+
 
 class _WriteFailingFH:
     """A handle whose `write` raises the way ENOSPC does — the buffered write itself, before any flush."""
@@ -65,9 +67,11 @@ def _row_call(w):
     if cls == "LinkLogWriter":
         return lambda: w.write(_WHEN, "H10", True, -60, 80)
     if cls == "OxyLifeLogWriter":
+
         class _T:
             def as_row(self):
                 return "a;b;c"
+
         return lambda: w.write(_T())
     if cls == "PmdArrivalLogWriter":
         return lambda: w.write(_WHEN, "H10", 0, 1, 2, 3)
@@ -79,8 +83,7 @@ _CLASSES = [c for c in dir(writers) if c.endswith("Writer")]
 
 
 def _make(cls, tmp_path):
-    return getattr(writers, cls)(str(tmp_path / f"{cls}.csv"), *(["hr"] if cls == "StreamWriter" else []),
-                                 fsync=False)
+    return getattr(writers, cls)(str(tmp_path / f"{cls}.csv"), *(["hr"] if cls == "StreamWriter" else []), fsync=False)
 
 
 @pytest.mark.parametrize("cls", _CLASSES)
@@ -97,7 +100,7 @@ def test_A_ROW_THE_DISK_REFUSES_IS_COUNTED_AS_LOST_AND_NEVER_RAISES_INTO_THE_CAL
     before = w.rows
     with caplog.at_level("WARNING"):
         for _ in range(50):
-            write()                                     # must NOT raise — the callback has no catcher
+            write()  # must NOT raise — the callback has no catcher
     assert w.rows == before, "a row that never landed must not be counted as recorded"
     assert w.rows_lost >= 50, (cls, w.rows_lost)
     assert w.flush_failures == 0, "the write raised BEFORE any flush — that counter cannot see it"
@@ -113,7 +116,7 @@ def test_A_ROW_THE_DISK_REFUSES_IS_COUNTED_AS_LOST_AND_NEVER_RAISES_INTO_THE_CAL
     lost_then = w.rows_lost
     write()
     assert w.rows == before + 1 and w.rows_lost == lost_then, "after recovery, rows land and are counted"
-    w.close()                                       # a sample writer left open leaks the process-global counter
+    w.close()  # a sample writer left open leaks the process-global counter
 
 
 def test_A_LATE_ROW_ON_A_CLOSED_HANDLE_IS_A_LOST_ROW_NOT_A_CRASH(tmp_path, caplog):
@@ -124,7 +127,7 @@ def test_A_LATE_ROW_ON_A_CLOSED_HANDLE_IS_A_LOST_ROW_NOT_A_CRASH(tmp_path, caplo
     w.write_ecg(_WHEN, 0, 0.0, 1)
     w.close()
     with caplog.at_level("WARNING"):
-        w.write_ecg(_WHEN, 1, 7.7, 2)                   # the late one
+        w.write_ecg(_WHEN, 1, 7.7, 2)  # the late one
     assert w.rows == 1 and w.rows_lost == 1
     assert "ROW LOST" in caplog.text and "ValueError" in caplog.text
 
@@ -138,11 +141,10 @@ def test_THE_RR_SIDECAR_LOSS_IS_COUNTED_TOO(tmp_path):
     assert w.rows == 1, "the HR row landed"
     assert w.rows_lost == 3, "the three RR rows did not"
 
-
-# ══════════════════════════════════════════════════════════════════════════════════════════════
-# §S2 — the fsync is MEASURED, a slow one names itself once, and it is OFF THE EVENT LOOP
-# ══════════════════════════════════════════════════════════════════════════════════════════════
-    w.close()                                       # a sample writer left open leaks the process-global counter
+    # ══════════════════════════════════════════════════════════════════════════════════════════════
+    # §S2 — the fsync is MEASURED, a slow one names itself once, and it is OFF THE EVENT LOOP
+    # ══════════════════════════════════════════════════════════════════════════════════════════════
+    w.close()  # a sample writer left open leaks the process-global counter
 
 
 def _inline_fsync(monkeypatch):
@@ -154,12 +156,12 @@ def _inline_fsync(monkeypatch):
     arrives on another thread a moment later."""
     monkeypatch.setattr(writers, "_submit_fsync", lambda dup, health: writers._do_fsync(dup, health))
 
+
 @pytest.mark.parametrize("cls", _CLASSES)
 def test_A_SLOW_FSYNC_IS_A_NUMBER_IN_THE_WRITER_AND_ONE_WARNING(cls, tmp_path, monkeypatch, caplog):
     # drive the class's flush with fsync ON, against a planted 300 ms os.fsync
     _inline_fsync(monkeypatch)
-    w = getattr(writers, cls)(str(tmp_path / f"{cls}-f.csv"), *(["hr"] if cls == "StreamWriter" else []),
-                              fsync=True)
+    w = getattr(writers, cls)(str(tmp_path / f"{cls}-f.csv"), *(["hr"] if cls == "StreamWriter" else []), fsync=True)
     # the threshold is lowered so eight classes × two flushes do not cost 5 s of wall clock; the real
     # 250 ms figure is pinned once, below, on the writer the ECG rides
     monkeypatch.setattr(writers._FlushHealth, "SLOW_FSYNC_MS", 20.0)
@@ -222,10 +224,12 @@ def test_ONE_OUTSTANDING_BARRIER_PER_FILE_NOT_A_BACKLOG(tmp_path, monkeypatch):
     submitted = []
     monkeypatch.setattr(writers, "_submit_fsync", lambda dup, health: submitted.append((dup, health)))
     w = writers.StreamWriter(str(tmp_path / "b.txt"), "ecg", fsync=True)
-    w.flush(); w.flush(); w.flush()
+    w.flush()
+    w.flush()
+    w.flush()
     assert len(submitted) == 1, "three flushes, one outstanding barrier"
     dup, health = submitted[0]
-    writers._do_fsync(dup, health)                 # the worker completes it...
+    writers._do_fsync(dup, health)  # the worker completes it...
     w.flush()
     assert len(submitted) == 2, "...and the next flush may queue again"
     os.close(submitted[1][0])
@@ -247,10 +251,10 @@ def test_THE_WORKER_SYNCS_A_DUP_SO_A_CLOSED_WRITER_CANNOT_MISDIRECT_IT(tmp_path,
     w.flush()
     dup, health = submitted[0]
     assert dup != own_fd, "the worker must not be handed the writer's own descriptor"
-    w.close()                                       # the writer's fd is gone...
+    w.close()  # the writer's fd is gone...
     synced = []
     monkeypatch.setattr(writers.os, "fsync", lambda fd: synced.append(fd))
-    writers._do_fsync(dup, health)                  # ...and the barrier still runs, on the dup
+    writers._do_fsync(dup, health)  # ...and the barrier still runs, on the dup
     assert synced == [dup]
     assert health.fsync_last_ms >= 0.0, "and it is still measured"
 
@@ -265,7 +269,7 @@ def test_THE_WORKER_ALWAYS_CLOSES_ITS_DUP_EVEN_WHEN_THE_SYNC_FAILS(tmp_path, mon
             monkeypatch.setattr(writers.os, "fsync", lambda fd: (_ for _ in ()).throw(OSError("EIO")))
         writers._do_fsync(dup, w._health)
         with pytest.raises(OSError):
-            os.fstat(dup)                           # closed → the descriptor is gone
+            os.fstat(dup)  # closed → the descriptor is gone
     w.close()
 
 
@@ -275,8 +279,8 @@ def test_A_DUP_ALREADY_CLOSED_IS_NOT_AN_ERROR_AND_STILL_RECORDS(tmp_path, monkey
     w = writers.StreamWriter(str(tmp_path / "f.txt"), "ecg", fsync=True)
     dup = os.dup(w._fh.fileno())
     monkeypatch.setattr(writers.os, "fsync", lambda fd: None)
-    os.close(dup)                                   # closed under the worker
-    writers._do_fsync(dup, w._health)               # must not raise
+    os.close(dup)  # closed under the worker
+    writers._do_fsync(dup, w._health)  # must not raise
     assert w._health.fsync_last_ms >= 0.0, "the barrier is still recorded as having run"
     w.close()
 
@@ -289,7 +293,7 @@ def test_A_VANISHED_HANDLE_QUEUES_NOTHING_AND_IS_NOT_AN_ERROR(tmp_path, monkeypa
     h = writers._FlushHealth(str(tmp_path / "gone.txt"))
     fh = open(tmp_path / "gone.txt", "w")
     fh.close()
-    h.fsync(fh)                                     # ValueError from fileno() on a closed handle
+    h.fsync(fh)  # ValueError from fileno() on a closed handle
     assert submitted == [] and h._fsync_pending is False
 
 
@@ -301,23 +305,23 @@ def test_THE_WORKER_STARTS_RUNS_AND_DRAINS_FOR_REAL(tmp_path):
     (reuse it), and a worker that has exited via the drain sentinel (start a fresh one). That last arm
     is the one that matters in production: a drain at shutdown must not leave the process unable to
     sync if anything writes afterwards."""
-    writers._drain_fsync(timeout=0.1)               # whatever earlier tests left: start from no worker
+    writers._drain_fsync(timeout=0.1)  # whatever earlier tests left: start from no worker
     h = writers._FlushHealth(str(tmp_path / "real.txt"))
     fh = open(tmp_path / "real.txt", "w")
     fh.write("x")
 
-    writers._submit_fsync(os.dup(fh.fileno()), h)   # arm 1: no worker → start one
+    writers._submit_fsync(os.dup(fh.fileno()), h)  # arm 1: no worker → start one
     t1 = writers._FSYNC_THREAD
     assert t1 is not None and t1.is_alive(), "the worker starts on first use"
 
-    writers._submit_fsync(os.dup(fh.fileno()), h)   # arm 2: live worker → reuse it
+    writers._submit_fsync(os.dup(fh.fileno()), h)  # arm 2: live worker → reuse it
     assert writers._FSYNC_THREAD is t1, "a live worker is reused, never duplicated"
 
-    writers._drain_fsync(timeout=5.0)               # the sentinel returns the worker
+    writers._drain_fsync(timeout=5.0)  # the sentinel returns the worker
     assert not t1.is_alive(), "the drain joined it"
     assert h.fsync_last_ms >= 0.0, "both barriers completed before the drain returned"
 
-    writers._submit_fsync(os.dup(fh.fileno()), h)   # arm 3: dead worker → start a fresh one
+    writers._submit_fsync(os.dup(fh.fileno()), h)  # arm 3: dead worker → start a fresh one
     assert writers._FSYNC_THREAD is not t1, "a drained worker does not leave the process unable to sync"
     writers._drain_fsync(timeout=5.0)
     fh.close()
@@ -341,9 +345,10 @@ def test_THE_WORKER_LOOP_DRAINS_EVERY_ITEM_THEN_RETURNS_ON_THE_SENTINEL(tmp_path
     writers._FSYNC_Q.put((11, h1))
     writers._FSYNC_Q.put((22, h2))
     writers._FSYNC_Q.put(None)
-    writers._fsync_worker()                         # returns at the sentinel, or this test hangs
+    writers._fsync_worker()  # returns at the sentinel, or this test hangs
     assert seen == [(11, h1), (22, h2)], (
-        "each item is passed through whole and in order — fd first, its own health second")
+        "each item is passed through whole and in order — fd first, its own health second"
+    )
     assert writers._FSYNC_Q.empty(), "the sentinel was consumed, not left for the next worker"
 
 
@@ -374,7 +379,7 @@ def test_THE_BARRIER_DURATION_IS_CONVERTED_EXACTLY(tmp_path, monkeypatch):
 
     Controlling the clock instead of tolerating it makes the conversion exact and the mutant visible —
     seconds → milliseconds is arithmetic, not a measurement, and arithmetic can be asserted exactly."""
-    ticks = iter([10.0, 11.5])                      # t0, then the reading after the barrier
+    ticks = iter([10.0, 11.5])  # t0, then the reading after the barrier
     monkeypatch.setattr(writers._time, "monotonic", lambda: next(ticks))
     monkeypatch.setattr(writers.os, "fsync", lambda fd: None)
     h = writers._FlushHealth(str(tmp_path / "ms.txt"))
@@ -416,7 +421,7 @@ def test_THE_EXIT_DRAIN_IS_BOUNDED_SO_A_WEDGED_DISK_CANNOT_HOLD_SHUTDOWN(tmp_pat
     Killed by TIME, not by a hang: the worker is busy for 0.6 s and the drain is given 0.05 s, so an
     unbounded join is caught by the elapsed assertion rather than by the suite timing out — a hang
     reads as 'killed' to the mutation runner while telling a human nothing."""
-    writers._drain_fsync(timeout=0.1)               # start from a known state
+    writers._drain_fsync(timeout=0.1)  # start from a known state
     h = writers._FlushHealth(str(tmp_path / "slow.txt"))
     fh = open(tmp_path / "slow.txt", "w")
     monkeypatch.setattr(writers.os, "fsync", lambda fd: time.sleep(0.6))
@@ -425,8 +430,8 @@ def test_THE_EXIT_DRAIN_IS_BOUNDED_SO_A_WEDGED_DISK_CANNOT_HOLD_SHUTDOWN(tmp_pat
     writers._drain_fsync(timeout=0.05)
     elapsed = time.monotonic() - t0
     assert elapsed < 0.4, f"the drain waited {elapsed:.2f}s on a busy worker — the bound is not applied"
-    writers._drain_fsync(timeout=5.0)               # now let it finish, so the thread does not leak
-    while not writers._FSYNC_Q.empty():             # and drop the surplus sentinel this test queued
+    writers._drain_fsync(timeout=5.0)  # now let it finish, so the thread does not leak
+    while not writers._FSYNC_Q.empty():  # and drop the surplus sentinel this test queued
         writers._FSYNC_Q.get_nowait()
     fh.close()
 
@@ -462,14 +467,16 @@ def test_THE_RUNNERS_PUBLISH_THE_TWO_NEW_COUNTERS_BESIDE_FLUSH_FAILURES():
     """The counters are only evidence if they reach status.json — and both row-count publish sites (the
     Polar PMD handler and the Viatom packet handler) must carry them, not just the one I tested."""
     src = module_source("capture.py")
-    assert src.count('"rows_lost": wr.rows_lost') + src.count("rows_lost=wr.rows_lost") == 2, \
+    assert src.count('"rows_lost": wr.rows_lost') + src.count("rows_lost=wr.rows_lost") == 2, (
         "rows_lost must ride beside flush_failures at BOTH publish sites"
+    )
     assert src.count('"fsync_max_ms": wr.fsync_max_ms') + src.count("fsync_max_ms=wr.fsync_max_ms") == 2
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # §O1 — a retry is a published state, and the backoff is jittered (only the backoff)
 # ══════════════════════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def _fresh(monkeypatch):
@@ -492,6 +499,7 @@ def test_RETRY_SLEEP_PUBLISHES_ATTEMPT_AND_NEXT_AT_THEN_CLEARS(_fresh, monkeypat
         seen["during"] = dict(capture.STATUS["devices"]["H10"]["retry"])
         seen["slept"] = s
         await real(0)
+
     monkeypatch.setattr(capture.asyncio, "sleep", rec)
     t0 = time.time()
     waited = asyncio.run(capture._retry_sleep("H10", 40.0, "backoff", 3))
@@ -524,6 +532,7 @@ def test_THE_JITTER_IS_REALLY_RANDOM_NOT_A_FIXED_OFFSET(_fresh, monkeypatch):
 def test_RETRY_IS_CLEARED_EVEN_WHEN_THE_SLEEP_IS_CANCELLED(_fresh):
     """A runner replaced mid-backoff (`register_runner` hot-swap) must not leave a `retry` block on the
     card that the new runner never clears."""
+
     async def go():
         t = asyncio.ensure_future(capture._retry_sleep("H10", 60.0, "backoff", 2))
         await asyncio.sleep(0)
@@ -531,6 +540,7 @@ def test_RETRY_IS_CLEARED_EVEN_WHEN_THE_SLEEP_IS_CANCELLED(_fresh):
         t.cancel()
         with pytest.raises(asyncio.CancelledError):
             await t
+
     asyncio.run(go())
     assert capture.STATUS["devices"]["H10"]["retry"] is None
 
@@ -542,7 +552,10 @@ def test_EVERY_ERROR_BACKOFF_SITE_IN_THE_THREE_RUNNERS_COUNTS_ATTEMPTS():
     src = module_source("capture.py")
     assert src.count("backoff: float = 5\n") == 3 or src.count("backoff: float = 5") == 3
     assert src.count('await _retry_sleep(name, backoff, "backoff", attempt)') == 3
-    assert src.count("backoff = 5; attempt = 0") == 3, "the data-flow resets clear the attempt count too"
+    # WHITESPACE-TOLERANT, not a pinned spelling: `ruff format` splits the `;` compound statement
+    # these three sites used, so an exact-text count read 0 where the property still held. The
+    # property is that the backoff reset and the attempt reset are ADJACENT, not how they are laid out.
+    assert len(re.findall(r"backoff = 5\s+attempt = 0", src)) == 3, "the data-flow resets clear the attempt count too"
     assert "asyncio.sleep(backoff)" not in src, "a bare backoff sleep publishes nothing"
 
 
@@ -550,12 +563,15 @@ def test_EVERY_ERROR_BACKOFF_SITE_IN_THE_THREE_RUNNERS_COUNTS_ATTEMPTS():
 # §L1 — the global recovery gate is released on the way OUT, not only on the way through
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
+
 def test_A_CANCEL_INSIDE_THE_RESTART_WINDOW_DOES_NOT_LEAVE_RECOVER_SET_FOREVER(_fresh, monkeypatch):
     """`_RECOVER` is set by `_restart_radio` and cleared by nothing else. A cancel landing in its 5 s
     settle (the watchdog's own supervisor, shutdown, a hot-swap) used to leave every runner parked at
     `_RECOVER.is_set()` for the life of the process — the audit's one genuine WEDGE-EVERYTHING path."""
+
     async def fake(*args, timeout=45):
         return 0, "bluetooth: active"
+
     monkeypatch.setattr(capture.helper_path, "resolve", lambda n: "/bin/sh")
     monkeypatch.setattr(capture, "_run_helper", fake)
 
@@ -569,6 +585,7 @@ def test_A_CANCEL_INSIDE_THE_RESTART_WINDOW_DOES_NOT_LEAVE_RECOVER_SET_FOREVER(_
         t.cancel()
         with pytest.raises(asyncio.CancelledError):
             await t
+
     asyncio.run(go())
     assert not capture._RECOVER.is_set(), "…and must be open again after a cancel"
 
@@ -580,15 +597,19 @@ def test_EVERY_RECOVER_SET_SITE_HAS_A_FINALLY():
     sites = [m.start() for m in re.finditer(r"_RECOVER\.set\(\)", src)]
     assert len(sites) == 3, len(sites)
     for at in sites:
-        window = src[at:at + 2500]
-        assert "finally:" in window, src[at - 200:at + 300]
+        # 3200, not 2500: the window is a PROXIMITY proxy, and the 2026-09-28 reformat pushed the
+        # furthest `set()`→`finally:` distance from 2447 to 2691 characters by splitting lines.
+        # The property is unchanged; only how many characters "nearby" takes.
+        window = src[at : at + 3200]
+        assert "finally:" in window, src[at - 200 : at + 300]
         after = window.split("finally:", 1)[1]
-        assert "_RECOVER.clear()" in after[:1500], src[at:at + 400]
+        assert "_RECOVER.clear()" in after[:1500], src[at : at + 400]
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # §O2 — a supervised task's crash is a FIELD, and the four bare create_task starters are supervised
 # ══════════════════════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.mark.sets_capture_events
 def test_A_SUPERVISED_CRASH_LANDS_IN_STATUS_TASKS(_fresh, monkeypatch):
@@ -618,12 +639,18 @@ def test_THE_FOUR_FORMERLY_BARE_STARTERS_ARE_SUPERVISED():
     `keep_running` with a label, which is what makes its crash a STATUS field."""
     src = module_source("capture.py")
     for label in ("AS11 shadow detector", "CPAP auto-start", "CPAP stored-spool pull", "O2Ring presence scan"):
-        assert re.search(r"keep_running\(lambda: [\s\S]{0,900}?\"" + re.escape(label) + r"\"\)\)", src), label
+        # TOLERANT OF THE CALL BEING SPLIT. This required the literal `keep_running(lambda: ` and a
+        # literal `"label"))`; the reformat puts `keep_running(` and its lambda on separate lines and
+        # adds a magic trailing comma before the closing parens, so the old pattern matched none of
+        # the four while every one of them is still supervised. The property — this label is started
+        # through keep_running — is what is matched, not its layout.
+        assert re.search(r"keep_running\(\s*lambda:[\s\S]{0,1600}?\"" + re.escape(label) + r"\",?\s*\)", src), label
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # §O1 — the coordination gates are ONE queryable snapshot
 # ══════════════════════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.mark.sets_capture_events
 def test_GATE_STATE_REPORTS_EVERY_GATE_A_RUNNER_CAN_BLOCK_ON(_fresh, monkeypatch):
@@ -631,17 +658,30 @@ def test_GATE_STATE_REPORTS_EVERY_GATE_A_RUNNER_CAN_BLOCK_ON(_fresh, monkeypatch
         capture._OXYII_PAUSE = asyncio.Event()
         capture._CONNECT_LOCK = asyncio.Lock()
         base = capture.gate_state()
-        assert base == {"recover": False, "oxyii_pause": False, "polar_paused": [],
-                        "connect_lock": False, "offline_slot": None, "stop": False}
+        assert base == {
+            "recover": False,
+            "oxyii_pause": False,
+            "polar_paused": [],
+            "connect_lock": False,
+            "offline_slot": None,
+            "stop": False,
+        }
         capture._RECOVER.set()
         capture._OXYII_PAUSE.set()
         capture._POLAR_PAUSED.add("H10")
         monkeypatch.setattr(capture.offline_lock, "busy_with", lambda: "RingA")
         async with capture._CONNECT_LOCK:
             g = capture.gate_state()
-        assert g == {"recover": True, "oxyii_pause": True, "polar_paused": ["H10"],
-                     "connect_lock": True, "offline_slot": "RingA", "stop": False}
+        assert g == {
+            "recover": True,
+            "oxyii_pause": True,
+            "polar_paused": ["H10"],
+            "connect_lock": True,
+            "offline_slot": "RingA",
+            "stop": False,
+        }
         capture._POLAR_PAUSED.discard("H10")
+
     asyncio.run(go())
 
 
@@ -652,10 +692,12 @@ def test_STATUS_LOOP_WRITES_THE_GATES(_fresh, tmp_path, monkeypatch):
     async def stop_sleep(s):
         capture._STOP.set()
         await real(0)
+
     monkeypatch.setattr(capture.asyncio, "sleep", stop_sleep)
     monkeypatch.setattr(capture, "gate_state", lambda: {"recover": True, "planted": 1})
     asyncio.run(capture.status_loop(str(tmp_path), 120))
     import json
+
     with open(capture.status_path(str(tmp_path), capture.INSTANCE)) as f:
         assert json.load(f)["gates"] == {"recover": True, "planted": 1}
 
@@ -663,6 +705,7 @@ def test_STATUS_LOOP_WRITES_THE_GATES(_fresh, tmp_path, monkeypatch):
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # §L2 — event-loop latency is measured; a blocking call anywhere is a number, and a big one logs once
 # ══════════════════════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.mark.sets_capture_events
 def test_LOOP_MONITOR_SEES_A_PLANTED_BLOCKING_CALL(_fresh, caplog):
@@ -673,10 +716,11 @@ def test_LOOP_MONITOR_SEES_A_PLANTED_BLOCKING_CALL(_fresh, caplog):
     async def go():
         mon = asyncio.ensure_future(capture.loop_monitor(period_s=0.01))
         await asyncio.sleep(0.03)
-        time.sleep(0.15)                                   # the plant
+        time.sleep(0.15)  # the plant
         await asyncio.sleep(0.03)
         capture._STOP.set()
         await mon
+
     asyncio.run(go())
     rec = capture.STATUS["loop"]
     assert rec["ticks"] >= 2
@@ -688,17 +732,18 @@ def test_LOOP_MONITOR_SEES_A_PLANTED_BLOCKING_CALL(_fresh, caplog):
 
 @pytest.mark.sets_capture_events
 def test_LOOP_MONITOR_LOGS_A_SECOND_LONG_STALL_ONCE_PER_WINDOW(_fresh, monkeypatch, caplog):
-    monkeypatch.setattr(capture, "_LOOP_LAG_WARN_MS", 100.0)         # make the plant cheap
+    monkeypatch.setattr(capture, "_LOOP_LAG_WARN_MS", 100.0)  # make the plant cheap
     capture.STATUS.pop("loop", None)
 
     async def go():
         mon = asyncio.ensure_future(capture.loop_monitor(period_s=0.01))
         for _ in range(3):
             await asyncio.sleep(0.02)
-            time.sleep(0.12)                               # three "long" stalls inside one window
+            time.sleep(0.12)  # three "long" stalls inside one window
         await asyncio.sleep(0.02)
         capture._STOP.set()
         await mon
+
     with caplog.at_level("WARNING"):
         asyncio.run(go())
     assert capture.STATUS["loop"]["stalls"] >= 3
@@ -714,6 +759,7 @@ def test_LOOP_MONITOR_IS_A_SUPERVISED_BACKGROUND_TASK():
 # §L3 — the per-poll tree walks run off the loop
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.sets_capture_events
 def test_STORAGE_POLLER_WALKS_THE_NIGHTS_OFF_THE_EVENT_LOOP(_fresh, tmp_path, monkeypatch):
     """`active_nights` is a listdir+getmtime over every file of every night. On a 20-night SD card
@@ -724,14 +770,19 @@ def test_STORAGE_POLLER_WALKS_THE_NIGHTS_OFF_THE_EVENT_LOOP(_fresh, tmp_path, mo
     def spy(captures, settle):
         where["thread"] = threading.current_thread()
         return set()
+
     monkeypatch.setattr(capture.diskguard, "active_nights", spy)
-    monkeypatch.setattr(capture.diskguard, "disk_report",
-                        lambda root, m: {"low": False, "free_gb": 12.0, "free_pct": 40, "total_gb": 30})
+    monkeypatch.setattr(
+        capture.diskguard,
+        "disk_report",
+        lambda root, m: {"low": False, "free_gb": 12.0, "free_pct": 40, "total_gb": 30},
+    )
     real = asyncio.sleep
 
     async def stop_sleep(s):
         capture._STOP.set()
         await real(0)
+
     monkeypatch.setattr(capture.asyncio, "sleep", stop_sleep)
     asyncio.run(capture.storage_poller({"storage": {"keep_nights": 0, "poll_sec": 1}}, str(tmp_path)))
     assert "thread" in where, "the walk must still RUN"

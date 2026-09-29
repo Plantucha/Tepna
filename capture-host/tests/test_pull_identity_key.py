@@ -79,8 +79,9 @@ def test_the_auth_serial_is_never_a_ledger_key(tmp_path, monkeypatch):
     got = _pull(tmp_path, None)
     assert len(got) == 1, "the pull itself still lands — the identity read is non-fatal"
     assert _keys(tmp_path) == [ADDR], _keys(tmp_path)
-    assert inv.current(inv.load_rows(str(tmp_path / "inventory.jsonl")))[inv.identity(ADDR, TS)]["state"] \
-        == inv.COMMITTED
+    assert (
+        inv.current(inv.load_rows(str(tmp_path / "inventory.jsonl")))[inv.identity(ADDR, TS)]["state"] == inv.COMMITTED
+    )
 
 
 def test_the_ring_s_own_serial_outranks_the_caller_s_id(tmp_path, monkeypatch):
@@ -96,18 +97,23 @@ def test_the_daemon_passes_the_ring_s_configured_id_to_the_pull(tmp_path, monkey
     poller, autopull) — it must hand `dev["device_id"]` to `pull_session.pull` as `device_id`, and keep
     the auth serial as the protocol default."""
     import capture
+
     capture._OXYII_PAUSE.clear()
     seen = {}
 
     async def fake_pull(address, out_dir, **kw):
         seen.update(kw)
         return []
+
     monkeypatch.setattr(pull_session, "pull", fake_pull)
 
     async def no_sleep(_s):
         return None
+
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
-    monkeypatch.setitem(capture.STATUS, "devices", {"Ring": {"connected": False}})  # own the key; see test_link_distress_wire
+    monkeypatch.setitem(
+        capture.STATUS, "devices", {"Ring": {"connected": False}}
+    )  # own the key; see test_link_distress_wire
     dev = {"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "2592302100", "address": ADDR}
     r = _run(capture.pull_oxyii_session(dev, str(tmp_path)))
     assert r["ok"] is True

@@ -79,8 +79,7 @@ def test_A_JAMMED_RADIO_STILL_CANNOT_PRODUCE_AN_ABSENCE_VERDICT():
     separate "the device is off" from "this radio cannot hear". The protection is `absence_verdict`'s
     CLEAN SWEEP: one contended adapter blocks the verdict however many others came back empty. This
     function classifies an ATTEMPT; the sweep decides the night."""
-    absent, _ = ble_discovery.absence_verdict([("hci0", ble_discovery.ABSENT),
-                                               ("hci1", ble_discovery.CONTENDED)])
+    absent, _ = ble_discovery.absence_verdict([("hci0", ble_discovery.ABSENT), ("hci1", ble_discovery.CONTENDED)])
     assert absent is False
 
 
@@ -155,11 +154,13 @@ def test_an_unreachable_row_is_not_counted_as_standby():
     whole point — that an outage is visible as an outage — would be undone one layer down."""
     # Its OWN fixture, deliberately: `_journal` straddles the coverage refusal so that the class test
     # above has something to turn on, and a journal that refuses cannot show that a row added no time.
-    observed = therapy_minutes("\n".join(
-        _row(1_000_000 + i * 30_000, reachable=True, fg="Therapy") for i in range(6)))
-    plus_two_unreachable = therapy_minutes("\n".join(
-        [_row(1_000_000 + i * 30_000, reachable=True, fg="Therapy") for i in range(6)]
-        + [_row(1_180_000 + i * 30_000, reachable=False, trigger="BleakError") for i in range(2)]))
+    observed = therapy_minutes("\n".join(_row(1_000_000 + i * 30_000, reachable=True, fg="Therapy") for i in range(6)))
+    plus_two_unreachable = therapy_minutes(
+        "\n".join(
+            [_row(1_000_000 + i * 30_000, reachable=True, fg="Therapy") for i in range(6)]
+            + [_row(1_180_000 + i * 30_000, reachable=False, trigger="BleakError") for i in range(2)]
+        )
+    )
     assert observed is not None and observed > 0, "the fixture must measure something"
     assert observed == plus_two_unreachable, "an unreachable poll must add no therapy time"
 
@@ -192,11 +193,12 @@ _BLACKOUT = [
     # not found!", and the text path duly classified it ABSENT: a device we had just talked to,
     # recorded as not being there. It appeared 5× on the blackout night, where it would have counted
     # toward "absent on all adapters". Now OTHER, which blocks a sweep exactly as CONTENDED does.
-    ("BleakCharacteristicNotFoundError",
-     "Characteristic a6220003-35f1-4b20-afae-cb089d2044aa was not found!", "other"),
-    ("BleakDBusError",
-     "[org.freedesktop.DBus.Error.NoReply] Message recipient disconnected from message bus without "
-     "replying", "contended"),
+    ("BleakCharacteristicNotFoundError", "Characteristic a6220003-35f1-4b20-afae-cb089d2044aa was not found!", "other"),
+    (
+        "BleakDBusError",
+        "[org.freedesktop.DBus.Error.NoReply] Message recipient disconnected from message bus without replying",
+        "contended",
+    ),
 ]
 
 
@@ -235,8 +237,9 @@ def test_A_CHARACTERISTIC_MISS_IS_NOT_A_MISSING_DEVICE():
     reached = _exc("BleakCharacteristicNotFoundError", "Characteristic a622 was not found!")
     assert ble_discovery.classify_failure(reached) == ble_discovery.OTHER
     # ...and it blocks a sweep, so it can never contribute to "absent on all adapters".
-    absent, _ = ble_discovery.absence_verdict([("hci0", ble_discovery.ABSENT),
-                                               ("hci1", ble_discovery.classify_failure(reached))])
+    absent, _ = ble_discovery.absence_verdict(
+        [("hci0", ble_discovery.ABSENT), ("hci1", ble_discovery.classify_failure(reached))]
+    )
     assert absent is False
 
 
@@ -256,6 +259,7 @@ def test_BLUEZ_UNKNOWN_OBJECT_IS_DELIBERATELY_AN_ABSENCE():
     logs and then raises — it settles nothing — and the escalation this shape actually needs is
     `bluez_wedge`'s rung, which fires off the shadow poller's own unreachable streak and never
     consults this verdict. If either of those changes, revisit this line first."""
-    e = _exc("BleakDeviceNotFoundError",
-             "Device with address 04:CD:15:3A:0B:BD was removed from BlueZ when scanning stopped")
+    e = _exc(
+        "BleakDeviceNotFoundError", "Device with address 04:CD:15:3A:0B:BD was removed from BlueZ when scanning stopped"
+    )
     assert ble_discovery.classify_failure(e) == ble_discovery.ABSENT

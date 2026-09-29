@@ -10,6 +10,7 @@ The lower edge is therefore a smear the width of the packet, not an edge: measur
 This sidecar records the TRUE arrival beside the device stamp of the packet's first sample, so the
 minimum has a real floor. These tests pin the properties that make it usable, not merely that it writes.
 """
+
 import datetime as _dt
 import os
 
@@ -17,7 +18,8 @@ from writers import PmdArrivalLogWriter
 from tests._srcscan import module_source
 
 _T0 = _dt.datetime(2026, 8, 11, 22, 0, 0)
-import nightqc as _nqc_for_epoch          # one definition of the Polar epoch, not a second literal
+import nightqc as _nqc_for_epoch  # one definition of the Polar epoch, not a second literal
+
 _POLAR_EPOCH_MS_S = _nqc_for_epoch._POLAR_EPOCH_MS / 1000.0
 
 
@@ -43,6 +45,7 @@ def _bell(n, centre=400.0, sd=25.0, seed=12345):
             acc += st / 0x7FFFFFFF
         out.append(centre + (acc - 6.0) * sd)
     return out
+
 
 def test_header_and_one_row(tmp_path):
     p = os.path.join(tmp_path, "Tepna_20260811220000_PMDARRIVAL.csv")
@@ -95,7 +98,7 @@ def test_rows_counted_and_close_is_idempotent(tmp_path):
         w.write(_T0 + _dt.timedelta(milliseconds=8 * i), "d", "PPG", 1_000 + i, 1_050 + i, 7)
     assert w.rows == 5
     w.close()
-    w.close()          # every sibling writer swallows a double close; this one must too
+    w.close()  # every sibling writer swallows a double close; this one must too
     assert len(_read(p)) == 6
 
 
@@ -109,9 +112,9 @@ def test_min_filter_has_a_floor_on_this_layout(tmp_path):
     p = os.path.join(tmp_path, "d.csv")
     w = PmdArrivalLogWriter(p, fsync=False)
     base_ns = 500_000_000_000
-    delays = [0, 3, 5, 9, 14, 21, 30, 44, 61, 90] * 20      # one-sided: never negative
+    delays = [0, 3, 5, 9, 14, 21, 30, 44, 61, 90] * 20  # one-sided: never negative
     for i, extra in enumerate(delays):
-        dev_ns = base_ns + i * 77_000_000                    # 77 ms between packets
+        dev_ns = base_ns + i * 77_000_000  # 77 ms between packets
         arrival = _T0 + _dt.timedelta(milliseconds=(dev_ns - base_ns) / 1e6 + 400 + extra)
         w.write(arrival, "d", "ECG", dev_ns, dev_ns + 69_000_000, 10)
     w.close()
@@ -127,6 +130,7 @@ def test_min_filter_has_a_floor_on_this_layout(tmp_path):
 
 
 # ─── floor_ms: the estimator, and its refusal to answer when it cannot ───────────────────────────
+
 
 def test_floor_ms_reports_estimate_and_spread():
     """A one-sided distribution: the estimate lands at the floor and the spread is small."""
@@ -166,6 +170,7 @@ def test_floor_ms_is_robust_to_one_early_outlier():
 
 # ─── nightqc.arrival_quality: judged where judgeable, silent where not ───────────────────────────
 
+
 def _write_sidecar(path, meas, diffs_ms, base_ns=None):
     """`base_ns=None` takes the REAL Polar anchor. It used to default to 500_000_000_000 — a power-on
     counter no Polar device sends — which put twenty-six years into every delay this plants, invisibly,
@@ -182,16 +187,20 @@ def _write_sidecar(path, meas, diffs_ms, base_ns=None):
 
 def test_arrival_quality_passes_a_real_floor(tmp_path):
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_1_PMDARRIVAL.csv"), "ECG",
-                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_1_PMDARRIVAL.csv"),
+        "ECG",
+        [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+    )
     rows = nightqc.arrival_quality(str(tmp_path))
     assert len(rows) == 1 and rows[0]["floor_ok"] is True, rows
 
 
 def test_arrival_quality_flags_a_smear(tmp_path):
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_2_PMDARRIVAL.csv"), "ECG",
-                   _bell(3000))
+
+    _write_sidecar(os.path.join(tmp_path, "Tepna_2_PMDARRIVAL.csv"), "ECG", _bell(3000))
     rows = nightqc.arrival_quality(str(tmp_path))
     assert rows[0]["floor_ok"] is False, rows
     assert rows[0]["floor_spread_ms"] > 5
@@ -204,8 +213,12 @@ def test_arrival_quality_does_not_floor_judge_the_quantised_ring(tmp_path):
     `floor_ok: None` (unjudged), never False.
     """
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_3_PMDARRIVAL.csv"), "OXYLIVE_DURATION_S",
-                   [400 + 1000 * (i % 3) for i in range(600)])
+
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_3_PMDARRIVAL.csv"),
+        "OXYLIVE_DURATION_S",
+        [400 + 1000 * (i % 3) for i in range(600)],
+    )
     rows = nightqc.arrival_quality(str(tmp_path))
     assert rows[0]["quantised"] is True
     assert rows[0]["floor_ok"] is None, "a quantised counter must be unjudged, not failed"
@@ -213,10 +226,12 @@ def test_arrival_quality_does_not_floor_judge_the_quantised_ring(tmp_path):
 
 def test_arrival_quality_survives_a_missing_directory():
     import nightqc
+
     assert nightqc.arrival_quality("/nonexistent/night/dir") == []
 
 
 # ─── the canary: it must fire on the DEAD sidecar, and on nothing that fires nightly ─────────────
+
 
 def test_canary_no_longer_fires_on_a_smeared_floor():
     """RETIRED ARM — it fired on EVERY stream of the first real night (2026-08-11).
@@ -229,6 +244,7 @@ def test_canary_no_longer_fires_on_a_smeared_floor():
     the canary's own docstring said before it shipped one. `floor_spread_ms` survives as a diagnostic.
     """
     import alerts
+
     qc = {"arrival": [{"device": "Polar H10", "meas": "ECG", "floor_ok": False, "floor_spread_ms": 74.2}]}
     assert alerts.arrival_canary(qc, {}) == []
 
@@ -237,6 +253,7 @@ def test_canary_fires_on_a_dead_sidecar():
     """The write is wrapped in a bare `except: pass`, so a persistent failure is invisible by
     construction. A device producing samples with a sidecar stuck at zero is the only tell."""
     import alerts
+
     live = {"Polar H10": {"connected": True, "rows": 40321, "arrival_rows": 0}}
     got = alerts.arrival_canary({}, live)
     assert len(got) == 1 and "no rows" in got[0], got
@@ -254,9 +271,10 @@ def test_canary_keeps_scanning_past_a_disconnected_device():
     is insertion order, so the down device is deliberately FIRST.
     """
     import alerts
+
     live = {
-        "Polar Verity": {"connected": False, "rows": 0, "arrival_rows": 0},   # down, not a fault
-        "Polar H10": {"connected": True, "rows": 40321, "arrival_rows": 0},   # writing, sidecar dead
+        "Polar Verity": {"connected": False, "rows": 0, "arrival_rows": 0},  # down, not a fault
+        "Polar H10": {"connected": True, "rows": 40321, "arrival_rows": 0},  # writing, sidecar dead
     }
     got = alerts.arrival_canary({}, live)
     assert len(got) == 1 and "Polar H10" in got[0] and "no rows" in got[0], got
@@ -267,21 +285,35 @@ def test_canary_is_silent_on_the_quantised_ring():
     fitted, not min-filtered; firing here would page someone every night and the alert would be
     ignored — which is worse than not having one."""
     import alerts
-    qc = {"arrival": [{"device": "Wellue O2Ring-S", "meas": "OXYLIVE_DURATION_S",
-                       "floor_ok": None, "floor_spread_ms": None, "quantised": True}]}
+
+    qc = {
+        "arrival": [
+            {
+                "device": "Wellue O2Ring-S",
+                "meas": "OXYLIVE_DURATION_S",
+                "floor_ok": None,
+                "floor_spread_ms": None,
+                "quantised": True,
+            }
+        ]
+    }
     assert alerts.arrival_canary(qc, {}) == []
 
 
 def test_canary_is_silent_when_healthy_and_when_unknown():
     import alerts
+
     qc = {"arrival": [{"device": "Polar H10", "meas": "ECG", "floor_ok": True, "floor_spread_ms": 1.2}]}
-    live = {"Polar H10": {"connected": True, "rows": 40321, "arrival_rows": 40321},
-            "Polar Verity": {"connected": False, "rows": 0, "arrival_rows": 0},   # down, not a fault
-            "COOSPO": {"connected": True, "rows": 12}}                            # non-PMD, no sidecar
+    live = {
+        "Polar H10": {"connected": True, "rows": 40321, "arrival_rows": 40321},
+        "Polar Verity": {"connected": False, "rows": 0, "arrival_rows": 0},  # down, not a fault
+        "COOSPO": {"connected": True, "rows": 12},
+    }  # non-PMD, no sidecar
     assert alerts.arrival_canary(qc, live) == []
 
 
 # ─── arrival_quality: the malformed-input paths must skip, never guess ───────────────────────────
+
 
 def test_arrival_quality_skips_blank_and_malformed_rows(tmp_path):
     """A blank device stamp and an unparseable timestamp are SKIPPED, not defaulted.
@@ -290,17 +322,20 @@ def test_arrival_quality_skips_blank_and_malformed_rows(tmp_path):
     and could become the minimum, silently defining the offset as an artefact of bad input.
     """
     import nightqc
+
     p = os.path.join(tmp_path, "Tepna_x_PMDARRIVAL.csv")
     with open(p, "w") as fh:
         fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
-        fh.write(";dev;ECG;1000;2000;10\n")                       # no timestamp
-        fh.write("2026-08-11T22:00:00.000;dev;ECG;;;10\n")         # no device stamp
-        fh.write("not-a-timestamp;dev;ECG;1000;2000;10\n")         # unparseable
+        fh.write(";dev;ECG;1000;2000;10\n")  # no timestamp
+        fh.write("2026-08-11T22:00:00.000;dev;ECG;;;10\n")  # no device stamp
+        fh.write("not-a-timestamp;dev;ECG;1000;2000;10\n")  # unparseable
         # Counter starts at 1000, NOT 0: `i * 1000` made row 0 a device stamp of `0`, which is an
         # ABSENT stamp (§∅) and is now dropped — so this loop was quietly planting a bad row among
         # its "real" ones and asserting that all 150 survived.
-        for i in range(150):                                       # enough real rows to be judgeable
-            fh.write(f"2026-08-11T22:00:{i // 10:02d}.{(i % 10) * 100:03d};dev;ECG;{(i + 1) * 1000};{(i + 1) * 1000};10\n")
+        for i in range(150):  # enough real rows to be judgeable
+            fh.write(
+                f"2026-08-11T22:00:{i // 10:02d}.{(i % 10) * 100:03d};dev;ECG;{(i + 1) * 1000};{(i + 1) * 1000};10\n"
+            )
     rows = nightqc.arrival_quality(str(tmp_path))
     assert len(rows) == 1 and rows[0]["rows"] == 150, rows
 
@@ -308,6 +343,7 @@ def test_arrival_quality_skips_blank_and_malformed_rows(tmp_path):
 def test_arrival_quality_survives_an_unreadable_file(tmp_path):
     """An unreadable sidecar is skipped, never fatal — QC must still judge the rest of the night."""
     import nightqc
+
     p = os.path.join(tmp_path, "Tepna_y_PMDARRIVAL.csv")
     with open(p, "w") as fh:
         fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
@@ -328,10 +364,11 @@ def test_arrival_quality_never_opens_a_stream_on_a_row_it_skipped(tmp_path):
     that was never measured, in a summary whose whole job is to say what WAS measured.
     """
     import nightqc
+
     p = os.path.join(tmp_path, "Tepna_h_PMDARRIVAL.csv")
     with open(p, "w") as fh:
         fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
-        fh.write("2026-08-11T22:00:00.000;ghost;ECG;;;10\n")             # parseable stamp, no device stamp
+        fh.write("2026-08-11T22:00:00.000;ghost;ECG;;;10\n")  # parseable stamp, no device stamp
         fh.write("2026-08-11T22:00:01.000;real;ECG;1000000;2000000;10\n")
     assert [r["device"] for r in nightqc.arrival_quality(str(tmp_path))] == ["real"]
 
@@ -344,6 +381,7 @@ def test_arrival_quality_keeps_reading_the_night_after_an_unreadable_sidecar(tmp
     Partial blindness that still returns a plausible list is exactly what QC exists to prevent.
     """
     import nightqc
+
     bad = os.path.join(tmp_path, "Tepna_a_PMDARRIVAL.csv")
     with open(bad, "w") as fh:
         fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
@@ -366,6 +404,7 @@ def test_arrival_quality_reads_a_quoted_field_verbatim(tmp_path):
     emit a quoted field, but a hand-repaired or foreign sidecar can, and QC reads whatever is on disk.
     """
     import nightqc
+
     p = os.path.join(tmp_path, "Tepna_q_PMDARRIVAL.csv")
     with open(p, "w", newline="") as fh:
         fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
@@ -385,8 +424,8 @@ def test_arrival_quality_reads_a_quoted_field_verbatim(tmp_path):
 # read the absolute value out loud. Derived from `_T0` through the module constant so the two cannot
 # drift apart again — hardcoding it is how they drifted in the first place.
 _BASE_NS = int(round((_T0.timestamp() - _POLAR_EPOCH_MS_S) * 1e9))
-_CADENCE_MS = 5000               # a PPI packet lands about every 5 s
-_ONE_SIDED = [0, 3, 5, 9, 14, 21, 30, 44, 61, 90] * 60      # 600 packets, never early
+_CADENCE_MS = 5000  # a PPI packet lands about every 5 s
+_ONE_SIDED = [0, 3, 5, 9, 14, 21, 30, 44, 61, 90] * 60  # 600 packets, never early
 
 
 def _write_long_sidecar(path, offset_ms=400.0, delays=_ONE_SIDED):
@@ -415,6 +454,7 @@ def test_arrival_quality_recovers_the_planted_offset(tmp_path):
     expectation is computed here from the plant, not read back off the row.
     """
     import nightqc
+
     _write_long_sidecar(os.path.join(tmp_path, "Tepna_o_PMDARRIVAL.csv"))
     off = nightqc.arrival_quality(str(tmp_path))[0]["offset"]
     # The pairing is against the LAST sample in the packet, so the planted offset is measured from
@@ -424,8 +464,7 @@ def test_arrival_quality_recovers_the_planted_offset(tmp_path):
     # UTC, not from 1970, so the epoch is subtracted here exactly as `arrival_quality` subtracts it;
     # the two differed by 946 684 800 000 ms. Referenced through the module constant on purpose, so
     # moving the anchor there reds this test instead of silently re-agreeing with it.
-    expected = (_T0.timestamp() * 1000.0
-                - (nightqc._POLAR_EPOCH_MS + (_BASE_NS + 1_000_000) / 1e6) + 400.0)
+    expected = _T0.timestamp() * 1000.0 - (nightqc._POLAR_EPOCH_MS + (_BASE_NS + 1_000_000) / 1e6) + 400.0
     assert off["ok"] is True and off["certified"] is True, off
     assert abs(off["offset_ms"] - expected) < 0.05, f"offset {off['offset_ms']} != planted {expected}"
     # nothing was planted to drift, so a rate here is an artefact of the axis and not a clock
@@ -450,6 +489,7 @@ def test_two_streams_of_one_device_agree_despite_different_packet_spans(tmp_path
     ~1.9 s and no tolerance hides it.
     """
     import nightqc
+
     p = os.path.join(tmp_path, "Tepna_pair_PMDARRIVAL.csv")
     w = PmdArrivalLogWriter(p, fsync=False)
     for meas, span_ms in (("ECG", 100), ("ACC", 2000)):
@@ -479,12 +519,13 @@ def test_arrival_quality_fits_on_seconds_since_this_streams_first_packet(tmp_pat
     all land here and nowhere else. `span_sec` pins the scale independently of the origin.
     """
     import nightqc
+
     _write_long_sidecar(os.path.join(tmp_path, "Tepna_t_PMDARRIVAL.csv"))
     off = nightqc.arrival_quality(str(tmp_path))[0]["offset"]
-    hs = [i * _CADENCE_MS + extra for i, extra in enumerate(_ONE_SIDED)]   # arrivals, ms from the first
+    hs = [i * _CADENCE_MS + extra for i, extra in enumerate(_ONE_SIDED)]  # arrivals, ms from the first
     t_ref = sum(h - hs[0] for h in hs) / len(hs) / 1000.0
     assert abs(off["t_ref_sec"] - t_ref) < 0.06, f"{off['t_ref_sec']} is not {t_ref} s past packet 1"
-    assert abs(off["span_sec"] - (hs[-1] - hs[0]) / 1000.0) < 0.06, off   # the field is rounded to 0.1 s
+    assert abs(off["span_sec"] - (hs[-1] - hs[0]) / 1000.0) < 0.06, off  # the field is rounded to 0.1 s
     # ⚠️ ~2995 s is now BELOW SPAN_MIN_SEC, so the rate is NOT quotable. This assertion read `is True`
     # until 2026-09-15, when the floor moved 2400 -> 3600 s: `skew_quotable` answers "is this ppm
     # RESOLVED", and KNOWN-CLOCK-ADVERSARIAL-CAPTURE §517 answers that `no` under 1 h. The old 2400 was
@@ -507,6 +548,7 @@ def test_arrival_quality_refuses_an_estimate_from_a_single_packet(tmp_path):
     the only pair there is to anchor t on is `pairs[0]`.
     """
     import nightqc
+
     p = os.path.join(tmp_path, "Tepna_s_PMDARRIVAL.csv")
     w = PmdArrivalLogWriter(p, fsync=False)
     w.write(_T0, "dev", "ECG", _BASE_NS, _BASE_NS + 69_000_000, 10)
@@ -518,6 +560,7 @@ def test_arrival_quality_refuses_an_estimate_from_a_single_packet(tmp_path):
 
 # ── the canary is WIRED, not merely correct ─────────────────────────────────────────────────────────
 
+
 def _alert_loop_code() -> str:
     """`capture.py`'s source with COMMENTS STRIPPED.
 
@@ -527,6 +570,7 @@ def _alert_loop_code() -> str:
     cover carries a long comment naming `arrival_canary`, so without this strip they would pass on prose."""
     import io
     import tokenize
+
     src = module_source("capture.py")
     # tokenize + untokenize, NOT a line prefix and NOT a hand-rolled join. Two drafts failed here:
     #   · dropping lines whose lstrip() starts with "#" leaves a TRAILING comment intact, and
@@ -534,8 +578,7 @@ def _alert_loop_code() -> str:
     #   · joining the surviving tokens with "" welds `if notifier:` into `ifnotifier:`, so a search for
     #     a multi-token phrase silently matches nothing — a false PASS in the other direction.
     # `untokenize` pads from the original positions, so spacing survives and only comments go.
-    toks = [t for t in tokenize.generate_tokens(io.StringIO(src).readline)
-            if t.type != tokenize.COMMENT]
+    toks = [t for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type != tokenize.COMMENT]
     return tokenize.untokenize(toks)
 
 
@@ -552,8 +595,8 @@ def test_the_canary_warns_even_with_no_webhook_configured():
     """The journal is the only alerting surface a box without a webhook has, and this failure otherwise
     leaves no trace in it at all. Mirrors the frozen-sensor alert's own rule, a few lines up."""
     code = _alert_loop_code()
-    seg = code[code.index("alerts.arrival_canary("):]
-    seg = seg[:seg.index("if notifier:")]
+    seg = code[code.index("alerts.arrival_canary(") :]
+    seg = seg[: seg.index("if notifier:")]
     assert "log.warning(" in seg, "a WARNING must precede the optional notifier, not depend on it"
 
 
@@ -562,7 +605,7 @@ def test_the_canary_is_deduped_per_night_so_it_cannot_page_every_tick():
     frozen-sensor alert beside it keys on night:device for exactly this reason."""
     code = _alert_loop_code()
     assert "canary_alerted" in code
-    seg = code[code.index("alerts.arrival_canary("):][:900]
+    seg = code[code.index("alerts.arrival_canary(") :][:900]
     assert "canary_alerted.add(" in seg and "continue" in seg
 
 
@@ -574,6 +617,7 @@ def test_arrival_quality_asks_for_tdev_at_the_FIXED_comparison_tau(tmp_path, mon
     per-stream is worse than omitting it, because the numbers then look comparable and are not.
     """
     import nightqc
+
     seen = []
     real = nightqc.allan.stability
 
@@ -582,8 +626,11 @@ def test_arrival_quality_asks_for_tdev_at_the_FIXED_comparison_tau(tmp_path, mon
         return real(phase, tau0, tdev_tau, **kw)
 
     monkeypatch.setattr(nightqc.allan, "stability", spy)
-    _write_sidecar(os.path.join(tmp_path, "Tepna_9_PMDARRIVAL.csv"), "ECG",
-                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_9_PMDARRIVAL.csv"),
+        "ECG",
+        [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+    )
     nightqc.arrival_quality(str(tmp_path))
     assert seen, "arrival_quality never reached the stability call"
     assert all(t == nightqc._TDEV_TAU_S for t in seen), seen
@@ -591,6 +638,7 @@ def test_arrival_quality_asks_for_tdev_at_the_FIXED_comparison_tau(tmp_path, mon
 
 
 # ─── transport share: how much of a stream's ADEV is its OWN packet noise ────────────────────────
+
 
 def _write_two_streams(path, phases_a, phases_b, meas_a="ecg", meas_b="acc", dev="Polar H10 X"):
     """Two streams of ONE device on a 1 s cadence, each with its own arrival phase series."""
@@ -607,6 +655,7 @@ def _write_two_streams(path, phases_a, phases_b, meas_a="ecg", meas_b="acc", dev
 def _clock_plus_noise(n=900, noise=0.5, seed=1):
     """One shared random-walk clock seen by two streams, each with independent arrival noise."""
     import random
+
     r = random.Random(seed)
     clk, v = [], 0.0
     for _ in range(n):
@@ -619,6 +668,7 @@ def test_transport_share_finds_the_shared_clock_under_independent_arrival_noise(
     """The capability: single-stream ADEV cannot separate clock from its own packet noise; the sibling
     stream can, because the noise is independent and the clock is not."""
     import nightqc
+
     a, b = _clock_plus_noise()
     _write_two_streams(os.path.join(tmp_path, "Tepna_20_PMDARRIVAL.csv"), a, b)
     rows = [r for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
@@ -637,10 +687,10 @@ def test_transport_share_SEPARATES_a_shared_clock_from_two_unrelated_streams(tmp
     on one seed and failed on the next. What must hold is the SEPARATION between the two cases.
     """
     import nightqc, random
+
     a, b = _clock_plus_noise()
     _write_two_streams(os.path.join(tmp_path, "Tepna_21a_PMDARRIVAL.csv"), a, b)
-    shared_clock = [r["transport"]["corr"]
-                    for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
+    shared_clock = [r["transport"]["corr"] for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
 
     d2 = tmp_path / "unrelated"
     d2.mkdir()
@@ -648,8 +698,7 @@ def test_transport_share_SEPARATES_a_shared_clock_from_two_unrelated_streams(tmp
     x = [r1.gauss(0, 5) for _ in range(900)]
     y = [r1.gauss(0, 5) for _ in range(900)]
     _write_two_streams(os.path.join(d2, "Tepna_21b_PMDARRIVAL.csv"), x, y)
-    unrelated = [r["transport"]["corr"]
-                 for r in nightqc.arrival_quality(str(d2)) if r.get("transport")]
+    unrelated = [r["transport"]["corr"] for r in nightqc.arrival_quality(str(d2)) if r.get("transport")]
 
     assert shared_clock and unrelated
     assert min(shared_clock) > 2.0 * max(unrelated), (shared_clock, unrelated)
@@ -664,13 +713,14 @@ def test_corr_is_SYMMETRIC_while_each_stream_keeps_its_own_adev(tmp_path):
     this one; keeping it would have pinned the defect rather than the contract.
     """
     import nightqc
+
     a, b = _clock_plus_noise()
-    b = [v * 4.0 for v in b]                       # make the two ADEVs plainly different
+    b = [v * 4.0 for v in b]  # make the two ADEVs plainly different
     _write_two_streams(os.path.join(tmp_path, "Tepna_22_PMDARRIVAL.csv"), a, b)
     rows = {r["meas"]: r["transport"] for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")}
     assert set(rows) == {"ecg", "acc"}
-    assert rows["ecg"]["adev"] != rows["acc"]["adev"], rows          # scale is per stream
-    assert rows["ecg"]["corr"] == rows["acc"]["corr"], rows          # the relationship is not
+    assert rows["ecg"]["adev"] != rows["acc"]["adev"], rows  # scale is per stream
+    assert rows["ecg"]["corr"] == rows["acc"]["corr"], rows  # the relationship is not
     assert rows["ecg"]["gcov"] == rows["acc"]["gcov"]
 
 
@@ -686,19 +736,20 @@ def test_corr_CANNOT_leave_minus_one_to_one_however_unequal_the_two_scales(tmp_p
     reads 4.80 under the old form against 0.79 under this one.
     """
     import nightqc, random
+
     rng = random.Random(3)
     clk, v = [], 0.0
     for _ in range(900):
         v += rng.gauss(0, 1.0)
         clk.append(v)
     a = [c + rng.gauss(0, 0.3) for c in clk]
-    b = [6.0 * c + rng.gauss(0, 1.8) for c in clk]      # same clock, six times the scale
+    b = [6.0 * c + rng.gauss(0, 1.8) for c in clk]  # same clock, six times the scale
     _write_two_streams(os.path.join(tmp_path, "Tepna_41_PMDARRIVAL.csv"), a, b)
     rows = [r["transport"] for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
     assert rows, "the pair must produce a transport record at all"
     for t in rows:
         assert -1.0 <= t["corr"] <= 1.0, t
-        assert t["corr"] > 0.5, t                       # …and still SEES the shared clock
+        assert t["corr"] > 0.5, t  # …and still SEES the shared clock
 
 
 def test_the_interval_brackets_the_estimate_and_widens_when_n_eff_is_small():
@@ -706,6 +757,7 @@ def test_the_interval_brackets_the_estimate_and_widens_when_n_eff_is_small():
     much smaller than `n` and the interval is correspondingly wide. A narrow interval here would be the
     false precision the whole field exists to avoid."""
     import nightqc
+
     a, b = _clock_plus_noise(n=900)
     pa = [(1000.0 * i, v) for i, v in enumerate(a)]
     pb = [(1000.0 * i, v) for i, v in enumerate(b)]
@@ -713,16 +765,17 @@ def test_the_interval_brackets_the_estimate_and_widens_when_n_eff_is_small():
     assert share and share["ci"] is not None
     lo, hi = share["ci"]
     assert lo < share["corr"] < hi, share
-    assert share["n_eff"] < share["n"] / 2, share            # overlap is not free information
+    assert share["n_eff"] < share["n"] / 2, share  # overlap is not free information
 
 
 def test_no_interval_is_published_when_n_eff_cannot_support_one():
     """None, not a bound of (-1, 1): an interval spanning the whole range is not a measurement, and a
     caller branching on `ci` being present must not be handed one that says nothing."""
     import nightqc
+
     assert nightqc._fisher_ci(0.5, 3) is None
     assert nightqc._fisher_ci(0.5, None) is None
-    assert nightqc._fisher_ci(1.0, 500) is None             # atanh diverges at the ends
+    assert nightqc._fisher_ci(1.0, 500) is None  # atanh diverges at the ends
     assert nightqc._fisher_ci(-1.0, 500) is None
     lo, hi = nightqc._fisher_ci(0.0, 103)
     assert lo < 0.0 < hi
@@ -731,8 +784,12 @@ def test_no_interval_is_published_when_n_eff_cannot_support_one():
 def test_a_lone_stream_reports_no_transport_rather_than_a_zero(tmp_path):
     """None means "no sibling to compare against", which is not the same as "nothing shared"."""
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_23_PMDARRIVAL.csv"), "ECG",
-                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_23_PMDARRIVAL.csv"),
+        "ECG",
+        [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+    )
     rows = nightqc.arrival_quality(str(tmp_path))
     assert rows and all(r["transport"] is None for r in rows)
 
@@ -740,15 +797,23 @@ def test_a_lone_stream_reports_no_transport_rather_than_a_zero(tmp_path):
 def test_the_quantised_ring_stream_is_never_paired(tmp_path):
     """Pairing against a 1 s quantised axis would measure the quantum, not the link."""
     import nightqc
+
     a, _ = _clock_plus_noise()
-    _write_two_streams(os.path.join(tmp_path, "Tepna_24_PMDARRIVAL.csv"), a, a,
-                       meas_a="OXYLIVE_DURATION_S", meas_b="OXYLIVE_DURATION_S", dev="Wellue")
+    _write_two_streams(
+        os.path.join(tmp_path, "Tepna_24_PMDARRIVAL.csv"),
+        a,
+        a,
+        meas_a="OXYLIVE_DURATION_S",
+        meas_b="OXYLIVE_DURATION_S",
+        dev="Wellue",
+    )
     rows = nightqc.arrival_quality(str(tmp_path))
     assert rows and all(r["transport"] is None for r in rows)
 
 
 def test_transport_share_returns_None_when_the_pair_is_too_short():
     import nightqc
+
     assert nightqc.transport_share([], []) is None
     tiny = [(1000.0 * i, 0.5) for i in range(4)]
     assert nightqc.transport_share(tiny, tiny) is None
@@ -758,11 +823,12 @@ def test_phase_grid_bins_on_ABSOLUTE_time_so_two_streams_cannot_be_shifted():
     """A per-stream-relative index would align bin 0 of one with bin 0 of the other — comparing
     different instants while returning a well-formed number."""
     import nightqc
+
     early = nightqc._phase_grid([(1_000.0, 5.0), (1_999.0, 7.0)])
     late = nightqc._phase_grid([(9_000.0, 5.0)])
     assert set(early) == {1}, early
     assert set(late) == {9}, late
-    assert early[1] == 6.0                        # both samples in bin 1 are averaged
+    assert early[1] == 6.0  # both samples in bin 1 are averaged
 
 
 def test_a_gappy_partner_does_not_inflate_the_shared_fraction(tmp_path):
@@ -779,10 +845,11 @@ def test_a_gappy_partner_does_not_inflate_the_shared_fraction(tmp_path):
     count, not either stream's own.
     """
     import nightqc
+
     a, b = _clock_plus_noise(n=900)
     holed = list(b)
     for i in range(0, len(holed), 2):
-        holed[i] = None                                   # deliver only every other bin
+        holed[i] = None  # deliver only every other bin
     pairs_a = [(1000.0 * i, v) for i, v in enumerate(a)]
     pairs_b = [(1000.0 * i, v) for i, v in enumerate(holed) if v is not None]
     share = nightqc.transport_share(pairs_a, pairs_b)
@@ -791,6 +858,7 @@ def test_a_gappy_partner_does_not_inflate_the_shared_fraction(tmp_path):
     assert share["n"] < 500, share
     # and the denominator must be the ADEV over those same bins, not over all 900 of a's
     from allan import adev
+
     over_all = adev([v for v in a], 1.0)[0]["adev"]
     assert share["adev_a"] != over_all, (share["adev_a"], over_all)
 
@@ -799,18 +867,17 @@ def test_transport_is_attached_to_the_RIGHT_device_when_two_are_in_one_file(tmp_
     """The pairing pass scans every record accumulated so far, so it must skip the ones belonging to
     another device — otherwise one device's figure lands on another's stream."""
     import nightqc
+
     a, b = _clock_plus_noise(seed=11)
     c, d = _clock_plus_noise(seed=12, noise=2.0)
     p = os.path.join(tmp_path, "Tepna_30_PMDARRIVAL.csv")
     w = PmdArrivalLogWriter(p, fsync=False)
     base = 500_000_000_000
-    for dev, m1, m2, s1, s2 in (("Polar H10 A", "ecg", "acc", a, b),
-                                ("Polar Verity B", "ppg", "acc", c, d)):
+    for dev, m1, m2, s1, s2 in (("Polar H10 A", "ecg", "acc", a, b), ("Polar Verity B", "ppg", "acc", c, d)):
         for meas, phases in ((m1, s1), (m2, s2)):
             for i, ph in enumerate(phases):
                 dev_ns = base + i * 1_000_000_000
-                w.write(_T0 + _dt.timedelta(milliseconds=(dev_ns - base) / 1e6 + ph),
-                        dev, meas, dev_ns, dev_ns, 10)
+                w.write(_T0 + _dt.timedelta(milliseconds=(dev_ns - base) / 1e6 + ph), dev, meas, dev_ns, dev_ns, 10)
     w.close()
     rows = [r for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")]
     assert len(rows) == 4, rows
@@ -825,8 +892,10 @@ def test_transport_is_attached_to_the_RIGHT_device_when_two_are_in_one_file(tmp_
 def test_two_streams_too_short_to_measure_leave_transport_None(tmp_path):
     """`transport_share` declining must leave the field None, not raise and not zero it."""
     import nightqc
-    _write_two_streams(os.path.join(tmp_path, "Tepna_31_PMDARRIVAL.csv"),
-                       [0.1, 0.2, 0.3, 0.4, 0.5], [0.2, 0.1, 0.4, 0.3, 0.6])
+
+    _write_two_streams(
+        os.path.join(tmp_path, "Tepna_31_PMDARRIVAL.csv"), [0.1, 0.2, 0.3, 0.4, 0.5], [0.2, 0.1, 0.4, 0.3, 0.6]
+    )
     rows = nightqc.arrival_quality(str(tmp_path))
     assert rows and all(r["transport"] is None for r in rows)
 
@@ -835,6 +904,7 @@ def test_a_perfectly_linear_phase_has_no_adev_to_divide_by_and_returns_None():
     """A constant-rate series has zero second difference, so ADEV is exactly 0 and `shared` would be a
     division by it. None rather than an exception or an infinity."""
     import nightqc
+
     ramp = [(1000.0 * i, 2.0 * i) for i in range(400)]
     assert nightqc.transport_share(ramp, ramp) is None
 
@@ -844,6 +914,7 @@ def test_excess_kurtosis_is_published_so_the_gaussian_premise_is_CHECKABLE():
     roughly normal tail. Publishing the measured kurtosis beside it is what lets a reader see whether
     that conversion means anything — on this hardware it usually does not."""
     import nightqc, random
+
     rng = random.Random(1)
     normal = [rng.gauss(0, 1) for _ in range(5000)]
     heavy = [rng.gauss(0, 1) if rng.random() < 0.99 else rng.gauss(0, 40) for _ in range(5000)]
@@ -853,6 +924,7 @@ def test_excess_kurtosis_is_published_so_the_gaussian_premise_is_CHECKABLE():
 
 def test_tail_gaussian_says_whether_the_delivery_term_can_be_trusted():
     import nightqc
+
     ok = nightqc.timing_uncertainty({"iqr_ms": 10.0, "excess_kurtosis": 0.2})
     bad = nightqc.timing_uncertainty({"iqr_ms": 10.0, "excess_kurtosis": 1901.3})
     unknown = nightqc.timing_uncertainty({"iqr_ms": 10.0})
@@ -867,11 +939,13 @@ def test_a_flat_topped_tail_is_ALSO_not_gaussian():
     streams sit at -0.9 to -1.1 (flat-topped) while the H10 is +1400 — the bound is two-sided because
     the failure is."""
     import nightqc
+
     assert nightqc.timing_uncertainty({"iqr_ms": 5.0, "excess_kurtosis": -1.1})["tail_gaussian"] is False
 
 
 def test_a_zero_variance_sample_yields_no_kurtosis_rather_than_a_division():
     import nightqc
+
     j = nightqc.host_jitter([3.0] * 300)
     assert j is not None and j["excess_kurtosis"] is None
     assert nightqc.timing_uncertainty(j)["tail_gaussian"] is None
@@ -895,6 +969,7 @@ def _write_frozen(path, meas, n=300, dev_ns=500_000_000_000):
 
 def test_device_stamp_constant_needs_enough_packets_to_mean_anything():
     import nightqc
+
     assert nightqc.device_stamp_constant([7] * 199) is None
     assert nightqc.device_stamp_constant([7] * 200) is True
 
@@ -902,6 +977,7 @@ def test_device_stamp_constant_needs_enough_packets_to_mean_anything():
 def test_device_stamp_constant_is_a_fact_about_the_stamps_that_exist():
     """`None` entries are absent readings, not evidence either way — they are dropped, not defaulted."""
     import nightqc
+
     assert nightqc.device_stamp_constant([7] * 200 + [None] * 50) is True
     assert nightqc.device_stamp_constant([None] * 250) is None
     assert nightqc.device_stamp_constant([7] * 199 + [8]) is False
@@ -909,6 +985,7 @@ def test_device_stamp_constant_is_a_fact_about_the_stamps_that_exist():
 
 def test_a_frozen_device_stamp_is_reported_as_absent_not_merely_refused(tmp_path):
     import nightqc
+
     _write_frozen(os.path.join(tmp_path, "Tepna_f_PMDARRIVAL.csv"), "ppi")
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert row["device_stamp_constant"] is True
@@ -933,6 +1010,7 @@ def test_a_GENUINE_skew_is_refused_WITHOUT_being_called_absent(tmp_path):
     diagnosis of it.
     """
     import nightqc
+
     w = PmdArrivalLogWriter(os.path.join(tmp_path, "Tepna_s_PMDARRIVAL.csv"), fsync=False)
     for i in range(300):
         dev_ns = 500_000_000_000 + i * 77_000_000
@@ -945,8 +1023,12 @@ def test_a_GENUINE_skew_is_refused_WITHOUT_being_called_absent(tmp_path):
 
 def test_a_healthy_stream_reads_false_so_the_field_is_not_vacuously_true(tmp_path):
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_h2_PMDARRIVAL.csv"), "ECG",
-                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_h2_PMDARRIVAL.csv"),
+        "ECG",
+        [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+    )
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert row["device_stamp_constant"] is False
     assert row["offset"]["ok"] is True
@@ -978,12 +1060,14 @@ def test_phase_grid_DIVIDES_by_the_bin_width_rather_than_multiplying():
     itself was never pinned.
     """
     import nightqc
+
     assert nightqc._phase_grid([(0.0, 1.0), (5000.0, 3.0)], 10) == {0: 2.0}
 
 
 def test_the_jitter_summary_actually_REACHES_the_row(tmp_path):
     """`jitter: None` and `host_jitter(None)` both survived — nothing read the field."""
     import nightqc
+
     _write_sidecar(os.path.join(tmp_path, "Tepna_j1_PMDARRIVAL.csv"), "ECG", _bell(400))
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert isinstance(row["jitter"], dict), row["jitter"]
@@ -995,6 +1079,7 @@ def test_the_jitter_summary_actually_REACHES_the_row(tmp_path):
 def test_the_stability_curve_actually_REACHES_the_row(tmp_path):
     """Deleting the `allan.stability` call survived: the key was never read."""
     import nightqc
+
     _write_sidecar(os.path.join(tmp_path, "Tepna_s1_PMDARRIVAL.csv"), "ECG", _bell(400))
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert isinstance(row["stability"], dict), row["stability"]
@@ -1009,9 +1094,9 @@ def test_the_transport_pair_is_the_two_DENSEST_streams(tmp_path):
     (it is alphabetically second); sorting ascending by length picks it first.
     """
     import nightqc
+
     a, b = _clock_plus_noise(n=900)
-    _write_n_streams(os.path.join(tmp_path, "Tepna_d1_PMDARRIVAL.csv"),
-                     {"aaa": a, "mmm": _bell(200), "zzz": b})
+    _write_n_streams(os.path.join(tmp_path, "Tepna_d1_PMDARRIVAL.csv"), {"aaa": a, "mmm": _bell(200), "zzz": b})
     got = {r["meas"]: r.get("transport") for r in nightqc.arrival_quality(str(tmp_path))}
     assert got["aaa"] and got["zzz"], "the two DENSEST streams must be the pair"
     assert got["mmm"] is None, "the sparse stream must not be chosen over a denser one"
@@ -1026,11 +1111,11 @@ def test_streams_of_EQUAL_density_are_broken_by_NAME_not_by_their_data(tmp_path)
     `zzz` — a data-dependent choice that would silently vary with arrival noise.
     """
     import nightqc
+
     a, b = _clock_plus_noise(n=900)
     c = list(b)
-    c[0] = -9999.0            # makes zzz's leading tuple the smallest, so a data tie-break picks it
-    _write_n_streams(os.path.join(tmp_path, "Tepna_t1_PMDARRIVAL.csv"),
-                     {"aaa": a, "mmm": b, "zzz": c})
+    c[0] = -9999.0  # makes zzz's leading tuple the smallest, so a data tie-break picks it
+    _write_n_streams(os.path.join(tmp_path, "Tepna_t1_PMDARRIVAL.csv"), {"aaa": a, "mmm": b, "zzz": c})
     got = {r["meas"]: r.get("transport") for r in nightqc.arrival_quality(str(tmp_path))}
     assert got["aaa"] and got["mmm"], "an exact tie must resolve by NAME"
     assert got["zzz"] is None, "the data must not decide which streams pair"
@@ -1049,6 +1134,7 @@ def test_device_stamp_constant_reads_the_FIRST_stamp_and_survives_a_single_one()
     ledger, which is the one entry that can hide a real defect.
     """
     import nightqc
+
     assert nightqc.device_stamp_constant([7], min_n=1) is True
     assert nightqc.device_stamp_constant([7, 7], min_n=2) is True
     assert nightqc.device_stamp_constant([7, 8], min_n=2) is False
@@ -1075,12 +1161,16 @@ def test_a_device_that_cannot_be_paired_does_not_STOP_the_devices_after_it(tmp_p
     must still be reported.
     """
     import nightqc
+
     a, b = _clock_plus_noise(n=900)
-    _write_dev_streams(os.path.join(tmp_path, "Tepna_c1_PMDARRIVAL.csv"), {
-        "AAA lonely": {"ecg": (0, _bell(300))},                       # one stream -> skipped
-        "BBB disjoint": {"ecg": (0, a), "acc": (1_000_000, b)},       # no shared bins -> share None
-        "CCC good": {"ecg": (0, a), "acc": (0, b)},                   # must still be reached
-    })
+    _write_dev_streams(
+        os.path.join(tmp_path, "Tepna_c1_PMDARRIVAL.csv"),
+        {
+            "AAA lonely": {"ecg": (0, _bell(300))},  # one stream -> skipped
+            "BBB disjoint": {"ecg": (0, a), "acc": (1_000_000, b)},  # no shared bins -> share None
+            "CCC good": {"ecg": (0, a), "acc": (0, b)},  # must still be reached
+        },
+    )
     got = {(r["device"], r["meas"]): r.get("transport") for r in nightqc.arrival_quality(str(tmp_path))}
     assert got[("CCC good", "ecg")], "a device after two skipped ones must still be paired"
     assert got[("CCC good", "acc")]
@@ -1097,13 +1187,15 @@ def test_the_budget_is_asked_for_the_curve_s_OWN_optimal_tau(tmp_path):
     None is observable rather than merely different-looking.
     """
     import nightqc
+
     _write_sidecar(os.path.join(tmp_path, "Tepna_u1_PMDARRIVAL.csv"), "ECG", _bell(400))
     row = nightqc.arrival_quality(str(tmp_path))[0]
     tau = row["stability"]["optimal_tau"]
     assert tau, row["stability"]
     assert row["u_time"]["free_run"] is not None, row["u_time"]
-    starved = nightqc.timing_uncertainty(row["jitter"], quantised=row["quantised"],
-                                         stability=row["stability"], tau_s=None)
+    starved = nightqc.timing_uncertainty(
+        row["jitter"], quantised=row["quantised"], stability=row["stability"], tau_s=None
+    )
     assert starved["free_run"] is None, "a tau-less budget must not still report a free-run term"
 
 
@@ -1113,6 +1205,7 @@ def test_the_budget_is_asked_for_the_curve_s_OWN_optimal_tau(tmp_path):
 def _lattice_series(step, reach, noise, n, seed=2):
     """Delays whose DIFFERENCES land on a `step` lattice — what a connection-event delivery looks like."""
     import random
+
     r = random.Random(seed)
     out = [0.0]
     for _ in range(n):
@@ -1122,6 +1215,7 @@ def _lattice_series(step, reach, noise, n, seed=2):
 
 def test_connection_lattice_recovers_a_planted_period():
     import nightqc
+
     for step in (7.5, 12.5, 30.0, 45.0):
         got = nightqc.connection_lattice(_lattice_series(step, 8, step / 20.0, 2500))
         assert got, step
@@ -1133,6 +1227,7 @@ def test_connection_lattice_is_QUIET_on_continuous_delay():
     """ANTI-VACUITY: without this the scan reports its favourite period on any input at all."""
     import nightqc
     import random
+
     r = random.Random(9)
     walk = [0.0]
     for _ in range(2500):
@@ -1149,6 +1244,7 @@ def test_the_period_cannot_EXCEED_the_spread_it_is_measured_over():
     narrow support is then recovered as 12.5 rather than as the edge of the search range.
     """
     import nightqc
+
     got = nightqc.connection_lattice(_lattice_series(12.5, 4, 0.6, 2500))
     assert got and abs(got["period_ms"] - 12.5) < 0.4, got
 
@@ -1159,12 +1255,14 @@ def test_the_lattice_reported_is_the_FUNDAMENTAL_not_a_submultiple():
     Reporting one would understate the granularity by an integer factor.
     """
     import nightqc
+
     got = nightqc.connection_lattice(_lattice_series(45.0, 8, 2.0, 2500))
     assert got and abs(got["period_ms"] - 45.0) < 1.0, got
 
 
 def test_connection_lattice_refuses_a_series_too_short_to_say():
     import nightqc
+
     assert nightqc.connection_lattice(_lattice_series(30.0, 6, 1.0, 100)) is None
     assert nightqc.connection_lattice([]) is None
 
@@ -1172,11 +1270,13 @@ def test_connection_lattice_refuses_a_series_too_short_to_say():
 def test_a_delay_with_no_spread_at_all_yields_no_lattice():
     """A constant delay has no support, so `hi <= lo` and there is nothing to scan."""
     import nightqc
+
     assert nightqc.connection_lattice([5.0] * 400) is None
 
 
 def test_the_lattice_reaches_the_row(tmp_path):
     import nightqc
+
     _write_sidecar(os.path.join(tmp_path, "Tepna_L1_PMDARRIVAL.csv"), "ECG", _bell(400))
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert "lattice" in row
@@ -1191,6 +1291,7 @@ def test_the_period_is_MEASURED_not_drawn_from_a_table_of_known_intervals():
     milliseconds.
     """
     import nightqc
+
     for step in (26.25, 48.75, 18.75, 3.75):
         got = nightqc.connection_lattice(_lattice_series(step, 8, step / 20.0, 2500))
         assert got, step
@@ -1201,6 +1302,7 @@ def test_the_period_is_MEASURED_not_drawn_from_a_table_of_known_intervals():
 def test_a_changed_adapter_changes_the_reported_period(tmp_path):
     """The property that makes this worth recording per session rather than documenting once."""
     import nightqc
+
     a = nightqc.connection_lattice(_lattice_series(30.0, 8, 1.0, 2500))
     b = nightqc.connection_lattice(_lattice_series(45.0, 8, 1.0, 2500))
     assert abs(a["period_ms"] - 30.0) < 0.6 and abs(b["period_ms"] - 45.0) < 0.9, (a, b)
@@ -1216,6 +1318,7 @@ def test_the_lattice_REFUSES_a_device_axis_that_is_not_a_clock():
     a non-integer, at R 0.52.
     """
     import nightqc
+
     series = _lattice_series(30.0, 8, 1.0, 2500)
     assert nightqc.connection_lattice(series)["ok"] is True
     ref = nightqc.connection_lattice(series, device_axis_is_clock=False)
@@ -1226,8 +1329,12 @@ def test_the_lattice_REFUSES_a_device_axis_that_is_not_a_clock():
 def test_a_quantised_ring_stream_gets_no_lattice_but_a_polar_stream_does(tmp_path):
     """The refusal has to reach the row through arrival_quality, keyed on the axis it already knows."""
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_R1_PMDARRIVAL.csv"), "OXYLIVE_DURATION_S",
-                   [400 + 1000 * (i % 3) for i in range(600)])
+
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_R1_PMDARRIVAL.csv"),
+        "OXYLIVE_DURATION_S",
+        [400 + 1000 * (i % 3) for i in range(600)],
+    )
     _write_sidecar(os.path.join(tmp_path, "Tepna_R2_PMDARRIVAL.csv"), "ECG", _bell(600))
     got = {r["meas"]: r["lattice"] for r in nightqc.arrival_quality(str(tmp_path))}
     assert got["OXYLIVE_DURATION_S"]["ok"] is False
@@ -1248,6 +1355,7 @@ def test_tau0_uniformity_reaches_the_row_and_is_not_fabricated(tmp_path):
     `_TDEV_TAU_S` comparisons are not.
     """
     import nightqc
+
     _write_sidecar(os.path.join(tmp_path, "Tepna_u2_PMDARRIVAL.csv"), "ECG", _bell(400))
     row = nightqc.arrival_quality(str(tmp_path))[0]
     u = row["tau0_uniformity"]
@@ -1270,6 +1378,7 @@ def test_a_stream_too_short_to_have_a_spacing_reports_None_not_a_fake_1_0(tmp_pa
     Exercised on the real corpus: 4 of 1008 rows take this path.
     """
     import nightqc
+
     _write_sidecar(os.path.join(tmp_path, "Tepna_u3_PMDARRIVAL.csv"), "ECG", [400.0, 401.0])
     rows = nightqc.arrival_quality(str(tmp_path))
     if rows:
@@ -1284,11 +1393,12 @@ def test_ratio_and_max_gap_are_kept_SEPARATE_because_they_disagree(tmp_path):
     — with a max_gap of 9.9x. Collapsing them into one score loses exactly that stream.
     """
     import allan
+
     even_with_one_stall = [0.0] + [float(i) for i in range(1, 60)] + [110.0]
     u = allan.tau0_uniformity(even_with_one_stall)
     assert u is not None
-    assert abs(u["ratio"] - 1.0) < 0.9, u          # the mean barely moves
-    assert u["max_gap"] >= 5.0, u                  # the peak does
+    assert abs(u["ratio"] - 1.0) < 0.9, u  # the mean barely moves
+    assert u["max_gap"] >= 5.0, u  # the peak does
 
 
 # ── B3 · THE DEVICE STAMP IS A COUNTER, NOT AN EPOCH-MS ────────────────────────────────────────────
@@ -1332,10 +1442,13 @@ def test_the_device_counter_is_offset_from_the_polar_epoch_not_from_1970(tmp_pat
     the assertion the old fixtures could not make.
     """
     import nightqc
+
     _sidecar_at_true_instants(
-        os.path.join(tmp_path, "Tepna_B3_PMDARRIVAL.csv"), "ECG",
+        os.path.join(tmp_path, "Tepna_B3_PMDARRIVAL.csv"),
+        "ECG",
         _dt.datetime(2026, 8, 11, 22, 0, tzinfo=_dt.timezone.utc),
-        [250 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+        [250 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+    )
     rows = nightqc.arrival_quality(str(tmp_path))
     assert len(rows) == 1, rows
     off = rows[0]["offset"]
@@ -1356,14 +1469,16 @@ def test_a_zero_device_counter_is_absence_and_never_the_year_2000(tmp_path):
     splits the population the offset is estimated over. Absent is absent.
     """
     import nightqc
+
     p = os.path.join(tmp_path, "Tepna_B3zero_PMDARRIVAL.csv")
     w = PmdArrivalLogWriter(p, fsync=False)
     for i in range(400):
         inst = _dt.datetime(2026, 8, 11, 22, 0, tzinfo=_dt.timezone.utc) + _dt.timedelta(seconds=i)
         w.write(inst.astimezone().replace(tzinfo=None), "dev", "PPI", 0, 0, 10)
     w.close()
-    assert nightqc.arrival_quality(str(tmp_path)) == [], \
+    assert nightqc.arrival_quality(str(tmp_path)) == [], (
         "a stream whose device counter is 0 throughout has no arrival pair to report"
+    )
 
 
 # ─── WHICH EPOCH THE DEVICE COUNTER READ (2026-09-27) ────────────────────────────────────────────
@@ -1372,30 +1487,40 @@ def test_a_zero_device_counter_is_absence_and_never_the_year_2000(tmp_path):
 # continuous and fully covered, the clock is merely wrong. Measured over the corpus: the H10 read its
 # 2019 firmware default on 7 of 44 nights and those nights published a 7.74-year offset as ok:true.
 
-_FIRMWARE_DEFAULT_NS = int(round((_dt.datetime(2019, 1, 1, tzinfo=_dt.timezone.utc)
-                                  - _POLAR_EPOCH_UTC).total_seconds() * 1e9))
+_FIRMWARE_DEFAULT_NS = int(
+    round((_dt.datetime(2019, 1, 1, tzinfo=_dt.timezone.utc) - _POLAR_EPOCH_UTC).total_seconds() * 1e9)
+)
 
 
 def test_a_firmware_default_epoch_is_NAMED_and_its_offset_refused(tmp_path):
     """THE PLANT, in the real shape: the H10's counter reads 2019 while the host reads 2026."""
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_fw_PMDARRIVAL.csv"), "ECG",
-                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
-                   base_ns=_FIRMWARE_DEFAULT_NS)
+
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_fw_PMDARRIVAL.csv"),
+        "ECG",
+        [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+        base_ns=_FIRMWARE_DEFAULT_NS,
+    )
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert row["device_epoch"]["state"] == "firmware-default", row["device_epoch"]
     assert row["device_epoch"]["device_time_first"].startswith("2019-01-01"), row["device_epoch"]
     assert row["offset"]["ok"] is False and row["offset"]["reason"] == "implausible-offset", row["offset"]
     assert row["offset"]["cause"] == "firmware-default", (
-        "the cause travels ON the refusal, so a consumer reading only `offset` still learns it")
+        "the cause travels ON the refusal, so a consumer reading only `offset` still learns it"
+    )
 
 
 def test_a_plausible_epoch_leaves_the_night_exactly_as_it_was(tmp_path):
     """THE CONTROL. A healthy 2026 counter: the state says so, the offset certifies, and the VALUE is
     the planted one — the refusal must not reach a real link."""
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_ok_PMDARRIVAL.csv"), "ECG",
-                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_ok_PMDARRIVAL.csv"),
+        "ECG",
+        [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+    )
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert row["device_epoch"]["state"] == "plausible", row["device_epoch"]
     assert row["device_epoch"]["switched_at"] is None
@@ -1408,9 +1533,13 @@ def test_a_DURATION_S_pseudo_stream_says_it_was_never_a_clock(tmp_path):
     elapsed count, so differencing it against a host epoch was never an offset. `quantised` already
     refuses the FLOOR; this names the reason and the offset is refused too."""
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_du_PMDARRIVAL.csv"), "OXYLIVE_DURATION_S",
-                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
-                   base_ns=500_000_000_000)          # a duration, deliberately not an epoch
+
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_du_PMDARRIVAL.csv"),
+        "OXYLIVE_DURATION_S",
+        [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+        base_ns=500_000_000_000,
+    )  # a duration, deliberately not an epoch
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert row["quantised"] is True
     assert row["device_epoch"]["state"] == "duration-not-an-offset", row["device_epoch"]
@@ -1421,6 +1550,7 @@ def test_a_frozen_counter_at_the_epoch_base_reads_unset_base(tmp_path):
     """The Verity PPI shape: the counter never left 2000-01-01, which is not a clock reading at all.
     `device_stamp_constant` already flags the frozen stamp; the epoch state names what it means."""
     import nightqc
+
     _write_frozen(os.path.join(tmp_path, "Tepna_fz_PMDARRIVAL.csv"), "PPI")
     row = nightqc.arrival_quality(str(tmp_path))[0]
     assert row["device_stamp_constant"] is True
@@ -1433,9 +1563,10 @@ def test_a_counter_that_changes_epoch_MID_STREAM_reports_the_boundary(tmp_path):
     consistent — so a within-stream switch has never been seen on the box. It is reachable in principle,
     because a resync can land on a live connection, so the field exists and this is what it would say."""
     import nightqc
+
     w = PmdArrivalLogWriter(os.path.join(tmp_path, "Tepna_sw_PMDARRIVAL.csv"), fsync=False)
     for i in range(300):
-        base = _FIRMWARE_DEFAULT_NS if i < 150 else _BASE_NS      # the resync lands at packet 150
+        base = _FIRMWARE_DEFAULT_NS if i < 150 else _BASE_NS  # the resync lands at packet 150
         dev_ns = base + (i % 150) * 77_000_000
         arr = _T0 + _dt.timedelta(milliseconds=i * 77.0 + 400.0)
         w.write(arr, "dev", "ECG", dev_ns, dev_ns + 69_000_000, 10)
@@ -1449,6 +1580,7 @@ def test_a_counter_that_changes_epoch_MID_STREAM_reports_the_boundary(tmp_path):
 def test_nothing_measured_means_no_epoch_claim():
     """∅ — an empty stream is not a plausible one."""
     import nightqc
+
     assert nightqc.device_epoch_state([], quantised=False, stamp_frozen=False) is None
 
 
@@ -1459,6 +1591,7 @@ def test_nothing_measured_means_no_epoch_claim():
 # produces — and every variant of the bound classifies a 2019 reading the same way, because 7.7 years is
 # far from every candidate line. These call the classifier with the differences either side of the line.
 # ---------------------------------------------------------------------------------------------------
+
 
 def _epoch_pairs(diff_ms, *, host_ms=1_790_000_000_000.0, dev_ns=0, n=3):
     """`(host_ms, diff_ms, dev_ns)` — the tuple `device_epoch_state` consumes, with no file behind it."""
@@ -1471,6 +1604,7 @@ def test_hours_out_is_a_drift_or_a_timezone_not_a_wrong_epoch():
     divided instead of multiplied lands at 31.5 s and would call this stream a firmware default, i.e.
     would name an epoch fault on a device whose epoch is fine."""
     import nightqc
+
     st = nightqc.device_epoch_state(_epoch_pairs(1.0e8), quantised=False, stamp_frozen=False)
     assert st["state"] == "plausible", st
 
@@ -1481,11 +1615,14 @@ def test_exactly_a_year_is_plausible_and_half_a_part_per_thousand_more_is_not():
     name with no refusal beside it (or the reverse)."""
     import clock_offset
     import nightqc
-    at = nightqc.device_epoch_state(_epoch_pairs(clock_offset.CLOCK_IMPLAUSIBLE_S * 1000.0),
-                                    quantised=False, stamp_frozen=False)
+
+    at = nightqc.device_epoch_state(
+        _epoch_pairs(clock_offset.CLOCK_IMPLAUSIBLE_S * 1000.0), quantised=False, stamp_frozen=False
+    )
     assert at["state"] == "plausible", at
-    over = nightqc.device_epoch_state(_epoch_pairs(clock_offset.CLOCK_IMPLAUSIBLE_S * 1000.5),
-                                      quantised=False, stamp_frozen=False)
+    over = nightqc.device_epoch_state(
+        _epoch_pairs(clock_offset.CLOCK_IMPLAUSIBLE_S * 1000.5), quantised=False, stamp_frozen=False
+    )
     assert over["state"] == "firmware-default", over
 
 
@@ -1496,12 +1633,14 @@ def test_the_device_time_is_UTC_whatever_zone_the_READER_sits_in():
     moves the zone, and a local-time reading would print 2018-12-31 under a `Z` it has no right to."""
     import time
     import nightqc
+
     old = os.environ.get("TZ")
     os.environ["TZ"] = "America/New_York"
     time.tzset()
     try:
-        st = nightqc.device_epoch_state(_epoch_pairs(0.0, dev_ns=_FIRMWARE_DEFAULT_NS),
-                                        quantised=False, stamp_frozen=False)
+        st = nightqc.device_epoch_state(
+            _epoch_pairs(0.0, dev_ns=_FIRMWARE_DEFAULT_NS), quantised=False, stamp_frozen=False
+        )
         assert st["device_time_first"] == "2019-01-01T00:00:00Z", st
     finally:
         if old is None:
@@ -1517,8 +1656,8 @@ def test_the_switch_is_stamped_at_the_HOST_instant_of_that_packet():
     the seconds it is built from are host ms, so both of those substitutions land on a different minute
     in every zone, not only in this one."""
     import nightqc
-    pairs = (_epoch_pairs(0.0, n=1)
-             + [(1_790_000_000_000.0, 4.0e10, 0)])
+
+    pairs = _epoch_pairs(0.0, n=1) + [(1_790_000_000_000.0, 4.0e10, 0)]
     st = nightqc.device_epoch_state(pairs, quantised=False, stamp_frozen=False)
     assert st["state"] == "plausible" and st["switched_to"] == "firmware-default", st
     assert st["switched_at"] == nightqc._hhmm(1_790_000_000_000.0 / 1000.0), st
@@ -1560,8 +1699,11 @@ def test_a_row_lacking_last_sensor_ns_falls_back_to_the_FIRST(tmp_path):
     measurement to read from the other column. `or` and not `and`: chaining `and ""` makes the fallback
     evaluate to empty and drops every such row silently, which is the whole night for that stream."""
     import nightqc
-    rows = [(_stamp(_BASE_NS + i * 77_000_000, 400.0), "dev", "ECG",
-             str(_BASE_NS + i * 77_000_000), "", "10") for i in range(120)]
+
+    rows = [
+        (_stamp(_BASE_NS + i * 77_000_000, 400.0), "dev", "ECG", str(_BASE_NS + i * 77_000_000), "", "10")
+        for i in range(120)
+    ]
     _raw_sidecar(os.path.join(tmp_path, "Tepna_fb_PMDARRIVAL.csv"), rows)
     out = nightqc.arrival_quality(str(tmp_path))
     assert len(out) == 1 and out[0]["rows"] == 120, out
@@ -1574,10 +1716,11 @@ def test_a_zero_counter_row_is_SKIPPED_and_does_not_abandon_the_file(tmp_path):
     the prefix as if it were the whole recording. The sentinel is 0: a counter of 1 ns is absurd but it
     is a reading, and a guard that swallowed it would be deciding by plausibility, not by absence."""
     import nightqc
+
     rows = []
     for i in range(122):
         dev_ns = _BASE_NS + i * 77_000_000
-        ns = {0: "0", 1: "1"}.get(i, str(dev_ns))          # row 0 absent, row 1 the 1 ns edge
+        ns = {0: "0", 1: "1"}.get(i, str(dev_ns))  # row 0 absent, row 1 the 1 ns edge
         rows.append((_stamp(dev_ns, 400.0), "dev", "ECG", ns, ns, "10"))
     _raw_sidecar(os.path.join(tmp_path, "Tepna_z_PMDARRIVAL.csv"), rows)
     out = nightqc.arrival_quality(str(tmp_path))
@@ -1590,6 +1733,7 @@ def test_the_floor_verdict_and_its_spread_are_pinned_AT_five_milliseconds(tmp_pa
     it is published at 0.1 ms. Both are read by a consumer deciding whether to spend the floor as an
     offset, so both are contract: the quantile is `vals[int(0.01*n)]`, which these rows place exactly."""
     import nightqc
+
     for label, spread_ms, ok, published in (("at", 5.0, False, 5.0), ("under", 4.55, True, 4.6)):
         d = os.path.join(tmp_path, label)
         os.mkdir(d)
@@ -1600,8 +1744,16 @@ def test_the_floor_verdict_and_its_spread_are_pinned_AT_five_milliseconds(tmp_pa
             dev_ns = _BASE_NS + i * 77_000_000
             # the fraction rides on the DEVICE counter, which has ns resolution; the stamp has ms
             frac_ns = int(round((extra % 1.0) * 1e6))
-            rows.append((_stamp(dev_ns, extra - (extra % 1.0)), "dev", "ECG",
-                         str(dev_ns - frac_ns), str(dev_ns - frac_ns), "10"))
+            rows.append(
+                (
+                    _stamp(dev_ns, extra - (extra % 1.0)),
+                    "dev",
+                    "ECG",
+                    str(dev_ns - frac_ns),
+                    str(dev_ns - frac_ns),
+                    "10",
+                )
+            )
         _raw_sidecar(os.path.join(d, "Tepna_f_PMDARRIVAL.csv"), rows)
         got = nightqc.arrival_quality(d)[0]
         assert got["floor_ok"] is ok, (label, got)
@@ -1614,8 +1766,12 @@ def test_the_rings_quantum_reaches_the_uncertainty_budget(tmp_path):
     dropped or nulled argument charges the ring a millisecond of quantisation it does not have and the
     budget reads three orders too tight on exactly the stream whose axis is coarsest."""
     import nightqc
-    _write_sidecar(os.path.join(tmp_path, "Tepna_q_PMDARRIVAL.csv"), "OXYLIVE_DURATION_S",
-                   [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30])
+
+    _write_sidecar(
+        os.path.join(tmp_path, "Tepna_q_PMDARRIVAL.csv"),
+        "OXYLIVE_DURATION_S",
+        [400 + d for d in [0, 1, 2, 4, 7, 11, 18, 29, 47, 76] * 30],
+    )
     got = nightqc.arrival_quality(str(tmp_path))[0]
     assert got["quantised"] is True, got
     ring = got["u_time"]["components_ms"]["quantum"]
@@ -1629,7 +1785,8 @@ def test_an_unreadable_arrival_file_names_ITSELF_and_keeps_its_traceback(tmp_pat
     (a permission error and a torn mount need different fixes)."""
     import logging
     import nightqc
-    os.mkdir(os.path.join(tmp_path, "Tepna_dir_PMDARRIVAL.csv"))   # a directory: open() raises OSError
+
+    os.mkdir(os.path.join(tmp_path, "Tepna_dir_PMDARRIVAL.csv"))  # a directory: open() raises OSError
     with caplog.at_level(logging.WARNING, logger="nightqc"):
         assert nightqc.arrival_quality(str(tmp_path)) == []
     recs = [r for r in caplog.records if "arrival file" in r.getMessage()]
@@ -1647,11 +1804,11 @@ def test_each_stream_is_told_its_OWN_adev_and_not_its_PARTNERS(tmp_path):
     implementation: a planted 4x noise ratio means the noisier stream must carry the larger number.
     """
     import nightqc
+
     a, b = _clock_plus_noise()
-    b = [v * 4.0 for v in b]                       # `acc` is the noisy one, by construction
+    b = [v * 4.0 for v in b]  # `acc` is the noisy one, by construction
     _write_two_streams(os.path.join(tmp_path, "Tepna_own_PMDARRIVAL.csv"), a, b)
-    rows = {r["meas"]: r["transport"] for r in nightqc.arrival_quality(str(tmp_path))
-            if r.get("transport")}
+    rows = {r["meas"]: r["transport"] for r in nightqc.arrival_quality(str(tmp_path)) if r.get("transport")}
     assert set(rows) == {"ecg", "acc"}, rows
     assert rows["acc"]["adev"] > 2.0 * rows["ecg"]["adev"], rows
 
@@ -1667,6 +1824,7 @@ def test_a_sidecar_whose_HEADER_omits_the_identity_columns_is_reported_UNNAMED(t
     then visibly EMPTY rather than invented, which is what a reader needs to see.
     """
     import nightqc
+
     rows = []
     for i in range(120):
         dev_ns = _BASE_NS + i * 77_000_000
@@ -1690,16 +1848,26 @@ def test_the_sidecar_is_read_as_UTF8_WHATEVER_the_boxs_locale_is(tmp_path):
     """
     import locale
     import nightqc
+
     name = "Polar H10 réveil"
-    rows = [(_stamp(_BASE_NS + i * 77_000_000, 400.0), name, "ECG",
-             str(_BASE_NS + i * 77_000_000), str(_BASE_NS + i * 77_000_000), "10") for i in range(120)]
+    rows = [
+        (
+            _stamp(_BASE_NS + i * 77_000_000, 400.0),
+            name,
+            "ECG",
+            str(_BASE_NS + i * 77_000_000),
+            str(_BASE_NS + i * 77_000_000),
+            "10",
+        )
+        for i in range(120)
+    ]
     with open(os.path.join(tmp_path, "Tepna_u_PMDARRIVAL.csv"), "w", newline="", encoding="utf-8") as fh:
         fh.write(_RAW_HDR + "\n")
         for r in rows:
             fh.write(";".join(r) + "\n")
     before = locale.setlocale(locale.LC_CTYPE)
     try:
-        locale.setlocale(locale.LC_CTYPE, "C")          # the narrowest locale the box could be started in
+        locale.setlocale(locale.LC_CTYPE, "C")  # the narrowest locale the box could be started in
         got = nightqc.arrival_quality(str(tmp_path))
     finally:
         locale.setlocale(locale.LC_CTYPE, before)
@@ -1714,6 +1882,7 @@ def test_the_sidecar_is_read_as_UTF8_WHATEVER_the_boxs_locale_is(tmp_path):
 # makes one of those mutants distinguishable fails here instead of silently leaving a stale claim.
 # ---------------------------------------------------------------------------------------------------
 
+
 def test_probe_every_unusable_row_shape_is_excluded_by_ONE_mechanism_OR_THE_OTHER(tmp_path):
     """The blank-stamp guard and the parse handler below it cover the same rows.
 
@@ -1724,13 +1893,23 @@ def test_probe_every_unusable_row_shape_is_excluded_by_ONE_mechanism_OR_THE_OTHE
     that every unusable shape is excluded, not which line does it.
     """
     import nightqc
-    good = [(_stamp(_BASE_NS + i * 77_000_000, 400.0), "dev", "ECG",
-             str(_BASE_NS + i * 77_000_000), str(_BASE_NS + i * 77_000_000), "10") for i in range(140)]
+
+    good = [
+        (
+            _stamp(_BASE_NS + i * 77_000_000, 400.0),
+            "dev",
+            "ECG",
+            str(_BASE_NS + i * 77_000_000),
+            str(_BASE_NS + i * 77_000_000),
+            "10",
+        )
+        for i in range(140)
+    ]
     shapes = {
-        "ns blank":   (_stamp(_BASE_NS, 400.0), "dev", "ECG", "", "", "10"),
-        "ts blank":   ("", "dev", "ECG", str(_BASE_NS), str(_BASE_NS), "10"),
+        "ns blank": (_stamp(_BASE_NS, 400.0), "dev", "ECG", "", "", "10"),
+        "ts blank": ("", "dev", "ECG", str(_BASE_NS), str(_BASE_NS), "10"),
         "both blank": ("", "dev", "ECG", "", "", "10"),
-        "ns zero":    (_stamp(_BASE_NS, 400.0), "dev", "ECG", "0", "0", "10"),
+        "ns zero": (_stamp(_BASE_NS, 400.0), "dev", "ECG", "0", "0", "10"),
         "ts garbage": ("not-a-stamp", "dev", "ECG", str(_BASE_NS), str(_BASE_NS), "10"),
         "ns garbage": (_stamp(_BASE_NS, 400.0), "dev", "ECG", "seven", "seven", "10"),
     }
@@ -1755,22 +1934,25 @@ def test_probe_the_stability_curve_is_invariant_under_any_POSITIVE_AFFINE_map_of
     import random
     import allan
     import nightqc
+
     rnd = random.Random(11)
     pairs, h, ns = [], 1_790_000_000_000.0, 843_900_000_000_000_000
     for i in range(900):
-        h += 1000.0 if i != 400 else 90_000.0          # one real hole, so there IS a segmentation to change
+        h += 1000.0 if i != 400 else 90_000.0  # one real hole, so there IS a segmentation to change
         pairs.append((h, 264.2 + rnd.gauss(0, 0.4), ns + i * 10**9))
     diffs = [d for _, d, _ in pairs]
     tau0 = nightqc._tau0_of(pairs)
     t = [p[0] for p in pairs]
-    forms = [[(x - t[0]) / 1000.0 for x in t],          # as the code passes it
-             [(x - t[0]) * 1000.0 for x in t],          # scaled by 1e6
-             [(x + t[0]) / 1000.0 for x in t],          # shifted by +2 t0
-             [(x - pairs[0][1]) / 1000.0 for x in t],   # shifted by a different constant
-             [(x - t[0]) / 1001.0 for x in t]]          # scaled by 0.999
+    forms = [
+        [(x - t[0]) / 1000.0 for x in t],  # as the code passes it
+        [(x - t[0]) * 1000.0 for x in t],  # scaled by 1e6
+        [(x + t[0]) / 1000.0 for x in t],  # shifted by +2 t0
+        [(x - pairs[0][1]) / 1000.0 for x in t],  # shifted by a different constant
+        [(x - t[0]) / 1001.0 for x in t],
+    ]  # scaled by 0.999
     assert len(allan.segments_by_gap(forms[0])) == 2, "the probe must exercise a real cut"
     ref = json.dumps(allan.stability(diffs, tau0, 1.0, sample_times=forms[0]), sort_keys=True, default=str)
     for i, st in enumerate(forms[1:], 1):
         got = json.dumps(allan.stability(diffs, tau0, 1.0, sample_times=st), sort_keys=True, default=str)
-        assert got == ref, ("form %d changed the curve" % i)
+        assert got == ref, "form %d changed the curve" % i
         assert len(allan.segments_by_gap(st)) == 2

@@ -46,7 +46,7 @@ def validate_webhook_url(value) -> str:
         raise AlertsError("webhook_url must be a string")
     v = value.strip()
     if not v:
-        return ""                              # explicit clear — the one way to switch alerting off
+        return ""  # explicit clear — the one way to switch alerting off
     if len(v) > _MAX_URL:
         raise AlertsError(f"webhook_url is too long (max {_MAX_URL})")
     # Control characters are a header/log-injection vector once this reaches aiohttp and the journal.
@@ -54,7 +54,7 @@ def validate_webhook_url(value) -> str:
         raise AlertsError("webhook_url contains control characters")
     try:
         parts = urlsplit(v)
-    except ValueError as e:                    # malformed IPv6 literal, bad port, …
+    except ValueError as e:  # malformed IPv6 literal, bad port, …
         raise AlertsError(f"webhook_url is not a valid URL: {e}") from None
     if parts.scheme not in ("http", "https"):
         # An allowlist, not a denylist: `file://` would make the box read a local file, and there is no
@@ -75,8 +75,8 @@ def webhook_hint(url: str | None) -> str:
         return ""
     try:
         p = urlsplit(url)
-    except ValueError:            # never produced by a validated value, but a STORED one can predate
-        return ""                 # this validation — degrade to no hint rather than raise
+    except ValueError:  # never produced by a validated value, but a STORED one can predate
+        return ""  # this validation — degrade to no hint rather than raise
     return f"{p.scheme}://{p.netloc}" if p.scheme and p.netloc else ""
 
 
@@ -99,8 +99,8 @@ class Notifier:
     def __init__(self, url: str | None = None, enabled: bool = False, _post=None):
         self.url = url
         self.enabled = bool(enabled and url)
-        self._post = _post or _http_post       # resolved here (not a default arg) so tests can patch it
-        self._last: dict[str, float] = {}      # dedupe key → monotonic ts of the last send
+        self._post = _post or _http_post  # resolved here (not a default arg) so tests can patch it
+        self._last: dict[str, float] = {}  # dedupe key → monotonic ts of the last send
         # ── DELIVERY IS RECORDED, NOT JUST ATTEMPTED ────────────────────────────────────────────────
         # Failure was already logged; SUCCESS was silent and nothing was published anywhere. So
         # "delivered", "suppressed by dedupe" and "never attempted" were indistinguishable after the
@@ -111,23 +111,30 @@ class Notifier:
         # That is the last line of defence for every silent-absence failure this daemon guards against
         # ("every failure mode here looks like a green box with a short file"), so its own health has
         # to be visible on the same surface as the capture it protects.
-        self.delivered = 0     # ARRIVED, not attempted — the word `sent` blurs exactly that line
+        self.delivered = 0  # ARRIVED, not attempted — the word `sent` blurs exactly that line
         self.failed = 0
         self.suppressed = 0
-        self.last_ok: float | None = None       # wall-clock epoch of the last DELIVERED alert
-        self.last_error: str | None = None      # why the last attempt failed; None once one succeeds
+        self.last_ok: float | None = None  # wall-clock epoch of the last DELIVERED alert
+        self.last_error: str | None = None  # why the last attempt failed; None once one succeeds
         self.last_title: str | None = None
 
     def stats(self) -> dict:
         """What the monitor shows. A notifier that has never delivered anything reports
         `last_ok: None`, which is a different state from "delivered a while ago" and must render as
         one — the same tri-state discipline `sdk_mode_actual` uses."""
-        return {"enabled": self.enabled, "delivered": self.delivered, "failed": self.failed,
-                "suppressed": self.suppressed, "last_ok": self.last_ok,
-                "last_error": self.last_error, "last_title": self.last_title}
+        return {
+            "enabled": self.enabled,
+            "delivered": self.delivered,
+            "failed": self.failed,
+            "suppressed": self.suppressed,
+            "last_ok": self.last_ok,
+            "last_error": self.last_error,
+            "last_title": self.last_title,
+        }
 
-    async def send(self, title: str, message: str, *, key: str | None = None,
-                   dedupe_sec: float = 0.0, now: float = 0.0) -> bool:
+    async def send(
+        self, title: str, message: str, *, key: str | None = None, dedupe_sec: float = 0.0, now: float = 0.0
+    ) -> bool:
         """Fire one alert. Returns True only if it was actually delivered."""
         # ONE condition, not two: `enabled` is set as `bool(enabled and url)` in both `__init__` and
         # `configure`, so "enabled" already implies a URL — but that invariant lived across two
@@ -138,8 +145,8 @@ class Notifier:
         if key is not None and dedupe_sec > 0:
             last = self._last.get(key)
             if last is not None and (now - last) < dedupe_sec:
-                self.suppressed += 1           # counted: a suppressed alert is not a delivered one
-                return False                   # too soon — suppress the repeat
+                self.suppressed += 1  # counted: a suppressed alert is not a delivered one
+                return False  # too soon — suppress the repeat
             self._last[key] = now
         self.last_title = title
         try:
@@ -193,8 +200,7 @@ class Notifier:
             self._last.clear()
 
 
-def device_is_recording(connected: bool, last_data_mono: float | None, now: float,
-                        grace_sec: float) -> bool:
+def device_is_recording(connected: bool, last_data_mono: float | None, now: float, grace_sec: float) -> bool:
     """PURE: is the device actually PRODUCING DATA, or merely LINKED?
 
     `connected` is not `recording`, and conflating them cost a whole night. On 2026-07-29 the H10 lost
@@ -285,8 +291,9 @@ def ring_identity_mismatch(expected, seen) -> str | None:
 RING_BARREN_ALERT_N = 3
 
 
-def ring_barren_connects(n: int, threshold: int = RING_BARREN_ALERT_N, *,
-                         storm_age_s: float | None = None, restarts_recent: int = 0) -> str | None:
+def ring_barren_connects(
+    n: int, threshold: int = RING_BARREN_ALERT_N, *, storm_age_s: float | None = None, restarts_recent: int = 0
+) -> str | None:
     """PURE check for the OTHER half of the impostor shape (§6.2 Mitigation C, clause 2).
 
     Clause 1 asks whether the peer says the right serial; this asks whether it does the right thing.
@@ -322,11 +329,15 @@ def ring_barren_connects(n: int, threshold: int = RING_BARREN_ALERT_N, *,
         return None
     head = f"{n} consecutive connects answered the identity query and delivered no frames"
     if storm_age_s is not None:
-        return (f"{head} — a restart storm tripped {storm_age_s / 60:.0f} min ago, so this is very "
-                "likely the ring restarting, not an impostor")
+        return (
+            f"{head} — a restart storm tripped {storm_age_s / 60:.0f} min ago, so this is very "
+            "likely the ring restarting, not an impostor"
+        )
     if restarts_recent:
-        return (f"{head} — the ring reported {restarts_recent} session restart(s) recently, a likelier "
-                "cause than an impostor")
+        return (
+            f"{head} — the ring reported {restarts_recent} session restart(s) recently, a likelier "
+            "cause than an impostor"
+        )
     return f"{head} — this link reaches something that is not serving data"
 
 
@@ -469,12 +480,13 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
 #
 # which is false twice over — the ring is not missing, and capture is not missing anything, because the
 # pull that preceded the power-off already took the data off it.
-RING_IDLE_TIMER_S = 121.9           # the measured power-off timer (n=23, sd 1.18) — see above
-RING_IDLE_EXPECT_MAX_S = 8 * 3600   # how long "expected" may last before it becomes a real absence
+RING_IDLE_TIMER_S = 121.9  # the measured power-off timer (n=23, sd 1.18) — see above
+RING_IDLE_EXPECT_MAX_S = 8 * 3600  # how long "expected" may last before it becomes a real absence
 
 
-def powered_off_after_pull(last_pull_ok_sec: float | None, now: float,
-                           expiry_sec: float = RING_IDLE_EXPECT_MAX_S) -> bool:
+def powered_off_after_pull(
+    last_pull_ok_sec: float | None, now: float, expiry_sec: float = RING_IDLE_EXPECT_MAX_S
+) -> bool:
     """Is a non-advertising device in its EXPECTED post-doff power-off, rather than genuinely missing?
 
     True only when a pull for this device SUCCEEDED and that success is recent. Both halves are

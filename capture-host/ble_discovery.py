@@ -151,11 +151,11 @@ def classify_failure(exc) -> str:
     the verdict. This function classifies an ATTEMPT; the sweep decides the NIGHT."""
     text = f"{type(exc).__name__} {exc}".lower()
     if any(m in text for m in _CONTENTION_EXPLICIT):
-        return CONTENDED            # the stack refused, in its own words — decisive, beats the type
+        return CONTENDED  # the stack refused, in its own words — decisive, beats the type
     if type(exc).__name__.lower() in _REACHED_TYPES:
-        return OTHER                # we CONNECTED; whatever failed after that is not an absence
+        return OTHER  # we CONNECTED; whatever failed after that is not an absence
     if type(exc).__name__.lower() in _ABSENCE_TYPES:
-        return ABSENT               # ...otherwise an unambiguous type outranks timeout WORDING
+        return ABSENT  # ...otherwise an unambiguous type outranks timeout WORDING
     if any(m in text for m in _CONTENTION_AMBIGUOUS):
         return CONTENDED
     if any(m in text for m in _ABSENCE):

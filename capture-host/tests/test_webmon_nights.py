@@ -3,6 +3,7 @@
 the index over the box's captures tree; the page turns each figure into a click that opens the
 analyzer with that night's files loaded. The HTML contract is checked as text — the other monitor
 tests' idiom — because the load runs in a browser against a same-origin app window."""
+
 import os
 
 import webmon
@@ -30,27 +31,32 @@ def test_api_nights_reports_how_many_streams_are_still_pending(tmp_path, monkeyp
     app, *_ = _mk(tmp_path)
     real = ni.index_nights
     monkeypatch.setattr(ni, "index_nights", lambda root, limit=60, budget_s=15.0: real(root, limit, 0.0))
-    ni._cache.clear(); ni._cache_loaded_from = None
+    ni._cache.clear()
+    ni._cache_loaded_from = None
+
     async def go(c):
         r = await c.get("/api/nights?n=5")
         return r.status, await r.json()
+
     status, j = _serve(app, go)
     n = [x for x in j["nights"] if x["night"] == "2026-09-19"][0]
     assert status == 200 and j["pending"] >= 1 and n["ECGDex"]["pending"] is True and n["ECGDex"]["fragments"] is None
     monkeypatch.setattr(ni, "index_nights", real)
-    app, *_ = _mk(tmp_path)                        # a fresh app: one aiohttp app serves on one loop
+    app, *_ = _mk(tmp_path)  # a fresh app: one aiohttp app serves on one loop
     status, j = _serve(app, go)
     n = [x for x in j["nights"] if x["night"] == "2026-09-19"][0]
     assert j["pending"] == 0 and n["ECGDex"]["pending"] is False and n["ECGDex"]["fragments"] == 2
-    assert n["ECGDex"]["coverage"] == 0.0      # two rows an hour apart: one hole, the whole span
+    assert n["ECGDex"]["coverage"] == 0.0  # two rows an hour apart: one hole, the whole span
 
 
 def test_api_nights_indexes_the_box_root_and_names_its_columns(tmp_path):
     _night(tmp_path)
     app, *_ = _mk(tmp_path)
+
     async def go(c):
         r = await c.get("/api/nights?n=5")
         return r.status, await r.json()
+
     status, j = _serve(app, go)
     assert status == 200 and j["root"] == str(tmp_path)
     assert [n["night"] for n in j["nights"]] == ["2026-09-19"]
@@ -64,23 +70,29 @@ def test_api_nights_clamps_n_and_survives_a_bad_value(tmp_path):
     for night in ("2026-09-17", "2026-09-18", "2026-09-19"):
         _night(tmp_path, night)
     app, *_ = _mk(tmp_path)
+
     async def go(c):
         a = await (await c.get("/api/nights?n=2")).json()
         b = await (await c.get("/api/nights?n=zero")).json()
         z = await (await c.get("/api/nights?n=0")).json()
         return [x["night"] for x in a["nights"]], len(b["nights"]), len(z["nights"])
+
     two, bad, zero = _serve(app, go)
     assert two == ["2026-09-18", "2026-09-19"] and bad == 3 and zero == 1
 
 
 def test_api_nights_reports_an_indexing_failure_instead_of_a_bare_500(tmp_path, monkeypatch):
     app, *_ = _mk(tmp_path)
+
     def boom(root, n):
         raise RuntimeError("disk gone")
+
     monkeypatch.setattr(webmon._nights, "index_nights", boom)
+
     async def go(c):
         r = await c.get("/api/nights")
         return r.status, await r.json()
+
     status, j = _serve(app, go)
     assert status == 500 and j["error"] == "RuntimeError: disk gone"
 
@@ -88,9 +100,21 @@ def test_api_nights_reports_an_indexing_failure_instead_of_a_bare_500(tmp_path, 
 def test_the_monitor_carries_ONE_nights_page_and_the_load_hook():
     """Ledger and Capture were two pages of the same rows (2026-09-20); the owner folded them into one
     (2026-09-21) once each cell carried fragments + coverage as well as size / span."""
-    html = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monitor.html"), encoding="utf-8").read()
-    for frag in ('data-view="nights"', 'id="view-nights"', "id=\"nightsTable\"", "fetch('/api/nights?n=",
-                 "function openNight(", "nights:'Nights'", "v==='nights'", "fragment", "v.coverage", "v.pending"):
+    html = open(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monitor.html"), encoding="utf-8"
+    ).read()
+    for frag in (
+        'data-view="nights"',
+        'id="view-nights"',
+        'id="nightsTable"',
+        "fetch('/api/nights?n=",
+        "function openNight(",
+        "nights:'Nights'",
+        "v==='nights'",
+        "fragment",
+        "v.coverage",
+        "v.pending",
+    ):
         assert frag in html, frag
     for gone in ('data-view="ledger"', 'data-view="capture"', "ledgerTable", "captureTable"):
         assert gone not in html, gone
@@ -102,8 +126,9 @@ def test_the_monitor_carries_ONE_nights_page_and_the_load_hook():
     assert '["_ECG.txt","#ecgInput"]' in html and "folds run on rig" in html
     # every analyzer column the index publishes has an app to open
     import nights_index as ni
+
     for col in ni.COLUMNS:
-        assert f'{col if " " in col else col}:' in html or f'"{col}":' in html, f"no app mapped for {col}"
+        assert f"{col if ' ' in col else col}:" in html or f'"{col}":' in html, f"no app mapped for {col}"
 
 
 def _page_src(root, page):
@@ -139,9 +164,11 @@ def _skip_without_root_pages(root, apps, nodes):
 
     missing = [node for node in nodes if not os.path.exists(_page_src(root, apps[node]))]
     if missing:
-        pytest.skip("the authored root pages are absent for %s (a mutation scratch cannot stage a name "
-                    "that exists only in the monitor page runtime tables); the equalities above still ran"
-                    % ", ".join(sorted(missing)))
+        pytest.skip(
+            "the authored root pages are absent for %s (a mutation scratch cannot stage a name "
+            "that exists only in the monitor page runtime tables); the equalities above still ran"
+            % ", ".join(sorted(missing))
+        )
 
 
 def _monitor_js_table(html, name):
@@ -252,7 +279,7 @@ def _classifier_regexes(path):
 
     text = open(path, encoding="utf-8").read()
     start = text.index("function classify(")
-    body = text[start:text.index("\n  }\n", start)]
+    body = text[start : text.index("\n  }\n", start)]
     out = []
     for m in re.finditer(r"/((?:\\/|[^/\n])+)/([a-z]*)", body):
         if "(" not in m.group(1):
@@ -313,11 +340,14 @@ def test_the_tool_classifiers_accept_box_filenames():
             hit = any(r.search(name) for r in regexes)
             assert hit == want, f"{tool} {'rejects' if want else 'accepts'} box name {name}"
     # and the phone-app names the classifiers were written for still match — both layouts, one rule each
-    for tool, name in (("sensor-trio-power-analysis.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
-                       ("sensor-trio-power-analysis.js", "O2Ring S 2100_20260503210952.csv"),
-                       ("sensor-trio-night.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
-                       ("pat-feasibility.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt")):
+    for tool, name in (
+        ("sensor-trio-power-analysis.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
+        ("sensor-trio-power-analysis.js", "O2Ring S 2100_20260503210952.csv"),
+        ("sensor-trio-night.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
+        ("pat-feasibility.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt"),
+    ):
         assert any(r.search(name) for r in _classifier_regexes(os.path.join(root, tool))), (tool, name)
+
 
 def test_the_batch_tools_get_their_process_button_pressed_and_the_selector_is_real():
     """The six analyzers process on load; the two batch tools index the night and WAIT for their Process
@@ -332,7 +362,7 @@ def test_the_batch_tools_get_their_process_button_pressed_and_the_selector_is_re
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
     run = _monitor_js_table(html, "NIGHT_RUN")
     apps = _monitor_js_table(html, "NIGHT_APP")
-    m = re.search(r'const NIGHT_DERIVED = \[(.*?)\];', html)
+    m = re.search(r"const NIGHT_DERIVED = \[(.*?)\];", html)
     assert m
     derived_keys = [k.strip().strip('"') for k in m.group(1).split(",")]
     assert set(run) == set(derived_keys), (sorted(run), derived_keys)
@@ -360,7 +390,7 @@ def test_the_pat_click_hands_over_the_arrival_sidecars():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
     start = html.index("if(node==='PAT')")
-    branch = html[start:html.index("\n  return", start)]
+    branch = html[start : html.index("\n  return", start)]
     assert "n.arrival" in branch, branch
 
 
@@ -685,6 +715,11 @@ def test_the_shape_guard_changed_no_answer_for_a_well_formed_night(tmp_path):
     }
     for k in keys:
         if k in changed_on_purpose and new_out[k] != old_out[k]:
-            assert isinstance(old_out[k], list) and set(old_out[k]) < set(new_out[k]), (k, changed_on_purpose[k], new_out[k], old_out[k])
+            assert isinstance(old_out[k], list) and set(old_out[k]) < set(new_out[k]), (
+                k,
+                changed_on_purpose[k],
+                new_out[k],
+                old_out[k],
+            )
             continue
         assert new_out[k] == old_out[k], (k, new_out[k], old_out[k])

@@ -1,20 +1,25 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 """The union that must FAIL VISIBLY (PER-DEVICE-ADAPTER-PINNING §3.6.3)."""
+
 import json
 import os
 
 import status_union as SU
 
-CFG = {"adapters": {"sena": "00:01:95:CC:53:02", "ub500": "AC:A7:F1:29:9D:1D",
-                    "intel": "F0:D5:BF:1E:79:21"}}
+CFG = {"adapters": {"sena": "00:01:95:CC:53:02", "ub500": "AC:A7:F1:29:9D:1D", "intel": "F0:D5:BF:1E:79:21"}}
 NOW = 1_700_000_000_000
 
 
 def _write(root, inst, hb_ms, devices=(), streams=()):
     d = os.path.join(root, "captures")
     os.makedirs(d, exist_ok=True)
-    doc = {"heartbeat_ms": hb_ms, "instance": inst, "adapter": CFG["adapters"][inst],
-           "devices": list(devices), "streams": list(streams)}
+    doc = {
+        "heartbeat_ms": hb_ms,
+        "instance": inst,
+        "adapter": CFG["adapters"][inst],
+        "devices": list(devices),
+        "streams": list(streams),
+    }
     with open(os.path.join(d, f"status.{inst}.json"), "w") as f:
         json.dump(doc, f)
 
@@ -65,8 +70,7 @@ def test_a_status_without_a_heartbeat_is_dead_not_live(tmp_path):
     os.makedirs(d, exist_ok=True)
     with open(os.path.join(d, "status.sena.json"), "w") as f:
         json.dump({"devices": []}, f)
-    assert SU.instance_health(json.load(open(os.path.join(d, "status.sena.json"))),
-                              NOW)["state"] == "dead"
+    assert SU.instance_health(json.load(open(os.path.join(d, "status.sena.json"))), NOW)["state"] == "dead"
 
 
 def test_unparseable_status_is_dead_not_an_exception(tmp_path):

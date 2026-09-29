@@ -77,9 +77,17 @@ def _night_files(night_dir: str) -> list[tuple[str, str]]:
     return out
 
 
-def _bag_info_bytes(*, box_id: str, night: str, consent: str | None, revision: int,
-                    bagging_date: str, total: int, n_files: int,
-                    extra_info: dict[str, str] | None) -> bytes:
+def _bag_info_bytes(
+    *,
+    box_id: str,
+    night: str,
+    consent: str | None,
+    revision: int,
+    bagging_date: str,
+    total: int,
+    n_files: int,
+    extra_info: dict[str, str] | None,
+) -> bytes:
     """`bag-info.txt`, which depends only on SIZES — never on the payload bytes.
 
     Split out so the streaming sealer can write it first (it sorts before `data/`) without having
@@ -108,8 +116,16 @@ def _tagmanifest_bytes(bagit: bytes, bag_info: bytes, manifest: bytes) -> bytes:
     return ("\n".join("%s  %s" % (_sha256_hex(b), n) for n, b in pairs) + "\n").encode("utf-8")
 
 
-def build_bag(night_dir: str, *, box_id: str, night: str, consent: str | None, revision: int,
-              bagging_date: str, extra_info: dict[str, str] | None = None) -> dict[str, bytes]:
+def build_bag(
+    night_dir: str,
+    *,
+    box_id: str,
+    night: str,
+    consent: str | None,
+    revision: int,
+    bagging_date: str,
+    extra_info: dict[str, str] | None = None,
+) -> dict[str, bytes]:
     """A BagIt 1.0 bag (RFC 8493) as `{path: bytes}` — `data/<file>` exactly as the box wrote it plus the
     four tag files. `Payload-Oxum` is `bytes.files`; `Tepna-Research-Consent` is written as the literal
     `null` when not asked (§∅ applies to consent); `Tepna-Seal-Revision` is the re-issue counter (§4)."""
@@ -124,12 +140,20 @@ def build_bag(night_dir: str, *, box_id: str, night: str, consent: str | None, r
         manifest_lines.append("%s  data/%s" % (_sha256_hex(data), rel))
         total += len(data)
     bag["bagit.txt"] = F.BAGIT_TXT.encode("utf-8")
-    bag["bag-info.txt"] = _bag_info_bytes(box_id=box_id, night=night, consent=consent, revision=revision,
-                                          bagging_date=bagging_date, total=total, n_files=len(files),
-                                          extra_info=extra_info)
+    bag["bag-info.txt"] = _bag_info_bytes(
+        box_id=box_id,
+        night=night,
+        consent=consent,
+        revision=revision,
+        bagging_date=bagging_date,
+        total=total,
+        n_files=len(files),
+        extra_info=extra_info,
+    )
     bag["manifest-sha256.txt"] = ("\n".join(manifest_lines) + "\n").encode("utf-8")
-    bag["tagmanifest-sha256.txt"] = _tagmanifest_bytes(bag["bagit.txt"], bag["bag-info.txt"],
-                                                       bag["manifest-sha256.txt"])
+    bag["tagmanifest-sha256.txt"] = _tagmanifest_bytes(
+        bag["bagit.txt"], bag["bag-info.txt"], bag["manifest-sha256.txt"]
+    )
     return bag
 
 
@@ -147,11 +171,19 @@ def bag_zip_bytes(bag: dict[str, bytes]) -> bytes:
     return buf.getvalue()
 
 
-_ZIP_CHUNK = 1 << 22        # 4 MiB — only the hash pass reads in chunks; `writestr` needs the entry whole
+_ZIP_CHUNK = 1 << 22  # 4 MiB — only the hash pass reads in chunks; `writestr` needs the entry whole
 
 
-def zip_night_bytes(night_dir: str, *, box_id: str, night: str, consent: str | None, revision: int,
-                    bagging_date: str, extra_info: dict[str, str] | None = None) -> tuple[bytes, int, int]:
+def zip_night_bytes(
+    night_dir: str,
+    *,
+    box_id: str,
+    night: str,
+    consent: str | None,
+    revision: int,
+    bagging_date: str,
+    extra_info: dict[str, str] | None = None,
+) -> tuple[bytes, int, int]:
     """`(zip bytes, file count, payload bytes)` — `bag_zip_bytes(build_bag(...))` WITHOUT ever holding
     the night, byte for byte the same zip. The two counts come back with it so the header's `files`
     and `bytes` are the same numbers the Oxum was written from, rather than a second stat pass that
@@ -180,9 +212,16 @@ def zip_night_bytes(night_dir: str, *, box_id: str, night: str, consent: str | N
         raise SealError("night directory holds no files: %s" % night_dir)
     sizes = [os.path.getsize(abs_) for _rel, abs_ in files]
     bagit = F.BAGIT_TXT.encode("utf-8")
-    bag_info = _bag_info_bytes(box_id=box_id, night=night, consent=consent, revision=revision,
-                               bagging_date=bagging_date, total=sum(sizes), n_files=len(files),
-                               extra_info=extra_info)
+    bag_info = _bag_info_bytes(
+        box_id=box_id,
+        night=night,
+        consent=consent,
+        revision=revision,
+        bagging_date=bagging_date,
+        total=sum(sizes),
+        n_files=len(files),
+        extra_info=extra_info,
+    )
     manifest_lines: list[str] = []
     buf = io.BytesIO()
 
@@ -201,11 +240,13 @@ def zip_night_bytes(night_dir: str, *, box_id: str, night: str, consent: str | N
         for (rel, abs_), size in zip(files, sizes):
             data = open(abs_, "rb").read()
             if len(data) != size:
-                raise SealError("%s changed size under the sealer (%d then %d bytes) — refusing to "
-                                "seal it under an Oxum that counts the other one" % (rel, size, len(data)))
+                raise SealError(
+                    "%s changed size under the sealer (%d then %d bytes) — refusing to "
+                    "seal it under an Oxum that counts the other one" % (rel, size, len(data))
+                )
             manifest_lines.append("%s  data/%s" % (_sha256_hex(data), rel))
             _entry(z, "data/" + rel, data)
-            del data                     # one file at a time is the whole point
+            del data  # one file at a time is the whole point
         manifest = ("\n".join(manifest_lines) + "\n").encode("utf-8")
         _entry(z, "manifest-sha256.txt", manifest)
         _entry(z, "tagmanifest-sha256.txt", _tagmanifest_bytes(bagit, bag_info, manifest))
@@ -214,17 +255,32 @@ def zip_night_bytes(night_dir: str, *, box_id: str, night: str, consent: str | N
 
 def _derive_test_material(test_card_key: bytes) -> tuple[bytes, bytes]:
     """(nonce, data key) for TEST vectors only — from the test card key, so a re-seal is byte-identical."""
-    return (F.hkdf_sha256(test_card_key, b"", F.TEST_NONCE_INFO, F.GCM_NONCE_BYTES),
-            F.hkdf_sha256(test_card_key, b"", F.TEST_DATAKEY_INFO, F.DATA_KEY_BYTES))
+    return (
+        F.hkdf_sha256(test_card_key, b"", F.TEST_NONCE_INFO, F.GCM_NONCE_BYTES),
+        F.hkdf_sha256(test_card_key, b"", F.TEST_DATAKEY_INFO, F.DATA_KEY_BYTES),
+    )
 
 
-def seal_night(night_dir: str, out_path: str, *, box_id: str, night: str, card_key: bytes, key_id: int,
-               signing_key: ec.EllipticCurvePrivateKey, consent: str | None, revision: int = 1,
-               closed_at_ms: int, now: datetime, anchor: dict | None = None,
-               extra_info: dict[str, str] | None = None, deterministic_from: bytes | None = None,
-               rng: Callable[[int], bytes] = os.urandom,
-               mutate_bag: Callable[[dict[str, bytes]], dict[str, bytes]] | None = None,
-               mutate_header: Callable[[dict], dict] | None = None) -> dict:
+def seal_night(
+    night_dir: str,
+    out_path: str,
+    *,
+    box_id: str,
+    night: str,
+    card_key: bytes,
+    key_id: int,
+    signing_key: ec.EllipticCurvePrivateKey,
+    consent: str | None,
+    revision: int = 1,
+    closed_at_ms: int,
+    now: datetime,
+    anchor: dict | None = None,
+    extra_info: dict[str, str] | None = None,
+    deterministic_from: bytes | None = None,
+    rng: Callable[[int], bytes] = os.urandom,
+    mutate_bag: Callable[[dict[str, bytes]], dict[str, bytes]] | None = None,
+    mutate_header: Callable[[dict], dict] | None = None,
+) -> dict:
     """Seal `night_dir` into `out_path` (atomic: temp + rename). Returns the clear header as written.
 
     `mutate_bag` and `mutate_header` exist for the PLANTS (§6): hooks between construction and
@@ -241,15 +297,29 @@ def seal_night(night_dir: str, out_path: str, *, box_id: str, night: str, card_k
         # Spelled out rather than passed as a `**kw` dict: mypy infers a joined value type for the
         # dict and then rejects every keyword against it, which is eight new errors for a shortcut.
         plain, n_files, n_bytes = zip_night_bytes(
-            night_dir, box_id=box_id, night=night, consent=consent, revision=revision,
-            bagging_date=bagging_date, extra_info=extra_info)
+            night_dir,
+            box_id=box_id,
+            night=night,
+            consent=consent,
+            revision=revision,
+            bagging_date=bagging_date,
+            extra_info=extra_info,
+        )
     else:
         # A PLANT rewrites the bag before it is zipped (§6) — a bag whose data contradicts its
         # manifest cannot be expressed by streaming from disk, because the disk IS the manifest's
         # subject. So the plant path keeps the old reader, deliberately and only here.
-        bag = mutate_bag(build_bag(
-            night_dir, box_id=box_id, night=night, consent=consent, revision=revision,
-            bagging_date=bagging_date, extra_info=extra_info))
+        bag = mutate_bag(
+            build_bag(
+                night_dir,
+                box_id=box_id,
+                night=night,
+                consent=consent,
+                revision=revision,
+                bagging_date=bagging_date,
+                extra_info=extra_info,
+            )
+        )
         n_files = sum(1 for k in bag if k.startswith("data/"))
         n_bytes = sum(len(v) for k, v in bag.items() if k.startswith("data/"))
         plain = bag_zip_bytes(bag)
@@ -264,13 +334,26 @@ def seal_night(night_dir: str, out_path: str, *, box_id: str, night: str, card_k
 
     raw_pub = public_raw(signing_key)
     header = {
-        "format": F.FORMAT, "boxId": box_id, "night": night, "closedAt": int(closed_at_ms),
-        "files": n_files, "bytes": n_bytes, "keyId": int(key_id),
+        "format": F.FORMAT,
+        "boxId": box_id,
+        "night": night,
+        "closedAt": int(closed_at_ms),
+        "files": n_files,
+        "bytes": n_bytes,
+        "keyId": int(key_id),
         "boxKey": base64.b64encode(raw_pub).decode("ascii"),
         "boxKeyFingerprint": F.fingerprint(raw_pub),
-        "recipients": [{"kind": "card", "keyId": int(key_id), "wrap": "AES-KW",
-                        "wrapped": base64.b64encode(wrapped).decode("ascii")}],
-        "consent": consent, "revision": int(revision), "anchor": anchor,
+        "recipients": [
+            {
+                "kind": "card",
+                "keyId": int(key_id),
+                "wrap": "AES-KW",
+                "wrapped": base64.b64encode(wrapped).decode("ascii"),
+            }
+        ],
+        "consent": consent,
+        "revision": int(revision),
+        "anchor": anchor,
     }
     if mutate_header is not None:
         header = mutate_header(header)
@@ -298,12 +381,18 @@ def seal_night(night_dir: str, out_path: str, *, box_id: str, night: str, card_k
 
     tmp = out_path + ".part"
     with open(tmp, "wb") as fh:
-        fh.write(F.MAGIC + bytes([F.VERSION]) + struct.pack(">I", len(header_bytes)) + header_bytes
-                 + struct.pack(">H", len(sig)) + sig + struct.pack(">Q", len(nonce) + len(ciphertext)))
+        fh.write(
+            F.MAGIC
+            + bytes([F.VERSION])
+            + struct.pack(">I", len(header_bytes))
+            + header_bytes
+            + struct.pack(">H", len(sig))
+            + sig
+            + struct.pack(">Q", len(nonce) + len(ciphertext))
+        )
         fh.write(nonce)
         fh.write(ciphertext)
         fh.flush()
         os.fsync(fh.fileno())
-    os.replace(tmp, out_path)          # atomic on POSIX: a sync client never sees a half-written seal
+    os.replace(tmp, out_path)  # atomic on POSIX: a sync client never sees a half-written seal
     return header
-

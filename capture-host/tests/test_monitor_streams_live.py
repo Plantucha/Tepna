@@ -16,6 +16,7 @@ flowing now". `health` is the field that is recomputed from the age of the last 
 is this file's house pattern (see `test_monitor_rate_staleness.py`). A text scan cannot tell
 `!==` from `===`, and would pass against a function nothing calls.
 """
+
 import json
 import os
 import re
@@ -36,11 +37,14 @@ def _extract() -> str:
     the page was wrong — which is the failure this whole file exists to catch."""
     src = open(os.path.join(_HERE, "monitor.html"), encoding="utf-8").read()
     i = src.index("function renderSideStats(){")
-    body = src[i:src.index("$('#sideStats').innerHTML", i)]
+    body = src[i : src.index("$('#sideStats').innerHTML", i)]
     body = body.replace("const gt = $('#ovGridTitle');", "let gt = {textContent:''};")
-    inner = body[body.index("{") + 1:]
-    return ("function renderSideStats(STREAMS){\n" + inner +
-            "\n  return {heading: gt.textContent, live: live.length, weak: weak};\n}\n")
+    inner = body[body.index("{") + 1 :]
+    return (
+        "function renderSideStats(STREAMS){\n"
+        + inner
+        + "\n  return {heading: gt.textContent, live: live.length, weak: weak};\n}\n"
+    )
 
 
 def _run(streams):
@@ -57,12 +61,14 @@ def test_a_STALLED_stream_is_not_counted_as_live():
     """🔴 THE REPORTED DEFECT, with the box's own state. Two O2Ring streams that pushed before the ring
     dropped, both stalled, everything else idle: the heading claimed two live streams while nothing was
     streaming at all."""
-    got = _run([
-        {"key": "motion_o2", "active": True, "health": "stall"},
-        {"key": "pi_o2", "active": True, "health": "stall"},
-        {"key": "ecg", "active": False, "health": "idle"},
-        {"key": "spo2", "active": False, "health": "idle"},
-    ])
+    got = _run(
+        [
+            {"key": "motion_o2", "active": True, "health": "stall"},
+            {"key": "pi_o2", "active": True, "health": "stall"},
+            {"key": "ecg", "active": False, "health": "idle"},
+            {"key": "spo2", "active": False, "health": "idle"},
+        ]
+    )
     assert got["live"] == 0
     assert got["heading"] == "Streams · 0 of 4 live"
 
@@ -71,22 +77,26 @@ def test_a_stalled_stream_is_not_ALSO_reported_as_weak():
     """`weak` is counted among the LIVE. A stalled stream is silent, not degraded, and counting it under
     both would report the same stream twice in one heading — which the previous code did: the same two
     stalled streams produced `2 live` AND `⚠ 2 weak`."""
-    got = _run([
-        {"key": "motion_o2", "active": True, "health": "stall"},
-        {"key": "pi_o2", "active": True, "health": "stall"},
-    ])
+    got = _run(
+        [
+            {"key": "motion_o2", "active": True, "health": "stall"},
+            {"key": "pi_o2", "active": True, "health": "stall"},
+        ]
+    )
     assert got["live"] == 0 and got["weak"] == 0
 
 
 def test_flowing_streams_still_count_and_weak_is_reported_among_them():
     """The mirror — the fix must not silence a genuinely live page. `good` and `weak` are both flowing,
     so both are live; only `weak` carries the warning."""
-    got = _run([
-        {"key": "ecg", "active": True, "health": "good"},
-        {"key": "ppg", "active": True, "health": "weak"},
-        {"key": "acc", "active": True, "health": "stall"},
-        {"key": "spo2", "active": False, "health": "idle"},
-    ])
+    got = _run(
+        [
+            {"key": "ecg", "active": True, "health": "good"},
+            {"key": "ppg", "active": True, "health": "weak"},
+            {"key": "acc", "active": True, "health": "stall"},
+            {"key": "spo2", "active": False, "health": "idle"},
+        ]
+    )
     assert got["live"] == 2, "good + weak are flowing; stall is not"
     assert got["weak"] == 1
     assert got["heading"] == "Streams · 2 of 4 live"
@@ -105,5 +115,6 @@ def test_liveness_is_read_from_health_not_from_active():
     process" and nothing retracts it on disconnect; `health` is recomputed from the last sample's age.
     If someone routes the claim back through `active`, the first test reds — and so does this."""
     src = _extract()
-    assert re.search(r"const live\s*=\s*active\.filter\(s\s*=>\s*s\.health\s*!==\s*'stall'\)", src), \
+    assert re.search(r"const live\s*=\s*active\.filter\(s\s*=>\s*s\.health\s*!==\s*'stall'\)", src), (
         "live must be derived from health, not from active alone"
+    )

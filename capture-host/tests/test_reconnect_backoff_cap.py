@@ -93,25 +93,41 @@ def test_absent_o2ring_backoff_climbs_to_the_cap_and_holds(tmp_path, monkeypatch
     climb from 5 s and then HOLD at the cap — never reset, never exceed it."""
     monkeypatch.setattr(capture, "_connect_scan", _absent)
     slept = _record_backoffs(monkeypatch, len(_EXPECTED))
-    dev = {"name": "RingGone", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S8AW",
-           "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}
+    dev = {
+        "name": "RingGone",
+        "vendor": "Wellue",
+        "model": "O2Ring-S",
+        "device_id": "S8AW",
+        "address": "D1:98:62:7C:92:B3",
+        "streams": ["spo2"],
+    }
     asyncio.run(capture.run_oxyii(dev, str(tmp_path)))
     assert slept == _EXPECTED, slept
-    assert "BleakDeviceNotFoundError" in capture.STATUS["devices"]["RingGone"]["last_error"], \
+    assert "BleakDeviceNotFoundError" in capture.STATUS["devices"]["RingGone"]["last_error"], (
         "the absent-device error is what drove every cycle — this must not pass via some other path"
+    )
 
 
 @pytest.mark.sets_capture_events
 def test_absent_h10_backoff_climbs_to_the_cap_and_holds(tmp_path, monkeypatch):
     """run_polar, same schedule. The H10 is the device the journal showed at 27–35 hopeless scans/hour."""
+
     async def bonded(*a, **k):
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    capture._CFG.clear(); capture._CFG.update({"time": {"auto_sync_devices": False}})
+    capture._CFG.clear()
+    capture._CFG.update({"time": {"auto_sync_devices": False}})
     monkeypatch.setattr(capture, "_connect", _absent)
     slept = _record_backoffs(monkeypatch, len(_EXPECTED))
-    dev = {"name": "H10Gone", "vendor": "Polar", "model": "H10", "device_id": "12345678",
-           "address": "24:AC:AC:02:84:96", "streams": ["ecg"]}
+    dev = {
+        "name": "H10Gone",
+        "vendor": "Polar",
+        "model": "H10",
+        "device_id": "12345678",
+        "address": "24:AC:AC:02:84:96",
+        "streams": ["ecg"],
+    }
     asyncio.run(capture.run_polar(dev, str(tmp_path)))
     assert slept == _EXPECTED, slept
     assert "BleakDeviceNotFoundError" in (capture.STATUS["devices"]["H10Gone"].get("last_error") or "")
@@ -120,13 +136,22 @@ def test_absent_h10_backoff_climbs_to_the_cap_and_holds(tmp_path, monkeypatch):
 @pytest.mark.sets_capture_events
 def test_absent_legacy_ring_backoff_climbs_to_the_cap_and_holds(tmp_path, monkeypatch):
     """run_viatom (the legacy O2Ring path) rides the same constant — three loops, one cap."""
+
     async def bonded(*a, **k):
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     monkeypatch.setattr(capture, "_connect", _absent)
     slept = _record_backoffs(monkeypatch, len(_EXPECTED))
-    dev = {"name": "LegacyGone", "vendor": "Wellue", "model": "O2Ring", "device_id": "S8AW",
-           "address": "D1:98:62:7C:92:B3", "streams": ["spo2"], "protocol": "legacy"}
+    dev = {
+        "name": "LegacyGone",
+        "vendor": "Wellue",
+        "model": "O2Ring",
+        "device_id": "S8AW",
+        "address": "D1:98:62:7C:92:B3",
+        "streams": ["spo2"],
+        "protocol": "legacy",
+    }
     asyncio.run(capture.run_viatom(dev, str(tmp_path)))
     assert slept == _EXPECTED, slept
 
@@ -136,16 +161,26 @@ def test_the_optional_device_branch_keeps_its_own_schedule(tmp_path, monkeypatch
     """An OPTIONAL backup device is known-but-not-expected and already slept 120–300 s per cycle; the
     mandatory cap must not have pulled it DOWN to 180. (This is the branch the brief's 2026-08-19 table
     verified, mistaking it for the mandatory one.)"""
+
     async def bonded(*a, **k):
         return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
-    capture._CFG.clear(); capture._CFG.update({"time": {"auto_sync_devices": False}})
+    capture._CFG.clear()
+    capture._CFG.update({"time": {"auto_sync_devices": False}})
     monkeypatch.setattr(capture, "_connect", _absent)
     slept = _record_backoffs(monkeypatch, 4)
-    dev = {"name": "Spare", "vendor": "Coospo", "model": "HRM808S", "device_id": "X",
-           "address": "AA:BB:CC:DD:EE:01", "streams": ["hr"], "optional": True}
+    dev = {
+        "name": "Spare",
+        "vendor": "Coospo",
+        "model": "HRM808S",
+        "device_id": "X",
+        "address": "AA:BB:CC:DD:EE:01",
+        "streams": ["hr"],
+        "optional": True,
+    }
     asyncio.run(capture.run_polar(dev, str(tmp_path)))
-    assert slept == [120, 120, 120, 120], slept   # min(max(5..40, 120), 300)
+    assert slept == [120, 120, 120, 120], slept  # min(max(5..40, 120), 300)
 
 
 @pytest.mark.sets_capture_events
@@ -154,7 +189,13 @@ def test_config_override_raises_the_cap(tmp_path, monkeypatch):
     monkeypatch.setattr(capture, "_RECONNECT_BACKOFF_CAP_S", 400.0)
     monkeypatch.setattr(capture, "_connect_scan", _absent)
     slept = _record_backoffs(monkeypatch, 8)
-    dev = {"name": "RingGone", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S8AW",
-           "address": "D1:98:62:7C:92:B3", "streams": ["spo2"]}
+    dev = {
+        "name": "RingGone",
+        "vendor": "Wellue",
+        "model": "O2Ring-S",
+        "device_id": "S8AW",
+        "address": "D1:98:62:7C:92:B3",
+        "streams": ["spo2"],
+    }
     asyncio.run(capture.run_oxyii(dev, str(tmp_path)))
     assert slept == [5, 10, 20, 40, 80, 160, 320, 400], slept

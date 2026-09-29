@@ -13,6 +13,7 @@ p90 31.1 s, `all` p90 69.4 s) but the window they must fit inside is explicitly 
 would trade a proven scope for an unmeasured bound; the follow-on runs when the ring has just
 answered, so reachability is demonstrated rather than assumed.
 """
+
 import oxy_inventory as INV
 
 
@@ -25,8 +26,12 @@ def test_ONLY_VERIFIED_AND_COMMITTED_RETIRE_A_SESSION_FROM_THE_DRAIN():
     badly. None of those is 'the bytes are safe', so none may retire a session — otherwise a drain
     skips exactly the files that never landed."""
     flash = ["20260828232644", "20260829015107", "20260903174217", "20260903190037"]
-    rows = [_row("20260828232644", INV.COMMITTED), _row("20260829015107", INV.VERIFIED),
-            _row("20260903174217", INV.DISCOVERED), _row("20260903190037", INV.PARTIAL)]
+    rows = [
+        _row("20260828232644", INV.COMMITTED),
+        _row("20260829015107", INV.VERIFIED),
+        _row("20260903174217", INV.DISCOVERED),
+        _row("20260903190037", INV.PARTIAL),
+    ]
     assert INV.undrained(rows, flash) == ["20260903174217", "20260903190037"]
 
 
@@ -52,8 +57,7 @@ def test_A_LEDGER_ROW_FOR_A_SESSION_NO_LONGER_ON_FLASH_IS_NOT_INVENTED():
 def test_TORN_ROWS_DO_NOT_RETIRE_ANYTHING():
     """A half-written JSONL line is the normal tail of a log being appended to. It must not be read
     as a verification — that would strand the very session it half-describes."""
-    assert INV.undrained([{"state": INV.COMMITTED}, None, "junk"], ["20260828232644"]) == \
-        ["20260828232644"]
+    assert INV.undrained([{"state": INV.COMMITTED}, None, "junk"], ["20260828232644"]) == ["20260828232644"]
 
 
 # ── the wiring, which is where two of these defects actually lived ────────────────────────────────
@@ -97,9 +101,11 @@ def test_THE_RENDER_SCAN_NO_LONGER_COUNTS_A_COMMENT_AS_A_RENDERING():
     """The gate that would otherwise have passed this change for the wrong reason."""
     src = module_source("tools/find_unwired.py")
     i = src.index("def projected_keys")
-    assert '{"storage", "qc"}' in src[i:i + 1800], "the top-level projection is still unscanned"
+    assert '{"storage", "qc"}' in src[i : i + 1800], "the top-level projection is still unscanned"
     j = src.index("orphan_rendered = []")
-    assert "<!--" in src[j:j + 1400], "comments are still counted as renderings"
+    # 1800 to match its sibling above: the reformat moved `<!--` to 1417 characters past the anchor,
+    # just past the old 1400 bound. A window is a proximity proxy, not the property.
+    assert "<!--" in src[j : j + 1800], "comments are still counted as renderings"
 
 
 def test_THE_DEAD_STATUS_KEY_IS_GONE():
@@ -167,6 +173,7 @@ def test_A_BUSY_SLOT_DEFERS_THE_DRAIN_AND_KEEPS_THE_PULL_THAT_SUCCEEDED(monkeypa
 def test_A_DRAIN_THAT_THROWS_DOES_NOT_RETRACT_THE_PRIMARY_PULL(monkeypatch, caplog):
     """The failure the log line must survive: the drain is a bonus sweep, and a night that landed
     its main session must not be reported as a failure because the bonus did not complete."""
+
     async def pull(dev, root, which="latest", resume=False, trigger="manual"):
         if which == "new":
             raise RuntimeError("ring went away mid-drain")
@@ -180,6 +187,7 @@ def test_A_DRAIN_THAT_THROWS_DOES_NOT_RETRACT_THE_PRIMARY_PULL(monkeypatch, capl
 def test_THE_DRAINED_COUNT_REACHES_STATUS(monkeypatch):
     """`drained` is what the monitor renders — a trigger that fires nightly and recovers nothing
     reads as healthy on `trigger` alone."""
+
     async def pull(dev, root, which="latest", resume=False, trigger="manual"):
         return {"new_files": ["a.dat", "b.dat"] if which == "new" else ["main.dat"]}
 
@@ -204,6 +212,7 @@ def test_THE_DRAIN_IS_BOOKED_UNDER_THE_EVENT_TRIGGER_NOT_MANUAL(monkeypatch):
 # ── the collision with the predecessor's teardown (residue 2026-09-07-drain-collides-with-predecessor-pull) ──
 class _InProgress(Exception):
     """The shape bleak raises: the class name carries the DBus error name."""
+
     pass
 
 
@@ -225,13 +234,15 @@ def test_a_drain_refused_by_the_TEARDOWN_settles_and_succeeds_on_the_next_attemp
     waited for a poller lap up to an hour away, and STATUS read `drained: 0` — indistinguishable from
     a ring that had nothing stranded."""
     calls = []
+
     async def pull(dev, root, which="latest", resume=False, trigger="manual"):
         calls.append(which)
         if which == "new" and calls.count("new") == 1:
             raise BleakDBusError()
         return {"new_files": ["frag.dat"] if which == "new" else ["main.dat"]}
+
     with caplog.at_level("INFO"):
-        ap = _drive(monkeypatch, pull, ticks=6)          # the settle is a sleep the rig counts
+        ap = _drive(monkeypatch, pull, ticks=6)  # the settle is a sleep the rig counts
     assert calls[:3] == ["latest", "new", "new"], calls
     assert ap.get("drained") == 1 and ap.get("drain") == "ok after 2 attempt(s)", ap
     assert "still tearing down the previous operation (attempt 1/3)" in caplog.text
@@ -241,11 +252,13 @@ def test_a_drain_refused_by_the_TEARDOWN_settles_and_succeeds_on_the_next_attemp
 def test_a_refusal_that_NEVER_clears_is_bounded_and_RECORDED_as_refused(monkeypatch, caplog):
     """Three attempts, two settles, then the honest outcome — never `drained: 0` alone."""
     calls = []
+
     async def pull(dev, root, which="latest", resume=False, trigger="manual"):
         calls.append(which)
         if which == "new":
             raise BleakDBusError()
         return {"new_files": ["main.dat"]}
+
     with caplog.at_level("INFO"):
         ap = _drive(monkeypatch, pull, ticks=8)
     assert calls.count("new") == capture._DRAIN_TRIES, calls
@@ -259,11 +272,13 @@ def test_ANY_OTHER_error_is_not_retried(monkeypatch):
     """A retry keyed on an unexplained error would hide its cause. A ring that went away mid-drain is
     refused ONCE, recorded as such, and left for the poller — today's behaviour, now named."""
     calls = []
+
     async def pull(dev, root, which="latest", resume=False, trigger="manual"):
         calls.append(which)
         if which == "new":
             raise RuntimeError("ring went away mid-drain")
         return {"new_files": ["main.dat"]}
+
     ap = _drive(monkeypatch, pull, ticks=6)
     assert calls.count("new") == 1, calls
     assert ap.get("drain", "").startswith("refused: ") and "ring went away" in ap["drain"], ap
@@ -272,9 +287,12 @@ def test_ANY_OTHER_error_is_not_retried(monkeypatch):
 def test_a_clean_drain_and_a_busy_slot_are_recorded_as_what_they_are(monkeypatch):
     async def clean(dev, root, which="latest", resume=False, trigger="manual"):
         return {"new_files": ["x"] if which == "new" else ["main"]}
+
     assert _drive(monkeypatch, clean).get("drain") == "ok"
+
     async def busy(dev, root, which="latest", resume=False, trigger="manual"):
         if which == "new":
             raise offline_lock.OfflineBusy("slot held")
         return {"new_files": ["main"]}
+
     assert _drive(monkeypatch, busy).get("drain", "").startswith("deferred: ")

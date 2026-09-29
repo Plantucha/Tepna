@@ -30,8 +30,7 @@ def _local_ms(day, hour, minute=0):
 
 
 def _journal(root, rows):
-    (root / "SESSIONDETECT.csv").write_text(
-        "\n".join([HDR] + [f"{ms};i;i;;;i;f;True;{st};0;0;" for ms, st in rows]))
+    (root / "SESSIONDETECT.csv").write_text("\n".join([HDR] + [f"{ms};i;i;;;i;f;True;{st};0;0;" for ms, st in rows]))
 
 
 def _therapy_run(t0, n=720, step_ms=30_000):
@@ -62,8 +61,7 @@ def test_F18_repro_a_record_from_a_FAILED_night_days_earlier_cannot_relabel_toni
     (08-29 lies inside 08-25..09-01) and the night wore "auto-start-failed … 5 time(s)" with the old
     night's error — the verdict whose response is OPPOSITE to the true one."""
     onsets = _week_of_nights(tmp_path)
-    capture._cpap_autostart_save(str(tmp_path), onsets["2026-08-29"], attempts=5,
-                                 last_error="AS11 not advertising")
+    capture._cpap_autostart_save(str(tmp_path), onsets["2026-08-29"], attempts=5, last_error="AS11 not advertising")
     got = capture._cpap_stream_watch_row({}, str(tmp_path), "2026-09-01")
     assert got["state"] == W.NEVER_STARTED, got
     assert "attempts" not in got and "not advertising" not in (got.get("detail") or "")
@@ -73,8 +71,7 @@ def test_F18_the_SAME_journal_and_record_DO_relabel_the_night_the_record_describ
     """The mirror, so the fix cannot be 'ignore every record': judged for 08-29 itself, the marker
     keyed to that night's onset is exactly the failed automation it records."""
     onsets = _week_of_nights(tmp_path)
-    capture._cpap_autostart_save(str(tmp_path), onsets["2026-08-29"], attempts=5,
-                                 last_error="AS11 not advertising")
+    capture._cpap_autostart_save(str(tmp_path), onsets["2026-08-29"], attempts=5, last_error="AS11 not advertising")
     got = capture._cpap_stream_watch_row({}, str(tmp_path), "2026-08-29")
     assert got["state"] == W.AUTOSTART_FAILED
     assert got["attempts"] == 5 and "not advertising" in got["detail"]
@@ -108,15 +105,21 @@ def test_F18_a_LIVE_key_lags_the_sighting_by_one_poll_and_still_matches(tmp_path
     a boot-seeded key equals the row exactly. Both must match; exact float equality would reject
     every live-keyed record and turn F18's fix into the opposite defect."""
     onsets = _week_of_nights(tmp_path)
-    capture._cpap_autostart_save(str(tmp_path), onsets["2026-09-01"] + 5_000.0, attempts=2,
-                                 last_error="link lost")
+    capture._cpap_autostart_save(str(tmp_path), onsets["2026-09-01"] + 5_000.0, attempts=2, last_error="link lost")
     got = capture._cpap_stream_watch_row({}, str(tmp_path), "2026-09-01")
     assert got["state"] == W.AUTOSTART_FAILED and got["attempts"] == 2
 
 
 def test_F18_onsets_are_first_sightings_including_a_journal_that_OPENS_in_therapy():
-    rows = [(10.0, "Therapy"), (40.0, "Therapy"), (70.0, "Standby"), (100.0, "Therapy"),
-            (130.0, "Therapy"), (160.0, "Standby"), (190.0, "Therapy")]
+    rows = [
+        (10.0, "Therapy"),
+        (40.0, "Therapy"),
+        (70.0, "Standby"),
+        (100.0, "Therapy"),
+        (130.0, "Therapy"),
+        (160.0, "Standby"),
+        (190.0, "Therapy"),
+    ]
     assert capture._therapy_onsets_ms(rows) == [10.0, 100.0, 190.0]
     # half-open window: the onset AT `until` is out, the one AT `since` is in
     assert capture._therapy_onsets_ms(rows, since_ms=100.0, until_ms=190.0) == [100.0]
@@ -124,8 +127,7 @@ def test_F18_onsets_are_first_sightings_including_a_journal_that_OPENS_in_therap
 
 
 def test_F18_the_predicate_itself():
-    rows = [(1_000_000.0, "Standby"), (2_000_000.0, "Therapy"), (2_030_000.0, "Therapy"),
-            (2_300_000.0, "Therapy")]
+    rows = [(1_000_000.0, "Standby"), (2_000_000.0, "Therapy"), (2_030_000.0, "Therapy"), (2_300_000.0, "Therapy")]
     ok = capture._autostart_record_in_night
     assert ok({"session_ms": 2_000_000.0}, None, None, rows)
     assert ok({"session_ms": 2_000_000.0 + capture._AUTOSTART_KEY_SLACK_MS}, None, None, rows)
@@ -144,8 +146,7 @@ def test_F18_an_UNPARSEABLE_night_name_still_keys_by_onset_never_by_span(tmp_pat
     onsets = _week_of_nights(tmp_path)
     capture._cpap_autostart_save(str(tmp_path), onsets["2026-08-27"], attempts=1, last_error="x")
     assert capture._cpap_stream_watch_row({}, str(tmp_path), "not-a-night")["state"] == W.AUTOSTART_FAILED
-    capture._cpap_autostart_save(str(tmp_path), onsets["2026-08-27"] + 3_600_000.0, attempts=1,
-                                 last_error="x")
+    capture._cpap_autostart_save(str(tmp_path), onsets["2026-08-27"] + 3_600_000.0, attempts=1, last_error="x")
     assert capture._cpap_stream_watch_row({}, str(tmp_path), "not-a-night")["state"] == W.NEVER_STARTED
 
 
@@ -177,8 +178,9 @@ def test_F17_relative_creds_reach_the_controller_shadow_and_spool_starters(tmp_p
     behaviour cannot pass by accident."""
     etc = tmp_path / "etc"
     etc.mkdir()
-    (etc / "as11_creds.json").write_text(json.dumps(
-        {"masterPairKey": "aa" * 32, "clientId": "rel", "ble_addr": "AA:BB:CC:DD:EE:FF"}))
+    (etc / "as11_creds.json").write_text(
+        json.dumps({"masterPairKey": "aa" * 32, "clientId": "rel", "ble_addr": "AA:BB:CC:DD:EE:FF"})
+    )
     elsewhere = tmp_path / "cwd"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
@@ -190,20 +192,29 @@ def test_F17_relative_creds_reach_the_controller_shadow_and_spool_starters(tmp_p
 
     seen = []
     shadow_cfg = dict(cfg, as11_detector={"enabled": True})
-    assert capture._maybe_start_as11_shadow(shadow_cfg, cfgp, str(tmp_path), object(), [],
-                                            load_creds=lambda p: seen.append(p)) is None
-    spool_cfg = dict(cfg, cpap={"ble_stream": {"creds_path": "as11_creds.json"},
-                                "spool_pull": {"enabled": True}})
-    assert capture._maybe_start_cpap_spool_pull(spool_cfg, cfgp, str(tmp_path), object(), [],
-                                                load_creds=lambda p: seen.append(p)) is None
+    assert (
+        capture._maybe_start_as11_shadow(
+            shadow_cfg, cfgp, str(tmp_path), object(), [], load_creds=lambda p: seen.append(p)
+        )
+        is None
+    )
+    spool_cfg = dict(cfg, cpap={"ble_stream": {"creds_path": "as11_creds.json"}, "spool_pull": {"enabled": True}})
+    assert (
+        capture._maybe_start_cpap_spool_pull(
+            spool_cfg, cfgp, str(tmp_path), object(), [], load_creds=lambda p: seen.append(p)
+        )
+        is None
+    )
     assert seen == [str(etc / "as11_creds.json")] * 2, seen
 
 
 def test_F17_relative_sinks_land_under_the_box_root_and_are_logged_at_wiring(tmp_path, caplog):
     import cpap_edf_writer
-    cfg = {"root": str(tmp_path / "box"),
-           "cpap": {"ble_stream": {"edf_dir": "captures/cpap-ble", "raw_record_dir": "captures/cpap-raw",
-                                   "serial": "S1"}}}
+
+    cfg = {
+        "root": str(tmp_path / "box"),
+        "cpap": {"ble_stream": {"edf_dir": "captures/cpap-ble", "raw_record_dir": "captures/cpap-raw", "serial": "S1"}},
+    }
     with caplog.at_level("INFO"):
         ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "etc" / "config.yaml"))
     sink = ctl._edf_sink_factory()
@@ -225,7 +236,7 @@ def test_F17_the_wiring_line_names_the_OFF_sinks_rather_than_printing_None(tmp_p
 
 
 def test_F17_a_config_WITHOUT_root_anchors_sinks_on_the_config_dir_never_the_cwd(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path / "." )
+    monkeypatch.chdir(tmp_path / ".")
     cfg = {"cpap": {"ble_stream": {"edf_dir": "edf"}}}
     ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "etc" / "config.yaml"))
     assert ctl._edf_sink_factory()._out_root == str(tmp_path / "etc" / "edf")
@@ -252,8 +263,9 @@ def test_F17_the_watchdog_and_the_inventory_read_the_SAME_resolved_edf_dir(tmp_p
     seen = {}
     import cpap_inventory_adapter
 
-    monkeypatch.setattr(cpap_inventory_adapter, "on_harvest_complete",
-                        lambda result, **kw: seen.update(kw) or {"discrepancies": 0})
+    monkeypatch.setattr(
+        cpap_inventory_adapter, "on_harvest_complete", lambda result, **kw: seen.update(kw) or {"discrepancies": 0}
+    )
     monkeypatch.setattr(capture, "_now", lambda: _d.datetime(2026, 8, 29, 23, 0, 0))
     night = box / "captures" / "2026-08-29"
     night.mkdir(parents=True)

@@ -10,6 +10,7 @@ other identification field already matched byte-for-byte, so the serial was the 
 card — `FlowGenerator.IdentificationProfiles.Product.SerialNumber` — not a flattened `{"serial": …}`
 that would pass a lenient reader while proving nothing about the file the harvest actually writes.
 """
+
 import json
 import os
 import sys
@@ -25,12 +26,18 @@ def _ident(tmp_path, serial, *, subdir="captures/cpap"):
     """Write an Identification.json in the harvest's real nesting and return the box root."""
     d = tmp_path / subdir
     d.mkdir(parents=True, exist_ok=True)
-    doc = {"FlowGenerator": {"IdentificationProfiles": {"Product": {
-        "UniversalIdentifier": "b64c7b29-a2ae-4ee6-9a47-4472e771fa39",
-        "SerialNumber": serial,
-        "ProductCode": "39485",
-        "ProductName": "AirSense11AutoSet",
-    }}}}
+    doc = {
+        "FlowGenerator": {
+            "IdentificationProfiles": {
+                "Product": {
+                    "UniversalIdentifier": "b64c7b29-a2ae-4ee6-9a47-4472e771fa39",
+                    "SerialNumber": serial,
+                    "ProductCode": "39485",
+                    "ProductName": "AirSense11AutoSet",
+                }
+            }
+        }
+    }
     (d / "Identification.json").write_text(json.dumps(doc), encoding="utf-8")
     return str(tmp_path)
 
@@ -68,14 +75,17 @@ def test_malformed_identification_json_is_UNKNOWN(tmp_path):
     assert capture.resolve_cpap_serial({}, str(tmp_path)) == "UNKNOWN"
 
 
-@pytest.mark.parametrize("doc", [
-    {},                                                        # empty object
-    [],                                                        # a list, not an object
-    {"FlowGenerator": None},                                   # nesting stops early
-    {"FlowGenerator": {"IdentificationProfiles": {}}},         # Product absent
-    {"FlowGenerator": {"IdentificationProfiles": {"Product": {"SerialNumber": ""}}}},   # empty
-    {"FlowGenerator": {"IdentificationProfiles": {"Product": {"SerialNumber": None}}}},  # null
-])
+@pytest.mark.parametrize(
+    "doc",
+    [
+        {},  # empty object
+        [],  # a list, not an object
+        {"FlowGenerator": None},  # nesting stops early
+        {"FlowGenerator": {"IdentificationProfiles": {}}},  # Product absent
+        {"FlowGenerator": {"IdentificationProfiles": {"Product": {"SerialNumber": ""}}}},  # empty
+        {"FlowGenerator": {"IdentificationProfiles": {"Product": {"SerialNumber": None}}}},  # null
+    ],
+)
 def test_any_shape_without_a_serial_is_UNKNOWN(tmp_path, doc):
     """An empty serial must not become the string 'None' or '' in an EDF header."""
     d = tmp_path / "captures" / "cpap"
@@ -88,9 +98,10 @@ def test_a_non_string_serial_is_stringified_not_dropped(tmp_path):
     """The card writes a string, but a numeric one must still identify the machine."""
     d = tmp_path / "captures" / "cpap"
     d.mkdir(parents=True)
-    (d / "Identification.json").write_text(json.dumps(
-        {"FlowGenerator": {"IdentificationProfiles": {"Product": {"SerialNumber": 23221590541}}}}),
-        encoding="utf-8")
+    (d / "Identification.json").write_text(
+        json.dumps({"FlowGenerator": {"IdentificationProfiles": {"Product": {"SerialNumber": 23221590541}}}}),
+        encoding="utf-8",
+    )
     assert capture.resolve_cpap_serial({}, str(tmp_path)) == "23221590541"
 
 
@@ -107,12 +118,12 @@ def test_an_empty_config_still_finds_the_harvested_serial(tmp_path):
 def test_the_serial_reaches_the_recording_id(tmp_path):
     """End to end through the real header builder — the field that was wrong on disk."""
     import cpap_edf
+
     root = _ident(tmp_path, "23221590541")
     serial = capture.resolve_cpap_serial({}, root)
     edf = cpap_edf.build_brp([0.0] * 1500, [0.0] * 1500, (2026, 8, 23, 23, 52, 42), serial)
     rid = edf[88:168].decode("ascii").rstrip() if isinstance(edf, (bytes, bytearray)) else None
-    if rid is None:                                    # build_brp returns a structure, not bytes
+    if rid is None:  # build_brp returns a structure, not bytes
         rid = cpap_edf._recording_id("23-AUG-2026", serial, 46, 3)
     assert "SRN=23221590541" in rid
     assert "SRN=UNKNOWN" not in rid
-

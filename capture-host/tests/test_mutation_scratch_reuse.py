@@ -668,6 +668,7 @@ def test_root_reads_never_counts_a_DOTFILE_or_a_DOT_DIRECTORY_PATH(tmp_path):
 # that must INHERIT `conftest.py`, the fixture under test. The walker is therefore the side that gives.
 # Residue `2026-09-27-a-suite-walker-races-a-probe-dir-under-tests`.
 
+
 def _read_text_raising_for(victim, exc):
     """`Path.read_text` that raises `exc` for one path and behaves normally for every other."""
     from pathlib import Path
@@ -690,15 +691,15 @@ def test_root_reads_is_UNCHANGED_by_a_file_that_vanishes_before_it_is_read(tmp_p
 
     root, tree = _tree_with_root_read(tmp_path)
     baseline = mutation_diff.root_reads(tree)
-    assert baseline == ["ecgdex-dsp.js"], baseline   # the control: the census is non-empty to begin with
+    assert baseline == ["ecgdex-dsp.js"], baseline  # the control: the census is non-empty to begin with
 
     # a transient sibling, present at listing time and gone by the time the walker reads it
     (tree / "tests" / "_probe_dir").mkdir()
     (tree / "tests" / "_probe_dir" / "test_gone.py").write_text('X = "suite.manifest.json"\n')
-    monkeypatch.setattr(Path, "read_text",
-                        _read_text_raising_for("test_gone.py", FileNotFoundError(2, "No such file")))
+    monkeypatch.setattr(Path, "read_text", _read_text_raising_for("test_gone.py", FileNotFoundError(2, "No such file")))
     assert mutation_diff.root_reads(tree) == baseline, (
-        "a path that vanished between the listing and the read must contribute nothing at all")
+        "a path that vanished between the listing and the read must contribute nothing at all"
+    )
 
 
 def test_root_reads_still_RAISES_when_a_file_exists_and_cannot_be_read(tmp_path, monkeypatch):
@@ -712,7 +713,6 @@ def test_root_reads_still_RAISES_when_a_file_exists_and_cannot_be_read(tmp_path,
 
     root, tree = _tree_with_root_read(tmp_path)
     (tree / "tests" / "test_unreadable.py").write_text('X = "suite.manifest.json"\n')
-    monkeypatch.setattr(Path, "read_text",
-                        _read_text_raising_for("test_unreadable.py", PermissionError(13, "denied")))
+    monkeypatch.setattr(Path, "read_text", _read_text_raising_for("test_unreadable.py", PermissionError(13, "denied")))
     with pytest.raises(PermissionError):
         mutation_diff.root_reads(tree)

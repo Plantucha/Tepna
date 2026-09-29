@@ -18,16 +18,16 @@ import cpap_harvest as c
 
 # (listing string, real bytes) — ten files, `listed == ceil(bytes/1024)` in all of them.
 REAL = [
-    ("1KB", 832),        # 0.81 KB
-    ("2KB", 1344),       # 1.31 KB  <- rejected under the old +/-0.5 model
-    ("204KB", 208776),   # 203.88 KB
-    ("91KB", 92984),     # 90.80 KB
-    ("2229KB", 2281784), # 2228.30 KB <- rejected
-    ("1KB", 896),        # 0.88 KB
-    ("5KB", 4984),       # 4.87 KB
-    ("2KB", 1992),       # 1.95 KB
-    ("25KB", 25032),     # 24.45 KB <- rejected
-    ("104KB", 105810),   # 103.33 KB <- rejected; the one that started this
+    ("1KB", 832),  # 0.81 KB
+    ("2KB", 1344),  # 1.31 KB  <- rejected under the old +/-0.5 model
+    ("204KB", 208776),  # 203.88 KB
+    ("91KB", 92984),  # 90.80 KB
+    ("2229KB", 2281784),  # 2228.30 KB <- rejected
+    ("1KB", 896),  # 0.88 KB
+    ("5KB", 4984),  # 4.87 KB
+    ("2KB", 1992),  # 1.95 KB
+    ("25KB", 25032),  # 24.45 KB <- rejected
+    ("104KB", 105810),  # 103.33 KB <- rejected; the one that started this
 ]
 
 
@@ -35,6 +35,7 @@ def test_the_listing_is_ceil_not_round():
     """The finding itself, pinned. If a future card rounds instead, this fails loudly rather than
     silently reopening the low-side band."""
     import math
+
     for listed, b in REAL:
         assert c.size_kb(listed) == math.ceil(b / 1024.0), f"{listed} vs {b}B is not ceil"
 
@@ -56,9 +57,9 @@ def test_the_four_that_regressed_are_named():
 def test_genuine_truncation_is_still_caught():
     """The property this family of functions exists for (§C5). Loosening the low side must not admit a
     corrupt EDF that parses far enough to look real."""
-    assert c.short_read({"size": "2229KB"}, 1000000)      # 56% of a BRP
-    assert c.short_read({"size": "104KB"}, 50000)         # half
-    assert c.short_read({"size": "25KB"}, 24000)          # a full KB short
+    assert c.short_read({"size": "2229KB"}, 1000000)  # 56% of a BRP
+    assert c.short_read({"size": "104KB"}, 50000)  # half
+    assert c.short_read({"size": "25KB"}, 24000)  # a full KB short
 
 
 def test_the_window_is_asymmetric_nothing_above_the_printed_value_passes():
@@ -66,8 +67,8 @@ def test_the_window_is_asymmetric_nothing_above_the_printed_value_passes():
     complete file can exceed the printed value, so nothing may."""
     lo, hi = c.size_window_kb("25KB")
     assert 24.0 == lo and hi < 25.001, (lo, hi)
-    assert c.short_read({"size": "25KB"}, 25601)          # 25.0 KB + a byte
-    assert c.short_read({"size": "204KB"}, 209000)        # just over 204 KB
+    assert c.short_read({"size": "25KB"}, 25601)  # 25.0 KB + a byte
+    assert c.short_read({"size": "204KB"}, 209000)  # just over 204 KB
 
 
 def test_content_length_is_exact_and_beats_the_listing():
@@ -133,7 +134,7 @@ def test_a_complete_part_is_promoted_without_downloading(tmp_path, monkeypatch):
 def test_a_part_of_the_WRONG_size_is_not_promoted(tmp_path, monkeypatch):
     """Promotion is the one place an unverified file becomes a trusted one, so it may not guess. Only
     an EXACT match against the declared length counts."""
-    (tmp_path / "SA2.edf.part").write_bytes(b"Z" * 5000)          # genuinely partial
+    (tmp_path / "SA2.edf.part").write_bytes(b"Z" * 5000)  # genuinely partial
     monkeypatch.setattr(c.urllib.request, "urlopen", lambda req, timeout=None: _Resp(b"Z" * 105810))
     monkeypatch.setattr(c.time, "sleep", lambda *_: None)
     e = {"name": "SA2.edf", "size": "104KB", "href": "download?file=S"}
@@ -172,8 +173,9 @@ def test_no_promotion_when_the_real_file_already_exists(tmp_path, monkeypatch):
 
 def test_an_unparseable_content_length_is_treated_as_absent(monkeypatch):
     """A server declaring nonsense must not crash the client; the listing window takes over."""
-    monkeypatch.setattr(c.urllib.request, "urlopen",
-                        lambda url, timeout=None: _Resp(b"Z" * 100, declared="not-a-number"))
+    monkeypatch.setattr(
+        c.urllib.request, "urlopen", lambda url, timeout=None: _Resp(b"Z" * 100, declared="not-a-number")
+    )
     body, declared = c.EzShare()._get("http://x", want_length=True)
     assert body == b"Z" * 100 and declared == 0
 
@@ -201,7 +203,7 @@ def test_a_DIFFERING_part_is_never_reaped(tmp_path):
     ones we have — deleting it destroys the evidence the .part convention exists to preserve."""
     real = tmp_path / "BRP.edf"
     real.write_bytes(b"D" * 4096)
-    (tmp_path / "BRP.edf.part").write_bytes(b"D" * 2048)          # half — a real partial
+    (tmp_path / "BRP.edf.part").write_bytes(b"D" * 2048)  # half — a real partial
     assert c.reap_stale_part(str(real)) is False
     assert (tmp_path / "BRP.edf.part").exists()
 

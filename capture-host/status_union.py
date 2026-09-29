@@ -19,6 +19,7 @@ So the expected instances come from CONFIG, and an instance that is missing or s
 WITH ITS LAST-SEEN AGE rather than omitted. A merge layer that cannot fail visibly is not worth
 building.
 """
+
 from __future__ import annotations
 
 import json
@@ -44,8 +45,7 @@ def read_instance(root: str, instance: str | None) -> dict | None:
     """One instance's published status, or None when it has never written / is unreadable.
 
     None is a real answer here, not an error to swallow: it is what `merge()` turns into a DEAD row."""
-    path = os.path.join(root, "captures",
-                        "status.json" if instance is None else f"status.{instance}.json")
+    path = os.path.join(root, "captures", "status.json" if instance is None else f"status.{instance}.json")
     try:
         with open(path) as f:
             return json.load(f)
@@ -53,8 +53,7 @@ def read_instance(root: str, instance: str | None) -> dict | None:
         return None
 
 
-def instance_health(doc: dict | None, now_ms: int | None = None,
-                    stale_after_ms: int = STALE_AFTER_MS) -> dict:
+def instance_health(doc: dict | None, now_ms: int | None = None, stale_after_ms: int = STALE_AFTER_MS) -> dict:
     """One instance's liveness, as a fact rather than an absence.
 
     `state` is exactly one of:
@@ -77,8 +76,7 @@ def instance_health(doc: dict | None, now_ms: int | None = None,
     return {"state": "stale" if age > stale_after_ms else "live", "age_ms": age}
 
 
-def merge(root: str, cfg: dict | None, now_ms: int | None = None,
-          stale_after_ms: int = STALE_AFTER_MS) -> dict:
+def merge(root: str, cfg: dict | None, now_ms: int | None = None, stale_after_ms: int = STALE_AFTER_MS) -> dict:
     """The union the monitor and nightqc read.
 
     Returns `{"instances": {name: {...health, adapter, device_count}}, "devices": [...],
@@ -96,7 +94,7 @@ def merge(root: str, cfg: dict | None, now_ms: int | None = None,
     devices: list = []
     streams: list = []
     missing: list[str] = []
-    for name in (names or [None]):
+    for name in names or [None]:
         doc = read_instance(root, name)
         health = instance_health(doc, now_ms, stale_after_ms)
         key = name if name is not None else "(single)"
@@ -110,5 +108,10 @@ def merge(root: str, cfg: dict | None, now_ms: int | None = None,
         if isinstance(doc, dict):
             devices.extend(doc.get("devices") or [])
             streams.extend(doc.get("streams") or [])
-    return {"instances": out_inst, "devices": devices, "streams": streams,
-            "degraded": bool(missing), "missing": missing}
+    return {
+        "instances": out_inst,
+        "devices": devices,
+        "streams": streams,
+        "degraded": bool(missing),
+        "missing": missing,
+    }

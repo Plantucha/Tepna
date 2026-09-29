@@ -10,7 +10,7 @@ def test_dur_to_sec_handles_pretty_and_raw():
     assert clockcfg._dur_to_sec("32s") == 32
     assert clockcfg._dur_to_sec("34min 8s") == 2048
     assert clockcfg._dur_to_sec("5s") == 5
-    assert clockcfg._dur_to_sec("2048000000") == 2048        # raw microseconds
+    assert clockcfg._dur_to_sec("2048000000") == 2048  # raw microseconds
     assert clockcfg._dur_to_sec("") is None
     assert clockcfg._dur_to_sec(None) is None
 
@@ -30,6 +30,7 @@ def test_kv_parse():
 # permissive regex here hands attacker-influenced strings to a root shell. These tests concentrate on the
 # refusal paths and on the argv actually handed over. `_run` is stubbed; no timedatectl is invoked.
 
+
 def _go(coro):
     return asyncio.run(coro)
 
@@ -39,6 +40,7 @@ def _stub_helper(monkeypatch, rc=0, out="done", record=None):
         if record is not None:
             record.append(list(args))
         return rc, out
+
     monkeypatch.setattr(clockcfg, "_run", fake_run)
     monkeypatch.setattr(clockcfg.os, "access", lambda *a, **k: True)
 
@@ -89,8 +91,10 @@ def test_set_tz_accepts_real_zone_names(monkeypatch, zone):
     assert _go(clockcfg.set_tz(zone))["timezone"] == zone
 
 
-@pytest.mark.parametrize("zone", ["", "   ", None, "Europe/Prague; reboot", "$(id)", "Europe Prague",
-                                  "Europe/Prague\nreboot", "Europe/Prague&&id"])
+@pytest.mark.parametrize(
+    "zone",
+    ["", "   ", None, "Europe/Prague; reboot", "$(id)", "Europe Prague", "Europe/Prague\nreboot", "Europe/Prague&&id"],
+)
 def test_set_tz_refuses_anything_unlike_a_zone(monkeypatch, zone):
     called = []
     _stub_helper(monkeypatch, record=called)
@@ -151,6 +155,7 @@ def test_run_reports_a_missing_binary_rather_than_raising():
 def test_status_reports_unavailable_when_timedatectl_is_missing(monkeypatch):
     async def fake_run(*args, timeout=12):
         return 127, "timedatectl not found"
+
     monkeypatch.setattr(clockcfg, "_run", fake_run)
     assert _go(clockcfg.status())["available"] is False
 
@@ -160,6 +165,7 @@ def test_status_reads_timezone_and_sync_flag(monkeypatch):
         if "show-timesync" in args:
             return 0, "SystemNTPServers=pool.ntp.org\n"
         return 0, "NTP=yes\nNTPSynchronized=yes\nTimezone=America/New_York\n"
+
     monkeypatch.setattr(clockcfg, "_run", fake_run)
     st = _go(clockcfg.status())
     assert st["available"] is True and st["timezone"] == "America/New_York"
@@ -175,6 +181,7 @@ def test_status_reads_timezone_and_sync_flag(monkeypatch):
 # stores floating wall-clock time, so the HOST's zone and sync state are what make a night's stamps
 # mean anything. Existing tests assert the dict for a fake `_run`; nothing observed WHICH commands are
 # asked, or that a failed probe is discarded rather than half-parsed.
+
 
 def _stub_run(monkeypatch, replies):
     """replies: {argv_tuple: (rc, text)}. Records every command actually issued."""
@@ -192,15 +199,19 @@ def test_status_asks_timedatectl_both_questions(monkeypatch):
     """Two DIFFERENT sub-commands. `show` carries NTP/Timezone/NTPSynchronized; `show-timesync --all`
     carries the server actually in use. Asking one twice, or dropping `--all`, silently empties half
     the report — and the fields it empties are the ones that say whether the clock can be trusted."""
-    seen = _stub_run(monkeypatch, {
-        ("timedatectl", "show"): (0, "NTP=yes\nNTPSynchronized=yes\nTimezone=America/New_York\n"),
-        ("timedatectl", "show-timesync", "--all"): (0, "ServerName=time.cloudflare.com\n"),
-    })
+    seen = _stub_run(
+        monkeypatch,
+        {
+            ("timedatectl", "show"): (0, "NTP=yes\nNTPSynchronized=yes\nTimezone=America/New_York\n"),
+            ("timedatectl", "show-timesync", "--all"): (0, "ServerName=time.cloudflare.com\n"),
+        },
+    )
     r = asyncio.run(clockcfg.status())
 
     assert ("timedatectl", "show") in [a for a, _t in seen]
-    assert ("timedatectl", "show-timesync", "--all") in [a for a, _t in seen], \
+    assert ("timedatectl", "show-timesync", "--all") in [a for a, _t in seen], (
         "--all is what makes the active server visible"
+    )
     assert r["available"] is True and r["ntp_enabled"] is True and r["synchronized"] is True
     assert r["timezone"] == "America/New_York"
     assert r["server_active"] == "time.cloudflare.com"

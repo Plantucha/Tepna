@@ -27,6 +27,7 @@ DISTRIBUTION with a tail above the threshold, and it was the tail that got banke
 that would have caught it is `test_zero_loss_stream_with_jitter_tail_does_not_inflate_the_grid`
 below: with zero loss by construction, grid duration must equal wall duration regardless of jitter.
 """
+
 import datetime as _dt
 
 import capture
@@ -104,9 +105,11 @@ def test_never_rewinds_on_an_early_frame():
     """A frame delivered 'early' by host-clock jitter must not rewind the grid — non-monotonic
     sensor_ns would break the Clock Contract and every downstream parser."""
     t0 = _dt.datetime(2026, 7, 21, 21, 8, 14)
-    fr = [(t0 + _dt.timedelta(seconds=21 / FS), 21),
-          (t0 + _dt.timedelta(seconds=21 / FS + 0.001), 21),   # absurdly early
-          (t0 + _dt.timedelta(seconds=3 * 21 / FS), 21)]
+    fr = [
+        (t0 + _dt.timedelta(seconds=21 / FS), 21),
+        (t0 + _dt.timedelta(seconds=21 / FS + 0.001), 21),  # absurdly early
+        (t0 + _dt.timedelta(seconds=3 * 21 / FS), 21),
+    ]
     ns, gaps, lost = _grid(fr)
     assert all(b > a for a, b in zip(ns, ns[1:])), "sensor_ns must be strictly increasing"
     assert lost >= 0
@@ -133,6 +136,7 @@ def test_zero_loss_stream_with_jitter_tail_does_not_inflate_the_grid():
     file's original blind spot. Seeded for reproducibility — deterministic, not seed-dependent.
     """
     import random
+
     rnd = random.Random(20260725)
     t0 = _dt.datetime(2026, 7, 25, 2, 0, 0)
     nps, n = 8, 4000
@@ -141,15 +145,16 @@ def test_zero_loss_stream_with_jitter_tail_does_not_inflate_the_grid():
         # sd 16.4 ms — the arrival jitter capture.py's own comment measured on a real overnight.
         j = rnd.gauss(0, 0.0164)
         fr.append((t0 + _dt.timedelta(seconds=(i + 1) * nps / FS + j), nps))
-    assert max(abs(j) for j in
-               [(f[0] - t0).total_seconds() - (i + 1) * nps / FS for i, f in enumerate(fr)]) > GAP_MIN_S, \
-        "the jitter model must actually exceed the gap threshold, or this test proves nothing"
+    assert (
+        max(abs(j) for j in [(f[0] - t0).total_seconds() - (i + 1) * nps / FS for i, f in enumerate(fr)]) > GAP_MIN_S
+    ), "the jitter model must actually exceed the gap threshold, or this test proves nothing"
     ns, gaps, lost = _grid(fr)
     assert all(b > a for a, b in zip(ns, ns[1:])), "sensor_ns must stay strictly increasing"
     infl = _inflation(fr, ns)
     assert abs(infl) < 0.001, (
         f"a ZERO-LOSS stream inflated the grid by {infl:+.3%} across {gaps} inserted gap(s) — "
-        f"arrival jitter is being rectified into fabricated elapsed time")
+        f"arrival jitter is being rectified into fabricated elapsed time"
+    )
 
 
 def test_slow_clock_drift_corrects_toward_the_host_clock_without_overshooting():
@@ -180,6 +185,7 @@ def test_gap_threshold_sits_between_measured_jitter_and_measured_loss():
 
 def test_capture_module_exposes_the_threshold_and_default_matches():
     import importlib
+
     cap = importlib.import_module("capture")
     assert hasattr(cap, "O2PPG_GAP_MIN_S")
     assert abs(cap.O2PPG_GAP_MIN_S - GAP_MIN_S) < 1e-9
@@ -203,7 +209,7 @@ def test_fast_clock_drift_corrects_toward_the_host_clock():
     of fabricated elapsed time per hour, on the finger-PPG leg PpgDex derives HRV from."""
     true_fs = 126.02
     t0 = _dt.datetime(2026, 7, 26, 2, 0, 0)
-    fr = [(t0 + _dt.timedelta(seconds=(i + 1) * 21 / true_fs), 21) for i in range(20000)]   # ~55 min
+    fr = [(t0 + _dt.timedelta(seconds=(i + 1) * 21 / true_fs), 21) for i in range(20000)]  # ~55 min
     ns, gaps, lost = _grid(fr, fs=FS)
     assert all(b > a for a, b in zip(ns, ns[1:])), "sensor_ns must stay strictly increasing"
     infl = _inflation(fr, ns)
@@ -237,7 +243,8 @@ def test_the_warm_up_error_is_bounded_and_does_not_accumulate():
     assert 0 <= short < 0.1, f"the warm-up error must be bounded: {short:.3f} s"
     assert abs(long - short) < 0.01, (
         f"the residual must not GROW with session length ({short:.4f} s over 5 min vs {long:.4f} s "
-        f"over 60 min) — a residual that grows with time is a rate error, which is the defect")
+        f"over 60 min) — a residual that grows with time is a rate error, which is the defect"
+    )
 
 
 def test_the_measured_rate_converges_on_the_rings_true_rate():
@@ -263,7 +270,7 @@ def test_a_lossy_link_does_not_drag_the_rate_estimate():
     fr = []
     for i in range(3000):
         if i % 200 == 100:
-            continue                      # drop a whole frame every ~33 s: genuine, repeated loss
+            continue  # drop a whole frame every ~33 s: genuine, repeated loss
         fr.append((t0 + _dt.timedelta(seconds=(i + 1) * 21 / true_fs), 21))
     ns, gaps, lost = _grid(fr, fs=FS)
     assert gaps >= 10, "the dropped frames must still be seen as real loss"
@@ -277,7 +284,7 @@ def test_the_rate_estimate_cannot_claim_an_absurd_rate():
     different unit rather than drift, and belongs in `o2ring.ppg_fs` where a human can see it."""
     t0 = _dt.datetime(2026, 7, 26, 2, 0, 0)
     g = capture.O2PpgGrid(fs=FS)
-    for i in range(3000):                 # a "ring" at 200 Hz — far outside anything real
+    for i in range(3000):  # a "ring" at 200 Hz — far outside anything real
         g.frame(t0 + _dt.timedelta(seconds=(i + 1) * 21 / 200.0), 21)
     assert g.fs <= FS * 1.05 + 1e-9, f"estimate escaped the band: {g.fs:.3f} Hz"
 

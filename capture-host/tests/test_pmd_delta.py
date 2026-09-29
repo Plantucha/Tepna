@@ -49,6 +49,7 @@ PPG_FRAME = bytes.fromhex(
     "100214f104d6042691c412f7e6886492055d596550f9d288c45410f8c4a44efd25b1b38ffd"
 )
 
+
 def test_gyro_3ch_recovers_the_whole_frame():
     """Was 30 samples (first block only) before the alignment fix; the frame really holds 94."""
     out = pmd._decode_delta(GYRO_FRAME[10:], channels=3, ref_bits=16)
@@ -113,15 +114,17 @@ import pytest
 def _enc_delta(meas, last_ns, channels, ref_bits, ref, blocks):
     """Build a real PMD delta frame: header + reference sample + [dsize][count][deltas...] blocks."""
     bits = []
+
     def put(v, n, signed=True):
         if signed and v < 0:
             v += 1 << n
         for i in range(n):
             bits.append((v >> i) & 1)
+
     for c in ref:
         put(c, ref_bits)
     for dsize, count, deltas in blocks:
-        while len(bits) % 8:            # block headers are byte-aligned
+        while len(bits) % 8:  # block headers are byte-aligned
             bits.append(0)
         put(dsize, 8, False)
         put(count, 8, False)
@@ -151,8 +154,9 @@ def test_a_clean_delta_frame_still_decodes_and_ends_on_last_ns():
 
 def test_a_truncated_delta_frame_is_dropped_not_mis_stamped():
     """THE regression: the 5 survivors were stamped as samples 6-10 of a 10-sample frame."""
-    frame = _enc_delta(pmd.ACC, _LAST, 3, 16, (100, 200, 300),
-                       [(4, 4, [1, 1, 1] * 4), (99, 5, [1, 1, 1] * 5)])  # dsize 99 > ref_bits ⇒ corrupt
+    frame = _enc_delta(
+        pmd.ACC, _LAST, 3, 16, (100, 200, 300), [(4, 4, [1, 1, 1] * 4), (99, 5, [1, 1, 1] * 5)]
+    )  # dsize 99 > ref_bits ⇒ corrupt
     with pytest.raises(ValueError, match="truncated"):
         pmd.decode_frame(frame, _ARR, fs=_FS)
 

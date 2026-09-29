@@ -45,19 +45,30 @@ import shlex
 
 # protocol -> (kind, label, default_port, transport-hint)
 PROTOCOLS: dict[str, tuple[str, str, int | None, str]] = {
-    "rsync":  ("transfer", "Rsync over SSH",      22,   "rsync+ssh"),
-    "nfs":    ("mount",    "UNIX (NFS) Share",    2049, "nfs4"),
-    "smb":    ("mount",    "Windows (SMB) Share", 445,  "cifs"),
-    "iscsi":  ("mount",    "Block (iSCSI) Target", 3260, "iscsi"),
-    "nvmeof": ("mount",    "NVMe-oF Subsystem",   4420, "nvme-tcp"),
-    "webdav": ("transfer", "WebShare (WebDAV)",   443,  "davs"),
-    "ftp":    ("transfer", "FTP",                 21,   "ftp"),
-    "local":  ("mount",    "Local path / USB disk", None, "none"),
+    "rsync": ("transfer", "Rsync over SSH", 22, "rsync+ssh"),
+    "nfs": ("mount", "UNIX (NFS) Share", 2049, "nfs4"),
+    "smb": ("mount", "Windows (SMB) Share", 445, "cifs"),
+    "iscsi": ("mount", "Block (iSCSI) Target", 3260, "iscsi"),
+    "nvmeof": ("mount", "NVMe-oF Subsystem", 4420, "nvme-tcp"),
+    "webdav": ("transfer", "WebShare (WebDAV)", 443, "davs"),
+    "ftp": ("transfer", "FTP", 21, "ftp"),
+    "local": ("mount", "Local path / USB disk", None, "none"),
 }
 
 # Anything that is not one of these is a secret or an unknown key, and is refused rather than stored.
-_ALLOWED_KEYS = {"protocol", "host", "port", "share", "mountpoint", "user", "identity",
-                 "credentials_file", "options", "enabled", "verify"}
+_ALLOWED_KEYS = {
+    "protocol",
+    "host",
+    "port",
+    "share",
+    "mountpoint",
+    "user",
+    "identity",
+    "credentials_file",
+    "options",
+    "enabled",
+    "verify",
+}
 _SECRET_KEYS = {"password", "pass", "passwd", "secret", "token", "key", "psk", "chap_secret"}
 
 # A host must be a bare hostname / IPv4 / IPv6-in-brackets. The leading-dash rejection is not cosmetic:
@@ -98,7 +109,7 @@ def _under_allowed_root(p: str) -> bool:
             if os.path.commonpath([n, rr]) == rr:
                 return True
         except (OSError, ValueError):
-            continue          # commonpath raises on a relative-vs-absolute mix; that is simply no match
+            continue  # commonpath raises on a relative-vs-absolute mix; that is simply no match
     return False
 
 
@@ -113,9 +124,17 @@ def describe() -> list[dict]:
     # `privileged` is "needs a one-time root step", NOT simply "kind == mount": a local path or USB
     # disk is a plain directory and needs nothing. Labelling it ROOT STEP would train the operator to
     # ignore the badge on the four protocols where it is real.
-    return [{"protocol": p, "kind": k, "label": lbl, "default_port": port, "transport": tr,
-             "privileged": k == "mount" and p != "local"}
-            for p, (k, lbl, port, tr) in PROTOCOLS.items()]
+    return [
+        {
+            "protocol": p,
+            "kind": k,
+            "label": lbl,
+            "default_port": port,
+            "transport": tr,
+            "privileged": k == "mount" and p != "local",
+        }
+        for p, (k, lbl, port, tr) in PROTOCOLS.items()
+    ]
 
 
 # WHAT A PATH MAY CONTAIN. Shape alone (absolute, no `..`) is not enough, because these strings do not
@@ -149,7 +168,8 @@ def _abs_path(v: object, field: str) -> str:
         raise StorageError(
             f"{field} may only contain [A-Za-z0-9_./@%+:~-] — refusing {v!r}. This value is written "
             f"into a systemd unit and into a command you are asked to run as root, so a newline, a "
-            f"comma or a shell metacharacter in it is not a path, it is an injection.")
+            f"comma or a shell metacharacter in it is not a path, it is an injection."
+        )
     return v.rstrip("/") or "/"
 
 
@@ -161,7 +181,8 @@ def _share_name(v, field: str) -> str:
     if not _SHARE_OK.fullmatch(s):
         raise StorageError(
             f"{field} may only contain [A-Za-z0-9_.$@%+:~-] — refusing {s!r}. It is interpolated into "
-            f"a systemd unit, so a newline in it appends directives of the caller's choosing.")
+            f"a systemd unit, so a newline in it appends directives of the caller's choosing."
+        )
     return s
 
 
@@ -175,7 +196,8 @@ def validate(t: dict) -> dict:
         if k.lower() in _SECRET_KEYS:
             raise StorageError(
                 f"'{k}' is not accepted: Vigil never stores a password. Use an SSH key (rsync) or a "
-                f"root-owned credentials file (SMB) and give its PATH instead.")
+                f"root-owned credentials file (SMB) and give its PATH instead."
+            )
         if k not in _ALLOWED_KEYS:
             raise StorageError(f"unknown field '{k}'")
 
@@ -214,17 +236,20 @@ def validate(t: dict) -> dict:
             raise StorageError(
                 f"mountpoint must live under one of {', '.join(MOUNT_ROOTS)} — refusing "
                 f"{out['mountpoint']!r}. This path is written to (~350 MB/night), so it is constrained "
-                f"to the conventional mount roots rather than anywhere on the filesystem.")
+                f"to the conventional mount roots rather than anywhere on the filesystem."
+            )
         if proto in ("nfs", "smb"):
-            out["share"] = _abs_path(t.get("share"), "share") if proto == "nfs" else \
-                _share_name(t.get("share"), "share")
+            out["share"] = (
+                _abs_path(t.get("share"), "share") if proto == "nfs" else _share_name(t.get("share"), "share")
+            )
         elif proto in ("iscsi", "nvmeof"):
             # The IQN/NQN identifies the target; the block device it exposes still has to be formatted
             # and mounted by the operator, which is exactly why this kind is unit-generated, not driven.
             out["share"] = _share_name(t.get("share"), "target IQN/NQN")
     else:
-        out["share"] = _abs_path(t.get("share"), "remote path") if proto == "rsync" else \
-            _share_name(t.get("share"), "remote path")
+        out["share"] = (
+            _abs_path(t.get("share"), "remote path") if proto == "rsync" else _share_name(t.get("share"), "remote path")
+        )
 
     ident = t.get("identity")
     if ident not in (None, ""):
@@ -309,23 +334,37 @@ def dest_status(target: dict) -> dict:
         # discipline; it is the same lesson as diskguard.active_nights failing open on an unreadable
         # night (VIGIL-HARDENING-II §1.2). Cheap: two string ops before a stat.
         if not (mp and _under_allowed_root(mp)):
-            return {"ready": False, "path": mp,
-                    "reason": (f"{mp!r} is not under an allowed mount root "
-                               f"({', '.join(MOUNT_ROOTS)})" if mp else "no mountpoint configured")}
+            return {
+                "ready": False,
+                "path": mp,
+                "reason": (
+                    f"{mp!r} is not under an allowed mount root ({', '.join(MOUNT_ROOTS)})"
+                    if mp
+                    else "no mountpoint configured"
+                ),
+            }
         if target.get("protocol") == "local":
             ok = bool(mp) and os.path.isdir(mp)
-            return {"ready": ok, "path": mp,
-                    "reason": None if ok else f"{mp or '(unset)'} does not exist"}
+            return {"ready": ok, "path": mp, "reason": None if ok else f"{mp or '(unset)'} does not exist"}
         exists = bool(mp) and os.path.isdir(mp)
         mounted = bool(mp) and os.path.ismount(mp)
         if mounted:
             return {"ready": True, "path": mp, "reason": None}
-        return {"ready": False, "path": mp, "reason": (
-            f"{mp} exists but nothing is mounted there — install the generated unit and start it, or "
-            f"nights would be written to the boot disk" if exists else
-            f"{mp} does not exist — create it and install the generated mount unit")}
-    return {"ready": True, "path": None,
-            "reason": None}   # a transfer target is probed by test_target(), not by a filesystem check
+        return {
+            "ready": False,
+            "path": mp,
+            "reason": (
+                f"{mp} exists but nothing is mounted there — install the generated unit and start it, or "
+                f"nights would be written to the boot disk"
+                if exists
+                else f"{mp} does not exist — create it and install the generated mount unit"
+            ),
+        }
+    return {
+        "ready": True,
+        "path": None,
+        "reason": None,
+    }  # a transfer target is probed by test_target(), not by a filesystem check
 
 
 def mount_unit(target: dict) -> dict:
@@ -353,8 +392,10 @@ def mount_unit(target: dict) -> dict:
         raise StorageError("a mount-kind target needs a mountpoint")
     mp = _abs_path(target["mountpoint"], "mountpoint")
     if not _under_allowed_root(mp):
-        raise StorageError(f"mountpoint must live under one of {', '.join(MOUNT_ROOTS)} — refusing to "
-                           f"emit a root-installed unit for {mp}")
+        raise StorageError(
+            f"mountpoint must live under one of {', '.join(MOUNT_ROOTS)} — refusing to "
+            f"emit a root-installed unit for {mp}"
+        )
     unit_name = mp.strip("/").replace("-", "\\x2d").replace("/", "-") + ".mount"
     host, share = target.get("host", ""), target.get("share", "")
     # `host` and `share` reach the unit body and the iscsiadm/nvme steps, and this text is pasted as
@@ -387,24 +428,30 @@ def mount_unit(target: dict) -> dict:
         # /dev/disk/by-uuid path the operator fills in — inventing a device node here would be a guess.
         what, ftype = "/dev/disk/by-uuid/REPLACE-WITH-UUID", "ext4"
         default_opts = "_netdev,noatime"
-    body = (f"[Unit]\nDescription=Tepna archive target ({PROTOCOLS[proto][1]})\n"
-            f"After=network-online.target\nWants=network-online.target\n\n"
-            f"[Mount]\nWhat={what}\nWhere={mp}\nType={ftype}\n"
-            f"Options={opts or default_opts}\n\n[Install]\nWantedBy=multi-user.target\n")
-    steps = [f"sudo mkdir -p {shlex.quote(mp)}",
-             # QUOTED like the steps around it. This one was not, so a metacharacter in the
-             # mountpoint reached a command the operator pastes into a root shell. The charset
-             # check in _abs_path now stops it upstream too; both, because either alone is one
-             # edit away from being the only one.
-             f"sudo tee /etc/systemd/system/{shlex.quote(unit_name)} > /dev/null  # paste the unit below",
-             "sudo systemctl daemon-reload",
-             f"sudo systemctl enable --now {shlex.quote(unit_name)}"]
+    body = (
+        f"[Unit]\nDescription=Tepna archive target ({PROTOCOLS[proto][1]})\n"
+        f"After=network-online.target\nWants=network-online.target\n\n"
+        f"[Mount]\nWhat={what}\nWhere={mp}\nType={ftype}\n"
+        f"Options={opts or default_opts}\n\n[Install]\nWantedBy=multi-user.target\n"
+    )
+    steps = [
+        f"sudo mkdir -p {shlex.quote(mp)}",
+        # QUOTED like the steps around it. This one was not, so a metacharacter in the
+        # mountpoint reached a command the operator pastes into a root shell. The charset
+        # check in _abs_path now stops it upstream too; both, because either alone is one
+        # edit away from being the only one.
+        f"sudo tee /etc/systemd/system/{shlex.quote(unit_name)} > /dev/null  # paste the unit below",
+        "sudo systemctl daemon-reload",
+        f"sudo systemctl enable --now {shlex.quote(unit_name)}",
+    ]
     if proto == "iscsi":
-        steps.insert(0, f"sudo iscsiadm -m discovery -t st -p {host}:{target.get('port', 3260)} && "
-                        f"sudo iscsiadm -m node -T {shlex.quote(share)} --login")
+        steps.insert(
+            0,
+            f"sudo iscsiadm -m discovery -t st -p {host}:{target.get('port', 3260)} && "
+            f"sudo iscsiadm -m node -T {shlex.quote(share)} --login",
+        )
     elif proto == "nvmeof":
-        steps.insert(0, f"sudo nvme connect -t tcp -a {host} -s {target.get('port', 4420)} "
-                        f"-n {shlex.quote(share)}")
+        steps.insert(0, f"sudo nvme connect -t tcp -a {host} -s {target.get('port', 4420)} -n {shlex.quote(share)}")
     return {"unit_name": unit_name, "unit": body, "steps": steps}
 
 
@@ -416,11 +463,16 @@ def rsync_argv(src: str, target: dict, *, dry_run: bool = False) -> list[str]:
     # expect. Until 2026-09-20 this sent the contents into `share/` itself, so every night would have
     # flattened into one directory — unnoticed because no night had ever been pushed by this path.
     remote = f"{target['share'].rstrip('/')}/{os.path.basename(src.rstrip('/'))}/"
-    dest = f"{target['user']}@{target['host']}:{remote}" if target.get("user") else \
-           f"{target['host']}:{remote}"
-    ssh = ["ssh", "-p", str(target.get("port", 22)),
-           "-o", "BatchMode=yes",              # never hang the daemon on a password prompt
-           "-o", "StrictHostKeyChecking=accept-new"]
+    dest = f"{target['user']}@{target['host']}:{remote}" if target.get("user") else f"{target['host']}:{remote}"
+    ssh = [
+        "ssh",
+        "-p",
+        str(target.get("port", 22)),
+        "-o",
+        "BatchMode=yes",  # never hang the daemon on a password prompt
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+    ]
     if target.get("identity"):
         ssh += ["-i", target["identity"]]
     argv = ["rsync", "-rlt", "--partial", "--timeout=120", "-e", " ".join(shlex.quote(a) for a in ssh)]
@@ -433,7 +485,8 @@ def rsync_argv(src: str, target: dict, *, dry_run: bool = False) -> list[str]:
 async def _run(argv: list[str], timeout: float) -> tuple[int, str]:
     try:
         p = await asyncio.create_subprocess_exec(
-            *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+            *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+        )
         out, _ = await proc_util.communicate(p, timeout)
         return p.returncode or 0, (out or b"").decode("utf-8", "replace")
     except FileNotFoundError:
@@ -451,9 +504,12 @@ async def push_night(src: str, target: dict, timeout: float = 1800.0) -> dict:
     had to make for the local mirror: "we ran a copy" is not "a second copy exists", and only the latter
     may release a night to the retention gate."""
     if target.get("protocol") != "rsync":
-        return {"ok": False, "verified": False,
-                "detail": f"{target.get('protocol')} transfer is not implemented on the box yet — "
-                          f"configure it as a mount target, or use rsync"}
+        return {
+            "ok": False,
+            "verified": False,
+            "detail": f"{target.get('protocol')} transfer is not implemented on the box yet — "
+            f"configure it as a mount target, or use rsync",
+        }
     rc, out = await _run(rsync_argv(src, target), timeout)
     if rc != 0:
         return {"ok": False, "verified": False, "detail": out.strip()[-800:] or f"rsync exit {rc}"}
@@ -463,15 +519,21 @@ async def push_night(src: str, target: dict, timeout: float = 1800.0) -> dict:
     pending = _pending_items(out2)
     if rc2 == 0 and not pending:
         return {"ok": True, "verified": True, "detail": "copied and verified byte-for-byte"}
-    return {"ok": True, "verified": False,
-            "detail": f"copied, but re-check still lists {len(pending)} item(s) — not confirmed"}
+    return {
+        "ok": True,
+        "verified": False,
+        "detail": f"copied, but re-check still lists {len(pending)} item(s) — not confirmed",
+    }
 
 
 def _pending_items(dry_run_out: str) -> list[str]:
     """The itemized lines of an rsync `--dry-run --itemize-changes` that name something still to
     transfer — rsync's own summary chatter stripped. Empty ⇒ the remote matches the source."""
-    return [ln for ln in dry_run_out.splitlines() if ln.strip() and not ln.startswith((
-        "sending", "sent ", "total size", "cannot delete", "created directory"))]
+    return [
+        ln
+        for ln in dry_run_out.splitlines()
+        if ln.strip() and not ln.startswith(("sending", "sent ", "total size", "cannot delete", "created directory"))
+    ]
 
 
 # rsync exit codes that mean THE LINK, not this tree: 255 = ssh failed, plus our own 124 (timeout) and
@@ -526,15 +588,27 @@ async def test_target(target: dict, timeout: float = 25.0) -> dict:
         st = dest_status(target)
         return {"ok": st["ready"], "detail": st["reason"] or f"{st['path']} is mounted and writable"}
     if target.get("protocol") != "rsync":
-        return {"ok": False, "detail": f"{target['protocol']} is not implemented as a transfer target "
-                                       f"yet — configure it as a mount instead"}
+        return {
+            "ok": False,
+            "detail": f"{target['protocol']} is not implemented as a transfer target "
+            f"yet — configure it as a mount instead",
+        }
     argv = rsync_argv(os.devnull + "/", target, dry_run=True)
-    argv[argv.index("--") + 1] = "/dev/null/"        # nothing to send; we only want the connection
+    argv[argv.index("--") + 1] = "/dev/null/"  # nothing to send; we only want the connection
     rc, out = await _run(["rsync", "--version"], 5)
     if rc != 0:
         return {"ok": False, "detail": "rsync is not installed on this box (apt install rsync)"}
-    ssh = ["ssh", "-p", str(target.get("port", 22)), "-o", "BatchMode=yes",
-           "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new"]
+    ssh = [
+        "ssh",
+        "-p",
+        str(target.get("port", 22)),
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+    ]
     if target.get("identity"):
         ssh += ["-i", target["identity"]]
     who = f"{target['user']}@{target['host']}" if target.get("user") else target["host"]

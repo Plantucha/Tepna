@@ -7,6 +7,7 @@ The strip's whole value is that it distinguishes WHY there is no data. So the te
 the states that accuse the box of a fault — `wedged` most of all, because a red bar says "your adapter
 died" and both of its false-positive modes were found on real data before they were fixed.
 """
+
 import datetime as dt
 import datetime as _dt
 
@@ -32,14 +33,18 @@ def test_interval_duration_is_rows_over_rate_not_mtime():
 
 
 def test_a_file_for_another_device_is_ignored():
-    files = [_f("Polar_H10_02849638_20260725223000_ECG.txt", "ECG", 1300),
-             _f("Polar_VeritySense_0C301E3F_20260725223000_ECG.txt", "ECG", 1300)]
+    files = [
+        _f("Polar_H10_02849638_20260725223000_ECG.txt", "ECG", 1300),
+        _f("Polar_VeritySense_0C301E3F_20260725223000_ECG.txt", "ECG", 1300),
+    ]
     assert len(timeline.stream_intervals(files, "02849638", "ECG", 130)) == 1
 
 
 def test_a_header_only_file_contributes_nothing():
-    assert timeline.stream_intervals(
-        [_f("Polar_H10_02849638_20260725223000_ECG.txt", "ECG", 0)], "02849638", "ECG", 130) == []
+    assert (
+        timeline.stream_intervals([_f("Polar_H10_02849638_20260725223000_ECG.txt", "ECG", 0)], "02849638", "ECG", 130)
+        == []
+    )
 
 
 # ── bucketing ─────────────────────────────────────────────────────────────────────────────────
@@ -51,7 +56,7 @@ def test_full_coverage_is_captured_and_no_coverage_is_idle():
 
 def test_partial_coverage_reads_degraded_not_captured():
     t0, t1 = _ts(22, 0), _ts(23, 0)
-    mid = t0 + (t1 - t0) * 0.2          # covers 20 % of a single bucket
+    mid = t0 + (t1 - t0) * 0.2  # covers 20 % of a single bucket
     st = timeline.bucket_stream([(t0, mid)], t0, t1, 5, 130)
     assert st[0] == "captured" and st[1] == "idle"
     st2 = timeline.bucket_stream([(t0, t0 + (t1 - t0) * 0.1)], t0, t1, 5, 130)
@@ -65,8 +70,8 @@ def test_a_device_that_never_connects_cannot_vote_a_wedge():
     'every device down = adapter wedge'. It painted the first ~20 min of 2026-07-25 red."""
     t0, t1 = _ts(22, 0), _ts(23, 0)
     link = {
-        "AA": [(t0 + i * 60, 1, -60.0) for i in range(60)],      # a real sensor, up throughout
-        "BB": [(t0 + i * 60, 0, None) for i in range(60)],       # never present
+        "AA": [(t0 + i * 60, 1, -60.0) for i in range(60)],  # a real sensor, up throughout
+        "BB": [(t0 + i * 60, 0, None) for i in range(60)],  # never present
     }
     assert not any(timeline.wedge_buckets(link, t0, t1, 20))
 
@@ -88,10 +93,14 @@ def test_a_real_simultaneous_dropout_IS_a_wedge():
     """The detector must still fire — two devices that were both working going down together is the
     adapter, and that is the one fault the box itself caused."""
     t0, t1 = _ts(22, 0), _ts(23, 0)
+
     def conn(t):
         return 0 if _ts(22, 30) <= t < _ts(22, 40) else 1
-    link = {"AA": [(t0 + i * 60, conn(t0 + i * 60), -60.0) for i in range(60)],
-            "BB": [(t0 + i * 60, conn(t0 + i * 60), -70.0) for i in range(60)]}
+
+    link = {
+        "AA": [(t0 + i * 60, conn(t0 + i * 60), -60.0) for i in range(60)],
+        "BB": [(t0 + i * 60, conn(t0 + i * 60), -70.0) for i in range(60)],
+    }
     assert any(timeline.wedge_buckets(link, t0, t1, 20)), "a genuine joint dropout must still show"
 
 
@@ -133,7 +142,8 @@ def test_link_samples_are_keyed_on_address_when_present(tmp_path):
         "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;"
         "frames_duplicated;link_epoch;address\n"
         "2026-07-25T22:00:01.000;Polar Verity Sense;1;-61;94;;;3;24:AC:AC:0C:30:1E\n"
-        "2026-07-25T22:00:35.000;Polar Sense 0C301E3F;1;-63;94;;;3;24:AC:AC:0C:30:1E\n")
+        "2026-07-25T22:00:35.000;Polar Sense 0C301E3F;1;-63;94;;;3;24:AC:AC:0C:30:1E\n"
+    )
     got = timeline.read_link_samples(str(tmp_path))
     assert list(got) == ["24:AC:AC:0C:30:1E"], "two names, one device"
     assert len(got["24:AC:AC:0C:30:1E"]) == 2
@@ -142,16 +152,17 @@ def test_link_samples_are_keyed_on_address_when_present(tmp_path):
 def test_a_pre_address_sidecar_still_parses_by_name(tmp_path):
     """Historical nights have no address column — they must not silently yield nothing."""
     p = tmp_path / "Tepna_20260720220000_LINK.csv"
-    p.write_text("Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;"
-                 "frames_duplicated;link_epoch\n"
-                 "2026-07-20T22:00:01.000;Polar H10;1;-55;80;;;2\n")
+    p.write_text(
+        "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;"
+        "frames_duplicated;link_epoch\n"
+        "2026-07-20T22:00:01.000;Polar H10;1;-55;80;;;2\n"
+    )
     got = timeline.read_link_samples(str(tmp_path))
     assert got and list(got) == ["Polar H10"]
 
 
 def test_build_on_an_empty_night_is_not_an_error(tmp_path):
-    out = timeline.build(str(tmp_path), [{"name": "X", "device_id": "1", "address": "AA",
-                                          "streams": ["ecg"]}])
+    out = timeline.build(str(tmp_path), [{"name": "X", "device_id": "1", "address": "AA", "streams": ["ecg"]}])
     assert out["buckets"] == 0 and out["devices"] == []
 
 
@@ -161,15 +172,19 @@ def test_build_on_an_empty_night_is_not_an_error(tmp_path):
 # sensor recorded nothing, or blames the adapter, is believed — nobody cross-checks it against the
 # files, which is the entire reason the strip exists.
 
+
 # ── F1 · device_id matched as a bare substring ────────────────────────────────────────────────
 def test_a_device_id_that_is_a_substring_of_another_does_not_steal_its_files():
     """`device_id in filename` is a substring test, so a shorter id inside a longer one claims the
     other device's data. Polar ids are zero-padded serials, which is exactly how you get one id
     contained in another."""
-    files = [_f("Polar_H10_02849638_20260725223000_ECG.txt", "ECG", 130 * 600),
-             _f("Polar_H10_2849638_20260725223000_ECG.txt", "ECG", 130 * 600)]
-    assert len(timeline.stream_intervals(files, "2849638", "ECG", 130)) == 1, \
+    files = [
+        _f("Polar_H10_02849638_20260725223000_ECG.txt", "ECG", 130 * 600),
+        _f("Polar_H10_2849638_20260725223000_ECG.txt", "ECG", 130 * 600),
+    ]
+    assert len(timeline.stream_intervals(files, "2849638", "ECG", 130)) == 1, (
         "'2849638' must not also match the device whose id is '02849638'"
+    )
     assert len(timeline.stream_intervals(files, "02849638", "ECG", 130)) == 1
 
 
@@ -178,10 +193,10 @@ def test_the_device_id_is_read_as_a_field_not_found_anywhere_in_the_name():
     must not create a match — and vendor/model may themselves contain underscores."""
     files = [_f("Polar_VeritySense_AC0C301E_20260725223000_PPG.txt", "PPG", 55 * 600)]
     assert timeline.stream_intervals(files, "AC0C301E", "PPG", 55), "its own id must match"
-    assert not timeline.stream_intervals(files, "VeritySense", "PPG", 55), \
-        "a model name is not a device id"
-    assert not timeline.stream_intervals(files, "0C301E3F", "PPG", 55), \
+    assert not timeline.stream_intervals(files, "VeritySense", "PPG", 55), "a model name is not a device id"
+    assert not timeline.stream_intervals(files, "0C301E3F", "PPG", 55), (
         "a DIFFERENT id must not match, even one that overlaps textually"
+    )
 
 
 # ── F2 · coverage over 100 % ──────────────────────────────────────────────────────────────────
@@ -213,22 +228,30 @@ def test_taking_every_sensor_off_at_the_end_of_the_night_is_not_an_adapter_fault
     you never had'); the trailing edge needs the mirror of it."""
     t0, t1 = _ts(22, 0), _ts(23, 0)
     off = _ts(22, 50)
-    link = {"AA": [(t0 + i * 60, 1 if t0 + i * 60 < off else 0, -60.0) for i in range(60)],
-            "BB": [(t0 + i * 60, 1 if t0 + i * 60 < off else 0, -70.0) for i in range(60)]}
-    assert not any(timeline.wedge_buckets(link, t0, t1, 12)), \
+    link = {
+        "AA": [(t0 + i * 60, 1 if t0 + i * 60 < off else 0, -60.0) for i in range(60)],
+        "BB": [(t0 + i * 60, 1 if t0 + i * 60 < off else 0, -70.0) for i in range(60)],
+    }
+    assert not any(timeline.wedge_buckets(link, t0, t1, 12)), (
         "a dropout the devices never come back from is the night ending, not a wedge"
+    )
 
 
 def test_a_dropout_the_devices_RECOVER_from_is_still_a_wedge():
     """The trailing guard must not disarm the detector. An adapter that died and came back is the
     real thing, and it is the case that actually cost 110 minutes on 2026-07-23."""
     t0, t1 = _ts(22, 0), _ts(23, 0)
+
     def conn(t):
         return 0 if _ts(22, 20) <= t < _ts(22, 35) else 1
-    link = {"AA": [(t0 + i * 60, conn(t0 + i * 60), -60.0) for i in range(60)],
-            "BB": [(t0 + i * 60, conn(t0 + i * 60), -70.0) for i in range(60)]}
-    assert any(timeline.wedge_buckets(link, t0, t1, 12)), \
+
+    link = {
+        "AA": [(t0 + i * 60, conn(t0 + i * 60), -60.0) for i in range(60)],
+        "BB": [(t0 + i * 60, conn(t0 + i * 60), -70.0) for i in range(60)],
+    }
+    assert any(timeline.wedge_buckets(link, t0, t1, 12)), (
         "a joint dropout followed by recovery is exactly what a wedge looks like"
+    )
 
 
 # ── F4 · a sample just before the window ──────────────────────────────────────────────────────
@@ -257,10 +280,12 @@ def test_a_sample_exactly_at_t0_still_lands_in_bucket_zero():
 # build() asked `link.get(addr) or link.get(name)` — `or`, so the first non-empty bucket WON and the
 # other 87 % was discarded. Whichever key you look up, you lose the rest.
 
+
 def _link_csv(tmp_path, rows, with_address=True):
     p = tmp_path / f"Tepna_2026072600000{len(list(tmp_path.iterdir()))}_LINK.csv"
-    head = ("Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;"
-            "link_epoch" + (";address\n" if with_address else "\n"))
+    head = "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;link_epoch" + (
+        ";address\n" if with_address else "\n"
+    )
     p.write_text(head + "".join(rows))
     return p
 
@@ -268,8 +293,7 @@ def _link_csv(tmp_path, rows, with_address=True):
 def test_a_name_keyed_row_folds_onto_the_address_when_the_night_shows_the_mapping(tmp_path):
     """Rows written after the address column arrived carry BOTH name and address, which is enough to
     place the earlier name-only rows on the same device — no config, no guessing."""
-    _link_csv(tmp_path, ["2026-07-26T01:00:00.000;Polar H10 02849638;1;-70;80;;;1\n"],
-              with_address=False)
+    _link_csv(tmp_path, ["2026-07-26T01:00:00.000;Polar H10 02849638;1;-70;80;;;1\n"], with_address=False)
     _link_csv(tmp_path, ["2026-07-26T09:00:00.000;Polar H10 02849638;1;-72;80;;;1;24:AC:AC:02:84:96\n"])
     got = timeline.read_link_samples(str(tmp_path))
     assert list(got) == ["24:AC:AC:02:84:96"], f"expected one device, got {list(got)}"
@@ -279,8 +303,7 @@ def test_a_name_keyed_row_folds_onto_the_address_when_the_night_shows_the_mappin
 def test_an_unmappable_name_is_left_under_its_name_and_not_guessed_at(tmp_path):
     """If the night never shows that name beside an address, inventing a mapping would be fabrication.
     It stays addressable by name so an explicit alias can still claim it."""
-    _link_csv(tmp_path, ["2026-07-26T01:00:00.000;Polar Sense 0C301E3F;1;-61;94;;;3\n"],
-              with_address=False)
+    _link_csv(tmp_path, ["2026-07-26T01:00:00.000;Polar Sense 0C301E3F;1;-61;94;;;3\n"], with_address=False)
     got = timeline.read_link_samples(str(tmp_path))
     assert list(got) == ["Polar Sense 0C301E3F"]
 
@@ -288,11 +311,12 @@ def test_an_unmappable_name_is_left_under_its_name_and_not_guessed_at(tmp_path):
 def test_merge_link_samples_takes_every_key_not_the_first_that_answers(tmp_path):
     """THE bug: `or` picked one bucket. A device's history can be spread over its address, its current
     name and the name it had before a rename — all of it is the same radio."""
-    link = {"24:AC:AC:0C:30:1E": [(200.0, 1, -60.0)],
-            "Polar Verity Sense": [(300.0, 1, -61.0)],
-            "Polar Sense 0C301E3F": [(100.0, 1, -62.0)]}
-    got = timeline.merge_link_samples(
-        link, ["24:AC:AC:0C:30:1E", "Polar Verity Sense", "Polar Sense 0C301E3F"])
+    link = {
+        "24:AC:AC:0C:30:1E": [(200.0, 1, -60.0)],
+        "Polar Verity Sense": [(300.0, 1, -61.0)],
+        "Polar Sense 0C301E3F": [(100.0, 1, -62.0)],
+    }
+    got = timeline.merge_link_samples(link, ["24:AC:AC:0C:30:1E", "Polar Verity Sense", "Polar Sense 0C301E3F"])
     assert [t for t, _, _ in got] == [100.0, 200.0, 300.0], "merged AND time-ordered"
 
 
@@ -304,24 +328,38 @@ def test_merge_link_samples_ignores_blanks_and_repeats_a_key_once(tmp_path):
 def test_build_gathers_a_renamed_device_via_its_name_alias(tmp_path):
     """End to end, on the shape the box actually has: pre-rename name rows, plus address rows written
     after both the rename and the address column landed."""
-    _link_csv(tmp_path, [f"2026-07-26T0{h}:00:00.000;Polar Sense 0C301E3F;1;-6{h};94;;;3\n"
-                         for h in range(1, 6)], with_address=False)
+    _link_csv(
+        tmp_path,
+        [f"2026-07-26T0{h}:00:00.000;Polar Sense 0C301E3F;1;-6{h};94;;;3\n" for h in range(1, 6)],
+        with_address=False,
+    )
     _link_csv(tmp_path, ["2026-07-26T09:00:00.000;Polar Verity Sense;1;-60;94;;;3;24:AC:AC:0C:30:1E\n"])
-    out = timeline.build(str(tmp_path), [{
-        "name": "Polar Verity Sense", "device_id": "0C301E3F",
-        "name_aliases": ["Polar Sense 0C301E3F"],
-        "address": "24:AC:AC:0C:30:1E", "streams": []}], buckets=12)
+    out = timeline.build(
+        str(tmp_path),
+        [
+            {
+                "name": "Polar Verity Sense",
+                "device_id": "0C301E3F",
+                "name_aliases": ["Polar Sense 0C301E3F"],
+                "address": "24:AC:AC:0C:30:1E",
+                "streams": [],
+            }
+        ],
+        buckets=12,
+    )
     pts = [r for r in out["devices"][0]["rssi"] if r is not None]
     assert len(pts) >= 5, f"the pre-rename hours must appear in the trace, got {len(pts)} points"
 
 
 def test_build_without_an_alias_still_gets_the_address_and_current_name(tmp_path):
     """The common case needs no configuration at all — that is what the auto-fold is for."""
-    _link_csv(tmp_path, ["2026-07-26T01:00:00.000;Polar H10 02849638;1;-70;80;;;1\n"],
-              with_address=False)
+    _link_csv(tmp_path, ["2026-07-26T01:00:00.000;Polar H10 02849638;1;-70;80;;;1\n"], with_address=False)
     _link_csv(tmp_path, ["2026-07-26T09:00:00.000;Polar H10 02849638;1;-72;80;;;1;24:AC:AC:02:84:96\n"])
-    out = timeline.build(str(tmp_path), [{"name": "Polar H10 02849638", "device_id": "02849638",
-                                          "address": "24:AC:AC:02:84:96", "streams": []}], buckets=12)
+    out = timeline.build(
+        str(tmp_path),
+        [{"name": "Polar H10 02849638", "device_id": "02849638", "address": "24:AC:AC:02:84:96", "streams": []}],
+        buckets=12,
+    )
     pts = [r for r in out["devices"][0]["rssi"] if r is not None]
     assert len(pts) == 2, f"both halves of the night must show, got {len(pts)}"
 
@@ -349,6 +387,7 @@ def _tl_base_mapper():
     Re-typing the chain here would only prove the test agrees with the test; this runs the shipped
     one. JS and Python regex agree on everything it uses (anchors, alternation, groups)."""
     import re as _re
+
     html = open(__file__.replace("tests/test_timeline.py", "monitor.html"), encoding="utf-8").read()
     # There are two `const base = key…` lines — deviceForStream has its own. Anchor on the one inside
     # tlForStream, or the test silently measures the wrong function.
@@ -356,8 +395,8 @@ def _tl_base_mapper():
     # Read the whole STATEMENT, not one line: the chain is long enough to wrap, and a line-based
     # reader silently drops whatever sits past the newline — which is how this test first passed
     # against a mapping it could not see.
-    stmt = body[body.index("const base = key"):]
-    stmt = stmt[:stmt.index(";")]
+    stmt = body[body.index("const base = key") :]
+    stmt = stmt[: stmt.index(";")]
     pairs = _re.findall(r"\.replace\(/(.+?)/\s*,\s*'([^']*)'\)", stmt)
     assert pairs, f"could not read the rewrite chain from: {stmt.strip()}"
 
@@ -365,6 +404,7 @@ def _tl_base_mapper():
         for pat, repl in pairs:
             key = _re.sub(pat, repl, key)
         return key
+
     return base
 
 
@@ -381,7 +421,7 @@ def test_pulse_rate_and_motion_resolve_to_the_file_that_actually_carries_them():
 
 def test_the_mappings_that_already_worked_are_unchanged():
     base = _tl_base_mapper()
-    assert base("o2ppg") == "ppg"      # the finger pleth is the ring's PPG file
+    assert base("o2ppg") == "ppg"  # the finger pleth is the ring's PPG file
     assert base("bpm_h10") == "hr"
     assert base("acc_vs") == "acc"
     assert base("gyro_vs") == "gyro"
@@ -402,12 +442,26 @@ def _sess(d, name, rows=600, fs=1):
 
 
 def test_build_pools_the_previous_day_when_the_night_crossed_midnight(tmp_path):
-    y = tmp_path / "2026-07-25"; y.mkdir()
-    t = tmp_path / "2026-07-26"; t.mkdir()
-    _sess(y, "Polar_H10_02849638_20260725222627_HR.txt", 3600)     # 22:26, yesterday's folder
-    _sess(t, "Polar_H10_02849638_20260726000100_HR.txt", 3600)     # 00:01, today's
-    out = _build(str(t), [{"name": "H10", "device_id": "02849638", "vendor": "Polar",
-                                   "model": "H10", "address": "AA", "streams": ["hr"]}], buckets=48)
+    y = tmp_path / "2026-07-25"
+    y.mkdir()
+    t = tmp_path / "2026-07-26"
+    t.mkdir()
+    _sess(y, "Polar_H10_02849638_20260725222627_HR.txt", 3600)  # 22:26, yesterday's folder
+    _sess(t, "Polar_H10_02849638_20260726000100_HR.txt", 3600)  # 00:01, today's
+    out = _build(
+        str(t),
+        [
+            {
+                "name": "H10",
+                "device_id": "02849638",
+                "vendor": "Polar",
+                "model": "H10",
+                "address": "AA",
+                "streams": ["hr"],
+            }
+        ],
+        buckets=48,
+    )
     st = out["devices"][0]["streams"]["hr"]
     assert st["covered_sec"] >= 7000, f"both halves must count, got {st['covered_sec']}s"
     # the window itself has to reach back before midnight, or the pooled data has nowhere to draw
@@ -416,26 +470,44 @@ def test_build_pools_the_previous_day_when_the_night_crossed_midnight(tmp_path):
 
 def test_build_does_not_pool_a_previous_day_for_an_ordinary_daytime_folder(tmp_path):
     """The gate matters: an afternoon session must not drag in a whole unrelated day."""
-    y = tmp_path / "2026-07-25"; y.mkdir()
-    t = tmp_path / "2026-07-26"; t.mkdir()
+    y = tmp_path / "2026-07-25"
+    y.mkdir()
+    t = tmp_path / "2026-07-26"
+    t.mkdir()
     _sess(y, "Polar_H10_02849638_20260725222627_HR.txt", 3600)
-    _sess(t, "Polar_H10_02849638_20260726140000_HR.txt", 600)      # 14:00 — nothing to do with midnight
-    out = timeline.build(str(t), [{"name": "H10", "device_id": "02849638", "vendor": "Polar",
-                                   "model": "H10", "address": "AA", "streams": ["hr"]}], buckets=24)
+    _sess(t, "Polar_H10_02849638_20260726140000_HR.txt", 600)  # 14:00 — nothing to do with midnight
+    out = timeline.build(
+        str(t),
+        [
+            {
+                "name": "H10",
+                "device_id": "02849638",
+                "vendor": "Polar",
+                "model": "H10",
+                "address": "AA",
+                "streams": ["hr"],
+            }
+        ],
+        buckets=24,
+    )
     assert out["devices"][0]["streams"]["hr"]["covered_sec"] < 1200, "yesterday must stay out of it"
 
 
 def test_read_link_samples_accepts_several_directories_and_folds_across_them(tmp_path):
     """The two halves of one night live in two folders, so the mapping learned in one must reach the
     other — that is where the pre-midnight rows are."""
-    y = tmp_path / "2026-07-25"; y.mkdir()
-    t = tmp_path / "2026-07-26"; t.mkdir()
+    y = tmp_path / "2026-07-25"
+    y.mkdir()
+    t = tmp_path / "2026-07-26"
+    t.mkdir()
     (y / "Tepna_20260725220000_LINK.csv").write_text(
         "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;"
-        "link_epoch\n2026-07-25T22:30:00.000;Polar H10 02849638;1;-70;80;;;1\n")
+        "link_epoch\n2026-07-25T22:30:00.000;Polar H10 02849638;1;-70;80;;;1\n"
+    )
     (t / "Tepna_20260726000000_LINK.csv").write_text(
         "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;"
-        "link_epoch;address\n2026-07-26T01:00:00.000;Polar H10 02849638;1;-72;80;;;1;24:AC:AC:02:84:96\n")
+        "link_epoch;address\n2026-07-26T01:00:00.000;Polar H10 02849638;1;-72;80;;;1;24:AC:AC:02:84:96\n"
+    )
     got = timeline.read_link_samples([str(y), str(t)])
     assert list(got) == ["24:AC:AC:02:84:96"], f"one device across two folders, got {list(got)}"
     assert len(got["24:AC:AC:02:84:96"]) == 2
@@ -444,7 +516,8 @@ def test_read_link_samples_accepts_several_directories_and_folds_across_them(tmp
 def test_read_link_samples_still_accepts_a_single_directory(tmp_path):
     (tmp_path / "Tepna_20260726000000_LINK.csv").write_text(
         "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;"
-        "link_epoch\n2026-07-26T01:00:00.000;Polar H10;1;-70;80;;;1\n")
+        "link_epoch\n2026-07-26T01:00:00.000;Polar H10;1;-70;80;;;1\n"
+    )
     assert list(timeline.read_link_samples(str(tmp_path))) == ["Polar H10"]
 
 
@@ -456,6 +529,7 @@ import os as _os
 import nightqc as _nightqc
 import writers as _writers
 import datetime as _wrapdt
+
 
 # ── THESE FIXTURES DECLARE THEIR FRAME RATHER THAN HAVING IT INFERRED ──────────────────────────────────
 #
@@ -473,7 +547,8 @@ def _declared_reader_frame(night):
     """`declared_offset(...)` for the reader's own UTC offset at this night — the frame these fixtures
     build in. Read off a real filename stamp rather than from `time.timezone`, so it is the offset in
     force ON THAT DATE and a fixture dated across a DST boundary stays correct."""
-    import nightqc                      # this module imports it locally; keep that convention
+    import nightqc  # this module imports it locally; keep that convention
+
     for f in nightqc.scan_night(night):
         if f.get("session") is None:
             continue
@@ -481,7 +556,7 @@ def _declared_reader_frame(night):
         try:
             absolute = _wrapdt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
         except ValueError:
-            continue            # not a 14-digit stamp — try the next file; a legacy name states no frame
+            continue  # not a 14-digit stamp — try the next file; a legacy name states no frame
         return nightqc.declared_offset(absolute - f["session"])
     return nightqc.declared_offset(0.0)
 
@@ -491,9 +566,7 @@ def _build(night, devices, buckets=None):
     return timeline.build(night, devices, writer_offset=_declared_reader_frame(night), **kw)
 
 
-
-def _capture_file(tmp_path, stamp: str, stream: str, rows: int, fs: float,
-                  vendor="Polar", model="H10", did="02849638"):
+def _capture_file(tmp_path, stamp: str, stream: str, rows: int, fs: float, vendor="Polar", model="H10", did="02849638"):
     """A real capture file, in the layout the box actually writes — including the device-clock column,
     which is what lets the file state its OWN duration instead of borrowing today's configured rate."""
     head = _writers.StreamWriter.HEADERS[stream.lower()]
@@ -516,8 +589,7 @@ def _capture_file(tmp_path, stamp: str, stream: str, rows: int, fs: float,
 
 
 def _dev(streams, rates=None, did="02849638"):
-    d = {"name": "H10", "device_id": did, "address": "AA", "vendor": "Polar", "model": "H10",
-         "streams": streams}
+    d = {"name": "H10", "device_id": did, "address": "AA", "vendor": "Polar", "model": "H10", "streams": streams}
     if rates:
         d["rates"] = rates
     return d
@@ -529,8 +601,9 @@ def test_a_flawless_night_is_not_diluted_by_the_link_sidecars_calendar_day(tmp_p
     real shape: a zero-loss 4 h night rendered as 16.7 % captured. Line 408's own comment promises the
     opposite ("Against the SESSION span, not the wall-clock night")."""
     _capture_file(tmp_path, "20260710020000", "ecg", 130 * 60, 130)
-    _link_csv(tmp_path, ["2026-07-10T00:00:05.000;H10;1;-60;80;;;1;AA\n",
-                         "2026-07-10T23:59:25.000;H10;1;-60;80;;;1;AA\n"])
+    _link_csv(
+        tmp_path, ["2026-07-10T00:00:05.000;H10;1;-60;80;;;1;AA\n", "2026-07-10T23:59:25.000;H10;1;-60;80;;;1;AA\n"]
+    )
     out = _build(str(tmp_path), [_dev(["ecg"])], buckets=12)
     pct = out["devices"][0]["streams"]["ecg"]["coverage_pct"]
     assert pct == 100.0, f"a zero-loss recording must read 100 %, got {pct} %"
@@ -540,8 +613,8 @@ def test_a_flawless_night_is_not_diluted_by_the_link_sidecars_calendar_day(tmp_p
 def test_the_window_includes_the_last_sessions_own_duration(tmp_path):
     """§A4b. `spans` collected file START stamps only, so the window stopped where the last session
     BEGAN while `covered` counted its whole length — the brief's 1 h-then-6 h pair reads 466.7 %."""
-    _capture_file(tmp_path, "20260710220000", "ecg", 130 * 3600, 130)      # 22:00, 1 h
-    _capture_file(tmp_path, "20260710233000", "ecg", 130 * 21600, 130)     # 23:30, 6 h
+    _capture_file(tmp_path, "20260710220000", "ecg", 130 * 3600, 130)  # 22:00, 1 h
+    _capture_file(tmp_path, "20260710233000", "ecg", 130 * 21600, 130)  # 23:30, 6 h
     out = timeline.build(str(tmp_path), [_dev(["ecg"])], buckets=12)
     pct = out["devices"][0]["streams"]["ecg"]["coverage_pct"]
     assert pct <= 100.0, f"coverage exceeded 100 % ({pct} %) — the window lost the last session"
@@ -554,7 +627,7 @@ def test_an_old_night_is_measured_by_its_own_clock_not_todays_configured_rate(tm
     built each interval as `rows / fs` with `fs` = the CURRENTLY configured rate. Rates get
     re-negotiated and corrected, so an older night is measured against a number it never ran at —
     196.7 % on the real 2026-07-16 H10 ACC, 134.6 % on the 2026-07-20 Verity ACC."""
-    _capture_file(tmp_path, "20260716220000", "acc", 208 * 100, 208)       # the night ran at 208 Hz
+    _capture_file(tmp_path, "20260716220000", "acc", 208 * 100, 208)  # the night ran at 208 Hz
     out = _build(str(tmp_path), [_dev(["acc"], rates={"acc": 104})], buckets=12)
     pct = out["devices"][0]["streams"]["acc"]["coverage_pct"]
     assert pct == 100.0, f"config says 104 Hz, the file says 208 Hz — the FILE is the era-correct one ({pct} %)"
@@ -564,7 +637,7 @@ def test_stream_intervals_prefers_the_files_own_span_over_the_configured_rate():
     """The unit under §A4c, isolated: a record that knows its own duration must not be re-derived."""
     f = _f("Polar_H10_02849638_20260716220000_ACC.txt", "ACC", 20800)
     f["span_sec"] = 100.0
-    iv = timeline.stream_intervals([f], "02849638", "ACC", 104)   # 20800/104 would say 200 s
+    iv = timeline.stream_intervals([f], "02849638", "ACC", 104)  # 20800/104 would say 200 s
     assert round(iv[0][1] - iv[0][0]) == 100
 
 
@@ -580,8 +653,9 @@ def test_a_file_with_no_device_clock_still_falls_back_to_rows_over_rate():
 def test_a_night_that_recorded_nothing_still_renders_from_the_sidecar(tmp_path):
     """The fallback must survive: a device that connected and never streamed has no recording to
     derive a window from, and dropping the sidecar would take the 'connected but silent' view with it."""
-    _link_csv(tmp_path, ["2026-07-10T01:00:00.000;H10;1;-70;80;;;1;AA\n",
-                         "2026-07-10T05:00:00.000;H10;1;-72;80;;;1;AA\n"])
+    _link_csv(
+        tmp_path, ["2026-07-10T01:00:00.000;H10;1;-70;80;;;1;AA\n", "2026-07-10T05:00:00.000;H10;1;-72;80;;;1;AA\n"]
+    )
     out = timeline.build(str(tmp_path), [_dev([])], buckets=12)
     assert round(out["t1"] - out["t0"]) == 4 * 3600
     assert [r for r in out["devices"][0]["rssi"] if r is not None]
@@ -603,7 +677,7 @@ def test_file_span_sec_survives_a_partial_trailing_write(tmp_path):
     parse error) for every live night — the one the monitor is actually looking at."""
     p = _capture_file(tmp_path, "20260716220000", "ecg", 1300, 130)
     with open(p, "a") as fh:
-        fh.write("2026-07-16T22:00:10.0")     # torn mid-row
+        fh.write("2026-07-16T22:00:10.0")  # torn mid-row
     assert round(_nightqc.file_span_sec(str(p)), 1) == 10.0
 
 
@@ -624,8 +698,7 @@ def test_file_span_sec_survives_a_partial_trailing_write(tmp_path):
 # and a writer that disagree about a column produce a night that looks fine and is not.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
-_LINK_HEAD = ("Phone timestamp;device;connected;rssi_dbm;battery_pct;"
-              "frames_dropped;frames_duplicated;link_epoch;address")
+_LINK_HEAD = "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;link_epoch;address"
 
 
 def _link(tmp_path, *rows, head=_LINK_HEAD, comment=None):
@@ -639,9 +712,11 @@ def test_the_connected_column_is_read_the_right_way_round(tmp_path):
     """`1 if p[i_c] == "1" else 0` → `!= "1"`. The whole link timeline inverts: a night that held its
     link all the way through renders as one continuous dropout, and one that never connected renders
     as perfect. Nothing asserted BOTH polarities from the file, so the inversion was free."""
-    _link(tmp_path,
-          "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF",
-          "2026-08-03T22:00:10.000;H10;0;;90;0;0;1;AA:BB:CC:DD:EE:FF")
+    _link(
+        tmp_path,
+        "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF",
+        "2026-08-03T22:00:10.000;H10;0;;90;0;0;1;AA:BB:CC:DD:EE:FF",
+    )
     got = timeline.read_link_samples(str(tmp_path))["AA:BB:CC:DD:EE:FF"]
     assert [c for _ts, c, _r in got] == [1, 0], "connected=1 means connected, and 0 means not"
 
@@ -650,9 +725,9 @@ def test_a_row_torn_mid_write_is_skipped_not_half_read(tmp_path):
     """`len(p) <= i_c` → `<`. The sidecar is appended live, so the last line of a night cut by a power
     cut is truncated. Under the mutant a row with exactly `i_c` fields survives the guard and
     `p[i_c]` raises IndexError out of the reader, taking the whole timeline with it."""
-    _link(tmp_path,
-          "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF",
-          "2026-08-03T22:00:10.000;H10")                      # torn before `connected`
+    _link(
+        tmp_path, "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF", "2026-08-03T22:00:10.000;H10"
+    )  # torn before `connected`
     got = timeline.read_link_samples(str(tmp_path))
     assert [c for _ts, c, _r in got["AA:BB:CC:DD:EE:FF"]] == [1], "the complete row still reads"
 
@@ -661,9 +736,11 @@ def test_a_row_that_stops_before_the_rssi_column_reads_a_blank_not_a_crash(tmp_p
     """`len(p) > i_r and p[i_r].strip()` → `or`. With `or`, a row shorter than the rssi column takes
     the branch and `p[i_r]` raises. A blank rssi is the ordinary case — `LinkLogWriter` writes one
     whenever the read failed — so this is not an exotic input."""
-    _link(tmp_path,
-          "2026-08-03T22:00:00.000;H10;1",                     # no rssi column at all
-          "2026-08-03T22:00:10.000;H10;1;;90;0;0;1;AA:BB:CC:DD:EE:FF")   # present but blank
+    _link(
+        tmp_path,
+        "2026-08-03T22:00:00.000;H10;1",  # no rssi column at all
+        "2026-08-03T22:00:10.000;H10;1;;90;0;0;1;AA:BB:CC:DD:EE:FF",
+    )  # present but blank
     got = timeline.read_link_samples(str(tmp_path))
     rssis = sorted((r for v in got.values() for _ts, _c, r in v), key=lambda x: (x is not None, x))
     assert rssis == [None, None], "an absent or blank rssi is None, never a fabricated number"
@@ -682,10 +759,12 @@ def test_a_name_only_row_folds_onto_the_address_learned_later_in_the_file(tmp_pa
     name-keyed. A name seen BESIDE an address folds onto it; a name never seen with one is left under
     its name rather than guessed at. Both halves asserted, because the fold is what stops one physical
     sensor being reported as two devices for the same night."""
-    _link(tmp_path,
-          "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;",                  # name only, address blank
-          "2026-08-03T22:00:10.000;H10;1;-56;90;0;0;1;AA:BB:CC:DD:EE:FF",  # both -> teaches the map
-          "2026-08-03T22:00:20.000;Ghost;1;-70;80;0;0;1;")                 # never seen with an address
+    _link(
+        tmp_path,
+        "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;",  # name only, address blank
+        "2026-08-03T22:00:10.000;H10;1;-56;90;0;0;1;AA:BB:CC:DD:EE:FF",  # both -> teaches the map
+        "2026-08-03T22:00:20.000;Ghost;1;-70;80;0;0;1;",
+    )  # never seen with an address
     got = timeline.read_link_samples(str(tmp_path))
     assert sorted(got) == ["AA:BB:CC:DD:EE:FF", "Ghost"]
     assert len(got["AA:BB:CC:DD:EE:FF"]) == 2, "the name-only row folded onto the address"
@@ -696,9 +775,11 @@ def test_the_provenance_comment_lines_are_skipped_before_the_header(tmp_path):
     """`LinkLogWriter` writes `# adapter=… hci=…` above the column line, and older sidecars have none.
     Both shapes must read — if the comment is taken as the header, every column index is wrong and the
     night reads empty."""
-    _link(tmp_path,
-          "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF",
-          comment="# adapter=hci1 hci=00:1A:7D:DA:71:13")
+    _link(
+        tmp_path,
+        "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF",
+        comment="# adapter=hci1 hci=00:1A:7D:DA:71:13",
+    )
     got = timeline.read_link_samples(str(tmp_path))
     assert got and list(got) == ["AA:BB:CC:DD:EE:FF"], "the comment line is not the header"
 
@@ -710,17 +791,18 @@ def test_the_columns_are_found_by_NAME_not_by_position(tmp_path):
 
     Looking columns up by name is the whole reason the header is parsed at all. A reordered header is
     the input that proves it: if the name lookup breaks, every fallback lands on the wrong column."""
-    head = "device;connected;address;Phone timestamp;rssi_dbm"      # deliberately not the write order
+    head = "device;connected;address;Phone timestamp;rssi_dbm"  # deliberately not the write order
     _link(tmp_path, "H10;1;AA:BB:CC:DD:EE:FF;2026-08-03T22:00:00.000;-55", head=head)
     got = timeline.read_link_samples(str(tmp_path))
     assert list(got) == ["AA:BB:CC:DD:EE:FF"], "the address column was found by name"
-    (ts, c, r), = got["AA:BB:CC:DD:EE:FF"]
+    ((ts, c, r),) = got["AA:BB:CC:DD:EE:FF"]
     assert c == 1 and r == -55.0, "connected and rssi too"
     # READ A FLOATING SECOND WITH UTC ACCESSORS (§🔒 §5). `read_link_samples` returns the sidecar's stamp
     # as floating civil time — the components as the box wrote them — so `fromtimestamp`, which resolves
     # through the reader's zone, showed 18:00 for a 22:00 row on a UTC−4 box. The stamp is not an instant.
-    assert (_dt.datetime(1970, 1, 1) + _dt.timedelta(seconds=ts)).strftime("%H:%M:%S") == "22:00:00", \
+    assert (_dt.datetime(1970, 1, 1) + _dt.timedelta(seconds=ts)).strftime("%H:%M:%S") == "22:00:00", (
         "and the timestamp"
+    )
 
 
 def test_a_legacy_header_that_names_nothing_reads_at_the_documented_positions(tmp_path):
@@ -729,14 +811,13 @@ def test_a_legacy_header_that_names_nothing_reads_at_the_documented_positions(tm
 
     This is not hypothetical: the address column arrived mid-corpus, and this reader carries explicit
     machinery for sidecars written before it. A fallback nobody tests is a legacy file nobody can read."""
-    head = "a;b;c;d"                                   # names none of the columns
-    _link(tmp_path,
-          "2026-08-03T22:00:00.000;H10;1;-55",
-          "2026-08-03T22:00:10.000;H10;0;-70", head=head)
+    head = "a;b;c;d"  # names none of the columns
+    _link(tmp_path, "2026-08-03T22:00:00.000;H10;1;-55", "2026-08-03T22:00:10.000;H10;0;-70", head=head)
     got = timeline.read_link_samples(str(tmp_path))
     assert list(got) == ["H10"], "no address column at all — the row keys on the device name"
-    assert [(c, r) for _ts, c, r in got["H10"]] == [(1, -55.0), (0, -70.0)], \
+    assert [(c, r) for _ts, c, r in got["H10"]] == [(1, -55.0), (0, -70.0)], (
         "ts/device/connected/rssi read at positions 0/1/2/3"
+    )
 
 
 # ══ THE TIMELINE AND THE VERDICT DESCRIBE THE SAME SESSION (2026-09-27) ════════════════════════════
@@ -746,6 +827,7 @@ def test_a_legacy_header_that_names_nothing_reads_at_the_documented_positions(tm
 # record: 56 are multi-session and the two rules choose DIFFERENTLY on 27, twice choosing a session with
 # ZERO rows (2026-09-14, 2026-09-18) — so the rendered coverage window came from a session holding no data.
 # Both now call `nightqc.judged_session`, which holds the rule and the measurement behind it.
+
 
 def _timeline_window(night, devs):
     """The window, with the frame DECLARED — these fixtures compute their expectations with
@@ -759,18 +841,17 @@ def test_the_timeline_renders_the_SUBSTANTIVE_session_not_the_latest_one(tmp_pat
     """The 2026-08-15 charger shape, which is what moved `summarize` off latest-ending in the first place:
     a real night, then a shorter later session of a device sitting in its charger streaming noise. Under
     the old rule the timeline drew its whole window from the charger."""
-    night = tmp_path / "2026-08-15"; night.mkdir()
-    _capture_file(night, "20260815024200", "ecg", rows=3000, fs=130.0)   # the night
-    _capture_file(night, "20260815100100", "ecg", rows=1000, fs=130.0)   # the charger, later, smaller
+    night = tmp_path / "2026-08-15"
+    night.mkdir()
+    _capture_file(night, "20260815024200", "ecg", rows=3000, fs=130.0)  # the night
+    _capture_file(night, "20260815100100", "ecg", rows=1000, fs=130.0)  # the charger, later, smaller
     devs = [{"name": "Polar H10 02849638", "device_id": "02849638", "address": "AA", "streams": ["ecg"]}]
     charger_start = dt.datetime.strptime("20260815100100", "%Y%m%d%H%M%S").timestamp()
     night_start = dt.datetime.strptime("20260815024200", "%Y%m%d%H%M%S").timestamp()
 
     t0, t1 = _timeline_window(str(night), devs)
     assert round(t0) == round(night_start), "the window opens with the NIGHT, not the charger"
-    assert t1 <= charger_start, (
-        f"and closes before the charger session begins — t1={t1} charger={charger_start}")
-
+    assert t1 <= charger_start, f"and closes before the charger session begins — t1={t1} charger={charger_start}"
 
 
 def test_a_file_with_an_UNREADABLE_stamp_is_skipped_for_the_WINDOW_not_for_the_night(tmp_path):
@@ -782,13 +863,17 @@ def test_a_file_with_an_UNREADABLE_stamp_is_skipped_for_the_WINDOW_not_for_the_n
     two must not be confused: dropping the file would lose its rows, and inventing a stamp for it would
     fabricate the axis this suite refuses to fabricate anywhere else.
     """
-    night = tmp_path / "2026-09-14"; night.mkdir()
+    night = tmp_path / "2026-09-14"
+    night.mkdir()
     _capture_file(night, "20260914010000", "ecg", rows=2000, fs=130.0)
     # Same layout, same device, same session window — but month 99, so the stamp is not a datetime.
     bad = night / "Polar_H10_02849638_20269999000000_ECG.txt"
-    bad.write_text(_writers.StreamWriter.HEADERS["ecg"] + "\n"
-                   + "\n".join(";".join(["0"] * len(_writers.StreamWriter.HEADERS["ecg"].split(";")))
-                                for _ in range(10)) + "\n")
+    bad.write_text(
+        _writers.StreamWriter.HEADERS["ecg"]
+        + "\n"
+        + "\n".join(";".join(["0"] * len(_writers.StreamWriter.HEADERS["ecg"].split(";"))) for _ in range(10))
+        + "\n"
+    )
     _end = dt.datetime.strptime("20260914010000", "%Y%m%d%H%M%S").timestamp() + 2000 / 130.0
     _os.utime(bad, (_end, _end))
 
@@ -798,35 +883,36 @@ def test_a_file_with_an_UNREADABLE_stamp_is_skipped_for_the_WINDOW_not_for_the_n
     assert round(t0) == round(data_start), "the window still opens at the STAMPED file's start"
     assert t1 > t0, "and it is a window, not a point"
 
+
 def test_the_timeline_never_draws_its_window_from_a_session_with_no_rows(tmp_path):
     """The zero-row corollary, and the two real nights that forced it (2026-09-14, 2026-09-18): the later
     session carried NO rows and latest-ending selected it anyway, so the coverage window came from a
     session holding no data. A session with rows outranks one without, whatever its clock says."""
-    night = tmp_path / "2026-09-14"; night.mkdir()
-    _capture_file(night, "20260914010000", "ecg", rows=2000, fs=130.0)   # the data
-    _capture_file(night, "20260914120000", "ecg", rows=0, fs=130.0)      # later, and empty
+    night = tmp_path / "2026-09-14"
+    night.mkdir()
+    _capture_file(night, "20260914010000", "ecg", rows=2000, fs=130.0)  # the data
+    _capture_file(night, "20260914120000", "ecg", rows=0, fs=130.0)  # later, and empty
     devs = [{"name": "Polar H10 02849638", "device_id": "02849638", "address": "AA", "streams": ["ecg"]}]
     empty_start = dt.datetime.strptime("20260914120000", "%Y%m%d%H%M%S").timestamp()
     data_start = dt.datetime.strptime("20260914010000", "%Y%m%d%H%M%S").timestamp()
 
     t0, t1 = _timeline_window(str(night), devs)
-    assert round(t0) == round(data_start) and t1 <= empty_start, (
-        "the window is the session that carried data")
+    assert round(t0) == round(data_start) and t1 <= empty_start, "the window is the session that carried data"
 
 
 def test_the_timeline_and_the_QC_verdict_name_the_SAME_judged_session(tmp_path):
     """The property itself, asserted across the two modules rather than inside either: one rule, one call
     site, so they cannot drift apart again. This is the assertion that would have caught the divergence —
     each module's own tests passed throughout, because neither ever looked at the other."""
-    night = tmp_path / "2026-08-15"; night.mkdir()
+    night = tmp_path / "2026-08-15"
+    night.mkdir()
     _capture_file(night, "20260815024200", "ecg", rows=3000, fs=130.0)
     _capture_file(night, "20260815100100", "ecg", rows=1000, fs=130.0)
     devs = [{"name": "Polar H10 02849638", "device_id": "02849638", "address": "AA", "streams": ["ecg"]}]
 
     t0, _t1 = _timeline_window(str(night), devs)
     judged = _nightqc.summarize(str(night), devs)["judged_session"]
-    assert judged["start"] == round(t0), (
-        f"the verdict judged {judged['start']} and the timeline drew from {round(t0)}")
+    assert judged["start"] == round(t0), f"the verdict judged {judged['start']} and the timeline drew from {round(t0)}"
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -839,8 +925,8 @@ def test_the_timeline_and_the_QC_verdict_name_the_SAME_judged_session(tmp_path):
 # beside a LIVE pill: a measurement of zero standing in for an absent denominator.
 # ---------------------------------------------------------------------------------------------------
 
-def _ring_raw_file(tmp_path, stamp: str, stream: str, rows: int, hz: float, did="S8AW2100",
-                   frozen_host=False):
+
+def _ring_raw_file(tmp_path, stamp: str, stream: str, rows: int, hz: float, did="S8AW2100", frozen_host=False):
     """A ring raw-buffer file as the box writes it since 2026-09-07: the device-clock column BLANK.
 
     Before that date these opcodes wrote a literal `0` on every row, which `file_span_sec` already
@@ -856,7 +942,7 @@ def _ring_raw_file(tmp_path, stamp: str, stream: str, rows: int, hz: float, did=
         cells = ["0"] * len(cols)
         when = start if frozen_host else start + dt.timedelta(seconds=i / hz)
         cells[0] = when.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
-        cells[ns_at] = ""                      # the whole point: no device clock to answer from
+        cells[ns_at] = ""  # the whole point: no device clock to answer from
         lines.append(";".join(cells))
     p = tmp_path / f"Wellue_O2Ring-S_{did}_{stamp}_{stream.upper()}.txt"
     p.write_text("\n".join(lines) + "\n")
@@ -866,8 +952,14 @@ def _ring_raw_file(tmp_path, stamp: str, stream: str, rows: int, hz: float, did=
 
 
 def _ring_dev(streams, did="S8AW2100"):
-    return {"name": "Ring", "device_id": did, "address": "BB", "vendor": "Wellue",
-            "model": "O2Ring-S", "streams": streams}
+    return {
+        "name": "Ring",
+        "device_id": did,
+        "address": "BB",
+        "vendor": "Wellue",
+        "model": "O2Ring-S",
+        "streams": streams,
+    }
 
 
 def test_a_raw_stream_with_no_rate_and_no_device_clock_reports_its_HOST_span(tmp_path):
@@ -877,7 +969,7 @@ def test_a_raw_stream_with_no_rate_and_no_device_clock_reports_its_HOST_span(tmp
     neither a nominal rate nor a device clock, the host stamps are what recorded that the rows arrived,
     and coverage ("did this stream keep delivering across the window") is a host-side question anyway.
     """
-    _ring_raw_file(tmp_path, "20260926221200", "accraw", 6000, 10.0)      # 600 s of rows at 10 Hz
+    _ring_raw_file(tmp_path, "20260926221200", "accraw", 6000, 10.0)  # 600 s of rows at 10 Hz
     out = _build(str(tmp_path), [_ring_dev(["accraw"])], buckets=12)
     st = out["devices"][0]["streams"]["accraw"]
     assert st["coverage_pct"] is not None, "the whole defect: an absent denominator read as a measurement"
@@ -895,8 +987,7 @@ def test_a_stream_with_NO_basis_at_all_refuses_with_a_reason(tmp_path):
     _capture_file(tmp_path, "20260926221200", "ecg", 130 * 600, 130)
     out = timeline.build(str(tmp_path), [_ring_dev(["accraw"]), _dev(["ecg"])], buckets=12)
     ring = [d for d in out["devices"] if d["device_id"] == "S8AW2100"][0]["streams"]["accraw"]
-    assert ring["coverage_pct"] is None, ("a stream that cannot be measured must not report a "
-                                          "percentage at all", ring)
+    assert ring["coverage_pct"] is None, ("a stream that cannot be measured must not report a percentage at all", ring)
     assert ring["coverage_reason"] == "no-duration-basis", ring
     assert ring["coverage_unmeasured"] == 1, ring
     h10 = [d for d in out["devices"] if d["device_id"] == "02849638"][0]["streams"]["ecg"]

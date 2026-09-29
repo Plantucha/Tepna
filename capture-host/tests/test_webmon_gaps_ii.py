@@ -9,6 +9,7 @@ refusing. Second, the settings writer's UNCHANGED arms: the monitor re-POSTs the
 save, so "nothing actually changed" is the COMMON case, and it must not back up the config, rewrite it,
 or claim a restart is needed.
 """
+
 import os
 import sys
 
@@ -26,7 +27,7 @@ def test_a_post_with_no_body_at_all_means_use_the_defaults(tmp_path):
     app, *_ = _mk(tmp_path, devices=[dict(H10)])
 
     async def go(c):
-        r = await c.post("/api/timesync")          # no body, no content-type
+        r = await c.post("/api/timesync")  # no body, no content-type
         return r.status, await r.json()
 
     status, body = _serve(app, go)
@@ -39,12 +40,16 @@ def test_every_endpoint_refuses_valid_json_that_is_not_an_object(tmp_path):
     handlers as non-dicts and 500'd on `.get`. Each of these four endpoints checks for it; none of the
     checks had ever run."""
     app, cfg, *_ = _mk(tmp_path, devices=[dict(H10)])
-    cfg["cpap"] = {"enabled": True}                # else cpap_pull refuses earlier, for another reason
+    cfg["cpap"] = {"enabled": True}  # else cpap_pull refuses earlier, for another reason
 
     async def go(c):
         out = {}
-        for path, payload in (("/api/cpap/pull", "[]"), ("/api/storage/test", "null"),
-                              ("/api/timesync", '"x"'), ("/api/polar/pull", "3")):
+        for path, payload in (
+            ("/api/cpap/pull", "[]"),
+            ("/api/storage/test", "null"),
+            ("/api/timesync", '"x"'),
+            ("/api/polar/pull", "3"),
+        ):
             r = await c.post(path, data=payload, headers=_JSON)
             out[path] = (r.status, (await r.json())["error"])
         return out
@@ -60,8 +65,11 @@ def test_has_comments_is_false_for_a_file_whose_only_comments_are_our_own_banner
     operator's, so a machine-written config must not trigger it on every save — that is a warning that
     trains the reader to ignore warnings."""
     p = tmp_path / "config.yaml"
-    p.write_text(webmon.CONFIG_BANNER if hasattr(webmon, "CONFIG_BANNER") else
-                 "# WRITTEN BY THE TEPNA MONITOR\nroot: /srv/tepna\ndevices: []\n")
+    p.write_text(
+        webmon.CONFIG_BANNER
+        if hasattr(webmon, "CONFIG_BANNER")
+        else "# WRITTEN BY THE TEPNA MONITOR\nroot: /srv/tepna\ndevices: []\n"
+    )
     assert webmon._has_comments(str(p)) is False
     p.write_text("# my hand-tuned rates, do not touch\nroot: /srv/tepna\n")
     assert webmon._has_comments(str(p)) is True
@@ -79,6 +87,7 @@ def test_ntp_servers_may_be_posted_as_a_list_not_only_a_string(tmp_path, monkeyp
     async def fake_set_ntp(servers, poll_max_sec=2048, sudo=False):
         seen["servers"] = servers
         return {"ok": True}
+
     monkeypatch.setattr(webmon.clockcfg, "set_ntp", fake_set_ntp)
 
     async def go(c):
@@ -99,6 +108,7 @@ def test_a_timezone_change_re_anchors_the_capture_clock(tmp_path, monkeypatch):
 
     async def fake_set_tz(tz, sudo=False):
         return {"ok": True, "timezone": tz}
+
     monkeypatch.setattr(webmon.clockcfg, "set_tz", fake_set_tz)
 
     async def go(c):
@@ -111,12 +121,15 @@ def test_a_timezone_change_re_anchors_the_capture_clock(tmp_path, monkeypatch):
 def test_a_failing_re_anchor_hook_does_not_fail_the_timezone_change(tmp_path, monkeypatch):
     """The zone HAS been changed on the host by the time the hook runs. Reporting failure over the
     bookkeeping would tell the operator to retry a change that already took effect."""
+
     def boom(_reason):
         raise RuntimeError("anchor exploded")
+
     app, *_ = _mk(tmp_path, on_tz_change=boom)
 
     async def fake_set_tz(tz, sudo=False):
         return {"ok": True, "timezone": tz}
+
     monkeypatch.setattr(webmon.clockcfg, "set_tz", fake_set_tz)
 
     async def go(c):
@@ -135,6 +148,7 @@ def test_no_re_anchor_when_the_timezone_change_itself_failed(tmp_path, monkeypat
 
     async def fake_set_tz(tz, sudo=False):
         return {"ok": False, "error": "no such zone"}
+
     monkeypatch.setattr(webmon.clockcfg, "set_tz", fake_set_tz)
 
     async def go(c):
@@ -156,16 +170,21 @@ def test_reposting_the_identical_settings_changes_nothing_and_writes_nothing(tmp
     """The monitor re-POSTs the whole form on every save, so this is the COMMON path. It must not
     back the config up, must not rewrite it, and must not claim a restart is needed — a spurious
     `restart_needed` on a no-op save costs a night's capture if the operator acts on it."""
-    app, cfg, status, cfg_path, _ = _mk(tmp_path, devices=[_dev_with_rates()],
-                                        status={"H10": {"pmd_supported": ["ecg", "acc"],
-                                                        "pmd_options": {"ecg": [130]}}})
+    app, cfg, status, cfg_path, _ = _mk(
+        tmp_path,
+        devices=[_dev_with_rates()],
+        status={"H10": {"pmd_supported": ["ecg", "acc"], "pmd_options": {"ecg": [130]}}},
+    )
     open(cfg_path, "w").write("root: x\n")
 
     async def go(c):
-        r = await c.post("/api/settings", json={
-            "streams": {H10["address"]: ["ecg"]},          # identical to config
-            "rates": {H10["address"]: {"ecg": 130}},       # identical to config
-        })
+        r = await c.post(
+            "/api/settings",
+            json={
+                "streams": {H10["address"]: ["ecg"]},  # identical to config
+                "rates": {H10["address"]: {"ecg": 130}},  # identical to config
+            },
+        )
         return await r.json()
 
     body = _serve(app, go)
@@ -180,10 +199,8 @@ def test_a_settings_key_already_at_the_requested_value_is_not_listed_as_changed(
     app, cfg, *_ = _mk(tmp_path)
 
     async def go(c):
-        first = await (await c.post("/api/settings",
-                                    json={"settings": {"power.drop_not_worn_sec": 600}})).json()
-        again = await (await c.post("/api/settings",
-                                    json={"settings": {"power.drop_not_worn_sec": 600}})).json()
+        first = await (await c.post("/api/settings", json={"settings": {"power.drop_not_worn_sec": 600}})).json()
+        again = await (await c.post("/api/settings", json={"settings": {"power.drop_not_worn_sec": 600}})).json()
         return first, again
 
     first, again = _serve(app, go)
@@ -235,7 +252,7 @@ def test_a_stream_opened_during_shutdown_returns_at_once(tmp_path):
     app, *_ = _mk(tmp_path)
 
     async def go(c):
-        for handler in app.on_shutdown:            # what aiohttp fires before it waits
+        for handler in app.on_shutdown:  # what aiohttp fires before it waits
             await handler(app)
         r = await c.get("/api/stream/ecg")
         return r.status, await r.text()

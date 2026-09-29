@@ -40,6 +40,7 @@ def _fresh(name="R"):
 
 # ── the unit: every `why`, not just the stall ─────────────────────────────────────────────────────
 
+
 def test_every_retry_reason_publishes_a_link_that_is_DOWN(monkeypatch):
     """All four `why` values reach this wait from outside the connection context, so all four must
     publish `connected=False`. `backoff` already read False by accident of its `except` handler; the
@@ -54,7 +55,7 @@ def test_every_retry_reason_publishes_a_link_that_is_DOWN(monkeypatch):
     monkeypatch.setattr(capture.asyncio, "sleep", spy)
     for why in ("charging", "stalled", "not_worn", "backoff"):
         _fresh()
-        capture._set("R", connected=True)          # a live link, as the runner had a moment ago
+        capture._set("R", connected=True)  # a live link, as the runner had a moment ago
         spy.why = why
         asyncio.run(capture._retry_sleep("R", 30.0, why, 1))
         assert seen[why]["connected"] is False, f"{why} published a live link while waiting to retry"
@@ -76,8 +77,9 @@ def test_the_wait_and_the_down_link_are_published_TOGETHER(monkeypatch):
 
     monkeypatch.setattr(capture.asyncio, "sleep", spy)
     asyncio.run(capture._retry_sleep("R", capture._STALL_RECONNECT_S, "stalled", 1))
-    assert snap["retry"] is not None and snap["connected"] is False, \
+    assert snap["retry"] is not None and snap["connected"] is False, (
         f"a retry block beside connected={snap.get('connected')} is the lie this closes"
+    )
 
 
 def test_the_wait_does_not_fabricate_a_link_on_the_way_out(monkeypatch):
@@ -85,14 +87,15 @@ def test_the_wait_does_not_fabricate_a_link_on_the_way_out(monkeypatch):
     disconnected when the wait ends; the next connect is what earns True back."""
     _fresh()
     capture._set("R", connected=True)
-    real = asyncio.sleep                      # bind BEFORE patching: capture.asyncio IS the module,
-    monkeypatch.setattr(capture.asyncio, "sleep", lambda _s: real(0))   # so the stub would call itself
+    real = asyncio.sleep  # bind BEFORE patching: capture.asyncio IS the module,
+    monkeypatch.setattr(capture.asyncio, "sleep", lambda _s: real(0))  # so the stub would call itself
     asyncio.run(capture._retry_sleep("R", 1.0, "stalled", 1))
     d = capture.STATUS["devices"]["R"]
     assert d["retry"] is None and d["connected"] is False
 
 
 # ── the paired opposite ───────────────────────────────────────────────────────────────────────────
+
 
 def test_a_runner_that_never_retries_is_never_marked_DOWN(monkeypatch):
     """PAIRED OPPOSITE. The stamp must live on the retry path and nowhere else: a device that is
@@ -109,15 +112,16 @@ def test_a_runner_that_never_retries_is_never_marked_DOWN(monkeypatch):
         return real_set(name, **kv)
 
     monkeypatch.setattr(capture, "_set", spy_set)
-    capture._set("R", connected=False, address="X", last_error=None)   # loop top
-    capture._set("R", connected=True)                                  # connected, and it stays up
-    for _ in range(20):                                                # a healthy poll loop
+    capture._set("R", connected=False, address="X", last_error=None)  # loop top
+    capture._set("R", connected=True)  # connected, and it stays up
+    for _ in range(20):  # a healthy poll loop
         capture._set("R", rssi=-60, battery=80)
     assert writes == [False, True], f"a streaming device acquired a spurious link write: {writes}"
     assert capture.STATUS["devices"]["R"]["connected"] is True
 
 
 # ── the epoch: a regression guard, and NOT a discriminator ────────────────────────────────────────
+
 
 def test_a_stall_and_reconnect_still_spends_exactly_ONE_link_generation():
     """⚠️ THIS TEST CANNOT TELL THE FIX FROM ITS ABSENCE, and that is worth stating rather than
@@ -127,11 +131,11 @@ def test_a_stall_and_reconnect_still_spends_exactly_ONE_link_generation():
     double-count would manufacture radio distress — not as evidence that the fix works. The evidence
     is the mid-wait snapshot above."""
     _fresh()
-    capture._set("R", connected=False, address="X", last_error=None)   # iteration 1, loop top
-    capture._set("R", connected=True)                                  # connected
-    capture._set("R", connected=False)                                 # the stall: link dropped
-    capture._set("R", connected=False, address="X", last_error=None)   # iteration 2, loop top
-    capture._set("R", connected=True)                                  # reconnected
+    capture._set("R", connected=False, address="X", last_error=None)  # iteration 1, loop top
+    capture._set("R", connected=True)  # connected
+    capture._set("R", connected=False)  # the stall: link dropped
+    capture._set("R", connected=False, address="X", last_error=None)  # iteration 2, loop top
+    capture._set("R", connected=True)  # reconnected
     assert capture._LINK_EPOCH["R"] == 2, "a stall must cost one generation, not two"
 
 
@@ -152,6 +156,7 @@ def test_a_repeated_down_stamp_is_a_noop_for_the_epoch():
 # ROUTES its stall through that function and that nothing downstream re-stamps `connected` back to
 # True while the wait is in flight — which a single site standing in for three could not show.
 
+
 def _snap_stall_waits(monkeypatch, name, cap=400):
     """Snapshot the device's STATUS at every wait that carries a `retry` block, then stop AS SOON AS a
     stall wait has been seen.
@@ -163,8 +168,10 @@ def _snap_stall_waits(monkeypatch, name, cap=400):
     the run_viatom plant passed alone and in a two-file run, and recorded ZERO waits in the full 6480-
     test suite, where the budget was spent before the stall ever fired. A plant that silently observes
     nothing is the failure mode this whole unit exists to close, so it must not depend on ordering."""
+
     class _Snaps(list):
         """A list that also carries the sleep count, so a vacuous run can NAME why it saw nothing."""
+
         calls: dict
 
     snaps = _Snaps()
@@ -189,24 +196,26 @@ def _assert_stalled_wait_is_honest(snaps, runner):
         f"{runner} never took a stall wait — the plant did not exercise the path. "
         f"sleeps={getattr(snaps, 'calls', {}).get('n')} waits_seen={len(snaps)} "
         f"_STREAM_STALL_S={capture._STREAM_STALL_S} — a leaked global is the usual cause, so the "
-        f"message names it rather than leaving the next reader to re-derive it")
+        f"message names it rather than leaving the next reader to re-derive it"
+    )
     for s in stalls:
         assert s["connected"] is False, (
             f"{runner} published connected={s['connected']} beside retry={s['retry']} — the two "
-            f"claims this closes cannot both be true")
+            f"claims this closes cannot both be true"
+        )
 
 
 @pytest.mark.sets_capture_events
 def test_run_polar_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, monkeypatch):
     import test_capture_runners as T
+
     _fresh("H10")
     T._polar_common(monkeypatch)
-    c = T.FlexPolarClient(data_frames=[], start_status=0x00)        # ACKed, then total silence
+    c = T.FlexPolarClient(data_frames=[], start_status=0x00)  # ACKed, then total silence
     T._inject_connect(monkeypatch, c)
-    monkeypatch.setattr(capture, "_STREAM_STALL_S", 90.0)   # pinned: the settings loader assigns it
-    clock = {"t": 0.0}                                       # globally, so a peer test can leak a value
-    monkeypatch.setattr(capture._time, "monotonic",
-                        lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    monkeypatch.setattr(capture, "_STREAM_STALL_S", 90.0)  # pinned: the settings loader assigns it
+    clock = {"t": 0.0}  # globally, so a peer test can leak a value
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
     snaps = _snap_stall_waits(monkeypatch, "H10")
     T._run(capture.run_polar(T._pdev(), str(tmp_path)))
     _assert_stalled_wait_is_honest(snaps, "run_polar")
@@ -215,6 +224,7 @@ def test_run_polar_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, mo
 @pytest.mark.sets_capture_events
 def test_run_viatom_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, monkeypatch):
     import test_capture_runners as T
+
     _fresh("Ring")
 
     async def bonded(*a, **k):
@@ -222,12 +232,11 @@ def test_run_viatom_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, m
 
     monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
     c = T.FakeGattClient()
-    c.services = [T._ViatomService()]                               # no on_live → never sends a packet
+    c.services = [T._ViatomService()]  # no on_live → never sends a packet
     T._inject_connect(monkeypatch, c)
-    monkeypatch.setattr(capture, "_STREAM_STALL_S", 90.0)   # pinned: the settings loader assigns it
-    clock = {"t": 0.0}                                       # globally, so a peer test can leak a value
-    monkeypatch.setattr(capture._time, "monotonic",
-                        lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    monkeypatch.setattr(capture, "_STREAM_STALL_S", 90.0)  # pinned: the settings loader assigns it
+    clock = {"t": 0.0}  # globally, so a peer test can leak a value
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
     snaps = _snap_stall_waits(monkeypatch, "Ring")
     T._run(capture.run_viatom(T._viatom_dev(), str(tmp_path)))
     _assert_stalled_wait_is_honest(snaps, "run_viatom")
@@ -236,14 +245,14 @@ def test_run_viatom_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, m
 @pytest.mark.sets_capture_events
 def test_run_oxyii_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, monkeypatch):
     import test_capture_runners as T
+
     _fresh("Ring")
     capture._OXYII_RTC_AT.clear()
-    c = T.FakeGattClient()                                          # on_live stays None → no frames
+    c = T.FakeGattClient()  # on_live stays None → no frames
     T._inject_connect_scan(monkeypatch, c)
-    monkeypatch.setattr(capture, "_STREAM_STALL_S", 90.0)   # pinned: the settings loader assigns it
-    clock = {"t": 0.0}                                       # globally, so a peer test can leak a value
-    monkeypatch.setattr(capture._time, "monotonic",
-                        lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    monkeypatch.setattr(capture, "_STREAM_STALL_S", 90.0)  # pinned: the settings loader assigns it
+    clock = {"t": 0.0}  # globally, so a peer test can leak a value
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
     snaps = _snap_stall_waits(monkeypatch, "Ring")
     T._run(capture.run_oxyii(T._o2dev(), str(tmp_path)))
     _assert_stalled_wait_is_honest(snaps, "run_oxyii")

@@ -6,6 +6,7 @@ password" convenience — would publish the owner's hotel and phone-hotspot pass
 can reach the port. Every response shape below is asserted for the ABSENCE of the credential, not
 merely for the presence of the right fields.
 """
+
 import os
 import sys
 
@@ -23,6 +24,7 @@ def _call(app, method, path, body=None):
     async def go(c):
         r = await (c.get(path) if method == "GET" else c.post(path, json=body or {}))
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -31,8 +33,10 @@ def _stub(monkeypatch, status=None, scan=None, join=None, calls=None):
         return status or {"ok": True, "state": "down", "ssid": None, "ip": None}
 
     async def _scan(runner=None):
-        return scan or {"ok": True, "networks": [
-            {"ssid": SSID, "signal": -40, "security": "secured", "bssid": "aa:bb"}]}
+        return scan or {
+            "ok": True,
+            "networks": [{"ssid": SSID, "signal": -40, "security": "secured", "bssid": "aa:bb"}],
+        }
 
     async def _join(ssid, passphrase, security=wifi_join.SECURED, runner=None):
         if calls is not None:
@@ -62,6 +66,7 @@ def test_THE_STORED_KEY_NEVER_APPEARS_IN_ANY_RESPONSE(tmp_path, monkeypatch):
         out["/api/wifi"] = await (await c.get("/api/wifi")).json()
         out["/api/wifi/scan"] = await (await c.post("/api/wifi/scan", json={})).json()
         return out
+
     for path, body in _serve(app, go).items():
         blob = _json.dumps(body)
         assert PSK not in blob, f"{path} leaked the derived key"
@@ -141,8 +146,7 @@ def test_AN_OPEN_NETWORK_NEEDS_NO_PASSWORD(tmp_path, monkeypatch):
     calls = []
     _stub(monkeypatch, calls=calls)
     app, *_ = _mk(tmp_path)
-    st, body = _call(app, "POST", "/api/wifi/connect",
-                     {"ssid": "FreeWifi", "security": "open", "passphrase": ""})
+    st, body = _call(app, "POST", "/api/wifi/connect", {"ssid": "FreeWifi", "security": "open", "passphrase": ""})
     assert st == 200 and body["ok"] is True
     assert calls[0]["security"] == "open"
     assert wifi_uplink.load_saved(str(tmp_path))["psk"] is None
@@ -166,8 +170,7 @@ def test_CONNECTED_BUT_UNSAVEABLE_REPORTS_BOTH(tmp_path, monkeypatch):
 def test_REMEMBER_FALSE_JOINS_WITHOUT_STORING(tmp_path, monkeypatch):
     _stub(monkeypatch)
     app, *_ = _mk(tmp_path)
-    st, body = _call(app, "POST", "/api/wifi/connect",
-                     {"ssid": SSID, "passphrase": PW, "remember": False})
+    st, body = _call(app, "POST", "/api/wifi/connect", {"ssid": SSID, "passphrase": PW, "remember": False})
     assert st == 200 and body["ok"] is True
     assert wifi_uplink.load_saved(str(tmp_path)) is None
 
@@ -191,10 +194,12 @@ def test_FORGET_ERASES_THE_KEY_AND_SAYS_WHETHER_THERE_WAS_ONE(tmp_path, monkeypa
     _stub(monkeypatch)
     app, *_ = _mk(tmp_path)
     wifi_uplink.save_network(str(tmp_path), SSID, PW)
+
     async def go(c):
         first = await (await c.post("/api/wifi/forget", json={})).json()
         second = await (await c.post("/api/wifi/forget", json={})).json()
         return first, second
+
     first, second = _serve(app, go)
     assert first["forgot"] is True
     assert wifi_uplink.load_saved(str(tmp_path)) is None
@@ -206,9 +211,9 @@ def test_A_MALFORMED_BODY_IS_REFUSED_NOT_GUESSED_AT(tmp_path, monkeypatch):
     app, *_ = _mk(tmp_path)
 
     async def go(c):
-        r = await c.post("/api/wifi/connect", data="not json",
-                         headers={"content-type": "application/json"})
+        r = await c.post("/api/wifi/connect", data="not json", headers={"content-type": "application/json"})
         return r.status, await r.json()
+
     st, _body = _serve(app, go)
     assert st == 400
 
@@ -234,17 +239,26 @@ def _cpap_app(tmp_path, monkeypatch, reachable, moves):
     monkeypatch.setattr(wifi_uplink, "resume_after_harvest", _resume)
     monkeypatch.setattr(cpap_harvest, "reachable", lambda base, timeout=5.0: reachable)
     monkeypatch.setattr(cpap_harvest, "default_route_dev", lambda: "eno1")
-    monkeypatch.setattr(cpap_harvest, "wifi_up",
-                        lambda *_a, **_kw: moves.append("card-up") or True)
+    monkeypatch.setattr(cpap_harvest, "wifi_up", lambda *_a, **_kw: moves.append("card-up") or True)
     monkeypatch.setattr(cpap_harvest, "wifi_down", lambda *_a, **_kw: moves.append("card-down"))
     monkeypatch.setattr(cpap_harvest, "nights_for", lambda scope, now: None)
     monkeypatch.setattr(cpap_harvest, "blocking_devices", lambda _d: [])
-    monkeypatch.setattr(cpap_harvest, "harvest", lambda *_a, **_kw: {
-        "files": 1, "bytes": 10, "skipped": 0, "nights": 1, "short": [], "errors": [],
-        "partial": False, "nights_on_card": 1})
+    monkeypatch.setattr(
+        cpap_harvest,
+        "harvest",
+        lambda *_a, **_kw: {
+            "files": 1,
+            "bytes": 10,
+            "skipped": 0,
+            "nights": 1,
+            "short": [],
+            "errors": [],
+            "partial": False,
+            "nights_on_card": 1,
+        },
+    )
     app, cfg, *_ = _mkapp(tmp_path)
-    cfg["cpap"] = {"enabled": True, "at_hour": 13, "wifi_profile": "ezshare",
-                   "dest_subdir": "captures/cpap"}
+    cfg["cpap"] = {"enabled": True, "at_hour": 13, "wifi_profile": "ezshare", "dest_subdir": "captures/cpap"}
     return app
 
 

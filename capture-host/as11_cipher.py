@@ -48,6 +48,6 @@ def make_cipher(session_key: bytes, *, iv_source=os.urandom):
         dec = Cipher(algorithms.AES(session_key), modes.CBC(iv)).decryptor()
         pt = dec.update(ct) + dec.finalize()
         n = int.from_bytes(pt[:2], "little")
-        return pt[2:2 + n]
+        return pt[2 : 2 + n]
 
     return seal, unseal

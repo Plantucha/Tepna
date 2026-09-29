@@ -14,6 +14,7 @@ label the card backwards, which is worse than not labelling it: a wrong label is
 module pins the whole chain — decoder order, the reversing push, the declared labels, and the render —
 rather than any one end of it.
 """
+
 import os
 import re
 
@@ -28,6 +29,7 @@ def _read(p):
 
 
 # ── the chain, end to end ────────────────────────────────────────────────────────────────────────────
+
 
 def test_the_decoder_tuple_is_hr_first():
     """The upstream fact everything else compensates for. If Polar's frame layout is ever re-read as
@@ -57,6 +59,7 @@ def test_the_declared_labels_match_the_wire_order():
 
 # ── the render ───────────────────────────────────────────────────────────────────────────────────────
 
+
 def _ppi_branch():
     src = _read(MON)
     i = src.index("} else { // ppi: [PP-int ms, HR]")
@@ -72,7 +75,7 @@ def _ppi_branch():
             depth -= 1
             if depth == 0:
                 break
-    return src[i:j + 1]
+    return src[i : j + 1]
 
 
 def test_the_card_reads_the_declared_labels_rather_than_hardcoding_them():
@@ -87,9 +90,9 @@ def test_both_channels_are_labelled_in_wire_order():
     b = _ppi_branch()
     assert b.index("labs[0]") < b.index("labs[1]"), "channel 0 must render first"
     # channel 0 is the interval (ms), channel 1 is the rate (♥)
-    seg0 = b[b.index("labs[0]"):b.index("labs[1]")]
+    seg0 = b[b.index("labs[0]") : b.index("labs[1]")]
     assert "ms" in seg0, "channel 0 must be presented as an interval in ms"
-    assert "♥" in b[b.index("labs[1]") - 120:], "channel 1 must be presented as a heart rate"
+    assert "♥" in b[b.index("labs[1]") - 120 :], "channel 1 must be presented as a heart rate"
 
 
 def test_the_fallbacks_do_not_silently_swap_the_channels():
@@ -114,8 +117,9 @@ def test_colour_is_never_the_only_channel_cue():
     alone would leave the card unreadable to anyone who cannot separate teal from violet — which is the
     same 'you have to guess which line is which' problem, merely restyled."""
     b = _ppi_branch()
-    assert "esc(labs[0]" in b.replace(" ", "") and "esc(labs[1]" in b.replace(" ", ""), \
+    assert "esc(labs[0]" in b.replace(" ", "") and "esc(labs[1]" in b.replace(" ", ""), (
         "both channels need a TEXT label, not just a colour"
+    )
 
 
 def test_the_labels_are_escaped():

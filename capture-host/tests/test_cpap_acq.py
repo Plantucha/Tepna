@@ -24,6 +24,7 @@ def _walk(lc, *states):
 
 # ── the legal-transition table is coherent ────────────────────────────────────────────────────────
 
+
 def test_every_state_has_at_least_one_legal_edge():
     """A state with no legal transition in or out is dead — either an enum member nothing reaches or a
     typo. Every AcqState must appear in LEGAL_TRANSITIONS."""
@@ -36,9 +37,18 @@ def test_every_state_has_at_least_one_legal_edge():
 
 def test_the_happy_path_connect_through_verified_is_legal():
     lc = _lc()
-    ts = _walk(lc, AcqState.CONNECTING, AcqState.CONNECTED,
-               AcqState.AUTHENTICATING, AcqState.AUTHENTICATED, AcqState.CONFIGURING, AcqState.READY,
-               AcqState.SYNC_PENDING, AcqState.SYNCING, AcqState.VERIFIED)
+    ts = _walk(
+        lc,
+        AcqState.CONNECTING,
+        AcqState.CONNECTED,
+        AcqState.AUTHENTICATING,
+        AcqState.AUTHENTICATED,
+        AcqState.CONFIGURING,
+        AcqState.READY,
+        AcqState.SYNC_PENDING,
+        AcqState.SYNCING,
+        AcqState.VERIFIED,
+    )
     assert lc.state is AcqState.VERIFIED
     assert len(ts) == 9 == len(lc.history)
     assert [t.new for t in ts][-1] is AcqState.VERIFIED
@@ -46,12 +56,21 @@ def test_the_happy_path_connect_through_verified_is_legal():
 
 def test_live_capture_path_is_legal():
     lc = _lc()
-    _walk(lc, AcqState.CONNECTING, AcqState.CONNECTED, AcqState.AUTHENTICATING,
-          AcqState.AUTHENTICATED, AcqState.CONFIGURING, AcqState.READY, AcqState.LIVE_CAPTURING)
+    _walk(
+        lc,
+        AcqState.CONNECTING,
+        AcqState.CONNECTED,
+        AcqState.AUTHENTICATING,
+        AcqState.AUTHENTICATED,
+        AcqState.CONFIGURING,
+        AcqState.READY,
+        AcqState.LIVE_CAPTURING,
+    )
     assert lc.state is AcqState.LIVE_CAPTURING
 
 
 # ── invalid transitions are refused, not silently taken ───────────────────────────────────────────
+
 
 def test_an_illegal_transition_raises_and_does_not_move():
     """spec §3 — invalid transitions must not silently occur. A DISCONNECTED→LIVE_CAPTURING jump is
@@ -79,12 +98,21 @@ def test_can_reports_legality_without_moving():
 
 # ── the recovery model (hardware-pinned, spec §6 + §7) ────────────────────────────────────────────
 
+
 def test_a_live_drop_goes_to_interrupted_not_error_and_carries_the_class():
     """A recoverable transport failure DURING live capture is a LIVE_INTERRUPTED (a transport drop, not a
     session end — spec §4), carrying the failure class for the recovery driver."""
     lc = _lc()
-    _walk(lc, AcqState.CONNECTING, AcqState.CONNECTED, AcqState.AUTHENTICATING,
-          AcqState.AUTHENTICATED, AcqState.CONFIGURING, AcqState.READY, AcqState.LIVE_CAPTURING)
+    _walk(
+        lc,
+        AcqState.CONNECTING,
+        AcqState.CONNECTED,
+        AcqState.AUTHENTICATING,
+        AcqState.AUTHENTICATED,
+        AcqState.CONFIGURING,
+        AcqState.READY,
+        AcqState.LIVE_CAPTURING,
+    )
     t = lc.fail(FailureClass.TRANSPORT_FAILURE, "BLE link dropped")
     assert lc.state is AcqState.LIVE_INTERRUPTED
     assert t.failure is FailureClass.TRANSPORT_FAILURE and t.failure.recoverable is True
@@ -119,8 +147,16 @@ def test_a_permanent_failure_during_live_capture_goes_straight_to_error():
     """An UNrecoverable failure (auth/protocol/storage) during live capture must NOT become a
     LIVE_INTERRUPTED that a recovery loop would retry forever (spec §31). It goes to ERROR."""
     lc = _lc()
-    _walk(lc, AcqState.CONNECTING, AcqState.CONNECTED, AcqState.AUTHENTICATING,
-          AcqState.AUTHENTICATED, AcqState.CONFIGURING, AcqState.READY, AcqState.LIVE_CAPTURING)
+    _walk(
+        lc,
+        AcqState.CONNECTING,
+        AcqState.CONNECTED,
+        AcqState.AUTHENTICATING,
+        AcqState.AUTHENTICATED,
+        AcqState.CONFIGURING,
+        AcqState.READY,
+        AcqState.LIVE_CAPTURING,
+    )
     t = lc.fail(FailureClass.PROTOCOL_FAILURE, "malformed StreamData past resync")
     assert lc.state is AcqState.ERROR
     assert t.failure is FailureClass.PROTOCOL_FAILURE and t.failure.recoverable is False
@@ -133,6 +169,7 @@ def test_error_can_recover_or_settle():
 
 
 # ── the failure taxonomy ──────────────────────────────────────────────────────────────────────────
+
 
 def test_failure_classes_split_recoverable_from_permanent():
     recoverable = {f for f in FailureClass if f.recoverable}
@@ -153,13 +190,14 @@ def test_failure_label_is_the_wire_string():
 
 # ── the Transition provenance record ──────────────────────────────────────────────────────────────
 
+
 def test_transition_carries_every_required_field():
     """spec §3 — prev, new, reason, host monotonic AND wall, device identity, acquisition session."""
     lc = _lc()
     t = lc.to(AcqState.CONNECTING, "open link")
     assert t.prev is AcqState.DISCONNECTED and t.new is AcqState.CONNECTING
     assert t.reason == "open link"
-    assert t.host_monotonic == 0.0                    # first injected tick
+    assert t.host_monotonic == 0.0  # first injected tick
     assert t.host_wall == "2026-08-23T00:00:00+00:00"
     assert t.device_id == "AS11-01" and t.session_id == "acq-1"
     assert t.failure is None
@@ -175,8 +213,7 @@ def test_transition_is_immutable():
 def test_transition_row_is_semicolon_delimited_with_blanks_for_absent():
     """The provenance row matches the LinkLogWriter sidecar idiom; an absent field is BLANK, never a
     fabricated zero (Clock-Contract honesty)."""
-    lc = AcqLifecycle(device_id=None, session_id=None,
-                      mono=lambda: 12.5, wall=lambda: "2026-08-23T01:02:03+00:00")
+    lc = AcqLifecycle(device_id=None, session_id=None, mono=lambda: 12.5, wall=lambda: "2026-08-23T01:02:03+00:00")
     lc.state = AcqState.LIVE_CAPTURING
     t = lc.fail(FailureClass.STREAM_STALL, "no frame 8s")
     row = t.as_row().split(";")
@@ -184,17 +221,18 @@ def test_transition_row_is_semicolon_delimited_with_blanks_for_absent():
     assert row[1] == "12.500000"
     assert row[2] == "live_capturing" and row[3] == "live_interrupted"
     assert row[4] == "no frame 8s"
-    assert row[5] == "" and row[6] == ""                # device_id, session_id absent → blank
+    assert row[5] == "" and row[6] == ""  # device_id, session_id absent → blank
     assert row[7] == "stream_stall"
 
 
 def test_a_clean_transition_row_has_a_blank_failure_field():
     lc = _lc()
     t = lc.to(AcqState.CONNECTING, "advert")
-    assert t.as_row().split(";")[7] == ""              # no failure on a clean edge
+    assert t.as_row().split(";")[7] == ""  # no failure on a clean edge
 
 
 # ── clean shutdown path ───────────────────────────────────────────────────────────────────────────
+
 
 def test_shutdown_settles_to_disconnected():
     lc = _lc(state=AcqState.READY)
@@ -211,6 +249,7 @@ def test_default_wall_clock_is_utc_iso():
 
 
 # ── INV11 · one acquisition owner per device ─────────────────────────────────────────────────────────
+
 
 def test_a_second_acquisition_of_one_device_is_REFUSED_with_a_named_reason():
     """🔴 THE DEFECT THIS CLOSES. Two acquisitions of one device could start concurrently, and the
@@ -253,7 +292,7 @@ def test_release_frees_the_device_for_the_next_session():
     tok = owners.acquire("as11-1", "session-A", monotonic=1.0)
     assert owners.release(tok) is True
     assert owners.holder_in_this_process("as11-1") is None
-    owners.acquire("as11-1", "session-B", monotonic=2.0)      # must not raise
+    owners.acquire("as11-1", "session-B", monotonic=2.0)  # must not raise
 
 
 def test_a_LATE_release_from_a_superseded_session_does_not_evict_the_new_owner():
@@ -275,4 +314,5 @@ def test_holder_in_this_process_is_named_so_None_cannot_be_read_as_no_holder():
     owners = cpap_acq.AcquisitionOwners()
     assert owners.holder_in_this_process("never-seen") is None
     assert not hasattr(owners, "holder"), (
-        "an unqualified `holder` would read as authoritative across processes, which it cannot be")
+        "an unqualified `holder` would read as authoritative across processes, which it cannot be"
+    )

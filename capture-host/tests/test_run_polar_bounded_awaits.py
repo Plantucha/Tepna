@@ -23,6 +23,7 @@ surfaced once the kill-checker grew a per-mutant timeout.
 than hang the suite — a hanging test is the same class of unhelpful as the bug it is chasing. Each
 drives `run_polar` inside an `asyncio.wait_for`, and the assertion is "it returned at all".
 """
+
 import asyncio
 import sys
 
@@ -43,13 +44,14 @@ TEST_BOUND_S = 2.0
 
 def _drive_bounded(streams=("ecg",)):
     """Run run_polar under a hard deadline. Returns True if it terminated, False if it hung."""
+
     async def go():
         try:
-            await asyncio.wait_for(capture.run_polar(T._pdev(streams=list(streams)), _TMP[0]),
-                                   TEST_BOUND_S)
+            await asyncio.wait_for(capture.run_polar(T._pdev(streams=list(streams)), _TMP[0]), TEST_BOUND_S)
             return True
         except asyncio.TimeoutError:
             return False
+
     return asyncio.run(go())
 
 
@@ -63,15 +65,17 @@ def _tmp(tmp_path):
 
 class HangingNotifyClient(T.FlexPolarClient):
     """Subscribes to the control characteristic and never returns — BlueZ's silent-wedge shape."""
+
     async def start_notify(self, uuid, cb):
         if getattr(uuid, "uuid", uuid) == pmd.PMD_CONTROL:
-            await asyncio.Event().wait()          # never set: the await that ate 4 h 25 m
+            await asyncio.Event().wait()  # never set: the await that ate 4 h 25 m
         return await super().start_notify(uuid, cb)
 
 
 class HangingWriteClient(T.FlexPolarClient):
     """Accepts the control write and never completes it. The write is a D-Bus round-trip to the same
     stack that wedges, and it sits in the negotiation path every reconnect runs."""
+
     async def write_gatt_char(self, uuid, cmd, response=False):
         if uuid == pmd.PMD_CONTROL:
             await asyncio.Event().wait()
@@ -80,6 +84,7 @@ class HangingWriteClient(T.FlexPolarClient):
 
 class SilentControlClient(T.FlexPolarClient):
     """Answers the write, then never delivers the indication — so `ctrl_q.get()` has nothing to give."""
+
     async def write_gatt_char(self, uuid, cmd, response=False):
         self.writes.append(bytes(cmd))
         return None
@@ -99,7 +104,8 @@ def test_a_hanging_control_SUBSCRIBE_does_not_freeze_the_session(tmp_path, monke
     T._stop_after(monkeypatch, 1)
     assert _drive_bounded(), (
         "run_polar never returned — a hanging start_notify must be bounded so the except/finally can "
-        "close the writers and the loop retry on a fresh link (the 2026-07-25 freeze)")
+        "close the writers and the loop retry on a fresh link (the 2026-07-25 freeze)"
+    )
 
 
 def test_a_hanging_control_WRITE_does_not_freeze_the_negotiation(tmp_path, monkeypatch):
@@ -132,7 +138,8 @@ def test_the_control_timeout_defaults_to_the_CONSTANT_not_to_None(tmp_path, monk
     T._stop_after(monkeypatch, 1)
     assert _drive_bounded(streams=("ecg", "acc")), (
         "run_polar never returned — every _ctrl call uses the DEFAULT timeout, so a None default is "
-        "an unbounded wait on every control round-trip of every reconnect")
+        "an unbounded wait on every control round-trip of every reconnect"
+    )
 
 
 def test_a_hanging_BATTERY_read_does_not_freeze_the_session(tmp_path, monkeypatch):
@@ -151,7 +158,8 @@ def test_a_hanging_BATTERY_read_does_not_freeze_the_session(tmp_path, monkeypatc
     T._stop_after(monkeypatch, 1)
     assert _drive_bounded(), (
         "run_polar never returned — a hanging battery read cost 4 h 25 m on 2026-07-25 and must be "
-        "bounded; it is cosmetic and its timeout is deliberately swallowed")
+        "bounded; it is cosmetic and its timeout is deliberately swallowed"
+    )
 
 
 # ── the other half of the contract: bounded is not the same as WORKING ──────────────────────────────
@@ -176,11 +184,11 @@ def test_a_HEALTHY_device_actually_negotiates_rather_than_degrading_silently(tmp
     errs = [str(kv.get("last_error")) for _n, kv in sets if kv.get("last_error")]
     assert not any("unacknowledged" in e for e in errs), (
         f"a device that answers every command must not report an unacked START — that is the signature "
-        f"of a control channel that was never subscribed; saw {errs}")
+        f"of a control channel that was never subscribed; saw {errs}"
+    )
     # The negotiated rate only lands when a START is ACKNOWLEDGED, so this is the positive half.
     fs = capture.STATUS["devices"]["H10"].get("pmd_options", {}).get("ecg")
-    assert fs == [130], (
-        f"the device's own rate menu must have been read back over the control channel; got {fs!r}")
+    assert fs == [130], f"the device's own rate menu must have been read back over the control channel; got {fs!r}"
 
 
 def test_the_control_channel_being_unavailable_is_a_WARNING_and_names_the_consequence(tmp_path, monkeypatch, caplog):
@@ -199,8 +207,10 @@ def test_the_control_channel_being_unavailable_is_a_WARNING_and_names_the_conseq
     T._stop_after(monkeypatch, 1)
     with caplog.at_level("WARNING"):
         assert _drive_bounded(), "a refused control subscribe must not freeze the session either"
-    warn = [r for r in caplog.records if r.levelname == "WARNING"
-            and "control indications unavailable" in r.getMessage()]
+    warn = [
+        r for r in caplog.records if r.levelname == "WARNING" and "control indications unavailable" in r.getMessage()
+    ]
     assert warn, (
         "a control channel that could not be subscribed must warn — the session is degraded from that "
-        f"line onward; warnings seen: {[r.getMessage()[:60] for r in caplog.records]}")
+        f"line onward; warnings seen: {[r.getMessage()[:60] for r in caplog.records]}"
+    )

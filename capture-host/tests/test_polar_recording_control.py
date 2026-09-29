@@ -38,12 +38,15 @@ def _no_bonding(monkeypatch):
     ABSENT on CI, so without this the endpoint tests pass locally and 502 on CI with
     `FileNotFoundError: bluetoothctl` (measured on #2042's first push: the exact local-green/CI-red
     divergence). Same autouse fixture `test_webmon_polar_contract` carries, for the same reason."""
+
     async def ok(*a, **k):
         return True
+
     monkeypatch.setattr(webmon.bonding, "ensure_bonded", ok)
 
 
 # ── the codec ───────────────────────────────────────────────────────────────────────────────────────
+
 
 def test_start_recording_params_round_trip_and_exact_bytes():
     """Round-trip through the module's own reader, plus the derivable golden: field1 varint 16 =
@@ -52,7 +55,7 @@ def test_start_recording_params_round_trip_and_exact_bytes():
     assert raw == b"\x08\x10\x12\x02\x18\x01"
     f = ps._parse_pb_fields(raw)
     assert f[1] == ps.SAMPLE_TYPE_RR_INTERVAL
-    assert ps._parse_pb_fields(f[2])[3] == 1          # PbDuration.seconds
+    assert ps._parse_pb_fields(f[2])[3] == 1  # PbDuration.seconds
 
 
 def test_start_recording_params_carry_an_identifier_when_given():
@@ -73,12 +76,13 @@ def test_recording_status_parses_both_verdicts_and_the_identifier():
 
 def test_recording_status_reports_absence_never_a_fabricated_false():
     """'Could not read the status' and 'not recording' are different claims (§8's rule)."""
-    assert ps.parse_recording_status(b"\x08") == (None, None)          # truncated varint -> except
+    assert ps.parse_recording_status(b"\x08") == (None, None)  # truncated varint -> except
     # field 1 present but length-delimited (wrong wire type for a bool) -> not an int -> (None, None)
     assert ps.parse_recording_status(b"\x0a\x00") == (None, None)
 
 
 # ── the second allowlist — safety preserved, not widened ────────────────────────────────────────────
+
 
 def test_time_paths_still_refuse_recording_ids():
     with pytest.raises(ValueError, match="refusing PS-FTP query id 14"):
@@ -89,7 +93,7 @@ def test_time_paths_still_refuse_recording_ids():
 
 def test_recording_path_reaches_exactly_the_three_recording_ids():
     hdr = ps._encode_query_header(ps.REQUEST_START_RECORDING, recording=True)
-    assert hdr == bytes([14, 0x80])                    # top bit 1 = QUERY, id in the low byte
+    assert hdr == bytes([14, 0x80])  # top bit 1 = QUERY, id in the low byte
     ps._encode_query_header(ps.REQUEST_STOP_RECORDING, recording=True)
     ps._encode_query_header(ps.REQUEST_RECORDING_STATUS, recording=True)
 
@@ -138,6 +142,7 @@ def test_the_client_methods_frame_the_wire_and_parse_the_reply(monkeypatch):
 
     async def reply(timeout):
         return ps._pb_uint(1, 1) + ps._pb_msg(2, b"RR_INTERVAL")
+
     monkeypatch.setattr(fs, "_read_response", reply)
 
     assert _run(fs.recording_status()) == (True, "RR_INTERVAL")
@@ -148,8 +153,8 @@ def test_the_client_methods_frame_the_wire_and_parse_the_reply(monkeypatch):
     _run(fs.start_recording(ps.SAMPLE_TYPE_RR_INTERVAL))
     stream = b"".join(p[1:] for p in fake.writes)
     assert stream == ps._encode_query_header(
-        ps.REQUEST_START_RECORDING, ps.encode_start_recording(ps.SAMPLE_TYPE_RR_INTERVAL, 1),
-        recording=True)
+        ps.REQUEST_START_RECORDING, ps.encode_start_recording(ps.SAMPLE_TYPE_RR_INTERVAL, 1), recording=True
+    )
 
     fake.writes.clear()
     _run(fs.stop_recording())
@@ -159,8 +164,10 @@ def test_the_client_methods_frame_the_wire_and_parse_the_reply(monkeypatch):
 
 # ── recording_control — the readback discipline ─────────────────────────────────────────────────────
 
+
 class _FakeFs:
     """Stands in for PolarPsFtp: records the ops, answers a scripted status."""
+
     calls: list = []
     status = (True, "RR_INTERVAL")
 
@@ -219,12 +226,14 @@ def test_control_refuses_an_unknown_action_before_any_op(fake_fs):
 
 # ── the endpoint ────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_endpoint_rejects_a_non_polar_address(tmp_path):
     app, *_ = _mk(tmp_path, devices=[RING])
 
     async def go(c):
         r = await c.post("/api/polar/recording", json={"address": RING["address"], "action": "status"})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 400 and "non-Polar" in body["error"]
 
@@ -234,9 +243,11 @@ def test_endpoint_rejects_a_bad_action_and_a_bad_sample_type(tmp_path):
 
     async def go(c):
         r1 = await c.post("/api/polar/recording", json={"address": H10["address"], "action": "erase"})
-        r2 = await c.post("/api/polar/recording",
-                          json={"address": H10["address"], "action": "start", "sample_type": "ppg"})
+        r2 = await c.post(
+            "/api/polar/recording", json={"address": H10["address"], "action": "start", "sample_type": "ppg"}
+        )
         return r1.status, r2.status
+
     assert _serve(app, go) == (400, 400)
 
 
@@ -246,25 +257,26 @@ def test_endpoint_start_routes_rr_through_recording_control_and_returns_the_read
     async def fake_control(address, action, sample_type=None, adapter=None):
         seen.update(address=address, action=action, sample_type=sample_type)
         return {"recording_on": True, "sample_data_identifier": "RR_INTERVAL", "readback": True}
+
     monkeypatch.setattr(webmon.polar_psftp, "recording_control", fake_control)
     app, *_ = _mk(tmp_path)
 
     async def go(c):
         r = await c.post("/api/polar/recording", json={"address": H10["address"], "action": "start"})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 200 and body["ok"] is True and body["recording_on"] is True
-    assert seen == {"address": H10["address"], "action": "start",
-                    "sample_type": ps.SAMPLE_TYPE_RR_INTERVAL}
+    assert seen == {"address": H10["address"], "action": "start", "sample_type": ps.SAMPLE_TYPE_RR_INTERVAL}
 
 
 def test_endpoint_rejects_a_malformed_body(tmp_path):
     app, *_ = _mk(tmp_path)
 
     async def go(c):
-        r = await c.post("/api/polar/recording", data=b"not json",
-                         headers={"Content-Type": "application/json"})
+        r = await c.post("/api/polar/recording", data=b"not json", headers={"Content-Type": "application/json"})
         return r.status
+
     assert _serve(app, go) == 400
 
 
@@ -275,12 +287,14 @@ def test_endpoint_translates_offline_busy_to_409(tmp_path, monkeypatch):
 
     async def busy(address, action, sample_type=None, adapter=None):
         raise offline_lock.OfflineBusy("Verity")
+
     monkeypatch.setattr(webmon.polar_psftp, "recording_control", busy)
     app, *_ = _mk(tmp_path)
 
     async def go(c):
         r = await c.post("/api/polar/recording", json={"address": H10["address"], "action": "status"})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 409 and body["busy"] == "Verity"
 
@@ -288,13 +302,16 @@ def test_endpoint_translates_offline_busy_to_409(tmp_path, monkeypatch):
 def test_endpoint_surfaces_a_device_refusal_verbatim_as_502(tmp_path, monkeypatch):
     """The §6 Q1 'no' IS the PS-FTP error text — a measurement; flattening it would discard the
     answer the whole endpoint exists to fetch."""
+
     async def refuse(address, action, sample_type=None, adapter=None):
         raise RuntimeError("PFTP error 103: ERROR_INVALID_PARAMETER")
+
     monkeypatch.setattr(webmon.polar_psftp, "recording_control", refuse)
     app, *_ = _mk(tmp_path)
 
     async def go(c):
         r = await c.post("/api/polar/recording", json={"address": H10["address"], "action": "start"})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 502 and "ERROR_INVALID_PARAMETER" in body["error"]

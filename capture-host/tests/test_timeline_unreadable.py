@@ -9,6 +9,7 @@ assertion about the radio that nothing in the data supports.
 `link_adapter` has the sharper version: it answers WHICH RADIO served a night, and a skipped file is
 indistinguishable from "no sidecar recorded an adapter", which is the honest answer for an old night.
 """
+
 import timeline
 
 

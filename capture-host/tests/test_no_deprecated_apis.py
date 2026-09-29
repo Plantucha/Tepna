@@ -74,9 +74,11 @@ def test_naive_utc_replacement_keeps_tzinfo_none():
     """The replacement must stay NAIVE. An aware datetime here does not crash where it is written — it
     crashes later, on the clock path, as a device that mysteriously stops reporting skew."""
     import capture
+
     now = capture._utcnow()
     assert now.tzinfo is None, "_utcnow() must return a naive datetime (see its docstring)"
     import datetime as dt
+
     # and it must actually be UTC, not local: compare against a known-aware reading
     delta = abs((now - dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)).total_seconds())
     assert delta < 5, f"_utcnow() drifted from real UTC by {delta:.1f}s — is it returning local time?"
@@ -92,14 +94,14 @@ def test_no_bare_bleak_adapter_kwarg():
             # `adapter` parameter (adapter_hci, PolarPsFtp, pull) — those are signatures, not kwargs.
             if re.search(r'["\']adapter["\']\s*:', ln) and "bluez" not in ln:
                 hits.append(f"{f}:{n}: {ln.strip()}")
-    assert not hits, ("bleak's bare `adapter` kwarg is deprecated; use bluez={'adapter': ...}:\n"
-                      + "\n".join(hits))
+    assert not hits, "bleak's bare `adapter` kwarg is deprecated; use bluez={'adapter': ...}:\n" + "\n".join(hits)
 
 
 def test_the_adapter_pin_actually_reaches_bleak_in_the_bluez_form():
     """Shape check on the kwargs we hand bleak: bluez must carry the adapter, because that is the only
     form that survives the shim being removed."""
     import polar_psftp
+
     kw = polar_psftp.PolarPsFtp("AA:BB:CC:DD:EE:FF", adapter="hci7")._kw
     assert kw == {"bluez": {"adapter": "hci7"}}, f"psftp passes the wrong kwargs to bleak: {kw}"
     assert polar_psftp.PolarPsFtp("AA:BB:CC:DD:EE:FF")._kw == {}, "unconfigured must pass nothing"

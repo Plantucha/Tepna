@@ -33,9 +33,13 @@ def _child(body):
     try:
         with open(os.path.join(probe, "test_probe.py"), "w") as f:
             f.write(textwrap.dedent(body))
-        r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
-                            os.path.join(probe, "test_probe.py")],
-                           capture_output=True, text=True, timeout=300, cwd=os.path.dirname(_TESTS))
+        r = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", os.path.join(probe, "test_probe.py")],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=os.path.dirname(_TESTS),
+        )
         return r.returncode, r.stdout + r.stderr
     finally:
         shutil.rmtree(probe, ignore_errors=True)

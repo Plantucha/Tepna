@@ -8,6 +8,7 @@ and timeouts from config exactly as _build_cpap_controller does; the session ref
 stream is busy; a re-pair defaults to the stored address (then the configured one, then nothing); a
 verified pairing re-keys every registered consumer IN PLACE — the dict object the shadow/spool loops hold,
 not a copy — and reports live only when no consumer was skipped at boot for want of creds."""
+
 import json
 import os
 import sys
@@ -27,6 +28,7 @@ def _isolate_registry(monkeypatch, live=(), skipped=()):
 def test_either_busy_without_a_second_source_is_the_primary_itself():
     def primary():
         return True
+
     assert capture._either_busy(primary) is primary
     assert capture._either_busy(primary, None) is primary
 
@@ -36,9 +38,9 @@ def test_either_busy_is_true_when_either_holds_the_link():
     f = capture._either_busy(lambda: flags["a"], lambda: flags["b"])
     assert f() is False
     flags["b"] = True
-    assert f() is True                       # pairing holds the link, stream idle
+    assert f() is True  # pairing holds the link, stream idle
     flags["a"], flags["b"] = True, False
-    assert f() is True                       # stream holds it, no pairing
+    assert f() is True  # stream holds it, no pairing
     flags["b"] = True
     assert f() is True
 
@@ -50,8 +52,8 @@ def test_adopt_rekeys_every_registered_dict_in_place_and_is_live_when_nothing_wa
     _isolate_registry(monkeypatch, live=[shadow, spool])
     new = {"masterPairKey": "ff00", "clientId": "c9", "ble_addr": "BB", "paired_at": "2026-09-05T00:00:00Z"}
     assert capture._as11_adopt_creds(new) is True
-    assert shadow == new and spool == new    # same objects, new contents — the loops read them per cycle
-    assert "stale_extra" not in spool        # a stale member does not survive the re-key
+    assert shadow == new and spool == new  # same objects, new contents — the loops read them per cycle
+    assert "stale_extra" not in spool  # a stale member does not survive the re-key
     new["masterPairKey"] = "mutated-later"
     assert shadow["masterPairKey"] == "ff00"  # a copy, not an alias of the caller's dict
 
@@ -61,7 +63,7 @@ def test_adopt_reports_not_live_when_a_consumer_was_skipped_at_boot(monkeypatch,
     _isolate_registry(monkeypatch, live=[held], skipped=["CPAP stored-spool pull"])
     with caplog.at_level("INFO"):
         assert capture._as11_adopt_creds({"masterPairKey": "n", "clientId": "c", "ble_addr": "A"}) is False
-    assert held["masterPairKey"] == "n"      # the live consumer is still re-keyed
+    assert held["masterPairKey"] == "n"  # the live consumer is still re-keyed
     assert "restart needed for CPAP stored-spool pull" in caplog.text
 
 
@@ -87,19 +89,31 @@ def test_shadow_starter_registers_its_creds_dict_for_hot_adoption(tmp_path, monk
     ctl = SimpleNamespace(_running=lambda: False, _busy=lambda: False)
     creds = {"masterPairKey": "aa", "clientId": "c", "ble_addr": "AA"}
     tasks = []
-    task = capture._maybe_start_as11_shadow(_shadow_cfg(), str(tmp_path / "config.yaml"), str(tmp_path), ctl,
-                                            tasks, load_creds=lambda p: creds, connect_factory=lambda c: None,
-                                            create_task=_fake_create_task, also_busy=lambda: False)
+    task = capture._maybe_start_as11_shadow(
+        _shadow_cfg(),
+        str(tmp_path / "config.yaml"),
+        str(tmp_path),
+        ctl,
+        tasks,
+        load_creds=lambda p: creds,
+        connect_factory=lambda c: None,
+        create_task=_fake_create_task,
+        also_busy=lambda: False,
+    )
     assert task is not None
-    assert capture._AS11_CREDS_LIVE and capture._AS11_CREDS_LIVE[0] is creds   # the very dict, not a copy
+    assert capture._AS11_CREDS_LIVE and capture._AS11_CREDS_LIVE[0] is creds  # the very dict, not a copy
     assert capture._AS11_CREDS_SKIPPED == []
 
 
 def test_shadow_starter_records_the_skip_when_there_are_no_creds(tmp_path, monkeypatch):
     _isolate_registry(monkeypatch)
     ctl = SimpleNamespace(_running=lambda: False, _busy=lambda: False)
-    assert capture._maybe_start_as11_shadow(_shadow_cfg(), str(tmp_path / "config.yaml"), str(tmp_path), ctl,
-                                            [], load_creds=lambda p: None) is None
+    assert (
+        capture._maybe_start_as11_shadow(
+            _shadow_cfg(), str(tmp_path / "config.yaml"), str(tmp_path), ctl, [], load_creds=lambda p: None
+        )
+        is None
+    )
     assert capture._AS11_CREDS_SKIPPED == ["AS11 shadow detector"] and capture._AS11_CREDS_LIVE == []
 
 
@@ -111,9 +125,17 @@ def test_spool_starter_registers_its_creds_dict_for_hot_adoption(tmp_path, monke
     _isolate_registry(monkeypatch)
     ctl = SimpleNamespace(_running=lambda: False, _busy=lambda: False)
     creds = {"masterPairKey": "aa", "clientId": "c", "ble_addr": "AA"}
-    task = capture._maybe_start_cpap_spool_pull(_spool_cfg(), str(tmp_path / "config.yaml"), str(tmp_path), ctl,
-                                                [], load_creds=lambda p: creds, connect_factory=lambda c: None,
-                                                create_task=_fake_create_task, also_busy=lambda: False)
+    task = capture._maybe_start_cpap_spool_pull(
+        _spool_cfg(),
+        str(tmp_path / "config.yaml"),
+        str(tmp_path),
+        ctl,
+        [],
+        load_creds=lambda p: creds,
+        connect_factory=lambda c: None,
+        create_task=_fake_create_task,
+        also_busy=lambda: False,
+    )
     assert task is not None
     assert capture._AS11_CREDS_LIVE == [creds] and capture._AS11_CREDS_LIVE[0] is creds
     assert capture._AS11_CREDS_SKIPPED == []
@@ -122,8 +144,12 @@ def test_spool_starter_registers_its_creds_dict_for_hot_adoption(tmp_path, monke
 def test_spool_starter_records_the_skip_when_there_are_no_creds(tmp_path, monkeypatch):
     _isolate_registry(monkeypatch)
     ctl = SimpleNamespace(_running=lambda: False, _busy=lambda: False)
-    assert capture._maybe_start_cpap_spool_pull(_spool_cfg(), str(tmp_path / "config.yaml"), str(tmp_path), ctl,
-                                                [], load_creds=lambda p: None) is None
+    assert (
+        capture._maybe_start_cpap_spool_pull(
+            _spool_cfg(), str(tmp_path / "config.yaml"), str(tmp_path), ctl, [], load_creds=lambda p: None
+        )
+        is None
+    )
     assert capture._AS11_CREDS_SKIPPED == ["CPAP stored-spool pull"] and capture._AS11_CREDS_LIVE == []
 
 
@@ -145,17 +171,20 @@ def test_build_pairer_resolves_the_creds_path_beside_the_config_and_the_timeouts
     assert s._creds_path == str(tmp_path / "as11_creds.json")
     assert s._connect is _noop_connect
     assert s._timeout == 45.0
-    assert s._other_busy is ctl._busy            # the live stream's BUSY, at start-INTENT
-    assert s._on_paired is capture._as11_adopt_creds   # default: hot adoption
+    assert s._other_busy is ctl._busy  # the live stream's BUSY, at start-INTENT
+    assert s._on_paired is capture._as11_adopt_creds  # default: hot adoption
 
 
 def test_build_pairer_defaults_the_passkey_timeout_and_honours_an_injected_on_paired(tmp_path, monkeypatch):
     _isolate_registry(monkeypatch)
     ctl = SimpleNamespace(_busy=lambda: False)
+
     def on_paired(c):
         return True
-    s = capture._build_cpap_pairer(_cfg(), str(tmp_path / "config.yaml"), ctl, connect=_noop_connect,
-                                   on_paired=on_paired)
+
+    s = capture._build_cpap_pairer(
+        _cfg(), str(tmp_path / "config.yaml"), ctl, connect=_noop_connect, on_paired=on_paired
+    )
     assert s._timeout == as11_pair.DEFAULT_PASSKEY_TIMEOUT_S and s._on_paired is on_paired
 
 
@@ -170,14 +199,16 @@ def test_build_pairer_default_addr_prefers_the_stored_creds_then_config_then_not
     s = capture._build_cpap_pairer(_cfg(ble_addr="CC:CC:CC:CC:CC:CC"), cfgp, ctl, connect=_noop_connect)
     assert s._default_addr() == "CC:CC:CC:CC:CC:CC"
     # stored creds win — a re-pair goes back to the machine that was paired
-    (tmp_path / "as11_creds.json").write_text(json.dumps(
-        {"masterPairKey": "aa", "clientId": "c", "ble_addr": "DD:DD:DD:DD:DD:DD"}))
+    (tmp_path / "as11_creds.json").write_text(
+        json.dumps({"masterPairKey": "aa", "clientId": "c", "ble_addr": "DD:DD:DD:DD:DD:DD"})
+    )
     assert s._default_addr() == "DD:DD:DD:DD:DD:DD"
 
 
 def test_build_pairer_refuses_to_start_while_the_live_stream_is_busy(tmp_path, monkeypatch):
     """End to end through the real session: the guard the factory wires is the one the endpoint hits."""
     import asyncio
+
     _isolate_registry(monkeypatch)
     ctl = SimpleNamespace(_busy=lambda: True)
     s = capture._build_cpap_pairer(_cfg(ble_addr="AA"), str(tmp_path / "config.yaml"), ctl, connect=_noop_connect)
@@ -191,8 +222,9 @@ def test_build_pairer_hands_the_session_the_RADIO_it_pairs_on(tmp_path, monkeypa
     2026-09-06, and the answer matters because a key stored against the wrong radio never reconnects."""
     _isolate_registry(monkeypatch)
     ctl = SimpleNamespace(_busy=lambda: False, _running=lambda: False)
-    s = capture._build_cpap_pairer(_cfg(adapter="28:0C:50:0C:18:FD"), str(tmp_path / "config.yaml"),
-                                   ctl, connect=_noop_connect, on_paired=None)
+    s = capture._build_cpap_pairer(
+        _cfg(adapter="28:0C:50:0C:18:FD"), str(tmp_path / "config.yaml"), ctl, connect=_noop_connect, on_paired=None
+    )
     assert s._adapter == "28:0C:50:0C:18:FD"
     st = s.status()
     assert st["adapter"] == "28:0C:50:0C:18:FD" and st["adapter_usable"] is True
@@ -204,8 +236,7 @@ def test_build_pairer_reports_the_DEFAULT_radio_when_config_pins_none(tmp_path, 
     pairing landed where they meant."""
     _isolate_registry(monkeypatch)
     ctl = SimpleNamespace(_busy=lambda: False, _running=lambda: False)
-    s = capture._build_cpap_pairer(_cfg(), str(tmp_path / "config.yaml"),
-                                   ctl, connect=_noop_connect, on_paired=None)
+    s = capture._build_cpap_pairer(_cfg(), str(tmp_path / "config.yaml"), ctl, connect=_noop_connect, on_paired=None)
     assert s.status()["adapter"] == "hci1"
 
 
@@ -215,6 +246,7 @@ def test_a_pinned_radio_with_no_public_address_is_reported_UNUSABLE_through_the_
     off such an adapter; this puts the same fact where the person pressing 'Start pairing' can see it."""
     _isolate_registry(monkeypatch)
     ctl = SimpleNamespace(_busy=lambda: False, _running=lambda: False)
-    s = capture._build_cpap_pairer(_cfg(adapter="00:00:00:00:00:00"), str(tmp_path / "config.yaml"),
-                                   ctl, connect=_noop_connect, on_paired=None)
+    s = capture._build_cpap_pairer(
+        _cfg(adapter="00:00:00:00:00:00"), str(tmp_path / "config.yaml"), ctl, connect=_noop_connect, on_paired=None
+    )
     assert s.status()["adapter_usable"] is False

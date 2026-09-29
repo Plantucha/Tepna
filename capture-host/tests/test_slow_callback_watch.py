@@ -32,6 +32,7 @@ def _run(coro):
 def test_PLANT_a_slow_callback_is_logged_BY_NAME_with_its_duration(caplog):
     """The property. A callback that holds the loop past the threshold must name itself — that is the
     whole point, and it is what sleep-lateness cannot do."""
+
     async def body():
         w = capture.SlowCallbackWatch(threshold_ms=40)
         w.install()
@@ -40,7 +41,7 @@ def test_PLANT_a_slow_callback_is_logged_BY_NAME_with_its_duration(caplog):
             done = asyncio.Event()
 
             def slow_one():
-                time.sleep(0.09)          # a BLOCKING callback: exactly the shape being hunted
+                time.sleep(0.09)  # a BLOCKING callback: exactly the shape being hunted
                 done.set()
 
             loop.call_soon(slow_one)
@@ -73,6 +74,7 @@ def test_PLANT_ordinary_callbacks_produce_NOTHING_so_the_log_is_not_noise(caplog
     a plant by construction, for the same reason: the whole surface is new. THE CROSS-SIDE CONTROL FOR
     THIS UNIT IS `check.sh` — the suite stays green at 100 % with the watch registered and OFF, which is
     the state every night runs in."""
+
     async def body():
         w = capture.SlowCallbackWatch(threshold_ms=40)
         w.install()
@@ -112,22 +114,24 @@ def test_restore_is_symmetric_and_idempotent_so_the_process_is_not_left_wrapped(
     w = capture.SlowCallbackWatch()
     w.install()
     assert asyncio.events.Handle._run is not orig, "install must actually wrap, or nothing is proven"
-    w.install()                                   # idempotent: must not wrap the wrapper
+    w.install()  # idempotent: must not wrap the wrapper
     once = asyncio.events.Handle._run
     w.install()
     assert asyncio.events.Handle._run is once
     w.restore()
     assert asyncio.events.Handle._run is orig
-    w.restore()                                   # a second restore is not an error
+    w.restore()  # a second restore is not an error
     assert asyncio.events.Handle._run is orig
 
 
 def test_a_coroutine_step_is_named_by_its_COROUTINE_not_by_Task___step():
     """Every awaiting task dispatches through `Task.__step`, so naming the callback would report one name
     for a dozen different coroutines — the attribution would be technically present and useless."""
+
     async def body():
         async def my_named_coro():
             await asyncio.sleep(0)
+
         t = asyncio.get_running_loop().create_task(my_named_coro(), name="probe-task")
         handle = asyncio.events.Handle(getattr(t, "_Task__step", t.get_coro), (), asyncio.get_running_loop())
         desc = capture.describe_handle(handle)
@@ -142,6 +146,7 @@ def test_a_coroutine_step_is_named_by_its_COROUTINE_not_by_Task___step():
 def test_describe_handle_FALLS_BACK_rather_than_raising_inside_dispatch():
     """It runs inside `Handle._run`. An instrument that can throw there takes the loop down with it, so
     an unexpected shape must degrade to a string, never propagate."""
+
     class Hostile:
         @property
         def _callback(self):
@@ -181,7 +186,7 @@ def test_the_OVERHEAD_is_asserted_as_a_NUMBER_not_described_in_a_comment():
         return dt
 
     base = min(_run(churn()) for _ in range(3))
-    w = capture.SlowCallbackWatch(threshold_ms=1000)   # high, so nothing is logged during the benchmark
+    w = capture.SlowCallbackWatch(threshold_ms=1000)  # high, so nothing is logged during the benchmark
     w.install()
     try:
         wrapped = min(_run(churn()) for _ in range(3))
@@ -190,22 +195,24 @@ def test_the_OVERHEAD_is_asserted_as_a_NUMBER_not_described_in_a_comment():
     assert wrapped < base * 4 + 0.05, (
         f"the watch now costs {wrapped / base:.1f}x dispatch ({base:.4f}s -> {wrapped:.4f}s). Measured at "
         "1.20x when written; asyncio's own debug mode is 14x and was rejected for exactly this reason, so "
-        "a regression here means the instrument has become the thing it was built to avoid.")
+        "a regression here means the instrument has become the thing it was built to avoid."
+    )
 
 
 # ── the TASK, not just the class: the registration path every run exercises ───────────────────────
+
 
 def test_the_task_returns_IMMEDIATELY_and_wraps_NOTHING_when_not_enabled():
     """The state every night runs in. Registered unconditionally, off by default — and "off" must mean
     the dispatch path is untouched, not merely that no line is logged."""
     orig = asyncio.events.Handle._run
-    _run(capture.slow_callback_watch({}))                      # no `slow_callback` key at all
+    _run(capture.slow_callback_watch({}))  # no `slow_callback` key at all
     assert asyncio.events.Handle._run is orig
     _run(capture.slow_callback_watch({"slow_callback": {"enabled": False}}))
     assert asyncio.events.Handle._run is orig
 
 
-@pytest.mark.sets_capture_events   # the scenario's end IS `_STOP`; the autouse fixture resets it after
+@pytest.mark.sets_capture_events  # the scenario's end IS `_STOP`; the autouse fixture resets it after
 def test_the_task_INSTALLS_when_enabled_and_RESTORES_when_the_process_stops(caplog):
     """The enabled path end to end: it wraps, it honours the threshold from config, and `_STOP` returns
     it — leaving the dispatch path exactly as it found it. A task that installed and never restored would
@@ -215,8 +222,9 @@ def test_the_task_INSTALLS_when_enabled_and_RESTORES_when_the_process_stops(capl
     async def body():
         capture._STOP.clear()
         t = asyncio.get_running_loop().create_task(
-            capture.slow_callback_watch({"slow_callback": {"enabled": True, "threshold_ms": 250}}))
-        for _ in range(50):                                    # let it install
+            capture.slow_callback_watch({"slow_callback": {"enabled": True, "threshold_ms": 250}})
+        )
+        for _ in range(50):  # let it install
             await asyncio.sleep(0)
             if asyncio.events.Handle._run is not orig:
                 break

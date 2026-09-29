@@ -19,6 +19,7 @@ The second gap found the same day: the rule lists idVendor 2357 and 8087, and a 
 Raytac MDBT50Q on Zephyr USB HCI, idVendor 2fe3) matched neither clause and sat at control=auto with
 delay=2000 ms. A vendor allowlist only protects the adapters you already thought of.
 """
+
 import os
 import re
 
@@ -39,8 +40,9 @@ def _unit():
 # ── ordering: the whole point ─────────────────────────────────────────────────────────────────
 def test_the_unit_runs_after_udev_has_settled():
     """Acting on already-present hardware is the one job udev-settle is genuinely correct for."""
-    assert re.search(r"^After=.*systemd-udev-settle", _unit(), re.M), \
+    assert re.search(r"^After=.*systemd-udev-settle", _unit(), re.M), (
         "without this the unit can race enumeration exactly as the udev rule did"
+    )
 
 
 def test_the_unit_runs_before_capture_opens_the_adapter():
@@ -52,8 +54,9 @@ def test_the_unit_runs_before_capture_opens_the_adapter():
 def test_the_unit_is_a_oneshot_that_stays_active():
     u = _unit()
     assert re.search(r"^Type=oneshot", u, re.M)
-    assert re.search(r"^RemainAfterExit=yes", u, re.M), \
+    assert re.search(r"^RemainAfterExit=yes", u, re.M), (
         "without this systemd treats the arming as never having happened"
+    )
 
 
 # ── vendor-agnostic matching ──────────────────────────────────────────────────────────────────
@@ -61,7 +64,7 @@ def test_adapters_are_matched_by_usb_bluetooth_class_not_by_vendor():
     """e0/01/01 is the USB class triple every conformant BT adapter reports. The Raytac was missed
     precisely because the udev rule enumerates vendors."""
     s = _sh()
-    assert 'bInterfaceClass' in s and 'bInterfaceSubClass' in s and 'bInterfaceProtocol' in s
+    assert "bInterfaceClass" in s and "bInterfaceSubClass" in s and "bInterfaceProtocol" in s
     assert '"e0"' in s and '"01"' in s
 
 
@@ -69,8 +72,9 @@ def test_the_script_hardcodes_no_vendor_id():
     """Any idVendor literal here would recreate the allowlist this replaces."""
     s = _sh()
     for vid in ("2357", "8087", "2fe3"):
-        assert f'"{vid}"' not in s and f"'{vid}'" not in s, \
+        assert f'"{vid}"' not in s and f"'{vid}'" not in s, (
             f"vendor {vid} hardcoded — match on the class triple instead"
+        )
 
 
 def test_the_vendor_allowlist_still_lives_only_in_the_udev_rule():
@@ -92,15 +96,15 @@ def test_the_script_reports_the_read_back_not_the_intention():
     """A write that silently did not take is the entire failure being fixed. It must re-read."""
     s = _sh()
     body = s.split("CHECK=0")[1]
-    assert body.count("cat \"$dev/power/control\"") >= 2, \
-        "the value must be re-read after writing, not assumed"
+    assert body.count('cat "$dev/power/control"') >= 2, "the value must be re-read after writing, not assumed"
 
 
 def test_a_box_with_no_adapter_is_not_a_boot_failure():
     """The box can power on before a dongle is plugged; the udev rule owns that case."""
     s = _sh()
-    assert "nothing to arm" in s and re.search(r"nothing to arm\"\n\s*exit 0", s), \
+    assert "nothing to arm" in s and re.search(r"nothing to arm\"\n\s*exit 0", s), (
         "no adapter must exit 0, or every dongle-less boot degrades into a failed unit"
+    )
 
 
 def test_check_mode_exists_and_fails_when_an_adapter_is_exposed():
@@ -118,8 +122,9 @@ def test_a_device_with_two_bluetooth_interfaces_is_counted_once():
     written every attribute twice."""
     s = _sh()
     assert "seen=" in s, "the script must remember which parent devices it has already handled"
-    assert re.search(r'case " \$seen " in \*" \$port "\*\) continue', s), \
+    assert re.search(r'case " \$seen " in \*" \$port "\*\) continue', s), (
         "dedupe must key on the parent device, not the interface"
+    )
 
 
 def test_the_unit_can_actually_start_given_this_repo_s_file_modes():
@@ -138,15 +143,17 @@ def test_the_unit_can_actually_start_given_this_repo_s_file_modes():
     executable = os.access(SH, os.X_OK)
     assert via_interpreter or executable, (
         f"ExecStart={cmd[0]} is neither an interpreter nor an executable file "
-        f"(mode {oct(os.stat(SH).st_mode & 0o777)}) — systemd will fail 203/EXEC")
+        f"(mode {oct(os.stat(SH).st_mode & 0o777)}) — systemd will fail 203/EXEC"
+    )
 
 
 def test_the_script_path_in_execstart_is_the_one_that_exists():
     """A unit that points at a path the deploy does not create fails the same way, silently enabled."""
     m = re.search(r"^ExecStart=(.*)$", _unit(), re.M)
     path = [t for t in m.group(1).split() if t.endswith(".sh")]
-    assert path and path[0].endswith("/capture-host/systemd/tepna-usb-autosuspend.sh"), \
+    assert path and path[0].endswith("/capture-host/systemd/tepna-usb-autosuspend.sh"), (
         f"ExecStart script path does not match the repo layout: {m.group(1)}"
+    )
 
 
 # ── the HOTPLUG path (2026-07-26) ─────────────────────────────────────────────────────────────
@@ -160,8 +167,9 @@ def _rule():
 
 def test_the_hotplug_rule_has_a_vendor_independent_catch_all():
     r = _rule()
-    assert "bInterfaceClass" in r and 'ATTR{bInterfaceClass}=="e0"' in r, \
+    assert "bInterfaceClass" in r and 'ATTR{bInterfaceClass}=="e0"' in r, (
         "udev must catch any Bluetooth adapter, not only the vendors already listed"
+    )
     assert 'ATTR{bInterfaceSubClass}=="01"' in r and 'ATTR{bInterfaceProtocol}=="01"' in r
 
 
@@ -171,7 +179,7 @@ def test_the_catch_all_matches_the_interface_not_the_device():
     dongle this exists to catch."""
     r = _rule()
     assert 'ENV{DEVTYPE}=="usb_interface"' in r, "must match the interface, not the usb_device"
-    assert 'ATTR{bDeviceClass}' not in r, "device-level class is unusable — the Raytac reports 00"
+    assert "ATTR{bDeviceClass}" not in r, "device-level class is unusable — the Raytac reports 00"
 
 
 def test_the_catch_all_delegates_to_the_tested_script():
@@ -192,5 +200,6 @@ def test_the_catch_all_does_not_fire_when_the_script_is_absent():
     plug — the vendor fast-path still covers the shipped adapters."""
     r = _rule()
     line = next(l for l in r.splitlines() if "RUN+=" in l)
-    assert 'TEST=="/opt/tepna/capture-host/systemd/tepna-usb-autosuspend.sh"' in line, \
+    assert 'TEST=="/opt/tepna/capture-host/systemd/tepna-usb-autosuspend.sh"' in line, (
         "guard the RUN on the script existing"
+    )

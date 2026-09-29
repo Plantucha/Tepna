@@ -58,12 +58,12 @@ def _pmd_acl(handle, meas, last_ns, n_samples=3, pb=0x02):
 
 # ─── the anchor report ────────────────────────────────────────────────────────────────────────────
 
+
 def test_the_anchor_report_parses_at_the_layout_the_header_specifies():
     ev = _anchor_event(0x0021, 4242, 0x0000_00A1_B2C3_D4E5)
     assert ev[1] == 0x0D and len(ev) == 15, "13 parameter bytes, 15 on the wire"
     got = rc.parse_hci_event(ev)
-    assert got == {"kind": "anchor", "handle": 0x21, "event_counter": 4242,
-                   "anchor_us": 0x0000_00A1_B2C3_D4E5}
+    assert got == {"kind": "anchor", "handle": 0x21, "event_counter": 4242, "anchor_us": 0x0000_00A1_B2C3_D4E5}
 
 
 def test_a_vendor_event_that_is_not_the_anchor_subevent_is_not_an_anchor():
@@ -97,6 +97,7 @@ def test_a_frame_whose_declared_length_exceeds_its_body_is_mis_framed_and_refuse
 
 # ─── the handle ↔ address map ─────────────────────────────────────────────────────────────────────
 
+
 def test_both_connection_complete_shapes_are_read_because_some_controllers_send_only_the_enhanced():
     for subevent in (rc.LE_CONNECTION_COMPLETE, rc.LE_ENHANCED_CONNECTION_COMPLETE):
         got = rc.parse_hci_event(_le_conn_complete(0x0040, H10, subevent=subevent))
@@ -127,15 +128,15 @@ def test_an_unknown_handle_is_None_and_not_the_most_recent_device():
     m = rc.HandleMap()
     m.apply(rc.parse_hci_event(_le_conn_complete(0x0040, H10)))
     assert m.address(0x41) is None
-    m.apply(None)                      # a stream event we did not recognise changes nothing
+    m.apply(None)  # a stream event we did not recognise changes nothing
     m.apply({"kind": "anchor"})
     assert len(m) == 1
 
 
 def test_an_unrelated_event_code_is_ignored_rather_than_misread():
-    assert rc.parse_hci_event(b"\x0e\x04\x01\x03\x0c\x00") is None      # Command Complete
+    assert rc.parse_hci_event(b"\x0e\x04\x01\x03\x0c\x00") is None  # Command Complete
     assert rc.parse_hci_event(b"") is None
-    assert rc.parse_hci_event(bytes([rc.HCI_EVT_LE_META, 0x01, 0x02])) is None   # LE Adv Report
+    assert rc.parse_hci_event(bytes([rc.HCI_EVT_LE_META, 0x01, 0x02])) is None  # LE Adv Report
     assert rc.parse_hci_event(bytes([rc.HCI_EVT_LE_META, 0x00])) is None
     assert rc.parse_hci_event(bytes([rc.HCI_EVT_DISCONNECT_COMPLETE, 0x01, 0x00])) is None
     short = _le_conn_complete(0x0040, H10)[:6]
@@ -143,6 +144,7 @@ def test_an_unrelated_event_code_is_ignored_rather_than_misread():
 
 
 # ─── the join key ─────────────────────────────────────────────────────────────────────────────────
+
 
 def test_the_join_key_is_the_LAST_sample_stamp_read_raw_from_the_packet():
     """🔴 The defect this collector was nearly built on. Bytes 1..9 are the LAST sample's ns — the
@@ -171,9 +173,11 @@ def test_anything_that_is_not_an_ATT_notification_on_the_ATT_channel_is_refused(
     ns = 700_000_000_000
     good = _pmd_acl(0x0040, 0x00, ns)
     assert rc.parse_acl_pmd(good) is not None
-    signalling = bytearray(good); signalling[6] = 0x05          # L2CAP CID → signalling channel
+    signalling = bytearray(good)
+    signalling[6] = 0x05  # L2CAP CID → signalling channel
     assert rc.parse_acl_pmd(bytes(signalling)) is None
-    write_req = bytearray(good); write_req[8] = 0x12            # ATT opcode → Write Request
+    write_req = bytearray(good)
+    write_req[8] = 0x12  # ATT opcode → Write Request
     assert rc.parse_acl_pmd(bytes(write_req)) is None
 
 
@@ -181,7 +185,8 @@ def test_a_short_or_lying_ACL_packet_is_refused_at_every_length():
     full = _pmd_acl(0x0040, 0x00, 42)
     for cut in range(0, len(full)):
         assert rc.parse_acl_pmd(full[:cut]) is None, cut
-    lying_l2cap = bytearray(full); lying_l2cap[4] = 0xF0
+    lying_l2cap = bytearray(full)
+    lying_l2cap[4] = 0xF0
     assert rc.parse_acl_pmd(bytes(lying_l2cap)) is None
     tiny = struct.pack("<HH", 0x0040, 4) + struct.pack("<HH", 0, rc.L2CAP_CID_ATT)
     assert rc.parse_acl_pmd(tiny) is None
@@ -203,6 +208,7 @@ def test_a_WELL_FORMED_notification_too_short_to_be_a_PMD_frame_is_refused():
 
 
 # ─── the offset and the association ───────────────────────────────────────────────────────────────
+
 
 def test_the_offset_is_a_median_and_is_UNAVAILABLE_below_three_samples():
     """Under three points there is no offset — §🔒 §7's ≥3 rule applied to the association. The
@@ -306,6 +312,7 @@ def test_the_whole_chain_end_to_end_on_a_synthetic_stream():
 
 # ─── the monitor channel and the row ──────────────────────────────────────────────────────────────
 
+
 def test_a_monitor_datagram_splits_into_opcode_index_and_payload():
     body = _anchor_event(0x0040, 7, 900)
     dgram = struct.pack("<HHH", rc.MONITOR_OPCODE_EVENT, 1, len(body)) + body
@@ -382,21 +389,32 @@ def test_an_unmeasured_cell_is_BLANK_and_never_zero():
     """🔴 Zero is in-band for every numeric column here — a microsecond counter, an event counter and
     a nanosecond stamp can all legitimately read 0 — so a fabricated zero cannot be told from a
     measurement by any reader, ever. This is `writers._ns_col`'s argument applied to the sidecar."""
-    row = rc.format_row("2026-09-07T03:14:15.926", H10, 0, 819_000_000_000_000, 0x40,
-                        None, None, 1_700_000_000_000_000_000, None)
+    row = rc.format_row(
+        "2026-09-07T03:14:15.926", H10, 0, 819_000_000_000_000, 0x40, None, None, 1_700_000_000_000_000_000, None
+    )
     assert row.rstrip("\n").split(";") == [
-        "2026-09-07T03:14:15.926", H10, "0", "819000000000000", "64", "", "",
-        "1700000000000000000", ""]
+        "2026-09-07T03:14:15.926",
+        H10,
+        "0",
+        "819000000000000",
+        "64",
+        "",
+        "",
+        "1700000000000000000",
+        "",
+    ]
     assert len(row.rstrip("\n").split(";")) == len(rc.SIDECAR_HEADER.rstrip("\n").split(";"))
     assert ";0;" not in rc.format_row("t", H10, None, None, None, None, None, None, None)
 
 
 def test_the_header_is_the_columns_the_brief_names_in_the_order_it_names_them():
-    assert rc.SIDECAR_HEADER == ("Phone timestamp;device;meas;last_sensor_ns;conn_handle;"
-                                 "event_counter;anchor_us;vs_rx_ns;acl_rx_ns\n")
+    assert rc.SIDECAR_HEADER == (
+        "Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;acl_rx_ns\n"
+    )
 
 
 # ─── the enable's outcome, as three distinguishable facts ─────────────────────────────────────────
+
 
 def test_the_enable_reports_THREE_distinguishable_outcomes_not_one_failure():
     """🔴 "The controller cannot do this" and "we were not allowed to ask" have different fixes and
@@ -407,8 +425,7 @@ def test_the_enable_reports_THREE_distinguishable_outcomes_not_one_failure():
     assert rc.describe_enable(rc.HCI_STATUS_UNKNOWN_COMMAND) == rc.ENABLE_NOT_THIS_IMAGE
     refused = rc.describe_enable(None, error=PermissionError(1, "Operation not permitted"))
     assert "send refused" in refused and "Operation not permitted" in refused
-    three = {rc.describe_enable(rc.HCI_STATUS_SUCCESS),
-             rc.describe_enable(rc.HCI_STATUS_UNKNOWN_COMMAND), refused}
+    three = {rc.describe_enable(rc.HCI_STATUS_SUCCESS), rc.describe_enable(rc.HCI_STATUS_UNKNOWN_COMMAND), refused}
     assert len(three) == 3, "the three outcomes must not collapse into one another"
 
 
@@ -422,10 +439,12 @@ def test_NO_REPLY_is_its_OWN_outcome_and_neither_a_success_nor_a_refusal():
     assert rc.describe_enable(None) != rc.ENABLE_ENABLED
     assert "NO REPLY" in rc.describe_enable(None)
     assert "refused" not in rc.describe_enable(None), "silence is not a refused send"
-    four = {rc.describe_enable(rc.HCI_STATUS_SUCCESS),
-            rc.describe_enable(rc.HCI_STATUS_UNKNOWN_COMMAND),
-            rc.describe_enable(None),
-            rc.describe_enable(None, error=PermissionError(1, "nope"))}
+    four = {
+        rc.describe_enable(rc.HCI_STATUS_SUCCESS),
+        rc.describe_enable(rc.HCI_STATUS_UNKNOWN_COMMAND),
+        rc.describe_enable(None),
+        rc.describe_enable(None, error=PermissionError(1, "nope")),
+    }
     assert len(four) == 4
     assert "0x0C" in rc.describe_enable(0x0C), "an unexpected status names itself"
 
@@ -442,10 +461,14 @@ def test_a_command_reply_is_matched_to_ITS_OWN_opcode_in_both_shapes():
     assert rc.parse_command_complete(other, op) is None, "another command's reply is not ours"
     other_status = bytes([rc.HCI_EVT_COMMAND_STATUS, 4, 0x00, 1]) + struct.pack("<H", 0x0C03)
     assert rc.parse_command_complete(other_status, op) is None
-    for bad in (b"", b"\x0e", bytes([rc.HCI_EVT_COMMAND_COMPLETE, 9, 1]),
-                bytes([rc.HCI_EVT_COMMAND_COMPLETE, 2, 1, 0]),
-                bytes([rc.HCI_EVT_COMMAND_STATUS, 2, 1, 0]),
-                bytes([rc.HCI_EVT_LE_META, 1, 2])):
+    for bad in (
+        b"",
+        b"\x0e",
+        bytes([rc.HCI_EVT_COMMAND_COMPLETE, 9, 1]),
+        bytes([rc.HCI_EVT_COMMAND_COMPLETE, 2, 1, 0]),
+        bytes([rc.HCI_EVT_COMMAND_STATUS, 2, 1, 0]),
+        bytes([rc.HCI_EVT_LE_META, 1, 2]),
+    ):
         assert rc.parse_command_complete(bad, op) is None, bad.hex()
 
 
@@ -470,11 +493,9 @@ def test_a_row_is_emitted_ONLY_for_a_device_we_configured():
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0041, VERITY)), host_ns=2)
     for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
-        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)),
-               host_ns=(us + 300) * 1000)
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
 
-    ours = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 819_000_000_000_000)),
-                  host_ns=1_060_300_000)
+    ours = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 819_000_000_000_000)), host_ns=1_060_300_000)
     assert ours is not None and ours[0] == H10
     theirs = c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0041, 0x00, 5)), host_ns=1_060_300_000)
     assert theirs is None, "a configured-elsewhere device is not ours to record"
@@ -487,8 +508,7 @@ def test_traffic_from_ANOTHER_ADAPTER_is_ignored():
     c = _collector()
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10), index=ADAPTER + 1), host_ns=1)
     assert len(c.handles) == 0
-    assert c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 5), index=ADAPTER + 1),
-                  host_ns=2) is None
+    assert c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 5), index=ADAPTER + 1), host_ns=2) is None
 
 
 def test_an_UNKNOWN_handle_emits_nothing_rather_than_guessing_a_device():
@@ -506,8 +526,7 @@ def test_a_DISCONNECT_drops_the_handle_AND_its_anchors():
     c = _collector(devices=(H10, VERITY))
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
-        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)),
-               host_ns=(us + 300) * 1000)
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
     assert c._anchors[0x40]
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _disconnect(0x0040)), host_ns=9)
     assert 0x40 not in c._anchors
@@ -527,8 +546,9 @@ def test_MISSED_anchors_are_COUNTED_and_never_interpolated():
     c = _collector()
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter in (10, 11, 15, 16):
-        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, counter * 1000)),
-               host_ns=counter * 1_000_000)
+        c.feed(
+            *_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, counter * 1000)), host_ns=counter * 1_000_000
+        )
     assert c.missed_anchors == 3, "12, 13 and 14 never arrived"
     assert len(c._anchors[0x40]) == 4, "and were not invented to fill the series"
 
@@ -545,8 +565,9 @@ def test_the_anchor_series_is_BOUNDED_because_a_night_is_millions_of_events():
     c = _collector()
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter in range(rc.ANCHOR_WINDOW + 50):
-        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, counter * 1000)),
-               host_ns=counter * 1_000_000)
+        c.feed(
+            *_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, counter * 1000)), host_ns=counter * 1_000_000
+        )
     assert len(c._anchors[0x40]) == rc.ANCHOR_WINDOW
 
 
@@ -562,16 +583,14 @@ def test_the_row_carries_the_association_and_blanks_what_was_not_measured():
     c = _collector()
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
-        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)),
-               host_ns=(us + 300) * 1000)
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
     address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx = c.feed(
-        *_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 819_000_000_000_000)),
-        host_ns=1_051_300_000)
+        *_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 819_000_000_000_000)), host_ns=1_051_300_000
+    )
     assert (address, meas, ns, handle) == (H10, 0x00, 819_000_000_000_000, 0x40)
     assert (counter, anchor_us) == (11, 1_050_000)
     assert acl_rx == 1_051_300_000
-    row = rc.format_row("2026-09-07T03:00:00.000", address, meas, ns, handle, counter, anchor_us,
-                        vs_rx, acl_rx)
+    row = rc.format_row("2026-09-07T03:00:00.000", address, meas, ns, handle, counter, anchor_us, vs_rx, acl_rx)
     assert row.count(";") == 8 and ";;" in row, "the unmeasured vs_rx cell is blank, not zero"
 
 
@@ -592,17 +611,20 @@ def test_NON_PMD_traffic_on_our_own_link_emits_nothing():
 
 # ─── the sidecar file ─────────────────────────────────────────────────────────────────────────────
 
+
 def test_the_sidecar_is_named_by_ADDRESS_because_that_is_the_identity(tmp_path):
     """BLE identity is address-only — a local name is advertising data any device may claim, and this
     repo has a standing ruling on it. The colons go so the name is portable."""
-    assert rc.sidecar_name("20260907T030000", "e4:22:f1:c2:23:2b") == \
-        "20260907T030000_E4-22-F1-C2-23-2B_RADIOCLOCK.csv"
+    assert rc.sidecar_name("20260907T030000", "e4:22:f1:c2:23:2b") == "20260907T030000_E4-22-F1-C2-23-2B_RADIOCLOCK.csv"
 
 
 def test_a_new_file_gets_the_header_and_a_resumed_one_does_not(tmp_path):
     p = str(tmp_path / "s.csv")
-    w = rc.SidecarWriter(p); w.write(rc.format_row("t", H10, 0, 5, 64, 11, 1_050_000, None, 7)); w.close()
-    again = rc.SidecarWriter(p); again.write(rc.format_row("u", H10, 0, 6, 64, 12, 1_100_000, None, 8))
+    w = rc.SidecarWriter(p)
+    w.write(rc.format_row("t", H10, 0, 5, 64, 11, 1_050_000, None, 7))
+    w.close()
+    again = rc.SidecarWriter(p)
+    again.write(rc.format_row("u", H10, 0, 6, 64, 12, 1_100_000, None, 8))
     again.close()
     lines = open(p, encoding="utf-8").read().splitlines()
     assert lines[0] == rc.SIDECAR_HEADER.rstrip("\n")
@@ -613,9 +635,9 @@ def test_a_TORN_TAIL_from_a_power_cut_is_truncated_and_not_left_to_corrupt_the_n
     """The capture host loses power mid-write. The half-line must go, or the row appended after it is
     silently glued onto the fragment and parses as neither."""
     p = tmp_path / "s.csv"
-    p.write_text(rc.SIDECAR_HEADER + "t;%s;0;5;64;11;1050000;;7\nu;%s;0;6;64" % (H10, H10),
-                 encoding="utf-8")
-    w = rc.SidecarWriter(str(p)); w.write(rc.format_row("v", H10, 0, 7, 64, 13, 1_150_000, None, 9))
+    p.write_text(rc.SIDECAR_HEADER + "t;%s;0;5;64;11;1050000;;7\nu;%s;0;6;64" % (H10, H10), encoding="utf-8")
+    w = rc.SidecarWriter(str(p))
+    w.write(rc.format_row("v", H10, 0, 7, 64, 13, 1_150_000, None, 9))
     w.close()
     lines = p.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 3
@@ -624,14 +646,18 @@ def test_a_TORN_TAIL_from_a_power_cut_is_truncated_and_not_left_to_corrupt_the_n
 
 
 def test_an_EMPTY_file_is_rewritten_with_a_header_rather_than_appended_to(tmp_path):
-    p = tmp_path / "s.csv"; p.write_text("", encoding="utf-8")
-    w = rc.SidecarWriter(str(p)); w.close()
+    p = tmp_path / "s.csv"
+    p.write_text("", encoding="utf-8")
+    w = rc.SidecarWriter(str(p))
+    w.close()
     assert p.read_text(encoding="utf-8") == rc.SIDECAR_HEADER
 
 
 def test_a_file_torn_before_its_FIRST_newline_is_truncated_to_nothing_and_re_headered(tmp_path):
-    p = tmp_path / "s.csv"; p.write_text("Phone timestamp;device;me", encoding="utf-8")
-    w = rc.SidecarWriter(str(p)); w.close()
+    p = tmp_path / "s.csv"
+    p.write_text("Phone timestamp;device;me", encoding="utf-8")
+    w = rc.SidecarWriter(str(p))
+    w.close()
     assert p.read_text(encoding="utf-8") == rc.SIDECAR_HEADER
 
 
@@ -640,35 +666,42 @@ def test_flush_and_close_never_raise_on_a_closed_handle(tmp_path):
     it cannot, but the writer keeps the same discipline."""
     w = rc.SidecarWriter(str(tmp_path / "s.csv"))
     w.close()
-    w.flush(); w.close()
+    w.flush()
+    w.close()
 
 
 def test_a_close_that_FAILS_is_swallowed_because_the_night_is_already_written(tmp_path):
     """The real case is ENOSPC on the final flush-to-disk, not a double close (which Python makes a
     no-op). By the time close() runs the rows are already out; raising here would turn a full disk into
     a traceback from a telemetry sidecar, which is precisely the blast radius this file must not have."""
+
     class _Failing:
         closed = False
-        def flush(self): raise OSError(28, "No space left on device")
-        def close(self): raise OSError(28, "No space left on device")
-        def write(self, _): pass
+
+        def flush(self):
+            raise OSError(28, "No space left on device")
+
+        def close(self):
+            raise OSError(28, "No space left on device")
+
+        def write(self, _):
+            pass
 
     w = rc.SidecarWriter(str(tmp_path / "s.csv"))
     w._fh = _Failing()
-    w.close()               # must not raise
+    w.close()  # must not raise
 
 
 # ─── the run loop ─────────────────────────────────────────────────────────────────────────────────
+
 
 def _stream(anchors=((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)), acls=((1_051_300_000,),)):
     """A synthetic monitor stream: one connect, some anchors, then some ACL packets."""
     out = [(rc.MONITOR_OPCODE_EVENT, ADAPTER, _le_conn_complete(0x0040, H10), 1)]
     for counter, us in anchors:
-        out.append((rc.MONITOR_OPCODE_EVENT, ADAPTER, _anchor_event(0x0040, counter, us),
-                    (us + 300) * 1000))
+        out.append((rc.MONITOR_OPCODE_EVENT, ADAPTER, _anchor_event(0x0040, counter, us), (us + 300) * 1000))
     for i, (host_ns,) in enumerate(acls):
-        out.append((rc.MONITOR_OPCODE_ACL_RX, ADAPTER,
-                    _pmd_acl(0x0040, 0x00, 819_000_000_000_000 + i), host_ns))
+        out.append((rc.MONITOR_OPCODE_ACL_RX, ADAPTER, _pmd_acl(0x0040, 0x00, 819_000_000_000_000 + i), host_ns))
     return out
 
 
@@ -722,7 +755,7 @@ def test_the_writers_are_CLOSED_even_when_the_stream_raises(tmp_path):
     try:
         rc.run(exploding(), _collector(), open_writer)
     except KeyboardInterrupt:  # deliberate: the interrupt IS the subject — it must reach the caller
-        pass                   # while `run`'s finally still closes the writers
+        pass  # while `run`'s finally still closes the writers
     assert len(opened) == 1
     body = (tmp_path / rc.sidecar_name("s", H10)).read_text(encoding="utf-8")
     assert len(body.splitlines()) == 2, "the row written before the interrupt survived"
@@ -748,8 +781,7 @@ def test_the_missed_anchor_count_reaches_the_caller_as_TELEMETRY(tmp_path):
     def open_writer(address):
         return rc.SidecarWriter(str(tmp_path / rc.sidecar_name("s", address)))
 
-    got = rc.run(_stream(anchors=((10, 1_000_000), (11, 1_050_000), (15, 1_100_000))),
-                 _collector(), open_writer)
+    got = rc.run(_stream(anchors=((10, 1_000_000), (11, 1_050_000), (15, 1_100_000))), _collector(), open_writer)
     assert got["missed_anchors"] == 3, "12, 13, 14 — reported, never interpolated"
 
 
@@ -759,22 +791,29 @@ def test_phone_ts_matches_the_writer_the_rest_of_the_corpus_uses():
     import datetime as _dt
 
     import writers
+
     ns = 1_757_300_000_123_000_000
     assert rc.phone_ts(ns) == writers._phone_ts(_dt.datetime.fromtimestamp(ns / 1e9))
 
 
 # ─── feature detection: every way this box cannot, named ─────────────────────────────────────────
 
+
 def _sysfs(tmp_path, mapping):
-    root = tmp_path / "bt"; root.mkdir(exist_ok=True)
+    root = tmp_path / "bt"
+    root.mkdir(exist_ok=True)
     for name, addr in mapping.items():
-        d = root / name; d.mkdir(exist_ok=True)
+        d = root / name
+        d.mkdir(exist_ok=True)
         (d / "address").write_text(addr + "\n", encoding="utf-8")
     return str(root)
 
 
-CFG = {"adapter": "28:0C:50:0C:18:FD", "radio_clock": {"enabled": True},
-       "devices": [{"address": H10, "name": "Polar H10"}]}
+CFG = {
+    "adapter": "28:0C:50:0C:18:FD",
+    "radio_clock": {"enabled": True},
+    "devices": [{"address": H10, "name": "Polar H10"}],
+}
 
 
 def test_the_adapter_is_resolved_by_ADDRESS_not_by_hciN(tmp_path):
@@ -789,14 +828,15 @@ def test_the_adapter_is_resolved_by_ADDRESS_not_by_hciN(tmp_path):
 
 
 def test_a_malformed_sysfs_entry_is_skipped_rather_than_raising(tmp_path):
-    root = tmp_path / "bt"; root.mkdir()
+    root = tmp_path / "bt"
+    root.mkdir()
     # `/sys/class/bluetooth` is not only controllers — a BNEP or a rfcomm node sits there too, and it
     # sorts before hci*, so it is the FIRST thing the scan sees on a real box.
     (root / "bnep0").mkdir()
     (root / "hcinotanumber").mkdir()
     (root / "hcinotanumber" / "address").write_text(H10 + "\n", encoding="utf-8")
     (root / "not-an-adapter").mkdir()
-    (root / "hci9").mkdir()                       # no address file at all
+    (root / "hci9").mkdir()  # no address file at all
     assert rc.adapter_index(H10, str(root)) is None
 
 
@@ -804,8 +844,10 @@ def test_DISABLED_by_default_is_the_first_thing_checked(tmp_path):
     """Default OFF, opt-in by config — §0.2. A box that never asked for this must not have its
     controller probed, so the flag is read before anything touches a radio."""
     sysfs = _sysfs(tmp_path, {"hci1": "28:0C:50:0C:18:FD"})
+
     def _never(_index):
         raise AssertionError("must not probe a box that did not opt in")
+
     index, devices, why = rc.decide({"radio_clock": {"enabled": False}}, sysfs, probe=_never)
     assert index is None and devices == [] and "enabled is false" in why
     assert rc.decide({}, sysfs, probe=_never)[2] is not None
@@ -818,27 +860,34 @@ def test_every_way_this_box_CANNOT_is_named_and_none_reads_like_another(tmp_path
     sysfs = _sysfs(tmp_path, {"hci1": "28:0C:50:0C:18:FD"})
     whys = set()
 
-    _, _, why = rc.decide(dict(CFG, adapter="99:99:99:99:99:99"), sysfs,
-                          probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))
-    assert "is present" in why; whys.add(why)
+    _, _, why = rc.decide(
+        dict(CFG, adapter="99:99:99:99:99:99"), sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None)
+    )
+    assert "is present" in why
+    whys.add(why)
 
     _, _, why = rc.decide(dict(CFG, devices=[]), sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))
-    assert "no devices" in why; whys.add(why)
+    assert "no devices" in why
+    whys.add(why)
 
     _, _, why = rc.decide(CFG, sysfs, probe=lambda i: (10, 0, None))
-    assert "not Nordic" in why and "common case, not an error" in why; whys.add(why)
+    assert "not Nordic" in why and "common case, not an error" in why
+    whys.add(why)
 
-    _, _, why = rc.decide(CFG, sysfs,
-                          probe=lambda i: (rc.NORDIC_COMPANY_ID, rc.HCI_STATUS_UNKNOWN_COMMAND, None))
-    assert "not this image" in why; whys.add(why)
+    _, _, why = rc.decide(CFG, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, rc.HCI_STATUS_UNKNOWN_COMMAND, None))
+    assert "not this image" in why
+    whys.add(why)
 
     _, _, why = rc.decide(CFG, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, None, None))
-    assert "NO REPLY" in why, "a wedged controller is its own fact"; whys.add(why)
+    assert "NO REPLY" in why, "a wedged controller is its own fact"
+    whys.add(why)
 
     def _refuse(_i):
         raise rc.RadioClockUnavailable("cannot open the HCI monitor channel: EPERM")
+
     _, _, why = rc.decide(CFG, sysfs, probe=_refuse)
-    assert "unavailable" in why; whys.add(why)
+    assert "unavailable" in why
+    whys.add(why)
 
     assert len(whys) == 6, "six distinct ways to be unable, six distinct lines"
 
@@ -859,10 +908,12 @@ def test_radio_clock_adapter_OVERRIDES_the_capture_adapter(tmp_path):
 
 # ─── main: exit 0 and write nothing, however this box cannot ─────────────────────────────────────
 
+
 def _cfg_file(tmp_path, mapping):
     import json
+
     p = tmp_path / "config.yaml"
-    p.write_text(json.dumps(mapping), encoding="utf-8")   # JSON is valid YAML
+    p.write_text(json.dumps(mapping), encoding="utf-8")  # JSON is valid YAML
     return str(p)
 
 
@@ -884,7 +935,8 @@ def test_main_survives_an_unreadable_or_malformed_config(tmp_path, caplog):
     with caplog.at_level("INFO"):
         assert rc.main(["--config", str(tmp_path / "nope.yaml")], sysfs) == 0
         assert "cannot read" in caplog.text
-        empty = tmp_path / "empty.yaml"; empty.write_text("", encoding="utf-8")
+        empty = tmp_path / "empty.yaml"
+        empty.write_text("", encoding="utf-8")
         caplog.clear()
         assert rc.main(["--config", str(empty)], sysfs) == 0
         assert "not a YAML mapping" in caplog.text
@@ -894,11 +946,9 @@ def test_main_runs_the_collector_and_reports_its_telemetry(tmp_path, caplog):
     sysfs = _sysfs(tmp_path, {"hci1": "28:0C:50:0C:18:FD"})
     root = tmp_path / "srv"
     cfg = _cfg_file(tmp_path, dict(CFG, root=str(root)))
-    stream = _stream(anchors=((10, 1_000_000), (11, 1_050_000), (15, 1_100_000)),
-                     acls=((1_051_300_000,),))
+    stream = _stream(anchors=((10, 1_000_000), (11, 1_050_000), (15, 1_100_000)), acls=((1_051_300_000,),))
     with caplog.at_level("INFO"):
-        assert rc.main(["--config", cfg], sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None),
-                       packets=stream) == 0
+        assert rc.main(["--config", cfg], sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None), packets=stream) == 0
     assert "1 row(s)" in caplog.text and H10 in caplog.text
     assert "3 anchor(s) missed" in caplog.text, "reported as telemetry, never interpolated"
     written = list((root / "captures").rglob("*_RADIOCLOCK.csv"))
@@ -914,8 +964,7 @@ def test_main_with_a_capable_box_but_NO_TRAFFIC_still_writes_no_file(tmp_path, c
     root = tmp_path / "srv"
     cfg = _cfg_file(tmp_path, dict(CFG, root=str(root)))
     with caplog.at_level("INFO"):
-        assert rc.main(["--config", cfg], sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None),
-                       packets=[]) == 0
+        assert rc.main(["--config", cfg], sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None), packets=[]) == 0
     assert "0 row(s)" in caplog.text and "no device" in caplog.text
     assert not root.exists()
 
@@ -936,6 +985,7 @@ def test_the_HCI_FILTER_struct_is_SIXTEEN_bytes_because_the_kernel_says_so():
     socket call that reads like a permissions problem and is not."""
     assert len(rc._HCI_FILTER_EVENTS) == 16
     import struct as _s
+
     type_mask, ev_lo, ev_hi, opcode = _s.unpack("<IIIH2x", rc._HCI_FILTER_EVENTS)
     assert type_mask == 1 << rc.HCI_EVENT_PKT, "events only — we send commands, we read events"
     assert (ev_lo, ev_hi, opcode) == (0xFFFFFFFF, 0xFFFFFFFF, 0)
@@ -943,13 +993,14 @@ def test_the_HCI_FILTER_struct_is_SIXTEEN_bytes_because_the_kernel_says_so():
 
 # ── the gaps the mutation audit found ────────────────────────────────────────────────────────────
 
+
 def test_a_DISCONNECT_for_a_handle_we_never_saw_CONNECT_is_survivable():
     """🔴 Not hypothetical — it is the normal case on startup. The collector attaches to a monitor
     stream that is already running, so the first thing it may ever see for a live link is that link
     ENDING. Every drop here is a `.pop(key, None)`; without the default each of the three would raise
     KeyError and take the collector down on a packet that means "nothing to do"."""
     c = _collector()
-    for _ in range(2):                       # twice: the second proves the first left no residue
+    for _ in range(2):  # twice: the second proves the first left no residue
         c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _disconnect(0x0055)), host_ns=1)
     assert len(c.handles) == 0 and c.rows == 0
     m = rc.HandleMap()
@@ -982,10 +1033,12 @@ def test_the_writer_counts_every_row_it_writes(tmp_path):
 def test_every_column_lands_in_its_OWN_position_when_all_are_present():
     """The earlier row test carried several `None`s, so a cell replaced by `None` was indistinguishable
     from the real thing. With every field populated and distinct, a swapped or dropped column shows."""
-    row = rc.format_row("2026-09-08T03:00:00.000", H10, 7, 819_000_000_000_000, 0x40, 4242,
-                        1_050_000, 111, 222).rstrip("\n").split(";")
-    assert row == ["2026-09-08T03:00:00.000", H10, "7", "819000000000000", "64", "4242",
-                   "1050000", "111", "222"]
+    row = (
+        rc.format_row("2026-09-08T03:00:00.000", H10, 7, 819_000_000_000_000, 0x40, 4242, 1_050_000, 111, 222)
+        .rstrip("\n")
+        .split(";")
+    )
+    assert row == ["2026-09-08T03:00:00.000", H10, "7", "819000000000000", "64", "4242", "1050000", "111", "222"]
     header = rc.SIDECAR_HEADER.rstrip("\n").split(";")
     assert len(row) == len(header)
     assert header[5] == "event_counter" and row[5] == "4242"
@@ -1021,8 +1074,10 @@ def test_the_anchor_series_drops_the_OLDEST_anchor_not_the_second():
     c = _collector()
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter in range(rc.ANCHOR_WINDOW + 3):
-        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, 1000 + counter)),
-               host_ns=(1000 + counter) * 1000)
+        c.feed(
+            *_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, 1000 + counter)),
+            host_ns=(1000 + counter) * 1000,
+        )
     kept = c._anchors[0x40]
     assert len(kept) == rc.ANCHOR_WINDOW
     assert kept[0][0] == 3, "the first three anchors were dropped, oldest first"
@@ -1058,8 +1113,9 @@ def test_a_configured_device_with_NO_address_is_dropped_not_carried_as_None(tmp_
     index, devices, why = rc.decide(cfg, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))
     assert devices == [H10] and why is None
     only_nameless = dict(CFG, devices=[{"name": "x"}])
-    assert rc.decide(only_nameless, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))[2] \
-        is not None, "a config with no usable address records nothing and says so"
+    assert rc.decide(only_nameless, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))[2] is not None, (
+        "a config with no usable address records nothing and says so"
+    )
 
 
 def test_the_offset_window_keeps_the_LAST_n_samples_and_the_choice_is_observable():
@@ -1126,12 +1182,12 @@ def test_the_host_stamp_is_converted_to_MICROSECONDS_exactly():
     c = _collector()
     c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
     for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
-        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)),
-               host_ns=(us + 300) * 1000)
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)), host_ns=(us + 300) * 1000)
     assert c.offsets.offset == 300.0, "ns/1000 == us; any other divisor shifts this off 300"
 
 
 # ── re-arming the enable, which does not survive a controller reset ───────────────────────────────
+
 
 def _mon_index(opcode, index=ADAPTER):
     return opcode, index, b"", 1
@@ -1184,9 +1240,11 @@ def test_run_CALLS_the_re_arm_and_counts_it(tmp_path):
     def open_writer(address):
         return rc.SidecarWriter(str(tmp_path / rc.sidecar_name("s", address)))
 
-    stream = ([(rc.MONITOR_OPCODE_OPEN_INDEX, ADAPTER, b"", 1)]
-              + _stream()
-              + [(rc.MONITOR_OPCODE_EVENT, ADAPTER, _reset_complete(), 9)])
+    stream = (
+        [(rc.MONITOR_OPCODE_OPEN_INDEX, ADAPTER, b"", 1)]
+        + _stream()
+        + [(rc.MONITOR_OPCODE_EVENT, ADAPTER, _reset_complete(), 9)]
+    )
     got = rc.run(stream, _collector(), open_writer, rearm=lambda: calls.append(1))
     assert got["rearmed"] == 2 and len(calls) == 2
     assert got["rows"] == 1, "the re-arm does not disturb the rows"
@@ -1194,11 +1252,11 @@ def test_run_CALLS_the_re_arm_and_counts_it(tmp_path):
 
 def test_run_without_a_re_arm_callback_is_unchanged(tmp_path):
     """Back-compat: the parameter is optional and its absence must not raise on an index packet."""
+
     def open_writer(address):
         return rc.SidecarWriter(str(tmp_path / rc.sidecar_name("s", address)))
 
-    got = rc.run([(rc.MONITOR_OPCODE_OPEN_INDEX, ADAPTER, b"", 1)] + _stream(), _collector(),
-                 open_writer)
+    got = rc.run([(rc.MONITOR_OPCODE_OPEN_INDEX, ADAPTER, b"", 1)] + _stream(), _collector(), open_writer)
     assert got["rearmed"] == 0 and got["rows"] == 1
 
 
@@ -1212,27 +1270,42 @@ def test_main_re_arms_through_the_REAL_probe_and_reports_both_outcomes(tmp_path,
 
     # 1 · the adapter comes back and the enable takes
     with caplog.at_level("INFO"):
-        assert rc.main(["--config", cfg], sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None),
-                       packets=[(o, 1, p, t) for (o, _i, p, t) in stream]) == 0
+        assert (
+            rc.main(
+                ["--config", cfg],
+                sysfs,
+                probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None),
+                packets=[(o, 1, p, t) for (o, _i, p, t) in stream],
+            )
+            == 0
+        )
     assert "anchors re-enabled after an adapter reset" in caplog.text
     assert "1 re-arm(s)" in caplog.text
 
     # 2 · it comes back and the enable does NOT take — a warning, never silence
     caplog.clear()
     with caplog.at_level("INFO"):
-        rc.main(["--config", cfg], sysfs,
-                probe=_flaky_probe([(rc.NORDIC_COMPANY_ID, 0, None),
-                                    (rc.NORDIC_COMPANY_ID, rc.HCI_STATUS_UNKNOWN_COMMAND, None)]),
-                packets=[(o, 1, p, t) for (o, _i, p, t) in stream])
+        rc.main(
+            ["--config", cfg],
+            sysfs,
+            probe=_flaky_probe(
+                [(rc.NORDIC_COMPANY_ID, 0, None), (rc.NORDIC_COMPANY_ID, rc.HCI_STATUS_UNKNOWN_COMMAND, None)]
+            ),
+            packets=[(o, 1, p, t) for (o, _i, p, t) in stream],
+        )
     assert "anchors NOT re-enabled" in caplog.text and "not this image" in caplog.text
 
     # 3 · the probe raises on the re-arm — still reported, still exit 0
     caplog.clear()
     with caplog.at_level("INFO"):
-        rc.main(["--config", cfg], sysfs,
-                probe=_flaky_probe([(rc.NORDIC_COMPANY_ID, 0, None),
-                                    rc.RadioClockUnavailable("adapter vanished mid-re-arm")]),
-                packets=[(o, 1, p, t) for (o, _i, p, t) in stream])
+        rc.main(
+            ["--config", cfg],
+            sysfs,
+            probe=_flaky_probe(
+                [(rc.NORDIC_COMPANY_ID, 0, None), rc.RadioClockUnavailable("adapter vanished mid-re-arm")]
+            ),
+            packets=[(o, 1, p, t) for (o, _i, p, t) in stream],
+        )
     assert "re-arm failed on the adapter that just came up" in caplog.text
 
 
@@ -1252,8 +1325,12 @@ def _flaky_probe(sequence):
 
 def _new_index(address, index=ADAPTER, bus=1, kind=0):
     """A `hci_mon_new_index` payload: type, bus, bdaddr[6], name[8]."""
-    return (rc.MONITOR_OPCODE_NEW_INDEX, index,
-            bytes([kind, bus]) + _addr_bytes(address) + b"hci\x00\x00\x00\x00\x00", 1)
+    return (
+        rc.MONITOR_OPCODE_NEW_INDEX,
+        index,
+        bytes([kind, bus]) + _addr_bytes(address) + b"hci\x00\x00\x00\x00\x00",
+        1,
+    )
 
 
 OURS = "28:0C:50:0C:18:FD"
@@ -1320,7 +1397,8 @@ def test_a_re_arm_when_the_adapter_is_GONE_says_so_and_sends_nothing(tmp_path, c
         probed.append(index)
         return rc.NORDIC_COMPANY_ID, 0, None
 
-    gone = tmp_path / "gone"; gone.mkdir()
+    gone = tmp_path / "gone"
+    gone.mkdir()
     empty = _sysfs(gone, {"hci1": "AA:BB:CC:DD:EE:FF"})
     calls = {"n": 0}
     real = rc.adapter_index
@@ -1345,7 +1423,8 @@ def test_when_the_address_MOVES_to_a_new_index_the_collector_follows_it(tmp_path
     collector's filter must follow, and the move must be stated — an adapter silently changing index
     under us is how the next person loses an evening."""
     before = _sysfs(tmp_path, {"hci1": OURS})
-    after_dir = tmp_path / "after"; after_dir.mkdir()
+    after_dir = tmp_path / "after"
+    after_dir.mkdir()
     after = _sysfs(after_dir, {"hci0": "AA:BB:CC:DD:EE:FF", "hci5": OURS})
     cfg = _cfg_file(tmp_path, dict(CFG, root=str(tmp_path / "srv")))
     probed = []

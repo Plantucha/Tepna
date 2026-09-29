@@ -23,8 +23,9 @@ def test_second_caller_is_rejected_while_first_holds():
             assert offline_lock.busy_with() == "O2Ring"
             with pytest.raises(offline_lock.OfflineBusy) as ei:
                 async with offline_lock.slot("Verity"):
-                    pass                       # must never run — the slot is taken
+                    pass  # must never run — the slot is taken
             assert ei.value.holder == "O2Ring"  # names the blocker so the UI can say who
+
     asyncio.run(scenario())
 
 
@@ -33,8 +34,9 @@ def test_slot_is_released_after_normal_exit():
         async with offline_lock.slot("O2Ring"):
             pass
         assert offline_lock.busy_with() is None
-        async with offline_lock.slot("Verity"):   # a later pull must succeed
+        async with offline_lock.slot("Verity"):  # a later pull must succeed
             assert offline_lock.busy_with() == "Verity"
+
     asyncio.run(scenario())
 
 
@@ -43,7 +45,8 @@ def test_slot_is_released_even_when_the_pull_raises():
         with pytest.raises(TimeoutError):
             async with offline_lock.slot("O2Ring"):
                 raise TimeoutError("MTU=23, READ_FILE_START dropped")
-        assert offline_lock.busy_with() is None   # a failed pull must not wedge the slot forever
+        assert offline_lock.busy_with() is None  # a failed pull must not wedge the slot forever
+
     asyncio.run(scenario())
 
 
@@ -61,7 +64,8 @@ def test_concurrent_pulls_only_one_wins():
                 return "busy"
 
         results = await asyncio.gather(puller("A"), puller("B"), puller("C"))
-        assert sorted(results) == ["busy", "busy", "ok"]   # exactly one proceeds
+        assert sorted(results) == ["busy", "busy", "ok"]  # exactly one proceeds
         assert len(ran) == 1
         assert offline_lock.busy_with() is None
+
     asyncio.run(scenario())

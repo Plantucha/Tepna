@@ -42,10 +42,10 @@ import os
 import re
 
 import helper_path
+import proc_util
 import wifi_join
 
-__all__ = ["HELPER", "scan", "join", "leave", "status", "load_saved", "save_network",
-           "forget_network", "public_view"]
+__all__ = ["HELPER", "scan", "join", "leave", "status", "load_saved", "save_network", "forget_network", "public_view"]
 
 HELPER = "tepna-wifi.sh"
 # The privilege prefix, as a constant so the gate can exercise the REAL subprocess path against a
@@ -58,7 +58,7 @@ SUDO = ("sudo", "-n")
 # working one. The helper prints `ip -br addr show` for exactly this reason.
 _IPV4_CIDR = re.compile(r"\b(\d{1,3}(?:\.\d{1,3}){3})/\d{1,2}\b")
 SCAN_TIMEOUT = 25.0
-JOIN_TIMEOUT = 75.0          # association can take ~30 s, then DHCP on top
+JOIN_TIMEOUT = 75.0  # association can take ~30 s, then DHCP on top
 LEAVE_TIMEOUT = 20.0
 STATUS_TIMEOUT = 10.0
 
@@ -68,7 +68,7 @@ async def _run(action, args=(), stdin_text=None, timeout=STATUS_TIMEOUT, runner=
 
     The PSK travels on STDIN. It must never become an argv element: /proc/<pid>/cmdline is
     world-readable, so an argument is visible to every local user for the lifetime of the call."""
-    if runner is not None:                        # tests inject; production never passes this
+    if runner is not None:  # tests inject; production never passes this
         return await runner(action, args, stdin_text)
     path = helper_path.resolve(HELPER)
     warn = helper_path.grant_warning(path)
@@ -77,17 +77,24 @@ async def _run(action, args=(), stdin_text=None, timeout=STATUS_TIMEOUT, runner=
         # root escalation, and it is the one failure mode a Wi-Fi feature must not introduce.
         return 126, "", warn
     proc = await asyncio.create_subprocess_exec(
-        *SUDO, path, action, *[str(a) for a in args],
-        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+        *SUDO,
+        path,
+        action,
+        *[str(a) for a in args],
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     try:
-        out, err = await asyncio.wait_for(
-            proc.communicate((stdin_text or "").encode()), timeout=timeout)
+        # THROUGH THE HELPER, which kills AND REAPS the child on expiry. This site bounded the await
+        # but not the process, exactly what test_every_bounded_wrapper_routes_through_the_helper
+        # forbids — and that gate could not SEE it, because the call was split across two lines and
+        # the scan is line-based. The 2026-09-28 reformat joined the line and the gate spoke up.
+        out, err = await proc_util.communicate(proc, timeout, (stdin_text or "").encode())
     except asyncio.TimeoutError:
         try:
             proc.kill()
-        except ProcessLookupError:                # it exited between the timeout and the kill
+        except ProcessLookupError:  # it exited between the timeout and the kill
             pass
         return 124, "", f"{action} timed out after {timeout:.0f}s"
     return proc.returncode, out.decode(errors="replace"), err.decode(errors="replace")
@@ -108,8 +115,7 @@ async def join(ssid, passphrase, security=wifi_join.SECURED, runner=None):
     if not ok:
         return {"ok": False, "error": error}
     psk = "OPEN" if security == wifi_join.OPEN else wifi_join.derive_psk(ssid, passphrase)
-    rc, out, err = await _run("join", [ssid], stdin_text=psk + "\n",
-                              timeout=JOIN_TIMEOUT, runner=runner)
+    rc, out, err = await _run("join", [ssid], stdin_text=psk + "\n", timeout=JOIN_TIMEOUT, runner=runner)
     if rc != 0:
         return {"ok": False, "error": err.strip() or f"could not join {ssid} (rc={rc})"}
     return {"ok": True, "ssid": ssid, "detail": out.strip()}
@@ -165,8 +171,11 @@ def save_network(root, ssid, passphrase, security=wifi_join.SECURED):
     ok, error = wifi_join.validate_passphrase(ssid, passphrase, security)
     if not ok:
         raise ValueError(error)
-    rec = {"ssid": ssid, "security": security,
-           "psk": None if security == wifi_join.OPEN else wifi_join.derive_psk(ssid, passphrase)}
+    rec = {
+        "ssid": ssid,
+        "security": security,
+        "psk": None if security == wifi_join.OPEN else wifi_join.derive_psk(ssid, passphrase),
+    }
     path = _store_path(root)
     # 0600 BEFORE the write, not after: a file created world-readable and chmod'd afterwards is
     # readable for the window in between, and that window is all an attacker needs.
@@ -188,8 +197,11 @@ def public_view(rec):
     """What may cross the API boundary: never the PSK, only whether one is held."""
     if not rec:
         return None
-    return {"ssid": rec.get("ssid"), "security": rec.get("security", wifi_join.SECURED),
-            "has_credential": bool(rec.get("psk"))}
+    return {
+        "ssid": rec.get("ssid"),
+        "security": rec.get("security", wifi_join.SECURED),
+        "has_credential": bool(rec.get("psk")),
+    }
 
 
 # ── the harvest handover ──────────────────────────────────────────────────────────────────────────
@@ -224,8 +236,7 @@ async def resume_after_harvest(root, suspended, harvest_ok=None, runner=None):
     act, detail = wifi_join.should_resume(state, (saved or {}).get("ssid"), harvest_ok)
     if not act:
         return False, detail
-    r = await join(saved["ssid"], saved.get("psk") or "",
-                   saved.get("security", wifi_join.SECURED), runner=runner)
+    r = await join(saved["ssid"], saved.get("psk") or "", saved.get("security", wifi_join.SECURED), runner=runner)
     if not r.get("ok"):
         return False, f"could not restore the uplink: {r.get('error')}"
     return True, detail

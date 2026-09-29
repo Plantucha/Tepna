@@ -31,9 +31,9 @@ import nightqc  # noqa: E402
 
 def backfill(night_dir: str) -> dict:
     """Every derived arrival field for one night. Reads the sidecars; writes nothing."""
-    sidecars = sorted(
-        f for f in os.listdir(night_dir) if f.endswith("_PMDARRIVAL.csv")
-    ) if os.path.isdir(night_dir) else []
+    sidecars = (
+        sorted(f for f in os.listdir(night_dir) if f.endswith("_PMDARRIVAL.csv")) if os.path.isdir(night_dir) else []
+    )
     rows = nightqc.arrival_quality(night_dir) if sidecars else []
     return {
         "night": os.path.basename(os.path.realpath(night_dir)),

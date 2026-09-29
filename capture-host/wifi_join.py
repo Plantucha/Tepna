@@ -52,7 +52,6 @@ MIN_PSK_LEN = 8
 MAX_PSK_LEN = 63
 
 
-
 # A wpa_cli ssid field that is nothing but escape sequences. Anchored to the WHOLE field: a real name
 # may legitimately contain an escape (a non-ASCII character in a café's network name arrives escaped
 # too), and dropping those would hide joinable networks — the opposite failure, and the worse one.
@@ -92,8 +91,8 @@ def parse_scan_results(text):
         try:
             signal = int(sig)
         except ValueError:
-            continue   # a scan row with no parseable signal cannot be ranked, and showing it
-                       # unranked would put an unknown-strength network among measured ones
+            continue  # a scan row with no parseable signal cannot be ranked, and showing it
+            # unranked would put an unknown-strength network among measured ones
         sec = SECURED if re.search(r"WPA|WEP|PSK|SAE", flags or "", re.I) else OPEN
         prev = best.get(ssid)
         if prev is None or signal > prev["signal"]:
@@ -125,9 +124,7 @@ def derive_psk(ssid, passphrase):
     derivation would silently produce a key that joins nothing."""
     if _is_hex_psk(passphrase):
         return passphrase.lower()
-    return hashlib.pbkdf2_hmac(
-        "sha1", passphrase.encode("utf-8"), ssid.encode("utf-8"), 4096, 32
-    ).hex()
+    return hashlib.pbkdf2_hmac("sha1", passphrase.encode("utf-8"), ssid.encode("utf-8"), 4096, 32).hex()
 
 
 def validate_passphrase(ssid, passphrase, security=SECURED):

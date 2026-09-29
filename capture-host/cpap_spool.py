@@ -147,9 +147,20 @@ def _row_key(row: dict) -> tuple:
     return (row.get("round", {}).get("from"), row.get("round", {}).get("sha256"))
 
 
-def make_row(*, device: str, session: str, spool_type: str, cursor_in: str,
-             committed_cursor: str, round_seq: int, data: bytes, status: str,
-             filename: str, wall=None, mono=None) -> dict:
+def make_row(
+    *,
+    device: str,
+    session: str,
+    spool_type: str,
+    cursor_in: str,
+    committed_cursor: str,
+    round_seq: int,
+    data: bytes,
+    status: str,
+    filename: str,
+    wall=None,
+    mono=None,
+) -> dict:
     """One committed-round ledger line (brief §3 schema + the co-signed contract additions).
 
     Cursors are VERBATIM device stamps — no localisation here (Clock Contract: the consumer owns
@@ -165,8 +176,7 @@ def make_row(*, device: str, session: str, spool_type: str, cursor_in: str,
         "committed_cursor": committed_cursor,
         "round_seq": round_seq,
         "file": filename,
-        "round": {"from": cursor_in, "bytes": len(data),
-                  "sha256": sha256_bytes(data), "status": status},
+        "round": {"from": cursor_in, "bytes": len(data), "sha256": sha256_bytes(data), "status": status},
     }
 
 
@@ -190,8 +200,7 @@ def write_part(root: str, filename: str, data: bytes) -> str:
     return part
 
 
-def promote(root: str, part_path: str, filename: str, *, expected_sha: str,
-            expected_len: int) -> str:
+def promote(root: str, part_path: str, filename: str, *, expected_sha: str, expected_len: int) -> str:
     """Validate then atomically promote a staged round (C2/C3/C4).
 
     Validation RE-READS the staged bytes (a torn or corrupted `.part` fails here and never
@@ -203,8 +212,7 @@ def promote(root: str, part_path: str, filename: str, *, expected_sha: str,
         with open(final, "rb") as fh:
             existing = fh.read()
         if sha256_bytes(existing) != expected_sha:
-            raise SpoolConflictError(
-                f"{filename}: committed bytes differ from this round — refusing to overwrite")
+            raise SpoolConflictError(f"{filename}: committed bytes differ from this round — refusing to overwrite")
         if os.path.exists(part_path):
             os.remove(part_path)
         return final
@@ -212,8 +220,8 @@ def promote(root: str, part_path: str, filename: str, *, expected_sha: str,
         staged = fh.read()
     if len(staged) != expected_len or sha256_bytes(staged) != expected_sha:
         raise SpoolValidationError(
-            f"{filename}: staged round failed validation "
-            f"(len {len(staged)} vs {expected_len}) — not promoting")
+            f"{filename}: staged round failed validation (len {len(staged)} vs {expected_len}) — not promoting"
+        )
     os.replace(part_path, final)
     dir_fd = os.open(os.path.join(root, COMMITTED_DIR), os.O_RDONLY)
     try:
@@ -223,10 +231,20 @@ def promote(root: str, part_path: str, filename: str, *, expected_sha: str,
     return final
 
 
-async def sync_spool(pull_round, root: str, *, device: str, session: str,
-                     spool_type: str = "Summary", epoch_start: str,
-                     max_rounds: int = 64, revalidate=None, on_transition=None,
-                     wall=None, mono=None) -> dict:
+async def sync_spool(
+    pull_round,
+    root: str,
+    *,
+    device: str,
+    session: str,
+    spool_type: str = "Summary",
+    epoch_start: str,
+    max_rounds: int = 64,
+    revalidate=None,
+    on_transition=None,
+    wall=None,
+    mono=None,
+) -> dict:
     """Drive one transactional sync pass: rounds from the last committed cursor to a terminal.
 
     `pull_round(spool_type, from_dt) -> (bytes, more, next_from)` is INJECTED (production binds
@@ -250,8 +268,7 @@ async def sync_spool(pull_round, root: str, *, device: str, session: str,
     # annotation mypy joins the literal's value types to `object | None`, so `summary["bytes"] += len(...)`
     # read as `None + int` AND `str + int` on the same line: four errors from one un-annotated literal,
     # none of them a real defect.
-    summary: dict[str, Any] = {"rounds_committed": 0, "bytes": 0, "cursor": cursor,
-                               "stopped": None, "failure": None}
+    summary: dict[str, Any] = {"rounds_committed": 0, "bytes": 0, "cursor": cursor, "stopped": None, "failure": None}
     if on_transition is not None:
         on_transition("SYNCING", f"spool sync from {cursor}")
     for _ in range(max_rounds):
@@ -303,10 +320,19 @@ async def sync_spool(pull_round, root: str, *, device: str, session: str,
             break
         part = write_part(root, filename, body)
         promote(root, part, filename, expected_sha=sha, expected_len=len(body))
-        row = make_row(device=device, session=session, spool_type=spool_type,
-                       cursor_in=cursor, committed_cursor=committed_cursor,
-                       round_seq=round_seq, data=body, status=status,
-                       filename=filename, wall=wall, mono=mono)
+        row = make_row(
+            device=device,
+            session=session,
+            spool_type=spool_type,
+            cursor_in=cursor,
+            committed_cursor=committed_cursor,
+            round_seq=round_seq,
+            data=body,
+            status=status,
+            filename=filename,
+            wall=wall,
+            mono=mono,
+        )
         append_ledger(root, row)
         seen.add((cursor, sha))
         round_seq += 1

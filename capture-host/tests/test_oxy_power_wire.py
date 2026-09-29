@@ -8,6 +8,7 @@ stored-session pull that records every attempt, and the presence observer that p
 A gate that exists and is consulted by nobody is this repo's dominant defect class; each test here drives
 a real daemon loop against a fake pull and reads what the engine recorded.
 """
+
 import asyncio
 import os
 import sys
@@ -54,6 +55,7 @@ def _stop_after(monkeypatch, n=1):
         calls["n"] += 1
         if calls["n"] >= n:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     return calls
 
@@ -81,6 +83,7 @@ def _fake_pull(monkeypatch, result=None, raise_=None):
         if raise_ is not None:
             raise raise_
         return result if result is not None else {"new_files": [], "out_dir": root}
+
     monkeypatch.setattr(capture, "pull_oxyii_session", fake)
     return calls
 
@@ -91,7 +94,7 @@ def test_charger_pull_is_vetoed_while_the_ring_is_in_cooldown_and_the_latch_is_n
     `_CHARGER_PULLED` is marked, so the trigger is still armed when the cooldown lifts."""
     capture.STATUS["devices"]["Ring"] = {"charging": True}
     pw = capture._power_for("Ring", RING)
-    pw.note_cooldown(1e12, "restart storm hold")           # far future
+    pw.note_cooldown(1e12, "restart storm hold")  # far future
     calls = _fake_pull(monkeypatch)
     _stop_after(monkeypatch, 2)
     _run(capture.charger_pull_poller(_charger_cfg(), str(tmp_path)))
@@ -170,7 +173,7 @@ def test_power_observe_reads_the_other_axes_from_status_when_not_told(monkeypatc
     capture._power_observe("Ring", battery=5)
     assert pw.cache.battery is oxy_power.BatteryBand.CRITICAL
     capture.STATUS["devices"]["Ring"] = {}
-    capture._power_observe("Ring")                     # worn None, rec None: UNKNOWN moves nothing
+    capture._power_observe("Ring")  # worn None, rec None: UNKNOWN moves nothing
     assert pw.cache.rearm_stage == "recording"
 
 
@@ -195,11 +198,14 @@ def test_the_power_gate_is_ring_only_a_polar_charger_pull_is_untouched(tmp_path,
     calls = []
 
     async def fake_polar(dev, root):
-        calls.append(dev["name"]); return {"new_files": []}
+        calls.append(dev["name"])
+        return {"new_files": []}
+
     monkeypatch.setattr(capture, "pull_polar_offline_all", fake_polar)
     _stop_after(monkeypatch, 2)
-    _run(capture.charger_pull_poller({"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [h10]},
-                                     str(tmp_path)))
+    _run(
+        capture.charger_pull_poller({"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [h10]}, str(tmp_path))
+    )
     assert calls == ["H10"]
     assert "H10" not in capture._POWER
 
@@ -212,10 +218,12 @@ def test_a_busy_slot_on_a_polar_charger_pull_touches_no_engine(tmp_path, monkeyp
 
     async def busy_polar(dev, root):
         raise capture.offline_lock.OfflineBusy("held")
+
     monkeypatch.setattr(capture, "pull_polar_offline_all", busy_polar)
     _stop_after(monkeypatch, 2)
-    _run(capture.charger_pull_poller({"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [h10]},
-                                     str(tmp_path)))
+    _run(
+        capture.charger_pull_poller({"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [h10]}, str(tmp_path))
+    )
     assert "24:AC:AC:02:84:96" not in capture._CHARGER_PULLED, "the latch re-arms for the next tick"
     assert "H10" not in capture._POWER
     assert "power" not in capture.STATUS
@@ -279,23 +287,29 @@ def test_hourly_net_busy_slot_is_resource_wait_and_a_failure_ends_the_cycle(tmp_
 
 # ── pull_oxyii_session records every attempt (§10/§21) ──────────────────────────────────────────────
 def _quiet_pull_env(monkeypatch):
-    async def no_sleep(_s): return None
+    async def no_sleep(_s):
+        return None
+
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
 
-    async def hci(): return None
+    async def hci():
+        return None
+
     monkeypatch.setattr(capture, "adapter_hci", hci)
     capture.STATUS["devices"]["Ring"] = {"connected": False}
 
 
 def test_a_committed_pull_is_recorded_with_its_files_and_bytes(tmp_path, monkeypatch):
     import pull_session
+
     _quiet_pull_env(monkeypatch)
     f = tmp_path / "Wellue_O2Ring-S_S1_20260905_STORED.dat"
     f.write_bytes(b"x" * 123)
-    ghost = str(tmp_path / "vanished.dat")               # a file the pull named but that is gone: 0, not a raise
+    ghost = str(tmp_path / "vanished.dat")  # a file the pull named but that is gone: 0, not a raise
 
     async def fake_pull(address, out_dir, **kw):
         return [str(f), ghost]
+
     monkeypatch.setattr(pull_session, "pull", fake_pull)
     r = _run(capture.pull_oxyii_session(_ring(), str(tmp_path), trigger="charger"))
     assert r["ok"] is True
@@ -311,10 +325,12 @@ def test_a_committed_pull_is_recorded_with_its_files_and_bytes(tmp_path, monkeyp
 def test_a_failed_pull_is_a_typed_strike(tmp_path, monkeypatch):
     import pull_session
     from bleak.exc import BleakError
+
     _quiet_pull_env(monkeypatch)
 
     async def fake_pull(address, out_dir, **kw):
         raise BleakError("Device with address D1:98:62:7C:92:B3 was not found")
+
     monkeypatch.setattr(pull_session, "pull", fake_pull)
     with pytest.raises(BleakError):
         _run(capture.pull_oxyii_session(_ring(), str(tmp_path), trigger="hourly"))
@@ -331,17 +347,22 @@ def test_a_timed_out_pull_is_a_TIMEOUT_strike(tmp_path, monkeypatch):
     neuter the never-returning pull and the deadline could not elapse. Real (short) sleeps instead."""
     import pull_session
 
-    async def hci(): return None
+    async def hci():
+        return None
+
     monkeypatch.setattr(capture, "adapter_hci", hci)
     capture.STATUS["devices"]["Ring"] = {"connected": False}
 
-    async def never(*a, **k): await asyncio.sleep(3600)
+    async def never(*a, **k):
+        await asyncio.sleep(3600)
+
     monkeypatch.setattr(pull_session, "pull", never)
     monkeypatch.setattr(capture, "_OFFLINE_OP_TIMEOUT_S", 0.01)
 
     async def go():
         with pytest.raises(asyncio.TimeoutError):
             await capture.pull_oxyii_session(_ring(), str(tmp_path))
+
     _run(go())
     pw = capture._POWER["Ring"]
     assert pw.cache.last_failure is oxy_power.FailureClass.TIMEOUT
@@ -353,10 +374,12 @@ def test_three_strikes_cool_the_ring_down_for_half_an_hour(tmp_path, monkeypatch
     """§10 — the whole chain through the real pull wrapper: strike, strike, COOLDOWN; then the charger
     poller refuses for STRIKE_COOLDOWN_S."""
     import pull_session
+
     _quiet_pull_env(monkeypatch)
 
     async def fake_pull(address, out_dir, **kw):
         raise RuntimeError("0xE1 timeout")
+
     monkeypatch.setattr(pull_session, "pull", fake_pull)
     for _ in range(3):
         with pytest.raises(RuntimeError):
@@ -372,18 +395,22 @@ def test_three_strikes_cool_the_ring_down_for_half_an_hour(tmp_path, monkeypatch
 # ── the presence observer picks its cadence (§3/§6/§7) ──────────────────────────────────────────────
 def _present(now):
     import oxy_presence
-    return oxy_presence.Presence(state=oxy_presence.OxyPresState.PRESENT, sightings=1, last_seen=now,
-                                 reason="advert seen")
+
+    return oxy_presence.Presence(
+        state=oxy_presence.OxyPresState.PRESENT, sightings=1, last_seen=now, reason="advert seen"
+    )
 
 
 def _absent(now):
     import oxy_presence
-    return oxy_presence.Presence(state=oxy_presence.OxyPresState.ABSENT, sightings=0, last_seen=None,
-                                 reason="no advert")
+
+    return oxy_presence.Presence(
+        state=oxy_presence.OxyPresState.ABSENT, sightings=0, last_seen=None, reason="no advert"
+    )
 
 
 def test_scan_pause_is_the_window_when_no_ring_is_named():
-    capture._PRESENCE[RING] = _absent(0.0)             # a presence with no name has no engine to feed
+    capture._PRESENCE[RING] = _absent(0.0)  # a presence with no name has no engine to feed
     assert capture._power_scan_pause({}, 10.0, 1.0) == 10.0
     assert capture._POWER == {}
 
@@ -402,7 +429,7 @@ def test_scan_pause_follows_the_presence_transition_low_moderate_responsive():
     assert pw.state is oxy_power.PowerState.DEVICE_DETECTED
     assert pw.counters.sightings == 1 and pw.cache.generation == 1
 
-    capture.STATUS["devices"]["Ring"] = {"oxy_recording": "end_candidate"}     # a session just closed
+    capture.STATUS["devices"]["Ring"] = {"oxy_recording": "end_candidate"}  # a session just closed
     assert capture._power_scan_pause({RING: 3.0}, 10.0, 3.0) == oxy_power.SCAN_RESPONSIVE.interval_s
     assert capture.STATUS["power"]["Ring"]["counters"]["scan_seconds"] == 30.0
 
@@ -426,6 +453,7 @@ def test_the_presence_loop_sleeps_for_the_policy_interval_not_the_window(monkeyp
     """The fixed `sleep(window_s)` was a 50 % duty cycle around the clock; with every ring absent the
     loop now sleeps SCAN_LOW.interval_s between 10 s windows."""
     import oxy_presence
+
     capture._PRESENCE_NAMES[RING] = "Ring"
     capture.STATUS["devices"]["Ring"] = {}
     slept = []
@@ -436,6 +464,7 @@ def test_the_presence_loop_sleeps_for_the_policy_interval_not_the_window(monkeyp
     async def sleep(s):
         slept.append(s)
         capture._STOP.set()
+
     monkeypatch.setattr(oxy_presence, "witness_chain", lambda w: [])
     monkeypatch.setattr(oxy_presence, "witness_summary", lambda ch: "")
     _run(capture._presence_scan_loop(addresses=[RING], window_s=10.0, scan=scan, sleep=sleep, mono=lambda: 100.0))

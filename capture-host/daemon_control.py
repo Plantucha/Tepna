@@ -79,14 +79,19 @@ RESTART_OWED = "RESTART-OWED"
 # happening.
 # verb -> (canonical word on the argv, arity, which helper). The canonical word is STORED, never the
 # caller's string; `rebind` has NO word because its helper takes the port as its only argument.
-_VERBS = {"restart": ("restart", 0, HELPER), "status": ("status", 0, HELPER),
-          "stop": ("stop", 1, HELPER), "reload": ("reload", 0, HELPER),
-          "radio": ("radio", 0, HELPER), "reboot": ("reboot", 0, HELPER),
-          "rebind": ("", 1, BTRESET),
-          # The helper passes `--no-restart` on to the updater: the button must SEE the report, and a
-          # deploy that restarted would kill the server writing it. Forcing is a separate, explicit act
-          # the operator takes afterwards with the Restart button.
-          "deploy": ("deploy", 0, HELPER)}
+_VERBS = {
+    "restart": ("restart", 0, HELPER),
+    "status": ("status", 0, HELPER),
+    "stop": ("stop", 1, HELPER),
+    "reload": ("reload", 0, HELPER),
+    "radio": ("radio", 0, HELPER),
+    "reboot": ("reboot", 0, HELPER),
+    "rebind": ("", 1, BTRESET),
+    # The helper passes `--no-restart` on to the updater: the button must SEE the report, and a
+    # deploy that restarted would kill the server writing it. Forcing is a separate, explicit act
+    # the operator takes afterwards with the Restart button.
+    "deploy": ("deploy", 0, HELPER),
+}
 _ARITY = {k: v[1] for k, v in _VERBS.items()}
 KILLS_SELF = frozenset({"restart", "stop", "reboot"})
 
@@ -132,8 +137,7 @@ def coerce_minutes(value, *, default: int = DEFAULT_STOP_MINUTES) -> int:
     if minutes != float(value):
         raise VerbError(f"minutes must be a whole number, got {value!r}")
     if not MIN_STOP_MINUTES <= minutes <= MAX_STOP_MINUTES:
-        raise VerbError(
-            f"minutes must be {MIN_STOP_MINUTES}–{MAX_STOP_MINUTES}, got {minutes}")
+        raise VerbError(f"minutes must be {MIN_STOP_MINUTES}–{MAX_STOP_MINUTES}, got {minutes}")
     return minutes
 
 
@@ -232,6 +236,8 @@ def run(verb, minutes=None, *, timeout: float = 30.0, runner=subprocess.run) -> 
         return res
     hint = ""
     if "password" in out.lower() or "sudo:" in out.lower():
-        hint = (" — the NOPASSWD grant for " + HELPER + " is missing on this host; this is a DEPLOY "
-                "gap, not a failing daemon")
+        hint = (
+            " — the NOPASSWD grant for " + HELPER + " is missing on this host; this is a DEPLOY "
+            "gap, not a failing daemon"
+        )
     return {"ok": False, "verb": verb, "exit": r.returncode, "error": (out[-400:] or "helper failed") + hint}

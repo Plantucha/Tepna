@@ -22,16 +22,24 @@ def _run(coro):
 # still passed (and, in a sandbox, made a live network call whose failure was swallowed).
 def test_notifier_disabled_without_a_url():
     tried = []
-    async def never(url, payload): tried.append(url); return True
+
+    async def never(url, payload):
+        tried.append(url)
+        return True
+
     n = alerts.Notifier(url=None, enabled=True, _post=never)
     assert n.enabled is False
-    assert _run(n.send("t", "m")) is False        # disabled → never posts
+    assert _run(n.send("t", "m")) is False  # disabled → never posts
     assert tried == [], "a notifier with no URL must not reach the poster at all"
 
 
 def test_notifier_disabled_when_flag_off():
     tried = []
-    async def never(url, payload): tried.append(url); return True
+
+    async def never(url, payload):
+        tried.append(url)
+        return True
+
     n = alerts.Notifier(url="https://x", enabled=False, _post=never)
     assert n.enabled is False
     assert _run(n.send("t", "m")) is False
@@ -40,7 +48,11 @@ def test_notifier_disabled_when_flag_off():
 
 def test_notifier_sends_via_the_injected_poster():
     sent = []
-    async def fake_post(url, payload): sent.append((url, payload)); return True
+
+    async def fake_post(url, payload):
+        sent.append((url, payload))
+        return True
+
     n = alerts.Notifier(url="https://hook", enabled=True, _post=fake_post)
     assert _run(n.send("Title", "Body")) is True
     assert sent == [("https://hook", {"title": "Title", "message": "Body"})]
@@ -48,54 +60,71 @@ def test_notifier_sends_via_the_injected_poster():
 
 def test_notifier_dedupes_within_the_window():
     calls = {"n": 0}
-    async def fake_post(url, payload): calls["n"] += 1; return True
+
+    async def fake_post(url, payload):
+        calls["n"] += 1
+        return True
+
     n = alerts.Notifier(url="https://hook", enabled=True, _post=fake_post)
     assert _run(n.send("t", "m", key="H10", dedupe_sec=60, now=100.0)) is True
-    assert _run(n.send("t", "m", key="H10", dedupe_sec=60, now=130.0)) is False   # 30 s < 60 s → suppressed
-    assert _run(n.send("t", "m", key="H10", dedupe_sec=60, now=200.0)) is True    # window elapsed → fires
+    assert _run(n.send("t", "m", key="H10", dedupe_sec=60, now=130.0)) is False  # 30 s < 60 s → suppressed
+    assert _run(n.send("t", "m", key="H10", dedupe_sec=60, now=200.0)) is True  # window elapsed → fires
     assert calls["n"] == 2
 
 
 def test_notifier_reset_reopens_the_dedupe_window():
     calls = {"n": 0}
-    async def fake_post(url, payload): calls["n"] += 1; return True
+
+    async def fake_post(url, payload):
+        calls["n"] += 1
+        return True
+
     n = alerts.Notifier(url="https://hook", enabled=True, _post=fake_post)
     _run(n.send("t", "m", key="H10", dedupe_sec=60, now=100.0))
     n.reset("H10")
-    assert _run(n.send("t", "m", key="H10", dedupe_sec=60, now=110.0)) is True     # reset → immediate re-fire
+    assert _run(n.send("t", "m", key="H10", dedupe_sec=60, now=110.0)) is True  # reset → immediate re-fire
     assert calls["n"] == 2
 
 
 def test_notifier_swallows_a_poster_exception():
-    async def boom(url, payload): raise RuntimeError("network down")
+    async def boom(url, payload):
+        raise RuntimeError("network down")
+
     n = alerts.Notifier(url="https://hook", enabled=True, _post=boom)
-    assert _run(n.send("t", "m")) is False        # a webhook failure must never propagate
+    assert _run(n.send("t", "m")) is False  # a webhook failure must never propagate
 
 
 def test_offline_alert_due():
-    assert alerts.offline_alert_due(None, 100.0, 300) is False       # connected → never due
-    assert alerts.offline_alert_due(100.0, 200.0, 300) is False      # 100 s < 300 s
-    assert alerts.offline_alert_due(100.0, 500.0, 300) is True       # 400 s ≥ 300 s
+    assert alerts.offline_alert_due(None, 100.0, 300) is False  # connected → never due
+    assert alerts.offline_alert_due(100.0, 200.0, 300) is False  # 100 s < 300 s
+    assert alerts.offline_alert_due(100.0, 500.0, 300) is True  # 400 s ≥ 300 s
 
 
 def _serve(handler):
     """Run a one-route aiohttp server and POST to it via the REAL _http_post, returning its verdict."""
+
     async def go():
-        app = web.Application(); app.router.add_post("/hook", handler)
-        srv = TestServer(app); cl = TestClient(srv); await cl.start_server()
+        app = web.Application()
+        app.router.add_post("/hook", handler)
+        srv = TestServer(app)
+        cl = TestClient(srv)
+        await cl.start_server()
         try:
             url = str(cl.make_url("/hook"))
             return await alerts._http_post(url, {"title": "T", "message": "M"})
         finally:
             await cl.close()
+
     return _run(go())
 
 
 def test_http_post_returns_true_on_2xx():
     got = {}
+
     async def handler(req):
         got["body"] = await req.json()
-        return web.json_response({"ok": True})     # 200
+        return web.json_response({"ok": True})  # 200
+
     assert _serve(handler) is True
     assert got["body"] == {"title": "T", "message": "M"}
 
@@ -103,6 +132,7 @@ def test_http_post_returns_true_on_2xx():
 def test_http_post_returns_false_on_5xx():
     async def handler(req):
         return web.Response(status=503)
+
     assert _serve(handler) is False
 
 
@@ -112,8 +142,8 @@ def test_offline_alert_suppressed():
     The real 2026-07-29 case: a COOSPO strap nobody was wearing made the box contradict itself six
     minutes apart — "optional backup device not present — keeping a quiet eye out", then "has been
     offline for ~5 min — capture is missing it" plus a webhook, on every service start."""
-    assert alerts.offline_alert_suppressed(True, False) is True    # optional, never joined → quiet
-    assert alerts.offline_alert_suppressed(True, True) is False    # optional but WAS contributing → alert
+    assert alerts.offline_alert_suppressed(True, False) is True  # optional, never joined → quiet
+    assert alerts.offline_alert_suppressed(True, True) is False  # optional but WAS contributing → alert
     assert alerts.offline_alert_suppressed(False, False) is False  # required and absent → the whole point
     assert alerts.offline_alert_suppressed(False, True) is False
     # `optional` arrives straight from YAML, so absent/None must read as "not optional" — a required
@@ -125,6 +155,7 @@ def test_offline_alert_suppressed():
 # alerts.py measured 87/110 mutants killed at 100% statement+branch coverage. Two survivors were real
 # gaps rather than untestable noise, and both are on the fail-safe side of the module — the side that
 # decides whether a box with no webhook configured stays silent. Each test below kills one named mutant.
+
 
 def test_a_notifier_constructed_without_a_flag_defaults_to_DISABLED():
     """Kills Notifier.__init__ `enabled: bool = False` → `True`.
@@ -154,15 +185,14 @@ def test_un_keyed_alerts_do_not_dedupe_against_each_other():
     n = alerts.Notifier(url="https://hook", enabled=True, _post=fake_post)
     assert _run(n.send("disk low", "m", dedupe_sec=300, now=1000.0)) is True
     assert _run(n.send("sensor offline", "m", dedupe_sec=300, now=1001.0)) is True
-    assert sent == ["disk low", "sensor offline"], (
-        f"an un-keyed alert suppressed an unrelated one: {sent}"
-    )
+    assert sent == ["disk low", "sensor offline"], f"an un-keyed alert suppressed an unrelated one: {sent}"
 
 
 # ── _http_post: the bound and the accepted status range ─────────────────────────────────────────────
 # `Notifier._post` is injectable, so every existing test replaces it — which means the ONE function
 # that actually talks to the network was never executed by anything. Its timeout and its status test
 # were entirely unobserved.
+
 
 def test_the_webhook_post_is_bounded_and_only_2xx_counts_as_delivered(monkeypatch):
     """Two separate things, both invisible from `send()`'s return value.
@@ -215,13 +245,13 @@ def test_the_webhook_post_is_bounded_and_only_2xx_counts_as_delivered(monkeypatc
 
     for status, delivered in ((200, True), (299, True), (300, False), (301, False), (500, False)):
         seen["status"] = status
-        assert _run(alerts._http_post("http://hook", {})) is delivered, \
-            f"{status} must read as delivered={delivered}"
+        assert _run(alerts._http_post("http://hook", {})) is delivered, f"{status} must read as delivered={delivered}"
 
 
 def test_a_failed_delivery_is_logged_not_just_swallowed(caplog):
     """CAPTURE-HOST-DEEP-AUDIT §C1: the exception must not take down capture, but it must leave a
     record — a delivery that never happened was previously indistinguishable from one that did."""
+
     async def boom(url, payload):
         raise OSError("no route to host")
 
@@ -248,9 +278,11 @@ def test_a_non_2xx_rejection_is_also_logged(caplog):
 # failure. Nothing said whether the other 32 landed, because success was silent and nothing was
 # published. These pin the three states apart, because collapsing them is the whole defect.
 
+
 def test_a_delivered_alert_is_recorded_with_a_timestamp():
     async def ok_post(url, payload):
         return True
+
     n = alerts.Notifier(url="https://hook", enabled=True, _post=ok_post)
     assert asyncio.run(n.send("t", "m")) is True
     st = n.stats()
@@ -272,6 +304,7 @@ def test_ENABLED_BUT_NEVER_DELIVERED_is_its_own_state_not_healthy():
 def test_a_FAILED_send_records_why_and_does_not_look_delivered():
     async def boom(url, payload):
         raise TimeoutError()
+
     n = alerts.Notifier(url="https://hook", enabled=True, _post=boom)
     assert asyncio.run(n.send("t", "m")) is False
     st = n.stats()
@@ -282,6 +315,7 @@ def test_a_FAILED_send_records_why_and_does_not_look_delivered():
 def test_a_NON_2XX_is_a_failure_not_a_silent_success():
     async def rejected(url, payload):
         return False
+
     n = alerts.Notifier(url="https://hook", enabled=True, _post=rejected)
     assert asyncio.run(n.send("t", "m")) is False
     assert n.stats()["failed"] == 1 and n.stats()["last_ok"] is None
@@ -295,6 +329,7 @@ def test_a_SUPPRESSED_alert_is_counted_and_never_counted_as_sent():
     async def ok_post(url, payload):
         calls.append(payload)
         return True
+
     n = alerts.Notifier(url="https://hook", enabled=True, _post=ok_post)
     assert asyncio.run(n.send("t", "m", key="k", dedupe_sec=60, now=100.0)) is True
     assert asyncio.run(n.send("t", "m", key="k", dedupe_sec=60, now=110.0)) is False
@@ -311,6 +346,7 @@ def test_a_LATER_success_clears_the_error_so_the_card_recovers():
         if state["fail"]:
             raise TimeoutError()
         return True
+
     n = alerts.Notifier(url="https://hook", enabled=True, _post=flaky)
     asyncio.run(n.send("t", "m"))
     assert n.stats()["last_error"] is not None

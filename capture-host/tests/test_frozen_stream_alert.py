@@ -19,6 +19,7 @@ Each clause earns its place by excluding a false positive that would otherwise f
   • "connected" — a sensor out of range or switched off is already covered by the offline alert.
   • "not charging" — a docked ring is silent by design, every single morning.
 """
+
 import pytest
 
 import alerts
@@ -72,6 +73,7 @@ def test_every_frozen_device_is_reported_not_just_the_first():
 # ── the fact it decides on ────────────────────────────────────────────────────────────────────
 def _cap(night, name, rows, mtime):
     import os
+
     p = night / name
     p.write_text("h\n" + "x\n" * rows)
     os.utime(p, (mtime, mtime))
@@ -85,8 +87,10 @@ def test_summarize_reports_how_long_each_device_has_been_silent(tmp_path):
     night.mkdir()
     _cap(night, "Polar_H10_02849638_20260726000000_ECG.txt", 1000, 1_700_000_000)
     _cap(night, "Polar_VeritySense_0C301E3F_20260726000000_PPG.txt", 1000, 1_700_000_000 - 4000)
-    devs = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]},
-            {"name": "Verity", "device_id": "0C301E3F", "streams": ["ppg"]}]
+    devs = [
+        {"name": "H10", "device_id": "02849638", "streams": ["ecg"]},
+        {"name": "Verity", "device_id": "0C301E3F", "streams": ["ppg"]},
+    ]
     got = {d["name"]: d.get("silent_sec") for d in nightqc.summarize(str(night), devs)["devices"]}
     assert got["H10"] == 0, "the device holding the newest write is silent for zero seconds"
     assert got["Verity"] == 4000
@@ -96,8 +100,10 @@ def test_summarize_reports_none_for_a_device_that_wrote_nothing(tmp_path):
     night = tmp_path / "2026-07-26"
     night.mkdir()
     _cap(night, "Polar_H10_02849638_20260726000000_ECG.txt", 1000, 1_700_000_000)
-    devs = [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]},
-            {"name": "Absent", "device_id": "ZZZZ", "streams": ["ppg"]}]
+    devs = [
+        {"name": "H10", "device_id": "02849638", "streams": ["ecg"]},
+        {"name": "Absent", "device_id": "ZZZZ", "streams": ["ppg"]},
+    ]
     got = {d["name"]: d.get("silent_sec") for d in nightqc.summarize(str(night), devs)["devices"]}
     assert got["Absent"] is None
 
@@ -114,8 +120,10 @@ def test_a_live_status_that_is_not_a_dict_is_NAMED_not_stepped_over():
     — production only ever writes `setdefault(name, {})` — but the next occurrence says which device and
     what arrived, which is the difference between a defect and a rumour."""
     qc = {"devices": [{"name": "H10", "silent_sec": 9999.0}]}
-    for fn, args in ((alerts.arrival_canary, (qc, {"H10": "connected"})),
-                     (alerts.frozen_devices, (qc, {"H10": "connected"}, 60.0))):
+    for fn, args in (
+        (alerts.arrival_canary, (qc, {"H10": "connected"})),
+        (alerts.frozen_devices, (qc, {"H10": "connected"}, 60.0)),
+    ):
         with pytest.raises(TypeError) as ei:
             fn(*args)
         msg = str(ei.value)
@@ -139,6 +147,7 @@ def test_a_live_status_that_is_not_a_dict_is_NAMED_not_stepped_over():
 # inside it: `for d in "H10"` is legal, yields 'H','1','0', and reports a fault about a device that
 # does not exist rather than failing outright.
 
+
 def test_a_string_devices_value_is_REFUSED_not_iterated_as_characters():
     """`qc["devices"]` must be a list. A str is iterable, so an unguarded loop walks its letters."""
     with pytest.raises(TypeError) as ei:
@@ -158,9 +167,7 @@ def test_a_non_dict_device_entry_is_REFUSED_naming_its_index_and_value():
 
 def test_a_well_formed_summary_still_works():
     """ANTI-VACUITY: the guards must not convict the shape the producer actually emits."""
-    out = alerts.frozen_devices(
-        {"devices": [{"name": "H10", "silent_sec": 900}]},
-        {"H10": {"connected": True}}, 600.0)
+    out = alerts.frozen_devices({"devices": [{"name": "H10", "silent_sec": 900}]}, {"H10": {"connected": True}}, 600.0)
     assert out == ["H10"]
     assert alerts.frozen_devices({"devices": []}, {}, 1.0) == []
     assert alerts.frozen_devices({}, {}, 1.0) == []

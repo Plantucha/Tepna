@@ -107,6 +107,7 @@ def _body(rel):
 
 # ── 1 · every script parses, and says who owns it ────────────────────────────────────────────────────
 
+
 def test_every_shell_script_parses():
     """A syntax error in a deploy script is discovered at 3 a.m. on the box otherwise. `-n` reads the
     whole file without running a single command, so this is safe for scripts that would reboot a box."""
@@ -139,7 +140,8 @@ def test_shellcheck_is_clean_at_the_strictest_level():
         pytest.skip("shellcheck not installed locally (`pip install shellcheck-py`); CI runs it")
     r = subprocess.run(
         [exe, "--severity=style", "--format=gcc", *[os.path.join(HERE, s) for s in _all_scripts()]],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert r.returncode == 0, "shellcheck findings:\n" + (r.stdout or r.stderr)
 
@@ -268,6 +270,7 @@ def test_the_two_installers_write_separate_sudoers_files():
 
 # ── 3 · the remaining root-only scripts ──────────────────────────────────────────────────────────────
 
+
 def test_the_readwritepaths_dropin_tolerates_absent_paths():
     """`ReadWritePaths=` without the `-` prefix makes systemd REFUSE TO START the unit when a listed path
     does not exist on this box — turning a permissions fix into a dead capture daemon."""
@@ -327,6 +330,6 @@ def test_unwedge_arms_the_restore_trap_before_it_stops_recording():
     # Bounded on the LINE, not a 40-char guess: `trap restore EXIT INT TERM` is a single line, so the
     # line IS the property's scope and cannot drift out of it. A byte window here was a guess about
     # how long a trailing comment happens to be.
-    trap_line = body[body.rfind("\n", 0, trap) + 1:body.index("\n", trap)]
+    trap_line = body[body.rfind("\n", 0, trap) + 1 : body.index("\n", trap)]
     assert "INT TERM" in trap_line, "^C and SIGTERM must restore too, not just a clean exit"
     assert "systemctl start tepna-capture" in body, "the trap has to actually restart it"

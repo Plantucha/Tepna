@@ -25,7 +25,7 @@ def sd_notify(state: str) -> bool:
     addr = os.environ.get("NOTIFY_SOCKET")
     if not addr:
         return False
-    if addr[0] == "@":                       # Linux abstract-namespace socket → leading NUL
+    if addr[0] == "@":  # Linux abstract-namespace socket → leading NUL
         addr = "\0" + addr[1:]
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:

@@ -12,6 +12,7 @@ a comment saying why nothing was hidden. `capture.py` — the daemon, where a sw
 a night — is held at ZERO unexplained. The rest of the tree is a RATCHET: the counts below are debt,
 not approval, and they may only go down.
 """
+
 import ast
 import os
 
@@ -62,7 +63,8 @@ def test_CAPTURE_PY_HAS_NO_UNEXPLAINED_SWALLOWED_EXCEPTION():
     only evidence there was."""
     bad = unexplained(module_source("capture.py"))
     assert not bad, "capture.py: swallowed exceptions with no reason and no log:\n" + "\n".join(
-        f"  capture.py:{ln}  {txt}" for ln, txt in bad)
+        f"  capture.py:{ln}  {txt}" for ln, txt in bad
+    )
 
 
 def test_THE_REST_OF_THE_TREE_ONLY_GETS_BETTER():
@@ -100,10 +102,12 @@ def test_THE_GATE_BITES_ITS_OWN_SHAPES():
     for form in ("pass", "continue", "break"):
         body = f"for i in []:\n    try:\n        f()\n    except Exception:\n        {form}\n"
         assert unexplained(body), f"a bare `{form}` handler was not caught"
-        assert not unexplained(body.replace(form, f"{form}  # deliberate: why")), \
+        assert not unexplained(body.replace(form, f"{form}  # deliberate: why")), (
             f"a commented `{form}` handler was flagged"
-        assert not unexplained(body.replace("except Exception:", "except Exception:  # why")), \
+        )
+        assert not unexplained(body.replace("except Exception:", "except Exception:  # why")), (
             "a handler explained on the CLAUSE line was flagged"
+        )
     # ...and a handler that does something with the failure is not this gate's business
     assert not unexplained("try:\n    f()\nexcept Exception:\n    log.warning('x')\n")
     assert not unexplained("try:\n    f()\nexcept Exception:\n    x = None\n    pass\n")

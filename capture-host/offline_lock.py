@@ -19,7 +19,7 @@
 from __future__ import annotations
 import contextlib
 
-_busy: str | None = None          # label of the device currently holding the single download slot
+_busy: str | None = None  # label of the device currently holding the single download slot
 
 
 class OfflineBusy(RuntimeError):

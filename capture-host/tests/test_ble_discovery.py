@@ -145,8 +145,8 @@ def test_a_contended_sweep_is_reported_as_INCONCLUSIVE_not_as_absence(caplog):
         try:
             _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn, adapters=["hci0", "hci1"]))
         except Exception:
-            pass   # as above: the sweep is expected to fail; its REPORTING is the subject   # the CALL's outcome is not under test — the LOG is, and the assertion below
-                   # is what fails if the classification is wrong
+            pass  # as above: the sweep is expected to fail; its REPORTING is the subject   # the CALL's outcome is not under test — the LOG is, and the assertion below
+            # is what fails if the classification is wrong
     assert any("INCONCLUSIVE" in r.message and "NOT evidence" in r.message for r in caplog.records)
 
 
@@ -158,7 +158,7 @@ def test_a_clean_sweep_is_reported_as_an_ordinary_absence(caplog):
         try:
             _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn, adapters=["hci0", "hci1"]))
         except Exception:
-            pass   # the sweep is expected to fail; its REPORTING is the subject, asserted below
+            pass  # the sweep is expected to fail; its REPORTING is the subject, asserted below
     assert any("not found on any adapter" in r.message for r in caplog.records)
     assert not any("INCONCLUSIVE" in r.message for r in caplog.records)
 
@@ -271,8 +271,7 @@ def test_the_failover_log_NAMES_the_pinned_adapters_exception_type(caplog):
     """`=other` is unreadable without it — 609 of 758 events on the box say only 'other'."""
     conn, _seen = _conn(good="hci2")
     with caplog.at_level("WARNING"):
-        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn,
-                                               adapters=["hci1", "hci2"]))
+        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn, adapters=["hci1", "hci2"]))
     msg = "\n".join(r.getMessage() for r in caplog.records)
     assert "failed over" in msg
     assert "hci1 raised" in msg, f"the pinned adapter's exception TYPE must be named: {msg!r}"
@@ -284,13 +283,13 @@ def test_the_failover_log_caps_the_exception_text_and_flattens_newlines(caplog):
     class whose NAME carries no verdict; bleak's text does ("failed to discover services, device
     disconnected" is a link drop, "Connection was not successful" is not). One line, capped: a
     D-Bus error can carry a multi-line dump, and the failover line is grepped by shape."""
+
     class Chatty(Exception):
         pass
 
     conn, _seen = _conn(good="hci2", err=lambda m: Chatty("line one\n  line two " + "x" * 400))
     with caplog.at_level("WARNING"):
-        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn,
-                                               adapters=["hci1", "hci2"]))
+        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn, adapters=["hci1", "hci2"]))
     line = next(r.getMessage() for r in caplog.records if "failed over" in r.getMessage())
     assert "hci1 raised Chatty('line one line two x" in line, line
     assert "\n" not in line
@@ -305,8 +304,11 @@ def test_falling_back_onto_the_RESERVED_wearables_radio_says_so_SEPARATELY(caplo
     a data-loss trade for the owner to make (#2170), not a logging fix."""
     conn, _seen = _conn(good="hci9")
     with caplog.at_level("WARNING"):
-        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn,
-                                               adapters=["hci1", "hci9"], reserved="hci9"))
+        _run(
+            capture._cpap_connect_any_adapter(
+                "04:CD", "hci1", 8.0, connect=conn, adapters=["hci1", "hci9"], reserved="hci9"
+            )
+        )
     msg = "\n".join(r.getMessage() for r in caplog.records)
     assert "RESERVED wearables radio hci9" in msg, f"the reservation breach must be its own line: {msg!r}"
 
@@ -315,7 +317,10 @@ def test_an_ordinary_failover_does_NOT_claim_a_reservation_breach(caplog):
     """The paired direction: the warning must fire on the breach and only on the breach."""
     conn, _seen = _conn(good="hci2")
     with caplog.at_level("WARNING"):
-        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn,
-                                               adapters=["hci1", "hci2"], reserved="hci9"))
+        _run(
+            capture._cpap_connect_any_adapter(
+                "04:CD", "hci1", 8.0, connect=conn, adapters=["hci1", "hci2"], reserved="hci9"
+            )
+        )
     msg = "\n".join(r.getMessage() for r in caplog.records)
     assert "failed over" in msg and "RESERVED" not in msg, msg

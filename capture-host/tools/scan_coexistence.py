@@ -31,6 +31,7 @@ bounded windows, with a control, instead of discovering it on a night that matte
     .venv/bin/python tools/scan_coexistence.py verdict \
         --windows /srv/tepna/captures/coexistence-windows.jsonl --night /srv/tepna/captures/2026-09-11
 """
+
 from __future__ import annotations
 
 import argparse
@@ -84,7 +85,7 @@ def parse_arrivals(text: str) -> list[tuple[float, str, str]]:
         try:
             ts = _dt.datetime.fromisoformat(parts[0]).timestamp()
         except ValueError:
-            continue        # a half-written tail row is normal on a live night, not an error
+            continue  # a half-written tail row is normal on a live night, not an error
         out.append((ts, parts[1], parts[2]))
     return out
 
@@ -118,8 +119,9 @@ def _rate_and_gap(stamps: list[float], seconds: float):
     return len(stamps) / seconds, max(b - a for a, b in zip(stamps, stamps[1:]))
 
 
-def verdict(pops, windows, *, min_ratio=MIN_DELIVERY_RATIO, max_gap=MAX_GAP_RATIO,
-            min_n=MIN_ARRIVALS_PER_POPULATION) -> dict:
+def verdict(
+    pops, windows, *, min_ratio=MIN_DELIVERY_RATIO, max_gap=MAX_GAP_RATIO, min_n=MIN_ARRIVALS_PER_POPULATION
+) -> dict:
     """Per-stream PASS / FAIL / INCONCLUSIVE against the pre-stated bands. PURE.
 
     ∅ INCONCLUSIVE IS NOT A PASS, and it is not a failure either. A stream the scan never had a chance
@@ -135,8 +137,15 @@ def verdict(pops, windows, *, min_ratio=MIN_DELIVERY_RATIO, max_gap=MAX_GAP_RATI
         r_on, g_on = _rate_and_gap(on, secs["on"])
         r_off, g_off = _rate_and_gap(off, secs["off"])
         if min(len(on), len(off)) < min_n:
-            rows.append({"stream": s, "state": "INCONCLUSIVE", "n_on": len(on), "n_off": len(off),
-                         "why": f"fewer than {min_n} arrivals in a population"})
+            rows.append(
+                {
+                    "stream": s,
+                    "state": "INCONCLUSIVE",
+                    "n_on": len(on),
+                    "n_off": len(off),
+                    "why": f"fewer than {min_n} arrivals in a population",
+                }
+            )
             continue
         d_ratio = (r_on / r_off) if r_off else 0.0
         g_ratio = (g_on / g_off) if (g_on is not None and g_off) else 0.0
@@ -145,12 +154,24 @@ def verdict(pops, windows, *, min_ratio=MIN_DELIVERY_RATIO, max_gap=MAX_GAP_RATI
             bad.append(f"delivery {d_ratio:.3f} < {min_ratio}")
         if g_ratio > max_gap:
             bad.append(f"longest gap {g_ratio:.2f}x > {max_gap}x")
-        rows.append({"stream": s, "state": "FAIL" if bad else "PASS", "n_on": len(on), "n_off": len(off),
-                     "delivery_ratio": round(d_ratio, 4), "gap_ratio": round(g_ratio, 3),
-                     "why": "; ".join(bad) or "within both bands"})
-    overall = ("FAIL" if any(r["state"] == "FAIL" for r in rows)
-               else "INCONCLUSIVE" if (not rows or any(r["state"] == "INCONCLUSIVE" for r in rows))
-               else "PASS")
+        rows.append(
+            {
+                "stream": s,
+                "state": "FAIL" if bad else "PASS",
+                "n_on": len(on),
+                "n_off": len(off),
+                "delivery_ratio": round(d_ratio, 4),
+                "gap_ratio": round(g_ratio, 3),
+                "why": "; ".join(bad) or "within both bands",
+            }
+        )
+    overall = (
+        "FAIL"
+        if any(r["state"] == "FAIL" for r in rows)
+        else "INCONCLUSIVE"
+        if (not rows or any(r["state"] == "INCONCLUSIVE" for r in rows))
+        else "PASS"
+    )
     return {"overall": overall, "seconds": secs, "streams": rows}
 
 
@@ -173,32 +194,69 @@ def verdict_object(v: dict, night: str = "<night>") -> dict:
     inconclusive = [r for r in rows if r["state"] == "INCONCLUSIVE"]
     n = len(rows)
     pop = {"checked": n - len(inconclusive), "eligible": n, "excluded": len(inconclusive)}
-    result = {"streams": n, "outside_bands": len(failed), "inconclusive": len(inconclusive),
-              "bands": {"min_delivery_ratio": MIN_DELIVERY_RATIO, "max_gap_ratio": MAX_GAP_RATIO,
-                        "min_arrivals_per_population": MIN_ARRIVALS_PER_POPULATION},
-              "seconds": v["seconds"],
-              "per_stream": {r["stream"]: {k: r.get(k) for k in ("state", "n_on", "n_off", "delivery_ratio", "gap_ratio")}
-                             for r in rows}}
+    result = {
+        "streams": n,
+        "outside_bands": len(failed),
+        "inconclusive": len(inconclusive),
+        "bands": {
+            "min_delivery_ratio": MIN_DELIVERY_RATIO,
+            "max_gap_ratio": MAX_GAP_RATIO,
+            "min_arrivals_per_population": MIN_ARRIVALS_PER_POPULATION,
+        },
+        "seconds": v["seconds"],
+        "per_stream": {
+            r["stream"]: {k: r.get(k) for k in ("state", "n_on", "n_off", "delivery_ratio", "gap_ratio")} for r in rows
+        },
+    }
     ev = ["capture-host/tools/scan_coexistence.py", night]
     tool = "capture-host/tools/scan_coexistence.py"
     if n == 0:
-        return VD.make(gate=VERDICT_GATE, status="NOT_RUN", population=pop, criterion=VERDICT_CRITERION,
-                       result=None, evidence=ev, tool=tool,
-                       reason="no stream arrived in either window population — nothing to compare")
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="NOT_RUN",
+            population=pop,
+            criterion=VERDICT_CRITERION,
+            result=None,
+            evidence=ev,
+            tool=tool,
+            reason="no stream arrived in either window population — nothing to compare",
+        )
     if failed:
-        return VD.make(gate=VERDICT_GATE, status="FAIL", population=pop, criterion=VERDICT_CRITERION,
-                       result=result, evidence=ev, tool=tool,
-                       reason="; ".join(f"{r['stream']}: {r['why']}" for r in failed))
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="FAIL",
+            population=pop,
+            criterion=VERDICT_CRITERION,
+            result=result,
+            evidence=ev,
+            tool=tool,
+            reason="; ".join(f"{r['stream']}: {r['why']}" for r in failed),
+        )
     if inconclusive:
         # The prose overall is INCONCLUSIVE whether one stream or all of them fell under the minimum:
         # one status for it here too — UNDERPOWERED, the minimum and every count as numbers.
-        return VD.make(gate=VERDICT_GATE, status="UNDERPOWERED", population=pop, criterion=VERDICT_CRITERION,
-                       result=result, evidence=ev, tool=tool,
-                       reason=f"{len(inconclusive)} of {n} stream(s) had fewer than {MIN_ARRIVALS_PER_POPULATION} "
-                              "arrivals in a population: "
-                              + "; ".join(f"{r['stream']} on={r['n_on']} off={r['n_off']}" for r in inconclusive))
-    return VD.make(gate=VERDICT_GATE, status="PASS", population=pop, criterion=VERDICT_CRITERION,
-                   result=result, evidence=ev, tool=tool, reason=None)
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="UNDERPOWERED",
+            population=pop,
+            criterion=VERDICT_CRITERION,
+            result=result,
+            evidence=ev,
+            tool=tool,
+            reason=f"{len(inconclusive)} of {n} stream(s) had fewer than {MIN_ARRIVALS_PER_POPULATION} "
+            "arrivals in a population: "
+            + "; ".join(f"{r['stream']} on={r['n_on']} off={r['n_off']}" for r in inconclusive),
+        )
+    return VD.make(
+        gate=VERDICT_GATE,
+        status="PASS",
+        population=pop,
+        criterion=VERDICT_CRITERION,
+        result=result,
+        evidence=ev,
+        tool=tool,
+        reason=None,
+    )
 
 
 def verdict_sample() -> dict:
@@ -213,6 +271,7 @@ async def _run(adapter: str, cycles: int, window: float, out_path: str) -> int:
     import asyncio
 
     from bleak import BleakScanner
+
     rows: list[dict] = []
     for i in range(cycles):
         for state in ("off", "on"):
@@ -226,29 +285,33 @@ async def _run(adapter: str, cycles: int, window: float, out_path: str) -> int:
                 # ⚠️ CONDITIONAL CONSTRUCTION, not `**kw`. The splat is what mypy fans out across
                 # BleakScanner's overloads (5 errors from one line); `capture._cpap_ble_connect`
                 # carries the same note for BleakClient and solves it the same way — choose the call.
-                cb = lambda d, a: seen.add(d.address)            # noqa: E731
-                scanner = (BleakScanner(detection_callback=cb, scanning_mode="passive", adapter=adapter)
-                           if adapter else
-                           BleakScanner(detection_callback=cb, scanning_mode="passive"))
+                cb = lambda d, a: seen.add(d.address)  # noqa: E731
+                scanner = (
+                    BleakScanner(detection_callback=cb, scanning_mode="passive", adapter=adapter)
+                    if adapter
+                    else BleakScanner(detection_callback=cb, scanning_mode="passive")
+                )
                 await scanner.start()
                 await asyncio.sleep(window)
                 await scanner.stop()
             else:
                 await asyncio.sleep(window)
             t1 = _dt.datetime.now().timestamp()
-            rows.append({"t_start": t0, "t_end": t1, "state": state, "adapter": adapter,
-                         "cycle": i, "sightings": len(seen)})
-            print(f"  cycle {i + 1}/{cycles} {state:3}  {t1 - t0:6.1f}s  sightings={len(seen)}",
-                  flush=True)
+            rows.append(
+                {"t_start": t0, "t_end": t1, "state": state, "adapter": adapter, "cycle": i, "sightings": len(seen)}
+            )
+            print(f"  cycle {i + 1}/{cycles} {state:3}  {t1 - t0:6.1f}s  sightings={len(seen)}", flush=True)
     with open(out_path, "w", encoding="utf-8") as fh:
         for r in rows:
             fh.write(json.dumps(r) + "\n")
     on_sight = sum(int(r["sightings"]) for r in rows if r["state"] == "on")
     print(f"\nwrote {len(rows)} windows → {out_path}")
     if not on_sight:
-        print("⚠ ZERO sightings across every SCAN-ON window: the scan may not have run at all. A "
-              "verdict from this file would certify a radio that never transmitted — investigate "
-              "before running `verdict`.")
+        print(
+            "⚠ ZERO sightings across every SCAN-ON window: the scan may not have run at all. A "
+            "verdict from this file would certify a radio that never transmitted — investigate "
+            "before running `verdict`."
+        )
         return 2
     return 0
 
@@ -262,16 +325,20 @@ def _verdict_cmd(windows_path: str, night_dir: str) -> int:
             arrivals.extend(parse_arrivals(fh.read()))
     v = verdict(split_by_window(arrivals, windows), windows)
     print(f"§2 coexistence matrix — {night_dir}")
-    print(f"  windows: on={v['seconds'].get('on', 0):.0f}s off={v['seconds'].get('off', 0):.0f}s"
-          f"   arrivals parsed: {len(arrivals)}\n")
+    print(
+        f"  windows: on={v['seconds'].get('on', 0):.0f}s off={v['seconds'].get('off', 0):.0f}s"
+        f"   arrivals parsed: {len(arrivals)}\n"
+    )
     for r in v["streams"]:
         print(f"  {r['state']:13} {r['stream']:44} n_on={r['n_on']:<7} n_off={r['n_off']:<7} {r['why']}")
     print(f"\n  OVERALL: {v['overall']}")
     # One line, the object, after the prose — the verdict a machine reads (VERDICT-CONTRACT §1).
     print(json.dumps(verdict_object(v, night_dir)))
     if v["overall"] == "PASS":
-        print("\n  This is EVIDENCE, not permission. If you accept it, YOU set "
-              "`o2ring.presence_harvest.scan_coexistence_verified: true` — this tool will not.")
+        print(
+            "\n  This is EVIDENCE, not permission. If you accept it, YOU set "
+            "`o2ring.presence_harvest.scan_coexistence_verified: true` — this tool will not."
+        )
     return 0 if v["overall"] == "PASS" else 1
 
 
@@ -293,9 +360,10 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.cmd == "run":
         import asyncio
+
         return asyncio.run(_run(a.adapter, a.cycles, a.window, a.out))
     return _verdict_cmd(a.windows, a.night)
 
 
-if __name__ == "__main__":       # pragma: no cover - CLI entry
+if __name__ == "__main__":  # pragma: no cover - CLI entry
     sys.exit(main())

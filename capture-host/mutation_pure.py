@@ -27,6 +27,7 @@ this scan belongs inside the floor rather than beside the guard that watches for
 nothing said. An exclusion a caller cannot see is one nobody can audit — the same reason
 `mutation_sweep.select_tests` reports the test files it drops.
 """
+
 from __future__ import annotations
 
 import re

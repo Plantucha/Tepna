@@ -18,6 +18,7 @@ def _run(coro):
 
 # ── the version gate ─────────────────────────────────────────────────────────────────────────────────
 
+
 def test_parse_fw_reads_a_dotted_version():
     assert probe.parse_fw("3.0.16") == (3, 0, 16)
     assert probe.parse_fw("  2.1.0 ") == (2, 1, 0)
@@ -45,7 +46,7 @@ _FS = [
     ("/U/0/20260729/R/031500/SAMPLES.BPB", 8000, False),
     ("/SYS/BT/0/BOND.BPB", 90, False),
     ("/SYSLOG.BPB", 1500, False),
-    ("/U/0/20260716/E/170114/", 0, True),          # directories must not be counted twice
+    ("/U/0/20260716/E/170114/", 0, True),  # directories must not be counted twice
 ]
 
 
@@ -66,8 +67,7 @@ def test_summarize_separates_recording_bytes_from_system_bytes():
 
 def test_summarize_is_empty_on_clear_flash():
     got = probe.summarize_fs([])
-    assert got == {"sessions": [], "n_sessions": 0, "recording_bytes": 0,
-                   "system_bytes": 0, "total_bytes": 0}
+    assert got == {"sessions": [], "n_sessions": 0, "recording_bytes": 0, "system_bytes": 0, "total_bytes": 0}
 
 
 def test_a_user_file_outside_a_session_directory_counts_its_bytes_but_is_not_a_session():
@@ -80,12 +80,14 @@ def test_a_user_file_outside_a_session_directory_counts_its_bytes_but_is_not_a_s
 
 
 def test_a_negative_or_missing_size_never_subtracts_from_the_total():
-    got = probe.summarize_fs([("/U/0/20260716/E/170114/A.BPB", None, False),
-                              ("/U/0/20260716/E/170114/B.BPB", -5, False)])
+    got = probe.summarize_fs(
+        [("/U/0/20260716/E/170114/A.BPB", None, False), ("/U/0/20260716/E/170114/B.BPB", -5, False)]
+    )
     assert got["recording_bytes"] == 0
 
 
 # ── the clock offset ─────────────────────────────────────────────────────────────────────────────────
+
 
 def test_clock_offset_is_signed_seconds():
     d = _dt.datetime(2026, 8, 1, 23, 0, 5)
@@ -103,6 +105,7 @@ def test_an_unreadable_device_clock_is_none_never_zero():
 
 
 # ── the verdict ──────────────────────────────────────────────────────────────────────────────────────
+
 
 def test_a_clear_supported_device_has_no_blockers():
     v = probe.verdict(True, probe.summarize_fs([]))
@@ -130,6 +133,7 @@ def test_unknown_firmware_is_its_own_blocker_and_says_UNKNOWN_not_absent():
 
 
 # ── the flow, over injected fakes (no radio) ─────────────────────────────────────────────────────────
+
 
 class _FakeFs:
     def __init__(self, when=_dt.datetime(2026, 8, 1, 23, 0, 3), entries=()):
@@ -166,8 +170,9 @@ class _FakeClient:
 
 
 def test_the_probe_assembles_a_full_picture(monkeypatch):
-    out = _run(probe.probe("24:AC:AC:0C:30:1E", "hci0",
-                           _fs=lambda: _FakeFs(entries=_FS), _client=lambda: _FakeClient()))
+    out = _run(
+        probe.probe("24:AC:AC:0C:30:1E", "hci0", _fs=lambda: _FakeFs(entries=_FS), _client=lambda: _FakeClient())
+    )
     assert out["address"] == "24:AC:AC:0C:30:1E" and out["hci"] == "hci0"
     assert out["firmware"] == "3.0.16" and out["firmware_parsed"] == [3, 0, 16]
     assert out["offline_supported"] is True
@@ -187,16 +192,17 @@ def test_an_unreadable_firmware_characteristic_degrades_to_UNKNOWN_visibly():
 
 
 def test_a_device_that_will_not_report_its_clock_yields_a_null_offset():
-    out = _run(probe.probe("AA:BB", None,
-                           _fs=lambda: _FakeFs(when=None), _client=lambda: _FakeClient()))
+    out = _run(probe.probe("AA:BB", None, _fs=lambda: _FakeFs(when=None), _client=lambda: _FakeClient()))
     assert out["device_time"] is None
     assert out["clock_offset_sec"] is None, "an unmeasured offset must never render as 0.0"
 
 
 def test_main_prints_json_and_exits_zero(capsys, monkeypatch):
     import json as _json
+
     async def fake_probe(address, adapter=None, **kw):
         return {"address": address, "hci": adapter, "verdict": {"blockers": []}}
+
     monkeypatch.setattr(probe, "probe", fake_probe)
     assert probe.main(["--address", "AA:BB", "--adapter", "hci1"]) == 0
     out = _json.loads(capsys.readouterr().out)

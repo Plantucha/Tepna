@@ -88,15 +88,18 @@ def test_a_test_METHOD_in_a_test_class_is_not_a_double_either():
     Inside a class the depth rule no longer applies, so without the guard every pytest test method in a
     `class TestFoo` would be reported as a double dropping its fixtures. Found by mutating this module
     with its own discipline."""
-    assert analyze("class TestThing:\n    def test_x(self, tmp_path, monkeypatch):\n        pass\n",
-                   "t.py") == []
+    assert analyze("class TestThing:\n    def test_x(self, tmp_path, monkeypatch):\n        pass\n", "t.py") == []
 
 
 def test_a_name_read_only_inside_a_nested_closure_still_counts_as_read():
     """Over-approximating loses findings; under-approximating invents them. This must resolve toward
     silence."""
-    assert analyze("def test_x():\n    def d(a):\n        def inner():\n            return a\n"
-                   "        return inner\n", "t.py") == []
+    assert (
+        analyze(
+            "def test_x():\n    def d(a):\n        def inner():\n            return a\n        return inner\n", "t.py"
+        )
+        == []
+    )
 
 
 def test_an_augmented_assignment_reads_before_it_writes():
@@ -116,7 +119,8 @@ def test_a_file_that_cannot_be_parsed_raises_rather_than_reporting_clean():
 
 
 def test_rank_puts_kwargs_swallowers_first_then_the_widest_drops():
-    findings = analyze("""
+    findings = analyze(
+        """
 def test_x():
     def one(a):
         pass
@@ -124,7 +128,9 @@ def test_x():
         pass
     def three(a, **kw):
         return a
-""", "t.py")
+""",
+        "t.py",
+    )
     order = [f["double"] for f in rank(findings)]
     assert order[0] == "three", "an unbounded swallow outranks any fixed count"
     assert order[1:] == ["two", "one"], "then widest drop first"
@@ -166,13 +172,13 @@ import blind_spots
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
-_PLANT = '''
+_PLANT = """
 
 def _canary_outer():
     def _canary_double(recorded, discarded_argument, **swallowed):
         return recorded
     return _canary_double
-'''
+"""
 
 
 def _a_real_test_file():
@@ -202,7 +208,8 @@ def test_the_analyzer_is_not_silently_blind_on_the_real_suite():
     found = blind_spots.analyze(_a_real_test_file(), "test_capture_runners.py")
     assert len(found) > 20, (
         f"only {len(found)} finding(s) in the suite's densest test file — the scanner has probably "
-        "stopped resolving real input rather than the file having been cleaned up")
+        "stopped resolving real input rather than the file having been cleaned up"
+    )
 
 
 def test_a_clean_real_file_yields_nothing_so_the_canary_cannot_pass_on_noise():
@@ -210,10 +217,8 @@ def test_a_clean_real_file_yields_nothing_so_the_canary_cannot_pass_on_noise():
     doubles all record their arguments. Without this, `len(found) > 20` could be satisfied by a scanner
     that flags everything, which is just as useless as one that flags nothing."""
     clean = "\n\n".join(
-        f"def test_case_{i}():\n"
-        f"    def double_{i}(a, b, **kw):\n"
-        f"        return (a, b, kw)\n"
-        for i in range(30))
+        f"def test_case_{i}():\n    def double_{i}(a, b, **kw):\n        return (a, b, kw)\n" for i in range(30)
+    )
     assert blind_spots.analyze(clean, "clean.py") == []
 
 
@@ -222,6 +227,7 @@ def test_a_clean_real_file_yields_nothing_so_the_canary_cannot_pass_on_noise():
 # required, and I did not read it). The canary above killed 24 of them by feeding the analyzer a real
 # file. These pin what remained and is behavioural.
 
+
 def test_a_top_level_helper_that_is_not_a_test_is_still_not_a_double():
     """THE SCOPE SEED. Three separate mutants — `depth > 0` → `>= 0`, `visit(tree, 1, …)`, and
     `visit(tree, 0, True)` — all have the same effect: every module-level function becomes a "double".
@@ -229,14 +235,11 @@ def test_a_top_level_helper_that_is_not_a_test_is_still_not_a_double():
     every parameter they do not read, burying the real findings in noise. Nothing caught it, because
     the snippets all used NESTED functions and the real-file canary counts findings rather than
     checking which ones."""
-    src = ("def _helper(unused_param):\n"
-           "    return 1\n"
-           "\n"
-           "def test_real(monkeypatch):\n"
-           "    pass\n")
+    src = "def _helper(unused_param):\n    return 1\n\ndef test_real(monkeypatch):\n    pass\n"
     assert blind_spots.analyze(src, "t.py") == [], (
         "a module-level helper is not handed to production code — flagging it is noise, and it is "
-        "what makes a report unreadable")
+        "what makes a report unreadable"
+    )
 
 
 def test_a_finding_carries_the_path_it_was_given():
@@ -253,11 +256,10 @@ def test_summarize_counts_each_swallower_once():
     """`sum(1 for …)` → `sum(2 for …)` survived because the only summarize test had ZERO swallowers,
     and 2×0 == 1×0. A doubled count would overstate the unbounded-blast-radius family — the one the
     tool ranks first — by exactly 2x."""
-    s = blind_spots.summarize(blind_spots.analyze(
-        "def test_x():\n"
-        "    def one(a, **kw):\n"
-        "        return a\n"
-        "    def two(b, **kw2):\n"
-        "        return b\n", "t.py"))
+    s = blind_spots.summarize(
+        blind_spots.analyze(
+            "def test_x():\n    def one(a, **kw):\n        return a\n    def two(b, **kw2):\n        return b\n", "t.py"
+        )
+    )
     assert s["swallowing"] == 2, f"two doubles swallow kwargs, not {s['swallowing']}"
     assert s["doubles"] == 2

@@ -10,6 +10,7 @@ came back 0. A mutant that destroyed two thirds of the output was reported as eq
 That is this suite's signature failure — a check reporting success about something it never examined —
 inside the tool built to detect exactly that.
 """
+
 import importlib.util
 import os
 import re
@@ -18,8 +19,8 @@ from pathlib import Path
 
 _SPEC = importlib.util.spec_from_file_location(
     "probe_equivalence",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools",
-                 "probe_equivalence.py"))
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "probe_equivalence.py"),
+)
 if _SPEC is None or _SPEC.loader is None:
     raise ImportError("cannot load probe_equivalence.py")
 pe = importlib.util.module_from_spec(_SPEC)
@@ -68,11 +69,11 @@ def test_empty_variant_is_maximally_different():
 # truncation lived here for as long as it did BECAUSE nothing imported the file, so it contributed zero
 # statements to the coverage floor and its absence was invisible. Covering the rest is the cost of
 # gating the fix, and it is the right cost.
-import datetime as _dt          # noqa: E402
-import json as _json            # noqa: E402
-import types                    # noqa: E402
+import datetime as _dt  # noqa: E402
+import json as _json  # noqa: E402
+import types  # noqa: E402
 
-import pytest                   # noqa: E402
+import pytest  # noqa: E402
 
 
 class _FakeSample:
@@ -127,8 +128,9 @@ def test_run_variant_raises_when_the_subprocess_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(pe, "HERE", tmp_path)
     (tmp_path / "m.py").write_text("x = 1\n", encoding="utf-8")
     (tmp_path / "tools").mkdir()
-    monkeypatch.setattr(pe.subprocess, "run",
-                        lambda *a, **k: types.SimpleNamespace(returncode=1, stdout="", stderr="boom"))
+    monkeypatch.setattr(
+        pe.subprocess, "run", lambda *a, **k: types.SimpleNamespace(returncode=1, stdout="", stderr="boom")
+    )
     with pytest.raises(SystemExit) as e:
         pe._run_variant("m.py", None, None)
     assert "boom" in str(e.value)
@@ -139,9 +141,11 @@ def test_run_variant_returns_the_parsed_observation(tmp_path, monkeypatch):
     (tmp_path / "m.py").write_text("x = 1\n", encoding="utf-8")
     (tmp_path / "tools").mkdir()
     payload = [["lbl", [[1, "t", [2]]]]]
-    monkeypatch.setattr(pe.subprocess, "run",
-                        lambda *a, **k: types.SimpleNamespace(
-                            returncode=0, stdout=_json.dumps(payload), stderr=""))
+    monkeypatch.setattr(
+        pe.subprocess,
+        "run",
+        lambda *a, **k: types.SimpleNamespace(returncode=0, stdout=_json.dumps(payload), stderr=""),
+    )
     assert pe._run_variant("m.py", None, None) == payload
 
 
@@ -162,7 +166,7 @@ def test_main_refuses_a_verdict_when_a_canary_is_BLIND(monkeypatch, capsys):
     """The fail-closed path: if the battery cannot see a known-killable mutant it has not earned the
     right to call anything equivalent, so no verdict is emitted at all."""
     base = [("a", {"v": 1})]
-    _stub_runs(monkeypatch, base, [base] * len(pe.CANARIES))      # every canary indistinguishable
+    _stub_runs(monkeypatch, base, [base] * len(pe.CANARIES))  # every canary indistinguishable
     monkeypatch.setattr(sys, "argv", ["probe_equivalence", "--selftest"])
     assert pe.main() == 2
     assert "BATTERY TOO NARROW" in capsys.readouterr().out

@@ -5,6 +5,7 @@
 The instrument that separates CANDIDATES (fakes that swallow — the grep-shaped population) from
 survivors ATTRIBUTABLE to a swallowed argument (the intersection, the only defect-shaped number).
 Every branch is driven; every plant is a control that the positive cannot pass vacuously."""
+
 from __future__ import annotations
 
 import json
@@ -21,11 +22,11 @@ import mutate_swallow as T  # noqa: E402
 
 FAKES = (
     "import asyncio\n"
-    "print('a plain call before any fake')\n"                 # a non-setattr call first: `break` here loses every fake below
-    "monkeypatch.setattr(mod, 'early', _later)\n"           # setattr BEFORE the def it binds
-    "monkeypatch.setattr(mod, 'reader', _reader)\n"         # a bound def that READS its parameter — not a swallower
-    "obj.reads2 = lambda x: x + 1\n"                         # an assigned lambda that reads — not a swallower
-    "d['k'] = lambda *a: 1\n"                                # a subscript target has no name to report
+    "print('a plain call before any fake')\n"  # a non-setattr call first: `break` here loses every fake below
+    "monkeypatch.setattr(mod, 'early', _later)\n"  # setattr BEFORE the def it binds
+    "monkeypatch.setattr(mod, 'reader', _reader)\n"  # a bound def that READS its parameter — not a swallower
+    "obj.reads2 = lambda x: x + 1\n"  # an assigned lambda that reads — not a swallower
+    "d['k'] = lambda *a: 1\n"  # a subscript target has no name to report
     "def test_x(monkeypatch):\n"
     "    monkeypatch.setattr(mod, 'BleakClient', lambda addr, **kw: FakeClient())\n"
     "    monkeypatch.setattr(asyncio, 'sleep', _nosleep)\n"
@@ -36,7 +37,7 @@ FAKES = (
     "    monkeypatch.setattr(mod, 'short')\n"
     "    monkeypatch.setattr(mod, 3, lambda *a: 1)\n"
     "    obj.method = lambda *a, **k: None\n"
-    "    sleepfake = lambda *a, **k: None\n"                 # a bare-NAME target — the branch the Attribute case does not reach
+    "    sleepfake = lambda *a, **k: None\n"  # a bare-NAME target — the branch the Attribute case does not reach
     "    a, b = lambda: 1, 2\n"
     "async def _nosleep(secs):\n"
     "    return None\n"
@@ -64,8 +65,16 @@ def test_parse_key_shapes():
 
 
 def test_call_argument_of_every_branch():
-    assert M.call_argument_of("client = C(addr, timeout=20.0)", "client = C(addr, timeout=21.0)") == {"callee": "C", "kind": "kw", "which": "timeout"}
-    assert M.call_argument_of("    _t.seek(-1, 2)", "    _t.seek(+1, 2)") == {"callee": "seek", "kind": "pos", "which": 0}
+    assert M.call_argument_of("client = C(addr, timeout=20.0)", "client = C(addr, timeout=21.0)") == {
+        "callee": "C",
+        "kind": "kw",
+        "which": "timeout",
+    }
+    assert M.call_argument_of("    _t.seek(-1, 2)", "    _t.seek(+1, 2)") == {
+        "callee": "seek",
+        "kind": "pos",
+        "which": 0,
+    }
     assert M.call_argument_of("return int(x, 10)", "return int(x, 11)") == {"callee": "int", "kind": "pos", "which": 1}
     assert M.call_argument_of("elif f(1):", "elif f(2):") == {"callee": "f", "kind": "pos", "which": 0}
     assert M.call_argument_of("await g(0.5)", "await g(1.5)") == {"callee": "g", "kind": "pos", "which": 0}
@@ -78,32 +87,38 @@ def test_call_argument_of_every_branch():
     assert M.call_argument_of("g(f(1))", "h(f(2))") == {"callee": "f", "kind": "pos", "which": 0}
     # an identical FIRST call must not stop the walk before the differing second one
     assert M.call_argument_of("f(1) + g(2)", "f(1) + g(3)") == {"callee": "g", "kind": "pos", "which": 0}
-    assert M.call_argument_of("if f(1):   ", "if f(2):   ") == {"callee": "f", "kind": "pos", "which": 0}   # trailing blanks on a header line
-    assert M.call_argument_of("x = f(1)", "x = g(1)") is None            # callee changed
-    assert M.call_argument_of("if a > b:", "if a >= b:") is None         # no call at all
-    assert M.call_argument_of("f(1)", "f(1, 2)") is None                 # shape changed → None, not a guess
-    assert M.call_argument_of("f(1)", "def (:") is None                  # unparseable
-    assert M.call_argument_of("f(1)", "f(1)") is None                    # identical
-    assert M.call_argument_of("fs[0](1)", "fs[0](2)") is None            # a subscript callee has no name
+    assert M.call_argument_of("if f(1):   ", "if f(2):   ") == {
+        "callee": "f",
+        "kind": "pos",
+        "which": 0,
+    }  # trailing blanks on a header line
+    assert M.call_argument_of("x = f(1)", "x = g(1)") is None  # callee changed
+    assert M.call_argument_of("if a > b:", "if a >= b:") is None  # no call at all
+    assert M.call_argument_of("f(1)", "f(1, 2)") is None  # shape changed → None, not a guess
+    assert M.call_argument_of("f(1)", "def (:") is None  # unparseable
+    assert M.call_argument_of("f(1)", "f(1)") is None  # identical
+    assert M.call_argument_of("fs[0](1)", "fs[0](2)") is None  # a subscript callee has no name
     # …and a nameless callee must not stop the walk before a NAMED inner call's mutation
     assert M.call_argument_of("fs[0](g(1))", "fs[0](g(2))") == {"callee": "g", "kind": "pos", "which": 0}
-    assert M.call_argument_of("f(1)", "g()(1)") is None                  # call count differs
+    assert M.call_argument_of("f(1)", "g()(1)") is None  # call count differs
 
 
 def test_swallowing_fakes_every_shape():
     fakes = {(f["name"], f["shape"], tuple(f["unused"])) for f in M.swallowing_fakes(FAKES)}
     assert ("BleakClient", "setattr-lambda", ("addr", "kw")) in fakes
     assert ("sleep", "setattr-def", ("secs",)) in fakes
-    assert ("early", "setattr-def", ("a",)) in fakes            # bound before its def — two-pass
-    assert ("plain", "setattr-lambda", ("a",)) in fakes          # bare setattr()
-    assert ("method", "lambda", ("a", "k")) in fakes             # attribute-target lambda
-    assert ("sleepfake", "lambda", ("a", "k")) in fakes          # name-target lambda
+    assert ("early", "setattr-def", ("a",)) in fakes  # bound before its def — two-pass
+    assert ("plain", "setattr-lambda", ("a",)) in fakes  # bare setattr()
+    assert ("method", "lambda", ("a", "k")) in fakes  # attribute-target lambda
+    assert ("sleepfake", "lambda", ("a", "k")) in fakes  # name-target lambda
     assert ("seek", "def", ("a", "k")) in fakes
     names = {f["name"] for f in M.swallowing_fakes(FAKES)}
     assert "write" not in names, "a method that reads every parameter is not a swallower"
     assert "reads" not in names
     assert "test_x" not in names
-    assert "_nosleep" not in names and "_later" not in names, "a def bound by setattr is reported once, under the callee"
+    assert "_nosleep" not in names and "_later" not in names, (
+        "a def bound by setattr is reported once, under the callee"
+    )
     assert "notafake" not in names and "unknown_name" not in names
     assert "reader" not in names and "reads2" not in names and "_reader" not in names
     assert None not in names, "a lambda assigned to a subscript has no name and must not be reported"
@@ -111,11 +126,11 @@ def test_swallowing_fakes_every_shape():
     # the private helpers, driven at their own seams so a boundary mutation is visible
     import ast
 
-    assert M._setattr_target(ast.parse("setattr(a, 'b')").body[0].value) == "b"      # 2 args: the name is still read
+    assert M._setattr_target(ast.parse("setattr(a, 'b')").body[0].value) == "b"  # 2 args: the name is still read
     assert M._setattr_target(ast.parse("setattr(a)").body[0].value) is None
     assert M._setattr_target(ast.parse("f(a, 'b', c)").body[0].value) is None
-    assert M._unused(["a", "b"], ast.parse("a").body) == ["b"]                         # a list body (a def)
-    assert M._unused(["a", "b"], ast.parse("b").body[0].value) == ["a"]                # an expr body (a lambda)
+    assert M._unused(["a", "b"], ast.parse("a").body) == ["b"]  # a list body (a def)
+    assert M._unused(["a", "b"], ast.parse("b").body[0].value) == ["a"]  # an expr body (a lambda)
     assert M._callee_name(ast.parse("fs[0]").body[0].value) is None
 
 
@@ -129,11 +144,13 @@ def test_attribute_intersection_and_controls():
         {"module": "other.py", "key": "-c = BleakClient(a, timeout=20.0) | +c = BleakClient(a, timeout=21.0)"},
         {"module": "mod.py", "key": "-c = BleakClient(a, timeout=20.0) | +c = BleakClient(a, timeout=21.0)"},
         {"no": "module"},
-        {"module": "mod.py", "key": None},                                     # a record with a module but no key
-        {"module": "ghost.py", "key": "-x = int(v, 10) | +x = int(v, 11)"},   # a module with NO selection at all
+        {"module": "mod.py", "key": None},  # a record with a module but no key
+        {"module": "ghost.py", "key": "-x = int(v, 10) | +x = int(v, 11)"},  # a module with NO selection at all
     ]
     r = M.attribute(surv, {"mod.py": {"tests/test_mod.py": FAKES}, "other.py": {}})
-    assert r["survivors"] == 7                 # the duplicate collapses; the malformed key is a record (read, then rejected); the module-less row is not
+    assert (
+        r["survivors"] == 7
+    )  # the duplicate collapses; the malformed key is a record (read, then rejected); the module-less row is not
     assert r["call_argument"] == 5
     assert r["attributable"] == 2
     assert {row["callee"] for row in r["rows"]} == {"BleakClient", "sleep"}
@@ -150,13 +167,17 @@ def test_attribute_intersection_and_controls():
 def test_tool_loads_selects_reports(tmp_path, capsys):
     d = tmp_path / "arts"
     (d / "deep").mkdir(parents=True)
-    (d / "deep" / "a.json").write_text(json.dumps({"survivors": [
-        {"module": "o2ring.py", "key": "-x = int(v, 10) | +x = int(v, 11)"}, "not-a-dict"]}), encoding="utf-8")
+    (d / "deep" / "a.json").write_text(
+        json.dumps({"survivors": [{"module": "o2ring.py", "key": "-x = int(v, 10) | +x = int(v, 11)"}, "not-a-dict"]}),
+        encoding="utf-8",
+    )
     (d / "b.json").write_text("{not json", encoding="utf-8")
     (d / "c.json").write_text(json.dumps([1, 2]), encoding="utf-8")
     (d / "d.json").write_text(json.dumps({"survivors": "nope"}), encoding="utf-8")
     single = tmp_path / "one.json"
-    single.write_text(json.dumps({"survivors": [{"module": "o2ring.py", "key": "-if a > b: | +if a >= b:"}]}), encoding="utf-8")
+    single.write_text(
+        json.dumps({"survivors": [{"module": "o2ring.py", "key": "-if a > b: | +if a >= b:"}]}), encoding="utf-8"
+    )
     surv = T.load_survivors([str(d), str(single)])
     assert [s["key"] for s in surv] == ["-x = int(v, 10) | +x = int(v, 11)", "-if a > b: | +if a >= b:"]
     sel = T.selections({"o2ring.py"}, T.HERE / "tests")

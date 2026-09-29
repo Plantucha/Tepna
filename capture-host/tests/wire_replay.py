@@ -106,4 +106,5 @@ class ReplayControlPoint:
             raise UnrecordedCommand(
                 f"the replay corpus has no reply for {cmd.hex()} — the real device was never asked "
                 f"this. Record it (probe_pmd_surface.py --json) rather than inventing one; "
-                f"recorded: {sorted(c.hex() for c in self._answers)}") from None
+                f"recorded: {sorted(c.hex() for c in self._answers)}"
+            ) from None

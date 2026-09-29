@@ -32,6 +32,7 @@ def _lines(path):
 
 # ── the happy path ──────────────────────────────────────────────────────────────────────────────────
 
+
 def test_open_writes_a_header_then_batches_append(tmp_path):
     p = tmp_path / "sess.jsonl"
     s = _sink(p)
@@ -44,7 +45,7 @@ def test_open_writes_a_header_then_batches_append(tmp_path):
     assert rows[0]["session_id"] == "sess-abc" and rows[0]["device_id"] == "AS11-01"
     assert rows[0]["fs"] == 25.0
     assert rows[0]["channels"]["6"] == {"key": "cpap_flow", "label": "Flow", "unit": "L/s"}
-    assert [r["seq"] for r in rows[1:]] == [1, 2]                 # seq monotonic from 1
+    assert [r["seq"] for r in rows[1:]] == [1, 2]  # seq monotonic from 1
 
 
 def test_device_start_and_samples_are_verbatim(tmp_path):
@@ -55,8 +56,8 @@ def test_device_start_and_samples_are_verbatim(tmp_path):
     s.on_batch(_batch("2026-08-23T22:00:01.730Z", 40, flow=(0.11, 0.22)))
     s.close()
     row = _lines(p)[1]
-    assert row["device_start"] == "2026-08-23T22:00:01.730Z"     # verbatim, not a parsed tMs
-    assert row["samples"]["6"] == [0.11, 0.22]                    # verbatim samples
+    assert row["device_start"] == "2026-08-23T22:00:01.730Z"  # verbatim, not a parsed tMs
+    assert row["samples"]["6"] == [0.11, 0.22]  # verbatim samples
     assert row["stream_id"] == 1
 
 
@@ -65,8 +66,8 @@ def test_observed_interval_is_recorded_and_none_when_absent(tmp_path):
     p = tmp_path / "s.jsonl"
     s = _sink(p)
     s.open(CHANNELS, 25.0)
-    s.on_batch(_batch("2026-08-23T22:00:01.000Z", 20))           # observed 20 ms (50 Hz)
-    s.on_batch(_batch("2026-08-23T22:00:02.000Z", None))          # device omitted it
+    s.on_batch(_batch("2026-08-23T22:00:01.000Z", 20))  # observed 20 ms (50 Hz)
+    s.on_batch(_batch("2026-08-23T22:00:02.000Z", None))  # device omitted it
     s.close()
     rows = _lines(p)
     assert rows[1]["device_interval_ms"] == 20
@@ -81,10 +82,11 @@ def test_host_clocks_are_recorded_beside_the_device_clock(tmp_path):
     s.close()
     row = _lines(p)[1]
     assert row["host_mono"] == 999.25 and row["host_wall"] == "2026-08-23T22:05:00.500Z"
-    assert row["device_start"] == "2026-08-23T22:00:01.000Z"     # device clock still primary, untouched
+    assert row["device_start"] == "2026-08-23T22:00:01.000Z"  # device clock still primary, untouched
 
 
 # ── durability / resume ───────────────────────────────────────────────────────────────────────────────
+
 
 def test_a_torn_tail_is_truncated_before_reopen(tmp_path):
     p = tmp_path / "s.jsonl"
@@ -96,29 +98,37 @@ def test_a_torn_tail_is_truncated_before_reopen(tmp_path):
     with open(p, "a", encoding="utf-8") as f:
         f.write('{"seq":2,"stream_id":1,"device_st')
     s2 = _sink(p)
-    s2.open(CHANNELS, 25.0)                                       # reopen truncates the torn tail
+    s2.open(CHANNELS, 25.0)  # reopen truncates the torn tail
     s2.on_batch(_batch("2026-08-23T22:00:03.000Z", 40))
     s2.close()
-    rows = _lines(p)                                              # every line parses — no fused record
+    rows = _lines(p)  # every line parses — no fused record
     assert all(isinstance(r, dict) for r in rows)
     assert rows[-1]["device_start"] == "2026-08-23T22:00:03.000Z"
 
 
 def test_truncate_torn_tail_handles_missing_empty_and_clean_files(tmp_path):
-    _truncate_torn_tail(str(tmp_path / "nope.jsonl"))            # missing → no error
-    empty = tmp_path / "empty.jsonl"; empty.write_text("")
-    _truncate_torn_tail(str(empty)); assert empty.read_text() == ""
-    clean = tmp_path / "clean.jsonl"; clean.write_text('{"a":1}\n')
-    _truncate_torn_tail(str(clean)); assert clean.read_text() == '{"a":1}\n'
+    _truncate_torn_tail(str(tmp_path / "nope.jsonl"))  # missing → no error
+    empty = tmp_path / "empty.jsonl"
+    empty.write_text("")
+    _truncate_torn_tail(str(empty))
+    assert empty.read_text() == ""
+    clean = tmp_path / "clean.jsonl"
+    clean.write_text('{"a":1}\n')
+    _truncate_torn_tail(str(clean))
+    assert clean.read_text() == '{"a":1}\n'
     # a torn tail with NO earlier newline truncates to empty
-    torn = tmp_path / "torn.jsonl"; torn.write_text('{"partial')
-    _truncate_torn_tail(str(torn)); assert torn.read_text() == ""
+    torn = tmp_path / "torn.jsonl"
+    torn.write_text('{"partial')
+    _truncate_torn_tail(str(torn))
+    assert torn.read_text() == ""
 
 
 # ── state guards ──────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_open_twice_raises(tmp_path):
-    s = _sink(tmp_path / "s.jsonl"); s.open(CHANNELS, 25.0)
+    s = _sink(tmp_path / "s.jsonl")
+    s.open(CHANNELS, 25.0)
     with pytest.raises(RuntimeError, match="open called twice"):
         s.open(CHANNELS, 25.0)
     s.close()
@@ -133,12 +143,15 @@ def test_on_batch_before_open_raises(tmp_path):
 def test_close_before_open_and_double_close_are_noops(tmp_path):
     p = tmp_path / "s.jsonl"
     s = _sink(p)
-    s.close()                                                     # never opened → no-op, no file
+    s.close()  # never opened → no-op, no file
     assert not p.exists()
-    s.open(CHANNELS, 25.0); s.close(); s.close()                  # double close → second is a no-op
+    s.open(CHANNELS, 25.0)
+    s.close()
+    s.close()  # double close → second is a no-op
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────────────────────────────
+
 
 def test_channel_meta_handles_empty_and_none():
     assert _channel_meta(None) == {}
@@ -163,8 +176,10 @@ def test_default_wall_is_the_real_host_clock(tmp_path):
 
 # ── the host-authored acquisition-run id ────────────────────────────────────────────────────────────
 
+
 def test_new_session_id_is_a_sortable_stamp_plus_entropy():
     from cpap_record import new_session_id
+
     sid = new_session_id(now=0, entropy=b"\xab\xcd\xef")
     assert sid == "19700101T000000Z-abcdef"
 
@@ -172,5 +187,6 @@ def test_new_session_id_is_a_sortable_stamp_plus_entropy():
 def test_new_session_id_defaults_use_the_host_clock_and_random_entropy():
     import re
     from cpap_record import new_session_id
-    sid = new_session_id()                                    # no injection → real clock + os.urandom
+
+    sid = new_session_id()  # no injection → real clock + os.urandom
     assert re.fullmatch(r"\d{8}T\d{6}Z-[0-9a-f]{6}", sid), sid

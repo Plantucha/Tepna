@@ -7,6 +7,7 @@ the one it CANNOT see: every write failure that never moves the free-space numbe
 drive, EROFS after a read-only remount, a quota. At the writer they are indistinguishable from
 success, and the night reads as complete while its tail is missing.
 """
+
 import errno
 import os
 
@@ -48,7 +49,7 @@ def test_A_FAILING_FLUSH_IS_COUNTED_AND_NAMED_BY_SYMBOLIC_ERRNO(tmp_path, caplog
     assert w.flush_failures == 1
     assert "ENOSPC" in caplog.text
     assert "may NOT be on disk" in caplog.text
-    w.close()                                       # a sample writer left open leaks the process-global counter
+    w.close()  # a sample writer left open leaks the process-global counter
 
 
 def test_IT_LOGS_ON_THE_TRANSITION_NOT_ON_EVERY_FAILURE(tmp_path, caplog):
@@ -61,7 +62,7 @@ def test_IT_LOGS_ON_THE_TRANSITION_NOT_ON_EVERY_FAILURE(tmp_path, caplog):
             w.flush()
     assert w.flush_failures == 500, "every failure must still be COUNTED"
     assert caplog.text.count("WRITE FAILED") == 1, "only the onset should be logged"
-    w.close()                                       # a sample writer left open leaks the process-global counter
+    w.close()  # a sample writer left open leaks the process-global counter
 
 
 def test_RECOVERY_IS_REPORTED_ONCE_WITH_THE_DAMAGE_COUNT(tmp_path, caplog):
@@ -74,7 +75,7 @@ def test_RECOVERY_IS_REPORTED_ONCE_WITH_THE_DAMAGE_COUNT(tmp_path, caplog):
         w.flush()
     assert caplog.text.count("writing again") == 1
     assert "after 7 failed flush(es)" in caplog.text
-    w.close()                                       # a sample writer left open leaks the process-global counter
+    w.close()  # a sample writer left open leaks the process-global counter
 
 
 def test_CLOSE_MUST_NOT_CLAIM_RECOVERY_ITS_OWN_FLUSH_DID_NOT_EARN(tmp_path, caplog):
@@ -119,8 +120,7 @@ def test_EVERY_WRITER_REPORTS_ITS_OWN_FAILURES_NOT_JUST_THE_ONE_I_TESTED(cls, tm
     ⚠️ This DRIVES each class's flush and close rather than asserting the attribute exists. An
     `hasattr` check passes on all eight while seven of the sixteen call sites are still swallowing —
     the property is inherited-looking boilerplate, the call sites are the thing that can be wrong."""
-    w = getattr(writers, cls)(str(tmp_path / f"{cls}.csv"), *(["hr"] if cls == "StreamWriter" else []),
-                              fsync=False)
+    w = getattr(writers, cls)(str(tmp_path / f"{cls}.csv"), *(["hr"] if cls == "StreamWriter" else []), fsync=False)
     w._fh = _FailingFH(errno.EIO)
     if getattr(w, "_rr_fh", None) is not None:
         w._rr_fh = _FailingFH(errno.EIO)

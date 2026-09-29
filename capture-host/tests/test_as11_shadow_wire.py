@@ -62,8 +62,12 @@ def test_disabled_is_a_noop(tmp_path):
 def test_enabled_but_no_creds_skips(tmp_path):
     tasks = []
     r = capture._maybe_start_as11_shadow(
-        {"as11_detector": {"enabled": True}}, str(tmp_path / "cfg.yaml"), str(tmp_path),
-        object(), tasks, load_creds=lambda _p: None,
+        {"as11_detector": {"enabled": True}},
+        str(tmp_path / "cfg.yaml"),
+        str(tmp_path),
+        object(),
+        tasks,
+        load_creds=lambda _p: None,
     )
     assert r is None and tasks == []
 
@@ -86,9 +90,13 @@ def test_enabled_starts_shadow_task_and_opens_sidecars(tmp_path):
     ctl = SimpleNamespace(_running=lambda: False, _busy=lambda: False)
     r = capture._maybe_start_as11_shadow(
         {"as11_detector": {"enabled": True, "poll_interval_sec": 10}, "cpap": {"ble_stream": {}}},
-        str(tmp_path / "cfg.yaml"), str(tmp_path), ctl, tasks,
+        str(tmp_path / "cfg.yaml"),
+        str(tmp_path),
+        ctl,
+        tasks,
         load_creds=lambda _p: {"masterPairKey": "00ff", "clientId": "c1", "ble_addr": "AA:BB"},
-        connect_factory=fake_connect, create_task=fake_create_task,
+        connect_factory=fake_connect,
+        create_task=fake_create_task,
     )
     assert r == "TASK" and tasks == ["TASK"] and len(made) == 1
     # both sidecars were opened under root (headers are buffered until the task runs)
@@ -105,14 +113,12 @@ def test_publish_therapy_state_maps_the_machine_state():
     capture.STATUS.pop("cpap", None)
     sup = CPAPSessionSupervisor()
 
-    d = sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY,
-                                last_therapy_use=5))
+    d = sup.observe(Observation(host_ms=1000, reachable=True, fg_state=TherapyState.THERAPY, last_therapy_use=5))
     capture._publish_therapy_state(d, None)
     assert capture.STATUS["cpap"]["therapy"] is True
-    assert capture.STATUS["cpap"]["fg_state"] == "Therapy"   # the enum VALUE, not the NAME
+    assert capture.STATUS["cpap"]["fg_state"] == "Therapy"  # the enum VALUE, not the NAME
 
-    d = sup.observe(Observation(host_ms=61000, reachable=True, fg_state=TherapyState.STANDBY,
-                                last_therapy_use=5))
+    d = sup.observe(Observation(host_ms=61000, reachable=True, fg_state=TherapyState.STANDBY, last_therapy_use=5))
     capture._publish_therapy_state(d, None)
     assert capture.STATUS["cpap"]["therapy"] is False
 
@@ -126,8 +132,9 @@ def test_publish_therapy_state_maps_the_machine_state():
 
 def test_therapy_end_factory_is_off_unless_configured():
     import capture
-    assert capture._therapy_end_factory({}) is None                       # absent  -> OFF
-    assert capture._therapy_end_factory({"auto_stop": {}}) is None        # present -> still OFF
+
+    assert capture._therapy_end_factory({}) is None  # absent  -> OFF
+    assert capture._therapy_end_factory({"auto_stop": {}}) is None  # present -> still OFF
     assert capture._therapy_end_factory({"auto_stop": {"enabled": False}}) is None
 
 
@@ -135,6 +142,7 @@ def test_therapy_end_factory_builds_a_sink_with_the_configured_hold():
     import asyncio
 
     import capture
+
     f = capture._therapy_end_factory({"auto_stop": {"enabled": True, "flow_eps_lpm": 0.4, "hold_sec": 90}})
     assert f is not None
     sink = f(asyncio.Event())
@@ -172,6 +180,7 @@ def test_therapy_end_factory_accepts_the_new_flow_eps_lps_key():
     import asyncio
 
     import capture
+
     f = capture._therapy_end_factory({"auto_stop": {"enabled": True, "flow_eps_lps": 0.3}})
     assert f(asyncio.Event())._flow_eps == 0.3
 
@@ -181,11 +190,10 @@ def test_therapy_end_factory_prefers_lps_and_ignores_legacy_lpm_when_both_set(ca
     import logging
 
     import capture
+
     with caplog.at_level(logging.WARNING):
-        f = capture._therapy_end_factory(
-            {"auto_stop": {"enabled": True, "flow_eps_lps": 0.3, "flow_eps_lpm": 0.9}}
-        )
-    assert f(asyncio.Event())._flow_eps == 0.3          # _lps wins; _lpm is NOT averaged or converted
+        f = capture._therapy_end_factory({"auto_stop": {"enabled": True, "flow_eps_lps": 0.3, "flow_eps_lpm": 0.9}})
+    assert f(asyncio.Event())._flow_eps == 0.3  # _lps wins; _lpm is NOT averaged or converted
     assert "ignoring flow_eps_lpm" in caplog.text
 
 
@@ -197,9 +205,10 @@ def test_therapy_end_factory_reads_legacy_lpm_as_Ls_unchanged_with_deprecation_w
     import logging
 
     import capture
+
     with caplog.at_level(logging.WARNING):
         f = capture._therapy_end_factory({"auto_stop": {"enabled": True, "flow_eps_lpm": 0.1}})
-    assert f(asyncio.Event())._flow_eps == 0.1          # 0.1 stays 0.1 — NOT 0.1/60
+    assert f(asyncio.Event())._flow_eps == 0.1  # 0.1 stays 0.1 — NOT 0.1/60
     assert "deprecated" in caplog.text
 
 
@@ -207,5 +216,6 @@ def test_therapy_end_factory_defaults_flow_eps_when_neither_key_is_set():
     import asyncio
 
     import capture
+
     f = capture._therapy_end_factory({"auto_stop": {"enabled": True}})
     assert f(asyncio.Event())._flow_eps == 0.5

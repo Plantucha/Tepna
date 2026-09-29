@@ -22,10 +22,10 @@ def test_uvarint_round_trips_through_the_reader(n):
 
 def test_uvarint_uses_the_continuation_bit_correctly():
     assert ps._uvarint(0) == b"\x00"
-    assert ps._uvarint(127) == b"\x7f"            # single byte, no continuation
-    assert ps._uvarint(128) == b"\x80\x01"        # continuation set on the first byte only
+    assert ps._uvarint(127) == b"\x7f"  # single byte, no continuation
+    assert ps._uvarint(128) == b"\x80\x01"  # continuation set on the first byte only
     assert all(b & 0x80 for b in ps._uvarint(300)[:-1])
-    assert not ps._uvarint(300)[-1] & 0x80        # last byte always clears it
+    assert not ps._uvarint(300)[-1] & 0x80  # last byte always clears it
 
 
 def test_parse_pb_fields_reads_varint_and_length_delimited():
@@ -73,7 +73,7 @@ def test_parse_directory_skips_an_entry_with_no_name():
 
 def test_parse_directory_survives_undecodable_utf8_in_a_name():
     out = ps._parse_directory(ps._pb_msg(1, ps._pb_msg(1, b"\xff\xfeBAD") + ps._pb_uint(2, 1)))
-    assert len(out) == 1 and out[0][1] == 1        # replaced, not raised
+    assert len(out) == 1 and out[0][1] == 1  # replaced, not raised
 
 
 def test_parse_directory_ignores_a_non_entry_field():
@@ -204,8 +204,7 @@ def test_encode_operation_handles_a_long_path_needing_a_multibyte_length():
 def _decode_local_time(buf):
     f = ps._parse_pb_fields(buf)
     d, t = ps._parse_pb_fields(f[1]), ps._parse_pb_fields(f[2])
-    return (dt.datetime(d[1], d[2], d[3], t.get(1, 0), t.get(2, 0), t.get(3, 0), t.get(4, 0) * 1000),
-            f.get(3))
+    return (dt.datetime(d[1], d[2], d[3], t.get(1, 0), t.get(2, 0), t.get(3, 0), t.get(4, 0) * 1000), f.get(3))
 
 
 def test_set_local_time_round_trips_every_component():
@@ -248,8 +247,16 @@ def test_only_the_three_time_queries_are_permitted():
         assert ps._encode_query_header(allowed)
 
 
-@pytest.mark.parametrize("dangerous,what", [(12, "PREPARE_FIRMWARE_UPDATE"), (14, "REQUEST_START_RECORDING"),
-                                            (0, "unset"), (13, "unknown"), (255, "out of range")])
+@pytest.mark.parametrize(
+    "dangerous,what",
+    [
+        (12, "PREPARE_FIRMWARE_UPDATE"),
+        (14, "REQUEST_START_RECORDING"),
+        (0, "unset"),
+        (13, "unknown"),
+        (255, "out of range"),
+    ],
+)
 def test_dangerous_query_ids_are_refused(dangerous, what):
     """This module is otherwise strictly read-only. The PbPFtpQuery enum shares its number space with
     firmware update and start-recording, so a wrong id does something far worse than set a clock."""
@@ -358,13 +365,15 @@ def test_psftp_passes_the_adapter_pin_in_the_bluez_form():
 # byte string; asserting a substring of it is asserting almost nothing.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
+
 def test_the_query_header_is_exactly_two_bytes_of_id_and_marker():
     """`_encode_query_header` mutants 10 and 14 changed byte 1 from 0x80 to 0xFF / 0x81 and survived,
     because the only assertion on it was `header[1] & 0x80` — a mask that ignores every other bit. The
     device reads the whole byte: the low 7 bits are the query id's high half."""
     for qid in sorted(ps._ALLOWED_QUERIES):
-        assert ps._encode_query_header(qid) == bytes([qid, 0x80]), \
+        assert ps._encode_query_header(qid) == bytes([qid, 0x80]), (
             "byte0 = id low, byte1 = id high (7 bits) with the QUERY marker on top — nothing else"
+        )
 
 
 def test_a_request_longer_than_255_bytes_carries_its_length_in_two_bytes():
@@ -388,9 +397,10 @@ def test_a_stream_the_exact_size_of_one_packet_still_splits():
     packets = ps._chunk_rfc76(b"x" * mtu, frame_mtu=mtu)
     assert len(packets) == 2, "frame_mtu payload bytes do not fit in one frame_mtu-sized packet"
     assert all(len(p) <= mtu for p in packets), "no packet may exceed the negotiated MTU"
-    assert len(packets[0]) == mtu, \
-        "a MORE packet is FULL — mutant 13 takes frame_mtu-2 and merely uses more round trips, " \
+    assert len(packets[0]) == mtu, (
+        "a MORE packet is FULL — mutant 13 takes frame_mtu-2 and merely uses more round trips, "
         "which the joined payload cannot see"
+    )
     assert b"".join(p[1:] for p in packets) == b"x" * mtu
     assert (packets[0][0] >> 1) & 3 == 0x03 and (packets[1][0] >> 1) & 3 == 0x01, "MORE then LAST"
 
@@ -437,8 +447,7 @@ def test_a_directory_entry_ignores_fields_that_are_not_name_or_size():
     should ignore is read as a name or a size. Every existing fixture had exactly the two fields, which
     is precisely the input that cannot tell `and` from `or`. Polar's PbPFtpEntry has more members than
     we read, so an unknown field IS the realistic input."""
-    entry = (ps._pb_msg(1, b"BPM.GZ") + ps._pb_uint(2, 12)
-             + ps._pb_msg(3, b"/not/a/name") + ps._pb_uint(4, 999))
+    entry = ps._pb_msg(1, b"BPM.GZ") + ps._pb_uint(2, 12) + ps._pb_msg(3, b"/not/a/name") + ps._pb_uint(4, 999)
     # a length-delimited NON-entry field at the top level must not become an entry either
     buf = ps._pb_msg(7, b"not an entry") + ps._pb_msg(1, entry)
     assert ps._parse_directory(buf) == [("BPM.GZ", 12)]

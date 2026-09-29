@@ -80,8 +80,10 @@ def read_records(path: str) -> list[dict]:
                 # SAY WHAT WAS HIDDEN. Skipping quietly would make the history under-report by an
                 # unknown amount, which is the same defect as a count with no denominator: the
                 # digest would look complete while resting on fewer records than it claims.
-                print("ble_visibility: %s line %d is not JSON — SKIPPED, the digest below is "
-                      "missing it" % (path, lineno), file=sys.stderr)
+                print(
+                    "ble_visibility: %s line %d is not JSON — SKIPPED, the digest below is missing it" % (path, lineno),
+                    file=sys.stderr,
+                )
     return out
 
 
@@ -91,9 +93,9 @@ def visibility(records: list[dict], target: str) -> dict:
     stats: dict[str, dict] = {}
     for rec in records:
         for adapter, info in rec.get("adapters", {}).items():
-            st = stats.setdefault(adapter, {"scans_ok": 0, "scans_failed": 0,
-                                            "seen": 0, "rssi": [],
-                                            "devices_seen": []})
+            st = stats.setdefault(
+                adapter, {"scans_ok": 0, "scans_failed": 0, "seen": 0, "rssi": [], "devices_seen": []}
+            )
             if info.get("error"):
                 st["scans_failed"] += 1
                 continue
@@ -106,8 +108,7 @@ def visibility(records: list[dict], target: str) -> dict:
     for st in stats.values():
         st["rate"] = (st["seen"] / st["scans_ok"]) if st["scans_ok"] else None
         st["median_rssi"] = median(st["rssi"]) if st["rssi"] else None
-        st["median_devices_seen"] = (median(st["devices_seen"])
-                                     if st["devices_seen"] else None)
+        st["median_devices_seen"] = median(st["devices_seen"]) if st["devices_seen"] else None
         del st["rssi"], st["devices_seen"]
     return stats
 
@@ -122,21 +123,22 @@ def format_visibility(stats: dict, target: str) -> str:
     """A digest that states the denominator on every line, and never implies one it lacks."""
     if not stats:
         return "no records for %s — nothing has been collected yet." % target
-    lines = ["visibility of %s" % target,
-             "%-20s %-18s %-9s %s" % ("adapter", "saw it", "med RSSI", "med devices/scan")]
+    lines = ["visibility of %s" % target, "%-20s %-18s %-9s %s" % ("adapter", "saw it", "med RSSI", "med devices/scan")]
     for adapter, st in sorted(stats.items()):
-        lines.append("%-20s %-18s %-9s %s%s" % (
-            adapter,
-            _rate_cell(st),
-            "-" if st["median_rssi"] is None else "%d" % st["median_rssi"],
-            "-" if st["median_devices_seen"] is None else "%g" % st["median_devices_seen"],
-            "   (%d scan(s) FAILED — excluded)" % st["scans_failed"] if st["scans_failed"] else "",
-        ))
+        lines.append(
+            "%-20s %-18s %-9s %s%s"
+            % (
+                adapter,
+                _rate_cell(st),
+                "-" if st["median_rssi"] is None else "%d" % st["median_rssi"],
+                "-" if st["median_devices_seen"] is None else "%g" % st["median_devices_seen"],
+                "   (%d scan(s) FAILED — excluded)" % st["scans_failed"] if st["scans_failed"] else "",
+            )
+        )
     blind = [a for a, st in sorted(stats.items()) if st["scans_ok"] and st["seen"] == 0]
     if blind:
         lines.append("")
-        lines.append("BLIND: %s completed scans and never saw %s."
-                     % (", ".join(blind), target))
+        lines.append("BLIND: %s completed scans and never saw %s." % (", ".join(blind), target))
         lines.append("  A radio that enumerates other devices but never this one is a bluez")
         lines.append("  per-device state wedge, not range. Remedy: tepna-btreset.sh <usb-bus-port>.")
     return "\n".join(lines)

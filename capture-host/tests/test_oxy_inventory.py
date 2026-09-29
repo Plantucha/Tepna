@@ -10,6 +10,7 @@ disagrees with the acquisition code it will eventually replace the guesswork in:
   3. the ledger's current view is LAST ROW WINS BY POSITION, so a deliberate regression survives.
 
 Each is planted as a control that fails if the rule is dropped."""
+
 import json
 import os
 import pathlib
@@ -112,8 +113,17 @@ def test_the_row_KEY_SET_is_the_ledger_contract():
     ADDITION too, which twelve individual checks would not catch at all."""
     row = inv.make_row("R", "20260101000000", inv.DISCOVERED, at=1.0)
     assert set(row) == {
-        "id", "device_id", "session", "state", "reason",
-        "size", "reported_size", "sha256", "path", "attempt", "at",
+        "id",
+        "device_id",
+        "session",
+        "state",
+        "reason",
+        "size",
+        "reported_size",
+        "sha256",
+        "path",
+        "attempt",
+        "at",
         # `failure` — added DELIBERATELY by G1 (#1702), which is the whole point of asserting the
         # SET: this test went red the moment the key appeared, and extending it is a decision someone
         # had to make rather than a diff that slipped through. It carries the failure CLASS label,
@@ -200,7 +210,7 @@ def test_a_ledger_line_is_BYTE_STABLE_for_the_same_row(tmp_path):
     That is exactly the property the acquisition spec's determinism section asks for, and it was one
     unobserved keyword away from being lost."""
     a = dict(inv.make_row("R", "20260101000000", inv.VERIFIED, size=5, sha256="ab", at=1.0))
-    b = {k: a[k] for k in reversed(list(a))}          # same content, opposite insertion order
+    b = {k: a[k] for k in reversed(list(a))}  # same content, opposite insertion order
     led_a, led_b = str(tmp_path / "a.jsonl"), str(tmp_path / "b.jsonl")
     inv.append_row(led_a, a)
     inv.append_row(led_b, b)
@@ -229,7 +239,7 @@ def test_load_skips_a_torn_final_line_instead_of_refusing_the_file(tmp_path):
         fh.write('"a bare string"\n')
         fh.write('{"no":"id"}\n')
         fh.write('{"id":"R/2","state":"DISCOVERED"}\n')
-        fh.write('{"id":"R/3","state":"PART')          # torn mid-write
+        fh.write('{"id":"R/3","state":"PART')  # torn mid-write
     rows = inv.load_rows(led)
     assert [r["id"] for r in rows] == ["R/20260101000000", "R/2"]
 
@@ -300,9 +310,9 @@ def test_reconcile_keeps_going_after_a_missing_entry():
     would hide every later one — and a restart-recovery pass that silently stops at the first gap is
     worse than none, because the report looks complete."""
     rows = _rows(
-        ("R", "20260101000000", inv.VERIFIED, 500),   # absent from disk -> missing
-        ("R", "20260101000001", inv.PARTIAL, 40),     # present -> must still be classified
-        ("R", "20260101000002", inv.VERIFIED, 700),   # present -> must still be classified
+        ("R", "20260101000000", inv.VERIFIED, 500),  # absent from disk -> missing
+        ("R", "20260101000001", inv.PARTIAL, 40),  # present -> must still be classified
+        ("R", "20260101000002", inv.VERIFIED, 700),  # present -> must still be classified
     )
     out = inv.reconcile(rows, {"R/20260101000001": 40, "R/20260101000002": 700})
     assert out["missing"] == ["R/20260101000000"]
@@ -363,7 +373,9 @@ def test_the_ledger_names_its_encoding_under_warn_default_encoding(tmp_path):
     env = dict(os.environ, PYTHONPATH=str(pathlib.Path(inv.__file__).parent))
     r = subprocess.run(
         [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", script],
-        capture_output=True, text=True, env=env,
+        capture_output=True,
+        text=True,
+        env=env,
     )
     # Assert on the WITNESS, not merely on the exit code: any unrelated breakage in the script also
     # exits non-zero, and blaming that on the encoding would be a false attribution the message would

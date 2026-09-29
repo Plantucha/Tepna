@@ -52,8 +52,9 @@ def _render(label, cls="idle"):
     if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
         pytest.skip("node is not installed")
     esc_src, tmpl = _extract()
-    prog = (f"{esc_src}\nconst cls = {json.dumps(cls)}, label = {json.dumps(label)};\n"
-            f"console.log(JSON.stringify({tmpl}));")
+    prog = (
+        f"{esc_src}\nconst cls = {json.dumps(cls)}, label = {json.dumps(label)};\nconsole.log(JSON.stringify({tmpl}));"
+    )
     r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     return json.loads(r.stdout.strip())
@@ -119,6 +120,5 @@ def test_every_onclick_interpolation_goes_through_esc():
                 bad.append(f"line {line}: ${{{expr[:60]}}}")
     assert not bad, (
         "every interpolation into a single-quoted onclick= must be wrapped in esc() — "
-        "JSON.stringify does not escape the single quote that closes the attribute:\n  "
-        + "\n  ".join(bad)
+        "JSON.stringify does not escape the single quote that closes the attribute:\n  " + "\n  ".join(bad)
     )

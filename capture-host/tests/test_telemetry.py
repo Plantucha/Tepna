@@ -91,9 +91,9 @@ def test_stream_health_idle_when_no_sample_yet():
 
 def test_waveform_health_stall_weak_good():
     # nominal 130 Hz waveform
-    assert telemetry.stream_health(130, 0.0, 10.0) == "stall"          # silent > stall_s
-    assert telemetry.stream_health(130, 50.0, 0.5) == "weak"           # 50 < 0.7·130
-    assert telemetry.stream_health(130, 125.0, 0.1) == "good"          # near nominal
+    assert telemetry.stream_health(130, 0.0, 10.0) == "stall"  # silent > stall_s
+    assert telemetry.stream_health(130, 50.0, 0.5) == "weak"  # 50 < 0.7·130
+    assert telemetry.stream_health(130, 125.0, 0.1) == "good"  # near nominal
     assert telemetry.stream_health(130, 5.0, 0.1, warmup=True) == "good"  # too early to judge weak
 
 
@@ -148,7 +148,8 @@ def test_capture_registers_pmd_streams_with_an_UNKNOWN_rate_until_negotiated():
         assert "SAMPLE_HZ" not in ln, (
             "capture.py registers a PMD stream at the vendor default again. Between START and the "
             "`used_fs` re-register, telemetry.stream_health will judge WEAK against a rate the device "
-            f"never agreed to. Register 0 (rate unknown) instead: {ln.strip()}")
+            f"never agreed to. Register 0 (rate unknown) instead: {ln.strip()}"
+        )
 
 
 def test_meta_carries_efffs_and_health():
@@ -157,10 +158,10 @@ def test_meta_carries_efffs_and_health():
     # `None`, not 0.0 (DEVICE-RATE-TRUTH §6.3). This assertion used to read `== 0.0`, and that is the
     # defect in miniature: a stream that has never been pushed has not been measured at 0 Hz — it has
     # not been measured. The two read alike until something downstream paints a colour from the number.
-    assert m0["health"] == "idle" and m0["effFs"] is None     # declared, never pushed
+    assert m0["health"] == "idle" and m0["effFs"] is None  # declared, never pushed
     bus.push("ecg", list(range(130)), fs=130)
     m1 = next(x for x in bus.meta() if x["key"] == "ecg")
-    assert "effFs" in m1 and m1["health"] == "good"          # a just-pushed stream is warmup→good, never idle
+    assert "effFs" in m1 and m1["health"] == "good"  # a just-pushed stream is warmup→good, never idle
 
 
 # ── push() broadcast + subscriber-queue coverage (FOLLOWUPS §2) ─────────────────────────────────────
@@ -173,24 +174,24 @@ def test_push_broadcasts_msg_with_correct_shape_to_subscriber():
     msg = q.get_nowait()
     assert msg["stream"] == "spo2" and msg["fs"] == 1
     assert msg["v"] == [97.0, 98.0] and msg["chans"] == 1
-    assert len(msg["t"].split(":")) == 3          # HH:MM:SS wall-clock stamp present
+    assert len(msg["t"].split(":")) == 3  # HH:MM:SS wall-clock stamp present
 
 
 def test_full_subscriber_queue_drops_oldest_keeps_newest():
     bus = telemetry.TelemetryBus()
     q = bus.subscribe(maxsize=2)
     for i in range(4):
-        bus.push("spo2", [i], fs=1)               # 4 pushes into a size-2 queue
+        bus.push("spo2", [i], fs=1)  # 4 pushes into a size-2 queue
     got = []
     while not q.empty():
         got.append(q.get_nowait()["v"][0])
-    assert got == [2.0, 3.0]                        # oldest (0,1) evicted, newest kept — never blocks
+    assert got == [2.0, 3.0]  # oldest (0,1) evicted, newest kept — never blocks
 
 
 def test_push_rate_falls_back_to_one_for_unmetered_stream():
     bus = telemetry.TelemetryBus()
     q = bus.subscribe()
-    bus.push("nosuchstream", [5], fs=None)         # no meta, no fs → rate = 1 (not 0)
+    bus.push("nosuchstream", [5], fs=None)  # no meta, no fs → rate = 1 (not 0)
     assert q.get_nowait()["fs"] == 1
 
 
@@ -200,13 +201,13 @@ def test_push_rate_falls_back_to_one_for_unmetered_stream():
 # is decoder corruption — and rewriting the metadata to match is the "quietly normalise bad input"
 # move this suite forbids. It must be surfaced, and the corrupt frame must not reach the live view.
 
+
 def test_channel_count_breach_does_not_rewrite_the_declared_shape():
     bus = telemetry.TelemetryBus()
-    bus.register("ppg_vs", "PPG (Verity)", "raw", 55, chans=4,
-                 labels=("LED1", "LED2", "LED3", "ambient"))
+    bus.register("ppg_vs", "PPG (Verity)", "raw", 55, chans=4, labels=("LED1", "LED2", "LED3", "ambient"))
     bus.push("ppg_vs", [[1.0, 2.0, 3.0, 4.0]] * 8, 55)
     assert bus.snapshot("ppg_vs")["chans"] == 4
-    bus.push("ppg_vs", [[1.0, 2.0, 3.0]] * 8, 55)          # decoder corruption: 3 channels
+    bus.push("ppg_vs", [[1.0, 2.0, 3.0]] * 8, 55)  # decoder corruption: 3 channels
     assert bus.snapshot("ppg_vs")["chans"] == 4, "the declared shape must survive a bad frame"
 
 
@@ -257,6 +258,7 @@ def test_shape_error_survives_an_unregister_reregister_cycle():
 # monitor.html's deviceForStream() — "first device whose stream list contains this name" — resolved it
 # to whichever sensor sorted first, and the Verity's PPG card showed the RING's battery and RSSI.
 
+
 def test_default_meta_no_longer_claims_a_bare_ppg():
     """A placeholder here would paint a permanently idle PPG card that no device ever fills."""
     assert "ppg" not in telemetry.DEFAULT_META
@@ -265,6 +267,7 @@ def test_default_meta_no_longer_claims_a_bare_ppg():
 
 def test_capture_qualifies_ppg_but_not_ecg():
     import importlib
+
     cap = importlib.import_module("capture")
     assert cap._live_key("ppg", "vs") == "ppg_vs", "two devices stream ppg — it must be qualified"
     assert cap._live_key("ecg", "h10") == "ecg", "only the H10 streams ecg"
@@ -275,6 +278,7 @@ def test_capture_qualifies_ppg_but_not_ecg():
 def test_the_two_ppg_streams_get_distinct_keys():
     """The Verity's and the O2Ring's pleth must never collide on one bus key."""
     import importlib
+
     cap = importlib.import_module("capture")
     assert cap._live_key("ppg", "vs") != "o2ppg"
 
@@ -295,7 +299,7 @@ def test_the_two_ppg_streams_get_distinct_keys():
 # the brief's: frames at exact device spacing, delivered in ARBITRARY bursts, must give
 # eff == nominal to ~1 ppm regardless of burst pattern.
 
-_NOMINAL, _PER_FRAME = 130.0, 73          # H10 ECG: 73 samples per PMD frame
+_NOMINAL, _PER_FRAME = 130.0, 73  # H10 ECG: 73 samples per PMD frame
 _FRAME_NS = int(round(_PER_FRAME / _NOMINAL * 1e9))
 
 
@@ -324,7 +328,8 @@ def test_efffs_is_the_device_rate_regardless_of_how_the_radio_batches_it():
         eff = next(m for m in bus.meta() if m["key"] == "ecg_h10")["effFs"]
         assert abs(eff - _NOMINAL) < 1e-3, (
             f"burst pattern {bursts} gave {eff} Hz, not the device's {_NOMINAL} — effFs is measuring "
-            "the radio's batching or carrying the k/(k-1) bias, not the sensor's rate")
+            "the radio's batching or carrying the k/(k-1) bias, not the sensor's rate"
+        )
 
 
 def test_the_off_by_one_bias_is_gone_at_its_measured_magnitude():
@@ -336,7 +341,7 @@ def test_the_off_by_one_bias_is_gone_at_its_measured_magnitude():
     """
     bus = telemetry.TelemetryBus()
     bus.register("ecg_h10", "ECG", "uV", _NOMINAL, chans=1)
-    _feed(bus, "ecg_h10", [1] * 9)                       # 9 frames = the box's 5 s ECG window
+    _feed(bus, "ecg_h10", [1] * 9)  # 9 frames = the box's 5 s ECG window
     eff = next(m for m in bus.meta() if m["key"] == "ecg_h10")["effFs"]
     assert abs(eff - 146.25) > 10.0, "still reporting the k/(k-1) inflated rate (~146.25 Hz)"
     assert abs(eff - _NOMINAL) < 1e-3, f"expected the device rate {_NOMINAL}, got {eff}"
@@ -358,7 +363,7 @@ def test_a_stream_with_no_device_stamps_still_gets_a_host_rate_without_the_bias(
     bus = telemetry.TelemetryBus()
     bus.register("o2ppg", "O2Ring pleth", "raw", 125.0, chans=1)
     for _ in range(6):
-        bus.push("o2ppg", [1.0] * 10, 125.0)             # no dev_ns
+        bus.push("o2ppg", [1.0] * 10, 125.0)  # no dev_ns
     row = next(m for m in bus.meta() if m["key"] == "o2ppg")
     assert row["effFs"] is not None, "a stampless stream must still report something"
     assert row["effFs"] > 0.0
@@ -418,7 +423,7 @@ def test_two_frames_in_the_same_instant_with_no_device_stamp_refuse_rather_than_
     bus.register("o2ppg", "O2Ring pleth", "raw", 125.0, chans=1)
     bus.push("o2ppg", [1.0] * 10, 125.0)
     t = bus._win["o2ppg"][0][0]
-    bus._win["o2ppg"].append((t, 10, None))            # same instant, no device stamp
+    bus._win["o2ppg"].append((t, 10, None))  # same instant, no device stamp
     eff, _age, _warm = bus._stream_rate("o2ppg", t)
     assert eff is None, "a zero-length interval must refuse, never divide"
 
@@ -434,7 +439,7 @@ def test_two_frames_in_the_same_instant_with_no_device_stamp_refuse_rather_than_
 # And the link was never the cause: during ALL 1,681 of those gaps every sibling was still arriving.
 # Both fs=0 streams share ONE 6 s event window, so only the sparse one flapped.
 
-_QUIET = 45.0          # capture.O2_PLETHA_QUIET_S — 33.27 s measured max + ~35 % headroom
+_QUIET = 45.0  # capture.O2_PLETHA_QUIET_S — 33.27 s measured max + ~35 % headroom
 
 
 def test_an_intermittent_stream_says_so_instead_of_flapping():
@@ -473,12 +478,12 @@ def test_the_true_stall_is_still_reachable_from_intermittent():
 def test_every_stream_without_quiet_s_is_judged_exactly_as_before():
     """CONTROL, and the one that protects the Polar cards: `quiet_s=None` is the default and both Polar
     call sites pass nothing, so waveform and event streams keep their old verdicts to the letter."""
-    assert telemetry.stream_health(130, 125.0, 1.0) == "good"          # H10 ECG, fresh
-    assert telemetry.stream_health(130, 125.0, 10.0) == "stall"        # H10 ECG, silent past 6 s
-    assert telemetry.stream_health(130, 50.0, 1.0) == "weak"           # below 70 % of nominal
-    assert telemetry.stream_health(0, None, 3.0) == "good"             # event stream inside its window
-    assert telemetry.stream_health(0, None, 7.0) == "stall"            # event stream past it
-    assert telemetry.stream_health(130, 125.0, None) == "idle"         # declared, never pushed
+    assert telemetry.stream_health(130, 125.0, 1.0) == "good"  # H10 ECG, fresh
+    assert telemetry.stream_health(130, 125.0, 10.0) == "stall"  # H10 ECG, silent past 6 s
+    assert telemetry.stream_health(130, 50.0, 1.0) == "weak"  # below 70 % of nominal
+    assert telemetry.stream_health(0, None, 3.0) == "good"  # event stream inside its window
+    assert telemetry.stream_health(0, None, 7.0) == "stall"  # event stream past it
+    assert telemetry.stream_health(130, 125.0, None) == "idle"  # declared, never pushed
 
 
 def test_the_bus_publishes_the_why_and_the_OBSERVED_gaps_only_for_such_a_stream():
@@ -511,7 +516,7 @@ def test_the_observed_gaps_are_MEASURED_from_the_pushes_not_asserted():
         bus.push("o2pletha", [[1], [2]])
     row = {r["key"]: r for r in bus.meta()}["o2pletha"]
     g = row["observedGap"]
-    assert g is not None and g["n"] == 3, g          # 4 pushes ⇒ 3 intervals
+    assert g is not None and g["n"] == 3, g  # 4 pushes ⇒ 3 intervals
     for k in ("medianS", "p99S", "maxS"):
         assert isinstance(g[k], float) and g[k] >= 0.0, (k, g)
     assert g["maxS"] >= g["p99S"] >= 0.0 and g["maxS"] >= g["medianS"], g

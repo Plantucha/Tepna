@@ -10,6 +10,7 @@ restarting bluetooth). At 1:239 an operator greps for errors and finds occurrenc
 dead box"* — and it is kept for the FIRST occurrence. Nothing here suppresses the event or loses the
 total; the count is incremented before any logging decision.
 """
+
 import os
 import sys
 
@@ -85,6 +86,7 @@ def test_the_site_counts_before_it_decides():
     # because `open(` and `"capture.py"` sat on different lines and the check is per-line — filed as
     # residue rather than left as a quiet pass.
     from tests._srcscan import module_source
+
     src = module_source("capture.py")
     # Compare POSITIONS, not a fixed window. The first version searched 1200 characters back and the
     # count sat 1239 behind — a passing invariant failing on the size of the comment between them,

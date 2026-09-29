@@ -23,6 +23,7 @@ def _therapy_then_standby(end_at):
 
 # ── the parsers ────────────────────────────────────────────────────────────────────────────────
 
+
 def test_journal_rows_skips_the_header_and_torn_lines():
     rows = L.journal_rows(_j([(T0, "Therapy"), (T0 + 30_000, "Standby")]) + "\ntorn;line\n")
     assert rows == [(float(T0), "Therapy"), (float(T0 + 30_000), "Standby")]
@@ -50,6 +51,7 @@ def test_a_journal_with_no_therapy_at_all_reports_no_end():
 
 
 # ── the decision ───────────────────────────────────────────────────────────────────────────────
+
 
 def test_the_2026_08_29_reboot_case_is_caught_up():
     """End at 06:28:03, daemon up at 06:28:01, first cycle a few seconds later."""
@@ -108,18 +110,21 @@ def test_unusable_stamps_refuse_rather_than_seed():
 
 def test_fired_for_is_CARRIED_into_every_returned_watch_seeded_or_not():
     """A restart must never be able to re-harvest an end the previous process handled, on any path."""
-    for end, ended, now in ((None, False, T0), (float(T0), True, T0 + 7 * 86_400_000),
-                            (float(T0 + 1), True, T0 + 700_000)):
+    for end, ended, now in (
+        (None, False, T0),
+        (float(T0), True, T0 + 7 * 86_400_000),
+        (float(T0 + 1), True, T0 + 700_000),
+    ):
         assert L.boot_state(end, ended, 12345.0, now)[0].fired_for == 12345.0
 
 
 # ── the daemon side: the durable marker, and the seed ──────────────────────────────────────────
 
-import os                                                                            # noqa: E402
+import os  # noqa: E402
 
-import pytest                                                                        # noqa: E402
+import pytest  # noqa: E402
 
-import capture                                                                       # noqa: E402
+import capture  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -135,6 +140,7 @@ def test_the_LEGACY_marker_still_READS_because_migration_needs_it(tmp_path):
     path read it as "harvested", which is the defect the job ledger replaces. The READER survives for
     exactly one purpose: migrating a marker left by the previous build."""
     import json as _json
+
     (tmp_path / "captures").mkdir(exist_ok=True)
     with open(capture._cpap_fired_marker(str(tmp_path)), "w") as fh:
         _json.dump({"ended_at_ms": 1234.5}, fh)
@@ -148,6 +154,7 @@ def test_the_job_ledger_is_APPENDED_and_fsynced_never_rewritten(tmp_path):
     earlier transitions survive it. Mirrors `cpap_spool`'s ledger, which this repo already argued is the
     restart authority."""
     import cpap_job as J
+
     root = str(tmp_path)
     j = J.new_job(1234.5, "device_verdict", 1.0)
     capture._cpap_write_job(root, j)
@@ -174,8 +181,9 @@ def test_an_UNWRITEABLE_marker_does_not_cost_the_harvest(tmp_path, monkeypatch, 
     """A marker we could not write means the next boot may re-harvest. Safe direction — and it must
     not raise into the loop that just completed a good harvest."""
     import cpap_job as J
+
     monkeypatch.setattr(capture.os, "makedirs", lambda *a, **k: (_ for _ in ()).throw(OSError("ro")))
-    capture._cpap_write_job(str(tmp_path), J.new_job(5.0, "device_verdict", 1.0))   # must not raise
+    capture._cpap_write_job(str(tmp_path), J.new_job(5.0, "device_verdict", 1.0))  # must not raise
     assert capture._cpap_read_job(str(tmp_path)) is None
 
 
@@ -192,6 +200,7 @@ def test_the_boot_watch_does_NOT_re_arm_an_end_a_COMPLETED_job_records(tmp_path,
     """The "already handled" input is now a COMPLETED job, not a fired marker — the whole point. A job
     in any other state must NOT suppress the arm, which is asserted directly below."""
     import cpap_job as J
+
     monkeypatch.setattr(capture._time, "time", lambda: (T0 + 45_000) / 1000.0)
     (tmp_path / "SESSIONDETECT.csv").write_text(_j(_therapy_then_standby(T0)))
     done = J.transition(J.new_job(float(T0), "standby_hysteresis", 1.0), J.HARVEST_COMPLETED, 2.0, files=3)
@@ -203,11 +212,12 @@ def test_an_INTERRUPTED_job_still_arms_the_boot_watch(tmp_path, monkeypatch):
     """The 2026-09-06 case. Under the old marker this end read as handled and nothing re-armed; the card
     went unread for 5.5 h. An attempted-but-not-completed job must leave the end ARMED."""
     import cpap_job as J
+
     monkeypatch.setattr(capture._time, "time", lambda: (T0 + 45_000) / 1000.0)
     (tmp_path / "SESSIONDETECT.csv").write_text(_j(_therapy_then_standby(T0)))
-    capture._cpap_write_job(str(tmp_path),
-                            J.transition(J.new_job(float(T0), "standby_hysteresis", 1.0),
-                                         J.HARVEST_ATTEMPTED, 2.0))
+    capture._cpap_write_job(
+        str(tmp_path), J.transition(J.new_job(float(T0), "standby_hysteresis", 1.0), J.HARVEST_ATTEMPTED, 2.0)
+    )
     assert capture._cpap_boot_watch(str(tmp_path)).ended_at_ms == float(T0)
 
 

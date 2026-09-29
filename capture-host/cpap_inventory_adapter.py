@@ -105,8 +105,9 @@ def spool_nights(spool_root: str, *, read_ledger=None) -> tuple[list[str], bool]
     return out, True
 
 
-def reconcile_after_harvest(result: dict, *, dest_root: str, envelope_root: str, spool_root: str,
-                            read_ledger=None) -> dict:
+def reconcile_after_harvest(
+    result: dict, *, dest_root: str, envelope_root: str, spool_root: str, read_ledger=None
+) -> dict:
     """Collect the three inventories and reconcile them. Returns the oracle's result verbatim.
 
     `result` is the harvest outcome from `capture.py`'s `on_complete` hook. Only two of its keys are
@@ -116,7 +117,9 @@ def reconcile_after_harvest(result: dict, *, dest_root: str, envelope_root: str,
     env, env_ok = envelope_nights(envelope_root)
     spool, spool_ok = spool_nights(spool_root, read_ledger=read_ledger)
     return cpap_inventory.reconcile(
-        spool=spool, envelopes=env, card=card,
+        spool=spool,
+        envelopes=env,
+        card=card,
         # VERBATIM from the transport. `result.get("consulted")` with no default-True: a hook result
         # that omits the flag is a hook we do not understand, and assuming True would manufacture
         # findings from an unread card.
@@ -149,27 +152,40 @@ def write_reports(res: dict, *, qc_path: str, journal_path: str) -> dict:
                 fh.write(json.dumps(line) + "\n")
     except OSError:
         pass  # same reason as the report above: the JOURNAL is not the data. Losing it must not
-              # look like losing the capture, and the capture's own writers report their own faults
+        # look like losing the capture, and the capture's own writers report their own faults
     return payload
 
 
-def on_harvest_complete(result: dict, *, dest_root: str, envelope_root: str, spool_root: str,
-                        qc_path: str, journal_path: str, read_ledger=None, log=None) -> dict | None:
+def on_harvest_complete(
+    result: dict,
+    *,
+    dest_root: str,
+    envelope_root: str,
+    spool_root: str,
+    qc_path: str,
+    journal_path: str,
+    read_ledger=None,
+    log=None,
+) -> dict | None:
     """The callee for `capture.py`'s `on_complete` hook. Never raises into its caller.
 
     The daemon wires this with the roots it already owns; everything else here is pure enough to test
     against a tmp tree."""
     try:
-        res = reconcile_after_harvest(result, dest_root=dest_root, envelope_root=envelope_root,
-                                      spool_root=spool_root, read_ledger=read_ledger)
+        res = reconcile_after_harvest(
+            result, dest_root=dest_root, envelope_root=envelope_root, spool_root=spool_root, read_ledger=read_ledger
+        )
         payload = write_reports(res, qc_path=qc_path, journal_path=journal_path)
         if log is not None:
             if not res["ok"]:
                 log.info("cpap inventory: %s", res["reason"])
             else:
-                log.info("cpap inventory: %d discrepancy(ies) over %d night(s) %s",
-                         payload["discrepancies"], payload["complete_nights"] + payload["discrepancies"],
-                         payload.get("by_state", {}))
+                log.info(
+                    "cpap inventory: %d discrepancy(ies) over %d night(s) %s",
+                    payload["discrepancies"],
+                    payload["complete_nights"] + payload["discrepancies"],
+                    payload.get("by_state", {}),
+                )
         return payload
     except Exception:  # noqa: BLE001 — a reporter must not be able to change a harvest's outcome
         if log is not None:

@@ -134,16 +134,28 @@ class PairingSession:
     detector defers on, and it is True from start-INTENT, for the same reason
     LiveStreamController._busy is."""
 
-    def __init__(self, connect, creds_path: str, *, other_busy=None, on_paired=None,
-                 default_addr=None, passkey_timeout_s: float = DEFAULT_PASSKEY_TIMEOUT_S,
-                 clock=time.monotonic, sleep=asyncio.sleep, srp_factory=L.SrpClient,
-                 connect_attempts: int = 3, retry_delay_s: float = 4.0, adapter=None):
+    def __init__(
+        self,
+        connect,
+        creds_path: str,
+        *,
+        other_busy=None,
+        on_paired=None,
+        default_addr=None,
+        passkey_timeout_s: float = DEFAULT_PASSKEY_TIMEOUT_S,
+        clock=time.monotonic,
+        sleep=asyncio.sleep,
+        srp_factory=L.SrpClient,
+        connect_attempts: int = 3,
+        retry_delay_s: float = 4.0,
+        adapter=None,
+    ):
         self._connect = connect
         self._creds_path = creds_path
         self._adapter = adapter
         self._other_busy = other_busy or (lambda: False)
         self._on_paired = on_paired
-        self._default_addr = default_addr            # () -> the stored ble_addr, for a RE-pair
+        self._default_addr = default_addr  # () -> the stored ble_addr, for a RE-pair
         self._timeout = float(passkey_timeout_s)
         self._clock = clock
         self._sleep = sleep
@@ -152,7 +164,7 @@ class PairingSession:
         self._retry_delay = float(retry_delay_s)
         self._lock = asyncio.Lock()
         self._starting = False
-        self._pending: dict | None = None   # {srp, server_pk, salt, write, recv_frame, disconnect, addr, deadline}
+        self._pending: dict | None = None  # {srp, server_pk, salt, write, recv_frame, disconnect, addr, deadline}
         self._watchdog: asyncio.Future | None = None
 
     # ── state the rest of the daemon reads ──────────────────────────────────────────────────────
@@ -189,18 +201,18 @@ class PairingSession:
 
     def status(self) -> dict:
         adapter = self._adapter
-        base = {"adapter": adapter,
-                # None (not "true") when no adapter is configured: absent is not the same as usable,
-                # and a panel that renders a missing pin as "fine" is the fabricated-green this repo
-                # keeps paying for.
-                "adapter_usable": None if not adapter else
-                (str(adapter).upper() not in self.UNPAIRABLE_BD),
-                **self._creds_view()}
+        base = {
+            "adapter": adapter,
+            # None (not "true") when no adapter is configured: absent is not the same as usable,
+            # and a panel that renders a missing pin as "fine" is the fabricated-green this repo
+            # keeps paying for.
+            "adapter_usable": None if not adapter else (str(adapter).upper() not in self.UNPAIRABLE_BD),
+            **self._creds_view(),
+        }
         if self._pending is None:
             return {"pending": False, **base}
         left = max(0.0, self._pending["deadline"] - self._clock())
-        return {"pending": True, "ble_addr": self._pending["addr"],
-                "seconds_left": round(left, 1), **base}
+        return {"pending": True, "ble_addr": self._pending["addr"], "seconds_left": round(left, 1), **base}
 
     # ── the endpoint's entry ────────────────────────────────────────────────────────────────────
     async def op(self, action: str, *, passkey=None, ble_addr=None) -> dict:
@@ -208,8 +220,12 @@ class PairingSession:
             return {"ok": True, **self.status()}
         if action == "start":
             if self._lock.locked():
-                return {"ok": True, "starting": True, "already": True,
-                        "detail": "a pairing start is already in progress"}
+                return {
+                    "ok": True,
+                    "starting": True,
+                    "already": True,
+                    "detail": "a pairing start is already in progress",
+                }
             async with self._lock:
                 self._starting = True
                 try:
@@ -247,15 +263,24 @@ class PairingSession:
             os.unlink(self._creds_path)
         except OSError as e:
             return {"ok": False, "error": f"could not remove {self._creds_path}: {e}"}
-        return {"ok": True, "forgotten": True, "was_addr": before["creds_addr"],
-                "detail": "stored key removed — the CPAP must be re-paired before the next session",
-                **self.status()}
+        return {
+            "ok": True,
+            "forgotten": True,
+            "was_addr": before["creds_addr"],
+            "detail": "stored key removed — the CPAP must be re-paired before the next session",
+            **self.status(),
+        }
 
     # ── step 1 ──────────────────────────────────────────────────────────────────────────────────
     async def _start(self, ble_addr) -> dict:
         if self._pending is not None:
-            return {"ok": True, "awaiting": "passkey", "already": True, **self.status(),
-                    "detail": "an exchange is already open — type the code the CPAP shows"}
+            return {
+                "ok": True,
+                "awaiting": "passkey",
+                "already": True,
+                **self.status(),
+                "detail": "an exchange is already open — type the code the CPAP shows",
+            }
         if self._other_busy():
             return {"ok": False, "error": "the live CPAP stream holds the link — stop it before pairing"}
         addr = (ble_addr or "").strip() or (self._default_addr() if self._default_addr else None)
@@ -272,9 +297,12 @@ class PairingSession:
                 last = e
                 name = type(e).__name__
                 if "NotFound" in name or "not found" in str(e).lower():
-                    return {"ok": False, "unreachable": True,
-                            "error": "CPAP not found — is it on, in Bluetooth pairing mode (its menu → "
-                                     "Bluetooth), and not connected to the myAir phone app?"}
+                    return {
+                        "ok": False,
+                        "unreachable": True,
+                        "error": "CPAP not found — is it on, in Bluetooth pairing mode (its menu → "
+                        "Bluetooth), and not connected to the myAir phone app?",
+                    }
         if conn is None:
             return {"ok": False, "error": f"{type(last).__name__}: {last}"}
         write, recv_frame, disconnect = conn
@@ -284,12 +312,23 @@ class PairingSession:
         except Exception as e:  # noqa: BLE001 — a refused/malformed start ends the attempt; drop the link
             await self._close(disconnect)
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-        self._pending = {"srp": srp, "server_pk": server_pk, "salt": salt, "write": write,
-                         "recv_frame": recv_frame, "disconnect": disconnect, "addr": addr,
-                         "deadline": self._clock() + self._timeout}
+        self._pending = {
+            "srp": srp,
+            "server_pk": server_pk,
+            "salt": salt,
+            "write": write,
+            "recv_frame": recv_frame,
+            "disconnect": disconnect,
+            "addr": addr,
+            "deadline": self._clock() + self._timeout,
+        }
         self._watchdog = asyncio.ensure_future(self._expire())
-        return {"ok": True, "awaiting": "passkey", **self.status(),
-                "detail": "read the 4-digit code on the CPAP screen and enter it"}
+        return {
+            "ok": True,
+            "awaiting": "passkey",
+            **self.status(),
+            "detail": "read the 4-digit code on the CPAP screen and enter it",
+        }
 
     async def _expire(self):
         """Drop a pending exchange whose passkey never came — the AS11 has ONE BLE slot."""
@@ -305,11 +344,13 @@ class PairingSession:
         if p is None:
             return {"ok": False, "error": "no pairing exchange is open — press Start pairing first"}
         if not valid_passkey(passkey):
-            return {"ok": False, "error": "passkey must be the 4–10 digit code shown on the CPAP screen",
-                    **self.status()}
+            return {
+                "ok": False,
+                "error": "passkey must be the 4–10 digit code shown on the CPAP screen",
+                **self.status(),
+            }
         try:
-            creds = await confirm_exchange(p["write"], p["recv_frame"], p["srp"], p["server_pk"],
-                                           p["salt"], passkey)
+            creds = await confirm_exchange(p["write"], p["recv_frame"], p["srp"], p["server_pk"], p["salt"], passkey)
         except Exception as e:  # noqa: BLE001 — every failure ends the exchange; the link is dropped
             await self._drop()
             return {"ok": False, "verified": False, "error": f"{type(e).__name__}: {e}"}
@@ -318,8 +359,15 @@ class PairingSession:
         creds["paired_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         write_creds(self._creds_path, creds)
         live = bool(self._on_paired(dict(creds))) if self._on_paired else False
-        return {"ok": True, "verified": True, "stored": True, "clientId": creds["clientId"],
-                "ble_addr": p["addr"], "live": live, "restart_required": not live}
+        return {
+            "ok": True,
+            "verified": True,
+            "stored": True,
+            "clientId": creds["clientId"],
+            "ble_addr": p["addr"],
+            "live": live,
+            "restart_required": not live,
+        }
 
     async def _cancel(self) -> dict:
         if self._pending is None:
@@ -329,7 +377,7 @@ class PairingSession:
 
     async def _drop(self):
         p, self._pending = self._pending, None
-        self._watchdog.cancel()     # set together with _pending in _start; cancelling a finished task is a no-op
+        self._watchdog.cancel()  # set together with _pending in _start; cancelling a finished task is a no-op
         await self._close(p["disconnect"])
 
     @staticmethod

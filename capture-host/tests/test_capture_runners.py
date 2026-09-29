@@ -781,8 +781,13 @@ class FakePolarClient:
             for k in range(0, len(self.ecg), 73):
                 chunk = self.ecg[k : k + 73]
                 ts = 1_000_000_000 + round((k + len(chunk) - 1) / 130 * 1e9)
-                cb(0, bytes([pmd.ECG]) + ts.to_bytes(8, "little") + bytes([0x00])
-                   + b"".join(int(v).to_bytes(3, "little", signed=True) for v in chunk))
+                cb(
+                    0,
+                    bytes([pmd.ECG])
+                    + ts.to_bytes(8, "little")
+                    + bytes([0x00])
+                    + b"".join(int(v).to_bytes(3, "little", signed=True) for v in chunk),
+                )
             # HR subscribes BEFORE PMD data (capture.run_polar), so the packet sent at subscription voted
             # on an empty window; a real strap sends one every second, so send the next one now.
             self.cbs[capture.HR_UUID](0, self.hr_frame)
@@ -2808,8 +2813,11 @@ def test_adapter_watchdog_stops_after_the_power_cycle_cap(monkeypatch, caplog):
         _run(capture.adapter_watchdog("AC:A7:F1:29:9D:1D", cfg))
     assert ticks["n"] == 2, "the scenario needs a SECOND wedged check to reach the cap"
     assert len(power_offs) == 1, f"cap is 1 power-cycle; sent {len(power_offs)}"
-    give_ups = [r for r in caplog.records
-                if "STILL wedged after 1 power-cycles" in r.getMessage() and "stopping auto-recovery" in r.getMessage()]
+    give_ups = [
+        r
+        for r in caplog.records
+        if "STILL wedged after 1 power-cycles" in r.getMessage() and "stopping auto-recovery" in r.getMessage()
+    ]
     assert len(give_ups) == 1, [r.getMessage() for r in caplog.records]
     assert give_ups[0].levelno == logging.ERROR
 
@@ -2913,6 +2921,7 @@ def _clock_watchdog_error_case(monkeypatch, caplog, raiser):
     verdicts the tick appended and the log lines it emitted, so each caller can assert the arm it
     names — the three arms below differ ONLY in those two outputs, and until 2026-09-25 none of the
     three tests read either, so they were three names for one assertion-free run."""
+
     async def fake_sync(addr):
         raise raiser
 
@@ -3754,8 +3763,7 @@ def test_qc_poller_keeps_the_night_when_the_wear_scan_raises(tmp_path, monkeypat
     night.mkdir(parents=True)
     with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
         f.write("h\n1\n2\n3\n")
-    cfg = {"qc": {"poll_sec": 600},
-           "devices": [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]}]}
+    cfg = {"qc": {"poll_sec": 600}, "devices": [{"name": "H10", "device_id": "02849638", "streams": ["ecg"]}]}
     _stop_after(monkeypatch, 1)
     with caplog.at_level("WARNING"):
         _run(capture.qc_poller(cfg, str(tmp_path)))
@@ -3838,7 +3846,7 @@ def _qc_night(tmp_path, monkeypatch, missing=True):
     }
 
 
-_real_summarize = capture.nightqc.summarize   # bound BEFORE any test patches the module attribute
+_real_summarize = capture.nightqc.summarize  # bound BEFORE any test patches the module attribute
 
 
 def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
@@ -6275,7 +6283,8 @@ def test_auto_sync_ladder_stops_at_its_wall_clock_budget(tmp_path, monkeypatch):
     # is not (90 + 45 = 135), so it is never STARTED. Before the fix the 3rd ran and the ladder spent 135 s.
     assert calls["n"] == 2, f"budget must cap the ladder well short of 12 (got {calls['n']})"
     assert clock["t"] <= 120.0, (
-        f"the ladder must spend INSIDE its 120 s budget, not merely notice afterwards (spent {clock['t']}s)")
+        f"the ladder must spend INSIDE its 120 s budget, not merely notice afterwards (spent {clock['t']}s)"
+    )
     assert capture.STATUS.get("devices", {}).get("H10", {}).get("clock_synced") is None
 
 
@@ -6524,6 +6533,7 @@ def test_only_AUTOMATICALLY_RETRIED_call_sites_opt_in():
     through `polar_offline_op`, so it cannot see this parameter today. Asserted anyway: the protection
     should survive someone rewiring it through the shared helper."""
     import re
+
     src = module_source("capture.py")
 
     RETRIED = {
@@ -6553,13 +6563,15 @@ def test_only_AUTOMATICALLY_RETRIED_call_sites_opt_in():
         f"these callers opt into presence_check_s but are not declared automatically-retried: {sorted(unexpected)}. "
         "If a false absent is retried automatically, add it to RETRIED by name with what retries it. "
         "If nothing retries it, it must not opt in — a silent skip reads as a completed operation "
-        "to whoever asked for it.")
+        "to whoever asked for it."
+    )
     for fn in NOT_RETRIED:
         assert fn not in sites, f"{fn} is never retried automatically and must never opt into the presence guard"
     for fn, const in RETRIED.items():
         assert fn in sites, f"{fn} is declared automatically-retried but no longer opts in — the guard was dropped"
         assert any(const in s for s in sites[fn]), (
-            f"{fn} must pass its own budget constant {const}, not a literal or another caller's")
+            f"{fn} must pass its own budget constant {const}, not a literal or another caller's"
+        )
 
 
 # ── the arrival sidecar's failure paths (PAT-PACKET-ARRIVAL §3) ─────────────────────────────────────

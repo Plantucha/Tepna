@@ -5,6 +5,7 @@
 These exist because the monitor now accepts a webhook URL typed by a human (VIGIL-OBSERVED-ERRORS E6),
 which makes this the one place operator input reaches an outbound HTTP client and the journal.
 """
+
 import os
 import sys
 
@@ -14,12 +15,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import alerts  # noqa: E402
 
 
-@pytest.mark.parametrize("v", [
-    "https://ntfy.sh/topic",
-    "http://192.168.0.5:8080/hook",
-    "https://hooks.slack.com/services/T0/B0/xyz",
-    "https://[2001:db8::1]/hook",          # IPv6 literal
-])
+@pytest.mark.parametrize(
+    "v",
+    [
+        "https://ntfy.sh/topic",
+        "http://192.168.0.5:8080/hook",
+        "https://hooks.slack.com/services/T0/B0/xyz",
+        "https://[2001:db8::1]/hook",  # IPv6 literal
+    ],
+)
 def test_accepts_real_webhook_urls(v):
     assert alerts.validate_webhook_url(v) == v
 
@@ -33,13 +37,16 @@ def test_blank_is_an_explicit_clear_not_an_error(v):
     assert alerts.validate_webhook_url(v) == ""
 
 
-@pytest.mark.parametrize("v,why", [
-    ("ftp://h/x",           "scheme not in the allowlist"),
-    ("file:///etc/shadow",  "file:// would make the box read a local file"),
-    ("//ntfy.sh/t",         "no scheme"),
-    ("https://",            "no host"),
-    ("ntfy.sh/t",           "bare host, no scheme"),
-])
+@pytest.mark.parametrize(
+    "v,why",
+    [
+        ("ftp://h/x", "scheme not in the allowlist"),
+        ("file:///etc/shadow", "file:// would make the box read a local file"),
+        ("//ntfy.sh/t", "no scheme"),
+        ("https://", "no host"),
+        ("ntfy.sh/t", "bare host, no scheme"),
+    ],
+)
 def test_rejects_what_is_not_an_http_webhook(v, why):
     with pytest.raises(alerts.AlertsError):
         alerts.validate_webhook_url(v), why
@@ -67,6 +74,7 @@ def test_rejects_a_url_urlsplit_itself_refuses():
 
 # ── the hint must never carry the token ───────────────────────────────────────────────────────────
 
+
 def test_hint_keeps_scheme_and_host_and_drops_the_path():
     assert alerts.webhook_hint("https://hooks.slack.com/services/T0/B0/tok") == "https://hooks.slack.com"
 
@@ -91,6 +99,7 @@ def test_hint_degrades_on_a_value_urlsplit_refuses():
 
 
 # ── live reconfigure ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_configure_repoints_without_a_restart():
     n = alerts.Notifier("https://old/x", enabled=True)

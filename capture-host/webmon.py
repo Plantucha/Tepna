@@ -23,7 +23,7 @@ import bonding
 import daemon_control
 import clockcfg
 import offline_lock
-import polar_pmd as pmd          # for SDK_MODE — the feature bit, named once, not spelled "0x9" here
+import polar_pmd as pmd  # for SDK_MODE — the feature bit, named once, not spelled "0x9" here
 import polar_psftp
 import storage_targets
 import alerts
@@ -44,7 +44,7 @@ _log = logging.getLogger("tepna.webmon")
 # A device address reaches bonding.* which f-string-interpolates it into a newline-delimited
 # bluetoothctl stdin script (VIGIL-DEEP-ANALYSIS §2A) — so an address carrying a newline could inject
 # control commands (power off / remove <other-sensor>). Validate the EXACT MAC shape at this boundary.
-_MAC_RE = re.compile(r'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')
+_MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
 
 # Timeline cache bounds. MODULE level, not locals inside `make_app`, so the relationship between the
 # TTL and monitor.html's poll interval is assertable — that relationship is the defect, not the value
@@ -103,8 +103,7 @@ async def _body(req):
 
 
 def _bad_body_response():
-    return web.json_response(
-        {"ok": False, "error": "request body must be a JSON object"}, status=400)
+    return web.json_response({"ok": False, "error": "request body must be a JSON object"}, status=400)
 
 
 # Written at the top of every machine-emitted config.yaml. The file is UI-owned and `yaml.safe_dump`
@@ -114,7 +113,8 @@ _CFG_BANNER = (
     "# WRITTEN BY THE TEPNA MONITOR — comments in this file are NOT preserved.\n"
     "# Every save (settings / remember / forget / storage) re-emits it from the in-memory config, and\n"
     "# the YAML emitter has no comment round-trip. Keep notes in config.example.yaml, which is version\n"
-    "# controlled and never written by the box.\n")
+    "# controlled and never written by the box.\n"
+)
 
 _comment_loss_warned = False
 
@@ -143,7 +143,7 @@ _BANNER_LINES = frozenset(ln.strip() for ln in _CFG_BANNER.splitlines() if ln.st
 # the O2Ring a float one (125.738, the observed ROW rate), so the join is `object` and the two
 # `.items()` readers below stop type-checking. The table is uniform in MEANING: (bytes/sec, rate).
 _BPS_BY_MODEL: dict[str, dict[str, tuple[float, float]]] = {
-    "H10":    {"ecg": (7800, 130), "acc": (11400, 200), "hr": (35, 1)},
+    "H10": {"ecg": (7800, 130), "acc": (11400, 200), "hr": (35, 1)},
     "Verity": {"ppg": (3750, 55), "acc": (2950, 52), "gyro": (2800, 52), "mag": (2950, 50), "ppi": (30, 1)},
     # O2Ring ppg: 6200 B/s measured while the stream ran at its observed ROW rate (~125.7 = 125.000 ADC
     # samples + inserted `156` beat markers), NOT the 125.000 ADC clock — a throughput calibration is
@@ -167,8 +167,7 @@ def _has_comments(path: str) -> bool:
                 t = line.strip()
                 # `# WRITTEN BY THE TEPNA MONITOR` is matched by prefix as well, so a banner emitted by
                 # an older build — whose wording differs from today's — is still not mistaken for prose.
-                if t.startswith("#") and t not in _BANNER_LINES \
-                        and not t.startswith("# WRITTEN BY THE TEPNA MONITOR"):
+                if t.startswith("#") and t not in _BANNER_LINES and not t.startswith("# WRITTEN BY THE TEPNA MONITOR"):
                     return True
     except (OSError, UnicodeDecodeError):
         return False
@@ -178,15 +177,31 @@ def _has_comments(path: str) -> bool:
 def _warn_comment_loss(path: str) -> None:
     global _comment_loss_warned
     _comment_loss_warned = True
-    _log.warning("config: %s carries comments that this save will DROP — the monitor owns this file "
-                 "and the YAML emitter cannot round-trip comments. Keep notes in config.example.yaml.",
-                 path)
+    _log.warning(
+        "config: %s carries comments that this save will DROP — the monitor owns this file "
+        "and the YAML emitter cannot round-trip comments. Keep notes in config.example.yaml.",
+        path,
+    )
 
 
-def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
-             pull_stored=None, polar_pause=None, sync_time=None, forget_device=None,
-             on_tz_change=None, notifier=None, ring_config=None, ring_buzz=None,
-             cpap_pair=None, cpap_stream=None) -> web.Application:
+def make_app(
+    bus,
+    cfg: dict,
+    cfg_path: str,
+    adapter_mac,
+    status: dict,
+    spawn_device,
+    pull_stored=None,
+    polar_pause=None,
+    sync_time=None,
+    forget_device=None,
+    on_tz_change=None,
+    notifier=None,
+    ring_config=None,
+    ring_buzz=None,
+    cpap_pair=None,
+    cpap_stream=None,
+) -> web.Application:
     # 🔴 PROBED ONCE, HERE, BECAUSE THIS IS DAEMON STARTUP.
     # Reading it per-request would report the sha on DISK, which after a deploy is the new code while
     # this process is still serving the old — the "is X deployed?" question answering itself wrongly.
@@ -228,156 +243,172 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         for lq in list(_live_queues):
             try:
                 lq.put_nowait({"stream": "__shutdown__"})
-            except Exception:       # pragma: no cover — an unbounded Queue's put_nowait cannot fail;
-                pass                # the guard only ensures one bad subscriber cannot block the rest
+            except Exception:  # pragma: no cover — an unbounded Queue's put_nowait cannot fail;
+                pass  # the guard only ensures one bad subscriber cannot block the rest
+
     app.on_shutdown.append(_on_shutdown)
 
     def _remembered() -> list[dict]:
         out = []
         for d in cfg.get("devices", []):
             st = status.get("devices", {}).get(d["name"], {})
-            out.append({**{k: d.get(k) for k in
-                           ("name", "vendor", "model", "device_id", "device_id_aliases", "name_aliases", "address", "streams")},
-                        "connected": bool(st.get("connected")),
-                        "battery": st.get("battery"),
-                        "rssi": st.get("rssi"),
-                        "clock_synced": st.get("clock_synced"),
-                        "device_time": st.get("device_time"),
-                        "clock_skew_sec": st.get("clock_skew_sec"),
-                        # THE NUMBER THE WATCHDOG ACTUALLY DECIDES ON, beside the one an operator sees.
-                        # `clock_skew_sec` is a single frame's reading and carries that frame's delivery
-                        # latency; `clock_skew_floor_sec` is the envelope over CLOCK_SKEW_WINDOW_S and is
-                        # what `clock_watchdog` compares against tolerance. Surfacing only the first made
-                        # a re-sync look unexplained whenever the two disagreed — which is exactly when
-                        # the link was stalling. `_n` ships with it because the floor is None until the
-                        # window has CLOCK_SKEW_MIN_N samples, and "not measured yet" must be legible as
-                        # itself rather than as a clock that is fine.
-                        "clock_skew_floor_sec": st.get("clock_skew_floor_sec"),
-                        "clock_skew_n": st.get("clock_skew_n"),
-                        # THE WATCHDOG'S GIVE-UP VERDICT, which until now reached nobody. `capture.py`
-                        # sets it when the clock write has failed its whole budget and retracts it on the
-                        # next successful sync — a fact with 7 tests pinning it and, before this line, no
-                        # consumer at all. That is the failure the `worn_why` comment below describes,
-                        # one field over: a value that exists in STATUS but is not forwarded here is NOT
-                        # published. For a suite whose Clock Contract rests on device time being
-                        # trustworthy, a night captured under an uncorrectable clock was downstream
-                        # indistinguishable from a good one.
-                        "clock_uncorrectable": st.get("clock_uncorrectable"),
-                        # A RATE THE DEVICE REFUSED. capture.py logs it with the words "the config
-                        # still says %s; nothing else will tell you it did not happen" — and then
-                        # published `rate_unmet` to STATUS, where nothing read it. The log line was
-                        # more literally true than its author intended. It matters because the config
-                        # keeps claiming the rate you asked for: a Verity negotiated down from 176 Hz
-                        # is a different recording, and only this field says so after the fact.
-                        "rate_unmet": st.get("rate_unmet"),
-                        # WHEN THIS DEVICE LAST PRODUCED A SAMPLE. Published on every write and read by
-                        # nothing until now. `nightqc` computes a per-night `silent_sec` and the frozen-
-                        # sensor alert fires off it, but that is a NIGHT summary — an operator watching
-                        # the card mid-session had no way to see a stream that stopped four minutes ago
-                        # while the link stayed up. That is the same failure the frozen alert exists for,
-                        # one time-scale down.
-                        "last_sample": st.get("last_sample"),
-                        "pull_progress": st.get("pull_progress"),
-                        # §19/§20 — the O2Ring presence axis and its EXECUTION WITNESS. `presence` is
-                        # an observation (advertising ≠ connected ≠ recording); `presence_witness` is
-                        # the one field that says where the §19 chain STOPS, so a path that never
-                        # armed cannot read as healthy. §20 is explicit that exposing only
-                        # "enabled = true" is insufficient — and a field forwarded here but drawn by
-                        # nobody is still not exposed, which is why monitor.html draws all three.
-                        "presence": st.get("presence"),
-                        "presence_reason": st.get("presence_reason"),
-                        "presence_witness": st.get("presence_witness"),
-                        # link_epoch (E5) is the reconnect count — the honest churn signal a green
-                        # "connected" dot hides. A device that flaps all night reads "connected" at every
-                        # sample yet has a climbing epoch; surfacing it is what makes that visible.
-                        "link_epoch": st.get("link_epoch"),
-                        # The two OxyII lifecycle axes (charter G4): the LINK state the runner journals to
-                        # OXYLIFE.csv and the RECORDING state the duration_s engine derives. Both were
-                        # written to STATUS from the first G4 night (2026-08-24) and forwarded by nobody —
-                        # thirteen nights of journal on the box, and `/api/state` carried neither key,
-                        # so "liveness states visible in STATUS" was true of the dict and false of every
-                        # reader (verified against the live daemon 2026-09-05). Same class as `worn_why`
-                        # below: a STATUS field this allowlist omits is not published.
-                        "oxy_lifecycle": st.get("oxy_lifecycle"),
-                        "oxy_recording": st.get("oxy_recording"),
-                        # The restart-storm block (capture.oxy_storm_status). Forwarded because the hold
-                        # is otherwise witnessed ONLY by a log line: the storm watch had to count
-                        # "ring started a new recording session" out of the journal, and a hold that
-                        # fires overnight left nothing a monitor could show. Note the comment above —
-                        # this allowlist is exactly where such a field goes to die unpublished.
-                        "oxy_storm": st.get("oxy_storm"),
-                        "worn": st.get("worn"),
-                        # WHICH SOURCE DECIDED, and what the other one thought. `worn` alone is a bare
-                        # True/False/None with no provenance, and on 2026-08-13 that was the entire
-                        # failure: an armband on a desk reported `worn: True` from its HR contact bit
-                        # for ten hours while nothing said where that came from or that the optical
-                        # detector disagreed. The daemon logs the conflict; a log line does not reach
-                        # the person looking at the monitor. A field that exists in STATUS but is not
-                        # forwarded here is NOT published — the same class as a DSP value that never
-                        # reaches its export, and it fails silently in both directions.
-                        "worn_why": st.get("worn_why"),
-                        "worn_optical": st.get("worn_optical"),
-                        "worn_optical_why": st.get("worn_optical_why"),
-                        # THE RING'S OWN CLOCK vs the host (GET_INFO [24:31], readable since 2026-08-19).
-                        # The 6-hourly 0xC0 push was previously trusted blind; this read-back says whether
-                        # it landed and how far the free-running RTC has wandered since.
-                        "ring_rtc_offset_s": st.get("ring_rtc_offset_s"),
-                        "ring_rtc_read": st.get("ring_rtc_read"),
-                        # WHO ANSWERED. The 0xE1 reply's wire serial + firmware (parsed since 2026-08-19,
-                        # published since 2026-09-05), and the audit §6.2 Mitigation C verdict when the
-                        # operator has configured `serial:` — a wrong ring streams SpO₂ exactly like the
-                        # right one, so this is the only field that can say the link is the wrong device.
-                        "ring_serial": st.get("ring_serial"),
-                        # `ring_firmware` is the vendor's BRANCH CODE and is kept under that name for
-                        # the card that already draws it; the correctly-named pair travels beside it so a
-                        # reader can tell `2D010002` (branch) from `1.13.1.0` (firmware) — residue
-                        # `2026-09-02-oxyii-branchcode-named-firmware`.
-                        "ring_firmware": st.get("ring_firmware"),
-                        "ring_branch_code": st.get("ring_branch_code"),
-                        "ring_firmware_version": st.get("ring_firmware_version"),
-                        "ring_identity_mismatch": st.get("ring_identity_mismatch"),
-                        # Clause 2 of the same mitigation: the run of connects that ANSWERED identity
-                        # and then delivered no frames, plus the alarm text once the run is long enough
-                        # to mean something. The count ships even at 0 — an absent field and a zero are
-                        # different facts, and this one is what the alarm beside it is counting.
-                        "ring_barren_connects": st.get("ring_barren_connects"),
-                        "ring_barren_alert": st.get("ring_barren_alert"),
-                        # THE ENCRYPTION VERDICT for this link, from the OP_AUTH reply (wired
-                        # 2026-09-07). `auth_mode` is "plaintext" / "encrypted" / "refuse" when the
-                        # ring answered, and the string "unknown" when it stayed silent — which is
-                        # every ring here, so the common case must be visible rather than absent.
-                        # `auth_unknown_links` counts the links that went undetermined: one is normal,
-                        # a night of them is the daemon never learning what it is talking to.
-                        "auth_mode": st.get("auth_mode"),
-                        "auth_reason": st.get("auth_reason"),
-                        "auth_unknown_links": st.get("auth_unknown_links"),
-                        # The ring's settings struct AS THE RING REPORTS IT (0x00 read-back), plus the
-                        # verdict of the last monitor-queued write. The requested value is deliberately
-                        # not echoed anywhere — only what the device confirmed.
-                        "ring_config": st.get("ring_config"),
-                        "ring_config_verdict": st.get("ring_config_verdict"),
-                        "ring_buzz_at": st.get("ring_buzz_at"),
-                        # A battery-event RTC reset, flagged the moment a readback sees the jump — the
-                        # stored .dat timebase is suspect from this instant until the next verified push.
-                        "ring_rtc_reset_suspect": st.get("ring_rtc_reset_suspect"),
-                        "charging": bool(st.get("charging")),
-                        # How many of this device's flushes have FAILED. Distinct from `last_error`,
-                        # which is about the LINK: a write failure means the samples arrived and may
-                        # not have reached the disk, so the card can read perfectly live while the
-                        # night is being lost. Zero on every healthy device.
-                        "flush_failures": st.get("flush_failures"),
-                        # Two sibling counters (RESOURCE-ORCHESTRATION-AUDIT S1/S2). `rows_lost` is
-                        # the number of ROWS a write refused (ENOSPC, EIO, closed handle) — the raw
-                        # data that did not land, counted per row, never folded into `rows`.
-                        # `fsync_max_ms` is the slowest fsync this stream has paid ON THE EVENT LOOP;
-                        # every live stream's host stamps waited behind it. Absent until reported.
-                        "rows_lost": st.get("rows_lost"),
-                        "fsync_max_ms": st.get("fsync_max_ms"),
-                        # The runner's CURRENT wait, while it waits: {attempt, why, wait_s, next_at_ms}.
-                        # Null outside a wait. Before this a runner in its 180 s backoff was
-                        # indistinguishable here from a dead one.
-                        "retry": st.get("retry"),
-                        "last_error": st.get("last_error")})
+            out.append(
+                {
+                    **{
+                        k: d.get(k)
+                        for k in (
+                            "name",
+                            "vendor",
+                            "model",
+                            "device_id",
+                            "device_id_aliases",
+                            "name_aliases",
+                            "address",
+                            "streams",
+                        )
+                    },
+                    "connected": bool(st.get("connected")),
+                    "battery": st.get("battery"),
+                    "rssi": st.get("rssi"),
+                    "clock_synced": st.get("clock_synced"),
+                    "device_time": st.get("device_time"),
+                    "clock_skew_sec": st.get("clock_skew_sec"),
+                    # THE NUMBER THE WATCHDOG ACTUALLY DECIDES ON, beside the one an operator sees.
+                    # `clock_skew_sec` is a single frame's reading and carries that frame's delivery
+                    # latency; `clock_skew_floor_sec` is the envelope over CLOCK_SKEW_WINDOW_S and is
+                    # what `clock_watchdog` compares against tolerance. Surfacing only the first made
+                    # a re-sync look unexplained whenever the two disagreed — which is exactly when
+                    # the link was stalling. `_n` ships with it because the floor is None until the
+                    # window has CLOCK_SKEW_MIN_N samples, and "not measured yet" must be legible as
+                    # itself rather than as a clock that is fine.
+                    "clock_skew_floor_sec": st.get("clock_skew_floor_sec"),
+                    "clock_skew_n": st.get("clock_skew_n"),
+                    # THE WATCHDOG'S GIVE-UP VERDICT, which until now reached nobody. `capture.py`
+                    # sets it when the clock write has failed its whole budget and retracts it on the
+                    # next successful sync — a fact with 7 tests pinning it and, before this line, no
+                    # consumer at all. That is the failure the `worn_why` comment below describes,
+                    # one field over: a value that exists in STATUS but is not forwarded here is NOT
+                    # published. For a suite whose Clock Contract rests on device time being
+                    # trustworthy, a night captured under an uncorrectable clock was downstream
+                    # indistinguishable from a good one.
+                    "clock_uncorrectable": st.get("clock_uncorrectable"),
+                    # A RATE THE DEVICE REFUSED. capture.py logs it with the words "the config
+                    # still says %s; nothing else will tell you it did not happen" — and then
+                    # published `rate_unmet` to STATUS, where nothing read it. The log line was
+                    # more literally true than its author intended. It matters because the config
+                    # keeps claiming the rate you asked for: a Verity negotiated down from 176 Hz
+                    # is a different recording, and only this field says so after the fact.
+                    "rate_unmet": st.get("rate_unmet"),
+                    # WHEN THIS DEVICE LAST PRODUCED A SAMPLE. Published on every write and read by
+                    # nothing until now. `nightqc` computes a per-night `silent_sec` and the frozen-
+                    # sensor alert fires off it, but that is a NIGHT summary — an operator watching
+                    # the card mid-session had no way to see a stream that stopped four minutes ago
+                    # while the link stayed up. That is the same failure the frozen alert exists for,
+                    # one time-scale down.
+                    "last_sample": st.get("last_sample"),
+                    "pull_progress": st.get("pull_progress"),
+                    # §19/§20 — the O2Ring presence axis and its EXECUTION WITNESS. `presence` is
+                    # an observation (advertising ≠ connected ≠ recording); `presence_witness` is
+                    # the one field that says where the §19 chain STOPS, so a path that never
+                    # armed cannot read as healthy. §20 is explicit that exposing only
+                    # "enabled = true" is insufficient — and a field forwarded here but drawn by
+                    # nobody is still not exposed, which is why monitor.html draws all three.
+                    "presence": st.get("presence"),
+                    "presence_reason": st.get("presence_reason"),
+                    "presence_witness": st.get("presence_witness"),
+                    # link_epoch (E5) is the reconnect count — the honest churn signal a green
+                    # "connected" dot hides. A device that flaps all night reads "connected" at every
+                    # sample yet has a climbing epoch; surfacing it is what makes that visible.
+                    "link_epoch": st.get("link_epoch"),
+                    # The two OxyII lifecycle axes (charter G4): the LINK state the runner journals to
+                    # OXYLIFE.csv and the RECORDING state the duration_s engine derives. Both were
+                    # written to STATUS from the first G4 night (2026-08-24) and forwarded by nobody —
+                    # thirteen nights of journal on the box, and `/api/state` carried neither key,
+                    # so "liveness states visible in STATUS" was true of the dict and false of every
+                    # reader (verified against the live daemon 2026-09-05). Same class as `worn_why`
+                    # below: a STATUS field this allowlist omits is not published.
+                    "oxy_lifecycle": st.get("oxy_lifecycle"),
+                    "oxy_recording": st.get("oxy_recording"),
+                    # The restart-storm block (capture.oxy_storm_status). Forwarded because the hold
+                    # is otherwise witnessed ONLY by a log line: the storm watch had to count
+                    # "ring started a new recording session" out of the journal, and a hold that
+                    # fires overnight left nothing a monitor could show. Note the comment above —
+                    # this allowlist is exactly where such a field goes to die unpublished.
+                    "oxy_storm": st.get("oxy_storm"),
+                    "worn": st.get("worn"),
+                    # WHICH SOURCE DECIDED, and what the other one thought. `worn` alone is a bare
+                    # True/False/None with no provenance, and on 2026-08-13 that was the entire
+                    # failure: an armband on a desk reported `worn: True` from its HR contact bit
+                    # for ten hours while nothing said where that came from or that the optical
+                    # detector disagreed. The daemon logs the conflict; a log line does not reach
+                    # the person looking at the monitor. A field that exists in STATUS but is not
+                    # forwarded here is NOT published — the same class as a DSP value that never
+                    # reaches its export, and it fails silently in both directions.
+                    "worn_why": st.get("worn_why"),
+                    "worn_optical": st.get("worn_optical"),
+                    "worn_optical_why": st.get("worn_optical_why"),
+                    # THE RING'S OWN CLOCK vs the host (GET_INFO [24:31], readable since 2026-08-19).
+                    # The 6-hourly 0xC0 push was previously trusted blind; this read-back says whether
+                    # it landed and how far the free-running RTC has wandered since.
+                    "ring_rtc_offset_s": st.get("ring_rtc_offset_s"),
+                    "ring_rtc_read": st.get("ring_rtc_read"),
+                    # WHO ANSWERED. The 0xE1 reply's wire serial + firmware (parsed since 2026-08-19,
+                    # published since 2026-09-05), and the audit §6.2 Mitigation C verdict when the
+                    # operator has configured `serial:` — a wrong ring streams SpO₂ exactly like the
+                    # right one, so this is the only field that can say the link is the wrong device.
+                    "ring_serial": st.get("ring_serial"),
+                    # `ring_firmware` is the vendor's BRANCH CODE and is kept under that name for
+                    # the card that already draws it; the correctly-named pair travels beside it so a
+                    # reader can tell `2D010002` (branch) from `1.13.1.0` (firmware) — residue
+                    # `2026-09-02-oxyii-branchcode-named-firmware`.
+                    "ring_firmware": st.get("ring_firmware"),
+                    "ring_branch_code": st.get("ring_branch_code"),
+                    "ring_firmware_version": st.get("ring_firmware_version"),
+                    "ring_identity_mismatch": st.get("ring_identity_mismatch"),
+                    # Clause 2 of the same mitigation: the run of connects that ANSWERED identity
+                    # and then delivered no frames, plus the alarm text once the run is long enough
+                    # to mean something. The count ships even at 0 — an absent field and a zero are
+                    # different facts, and this one is what the alarm beside it is counting.
+                    "ring_barren_connects": st.get("ring_barren_connects"),
+                    "ring_barren_alert": st.get("ring_barren_alert"),
+                    # THE ENCRYPTION VERDICT for this link, from the OP_AUTH reply (wired
+                    # 2026-09-07). `auth_mode` is "plaintext" / "encrypted" / "refuse" when the
+                    # ring answered, and the string "unknown" when it stayed silent — which is
+                    # every ring here, so the common case must be visible rather than absent.
+                    # `auth_unknown_links` counts the links that went undetermined: one is normal,
+                    # a night of them is the daemon never learning what it is talking to.
+                    "auth_mode": st.get("auth_mode"),
+                    "auth_reason": st.get("auth_reason"),
+                    "auth_unknown_links": st.get("auth_unknown_links"),
+                    # The ring's settings struct AS THE RING REPORTS IT (0x00 read-back), plus the
+                    # verdict of the last monitor-queued write. The requested value is deliberately
+                    # not echoed anywhere — only what the device confirmed.
+                    "ring_config": st.get("ring_config"),
+                    "ring_config_verdict": st.get("ring_config_verdict"),
+                    "ring_buzz_at": st.get("ring_buzz_at"),
+                    # A battery-event RTC reset, flagged the moment a readback sees the jump — the
+                    # stored .dat timebase is suspect from this instant until the next verified push.
+                    "ring_rtc_reset_suspect": st.get("ring_rtc_reset_suspect"),
+                    "charging": bool(st.get("charging")),
+                    # How many of this device's flushes have FAILED. Distinct from `last_error`,
+                    # which is about the LINK: a write failure means the samples arrived and may
+                    # not have reached the disk, so the card can read perfectly live while the
+                    # night is being lost. Zero on every healthy device.
+                    "flush_failures": st.get("flush_failures"),
+                    # Two sibling counters (RESOURCE-ORCHESTRATION-AUDIT S1/S2). `rows_lost` is
+                    # the number of ROWS a write refused (ENOSPC, EIO, closed handle) — the raw
+                    # data that did not land, counted per row, never folded into `rows`.
+                    # `fsync_max_ms` is the slowest fsync this stream has paid ON THE EVENT LOOP;
+                    # every live stream's host stamps waited behind it. Absent until reported.
+                    "rows_lost": st.get("rows_lost"),
+                    "fsync_max_ms": st.get("fsync_max_ms"),
+                    # The runner's CURRENT wait, while it waits: {attempt, why, wait_s, next_at_ms}.
+                    # Null outside a wait. Before this a runner in its 180 s backoff was
+                    # indistinguishable here from a dead one.
+                    "retry": st.get("retry"),
+                    "last_error": st.get("last_error"),
+                }
+            )
         return out
 
     async def index(_req):
@@ -388,8 +419,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         # Last-Modified alone let mobile Chrome reuse the cached HTML heuristically). The page is ~190 KB
         # on a LAN, served by the same box that is capturing — re-fetching it costs nothing that matters,
         # and being able to trust what it shows costs everything.
-        return web.FileResponse(os.path.join(_HERE, "monitor.html"),
-                                headers={"Cache-Control": "no-cache, must-revalidate"})
+        return web.FileResponse(
+            os.path.join(_HERE, "monitor.html"), headers={"Cache-Control": "no-cache, must-revalidate"}
+        )
 
     def _cpap_live_block(c):
         """The serve-time "is therapy running NOW" view, as its OWN top-level block.
@@ -406,6 +438,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return None
         try:
             import cpap_live
+
             poll_s = float(((cfg.get("as11_detector") or {}).get("poll_interval_sec")) or 30.0)
             return cpap_live.live_view(c, _time.time() * 1000.0, poll_s)
         except Exception:  # noqa: BLE001
@@ -413,103 +446,105 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return None
 
     async def state(_req):
-        return web.json_response({
-            "adapter": adapter_mac,
-            "devices": _remembered(),
-            "streams": bus.meta(),
-            # What disciplined THIS BOX's clock. The devices inherit host time, so an undisciplined
-            # host silently makes every stamp wrong-but-consistent — this is the evidence, not a guess.
-            "host_clock": status.get("host_clock"),
-            # Box-health blocks the guardrail pollers publish: free disk + retention, and tonight's
-            # capture-completeness QC. Present only once their poller has run (null before then).
-            "storage": status.get("storage"),
-            "qc": status.get("qc"),
-            # Boot/adapter facts: uptime (a moved started_at = a spurious restart) + a mis-pin flag.
-            "host": status.get("host"),
-            # Alert-transport health. The monitor renders three states from it — ok / unproven /
-            # FAILING — because "enabled and never delivered anything" is not the same as working.
-            "alerts": status.get("alerts"),
-            # Offload result, so the sidebar pill can say whether anything actually left the box.
-            "archive": status.get("archive"),
-            # CPAP harvest (CPAP-AUTOHARVEST-2026-07-26-BRIEF). Its OWN block, deliberately not a
-            # pseudo-device under `devices`: the CPAP arrives as FILES on a daily timer with no BLE
-            # link, so it has no connected/RSSI/worn state and would render as a permanently-dead
-            # sensor if it sat in that list. Null until the poller has run once.
-            #
-            # `live` answers the DIFFERENT question "is therapy running NOW", which the harvest fields
-            # cannot: they count files. It is computed HERE, at serve time, and not at publish time,
-            # because the answer ages between the two — a value stamped 40 minutes ago and served as
-            # `therapy: true` is a fabricated present tense. See `cpap_live.live_view`.
-            #
-            # ⚠️ THE AGEING MUST HAPPEN ON THIS SIDE. `detector_host_ms` is a BOX-local stamp; a
-            # browser subtracting it from its own clock differences two clocks and prints the result
-            # as a duration. Both operands here are this host's clock.
-            "cpap": status.get("cpap"),
-            # SEPARATE BLOCK, SEPARATE QUESTION. `cpap` above counts harvested FILES on a daily timer;
-            # this answers "is therapy running right now", from the AS11 shadow detector, aged HERE at
-            # serve time. Null when there is no cpap block at all.
-            "cpap_live": _cpap_live_block(status.get("cpap")),
-            # THIRD BLOCK, THIRD QUESTION — and it is a different ACTOR, not a different view of the
-            # same one. `cpap` is the daily harvest poller; this is the stored-spool pull, a second
-            # scheduled acquisition that defers on the same conditions. Forwarded because
-            # OPERATIONAL-MATURITY-AUDIT §4(1) names "two actors reporting `waiting` continuously
-            # across a whole window" as the falsification condition to watch, and that observation is
-            # impossible while one of the two actors publishes nowhere. Null until the pull is armed
-            # (default OFF) and has ticked once.
-            "cpap_spool": status.get("cpap_spool"),
-            # PER-DEVICE reconnect distress against that device's own per-adapter baseline. Forwarded
-            # so it EXISTS for a human at all: it was published to STATUS and read by nothing — not
-            # this projection, not the monitor, not the failover ladder — so a distressed radio was
-            # computed nightly and seen by nobody (enumerated 2026-09-01).
-            #
-            # ⚠️ THE PER-DEVICE VERDICTS DO NOT DRIVE FAILOVER. The per-ADAPTER fold below is the
-            # verdict at the granularity a switch actually moves (`link_distress.adapter_verdict`,
-            # ≥2 rated links distressed together); it ships REPORT-ONLY behind
-            # `watchdog.distress_failover` (default off — arming is the owner's, against the
-            # criterion pre-stated in RADIO-FAILOVER-DISTRESS-SIGNAL §6).
-            # THE ONLY RUNTIME EVIDENCE A DOFF OR PRESENCE PULL EVER FIRED. `trigger` names which
-            # scheduler dispatched it and `drained` how many stranded fragments the follow-on sweep
-            # recovered — neither is recoverable from the night tree afterwards, because a file that
-            # arrives by presence and one that arrives by the hourly poller are byte-identical on
-            # disk. Published since the auto-pull landed and forwarded by nothing until now, so the
-            # doff trigger had no observable off the box at all.
-            "autopull": status.get("autopull"),
-            "radio_distress": status.get("radio_distress"),
-            "radio_distress_adapter": status.get("radio_distress_adapter"),
-            # Every switch as an EVENT with its cause — the brief's item 4. Was published to STATUS
-            # and read by nothing (the find_unwired top-level-STATUS blind spot, sibling of the
-            # radio_distress case this same file records above).
-            "radio_switches": status.get("radio_switches"),
-            # The O2Ring POWER axis (oxy_power) — per ring: power state, whether the radio is on and
-            # for whom, the scan policy in force, the strike/cooldown cache and the §21 counters
-            # (scan seconds, connection seconds, harvests, deferrals). Forwarded on the day it was
-            # written so it never joins the published-and-read-by-nothing class above. Null until a
-            # ring's capture task has started.
-            "power": status.get("power"),
-            # The daemon's own load and gate state (RESOURCE-ORCHESTRATION-AUDIT L1/L2/O2), forwarded
-            # for the same reason as the two blocks above: published to STATUS and read by nothing is
-            # not published. `loop` = event-loop lag {lag_last_ms, lag_max_ms, stalls, ticks};
-            # `gates` = which recovery/pause gates are held right now; `tasks` = per-supervised-task
-            # crash counts with the last error. Each null until its poller has ticked.
-            "loop": status.get("loop"),
-            "gates": status.get("gates"),
-            "tasks": status.get("tasks"),
-            # THE LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture): the files
-            # the daemon holds open, stat'd each status round against the last look — `findings` is
-            # THIS round, `last`/`last_at` the most recent event. Forwarded on the day it was written
-            # for the reason every block above it records: a guard whose only channel is a log line
-            # reaches nobody looking at the monitor, and this one exists precisely because a night was
-            # lost while every visible surface read healthy.
-            "live_loss": status.get("live_loss"),
-            # TONIGHT'S SOLID-NIGHT VERDICT (`solid_night.compose` via the QC poller): the night, its
-            # `tepna.verdict/1` status word, the reason that decided it, and the run statement. The
-            # programme's exit condition is 14 consecutive solid nights, so the only question an
-            # operator asks each morning is whether last night counted and, if not, which term failed —
-            # and until this line existed the answer lived in a log line and a file on the box. Same
-            # reason as every block above it: published to STATUS and forwarded by nothing is not
-            # published. Null until the poller has composed a verdict for a settled night.
-            "solid": status.get("solid"),
-        })
+        return web.json_response(
+            {
+                "adapter": adapter_mac,
+                "devices": _remembered(),
+                "streams": bus.meta(),
+                # What disciplined THIS BOX's clock. The devices inherit host time, so an undisciplined
+                # host silently makes every stamp wrong-but-consistent — this is the evidence, not a guess.
+                "host_clock": status.get("host_clock"),
+                # Box-health blocks the guardrail pollers publish: free disk + retention, and tonight's
+                # capture-completeness QC. Present only once their poller has run (null before then).
+                "storage": status.get("storage"),
+                "qc": status.get("qc"),
+                # Boot/adapter facts: uptime (a moved started_at = a spurious restart) + a mis-pin flag.
+                "host": status.get("host"),
+                # Alert-transport health. The monitor renders three states from it — ok / unproven /
+                # FAILING — because "enabled and never delivered anything" is not the same as working.
+                "alerts": status.get("alerts"),
+                # Offload result, so the sidebar pill can say whether anything actually left the box.
+                "archive": status.get("archive"),
+                # CPAP harvest (CPAP-AUTOHARVEST-2026-07-26-BRIEF). Its OWN block, deliberately not a
+                # pseudo-device under `devices`: the CPAP arrives as FILES on a daily timer with no BLE
+                # link, so it has no connected/RSSI/worn state and would render as a permanently-dead
+                # sensor if it sat in that list. Null until the poller has run once.
+                #
+                # `live` answers the DIFFERENT question "is therapy running NOW", which the harvest fields
+                # cannot: they count files. It is computed HERE, at serve time, and not at publish time,
+                # because the answer ages between the two — a value stamped 40 minutes ago and served as
+                # `therapy: true` is a fabricated present tense. See `cpap_live.live_view`.
+                #
+                # ⚠️ THE AGEING MUST HAPPEN ON THIS SIDE. `detector_host_ms` is a BOX-local stamp; a
+                # browser subtracting it from its own clock differences two clocks and prints the result
+                # as a duration. Both operands here are this host's clock.
+                "cpap": status.get("cpap"),
+                # SEPARATE BLOCK, SEPARATE QUESTION. `cpap` above counts harvested FILES on a daily timer;
+                # this answers "is therapy running right now", from the AS11 shadow detector, aged HERE at
+                # serve time. Null when there is no cpap block at all.
+                "cpap_live": _cpap_live_block(status.get("cpap")),
+                # THIRD BLOCK, THIRD QUESTION — and it is a different ACTOR, not a different view of the
+                # same one. `cpap` is the daily harvest poller; this is the stored-spool pull, a second
+                # scheduled acquisition that defers on the same conditions. Forwarded because
+                # OPERATIONAL-MATURITY-AUDIT §4(1) names "two actors reporting `waiting` continuously
+                # across a whole window" as the falsification condition to watch, and that observation is
+                # impossible while one of the two actors publishes nowhere. Null until the pull is armed
+                # (default OFF) and has ticked once.
+                "cpap_spool": status.get("cpap_spool"),
+                # PER-DEVICE reconnect distress against that device's own per-adapter baseline. Forwarded
+                # so it EXISTS for a human at all: it was published to STATUS and read by nothing — not
+                # this projection, not the monitor, not the failover ladder — so a distressed radio was
+                # computed nightly and seen by nobody (enumerated 2026-09-01).
+                #
+                # ⚠️ THE PER-DEVICE VERDICTS DO NOT DRIVE FAILOVER. The per-ADAPTER fold below is the
+                # verdict at the granularity a switch actually moves (`link_distress.adapter_verdict`,
+                # ≥2 rated links distressed together); it ships REPORT-ONLY behind
+                # `watchdog.distress_failover` (default off — arming is the owner's, against the
+                # criterion pre-stated in RADIO-FAILOVER-DISTRESS-SIGNAL §6).
+                # THE ONLY RUNTIME EVIDENCE A DOFF OR PRESENCE PULL EVER FIRED. `trigger` names which
+                # scheduler dispatched it and `drained` how many stranded fragments the follow-on sweep
+                # recovered — neither is recoverable from the night tree afterwards, because a file that
+                # arrives by presence and one that arrives by the hourly poller are byte-identical on
+                # disk. Published since the auto-pull landed and forwarded by nothing until now, so the
+                # doff trigger had no observable off the box at all.
+                "autopull": status.get("autopull"),
+                "radio_distress": status.get("radio_distress"),
+                "radio_distress_adapter": status.get("radio_distress_adapter"),
+                # Every switch as an EVENT with its cause — the brief's item 4. Was published to STATUS
+                # and read by nothing (the find_unwired top-level-STATUS blind spot, sibling of the
+                # radio_distress case this same file records above).
+                "radio_switches": status.get("radio_switches"),
+                # The O2Ring POWER axis (oxy_power) — per ring: power state, whether the radio is on and
+                # for whom, the scan policy in force, the strike/cooldown cache and the §21 counters
+                # (scan seconds, connection seconds, harvests, deferrals). Forwarded on the day it was
+                # written so it never joins the published-and-read-by-nothing class above. Null until a
+                # ring's capture task has started.
+                "power": status.get("power"),
+                # The daemon's own load and gate state (RESOURCE-ORCHESTRATION-AUDIT L1/L2/O2), forwarded
+                # for the same reason as the two blocks above: published to STATUS and read by nothing is
+                # not published. `loop` = event-loop lag {lag_last_ms, lag_max_ms, stalls, ticks};
+                # `gates` = which recovery/pause gates are held right now; `tasks` = per-supervised-task
+                # crash counts with the last error. Each null until its poller has ticked.
+                "loop": status.get("loop"),
+                "gates": status.get("gates"),
+                "tasks": status.get("tasks"),
+                # THE LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture): the files
+                # the daemon holds open, stat'd each status round against the last look — `findings` is
+                # THIS round, `last`/`last_at` the most recent event. Forwarded on the day it was written
+                # for the reason every block above it records: a guard whose only channel is a log line
+                # reaches nobody looking at the monitor, and this one exists precisely because a night was
+                # lost while every visible surface read healthy.
+                "live_loss": status.get("live_loss"),
+                # TONIGHT'S SOLID-NIGHT VERDICT (`solid_night.compose` via the QC poller): the night, its
+                # `tepna.verdict/1` status word, the reason that decided it, and the run statement. The
+                # programme's exit condition is 14 consecutive solid nights, so the only question an
+                # operator asks each morning is whether last night counted and, if not, which term failed —
+                # and until this line existed the answer lived in a log line and a file on the box. Same
+                # reason as every block above it: published to STATUS and forwarded by nothing is not
+                # published. Null until the poller has composed a verdict for a settled night.
+                "solid": status.get("solid"),
+            }
+        )
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────
     # The scheduled poller owns the 13:00 window; this is the operator's "do it now" for a night that
@@ -520,6 +555,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     async def cpap_pull(req):
         import cpap_harvest
+
         ccfg = cfg.get("cpap") or {}
         if not ccfg.get("enabled"):
             return web.json_response({"ok": False, "error": "cpap harvest is disabled in config"}, status=400)
@@ -534,10 +570,12 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         busy = cpap_harvest.blocking_devices(status.get("devices"))
         if busy:
             # 409, not 500: the box is working exactly as intended and the operator can retry later.
-            return web.json_response({"ok": False, "busy": busy,
-                                      "error": "sensors are streaming: " + ", ".join(busy)}, status=409)
+            return web.json_response(
+                {"ok": False, "busy": busy, "error": "sensors are streaming: " + ", ".join(busy)}, status=409
+            )
 
         import datetime as _d
+
         nights = cpap_harvest.nights_for(scope, _d.datetime.now())
         dest = os.path.join(cfg.get("root", "/srv/tepna"), ccfg.get("dest_subdir", "captures/cpap"))
         profile = str(ccfg.get("wifi_profile", "ezshare"))
@@ -564,8 +602,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 if not cpap_harvest.wifi_up(profile, 45.0, guard, root=root):
                     return {"ok": False, "error": "could not associate to the card"}
             try:
-                r = cpap_harvest.harvest(dest, base, nights,
-                                         __import__("time").monotonic() + max_run)
+                r = cpap_harvest.harvest(dest, base, nights, __import__("time").monotonic() + max_run)
             finally:
                 if not direct:
                     cpap_harvest.wifi_down(profile, root=root)
@@ -592,7 +629,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 _log.info("cpap/pull: %s", why)
             res = await asyncio.to_thread(_work, direct)
             harvest_ok = bool(res.get("ok"))
-        except Exception as e:            # noqa: BLE001 — a manual pull must never 500 the monitor
+        except Exception as e:  # noqa: BLE001 — a manual pull must never 500 the monitor
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
         finally:
             _cpap_busy["running"] = False
@@ -602,8 +639,14 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 _, rwhy = await wifi_uplink.resume_after_harvest(root, uplink_suspended, harvest_ok)
                 _log.info("cpap/pull: %s", rwhy)
         st = status.setdefault("cpap", {})
-        st.update(state="ok" if res.get("ok") else "error", **{k: v for k, v in res.items()
-                  if k in ("files", "bytes", "nights", "skipped", "short", "errors", "nights_on_card")})
+        st.update(
+            state="ok" if res.get("ok") else "error",
+            **{
+                k: v
+                for k, v in res.items()
+                if k in ("files", "bytes", "nights", "skipped", "short", "errors", "nights_on_card")
+            },
+        )
         return web.json_response({"scope": scope, **res})
 
     async def cpap_pair_h(req):
@@ -629,24 +672,23 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         restart_required), never a bare 'queued' — pairing either completed against the device or it did
         not, and nothing is stored until the device proved it holds the same key."""
         if cpap_pair is None:
-            return web.json_response(
-                {"ok": False, "error": "CPAP BLE pairing is not wired on this daemon"}, status=501)
+            return web.json_response({"ok": False, "error": "CPAP BLE pairing is not wired on this daemon"}, status=501)
         body = await _body(req)
         if body is BAD_BODY:
             return _bad_body_response()
         action = str(body.get("action") or ("passkey" if "passkey" in body else "")).strip()
         if action not in ("start", "passkey", "cancel", "status", "forget"):
             return web.json_response(
-                {"ok": False,
-                 "error": "action must be 'start', 'passkey', 'cancel', 'status' or 'forget'"}, status=400)
+                {"ok": False, "error": "action must be 'start', 'passkey', 'cancel', 'status' or 'forget'"}, status=400
+            )
         passkey = str(body.get("passkey", "")).strip()
         if action == "passkey" and not (passkey.isascii() and passkey.isdigit() and 4 <= len(passkey) <= 10):
             return web.json_response(
-                {"ok": False, "error": "passkey must be the 4–10 digit code shown on the CPAP screen"},
-                status=400)
+                {"ok": False, "error": "passkey must be the 4–10 digit code shown on the CPAP screen"}, status=400
+            )
         try:
             res = await cpap_pair(action, passkey=passkey or None, ble_addr=str(body.get("ble_addr") or ""))
-        except Exception as e:            # noqa: BLE001 — a pairing attempt must never 500 the monitor
+        except Exception as e:  # noqa: BLE001 — a pairing attempt must never 500 the monitor
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
         return web.json_response(res)
 
@@ -661,17 +703,17 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         streamed nothing. Read-only: StartStream is an `application` read, no therapy RPC is ever sent."""
         if cpap_stream is None:
             return web.json_response(
-                {"ok": False, "error": "CPAP BLE streaming is not wired on this daemon"}, status=501)
+                {"ok": False, "error": "CPAP BLE streaming is not wired on this daemon"}, status=501
+            )
         body = await _body(req)
         if body is BAD_BODY:
             return _bad_body_response()
         action = str(body.get("action", "")).strip()
         if action not in ("start", "stop"):
-            return web.json_response(
-                {"ok": False, "error": "action must be 'start' or 'stop'"}, status=400)
+            return web.json_response({"ok": False, "error": "action must be 'start' or 'stop'"}, status=400)
         try:
             res = await cpap_stream(action)
-        except Exception as e:            # noqa: BLE001 — a stream toggle must never 500 the monitor
+        except Exception as e:  # noqa: BLE001 — a stream toggle must never 500 the monitor
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
         return web.json_response(res)
 
@@ -697,7 +739,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         cfg["devices"] = [d for d in cfg.get("devices", []) if d.get("address") != body["address"]]
         if not _save():
             return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
-        if forget_device:                     # stop the runner too — else it reconnects a dropped device
+        if forget_device:  # stop the runner too — else it reconnects a dropped device
             forget_device(body["address"])
         return web.json_response(res)
 
@@ -714,8 +756,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if not _valid_mac(body.get("address")):
             return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         ring_buzz(body["address"])
-        return web.json_response({"ok": True, "queued": True,
-                                  "note": "fires on the ring's next poll; ring_buzz_at on /api/state stamps the command"})
+        return web.json_response(
+            {
+                "ok": True,
+                "queued": True,
+                "note": "fires on the ring's next poll; ring_buzz_at on /api/state stamps the command",
+            }
+        )
 
     async def ring_config_h(req):
         """POST /api/ring/config {address, field, value} — queue ONE whitelisted O2Ring settings write.
@@ -725,8 +772,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         the ring's own read-back (`ring_config` + `ring_config_verdict` on /api/state), never the value
         that was merely requested."""
         if ring_config is None:
-            return web.json_response({"ok": False, "error": "ring settings not wired on this daemon"},
-                                     status=501)
+            return web.json_response({"ok": False, "error": "ring settings not wired on this daemon"}, status=501)
         body = await _body(req)
         if body is BAD_BODY:
             return _bad_body_response()
@@ -741,8 +787,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             ring_config(body["address"], field, value)
         except ValueError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
-        return web.json_response({"ok": True, "queued": {"field": field, "value": value},
-                                  "note": "applied on the ring's next poll; verify via ring_config on /api/state"})
+        return web.json_response(
+            {
+                "ok": True,
+                "queued": {"field": field, "value": value},
+                "note": "applied on the ring's next poll; verify via ring_config on /api/state",
+            }
+        )
 
     async def remember(req):
         dev = await _body(req)
@@ -758,8 +809,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         missing = missing_identity(dev)
         if missing:
             return web.json_response(
-                {"ok": False, "missing": missing,
-                 "error": "unidentified device — missing " + ", ".join(missing)}, status=400)
+                {"ok": False, "missing": missing, "error": "unidentified device — missing " + ", ".join(missing)},
+                status=400,
+            )
         # MERGE ONTO THE EXISTING ENTRY — never "last write wins" (2026-07-26).
         #
         # This used to drop the stored device and rebuild it from the 6-key allowlist below, so
@@ -787,9 +839,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # incoming guess; correcting it is a deliberate config edit, not a side effect of scanning.
             if existing.get("device_id"):
                 if incoming.get("device_id") and incoming["device_id"] != existing["device_id"]:
-                    _log.warning("remember: keeping established device_id %r for %s (ignoring incoming "
-                                 "%r — changing it would rename every future capture file)",
-                                 existing["device_id"], dev.get("address"), incoming["device_id"])
+                    _log.warning(
+                        "remember: keeping established device_id %r for %s (ignoring incoming "
+                        "%r — changing it would rename every future capture file)",
+                        existing["device_id"],
+                        dev.get("address"),
+                        incoming["device_id"],
+                    )
                 merged["device_id"] = existing["device_id"]
             cfg["devices"] = [merged if d is existing else d for d in cfg["devices"]]
             saved = merged
@@ -798,7 +854,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             saved = incoming
         if not _save():
             return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
-        if spawn_device:                      # hot-start capture without a restart
+        if spawn_device:  # hot-start capture without a restart
             # `saved`, not cfg["devices"][-1] — a MERGED device keeps its original position in the
             # list, so the old index-based lookup would hot-start whichever sensor happened to be last.
             spawn_device(saved)
@@ -809,10 +865,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         # all ~10 streams at once, and browsers cap ~6 HTTP/1.1 connections per host, so per-stream
         # connections would starve the rest. Each frame carries its own "stream" field for client demux.
         key = req.match_info["key"]
-        allmode = (key == "_all")
-        resp = web.StreamResponse(headers={
-            "Content-Type": "text/event-stream", "Cache-Control": "no-cache",
-            "Connection": "keep-alive", "X-Accel-Buffering": "no"})
+        allmode = key == "_all"
+        resp = web.StreamResponse(
+            headers={
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            }
+        )
         await resp.prepare(req)
         q = bus.subscribe()
         _live_queues.add(q)
@@ -824,18 +885,18 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 try:
                     msg = await asyncio.wait_for(q.get(), timeout=15)
                 except asyncio.TimeoutError:  # pragma: no cover — the SSE keep-alive fires only on a
-                    await resp.write(b": keep-alive\n\n")   # live long-lived connection idle >15 s; a
-                    continue                                 # unit test of this infinite handler hangs teardown
+                    await resp.write(b": keep-alive\n\n")  # live long-lived connection idle >15 s; a
+                    continue  # unit test of this infinite handler hangs teardown
 
                 if _shutting_down.is_set():
-                    break                       # woken by the shutdown sentinel — let cleanup() finish
+                    break  # woken by the shutdown sentinel — let cleanup() finish
                 if not allmode and msg["stream"] != key:
                     continue
                 await resp.write(f"data: {json.dumps(msg)}\n\n".encode())
         except (asyncio.CancelledError, ConnectionResetError, ConnectionError):
-            pass       # THE NORMAL END OF AN SSE STREAM: the operator closed the tab. All three
-                       # are the client going away, not a fault, and the `finally` below does the
-                       # only thing that matters — unsubscribe, so the bus stops filling a dead queue
+            pass  # THE NORMAL END OF AN SSE STREAM: the operator closed the tab. All three
+            # are the client going away, not a fault, and the `finally` below does the
+            # only thing that matters — unsubscribe, so the bus stops filling a dead queue
         finally:
             _live_queues.discard(q)
             bus.unsubscribe(q)
@@ -920,27 +981,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 yaml.safe_dump(cfg, f, sort_keys=False, default_flow_style=False)
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(tmp, cfg_path)          # atomic: readers see old-or-new, never a partial file
+            os.replace(tmp, cfg_path)  # atomic: readers see old-or-new, never a partial file
             tmp = None
-            try:                               # make the RENAME durable, not just the bytes
+            try:  # make the RENAME durable, not just the bytes
                 dfd = os.open(d, os.O_RDONLY)
                 try:
                     os.fsync(dfd)
                 finally:
                     os.close(dfd)
-            except OSError:                    # some filesystems refuse a directory fsync; the replace
-                pass                           # already happened and is still atomic
+            except OSError:  # some filesystems refuse a directory fsync; the replace
+                pass  # already happened and is still atomic
             return True
-        except Exception as e:   # a full/read-only disk must NOT report ok:true (VIGIL-DEEP-ANALYSIS §2A)
+        except Exception as e:  # a full/read-only disk must NOT report ok:true (VIGIL-DEEP-ANALYSIS §2A)
             _log.warning("config write failed: %r", e)
             return False
         finally:
             if tmp and os.path.exists(tmp):
                 try:
-                    os.unlink(tmp)             # never leave a stray .config.*.yaml.tmp behind
+                    os.unlink(tmp)  # never leave a stray .config.*.yaml.tmp behind
                 except OSError:
-                    pass   # already on the failure path, and the caller is being told the SAVE
-                           # failed — a stray temp file must not displace that report
+                    pass  # already on the failure path, and the caller is being told the SAVE
+                    # failed — a stray temp file must not displace that report
 
     # ── Clock / NTP / timezone (Clock Contract §🔒 — the box's wall clock stamps every capture) ──
     _clock_sudo = (cfg.get("clock") or {}).get("sudo", True)
@@ -955,8 +1016,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         servers = body.get("servers") or []
         if isinstance(servers, str):
             servers = servers.replace(",", " ").split()
-        return web.json_response(
-            await clockcfg.set_ntp(servers, body.get("poll_max_sec", 2048), sudo=_clock_sudo))
+        return web.json_response(await clockcfg.set_ntp(servers, body.get("poll_max_sec", 2048), sudo=_clock_sudo))
 
     async def clock_sync(_req):
         return web.json_response(await clockcfg.sync_now(sudo=_clock_sudo))
@@ -974,7 +1034,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if r.get("ok") and on_tz_change is not None:
             try:
                 on_tz_change(f"timezone set to {r.get('timezone')}")
-            except Exception:                     # never fail the tz change over its own bookkeeping
+            except Exception:  # never fail the tz change over its own bookkeeping
                 _log.exception("clock/tz: re-anchor hook failed")
         return web.json_response(r)
 
@@ -994,13 +1054,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         async def _wrapped():
             await bonding.ensure_bonded(address, adapter_mac)
             return await op()
+
         if polar_pause:
             return await polar_pause(address, _wrapped)
         return await _wrapped()
 
-
     def _model_of(dev: dict) -> str:
-        blob = f"{dev.get('model','')} {dev.get('name','')}".lower()
+        blob = f"{dev.get('model', '')} {dev.get('name', '')}".lower()
         return "H10" if "h10" in blob else ("Verity" if ("verity" in blob or "sense" in blob) else "O2Ring")
 
     def _bps_for(dev: dict) -> dict:
@@ -1043,11 +1103,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             minutes = (cfg.get("watchdog") or {}).get("usb_path")
             if not minutes:
                 return web.json_response(
-                    {"ok": False, "verb": verb,
-                     "error": "no watchdog.usb_path in config — this box has no adapter port to re-bind"},
-                    status=400)
+                    {
+                        "ok": False,
+                        "verb": verb,
+                        "error": "no watchdog.usb_path in config — this box has no adapter port to re-bind",
+                    },
+                    status=400,
+                )
         try:
-            daemon_control.build_cmd(verb, minutes)      # raises on a bad verb or bad argument
+            daemon_control.build_cmd(verb, minutes)  # raises on a bad verb or bad argument
         except daemon_control.VerbError as e:
             return web.json_response({"ok": False, "verb": verb, "error": str(e)}, status=400)
         # ⚠️ THE ON-BODY GUARD FOR THE SELF-KILLING VERBS, AND WHY IT IS HERE RATHER THAN IN THE HELPER.
@@ -1109,19 +1173,22 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # directly, every one of those freezes the whole monitor — the live SSE feed, every other
             # request — for its full duration, and a recovery button that hangs the page it is served
             # from is the shape people stop trusting.
-            return web.json_response(await asyncio.to_thread(
-                daemon_control.run, verb, minutes,
-                timeout=daemon_control.timeout_for(verb)))
+            return web.json_response(
+                await asyncio.to_thread(daemon_control.run, verb, minutes, timeout=daemon_control.timeout_for(verb))
+            )
         _schedule(daemon_control.RESTART_DELAY_S, verb, minutes)
         detail = {
-            "stop": lambda: ("stopping capture for %s min — this page will disconnect and the daemon "
-                             "restarts itself afterwards" % daemon_control.coerce_minutes(minutes)),
-            "reboot": lambda: "rebooting the host — this page will disconnect for a minute or so; "
-                              "capture resumes on boot",
+            "stop": lambda: (
+                "stopping capture for %s min — this page will disconnect and the daemon "
+                "restarts itself afterwards" % daemon_control.coerce_minutes(minutes)
+            ),
+            "reboot": lambda: (
+                "rebooting the host — this page will disconnect for a minute or so; capture resumes on boot"
+            ),
         }.get(verb, lambda: "restarting — this page will disconnect for a few seconds")()
-        return web.json_response({
-            "ok": True, "verb": verb, "scheduled_in_s": daemon_control.RESTART_DELAY_S,
-            "detail": detail})
+        return web.json_response(
+            {"ok": True, "verb": verb, "scheduled_in_s": daemon_control.RESTART_DELAY_S, "detail": detail}
+        )
 
     async def settings_get(_req):
         devs = []
@@ -1134,8 +1201,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # modes, not measurements. polar_pmd names the ones it decodes and leaves the rest as hex,
             # so an unnamed (0x…) entry is exactly "not a stream we can capture"; offering it would be a
             # checkbox that can never work.
-            supported = [x for x in (st.get("pmd_supported") or []) if not str(x).startswith("0x")] \
-                        or None
+            supported = [x for x in (st.get("pmd_supported") or []) if not str(x).startswith("0x")] or None
             if d.get("vendor") in ("Wellue", "Viatom"):
                 # The ring has no PMD feature bitmask; its capturable set is fixed and known. `ppg` is the
                 # 125 Hz pleth we decode out of the same 0x04 frame as the 1 Hz summary — the second
@@ -1162,25 +1228,35 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # device being asleep. Note `supported` above deliberately STRIPS the `0x…` flags, which is
             # why this reads the unfiltered list instead.
             seen_flags = [str(x) for x in (st.get("pmd_supported") or d.get("pmd_supported_seen") or [])]
-            devs.append({"name": d.get("name"), "address": d.get("address"), "vendor": d.get("vendor"),
-                         "streams": d.get("streams") or [], "supported": supported,
-                         "bps": _bps_for(d), "bps_ref": _bps_ref(d),
-                         # the device's OWN menu of legal rates, read at connect — a dropdown built from
-                         # this cannot offer an unsupported value
-                         "rate_options": st.get("pmd_options") or {},
-                         "rates": d.get("rates") or {},
-                         "sdk_capable": hex(pmd.SDK_MODE) in seen_flags,
-                         "sdk_mode": bool(d.get("sdk_mode")),
-                         # WHAT THE DEVICE LAST SAID, which is not what the config asked for: True on,
-                         # False off, None never reported. Kept separate and rendered as its own state —
-                         # collapsing "unknown" into "off" is how a night runs at 55 Hz under a config
-                         # that reads 176 with nothing to show for it (see capture._enter_sdk_mode).
-                         "sdk_mode_actual": st.get("sdk_mode")})
-        return web.json_response({
-            "settings": settings_schema.describe(cfg),
-            "devices": devs,
-            "bps_by_model": _BPS_BY_MODEL,
-        })
+            devs.append(
+                {
+                    "name": d.get("name"),
+                    "address": d.get("address"),
+                    "vendor": d.get("vendor"),
+                    "streams": d.get("streams") or [],
+                    "supported": supported,
+                    "bps": _bps_for(d),
+                    "bps_ref": _bps_ref(d),
+                    # the device's OWN menu of legal rates, read at connect — a dropdown built from
+                    # this cannot offer an unsupported value
+                    "rate_options": st.get("pmd_options") or {},
+                    "rates": d.get("rates") or {},
+                    "sdk_capable": hex(pmd.SDK_MODE) in seen_flags,
+                    "sdk_mode": bool(d.get("sdk_mode")),
+                    # WHAT THE DEVICE LAST SAID, which is not what the config asked for: True on,
+                    # False off, None never reported. Kept separate and rendered as its own state —
+                    # collapsing "unknown" into "off" is how a night runs at 55 Hz under a config
+                    # that reads 176 with nothing to show for it (see capture._enter_sdk_mode).
+                    "sdk_mode_actual": st.get("sdk_mode"),
+                }
+            )
+        return web.json_response(
+            {
+                "settings": settings_schema.describe(cfg),
+                "devices": devs,
+                "bps_by_model": _BPS_BY_MODEL,
+            }
+        )
 
     async def settings_post(req):
         """Apply allowlisted settings and/or per-device stream selections. Validates EVERYTHING before
@@ -1215,8 +1291,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 bad = [x for x in streams if x not in KNOWN_STREAMS]
                 if bad:
                     raise settings_schema.SettingsError(
-                        f"unknown stream(s): {', '.join(sorted(bad))} "
-                        f"(known: {', '.join(sorted(KNOWN_STREAMS))})")
+                        f"unknown stream(s): {', '.join(sorted(bad))} (known: {', '.join(sorted(KNOWN_STREAMS))})"
+                    )
                 st = status.get("devices", {}).get(dev.get("name"), {})
                 # REMEMBERED capabilities: what the device advertised the last time it connected,
                 # persisted so a reboot does not disarm the check until the sensor next comes up.
@@ -1225,20 +1301,19 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     dev["pmd_supported_seen"] = list(sup)
                 else:
                     sup = dev.get("pmd_supported_seen")
-                if sup:                      # refuse a stream the firmware does not advertise
+                if sup:  # refuse a stream the firmware does not advertise
                     bad = [x for x in streams if x not in sup and x not in ("hr",)]
                     if bad:
-                        raise settings_schema.SettingsError(
-                            f"{dev.get('name')} does not support: {', '.join(bad)}")
+                        raise settings_schema.SettingsError(f"{dev.get('name')} does not support: {', '.join(bad)}")
                 if sorted(streams) != sorted(dev.get("streams") or []):
                     dev["streams"] = streams
                     changed.append(f"{dev.get('name')}.streams")
-                    restart_needed = True    # PMD START is negotiated at connect
+                    restart_needed = True  # PMD START is negotiated at connect
             for addr, rates in (body.get("rates") or {}).items():
                 dev = next((d for d in cfg.get("devices", []) if d.get("address") == addr), None)
                 if not dev:
                     raise settings_schema.SettingsError(f"unknown device {addr}")
-                opts = (status.get("devices", {}).get(dev.get("name"), {}).get("pmd_options") or {})
+                opts = status.get("devices", {}).get(dev.get("name"), {}).get("pmd_options") or {}
                 if opts:
                     dev["pmd_options_seen"] = {k: list(v) for k, v in opts.items()}
                 else:
@@ -1254,13 +1329,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     # A FLOOR, independent of the device menu (§D4): a never-connected device offered no
                     # menu, and `-1` or `0` Hz is not a rate under any firmware.
                     if not 1 <= v <= 10_000:
-                        raise settings_schema.SettingsError(
-                            f"{stream}: {v} Hz is not a plausible sample rate")
+                        raise settings_schema.SettingsError(f"{stream}: {v} Hz is not a plausible sample rate")
                     allowed = opts.get(stream) or []
                     if allowed and v not in allowed:
                         # Refuse rather than let the device reject the START and leave an idle stream.
                         raise settings_schema.SettingsError(
-                            f"{dev.get('name')} {stream}: {v} Hz not offered (choose {allowed})")
+                            f"{dev.get('name')} {stream}: {v} Hz not offered (choose {allowed})"
+                        )
                     clean[stream] = v
                 # MERGE, NEVER REPLACE. A whole-dict assignment silently DELETES every override the
                 # submitted payload happens not to mention, and the UI does not mention all of them: it
@@ -1283,7 +1358,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 if merged != (dev.get("rates") or {}):
                     dev["rates"] = merged
                     changed.append(f"{dev.get('name')}.rates")
-                    restart_needed = True     # rate is fixed at PMD START, i.e. at connect
+                    restart_needed = True  # rate is fixed at PMD START, i.e. at connect
 
             for addr, want in (body.get("sdk_mode") or {}).items():
                 dev = next((d for d in cfg.get("devices", []) if d.get("address") == addr), None)
@@ -1296,15 +1371,22 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 # will reject at connect, leaving the streams on their normal rates while every surface
                 # says otherwise. Enabling is gated; DISABLING is always allowed, so a flag set against
                 # a device that has since been swapped can still be cleared.
-                sup = [str(x) for x in ((status.get("devices", {}).get(dev.get("name"), {})
-                                         .get("pmd_supported")) or dev.get("pmd_supported_seen") or [])]
+                sup = [
+                    str(x)
+                    for x in (
+                        (status.get("devices", {}).get(dev.get("name"), {}).get("pmd_supported"))
+                        or dev.get("pmd_supported_seen")
+                        or []
+                    )
+                ]
                 if want and sup and hex(pmd.SDK_MODE) not in sup:
                     raise settings_schema.SettingsError(
-                        f"{dev.get('name')} does not advertise SDK mode (feature {hex(pmd.SDK_MODE)})")
+                        f"{dev.get('name')} does not advertise SDK mode (feature {hex(pmd.SDK_MODE)})"
+                    )
                 if bool(dev.get("sdk_mode")) != want:
                     dev["sdk_mode"] = want
                     changed.append(f"{dev.get('name')}.sdk_mode")
-                    restart_needed = True     # the mode is entered during PMD negotiation, i.e. at connect
+                    restart_needed = True  # the mode is entered during PMD negotiation, i.e. at connect
                 # ⚠️ SDK MODE COSTS PPI AND HR, AND NOTHING SAID SO (POLAR-ONBOARD-BACKUP-FOLLOWUPS §3).
                 # The UI presented SDK mode and the stream checkboxes as independent, so the config could
                 # express a state the hardware cannot hold and the only symptom was two streams quietly
@@ -1321,20 +1403,23 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     warnings.append(
                         f"{dev.get('name')}: SDK mode disables {' + '.join(excl)} on a Verity — "
                         f"{'those streams' if len(excl) > 1 else 'that stream'} will be silently absent "
-                        "while it is on")
+                        "while it is on"
+                    )
         except settings_schema.SettingsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
         if changed:
-            try:                              # back up before writing — a bad write bricks the daemon
+            try:  # back up before writing — a bad write bricks the daemon
                 import shutil
+
                 shutil.copyfile(cfg_path, cfg_path + ".bak")
             except Exception:
                 # THE SAFETY NET IS GONE, and the write proceeds anyway — the right call, since
                 # refusing a settings change because a backup failed strands the operator. But it
                 # must not be SILENT: without this line, the one moment the .bak is needed is the
                 # one moment nobody knows it is missing.
-                _log.warning("settings: could not back up %s — writing WITHOUT a rollback copy",
-                            cfg_path, exc_info=True)
+                _log.warning(
+                    "settings: could not back up %s — writing WITHOUT a rollback copy", cfg_path, exc_info=True
+                )
             # A FAILED WRITE IS NOT A SUCCESS (CAPTURE-HOST-DEEP-AUDIT §D2, closing the last caller of
             # VIGIL-DEEP-ANALYSIS §2A). `_save()`'s return value was discarded here while its three
             # siblings — /api/remember, /api/forget, /api/storage — all report 500. The in-memory cfg
@@ -1342,13 +1427,14 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # and the setting silently reverted at the next restart.
             if not _save():
                 return web.json_response(
-                    {"ok": False, "error": "config write failed (disk?)", "changed": changed},
-                    status=500)
+                    {"ok": False, "error": "config write failed (disk?)", "changed": changed}, status=500
+                )
         # `warnings` is ALWAYS present, even when empty. A key that appears only on trouble teaches a
         # client to read its absence as "no trouble", which is indistinguishable from "this server is
         # older than the check" — the same absence-is-not-evidence trap the streams/rates surfaces hit.
-        return web.json_response({"ok": True, "changed": changed,
-                                  "restart_needed": restart_needed, "warnings": warnings})
+        return web.json_response(
+            {"ok": True, "changed": changed, "restart_needed": restart_needed, "warnings": warnings}
+        )
 
     # ── Storage / offload target (STORAGE-OFFLOAD-TARGETS) ──────────────────────────────────────
     # The box has a small SSD, so finished nights have to leave. This surface owns WHERE they go and
@@ -1358,12 +1444,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
     def _storage_cfg() -> dict:
         a = cfg.get("archive") or {}
         tgt = a.get("target") or None
-        out = {"enabled": bool(a.get("enabled")), "target": tgt,
-               "schedule": a.get("schedule") or {"mode": "after_settle"},
-               "poll_sec": a.get("poll_sec", 3600),
-               "protocols": storage_targets.describe(),
-               "last": a.get("_last_result") or status.get("archive", {}).get("last"),
-               "status": status.get("archive", {})}
+        out = {
+            "enabled": bool(a.get("enabled")),
+            "target": tgt,
+            "schedule": a.get("schedule") or {"mode": "after_settle"},
+            "poll_sec": a.get("poll_sec", 3600),
+            "protocols": storage_targets.describe(),
+            "last": a.get("_last_result") or status.get("archive", {}).get("last"),
+            "status": status.get("archive", {}),
+        }
         if tgt:
             try:
                 out["ready"] = storage_targets.dest_status(tgt)
@@ -1389,9 +1478,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         except sealbox.SealBoxError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=500)
         kid, key = sealbox.current_card_key(store)
-        page = sealbox.render_card_html(box_id=st.get("box_id") or sealbox.box_id_of(cfg), key_id=kid, card_key=key,
-                                        fingerprint=sealfmt.fingerprint(seal.public_raw(signing_key)),
-                                        qr=sealbox.qr_svg(sealfmt.card_code_encode(key)))
+        page = sealbox.render_card_html(
+            box_id=st.get("box_id") or sealbox.box_id_of(cfg),
+            key_id=kid,
+            card_key=key,
+            fingerprint=sealfmt.fingerprint(seal.public_raw(signing_key)),
+            qr=sealbox.qr_svg(sealfmt.card_code_encode(key)),
+        )
         return web.Response(text=page, content_type="text/html")
 
     async def seal_rotate_h(_req):
@@ -1409,8 +1502,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             signing_key, _ = await asyncio.to_thread(sealbox.load_or_create_signing_key, key_dir)
             store, _ = await asyncio.to_thread(sealbox.load_or_create_card_store, key_dir)
             store = await asyncio.to_thread(sealbox.rotate_card, key_dir, store)
-            card = await asyncio.to_thread(sealbox.write_card, outbox, box_id=st.get("box_id") or sealbox.box_id_of(cfg),
-                                           store=store, signing_key=signing_key)
+            card = await asyncio.to_thread(
+                sealbox.write_card,
+                outbox,
+                box_id=st.get("box_id") or sealbox.box_id_of(cfg),
+                store=store,
+                signing_key=signing_key,
+            )
         except (sealbox.SealBoxError, OSError) as e:
             return web.json_response({"ok": False, "error": str(e)}, status=500)
         st["key_id"] = store["keyId"]
@@ -1472,7 +1570,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "error": str(e)}, status=400)
         try:
             return web.json_response(await storage_targets.test_target(tgt))
-        except Exception as e:      # a probe must never 500 the monitor
+        except Exception as e:  # a probe must never 500 the monitor
             return web.json_response({"ok": False, "detail": f"{type(e).__name__}: {e}"})
 
     # ── Push alerts / webhook destination (VIGIL-OBSERVED-ERRORS E6) ────────────────────────────
@@ -1489,9 +1587,11 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
     def _alerts_cfg() -> dict:
         a = cfg.get("alerts") or {}
         url = a.get("webhook_url") or ""
-        return {"enabled": bool(a.get("enabled")) and bool(url),
-                "configured": bool(url),
-                "hint": alerts.webhook_hint(url)}
+        return {
+            "enabled": bool(a.get("enabled")) and bool(url),
+            "configured": bool(url),
+            "hint": alerts.webhook_hint(url),
+        }
 
     async def alerts_get(_req):
         return web.json_response(_alerts_cfg())
@@ -1510,8 +1610,11 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return _bad_body_response()
         a = cfg.setdefault("alerts", {})
         try:
-            url = alerts.validate_webhook_url(body["webhook_url"]) if "webhook_url" in body \
+            url = (
+                alerts.validate_webhook_url(body["webhook_url"])
+                if "webhook_url" in body
                 else (a.get("webhook_url") or "")
+            )
         except alerts.AlertsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
         enabled = bool(body.get("enabled", a.get("enabled", False)))
@@ -1525,7 +1628,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if not _save():
             return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
         if notifier is not None:
-            notifier.configure(url or None, a["enabled"])   # live — no restart, no dropped BLE links
+            notifier.configure(url or None, a["enabled"])  # live — no restart, no dropped BLE links
         return web.json_response({"ok": True, **_alerts_cfg()})
 
     async def alerts_test(_req):
@@ -1537,10 +1640,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "error": "alerts are not enabled"}, status=400)
         try:
             ok = await notifier.send("Tepna test", "Test alert from the Tepna monitor.")
-        except Exception as e:                  # a probe must never 500 the monitor
+        except Exception as e:  # a probe must never 500 the monitor
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"})
-        return web.json_response({"ok": bool(ok),
-                                  "error": "" if ok else "the webhook did not accept the alert"})
+        return web.json_response({"ok": bool(ok), "error": "" if ok else "the webhook did not accept the alert"})
 
     # ── Capture timeline (per-stream state strip + per-device dBm trace) ────────────────────────
     # Deliberately NOT folded into /api/state: state is polled every 5 s by every open tab, while this
@@ -1579,8 +1681,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             rows = await asyncio.to_thread(_nights.index_nights, root, n)
         except Exception as e:  # noqa: BLE001 — a listing that fails must say so, not 500 the page
             return web.json_response({"error": f"{type(e).__name__}: {e}"}, status=500)
-        return web.json_response({"nights": rows, "columns": list(_nights.COLUMNS), "root": root,
-                                  "pending": _nights.pending_count(rows)})
+        return web.json_response(
+            {"nights": rows, "columns": list(_nights.COLUMNS), "root": root, "pending": _nights.pending_count(rows)}
+        )
 
     async def timeline_get(req):
         night = req.query.get("night") or ""
@@ -1601,10 +1704,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # that noticed. Replaced with what it actually did: pick the directory with the newest
             # activity.
             try:
-                nights = [n for n in os.listdir(captures)
-                          if os.path.isdir(os.path.join(captures, n))]
-                night = max(nights, key=lambda n: os.path.getmtime(os.path.join(captures, n)),
-                            default="")
+                nights = [n for n in os.listdir(captures) if os.path.isdir(os.path.join(captures, n))]
+                night = max(nights, key=lambda n: os.path.getmtime(os.path.join(captures, n)), default="")
             except OSError:
                 night = ""
         if not night or "/" in night or ".." in night:
@@ -1615,9 +1716,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if hit and now - hit[0] < _TL_CACHE_TTL_S:
             return web.json_response(hit[1])
         try:
-            out = await asyncio.to_thread(_timeline.build,
-                                          os.path.join(captures, night), cfg.get("devices", []), buckets)
-        except Exception as e:      # a display aid must never 500 the monitor
+            out = await asyncio.to_thread(
+                _timeline.build, os.path.join(captures, night), cfg.get("devices", []), buckets
+            )
+        except Exception as e:  # a display aid must never 500 the monitor
             return web.json_response({"error": f"{type(e).__name__}: {e}"}, status=500)
         _tl_cache[key] = (now, out)
         # Bounded by EVICTING THE OLDEST, never by clearing: dropping everything is what made this a
@@ -1639,8 +1741,14 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if not dev:
             return web.json_response({"ok": False, "error": "unknown address"}, status=400)
         if dev.get("vendor") != "Polar":
-            return web.json_response({"ok": True, "skipped": "auto", "address": address,
-                                      "detail": "O2Ring re-syncs its RTC on every connect (no manual step)"})
+            return web.json_response(
+                {
+                    "ok": True,
+                    "skipped": "auto",
+                    "address": address,
+                    "detail": "O2Ring re-syncs its RTC on every connect (no manual step)",
+                }
+            )
         if not sync_time:
             return web.json_response({"ok": False, "error": "time sync unavailable"}, status=400)
         try:
@@ -1661,8 +1769,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         for d in cfg.get("devices", []):
             addr = d.get("address")
             if d.get("vendor") != "Polar":
-                out["devices"].append({"address": addr, "name": d.get("name"), "ok": True,
-                                       "skipped": "auto", "detail": "re-syncs on every connect"})
+                out["devices"].append(
+                    {
+                        "address": addr,
+                        "name": d.get("name"),
+                        "ok": True,
+                        "skipped": "auto",
+                        "detail": "re-syncs on every connect",
+                    }
+                )
                 continue
             try:
                 r = await sync_time(addr) if sync_time else {"ok": False, "error": "unavailable"}
@@ -1693,23 +1808,32 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if not dev or not session.startswith("/"):
             return web.json_response({"ok": False, "error": "bad address or session path"}, status=400)
         dev_id = dev.get("device_id") or address.replace(":", "")[-8:]
-        out_dir = os.path.join(cfg.get("root", "/srv/tepna"), "captures", "stored",
-                               f"Polar_{dev.get('model', 'Device')}_{dev_id}_offline_{session.strip('/').replace('/', '_')}")
+        out_dir = os.path.join(
+            cfg.get("root", "/srv/tepna"),
+            "captures",
+            "stored",
+            f"Polar_{dev.get('model', 'Device')}_{dev_id}_offline_{session.strip('/').replace('/', '_')}",
+        )
         try:
+
             def _prog(done, total):
                 nm = (dev or {}).get("name") or address
                 status.setdefault("devices", {}).setdefault(nm, {})["pull_progress"] = {
-                    "device": nm, "bytes": done, "total": total,
-                    "pct": (100 * done // total) if total else 0}
+                    "device": nm,
+                    "bytes": done,
+                    "total": total,
+                    "pct": (100 * done // total) if total else 0,
+                }
+
             try:
-                manifest = await _polar_run(address, lambda: polar_psftp.pull_recording(
-                    address, session, out_dir, on_progress=_prog))
+                manifest = await _polar_run(
+                    address, lambda: polar_psftp.pull_recording(address, session, out_dir, on_progress=_prog)
+                )
             finally:
                 status.get("devices", {}).get((dev or {}).get("name") or address, {}).pop("pull_progress", None)
             # `ok` mirrors the MANIFEST's verdict, not merely "the request completed". A pull that came
             # back short must not render as a success in the monitor (audit F3).
-            return web.json_response({"ok": bool((manifest or {}).get("ok", True)),
-                                      "manifest": manifest})
+            return web.json_response({"ok": bool((manifest or {}).get("ok", True)), "manifest": manifest})
         except offline_lock.OfflineBusy as e:
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:
@@ -1738,8 +1862,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "error": "sample_type must be rr|hr"}, status=400)
         st = polar_psftp.SAMPLE_TYPE_RR_INTERVAL if st_word == "rr" else polar_psftp.SAMPLE_TYPE_HEART_RATE
         try:
-            out = await _polar_run(address, lambda: polar_psftp.recording_control(
-                address, action, sample_type=st))
+            out = await _polar_run(address, lambda: polar_psftp.recording_control(address, action, sample_type=st))
             return web.json_response({"ok": True, **out})
         except offline_lock.OfflineBusy as e:
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
@@ -1782,7 +1905,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             saved = wifi_uplink.load_saved(root)
             if not saved or saved.get("ssid") != ssid:
                 return web.json_response(
-                    {"ok": False, "error": f"no saved password for {ssid!r} — enter it once"}, status=400)
+                    {"ok": False, "error": f"no saved password for {ssid!r} — enter it once"}, status=400
+                )
             passphrase, security = saved.get("psk") or "", saved.get("security", wifi_join.SECURED)
         r = await wifi_uplink.join(ssid, passphrase, security)
         if r.get("ok") and body.get("remember", True):
@@ -1801,50 +1925,51 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         root = cfg.get("root", "/srv/tepna")
         return web.json_response({"ok": True, "forgot": wifi_uplink.forget_network(root)})
 
-
-    app.add_routes([
-        web.get("/", index),
-        web.get("/api/state", state),
-        web.get("/api/version", version_get),
-        web.get("/api/wifi", wifi_get),
-        web.post("/api/wifi/scan", wifi_scan_h),
-        web.post("/api/wifi/connect", wifi_connect_h),
-        web.post("/api/wifi/disconnect", wifi_disconnect_h),
-        web.post("/api/wifi/forget", wifi_forget_h),
-        web.post("/api/scan", scan),
-        web.post("/api/cpap/pull", cpap_pull),
-        web.post("/api/cpap/pair", cpap_pair_h),
-        web.post("/api/cpap/stream", cpap_stream_h),
-        web.post("/api/bond", bond),
-        web.post("/api/forget", forget),
-        web.post("/api/ring/config", ring_config_h),
-        web.post("/api/ring/buzz", ring_buzz_h),
-        web.post("/api/remember", remember),
-        web.post("/api/pull", pull_stored_h),
-        web.get("/api/settings", settings_get),
-        web.post("/api/settings", settings_post),
-        web.post("/api/daemon", daemon_post),
-        web.get("/api/timeline", timeline_get),
-        web.get("/api/nights", nights_get),
-        web.get("/api/seal/card", seal_card_get),
-        web.post("/api/seal/rotate", seal_rotate_h),
-        web.get("/api/storage", storage_get),
-        web.get("/api/alerts", alerts_get),
-        web.post("/api/alerts", alerts_post),
-        web.post("/api/alerts/test", alerts_test),
-        web.post("/api/storage", storage_post),
-        web.post("/api/storage/test", storage_test),
-        web.post("/api/timesync", timesync),
-        web.post("/api/timesync/all", timesync_all),
-        web.get("/api/polar/recordings", polar_recordings),
-        web.post("/api/polar/pull", polar_pull),
-        web.post("/api/polar/recording", polar_recording),
-        web.get("/api/stream/{key}", stream),
-        web.get("/api/clock", clock_get),
-        web.post("/api/clock", clock_set),
-        web.post("/api/clock/sync", clock_sync),
-        web.post("/api/clock/tz", clock_tz),
-    ])
+    app.add_routes(
+        [
+            web.get("/", index),
+            web.get("/api/state", state),
+            web.get("/api/version", version_get),
+            web.get("/api/wifi", wifi_get),
+            web.post("/api/wifi/scan", wifi_scan_h),
+            web.post("/api/wifi/connect", wifi_connect_h),
+            web.post("/api/wifi/disconnect", wifi_disconnect_h),
+            web.post("/api/wifi/forget", wifi_forget_h),
+            web.post("/api/scan", scan),
+            web.post("/api/cpap/pull", cpap_pull),
+            web.post("/api/cpap/pair", cpap_pair_h),
+            web.post("/api/cpap/stream", cpap_stream_h),
+            web.post("/api/bond", bond),
+            web.post("/api/forget", forget),
+            web.post("/api/ring/config", ring_config_h),
+            web.post("/api/ring/buzz", ring_buzz_h),
+            web.post("/api/remember", remember),
+            web.post("/api/pull", pull_stored_h),
+            web.get("/api/settings", settings_get),
+            web.post("/api/settings", settings_post),
+            web.post("/api/daemon", daemon_post),
+            web.get("/api/timeline", timeline_get),
+            web.get("/api/nights", nights_get),
+            web.get("/api/seal/card", seal_card_get),
+            web.post("/api/seal/rotate", seal_rotate_h),
+            web.get("/api/storage", storage_get),
+            web.get("/api/alerts", alerts_get),
+            web.post("/api/alerts", alerts_post),
+            web.post("/api/alerts/test", alerts_test),
+            web.post("/api/storage", storage_post),
+            web.post("/api/storage/test", storage_test),
+            web.post("/api/timesync", timesync),
+            web.post("/api/timesync/all", timesync_all),
+            web.get("/api/polar/recordings", polar_recordings),
+            web.post("/api/polar/pull", polar_pull),
+            web.post("/api/polar/recording", polar_recording),
+            web.get("/api/stream/{key}", stream),
+            web.get("/api/clock", clock_get),
+            web.post("/api/clock", clock_set),
+            web.post("/api/clock/sync", clock_sync),
+            web.post("/api/clock/tz", clock_tz),
+        ]
+    )
     return app
 
 

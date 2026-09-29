@@ -23,6 +23,7 @@ never assumed" — is only expressible if absence has its own value.
 ⚠️ IDENTITY IS THE ADDRESS, never a name or a model (standing ruling 2026-08-27,
 `oxy_presence.is_expected_ring`). Two units of the same model are two records.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,7 +32,7 @@ import tempfile
 import threading
 
 _LOCK = threading.RLock()
-_CAPS: dict[str, dict[str, dict]] = {}     # ADDR -> cap -> {"value": bool, "source": str}
+_CAPS: dict[str, dict[str, dict]] = {}  # ADDR -> cap -> {"value": bool, "source": str}
 _PATH: str | None = None
 
 
@@ -58,7 +59,7 @@ def configure(path: str | None) -> None:
                 for a, caps in loaded.items():
                     if isinstance(caps, dict):
                         _CAPS[_norm(a)] = {k: v for k, v in caps.items() if isinstance(v, dict)}
-        except Exception:      # noqa: BLE001 - a corrupt record must not stop a night's capture
+        except Exception:  # noqa: BLE001 - a corrupt record must not stop a night's capture
             _CAPS.clear()
 
 
@@ -77,10 +78,10 @@ def _flush() -> None:
         except BaseException:
             try:
                 os.unlink(tmp)
-            except OSError:    # the tmp file could not be removed (read-only volume); the original
-                pass           # record is still intact, which is the property that matters here
+            except OSError:  # the tmp file could not be removed (read-only volume); the original
+                pass  # record is still intact, which is the property that matters here
             raise
-    except Exception:          # noqa: BLE001 - telemetry must never break capture
+    except Exception:  # noqa: BLE001 - telemetry must never break capture
         pass
 
 
@@ -107,15 +108,14 @@ def record(addr, cap: str, value: bool, *, source: str) -> None:
         with _LOCK:
             _CAPS.setdefault(_norm(addr), {})[str(cap)] = {"value": bool(value), "source": str(source)}
             _flush()
-    except Exception:          # noqa: BLE001 - a capability note must never end a recording; the
-        pass                   # in-memory value still stands, only its persistence was lost
+    except Exception:  # noqa: BLE001 - a capability note must never end a recording; the
+        pass  # in-memory value still stands, only its persistence was lost
 
 
 def snapshot() -> dict:
     """A reportable view, read through the accessors so their rules live in one place."""
     with _LOCK:
-        return {a: {c: {"value": get(a, c), "source": source(a, c)} for c in caps}
-                for a, caps in _CAPS.items()}
+        return {a: {c: {"value": get(a, c), "source": source(a, c)} for c in caps} for a, caps in _CAPS.items()}
 
 
 def reset() -> None:

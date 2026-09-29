@@ -4,6 +4,7 @@ The monitor is a display aid over a live capture box, so the rule these tests pi
 error, it may return nothing, but it must never 500 the page and must never report `ok: true` for work
 that did not happen. A config write that silently failed is the `VIGIL-DEEP-ANALYSIS §2A` finding.
 """
+
 import os
 import pathlib
 import sys
@@ -72,6 +73,7 @@ def test_config_write_survives_a_filesystem_that_refuses_directory_fsync(tmp_pat
         calls["n"] += 1
         if calls["n"] >= 2:
             raise OSError("EINVAL")
+
     monkeypatch.setattr(webmon.os, "fsync", picky)
 
     async def go(c):
@@ -86,11 +88,11 @@ def test_config_write_survives_a_filesystem_that_refuses_directory_fsync(tmp_pat
 def test_storage_get_reports_an_unreachable_target_instead_of_raising(tmp_path, monkeypatch):
     """A dead mount is normal operationally — the sidebar has to say so, not 500."""
     app, cfg, *_ = _mk(tmp_path)
-    cfg.setdefault("archive", {})["target"] = {"kind": "mount", "mountpoint": "/mnt/gone",
-                                               "protocol": "nfs"}
+    cfg.setdefault("archive", {})["target"] = {"kind": "mount", "mountpoint": "/mnt/gone", "protocol": "nfs"}
 
     def boom(_t):
         raise storage_targets.StorageError("not mounted")
+
     monkeypatch.setattr(webmon.storage_targets, "dest_status", boom)
 
     async def go(c):
@@ -121,6 +123,7 @@ def test_storage_post_turns_a_malformed_body_into_400_not_500(tmp_path, monkeypa
 
     def boom(_s):
         raise TypeError("schedule is not subscriptable")
+
     monkeypatch.setattr(webmon.storage_targets, "validate_schedule", boom)
 
     async def go(c):
@@ -146,11 +149,13 @@ def test_storage_test_never_500s_when_the_probe_explodes(tmp_path, monkeypatch):
     """A probe reaches the network; anything can happen there. It reports a failure verdict, never a
     server error, because the monitor page has to keep rendering."""
     app, *_ = _mk(tmp_path)
-    monkeypatch.setattr(webmon.storage_targets, "validate",
-                        lambda t: {"kind": "mount", "mountpoint": "/mnt/x", "protocol": "nfs"})
+    monkeypatch.setattr(
+        webmon.storage_targets, "validate", lambda t: {"kind": "mount", "mountpoint": "/mnt/x", "protocol": "nfs"}
+    )
 
     async def boom(_t):
         raise RuntimeError("network on fire")
+
     monkeypatch.setattr(webmon.storage_targets, "test_target", boom)
 
     async def go(c):
@@ -207,8 +212,8 @@ def test_timeline_picks_the_night_with_the_newest_ACTIVITY(tmp_path):
     old, new = caps / "2026-07-26", caps / "2026-07-25"
     old.mkdir(parents=True)
     new.mkdir(parents=True)
-    os.utime(str(old), (1000, 1000))                       # newest name, stale mtime
-    os.utime(str(new), (9_000_000_000, 9_000_000_000))     # older name, freshest activity
+    os.utime(str(old), (1000, 1000))  # newest name, stale mtime
+    os.utime(str(new), (9_000_000_000, 9_000_000_000))  # older name, freshest activity
     app, *_ = _mk(tmp_path)
 
     async def go(c):
@@ -225,6 +230,7 @@ def test_timeline_500s_with_a_reason_when_the_build_throws(tmp_path, monkeypatch
 
     def boom(*a, **k):
         raise ValueError("corrupt sidecar")
+
     monkeypatch.setattr(webmon._timeline, "build", boom)
 
     async def go(c):
@@ -245,6 +251,7 @@ def test_timeline_serves_the_cached_result_within_the_window(tmp_path, monkeypat
     def counted(*a, **k):
         calls["n"] += 1
         return {"night": "2026-07-25"}
+
     monkeypatch.setattr(webmon._timeline, "build", counted)
 
     async def go(c):
@@ -276,10 +283,11 @@ def test_config_write_survives_a_temp_file_it_cannot_unlink(tmp_path, monkeypatc
 def _with_target(tmp_path):
     """An app whose config already holds a configured offload target — the thing that got wiped."""
     app, cfg, *rest = _mk(tmp_path)
-    cfg["archive"] = {"enabled": True,
-                      "target": {"kind": "mount", "protocol": "local",
-                                 "mountpoint": str(tmp_path / "mirror"), "verify": False},
-                      "dest": str(tmp_path / "mirror")}
+    cfg["archive"] = {
+        "enabled": True,
+        "target": {"kind": "mount", "protocol": "local", "mountpoint": str(tmp_path / "mirror"), "verify": False},
+        "dest": str(tmp_path / "mirror"),
+    }
     return app, cfg
 
 
@@ -293,7 +301,7 @@ def test_an_empty_post_does_not_delete_the_offload_target(tmp_path):
     app, cfg = _with_target(tmp_path)
 
     async def go(c):
-        r = await c.post("/api/storage")                    # no body at all
+        r = await c.post("/api/storage")  # no body at all
         return r.status, await r.json()
 
     status, _body = _serve(app, go)
@@ -306,8 +314,7 @@ def test_an_unparseable_post_does_not_delete_the_offload_target(tmp_path):
     app, cfg = _with_target(tmp_path)
 
     async def go(c):
-        r = await c.post("/api/storage", data=b"{bad json",
-                         headers={"Content-Type": "application/json"})
+        r = await c.post("/api/storage", data=b"{bad json", headers={"Content-Type": "application/json"})
         return r.status, await r.json()
 
     status, _body = _serve(app, go)
@@ -322,8 +329,7 @@ def test_a_non_object_json_post_does_not_delete_the_offload_target(tmp_path):
         app, cfg = _with_target(tmp_path)
 
         async def go(c, _raw=raw):
-            r = await c.post("/api/storage", data=_raw,
-                             headers={"Content-Type": "application/json"})
+            r = await c.post("/api/storage", data=_raw, headers={"Content-Type": "application/json"})
             return r.status, await r.json()
 
         status, _b = _serve(app, go)
@@ -350,8 +356,15 @@ def test_the_designed_disable_path_still_works(tmp_path):
 def test_non_object_bodies_are_400_not_500_across_the_control_surface(tmp_path):
     """§D3. `_body` guarded only a DECODE error, so valid JSON that is not an object reached the
     handlers as a non-dict and 500'd on `.get`. Every state-changing POST answers 400 instead."""
-    for path in ("/api/storage", "/api/settings", "/api/clock/tz", "/api/clock",
-                 "/api/bond", "/api/forget", "/api/remember"):
+    for path in (
+        "/api/storage",
+        "/api/settings",
+        "/api/clock/tz",
+        "/api/clock",
+        "/api/bond",
+        "/api/forget",
+        "/api/remember",
+    ):
         for raw in (b"null", b"[]", b'"x"', b"3", b"{bad json"):
             app, *_ = _mk(tmp_path)
 
@@ -376,8 +389,7 @@ def test_an_unknown_stream_name_is_refused_even_for_a_never_connected_device(tmp
     addr = cfg["devices"][0]["address"]
 
     async def go(c):
-        r = await c.post("/api/settings",
-                         json={"streams": {addr: ["bogus", "../../etc/passwd"]}})
+        r = await c.post("/api/settings", json={"streams": {addr: ["bogus", "../../etc/passwd"]}})
         return r.status, await r.json()
 
     status, body = _serve(app, go)
@@ -390,7 +402,7 @@ def test_an_implausible_rate_is_refused_for_a_never_connected_device(tmp_path):
     """The rate half: with no device menu (`pmd_options` absent) `allowed` was empty and ANY integer
     was accepted, including -1."""
     for bad in (-1, 0, 999_999):
-        app, cfg, *_ = _mk(tmp_path)          # a fresh app per serve — one Application, one loop
+        app, cfg, *_ = _mk(tmp_path)  # a fresh app per serve — one Application, one loop
         addr = cfg["devices"][0]["address"]
 
         async def go(c, _v=bad, _a=addr):
@@ -423,6 +435,7 @@ def test_the_written_config_says_it_does_not_keep_comments(tmp_path):
     62304-aligned appliance, a real cost for a cosmetic gain. The loss is announced instead, in the
     file and in the journal, and `config.example.yaml` is where the prose belongs."""
     import yaml as _yaml
+
     app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
     open(cfg_path, "w").write("# keep_nights: my own note\ndevices: []\n")
 
@@ -455,13 +468,14 @@ def test_two_DIFFERENT_timelines_are_both_cached(tmp_path, monkeypatch):
     def counted(*a, **k):
         calls["n"] += 1
         return {"night": "x"}
+
     monkeypatch.setattr(webmon._timeline, "build", counted)
 
     async def go(c):
         await c.get("/api/timeline?night=2026-07-25")
-        await c.get("/api/timeline?night=2026-07-26")     # a second viewer
-        await c.get("/api/timeline?night=2026-07-25")     # the first must STILL be cached
-        await c.get("/api/timeline?night=2026-07-25&buckets=120")   # a different bucket count
+        await c.get("/api/timeline?night=2026-07-26")  # a second viewer
+        await c.get("/api/timeline?night=2026-07-25")  # the first must STILL be cached
+        await c.get("/api/timeline?night=2026-07-25&buckets=120")  # a different bucket count
         await c.get("/api/timeline?night=2026-07-25")
         return None
 
@@ -483,8 +497,9 @@ def test_the_cache_is_BOUNDED_and_evicts_the_oldest_not_everything(tmp_path, mon
     def counted(*a, **k):
         calls["n"] += 1
         return {"night": "x"}
+
     monkeypatch.setattr(webmon._timeline, "build", counted)
-    first, last = 20, 20 + webmon._TL_CACHE_MAX          # MAX+1 distinct keys -> exactly one eviction
+    first, last = 20, 20 + webmon._TL_CACHE_MAX  # MAX+1 distinct keys -> exactly one eviction
 
     # ONE `_serve`: it builds a fresh event loop per call and aiohttp refuses to reuse an
     # Application across loops, so the two phases have to share a client.
@@ -492,8 +507,8 @@ def test_the_cache_is_BOUNDED_and_evicts_the_oldest_not_everything(tmp_path, mon
         for b in range(first, last + 1):
             await c.get(f"/api/timeline?night=2026-07-25&buckets={b}")
         filled = calls["n"]
-        await c.get(f"/api/timeline?night=2026-07-25&buckets={last}")     # newest — still cached
-        await c.get(f"/api/timeline?night=2026-07-25&buckets={first}")    # oldest — was evicted
+        await c.get(f"/api/timeline?night=2026-07-25&buckets={last}")  # newest — still cached
+        await c.get(f"/api/timeline?night=2026-07-25&buckets={first}")  # oldest — was evicted
         return filled, calls["n"]
 
     filled, after = _serve(app, go)
@@ -507,9 +522,11 @@ def test_the_TTL_EXCEEDS_the_pages_poll_interval(tmp_path):
     next poll arrived — a coin flip, not a cache. What must hold is the RELATIONSHIP, so this reads
     the interval out of the page rather than restating a number: change either side and this reds."""
     import re as _re
+
     page = (pathlib.Path(webmon._HERE) / "monitor.html").read_text(encoding="utf-8")
-    m = _re.search(r'setInterval\(\s*loadTimeline\s*,\s*(\d+)', page)
+    m = _re.search(r"setInterval\(\s*loadTimeline\s*,\s*(\d+)", page)
     assert m, "monitor.html no longer polls loadTimeline on an interval — re-derive this bound"
     poll_s = int(m.group(1)) / 1000.0
     assert webmon._TL_CACHE_TTL_S > poll_s, (
-        f"TTL {webmon._TL_CACHE_TTL_S}s must exceed the {poll_s}s poll or every poll misses")
+        f"TTL {webmon._TL_CACHE_TTL_S}s must exceed the {poll_s}s poll or every poll misses"
+    )

@@ -65,7 +65,7 @@ def test_claim_keeps_every_other_field_of_the_declaration():
 def test_claiming_an_undeclared_key_does_NOT_declare_it():
     """Claiming is not registering: a typo must not conjure a stream card."""
     b = telemetry.TelemetryBus()
-    b.claim("sp02", "Ring")                     # zero, not o
+    b.claim("sp02", "Ring")  # zero, not o
     assert "sp02" not in {r["key"] for r in b.meta()}
 
 
@@ -84,12 +84,12 @@ def test_every_BUS_register_call_in_capture_py_passes_device():
     calls = []
     for m in re.finditer(r"BUS\.register\(", src):
         depth, i = 0, m.end() - 1
-        while True:                              # walk to the matching close paren
+        while True:  # walk to the matching close paren
             depth += {"(": 1, ")": -1}.get(src[i], 0)
             if depth == 0:
                 break
             i += 1
-        calls.append(src[m.start():i + 1])
+        calls.append(src[m.start() : i + 1])
     assert len(calls) == 9, [c[:50] for c in calls]
     missing = [c[:70] for c in calls if "device=" not in c]
     assert missing == [], missing
@@ -113,9 +113,11 @@ def _js_device_for_stream(streams, devices, key):
     j = src.index("\n}\n", i) + 3
     fn = src[i:j]
     k = src.index("function _devTag(")
-    tag = src[k:src.index("\n}\n", k) + 3]
-    prog = (f"let STREAMS = {json.dumps(streams)}, DEVICES = {json.dumps(devices)};\n{tag}\n{fn}\n"
-            f"const d = deviceForStream({json.dumps(key)}); console.log(JSON.stringify(d ? d.name : null));")
+    tag = src[k : src.index("\n}\n", k) + 3]
+    prog = (
+        f"let STREAMS = {json.dumps(streams)}, DEVICES = {json.dumps(devices)};\n{tag}\n{fn}\n"
+        f"const d = deviceForStream({json.dumps(key)}); console.log(JSON.stringify(d ? d.name : null));"
+    )
     r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
     return json.loads(r.stdout.strip())
@@ -124,15 +126,19 @@ def _js_device_for_stream(streams, devices, key):
 def test_js_uses_the_published_owner_before_parsing_the_key():
     """A key whose SPELLING points at one device but whose OWNER is another resolves to the owner.
     Spelling is the fallback for a daemon older than the field, never the authority."""
-    devices = [{"name": "Verity", "model": "Verity Sense", "streams": ["acc"]},
-               {"name": "H10", "model": "Polar H10", "streams": ["ecg"]}]
+    devices = [
+        {"name": "Verity", "model": "Verity Sense", "streams": ["acc"]},
+        {"name": "H10", "model": "Polar H10", "streams": ["ecg"]},
+    ]
     streams = [{"key": "acc_vs", "device": "H10"}]
     assert _js_device_for_stream(streams, devices, "acc_vs") == "H10"
 
 
 def test_js_falls_back_to_key_parsing_only_when_no_owner_is_published():
-    devices = [{"name": "Verity", "model": "Verity Sense", "streams": ["acc"]},
-               {"name": "H10", "model": "Polar H10", "streams": ["ecg"]}]
+    devices = [
+        {"name": "Verity", "model": "Verity Sense", "streams": ["acc"]},
+        {"name": "H10", "model": "Polar H10", "streams": ["ecg"]},
+    ]
     assert _js_device_for_stream([{"key": "acc_vs"}], devices, "acc_vs") == "Verity"
     assert _js_device_for_stream([{"key": "acc_vs", "device": None}], devices, "acc_vs") == "Verity"
 

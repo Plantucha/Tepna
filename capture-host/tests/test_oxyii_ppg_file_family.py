@@ -11,6 +11,7 @@ PPG store was unreachable from here.
 ⚠️ THE 0x06-0x09 FRAMES ARE UNPROBED. They have never been sent to a ring. These tests pin their
 SHAPE, not their effect; a green run here is not a confirmed protocol.
 """
+
 import pytest
 
 import oxyii
@@ -20,7 +21,7 @@ def _decode(frame: bytes):
     """(cmd, payload) from an encoded frame — the envelope is `[0xA5][cmd][~cmd][flag][seq][lo][hi]…`."""
     assert frame[0] == 0xA5, frame[:1]
     n = int.from_bytes(frame[5:7], "little")
-    return frame[1], frame[7:7 + n]
+    return frame[1], frame[7 : 7 + n]
 
 
 # ── the misnamed field ────────────────────────────────────────────────────────────────────────────
@@ -39,8 +40,7 @@ def test_A_NONZERO_FTYPE_RAISES_RATHER_THAN_SENDING_AN_OFFSET():
 
 
 def test_FTYPE_ZERO_IS_ACCEPTED_SO_EXISTING_CALLERS_KEEP_WORKING():
-    assert oxyii.file_start_frame("20260906010203", ftype=0) == \
-        oxyii.file_start_frame("20260906010203")
+    assert oxyii.file_start_frame("20260906010203", ftype=0) == oxyii.file_start_frame("20260906010203")
 
 
 def test_AN_EXPLICIT_OFFSET_STILL_REACHES_THE_WIRE():
@@ -52,11 +52,16 @@ def test_AN_EXPLICIT_OFFSET_STILL_REACHES_THE_WIRE():
 
 # ── the second family ─────────────────────────────────────────────────────────────────────────────
 def test_THE_PPG_FAMILY_IS_FOUR_DISTINCT_OPCODES_NOT_A_FLAG():
-    assert (oxyii.OP_PPG_FILE_LIST, oxyii.OP_PPG_FILE_START,
-            oxyii.OP_PPG_FILE_DATA, oxyii.OP_PPG_FILE_END) == (0x06, 0x07, 0x08, 0x09)
+    assert (oxyii.OP_PPG_FILE_LIST, oxyii.OP_PPG_FILE_START, oxyii.OP_PPG_FILE_DATA, oxyii.OP_PPG_FILE_END) == (
+        0x06,
+        0x07,
+        0x08,
+        0x09,
+    )
     # ...and they are NOT the oximetry family, which is the point the brief got wrong.
     assert {0x06, 0x07, 0x08, 0x09}.isdisjoint(
-        {oxyii.OP_FILE_LIST, oxyii.OP_FILE_START, oxyii.OP_FILE_DATA, oxyii.OP_FILE_END})
+        {oxyii.OP_FILE_LIST, oxyii.OP_FILE_START, oxyii.OP_FILE_DATA, oxyii.OP_FILE_END}
+    )
 
 
 def test_PPG_LIST_IS_AN_EMPTY_PAYLOAD():
@@ -97,7 +102,11 @@ def _hdr(rate=150, size=1000, lead=2, acc=65535, n=200):
 
 def test_THE_HEADER_YIELDS_RATE_SIZE_LEAD_AND_SAMPLE_WIDTH():
     assert oxyii.parse_ppg_file_header(_hdr()) == {
-        "sample_rate": 150, "sample_size": 1000, "lead_size": 2, "sample_bytes": 2}
+        "sample_rate": 150,
+        "sample_size": 1000,
+        "lead_size": 2,
+        "sample_bytes": 2,
+    }
 
 
 @pytest.mark.parametrize("acc,width", [(0xFFFFFFFF, 4), (16777215, 3), (65535, 2), (7, 1)])
@@ -139,22 +148,23 @@ def test_DEFAULT_BEHAVIOUR_IS_BYTE_IDENTICAL_TO_BEFORE():
     # the assertion compares against the OLD implementation rather than restating the new one. A hex
     # literal copied out of the code under test would have proved only that I can copy.
     assert oxyii.file_start_frame("20260906010203").hex() == (
-        "a5f20d000014003230323630393036303130323033000000000000d1")
+        "a5f20d000014003230323630393036303130323033000000000000d1"
+    )
 
 
 def test_A_STRAY_PULL_FTYPE_IS_REFUSED_AT_CONFIG_LOAD_NOT_IGNORED():
     """A key that reads as a working switch and does nothing is how the misreading survived for
     months. Refusing it names the replacement in the same breath."""
     src = module_source("capture.py")
-    i = src.index('config pull.ftype=')
-    assert "byte OFFSET" in src[i - 200:i + 300]
-    assert "pull.file_family" in src[i:i + 400]
+    i = src.index("config pull.ftype=")
+    assert "byte OFFSET" in src[i - 200 : i + 300]
+    assert "pull.file_family" in src[i : i + 400]
 
 
 def test_THE_FAMILY_KEY_ACCEPTS_ONLY_TWO_VALUES():
     src = module_source("capture.py")
-    i = src.index('config pull.file_family=')
-    assert "'oxy' or 'ppg'" in src[i:i + 120]
+    i = src.index("config pull.file_family=")
+    assert "'oxy' or 'ppg'" in src[i : i + 120]
 
 
 def test_THE_DAEMON_DOES_NOT_DISPATCH_THE_UNPROBED_FAMILY():
@@ -162,8 +172,7 @@ def test_THE_DAEMON_DOES_NOT_DISPATCH_THE_UNPROBED_FAMILY():
     ring contact is owner-authorised separately."""
     src = module_source("capture.py")
     assert "UNPROBED and the daemon will not" in src
-    for fn in ("ppg_file_list_frame", "ppg_file_start_frame",
-               "ppg_file_data_frame", "ppg_file_end_frame"):
+    for fn in ("ppg_file_list_frame", "ppg_file_start_frame", "ppg_file_data_frame", "ppg_file_end_frame"):
         assert fn not in src, f"capture.py dispatches {fn} — the family is unprobed"
 
 
@@ -191,8 +200,9 @@ def test_FAMILY_PPG_PRINTS_THE_FRAME_IT_WOULD_SEND_AND_SENDS_NOTHING(monkeypatch
     keeps 'the code exists' and 'the protocol is confirmed' from collapsing into each other."""
     sent = []
     monkeypatch.setattr(pull_session, "pull", lambda *a, **k: sent.append(a))
-    monkeypatch.setattr(_sys, "argv", ["pull_session.py", "--address", "AA:BB", "--out", "/tmp/z",
-                                       "--family", "ppg", "--list"])
+    monkeypatch.setattr(
+        _sys, "argv", ["pull_session.py", "--address", "AA:BB", "--out", "/tmp/z", "--family", "ppg", "--list"]
+    )
     with pytest.raises(SystemExit) as e:
         pull_session.main()
     assert e.value.code == 0
@@ -203,8 +213,7 @@ def test_FAMILY_PPG_PRINTS_THE_FRAME_IT_WOULD_SEND_AND_SENDS_NOTHING(monkeypatch
 
 
 def test_FAMILY_PPG_WITHOUT_LIST_STILL_SENDS_NOTHING(monkeypatch, capsys):
-    monkeypatch.setattr(_sys, "argv", ["pull_session.py", "--address", "AA:BB", "--out", "/tmp/z",
-                                       "--family", "ppg"])
+    monkeypatch.setattr(_sys, "argv", ["pull_session.py", "--address", "AA:BB", "--out", "/tmp/z", "--family", "ppg"])
     with pytest.raises(SystemExit) as e:
         pull_session.main()
     assert e.value.code == 0
@@ -212,10 +221,19 @@ def test_FAMILY_PPG_WITHOUT_LIST_STILL_SENDS_NOTHING(monkeypatch, capsys):
 
 
 def _cfg(pull_extra):
-    return {"pull": {"auto": True, **pull_extra},
-            "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
-                         "address": "D1:98:62:7C:92:B3", "device_id": "12345678",
-                         "streams": ["spo2"]}]}
+    return {
+        "pull": {"auto": True, **pull_extra},
+        "devices": [
+            {
+                "name": "Ring",
+                "vendor": "Wellue",
+                "model": "O2Ring-S",
+                "address": "D1:98:62:7C:92:B3",
+                "device_id": "12345678",
+                "streams": ["spo2"],
+            }
+        ],
+    }
 
 
 def test_A_STRAY_PULL_FTYPE_RAISES_AT_LOAD_AND_NAMES_ITS_REPLACEMENT():

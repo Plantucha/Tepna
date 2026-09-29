@@ -147,8 +147,7 @@ def test_failed_inventory_state_maps_to_invalid_via_the_fallback():
 
 # ── the LIVE half (spec §10: BOTH O2Ring paths, never merged) ─────────────────
 def _live(**over):
-    kw = dict(device_id="O2-1", session_id="20260826031500", artifact_path="/n/x_SPO2.csv",
-              artifact_rows=3600)
+    kw = dict(device_id="O2-1", session_id="20260826031500", artifact_path="/n/x_SPO2.csv", artifact_rows=3600)
     kw.update(over)
     return o2.assemble_live(**kw)
 
@@ -233,8 +232,9 @@ def test_the_live_sidecar_is_actually_WRITTEN_beside_the_artifact(tmp_path):
     started = dt.datetime(2026, 8, 26, 3, 15, 0)
     g = capture.O2PpgGrid()
     g.idx, g.lost, g.gaps = 3600, 12, 3
-    capture._emit_oxy_live_evidence("O2-1", {"device_id": "O2-1"}, started,
-                                    (str(csv), 3600), g, capture.O2PpgFrameLedger())
+    capture._emit_oxy_live_evidence(
+        "O2-1", {"device_id": "O2-1"}, started, (str(csv), 3600), g, capture.O2PpgFrameLedger()
+    )
 
     blob = json.loads((tmp_path / (csv.name + ".meta.json")).read_text())
     ev = blob["acquisition_evidence"]
@@ -256,9 +256,14 @@ def test_a_failing_sidecar_write_never_damages_the_capture(tmp_path):
     import capture
 
     # a path whose parent does not exist ⇒ the open() raises inside the helper
-    capture._emit_oxy_live_evidence("O2-1", {"device_id": "O2-1"}, dt.datetime(2026, 8, 26, 3, 15, 0),
-                                    (str(tmp_path / "absent-dir" / "x.csv"), 10),
-                                    capture.O2PpgGrid(), capture.O2PpgFrameLedger())  # must not raise
+    capture._emit_oxy_live_evidence(
+        "O2-1",
+        {"device_id": "O2-1"},
+        dt.datetime(2026, 8, 26, 3, 15, 0),
+        (str(tmp_path / "absent-dir" / "x.csv"), 10),
+        capture.O2PpgGrid(),
+        capture.O2PpgFrameLedger(),
+    )  # must not raise
 
 
 def test_run_oxyii_CALLS_the_emit_helper_on_its_close_path():

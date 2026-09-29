@@ -13,6 +13,7 @@ analyzer's own input accepts (the accept= of its file input), not to everything 
 Two stamp layouts are read, both the Clock Contract's: the ISO `YYYY-MM-DDTHH:MM:SS…` every Polar /
 sidecar file starts a row with, and the O2Ring vendor layout `HH:MM:SS DD/MM/YYYY` of `_SPO2.csv`
 (`parseTimestamp` §2.4, DMY). An EDF's span is `records × record_duration` from its own header."""
+
 from __future__ import annotations
 
 import datetime as _dt
@@ -33,27 +34,45 @@ Pattern = str | tuple[str, ...]
 CPAP_EDF: tuple[str, ...] = ("cpap/DATALOG/{ymd}/*.edf", "cpap-ble/DATALOG/{ymd}/*.edf")
 CPAP_BRP: tuple[str, ...] = ("cpap/DATALOG/{ymd}/*_BRP.edf", "cpap-ble/DATALOG/{ymd}/*_BRP.edf")
 NODES: dict[str, tuple[tuple[Pattern, ...], Pattern | None]] = {
-    "ECGDex":     (("Polar_H10_*_ECG.txt", "Polar_H10_*_ACC.txt", "Polar_H10_*_HR.txt", "Polar_H10_*_RR.txt"),
-                   "Polar_H10_*_ECG.txt"),
-    "OxyDex":     (("Wellue_O2Ring-S_*_SPO2.csv",), "Wellue_O2Ring-S_*_SPO2.csv"),
-    "PPGDex":     (("Polar_VeritySense_*_PPG.txt", "Polar_VeritySense_*_PPI.txt",
-                    "Wellue_O2Ring-S_*_PPG.txt", "Wellue_O2Ring-S_*_PPG2W.txt"),
-                   "Polar_VeritySense_*_PPG.txt"),
-    "PulseDex":   (("Polar_VeritySense_*_PPI.txt", "Polar_H10_*_RR.txt"), "Polar_VeritySense_*_PPI.txt"),
-    "CPAPDex":    ((CPAP_EDF,), CPAP_BRP),
-    "MotionDex":  (("Polar_H10_*_ACC.txt", "Polar_VeritySense_*_ACC.txt", "Wellue_O2Ring-S_*_ACCRAW.txt"),
-                   "Polar_VeritySense_*_ACC.txt"),
-    "GlucoDex":   ((), None),                       # no CGM on the box — always absent, never a fabricated 0
+    "ECGDex": (
+        ("Polar_H10_*_ECG.txt", "Polar_H10_*_ACC.txt", "Polar_H10_*_HR.txt", "Polar_H10_*_RR.txt"),
+        "Polar_H10_*_ECG.txt",
+    ),
+    "OxyDex": (("Wellue_O2Ring-S_*_SPO2.csv",), "Wellue_O2Ring-S_*_SPO2.csv"),
+    "PPGDex": (
+        (
+            "Polar_VeritySense_*_PPG.txt",
+            "Polar_VeritySense_*_PPI.txt",
+            "Wellue_O2Ring-S_*_PPG.txt",
+            "Wellue_O2Ring-S_*_PPG2W.txt",
+        ),
+        "Polar_VeritySense_*_PPG.txt",
+    ),
+    "PulseDex": (("Polar_VeritySense_*_PPI.txt", "Polar_H10_*_RR.txt"), "Polar_VeritySense_*_PPI.txt"),
+    "CPAPDex": ((CPAP_EDF,), CPAP_BRP),
+    "MotionDex": (
+        ("Polar_H10_*_ACC.txt", "Polar_VeritySense_*_ACC.txt", "Wellue_O2Ring-S_*_ACCRAW.txt"),
+        "Polar_VeritySense_*_ACC.txt",
+    ),
+    "GlucoDex": ((), None),  # no CGM on the box — always absent, never a fabricated 0
     # HRVDex ingests Welltory CSV or an ECGDex EXPORT — never a raw Polar file (a raw RR.txt handed to
     # it is dropped without a word, measured 2026-09-20). The box holds neither, so like the
     # Integrator its cell is the raw input that reaches it through ECGDex, and it is not offered as a click.
-    "HRVDex":     (("Polar_H10_*_HR.txt", "Polar_H10_*_RR.txt", "Polar_VeritySense_*_PPI.txt"), "Polar_H10_*_RR.txt"),
-    "EEGDex":     ((), None),                       # no Muse on the box
+    "HRVDex": (("Polar_H10_*_HR.txt", "Polar_H10_*_RR.txt", "Polar_VeritySense_*_PPI.txt"), "Polar_H10_*_RR.txt"),
+    "EEGDex": ((), None),  # no Muse on the box
     # The Integrator ingests NODE EXPORTS (ganglior.node-export JSON), which the box does not hold —
     # folds run on rig (tools/trio-batch.mjs). Its cell is the raw input it WOULD fold, marked
     # `loadable: False` so the monitor shows the figure and does not offer a click.
-    "Integrator": (("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_SPO2.csv",
-                    "Polar_*_ACC.txt", CPAP_EDF), "Polar_VeritySense_*_PPG.txt"),
+    "Integrator": (
+        (
+            "Polar_H10_*_ECG.txt",
+            "Polar_VeritySense_*_PPG.txt",
+            "Wellue_O2Ring-S_*_SPO2.csv",
+            "Polar_*_ACC.txt",
+            CPAP_EDF,
+        ),
+        "Polar_VeritySense_*_PPG.txt",
+    ),
 }
 NOT_LOADABLE = frozenset({"Integrator", "HRVDex"})
 # derived tools: eligible when every required input exists; they open with those inputs loaded
@@ -61,12 +80,12 @@ DERIVED: dict[str, tuple[str, ...]] = {
     # the hat's O2Ring corner is the ring's PULSE from its _SPO2.csv (sensor-trio-power-analysis.js role `o2`), not the
     # ring's raw PPG waveform — a ✓ must mean the tool can run, so the requirement names the file it reads
     "3 corner hat": ("Polar_H10_*_HR.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_SPO2.csv"),
-    "PAT":          ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt"),
+    "PAT": ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt"),
     # "PAT fused" needs a THIRD corner the plain PAT page does not: the finger leg and the hat are built
     # from the ring's RAW pleth, not its SpO2 CSV, so the requirement names `_PPG.txt` — the same rule the
     # hat entry above states ("a ✓ must mean the tool can run, so the requirement names the file it reads")
     # reaching a different file. A night with the ring's CSV but no raw pleth is PAT-eligible and NOT this.
-    "PAT fused":    ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_PPG.txt"),
+    "PAT fused": ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_PPG.txt"),
 }
 COLUMNS = tuple(NODES) + tuple(DERIVED)
 # The two Polar devices' PACKET-ARRIVAL sidecars (writers.PmdArrivalLogWriter). Not an analyzer's ingest, so not a
@@ -76,7 +95,7 @@ COLUMNS = tuple(NODES) + tuple(DERIVED)
 ARRIVAL: tuple[str, ...] = ("Polar_H10_*_PMDARRIVAL.csv", "Polar_VeritySense_*_PMDARRIVAL.csv")
 
 _ISO = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})")
-_O2 = re.compile(r"^(\d{2}):(\d{2}):(\d{2}) (\d{2})/(\d{2})/(\d{4})")      # HH:MM:SS DD/MM/YYYY (DMY)
+_O2 = re.compile(r"^(\d{2}):(\d{2}):(\d{2}) (\d{2})/(\d{2})/(\d{4})")  # HH:MM:SS DD/MM/YYYY (DMY)
 _NIGHT = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -224,7 +243,7 @@ def _cache_save(captures: str) -> None:
             json.dump(_cache, fh)
         os.replace(tmp, path)
     except OSError:
-        pass                        # a cache that cannot be written is recomputed next time, not an error
+        pass  # a cache that cannot be written is recomputed next time, not an error
 
 
 def _row_seconds(line: str, iso: bool) -> float | None:
@@ -263,7 +282,7 @@ def _cadence_gap(path: str, head_rows: int = 2000, floor: float = GAP_S) -> floa
                     break
     except OSError:
         return floor
-    if len(steps) < 20:              # too few rows to know the cadence: the floor is the honest cut
+    if len(steps) < 20:  # too few rows to know the cadence: the floor is the honest cut
         return floor
     steps.sort()
     return max(floor, 5.0 * steps[min(len(steps) - 1, int(0.95 * len(steps)))])
@@ -297,7 +316,7 @@ def stream_stats(path: str, gap_s: float | None = None) -> dict | None:
                     first = t
                 else:
                     if t < prev - 43200:
-                        t += 86400.0        # past midnight: every later row reads small and gets the same day
+                        t += 86400.0  # past midnight: every later row reads small and gets the same day
                     if t - prev > gap_s:
                         frags += 1
                         gaps += t - prev
@@ -307,8 +326,12 @@ def stream_stats(path: str, gap_s: float | None = None) -> dict | None:
     if first is None or prev is None or prev <= first:
         return None
     span = prev - first
-    return {"fragments": frags, "coverage": round(max(0.0, 1.0 - gaps / span), 3), "span_s": round(span, 1),
-            "gap_s": round(gap_s, 2)}
+    return {
+        "fragments": frags,
+        "coverage": round(max(0.0, 1.0 - gaps / span), 3),
+        "span_s": round(span, 1),
+        "gap_s": round(gap_s, 2),
+    }
 
 
 def cached_stats(captures: str, path: str, deadline: float | None) -> tuple[dict | None, bool]:
@@ -400,8 +423,9 @@ def list_nights(root: str) -> list[str]:
         names = os.listdir(captures)
     except OSError:
         return []
-    return sorted(os.path.join(captures, n) for n in names
-                  if _NIGHT.match(n) and os.path.isdir(os.path.join(captures, n)))
+    return sorted(
+        os.path.join(captures, n) for n in names if _NIGHT.match(n) and os.path.isdir(os.path.join(captures, n))
+    )
 
 
 def index_nights(root: str, limit: int = 60, budget_s: float | None = 15.0) -> list[dict]:
@@ -412,7 +436,7 @@ def index_nights(root: str, limit: int = 60, budget_s: float | None = 15.0) -> l
     nights = list_nights(root)
     captures = os.path.join(root, "captures")
     deadline = None if budget_s is None else time.monotonic() + budget_s
-    picked = nights[-max(1, limit):]
+    picked = nights[-max(1, limit) :]
     rows = [night_entry(captures, d, deadline) for d in reversed(picked)]
     return list(reversed(rows))
 

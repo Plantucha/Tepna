@@ -34,8 +34,9 @@ def test_a_protocol_refusal_beats_a_transient_looking_message(marker):
     message that is both a refusal AND transient-looking separates them — which is exactly the real
     case: the H10 answers SET_SYSTEM_TIME with `not_implemented` and then the link drops."""
     exc = RuntimeError(f"org.bluez.Error: {marker} — device disconnected")
-    assert capture.transient_ble_error(exc) is False, \
+    assert capture.transient_ble_error(exc) is False, (
         "a protocol refusal is not retried, however transient the rest of the message looks"
+    )
     # control: the same transient tail WITHOUT a refusal marker is retried, so the assertion above is
     # about the marker and not about the message being unmatched
     assert capture.transient_ble_error(RuntimeError("device disconnected")) is True
@@ -102,14 +103,19 @@ def test_the_give_up_budget_starts_from_zero_failures():
     Asserted BEHAVIOURALLY, not via `inspect.signature`: mutmut dispatches through a wrapper that keeps
     the original signature, so a signature-default mutation is invisible to introspection. Setting
     `giveup=1` is what makes the two defaults observable — 0 < 1 corrects, 1 < 1 does not."""
-    assert capture.clock_resync_reason(skew=99.0, prev=None, jump=5.0, tolerance=2.0,
-                                       giveup=1) == "adrift", "a first, never-failed attempt corrects"
+    assert capture.clock_resync_reason(skew=99.0, prev=None, jump=5.0, tolerance=2.0, giveup=1) == "adrift", (
+        "a first, never-failed attempt corrects"
+    )
 
 
 def test_a_clock_we_have_repeatedly_failed_to_move_is_left_alone():
     """The give-up arm, so the budget cannot be made unreachable."""
-    assert capture.clock_resync_reason(skew=99.0, prev=None, jump=5.0, tolerance=2.0,
-                                       failed_adrift=capture.CLOCK_ADRIFT_GIVEUP) is None
+    assert (
+        capture.clock_resync_reason(
+            skew=99.0, prev=None, jump=5.0, tolerance=2.0, failed_adrift=capture.CLOCK_ADRIFT_GIVEUP
+        )
+        is None
+    )
 
 
 # ── oxyii_rtc_due: the ring's write-only clock ──────────────────────────────────────────────────────
@@ -136,10 +142,10 @@ def test_the_drift_backstop_reports_the_age_in_hours():
 def test_a_cadence_of_one_means_every_reconnect_not_disabled():
     """`every <= 0` → `every <= 1`. `every=1` means 'try on every reconnect', a legal and deliberate
     configuration; the mutant reads it as 'disabled' and silently never re-bonds."""
-    assert capture.rebond_due(needs_pmd=True, bonded=False, iteration=3, attempts=0,
-                              every=1, limit=72) is True
-    assert capture.rebond_due(needs_pmd=True, bonded=False, iteration=3, attempts=0,
-                              every=0, limit=72) is False, "0 disables it"
+    assert capture.rebond_due(needs_pmd=True, bonded=False, iteration=3, attempts=0, every=1, limit=72) is True
+    assert capture.rebond_due(needs_pmd=True, bonded=False, iteration=3, attempts=0, every=0, limit=72) is False, (
+        "0 disables it"
+    )
 
 
 # ── classify_adapter_health: the phantom link names the device ──────────────────────────────────────
@@ -150,8 +156,9 @@ def test_a_phantom_link_reason_names_the_device(recwarn):
 
     The prefix is the actionable half: the watchdog issues a targeted disconnect, and an operator
     reading `None: phantom BlueZ link` at 02:00 cannot tell which of three sensors is stuck."""
-    devs = [{"name": "H10", "address": "AA:BB:CC:DD:EE:FF",
-             "connected": False, "bluez_connected": True, "last_error": ""}]
+    devs = [
+        {"name": "H10", "address": "AA:BB:CC:DD:EE:FF", "connected": False, "bluez_connected": True, "last_error": ""}
+    ]
     h = capture.classify_adapter_health(devs)
     assert h["wedged"] is True
     assert h["reasons"] == ["H10: phantom BlueZ link"], "the whole reason, prefix included"
@@ -164,18 +171,26 @@ def test_a_phantom_link_reason_names_the_device(recwarn):
 # with an H10 on a desk: 51 ops in 59.1 min, mean hold 41.1 s — a 59 % duty cycle. This predicate is what
 # lets the ladder tell "waiting will help" from "waiting cannot help".
 
+
 def test_device_not_found_is_absence():
-    for msg in ("BleakDeviceNotFoundError: device not found",
-                "bleak.exc.BleakDeviceNotFoundError",
-                "Device not advertising"):
+    for msg in (
+        "BleakDeviceNotFoundError: device not found",
+        "bleak.exc.BleakDeviceNotFoundError",
+        "Device not advertising",
+    ):
         assert capture.device_absent_error(Exception(msg)) is True, msg
 
 
 def test_contention_is_NOT_absence():
     """The case the retry ladder exists for. If InProgress ever reads as absence, the 2026-07-18 bug
     returns: both Polars spent an evening unsynced because a restart's InProgress was treated as fatal."""
-    for msg in ("org.bluez.Error.InProgress", "in progress", "resource temporarily unavailable",
-                "not ready", "device busy"):
+    for msg in (
+        "org.bluez.Error.InProgress",
+        "in progress",
+        "resource temporarily unavailable",
+        "not ready",
+        "device busy",
+    ):
         assert capture.device_absent_error(Exception(msg)) is False, msg
 
 
@@ -217,10 +232,11 @@ def test_the_auto_sync_retry_line_logs_the_message_not_just_the_class():
     Asserted on the SOURCE because the alternative is asserting on a log record, and what matters is
     that the format string carries the payload at all."""
     import inspect
+
     src = inspect.getsource(capture.auto_sync_clock)
     line = next(l for l in src.splitlines() if "clock auto-sync busy" in l)
     assert "%s" in line.split("busy")[1], "the retry line must interpolate the error text"
-    body = src[src.index("clock auto-sync busy"):]
+    body = src[src.index("clock auto-sync busy") :]
     assert "repr(e)" in body[:400], "repr(e), not str(e) — str() on a bare BleakError can be empty"
     assert "[:160]" in body[:400] or "[:" in body[:400], "truncate: this runs up to 12x per ladder"
 
@@ -228,6 +244,7 @@ def test_the_auto_sync_retry_line_logs_the_message_not_just_the_class():
 def test_the_deferred_line_names_the_reason_too():
     """Its sibling. An absence deferral that just said 'deferred' would rebuild the same blind spot."""
     import inspect
+
     src = inspect.getsource(capture.auto_sync_clock)
     line = next(l for l in src.splitlines() if "auto-sync deferred" in l)
     assert "device not found" in line
@@ -236,15 +253,22 @@ def test_the_deferred_line_names_the_reason_too():
 # ── _device_on_air: the three answers, and why None is one of them ───────────────────────────────────
 def _run_coro(c):
     import asyncio as _a
+
     return _a.new_event_loop().run_until_complete(c)
 
 
 def test_device_on_air_reports_found_and_not_found(monkeypatch):
     import types
-    async def hci(): return "hci0"
+
+    async def hci():
+        return "hci0"
+
     monkeypatch.setattr(capture, "adapter_hci", hci)
     for found, want in ((object(), True), (None, False)):
-        async def finder(addr, timeout=None, adapter=None, _f=found): return _f
+
+        async def finder(addr, timeout=None, adapter=None, _f=found):
+            return _f
+
         fake = types.SimpleNamespace(BleakScanner=types.SimpleNamespace(find_device_by_address=finder))
         monkeypatch.setitem(__import__("sys").modules, "bleak", fake)
         assert _run_coro(capture._device_on_air("AA:BB", 0.05)) is want
@@ -255,9 +279,15 @@ def test_device_on_air_returns_None_when_it_CANNOT_ASK(monkeypatch):
     that is busy, or a bleak that will not import must leave the caller doing what it did before. If
     this ever collapsed to False, one scan outage would silently stop every clock sync on the box."""
     import types
-    async def hci(): return "hci0"
+
+    async def hci():
+        return "hci0"
+
     monkeypatch.setattr(capture, "adapter_hci", hci)
-    async def boom(addr, timeout=None, adapter=None): raise RuntimeError("adapter busy")
+
+    async def boom(addr, timeout=None, adapter=None):
+        raise RuntimeError("adapter busy")
+
     fake = types.SimpleNamespace(BleakScanner=types.SimpleNamespace(find_device_by_address=boom))
     monkeypatch.setitem(__import__("sys").modules, "bleak", fake)
     assert _run_coro(capture._device_on_air("AA:BB", 0.05)) is None

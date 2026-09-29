@@ -127,6 +127,7 @@ def assemble_dat(
         },
     )
 
+
 def assemble_live(
     *,
     device_id: str | None,

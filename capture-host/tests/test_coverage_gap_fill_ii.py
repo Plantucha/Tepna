@@ -8,6 +8,7 @@ unreadable directory, a truncated row, a file with no parseable clock. Those han
 the alternative is a wrong answer rather than a crash, which is exactly the kind of code that stays
 uncovered until someone goes looking: it never runs on a healthy box, and it is what runs on a sick one.
 """
+
 import datetime as dt
 import os
 import sys
@@ -26,10 +27,12 @@ def _only_for(target: str, real, exc=OSError("simulated I/O failure")):
     """A monkeypatch shim that fails for ONE path and delegates everywhere else. Blanket-patching
     os.scandir/os.stat for a whole test breaks pytest's own bookkeeping; the failures under test are
     per-path anyway (one unreadable directory, not a dead filesystem)."""
+
     def shim(path, *a, **kw):
         if os.path.abspath(str(path)) == os.path.abspath(target):
             raise exc
         return real(path, *a, **kw)
+
     return shim
 
 
@@ -99,7 +102,7 @@ def test_mirror_matches_is_false_when_the_source_cannot_be_read(tmp_path, monkey
     src.mkdir(), dst.mkdir()
     (src / "a_ECG.txt").write_text("data")
     (dst / "a_ECG.txt").write_text("data")
-    assert nightarchive._mirror_matches(str(src), str(dst), ".archived") is True   # sanity: it matches
+    assert nightarchive._mirror_matches(str(src), str(dst), ".archived") is True  # sanity: it matches
     monkeypatch.setattr(os, "scandir", _only_for(str(src), os.scandir))
     assert nightarchive._mirror_matches(str(src), str(dst), ".archived") is False
 
@@ -131,8 +134,7 @@ def test_span_is_none_when_no_tail_row_parses_or_goes_forward(tmp_path):
     # First row's device clock is AHEAD of every row after it — a clock that went backwards is not a
     # duration — and the final line is a partial write, the case the backwards walk exists for.
     body = "".join(f"2026-07-25T02:00:{i % 60:02d}.000;1000000000;1\n" for i in range(400))
-    p.write_text(_hdr() + "\n2026-07-25T02:00:00.000;999000000000;1\n" + body
-                 + "2026-07-25T02:07:00.000;truncat")
+    p.write_text(_hdr() + "\n2026-07-25T02:00:00.000;999000000000;1\n" + body + "2026-07-25T02:07:00.000;truncat")
     assert os.path.getsize(p) > (1 << 13), "the fixture must exceed the tail window to test the walk"
     assert nightqc.file_span_sec(str(p)) is None
 
@@ -191,8 +193,7 @@ def test_link_rows_with_a_blank_rssi_column_are_kept_without_one(tmp_path):
     lose the connectedness it does carry."""
     night = tmp_path / "2026-07-25"
     night.mkdir()
-    _link_csv(night / "a_LINK.csv",
-              ["2026-07-25T22:00:00;H10;1;", "2026-07-25T22:00:34;H10;1;-71"])
+    _link_csv(night / "a_LINK.csv", ["2026-07-25T22:00:00;H10;1;", "2026-07-25T22:00:34;H10;1;-71"])
     out = timeline.read_link_samples(str(night))
     assert [r[2] for r in out["H10"]] == [None, -71.0]
 
@@ -202,8 +203,7 @@ def test_a_link_row_with_neither_a_device_nor_an_address_is_dropped(tmp_path):
     any device, and bucketing it under the empty string would invent a phantom device on the timeline."""
     night = tmp_path / "2026-07-25"
     night.mkdir()
-    _link_csv(night / "a_LINK.csv",
-              ["2026-07-25T22:00:00;;1;-70", "2026-07-25T22:00:34;H10;1;-71"])
+    _link_csv(night / "a_LINK.csv", ["2026-07-25T22:00:00;;1;-70", "2026-07-25T22:00:34;H10;1;-71"])
     out = timeline.read_link_samples(str(night))
     assert set(out) == {"H10"}, "the nameless row must not create a device"
     assert "" not in out
@@ -218,10 +218,10 @@ def test_build_does_not_pool_a_previous_day_folder_that_is_not_there(tmp_path):
     # a session starting just after midnight is what arms the pooling gate
     (night / "Polar_H10_02849638_20260725000500_ECG.txt").write_text(
         "Phone timestamp;sensor timestamp [ns];channel 0\n"
-        + "".join(f"2026-07-25T00:05:{i:02d}.000;{i}000000000;1\n" for i in range(60)))
+        + "".join(f"2026-07-25T00:05:{i:02d}.000;{i}000000000;1\n" for i in range(60))
+    )
     assert not (tmp_path / "2026-07-24").exists()
-    out = timeline.build(str(night), [{"name": "H10", "device_id": "02849638", "model": "H10",
-                                       "streams": ["ecg"]}])
+    out = timeline.build(str(night), [{"name": "H10", "device_id": "02849638", "model": "H10", "streams": ["ecg"]}])
     assert out["night"] == "2026-07-25"
 
 
@@ -231,10 +231,8 @@ def test_build_falls_back_to_the_link_sidecar_when_nothing_recorded(tmp_path):
     dropping it would take that view away."""
     night = tmp_path / "2026-07-25"
     night.mkdir()
-    _link_csv(night / "a_LINK.csv",
-              ["2026-07-25T22:00:00;H10;1;-70", "2026-07-25T23:00:00;H10;0;"])
-    out = timeline.build(str(night), [{"name": "H10", "device_id": "02849638", "model": "H10",
-                                       "streams": ["ecg"]}])
+    _link_csv(night / "a_LINK.csv", ["2026-07-25T22:00:00;H10;1;-70", "2026-07-25T23:00:00;H10;0;"])
+    out = timeline.build(str(night), [{"name": "H10", "device_id": "02849638", "model": "H10", "streams": ["ecg"]}])
     assert out["buckets"] > 0, "the sidecar alone must still produce a timeline"
 
 
@@ -248,8 +246,9 @@ def test_build_ignores_a_session_file_whose_name_carries_no_stamp(tmp_path):
     hdr = "Phone timestamp;sensor timestamp [ns];channel 0\n"
     (night / "Polar_H10_02849638_20260725220000_ECG.txt").write_text(hdr + rows)
     (night / "Polar_H10_02849638_nostamp_ACC.txt").write_text(hdr + rows)
-    out = timeline.build(str(night), [{"name": "H10", "device_id": "02849638", "model": "H10",
-                                       "streams": ["ecg", "acc"]}])
+    out = timeline.build(
+        str(night), [{"name": "H10", "device_id": "02849638", "model": "H10", "streams": ["ecg", "acc"]}]
+    )
     # 2026-07-25 22:00 must still be where the window opens
     assert out["t0"] >= dt.datetime(2026, 7, 25, 0, 0).timestamp()
 
@@ -259,8 +258,7 @@ def test_mount_unit_refuses_a_host_that_would_be_pasted_as_root():
     """§C6. This text is pasted AS ROOT and the unit body interpolates the fields raw, so a target
     persisted before validate() gained its charset check (46a43f7) must be re-refused here rather than
     trusted. The reachable trigger is an upgrade, not a hand-edit."""
-    tgt = {"protocol": "nfs", "mountpoint": "/srv/tepna/archive", "host": "nas; rm -rf /",
-           "share": "/export/tepna"}
+    tgt = {"protocol": "nfs", "mountpoint": "/srv/tepna/archive", "host": "nas; rm -rf /", "share": "/export/tepna"}
     with pytest.raises(storage_targets.StorageError, match="invalid host"):
         storage_targets.mount_unit(tgt)
 
@@ -286,13 +284,14 @@ def _ppg(dirpath, name, *, rows, wall_s, step_ns=STEP, t0=None):
 
 
 def test_scan_skips_a_matching_file_it_cannot_judge(tmp_path):
-    """"A file that cannot be judged is skipped rather than reported as clean" — the docstring's promise.
+    """ "A file that cannot be judged is skipped rather than reported as clean" — the docstring's promise.
     A header-only PPG file matches the filename pattern but has no two rows to measure between, and
     reporting it as ok would be the tool asserting something it did not measure."""
     night = tmp_path / "2026-07-25"
     night.mkdir()
     (night / "Wellue_O2Ring-S_S8AW2100_20260725020723_PPG.txt").write_text(
-        "Phone timestamp;sensor timestamp [ns];channel 0\n")
+        "Phone timestamp;sensor timestamp [ns];channel 0\n"
+    )
     assert pgc.scan(str(tmp_path)) == [], "unjudgeable is not clean, and not a crash either"
 
 
@@ -304,10 +303,15 @@ def test_the_rescalable_list_is_truncated_with_a_count_of_the_rest(tmp_path, cap
     night.mkdir()
     rows = int(61 * FS)
     grid_s = (rows - 1) * STEP / 1e9
-    for i in range(11):                       # 11 uniform-stretch files ⇒ one over the cut
+    for i in range(11):  # 11 uniform-stretch files ⇒ one over the cut
         # the stamp must stay exactly 14 digits or the scanner's filename pattern skips the file
-        _ppg(night, f"Wellue_O2Ring-S_S8AW2100_20260726{i:02d}0000_PPG.txt",
-             rows=rows, wall_s=grid_s / 1.00244, t0=dt.datetime(2026, 7, 26, i, 0, 0))
+        _ppg(
+            night,
+            f"Wellue_O2Ring-S_S8AW2100_20260726{i:02d}0000_PPG.txt",
+            rows=rows,
+            wall_s=grid_s / 1.00244,
+            t0=dt.datetime(2026, 7, 26, i, 0, 0),
+        )
     assert pgc.main([str(tmp_path)]) == 1
     out = capsys.readouterr().out
     assert "UNIFORM RATE ERROR (11 file(s)" in out

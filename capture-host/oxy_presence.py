@@ -49,9 +49,9 @@ class OxyPresState(Enum):
     scanner read as "the ring is not here", which is a fabricated observation (§2.6's honesty rule in
     the Clock Contract, applied to presence)."""
 
-    UNKNOWN = "pres_unknown"    # no observation — the scanner is off, or has not yet run a full window
-    ABSENT = "pres_absent"      # observed: no qualifying advertisement for at least the absence window
-    PRESENT = "pres_present"    # observed: the expected ring advertised enough to clear the debounce
+    UNKNOWN = "pres_unknown"  # no observation — the scanner is off, or has not yet run a full window
+    ABSENT = "pres_absent"  # observed: no qualifying advertisement for at least the absence window
+    PRESENT = "pres_present"  # observed: the expected ring advertised enough to clear the debounce
 
 
 _P = OxyPresState
@@ -115,9 +115,14 @@ def is_expected_ring(addr: str | None, configured: str | None) -> bool:
     return addr.strip().upper() == configured.strip().upper()
 
 
-def observe(prev: Presence | None, *, seen_at: float | None, now: float,
-            min_sightings: int = PRESENT_MIN_SIGHTINGS,
-            absent_after_s: float = ABSENT_AFTER_S) -> Presence:
+def observe(
+    prev: Presence | None,
+    *,
+    seen_at: float | None,
+    now: float,
+    min_sightings: int = PRESENT_MIN_SIGHTINGS,
+    absent_after_s: float = ABSENT_AFTER_S,
+) -> Presence:
     """Fold one scan tick into the presence observation. PURE.
 
     `seen_at` is the monotonic time of a QUALIFYING advertisement this tick (identity already checked
@@ -143,8 +148,9 @@ def observe(prev: Presence | None, *, seen_at: float | None, now: float,
     quiet = now - prev.last_seen
     if quiet >= absent_after_s:
         return Presence(_P.ABSENT, 0, prev.last_seen, f"silent {quiet:.0f}s ≥ {absent_after_s:.0f}s")
-    return Presence(prev.state, prev.sightings, prev.last_seen,
-                    f"silent {quiet:.0f}s < {absent_after_s:.0f}s — tolerating the gap")
+    return Presence(
+        prev.state, prev.sightings, prev.last_seen, f"silent {quiet:.0f}s < {absent_after_s:.0f}s — tolerating the gap"
+    )
 
 
 # ── §6 / §11 / §12 · THE CONNECTION BUDGET ───────────────────────────────────────────────────────────
@@ -156,8 +162,8 @@ def observe(prev: Presence | None, *, seen_at: float | None, now: float,
 # The forbidden shape is named in the charter and is what these functions exist to make impossible:
 # connect → disconnect → reconnect → immediately perform the same operation.
 
-CONNECT = "connect"           # open a link: a presence event justifies a look
-SKIP = "skip"                 # do not open a link, and the reason says which rule declined
+CONNECT = "connect"  # open a link: a presence event justifies a look
+SKIP = "skip"  # do not open a link, and the reason says which rule declined
 
 
 @dataclass(frozen=True)
@@ -169,9 +175,15 @@ class ProbePlan:
     reason: str
 
 
-def probe_justified(*, armed: bool, presence: Presence | None, rec_state: str | None,
-                    last_probe_at: float | None, now: float,
-                    min_probe_interval_s: float = 300.0) -> ProbePlan:
+def probe_justified(
+    *,
+    armed: bool,
+    presence: Presence | None,
+    rec_state: str | None,
+    last_probe_at: float | None,
+    now: float,
+    min_probe_interval_s: float = 300.0,
+) -> ProbePlan:
     """§6 — does this presence event justify opening a GATT connection? PURE, and it says NO by default.
 
     ORDER IS THE CONTRACT, cheapest and most fundamental refusal first, so the reason an operator
@@ -280,8 +292,8 @@ COEXISTENCE_KEY = "scan_coexistence_verified"
 # `org.bluez.AdvertisementMonitorManager1` interface, which bluetoothd exposes only with
 # `--experimental`; vigil's bluetoothd 5.85 runs without it (measured 2026-09-20: absent on hci0–hci3).
 # Until the owner's drop-in lands, the refusal simply changes wording — `passive_refusal()` names which.
-PASSIVE_FLAG_BYTES: tuple[int, ...] = (0x06,)               # MEASURED 2026-09-05 (state: charger)
-PASSIVE_MFR_CIDS: tuple[int, ...] = (0xF34E, 0x036F)        # 0xF34E MEASURED · 0x036F documented (§6, recording)
+PASSIVE_FLAG_BYTES: tuple[int, ...] = (0x06,)  # MEASURED 2026-09-05 (state: charger)
+PASSIVE_MFR_CIDS: tuple[int, ...] = (0xF34E, 0x036F)  # 0xF34E MEASURED · 0x036F documented (§6, recording)
 AD_TYPE_FLAGS = 0x01
 AD_TYPE_MANUFACTURER = 0xFF
 
@@ -289,8 +301,9 @@ AD_TYPE_MANUFACTURER = 0xFF
 def passive_or_pattern_spec() -> list[tuple[int, int, bytes]]:
     """The filter as plain `(offset, ad_type, prefix)` triples — bleak-free so it is testable here;
     `capture._passive_scan_kw` turns them into `bleak.args.bluez.OrPattern`s."""
-    return ([(0, AD_TYPE_FLAGS, bytes([b])) for b in PASSIVE_FLAG_BYTES]
-            + [(0, AD_TYPE_MANUFACTURER, cid.to_bytes(2, "little")) for cid in PASSIVE_MFR_CIDS])
+    return [(0, AD_TYPE_FLAGS, bytes([b])) for b in PASSIVE_FLAG_BYTES] + [
+        (0, AD_TYPE_MANUFACTURER, cid.to_bytes(2, "little")) for cid in PASSIVE_MFR_CIDS
+    ]
 
 
 def passive_refusal(exc: object) -> str | None:
@@ -321,14 +334,21 @@ def arming(cfg: dict) -> Arming:
     line that was never printed."""
     pcfg = (cfg.get("o2ring", {}) or {}).get("presence_harvest", {}) or {}
     if not pcfg.get("enabled"):
-        return Arming(False, False,
-                      "o2ring.presence_harvest.enabled=False" if "enabled" in pcfg
-                      else "o2ring.presence_harvest.enabled absent -> defaults OFF (never inherits)")
+        return Arming(
+            False,
+            False,
+            "o2ring.presence_harvest.enabled=False"
+            if "enabled" in pcfg
+            else "o2ring.presence_harvest.enabled absent -> defaults OFF (never inherits)",
+        )
     if not pcfg.get(COEXISTENCE_KEY):
-        return Arming(True, False,
-                      f"enabled, but NOT armed: {COEXISTENCE_KEY} is unset — §2's passive-scan "
-                      "coexistence matrix has not been run on this box, so scanning is unproven "
-                      "against live CPAP/H10/Verity acquisition")
+        return Arming(
+            True,
+            False,
+            f"enabled, but NOT armed: {COEXISTENCE_KEY} is unset — §2's passive-scan "
+            "coexistence matrix has not been run on this box, so scanning is unproven "
+            "against live CPAP/H10/Verity acquisition",
+        )
     return Arming(True, True, "armed: enabled and coexistence verified")
 
 
@@ -348,16 +368,16 @@ def arming(cfg: dict) -> Arming:
 # the original defect. Instead the chain computes ITS OWN FIRST GAP and names it: one field that says
 # where the chain stops. "Complete" becomes a value the code can only produce when it is true.
 WITNESS_LINKS = (
-    "enabled",              # config asked for it
-    "observer_armed",       # §2's coexistence verdict cleared it AND the task started
-    "presence_detected",    # an advertisement cleared the debounce
-    "probe_attempted",      # a link was justified and opened
-    "rec_state_observed",   # the recording axis got a reading
-    "end_detected",         # END_CANDIDATE — duration_s stepped backward
-    "flush_entered",        # the flush gate began waiting for run_status 3 → 1
-    "flush_completed",      # it reached a terminal rather than the deadline
-    "pull_started",         # the EXISTING transactional harvest was dispatched
-    "artifact_committed",   # oxy_inventory COMMITTED — the only link meaning data survived
+    "enabled",  # config asked for it
+    "observer_armed",  # §2's coexistence verdict cleared it AND the task started
+    "presence_detected",  # an advertisement cleared the debounce
+    "probe_attempted",  # a link was justified and opened
+    "rec_state_observed",  # the recording axis got a reading
+    "end_detected",  # END_CANDIDATE — duration_s stepped backward
+    "flush_entered",  # the flush gate began waiting for run_status 3 → 1
+    "flush_completed",  # it reached a terminal rather than the deadline
+    "pull_started",  # the EXISTING transactional harvest was dispatched
+    "artifact_committed",  # oxy_inventory COMMITTED — the only link meaning data survived
 )
 
 

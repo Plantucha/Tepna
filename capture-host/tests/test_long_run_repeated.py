@@ -11,6 +11,7 @@ fiftieth cycle from the first. §14's own words are "failures that occur only af
 Audited 2026-09-15 across §14's nine items: eight had at least one test whose name asserts repetition;
 **repeated device disappearance had none**. This is that gap.
 """
+
 import asyncio
 import os
 import sys

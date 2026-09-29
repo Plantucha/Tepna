@@ -66,7 +66,12 @@ def _flat(v):
     """Both readers answer in `tepna.verdict/1`; the assertions below read the object, never prose."""
     assert_valid_verdict(v)
     if v["status"] == "PASS":
-        return {"ok": True, "files": v["result"]["files"], "consent": v["result"]["consent"], "revision": v["result"]["revision"]}
+        return {
+            "ok": True,
+            "files": v["result"]["files"],
+            "consent": v["result"]["consent"],
+            "revision": v["result"]["revision"],
+        }
     return {"ok": False, "kind": v["result"]["kind"], "detail": v["reason"]}
 
 
@@ -89,7 +94,7 @@ def assert_valid_verdict(v):
     out = validate_verdict(v)
     assert out["ok"], (out["errors"], v)
     assert v["gate"] == "verify-seals" and v["scope"] == "internal"
-    assert "status enum" in out["checked"] and "population equality" in out["checked"], out["checked"]   # the legs RAN
+    assert "status enum" in out["checked"] and "population equality" in out["checked"], out["checked"]  # the legs RAN
 
 
 # ── the committed vector ──────────────────────────────────────────────────────────────────────────
@@ -99,7 +104,9 @@ def test_the_committed_vector_is_a_BYTE_IDENTICAL_re_seal_of_the_synthetic_night
     out = str(tmp_path / "re.tepna")
     seal.seal_night(night, out, **V.seal_kwargs(key))
     committed = open(os.path.join(V.VECTOR_DIR, EXPECTED["seal"]), "rb").read()
-    assert open(out, "rb").read() == committed, "the recipe changed — regenerate the vectors ON PURPOSE or fix the drift"
+    assert open(out, "rb").read() == committed, (
+        "the recipe changed — regenerate the vectors ON PURPOSE or fix the drift"
+    )
     assert __import__("hashlib").sha256(committed).hexdigest() == EXPECTED["sha256"]
 
 
@@ -156,7 +163,6 @@ def test_the_committed_plant_vectors_are_byte_identical_to_a_regeneration(night,
         assert rec["expect"] == PLANTS[name]["expect"], name
 
 
-
 def test_the_EIGHT_plants_red_by_name_in_BOTH_readers_and_each_is_SEEN(night, key, tmp_path):
     """The denominator is an EQUALITY: eight plants enumerated (§6's seven plus the consent-agreement
     plant from the #2796 review), eight verdicts from each reader, and every plant that must refuse DID
@@ -189,8 +195,11 @@ def test_the_plants_are_DISTINCT_defects_not_one_defect_seven_times(night, key, 
         if spec["expect"] is None:
             continue
         path = _build_plant(name, spec, night, key, tmp_path)
-        kinds.add(_python(path, card_key=spec.get("read_card_key", V.TEST_CARD_KEY),
-                          known_revision=spec.get("known_revision"))["kind"])
+        kinds.add(
+            _python(
+                path, card_key=spec.get("read_card_key", V.TEST_CARD_KEY), known_revision=spec.get("known_revision")
+            )["kind"]
+        )
     assert len(kinds) == 7, kinds
 
 
@@ -199,13 +208,16 @@ def _vector_bytes():
     return bytearray(open(os.path.join(V.VECTOR_DIR, EXPECTED["seal"]), "rb").read())
 
 
-@pytest.mark.parametrize("mutate,kind", [
-    (lambda b: b"NOTASEAL" + bytes(b[8:]), "magic"),
-    (lambda b: bytes(b[:9]) + bytes([2]) + bytes(b[10:]), "version"),
-    (lambda b: bytes(b[:9 + 1 + 4]) + b"{not json" + bytes(b[9 + 1 + 4 + 9:]), "header"),
-    (lambda b: bytes(b[:-100]), "payload"),
-    (lambda b: bytes(b[:40]), "header"),
-])
+@pytest.mark.parametrize(
+    "mutate,kind",
+    [
+        (lambda b: b"NOTASEAL" + bytes(b[8:]), "magic"),
+        (lambda b: bytes(b[:9]) + bytes([2]) + bytes(b[10:]), "version"),
+        (lambda b: bytes(b[: 9 + 1 + 4]) + b"{not json" + bytes(b[9 + 1 + 4 + 9 :]), "header"),
+        (lambda b: bytes(b[:-100]), "payload"),
+        (lambda b: bytes(b[:40]), "header"),
+    ],
+)
 def test_framing_refusals_are_named(tmp_path, mutate, kind):
     p = str(tmp_path / "x.tepna")
     open(p, "wb").write(mutate(_vector_bytes()))
@@ -232,15 +244,21 @@ def test_a_missing_card_recipient_is_a_header_refusal(night, key, tmp_path):
 
 
 def test_a_signature_of_the_wrong_length_is_named(tmp_path):
-    b = _vector_bytes(); n = 9 + 1; hlen = int.from_bytes(b[n:n + 4], "big"); p = n + 4 + hlen
-    b[p:p + 2] = (63).to_bytes(2, "big")
-    f = str(tmp_path / "s.tepna"); open(f, "wb").write(bytes(b))
+    b = _vector_bytes()
+    n = 9 + 1
+    hlen = int.from_bytes(b[n : n + 4], "big")
+    p = n + 4 + hlen
+    b[p : p + 2] = (63).to_bytes(2, "big")
+    f = str(tmp_path / "s.tepna")
+    open(f, "wb").write(bytes(b))
     assert _python(f)["kind"] == "signature" and _node(f)["kind"] == "signature"
 
 
 def test_a_tampered_tag_file_reds_on_the_TAG_manifest(night, key, tmp_path):
     def m(bag):
-        bag["bag-info.txt"] = bag["bag-info.txt"] + b"a tampered line with no colon\n"; return bag
+        bag["bag-info.txt"] = bag["bag-info.txt"] + b"a tampered line with no colon\n"
+        return bag
+
     p = str(tmp_path / "t.tepna")
     seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
     assert _python(p)["kind"] == "manifest:bag-info.txt" and _node(p)["kind"] == "manifest:bag-info.txt"
@@ -251,9 +269,14 @@ def test_a_manifest_naming_a_file_the_bag_lacks_is_named(night, key, tmp_path):
         bag["manifest-sha256.txt"] += b"0" * 64 + b"  data/ghost.txt\n"
         # keep the tag manifest honest so the failure is the DATA manifest's
         import hashlib
-        lines = [l for l in bag["tagmanifest-sha256.txt"].decode().splitlines() if not l.endswith("manifest-sha256.txt")]
+
+        lines = [
+            l for l in bag["tagmanifest-sha256.txt"].decode().splitlines() if not l.endswith("manifest-sha256.txt")
+        ]
         lines.append("%s  manifest-sha256.txt" % hashlib.sha256(bag["manifest-sha256.txt"]).hexdigest())
-        bag["tagmanifest-sha256.txt"] = ("\n".join(lines) + "\n").encode(); return bag
+        bag["tagmanifest-sha256.txt"] = ("\n".join(lines) + "\n").encode()
+        return bag
+
     p = str(tmp_path / "g.tepna")
     seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
     assert _python(p)["kind"] == "manifest:data/ghost.txt" and _node(p)["kind"] == "manifest:data/ghost.txt"
@@ -288,11 +311,17 @@ def test_production_material_is_RANDOM_not_derived(night, key, tmp_path):
     """Without `deterministic_from`, two seals of the same night differ (nonce and data key from the
     rng) — the determinism is a test property and must not leak into a box."""
     calls = []
+
     def rng(n):
-        calls.append(n); return bytes([len(calls)]) * n
-    kw = V.seal_kwargs(key); kw.pop("deterministic_from")
-    a = str(tmp_path / "a.tepna"); b = str(tmp_path / "b.tepna")
-    seal.seal_night(night, a, rng=rng, **kw); seal.seal_night(night, b, rng=rng, **kw)
+        calls.append(n)
+        return bytes([len(calls)]) * n
+
+    kw = V.seal_kwargs(key)
+    kw.pop("deterministic_from")
+    a = str(tmp_path / "a.tepna")
+    b = str(tmp_path / "b.tepna")
+    seal.seal_night(night, a, rng=rng, **kw)
+    seal.seal_night(night, b, rng=rng, **kw)
     assert calls == [F.GCM_NONCE_BYTES, F.DATA_KEY_BYTES] * 2
     assert open(a, "rb").read() != open(b, "rb").read()
 
@@ -302,7 +331,9 @@ def test_card_code_is_26_crockford_symbols_in_groups_and_round_trips():
     code = F.card_code_encode(V.TEST_CARD_KEY)
     assert len(code.replace("-", "")) == 26 and code.count("-") == 6
     assert F.card_code_decode(code) == V.TEST_CARD_KEY
-    assert F.card_code_decode(code.lower().replace("0", "o").replace("1", "l")) == V.TEST_CARD_KEY, "Crockford's ambiguous letters are forgiven"
+    assert F.card_code_decode(code.lower().replace("0", "o").replace("1", "l")) == V.TEST_CARD_KEY, (
+        "Crockford's ambiguous letters are forgiven"
+    )
     assert open(os.path.join(V.VECTOR_DIR, "test-card-key.txt")).read().strip().endswith(code)
 
 
@@ -324,12 +355,20 @@ def test_a_file_that_cannot_be_read_is_NOT_RUN_in_both_readers_with_the_populati
     missing = str(tmp_path / "absent.tepna")
     py = unseal.verdict(missing, card_key=V.TEST_CARD_KEY, pinned_fingerprint=PIN)
     assert_valid_verdict(py)
-    assert py["status"] == "NOT_RUN" and py["population"] == {"checked": 0, "eligible": 1, "excluded": 1} and py["result"] is None
+    assert (
+        py["status"] == "NOT_RUN"
+        and py["population"] == {"checked": 0, "eligible": 1, "excluded": 1}
+        and py["result"] is None
+    )
     node = shutil.which("node")
     if not node:  # pragma: no cover
         pytest.skip("node is not installed")
-    r = subprocess.run([node, NODE_VERIFIER, missing, "--card-key", V.TEST_CARD_KEY.hex(), "--pin", PIN, "--json"],
-                       capture_output=True, text=True, timeout=60)
+    r = subprocess.run(
+        [node, NODE_VERIFIER, missing, "--card-key", V.TEST_CARD_KEY.hex(), "--pin", PIN, "--json"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
     js = json.loads(r.stdout.strip())
     assert_valid_verdict(js)
     assert r.returncode == 2 and js["status"] == "NOT_RUN" and js["population"]["checked"] == 0
@@ -368,16 +407,17 @@ def test_the_NODE_verifier_also_says_why_its_commit_is_null(tmp_path):
     # HERE is capture-host/ (NODE_VERIFIER above joins dirname(HERE) with tools/), so ONE dirname
     # reaches the repo root. I wrote two and it failed — a path-anchor slip inside a test about a
     # path-anchor defect, caught by the run rather than by rereading it.
-    root = os.path.dirname(HERE)                           # the repo root, which HAS a .git
-    away = tmp_path / "nogit"                              # a copy that does not
+    root = os.path.dirname(HERE)  # the repo root, which HAS a .git
+    away = tmp_path / "nogit"  # a copy that does not
     (away / "tools").mkdir(parents=True)
     shutil.copy(os.path.join(root, "tools", "verify-seals.mjs"), away / "tools" / "verify-seals.mjs")
     shutil.copy(os.path.join(root, "verdict.js"), away / "verdict.js")
     shutil.copytree(V.VECTOR_DIR, away / "capture-host" / "tests" / "vectors" / os.path.basename(V.VECTOR_DIR))
     assert not (away / ".git").exists(), "the point of this fixture is that git cannot be read here"
-    r = subprocess.run([node, str(away / "tools" / "verify-seals.mjs"), "--vectors"],
-                       capture_output=True, text=True, timeout=60)
-    assert r.returncode == 0, r.stderr                     # pre-fix this THREW instead of emitting
+    r = subprocess.run(
+        [node, str(away / "tools" / "verify-seals.mjs"), "--vectors"], capture_output=True, text=True, timeout=60
+    )
+    assert r.returncode == 0, r.stderr  # pre-fix this THREW instead of emitting
     v = json.loads(r.stdout.strip())
     assert_valid_verdict(v)
     assert v["producedBy"]["commit"] is None, v["producedBy"]
@@ -389,6 +429,7 @@ def test_the_commit_field_is_null_outside_a_git_tree_not_a_guess(monkeypatch):
     """Since wave 2 the object is built by `verdict.make`, so the commit comes from `verdict.commit_sha`
     and a null carries `commitReason` (verdict.js refuses a bare null)."""
     import verdict as VD
+
     monkeypatch.setattr(VD, "commit_sha", lambda: None)
     v = unseal.verdict(os.path.join(V.VECTOR_DIR, EXPECTED["seal"]), card_key=V.TEST_CARD_KEY, pinned_fingerprint=PIN)
     assert_valid_verdict(v)
@@ -414,10 +455,15 @@ def test_evidence_never_carries_a_checkout_s_absolute_path():
     (a real sealed night under /srv) keeps the path it was given."""
     v = unseal.verdict_sample()
     assert not any(e.startswith(os.sep) for e in v["evidence"]), v["evidence"]
-    assert v["evidence"] == ["capture-host/unseal.py", "capture-host/tests/vectors/tepna-seal-1/TESTBOX0-2026-09-20.tepna"]
+    assert v["evidence"] == [
+        "capture-host/unseal.py",
+        "capture-host/tests/vectors/tepna-seal-1/TESTBOX0-2026-09-20.tepna",
+    ]
     assert unseal._evidence_path("/srv/tepna/sealed/BOX-2026-09-20.tepna") == "/srv/tepna/sealed/BOX-2026-09-20.tepna"
     with open(os.path.join(V.VECTOR_DIR, "verdict-sample.json"), encoding="utf-8") as fh:
-        assert not any(e.startswith(os.sep) for e in json.load(fh)["evidence"]), "the committed sample carries a checkout path"
+        assert not any(e.startswith(os.sep) for e in json.load(fh)["evidence"]), (
+            "the committed sample carries a checkout path"
+        )
 
 
 def test_the_verdict_sample_is_the_committed_vector_judged_PASS_and_needs_no_corpus():
@@ -437,58 +483,83 @@ def _reframe(header_bytes, payload, key):
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric import ec
     from cryptography.hazmat.primitives.asymmetric.utils import Prehashed, decode_dss_signature
+
     digest = hashlib.sha256(header_bytes + hashlib.sha256(payload).digest()).digest()
     r, s = decode_dss_signature(key.sign(digest, ec.ECDSA(Prehashed(hashes.SHA256()), deterministic_signing=True)))
     sig = r.to_bytes(32, "big") + s.to_bytes(32, "big")
-    return (F.MAGIC + bytes([F.VERSION]) + len(header_bytes).to_bytes(4, "big") + header_bytes
-            + len(sig).to_bytes(2, "big") + sig + len(payload).to_bytes(8, "big") + payload)
+    return (
+        F.MAGIC
+        + bytes([F.VERSION])
+        + len(header_bytes).to_bytes(4, "big")
+        + header_bytes
+        + len(sig).to_bytes(2, "big")
+        + sig
+        + len(payload).to_bytes(8, "big")
+        + payload
+    )
 
 
 def _parts():
-    b = _vector_bytes(); n = 10; hlen = int.from_bytes(b[n:n + 4], "big")
-    hb = bytes(b[n + 4:n + 4 + hlen]); p = n + 4 + hlen + 2 + 64
-    plen = int.from_bytes(b[p:p + 8], "big")
-    return hb, bytes(b[p + 8:p + 8 + plen])
+    b = _vector_bytes()
+    n = 10
+    hlen = int.from_bytes(b[n : n + 4], "big")
+    hb = bytes(b[n + 4 : n + 4 + hlen])
+    p = n + 4 + hlen + 2 + 64
+    plen = int.from_bytes(b[p : p + 8], "big")
+    return hb, bytes(b[p + 8 : p + 8 + plen])
 
 
 def test_a_payload_whose_GCM_tag_fails_under_a_VALID_signature_is_named_payload(key, tmp_path):
     hb, payload = _parts()
-    bad = bytearray(payload); bad[-1] ^= 0x01
-    f = str(tmp_path / "gcm.tepna"); open(f, "wb").write(_reframe(hb, bytes(bad), key))
+    bad = bytearray(payload)
+    bad[-1] ^= 0x01
+    f = str(tmp_path / "gcm.tepna")
+    open(f, "wb").write(_reframe(hb, bytes(bad), key))
     assert _python(f)["kind"] == "payload" and _node(f)["kind"] == "payload"
 
 
 def _encrypt_as_the_sealer(plain, header_bytes):
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     nonce, data_key = seal._derive_test_material(V.TEST_CARD_KEY)
     return nonce + AESGCM(data_key).encrypt(nonce, plain, header_bytes)
 
 
 def test_a_decrypted_payload_that_is_not_a_zip_is_named_zip(key, tmp_path):
     hb, _ = _parts()
-    f = str(tmp_path / "nz.tepna"); open(f, "wb").write(_reframe(hb, _encrypt_as_the_sealer(b"not a zip at all", hb), key))
+    f = str(tmp_path / "nz.tepna")
+    open(f, "wb").write(_reframe(hb, _encrypt_as_the_sealer(b"not a zip at all", hb), key))
     assert _python(f)["kind"] == "zip" and _node(f)["kind"] == "zip"
 
 
 @pytest.mark.parametrize("drop", ["bag-info.txt", "tagmanifest-sha256.txt"])
 def test_a_bag_missing_a_tag_file_is_named_zip(night, key, tmp_path, drop):
     def m(bag):
-        del bag[drop]; return bag
-    p = str(tmp_path / "d.tepna"); seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
+        del bag[drop]
+        return bag
+
+    p = str(tmp_path / "d.tepna")
+    seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
     assert _python(p)["kind"] == "zip" and _node(p)["kind"] == "zip"
 
 
 def test_a_manifest_with_an_unparseable_line_is_named_zip_and_a_blank_line_is_ignored(night, key, tmp_path):
     def m(bag):
-        bag["tagmanifest-sha256.txt"] = b"\n" + bag["tagmanifest-sha256.txt"] + b"garbage-without-two-spaces\n"; return bag
-    p = str(tmp_path / "u.tepna"); seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
+        bag["tagmanifest-sha256.txt"] = b"\n" + bag["tagmanifest-sha256.txt"] + b"garbage-without-two-spaces\n"
+        return bag
+
+    p = str(tmp_path / "u.tepna")
+    seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
     assert _python(p)["kind"] == "zip" and _node(p)["kind"] == "zip"
 
 
 def test_a_bag_info_that_is_not_utf8_is_named_zip(night, key, tmp_path):
     def m(bag):
-        bag["bag-info.txt"] = b"\xff\xfe not text"; return bag
-    p = str(tmp_path / "b.tepna"); seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
+        bag["bag-info.txt"] = b"\xff\xfe not text"
+        return bag
+
+    p = str(tmp_path / "b.tepna")
+    seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
     assert _python(p)["kind"] == "zip" and _node(p)["kind"] == "zip"
 
 
@@ -496,10 +567,14 @@ def test_a_boxKey_that_hashes_to_the_pin_but_is_not_a_point_is_a_header_refusal(
     """The fingerprint check passes by construction (the reader pins whatever the card says); the key
     still has to BE a P-256 point before anything is verified with it."""
     import base64
+
     garbage = b"\x04" + b"\x00" * 64
+
     def m(h):
         return {**h, "boxKey": base64.b64encode(garbage).decode(), "boxKeyFingerprint": F.fingerprint(garbage)}
-    p = str(tmp_path / "k.tepna"); seal.seal_night(night, p, **V.seal_kwargs(key), mutate_header=m)
+
+    p = str(tmp_path / "k.tepna")
+    seal.seal_night(night, p, **V.seal_kwargs(key), mutate_header=m)
     pin = F.fingerprint(garbage)
     assert _python(p, pin=pin)["kind"] == "header" and _node(p, pin=pin)["kind"] == "header"
 
@@ -512,7 +587,8 @@ def test_an_unknown_refusal_kind_is_a_programming_error_not_a_verdict():
 def test_a_symlink_in_the_night_dir_is_not_sealed(night, key, tmp_path):
     """The bag holds the night's files AS THE BOX WROTE THEM; a link is not a file the box wrote."""
     os.symlink(os.path.join(night, V.NIGHT_INPUTS[0]), os.path.join(night, "link.txt"))
-    p = str(tmp_path / "l.tepna"); h = seal.seal_night(night, p, **V.seal_kwargs(key))
+    p = str(tmp_path / "l.tepna")
+    h = seal.seal_night(night, p, **V.seal_kwargs(key))
     assert h["files"] == 3 and "link.txt" not in _python(p)["files"]
 
 
@@ -520,15 +596,24 @@ def test_a_symlink_in_the_night_dir_is_not_sealed(night, key, tmp_path):
 def test_the_generator_REPRODUCES_the_committed_vectors_byte_for_byte(tmp_path, monkeypatch):
     """`tools/seal_vectors.py` run into a scratch directory with the committed test key must produce the
     committed seal exactly — the generator is the vectors' provenance, not a one-time act."""
-    out = tmp_path / "vec"; out.mkdir()
+    out = tmp_path / "vec"
+    out.mkdir()
     shutil.copy(os.path.join(V.VECTOR_DIR, "test-signing-key.pem"), out / "test-signing-key.pem")
-    shutil.copy(os.path.join(V.VECTOR_DIR, V.OTHER_KEY_PEM), out / V.OTHER_KEY_PEM)   # both committed keys ⇒ plants reproduce too
+    shutil.copy(
+        os.path.join(V.VECTOR_DIR, V.OTHER_KEY_PEM), out / V.OTHER_KEY_PEM
+    )  # both committed keys ⇒ plants reproduce too
     monkeypatch.setattr(V, "VECTOR_DIR", str(out))
     assert V.main() == 0
-    committed = os.path.join(HERE, "tests", "vectors", "tepna-seal-1", EXPECTED["seal"])   # not V.VECTOR_DIR: that is patched
+    committed = os.path.join(
+        HERE, "tests", "vectors", "tepna-seal-1", EXPECTED["seal"]
+    )  # not V.VECTOR_DIR: that is patched
     assert (out / EXPECTED["seal"]).read_bytes() == open(committed, "rb").read()
-    for rec in json.load(open(os.path.join(HERE, "tests", "vectors", "tepna-seal-1", "plants", "expected.json"))).values():
-        assert (out / "plants" / rec["file"]).read_bytes() == open(os.path.join(HERE, "tests", "vectors", "tepna-seal-1", "plants", rec["file"]), "rb").read(), rec["file"]
+    for rec in json.load(
+        open(os.path.join(HERE, "tests", "vectors", "tepna-seal-1", "plants", "expected.json"))
+    ).values():
+        assert (out / "plants" / rec["file"]).read_bytes() == open(
+            os.path.join(HERE, "tests", "vectors", "tepna-seal-1", "plants", rec["file"]), "rb"
+        ).read(), rec["file"]
     exp = json.load(open(out / "expected.json"))
     assert exp["sha256"] == EXPECTED["sha256"] and exp["header"] == EXPECTED["header"]
     assert (out / "test-card-key.txt").read_text().strip().endswith(F.card_code_encode(V.TEST_CARD_KEY))
@@ -541,7 +626,9 @@ def test_the_generator_mints_a_key_pair_when_none_is_committed(tmp_path, monkeyp
     assert (out / "test-signing-key.pem").exists() and (out / EXPECTED["seal"]).exists()
     exp = json.load(open(out / "expected.json"))
     assert exp["boxKeyFingerprint"] != PIN, "a fresh key pair is a different box"
-    r = unseal.unseal(str(out / EXPECTED["seal"]), card_key=V.TEST_CARD_KEY, pinned_fingerprint=exp["boxKeyFingerprint"])
+    r = unseal.unseal(
+        str(out / EXPECTED["seal"]), card_key=V.TEST_CARD_KEY, pinned_fingerprint=exp["boxKeyFingerprint"]
+    )
     assert sorted(r["files"]) == sorted(V.NIGHT_INPUTS)
 
 
@@ -549,17 +636,20 @@ def test_the_validator_REFUSES_a_pass_over_nothing_and_a_broken_denominator():
     """The §1 rules are exercised, not just the enum: `PASS` with `checked: 0` is the examined-nothing
     shape and is invalid by schema; `checked + excluded` must EQUAL `eligible`; a non-PASS with no
     reason is an adjective, not a verdict."""
-    good = unseal.verdict(os.path.join(V.VECTOR_DIR, EXPECTED["seal"]), card_key=V.TEST_CARD_KEY, pinned_fingerprint=PIN)
+    good = unseal.verdict(
+        os.path.join(V.VECTOR_DIR, EXPECTED["seal"]), card_key=V.TEST_CARD_KEY, pinned_fingerprint=PIN
+    )
     assert_valid_verdict(good)
     for mutate in (
-        lambda v: v["population"].update(checked=0, excluded=1),            # PASS over nothing
-        lambda v: v["population"].update(checked=2),                        # 2 + 0 != 1
-        lambda v: v.update(status="FAIL", reason=None),                     # a verdict without a why
-        lambda v: v.update(status="NOT_APPLICABLE", reason=""),             # empty is not a reason
-        lambda v: v.update(status="OK"),                                    # an eighth status
-        lambda v: v.update(evidence=[]),                                    # PASS with nothing to open
+        lambda v: v["population"].update(checked=0, excluded=1),  # PASS over nothing
+        lambda v: v["population"].update(checked=2),  # 2 + 0 != 1
+        lambda v: v.update(status="FAIL", reason=None),  # a verdict without a why
+        lambda v: v.update(status="NOT_APPLICABLE", reason=""),  # empty is not a reason
+        lambda v: v.update(status="OK"),  # an eighth status
+        lambda v: v.update(evidence=[]),  # PASS with nothing to open
     ):
-        v = json.loads(json.dumps(good)); mutate(v)
+        v = json.loads(json.dumps(good))
+        mutate(v)
         out = validate_verdict(v)
         assert not out["ok"], (mutate, v)
 
@@ -580,9 +670,16 @@ def test_a_reader_CRASH_is_an_UNKNOWN_verdict_not_an_exception(monkeypatch, tmp_
         pytest.skip("node is not installed")
     # argv[1] is a placeholder: the module runs its CLI when argv[1] is its own path, and this must
     # import it as a library
-    prog = ("import(process.argv[2]).then(m => m.judge(process.argv[3], {cardKey: undefined, pinnedFingerprint: process.argv[4]}))"
-            ".then(v => console.log(JSON.stringify(v)))")
-    r = subprocess.run([node, "--input-type=module", "-e", prog, "-", NODE_VERIFIER, path, PIN], capture_output=True, text=True, timeout=60)
+    prog = (
+        "import(process.argv[2]).then(m => m.judge(process.argv[3], {cardKey: undefined, pinnedFingerprint: process.argv[4]}))"
+        ".then(v => console.log(JSON.stringify(v)))"
+    )
+    r = subprocess.run(
+        [node, "--input-type=module", "-e", prog, "-", NODE_VERIFIER, path, PIN],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
     assert r.returncode == 0, r.stderr
     js = json.loads(r.stdout.strip())
     assert_valid_verdict(js)
@@ -591,12 +688,18 @@ def test_a_reader_CRASH_is_an_UNKNOWN_verdict_not_an_exception(monkeypatch, tmp_
 
 def test_the_consent_plant_is_symmetric_a_bag_that_disagrees_with_a_null_header_is_refused_too(night, key, tmp_path):
     def m(bag):
-        bag["bag-info.txt"] = bag["bag-info.txt"].replace(b"Tepna-Research-Consent: null", b"Tepna-Research-Consent: no")
+        bag["bag-info.txt"] = bag["bag-info.txt"].replace(
+            b"Tepna-Research-Consent: null", b"Tepna-Research-Consent: no"
+        )
         import hashlib
+
         lines = [l for l in bag["tagmanifest-sha256.txt"].decode().splitlines() if not l.endswith("bag-info.txt")]
         lines.append("%s  bag-info.txt" % hashlib.sha256(bag["bag-info.txt"]).hexdigest())
-        bag["tagmanifest-sha256.txt"] = ("\n".join(sorted(lines)) + "\n").encode(); return bag
-    p = str(tmp_path / "cd.tepna"); seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
+        bag["tagmanifest-sha256.txt"] = ("\n".join(sorted(lines)) + "\n").encode()
+        return bag
+
+    p = str(tmp_path / "cd.tepna")
+    seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
     assert _python(p)["kind"] == "consent" and _node(p)["kind"] == "consent"
 
 
@@ -610,6 +713,7 @@ def test_the_consent_plant_is_symmetric_a_bag_that_disagrees_with_a_null_header_
 # These two tests are what make that safe: the zip must be byte-identical to the bag's, and the peak
 # must stay small enough that the old reader FAILS the bound. A bound the previous implementation
 # would also pass measures nothing.
+
 
 def _tree(root, sizes=(3000, 40000, 17)):
     """A night of CAPTURE-SHAPED rows, which matters for the memory bound below: the cost of the bag
@@ -630,8 +734,14 @@ def _tree(root, sizes=(3000, 40000, 17)):
     return names
 
 
-ZIP_KW = dict(box_id="B1", night="2026-09-12", consent=None, revision=2,
-              bagging_date="2026-09-22", extra_info={"Tepna-Capture-Host-Sha": "0000000"})
+ZIP_KW = dict(
+    box_id="B1",
+    night="2026-09-12",
+    consent=None,
+    revision=2,
+    bagging_date="2026-09-22",
+    extra_info={"Tepna-Capture-Host-Sha": "0000000"},
+)
 
 
 def test_zip_night_bytes_is_the_same_zip_as_the_bag(tmp_path):
@@ -664,8 +774,9 @@ def test_a_file_that_MOVES_under_the_sealer_is_refused_not_sealed(tmp_path, monk
     os.makedirs(d)
     _tree(d)
     real_getsize = os.path.getsize
-    monkeypatch.setattr(seal.os.path, "getsize",
-                        lambda p: real_getsize(p) + 1 if p.endswith("z.json") else real_getsize(p))
+    monkeypatch.setattr(
+        seal.os.path, "getsize", lambda p: real_getsize(p) + 1 if p.endswith("z.json") else real_getsize(p)
+    )
     with pytest.raises(seal.SealError) as e:
         seal.zip_night_bytes(d, **ZIP_KW)
     assert "changed size under the sealer" in str(e.value) and "z.json" in str(e.value)
@@ -686,6 +797,7 @@ def test_sealing_does_not_hold_the_night_in_memory(tmp_path, key):
     on BOTH. The fixture is part of the instrument.
     """
     import tracemalloc
+
     d = str(tmp_path / "night")
     os.makedirs(d)
     sizes = (8_000_000, 12_000_000, 4_000_000)
@@ -698,5 +810,5 @@ def test_sealing_does_not_hold_the_night_in_memory(tmp_path, key):
     tracemalloc.stop()
     assert os.path.getsize(out) > 0, "the fixture must actually seal, or the bound is vacuous"
     assert peak < 1.25 * night_bytes, (
-        f"the sealer held {peak / night_bytes:.2f}x the night ({peak / 1e6:.1f} MB of "
-        f"{night_bytes / 1e6:.1f} MB)")
+        f"the sealer held {peak / night_bytes:.2f}x the night ({peak / 1e6:.1f} MB of {night_bytes / 1e6:.1f} MB)"
+    )

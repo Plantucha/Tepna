@@ -17,8 +17,10 @@ def test_capture_filename_is_contiguous_stamp_not_psl_shape():
     # misreading as writers.py's comment, so it passed while the bug shipped
     # (ENGINE-VERIFICATION-FINDINGS §1.2). dex-ingest.js now accepts BOTH shapes.
     t = _dt.datetime(2026, 7, 16, 21, 34, 51)
-    assert writers.capture_filename("Polar", "H10", "02849638", t, "ecg", "txt") \
+    assert (
+        writers.capture_filename("Polar", "H10", "02849638", t, "ecg", "txt")
         == "Polar_H10_02849638_20260716213451_ECG.txt"
+    )
     # explicit: the stamp is 14 contiguous digits, NOT the PSL underscore-separated shape
     assert "_20260716_213451_" not in writers.capture_filename("Polar", "H10", "02849638", t, "ecg", "txt")
 
@@ -29,7 +31,7 @@ def test_ecg_ms_column_is_relative_and_fractional(tmp_path):
     t = _dt.datetime(2026, 7, 16, 21, 34, 53, 930000)
     ns0 = 599636646177065964
     w.write_ecg(t, ns0, 0.0, 4)
-    w.write_ecg(t, ns0 + 7_692_308, 0.0, 2)      # +7.692308 ms at 130 Hz
+    w.write_ecg(t, ns0 + 7_692_308, 0.0, 2)  # +7.692308 ms at 130 Hz
     w.close()
     rows = p.read_text().splitlines()
     assert rows[0] == "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]"
@@ -70,13 +72,13 @@ def test_streamwriter_periodic_flush_lands_rows_before_close(tmp_path):
     # A hard kill / power loss mid-night must not lose the buffered tail: the writer flushes on a
     # wall-clock cadence, so rows are readable from a SEPARATE handle before close() ever runs.
     p = tmp_path / "ecg.txt"
-    w = writers.StreamWriter(str(p), "ecg", flush_interval=0.0)   # 0.0 => flush on every row
+    w = writers.StreamWriter(str(p), "ecg", flush_interval=0.0)  # 0.0 => flush on every row
     ns0 = 599636646177065964
     for i in range(50):
         w.write_ecg(_dt.datetime(2026, 7, 16, 21, 34, 53), ns0 + i * 7_692_308, 0.0, i)
-    on_disk = p.read_text().splitlines()          # NOT closed yet
-    assert len(on_disk) == 51                      # header + 50 rows already on disk
-    assert on_disk[1].split(";")[2] == "0.0"       # rel-ms invariant survives the flush path
+    on_disk = p.read_text().splitlines()  # NOT closed yet
+    assert len(on_disk) == 51  # header + 50 rows already on disk
+    assert on_disk[1].split(";")[2] == "0.0"  # rel-ms invariant survives the flush path
     w.close()
 
 
@@ -85,8 +87,8 @@ def test_spo2writer_periodic_flush_lands_rows_before_close(tmp_path):
     w = writers.Spo2CsvWriter(str(p), flush_interval=0.0)
     for i in range(4):
         w.write(_dt.datetime(2026, 7, 16, 21, 34, 53 + i), 97, 60 + i, 3)
-    on_disk = p.read_text().splitlines()          # NOT closed yet
-    assert len(on_disk) == 5                        # header + 4 rows already on disk
+    on_disk = p.read_text().splitlines()  # NOT closed yet
+    assert len(on_disk) == 5  # header + 4 rows already on disk
     w.close()
 
 
@@ -110,8 +112,8 @@ def _write_read(tmp_path, stream, fn):
 
 def test_night_dir_is_captures_slash_local_date(tmp_path):
     d = writers.night_dir(str(tmp_path), _dt.datetime(2026, 7, 16, 21, 34, 53))
-    assert d == _os.path.join(str(tmp_path), "captures", "2026-07-16")   # per-night folder by LOCAL date
-    assert _os.path.isdir(d)                                             # created lazily
+    assert d == _os.path.join(str(tmp_path), "captures", "2026-07-16")  # per-night folder by LOCAL date
+    assert _os.path.isdir(d)  # created lazily
 
 
 def test_write_acc_header_and_row(tmp_path):
@@ -156,14 +158,14 @@ def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
     did not. PSL splits HR/RR across two files, so each is checked against its own real header.
     """
     psl = {
-        "ecg":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
-        "acc":  "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
-        "ppg":  "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient",
+        "ecg": "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
+        "acc": "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
+        "ppg": "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient",
         "gyro": "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
-        "mag":  "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
-        "hr":   "Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];",
-        "rr":   "Phone timestamp;RR-interval [ms]",
-        "ppi":  "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]",
+        "mag": "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
+        "hr": "Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];",
+        "rr": "Phone timestamp;RR-interval [ms]",
+        "ppi": "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]",
     }
     for stream, header in psl.items():
         assert writers.StreamWriter.HEADERS[stream] == header, f"{stream} diverges from the real vendor export"
@@ -175,18 +177,17 @@ def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
     # one parser still reads it, and it is deliberately NOT `ir;red`: which u32 is which wavelength is
     # unverified (oxyii.RT_PPG_REC, "WHICH-IS-WHICH"), and a header is a bad place to publish a guess
     # that downstream SpO2 math would silently trust.
-    assert writers.StreamWriter.HEADERS["ppg2w"] == \
-        "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion"
+    assert writers.StreamWriter.HEADERS["ppg2w"] == "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion"
     # `accraw` is ours BY DESIGN, and the UNIT is the whole reason it is not `acc`. PSL never talked to
     # an O2Ring, and more importantly Polar publishes a scale factor while Wellue does not: `acc` can
     # honestly say `mg`, these are counts with no calibrated scale. Writing ring rows under the `acc`
     # header would publish a FABRICATED UNIT that a reader would multiply as milli-g. The column stays
     # `raw` until a six-orientation calibration measures the factor — the same discipline `ppg2w` uses
     # in refusing `ir;red` for a wavelength assignment it has not verified.
-    assert writers.StreamWriter.HEADERS["accraw"] == \
-        "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]"
-    assert "[mg]" not in writers.StreamWriter.HEADERS["accraw"], \
+    assert writers.StreamWriter.HEADERS["accraw"] == "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]"
+    assert "[mg]" not in writers.StreamWriter.HEADERS["accraw"], (
         "the ring's ACC has no measured scale — a mg column here would be a fabricated unit"
+    )
     # `pletha` is ours BY DESIGN — cmd 0x03, which PSL never saw either. Two decisions are pinned here
     # because both are measurements rather than preferences. (1) `sample` is unitless: the ring streams
     # 8-bit optical counts with no published scale, and the accraw reasoning applies unchanged — a unit
@@ -195,12 +196,13 @@ def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
     # markers arrive at 0.534/s against 62.0 bpm and subtracting them moves the rate AWAY from the
     # 125.000 ADC (125.058 -> 124.444). So the sample is written as it arrived and the flag says what
     # it is, rather than the file quietly omitting rows a consumer would need to recover the waveform.
-    assert writers.StreamWriter.HEADERS["pletha"] == \
-        "Phone timestamp;sensor timestamp [ns];sample;beat"
-    assert "[" not in writers.StreamWriter.HEADERS["pletha"].split(";")[2], \
+    assert writers.StreamWriter.HEADERS["pletha"] == "Phone timestamp;sensor timestamp [ns];sample;beat"
+    assert "[" not in writers.StreamWriter.HEADERS["pletha"].split(";")[2], (
         "the ring's 8-bit optical counts have no published scale — a unit here would be fabricated"
-    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w", "accraw", "pletha"}, \
+    )
+    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w", "accraw", "pletha"}, (
         "a new stream needs its header checked against a real export, or this gate stops covering it"
+    )
 
 
 def test_ppg1_stamps_the_timebase_decision_as_a_header_comment(tmp_path):
@@ -247,16 +249,16 @@ def test_write_hr_splits_into_psl_hr_and_rr_files(tmp_path):
     rows. This lets one parser read Vigil and genuine Polar-Sensor-Logger captures."""
     p = str(tmp_path / "Polar_H10_02849638_20260620_031641_HR.txt")
     w = writers.StreamWriter(p, "hr", fsync=False)
-    w.write_hr(_PHONE, 7000, 55, [800, 810])       # 1 HR row + 2 RR rows
-    w.write_hr(_PHONE, 7000, 56, [])               # 1 HR row, NO RR rows (no blank line)
+    w.write_hr(_PHONE, 7000, 55, [800, 810])  # 1 HR row + 2 RR rows
+    w.write_hr(_PHONE, 7000, 56, [])  # 1 HR row, NO RR rows (no blank line)
     w.close()
     hr = open(p).read().splitlines()
     rr = open(str(tmp_path / "Polar_H10_02849638_20260620_031641_RR.txt")).read().splitlines()
     assert hr[0] == "Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];"
-    assert hr[1:] == [f"{_PTS};55", f"{_PTS};56"]              # HR-only, one per notification
+    assert hr[1:] == [f"{_PTS};55", f"{_PTS};56"]  # HR-only, one per notification
     assert rr[0] == "Phone timestamp;RR-interval [ms]"
-    assert rr[1:] == [f"{_PTS};800", f"{_PTS};810"]            # one per real RR, no blank row
-    assert w.rows == 2                                          # _HR row count (the primary file)
+    assert rr[1:] == [f"{_PTS};800", f"{_PTS};810"]  # one per real RR, no blank row
+    assert w.rows == 2  # _HR row count (the primary file)
 
 
 def test_ms_column_is_ecg_only_matching_real_polar_sensor_logger(tmp_path):
@@ -265,10 +267,12 @@ def test_ms_column_is_ecg_only_matching_real_polar_sensor_logger(tmp_path):
     read the ms value as X and PPGDex read it as channel 0 — silently, with no parse error."""
     ecg, _ = _write_read(tmp_path, "ecg", lambda w: w.write_ecg(_PHONE, 1000, 0.0, 42))
     assert "timestamp [ms]" in ecg[0], "ECG must KEEP the ms column — real PSL has it"
-    for kind, call in (("acc", lambda w: w.write_acc(_PHONE, 1, 0.0, 1, 2, 3)),
-                       ("gyro", lambda w: w.write_gyro(_PHONE, 1, 0.0, 1, 2, 3)),
-                       ("mag", lambda w: w.write_mag(_PHONE, 1, 0.0, 1, 2, 3)),
-                       ("ppg", lambda w: w.write_ppg(_PHONE, 1, 0.0, (1, 2, 3), 4))):
+    for kind, call in (
+        ("acc", lambda w: w.write_acc(_PHONE, 1, 0.0, 1, 2, 3)),
+        ("gyro", lambda w: w.write_gyro(_PHONE, 1, 0.0, 1, 2, 3)),
+        ("mag", lambda w: w.write_mag(_PHONE, 1, 0.0, 1, 2, 3)),
+        ("ppg", lambda w: w.write_ppg(_PHONE, 1, 0.0, (1, 2, 3), 4)),
+    ):
         rows, _ = _write_read(tmp_path, kind, call)
         assert "timestamp [ms]" not in rows[0], f"{kind} must NOT carry the ms column (ECG-only in PSL)"
         assert len(rows[0].split(";")) == len(rows[1].split(";")), f"{kind} header/row column count mismatch"
@@ -285,8 +289,10 @@ def test_missing_identity_names_exactly_the_blank_fields():
     # whitespace is not an identity — it would produce ` _ _id_...` filenames
     assert writers.missing_identity({**good, "model": "   "}) == ["model"]
     # the unrecognised-sensor shape guessDevice() actually emits (blank vendor+model, id from the MAC)
-    assert writers.missing_identity({"name": "AC028496", "vendor": "", "model": "",
-                             "device_id": "AC028496"}) == ["vendor", "model"]
+    assert writers.missing_identity({"name": "AC028496", "vendor": "", "model": "", "device_id": "AC028496"}) == [
+        "vendor",
+        "model",
+    ]
 
 
 def test_identity_fields_are_the_ones_the_filename_interpolates():
@@ -299,12 +305,13 @@ def test_the_remember_api_gates_on_identity_before_it_persists():
     """SOURCE SCAN, because webmon.py needs aiohttp and the test env has none — a skipped test here
     would be no gate at all, and this leg is exactly the one that was missing (the daemon checked,
     the API did not). Asserts the ordering that matters: reject BEFORE the config write."""
-    src = module_source("webmon.py")   # skips on a mutmut file — see tests/_srcscan.py
-    body = src[src.index("async def remember("):]
-    body = body[:body.index("\n    async def ")]
+    src = module_source("webmon.py")  # skips on a mutmut file — see tests/_srcscan.py
+    body = src[src.index("async def remember(") :]
+    body = body[: body.index("\n    async def ")]
     assert "missing_identity(" in body, "Remember API no longer validates device identity"
-    assert body.index("missing_identity(") < body.index("_save()"), \
+    assert body.index("missing_identity(") < body.index("_save()"), (
         "identity is checked AFTER the config write — the bad entry is already persisted"
+    )
     assert "status=400" in body, "a rejected device must fail loudly, not return a success shape"
 
 
@@ -313,6 +320,7 @@ def test_the_remember_api_gates_on_identity_before_it_persists():
 # relabelling is absorbed so the open recording cannot rewind; the instant it hits zero the shift
 # expires and stamps return to civil time. So an over-count pins the box an hour off forever (the
 # original defect, re-armed) and an under-count rewinds a live file. Both directions are pinned here.
+
 
 def test_a_stream_writer_is_counted_while_open_and_released_on_close(tmp_path):
     base = writers.open_sample_writers()
@@ -351,6 +359,7 @@ def test_a_writer_whose_flush_raises_is_still_released(tmp_path):
 
     def _boom():
         raise OSError("disk full")
+
     w.flush = _boom
     w.close()
     assert writers.open_sample_writers() == base
@@ -360,12 +369,16 @@ def test_all_three_sample_writers_are_counted_and_the_sidecars_are_not(tmp_path)
     # The sidecars are EXCLUDED deliberately: a running box holds them open continuously, so counting
     # them would make the count never reach zero and the expiry could never fire — which is the defect.
     base = writers.open_sample_writers()
-    ws = [writers.StreamWriter(str(tmp_path / "s_ECG.txt"), "ecg"),
-          writers.Spo2CsvWriter(str(tmp_path / "s.csv")),
-          writers.OxyFrameLogWriter(str(tmp_path / "s_OXY.csv"))]
+    ws = [
+        writers.StreamWriter(str(tmp_path / "s_ECG.txt"), "ecg"),
+        writers.Spo2CsvWriter(str(tmp_path / "s.csv")),
+        writers.OxyFrameLogWriter(str(tmp_path / "s_OXY.csv")),
+    ]
     assert writers.open_sample_writers() == base + 3
-    side = [writers.LinkLogWriter(str(tmp_path / "s_LINK.csv")),
-            writers.HostClockLogWriter(str(tmp_path / "s_CLOCK.csv"))]
+    side = [
+        writers.LinkLogWriter(str(tmp_path / "s_LINK.csv")),
+        writers.HostClockLogWriter(str(tmp_path / "s_CLOCK.csv")),
+    ]
     assert writers.open_sample_writers() == base + 3, "a sidecar must not pin the clock anchor open"
     for w in ws + side:
         w.close()
@@ -384,9 +397,10 @@ def test_the_legacy_viatom_caller_does_not_fabricate_a_pulse():
     Impact is bounded and worth stating: the shipped oxydex-dsp.js rejects `0` and blank identically
     (`parseInt('')` → NaN and `0 < 20` hit the same `continue`), 0 occurrences across 110k real rows on
     the sibling path. No downstream number moves; the FILE stops asserting a pulse never measured."""
-    src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
-    assert 'wr.write(now, pkt["spo2"], pkt["pr"], pkt["motion"])' in src, \
+    src = module_source("capture.py")  # skips on a mutmut file — see tests/_srcscan.py
+    assert 'wr.write(now, pkt["spo2"], pkt["pr"], pkt["motion"])' in src, (
         "the legacy viatom runner must pass `pr` through as-is, including None"
+    )
     assert 'pkt["pr"] or 0' not in src, "a fabricated 0 is indistinguishable from a real reading"
 
 
@@ -394,8 +408,8 @@ def test_both_spo2_producers_write_a_blank_for_an_unreadable_pulse(tmp_path):
     """The two callers must emit the SAME row for the same packet — the divergence itself was the bug."""
     p = tmp_path / "o.csv"
     w = writers.Spo2CsvWriter(str(p), fsync=False)
-    w.write(_dt.datetime(2026, 7, 26, 2, 3, 4), 96, None, 3)     # pulse unreadable
-    w.write(_dt.datetime(2026, 7, 26, 2, 3, 5), 96, 61, 3)       # pulse read
+    w.write(_dt.datetime(2026, 7, 26, 2, 3, 4), 96, None, 3)  # pulse unreadable
+    w.write(_dt.datetime(2026, 7, 26, 2, 3, 5), 96, 61, 3)  # pulse read
     w.close()
     rows = p.read_text().splitlines()[1:]
     assert rows[0] == "02:03:04 26/07/2026,96,,3", "blank, never 0"
@@ -422,6 +436,7 @@ def test_spo2_writer_blanks_an_absent_reading_rather_than_writing_the_word_None(
 # MUTATION PASS 2026-08-02 — the _RR sibling's path, and the filename fields parsed from the right
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
+
 def test_the_rr_sibling_replaces_only_the_LAST_hr_token(tmp_path):
     """`"_RR.".join(path.rsplit("_HR.", 1))` — the source comments that the `rsplit` and the maxsplit
     are what stop a *containing* path from being rewritten, and nothing tested it: `split` instead of
@@ -437,8 +452,9 @@ def test_the_rr_sibling_replaces_only_the_LAST_hr_token(tmp_path):
     try:
         expected = str(d / "Polar_H10_02849638_20260620031641_RR.txt")
         assert w._rr_path == expected, "only the filename's token is rewritten, never the directory's"
-        assert sorted(w.paths) == sorted([p, expected]), \
+        assert sorted(w.paths) == sorted([p, expected]), (
             "and the sibling is reported, so discard() and the archiver can both see it"
+        )
     finally:
         w.close()
 
@@ -477,9 +493,9 @@ def test_closing_an_hr_writer_alone_still_lands_the_rr_intervals(tmp_path):
     that can get the per-beat intervals out of a 1 MiB buffer — and it is what the capture path
     actually does at end of night."""
     p = str(tmp_path / "Polar_H10_02849638_20260620031641_HR.txt")
-    w = writers.StreamWriter(p, "hr", fsync=True)          # fsync on: the sibling's fsync too
+    w = writers.StreamWriter(p, "hr", fsync=True)  # fsync on: the sibling's fsync too
     w.write_hr(_dt.datetime(2026, 6, 20, 3, 16, 41), 1_000_000, 62, [968])
-    w.close()                                              # no flush() — close must do it all
+    w.close()  # no flush() — close must do it all
     rr = open(str(tmp_path / "Polar_H10_02849638_20260620031641_RR.txt")).read().splitlines()
     assert rr[1:] == ["2026-06-20T03:16:41.000;968"], "close() alone must land the RR file"
 
@@ -491,10 +507,11 @@ def test_the_rr_sibling_is_flushed_and_closed_with_its_parent(tmp_path):
     p = str(tmp_path / "Polar_H10_02849638_20260620031641_HR.txt")
     w = writers.StreamWriter(p, "hr", fsync=False)
     w.write_hr(_dt.datetime(2026, 6, 20, 3, 16, 41), 1_000_000, 62, [968, 972])
-    w.flush()                                    # flush alone, WITHOUT closing
+    w.flush()  # flush alone, WITHOUT closing
     rr = open(str(tmp_path / "Polar_H10_02849638_20260620031641_RR.txt")).read().splitlines()
-    assert rr[1:] == ["2026-06-20T03:16:41.000;968", "2026-06-20T03:16:41.000;972"], \
+    assert rr[1:] == ["2026-06-20T03:16:41.000;968", "2026-06-20T03:16:41.000;972"], (
         "flush() must reach the sibling too — the RR file is where the HRV actually is"
+    )
     w.close()
 
 
@@ -506,15 +523,15 @@ def test_the_ppi_flag_bits_are_unpacked_from_their_own_positions(tmp_path):
     p = str(tmp_path / "Polar_VS_1_20260620031641_PPI.txt")
     w = writers.StreamWriter(p, "ppi", fsync=False)
     when = _dt.datetime(2026, 6, 20, 3, 16, 41)
-    for flags, expected in ((0b000, "0;0;0"), (0b001, "1;0;0"),
-                            (0b010, "0;1;0"), (0b100, "0;0;1"), (0b111, "1;1;1")):
+    for flags, expected in ((0b000, "0;0;0"), (0b001, "1;0;0"), (0b010, "0;1;0"), (0b100, "0;0;1"), (0b111, "1;1;1")):
         w.write_ppi(when, 1_000_000, 62, 968, 4, flags)
     w.close()
     # Columns 3,4,5 under PSL's layout (…;blocker;contact;contact;hr) — NOT the last three, which now
     # end at `hr [bpm]`. The bits' independence is what is being asserted; only their position moved.
     rows = [ln.split(";")[3:6] for ln in open(p).read().splitlines()[1:]]
-    assert [";".join(r) for r in rows] == ["0;0;0", "1;0;0", "0;1;0", "0;0;1", "1;1;1"], \
+    assert [";".join(r) for r in rows] == ["0;0;0", "1;0;0", "0;1;0", "0;0;1", "1;1;1"], (
         "each bit lands in its own column, independently"
+    )
 
 
 def test_a_ppg_row_takes_exactly_three_optical_columns(tmp_path):
@@ -526,8 +543,9 @@ def test_a_ppg_row_takes_exactly_three_optical_columns(tmp_path):
     w.write_ppg(_dt.datetime(2026, 6, 20, 3, 16, 41), 1_000_000, 0.0, [11, 22, 33, 44], 7)
     w.close()
     row = open(p).read().splitlines()[1]
-    assert row.split(";")[2:] == ["11", "22", "33", "7"], \
+    assert row.split(";")[2:] == ["11", "22", "33", "7"], (
         "three optical columns and the ambient, matching the header, whatever the device offers"
+    )
 
 
 def test_the_open_writer_count_returns_to_zero(tmp_path, monkeypatch):
@@ -546,7 +564,7 @@ def test_the_open_writer_count_returns_to_zero(tmp_path, monkeypatch):
     assert writers.open_sample_writers() == 1
     w.close()
     assert writers.open_sample_writers() == 0, "closing the last writer means none are open"
-    w.close()                                    # idempotent — a second close must not go negative
+    w.close()  # idempotent — a second close must not go negative
     assert writers.open_sample_writers() == 0
 
 
@@ -554,8 +572,7 @@ def test_a_capture_filename_defaults_to_the_txt_extension():
     """The `ext: str = "txt"` default. Every call site passes it explicitly today, which is why the
     default went unpinned — and it is the extension every PSL-compatible reader keys on."""
     t = _dt.datetime(2026, 7, 16, 21, 34, 51)
-    assert writers.capture_filename("Polar", "H10", "02849638", t, "ecg") \
-        == "Polar_H10_02849638_20260716213451_ECG.txt"
+    assert writers.capture_filename("Polar", "H10", "02849638", t, "ecg") == "Polar_H10_02849638_20260716213451_ECG.txt"
 
 
 def test_a_device_with_no_id_yields_no_ids():
@@ -568,32 +585,35 @@ def test_a_device_with_no_id_yields_no_ids():
 
 
 # ── the filename field parsers, over the shapes a real corpus actually holds ─────────────────────────
-@pytest.mark.parametrize("fname,stamp,device_id", [
-    # this host: contiguous stamp
-    ("Polar_H10_02849638_20260716213451_ECG.txt", "20260716213451", "02849638"),
-    # Polar Sensor Logger: split stamp — file_stamp has no 14-digit token to find, the id still resolves
-    ("Polar_H10_02849638_20260617_010616_ACC.txt", None, "02849638"),
-    # date-only, as older fixtures and hand-named files carry
-    ("Polar_H10_02849638_20260617_ACC.txt", None, "02849638"),
-    # the sidecars have NO id field — reporting 'Tepna' as one would let a device named Tepna claim
-    # every night's link log
-    ("Tepna_20260716213451_LINK.csv", "20260716213451", None),
-    # a serial that looks like nothing: parsed from the right, so it is never mistaken for the stamp
-    ("Polar_H10_20250101000000_20260725225058_ECG.txt", "20260725225058", "20250101000000"),
-    # no extension at all — the `or fname` fallback, which a mutant turns into `and fname`
-    ("Polar_H10_02849638_20260716213451_ECG", "20260716213451", "02849638"),
-    # too few fields to carry either
-    ("20260716213451_ECG.txt", "20260716213451", None),
-    ("ECG.txt", None, None),
-    # a dot INSIDE a field: the extension is the LAST dot, so `partition` would truncate the name at
-    # the model and lose both fields
-    ("Polar_H10.5_02849638_20260716213451_ECG.txt", "20260716213451", "02849638"),
-    # a blank id field is not an id — the truthiness check reads parts[i-1], the field itself
-    ("Polar_H10__20260716213451_ECG.txt", "20260716213451", None),
-    # six digits that are not a time-after-a-date: the split-stamp branch must not fire, or the token
-    # two places left gets reported as a device id
-    ("Vendor_Model_Sub_Part_123456_ECG.txt", None, None),
-])
+@pytest.mark.parametrize(
+    "fname,stamp,device_id",
+    [
+        # this host: contiguous stamp
+        ("Polar_H10_02849638_20260716213451_ECG.txt", "20260716213451", "02849638"),
+        # Polar Sensor Logger: split stamp — file_stamp has no 14-digit token to find, the id still resolves
+        ("Polar_H10_02849638_20260617_010616_ACC.txt", None, "02849638"),
+        # date-only, as older fixtures and hand-named files carry
+        ("Polar_H10_02849638_20260617_ACC.txt", None, "02849638"),
+        # the sidecars have NO id field — reporting 'Tepna' as one would let a device named Tepna claim
+        # every night's link log
+        ("Tepna_20260716213451_LINK.csv", "20260716213451", None),
+        # a serial that looks like nothing: parsed from the right, so it is never mistaken for the stamp
+        ("Polar_H10_20250101000000_20260725225058_ECG.txt", "20260725225058", "20250101000000"),
+        # no extension at all — the `or fname` fallback, which a mutant turns into `and fname`
+        ("Polar_H10_02849638_20260716213451_ECG", "20260716213451", "02849638"),
+        # too few fields to carry either
+        ("20260716213451_ECG.txt", "20260716213451", None),
+        ("ECG.txt", None, None),
+        # a dot INSIDE a field: the extension is the LAST dot, so `partition` would truncate the name at
+        # the model and lose both fields
+        ("Polar_H10.5_02849638_20260716213451_ECG.txt", "20260716213451", "02849638"),
+        # a blank id field is not an id — the truthiness check reads parts[i-1], the field itself
+        ("Polar_H10__20260716213451_ECG.txt", "20260716213451", None),
+        # six digits that are not a time-after-a-date: the split-stamp branch must not fire, or the token
+        # two places left gets reported as a device id
+        ("Vendor_Model_Sub_Part_123456_ECG.txt", None, None),
+    ],
+)
 def test_the_filename_fields_are_parsed_from_the_right(fname, stamp, device_id):
     """Eighteen survivors across `file_stamp` and `file_device_id` — the length guards, the
     `rpartition`, and the ±1 arithmetic on the index walk. The functions' own docstrings name the three
@@ -614,7 +634,7 @@ def test_write_ppg2w_round_trips_through_the_parser(tmp_path):
     """
     recs = [(123456, 7890, 4), (123460, 7895, 0)]
     body = b"".join(a.to_bytes(4, "little") + b.to_bytes(4, "little") + bytes([m]) for a, b, m in recs)
-    parsed = oxyii.parse_rt_ppg(len(recs).to_bytes(2, "little") + body + b"\xff\xff")   # real 2-B trailer
+    parsed = oxyii.parse_rt_ppg(len(recs).to_bytes(2, "little") + body + b"\xff\xff")  # real 2-B trailer
 
     p = str(tmp_path / "Oxy_S8AW_20260805_010203_ppg2w.txt")
     w = writers.StreamWriter(p, "ppg2w", fsync=False)
@@ -656,6 +676,7 @@ def test_write_pletha_round_trips_through_the_parser(tmp_path):
     Includes an isolated 156 (a beat marker) and a RUN of 156 (real signal), because the flag column
     is the only thing separating them and a column swap here would turn waveform into fiducials."""
     import struct
+
     vals = [10, 156, 20, 156, 156, 30]
     payload = b"\x00\x00\x00\x00" + struct.pack("<H", len(vals)) + bytes(vals)
     parsed = oxyii.parse_samples_a(payload)
@@ -669,8 +690,8 @@ def test_write_pletha_round_trips_through_the_parser(tmp_path):
     rows = open(p).read().strip().split("\n")
     assert rows[0] == "Phone timestamp;sensor timestamp [ns];sample;beat"
     assert rows[1] == f"{_PTS};0;10;0"
-    assert rows[2] == f"{_PTS};0;156;1"          # isolated -> a beat
-    assert rows[4] == f"{_PTS};0;156;0"          # run -> signal, not a beat
+    assert rows[2] == f"{_PTS};0;156;1"  # isolated -> a beat
+    assert rows[4] == f"{_PTS};0;156;0"  # run -> signal, not a beat
     assert rows[5] == f"{_PTS};0;156;0"
     # Every sample survives: the row count IS the record count (markers flagged, never stripped).
     assert len(rows) - 1 == len(vals)
@@ -709,6 +730,7 @@ def test_the_geo_header_defaults_to_absent_so_existing_callers_are_unchanged(tmp
     """The parameter is keyword-with-default and LAST, so every existing construction site keeps its
     behaviour byte-for-byte — the suite's back-compat rule for an added argument."""
     import writers
+
     p = tmp_path / "legacy_CLOCK.csv"
     w = writers.HostClockLogWriter(str(p), fsync=False)
     w.close()

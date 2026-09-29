@@ -5,6 +5,7 @@
 The thing under test is mostly a set of REFUSALS, so that is what these assert. A updater that restarts
 when it should not is worse than no updater at all: the box was already surviving stale code, and the
 failure this could newly introduce is a destroyed night."""
+
 import json
 import os
 import subprocess
@@ -18,18 +19,29 @@ DEPLOY_ROOT = "/opt/tepna/capture-host"  # the path the installed units name; ma
 
 
 def _git(d, *a):
-    return subprocess.run(["git", "-C", str(d), *a], capture_output=True, text=True,
-                          env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+    return subprocess.run(
+        ["git", "-C", str(d), *a],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t",
+        },
+    )
 
 
 @pytest.fixture
 def box(tmp_path):
     """An upstream repo, a checkout of it, a status.json, and a fake restart helper that records calls."""
-    up = tmp_path / "upstream"; up.mkdir()
+    up = tmp_path / "upstream"
+    up.mkdir()
     _git(up, "init", "-q", "-b", "main")
     (up / "README").write_text("v1\n")
-    _git(up, "add", "README"); _git(up, "commit", "-qm", "v1")
+    _git(up, "add", "README")
+    _git(up, "commit", "-qm", "v1")
 
     repo = tmp_path / "opt-tepna"
     subprocess.run(["git", "clone", "-q", str(up), str(repo)], check=True, capture_output=True)
@@ -44,14 +56,26 @@ def box(tmp_path):
 
     # The deployed-SHA marker, isolated per test. On the box it lives in /run — cleared on boot, which
     # is correct, because after a boot the daemon started on whatever was checked out.
-    return {"up": up, "repo": repo, "status": status, "helper": helper, "called": called,
-            "mark": tmp_path / "deployed-sha", "fails": tmp_path / "update-fails",
-            "defers": tmp_path / "update-defers", "lock": tmp_path / "update.lock"}
+    return {
+        "up": up,
+        "repo": repo,
+        "status": status,
+        "helper": helper,
+        "called": called,
+        "mark": tmp_path / "deployed-sha",
+        "fails": tmp_path / "update-fails",
+        "defers": tmp_path / "update-defers",
+        "lock": tmp_path / "update.lock",
+    }
 
 
 def _write_status(path, devices, top=None, publish=True, age=0.0):
-    d = {"updated": "now", "devices": {n: ({"connected": True, "recording": r} if publish
-                                           else {"connected": True}) for n, r in devices.items()}}
+    d = {
+        "updated": "now",
+        "devices": {
+            n: ({"connected": True, "recording": r} if publish else {"connected": True}) for n, r in devices.items()
+        },
+    }
     if publish:
         d["recording"] = any(devices.values()) if top is None else top
     path.write_text(json.dumps(d))
@@ -62,19 +86,24 @@ def _write_status(path, devices, top=None, publish=True, age=0.0):
 
 def _run(box, *mode, **env):
     """Drive the updater as the timer does (no argument), or as the button does (`"--no-restart"`)."""
-    e = {**os.environ,
-         "TEPNA_REPO_DIR": str(box["repo"]), "TEPNA_STATUS_JSON": str(box["status"]),
-         "TEPNA_RESTART_SH": str(box["helper"]), "TEPNA_SUDO": "env",
-         "TEPNA_DEPLOYED_MARK": str(box["mark"]),
-         # Isolated per test. Without this the suite would write the streak marker to the REAL
-         # /srv/tepna path, which on the box itself is a live operational file.
-         "TEPNA_FAIL_MARK": str(box["fails"]),
-         # Same isolation for the DEFERRAL streak marker, and for the same reason: the default path is
-         # a live operational file on the box.
-         "TEPNA_DEFER_MARK": str(box["defers"]),
-         # The single-run lock, isolated per test for the same reason as the two markers above — the
-         # default path is a live operational file on the box, and a test must not take the box's lock.
-         "TEPNA_LOCK_FILE": str(box["lock"]), **env}
+    e = {
+        **os.environ,
+        "TEPNA_REPO_DIR": str(box["repo"]),
+        "TEPNA_STATUS_JSON": str(box["status"]),
+        "TEPNA_RESTART_SH": str(box["helper"]),
+        "TEPNA_SUDO": "env",
+        "TEPNA_DEPLOYED_MARK": str(box["mark"]),
+        # Isolated per test. Without this the suite would write the streak marker to the REAL
+        # /srv/tepna path, which on the box itself is a live operational file.
+        "TEPNA_FAIL_MARK": str(box["fails"]),
+        # Same isolation for the DEFERRAL streak marker, and for the same reason: the default path is
+        # a live operational file on the box.
+        "TEPNA_DEFER_MARK": str(box["defers"]),
+        # The single-run lock, isolated per test for the same reason as the two markers above — the
+        # default path is a live operational file on the box, and a test must not take the box's lock.
+        "TEPNA_LOCK_FILE": str(box["lock"]),
+        **env,
+    }
     return subprocess.run(["bash", UPD, *mode], capture_output=True, text=True, env=e)
 
 
@@ -88,7 +117,8 @@ def _advance(box, path="capture-host/capture.py"):
     p = box["up"] / path
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(f"v{time.time_ns()}\n")
-    _git(box["up"], "add", path); _git(box["up"], "commit", "-qm", f"touch {path}")
+    _git(box["up"], "add", path)
+    _git(box["up"], "commit", "-qm", f"touch {path}")
 
 
 def _upstream_checker(box, body):
@@ -103,7 +133,8 @@ def _upstream_checker(box, body):
     chk = d / "check-system-files.sh"
     chk.write_text(body)
     chk.chmod(0o755)
-    _git(box["up"], "add", "-A"); _git(box["up"], "commit", "-qm", "checker")
+    _git(box["up"], "add", "-A")
+    _git(box["up"], "commit", "-qm", "checker")
 
 
 # ---------------------------------------------------------------- the refusals
@@ -140,7 +171,8 @@ def test_a_diverged_checkout_is_refused_rather_than_merged(box):
     """--ff-only. This must be incapable of inventing a tree that exists nowhere else — an unattended
     merge commit on a capture box is a state no one can reproduce or review."""
     (box["repo"] / "LOCAL").write_text("local commit\n")
-    _git(box["repo"], "add", "LOCAL"); _git(box["repo"], "commit", "-qm", "local")
+    _git(box["repo"], "add", "LOCAL")
+    _git(box["repo"], "commit", "-qm", "local")
     _advance(box)
     r = _run(box)
     assert r.returncode == 1 and "fast-forward" in r.stderr
@@ -154,7 +186,7 @@ def test_it_DEFERS_while_a_device_is_recording(box):
     _advance(box)
     _write_status(box["status"], {"Ring": True})
     r = _run(box)
-    assert r.returncode == 0, r.stderr           # deferring is this script WORKING, not failing
+    assert r.returncode == 0, r.stderr  # deferring is this script WORKING, not failing
     assert "deferred" in r.stdout
     assert not box["called"].exists(), "restarted mid-recording"
 
@@ -309,7 +341,7 @@ def test_the_streak_counts_a_NON_die_failure_too(box):
 
 
 def test_the_FIRST_failure_time_is_carried_across_the_streak(box, tmp_path):
-    """"Since when" is the whole question. If each tick restamped the marker the answer would always be
+    """ "Since when" is the whole question. If each tick restamped the marker the answer would always be
     "since a moment ago" — true of the tick and false of the outage.
 
     ⚠️ The marker is SEEDED old rather than built by looping `_fail`. Four real runs complete inside one
@@ -383,8 +415,7 @@ def test_an_UNWRITABLE_marker_warns_and_does_not_change_the_verdict(box, tmp_pat
     """Same degradation the deployed-SHA marker learned the hard way — that one was silently inert for
     weeks because /run was root-owned. A marker that cannot be written warns; the run's own verdict is
     untouched, and it is still 1 for the reason it was already 1."""
-    r = _run(box, TEPNA_REPO_DIR=str(tmp_path / "nope"),
-             TEPNA_FAIL_MARK=str(tmp_path / "no-such-dir" / "fails"))
+    r = _run(box, TEPNA_REPO_DIR=str(tmp_path / "nope"), TEPNA_FAIL_MARK=str(tmp_path / "no-such-dir" / "fails"))
     assert r.returncode == 1
     assert "no git checkout" in r.stderr
     assert "could not record the failure streak" in r.stderr
@@ -412,16 +443,17 @@ def test_the_updater_never_moves_a_ref_or_discards_a_tree():
     """CLAUDE.md §2 and §2b, enforced on the one script that runs git with nobody watching. A reset,
     clean, stash or update-ref here would destroy work whose only copy is on the box, at 3 a.m."""
     import re
-    code = "\n".join(l for l in open(UPD, encoding="utf-8").read().splitlines()
-                     if not l.lstrip().startswith("#"))
+
+    code = "\n".join(l for l in open(UPD, encoding="utf-8").read().splitlines() if not l.lstrip().startswith("#"))
     # The VERBS actually invoked, not any appearance of the word — "no git checkout at $REPO_DIR" is an
     # error message, and a substring scan that fails on it is a test that will be edited to shut it up.
-    verbs = set(re.findall(r'\bgit\s+-C\s+\S+\s+([a-z-]+)', code))
+    verbs = set(re.findall(r"\bgit\s+-C\s+\S+\s+([a-z-]+)", code))
     assert verbs, "the scan found no git invocations — it has stopped working"
     # `diff` is read-only: it is how the content gate asks whether the daemon's code moved (§5b).
     assert verbs <= {"status", "rev-parse", "fetch", "merge", "diff"}, (
         f"unattended git verbs are {sorted(verbs)} — reset/clean/stash/checkout/push/update-ref would "
-        f"destroy work whose only copy is on the box, at 3 a.m. (CLAUDE.md §2, §2b)")
+        f"destroy work whose only copy is on the box, at 3 a.m. (CLAUDE.md §2, §2b)"
+    )
     assert "--ff-only" in code
 
 
@@ -430,6 +462,7 @@ def test_the_updater_never_moves_a_ref_or_discards_a_tree():
 
 def _cap():
     import capture
+
     return capture
 
 
@@ -437,7 +470,7 @@ def test_publish_recording_stamps_every_device_and_returns_whether_any_is():
     c = _cap()
     c.STATUS["devices"] = {"A": {"connected": True}, "B": {"connected": True}}
     c._LAST_DATA.clear()
-    c._LAST_DATA["A"] = 1000.0                     # streamed 1 s ago
+    c._LAST_DATA["A"] = 1000.0  # streamed 1 s ago
     assert c.publish_recording(1001.0, 120.0) is True
     assert c.STATUS["devices"]["A"]["recording"] is True
     assert c.STATUS["devices"]["B"]["recording"] is False, "B has never streamed — that is not recording"
@@ -494,7 +527,7 @@ def _exec_start_targets():
                 line = line.strip()
                 if not line.startswith("ExecStart="):  # a commented-out alternative is not a unit's exec
                     continue
-                tok = line[len("ExecStart="):].split()
+                tok = line[len("ExecStart=") :].split()
                 if not tok:
                     continue
                 target = tok[0].lstrip("-@+!")  # systemd's exec-prefix chars
@@ -531,12 +564,12 @@ def test_a_unit_that_directly_execs_a_repo_script_requires_the_exec_bit():
     targets = _exec_start_targets()
     assert targets, "no direct-exec ExecStart= found — the scan broke, not the units"
     for unit, rel in targets:
-        mode = subprocess.run(["git", "-C", HERE, "ls-files", "-s", rel],
-                              capture_output=True, text=True).stdout.split()
+        mode = subprocess.run(["git", "-C", HERE, "ls-files", "-s", rel], capture_output=True, text=True).stdout.split()
         assert mode, f"{rel} (from {unit}) is not tracked by git"
         assert mode[0] == "100755", (
             f"{unit} directly exec's {rel}, which is committed {mode[0]}. systemd will fail 203/EXEC. "
-            f"Fix with: git update-index --chmod=+x capture-host/{rel}")
+            f"Fix with: git update-index --chmod=+x capture-host/{rel}"
+        )
 
 
 def test_the_exec_scan_ignores_the_venv_interpreter_even_when_it_exists(tmp_path, monkeypatch):
@@ -549,19 +582,20 @@ def test_the_exec_scan_ignores_the_venv_interpreter_even_when_it_exists(tmp_path
     interpreter present on disk. The scan must return the script it exec's directly and nothing else."""
     (tmp_path / "systemd").mkdir()
     (tmp_path / ".venv" / "bin").mkdir(parents=True)
-    (tmp_path / ".venv" / "bin" / "python").write_text("#!/bin/sh\n")      # the interpreter EXISTS
+    (tmp_path / ".venv" / "bin" / "python").write_text("#!/bin/sh\n")  # the interpreter EXISTS
     (tmp_path / "tepna-update.sh").write_text("#!/bin/bash\n")
     (tmp_path / "systemd" / "a.service").write_text(
-        f"[Service]\nExecStart={DEPLOY_ROOT}/.venv/bin/python capture.py --config x.yaml\n")
-    (tmp_path / "systemd" / "b.service").write_text(
-        f"[Service]\nExecStart={DEPLOY_ROOT}/tepna-update.sh\n")
+        f"[Service]\nExecStart={DEPLOY_ROOT}/.venv/bin/python capture.py --config x.yaml\n"
+    )
+    (tmp_path / "systemd" / "b.service").write_text(f"[Service]\nExecStart={DEPLOY_ROOT}/tepna-update.sh\n")
 
     monkeypatch.setitem(globals(), "HERE", str(tmp_path))
     got = _exec_start_targets()
 
     assert ("systemd/b.service", "tepna-update.sh") in got, "a direct-exec repo script must still be found"
-    assert not [r for _u, r in got if r.split(os.sep)[0] == ".venv"], \
+    assert not [r for _u, r in got if r.split(os.sep)[0] == ".venv"], (
         "the venv interpreter is not a repo script — it is gitignored and has no committed mode"
+    )
 
 
 # ── a deferred restart is a DEBT, and it must survive the tick that could not pay it ──────────────
@@ -575,12 +609,12 @@ def _head(box):
 
 def test_THE_DEFERRED_RESTART_IS_TAKEN_ON_THE_NEXT_IDLE_TICK(box):
     _advance(box)
-    _write_status(box["status"], {"Ring": True})            # recording — the merge lands, restart defers
+    _write_status(box["status"], {"Ring": True})  # recording — the merge lands, restart defers
     r1 = _run(box)
     assert "deferred" in r1.stdout, r1.stdout
     assert not box["called"].exists(), "restarted while a device was recording"
 
-    _write_status(box["status"], {"Ring": False})           # the night ends; nothing new upstream
+    _write_status(box["status"], {"Ring": False})  # the night ends; nothing new upstream
     r2 = _run(box)
     assert "OWED" in r2.stdout, f"the outstanding restart evaporated: {r2.stdout}"
     assert box["called"].read_text().strip() == "restart", "the deferred restart was never taken"
@@ -593,8 +627,8 @@ def test_A_SECOND_DEFERRAL_DOES_NOT_MARK_THE_DEBT_PAID(box):
     _advance(box)
     old = _head(box)
     _write_status(box["status"], {"Ring": True})
-    _run(box)                                                # merge + defer
-    r2 = _run(box)                                           # still recording — defer again
+    _run(box)  # merge + defer
+    r2 = _run(box)  # still recording — defer again
     assert "deferred" in r2.stdout
     assert box["mark"].read_text().strip() == old, "the marker moved to the disk sha while deferring"
 
@@ -694,11 +728,11 @@ def test_THE_GATE_DIFFS_FROM_WHAT_THE_DAEMON_RUNS_NOT_FROM_THE_LAST_TICK(box):
     """A code change deferred overnight, then a docs-only merge on top. Diffing the LAST tick's move
     (docs-only) would read the debt as paid; the debt is the whole range from the sha the daemon is on
     to HEAD, and that range contains the code change."""
-    _advance(box)                                            # code
+    _advance(box)  # code
     _write_status(box["status"], {"Ring": True})
-    _run(box)                                                # merged, deferred
-    _advance(box, path="README")                             # docs, on top
-    r2 = _run(box)                                           # still recording
+    _run(box)  # merged, deferred
+    _advance(box, path="README")  # docs, on top
+    r2 = _run(box)  # still recording
     assert "deferred" in r2.stdout, r2.stdout
     assert "no capture-host/ change" not in r2.stdout, "the code change was diffed away"
     _write_status(box["status"], {"Ring": False})
@@ -803,6 +837,7 @@ def test_A_MARKER_THAT_CANNOT_BE_WRITTEN_WARNS_AND_DOES_NOT_ABORT_THE_DEPLOY(box
 # 68.6 % of the window running on-disk-but-not-loaded code. These tests are about the DISTINCTION
 # between a normal night's deferral and a debt that outlived a day — flattening those is what made the
 # 70 h case invisible.
+
 
 def _defer_state(box):
     """`(count, first_epoch)` from the marker, or None when there is no streak."""
@@ -952,12 +987,13 @@ def test_an_UNWRITABLE_marker_warns_but_the_deploy_still_proceeds(box, tmp_path)
 # device stopped — median 8.27 h of running on-disk-but-not-loaded code. This mode runs the SAME step
 # 5 and skips only the fetch, so it is cheap enough to put on a two-minute timer.
 
+
 def test_pending_only_with_NOTHING_OWED_is_silent_and_costs_nothing(box):
     """🔴 The design's whole basis. At a two-minute cadence a line per tick is 720 journal lines a day
     in the unit whose legibility §4 is about — and it must not fetch, because 720 fetches a day is the
     other reason a fast timer would be unacceptable."""
     _advance(box)
-    _run(box)                                  # normal tick: merges and restarts, marker now at HEAD
+    _run(box)  # normal tick: merges and restarts, marker now at HEAD
     r = _run(box, "--pending-only")
     assert r.returncode == 0
     assert r.stdout == "" and r.stderr == "", "a healthy box says nothing at all"
@@ -994,7 +1030,7 @@ def test_pending_only_NEVER_FETCHES_so_it_cannot_deploy_new_code_by_itself(box):
     unpulled — otherwise the two-minute timer becomes a two-minute deploy cadence, which is a different
     change than the one the owner ordered."""
     head_before = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
-    _advance(box)                               # new commit exists upstream, NOT yet on the box
+    _advance(box)  # new commit exists upstream, NOT yet on the box
     r = _run(box, "--pending-only")
     assert r.stdout == "" and r.stderr == ""
     assert _git(box["repo"], "rev-parse", "HEAD").stdout.strip() == head_before, "no fetch, no merge"
@@ -1047,6 +1083,7 @@ def test_an_unknown_mode_is_still_refused_and_the_usage_names_the_new_one(box):
 
 # ── one run at a time ─────────────────────────────────────────────────────────────────────────────
 
+
 def test_a_SECOND_run_does_not_restart_the_daemon_a_second_time(box):
     """🔴 The reason the lock exists, and the reason it is taken BEFORE the marker is read. With the
     two-minute `--pending-only` timer alongside the hourly tick, two runs can overlap for the first
@@ -1055,12 +1092,13 @@ def test_a_SECOND_run_does_not_restart_the_daemon_a_second_time(box):
     re-runs twice, for one debt."""
     _advance(box)
     _write_status(box["status"], {"Ring": True})
-    _run(box)                                    # merged, deferred: the debt is recorded
+    _run(box)  # merged, deferred: the debt is recorded
     _write_status(box["status"], {"Ring": False})
 
     import fcntl
+
     box["lock"].touch()
-    with open(box["lock"], "w") as held:         # stand in for the other run, holding the lock
+    with open(box["lock"], "w") as held:  # stand in for the other run, holding the lock
         fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
         blocked = _run(box, "--pending-only")
         assert blocked.returncode == 0, "a lost race is not a failure"
@@ -1091,13 +1129,18 @@ def test_an_UNWRITABLE_lock_path_degrades_OPEN_and_prints_nothing(box, tmp_path)
 
 # ── a ring .dat pull is work in flight (OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS §1.2) ──────────────
 
+
 def _write_status_oxy(path, lifecycle, *, recording=False):
     """A status.json whose ring publishes `oxy_lifecycle`, as the real daemon does."""
-    d = {"updated": "now", "recording": recording,
-         "devices": {"Wellue O2Ring-S": {"connected": True, "recording": recording,
-                                         "oxy_lifecycle": lifecycle},
-                     "Polar H10": {"connected": True, "recording": recording}},
-         "cpap": {"state": "idle"}}
+    d = {
+        "updated": "now",
+        "recording": recording,
+        "devices": {
+            "Wellue O2Ring-S": {"connected": True, "recording": recording, "oxy_lifecycle": lifecycle},
+            "Polar H10": {"connected": True, "recording": recording},
+        },
+        "cpap": {"state": "idle"},
+    }
     path.write_text(json.dumps(d))
 
 
@@ -1181,7 +1224,7 @@ def _hand_restarted_box(box):
     head1 = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
     assert box["mark"].read_text().strip() == head1
     box["called"].unlink()
-    _advance(box)                                              # capture-host code moved upstream
+    _advance(box)  # capture-host code moved upstream
     _git(box["repo"], "fetch", "-q", "origin", "main")
     _git(box["repo"], "merge", "-q", "--ff-only", "origin/main")
     head2 = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
@@ -1190,7 +1233,7 @@ def _hand_restarted_box(box):
 
 
 def _version(sha):
-    return "echo '{\"git\": \"%s\", \"dirty\": false, \"started\": 1.0}'" % sha
+    return 'echo \'{"git": "%s", "dirty": false, "started": 1.0}\'' % sha
 
 
 def test_a_daemon_already_on_HEAD_is_not_restarted_because_the_marker_is_stale(box):
@@ -1213,7 +1256,7 @@ def test_the_same_box_with_the_daemon_silent_falls_back_to_the_marker_AND_SAYS_S
     assert r.returncode == 0, r.stderr
     assert "daemon not answering" in r.stdout and "using the deploy marker " + head1[:12] in r.stdout
     assert "stale after any restart it did not perform" in r.stdout
-    assert "the deploy marker says " + head1[:12] in r.stdout      # never "the daemon is on"
+    assert "the deploy marker says " + head1[:12] in r.stdout  # never "the daemon is on"
     assert "the daemon is on" not in r.stdout
     assert box["called"].exists()
 
@@ -1241,8 +1284,9 @@ def test_a_daemon_reporting_an_ABBREVIATED_sha_is_on_HEAD_not_behind_it(box):
     head1, head2 = _hand_restarted_box(box)
     import subprocess as _sp
 
-    gits = _sp.run(["git", "-C", str(box["repo"]), "rev-parse", "--short", "HEAD"],
-                   capture_output=True, text=True).stdout.strip()
+    gits = _sp.run(
+        ["git", "-C", str(box["repo"]), "rev-parse", "--short", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
     for abbrev in (head2[:8], head2[:12], gits):
         assert abbrev and head2.startswith(abbrev), f"bad fixture abbreviation {abbrev!r}"
         box["called"].unlink(missing_ok=True)
@@ -1250,7 +1294,8 @@ def test_a_daemon_reporting_an_ABBREVIATED_sha_is_on_HEAD_not_behind_it(box):
         assert r.returncode == 0, r.stderr
         assert "restart still OWED" not in r.stdout, (
             f"an abbreviated sha ({abbrev}, {len(abbrev)} chars) is the SAME commit as {head2[:12]}, "
-            f"not an older one: {r.stdout}")
+            f"not an older one: {r.stdout}"
+        )
         assert not box["called"].exists(), "restarted into code the daemon was already running"
 
 
@@ -1275,12 +1320,15 @@ def test_a_daemon_reporting_an_OLDER_sha_is_the_owed_case_and_is_labelled_as_the
     assert box["called"].exists()
 
 
-@pytest.mark.parametrize("fetch", [
-    "echo '{\"git\": \"unknown\"}'",          # a tarball deploy: build_id could not tell
-    "echo 'not json'",
-    "echo '{\"git\": 7}'",
-    "echo ''",
-])
+@pytest.mark.parametrize(
+    "fetch",
+    [
+        'echo \'{"git": "unknown"}\'',  # a tarball deploy: build_id could not tell
+        "echo 'not json'",
+        "echo '{\"git\": 7}'",
+        "echo ''",
+    ],
+)
 def test_an_unusable_version_report_is_absence_never_a_sha(box, fetch):
     """§∅: an answer the updater cannot use is treated exactly like no answer — the marker path, with
     its label — never as a sha to diff from."""
@@ -1316,7 +1364,8 @@ def _upstream_deploy_script(box, name, body, mode=0o644):
     p = d / name
     p.write_text(body)
     p.chmod(mode)
-    _git(box["up"], "add", "-A"); _git(box["up"], "commit", "-qm", f"deploy script {name}")
+    _git(box["up"], "add", "-A")
+    _git(box["up"], "commit", "-qm", f"deploy script {name}")
 
 
 def test_the_served_bundles_are_synced_even_though_sync_apps_is_committed_0644(box, tmp_path):
@@ -1333,8 +1382,11 @@ def test_the_served_bundles_are_synced_even_though_sync_apps_is_committed_0644(b
     r = _run(box)
     assert marker.exists(), f"sync-apps.sh was not run after the fast-forward (mode 0644)\n{r.stderr}"
     # the checkout acquired it at 0644 — the plant is the real shape, not a test convenience
-    mode = subprocess.run(["git", "-C", str(box["repo"]), "ls-files", "-s", "capture-host/deploy/sync-apps.sh"],
-                          capture_output=True, text=True).stdout.split()[0]
+    mode = subprocess.run(
+        ["git", "-C", str(box["repo"]), "ls-files", "-s", "capture-host/deploy/sync-apps.sh"],
+        capture_output=True,
+        text=True,
+    ).stdout.split()[0]
     assert mode == "100644", mode
 
 
@@ -1351,8 +1403,11 @@ def test_system_file_drift_is_reported_even_though_the_checker_is_committed_0644
 
 def _upstream_sync_stub(box, marker, check_exit):
     """A sync-apps.sh whose `--check` reports the served tree's state and whose bare run records a sync."""
-    _upstream_deploy_script(box, "sync-apps.sh",
-        f'#!/usr/bin/env bash\nif [ "${{1:-}}" = "--check" ]; then exit {check_exit}; fi\necho ran > "{marker}"\n')
+    _upstream_deploy_script(
+        box,
+        "sync-apps.sh",
+        f'#!/usr/bin/env bash\nif [ "${{1:-}}" = "--check" ]; then exit {check_exit}; fi\necho ran > "{marker}"\n',
+    )
 
 
 def test_a_stale_served_tree_is_synced_even_when_THIS_tick_moved_nothing(box, tmp_path):
@@ -1363,9 +1418,9 @@ def test_a_stale_served_tree_is_synced_even_when_THIS_tick_moved_nothing(box, tm
     STATE now: `--check` says stale ⇒ sync, on every tick."""
     marker = tmp_path / "synced"
     _upstream_sync_stub(box, marker, check_exit=1)
-    _run(box)                      # acquire the stub (this run moves the ref)
+    _run(box)  # acquire the stub (this run moves the ref)
     marker.unlink()
-    r = _run(box)                  # up to date — nothing to fast-forward
+    r = _run(box)  # up to date — nothing to fast-forward
     assert "nothing to do" in r.stderr or "nothing to do" in r.stdout, r.stderr
     assert marker.exists(), f"served tree stale, ref unmoved, and step 3 did not sync\n{r.stderr}"
 
@@ -1377,5 +1432,5 @@ def test_a_current_served_tree_is_not_re_synced(box, tmp_path):
     _run(box)
     assert not marker.exists()
     _advance(box)
-    _run(box)                      # even a fast-forward does not sync a tree that already matches
+    _run(box)  # even a fast-forward does not sync a tree that already matches
     assert not marker.exists()

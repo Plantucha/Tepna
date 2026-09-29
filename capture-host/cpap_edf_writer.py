@@ -43,9 +43,7 @@ _EXPECTED_INTERVAL_MS = 40
 # exactly the zone-free civil convention the SD-card BRP.edf filenames use. Any real ±HH:MM offset is
 # tolerated in the match and likewise ignored for the civil start; the box applies its host-axis
 # correction downstream, never here at the capture edge (§7/§12).
-_ISO_RE = re.compile(
-    r"^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
-)
+_ISO_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})?$")
 
 # The BRP data ids this writer consumes, and which EDF channel each feeds. PatientFlow → flow (L/s in the
 # EDF), MaskPressure → pressure (cmH2O, confirmed at the idle capture). Keyed by the StreamData dataId.
@@ -73,8 +71,7 @@ class EdfSink:
 
     PENDING = "PENDING"
 
-    def __init__(self, out_root, serial, *, flow_scale_verified=False, flow_to_lps=_identity,
-                 record_seconds=60):
+    def __init__(self, out_root, serial, *, flow_scale_verified=False, flow_to_lps=_identity, record_seconds=60):
         self._out_root = out_root
         self._serial = serial
         self._verified = bool(flow_scale_verified)
@@ -82,12 +79,12 @@ class EdfSink:
         self._record_seconds = record_seconds
         self._flow: list[float] = []
         self._press: list[float] = []
-        self._start = None          # (y, mo, d, hh, mm, ss) from the device start_time, set on batch 1
-        self._start_iso = None      # the verbatim device stamp, kept for provenance
-        self._part = None           # the .part path once the start is known
-        self._final = None          # the final path
-        self._flushed_records = 0   # whole records already written to .part
-        self._interval_checked = False   # §2 — observed-interval validated once, on the first batch
+        self._start = None  # (y, mo, d, hh, mm, ss) from the device start_time, set on batch 1
+        self._start_iso = None  # the verbatim device stamp, kept for provenance
+        self._part = None  # the .part path once the start is known
+        self._final = None  # the final path
+        self._flushed_records = 0  # whole records already written to .part
+        self._interval_checked = False  # §2 — observed-interval validated once, on the first batch
         self._closed = False
 
     # ── the ingestion-seam interface (open/on_batch/close), shared with the bus sink ──────────────────
@@ -103,14 +100,15 @@ class EdfSink:
         if self._start is None:
             self._set_start(batch.get("start_time"))
         if not self._interval_checked:
-            iv = batch.get("interval_ms")           # §2 — consume the device's OWN interval, don't assume
+            iv = batch.get("interval_ms")  # §2 — consume the device's OWN interval, don't assume
             if isinstance(iv, (int, float)) and iv > 0:
                 self._interval_checked = True
                 if iv != _EXPECTED_INTERVAL_MS:
                     _log.warning(
                         "CPAP EDF sink: observed interval %s ms != the BRP 25 Hz rate (%s ms) — the EDF is "
                         "built at 25 Hz, so its timing will not match the stream",
-                        iv, _EXPECTED_INTERVAL_MS,
+                        iv,
+                        _EXPECTED_INTERVAL_MS,
                     )
         chans = batch.get("channels") or {}
         self._flow.extend(self._flow_to_lps(v) for v in (chans.get(FLOW_ID) or []))
@@ -124,7 +122,7 @@ class EdfSink:
             return
         self._closed = True
         if self._start is None or not (self._flow or self._press):
-            return                                    # nothing ever streamed — no file
+            return  # nothing ever streamed — no file
         self._write(self._part)
         os.replace(self._part, self._final)
 
@@ -142,7 +140,13 @@ class EdfSink:
         _log.info(
             "CPAP EDF start: device stamp %s resolved to local civil %04d-%02d-%02d %02d:%02d:%02d "
             "(SD-card/OSCAR convention)",
-            start_iso, y, mo, d, hh, mm, ss,
+            start_iso,
+            y,
+            mo,
+            d,
+            hh,
+            mm,
+            ss,
         )
         stamp = f"{y:04d}{mo:02d}{d:02d}_{hh:02d}{mm:02d}{ss:02d}"
         night = f"{y:04d}{mo:02d}{d:02d}"
@@ -153,8 +157,9 @@ class EdfSink:
         self._part = self._final + ".part"
 
     def _write(self, path):
-        edf = cpap_edf.build_brp(self._flow, self._press, self._start, self._serial,
-                                 record_seconds=self._record_seconds)
+        edf = cpap_edf.build_brp(
+            self._flow, self._press, self._start, self._serial, record_seconds=self._record_seconds
+        )
         blob = cpap_edf.write_edf(edf)
         tmp = path + ".tmp"
         # CLEAR-TEXT EDF ON DISK IS BY DESIGN — and why CodeQL's py/clear-text-storage-sensitive-data on
@@ -234,7 +239,7 @@ def _start_components(iso):
     y, mo, d, hh, mm, ss, zone = m.groups()
     y, mo, d, hh, mm, ss = int(y), int(mo), int(d), int(hh), int(mm), int(ss)
     roll = False
-    if (hh, mm, ss) == (24, 0, 0):        # ISO end-of-day → 00:00:00 the next calendar day
+    if (hh, mm, ss) == (24, 0, 0):  # ISO end-of-day → 00:00:00 the next calendar day
         hh, roll = 0, True
     try:
         dt = datetime.datetime(y, mo, d, hh, mm, ss)
@@ -242,7 +247,7 @@ def _start_components(iso):
         return None
     if roll:
         dt += datetime.timedelta(days=1)
-    if zone:                              # a real instant → resolve to the box's LOCAL civil wall time
+    if zone:  # a real instant → resolve to the box's LOCAL civil wall time
         tz = datetime.timezone.utc if zone == "Z" else _fixed_zone(zone)
         dt = dt.replace(tzinfo=tz).astimezone().replace(tzinfo=None)
     return (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)

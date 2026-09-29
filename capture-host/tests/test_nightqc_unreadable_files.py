@@ -7,6 +7,7 @@ That is a different failure from the per-row parse drops beside them: a torn row
 tail is expected and bounded by a downstream floor, whereas a lost file removes a stream from the
 report entirely — and an absent stream reads exactly like one that was never recorded.
 """
+
 import os
 
 import nightqc
@@ -55,5 +56,5 @@ def test_A_LOST_ARRIVAL_FILE_IS_ABSENT_NOT_GOOD(tmp_path, caplog, monkeypatch):
     _unreadable(str(p))
     with caplog.at_level("WARNING"):
         out = nightqc.arrival_quality(str(tmp_path))
-    if os.geteuid() != 0:                    # root ignores the mode and would read it happily
+    if os.geteuid() != 0:  # root ignores the mode and would read it happily
         assert out == [] and "absent from this report" in caplog.text

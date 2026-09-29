@@ -6,6 +6,7 @@ The estimators are published ones (Moon et al.'s LP, Paxson's minimum-of-subsets
 about the two things a paper does not give you: that the implementation actually recovers a PLANTED
 answer, and that the certificate refuses the cases where each estimator is known to break.
 """
+
 from __future__ import annotations
 
 import random
@@ -26,7 +27,7 @@ def _plant(off_ms, ppm, n=4000, span=28800.0, jitter_ms=30.0, quant_ms=None, see
     for i in range(n):
         t = span * i / (n - 1)
         d = off_ms + ppm * 1e-6 * 1000.0 * t + rng.expovariate(1.0 / jitter_ms)
-        if quant_ms:                      # a whole-second device counter: reported <= true, so delay >= true
+        if quant_ms:  # a whole-second device counter: reported <= true, so delay >= true
             d += (quant_ms - (t * 1000.0) % quant_ms) % quant_ms
         pts.append((t, d))
     if outlier is not None:
@@ -40,6 +41,7 @@ def _truth(off_ms, ppm, pts):
 
 
 # ─── recovery: the planted answer comes back ────────────────────────────────────────────────────
+
 
 def test_recovers_a_planted_offset_and_skew():
     pts = _plant(400.0, 20.0)
@@ -58,7 +60,7 @@ def test_offset_is_quoted_at_the_centroid_not_at_zero():
     pts = _plant(400.0, 20.0)
     r = co.estimate(pts)
     assert r["t_ref_sec"] == pytest.approx(14400.0, abs=60.0)
-    assert r["offset_ms"] == pytest.approx(688.0, abs=1.0)      # 400 + 20 ppm * 14400 s
+    assert r["offset_ms"] == pytest.approx(688.0, abs=1.0)  # 400 + 20 ppm * 14400 s
     assert r["offset_ms"] - 400.0 > 250.0, "the drift term must not have been silently dropped"
 
 
@@ -104,6 +106,7 @@ def test_the_real_reason_to_fit_the_ring_is_skew_not_quantisation():
 
 # ─── the certificate: it exists because each estimator breaks somewhere ──────────────────────────
 
+
 def test_one_early_outlier_drags_the_envelope_and_the_certificate_catches_it():
     """The envelope constrains the line below EVERY point, so a single early packet redefines it.
 
@@ -133,6 +136,7 @@ def test_a_clean_night_is_certified():
 
 # ─── refusals: no estimate, never a silent zero ─────────────────────────────────────────────────
 
+
 def test_refuses_too_few_points():
     r = co.estimate([(float(i), 1.0) for i in range(co.MIN_POINTS - 1)])
     assert r == {"ok": False, "reason": "too-few", "n": co.MIN_POINTS - 1}
@@ -155,7 +159,7 @@ def test_refuses_an_implausible_skew():
 def test_refuses_when_no_two_subset_minima_have_distinct_t():
     """Paxson can fail while the envelope succeeds: if every subset's minimum lands on the same t
     there is no slope to take a median of. The pair must refuse together, not half-report."""
-    pts = [(0.0, 0.0)] * 99 + [(100.0, 1e6)]          # the lone late point is never a subset minimum
+    pts = [(0.0, 0.0)] * 99 + [(100.0, 1e6)]  # the lone late point is never a subset minimum
     r = co.estimate(pts)
     assert r["ok"] is False and r["reason"] == "no-span"
 
@@ -167,19 +171,27 @@ def test_drops_non_finite_and_unparseable_pairs_rather_than_defaulting():
     identically and the mutant that stops cleaning at the first bad pair survives — which it did.
     """
     good = _plant(400.0, 0.0, n=200, span=3000.0)
-    junk = [(float("nan"), 1.0), (1.0, float("nan")), (float("inf"), 1.0),
-            (1.0, float("-inf")), ("x", 1.0), (None, 1.0), (1.0, object())]
+    junk = [
+        (float("nan"), 1.0),
+        (1.0, float("nan")),
+        (float("inf"), 1.0),
+        (1.0, float("-inf")),
+        ("x", 1.0),
+        (None, 1.0),
+        (1.0, object()),
+    ]
     mixed = []
     for i, p in enumerate(good):
         mixed.append(p)
         if i < len(junk):
-            mixed.append(junk[i])          # a bad pair between two good ones, seven times over
+            mixed.append(junk[i])  # a bad pair between two good ones, seven times over
     r = co.estimate(mixed)
     assert r["n"] == 200, f"junk leaked in, or cleaning stopped early: n={r['n']}"
     assert r["offset_ms"] == pytest.approx(400.0, abs=5.0)
 
 
 # ─── the boundaries, each pinned with an EXACTLY-on-the-line fixture ─────────────────────────────
+
 
 def test_span_is_measured_across_the_whole_recording():
     """`pts[-1] - pts[0]`, not an endpoint one sample in, and DIFFERENCED rather than summed.
@@ -232,6 +244,7 @@ def test_agreement_of_exactly_the_budget_still_certifies():
 
 # ─── the span gate: the offset still ships, only the RATE is withheld ────────────────────────────
 
+
 def test_short_span_withholds_the_rate_but_keeps_the_offset():
     """A ppm off too short a baseline is the error the Clock Contract calls out by name — the same H10
     reads -20.3 ppm over 373 min and -65.8 over 10.9. But the offset is what the envelope measured and
@@ -275,6 +288,7 @@ def test_the_floor_is_the_resolvability_one_not_the_correction_one():
 
 # ─── the pieces, directly ───────────────────────────────────────────────────────────────────────
 
+
 def test_the_answer_does_not_depend_on_where_the_caller_starts_t():
     """`lower_envelope` is only bounded for t >= 0, so `estimate` shifts rather than trusting the caller.
 
@@ -298,6 +312,7 @@ def test_lower_hull_drops_points_above_the_hull():
 # ─── the hull turn test, pinned at each of its three degrees of freedom ──────────────────────────
 # Every one of these was a SURVIVING MUTANT under tests that already had 100% branch coverage. The
 # turn test has a sign, a comparison and a threshold, and reaching the line proves none of them.
+
 
 def test_hull_drops_collinear_interior_points():
     """`cross > 0` POPS a collinear point (cross == 0); `>=` would keep it.
@@ -337,8 +352,8 @@ def test_duplicate_t_still_weights_the_objective():
     the LP objective. Dropping them would change which hull edge wins, so `n_total`/`sum_t` are taken
     over the original set — this pins that they are actually threaded through."""
     pts = sorted([(0.0, 0.0), (10.0, -1.0)] + [(20.0, 0.0)] * 50)
-    weighted = co.lower_envelope(pts)                              # sum_t dominated by the late point
-    unweighted = co.lower_envelope(pts, n_total=3, sum_t=30.0)     # as if the duplicates were collapsed
+    weighted = co.lower_envelope(pts)  # sum_t dominated by the late point
+    unweighted = co.lower_envelope(pts, n_total=3, sum_t=30.0)  # as if the duplicates were collapsed
     assert weighted != unweighted, "the duplicates did not reach the objective"
 
 
@@ -408,8 +423,12 @@ def test_paxson_skips_a_pair_of_minima_that_share_a_timestamp():
     two of them share a t. The real guard skips that pair. Both index confusions raise here instead,
     which is why this is a crash test rather than a value test.
     """
-    pts = ([(5.0, -1.0)] + [(float(i), 100.0) for i in range(1, 10)]
-           + [(5.0, -2.0)] + [(float(i), 100.0) for i in range(11, 20)])
+    pts = (
+        [(5.0, -1.0)]
+        + [(float(i), 100.0) for i in range(1, 10)]
+        + [(5.0, -2.0)]
+        + [(float(i), 100.0) for i in range(11, 20)]
+    )
     assert co.paxson(pts) == (0.0, 100.0)
 
 
@@ -421,6 +440,7 @@ def test_paxson_is_robust_where_least_squares_would_not_be():
 
 
 # ─── the shipped alternative it is replacing ────────────────────────────────────────────────────
+
 
 def test_floor_ms_has_no_time_model_and_a_skewed_night_exposes_it():
     """Measured on a real 8 h H10 capture, `floor_ms` sat 242 ms from the fitted value against PAT's
@@ -442,7 +462,7 @@ def test_refuses_an_implausible_OFFSET_where_the_skew_is_perfectly_good():
     pts = [(t * 10.0, 244174156601.7 + (t % 7) * 0.4) for t in range(400)]
     r = co.estimate(pts)
     assert r["ok"] is False and r["reason"] == "implausible-offset", r
-    assert abs(r["slope_ppm"]) if "slope_ppm" in r else True   # the slope was never the problem
+    assert abs(r["slope_ppm"]) if "slope_ppm" in r else True  # the slope was never the problem
     assert "offset_ms" not in r, "a refusal carries no estimate — the hostAxis contract"
 
 
@@ -547,7 +567,7 @@ def test_the_refusal_PUBLISHES_both_estimators_to_the_microsecond():
 # same number, a dip separates them, a planted slope gives the rate its third decimal.
 # ---------------------------------------------------------------------------------------------------
 
-_T_GRID = [i * 30.0 for i in range(118)] + [3570.25]     # span .25, mean .2542 — two decimals each
+_T_GRID = [i * 30.0 for i in range(118)] + [3570.25]  # span .25, mean .2542 — two decimals each
 
 
 def test_the_estimate_record_publishes_offsets_to_the_MICROSECOND_and_the_axis_to_a_tenth():
@@ -612,5 +632,7 @@ def test_the_ENVELOPE_side_of_the_refusal_is_NOT_redundant():
     r = co.estimate(pts)
     assert r["ok"] is False and r["reason"] == "implausible-offset", r
     assert abs(r["offset_envelope_ms"]) > _BOUND_MS, r
-    assert abs(r["offset_paxson_ms"]) < _BOUND_MS, ("Paxson must be INSIDE, or the other disjunct "
-                                                    "could carry the refusal on its own", r)
+    assert abs(r["offset_paxson_ms"]) < _BOUND_MS, (
+        "Paxson must be INSIDE, or the other disjunct could carry the refusal on its own",
+        r,
+    )

@@ -21,8 +21,15 @@ import capture
 import nightqc
 
 
-DEV = [{"name": "Polar H10 02849638", "device_id": "02849638", "model": "H10",
-        "streams": ["ecg"], "address": "24:AC:AC:02:84:96"}]
+DEV = [
+    {
+        "name": "Polar H10 02849638",
+        "device_id": "02849638",
+        "model": "H10",
+        "streams": ["ecg"],
+        "address": "24:AC:AC:02:84:96",
+    }
+]
 
 
 def _mk(d, name, rows=3, mtime=None):
@@ -43,8 +50,8 @@ def _night_of_2026_07_28(tmp_path):
     d27, d28 = os.path.join(caps, "2026-07-27"), os.path.join(caps, "2026-07-28")
     now = time.time()
     _mk(d27, "Polar_H10_02849638_20260727221616_ECG.txt", rows=2910, mtime=now - 30)
-    _mk(d28, "Tepna_20260728000021_LINK.csv", rows=5, mtime=now - 10)     # sidecar, NEWER
-    _mk(d28, "Tepna_20260728000155_CLOCK.csv", rows=5, mtime=now - 10)    # sidecar, NEWER
+    _mk(d28, "Tepna_20260728000021_LINK.csv", rows=5, mtime=now - 10)  # sidecar, NEWER
+    _mk(d28, "Tepna_20260728000155_CLOCK.csv", rows=5, mtime=now - 10)  # sidecar, NEWER
     return caps, d27, d28
 
 
@@ -127,8 +134,15 @@ def test_a_located_session_is_never_scope_suspect(tmp_path):
 def test_a_genuinely_missing_stream_is_not_scope_suspect(tmp_path):
     """The real fault this flag must never mask: data IS present, one declared stream produced none."""
     caps, d27, _ = _night_of_2026_07_28(tmp_path)
-    two = DEV + [{"name": "Polar Verity Sense", "device_id": "0C301E3F", "model": "Verity",
-                  "streams": ["ppg"], "address": "24:AC:AC:0C:30:1E"}]
+    two = DEV + [
+        {
+            "name": "Polar Verity Sense",
+            "device_id": "0C301E3F",
+            "model": "Verity",
+            "streams": ["ppg"],
+            "address": "24:AC:AC:0C:30:1E",
+        }
+    ]
     summ = nightqc.summarize(d27, two)
     assert summ["scope_suspect"] is False
     assert summ["missing"] == ["Polar Verity Sense:ppg"]
@@ -173,6 +187,7 @@ def test_an_entry_that_vanishes_mid_scan_is_skipped(tmp_path, monkeypatch):
 
     def boom(_p):
         raise OSError("raced away")
+
     monkeypatch.setattr(nightqc.os.path, "getmtime", boom)
     assert nightqc.newest_data_mtime(d) is None
 
@@ -186,10 +201,19 @@ def test_qc_poller_reports_a_scope_fault_as_a_scope_fault(tmp_path, monkeypatch,
 
     os.makedirs(str(tmp_path / "captures" / "2026-07-28"), exist_ok=True)
     monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-07-28")
-    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
-        "night": "2026-07-28", "missing": ["A:ecg", "A:acc", "B:ppg"], "devices": [],
-        "scope_suspect": True, "judged_dir": "2026-07-28",
-        "searched_dirs": ["2026-07-28", "2026-07-27"], "data_files": 0})
+    monkeypatch.setattr(
+        capture.nightqc,
+        "summarize",
+        lambda night, devices: {
+            "night": "2026-07-28",
+            "missing": ["A:ecg", "A:acc", "B:ppg"],
+            "devices": [],
+            "scope_suspect": True,
+            "judged_dir": "2026-07-28",
+            "searched_dirs": ["2026-07-28", "2026-07-27"],
+            "data_files": 0,
+        },
+    )
     sent = []
 
     class _N:
@@ -203,12 +227,14 @@ def test_qc_poller_reports_a_scope_fault_as_a_scope_fault(tmp_path, monkeypatch,
         calls["n"] += 1
         if calls["n"] >= 1:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     capture._STOP.clear()
     try:
         with caplog.at_level("WARNING"):
-            asyncio.run(capture.qc_poller({"qc": {"poll_sec": 1, "alert_after_sec": 0}, "devices": []},
-                                          str(tmp_path), _N()))
+            asyncio.run(
+                capture.qc_poller({"qc": {"poll_sec": 1, "alert_after_sec": 0}, "devices": []}, str(tmp_path), _N())
+            )
     finally:
         capture._STOP.clear()
     msgs = [r.getMessage() for r in caplog.records]

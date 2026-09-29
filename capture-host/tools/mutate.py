@@ -109,6 +109,7 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     stream_bounded,
     workers_that_fit,
 )
+
 SIZES_FILE = "mutation-sizes.json"
 # The COMMITTED generated-size record, beside this tool. Read on every fresh scratch — which is every CI
 # run — and written only by `--record-sizes`, so an ordinary run never dirties the tree.
@@ -203,18 +204,16 @@ def tests_for(module: str) -> list[str]:
         try:
             candidates.append((f"tests/{t.name}", t.read_text(encoding="utf-8")))
         except OSError:
-            continue   # an unreadable test cannot be offered as a killer; missing one WIDENS the
-                       # surviving set, which over-reports rather than falsely greening
+            continue  # an unreadable test cannot be offered as a killer; missing one WIDENS the
+            # surviving set, which over-reports rather than falsely greening
     kept, dropped = select_tests(candidates, stem)
     for d in dropped:
-        print(f"  note: {d} excluded from {module}'s selection — a mutant killed ONLY by it "
-              f"will read as SURVIVING")
+        print(f"  note: {d} excluded from {module}'s selection — a mutant killed ONLY by it will read as SURVIVING")
     # Node-id exclusions are reported on the SAME terms as file ones: the cost is identical (a mutant
     # killed only by that test reads as surviving), so hiding them would reintroduce exactly the
     # invisible false-survivor this reporting exists to prevent.
     for nodeid in deselect_notes(module, kept):
-        print(f"  note: {nodeid} deselected from {module}'s run — a mutant killed ONLY by it "
-              f"will read as SURVIVING")
+        print(f"  note: {nodeid} deselected from {module}'s run — a mutant killed ONLY by it will read as SURVIVING")
     return kept
 
 
@@ -242,9 +241,13 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
     # The selection this times must be the selection that will be RUN, or it is timing a different
     # thing than the one it licenses.
     t0 = time.monotonic()
-    r = subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider",
-                        *tests, *deselect_args()],
-                       cwd=HERE, capture_output=True, text=True, timeout=3600)
+    r = subprocess.run(
+        [str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *tests, *deselect_args()],
+        cwd=HERE,
+        capture_output=True,
+        text=True,
+        timeout=3600,
+    )
     elapsed = time.monotonic() - t0
     # 🔴 SAY WHICH TEST FAILED. `capture_output=True` collected pytest's report and this function
     # threw it away, so the only thing reaching a caller was `False` — surfacing downstream as
@@ -256,10 +259,16 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
     # mutmut's scratch tree (a copy, not a repo) and the remedy is a DESELECTED_TESTS entry — but you
     # can only write that entry if you are told the node id.
     if r.returncode != 0:
-        lines = [ln for ln in (r.stdout or "").splitlines()
-                 if ln.startswith(("FAILED", "ERROR")) or " error" in ln.lower()[:40]]
-        print(f"    clean run FAILED (exit {r.returncode}) after {elapsed:.1f}s — "
-              f"{len(lines) or 'no'} FAILED/ERROR line(s):", flush=True)
+        lines = [
+            ln
+            for ln in (r.stdout or "").splitlines()
+            if ln.startswith(("FAILED", "ERROR")) or " error" in ln.lower()[:40]
+        ]
+        print(
+            f"    clean run FAILED (exit {r.returncode}) after {elapsed:.1f}s — "
+            f"{len(lines) or 'no'} FAILED/ERROR line(s):",
+            flush=True,
+        )
         for ln in lines[:20]:
             print(f"      {ln}", flush=True)
         # 🔴 THE SUMMARY LINE IS NOT THE REASON. pytest's `FAILED …` line carries only the FIRST line
@@ -269,31 +278,38 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
         # evidence the tool had printed nothing, and started theorising from it. It was this filter
         # truncating, not the tool being silent. A reporter that drops the body manufactures exactly
         # the wrong conclusion, which is worse than reporting nothing at all.
-        block = (r.stdout or "")
+        block = r.stdout or ""
         if "= FAILURES =" in block:
             body = block.split("= FAILURES =", 1)[1].splitlines()
             keep = [ln for ln in body if ln.strip()][:40]
             if keep:
-                print("    ---- assertion detail (first 40 non-blank lines of FAILURES) ----",
-                      flush=True)
+                print("    ---- assertion detail (first 40 non-blank lines of FAILURES) ----", flush=True)
                 for ln in keep:
                     print(f"      {ln}", flush=True)
         if not lines:
             # No FAILED lines at all is a DIFFERENT failure — a collection error, a missing plugin, an
             # import crash. Show the tail rather than printing nothing and implying there was nothing.
             tail = (r.stdout or r.stderr or "").strip().splitlines()[-12:]
-            print("      (no FAILED/ERROR lines — showing the tail, this is likely a collection "
-                  "or import failure rather than a test assertion)", flush=True)
+            print(
+                "      (no FAILED/ERROR lines — showing the tail, this is likely a collection "
+                "or import failure rather than a test assertion)",
+                flush=True,
+            )
             for ln in tail:
                 print(f"      {ln}", flush=True)
     return elapsed, r.returncode == 0
 
 
-
-
-def run_one(module: str, only: str | None = None, tests_override: list[str] | None = None,
-            timeout: int | None = None, budget: int = 0, estimate_only: bool = False,
-            reuse: bool = True, clean: tuple[float, bool] | None = None) -> dict:
+def run_one(
+    module: str,
+    only: str | None = None,
+    tests_override: list[str] | None = None,
+    timeout: int | None = None,
+    budget: int = 0,
+    estimate_only: bool = False,
+    reuse: bool = True,
+    clean: tuple[float, bool] | None = None,
+) -> dict:
     """`only` is a mutant-name glob, `tests_override` a hand-picked selection.
 
     Both exist for capture.py, where the name-substring heuristic in `tests_for` is useless — "capture"
@@ -319,9 +335,12 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         yesterday's leftovers. Reporting a stale file as live is worse than reporting nothing, and it is
         the same failure that had a completed run sitting unnoticed for six hours on 2026-08-04.
         """
-        _prog.write_text(f"{_stem}  {msg}\n"
-                         f"  pid={os.getpid()}  updated={time.strftime('%H:%M:%S')}  "
-                         f"LIVE={'no' if final else 'yes'}\n")
+        _prog.write_text(
+            f"{_stem}  {msg}\n"
+            f"  pid={os.getpid()}  updated={time.strftime('%H:%M:%S')}  "
+            f"LIVE={'no' if final else 'yes'}\n"
+        )
+
     _beat("starting — selecting tests")
     tests = tests_override or tests_for(module)
     if not tests:
@@ -351,14 +370,22 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         cap = _cap
     # Heterogeneous by construction and returned as JSON; without the annotation the values join to
     # `object` and `len(plan["pruned_scratches"])` in the warning below cannot be counted.
-    plan: dict[str, Any] = {"module": module, "tests": tests, "clean_run_sec": round(clean_sec, 2),
-            "timeout_sec": cap, "derived": timeout is None}
+    plan: dict[str, Any] = {
+        "module": module,
+        "tests": tests,
+        "clean_run_sec": round(clean_sec, 2),
+        "timeout_sec": cap,
+        "derived": timeout is None,
+    }
     if budget and clean_sec > budget:
         # LOUD, with the numbers and the way out — the mjs sibling's --budget, same reasoning: a module
         # silently skipped is indistinguishable from one that passed.
-        return {**plan, "skipped": f"clean run {clean_sec:.1f}s exceeds --budget {budget}s",
-                "advice": f"narrow it: --tests '{tests[0]},...' (currently {len(tests)} files), "
-                          f"or scope it: --only '{module[:-3]}.x_<func>__mutmut_*'"}
+        return {
+            **plan,
+            "skipped": f"clean run {clean_sec:.1f}s exceeds --budget {budget}s",
+            "advice": f"narrow it: --tests '{tests[0]},...' (currently {len(tests)} files), "
+            f"or scope it: --only '{module[:-3]}.x_<func>__mutmut_*'",
+        }
     if estimate_only:
         return {**plan, "estimate_only": True}
     # REUSE A SCRATCH WHOSE MUTANTS ARE STILL VALID. The generated mutant file is a pure function of the
@@ -368,6 +395,7 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # many iterations of "edit a test, re-measure", so this is the difference between usable and not.
     # Keyed on the module's own hash, so a source change can never silently reuse stale mutants.
     import hashlib
+
     src_hash = hashlib.sha256((HERE / module).read_bytes()).hexdigest()[:12]
     reusable = Path(tempfile.gettempdir()) / f"mut-{module[:-3]}-{src_hash}"
     # Every OTHER module is copied verbatim (imports must resolve) but only `module` is mutated.
@@ -379,9 +407,11 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # slow copy: a baseline that fails inside mutants/ reports "not checked", and one that fails
     # SILENTLY would mark every mutant killed and hand back a meaningless 100%.
     ignore = {".venv", "mutants", "__pycache__", ".coverage", "htmlcov", module}
-    extras = sorted(p.name + ("/" if p.is_dir() else "")
-                    for p in HERE.iterdir()
-                    if p.name not in ignore and not p.name.startswith(".coverage"))
+    extras = sorted(
+        p.name + ("/" if p.is_dir() else "")
+        for p in HERE.iterdir()
+        if p.name not in ignore and not p.name.startswith(".coverage")
+    )
     also = ", ".join(repr(x) for x in extras)
     # PRUNE THIS MODULE'S STALE SCRATCHES. Two reasons this is not optional. (1) /tmp is tmpfs on the
     # capture host — a scratch is RAM, and webmon's is 115 MB, capture's 152 MB. (2) The reuse above is
@@ -441,8 +471,11 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         # heartbeat) starts after them. A caller watching the progress file saw nothing for that whole
         # stretch, which is precisely the window in which "starting" and "wedged" look identical.
         _beat("copying scratch tree  (mutmut not started)")
-        shutil.copytree(HERE, work, ignore=shutil.ignore_patterns(
-            ".venv", "mutants", "__pycache__", "*.pyc", ".coverage*", "htmlcov"))
+        shutil.copytree(
+            HERE,
+            work,
+            ignore=shutil.ignore_patterns(".venv", "mutants", "__pycache__", "*.pyc", ".coverage*", "htmlcov"),
+        )
         # THE COPY STOPS AT capture-host/, AND ONE TEST READS ABOVE IT. `tests/test_seam_sidecar.py`
         # opens `../ecgdex-dsp.js` (seam-bound parity with ECGDex); absent from the scratch, the baseline
         # fails and every mutant of the module reports "0 tested" (measured 2026-09-19, #2675 — and the
@@ -463,14 +496,15 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # cannot write it degrades to being judged as an unmarked tree, which is the cautious side.
     try:
         (scratch / SCRATCH_OWNER_FILE).write_text(
-            owner_record(os.getpid(), proc_start_ticks(os.getpid()) or 0) + "\n", encoding="utf-8")
+            owner_record(os.getpid(), proc_start_ticks(os.getpid()) or 0) + "\n", encoding="utf-8"
+        )
     except OSError as exc:
-        print(f"  ! could not claim {scratch}: {exc} — it will be judged as an unmarked tree",
-              file=sys.stderr)
+        print(f"  ! could not claim {scratch}: {exc} — it will be judged as an unmarked tree", file=sys.stderr)
 
     selection = list(tests) + deselect_args()
-    (work / "pyproject.toml").write_text(CONFIG.format(
-        source=module, also_copy=also, tests=", ".join(repr(t) for t in selection)), encoding="utf-8")
+    (work / "pyproject.toml").write_text(
+        CONFIG.format(source=module, also_copy=also, tests=", ".join(repr(t) for t in selection)), encoding="utf-8"
+    )
     # §2 — clear mutmut's cached verdicts for this module iff the test tree changed since the scratch was
     # last run, so an added or modified killer is credited on the FIRST run rather than the second. The
     # stamp lives in the reusable scratch (keyed on src_hash), which survives the prune; on a fresh
@@ -547,9 +581,11 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # unknown case, and that is the case #3202 was. With no size, take a small pre-stated number and say
     # so; the size this run records then protects every later run on this hash.
     _workers = min(_cores, UNKNOWN_SIZE_WORKERS) if _mutants_bytes <= 0 else min(_cores, max(1, _fit))
-    plan["workers_basis"] = (f"unknown size → capped at {UNKNOWN_SIZE_WORKERS} (never the {_cores} cores)"
-                             if _mutants_bytes <= 0 else
-                             f"memory-derived from the {_size_basis} ({_fit} fit, {_cores} cores)")
+    plan["workers_basis"] = (
+        f"unknown size → capped at {UNKNOWN_SIZE_WORKERS} (never the {_cores} cores)"
+        if _mutants_bytes <= 0
+        else f"memory-derived from the {_size_basis} ({_fit} fit, {_cores} cores)"
+    )
     plan["workers"] = _workers
     plan["mutants_size_basis"] = _size_basis
     _why_mem = memory_refusal(_mutants_bytes, _workers, _avail or 0) if _mutants_bytes > 0 and _fit < 1 else None
@@ -557,8 +593,13 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         # NOT an `error`: the caller must be able to tell "could not measure this" from "tried and
         # broke". A run that starts and gets reaped by the watchdog reports nothing at all AND takes
         # other sessions' gates with it, so the refusal is the cheaper outcome by a wide margin.
-        return {**plan, "refused_memory": _why_mem, "mutants_bytes": _mutants_bytes,
-                "workers": _workers, "available_bytes": _avail}
+        return {
+            **plan,
+            "refused_memory": _why_mem,
+            "mutants_bytes": _mutants_bytes,
+            "workers": _workers,
+            "available_bytes": _avail,
+        }
 
     t0 = time.monotonic()
     # ⚠️ A CAP THAT IS HIT MUST STILL PRODUCE A MEASUREMENT. Before this, `timeout=` raised
@@ -575,10 +616,15 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     timed_out, rc, buf = False, None, []
     # `--max-children` rather than mutmut's default of `os.cpu_count()`: the worker count is a MEMORY
     # decision, and it bounds GENERATION too (`create_mutants` uses the same pool).
-    proc = subprocess.Popen([str(VENV_PY), "-m", "mutmut", "run", "--max-children", str(_workers),
-                             only or f"{stem}.*"],
-                            cwd=work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            text=True, env=env, bufsize=1)
+    proc = subprocess.Popen(
+        [str(VENV_PY), "-m", "mutmut", "run", "--max-children", str(_workers), only or f"{stem}.*"],
+        cwd=work,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=env,
+        bufsize=1,
+    )
     # A PROGRESS FILE, not just a stream. Streaming to stderr only helps someone watching a terminal;
     # a run launched in the background surfaces nothing until it exits, so a 26-minute cpap_harvest run
     # is silent to the caller either way. This file is rewritten on every verdict so anyone — a person,
@@ -596,7 +642,7 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # created with stdout=PIPE. Asserting states that rather than guarding a case that cannot arise.
     assert proc.stdout is not None
 
-    def _on_line(line: str) -> None:                   # line-buffered; mutmut rewrites one status line
+    def _on_line(line: str) -> None:  # line-buffered; mutmut rewrites one status line
         buf.append(line)
         sys.stderr.write(line)
         sys.stderr.flush()
@@ -620,8 +666,12 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         if "Generating mutants" in line:
             _beat(f"generating mutants  {time.monotonic() - t0:.0f}s elapsed  (no verdicts yet)")
             return
-        for mark, key in (("\N{PARTY POPPER}", "killed"), ("\N{DOTTED LINE FACE}", "survived"),
-                          ("\N{ALARM CLOCK}", "timeout"), ("\N{SLIGHTLY FROWNING FACE}", "survived")):
+        for mark, key in (
+            ("\N{PARTY POPPER}", "killed"),
+            ("\N{DOTTED LINE FACE}", "survived"),
+            ("\N{ALARM CLOCK}", "timeout"),
+            ("\N{SLIGHTLY FROWNING FACE}", "survived"),
+        ):
             if mark in line:
                 mid = re.search(r"[\w.]+__mutmut_\d+", line)
                 if not mid or mid.group(0) in seen_ids:
@@ -631,8 +681,10 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
                 seen["n"] += 1
                 el = time.monotonic() - t0
                 rate = seen["n"] / el if el > 0 else 0
-                _beat(f"{seen['n']} mutants  {el:.0f}s elapsed  {rate:.1f}/s  "
-                      f"killed={seen['killed']} survived={seen['survived']} timeout={seen['timeout']}")
+                _beat(
+                    f"{seen['n']} mutants  {el:.0f}s elapsed  {rate:.1f}/s  "
+                    f"killed={seen['killed']} survived={seen['survived']} timeout={seen['timeout']}"
+                )
                 break
 
     # THE CAP IS ENFORCED HERE, NOT BY THE READ. Draining `proc.stdout` inline and only then calling
@@ -644,13 +696,15 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # (NOT_RUN — nothing was examined), and #3202 was the second wearing the first's clothes.
     _gen_cap = generation_cap_sec(cap)
     rc, timed_out, gen_timed_out = stream_bounded(
-        proc, cap, _on_line, t0=t0, phase_cap_sec=_gen_cap, phase_done=lambda: bool(_gen_done))
+        proc, cap, _on_line, t0=t0, phase_cap_sec=_gen_cap, phase_done=lambda: bool(_gen_done)
+    )
     if proc.stdout:
         proc.stdout.close()
     tail = "".join(buf)[-2000:]
     elapsed = time.monotonic() - t0
-    res = subprocess.run([str(VENV_PY), "-m", "mutmut", "results"],
-                         cwd=work, capture_output=True, text=True, env=env, timeout=300)
+    res = subprocess.run(
+        [str(VENV_PY), "-m", "mutmut", "results"], cwd=work, capture_output=True, text=True, env=env, timeout=300
+    )
     # ⚠️ THE SCRATCH ID IS PART OF THE RESULT, because MUTANT IDS ARE ONLY COMPARABLE WITHIN ONE
     # GENERATION. mutmut numbers mutants positionally per function, so `x_f__mutmut_34` in one scratch
     # and another are the same NAME and not necessarily the same MUTATION. Diffing survivor sets across
@@ -658,10 +712,19 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # run_polar that did not exist — the baseline scratch had been deleted by this tool's own pruning
     # and the comparison was against a different generation. Record it so a reader can check, and warn
     # loudly when a prune destroyed something a previous run may have measured against.
-    out = {**plan, "rc": rc, "elapsed_sec": round(elapsed, 1), "timed_out": timed_out,
-           "scratch_id": scratch.name, "mutant_generation": src_hash,
-           "generation_finished": bool(_gen_done), "generation_cap_sec": round(_gen_cap, 1),
-           "results": res.stdout, "tail": tail, "work": str(work)}
+    out = {
+        **plan,
+        "rc": rc,
+        "elapsed_sec": round(elapsed, 1),
+        "timed_out": timed_out,
+        "scratch_id": scratch.name,
+        "mutant_generation": src_hash,
+        "generation_finished": bool(_gen_done),
+        "generation_cap_sec": round(_gen_cap, 1),
+        "results": res.stdout,
+        "tail": tail,
+        "work": str(work),
+    }
     # REMEMBER THE SIZE, so the NEXT run on this module can refuse before generating rather than after.
     # A measurement carried forward, never a projection from the source: the note is keyed to the scratch,
     # which is keyed to the module's source hash, so a source change cannot inherit a stale size.
@@ -681,10 +744,13 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         out["WARNING"] = (
             f"pruned {len(plan['pruned_scratches'])} older scratch(es) for this module: "
             f"{plan['pruned_scratches']}. Survivor IDs from those runs are NOT comparable with this "
-            f"one — mutant numbering is positional per generation. Re-measure the baseline.")
+            f"one — mutant numbering is positional per generation. Re-measure the baseline."
+        )
     if timed_out:
-        out["partial"] = ("PARTIAL — the cap was hit, so the counts below cover only the mutants that "
-                          "finished. Do not read an unrun mutant as a survivor.")
+        out["partial"] = (
+            "PARTIAL — the cap was hit, so the counts below cover only the mutants that "
+            "finished. Do not read an unrun mutant as a survivor."
+        )
     return out
 
 
@@ -694,19 +760,29 @@ def main(argv=None) -> int:
     ap.add_argument("--list", action="store_true", help="list mutatable modules and their test files")
     ap.add_argument("--only", default=None, help="mutant-name glob, e.g. 'capture.x__now__*'")
     ap.add_argument("--tests", default=None, help="comma-separated test files, overriding the heuristic")
-    ap.add_argument("--timeout", type=int, default=None,
-                    help="seconds per module; default is DERIVED from the module's own clean run "
-                         "(300x, floor 1800) instead of a flat number that fits nothing")
-    ap.add_argument("--budget", type=int, default=0,
-                    help="skip a module whose clean run exceeds this many seconds, loudly")
-    ap.add_argument("--no-reuse", action="store_true",
-                    help="rebuild the scratch even when the module's mutants are still valid")
-    ap.add_argument("--estimate", action="store_true",
-                    help="time the clean run and print what the module will cost, then stop")
-    ap.add_argument("--record-sizes", action="store_true",
-                    help=f"merge each run's generated-mutants size into tools/{SIZES_FILE}, the committed "
-                         f"record CI reads on its always-fresh scratch. Off by default, so an ordinary "
-                         f"run never dirties the tree")
+    ap.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        help="seconds per module; default is DERIVED from the module's own clean run "
+        "(300x, floor 1800) instead of a flat number that fits nothing",
+    )
+    ap.add_argument(
+        "--budget", type=int, default=0, help="skip a module whose clean run exceeds this many seconds, loudly"
+    )
+    ap.add_argument(
+        "--no-reuse", action="store_true", help="rebuild the scratch even when the module's mutants are still valid"
+    )
+    ap.add_argument(
+        "--estimate", action="store_true", help="time the clean run and print what the module will cost, then stop"
+    )
+    ap.add_argument(
+        "--record-sizes",
+        action="store_true",
+        help=f"merge each run's generated-mutants size into tools/{SIZES_FILE}, the committed "
+        f"record CI reads on its always-fresh scratch. Off by default, so an ordinary "
+        f"run never dirties the tree",
+    )
     a = ap.parse_args(argv)
     if a.list:
         for m in modules():
@@ -716,9 +792,15 @@ def main(argv=None) -> int:
     skipped = 0
     for m in targets:
         print(f"\n=== {m} ===", flush=True)
-        r = run_one(m, only=a.only, timeout=a.timeout, budget=a.budget, estimate_only=a.estimate,
-                    reuse=not a.no_reuse,
-                    tests_override=[x.strip() for x in a.tests.split(",")] if a.tests else None)
+        r = run_one(
+            m,
+            only=a.only,
+            timeout=a.timeout,
+            budget=a.budget,
+            estimate_only=a.estimate,
+            reuse=not a.no_reuse,
+            tests_override=[x.strip() for x in a.tests.split(",")] if a.tests else None,
+        )
         if r.get("skipped"):
             skipped += 1
         if a.record_sizes and r.get("mutants_bytes") and r.get("mutant_generation"):
@@ -726,11 +808,21 @@ def main(argv=None) -> int:
             # tree. The measurement is whatever the generator actually wrote, keyed to the source hash
             # this run generated FROM — never carried across hashes.
             _sf = HERE / "tools" / SIZES_FILE
-            _sf.write_text(merge_mutants_size(
-                _sf.read_text(encoding="utf-8") if _sf.exists() else "",
-                m, r["mutant_generation"], r["mutants_bytes"],
-                time.strftime("%Y-%m-%d"), platform.node()), encoding="utf-8")
-            print(f"  recorded {r['mutants_bytes']} bytes for {m}@{r['mutant_generation']} in tools/{SIZES_FILE}", flush=True)
+            _sf.write_text(
+                merge_mutants_size(
+                    _sf.read_text(encoding="utf-8") if _sf.exists() else "",
+                    m,
+                    r["mutant_generation"],
+                    r["mutants_bytes"],
+                    time.strftime("%Y-%m-%d"),
+                    platform.node(),
+                ),
+                encoding="utf-8",
+            )
+            print(
+                f"  recorded {r['mutants_bytes']} bytes for {m}@{r['mutant_generation']} in tools/{SIZES_FILE}",
+                flush=True,
+            )
         # ⚠️ THE VERDICT FIELDS COME FIRST AND ARE NEVER TRUNCATED. This used to be a flat
         # `json.dumps(...)[:1600]`, and on capture.py — whose plan lists 95 test files — the 1600 chars
         # were spent on the test list, so `rc`, `elapsed_sec` and `timed_out` were CUT OFF ENTIRELY.
@@ -740,11 +832,29 @@ def main(argv=None) -> int:
         # bulky plan, and the truncation only ever eats the tail.
         # The estimate fields belong here too: `--estimate` has no rc, so listing only run fields left
         # a useless `{"module": ...}` at the top and demoted the numbers the flag exists to print.
-        verdict = {k: r[k] for k in ("module", "rc", "elapsed_sec", "timed_out", "partial",
-                                     "skipped", "error", "estimate_only", "clean_run_sec",
-                                     "timeout_sec", "derived", "advice", "reused_scratch",
-                                     "scratch_id", "mutant_generation", "WARNING",
-                                     "work") if k in r}
+        verdict = {
+            k: r[k]
+            for k in (
+                "module",
+                "rc",
+                "elapsed_sec",
+                "timed_out",
+                "partial",
+                "skipped",
+                "error",
+                "estimate_only",
+                "clean_run_sec",
+                "timeout_sec",
+                "derived",
+                "advice",
+                "reused_scratch",
+                "scratch_id",
+                "mutant_generation",
+                "WARNING",
+                "work",
+            )
+            if k in r
+        }
         print(json.dumps(verdict, indent=2), flush=True)
         rest = {k: v for k, v in r.items() if k not in verdict and k != "results"}
         if rest:

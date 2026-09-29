@@ -7,6 +7,7 @@ archiving by rsync had NO gate — `keep_nights > 0` pruned by age while the ver
 unread; (2) `rsync_argv` sent a night's CONTENTS into `share/` itself, so every night would have
 flattened into one directory; (3) `include_subtrees` was honoured by the mount form and ignored by the
 transfer form. Every gate here FAILS SAFE: unreachable means protect everything, never assume archived."""
+
 import datetime as _dt
 import logging
 import os
@@ -15,8 +16,13 @@ import capture
 import storage_targets as st
 from test_capture_runners import _clean_stop, _run, _stop_after  # noqa: F401 — autouse fixture: resets _STOP/STATUS per test
 
-RSYNC = {"protocol": "rsync", "host": "192.168.0.142", "user": "truenas_admin",
-         "share": "/mnt/Storage10TB/vigil-archive/captures", "identity": "/var/lib/tepna/keys/id_ed25519_nas"}
+RSYNC = {
+    "protocol": "rsync",
+    "host": "192.168.0.142",
+    "user": "truenas_admin",
+    "share": "/mnt/Storage10TB/vigil-archive/captures",
+    "identity": "/var/lib/tepna/keys/id_ed25519_nas",
+}
 
 
 def _target():
@@ -27,8 +33,9 @@ def _target():
 def test_rsync_argv_puts_the_night_under_share_slash_night_not_flat_into_share():
     argv = st.rsync_argv("/srv/tepna/captures/2026-09-15", _target())
     assert argv[-2] == "/srv/tepna/captures/2026-09-15/", "contents of the night…"
-    assert argv[-1] == "truenas_admin@192.168.0.142:/mnt/Storage10TB/vigil-archive/captures/2026-09-15/", \
+    assert argv[-1] == "truenas_admin@192.168.0.142:/mnt/Storage10TB/vigil-archive/captures/2026-09-15/", (
         "…into share/<night>/ — never share/ itself"
+    )
     # a trailing slash on the source is tolerated and does not eat the name
     assert st.rsync_argv("/srv/tepna/captures/2026-09-15/", _target())[-1].endswith("/2026-09-15/")
     # the same shape carries a subtree
@@ -39,9 +46,11 @@ def test_rsync_argv_puts_the_night_under_share_slash_night_not_flat_into_share()
 def _patch_run(monkeypatch, results):
     """`results`: list of (rc, out) consumed in order; records the argv of each call."""
     calls = []
+
     async def fake_run(argv, timeout):
         calls.append(argv)
         return results.pop(0)
+
     monkeypatch.setattr(st, "_run", fake_run)
     return calls
 
@@ -68,11 +77,14 @@ def test_confirm_night_link_failures_are_unreachable_and_unconfirmed(monkeypatch
 def test_confirm_nights_stops_at_the_first_link_failure_and_protects_the_rest(tmp_path, monkeypatch):
     for n in ("2026-09-13", "2026-09-14", "2026-09-15", "2026-09-16"):
         os.makedirs(str(tmp_path / n))
-    calls = _patch_run(monkeypatch, [
-        (0, "sent 1 bytes\n"),                                  # 09-13 confirmed
-        (0, ">f+++++++++ x.txt\n"),                             # 09-14 pending → unconfirmed
-        (255, "ssh: connection refused"),                       # 09-15 link dead → stop
-    ])
+    calls = _patch_run(
+        monkeypatch,
+        [
+            (0, "sent 1 bytes\n"),  # 09-13 confirmed
+            (0, ">f+++++++++ x.txt\n"),  # 09-14 pending → unconfirmed
+            (255, "ssh: connection refused"),  # 09-15 link dead → stop
+        ],
+    )
     out = _run(st.confirm_nights(str(tmp_path), ["2026-09-13", "2026-09-14", "2026-09-15", "2026-09-16"], _target()))
     assert out == {"2026-09-14", "2026-09-15", "2026-09-16"}, "09-16 protected without being asked"
     assert len(calls) == 3
@@ -100,8 +112,10 @@ def _nights(tmp_path, names, marked=()):
 
 
 def _cfg(keep=1):
-    return {"storage": {"keep_nights": keep, "min_free_gb": 0, "poll_sec": 1},
-            "archive": {"enabled": True, "target": RSYNC}}
+    return {
+        "storage": {"keep_nights": keep, "min_free_gb": 0, "poll_sec": 1},
+        "archive": {"enabled": True, "target": RSYNC},
+    }
 
 
 def test_a_transfer_target_GATES_retention_on_the_remote_not_on_age(tmp_path, monkeypatch, caplog):
@@ -111,9 +125,11 @@ def test_a_transfer_target_GATES_retention_on_the_remote_not_on_age(tmp_path, mo
     cap = _nights(tmp_path, ("2026-07-01", "2026-07-02", "2026-07-03"), marked=("2026-07-02",))
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 4, 22, 0, 0))
     asked = []
+
     async def fake_confirm(captures, nights, target, timeout=300.0):
         asked.append(list(nights))
-        return set(nights)                                   # remote holds none of them
+        return set(nights)  # remote holds none of them
+
     monkeypatch.setattr(capture.storage_targets, "confirm_nights", fake_confirm)
     _stop_after(monkeypatch, 1)
     with caplog.at_level("WARNING"):
@@ -129,8 +145,10 @@ def test_a_transfer_target_GATES_retention_on_the_remote_not_on_age(tmp_path, mo
 def test_a_transfer_target_RELEASES_a_night_the_remote_confirms(tmp_path, monkeypatch):
     cap = _nights(tmp_path, ("2026-07-01", "2026-07-02", "2026-07-03"), marked=("2026-07-01", "2026-07-02"))
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 4, 22, 0, 0))
+
     async def fake_confirm(captures, nights, target, timeout=300.0):
-        return {"2026-07-02"}                                # 07-01 held on the NAS, 07-02 not
+        return {"2026-07-02"}  # 07-01 held on the NAS, 07-02 not
+
     monkeypatch.setattr(capture.storage_targets, "confirm_nights", fake_confirm)
     _stop_after(monkeypatch, 1)
     _run(capture.storage_poller(_cfg(), str(tmp_path)))
@@ -143,8 +161,10 @@ def test_an_unreachable_nas_protects_EVERY_night_end_to_end(tmp_path, monkeypatc
     link. The 2026-07-25 shape: markers present, second copy unreachable ⇒ nothing is deleted."""
     cap = _nights(tmp_path, ("2026-07-01", "2026-07-02", "2026-07-03"), marked=("2026-07-01", "2026-07-02"))
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 4, 22, 0, 0))
+
     async def dead(argv, timeout):
         return 255, "ssh: connect to host 192.168.0.142 port 22: No route to host"
+
     monkeypatch.setattr(st, "_run", dead)
     _stop_after(monkeypatch, 1)
     _run(capture.storage_poller(_cfg(), str(tmp_path)))
@@ -156,8 +176,10 @@ def test_an_unreachable_nas_protects_EVERY_night_end_to_end(tmp_path, monkeypatc
 def test_a_transfer_target_with_retention_OFF_asks_nothing(tmp_path, monkeypatch):
     _nights(tmp_path, ("2026-07-01",), marked=("2026-07-01",))
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 4, 22, 0, 0))
+
     async def boom(*a, **k):
         raise AssertionError("no ssh while keep_nights is 0")
+
     monkeypatch.setattr(capture.storage_targets, "confirm_nights", boom)
     _stop_after(monkeypatch, 1)
     _run(capture.storage_poller(_cfg(keep=0), str(tmp_path)))
@@ -172,8 +194,10 @@ def test_a_non_rsync_target_is_not_an_archive_for_the_gate(tmp_path, monkeypatch
     _nights(tmp_path, ("2026-07-01", "2026-07-02"), marked=("2026-07-01",))
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 4, 22, 0, 0))
     _stop_after(monkeypatch, 1)
-    cfg = {"storage": {"keep_nights": 0, "min_free_gb": 0, "poll_sec": 1},
-           "archive": {"enabled": True, "target": {"protocol": "webdav", "host": "nas.local", "share": "/dav"}}}
+    cfg = {
+        "storage": {"keep_nights": 0, "min_free_gb": 0, "poll_sec": 1},
+        "archive": {"enabled": True, "target": {"protocol": "webdav", "host": "nas.local", "share": "/dav"}},
+    }
     _run(capture.storage_poller(cfg, str(tmp_path)))
     assert capture.STATUS["storage"]["uncovered"] == [], "reporter off: archive_enabled is False for it"
 
@@ -186,14 +210,21 @@ def test_archive_transfer_pushes_include_subtrees_after_the_nights_and_never_inc
         with open(str(cap / d / "f"), "w") as fh:
             fh.write("x")
     pushed = []
+
     async def fake_push(src, target, timeout=1800.0):
         pushed.append(os.path.basename(src))
         return {"ok": True, "verified": True, "detail": "copied and verified byte-for-byte"}
+
     monkeypatch.setattr(capture.storage_targets, "push_night", fake_push)
     monkeypatch.setattr(capture.diskguard, "active_nights", lambda captures, settle: set())
-    _run(capture._archive_transfer(str(cap), _target(), 0.0, {"mode": "after_settle"},
-                                   ["stored", "cpap", "incoming", "absent"]))
-    assert pushed == ["2026-07-01", "stored", "cpap"], "nights first, then the named subtrees; incoming refused, absent skipped"
+    _run(
+        capture._archive_transfer(
+            str(cap), _target(), 0.0, {"mode": "after_settle"}, ["stored", "cpap", "incoming", "absent"]
+        )
+    )
+    assert pushed == ["2026-07-01", "stored", "cpap"], (
+        "nights first, then the named subtrees; incoming refused, absent skipped"
+    )
     assert os.path.exists(str(cap / "2026-07-01" / ".archived"))
     assert capture.STATUS["archive"]["subtrees"]["stored"]["verified"] is True
     assert not os.path.exists(str(cap / "stored" / ".archived")), "no marker on a growing tree"
@@ -204,9 +235,11 @@ def test_archive_transfer_stops_at_the_first_failing_subtree(tmp_path, monkeypat
     for d in ("stored", "cpap"):
         os.makedirs(str(cap / d))
     pushed = []
+
     async def fake_push(src, target, timeout=1800.0):
         pushed.append(os.path.basename(src))
         return {"ok": False, "verified": False, "detail": "rsync exit 255"}
+
     monkeypatch.setattr(capture.storage_targets, "push_night", fake_push)
     monkeypatch.setattr(capture.diskguard, "active_nights", lambda captures, settle: set())
     with caplog.at_level("WARNING"):
@@ -217,14 +250,20 @@ def test_archive_transfer_stops_at_the_first_failing_subtree(tmp_path, monkeypat
 
 def test_archive_poller_hands_the_subtrees_to_the_transfer(tmp_path, monkeypatch):
     got = {}
+
     async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         got["subtrees"] = list(subtrees)
         capture._STOP.set()
+
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
+
     async def no_sleep(_s):
         pass
+
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
-    cfg = {"archive": {"enabled": True, "target": dict(RSYNC), "include_subtrees": ["stored"]}}   # config-authored: no `kind`
+    cfg = {
+        "archive": {"enabled": True, "target": dict(RSYNC), "include_subtrees": ["stored"]}
+    }  # config-authored: no `kind`
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert got["subtrees"] == ["stored"]
 
@@ -238,9 +277,12 @@ def _poller_once(monkeypatch, cfg, caplog, tmp_path):
     async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         got["target"] = target
         capture._STOP.set()
+
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
+
     async def no_sleep(_s):
         pass
+
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
     with caplog.at_level(logging.INFO, logger=capture.log.name):
         _run(capture.archive_poller(cfg, str(tmp_path)))

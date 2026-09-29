@@ -170,6 +170,7 @@ def test_a_FAILING_scan_does_not_cost_the_watchdog_its_poll(monkeypatch, caplog)
     capture._STOP.clear()
     assert len(explosions) == 2, "the scan must have been reached on BOTH polls"
     assert len(probes) == 2, f"expected a BlueZ probe per poll (2), got {len(probes)}: the watchdog lost a poll"
-    failures = [r for r in caplog.records
-                if "radio distress scan failed; the watchdog itself is unaffected" in r.getMessage()]
+    failures = [
+        r for r in caplog.records if "radio distress scan failed; the watchdog itself is unaffected" in r.getMessage()
+    ]
     assert len(failures) == 2, [r.getMessage() for r in caplog.records]

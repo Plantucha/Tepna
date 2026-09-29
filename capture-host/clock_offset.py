@@ -58,7 +58,7 @@ install on a Pi-class capture host.
 """
 
 # The refusal thresholds. Each mirrors an existing house constant rather than inventing a number.
-MIN_POINTS = 100          # as `writers.PmdArrivalLogWriter.floor_ms` — too few to have an edge at all
+MIN_POINTS = 100  # as `writers.PmdArrivalLogWriter.floor_ms` — too few to have an edge at all
 # ⚠️ 3600, NOT 2400, AND THE DIFFERENCE IS THE WHOLE POINT. This line used to read 2400 "as
 # `ecgdex-dsp.js` span-gates its fs correction" — borrowing a CORRECTION-APPLICATION threshold to
 # decide a PUBLICATION question. `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-2026-08-14-BRIEF.md` §517 separates
@@ -73,10 +73,10 @@ MIN_POINTS = 100          # as `writers.PmdArrivalLogWriter.floor_ms` — too fe
 # ⚠️ ecgdex-dsp.js's own 2400 is NOT changed and must not be: §517 measured it net-beneficial where it
 # stands (82 % of truncations helped, median error 8.41 ppm against 22.27 uncorrected). Two questions,
 # two thresholds, both right — the defect was one number doing both jobs.
-SPAN_MIN_SEC = 3600.0     # RESOLVABILITY floor (publication), not the correction-application floor
-MAX_PPM = 50000.0         # as `CK_AXIS_MAX_PPM` (Clock Contract §7) — beyond 5% these are not two clocks
-PAXSON_SUBSETS = 20       # with MIN_POINTS=100 that is >=5 points per subset minimum
-AGREE_MAX_MS = 10.0       # the precision PAT needs. NOT a claim about what the estimators achieve.
+SPAN_MIN_SEC = 3600.0  # RESOLVABILITY floor (publication), not the correction-application floor
+MAX_PPM = 50000.0  # as `CK_AXIS_MAX_PPM` (Clock Contract §7) — beyond 5% these are not two clocks
+PAXSON_SUBSETS = 20  # with MIN_POINTS=100 that is >=5 points per subset minimum
+AGREE_MAX_MS = 10.0  # the precision PAT needs. NOT a claim about what the estimators achieve.
 
 
 def _clean(points):
@@ -90,8 +90,8 @@ def _clean(points):
         try:
             tf, df = float(t), float(d)
         except (TypeError, ValueError):
-            continue   # a pair that will not parse cannot constrain a FIT; the estimator reports
-                       # the n it actually used, so dropping it narrows the claim, not the truth
+            continue  # a pair that will not parse cannot constrain a FIT; the estimator reports
+            # the n it actually used, so dropping it narrows the claim, not the truth
         if tf == tf and df == df and abs(tf) != float("inf") and abs(df) != float("inf"):
             out.append((tf, df))
     out.sort()
@@ -106,7 +106,7 @@ def _floor_by_t(pts):
     the caller keeps `n` and `sum_t` over the ORIGINAL set and passes them in separately.
     """
     out = []
-    for t, d in pts:                      # pts is sorted, so equal t are adjacent
+    for t, d in pts:  # pts is sorted, so equal t are adjacent
         if out and out[-1][0] == t:
             if d < out[-1][1]:
                 out[-1] = (t, d)
@@ -190,7 +190,7 @@ def paxson(pts, n_subsets=PAXSON_SUBSETS):
         hi = ((i + 1) * len(pts)) // k
         chunk = pts[lo:hi]
         if not chunk:
-            continue                       # an empty stripe when k > len(pts) cannot contribute a minimum
+            continue  # an empty stripe when k > len(pts) cannot contribute a minimum
         mins.append(min(chunk, key=lambda p: p[1]))
     slopes = [
         (mins[j][1] - mins[i][1]) / (mins[j][0] - mins[i][0])
@@ -262,7 +262,7 @@ def estimate(points):
     if env is None or pax is None:
         return {"ok": False, "reason": "no-span", "n": n}
 
-    ppm = env[0] * 1000.0                  # ms per s -> parts per million
+    ppm = env[0] * 1000.0  # ms per s -> parts per million
     if abs(ppm) > MAX_PPM:
         # Past 5% these two columns are not the two clocks we think they are — a misparse, a unit
         # mismatch, a shifted column. Correcting by that much fabricates a timebase. Refuse, as
@@ -277,8 +277,13 @@ def estimate(points):
     # published `offset_ms: null` beside `offset_envelope_ms: 843790201937.193`. Refusing on the
     # certified field alone would have left that one standing.
     if abs(off_env) > CLOCK_IMPLAUSIBLE_S * 1000.0 or abs(off_pax) > CLOCK_IMPLAUSIBLE_S * 1000.0:
-        return {"ok": False, "reason": "implausible-offset", "n": n,
-                "offset_envelope_ms": round(off_env, 3), "offset_paxson_ms": round(off_pax, 3)}
+        return {
+            "ok": False,
+            "reason": "implausible-offset",
+            "n": n,
+            "offset_envelope_ms": round(off_env, 3),
+            "offset_paxson_ms": round(off_pax, 3),
+        }
     agree = abs(off_env - off_pax)
     certified = bool(agree <= AGREE_MAX_MS)
     return {

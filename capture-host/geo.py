@@ -32,6 +32,7 @@ False, so `lat`/`lon` are dropped after the elevation is derived from the same s
 SCOPE: NMEA only, read-only. This module never writes to the receiver — no UBX configuration, no baud
 changes, no resets. A receiver shared with something else (a GPSDO, a radio) keeps working.
 """
+
 from __future__ import annotations
 
 import logging
@@ -181,6 +182,7 @@ def read_nmea(port: str, baud: int = 38400, seconds: float = 5.0, _serial=None) 
             return []
         mod = _s
     import time as _t
+
     lines = []
     try:
         with mod.Serial(port, baud, timeout=1.0) as sp:
@@ -190,8 +192,7 @@ def read_nmea(port: str, baud: int = 38400, seconds: float = 5.0, _serial=None) 
                 if raw:
                     lines.append(raw.decode("ascii", "replace").strip())
     except Exception as exc:  # noqa: BLE001 — see the docstring: every failure is the same answer
-        log.warning("geo: no usable GNSS on %s (%s) — elevation absent, capture unaffected",
-                    port, type(exc).__name__)
+        log.warning("geo: no usable GNSS on %s (%s) — elevation absent, capture unaffected", port, type(exc).__name__)
         return []
     return lines
 
@@ -214,6 +215,11 @@ def session_elevation(cfg, _reader=read_nmea) -> dict | None:
     if geo is None:
         log.info("geo: no usable fix on %s — elevation absent for this session (not 0 m)", port)
     else:
-        log.info("geo: elevation %.1f m (quality %s, %s sats, HDOP %s)",
-                 geo["elevation_m"], geo["fix_quality"], geo["sats"], geo["hdop"])
+        log.info(
+            "geo: elevation %.1f m (quality %s, %s sats, HDOP %s)",
+            geo["elevation_m"],
+            geo["fix_quality"],
+            geo["sats"],
+            geo["hdop"],
+        )
     return geo

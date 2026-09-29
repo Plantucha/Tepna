@@ -28,10 +28,10 @@ class FrameKind(Enum):
     DATA_INVALID). The audit's G4: today a foreign-streamId frame is silently `continue`d — here it is
     counted so a stream carrying another stream's data is VISIBLE, not swallowed."""
 
-    OK = "ok"                # a StreamData for our streamId with usable channels
-    FOREIGN = "foreign"      # a StreamData whose streamId is not ours (defensive; counted, not silent)
+    OK = "ok"  # a StreamData for our streamId with usable channels
+    FOREIGN = "foreign"  # a StreamData whose streamId is not ours (defensive; counted, not silent)
     MALFORMED = "malformed"  # not a StreamData, or missing the fields a batch needs
-    EVENT = "event"          # an EventNotification (SubscribeEvent push) — routed to the recorder, counted here
+    EVENT = "event"  # an EventNotification (SubscribeEvent push) — routed to the recorder, counted here
     NOTIFICATION = "notification"  # any OTHER JSON-RPC notification (the device's periodic HeartBeat) — not a loss
 
 
@@ -84,12 +84,12 @@ class GapCounters:
     is TELEMETRY — it must never enter a ganglior.node-export as a metric or carry an evidence badge as a
     health measurement (the writers.LinkLogWriter discipline)."""
 
-    frames_ok: int = 0          # OK StreamData frames accepted
-    samples_ok: int = 0         # total samples pushed from OK frames
-    foreign_stream: int = 0     # frames for another streamId (G4 — was silently dropped)
-    malformed: int = 0          # non-StreamData / empty / non-dict frames past the read loop
-    events: int = 0             # EventNotification frames (SubscribeEvent pushes) — routed, not lost
-    notifications: int = 0      # other JSON-RPC notifications (HeartBeat) — expected ~frames_ok/150, not lost
+    frames_ok: int = 0  # OK StreamData frames accepted
+    samples_ok: int = 0  # total samples pushed from OK frames
+    foreign_stream: int = 0  # frames for another streamId (G4 — was silently dropped)
+    malformed: int = 0  # non-StreamData / empty / non-dict frames past the read loop
+    events: int = 0  # EventNotification frames (SubscribeEvent pushes) — routed, not lost
+    notifications: int = 0  # other JSON-RPC notifications (HeartBeat) — expected ~frames_ok/150, not lost
     # THE COST AXIS (WU4/Unit 2, 2026-09-19). What the link carried, so that adding a dataId is a measured
     # marginal — `bytes_json / frames_ok` before vs after — and never a preference. `bytes_wire` is the
     # FIG payload as received (the AES-CBC body: IV + padded ciphertext), `bytes_json` the decrypted
@@ -98,13 +98,13 @@ class GapCounters:
     # logs — it is not counted here because this layer cannot see it.
     bytes_wire: int = 0
     bytes_json: int = 0
-    overflow: int = 0           # frames dropped because the bounded queue was full (G5)
+    overflow: int = 0  # frames dropped because the bounded queue was full (G5)
     # ⚠️ None, NOT 0 — these two have NO DETECTOR, and `0` is a measurement they have not made (§∅).
     # Measured 2026-09-18: nothing anywhere increments either one. A reader of `0` concludes no stall and
     # no post-drop tail occurred; the truth is that neither is looked for. A missing field is visible and
     # a zero is not, which is why the fields stay and the VALUE carries the absence.
-    stalls: "int | None" = None            # no-frame-for-timeout stalls (spec §30 STREAM_STALL) — UNMEASURED
-    post_drop_tail: "int | None" = None    # frames after a logical link drop (audit §7.3, the ~230 ms tail) — UNMEASURED
+    stalls: "int | None" = None  # no-frame-for-timeout stalls (spec §30 STREAM_STALL) — UNMEASURED
+    post_drop_tail: "int | None" = None  # frames after a logical link drop (audit §7.3, the ~230 ms tail) — UNMEASURED
     # HOW LONG A SINK WRITE HELD THE LOOP. `stream_to_bus` is a single sequential `async for` — producer
     # and consumer are the same coroutine — so a slow sink stops the loop pulling frames. Measured
     # 2026-09-18: the loop stalls 10-35x/day, median 1502 ms, and 121 of 151 logged stalls fall inside a
@@ -116,9 +116,9 @@ class GapCounters:
     # "timed, and it was fast"; None means no sink write was timed at all (no `extra_sinks` on this
     # stream). That distinction is the `int(summary.get(k) or 0)` defect this module already carries a
     # fix for, and it would be trivially reintroduced by defaulting these to 0.
-    sink_max_ms: "float | None" = None    # slowest single sink write, ms — None until one is timed
-    sink_slow: "int | None" = None        # sink writes at or over SINK_SLOW_MS — None until one is timed
-    sink_errors: int = 0        # durable-record write failures (INV9): the batch reached the bus but a
+    sink_max_ms: "float | None" = None  # slowest single sink write, ms — None until one is timed
+    sink_slow: "int | None" = None  # sink writes at or over SINK_SLOW_MS — None until one is timed
+    sink_errors: int = 0  # durable-record write failures (INV9): the batch reached the bus but a
     #                             sink write raised. A DISTINCT class — its consumer is restart
     #                             reconciliation, not stream-loss accounting — so it is NOT in total_lost.
 

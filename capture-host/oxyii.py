@@ -18,8 +18,8 @@ from enum import Enum
 from typing import Any, NamedTuple
 
 OXYII_SERVICE = "e8fb0001-a14b-98f9-831b-4e2941d01248"
-OXYII_WRITE   = "e8fb0002-a14b-98f9-831b-4e2941d01248"   # write-without-response
-OXYII_NOTIFY  = "e8fb0003-a14b-98f9-831b-4e2941d01248"   # notify
+OXYII_WRITE = "e8fb0002-a14b-98f9-831b-4e2941d01248"  # write-without-response
+OXYII_NOTIFY = "e8fb0003-a14b-98f9-831b-4e2941d01248"  # notify
 OP_AUTH, OP_SETUP, OP_LIVE, OP_SET_TIME = 0xFF, 0x10, 0x04, 0xC0
 
 # Largest declared payload the reassembler will believe. Deliberately loose rather than tight: the live
@@ -28,7 +28,7 @@ OP_AUTH, OP_SETUP, OP_LIVE, OP_SET_TIME = 0xFF, 0x10, 0x04, 0xC0
 # .dat transfer outright if a firmware ever negotiated the 517 MTU. 2048 cannot be reached by a genuine
 # frame, still caps a mis-framed stream's damage at ~2 KB instead of ~64 KB, and cannot regress the pull.
 MAX_FRAME_LEN = 2048
-_LEPU = hashlib.md5(b"lepucloud").digest()   # protocol salt (MD5 of the literal ASCII "lepucloud")
+_LEPU = hashlib.md5(b"lepucloud").digest()  # protocol salt (MD5 of the literal ASCII "lepucloud")
 
 
 def crc8(data: bytes) -> int:
@@ -83,7 +83,8 @@ def auth_payload(serial: str = "0000", ts: int | None = None) -> bytes:
 def auth_frame(serial: str = "0000") -> bytes:
     return encode(OP_AUTH, auth_payload(serial))
 
-OP_RT_ACC = 0x14          # device-PUSHED 3-axis accelerometer; enabled via AUTO_RT_SWITCH bit 3
+
+OP_RT_ACC = 0x14  # device-PUSHED 3-axis accelerometer; enabled via AUTO_RT_SWITCH bit 3
 
 # AUTO_RT_SWITCH (0x10) bitfield. This command was recorded as an opaque "setup, payload 00, purpose
 # unknown" by both this project and the public reverse-engineering reference until 2026-09-02; the
@@ -149,12 +150,15 @@ def parse_rt_acc(payload: bytes) -> list[tuple[int, int, int]]:
     out = []
     for i in range(min(n, avail)):
         o = 2 + i * 6
-        out.append((
-            int.from_bytes(payload[o:o + 2], "little", signed=True),
-            int.from_bytes(payload[o + 2:o + 4], "little", signed=True),
-            int.from_bytes(payload[o + 4:o + 6], "little", signed=True),
-        ))
+        out.append(
+            (
+                int.from_bytes(payload[o : o + 2], "little", signed=True),
+                int.from_bytes(payload[o + 2 : o + 4], "little", signed=True),
+                int.from_bytes(payload[o + 4 : o + 6], "little", signed=True),
+            )
+        )
     return out
+
 
 def live_frame() -> bytes:
     return encode(OP_LIVE, b"")
@@ -185,7 +189,7 @@ def tz_tenths(dt) -> int:
     NEGATIVE offset, which is the worse failure — a wrong value that reads as a right one."""
     off = dt.utcoffset() if dt.tzinfo is not None else dt.astimezone().utcoffset()
     sec = int(off.total_seconds())
-    tenths = (abs(sec) * 2 + 360) // 720          # floor(|sec| / 360 + 0.5) — half away from zero
+    tenths = (abs(sec) * 2 + 360) // 720  # floor(|sec| / 360 + 0.5) — half away from zero
     if sec < 0:
         tenths = -tenths
     return max(TZ_TENTHS_MIN, min(TZ_TENTHS_MAX, tenths))
@@ -237,7 +241,7 @@ OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
 # Reaching the PPG store needs different OPCODES, not a different argument.
 OP_PPG_FILE_LIST, OP_PPG_FILE_START = 0x06, 0x07
 OP_PPG_FILE_DATA, OP_PPG_FILE_END = 0x08, 0x09
-OP_GET_CONFIG, OP_GET_INFO, OP_GET_BATTERY = 0x00, 0xE1, 0xE4   # read-only device queries
+OP_GET_CONFIG, OP_GET_INFO, OP_GET_BATTERY = 0x00, 0xE1, 0xE4  # read-only device queries
 # ⚠️ NEVER IMPLEMENT — persistent DESTRUCTIVE writes. Named so the opcodes are not reused:
 #   0xE3 FACTORY_RESET     — wipes settings AND every recording; no settings-only path
 #   0xEE FACTORY_RESET_ALL — powers the ring off, needs USB to wake. DO NOT ISSUE.
@@ -248,11 +252,12 @@ OP_GET_CONFIG, OP_GET_INFO, OP_GET_BATTERY = 0x00, 0xE1, 0xE4   # read-only devi
 # Ref: nglessner/o2ring-s-protocol (this device's OxyII family; frame codec byte-verified against ours,
 # CRC fixture A5 E1 1E 00 02 00 00 -> BF matches encode(0xE1, seq=2)).
 OP_SET_CONFIG = 0x01
-OP_RT_PPG = 0x05          # raw TWO-CHANNEL optical buffer (see parse_rt_ppg + WHICH-IS-WHICH)
+OP_RT_PPG = 0x05  # raw TWO-CHANNEL optical buffer (see parse_rt_ppg + WHICH-IS-WHICH)
 
 
 def file_list_frame(seq: int = 0) -> bytes:
     return encode(OP_FILE_LIST, b"", seq)
+
 
 def file_start_frame(ts14: str, offset: int = 0, seq: int = 0, *, ftype: int | None = None) -> bytes:
     """Open a type-0 (oximetry) stored file at `offset`.
@@ -267,13 +272,16 @@ def file_start_frame(ts14: str, offset: int = 0, seq: int = 0, *, ftype: int | N
             raise ValueError(
                 "file_start_frame(ftype=%r): `ftype` was always this frame's OFFSET, never a file "
                 "type — a non-zero value asks the oximetry family to start mid-file. The raw-PPG "
-                "store is a different COMMAND FAMILY (ppg_file_*_frame, opcodes 0x06-0x09)." % ftype)
+                "store is a different COMMAND FAMILY (ppg_file_*_frame, opcodes 0x06-0x09)." % ftype
+            )
         offset = 0
     pl = ts14.encode("ascii")[:14].ljust(14, b"\x00") + b"\x00\x00" + int(offset).to_bytes(4, "little")
     return encode(OP_FILE_START, pl, seq)
 
+
 def file_data_frame(offset: int, seq: int = 0) -> bytes:
     return encode(OP_FILE_DATA, int(offset).to_bytes(4, "little"), seq)
+
 
 def file_end_frame(seq: int = 0) -> bytes:
     return encode(OP_FILE_END, b"", seq)
@@ -331,15 +339,19 @@ def parse_ppg_file_header(buf: bytes):
     hardware streams, or a zero sample count are not a header we understand, and reporting them as
     one would put a number nobody can defend at the head of a decode."""
     if not buf or len(buf) < 39:
-        return None                      # cannot even reach `accuracy`; there is nothing to report
+        return None  # cannot even reach `accuracy`; there is nothing to report
     rate = int.from_bytes(buf[16:18], "little")
     size = int.from_bytes(buf[18:22], "little")
     lead = buf[22]
     acc = int.from_bytes(buf[35:39], "little")
     if not (0 < rate <= 4000) or size <= 0:
         return None
-    return {"sample_rate": rate, "sample_size": size, "lead_size": lead,
-            "sample_bytes": _PPG_ACCURACY_BYTES.get(acc, 1)}
+    return {
+        "sample_rate": rate,
+        "sample_size": size,
+        "lead_size": lead,
+        "sample_bytes": _PPG_ACCURACY_BYTES.get(acc, 1),
+    }
 
 
 def parse_file_list(payload: bytes) -> list[str]:
@@ -349,7 +361,7 @@ def parse_file_list(payload: bytes) -> list[str]:
         return []
     n, out = payload[0], []
     for i in range(n):
-        slot = payload[1 + i * 16: 1 + i * 16 + 16]
+        slot = payload[1 + i * 16 : 1 + i * 16 + 16]
         if len(slot) >= 14:
             ts = slot[:14].decode("ascii", "replace").strip("\x00")
             if ts.isdigit() and len(ts) == 14:
@@ -368,10 +380,11 @@ class Reassembler:
         self.buf += data
         out: list[bytes] = []
         while True:
-            if self.buf and self.buf[0] != 0xA5:          # resync to a lead byte
+            if self.buf and self.buf[0] != 0xA5:  # resync to a lead byte
                 i = self.buf.find(0xA5)
                 if i < 0:
-                    self.buf.clear(); break
+                    self.buf.clear()
+                    break
                 del self.buf[:i]
             if len(self.buf) < 8:
                 break
@@ -388,7 +401,8 @@ class Reassembler:
             total = 7 + ln + 1
             if len(self.buf) < total:
                 break
-            out.append(bytes(self.buf[:total])); del self.buf[:total]
+            out.append(bytes(self.buf[:total]))
+            del self.buf[:total]
         return out
 
 
@@ -420,7 +434,7 @@ def decode_full(frame: bytes) -> "Frame | None":
     ln = frame[5] | (frame[6] << 8)
     if len(frame) != 7 + ln + 1 or crc8(frame[:-1]) != frame[-1]:
         return None
-    return Frame(op=frame[1], flag=frame[3], seq=frame[4], payload=frame[7:7 + ln])
+    return Frame(op=frame[1], flag=frame[3], seq=frame[4], payload=frame[7 : 7 + ln])
 
 
 def decode(frame: bytes):
@@ -545,18 +559,23 @@ def classify_auth_reply(payload: bytes | None) -> tuple[str, bytes | None, str]:
     if not payload:
         return AUTH_PLAINTEXT, None, "no OP_AUTH reply — plaintext session (legacy firmware)"
     if len(payload) < _KEY_BLOB_MIN_LEN:
-        return (AUTH_PLAINTEXT, None,
-                f"OP_AUTH reply of {len(payload)} B is too short to carry a key blob "
-                f"(want >= {_KEY_BLOB_MIN_LEN}) — plaintext session")
+        return (
+            AUTH_PLAINTEXT,
+            None,
+            f"OP_AUTH reply of {len(payload)} B is too short to carry a key blob "
+            f"(want >= {_KEY_BLOB_MIN_LEN}) — plaintext session",
+        )
 
     dec = bytes(b ^ _LEPU[i % 16] for i, b in enumerate(payload))
     if dec[0] != _AUTH_TYPE_AES or dec[1] != _AES_KEY_LEN:
-        return (AUTH_REFUSE, None,
-                f"unsupported firmware — encrypted session negotiated with type=0x{dec[0]:02x} "
-                f"key_len={dec[1]} (this build understands type=0x{_AUTH_TYPE_AES:02x} "
-                f"len={_AES_KEY_LEN}); refusing rather than reading ciphertext as vitals")
-    return (AUTH_ENCRYPTED, dec[4:4 + _AES_KEY_LEN],
-            "AES-128-ECB session key negotiated")
+        return (
+            AUTH_REFUSE,
+            None,
+            f"unsupported firmware — encrypted session negotiated with type=0x{dec[0]:02x} "
+            f"key_len={dec[1]} (this build understands type=0x{_AUTH_TYPE_AES:02x} "
+            f"len={_AES_KEY_LEN}); refusing rather than reading ciphertext as vitals",
+        )
+    return (AUTH_ENCRYPTED, dec[4 : 4 + _AES_KEY_LEN], "AES-128-ECB session key negotiated")
 
 
 # ── Secondary tell: does a decoded live frame look like ciphertext? ─────────────────────────────────
@@ -615,7 +634,6 @@ def sustained_ciphertext(parsed_frames, run: int = CIPHERTEXT_RUN) -> bool:
     if len(frames) < run:
         return False
     return all(frame_looks_like_ciphertext(f) for f in frames[-run:])
-
 
 
 def session_restarted(prev_duration: int | None, duration: int) -> bool:
@@ -678,13 +696,13 @@ def parse_live(payload: bytes) -> dict | None:
     if len(payload) < 14:
         return None
     spo2, contact = payload[6], payload[5]
-    pr = int.from_bytes(payload[8:10], "little")     # u16 LE — [9] is the HIGH byte, not padding
+    pr = int.from_bytes(payload[8:10], "little")  # u16 LE — [9] is the HIGH byte, not padding
     return {
-        "duration": int.from_bytes(payload[0:4], "little"),   # seconds into the ring's session
-        "spo2": spo2 if 50 <= spo2 <= 100 else None,   # 0/invalid off-finger
-        "pr":   pr if 20 < pr < 250 else None,
-        "pi":   payload[7] / 10.0,                     # perfusion index, %
-        "motion": payload[11],                         # WAS [7] — the swap that caused the data bug
+        "duration": int.from_bytes(payload[0:4], "little"),  # seconds into the ring's session
+        "spo2": spo2 if 50 <= spo2 <= 100 else None,  # 0/invalid off-finger
+        "pr": pr if 20 < pr < 250 else None,
+        "pi": payload[7] / 10.0,  # perfusion index, %
+        "motion": payload[11],  # WAS [7] — the swap that caused the data bug
         "flag": payload[10] & 0x01,
         # The WHOLE byte, beside the bit. The vendor names [10] `flag(标志参数, 0:脉搏音标志)` —
         # "indicator parameter, bit 0 = pulse-tone flag" — and its SDK reads bit 0 and nothing else, which
@@ -696,10 +714,10 @@ def parse_live(payload: bytes) -> dict | None:
         # re-capture; interpreting them is not attempted here.
         "flag_raw": payload[10],
         "batt": payload[13],
-        "batt_state": payload[12],                     # 0 = not charging
+        "batt_state": payload[12],  # 0 = not charging
         "run_status": payload[4],
-        "contact": contact,                            # 0 lead-off · 1 normal · 2 probe unplugged · 3 fault
-        "worn": contact == 1,                          # ONLY 1; 2 and 3 are faults, not wear
+        "contact": contact,  # 0 lead-off · 1 normal · 2 probe unplugged · 3 fault
+        "worn": contact == 1,  # ONLY 1; 2 and 3 are faults, not wear
         # Byte [14]'s four 2-bit subfields (&3 invalid-IV state, >>2 SpO2 alarm, >>4 HR alarm,
         # >>6 motion alarm), recorded RAW and uninterpreted — same discipline as `flag_raw`. None,
         # never 0, when the frame is too short to carry it: an absent byte is not a quiet alarm.
@@ -744,8 +762,8 @@ def parse_live(payload: bytes) -> dict | None:
 # the same 9.30 h window: 29 647 beats vs 27 744 markers — ratio 0.936, degrading through the night
 # (0.981 over the first 3.3 h). It is an EXACT accounting of inserted rows and an APPROXIMATE count of
 # heartbeats; 6 % dropout merges intervals, which is disqualifying for HRV.
-PPG_BEAT_MARKER = 156      # 0x9C — an INSERTED row, one per ring-detected beat
-PPG_INVALID = PPG_BEAT_MARKER   # legacy spelling, kept so existing readers keep working
+PPG_BEAT_MARKER = 156  # 0x9C — an INSERTED row, one per ring-detected beat
+PPG_INVALID = PPG_BEAT_MARKER  # legacy spelling, kept so existing readers keep working
 
 # Samples the ring produces per SESSION-SECOND — the unit that makes PPG loss ARITHMETIC instead of
 # inferred (O2RING-FRAME-SAMPLE-LOCK). Note carefully what this is NOT: it is not a per-FRAME constant.
@@ -873,7 +891,7 @@ def ppg_stream_offset(payload: bytes) -> int | None:
 # wrong wavelength assignment from reaching a saturation number when the identification collapsed.
 
 RT_PPG_ARG = bytes([0x07, 0x01])
-RT_PPG_REC = 9                       # i32 LE chA | i32 LE chB | u8 motion  (SIGNED — see below)
+RT_PPG_REC = 9  # i32 LE chA | i32 LE chB | u8 motion  (SIGNED — see below)
 
 # ⚠️ THE CHANNELS ARE SIGNED, and reading them unsigned is catastrophic rather than cosmetic. Measured
 # 2026-08-05 over 61 066 samples: read unsigned the maximum is 4 294 966 954, i.e. within ~3000 of 2**32,
@@ -892,8 +910,8 @@ RT_PPG_REC = 9                       # i32 LE chA | i32 LE chB | u8 motion  (SIG
 # previously recorded 112.9 Hz came from a 403 s fragment and does not reproduce; O2RING-RAW-DUAL-
 # WAVELENGTH-FOLLOWUPS §7.4.)
 OP_SAMPLES_A = 0x03
-SAMPLES_A_ARG = bytes([0x07, 0x01])   # same "give me the buffer" argument shape as RT_PPG_ARG
-SAMPLES_A_CAP = 250                   # a reply AT the cap is a saturated drain, not a fast device
+SAMPLES_A_ARG = bytes([0x07, 0x01])  # same "give me the buffer" argument shape as RT_PPG_ARG
+SAMPLES_A_CAP = 250  # a reply AT the cap is a saturated drain, not a fast device
 SAMPLES_A_HDR = 6
 
 
@@ -923,13 +941,15 @@ def parse_samples_a(payload: bytes) -> list[tuple[int, int]]:
     if len(payload) < SAMPLES_A_HDR:
         return []
     n = int.from_bytes(payload[4:6], "little")
-    body = payload[SAMPLES_A_HDR:SAMPLES_A_HDR + n]
+    body = payload[SAMPLES_A_HDR : SAMPLES_A_HDR + n]
     out: list[tuple[int, int]] = []
     last = len(body) - 1
     for i, v in enumerate(body):
-        iso = (v == PPG_BEAT_MARKER
-               and (i == 0 or body[i - 1] != PPG_BEAT_MARKER)
-               and (i == last or body[i + 1] != PPG_BEAT_MARKER))
+        iso = (
+            v == PPG_BEAT_MARKER
+            and (i == 0 or body[i - 1] != PPG_BEAT_MARKER)
+            and (i == last or body[i + 1] != PPG_BEAT_MARKER)
+        )
         out.append((v, 1 if iso else 0))
     return out
 
@@ -978,9 +998,13 @@ def parse_rt_ppg(payload: bytes) -> list[tuple[int, int, int]]:
     out = []
     for i in range(min(n, avail)):
         o = 2 + i * RT_PPG_REC
-        out.append((int.from_bytes(payload[o:o + 4], "little", signed=True),
-                    int.from_bytes(payload[o + 4:o + 8], "little", signed=True),
-                    payload[o + 8]))
+        out.append(
+            (
+                int.from_bytes(payload[o : o + 4], "little", signed=True),
+                int.from_bytes(payload[o + 4 : o + 8], "little", signed=True),
+                payload[o + 8],
+            )
+        )
     return out
 
 
@@ -1006,7 +1030,7 @@ def parse_ppg(payload: bytes) -> list[int]:
     n = ppg_sample_count(payload)
     if n is None:
         return []
-    return list(payload[26:26 + n])
+    return list(payload[26 : 26 + n])
 
 
 # ── READ-ONLY DEVICE QUERIES (harvested from nglessner/o2ring-s-protocol, byte-verified) ─────────────
@@ -1014,8 +1038,10 @@ def parse_ppg(payload: bytes) -> list[int]:
 def info_frame(seq: int = 0) -> bytes:
     return encode(OP_GET_INFO, b"", seq)
 
+
 def config_frame(seq: int = 0) -> bytes:
     return encode(OP_GET_CONFIG, b"", seq)
+
 
 def battery_frame(seq: int = 0) -> bytes:
     return encode(OP_GET_BATTERY, b"", seq)
@@ -1047,16 +1073,17 @@ def parse_get_info(payload: bytes) -> dict | None:
         return None
     fw = payload[9:17].decode("ascii", "replace").rstrip("\x00")
     sn_len = payload[37]
-    sn = payload[38:38 + sn_len].decode("ascii", "replace") if 0 < sn_len and 38 + sn_len <= len(payload) else ""
+    sn = payload[38 : 38 + sn_len].decode("ascii", "replace") if 0 < sn_len and 38 + sn_len <= len(payload) else ""
     y = payload[24] | (payload[25] << 8)
     mo, d, h, mi, s = payload[26], payload[27], payload[28], payload[29], payload[30]
     rtc = None
     if 2000 <= y <= 2255:
         import datetime as _dt
+
         try:
-            _dt.datetime(y, mo, d, h, mi, s)   # calendar round-trip: rejects Feb 31 / Apr 31 and every
+            _dt.datetime(y, mo, d, h, mi, s)  # calendar round-trip: rejects Feb 31 / Apr 31 and every
             rtc = {"year": y, "month": mo, "day": d, "hour": h, "minute": mi, "second": s}
-        except ValueError:                     # out-of-range component — §2.7: absence, never a rolled instant
+        except ValueError:  # out-of-range component — §2.7: absence, never a rolled instant
             rtc = None
     # ── THE FIELD WE CALLED "firmware" IS THE VENDOR'S branchCode ─────────────────────────────────
     # Residue `2026-09-02-oxyii-branchcode-named-firmware`. §3c: `payload[9:17]` is an 8-character
@@ -1072,8 +1099,8 @@ def parse_get_info(payload: bytes) -> dict | None:
     ver = ".".join(str(payload[i]) for i in (4, 3, 2, 1)) if len(payload) > 4 else None
     boot = ".".join(str(payload[i]) for i in (8, 7, 6, 5)) if len(payload) > 8 else None
     return {
-        "firmware": fw,          # DEPRECATED alias of `branch_code` — kept for on-disk compatibility
-        "branch_code": fw,       # the same 8 ASCII chars, under the name the vendor uses
+        "firmware": fw,  # DEPRECATED alias of `branch_code` — kept for on-disk compatibility
+        "branch_code": fw,  # the same 8 ASCII chars, under the name the vendor uses
         "firmware_version": ver,  # the REAL version, "[4].[3].[2].[1]"
         "hw_version": payload[0] if payload else None,
         "bootloader": boot,
@@ -1085,10 +1112,25 @@ def parse_get_info(payload: bytes) -> dict | None:
 
 # GET_CONFIG field layout (first 20 of the 40-byte reply). Bytes 20+ are firmware-variant; opaque.
 _CONFIG_FIELDS = (
-    "alarm_flags", "spo2_low", "hr_low", "hr_high", "motor", "buzzer", "display_mode",
-    "brightness", "storage_interval", "tz_byte", "auto_switch", "alg_avg_time",
-    "count_down_time", "lr_model", "motor_switch", "motor_threshold", "invalid_signal_switch",
+    "alarm_flags",
+    "spo2_low",
+    "hr_low",
+    "hr_high",
+    "motor",
+    "buzzer",
+    "display_mode",
+    "brightness",
+    "storage_interval",
+    "tz_byte",
+    "auto_switch",
+    "alg_avg_time",
+    "count_down_time",
+    "lr_model",
+    "motor_switch",
+    "motor_threshold",
+    "invalid_signal_switch",
 )  # [17..18] u16 LE invalid_signal_time_thr, then [19] func_switch — handled explicitly below
+
 
 def parse_config(payload: bytes) -> dict | None:
     """cmd=0x00 reply (40-byte plaintext) → the ring's settings struct, first 20 bytes decoded.
@@ -1124,15 +1166,15 @@ def parse_battery(payload: bytes) -> dict | None:
 # Annotated: each row mixes ints with a nullable `readback` string, which mypy joins to `object` —
 # so `spec["max"]` read as indexing an object rather than a record lookup. Three errors, one table.
 SET_CONFIG_FIELDS: dict[str, dict[str, Any]] = {
-    "spo2_switch":  {"index": 1, "max": 255, "readback": None},
-    "spo2_low":     {"index": 2, "max": 255, "readback": "spo2_low"},
-    "hr_switch":    {"index": 3, "max": 255, "readback": None},
-    "hr_low":       {"index": 4, "max": 255, "readback": "hr_low"},
-    "hr_high":      {"index": 5, "max": 255, "readback": "hr_high"},
-    "motor":        {"index": 6, "max": 255, "readback": "motor"},
+    "spo2_switch": {"index": 1, "max": 255, "readback": None},
+    "spo2_low": {"index": 2, "max": 255, "readback": "spo2_low"},
+    "hr_switch": {"index": 3, "max": 255, "readback": None},
+    "hr_low": {"index": 4, "max": 255, "readback": "hr_low"},
+    "hr_high": {"index": 5, "max": 255, "readback": "hr_high"},
+    "motor": {"index": 6, "max": 255, "readback": "motor"},
     "display_mode": {"index": 8, "max": 255, "readback": "display_mode"},
-    "brightness":   {"index": 9, "max": 2, "readback": "brightness"},
-    "interval":     {"index": 10, "max": 255, "readback": "storage_interval"},
+    "brightness": {"index": 9, "max": 2, "readback": "brightness"},
+    "interval": {"index": 10, "max": 255, "readback": "storage_interval"},
 }
 
 
@@ -1160,6 +1202,7 @@ def set_config_frame(field: str, value: int, seq: int = 0) -> bytes:
 # Offsets verified byte-exact upstream across 8+ recordings; avg-SpO2/avg-HR agree with body means ±1.
 _TRAILER_LEN = 48
 _TRAILER_SUBMAGIC = bytes([0x48, 0x12, 0x5A, 0xDA])
+
 
 def parse_oxy_trailer(data: bytes) -> dict | None:
     """The 48-byte Format-A trailer from a full recording's bytes → session stats, or None.
@@ -1202,17 +1245,17 @@ def parse_oxy_trailer(data: bytes) -> dict | None:
         return None
     t = data[-_TRAILER_LEN:]
     if t[4:8] != _TRAILER_SUBMAGIC:
-        return None                                        # not finalised (or not Format A)
+        return None  # not finalised (or not Format A)
     score = t[42]
     samples = int.from_bytes(t[12:16], "little")
     interval = t[16]
     return {
         "finalized": True,
-        "total_seconds": samples,                          # == duration only while interval == 1
+        "total_seconds": samples,  # == duration only while interval == 1
         "sample_count": samples,
         "interval_s": interval,
         "duration_s": samples * interval,
-        "start_t_ms": int.from_bytes(t[8:12], "little") * 1000,   # FLOATING wall clock — see above
+        "start_t_ms": int.from_bytes(t[8:12], "little") * 1000,  # FLOATING wall clock — see above
         "avg_spo2": t[34],
         "min_spo2": t[35],
         "desat_ge3": t[36],

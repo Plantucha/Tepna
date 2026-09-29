@@ -10,6 +10,7 @@ shellcheck gate exited 127, which read as "not installed on this box" and was ex
 times in one day). This test is the comparison — it reads the workflow, not a copy of it, so the
 next inline install that forgets this file reds here.
 """
+
 import pathlib
 import re
 
@@ -42,7 +43,7 @@ def inline_ci_packages(text: str) -> set[str]:
         for tok in toks:
             if tok.startswith("-") or tok == "pip":
                 continue
-            pkg = _PKG.match(tok)                          # a `"$VAR"` / `$(...)` token is not a name
+            pkg = _PKG.match(tok)  # a `"$VAR"` / `$(...)` token is not a name
             if pkg:
                 out.add(_norm(pkg.group(1)))
     return out
@@ -61,7 +62,7 @@ def declared_packages(text: str) -> set[str]:
 
 
 def test_every_tool_ci_installs_inline_is_declared_in_requirements_dev():
-    if not WORKFLOW.exists():                              # pragma: no cover - capture-host shipped alone
+    if not WORKFLOW.exists():  # pragma: no cover - capture-host shipped alone
         pytest.skip("workflow not present in this checkout (scratch copy or lane shipped alone)")
     ci = inline_ci_packages(WORKFLOW.read_text(encoding="utf-8"))
     # A parser that matched nothing would pass vacuously — pin the population it must have seen.
@@ -72,12 +73,13 @@ def test_every_tool_ci_installs_inline_is_declared_in_requirements_dev():
 
 # ── the parser must be able to fail, and must ignore what is not a package ──────────────────────
 
+
 def test_parser_skips_r_installs_flags_and_pip_itself():
     text = (
         "          python -m pip install --upgrade pip\n"
         "          pip install -r requirements-dev.txt\n"
         "          pip install --quiet detect-secrets\n"
-        "          pip install pytest shellcheck_py>=0.11 Hypothesis \"$EXTRA\"\n"
+        '          pip install pytest shellcheck_py>=0.11 Hypothesis "$EXTRA"\n'
     )
     assert inline_ci_packages(text) == {"detect-secrets", "pytest", "shellcheck-py", "hypothesis"}
 

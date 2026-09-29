@@ -70,6 +70,7 @@ def test_a_single_sighting_does_not_ERASE_a_prior_absence():
 # ── §3 the axes stay independent ─────────────────────────────────────────────
 def test_the_presence_vocabulary_is_DISJOINT_from_the_other_two_axes():
     import oxy_lifecycle as L
+
     pres = {s.value for s in S}
     link = {s.value for s in L.OxyState}
     rec = {s.value for s in L.OxyRecState}
@@ -91,7 +92,8 @@ def _plan(**kw):
 def test_an_unarmed_system_refuses_FIRST_and_blames_the_flag_not_the_ring():
     r = _plan(armed=False, presence=None)
     assert r.action == P.SKIP and r.reason == "presence trigger not armed", (
-        "an unarmed system reporting 'not present' would read as a device fault")
+        "an unarmed system reporting 'not present' would read as a device fault"
+    )
 
 
 def test_UNKNOWN_presence_must_NOT_probe():
@@ -122,6 +124,7 @@ def test_present_not_recording_and_past_the_interval_justifies_ONE_connection():
 # buying time the drop window lacks) is already pinned by `close_harvest_decision`'s own suite against
 # the same two predicates, so deleting them removes duplication, not coverage.
 
+
 # ── §20/§21 enabled vs armed ─────────────────────────────────────────────────
 def test_absent_config_defaults_OFF_and_says_it_never_inherits():
     a = P.arming({})
@@ -141,8 +144,7 @@ def test_ENABLED_BUT_NOT_ARMED_is_a_real_state_and_names_the_missing_measurement
 
 
 def test_armed_only_once_the_coexistence_verdict_is_recorded():
-    a = P.arming({"o2ring": {"presence_harvest": {"enabled": True,
-                                                  P.COEXISTENCE_KEY: True}}})
+    a = P.arming({"o2ring": {"presence_harvest": {"enabled": True, P.COEXISTENCE_KEY: True}}})
     assert a.armed is True
 
 

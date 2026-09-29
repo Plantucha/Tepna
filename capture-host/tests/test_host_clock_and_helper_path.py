@@ -28,9 +28,11 @@ def _run(coro):
 
 
 # ── parse_ntp_message ───────────────────────────────────────────────────────────────────────────────
-NTP_BLOB = ("{ Leap=0, Version=4, Mode=4, Stratum=2, Precision=-24, RootDelay=1.113ms, "
-            "RootDispersion=2.456ms, Reference=PPS, OriginateTimestamp=Sat 2026-07-18 18:04:29 EDT, "
-            "Jitter=170us, PacketCount=9, Ignored=no }")
+NTP_BLOB = (
+    "{ Leap=0, Version=4, Mode=4, Stratum=2, Precision=-24, RootDelay=1.113ms, "
+    "RootDispersion=2.456ms, Reference=PPS, OriginateTimestamp=Sat 2026-07-18 18:04:29 EDT, "
+    "Jitter=170us, PacketCount=9, Ignored=no }"
+)
 
 
 def test_parse_ntp_message_extracts_pairs_and_strips_braces():
@@ -42,8 +44,10 @@ def test_parse_ntp_message_extracts_pairs_and_strips_braces():
 def test_parse_ntp_message_keeps_only_the_first_equals():
     """A timestamp value can itself contain '='-free text with spaces; splitting on every '=' would
     truncate it."""
-    assert hc.parse_ntp_message("{ OriginateTimestamp=Sat 2026-07-18 18:04:29 EDT }"
-                                )["OriginateTimestamp"] == "Sat 2026-07-18 18:04:29 EDT"
+    assert (
+        hc.parse_ntp_message("{ OriginateTimestamp=Sat 2026-07-18 18:04:29 EDT }")["OriginateTimestamp"]
+        == "Sat 2026-07-18 18:04:29 EDT"
+    )
 
 
 @pytest.mark.parametrize("blob", ["", None, "   ", "no-equals-here"])
@@ -52,9 +56,16 @@ def test_parse_ntp_message_is_empty_for_junk(blob):
 
 
 # ── _num ────────────────────────────────────────────────────────────────────────────────────────────
-@pytest.mark.parametrize("text,expected", [
-    ("1.113ms", 1.113), ("170us", 170.0), ("0", 0.0), ("-3.5ms", -3.5), ("42", 42.0),
-])
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("1.113ms", 1.113),
+        ("170us", 170.0),
+        ("0", 0.0),
+        ("-3.5ms", -3.5),
+        ("42", 42.0),
+    ],
+)
 def test_num_reads_the_leading_number_regardless_of_unit(text, expected):
     assert hc._num(text) == expected
 
@@ -67,8 +78,14 @@ def test_num_returns_none_never_a_fabricated_zero(text):
 
 # ── classify — the trust verdict ────────────────────────────────────────────────────────────────────
 def _state(**kw):
-    base = {"available": True, "ntp_enabled": True, "synchronized": True,
-            "stratum": 2, "ignored": False, "reference": "PPS"}
+    base = {
+        "available": True,
+        "ntp_enabled": True,
+        "synchronized": True,
+        "stratum": 2,
+        "ignored": False,
+        "reference": "PPS",
+    }
     base.update(kw)
     return base
 
@@ -123,8 +140,14 @@ def test_synchronised_with_no_stratum_yet_is_believed_but_says_so():
 
 
 def test_every_verdict_carries_a_reason():
-    for kw in ({"available": False}, {"ntp_enabled": False}, {"synchronized": False},
-               {"ignored": True}, {"stratum": 99}, {}):
+    for kw in (
+        {"available": False},
+        {"ntp_enabled": False},
+        {"synchronized": False},
+        {"ignored": True},
+        {"stratum": 99},
+        {},
+    ):
         v = hc.classify(_state(**kw))
         assert v["reason"] and isinstance(v["reason"], str)
         assert set(v) == {"trust", "absolute_ok", "reason"}
@@ -133,7 +156,10 @@ def test_every_verdict_carries_a_reason():
 # ── _kv + read_state ────────────────────────────────────────────────────────────────────────────────
 def test_kv_parses_timedatectl_show_output():
     assert hc._kv("NTP=yes\nNTPSynchronized=yes\nTimezone=America/New_York") == {
-        "NTP": "yes", "NTPSynchronized": "yes", "Timezone": "America/New_York"}
+        "NTP": "yes",
+        "NTPSynchronized": "yes",
+        "Timezone": "America/New_York",
+    }
 
 
 def test_kv_ignores_lines_without_an_equals():
@@ -143,12 +169,16 @@ def test_kv_ignores_lines_without_an_equals():
 def _fake_run(monkeypatch, show="", timesync="", rc=0):
     async def fake(*args, timeout=4.0):
         return rc, (timesync if "show-timesync" in args else show)
+
     monkeypatch.setattr(hc, "_run", fake)
 
 
 def test_read_state_builds_a_disciplined_verdict_from_real_output(monkeypatch):
-    _fake_run(monkeypatch, show="NTP=yes\nNTPSynchronized=yes\n",
-              timesync=f"ServerName=time.cloudflare.com\nNTPMessage={NTP_BLOB}\n")
+    _fake_run(
+        monkeypatch,
+        show="NTP=yes\nNTPSynchronized=yes\n",
+        timesync=f"ServerName=time.cloudflare.com\nNTPMessage={NTP_BLOB}\n",
+    )
     st = _run(hc.read_state())
     assert st["available"] is True and st["ntp_enabled"] is True and st["synchronized"] is True
     assert st["server"] == "time.cloudflare.com" and st["stratum"] == 2 and st["reference"] == "PPS"
@@ -177,8 +207,11 @@ def test_read_state_falls_back_to_server_address(monkeypatch):
 
 
 def test_read_state_never_raises_on_a_hostile_blob(monkeypatch):
-    _fake_run(monkeypatch, show="NTP=yes\nNTPSynchronized=yes\n",
-              timesync="NTPMessage={ Stratum=notanumber, PacketCount=x, Jitter=zzz }\n")
+    _fake_run(
+        monkeypatch,
+        show="NTP=yes\nNTPSynchronized=yes\n",
+        timesync="NTPMessage={ Stratum=notanumber, PacketCount=x, Jitter=zzz }\n",
+    )
     st = _run(hc.read_state())
     assert st["stratum"] is None and st["packet_count"] is None and st["jitter_us"] is None
 
@@ -211,7 +244,8 @@ def test_resolve_falls_back_to_the_in_repo_copy(monkeypatch, tmp_path):
 
 def test_resolve_tries_system_dirs_in_order(monkeypatch, tmp_path):
     first, second = tmp_path / "a", tmp_path / "b"
-    first.mkdir(); second.mkdir()
+    first.mkdir()
+    second.mkdir()
     (first / "h.sh").write_text("x")
     (second / "h.sh").write_text("x")
     monkeypatch.setattr(helper_path, "SYSTEM_DIRS", (str(first), str(second)))
@@ -239,6 +273,7 @@ def test_group_or_world_writable_is_rejected_even_if_root_owned(tmp_path, monkey
     class FakeStat:
         st_uid = 0
         st_mode = 0o100777
+
     monkeypatch.setattr(helper_path.os, "stat", lambda _p: FakeStat())
     assert helper_path.is_safely_owned(str(p)) is False
 
@@ -247,6 +282,7 @@ def test_root_owned_and_not_writable_is_accepted(tmp_path, monkeypatch):
     class FakeStat:
         st_uid = 0
         st_mode = 0o100755
+
     monkeypatch.setattr(helper_path.os, "stat", lambda _p: FakeStat())
     assert helper_path.is_safely_owned(str(tmp_path / "h.sh")) is True
 
@@ -269,6 +305,7 @@ def test_grant_warning_is_silent_for_a_safe_helper(monkeypatch, tmp_path):
 # classify()'s "synchronised; stratum not yet reported" branch — which TRUSTS. That is a fail-OPEN
 # on the one field gating absolute-time trust. A REPORTED-but-unreadable stratum is now holdover;
 # a genuinely ABSENT one keeps the documented benefit of the doubt.
+
 
 def _synced(**kw):
     base = {"available": True, "ntp_enabled": True, "synchronized": True, "ignored": False}
@@ -345,11 +382,19 @@ def test_chrony_stratum_is_normalised_to_the_SERVER_stratum():
 
 def test_both_readers_grade_an_identical_clock_identically():
     """The gate that makes the normalisation trustworthy rather than merely documented."""
-    via_chrony = hc.classify({"available": True, "ntp_enabled": True, "synchronized": True,
-                              "ignored": False, **hc.parse_chrony_tracking(CHRONY_TRACKING)})
+    via_chrony = hc.classify(
+        {
+            "available": True,
+            "ntp_enabled": True,
+            "synchronized": True,
+            "ignored": False,
+            **hc.parse_chrony_tracking(CHRONY_TRACKING),
+        }
+    )
     msg = hc.parse_ntp_message("{ Leap=0, Stratum=1, Reference=PPS, Jitter=170us }")
-    via_timesyncd = hc.classify({"available": True, "ntp_enabled": True, "synchronized": True,
-                                 "ignored": False, "stratum": int(msg["Stratum"])})
+    via_timesyncd = hc.classify(
+        {"available": True, "ntp_enabled": True, "synchronized": True, "ignored": False, "stratum": int(msg["Stratum"])}
+    )
     assert via_chrony["trust"] == via_timesyncd["trust"] == "disciplined"
     assert via_chrony["absolute_ok"] is via_timesyncd["absolute_ok"] is True
 
@@ -408,12 +453,14 @@ def test_chrony_tracking_skips_a_colonless_line_rather_than_stopping():
 def test_read_state_carries_chrony_skew_and_leaves_timesyncd_skew_none(monkeypatch):
     """The clock-precision fact rides read_state on the chrony path; the timesyncd path has no analogue,
     so it is None there rather than borrowed from another field (O2RING-ADAPTIVE-TIMEBASE Stage 1)."""
+
     async def via_chrony(*args, timeout=4.0):
         if "show-timesync" in args:
             return 0, ""
         if args[0] == "chronyc":
             return 0, CHRONY_TRACKING
         return 0, "NTP=yes\nNTPSynchronized=yes\n"
+
     monkeypatch.setattr(hc, "_run", via_chrony)
     st = _run(hc.read_state())
     assert st["chrony_skew_ppm"] == 0.123
@@ -423,6 +470,7 @@ def test_read_state_carries_chrony_skew_and_leaves_timesyncd_skew_none(monkeypat
         if "show-timesync" in args:
             return 0, "NTPMessage={ Leap=0, Stratum=2, Jitter=170us }\n"
         return 0, "NTP=yes\nNTPSynchronized=yes\n"
+
     monkeypatch.setattr(hc, "_run", via_timesyncd)
     st = _run(hc.read_state())
     assert st["chrony_skew_ppm"] is None
@@ -432,16 +480,24 @@ def test_read_state_carries_chrony_skew_and_leaves_timesyncd_skew_none(monkeypat
 # ── timebase_decision (O2RING-ADAPTIVE-TIMEBASE Stage 3) ──────────────────────────────────────────────
 def _disc(stratum, skew=None):
     """A disciplined state at a given source stratum (+ optional chrony skew ppm)."""
-    s = {"available": True, "ntp_enabled": True, "synchronized": True, "ignored": False,
-         "stratum": stratum, "chrony_skew_ppm": skew}
+    s = {
+        "available": True,
+        "ntp_enabled": True,
+        "synchronized": True,
+        "ignored": False,
+        "stratum": stratum,
+        "chrony_skew_ppm": skew,
+    }
     return s
 
 
 def test_timebase_defaults_to_the_crystal_when_the_host_is_not_disciplined():
     """The safe floor: a holdover/free-running/unreadable host never governs the rate."""
-    for state in ({"available": False},
-                  {"available": True, "ntp_enabled": False},
-                  {"available": True, "ntp_enabled": True, "synchronized": False}):
+    for state in (
+        {"available": False},
+        {"available": True, "ntp_enabled": False},
+        {"available": True, "ntp_enabled": True, "synchronized": False},
+    ):
         d = hc.timebase_decision(state)
         assert d["timebase"] == "device-crystal", d
         assert "device crystal" in d["reason"]
@@ -484,12 +540,14 @@ def test_the_skew_bar_is_inclusive_at_exactly_the_threshold():
 def test_read_state_stamps_the_timebase_decision(monkeypatch):
     """The decision rides read_state, so host_clock_poller stamps it in the CLOCK sidecar per capture.
     CHRONY_TRACKING is a stratum-1 SOURCE (client of a stratum-2 server) with a 0.123 ppm skew ⇒ host."""
+
     async def via_chrony(*args, timeout=4.0):
         if "show-timesync" in args:
             return 0, ""
         if args[0] == "chronyc":
             return 0, CHRONY_TRACKING
         return 0, "NTP=yes\nNTPSynchronized=yes\n"
+
     monkeypatch.setattr(hc, "_run", via_chrony)
     assert _run(hc.read_state())["timebase"] == "host-disciplined"
 
@@ -502,8 +560,9 @@ def test_a_reference_clock_is_not_reported_as_a_server():
 
 
 def test_chrony_with_no_source_is_unsynchronised_not_stratum_zero():
-    ch = hc.parse_chrony_tracking("Reference ID    : 00000000 ()\nStratum         : 0\n"
-                                  "Leap status     : Not synchronised\n")
+    ch = hc.parse_chrony_tracking(
+        "Reference ID    : 00000000 ()\nStratum         : 0\nLeap status     : Not synchronised\n"
+    )
     assert ch["stratum"] is None
     assert ch["leap_ok"] is False
 
@@ -511,12 +570,14 @@ def test_chrony_with_no_source_is_unsynchronised_not_stratum_zero():
 def test_chrony_leap_not_synchronised_overrides_a_stale_systemd_flag(monkeypatch):
     """chrony knows it lost its sources before NTPSynchronized catches up; believe the daemon that is
     actually steering the clock."""
+
     async def fake(*args, timeout=4.0):
         if "show-timesync" in args:
             return 0, ""
         if args[0] == "chronyc":
             return 0, "Reference ID    : 00000000 ()\nStratum : 0\nLeap status : Not synchronised\n"
         return 0, "NTP=yes\nNTPSynchronized=yes\n"
+
     monkeypatch.setattr(hc, "_run", fake)
     st = _run(hc.read_state())
     assert st["synchronized"] is False and st["trust"] == "holdover"
@@ -525,10 +586,11 @@ def test_chrony_leap_not_synchronised_overrides_a_stale_systemd_flag(monkeypatch
 def test_read_state_uses_chrony_when_timesyncd_is_silent(monkeypatch):
     async def fake(*args, timeout=4.0):
         if "show-timesync" in args:
-            return 0, ""                      # chrony box: timesyncd interface says nothing
+            return 0, ""  # chrony box: timesyncd interface says nothing
         if args[0] == "chronyc":
             return 0, CHRONY_TRACKING
         return 0, "NTP=yes\nNTPSynchronized=yes\n"
+
     monkeypatch.setattr(hc, "_run", fake)
     st = _run(hc.read_state())
     assert st["time_source"] == "chrony"
@@ -541,11 +603,13 @@ def test_read_state_uses_chrony_when_timesyncd_is_silent(monkeypatch):
 def test_timesyncd_still_wins_when_it_has_an_ntp_message(monkeypatch):
     """No regression: a timesyncd box must not start shelling out to chronyc."""
     calls = []
+
     async def fake(*args, timeout=4.0):
         calls.append(args[0])
         if "show-timesync" in args:
             return 0, f"ServerName=time.cloudflare.com\nNTPMessage={NTP_BLOB}\n"
         return 0, "NTP=yes\nNTPSynchronized=yes\n"
+
     monkeypatch.setattr(hc, "_run", fake)
     st = _run(hc.read_state())
     assert st["time_source"] == "timesyncd" and st["stratum"] == 2
@@ -557,6 +621,7 @@ def test_neither_daemon_readable_is_still_a_safe_verdict(monkeypatch):
         if args[0] == "chronyc":
             return 127, ""
         return 0, "NTP=yes\nNTPSynchronized=yes\n" if "show-timesync" not in args else ""
+
     monkeypatch.setattr(hc, "_run", fake)
     st = _run(hc.read_state())
     assert st["time_source"] is None
@@ -571,16 +636,18 @@ def test_parse_chrony_tracking_never_raises_on_junk():
 
 # ── the grant check is WIRED, not merely correct ────────────────────────────────────────────────────
 
+
 def test_SYSTEM_DIRS_second_entry_is_documented_as_a_FALLBACK_not_a_deploy_target():
     """⚠️ THE COMMENT WAS LOAD-BEARING AND WRONG. It called BOTH entries "root-owned deploy targets",
     but `/opt/tepna/capture-host` is the checkout — vigil-owned BY DESIGN, because `tepna-update.sh`
     must be able to write it to complete a deploy. A constant that mis-describes its own second element
     is how a fallback path looks safe at the call site that prefixes `sudo -n` to it."""
     src = module_source("helper_path.py")
-    head = src[:src.index("SUDO_HELPERS")]
+    head = src[: src.index("SUDO_HELPERS")]
     assert "/opt/tepna/capture-host" in head
     assert "vigil-owned" in head or "DEVELOPMENT FALLBACK" in head, (
-        "the second entry must be documented as unsafe to grant, not as a deploy target")
+        "the second entry must be documented as unsafe to grant, not as a deploy target"
+    )
 
 
 def test_every_sudo_helper_is_named_in_ONE_place():
@@ -588,6 +655,7 @@ def test_every_sudo_helper_is_named_in_ONE_place():
     what left `grant_warning` with no caller: capture.py resolves three helpers, clockcfg and link_rssi
     resolve others, and nobody owned the whole set."""
     import helper_path as hp
+
     assert set(hp.SUDO_HELPERS) >= {"tepna-restart.sh", "tepna-btreset.sh", "tepna-clock.sh"}
     for name in hp.SUDO_HELPERS:
         assert name.endswith(".sh") and "/" not in name, name
@@ -608,6 +676,7 @@ def test_helper_warnings_reach_the_verdict_and_an_absent_list_says_nothing():
     both produce no warning — so a sentinel would be decoration that reads like rigour. A surviving
     mutant proved it: swapping `_UNCHECKED` for `()` changed nothing observable."""
     import capture
+
     assert capture.defense_warnings(None, None) == []
     assert len(capture.defense_warnings(None, None, helper_warnings=["x", "y"])) == 2
 
@@ -619,6 +688,7 @@ def test_ONE_unreadable_helper_does_not_silence_the_others(monkeypatch):
     it exists to refuse."""
     import capture
     import helper_path as hp
+
     calls = []
 
     def _boom(path):
@@ -629,7 +699,7 @@ def test_ONE_unreadable_helper_does_not_silence_the_others(monkeypatch):
 
     monkeypatch.setattr(hp, "grant_warning", _boom)
     monkeypatch.setattr(hp, "SUDO_HELPERS", ("a.sh", "b.sh", "c.sh"))
-    monkeypatch.setattr(capture.os.path, "isdir", lambda p: True)   # pretend this is a deployed host
+    monkeypatch.setattr(capture.os.path, "isdir", lambda p: True)  # pretend this is a deployed host
     warns = capture._gather_helper_warnings()
     assert len(calls) == 3, f"every helper must still be asked: {calls}"
     assert len(warns) == 2, f"the two readable ones must still be reported: {warns}"
@@ -641,7 +711,8 @@ def test_the_helper_check_is_SILENT_on_a_development_checkout(monkeypatch):
     are repo-local and never root-owned, so an ungated check warns five times at every startup about
     paths that hold no sudoers grant and never will."""
     import capture
-    monkeypatch.setattr(capture.os.path, "isdir", lambda p: False)   # no /usr/local/lib/tepna here
+
+    monkeypatch.setattr(capture.os.path, "isdir", lambda p: False)  # no /usr/local/lib/tepna here
     assert capture._gather_helper_warnings() == []
 
 
@@ -651,6 +722,7 @@ def test_but_it_SPEAKS_on_a_deployed_host_whose_helper_fell_back_to_the_checkout
     prefixes `sudo -n` to it."""
     import capture
     import helper_path as hp
+
     unsafe = tmp_path / "tepna-restart.sh"
     unsafe.write_text("#!/bin/sh\n")
     monkeypatch.setattr(capture.os.path, "isdir", lambda p: True)
@@ -673,6 +745,7 @@ def test_a_SAFE_helper_is_skipped_while_the_unsafe_one_is_still_reported(monkeyp
     environment-dependent coverage hole is invisible precisely where it is convenient."""
     import capture
     import helper_path as hp
+
     monkeypatch.setattr(capture.os.path, "isdir", lambda p: True)
     # ⚠️ NAMES CHOSEN SO NEITHER IS A SUBSTRING OF THE OTHER. The first draft used "safe.sh"/"unsafe.sh"
     # with `"safe" in path`, which matches BOTH — "unsafe" contains "safe" — so every helper read as
@@ -680,8 +753,7 @@ def test_a_SAFE_helper_is_skipped_while_the_unsafe_one_is_still_reported(monkeyp
     # test about a predicate that matches more than intended.
     monkeypatch.setattr(hp, "SUDO_HELPERS", ("ok-one.sh", "rewritable.sh", "ok-two.sh"))
     monkeypatch.setattr(hp, "resolve", lambda n: "/fake/" + n)
-    monkeypatch.setattr(hp, "grant_warning",
-                        lambda path: "not root-owned: " + path if "rewritable" in path else None)
+    monkeypatch.setattr(hp, "grant_warning", lambda path: "not root-owned: " + path if "rewritable" in path else None)
     warns = capture._gather_helper_warnings()
     assert warns == ["not root-owned: /fake/rewritable.sh"], warns
 
@@ -698,4 +770,5 @@ def test_the_btmon_helper_is_registered_in_the_one_place_that_gates_grants():
     became a variable, without any guard changing. The guards are exercised for real, by running the
     script, in test_tepna_btmon_sh.py; this test owns only the registration."""
     import helper_path as hp
+
     assert "tepna-btmon.sh" in hp.SUDO_HELPERS

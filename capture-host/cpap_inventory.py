@@ -130,7 +130,7 @@ def night_key(value: str) -> str | None:
         for run in re.finditer(r"\d+", candidate):
             digits = run.group(0)
             for i in range(len(digits) - 7):
-                ymd = digits[i:i + 8]
+                ymd = digits[i : i + 8]
                 y, m, d = int(ymd[:4]), int(ymd[4:6]), int(ymd[6:8])
                 if 2000 <= y <= 2100 and 1 <= m <= 12 and 1 <= d <= 31:
                     return ymd
@@ -152,8 +152,9 @@ def _keys(values) -> tuple[set[str], list[str]]:
     return good, bad
 
 
-def reconcile(*, spool=None, envelopes=None, card=None,
-              spool_consulted=True, envelopes_consulted=True, card_consulted=True) -> dict:
+def reconcile(
+    *, spool=None, envelopes=None, card=None, spool_consulted=True, envelopes_consulted=True, card_consulted=True
+) -> dict:
     """Three inventories in, discrepancy records out. PURE.
 
     🔴 ALL THREE EMPTY IS A REFUSAL, NOT A CLEAN BILL. "No discrepancies" and "no data" produce the

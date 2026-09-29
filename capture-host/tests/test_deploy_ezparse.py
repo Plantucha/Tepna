@@ -56,11 +56,14 @@ def test_parses_the_real_card_listing_with_metadata_aligned():
     looks plausible and is wrong. Pin the alignment on the row where it would show: BRP is the 2229KB
     file, not the 1KB one."""
     rows = ez.parse(NIGHT_HTML)
-    assert [r["name"] for r in rows] == ["20260725_225050_CSL.edf", "20260725_225050_EVE.edf",
-                                         "20260725_225058_BRP.edf"]
+    assert [r["name"] for r in rows] == [
+        "20260725_225050_CSL.edf",
+        "20260725_225050_EVE.edf",
+        "20260725_225058_BRP.edf",
+    ]
     brp = rows[-1]
     assert brp["size"] == "2229KB"
-    assert brp["mtime"] == "2026-7-26 10:10:58"        # the served spaces are squeezed out
+    assert brp["mtime"] == "2026-7-26 10:10:58"  # the served spaces are squeezed out
     # `html.unescape` on the href undoes HTML entities only — the `%5C` is URL escaping and is left for
     # the fetcher, exactly as the shipped parser leaves it.
     assert brp["href"] == "http://192.168.4.1/download?file=D%5C202607~5.EDF"
@@ -73,7 +76,7 @@ def test_drops_the_dot_entries_but_keeps_real_directories():
     """`.` and `..` are the loop's only skip, and dropping them must not also drop DATALOG — the
     directory rows are how the walker finds the nights."""
     rows = ez.parse(NIGHT_HTML)
-    assert not any(r["name"] in (".", "..") for r in rows)      # both dot rows were present in the input
+    assert not any(r["name"] in (".", "..") for r in rows)  # both dot rows were present in the input
     root = ez.parse(ROOT_HTML)
     datalog = next(r for r in root if r["name"] == "DATALOG")
     assert datalog["isdir"] is True and datalog["size"] == "<DIR>"

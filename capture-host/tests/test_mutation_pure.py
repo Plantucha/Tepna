@@ -51,8 +51,9 @@ def test_a_function_NOT_asked_for_is_not_harvested():
 
 
 def test_several_requested_functions_are_kept_apart():
-    txt = _gen(("x_foo__mutmut_1", "    return 1"), ("x_bar__mutmut_1", "    return 2"),
-               ("x_bar__mutmut_2", "    return 3"))
+    txt = _gen(
+        ("x_foo__mutmut_1", "    return 1"), ("x_bar__mutmut_1", "    return 2"), ("x_bar__mutmut_2", "    return 3")
+    )
     harvested, _ = P.harvest_text(txt, ["foo", "bar"])
     assert [n for n, _ in harvested["foo"]] == ["x_foo__mutmut_1"]
     assert [n for n, _ in harvested["bar"]] == ["x_bar__mutmut_1", "x_bar__mutmut_2"]

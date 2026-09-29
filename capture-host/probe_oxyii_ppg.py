@@ -20,8 +20,8 @@ async def main(address: str, nframes: int):
     # ADDRESS-ONLY (standing ruling 2026-08-27 — see `oxy_presence.is_expected_ring`): a probe that
     # accepted any "o2ring"-named beacon would connect to a stranger's device as readily as the daemon.
     dev = await BleakScanner.find_device_by_filter(
-        lambda d, adv: oxy_presence.is_expected_ring(d.address, address),
-        timeout=25)
+        lambda d, adv: oxy_presence.is_expected_ring(d.address, address), timeout=25
+    )
     if dev is None:
         print("ring not advertising — wear it (finger in), phone app closed, daemon stopped.")
         return
@@ -48,11 +48,13 @@ async def main(address: str, nframes: int):
             await asyncio.sleep(1.0)
 
     print(f"\ncaptured {len(frames)} live 0x04 replies")
-    HDR = 24                                    # reference's stated status-header size
+    HDR = 24  # reference's stated status-header size
     for i, p in enumerate(frames):
         parsed = oxyii.parse_live(p) or {}
-        print(f"  frame {i:2d}: payload_len={len(p):4d}  body={max(0, len(p) - HDR):4d}  "
-              f"spo2={parsed.get('spo2')} hr={parsed.get('pr')} contact={parsed.get('contact')}")
+        print(
+            f"  frame {i:2d}: payload_len={len(p):4d}  body={max(0, len(p) - HDR):4d}  "
+            f"spo2={parsed.get('spo2')} hr={parsed.get('pr')} contact={parsed.get('contact')}"
+        )
     if not frames:
         return
     print("\n  first 2 frames, full hex:")
@@ -61,14 +63,16 @@ async def main(address: str, nframes: int):
     lens = sorted(len(p) for p in frames)
     bodies = sorted(max(0, ln - HDR) for ln in lens)
     med_body = bodies[len(bodies) // 2]
-    print(f"\n  payload len: min={lens[0]} max={lens[-1]} median={lens[len(lens)//2]}")
+    print(f"\n  payload len: min={lens[0]} max={lens[-1]} median={lens[len(lens) // 2]}")
     print(f"  body (payload-{HDR}): min={bodies[0]} max={bodies[-1]} median={med_body} bytes/frame")
     if med_body <= 2:
         print("  → NO PPG body beyond the header on this ring/firmware → Phase-0 KILL criterion.")
     else:
         # frames arrive ~1/s, so body bytes/frame ≈ samples/sec × bytes/sample
-        print(f"  → body present. If samples are: 1B → ~{med_body} Hz · 2B → ~{med_body//2} Hz · "
-              f"3B(24-bit) → ~{med_body//3} Hz  (Phase 1 decodes width/endianness against the Verity PPG)")
+        print(
+            f"  → body present. If samples are: 1B → ~{med_body} Hz · 2B → ~{med_body // 2} Hz · "
+            f"3B(24-bit) → ~{med_body // 3} Hz  (Phase 1 decodes width/endianness against the Verity PPG)"
+        )
 
 
 if __name__ == "__main__":

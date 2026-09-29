@@ -108,9 +108,14 @@ def raw_reads(src: str, mods: set[str]) -> list[tuple[int, str]]:
             continue
         obj = MODULE_OBJ.search(probe)
         if obj and f"{obj.group(1)}.py" in mods:
-            out.append((node.lineno, f"reads {obj.group(1)}.py via the module object "
-                                     f"`inspect.getsource({obj.group(1)})` — names no file, so the "
-                                     f"filename match above cannot see it"))
+            out.append(
+                (
+                    node.lineno,
+                    f"reads {obj.group(1)}.py via the module object "
+                    f"`inspect.getsource({obj.group(1)})` — names no file, so the "
+                    f"filename match above cannot see it",
+                )
+            )
     return out
 
 
@@ -130,7 +135,8 @@ def test_no_test_reads_a_mutatable_module_source_raw():
     assert not offenders, (
         "read a mutatable module's source via tests/_srcscan.module_source(), which skips on a "
         "mutmut-generated file — a raw read makes the whole module unmeasurable and reports it as "
-        "'failed to collect stats':\n  " + "\n  ".join(offenders))
+        "'failed to collect stats':\n  " + "\n  ".join(offenders)
+    )
 
 
 def test_the_gate_sees_a_read_split_across_lines():
@@ -148,10 +154,15 @@ def test_the_gate_sees_a_read_split_across_lines():
     )
     assert [n for n, _ in raw_reads(split, mods)] == [3], raw_reads(split, mods)
     # …and the per-line scan the gate used to run genuinely misses it (the mechanism, not a story)
-    perline = [n for n, line in enumerate(split.split("\n"), 1)
-               if READ_CALL.search(line) and any(f"'{m}'" in line for m in mods)]
+    perline = [
+        n
+        for n, line in enumerate(split.split("\n"), 1)
+        if READ_CALL.search(line) and any(f"'{m}'" in line for m in mods)
+    ]
     assert perline == [], "the per-line scan now catches a split read — this plant is stale"
-    joined = "import os\ndef test_x():\n    src = open(os.path.join(os.path.dirname(__file__), '..', 'capture.py')).read()\n"
+    joined = (
+        "import os\ndef test_x():\n    src = open(os.path.join(os.path.dirname(__file__), '..', 'capture.py')).read()\n"
+    )
     assert [n for n, _ in raw_reads(joined, mods)] == [3]
     assert raw_reads("# reads capture.py here\nx = 1\n", mods) == []
     assert raw_reads("from tests._srcscan import module_source\nsrc = module_source(\n    'capture.py')\n", mods) == []
@@ -172,7 +183,7 @@ def test_the_helper_actually_skips_on_a_generated_file(tmp_path, monkeypatch):
     assert ss.module_source("real.py") == "x = 1\n"
 
     (tmp_path / "gen.py").write_text("def x_f__mutmut_orig(): pass\n", encoding="utf-8")
-    with pytest.raises(BaseException) as e:          # pytest.skip raises Skipped, not Exception
+    with pytest.raises(BaseException) as e:  # pytest.skip raises Skipped, not Exception
         ss.module_source("gen.py")
     assert "mutmut" in str(e.value) or e.typename == "Skipped"
     # The skip must be allowed at MODULE level: `test_ring_acc_recording.py` calls the helper at import.
@@ -199,11 +210,28 @@ def test_a_module_level_scan_of_a_generated_file_is_a_skip_not_a_collection_erro
     (root / "gen.py").write_text("def x_f__mutmut_orig(): pass\n", encoding="utf-8")
     (root / "tests" / "test_scan.py").write_text(
         "from _srcscan import module_source\n"
-        "SRC = module_source('gen.py')\n"          # module scope — the shape test_ring_acc_recording uses
-        "def test_x():\n    assert 'mutmut' in SRC\n", encoding="utf-8")
-    r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider",
-                        "--rootdir", str(root), str(root / "tests" / "test_scan.py")],
-                       cwd=str(root / "tests"), capture_output=True, text=True, timeout=120)
+        "SRC = module_source('gen.py')\n"  # module scope — the shape test_ring_acc_recording uses
+        "def test_x():\n    assert 'mutmut' in SRC\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-x",
+            "-p",
+            "no:cacheprovider",
+            "--rootdir",
+            str(root),
+            str(root / "tests" / "test_scan.py"),
+        ],
+        cwd=str(root / "tests"),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     out = r.stdout + r.stderr
     assert "error" not in out.lower() and "allow_module_level" not in out, out
     # exit 5 = "no tests collected" — the one file in this run skipped whole, which is the intent; a

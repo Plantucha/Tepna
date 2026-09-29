@@ -12,6 +12,7 @@ Fixtures are REAL sentences captured from the QUESCAN UBX-M10050 on 2026-09-15 (
 sats, HDOP 0.62-0.88, 619.7 m MSL at 35.58 N / 82.57 W), not invented ones — a hand-written GGA can
 agree with a hand-written parser about a format neither has seen.
 """
+
 import logging
 import os
 import sys
@@ -38,16 +39,22 @@ def test_a_real_gga_yields_the_msl_altitude_not_the_ellipsoidal_one():
     assert round(fx["lat"], 4) == 35.5842 and round(fx["lon"], 4) == -82.5748
 
 
-@pytest.mark.parametrize("line,why", [
-    (GGA_NOFIX, "quality 0 — the receiver says it does not know"),
-    ("$GNRMC,000002.00,A,3535.05,N,08234.48,W,,,150926,,,A,V*0E", "not a GGA at all"),
-    ("$GNGGA,000002.00,3535.05074,N", "truncated mid-sentence"),
-    ("", "empty line"),
-    ("GNGGA,0,0,N,0,W,1,12,0.6,10,M,0,M,,*00", "no leading $ — not NMEA framing"),
-    ("$GNGGA,000002.00,3535.05074,N,08234.48866,W,1,12,0.62,,M,-32.4,M,,0000*4F", "no altitude field"),
-    ("$GNGGA,000002.00,3535.05074,N,08234.48866,W,6,12,0.62,619.7,M,-32.4,M,,*4F", "quality 6 = dead reckoning, an INFERENCE"),
-    ("$GNGGA,000002.00,3535.05074,N,08234.48866,W,x,12,0.62,619.7,M,-32.4,M,,*4F", "unparseable quality"),
-])
+@pytest.mark.parametrize(
+    "line,why",
+    [
+        (GGA_NOFIX, "quality 0 — the receiver says it does not know"),
+        ("$GNRMC,000002.00,A,3535.05,N,08234.48,W,,,150926,,,A,V*0E", "not a GGA at all"),
+        ("$GNGGA,000002.00,3535.05074,N", "truncated mid-sentence"),
+        ("", "empty line"),
+        ("GNGGA,0,0,N,0,W,1,12,0.6,10,M,0,M,,*00", "no leading $ — not NMEA framing"),
+        ("$GNGGA,000002.00,3535.05074,N,08234.48866,W,1,12,0.62,,M,-32.4,M,,0000*4F", "no altitude field"),
+        (
+            "$GNGGA,000002.00,3535.05074,N,08234.48866,W,6,12,0.62,619.7,M,-32.4,M,,*4F",
+            "quality 6 = dead reckoning, an INFERENCE",
+        ),
+        ("$GNGGA,000002.00,3535.05074,N,08234.48866,W,x,12,0.62,619.7,M,-32.4,M,,*4F", "unparseable quality"),
+    ],
+)
 def test_every_unusable_sentence_is_None_never_a_number(line, why):
     assert geo.parse_gga(line) is None, why
 
@@ -77,8 +84,8 @@ def test_usable_refuses_a_fix_with_fields_missing_rather_than_assuming_them():
 def test_best_fix_takes_the_SHARPEST_not_the_LAST():
     """Last-seen would make the answer depend on where the read happened to stop. Lowest HDOP is a
     property of the data; read-stop position is a property of the clock."""
-    sharp = GGA_GOOD                                   # hdop 0.62
-    blunt = GGA_GOOD.replace(",0.62,", ",2.10,")       # hdop 2.10, still usable
+    sharp = GGA_GOOD  # hdop 0.62
+    blunt = GGA_GOOD.replace(",0.62,", ",2.10,")  # hdop 2.10, still usable
     assert geo.best_fix([sharp, blunt])["hdop"] == 0.62
     assert geo.best_fix([blunt, sharp])["hdop"] == 0.62, "order must not decide it"
     assert geo.best_fix([GGA_NOFIX, GGA_SPARSE]) is None
@@ -105,8 +112,10 @@ def test_absent_config_never_touches_a_device():
     """🔴 THE LOAD-BEARING TEST FOR A PUBLIC REPO. Almost nobody running Tepna has a GNSS wired to
     their capture host. Absent or disabled config must short-circuit before any import, any port
     open, and any log line — the reader is asserted NEVER CALLED, not merely tolerant."""
+
     def _never(*a, **k):
         raise AssertionError("a host without geo config must not read any device")
+
     assert geo.session_elevation(None, _reader=_never) is None
     assert geo.session_elevation({}, _reader=_never) is None
     assert geo.session_elevation({"geo": {}}, _reader=_never) is None
@@ -121,8 +130,7 @@ def test_enabled_without_a_port_is_absent_not_a_guess(caplog):
 
 def test_enabled_with_no_fix_logs_that_it_is_absent_and_says_NOT_zero(caplog):
     with caplog.at_level(logging.INFO, logger="tepna-capture"):
-        got = geo.session_elevation({"geo": {"enabled": True, "port": "/dev/ttyUSB0"}},
-                                    _reader=lambda *a: [GGA_NOFIX])
+        got = geo.session_elevation({"geo": {"enabled": True, "port": "/dev/ttyUSB0"}}, _reader=lambda *a: [GGA_NOFIX])
     assert got is None
     msg = next(r.getMessage() for r in caplog.records if "no usable fix" in r.getMessage())
     assert "not 0 m" in msg, "the log must name the trap it is avoiding"
@@ -130,8 +138,10 @@ def test_enabled_with_no_fix_logs_that_it_is_absent_and_says_NOT_zero(caplog):
 
 def test_enabled_with_a_good_fix_returns_the_measurement(caplog):
     with caplog.at_level(logging.INFO, logger="tepna-capture"):
-        got = geo.session_elevation({"geo": {"enabled": True, "port": "/dev/ttyUSB0", "baud": 38400,
-                                             "read_sec": 1}}, _reader=lambda *a: [GGA_GOOD])
+        got = geo.session_elevation(
+            {"geo": {"enabled": True, "port": "/dev/ttyUSB0", "baud": 38400, "read_sec": 1}},
+            _reader=lambda *a: [GGA_GOOD],
+        )
     assert got["elevation_m"] == 619.7 and got["sats"] == 12
     assert any("elevation 619.7 m" in r.getMessage() for r in caplog.records)
 
@@ -139,6 +149,7 @@ def test_enabled_with_a_good_fix_returns_the_measurement(caplog):
 # ── read_nmea: the only impure function, so every failure path is pinned ────────────────────────
 class _FakeSerial:
     """Minimal pyserial stand-in. `lines` are returned then exhausted."""
+
     def __init__(self, lines=(), raises=None):
         self._lines = list(lines)
         self._raises = raises
@@ -219,6 +230,6 @@ def test_the_REAL_import_path_binds_when_pyserial_IS_present(monkeypatch):
     runner without pyserial — which is this venv, and CI, since it is not a declared dependency.
     Without this the success path is unreachable everywhere and reads as covered only by absence."""
     monkeypatch.setitem(sys.modules, "serial", _FakeSerial([GGA_GOOD]))
-    got = geo.read_nmea("/dev/ttyUSB0", 38400, 0.2)   # no _serial= : must go through `import serial`
+    got = geo.read_nmea("/dev/ttyUSB0", 38400, 0.2)  # no _serial= : must go through `import serial`
     assert GGA_GOOD in got
     assert geo.session_geo(got)["elevation_m"] == 619.7

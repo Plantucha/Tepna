@@ -17,8 +17,8 @@ import cpap_inventory as ci
 
 # ── night_key ────────────────────────────────────────────────────────────────────────────────────
 def test_night_key_accepts_the_shapes_that_actually_occur():
-    assert ci.night_key("20260827") == "20260827"                 # DATALOG folder
-    assert ci.night_key("2026-08-27T22:14:05") == "20260827"      # ISO envelope stamp
+    assert ci.night_key("20260827") == "20260827"  # DATALOG folder
+    assert ci.night_key("2026-08-27T22:14:05") == "20260827"  # ISO envelope stamp
     assert ci.night_key("2026-08-27 22:14") == "20260827"
 
 
@@ -35,9 +35,9 @@ def test_a_DIGIT_BEARING_PREFIX_does_not_corrupt_the_night():
     returned None for every envelope timestamp. The test above caught that within one run.
 
     Both are asserted here together so neither single-pass version can pass again."""
-    assert ci.night_key("AS11_20260827_BRP.edf.meta.json") == "20260827"   # digit-bearing prefix
-    assert ci.night_key("AS11_2026-08-27_BRP.meta.json") == "20260827"     # …and separators too
-    assert ci.night_key("2026-08-27T22:14:05") == "20260827"               # the case the fix broke
+    assert ci.night_key("AS11_20260827_BRP.edf.meta.json") == "20260827"  # digit-bearing prefix
+    assert ci.night_key("AS11_2026-08-27_BRP.meta.json") == "20260827"  # …and separators too
+    assert ci.night_key("2026-08-27T22:14:05") == "20260827"  # the case the fix broke
 
 
 def test_night_key_refuses_rather_than_guessing():
@@ -51,9 +51,9 @@ def test_night_key_refuses_rather_than_guessing():
 def test_night_key_validates_the_components_it_extracted():
     # Digits are not a calendar. A regex match is not a date, and Date-style silent rolling is exactly
     # the fabricated-instant failure the Clock Contract forbids.
-    assert ci.night_key("20261327") is None   # month 13
-    assert ci.night_key("20260832") is None   # day 32
-    assert ci.night_key("19990101") is None   # before the device era
+    assert ci.night_key("20261327") is None  # month 13
+    assert ci.night_key("20260832") is None  # day 32
+    assert ci.night_key("19990101") is None  # before the device era
     assert ci.night_key("21010101") is None
 
 
@@ -106,8 +106,8 @@ def test_envelope_only_is_ENVELOPE_ONLY():
 def test_present_in_all_three_is_COMPLETE_and_is_NOT_a_record():
     r = ci.reconcile(spool=["20260827"], envelopes=["20260827"], card=["20260827"])
     assert r["ok"] is True
-    assert r["records"] == []              # a healthy night is not a discrepancy
-    assert r["complete"] == ["20260827"]   # …but it IS counted, so zero records is legible
+    assert r["records"] == []  # a healthy night is not a discrepancy
+    assert r["complete"] == ["20260827"]  # …but it IS counted, so zero records is legible
     assert ci.journal_lines(r) == []
 
 
@@ -131,7 +131,7 @@ def test_an_unconsulted_source_still_contributes_its_PRESENCES():
     # Presence is evidence regardless: if the unread source somehow reports a night, that night is
     # real. Only its silences are uninformative.
     r = ci.reconcile(spool=["20260827"], envelopes=["20260827"], card=["20260827"], spool_consulted=False)
-    assert r["records"] == []   # all three present ⇒ COMPLETE, and the flag changes nothing
+    assert r["records"] == []  # all three present ⇒ COMPLETE, and the flag changes nothing
 
 
 def test_the_card_side_the_walk_RAN_versus_the_walk_never_happened():
@@ -147,8 +147,7 @@ def test_the_card_side_the_walk_RAN_versus_the_walk_never_happened():
 
 
 def test_several_unconsulted_sources_are_all_named():
-    r = ci.reconcile(spool=[], envelopes=["20260827"], card=[],
-                     spool_consulted=False, card_consulted=False)
+    r = ci.reconcile(spool=[], envelopes=["20260827"], card=[], spool_consulted=False, card_consulted=False)
     assert r["records"][0]["unconsulted"] == ["spool", "card"]
 
 

@@ -4,6 +4,7 @@ The scheduled poller owns the 13:00 window; this is "do it now" for a missed nig
 It must enforce the SAME interlock as the poller — a button is not a reason to put a 2.4 GHz
 transmitter beside a recording sensor (measured 2026-07-26: 5-7 dB and 17 reconnects across three).
 """
+
 import os
 import sys
 
@@ -17,8 +18,16 @@ CFG = {"enabled": True, "at_hour": 13, "wifi_profile": "ezshare", "dest_subdir":
 
 
 def _res(**kw):
-    r = {"files": 5, "bytes": 2_560_000, "skipped": 0, "nights": 1,
-         "short": [], "errors": [], "partial": False, "nights_on_card": 197}
+    r = {
+        "files": 5,
+        "bytes": 2_560_000,
+        "skipped": 0,
+        "nights": 1,
+        "short": [],
+        "errors": [],
+        "partial": False,
+        "nights_on_card": 197,
+    }
     r.update(kw)
     return r
 
@@ -34,6 +43,7 @@ def _post(app, body=None):
     async def go(c):
         r = await c.post("/api/cpap/pull", json=body if body is not None else {})
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -47,24 +57,38 @@ def _stub(monkeypatch, harvest=None, up=True, calls=None, reachable=False, seen=
     survived mutation with the suite green. That argument is the one this handler's own comment calls
     load-bearing — without it the wpa control dir falls back to /tmp, which is READ-ONLY under
     `ProtectSystem=strict`. Pass `seen=[]` to capture every argument of every call."""
+
     def _rec(op, **kw):
         if seen is not None:
             seen.append({"op": op, **kw})
 
-    monkeypatch.setattr(cpap_harvest, "reachable",
-                        lambda base, timeout=5.0: (_rec("reachable", base=base, timeout=timeout),
-                                                   reachable)[1])
+    monkeypatch.setattr(
+        cpap_harvest,
+        "reachable",
+        lambda base, timeout=5.0: (_rec("reachable", base=base, timeout=timeout), reachable)[1],
+    )
     monkeypatch.setattr(cpap_harvest, "default_route_dev", lambda: "eno1")
-    monkeypatch.setattr(cpap_harvest, "wifi_up",
-                        lambda p, t=45.0, g=None, ssid=None, psk=None, iface=None, addr=None, root=None:
-                        (_rec("up", profile=p, timeout=t, guard=g, iface=iface, root=root),
-                         calls.append(("up", g)) if calls is not None else None, up)[2])
-    monkeypatch.setattr(cpap_harvest, "wifi_down",
-                        lambda p, t=30.0, iface=None, root=None:
-                        (_rec("down", profile=p, timeout=t, iface=iface, root=root),
-                         calls.append(("down", p)) if calls is not None else None, True)[2])
-    monkeypatch.setattr(cpap_harvest, "harvest",
-                        harvest or (lambda *a, **k: (_rec("harvest", args=a, kw=k), _res())[1]))
+    monkeypatch.setattr(
+        cpap_harvest,
+        "wifi_up",
+        lambda p, t=45.0, g=None, ssid=None, psk=None, iface=None, addr=None, root=None: (
+            _rec("up", profile=p, timeout=t, guard=g, iface=iface, root=root),
+            calls.append(("up", g)) if calls is not None else None,
+            up,
+        )[2],
+    )
+    monkeypatch.setattr(
+        cpap_harvest,
+        "wifi_down",
+        lambda p, t=30.0, iface=None, root=None: (
+            _rec("down", profile=p, timeout=t, iface=iface, root=root),
+            calls.append(("down", p)) if calls is not None else None,
+            True,
+        )[2],
+    )
+    monkeypatch.setattr(
+        cpap_harvest, "harvest", harvest or (lambda *a, **k: (_rec("harvest", args=a, kw=k), _res())[1])
+    )
 
 
 # ── refusals ────────────────────────────────────────────────────────────────────────────────────────
@@ -90,9 +114,13 @@ def test_a_charging_sensor_does_not_block_the_button(tmp_path, monkeypatch):
     """`connected` is not `streaming` — a docked sensor produces nothing. This is the state the box
     was actually in when the button first refused wrongly (2026-07-26)."""
     _stub(monkeypatch)
-    app = _app(tmp_path, status={
-        "Polar Verity Sense": {"connected": True, "charging": True},
-        "Wellue O2Ring-S": {"connected": True, "charging": True, "worn": False}})
+    app = _app(
+        tmp_path,
+        status={
+            "Polar Verity Sense": {"connected": True, "charging": True},
+            "Wellue O2Ring-S": {"connected": True, "charging": True, "worn": False},
+        },
+    )
     status, body = _post(app, {"scope": "last"})
     assert status == 200 and body["files"] == 5
 
@@ -117,8 +145,8 @@ def test_the_association_is_raised_with_a_route_guard_and_always_released(tmp_pa
     calls = []
     _stub(monkeypatch, calls=calls)
     _post(_app(tmp_path), {"scope": "last"})
-    assert ("up", "eno1") in calls, calls          # the pre-association route is passed as the guard
-    assert any(c[0] == "down" for c in calls)      # and dropped afterwards
+    assert ("up", "eno1") in calls, calls  # the pre-association route is passed as the guard
+    assert any(c[0] == "down" for c in calls)  # and dropped afterwards
 
 
 def test_association_released_even_when_the_harvest_raises(tmp_path, monkeypatch):
@@ -126,6 +154,7 @@ def test_association_released_even_when_the_harvest_raises(tmp_path, monkeypatch
 
     def boom(*a, **k):
         raise RuntimeError("card vanished")
+
     _stub(monkeypatch, harvest=boom, calls=calls)
     status, body = _post(_app(tmp_path), {"scope": "last"})
     assert status == 500 and "card vanished" in body["error"]
@@ -156,6 +185,7 @@ def test_the_result_is_published_to_api_state(tmp_path, monkeypatch):
         await c.post("/api/cpap/pull", json={"scope": "last"})
         r = await c.get("/api/state")
         return (await r.json()).get("cpap")
+
     st = _serve(app, go)
     assert st["state"] == "ok" and st["files"] == 5 and st["nights_on_card"] == 197
 
@@ -165,11 +195,12 @@ def test_a_second_concurrent_pull_is_refused_not_queued(tmp_path, monkeypatch):
     all three, so the second is refused outright — the same "one at a time" rule offline_lock enforces
     for BLE pulls. Refusing is honest; queueing would make a button press mean "sometime later"."""
     import asyncio
+
     _stub(monkeypatch)
     app = _app(tmp_path)
     started, release = asyncio.Event(), asyncio.Event()
 
-    def slow(*a, **k):                      # runs in a worker thread via asyncio.to_thread
+    def slow(*a, **k):  # runs in a worker thread via asyncio.to_thread
         loop.call_soon_threadsafe(started.set)
         asyncio.run_coroutine_threadsafe(_wait(), loop).result(timeout=5)
         return _res()
@@ -184,7 +215,7 @@ def test_a_second_concurrent_pull_is_refused_not_queued(tmp_path, monkeypatch):
         nonlocal loop
         loop = asyncio.get_running_loop()
         first = asyncio.create_task(c.post("/api/cpap/pull", json={"scope": "last"}))
-        await asyncio.wait_for(started.wait(), 5)          # first pull is genuinely in flight
+        await asyncio.wait_for(started.wait(), 5)  # first pull is genuinely in flight
         r2 = await c.post("/api/cpap/pull", json={"scope": "last"})
         second = (r2.status, await r2.json())
         release.set()
@@ -248,8 +279,7 @@ def test_the_harvest_is_aimed_at_the_configured_destination_and_base(tmp_path):
     """`dest` is root + cpap.dest_subdir, and `base` is cpap.base_url. Assembled from the wrong keys
     the pull still reports 200 with files copied — into the wrong directory, or from the wrong host."""
     seen = []
-    app = _app(tmp_path, cpap={**CFG, "dest_subdir": "captures/resmed",
-                               "base_url": "http://192.168.4.1"})
+    app = _app(tmp_path, cpap={**CFG, "dest_subdir": "captures/resmed", "base_url": "http://192.168.4.1"})
     with pytest.MonkeyPatch.context() as mp:
         _stub(mp, seen=seen)
         status, _ = _post(app)
@@ -278,6 +308,7 @@ def test_the_run_is_bounded_by_the_configured_max_run_sec(tmp_path):
     """A deadline, not a duration: `harvest` takes an absolute monotonic cap. Unbounded, a card that
     stalls mid-transfer holds the interlock — and the sensors it blocks — until something else kills it."""
     import time as _t
+
     seen = []
     app = _app(tmp_path, cpap={**CFG, "max_run_sec": 120})
     with pytest.MonkeyPatch.context() as mp:

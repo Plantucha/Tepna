@@ -32,6 +32,7 @@ from tests.test_webmon_api import H10, _mk, _serve
 def _no_real_bluetoothctl(monkeypatch):
     async def fake_bond(*a, **k):
         return True
+
     monkeypatch.setattr(webmon.bonding, "ensure_bonded", fake_bond)
 
 
@@ -39,6 +40,7 @@ def _post(app, path, payload, raw=False):
     async def go(c):
         r = await (c.post(path, data=payload) if raw else c.post(path, json=payload))
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -70,24 +72,27 @@ def test_an_unidentified_device_is_refused_with_the_fields_that_are_missing(tmp_
     dev = {**H10, "address": "11:22:33:44:55:66", "vendor": "  ", "model": "  "}
     status, body = _post(app, "/api/remember", dev)
     assert status == 400
-    assert body == {"ok": False, "missing": ["vendor", "model"],
-                    "error": "unidentified device — missing vendor, model"}
+    assert body == {"ok": False, "missing": ["vendor", "model"], "error": "unidentified device — missing vendor, model"}
 
 
 def test_a_config_write_that_fails_reports_failure_rather_than_success(tmp_path, monkeypatch):
     """`{"ok": False, "error": "config write failed (disk?)"}` at 500 — the response that exists for a
     full or read-only disk. Under the surviving mutant it answered `ok: True`, so the monitor would
     show a device forgotten while config.yaml still lists it and the daemon keeps reconnecting."""
+
     async def fake_forget(*a, **k):
         return {"ok": True, "address": H10["address"]}
+
     monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
     # make the atomic write's mkstemp fail the way a full / read-only disk does — _save() catches it
     # and returns False, which is the branch under test
     import tempfile
+
     app, *_ = _mk(tmp_path)
 
     def no_disk(*a, **k):
         raise OSError(28, "No space left on device")
+
     monkeypatch.setattr(tempfile, "mkstemp", no_disk)
     status, body = _post(app, "/api/forget", {"address": H10["address"]})
     assert status == 500
@@ -137,7 +142,9 @@ def test_a_cpap_pull_that_raises_reports_the_exception_type_and_message(tmp_path
 
     def boom(*a, **k):
         raise ConnectionResetError("card never associated")
-    import cpap_harvest                      # webmon imports it inside the handler
+
+    import cpap_harvest  # webmon imports it inside the handler
+
     # inside `_work`, which is what the try/except actually wraps
     monkeypatch.setattr(cpap_harvest, "reachable", boom)
     monkeypatch.setattr(cpap_harvest, "nights_for", lambda *a, **k: [])
@@ -148,7 +155,7 @@ def test_a_cpap_pull_that_raises_reports_the_exception_type_and_message(tmp_path
 
 # ── the busy/holder responses ───────────────────────────────────────────────────────────────────────
 def test_a_stored_pull_that_is_unavailable_says_so_rather_than_succeeding(tmp_path):
-    app, *_ = _mk(tmp_path)                       # no pull_stored wired in
+    app, *_ = _mk(tmp_path)  # no pull_stored wired in
     status, body = _post(app, "/api/pull", {"which": "all"})
     assert status == 400
     assert body == {"ok": False, "detail": "stored-session pull not available"}
@@ -179,6 +186,7 @@ def test_bonding_is_told_which_device_and_which_radio(tmp_path, monkeypatch):
     async def fake_bond(address, adapter):
         seen["args"] = (address, adapter)
         return {"ok": True, "detail": "paired"}
+
     monkeypatch.setattr(webmon.bonding, "bond", fake_bond)
     app, *_ = _mk(tmp_path)
     status, body = _post(app, "/api/bond", {"address": "11:22:33:44:55:66"})
@@ -194,6 +202,7 @@ def test_forgetting_is_told_which_device_and_which_radio(tmp_path, monkeypatch):
     async def fake_forget(address, adapter):
         seen["args"] = (address, adapter)
         return {"ok": True}
+
     monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
     app, cfg, *_ = _mk(tmp_path)
     status, body = _post(app, "/api/forget", {"address": H10["address"]})
@@ -205,14 +214,17 @@ def test_forgetting_is_told_which_device_and_which_radio(tmp_path, monkeypatch):
 def test_a_forget_that_is_not_a_device_leaves_the_other_devices_alone(tmp_path, monkeypatch):
     """`cfg.get("devices", [])` → `cfg.get(None, [])` / `cfg.get("DEVICES", [])`: the comprehension then
     reads an empty list and the rewrite WIPES the device list. Nothing asserted the survivors."""
+
     async def fake_forget(*a, **k):
         return {"ok": True}
+
     monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
     other = {**H10, "name": "Verity", "address": "11:22:33:44:55:66"}
     app, cfg, *_ = _mk(tmp_path, devices=[H10, other])
     _post(app, "/api/forget", {"address": H10["address"]})
-    assert [d["address"] for d in cfg["devices"]] == ["11:22:33:44:55:66"], \
+    assert [d["address"] for d in cfg["devices"]] == ["11:22:33:44:55:66"], (
         "forgetting one device must not empty the list"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -225,31 +237,38 @@ def test_a_forget_that_is_not_a_device_leaves_the_other_devices_alone(tmp_path, 
 # move and the atomicity is gone.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
+
 def test_the_config_temp_file_is_written_beside_the_config(tmp_path, monkeypatch):
     """`tempfile.mkstemp(..., dir=None)` puts the temp in /tmp, so `os.replace` crosses filesystems and
     raises instead of being atomic — and `dir=d` where `d` came from `os.path.dirname(...) and "."`
     (mutant 777) is the empty string. Both survived; neither is visible from the file's contents."""
     seen = {}
     import tempfile as _tf
+
     real = _tf.mkstemp
 
     def spy(**kw):
         seen.update(kw)
         return real(**kw)
+
     monkeypatch.setattr(_tf, "mkstemp", spy)
 
     async def fake_forget(*a, **k):
         return {"ok": True}
+
     monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
     app, _cfg, _st, cfg_path, _bus = _mk(tmp_path)
     status, _ = _post(app, "/api/forget", {"address": H10["address"]})
     assert status == 200
 
     import os as _os
-    assert seen["dir"] == _os.path.dirname(_os.path.abspath(cfg_path)), \
+
+    assert seen["dir"] == _os.path.dirname(_os.path.abspath(cfg_path)), (
         "a sibling temp — os.replace is only atomic within one filesystem"
-    assert seen["prefix"] == ".config." and seen["suffix"] == ".yaml.tmp", \
+    )
+    assert seen["prefix"] == ".config." and seen["suffix"] == ".yaml.tmp", (
         "dotted and suffixed so a crashed write is recognisable and is not mistaken for the config"
+    )
     assert not _os.path.exists(seen["dir"] + "/" + ".config."), "no temp left behind"
 
 
@@ -258,8 +277,10 @@ def test_the_written_config_keeps_its_key_order_and_stays_block_style(tmp_path, 
     re-comments this file by hand (the docstring records four hand-made backups made for exactly that
     reason), so alphabetising it or collapsing it to `{a: 1, b: 2}` makes the diff unreadable — which
     is the whole cost the comment-loss warning already accepts once."""
+
     async def fake_forget(*a, **k):
         return {"ok": True}
+
     monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
     app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
     cfg["zzz_last"] = 1
@@ -268,8 +289,9 @@ def test_the_written_config_keeps_its_key_order_and_stays_block_style(tmp_path, 
 
     text = open(cfg_path).read()
     body = [ln for ln in text.splitlines() if ln and not ln.startswith("#")]
-    assert body.index("zzz_last: 1") < body.index("aaa_first: 2"), \
+    assert body.index("zzz_last: 1") < body.index("aaa_first: 2"), (
         "insertion order, not alphabetical — this file is read by a human"
+    )
     assert "{" not in text, "block style, not flow style"
 
 
@@ -286,17 +308,18 @@ def test_the_written_config_keeps_its_key_order_and_stays_block_style(tmp_path, 
 # expected to survive; the VALUES are not, and those are pinned.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
+
 def _sse(app, key, after=None, frames=1, snapshots=1, timeout=3.0):
     """Open an SSE connection, drain `snapshots` snapshot frames, run `after`, collect `frames` data
     frames. `_all` opens with one snapshot PER known stream, which is itself part of the contract."""
+
     async def go():
         srv = TestServer(app)
         cl = TestClient(srv)
         await cl.start_server()
         try:
             resp = await cl.get(f"/api/stream/{key}")
-            snaps = [await asyncio.wait_for(resp.content.readuntil(b"\n\n"), timeout=timeout)
-                     for _ in range(snapshots)]
+            snaps = [await asyncio.wait_for(resp.content.readuntil(b"\n\n"), timeout=timeout) for _ in range(snapshots)]
             if after:
                 after()
             got = []
@@ -305,6 +328,7 @@ def _sse(app, key, after=None, frames=1, snapshots=1, timeout=3.0):
             return dict(resp.headers), snaps, got
         finally:
             await cl.close()
+
     return asyncio.run(go())
 
 
@@ -326,8 +350,8 @@ def test_a_single_stream_subscription_receives_only_its_own_frames(tmp_path):
     app, _cfg, _st, _p, bus = _mk(tmp_path)
 
     def push():
-        bus.push("acc", [1, 2, 3], fs=50.0)      # must be filtered out
-        bus.push("hr", [72], fs=1.0)             # must arrive
+        bus.push("acc", [1, 2, 3], fs=50.0)  # must be filtered out
+        bus.push("hr", [72], fs=1.0)  # must arrive
 
     _h, _snaps, frames = _sse(app, "hr", after=push)
     payload = json.loads(frames[0].decode().split("data: ", 1)[1])
@@ -348,8 +372,9 @@ def test_the_all_key_multiplexes_every_stream_over_one_connection(tmp_path):
     n_snap = len(bus.meta())
     assert n_snap > 1, "the multiplex only means something with more than one known stream"
     _h, snaps, frames = _sse(app, "_all", after=push, frames=2, snapshots=n_snap)
-    assert all(s.startswith(b"event: snapshot\n") for s in snaps), \
+    assert all(s.startswith(b"event: snapshot\n") for s in snaps), (
         "_all opens with one snapshot per known stream, not one for the literal key '_all'"
+    )
     streams = [json.loads(f.decode().split("data: ", 1)[1])["stream"] for f in frames]
     assert streams == ["acc", "hr"], "_all forwards every stream, in order, unfiltered"
 
@@ -375,6 +400,7 @@ def test_the_first_frame_is_a_snapshot_of_the_stream_that_was_asked_for(tmp_path
 # input that cannot distinguish a default from a value.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
+
 def test_the_archive_is_not_enabled_without_a_target(tmp_path):
     """`bool(body.get("enabled", True)) and tgt is not None` → `or`. Under the mutant the archive is
     marked enabled with NO target configured, so the nightly offload runs against nothing and reports
@@ -389,9 +415,11 @@ def test_the_archive_is_not_enabled_without_a_target(tmp_path):
 def test_the_archive_enabled_flag_defaults_to_on_when_a_target_is_given(tmp_path, monkeypatch):
     """`body.get("enabled", True)` → `False`: the default an operator hits by POSTing a target without
     the flag, which the monitor's form does. Flipped, saving a target silently leaves the archive off."""
-    monkeypatch.setattr(webmon.storage_targets, "validate",
-                        lambda t: {"kind": "mount", "mountpoint": str(tmp_path / "m"),
-                                   "protocol": "local"})
+    monkeypatch.setattr(
+        webmon.storage_targets,
+        "validate",
+        lambda t: {"kind": "mount", "mountpoint": str(tmp_path / "m"), "protocol": "local"},
+    )
     app, cfg, *_ = _mk(tmp_path)
     status, _ = _post(app, "/api/storage", {"schedule": {"mode": "after_settle"}, "target": {"kind": "mount"}})
     assert status == 200
@@ -407,8 +435,7 @@ def test_an_established_device_id_is_not_overwritten_by_a_rescan(tmp_path):
     app, cfg, *_ = _mk(tmp_path)
     status, body = _post(app, "/api/remember", {**H10, "device_id": "AC0C301E"})
     assert status == 200 and body["ok"] is True
-    assert cfg["devices"][0]["device_id"] == "12345678", \
-        "an established identity wins over a rescan's guess"
+    assert cfg["devices"][0]["device_id"] == "12345678", "an established identity wins over a rescan's guess"
 
 
 def test_a_rescan_does_not_erase_the_tuned_keys_it_did_not_send(tmp_path):
@@ -417,8 +444,7 @@ def test_a_rescan_does_not_erase_the_tuned_keys_it_did_not_send(tmp_path):
     the box's bytes — leaving nightqc grading coverage against a nominal nobody chose."""
     tuned = {**H10, "rates": {"acc": 50}, "optional": True}
     app, cfg, *_ = _mk(tmp_path, devices=[tuned])
-    _post(app, "/api/remember", {k: H10[k] for k in
-                                 ("name", "vendor", "model", "device_id", "address", "streams")})
+    _post(app, "/api/remember", {k: H10[k] for k in ("name", "vendor", "model", "device_id", "address", "streams")})
     assert cfg["devices"][0]["rates"] == {"acc": 50}, "a re-remember is idempotent on untouched keys"
     assert cfg["devices"][0]["optional"] is True
 
@@ -433,12 +459,12 @@ def test_the_cpap_destination_falls_back_to_the_documented_defaults(tmp_path, mo
 
     def spy_harvest(dest, base, nights, deadline):
         seen["dest"] = dest
-        return {"short": [], "errors": [], "files": 0, "bytes": 0, "nights": 0,
-                "skipped": 0, "nights_on_card": 0}
+        return {"short": [], "errors": [], "files": 0, "bytes": 0, "nights": 0, "skipped": 0, "nights_on_card": 0}
 
     def spy_wifi_up(profile, timeout, guard, root=None):
         seen["profile"], seen["root"] = profile, root
         return True
+
     monkeypatch.setattr(cpap_harvest, "reachable", lambda *a, **k: False)
     monkeypatch.setattr(cpap_harvest, "default_route_dev", lambda: "eth0")
     monkeypatch.setattr(cpap_harvest, "wifi_up", spy_wifi_up)
@@ -448,14 +474,16 @@ def test_the_cpap_destination_falls_back_to_the_documented_defaults(tmp_path, mo
     monkeypatch.setattr(cpap_harvest, "blocking_devices", lambda *a, **k: [])
 
     app, cfg, *_ = _mk(tmp_path)
-    del cfg["root"]                                  # no root configured — the fallback is the subject
+    del cfg["root"]  # no root configured — the fallback is the subject
     cfg["cpap"] = {"enabled": True}
     status, _ = _post(app, "/api/cpap/pull", {"scope": "last"})
     assert status == 200
     import os as _os
+
     assert seen["dest"] == _os.path.join("/srv/tepna", "captures/cpap")
-    assert seen["root"] == "/srv/tepna", \
+    assert seen["root"] == "/srv/tepna", (
         "root MUST reach wifi_up — omitting it falls through to /tmp, read-only under ProtectSystem=strict"
+    )
     assert seen["profile"] == "ezshare"
 
 
@@ -469,12 +497,23 @@ def test_the_cpap_reachability_probe_is_bounded(tmp_path, monkeypatch):
     def spy_reachable(base, timeout):
         seen["args"] = (base, timeout)
         return True
+
     monkeypatch.setattr(cpap_harvest, "reachable", spy_reachable)
     monkeypatch.setattr(cpap_harvest, "nights_for", lambda *a, **k: [])
     monkeypatch.setattr(cpap_harvest, "blocking_devices", lambda *a, **k: [])
-    monkeypatch.setattr(cpap_harvest, "harvest", lambda *a, **k: {
-        "short": [], "errors": [], "files": 0, "bytes": 0, "nights": 0, "skipped": 0,
-        "nights_on_card": 0})
+    monkeypatch.setattr(
+        cpap_harvest,
+        "harvest",
+        lambda *a, **k: {
+            "short": [],
+            "errors": [],
+            "files": 0,
+            "bytes": 0,
+            "nights": 0,
+            "skipped": 0,
+            "nights_on_card": 0,
+        },
+    )
     app, cfg, *_ = _mk(tmp_path)
     cfg["cpap"] = {"enabled": True}
     _post(app, "/api/cpap/pull", {"scope": "last"})
@@ -494,13 +533,14 @@ def test_the_cpap_reachability_probe_is_bounded(tmp_path, monkeypatch):
 #      pull, timesync, the settings 400 and the 502/409 wrappers. Same defect, different handlers.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
+
 def _mk_bare(tmp_path, **kw):
     """An app whose config has NO `devices` key at all — a box that has never been paired."""
     import telemetry as _t
-    cfg = {"root": str(tmp_path), "clock": {"sudo": False}}          # note: no "devices"
+
+    cfg = {"root": str(tmp_path), "clock": {"sudo": False}}  # note: no "devices"
     st = {"host_clock": {"source": "ntp"}, "devices": {}}
-    app = webmon.make_app(_t.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
-                          ADAPTER, st, None, **kw)
+    app = webmon.make_app(_t.TelemetryBus(), cfg, str(tmp_path / "config.yaml"), ADAPTER, st, None, **kw)
     return app, cfg, st
 
 
@@ -512,6 +552,7 @@ def test_a_box_that_has_never_been_paired_serves_an_empty_device_list(tmp_path):
     async def go(c):
         r = await c.get("/api/state")
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 200 and body["devices"] == []
 
@@ -532,6 +573,7 @@ def test_settings_and_timesync_survive_a_bare_config(tmp_path):
     async def go(c):
         s = await c.get("/api/settings")
         return s.status, await s.json()
+
     status, body = _serve(app, go)
     assert status == 200 and body["devices"] == []
 
@@ -543,6 +585,7 @@ def test_a_polar_listing_for_an_unknown_address_is_refused(tmp_path):
     async def go(c):
         r = await c.get("/api/polar/recordings?address=99:99:99:99:99:99")
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 400
     assert body == {"ok": False, "error": "unknown or non-Polar address"}
@@ -559,16 +602,19 @@ def test_a_polar_listing_that_raises_reports_the_exception_as_a_bad_gateway(tmp_
     """502 with `f"{type(e).__name__}: {e}"` — three sites, each with a `type(None)` mutant that reports
     every BLE fault as `NoneType`. The device is upstream of the monitor, so 502 is the honest code."""
     import polar_psftp
+
     polar = {**H10, "vendor": "Polar", "address": "24:AC:AC:0C:30:1E"}
 
     async def boom(*a, **k):
         raise ConnectionError("device disconnected mid-discovery")
+
     monkeypatch.setattr(polar_psftp, "list_recordings", boom)
     app, *_ = _mk(tmp_path, devices=[polar])
 
     async def go(c):
         r = await c.get("/api/polar/recordings?address=24:AC:AC:0C:30:1E")
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 502
     assert body == {"ok": False, "error": "ConnectionError: device disconnected mid-discovery"}
@@ -579,16 +625,19 @@ def test_a_polar_listing_that_is_busy_reports_the_holder_of_the_lock(tmp_path, m
     the reason this is not a 500."""
     import offline_lock
     import polar_psftp
+
     polar = {**H10, "vendor": "Polar", "address": "24:AC:AC:0C:30:1E"}
 
     async def busy(*a, **k):
         raise offline_lock.OfflineBusy("o2ring pull")
+
     monkeypatch.setattr(polar_psftp, "list_recordings", busy)
     app, *_ = _mk(tmp_path, devices=[polar])
 
     async def go(c):
         r = await c.get("/api/polar/recordings?address=24:AC:AC:0C:30:1E")
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 409
     assert body["ok"] is False and body["busy"] == "o2ring pull"
@@ -605,8 +654,7 @@ def test_a_settings_post_that_is_rejected_reports_why(tmp_path):
     """`{"ok": False, "error": str(e)}` at 400 — the SettingsError text is the whole message the form
     renders, and `str(None)` / `ok: True` both survived."""
     app, *_ = _mk(tmp_path)
-    status, body = _post(app, "/api/settings",
-                         {"streams": {H10["address"]: ["not_a_stream"]}})
+    status, body = _post(app, "/api/settings", {"streams": {H10["address"]: ["not_a_stream"]}})
     assert status == 400
     assert body["ok"] is False
     assert "unknown stream(s): not_a_stream" in body["error"]
@@ -620,12 +668,15 @@ def test_the_index_page_is_served_from_beside_the_module(tmp_path):
     `polar_psftp`'s sidecar."""
     app, *_ = _mk(tmp_path)
     import os as _os
+
     cwd = _os.getcwd()
-    _os.chdir(tmp_path)                      # a working directory that is NOT the module's
+    _os.chdir(tmp_path)  # a working directory that is NOT the module's
     try:
+
         async def go(c):
             r = await c.get("/")
             return r.status, await r.text()
+
         status, text = _serve(app, go)
     finally:
         _os.chdir(cwd)
@@ -641,8 +692,9 @@ def test_the_timeline_bucket_count_has_a_default_and_is_clamped(tmp_path):
     app, *_ = _mk(tmp_path)
 
     async def go(c):
-        r = await c.get("/api/timeline")            # no buckets= — the default is the subject
+        r = await c.get("/api/timeline")  # no buckets= — the default is the subject
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 200, body
     assert body.get("night") == "2026-07-19", "and the night defaults to the one with newest activity"
@@ -652,6 +704,7 @@ def test_a_pull_progress_percentage_is_a_real_percentage(tmp_path, monkeypatch):
     """`100 * done // total` → `100 * done / total` and → `101 * done // total`. Both survived: one
     puts a fraction in a progress bar, the other ends a completed pull at 101 %."""
     import polar_psftp
+
     polar = {**H10, "vendor": "Polar", "address": "24:AC:AC:0C:30:1E"}
     seen = []
 
@@ -662,11 +715,13 @@ def test_a_pull_progress_percentage_is_a_real_percentage(tmp_path, monkeypatch):
         on_progress(8, 8)
         seen.append(st["devices"][polar["name"]]["pull_progress"]["pct"])
         return {"ok": True, "files": [], "total_bytes": 8, "session": session, "out_dir": out_dir}
+
     monkeypatch.setattr(polar_psftp, "pull_recording", fake_pull)
     app, _cfg, st, *_ = _mk(tmp_path, devices=[polar])
 
-    status, _body = _post(app, "/api/polar/pull",
-                          {"address": "24:AC:AC:0C:30:1E", "session": "/U/0/20260719/E/034500/"})
+    status, _body = _post(
+        app, "/api/polar/pull", {"address": "24:AC:AC:0C:30:1E", "session": "/U/0/20260719/E/034500/"}
+    )
     assert status == 200
     # `100 * done // total`: floor division on purpose, so 1/8 reads 12. The mutants are `/` (12.5,
     # a fractional percent in a progress bar) and `101 *` (which ends the pull at 101 %).
@@ -677,24 +732,27 @@ def test_the_cpap_run_deadline_has_a_default(tmp_path, monkeypatch):
     """`float(ccfg.get("max_run_sec", 5400))` — the wall that stops a manual pull holding the streaming
     interlock all night. 5401 survived; so would 54."""
     import cpap_harvest
+
     seen = {}
 
     def spy_harvest(dest, base, nights, deadline):
         seen["deadline"] = deadline
-        return {"short": [], "errors": [], "files": 0, "bytes": 0, "nights": 0, "skipped": 0,
-                "nights_on_card": 0}
+        return {"short": [], "errors": [], "files": 0, "bytes": 0, "nights": 0, "skipped": 0, "nights_on_card": 0}
+
     monkeypatch.setattr(cpap_harvest, "reachable", lambda *a, **k: True)
     monkeypatch.setattr(cpap_harvest, "nights_for", lambda *a, **k: [])
     monkeypatch.setattr(cpap_harvest, "blocking_devices", lambda *a, **k: [])
     monkeypatch.setattr(cpap_harvest, "harvest", spy_harvest)
     import time as _time
+
     app, cfg, *_ = _mk(tmp_path)
     cfg["cpap"] = {"enabled": True}
     t0 = _time.monotonic()
     status, _ = _post(app, "/api/cpap/pull", {"scope": "last"})
     assert status == 200
-    assert 5395 <= seen["deadline"] - t0 <= 5405, \
+    assert 5395 <= seen["deadline"] - t0 <= 5405, (
         f"the default deadline is 5400 s from the start of the run, got {seen['deadline'] - t0:.0f}"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -706,12 +764,15 @@ def test_the_cpap_run_deadline_has_a_default(tmp_path, monkeypatch):
 # killed by a named assertion cannot time its way out.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
+
 def test_timesync_all_reports_a_result_for_every_configured_device(tmp_path, monkeypatch):
     """The fan-out's two arms. A non-Polar device is SKIPPED with `ok: True` — the O2Ring re-syncs its
     RTC on every connect, so there is nothing to do and reporting a failure would be wrong — while a
     Polar device is actually synced. Six mutants renamed or inverted the skip record's fields."""
+
     async def fake_host(**kw):
         return {"ok": True, "source": "ntp"}
+
     monkeypatch.setattr(webmon.clockcfg, "sync_now", fake_host)
     ring = {**H10, "name": "Ring", "vendor": "Wellue", "address": "D1:98:62:7C:92:B3"}
     polar = {**H10, "name": "H10", "vendor": "Polar", "address": "24:AC:AC:0C:30:1E"}
@@ -721,17 +782,24 @@ def test_timesync_all_reports_a_result_for_every_configured_device(tmp_path, mon
     async def fake_sync(addr):
         synced.append(addr)
         return {"ok": True, "address": addr, "set": "2026-08-02T12:00:00"}
+
     app, *_ = _mk(tmp_path, devices=[ring, polar], sync_time=fake_sync)
 
     async def go(c):
         r = await c.post("/api/timesync/all", json={})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 200
     assert body["host"] == {"ok": True, "source": "ntp"}
     by_name = {d["name"]: d for d in body["devices"]}
-    assert by_name["Ring"] == {"address": "D1:98:62:7C:92:B3", "name": "Ring", "ok": True,
-                               "skipped": "auto", "detail": "re-syncs on every connect"}
+    assert by_name["Ring"] == {
+        "address": "D1:98:62:7C:92:B3",
+        "name": "Ring",
+        "ok": True,
+        "skipped": "auto",
+        "detail": "re-syncs on every connect",
+    }
     assert by_name["H10"]["ok"] is True and by_name["H10"]["address"] == "24:AC:AC:0C:30:1E"
     assert synced == ["24:AC:AC:0C:30:1E"], "only the Polar device is actually told the time"
 
@@ -741,15 +809,18 @@ def test_timesync_all_says_unavailable_when_no_syncer_is_wired(tmp_path, monkeyp
     `sync_time`. Five mutants rewrote it, including one that reports `ok: True` for a device whose clock
     was never touched. Polar stamps every sample with device time; claiming a sync that did not happen
     is how a night gets silently mis-dated."""
+
     async def fake_host(**kw):
         return {"ok": True}
+
     monkeypatch.setattr(webmon.clockcfg, "sync_now", fake_host)
     polar = {**H10, "name": "H10", "vendor": "Polar", "address": "24:AC:AC:0C:30:1E"}
-    app, *_ = _mk(tmp_path, devices=[polar])          # no sync_time= wired in
+    app, *_ = _mk(tmp_path, devices=[polar])  # no sync_time= wired in
 
     async def go(c):
         r = await c.post("/api/timesync/all", json={})
         return r.status, await r.json()
+
     status, body = _serve(app, go)
     assert status == 200
     assert body["devices"] == [{"ok": False, "error": "unavailable", "name": "H10"}]
@@ -763,8 +834,7 @@ def test_a_polar_pull_refuses_a_session_that_is_not_an_absolute_path(tmp_path):
     The session is interpolated into an output path, so a relative one escapes the captures tree."""
     polar = {**H10, "vendor": "Polar", "address": "24:AC:AC:0C:30:1E"}
     app, *_ = _mk(tmp_path, devices=[polar])
-    status, body = _post(app, "/api/polar/pull",
-                         {"address": "24:AC:AC:0C:30:1E", "session": "U/0/20260719/E/034500/"})
+    status, body = _post(app, "/api/polar/pull", {"address": "24:AC:AC:0C:30:1E", "session": "U/0/20260719/E/034500/"})
     assert status == 400
     assert body == {"ok": False, "error": "bad address or session path"}
 
@@ -778,12 +848,15 @@ def test_a_polar_pull_refuses_a_session_that_is_not_an_absolute_path(tmp_path):
 # first pairing; they were simply out of reach.
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════
 
+
 def test_every_route_the_monitor_calls_survives_a_bare_config(tmp_path, monkeypatch):
     """`cfg.get("devices")` with the default dropped returns None, and `for d in None` raises. Each of
     these routes is called by the monitor on load or on the first pairing, so a 500 here is what a new
     box shows its owner before they have done anything wrong."""
+
     async def fake_host(**kw):
         return {"ok": True}
+
     monkeypatch.setattr(webmon.clockcfg, "sync_now", fake_host)
     app, cfg, _st = _mk_bare(tmp_path)
 
@@ -794,22 +867,25 @@ def test_every_route_the_monitor_calls_survives_a_bare_config(tmp_path, monkeypa
         out["timesync_all"] = (await c.post("/api/timesync/all", json={})).status
         out["timesync"] = (await c.post("/api/timesync", json={"address": "AA:BB"})).status
         out["polar_recs"] = (await c.get("/api/polar/recordings?address=AA:BB")).status
-        out["polar_pull"] = (await c.post("/api/polar/pull",
-                                          json={"address": "AA:BB", "session": "/U/0/"})).status
+        out["polar_pull"] = (await c.post("/api/polar/pull", json={"address": "AA:BB", "session": "/U/0/"})).status
         return out
+
     got = _serve(app, go)
     assert got["settings_get"] == 200 and got["settings_post"] == 200
     assert got["timesync_all"] == 200, "the fan-out over zero devices is a no-op, not a crash"
-    assert got["timesync"] == 400 and got["polar_recs"] == 400 and got["polar_pull"] == 400, \
+    assert got["timesync"] == 400 and got["polar_recs"] == 400 and got["polar_pull"] == 400, (
         "an unknown address on a device-less box is refused, not a 500"
+    )
 
 
 def test_forgetting_on_a_bare_config_is_refused_rather_than_crashing(tmp_path, monkeypatch):
     """`/api/forget`'s rewrite reads `cfg.get("devices", [])`; with the default dropped the
     comprehension iterates None. A stale monitor tab can POST this against a box whose config was
     reset."""
+
     async def fake_forget(*a, **k):
         return {"ok": True}
+
     monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
     app, cfg, _st = _mk_bare(tmp_path)
     status, _body = _post(app, "/api/forget", {"address": "AA:BB:CC:DD:EE:FF"})
@@ -827,6 +903,7 @@ def test_a_timeline_request_on_a_bare_config_does_not_crash(tmp_path):
     async def go(c):
         r = await c.get("/api/timeline")
         return r.status
+
     assert _serve(app, go) == 200
 
 
@@ -845,11 +922,13 @@ def test_a_mount_target_gets_a_unit_and_a_local_one_does_not(tmp_path, monkeypat
 
         async def go(c):
             return await (await c.get("/api/storage")).json()
+
         return _serve(app, go)
 
     remote = _get({"kind": "mount", "protocol": "cifs", "mountpoint": "/m"})
-    assert remote.get("mount_unit") == {"unit": "srv-x.mount"}, \
+    assert remote.get("mount_unit") == {"unit": "srv-x.mount"}, (
         "a REMOTE mount needs the unit — that is the whole point of emitting one"
+    )
     local = _get({"kind": "mount", "protocol": "local", "mountpoint": "/m"})
     assert "mount_unit" not in local, "a local mount is already mounted; a unit would be wrong"
     transfer = _get({"kind": "transfer", "protocol": "cifs"})
@@ -869,6 +948,7 @@ def test_a_mount_target_gets_a_unit_and_a_local_one_does_not(tmp_path, monkeypat
 # as "the sensor is not advertising" — and this box's own notes record one adapter that goes deaf while
 # the other works, which is precisely the state that makes an empty scan look like a dead sensor.
 
+
 def test_the_device_scan_runs_on_the_PINNED_radio_not_whichever_bluez_picks(tmp_path, monkeypatch):
     """`bonding.scan(adapter_mac)` → `bonding.scan(None)` survived. A scan on the default controller
     finds nothing on a two-radio box and reports it as an empty device list."""
@@ -877,13 +957,15 @@ def test_the_device_scan_runs_on_the_PINNED_radio_not_whichever_bluez_picks(tmp_
     async def fake_scan(adapter):
         seen["adapter"] = adapter
         return []
+
     monkeypatch.setattr(webmon.bonding, "scan", fake_scan)
     app, *_ = _mk(tmp_path)
     status, _body = _post(app, "/api/scan", {})
     assert status == 200
     assert seen.get("adapter") == "AA:AA:AA:AA:AA:AA", (
         f"scan went out on {seen.get('adapter')!r} — an unpinned scan finds nothing on a box whose "
-        "other radio is deaf, and an empty list reads as a dead sensor")
+        "other radio is deaf, and an empty list reads as a dead sensor"
+    )
 
 
 def test_the_pre_pull_bond_check_uses_the_PINNED_radio(tmp_path, monkeypatch):
@@ -898,10 +980,12 @@ def test_the_pre_pull_bond_check_uses_the_PINNED_radio(tmp_path, monkeypatch):
 
     async def fake_list(address, adapter=None):
         return [{"session": "/U/0/1/", "size": 1}]
+
     monkeypatch.setattr(webmon.bonding, "ensure_bonded", fake_ensure)
     monkeypatch.setattr(webmon.polar_psftp, "list_recordings", fake_list)
     app, *_ = _mk(tmp_path)
     # GET /api/polar/recordings — it routes through `_polar_run`, which is where ensure_bonded lives.
     _serve(app, lambda c: c.get("/api/polar/recordings", params={"address": H10["address"]}))
     assert seen.get("args") == (H10["address"], "AA:AA:AA:AA:AA:AA"), (
-        f"ensure_bonded got {seen.get('args')!r} — the address AND the radio are both load-bearing")
+        f"ensure_bonded got {seen.get('args')!r} — the address AND the radio are both load-bearing"
+    )

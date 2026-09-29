@@ -57,6 +57,8 @@ DEGRADED_BELOW = 0.6
 # The filename's id field and a device's full identity (current id + corrected-away
 # predecessors) live in writers, next to the capture_filename they invert.
 _file_device_id = writers.file_device_id
+
+
 # capture_filename writes `{vendor}_{model}_{device_id}_{stamp}_{TAG}.{ext}`. Vendor and model may
 # themselves contain underscores ("O2Ring-S", and a model could be renamed to anything), so the id is
 # not a fixed field index — but it is ALWAYS the token immediately before the 14-digit stamp.
@@ -103,8 +105,9 @@ def _stamp_ms(name: str) -> float | None:
     return nightqc.floating_stamp_s(stamp)
 
 
-def stream_intervals(files: list[dict], device_id, tag: str, fs: float,
-                     offset_sec: float | None = 0.0) -> list[tuple[float, float]]:
+def stream_intervals(
+    files: list[dict], device_id, tag: str, fs: float, offset_sec: float | None = 0.0
+) -> list[tuple[float, float]]:
     """[(start_s, end_s)] this stream was writing, from session files alone.
 
     Duration is the file's OWN recorded span (`span_sec`, from its device-clock column) when it has one,
@@ -120,8 +123,7 @@ def stream_intervals(files: list[dict], device_id, tag: str, fs: float,
 
     `device_id` may be one id or several — a device that had its id corrected still owns the
     files written under the old one (writers.device_ids)."""
-    return sorted((t0, t0 + dur)
-                  for t0, dur in _placed(files, device_id, tag, fs, offset_sec) if dur)
+    return sorted((t0, t0 + dur) for t0, dur in _placed(files, device_id, tag, fs, offset_sec) if dur)
 
 
 def unmeasurable_files(files: list[dict], device_id, tag: str, fs: float) -> int:
@@ -170,8 +172,7 @@ def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float
         yield (t0, dur or None)
 
 
-def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int,
-                  fs: float) -> list[str]:
+def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int, fs: float) -> list[str]:
     """Bucket the covered intervals into `n` states across [t0, t1].
 
     A bucket is `captured` when the intervals cover enough of it, `degraded` when they cover some but
@@ -196,8 +197,9 @@ def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n:
     return out
 
 
-def bucket_link(samples: list[tuple[float, int, float | None]], t0: float, t1: float,
-                n: int) -> tuple[list[int | None], list[float | None]]:
+def bucket_link(
+    samples: list[tuple[float, int, float | None]], t0: float, t1: float, n: int
+) -> tuple[list[int | None], list[float | None]]:
     """(connected_per_bucket, median_rssi_per_bucket) from LINK samples [(ts, connected, rssi)].
 
     A bucket with no sample at all reports None for BOTH rather than carrying the previous value
@@ -219,8 +221,8 @@ def bucket_link(samples: list[tuple[float, int, float | None]], t0: float, t1: f
         # LAST sample always sits exactly on t1 — and that is the most recent reading, the one a live
         # card is showing. `ts >= t1` silently dropped it every time.
         i = min(int((ts - t0) / width), n - 1)
-        if 0 <= i < n:   # pragma: no branch — cannot be false once the explicit window check above
-            buckets[i].append((c, r))   # exists: n >= 1 and t1 > t0 are guaranteed by the early
+        if 0 <= i < n:  # pragma: no branch — cannot be false once the explicit window check above
+            buckets[i].append((c, r))  # exists: n >= 1 and t1 > t0 are guaranteed by the early
             # return, so width > 0; `ts >= t0` gives i >= 0 and the min() clamp gives i <= n-1. Kept
             # as an assertion of that reasoning rather than deleted, since it is the guard the
             # truncate-toward-zero comment above is describing the replacement of.
@@ -301,8 +303,9 @@ def read_link_samples(
         except OSError:
             # A whole night's LINK sidecars dropped. The timeline then shows a GAP where the
             # evidence is merely unreadable — and a gap is how this suite says "not connected".
-            log.warning("timeline: %s cannot be listed, so its link history is absent rather "
-                        "than empty", d, exc_info=True)
+            log.warning(
+                "timeline: %s cannot be listed, so its link history is absent rather than empty", d, exc_info=True
+            )
             continue
     for path in paths:
         try:
@@ -332,23 +335,24 @@ def read_link_samples(
                         _dtv = _dt.datetime.fromisoformat(p[i_ts])
                         ts = float(_cal.timegm(_dtv.timetuple())) + _dtv.microsecond / 1e6
                     except ValueError:
-                        continue      # NO TIMESTAMP, NO SAMPLE. Every consumer places these on a
-                                      # time axis, so a row that cannot be placed has nowhere to go
-                                      # — and inventing one (row order, file mtime) would fabricate
-                                      # exactly the axis this suite refuses to fabricate elsewhere.
+                        continue  # NO TIMESTAMP, NO SAMPLE. Every consumer places these on a
+                        # time axis, so a row that cannot be placed has nowhere to go
+                        # — and inventing one (row order, file mtime) would fabricate
+                        # exactly the axis this suite refuses to fabricate elsewhere.
                     r = None
                     if len(p) > i_r and p[i_r].strip():
                         try:
                             r = float(p[i_r])
                         except ValueError:
-                            r = None      # an unparseable RSSI is UNKNOWN, not 0 dBm — None is
-                                          # what every consumer here already treats as "no reading"
+                            r = None  # an unparseable RSSI is UNKNOWN, not 0 dBm — None is
+                            # what every consumer here already treats as "no reading"
                     if addr and dev:
                         name_to_addr.setdefault(dev, addr)
                     rows.append((dev, addr, ts, 1 if p[i_c] == "1" else 0, r))
         except OSError:
-            log.warning("timeline: %s is unreadable, so its samples are missing from the link "
-                        "history", path, exc_info=True)
+            log.warning(
+                "timeline: %s is unreadable, so its samples are missing from the link history", path, exc_info=True
+            )
             continue
     out: dict[str, list[tuple[float, int, float | None]]] = {}
     for dev, addr, ts, c, r in rows:
@@ -374,24 +378,21 @@ def link_adapter(night_dir) -> dict[str, str]:
             # This function answers WHICH RADIO served a night. Silently skipping a directory
             # makes it answer from a subset, and the caller cannot tell that from "no sidecar
             # recorded an adapter" — which is the answer for an old night.
-            log.warning("timeline: %s cannot be listed, so its adapter cannot be attributed",
-                        d, exc_info=True)
+            log.warning("timeline: %s cannot be listed, so its adapter cannot be attributed", d, exc_info=True)
             continue
         for n in names:
             try:
                 with open(os.path.join(d, n), errors="replace") as fh:
                     first = fh.readline()
             except OSError:
-                log.warning("timeline: %s is unreadable, so it cannot say which adapter served it",
-                            n, exc_info=True)
+                log.warning("timeline: %s is unreadable, so it cannot say which adapter served it", n, exc_info=True)
                 continue
             if first.startswith("#"):
                 out[n] = first.lstrip("#").strip()
     return out
 
 
-def wedge_buckets(link: dict[str, list[tuple[float, int, float | None]]], t0: float, t1: float,
-                  n: int) -> list[bool]:
+def wedge_buckets(link: dict[str, list[tuple[float, int, float | None]]], t0: float, t1: float, n: int) -> list[bool]:
     """Buckets where EVERY device with samples was disconnected at once — the adapter's own failure.
 
     One sensor dropping is range; all of them dropping together is the radio, and that distinction is
@@ -438,8 +439,9 @@ def wedge_buckets(link: dict[str, list[tuple[float, int, float | None]]], t0: fl
     return out
 
 
-def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS,
-          writer_offset: dict | None = None) -> dict:
+def build(
+    night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS, writer_offset: dict | None = None
+) -> dict:
     """The whole timeline for one night: per-stream state strips + per-device signal traces.
 
     `writer_offset` is OPTIONAL and carries the night's writer UTC offset when the caller knows it (a
@@ -462,8 +464,7 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS,
     # refusal as `nightqc.summarize` (see `nightqc.recover_writer_offset`). Every stamp below is floating
     # civil; this is the one number that turns them into instants, and where it cannot be recovered the
     # coverage figures refuse rather than measure against a window built on a guessed zone.
-    _off = (writer_offset if writer_offset is not None
-            else nightqc.recover_writer_offset(night_dir, data))
+    _off = writer_offset if writer_offset is not None else nightqc.recover_writer_offset(night_dir, data)
     _offset = _off["offset_sec"]
     _shift = 0.0 if _offset is None else _offset
     dirs = [night_dir]
@@ -473,12 +474,10 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS,
         # no floating start to be the earliest of).
         _stamped = [f["session"] for f in data if f["session"] is not None]
         earliest = min(_stamped) if _stamped else None
-        if (midnight is not None and earliest is not None
-                and 0 <= earliest - midnight < nightqc._SESSION_GAP_SEC):
+        if midnight is not None and earliest is not None and 0 <= earliest - midnight < nightqc._SESSION_GAP_SEC:
             prev = nightqc._prev_day_dir(night_dir)
             if prev and os.path.isdir(prev):
-                data = [f for f in nightqc.scan_night(prev)
-                        if f["stream"] not in nightqc._SIDECAR_TAGS] + data
+                data = [f for f in nightqc.scan_night(prev) if f["stream"] not in nightqc._SIDECAR_TAGS] + data
                 dirs.insert(0, prev)
     link = read_link_samples(dirs)
     # The sidecar's stamps come back floating; raise them into the same frame as the session bounds.
@@ -496,8 +495,7 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS,
     # this module would merge two daemon runs into one window while `summarize` kept them apart, and the
     # whole reason `merge_sessions` is shared is that the two must not disagree about what "the session"
     # is. `dirs` is exactly the set contributing to `data`, so the union is the right population.
-    _seams = sorted({t for d in dirs
-                     for t in nightqc.daemon_starts(d, offset_sec=_offset)["stamps"]})
+    _seams = sorted({t for d in dirs for t in nightqc.daemon_starts(d, offset_sec=_offset)["stamps"]})
     sessions = nightqc.merge_sessions(data, starts=_seams, offset_sec=_offset) if data else []
     spans: list[float] = []
     if sessions:
@@ -513,7 +511,7 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS,
             s = _stamp_ms(f["file"])
             if s is None:
                 continue
-            s += _shift                      # floating stamp → the frame `spans` is accumulated in
+            s += _shift  # floating stamp → the frame `spans` is accumulated in
             spans.append(s)
             # ...and its END. `spans` collected file START stamps only, so the window stopped where the
             # last session BEGAN and `covered` — which does count durations — ran past it: 156.5 % on a
@@ -527,8 +525,9 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS,
                 spans.append(s + _ext)
     else:
         for v in link.values():
-            if v:   # pragma: no branch — read_link_samples only creates a key by appending to it, so
-                spans.append(v[0][0]); spans.append(v[-1][0])   # no value here is ever the empty list
+            if v:  # pragma: no branch — read_link_samples only creates a key by appending to it, so
+                spans.append(v[0][0])
+                spans.append(v[-1][0])  # no value here is ever the empty list
     if not spans:
         return {"night": os.path.basename(night_dir.rstrip("/")), "buckets": 0, "devices": []}
     t0, t1 = min(spans), max(spans)
@@ -541,8 +540,7 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS,
         did, addr = d.get("device_id"), d.get("address")
         # Address, current name, and any name the device has been called before — a rename does
         # not make the earlier half of the night somebody else's radio.
-        samples = merge_link_samples(
-            link, [addr, d.get("name"), *(d.get("name_aliases") or [])])
+        samples = merge_link_samples(link, [addr, d.get("name"), *(d.get("name_aliases") or [])])
         conn, rssi = bucket_link(samples, t0, t1, buckets)
         streams = {}
         for s in d.get("streams") or []:
@@ -569,21 +567,31 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS,
                 # from floating stamps plus the files' own durations, so `t1 − t0` collapses toward
                 # `covered` and the ratio tends to 1 by construction — a coverage figure that cannot go
                 # down is not a measurement. Refusing names the cause; measuring would hide it.
-                "coverage_pct": (round(100 * covered / (t1 - t0), 1)
-                                 if t1 > t0 and (iv or not unmeasured) and _offset is not None
-                                 else None),
+                "coverage_pct": (
+                    round(100 * covered / (t1 - t0), 1)
+                    if t1 > t0 and (iv or not unmeasured) and _offset is not None
+                    else None
+                ),
                 # How many files with rows carry no duration this could be measured from. 0 for every
                 # stream with a rate or a device clock, so a reader sees the qualifier only when it bites.
                 "coverage_unmeasured": unmeasured,
-                "coverage_reason": ("writer-offset-unrecoverable" if _offset is None
-                                    else None if (iv or not unmeasured) else "no-duration-basis"),
+                "coverage_reason": (
+                    "writer-offset-unrecoverable"
+                    if _offset is None
+                    else None
+                    if (iv or not unmeasured)
+                    else "no-duration-basis"
+                ),
             }
-        out_devs.append({"name": d.get("name"), "address": addr, "device_id": did,
-                         "rssi": rssi, "streams": streams})
-    return {"night": os.path.basename(night_dir.rstrip("/")),
-            # The inference the axis rests on, published as `summarize` publishes it — `frame` says
-            # whether `t0`/`t1` are instants or floating civil values.
-            "writer_offset": dict(_off, frame="floating" if _offset is None else "absolute"),
-            "t0": t0, "t1": t1, "buckets": buckets,
-            "bucket_sec": round((t1 - t0) / buckets, 1) if buckets else 0,
-            "devices": out_devs}
+        out_devs.append({"name": d.get("name"), "address": addr, "device_id": did, "rssi": rssi, "streams": streams})
+    return {
+        "night": os.path.basename(night_dir.rstrip("/")),
+        # The inference the axis rests on, published as `summarize` publishes it — `frame` says
+        # whether `t0`/`t1` are instants or floating civil values.
+        "writer_offset": dict(_off, frame="floating" if _offset is None else "absolute"),
+        "t0": t0,
+        "t1": t1,
+        "buckets": buckets,
+        "bucket_sec": round((t1 - t0) / buckets, 1) if buckets else 0,
+        "devices": out_devs,
+    }

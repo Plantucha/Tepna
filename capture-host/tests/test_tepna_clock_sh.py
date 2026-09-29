@@ -33,14 +33,14 @@ def _stubs(tmp_path, active=None, chronyc_rc=0):
 
     def stub(name, body):
         p = bin_dir / name
-        p.write_text("#!/bin/sh\n" f'echo "{name} $*" >> "{log}"\n' + body)
+        p.write_text(f'#!/bin/sh\necho "{name} $*" >> "{log}"\n' + body)
         p.chmod(0o755)
 
     active_case = f'"{active}") echo active; exit 0 ;;' if active else ""
     stub(
         "systemctl",
-        "if [ \"$1\" = is-active ]; then\n"
-        "  case \"$2\" in\n"
+        'if [ "$1" = is-active ]; then\n'
+        '  case "$2" in\n'
         f"    {active_case}\n"
         "    *) echo inactive; exit 3 ;;\n"
         "  esac\n"
@@ -64,6 +64,7 @@ def _run(tmp_path, *args, active="chrony", chronyc_rc=0, etc_root=True):
 
 
 # ── the sudo surface: every input is re-validated HERE, whatever the caller did ──────────────────────
+
 
 def test_unknown_verb_prints_usage_and_names_the_detected_daemon(tmp_path):
     r, _, _ = _run(tmp_path, "wipe-disk")
@@ -105,6 +106,7 @@ def test_tz_accepts_a_real_zone(tmp_path):
 
 
 # ── the 2026-07-25 bug: TWO time daemons, and writing to the wrong one is silent ─────────────────────
+
 
 def test_chrony_box_gets_a_sources_file_and_a_reload_never_a_restart(tmp_path):
     r, etc, calls = _run(tmp_path, "ntp", "2048", "192.168.0.123", "pool.ntp.org", active="chrony")
@@ -158,6 +160,7 @@ def test_a_failed_chronyc_reload_is_reported_not_swallowed(tmp_path):
 
 # ── sync: burst + conditional step, deliberately NOT a service restart ───────────────────────────────
 
+
 def test_sync_on_chrony_bursts_and_conditionally_steps(tmp_path):
     r, _, calls = _run(tmp_path, "sync", active="chrony")
     assert r.returncode == 0, r.stderr
@@ -183,9 +186,13 @@ def test_sync_on_timesyncd_toggles_ntp_and_try_restarts(tmp_path):
 
 # ── the seam itself must not become the hole ─────────────────────────────────────────────────────────
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="as root this would WRITE the real /etc/chrony — the one "
-                                              "case tests must never reach (test_deploy_sync_apps.py's "
-                                              "host-mutation guard)")
+
+@pytest.mark.skipif(
+    os.geteuid() == 0,
+    reason="as root this would WRITE the real /etc/chrony — the one "
+    "case tests must never reach (test_deploy_sync_apps.py's "
+    "host-mutation guard)",
+)
 def test_the_test_seam_is_ignored_when_the_variable_is_unset(tmp_path):
     """With no TEPNA_ETC_ROOT the script targets the real /etc — proven by the write FAILING as non-root,
     which is also what proves the seam is not silently on by default."""

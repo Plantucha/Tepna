@@ -6,6 +6,7 @@ The defect being replaced: "Measured 2026-07-19 on an H10 (which does NOT report
 measured once, promoted to a claim about a MODEL, and false, because the H10 on the capture box does
 report it. Every plant below is that defect in a different disguise.
 """
+
 import json
 import os
 import sys
@@ -35,8 +36,8 @@ def test_PLANT_a_measured_False_is_DISTINGUISHABLE_from_never_measured():
     """If these collapse, the record cannot express §1.3's second done-when — "a device whose record is
     absent is PROBED, never assumed" — because absence would have no value of its own."""
     devcaps.record("AA:BB", "hr_contact_bit", False, source="hr-flags-bit2")
-    assert devcaps.get("AA:BB", "hr_contact_bit") is False       # measured: does not support
-    assert devcaps.get("CC:DD", "hr_contact_bit") is None        # never looked
+    assert devcaps.get("AA:BB", "hr_contact_bit") is False  # measured: does not support
+    assert devcaps.get("CC:DD", "hr_contact_bit") is None  # never looked
     assert devcaps.get("AA:BB", "hr_contact_bit") != devcaps.get("CC:DD", "hr_contact_bit")
 
 
@@ -70,7 +71,7 @@ def test_the_record_SURVIVES_A_RESTART(tmp_path):
     devcaps.record("AA:BB", "hr_contact_bit", True, source="hr-flags-bit2")
     assert os.path.exists(p)
 
-    devcaps.reset()                      # simulate the restart
+    devcaps.reset()  # simulate the restart
     assert devcaps.get("AA:BB", "hr_contact_bit") is None, "reset must really clear it"
     devcaps.configure(p)
     assert devcaps.get("AA:BB", "hr_contact_bit") is True
@@ -82,7 +83,7 @@ def test_PLANT_a_corrupt_record_does_not_stop_a_nights_capture(tmp_path):
     and after a corrupt load the state must be EMPTY (None), never partially-trusted."""
     p = str(tmp_path / "devcaps.json")
     open(p, "w").write("{ this is not json")
-    devcaps.configure(p)                 # must not raise
+    devcaps.configure(p)  # must not raise
     assert devcaps.get("AA:BB", "hr_contact_bit") is None
 
 
@@ -99,7 +100,7 @@ def test_snapshot_reports_values_and_sources_and_is_json_safe(tmp_path):
     devcaps.record("AA:BB", "hr_contact_bit", True, source="hr-flags-bit2")
     snap = devcaps.snapshot()
     assert snap == {"AA:BB": {"hr_contact_bit": {"value": True, "source": "hr-flags-bit2"}}}
-    json.dumps(snap)                     # it rides in status.json
+    json.dumps(snap)  # it rides in status.json
 
 
 def test_recording_never_raises_into_the_capture_path(monkeypatch, tmp_path):
@@ -108,8 +109,9 @@ def test_recording_never_raises_into_the_capture_path(monkeypatch, tmp_path):
 
     def boom(*_a, **_k):
         raise RuntimeError("disk is gone")
+
     monkeypatch.setattr(devcaps, "_flush", boom)
-    devcaps.record("AA:BB", "hr_contact_bit", True, source="hr-flags-bit2")   # must not raise
+    devcaps.record("AA:BB", "hr_contact_bit", True, source="hr-flags-bit2")  # must not raise
 
 
 def test_configure_with_no_path_is_memory_only(tmp_path):
@@ -124,15 +126,19 @@ def test_a_record_file_with_junk_entries_loads_only_the_well_formed_ones(tmp_pat
     """Half-trusting a malformed record is worse than ignoring it: a non-dict entry must be skipped,
     not coerced into something `get` would answer from."""
     p = str(tmp_path / "d.json")
-    open(p, "w").write(json.dumps({
-        "AA:BB": {"hr_contact_bit": {"value": True, "source": "hr-flags-bit2"}},
-        "CC:DD": "not-a-dict",                                  # whole device entry junk
-        "EE:FF": {"hr_contact_bit": "not-a-dict"},              # capability entry junk
-    }))
+    open(p, "w").write(
+        json.dumps(
+            {
+                "AA:BB": {"hr_contact_bit": {"value": True, "source": "hr-flags-bit2"}},
+                "CC:DD": "not-a-dict",  # whole device entry junk
+                "EE:FF": {"hr_contact_bit": "not-a-dict"},  # capability entry junk
+            }
+        )
+    )
     devcaps.configure(p)
     assert devcaps.get("AA:BB", "hr_contact_bit") is True
     assert devcaps.get("CC:DD", "hr_contact_bit") is None
-    assert devcaps.get("EE:FF", "hr_contact_bit") is None       # junk reads as UNMEASURED, not False
+    assert devcaps.get("EE:FF", "hr_contact_bit") is None  # junk reads as UNMEASURED, not False
 
 
 def test_PLANT_a_failed_write_leaves_no_half_written_record_and_no_tmp_litter(monkeypatch, tmp_path):
@@ -145,8 +151,9 @@ def test_PLANT_a_failed_write_leaves_no_half_written_record_and_no_tmp_litter(mo
 
     def boom(*_a, **_k):
         raise OSError("no space left on device")
+
     monkeypatch.setattr(devcaps.json, "dump", boom)
-    devcaps.record("CC:DD", "hr_contact_bit", True, source="hr-flags-bit2")   # must not raise
+    devcaps.record("CC:DD", "hr_contact_bit", True, source="hr-flags-bit2")  # must not raise
 
     assert open(p).read() == before, "the previous record must be intact, never truncated"
     assert [f for f in os.listdir(str(tmp_path)) if f.startswith(".devcaps-")] == []
@@ -171,7 +178,8 @@ def test_even_a_failed_CLEANUP_does_not_reach_the_capture_path(monkeypatch, tmp_
 
     def bad_unlink(*_a, **_k):
         raise OSError("read-only file system")
+
     monkeypatch.setattr(devcaps.json, "dump", bad_dump)
     monkeypatch.setattr(devcaps.os, "unlink", bad_unlink)
-    devcaps.record("AA:BB", "hr_contact_bit", True, source="hr-flags-bit2")   # must not raise
+    devcaps.record("AA:BB", "hr_contact_bit", True, source="hr-flags-bit2")  # must not raise
     assert devcaps.get("AA:BB", "hr_contact_bit") is True, "the in-memory answer still stands"

@@ -22,6 +22,7 @@ the night, months later, and it is not recoverable.
 The values in the fixture frames are chosen to be mutually distinguishable — PPI carries hr=60,
 interval=850 ms, error=5 — so a transposition FAILS rather than coincidentally matching.
 """
+
 import asyncio
 import sys
 
@@ -30,7 +31,7 @@ import capture
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import test_capture_runners as T
 
-_clean_stop = T._clean_stop          # the same module-global reset; see the live-contract file
+_clean_stop = T._clean_stop  # the same module-global reset; see the live-contract file
 
 
 def _rows(tmp_path, suffix):
@@ -76,7 +77,8 @@ def test_the_PPI_flag_bits_are_split_into_their_own_columns(tmp_path, monkeypatc
     _run(monkeypatch, tmp_path, ["ppi"], [T._ppi_frame()])
     _h, rows = _rows(tmp_path, "PPI")
     assert rows[0].split(";")[3:6] == ["0", "1", "1"], (
-        f"flags 0x06 must split to blocker=0, contact=1, contact=1; got {rows[0]}")
+        f"flags 0x06 must split to blocker=0, contact=1, contact=1; got {rows[0]}"
+    )
 
 
 # ── the multi-channel streams: a dropped axis is a silent one-third loss ────────────────────────────
@@ -84,7 +86,8 @@ def test_ACC_writes_all_three_axes_in_order(tmp_path, monkeypatch):
     _run(monkeypatch, tmp_path, ["acc"], [T._acc_frame()])
     _h, rows = _rows(tmp_path, "ACC")
     assert rows[0].split(";")[2:5] == ["10", "-20", "1000"], (
-        f"X;Y;Z must be written in order and unmodified; got {rows[0]}")
+        f"X;Y;Z must be written in order and unmodified; got {rows[0]}"
+    )
 
 
 def test_GYRO_and_MAG_keep_their_SCALED_float_values(tmp_path, monkeypatch):
@@ -96,7 +99,8 @@ def test_GYRO_and_MAG_keep_their_SCALED_float_values(tmp_path, monkeypatch):
         vals = [float(x) for x in rows[0].split(";")[2:5]]
         assert len(vals) == 3, f"{suffix}: three axes, got {vals}"
         assert vals[0] < vals[1] < vals[2], (
-            f"{suffix}: the axes must keep their order — raw {raw} is strictly increasing, got {vals}")
+            f"{suffix}: the axes must keep their order — raw {raw} is strictly increasing, got {vals}"
+        )
         assert all(v != 0 for v in vals), f"{suffix}: a zeroed axis means an argument was dropped: {vals}"
 
 
@@ -140,15 +144,20 @@ def test_an_HR_notification_writes_the_BPM_row_and_a_SEPARATE_RR_file(tmp_path, 
     _h2, rr_rows = _rows(tmp_path, "RR")
     assert rr_rows, "the RR sibling file must be written — it is the HRV substrate"
     assert rr_rows[0].split(";")[1] == str(round(870 / 1024 * 1000)), (
-        f"RR is converted from the SIG's 1/1024 s units to ms; got {rr_rows[0]}")
+        f"RR is converted from the SIG's 1/1024 s units to ms; got {rr_rows[0]}"
+    )
 
 
 # ── every stream reaches its OWN file ────────────────────────────────────────────────────────────────
 def test_each_measurement_lands_in_its_OWN_file_and_none_is_empty(tmp_path, monkeypatch):
     """The dispatch is a chain of `elif meas == pmd.X`. A mutated comparison sends one stream's samples
     into another's writer — both files still exist and both still have rows, so a listing looks right."""
-    _run(monkeypatch, tmp_path, ["ecg", "acc", "ppg", "gyro", "mag", "ppi"],
-         [T._ecg_frame(), T._acc_frame(), T._ppg_frame(), T._gyro_frame(), T._mag_frame(), T._ppi_frame()])
+    _run(
+        monkeypatch,
+        tmp_path,
+        ["ecg", "acc", "ppg", "gyro", "mag", "ppi"],
+        [T._ecg_frame(), T._acc_frame(), T._ppg_frame(), T._gyro_frame(), T._mag_frame(), T._ppi_frame()],
+    )
     widths = {}
     for suffix in ("ECG", "ACC", "PPG", "GYRO", "MAG", "PPI"):
         _h, rows = _rows(tmp_path, suffix)
@@ -166,15 +175,18 @@ def test_each_measurement_lands_in_its_OWN_file_and_none_is_empty(tmp_path, monk
 # batching. A `None` here writes the literal string "None" into that column — the row still parses,
 # still has the right width, and its device clock is gone.
 def test_every_waveform_row_carries_the_DEVICE_ns_counter(tmp_path, monkeypatch):
-    _run(monkeypatch, tmp_path, ["ecg", "acc", "ppg", "gyro", "mag"],
-         [T._ecg_frame(), T._acc_frame(), T._ppg_frame(), T._gyro_frame(), T._mag_frame()])
+    _run(
+        monkeypatch,
+        tmp_path,
+        ["ecg", "acc", "ppg", "gyro", "mag"],
+        [T._ecg_frame(), T._acc_frame(), T._ppg_frame(), T._gyro_frame(), T._mag_frame()],
+    )
     for suffix in ("ECG", "ACC", "PPG", "GYRO", "MAG"):
         header, rows = _rows(tmp_path, suffix)
         assert header.split(";")[1] == "sensor timestamp [ns]", f"{suffix} header: {header}"
         ns = rows[-1].split(";")[1]
         assert ns.isdigit(), f"{suffix}: column 2 must be the device ns counter, got {ns!r}"
-        assert int(ns) == 1_000_000_000, (
-            f"{suffix}: the frame stamped 1e9 ns and the file must carry it; got {ns}")
+        assert int(ns) == 1_000_000_000, f"{suffix}: the frame stamped 1e9 ns and the file must carry it; got {ns}"
 
 
 def test_PPI_and_HR_carry_NO_device_clock_column(tmp_path, monkeypatch):
@@ -187,4 +199,5 @@ def test_PPI_and_HR_carry_NO_device_clock_column(tmp_path, monkeypatch):
     for suffix in ("PPI", "HR"):
         header, _rows_ = _rows(tmp_path, suffix)
         assert "sensor timestamp" not in header, (
-            f"{suffix} must NOT carry a device-clock column — it has no usable device clock: {header}")
+            f"{suffix} must NOT carry a device-clock column — it has no usable device clock: {header}"
+        )

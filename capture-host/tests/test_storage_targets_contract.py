@@ -16,14 +16,14 @@ Three concrete holes this closes, all of which survived a suite at 100 % coverag
   hands these strings straight to the UI; they ARE the diagnosis.
 * the port and window_min boundaries, none of which had a test on either side.
 """
+
 import pytest
 
 import storage_targets as st
 
 
 RSYNC = {"protocol": "rsync", "host": "192.168.0.142", "user": "tepna", "share": "/mnt/tank/tepna"}
-NFS = {"protocol": "nfs", "host": "192.168.0.142", "share": "/mnt/tank/tepna",
-       "mountpoint": "/srv/tepna/archive"}
+NFS = {"protocol": "nfs", "host": "192.168.0.142", "share": "/mnt/tank/tepna", "mountpoint": "/srv/tepna/archive"}
 
 
 # ── the normalised output ───────────────────────────────────────────────────────────────────────────
@@ -65,17 +65,22 @@ def test_a_port_outside_the_range_is_refused(port):
 
 
 # ── refusals name the field ─────────────────────────────────────────────────────────────────────────
-@pytest.mark.parametrize("target,field", [
-    ({"protocol": "nfs", "host": "nas", "share": "/vol", "mountpoint": "not-absolute"}, "mountpoint"),
-    ({"protocol": "nfs", "host": "nas", "share": "rel", "mountpoint": "/srv/tepna"}, "share"),
-    ({"protocol": "smb", "host": "nas", "mountpoint": "/srv/tepna"}, "share"),
-    ({"protocol": "iscsi", "host": "nas", "mountpoint": "/srv/tepna"}, "target IQN/NQN"),
-    ({"protocol": "rsync", "host": "nas"}, "remote path"),
-    ({"protocol": "webdav", "host": "nas"}, "remote path"),
-    ({**RSYNC, "identity": "rel"}, "identity (SSH key path)"),
-    ({"protocol": "smb", "host": "nas", "share": "s", "mountpoint": "/srv/tepna",
-      "credentials_file": "rel"}, "credentials_file"),
-])
+@pytest.mark.parametrize(
+    "target,field",
+    [
+        ({"protocol": "nfs", "host": "nas", "share": "/vol", "mountpoint": "not-absolute"}, "mountpoint"),
+        ({"protocol": "nfs", "host": "nas", "share": "rel", "mountpoint": "/srv/tepna"}, "share"),
+        ({"protocol": "smb", "host": "nas", "mountpoint": "/srv/tepna"}, "share"),
+        ({"protocol": "iscsi", "host": "nas", "mountpoint": "/srv/tepna"}, "target IQN/NQN"),
+        ({"protocol": "rsync", "host": "nas"}, "remote path"),
+        ({"protocol": "webdav", "host": "nas"}, "remote path"),
+        ({**RSYNC, "identity": "rel"}, "identity (SSH key path)"),
+        (
+            {"protocol": "smb", "host": "nas", "share": "s", "mountpoint": "/srv/tepna", "credentials_file": "rel"},
+            "credentials_file",
+        ),
+    ],
+)
 def test_a_refusal_names_the_field_the_operator_must_fix(target, field):
     with pytest.raises(st.StorageError) as e:
         st.validate(target)
@@ -86,11 +91,13 @@ def test_mount_unit_refusals_name_their_field_too():
     """`mount_unit` re-validates its own input (it emits paste-as-root text), so it has its own copies of
     these labels and its own way to lose them."""
     with pytest.raises(st.StorageError, match="^mountpoint"):
-        st.mount_unit({"protocol": "nfs", "kind": "mount", "host": "nas", "share": "/vol",
-                       "mountpoint": "not-absolute"})
+        st.mount_unit(
+            {"protocol": "nfs", "kind": "mount", "host": "nas", "share": "/vol", "mountpoint": "not-absolute"}
+        )
     with pytest.raises(st.StorageError, match="^share"):
-        st.mount_unit({"protocol": "nfs", "kind": "mount", "host": "nas", "share": "rel",
-                       "mountpoint": "/srv/tepna/archive"})
+        st.mount_unit(
+            {"protocol": "nfs", "kind": "mount", "host": "nas", "share": "rel", "mountpoint": "/srv/tepna/archive"}
+        )
 
 
 # ── validate_schedule ───────────────────────────────────────────────────────────────────────────────
@@ -133,9 +140,17 @@ def test_the_offload_command_is_exactly_this():
     """Until 2026-09-20 the last operand was `…:/mnt/tank/tepna/` — the night's CONTENTS into the share
     itself, so every night would have flattened into one directory. The mount mirror writes
     `dest/<night>/` (`nightarchive.archive_night`), and so must this."""
-    assert _argv() == ["rsync", "-rlt", "--partial", "--timeout=120", "-e", _SSH,
-                       "--", "/srv/tepna/captures/2026-07-25/",
-                       "tepna@192.168.0.142:/mnt/tank/tepna/2026-07-25/"]
+    assert _argv() == [
+        "rsync",
+        "-rlt",
+        "--partial",
+        "--timeout=120",
+        "-e",
+        _SSH,
+        "--",
+        "/srv/tepna/captures/2026-07-25/",
+        "tepna@192.168.0.142:/mnt/tank/tepna/2026-07-25/",
+    ]
 
 
 def test_a_real_offload_is_not_a_dry_run():
@@ -162,8 +177,9 @@ def test_both_operands_end_in_a_slash_so_rsync_copies_contents_not_the_directory
     argv = _argv()
     assert argv[-2] == "/srv/tepna/captures/2026-07-25/"
     assert argv[-1].endswith(":/mnt/tank/tepna/2026-07-25/")
-    assert st.rsync_argv("/srv/tepna/captures/2026-07-25/", st.validate(RSYNC))[-2] == \
-        "/srv/tepna/captures/2026-07-25/", "an src the caller already slashed must not gain a second"
+    assert (
+        st.rsync_argv("/srv/tepna/captures/2026-07-25/", st.validate(RSYNC))[-2] == "/srv/tepna/captures/2026-07-25/"
+    ), "an src the caller already slashed must not gain a second"
 
 
 def test_the_remote_path_stays_absolute():
@@ -182,8 +198,8 @@ def test_a_userless_target_omits_the_at_sign():
 def test_a_configured_ssh_port_and_identity_reach_the_ssh_command():
     argv = _argv(port=2222, identity="/home/tepna/.ssh/id_ed25519")
     assert argv[argv.index("-e") + 1] == (
-        "ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=accept-new "
-        "-i /home/tepna/.ssh/id_ed25519")
+        "ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=accept-new -i /home/tepna/.ssh/id_ed25519"
+    )
 
 
 # ── dest_status: ready means READY ──────────────────────────────────────────────────────────────────

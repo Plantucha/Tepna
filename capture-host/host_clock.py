@@ -71,10 +71,21 @@ _CHRONY_REFID_RE = re.compile(r"^\s*([0-9A-Fa-f]+)\s*(?:\(([^)]*)\))?\s*$")
 # strptime: %a/%b are locale-dependent and chronyc always prints English abbreviations, so on a non-C
 # locale strptime would turn a healthy line into a parse failure. The weekday is skipped — it carries no
 # information the date does not.
-_CHRONY_REFTIME_RE = re.compile(
-    r"^\s*[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})\s*$")
-_MONTHS = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-           "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+_CHRONY_REFTIME_RE = re.compile(r"^\s*[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})\s*$")
+_MONTHS = {
+    "Jan": 1,
+    "Feb": 2,
+    "Mar": 3,
+    "Apr": 4,
+    "May": 5,
+    "Jun": 6,
+    "Jul": 7,
+    "Aug": 8,
+    "Sep": 9,
+    "Oct": 10,
+    "Nov": 11,
+    "Dec": 12,
+}
 
 
 def parse_chrony_tracking(blob: str) -> dict:
@@ -114,7 +125,7 @@ def parse_chrony_tracking(blob: str) -> dict:
         n = int(raw_stratum)
         # chrony reports Stratum 0 with a null Reference ID when it has no usable source at all.
         res["stratum"] = None if n <= 0 else max(1, n - 1)
-        res["host_stratum"] = n          # kept verbatim: the normalisation above must stay auditable
+        res["host_stratum"] = n  # kept verbatim: the normalisation above must stay auditable
     m = _CHRONY_REFID_RE.match(out.get("Reference ID", ""))
     if m:
         refid, name = m.group(1), (m.group(2) or "").strip()
@@ -124,13 +135,13 @@ def parse_chrony_tracking(blob: str) -> dict:
         if name and any(c.isdigit() for c in name) and "." in name:
             res["server"] = name
         elif name:
-            res["server"] = None         # a reference-clock name is not a server address
+            res["server"] = None  # a reference-clock name is not a server address
     rd = _num(out.get("Root dispersion"))
     if rd is not None:
-        res["root_dispersion_ms"] = round(rd * 1000.0, 4)      # chrony prints seconds
+        res["root_dispersion_ms"] = round(rd * 1000.0, 4)  # chrony prints seconds
     rms = _num(out.get("RMS offset"))
     if rms is not None:
-        res["jitter_us"] = round(rms * 1e6, 1)                 # closest analogue to timesyncd's Jitter
+        res["jitter_us"] = round(rms * 1e6, 1)  # closest analogue to timesyncd's Jitter
     # chrony's `Skew` is the estimated ERROR BOUND on the clock's frequency, in ppm — the single best
     # measure of how precisely the box's rate is disciplined, and the field the adaptive-timebase decision
     # (O2RING-ADAPTIVE-TIMEBASE Stage 3) will gate host-discipline on. Already in ppm, so no unit convert.
@@ -150,8 +161,12 @@ def parse_chrony_tracking(blob: str) -> dict:
     if mt:
         try:
             res["last_sync_utc"] = datetime(
-                int(mt.group(6)), _MONTHS.get(mt.group(1), 0), int(mt.group(2)),
-                int(mt.group(3)), int(mt.group(4)), int(mt.group(5)),
+                int(mt.group(6)),
+                _MONTHS.get(mt.group(1), 0),
+                int(mt.group(2)),
+                int(mt.group(3)),
+                int(mt.group(4)),
+                int(mt.group(5)),
             ).strftime("%Y-%m-%dT%H:%M:%SZ")
         except ValueError:
             pass  # an unknown month (map -> 0) or an impossible date: absent, not fabricated
@@ -178,17 +193,29 @@ def classify(state: dict) -> dict:
                     evidence is not evidence of health, so this is NOT treated as trusted.
     """
     if not state.get("available"):
-        return {"trust": "unknown", "absolute_ok": False,
-                "reason": "host clock state unreadable — treating absolute time as unverified"}
+        return {
+            "trust": "unknown",
+            "absolute_ok": False,
+            "reason": "host clock state unreadable — treating absolute time as unverified",
+        }
     if not state.get("ntp_enabled"):
-        return {"trust": "holdover", "absolute_ok": False,
-                "reason": "network time is disabled — the clock is free-running on the RTC"}
+        return {
+            "trust": "holdover",
+            "absolute_ok": False,
+            "reason": "network time is disabled — the clock is free-running on the RTC",
+        }
     if not state.get("synchronized"):
-        return {"trust": "holdover", "absolute_ok": False,
-                "reason": "NTP enabled but never synchronised — running on the RTC, drift unknown"}
+        return {
+            "trust": "holdover",
+            "absolute_ok": False,
+            "reason": "NTP enabled but never synchronised — running on the RTC, drift unknown",
+        }
     if state.get("ignored"):
-        return {"trust": "holdover", "absolute_ok": False,
-                "reason": "the NTP reply was received but REFUSED (root distance too large)"}
+        return {
+            "trust": "holdover",
+            "absolute_ok": False,
+            "reason": "the NTP reply was received but REFUSED (root distance too large)",
+        }
     # A stratum that was REPORTED but could not be read is not the same as one that was never reported.
     # `read_state` used to parse it with `.isdigit()`, so anything non-integer ("16.0", "n/a") became
     # None and fell into the "not yet reported" branch below — which TRUSTS. That is a fail-OPEN on the
@@ -196,19 +223,27 @@ def classify(state: dict) -> dict:
     # Absence of evidence is not evidence of health (this module's governing rule), so an unparseable
     # value is holdover, while a genuinely absent one keeps the documented benefit of the doubt.
     if state.get("stratum_unparsed"):
-        return {"trust": "holdover", "absolute_ok": False,
-                "reason": "NTP reported a stratum we could not parse — absolute time unverified"}
+        return {
+            "trust": "holdover",
+            "absolute_ok": False,
+            "reason": "NTP reported a stratum we could not parse — absolute time unverified",
+        }
     st = state.get("stratum")
     if st is None:
         # Synchronised per systemd but no NTPMessage yet (it clears on restart). Believe the flag, say so.
-        return {"trust": "disciplined", "absolute_ok": True,
-                "reason": "synchronised; stratum not yet reported"}
+        return {"trust": "disciplined", "absolute_ok": True, "reason": "synchronised; stratum not yet reported"}
     if st <= 0 or st > MAX_TRUSTED_STRATUM:
-        return {"trust": "holdover", "absolute_ok": False,
-                "reason": f"stratum {st} is outside the trusted chain (1-{MAX_TRUSTED_STRATUM})"}
+        return {
+            "trust": "holdover",
+            "absolute_ok": False,
+            "reason": f"stratum {st} is outside the trusted chain (1-{MAX_TRUSTED_STRATUM})",
+        }
     ref = state.get("reference") or "?"
-    return {"trust": "disciplined", "absolute_ok": True,
-            "reason": f"synchronised to stratum {st} via {state.get('server') or 'NTP'} (ref {ref})"}
+    return {
+        "trust": "disciplined",
+        "absolute_ok": True,
+        "reason": f"synchronised to stratum {st} via {state.get('server') or 'NTP'} (ref {ref})",
+    }
 
 
 def timebase_decision(state: dict) -> dict:
@@ -226,27 +261,33 @@ def timebase_decision(state: dict) -> dict:
     night and why. This does NOT stop syncing or change absolute-time handling; it only picks the RATE."""
     c = classify(state)
     if not c.get("absolute_ok"):
-        return {"timebase": "device-crystal",
-                "reason": f"host clock not disciplined ({c.get('reason')}) — device crystal"}
+        return {
+            "timebase": "device-crystal",
+            "reason": f"host clock not disciplined ({c.get('reason')}) — device crystal",
+        }
     st = state.get("stratum")
     if st is None or st > TIMEBASE_MAX_STRATUM:
-        return {"timebase": "device-crystal",
-                "reason": (f"source-stratum {st} above the rate-trust bar "
-                           f"(≤{TIMEBASE_MAX_STRATUM}) — device crystal")}
+        return {
+            "timebase": "device-crystal",
+            "reason": (f"source-stratum {st} above the rate-trust bar (≤{TIMEBASE_MAX_STRATUM}) — device crystal"),
+        }
     skew = state.get("chrony_skew_ppm")
     if skew is not None and skew > TIMEBASE_MAX_SKEW_PPM:
-        return {"timebase": "device-crystal",
-                "reason": (f"chrony skew {skew} ppm exceeds the {TIMEBASE_MAX_SKEW_PPM} ppm bar "
-                           f"— device crystal")}
-    return {"timebase": "host-disciplined",
-            "reason": (f"stratum-{st} reference, skew {'n/a' if skew is None else str(skew) + ' ppm'} "
-                       f"— host rate trusted")}
+        return {
+            "timebase": "device-crystal",
+            "reason": (f"chrony skew {skew} ppm exceeds the {TIMEBASE_MAX_SKEW_PPM} ppm bar — device crystal"),
+        }
+    return {
+        "timebase": "host-disciplined",
+        "reason": (f"stratum-{st} reference, skew {'n/a' if skew is None else str(skew) + ' ppm'} — host rate trusted"),
+    }
 
 
 async def _run(*args: str, timeout: float = 4.0) -> tuple[int, str]:
     try:
         p = await asyncio.create_subprocess_exec(
-            *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL
+        )
         out, _ = await proc_util.communicate(p, timeout)
         return p.returncode or 0, (out or b"").decode("utf-8", "replace")
     except (FileNotFoundError, OSError, asyncio.TimeoutError):
@@ -292,28 +333,28 @@ async def read_state() -> dict:
         # chrony's own `Leap status` outranks timedatectl's cached NTPSynchronized: chrony knows it has
         # lost its sources before systemd's flag catches up, and the safe direction is to believe the
         # daemon that is actually steering the clock.
-        "synchronized": (a.get("NTPSynchronized") == "yes"
-                         and ch.get("leap_ok", True)),
-        "server": ch.get("server") if time_source == "chrony"
-                  else (b.get("ServerName") or b.get("ServerAddress") or None),
-        "stratum": (ch.get("stratum") if time_source == "chrony"
-                    else (int(_stratum_num) if _stratum_num is not None else None)),
+        "synchronized": (a.get("NTPSynchronized") == "yes" and ch.get("leap_ok", True)),
+        "server": ch.get("server")
+        if time_source == "chrony"
+        else (b.get("ServerName") or b.get("ServerAddress") or None),
+        "stratum": (
+            ch.get("stratum") if time_source == "chrony" else (int(_stratum_num) if _stratum_num is not None else None)
+        ),
         # True == systemd gave us a Stratum we could not read. Distinct from a missing one; classify()
         # treats it as holdover rather than inheriting the trusted "not yet reported" branch.
         "stratum_unparsed": bool((_raw_stratum or "").strip()) and _stratum_num is None,
         # `Reference=PPS` means the upstream is a pulse-per-second reference clock — i.e. that server is
         # itself GPS/atomic-disciplined. Worth recording: it is the difference between "some NTP box"
         # and a real stratum-1. chrony reports the same idea as its decoded Reference ID.
-        "reference": (ch.get("reference") if time_source == "chrony"
-                      else (msg.get("Reference") or None)),
-        "root_dispersion_ms": (ch.get("root_dispersion_ms") if time_source == "chrony"
-                               else _num(msg.get("RootDispersion"))),
+        "reference": (ch.get("reference") if time_source == "chrony" else (msg.get("Reference") or None)),
+        "root_dispersion_ms": (
+            ch.get("root_dispersion_ms") if time_source == "chrony" else _num(msg.get("RootDispersion"))
+        ),
         # Clock-frequency precision (ppm error bound). chrony-only — timesyncd's NTPMessage has no analogue,
         # so it is None on that path rather than a fabricated 0. Recorded per capture (CLOCK sidecar) as the
         # "what clock precision governed this night" fact; the Stage-3 timebase decision reads it.
         "chrony_skew_ppm": (ch.get("skew_ppm") if time_source == "chrony" else None),
-        "jitter_us": (ch.get("jitter_us") if time_source == "chrony"
-                      else _num(msg.get("Jitter"))),
+        "jitter_us": (ch.get("jitter_us") if time_source == "chrony" else _num(msg.get("Jitter"))),
         # When the clock was last actually stepped/slewed from a source (chrony's Ref time). timesyncd
         # reports no equivalent instant, so it is None on that path rather than a borrowed timestamp.
         "last_sync_utc": (ch.get("last_sync_utc") if time_source == "chrony" else None),

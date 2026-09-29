@@ -10,8 +10,13 @@
 import capture
 
 
-N, WIN, HOLD, HOLD_MAX, MEM = (capture._OXYII_STORM_N, capture._OXYII_STORM_WINDOW_S, capture._OXYII_STORM_HOLD_S,
-                               capture._OXYII_STORM_HOLD_MAX_S, capture._OXYII_STORM_MEMORY_S)
+N, WIN, HOLD, HOLD_MAX, MEM = (
+    capture._OXYII_STORM_N,
+    capture._OXYII_STORM_WINDOW_S,
+    capture._OXYII_STORM_HOLD_S,
+    capture._OXYII_STORM_HOLD_MAX_S,
+    capture._OXYII_STORM_MEMORY_S,
+)
 
 
 def test_constants_are_the_replayed_choice():
@@ -25,7 +30,7 @@ def test_a_quiet_night_never_storms():
     for t in restarts:
         storm, recent = capture.oxyii_restart_storm([r for r in restarts if r <= t], t)
         assert storm is False
-    assert recent == [4 * 3600.0]                    # the earlier one has aged out of the window
+    assert recent == [4 * 3600.0]  # the earlier one has aged out of the window
 
 
 def test_four_restarts_inside_the_window_is_a_storm_and_three_is_not():
@@ -54,7 +59,7 @@ def test_storm_memory_expires_back_to_the_base_hold():
     """A storm at 03:00 must not make a 22:00 storm the next evening start at 30 min."""
     now = 10 * 3600.0
     assert capture.oxyii_storm_hold_s([now - MEM - 1], now) == 900.0
-    assert capture.oxyii_storm_hold_s([now - MEM], now) == 1800.0        # boundary is inclusive
+    assert capture.oxyii_storm_hold_s([now - MEM], now) == 1800.0  # boundary is inclusive
 
 
 def _replay(restart_gaps_s, *, t0=0.0):
@@ -65,9 +70,9 @@ def _replay(restart_gaps_s, *, t0=0.0):
     for gap in restart_gaps_s:
         t += gap
         if hold_until is not None and t < hold_until:
-            continue                                  # the daemon is holding off — the ring does not buzz
+            continue  # the daemon is holding off — the ring does not buzz
         if hold_until is not None:
-            hold_until, restarts = None, []          # hold over: resume, count from zero
+            hold_until, restarts = None, []  # hold over: resume, count from zero
         seen += 1
         storm, restarts = capture.oxyii_restart_storm(restarts + [t], t)
         if storm:
@@ -94,7 +99,7 @@ def test_replay_the_08_28_night_holds_escalate_to_the_cap():
     seen, storms, held = _replay([40.0] * 520)
     assert seen == 7 * N and storms == 7
     assert held == (900.0 + 1800.0 + 3600.0 + 7200.0) + (1800.0 + 3600.0 + 3600.0)
-    assert held > 520 * 40.0                            # held longer than the storm itself lasted
+    assert held > 520 * 40.0  # held longer than the storm itself lasted
 
 
 def test_replay_a_quiet_night_is_untouched():
@@ -120,15 +125,21 @@ def _block(storms=(), hold_until=None, restarts=(), total=0, now=10_000.0, proc_
 def test_a_night_with_no_storm_publishes_an_empty_but_present_block():
     """Present-and-empty, never absent: a reader must be able to tell 'no storm' from 'not published'."""
     b = _block()
-    assert b == {"trips": [], "last_trip": None, "hold_until": None, "hold_remaining_s": 0,
-                 "restarts_in_window": 0, "restarts_total": 0,
-                 "restarts_since": "2026-09-05T22:20:00"}
+    assert b == {
+        "trips": [],
+        "last_trip": None,
+        "hold_until": None,
+        "hold_remaining_s": 0,
+        "restarts_in_window": 0,
+        "restarts_total": 0,
+        "restarts_since": "2026-09-05T22:20:00",
+    }
 
 
 def test_monotonic_times_are_rendered_as_civil_time():
     """A monotonic second is uptime-relative and meaningless to any reader outside this process."""
     b = _block(storms=[10_000.0 - 600.0], now=10_000.0)
-    assert b["trips"] == ["2026-09-05T22:20:00"]        # 600 s before WALL
+    assert b["trips"] == ["2026-09-05T22:20:00"]  # 600 s before WALL
     assert b["last_trip"] == "2026-09-05T22:20:00"
 
 
@@ -136,7 +147,7 @@ def test_an_active_hold_publishes_both_the_deadline_and_the_remaining_seconds():
     """`hold_remaining_s` is self-evident; `hold_until` needs the reader to trust two clocks. Both."""
     b = _block(storms=[9_950.0], hold_until=10_900.0, now=10_000.0)
     assert b["hold_remaining_s"] == 900
-    assert b["hold_until"] == "2026-09-05T22:45:00"     # 900 s after WALL
+    assert b["hold_until"] == "2026-09-05T22:45:00"  # 900 s after WALL
 
 
 def test_an_expired_hold_reads_as_no_hold_but_keeps_the_trip():
@@ -165,6 +176,7 @@ def test_restarts_total_is_the_untruncated_count_and_the_window_count_is_not():
 def test_the_block_is_json_serialisable():
     """It rides /api/state; a stray datetime or monotonic float would break the whole status payload."""
     import json
+
     json.loads(json.dumps(_block(storms=[9_950.0], hold_until=10_900.0, restarts=[9_990.0], total=3)))
 
 
@@ -173,7 +185,7 @@ def test_restarts_since_is_the_process_epoch_not_boot():
     a consumer MUST be able to tell a reset from the storm ending. Monotonic 0 would be BOOT — which
     the box does far more rarely than it redeploys, so publishing it would hide exactly the resets
     this field exists to expose."""
-    b = _block(total=61, now=10_000.0, proc_start=9_400.0)      # process began 600 s before now
+    b = _block(total=61, now=10_000.0, proc_start=9_400.0)  # process began 600 s before now
     assert b["restarts_since"] == "2026-09-05T22:20:00"
     later = _block(total=0, now=10_600.0, proc_start=10_500.0)  # redeployed: count reset, epoch moved
     assert later["restarts_total"] == 0

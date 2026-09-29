@@ -51,14 +51,12 @@ def window_hours(at_hour: int, window_h: int) -> set[int]:
     return {(int(at_hour) + i) % 24 for i in range(w)}
 
 
-def harvest_conflict(spool_at: int, spool_window_h: int,
-                     harvest_at: int, harvest_window_h: int) -> list[int]:
+def harvest_conflict(spool_at: int, spool_window_h: int, harvest_at: int, harvest_window_h: int) -> list[int]:
     """The hours where the spool window overlaps the Wi-Fi harvest window. Empty list = clear.
 
     Returns the offending HOURS, not a bool, so a refusal can name them — a refusal that cannot say
     which hour collided is a refusal the operator has to re-derive by hand."""
-    return sorted(window_hours(spool_at, spool_window_h)
-                  & window_hours(harvest_at, harvest_window_h))
+    return sorted(window_hours(spool_at, spool_window_h) & window_hours(harvest_at, harvest_window_h))
 
 
 def spool_arming(cfg: dict) -> dict:
@@ -88,28 +86,44 @@ def spool_arming(cfg: dict) -> dict:
     bearing on it either way. The claim is inert, and it is recorded here rather than propagated."""
     scfg = (cfg.get("cpap", {}) or {}).get("spool_pull", {}) or {}
     if not scfg.get("enabled"):
-        return {"armed": False, "why": "cpap.spool_pull.enabled=False" if "enabled" in scfg
-                else "cpap.spool_pull.enabled absent -> defaults OFF (never inherits)",
-                "at_hour": None, "window_h": None}
+        return {
+            "armed": False,
+            "why": "cpap.spool_pull.enabled=False"
+            if "enabled" in scfg
+            else "cpap.spool_pull.enabled absent -> defaults OFF (never inherits)",
+            "at_hour": None,
+            "window_h": None,
+        }
     at_hour = int(scfg.get("at_hour", SPOOL_AT_HOUR_DEFAULT))
     window_h = int(scfg.get("window_h", SPOOL_WINDOW_H_DEFAULT))
     if not 0 <= at_hour <= 23:
-        return {"armed": False, "why": f"cpap.spool_pull.at_hour={at_hour} is not an hour 0-23",
-                "at_hour": None, "window_h": None}
+        return {
+            "armed": False,
+            "why": f"cpap.spool_pull.at_hour={at_hour} is not an hour 0-23",
+            "at_hour": None,
+            "window_h": None,
+        }
     if window_h < 1:
-        return {"armed": False, "why": f"cpap.spool_pull.window_h={window_h} would never open",
-                "at_hour": None, "window_h": None}
+        return {
+            "armed": False,
+            "why": f"cpap.spool_pull.window_h={window_h} would never open",
+            "at_hour": None,
+            "window_h": None,
+        }
     ccfg = cfg.get("cpap", {}) or {}
     # Only when the harvest is ENABLED can it contend. A disabled harvest's at_hour is a dormant
     # number, and refusing against it would block a legitimate config for a job that never runs.
     if ccfg.get("enabled"):
-        clash = harvest_conflict(at_hour, window_h,
-                                 int(ccfg.get("at_hour", 13)), 2)
+        clash = harvest_conflict(at_hour, window_h, int(ccfg.get("at_hour", 13)), 2)
         if clash:
-            return {"armed": False, "at_hour": None, "window_h": None,
-                    "why": "cpap.spool_pull window overlaps the Wi-Fi harvest window at hour(s) "
-                           + ", ".join(f"{h:02d}" for h in clash)
-                           + " — both are 2.4 GHz and neither interlock can see the other"}
+            return {
+                "armed": False,
+                "at_hour": None,
+                "window_h": None,
+                "why": "cpap.spool_pull window overlaps the Wi-Fi harvest window at hour(s) "
+                + ", ".join(f"{h:02d}" for h in clash)
+                + " — both are 2.4 GHz and neither interlock can see the other",
+            }
     return {"armed": True, "why": "", "at_hour": at_hour, "window_h": window_h}
 
 
@@ -142,10 +156,22 @@ def pull_blocked(*, recovering: bool, streaming: list[str], cpap_capturing: bool
 SPOOL_EPOCH_START_DEFAULT = "2026-08-01T00:00:00.000Z"
 
 
-async def spool_pull_cycle(*, connect, creds, root, epoch_start, spool_type="Summary",
-                           device="AS11-01", session="", max_rounds=64,
-                           establish=None, cipher_factory=None, sync=None, pull_round=None,
-                           on_transition=None):
+async def spool_pull_cycle(
+    *,
+    connect,
+    creds,
+    root,
+    epoch_start,
+    spool_type="Summary",
+    device="AS11-01",
+    session="",
+    max_rounds=64,
+    establish=None,
+    cipher_factory=None,
+    sync=None,
+    pull_round=None,
+    on_transition=None,
+):
     """ONE short-connect transactional sync pass → `sync_spool`'s summary dict.
 
     Structure mirrors `cpap_shadow_runner.poll_cycle` deliberately, including the two scars it
@@ -173,16 +199,22 @@ async def spool_pull_cycle(*, connect, creds, root, epoch_start, spool_type="Sum
     disconnect = None
     try:
         write, recv_frame, disconnect = conn
-        key = await establish(bytes.fromhex(creds["masterPairKey"]), creds["clientId"],
-                              write, recv_frame)
+        key = await establish(bytes.fromhex(creds["masterPairKey"]), creds["clientId"], write, recv_frame)
         seal, unseal = cipher_factory(key)
 
         async def _round(stype, from_dt):
             return await pull_round(write, recv_frame, seal, unseal, stype, from_dt)
 
-        return await sync(_round, root, device=device, session=session, spool_type=spool_type,
-                          epoch_start=epoch_start, max_rounds=max_rounds,
-                          on_transition=on_transition)
+        return await sync(
+            _round,
+            root,
+            device=device,
+            session=session,
+            spool_type=spool_type,
+            epoch_start=epoch_start,
+            max_rounds=max_rounds,
+            on_transition=on_transition,
+        )
     finally:
         if disconnect is not None:
             await disconnect()

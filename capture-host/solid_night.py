@@ -254,15 +254,28 @@ def sample_object() -> dict:
             jit = 0 if (i < 4 or i >= 397) else (1 + (i // 4) % 5)
             t = t0 + _dt.timedelta(seconds=i / 2, milliseconds=jit)
             rows.append(f"{t.isoformat(timespec='milliseconds')};{ns};{i};100")
-        put(f"{base}_ECG.txt", "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n" + "\n".join(rows) + "\n")
-        put(f"{base}_ECGSEAMS.txt", "# pmd stream=ecg negotiated=yes rate=2 offered=2\n# final stream=ecg seams=0 examined=401\n")
+        put(
+            f"{base}_ECG.txt",
+            "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n" + "\n".join(rows) + "\n",
+        )
+        put(
+            f"{base}_ECGSEAMS.txt",
+            "# pmd stream=ecg negotiated=yes rate=2 offered=2\n# final stream=ecg seams=0 examined=401\n",
+        )
         put(f"{base}_ECGRUNS.txt", "# stream=ecg rule=stuck min_run=30\n")
         put(
             _inputs.LOSS_AUDIT_NAME,
-            json.dumps({"journal": "read", "devices": {"Polar H10 SAMPLE": {
-                "file": f"{base}_ECG.txt",
-                "gaps": [],
-                "wear": {"available": True, "worn_end": {"at": "2026-01-01T22:03:00", "reason": "doff"}},
-            }}}),
+            json.dumps(
+                {
+                    "journal": "read",
+                    "devices": {
+                        "Polar H10 SAMPLE": {
+                            "file": f"{base}_ECG.txt",
+                            "gaps": [],
+                            "wear": {"available": True, "worn_end": {"at": "2026-01-01T22:03:00", "reason": "doff"}},
+                        }
+                    },
+                }
+            ),
         )
         return night_verdict(night, [{"name": "Polar H10 SAMPLE", "model": "H10"}])

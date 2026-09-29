@@ -39,17 +39,17 @@ def test_sd_notify_handles_the_abstract_namespace(monkeypatch):
 
 
 def test_sd_notify_swallows_a_bad_socket(monkeypatch):
-    monkeypatch.setenv("NOTIFY_SOCKET", "/no/such/socket/path")   # connect() → OSError, caught
+    monkeypatch.setenv("NOTIFY_SOCKET", "/no/such/socket/path")  # connect() → OSError, caught
     assert sdnotify.sd_notify("READY=1") is False
 
 
 def test_watchdog_period_is_half_the_configured_interval(monkeypatch):
-    monkeypatch.setenv("WATCHDOG_USEC", "120000000")             # 120 s → ping every 60 s
+    monkeypatch.setenv("WATCHDOG_USEC", "120000000")  # 120 s → ping every 60 s
     assert sdnotify.watchdog_period_sec() == 60.0
 
 
 def test_watchdog_period_floors_at_one_second(monkeypatch):
-    monkeypatch.setenv("WATCHDOG_USEC", "500000")               # 0.5 s → half is 0.25, floored to 1.0
+    monkeypatch.setenv("WATCHDOG_USEC", "500000")  # 0.5 s → half is 0.25, floored to 1.0
     assert sdnotify.watchdog_period_sec() == 1.0
 
 

@@ -26,6 +26,7 @@ needed nothing, and the claim above was CHECKED rather than taken on trust:
 criterion is "can it silently mislead", not "is it short" — see `mutation_diff.py`'s header for the
 case where getting that backwards shipped a defect.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,8 +44,7 @@ def _test_files(root: str, only: str | None) -> list[str]:
     if only:
         return [only]
     d = os.path.join(root, "tests")
-    return sorted(os.path.join("tests", f) for f in os.listdir(d)
-                  if f.endswith(".py"))
+    return sorted(os.path.join("tests", f) for f in os.listdir(d) if f.endswith(".py"))
 
 
 def main(argv=None) -> int:
@@ -61,7 +61,7 @@ def main(argv=None) -> int:
         try:
             with open(p, encoding="utf-8") as fh:
                 findings += analyze(fh.read(), rel)
-        except SyntaxError as e:            # a file we cannot parse is one we cannot vouch for
+        except SyntaxError as e:  # a file we cannot parse is one we cannot vouch for
             unparsed.append(f"{rel}: {e}")
 
     s = summarize(findings)
@@ -69,9 +69,11 @@ def main(argv=None) -> int:
         print(json.dumps({"summary": s, "unparsed": unparsed, "findings": rank(findings)}, indent=2))
         return 0
 
-    print(f"\n  {s['params']} argument(s) made unobservable by {s['doubles']} double(s) "
-          f"across {s['files']} file(s); {s['swallowing']} swallow **kwargs\n")
-    for f in rank(findings)[:a.top]:
+    print(
+        f"\n  {s['params']} argument(s) made unobservable by {s['doubles']} double(s) "
+        f"across {s['files']} file(s); {s['swallowing']} swallow **kwargs\n"
+    )
+    for f in rank(findings)[: a.top]:
         what = ", ".join(f["discarded"]) or "-"
         sw = f"  +**{f['swallowed']}" if f["swallowed"] else ""
         print(f"  {f['file']}:{f['line']:<5} {f['double']:<34} drops: {what}{sw}")

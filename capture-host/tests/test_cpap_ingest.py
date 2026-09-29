@@ -13,6 +13,7 @@ def _sd(stream_id, data):
 
 # ── frame classification (audit G4 — the foreign-streamId frame is COUNTED, not silently dropped) ──
 
+
 def test_a_matching_streamdata_with_data_is_ok():
     assert classify_frame(_sd(7, [{"PatientFlow": [1, 2, 3]}]), 7) is FrameKind.OK
 
@@ -60,6 +61,7 @@ def test_a_streamdata_missing_params_is_malformed():
 
 # ── the gap counters ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_note_frame_folds_each_kind_into_the_right_counter():
     c = GapCounters()
     c.note_frame(FrameKind.OK, n_samples=40)
@@ -79,31 +81,69 @@ def test_total_lost_sums_only_terms_that_can_move_and_names_the_rest():
     in `lost_coverage` instead, so a reader can tell an honest partial from a complete one.
     """
     c = GapCounters(overflow=3, malformed=2, foreign_stream=10, sink_errors=5)
-    assert c.total_lost == 5                # 3 + 2; foreign AND sink_errors excluded (different axes)
+    assert c.total_lost == 5  # 3 + 2; foreign AND sink_errors excluded (different axes)
     assert c.lost_coverage == ["stalls", "post_drop_tail"]
 
     # Supplying a measurement moves it out of the uncovered list — this is what "done" will look like.
     c2 = GapCounters(overflow=3, malformed=2, post_drop_tail=1, stalls=0)
     assert c2.lost_coverage == [] and c2.total_lost == 5, (
-        "total_lost still sums only the live terms; wiring a detector is what changes coverage")
+        "total_lost still sums only the live terms; wiring a detector is what changes coverage"
+    )
 
 
 def test_summary_is_a_flat_stable_dict():
-    c = GapCounters(frames_ok=5, samples_ok=200, foreign_stream=1, malformed=2, events=4, notifications=6,
-                    bytes_wire=7000, bytes_json=6500, overflow=1, stalls=1, post_drop_tail=1, sink_errors=3)
+    c = GapCounters(
+        frames_ok=5,
+        samples_ok=200,
+        foreign_stream=1,
+        malformed=2,
+        events=4,
+        notifications=6,
+        bytes_wire=7000,
+        bytes_json=6500,
+        overflow=1,
+        stalls=1,
+        post_drop_tail=1,
+        sink_errors=3,
+    )
     s = c.summary()
     assert s == {
-        "frames_ok": 5, "samples_ok": 200, "foreign_stream": 1, "malformed": 2, "events": 4,
-        "notifications": 6, "bytes_wire": 7000, "bytes_json": 6500,
-        "overflow": 1, "stalls": 1, "post_drop_tail": 1, "sink_errors": 3, "total_lost": 3,
-        "sink_max_ms": None, "sink_slow": None,
+        "frames_ok": 5,
+        "samples_ok": 200,
+        "foreign_stream": 1,
+        "malformed": 2,
+        "events": 4,
+        "notifications": 6,
+        "bytes_wire": 7000,
+        "bytes_json": 6500,
+        "overflow": 1,
+        "stalls": 1,
+        "post_drop_tail": 1,
+        "sink_errors": 3,
+        "total_lost": 3,
+        "sink_max_ms": None,
+        "sink_slow": None,
         "lost_coverage_missing": [],
     }
     # key order is stable so two nights diff cleanly
-    assert list(s.keys()) == ["frames_ok", "samples_ok", "foreign_stream", "malformed", "events",
-                              "notifications", "bytes_wire", "bytes_json",
-                              "overflow", "stalls", "post_drop_tail", "sink_errors",
-                              "sink_max_ms", "sink_slow", "total_lost", "lost_coverage_missing"]
+    assert list(s.keys()) == [
+        "frames_ok",
+        "samples_ok",
+        "foreign_stream",
+        "malformed",
+        "events",
+        "notifications",
+        "bytes_wire",
+        "bytes_json",
+        "overflow",
+        "stalls",
+        "post_drop_tail",
+        "sink_errors",
+        "sink_max_ms",
+        "sink_slow",
+        "total_lost",
+        "lost_coverage_missing",
+    ]
 
 
 def test_the_DEFAULT_record_publishes_its_unmeasured_categories_as_None():
@@ -120,39 +160,44 @@ def test_the_DEFAULT_record_publishes_its_unmeasured_categories_as_None():
 
 # ── the bounded queue (spec §17 — backpressure, overflow recorded not silent) ──────────────────────
 
+
 def test_offer_accepts_until_capacity_then_drops_and_counts_overflow():
     q = BoundedIngestQueue(capacity=2)
     assert q.offer("a") is True
     assert q.offer("b") is True
-    assert q.offer("c") is False           # full → dropped
-    assert q.counters.overflow == 1        # the loss is RECORDED, not silent
+    assert q.offer("c") is False  # full → dropped
+    assert q.counters.overflow == 1  # the loss is RECORDED, not silent
     assert q.depth == 2
 
 
 def test_max_depth_is_a_high_water_mark():
     q = BoundedIngestQueue(capacity=3)
-    q.offer("a"); q.offer("b")
+    q.offer("a")
+    q.offer("b")
     assert q.max_depth == 2
     q.drain()
-    q.offer("c")                            # depth 1 now, but max_depth stays 2
+    q.offer("c")  # depth 1 now, but max_depth stays 2
     assert q.max_depth == 2
 
 
 def test_drain_returns_fifo_and_empties():
     q = BoundedIngestQueue(capacity=4)
-    q.offer(1); q.offer(2); q.offer(3)
+    q.offer(1)
+    q.offer(2)
+    q.offer(3)
     assert q.drain() == [1, 2, 3]
     assert q.depth == 0
-    assert q.drain() == []                  # draining an empty queue is fine
+    assert q.drain() == []  # draining an empty queue is fine
 
 
 def test_draining_makes_room_again():
     q = BoundedIngestQueue(capacity=2)
-    q.offer("a"); q.offer("b")
+    q.offer("a")
+    q.offer("b")
     assert q.offer("c") is False
     q.drain()
-    assert q.offer("c") is True             # room after drain
-    assert q.counters.overflow == 1         # the earlier drop is still recorded
+    assert q.offer("c") is True  # room after drain
+    assert q.counters.overflow == 1  # the earlier drop is still recorded
 
 
 def test_capacity_below_one_is_refused():
@@ -166,12 +211,13 @@ def test_queue_and_counters_share_the_overflow_record():
     c = GapCounters()
     q = BoundedIngestQueue(capacity=1, counters=c)
     q.offer("x")
-    q.offer("y")                            # dropped
+    q.offer("y")  # dropped
     c.note_frame(FrameKind.OK, n_samples=40)
     assert c.overflow == 1 and c.frames_ok == 1 and c.total_lost == 1
 
 
 # ── sink timing: what makes a loop stall attributable ────────────────────────────────────────────────
+
 
 def test_an_UNTIMED_sink_reports_None_not_a_measured_zero():
     """⚠️ The `or 0` defect this module already carries a fix for, in its newest field. A stream with no
@@ -204,8 +250,8 @@ def test_sink_slow_counts_the_writes_that_could_HAVE_STALLED_the_loop():
     the count is what distinguishes a mechanism from an outlier — the gate asks whether a sink EVER
     holds the loop for ~1.5 s, which is the measured stall median."""
     c = GapCounters()
-    c.note_sink_write(SINK_SLOW_MS - 0.001)   # just under — not slow
-    c.note_sink_write(SINK_SLOW_MS)           # exactly at the bound — slow
-    c.note_sink_write(1502.0)                             # the measured stall median
+    c.note_sink_write(SINK_SLOW_MS - 0.001)  # just under — not slow
+    c.note_sink_write(SINK_SLOW_MS)  # exactly at the bound — slow
+    c.note_sink_write(1502.0)  # the measured stall median
     assert c.sink_slow == 2, "the bound is inclusive: a write AT the threshold could produce a stall"
     assert c.sink_max_ms == 1502.0

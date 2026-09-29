@@ -33,6 +33,7 @@ class As11Error(RuntimeError):
 from cpap_ingest import FrameKind as _FrameKind
 from cpap_ingest import classify_frame
 
+
 async def _read_frame(recv_frame, unseal=None):
     """Read one FIG frame; decrypt if it is an encrypted-channel frame; decode JSON.
     Returns `(msg, wire_bytes, json_bytes)` — the payload size as received and as decrypted — so the
@@ -133,9 +134,23 @@ async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt,
             return body, more, nxt
 
 
-async def stream(write, recv_frame, seal, unseal, data_ids, *,
-                 sample_interval_ms=40, report_interval_ms=None, start_id=16, max_batches=None,
-                 counters=None, subscribe=None, on_event=None, on_subscribed=None, subscribe_timeout_s=10.0):
+async def stream(
+    write,
+    recv_frame,
+    seal,
+    unseal,
+    data_ids,
+    *,
+    sample_interval_ms=40,
+    report_interval_ms=None,
+    start_id=16,
+    max_batches=None,
+    counters=None,
+    subscribe=None,
+    on_event=None,
+    on_subscribed=None,
+    subscribe_timeout_s=10.0,
+):
     """Async generator over a LIVE AS11 waveform stream (StartStream → StreamData). READ-ONLY.
 
     Sends StartStream, verifies the device marked EVERY requested dataId valid (a partial accept raises
@@ -207,11 +222,18 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
         for entry in p["data"]:
             channels.update(entry)
         if counters is not None:
-            counters.note_frame(_FrameKind.OK,
-                                n_samples=sum(len(v) for v in channels.values() if isinstance(v, list)),
-                                wire_bytes=_wire, json_bytes=_json)
-        yield {"stream_id": stream_id, "start_time": p.get("startTime"),
-               "interval_ms": p.get("intervalMs"), "channels": channels}
+            counters.note_frame(
+                _FrameKind.OK,
+                n_samples=sum(len(v) for v in channels.values() if isinstance(v, list)),
+                wire_bytes=_wire,
+                json_bytes=_json,
+            )
+        yield {
+            "stream_id": stream_id,
+            "start_time": p.get("startTime"),
+            "interval_ms": p.get("intervalMs"),
+            "channels": channels,
+        }
         count += 1
 
 

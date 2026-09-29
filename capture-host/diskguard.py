@@ -23,7 +23,7 @@ import time
 # strict date shape means the sibling `incoming/` and `stored/` dirs (and anything else) are never touched.
 _NIGHT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-_GiB = 1024 ** 3
+_GiB = 1024**3
 
 
 def disk_report(path: str, min_free_gb: float = 0.0) -> dict:
@@ -33,7 +33,7 @@ def disk_report(path: str, min_free_gb: float = 0.0) -> dict:
     reports the filesystem it will live on (rather than raising)."""
     probe = path
     while probe and not os.path.exists(probe):
-        probe = os.path.dirname(probe) or "/"   # walk up; a relative path bottoms out at "/", which exists
+        probe = os.path.dirname(probe) or "/"  # walk up; a relative path bottoms out at "/", which exists
     u = shutil.disk_usage(probe or "/")
     free_gb = u.free / _GiB
     return {
@@ -50,8 +50,7 @@ def list_nights(captures_dir: str) -> list[str]:
         entries = os.listdir(captures_dir)
     except OSError:
         return []
-    return sorted(n for n in entries
-                  if _NIGHT_RE.match(n) and os.path.isdir(os.path.join(captures_dir, n)))
+    return sorted(n for n in entries if _NIGHT_RE.match(n) and os.path.isdir(os.path.join(captures_dir, n)))
 
 
 def active_nights(captures_dir: str, settle_sec: float, _now=time.time) -> set[str]:
@@ -74,7 +73,7 @@ def active_nights(captures_dir: str, settle_sec: float, _now=time.time) -> set[s
                     out.add(n)
                     break
         except FileNotFoundError:
-            continue                              # a night that vanished mid-scan is genuinely not active
+            continue  # a night that vanished mid-scan is genuinely not active
         except OSError:
             # ANY OTHER failure to read the night means we do not KNOW whether it is being written —
             # EACCES, EIO on a failing disk, EMFILE on a busy daemon. This set's only consumer is a
@@ -94,12 +93,13 @@ def plan_prune(nights: list[str], keep_nights: int, protect: set[str] | None = N
     if keep_nights is None or keep_nights <= 0 or len(nights) <= keep_nights:
         return []
     protect = protect or set()
-    stale = nights[:-keep_nights]                 # newest keep_nights are retained; the rest are stale
+    stale = nights[:-keep_nights]  # newest keep_nights are retained; the rest are stale
     return [n for n in stale if n not in protect]
 
 
-def prune_old_nights(captures_dir: str, keep_nights: int, protect: set[str] | None = None,
-                     _rm=shutil.rmtree) -> list[str]:
+def prune_old_nights(
+    captures_dir: str, keep_nights: int, protect: set[str] | None = None, _rm=shutil.rmtree
+) -> list[str]:
     """Execute plan_prune() against the real tree: rmtree each stale night, return the ones removed. A
     delete that fails (permission/race) is skipped, not fatal — freeing space must never crash capture.
     `_rm` is injectable so the planning can be exercised without touching disk."""
@@ -110,6 +110,6 @@ def prune_old_nights(captures_dir: str, keep_nights: int, protect: set[str] | No
             removed.append(n)
         except OSError:
             pass  # THE APPEND IS INSIDE THE TRY, deliberately: a night whose delete failed is not
-                  # reported as removed, so the returned list is what actually went. Freeing space
-                  # must never crash capture (docstring above), but it must not lie about it either
+            # reported as removed, so the returned list is what actually went. Freeing space
+            # must never crash capture (docstring above), but it must not lie about it either
     return removed

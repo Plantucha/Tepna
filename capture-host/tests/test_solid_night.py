@@ -241,8 +241,9 @@ def test_write_night_writes_a_valid_verdict_beside_the_night_with_the_run_as_of_
     _verdict_file(tmp_path, "2026-09-19", "NOT_APPLICABLE", "in_charger")
     nd = tmp_path / "2026-09-20"
     nd.mkdir()
-    obj, run = sn.write_night(str(nd), [], nights=["2026-09-18", "2026-09-19", "2026-09-20", "2026-09-21"],
-                              active={"2026-09-21"}, commit=SHA)
+    obj, run = sn.write_night(
+        str(nd), [], nights=["2026-09-18", "2026-09-19", "2026-09-20", "2026-09-21"], active={"2026-09-21"}, commit=SHA
+    )
     on_disk = __import__("json").loads((nd / sn.VERDICT_NAME).read_text())
     js_validate(on_disk)
     assert on_disk["status"] == "UNKNOWN" and "no expected device" in on_disk["reason"]  # devices [] this test
@@ -255,8 +256,14 @@ def test_write_night_hands_back_the_run_when_the_verdict_has_no_result_to_hold_i
     """NOT_APPLICABLE carries `result: null` by contract — the run still reaches the caller."""
     nd = tmp_path / "2026-09-20"
     nd.mkdir()
-    na = sn.compose(night="2026-09-20", settled=True, devices={"H10": {"applicable": False, "reason": "in_charger"}},
-                    evidence=EV, commit=SHA, at=AT)
+    na = sn.compose(
+        night="2026-09-20",
+        settled=True,
+        devices={"H10": {"applicable": False, "reason": "in_charger"}},
+        evidence=EV,
+        commit=SHA,
+        at=AT,
+    )
     monkeypatch.setattr(sn, "night_verdict", lambda *a, **k: na)
     obj, run = sn.write_night(str(nd), [], nights=["2026-09-20"], active=set())
     assert obj["result"] is None and run["solid"] == 0 and run["nights"] == 0

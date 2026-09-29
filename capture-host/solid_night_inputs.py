@@ -185,9 +185,7 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
     audited = audit_dev.get("file")
     span = next((v for p, v in spans.items() if os.path.basename(p) == audited), None)
     if span is None or span[0] is None or span[0] > start or span[1] < end:
-        return _decision(
-            "UNKNOWN", f"the loss audit examined `{audited}`, which does not cover the worn interval"
-        )
+        return _decision("UNKNOWN", f"the loss audit examined `{audited}`, which does not cover the worn interval")
     inside = []
     for g in gaps:
         at = _dt.datetime.fromisoformat(g["at"])
@@ -373,7 +371,7 @@ def recorded_seams(primary: str, start, end) -> list[dict]:
                 step_ms = float(cells[2])
             except ValueError:
                 continue  # an unparseable seam row is not a step of zero — it is one this reader cannot
-                          # place, so it splits nothing rather than splitting at the wrong sample (§∅)
+                # place, so it splits nothing rather than splitting at the wrong sample (§∅)
             if start is not None and (host < start or host > end):
                 continue  # a seam outside the worn interval does not split an axis nobody was wearing
             seams.append({"host_ms": host.timestamp() * 1000.0, "step_ms": step_ms})
@@ -399,7 +397,7 @@ def _seam_cause(night_dir: str) -> str | None:
                         return f"`{name}` records a clock event this night"
         except OSError:
             continue  # this record is unreadable, so it names no cause; the NEXT one may. A missing cause
-                      # is reported as "no cause recorded", never as an inferred one (the docstring's rule)
+            # is reported as "no cause recorded", never as an inferred one (the docstring's rule)
     return None
 
 
@@ -495,7 +493,9 @@ def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> di
     who = os.path.basename(path)
     anchors = scan["anchors"]
     if len(anchors) < TB_MIN_ANCHORS:
-        return _decision("UNKNOWN", f"`{who}` gave {len(anchors)} anchor(s) inside the worn interval — under {TB_MIN_ANCHORS}")
+        return _decision(
+            "UNKNOWN", f"`{who}` gave {len(anchors)} anchor(s) inside the worn interval — under {TB_MIN_ANCHORS}"
+        )
     # `drawn_share` cannot be None here: it is None only when the file has under two rows, and under
     # three rows the anchor check above has already returned. Coverage found the branch unreachable and
     # it is removed rather than given a test that could never fail.
@@ -539,9 +539,11 @@ def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> di
     if seams:
         worst = max(seams, key=lambda r: abs(r["step_ms"]))
         cause = _seam_cause(night_dir)
-        seam_note = (f" — {len(seams)} recorded clock seam(s), largest {worst['step_ms'] / 1000.0:+.3g} s"
-                     f"{'; ' + cause if cause else '; no cause recorded this night'}"
-                     f"; the axis is judged in {len(segs)} segment(s), never across a step")
+        seam_note = (
+            f" — {len(seams)} recorded clock seam(s), largest {worst['step_ms'] / 1000.0:+.3g} s"
+            f"{'; ' + cause if cause else '; no cause recorded this night'}"
+            f"; the axis is judged in {len(segs)} segment(s), never across a step"
+        )
 
     worst_out: dict | None = None
     rank = {"FAIL": 2, "UNKNOWN": 1, "PASS": 0}
@@ -556,7 +558,10 @@ def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> di
             spread = max(vals) - min(vals)
             span_s = res[-1][0] - res[0][0]
             if spread <= TB_INERT_MS:
-                out = _decision("UNKNOWN", f"{tag} residual spread {spread:.2f} ms — the host column adds nothing beyond rounding, so there is no second clock{seam_note}")
+                out = _decision(
+                    "UNKNOWN",
+                    f"{tag} residual spread {spread:.2f} ms — the host column adds nothing beyond rounding, so there is no second clock{seam_note}",
+                )
             elif span_s <= 0:
                 out = _decision("UNKNOWN", f"{tag} anchors span no time{seam_note}")
             else:
@@ -567,9 +572,15 @@ def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> di
                 tailv = _median(vals[-TB_WIN:])
                 ppm = (tailv - lead) / 1000.0 / span_s * 1e6
                 if abs(ppm) >= TB_MAX_PPM:
-                    out = _decision("FAIL", f"{tag} host-vs-device rate {ppm:+.0f} ppm over {span_s / 60:.0f} min — beyond the plausibility bound, so the two columns are not the two clocks{seam_note}")
+                    out = _decision(
+                        "FAIL",
+                        f"{tag} host-vs-device rate {ppm:+.0f} ppm over {span_s / 60:.0f} min — beyond the plausibility bound, so the two columns are not the two clocks{seam_note}",
+                    )
                 else:
-                    out = _decision("UNKNOWN", f"{tag}: axis is an independent clock at {ppm:+.0f} ppm over {span_s / 60:.0f} min — the A5 step tripwire has not run{seam_note}")
+                    out = _decision(
+                        "UNKNOWN",
+                        f"{tag}: axis is an independent clock at {ppm:+.0f} ppm over {span_s / 60:.0f} min — the A5 step tripwire has not run{seam_note}",
+                    )
         if worst_out is None or rank[out["status"]] > rank[worst_out["status"]]:
             worst_out = out
     assert worst_out is not None  # `anchors` is non-empty above, so `segs` carries at least one segment

@@ -112,17 +112,16 @@ class Control:
 
     async def send(self, cmd: bytes, timeout: float | None = None) -> bytes | None:
         _check(cmd)
-        await asyncio.sleep(0.25)                      # pace it; capture.py never fires back-to-back
+        await asyncio.sleep(0.25)  # pace it; capture.py never fires back-to-back
         while not self.q.empty():
             self.q.get_nowait()
         try:
             await self.client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True)
-        except Exception as exc:                       # noqa: BLE001 — a refusal is a measurement
+        except Exception as exc:  # noqa: BLE001 — a refusal is a measurement
             self.log.append({"sent": cmd.hex(), "refused": f"{type(exc).__name__}: {exc}"})
             raise
         try:
-            reply = await asyncio.wait_for(
-                self.q.get(), CP_REPLY_TIMEOUT_S if timeout is None else timeout)
+            reply = await asyncio.wait_for(self.q.get(), CP_REPLY_TIMEOUT_S if timeout is None else timeout)
         except asyncio.TimeoutError:
             reply = None
         self.log.append({"sent": cmd.hex(), "reply": reply.hex() if reply else None})
@@ -148,9 +147,10 @@ def daemon_holds_link(unit: str = "tepna-capture.service") -> bool:
     call and turns a confusing three-frames-deep failure into a one-line instruction."""
     try:
         import subprocess
+
         r = subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True, timeout=10)
         return r.stdout.strip() == "active"
-    except Exception:                                  # noqa: BLE001 — not on the box / no systemd
+    except Exception:  # noqa: BLE001 — not on the box / no systemd
         return False
 
 
@@ -167,13 +167,13 @@ async def _cycle_adapter() -> bool:
     try:
         for arg in ("off", "on"):
             proc = await asyncio.create_subprocess_exec(
-                "bluetoothctl", "power", arg,
-                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                "bluetoothctl", "power", arg, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+            )
             await asyncio.wait_for(proc.wait(), 15)
             await asyncio.sleep(3)
         await asyncio.sleep(4)
         return True
-    except Exception:                                  # noqa: BLE001 — recovery is best-effort
+    except Exception:  # noqa: BLE001 — recovery is best-effort
         return False
 
 
@@ -223,7 +223,7 @@ async def _with_link(address: str, adapter: str | None, body, attempts: int = 3)
         except (AttributeError, NameError, TypeError, ValueError):
             # A CODE BUG IS NOT A FLAKY LINK — abort rather than spend BLE windows re-running it.
             raise
-        except Exception as exc:                       # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             # KEEP THE TRACEBACK. Collapsing a failure to `type: message` cost four rounds of guessing
             # on `Service Discovery has not been performed yet`: the string names BlueZ's state and not
             # the call that raised it. The frame is the fact.
@@ -233,16 +233,21 @@ async def _with_link(address: str, adapter: str | None, body, attempts: int = 3)
 
 
 def _states(reply):
-    return {pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(st, st)
-            for m, st in sorted(pmd.parse_status_response(reply or b"").items())}
+    return {
+        pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(st, st)
+        for m, st in sorted(pmd.parse_status_response(reply or b"").items())
+    }
 
 
 def _settings(reply):
-    return {pmd.SETTING_NAME.get(sid, f"setting_{sid:#04x}"): vals
-            for sid, vals in pmd.parse_settings_response(reply or b"").items()}
+    return {
+        pmd.SETTING_NAME.get(sid, f"setting_{sid:#04x}"): vals
+        for sid, vals in pmd.parse_settings_response(reply or b"").items()
+    }
 
 
 # ── phase 1 · identity ──────────────────────────────────────────────────────────────────────────────
+
 
 async def phase_identity(address, adapter, out):
     async def body(c, _cp):
@@ -250,21 +255,23 @@ async def phase_identity(address, adapter, out):
         for name, uuid in DIS.items():
             try:
                 got[name] = bytes(await c.read_gatt_char(uuid)).decode().strip("\x00").strip()
-            except Exception as exc:                   # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
                 got[name] = f"unavailable ({type(exc).__name__})"
         try:
             got["battery_pct"] = (await c.read_gatt_char(BATTERY))[0]
-        except Exception as exc:                       # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             got["battery_pct"] = f"unavailable ({type(exc).__name__})"
         # Polar puts the FCC ID in the model field; a mismatch means a different unit than this report
         # claims to describe. Public filing: fccid.io/INW4J (Polar Electro Oy, granted 2021-02-10).
         got["fcc_id_expected"] = EXPECTED_FCC_ID
-        got["fcc_id_matches_model"] = (got.get("model") == EXPECTED_FCC_ID)
+        got["fcc_id_matches_model"] = got.get("model") == EXPECTED_FCC_ID
         return got
+
     out["identity"] = await _with_link(address, adapter, body)
 
 
 # ── phase 2 · capability ────────────────────────────────────────────────────────────────────────────
+
 
 async def phase_capability(address, adapter, out):
     """Capability, on TWO links — the feature read and the control-point sweep cannot share one.
@@ -289,10 +296,11 @@ async def phase_capability(address, adapter, out):
         feats = pmd.parse_features(raw)
         got["feature_bitmask"] = raw.hex()
         got["measurements"] = sorted(pmd.MEAS_NAME[f] for f in feats if f in pmd.MEAS_NAME)
-        got["flag_bits"] = {f"{f:#04x}": FLAG_NAME.get(f, "unrecognised")
-                            for f in sorted(feats) if f not in pmd.MEAS_NAME}
+        got["flag_bits"] = {
+            f"{f:#04x}": FLAG_NAME.get(f, "unrecognised") for f in sorted(feats) if f not in pmd.MEAS_NAME
+        }
         meas = sorted(f for f in feats if f in pmd.MEAS_NAME)
-    except Exception as exc:                           # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         got["feature_bitmask"] = f"unavailable ({type(exc).__name__})"
         got["note"] = "feature read failed — swept every known measurement type instead"
         meas = sorted(pmd.MEAS_NAME)
@@ -308,9 +316,12 @@ async def phase_capability(address, adapter, out):
         for m in meas:
             name = pmd.MEAS_NAME[m]
             menus[name] = {}
-            for mode, op, bit in (("online", OP_GET_SETTINGS, 0), ("offline", OP_GET_SETTINGS, 0x80),
-                                  ("sdk_online", OP_GET_SDK_SETTINGS, 0),
-                                  ("sdk_offline", OP_GET_SDK_SETTINGS, 0x80)):
+            for mode, op, bit in (
+                ("online", OP_GET_SETTINGS, 0),
+                ("offline", OP_GET_SETTINGS, 0x80),
+                ("sdk_online", OP_GET_SDK_SETTINGS, 0),
+                ("sdk_offline", OP_GET_SDK_SETTINGS, 0x80),
+            ):
                 menus[name][mode] = _settings(await cp.send(_check(bytes([op, m | bit]))))
         res["settings_menus"] = menus
         res["control_transcript"] = cp.log
@@ -322,12 +333,14 @@ async def phase_capability(address, adapter, out):
 
 # ── phase 3 · offline recording lifecycle ───────────────────────────────────────────────────────────
 
+
 async def phase_record(address, adapter, meas, seconds, out):
     """Start an offline recording, confirm from the DEVICE, stop, confirm stopped."""
+
     async def body(_c, cp):
         got = {"measurement": pmd.MEAS_NAME[meas], "requested_seconds": seconds}
         got["status_before"] = _states(await cp.send(pmd.status_cmd()))
-        await cp.send(pmd.stop_cmd(meas))              # clear anything stale; proves STOP works first
+        await cp.send(pmd.stop_cmd(meas))  # clear anything stale; proves STOP works first
         settings = pmd.parse_settings_response(await cp.send(pmd.get_settings_cmd(meas)) or b"")
         start = pmd.build_start(meas, settings) or pmd.START.get(meas)
         if start is None:
@@ -341,7 +354,7 @@ async def phase_record(address, adapter, meas, seconds, out):
             r = await cp.send(cmd)
             code = r[3] if r and len(r) > 3 and r[0] == 0xF0 else pmd.NO_ACK
             got["start_ack"] = pmd.CTRL_STATUS.get(code, f"unknown_{code:#04x}")
-            got["in_charger_refusal"] = (code == pmd.IN_CHARGER)
+            got["in_charger_refusal"] = code == pmd.IN_CHARGER
             if code == pmd.IN_CHARGER:
                 # ⚠️ THE DOCKED-START QUESTION IS UNSETTLED — do not read either way into it.
                 # 2026-08-03, ~21:57: the daemon reconnected on a WALL charger with the battery climbing
@@ -353,22 +366,19 @@ async def phase_record(address, adapter, meas, seconds, out):
                 return got
             await asyncio.sleep(min(seconds, 120.0))
             during, during_answered = await _status_or_unanswered(cp)
-            got["status_during"] = {pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(s, s)
-                                    for m, s in sorted(during.items())}
+            got["status_during"] = {pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(s, s) for m, s in sorted(during.items())}
             got["status_during_answered"] = during_answered
-            got["recording_confirmed_by_device"] = (
-                pmd.is_recording(during, meas) if during_answered else None)
+            got["recording_confirmed_by_device"] = pmd.is_recording(during, meas) if during_answered else None
         finally:
             await cp.send(pmd.stop_cmd(meas))
             after, after_answered = await _status_or_unanswered(cp)
-            got["status_after"] = {pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(s, s)
-                                   for m, s in sorted(after.items())}
+            got["status_after"] = {pmd.MEAS_NAME[m]: pmd.ACTIVE_NAME.get(s, s) for m, s in sorted(after.items())}
             got["status_after_answered"] = after_answered
             # The dangerous half: `not is_recording({})` is True, so silence used to CONFIRM the stop.
-            got["stopped_confirmed_by_device"] = (
-                (not pmd.is_recording(after, meas)) if after_answered else None)
+            got["stopped_confirmed_by_device"] = (not pmd.is_recording(after, meas)) if after_answered else None
             got["host_utc_start"] = t0.isoformat()
         return got
+
     out["record"] = await _with_link(address, adapter, body)
 
 
@@ -391,13 +401,14 @@ def _settings_from_start(cmd: bytes) -> dict:
 
 # ── phase 4 · the flash ─────────────────────────────────────────────────────────────────────────────
 
+
 async def phase_flash(address, adapter, pull_dir, out):
     got = {}
     try:
         recs = await psftp.list_recordings(address, adapter)
         got["listing"] = recs
         got["n_recordings"] = len(recs)
-    except Exception as exc:                           # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         got["error"] = f"list failed: {type(exc).__name__}: {exc}"
         out["flash"] = got
         return
@@ -408,16 +419,21 @@ async def phase_flash(address, adapter, pull_dir, out):
             dest = os.path.join(pull_dir, r["path"].strip("/").replace("/", "_"))
             try:
                 m = await psftp.pull_recording(address, r["path"], dest, adapter)
-                pulled.append({"session": r["path"], "dir": dest,
-                               "files": [{"name": f["name"], "bytes": f["bytes"], "ok": f["ok"]}
-                                         for f in m["files"]]})
-            except Exception as exc:                   # noqa: BLE001
+                pulled.append(
+                    {
+                        "session": r["path"],
+                        "dir": dest,
+                        "files": [{"name": f["name"], "bytes": f["bytes"], "ok": f["ok"]} for f in m["files"]],
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001
                 pulled.append({"session": r["path"], "error": f"{type(exc).__name__}: {exc}"})
         got["pulled"] = pulled
     out["flash"] = got
 
 
 # ── phase 5 · decode what came off the flash ────────────────────────────────────────────────────────
+
 
 def parse_rec_tlv(b: bytes) -> dict:
     """The settings TLVs a `.REC` header carries, VERBATIM from the START that created it.
@@ -503,9 +519,9 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
     # diff-scoped gate mutates the whole function either way.
     got: dict[str, Any] = {"file": os.path.basename(path), "bytes": len(b)}
     try:
-        got["header_stamp"] = b[0x11:0x11 + 19].decode("ascii")
+        got["header_stamp"] = b[0x11 : 0x11 + 19].decode("ascii")
         anchor = _dt.datetime.fromisoformat(got["header_stamp"])
-    except Exception:                                  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         got["header_stamp"], anchor = None, None
     got["settings_tlv"] = parse_rec_tlv(b)
     frames = find_rec_frames(b, anchor)
@@ -518,8 +534,9 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
         got["span_sec"] = round((f1["sensor_ns"] - f0["sensor_ns"]) / 1e9, 2)
         got["frame_types"] = sorted({f["frame_type"] for f in frames})
         if len(frames) > 1:
-            got["median_frame_gap_ms"] = _median([(y["sensor_ns"] - x["sensor_ns"]) / 1e6
-                                                  for x, y in zip(frames, frames[1:])])
+            got["median_frame_gap_ms"] = _median(
+                [(y["sensor_ns"] - x["sensor_ns"]) / 1e6 for x, y in zip(frames, frames[1:])]
+            )
             got["stride_bytes"] = _median([y["offset"] - x["offset"] for x, y in zip(frames, frames[1:])])
         # INTERNAL consistency: the ASCII header and the first frame's own clock are both the device's,
         # so they must agree. This is checkable on ANY file, old or new. THE `anchor` GUARD IS IN THE
@@ -528,13 +545,15 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
         # and stops `- anchor` reading as a subtraction from None. Behaviour is unchanged for every input
         # that can occur; an input that violated the implication now skips the block instead of raising.
         got["header_vs_first_frame_sec"] = round(
-            (_dt.datetime.fromisoformat(got["first_frame_utc"]) - anchor).total_seconds(), 2)
+            (_dt.datetime.fromisoformat(got["first_frame_utc"]) - anchor).total_seconds(), 2
+        )
     # THE TIMEBASE VERDICT — only for a recording this run created, where the host clock at start is known.
     if expected_start_utc and anchor:
         d = (anchor - expected_start_utc).total_seconds()
         got["stamp_minus_host_utc_sec"] = round(d, 1)
-        got["timebase"] = ("UTC" if abs(d) < 120 else
-                           f"NOT host UTC — off by {d / 3600:.2f} h (local-civil would be the UTC offset)")
+        got["timebase"] = (
+            "UTC" if abs(d) < 120 else f"NOT host UTC — off by {d / 3600:.2f} h (local-civil would be the UTC offset)"
+        )
     return got
 
 
@@ -560,11 +579,10 @@ def phase_decode(out, pull_dir):
             path = os.path.join(root, f)
             # Only the session we just made gets the host-clock comparison; for the rest `now` is
             # unrelated to when they were recorded and the verdict would be noise.
-            ours = bool(expect and abs(os.path.getmtime(path) - _now_epoch()) < 3600 and
-                        _session_matches(root, expect))
+            ours = bool(expect and abs(os.path.getmtime(path) - _now_epoch()) < 3600 and _session_matches(root, expect))
             try:
                 decoded.append(decode_rec(path, expect if ours else None))
-            except Exception as exc:                   # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
                 decoded.append({"file": f, "error": f"{type(exc).__name__}: {exc}"})
     out["decoded"] = decoded
 
@@ -609,12 +627,13 @@ def _session_matches(dirname: str, expect: _dt.datetime) -> bool:
         try:
             day = _dt.datetime.strptime(parts[-3], "%Y%m%d").date()
         except ValueError:
-            return False                      # an 8-digit non-date is a name we do not understand
+            return False  # an 8-digit non-date is a name we do not understand
     same = _dt.datetime.combine(day, hhmmss)
     return abs((same - expect).total_seconds()) < 180
 
 
 # ── the safety net ──────────────────────────────────────────────────────────────────────────────────
+
 
 async def stop_everything(address, adapter, out):
     """Read status and stop whatever is running — unconditionally, on fresh links.
@@ -622,49 +641,64 @@ async def stop_everything(address, adapter, out):
     A `finally` stop is not enough by itself: the stop write can be refused by the same ATT-layer
     deafness that broke the run, so the guard cannot fire. This is the backstop, and it verifies by
     re-reading status rather than trusting the ACK."""
+
     async def body(_c, cp):
         before, before_answered = await _status_or_unanswered(cp)
         active = [m for m, st in before.items() if st != pmd.NO_MEASUREMENT]
         for m in active:
-            await cp.send(pmd.stop_cmd(m))             # BARE type — `03 82` is refused outright
+            await cp.send(pmd.stop_cmd(m))  # BARE type — `03 82` is refused outright
         after, after_answered = await _status_or_unanswered(cp)
         # `still_active: []` is the POSITIVE claim this whole backstop exists to make, so it may not be
         # drawn from silence: an unanswered re-read leaves it `None` and says which read was missing.
         # The same applies to `was_active` — an unanswered BEFORE read makes "nothing was active" a
         # claim too, and it is the read that decides which stops are even attempted.
-        return {"was_active": ([pmd.MEAS_NAME.get(m, hex(m)) for m in active]
-                               if before_answered else None),
-                "still_active": ([pmd.MEAS_NAME.get(m, hex(m))
-                                  for m, st in after.items() if st != pmd.NO_MEASUREMENT]
-                                 if after_answered else None),
-                "status_answered": {"before": before_answered, "after": after_answered}}
+        return {
+            "was_active": ([pmd.MEAS_NAME.get(m, hex(m)) for m in active] if before_answered else None),
+            "still_active": (
+                [pmd.MEAS_NAME.get(m, hex(m)) for m, st in after.items() if st != pmd.NO_MEASUREMENT]
+                if after_answered
+                else None
+            ),
+            "status_answered": {"before": before_answered, "after": after_answered},
+        }
+
     try:
         out["left_clean"] = await _with_link(address, adapter, body, attempts=4)
-    except Exception as exc:                           # noqa: BLE001
-        out["left_clean"] = {"error": f"COULD NOT VERIFY: {type(exc).__name__}: {exc}",
-                             "action": "re-run with --no-write to confirm nothing is recording"}
+    except Exception as exc:  # noqa: BLE001
+        out["left_clean"] = {
+            "error": f"COULD NOT VERIFY: {type(exc).__name__}: {exc}",
+            "action": "re-run with --no-write to confirm nothing is recording",
+        }
 
 
 # ── driver ──────────────────────────────────────────────────────────────────────────────────────────
 
+
 async def survey(address, adapter, meas, seconds, pull_dir, do_write) -> dict:
-    out = {"address": address, "started_utc": _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None).isoformat(),
-           "not_sent": {f"{op:#04x}": f"{n} — persists across power cycles" for op, n in sorted(FORBIDDEN.items())}}
+    out = {
+        "address": address,
+        "started_utc": _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None).isoformat(),
+        "not_sent": {f"{op:#04x}": f"{n} — persists across power cycles" for op, n in sorted(FORBIDDEN.items())},
+    }
     if daemon_holds_link():
-        out["precondition"] = ("tepna-capture.service is ACTIVE and holds the device's single BLE link. "
-                               "Every phase would fail with 'Service Discovery has not been performed "
-                               "yet', which names BlueZ's state and not this cause. Stop it first: "
-                               "sudo -n /usr/local/lib/tepna/tepna-restart.sh stop 30")
+        out["precondition"] = (
+            "tepna-capture.service is ACTIVE and holds the device's single BLE link. "
+            "Every phase would fail with 'Service Discovery has not been performed "
+            "yet', which names BlueZ's state and not this cause. Stop it first: "
+            "sudo -n /usr/local/lib/tepna/tepna-restart.sh stop 30"
+        )
         return out
-    phases = [("identity", phase_identity(address, adapter, out)),
-              ("capability", phase_capability(address, adapter, out))]
+    phases = [
+        ("identity", phase_identity(address, adapter, out)),
+        ("capability", phase_capability(address, adapter, out)),
+    ]
     if do_write:
         phases.append(("record", phase_record(address, adapter, meas, seconds, out)))
     phases.append(("flash", phase_flash(address, adapter, pull_dir, out)))
     for name, coro in phases:
         try:
             await coro
-        except Exception as exc:                       # noqa: BLE001 — one dead phase must not cost the rest
+        except Exception as exc:  # noqa: BLE001 — one dead phase must not cost the rest
             out.setdefault("phase_errors", {})[name] = f"{type(exc).__name__}: {exc}"
     phase_decode(out, pull_dir)
     if do_write:

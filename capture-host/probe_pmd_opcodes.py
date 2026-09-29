@@ -55,10 +55,15 @@ import polar_pmd as pmd
 
 # Opcodes this project has established, so a hit is recognised rather than rediscovered.
 KNOWN = {
-    0x01: "GET_MEASUREMENT_SETTINGS", 0x02: "REQUEST_MEASUREMENT_START", 0x03: "STOP_MEASUREMENT",
-    0x04: "GET_SDK_MODE_MEASUREMENT_SETTINGS", 0x05: "GET_MEASUREMENT_STATUS",
-    0x06: "GET_SDK_MODE_STATUS", 0x07: "GET_OFFLINE_RECORDING_TRIGGER_STATUS",
-    0x08: "SET_OFFLINE_RECORDING_TRIGGER_MODE", 0x09: "SET_OFFLINE_RECORDING_TRIGGER_SETTINGS",
+    0x01: "GET_MEASUREMENT_SETTINGS",
+    0x02: "REQUEST_MEASUREMENT_START",
+    0x03: "STOP_MEASUREMENT",
+    0x04: "GET_SDK_MODE_MEASUREMENT_SETTINGS",
+    0x05: "GET_MEASUREMENT_STATUS",
+    0x06: "GET_SDK_MODE_STATUS",
+    0x07: "GET_OFFLINE_RECORDING_TRIGGER_STATUS",
+    0x08: "SET_OFFLINE_RECORDING_TRIGGER_MODE",
+    0x09: "SET_OFFLINE_RECORDING_TRIGGER_SETTINGS",
 }
 # Persist across power cycles. Already understood; nothing to learn, real cost if a bare call arms one.
 SKIP_BY_DEFAULT = {0x08, 0x09}
@@ -93,9 +98,13 @@ def status_of(reply) -> tuple[int, str]:
 async def snapshot(cp) -> dict:
     """Everything readable that an undocumented write might disturb."""
     snap = {}
-    for name, cmd in (("measurement_status", bytes([0x05])), ("sdk_mode", bytes([0x06])),
-                      ("trigger_status", bytes([0x07])),
-                      ("ppg_settings", bytes([0x01, pmd.PPG])), ("acc_settings", bytes([0x01, pmd.ACC]))):
+    for name, cmd in (
+        ("measurement_status", bytes([0x05])),
+        ("sdk_mode", bytes([0x06])),
+        ("trigger_status", bytes([0x07])),
+        ("ppg_settings", bytes([0x01, pmd.PPG])),
+        ("acc_settings", bytes([0x01, pmd.ACC])),
+    ):
         r = await cp.send(cmd)
         snap[name] = r.hex() if r else None
     return snap
@@ -107,11 +116,18 @@ def diff(a: dict, b: dict) -> dict:
 
 async def run(address, adapter, lo, hi, include_dangerous, dry_run) -> dict:
     plan = [op for op in range(lo, hi + 1) if include_dangerous or op not in SKIP_BY_DEFAULT]
-    out = {"address": address, "range": f"{lo:#04x}-{hi:#04x}", "probed_at": _dt.datetime.now().isoformat(),
-           "method": "bare single-byte opcode; existence inferred from the STATUS code, not from effect",
-           "skipped": {f"{op:#04x}": KNOWN.get(op, "?") + " — persists across power cycles"
-                       for op in sorted(SKIP_BY_DEFAULT) if not include_dangerous},
-           "planned": [f"{op:#04x}" for op in plan]}
+    out = {
+        "address": address,
+        "range": f"{lo:#04x}-{hi:#04x}",
+        "probed_at": _dt.datetime.now().isoformat(),
+        "method": "bare single-byte opcode; existence inferred from the STATUS code, not from effect",
+        "skipped": {
+            f"{op:#04x}": KNOWN.get(op, "?") + " — persists across power cycles"
+            for op in sorted(SKIP_BY_DEFAULT)
+            if not include_dangerous
+        },
+        "planned": [f"{op:#04x}" for op in plan],
+    }
     if dry_run:
         out["dry_run"] = "nothing was sent"
         return out
@@ -137,15 +153,15 @@ async def run(address, adapter, lo, hi, include_dangerous, dry_run) -> dict:
             entry: dict[str, Any] = {"known_as": KNOWN.get(op)}
             try:
                 code, name = status_of(await cp.send(bytes([op])))
-            except Exception as exc:                   # noqa: BLE001 — an ATT refusal is a result
+            except Exception as exc:  # noqa: BLE001 — an ATT refusal is a result
                 entry["gatt_refused"] = f"{type(exc).__name__}: {exc}"
                 results[f"{op:#04x}"] = entry
                 out["aborted_at"] = f"{op:#04x}"
                 out["abort_reason"] = "link refused — cannot distinguish device state from link state"
                 break
             entry["status"] = name
-            entry["exists"] = (code != 0x01 and code != pmd.NO_ACK)
-            entry["executed_bare"] = (code == 0x00)
+            entry["exists"] = code != 0x01 and code != pmd.NO_ACK
+            entry["executed_bare"] = code == 0x00
             results[f"{op:#04x}"] = entry
             # A bare call that returned ok DID something. Snapshot immediately and stop if it shows.
             if code == 0x00 and op not in (0x05, 0x06, 0x07):
@@ -174,17 +190,23 @@ def main(argv=None) -> int:
     ap.add_argument("--adapter", default=None)
     ap.add_argument("--from", dest="lo", type=lambda x: int(x, 0), default=0x00)
     ap.add_argument("--to", dest="hi", type=lambda x: int(x, 0), default=0x3F)
-    ap.add_argument("--include-dangerous", action="store_true",
-                    help="also send 0x08/0x09 — they PERSIST across power cycles")
+    ap.add_argument(
+        "--include-dangerous", action="store_true", help="also send 0x08/0x09 — they PERSIST across power cycles"
+    )
     ap.add_argument("--dry-run", action="store_true", help="print the plan, send nothing")
-    ap.add_argument("--i-accept-the-risk", action="store_true",
-                    help="required to send anything: an undocumented op needing NO parameters will "
-                         "EXECUTE on a bare probe, and this cannot be prevented from outside the firmware")
+    ap.add_argument(
+        "--i-accept-the-risk",
+        action="store_true",
+        help="required to send anything: an undocumented op needing NO parameters will "
+        "EXECUTE on a bare probe, and this cannot be prevented from outside the firmware",
+    )
     ap.add_argument("--json", dest="json_path", default=None)
     a = ap.parse_args(argv)
     if not (a.dry_run or a.i_accept_the_risk):
-        print("refusing: pass --dry-run to see the plan, or --i-accept-the-risk to send it.\n"
-              "A bare probe of an undocumented parameterless opcode EXECUTES it.")
+        print(
+            "refusing: pass --dry-run to see the plan, or --i-accept-the-risk to send it.\n"
+            "A bare probe of an undocumented parameterless opcode EXECUTES it."
+        )
         return 2
     res = asyncio.run(run(a.address, a.adapter, a.lo, a.hi, a.include_dangerous, a.dry_run))
     text = json.dumps(res, indent=2, default=str)

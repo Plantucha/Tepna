@@ -5,6 +5,7 @@ exists to enforce: "we ran a copy" is NOT "a second copy exists", and only the l
 night to the retention gate. So the tests that matter most here are the ones asserting `verified` is
 False whenever the second copy is unproven.
 """
+
 import asyncio
 import os
 import sys
@@ -14,8 +15,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import storage_targets as stg  # noqa: E402
 
-RSYNC = {"protocol": "rsync", "host": "nas", "user": "tepna",
-         "share": "/vol/tepna", "port": 22}
+RSYNC = {"protocol": "rsync", "host": "nas", "user": "tepna", "share": "/vol/tepna", "port": 22}
 
 
 def _run(coro):
@@ -30,19 +30,23 @@ def _fake_run(monkeypatch, results):
     async def fake(argv, timeout):
         calls.append(argv)
         return next(it)
+
     monkeypatch.setattr(stg, "_run", fake)
     return calls
 
 
 # ── validate: every refusal ─────────────────────────────────────────────────────────────────────────
-@pytest.mark.parametrize("t,frag", [
-    ("not-a-dict", "must be an object"),
-    ({"protocol": "carrier-pigeon"}, "unknown protocol"),
-    ({"protocol": "rsync", "host": "nas", "share": "/v", "port": "abc"}, "port must be"),
-    ({"protocol": "rsync", "host": "nas", "share": "/v", "port": 70000}, "port must be"),
-    ({"protocol": "rsync", "host": "nas", "share": "/v", "user": "bad user!"}, "invalid user"),
-    ({"protocol": "nfs", "host": "nas", "share": "/v"}, "required"),
-])
+@pytest.mark.parametrize(
+    "t,frag",
+    [
+        ("not-a-dict", "must be an object"),
+        ({"protocol": "carrier-pigeon"}, "unknown protocol"),
+        ({"protocol": "rsync", "host": "nas", "share": "/v", "port": "abc"}, "port must be"),
+        ({"protocol": "rsync", "host": "nas", "share": "/v", "port": 70000}, "port must be"),
+        ({"protocol": "rsync", "host": "nas", "share": "/v", "user": "bad user!"}, "invalid user"),
+        ({"protocol": "nfs", "host": "nas", "share": "/v"}, "required"),
+    ],
+)
 def test_validate_refuses_bad_targets(t, frag):
     """Every rejection is phrased for the operator — the message goes straight to the monitor."""
     with pytest.raises(stg.StorageError) as e:
@@ -59,15 +63,21 @@ def test_validate_requires_a_share_name():
 
 
 def test_validate_keeps_explicit_mount_options():
-    t = stg.validate({"protocol": "nfs", "host": "nas", "share": "/vol/x",
-                      "mountpoint": "/mnt/x", "options": "ro,soft"})
+    t = stg.validate(
+        {"protocol": "nfs", "host": "nas", "share": "/vol/x", "mountpoint": "/mnt/x", "options": "ro,soft"}
+    )
     assert t["options"] == "ro,soft"
 
 
 # ── validate_schedule ───────────────────────────────────────────────────────────────────────────────
-@pytest.mark.parametrize("s", [{"mode": "daily", "at": "03:00", "window_min": "abc"},
-                               {"mode": "daily", "at": "03:00", "window_min": 4},
-                               {"mode": "daily", "at": "03:00", "window_min": 5000}])
+@pytest.mark.parametrize(
+    "s",
+    [
+        {"mode": "daily", "at": "03:00", "window_min": "abc"},
+        {"mode": "daily", "at": "03:00", "window_min": 4},
+        {"mode": "daily", "at": "03:00", "window_min": 5000},
+    ],
+)
 def test_validate_schedule_bounds_the_window(s):
     with pytest.raises(stg.StorageError, match="window_min"):
         stg.validate_schedule(s)
@@ -77,8 +87,10 @@ def test_validate_schedule_bounds_the_window(s):
 def test_under_allowed_root_is_false_when_the_path_cannot_be_resolved(monkeypatch):
     """A path that cannot be realpath'd is not provably inside an allowed root, so it is refused.
     Failing closed is the only safe direction for a check that gates where nights get written."""
+
     def boom(_p):
         raise OSError("ELOOP")
+
     monkeypatch.setattr(stg.os.path, "realpath", boom)
     assert stg._under_allowed_root("/mnt/x") is False
 
@@ -90,6 +102,7 @@ def test_under_allowed_root_skips_a_root_it_cannot_compare(monkeypatch):
 
     def rel_roots(p):
         return "relative/root" if p in stg.MOUNT_ROOTS else real(p)
+
     monkeypatch.setattr(stg.os.path, "realpath", rel_roots)
     assert stg._under_allowed_root("/mnt/x") is False
 
@@ -101,8 +114,7 @@ def test_mount_unit_refuses_a_local_path():
 
 
 def test_mount_unit_adds_guest_for_an_anonymous_smb_share():
-    u = stg.mount_unit(stg.validate({"protocol": "smb", "host": "nas", "share": "media",
-                                     "mountpoint": "/mnt/media"}))
+    u = stg.mount_unit(stg.validate({"protocol": "smb", "host": "nas", "share": "media", "mountpoint": "/mnt/media"}))
     # No credentials file configured, so the generated unit must mount anonymously rather than
     # silently prompting — an unattended box has nobody to answer.
     assert "guest" in u["unit"]
@@ -155,30 +167,31 @@ def test_push_night_reports_failure_with_the_rsync_output(monkeypatch):
 def test_push_night_copied_but_unverified_when_verification_is_disabled(monkeypatch):
     """`ok` without `verified` must never release a night: we ran a copy, we did not prove one exists."""
     _fake_run(monkeypatch, [(0, "sent 1 byte")])
-    t = dict(stg.validate(RSYNC)); t["verify"] = False
+    t = dict(stg.validate(RSYNC))
+    t["verify"] = False
     r = _run(stg.push_night("/srv/x", t))
     assert r["ok"] is True and r["verified"] is False
 
 
 def test_push_night_verified_only_when_the_recheck_finds_nothing_left(monkeypatch):
-    _fake_run(monkeypatch, [(0, "sent 10 bytes"),
-                            (0, "sending incremental file list\nsent 12 bytes\ntotal size is 0")])
+    _fake_run(monkeypatch, [(0, "sent 10 bytes"), (0, "sending incremental file list\nsent 12 bytes\ntotal size is 0")])
     r = _run(stg.push_night("/srv/x", stg.validate(RSYNC)))
     assert r["ok"] is True and r["verified"] is True and "byte-for-byte" in r["detail"]
 
 
 def test_push_night_not_verified_when_the_recheck_still_lists_items(monkeypatch):
     """The whole point of the second pass: rsync exiting 0 is not proof the remote matches."""
-    _fake_run(monkeypatch, [(0, "sent 10 bytes"),
-                            (0, "sending incremental file list\n>f+++++++++ 20260725_BRP.edf\nsent 12 bytes")])
+    _fake_run(
+        monkeypatch,
+        [(0, "sent 10 bytes"), (0, "sending incremental file list\n>f+++++++++ 20260725_BRP.edf\nsent 12 bytes")],
+    )
     r = _run(stg.push_night("/srv/x", stg.validate(RSYNC)))
     assert r["ok"] is True and r["verified"] is False and "not confirmed" in r["detail"]
 
 
 # ── test_target ─────────────────────────────────────────────────────────────────────────────────────
 def test_test_target_for_a_mount_defers_to_dest_status(monkeypatch):
-    monkeypatch.setattr(stg, "dest_status",
-                        lambda t: {"ready": True, "path": "/mnt/x", "reason": None})
+    monkeypatch.setattr(stg, "dest_status", lambda t: {"ready": True, "path": "/mnt/x", "reason": None})
     t = stg.validate({"protocol": "nfs", "host": "nas", "share": "/v", "mountpoint": "/mnt/x"})
     r = _run(stg.test_target(t))
     assert r["ok"] is True and "mounted and writable" in r["detail"]
@@ -199,7 +212,7 @@ def test_test_target_ok_when_the_remote_share_is_a_directory(monkeypatch):
     calls = _fake_run(monkeypatch, [(0, "rsync 3.2.7"), (0, "")])
     r = _run(stg.test_target(stg.validate(RSYNC)))
     assert r["ok"] is True and "reachable and writable" in r["detail"]
-    assert any("BatchMode=yes" in " ".join(a) for a in calls)   # never prompt on an unattended box
+    assert any("BatchMode=yes" in " ".join(a) for a in calls)  # never prompt on an unattended box
 
 
 def test_test_target_distinguishes_connected_but_wrong_path(monkeypatch):
@@ -218,6 +231,7 @@ def test_test_target_surfaces_the_ssh_error_otherwise(monkeypatch):
 
 def test_test_target_passes_an_identity_file_when_configured(monkeypatch):
     calls = _fake_run(monkeypatch, [(0, "rsync 3.2.7"), (0, "")])
-    t = dict(stg.validate(RSYNC)); t["identity"] = "/home/vigil/.ssh/id_nas"
+    t = dict(stg.validate(RSYNC))
+    t["identity"] = "/home/vigil/.ssh/id_nas"
     _run(stg.test_target(t))
     assert any("-i" in a and "/home/vigil/.ssh/id_nas" in a for a in calls)

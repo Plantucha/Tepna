@@ -17,6 +17,7 @@ Three of those matter beyond tidiness:
 * **A no-op must not write config.yaml.** Writing it destroys the operator's comments by construction
   (`yaml.safe_dump` has no comment round-trip), so a POST that changes nothing must touch nothing.
 """
+
 import os
 import sys
 
@@ -38,6 +39,7 @@ def _post(app, payload):
     async def go(c):
         r = await c.post("/api/settings", json=payload)
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
@@ -45,8 +47,9 @@ def _post(app, payload):
 def test_a_stream_change_is_named_and_flagged_as_needing_a_restart(tmp_path):
     """PMD START is negotiated at connect, so a stream change is queued, not live. The entry is
     `<device>.streams` — the UI shows it verbatim."""
-    status, body, cfg, _ = _post_settings(tmp_path, {"streams": {ADDR: ["ecg", "acc"]}},
-                                          status={"H10": {"pmd_supported": ["ecg", "acc"]}})
+    status, body, cfg, _ = _post_settings(
+        tmp_path, {"streams": {ADDR: ["ecg", "acc"]}}, status={"H10": {"pmd_supported": ["ecg", "acc"]}}
+    )
     assert status == 200 and body["ok"] is True
     assert body["changed"] == ["H10.streams"]
     assert body["restart_needed"] is True
@@ -55,8 +58,9 @@ def test_a_stream_change_is_named_and_flagged_as_needing_a_restart(tmp_path):
 
 def test_a_rate_change_is_named_and_flagged_as_needing_a_restart(tmp_path):
     """Rate is fixed at PMD START too — same reasoning, separate code path."""
-    status, body, cfg, _ = _post_settings(tmp_path, {"rates": {ADDR: {"acc": 200}}},
-                                          status={"H10": {"pmd_options": {"acc": [25, 50, 200]}}})
+    status, body, cfg, _ = _post_settings(
+        tmp_path, {"rates": {ADDR: {"acc": 200}}}, status={"H10": {"pmd_options": {"acc": [25, 50, 200]}}}
+    )
     assert status == 200
     assert body["changed"] == ["H10.rates"]
     assert body["restart_needed"] is True
@@ -66,8 +70,9 @@ def test_a_rate_change_is_named_and_flagged_as_needing_a_restart(tmp_path):
 def test_the_rate_is_stored_as_an_integer(tmp_path):
     """`int(val)` — a string "200" from a form post must land as 200, not "200": capture.py hands this
     straight to the PMD START frame."""
-    _s, _b, cfg, _ = _post_settings(tmp_path, {"rates": {ADDR: {"acc": "200"}}},
-                                    status={"H10": {"pmd_options": {"acc": [200]}}})
+    _s, _b, cfg, _ = _post_settings(
+        tmp_path, {"rates": {ADDR: {"acc": "200"}}}, status={"H10": {"pmd_options": {"acc": [200]}}}
+    )
     assert cfg["devices"][0]["rates"] == {"acc": 200}
     assert isinstance(cfg["devices"][0]["rates"]["acc"], int)
 
@@ -77,7 +82,8 @@ def test_posting_the_streams_a_device_already_has_changes_nothing(tmp_path):
     """Order-insensitive: the comparison is on sorted lists, so re-sending the same set in a different
     order is still a no-op. Writing config.yaml here would destroy the operator's comments for nothing."""
     status, body, _cfg, cfg_path = _post_settings(
-        tmp_path, {"streams": {ADDR: ["ecg"]}}, status={"H10": {"pmd_supported": ["ecg"]}})
+        tmp_path, {"streams": {ADDR: ["ecg"]}}, status={"H10": {"pmd_supported": ["ecg"]}}
+    )
     assert status == 200 and body["changed"] == [] and body["restart_needed"] is False
     assert not os.path.exists(cfg_path), "an unchanged POST must not rewrite config.yaml"
 
@@ -121,8 +127,10 @@ def test_the_advertised_capabilities_are_persisted_when_the_device_is_connected(
     """Written to the device record so the check still has something to work with after a restart —
     `pmd_supported` lives in runtime status only and is gone the moment the daemon stops."""
     _s, _b, cfg, _ = _post_settings(
-        tmp_path, {"streams": {ADDR: ["ecg", "acc"]}},
-        status={"H10": {"pmd_supported": ["ecg", "acc"], "pmd_options": {"acc": [25, 200]}}})
+        tmp_path,
+        {"streams": {ADDR: ["ecg", "acc"]}},
+        status={"H10": {"pmd_supported": ["ecg", "acc"], "pmd_options": {"acc": [25, 200]}}},
+    )
     assert cfg["devices"][0]["pmd_supported_seen"] == ["ecg", "acc"]
 
 
@@ -131,7 +139,8 @@ def test_the_remembered_capabilities_still_refuse_an_unsupported_stream_after_a_
     persisted list the firmware check is skipped entirely and `gyro` on a chest strap is accepted."""
     dev = {**H10, "pmd_supported_seen": ["ecg", "acc"]}
     status, body, _cfg, cfg_path = _post_settings(
-        tmp_path, {"streams": {ADDR: ["ecg", "gyro"]}}, devices=[dev], status={})
+        tmp_path, {"streams": {ADDR: ["ecg", "gyro"]}}, devices=[dev], status={}
+    )
     assert status == 400 and "does not support" in body["error"] and "gyro" in body["error"]
     assert not os.path.exists(cfg_path)
 
@@ -141,22 +150,22 @@ def test_a_live_capability_list_wins_over_the_remembered_one(tmp_path):
     fallback for when it has said nothing yet."""
     dev = {**H10, "pmd_supported_seen": ["ecg"]}
     status, _body, cfg, _ = _post_settings(
-        tmp_path, {"streams": {ADDR: ["ecg", "acc"]}}, devices=[dev],
-        status={"H10": {"pmd_supported": ["ecg", "acc"]}})
+        tmp_path, {"streams": {ADDR: ["ecg", "acc"]}}, devices=[dev], status={"H10": {"pmd_supported": ["ecg", "acc"]}}
+    )
     assert status == 200
     assert cfg["devices"][0]["pmd_supported_seen"] == ["ecg", "acc"], "the memory is refreshed"
 
 
 def test_the_remembered_rate_menu_still_refuses_an_unoffered_rate_after_a_restart(tmp_path):
     dev = {**H10, "pmd_options_seen": {"acc": [25, 50, 100, 200]}}
-    status, body, *_ = _post_settings(tmp_path, {"rates": {ADDR: {"acc": 999}}},
-                                      devices=[dev], status={})
+    status, body, *_ = _post_settings(tmp_path, {"rates": {ADDR: {"acc": 999}}}, devices=[dev], status={})
     assert status == 400 and "not offered" in body["error"]
 
 
 def test_the_offered_rate_menu_is_persisted_when_the_device_is_connected(tmp_path):
-    _s, _b, cfg, _ = _post_settings(tmp_path, {"rates": {ADDR: {"acc": 200}}},
-                                    status={"H10": {"pmd_options": {"acc": [25, 200]}}})
+    _s, _b, cfg, _ = _post_settings(
+        tmp_path, {"rates": {ADDR: {"acc": 200}}}, status={"H10": {"pmd_options": {"acc": [25, 200]}}}
+    )
     assert cfg["devices"][0]["pmd_options_seen"] == {"acc": [25, 200]}
 
 
@@ -173,6 +182,7 @@ def test_config_is_backed_up_before_it_is_overwritten(tmp_path):
         first = os.path.exists(cfg_path)
         await c.post("/api/settings", json={"settings": {"watchdog.interval_sec": 120}})
         return first
+
     assert _serve(app, go), "the first write must create config.yaml"
     assert os.path.exists(cfg_path + ".bak"), "the previous config must be kept before overwriting"
     assert yaml.safe_load(open(cfg_path + ".bak"))["watchdog"]["interval_sec"] == 90
@@ -185,8 +195,7 @@ def test_a_failed_write_is_a_500_that_still_names_what_it_tried_to_change(tmp_pa
     one, and the setting silently reverted at the next restart. `changed` is returned so the operator
     knows exactly what did not survive."""
     app, *_ = _mk(tmp_path)
-    monkeypatch.setattr(webmon.os, "replace",
-                        lambda *a, **k: (_ for _ in ()).throw(OSError("ENOSPC")))
+    monkeypatch.setattr(webmon.os, "replace", lambda *a, **k: (_ for _ in ()).throw(OSError("ENOSPC")))
     status, body = _post(app, {"settings": {"watchdog.interval_sec": 90}})
     assert status == 500 and body["ok"] is False
     assert "config write failed" in body["error"]
@@ -215,12 +224,15 @@ def test_a_save_must_not_delete_a_rate_it_did_not_mention(tmp_path):
     # no `rates` key at all never enters the loop and cannot reproduce this — an earlier version of this
     # test did exactly that and passed against the unfixed code.
     status, body, cfg, _ = _post_settings(
-        tmp_path, {"rates": {ADDR: {"mag": 10}}},
-        devices=[dev], status={"H10": {"pmd_options": {"mag": [10, 20, 50, 100], "ppg": [55],
-                                                       "acc": [52], "gyro": [52]}}})
+        tmp_path,
+        {"rates": {ADDR: {"mag": 10}}},
+        devices=[dev],
+        status={"H10": {"pmd_options": {"mag": [10, 20, 50, 100], "ppg": [55], "acc": [52], "gyro": [52]}}},
+    )
     assert status == 200 and body["ok"] is True
-    assert cfg["devices"][0]["rates"] == {"ppg": 176, "acc": 26, "gyro": 26, "mag": 10}, \
+    assert cfg["devices"][0]["rates"] == {"ppg": 176, "acc": 26, "gyro": 26, "mag": 10}, (
         "an unmentioned rate was deleted — this is the 2026-08-03 loss"
+    )
 
 
 def test_a_mentioned_rate_still_wins_over_the_stored_one(tmp_path):
@@ -228,8 +240,11 @@ def test_a_mentioned_rate_still_wins_over_the_stored_one(tmp_path):
     keys the payload omits are carried forward."""
     dev = dict(H10, rates={"acc": 25, "mag": 10})
     _s, body, cfg, _ = _post_settings(
-        tmp_path, {"rates": {ADDR: {"acc": 50}}},
-        devices=[dev], status={"H10": {"pmd_options": {"acc": [25, 50, 100, 200]}}})
+        tmp_path,
+        {"rates": {ADDR: {"acc": 50}}},
+        devices=[dev],
+        status={"H10": {"pmd_options": {"acc": [25, 50, 100, 200]}}},
+    )
     assert cfg["devices"][0]["rates"] == {"acc": 50, "mag": 10}
     assert body["changed"] == ["H10.rates"] and body["restart_needed"] is True
 
@@ -239,8 +254,8 @@ def test_resubmitting_the_same_rates_is_still_a_no_op(tmp_path):
     destroys the operator's comments by construction."""
     dev = dict(H10, rates={"acc": 50, "mag": 10})
     _s, body, cfg, cfg_path = _post_settings(
-        tmp_path, {"rates": {ADDR: {"acc": 50}}},
-        devices=[dev], status={"H10": {"pmd_options": {"acc": [25, 50]}}})
+        tmp_path, {"rates": {ADDR: {"acc": 50}}}, devices=[dev], status={"H10": {"pmd_options": {"acc": [25, 50]}}}
+    )
     assert body["changed"] == [] and body["restart_needed"] is False
     assert not os.path.exists(cfg_path), "a no-op settings post must not write config.yaml"
 
@@ -257,8 +272,8 @@ def test_resubmitting_the_same_rates_is_still_a_no_op(tmp_path):
 def test_enabling_sdk_mode_warns_that_it_disables_ppi_and_hr(tmp_path):
     """The conflict is reported, the write still happens, and the warning names the streams lost."""
     status, body, cfg, _ = _post_settings(
-        tmp_path, {"sdk_mode": {ADDR: True}},
-        devices=[dict(H10, streams=["ecg", "ppi", "hr"])])
+        tmp_path, {"sdk_mode": {ADDR: True}}, devices=[dict(H10, streams=["ecg", "ppi", "hr"])]
+    )
     assert status == 200 and body["ok"] is True
     assert cfg["devices"][0]["sdk_mode"] is True, "it WARNS — it does not refuse the write"
     assert len(body["warnings"]) == 1, body["warnings"]
@@ -272,8 +287,8 @@ def test_the_sdk_conflict_is_judged_on_the_final_state_not_on_the_edge(tmp_path)
     `sdk_mode` itself CHANGED would miss this entirely — the same conflict from the other side, and the
     one an operator is more likely to create."""
     status, body, _, _ = _post_settings(
-        tmp_path, {"sdk_mode": {ADDR: True}},
-        devices=[dict(H10, streams=["ecg", "ppi"], sdk_mode=True)])
+        tmp_path, {"sdk_mode": {ADDR: True}}, devices=[dict(H10, streams=["ecg", "ppi"], sdk_mode=True)]
+    )
     assert status == 200
     assert body["changed"] == [], "sdk_mode was already true — nothing changed"
     assert len(body["warnings"]) == 1, "…and the conflict is still reported"
@@ -285,8 +300,8 @@ def test_no_conflict_means_no_warning_and_the_key_is_still_present(tmp_path):
     teaches a client to read its ABSENCE as "no trouble" — indistinguishable from a server older than
     the check. So it is always there, and empty when there is nothing to say."""
     status, body, _, _ = _post_settings(
-        tmp_path, {"sdk_mode": {ADDR: True}},
-        devices=[dict(H10, streams=["ecg", "acc"])])
+        tmp_path, {"sdk_mode": {ADDR: True}}, devices=[dict(H10, streams=["ecg", "acc"])]
+    )
     assert status == 200
     assert body["warnings"] == [], "no ppi/hr configured ⇒ nothing to warn about"
     assert "warnings" in body, "and the key is present even when empty"
@@ -296,7 +311,7 @@ def test_turning_sdk_mode_off_never_warns(tmp_path):
     """Disabling is always safe — the streams come back. A warning here would train the operator to
     ignore the one that matters."""
     status, body, _, _ = _post_settings(
-        tmp_path, {"sdk_mode": {ADDR: False}},
-        devices=[dict(H10, streams=["ecg", "ppi", "hr"], sdk_mode=True)])
+        tmp_path, {"sdk_mode": {ADDR: False}}, devices=[dict(H10, streams=["ecg", "ppi", "hr"], sdk_mode=True)]
+    )
     assert status == 200
     assert body["warnings"] == []

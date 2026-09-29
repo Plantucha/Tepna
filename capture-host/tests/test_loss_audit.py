@@ -111,9 +111,17 @@ def test_audit_night_names_the_daemon_as_the_cause_and_the_verdict_is_UNKNOWN_wi
     # the entry gained provenance, additively: WHICH SIDE of the gap start the cause was found on, the
     # backward candidate kept as secondary evidence, any event deeper in the outage, and the fragment the
     # gap came from. `cause` is unchanged, which is the part that was ever the contract.
-    assert v["gaps"] == [{"at": "2026-09-20T22:03:19", "s": 121.0, "cause": "daemon:not-worn drop",
-                          "cause_dir": "after", "backward_cause": "daemon:not-worn drop",
-                          "in_gap_cause": None, "file": "Polar_H10_0284_20260920220000_ECG.txt"}]
+    assert v["gaps"] == [
+        {
+            "at": "2026-09-20T22:03:19",
+            "s": 121.0,
+            "cause": "daemon:not-worn drop",
+            "cause_dir": "after",
+            "backward_cause": "daemon:not-worn drop",
+            "in_gap_cause": None,
+            "file": "Polar_H10_0284_20260920220000_ECG.txt",
+        }
+    ]
 
     o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
     verdict.validate(o)
@@ -254,13 +262,16 @@ def test_wear_by_device_keys_by_name_and_omits_what_it_cannot_judge(tmp_path, mo
     d = tmp_path / "captures" / "2026-09-20"
     d.mkdir(parents=True)
     monkeypatch.setattr(loss_audit, "wear_ends", lambda night_dir, model: {"available": True, "model": model})
-    out = loss_audit.wear_by_device(str(d), [
-        {"name": "H10 chest", "model": "H10"},          # named → keyed by the name
-        {"model": "VeritySense"},                       # unnamed → keyed by the model, as audit_night does
-        {"name": "Athena", "model": "Athena-9"},        # unknown model → no wear rule → omitted
-        {"name": "No model"},                           # no model at all → omitted
-        "not a dict",                                   # junk → skipped, not fatal
-    ])
+    out = loss_audit.wear_by_device(
+        str(d),
+        [
+            {"name": "H10 chest", "model": "H10"},  # named → keyed by the name
+            {"model": "VeritySense"},  # unnamed → keyed by the model, as audit_night does
+            {"name": "Athena", "model": "Athena-9"},  # unknown model → no wear rule → omitted
+            {"name": "No model"},  # no model at all → omitted
+            "not a dict",  # junk → skipped, not fatal
+        ],
+    )
     assert set(out) == {"H10 chest", "VeritySense"}
     assert out["H10 chest"]["model"] == "H10" and out["VeritySense"]["model"] == "VeritySense"
     assert loss_audit.wear_by_device(str(d), []) == {} and loss_audit.wear_by_device(str(d), None) == {}
@@ -934,9 +945,15 @@ def test_a_gap_is_published_as_a_float_of_whole_seconds_and_its_cause_window_is_
     exactly_the_window = [(gap_start - dt.timedelta(seconds=loss_audit.ATTRIB_WINDOW_S), "link:dbus busy")]
     v = loss_audit.audit_night(str(d), DEV, journal=lambda name, since, until: exactly_the_window)
     (g,) = v["devices"]["Polar H10 0284"]["gaps"]
-    assert g == {"at": "2026-09-20T22:03:19", "s": 61.0, "cause": "link:dbus busy",  # the window's edge still names it
-                 "cause_dir": "before", "backward_cause": "link:dbus busy", "in_gap_cause": None,
-                 "file": "Polar_H10_0284_20260920220000_ECG.txt"}
+    assert g == {
+        "at": "2026-09-20T22:03:19",
+        "s": 61.0,
+        "cause": "link:dbus busy",  # the window's edge still names it
+        "cause_dir": "before",
+        "backward_cause": "link:dbus busy",
+        "in_gap_cause": None,
+        "file": "Polar_H10_0284_20260920220000_ECG.txt",
+    }
     assert isinstance(g["s"], float)
 
 
@@ -1069,7 +1086,11 @@ def _polar(path, rows, host_jumps=(), dev_steps=None, torn_at=None, dev_last=Fal
     value; `dev_last` puts the device column LAST in the header; `extra_bytes` = {row: raw bytes appended}."""
     host = 0.0
     dev = 1_000_000_000_000_000_000
-    hdr = "Phone timestamp;ecg [uV];sensor timestamp [ns]" if dev_last else "Phone timestamp;sensor timestamp [ns];ecg [uV]"
+    hdr = (
+        "Phone timestamp;ecg [uV];sensor timestamp [ns]"
+        if dev_last
+        else "Phone timestamp;sensor timestamp [ns];ecg [uV]"
+    )
     with open(path, "wb") as fh:
         fh.write((hdr + "\n").encode())
         for i in range(rows):
@@ -1140,7 +1161,9 @@ def test_the_period_is_the_MEDIAN_positive_step_and_zero_steps_are_not_counted(t
 
 def test_a_host_gap_exactly_at_the_cut_is_not_a_gap(tmp_path):
     p = tmp_path / "1hz.txt"
-    _stream(str(p), ((300, 304),))  # 1 s rows, no device clock: the cut is 5 × the 1 s cadence, and rows 299 → 304 sit exactly on it
+    _stream(
+        str(p), ((300, 304),)
+    )  # 1 s rows, no device clock: the cut is 5 × the 1 s cadence, and rows 299 → 304 sit exactly on it
     gaps, delays, _, cut = _split(p)
     assert cut == 5.0 and gaps == [] and delays == []
 
@@ -1167,7 +1190,9 @@ def test_the_audit_publishes_each_delay_exactly_and_never_counts_it_as_lost(tmp_
     # decimal (0.5 vs 0.4), so a wrong divisor cannot pass by rounding to the same number.
     _polar(f, 20000, host_jumps={6000: 26.5, 12000: 43.5}, dev_steps={12000: int(43.5e9) + PERIOD_NS})
     gaps, delays, _, _ = _split(f)
-    assert round(delays[0][1] / 60.0, 1) != round(delays[0][1] / 61.0, 1), "the plant no longer discriminates the divisor"
+    assert round(delays[0][1] / 60.0, 1) != round(delays[0][1] / 61.0, 1), (
+        "the plant no longer discriminates the divisor"
+    )
     v = loss_audit.audit_night(str(d), DEV, journal=lambda *a: [])["devices"]["Polar H10 0284"]
     (t, g, step) = delays[0]
     assert v["delays"] == [{"at": t.isoformat(timespec="seconds"), "s": round(g, 1), "device_ns": PERIOD_NS}]
@@ -1175,7 +1200,6 @@ def test_the_audit_publishes_each_delay_exactly_and_never_counts_it_as_lost(tmp_
     assert v["delayed_min"] == round(g / 60.0, 1) and v["delayed_min"] != round(g / 60.0, 2)
     assert len(v["gaps"]) == 1 and v["lost_min"] == round(gaps[0][1] / 60.0, 1)
     assert v["fragments"] == 2  # a delay does not split the stream
-
 
 
 def test_a_ring_tail_that_starts_before_the_spo2_stream_stops_ends_the_worn_interval_there(tmp_path):
@@ -1203,8 +1227,10 @@ def _pause(hms):
     return f"2026-09-24T{hms}-04:00 vigil python[1]: 2026-09-24 {hms},000 INFO Polar {_H10_ADDR}: offline-recording op — live capture paused"
 
 
-_POST = ('2026-09-24T22:01:17-04:00 vigil python[1]: 2026-09-24 22:01:17,076 INFO 127.0.0.1 [24/Sep/2026:22:00:54 -0400] '
-         '"POST /api/timesync/all HTTP/1.1" 200 1022 "http://vigil.local/monitor" "Mozilla/5.0"')
+_POST = (
+    "2026-09-24T22:01:17-04:00 vigil python[1]: 2026-09-24 22:01:17,076 INFO 127.0.0.1 [24/Sep/2026:22:00:54 -0400] "
+    '"POST /api/timesync/all HTTP/1.1" 200 1022 "http://vigil.local/monitor" "Mozilla/5.0"'
+)
 
 
 def test_a_time_sync_is_dated_from_its_request_start_and_owns_the_pauses_it_causes():
@@ -1228,7 +1254,9 @@ def test_a_time_sync_is_dated_from_its_request_start_and_owns_the_pauses_it_caus
         (at("22:02:18"), "daemon:pull paused live"),
     ]
     # the H10 gap that opened at 22:01:08 is the operator's, not the daemon's (nor unattributed)
-    assert loss_audit.attribute_gaps([(at("22:01:08"), 20.6)], ev) == [(at("22:01:08"), 20.6, loss_audit.OPERATOR_TIMESYNC)]
+    assert loss_audit.attribute_gaps([(at("22:01:08"), 20.6)], ev) == [
+        (at("22:01:08"), 20.6, loss_audit.OPERATOR_TIMESYNC)
+    ]
 
 
 def test_the_access_start_parser_refuses_what_it_cannot_read():
@@ -1236,6 +1264,8 @@ def test_the_access_start_parser_refuses_what_it_cannot_read():
     assert loss_audit._access_start("[24/Xyz/2026:22:00:54 -0400]") is None
     assert loss_audit._access_start("x [01/Jan/2027:00:00:05 +0100] y") == dt.datetime(2027, 1, 1, 0, 0, 5)
     assert loss_audit._access_start("[31/Dec/2026:23:59:59 -0400]") == dt.datetime(2026, 12, 31, 23, 59, 59)
+
+
 # ---------------------------------------------------------------------------------------------------
 # THE AUDIT'S OWN POPULATION — every fragment, and a cause the daemon logs AFTER the gap starts.
 # residue 2026-09-24-loss-audit-audits-only-the-largest-file
@@ -1398,6 +1428,8 @@ def test_an_event_deep_inside_the_outage_is_recorded_but_never_the_cause():
     r = loss_audit.attribute_gaps_detail([(t0, 121.0)], ev)[0]
     assert r["cause"] == "daemon:not-worn drop" and r["cause_dir"] == "before", r
     assert r["in_gap_cause"] == "link:dbus busy", r
+
+
 # ---------------------------------------------------------------------------------------------------
 # THE RING'S STALLS — residue 2026-09-25-ring-stalls-count-as-loss-without-a-device-clock
 #
@@ -1874,7 +1906,8 @@ def test_a_TORN_value_is_not_evidence_even_when_its_digits_look_worn(tmp_path):
     got = loss_audit._has_worn_evidence(str(d), "H10")
     assert got is False, (
         f"a torn row was read as a measured beat: {got!r} — the column WAS read, so False is the "
-        "verdict ('every measured value this device wrote was absent'), never True")
+        "verdict ('every measured value this device wrote was absent'), never True"
+    )
 
 
 def test_the_evidence_read_NAMES_its_encoding(tmp_path):
@@ -1897,14 +1930,11 @@ def test_the_evidence_read_NAMES_its_encoding(tmp_path):
 
     assert loss_audit._has_worn_evidence(str(d), "H10") is True
 
-    src = (
-        "import loss_audit\n"
-        f"got = loss_audit._has_worn_evidence({str(d)!r}, 'H10')\n"
-        "assert got is True, got\n"
-    )
+    src = f"import loss_audit\ngot = loss_audit._has_worn_evidence({str(d)!r}, 'H10')\nassert got is True, got\n"
     r = subprocess.run(
         [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     )
     assert r.returncode == 0, r.stderr[-600:]

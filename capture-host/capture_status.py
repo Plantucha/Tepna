@@ -12,6 +12,7 @@ Usage (on the box):
     .venv/bin/python capture_status.py            # defaults to http://127.0.0.1/api/state
     .venv/bin/python capture_status.py --url http://host/api/state
 """
+
 from __future__ import annotations
 
 import argparse
@@ -81,8 +82,11 @@ def render(state: dict) -> str:
         # ownership in the state at all (a daemon older than the field) every configured name lands
         # here, and the line says why rather than falling back to the equality join that was the bug.
         if names and not dev_streams:
-            why = ("daemon reports no stream ownership — older than streams[].device"
-                   if not ownership_known else "no bus stream is owned by this device")
+            why = (
+                "daemon reports no stream ownership — older than streams[].device"
+                if not ownership_known
+                else "no bus stream is owned by this device"
+            )
             body.append(f"      UNMATCHED {len(names)} configured: {' '.join(names)} — {why}")
         if dev.get("last_error"):
             body.append(f"      last_error: {dev['last_error']}")
@@ -91,10 +95,7 @@ def render(state: dict) -> str:
 
     cpap = state.get("cpap")
     if cpap:
-        body.append(
-            f"  CPAP: {cpap.get('state')} (enabled={cpap.get('enabled')}, "
-            f"SD harvest {cpap.get('at_hour')}:00)"
-        )
+        body.append(f"  CPAP: {cpap.get('state')} (enabled={cpap.get('enabled')}, SD harvest {cpap.get('at_hour')}:00)")
 
     return header + "\n" + "\n".join(body)
 

@@ -116,7 +116,9 @@ def test_the_render_actually_consults_the_overlay():
     a wiring fact, and a scan is how you check wiring.
     """
     src = open(MON, encoding="utf-8").read()
-    assert "pendingChecked(PENDING" in src, "the overlay is defined but nothing consults it — the render would still clobber"
+    assert "pendingChecked(PENDING" in src, (
+        "the overlay is defined but nothing consults it — the render would still clobber"
+    )
     assert re.search(r"data-stream=.*?\$\{shown\?'checked':''\}", src), (
         "the checkbox no longer renders from the overlay result — it is back on raw server truth"
     )

@@ -67,13 +67,12 @@ LIST_TIMEOUT = 40.0
 def ensure_trusted(address: str) -> str:
     """Bonded is not enough — PS-FTP needs TRUSTED, and says `UNLIKELY_ERROR` when it is missing."""
     try:
-        info = subprocess.run(["bluetoothctl", "info", address], capture_output=True, text=True,
-                              timeout=20).stdout
+        info = subprocess.run(["bluetoothctl", "info", address], capture_output=True, text=True, timeout=20).stdout
         if "Trusted: yes" in info:
             return "already trusted"
         subprocess.run(["bluetoothctl", "trust", address], capture_output=True, text=True, timeout=20)
         return "trust set (was untrusted — this is what makes PS-FTP return UNLIKELY_ERROR)"
-    except Exception as exc:                                  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         return f"could not check/set trust: {type(exc).__name__}"
 
 
@@ -82,7 +81,7 @@ async def walk(fs, path, out, depth=0, max_depth=6):
         return
     try:
         entries, truncated = await asyncio.wait_for(fs.list_dir_ex(path), LIST_TIMEOUT)
-    except Exception as exc:                                  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         out["errors"][path] = f"list: {type(exc).__name__}: {exc}"
         return
     out["dirs"][path] = [{"name": n, "size": s} for n, s in entries]
@@ -90,17 +89,18 @@ async def walk(fs, path, out, depth=0, max_depth=6):
         # A MIRROR THAT SILENTLY OMITS FILES IS WORSE THAN NO MIRROR — the manifest is what later
         # analysis trusts to say what was on the device. A cut listing is therefore recorded as an
         # ERROR even though the pull of what DID arrive proceeds normally (psftp.TruncatedProtobuf).
-        out["errors"][path] = (f"list: TRUNCATED — the reply was cut off after {len(entries)} "
-                               "complete entries; anything below this path is MISSING from this "
-                               "mirror. Re-run to pick it up.")
+        out["errors"][path] = (
+            f"list: TRUNCATED — the reply was cut off after {len(entries)} "
+            "complete entries; anything below this path is MISSING from this "
+            "mirror. Re-run to pick it up."
+        )
     for name, _size in entries:
         if name.endswith("/"):
             await walk(fs, path + name, out, depth + 1, max_depth)
 
 
 async def fetch_all(fs, out, root, redact):
-    files = [(p + e["name"], e["size"]) for p, es in out["dirs"].items()
-             for e in es if not e["name"].endswith("/")]
+    files = [(p + e["name"], e["size"]) for p, es in out["dirs"].items() for e in es if not e["name"].endswith("/")]
     out["n_files_seen"] = len(files)
     for path, size in files:
         dest = os.path.join(root, path.lstrip("/"))
@@ -117,20 +117,29 @@ async def fetch_all(fs, out, root, redact):
             raw = await asyncio.wait_for(fs.get(path, timeout=FILE_TIMEOUT), FILE_TIMEOUT + 10)
             with open(dest, "wb") as fh:
                 fh.write(raw)
-            out["files"][path] = {"bytes": len(raw), "declared": size,
-                                  "sha256_12": hashlib.sha256(raw).hexdigest()[:12],
-                                  "status": "pulled" if len(raw) == size else "pulled (size differs)"}
+            out["files"][path] = {
+                "bytes": len(raw),
+                "declared": size,
+                "sha256_12": hashlib.sha256(raw).hexdigest()[:12],
+                "status": "pulled" if len(raw) == size else "pulled (size differs)",
+            }
         except TimeoutError:
             out["files"][path] = {"declared": size, "status": "TIMEOUT — device never answered"}
-        except Exception as exc:                              # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             out["files"][path] = {"declared": size, "status": f"{type(exc).__name__}: {exc}"}
         with open(os.path.join(root, "MANIFEST.json"), "w") as fh:
             json.dump(out, fh, indent=1, default=str)
 
 
 async def mirror(address, out_root, redact) -> dict:
-    out = {"address": address, "started": _dt.datetime.now().isoformat(),
-           "trust": ensure_trusted(address), "dirs": {}, "files": {}, "errors": {}}
+    out = {
+        "address": address,
+        "started": _dt.datetime.now().isoformat(),
+        "trust": ensure_trusted(address),
+        "dirs": {},
+        "files": {},
+        "errors": {},
+    }
     os.makedirs(out_root, exist_ok=True)
     async with psftp.PolarPsFtp(address) as fs:
         await walk(fs, "/", out)
@@ -150,11 +159,23 @@ def main(argv=None) -> int:
     require_free_link()
     res = asyncio.run(mirror(a.address, a.out, a.redact))
     pulled = sum(1 for v in res["files"].values() if str(v.get("status", "")).startswith("pulled"))
-    print(json.dumps({"dirs": len(res["dirs"]), "files_seen": res.get("n_files_seen"),
-                      "pulled": pulled, "trust": res["trust"],
-                      "failed": {k: v["status"] for k, v in res["files"].items()
-                                 if not str(v.get("status", "")).startswith(("pulled", "already", "REDACTED"))},
-                      "manifest": os.path.join(a.out, "MANIFEST.json")}, indent=2))
+    print(
+        json.dumps(
+            {
+                "dirs": len(res["dirs"]),
+                "files_seen": res.get("n_files_seen"),
+                "pulled": pulled,
+                "trust": res["trust"],
+                "failed": {
+                    k: v["status"]
+                    for k, v in res["files"].items()
+                    if not str(v.get("status", "")).startswith(("pulled", "already", "REDACTED"))
+                },
+                "manifest": os.path.join(a.out, "MANIFEST.json"),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

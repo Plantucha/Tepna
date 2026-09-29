@@ -22,6 +22,7 @@ WHY IT IS SHAPED LIKE THIS
 The pure functions (parse_listing / should_fetch / due_now / short_read) carry the logic and are unit
 tested; the IO is a thin shell around them.
 """
+
 from __future__ import annotations
 
 import datetime as _dt
@@ -49,9 +50,10 @@ DEFAULT_IGNORE = ("JOURNAL.JNL", "ezshare.cfg", "System Volume Information")
 # embedded spaces in the date/time, and the `Total Entries: N Total Size: NKB` footer that must NOT be
 # taken for a file. Anchor-first parsing is the bug; metadata-first is correct.
 _ROW = re.compile(
-    r'(\d{4}-\s*\d{1,2}-\s*\d{1,2})\s+(\d{1,2}:\s*\d{1,2}:\s*\d{1,2})\s+'
+    r"(\d{4}-\s*\d{1,2}-\s*\d{1,2})\s+(\d{1,2}:\s*\d{1,2}:\s*\d{1,2})\s+"
     r'(&lt;DIR&gt;|[\d.]+\s*[KMG]?B)\s*<a\s+href="([^"]+)"[^>]*>\s*(.*?)\s*</a>',
-    re.I | re.S)
+    re.I | re.S,
+)
 
 _NIGHT = re.compile(r"\d{8}")
 
@@ -64,11 +66,15 @@ def parse_listing(text: str, ignore=DEFAULT_IGNORE) -> list[dict]:
         name = _html.unescape(re.sub("<[^>]+>", "", lbl)).strip()
         if name in (".", "..") or name in ignore:
             continue
-        out.append({"name": name,
-                    "href": _html.unescape(href),
-                    "mtime": f"{d.replace(' ', '')} {tm.replace(' ', '')}",
-                    "size": _html.unescape(sz).strip(),
-                    "isdir": "DIR" in sz})
+        out.append(
+            {
+                "name": name,
+                "href": _html.unescape(href),
+                "mtime": f"{d.replace(' ', '')} {tm.replace(' ', '')}",
+                "size": _html.unescape(sz).strip(),
+                "isdir": "DIR" in sz,
+            }
+        )
     return out
 
 
@@ -124,7 +130,7 @@ def size_tolerance_kb(s: str) -> float:
     if not digits:
         return 0.0
     dec = len(digits.split(".", 1)[1]) if "." in digits else 0
-    quantum = 10.0 ** (-dec)                       # in whatever unit the listing used
+    quantum = 10.0 ** (-dec)  # in whatever unit the listing used
     u = txt.upper()
     if "M" in u:
         quantum *= 1024.0
@@ -132,7 +138,7 @@ def size_tolerance_kb(s: str) -> float:
         quantum *= 1024.0 * 1024.0
     elif "K" not in u and "B" in u:
         quantum /= 1024.0
-    return max(quantum / 2.0, 1e-3)                # a byte of float slack, never a percentage
+    return max(quantum / 2.0, 1e-3)  # a byte of float slack, never a percentage
 
 
 def size_window_kb(s: str) -> tuple[float, float]:
@@ -158,10 +164,10 @@ def size_window_kb(s: str) -> tuple[float, float]:
     would open a band above P where a genuinely corrupt file could pass, which is the §C5 hole this
     family of functions exists to close."""
     printed = size_kb(s)
-    q = size_tolerance_kb(s) * 2.0                 # the quantum itself, not half of it
+    q = size_tolerance_kb(s) * 2.0  # the quantum itself, not half of it
     if printed <= 0:
         return (0.0, 0.0)
-    return (printed - q, printed + 1e-6)           # (low, high] with a float epsilon on the boundary
+    return (printed - q, printed + 1e-6)  # (low, high] with a float epsilon on the boundary
 
 
 def reap_stale_part(dest_path: str, st: dict | None = None) -> bool:
@@ -191,7 +197,7 @@ def reap_stale_part(dest_path: str, st: dict | None = None) -> bool:
                 if not ca:
                     break
         os.unlink(tmp)
-    except OSError:                                 # unreadable or vanished — leave it alone
+    except OSError:  # unreadable or vanished — leave it alone
         return False
     if st is not None:
         st["reaped"] = st.get("reaped", 0) + 1
@@ -282,7 +288,7 @@ def nights_for(scope: str, now: _dt.datetime) -> "set[str] | None":
     Both are included so "last night" cannot miss a session that straddles the boundary."""
     if scope == "missing":
         return None
-    days = 2 if scope == "last" else 8            # 'last' = yesterday+today; 'week' = 7 nights + today
+    days = 2 if scope == "last" else 8  # 'last' = yesterday+today; 'week' = 7 nights + today
     return {(now.date() - _dt.timedelta(days=i)).strftime("%Y%m%d") for i in range(days)}
 
 
@@ -304,8 +310,7 @@ def blocking_devices(status_devices: dict) -> list[str]:
     body, not merely when a link exists. A charging device cannot be on a body."""
     # Single-sourced on `telemetry.on_body` so the rule cannot drift from its other caller. Blocks on
     # UNKNOWN as well as on-body: refusing a harvest costs a retry, and this side can afford that.
-    out = [name for name, st in (status_devices or {}).items()
-           if telemetry.on_body(st) is not False]
+    out = [name for name, st in (status_devices or {}).items() if telemetry.on_body(st) is not False]
     return sorted(out)
 
 
@@ -337,15 +342,21 @@ def reachable(base: str = DEFAULT_BASE, timeout: float = 5.0) -> bool:
         req = urllib.request.Request(base.rstrip("/") + "/dir?dir=A:", method="GET")
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return 200 <= getattr(r, "status", 200) < 400
-    except Exception:                                   # noqa: BLE001 — unreachable is the answer, not an error
+    except Exception:  # noqa: BLE001 — unreachable is the answer, not an error
         return False
 
 
 class EzShare:
     """Thin bounded HTTP client for the card. Every request has a timeout and capped retries."""
 
-    def __init__(self, base: str = DEFAULT_BASE, timeout: float = 20.0, retries: int = 5,
-                 delay: float = 0.15, ignore=DEFAULT_IGNORE):
+    def __init__(
+        self,
+        base: str = DEFAULT_BASE,
+        timeout: float = 20.0,
+        retries: int = 5,
+        delay: float = 0.15,
+        ignore=DEFAULT_IGNORE,
+    ):
         self.base, self.timeout, self.retries, self.delay = base.rstrip("/"), timeout, max(1, retries), delay
         self.ignore = tuple(ignore)
 
@@ -360,10 +371,10 @@ class EzShare:
                     if want_length:
                         try:
                             return body, int(r.headers.get("Content-Length") or 0)
-                        except (TypeError, ValueError):     # a server that declares nothing usable
+                        except (TypeError, ValueError):  # a server that declares nothing usable
                             return body, 0
                     return body
-            except Exception as e:                     # noqa: BLE001 — every transport error is retryable
+            except Exception as e:  # noqa: BLE001 — every transport error is retryable
                 last = e
                 time.sleep(0.4 * (attempt + 1))
         raise RuntimeError(f"{url}: {last}")
@@ -401,7 +412,7 @@ class EzShare:
                 if declared > 0 and have == declared:
                     os.replace(tmp, dest)
                     return dest, have
-            except Exception:                       # noqa: BLE001 — a failed HEAD just means "download it"
+            except Exception:  # noqa: BLE001 — a failed HEAD just means "download it"
                 pass
 
         data, declared = self._get(url, want_length=True)
@@ -409,8 +420,10 @@ class EzShare:
             fh.write(data)
         if short_read(entry, len(data), declared):
             time.sleep(self.delay)
-            raise ShortRead(f"{entry['name']}: declared {declared or entry.get('size', '?')}, "
-                            f"got {len(data)} bytes — left as {os.path.basename(tmp)}")
+            raise ShortRead(
+                f"{entry['name']}: declared {declared or entry.get('size', '?')}, "
+                f"got {len(data)} bytes — left as {os.path.basename(tmp)}"
+            )
         os.replace(tmp, dest)
         time.sleep(self.delay)
         return dest, len(data)
@@ -421,11 +434,10 @@ def default_route_dev() -> str | None:
     served monitor, NTP and the NAS pull all ride it, and the ez Share card is a dead end with no route
     anywhere. Read it BEFORE associating and again after, and treat any change as a fault."""
     try:
-        p = subprocess.run(["ip", "route", "show", "default"],
-                           capture_output=True, text=True, timeout=10)
+        p = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True, timeout=10)
         m = re.search(r"\bdev\s+(\S+)", p.stdout or "")
         return m.group(1) if m else None
-    except Exception:                                  # noqa: BLE001 — never let a probe kill the task
+    except Exception:  # noqa: BLE001 — never let a probe kill the task
         return None
 
 
@@ -437,10 +449,16 @@ def default_route_dev() -> str | None:
 # `'main' panicked` misses every actual occurrence. Written from the journal, not from memory of the
 # format; the first version was tested against an invented string and matched nothing real.
 _RUST_PANIC = re.compile(r"thread '[^']*'.*panicked at|note: run with `RUST_BACKTRACE")
-_SUDO_REFUSED = re.compile(r"a (?:password|terminal) is required|not allowed to execute|"
-                           r"may not run|no tty present|incorrect password", re.I)
-_NOT_FOUND = re.compile(r"command not found|no such file or directory: |not installed|"
-                        r"executable file not found", re.I)
+_SUDO_REFUSED = re.compile(
+    r"a (?:password|terminal) is required|not allowed to execute|"
+    r"may not run|no tty present|incorrect password",
+    re.I,
+)
+_NOT_FOUND = re.compile(
+    r"command not found|no such file or directory: |not installed|"
+    r"executable file not found",
+    re.I,
+)
 
 
 def helper_failure_kind(rc: int, out: str = "") -> str:
@@ -458,21 +476,21 @@ def helper_failure_kind(rc: int, out: str = "") -> str:
     exit status and this says so rather than inventing a diagnosis."""
     text = str(out or "")
     if _RUST_PANIC.search(text):
-        return "crashed"                    # the privilege layer itself died — retrying cannot help
+        return "crashed"  # the privilege layer itself died — retrying cannot help
     if rc == 124:
-        return "timeout"                    # _sh's own marker, below
+        return "timeout"  # _sh's own marker, below
     if rc == 127 or _NOT_FOUND.search(text):
-        return "missing"                    # the target binary is not installed
+        return "missing"  # the target binary is not installed
     if _SUDO_REFUSED.search(text):
-        return "refused"                    # sudoers says no — a config fix, not a fault
-    return "failed"                         # a genuine non-zero from the tool, cause unclassified
+        return "refused"  # sudoers says no — a config fix, not a fault
+    return "failed"  # a genuine non-zero from the tool, cause unclassified
 
 
 def _sh(argv: list[str], timeout: float, sudo: bool = False) -> tuple[int, str]:
     """Run one command, bounded, never raising. `sudo -n` (non-interactive) because this runs from a
     daemon with nobody to answer a password prompt — a missing sudoers rule must fail fast and loudly,
     not hang until the run deadline."""
-    cmd = (["sudo", "-n", *argv] if sudo else argv)
+    cmd = ["sudo", "-n", *argv] if sudo else argv
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         out = ((p.stdout or "") + (p.stderr or "")).strip()
@@ -481,13 +499,14 @@ def _sh(argv: list[str], timeout: float, sudo: bool = False) -> tuple[int, str]:
             # CRASHED is the one worth raising the voice for: it means the privilege layer is broken, so
             # every other helper this cycle will fail too and the cause is not in this codebase.
             (log.error if kind == "crashed" else log.warning)(
-                "cpap: %s -> rc=%d [%s] %s", " ".join(cmd[:4]), p.returncode, kind, out[:160])
+                "cpap: %s -> rc=%d [%s] %s", " ".join(cmd[:4]), p.returncode, kind, out[:160]
+            )
         return p.returncode, out
     except FileNotFoundError:
         return 127, f"{cmd[0]}: not installed"
     except subprocess.TimeoutExpired:
         return 124, f"timed out after {timeout:.0f}s"
-    except Exception as e:                             # noqa: BLE001 — association is best-effort
+    except Exception as e:  # noqa: BLE001 — association is best-effort
         return 1, repr(e)
 
 
@@ -496,9 +515,11 @@ def _sh(argv: list[str], timeout: float, sudo: bool = False) -> tuple[int, str]:
 # netplan/systemd-networkd with no `nmcli` at all, which the nmcli-only first cut discovered the hard way
 # (it would have logged "nmcli not installed" nightly and shown a permanently red card).
 
+
 def backend() -> str:
     """'nmcli' when NetworkManager is present, else 'wpa' (wpa_supplicant). Probed, never assumed."""
     import shutil
+
     return "nmcli" if shutil.which("nmcli") else "wpa"
 
 
@@ -535,6 +556,8 @@ def default_wifi_iface(_sys: str | None = None) -> str:
     except OSError:
         return WPA_IFACE
     return names[0] if names else WPA_IFACE
+
+
 # ctrl_interface is NOT optional: without it wpa_supplicant starts, associates or not, and creates no
 # control socket — so `wpa_cli status` can never reach it and the association can never be confirmed.
 # Found on real hardware 2026-07-26; mocked subprocesses cannot catch it, because the bug is in the
@@ -588,26 +611,28 @@ def default_wifi_iface(_sys: str | None = None) -> str:
 # question that matters and the only one a probe can answer from inside the sandbox that constrains it.
 def _wpa_dir(root: str | None = None) -> str:
     cands = []
-    rt = os.environ.get("RUNTIME_DIRECTORY")           # systemd's own, when the unit provides one
+    rt = os.environ.get("RUNTIME_DIRECTORY")  # systemd's own, when the unit provides one
     if rt:
         cands.append(os.path.join(rt.split(":")[0], "wpa"))
-    if root:                                            # the capture root is in ReadWritePaths by
-        cands.append(os.path.join(root, ".run", "wpa")) # definition — the daemon writes there all night
-    cands.append("/tmp/tepna-wpa-%d" % os.getuid())     # unsandboxed fallback (CLI use, dev boxes)
+    if root:  # the capture root is in ReadWritePaths by
+        cands.append(os.path.join(root, ".run", "wpa"))  # definition — the daemon writes there all night
+    cands.append("/tmp/tepna-wpa-%d" % os.getuid())  # unsandboxed fallback (CLI use, dev boxes)
     for c in cands:
         try:
             os.makedirs(c, mode=0o700, exist_ok=True)
             return c
         except OSError:
             continue  # this candidate is unusable; the loop tries the next, and the last line
-                      # hands back a path the CALLER warns about — the refusal is reported there
-    return cands[-1]                                    # nothing worked; the caller warns and carries on
+            # hands back a path the CALLER warns about — the refusal is reported there
+    return cands[-1]  # nothing worked; the caller warns and carries on
 
 
 # ctrl_interface is a PARAMETER, not a module constant: the directory is probed per call (see
 # _wpa_dir), so baking it in at import time would hand wpa_supplicant a path the daemon cannot write.
-_WPA_CONF = ('ctrl_interface={ctrl}\nctrl_interface_group=0\n'
-             'network={{\n\tssid="{ssid}"\n\tpsk="{psk}"\n\tkey_mgmt=WPA-PSK\n\tscan_ssid=1\n}}\n')
+_WPA_CONF = (
+    "ctrl_interface={ctrl}\nctrl_interface_group=0\n"
+    'network={{\n\tssid="{ssid}"\n\tpsk="{psk}"\n\tkey_mgmt=WPA-PSK\n\tscan_ssid=1\n}}\n'
+)
 
 
 def associated(iface: str, sysfs: str = "/sys/class/net") -> bool | None:
@@ -640,8 +665,8 @@ def associated(iface: str, sysfs: str = "/sys/class/net") -> bool | None:
                 if fh.read().strip() == "down":
                     return False
         except OSError:
-            pass      # operstate was unreadable too, so we still do not know — and `None` below is
-                      # that answer. Never False: an unreadable link is not a DOWN link.
+            pass  # operstate was unreadable too, so we still do not know — and `None` below is
+            # that answer. Never False: an unreadable link is not a DOWN link.
         return None
 
 
@@ -678,9 +703,9 @@ def _live_supplicants(iface: str) -> list[int]:
                 with open(f"/proc/{name}/cmdline", "rb") as fh:
                     cmdlines[int(name)] = fh.read().decode("utf-8", "replace")
             except OSError:
-                continue                       # the process exited between listdir and open
+                continue  # the process exited between listdir and open
     except OSError:
-        return []                              # no /proc (not Linux) — cannot verify, so claim nothing
+        return []  # no /proc (not Linux) — cannot verify, so claim nothing
     return supplicants_for(iface, cmdlines)
 
 
@@ -706,20 +731,22 @@ def _wpa_cli(wdir: str, iface: str, *args: str) -> list[str]:
 
 def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: str | None = None) -> bool:
     import tempfile
+
     fd, conf = tempfile.mkstemp(prefix="tepna-ezshare-", suffix=".conf")
     try:
         wdir = _wpa_dir(root)
         os.write(fd, _WPA_CONF.format(ctrl=wdir, ssid=ssid, psk=psk).encode())
         os.close(fd)
-        os.chmod(conf, 0o600)                          # the PSK is in here; never world-readable
+        os.chmod(conf, 0o600)  # the PSK is in here; never world-readable
         _sh(["ip", "link", "set", iface, "up"], 10, sudo=True)
         # -B daemonises. Bound to OUR conf, OUR interface and OUR control directory: the packaged
         # wpa_supplicant.service is active on this box, and two supplicants sharing one ctrl_interface
         # directory collide over the socket before they ever get as far as fighting over the radio.
         # UNPRIVILEGED by design and PROBED, not assumed — see _wpa_dir().
         if not os.path.isdir(wdir):
-            log.warning("cpap: no writable wpa control dir (tried up to %s) — the association will fail "
-                        "and say so", wdir)
+            log.warning(
+                "cpap: no writable wpa control dir (tried up to %s) — the association will fail and say so", wdir
+            )
         rc, out = _sh(["wpa_supplicant", "-B", "-i", iface, "-c", conf], 20, sudo=True)
         if rc:
             # Say WHY. `state='error', detail="profile 'ezshare' would not come up safely"` names the
@@ -733,11 +760,15 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: st
             # Log it and fall through to the poll rather than giving up. The poll is bounded, so the
             # worst case is unchanged — we fail after `timeout` either way — while the common case of
             # an inherited supplicant now succeeds instead of reporting a phantom failure.
-            log.warning("cpap: wpa_supplicant -B returned rc=%s on %s (%s) — continuing; an existing "
-                        "supplicant may still associate", rc, iface,
-                        (out or "").strip().splitlines()[-1] if (out or "").strip() else "no output")
+            log.warning(
+                "cpap: wpa_supplicant -B returned rc=%s on %s (%s) — continuing; an existing "
+                "supplicant may still associate",
+                rc,
+                iface,
+                (out or "").strip().splitlines()[-1] if (out or "").strip() else "no output",
+            )
         deadline = time.monotonic() + max(5.0, timeout)
-        while time.monotonic() < deadline:             # bounded wait for association
+        while time.monotonic() < deadline:  # bounded wait for association
             # PRIMARY: /sys carrier — unprivileged, no socket, works under ProtectSystem=strict.
             # FALLBACK: wpa_cli, for a driver that will not expose carrier. Only consulted when the
             # primary says "I cannot tell" (None), never to override a definite answer — otherwise the
@@ -747,7 +778,7 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: st
                 rc, out = _sh(_wpa_cli(wdir, iface, "status"), 8, sudo=True)
                 ok = rc == 0 and "wpa_state=COMPLETED" in out
             if ok:
-                _sh(["ip", "addr", "add", addr, "dev", iface], 10, sudo=True)   # NO route, ever
+                _sh(["ip", "addr", "add", addr, "dev", iface], 10, sudo=True)  # NO route, ever
                 return True
             time.sleep(1.0)
         log.warning("cpap: wpa_supplicant did not associate to %r within %.0fs", ssid, timeout)
@@ -755,14 +786,15 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: st
         return False
     finally:
         try:
-            os.unlink(conf)                            # the PSK does not outlive the association
+            os.unlink(conf)  # the PSK does not outlive the association
         except OSError:
             # THE LINE ABOVE IS A SECURITY INVARIANT, and this is the one path that breaks it. The
             # file holds a Wi-Fi PSK and was written to be ephemeral; if it survives, it survives
             # SILENTLY and nothing else in the system will ever look for it. The directory is
             # mode 0700, which bounds the exposure — it does not end it, and only a human can.
-            log.warning("cpap: could NOT remove %s — it still holds a Wi-Fi PSK; delete it by hand",
-                        conf, exc_info=True)
+            log.warning(
+                "cpap: could NOT remove %s — it still holds a Wi-Fi PSK; delete it by hand", conf, exc_info=True
+            )
 
 
 def _wpa_down(iface: str, root: str | None = None) -> bool:
@@ -798,11 +830,21 @@ def _wpa_down(iface: str, root: str | None = None) -> bool:
         leaked = _live_supplicants(iface)
         detail = (out or "").strip().splitlines()[-1] if (out or "").strip() else "no output"
         if leaked:
-            log.warning("cpap: wpa_cli terminate failed on %s (rc=%s, %s) — supplicant STILL RUNNING "
-                        "as pid(s) %s", iface, rc, detail, ", ".join(str(p) for p in leaked))
+            log.warning(
+                "cpap: wpa_cli terminate failed on %s (rc=%s, %s) — supplicant STILL RUNNING as pid(s) %s",
+                iface,
+                rc,
+                detail,
+                ", ".join(str(p) for p in leaked),
+            )
         else:
-            log.info("cpap: wpa_cli terminate returned rc=%s on %s (%s) — no supplicant is bound to it, "
-                     "so there was nothing to terminate", rc, iface, detail)
+            log.info(
+                "cpap: wpa_cli terminate returned rc=%s on %s (%s) — no supplicant is bound to it, "
+                "so there was nothing to terminate",
+                rc,
+                iface,
+                detail,
+            )
     return rc == 0
 
 
@@ -820,16 +862,34 @@ def harden_profile(profile: str) -> bool:
     """
     if backend() != "nmcli":
         return True
-    return _nmcli(["connection", "modify", profile,
-                   "ipv4.never-default", "yes",
-                   "ipv4.ignore-auto-dns", "yes",
-                   "ipv6.method", "disabled",
-                   "connection.autoconnect", "no"], 20.0)
+    return _nmcli(
+        [
+            "connection",
+            "modify",
+            profile,
+            "ipv4.never-default",
+            "yes",
+            "ipv4.ignore-auto-dns",
+            "yes",
+            "ipv6.method",
+            "disabled",
+            "connection.autoconnect",
+            "no",
+        ],
+        20.0,
+    )
 
 
-def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None,
-            ssid: str = "ez Share", psk: str = "88888888",
-            iface: str | None = None, addr: str = WPA_ADDR, root: str | None = None) -> bool:
+def wifi_up(
+    profile: str,
+    timeout: float = 45.0,
+    guard_dev: str | None = None,
+    ssid: str = "ez Share",
+    psk: str = "88888888",
+    iface: str | None = None,
+    addr: str = WPA_ADDR,
+    root: str | None = None,
+) -> bool:
     """Associate to the card, then PROVE the box's lifeline survived it.
 
     `guard_dev` is the default-route interface observed before associating. If the default route moves
@@ -848,8 +908,11 @@ def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None,
             return False
     else:
         if not os.path.isdir(os.path.join(SYS_NET, iface)):
-            log.error("cpap: Wi-Fi interface %r does not exist on this box (wpa backend, so "
-                      "`wifi_profile` is not consulted) — set `cpap.wifi_iface`", iface)
+            log.error(
+                "cpap: Wi-Fi interface %r does not exist on this box (wpa backend, so "
+                "`wifi_profile` is not consulted) — set `cpap.wifi_iface`",
+                iface,
+            )
             return False
         if not _wpa_up(iface, ssid, psk, addr, timeout, root):
             return False
@@ -857,8 +920,12 @@ def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None,
         return True
     now = default_route_dev()
     if now != guard_dev:
-        log.error("cpap: default route moved %r -> %r after associating — tearing down, the card must "
-                  "never carry the default route", guard_dev, now)
+        log.error(
+            "cpap: default route moved %r -> %r after associating — tearing down, the card must "
+            "never carry the default route",
+            guard_dev,
+            now,
+        )
         wifi_down(profile, iface=iface)
         return False
     return True
@@ -877,9 +944,15 @@ def _nmcli(args: list[str], timeout: float) -> bool:
     return rc == 0
 
 
-def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = None,
-            deadline: float | None = None, ignore=DEFAULT_IGNORE,
-            timeout: float = 20.0, retries: int = 5) -> dict:
+def harvest(
+    dest_root: str,
+    base: str = DEFAULT_BASE,
+    nights: set[str] | None = None,
+    deadline: float | None = None,
+    ignore=DEFAULT_IGNORE,
+    timeout: float = 20.0,
+    retries: int = 5,
+) -> dict:
     """Mirror the card into `dest_root`, preserving the native ResMed layout verbatim (card-root files,
     SETTINGS/, DATALOG/<YYYYMMDD>/). §7's integration contract requires the vendor layout so files route
     with NO new parser branch, and the harvester must not rename, flatten or re-stamp anything — the EDF
@@ -899,8 +972,18 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
     # `dict[str, Any]`, not a union: this is a STATUS BLOB that goes out as JSON, and its values are
     # genuinely of different kinds — counters, lists, a flag. Inference joins them to `object`, which
     # then rejects `st["nights"] += 1` and `st["night_keys"].append(...)` — the two ways it is used.
-    st: dict[str, Any] = {"files": 0, "bytes": 0, "skipped": 0, "nights": 0, "night_keys": [], "short": [], "errors": [],
-                          "partial": False, "nights_on_card": 0, "reaped": 0}
+    st: dict[str, Any] = {
+        "files": 0,
+        "bytes": 0,
+        "skipped": 0,
+        "nights": 0,
+        "night_keys": [],
+        "short": [],
+        "errors": [],
+        "partial": False,
+        "nights_on_card": 0,
+        "reaped": 0,
+    }
 
     def expired() -> bool:
         if deadline is not None and time.monotonic() > deadline:
@@ -927,26 +1010,25 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
                 # this list has always been for) rather than only as a transport error.
                 st["short"].append(str(ex))
                 continue
-            except Exception as ex:                    # noqa: BLE001 — one bad file must not end the run
+            except Exception as ex:  # noqa: BLE001 — one bad file must not end the run
                 st["errors"].append(f"{e['name']}: {ex}")
                 continue
             st["files"] += 1
             st["bytes"] += n
 
     root = ez.listing()
-    pull_into(root, dest_root)                                       # STR.edf, Identification.*
+    pull_into(root, dest_root)  # STR.edf, Identification.*
 
-    for e in root:                                                   # SETTINGS/
+    for e in root:  # SETTINGS/
         if e["isdir"] and e["name"].upper() == "SETTINGS" and not expired():
             pull_into(ez.listing(e["href"]), os.path.join(dest_root, e["name"]))
 
-    for e in root:                                                   # DATALOG/<night>/
+    for e in root:  # DATALOG/<night>/
         if not (e["isdir"] and e["name"].upper() == "DATALOG") or expired():
             continue
         found = [n for n in ez.listing(e["href"]) if is_night_dir(n)]
         st["nights_on_card"] = len(found)
-        todo = sorted((n for n in found if not nights or n["name"] in nights),
-                      key=lambda x: x["name"])
+        todo = sorted((n for n in found if not nights or n["name"] in nights), key=lambda x: x["name"])
         for n in todo:
             if expired():
                 break

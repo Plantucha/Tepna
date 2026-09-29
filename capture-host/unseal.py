@@ -50,8 +50,20 @@ import verdict as VD
 
 __all__ = ["SealRefused", "KINDS", "read_header", "unseal", "verdict"]
 
-KINDS = ("magic", "version", "header", "fingerprint", "signature", "revision", "card-key", "payload",
-         "zip", "oxum", "manifest", "consent")
+KINDS = (
+    "magic",
+    "version",
+    "header",
+    "fingerprint",
+    "signature",
+    "revision",
+    "card-key",
+    "payload",
+    "zip",
+    "oxum",
+    "manifest",
+    "consent",
+)
 
 
 class SealRefused(Exception):
@@ -70,24 +82,31 @@ def _split(blob: bytes) -> tuple[dict, bytes, bytes, bytes]:
     if blob[:n] != F.MAGIC:
         raise SealRefused("magic", "not a tepna seal (magic %r)" % blob[:n])
     if len(blob) < n + 1 or blob[n] != F.VERSION:
-        raise SealRefused("version", "seal version %r; this reader knows %d" % (blob[n:n + 1], F.VERSION))
+        raise SealRefused("version", "seal version %r; this reader knows %d" % (blob[n : n + 1], F.VERSION))
     p = n + 1
     try:
-        (hlen,) = struct.unpack(">I", blob[p:p + F.HEADER_LEN_BYTES]); p += F.HEADER_LEN_BYTES
-        header_bytes = blob[p:p + hlen]; p += hlen
+        (hlen,) = struct.unpack(">I", blob[p : p + F.HEADER_LEN_BYTES])
+        p += F.HEADER_LEN_BYTES
+        header_bytes = blob[p : p + hlen]
+        p += hlen
         if len(header_bytes) != hlen:
             raise SealRefused("header", "header truncated: %d of %d bytes" % (len(header_bytes), hlen))
         header = json.loads(header_bytes.decode("utf-8"))
-        (slen,) = struct.unpack(">H", blob[p:p + F.SIG_LEN_BYTES]); p += F.SIG_LEN_BYTES
-        sig = blob[p:p + slen]; p += slen
-        if len(sig) != F.P256_SIG_BYTES:       # before the payload length is read from what follows
+        (slen,) = struct.unpack(">H", blob[p : p + F.SIG_LEN_BYTES])
+        p += F.SIG_LEN_BYTES
+        sig = blob[p : p + slen]
+        p += slen
+        if len(sig) != F.P256_SIG_BYTES:  # before the payload length is read from what follows
             raise SealRefused("signature", "signature is %d bytes, not %d" % (len(sig), F.P256_SIG_BYTES))
-        (plen,) = struct.unpack(">Q", blob[p:p + F.PAYLOAD_LEN_BYTES]); p += F.PAYLOAD_LEN_BYTES
-        payload = blob[p:p + plen]
+        (plen,) = struct.unpack(">Q", blob[p : p + F.PAYLOAD_LEN_BYTES])
+        p += F.PAYLOAD_LEN_BYTES
+        payload = blob[p : p + plen]
     except (struct.error, ValueError, UnicodeDecodeError) as e:
         raise SealRefused("header", "cannot parse the clear header: %r" % (e,))
     if not isinstance(header, dict) or header.get("format") != F.FORMAT:
-        raise SealRefused("header", "format is %r, not %r" % (header.get("format") if isinstance(header, dict) else None, F.FORMAT))
+        raise SealRefused(
+            "header", "format is %r, not %r" % (header.get("format") if isinstance(header, dict) else None, F.FORMAT)
+        )
     if len(payload) != plen:
         raise SealRefused("payload", "payload truncated: %d of %d bytes" % (len(payload), plen))
     return header, header_bytes, sig, payload
@@ -110,8 +129,11 @@ def _verify_signature(header: dict, header_bytes: bytes, sig: bytes, payload: by
     try:
         pub.verify(encode_dss_signature(r, s), digest, ec.ECDSA(Prehashed(hashes.SHA256())))
     except InvalidSignature:
-        raise SealRefused("signature", "ECDSA over header ‖ SHA-256(payload) does not verify — the "
-                                       "header or the payload is not what the box signed")
+        raise SealRefused(
+            "signature",
+            "ECDSA over header ‖ SHA-256(payload) does not verify — the "
+            "header or the payload is not what the box signed",
+        )
 
 
 def _consent(header: dict) -> str | None:
@@ -131,20 +153,30 @@ def unseal(path: str, *, card_key: bytes, pinned_fingerprint: str, known_revisio
     blob = open(path, "rb").read()
     header, header_bytes, sig, payload = _split(blob)
 
-    if header.get("boxKeyFingerprint") != pinned_fingerprint or \
-            F.fingerprint(base64.b64decode(header.get("boxKey", ""))) != pinned_fingerprint:
-        raise SealRefused("fingerprint", "box key %s is not the pinned %s — an unknown key, whatever its "
-                                         "signature says" % (header.get("boxKeyFingerprint"), pinned_fingerprint))
+    if (
+        header.get("boxKeyFingerprint") != pinned_fingerprint
+        or F.fingerprint(base64.b64decode(header.get("boxKey", ""))) != pinned_fingerprint
+    ):
+        raise SealRefused(
+            "fingerprint",
+            "box key %s is not the pinned %s — an unknown key, whatever its "
+            "signature says" % (header.get("boxKeyFingerprint"), pinned_fingerprint),
+        )
     _verify_signature(header, header_bytes, sig, payload)
 
     rev = header.get("revision")
     if not isinstance(rev, int) or rev < 1:
         raise SealRefused("header", "revision is %r, not a positive integer" % (rev,))
     if known_revision is not None and rev < known_revision:
-        raise SealRefused("revision", "revision %d presented after revision %d was already seen for "
-                                      "%s/%s — a stale re-issue" % (rev, known_revision, header.get("boxId"), header.get("night")))
+        raise SealRefused(
+            "revision",
+            "revision %d presented after revision %d was already seen for "
+            "%s/%s — a stale re-issue" % (rev, known_revision, header.get("boxId"), header.get("night")),
+        )
 
-    recips = [r for r in header.get("recipients") or [] if r.get("kind") == "card" and r.get("keyId") == header.get("keyId")]
+    recips = [
+        r for r in header.get("recipients") or [] if r.get("kind") == "card" and r.get("keyId") == header.get("keyId")
+    ]
     if not recips or recips[0].get("wrap") != "AES-KW":
         raise SealRefused("header", "no AES-KW card recipient for keyId %r" % (header.get("keyId"),))
     kek = F.hkdf_sha256(card_key, F.kek_salt(str(header["boxId"]), int(header["keyId"])), F.KEK_INFO, F.KEK_BYTES)
@@ -153,7 +185,7 @@ def unseal(path: str, *, card_key: bytes, pinned_fingerprint: str, known_revisio
     except (InvalidUnwrap, ValueError):
         raise SealRefused("card-key", "the card key does not unwrap this seal's data key (keyId %s)" % header["keyId"])
 
-    nonce, ct = payload[:F.GCM_NONCE_BYTES], payload[F.GCM_NONCE_BYTES:]
+    nonce, ct = payload[: F.GCM_NONCE_BYTES], payload[F.GCM_NONCE_BYTES :]
     try:
         plain = AESGCM(data_key).decrypt(nonce, ct, header_bytes)
     except InvalidTag:
@@ -170,8 +202,11 @@ def unseal(path: str, *, card_key: bytes, pinned_fingerprint: str, known_revisio
     oxum = info.get("Payload-Oxum", "")
     got = "%d.%d" % (sum(len(v) for v in data.values()), len(data))
     if oxum != got:
-        raise SealRefused("oxum", "Payload-Oxum says %s, data/ holds %s (bytes.files) — the bag is not "
-                                  "complete, checked before any hashing" % (oxum, got))
+        raise SealRefused(
+            "oxum",
+            "Payload-Oxum says %s, data/ holds %s (bytes.files) — the bag is not "
+            "complete, checked before any hashing" % (oxum, got),
+        )
     _check_manifest(entries, "tagmanifest-sha256.txt")
     _check_manifest(entries, "manifest-sha256.txt")
     consent = _consent(header)
@@ -211,7 +246,9 @@ def _check_manifest(entries: dict[str, bytes], manifest_name: str) -> None:
             raise SealRefused("manifest:" + name, "listed in %s but absent from the bag" % manifest_name)
         got = hashlib.sha256(entries[name]).hexdigest()
         if got != want:
-            raise SealRefused("manifest:" + name, "SHA-256 %s… does not match the manifest's %s…" % (got[:12], want[:12]))
+            raise SealRefused(
+                "manifest:" + name, "SHA-256 %s… does not match the manifest's %s…" % (got[:12], want[:12])
+            )
 
 
 # ── tepna.verdict/1 — the same object the Node twin emits (VERDICT-CONTRACT §1) ──────────────────
@@ -245,19 +282,46 @@ def verdict(path: str, *, card_key: bytes, pinned_fingerprint: str, known_revisi
     try:
         r = unseal(path, card_key=card_key, pinned_fingerprint=pinned_fingerprint, known_revision=known_revision)
     except SealRefused as e:
-        return VD.make(gate=VERDICT_GATE, status="FAIL", population=one, criterion=VERDICT_CRITERION,
-                       result={"kind": e.kind, "files": None, "consent": None, "revision": None},
-                       evidence=evidence, reason="%s: %s" % (e.kind, e.detail), tool=_TOOL)
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="FAIL",
+            population=one,
+            criterion=VERDICT_CRITERION,
+            result={"kind": e.kind, "files": None, "consent": None, "revision": None},
+            evidence=evidence,
+            reason="%s: %s" % (e.kind, e.detail),
+            tool=_TOOL,
+        )
     except OSError as e:
-        return VD.make(gate=VERDICT_GATE, status="NOT_RUN", population={"checked": 0, "eligible": 1, "excluded": 1},
-                       criterion=VERDICT_CRITERION, result=None, evidence=[_TOOL],
-                       reason="cannot read %s: %s" % (path, e), tool=_TOOL)
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="NOT_RUN",
+            population={"checked": 0, "eligible": 1, "excluded": 1},
+            criterion=VERDICT_CRITERION,
+            result=None,
+            evidence=[_TOOL],
+            reason="cannot read %s: %s" % (path, e),
+            tool=_TOOL,
+        )
     except Exception as e:  # noqa: BLE001 — a crash is not a verdict: UNKNOWN with the error as the reason
         return VD.unknown(gate=VERDICT_GATE, criterion=VERDICT_CRITERION, evidence=evidence, tool=_TOOL, exc=e)
-    return VD.make(gate=VERDICT_GATE, status="PASS", population=one, criterion=VERDICT_CRITERION,
-                   result={"kind": None, "files": sorted(r["files"]), "consent": r["consent"],
-                           "revision": r["header"]["revision"], "boxId": r["header"]["boxId"], "night": r["header"]["night"]},
-                   evidence=evidence, reason=None, tool=_TOOL)
+    return VD.make(
+        gate=VERDICT_GATE,
+        status="PASS",
+        population=one,
+        criterion=VERDICT_CRITERION,
+        result={
+            "kind": None,
+            "files": sorted(r["files"]),
+            "consent": r["consent"],
+            "revision": r["header"]["revision"],
+            "boxId": r["header"]["boxId"],
+            "night": r["header"]["night"],
+        },
+        evidence=evidence,
+        reason=None,
+        tool=_TOOL,
+    )
 
 
 def verdict_sample() -> dict:
@@ -267,12 +331,16 @@ def verdict_sample() -> dict:
     vec = os.path.join(here, "tests", "vectors", "tepna-seal-1")
     with open(os.path.join(vec, "expected.json"), encoding="utf-8") as fh:
         exp = json.load(fh)
-    return verdict(os.path.join(vec, exp["seal"]), card_key=bytes.fromhex(exp["cardKeyHex"]),
-                   pinned_fingerprint=exp["boxKeyFingerprint"])
+    return verdict(
+        os.path.join(vec, exp["seal"]),
+        card_key=bytes.fromhex(exp["cardKeyHex"]),
+        pinned_fingerprint=exp["boxKeyFingerprint"],
+    )
 
 
 if __name__ == "__main__":  # `verdict_sample` is tested; this only prints it
     import sys
+
     if sys.argv[1:] == ["--verdict-sample"]:
         print(json.dumps(verdict_sample(), indent=1))
         sys.exit(0)

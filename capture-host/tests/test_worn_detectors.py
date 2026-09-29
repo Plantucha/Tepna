@@ -470,7 +470,9 @@ def test_a_beat_read_off_noise_is_withdrawn_and_the_strap_is_not_worn():
     """THE PLANT, at the combiner: contact absent + a rate in the packet — the dry-strap shape — over an ECG
     that is electrode noise."""
     assert telemetry.worn_verdict(contact=False, beats=True, ecg_noise=True) == (
-        False, "not worn per hr-contact-bit, ecg-level")
+        False,
+        "not worn per hr-contact-bit, ecg-level",
+    )
     # anti-vacuity: the identical packet without the ECG evidence is the 2026-09-20 dry strap, and stays worn
     assert telemetry.worn_verdict(contact=False, beats=True, ecg_noise=None) == (True, "worn per hr-beats")
     assert telemetry.worn_verdict(beats=True, ecg_noise=True) == (False, "not worn per ecg-level")
@@ -505,8 +507,7 @@ def test_each_reason_names_its_detector_exactly():
     what an operator reads."""
     assert telemetry.worn_verdict(ambient=[140.0] * 400, fs=55.0) == (True, "worn per ambient-level")
     assert telemetry.worn_verdict(ppg=_pulse(), fs=176.0) == (True, "worn per pulse-prominence")
-    assert telemetry.worn_verdict(charging=True) == (
-        False, "not worn — on charger (a docked device is not on a wrist)")
+    assert telemetry.worn_verdict(charging=True) == (False, "not worn — on charger (a docked device is not on a wrist)")
     assert telemetry.worn_verdict() == (None, "no worn detector is available and in domain (PPG rate unknown)")
 
 
@@ -515,4 +516,6 @@ def test_a_worn_reason_counts_the_sources_of_the_WORN_votes_only():
     not-worn is one worn source named once, with no qualifier."""
     assert telemetry.worn_verdict(contact=True, ppi_flags=0x04) == (True, "worn per hr-contact-bit")
     assert telemetry.worn_verdict(contact=True, ppi_flags=0x06, beats=True) == (
-        True, "worn per hr-contact-bit, hr-beats, ppi-contact (2 independent source(s): device-contact, device-heartbeat)")
+        True,
+        "worn per hr-contact-bit, hr-beats, ppi-contact (2 independent source(s): device-contact, device-heartbeat)",
+    )

@@ -115,8 +115,9 @@ class TestFsyncCallSites:
         data = b"payload"
         part = cpap_spool.write_part(str(tmp_path), "r1", data)
         spy = _FsyncSpy(monkeypatch)
-        cpap_spool.promote(str(tmp_path), part, "r1",
-                           expected_sha=cpap_spool.sha256_bytes(data), expected_len=len(data))
+        cpap_spool.promote(
+            str(tmp_path), part, "r1", expected_sha=cpap_spool.sha256_bytes(data), expected_len=len(data)
+        )
         assert "dir" in spy.calls
 
     def test_both_writers_fsync_the_file_BEFORE_the_directory(self, tmp_path, monkeypatch):
@@ -125,9 +126,10 @@ class TestFsyncCallSites:
         transaction is built to avoid."""
         data = b"payload"
         part = cpap_spool.write_part(str(tmp_path), "r1", data)
-        spy = _FsyncSpy(monkeypatch, root=str(tmp_path))   # ONLY this spool's fsyncs count
-        cpap_spool.promote(str(tmp_path), part, "r1",
-                           expected_sha=cpap_spool.sha256_bytes(data), expected_len=len(data))
+        spy = _FsyncSpy(monkeypatch, root=str(tmp_path))  # ONLY this spool's fsyncs count
+        cpap_spool.promote(
+            str(tmp_path), part, "r1", expected_sha=cpap_spool.sha256_bytes(data), expected_len=len(data)
+        )
         assert spy.calls, "no fsync at all during promote"
         assert spy.calls[-1] == "dir", f"the directory fsync must come last, got {spy.calls}"
 
@@ -184,6 +186,7 @@ class TestCrashConsistency:
         part = cpap_spool.write_part(str(tmp_path), "r1", data)
         Path(part).write_bytes(b"corrupt")
         with pytest.raises(cpap_spool.SpoolValidationError):
-            cpap_spool.promote(str(tmp_path), part, "r1",
-                               expected_sha=cpap_spool.sha256_bytes(data), expected_len=len(data))
+            cpap_spool.promote(
+                str(tmp_path), part, "r1", expected_sha=cpap_spool.sha256_bytes(data), expected_len=len(data)
+            )
         assert not (Path(tmp_path) / cpap_spool.COMMITTED_DIR / "r1").exists()

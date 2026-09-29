@@ -63,11 +63,15 @@ def _seam_rows(d, rows, name=BASE, stream="ECG", examined=10):
     written with a value the reader must NOT use (see `recorded_seams`: `idx` counts clocked samples,
     the reader joins on `phone_ts`). A wrong value there is therefore a decoy, not a fixture bug.
     """
-    lines = ["# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
-             "phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms"]
+    lines = [
+        "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host",
+        "phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms",
+    ]
     for ms, step in rows:
         t = T0 + dt.timedelta(milliseconds=ms)
-        lines.append(f"{t.strftime('%Y-%m-%dT%H:%M:%S.')}{t.microsecond // 1000:03d};999999;{step:.3f};0.000;{step:.3f};0.000;0.000")
+        lines.append(
+            f"{t.strftime('%Y-%m-%dT%H:%M:%S.')}{t.microsecond // 1000:03d};999999;{step:.3f};0.000;{step:.3f};0.000;0.000"
+        )
     lines.append(f"# final stream=ecg seams={len(rows)} examined={examined}")
     (d / f"{name}_{stream}SEAMS.txt").write_text("\n".join(lines) + "\n")
 
@@ -78,10 +82,23 @@ def _runs(d, stream, min_run=True, name=BASE):
     (d / f"{name}_{stream}RUNS.txt").write_text(head + "\nPhone timestamp;stream\n")
 
 
-def _audit(d, *, gaps=(), reason="doff", end="2026-09-20T23:03:00", file=f"{BASE}_ECG.txt", journal="read",
-           wear=None, gaps_key=True):
-    dev = {"file": file, "wear": wear if wear is not None else {
-        "available": True, "worn_end": {"at": end, "reason": reason, "file": file}}}
+def _audit(
+    d,
+    *,
+    gaps=(),
+    reason="doff",
+    end="2026-09-20T23:03:00",
+    file=f"{BASE}_ECG.txt",
+    journal="read",
+    wear=None,
+    gaps_key=True,
+):
+    dev = {
+        "file": file,
+        "wear": wear
+        if wear is not None
+        else {"available": True, "worn_end": {"at": end, "reason": reason, "file": file}},
+    }
     if gaps_key:
         dev["gaps"] = [{"at": a, "s": s, "cause": c} for a, s, c in gaps]
     (d / "LOSS-AUDIT.json").write_text(json.dumps({"journal": journal, "devices": {H10["name"]: dev}}))
@@ -106,7 +123,12 @@ def test_a_clean_h10_passes_every_term_but_timebase_which_names_what_it_waits_fo
     _good_h10(tmp_path)
     b = _bands(tmp_path)[H10["name"]]["bands"]
     assert {k: v["status"] for k, v in b.items()} == {
-        "continuity": "PASS", "completeness": "PASS", "validity": "PASS", "clocks": "PASS", "timebase": "UNKNOWN"}
+        "continuity": "PASS",
+        "completeness": "PASS",
+        "validity": "PASS",
+        "clocks": "PASS",
+        "timebase": "UNKNOWN",
+    }
     # The reason CHANGED with PR-B and the change is the point: the band no longer says the scan is
     # unbuilt, it says the axis was measured — an independent clock at a plausible rate — and names the
     # ONE term still outstanding. Whole-band UNKNOWN is still correct while A5 has not run (§∅).
@@ -151,8 +173,10 @@ def test_worn_interval_refuses_every_missing_piece(tmp_path):
     assert si.worn_interval({}, [p], {p: (None, None)})[2] == "the primary stream carries no readable row stamp"
     assert "has no entry" in si.worn_interval(None, [p], spans)[2]
     assert "older than #3010" in si.worn_interval({"wear": None}, [p], spans)[2]
-    assert "no wear-end rule" in si.worn_interval(
-        {"wear": {"available": False, "reason": "no wear-end rule for model 'X'"}}, [p], spans)[2]
+    assert (
+        "no wear-end rule"
+        in si.worn_interval({"wear": {"available": False, "reason": "no wear-end rule for model 'X'"}}, [p], spans)[2]
+    )
     assert "gives no reason" in si.worn_interval({"wear": {"available": False}}, [p], spans)[2]
     assert "no file end" in si.worn_interval({"wear": {"available": True, "worn_end": None}}, [p], spans)[2]
     assert si.worn_interval(
@@ -201,7 +225,8 @@ def test_unattributed_fails_on_minutes_or_on_count(tmp_path):
     d = tmp_path / "count"
     d.mkdir()
     five = [(f"2026-09-20T23:0{i}:10", 1.0, "unattributed") for i in range(1, 3)] * 2 + [
-        ("2026-09-20T23:02:30", 1.0, "unattributed")]
+        ("2026-09-20T23:02:30", 1.0, "unattributed")
+    ]
     out = _cont(d, gaps=five)
     assert out["status"] == "FAIL" and out["reason"].startswith("5 unattributed gap(s)")
     d4 = tmp_path / "four"
@@ -264,7 +289,8 @@ def test_the_rate_falls_back_to_pmdneg_and_never_to_a_nominal(tmp_path):
         "t;Polar H10 02849638;a;ecg;;;nan-ish;ok;negotiated\n"
         "t;Polar H10 02849638;a;ecg;;;0;ok;negotiated\n"
         "short;row\n"
-        "t;Polar H10 02849638;a;ecg;;130;2;ok;negotiated\n")
+        "t;Polar H10 02849638;a;ecg;;130;2;ok;negotiated\n"
+    )
     p = str(tmp_path / f"{BASE}_ECG.txt")
     assert si.negotiated_rate(str(tmp_path), H10["name"], "H10", p) == (2.0, "PMDNEG.csv")
     (tmp_path / "PMDNEG.csv").write_text("Phone timestamp;device\nt;Polar H10 02849638;a;ecg;;;130;refused;x\n")
@@ -291,18 +317,22 @@ def test_primary_files_that_disagree_on_rate_are_unknown(tmp_path):
     p = [str(tmp_path / f"{BASE}_ECG.txt"), str(tmp_path / "Polar_H10_02849638_20260920230500_ECG.txt")]
     out = si.completeness(str(tmp_path), H10["name"], "H10", p, T0, T0 + dt.timedelta(seconds=10))
     assert out == {"status": "UNKNOWN", "reason": "the primary files disagree on their rate: [2.0, 3.0]"}
-    assert si.completeness(str(tmp_path), H10["name"], "H10", p[:1], T0, T0)["reason"] == "the worn interval has no length"
+    assert (
+        si.completeness(str(tmp_path), H10["name"], "H10", p[:1], T0, T0)["reason"] == "the worn interval has no length"
+    )
 
 
 def test_the_rings_spo2_takes_the_rate_its_writer_declared(tmp_path):
     spo2 = tmp_path / "Wellue_O2Ring-S_S8AW2100_20260920230000_SPO2.csv"
     spo2.write_text("Time,Oxygen Level\n23:00:00 20/09/2026,97\n")
-    assert si.negotiated_rate(str(tmp_path), "Wellue O2Ring-S", "O2Ring-S", str(spo2))[1].startswith(
-        "no rate declared")
+    assert si.negotiated_rate(str(tmp_path), "Wellue O2Ring-S", "O2Ring-S", str(spo2))[1].startswith("no rate declared")
     (tmp_path / (spo2.name + ".meta.json")).write_text(
-        json.dumps({"acquisition_evidence": {"signal": "spo2_hr_motion@1Hz"}}))
+        json.dumps({"acquisition_evidence": {"signal": "spo2_hr_motion@1Hz"}})
+    )
     assert si.negotiated_rate(str(tmp_path), "Wellue O2Ring-S", "O2Ring-S", str(spo2)) == (
-        1.0, "declared in the acquisition evidence (A6)")
+        1.0,
+        "declared in the acquisition evidence (A6)",
+    )
     assert si.stream_files(str(tmp_path), "O2Ring-S", "SPO2") == [str(spo2)]
     assert si.first_last(str(spo2))[0] == T0
 
@@ -510,7 +540,10 @@ def _pairs(d, pairs, name=BASE):
 
 def _tb_pairs(d, pairs, **audit):
     _pairs(d, pairs)
-    _seams(d); _runs(d, "ECG"); _runs(d, "ACC"); _audit(d, **audit)
+    _seams(d)
+    _runs(d, "ECG")
+    _runs(d, "ACC")
+    _audit(d, **audit)
     return _bands(d)[H10["name"]]["bands"]["timebase"]
 
 
@@ -526,9 +559,13 @@ def test_the_largest_primary_is_the_one_judged(tmp_path):
     """Kills `key=os.path.getsize` -> `key=None` and the dropped key. Two primaries: the LARGER carries a
     realistic axis, the smaller a DRAWN one. Judge the wrong file and the band says DRAWN."""
     _ecg(tmp_path, seconds=200)  # large, realistic
-    _pairs(tmp_path, [(0, 0), (1000, 1_000_000), (2000, 2_000_000)],
-           name="Polar_H10_02849638_20260920235900")  # small, uniform deltas = drawn
-    _seams(tmp_path); _runs(tmp_path, "ECG"); _runs(tmp_path, "ACC"); _audit(tmp_path)
+    _pairs(
+        tmp_path, [(0, 0), (1000, 1_000_000), (2000, 2_000_000)], name="Polar_H10_02849638_20260920235900"
+    )  # small, uniform deltas = drawn
+    _seams(tmp_path)
+    _runs(tmp_path, "ECG")
+    _runs(tmp_path, "ACC")
+    _audit(tmp_path)
     tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
     assert "DRAWN" not in tb["reason"], tb["reason"]
 
@@ -545,8 +582,9 @@ def test_a_spread_of_exactly_two_ms_is_INERT_not_independent(tmp_path):
     sitting exactly on it is still inert."""
     # residuals 0,+1,+2,+1,0 ms -> spread EXACTLY 2.00. Device deltas alternate 999/1001 ms so the modal
     # share is 0.5 and the DRAWN branch (which is checked first) does not swallow the case.
-    tb = _tb_pairs(tmp_path, [(0, 0), (1000, 999_000_000), (2000, 1_998_000_000),
-                              (3000, 2_999_000_000), (4000, 4_000_000_000)])
+    tb = _tb_pairs(
+        tmp_path, [(0, 0), (1000, 999_000_000), (2000, 1_998_000_000), (3000, 2_999_000_000), (4000, 4_000_000_000)]
+    )
     assert tb["status"] == "UNKNOWN"
     assert "residual spread 2.00 ms" in tb["reason"], tb["reason"]
 
@@ -555,8 +593,7 @@ def test_a_span_of_exactly_one_second_is_ENOUGH_time(tmp_path):
     """Kills `span_s <= 0` -> `<= 1`. Zero is the only span that carries no time; one second carries a
     second. Residuals 0,+5,+3,+8,+4 ms keep the spread above the inert bound and the device deltas
     non-uniform, so neither earlier branch swallows the case."""
-    tb = _tb_pairs(tmp_path, [(0, 0), (300, 295_000_000), (600, 597_000_000),
-                              (900, 892_000_000), (1000, 996_000_000)])
+    tb = _tb_pairs(tmp_path, [(0, 0), (300, 295_000_000), (600, 597_000_000), (900, 892_000_000), (1000, 996_000_000)])
     assert "span no time" not in tb["reason"], tb["reason"]
 
 
@@ -629,7 +666,8 @@ def _stepped(d, step_ms, at_min=12, minutes=24, rate=2.0, ppm=20.0):
         pairs.append((host_ms, int(round(dev_ms * 1e6))))
     _pairs(d, pairs)
     _seam_rows(d, [(seam_at, step_ms)])
-    _runs(d, "ECG"); _runs(d, "ACC")
+    _runs(d, "ECG")
+    _runs(d, "ACC")
     # THE WORN INTERVAL MUST COVER THE FIXTURE, or the seam falls outside it and nothing splits. The
     # default `_audit` end is 23:03, three minutes after T0 — measured while writing this: with it, a
     # 24-minute fixture was judged over 3 min, the minute-12 seam was correctly excluded as unworn, and
@@ -648,6 +686,7 @@ def test_a_recorded_clock_step_is_SEGMENTED_not_quoted_as_a_rate(tmp_path):
     # the magnitude is reported in seconds, and NOT as ppm — a step of any size is never a rate
     assert "+2.44e+08 s" in tb["reason"], tb["reason"]
     import re as _re
+
     quoted = [int(m) for m in _re.findall(r"([-+]\d+) ppm", tb["reason"])]
     assert quoted and all(abs(q) < 100 for q in quoted), tb["reason"]
 
@@ -665,7 +704,10 @@ def test_CONTROL_no_seam_means_ONE_segment_and_the_number_is_unchanged(tmp_path)
     one segment, no seam note, and the per-file wording the 46 pre-existing tests already pin."""
     d = tmp_path
     pairs = [(i * 500.0, int(round(i * 500.0 * 1.00002 * 1e6)) + ((i * 7919) % 211)) for i in range(2880)]
-    _pairs(d, pairs); _seams(d); _runs(d, "ECG"); _runs(d, "ACC")
+    _pairs(d, pairs)
+    _seams(d)
+    _runs(d, "ECG")
+    _runs(d, "ACC")
     _audit(d, end=(T0 + dt.timedelta(minutes=24)).isoformat())
     tb = _bands(d)[H10["name"]]["bands"]["timebase"]
     assert "segment" not in tb["reason"], tb["reason"]
@@ -679,8 +721,9 @@ def test_a_seam_OUTSIDE_the_worn_interval_does_not_split_the_axis(tmp_path):
     d = tmp_path
     pairs = [(i * 500.0, int(round(i * 500.0 * 1.00002 * 1e6)) + ((i * 7919) % 211)) for i in range(2880)]
     _pairs(d, pairs)
-    _seam_rows(d, [(-3_600_000, 2.44e11)])   # an hour before T0, i.e. before the worn interval
-    _runs(d, "ECG"); _runs(d, "ACC")
+    _seam_rows(d, [(-3_600_000, 2.44e11)])  # an hour before T0, i.e. before the worn interval
+    _runs(d, "ECG")
+    _runs(d, "ACC")
     _audit(d, end=(T0 + dt.timedelta(minutes=24)).isoformat())
     tb = _bands(d)[H10["name"]]["bands"]["timebase"]
     assert "recorded clock seam" not in tb["reason"], tb["reason"]
@@ -704,10 +747,12 @@ def test_an_unparseable_seam_row_splits_NOTHING(tmp_path):
     (d / f"{BASE}_ECGSEAMS.txt").write_text(
         "# stream=ecg rule=clock-seam bound_ms=60000 unit=ms basis=device-minus-host\n"
         "phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms\n"
-        "not-a-timestamp;9;61000.000;0;0;0;0\n"          # unparseable host stamp
+        "not-a-timestamp;9;61000.000;0;0;0;0\n"  # unparseable host stamp
         "2026-09-20T23:12:00.000;9;not-a-number;0;0;0;0\n"  # unparseable magnitude
-        "2026-09-20T23:12:00.000;9\n")                      # short row
-    _runs(d, "ECG"); _runs(d, "ACC")
+        "2026-09-20T23:12:00.000;9\n"
+    )  # short row
+    _runs(d, "ECG")
+    _runs(d, "ACC")
     _audit(d, end=(T0 + dt.timedelta(minutes=24)).isoformat())
     tb = _bands(d)[H10["name"]]["bands"]["timebase"]
     assert "recorded clock seam" not in tb["reason"], tb["reason"]
@@ -727,7 +772,7 @@ def test_an_UNREADABLE_clock_record_names_no_cause_rather_than_guessing_one(tmp_
     """A directory where `CLOCKSYNC.csv` cannot be opened must report "no cause recorded" — the reader
     moves to the next record and, finding none, says so. It never promotes the step into its own cause."""
     d = tmp_path
-    (d / "CLOCKSYNC.csv").mkdir()   # a directory at that name: open() raises OSError, not ValueError
+    (d / "CLOCKSYNC.csv").mkdir()  # a directory at that name: open() raises OSError, not ValueError
     (d / "CLOCK.csv").mkdir()
     tb = _stepped(d, step_ms=2.44e8 * 1000.0)
     assert "no cause recorded this night" in tb["reason"], tb["reason"]
@@ -742,7 +787,8 @@ def test_a_seam_at_the_very_FIRST_anchor_and_one_after_the_LAST_leave_no_empty_s
     _pairs(d, pairs)
     last_ms = 2879 * 500.0
     _seam_rows(d, [(0.0, 61_000.0), (last_ms + 1000.0, 61_000.0)])
-    _runs(d, "ECG"); _runs(d, "ACC")
+    _runs(d, "ECG")
+    _runs(d, "ACC")
     _audit(d, end=(T0 + dt.timedelta(minutes=25)).isoformat())
     tb = _bands(d)[H10["name"]]["bands"]["timebase"]
     assert "2 recorded clock seam(s)" in tb["reason"], tb["reason"]
@@ -1186,6 +1232,7 @@ def test_an_IMPLAUSIBLE_rate_names_the_span_in_MINUTES_too(tmp_path):
 # the offset. Both readers now call `nights_index.parse_host_stamp`, which already got this right for the
 # hours-precision readers and keeps the sub-second digits these two measure with.
 
+
 def _zone_the_host_column(path, offset="+02:00"):
     """Append a zone to every `Phone timestamp` cell and change nothing else — same rows, same device
     column, same everything the readers measure. The only difference is the one under test."""
@@ -1210,7 +1257,8 @@ def test_a_zoned_host_stamp_gives_the_residual_scan_the_SAME_answer(tmp_path):
     zoned = si.residual_scan(str(ecg), start, end)
     assert zoned == unzoned, (
         "a zoned `Phone timestamp` must reach the same floating time as its zoneless twin "
-        f"(Clock Contract §2 rule 2)\n  unzoned={unzoned}\n  zoned  ={zoned}")
+        f"(Clock Contract §2 rule 2)\n  unzoned={unzoned}\n  zoned  ={zoned}"
+    )
     assert unzoned["reason"] is None, "and the fixture is one the scan can actually judge"
 
 
@@ -1257,37 +1305,45 @@ def _resid(d, rows, header=None, name="Polar_H10_02849638_20260920230000_ECG.txt
 def test_an_unparseable_seam_row_does_not_END_the_seam_scan(tmp_path):
     """KILLS recorded_seams `continue` → `break`. A row this reader cannot place splits nothing — and it
     must not take the rows AFTER it down with it, which is precisely what `break` would do."""
-    lines = ["phone_ts;idx;device_step_ms\n",
-             "2026-09-20T23:05:00.000;1;not-a-number\n",     # unplaceable: skipped, never fatal
-             "2026-09-20T23:06:00.000;2;123.000\n"]          # and THIS one must still be read
+    lines = [
+        "phone_ts;idx;device_step_ms\n",
+        "2026-09-20T23:05:00.000;1;not-a-number\n",  # unplaceable: skipped, never fatal
+        "2026-09-20T23:06:00.000;2;123.000\n",
+    ]  # and THIS one must still be read
     (tmp_path / f"{BASE}_ECGSEAMS.txt").write_text("".join(lines))
     got = si.recorded_seams(str(tmp_path / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=1))
     assert [r["step_ms"] for r in got] == [123.0], (
-        "the bad row is skipped and the good row after it is still read; `break` would return nothing")
+        "the bad row is skipped and the good row after it is still read; `break` would return nothing"
+    )
 
 
 def test_a_row_outside_the_worn_interval_does_not_END_the_residual_scan(tmp_path):
     """KILLS residual_scan's worn-interval `continue` → `break`. Rows outside the interval are not
     anchors, but the scan continues past them — a device that was worn LATER in the file still counts."""
-    rows = ["2026-09-20T22:00:00.000;0;1\n",            # before the interval: not an anchor
-            "2026-09-20T23:10:00.000;1000000;1\n",      # inside
-            "2026-09-20T23:20:00.000;3000000;1\n",      # inside, a different delta
-            "2026-09-20T23:30:00.000;6000000;1\n"]
+    rows = [
+        "2026-09-20T22:00:00.000;0;1\n",  # before the interval: not an anchor
+        "2026-09-20T23:10:00.000;1000000;1\n",  # inside
+        "2026-09-20T23:20:00.000;3000000;1\n",  # inside, a different delta
+        "2026-09-20T23:30:00.000;6000000;1\n",
+    ]
     p = _resid(tmp_path, rows)
     got = si.residual_scan(p, T0, T0 + dt.timedelta(hours=1))
     assert got["reason"] is None and got["anchors"], (
-        "the rows inside the interval are still scanned after one outside it; `break` loses them")
+        "the rows inside the interval are still scanned after one outside it; `break` loses them"
+    )
 
 
 def test_an_invalid_BYTE_does_not_stop_the_residual_scan(tmp_path):
     """KILLS `errors="replace"` → `errors=None` and the argument dropped. Strict decoding RAISES on a
     malformed byte; this reader replaces it, because one bad byte in a 160 MB night must not cost the
     night its timebase verdict. The byte sits in a trailing column so nothing measured depends on it."""
-    raw = (f"Phone timestamp;{_NS};note\n".encode()
-           + b"2026-09-20T23:10:00.000;1000000;caf\xff\n"      # 0xff: not valid UTF-8 in any position
-           + b"2026-09-20T23:20:00.000;3000000;ok\n")
+    raw = (
+        f"Phone timestamp;{_NS};note\n".encode()
+        + b"2026-09-20T23:10:00.000;1000000;caf\xff\n"  # 0xff: not valid UTF-8 in any position
+        + b"2026-09-20T23:20:00.000;3000000;ok\n"
+    )
     p = _resid(tmp_path, None, raw=raw)
-    got = si.residual_scan(p, None, None)          # must not raise UnicodeDecodeError
+    got = si.residual_scan(p, None, None)  # must not raise UnicodeDecodeError
     assert got["reason"] is None, got
 
 
@@ -1305,33 +1361,41 @@ def test_the_residual_scan_decodes_as_UTF_8_whatever_the_BOXES_locale_is(tmp_pat
     import subprocess
     import sys
 
-    rows = ["2026-09-20T23:10:00.000;1000000;1\n",
-            "2026-09-20T23:20:00.000;٣٠٠٠٠٠٠;1\n",   # ٣٠٠٠٠٠٠
-            "2026-09-20T23:30:00.000;6000000;1\n"]
+    rows = [
+        "2026-09-20T23:10:00.000;1000000;1\n",
+        "2026-09-20T23:20:00.000;٣٠٠٠٠٠٠;1\n",  # ٣٠٠٠٠٠٠
+        "2026-09-20T23:30:00.000;6000000;1\n",
+    ]
     p = _resid(tmp_path, rows)
     here = si.residual_scan(p, None, None)
-    assert len(here["anchors"]) == 3, ("the Unicode-digit row must PARSE here, or the probe below "
-                                       f"compares two drops: {here}")
+    assert len(here["anchors"]) == 3, (
+        f"the Unicode-digit row must PARSE here, or the probe below compares two drops: {here}"
+    )
     env = {**os.environ, "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
-    script = (f"import json,sys; sys.path.insert(0,{os.path.dirname(os.path.abspath(si.__file__))!r});"
-              f"import solid_night_inputs as s;"
-              f"print(len(s.residual_scan({p!r}, None, None)['anchors']))")
+    script = (
+        f"import json,sys; sys.path.insert(0,{os.path.dirname(os.path.abspath(si.__file__))!r});"
+        f"import solid_night_inputs as s;"
+        f"print(len(s.residual_scan({p!r}, None, None)['anchors']))"
+    )
     r = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
     assert r.returncode == 0, f"the probe itself failed, which says nothing about encoding:\n{r.stderr[-500:]}"
     assert r.stdout.strip() == "3", (
         "the scan must read utf-8 whatever the ambient encoding is:\n"
-        f"  C locale : {r.stdout.strip()} anchor(s)\n  this proc: 3")
+        f"  C locale : {r.stdout.strip()} anchor(s)\n  this proc: 3"
+    )
 
 
 def test_the_header_is_stripped_of_its_NEWLINE_and_nothing_else(tmp_path):
     """KILLS `rstrip("\\n")` → `rstrip(None)`. The column name is matched EXACTLY, so a header whose last
     field carries a trailing space does not carry that column — and saying so is the honest answer, where
     stripping all trailing whitespace would silently accept a header this reader cannot vouch for."""
-    p = _resid(tmp_path, ["2026-09-20T23:10:00.000;1000000;1\n"],
-               header=f"Phone timestamp;{_NS} \n")          # note the trailing space
+    p = _resid(
+        tmp_path, ["2026-09-20T23:10:00.000;1000000;1\n"], header=f"Phone timestamp;{_NS} \n"
+    )  # note the trailing space
     got = si.residual_scan(p, None, None)
     assert got.get("reason") and _NS in got["reason"], (
-        "a trailing space means the exact column is absent; rstrip(None) would hide that")
+        "a trailing space means the exact column is absent; rstrip(None) would hide that"
+    )
 
 
 def test_a_single_row_has_no_delta_and_therefore_no_drawn_share(tmp_path):
@@ -1341,6 +1405,8 @@ def test_a_single_row_has_no_delta_and_therefore_no_drawn_share(tmp_path):
     p = _resid(tmp_path, ["2026-09-20T23:10:00.000;1000000;1\n"])
     got = si.residual_scan(p, None, None)
     assert got["drawn_share"] is None and got["reason"] is None, got
+
+
 def test_PLANT_a_sidecar_whose_rows_and_own_TOTALS_disagree_is_refused(tmp_path):
     """residue 2026-09-27-seam-sidecar-rows-and-finals-agree — the tripwire, not a measurement.
 

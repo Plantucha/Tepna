@@ -30,15 +30,14 @@ import time
 
 __all__ = ["probe", "UNKNOWN"]
 
-UNKNOWN = None      # named, so a reader sees the absence is deliberate rather than a forgotten default
+UNKNOWN = None  # named, so a reader sees the absence is deliberate rather than a forgotten default
 
 
 def _git(repo_dir, args, run=None, timeout=5.0):
     """One `git` invocation, or None on ANY failure. Never raises."""
     runner = run or subprocess.run
     try:
-        p = runner(["git", "-C", str(repo_dir), *args],
-                   capture_output=True, text=True, timeout=timeout)
+        p = runner(["git", "-C", str(repo_dir), *args], capture_output=True, text=True, timeout=timeout)
     except Exception:
         # A missing git, a missing repo, a timeout on a slow disk — all the same answer: we do not
         # know. Distinguishing them would invite a caller to treat some of them as "clean".

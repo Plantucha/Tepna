@@ -47,7 +47,7 @@ _SIGHDR = 256
 
 
 def _fld(raw: bytes, off: int, length: int) -> str:
-    return raw[off:off + length].decode("latin1")
+    return raw[off : off + length].decode("latin1")
 
 
 def _pad(value, width: int) -> bytes:
@@ -61,8 +61,19 @@ class Signal:
     """One EDF signal: its header fields (raw, for byte-exact reproduction) plus its int16 samples per
     record, flat. `samples` length is `spr * n_records`. The Crc16 lane is a Signal like any other."""
 
-    __slots__ = ("label", "transducer", "dim", "pmin", "pmax", "dmin", "dmax", "prefilter", "spr",
-                 "reserved", "samples")
+    __slots__ = (
+        "label",
+        "transducer",
+        "dim",
+        "pmin",
+        "pmax",
+        "dmin",
+        "dmax",
+        "prefilter",
+        "spr",
+        "reserved",
+        "samples",
+    )
 
     def __init__(self, label, transducer, dim, pmin, pmax, dmin, dmax, prefilter, spr, reserved, samples):
         self.label, self.transducer, self.dim = label, transducer, dim
@@ -75,11 +86,21 @@ class Edf:
     """A decoded/constructed EDF: the raw main-header fields plus the signals. `raw_reserved` /
     `version` etc. are kept verbatim so re-encoding is byte-exact."""
 
-    __slots__ = ("version", "patient_id", "recording_id", "startdate", "starttime",
-                 "reserved", "n_records", "record_duration", "signals")
+    __slots__ = (
+        "version",
+        "patient_id",
+        "recording_id",
+        "startdate",
+        "starttime",
+        "reserved",
+        "n_records",
+        "record_duration",
+        "signals",
+    )
 
-    def __init__(self, version, patient_id, recording_id, startdate, starttime,
-                 reserved, n_records, record_duration, signals):
+    def __init__(
+        self, version, patient_id, recording_id, startdate, starttime, reserved, n_records, record_duration, signals
+    ):
         self.version = version
         self.patient_id = patient_id
         self.recording_id = recording_id
@@ -89,7 +110,6 @@ class Edf:
         self.n_records = n_records
         self.record_duration = record_duration
         self.signals = signals
-
 
 
 def read_span(raw: bytes):
@@ -130,8 +150,10 @@ def read_edf(raw: bytes) -> Edf:
     transducers = col(ns * 16, 80)
     dims = col(ns * 16 + ns * 80, 8)
     o = ns * 16 + ns * 80 + ns * 8
-    pmins = col(o, 8); pmaxs = col(o + ns * 8, 8)
-    dmins = col(o + ns * 16, 8); dmaxs = col(o + ns * 24, 8)
+    pmins = col(o, 8)
+    pmaxs = col(o + ns * 8, 8)
+    dmins = col(o + ns * 16, 8)
+    dmaxs = col(o + ns * 24, 8)
     prefilters = col(o + ns * 32, 80)
     sprs = [int(x) for x in col(o + ns * 32 + ns * 80, 8)]
     reserveds = col(o + ns * 40 + ns * 80, 32)
@@ -148,10 +170,23 @@ def read_edf(raw: bytes) -> Edf:
             per_sig[s].extend(struct.unpack_from(f"<{cnt}h", data, p))
             p += cnt * 2
 
-    signals = [Signal(labels[i], transducers[i], dims[i], pmins[i], pmaxs[i], dmins[i], dmaxs[i],
-                      prefilters[i], sprs[i], reserveds[i], per_sig[i]) for i in range(ns)]
-    return Edf(version, patient_id, recording_id, startdate, starttime, reserved,
-               n_records, record_duration, signals)
+    signals = [
+        Signal(
+            labels[i],
+            transducers[i],
+            dims[i],
+            pmins[i],
+            pmaxs[i],
+            dmins[i],
+            dmaxs[i],
+            prefilters[i],
+            sprs[i],
+            reserveds[i],
+            per_sig[i],
+        )
+        for i in range(ns)
+    ]
+    return Edf(version, patient_id, recording_id, startdate, starttime, reserved, n_records, record_duration, signals)
 
 
 # Signals whose name marks them as the checksum lane — recomputed on write, never trusted on read.
@@ -177,16 +212,26 @@ def write_edf(edf: Edf) -> bytes:
     out += _pad(edf.n_records, 8)
     out += _pad(edf.record_duration, 8)
     out += _pad(ns, 4)
-    for s in edf.signals: out += _pad(s.label, 16)
-    for s in edf.signals: out += _pad(s.transducer, 80)
-    for s in edf.signals: out += _pad(s.dim, 8)
-    for s in edf.signals: out += _pad(s.pmin, 8)
-    for s in edf.signals: out += _pad(s.pmax, 8)
-    for s in edf.signals: out += _pad(s.dmin, 8)
-    for s in edf.signals: out += _pad(s.dmax, 8)
-    for s in edf.signals: out += _pad(s.prefilter, 80)
-    for s in edf.signals: out += _pad(s.spr, 8)
-    for s in edf.signals: out += _pad(s.reserved, 32)
+    for s in edf.signals:
+        out += _pad(s.label, 16)
+    for s in edf.signals:
+        out += _pad(s.transducer, 80)
+    for s in edf.signals:
+        out += _pad(s.dim, 8)
+    for s in edf.signals:
+        out += _pad(s.pmin, 8)
+    for s in edf.signals:
+        out += _pad(s.pmax, 8)
+    for s in edf.signals:
+        out += _pad(s.dmin, 8)
+    for s in edf.signals:
+        out += _pad(s.dmax, 8)
+    for s in edf.signals:
+        out += _pad(s.prefilter, 80)
+    for s in edf.signals:
+        out += _pad(s.spr, 8)
+    for s in edf.signals:
+        out += _pad(s.reserved, 32)
     assert len(out) == hdr_bytes
 
     for r in range(edf.n_records):
@@ -198,7 +243,7 @@ def write_edf(edf: Edf) -> bytes:
                 rec += struct.pack("<H", crc16_ccitt(bytes(rec)))
             else:
                 base = r * s.spr
-                rec += struct.pack(f"<{s.spr}h", *s.samples[base:base + s.spr])
+                rec += struct.pack(f"<{s.spr}h", *s.samples[base : base + s.spr])
         out += rec
     return bytes(_stamp_header_crcs(out, hdr_bytes))
 
@@ -223,7 +268,7 @@ def write_edf(edf: Edf) -> bytes:
 #
 # crc2 covers the signal-header block only, which is byte-identical across every BRP on the card — that
 # is why it reads as a per-device constant while crc1 varies with the dates in the header.
-_CRC1_FROM = 0x19          # [HW] one past the end of the longest patient string — see above
+_CRC1_FROM = 0x19  # [HW] one past the end of the longest patient string — see above
 _PATIENT_AT = 8
 _PATIENT_LEN = 80
 
@@ -238,25 +283,29 @@ def _stamp_header_crcs(buf: bytearray, hdr_bytes: int) -> bytearray:
         return buf
     crc1 = crc16_ccitt(bytes(buf[_CRC1_FROM:_MAIN]))
     crc2 = crc16_ccitt(bytes(buf[_MAIN:hdr_bytes]))
-    buf[_PATIENT_AT:_PATIENT_AT + _PATIENT_LEN] = _pad(f"X X X X {crc1:04X} {crc2:04X}", _PATIENT_LEN)
+    buf[_PATIENT_AT : _PATIENT_AT + _PATIENT_LEN] = _pad(f"X X X X {crc1:04X} {crc2:04X}", _PATIENT_LEN)
     return buf
 
 
 # ── Constructors: build files from DATA (BLE capture) with the exact ResMed signal specs ──────────────
 # Field specs are (label, dim, pmin, pmax, dmin, dmax) — verbatim from real AirSense 11 files, so a
 # constructed file's headers are byte-for-byte what the device writes. spr is set from the record length.
-_CRC = ("Crc16", "", "-32768.0", "32767.00", "-32768", "32767")   # phys strings are asymmetric ON PURPOSE
-_BRP_SPECS = [("Flow.40ms", "L/s", "-2.00", "3.00", "-1000", "1500"),
-              ("Press.40ms", "cmH2O", "0.00", "40.00", "0", "2000")]
-_PLD_SPECS = [("MaskPress.2s", "cmH2O", "0.00", "40.00", "0", "2000"),
-              ("Press.2s", "cmH2O", "0.00", "50.00", "0", "2500"),
-              ("EprPress.2s", "cmH2O", "0.00", "30.00", "0", "1500"),
-              ("Leak.2s", "L/s", "0.00", "2.00", "0", "100"),
-              ("RespRate.2s", "bpm", "0.00", "90.00", "0", "450"),
-              ("TidVol.2s", "L", "0.00", "4.00", "0", "200"),
-              ("MinVent.2s", "L/min", "0.00", "30.00", "0", "240"),
-              ("Snore.2s", "", "0.00", "5.00", "0", "250"),
-              ("FlowLim.2s", "", "0.00", "1.00", "0", "100")]
+_CRC = ("Crc16", "", "-32768.0", "32767.00", "-32768", "32767")  # phys strings are asymmetric ON PURPOSE
+_BRP_SPECS = [
+    ("Flow.40ms", "L/s", "-2.00", "3.00", "-1000", "1500"),
+    ("Press.40ms", "cmH2O", "0.00", "40.00", "0", "2000"),
+]
+_PLD_SPECS = [
+    ("MaskPress.2s", "cmH2O", "0.00", "40.00", "0", "2000"),
+    ("Press.2s", "cmH2O", "0.00", "50.00", "0", "2500"),
+    ("EprPress.2s", "cmH2O", "0.00", "30.00", "0", "1500"),
+    ("Leak.2s", "L/s", "0.00", "2.00", "0", "100"),
+    ("RespRate.2s", "bpm", "0.00", "90.00", "0", "450"),
+    ("TidVol.2s", "L", "0.00", "4.00", "0", "200"),
+    ("MinVent.2s", "L/min", "0.00", "30.00", "0", "240"),
+    ("Snore.2s", "", "0.00", "5.00", "0", "250"),
+    ("FlowLim.2s", "", "0.00", "1.00", "0", "100"),
+]
 _ANN = ("EDF Annotations", "", "-32768.0", "32767.00", "-32768", "32767")
 _EMPTY80 = " " * 80
 _RES32 = " " * 32
@@ -278,8 +327,9 @@ def _num_signal(spec, physical, spr):
 
 
 def _crc_signal(n_records):
-    return Signal(_CRC[0], _EMPTY80, _CRC[1], _CRC[2], _CRC[3], _CRC[4], _CRC[5], _EMPTY80, 1, _RES32,
-                  [0] * n_records)   # values are recomputed on write; placeholders here
+    return Signal(
+        _CRC[0], _EMPTY80, _CRC[1], _CRC[2], _CRC[3], _CRC[4], _CRC[5], _EMPTY80, 1, _RES32, [0] * n_records
+    )  # values are recomputed on write; placeholders here
 
 
 _MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
@@ -318,10 +368,8 @@ def build_brp(flow_lps, press_cmh2o, start, serial, *, record_seconds=60, mid=46
         raise ValueError("flow and pressure must have the same sample count")
     n = len(flow) // spr
     sd, st, rd = _dates(*start)
-    signals = [_num_signal(_BRP_SPECS[0], flow, spr), _num_signal(_BRP_SPECS[1], press, spr),
-               _crc_signal(n)]
-    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF", n,
-               f"{record_seconds}.00", signals)
+    signals = [_num_signal(_BRP_SPECS[0], flow, spr), _num_signal(_BRP_SPECS[1], press, spr), _crc_signal(n)]
+    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF", n, f"{record_seconds}.00", signals)
 
 
 def build_pld(channels, start, serial, *, record_seconds=60, mid=46, vid=3):
@@ -339,8 +387,7 @@ def build_pld(channels, start, serial, *, record_seconds=60, mid=46, vid=3):
         signals.append(_num_signal(spec, vals, spr))
     signals.append(_crc_signal(n))
     sd, st, rd = _dates(*start)
-    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF", n,
-               f"{record_seconds}.00", signals)
+    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF", n, f"{record_seconds}.00", signals)
 
 
 # ── SA2.edf — oximetry, the one ResMed type this box can fill ─────────────────────────────────────
@@ -363,10 +410,9 @@ def build_pld(channels, start, serial, *, record_seconds=60, mid=46, vid=3):
 #        CPAP-SA2-OXIMETRY-SOURCE records one 2.5 h populated session (2026-06-13) which is in none of
 #        these trees. ⚠️ RE-RUN THAT SCAN BEFORE TRUSTING THIS: the day a populated file appears, the
 #        mapping becomes checkable and this note is what tells you it was never checked.
-_SA2_SPECS = [("Pulse.1s", "bpm", "0.00", "300.00", "0", "300"),
-              ("SpO2.1s", "%", "0.00", "100.00", "0", "100")]
+_SA2_SPECS = [("Pulse.1s", "bpm", "0.00", "300.00", "0", "300"), ("SpO2.1s", "%", "0.00", "100.00", "0", "100")]
 
-SA2_ABSENT = -1          # [HW]; deliberately BELOW dig_min — see build_sa2
+SA2_ABSENT = -1  # [HW]; deliberately BELOW dig_min — see build_sa2
 
 
 def _sentinel_signal(spec, digital_values, spr):
@@ -379,8 +425,7 @@ def _sentinel_signal(spec, digital_values, spr):
     declared range on purpose, and reproducing the card means reproducing that.
     """
     label, dim, pmin_s, pmax_s, dmin_s, dmax_s = spec
-    return Signal(label, _EMPTY80, dim, pmin_s, pmax_s, dmin_s, dmax_s, _EMPTY80,
-                  spr, _RES32, list(digital_values))
+    return Signal(label, _EMPTY80, dim, pmin_s, pmax_s, dmin_s, dmax_s, _EMPTY80, spr, _RES32, list(digital_values))
 
 
 def device_start_from_host(host_start, clock_offset):
@@ -414,7 +459,8 @@ def device_start_from_host(host_start, clock_offset):
             "cannot place an SA2 on the device axis: the clock offset is UNKNOWN. The AS11 is "
             "device-stamped and the ring is host-stamped, so without a measured offset any start "
             "written here is wrong by an unmeasured amount — and the file would look correct. "
-            "Measure via AS11CLOCK.csv (as11_clock.offset_for_envelope) or do not write the file.")
+            "Measure via AS11CLOCK.csv (as11_clock.offset_for_envelope) or do not write the file."
+        )
     base = _dt.datetime(*host_start) + _dt.timedelta(seconds=float(clock_offset.offset_sec))
     return (base.year, base.month, base.day, base.hour, base.minute, base.second)
 
@@ -441,16 +487,20 @@ def build_sa2(samples, device_start, serial, *, record_seconds=60, mid=46, vid=3
     `parse_dat.implied_interval_s` before trusting that a given .dat really is 1 Hz — the file does
     not record its own cadence.
     """
-    spr = record_seconds                       # 60 samples per 60 s record = 1 Hz [HW]
+    spr = record_seconds  # 60 samples per 60 s record = 1 Hz [HW]
     seen = {}
     for offset, spo2, pulse in samples:
         offset = int(offset)
         if offset < 0:
-            raise ValueError(f"negative sample offset {offset}: a sample before the start instant "
-                             "cannot be placed on the record grid")
+            raise ValueError(
+                f"negative sample offset {offset}: a sample before the start instant "
+                "cannot be placed on the record grid"
+            )
         if offset in seen:
-            raise ValueError(f"duplicate sample offset {offset}: two readings claim the same second, "
-                             "so one would silently overwrite the other")
+            raise ValueError(
+                f"duplicate sample offset {offset}: two readings claim the same second, "
+                "so one would silently overwrite the other"
+            )
         seen[offset] = (spo2, pulse)
 
     n_seconds = max(seen) + 1 if seen else 0
@@ -463,11 +513,12 @@ def build_sa2(samples, device_start, serial, *, record_seconds=60, mid=46, vid=3
         spo2_d.append(SA2_ABSENT if spo2 is None else int(spo2))
 
     sd, st, rd = _dates(*device_start)
-    signals = [_sentinel_signal(_SA2_SPECS[0], pulse_d, spr),
-               _sentinel_signal(_SA2_SPECS[1], spo2_d, spr),
-               _crc_signal(n)]
-    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF", n,
-               f"{record_seconds}.00", signals)
+    signals = [
+        _sentinel_signal(_SA2_SPECS[0], pulse_d, spr),
+        _sentinel_signal(_SA2_SPECS[1], spo2_d, spr),
+        _crc_signal(n),
+    ]
+    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF", n, f"{record_seconds}.00", signals)
 
 
 def declaration_matches(kind, header_signals, dictionary):
@@ -523,8 +574,6 @@ def build_eve(events, start, serial, *, ann_spr=31, mid=46, vid=3):
     for onset, dur, label in evs:
         rec = _tal_record(onset, dur, label, byte_width)
         ann_samples.extend(struct.unpack(f"<{ann_spr}h", rec))
-    ann = Signal(_ANN[0], _EMPTY80, _ANN[1], _ANN[2], _ANN[3], _ANN[4], _ANN[5], _EMPTY80,
-                 ann_spr, _RES32, ann_samples)
+    ann = Signal(_ANN[0], _EMPTY80, _ANN[1], _ANN[2], _ANN[3], _ANN[4], _ANN[5], _EMPTY80, ann_spr, _RES32, ann_samples)
     sd, st, rd = _dates(*start)
-    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF+D", n, "0.00",
-               [ann, _crc_signal(n)])
+    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF+D", n, "0.00", [ann, _crc_signal(n)])

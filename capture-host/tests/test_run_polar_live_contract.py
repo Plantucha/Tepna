@@ -29,6 +29,7 @@ the two-phase registration is plainly visible in the calls. A text scan cannot t
 (mutant 312 does exactly that and survives it); observing the call can. The scan is left in place — it
 guards a different thing, the literal in the source — but it is no longer the only guard.
 """
+
 import asyncio
 import sys
 
@@ -36,7 +37,7 @@ import capture
 import polar_pmd as pmd
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-import test_capture_runners as T          # the fixture family: FlexPolarClient, _pdev, _polar_common
+import test_capture_runners as T  # the fixture family: FlexPolarClient, _pdev, _polar_common
 
 
 # The SAME module-global reset test_capture_runners.py uses, re-exported rather than re-implemented.
@@ -60,9 +61,14 @@ class SpyBus:
     def __init__(self):
         self.seen: dict[str, list] = {"register": [], "push": [], "unregister": []}
 
-    def register(self, *a, **k): self.seen["register"].append((a, k))
-    def push(self, *a, **k): self.seen["push"].append((a, k))
-    def unregister(self, *a, **k): self.seen["unregister"].append((a, k))
+    def register(self, *a, **k):
+        self.seen["register"].append((a, k))
+
+    def push(self, *a, **k):
+        self.seen["push"].append((a, k))
+
+    def unregister(self, *a, **k):
+        self.seen["unregister"].append((a, k))
 
     def __getattr__(self, name):
         raise AttributeError(f"run_polar called BUS.{name}() — unmodelled by this spy, so unasserted")
@@ -90,8 +96,7 @@ def _spy_set(monkeypatch, into: list):
     monkeypatch.setattr(capture, "_set", rec)
 
 
-def _drive(monkeypatch, tmp_path, streams, frames=None, start_status=0x00, hr_frame=None,
-           sets=None):
+def _drive(monkeypatch, tmp_path, streams, frames=None, start_status=0x00, hr_frame=None, sets=None):
     """One full run_polar session against the fake Polar, returning the recorded bus calls.
 
     Pass a list as `sets` to also collect every `_set()` call into it. Trailing and optional, so every
@@ -101,8 +106,7 @@ def _drive(monkeypatch, tmp_path, streams, frames=None, start_status=0x00, hr_fr
         _spy_set(monkeypatch, sets)
     T._polar_common(monkeypatch)
     if frames is None:
-        frames = [T._ecg_frame(), T._acc_frame(), T._ppg_frame(),
-                  T._gyro_frame(), T._mag_frame(), T._ppi_frame()]
+        frames = [T._ecg_frame(), T._acc_frame(), T._ppg_frame(), T._gyro_frame(), T._mag_frame(), T._ppi_frame()]
     c = T.FlexPolarClient(data_frames=frames, start_status=start_status, hr_frame=hr_frame)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
@@ -115,12 +119,12 @@ def _drive(monkeypatch, tmp_path, streams, frames=None, start_status=0x00, hr_fr
 # `chans` collapses a 3-axis trace to one; a dropped `labels` unnames the series. None of it reaches a
 # file, so none of it was covered.
 EXPECT = {
-    "ecg":      ("ECG (H10)",  "µV",  1, ()),
-    "acc_h10":  ("ACC (H10)",  "mg",  3, ("X", "Y", "Z")),
-    "ppg_h10":  ("PPG (H10)",  "raw", 4, ("LED1", "LED2", "LED3", "ambient")),
+    "ecg": ("ECG (H10)", "µV", 1, ()),
+    "acc_h10": ("ACC (H10)", "mg", 3, ("X", "Y", "Z")),
+    "ppg_h10": ("PPG (H10)", "raw", 4, ("LED1", "LED2", "LED3", "ambient")),
     "gyro_h10": ("Gyro (H10)", "dps", 3, ("X", "Y", "Z")),
-    "mag_h10":  ("Mag (H10)",  "G",   3, ("X", "Y", "Z")),
-    "ppi_h10":  ("PPI (H10)",  "ms",  2, ("PP-int", "HR")),
+    "mag_h10": ("Mag (H10)", "G", 3, ("X", "Y", "Z")),
+    "ppi_h10": ("PPI (H10)", "ms", 2, ("PP-int", "HR")),
 }
 ALL6 = ["ecg", "acc", "ppg", "gyro", "mag", "ppi"]
 
@@ -163,10 +167,12 @@ def test_a_stream_registers_at_rate_UNKNOWN_and_only_then_at_the_NEGOTIATED_rate
         assert calls[0][3] == 0, (
             f"{key} was first registered at fs={calls[0][3]!r}, not 0. Between START and the re-register "
             "every stream would carry a nominal it never agreed to, and stream_health paints WEAK "
-            "against it (measured 2026-08-04: ACC 0.125, MAG 0.21, neither a weak link).")
+            "against it (measured 2026-08-04: ACC 0.125, MAG 0.21, neither a weak link)."
+        )
         assert calls[1][3] == 130, f"{key}: re-registered at {calls[1][3]}, not the negotiated 130 Hz"
         assert calls[0][0] == calls[1][0] and calls[0][1] == calls[1][1], (
-            f"{key}: the re-register must replace the SAME card, not create a second one")
+            f"{key}: the re-register must replace the SAME card, not create a second one"
+        )
 
 
 def test_an_hr_strap_registers_BOTH_the_rr_and_the_bpm_card(tmp_path, monkeypatch):
@@ -187,7 +193,8 @@ def test_each_stream_pushes_its_own_shape_and_its_own_device_clock(tmp_path, mon
 
     ecg_a, ecg_k = pushed["ecg"]
     assert all(not isinstance(v, list) for v in ecg_a[1]), (
-        f"ECG is single-channel — push a flat scalar series, got {ecg_a[1][:2]}")
+        f"ECG is single-channel — push a flat scalar series, got {ecg_a[1][:2]}"
+    )
     for key in ("acc_h10", "ppg_h10", "gyro_h10", "mag_h10"):
         a, _k = pushed[key]
         assert all(isinstance(v, list) for v in a[1]), f"{key} is multi-channel — push lists, not scalars"
@@ -199,7 +206,8 @@ def test_each_stream_pushes_its_own_shape_and_its_own_device_clock(tmp_path, mon
         assert pushed[key][1].get("dev_ns"), f"{key}: dev_ns missing — effFs would measure the radio"
     assert "dev_ns" not in pushed["ppi_h10"][1], (
         "PPI is per-beat by construction (SAMPLE_HZ[PPI]=0) — it has no rate to measure and must be "
-        "judged on silence alone")
+        "judged on silence alone"
+    )
 
 
 def test_ppi_is_pushed_as_PP_interval_then_HR_not_the_decode_order(tmp_path, monkeypatch):
@@ -212,13 +220,14 @@ def test_ppi_is_pushed_as_PP_interval_then_HR_not_the_decode_order(tmp_path, mon
     ppint, hr = rows[0]
     assert ppint > hr, (
         f"PPI pushed [{ppint}, {hr}] — a plausible interval (ms) exceeds a plausible HR (bpm); "
-        "these look swapped, which puts bpm on a millisecond axis")
+        "these look swapped, which puts bpm on a millisecond axis"
+    )
 
 
 def test_a_rejected_stream_unregisters_its_card_instead_of_leaving_it_idle(tmp_path, monkeypatch):
     """START rejected on unsupported settings: the writer is discarded AND the card removed. Leaving the
     card would show a stream that will never tick, indistinguishable from a dead one."""
-    bus = _drive(monkeypatch, tmp_path, ["ecg"], start_status=0x02)   # 0x02 = invalid setting, not transient
+    bus = _drive(monkeypatch, tmp_path, ["ecg"], start_status=0x02)  # 0x02 = invalid setting, not transient
     assert bus.seen["unregister"], "a rejected stream left its card on the monitor"
     assert bus.seen["unregister"][0][0][0] == "ecg", bus.seen["unregister"]
 
@@ -228,18 +237,20 @@ def test_a_rejected_stream_unregisters_its_card_instead_of_leaving_it_idle(tmp_p
 # a PMD session alone never enters it, which is why 18 of this family's mutants survived the first pass:
 # every assertion above was about streams `on_hr` does not touch.
 def test_an_hr_frame_pushes_the_rr_series_and_the_bpm_series_to_their_OWN_cards(tmp_path, monkeypatch):
-    hr = bytes([0x06, 57]) + (870).to_bytes(2, "little")   # contact supported+detected, bpm 57, one RR
+    hr = bytes([0x06, 57]) + (870).to_bytes(2, "little")  # contact supported+detected, bpm 57, one RR
     bus = _drive(monkeypatch, tmp_path, ["ecg", "hr"], frames=[T._ecg_frame()], hr_frame=hr)
     pushed = {c[0][0]: c[0] for c in bus.seen["push"]}
     assert "hr_h10" in pushed, f"the RR series reached no card — pushed {sorted(pushed)}"
     assert "bpm_h10" in pushed, (
         "the strap's own HR reached no card. RR and bpm are two real series from one frame — for a "
-        "while only RR was pushed and the device's HR had no card at all.")
+        "while only RR was pushed and the device's HR had no card at all."
+    )
     # RR arrives in the SIG's 1/1024 s units and must reach the card in MILLISECONDS. 870/1024*1000 =
     # 849.6 -> 850. Pushing the raw 870 would be a silent +2.4 % on every interval, which is a plausible
     # number in a plausible unit — the shape of error nothing downstream can catch.
     assert pushed["hr_h10"][1] == [round(870 / 1024 * 1000)], (
-        f"RR must be converted from 1/1024 s to ms, got {pushed['hr_h10'][1]}")
+        f"RR must be converted from 1/1024 s to ms, got {pushed['hr_h10'][1]}"
+    )
     assert pushed["bpm_h10"][1] == [57.0], f"bpm must be the device's own reading, got {pushed['bpm_h10'][1]}"
     # 0 = "irregular / rate unknown", the same honesty PPI uses: beats are not a sample rate. A nominal
     # here would send stream_health judging an aperiodic series against a rate nobody agreed to.
@@ -257,7 +268,8 @@ def test_a_rejected_DEVICE_QUALIFIED_stream_unregisters_the_qualified_key(tmp_pa
     key = bus.seen["unregister"][0][0][0]
     assert key == "acc_h10", (
         f"unregistered {key!r}, not 'acc_h10' — an unqualified key removes the wrong device's card "
-        "(#410: two sensors both stream ACC)")
+        "(#410: two sensors both stream ACC)"
+    )
 
 
 def test_every_pmd_push_declares_a_rate_and_ppi_declares_ZERO(tmp_path, monkeypatch):
@@ -277,15 +289,22 @@ def test_every_pmd_push_declares_a_rate_and_ppi_declares_ZERO(tmp_path, monkeypa
     So the vendor-default fallback is a live path, and it should be pinned rather than assumed absent."""
     bus = _drive(monkeypatch, tmp_path, ALL6)
     pushed = {c[0][0]: c[0] for c in bus.seen["push"]}
-    for stream, key in (("ecg", "ecg"), ("acc", "acc_h10"), ("ppg", "ppg_h10"),
-                        ("gyro", "gyro_h10"), ("mag", "mag_h10")):
+    for stream, key in (
+        ("ecg", "ecg"),
+        ("acc", "acc_h10"),
+        ("ppg", "ppg_h10"),
+        ("gyro", "gyro_h10"),
+        ("mag", "mag_h10"),
+    ):
         hz = pushed[key][2]
         assert hz == pmd.SAMPLE_HZ[getattr(pmd, stream.upper())], (
             f"{key} pushed at fs={hz!r}; with no negotiated rate yet the documented fallback is the "
-            f"vendor nominal {pmd.SAMPLE_HZ[getattr(pmd, stream.upper())]}")
+            f"vendor nominal {pmd.SAMPLE_HZ[getattr(pmd, stream.upper())]}"
+        )
     assert pushed["ppi_h10"][2] == 0, (
         f"PPI pushed at fs={pushed['ppi_h10'][2]!r} — it is per-beat by construction "
-        "(SAMPLE_HZ[PPI] = 0) and 0 is the 'no rate' marker; None would become rate=1")
+        "(SAMPLE_HZ[PPI] = 0) and 0 is the 'no rate' marker; None would become rate=1"
+    )
 
 
 # ══ the STATUS card: what an operator and every alert actually read ═════════════════════════════════
@@ -311,7 +330,8 @@ def test_a_session_opens_by_clearing_the_card_and_naming_the_ADDRESS(tmp_path, m
     opening = _fields(sets, connected=False, address="24:AC:AC:02:84:96", last_error=None)
     assert opening, (
         "no _set opened the session with connected=False + address + last_error=None; recorded: "
-        f"{[sorted(kv) for _n, kv in sets][:6]}")
+        f"{[sorted(kv) for _n, kv in sets][:6]}"
+    )
     assert capture.STATUS["devices"]["H10"]["address"] == "24:AC:AC:02:84:96"
 
 
@@ -323,7 +343,8 @@ def test_a_fresh_connection_increments_LINK_EPOCH(tmp_path, monkeypatch):
     _drive(monkeypatch, tmp_path, ["ecg"], frames=[T._ecg_frame()], sets=sets)
     assert capture.STATUS["devices"]["H10"]["link_epoch"] >= 1, (
         "a connection that reached the card must have counted — link_epoch is the only signal a "
-        "reconnect storm gives, since every cycle also logs a healthy 'connected'")
+        "reconnect storm gives, since every cycle also logs a healthy 'connected'"
+    )
     assert _fields(sets, connected=True), "the connect itself must reach the card"
 
 
@@ -333,12 +354,14 @@ def test_the_device_menu_is_PUBLISHED_and_MERGED_not_replaced(tmp_path, monkeypa
     `{**(STATUS…get("pmd_options") or {}), name: settings…}`. Lose the merge and Settings shows one
     stream's options — whichever negotiated last."""
     sets: list = []
-    _drive(monkeypatch, tmp_path, ["ecg", "acc", "ppg"],
-           frames=[T._ecg_frame(), T._acc_frame(), T._ppg_frame()], sets=sets)
+    _drive(
+        monkeypatch, tmp_path, ["ecg", "acc", "ppg"], frames=[T._ecg_frame(), T._acc_frame(), T._ppg_frame()], sets=sets
+    )
     opts = capture.STATUS["devices"]["H10"]["pmd_options"]
     assert set(opts) == {"ecg", "acc", "ppg"}, (
         f"pmd_options carries {sorted(opts)} — a per-stream write that does not merge leaves only the "
-        "last stream, and Settings then offers rates for one stream as if they were all of them")
+        "last stream, and Settings then offers rates for one stream as if they were all of them"
+    )
     for stream, legal in opts.items():
         assert legal == [130], f"{stream}: the device's own menu must be published verbatim, got {legal}"
 
@@ -361,8 +384,8 @@ def test_the_device_clock_and_its_SKEW_both_reach_the_card(tmp_path, monkeypatch
     assert card.get("device_time"), "the device's own clock must be surfaced"
     assert "T" in card["device_time"], f"an ISO stamp, got {card['device_time']!r}"
     assert card.get("clock_skew_sec") is not None, (
-        "clock_skew_sec must be surfaced alongside it — a device time with no skew cannot say whether "
-        "the sync took")
+        "clock_skew_sec must be surfaced alongside it — a device time with no skew cannot say whether the sync took"
+    )
     assert isinstance(card["clock_skew_sec"], float)
 
 
@@ -379,8 +402,9 @@ class SilentStartClient(T.FlexPolarClient):
     `NO_ACK` is not a status byte — it is `-1`, what `_ctrl` returns when no control response arrives
     at all, so it cannot be produced with `start_status=`. An unknown byte like 0xFF really IS a
     rejection, which is the distinction this test exists to draw."""
+
     async def write_gatt_char(self, uuid, cmd, response=False):
-        if uuid == pmd.PMD_CONTROL and cmd[0] == 0x02:      # START — dropped indication
+        if uuid == pmd.PMD_CONTROL and cmd[0] == 0x02:  # START — dropped indication
             self.writes.append(bytes(cmd))
             return
         return await super().write_gatt_char(uuid, cmd, response=response)
@@ -391,7 +415,7 @@ def test_an_UNACKNOWLEDGED_start_says_re_negotiate_not_rejected(tmp_path, monkey
     KEPT so the stall watchdog re-negotiates on a fresh link. The card must say so: the difference an
     operator acts on is whether the stream is coming back. The old code filed this under "unsupported
     settings" and deleted the writer, so one lost indication cost that stream the whole session."""
-    monkeypatch.setattr(capture, "_PMD_CTRL_TIMEOUT_S", 0.01)   # the wait is real; make it brief
+    monkeypatch.setattr(capture, "_PMD_CTRL_TIMEOUT_S", 0.01)  # the wait is real; make it brief
     sets: list = []
     bus = _spy(monkeypatch)
     _spy_set(monkeypatch, sets)
@@ -401,12 +425,15 @@ def test_an_UNACKNOWLEDGED_start_says_re_negotiate_not_rejected(tmp_path, monkey
     asyncio.run(capture.run_polar(T._pdev(streams=["ecg"]), str(tmp_path)))
     errs = [kv["last_error"] for _n, kv in sets if kv.get("last_error")]
     assert any("unacknowledged" in e and "re-negotiate" in e for e in errs), (
-        f"an unacked START must be distinguishable from a rejection on the card; saw {errs}")
+        f"an unacked START must be distinguishable from a rejection on the card; saw {errs}"
+    )
     assert not any("rejected" in e for e in errs), (
-        "an unacked START must NOT read as rejected — they differ in whether the stream survives")
+        "an unacked START must NOT read as rejected — they differ in whether the stream survives"
+    )
     assert not bus.seen["unregister"], (
         "the stream must be KEPT on no-ack — unregistering it is the old bug, one lost indication "
-        "costing the stream its session")
+        "costing the stream its session"
+    )
 
 
 def test_a_link_error_reaches_the_card_and_clears_connected(tmp_path, monkeypatch):
@@ -432,6 +459,7 @@ class RisingBatteryClient(T.FlexPolarClient):
     REFUSED, which cannot happen to a device that was already streaming when it hit the dock. So a
     device put on charge mid-session reported charging=False forever while its battery visibly rose —
     measured 2026-07-19, a Verity going 35 -> 61 %."""
+
     def __init__(self, *a, levels=(50, 60, 55), **k):
         super().__init__(*a, **k)
         self._levels, self._n = list(levels), 0
@@ -446,7 +474,8 @@ class RisingBatteryClient(T.FlexPolarClient):
 
 def test_a_RISING_battery_infers_charging_and_a_falling_one_clears_it(tmp_path, monkeypatch):
     sets: list = []
-    _spy(monkeypatch); _spy_set(monkeypatch, sets)
+    _spy(monkeypatch)
+    _spy_set(monkeypatch, sets)
     T._polar_common(monkeypatch)
     T._inject_connect(monkeypatch, RisingBatteryClient(data_frames=[T._ecg_frame()], levels=(50, 60, 55)))
     # The refresh rides `secs % 120 == 0`, so the rise lands at 120 and the FALL at 240 —
@@ -455,8 +484,7 @@ def test_a_RISING_battery_infers_charging_and_a_falling_one_clears_it(tmp_path, 
     asyncio.run(capture.run_polar(T._pdev(streams=["ecg"]), str(tmp_path)))
     # Filtered by device NAME: `_set(None, charging=…)` writes a phantom card and must not satisfy this.
     charge = [kv["charging"] for n, kv in sets if n == "H10" and "charging" in kv]
-    assert True in charge, (
-        f"a battery that ROSE must set charging=True — these cells do not self-charge; saw {charge}")
+    assert True in charge, f"a battery that ROSE must set charging=True — these cells do not self-charge; saw {charge}"
     # ORDER, not membership: a successful START also writes charging=False, so `False in charge` is
     # satisfied before the battery is ever read. The claim is that the FALL cleared it, i.e. last.
     assert charge[-1] is False, f"a battery that then FELL must clear it last; saw {charge}"
@@ -481,7 +509,8 @@ def test_a_frame_the_decoder_REJECTS_puts_the_REASON_on_the_card(tmp_path, monke
     # placeholder forms — `str(None)` is "None", truthy, and passes any `assert card.get("last_error")`
     # while saying nothing — and survives a reword of the sentence around it.
     assert any(e not in ("None", "") and "0x00" in e for e in errs), (
-        f"the card must name the frame type it could not decode; saw {errs}")
+        f"the card must name the frame type it could not decode; saw {errs}"
+    )
 
 
 def test_an_OPTIONAL_backup_device_says_so_ONCE_and_stays_quiet(tmp_path, monkeypatch):
@@ -489,24 +518,26 @@ def test_an_OPTIONAL_backup_device_says_so_ONCE_and_stays_quiet(tmp_path, monkey
     here", so it is noted once and then kept quiet — otherwise it warns every backoff cycle forever
     (the COOSPO spam). The card must still say connected=False with the reason."""
     sets: list = []
-    _spy(monkeypatch); _spy_set(monkeypatch, sets)
+    _spy(monkeypatch)
+    _spy_set(monkeypatch, sets)
     T._polar_common(monkeypatch)
     capture._OPT_QUIET.clear()
-    monkeypatch.setattr(capture, "_connect",
-                        lambda *a, **k: (_ for _ in ()).throw(TimeoutError("not here")))
+    monkeypatch.setattr(capture, "_connect", lambda *a, **k: (_ for _ in ()).throw(TimeoutError("not here")))
     T._stop_after(monkeypatch, 1)
     asyncio.run(capture.run_polar(T._pdev(streams=["ecg"], optional=True), str(tmp_path)))
     hits = [kv for _n, kv in sets if kv.get("connected") is False and "optional" in str(kv.get("last_error"))]
     assert hits, f"an absent optional device must say so on the card; saw {[kv for _n, kv in sets]}"
     assert "24:AC:AC:02:84:96" in capture._OPT_QUIET, (
-        "the address must be marked quiet, or the note repeats every backoff cycle all night")
+        "the address must be marked quiet, or the note repeats every backoff cycle all night"
+    )
 
 
 def test_a_STALLED_stream_says_re_negotiating_on_the_card(tmp_path, monkeypatch):
     """A started stream silent behind a LIVE link. The watchdog is what caught the 2026-07-25 freeze
     pattern; the card is where an operator sees it, and `last_error` is the only place it appears."""
     sets: list = []
-    _spy(monkeypatch); _spy_set(monkeypatch, sets)
+    _spy(monkeypatch)
+    _spy_set(monkeypatch, sets)
     T._polar_common(monkeypatch)
     monkeypatch.setattr(capture, "_STREAM_STALL_S", 5.0)
     # No data frames at all: the writer opens, START succeeds, and no row ever arrives.
@@ -520,11 +551,13 @@ def test_a_STALLED_stream_says_re_negotiating_on_the_card(tmp_path, monkeypatch)
         clock["t"] += max(secs, 1.0)
         if clock["t"] > 1060:
             capture._STOP.set()
+
     monkeypatch.setattr(capture.asyncio, "sleep", tick)
     asyncio.run(capture.run_polar(T._pdev(streams=["ecg"]), str(tmp_path)))
     errs = [str(kv["last_error"]) for n, kv in sets if n == "H10" and kv.get("last_error")]
     assert any("silent" in e and "re-negotiating" in e for e in errs), (
-        f"a stream silent behind a live link must say so on THIS device's card; saw {errs}")
+        f"a stream silent behind a live link must say so on THIS device's card; saw {errs}"
+    )
 
 
 def test_every_status_write_NAMES_THE_DEVICE_it_belongs_to(tmp_path, monkeypatch):
@@ -539,8 +572,7 @@ def test_every_status_write_NAMES_THE_DEVICE_it_belongs_to(tmp_path, monkeypatch
     paths this file drives today AND the ones a later fixture adds."""
     for driver in (
         lambda s: _drive(monkeypatch, tmp_path, ALL6, sets=s),
-        lambda s: _drive(monkeypatch, tmp_path, ["ecg"], frames=[T._ecg_frame()],
-                         start_status=0x02, sets=s),
+        lambda s: _drive(monkeypatch, tmp_path, ["ecg"], frames=[T._ecg_frame()], start_status=0x02, sets=s),
     ):
         # The autouse reset runs between TESTS, not between two drives inside one — and `_stop_after`
         # leaves `_STOP` set, so a second run_polar returns immediately having done nothing. That reads
@@ -575,7 +607,8 @@ def test_a_SUCCESSFUL_start_clears_the_charging_flag(tmp_path, monkeypatch):
     assert charge, "a successful START must record that the device is off the charger"
     assert charge[0] is False, (
         f"the first charging write after a successful START must be False, not {charge[0]!r} — "
-        "None reads as 'unknown', which is a different claim")
+        "None reads as 'unknown', which is a different claim"
+    )
     assert capture.STATUS["devices"]["H10"]["charging"] is False
 
 
@@ -588,22 +621,26 @@ def test_a_PAUSED_link_says_WHY_it_is_paused_and_that_it_is_down(tmp_path, monke
     `is False`, not falsy: None is this daemon's "unknown" everywhere else, and a card that cannot say
     whether the link is up is a different claim from one saying it is down."""
     addr = "24:AC:AC:02:84:96"
-    for setup, expect in ((lambda: capture._POLAR_PAUSED.add(addr), "paused"),
-                          (lambda: capture._RECOVER.set(), "adapter recovering")):
+    for setup, expect in (
+        (lambda: capture._POLAR_PAUSED.add(addr), "paused"),
+        (lambda: capture._RECOVER.set(), "adapter recovering"),
+    ):
         capture._STOP = asyncio.Event()
-        capture._POLAR_PAUSED.clear(); capture._RECOVER.clear()
+        capture._POLAR_PAUSED.clear()
+        capture._RECOVER.clear()
         sets: list = []
-        _spy(monkeypatch); _spy_set(monkeypatch, sets)
+        _spy(monkeypatch)
+        _spy_set(monkeypatch, sets)
         T._polar_common(monkeypatch)
         setup()
         T._stop_after(monkeypatch, 1)
         asyncio.run(capture.run_polar(T._pdev(streams=["ecg"]), str(tmp_path)))
         hits = [kv for n, kv in sets if n == "H10" and "connected" in kv]
         assert hits, f"a paused link wrote nothing to the card ({expect})"
-        assert hits[0]["connected"] is False, (
-            f"a paused link must read connected=False, not {hits[0]['connected']!r}")
+        assert hits[0]["connected"] is False, f"a paused link must read connected=False, not {hits[0]['connected']!r}"
         assert expect in str(hits[0].get("last_error")), (
-            f"the card must say WHY it is paused; wanted {expect!r}, got {hits[0].get('last_error')!r}")
+            f"the card must say WHY it is paused; wanted {expect!r}, got {hits[0].get('last_error')!r}"
+        )
     capture._RECOVER.clear()
 
 
@@ -613,11 +650,17 @@ def test_a_REBOND_that_fails_tells_the_operator_to_pair_by_hand(tmp_path, monkey
     can do, so the card must hand the job to a human. On 2026-07-29 the absence of this recovery cost
     4.5 h of ECG while the task reconnected every ~70 s reporting success."""
     sets: list = []
-    _spy(monkeypatch); _spy_set(monkeypatch, sets)
+    _spy(monkeypatch)
+    _spy_set(monkeypatch, sets)
     T._polar_common(monkeypatch)
-    monkeypatch.setattr(capture, "_REBOND_EVERY", 1)          # every iteration, not every fifth
-    async def not_bonded(*a, **k): return False
-    async def cannot_bond(*a, **k): return False
+    monkeypatch.setattr(capture, "_REBOND_EVERY", 1)  # every iteration, not every fifth
+
+    async def not_bonded(*a, **k):
+        return False
+
+    async def cannot_bond(*a, **k):
+        return False
+
     monkeypatch.setattr(capture.bonding, "is_bonded", not_bonded)
     monkeypatch.setattr(capture.bonding, "ensure_bonded", cannot_bond)
     T._inject_connect(monkeypatch, T.FlexPolarClient(data_frames=[T._ecg_frame()]))
@@ -625,7 +668,8 @@ def test_a_REBOND_that_fails_tells_the_operator_to_pair_by_hand(tmp_path, monkey
     asyncio.run(capture.run_polar(T._pdev(streams=["ecg"]), str(tmp_path)))
     errs = [str(kv["last_error"]) for n, kv in sets if n == "H10" and kv.get("last_error")]
     assert any("bond lost" in e and "monitor page" in e for e in errs), (
-        f"a failed re-pair must name the manual step — the daemon has no move left; saw {errs}")
+        f"a failed re-pair must name the manual step — the daemon has no move left; saw {errs}"
+    )
 
 
 def test_a_TWICE_refused_service_discovery_is_treated_as_a_stale_bond(tmp_path, monkeypatch):
@@ -633,17 +677,23 @@ def test_a_TWICE_refused_service_discovery_is_treated_as_a_stale_bond(tmp_path, 
     mid-negotiation drop looks like, and re-pairing costs ~20 s of scripted bluetoothctl — so firing on
     one would re-pair on every flap. The card says re-pairing only on the second."""
     sets: list = []
-    _spy(monkeypatch); _spy_set(monkeypatch, sets)
+    _spy(monkeypatch)
+    _spy_set(monkeypatch, sets)
     T._polar_common(monkeypatch)
-    async def force_ok(*a, **k): return True
+
+    async def force_ok(*a, **k):
+        return True
+
     monkeypatch.setattr(capture.bonding, "ensure_bonded", force_ok)
-    monkeypatch.setattr(capture, "_connect",
-                        lambda *a, **k: (_ for _ in ()).throw(OSError("Failed to discover services")))
-    T._stop_after(monkeypatch, 4)                              # two failed iterations, then stop
+    monkeypatch.setattr(
+        capture, "_connect", lambda *a, **k: (_ for _ in ()).throw(OSError("Failed to discover services"))
+    )
+    T._stop_after(monkeypatch, 4)  # two failed iterations, then stop
     asyncio.run(capture.run_polar(T._pdev(streams=["ecg"]), str(tmp_path)))
     errs = [str(kv["last_error"]) for n, kv in sets if n == "H10" and kv.get("last_error")]
     assert any("re-pairing" in e and "forgotten this host" in e for e in errs), (
-        f"two refusals in a row must be treated as a stale bond; saw {errs}")
+        f"two refusals in a row must be treated as a stale bond; saw {errs}"
+    )
 
 
 def test_an_optional_device_that_TURNS_UP_stops_being_quiet(tmp_path, monkeypatch):
@@ -658,8 +708,8 @@ def test_an_optional_device_that_TURNS_UP_stops_being_quiet(tmp_path, monkeypatc
     T._stop_after(monkeypatch, 1)
     asyncio.run(capture.run_polar(T._pdev(streams=["ecg"], optional=True), str(tmp_path)))
     assert addr not in capture._OPT_QUIET, (
-        "a device that connected must be un-quieted — leaving it quiet means its LATER absence is "
-        "never reported")
+        "a device that connected must be un-quieted — leaving it quiet means its LATER absence is never reported"
+    )
 
 
 def test_A_ZERO_STAMPED_FRAME_PUBLISHES_NO_SKEW_AT_ALL(tmp_path, monkeypatch, caplog):
@@ -669,14 +719,17 @@ def test_A_ZERO_STAMPED_FRAME_PUBLISHES_NO_SKEW_AT_ALL(tmp_path, monkeypatch, ca
     The control is the sibling test that drives a NORMAL frame and asserts the skew IS published — so
     this cannot pass by the card simply never being written."""
     import logging
+
     with caplog.at_level(logging.WARNING):
         _drive(monkeypatch, tmp_path, ["ecg"], frames=[T._ecg_frame(ns=0)])
     card = capture.STATUS["devices"]["H10"]
     assert card.get("clock_skew_sec") is None, (
         f"a zero stamp produced a skew of {card.get('clock_skew_sec')!r} — the Polar epoch was "
-        "published as a real device clock")
-    assert any("ABSENT" in r.message or "ABSENT" in r.getMessage() for r in caplog.records), \
+        "published as a real device clock"
+    )
+    assert any("ABSENT" in r.message or "ABSENT" in r.getMessage() for r in caplog.records), (
         "the refusal must be visible in the journal, not silent"
+    )
 
 
 def test_THE_CONTROL_a_normal_frame_still_publishes_its_skew(tmp_path, monkeypatch):

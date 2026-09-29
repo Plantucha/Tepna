@@ -48,9 +48,13 @@ def _poll(monkeypatch, cpap_status, restarts):
 
 def _cpap(streak, seen_min_ago):
     import time as _t
-    return {"enabled": True, "unreachable_streak": streak,
-            "last_seen_ms": (_t.time() - seen_min_ago * 60.0) * 1000.0,
-            "last_unreachable_class": "BleakDeviceNotFoundError"}
+
+    return {
+        "enabled": True,
+        "unreachable_streak": streak,
+        "last_seen_ms": (_t.time() - seen_min_ago * 60.0) * 1000.0,
+        "last_unreachable_class": "BleakDeviceNotFoundError",
+    }
 
 
 def test_THE_2026_08_29_SHAPE_NOW_FIRES_A_RUNG(monkeypatch):
@@ -80,7 +84,8 @@ def test_A_MACHINE_GONE_FOR_DAYS_IS_NOT_A_WEDGE(monkeypatch):
 
 def test_A_DISABLED_CPAP_IS_NOT_ASSESSED(monkeypatch):
     restarts = []
-    st = _cpap(600, 10); st["enabled"] = False
+    st = _cpap(600, 10)
+    st["enabled"] = False
     assert _poll(monkeypatch, st, restarts) is None
     assert restarts == []
 
@@ -129,7 +134,8 @@ def test_A_RESTART_THAT_DOES_NOT_HELP_IS_NOT_REPEATED_WITHOUT_BOUND(monkeypatch)
     capture._STOP.clear()
 
     assert len(restarts) == bluez_wedge.MAX_RESTARTS_PER_DAY, (
-        f"spent {len(restarts)} restarts against a budget of {bluez_wedge.MAX_RESTARTS_PER_DAY}")
+        f"spent {len(restarts)} restarts against a budget of {bluez_wedge.MAX_RESTARTS_PER_DAY}"
+    )
     # ...and it still SAYS wedged after the budget is gone. The bookkeeping governs the action, never
     # the verdict; a wedged night reading as healthy is the failure this lane exists to prevent.
     assert capture.STATUS["cpap_wedge"]["verdict"] == bluez_wedge.WEDGED
@@ -148,8 +154,8 @@ def test_A_FAILED_POLL_INCREMENTS_THE_STREAK_AND_RECORDS_THE_CLASS():
 
 def test_A_SUCCESSFUL_POLL_RESETS_THE_STREAK_AND_STAMPS_LAST_SEEN():
     import types
-    capture.STATUS["cpap"] = {"enabled": True, "unreachable_streak": 9,
-                              "last_unreachable_class": "OSError"}
+
+    capture.STATUS["cpap"] = {"enabled": True, "unreachable_streak": 9, "last_unreachable_class": "OSError"}
 
     class _D:
         evidence = {"reachable": True, "fg_state": "Standby"}
@@ -201,12 +207,12 @@ def test_A_FIRING_IS_RECORDED_BEFORE_THE_RESTART_NOT_AFTER(tmp_path, monkeypatch
     monkeypatch.setattr(capture, "_wedge_fire_record", watched_record)
 
     from test_capture_runners import _dev, _run, _stop_after
+
     capture._STOP.clear()
     _stop_after(monkeypatch, 1)
     capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
     capture.STATUS["cpap"] = _cpap(streak=600, seen_min_ago=120)
-    cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")],
-           "root": str(tmp_path)}
+    cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")], "root": str(tmp_path)}
     _run(capture.adapter_watchdog("hci0", cfg))
     capture._STOP.clear()
 
@@ -218,9 +224,11 @@ def test_A_FIRING_IS_RECORDED_BEFORE_THE_RESTART_NOT_AFTER(tmp_path, monkeypatch
 
 def test_THE_OUTCOME_IS_DERIVED_FROM_THE_POLLS_THAT_FOLLOWED(tmp_path):
     import bluez_wedge as BW
+
     t0 = 1_788_000_000_000
     (tmp_path / "WEDGEFIRE.csv").write_text(
-        "fired_ms;device;reason;error_class\n" + BW.fire_row(t0, "cpap", "missed 20", "BleakError"))
+        "fired_ms;device;reason;error_class\n" + BW.fire_row(t0, "cpap", "missed 20", "BleakError")
+    )
     hdr = "host_ms;a;b;c;d;trigger;e;reachable;fg;u;p;q"
     # the device answered 32 s after the restart — the 2026-08-29 shape
     # a blank line and a TORN row (the daemon died mid-write) must be skipped, not counted as a
@@ -288,8 +296,9 @@ def test_THE_UNREACHABLE_MESSAGE_IS_RECORDED_NOT_JUST_THE_CLASS():
     capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
     st = capture.STATUS["cpap"]
     assert st["last_unreachable_class"] == "_As11Error"
-    assert st["last_unreachable_msg"] == "RPC 10 VerificationFailure", \
+    assert st["last_unreachable_msg"] == "RPC 10 VerificationFailure", (
         "the class is the bucket; only the message says WHY, and it was in hand at the raise"
+    )
 
 
 def test_A_MESSAGELESS_EXCEPTION_RECORDS_NULL_NOT_AN_EMPTY_STRING():
@@ -311,11 +320,11 @@ def test_THE_LOG_IS_RATE_LIMITED_BUT_NEVER_SILENT_ABOUT_A_CHANGE(caplog):
     and hourly — never one line per poll, and never silence when the fault becomes a different one."""
     _fresh_cpap_status()
     with caplog.at_level("WARNING"):
-        capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))   # streak 1 → logs
-        for _ in range(30):                                                        # repeats → silent
+        capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))  # streak 1 → logs
+        for _ in range(30):  # repeats → silent
             capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
         first_phase = caplog.text.count("CPAP poll unreachable")
-        capture._note_cpap_unreachable(_As11Error("connection timed out"))         # CHANGED → logs
+        capture._note_cpap_unreachable(_As11Error("connection timed out"))  # CHANGED → logs
     assert first_phase == 1, f"31 identical failures must log once, logged {first_phase}"
     assert caplog.text.count("CPAP poll unreachable") == 2, "a changed fault is news and must log"
     assert "connection timed out" in caplog.text
@@ -328,14 +337,16 @@ def test_THE_HOURLY_LINE_FIRES_SO_A_LONG_OUTAGE_LEAVES_PERIODIC_PROOF(caplog):
         for _ in range(120):
             capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
     # streak 1 (first) and streak 120 (hourly at a 30 s poll) — not the 118 in between.
-    assert caplog.text.count("CPAP poll unreachable") == 2, \
+    assert caplog.text.count("CPAP poll unreachable") == 2, (
         "one line at the start would scroll away; a line an hour is the evidence an outage leaves"
+    )
 
 
 def test_A_SUCCESSFUL_POLL_CLEARS_THE_MESSAGE_AND_THE_LOG_MEMO(caplog):
     """The memo must not outlive the fault: a fault that heals and returns is a NEW outage, and its
     first line is the one an operator reads."""
     import types
+
     _fresh_cpap_status()
     capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
 
@@ -346,8 +357,9 @@ def test_A_SUCCESSFUL_POLL_CLEARS_THE_MESSAGE_AND_THE_LOG_MEMO(caplog):
 
     capture._publish_therapy_state(_D(), None)
     assert capture.STATUS["cpap"]["last_unreachable_msg"] is None
-    assert "msg" not in capture._CPAP_UNREACHABLE_MEMO, \
+    assert "msg" not in capture._CPAP_UNREACHABLE_MEMO, (
         "a healed fault must not suppress the first line of the next one"
+    )
 
     # caplog captures WARNING by default, so the setup failure above is ALREADY in it — clear, or this
     # counts a line from a phase it does not describe (it read 2 and the memo was working fine).
@@ -365,8 +377,9 @@ def test_A_SUCCESSFUL_POLL_CLEARS_THE_MESSAGE_AND_THE_LOG_MEMO(caplog):
 _INTEL = "28:0C:50:0C:18:FD"
 
 
-def _poll_spent(monkeypatch, *, usb_id, extra_devices=None, status_extra=None, rebinds=None,
-                resets=None, handoffs=2, hci_reset=True):
+def _poll_spent(
+    monkeypatch, *, usb_id, extra_devices=None, status_extra=None, rebinds=None, resets=None, handoffs=2, hci_reset=True
+):
     """One poll with the per-device restart budget already SPENT, so the handoff branch is reached."""
     from test_capture_runners import _dev, _run, _stop_after
 
@@ -396,9 +409,11 @@ def _poll_spent(monkeypatch, *, usb_id, extra_devices=None, status_extra=None, r
         capture.STATUS["devices"][k] = v
     capture.STATUS["cpap"] = _cpap(streak=600, seen_min_ago=120)
     capture.STATUS.pop("cpap_wedge", None)
-    cfg = {"watchdog": {"enabled": True, "interval_sec": 60, "hci_reset": hci_reset},
-           "devices": [_dev(name="H10")] + list(extra_devices or []),
-           "cpap": {"ble_stream": {"adapter": _INTEL}}}
+    cfg = {
+        "watchdog": {"enabled": True, "interval_sec": 60, "hci_reset": hci_reset},
+        "devices": [_dev(name="H10")] + list(extra_devices or []),
+        "cpap": {"ble_stream": {"adapter": _INTEL}},
+    }
     _run(capture.adapter_watchdog("hci0", cfg))
     capture._STOP.clear()
 
@@ -426,16 +441,16 @@ def test_the_handoff_is_ONE_PER_DAY_not_every_poll(monkeypatch, caplog):
     with caplog.at_level("ERROR"):
         _poll_spent(monkeypatch, usb_id="1-9", rebinds=rebinds, handoffs=12)
     assert rebinds == ["1-9"], f"handoff repeated: {rebinds}"
-    assert any("already spent today" in r.getMessage() for r in caplog.records), \
+    assert any("already spent today" in r.getMessage() for r in caplog.records), (
         "the second poll never reached the bound — this test would pass vacuously"
+    )
 
 
 def test_the_handoff_honours_hci_reset_disabled(monkeypatch):
     """`hci_reset: false` must skip the controller reset and still rebind — the rung is the USB
     re-enumeration, and the reset is an optional step before it."""
     rebinds, resets = [], []
-    _poll_spent(monkeypatch, usb_id="1-9", rebinds=rebinds, resets=resets, handoffs=1,
-                hci_reset=False)
+    _poll_spent(monkeypatch, usb_id="1-9", rebinds=rebinds, resets=resets, handoffs=1, hci_reset=False)
     assert rebinds == ["1-9"], rebinds
     assert resets == [], f"hci_reset was disabled but a reset ran: {resets}"
 
@@ -454,7 +469,12 @@ def test_another_live_device_on_that_adapter_BLOCKS_the_handoff(monkeypatch):
     from test_capture_runners import _dev
 
     rebinds = []
-    _poll_spent(monkeypatch, usb_id="1-9", rebinds=rebinds, handoffs=1,
-                extra_devices=[_dev(name="OnIntel", adapter=_INTEL)],
-                status_extra={"OnIntel": {"connected": True, "worn": True}})
+    _poll_spent(
+        monkeypatch,
+        usb_id="1-9",
+        rebinds=rebinds,
+        handoffs=1,
+        extra_devices=[_dev(name="OnIntel", adapter=_INTEL)],
+        status_extra={"OnIntel": {"connected": True, "worn": True}},
+    )
     assert rebinds == [], "handoff fired while another device on that adapter was streaming"

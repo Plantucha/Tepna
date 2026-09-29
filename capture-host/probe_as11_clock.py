@@ -22,6 +22,7 @@ device's error. The RATE (slope) is unaffected by the reference either way.
 Usage (on the box, daemon stopped per link_guard):
     .venv/bin/python probe_as11_clock.py [--interval 30] [--count N] [--out AS11CLOCK.csv]
 """
+
 from __future__ import annotations
 
 import argparse

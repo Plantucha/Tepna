@@ -18,13 +18,32 @@
 
 from __future__ import annotations
 
-__all__ = ["DETECTOR_STALE_MULTIPLE", "stale_after_s", "detector_age_s", "live_view",
-           "EndWatch", "observe", "harvest_due",
-           "CATCH_UP_MAX_AGE_S", "journal_rows", "last_therapy_end", "boot_state",
-           "AUTOSTART_RETAIN_S", "AUTOSTART_MAX_ATTEMPTS", "AUTOSTART_BACKOFF_S",
-           "AUTOSTART_BACKOFF_MAX_S", "StartWatch", "observe_start", "autostart_due",
-           "false_start_verdict", "note_false_start",
-           "note_start_failed", "note_manual_stop", "note_started", "boot_start_state"]
+__all__ = [
+    "DETECTOR_STALE_MULTIPLE",
+    "stale_after_s",
+    "detector_age_s",
+    "live_view",
+    "EndWatch",
+    "observe",
+    "harvest_due",
+    "CATCH_UP_MAX_AGE_S",
+    "journal_rows",
+    "last_therapy_end",
+    "boot_state",
+    "AUTOSTART_RETAIN_S",
+    "AUTOSTART_MAX_ATTEMPTS",
+    "AUTOSTART_BACKOFF_S",
+    "AUTOSTART_BACKOFF_MAX_S",
+    "StartWatch",
+    "observe_start",
+    "autostart_due",
+    "false_start_verdict",
+    "note_false_start",
+    "note_start_failed",
+    "note_manual_stop",
+    "note_started",
+    "boot_start_state",
+]
 
 # ── how old is too old ─────────────────────────────────────────────────────────────────────────
 # DERIVED, not chosen by feel. The shadow detector's promise is one reading every
@@ -87,9 +106,13 @@ def live_view(cpap, now_ms, poll_interval_s: float = 30.0):
         state = "unknown"
     else:
         state = str(fg) if fg else ("Therapy" if therapy else "Standby")
-    return {"state": state, "therapy": therapy if fresh else None,
-            "age_s": None if age is None else round(age, 1),
-            "stale_after_s": limit, "fresh": bool(fresh)}
+    return {
+        "state": state,
+        "therapy": therapy if fresh else None,
+        "age_s": None if age is None else round(age, 1),
+        "stale_after_s": limit,
+        "fresh": bool(fresh),
+    }
 
 
 # ── therapy-end harvest trigger ────────────────────────────────────────────────────────────────
@@ -98,6 +121,7 @@ def live_view(cpap, now_ms, poll_interval_s: float = 30.0):
 # stream running through the end of the session) must still harvest that day, so this trigger only
 # ever makes a harvest EARLIER, never replaces the guarantee.
 
+
 class EndWatch:
     """The debounce state. Deliberately a plain object with public fields: the daemon holds one, and
     every transition is decided by `observe`, which is pure and testable without a loop."""
@@ -105,9 +129,9 @@ class EndWatch:
     __slots__ = ("seen_therapy", "ended_at_ms", "fired_for")
 
     def __init__(self, seen_therapy: bool = False, ended_at_ms=None, fired_for=None):
-        self.seen_therapy = seen_therapy   # a Therapy reading has been seen — an "end" means something
-        self.ended_at_ms = ended_at_ms     # when the current uninterrupted non-Therapy run began
-        self.fired_for = fired_for         # ended_at_ms of the end already harvested (fire once)
+        self.seen_therapy = seen_therapy  # a Therapy reading has been seen — an "end" means something
+        self.ended_at_ms = ended_at_ms  # when the current uninterrupted non-Therapy run began
+        self.fired_for = fired_for  # ended_at_ms of the end already harvested (fire once)
 
     # ⚠️ NO __eq__/as_tuple. Both were written here "for tests" and deleted the same hour: nothing
     # used them, and a method kept alive by its own convenience is the defect `find_unwired` caught on
@@ -208,8 +232,8 @@ def journal_rows(text):
         try:
             ms = float(parts[0])
         except ValueError:
-            continue   # a journal row with no parseable timestamp cannot be placed in the session
-                       # it belongs to — and guessing one would fabricate therapy time
+            continue  # a journal row with no parseable timestamp cannot be placed in the session
+            # it belongs to — and guessing one would fabricate therapy time
         rows.append((ms, parts[8].strip()))
     rows.sort()
     return rows
@@ -233,7 +257,7 @@ def last_therapy_end(rows):
     if last_therapy is None:
         return None, False
     if last_therapy == len(rows) - 1:
-        return None, False                # the journal ends IN therapy: no end has been observed yet
+        return None, False  # the journal ends IN therapy: no end has been observed yet
     return rows[last_therapy + 1][0], True
 
 
@@ -261,8 +285,10 @@ def boot_state(end_ms, ended, fired_for, now_ms, max_age_s: float = CATCH_UP_MAX
     if age < 0:
         return fresh, "the last therapy end is in the future — clock disagreement, not a missed edge"
     if age > float(max_age_s):
-        return fresh, (f"the last therapy end is {age / 3600.0:.1f}h old, older than the "
-                       f"{float(max_age_s) / 3600.0:.0f}h catch-up bound; the daily window owns it")
+        return fresh, (
+            f"the last therapy end is {age / 3600.0:.1f}h old, older than the "
+            f"{float(max_age_s) / 3600.0:.0f}h catch-up bound; the daily window owns it"
+        )
     return EndWatch(True, end_ms, fired_for), f"catching up a therapy end from {age / 60.0:.0f} min ago"
 
 
@@ -314,18 +340,19 @@ class StartWatch:
 
     __slots__ = ("began_at_ms", "fired_for", "manual_stop_for", "attempts", "next_try_ms")
 
-    def __init__(self, began_at_ms=None, fired_for=None, manual_stop_for=None,
-                 attempts: int = 0, next_try_ms=None):
-        self.began_at_ms = began_at_ms       # when the current uninterrupted Therapy run began
-        self.fired_for = fired_for           # began_at_ms of the session already auto-started
-        self.manual_stop_for = manual_stop_for   # began_at_ms of a session the OPERATOR stopped
-        self.attempts = attempts             # failed start attempts for the CURRENT session
-        self.next_try_ms = next_try_ms       # earliest next attempt (backoff), None = now
+    def __init__(self, began_at_ms=None, fired_for=None, manual_stop_for=None, attempts: int = 0, next_try_ms=None):
+        self.began_at_ms = began_at_ms  # when the current uninterrupted Therapy run began
+        self.fired_for = fired_for  # began_at_ms of the session already auto-started
+        self.manual_stop_for = manual_stop_for  # began_at_ms of a session the OPERATOR stopped
+        self.attempts = attempts  # failed start attempts for the CURRENT session
+        self.next_try_ms = next_try_ms  # earliest next attempt (backoff), None = now
 
     def __repr__(self):  # pragma: no cover — debugging aid only
-        return (f"StartWatch(began_at_ms={self.began_at_ms!r}, fired_for={self.fired_for!r}, "
-                f"manual_stop_for={self.manual_stop_for!r}, attempts={self.attempts!r}, "
-                f"next_try_ms={self.next_try_ms!r})")
+        return (
+            f"StartWatch(began_at_ms={self.began_at_ms!r}, fired_for={self.fired_for!r}, "
+            f"manual_stop_for={self.manual_stop_for!r}, attempts={self.attempts!r}, "
+            f"next_try_ms={self.next_try_ms!r})"
+        )
 
 
 def observe_start(watch: StartWatch, therapy, now_ms) -> StartWatch:
@@ -338,20 +365,19 @@ def observe_start(watch: StartWatch, therapy, now_ms) -> StartWatch:
     than being cleared by ignorance. A `False` that arrived from ignorance would end the session in
     state and let a mask-off blip start a second one."""
     if therapy is None:
-        return StartWatch(watch.began_at_ms, watch.fired_for, watch.manual_stop_for,
-                          watch.attempts, watch.next_try_ms)
+        return StartWatch(watch.began_at_ms, watch.fired_for, watch.manual_stop_for, watch.attempts, watch.next_try_ms)
     if not therapy:
         # Out of therapy: the session is over. `fired_for` and `manual_stop_for` are KEPT — they are
         # keyed by the ended session and are simply no longer matched once a new one begins.
         return StartWatch(None, watch.fired_for, watch.manual_stop_for, 0, None)
     if watch.began_at_ms is None:
         return StartWatch(now_ms, watch.fired_for, watch.manual_stop_for, 0, None)
-    return StartWatch(watch.began_at_ms, watch.fired_for, watch.manual_stop_for,
-                      watch.attempts, watch.next_try_ms)
+    return StartWatch(watch.began_at_ms, watch.fired_for, watch.manual_stop_for, watch.attempts, watch.next_try_ms)
 
 
-def autostart_due(watch: StartWatch, now_ms, *,
-                  max_attempts: int = AUTOSTART_MAX_ATTEMPTS, already_streaming: bool = False):
+def autostart_due(
+    watch: StartWatch, now_ms, *, max_attempts: int = AUTOSTART_MAX_ATTEMPTS, already_streaming: bool = False
+):
     """`(due, reason)` — should the live stream be started right now? Pure.
 
     EAGER, deliberately: it fires at the FIRST Therapy sighting. The 120 s continuous-therapy
@@ -386,8 +412,9 @@ def autostart_due(watch: StartWatch, now_ms, *,
     return True, f"therapy sighted {held:.0f}s ago — starting eagerly (retention decides the 120 s question)"
 
 
-def false_start_verdict(started_ms, ended_ms, *, manual: bool,
-                        retain_s: float = AUTOSTART_RETAIN_S, hold_s: float = 120.0):
+def false_start_verdict(
+    started_ms, ended_ms, *, manual: bool, retain_s: float = AUTOSTART_RETAIN_S, hold_s: float = 120.0
+):
     """`(discard, reason)` — was this eagerly-started session a FALSE START? Pure.
 
     Decided from the STREAM'S OWN LIFETIME, because nothing else can see: while a stream runs the
@@ -413,13 +440,16 @@ def false_start_verdict(started_ms, ended_ms, *, manual: bool,
     if lived < 0:
         return False, "stream ended before it started? — retaining (clock disagreement, not evidence)"
     if lived < window:
-        return True, (f"stream lived {lived:.0f}s < {window:.0f}s (retain {float(retain_s):.0f}s + "
-                      f"auto-stop hold {float(hold_s):.0f}s) — therapy did not sustain; false start")
+        return True, (
+            f"stream lived {lived:.0f}s < {window:.0f}s (retain {float(retain_s):.0f}s + "
+            f"auto-stop hold {float(hold_s):.0f}s) — therapy did not sustain; false start"
+        )
     return False, f"stream lived {lived:.0f}s ≥ {window:.0f}s — a real session"
 
 
-def note_false_start(watch: StartWatch, now_ms, *, backoff_s: float = AUTOSTART_BACKOFF_S,
-                     backoff_max_s: float = AUTOSTART_BACKOFF_MAX_S) -> StartWatch:
+def note_false_start(
+    watch: StartWatch, now_ms, *, backoff_s: float = AUTOSTART_BACKOFF_S, backoff_max_s: float = AUTOSTART_BACKOFF_MAX_S
+) -> StartWatch:
     """A started stream turned out to be a false start. Pure.
 
     Counts against the SAME attempt budget as a failed connect — the budget bounds BLE churn per
@@ -431,8 +461,9 @@ def note_false_start(watch: StartWatch, now_ms, *, backoff_s: float = AUTOSTART_
     return StartWatch(w.began_at_ms, None, w.manual_stop_for, w.attempts, w.next_try_ms)
 
 
-def note_start_failed(watch: StartWatch, now_ms, *, backoff_s: float = AUTOSTART_BACKOFF_S,
-                      backoff_max_s: float = AUTOSTART_BACKOFF_MAX_S) -> StartWatch:
+def note_start_failed(
+    watch: StartWatch, now_ms, *, backoff_s: float = AUTOSTART_BACKOFF_S, backoff_max_s: float = AUTOSTART_BACKOFF_MAX_S
+) -> StartWatch:
     """Record a failed start and schedule the next attempt. Pure; EXPONENTIAL, capped.
 
     Capped because the backoff is bounded by `max_attempts` anyway, and an uncapped doubling would put
@@ -453,8 +484,7 @@ def note_manual_stop(watch: StartWatch) -> StartWatch:
     MANUAL INTENT WINS, and it is scoped to THIS session: `manual_stop_for` is keyed by `began_at_ms`,
     so the next therapy session auto-starts normally. A global "never again" flag would silently
     disable the feature for every future night on one click."""
-    return StartWatch(watch.began_at_ms, watch.fired_for, watch.began_at_ms, watch.attempts,
-                      watch.next_try_ms)
+    return StartWatch(watch.began_at_ms, watch.fired_for, watch.began_at_ms, watch.attempts, watch.next_try_ms)
 
 
 def note_started(watch: StartWatch) -> StartWatch:
@@ -463,12 +493,10 @@ def note_started(watch: StartWatch) -> StartWatch:
     already run, so zeroing here would hand every started-then-discarded stream a fresh budget and
     unbound exactly the churn the budget exists to bound. (It zeroed before retention existed, when
     nothing could spend an attempt after a successful start.)"""
-    return StartWatch(watch.began_at_ms, watch.began_at_ms, watch.manual_stop_for,
-                      watch.attempts, None)
+    return StartWatch(watch.began_at_ms, watch.began_at_ms, watch.manual_stop_for, watch.attempts, None)
 
 
-def boot_start_state(rows, fired_for, manual_stop_for, now_ms,
-                     max_age_s: float = CATCH_UP_MAX_AGE_S):
+def boot_start_state(rows, fired_for, manual_stop_for, now_ms, max_age_s: float = CATCH_UP_MAX_AGE_S):
     """`(StartWatch, reason)` — the auto-start state a JUST-STARTED daemon should begin with. Pure.
 
     The mirror of `boot_state`: that one asks "did an end happen that nobody harvested", this one asks
@@ -497,10 +525,16 @@ def boot_start_state(rows, fired_for, manual_stop_for, now_ms,
     except (TypeError, ValueError):
         return StartWatch(None, fired_for, manual_stop_for), "unusable timestamps"
     if age < 0:
-        return (StartWatch(None, fired_for, manual_stop_for),
-                "the journal's last row is in the future — clock disagreement, not a live session")
+        return (
+            StartWatch(None, fired_for, manual_stop_for),
+            "the journal's last row is in the future — clock disagreement, not a live session",
+        )
     if age > float(max_age_s):
-        return (StartWatch(None, fired_for, manual_stop_for),
-                f"the journal's last row is {age / 3600.0:.1f}h old; it does not describe now")
-    return (StartWatch(began, fired_for, manual_stop_for),
-            f"therapy appears to be running (began {(float(now_ms) - float(began)) / 60000.0:.0f} min ago)")
+        return (
+            StartWatch(None, fired_for, manual_stop_for),
+            f"the journal's last row is {age / 3600.0:.1f}h old; it does not describe now",
+        )
+    return (
+        StartWatch(began, fired_for, manual_stop_for),
+        f"therapy appears to be running (began {(float(now_ms) - float(began)) / 60000.0:.0f} min ago)",
+    )

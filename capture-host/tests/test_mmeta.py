@@ -61,10 +61,10 @@ def test_a_malformed_meta_reads_as_empty(tmp_path):
 
 def test_a_meta_without_the_key_or_wrong_shape_reads_as_empty(tmp_path):
     a = tmp_path / "a.meta"
-    a.write_text(json.dumps({"other": 1}), encoding="utf-8")            # dict, no exit_code_by_key
+    a.write_text(json.dumps({"other": 1}), encoding="utf-8")  # dict, no exit_code_by_key
     assert mmeta.read_exit_codes(a) == {}
     b = tmp_path / "b.meta"
-    b.write_text(json.dumps([1, 2, 3]), encoding="utf-8")              # not a dict at all
+    b.write_text(json.dumps([1, 2, 3]), encoding="utf-8")  # not a dict at all
     assert mmeta.read_exit_codes(b) == {}
     c = tmp_path / "c.meta"
     c.write_text(json.dumps({"exit_code_by_key": [1]}), encoding="utf-8")  # key present, wrong type
@@ -75,11 +75,13 @@ def test_a_meta_without_the_key_or_wrong_shape_reads_as_empty(tmp_path):
 def test_tested_count_is_zero_for_a_crashed_glob_and_positive_for_a_clean_one(tmp_path):
     """The §3 verdict as the driver consumes it: a crash's all-null meta scores 0 (refuse), a real run's
     decided meta scores its mutants (proceed). Same module, opposite verdict — the discrimination."""
-    crashed = _meta(tmp_path / "crashed", "oxy_transfer.py",
-                    {"oxy_transfer.x_select__mutmut_1": None})
+    crashed = _meta(tmp_path / "crashed", "oxy_transfer.py", {"oxy_transfer.x_select__mutmut_1": None})
     assert mmeta.tested_count(crashed, "oxy_transfer.py", "oxy_transfer.x_select__mutmut_*") == 0
-    clean = _meta(tmp_path / "clean", "oxy_transfer.py",
-                  {"oxy_transfer.x_select__mutmut_1": 33, "oxy_transfer.x_select__mutmut_2": 37})
+    clean = _meta(
+        tmp_path / "clean",
+        "oxy_transfer.py",
+        {"oxy_transfer.x_select__mutmut_1": 33, "oxy_transfer.x_select__mutmut_2": 37},
+    )
     assert mmeta.tested_count(clean, "oxy_transfer.py", "oxy_transfer.x_select__mutmut_*") == 2
 
 
@@ -96,11 +98,7 @@ def _tests(tmp_path, files):
 # A function with no mutable operator generates NOTHING, and mutmut signals that by crashing. Refusing
 # on it reds the safest diffs there are. Measured 2026-08-24 on oxy_inventory.identity: 138 mutants in
 # the file, 0 under that glob, whole run refused at exit 2.
-_MUTSRC = (
-    "def x_a__mutmut_1():\n    pass\n"
-    "def x_a__mutmut_2():\n    pass\n"
-    "def x_b__mutmut_1():\n    pass\n"
-)
+_MUTSRC = "def x_a__mutmut_1():\n    pass\ndef x_a__mutmut_2():\n    pass\ndef x_b__mutmut_1():\n    pass\n"
 
 
 def test_generated_counts_a_functions_own_mutants():
@@ -180,8 +178,9 @@ def test_the_three_way_split_is_exhaustive(tmp_path):
     (tmp_path / "mutants").mkdir()
     (tmp_path / "mutants" / "m.py").write_text(_MUTSRC, encoding="utf-8")
     (tmp_path / "mutants" / "m.py.meta").write_text(
-        json.dumps({"exit_code_by_key": {"m.x_a__mutmut_1": 1, "m.x_a__mutmut_2": None,
-                                         "m.x_b__mutmut_1": None}}), encoding="utf-8")
+        json.dumps({"exit_code_by_key": {"m.x_a__mutmut_1": 1, "m.x_a__mutmut_2": None, "m.x_b__mutmut_1": None}}),
+        encoding="utf-8",
+    )
     # covered — generated and at least one decided
     assert mmeta.generated_count(tmp_path, "m.py", "m.x_a__mutmut_*") > 0
     assert mmeta.tested_count(tmp_path, "m.py", "m.x_a__mutmut_*") > 0

@@ -8,6 +8,7 @@ BRP streams are registered with the derived rate, each StreamData batch's sample
 matching bus key, a `should_stop` event ends the pump cleanly, and the gate refuses while a wearable is
 live but permits an otherwise-idle box.
 """
+
 import asyncio
 import collections
 import json
@@ -46,15 +47,30 @@ def _handshake():
 
 
 def _ack(stream_id=1):
-    return _enc({"id": 16, "result": {
-        "dataIds": [{"dataId": "PatientFlow", "valid": True}, {"dataId": "MaskPressure", "valid": True}],
-        "streamId": stream_id}})
+    return _enc(
+        {
+            "id": 16,
+            "result": {
+                "dataIds": [{"dataId": "PatientFlow", "valid": True}, {"dataId": "MaskPressure", "valid": True}],
+                "streamId": stream_id,
+            },
+        }
+    )
 
 
 def _data(flow, pressure, stream_id=1):
-    return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
-        "data": [{"PatientFlow": flow}, {"MaskPressure": pressure}],
-        "intervalMs": 40, "startTime": "2026-08-23T01:30:28.730Z", "streamId": stream_id}})
+    return _enc(
+        {
+            "jsonrpc": "2.0",
+            "method": "StreamData",
+            "params": {
+                "data": [{"PatientFlow": flow}, {"MaskPressure": pressure}],
+                "intervalMs": 40,
+                "startTime": "2026-08-23T01:30:28.730Z",
+                "streamId": stream_id,
+            },
+        }
+    )
 
 
 class FakeDev:
@@ -106,14 +122,20 @@ def _run(coro):
 
 # ── stream_to_bus ──────────────────────────────────────────────────────────────
 def test_registers_both_channels_and_pushes_each_batch():
-    dev = FakeDev(_handshake() + [
-        _ack(),
-        _data([0.1, 0.2], [5.0, 5.1]),
-        _data([0.3, 0.4], [5.2, 5.3]),
-    ])
+    dev = FakeDev(
+        _handshake()
+        + [
+            _ack(),
+            _data([0.1, 0.2], [5.0, 5.1]),
+            _data([0.3, 0.4], [5.2, 5.3]),
+        ]
+    )
     bus = FakeBus()
-    pushed = _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid-9",
-                                   cipher_factory=_identity_factory, max_batches=2))
+    pushed = _run(
+        CS.stream_to_bus(
+            bus, dev.write, dev.recv_frame, PAIR_KEY, "cid-9", cipher_factory=_identity_factory, max_batches=2
+        )
+    )
     assert pushed == 2
     # both BRP streams registered with the FULL presentation: key, label, unit, derived rate, 1 channel
     assert set(bus.registered) == {"cpap_flow", "cpap_pressure"}
@@ -136,63 +158,115 @@ def test_registers_both_channels_and_pushes_each_batch():
 def test_pushes_use_the_derived_rate():
     dev = FakeDev(_handshake() + [_ack(), _data([1.0], [2.0])])
     bus = FakeBus()
-    _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                          cipher_factory=_identity_factory, max_batches=1))
+    _run(
+        CS.stream_to_bus(
+            bus, dev.write, dev.recv_frame, PAIR_KEY, "cid", cipher_factory=_identity_factory, max_batches=1
+        )
+    )
     assert all(fs == 25.0 for _k, _v, fs in bus.pushed)
 
 
 def test_a_channel_absent_from_a_batch_is_simply_not_pushed():
     """A batch that carries only flow must push only flow — never a fabricated empty pressure frame."""
-    dev = FakeDev(_handshake() + [
-        _ack(),
-        _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
-            "data": [{"PatientFlow": [0.9]}], "intervalMs": 40,
-            "startTime": "2026-08-23T01:30:28.730Z", "streamId": 1}}),
-    ])
+    dev = FakeDev(
+        _handshake()
+        + [
+            _ack(),
+            _enc(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "StreamData",
+                    "params": {
+                        "data": [{"PatientFlow": [0.9]}],
+                        "intervalMs": 40,
+                        "startTime": "2026-08-23T01:30:28.730Z",
+                        "streamId": 1,
+                    },
+                }
+            ),
+        ]
+    )
     bus = FakeBus()
-    _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                          cipher_factory=_identity_factory, max_batches=1))
+    _run(
+        CS.stream_to_bus(
+            bus, dev.write, dev.recv_frame, PAIR_KEY, "cid", cipher_factory=_identity_factory, max_batches=1
+        )
+    )
     keys = {key for key, _v, _fs in bus.pushed}
     assert keys == {"cpap_flow"}, "pressure had no samples this batch — must not be pushed"
 
 
 def test_an_empty_sample_list_is_not_pushed():
-    dev = FakeDev(_handshake() + [
-        _ack(),
-        _data([], [3.0]),   # flow present but empty → skip flow, push pressure
-    ])
+    dev = FakeDev(
+        _handshake()
+        + [
+            _ack(),
+            _data([], [3.0]),  # flow present but empty → skip flow, push pressure
+        ]
+    )
     bus = FakeBus()
-    _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                          cipher_factory=_identity_factory, max_batches=1))
+    _run(
+        CS.stream_to_bus(
+            bus, dev.write, dev.recv_frame, PAIR_KEY, "cid", cipher_factory=_identity_factory, max_batches=1
+        )
+    )
     assert {key for key, _v, _fs in bus.pushed} == {"cpap_pressure"}
 
 
 def test_should_stop_ends_the_pump_between_batches():
     stop = asyncio.Event()
-    stop.set()   # already set: the pump pushes its first batch, then stops before a second
+    stop.set()  # already set: the pump pushes its first batch, then stops before a second
     dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
     bus = FakeBus()
-    pushed = _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                   cipher_factory=_identity_factory, should_stop=stop))
+    pushed = _run(
+        CS.stream_to_bus(
+            bus, dev.write, dev.recv_frame, PAIR_KEY, "cid", cipher_factory=_identity_factory, should_stop=stop
+        )
+    )
     assert pushed == 1, "a set should_stop must end the pump after the current batch"
 
 
 def test_a_custom_channel_map_is_honoured():
-    dev = FakeDev(_handshake() + [
-        _enc({"id": 16, "result": {"dataIds": [{"dataId": "SpO2", "valid": True}], "streamId": 1}}),
-        _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
-            "data": [{"SpO2": [98.0]}], "intervalMs": 1000,
-            "startTime": "2026-08-23T01:30:28.730Z", "streamId": 1}}),
-    ])
+    dev = FakeDev(
+        _handshake()
+        + [
+            _enc({"id": 16, "result": {"dataIds": [{"dataId": "SpO2", "valid": True}], "streamId": 1}}),
+            _enc(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "StreamData",
+                    "params": {
+                        "data": [{"SpO2": [98.0]}],
+                        "intervalMs": 1000,
+                        "startTime": "2026-08-23T01:30:28.730Z",
+                        "streamId": 1,
+                    },
+                }
+            ),
+        ]
+    )
     bus = FakeBus()
-    _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                          channels={"SpO2": ("cpap_spo2", "CPAP SpO₂", "%")},
-                          sample_interval_ms=1000, cipher_factory=_identity_factory, max_batches=1))
+    _run(
+        CS.stream_to_bus(
+            bus,
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            channels={"SpO2": ("cpap_spo2", "CPAP SpO₂", "%")},
+            sample_interval_ms=1000,
+            cipher_factory=_identity_factory,
+            max_batches=1,
+        )
+    )
     assert set(bus.registered) == {"cpap_spo2"}
     assert bus.registered["cpap_spo2"]["fs"] == 1.0, "1000 ms interval → 1 Hz"
     # the chosen interval must reach StartStream too — not silently fall back to the 40 ms default
-    start = next(json.loads(L.fig_unframe(f)[1]) for f in dev.written
-                 if json.loads(L.fig_unframe(f)[1]).get("method") == "StartStream")
+    start = next(
+        json.loads(L.fig_unframe(f)[1])
+        for f in dev.written
+        if json.loads(L.fig_unframe(f)[1]).get("method") == "StartStream"
+    )
     assert start["params"]["sampleIntervalMs"] == 1000
 
 
@@ -200,8 +274,11 @@ def test_a_custom_channel_map_is_honoured():
 def _data_iv(flow, pressure, iv, stream_id=1):
     """A StreamData frame carrying an explicit intervalMs (the device's OWN reported rate). iv=None omits
     the field, the shape as11_pull surfaces as interval_ms=None."""
-    p = {"data": [{"PatientFlow": flow}, {"MaskPressure": pressure}],
-         "startTime": "2026-08-23T01:30:28.730Z", "streamId": stream_id}
+    p = {
+        "data": [{"PatientFlow": flow}, {"MaskPressure": pressure}],
+        "startTime": "2026-08-23T01:30:28.730Z",
+        "streamId": stream_id,
+    }
     if iv is not None:
         p["intervalMs"] = iv
     return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": p})
@@ -214,8 +291,18 @@ def test_the_observed_interval_overrides_the_requested_rate_and_warns(caplog):
     dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], 20)])
     bus = FakeBus()
     with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
-        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=1))
+        _run(
+            CS.stream_to_bus(
+                bus,
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                sample_interval_ms=40,
+                cipher_factory=_identity_factory,
+                max_batches=1,
+            )
+        )
     assert any("!= requested" in r.getMessage() for r in caplog.records), "a first-batch mismatch must warn"
     assert all(fs == 50.0 for _k, _v, fs in bus.pushed), "pushes follow the OBSERVED 20 ms → 50 Hz"
 
@@ -227,8 +314,18 @@ def test_a_mid_stream_interval_change_is_warned_and_the_rate_follows(caplog):
     dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], 40), _data_iv([3.0], [4.0], 20)])
     bus = FakeBus()
     with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
-        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=2))
+        _run(
+            CS.stream_to_bus(
+                bus,
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                sample_interval_ms=40,
+                cipher_factory=_identity_factory,
+                max_batches=2,
+            )
+        )
     assert any("changed mid-stream" in r.getMessage() for r in caplog.records)
     flow_fs = [fs for k, _v, fs in bus.pushed if k == "cpap_flow"]
     assert flow_fs == [25.0, 50.0], "batch 1 at the observed 40 ms=25 Hz, batch 2 follows the new 20 ms=50 Hz"
@@ -240,8 +337,18 @@ def test_a_batch_without_intervalMs_keeps_the_requested_rate(caplog):
     dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], None)])
     bus = FakeBus()
     with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
-        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=1))
+        _run(
+            CS.stream_to_bus(
+                bus,
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                sample_interval_ms=40,
+                cipher_factory=_identity_factory,
+                max_batches=1,
+            )
+        )
     assert all(fs == 25.0 for _k, _v, fs in bus.pushed), "no intervalMs → the requested 40 ms=25 Hz stands"
     assert not [r for r in caplog.records if "interval" in r.getMessage()]
 
@@ -253,8 +360,18 @@ def test_a_zero_interval_is_not_a_valid_rate_and_is_ignored(caplog):
     dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], 0)])
     bus = FakeBus()
     with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
-        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=1))
+        _run(
+            CS.stream_to_bus(
+                bus,
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                sample_interval_ms=40,
+                cipher_factory=_identity_factory,
+                max_batches=1,
+            )
+        )
     assert all(fs == 25.0 for _k, _v, fs in bus.pushed), "0 ms is ignored — the requested rate stands"
     assert not [r for r in caplog.records if "interval" in r.getMessage()]
 
@@ -266,8 +383,18 @@ def test_a_one_ms_interval_is_a_valid_off_rate_and_the_rate_follows(caplog):
     dev = FakeDev(_handshake() + [_ack(), _data_iv([1.0], [2.0], 1)])
     bus = FakeBus()
     with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
-        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                              sample_interval_ms=40, cipher_factory=_identity_factory, max_batches=1))
+        _run(
+            CS.stream_to_bus(
+                bus,
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                sample_interval_ms=40,
+                cipher_factory=_identity_factory,
+                max_batches=1,
+            )
+        )
     assert any("!= requested" in r.getMessage() for r in caplog.records), "1 ms != requested 40 must warn"
     assert all(fs == 1000.0 for _k, _v, fs in bus.pushed), "pushes follow the observed 1 ms → 1000 Hz"
 
@@ -279,8 +406,18 @@ def test_the_extra_sink_receives_the_REAL_batch_not_a_placeholder():
     sink = _RecordingSink()
     dev = FakeDev(_handshake() + [_ack(), _data_iv([0.7], [3.3], 40)])
     bus = FakeBus()
-    _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                          cipher_factory=_identity_factory, extra_sinks=[sink], max_batches=1))
+    _run(
+        CS.stream_to_bus(
+            bus,
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            extra_sinks=[sink],
+            max_batches=1,
+        )
+    )
     assert len(sink.batches) == 1
     b = sink.batches[0]
     assert b is not None, "the sink must get the real batch, not a placeholder"
@@ -294,8 +431,18 @@ def test_an_extra_sink_is_opened_fed_every_batch_and_closed():
     sink = _RecordingSink()
     dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
     bus = FakeBus()
-    delivered = _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                      cipher_factory=_identity_factory, extra_sinks=[sink], max_batches=2))
+    delivered = _run(
+        CS.stream_to_bus(
+            bus,
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            extra_sinks=[sink],
+            max_batches=2,
+        )
+    )
     assert delivered == 2
     assert sink.opened == (CS.BRP_CHANNELS, 25.0), "opened with the channel map + derived rate"
     assert len(sink.batches) == 2, "fed every batch the bus was"
@@ -311,9 +458,12 @@ def test_a_dropped_link_still_FINALIZES_the_sink_with_every_delivered_batch():
     # handshake + ack + THREE data frames, then the recv underflows (IndexError) → the link is gone
     dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1]), _data([0.3], [5.2])])
     bus = FakeBus()
-    with pytest.raises(IndexError):     # the drop propagates — the caller (controller task) handles it
-        _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                              cipher_factory=_identity_factory, extra_sinks=[sink]))
+    with pytest.raises(IndexError):  # the drop propagates — the caller (controller task) handles it
+        _run(
+            CS.stream_to_bus(
+                bus, dev.write, dev.recv_frame, PAIR_KEY, "cid", cipher_factory=_identity_factory, extra_sinks=[sink]
+            )
+        )
     assert len(sink.batches) == 3, "all three delivered batches — incl. the late one — reached the sink"
     assert sink.closed == 1, "the sink was finalized despite the disconnect, not left half-open"
 
@@ -332,8 +482,7 @@ def test_gate_permits_when_every_sensor_is_charging():
     """THE fix: docked sensors report connected=True while producing nothing, and blocking on that made
     the gate unreachable exactly when a capture is safest (the 2026-07-26 bug). A charging device is not
     on a body, so it must NOT block — matching cpap_harvest.blocking_devices."""
-    assert CS.gate({"O2Ring": _dev(worn=False, charging=True),
-                    "Verity": _dev(worn=False, charging=True)}) is None
+    assert CS.gate({"O2Ring": _dev(worn=False, charging=True), "Verity": _dev(worn=False, charging=True)}) is None
 
 
 def test_gate_permits_a_disconnected_sensor():
@@ -368,8 +517,9 @@ def test_gate_DISABLED_permits_even_with_a_sensor_on_the_body():
 def test_on_body_wearables_lists_the_condition_sorted():
     """The on-body set the gate is about, exposed so it can be LOGGED when the gate is disabled. Sorted;
     charging/off-body/disconnected excluded (same predicate the gate uses)."""
-    assert CS.on_body_wearables({"Verity": _dev(worn=True), "H10": _dev(worn=True),
-                                 "Ring": _dev(worn=False, charging=True)}) == ["H10", "Verity"]
+    assert CS.on_body_wearables(
+        {"Verity": _dev(worn=True), "H10": _dev(worn=True), "Ring": _dev(worn=False, charging=True)}
+    ) == ["H10", "Verity"]
     assert CS.on_body_wearables({}) == [] and CS.on_body_wearables(None) == []
 
 
@@ -392,11 +542,11 @@ def _creds():
 
 
 def _idle_devices():
-    return {}   # no device on a body → the gate permits
+    return {}  # no device on a body → the gate permits
 
 
 def _worn_devices():
-    return {"Polar H10": _dev(worn=True)}   # a sensor on the body → the gate refuses
+    return {"Polar H10": _dev(worn=True)}  # a sensor on the body → the gate refuses
 
 
 async def _idle_pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None):
@@ -413,11 +563,13 @@ def _recording_pump():
     seen = {}
 
     async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None):
-        seen.update(bus=bus, write=write, recv_frame=recv_frame, pk=pk, cid=cid,
-                    channels=channels, should_stop=should_stop)
+        seen.update(
+            bus=bus, write=write, recv_frame=recv_frame, pk=pk, cid=cid, channels=channels, should_stop=should_stop
+        )
         while should_stop is None or not should_stop.is_set():
             await asyncio.sleep(0.005)
         return 0
+
     return pump, seen
 
 
@@ -431,11 +583,13 @@ def _connector():
             pass
 
         async def recv_frame():
-            await asyncio.sleep(3600)   # never delivers in the test; the pump is the fake above
+            await asyncio.sleep(3600)  # never delivers in the test; the pump is the fake above
 
         async def disconnect():
             events["disconnected"] += 1
+
         return write, recv_frame, disconnect
+
     return connect, events
 
 
@@ -446,7 +600,7 @@ def _slow_connector():
     events = {"connected": 0, "disconnected": 0}
 
     async def connect():
-        await asyncio.sleep(0.01)          # the interleave window the lock must close
+        await asyncio.sleep(0.01)  # the interleave window the lock must close
         events["connected"] += 1
 
         async def write(_f):
@@ -457,7 +611,9 @@ def _slow_connector():
 
         async def disconnect():
             events["disconnected"] += 1
+
         return write, recv_frame, disconnect
+
     return connect, events
 
 
@@ -497,14 +653,14 @@ def test_controller_start_spawns_a_stream_and_stop_tears_it_down():
         assert started["ok"] is True and started["streaming"] is True
         assert set(started["channels"]) == {"cpap_flow", "cpap_pressure"}
         assert events["connected"] == 1 and c._running()
-        await asyncio.sleep(0.01)   # let the spawned task run once so the pump records its arguments
+        await asyncio.sleep(0.01)  # let the spawned task run once so the pump records its arguments
         # the pump was wired with EVERY argument from the controller — bus, transport, the key decoded
         # from the creds, the clientId, the channel map, and a stop Event. Pins each forward.
         assert seen["bus"] is bus
         assert seen["pk"] == bytes.fromhex("aa" * 32) and seen["cid"] == "cid-1"
         assert seen["channels"] == CS.BRP_CHANNELS
         assert isinstance(seen["should_stop"], asyncio.Event)
-        running_task = c._task    # grab it before stop nulls the reference
+        running_task = c._task  # grab it before stop nulls the reference
         stopped = await c.op("stop")
         assert stopped == {"ok": True, "streaming": False}
         assert events["disconnected"] == 1
@@ -513,6 +669,7 @@ def test_controller_start_spawns_a_stream_and_stop_tears_it_down():
         # §8: the COOPERATIVE stop ends the task on its own (should_stop → the pump returns), so it is
         # DONE but NOT cancelled — no leak, no emergency cancel. Cancellation is now the exception path.
         assert running_task.done() and not running_task.cancelled(), "stop ends the task cooperatively"
+
     _run(go())
 
 
@@ -521,6 +678,7 @@ def test_controller_passes_a_fresh_edf_sink_to_the_pump_when_configured():
     start_time) and hands it to the pump as an extra_sink, making the on-disk EDF a peer of the bus.
     Without the factory — every other controller test — the kwarg is never passed, which is exactly why
     the bus-only pumps stay untouched."""
+
     async def go():
         connect, _ = _connector()
         made = []
@@ -538,13 +696,15 @@ def test_controller_passes_a_fresh_edf_sink_to_the_pump_when_configured():
                 await asyncio.sleep(0.005)
             return 0
 
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices,
-                                    pump=pump, edf_sink_factory=factory)
+        c = CS.LiveStreamController(
+            _ControllerBus(), connect, _creds, _idle_devices, pump=pump, edf_sink_factory=factory
+        )
         await c.op("start")
         await asyncio.sleep(0.01)
         assert len(made) == 1, "one fresh sink built for the session"
         assert seen["extra_sinks"] == made, "the sink is handed to the pump as an extra_sink"
         await c.op("stop")
+
     _run(go())
 
 
@@ -556,19 +716,23 @@ def test_controller_start_is_idempotent_while_running():
         again = await c.op("start")
         assert again["already"] is True and events["connected"] == 1, "no second connect while running"
         await c.op("stop")
+
     _run(go())
 
 
 def test_controller_with_coexistence_gate_ENABLED_refuses_while_a_sensor_is_on_the_body():
     """The mechanism is intact for anyone who opts back in: with coexistence_gate=True, an on-body sensor
     still refuses BEFORE the radio opens. The both-ways §14 pin, half one — enabled blocks."""
+
     async def go():
         connect, events = _connector()
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _worn_devices, pump=_idle_pump,
-                                    coexistence_gate=True)
+        c = CS.LiveStreamController(
+            _ControllerBus(), connect, _creds, _worn_devices, pump=_idle_pump, coexistence_gate=True
+        )
         res = await c.op("start")
         assert res["ok"] is False and "Polar H10" in res["error"]
         assert events["connected"] == 0, "the gate must refuse BEFORE opening the radio"
+
     _run(go())
 
 
@@ -576,34 +740,41 @@ def test_controller_with_coexistence_gate_DISABLED_starts_beside_an_on_body_sens
     """⚠️ THE OWNER ORDER (2026-08-23, supersedes findings-spec §13). The DEFAULT is DISABLED, so a stream
     STARTS even with a sensor on the body — but logs the condition ONCE so a 2.4 GHz congestion post-mortem
     keeps it. The both-ways §14 pin, half two — disabled allows + logs."""
+
     async def go():
         connect, events = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _worn_devices, pump=_idle_pump)
-        res = await c.op("start")            # default: coexistence_gate=False
+        res = await c.op("start")  # default: coexistence_gate=False
         assert res["ok"] is True and res["streaming"] is True, "no refusal — the gate is disabled"
         assert events["connected"] == 1, "the radio opened despite the on-body sensor"
         await c.op("stop")
         return res
+
     with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
         _run(go())
-    assert any("coexistence gate DISABLED" in r.message and "Polar H10" in r.message
-               for r in caplog.records), "the on-body condition is logged for the post-mortem"
+    assert any("coexistence gate DISABLED" in r.message and "Polar H10" in r.message for r in caplog.records), (
+        "the on-body condition is logged for the post-mortem"
+    )
 
 
 def test_controller_with_coexistence_gate_ENABLED_starts_normally_when_nothing_on_body(caplog):
     """Enabled gate + nothing on-body: starts normally, and does NOT emit the disabled-log line (that log
     belongs only to the disabled path). Covers the enabled-and-permitted branch."""
+
     async def go():
         connect, events = _connector()
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump,
-                                    coexistence_gate=True)
+        c = CS.LiveStreamController(
+            _ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump, coexistence_gate=True
+        )
         res = await c.op("start")
         assert res["ok"] is True and events["connected"] == 1
         await c.op("stop")
+
     with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
         _run(go())
-    assert not any("coexistence gate DISABLED" in r.message for r in caplog.records), \
+    assert not any("coexistence gate DISABLED" in r.message for r in caplog.records), (
         "no disabled-log when the gate is enabled"
+    )
 
 
 def test_controller_refuses_to_start_without_credentials():
@@ -613,6 +784,7 @@ def test_controller_refuses_to_start_without_credentials():
         res = await c.op("start")
         assert res["ok"] is False and "pair the CPAP" in res["error"]
         assert events["connected"] == 0
+
     _run(go())
 
 
@@ -621,6 +793,7 @@ def test_controller_stop_is_idempotent_when_not_running():
         connect, _ = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
         assert await c.op("stop") == {"ok": True, "streaming": False}
+
     _run(go())
 
 
@@ -628,6 +801,7 @@ def test_controller_stop_survives_a_pump_that_errored_and_a_disconnect_that_rais
     """Robustness for the live daemon: a stream task that already died with an exception, and a
     disconnect that itself throws, must still leave a clean {streaming:False} and unregister the bus
     keys — the stop path can never crash the monitor."""
+
     async def boom_pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None):
         raise RuntimeError("stream died")
 
@@ -640,16 +814,18 @@ def test_controller_stop_survives_a_pump_that_errored_and_a_disconnect_that_rais
 
         async def disconnect():
             raise OSError("adapter vanished")
+
         return write, recv_frame, disconnect
 
     async def go():
         bus = _ControllerBus()
         c = CS.LiveStreamController(bus, connect, _creds, _idle_devices, pump=boom_pump)
         await c.op("start")
-        await asyncio.sleep(0.01)   # let the pump raise
+        await asyncio.sleep(0.01)  # let the pump raise
         stopped = await c.op("stop")
         assert stopped == {"ok": True, "streaming": False}
         assert set(bus.unregistered) == {"cpap_flow", "cpap_pressure"}
+
     _run(go())
 
 
@@ -657,6 +833,7 @@ def test_controller_stop_handles_a_task_that_raises_on_cancel():
     """If the running pump turns its cancellation into a different exception, stop must swallow it and
     still finish cleanly — the generic-exception arm of the await-after-cancel, distinct from the plain
     CancelledError arm."""
+
     async def stubborn_pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None):
         try:
             while not should_stop.is_set():
@@ -668,16 +845,18 @@ def test_controller_stop_handles_a_task_that_raises_on_cancel():
         connect, events = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=stubborn_pump)
         await c.op("start")
-        await asyncio.sleep(0.01)   # ensure the task is genuinely running (not done) before we stop it
+        await asyncio.sleep(0.01)  # ensure the task is genuinely running (not done) before we stop it
         stopped = await c.op("stop")
         assert stopped == {"ok": True, "streaming": False}
         assert events["disconnected"] == 1
+
     _run(go())
 
 
 # ── capture._load_as11_creds (the daemon creds loader) ───────────────────────────
 def test_load_as11_creds_reads_a_complete_file(tmp_path):
     import capture
+
     p = tmp_path / "as11_creds.json"
     p.write_text(json.dumps({"masterPairKey": "aa" * 32, "clientId": "c", "ble_addr": "04:CD:15:3A:0B:BD"}))
     creds = capture._load_as11_creds(str(p))
@@ -686,12 +865,13 @@ def test_load_as11_creds_reads_a_complete_file(tmp_path):
 
 def test_load_as11_creds_returns_none_for_missing_malformed_or_incomplete(tmp_path):
     import capture
+
     assert capture._load_as11_creds(str(tmp_path / "nope.json")) is None
     bad = tmp_path / "bad.json"
     bad.write_text("{not json")
     assert capture._load_as11_creds(str(bad)) is None
     partial = tmp_path / "partial.json"
-    partial.write_text(json.dumps({"clientId": "c"}))   # no key/addr
+    partial.write_text(json.dumps({"clientId": "c"}))  # no key/addr
     assert capture._load_as11_creds(str(partial)) is None
     empty_val = tmp_path / "empty.json"
     empty_val.write_text(json.dumps({"masterPairKey": "", "clientId": "c", "ble_addr": "x"}))
@@ -703,19 +883,22 @@ def test_controller_concurrent_starts_yield_ONE_stream_not_two():
     """§7: two op('start') fired together produce exactly ONE connect + one stream; the loser sees
     already-running. Without the lock both pass _running() during the connect yield and both spawn — two
     owners on one link. The invariant is at-most-one-owner."""
+
     async def go():
-        connect, events = _slow_connector()      # connect yields → the starts CAN interleave
+        connect, events = _slow_connector()  # connect yields → the starts CAN interleave
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
         r1, r2 = await asyncio.gather(c.op("start"), c.op("start"))
         assert events["connected"] == 1, "exactly one radio open — the lock serialised the transition"
         assert r1["ok"] and r2["ok"] and (r1.get("already") or r2.get("already")), "one saw already-running"
         assert c._running()
         await c.op("stop")
+
     _run(go())
 
 
 def test_controller_concurrent_stops_tear_down_once():
     """§7: two op('stop') fired together don't double-tear-down — both return stopped, the link closes once."""
+
     async def go():
         connect, events = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
@@ -724,12 +907,14 @@ def test_controller_concurrent_stops_tear_down_once():
         assert r1 == {"ok": True, "streaming": False} and r2 == {"ok": True, "streaming": False}
         assert events["disconnected"] == 1, "the link is torn down once, not twice"
         assert not c._running()
+
     _run(go())
 
 
 def test_controller_start_while_stopping_is_serialised_not_interleaved():
     """§7: op('stop') and op('start') fired together are serialised — never a half-state where a new stream
     spawns mid-teardown. Whichever wins the lock, teardown never exceeds setup and the end state is clean."""
+
     async def go():
         connect, events = _slow_connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
@@ -739,6 +924,7 @@ def test_controller_start_while_stopping_is_serialised_not_interleaved():
         assert (c._running() and not c._task.done()) or (not c._running()), "coherent final state"
         if c._running():
             await c.op("stop")
+
     _run(go())
 
 
@@ -746,6 +932,7 @@ def test_controller_start_while_stopping_is_serialised_not_interleaved():
 def test_controller_stop_is_COOPERATIVE_and_does_not_cancel_a_well_behaved_pump(caplog):
     """§8: a pump that respects should_stop ends on its own — stop neither cancels it nor logs the
     emergency line. Cooperative is the normal path."""
+
     async def go():
         connect, _ = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_idle_pump)
@@ -755,13 +942,15 @@ def test_controller_stop_is_COOPERATIVE_and_does_not_cancel_a_well_behaved_pump(
             await c.op("stop")
         assert t.done() and not t.cancelled(), "ended cooperatively, not cancelled"
         assert not any("emergency" in r.message.lower() for r in caplog.records), "no emergency cancel"
+
     _run(go())
 
 
 def test_controller_stop_CANCELS_and_RECORDS_when_the_pump_will_not_stop(monkeypatch, caplog):
     """§8: a deaf pump (ignores should_stop) can't stop cooperatively, so after the grace window stop
     CANCELS it — and RECORDS that the emergency fired, so a truncated recording is never ambiguous."""
-    monkeypatch.setattr(CS, "STOP_GRACE_S", 0.05)   # keep the test fast
+    monkeypatch.setattr(CS, "STOP_GRACE_S", 0.05)  # keep the test fast
+
     async def go():
         connect, _ = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_deaf_pump)
@@ -771,8 +960,10 @@ def test_controller_stop_CANCELS_and_RECORDS_when_the_pump_will_not_stop(monkeyp
             res = await c.op("stop")
         assert res == {"ok": True, "streaming": False}
         assert t.cancelled(), "the deaf pump was cancelled (emergency)"
-        assert any("emergency" in r.message.lower() and "cancel" in r.message.lower()
-                   for r in caplog.records), "the cancellation is RECORDED"
+        assert any("emergency" in r.message.lower() and "cancel" in r.message.lower() for r in caplog.records), (
+            "the cancellation is RECORDED"
+        )
+
     _run(go())
 
 
@@ -781,7 +972,7 @@ def test_the_emergency_warning_reports_the_grace_seconds(monkeypatch, caplog):
     the cooperative stop was given). Pins the STOP_GRACE_S format arg on the warning: a mutant dropping it
     leaves a literal '%.0fs' with no value formatted in. Asserted on the FORMATTED message (getMessage),
     not the raw template, which is why the existing 'emergency in message' test does not catch it."""
-    monkeypatch.setattr(CS, "STOP_GRACE_S", 0.6)   # %.0f rounds to '1s'; the deaf pump forces the timeout
+    monkeypatch.setattr(CS, "STOP_GRACE_S", 0.6)  # %.0f rounds to '1s'; the deaf pump forces the timeout
 
     async def go():
         connect, _ = _connector()
@@ -792,6 +983,7 @@ def test_the_emergency_warning_reports_the_grace_seconds(monkeypatch, caplog):
         msg = next(r.getMessage() for r in caplog.records if "emergency" in r.getMessage().lower())
         assert "1s" in msg, "the warning must name the grace seconds it waited"
         assert "%" not in msg, "the grace must be formatted in, not left as a literal %.0fs"
+
     _run(go())
 
 
@@ -799,18 +991,20 @@ def test_controller_stop_survives_a_pump_that_ERRORS_during_cooperative_drain(ca
     """§8: a well-behaved pump that RAISES while finalizing (a crash on drain, not a hang) surfaces its
     error out of the grace wait as a non-timeout exception; stop swallows it, still tears the link down,
     and reports stopped. A crash on drain must not wedge the controller or masquerade as an emergency."""
+
     async def go():
         connect, events = _connector()
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices,
-                                    pump=_pump_that_errors_on_stop)
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_pump_that_errors_on_stop)
         await c.op("start")
         with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
             res = await c.op("stop")
         assert res == {"ok": True, "streaming": False}
         assert events["disconnected"] == 1, "the link is still torn down despite the pump error"
         assert not c._running()
-        assert not any("emergency" in r.message.lower() for r in caplog.records), \
+        assert not any("emergency" in r.message.lower() for r in caplog.records), (
             "an error WITHIN grace is not a timeout — no emergency cancel is logged"
+        )
+
     _run(go())
 
 
@@ -818,37 +1012,41 @@ def test_controller_emergency_cancel_survives_a_pump_that_raises_on_cancel(monke
     """§8: the deepest edge — a deaf pump that, when the emergency cancel finally fires, converts the
     CancelledError into a DIFFERENT exception. Stop must still complete, record the emergency, and tear
     the link down rather than propagate the pump's dying error."""
-    monkeypatch.setattr(CS, "STOP_GRACE_S", 0.05)   # keep the test fast
+    monkeypatch.setattr(CS, "STOP_GRACE_S", 0.05)  # keep the test fast
 
     async def go():
         connect, events = _connector()
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices,
-                                    pump=_pump_that_defies_cancel)
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=_pump_that_defies_cancel)
         await c.op("start")
         with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
             res = await c.op("stop")
         assert res == {"ok": True, "streaming": False}
         assert events["disconnected"] == 1, "the link is torn down even though the cancel raised"
         assert not c._running()
-        assert any("emergency" in r.message.lower() for r in caplog.records), \
+        assert any("emergency" in r.message.lower() for r in caplog.records), (
             "the timeout still records the emergency before the cancel that raised"
+        )
+
     _run(go())
 
 
 # ── capture._build_cpap_controller (pure wiring) ─────────────────────────────────
 def test_build_controller_defaults_creds_beside_config_and_uses_hci1(tmp_path):
     import capture
+
     cfg = {"cpap": {}}
     ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "config.yaml"))
     # the creds loader closes over the default path (beside the config file)
     assert isinstance(ctl, __import__("cpap_stream").LiveStreamController)
-    (tmp_path / "as11_creds.json").write_text(json.dumps(
-        {"masterPairKey": "aa" * 32, "clientId": "c", "ble_addr": "x"}))
+    (tmp_path / "as11_creds.json").write_text(
+        json.dumps({"masterPairKey": "aa" * 32, "clientId": "c", "ble_addr": "x"})
+    )
     assert ctl._load_creds()["clientId"] == "c", "default creds_path is beside the config file"
 
 
 def test_build_controller_honours_an_explicit_creds_path_and_adapter(tmp_path):
     import capture
+
     creds = tmp_path / "elsewhere.json"
     creds.write_text(json.dumps({"masterPairKey": "bb" * 32, "clientId": "z", "ble_addr": "y"}))
     cfg = {"cpap": {"ble_stream": {"creds_path": str(creds), "adapter": "hci3"}}}
@@ -862,6 +1060,7 @@ def test_build_controller_wires_a_VERIFIED_edf_sink_now_that_the_pin_landed(tmp_
     committed root, not PENDING. Setting flow_scale_verified: false re-quarantines. Serial from config."""
     import capture
     import cpap_edf_writer
+
     out = tmp_path / "cpap-ble"
     cfg = {"cpap": {"ble_stream": {"edf_dir": str(out), "serial": "23211234567"}}}
     ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "config.yaml"))
@@ -872,16 +1071,20 @@ def test_build_controller_wires_a_VERIFIED_edf_sink_now_that_the_pin_landed(tmp_
     assert sink._verified is True, "verified by default now that the pin confirmed the flow unit"
     # explicit opt-out re-quarantines
     req = {"cpap": {"ble_stream": {"edf_dir": str(out), "flow_scale_verified": False}}}
-    assert capture._build_cpap_controller(object(), req, str(tmp_path / "c.yaml"))._edf_sink_factory()._verified is False
+    assert (
+        capture._build_cpap_controller(object(), req, str(tmp_path / "c.yaml"))._edf_sink_factory()._verified is False
+    )
     # serial is provisional — an absent config value falls back to a clear placeholder, never a wrong guess
-    ctl2 = capture._build_cpap_controller(object(), {"cpap": {"ble_stream": {"edf_dir": str(out)}}},
-                                          str(tmp_path / "config.yaml"))
+    ctl2 = capture._build_cpap_controller(
+        object(), {"cpap": {"ble_stream": {"edf_dir": str(out)}}}, str(tmp_path / "config.yaml")
+    )
     assert ctl2._edf_sink_factory()._serial == "UNKNOWN"
 
 
 def test_build_controller_leaves_the_edf_sink_off_without_edf_dir(tmp_path):
     """The mirror: no edf_dir means bus-only — the prior behaviour, no EDF files written."""
     import capture
+
     ctl = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
     assert ctl._edf_sink_factory is None
 
@@ -890,20 +1093,24 @@ def test_build_controller_coexistence_gate_defaults_DISABLED_and_config_can_enab
     """Owner order 2026-08-23: the daemon's coexistence gate DEFAULTS to disabled (no config → False);
     setting cpap.ble_stream.coexistence_gate: true restores the block."""
     import capture
+
     off = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
     assert off._coexistence_gate is False, "disabled by default per the owner order"
-    on = capture._build_cpap_controller(object(), {"cpap": {"ble_stream": {"coexistence_gate": True}}},
-                                        str(tmp_path / "config.yaml"))
+    on = capture._build_cpap_controller(
+        object(), {"cpap": {"ble_stream": {"coexistence_gate": True}}}, str(tmp_path / "config.yaml")
+    )
     assert on._coexistence_gate is True, "config opt-in restores the interlock"
 
 
 # ── capture._cpap_ble_connect (the bleak I/O edge, mocked) ───────────────────────
 class _Char:
-    def __init__(self, uuid, handle): self.uuid, self.handle = uuid, handle
+    def __init__(self, uuid, handle):
+        self.uuid, self.handle = uuid, handle
 
 
 class _Svc:
-    def __init__(self, uuid, chars): self.uuid, self.characteristics = uuid, chars
+    def __init__(self, uuid, chars):
+        self.uuid, self.characteristics = uuid, chars
 
 
 _GATT_TX_UUID = "a6220002-35f1-4b20-afae-cb089d2044aa"
@@ -916,8 +1123,10 @@ _VENDOR_SVC = "0000fd56-0000-1000-8000-00805f9b34fb"
 # and therefore first on the wire, carrying nothing. Transcribed from the journal rather than invented,
 # because a partial tree guessed as "the vendor service minus one characteristic" is the shape #2170's
 # docstrings predicted and the box refuted.
-_FULL_TREE = [_Svc(_GAP_SVC, [_Char("00002a05-0000-1000-8000-00805f9b34fb", 0x0002)]),
-              _Svc(_VENDOR_SVC, [_Char(_GATT_TX_UUID, 0x0020), _Char(_GATT_RX_UUID, 0x0022)])]
+_FULL_TREE = [
+    _Svc(_GAP_SVC, [_Char("00002a05-0000-1000-8000-00805f9b34fb", 0x0002)]),
+    _Svc(_VENDOR_SVC, [_Char(_GATT_TX_UUID, 0x0020), _Char(_GATT_RX_UUID, 0x0022)]),
+]
 _MID_PUBLISH_TREE = [_Svc(_GAP_SVC, [])]
 
 
@@ -949,10 +1158,11 @@ class _FakeBleak:
     happened: #2365's probe shipped green through this file and printed the byte-identical
     `no service snapshot (BleakError)` for 98 of 98 real events. The stub modelled the calls bleak
     receives and not the state bleak KEEPS, so the test encoded the shape and not the contract."""
+
     instances: "list[_FakeBleak]" = []
     # Annotated, not inferred: a bare `= None` types the attribute as `None`, so a subclass holding a
     # real service list is a mypy [assignment] error — and that count may only go DOWN.
-    _services: "list | None" = _FULL_TREE   # class-level; a subclass overrides it or grows it per publish
+    _services: "list | None" = _FULL_TREE  # class-level; a subclass overrides it or grows it per publish
 
     def __init__(self, addr, timeout=None, bluez=None):
         self.addr, self.bluez = addr, bluez
@@ -960,7 +1170,7 @@ class _FakeBleak:
         self.notify_cb = None
         self.written = []
         self.mtu_size = 100
-        self.publishes = 0            # how many times BlueZ was asked for the object tree
+        self.publishes = 0  # how many times BlueZ was asked for the object tree
         self._backend = _FakeBackend(self._publish)
         _FakeBleak.instances.append(self)
 
@@ -984,7 +1194,7 @@ class _FakeBleak:
 
     async def connect(self):
         self.connected = True
-        await self._backend._get_services()   # bleak's backend connect does this (bluezdbus/client.py:325)
+        await self._backend._get_services()  # bleak's backend connect does this (bluezdbus/client.py:325)
 
     async def start_notify(self, uuid, cb):
         self.notify_cb = cb
@@ -994,13 +1204,14 @@ class _FakeBleak:
 
     async def disconnect(self):
         self.connected = False
-        self._backend.services = None   # bleak: `_cleanup_all` resets it — see the class docstring
+        self._backend.services = None  # bleak: `_cleanup_all` resets it — see the class docstring
 
 
 def test_cpap_ble_connect_wires_write_recv_and_disconnect(monkeypatch):
     import as11_link as L
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
     monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
 
@@ -1018,18 +1229,21 @@ def test_cpap_ble_connect_wires_write_recv_and_disconnect(monkeypatch):
         assert vcid == L.VCID_ENC_RX and payload == b'{"id":1}'
         await disconnect()
         assert not client.connected
+
     _run(go())
 
 
 def test_cpap_ble_connect_without_an_adapter_passes_no_bluez_kwarg(monkeypatch):
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
     monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
 
     async def go():
         await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", None)
         assert _FakeBleak.instances[-1].bluez is None, "no hci → no bluez adapter kwarg"
+
     _run(go())
 
 
@@ -1048,6 +1262,7 @@ class _MissingCharBleak(_FakeBleak):
     ⚠️ Its tree NEVER grows, so `_settle_gatt_chars` exhausts its rebuilds and the retry below is what
     recovers — which is the point: these tests pin the BACKSTOP, and deleting the settle must not turn
     any of them green by accident."""
+
     fail_first = 1
     _services = [_Svc(_VENDOR_SVC, [_Char(_GATT_TX_UUID, 0x0020)])]
 
@@ -1066,6 +1281,7 @@ class _LatePublishBleak(_FakeBleak):
     works, the notify characteristic is simply there, and nothing in the retry path ever runs. That
     asymmetry is deliberate — a stub that also raised would let the retry rescue the test and the
     settle could be deleted without anything going red."""
+
     publish_at = 2
 
     def _publish(self):
@@ -1076,9 +1292,10 @@ class _LatePublishBleak(_FakeBleak):
 def test_cpap_ble_connect_retries_once_when_the_snapshot_lacks_the_notify_char(monkeypatch, caplog):
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
     _MissingCharBleak.fail_first = 1
-    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)   # its tree never grows; do not sleep through the settle
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)  # its tree never grows; do not sleep through the settle
     monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
 
     async def go():
@@ -1093,20 +1310,23 @@ def test_cpap_ble_connect_retries_once_when_the_snapshot_lacks_the_notify_char(m
         assert "0000fd56-0000-1000-8000-00805f9b34fb[a6220002-35f1-4b20-afae-cb089d2044aa@0x0020]" in msg
         assert "a6220003-35f1-4b20-afae-cb089d2044aa" in msg and "on hci2" in msg
         await disconnect()
+
     _run(go())
 
 
 def test_cpap_ble_connect_retry_is_one_retry_not_a_loop(monkeypatch):
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
     _MissingCharBleak.fail_first = 99
-    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)   # its tree never grows; do not sleep through the settle
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)  # its tree never grows; do not sleep through the settle
     monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
 
     async def go():
         with pytest.raises(BleakCharacteristicNotFoundError):
             await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+
     _run(go())
     assert len(_FakeBleak.instances) == 2, "exactly one retry — a second identical failure raises, no loop"
     assert all(not c.connected for c in _FakeBleak.instances), "both links closed (#1770 leak guard)"
@@ -1115,9 +1335,10 @@ def test_cpap_ble_connect_retry_is_one_retry_not_a_loop(monkeypatch):
 def test_cpap_ble_connect_retry_can_be_declined_and_other_errors_never_retry(monkeypatch):
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
     _MissingCharBleak.fail_first = 99
-    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)   # its tree never grows; do not sleep through the settle
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)  # its tree never grows; do not sleep through the settle
     monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
     with pytest.raises(BleakCharacteristicNotFoundError):
         _run(capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2", retry_missing_char=False))
@@ -1126,6 +1347,7 @@ def test_cpap_ble_connect_retry_can_be_declined_and_other_errors_never_retry(mon
     class _OtherErrorBleak(_FakeBleak):
         async def start_notify(self, uuid, cb):
             raise RuntimeError("not the #2170 class")
+
     _FakeBleak.instances.clear()
     monkeypatch.setattr(bleak, "BleakClient", _OtherErrorBleak)
     with pytest.raises(RuntimeError):
@@ -1143,12 +1365,15 @@ def test_settle_rebuilds_the_snapshot_and_the_retry_never_runs(monkeypatch, capl
     green — which is exactly how #2365's own diagnostic shipped blind."""
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
     monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
     monkeypatch.setattr(bleak, "BleakClient", _LatePublishBleak)
 
     async def go():
-        with caplog.at_level(logging.INFO, logger="tepna-capture"):   # capture.py:89 — the logger is named for the SERVICE
+        with caplog.at_level(
+            logging.INFO, logger="tepna-capture"
+        ):  # capture.py:89 — the logger is named for the SERVICE
             _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
         assert len(_FakeBleak.instances) == 1, "ONE connect — the link was never thrown away"
         client = _FakeBleak.instances[0]
@@ -1157,6 +1382,7 @@ def test_settle_rebuilds_the_snapshot_and_the_retry_never_runs(monkeypatch, capl
         assert "appeared after 1 rebuild(s)" in msg and "BlueZ had not published" in msg
         assert "could not find" not in msg, "the retry path must not have run"
         await disconnect()
+
     _run(go())
 
 
@@ -1165,16 +1391,20 @@ def test_settle_is_silent_and_free_when_the_first_snapshot_is_complete(monkeypat
     every healthy connect would bury the ~98 lines a night that are the actual measurement."""
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
-    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)   # full tree, published once at connect
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)  # full tree, published once at connect
 
     async def go():
-        with caplog.at_level(logging.INFO, logger="tepna-capture"):   # capture.py:89 — the logger is named for the SERVICE
+        with caplog.at_level(
+            logging.INFO, logger="tepna-capture"
+        ):  # capture.py:89 — the logger is named for the SERVICE
             _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
         client = _FakeBleak.instances[0]
         assert client.publishes == 1, "no rebuild was attempted"
         assert not [r for r in caplog.records if "#2170" in r.getMessage()]
         await disconnect()
+
     _run(go())
 
 
@@ -1182,6 +1412,7 @@ def test_settle_gives_up_after_a_bounded_number_of_rebuilds_and_says_so(monkeypa
     """A tree that never completes must NOT loop: bounded rebuilds, then the phrase that names the
     give-up, which the #2170 warning then carries beside the snapshot."""
     import capture
+
     monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
     client = _MissingCharBleak("04:CD:15:3A:0B:BD")
     _run(client.connect())
@@ -1198,6 +1429,7 @@ def test_settle_reports_the_missing_char_in_the_2170_warning(monkeypatch, caplog
     looked, waited, and it never came", and those want different next steps."""
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
     _MissingCharBleak.fail_first = 1
     monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
@@ -1209,6 +1441,7 @@ def test_settle_reports_the_missing_char_in_the_2170_warning(monkeypatch, caplog
         msg = next(r.getMessage() for r in caplog.records if "could not find" in r.getMessage())
         assert "settle: STILL absent after" in msg
         await disconnect()
+
     _run(go())
 
 
@@ -1238,11 +1471,12 @@ def test_settle_degrades_when_bleak_exposes_no_rebuild(monkeypatch):
     raise a new exception type into the leak guard. The getattr guards are the whole reason a private
     attribute is acceptable here."""
     import capture
+
     monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
     client = _MissingCharBleak("04:CD:15:3A:0B:BD")
     _run(client.connect())
 
-    class _NoRebuildBackend:            # a snapshot that READS but exposes no `_get_services`
+    class _NoRebuildBackend:  # a snapshot that READS but exposes no `_get_services`
         services = _MissingCharBleak._services
 
     client._backend = _NoRebuildBackend()
@@ -1252,7 +1486,7 @@ def test_settle_degrades_when_bleak_exposes_no_rebuild(monkeypatch):
     # and the snapshot is untouched — a degraded rebuild must not destroy the evidence either
     assert capture._gatt_snapshot(client).startswith(_VENDOR_SVC)
 
-    client._backend = None              # `_backend` itself renamed away: unreadable, NOT absent
+    client._backend = None  # `_backend` itself renamed away: unreadable, NOT absent
     assert capture._gatt_missing(client, (_GATT_RX_UUID,)) is None
 
 
@@ -1262,6 +1496,7 @@ def test_a_failed_rebuild_puts_the_snapshot_back(monkeypatch):
     has nothing to do with the failure being diagnosed. That is #2365's blindness with a new cause,
     so the collection is restored on the way out."""
     import capture
+
     monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
     client = _MissingCharBleak("04:CD:15:3A:0B:BD")
     _run(client.connect())
@@ -1269,6 +1504,7 @@ def test_a_failed_rebuild_puts_the_snapshot_back(monkeypatch):
 
     async def _boom():
         raise OSError("bus went away mid-rebuild")
+
     client._backend._get_services = _boom
     with pytest.raises(OSError):
         _run(capture._gatt_rebuild(client))
@@ -1281,6 +1517,7 @@ def test_settle_reports_a_rebuild_that_left_nothing_readable(monkeypatch):
     """The rebuild succeeded and the client STILL cannot be read — the link dropped underneath it.
     Distinct from "still absent": nothing was examined, so nothing may be claimed about the tree."""
     import capture
+
     monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
     client = _MissingCharBleak("04:CD:15:3A:0B:BD")
     _run(client.connect())
@@ -1288,6 +1525,7 @@ def test_settle_reports_a_rebuild_that_left_nothing_readable(monkeypatch):
     async def _empties():
         client._backend.services = None
         return None
+
     client._backend._get_services = _empties
     assert _run(capture._settle_gatt_chars(client, (_GATT_RX_UUID,))) == "unreadable after 1 rebuild(s)"
 
@@ -1309,7 +1547,8 @@ def test_gatt_snapshot_names_what_bleak_held_or_says_it_held_nothing():
     assert capture._gatt_snapshot(_NoSnapshot()) == "no service snapshot (RuntimeError)"
     assert capture._gatt_snapshot(_Empty()) == "empty snapshot"
     assert capture._gatt_snapshot(_Held()) == (
-        "0000fd56-0000-1000-8000-00805f9b34fb[a6220002-35f1-4b20-afae-cb089d2044aa@0x0020]")
+        "0000fd56-0000-1000-8000-00805f9b34fb[a6220002-35f1-4b20-afae-cb089d2044aa@0x0020]"
+    )
 
 
 def test_gatt_link_state_separates_a_dropped_link_from_an_unreadable_one():
@@ -1346,9 +1585,10 @@ def test_the_snapshot_and_link_state_are_read_BEFORE_the_leak_guard_closes_the_l
     test REDS against the old ordering rather than passing on a stub that kept its state."""
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
     _MissingCharBleak.fail_first = 1
-    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)   # its tree never grows; do not sleep through the settle
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)  # its tree never grows; do not sleep through the settle
     monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
 
     async def go():
@@ -1366,16 +1606,27 @@ def test_the_snapshot_and_link_state_are_read_BEFORE_the_leak_guard_closes_the_l
         assert "link at failure: connected" in msg, "the link WAS up — mechanism (b), not a peer drop"
         assert "although the link is up" not in msg, "the retired claim was asserted, never measured"
         await disconnect()
+
     _run(go())
 
 
 # ── P1+P3 wiring: durable sink ordering (INV9) + non-fatal-but-loud sink failure ────────────────────
 class _SnapSink:
     """Records how many bus pushes had happened at the moment its on_batch ran — proves ordering."""
-    def __init__(self, bus): self._bus = bus; self.snaps = []; self.closed = False
-    def open(self, channels, fs): pass
-    def on_batch(self, batch): self.snaps.append(len(self._bus.pushed))
-    def close(self): self.closed = True
+
+    def __init__(self, bus):
+        self._bus = bus
+        self.snaps = []
+        self.closed = False
+
+    def open(self, channels, fs):
+        pass
+
+    def on_batch(self, batch):
+        self.snaps.append(len(self._bus.pushed))
+
+    def close(self):
+        self.closed = True
 
 
 def test_the_durable_sink_writes_before_the_bus_push():
@@ -1384,17 +1635,36 @@ def test_the_durable_sink_writes_before_the_bus_push():
     bus = FakeBus()
     sink = _SnapSink(bus)
     dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
-    _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                          cipher_factory=_identity_factory, max_batches=2, extra_sinks=[sink]))
-    assert sink.snaps == [0, 2]                     # durable-before-bus, every batch
+    _run(
+        CS.stream_to_bus(
+            bus,
+            dev.write,
+            dev.recv_frame,
+            PAIR_KEY,
+            "cid",
+            cipher_factory=_identity_factory,
+            max_batches=2,
+            extra_sinks=[sink],
+        )
+    )
+    assert sink.snaps == [0, 2]  # durable-before-bus, every batch
     assert len(bus.pushed) == 4 and sink.closed
 
 
 class _RaisingSink:
-    def __init__(self): self.batches = 0; self.closed = False
-    def open(self, channels, fs): pass
-    def on_batch(self, batch): self.batches += 1; raise OSError("disk full")
-    def close(self): self.closed = True
+    def __init__(self):
+        self.batches = 0
+        self.closed = False
+
+    def open(self, channels, fs):
+        pass
+
+    def on_batch(self, batch):
+        self.batches += 1
+        raise OSError("disk full")
+
+    def close(self):
+        self.closed = True
 
 
 def test_a_sink_write_failure_is_counted_and_the_stream_survives(caplog):
@@ -1404,14 +1674,23 @@ def test_a_sink_write_failure_is_counted_and_the_stream_survives(caplog):
     dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
     bus = FakeBus()
     with caplog.at_level(logging.WARNING):
-        delivered = _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                          cipher_factory=_identity_factory, max_batches=2,
-                                          extra_sinks=[sink]))
-    assert delivered == 2                           # stream survived both batches despite the raises
-    assert sink.batches == 2 and sink.closed        # sink kept being called, and was closed
-    assert len(bus.pushed) == 4                     # the bus STILL got every push (failure didn't block it)
-    assert "'sink_errors': 2" in caplog.text         # the gap-accounting summary carries the count
-    assert "sink_errors=1" in caplog.text            # each failure logged loudly as it happened
+        delivered = _run(
+            CS.stream_to_bus(
+                bus,
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=2,
+                extra_sinks=[sink],
+            )
+        )
+    assert delivered == 2  # stream survived both batches despite the raises
+    assert sink.batches == 2 and sink.closed  # sink kept being called, and was closed
+    assert len(bus.pushed) == 4  # the bus STILL got every push (failure didn't block it)
+    assert "'sink_errors': 2" in caplog.text  # the gap-accounting summary carries the count
+    assert "sink_errors=1" in caplog.text  # each failure logged loudly as it happened
     # ⚠️ A FAILING SINK IS STILL TIMED. The timing sits in a `finally`, so a write that raises is
     # counted up to the failure rather than vanishing from the record — otherwise the slowest
     # writes, the ones that time out and then raise, would be exactly the ones never measured.
@@ -1419,10 +1698,17 @@ def test_a_sink_write_failure_is_counted_and_the_stream_survives(caplog):
 
 
 class _QuietSink:
-    def __init__(self): self.batches = 0
-    def open(self, channels, fs): pass
-    def on_batch(self, batch): self.batches += 1
-    def close(self): pass
+    def __init__(self):
+        self.batches = 0
+
+    def open(self, channels, fs):
+        pass
+
+    def on_batch(self, batch):
+        self.batches += 1
+
+    def close(self):
+        pass
 
 
 def test_a_CLEAN_sink_write_logs_NOTHING_at_error_level(caplog):
@@ -1436,23 +1722,34 @@ def test_a_CLEAN_sink_write_logs_NOTHING_at_error_level(caplog):
     dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
     bus = FakeBus()
     with caplog.at_level(logging.INFO):
-        delivered = _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                          cipher_factory=_identity_factory, max_batches=2,
-                                          extra_sinks=[sink]))
+        delivered = _run(
+            CS.stream_to_bus(
+                bus,
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=2,
+                extra_sinks=[sink],
+            )
+        )
     assert delivered == 2 and sink.batches == 2
     errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
     assert errors == [], [r.getMessage() for r in errors]
     assert "durable sink failed" not in caplog.text
     assert "'sink_errors': 0" in caplog.text
-    assert "'sink_max_ms'" in caplog.text            # timing still taken on the success path
+    assert "'sink_max_ms'" in caplog.text  # timing still taken on the success path
     assert "'sink_max_ms': None" not in caplog.text, (
-        "a sink that raised was still entered and left — it must be timed, not unmeasured")
+        "a sink that raised was still entered and left — it must be timed, not unmeasured"
+    )
 
 
 def test_controller_hands_both_sinks_to_the_pump_raw_record_first():
     """The durable raw record and the EDF sink are both fresh per session and both handed to the pump —
     with the raw record FIRST (the authoritative copy leads). Coverage alone can't see this; a wrong
     order or a dropped sink would pass at 100% branch, so it is asserted as a contract."""
+
     def go_body():
         async def go():
             async def connect():
@@ -1461,31 +1758,44 @@ def test_controller_hands_both_sinks_to_the_pump_raw_record_first():
 
                 async def recv_frame():
                     await asyncio.sleep(3600)
+
                 return write, recv_frame, (lambda: None)
 
             raw_made, edf_made, seen = [], [], {}
 
             def raw_factory():
-                s = _RecordingSink(); raw_made.append(s); return s
+                s = _RecordingSink()
+                raw_made.append(s)
+                return s
 
             def edf_factory():
-                s = _RecordingSink(); edf_made.append(s); return s
+                s = _RecordingSink()
+                edf_made.append(s)
+                return s
 
-            async def pump(bus, write, recv_frame, pk, cid, *, channels=None, extra_sinks=None,
-                           should_stop=None):
+            async def pump(bus, write, recv_frame, pk, cid, *, channels=None, extra_sinks=None, should_stop=None):
                 seen["extra_sinks"] = extra_sinks
                 while should_stop is None or not should_stop.is_set():
                     await asyncio.sleep(0.005)
                 return 0
 
-            c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump,
-                                        raw_record_factory=raw_factory, edf_sink_factory=edf_factory)
+            c = CS.LiveStreamController(
+                _ControllerBus(),
+                connect,
+                _creds,
+                _idle_devices,
+                pump=pump,
+                raw_record_factory=raw_factory,
+                edf_sink_factory=edf_factory,
+            )
             await c.op("start")
             await asyncio.sleep(0.01)
             assert len(raw_made) == 1 and len(edf_made) == 1
             assert seen["extra_sinks"] == [raw_made[0], edf_made[0]], "raw record leads, then the EDF"
             await c.op("stop")
+
         _run(go())
+
     go_body()
 
 
@@ -1494,6 +1804,7 @@ def test_build_controller_wires_the_raw_record_sink_when_configured(tmp_path):
     host-authored acquisition-run id; device_id is the provisional serial (UNKNOWN when absent)."""
     import capture
     import cpap_record
+
     out = tmp_path / "cpap-raw"
     cfg = {"cpap": {"ble_stream": {"raw_record_dir": str(out), "serial": "23211234567"}}}
     ctl = capture._build_cpap_controller(object(), cfg, str(tmp_path / "config.yaml"))
@@ -1503,13 +1814,15 @@ def test_build_controller_wires_the_raw_record_sink_when_configured(tmp_path):
     assert sink._device_id == "23211234567"
     assert sink._session_id and sink._path.endswith(".jsonl") and "cpap-raw-" in sink._path
     # serial absent → provisional placeholder, never a wrong guess
-    ctl2 = capture._build_cpap_controller(object(), {"cpap": {"ble_stream": {"raw_record_dir": str(out)}}},
-                                          str(tmp_path / "c.yaml"))
+    ctl2 = capture._build_cpap_controller(
+        object(), {"cpap": {"ble_stream": {"raw_record_dir": str(out)}}}, str(tmp_path / "c.yaml")
+    )
     assert ctl2._raw_record_factory()._device_id == "UNKNOWN"
 
 
 def test_build_controller_leaves_the_raw_record_off_without_a_dir(tmp_path):
     import capture
+
     ctl = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
     assert ctl._raw_record_factory is None
 
@@ -1541,7 +1854,7 @@ def test_therapy_end_sink_does_NOT_stop_on_an_apnea_length_silence():
     ev = asyncio.Event()
     s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=120.0)
     s.open(CS.BRP_CHANNELS, 25.0)
-    s.on_batch(_batch([0.0] * (30 * 25)))          # 30 s of silence — a long apnea
+    s.on_batch(_batch([0.0] * (30 * 25)))  # 30 s of silence — a long apnea
     assert not ev.is_set(), "a 30 s silence is an apnea, NOT the end of therapy"
     assert s.fired is False
 
@@ -1550,9 +1863,9 @@ def test_therapy_end_sink_resets_the_hold_on_any_real_breath():
     ev = asyncio.Event()
     s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=2.0)
     s.open(CS.BRP_CHANNELS, 25.0)
-    s.on_batch(_batch([0.0] * 40))                 # 40 quiet (needs 50)
-    s.on_batch(_batch([18.0]))                     # one real breath → hold RESETS
-    s.on_batch(_batch([0.0] * 40))                 # 40 more; without the reset this would total 80
+    s.on_batch(_batch([0.0] * 40))  # 40 quiet (needs 50)
+    s.on_batch(_batch([18.0]))  # one real breath → hold RESETS
+    s.on_batch(_batch([0.0] * 40))  # 40 more; without the reset this would total 80
     assert not ev.is_set(), "a breath between quiet runs must reset the hold, not accumulate"
 
 
@@ -1563,7 +1876,7 @@ def test_therapy_end_sink_times_from_SAMPLES_not_wall_clock():
     s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=2.0)
     s.open(CS.BRP_CHANNELS, 25.0)
     s.on_batch(_batch([0.0] * 10))
-    time.sleep(0.05)                               # wall time passes, NO samples arrive
+    time.sleep(0.05)  # wall time passes, NO samples arrive
     assert not ev.is_set(), "no samples => no progress toward the stop"
 
 
@@ -1587,7 +1900,7 @@ def test_therapy_end_sink_is_idempotent_after_firing():
     s.open(CS.BRP_CHANNELS, 25.0)
     s.on_batch(_batch([0.0] * 30))
     assert s.fired and fired == [1]
-    s.on_batch(_batch([0.0] * 30))          # late batch after the stop
+    s.on_batch(_batch([0.0] * 30))  # late batch after the stop
     assert fired == [1], "must not fire twice"
 
 
@@ -1601,7 +1914,7 @@ def test_therapy_end_sink_close_is_a_noop():
 def test_therapy_end_sink_fires_without_an_on_end_callback():
     # on_end is optional (the daemon may not want a hook). The stop must still be set.
     ev = asyncio.Event()
-    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=1.0)   # no on_end
+    s = CS.TherapyEndSink(ev, flow_eps=0.5, hold_s=1.0)  # no on_end
     s.open(CS.BRP_CHANNELS, 25.0)
     s.on_batch(_batch([0.0] * 30))
     assert ev.is_set() and s.fired
@@ -1610,6 +1923,7 @@ def test_therapy_end_sink_fires_without_an_on_end_callback():
 def test_controller_appends_the_therapy_end_sink_LAST():
     """ACTING wiring. Order is load-bearing: the durable sinks must persist the triggering batch BEFORE
     the therapy-end sink sets should_stop, or the batch that ends the session is the one batch lost."""
+
     async def go():
         connect, _events = _connector()
         made, seen = [], {}
@@ -1630,8 +1944,15 @@ def test_controller_appends_the_therapy_end_sink_LAST():
                 await asyncio.sleep(0.005)
             return 0
 
-        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump,
-                                    edf_sink_factory=edf_factory, therapy_end_factory=therapy_factory)
+        c = CS.LiveStreamController(
+            _ControllerBus(),
+            connect,
+            _creds,
+            _idle_devices,
+            pump=pump,
+            edf_sink_factory=edf_factory,
+            therapy_end_factory=therapy_factory,
+        )
         await c.op("start")
         await asyncio.sleep(0.01)
         sinks = seen["extra_sinks"]
@@ -1639,6 +1960,7 @@ def test_controller_appends_the_therapy_end_sink_LAST():
         assert isinstance(sinks[-1], CS.TherapyEndSink), "the therapy-end sink must be LAST"
         assert isinstance(sinks[0], _RecordingSink), "the durable sink runs first"
         await c.op("stop")
+
     _run(go())
 
 
@@ -1658,6 +1980,7 @@ def test_controller_without_a_therapy_factory_gets_no_acting_sink():
         await asyncio.sleep(0.01)
         assert not seen["extra_sinks"], "acting OFF by default — no sink, prior behaviour exactly"
         await c.op("stop")
+
     _run(go())
 
 
@@ -1688,8 +2011,7 @@ def test_pressure_bus_unit_matches_the_edf_pressure_unit():
     assert _ascii(CS.BRP_CHANNELS["MaskPressure"][2]) == edf_press_unit
 
 
-async def _idle_pump_sinks(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None,
-                           extra_sinks=None):
+async def _idle_pump_sinks(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, extra_sinks=None):
     """`_idle_pump`, but accepting the `extra_sinks` kwarg the controller passes when a sink factory
     is configured — the tests below configure real sinks, so the plain idle pump rejects the call."""
     while should_stop is None or not should_stop.is_set():
@@ -1708,13 +2030,18 @@ async def _idle_pump_sinks(bus, write, recv_frame, pk, cid, *, channels=None, sh
 def test_last_sink_paths_names_the_raw_record_which_hasattr_path_silently_dropped(tmp_path):
     """The authoritative INV9 artifact must be in the discard list. It publishes `_path`, not `path`."""
     import cpap_record
+
     raw = str(tmp_path / "night.jsonl")
 
     async def go():
         c = CS.LiveStreamController(
-            _ControllerBus(), _connector()[0], _creds, _idle_devices, pump=_idle_pump_sinks,
-            raw_record_factory=lambda: cpap_record.RawRecordSink(
-                raw, device_id="AS11", session_id="s1", provenance={}))
+            _ControllerBus(),
+            _connector()[0],
+            _creds,
+            _idle_devices,
+            pump=_idle_pump_sinks,
+            raw_record_factory=lambda: cpap_record.RawRecordSink(raw, device_id="AS11", session_id="s1", provenance={}),
+        )
         await c.op("start")
         await asyncio.sleep(0.01)
         got = c.last_sink_paths
@@ -1731,8 +2058,13 @@ def test_last_sink_paths_never_yields_a_None_for_an_edf_that_has_no_name_yet(tmp
 
     async def go():
         c = CS.LiveStreamController(
-            _ControllerBus(), _connector()[0], _creds, _idle_devices, pump=_idle_pump_sinks,
-            edf_sink_factory=lambda: cpap_edf_writer.EdfSink(str(tmp_path), "TESTSERIAL"))
+            _ControllerBus(),
+            _connector()[0],
+            _creds,
+            _idle_devices,
+            pump=_idle_pump_sinks,
+            edf_sink_factory=lambda: cpap_edf_writer.EdfSink(str(tmp_path), "TESTSERIAL"),
+        )
         await c.op("start")
         await asyncio.sleep(0.01)
         got = c.last_sink_paths
@@ -1748,16 +2080,22 @@ def test_last_sink_paths_is_resolved_when_asked_not_snapshotted_at_start(tmp_pat
     """The property must answer with what is true NOW. The old code answered at _start, before the
     pump could give the EDF a name, and froze that wrong answer for the session."""
     import cpap_edf_writer
+
     sink = cpap_edf_writer.EdfSink(str(tmp_path), "TESTSERIAL")
 
     async def go():
         c = CS.LiveStreamController(
-            _ControllerBus(), _connector()[0], _creds, _idle_devices, pump=_idle_pump_sinks,
-            edf_sink_factory=lambda: sink)
+            _ControllerBus(),
+            _connector()[0],
+            _creds,
+            _idle_devices,
+            pump=_idle_pump_sinks,
+            edf_sink_factory=lambda: sink,
+        )
         await c.op("start")
         await asyncio.sleep(0.01)
         before = c.last_sink_paths
-        sink._final = str(tmp_path / "20260902_230000_BRP.edf")   # what the first dated batch does
+        sink._final = str(tmp_path / "20260902_230000_BRP.edf")  # what the first dated batch does
         after = c.last_sink_paths
         await c.op("stop")
         return before, after
@@ -1777,11 +2115,13 @@ def test_a_connect_that_records_NO_gatt_table_logs_nothing_about_it(monkeypatch,
     so without this the `if recorded:` false arm is never taken and coverage reports a partial."""
     import capture
     import bleak
+
     _FakeBleak.instances.clear()
     monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
 
     async def _nothing(_client, _addr):
         return ""
+
     monkeypatch.setattr(capture, "_gatt_record_table", _nothing)
 
     async def go():
@@ -1789,6 +2129,7 @@ def test_a_connect_that_records_NO_gatt_table_logs_nothing_about_it(monkeypatch,
             _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
         assert not [r for r in caplog.records if "GATT table recorded" in r.getMessage()]
         await disconnect()
+
     _run(go())
 
 
@@ -1800,6 +2141,7 @@ def _settle_args(monkeypatch, capture_mod):
     async def _spy(_client, uuids):
         seen["uuids"] = tuple(uuids)
         return ""
+
     monkeypatch.setattr(capture_mod, "_settle_gatt_chars", _spy)
     return seen
 
@@ -1811,6 +2153,7 @@ def test_ORACLE_a_device_with_NO_record_waits_on_exactly_todays_two_uuids(monkey
     import capture
     import bleak
     import gattmap
+
     gattmap.reset()
     _FakeBleak.instances.clear()
     monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
@@ -1819,6 +2162,7 @@ def test_ORACLE_a_device_with_NO_record_waits_on_exactly_todays_two_uuids(monkey
     async def go():
         _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
         await disconnect()
+
     _run(go())
     assert seen["uuids"] == (_GATT_RX_UUID, _GATT_TX_UUID)
 
@@ -1830,10 +2174,10 @@ def test_ORACLE_a_recorded_device_waits_on_the_WHOLE_table(monkeypatch):
     import capture
     import bleak
     import gattmap
+
     gattmap.reset()
     extra = "0000fd56-0000-1000-8000-00805f9b34fb"
-    gattmap.record("04:CD:15:3A:0B:BD", "abcd",
-                   {_GATT_RX_UUID: 0x11, _GATT_TX_UUID: 0x13, extra: 0x20}, source="test")
+    gattmap.record("04:CD:15:3A:0B:BD", "abcd", {_GATT_RX_UUID: 0x11, _GATT_TX_UUID: 0x13, extra: 0x20}, source="test")
     _FakeBleak.instances.clear()
     monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
     seen = _settle_args(monkeypatch, capture)
@@ -1841,6 +2185,7 @@ def test_ORACLE_a_recorded_device_waits_on_the_WHOLE_table(monkeypatch):
     async def go():
         _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
         await disconnect()
+
     _run(go())
     gattmap.reset()
     assert extra in seen["uuids"]
@@ -1849,20 +2194,43 @@ def test_ORACLE_a_recorded_device_waits_on_the_WHOLE_table(monkeypatch):
 
 class _RawStub:
     """The least a sink needs to count as THE raw record for `_emit_acq_evidence`: `acq_facts()`."""
-    def open(self, channels, fs): pass
-    def on_batch(self, batch): pass
-    def close(self): pass
+
+    def open(self, channels, fs):
+        pass
+
+    def on_batch(self, batch):
+        pass
+
+    def close(self):
+        pass
+
     def acq_facts(self):
-        return {"session_id": "s", "device_id": "d", "path": None, "size": None, "records": 0,
-                "first_device_start": None, "closed_cleanly": True}
+        return {
+            "session_id": "s",
+            "device_id": "d",
+            "path": None,
+            "size": None,
+            "records": 0,
+            "first_device_start": None,
+            "closed_cleanly": True,
+        }
 
 
 # ── INV8 · continuity_status rides the pump end to end ─────────────────────────────────────────
 def _data_at(stamp, n=10, stream_id=1):
     """`_data` with a chosen device `startTime` — the continuity verification reads that field."""
-    return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
-        "data": [{"PatientFlow": [0.1] * n}, {"MaskPressure": [5.0] * n}],
-        "intervalMs": 40, "startTime": stamp, "streamId": stream_id}})
+    return _enc(
+        {
+            "jsonrpc": "2.0",
+            "method": "StreamData",
+            "params": {
+                "data": [{"PatientFlow": [0.1] * n}, {"MaskPressure": [5.0] * n}],
+                "intervalMs": 40,
+                "startTime": stamp,
+                "streamId": stream_id,
+            },
+        }
+    )
 
 
 def test_continuity_verdict_reaches_the_envelope_AND_the_gap_accounting_log(caplog):
@@ -1883,26 +2251,41 @@ def test_continuity_verdict_reaches_the_envelope_AND_the_gap_accounting_log(capl
         tracker.note_start()
         if expect_drop:
             with pytest.raises(IndexError):
-                await CS.stream_to_bus(FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                       cipher_factory=_identity_factory, extra_sinks=[_RawStub()],
-                                       acq_evidence_out=envelopes.append, continuity=tracker)
+                await CS.stream_to_bus(
+                    FakeBus(),
+                    dev.write,
+                    dev.recv_frame,
+                    PAIR_KEY,
+                    "cid",
+                    cipher_factory=_identity_factory,
+                    extra_sinks=[_RawStub()],
+                    acq_evidence_out=envelopes.append,
+                    continuity=tracker,
+                )
         else:
-            await CS.stream_to_bus(FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                                   cipher_factory=_identity_factory, max_batches=1, extra_sinks=[_RawStub()],
-                                   acq_evidence_out=envelopes.append, continuity=tracker)
+            await CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=1,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+                continuity=tracker,
+            )
 
     with caplog.at_level(logging.INFO, logger="tepna.cpap"):
         # session 1: T0 and T0+400 ms, then the link drops → the next sample was owed at T0+800
         _run(session([_data_at(T0), _data_at("2026-08-23T01:30:29.130Z")], expect_drop=True))
         assert tracker.status is cpap_continuity.Continuity.CONTINUOUS, "session 1's own verdict"
-        assert envelopes[-1].provenance["continuity"] == {"continuity_status": "continuous",
-                                                          "continuity_gap_ms": None}
+        assert envelopes[-1].provenance["continuity"] == {"continuity_status": "continuous", "continuity_gap_ms": None}
         # session 2: first frame at T0+800+5400 → a MEASURED 5.4 s gap
         _run(session([_data_at("2026-08-23T01:30:34.930Z")], expect_drop=False))
 
     assert tracker.status is cpap_continuity.Continuity.VERIFIED_GAP and tracker.gap_ms == 5400
-    assert envelopes[-1].provenance["continuity"] == {"continuity_status": "verified-gap",
-                                                      "continuity_gap_ms": 5400}
+    assert envelopes[-1].provenance["continuity"] == {"continuity_status": "verified-gap", "continuity_gap_ms": 5400}
     # the log line — the surface that is live on vigil — carries the same verdict
     lines = [r.getMessage() for r in caplog.records if "gap accounting" in r.getMessage()]
     assert any("'continuity_status': 'verified-gap'" in ln and "'continuity_gap_ms': 5400" in ln for ln in lines), lines
@@ -1911,12 +2294,23 @@ def test_continuity_verdict_reaches_the_envelope_AND_the_gap_accounting_log(capl
 def test_the_pump_without_a_tracker_is_byte_identical_to_before(caplog):
     """The additive contract: no `continuity=` ⇒ no field in the log line and None in the envelope."""
     import logging
+
     envelopes = []
     dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0])])
     with caplog.at_level(logging.INFO, logger="tepna.cpap"):
-        _run(CS.stream_to_bus(FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
-                              cipher_factory=_identity_factory, max_batches=1, extra_sinks=[_RawStub()],
-                              acq_evidence_out=envelopes.append))
+        _run(
+            CS.stream_to_bus(
+                FakeBus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=1,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+            )
+        )
     assert envelopes[-1].provenance["continuity"] is None
     assert not any("continuity_status" in r.getMessage() for r in caplog.records)
 
@@ -1928,6 +2322,7 @@ def test_the_controller_opens_each_session_in_the_tracker_and_forwards_it_to_the
     monitor button) sees it without the evidence surface, which is off on the production box.
     The resume hint is consumed on the first start and must not leak into the second."""
     import cpap_continuity
+
     seen = {}
 
     async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, continuity=None):
@@ -1940,10 +2335,10 @@ def test_the_controller_opens_each_session_in_the_tracker_and_forwards_it_to_the
         tracker = cpap_continuity.ContinuityTracker()
         connect, _events = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump, continuity=tracker)
-        c.continuity_resume_hint = True                      # "the daemon came up mid-therapy"
+        c.continuity_resume_hint = True  # "the daemon came up mid-therapy"
 
         started = await c.op("start")
-        await asyncio.sleep(0.02)                            # let the pump task actually run
+        await asyncio.sleep(0.02)  # let the pump task actually run
         assert seen["continuity"] is tracker, "the tracker must reach the pump under continuity="
         assert started["continuity_status"] == "resumed-unverified", "a hinted first start is a RESUME"
         assert started["continuity_gap_ms"] is None
@@ -1955,4 +2350,5 @@ def test_the_controller_opens_each_session_in_the_tracker_and_forwards_it_to_the
         again = await c.op("start")
         assert again["continuity_status"] == "continuous"
         await c.op("stop")
+
     _run(go())

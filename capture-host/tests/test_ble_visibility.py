@@ -71,7 +71,7 @@ def test_a_truncated_final_line_does_not_lose_the_history(tmp_path, capsys):
         fh.write('{"v": 1, "t": "t1", "adap')
     assert [r["t"] for r in bv.read_records(str(p))] == ["t0"]
     err = capsys.readouterr().err
-    assert "line 2 is not JSON" in err          # says WHAT it hid, never drops it silently
+    assert "line 2 is not JSON" in err  # says WHAT it hid, never drops it silently
     assert "SKIPPED" in err
 
 
@@ -81,13 +81,11 @@ def test_blank_lines_are_ignored(tmp_path, capsys):
     with open(p, "a", encoding="utf-8") as fh:
         fh.write("\n\n")
     assert len(bv.read_records(str(p))) == 1
-    assert capsys.readouterr().err == ""        # a blank line hides nothing, so it warns nothing
+    assert capsys.readouterr().err == ""  # a blank line hides nothing, so it warns nothing
 
 
 def test_visibility_reports_a_rate_over_completed_scans():
-    recs = [_rec("t0", hci0=_ok({CPAP: -40})),
-            _rec("t1", hci0=_ok({OTHER: -70})),
-            _rec("t2", hci0=_ok({CPAP: -44}))]
+    recs = [_rec("t0", hci0=_ok({CPAP: -40})), _rec("t1", hci0=_ok({OTHER: -70})), _rec("t2", hci0=_ok({CPAP: -44}))]
     st = bv.visibility(recs, CPAP)["hci0"]
     assert st["scans_ok"] == 3
     assert st["seen"] == 2
@@ -97,9 +95,7 @@ def test_visibility_reports_a_rate_over_completed_scans():
 
 def test_failed_scans_are_excluded_from_the_rate_not_counted_as_misses():
     """'Could not look' merged into 'looked and found nothing' is how a blind gate reads clean."""
-    recs = [_rec("t0", hci0=_ok({CPAP: -40})),
-            _rec("t1", hci0={"error": "busy"}),
-            _rec("t2", hci0={"error": "busy"})]
+    recs = [_rec("t0", hci0=_ok({CPAP: -40})), _rec("t1", hci0={"error": "busy"}), _rec("t2", hci0={"error": "busy"})]
     st = bv.visibility(recs, CPAP)["hci0"]
     assert st["scans_ok"] == 1
     assert st["scans_failed"] == 2
@@ -120,8 +116,7 @@ def test_the_2026_09_04_shape_is_recoverable_from_the_log():
 
     This is exactly the state that took an hour and three wrong hypotheses to reach live.
     """
-    recs = ([_rec("t%d" % i, hci0=_ok({OTHER: -70}), hci2=_ok({CPAP: -40, OTHER: -70}))
-             for i in range(20)])
+    recs = [_rec("t%d" % i, hci0=_ok({OTHER: -70}), hci2=_ok({CPAP: -40, OTHER: -70})) for i in range(20)]
     stats = bv.visibility(recs, CPAP)
     assert stats["hci0"]["seen"] == 0 and stats["hci0"]["scans_ok"] == 20
     assert stats["hci0"]["median_devices_seen"] == 1
@@ -161,6 +156,7 @@ def test_report_shows_rssi_and_device_counts_when_known():
 
 # ── cases the mutation gate named, each one an input the fixtures could not produce ────────────
 
+
 def test_records_are_written_with_sorted_keys(tmp_path):
     """Stable key order keeps a diff of the log readable and its lines comparable."""
     p = tmp_path / "vis.jsonl"
@@ -171,8 +167,7 @@ def test_records_are_written_with_sorted_keys(tmp_path):
 
 
 def test_an_errored_adapter_does_not_stop_the_others_in_the_same_record():
-    rec = bv.make_record("t0", {"hci0": {"error": "down"},
-                                "hci2": _ok({CPAP: -40})}, [CPAP])
+    rec = bv.make_record("t0", {"hci0": {"error": "down"}, "hci2": _ok({CPAP: -40})}, [CPAP])
     stats = bv.visibility([rec], CPAP)
     assert stats["hci0"]["scans_failed"] == 1
     assert stats["hci2"]["seen"] == 1
@@ -229,7 +224,7 @@ def test_cli_prints_the_digest(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "BLIND: hci0" in out
     assert "1/1 (100%)" in out
-    assert CPAP in out          # the target must reach the digest, not just the stats
+    assert CPAP in out  # the target must reach the digest, not just the stats
 
 
 def test_cli_usage_names_both_arguments(capsys):
@@ -243,6 +238,6 @@ def test_cli_is_loud_when_the_log_cannot_be_read(tmp_path, capsys):
     assert rc == 1
     err = capsys.readouterr().err
     assert "cannot read" in err
-    assert "absent.jsonl" in err   # names the PATH it could not read, not the MAC
+    assert "absent.jsonl" in err  # names the PATH it could not read, not the MAC
     assert CPAP not in err
     assert "visibility of" not in err

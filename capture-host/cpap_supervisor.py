@@ -298,7 +298,9 @@ class CPAPSessionSupervisor:
                     transition=None,
                     action=None,
                     trigger="active_steady",
-                    confidence="confirmed" if _mask_active(obs.mask_pressure, self.mask_therapy_min) else "fgstate_only",
+                    confidence="confirmed"
+                    if _mask_active(obs.mask_pressure, self.mask_therapy_min)
+                    else "fgstate_only",
                 )
             )
 
@@ -322,7 +324,9 @@ class CPAPSessionSupervisor:
                 self._state = SessionState.IDLE
                 self._baseline_use = None
                 self._standby_since_ms = None
-                confidence = "corroborated" if not _mask_active(obs.mask_pressure, self.mask_therapy_min) else "conflicted"
+                confidence = (
+                    "corroborated" if not _mask_active(obs.mask_pressure, self.mask_therapy_min) else "conflicted"
+                )
                 return self._emit(
                     self._decide(
                         obs,

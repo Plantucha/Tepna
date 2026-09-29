@@ -39,8 +39,8 @@ import acq_evidence as ae
 SIGNAL_BRP = "flow_pressure@25Hz"
 
 # Validation depths — what the validation ACTUALLY checked, never a bare boolean (the §6 discipline).
-DEPTH_JSONL_CLOSED = "jsonl+closed"      # the raw record was flushed, fsynced and closed cleanly
-DEPTH_SPOOL_PROMOTE = "sha256+promote"   # every committed round was re-read and sha-verified by promote()
+DEPTH_JSONL_CLOSED = "jsonl+closed"  # the raw record was flushed, fsynced and closed cleanly
+DEPTH_SPOOL_PROMOTE = "sha256+promote"  # every committed round was re-read and sha-verified by promote()
 
 
 def _counter(summary: dict | None, *keys: str) -> int | str:
@@ -101,9 +101,7 @@ def assemble_live(
     if observed_duration_s is not None and observed_interval_ms:
         expected_sample_count = int(observed_duration_s * 1000 / observed_interval_ms)
 
-    duration_check = ae.DurationCheck.build(
-        stored_s=device_declared_duration_s, observed_s=observed_duration_s
-    )
+    duration_check = ae.DurationCheck.build(stored_s=device_declared_duration_s, observed_s=observed_duration_s)
 
     # ── gap accounting (§8): forensic CATEGORIES, so a reader can tell WHY it is incomplete. Transport
     # loss is the queue overflow plus the post-drop tail; decode loss is the malformed frames. A FOREIGN
@@ -211,15 +209,26 @@ def assemble_spool(
     # ── an empty ledger is UNKNOWN on every axis — not an empty, complete, valid acquisition (§5). ──
     if not rows:
         return ae.AcquisitionEvidence(
-            session_id=session_id, device_id=device_id, source=ae.SOURCE_STORED_SPOOL,
-            signal=None, start_time_ms=None, end_time_ms=None, clock_status=clock_status,
+            session_id=session_id,
+            device_id=device_id,
+            source=ae.SOURCE_STORED_SPOOL,
+            signal=None,
+            start_time_ms=None,
+            end_time_ms=None,
+            clock_status=clock_status,
             clock_offset=clock_offset if clock_offset is not None else ae.ClockOffset.unknown(),
-            sample_count=None, expected_sample_count=ae.UNKNOWN,
+            sample_count=None,
+            expected_sample_count=ae.UNKNOWN,
             duration_check=ae.DurationCheck.build(stored_s=None, observed_s=None),
-            transport_gaps=ae.UNKNOWN, decode_gaps=ae.UNKNOWN,
+            transport_gaps=ae.UNKNOWN,
+            decode_gaps=ae.UNKNOWN,
             device_state=device_state if device_state is not None else ae.UNKNOWN,
-            artifact_path=committed_dir, artifact_size=None, artifact_sha256=None,
-            validation=ae.UNKNOWN, validation_depth=None, completeness=ae.UNKNOWN,
+            artifact_path=committed_dir,
+            artifact_size=None,
+            artifact_sha256=None,
+            validation=ae.UNKNOWN,
+            validation_depth=None,
+            completeness=ae.UNKNOWN,
             provenance={"rounds": 0, "committed_cursor": None},
         )
 
@@ -242,8 +251,8 @@ def assemble_spool(
         device_id=device_id if device_id is not None else last.get("device"),
         source=ae.SOURCE_STORED_SPOOL,
         signal=last.get("spool_type"),
-        start_time_ms=None,   # cursors are VERBATIM device stamps; localising them is the consumer's
-        end_time_ms=None,     # step, not this assembler's (Clock Contract — no second clock model, §7)
+        start_time_ms=None,  # cursors are VERBATIM device stamps; localising them is the consumer's
+        end_time_ms=None,  # step, not this assembler's (Clock Contract — no second clock model, §7)
         clock_status=clock_status,
         clock_offset=clock_offset if clock_offset is not None else ae.ClockOffset.unknown(),
         # a spool round is a BYTE transfer, not a frame stream: there is no sample count to report and

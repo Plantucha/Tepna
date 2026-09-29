@@ -36,6 +36,7 @@ def _no_baseline_wait(monkeypatch):
 
 # ══ Polar PMD sweep ══════════════════════════════════════════════════════════════════════════════════
 
+
 def _ack(status=0x00, op=0x05):
     return bytes([0xF0, op, 0xFF, status, 0x00])
 
@@ -72,6 +73,7 @@ class _PmdClient:
 def _patch_pmd(monkeypatch, client):
     async def find(_a, timeout=0):
         return object()
+
     monkeypatch.setattr(pms.BleakScanner, "find_device_by_address", find)
     monkeypatch.setattr(pms, "BleakClient", lambda dev, **kw: client)
 
@@ -132,6 +134,7 @@ def test_pmd_aborts_when_state_changes(monkeypatch):
                 r = _ack(0x01, op)
             if self._cb:
                 self._cb(0, bytearray(r))
+
     c = _Moving()
     _patch_pmd(monkeypatch, c)
     res = _run(pms.run("AA:BB", None, 0x0B, 0x0F, False, False))
@@ -148,6 +151,7 @@ def test_pmd_a_gatt_refusal_stops_rather_than_being_read_as_a_verdict(monkeypatc
                     self._cb(0, bytearray(_ack(0x00, data[0])))
                 return
             raise RuntimeError("GATT Protocol Error: Unlikely Error")
+
     _patch_pmd(monkeypatch, _Deaf())
     res = _run(pms.run("AA:BB", None, 0x0B, 0x0F, False, False))
     assert "gatt_refused" in res["opcodes"]["0x0b"]
@@ -168,14 +172,14 @@ def test_pmd_stops_anything_left_running(monkeypatch):
 def test_pmd_a_missing_device_is_reported(monkeypatch):
     async def none(_a, timeout=0):
         return None
+
     monkeypatch.setattr(pms.BleakScanner, "find_device_by_address", none)
     res = _run(pms.run("AA:BB", None, 0x0B, 0x0C, False, False))
     assert "not found" in res["error"]
 
 
 def test_pmd_main_writes_json_and_reports(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(pms.BleakScanner, "find_device_by_address",
-                        lambda *a, **k: _wrap(None))
+    monkeypatch.setattr(pms.BleakScanner, "find_device_by_address", lambda *a, **k: _wrap(None))
     p = str(tmp_path / "o.json")
     assert pms.main(["--address", "AA:BB", "--i-accept-the-risk", "--json", p]) == 1
     capsys.readouterr()
@@ -200,11 +204,13 @@ def test_pmd_control_send_times_out_to_none(monkeypatch):
 
     async def silent(_ch, data, response=False):
         pass
+
     c.write_gatt_char = silent
     assert _run(cp.send(b"\x05", timeout=0.01)) is None
 
 
 # ══ OxyII sweep ══════════════════════════════════════════════════════════════════════════════════════
+
 
 def test_oxyii_refuses_without_consent(capsys):
     assert oxs.main(["--address", "AA:BB"]) == 2
@@ -247,7 +253,7 @@ class _RingClient:
             self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
 
 
-_DEV_SENTINEL = object()   # identity matters: the device handed to BleakClient must be the one FOUND
+_DEV_SENTINEL = object()  # identity matters: the device handed to BleakClient must be the one FOUND
 
 
 def _patch_ring(monkeypatch, client):
@@ -266,6 +272,7 @@ def _patch_ring(monkeypatch, client):
     def mk(dev, **kw):
         seen["client"].append(dev)
         return client
+
     monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", find)
     monkeypatch.setattr(oxs, "BleakClient", mk)
     return seen
@@ -285,11 +292,11 @@ class _Live(_RingClient):
     def __init__(self, noisy=(), effects=None, scratch=None, drift=None, **kw):
         super().__init__(**kw)
         self.noisy, self.effects, self.applied, self.tick = set(noisy), effects or {}, {}, 0
-        self.scratch = scratch          # a byte ANY command write perturbs — device state it is not
-        self.drift = drift              # a byte that wanders slowly, like SpO2 over a long sweep
+        self.scratch = scratch  # a byte ANY command write perturbs — device state it is not
+        self.drift = drift  # a byte that wanders slowly, like SpO2 over a long sweep
         self.nth_cmd = self.reads = 0
 
-    HDR = 7                                             # [A5, op, ~op, flag, seq, len_lo, len_hi]
+    HDR = 7  # [A5, op, ~op, flag, seq, len_lo, len_hi]
 
     def _frame(self):
         """A REAL frame — built through oxyii.encode, so the reassembler accepts it and the trailing
@@ -300,7 +307,7 @@ class _Live(_RingClient):
             self.reads += 1
             # holds still for the ~10-sample null, then wanders — exactly SpO2's behaviour
             p[self.drift - self.HDR] = (0x62 - max(0, self.reads - 10)) & 0xFF
-        for i in self.noisy:                            # `i` is a FRAME index, as the report reports
+        for i in self.noisy:  # `i` is a FRAME index, as the report reports
             p[i - self.HDR] = (self.tick * 37 + i) & 0xFF
         for i, v in self.applied.items():
             p[i - self.HDR] = v
@@ -312,7 +319,7 @@ class _Live(_RingClient):
         if op == oxs.oxyii.OP_LIVE:
             self._cb(0, bytearray(self._frame()))
         else:
-            if self.scratch is not None:            # every command moves it, documented ones included
+            if self.scratch is not None:  # every command moves it, documented ones included
                 self.nth_cmd += 1
                 self.applied[self.scratch] = (0x30 + self.nth_cmd) & 0xFF
             if op in self.effects:
@@ -340,8 +347,7 @@ def test_oxyii_aborts_when_a_byte_that_held_constant_moves(monkeypatch):
     _patch_ring(monkeypatch, c)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
     assert res["aborted_at"] == "0x20"
-    assert res["opcodes"]["0x20"]["state_changed"] == {
-        "byte_positions": [11], "before": [0xC7], "after": [0x00]}
+    assert res["opcodes"]["0x20"]["state_changed"] == {"byte_positions": [11], "before": [0xC7], "after": [0x00]}
     assert "did NOT move again under the control command" in res["abort_reason"]
 
 
@@ -370,6 +376,7 @@ def test_oxyii_a_ring_that_never_answers_live_leaves_the_detector_blind(monkeypa
     class _NoLive(_RingClient):
         async def write_gatt_char(self, _c, data, response=False):
             self.writes.append(data[1])
+
     _patch_ring(monkeypatch, _NoLive())
     res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
     assert "detector_blind" in res and res["live_before"] is None
@@ -384,6 +391,7 @@ def test_oxyii_a_write_failure_stops_the_sweep(monkeypatch):
                     self._cb(0, bytearray(self.live))
                 return
             raise RuntimeError("link gone")
+
     _patch_ring(monkeypatch, _Dead())
     res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
     assert res["aborted_at"] == "0x20"
@@ -392,6 +400,7 @@ def test_oxyii_a_write_failure_stops_the_sweep(monkeypatch):
 def test_oxyii_reports_an_absent_ring_by_its_real_cause(monkeypatch):
     async def none(_a, timeout=0):
         return None
+
     monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", none)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
     assert "advertises while WORN" in res["error"] and "scan_errors" not in res
@@ -420,7 +429,7 @@ def test_oxyii_a_link_lost_on_the_closing_snapshot_does_not_discard_the_sweep(mo
     """THE REGRESSION. Measured 2026-08-03: a full 248-opcode sweep reached its closing snapshot, the
     link had gone, and the raised error propagated out of run() before main() could write the JSON — ten
     minutes of hardware evidence lost on the last line, against a device reachable only while worn."""
-    c = _DiesOnNthLive(nth=11, responders=set())   # 10 null samples, then the closing one
+    c = _DiesOnNthLive(nth=11, responders=set())  # 10 null samples, then the closing one
     _patch_ring(monkeypatch, c)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x24, dry=False))
     assert len(res["opcodes"]) == 5, "every opcode probed must survive the closing failure"
@@ -444,8 +453,7 @@ def test_oxyii_main_signals_a_lost_link_in_its_exit_code(monkeypatch, tmp_path, 
     monkeypatch.setattr(oxs, "require_free_link", lambda: None)
     _patch_ring(monkeypatch, _DiesOnNthLive(nth=11, responders=set()))
     p = str(tmp_path / "o.json")
-    assert oxs.main(["--address", "AA:BB", "--i-accept-the-risk", "--from", "0x20", "--to", "0x22",
-                     "--json", p]) == 1
+    assert oxs.main(["--address", "AA:BB", "--i-accept-the-risk", "--from", "0x20", "--to", "0x22", "--json", p]) == 1
     capsys.readouterr()
     assert len(json.load(open(p))["opcodes"]) == 3, "the report is written even when the link died"
 
@@ -482,6 +490,7 @@ def test_oxyii_main_passes_the_plan_controls_through(monkeypatch, capsys):
     async def fake(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None):
         seen.update(lo=lo, hi=hi, limit=limit, skip=list(skip))
         return {"ok": True}
+
     monkeypatch.setattr(oxs, "run", fake)
     assert oxs.main(["--address", "AA:BB", "--dry-run", "--max-ops", "12", "--skip", "0x00,0x3"]) == 0
     capsys.readouterr()
@@ -507,7 +516,7 @@ def test_pmd_a_stale_reply_is_drained_before_the_next_command():
 
 def test_pmd_an_ok_op_that_changes_nothing_does_not_stop_the_sweep(monkeypatch):
     """Only an ok that MOVES the device aborts. A harmless one must let the table finish."""
-    c = _PmdClient(default=0x00)          # every op answers ok, snapshot is constant
+    c = _PmdClient(default=0x00)  # every op answers ok, snapshot is constant
     _patch_pmd(monkeypatch, c)
     res = _run(pms.run("AA:BB", None, 0x0B, 0x0E, False, False))
     assert "aborted_at" not in res
@@ -531,6 +540,7 @@ def test_oxyii_main_checks_the_link_before_sending(monkeypatch, capsys):
 
     async def none(_a, timeout=0):
         return None
+
     monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", none)
     oxs.main(["--address", "AA:BB", "--i-accept-the-risk"])
     capsys.readouterr()
@@ -562,6 +572,7 @@ def test_oxyii_a_wedged_adapter_is_cycled_and_the_scan_retried(monkeypatch):
     async def cycle():
         cycled["n"] += 1
         return True
+
     monkeypatch.setattr(oxs, "_cycle_adapter", cycle)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
     assert cycled["n"] == 2, "each refused scan must be followed by a cycle"
@@ -577,6 +588,7 @@ def test_oxyii_a_scan_that_never_recovers_reports_the_host_not_the_device(monkey
 
     async def cycle():
         return True
+
     monkeypatch.setattr(oxs, "_cycle_adapter", cycle)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
     assert res["error"] == "adapter refused to scan — see scan_errors"
@@ -588,16 +600,19 @@ def test_oxyii_the_adapter_cycle_is_best_effort(monkeypatch):
         class _P:
             async def wait(self):
                 return 0
+
         return _P()
 
     async def nosleep(_s):
         return None
+
     monkeypatch.setattr(oxs.asyncio, "create_subprocess_exec", spawn)
     monkeypatch.setattr(oxs.asyncio, "sleep", nosleep)
     assert _run(oxs._cycle_adapter()) is True
 
     async def boom(*a, **k):
         raise FileNotFoundError("bluetoothctl")
+
     monkeypatch.setattr(oxs.asyncio, "create_subprocess_exec", boom)
     assert _run(oxs._cycle_adapter()) is False
 
@@ -645,7 +660,7 @@ def test_oxyii_a_real_effect_survives_the_drift_adjudication(monkeypatch):
     _patch_ring(monkeypatch, c)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
     assert res["aborted_at"] == "0x21"
-    assert res["opcodes"]["0x21"]["state_changed"]["byte_positions"] == [12, 19]   # 19 = the CRC
+    assert res["opcodes"]["0x21"]["state_changed"]["byte_positions"] == [12, 19]  # 19 = the CRC
     assert "drift_suspected" not in res["opcodes"]["0x21"]
 
 
@@ -659,7 +674,7 @@ def test_oxyii_the_report_exists_before_the_run_ends(monkeypatch, tmp_path):
 
     class _Watching(_Live):
         async def write_gatt_char(self, _c, data, response=False):
-            if data[1] == 0x21 and "mid" not in seen:     # while the SECOND opcode is in flight
+            if data[1] == 0x21 and "mid" not in seen:  # while the SECOND opcode is in flight
                 seen["mid"] = json.load(open(p))["opcodes"]
             await _Live.write_gatt_char(self, _c, data, response)
 
@@ -690,6 +705,7 @@ def test_oxyii_no_json_path_still_runs(monkeypatch):
 # coverage answers "was this line run", and these defects are all "was this line run WITH THE RIGHT
 # VALUE" — a distinction only an assertion on the argument can make.
 
+
 def test_oxyii_the_scan_is_asked_for_THIS_ring_with_a_real_timeout(monkeypatch):
     """`find_device_by_address(address, timeout=15.0)` -> `(None, …)` / `timeout=None` both survived:
     the double took any arguments and returned a device regardless, so the address was decorative."""
@@ -711,6 +727,7 @@ def test_oxyii_the_client_connects_to_the_device_that_was_found(monkeypatch):
 def test_oxyii_the_handshake_carries_its_payload(monkeypatch):
     """`r.send(OP_AUTH, oxyii.auth_payload())` -> `r.send(OP_AUTH)` survived. An AUTH with no payload is
     not a handshake, and the ring answers nothing afterwards — but the fake never looked at the bytes."""
+
     class _Recording(_Live):
         def __init__(self, **kw):
             super().__init__(**kw)
@@ -718,7 +735,7 @@ def test_oxyii_the_handshake_carries_its_payload(monkeypatch):
 
         async def write_gatt_char(self, ch, data, response=False):
             b = bytes(data)
-            self.payloads.setdefault(b[1], []).append(b[7:-1])   # op -> payload
+            self.payloads.setdefault(b[1], []).append(b[7:-1])  # op -> payload
             await _Live.write_gatt_char(self, ch, data, response)
 
     c = _Recording(responders={0x20})
@@ -738,6 +755,7 @@ def test_oxyii_the_scan_retries_exactly_twice_before_giving_up(monkeypatch):
     async def cycle():
         cycles["n"] += 1
         return True
+
     monkeypatch.setattr(oxs, "_cycle_adapter", cycle)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
     assert w.calls == 3, f"three scan attempts, not {w.calls}"
@@ -761,6 +779,7 @@ def test_oxyii_the_report_is_readable_and_survives_unserialisable_values(monkeyp
 
     async def fake(*a, **k):
         return {"ok": True, "when": _dt_obj()}
+
     monkeypatch.setattr(oxs, "run", fake)
     monkeypatch.setattr(oxs, "require_free_link", lambda: None)
     assert oxs.main(["--address", "AA:BB", "--i-accept-the-risk", "--json", p]) == 0
@@ -771,4 +790,5 @@ def test_oxyii_the_report_is_readable_and_survives_unserialisable_values(monkeyp
 
 def _dt_obj():
     import datetime
+
     return datetime.datetime(2026, 8, 4, 3, 0, 0)

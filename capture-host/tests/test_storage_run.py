@@ -30,8 +30,9 @@ def test_stderr_is_folded_into_stdout_so_rsync_errors_survive(recorded_exec, fak
 
     kw = recorded_exec.last.kw
     assert kw["stdout"] is asyncio.subprocess.PIPE, "unread output is no output"
-    assert kw["stderr"] is asyncio.subprocess.STDOUT, \
+    assert kw["stderr"] is asyncio.subprocess.STDOUT, (
         "rsync's failures are on stderr; they must arrive in the same stream the caller reads"
+    )
     assert recorded_exec.last.argv == ["rsync", "-a", "x", "y"], "argv must arrive intact"
 
 
@@ -104,8 +105,12 @@ def test_a_dry_run_that_still_lists_files_is_copied_but_not_verified(recorded_ex
 
 def test_a_clean_dry_run_verifies(recorded_exec, fake_proc):
     """Only rsync's own bookkeeping lines remain, so nothing is pending."""
-    seq = iter([fake_proc(0, b"sent 10 bytes\n", b""),
-                fake_proc(0, b"sending incremental file list\nsent 5 bytes\ntotal size is 5\n", b"")])
+    seq = iter(
+        [
+            fake_proc(0, b"sent 10 bytes\n", b""),
+            fake_proc(0, b"sending incremental file list\nsent 5 bytes\ntotal size is 5\n", b""),
+        ]
+    )
     recorded_exec.reply = lambda argv: next(seq)
     res = _run(st.push_night("/srv/night", {"protocol": "rsync", "host": "nas", "share": "/vol"}))
     assert res["ok"] is True and res["verified"] is True
@@ -113,8 +118,7 @@ def test_a_clean_dry_run_verifies(recorded_exec, fake_proc):
 
 def test_verification_can_be_disabled_without_claiming_it_happened(recorded_exec, fake_proc):
     recorded_exec.reply = lambda argv: fake_proc(0, b"sent 10 bytes\n", b"")
-    res = _run(st.push_night("/srv/night",
-                             {"protocol": "rsync", "host": "nas", "share": "/vol", "verify": False}))
+    res = _run(st.push_night("/srv/night", {"protocol": "rsync", "host": "nas", "share": "/vol", "verify": False}))
     assert res["ok"] is True and res["verified"] is False
     assert len(recorded_exec.calls) == 1, "verification disabled means the second rsync is not run"
 
@@ -136,9 +140,9 @@ def test_the_verification_pass_is_bounded_more_tightly_than_the_transfer(recorde
         return 0, "sent 1 bytes\n"
 
     import unittest.mock as _m
+
     with _m.patch.object(st, "_run", spy):
-        _run(st.push_night("/srv/night", {"protocol": "rsync", "host": "nas", "share": "/vol"},
-                           timeout=1800.0))
+        _run(st.push_night("/srv/night", {"protocol": "rsync", "host": "nas", "share": "/vol"}, timeout=1800.0))
     assert seen == [1800.0, 300.0], "the transfer gets its full bound; the verification is capped at 300"
 
 
@@ -287,11 +291,13 @@ def test_the_probes_default_port_and_bounds_are_what_reaches_run(recorded_exec):
         return (0, "rsync 3.2\n") if "--version" in argv else (0, "")
 
     import unittest.mock as _m
+
     with _m.patch.object(st, "_run", spy):
         _run(st.test_target({"protocol": "rsync", "host": "nas", "share": "/vol"}))
 
     ver_argv, ver_timeout = seen[0]
-    assert ver_argv == ["rsync", "--version"] and ver_timeout == 5, \
+    assert ver_argv == ["rsync", "--version"] and ver_timeout == 5, (
         "the version probe is local and instant — 5s, not the caller's transfer bound"
+    )
     ssh_argv, _ = seen[1]
     assert ssh_argv[:3] == ["ssh", "-p", "22"], "an unconfigured target must use ssh's port 22"

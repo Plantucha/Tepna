@@ -19,6 +19,7 @@ node is used rather than a browser because these three functions are pure — no
 loop. It is present on `ubuntu-latest` (the runner this job uses), so this does not silently skip in CI,
 which would reproduce the exact "a gate that never ran" failure the suite keeps finding.
 """
+
 import json
 import os
 import re
@@ -62,6 +63,7 @@ def _run_js(expr):
 
 # ── the threshold is the buffer window, not a tuned number ───────────────────────────────────────────
 
+
 def test_the_threshold_is_derived_from_the_buffer_window():
     """Pins the REASON, not the number. After OV_WIN_S with no accepted update, every sample that
     produced the displayed rate has rolled out of the rolling window `ovRates` reads — so the reading is
@@ -84,10 +86,11 @@ def test_the_boundary_is_exclusive_so_an_exactly_on_time_update_is_not_stale():
 
 # ── fail closed ──────────────────────────────────────────────────────────────────────────────────────
 
+
 def test_an_unstamped_rate_is_stale_not_fresh():
     """The fail-OPEN version of this bug is worse than the bug: a rate carrying no stamp cannot be shown
     to be fresh, so it must not be presented as fresh. Infinity, not 0."""
-    assert _run_js("rateAgeMs({rate:60}, 1000)") is None or True   # JSON turns Infinity into null
+    assert _run_js("rateAgeMs({rate:60}, 1000)") is None or True  # JSON turns Infinity into null
     assert _run_js("rateIsStale({rate:60}, 1000)") is True
     assert _run_js("rateIsStale({rate:60, rateAt:null}, 1000)") is True
 
@@ -106,6 +109,7 @@ def test_a_fresh_stamp_is_not_stale():
 
 # ── the clock it measures against ────────────────────────────────────────────────────────────────────
 
+
 def test_elapsed_time_is_measured_monotonically():
     """NOT a Clock-Contract stamp — nothing here is recorded or exported; it is an ELAPSED-time question.
     `Date.now()` would step under NTP or a timezone change (both observed on this box — the capture
@@ -118,6 +122,7 @@ def test_elapsed_time_is_measured_monotonically():
 
 
 # ── the wiring: a pure function nothing calls would pass every test above ────────────────────────────
+
 
 def test_the_stamp_is_written_where_the_rate_is_accepted():
     """The three functions could be perfect and unreachable. `st.rateAt` must be set on the SAME branch
@@ -151,6 +156,6 @@ def test_a_stale_rate_is_muted_and_labelled_rather_than_hidden():
     src = open(MON, encoding="utf-8").read()
     assert "rateIsStale(st, nowMs())" in src, "the render path must consult the staleness check"
     assert "(stale)" in src
-    block = src[src.index("const stale = st.rate && rateIsStale"):][:400]
+    block = src[src.index("const stale = st.rate && rateIsStale") :][:400]
     assert "muted" in block, "a stale rate must be visually distinct, not merely annotated"
     assert "♥ '+Math.round(st.rate)" in block, "the number must still be shown, not replaced by a dash"

@@ -16,6 +16,7 @@ DOWNLOADING/VERIFYING depth is G1's inventory ledger, not a second instrument he
 The failure taxonomy is NOT forked: it is the shared `cpap_acq.FailureClass`, which `oxy_transfer.py`
 already imports — one taxonomy across both Bluetooth arms.
 """
+
 import time as _time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -29,73 +30,103 @@ class OxyState(Enum):
     """The states with a real `run_oxyii` counterpart. §25 liveness (CONNECTED_BUT_IDLE / DISCONNECTED /
     NOT_SEEN / PROTOCOL_STALLED) is expressed here as CONNECTED / DISCONNECTED / NOT_SEEN / INTERRUPTED."""
 
-    NOT_SEEN = "not_seen"                 # resting: the ring has not been seen this run (§25 NOT_SEEN)
-    CONNECTING = "connecting"             # scan + BLE connect in progress
-    CONNECTED = "connected"               # auth(0xFF)+setup(0x10) done, link up, not yet streaming (§25 CONNECTED_BUT_IDLE)
-    LIVE = "live"                         # decoding the ~1 Hz vitals poll (cmd 0x04)
-    IDLE_UNWORN = "idle_unworn"           # link up but the ring reports not-worn
-    INTERRUPTED = "interrupted"           # link held but no frames decoded (§25 PROTOCOL_STALLED)
-    DISCONNECTED = "disconnected"         # the link dropped (§25 DISCONNECTED)
-    PAUSED_FOR_PULL = "paused_for_pull"   # a stored-session pull owns the link (_OXYII_PAUSE)
-    PULLING = "pulling"                   # the autopull is pulling a stored recording (daemon-level)
-    RECOVERING = "recovering"             # the adapter watchdog is resetting a wedged controller (_RECOVER)
-    ERROR = "error"                       # a failure the recovery driver must classify
-    SHUTTING_DOWN = "shutting_down"       # the daemon's real shutdown path (terminal)
+    NOT_SEEN = "not_seen"  # resting: the ring has not been seen this run (§25 NOT_SEEN)
+    CONNECTING = "connecting"  # scan + BLE connect in progress
+    CONNECTED = "connected"  # auth(0xFF)+setup(0x10) done, link up, not yet streaming (§25 CONNECTED_BUT_IDLE)
+    LIVE = "live"  # decoding the ~1 Hz vitals poll (cmd 0x04)
+    IDLE_UNWORN = "idle_unworn"  # link up but the ring reports not-worn
+    INTERRUPTED = "interrupted"  # link held but no frames decoded (§25 PROTOCOL_STALLED)
+    DISCONNECTED = "disconnected"  # the link dropped (§25 DISCONNECTED)
+    PAUSED_FOR_PULL = "paused_for_pull"  # a stored-session pull owns the link (_OXYII_PAUSE)
+    PULLING = "pulling"  # the autopull is pulling a stored recording (daemon-level)
+    RECOVERING = "recovering"  # the adapter watchdog is resetting a wedged controller (_RECOVER)
+    ERROR = "error"  # a failure the recovery driver must classify
+    SHUTTING_DOWN = "shutting_down"  # the daemon's real shutdown path (terminal)
 
 
 _S = OxyState
 
 # The legal edges, read off run_oxyii's real control flow. An illegal move RAISES — a lifecycle that
 # cannot happen must not be silently recorded (charter R5 / P2 §3).
-LEGAL_TRANSITIONS = frozenset({
-    (_S.NOT_SEEN, _S.CONNECTING), (_S.NOT_SEEN, _S.SHUTTING_DOWN),
-    # a stored-session pull or an adapter recovery can be in progress before we ever connect
-    (_S.NOT_SEEN, _S.PAUSED_FOR_PULL), (_S.NOT_SEEN, _S.RECOVERING),
-
-    (_S.CONNECTING, _S.CONNECTED), (_S.CONNECTING, _S.DISCONNECTED), (_S.CONNECTING, _S.ERROR),
-    (_S.CONNECTING, _S.RECOVERING), (_S.CONNECTING, _S.PAUSED_FOR_PULL), (_S.CONNECTING, _S.SHUTTING_DOWN),
-
-    (_S.CONNECTED, _S.LIVE), (_S.CONNECTED, _S.IDLE_UNWORN), (_S.CONNECTED, _S.INTERRUPTED),
-    (_S.CONNECTED, _S.DISCONNECTED), (_S.CONNECTED, _S.ERROR), (_S.CONNECTED, _S.PAUSED_FOR_PULL),
-    (_S.CONNECTED, _S.RECOVERING), (_S.CONNECTED, _S.SHUTTING_DOWN),
-
-    (_S.LIVE, _S.INTERRUPTED), (_S.LIVE, _S.IDLE_UNWORN), (_S.LIVE, _S.DISCONNECTED),
-    (_S.LIVE, _S.PAUSED_FOR_PULL), (_S.LIVE, _S.ERROR), (_S.LIVE, _S.RECOVERING),
-    (_S.LIVE, _S.SHUTTING_DOWN),
-
-    (_S.IDLE_UNWORN, _S.LIVE), (_S.IDLE_UNWORN, _S.INTERRUPTED), (_S.IDLE_UNWORN, _S.DISCONNECTED),
-    (_S.IDLE_UNWORN, _S.PAUSED_FOR_PULL), (_S.IDLE_UNWORN, _S.ERROR), (_S.IDLE_UNWORN, _S.RECOVERING),
-    (_S.IDLE_UNWORN, _S.SHUTTING_DOWN),
-
-    (_S.INTERRUPTED, _S.CONNECTING), (_S.INTERRUPTED, _S.DISCONNECTED), (_S.INTERRUPTED, _S.ERROR),
-    (_S.INTERRUPTED, _S.RECOVERING), (_S.INTERRUPTED, _S.SHUTTING_DOWN),
-
-    (_S.DISCONNECTED, _S.CONNECTING), (_S.DISCONNECTED, _S.PAUSED_FOR_PULL),
-    (_S.DISCONNECTED, _S.RECOVERING), (_S.DISCONNECTED, _S.ERROR), (_S.DISCONNECTED, _S.SHUTTING_DOWN),
-
-    (_S.PAUSED_FOR_PULL, _S.PULLING), (_S.PAUSED_FOR_PULL, _S.CONNECTING),
-    (_S.PAUSED_FOR_PULL, _S.DISCONNECTED), (_S.PAUSED_FOR_PULL, _S.RECOVERING),
-    (_S.PAUSED_FOR_PULL, _S.SHUTTING_DOWN),
-    # HELD-LINK RESUME (DAT-AUTO-HARVEST §8, lead seam ruling 2026-08-24): a close-triggered pull runs
-    # over the link it already holds and hands it back WITHOUT a reconnect. The old table encoded "a
-    # pull costs the link" as an invariant — correct for fire-after-drop, overturned by §8 — and raised
-    # InvalidTransition on the way home (loudly, which is the table doing its job). Resume target is
-    # chosen by CONTACT AT EXIT: worn → LIVE, unworn → IDLE_UNWORN (the doff-triggered common case).
-    # Success and deadline-abort-to-.part share these edges ON PURPOSE — the link state after either
-    # outcome is identical, and the journal `reason` carries the difference; a state per outcome would
-    # put ledger facts into the link axis. The PAUSED pair covers abort-before-start.
-    (_S.PAUSED_FOR_PULL, _S.LIVE), (_S.PAUSED_FOR_PULL, _S.IDLE_UNWORN),
-
-    (_S.PULLING, _S.PAUSED_FOR_PULL), (_S.PULLING, _S.CONNECTING), (_S.PULLING, _S.DISCONNECTED),
-    (_S.PULLING, _S.ERROR), (_S.PULLING, _S.RECOVERING), (_S.PULLING, _S.SHUTTING_DOWN),
-    (_S.PULLING, _S.LIVE), (_S.PULLING, _S.IDLE_UNWORN),
-
-    (_S.RECOVERING, _S.CONNECTING), (_S.RECOVERING, _S.DISCONNECTED), (_S.RECOVERING, _S.ERROR),
-    (_S.RECOVERING, _S.PAUSED_FOR_PULL), (_S.RECOVERING, _S.SHUTTING_DOWN),
-
-    (_S.ERROR, _S.RECOVERING), (_S.ERROR, _S.CONNECTING), (_S.ERROR, _S.DISCONNECTED),
-    (_S.ERROR, _S.SHUTTING_DOWN),
-})
+LEGAL_TRANSITIONS = frozenset(
+    {
+        (_S.NOT_SEEN, _S.CONNECTING),
+        (_S.NOT_SEEN, _S.SHUTTING_DOWN),
+        # a stored-session pull or an adapter recovery can be in progress before we ever connect
+        (_S.NOT_SEEN, _S.PAUSED_FOR_PULL),
+        (_S.NOT_SEEN, _S.RECOVERING),
+        (_S.CONNECTING, _S.CONNECTED),
+        (_S.CONNECTING, _S.DISCONNECTED),
+        (_S.CONNECTING, _S.ERROR),
+        (_S.CONNECTING, _S.RECOVERING),
+        (_S.CONNECTING, _S.PAUSED_FOR_PULL),
+        (_S.CONNECTING, _S.SHUTTING_DOWN),
+        (_S.CONNECTED, _S.LIVE),
+        (_S.CONNECTED, _S.IDLE_UNWORN),
+        (_S.CONNECTED, _S.INTERRUPTED),
+        (_S.CONNECTED, _S.DISCONNECTED),
+        (_S.CONNECTED, _S.ERROR),
+        (_S.CONNECTED, _S.PAUSED_FOR_PULL),
+        (_S.CONNECTED, _S.RECOVERING),
+        (_S.CONNECTED, _S.SHUTTING_DOWN),
+        (_S.LIVE, _S.INTERRUPTED),
+        (_S.LIVE, _S.IDLE_UNWORN),
+        (_S.LIVE, _S.DISCONNECTED),
+        (_S.LIVE, _S.PAUSED_FOR_PULL),
+        (_S.LIVE, _S.ERROR),
+        (_S.LIVE, _S.RECOVERING),
+        (_S.LIVE, _S.SHUTTING_DOWN),
+        (_S.IDLE_UNWORN, _S.LIVE),
+        (_S.IDLE_UNWORN, _S.INTERRUPTED),
+        (_S.IDLE_UNWORN, _S.DISCONNECTED),
+        (_S.IDLE_UNWORN, _S.PAUSED_FOR_PULL),
+        (_S.IDLE_UNWORN, _S.ERROR),
+        (_S.IDLE_UNWORN, _S.RECOVERING),
+        (_S.IDLE_UNWORN, _S.SHUTTING_DOWN),
+        (_S.INTERRUPTED, _S.CONNECTING),
+        (_S.INTERRUPTED, _S.DISCONNECTED),
+        (_S.INTERRUPTED, _S.ERROR),
+        (_S.INTERRUPTED, _S.RECOVERING),
+        (_S.INTERRUPTED, _S.SHUTTING_DOWN),
+        (_S.DISCONNECTED, _S.CONNECTING),
+        (_S.DISCONNECTED, _S.PAUSED_FOR_PULL),
+        (_S.DISCONNECTED, _S.RECOVERING),
+        (_S.DISCONNECTED, _S.ERROR),
+        (_S.DISCONNECTED, _S.SHUTTING_DOWN),
+        (_S.PAUSED_FOR_PULL, _S.PULLING),
+        (_S.PAUSED_FOR_PULL, _S.CONNECTING),
+        (_S.PAUSED_FOR_PULL, _S.DISCONNECTED),
+        (_S.PAUSED_FOR_PULL, _S.RECOVERING),
+        (_S.PAUSED_FOR_PULL, _S.SHUTTING_DOWN),
+        # HELD-LINK RESUME (DAT-AUTO-HARVEST §8, lead seam ruling 2026-08-24): a close-triggered pull runs
+        # over the link it already holds and hands it back WITHOUT a reconnect. The old table encoded "a
+        # pull costs the link" as an invariant — correct for fire-after-drop, overturned by §8 — and raised
+        # InvalidTransition on the way home (loudly, which is the table doing its job). Resume target is
+        # chosen by CONTACT AT EXIT: worn → LIVE, unworn → IDLE_UNWORN (the doff-triggered common case).
+        # Success and deadline-abort-to-.part share these edges ON PURPOSE — the link state after either
+        # outcome is identical, and the journal `reason` carries the difference; a state per outcome would
+        # put ledger facts into the link axis. The PAUSED pair covers abort-before-start.
+        (_S.PAUSED_FOR_PULL, _S.LIVE),
+        (_S.PAUSED_FOR_PULL, _S.IDLE_UNWORN),
+        (_S.PULLING, _S.PAUSED_FOR_PULL),
+        (_S.PULLING, _S.CONNECTING),
+        (_S.PULLING, _S.DISCONNECTED),
+        (_S.PULLING, _S.ERROR),
+        (_S.PULLING, _S.RECOVERING),
+        (_S.PULLING, _S.SHUTTING_DOWN),
+        (_S.PULLING, _S.LIVE),
+        (_S.PULLING, _S.IDLE_UNWORN),
+        (_S.RECOVERING, _S.CONNECTING),
+        (_S.RECOVERING, _S.DISCONNECTED),
+        (_S.RECOVERING, _S.ERROR),
+        (_S.RECOVERING, _S.PAUSED_FOR_PULL),
+        (_S.RECOVERING, _S.SHUTTING_DOWN),
+        (_S.ERROR, _S.RECOVERING),
+        (_S.ERROR, _S.CONNECTING),
+        (_S.ERROR, _S.DISCONNECTED),
+        (_S.ERROR, _S.SHUTTING_DOWN),
+    }
+)
 
 
 class InvalidTransition(RuntimeError):
@@ -135,17 +166,20 @@ class Transition:
     def as_row(self) -> str:
         def _f(v) -> str:
             return "" if v is None else str(v)
-        return ";".join((
-            self.host_wall,
-            f"{self.host_monotonic:.6f}",
-            self.prev.value,
-            self.new.value,
-            self.reason,
-            _f(self.device_id),
-            _f(self.session_id),
-            _f(self.failure.label if self.failure else None),
-            self.axis,
-        ))
+
+        return ";".join(
+            (
+                self.host_wall,
+                f"{self.host_monotonic:.6f}",
+                self.prev.value,
+                self.new.value,
+                self.reason,
+                _f(self.device_id),
+                _f(self.session_id),
+                _f(self.failure.label if self.failure else None),
+                self.axis,
+            )
+        )
 
 
 def _default_wall() -> str:
@@ -175,9 +209,14 @@ class OxyLifecycle:
         if (self.state, new) not in LEGAL_TRANSITIONS:
             raise InvalidTransition(self.state, new)
         t = Transition(
-            prev=self.state, new=new, reason=reason,
-            host_monotonic=self.mono(), host_wall=self.wall(),
-            device_id=self.device_id, session_id=self.session_id, failure=failure,
+            prev=self.state,
+            new=new,
+            reason=reason,
+            host_monotonic=self.mono(),
+            host_wall=self.wall(),
+            device_id=self.device_id,
+            session_id=self.session_id,
+            failure=failure,
         )
         self.state = new
         self.history.append(t)
@@ -215,24 +254,33 @@ class OxyRecState(Enum):
     """The owner spec's five states, no more. UNKNOWN is a first-class runtime state, not a boot
     placeholder — a lost link moves here, because an unobservable ring is not a not-recording ring."""
 
-    UNKNOWN = "rec_unknown"                # no current observation (never seen, or the link is gone)
-    NOT_RECORDING = "not_recording"        # duration_s observed 0 — the ring says no session is open
-    RECORDING = "recording"                # duration_s observed ADVANCING — a session file is open
-    END_CANDIDATE = "end_candidate"        # duration_s stepped BACKWARD — the ring closed that session
-    END_CONFIRMED = "end_confirmed"        # the pulled .dat's trailer agreed with the observed duration
+    UNKNOWN = "rec_unknown"  # no current observation (never seen, or the link is gone)
+    NOT_RECORDING = "not_recording"  # duration_s observed 0 — the ring says no session is open
+    RECORDING = "recording"  # duration_s observed ADVANCING — a session file is open
+    END_CANDIDATE = "end_candidate"  # duration_s stepped BACKWARD — the ring closed that session
+    END_CONFIRMED = "end_confirmed"  # the pulled .dat's trailer agreed with the observed duration
 
 
 _R = OxyRecState
 
-REC_LEGAL_TRANSITIONS = frozenset({
-    (_R.UNKNOWN, _R.RECORDING), (_R.UNKNOWN, _R.NOT_RECORDING),
-    (_R.NOT_RECORDING, _R.RECORDING), (_R.NOT_RECORDING, _R.UNKNOWN),
-    (_R.RECORDING, _R.END_CANDIDATE), (_R.RECORDING, _R.UNKNOWN),
-    # END_CANDIDATE → RECORDING: a new session began before the old one's pull confirmed — the ring is
-    # re-donned. The candidate's confirmation debt lives in the inventory ledger, not in this axis.
-    (_R.END_CANDIDATE, _R.END_CONFIRMED), (_R.END_CANDIDATE, _R.RECORDING), (_R.END_CANDIDATE, _R.UNKNOWN),
-    (_R.END_CONFIRMED, _R.RECORDING), (_R.END_CONFIRMED, _R.NOT_RECORDING), (_R.END_CONFIRMED, _R.UNKNOWN),
-})
+REC_LEGAL_TRANSITIONS = frozenset(
+    {
+        (_R.UNKNOWN, _R.RECORDING),
+        (_R.UNKNOWN, _R.NOT_RECORDING),
+        (_R.NOT_RECORDING, _R.RECORDING),
+        (_R.NOT_RECORDING, _R.UNKNOWN),
+        (_R.RECORDING, _R.END_CANDIDATE),
+        (_R.RECORDING, _R.UNKNOWN),
+        # END_CANDIDATE → RECORDING: a new session began before the old one's pull confirmed — the ring is
+        # re-donned. The candidate's confirmation debt lives in the inventory ledger, not in this axis.
+        (_R.END_CANDIDATE, _R.END_CONFIRMED),
+        (_R.END_CANDIDATE, _R.RECORDING),
+        (_R.END_CANDIDATE, _R.UNKNOWN),
+        (_R.END_CONFIRMED, _R.RECORDING),
+        (_R.END_CONFIRMED, _R.NOT_RECORDING),
+        (_R.END_CONFIRMED, _R.UNKNOWN),
+    }
+)
 
 
 @dataclass
@@ -275,9 +323,14 @@ class OxyRecEngine:
         if (self.state, new) not in REC_LEGAL_TRANSITIONS:
             raise InvalidTransition(self.state, new)  # type: ignore[arg-type]
         t = Transition(
-            prev=self.state, new=new, reason=reason,
-            host_monotonic=self.mono(), host_wall=self.wall(),
-            device_id=self.device_id, session_id=self.session_id, axis="rec",
+            prev=self.state,
+            new=new,
+            reason=reason,
+            host_monotonic=self.mono(),
+            host_wall=self.wall(),
+            device_id=self.device_id,
+            session_id=self.session_id,
+            axis="rec",
         )
         self.state = new
         self.history.append(t)
@@ -301,18 +354,20 @@ class OxyRecEngine:
         elif st is OxyRecState.RECORDING:
             if prev is not None and duration < prev:
                 self.closed_at_duration = prev
-                out.append(self._to(OxyRecState.END_CANDIDATE,
-                                    f"duration_s reset ({prev}→{duration}) — session closed at {prev}s"))
+                out.append(
+                    self._to(
+                        OxyRecState.END_CANDIDATE, f"duration_s reset ({prev}→{duration}) — session closed at {prev}s"
+                    )
+                )
                 if duration > 0:
-                    out.append(self._to(OxyRecState.RECORDING,
-                                        f"new session already advancing (→{duration})"))
+                    out.append(self._to(OxyRecState.RECORDING, f"new session already advancing (→{duration})"))
         elif st is OxyRecState.END_CANDIDATE:
             if prev is not None and duration > prev:
                 out.append(self._to(OxyRecState.RECORDING, f"duration_s advancing ({prev}→{duration})"))
-        else:   # END_CONFIRMED — the only remaining state, and prev == 0 here BY CONSTRUCTION (the
-                # candidate held at 0 until the pull confirmed), so under continuous observation any
-                # positive counter is a NEW session opening; 0 is the ring still idle. A dead
-                # `duration > prev` re-check would be an unreachable branch wearing a guard's clothes.
+        else:  # END_CONFIRMED — the only remaining state, and prev == 0 here BY CONSTRUCTION (the
+            # candidate held at 0 until the pull confirmed), so under continuous observation any
+            # positive counter is a NEW session opening; 0 is the ring still idle. A dead
+            # `duration > prev` re-check would be an unreachable branch wearing a guard's clothes.
             if duration == 0:
                 out.append(self._to(OxyRecState.NOT_RECORDING, "duration_s reads 0"))
             else:
@@ -337,6 +392,10 @@ class OxyRecEngine:
         if self.state is not OxyRecState.END_CANDIDATE or self.closed_at_duration is None:
             return []
         if abs(stored_s - self.closed_at_duration) <= tolerance_s:
-            return [self._to(OxyRecState.END_CONFIRMED,
-                             f"trailer agrees: stored {stored_s}s vs observed {self.closed_at_duration}s")]
+            return [
+                self._to(
+                    OxyRecState.END_CONFIRMED,
+                    f"trailer agrees: stored {stored_s}s vs observed {self.closed_at_duration}s",
+                )
+            ]
         return []

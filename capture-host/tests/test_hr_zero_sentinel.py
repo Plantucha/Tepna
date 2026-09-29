@@ -11,6 +11,7 @@ WHY THIS SURVIVED: both current consumers range-check (`ecgdex-dsp` rejects hr <
 FILE was wrong and every reader defended itself — which is why the vendor-parity test below matters
 more than any behavioural one: it is the evidence that 0 was never the format's convention.
 """
+
 from __future__ import annotations
 import datetime as _dt
 import pathlib
@@ -27,7 +28,7 @@ def _rows(p: pathlib.Path) -> list[str]:
 def test_a_zero_bpm_writes_no_hr_row(tmp_path):
     w = writers.StreamWriter(str(tmp_path / "x_HR.txt"), "hr")
     w.write_hr(_PHONE, 0, 58, [])
-    w.write_hr(_PHONE, 0, 0, [])          # no lock — must not appear
+    w.write_hr(_PHONE, 0, 0, [])  # no lock — must not appear
     w.write_hr(_PHONE, 0, 59, [])
     w.close()
     vals = [r.split(";")[1] for r in _rows(tmp_path / "x_HR.txt")]
@@ -76,6 +77,7 @@ def test_real_polar_sensor_logger_exports_contain_no_zero_bpm():
     files = sorted(up.glob("Polar_H10_*_HR.txt")) if up.is_dir() else []
     if not files:
         import pytest
+
         pytest.skip("PSL goldens not present in this checkout")
     total = zeros = 0
     for f in files:

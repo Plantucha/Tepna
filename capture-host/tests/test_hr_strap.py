@@ -20,8 +20,8 @@ import capture
 from tests._srcscan import module_source
 
 # Real frames captured from a Coospo HRM808S, 2026-07-19.
-COOSPO_WORN = bytes.fromhex("16394404")      # flags 0x16, hr 57, rr 1092/1024 s
-COOSPO_2    = bytes.fromhex("163c0504")      # flags 0x16, hr 60
+COOSPO_WORN = bytes.fromhex("16394404")  # flags 0x16, hr 57, rr 1092/1024 s
+COOSPO_2 = bytes.fromhex("163c0504")  # flags 0x16, hr 60
 
 
 def test_a_real_coospo_frame_decodes():
@@ -34,7 +34,7 @@ def test_a_real_coospo_frame_decodes():
 def test_rr_is_converted_from_1024ths_of_a_second():
     """The SIG unit is 1/1024 s, not milliseconds. Treating it as ms would put RR ~2.4 % low and every
     derived HRV metric with it."""
-    frame = bytes([0x10, 60]) + (1024).to_bytes(2, "little")   # exactly 1.000 s
+    frame = bytes([0x10, 60]) + (1024).to_bytes(2, "little")  # exactly 1.000 s
     _bpm, rr, _c = capture._parse_hr(frame)
     assert rr == [1000]
 
@@ -89,13 +89,14 @@ def test_an_hr_only_strap_never_touches_pmd():
     src = module_source("capture.py")
     body = src.split("for s in streams:")[1][:400]
     assert "if s in meas_of:" in body, "only PMD streams may open a PMD writer"
-    assert '"hr"' not in body.split("if \"hr\" in streams")[0], "hr must not be routed through meas_of"
+    assert '"hr"' not in body.split('if "hr" in streams')[0], "hr must not be routed through meas_of"
 
 
 def test_the_scan_foregrounds_a_strap_named_only_by_its_model():
     """A Coospo advertises as '808S 0022265' — no vendor word anywhere, so the model number has to carry
     the match or it sorts in with the neighbours' speakers."""
     import bonding
+
     assert bonding._HEALTH_HINT.search("808S 0022265")
     assert bonding._HEALTH_HINT.search("COOSPO HRM808S")
     assert not bonding._HEALTH_HINT.search("Laser Carver")
@@ -108,8 +109,9 @@ def test_the_monitor_can_identify_a_coospo():
     # NOT a fixed-width slice: adding a comment inside the function silently slid the Coospo line out
     # of a [:1400] window and the assertion stopped covering anything.
     guess = html.split("function guessDevice")[1].split("\nfunction ")[0]
-    assert "streams=['hr']" in guess.replace('"', "'"), \
+    assert "streams=['hr']" in guess.replace('"', "'"), (
         "an HR-only strap must request hr alone — asking for ecg opens a writer that can never start"
+    )
 
 
 # ── Polar-specific rituals must not run on a non-Polar strap ────────────────────────────────────────
@@ -143,6 +145,7 @@ def test_the_clock_sync_gate_keys_on_the_MEASURED_capability_not_the_vendor_labe
 
 def test_pmd_stream_set_covers_every_pmd_stream_and_excludes_hr():
     import capture as c
+
     assert c._PMD_STREAMS == {"ecg", "acc", "ppg", "gyro", "mag", "ppi"}
     assert "hr" not in c._PMD_STREAMS, "hr is SIG-standard, not PMD — gating it would disable HR straps"
 
@@ -154,6 +157,7 @@ def test_an_hr_only_device_needs_neither_bond_nor_pmd():
 def test_a_polar_with_ecg_still_bonds():
     """The gate must not disable bonding for the device it was written for."""
     import capture as c
+
     assert set(["ecg", "acc", "hr"]) & c._PMD_STREAMS
 
 

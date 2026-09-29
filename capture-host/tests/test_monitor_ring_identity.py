@@ -7,6 +7,7 @@ field forwarded and drawn by nobody is the `find_unwired` class. Same discipline
 test_monitor_ring_rtc_alarm.py: EXECUTE the shipped `renderRingIdentity(status)` under node, never scan
 monitor.html for a string — a text scan cannot tell present-when-set from always-present.
 """
+
 import json
 import os
 import re
@@ -76,8 +77,13 @@ def test_nothing_at_all_before_the_first_readback():
 def test_a_hostile_serial_is_entity_encoded_before_innerHTML():
     """The serial is DEVICE-SUPPLIED text — on an unbonded plaintext link, exactly the string an impostor
     controls — reaching innerHTML. It goes through esc(); a live tag must never survive."""
-    out = _render({"ring_serial": "<img src=x onerror=alert(1)>", "ring_firmware": "<svg onload=1>",
-                   "ring_identity_mismatch": "peer reports <script>1</script>"})
+    out = _render(
+        {
+            "ring_serial": "<img src=x onerror=alert(1)>",
+            "ring_firmware": "<svg onload=1>",
+            "ring_identity_mismatch": "peer reports <script>1</script>",
+        }
+    )
     for live in ("<img", "<svg", "<script"):
         assert live not in out.lower(), f"a live tag reached innerHTML: {out}"
     for escaped in ("&lt;img", "&lt;svg", "&lt;script&gt;"):
@@ -104,7 +110,7 @@ def test_a_healthy_box_draws_no_barren_line_at_all():
     denominator — but a per-device zero on every card is a number an operator learns to skip."""
     out = _render({"ring_serial": "2592302100", "ring_barren_connects": 0, "ring_barren_alert": None})
     assert "ring-barren" not in out
-    assert _render({"ring_serial": "2592302100"}) .count("ring-barren") == 0, "absent reads like zero"
+    assert _render({"ring_serial": "2592302100"}).count("ring-barren") == 0, "absent reads like zero"
 
 
 def test_a_hostile_barren_alert_string_is_entity_encoded_too():
@@ -115,12 +121,12 @@ def test_a_hostile_barren_alert_string_is_entity_encoded_too():
 
 
 def test_the_link_encryption_verdict_renders_including_UNKNOWN():
-    """"unknown" is the common case on this hardware — every ring here stays silent on 0xFF — so it
+    """ "unknown" is the common case on this hardware — every ring here stays silent on 0xFF — so it
     must DRAW. Rendering nothing for an undetermined link would make it look like a clean one, which
     is the failure the whole auth wiring exists to remove."""
-    unk = _render({"auth_mode": "unknown",
-                   "auth_reason": "no OP_AUTH reply — encryption undetermined",
-                   "auth_unknown_links": 3})
+    unk = _render(
+        {"auth_mode": "unknown", "auth_reason": "no OP_AUTH reply — encryption undetermined", "auth_unknown_links": 3}
+    )
     assert 'id="ring-auth"' in unk and "unknown" in unk
     assert "3 link(s) undetermined" in unk, "the count is the point: one is normal, a night is not"
     enc = _render({"auth_mode": "encrypted", "auth_reason": "AES-128-ECB session key negotiated"})

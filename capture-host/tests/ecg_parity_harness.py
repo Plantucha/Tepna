@@ -24,7 +24,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # capture-host/) the parent dir is capture-host/ and these import directly.
 for cand in (os.path.dirname(HERE), "/media/michal/647A504F7A50205A/Tepna/capture-host"):
     if os.path.exists(os.path.join(cand, "polar_pmd.py")):
-        sys.path.insert(0, cand); break
+        sys.path.insert(0, cand)
+        break
 import polar_pmd, writers  # the REAL scaffold modules
 
 
@@ -38,7 +39,7 @@ def synth_ecg_frame(n_samples: int = 260, fs: int = 130, last_ns: int | None = N
     body = bytearray()
     for i in range(n_samples):
         uv = int(1500 * (1 if i % 13 else -3))  # any int24-safe pattern
-        body += struct.pack("<i", uv)[:3]       # low 3 bytes = int24 LE
+        body += struct.pack("<i", uv)[:3]  # low 3 bytes = int24 LE
     return bytes(hdr) + bytes(body), last_ns
 
 
@@ -53,7 +54,7 @@ def consumer_infer(path: str) -> dict:
                 continue
             p = [c for c in _split(line)]
             try:
-                float(p[-1])          # validity probe — raises on a header / junk row
+                float(p[-1])  # validity probe — raises on a header / junk row
             except (ValueError, IndexError):
                 continue  # header / junk row (non-numeric last column)
             n += 1
@@ -77,6 +78,7 @@ def consumer_infer(path: str) -> dict:
 
 def _split(line: str):
     import re
+
     return re.split(r"[;\t,]", line)
 
 

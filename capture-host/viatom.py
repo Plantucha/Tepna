@@ -14,9 +14,10 @@
 from __future__ import annotations
 
 VIATOM_SERVICE = "14839ac4-7d7e-415c-9a42-167340cf2339"
-VIATOM_WRITE   = "8b00ace7-eb0b-49b0-bbe9-9aee0a26e1a3"   # host -> device (request/start)
-VIATOM_NOTIFY  = "0734594a-a8e7-4b1a-a6b1-cd5243059a57"   # device -> host (data); prefer discovery-by-property
-START_CMD      = bytes([0xAA, 0x17, 0xE8, 0x00, 0x00, 0x00, 0x00, 0x1B])   # "request data" (ecostech/viatom-ble)
+VIATOM_WRITE = "8b00ace7-eb0b-49b0-bbe9-9aee0a26e1a3"  # host -> device (request/start)
+VIATOM_NOTIFY = "0734594a-a8e7-4b1a-a6b1-cd5243059a57"  # device -> host (data); prefer discovery-by-property
+START_CMD = bytes([0xAA, 0x17, 0xE8, 0x00, 0x00, 0x00, 0x00, 0x1B])  # "request data" (ecostech/viatom-ble)
+
 
 # Real-time packet byte offsets (ecostech/viatom-ble):
 #   [7]=SpO2 %  [8]=pulse bpm  [14]=battery %  [16]=motion  [17]=perfusion*10  [18]=wear(0=off)
@@ -27,13 +28,13 @@ def decode_packet(data: bytes) -> dict | None:
         return None
     spo2, pr = data[7], data[8]
     batt, motion, pi, worn = data[14], data[16], data[17], data[18]
-    spo2_ok = 50 <= spo2 <= 100                # 0/255 = invalid; <50 implausible
-    pr_ok   = 20 < pr < 255
+    spo2_ok = 50 <= spo2 <= 100  # 0/255 = invalid; <50 implausible
+    pr_ok = 20 < pr < 255
     return {
-        "spo2":  spo2 if spo2_ok else None,
-        "pr":    pr if pr_ok else None,
-        "batt":  batt,
+        "spo2": spo2 if spo2_ok else None,
+        "pr": pr if pr_ok else None,
+        "batt": batt,
         "motion": motion,
-        "pi":    round(pi / 10.0, 1),
-        "worn":  bool(worn),
+        "pi": round(pi / 10.0, 1),
+        "worn": bool(worn),
     }

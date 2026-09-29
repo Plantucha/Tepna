@@ -32,6 +32,7 @@ import oxy_power
 import acq_evidence
 import acq_evidence_o2ring
 
+
 async def _wait(q: asyncio.Queue, op: int, timeout: float = 20.0):
     """Await the next frame with opcode `op`, skipping interleaved live (0x04) frames.
 
@@ -51,8 +52,17 @@ async def _wait(q: asyncio.Queue, op: int, timeout: float = 20.0):
             return p
 
 
-async def pull(address, out_dir, which="latest", resume=False, adapter=None, serial="0000", wait=0, on_progress=None,
-               device_id=None):
+async def pull(
+    address,
+    out_dir,
+    which="latest",
+    resume=False,
+    adapter=None,
+    serial="0000",
+    wait=0,
+    on_progress=None,
+    device_id=None,
+):
     """Returns the list of .dat paths written this call (empty if the ring never appeared / no sessions).
 
     `serial` is the 4-byte AUTH payload (the portable "0000" default) and nothing else. `device_id` is the
@@ -63,8 +73,7 @@ async def pull(address, out_dir, which="latest", resume=False, adapter=None, ser
     deadline = loop.time() + wait
     while True:
         try:
-            return await _pull_once(address, out_dir, which, resume, adapter, serial, on_progress,
-                                    device_id=device_id)
+            return await _pull_once(address, out_dir, which, resume, adapter, serial, on_progress, device_id=device_id)
         except BleakDeviceNotFoundError:
             if loop.time() >= deadline:
                 print("ring never appeared — wake it (USB charger / press button / re-wear) and rerun.", flush=True)
@@ -73,8 +82,9 @@ async def pull(address, out_dir, which="latest", resume=False, adapter=None, ser
             await asyncio.sleep(2)
 
 
-async def _pull_once(address, out_dir, which, resume, adapter, serial, on_progress=None, lifecycle=None,
-                     device_id=None):
+async def _pull_once(
+    address, out_dir, which, resume, adapter, serial, on_progress=None, lifecycle=None, device_id=None
+):
     # ⚠️ `resume` REPLACES what was called `ftype` here. That parameter's value went straight into
     # `file_start_frame`'s trailing u32 — an OFFSET — so the name promised a file type and delivered
     # a seek position. #2313 renamed the frame builder and removed the CLI flag but left THIS
@@ -194,7 +204,8 @@ async def _pull_once(address, out_dir, which, resume, adapter, serial, on_progre
             # caller computing it would need its own connection to list the ring, which is the cost
             # this scope exists to avoid.
             targets = oxy_inventory.undrained(
-                oxy_inventory.load_rows(os.path.join(out_dir, "inventory.jsonl")), sessions)
+                oxy_inventory.load_rows(os.path.join(out_dir, "inventory.jsonl")), sessions
+            )
         else:
             targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
         safe_root = os.path.abspath(out_dir) + os.sep
@@ -306,8 +317,11 @@ async def _pull_once(address, out_dir, which, resume, adapter, serial, on_progre
                 # NOT "try a different --ftype": that argument is this frame's OFFSET, so every
                 # value of it asked the OXIMETRY family to start mid-file. If a stored raw-PPG file
                 # is what is wanted, it lives behind a different COMMAND FAMILY (0x06-0x09).
-                print(f"  ⚠ implausible size ({size}) from the oximetry store; skipping. This is not "
-                      f"a file-type argument — see --family.", flush=True)
+                print(
+                    f"  ⚠ implausible size ({size}) from the oximetry store; skipping. This is not "
+                    f"a file-type argument — see --family.",
+                    flush=True,
+                )
                 oxy_inventory.append_row(
                     ledger_path,
                     oxy_inventory.make_row(
@@ -375,8 +389,8 @@ async def _pull_once(address, out_dir, which, resume, adapter, serial, on_progre
                         try:
                             on_progress(off, size)  # a UI hook must never break the transfer
                         except Exception:
-                            pass   # ...which is the whole reason: the caller loses a readout,
-                                   # not the recording
+                            pass  # ...which is the whole reason: the caller loses a readout,
+                            # not the recording
             await send(oxyii.file_end_frame())
             await asyncio.sleep(0.3)
 
@@ -408,13 +422,21 @@ async def _pull_once(address, out_dir, which, resume, adapter, serial, on_progre
             if complete and resumed_from:
                 vr = oxy_transfer.verify(part, size, oxyii.parse_oxy_trailer)
                 if not vr.ok:
-                    print(f"  ⚠ resumed file failed verification ({vr.reason}) — discarding the "
-                          f".part and re-serving from 0 on the next pass.", flush=True)
+                    print(
+                        f"  ⚠ resumed file failed verification ({vr.reason}) — discarding the "
+                        f".part and re-serving from 0 on the next pass.",
+                        flush=True,
+                    )
                     oxy_inventory.append_row(
                         ledger_path,
-                        oxy_inventory.make_row(device_id, ts, oxy_inventory.FAILED,
-                                               reason=f"resume rejected: {vr.reason}",
-                                               reported_size=size, path=part),
+                        oxy_inventory.make_row(
+                            device_id,
+                            ts,
+                            oxy_inventory.FAILED,
+                            reason=f"resume rejected: {vr.reason}",
+                            reported_size=size,
+                            path=part,
+                        ),
                     )
                     # DISCARD, not keep. A `.part` that failed verification would otherwise be the
                     # input to the NEXT resume, which would splice onto known-bad bytes and could
@@ -423,8 +445,8 @@ async def _pull_once(address, out_dir, which, resume, adapter, serial, on_progre
                     try:
                         os.remove(part)
                     except OSError:
-                        pass   # best-effort: the next pass re-serves regardless, since the ledger
-                               # row above already says FAILED rather than PARTIAL
+                        pass  # best-effort: the next pass re-serves regardless, since the ledger
+                        # row above already says FAILED rather than PARTIAL
                     continue
             # T3 — LAST BYTE RECEIVED (brief §11/§23). `VERIFYING` means exactly "bytes complete on disk,
             # validation in flight", so it is emitted ONLY for a complete transfer: a short pull's bytes are
@@ -548,7 +570,6 @@ async def _pull_once(address, out_dir, which, resume, adapter, serial, on_progre
         return saved_paths
 
 
-
 async def probe_ppg_list(address, adapter=None, serial="0000"):
     """FIRST CONTACT with the stored raw-PPG family (0x06-0x09): send LIST, record what comes back.
 
@@ -602,8 +623,7 @@ async def probe_ppg_list(address, adapter=None, serial="0000"):
     for op, pl in other:
         print(f"  op=0x{op:02x}  len={len(pl)}  {pl.hex()}", flush=True)
     if not other:
-        print("  NO non-live reply — the ring ignored cmd 0x06, or answers on a channel we do not read",
-              flush=True)
+        print("  NO non-live reply — the ring ignored cmd 0x06, or answers on a channel we do not read", flush=True)
     return other
 
 
@@ -614,11 +634,16 @@ def main():
     ap.add_argument("--which", default="latest", help="latest | all | new | <YYYYMMDDhhmmss>")
     # `--ftype` is GONE rather than deprecated in the CLI: it never did what its name said, and a
     # flag that silently means "byte offset" is worse than one that errors. argparse rejects it.
-    ap.add_argument("--family", choices=("oxy", "ppg"), default="oxy",
-                    help="which stored-file COMMAND FAMILY to speak: oxy (0xF1-0xF4, the default and "
-                         "the only probed one) or ppg (0x06-0x09, stored raw PPG, UNPROBED)")
-    ap.add_argument("--list", action="store_true",
-                    help="list the store and exit — the dry path, sends no START/DATA frames")
+    ap.add_argument(
+        "--family",
+        choices=("oxy", "ppg"),
+        default="oxy",
+        help="which stored-file COMMAND FAMILY to speak: oxy (0xF1-0xF4, the default and "
+        "the only probed one) or ppg (0x06-0x09, stored raw PPG, UNPROBED)",
+    )
+    ap.add_argument(
+        "--list", action="store_true", help="list the store and exit — the dry path, sends no START/DATA frames"
+    )
     ap.add_argument("--adapter", default=None, help="BlueZ adapter e.g. hci1 (omit = default)")
     ap.add_argument("--serial", default="0000")
     ap.add_argument("--wait", type=int, default=0, help="seconds to keep retrying if the ring is asleep")
@@ -626,9 +651,12 @@ def main():
     # else: it sends ONE frame (cmd 0x06 LIST) and records the raw reply. Deleting the refusal instead
     # of gating past it would make every future `--family ppg` run a live probe by accident, which is
     # what the refusal was written to prevent.
-    ap.add_argument("--probe-ppg-list", action="store_true",
-                    help="OWNER-AUTHORISED FIRST CONTACT: send cmd 0x06 LIST to the raw-PPG family and "
-                         "print the raw reply. Sends no START/DATA/END; writes nothing to the ring")
+    ap.add_argument(
+        "--probe-ppg-list",
+        action="store_true",
+        help="OWNER-AUTHORISED FIRST CONTACT: send cmd 0x06 LIST to the raw-PPG family and "
+        "print the raw reply. Sends no START/DATA/END; writes nothing to the ring",
+    )
     a = ap.parse_args()
     if a.probe_ppg_list:
         asyncio.run(probe_ppg_list(a.address, a.adapter, a.serial))
@@ -637,8 +665,11 @@ def main():
         # DRY PATH ONLY. The frames exist and are tested; nothing has ever sent them to a ring, and
         # the first probe is owner-authorised separately. Refusing here keeps "the code exists" and
         # "the protocol is confirmed" from collapsing into each other.
-        print("--family ppg: the stored raw-PPG family (0x06-0x09) is built and UNPROBED. The first "
-              "ring contact is owner-authorised separately; no frame is sent.", flush=True)
+        print(
+            "--family ppg: the stored raw-PPG family (0x06-0x09) is built and UNPROBED. The first "
+            "ring contact is owner-authorised separately; no frame is sent.",
+            flush=True,
+        )
         if a.list:
             print(f"  would send: {oxyii.ppg_file_list_frame().hex()}", flush=True)
         raise SystemExit(0)

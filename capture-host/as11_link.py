@@ -148,6 +148,7 @@ def fig_unframe(buffer: bytes, *, on_bad_crc=None):
 #   Length-prefixed zero-pad — NOT PKCS#7. A `seal(payload)->wire` / `unseal(wire)->payload`
 #   pair (with the session key bound) is passed into as11_pull's encrypted RPC helpers.
 
+
 # ── Key material (bluetooth_protocol.md §Session keys) ────────────────────────────────
 def session_key(pair_key: bytes, nonce: bytes) -> bytes:
     """SHA256(K || nonce_raw) — the per-connection AES-256 key."""
@@ -242,7 +243,9 @@ def start_spool(spool_type: str, from_dt: str, max_spool_size: int = 4096, rpc_i
     return rpc("StartSpool", {"spoolAddress": {spool_type: addr}, "maxSpoolSize": max_spool_size}, rpc_id, "1.0")
 
 
-def pull_spool_fragments(spool_id: int, max_fragment_size: int = 3000, max_notifications: int = 0, rpc_id: int = 15) -> bytes:
+def pull_spool_fragments(
+    spool_id: int, max_fragment_size: int = 3000, max_notifications: int = 0, rpc_id: int = 15
+) -> bytes:
     """PullSpoolFragments (cmd 0x5f). Advances the open spool reader."""
     return rpc(
         "PullSpoolFragments",
@@ -272,7 +275,9 @@ def subscribe_event(data_ids, rpc_id: int = 17) -> bytes:
     return rpc("SubscribeEvent", {"dataIds": ids}, rpc_id, "1.0")
 
 
-def start_stream(data_ids, sample_interval_ms: int = 40, report_interval_ms: int | None = None, rpc_id: int = 16) -> bytes:
+def start_stream(
+    data_ids, sample_interval_ms: int = 40, report_interval_ms: int | None = None, rpc_id: int = 16
+) -> bytes:
     """StartStream (cmd 0x13) — open a LIVE waveform read over the encrypted channel. READ-ONLY.
 
     `data_ids`: 1–30 non-empty stream names (BRP `PatientFlow`/`MaskPressure` @ 40 ms; SA2

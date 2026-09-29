@@ -4,6 +4,7 @@ The owner's ask: the vigil monitor shows no version, unlike the Dex apps. The va
 on the page — it is that the string describes the RUNNING process rather than the checkout, so
 "did the deploy land?" stops needing an ssh session and a manual SHA comparison.
 """
+
 import os
 import sys
 
@@ -18,12 +19,12 @@ def _get(app, path="/api/version"):
     async def go(c):
         r = await c.get(path)
         return r.status, await r.json()
+
     return _serve(app, go)
 
 
 def test_THE_ENDPOINT_REPORTS_A_SHA_AND_A_START_TIME(tmp_path, monkeypatch):
-    monkeypatch.setattr(build_id, "probe",
-                        lambda _d, **_k: {"git": "a1b2c3d", "dirty": False, "started": 1000.0})
+    monkeypatch.setattr(build_id, "probe", lambda _d, **_k: {"git": "a1b2c3d", "dirty": False, "started": 1000.0})
     app, *_ = _mk(tmp_path)
     st, body = _get(app)
     assert st == 200
@@ -52,6 +53,7 @@ def test_THE_SHA_IS_READ_AT_STARTUP_NOT_PER_REQUEST(tmp_path, monkeypatch):
         a = await (await c.get("/api/version")).json()
         b = await (await c.get("/api/version")).json()
         return a, b
+
     a, b = _serve(app, go)
 
     assert a == b, "the sha moved between two requests — it is being read per-request"
@@ -61,8 +63,7 @@ def test_THE_SHA_IS_READ_AT_STARTUP_NOT_PER_REQUEST(tmp_path, monkeypatch):
 def test_AN_UNKNOWN_TREE_CROSSES_THE_BOUNDARY_AS_NULL_NOT_FALSE(tmp_path, monkeypatch):
     # A tarball deploy has no .git. `dirty: false` there would render a tree we never checked as
     # pristine — a fabricated negative. The tristate has to survive serialisation.
-    monkeypatch.setattr(build_id, "probe",
-                        lambda _d, **_k: {"git": None, "dirty": None, "started": 1000.0})
+    monkeypatch.setattr(build_id, "probe", lambda _d, **_k: {"git": None, "dirty": None, "started": 1000.0})
     app, *_ = _mk(tmp_path)
     _st, body = _get(app)
     assert body["dirty"] is None and body["git"] is None
@@ -73,9 +74,9 @@ def test_IT_PROBES_THE_DEPLOY_ROOT_NOT_THE_CAPTURE_HOST_SUBDIR(tmp_path, monkeyp
     # the subdir happens to work today, but the deploy root is what `tepna-update.sh` fast-forwards
     # and is the thing whose sha the operator is actually asking about.
     seen = []
-    monkeypatch.setattr(build_id, "probe",
-                        lambda d, **_k: (seen.append(d), {"git": "x", "dirty": False,
-                                                          "started": 1.0})[1])
+    monkeypatch.setattr(
+        build_id, "probe", lambda d, **_k: (seen.append(d), {"git": "x", "dirty": False, "started": 1.0})[1]
+    )
     _mk(tmp_path)
     assert seen and not seen[0].rstrip("/").endswith("capture-host"), seen
 
@@ -89,7 +90,6 @@ def test_THE_MONITOR_RENDERS_THE_BUILD_AND_HONOURS_THE_TRISTATE():
     assert "capture-host ${sha}" in page, "the sha is fetched but never drawn"
     # ...and the tristate is honoured rather than collapsed to a boolean.
     assert "_build.dirty === null" in page, (
-        "the page does not distinguish 'unknown' from 'clean' — a tarball deploy would render as a "
-        "verified-clean tree"
+        "the page does not distinguish 'unknown' from 'clean' — a tarball deploy would render as a verified-clean tree"
     )
     assert "_build.dirty === true" in page

@@ -46,8 +46,8 @@ def test_a_late_manual_start_is_NOT_a_finding():
     The observed figure is the head-start ITSELF (plus any therapy after the stream ends), not the
     session — see `test_a_covered_session_is_OK`. So the ratio is streamed / (head-start + streamed),
     and a late start shows up as a bigger head-start rather than a smaller stream."""
-    assert W.assess(therapy_min=10.0, stream_min=370.0)["state"] == W.OK        # 97 %
-    assert W.assess(therapy_min=180.0, stream_min=200.0)["state"] == W.OK       # 53 %, above the floor
+    assert W.assess(therapy_min=10.0, stream_min=370.0)["state"] == W.OK  # 97 %
+    assert W.assess(therapy_min=180.0, stream_min=200.0)["state"] == W.OK  # 53 %, above the floor
     assert W.assess(therapy_min=200.0, stream_min=180.0)["state"] == W.DIED_EARLY  # 47 %, below it
 
 
@@ -283,7 +283,7 @@ def test_A_TORN_LINE_IS_SKIPPED_NOT_COUNTED():
     class — or, worse, dilute a unanimous not-found night with a phantom 'unknown' and flip
     `unanimous_absent` to False on evidence that does not exist."""
     good = _unreach_rows("BleakDeviceNotFoundError", "BleakDeviceNotFoundError")
-    torn = good + "\n3000;idle;idle;;unrea"          # cut mid-write
+    torn = good + "\n3000;idle;idle;;unrea"  # cut mid-write
     r = W.unreachable_reason(torn)
     assert r["n"] == 2, "a truncated row was counted as a failed poll"
     assert r["unanimous_absent"] is True, "a torn row flipped a unanimous night to mixed"

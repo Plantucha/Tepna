@@ -20,6 +20,7 @@ Usage (on the box, daemon stopped per link_guard):
     .venv/bin/python probe_rtc_read.py --address <MAC> [--gap 10]     # differential byte survey
     .venv/bin/python probe_rtc_read.py --address <MAC> --clock        # ring RTC vs host, one read
 """
+
 from __future__ import annotations
 import argparse
 import asyncio
@@ -28,17 +29,16 @@ import sys
 from time import monotonic
 
 sys.path.insert(0, ".")
-from link_guard import require_free_link   # noqa: E402
-import oxyii                                # noqa: E402
-import verdict as VD                        # noqa: E402
+from link_guard import require_free_link  # noqa: E402
+import oxyii  # noqa: E402
+import verdict as VD  # noqa: E402
 
 try:
     from bleak import BleakClient
 except ImportError:  # no radio stack (the adoption gate's runner): the pure halves still import
     BleakClient = None  # type: ignore[assignment,misc]
 
-READS = {"GET_INFO": oxyii.OP_GET_INFO, "GET_CONFIG": oxyii.OP_GET_CONFIG,
-         "GET_BATTERY": oxyii.OP_GET_BATTERY}
+READS = {"GET_INFO": oxyii.OP_GET_INFO, "GET_CONFIG": oxyii.OP_GET_CONFIG, "GET_BATTERY": oxyii.OP_GET_BATTERY}
 
 
 class Chan:
@@ -51,6 +51,7 @@ class Chan:
         async def on(_s, d):
             for f in self.reasm.feed(bytes(d)):
                 self.q.put_nowait(f)
+
         await self.c.start_notify(oxyii.OXYII_NOTIFY, on)
 
     async def ask(self, op: int, seq: int) -> bytes | None:
@@ -76,8 +77,8 @@ def clock_candidates(a: bytes, b: bytes, gap_s: float) -> list[tuple[int, int, i
     out = []
     for w in (2, 4):
         for i in range(0, min(len(a), len(b)) - w + 1):
-            va = int.from_bytes(a[i:i+w], "little")
-            vb = int.from_bytes(b[i:i+w], "little")
+            va = int.from_bytes(a[i : i + w], "little")
+            vb = int.from_bytes(b[i : i + w], "little")
             d = vb - va
             if 0 < d and abs(d - gap_s) <= max(GAP_TOL_FLOOR_S, gap_s * GAP_TOL_FRACTION):
                 out.append((w, i, va, vb, d))
@@ -88,10 +89,10 @@ def diff(a: bytes, b: bytes, gap_s: float) -> list[str]:
     out = []
     for i in range(min(len(a), len(b))):
         if a[i] != b[i]:
-            out.append(f"    byte[{i:2d}]  {a[i]:02X} -> {b[i]:02X}  (Δ={b[i]-a[i]:+d})")
+            out.append(f"    byte[{i:2d}]  {a[i]:02X} -> {b[i]:02X}  (Δ={b[i] - a[i]:+d})")
     # multi-byte candidates: does any u16/u32 LE window advance by ~gap?
     for w, i, va, vb, d in clock_candidates(a, b, gap_s):
-        out.append(f"    *** u{w*8} LE @{i}: {va} -> {vb}  Δ={d}  ≈ the {gap_s:.0f}s gap — CLOCK CANDIDATE")
+        out.append(f"    *** u{w * 8} LE @{i}: {va} -> {vb}  Δ={d}  ≈ the {gap_s:.0f}s gap — CLOCK CANDIDATE")
     return out
 
 
@@ -111,7 +112,7 @@ def classify(first: bytes | None, second: bytes | None, gap_s: float) -> str:
     same function `diff()` prints from, so prose and object cannot disagree."""
     if first is None or second is None:
         return "unreadable"
-    if not diff(first, second, gap_s):   # the prose's BYTE-IDENTICAL, by the same comparison
+    if not diff(first, second, gap_s):  # the prose's BYTE-IDENTICAL, by the same comparison
         return "identical"
     return "candidate" if clock_candidates(first, second, gap_s) else "changed"
 
@@ -127,29 +128,63 @@ def verdict_object(outcomes: dict[str, str], gap_s: float) -> dict:
     ev = ["capture-host/probe_rtc_read.py"] + sorted(outcomes)
     tool = "capture-host/probe_rtc_read.py"
     if pop["checked"] == 0:
-        return VD.make(gate=VERDICT_GATE, status="NOT_RUN", population=pop, criterion=VERDICT_CRITERION,
-                       result=None, evidence=ev, tool=tool,
-                       reason=f"no opcode was readable on both sides of the {gap_s:.0f} s gap — nothing compared")
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="NOT_RUN",
+            population=pop,
+            criterion=VERDICT_CRITERION,
+            result=None,
+            evidence=ev,
+            tool=tool,
+            reason=f"no opcode was readable on both sides of the {gap_s:.0f} s gap — nothing compared",
+        )
     if cands:
-        return VD.make(gate=VERDICT_GATE, status="PASS", population=pop, criterion=VERDICT_CRITERION,
-                       result=result, evidence=ev, tool=tool, reason=None)
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="PASS",
+            population=pop,
+            criterion=VERDICT_CRITERION,
+            result=result,
+            evidence=ev,
+            tool=tool,
+            reason=None,
+        )
     if changed:
-        return VD.make(gate=VERDICT_GATE, status="UNKNOWN", population=pop, criterion=VERDICT_CRITERION,
-                       result=result, evidence=ev, tool=tool,
-                       reason=f"bytes moved in {', '.join(changed)} but no u16/u32 window tracked the "
-                              f"{gap_s:.0f} s gap — neither an RTC nor its absence was shown")
-    return VD.make(gate=VERDICT_GATE, status="FAIL", population=pop, criterion=VERDICT_CRITERION,
-                   result=result, evidence=ev, tool=tool,
-                   reason="no read opcode carries the RTC — every readable reply was byte-identical "
-                          f"across {gap_s:.0f} s; pull-time does not exist on this surface")
+        return VD.make(
+            gate=VERDICT_GATE,
+            status="UNKNOWN",
+            population=pop,
+            criterion=VERDICT_CRITERION,
+            result=result,
+            evidence=ev,
+            tool=tool,
+            reason=f"bytes moved in {', '.join(changed)} but no u16/u32 window tracked the "
+            f"{gap_s:.0f} s gap — neither an RTC nor its absence was shown",
+        )
+    return VD.make(
+        gate=VERDICT_GATE,
+        status="FAIL",
+        population=pop,
+        criterion=VERDICT_CRITERION,
+        result=result,
+        evidence=ev,
+        tool=tool,
+        reason="no read opcode carries the RTC — every readable reply was byte-identical "
+        f"across {gap_s:.0f} s; pull-time does not exist on this surface",
+    )
 
 
 def verdict_sample() -> dict:
     """The object the adoption gate reads (`--verdict-sample`): synthetic reads, no ring."""
-    a = bytearray(60); b = bytearray(60)
-    a[4:8] = (1000).to_bytes(4, "little"); b[4:8] = (1010).to_bytes(4, "little")
-    outcomes = {"GET_INFO": classify(bytes(a), bytes(b), 10.0), "GET_CONFIG": classify(bytes(40), bytes(40), 10.0),
-                "GET_BATTERY": classify(None, bytes([80]), 10.0)}
+    a = bytearray(60)
+    b = bytearray(60)
+    a[4:8] = (1000).to_bytes(4, "little")
+    b[4:8] = (1010).to_bytes(4, "little")
+    outcomes = {
+        "GET_INFO": classify(bytes(a), bytes(b), 10.0),
+        "GET_CONFIG": classify(bytes(40), bytes(40), 10.0),
+        "GET_BATTERY": classify(None, bytes([80]), 10.0),
+    }
     return verdict_object(outcomes, 10.0)
 
 
@@ -158,6 +193,7 @@ def clock_offset_s(rtc: dict, host) -> float:
     wall time (Clock Contract: the ring stores set_time_frame's fields verbatim), so the comparison is
     component arithmetic — no zones anywhere. PURE."""
     import datetime as _dt
+
     ring = _dt.datetime(rtc["year"], rtc["month"], rtc["day"], rtc["hour"], rtc["minute"], rtc["second"])
     return (ring - host).total_seconds()
 
@@ -167,6 +203,7 @@ async def read_clock(address: str) -> int:
     drift check the differential probe proved possible: run it any time to see how far the free-running
     RTC has wandered since the last 0xC0 push (the daemon re-pushes 6-hourly)."""
     import datetime as _dt
+
     async with BleakClient(address, timeout=25.0) as c:
         ch = Chan(c)
         await ch.start()
@@ -183,7 +220,9 @@ async def read_clock(address: str) -> int:
             return 1
         r = info["rtc"]
         off = clock_offset_s(r, host)
-        print(f"  ring RTC : {r['year']:04d}-{r['month']:02d}-{r['day']:02d} {r['hour']:02d}:{r['minute']:02d}:{r['second']:02d}")
+        print(
+            f"  ring RTC : {r['year']:04d}-{r['month']:02d}-{r['day']:02d} {r['hour']:02d}:{r['minute']:02d}:{r['second']:02d}"
+        )
         print(f"  host now : {host:%Y-%m-%d %H:%M:%S}  (local civil, NTP-disciplined)")
         print(f"  offset   : ring is {off:+.0f} s vs host  (±1 s read quantum)")
         return 0
@@ -209,7 +248,7 @@ async def main(address: str, gap: float) -> int:
         for name, op in READS.items():
             a, b = first[name], await ch.ask(op, 2)
             outcomes[name] = classify(a, b, actual)
-            if a is None or b is None:   # == outcomes[name] == "unreadable", spelled so mypy narrows
+            if a is None or b is None:  # == outcomes[name] == "unreadable", spelled so mypy narrows
                 print(f"  {name}: unreadable on one side — inconclusive")
                 continue
             d = diff(a, b, actual)
@@ -236,8 +275,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--address", required=True)
     ap.add_argument("--gap", type=float, default=10.0)
-    ap.add_argument("--clock", action="store_true",
-                    help="single read: the ring's RTC vs the host clock (drift since the last 0xC0 push)")
+    ap.add_argument(
+        "--clock",
+        action="store_true",
+        help="single read: the ring's RTC vs the host clock (drift since the last 0xC0 push)",
+    )
     args = ap.parse_args()
     require_free_link()
     if args.clock:

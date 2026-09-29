@@ -24,10 +24,12 @@ def test_the_ring_reports_its_own_charge_state():
 
 def test_ring_charge_flag_is_read_from_batt_state_not_inferred():
     src = module_source("capture.py")
-    assert 'charging=bool(live.get("batt_state"))' in src, \
+    assert 'charging=bool(live.get("batt_state"))' in src, (
         "the O2Ring must take charging from its own batt_state, not from a battery trend"
-    assert src.count('charging=bool(live.get("batt_state"))') == 2, \
+    )
+    assert src.count('charging=bool(live.get("batt_state"))') == 2, (
         "both the worn and the NOT-worn path must report charge state — the ring keeps its link on the dock"
+    )
 
 
 def test_polar_charge_is_inferred_from_a_RISING_battery():
@@ -35,8 +37,9 @@ def test_polar_charge_is_inferred_from_a_RISING_battery():
     not self-charge — and a battery that falls means it came off the dock."""
     src = module_source("capture.py")
     assert "lvl > prev" in src and "charging=True" in src
-    assert "lvl < prev" in src and "charging=False" in src, \
+    assert "lvl < prev" in src and "charging=False" in src, (
         "coming off the dock must clear the flag, or it latches on forever"
+    )
 
 
 def test_the_monitor_pill_describes_data_not_the_link():
@@ -71,6 +74,7 @@ def test_not_worn_and_charging_are_amber_or_blue_never_red():
 # The tests above are source scans. This one EXECUTES, because the defect it covers is a wiring
 # question — does a `True` from the predicate actually reach the flag — and a scan cannot answer that.
 
+
 @pytest.mark.sets_capture_events
 def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_path, monkeypatch):
     """A full cell has nowhere to rise to, so `lvl > prev` can never fire at 100 %. Measured
@@ -104,12 +108,13 @@ def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_pa
     capture.devcaps.record("24:AC:AC:02:84:96", "can_charge", True, source="test: a unit observed to charge")
     c = T.FlexPolarClient(data_frames=[T._ppg_frame()], batt_level=100)
     T._inject_connect(monkeypatch, c)
-    T._stop_after(monkeypatch, 130)          # past `secs % 120` → a SECOND battery read
+    T._stop_after(monkeypatch, 130)  # past `secs % 120` → a SECOND battery read
     asyncio.run(capture.run_polar(T._pdev(streams=["ppg"]), str(tmp_path)))
     st = capture.STATUS["devices"][T._pdev(streams=["ppg"])["name"]]
     assert st.get("battery") == 100, f"the fixture reads 100; the flat path needs prev == lvl: {st}"
     assert st.get("charging") is True, (
-        f"a full, unmoving battery must set charging — this is the case `lvl > prev` cannot see: {st}")
+        f"a full, unmoving battery must set charging — this is the case `lvl > prev` cannot see: {st}"
+    )
 
 
 @pytest.mark.sets_capture_events
@@ -138,7 +143,8 @@ def test_a_full_battery_that_has_NOT_been_flat_long_enough_sets_nothing(tmp_path
     st = capture.STATUS["devices"][T._pdev(streams=["ppg"])["name"]]
     assert st.get("battery") == 100
     assert st.get("charging") is not True, (
-        f"a full battery alone is not a charger — only a full battery that has not MOVED is: {st}")
+        f"a full battery alone is not a charger — only a full battery that has not MOVED is: {st}"
+    )
 
 
 # ── the flat-battery clock must OUTLIVE the connection ──────────────────────────────────────────────
@@ -185,9 +191,9 @@ def test_THE_CLOCK_SURVIVES_RECONNECTS():
     Here the store is owned by the caller and outlives the connection, so five short sessions add up."""
     store = {}
     t = 1000.0
-    telemetry.note_flat_battery(store, "V", None, 100, t)          # session 1 opens
+    telemetry.note_flat_battery(store, "V", None, 100, t)  # session 1 opens
     fired = []
-    for session in range(1, 6):                                     # five ~10-minute sessions
+    for session in range(1, 6):  # five ~10-minute sessions
         for tick in range(10):
             t += 60.0
             fired.append(telemetry.note_flat_battery(store, "V", 100, 100, t))
@@ -202,7 +208,7 @@ def test_a_reset_store_reproduces_the_OLD_broken_behaviour():
     t = 1000.0
     fired = []
     for session in range(5):
-        store = {}                                                  # ← the old per-connection local
+        store = {}  # ← the old per-connection local
         telemetry.note_flat_battery(store, "V", None, 100, t)
         for tick in range(10):
             t += 60.0
