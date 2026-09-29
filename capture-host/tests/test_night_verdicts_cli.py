@@ -94,12 +94,22 @@ def test_sample_json_night_seal_seals_a_synthetic_night_or_says_it_could_not(cap
     assert o["status"] == "NOT_RUN" and "cryptography" in o["reason"] and js_validate(o)["ok"]
 
 
-def test_sample_json_night_loss_is_UNKNOWN_with_the_number(capsys):
+def test_sample_json_night_loss_FAILS_the_owner_s_bar_with_the_number(capsys):
+    """CASCADE of the owner's 1 % bar (2026-09-29), the fifth and the one in another file — which is why
+    the gate is the arbiter and not the module's own suite: `loss_audit.sample_object()`'s numbers (2.0 min
+    lost of a 10.0 min worn span = 20 %) are a FAIL against the bar, and this CLI surfaces the same object.
+
+    The numbers are deliberately NOT retuned to keep the sample green: what the adoption gate needs from
+    this object is a valid shape under both validators, and a FAIL demonstrates a real reason string where
+    UNKNOWN demonstrated a placeholder. `daemon_caused_min` stays asserted because it is the durable
+    channel for the cause — it survived the reason text it used to be appended to."""
     assert night_verdicts.main(["--sample-json", "night-loss"]) == 0
     o = json.loads(capsys.readouterr().out)
     verdict.validate(o)
-    assert js_validate(o)["ok"] and o["gate"] == "night-loss" and o["status"] == "UNKNOWN"
-    assert o["result"]["daemon_caused_min"] == 2.0 and "no bar has been set" in o["reason"]
+    assert js_validate(o)["ok"] and o["gate"] == "night-loss" and o["status"] == "FAIL"
+    assert o["result"]["daemon_caused_min"] == 2.0
+    assert o["result"]["worn_but_not_recorded_fraction"] == 0.2
+    assert "20.0% of the worn span unrecorded (bar 1.0%)" in o["reason"], o["reason"]
 
 
 def test_sample_json_solid_night_passes_four_terms_and_names_the_one_it_waits_for(capsys):
