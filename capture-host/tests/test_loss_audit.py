@@ -99,7 +99,7 @@ def test_read_journal_bins_the_box_lines_and_returns_none_when_journalctl_is_una
     assert loss_audit.read_journal("x", T0, T0, run=lambda *a, **k: Bad()) is None
 
 
-def test_audit_night_names_the_daemon_as_the_cause_and_the_verdict_is_UNKNOWN_with_the_number(tmp_path):
+def test_audit_night_names_the_daemon_as_the_cause_and_the_verdict_FAILS_with_the_number(tmp_path):
     d = _night(tmp_path)
     planted = [(T0 + dt.timedelta(seconds=199), "daemon:not-worn drop")]
     a = loss_audit.audit_night(d, DEV, journal=lambda name, since, until: planted)
@@ -126,7 +126,14 @@ def test_audit_night_names_the_daemon_as_the_cause_and_the_verdict_is_UNKNOWN_wi
     o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
     verdict.validate(o)
     assert js_validate(o)["ok"]
-    assert o["status"] == "UNKNOWN" and "no bar has been set" in o["reason"] and "daemon-caused: 2.0 min" in o["reason"]
+    # CASCADE of the owner's 1 % bar (2026-09-29): this fixture loses 2.0 of ~2 min of worn span, which is
+    # orders above the bar, so the verdict that used to be UNKNOWN-with-the-number is now FAIL-with-the-
+    # number. The NUMBER is unchanged and still asserted; what changed is that there is now a bar to
+    # compare it against. The daemon-cause text moved out of the reason with the "no bar" wording it was
+    # attached to, and `result.daemon_caused_min` — which is the durable channel — is asserted instead.
+    assert o["status"] == "FAIL", o["reason"]
+    assert "of the worn span unrecorded (bar 1.0%)" in o["reason"] and "daemon:not-worn drop" in o["reason"]
+    assert o["result"]["daemon_caused_min"] == 2.0
     assert o["result"]["worn_but_not_recorded_fraction"] == round(v["worn_lost_min"] / v["span_min"], 4)
     assert o["result"]["by_device"]["Polar H10 0284"]["top_cause"] == "daemon:not-worn drop"
     assert o["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
@@ -162,7 +169,12 @@ def test_no_journal_is_said_not_hidden_and_worn_evidence_is_tri_state(tmp_path):
     a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
     assert a["devices"]["Polar H10 0284"]["worn_evidence"] is None  # no evidence file at all ⇒ null, not False
     o = loss_audit.night_verdict(a, night_dir=d)
-    assert o["result"]["worn_but_not_recorded_fraction"] is None and o["status"] == "UNKNOWN"
+    # CASCADE of the 1 % bar: with no worn evidence the fraction is undefined, and an undefined fraction
+    # cannot be compared against a bar — so this is NOT_APPLICABLE ("the criterion does not bind"), which
+    # the verdict contract requires to carry `result: null`. Before the bar it was UNKNOWN with the
+    # number, and the number was None. Both spellings say "not judged"; only this one says WHY.
+    assert o["status"] == "NOT_APPLICABLE" and o["result"] is None
+    assert "no device carried worn evidence" in o["reason"]
     # a garbled row is skipped, not fatal -- the column is still read, so the verdict is still ours to give
     hr = tmp_path / "captures" / "2026-09-20" / "Polar_H10_0284_20260920220000_HR.txt"
     hr.write_text("Phone timestamp;HR [bpm]\nx;notanumber\n1;0;3\nshort\n")
@@ -281,7 +293,10 @@ def test_write_night_puts_both_files_beside_the_summary_and_a_crash_is_UNKNOWN(t
     d = _night(tmp_path)
     o = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [])
     assert json.load(open(os.path.join(d, "LOSS-AUDIT.json")))["night"] == "2026-09-20"
-    assert json.load(open(os.path.join(d, "LOSS-VERDICT.json")))["gate"] == "night-loss" and o["status"] == "UNKNOWN"
+    # CASCADE of the 1 % bar: the same fixture as above, so FAIL. The crash path below is STILL UNKNOWN,
+    # and that is the distinction this test exists for — an audit that threw decided nothing, which is a
+    # different thing from an audit that measured a loss above the bar.
+    assert json.load(open(os.path.join(d, "LOSS-VERDICT.json")))["gate"] == "night-loss" and o["status"] == "FAIL"
     monkeypatch.setattr(loss_audit, "audit_night", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("disk gone")))
     o = loss_audit.write_night(d, DEV, journal=lambda *a: [])
     assert o["status"] == "UNKNOWN" and "RuntimeError: disk gone" in o["reason"]
@@ -306,7 +321,11 @@ def test_an_unreadable_primary_and_a_night_name_that_is_not_a_date(tmp_path, mon
 def test_the_sample_object_is_corpus_free_and_valid_under_both_validators():
     o = loss_audit.sample_object()
     verdict.validate(o)
-    assert js_validate(o)["ok"] and o["gate"] == "night-loss" and o["status"] == "UNKNOWN"
+    # CASCADE of the 1 % bar: the sample's own numbers (2.0 min lost of a 10.0 min worn span = 20 %) are a
+    # FAIL against it. The numbers are NOT retuned to make the sample read green — a sample tuned to pass
+    # its own gate would be documentation of nothing — so the shipped example now demonstrates a real
+    # reason string, which is more use to a reader than UNKNOWN was.
+    assert js_validate(o)["ok"] and o["gate"] == "night-loss" and o["status"] == "FAIL"
     assert o["result"]["daemon_caused_min"] == 2.0 and o["result"]["by_device"]["Polar H10 SAMPLE"]["fragments"] == 2
 
 
@@ -1938,3 +1957,90 @@ def test_the_evidence_read_NAMES_its_encoding(tmp_path):
         cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     )
     assert r.returncode == 0, r.stderr[-600:]
+
+
+# ── THE OWNER'S 1 % BAR (2026-09-29) ───────────────────────────────────────────────────────────────
+# `worn_but_not_recorded_fraction <= 0.01`, pre-stated with its source before any night is judged by it.
+# Three plants: a real night that passes, a synthetic night that fails, and the BOUNDARY — because `lte`
+# is the entire content of a bar and an off-by-one on that comparison is the defect a bar ships with.
+# Corpus-free: the real night's numbers are transcribed from its own committed audit output, named below,
+# rather than read from a path a test cannot see.
+
+
+def _audit(devices, journal="read"):
+    """The minimum `night_verdict` reads: per device `file`, `span_min`, `worn_evidence`, `worn_lost_min`,
+    `lost_min`, `fragments`, `by_cause`, `daemon_caused_min`."""
+    out = {}
+    for name, (span, lost, worn) in devices.items():
+        out[name] = {
+            "file": f"{name}.txt" if span is not None else None,
+            "span_min": span or 0.0,
+            "worn_evidence": worn,
+            "worn_lost_min": lost,
+            "lost_min": lost or 0.0,
+            "fragments": 2 if lost else 1,
+            "by_cause": {"link:disconnected": lost} if lost else {},
+            "daemon_caused_min": 0.0,
+        }
+    return {"devices": out, "journal": journal, "night": "2026-09-28"}
+
+
+def test_PLANT_the_real_2026_09_28_night_PASSES_the_owner_s_bar(tmp_path):
+    """🔴 A REAL NIGHT, from its own audit output. `LOSS-AUDIT.json` / `LOSS-VERDICT.json` for
+    2026-09-28 in the captures mirror recorded `worn_lost_min 0.0` over `worn_span_min 1214.2` across
+    three devices with a primary stream and one configured device that produced none (COOSPO) — and
+    `status: UNKNOWN`, "no bar has been set by the owner", which is the state this change ends.
+
+    The three spans below sum to 1214.2 and lose nothing, so the fraction is 0.0 and the night passes.
+    A PASS must carry `reason: null` under the verdict contract, and that is asserted rather than
+    assumed: a PASS that needs explaining is not a PASS."""
+    a = _audit(
+        {
+            "Wellue O2Ring-S": (404.7, 0.0, True),
+            "Polar Sense 0C301E3F": (404.7, 0.0, True),
+            "Polar H10 02849638": (404.8, 0.0, True),
+            "COOSPO 808S 0022265": (None, None, None),  # configured, no primary stream ⇒ excluded
+        }
+    )
+    o = loss_audit.night_verdict(a, night_dir=str(tmp_path), commit="abc1234")
+    verdict.validate(o)
+    assert js_validate(o)["ok"]
+    assert o["status"] == "PASS" and o["reason"] is None
+    assert o["result"]["worn_but_not_recorded_fraction"] == 0.0
+    assert o["result"]["worn_span_min"] == 1214.2, "the plant must reproduce the night's own worn span"
+    assert o["population"] == {"checked": 3, "eligible": 4, "excluded": 1}
+    assert o["criterion"] == {
+        "name": "worn_but_not_recorded_fraction",
+        "threshold": 0.01,
+        "unit": "fraction",
+        "direction": "lte",
+    }, "the criterion is the owner's, pre-stated, and its NAME is the metric's published identity"
+
+
+def test_PLANT_one_and_a_half_percent_of_the_worn_span_FAILS_and_names_the_worst_device():
+    """A synthetic night 50 % over the bar. A FAIL must carry both a result and a reason, and the reason
+    must be actionable — which device and which cause, not just the number."""
+    # 30.0 lost over a 2000.0 min worn span = 1.5 %. ⚠️ Written first as 15.0 over two 1000-min devices,
+    # which is 0.75 % and PASSED — the plant caught my own arithmetic, which is the point of asserting the
+    # fraction as well as the status: a test that only checked the status word would have "passed" while
+    # measuring the wrong thing, and a bar plant that cannot fail is not a plant.
+    a = _audit({"Polar H10": (1000.0, 30.0, True), "Wellue O2Ring-S": (1000.0, 0.0, True)})
+    o = loss_audit.night_verdict(a, night_dir="/n", commit="abc1234")
+    verdict.validate(o)
+    assert o["status"] == "FAIL"
+    assert o["result"]["worn_but_not_recorded_fraction"] == 0.015
+    assert "1.5% of the worn span unrecorded (bar 1.0%)" in o["reason"]
+    assert "Polar H10" in o["reason"] and "link:disconnected" in o["reason"], o["reason"]
+
+
+def test_CONTROL_exactly_one_percent_PASSES_because_the_direction_is_lte():
+    """🔴 THE BOUNDARY, and the only assertion that distinguishes `lte` from `lt`. The owner's bar is
+    "at most 1 %", so a night at exactly 1.000 % passes; `<` instead of `<=` would fail it, and no other
+    test in this file can see the difference. A hair above the bar must fail, or the control proves only
+    that some number passes."""
+    at = loss_audit.night_verdict(_audit({"Polar H10": (1000.0, 10.0, True)}), night_dir="/n")
+    assert at["result"]["worn_but_not_recorded_fraction"] == 0.01
+    assert at["status"] == "PASS" and at["reason"] is None, "exactly at the bar is inside it: direction is lte"
+    over = loss_audit.night_verdict(_audit({"Polar H10": (1000.0, 10.1, True)}), night_dir="/n")
+    assert over["result"]["worn_but_not_recorded_fraction"] == 0.0101
+    assert over["status"] == "FAIL", "one tenth of a minute past the bar is outside it"
