@@ -420,3 +420,67 @@ def test_an_ABSENT_stats_file_is_not_an_error(tmp_path):
     work, tests, stamp = _scratch_with_caches(tmp_path)
     (work / "mutants" / "mutmut-stats.json").unlink()
     assert mmeta.refresh_caches_if_tests_changed(work, "m.py", tests, stamp) is True
+
+
+# ⚠️ AND EVERY FIXTURE ABOVE IS SYNCHRONOUS, WHICH IS WHY THE SAME HOLE WAS STILL OPEN ONE SHAPE OVER.
+# `^\s*def` matches whitespace before `def` and nothing else — but Python allows exactly one other
+# thing there, the `async` keyword, and mutmut writes a coroutine's mutants as `async def`. Measured
+# 2026-09-28 against a real scratch tree: `wifi_uplink._run` had 44 mutants in `mutants/wifi_uplink.py`
+# and `generated_under_glob` returned 0.
+#
+# Same consequence as the method case, over a larger surface: 309 of capture-host's 1959 functions are
+# async (47 of 64 in webmon.py, 85 in capture.py, all 10 of as11_pull.py), and for every one of them a
+# genuine crash (generated >0, decided 0) took the benign "nothing to mutate, pass" arm. The §3 guard
+# was disabled across the async surface of a daemon that is almost entirely async.
+#
+# Both fixes share one root, and it is the reason these fixtures exist in all four shapes rather than
+# the one in front of the author: a pattern that cannot SEE a construct answered 0 for it — absence
+# reported as a measurement, which is the §∅ failure in a counter.
+_MUTSRC_ASYNC = (
+    "async def x_run__mutmut_1():\n    pass\n"
+    "async def x_run__mutmut_2():\n    pass\n"
+    "async def x_run__mutmut_3():\n    pass\n"
+    "def x_sync__mutmut_1():\n    pass\n"
+)
+_MUTSRC_ASYNC_METHOD = (
+    "class C:\n"
+    "    async def xǁCǁfetch__mutmut_1(self):\n        pass\n"
+    "    async def xǁCǁfetch__mutmut_2(self):\n        pass\n"
+    "    def xǁCǁparse__mutmut_1(self):\n        pass\n"
+)
+
+
+def test_generated_counts_an_ASYNC_functions_mutants():
+    """THE REGRESSION, measured on wifi_uplink._run: 44 mutants in the file, 0 counted."""
+    assert mmeta.generated_under_glob(_MUTSRC_ASYNC, "m.x_run__mutmut_*") == 3
+
+
+def test_generated_counts_an_INDENTED_ASYNC_METHODS_mutants():
+    """Both hole-shapes at once — the indent fix and the keyword fix have to hold together."""
+    assert mmeta.generated_under_glob(_MUTSRC_ASYNC_METHOD, "m.xǁCǁfetch__mutmut_*") == 2
+
+
+def test_sync_and_async_in_ONE_file_do_not_bleed_into_each_other():
+    assert mmeta.generated_under_glob(_MUTSRC_ASYNC, "m.x_sync__mutmut_*") == 1
+    assert mmeta.generated_under_glob(_MUTSRC_ASYNC_METHOD, "m.xǁCǁparse__mutmut_*") == 1
+
+
+def test_an_ASYNC_function_with_no_mutants_still_reads_zero():
+    """The benign arm again: widening for `async` must not invent a mutant that is not there."""
+    assert mmeta.generated_under_glob(_MUTSRC_ASYNC, "m.x_absent__mutmut_*") == 0
+
+
+def test_the_KEYWORD_is_what_widened_not_the_anchor():
+    """`async` is the only token Python permits between the line start and `def`, so nothing else
+    may slip through. A commented-out or textually-mentioned mutant is not a generated one."""
+    assert mmeta.generated_under_glob("# async def x_run__mutmut_1():\n", "m.x_run__mutmut_*") == 0
+    assert mmeta.generated_under_glob("asyncdef x_run__mutmut_1():\n", "m.x_run__mutmut_*") == 0
+    assert mmeta.generated_under_glob("xasync def x_run__mutmut_1():\n", "m.x_run__mutmut_*") == 0
+
+
+def test_the_three_sync_shapes_are_unchanged_by_the_async_widening():
+    """Guards this fix the way `test_module_level_counting_is_unchanged_by_the_wider_anchor` guarded
+    the last one: the shapes that already worked must count exactly as before."""
+    assert mmeta.generated_under_glob(_MUTSRC, "m.x_a__mutmut_*") == 2
+    assert mmeta.generated_under_glob(_MUTSRC, "m.x_b__mutmut_*") == 1
+    assert mmeta.generated_under_glob(_MUTSRC_METHOD, "m.xǁCǁscaled__mutmut_*") == 2
