@@ -29,6 +29,55 @@ import { resolve } from 'node:path';
 
    An UNCLOSED element truncates to end-of-input. That is the honest read, not a fallback: everything
    after an unterminated `<script` IS script. Returning the tail would mine executable text as prose. */
+/* A TAG NAME ENDS AT WHITESPACE, `>` OR `/` — the one rule both directions need, and the reason this
+   is a function rather than two copies. `<scriptable>` is not `<script>`, and `</scriptable>` is not
+   `</script>` either: a script BODY containing the literal text `</scriptable>` used to end the element
+   here, which truncated the strip early and (for the extractor below) would report a SyntaxError in a
+   block that was never separated at its real boundary. Same rule, both ends. */
+function nameEnds(ch) {
+  return ch === undefined || /[\s>/]/.test(ch);
+}
+
+/* The END of the element that opened at `a`: the index of the `</tag` that really closes it, and the
+   index just past its `>`. `null` when the element is unterminated — the honest read, since everything
+   after an unclosed `<script` IS script. */
+function findClose(src, lower, close, a) {
+  let b = lower.indexOf(close, a);
+  while (b !== -1 && !nameEnds(lower[b + close.length])) b = lower.indexOf(close, b + close.length);
+  if (b === -1) return null;
+  const gt = src.indexOf('>', b);
+  if (gt === -1) return null; // the end tag never closes
+  return { b, after: gt + 1 };
+}
+
+/* EVERY element of this type, as `{ attrs, body }` — an index scan, for the reason stated at the top of
+   this file. The census in `tests/run-tests.mjs` needs the OPEN tag's attributes (to read
+   `data-inline-src` and `type`) and the body (to parse it), which `stripElement` throws away; a fourth
+   end-tag regex was the alternative and this file exists to say that a third one was already too many.
+   An element whose open tag never closes, or which is unterminated, is SKIPPED rather than guessed at. */
+export function elementBlocks(html, tag) {
+  const src = String(html);
+  const lower = src.toLowerCase();
+  const open = `<${tag.toLowerCase()}`;
+  const close = `</${tag.toLowerCase()}`;
+  const out = [];
+  let i = 0;
+  for (;;) {
+    const a = lower.indexOf(open, i);
+    if (a === -1) return out;
+    if (!nameEnds(lower[a + open.length])) {
+      i = a + open.length;
+      continue;
+    }
+    const openGt = src.indexOf('>', a);
+    if (openGt === -1) return out; // the open tag never closes
+    const end = findClose(src, lower, close, openGt + 1);
+    if (!end) return out; // unterminated
+    out.push({ attrs: src.slice(a + open.length, openGt), body: src.slice(openGt + 1, end.b) });
+    i = end.after;
+  }
+}
+
 export function stripElement(html, tag) {
   const src = String(html);
   const lower = src.toLowerCase();
@@ -39,19 +88,16 @@ export function stripElement(html, tag) {
   for (;;) {
     const a = lower.indexOf(open, i);
     if (a === -1) return out + src.slice(i);
-    /* `<scriptable>` must NOT match `<script`. A tag name ends at whitespace, `>` or `/`. */
-    const after = lower[a + open.length];
-    if (after !== undefined && !/[\s>/]/.test(after)) {
+    /* `<scriptable>` must NOT match `<script` — `nameEnds` is the shared rule. */
+    if (!nameEnds(lower[a + open.length])) {
       out += src.slice(i, a + open.length);
       i = a + open.length;
       continue;
     }
     out += src.slice(i, a);
-    const b = lower.indexOf(close, a);
-    if (b === -1) return out; // unterminated: the rest of the document is inside the element
-    const gt = src.indexOf('>', b);
-    if (gt === -1) return out; // the end tag never closes
-    i = gt + 1;
+    const end = findClose(src, lower, close, a);
+    if (!end) return out; // unterminated: the rest of the document is inside the element
+    i = end.after;
   }
 }
 
@@ -81,6 +127,32 @@ export function selfTest() {
   eq(stripElement('<p>plain</p>', S) === '<p>plain</p>', 'a document with no such element is unchanged');
   eq(!stripCode('<style>.a{}</style><p>keep</p>').includes('.a{}'), 'stripCode removes <style> too');
   eq(stripCode('<style>.a{}</style><p>keep</p>').includes('keep'), 'stripCode keeps the prose');
+
+  /* ── THE CLOSE TAG OBEYS THE SAME NAME RULE AS THE OPEN TAG ────────────────────────────────────
+     A body containing the literal text `</scriptable>` is not an end tag, and used to end the element
+     here: the strip truncated early and dropped every bit of prose after it. Same defect class as
+     `<scriptable>` at the other end, which this file already guarded. */
+  eq(stripElement(`<${S}>var s = "</${S}able>";</${S}>keep`, S).includes('keep'), '`</scriptable>` INSIDE a body is not the end tag');
+
+  /* ── elementBlocks · the extractor, over the same end-tag spellings ───────────────────────────── */
+  const B = (h) => elementBlocks(h, S);
+  eq(B(`<${S} data-inline-src="a.js">var x=1;</${S}>`).length === 1, 'elementBlocks finds one block');
+  eq(B(`<${S} data-inline-src="a.js">var x=1;</${S}>`)[0].attrs.includes('data-inline-src="a.js"'), '…and carries the OPEN tag attributes, which stripElement throws away');
+  eq(B(`<${S}>var x=1;</${S}>`)[0].body === 'var x=1;', '…and the body between the two tags, exactly');
+  for (const [name, end] of [
+    ['plain', `</${S}>`],
+    ['spaced', `</${S} >`],
+    ['attributed', `</${S} foo="bar">`],
+    ['slash', `</${S}/>`],
+    ['whitespace + junk', `</${S}\t\n bar>`],
+    ['uppercase', `</${S.toUpperCase()}>`]
+  ])
+    eq(B(`<${S}>var x=1;${end}`)[0] && B(`<${S}>var x=1;${end}`)[0].body === 'var x=1;', `elementBlocks ends the block at the ${name} end tag`);
+  eq(B(`<${S}>a</${S}><p>x</p><${S}>b</${S}>`).length === 2, 'elementBlocks finds BOTH blocks, and does not merge them');
+  eq(B(`<${S}able>keep</${S}able>`).length === 0, '`<scriptable>` is not a `<script>` block');
+  eq(B(`<${S}>var s = "</${S}able>";</${S}>`)[0].body === `var s = "</${S}able>";`, 'a body containing `</scriptable>` is not cut short');
+  eq(B(`<${S}>unterminated`).length === 0, 'an unterminated element yields NO block rather than a guessed one');
+  eq(B(`<${S} data-inline-src="a.js"`).length === 0, 'an open tag that never closes yields no block');
   return n;
 }
 

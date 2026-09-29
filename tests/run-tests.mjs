@@ -22,6 +22,7 @@ import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, cla
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { classify as qdClassify, pick as qdPick, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape } from '../tools/commit-shape.mjs';
+import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as captureRecapture from '../tools/capture-recapture.mjs';
 import { estimate as beatCrEstimate, estSummary as beatCrSummary } from '../tools/beat-capture-recapture.mjs';
 import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tools/beat-injection-recovery.mjs';
@@ -826,6 +827,75 @@ async function readComputeHashProbe() {
     render: await of(mk('compute(1)', 'paint(2)')), // display-only edit
     dsp: await of(mk('compute(2)', 'paint(1)')) // compute-path edit
   };
+}
+
+/* EVERY BUILDER-INLINED SCRIPT BLOCK MUST PARSE — the gate that was missing on 2026-09-28.
+   `oxydex-dsp.js` carries the comment ``only the anchored `$` keeps them apart``, and
+   `build-analysis.mjs` injected its 1.9 MB blob-worker shim with a replacement STRING, so
+   `String.replace` read that ``$` `` as "the text before the match" and spliced the whole document into
+   the middle of a JS string literal. Four analysis tools shipped a SyntaxError; `__mkWorker` was never
+   defined; every one of them hung forever at "booting … realms" and published nothing.
+
+   ⚠️ WHY NOTHING CAUGHT IT. `npm run verify:analysis` compares the built file to what the builder
+   produces — and the builder produced the corrupted file deterministically, so build output matched
+   build output and the check passed. A byte comparison of a generator against itself examines nothing
+   about the artifact. This census asks the only question that would have failed: does it PARSE.
+
+   POPULATION: blocks carrying `data-inline-src`, which is exactly what the builders inline, and which
+   keeps a tag regex out of prose — `cohort-harness.html:39` writes `<script src>` inside an HTML
+   comment, and scanning every tag reported that sentence as unparseable JavaScript.
+   Measured: 481 blocks · 33.6 MB · ~200 ms · ~150 MB RSS, so it runs every time. */
+function readInlineParseCensus() {
+  const vm = require('node:vm');
+  const out = { artifacts: 0, blocks: 0, bytes: 0, skipped: 0, bad: [], files: [] };
+  const roots = [ROOT, join(ROOT, 'docs')];
+  /* ⚠️ THE SCAN IS `strip-markup.mjs`'s, NOT A REGEX OF OUR OWN — and that module's header is the
+     reason. It records three regex attempts at this exact problem, each closing the end-tag spelling the
+     previous CodeQL alert named and leaving the class open, and concludes: "that is the tell that the
+     TOOL was wrong rather than the pattern — a third variant would have been a third patch." This gate
+     shipped the third variant before the search surfaced that file. `elementBlocks` is the index scan,
+     extended there to hand back the OPEN tag's attributes (which `stripElement` discards and which this
+     census needs for `data-inline-src` and `type`), so the repo keeps ONE answer to "where does an
+     element end" instead of four. */
+  for (const r of roots) {
+    let names;
+    try {
+      names = readdirSync(r).filter((n) => n.endsWith('.html'));
+    } catch {
+      continue;
+    }
+    for (const n of names) {
+      const f = join(r, n);
+      let h;
+      try {
+        h = readFileSync(f, 'utf8');
+      } catch {
+        continue;
+      }
+      out.artifacts++;
+      out.files.push(f.slice(ROOT.length + 1));
+      for (const { attrs, body } of elementBlocks(h, 'script')) {
+        if (!body.trim()) continue;
+        if (!/data-inline-src="/i.test(attrs)) {
+          out.skipped++;
+          continue;
+        }
+        /* a module block is not classic script and `vm.Script` cannot judge it — counted, never guessed at */
+        if (/type\s*=\s*"(?!text\/javascript|application\/javascript)/i.test(attrs)) {
+          out.skipped++;
+          continue;
+        }
+        out.blocks++;
+        out.bytes += body.length;
+        try {
+          new vm.Script(body, { filename: f });
+        } catch (e) {
+          out.bad.push({ file: f.slice(ROOT.length + 1), label: (attrs.match(/data-inline-src="([^"]+)"/) || [undefined, '(unlabelled)'])[1], message: String(e.message).slice(0, 120) });
+        }
+      }
+    }
+  }
+  return out;
 }
 
 /* MEASUREMENT-PROVENANCE-ROADMAP §3 — the SHIPPED bundles' code identity, read off the artifacts by the
@@ -2904,6 +2974,8 @@ async function main() {
     ManifestGate,
     computeHashProbe: await readComputeHashProbe(),
     bundleCodeIdentity: await readBundleCodeIdentity(), // roadmap §3 — shipped bundles' {manifestHash, computeHash}
+    inlineParseCensus: readInlineParseCensus(), // every builder-inlined block must PARSE (2026-09-28)
+    elementBlocks, // strip-markup's index scan — the group drives it over every end-tag spelling
     fixtures: readFixtures(),
     equiv: readEquiv(),
     odiPilot: readOdiPilot(),

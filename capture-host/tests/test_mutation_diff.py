@@ -2098,13 +2098,20 @@ def test_a_changed_STRING_is_a_semantic_change():
     assert M.functions_with_changed_ast(a, b)[0] == {"x_g"}
 
 
-def test_a_re_indented_DOCSTRING_stays_in_scope_deliberately():
-    """It cannot change behaviour, and it is NOT special-cased. The moment the rule starts deciding
-    WHICH string changes matter it is guessing again; scoping it is the safe side. Measured on the
-    reformat: 14 of the 20 functions that scoped were exactly this."""
+def test_a_re_indented_DOCSTRING_no_longer_scopes_and_here_is_why_that_CHANGED():
+    """⚠️ THIS TEST ASSERTED THE OPPOSITE IN #3199, deliberately, and is inverted here deliberately.
+
+    #3199 scoped a docstring change on the reasoning that the rule must never decide "which strings
+    matter". That reasoning still holds for every other string. What changed is a MEASUREMENT: mutmut
+    3.8 generates ZERO mutants for a docstring node (a function of [docstring + `return 1`] yields
+    exactly one mutant, `return 2`). So the docstring statement is not a string the rule is judging —
+    it is the one node with no mutants behind it, which is a syntactic fact rather than a preference.
+
+    The cost of the old answer was measured too: 14 docstring re-indents pulled capture.py into a
+    reformat's mutation scope and CI cancelled the job at its 180-minute timeout."""
     a = 'def h():\n    """Line.\n      indented."""\n    return 1\n'
     b = 'def h():\n    """Line.\n    indented."""\n    return 1\n'
-    assert M.functions_with_changed_ast(a, b)[0] == {"x_h"}
+    assert M.functions_with_changed_ast(a, b)[0] == set()
 
 
 def test_an_UNPARSEABLE_revision_narrows_nothing_and_says_why():
@@ -2186,6 +2193,90 @@ def test_two_defs_under_ONE_stem_are_compared_TOGETHER():
     assert M.functions_with_changed_ast(dup, dup.replace("return 2", "return 9"))[0] == {"x_f"}
 
 
+# ── A CHANGE CONFINED TO A DOCSTRING HAS NOTHING TO MUTATE ──────────────────────────────────────────
+# MEASURED on mutmut 3.8 before this rule was written: a function of [docstring + `return 1`] generates
+# exactly ONE mutant (`return 2`) and ZERO touch the docstring. So the docstring statement is the one
+# node with no mutants behind it, and scoping a function for it re-mutates a body that did not change.
+# Cost of not having this: 14 docstring re-indents pulled capture.py (20,021 mutants, ~22 min to
+# GENERATE on 24 cores) into a reformat's scope, and CI cancelled the job at 180 minutes.
+_DOC_A = 'def g(x):\n    """Summary.\n      indented line."""\n    return x + 1\n'
+_DOC_B = 'def g(x):\n    """Summary.\n    indented line."""\n    return x + 1\n'
+
+
+def test_a_RE_INDENTED_docstring_scopes_nothing():
+    """THE PLANT. This is the shape a formatter produces, and the only difference is the docstring."""
+    assert M.functions_with_changed_ast(_DOC_A, _DOC_B)[0] == set()
+
+
+def test_a_docstring_change_PLUS_a_token_change_still_scopes():
+    """THE CONTROL, and the half that keeps the rule honest: the exemption is for a change CONFINED
+    to the docstring, never for a function that also changed."""
+    assert M.functions_with_changed_ast(_DOC_A, _DOC_B.replace("x + 1", "x + 2"))[0] == {"x_g"}
+
+
+def test_a_REWRITTEN_docstring_also_scopes_nothing():
+    """Not just re-indentation — any docstring-only edit. There is still nothing to mutate."""
+    both = _DOC_A.replace("Summary.", "A completely different summary sentence.")
+    assert M.functions_with_changed_ast(_DOC_A, both)[0] == set()
+
+
+def test_a_changed_NON_docstring_string_still_scopes():
+    """The line between this rule and a hole: only the DOCSTRING statement is exempt. A log line, a
+    format string or an SQL fragment is an ordinary string constant and mutmut does mutate it."""
+    a = 'def h():\n    """Doc."""\n    log("started")\n'
+    b = 'def h():\n    """Doc."""\n    log("stopped")\n'
+    assert M.functions_with_changed_ast(a, b)[0] == {"x_h"}
+
+
+def test_ADDING_or_REMOVING_a_docstring_scopes_nothing_either():
+    """Both directions, because `_strip_docstring` must treat an absent docstring the same as a
+    present one — otherwise adding one reads as a body change."""
+    without = "def k():\n    return 7\n"
+    with_doc = 'def k():\n    """Now documented."""\n    return 7\n'
+    assert M.functions_with_changed_ast(without, with_doc)[0] == set()
+    assert M.functions_with_changed_ast(with_doc, without)[0] == set()
+
+
+def test_a_function_whose_BODY_IS_ONLY_a_docstring_is_handled():
+    """`clone.body = body[1:]` would leave an EMPTY body, which is not valid AST. Stripping must
+    substitute a `Pass` or this raises instead of answering."""
+    a = 'def only():\n    """One."""\n'
+    b = 'def only():\n    """Two."""\n'
+    assert M.functions_with_changed_ast(a, b)[0] == set()
+
+
+def test_the_rule_does_NOT_use_ast_get_docstring_with_its_default_cleaning():
+    """🔴 THE TRAP, pinned because it gave a confidently wrong answer on every real case.
+    `ast.get_docstring(node)` defaults to `clean=True` and normalises leading whitespace, so a
+    RE-INDENTED docstring compares EQUAL through it — which would report "no difference at all",
+    scope NOTHING anywhere, and do it silently. This asserts the two docstrings genuinely differ in
+    their RAW text while `clean=True` cannot see it, so a future reader cannot conclude the cleaned
+    comparison would have been equivalent."""
+    import ast as _ast
+
+    a, b = _ast.parse(_DOC_A).body[0], _ast.parse(_DOC_B).body[0]
+    assert _ast.get_docstring(a) == _ast.get_docstring(b), "clean=True hides it — that is the trap"
+    assert _ast.get_docstring(a, clean=False) != _ast.get_docstring(b, clean=False), (
+        "the raw docstrings DO differ, which is why the rule compares structurally instead"
+    )
+
+
+def test_a_changed_DECORATOR_scopes_the_function():
+    """`ast.dump(d)` → `ast.dump(None)` survived: every decorator would dump identically, so two
+    functions differing ONLY in their decorators compare equal and the function is dropped from
+    scope. A decorator change is a behaviour change — it is what wraps the call — and the signature
+    and decorator list are dumped precisely because the body alone does not carry them."""
+    a = "@retry\ndef f():\n    return 1\n"
+    b = "@cache\ndef f():\n    return 1\n"
+    assert M.functions_with_changed_ast(a, b)[0] == {"x_f"}
+    # …and adding one where there was none.
+    assert M.functions_with_changed_ast("def f():\n    return 1\n", a)[0] == {"x_f"}
+
+
+def test_a_changed_SIGNATURE_scopes_the_function():
+    """The sibling property, for the same reason: `ast.dump(node.args)` is in the comparison because
+    a parameter list change is not visible in the body statements."""
+    assert M.functions_with_changed_ast("def f(a):\n    return 1\n", "def f(a, b=2):\n    return 1\n")[0] == {"x_f"}
 # ── the COMMITTED generated-size record ─────────────────────────────────────────────────────────────
 # Every CI run is a fresh scratch, so a size remembered only beside the scratch is a size CI never has.
 # The record is what lets a hosted runner refuse capture.py at 0 workers in minute one, NAMED, instead of

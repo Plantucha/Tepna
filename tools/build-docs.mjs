@@ -177,7 +177,11 @@ function upsertMeta(abs, block) {
   // its body. Returns true if the file changed (and was written, unless --check).
   if (!existsSync(abs)) return null;
   const orig = readFileSync(abs, 'utf8');
-  const next = META_RE.test(orig) ? orig.replace(META_RE, block + '\n') : orig.replace(/<\/head>/i, block + '\n</head>');
+  /* FUNCTION replacements, not strings — the `$`-interpretation class that broke four analysis tools
+     on 2026-09-28 (`tools/build-analysis.mjs`, residue 2026-09-28-replacement-string-interprets-dollar).
+     `block` is built from the page's own TITLE and DESCRIPTION, which are authored prose, and prose may
+     contain `$&` or a dollar before a backtick. Neither is reachable through a function replacement. */
+  const next = META_RE.test(orig) ? orig.replace(META_RE, () => block + '\n') : orig.replace(/<\/head>/i, () => block + '\n</head>');
   if (next === orig) return false;
   if (!CHECK) writeFileSync(abs, next);
   return true;
@@ -218,8 +222,11 @@ function withFooter(html) {
     `background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;` +
     `padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);` +
     `pointer-events:none;user-select:none" title="Tepna suite version">v${manifest.version}</div>`;
-  if (_VER_FOOTER_RE.test(html)) return html.replace(_VER_FOOTER_RE, badge);
-  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, badge + '\n</body>');
+  /* Same class as `upsertMeta` above. `badge` carries only a semver today and so cannot contain a `$`
+     pattern — but the guarantee should live in the CALL, not in a fact about the current contents of a
+     variable, because that fact is exactly what a later edit changes without noticing. */
+  if (_VER_FOOTER_RE.test(html)) return html.replace(_VER_FOOTER_RE, () => badge);
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, () => badge + '\n</body>');
   return html; // a fragment with no </body> — nothing to anchor to, leave it
 }
 
