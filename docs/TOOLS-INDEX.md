@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**225 tools** · 223 with a purpose line · **2 without**
+**226 tools** · 224 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -52,6 +52,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |
 | [`cpap-sa2-agreement.mjs`](../tools/cpap-sa2-agreement.mjs) | the CPAP's wired SpO₂ against the ring's WHY — CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF. |
+| [`cvhr-fold-rescore.mjs`](../tools/cvhr-fold-rescore.mjs) | Residue `2026-09-22-cvhr-overlap-four-of-six-were-the-sweeps-selection`. |
 | [`deep-desat-falsifier.mjs`](../tools/deep-desat-falsifier.mjs) | THE STANDING CROSS-SIGNAL FALSIFIER for called sleep stages (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §6 item 4 / REM-STAGING-REDESIGN §5): "REM/Deep should carry a stage-appropriate… |
 | [`deep-flow-join.mjs`](../tools/deep-flow-join.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ DEEP-epoch × flow-event join, with a PER-COHORT clock offset instead of one global shift. |
 | [`deep-vlf-probe.mjs`](../tools/deep-vlf-probe.mjs) | THE STANDING VLF-vs-CONTAMINATED-DEEP PROBE (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §9/§11/§12). |
