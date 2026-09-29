@@ -1,0 +1,2646 @@
+{
+ "_README": [
+  "STATE FOR audits/ABSENCE-SURVEY-2026-09-22.json — WRITTEN BY tools/absence-ledger.mjs, NEVER BY HAND.",
+  "",
+  "The survey artifact beside this one is the record of what was found on 2026-09-23 and is not edited.",
+  "This file records what has been DONE about each finding. Keys are content + occurrence, never the",
+  "line, so an edit above a finding does not detach its state.",
+  "",
+  "States: open · fixed · accepted-with-reason. An accepted-with-reason row must carry the reason; the builder refuses otherwise.",
+  "",
+  "Everything not hand-read is `open`. \"The snippet no longer matches the file\" is NOT evidence of a fix:",
+  "measured 2026-09-29, an automated reclaim over-counted fixes by ~3.5x on the only population small",
+  "enough to verify. See audits/COUNTING-ZERO-POPULATION-SURVEY-2026-09-29.md."
+ ],
+ "source": "audits/ABSENCE-SURVEY-2026-09-22.json",
+ "states": [
+  "open",
+  "fixed",
+  "accepted-with-reason"
+ ],
+ "counts": {
+  "findings": 290,
+  "open": 287,
+  "fixed": 2,
+  "accepted-with-reason": 1
+ },
+ "entries": [
+  {
+   "key": "20cdc4ee8905",
+   "file": "capture-host/allan.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 655,
+   "state": "fixed",
+   "note": "the [-2,+2] clamp is gone and the docstring now states why it was wrong; verified by reading the file 2026-09-29"
+  },
+  {
+   "key": "7ddec5309f42",
+   "file": "capture-host/capture.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 10173,
+   "state": "open"
+  },
+  {
+   "key": "f2f47e27c21e",
+   "file": "capture-host/mmeta.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 112,
+   "state": "open"
+  },
+  {
+   "key": "45ccc1146b37",
+   "file": "capture-host/mutation_diff.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 146,
+   "state": "open"
+  },
+  {
+   "key": "8de4514e2a66",
+   "file": "capture-host/night_report.py",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 129,
+   "state": "open"
+  },
+  {
+   "key": "c82b7dbaf55f",
+   "file": "capture-host/o2ring.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 342,
+   "state": "open"
+  },
+  {
+   "key": "cff33c90fd16",
+   "file": "capture-host/oxyii.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 702,
+   "state": "open"
+  },
+  {
+   "key": "c0593926f36e",
+   "file": "capture-host/polar_psftp.py",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 736,
+   "state": "open"
+  },
+  {
+   "key": "7214c8dc2397",
+   "file": "capture-host/probe_oxyii_opcodes.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 168,
+   "state": "open"
+  },
+  {
+   "key": "afc88001716a",
+   "file": "capture-host/probe_pmd_surface.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 535,
+   "state": "open"
+  },
+  {
+   "key": "48db2de5a171",
+   "file": "capture-host/probe_verity_survey.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 335,
+   "state": "open"
+  },
+  {
+   "key": "6fa2b2dbfb01",
+   "file": "capture-host/probe_verity_survey.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 587,
+   "state": "open",
+   "note": "reads as \"gone\" only because the recorded snippet collapses a multi-statement line; `or b\"\"` is still present, 5 occurrences in the file"
+  },
+  {
+   "key": "176fd0f4a762",
+   "file": "capture-host/sealbox.py",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 280,
+   "state": "fixed",
+   "note": "`max(..., default=<now>)` replaced by an explicit list plus \"if nothing is left the answer is absence, not now\""
+  },
+  {
+   "key": "0f384659734f",
+   "file": "cohort-worker.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 162,
+   "state": "open"
+  },
+  {
+   "key": "8e0d4cbebe0d",
+   "file": "cpapdex-cross.js",
+   "kind": "in-band-sentinel",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 650,
+   "state": "open"
+  },
+  {
+   "key": "52d5df84b7b1",
+   "file": "cpapdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 361,
+   "state": "open"
+  },
+  {
+   "key": "7844a3806256",
+   "file": "cpapdex-dsp.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 2184,
+   "state": "open"
+  },
+  {
+   "key": "0b9215a821b8",
+   "file": "cpapdex-edf.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 239,
+   "state": "open"
+  },
+  {
+   "key": "f7ce34387993",
+   "file": "cpapdex-edf.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 263,
+   "state": "open"
+  },
+  {
+   "key": "73a54ad0f557",
+   "file": "cpapdex-edf.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 310,
+   "state": "open"
+  },
+  {
+   "key": "5f818fc7470d",
+   "file": "dex-profile.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1010,
+   "state": "open"
+  },
+  {
+   "key": "4c61aaf812a5",
+   "file": "ecgdex-app.js",
+   "kind": "in-band-sentinel",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1611,
+   "state": "open"
+  },
+  {
+   "key": "418837ab4af6",
+   "file": "ecgdex-app.js",
+   "kind": "in-band-sentinel",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1643,
+   "state": "open"
+  },
+  {
+   "key": "0e9bd9114507",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 2231,
+   "state": "open"
+  },
+  {
+   "key": "26391040afdf",
+   "file": "ecgdex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 3576,
+   "state": "open"
+  },
+  {
+   "key": "ca2996627891",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 4964,
+   "state": "open"
+  },
+  {
+   "key": "bb7e618a8fd9",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 5838,
+   "state": "open"
+  },
+  {
+   "key": "c2a261aa410f",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 6484,
+   "state": "open"
+  },
+  {
+   "key": "06836a7cfa09",
+   "file": "ecgdex-morph.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 136,
+   "state": "open"
+  },
+  {
+   "key": "e68050ffa2a0",
+   "file": "ecgdex-morph.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 656,
+   "state": "open"
+  },
+  {
+   "key": "cc5d14f95452",
+   "file": "ecgdex-profile.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 254,
+   "state": "open"
+  },
+  {
+   "key": "842262b29ce1",
+   "file": "glucodex-app.js",
+   "kind": "in-band-sentinel",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1069,
+   "state": "open"
+  },
+  {
+   "key": "0880f1511cb5",
+   "file": "glucodex-app.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1120,
+   "state": "open"
+  },
+  {
+   "key": "9a0c594cd20a",
+   "file": "glucodex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 447,
+   "state": "open"
+  },
+  {
+   "key": "1f11f5d6e0b8",
+   "file": "glucodex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 920,
+   "state": "open"
+  },
+  {
+   "key": "301c649a0a1b",
+   "file": "hrvdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 860,
+   "state": "open"
+  },
+  {
+   "key": "7d4c8a879a79",
+   "file": "hrvdex-dsp.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 879,
+   "state": "open"
+  },
+  {
+   "key": "b2ad303fe9ef",
+   "file": "hrvdex-dsp.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 909,
+   "state": "open"
+  },
+  {
+   "key": "7d7f9d03e314",
+   "file": "hrvdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1074,
+   "state": "open"
+  },
+  {
+   "key": "6845325b8432",
+   "file": "hrvdex-profile.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 45,
+   "state": "open"
+  },
+  {
+   "key": "5c406cbcb1c4",
+   "file": "hrvdex-profile.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 353,
+   "state": "open"
+  },
+  {
+   "key": "464bd9601149",
+   "file": "hrvdex-profile.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 378,
+   "state": "open"
+  },
+  {
+   "key": "802e6f479f45",
+   "file": "hrvdex-profile.js",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 486,
+   "state": "open"
+  },
+  {
+   "key": "a67da4ab5c84",
+   "file": "hrvdex-render.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 383,
+   "state": "open"
+  },
+  {
+   "key": "c4444dbaf422",
+   "file": "integrator-dsp.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1089,
+   "state": "open"
+  },
+  {
+   "key": "6b2472cf0f24",
+   "file": "motiondex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1274,
+   "state": "open"
+  },
+  {
+   "key": "7bddf41daaa2",
+   "file": "nsrr-adapter.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 182,
+   "state": "open"
+  },
+  {
+   "key": "161c6298a3a5",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1355,
+   "state": "open"
+  },
+  {
+   "key": "10223f479abd",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 2353,
+   "state": "open"
+  },
+  {
+   "key": "6e5548a8b6d7",
+   "file": "oxydex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 3211,
+   "state": "open"
+  },
+  {
+   "key": "19200c666fc3",
+   "file": "oxydex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 3866,
+   "state": "open"
+  },
+  {
+   "key": "5ecb53a22281",
+   "file": "oxydex-dsp.js",
+   "kind": "in-band-sentinel",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 4194,
+   "state": "open"
+  },
+  {
+   "key": "42fbbdb4180c",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 4724,
+   "state": "open"
+  },
+  {
+   "key": "3138986628fa",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 6718,
+   "state": "open"
+  },
+  {
+   "key": "1a0a5e520931",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 6726,
+   "state": "open"
+  },
+  {
+   "key": "ad7f9843500e",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 6899,
+   "state": "open"
+  },
+  {
+   "key": "7fe93fab700e",
+   "file": "oxydex-fusion.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 71,
+   "state": "open"
+  },
+  {
+   "key": "612257ff825b",
+   "file": "oxydex-fusion.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 328,
+   "state": "open"
+  },
+  {
+   "key": "b52aeae19d7e",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1100,
+   "state": "open"
+  },
+  {
+   "key": "90fc63dc1bf5",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1249,
+   "state": "open"
+  },
+  {
+   "key": "6bd8afe77853",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1270,
+   "state": "open"
+  },
+  {
+   "key": "2f4a7b0dbb8e",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1389,
+   "state": "open"
+  },
+  {
+   "key": "d23ee06e6cef",
+   "file": "oxydex-render.js",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1400,
+   "state": "open"
+  },
+  {
+   "key": "941fd61ca771",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1476,
+   "state": "open"
+  },
+  {
+   "key": "44f3b6b1d340",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1560,
+   "state": "open"
+  },
+  {
+   "key": "ba87ceaa44b4",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1588,
+   "state": "open"
+  },
+  {
+   "key": "b3a5c9f58688",
+   "file": "oxydex-render.js",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1746,
+   "state": "open"
+  },
+  {
+   "key": "bc642ffa515f",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 2030,
+   "state": "open"
+  },
+  {
+   "key": "ea389b79a31f",
+   "file": "oxydex-render.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 3315,
+   "state": "open"
+  },
+  {
+   "key": "f0de0f611bc2",
+   "file": "ppgdex-app.js",
+   "kind": "aggregate-over-absence",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 1002,
+   "state": "open"
+  },
+  {
+   "key": "0c8c5c7074d6",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 6193,
+   "state": "open"
+  },
+  {
+   "key": "cc03514ece9c",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 6203,
+   "state": "open"
+  },
+  {
+   "key": "afe64d97a7b6",
+   "file": "pulsedex-app.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 554,
+   "state": "open"
+  },
+  {
+   "key": "59ab16020f5d",
+   "file": "pulsedex-app.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 638,
+   "state": "open"
+  },
+  {
+   "key": "99da70856676",
+   "file": "pulsedex-app.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 788,
+   "state": "open"
+  },
+  {
+   "key": "27fed719ee6a",
+   "file": "pulsedex-overview.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 35,
+   "state": "open"
+  },
+  {
+   "key": "fb3dc0ff334b",
+   "file": "qrs-equiv-analysis.js",
+   "kind": "default-reads-as-measured",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 302,
+   "state": "open"
+  },
+  {
+   "key": "ab2d7a825bb2",
+   "file": "resp-acc-analysis.js",
+   "kind": "default-number",
+   "severity": "high",
+   "occurrence": 0,
+   "surveyLine": 785,
+   "state": "open"
+  },
+  {
+   "key": "10dab9a77a5d",
+   "file": "analysis-stats.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 702,
+   "state": "open"
+  },
+  {
+   "key": "90622e68939f",
+   "file": "analysis-stats.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 803,
+   "state": "open"
+  },
+  {
+   "key": "aa1146c0a994",
+   "file": "capture-host/acq_evidence_cpap.py",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 141,
+   "state": "open"
+  },
+  {
+   "key": "3720ab19bc82",
+   "file": "capture-host/bonding.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 79,
+   "state": "open"
+  },
+  {
+   "key": "817c7ec0f459",
+   "file": "capture-host/capture.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 607,
+   "state": "open"
+  },
+  {
+   "key": "dd0aa7a41642",
+   "file": "capture-host/capture.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3356,
+   "state": "open"
+  },
+  {
+   "key": "875bb6954cdb",
+   "file": "capture-host/capture.py",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3388,
+   "state": "open"
+  },
+  {
+   "key": "49b190952a2b",
+   "file": "capture-host/capture.py",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3662,
+   "state": "open"
+  },
+  {
+   "key": "c909513fc866",
+   "file": "capture-host/capture.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 9758,
+   "state": "open"
+  },
+  {
+   "key": "0565efb3f0a7",
+   "file": "capture-host/capture.py",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 10833,
+   "state": "open"
+  },
+  {
+   "key": "3326a41788d9",
+   "file": "capture-host/cpap_live.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 67,
+   "state": "open"
+  },
+  {
+   "key": "d2ab13a24151",
+   "file": "capture-host/nightqc.py",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 713,
+   "state": "open"
+  },
+  {
+   "key": "f06c04c132be",
+   "file": "capture-host/nightqc.py",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1676,
+   "state": "open",
+   "note": "the recorded line was refactored away; whether the defect went with it is NOT decidable from content, so it stays open rather than being credited"
+  },
+  {
+   "key": "26c95d28e17e",
+   "file": "capture-host/o2ring.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 335,
+   "state": "open"
+  },
+  {
+   "key": "0d996418bc7c",
+   "file": "capture-host/probe_oxyii_0x03.py",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 107,
+   "state": "open"
+  },
+  {
+   "key": "dc5cad86b260",
+   "file": "capture-host/probe_pmd_opcodes.py",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 105,
+   "state": "open"
+  },
+  {
+   "key": "31a3180e5235",
+   "file": "capture-host/probe_pmd_opcodes.py",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 163,
+   "state": "open"
+  },
+  {
+   "key": "7fc0ece58810",
+   "file": "capture-host/probe_polar_onboard.py",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 78,
+   "state": "open"
+  },
+  {
+   "key": "21adb6465762",
+   "file": "capture-host/probe_verity_offline.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 187,
+   "state": "open",
+   "note": "same false-gone as probe_verity_survey.py:587 — `or b\"\"` still present"
+  },
+  {
+   "key": "dc5852859e57",
+   "file": "capture-host/probe_verity_survey.py",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 216,
+   "state": "open"
+  },
+  {
+   "key": "f5db1b76cdf4",
+   "file": "capture-host/sealbox.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 342,
+   "state": "open"
+  },
+  {
+   "key": "5b513f431567",
+   "file": "capture-host/telemetry.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 118,
+   "state": "accepted-with-reason",
+   "reason": "calibrated_for treats an unknown rate (None) as in-domain, deliberately: every caller that cannot report a rate predates the parameter, and refusing there would silently disable worn detection for all of them. The concession and its cost are stated in the function docstring."
+  },
+  {
+   "key": "15f57c899ddf",
+   "file": "capture-host/telemetry.py",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 874,
+   "state": "open"
+  },
+  {
+   "key": "c368b8dd624b",
+   "file": "cohort-worker.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 227,
+   "state": "open"
+  },
+  {
+   "key": "0ffb880bb47d",
+   "file": "cpapdex-coimport.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 216,
+   "state": "open"
+  },
+  {
+   "key": "e7e4ba8f4267",
+   "file": "cpapdex-cross.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 648,
+   "state": "open"
+  },
+  {
+   "key": "d6a89c94ac4c",
+   "file": "cpapdex-edf.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 260,
+   "state": "open"
+  },
+  {
+   "key": "5d748d73930a",
+   "file": "cpapdex-fusion.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 116,
+   "state": "open"
+  },
+  {
+   "key": "d0cb9c8351d1",
+   "file": "cpapdex-render.js",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1177,
+   "state": "open"
+  },
+  {
+   "key": "1dd5a23ccfe1",
+   "file": "crossnight-envelope.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 81,
+   "state": "open"
+  },
+  {
+   "key": "ef5184b2eab7",
+   "file": "dex-ingest.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 56,
+   "state": "open"
+  },
+  {
+   "key": "ac1b06715c89",
+   "file": "dex-profile.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1158,
+   "state": "open"
+  },
+  {
+   "key": "7c08bdfa6fdb",
+   "file": "ecgdex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 48,
+   "state": "open"
+  },
+  {
+   "key": "d26ca59dfa7b",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2105,
+   "state": "open"
+  },
+  {
+   "key": "140bb1203349",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2350,
+   "state": "open"
+  },
+  {
+   "key": "8f746802f623",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2827,
+   "state": "open"
+  },
+  {
+   "key": "f2a15ca48d5c",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3325,
+   "state": "open"
+  },
+  {
+   "key": "27eacc1e00ca",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 4453,
+   "state": "open"
+  },
+  {
+   "key": "1d7fd35e90a6",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 5568,
+   "state": "open"
+  },
+  {
+   "key": "8e7fbb47bd6f",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 5853,
+   "state": "open"
+  },
+  {
+   "key": "152d39f86efd",
+   "file": "ecgdex-morph.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 44,
+   "state": "open"
+  },
+  {
+   "key": "acc3a893bc91",
+   "file": "ecgdex-morph.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 102,
+   "state": "open"
+  },
+  {
+   "key": "5fde3efc24f7",
+   "file": "ecgdex-morph.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 191,
+   "state": "open"
+  },
+  {
+   "key": "6f3d01038bb3",
+   "file": "ecgdex-profile.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 71,
+   "state": "open"
+  },
+  {
+   "key": "794ba2af33dd",
+   "file": "ecgdex-registry.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 507,
+   "state": "open"
+  },
+  {
+   "key": "736d5c1d03f8",
+   "file": "ecgdex-render.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 507,
+   "state": "open"
+  },
+  {
+   "key": "82f6cf7b6c58",
+   "file": "glucodex-app.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 563,
+   "state": "open"
+  },
+  {
+   "key": "81a4d750b695",
+   "file": "glucodex-app.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 565,
+   "state": "open"
+  },
+  {
+   "key": "4ebfb5764772",
+   "file": "glucodex-app.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1183,
+   "state": "open"
+  },
+  {
+   "key": "f1f2a3a0f709",
+   "file": "glucodex-app.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1250,
+   "state": "open"
+  },
+  {
+   "key": "511659bb4127",
+   "file": "glucodex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 884,
+   "state": "open"
+  },
+  {
+   "key": "6f01f27a3009",
+   "file": "glucodex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1234,
+   "state": "open"
+  },
+  {
+   "key": "ec82e1a3a9c5",
+   "file": "glucodex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1372,
+   "state": "open"
+  },
+  {
+   "key": "6096ead0aeef",
+   "file": "glucodex-registry.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 241,
+   "state": "open"
+  },
+  {
+   "key": "12e22286a466",
+   "file": "hrv-confound-analysis.js",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 127,
+   "state": "open"
+  },
+  {
+   "key": "9d16e74942fb",
+   "file": "hrv-confound-analysis.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 488,
+   "state": "open"
+  },
+  {
+   "key": "16c2bee99fa7",
+   "file": "hrvdex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 946,
+   "state": "open"
+  },
+  {
+   "key": "c75d20542fba",
+   "file": "hrvdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1076,
+   "state": "open"
+  },
+  {
+   "key": "b94c88915eb8",
+   "file": "hrvdex-profile.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 365,
+   "state": "open"
+  },
+  {
+   "key": "f168e1cda8fd",
+   "file": "hrvdex-profile.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 608,
+   "state": "open"
+  },
+  {
+   "key": "a05d35c3f075",
+   "file": "hrvdex-registry.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 263,
+   "state": "open"
+  },
+  {
+   "key": "9810c730c6a2",
+   "file": "integrator-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 846,
+   "state": "open"
+  },
+  {
+   "key": "b90d891d9e89",
+   "file": "integrator-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 919,
+   "state": "open"
+  },
+  {
+   "key": "b65579160bde",
+   "file": "integrator-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1109,
+   "state": "open"
+  },
+  {
+   "key": "ce93ab27eb9b",
+   "file": "integrator-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1137,
+   "state": "open"
+  },
+  {
+   "key": "3eac84d38ce2",
+   "file": "integrator-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1728,
+   "state": "open"
+  },
+  {
+   "key": "65e6788fcf16",
+   "file": "integrator-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 4001,
+   "state": "open"
+  },
+  {
+   "key": "0dd45084c787",
+   "file": "integrator-longitudinal.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 201,
+   "state": "open"
+  },
+  {
+   "key": "1db55ff01d82",
+   "file": "integrator-longitudinal.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 420,
+   "state": "open"
+  },
+  {
+   "key": "ada131fea647",
+   "file": "integrator-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 695,
+   "state": "open"
+  },
+  {
+   "key": "15fa3ddab412",
+   "file": "motiondex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 475,
+   "state": "open"
+  },
+  {
+   "key": "679c2be81f2d",
+   "file": "motiondex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 487,
+   "state": "open"
+  },
+  {
+   "key": "0a08c806172c",
+   "file": "motiondex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1123,
+   "state": "open"
+  },
+  {
+   "key": "46186e9df32f",
+   "file": "nsrr-adapter.js",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 181,
+   "state": "open"
+  },
+  {
+   "key": "b9833f502435",
+   "file": "nsrr-adapter.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 341,
+   "state": "open"
+  },
+  {
+   "key": "f2d25afd7e0f",
+   "file": "overdex-walk.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 80,
+   "state": "open"
+  },
+  {
+   "key": "8ef72f618d8c",
+   "file": "oxydex-app.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 266,
+   "state": "open"
+  },
+  {
+   "key": "a559e22dfcaa",
+   "file": "oxydex-app.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 284,
+   "state": "open"
+  },
+  {
+   "key": "e5f3917fddde",
+   "file": "oxydex-cross.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 377,
+   "state": "open"
+  },
+  {
+   "key": "d3f94b21784e",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1555,
+   "state": "open"
+  },
+  {
+   "key": "fda41414f3e8",
+   "file": "oxydex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2092,
+   "state": "open"
+  },
+  {
+   "key": "791f528789a3",
+   "file": "oxydex-dsp.js",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2250,
+   "state": "open"
+  },
+  {
+   "key": "93912aa2a698",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2328,
+   "state": "open"
+  },
+  {
+   "key": "186f04d40bcd",
+   "file": "oxydex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3232,
+   "state": "open"
+  },
+  {
+   "key": "cba3361dfcfd",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3990,
+   "state": "open"
+  },
+  {
+   "key": "131d841e27b4",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 4005,
+   "state": "open"
+  },
+  {
+   "key": "0db4b4bb5562",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 4454,
+   "state": "open"
+  },
+  {
+   "key": "6d57f2a1f66f",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 4710,
+   "state": "open"
+  },
+  {
+   "key": "04cbccd9998f",
+   "file": "oxydex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 4721,
+   "state": "open"
+  },
+  {
+   "key": "993523537baa",
+   "file": "oxydex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 5654,
+   "state": "open"
+  },
+  {
+   "key": "12fb862b4f54",
+   "file": "oxydex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6089,
+   "state": "open"
+  },
+  {
+   "key": "d465645b6edd",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6127,
+   "state": "open"
+  },
+  {
+   "key": "bf25e4f0f71c",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6330,
+   "state": "open"
+  },
+  {
+   "key": "abf5ccda8917",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6343,
+   "state": "open"
+  },
+  {
+   "key": "f0210dc347e1",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6366,
+   "state": "open"
+  },
+  {
+   "key": "c05e8f22a91b",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6386,
+   "state": "open"
+  },
+  {
+   "key": "0e9b40d1425a",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6714,
+   "state": "open"
+  },
+  {
+   "key": "773f10412ae2",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6741,
+   "state": "open"
+  },
+  {
+   "key": "e012278db97c",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6754,
+   "state": "open"
+  },
+  {
+   "key": "483e784c9219",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6782,
+   "state": "open"
+  },
+  {
+   "key": "36069a74e41a",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 6890,
+   "state": "open"
+  },
+  {
+   "key": "02ff987f1a3b",
+   "file": "oxydex-fusion.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 45,
+   "state": "open"
+  },
+  {
+   "key": "4ca8bf4e4e5a",
+   "file": "oxydex-fusion.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 65,
+   "state": "open"
+  },
+  {
+   "key": "732f9bcf73c2",
+   "file": "oxydex-fusion.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 281,
+   "state": "open"
+  },
+  {
+   "key": "e294b096e810",
+   "file": "oxydex-profile.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 605,
+   "state": "open"
+  },
+  {
+   "key": "38cab89355e6",
+   "file": "oxydex-render.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 230,
+   "state": "open"
+  },
+  {
+   "key": "a430897619d7",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1126,
+   "state": "open"
+  },
+  {
+   "key": "cdc74066079f",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1150,
+   "state": "open"
+  },
+  {
+   "key": "bd1d1c6d2f32",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1172,
+   "state": "open"
+  },
+  {
+   "key": "d1c13de4c049",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1196,
+   "state": "open"
+  },
+  {
+   "key": "1dc447d4e8da",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1227,
+   "state": "open"
+  },
+  {
+   "key": "65e38063c0f5",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1345,
+   "state": "open"
+  },
+  {
+   "key": "c0a215f14576",
+   "file": "oxydex-render.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1420,
+   "state": "open"
+  },
+  {
+   "key": "ac0c5ded7d1e",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1448,
+   "state": "open"
+  },
+  {
+   "key": "570a8a4f9d2e",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1504,
+   "state": "open"
+  },
+  {
+   "key": "b2d2d2ca91d5",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1532,
+   "state": "open"
+  },
+  {
+   "key": "76dc78a759b1",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1616,
+   "state": "open"
+  },
+  {
+   "key": "eacaee001f16",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2337,
+   "state": "open"
+  },
+  {
+   "key": "1f2b2af07670",
+   "file": "oxydex-render.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2942,
+   "state": "open"
+  },
+  {
+   "key": "f8de8f68bbb2",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3060,
+   "state": "open"
+  },
+  {
+   "key": "e8e638a9f50d",
+   "file": "oxydex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3087,
+   "state": "open"
+  },
+  {
+   "key": "c05712440626",
+   "file": "oxydex-render.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3286,
+   "state": "open"
+  },
+  {
+   "key": "1fe422a2edbe",
+   "file": "oxydex-util.js",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 173,
+   "state": "open"
+  },
+  {
+   "key": "5edad595bddc",
+   "file": "pat-align.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 53,
+   "state": "open"
+  },
+  {
+   "key": "95896913c96b",
+   "file": "pat-align.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 483,
+   "state": "open"
+  },
+  {
+   "key": "892603d3d8f8",
+   "file": "ppgdex-app.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 610,
+   "state": "open"
+  },
+  {
+   "key": "522f4c4b73f2",
+   "file": "ppgdex-app.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1100,
+   "state": "open"
+  },
+  {
+   "key": "a1232f33fe40",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 960,
+   "state": "open"
+  },
+  {
+   "key": "4bf4c72bf4b5",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1075,
+   "state": "open"
+  },
+  {
+   "key": "fe505b259a07",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2146,
+   "state": "open"
+  },
+  {
+   "key": "ed2b577d8323",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2389,
+   "state": "open"
+  },
+  {
+   "key": "93fb1fc6e3e0",
+   "file": "ppgdex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2737,
+   "state": "open"
+  },
+  {
+   "key": "797ccc63bc02",
+   "file": "ppgdex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 2756,
+   "state": "open"
+  },
+  {
+   "key": "882760d96d16",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 3396,
+   "state": "open"
+  },
+  {
+   "key": "e89326688e2e",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 4246,
+   "state": "open"
+  },
+  {
+   "key": "aebac9bed7cd",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 4499,
+   "state": "open"
+  },
+  {
+   "key": "a8104f6359dd",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 4672,
+   "state": "open"
+  },
+  {
+   "key": "9a24586582cd",
+   "file": "ppgdex-profile.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 57,
+   "state": "open"
+  },
+  {
+   "key": "f196467b0a59",
+   "file": "ppgdex-registry.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 598,
+   "state": "open"
+  },
+  {
+   "key": "567efe2b7633",
+   "file": "pulsedex-app.js",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 739,
+   "state": "open"
+  },
+  {
+   "key": "53eb1863ca8e",
+   "file": "pulsedex-app.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 806,
+   "state": "open"
+  },
+  {
+   "key": "bb5bdd974405",
+   "file": "pulsedex-app.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 901,
+   "state": "open"
+  },
+  {
+   "key": "5756198eada4",
+   "file": "pulsedex-app.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1192,
+   "state": "open"
+  },
+  {
+   "key": "355d05bb00d1",
+   "file": "pulsedex-dsp.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 1357,
+   "state": "open"
+  },
+  {
+   "key": "fdecb819a9f7",
+   "file": "pulsedex-overview.js",
+   "kind": "aggregate-over-absence",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 201,
+   "state": "open"
+  },
+  {
+   "key": "8127350c7aab",
+   "file": "pulsedex-registry.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 304,
+   "state": "open"
+  },
+  {
+   "key": "e48b693fb537",
+   "file": "pulsedex-render.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 114,
+   "state": "open"
+  },
+  {
+   "key": "1e6755144a8e",
+   "file": "pulsedex-render.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 148,
+   "state": "open"
+  },
+  {
+   "key": "baf049829de1",
+   "file": "pulsedex-render.js",
+   "kind": "in-band-sentinel",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 156,
+   "state": "open"
+  },
+  {
+   "key": "0c11a5099cd8",
+   "file": "qrs-yield-analysis.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 471,
+   "state": "open"
+  },
+  {
+   "key": "b7214c20b067",
+   "file": "resp-acc-analysis-app.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 141,
+   "state": "open"
+  },
+  {
+   "key": "4cac36c17c3d",
+   "file": "resp-acc-analysis.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 98,
+   "state": "open"
+  },
+  {
+   "key": "128c40312553",
+   "file": "resp-acc-analysis.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 460,
+   "state": "open"
+  },
+  {
+   "key": "90df10f83c1c",
+   "file": "resp-acc-analysis.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 588,
+   "state": "open"
+  },
+  {
+   "key": "1d75119ccb77",
+   "file": "resp-acc-analysis.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 874,
+   "state": "open"
+  },
+  {
+   "key": "ff76606a300a",
+   "file": "sensor-trio-worker.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 466,
+   "state": "open"
+  },
+  {
+   "key": "c3909ec3a102",
+   "file": "sensor-trio-worker.js",
+   "kind": "default-number",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 520,
+   "state": "open"
+  },
+  {
+   "key": "3b99e04603a2",
+   "file": "sensor-trio-worker.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 983,
+   "state": "open"
+  },
+  {
+   "key": "22a67473ddd7",
+   "file": "sensor-trio-worker.js",
+   "kind": "default-reads-as-measured",
+   "severity": "medium",
+   "occurrence": 0,
+   "surveyLine": 985,
+   "state": "open"
+  },
+  {
+   "key": "ead75099aee7",
+   "file": "capture-host/clockcfg.py",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 74,
+   "state": "open"
+  },
+  {
+   "key": "47172a6147cd",
+   "file": "capture-host/cpap_edf_writer.py",
+   "kind": "in-band-sentinel",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 116,
+   "state": "open"
+  },
+  {
+   "key": "ac55d2678d14",
+   "file": "capture-host/diskguard.py",
+   "kind": "in-band-sentinel",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 42,
+   "state": "open"
+  },
+  {
+   "key": "fc45870e8f2f",
+   "file": "capture-host/probe_oxyii_0x03.py",
+   "kind": "aggregate-over-absence",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 303,
+   "state": "open"
+  },
+  {
+   "key": "69af7d0ae895",
+   "file": "capture-host/writers.py",
+   "kind": "discontinuity-annotated",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 1544,
+   "state": "open",
+   "note": "that `except OSError: pass` is gone from this site; the pattern lives elsewhere WITH a reason comment. Not the same site, so not a fix of this finding"
+  },
+  {
+   "key": "33c81a43631d",
+   "file": "cpapdex-coimport.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 198,
+   "state": "open"
+  },
+  {
+   "key": "4ea5523335ad",
+   "file": "cpapdex-render.js",
+   "kind": "in-band-sentinel",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 1139,
+   "state": "open"
+  },
+  {
+   "key": "cfb1453fc66d",
+   "file": "ecgdex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 89,
+   "state": "open"
+  },
+  {
+   "key": "681b4411a992",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 2111,
+   "state": "open"
+  },
+  {
+   "key": "bb43ea39debf",
+   "file": "ecgdex-dsp.js",
+   "kind": "in-band-sentinel",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 2538,
+   "state": "open"
+  },
+  {
+   "key": "f3c851dc6750",
+   "file": "ecgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 2635,
+   "state": "open"
+  },
+  {
+   "key": "cdfe1932bf24",
+   "file": "ecgdex-morph.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 113,
+   "state": "open"
+  },
+  {
+   "key": "e1ff45d7d3a7",
+   "file": "glucodex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 1148,
+   "state": "open"
+  },
+  {
+   "key": "929e51dd0a6a",
+   "file": "glucodex-profile.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 58,
+   "state": "open"
+  },
+  {
+   "key": "443ffc34f59d",
+   "file": "glucodex-profile.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 59,
+   "state": "open"
+  },
+  {
+   "key": "7dbcc897fd31",
+   "file": "glucodex-profile.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 85,
+   "state": "open"
+  },
+  {
+   "key": "1e6d0d2ca9c2",
+   "file": "glucodex-render.js",
+   "kind": "discontinuity-annotated",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 321,
+   "state": "open"
+  },
+  {
+   "key": "6d14fc1a9206",
+   "file": "hrvdex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 886,
+   "state": "open"
+  },
+  {
+   "key": "524292f7b587",
+   "file": "hrvdex-profile.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 49,
+   "state": "open"
+  },
+  {
+   "key": "0db08d540800",
+   "file": "hrvdex-profile.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 70,
+   "state": "open"
+  },
+  {
+   "key": "64f6cbb7d28f",
+   "file": "hrvdex-render.js",
+   "kind": "aggregate-over-absence",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 1336,
+   "state": "open"
+  },
+  {
+   "key": "8dfcbe08cb90",
+   "file": "integrator-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 4754,
+   "state": "open"
+  },
+  {
+   "key": "268b64c15b94",
+   "file": "integrator-longitudinal.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 205,
+   "state": "open"
+  },
+  {
+   "key": "ae26799e72ae",
+   "file": "integrator-longitudinal.js",
+   "kind": "in-band-sentinel",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 380,
+   "state": "open"
+  },
+  {
+   "key": "a24a9110bdd9",
+   "file": "overdex-app.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 152,
+   "state": "open"
+  },
+  {
+   "key": "0577dcb7cf3d",
+   "file": "overdex-app.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 196,
+   "state": "open"
+  },
+  {
+   "key": "1a3cd7699ce2",
+   "file": "oxydex-dsp.js",
+   "kind": "in-band-sentinel",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 841,
+   "state": "open"
+  },
+  {
+   "key": "d975e352ce7b",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 2518,
+   "state": "open"
+  },
+  {
+   "key": "d568bdabd5a2",
+   "file": "oxydex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 3189,
+   "state": "open"
+  },
+  {
+   "key": "c76326c67f23",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 3814,
+   "state": "open"
+  },
+  {
+   "key": "4fc9554e37da",
+   "file": "oxydex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 5375,
+   "state": "open"
+  },
+  {
+   "key": "51755be2e2ca",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 6354,
+   "state": "open"
+  },
+  {
+   "key": "d9b36b8a96ec",
+   "file": "oxydex-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 7314,
+   "state": "open"
+  },
+  {
+   "key": "d488d9d484e2",
+   "file": "oxydex-dsp.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 7383,
+   "state": "open"
+  },
+  {
+   "key": "d46c73b26764",
+   "file": "oxydex-fusion.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 375,
+   "state": "open"
+  },
+  {
+   "key": "92559b915569",
+   "file": "oxydex-fusion.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 394,
+   "state": "open"
+  },
+  {
+   "key": "643c0167154c",
+   "file": "oxydex-profile.js",
+   "kind": "in-band-sentinel",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 118,
+   "state": "open"
+  },
+  {
+   "key": "7e34d2b1ab62",
+   "file": "oxydex-profile.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 311,
+   "state": "open"
+  },
+  {
+   "key": "87637b1e2788",
+   "file": "pat-align.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 508,
+   "state": "open"
+  },
+  {
+   "key": "27d97a4db278",
+   "file": "ppgdex-dsp.js",
+   "kind": "aggregate-over-absence",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 3585,
+   "state": "open"
+  },
+  {
+   "key": "f24bad7f1634",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 4449,
+   "state": "open"
+  },
+  {
+   "key": "88585e3da82f",
+   "file": "ppgdex-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 4674,
+   "state": "open"
+  },
+  {
+   "key": "31d30ecc87a3",
+   "file": "ppgdex-dsp.js",
+   "kind": "in-band-sentinel",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 6267,
+   "state": "open"
+  },
+  {
+   "key": "79f517014148",
+   "file": "pulsedex-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 130,
+   "state": "open"
+  },
+  {
+   "key": "0907edcde0f0",
+   "file": "pulsedex-dsp.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 587,
+   "state": "open"
+  },
+  {
+   "key": "c2feca060110",
+   "file": "pulsedex-overview.js",
+   "kind": "in-band-sentinel",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 110,
+   "state": "open"
+  },
+  {
+   "key": "b380fa8a306c",
+   "file": "pulsedex-overview.js",
+   "kind": "aggregate-over-absence",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 447,
+   "state": "open"
+  },
+  {
+   "key": "ce17dec459aa",
+   "file": "qrs-yield-analysis.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 610,
+   "state": "open"
+  },
+  {
+   "key": "5dc7f5d39920",
+   "file": "resp-acc-analysis-app.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 838,
+   "state": "open"
+  },
+  {
+   "key": "f03bef3113f5",
+   "file": "resp-acc-analysis.js",
+   "kind": "default-reads-as-measured",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 65,
+   "state": "open"
+  },
+  {
+   "key": "a05ed5c62113",
+   "file": "resp-acc-analysis.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 776,
+   "state": "open"
+  },
+  {
+   "key": "31600c9c8b6c",
+   "file": "resp-acc-analysis.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 974,
+   "state": "open"
+  },
+  {
+   "key": "86ee51fd8cac",
+   "file": "sensor-trio-worker.js",
+   "kind": "default-number",
+   "severity": "low",
+   "occurrence": 0,
+   "surveyLine": 234,
+   "state": "open"
+  }
+ ]
+}
