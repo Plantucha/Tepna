@@ -140,7 +140,6 @@ def generated_under_glob(mutants_src: str, glob: str) -> int:
     for it. The tests below now pin all four shapes: module-level, indented method, async, and async
     method.
     """
-    stem = glob.rstrip("*")
     # The glob is built in exactly one place — `f"{stem_mod}.{s}__mutmut_*"` in tools/mutate_diff.py —
     # so it carries EXACTLY ONE dot: a module stem that cannot contain one, and a mangled name that
     # uses `ǁ` (U+01C1) for class qualification, never `.`. That made `split(".", 1)[1]` unobservable:
@@ -152,14 +151,144 @@ def generated_under_glob(mutants_src: str, glob: str) -> int:
     # nothing, and the count would come back 0 — the same silent zero for an unseen shape that this
     # whole function was just fixed for. So the shape is now a stated contract rather than a guess,
     # which is also what makes the line killable.
+    return len(re.findall(r"^\s*(?:async\s+)?def " + re.escape(_stem_of(glob)) + r"\d+\(", mutants_src or "", re.M))
+
+
+def _stem_of(glob: str) -> str:
+    """The mangled function stem a glob names, with the module qualifier removed.
+
+    Single-sourced because `registered_under_glob` must parse the glob EXACTLY as `generated_under_glob`
+    does. The second count is independent in its OBSERVATION, not in its subject — two parsers would be
+    two chances to disagree about which function is being counted, which is a different bug entirely."""
+    stem = glob.rstrip("*")
     head, dot, tail = stem.partition(".")
     if not dot:
-        fn = stem  # a bare mangled stem, already unqualified
-    elif "." in tail:
+        return stem  # a bare mangled stem, already unqualified
+    if "." in tail:
         raise ValueError(f"unexpected mutant glob {glob!r}: a module-qualified glob has exactly one dot")
-    else:
-        fn = tail
-    return len(re.findall(r"^\s*(?:async\s+)?def " + re.escape(fn) + r"\d+\(", mutants_src or "", re.M))
+    return tail
+
+
+def registered_under_glob(mutants_src: str, glob: str) -> int:
+    """The SAME count as `generated_under_glob`, read from a different thing mutmut writes.
+
+    Beside each mutant definition mutmut emits a registration line into the function's dispatch table:
+
+        mutants_x__run__mutmut['x__run__mutmut_44'] = x__run__mutmut_44 # type: ignore # mutmut generated
+
+    That is an assignment, not a definition: no `def` keyword, no indentation rule, no `async`. Those
+    are precisely the three things the definition scan has been blind to — `^def` missed indented
+    methods, `^\\s*def` missed coroutines — so counting registrations is an INDEPENDENT observation of
+    the same fact, and two independent counts that must agree is the only structure that catches a
+    scan which cannot see its own subject.
+
+    MEASURED 2026-09-28 across four real scratch trees (wifi_uplink, mmeta, clock_offset, nightqc):
+    107 stems, the two counts agree on every one. Replay the same check with the PRE-#3214 definition
+    pattern and it fires on 7 of wifi_uplink's 12 stems — `def` 0 against registrations of 44, 53, 22,
+    49, 25, 76, 35. The historical blind spot is caught retrospectively, by real data rather than by a
+    plant, which is the evidence that this cross-check would have worked before it was written.
+    """
+    stem = _stem_of(glob)
+    return len(
+        re.findall(
+            r"^mutants_" + re.escape(stem.rstrip("_")) + r"\['" + re.escape(stem) + r"\d+'\]\s*=",
+            mutants_src or "",
+            re.M,
+        )
+    )
+
+
+def generated_scan(mutants_src: str, glob: str) -> dict:
+    """What `generated_under_glob` counted, and what it counted it OVER.
+
+    A bare count cannot be checked. `0` comes back from a function with no mutable operator (benign,
+    and the file WAS read), from a mutants file that does not exist (nothing was read at all), and from
+    a scan that read the file and could not recognise the construct in it (the two historical bugs).
+    Three different findings, one identical integer — which is how the same three-line function shipped
+    the same class of defect twice in five weeks. So the population travels with the count:
+
+        matched       mutants counted for THIS glob by the definition scan
+        corroborated  the same, from mutmut's registration table — independent of `def`
+        examined      mutant definitions in the file for ANY stem: the population actually read
+        registered    registration lines for any stem: that same population from the other side
+        sourceBytes   0 iff nothing was read at all
+
+    This function only OBSERVES. `mutation_diff.unmeasured_zero` decides, because a scanner that
+    judges its own output is the shape being fixed here.
+    """
+    src = mutants_src or ""
+    return {
+        "helper": "generated_under_glob",
+        "glob": glob,
+        "matched": generated_under_glob(src, glob),
+        "corroborated": registered_under_glob(src, glob),
+        "examined": len(re.findall(r"^\s*(?:async\s+)?def [^\s(]*__mutmut_\d+\(", src, re.M)),
+        "registered": len(re.findall(r"^mutants_[^\s\[]*__mutmut\['[^']*__mutmut_\d+'\]\s*=", src, re.M)),
+        "sourceBytes": len(src),
+    }
+
+
+def decided_scan(exit_codes: dict, glob: str) -> dict:
+    """What `decided_under_glob` counted, and over what — the same ambiguity one layer up.
+
+    `0` means "every mutant under this glob is null" (a crash after generation, a real finding), or
+    "no key matches this glob" (the map was read and knows nothing of this function), or "the map is
+    empty" (nothing was read: `read_exit_codes` returns `{}` for absent AND malformed alike).
+
+        matched     keys under this glob carrying a non-null exit code
+        underGlob   keys under this glob at all, null or not
+        examined    keys in the map: the population actually read
+    """
+    prefix = glob.rstrip("*")
+    codes = exit_codes or {}
+    return {
+        "helper": "decided_under_glob",
+        "glob": glob,
+        "matched": decided_under_glob(codes, glob),
+        "underGlob": sum(1 for key in codes if key.startswith(prefix)),
+        "examined": len(codes),
+    }
+
+
+def exit_codes_scan(meta_path: Path) -> dict:
+    """Whether the meta was there and whether it PARSED — the distinction `read_exit_codes` erases.
+
+    That function returns `{}` for absent, unreadable, malformed and present-but-empty alike, and its
+    docstring calls that deliberate: "either way, nothing was measured". Right for CREDITING and wrong
+    for REPORTING — "mutmut wrote no meta" and "mutmut wrote a meta this tool cannot parse" are
+    different failures, and the second one is ours.
+    """
+    p = Path(meta_path)
+    try:
+        raw = p.read_bytes()
+    except OSError:
+        return {"helper": "read_exit_codes", "present": False, "parsed": False, "keys": 0}
+    try:
+        # BYTES, NOT TEXT, AND THE ENCODING IS NOT A PARAMETER. `read_text(encoding="utf-8")` was the
+        # obvious spelling and left a mutant nothing could kill: `encoding=None` uses the HOST LOCALE's
+        # encoding, which on this box is UTF-8, so no in-process test can tell the two apart. It is not
+        # cosmetic either — under C/POSIX the locale encoding is ASCII, a meta carrying any non-ASCII
+        # byte then raises UnicodeDecodeError, and that is a ValueError, so one layer up
+        # `read_exit_codes` CATCHES it and returns `{}`: a good meta reported as malformed and mutmut
+        # blamed for a file this tool read wrong.
+        #
+        # The subprocess test below it CAN observe that, and mutmut still cannot use it — a test whose
+        # only contact with the code is a subprocess registers no trampoline hit, so it is never
+        # selected against this mutant (the same fact `refresh_caches_if_tests_changed` records about
+        # stale selections). So the answer is not a better test: `json.loads` takes bytes and decodes
+        # UTF-8 per RFC 8259 whatever the locale says, which deletes the parameter, the locale
+        # dependency and the unkillable mutant together. Invalid UTF-8 still raises UnicodeDecodeError,
+        # still a ValueError, and lands in the `parsed: False` arm where it belongs.
+        data = json.loads(raw)
+    except ValueError:
+        return {"helper": "read_exit_codes", "present": True, "parsed": False, "keys": 0}
+    codes = data.get("exit_code_by_key") if isinstance(data, dict) else None
+    return {
+        "helper": "read_exit_codes",
+        "present": True,
+        "parsed": True,
+        "keys": len(codes) if isinstance(codes, dict) else 0,
+    }
 
 
 def generated_count(work: Path, module: str, glob: str) -> int:

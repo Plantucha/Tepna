@@ -6,6 +6,10 @@
 # signal — a crash's all-null meta, a test-tree change — and asserts the detector sees it, per the
 # brief's rule: run it against the real failure before believing it.
 import json
+import os
+import pathlib
+import subprocess
+import sys
 
 import pytest
 
@@ -511,3 +515,131 @@ def test_the_ONE_DOT_shape_that_is_actually_built_is_unchanged():
     assert mmeta.generated_under_glob(_MUTSRC, "m.x_a__mutmut_*") == 2
     assert mmeta.generated_under_glob(_MUTSRC_METHOD, "m.xǁCǁscaled__mutmut_*") == 2
     assert mmeta.generated_under_glob(_MUTSRC_ASYNC_METHOD, "m.xǁCǁfetch__mutmut_*") == 2
+
+
+# ── THE POPULATION A COUNT WAS TAKEN OVER ─────────────────────────────────────────────────────────
+# Every fixture above asserts a NUMBER. None of them could have caught either historical bug, because
+# in both of them the number `0` was correct for a case that also occurs legitimately: `^def` returned
+# 0 for indented methods, `^\s*def` returned 0 for coroutines, and 0 is also what a function with no
+# mutable operator returns. What distinguishes them is not the count but what the scan examined, so
+# these assert the POPULATION and the corroboration rather than the integer.
+#
+# The registration table is the independent observation. mutmut writes, beside each mutant definition:
+#     mutants_x_f__mutmut['x_f__mutmut_1'] = x_f__mutmut_1 # type: ignore # mutmut generated
+# an assignment — no `def`, no indentation rule, no `async` — so it cannot share the definition scan's
+# blind spots. Two counts of one fact that must agree.
+_MUTSRC_REGISTERED = (
+    "def x_f__mutmut_1():\n    pass\n"
+    "def x_f__mutmut_2():\n    pass\n"
+    "mutants_x_f__mutmut['x_f__mutmut_1'] = x_f__mutmut_1 # type: ignore # mutmut generated\n"
+    "mutants_x_f__mutmut['x_f__mutmut_2'] = x_f__mutmut_2 # type: ignore # mutmut generated\n"
+)
+# The historical shape, verbatim: the definitions are `async def`, which the pre-#3214 scan could not
+# see, while the registrations are unchanged because they are not definitions at all.
+_MUTSRC_ASYNC_REGISTERED = (
+    "async def x_run__mutmut_1():\n    pass\n"
+    "async def x_run__mutmut_2():\n    pass\n"
+    "async def x_run__mutmut_3():\n    pass\n"
+    "mutants_x_run__mutmut['x_run__mutmut_1'] = x_run__mutmut_1 # type: ignore # mutmut generated\n"
+    "mutants_x_run__mutmut['x_run__mutmut_2'] = x_run__mutmut_2 # type: ignore # mutmut generated\n"
+    "mutants_x_run__mutmut['x_run__mutmut_3'] = x_run__mutmut_3 # type: ignore # mutmut generated\n"
+)
+
+
+def test_the_registration_table_counts_the_same_mutants_as_the_definitions():
+    assert mmeta.registered_under_glob(_MUTSRC_REGISTERED, "m.x_f__mutmut_*") == 2
+    assert mmeta.generated_under_glob(_MUTSRC_REGISTERED, "m.x_f__mutmut_*") == 2
+
+
+def test_the_registration_scan_is_BLIND_TO_NOTHING_THE_DEFINITION_SCAN_IS_BLIND_TO():
+    """The property that makes it worth having: it is not a `def` scan, so `async` cannot hide from it."""
+    assert mmeta.registered_under_glob(_MUTSRC_ASYNC_REGISTERED, "m.x_run__mutmut_*") == 3
+    assert mmeta.generated_under_glob(_MUTSRC_ASYNC_REGISTERED, "m.x_run__mutmut_*") == 3
+
+
+def test_registration_does_not_bleed_across_functions():
+    assert mmeta.registered_under_glob(_MUTSRC_REGISTERED, "m.x_other__mutmut_*") == 0
+
+
+def test_the_scan_reports_the_population_it_read_not_only_the_match():
+    s = mmeta.generated_scan(_MUTSRC_REGISTERED, "m.x_f__mutmut_*")
+    assert s["matched"] == 2 and s["corroborated"] == 2
+    assert s["examined"] == 2 and s["registered"] == 2
+    assert s["sourceBytes"] == len(_MUTSRC_REGISTERED)
+    assert s["helper"] == "generated_under_glob"
+
+
+def test_a_scan_of_an_ABSENT_file_reports_a_population_of_zero():
+    s = mmeta.generated_scan("", "m.x_f__mutmut_*")
+    assert s["matched"] == 0 and s["examined"] == 0 and s["sourceBytes"] == 0
+
+
+def test_decided_scan_separates_no_such_key_from_an_empty_map():
+    codes = {"m.x_f__mutmut_1": 1, "m.x_f__mutmut_2": None, "m.x_g__mutmut_1": 0}
+    s = mmeta.decided_scan(codes, "m.x_f__mutmut_*")
+    assert s["matched"] == 1, "one non-null under this glob"
+    assert s["underGlob"] == 2, "…out of two keys that exist for it — the null is the crash signal"
+    assert s["examined"] == 3, "and the map itself was read"
+    empty = mmeta.decided_scan({}, "m.x_f__mutmut_*")
+    assert empty["matched"] == 0 and empty["underGlob"] == 0 and empty["examined"] == 0
+    absent = mmeta.decided_scan({"m.x_g__mutmut_1": 0}, "m.x_f__mutmut_*")
+    assert absent["examined"] == 1, "the map WAS read; it simply knows nothing about this glob"
+
+
+def test_exit_codes_scan_tells_ABSENT_from_UNPARSEABLE(tmp_path):
+    """`read_exit_codes` flattens both to `{}` on purpose — right for crediting, wrong for reporting.
+    "mutmut wrote no meta" and "mutmut wrote a meta we cannot parse" are different failures, and the
+    second one is ours."""
+    missing = mmeta.exit_codes_scan(tmp_path / "nope.meta")
+    assert missing == {"helper": "read_exit_codes", "present": False, "parsed": False, "keys": 0}
+    bad = tmp_path / "bad.meta"
+    bad.write_text("{not json", encoding="utf-8")
+    assert mmeta.exit_codes_scan(bad) == {"helper": "read_exit_codes", "present": True, "parsed": False, "keys": 0}
+    good = tmp_path / "good.meta"
+    good.write_text(json.dumps({"exit_code_by_key": {"m.x_f__mutmut_1": 1}}), encoding="utf-8")
+    assert mmeta.exit_codes_scan(good) == {"helper": "read_exit_codes", "present": True, "parsed": True, "keys": 1}
+    notadict = tmp_path / "shape.meta"
+    notadict.write_text(json.dumps({"exit_code_by_key": []}), encoding="utf-8")
+    assert mmeta.exit_codes_scan(notadict)["keys"] == 0
+
+
+def test_exit_codes_scan_on_a_meta_whose_TOP_LEVEL_is_not_an_object(tmp_path):
+    """Valid JSON, wrong shape. `present` and `parsed` are both true — the file is fine, our
+    expectation of it is not — and that is exactly the distinction this scan exists to carry."""
+    odd = tmp_path / "list.meta"
+    odd.write_text("[1, 2, 3]", encoding="utf-8")
+    assert mmeta.exit_codes_scan(odd) == {"helper": "read_exit_codes", "present": True, "parsed": True, "keys": 0}
+
+
+def test_the_meta_is_read_as_UTF8_REGARDLESS_OF_THE_HOST_LOCALE(tmp_path):
+    """`read_text(encoding="utf-8")` → `encoding=None` survived, and it is not cosmetic.
+
+    With no explicit encoding Python uses the host locale's. On a box whose locale is C/POSIX that is
+    ASCII, and a meta containing any non-ASCII byte — a mangled name is free to, and mutmut's own
+    `_README`-style strings do — then raises `UnicodeDecodeError`. That is a `ValueError`, so one
+    layer up `read_exit_codes` CATCHES it and returns `{}`: a perfectly good meta read as "malformed",
+    the run diagnosed as a crash after generation, and the blame placed on mutmut for a file this tool
+    simply read wrong. In `exit_codes_scan` the same error is not caught at all (only `OSError` is) and
+    takes the tool down.
+
+    Not observable in-process — patching `locale.getencoding` does not reach the C-level open — so
+    this drives a real subprocess under `LC_ALL=C`. It ASSERTS that the subprocess actually got a
+    non-UTF-8 locale and skips loudly otherwise, because a test that silently passes without reaching
+    its condition is the examined-nothing shape this whole module is about.
+    """
+    meta = tmp_path / "m.py.meta"
+    meta.write_bytes(b'{"exit_code_by_key": {"x_f\xe2\x80\x94mutmut_1": 1}}')  # an em dash, UTF-8
+    code = (
+        "import sys, json, locale, pathlib;"
+        f"sys.path.insert(0, {str(pathlib.Path(mmeta.__file__).parent)!r});"
+        "import mmeta;"
+        "print(locale.getencoding());"
+        f"print(json.dumps(mmeta.exit_codes_scan(pathlib.Path({str(meta)!r}))))"
+    )
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+    run = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=60)
+    lines = run.stdout.splitlines()
+    if not lines or lines[0].upper().replace("-", "") in ("UTF8", "UTF_8"):
+        pytest.skip(f"this host forces UTF-8 even under LC_ALL=C ({lines[:1]}) — the condition was not reached")
+    assert run.returncode == 0, f"reading the meta must not depend on the locale:\n{run.stderr[-600:]}"
+    assert json.loads(lines[1]) == {"helper": "read_exit_codes", "present": True, "parsed": True, "keys": 1}

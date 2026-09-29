@@ -167,6 +167,50 @@ nothing here should be read as pre-empting it. The ledger's value does not depen
 a finding that is *lost* into one that is *recorded and open*, which is worth having whether or not
 the gate ever blocks a merge.
 
+> ⚠️ **Superseded by the owner, 2026-09-28: the gate IS required.** `mutation (diff-scoped)` is in
+> `main`'s ruleset alongside `biome`, `browser-gates`, `no-network`, `stale-file`, `test`,
+> `test (py3.12)`, `test (py3.13)` and `typecheck` (read from
+> `gh api repos/Plantucha/Tepna/rules/branches/main`, not assumed). The paragraph above is kept
+> because its *reasoning* still holds — the ledger's value never depended on the gate blocking — but
+> its factual claim no longer does, and a brief that states a false fact about a gate is worse than
+> one that says nothing. The consequence is the one §1 predicted: every red is now a drain that must
+> be closed, which is what §2f is about.
+
+### 2f · A survivor has THREE answers, not two
+
+§2c frames the ledger as a two-way choice: **kill** the mutant, or **record** it with the argument for
+why it cannot be killed. Three drains in three days produced a third answer often enough that leaving
+it unnamed was pushing sessions toward the wrong one of the first two.
+
+**The third answer: the mutant is telling you the line decides nothing, so the line goes.**
+
+Neither a test gap nor an equivalence. The mutant survives because the code it mutates cannot change
+an outcome — and recording it as equivalent *preserves* that, which is the harm. Three instances,
+all measured, all from the gate running on the gate's own code:
+
+| # | the survivor | what it was actually saying |
+|---|---|---|
+| **#3211** | `copy.deepcopy(node) → copy.copy(node)`, `getattr(clone, "body", None) → getattr(clone, "body", )`, `old_fns.get(n) → old_fns.get(None)` | `by_stem` built a full-dump map *and* a docstring-stripped map, and the stripped comparison then re-checked the full one. If the full dumps differ the stripped ones differ too, unless the difference is exactly the docstring — the case being exempted. **The map decided nothing**, so no mutation of its lookup could change an answer. The `deepcopy` existed only to feed it. Three survivors, one deletion, no new tests. |
+| **#3214** | `split(".", 1)[1] → rsplit(...)`, `→ maxsplit 2`, `→ maxsplit absent` | All three agree with the original on every input that can occur: the glob is built in exactly one place and carries exactly one dot. **Unkillable as written** — and the reason they agree is the reason the line was wrong. Hand it a shape it does not expect and it picks a middle segment, the regex matches nothing, and the count returns 0. Recording them as equivalent would have preserved a silent zero one line below the fix for silent zeros. The answer was to **state the contract** (one dot parsed, none is a bare stem, two or more raise), which is also what made the line killable. |
+
+The two arrive from opposite directions and land in the same place:
+
+- **#3211 — the line decides nothing.** Remove it. The mutant was a measurement of redundancy.
+- **#3214 — the line was never pinned.** State what it requires. The mutant was a measurement of an
+  unstated assumption.
+
+**How to tell the third answer from the second.** Ask what the mutant would do on an input that *can
+occur*. If the answer is "nothing, ever, by construction" — because a second computation already
+decides it, or because the input shape it distinguishes cannot reach here — that is not equivalence,
+it is a line with no job. An equivalence entry says *"this mutant is unkillable and the code is
+right"*; the third answer says *"this mutant is unkillable and the code should not be here"*. Only
+the second sentence stops the next reader from trusting a line that decides nothing.
+
+**Why it matters for the ledger specifically.** Every third-answer case recorded as equivalent grows
+`mutate-equivalence.json` by an entry that will be re-read, re-keyed across every reformat, and
+re-argued by whoever next touches the function — and it keeps the defect. The ledger should grow only
+where a real, unkillable mutant sits over correct code.
+
 ## 3 · Acceptance
 
 1. `mutation-survivors.json` exists, committed, with the entry shape of §2b and a `_README`.
