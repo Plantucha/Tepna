@@ -90,6 +90,7 @@ from mutation_diff import (  # noqa: E402
     source_function_of_glob,
     undecided_by_function,
     unmutatable_decorator,
+    crash_refusal_verdict,
     unmeasured_zero,
     functions_covering,
     functions_with_changed_ast,
@@ -244,6 +245,15 @@ def main(argv=None) -> int:
 
     if a.selftest:
         return selftest()
+    # A STALE ARTIFACT IS WORSE THAN AN ABSENT ONE (§∅). `--json` is written by `emit`, at the end;
+    # anything that ends the run before that — an uncaught exception, a SIGKILL from the harness
+    # watchdog, an `os._exit` deep in a library — leaves the PREVIOUS run's file on disk, and a
+    # consumer polling it reads a PASS that describes a run which no longer exists. Removing it up
+    # front makes the file say what actually happened: its ABSENCE means no verdict was reached,
+    # which is a fact, where a stale PASS is a falsehood. Cheap, and it costs nothing when the run
+    # completes normally because `emit` writes the file whole.
+    if a.json:
+        Path(a.json).unlink(missing_ok=True)
     if a.verdict_sample:
         print(
             json.dumps(
@@ -805,7 +815,15 @@ def main(argv=None) -> int:
             "after generation, so an empty survivor list there means 'not checked', not 'all killed'."
         )
         print("  Deliberately not a pass: a gate that cannot see must not report green.")
-        return 2
+        # AND IT MUST SAY SO IN THE OBJECT, NOT ONLY IN THE PROSE. This was the one terminal in
+        # `main()` that returned an exit code without calling `emit` — every other refusal, and the
+        # PASS, goes through it — so a run refused here produced NO `tepna.verdict/1` object and, with
+        # `--json`, wrote no artifact. A consumer reading that file then saw the PREVIOUS run's
+        # verdict, or nothing, for a run that refused: §🧾 exists for exactly this, and the §3
+        # silent-drop-out is exactly the failure it exists to make machine-readable.
+        _ran_box[0] = _ran
+        _cstatus, _creason = crash_refusal_verdict(len(_crashed), _counts["decided"])
+        return emit(_cstatus, _creason, 2)
 
     # Every invocation failed. The loop above prints each error and continues — right per glob (one
     # broken function must not hide the others), catastrophic in aggregate, because `blocking` is

@@ -2766,3 +2766,111 @@ def test_a_scan_with_NO_HELPER_still_produces_a_readable_refusal():
     why = M.unmeasured_zero({"matched": 0, "examined": 0})
     assert why is not None and "None" not in why
     assert why.startswith("a counting helper"), "the fallback label, not the absence of one"
+
+
+# ── EVERY TERMINAL EMITS A VERDICT ────────────────────────────────────────────────────────────────
+def test_the_crash_refusal_is_UNKNOWN_when_part_of_the_diff_WAS_measured():
+    """The mixed case, and it is the COMMON one: the driver refuses if ANY glob crashed "even when
+    others ran cleanly". A run that fully mutated six functions and lost a seventh did not examine
+    nothing, and saying NOT_RUN about it describes the reader's ignorance rather than the run."""
+    status, reason = M.crash_refusal_verdict(1, 44)
+    assert status == "UNKNOWN"
+    assert "44 mutant(s) were decided" in reason
+    assert "unmeasured, not killed" in reason
+    # …and it says WHAT happened, not only how much. `what` survived as `None` because every
+    # assertion here was on the second half of the sentence: a reason reading "None; 44 mutant(s)
+    # were decided" is well-formed, passes a substring check, and tells the reader nothing about the
+    # crash that caused the refusal.
+    assert "1 glob(s) recorded 0 tested mutants" in reason
+    assert "crashed AFTER generation" in reason
+
+
+def test_the_crash_refusal_is_NOT_RUN_when_nothing_was_decided_anywhere():
+    status, reason = M.crash_refusal_verdict(3, 0)
+    assert status == "NOT_RUN"
+    assert "NOT ONE mutant was decided" in reason
+    assert "examined nothing" in reason
+    assert "3 glob(s) recorded 0 tested mutants" in reason and "crashed AFTER generation" in reason
+
+
+def test_the_crash_split_is_the_SAME_RULE_as_its_three_siblings():
+    """Four refusals, one split — a fourth spelling of it would be a fourth thing to get wrong.
+    Asserted as a property over all of them rather than restated per function."""
+    cases = [
+        M.crash_refusal_verdict(1, 0),
+        M.memory_exhaustion_verdict(1, 0),
+        M.budget_exhaustion_verdict(1, 0, 10.0),
+    ]
+    assert [s for s, _ in cases] == ["NOT_RUN"] * 3, "nothing decided ⇒ the run examined nothing"
+    cases = [
+        M.crash_refusal_verdict(1, 7),
+        M.memory_exhaustion_verdict(1, 7),
+        M.budget_exhaustion_verdict(1, 7, 10.0),
+    ]
+    assert [s for s, _ in cases] == ["UNKNOWN"] * 3, "something decided ⇒ measured in part, cannot speak for the rest"
+    # THE BOUNDARY, which is where the split actually lives. `decided > 0` → `decided > 1` survived:
+    # under it a run that decided exactly ONE mutant reports "examined nothing". One is not nothing —
+    # that mutant was run, and its result is the only thing standing between this run and a false
+    # NOT_RUN. Asserted for all three so the boundary cannot drift apart between them.
+    cases = [
+        M.crash_refusal_verdict(1, 1),
+        M.memory_exhaustion_verdict(1, 1),
+        M.budget_exhaustion_verdict(1, 1, 10.0),
+    ]
+    assert [s for s, _ in cases] == ["UNKNOWN"] * 3, "ONE decided mutant is something, not nothing"
+
+
+def test_EVERY_TERMINAL_IN_main_EMITS_A_VERDICT_OBJECT():
+    """THE CLASS, not the instance. `return 2` sat in the §3 crash refusal for months: the one exit
+    from `main()` that produced no `tepna.verdict/1` object and, with `--json`, wrote no artifact — so
+    a consumer polling that file saw the PREVIOUS run's verdict, or nothing, for a run that refused.
+    §🧾 requires one object from every gate that decides something, and nothing asserted it.
+
+    Checked on the AST, not on the text: a reformat moves `return` lines and this must survive that
+    (measured the hard way on #3196, where a whole-tree reformat broke four source-text scans).
+
+    Two exits are allowed BY NAME and for a stated reason, never by a count — an allowlist that says
+    "and two others" is how the third one gets in."""
+    import ast as _ast
+    import pathlib as _pl
+
+    src = (_pl.Path(__file__).resolve().parent.parent / "tools" / "mutate_diff.py").read_text()
+    main = next(n for n in _ast.walk(_ast.parse(src)) if isinstance(n, _ast.FunctionDef) and n.name == "main")
+    # Names bound to the result of an `emit(...)` call: `_b = emit(...)` then `return _b` emits.
+    emitted_names = {
+        t.id
+        for node in _ast.walk(main)
+        if isinstance(node, _ast.Assign)
+        and isinstance(node.value, _ast.Call)
+        and isinstance(node.value.func, _ast.Name)
+        and node.value.func.id == "emit"
+        for t in node.targets
+        if isinstance(t, _ast.Name)
+    }
+    assert emitted_names, "no `x = emit(...)` found — the scan is looking at the wrong function"
+    # `_refusal` holds a previously emitted verdict under --report-only; it is re-returned, not a new exit.
+    emitted_names.add("_refusal")
+
+    nested = {d for d in _ast.walk(main) if isinstance(d, _ast.FunctionDef) and d is not main}
+    nested_returns = {r for d in nested for r in _ast.walk(d) if isinstance(r, _ast.Return)}
+
+    ALLOWED = {
+        "selftest()": "--selftest runs the pure selftest and is not a gate verdict about a diff",
+        "0": "--verdict-sample prints a synthetic object itself and exits; the adoption gate reads stdout",
+    }
+    offenders = []
+    for node in _ast.walk(main):
+        if not isinstance(node, _ast.Return) or node in nested_returns:
+            continue
+        v = node.value
+        if isinstance(v, _ast.Call) and isinstance(v.func, _ast.Name) and v.func.id == "emit":
+            continue
+        if isinstance(v, _ast.Name) and v.id in emitted_names:
+            continue
+        if v is not None and _ast.unparse(v) in ALLOWED:
+            continue
+        offenders.append((node.lineno, _ast.unparse(v) if v else "None"))
+    assert not offenders, (
+        "every exit from main() must go through emit(), which is what builds the verdict object and "
+        f"writes --json. Not via emit: {offenders}"
+    )
