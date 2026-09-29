@@ -15094,6 +15094,81 @@
       T.ok('…and the coverage says so rather than reading as complete', lwS.covered < 1, String(lwS.covered));
     });
 
+    group('PAT coupling refuses times that are out of order, and says where (2026-09-28 finger legs)', 'pat · coupling · order · plant', function (T) {
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      if (!wsrc || !env.PATGate || !env.PATAlign || !env.DexClock) {
+        T.skip('worker source / PATGate / PATAlign / DexClock not in env');
+        return;
+      }
+      var W = null;
+      try {
+        var shim = { postMessage: function () {} };
+        shim.self = shim;
+        W = new Function(
+          'ECGDSP',
+          'PPGDSP',
+          'PATGate',
+          'PATAlign',
+          'DexClock',
+          'AnalysisStats',
+          'self',
+          'importScripts',
+          'XMLHttpRequest',
+          wsrc.replace(/self\.onmessage[\s\S]*$/, '') + '\nreturn { coupledPAT: coupledPAT, threeHat: threeHat };'
+        )(
+          env.ECGDSP,
+          env.PPGDSP,
+          env.PATGate,
+          env.PATAlign,
+          env.DexClock,
+          env.AnalysisStats,
+          shim,
+          function () {},
+          function () {}
+        );
+      } catch (e) {
+        T.ok('the worker body EVALUATES', false, e.message);
+        return;
+      }
+      // a clean night: 4 000 beats at ~1 s, feet 400 ms after each R
+      var R = [],
+        F = [];
+      for (var i = 0; i < 4000; i++) {
+        R.push(1e9 + i * 1000 + (i % 7) * 11);
+        F.push(R[i] + 400);
+      }
+      var ok = W.coupledPAT(R, F);
+      T.ok('CONTROL · ordered times couple (the refusal does not fire on a working night)', ok.ok && ok.nCoupled > 3900, ok.ok ? ok.nCoupled + ' pairs' : ok.reason);
+      /* THE PLANT — the measured 2026-09-28 shape: the first 76 feet displaced by 1 h 42 min … 6 h 42 min. */
+      var Fbad = F.slice();
+      for (var k = 0; k < 76; k++) Fbad[k] = F[k] + (102 + ((k * 37) % 300)) * 60000;
+      var bad = W.coupledPAT(R, Fbad);
+      T.ok('out-of-order foot times are REFUSED, not paired', bad.ok === false, bad.ok ? bad.nCoupled + ' pairs — it paired a broken axis' : bad.reason);
+      T.ok(
+        '…and the reason names the stream, the inversion count and the first inverted index',
+        /pulse-foot times are not in time order — \d+ inversion\(s\), the first at index \d+/.test(bad.reason || ''),
+        bad.reason
+      );
+      var invs = 0;
+      for (var q = 1; q < Fbad.length; q++) if (Fbad[q] < Fbad[q - 1]) invs++;
+      T.ok('…with the true inversion count', new RegExp('— ' + invs + ' inversion').test(bad.reason || ''), invs + ' vs ' + bad.reason);
+      var Rbad = R.slice();
+      Rbad[10] = R[3000];
+      T.ok(
+        'an out-of-order R-peak list is refused too, and named as such',
+        /R-peak times are not in time order — 1 inversion\(s\), the first at index 11/.test(W.coupledPAT(Rbad, F).reason || ''),
+        W.coupledPAT(Rbad, F).reason
+      );
+      T.ok(
+        'a caller names its own lists (finger → ankle is finger-foot → ankle-foot, not R-peak)',
+        /finger-foot times are not in time order/.test(W.coupledPAT(Fbad, F, { lo: 50, hi: 250 }, { start: 'finger-foot', end: 'ankle-foot' }).reason || ''),
+        W.coupledPAT(Fbad, F, { lo: 50, hi: 250 }, { start: 'finger-foot', end: 'ankle-foot' }).reason
+      );
+      /* The hat carries the leg's own reason instead of "a leg did not couple". */
+      var h = W.threeHat(bad, ok, ok);
+      T.ok('the hat names WHICH leg refused and why', h.ok === false && /chest → finger: pulse-foot times are not in time order/.test(h.reason), h.reason);
+    });
+
     group(
       'PAT hat — a negative corner says WHICH negative, and the drift-removed hat recovers a shared drift (PAT-HAT-DRIFT-DIFFERENCED)',
       'analysis-stats · pat · hat · known-answer · plant',
