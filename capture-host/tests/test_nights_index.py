@@ -186,6 +186,52 @@ def test_the_gap_threshold_follows_the_stream_s_own_cadence(tmp_path):
     assert ni._cadence_gap(str(q)) == ni.GAP_S and ni.stream_stats(str(q))["fragments"] == 2
 
 
+def test_the_seconds_lost_survive_a_ratio_that_rounds_them_away(tmp_path):
+    """E10′ / residue 2026-09-29-two-gap-measures-one-surface. `coverage` is `1 - gaps/span` rounded to
+    3 dp, so on a long stream it rounds a REAL hole to nothing and the surface is left with a count and no
+    magnitude — "2 fragments" reads as damage where "2 fragments, 2.8 s of 6.8 h" reads as the 0.01 %
+    non-finding it is. Measured on the box: 2026-09-28's H10 ECG holds `fragments: 2, coverage: 1.0,
+    gaps_s: 2.8, span_s: 24367.1`, and `(1 - coverage) * span` recovers 0 s, not 2.8.
+
+    So the test asserts the SECONDS, not the ratio — the ratio is the thing that cannot carry them."""
+    # ⚠️ THE STEP HAS TO PUT `gap_s` ON ITS FLOOR, and the first version of this test did not — it used
+    # 1 Hz rows, whose `_cadence_gap` is 5 × 1 s = 5.0 s, so the 2.8 s hole was BELOW the cut and was
+    # correctly not counted. The test failed and the CODE WAS RIGHT. The real ECG stream runs at ~130 Hz,
+    # so its cadence gap is 5 × 0.008 s floored to `GAP_S` = 2.0 s and a 2.8 s hole clears it. 0.1 s rows
+    # reproduce that floor in a file a test can afford.
+    p = tmp_path / "fast.txt"
+    _stream(p, [(0, 3000), (3002.8, 3000)], step=0.1)  # 60 002 rows, one 2.8 s hole, span 6 002.8 s
+    st = ni.stream_stats(str(p))
+    assert st["gap_s"] == ni.GAP_S, st  # the cut is on its floor, as it is for the real stream
+    assert st["fragments"] == 2, st
+    assert st["coverage"] == 1.0, "the ratio rounds the hole away — that is the defect, not a bug in the test"
+    assert st["gaps_s"] == 2.8, st  # the magnitude the ratio discarded, in seconds
+    assert round((1 - st["coverage"]) * st["span_s"], 1) == 0.0, "the ratio cannot be inverted back to it"
+    # ANTI-VACUITY: the same file read with a cut ABOVE the hole is one fragment and loses nothing, so the
+    # assertions above are about a hole that was really counted rather than a number that is always there.
+    clean = ni.stream_stats(str(p), gap_s=10.0)
+    assert clean["fragments"] == 1 and clean["gaps_s"] == 0.0, clean
+
+
+def test_gaps_s_is_zero_not_absent_on_an_unbroken_stream(tmp_path):
+    """§∅ in the other direction: a stream with no hole lost ZERO seconds, which is a measurement, and it
+    must not arrive as `None` — the surface distinguishes "none lost" from "not measured"."""
+    p = tmp_path / "whole.txt"
+    _stream(p, [(0, 300)], step=1.0)
+    st = ni.stream_stats(str(p))
+    assert st["fragments"] == 1 and st["gaps_s"] == 0.0 and st["coverage"] == 1.0, st
+
+
+def test_the_night_payload_carries_the_bound_and_the_magnitude(tmp_path):
+    """The chip can only state a threshold and a loss if the payload carries them. Pins the keys rather
+    than their values, because the values are the stream's business and these are the surface's."""
+    import inspect
+
+    src = inspect.getsource(ni)
+    for key in ('"gaps_s": stats["gaps_s"]', '"gap_s": stats["gap_s"]', '"span_s": stats["span_s"]'):
+        assert key in src, key
+
+
 def test_stream_stats_survives_midnight(tmp_path):
     p = tmp_path / "m.txt"
     _stream(p, [(0, 120)], start="2026-09-20T23:59:00")
@@ -242,7 +288,7 @@ def test_stream_stats_edge_rows_and_unreadable_paths(tmp_path):
         "Phone timestamp;x\n\n2026-09-20T22:00:00.000;1\nnot a stamp\n2026-09-20T22:00:0X.000;1\n"
         "2026-09-20T22:00:01.000;1\n2026-09-20T22:00:02.000;1\n"
     )
-    assert ni.stream_stats(str(p)) == {"fragments": 1, "coverage": 1.0, "span_s": 2.0, "gap_s": 2.0}
+    assert ni.stream_stats(str(p)) == {"fragments": 1, "coverage": 1.0, "gaps_s": 0.0, "span_s": 2.0, "gap_s": 2.0}
     one = tmp_path / "one.txt"
     one.write_text("Phone timestamp;x\n2026-09-20T22:00:00.000;1\n")
     assert ni.stream_stats(str(one)) is None
