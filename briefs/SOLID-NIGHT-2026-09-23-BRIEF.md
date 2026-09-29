@@ -416,6 +416,26 @@ continuity go FAIL → PASS. The ring's remaining FAIL is its stall gaps (`2026-
 ⚠️ Not answered here: whether the 280 `not-worn drop`s on 09-20/21 (452 min) called wear correctly. They are
 attributed, and that is all this table claims.
 
+### 4.2 · The H10's worn END is now live evidence — two removals under #3174 (Wren, measured on vigil `WORN.csv`)
+
+§3.3 needs evidence for both ends of the worn interval. Until #3174 an H10 lying off the body kept "worn" on
+the HR packet's noise rate: 27.5 min on 2026-09-23, 102 min on 09-22 (residue
+`2026-09-24-h10-off-body-records-plausible-hr`, fixed #3174). With the ECG-level vote live since 2026-09-27
+22:38, the box has recorded two real removals:
+
+| removal | contact lost | the old failure, visible | `not worn per hr-contact-bit, ecg-level` | lag | ECG level |
+|---|---|---|---|---|---|
+| 2026-09-28 (night of 09-27) | 04:19:29, "worn per hr-beats" | 1 row | **04:20:29** | 60 s | 85–91 µV worn → 6 675 µV at removal → ~1 400 µV off |
+| 2026-09-29 (night of 09-28) | 04:20:18, "worn per hr-beats" | 04:20:22 "not worn per hr-contact-bit", then 04:20:27 back to "worn per hr-beats" | **04:21:30** | 72 s | electrode saturation at 19 930 µV at removal (3 `stuck` runs in `_ECGRUNS.txt`, all 04:20:13–04:20:27) |
+
+- **While worn, zero false "not worn".** On the night of 09-28, 400 of 405 H10 rows read "worn per hr-contact-bit,
+  hr-beats", and not one carried `ecg-level` before the removal. The 70-s mid-night burst class
+  (`telemetry.py`'s replay) did not occur.
+- The lag is the vote's design, not slowness: the low median of twelve 10-s blocks needs seven loud blocks,
+  i.e. 60–70 s of noise.
+- What this does NOT show: a dry-strap night (contact=0 all night with a real heartbeat), where the vote must
+  stay silent. That was the case `hr-beats` was built for, and neither night had it.
+
 ## 5 · The ranking — nights lost by capture defect (Wren, from the box's LOSS-AUDIT files, 2026-09-23)
 
 > ⚠️ **PROVISIONAL (marked 2026-09-24 00:20).** Every number in this section was read from the 28
