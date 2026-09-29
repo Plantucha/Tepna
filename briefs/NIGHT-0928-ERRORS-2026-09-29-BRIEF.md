@@ -41,3 +41,5 @@ Every row is a verified defect. "State" is the PR that fixes it or the decision 
 - [ ] E13 script half landed; the unit file changed by the owner.
 - [ ] E3, E12, E15 ruled by the owner and the ruling recorded on this status line.
 - [ ] Night 2026-09-29's morning read shows the timeline, the settle and the nights page agreeing with QC.
+
+**Fixed on main is not visible on the box until it is deployed.** Page-only changes (E10, the analysis pages) reach the box through `tepna-update.timer` at its next idle window without a restart; daemon and host-surface changes (E4–E9, E13) need the process restart, which is the owner's word. A row marked FIXED here names the PR, not the box.
