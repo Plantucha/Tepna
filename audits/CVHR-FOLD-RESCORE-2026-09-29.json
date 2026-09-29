@@ -37,7 +37,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 17121
+      "wallMs": 17081
     },
     {
       "night": "2026-08-25",
@@ -70,7 +70,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 20479
+      "wallMs": 20384
     },
     {
       "night": "2026-08-26",
@@ -103,7 +103,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 19803
+      "wallMs": 19872
     },
     {
       "night": "2026-08-28",
@@ -136,7 +136,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 16448
+      "wallMs": 16391
     },
     {
       "night": "2026-08-29",
@@ -169,7 +169,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 13356
+      "wallMs": 13317
     },
     {
       "night": "2026-08-30",
@@ -202,7 +202,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 11414
+      "wallMs": 11292
     },
     {
       "night": "2026-08-31",
@@ -240,7 +240,7 @@
         ],
         "reason": null
       },
-      "wallMs": 17724
+      "wallMs": 17707
     },
     {
       "night": "2026-09-03",
@@ -273,7 +273,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 18416
+      "wallMs": 18215
     },
     {
       "night": "2026-09-04",
@@ -306,7 +306,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 9475
+      "wallMs": 9366
     },
     {
       "night": "2026-09-05",
@@ -344,7 +344,7 @@
         ],
         "reason": null
       },
-      "wallMs": 17637
+      "wallMs": 17579
     },
     {
       "night": "2026-09-06",
@@ -377,7 +377,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 22671
+      "wallMs": 22631
     },
     {
       "night": "2026-09-07",
@@ -410,7 +410,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 14192
+      "wallMs": 14169
     },
     {
       "night": "2026-09-08",
@@ -443,7 +443,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 12480
+      "wallMs": 12431
     },
     {
       "night": "2026-09-09",
@@ -476,7 +476,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 11053
+      "wallMs": 10996
     },
     {
       "night": "2026-09-10",
@@ -509,7 +509,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 16865
+      "wallMs": 16883
     },
     {
       "night": "2026-09-11",
@@ -542,7 +542,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 20399
+      "wallMs": 20311
     },
     {
       "night": "2026-09-12",
@@ -575,7 +575,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 31705
+      "wallMs": 31652
     },
     {
       "night": "2026-09-13",
@@ -608,7 +608,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 13959
+      "wallMs": 14048
     },
     {
       "night": "2026-09-15",
@@ -641,7 +641,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 22797
+      "wallMs": 22972
     },
     {
       "night": "2026-09-16",
@@ -674,7 +674,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 14799
+      "wallMs": 14809
     },
     {
       "night": "2026-09-17",
@@ -707,7 +707,7 @@
         "refusals": [],
         "reason": null
       },
-      "wallMs": 12526
+      "wallMs": 12548
     },
     {
       "night": "2026-09-19",
@@ -745,7 +745,7 @@
         ],
         "reason": null
       },
-      "wallMs": 18850
+      "wallMs": 18826
     },
     {
       "night": "2026-09-20",
@@ -783,7 +783,7 @@
         ],
         "reason": null
       },
-      "wallMs": 10249
+      "wallMs": 10243
     }
   ],
   "rho": {
@@ -865,41 +865,29 @@
       "coveredHours": 2.48
     }
   ],
-  "verdict": {
-    "schema": "tepna.verdict/1",
-    "gate": "cvhr-fold-rescore",
-    "status": "PASS",
+  "result": {
+    "rho": -0.0139,
+    "n": 23,
+    "rhoRefusedBecause": null,
     "population": {
-      "checked": 23,
-      "eligible": 23,
-      "excluded": 0
+      "nights": 23,
+      "paired": 23,
+      "unpaired": 0
     },
-    "criterion": {
-      "name": "spearman_rho_on_fold_selection",
-      "threshold": null,
-      "unit": "rho",
-      "direction": "report"
-    },
-    "result": {
-      "rho": -0.0139,
-      "n": 23,
+    "comparison": {
       "sweepRestrictedRho": 0.255,
       "sweepN": 17,
-      "fragmentsRefused": 4,
-      "fragmentsScored": 86
+      "sweepExcludedUnder2h": 6,
+      "note": "the sweep scored the largest fragment per stream; this scores the fold's selection over every night"
     },
-    "evidence": [
-      "tools/cvhr-fold-rescore.mjs",
-      "/home/michal/wt-cvhrfold-mg/audits/GAP-S-SWEEP-2026-09-22.json"
-    ],
-    "reason": null,
-    "producedBy": {
-      "tool": "tools/cvhr-fold-rescore.mjs"
+    "fragments": {
+      "scored": 86,
+      "refused": 4
     },
-    "at": "2026-09-29T05:14:24.216Z"
+    "decides": "nothing — no band is proposed and no threshold is moved"
   },
   "producedBy": {
     "tool": "tools/cvhr-fold-rescore.mjs"
   },
-  "at": "2026-09-29T05:14:24.217Z"
+  "at": "2026-09-29T05:31:34.264Z"
 }

@@ -537,17 +537,21 @@ function main(argv) {
     rho,
     refusals: { nights: refused.length, detail: refused.map((n) => ({ night: n.night, ecg: n.ecg.reason, ppg: n.ppg.reason })), fragments: frag },
     coverageShortfall: coverage,
-    verdict: {
-      schema: 'tepna.verdict/1',
-      gate: 'cvhr-fold-rescore',
-      status: rho.rho == null ? 'UNDERPOWERED' : 'PASS',
-      population: { checked: rho.n, eligible: nights.length, excluded: nights.length - rho.n },
-      criterion: { name: 'spearman_rho_on_fold_selection', threshold: null, unit: 'rho', direction: 'report' },
-      result: { rho: rho.rho, n: rho.n, sweepRestrictedRho: 0.255, sweepN: 17, fragmentsRefused: frag.ecg.refused + frag.ppg.refused, fragmentsScored: frag.ecg.scored + frag.ppg.scored },
-      evidence: ['tools/cvhr-fold-rescore.mjs', controlPath],
-      reason: rho.rho == null ? rho.reason : null,
-      producedBy: { tool: 'tools/cvhr-fold-rescore.mjs' },
-      at: new Date().toISOString()
+    /* ⚠️ NOT a `tepna.verdict/1`, and that is deliberate. This tool DECIDES NOTHING: it reports ρ with n
+       and proposes no band, exactly as its two siblings do — `gap-s-sweep.mjs` is exempt in
+       `tools/verdict-adoption.json` as "a MEASUREMENT sweep for an owner ruling … it reports where the
+       CVHR index moves and decides nothing", and `treatment-response-recut.mjs` as "a re-cut
+       AGGREGATOR, not a gate". A `status` here could only ever read PASS-because-it-ran, over a
+       `criterion` with a null threshold — a status-shaped non-decision, which is the thing the adoption
+       gate exists to catch. The numbers stay machine-readable under a name that claims no verdict. */
+    result: {
+      rho: rho.rho,
+      n: rho.n,
+      rhoRefusedBecause: rho.reason,
+      population: { nights: nights.length, paired: rho.n, unpaired: nights.length - rho.n },
+      comparison: { sweepRestrictedRho: 0.255, sweepN: 17, sweepExcludedUnder2h: 6, note: "the sweep scored the largest fragment per stream; this scores the fold's selection over every night" },
+      fragments: { scored: frag.ecg.scored + frag.ppg.scored, refused: frag.ecg.refused + frag.ppg.refused },
+      decides: 'nothing — no band is proposed and no threshold is moved'
     },
     producedBy: { tool: 'tools/cvhr-fold-rescore.mjs' },
     at: new Date().toISOString()
