@@ -15094,6 +15094,81 @@
       T.ok('…and the coverage says so rather than reading as complete', lwS.covered < 1, String(lwS.covered));
     });
 
+    group('PAT coupling refuses times that are out of order, and says where (2026-09-28 finger legs)', 'pat · coupling · order · plant', function (T) {
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      if (!wsrc || !env.PATGate || !env.PATAlign || !env.DexClock) {
+        T.skip('worker source / PATGate / PATAlign / DexClock not in env');
+        return;
+      }
+      var W = null;
+      try {
+        var shim = { postMessage: function () {} };
+        shim.self = shim;
+        W = new Function(
+          'ECGDSP',
+          'PPGDSP',
+          'PATGate',
+          'PATAlign',
+          'DexClock',
+          'AnalysisStats',
+          'self',
+          'importScripts',
+          'XMLHttpRequest',
+          wsrc.replace(/self\.onmessage[\s\S]*$/, '') + '\nreturn { coupledPAT: coupledPAT, threeHat: threeHat };'
+        )(
+          env.ECGDSP,
+          env.PPGDSP,
+          env.PATGate,
+          env.PATAlign,
+          env.DexClock,
+          env.AnalysisStats,
+          shim,
+          function () {},
+          function () {}
+        );
+      } catch (e) {
+        T.ok('the worker body EVALUATES', false, e.message);
+        return;
+      }
+      // a clean night: 4 000 beats at ~1 s, feet 400 ms after each R
+      var R = [],
+        F = [];
+      for (var i = 0; i < 4000; i++) {
+        R.push(1e9 + i * 1000 + (i % 7) * 11);
+        F.push(R[i] + 400);
+      }
+      var ok = W.coupledPAT(R, F);
+      T.ok('CONTROL · ordered times couple (the refusal does not fire on a working night)', ok.ok && ok.nCoupled > 3900, ok.ok ? ok.nCoupled + ' pairs' : ok.reason);
+      /* THE PLANT — the measured 2026-09-28 shape: the first 76 feet displaced by 1 h 42 min … 6 h 42 min. */
+      var Fbad = F.slice();
+      for (var k = 0; k < 76; k++) Fbad[k] = F[k] + (102 + ((k * 37) % 300)) * 60000;
+      var bad = W.coupledPAT(R, Fbad);
+      T.ok('out-of-order foot times are REFUSED, not paired', bad.ok === false, bad.ok ? bad.nCoupled + ' pairs — it paired a broken axis' : bad.reason);
+      T.ok(
+        '…and the reason names the stream, the inversion count and the first inverted index',
+        /pulse-foot times are not in time order — \d+ inversion\(s\), the first at index \d+/.test(bad.reason || ''),
+        bad.reason
+      );
+      var invs = 0;
+      for (var q = 1; q < Fbad.length; q++) if (Fbad[q] < Fbad[q - 1]) invs++;
+      T.ok('…with the true inversion count', new RegExp('— ' + invs + ' inversion').test(bad.reason || ''), invs + ' vs ' + bad.reason);
+      var Rbad = R.slice();
+      Rbad[10] = R[3000];
+      T.ok(
+        'an out-of-order R-peak list is refused too, and named as such',
+        /R-peak times are not in time order — 1 inversion\(s\), the first at index 11/.test(W.coupledPAT(Rbad, F).reason || ''),
+        W.coupledPAT(Rbad, F).reason
+      );
+      T.ok(
+        'a caller names its own lists (finger → ankle is finger-foot → ankle-foot, not R-peak)',
+        /finger-foot times are not in time order/.test(W.coupledPAT(Fbad, F, { lo: 50, hi: 250 }, { start: 'finger-foot', end: 'ankle-foot' }).reason || ''),
+        W.coupledPAT(Fbad, F, { lo: 50, hi: 250 }, { start: 'finger-foot', end: 'ankle-foot' }).reason
+      );
+      /* The hat carries the leg's own reason instead of "a leg did not couple". */
+      var h = W.threeHat(bad, ok, ok);
+      T.ok('the hat names WHICH leg refused and why', h.ok === false && /chest → finger: pulse-foot times are not in time order/.test(h.reason), h.reason);
+    });
+
     group(
       'PAT hat — a negative corner says WHICH negative, and the drift-removed hat recovers a shared drift (PAT-HAT-DRIFT-DIFFERENCED)',
       'analysis-stats · pat · hat · known-answer · plant',
@@ -28338,7 +28413,36 @@
       T.eq('a finger PpgDex ALONE ⇒ null (no O2Ring night)', C([finger(8)]), null);
       T.eq('an OxyDex ALONE ⇒ null (no finger waveform)', C([oxy()]), null);
       T.eq('a date-unknown finger rec is excluded', C([Object.assign(finger(8), { dateUnknown: true }), oxy()]), null);
-      T.eq('a finger with no cvhrIndexWave ⇒ null', C([rec('PpgDex', { site: 'finger' }), oxy()]), null);
+      T.eq('a finger with no cvhrIndexWave AND NO REASON ⇒ null (indistinguishable from absence)', C([rec('PpgDex', { site: 'finger' }), oxy()]), null);
+
+      /* ── AN ABSENT NODE IS NOT A REFUSED METRIC ──────────────────────────────────────────────────
+         Residue `2026-09-29-integrator-cvhr-corroboration-is-export-only-and-unrendered`. `return null`
+         answered BOTH "no finger PpgDex this night" and "a finger PpgDex that could not compute an
+         index", and the export attaches the block only when non-null — so a refusal left the bus exactly
+         as an absence does and no consumer could tell them apart. Since #3220 PpgDex names its CVHR
+         refusal, so the information exists and only the second case gains a shape.
+         The old single pin ("attaches ONLY when non-null") is now TWO properties, and they are asserted
+         separately because they are different claims: an absent node still omits the key, and a present
+         refused one carries a null index WITH the reason. */
+      var refused = C([rec('PpgDex', { site: 'finger', cvhrWaveReason: 'beats 42 < 60' }), oxy()]);
+      T.ok('a finger PpgDex that REFUSED produces a block rather than vanishing', !!refused, 'got ' + JSON.stringify(refused));
+      T.eq('…with no index', refused && refused.cvhrIndex, null);
+      T.eq("…carrying PpgDex's own reason, not one invented here", refused && refused.reason, 'beats 42 < 60');
+      T.ok('…and the note names the refusal rather than implying a reading', /NOT measured this night — beats 42 < 60/.test((refused && refused.note) || ''), refused && refused.note);
+      T.eq('…still publishing no AHI', refused && refused.ahiPublished, false);
+      /* A corroborator with no reference to measure against is carried WITHOUT a gap: a gap computed
+         from a missing reference would be the fabrication this block exists to avoid, and `agree: null`
+         says "not assessed" where `false` would say "disagrees". */
+      var refusedWithEcg = C([rec('PpgDex', { site: 'finger', cvhrWaveReason: 'clock-seam' }), oxy(), ecg(10)]);
+      T.eq('a corroborator survives a refused reference', refusedWithEcg.corroborators.length, 1);
+      T.eq('…with NO gap, because there is nothing to measure it against', refusedWithEcg.corroborators[0].gapPerH, null);
+      T.eq('…and agree is null — not assessed, never "disagrees"', refusedWithEcg.corroborators[0].agree, null);
+      /* THE OTHER HALF OF THE OLD PIN, unchanged: an absent node still omits the key. Without this the
+         narrowing could have quietly turned every PpgDex-less night into a refusal block and moved every
+         fixture that has no finger leg. */
+      T.eq('NO PpgDex node at all ⇒ still null, so a fixture without a finger leg stays inert', C([oxy(), ecg(10)]), null);
+      T.eq('a WRIST PpgDex that refused is still not the O2Ring leg', C([rec('PpgDex', { site: 'wrist', cvhrWaveReason: 'beats 42 < 60' }), oxy()]), null);
+      T.eq('a refused finger with NO OxyDex ⇒ null (the O2Ring night is still required)', C([rec('PpgDex', { site: 'finger', cvhrWaveReason: 'beats 42 < 60' })]), null);
       T.ok('an ECGDex present but NO finger ⇒ null (ECGDex alone is not the O2Ring leg)', C([ecg(10), oxy()]) === null, 'ECGDex must not stand in for the finger waveform');
 
       // ── source-structural: PpgDex computes + exports CVHR; the normalizer reads it; export attaches only when present ──

@@ -1,0 +1,47 @@
+<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+**Status:** IN-PROGRESS — 2026-09-29 · **Created:** 2026-09-29
+
+# Night 2026-09-28 — every error the morning read surfaced, and its fix
+
+**Owner, 2026-09-29 morning:** "Night finished, check quality, fragmentation, 3hat, pat and trio results" → "Write all errors in brief and fix it."
+Rule 0: `node tools/doc-search.mjs --read "night read errors brief: timeline tag resolver, interval end, settle clock lifecycle sidecar, counter reset resume same file, trio fold timer, corpus-tier stdin"` → `FINISHED-WORK-IMPROVEMENTS-2026-08-20`, `capture-host/nightqc.py`, `test_localstamp_dst.py`.
+
+## What the night measured (the facts the errors were found against)
+
+Box at 63c1e92d. One session 21:06→04:24 EDT, 26,329 s, `gaps_in_night: []`, night-qc PASS on 11 streams at 0.90–0.93 session coverage (H10 doff 157 s early, Verity doff 259 s early, ring worn to 04:19:59). Host clock disciplined at stratum 2; H10 host offset certified −216 ms / −19.9 ppm. PAT chest→ankle: raw 500 ms (IQR 473–526, 23,622 pairs, coupled 100 %), corrected 332 ms (IQR 325–342, 168 ms buffering removed), vdCorr FEASIBLE. Three-cornered hat: NOT SOLVABLE — both finger legs refused (6 and 12 pairs). SOLID-NIGHT: UNKNOWN `not settled` at 07:00 EDT. Trio: unfolded (with 09-22..09-27) until the owner's "Pull it now" at 05:42.
+
+## The errors
+
+Every row is a verified defect. "State" is the PR that fixes it or the decision it waits on; a row is never edited, so corrections are appended.
+
+| # | error | evidence | remedy | lane | state |
+|---|---|---|---|---|---|
+| E1 | `coupledPAT` / `threeHat` assumed sorted times; 43 head inversions collapsed the whole night's pairing to 6 / 12 pairs and the hat said only "a leg did not couple" | `pat-feasibility-worker.js`; 09-28 real files; 09-26 unchanged | refuse on any inversion naming list, count, first index; hat names the refusing leg | Wren | **FIXED #3224** (41a7c51c) |
+| E2 | PpgDex's resync detector tests only FORWARD device-counter steps; the ring reconnected at 04:23:30.872 and resumed INTO THE SAME FILE with its counter reset to 0 (24 449 332 942 372 → 0); `clockResyncs` null; `hostAxis` sorted the 1-min tail's anchors beside the night's first minute (ok:true, ppm −3575, maxStepMs 24,398,420) | `ppgdex-dsp.js`; row `2026-09-29-ppgdex-misses-a-device-counter-reset` | DETECTION: a backward step is a seam; the tail segment (< 3 anchors) is refused for the axis | Osprey | IN-PROGRESS (detection unit) |
+| E3 | The REMEDY for E2 beyond detection is undecided: (a) PpgDex anchors on the DOMINANT segment (Clock Contract refinement — "anchors after the LAST resync" would keep the tail and discard the night), or (b) capture opens a NEW file-set on a counter reset instead of resuming | #3224 body; this brief | Kestrel recommends (b) + E2's detection | owner | **OWNER DECISION** |
+| E4 | The monitor's timeline paints the ring's ACC idle all night: its tag resolver searches `ACC`, the ring writes `_ACCRAW.txt` (10,137,042 B); `nightqc._stream_file_tags` was fixed for this on 2026-09-05 and the timeline never got it | `timeline.py:549/560`; row filed #3222 | single-source the timeline's tags on `nightqc._stream_file_tags` | Heron | OPEN (after the drain) |
+| E5 | The timeline ends an interval at `t0 + received-sample span`, so on a lossy link the bar stops early — Verity shown idle from 03:52 when every Verity file was last written 04:20:39 (259 s before session end, QC correct) | `timeline.py`; row filed #3222 | derive the END from the last row's host stamp for a closed file; keep the mtime refusal for a killed session | Heron | OPEN (after the drain) |
+| E6 | `bucket_stream` carries a dead `fs` parameter (`grep -c '\bfs\b'` over the body = 1, the signature) | row filed #3222 | remove it or use it | Heron | OPEN |
+| E7 | `cpap_stream` says "775 of 776 therapy min (99.8 %)" for a 6.75 h EDF — the ±1-day window (mirroring the EDF's `DATALOG/<d-1|d0|d+1>` walk) is sound, the WORDS claim one night | `capture.py:8635`; row filed #3222 | name the window in the sentence | Heron | OPEN |
+| E8 | The night cannot SETTLE while the ring cycles reconnects after the session: `OXYLIFE.csv` (a lifecycle sidecar) appends every ~3 min and `diskguard.active_nights` counts ANY file mtime within 1,200 s, so the loss audit — and therefore SOLID-NIGHT — is delayed hours (prior nights: 07:22, 09:05, 08:00) | `capture.py:2693`; box 04:48→05:41 appends | the settle test excludes lifecycle sidecars (OXYLIFE, LINK, CLOCK) — data files only | Heron | OPEN (row owed) |
+| E9 | `state.solid` surfaces `null` for an unsettled night with no reason, so the monitor cannot tell "early" from "missing" | `webmon.py:545` | surface the composer's `UNKNOWN not settled` with its reason | Magpie | OPEN (row owed) |
+| E10 | The nights page shows "2 fragments" for ECGDex / "3" for HRVDex on a night with `gaps_in_night: []` — it counts source FILES, not dropouts, under a word that means dropouts | `monitor.html` nights list | label it "files" or count sessions | Magpie | OPEN (row owed) |
+| E10′ | **Correction (Magpie, measured on the live `/api/nights`): `fragments` is NOT a file count** — `nights_index.stream_stats` increments it on a row-to-row delta above the stream's cadence gap (~2 s), so "ECGDex 2" is one within-file discontinuity longer than ~2 s in 24,372 s, which `coverage` rounds to 1.000. The defect is two gap measures on one surface with different scopes and thresholds and no stated relation (QC's night-level `gaps_in_night` vs the per-file cadence-gap count) | 09-28 `/api/nights` vs QC-SUMMARY | show the threshold and the seconds lost beside the count (`2 fragments · gaps > 2.0 s · 11 s of 6.77 h`); row for the class | Magpie | OPEN (supersedes E10's remedy) |
+| E11 | "The ring has no arrival-floor axis": the ring's `_PMDARRIVAL.csv` (every night since 09-20) carries only `OXYLIVE_DURATION_S` rows (sensor_ns 0, one sample per row) — no PPG packets, no device time — so no corrected hat can include the finger | row `2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat` | capture side: the ring's PPG frame path gets its own `PmdArrivalLogWriter` feed with per-frame sample counts | Heron/Wren | OPEN |
+| E12 | Nothing folds a box night automatically: the newest folded night was 2026-09-21 (7-night backlog); `tepna-nightly-triage` runs only the mutation crawl | rig `uploads/trio/`; Wren's measurement | a fold timer after the 13:30 archive pull — or a manual step the owner keeps | owner | **OWNER DECISION**; backlog folded by Heron today |
+| E13 | `tepna-corpus-tier.service` failed 09-28 14:30: the unit pipes `git show origin/main:tools/corpus-tier.mjs \| node --input-type=module -`, so `import.meta.url` is `[eval1]`, `HERE` resolves to `/home/michal`, and `../verdict.js` → `/home/verdict.js` (present at the checkout; the PIPE is missing) | rig journal 2026-09-28 14:30:32 | script: resolve siblings from the checkout root (env or cwd) when run from stdin; unit: run from the checkout after a fast-forward, or materialise the fetched source — the unit is the owner's | Heron (script) / owner (unit) | OPEN |
+| E14 | The nightly mutation crawl was killed by the unit's timeout with a LIVE MUTANT in the shared root (`pulsedex-dsp.js` `&&`→`\|\|`, restored by hand 17:4x); `--max-hours 5` and the unit's `TimeoutStartSec` disagree | rig journal 2026-09-28 17:31:50; `tools/mutation-crawl.mjs` | crawl restores the file on SIGTERM (trap); the two timeouts agree — the unit half is the owner's | Osprey (script) / owner (unit) | OPEN (row owed) |
+| E15 | #3202 (owner-ordered "Fix it now", one log line in `alert_poller`) cannot merge: its required mutation gate cannot decide a change inside capture.py on a hosted runner (generation of 20,021 mutants never finishes; ≥ 8.78 GB per worker to import the generated module) | #3202; MUTATION-SCOPED-GENERATION-2026-09-28 (option f) | bypass for this PR, or wait for scoped generation | owner | **OWNER DECISION** |
+| E16 | The daemon keeps rescanning for the doffed ring every ~3 min after `session ended` + `not-worn`: 35 `scan + connect` cycles between 04:24 and 06:20 EDT, every one `device_unavailable`, 171 `OXYLIFE.csv` rows — the writes that keep E8's settle clock running, so SOLID-NIGHT for 09-28 was still UNKNOWN two hours after the sensors were off (owner's question 06:2x) | box `OXYLIFE.csv` since 08:24Z; 09-27's LOSS-VERDICT landed 07:22 the next morning | reconnect backoff after a doff (widen the interval or stop after N unavailable attempts; resume on the worn/autopull trigger), together with E8 | Heron | OPEN (row owed) |
+
+## Done-when
+
+- [x] E1 landed (#3224).
+- [ ] E2 detection landed with six PpgDex fixtures regenerated and verified.
+- [ ] E4–E7 landed (timeline + cpap wording), each closing its #3222 row.
+- [ ] E8, E9, E10, E14, E16 rows appended to `briefs/RESIDUE.md` and fixed.
+- [ ] E13 script half landed; the unit file changed by the owner.
+- [ ] E3, E12, E15 ruled by the owner and the ruling recorded on this status line.
+- [ ] Night 2026-09-29's morning read shows the timeline, the settle and the nights page agreeing with QC.
+
+**Fixed on main is not visible on the box until it is deployed.** Page-only changes (E10, the analysis pages) reach the box through `tepna-update.timer` at its next idle window without a restart; daemon and host-surface changes (E4–E9, E13) need the process restart, which is the owner's word. A row marked FIXED here names the PR, not the box.
