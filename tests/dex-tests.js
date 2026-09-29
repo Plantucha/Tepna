@@ -61850,6 +61850,96 @@
           JSON.stringify(_short.hostAxis && { ok: _short.hostAxis.ok, reason: _short.hostAxis.reason })
         );
 
+        /* ── THE OFFSET STEPS, AND THE RATE THAT IS NOT MEASURABLE ACROSS THEM ─────────────────────
+           Owner ruling 2026-09-29, option (c). The device COUNTER stepped once on 2026-09-28; the
+           OFFSET (hostElapsed − devElapsed) stepped five times, and three of those are the ring
+           dumping a buffer on reconnect — the device column advances while the host clock stands
+           still, which is a replay and not a stall. A single rate cannot represent a step: quoted
+           across them this night read −3575 ppm of drift that never happened. */
+        var OS = P.ppgOffsetSegments;
+        if (typeof OS !== 'function') {
+          T.skip('PPGDSP.ppgOffsetSegments exported', 'not wired in this lane');
+        } else {
+          var _anch = function (n, offMs, stepAt) {
+            var out = [];
+            for (var i = 0; i < n; i++) out.push({ devMs: i * 4000, hostMs: i * 4000 + offMs + (stepAt && i >= stepAt ? -20000 : 0) });
+            return out;
+          };
+          /* CONTROL FIRST, and it is the one that matters most: a stream with NO step is ONE segment.
+             `multiSeg` is then false in parsePPG and the correction is `hostAxis` UNCHANGED, so such
+             a night's export is byte-identical. That is structural, not arithmetic that might drift —
+             which is why the six committed goldens below must not move. */
+          var _clean = OS(_anch(700, -1234, 0));
+          T.eq("CONTROL · a stream with no offset step is ONE segment — today's path, untouched", _clean.segments.length, 1);
+          T.eq('…and its flat offset is the median of its own offsets', Math.round(_clean.segments[0].flatOffsetMs), -1234);
+          T.eq('…which a rate CAN be measured over, given the span', _clean.segments[0].rate, 'measured');
+
+          /* THE PLANT · a −20 s offset step mid-stream, the shape of a buffered replay. */
+          var _stepped = OS(_anch(1400, 0, 700));
+          T.eq('AN OFFSET STEP SPLITS THE SERIES · two segments, not one', _stepped.segments.length, 2);
+          T.eq('…and no anchor is discarded to get them', _stepped.anchors, 1400);
+          T.ok(
+            'each side carries its OWN offset — the step is a seam, never a rate',
+            Math.round(_stepped.segments[0].flatOffsetMs) === 0 && Math.round(_stepped.segments[1].flatOffsetMs) === -20000,
+            JSON.stringify(
+              _stepped.segments.map(function (s) {
+                return Math.round(s.flatOffsetMs);
+              })
+            )
+          );
+          T.ok(
+            'the segments PARTITION the series — every anchor in exactly one, no overlap, no gap',
+            _stepped.segments[0].lo === 0 && _stepped.segments[0].hi === _stepped.segments[1].lo && _stepped.segments[1].hi === 1400,
+            JSON.stringify(
+              _stepped.segments.map(function (s) {
+                return [s.lo, s.hi];
+              })
+            )
+          );
+
+          /* A SEGMENT THAT CANNOT CARRY A RATE SAYS SO, WITH THE NUMBERS THAT REFUSED IT. Three
+             different refusals, because a single 'unknown' that cannot say which test failed sends
+             the reader to the wrong question. */
+          var _short = OS(_anch(20, 0, 0));
+          T.eq('a segment under the span floor reports rate UNKNOWN', _short.segments[0].rate, 'unknown');
+          T.ok('…naming the span and the floor', /under the 2400 s/.test(_short.segments[0].rateReason), _short.segments[0].rateReason);
+          T.eq('…and publishes NO ppm rather than a ppm with a caveat elsewhere', _short.segments[0].ppm, null);
+          var _two = OS(_anch(2, 0, 0));
+          T.ok('a segment of two anchors reports UNKNOWN naming the anchor floor', /below the 3/.test(_two.segments[0].rateReason), _two.segments[0].rateReason);
+
+          /* THE SUB-BOUND CASE, which is what choosing a PRE-STATED bound costs and why it is paid in
+             the open: a replay smaller than the bound stays inside its segment, the residual about the
+             flat offset then dwarfs that segment's own jitter, and the rate is UNKNOWN rather than a
+             number averaged over a step. Measured on 2026-09-28: residual 2848.1 ms against 27.3 ms
+             of jitter over 9800 s. */
+          var _sub = _anch(1400, 0, 0);
+          for (var _i = 700; _i < 1400; _i++) _sub[_i].hostMs -= 5000; // a 5 s replay, under the 10 s bound
+          var _subr = OS(_sub);
+          T.eq('a SUB-BOUND replay does not split the series — by design, the bound is pre-stated', _subr.segments.length, 1);
+          T.eq('…and that segment refuses a rate rather than averaging over the step', _subr.segments[0].rate, 'unknown');
+          T.ok("…naming the residual, the multiple and the segment's own jitter", /residual .* over 3x this segment's own .* jitter/.test(_subr.segments[0].rateReason), _subr.segments[0].rateReason);
+
+          /* THE BOUND IS PRE-STATED FROM NIGHTS IT DOES NOT JUDGE. Asserted on the CONSTANT so the
+             citation in the source cannot drift away from the number the code uses. */
+          if (!env.ppgdexDspSource) {
+            T.skip('ppgdex-dsp source readable', 'Node-lane only');
+          } else {
+            var _ob = /PPG_OFFSET_STEP_BOUND_MS\s*=\s*(\d+)/.exec(String(env.ppgdexDspSource));
+            T.ok('ANTI-VACUITY · the offset-step bound constant was actually found', !!_ob, String(_ob && _ob[1]));
+            T.eq('the bound is 10 000 ms — above the worst p99.9 (4133.5 ms) of the four independent 09-19 nights', _ob && _ob[1], '10000');
+            T.ok(
+              'and the source cites the nights it was pre-stated from, not the night it judges',
+              /2026-09-19/.test(String(env.ppgdexDspSource)) && /4133\.5/.test(String(env.ppgdexDspSource)),
+              'the 09-19 citation and the 4133.5 ms figure are both in the source'
+            );
+            T.ok(
+              'and the source records WHY piecewise-flat was rejected — the reason is the test that caught it',
+              /discards the host/.test(String(env.ppgdexDspSource)) && /width 21/.test(String(env.ppgdexDspSource)),
+              'both refused spellings are named in the source with the gate that refused them'
+            );
+          }
+        }
+
         /* ONE CONSTANT, THREE NODES. All three read the same step in the same device's several files, so
          a second constant would eventually disagree with the first. Asserted on the CONSTANTS, never by
          holding the three implementations byte-equal — a parity assertion over two copies read as

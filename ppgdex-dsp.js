@@ -730,6 +730,136 @@
      first. Gate-asserted equal to ECGDex's in the `ppgdex-clock-seam` group. */
   const PPG_RESYNC_BOUND_MS = 60000;
   const PPG_GAP_CEIL_MS = 86400000;
+  /* ── THE OFFSET-STEP BOUND — A DIFFERENT EVENT, A DIFFERENT NUMBER ──────────────────────────────
+     The two constants above find a step in the DEVICE COUNTER. This one finds a step in the OFFSET
+     (`hostElapsed − devElapsed`), which is a different event and, measured, the common one: on
+     2026-09-28 the ring's counter stepped once, and the offset stepped five times.
+
+     WHAT THE SIGN SAYS THE EVENT IS. At three of that night's four dropout boundaries the offset
+     steps by the full gap — the DEVICE column advances while the host clock stands still. A stall
+     would look the opposite way round. What advances a device counter while the phone's clock does
+     not is the ring DUMPING WHAT IT BUFFERED while the link was down: a REPLAY on reconnect, stamped
+     by the phone as fast as it arrives. So the right correction is a STEP OF THE OFFSET, not a rate —
+     and quoting one rate across it turns a 47-second replay into 3575 ppm of imaginary drift.
+     (The fourth boundary, the LARGEST at +89.9 s, steps the offset by −0.01 s: both clocks advanced,
+     so it is an ordinary dropout and is not a seam. A rule keyed on dropouts would re-anchor there on
+     nothing; this one is keyed on the offset and does not.)
+
+     🔴 PRE-STATED FROM NIGHTS THIS NUMBER DOES NOT JUDGE, which is the only way a threshold may be
+     chosen (§🧾: a threshold derived from the data it judges is UNKNOWN). Measured over the four
+     independent 2026-09-19 O2Ring recordings — 5195, 414, 327 and 6446 anchors — the anchor-level
+     |Δoffset| p99.9 is 729.1, 1896.6, 1430.3 and 4133.5 ms. 10 000 ms clears the worst of them by
+     2.4x.
+
+     ⚠️ AND THE TIGHTER BOUND WAS REJECTED FOR THIS REASON, not overlooked. 1000 ms fits 2026-09-28
+     better — seven segments, six at 30–53 ms residual RMS — but the same four nights show NO GAP to
+     put it in: 09-19 224525 carries 125 jumps in an unbroken continuum from 203 ms to 5046 ms, and
+     the largest ratio-gap below 10 s sits at a different magnitude on every night (2123, 522, 562,
+     203 ms). A bound inside that continuum is fitted to whichever night chose it. The cost of
+     choosing 10 000 is honest and is paid in the open: the sub-threshold replays stay INSIDE their
+     segments, those segments are then not flat, and they report UNKNOWN for rate instead of a ppm. */
+  const PPG_OFFSET_STEP_BOUND_MS = 10000;
+  /* A segment must span at least this to support a RATE. ECGDex's number, for ECGDex's reason — it
+     gates its own `fs` correction at 2400 s — rather than a second one invented here. */
+  const PPG_RATE_MIN_SPAN_S = 2400;
+  /* Flat ENOUGH to quote a rate: the residual about the segment's flat offset, compared with that
+     segment's OWN anchor-to-anchor jitter. Not a fitted millisecond count — a segment whose residual
+     is several times its own jitter contains structure the flat model has not removed, whatever the
+     absolute size of either. */
+  const PPG_FLAT_RESIDUAL_K = 3;
+
+  const _ppgMedian = function (a) {
+    if (!a.length) return null;
+    const b = Array.prototype.slice.call(a).sort(function (x, y) {
+      return x - y;
+    });
+    const m = b.length >> 1;
+    return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
+  };
+
+  /* ── THE RING'S OFFSET, AS SEGMENTS ─────────────────────────────────────────────────────────────
+     `anchors` is the `{devMs, hostMs}` series parsePPG already collects. Split it where the OFFSET
+     steps, take each segment's FLAT offset as the median of its own offsets, and report what each
+     segment can and cannot support.
+
+     THE MEDIAN, NOT THE MEAN OR THE ENDPOINTS, and that is the load-bearing choice. A replay does not
+     land inside one anchor gap — it spreads over the anchors it covers, so the step has SHOULDERS
+     (measured 2026-09-28: anchors 5930/5938, 2421/2429 and 3193/3200/3222 each cluster around one
+     event). A mean or an endpoint difference takes those shoulders as signal; the median does not.
+     The same shoulders are why the bound must sit above the event scale rather than inside it — a
+     lower bound cuts a shoulder off as its own segment, which measured as two 8-anchor slivers with
+     within-segment slopes of 12 057 and 15 060 ppm.
+
+     WHAT IS PUBLISHED, AND WHAT IS REFUSED. The flat offset is the CORRECTION and it applies to every
+     segment: removing a step is right whether or not a rate can be measured across what remains. The
+     per-segment `ppm` is a DIAGNOSTIC and is published only when the segment can carry one —
+     `PPG_RATE_MIN_SPAN_S` of span, three anchors, and a residual about the flat offset within
+     `PPG_FLAT_RESIDUAL_K` times the segment's own jitter. Otherwise `ppm` is `null` and `rate` is
+     'unknown' WITH the numbers that refused it, never a value with a caveat somewhere else. */
+  function ppgOffsetSegments(anchors, boundMs) {
+    const bound = boundMs == null ? PPG_OFFSET_STEP_BOUND_MS : boundMs;
+    const a = (anchors || []).filter(function (x) {
+      return x && isFinite(x.devMs) && isFinite(x.hostMs);
+    });
+    if (!a.length) return { ok: false, reason: 'no anchors', segments: [] };
+    const off = a.map(function (x) {
+      return x.hostMs - x.devMs;
+    });
+    const cuts = [0];
+    for (let i = 1; i < a.length; i++) if (Math.abs(off[i] - off[i - 1]) > bound) cuts.push(i);
+    cuts.push(a.length);
+    const series = a.map(function (x, i) {
+      return { devMs: x.devMs, off: off[i] };
+    });
+    const segments = [];
+    for (let k = 0; k < cuts.length - 1; k++) {
+      const lo = cuts[k],
+        hi = cuts[k + 1];
+      const o = off.slice(lo, hi);
+      const flat = _ppgMedian(o);
+      const spanS = (a[hi - 1].devMs - a[lo].devMs) / 1000;
+      const jumps = [];
+      for (let i = lo + 1; i < hi; i++) jumps.push(Math.abs(off[i] - off[i - 1]));
+      const jitter = _ppgMedian(jumps);
+      let sq = 0;
+      for (let i = 0; i < o.length; i++) sq += (o[i] - flat) * (o[i] - flat);
+      const rms = Math.sqrt(sq / o.length);
+      const slopePpm = spanS > 0 ? ((o[o.length - 1] - o[0]) / 1000 / spanS) * 1e6 : null;
+      const tooShort = spanS < PPG_RATE_MIN_SPAN_S;
+      const tooFew = o.length < 3;
+      const notFlat = jitter != null && rms > PPG_FLAT_RESIDUAL_K * jitter;
+      const rated = !tooShort && !tooFew && !notFlat;
+      segments.push({
+        lo: lo,
+        hi: hi,
+        fromDevMs: a[lo].devMs,
+        toDevMs: a[hi - 1].devMs,
+        anchors: o.length,
+        spanS: Math.round(spanS),
+        flatOffsetMs: flat,
+        residualRmsMs: rms,
+        jitterMs: jitter,
+        /* §7 — a ppm never travels without its anchor count and span, which are in this same object. */
+        ppm: rated ? slopePpm : null,
+        rate: rated ? 'measured' : 'unknown',
+        rateReason: rated
+          ? null
+          : tooFew
+            ? o.length + ' anchor(s) — below the 3 a rate needs'
+            : tooShort
+              ? 'spans ' + Math.round(spanS) + ' s, under the ' + PPG_RATE_MIN_SPAN_S + ' s a rate needs'
+              : 'residual ' +
+                rms.toFixed(1) +
+                ' ms about the flat offset is over ' +
+                PPG_FLAT_RESIDUAL_K +
+                "x this segment's own " +
+                jitter.toFixed(1) +
+                ' ms jitter — it holds structure the flat model has not removed (sub-bound replays)'
+      });
+    }
+    return { ok: true, segments: segments, boundMs: bound, anchors: a.length, series: series };
+  }
+
   /* opts.timebase (O2RING-ADAPTIVE-TIMEBASE Stage 2):
        undefined / 'host-disciplined'  the device ns axis disciplined to the capture host (today's path,
                                         and the default — behaviour is byte-identical when unset).
@@ -1078,6 +1208,42 @@
        has no clock spine" and "this night's post-seam segment was too short to measure a rate over"
        are different facts and both used to read as a bare `ok:false`. */
     const CK_AXIS_MIN_ANCHORS = 3; // clock.js's own floor, restated because it is not inlined here
+    /* Built from the SAME anchors the host axis uses, so the two describe one series and can be
+       compared rather than merely coexisting. */
+    const offSegs = ppgOffsetSegments(axisAnchors, PPG_OFFSET_STEP_BOUND_MS);
+    /* ── ONE AXIS PER SEGMENT — piecewise-AXIS, not piecewise-flat ───────────────────────────────
+       The segmentation belongs to the ANCHORS. Within a segment the correction stays exactly what it
+       is today; the only thing a seam forbids is INTERPOLATING ACROSS IT, and that is all that needed
+       forbidding. Two earlier spellings were wrong and the suite refused both, each for a reason that
+       is now a test:
+         · a FLAT offset per segment discards the host rather than smoothing it — `relSec` becomes the
+           device axis plus a number, so a +2000 ppm host error measured 0 and a planted 400 ms
+           host-stamp step vanished from the output. Tracking the host is what host-disciplined MEANS.
+         · LINEAR between a segment's raw anchors re-admits the BLE stamp jitter that Clock Contract
+           §7's running median of width 21 exists to remove — it moved four golden exports on
+           synthetics that carry no step at all, which is how it was caught.
+       ⚠️ A SINGLE SEGMENT TAKES TODAY'S PATH, BY CONSTRUCTION AND NOT BY COINCIDENCE. `multiSeg` is
+       false for every stream without a step, so `hostAx` is used unchanged and such a night's export
+       is byte-identical. That is the control, and it is structural: there is no arithmetic here that
+       could drift it. */
+    const multiSeg = offSegs.ok && offSegs.segments.length > 1;
+    const segAxes =
+      multiSeg && typeof DexClock !== 'undefined' && DexClock.hostAxis
+        ? offSegs.segments.map(function (s) {
+            return DexClock.hostAxis(axisAnchors.slice(s.lo, s.hi), {});
+          })
+        : null;
+    /* The correction at a device time: the axis of the segment that HOLDS it. A segment whose own
+       axis refused (too few anchors after the split) contributes NO correction rather than borrowing
+       a neighbour's — a borrowed correction is a measurement of a different clock (§7). */
+    const segCorrectionAt = function (devMs) {
+      if (!segAxes) return 0;
+      const S = offSegs.segments;
+      for (let i = 0; i < S.length; i++) {
+        if (devMs >= S[i].fromDevMs && devMs <= S[i].toDevMs) return segAxes[i] && segAxes[i].ok ? segAxes[i].correctionAt(devMs) : 0;
+      }
+      return 0;
+    };
     const hostAx =
       axisAnchors.length < CK_AXIS_MIN_ANCHORS
         ? { ok: false, reason: `post-resync segment carries ${axisAnchors.length} anchor(s), below the ${CK_AXIS_MIN_ANCHORS} an axis needs` }
@@ -1107,7 +1273,14 @@
           continue;
         }
         const devMs = nsArr[i] / 1e6;
-        relSec[i] = (devMs + (hostAx.ok ? hostAx.correctionAt(devMs) : 0)) / 1000;
+        /* THE OFFSET SEGMENTS ARE THE CORRECTION when the stream has any (owner ruling 2026-09-29,
+           option (c)). A step of the offset is removed by a step of the correction; `hostAxis`'s
+           single rate cannot represent one, and on the 2026-09-28 ring night it turned a 47-second
+           replay into 3575 ppm of drift that never happened. Where there is no step the segment model
+           is ONE segment whose flat offset is the median — which is what the host axis was already
+           approximating — so nothing here depends on a stream misbehaving.
+           `hostAx` remains the fallback for the case this model declines: no anchors at all. */
+        relSec[i] = (devMs + (multiSeg ? segCorrectionAt(devMs) : hostAx.ok ? hostAx.correctionAt(devMs) : 0)) / 1000;
       }
     } else {
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
@@ -1252,6 +1425,33 @@
          that wants to refuse a duration spanning a seam has the seam; one that ignores the field gets
          an axis that no longer silently spans it, which is the half that cannot be opted out of. */
       clockResyncs: resyncs.length ? resyncs : undefined,
+      /* THE OFFSET SEGMENTS, and they are published whether or not any rate could be measured —
+         a reader who cannot see the segmentation cannot tell a corrected night from an uncorrected
+         one. Present only when the stream produced more than one, so a clean single-segment night's
+         export stays byte-identical (the `anchorsDroppedPreResync` discipline one field up).
+         Each segment carries its own `ppm` ONLY where the segment can support one; otherwise `ppm`
+         is null, `rate` is 'unknown', and `rateReason` says which test refused it and with what
+         numbers. §7: a ppm never travels without its anchor count and span, and both are in the
+         object beside it. */
+      offsetSegments:
+        offSegs.ok && offSegs.segments.length > 1
+          ? offSegs.segments.map(function (s) {
+              /* `lo`/`hi` are indices into the anchor series and are plumbing, not a finding — the
+                 export carries what a reader needs, not what the implementation happens to hold. */
+              return {
+                fromDevMs: s.fromDevMs,
+                toDevMs: s.toDevMs,
+                anchors: s.anchors,
+                spanS: s.spanS,
+                flatOffsetMs: s.flatOffsetMs,
+                residualRmsMs: s.residualRmsMs,
+                jitterMs: s.jitterMs,
+                ppm: s.ppm,
+                rate: s.rate,
+                rateReason: s.rateReason
+              };
+            })
+          : undefined,
       t0Ms: t0Ms != null ? t0Ms : null,
       offsetMin: firstTs ? firstTs.offsetMin : null,
       /* NODE-EXPORT-DURATION-SEMANTICS §3 — the CLOCK position of the last sample, READ from the file,
@@ -5576,6 +5776,7 @@
 
   global.PPGDSP = {
     parsePPG,
+    ppgOffsetSegments,
     parseSensorXYZ,
     parseDevicePPI,
     buildSelfPPIText,
