@@ -597,16 +597,29 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # Self-references under capture-host/ are absent BY CONSTRUCTION, not by a carve-out: this
     # function is "the reads the scratch cannot satisfy on its own", and the tree IS that copy.
     # Without that rule the widened scan added 23 of them — measured, not assumed.
+    # 2026-09-29 (#3246): SEVEN new MENTIONS, +0.95 MB (total staged 6.53 → 7.48 MB, measured). Cause:
+    # `tests/test_equivalence_ledger.py` pins the equivalence ledger's ENTRY COUNT PER MODULE as a
+    # ratchet, and the module keys are root-level bundle filenames — so the ratchet's literals are read
+    # as root reads. They are mentions, not reads: that test opens `tools/mutate-equivalence.json`
+    # (already staged) and never any `*-dsp.js`. Kept as literals on purpose — the ratchet is a guard a
+    # human has to be able to eyeball, and 413 entries were lost once because a count was not checked.
     assert got == [
         "Dex-Test-Suite.html",
         "README.md",
         "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md",
+        "clock.js",
+        "cpapdex-dsp.js",
         "dex-badges.css",
         "ecgdex-dsp.js",
+        "glucodex-dsp.js",
+        "hrvdex-dsp.js",
         "index.html",
+        "motiondex-dsp.js",
         "pat-feasibility.js",
+        "ppgdex-dsp.js",
         "provenance/_meta.json",
         "provenance/index.json",
+        "pulsedex-dsp.js",
         "sensor-trio-night.js",
         "sensor-trio-power-analysis.js",
         "suite.manifest.json",
