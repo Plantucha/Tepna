@@ -452,3 +452,221 @@ def test_node_patterns_have_at_most_one_alternative_and_it_is_last():
 def test_every_node_with_inputs_names_a_primary():
     for node, (patterns, primary) in ni.NODES.items():
         assert not patterns or primary is not None, node
+
+
+# ── THE FOUR BEHAVIOURS A "SECONDS LOST" NUMBER DEPENDS ON ───────────────────────────────────────────
+# Pulled into scope by E10′: the diff-scoped mutation gate is per FUNCTION, so touching `stream_stats`
+# made every untested line in it mine. These are not bookkeeping — each one silently changes the number
+# the monitor now publishes, and none had a test observing it. Each asserts the OUTPUT the mutant moves,
+# never a count of anything.
+
+
+def test_the_gap_cut_is_strict_so_a_hole_exactly_at_the_threshold_is_not_one(tmp_path):
+    """`if t - prev > gap_s` — the mutant is `>=`. A hole EXACTLY at the cut is the cadence, not a gap:
+    a 5 s stream whose rows are 5 s apart is unbroken, and `>=` would call every row a fragment."""
+    p = tmp_path / "exact.txt"
+    _stream(p, [(0, 60)], step=5.0)  # every step is exactly 5 s; the cadence cut for this stream is 25 s
+    assert ni.stream_stats(str(p), gap_s=5.0) == {
+        "fragments": 1,
+        "coverage": 1.0,
+        "gaps_s": 0.0,
+        "span_s": 55.0,
+        "gap_s": 5.0,
+    }
+    # and one microsecond past the cut IS a gap, so the boundary is where it is claimed to be
+    q = tmp_path / "past.txt"
+    _stream(q, [(0, 10), (15.001, 10)], step=1.0)
+    st = ni.stream_stats(str(q), gap_s=5.0)
+    assert st["fragments"] == 2 and st["gaps_s"] == 6.0, st
+
+
+def test_every_hole_is_summed_not_only_the_last(tmp_path):
+    """`gaps += t - prev` — the mutant is `gaps = t - prev`, which reports ONLY THE FINAL hole. That is
+    the exact defect this PR exists to prevent: a night losing three minutes across three holes would
+    publish the last one and read as a tenth of its real loss."""
+    p = tmp_path / "three.txt"
+    _stream(p, [(0, 10), (30, 10), (60, 10), (90, 10)], step=1.0)  # three 21 s holes (9 s of rows each)
+    st = ni.stream_stats(str(p), gap_s=5.0)
+    assert st["fragments"] == 4, st
+    assert st["gaps_s"] == 63.0, st  # 3 × 21 s summed — `gaps =` would give 21.0
+    assert st["gaps_s"] != 21.0, "only the last hole was counted — the accumulator became an assignment"
+
+
+def test_the_midnight_wrap_boundary_is_twelve_hours_back_not_more(tmp_path):
+    """`if t < prev - 43200` — mutants are `<=` and `43201`.
+
+    ⚠️ `_row_seconds` returns SECONDS OF DAY, not an absolute instant: the date in the stamp is ignored.
+    My first version of this test built the two cases from wall-clock dates and measured nothing — a
+    23:59:59 row reads 86 399.999, which is a step FORWARD from noon, not back. The wrap is about the
+    seconds-of-day counter running backwards, so the cases have to be built in that space.
+
+    A step back of EXACTLY 43 200 s is not a wrap: the stream reverses, `prev <= first`, and the answer
+    is None. `<=` would wrap it and invent a 12-hour span out of a backwards stream.
+    A step back of 43 200.5 s IS a wrap: it becomes the next day and the span is real. `43201` would
+    refuse it and return None instead."""
+    hdr = "Phone timestamp;v"
+    # 13:53:20.000 = 50 000 s of day; 01:53:20.000 = 6 800 s → exactly 43 200 s back
+    at_cut = tmp_path / "at_cut.txt"
+    at_cut.write_text(hdr + "\n2026-09-28T13:53:20.000;1\n2026-09-28T01:53:20.000;1\n")
+    assert ni.stream_stats(str(at_cut), gap_s=5.0) is None, "exactly 12 h back is not a wrap — `<=` would wrap it"
+    # 01:53:19.500 = 6 799.5 s → 43 200.5 s back, past the cut
+    past_cut = tmp_path / "past_cut.txt"
+    past_cut.write_text(hdr + "\n2026-09-28T13:53:20.000;1\n2026-09-28T01:53:19.500;1\n")
+    st = ni.stream_stats(str(past_cut), gap_s=5.0)
+    assert st is not None and st["span_s"] == 43199.5, st  # `43201` would refuse this and return None
+
+
+def test_a_stream_whose_span_is_zero_or_backwards_yields_none_not_a_division(tmp_path):
+    """`if first is None or prev is None or prev <= first` — the mutant is `and`, which lets a
+    single-row (or non-advancing) stream through to `1 - gaps/span` and a ZeroDivisionError. A stream
+    that spans nothing has no coverage to report; None is the answer, not a crash and not 100 %."""
+    one = tmp_path / "one.txt"
+    one.write_text("Phone timestamp;v\n2026-09-28T21:00:00.000;1\n")
+    assert ni.stream_stats(str(one)) is None
+    flat = tmp_path / "flat.txt"
+    flat.write_text("Phone timestamp;v\n2026-09-28T21:00:00.000;1\n2026-09-28T21:00:00.000;1\n")
+    assert ni.stream_stats(str(flat)) is None
+
+
+def test_the_rounding_precision_is_pinned_by_a_value_that_distinguishes_it(tmp_path):
+    """`round(gaps, 1)` / `round(span, 1)` / `round(gap_s, 2)` — the mutants change the decimal place.
+    A value whose 1 dp and 2 dp readings are EQUAL cannot see them, which is how the first version of
+    the E10′ test let `round(gaps, 2)` survive while asserting `== 2.8`. These values differ at the dp."""
+    p = tmp_path / "dp.txt"
+    _stream(p, [(0, 10), (16.06, 10)], step=1.0)  # a 7.06 s hole: 1 dp → 7.1, 2 dp → 7.06
+    st = ni.stream_stats(str(p), gap_s=5.0)
+    assert st["gaps_s"] == 7.1, st  # kills round(gaps, 2) and round(gaps, None)
+    assert st["span_s"] == 25.1, st  # 1 dp; kills round(span, 2)/None
+    assert ni.stream_stats(str(p), gap_s=5.005)["gap_s"] == 5.0, "gap_s is 2 dp"  # kills round(gap_s, 3)
+    assert ni.stream_stats(str(p), gap_s=5.006)["gap_s"] == 5.01, "…and rounds at the 2nd dp"
+
+
+def test_the_o2_ring_csv_is_parsed_by_its_own_format_not_iso(tmp_path):
+    """`iso = False` — mutants are `None` and `True`.
+
+    The flag is latched ONCE from the first recognisable row and then drives `_row_seconds`' slice: ISO
+    rows are `YYYY-MM-DDTHH:MM:SS.mmm`, the ring's CSV is `HH:MM:SS DD/MM/YYYY`. Reading one with the
+    other's offsets yields nonsense or None, so a ring stream must be scored by the ring's format.
+    `iso = None` re-enters detection on every row (the latch never holds); `iso = True` reads the ring's
+    `HH:MM:SS` with ISO offsets. Both change the NUMBER, which is what is asserted."""
+    p = tmp_path / "ring.txt"
+    rows = ["21:00:00 28/09/2026;98", "21:00:05 28/09/2026;98", "21:00:30 28/09/2026;97"]
+    p.write_text("Time;SpO2\n" + "\n".join(rows) + "\n")
+    st = ni.stream_stats(str(p), gap_s=10.0)
+    assert st is not None, "the ring's own CSV format must be readable at all"
+    assert st["span_s"] == 30.0, st  # 21:00:00 → 21:00:30, by the ring's slice
+    assert st["fragments"] == 2 and st["gaps_s"] == 25.0, st  # the 25 s hole clears a 10 s cut
+
+
+def test_the_night_payload_carries_the_measured_values_not_just_the_keys(tmp_path):
+    """`"gaps_s"/"gap_s"/"span_s": stats[…] if stats else None` — the mutant is `if (stats) and False`,
+    which keeps the KEYS and makes every value None. A test that only checks the keys exist cannot see
+    it — mine did not, which is why it survived — so this one drives the real `night_entry` over a real
+    night directory and asserts the VALUES arrived."""
+    root = tmp_path
+    nd = root / "2026-09-28"
+    nd.mkdir()
+    _stream(nd / "Polar_H10_02849638_20260928213612_ECG.txt", [(0, 60), (75, 60)], step=0.1)
+    e = ni.night_entry(str(root), str(nd), deadline=None)
+    ecg = e.get("ECGDex")
+    assert isinstance(ecg, dict), e
+    assert ecg["fragments"] == 2, ecg
+    assert ecg["gaps_s"] is not None and ecg["gaps_s"] > 0, ecg  # the magnitude, not just the key
+    assert ecg["gap_s"] == ni.GAP_S, ecg  # the bound the count was taken above
+    assert ecg["span_s"] is not None and ecg["span_s"] > 100, ecg
+
+
+def test_a_stream_with_undecodable_bytes_is_read_not_raised(tmp_path):
+    """`errors="replace"` — mutants are `errors=None` and dropping the argument. A capture file can hold
+    a torn multi-byte sequence (a write interrupted mid-character at a power cut is the ordinary case),
+    and the scanner's job is to score the rows it CAN read, not to raise and leave the night unscored.
+    With strict errors this read raises UnicodeDecodeError and `stream_stats` returns nothing at all."""
+    p = tmp_path / "torn.txt"
+    good = "Phone timestamp;v\n2026-09-28T21:00:00.000;1\n2026-09-28T21:00:01.000;1\n"
+    tail = "2026-09-28T21:00:02.000;1\n"
+    p.write_bytes(good.encode("utf-8") + b"\xff\xfe\n" + tail.encode("utf-8"))
+    st = ni.stream_stats(str(p), gap_s=5.0)
+    assert st is not None, "a torn byte must not take the whole stream down"
+    assert st["span_s"] == 2.0, st  # the readable rows are still scored end to end
+
+
+def test_the_format_is_latched_by_the_first_recognisable_row_not_re_detected(tmp_path):
+    """`iso = False` — the surviving mutant is `iso = None`, which un-latches the flag so every row
+    re-runs detection. The latch is the contract: the FIRST recognisable row decides how the whole
+    stream is sliced, and a later row that happens to match the other pattern does not change it.
+
+    That matters for a torn or concatenated file. Here the ring's `HH:MM:SS DD/MM/YYYY` rows latch the
+    O2 format, and a stray ISO-shaped row must still be read with the ring's offsets — `2026-09-28T…`
+    sliced as `HH:MM:SS` gives `20:26:-9` → ValueError → None → skipped, so the span stays the ring's.
+    With `iso = None` the stray row re-detects as ISO, is read as 21:00 and joins the span."""
+    p = tmp_path / "mixed.txt"
+    p.write_text(
+        "Time;v\n"
+        "21:00:00 28/09/2026;1\n"
+        "21:00:02 28/09/2026;1\n"
+        "2026-09-28T23:00:00.000;1\n"  # ISO-shaped, arriving AFTER the latch
+        "21:00:04 28/09/2026;1\n"
+    )
+    st = ni.stream_stats(str(p), gap_s=10.0)
+    assert st is not None, st
+    assert st["span_s"] == 4.0, st  # the ring's four seconds; the stray row contributed nothing
+    assert st["fragments"] == 1 and st["gaps_s"] == 0.0, st
+
+
+# ── `night_entry`'s own wiring, pulled into scope by E10′ ────────────────────────────────────────────
+# Four mutants survived on lines this branch did not touch, because adding three keys put the whole
+# function in the diff-scoped gate's sight. Each is a real behaviour with no test observing it.
+
+
+def test_the_primary_reads_from_the_tree_the_files_came_from(tmp_path):
+    """`tree = i if tree is None else tree` — the mutant is `or True`, which keeps the LAST alternative's
+    index instead of the first. CPAPDex's patterns are alternatives (`cpap/…` then `cpap-ble/…`), and
+    `_expand_alt`'s docstring states the contract: the primary must read from the tree the files came
+    from. With the mutant, a night whose EDFs live in `cpap/` is asked for its primary from `cpap-ble/`
+    and finds none."""
+    # ⚠️ A pattern containing "/" resolves against the capture ROOT, not the night dir (`_expand`:
+    # `base = root if "/" in pattern else night_dir`). My first fixture put the EDF inside the night
+    # folder and CPAPDex came back None — the layout is the contract, and it is worth stating here
+    # because the same mistake reads as "the node found nothing" rather than "the test built it wrong".
+    nd = tmp_path / "2026-09-28"
+    nd.mkdir()
+    (tmp_path / "cpap" / "DATALOG" / "20260928").mkdir(parents=True)
+    (tmp_path / "cpap" / "DATALOG" / "20260928" / "20260928_215854_BRP.edf").write_bytes(b"0" * 64)
+    e = ni.night_entry(str(tmp_path), str(nd), deadline=None)
+    cp = e.get("CPAPDex")
+    assert isinstance(cp, dict), e
+    assert cp["files"], "the first alternative's files must be found"
+    assert all("cpap-ble" not in f for f in cp["files"]), cp["files"]
+
+
+def test_a_node_with_no_primary_yields_no_fragments_rather_than_asking_for_one(tmp_path):
+    """`prims = … if primary else []` — the mutant is `if (primary) or True`, which calls `_expand_alt`
+    with `primary=None` even for a node that declares none. GlucoDex and EEGDex have no primary: the
+    honest answer is `fragments: None`, not a lookup against a pattern that does not exist."""
+    nd = tmp_path / "2026-09-28"
+    nd.mkdir()
+    e = ni.night_entry(str(tmp_path), str(nd), deadline=None)
+    for node in ("GlucoDex", "EEGDex"):
+        v = e.get(node)
+        assert v is None or (isinstance(v, dict) and v.get("fragments") is None), (node, v)
+
+
+def test_a_derived_tool_and_the_arrival_list_resolve_against_the_capture_ROOT(tmp_path):
+    """`_expand(root, …)` → `_expand(None, …)` in the DERIVED loop and in the `arrival` line. `_expand`
+    picks `base = root if "/" in pattern else night_dir`, so `root` is what makes a pattern reach
+    outside the night directory — and passing None raises rather than returning nothing. Both call
+    sites are exercised here on a night that satisfies a derived tool and carries an arrival sidecar."""
+    nd = tmp_path / "2026-09-28"
+    nd.mkdir()
+    for name in (
+        "Polar_H10_02849638_20260928213612_HR.txt",
+        "Polar_VeritySense_0C301E3F_20260928210610_PPG.txt",
+        "Wellue_O2Ring-S_S8AW2100_20260928213651_SPO2.csv",
+        "Polar_H10_02849638_20260928213612_PMDARRIVAL.csv",
+    ):
+        (nd / name).write_text("Phone timestamp;v\n2026-09-28T21:00:00.000;1\n")
+    e = ni.night_entry(str(tmp_path), str(nd), deadline=None)
+    assert e["3 corner hat"] is True, e["3 corner hat"]  # the DERIVED loop resolved every required pattern
+    assert e["arrival"] and any("PMDARRIVAL" in a for a in e["arrival"]), e["arrival"]
+    # …and the paths are relative to ROOT, which is the thing `root` is for
+    assert all(a.startswith("2026-09-28/") for a in e["arrival"]), e["arrival"]
