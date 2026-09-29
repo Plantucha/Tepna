@@ -2131,3 +2131,21 @@ def test_the_rule_does_NOT_use_ast_get_docstring_with_its_default_cleaning():
     assert _ast.get_docstring(a, clean=False) != _ast.get_docstring(b, clean=False), (
         "the raw docstrings DO differ, which is why the rule compares structurally instead"
     )
+
+
+def test_a_changed_DECORATOR_scopes_the_function():
+    """`ast.dump(d)` → `ast.dump(None)` survived: every decorator would dump identically, so two
+    functions differing ONLY in their decorators compare equal and the function is dropped from
+    scope. A decorator change is a behaviour change — it is what wraps the call — and the signature
+    and decorator list are dumped precisely because the body alone does not carry them."""
+    a = "@retry\ndef f():\n    return 1\n"
+    b = "@cache\ndef f():\n    return 1\n"
+    assert M.functions_with_changed_ast(a, b)[0] == {"x_f"}
+    # …and adding one where there was none.
+    assert M.functions_with_changed_ast("def f():\n    return 1\n", a)[0] == {"x_f"}
+
+
+def test_a_changed_SIGNATURE_scopes_the_function():
+    """The sibling property, for the same reason: `ast.dump(node.args)` is in the comparison because
+    a parameter list change is not visible in the body statements."""
+    assert M.functions_with_changed_ast("def f(a):\n    return 1\n", "def f(a, b=2):\n    return 1\n")[0] == {"x_f"}
