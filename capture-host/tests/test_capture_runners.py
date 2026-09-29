@@ -8355,8 +8355,9 @@ def test_alert_poller_names_a_polar_power_off_without_calling_it_a_ring(monkeypa
     capture._IDLE_TIMER_NAMED.discard(nm)
     assert sent == [], "an expected power-off must not alert"
     line = [r.getMessage() for r in caplog.records if "powered off" in r.getMessage()]
-    assert line == [nm + ": powered off — idle timer (expected until re-wear or charger; its stored session was "
-                    "already pulled)"], line
+    assert line == [
+        nm + ": powered off — idle timer (expected until re-wear or charger; its stored session was already pulled)"
+    ], line
 
 
 def test_alert_poller_STILL_alerts_when_the_pull_did_not_succeed(monkeypatch):
