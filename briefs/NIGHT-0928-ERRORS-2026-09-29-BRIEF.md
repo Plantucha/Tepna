@@ -32,13 +32,14 @@ Every row is a verified defect. "State" is the PR that fixes it or the decision 
 | E13 | `tepna-corpus-tier.service` failed 09-28 14:30: the unit pipes `git show origin/main:tools/corpus-tier.mjs \| node --input-type=module -`, so `import.meta.url` is `[eval1]`, `HERE` resolves to `/home/michal`, and `../verdict.js` → `/home/verdict.js` (present at the checkout; the PIPE is missing) | rig journal 2026-09-28 14:30:32 | script: resolve siblings from the checkout root (env or cwd) when run from stdin; unit: run from the checkout after a fast-forward, or materialise the fetched source — the unit is the owner's | Heron (script) / owner (unit) | OPEN |
 | E14 | The nightly mutation crawl was killed by the unit's timeout with a LIVE MUTANT in the shared root (`pulsedex-dsp.js` `&&`→`\|\|`, restored by hand 17:4x); `--max-hours 5` and the unit's `TimeoutStartSec` disagree | rig journal 2026-09-28 17:31:50; `tools/mutation-crawl.mjs` | crawl restores the file on SIGTERM (trap); the two timeouts agree — the unit half is the owner's | Osprey (script) / owner (unit) | OPEN (row owed) |
 | E15 | #3202 (owner-ordered "Fix it now", one log line in `alert_poller`) cannot merge: its required mutation gate cannot decide a change inside capture.py on a hosted runner (generation of 20,021 mutants never finishes; ≥ 8.78 GB per worker to import the generated module) | #3202; MUTATION-SCOPED-GENERATION-2026-09-28 (option f) | bypass for this PR, or wait for scoped generation | owner | **OWNER DECISION** |
+| E16 | The daemon keeps rescanning for the doffed ring every ~3 min after `session ended` + `not-worn`: 35 `scan + connect` cycles between 04:24 and 06:20 EDT, every one `device_unavailable`, 171 `OXYLIFE.csv` rows — the writes that keep E8's settle clock running, so SOLID-NIGHT for 09-28 was still UNKNOWN two hours after the sensors were off (owner's question 06:2x) | box `OXYLIFE.csv` since 08:24Z; 09-27's LOSS-VERDICT landed 07:22 the next morning | reconnect backoff after a doff (widen the interval or stop after N unavailable attempts; resume on the worn/autopull trigger), together with E8 | Heron | OPEN (row owed) |
 
 ## Done-when
 
 - [x] E1 landed (#3224).
 - [ ] E2 detection landed with six PpgDex fixtures regenerated and verified.
 - [ ] E4–E7 landed (timeline + cpap wording), each closing its #3222 row.
-- [ ] E8, E9, E10, E14 rows appended to `briefs/RESIDUE.md` and fixed.
+- [ ] E8, E9, E10, E14, E16 rows appended to `briefs/RESIDUE.md` and fixed.
 - [ ] E13 script half landed; the unit file changed by the owner.
 - [ ] E3, E12, E15 ruled by the owner and the ruling recorded on this status line.
 - [ ] Night 2026-09-29's morning read shows the timeline, the settle and the nights page agreeing with QC.
