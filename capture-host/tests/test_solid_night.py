@@ -274,3 +274,63 @@ def test_night_verdict_scores_the_configured_devices_from_the_files(tmp_path):
     js_validate(v)
     assert v["result"]["night"] == "2026-09-20"
     assert v["status"] == "UNKNOWN" and "no-wear or radio down" in v["reason"]
+
+
+# ── NOT_APPLICABLE: a band that does not bind ───────────────────────────────────────────────────────
+
+NA_BAND = {"status": "NOT_APPLICABLE", "reason": "polled stream, rate declared not negotiated"}
+
+
+def test_an_inapplicable_band_neither_passes_nor_fails_the_device():
+    """ "Examined and the rule does not bind" is the verdict contract's own word, and it is not a flavour
+    of UNKNOWN: UNKNOWN says the band could not be DECIDED and resets the run, while a band that does not
+    bind was never a question about this device."""
+    assert sn.device_outcome({"completeness": NA_BAND, "continuity": OK, "validity": OK}) == ("PASS", [])
+
+
+def test_an_inapplicable_band_does_not_mask_a_failing_one():
+    out, why = sn.device_outcome({"completeness": NA_BAND, "continuity": _fail("13 unattributed gaps")})
+    assert out == "FAIL" and why == ["continuity: 13 unattributed gaps"]
+
+
+def test_an_inapplicable_band_does_not_mask_an_undecided_one():
+    out, why = sn.device_outcome({"completeness": NA_BAND, "continuity": _unk("audit absent")})
+    assert out == "UNKNOWN" and why == ["continuity: audit absent"]
+
+
+def test_a_device_whose_every_band_is_inapplicable_is_UNKNOWN_never_PASS():
+    """The same rule as the empty band set, for the same reason: a device judged on nothing has not been
+    judged. The count is named so the two cases stay distinguishable in the verdict."""
+    out, why = sn.device_outcome({"completeness": NA_BAND, "clocks": NA_BAND})
+    assert out == "UNKNOWN"
+    assert why[0].startswith("every band is inapplicable for this device (2) — ")
+    assert "polled stream, rate declared not negotiated" in why[0]
+    assert sn.device_outcome({})[1] == ["no band was evaluated for this device"]
+
+
+def test_an_inapplicable_band_with_no_reason_is_refused():
+    """An inapplicable band that does not say what made it inapplicable is indistinguishable from a band
+    quietly switched off — which is how a device stops being scored without anyone deciding it should."""
+    with pytest.raises(ValueError, match="NOT_APPLICABLE without a reason"):
+        sn.device_outcome({"completeness": {"status": "NOT_APPLICABLE", "reason": None}, "continuity": OK})
+    with pytest.raises(ValueError, match="not one of"):
+        sn.device_outcome({"completeness": {"status": "SKIPPED", "reason": "x"}})
+
+
+def test_a_night_whose_only_finding_is_an_inapplicable_band_still_PASSES(tmp_path):
+    """End to end: the ring night that used to FAIL on drift. The verdict carries the device as PASS and
+    the night as PASS, and no reason is invented for it."""
+    v = _night({"Wellue O2Ring-S": {"bands": {"completeness": NA_BAND, "continuity": OK, "clocks": OK}}})
+    assert v["status"] == "PASS" and v["reason"] is None
+    assert v["result"]["devices"]["Wellue O2Ring-S"] == {"status": "PASS", "reasons": []}
+
+
+def test_a_BAD_BAND_STATUS_names_the_band_the_status_and_the_vocabulary(tmp_path):
+    """The refusal's message is the whole value of the refusal: a reader hitting it needs to know WHICH
+    band carried WHAT, and what the four legal words are. `match=` on a fragment leaves every mutation of
+    the rest of the string alive, so the message is asserted whole."""
+    with pytest.raises(ValueError) as e:
+        sn.device_outcome({"completeness": {"status": "SKIPPED", "reason": "x"}})
+    assert str(e.value) == (
+        "band 'completeness': status 'SKIPPED' is not one of ('PASS', 'FAIL', 'UNKNOWN', 'NOT_APPLICABLE')"
+    ), str(e.value)

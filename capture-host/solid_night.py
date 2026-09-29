@@ -43,23 +43,41 @@ CRITERION = {
     "unit": "failing band decisions",
     "direction": "eq",
 }
-_BAND_OUTCOMES = ("PASS", "FAIL", "UNKNOWN")
+_BAND_OUTCOMES = ("PASS", "FAIL", "UNKNOWN", "NOT_APPLICABLE")
 
 
 def device_outcome(bands: dict) -> tuple[str, list[str]]:
     """One scored device's outcome from its band decisions `{band: {"status", "reason"}}`.
 
-    FAIL outranks UNKNOWN outranks PASS. Returns the outcome and the reasons of the class that decided
-    it (empty for a PASS). An empty band set is UNKNOWN."""
+    FAIL outranks UNKNOWN outranks PASS, over the device's APPLICABLE bands. Returns the outcome and the
+    reasons of the class that decided it (empty for a PASS).
+
+    🔴 `NOT_APPLICABLE` is the verdict contract's own word — "examined and the rule does not bind" — and
+    it is the fourth band outcome rather than a flavour of UNKNOWN, because the two say different things
+    and decide differently. UNKNOWN is "this band could not be decided", and it resets the run; a band
+    that does not bind was never a question about this device, and neither passing nor failing it is the
+    honest answer. A NOT_APPLICABLE band therefore drops out of the outcome entirely, and it MUST name
+    why (an unexplained one is refused below) — an inapplicable band that does not say what made it
+    inapplicable is indistinguishable from a band quietly switched off.
+
+    A device whose bands are ALL inapplicable reads UNKNOWN, never PASS — the same rule as the empty band
+    set, and for the same reason: a device judged on nothing has not been judged (§∅). The count is named
+    in the reason so the two cases stay distinguishable in the verdict."""
     if not bands:
         return "UNKNOWN", ["no band was evaluated for this device"]
     for band, decision in bands.items():
         if decision.get("status") not in _BAND_OUTCOMES:
             raise ValueError(f"band {band!r}: status {decision.get('status')!r} is not one of {_BAND_OUTCOMES}")
-    fails = [f"{b}: {d.get('reason') or 'failed'}" for b, d in bands.items() if d["status"] == "FAIL"]
+        if decision.get("status") == "NOT_APPLICABLE" and not decision.get("reason"):
+            raise ValueError(f"band {band!r}: NOT_APPLICABLE without a reason says nothing about why it does not bind")
+    applicable = {b: d for b, d in bands.items() if d["status"] != "NOT_APPLICABLE"}
+    if not applicable:
+        why = "; ".join(f"{b}: {d['reason']}" for b, d in bands.items())
+        return "UNKNOWN", [f"every band is inapplicable for this device ({len(bands)}) — {why}"]
+    fails = [f"{b}: {d.get('reason') or 'failed'}" for b, d in applicable.items() if d["status"] == "FAIL"]
     if fails:
         return "FAIL", fails
-    unknowns = [f"{b}: {d.get('reason') or 'undecided'}" for b, d in bands.items() if d["status"] == "UNKNOWN"]
+    unknowns = [f"{b}: {d.get('reason') or 'undecided'}" for b, d in applicable.items() if d["status"] == "UNKNOWN"]
     if unknowns:
         return "UNKNOWN", unknowns
     return "PASS", []
