@@ -289,9 +289,17 @@ def _cadence_gap(path: str, head_rows: int = 2000, floor: float = GAP_S) -> floa
 
 
 def stream_stats(path: str, gap_s: float | None = None) -> dict | None:
-    """{fragments, coverage, span_s, gap_s} for a stamped text stream — one pass over its stamps. None
-    when the stream has no readable stamps. Midnight wrap: a stamp that steps back by more than 12 h is
-    the next day. `gap_s` defaults to the stream's own cadence threshold (`_cadence_gap`)."""
+    """{fragments, coverage, gaps_s, span_s, gap_s} for a stamped text stream — one pass over its stamps.
+    None when the stream has no readable stamps. Midnight wrap: a stamp that steps back by more than 12 h
+    is the next day. `gap_s` defaults to the stream's own cadence threshold (`_cadence_gap`).
+
+    `gaps_s` IS THE MAGNITUDE `coverage` THROWS AWAY, and that is why it is returned (§∅). `coverage` is
+    `1 - gaps/span` rounded to 3 dp, so on a long stream it rounds a real hole to nothing: 09-28's ECGDex
+    reads `fragments: 2, coverage: 1.0` over 6.77 h, and `(1 - 1.000) * span` recovers 0 s rather than the
+    seconds actually lost. A consumer then has a count with no magnitude — "2 fragments" reads as damage
+    where "2 fragments, 11 s of 6.77 h" reads as the non-finding it is. The seconds were measured in this
+    same loop and discarded by the rounding; returning them costs nothing and is the only way the surface
+    can state a bound beside its count."""
     if gap_s is None:
         gap_s = _cadence_gap(path)
     frags = 1
@@ -329,6 +337,9 @@ def stream_stats(path: str, gap_s: float | None = None) -> dict | None:
     return {
         "fragments": frags,
         "coverage": round(max(0.0, 1.0 - gaps / span), 3),
+        # the summed over-threshold gap, unrounded past 1 dp — see the docstring: `coverage` cannot be
+        # inverted back to it once rounded, so it travels on its own or not at all.
+        "gaps_s": round(gaps, 1),
         "span_s": round(span, 1),
         "gap_s": round(gap_s, 2),
     }
@@ -407,6 +418,15 @@ def night_entry(root: str, night_dir: str, deadline: float | None = None) -> dic
             "hours": hours,
             "fragments": stats["fragments"] if stats else None,
             "coverage": stats["coverage"] if stats else None,
+            # A COUNT TRAVELS WITH ITS BOUND AND ITS MAGNITUDE, or the surface cannot state either.
+            # `fragments` counts row-to-row holes wider than `gap_s` IN ONE FILE; QC's `gaps_in_night` is
+            # a different question over the judged session, and the two disagreed on 09-28 (no gaps in
+            # the night, 2 fragments on ECGDex) with nothing on either surface saying they measure
+            # different things. Publishing the threshold and the seconds lost is what lets the monitor
+            # say which question it answered (residue 2026-09-29-two-gap-measures-one-surface).
+            "gaps_s": stats["gaps_s"] if stats else None,
+            "gap_s": stats["gap_s"] if stats else None,
+            "span_s": stats["span_s"] if stats else None,
             "pending": pending,
             "files": [os.path.relpath(f, root) for f in files],
             "loadable": node not in NOT_LOADABLE,
