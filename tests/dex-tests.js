@@ -28413,7 +28413,36 @@
       T.eq('a finger PpgDex ALONE ⇒ null (no O2Ring night)', C([finger(8)]), null);
       T.eq('an OxyDex ALONE ⇒ null (no finger waveform)', C([oxy()]), null);
       T.eq('a date-unknown finger rec is excluded', C([Object.assign(finger(8), { dateUnknown: true }), oxy()]), null);
-      T.eq('a finger with no cvhrIndexWave ⇒ null', C([rec('PpgDex', { site: 'finger' }), oxy()]), null);
+      T.eq('a finger with no cvhrIndexWave AND NO REASON ⇒ null (indistinguishable from absence)', C([rec('PpgDex', { site: 'finger' }), oxy()]), null);
+
+      /* ── AN ABSENT NODE IS NOT A REFUSED METRIC ──────────────────────────────────────────────────
+         Residue `2026-09-29-integrator-cvhr-corroboration-is-export-only-and-unrendered`. `return null`
+         answered BOTH "no finger PpgDex this night" and "a finger PpgDex that could not compute an
+         index", and the export attaches the block only when non-null — so a refusal left the bus exactly
+         as an absence does and no consumer could tell them apart. Since #3220 PpgDex names its CVHR
+         refusal, so the information exists and only the second case gains a shape.
+         The old single pin ("attaches ONLY when non-null") is now TWO properties, and they are asserted
+         separately because they are different claims: an absent node still omits the key, and a present
+         refused one carries a null index WITH the reason. */
+      var refused = C([rec('PpgDex', { site: 'finger', cvhrWaveReason: 'beats 42 < 60' }), oxy()]);
+      T.ok('a finger PpgDex that REFUSED produces a block rather than vanishing', !!refused, 'got ' + JSON.stringify(refused));
+      T.eq('…with no index', refused && refused.cvhrIndex, null);
+      T.eq("…carrying PpgDex's own reason, not one invented here", refused && refused.reason, 'beats 42 < 60');
+      T.ok('…and the note names the refusal rather than implying a reading', /NOT measured this night — beats 42 < 60/.test((refused && refused.note) || ''), refused && refused.note);
+      T.eq('…still publishing no AHI', refused && refused.ahiPublished, false);
+      /* A corroborator with no reference to measure against is carried WITHOUT a gap: a gap computed
+         from a missing reference would be the fabrication this block exists to avoid, and `agree: null`
+         says "not assessed" where `false` would say "disagrees". */
+      var refusedWithEcg = C([rec('PpgDex', { site: 'finger', cvhrWaveReason: 'clock-seam' }), oxy(), ecg(10)]);
+      T.eq('a corroborator survives a refused reference', refusedWithEcg.corroborators.length, 1);
+      T.eq('…with NO gap, because there is nothing to measure it against', refusedWithEcg.corroborators[0].gapPerH, null);
+      T.eq('…and agree is null — not assessed, never "disagrees"', refusedWithEcg.corroborators[0].agree, null);
+      /* THE OTHER HALF OF THE OLD PIN, unchanged: an absent node still omits the key. Without this the
+         narrowing could have quietly turned every PpgDex-less night into a refusal block and moved every
+         fixture that has no finger leg. */
+      T.eq('NO PpgDex node at all ⇒ still null, so a fixture without a finger leg stays inert', C([oxy(), ecg(10)]), null);
+      T.eq('a WRIST PpgDex that refused is still not the O2Ring leg', C([rec('PpgDex', { site: 'wrist', cvhrWaveReason: 'beats 42 < 60' }), oxy()]), null);
+      T.eq('a refused finger with NO OxyDex ⇒ null (the O2Ring night is still required)', C([rec('PpgDex', { site: 'finger', cvhrWaveReason: 'beats 42 < 60' })]), null);
       T.ok('an ECGDex present but NO finger ⇒ null (ECGDex alone is not the O2Ring leg)', C([ecg(10), oxy()]) === null, 'ECGDex must not stand in for the finger waveform');
 
       // ── source-structural: PpgDex computes + exports CVHR; the normalizer reads it; export attaches only when present ──
