@@ -5342,3 +5342,108 @@ def test_PLANT_the_vote_ROUNDS_so_a_millisecond_cannot_move_the_zone(tmp_path):
     off, _data = _recovered(night)
     assert off["offset_sec"] == 14400.0, (off, "a sub-second shortfall moved the recovered zone")
     assert off["unanimous"] is True and off["voters"] == 2, off
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# THE `summarize` SURVIVOR DRAIN — the 41 entries #3188 left in the ledger
+#
+# `mutation-survivors.json` carried 41 open entries, every one on `nightqc.summarize` and every one
+# reported against #3188 — my own unit. The ledger hands this drain a LIST, which changes what done
+# means: the acceptance is every listed entry accounted for (killed here, recorded equivalent with an
+# argument, or its line deleted because it decides nothing), not a green rollup.
+#
+# They are drained by FAMILY, because the families are the finding. A mutant that survives a whole
+# unit's test suite is telling you which decision nobody asserted, and four of these families are the
+# same decision seen four times: a condition neutered to a constant (`or True` / `and False`), a
+# boundary moved by one (`<=` → `<`), an argument dropped at a call site, and a `dict(base, **kw)`
+# rebuilt without its base.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _touching_night(tmp_path):
+    """Three sessions that TOUCH at both edges of the judged one, via recorded DAEMON SEAMS.
+
+    ⚠️ Abutting sessions cannot be built from file gaps, and my first attempt at this fixture proved it:
+    `merge_sessions` extends a session whenever the next file opens within `_SESSION_GAP_SEC` (3600 s), so
+    three files laid end to end merge into ONE session and `gaps` comes back empty. `merge_sessions`'s own
+    docstring says where touching sessions come from instead — *"when a seam splits, the earlier session's
+    end is clamped to the seam … Sessions may now TOUCH or sit closer than `gap_sec` … the invariant that
+    survives is disjointness, not separation."*
+
+    So each boundary here is a recorded start in `STARTS.csv` with a file opening at exactly that second:
+    the earlier session's end is clamped to the seam and the next session starts on it, giving
+    `earlier.end == judged.start` and `judged.end == later.start` — the input that separates
+    `s[1] <= cur[0]` from `s[1] < cur[0]` and `s[0] >= cur[1]` from `s[0] > cur[1]`.
+
+    Floating throughout (`_stamp_epoch`, floating mtimes, `_summarize_floating`), which is the frame the
+    box writes and the only one in which a seam stamp and a filename stamp mean the same thing."""
+    import writers
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _stamp_epoch("20260924210000")
+    seam1 = t0 + 600                     # run 1 ends / run 2 opens, on the same second
+    seam2 = seam1 + 7200                 # run 2 ends / run 3 opens, on the same second
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 600), seam1)
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(seam1) + "_HR.txt", 7200), seam2)
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(seam2) + "_HR.txt", 300), seam2 + 300)
+    with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(_starts_stamp(seam1) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+        fh.write(_starts_stamp(seam2) + ";400444;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    return night, devs, t0, seam1, seam2
+
+
+def _floating_stampname(t_floating):
+    """A 14-digit filename stamp for a FLOATING second — the inverse of `_stamp_epoch`, and deliberately
+    not `datetime.fromtimestamp`, which would push the name through the reader's zone."""
+    return (_dtmod.datetime(1970, 1, 1) + _dtmod.timedelta(seconds=t_floating)).strftime("%Y%m%d%H%M%S")
+
+
+def test_the_session_partition_is_DISJOINT_BUT_MAY_TOUCH(tmp_path):
+    """The invariant the before/after partition leans on, pinned — because the whole boundary family of
+    survivors is only killable if sessions CAN touch, and only equivalent if they cannot. Asserting it
+    here means the next reader does not have to re-derive which it is from two docstrings."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    ss = [(x["start"], x["end"]) for x in s["sessions"]] if isinstance(s["sessions"][0], dict) else [
+        (x[0], x[1]) for x in s["sessions"]]
+    assert len(ss) == 3, (ss, "two recorded seams must split three runs")
+    for (a0, a1), (b0, b1) in zip(ss, ss[1:]):
+        assert a1 <= b0, (ss, "sessions must stay ordered and DISJOINT")
+        assert a1 == b0, (ss, "…and this fixture makes them TOUCH, which is what the boundary family needs")
+
+
+def test_PLANT_a_TOUCHING_neighbour_is_still_an_excluded_neighbour(tmp_path):
+    """`s[1] <= cur[0]` → `s[1] < cur[0]`, and its mirror `s[0] >= cur[1]` → `s[0] > cur[1]`.
+
+    A session that ends on the exact second the judged one begins is excluded from coverage just as much
+    as one that ends an hour earlier — its rows are not counted, so the report has to name it. Under the
+    strict comparison it disappears from `gaps` and the night grades as though nothing had been discarded:
+    the §A2 regression with a zero-length gap."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    assert s["judged_session"]["rows"] == 7200, (s["judged_session"], "the biggest run must be judged")
+    joined = " | ".join(s["gaps"])
+    assert "earlier session" in joined, f"the TOUCHING earlier session was dropped from the report: {s['gaps']}"
+    assert "later session" in joined, f"the TOUCHING later session was dropped from the report: {s['gaps']}"
+    assert "600 rows" in joined, f"the earlier run's rows must be named: {s['gaps']}"
+    assert "300 rows" in joined, f"the later run's rows must be named: {s['gaps']}"
+    assert s["prior_gap_sec"] == 0, (s["prior_gap_sec"], "a touching session is a ZERO gap, not no gap")
+
+
+def test_the_gap_line_names_the_NEAR_edge_of_each_neighbour(tmp_path):
+    """Four survivors lived in the message text: `_hhmm(prev[1])->_hhmm(cur[0])` mutated to `cur[1]`, and
+    `_hhmm(cur[1])->_hhmm(nxt[0])` mutated to `nxt[1]`. A gap runs from the end of what came before to the
+    start of what comes next; naming the FAR edge reports the gap plus a whole session, which is the
+    number a reader would act on."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    hh = nightqc._hhmm
+    earlier = [g for g in s["gaps"] if "earlier session" in g]
+    later = [g for g in s["gaps"] if "later session" in g]
+    assert earlier and later, s["gaps"]
+    assert earlier[0].startswith(f"{hh(seam1)}->{hh(seam1)}"), (
+        earlier[0], "the earlier gap runs to the JUDGED start; naming its end reports a 2 h span as the gap")
+    assert later[0].startswith(f"{hh(seam2)}->{hh(seam2)}"), (
+        later[0], "the later gap runs to the NEXT run's start, not to its end")
