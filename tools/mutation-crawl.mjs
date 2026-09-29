@@ -51,7 +51,7 @@
  * which input changed. The per-file ceiling is whatever remains of `--max-hours`, not a constant.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, realpathSync } from 'node:fs';
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync, execSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -684,7 +684,116 @@ export function crawlPlan({ hasResult, result, state, now }) {
   return { action: 'skip', reason: 'complete and current' };
 }
 
-function sweep(file) {
+/* ── THE DEADLINE THIS RUN ACTUALLY DIES AT, WHICH IS NOT THE BUDGET ─────────────────────────────
+   Measured 2026-09-28: this crawl ran 8 h 1 min 30 s under `--max-hours 5` and was ended by its
+   unit's `TimeoutStartSec=8h`, not by its own budget — then SIGKILLed 90 s later with a live mutant
+   (`pulsedex-dsp.js`, `&&`→`||`) still in the shared root, restored by hand. Two numbers that are one
+   decision, and nothing compared them at runtime.
+
+   PURE. `null` when the pair is fine; a sentence naming BOTH numbers when it is not, because a
+   refusal that says only "budget too large" sends the reader to change the wrong one. */
+export function budgetRefusal(maxMs, deadlineMs, marginMs) {
+  if (!(deadlineMs > 0)) return null; // no deadline known — nothing to compare, and saying so is §∅
+  const h = (ms) => (ms / 3600000).toFixed(1) + ' h';
+  if (maxMs + marginMs > deadlineMs) {
+    return (
+      'budget ' +
+      h(maxMs) +
+      " is not comfortably under this run's deadline of " +
+      h(deadlineMs) +
+      ' (margin ' +
+      h(marginMs) +
+      '). Lower --max-hours to at most ' +
+      h(Math.max(0, deadlineMs - marginMs)) +
+      ", or raise the unit's TimeoutStartSec — they are ONE decision expressed as two numbers, and the " +
+      'one that loses is whichever is smaller: on 2026-09-28 the unit won, SIGKILLed the sweep 90 s ' +
+      'after SIGTERM, and left a live mutant in the shared root.'
+    );
+  }
+  return null;
+}
+
+/* The deadline in ms, read from the unit that is actually running us — never assumed. `INVOCATION_ID`
+   is set by systemd for its own jobs, so its presence is what makes `systemctl show` the right source
+   rather than a guess about how this was launched. A `--deadline <hours>` argument covers a hand-run;
+   absence of both is honest and returns null (the comparison is then skipped, not faked). */
+function runDeadlineMs() {
+  const arg = +opt('--deadline', 0);
+  if (arg > 0) return arg * 3600 * 1000;
+  if (!process.env.INVOCATION_ID) return 0;
+  try {
+    const unit = opt('--unit', 'tepna-nightly-triage');
+    const out = execFileSync('systemctl', ['--user', 'show', unit, '-p', 'TimeoutStartUSec', '--value'], {
+      encoding: 'utf8',
+      timeout: 10000
+    }).trim();
+    const m = /^(\d+)$/.exec(out);
+    if (m) return +m[1] / 1000;
+    const hm = /^(?:(\d+)h)?\s*(?:(\d+)min)?\s*(?:(\d+)s)?$/.exec(out);
+    if (hm && (hm[1] || hm[2] || hm[3])) return ((+hm[1] || 0) * 3600 + (+hm[2] || 0) * 60 + (+hm[3] || 0)) * 1000;
+  } catch {}
+  return 0;
+}
+
+/* ── RUN THE SWEEP IN ITS OWN PROCESS GROUP, AND REAP THE GROUP ──────────────────────────────────
+   `execFileSync`'s `timeout` signals the direct child only. `mutate.mjs` runs a worker POOL, and a
+   grandchild holding the stdout pipe keeps the parent's read open long after the child is gone — so
+   the call does not return and the budget is never enforced. That is how a 5 h budget became an 8 h
+   run: the ceiling was always computed correctly at the call and never able to act.
+
+   `detached: true` puts the child in a NEW process group whose id is its pid, so `kill(-pid)` reaches
+   the pool as well. SIGTERM first, because `mutate.mjs` handles it and restores `<file>.mutate-backup`;
+   SIGKILL only after a grace, because a restore that is interrupted is the failure being fixed.
+
+   ⚠️ Heron is building the same shape for mutmut's workers in `capture-host/mutate.py` — one tool per
+   lane, the same lesson: a pool outlives the handle you kept. */
+export const CRAWL_GRACE_MS = 30000;
+function runMutateBounded(args, budgetMs, onLog) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', args, { cwd: ROOT, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const group = -child.pid;
+    let out = '',
+      err = '',
+      killed = null,
+      hard = null;
+    child.stdout.on('data', (d) => {
+      out += d;
+    });
+    child.stderr.on('data', (d) => {
+      err += String(d).slice(0, 4000);
+    });
+    const soft = setTimeout(
+      () => {
+        killed = 'budget';
+        onLog && onLog("   budget spent mid-sweep — SIGTERM to the sweep's process GROUP (pool included)");
+        try {
+          process.kill(group, 'SIGTERM');
+        } catch {}
+        hard = setTimeout(() => {
+          onLog && onLog('   the group did not exit in ' + CRAWL_GRACE_MS / 1000 + ' s — SIGKILL');
+          try {
+            process.kill(group, 'SIGKILL');
+          } catch {}
+        }, CRAWL_GRACE_MS);
+      },
+      Math.max(60000, budgetMs)
+    );
+    child.on('error', (e) => {
+      clearTimeout(soft);
+      if (hard) clearTimeout(hard);
+      reject(e);
+    });
+    child.on('close', (code) => {
+      clearTimeout(soft);
+      if (hard) clearTimeout(hard);
+      if (killed) return reject(new Error('sweep stopped: ' + killed + ' — group reaped, no verdict for this file'));
+      if (code !== 0) return reject(new Error('mutate.mjs exited ' + code + ': ' + err.slice(-300)));
+      resolve(out);
+    });
+  });
+}
+
+async function sweep(file) {
   const outFile = join(OUT, basename(file) + '.sweep.json');
   const stateFile = join(OUT, basename(file) + '.sweep-state.json');
   const journal = join(ROOT, '.mutate-journal', file.replace(/[/\\]/g, '_') + '.jsonl');
@@ -726,7 +835,7 @@ function sweep(file) {
   // AND available memory, which this tool cannot do better from here.
   if (JOBS != null) args.splice(4, 0, '--jobs', String(JOBS));
   if (plan.action === 'resume') args.push('--resume');
-  const txt = execFileSync('node', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: Math.max(60000, remaining) });
+  const txt = await runMutateBounded(args, remaining, log);
   const rec = JSON.parse(txt.trim().split('\n')[0]);
   writeFileSync(outFile, JSON.stringify(rec, null, 2) + '\n');
   writeFileSync(stateFile, JSON.stringify({ file, identity: now, complete: true, finishedAt: new Date().toISOString() }, null, 2) + '\n');
@@ -1246,8 +1355,49 @@ function selftest() {
     ck('getElementById returns null — the stub is inert, not a fake browser', realm && realm.Probe.el(), null);
   }
 
-  console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
-  return fail ? 1 : 0;
+  /* ── THE BUDGET/DEADLINE PAIR, WHICH NOTHING COMPARED BEFORE ──────────────────────────────────── */
+  console.log('\nbudgetRefusal — two numbers that are one decision');
+  const H = (h) => h * 3600 * 1000;
+  ck('5 h under an 8 h deadline with a 30 min margin is fine', budgetRefusal(H(5), H(8), H(0.5)), null);
+  ck('…and so is the exact boundary', budgetRefusal(H(7.5), H(8), H(0.5)), null);
+  ck(
+    'the 2026-09-28 pairing REFUSES, and names both numbers',
+    (() => {
+      const w = budgetRefusal(H(48), H(8), H(0.5));
+      return !!w && /48\.0 h/.test(w) && /8\.0 h/.test(w) && /7\.5 h/.test(w);
+    })(),
+    true
+  );
+  ck('an UNKNOWN deadline compares nothing rather than inventing one (§∅)', budgetRefusal(H(48), 0, H(0.5)), null);
+  ck('…including a negative or absurd one', budgetRefusal(H(5), -1, H(0.5)), null);
+
+  console.log('\nrunMutateBounded — a grandchild holding stdout must not outlive the budget');
+  /* THE PLANT, and it is the 2026-09-28 mechanism exactly: a child that exits while a GRANDCHILD
+     keeps the stdout pipe open. `execFileSync`'s timeout signals the child only, so the read never
+     ends and the budget cannot act — measured as a 5 h budget running 8 h 1 min. Detaching the child
+     into its own process group and killing the GROUP is what makes the ceiling real. */
+  return (async () => {
+    const t0 = Date.now();
+    let threw = null;
+    try {
+      await runMutateBounded(
+        ['-e', "const {spawn}=require('node:child_process'); spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']}); setTimeout(()=>{},60000);"],
+        1000,
+        () => {}
+      );
+    } catch (e) {
+      threw = String(e.message);
+    }
+    const took = Date.now() - t0;
+    ck("the call RETURNS rather than hanging on the grandchild's pipe", threw != null, true);
+    ck('…and says the budget stopped it, not that the sweep finished', /budget/.test(String(threw)), true);
+    /* 60 s is `runMutateBounded`'s own floor on the soft timer, + the 30 s grace, + slack. Before the
+       fix this call does not return at all, so the bound is the assertion. */
+    ck("…within the floor + grace, not at the unit's deadline hours later", took < 120000, true);
+
+    console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
+    return fail ? 1 : 0;
+  })();
 }
 
 // ── main ───────────────────────────────────────────────────────────────────────────────────────
@@ -1267,7 +1417,7 @@ const INVOKED_DIRECTLY = (() => {
 if (INVOKED_DIRECTLY) await main();
 
 async function main() {
-  if (has('--selftest')) process.exit(selftest());
+  if (has('--selftest')) process.exit(await selftest());
   if (has('--status')) {
     statusReport();
     process.exit(0);
@@ -1285,6 +1435,31 @@ async function main() {
     'targets: ' + TARGETS.length + ' file(s) · jobs ' + (JOBS == null ? 'auto (mutate.mjs sizes from cores + free memory)' : JOBS) + ' · budget ' + (MAX_MS / 3600000).toFixed(1) + ' h · out ' + OUT
   );
   log('resume: a file with complete:true is skipped. Re-run this exact command to continue.\n');
+
+  /* ── THE BUDGET AND THE DEADLINE, COMPARED AND JOURNALLED, BEFORE ANY WORK ──────────────────────
+     Both numbers in the log on every run, so an overrun is visible in `journalctl` rather than only in
+     `systemd-analyze` after the fact. On 2026-09-28 the log said nothing about either and the 8 h
+     against 5 h was invisible until the unit failed. */
+  const DEADLINE_MS = runDeadlineMs();
+  const MARGIN_MS = 30 * 60 * 1000;
+  log(
+    'budget ' +
+      (MAX_MS / 3600000).toFixed(1) +
+      ' h · deadline ' +
+      (DEADLINE_MS > 0
+        ? (DEADLINE_MS / 3600000).toFixed(1) + ' h (' + (process.env.INVOCATION_ID ? 'from the unit' : 'from --deadline') + ')'
+        : 'UNKNOWN — not run under a unit and no --deadline given, so the two cannot be compared') +
+      ' · grace ' +
+      CRAWL_GRACE_MS / 1000 +
+      ' s'
+  );
+  const _why = budgetRefusal(MAX_MS, DEADLINE_MS, MARGIN_MS);
+  if (_why) {
+    log('✕ REFUSING before any work — ' + _why);
+    log('  Nothing was swept and nothing was written. A run that cannot finish inside its own deadline');
+    log('  does not fail cleanly: it is SIGKILLed mid-mutation and leaves the mutant in the shared root.');
+    process.exit(2);
+  }
 
   for (const file of TARGETS) {
     const dest = join(OUT, basename(file) + '.crawl.json');
@@ -1335,7 +1510,7 @@ async function main() {
     let rec;
     const t = Date.now();
     try {
-      rec = sweep(file);
+      rec = await sweep(file);
     } catch (e) {
       writeFileSync(dest, JSON.stringify({ file, complete: false, error: String(e.message).slice(0, 400) }, null, 2) + '\n');
       log('   sweep FAILED: ' + String(e.message).slice(0, 120));

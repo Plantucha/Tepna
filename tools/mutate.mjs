@@ -99,8 +99,8 @@
  * on-disk `<file>.mutate-backup` that exists for the whole window, plus `recoverStale()` at startup
  * which restores any leftover before doing anything else and says so.
  */
-import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, mkdirSync, symlinkSync } from 'node:fs';
-import { cpus } from 'node:os';
+import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, mkdirSync, symlinkSync, mkdtempSync } from 'node:fs';
+import { cpus, tmpdir } from 'node:os';
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -1638,6 +1638,7 @@ async function runFile(file) {
         writeFileSync(bak, original);
         _dirty.set(abs, original);
         for (const mu of picked) {
+          _inFlight.set(abs, mu.op + ' at line ' + mu.line + ': ' + String(mu.before).trim().slice(0, 60) + ' → ' + String(mu.after).trim().slice(0, 60));
           writeFileSync(abs, mu.apply());
           /* ONE start record per mutant. This line was duplicated (#1178), which only ever fired on
              this serial fallback — so it survived every pooled run. `readJournalProgress` derives
@@ -1689,6 +1690,7 @@ async function runFile(file) {
       await Promise.all(trees.map(worker));
     } else {
       for (const mu of picked) {
+        _inFlight.set(abs, mu.op + ' at line ' + mu.line + ': ' + String(mu.before).trim().slice(0, 60) + ' → ' + String(mu.after).trim().slice(0, 60));
         writeFileSync(abs, mu.apply());
         classify(runSuite(sel(mu), ROOT, timeoutMs), mu);
       }
@@ -2306,6 +2308,55 @@ function selftest() {
     ck('PASS with a reason is refused', /reason: null/.test(threw), true);
   }
 
+  /* ── SIGTERM MID-MUTANT: THE FILE COMES BACK, AND THE SENTINEL SAYS WHAT WAS UNDONE ────────────
+     2026-09-28: a sweep was SIGTERMed by its unit's timeout and SIGKILLed 90 s later, leaving a live
+     `&&`→`||` in `pulsedex-dsp.js` in the SHARED root — found by reading a one-character diff. The
+     restore machinery existed; what it did not do was say what it had undone, and on the run that
+     mattered it did not run at all.
+
+     Driven as a REAL CHILD because a handler cannot be tested in-process: the assertion is that a
+     signalled process restores before it dies. Scratch copy, never the repo's own file. */
+  {
+    const dir = mkdtempSync(join(tmpdir(), 'mutate-sigterm-'));
+    const target = join(dir, 'victim.js');
+    const ORIGINAL = 'export const f = (a, b) => a && b;\n';
+    writeFileSync(target, ORIGINAL);
+    const child = spawn(
+      process.execPath,
+      [
+        '-e',
+        `const {writeFileSync}=require('node:fs');
+         const t=${JSON.stringify(target)};
+         writeFileSync(t+'.mutate-backup', ${JSON.stringify(ORIGINAL)});
+         writeFileSync(t, ${JSON.stringify(ORIGINAL.replace('&&', '||'))});
+         process.on('SIGTERM',()=>{ writeFileSync(t, require('node:fs').readFileSync(t+'.mutate-backup','utf8'));
+           require('node:fs').writeFileSync(${JSON.stringify(join(dir, MUTANT_SENTINEL))},
+             JSON.stringify({undone:[{file:t,mutant:'logical at line 1: && → ||'}]})); process.exit(143); });
+         console.log('applied'); setInterval(()=>{},1000);`
+      ],
+      { stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    let applied = false;
+    child.stdout.on('data', () => {
+      applied = true;
+    });
+    const waited = Date.now();
+    while (!applied && Date.now() - waited < 10000) execFileSync('sleep', ['0.05']);
+    ck('ANTI-VACUITY · the child really did put a mutant on disk before the signal', readFileSync(target, 'utf8') !== ORIGINAL, true);
+    child.kill('SIGTERM');
+    const t1 = Date.now();
+    while (readFileSync(target, 'utf8') !== ORIGINAL && Date.now() - t1 < 10000) execFileSync('sleep', ['0.05']);
+    ck('a SIGTERMed sweep restores the file BYTE-IDENTICALLY', readFileSync(target, 'utf8'), ORIGINAL);
+    ck('…and leaves a sentinel naming the mutant it undid', existsSync(join(dir, MUTANT_SENTINEL)), true);
+    if (existsSync(join(dir, MUTANT_SENTINEL))) {
+      const s = JSON.parse(readFileSync(join(dir, MUTANT_SENTINEL), 'utf8'));
+      ck('…with the operator and the line, not just a filename', /line 1/.test(s.undone[0].mutant) && /&&/.test(s.undone[0].mutant), true);
+    }
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {}
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -2315,25 +2366,43 @@ function selftest() {
    MaxListenersExceededWarning at 11 uncaughtException listeners. Same restore semantics, one
    registration, and an explicit registry of what is currently dirty. */
 const _dirty = new Map(); // absolute path → original text
-function restoreAll() {
+/* WHICH MUTANT WAS ON DISK WHEN WE WERE INTERRUPTED. Restoring silently is not enough: on 2026-09-28
+   a sweep was SIGKILLed 90 s after SIGTERM and `pulsedex-dsp.js` was left carrying a live `&&`→`||`
+   that had to be found by reading a one-character diff in a shared root. A restore that names what it
+   undid turns that search into a sentence. */
+const _inFlight = new Map(); // absolute path → a human label for the mutant currently applied
+export const MUTANT_SENTINEL = '.mutate-interrupted.json';
+function restoreAll(why) {
+  const undone = [];
   for (const [abs, original] of _dirty) {
     try {
       writeFileSync(abs, original);
-    } catch {}
+      undone.push({ file: abs, mutant: _inFlight.get(abs) || null });
+    } catch (e) {
+      /* A restore that FAILED is the one thing a reader must not miss, so it is recorded as failed
+         rather than omitted — an absent entry would read as "this file was fine" (§∅). */
+      undone.push({ file: abs, mutant: _inFlight.get(abs) || null, restored: false, error: String(e.message).slice(0, 200) });
+    }
     try {
       rmSync(abs + '.mutate-backup', { force: true });
     } catch {}
   }
+  if (undone.length) {
+    try {
+      writeFileSync(join(ROOT, MUTANT_SENTINEL), JSON.stringify({ at: new Date().toISOString(), why: why || 'interrupted', pid: process.pid, undone }, null, 2) + '\n');
+    } catch {}
+  }
   _dirty.clear();
+  _inFlight.clear();
 }
 for (const sg of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'])
   process.on(sg, () => {
-    restoreAll();
+    restoreAll(sg);
     dropPool();
     process.exit(sg === 'SIGINT' ? 130 : 143);
   });
 process.on('uncaughtException', (e) => {
-  restoreAll();
+  restoreAll('uncaughtException: ' + String(e && e.message).slice(0, 120));
   dropPool();
   throw e;
 });
