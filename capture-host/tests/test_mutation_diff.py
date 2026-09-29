@@ -1480,7 +1480,7 @@ def test_a_pipe_closed_under_the_reader_does_not_take_the_verdict_with_it():
 
 _GRANDCHILD_HOLDS_THE_PIPE = (
     "import subprocess, sys, time\n"
-    "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"   # inherits stdout
+    "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"  # inherits stdout
     "[print('spinner', flush=True) for _ in range(50)]\n"
     "time.sleep(60)\n"
 )
@@ -1494,6 +1494,7 @@ def test_the_refusal_STILL_ARRIVES_when_a_grandchild_holds_the_pipe_open():
     #3202's silence and it is REFUTED — measured 13.00 s against a 43 s bound — but the property is now
     load-bearing for the phase bound below, and nothing was asserting it."""
     import time as _t
+
     proc = _child(_GRANDCHILD_HOLDS_THE_PIPE)
     seen: list[str] = []
     t0 = _t.monotonic()
@@ -1509,10 +1510,12 @@ def test_a_GENERATION_phase_that_outlives_its_bound_is_killed_and_named():
     """PLANT 2 — the #3202 case itself. The child never reports the phase marker, so a wait bounded only
     by the wall cap would let it run to the cap; the phase bound must fire FIRST and say which phase."""
     import time as _t
+
     proc = _child(_SILENT_3S)
     t0 = _t.monotonic()
     rc, timed_out, phase_timed_out = M.stream_bounded(
-        proc, 60.0, lambda _l: None, t0=t0, phase_cap_sec=1.0, phase_done=lambda: False)
+        proc, 60.0, lambda _l: None, t0=t0, phase_cap_sec=1.0, phase_done=lambda: False
+    )
     took = _t.monotonic() - t0
     assert phase_timed_out is True, "the phase bound did not fire — this is #3202"
     assert timed_out is True, "a phase kill is also a timeout for the caller's reporting"
@@ -1525,10 +1528,12 @@ def test_a_phase_that_FINISHES_hands_the_rest_of_the_wall_cap_to_the_run():
     not consume the whole budget. The child outlives the PHASE bound but not the wall cap, and reports
     the marker — so it must be allowed to finish and come back green."""
     import time as _t
+
     proc = _child(_CHATTY_3S)
     t0 = _t.monotonic()
     rc, timed_out, phase_timed_out = M.stream_bounded(
-        proc, 60.0, lambda _l: None, t0=t0, phase_cap_sec=1.0, phase_done=lambda: True)
+        proc, 60.0, lambda _l: None, t0=t0, phase_cap_sec=1.0, phase_done=lambda: True
+    )
     assert (phase_timed_out, timed_out, rc) == (False, False, 0), (rc, timed_out, phase_timed_out)
     assert _t.monotonic() - t0 < 10.0, "the phase bound must not become the wall cap"
 
@@ -1538,9 +1543,11 @@ def test_the_phase_bound_can_never_EXTEND_the_wall_cap():
     requested, not as elapsed seconds — the arithmetic mutants that survived a timing assertion are why
     the tests below this point stub `wait` and read the `timeout=` they were handed."""
     import time as _t
+
     rec = _RecordingProc()
-    M.stream_bounded(rec, 10.0, lambda _l: None, t0=_t.monotonic() - 9.0,
-                            phase_cap_sec=3600.0, phase_done=lambda: False)
+    M.stream_bounded(
+        rec, 10.0, lambda _l: None, t0=_t.monotonic() - 9.0, phase_cap_sec=3600.0, phase_done=lambda: False
+    )
     assert rec.timeouts, "wait was never called with a deadline"
     assert rec.timeouts[0] <= 1.0 + 0.5, f"the phase bound extended the wall cap: {rec.timeouts[0]}"
 
@@ -1555,7 +1562,7 @@ def test_the_generation_marker_is_mutmuts_own_line_and_not_a_mutant_verdict():
     assert M.GENERATION_DONE_RE.search("done in 18ms (1 file mutated, 0 ignored, 0 unmodified)")
     assert not M.GENERATION_DONE_RE.search("capture.x_alert_poller__mutmut_7: survived")
     assert not M.GENERATION_DONE_RE.search("Generating mutants")
-    assert not M.GENERATION_DONE_RE.search("done in 12ms")          # no file count = not the marker
+    assert not M.GENERATION_DONE_RE.search("done in 12ms")  # no file count = not the marker
 
 
 def test_workers_that_fit_refuses_where_capture_py_cannot_run_and_sizes_where_it_can():
@@ -1565,7 +1572,7 @@ def test_workers_that_fit_refuses_where_capture_py_cannot_run_and_sizes_where_it
     Measured 2026-09-28: the generated capture.py is 562,427,047 bytes. A hosted runner reports ~14 GB
     available, so the 50 % cap affords ZERO workers; the rig at 33 GB affords 2. Both numbers are the
     refusal this gate owes, and neither is reachable from `os.cpu_count()`."""
-    GB = 1024 ** 3
+    GB = 1024**3
     CAPTURE_GENERATED = 562427047
     assert M.workers_that_fit(CAPTURE_GENERATED, 14 * GB) == 0, "a hosted runner cannot afford one worker"
     assert M.workers_that_fit(CAPTURE_GENERATED, 33 * GB) == 2, "the rig affords two, not twenty-four"
@@ -1591,7 +1598,7 @@ def test_a_zero_RSS_FACTOR_is_not_permission_to_run_unbounded_workers():
     """The factor is the one number in the projection that is an assumption, so a caller CAN pass it. If
     it arrives as 0 the projection says "a worker costs nothing", and the affordable count would be
     unbounded — the same absence-as-permission hole that made `memory_refusal(0, …)` silent."""
-    assert M.workers_that_fit(562427047, 14 * 1024 ** 3, rss_factor=0) == 0
+    assert M.workers_that_fit(562427047, 14 * 1024**3, rss_factor=0) == 0
 
 
 def test_a_generation_timeout_reason_says_no_mutant_ran():
@@ -2326,6 +2333,8 @@ def test_a_changed_SIGNATURE_scopes_the_function():
     """The sibling property, for the same reason: `ast.dump(node.args)` is in the comparison because
     a parameter list change is not visible in the body statements."""
     assert M.functions_with_changed_ast("def f(a):\n    return 1\n", "def f(a, b=2):\n    return 1\n")[0] == {"x_f"}
+
+
 # ── the COMMITTED generated-size record ─────────────────────────────────────────────────────────────
 # Every CI run is a fresh scratch, so a size remembered only beside the scratch is a size CI never has.
 # The record is what lets a hosted runner refuse capture.py at 0 workers in minute one, NAMED, instead of
@@ -2363,6 +2372,7 @@ def test_a_re_measurement_REPLACES_and_says_what_it_superseded():
     t1 = M.merge_mutants_size("", "m.py", "aaa", 100, "2026-09-01", "rig")
     t2 = M.merge_mutants_size(t1, "m.py", "aaa", 250, "2026-09-28", "rig")
     import json as _j
+
     entry = _j.loads(t2)["sizes"]["m.py@aaa"]
     assert entry["generatedBytes"] == 250
     assert entry["supersedes"] == 100, "a replaced measurement must stay visible"
@@ -2370,13 +2380,17 @@ def test_a_re_measurement_REPLACES_and_says_what_it_superseded():
     t3 = M.merge_mutants_size(t2, "m.py", "aaa", 250, "2026-09-29", "rig")
     assert "supersedes" not in _j.loads(t3)["sizes"]["m.py@aaa"]
     # …and a corrupt file is rebuilt rather than inherited, so one bad write cannot poison every later one.
-    assert _j.loads(M.merge_mutants_size("{not json", "m.py", "aaa", 7, "d", "h"))["sizes"]["m.py@aaa"]["generatedBytes"] == 7
+    assert (
+        _j.loads(M.merge_mutants_size("{not json", "m.py", "aaa", 7, "d", "h"))["sizes"]["m.py@aaa"]["generatedBytes"]
+        == 7
+    )
 
 
 def test_the_committed_record_in_this_tree_parses_and_is_keyed_to_real_modules():
     """The file itself, not a fixture: a record nobody can parse is a record that silently stops helping,
     and the keys must name modules this tree actually has."""
     import pathlib as _p
+
     path = _p.Path(__file__).resolve().parent.parent / "tools" / "mutation-sizes.json"
     assert path.exists(), "the committed size record is missing"
     rec = M.mutants_size_record(path.read_text(encoding="utf-8"))
@@ -2392,7 +2406,7 @@ def test_an_unknown_size_is_capped_and_NEVER_the_core_count():
     over-commit it exists to prevent, alive in the one branch that matters, because the FIRST run on any
     source hash is the unknown case and that is the case #3202 was."""
     assert M.UNKNOWN_SIZE_WORKERS < 8, "the unknown-size fallback must be small, not a core count"
-    assert M.workers_that_fit(0, 14 * 1024 ** 3) == 0, "an unknown size affords nothing to derive from"
+    assert M.workers_that_fit(0, 14 * 1024**3) == 0, "an unknown size affords nothing to derive from"
 
 
 # ── the 29 survivors #3208's own gate found in the code above ───────────────────────────────────────
@@ -2414,6 +2428,7 @@ def test_the_record_SERIALISATION_is_stable_because_the_file_is_committed():
     # …and the schema and note are part of the record, not decoration: a reader who finds this file needs
     # to know what wrote it and that hand-editing it destroys its only value.
     import json as _j
+
     doc = _j.loads(text)
     assert doc["schema"] == "tepna.mutation-sizes/1"
     assert "NEVER hand-edited" in doc["note"]
@@ -2457,7 +2472,7 @@ def test_the_generation_reason_defaults_to_NOTHING_WRITTEN_and_distinguishes_one
 def test_workers_that_fit_boundaries_are_pinned_at_the_EXACT_edge():
     """Seven survivors were boundary arithmetic: `<= 0` → `< 0` / `<= 1`, `or` → `and`, `//` → `/`. Each
     needs the value ON the edge, which no test had."""
-    GB = 1024 ** 3
+    GB = 1024**3
     # `or` → `and`: one bad input is enough, both are not required.
     assert M.workers_that_fit(0, 14 * GB) == 0, "no size is enough to refuse on its own"
     assert M.workers_that_fit(562427047, 0) == 0, "no memory reading is enough to refuse on its own"
@@ -2484,13 +2499,15 @@ def test_the_PHASE_branch_bounds_its_reap_and_its_remaining_wall_wait():
     assert len(rec.timeouts) >= 2, f"expected a bounded wait then a bounded reap, got {rec.timeouts}"
     assert rec.timeouts[-1] == M.REAP_SEC, (
         f"the post-kill reap must be bounded by REAP_SEC, got {rec.timeouts[-1]!r} — `timeout=None` here "
-        "hands an unkillable child the power to hang the refusal forever")
+        "hands an unkillable child the power to hang the refusal forever"
+    )
     # …and when the phase DID finish, the remaining wall wait is bounded too, not `timeout=None`.
     rec2 = _RecordingProc()
     M.stream_bounded(rec2, 30.0, lambda _l: None, phase_cap_sec=1.0, phase_done=lambda: True)
     assert all(t is not None for t in rec2.timeouts), (
         f"every wait must carry a deadline; got {rec2.timeouts} — an unbounded second wait is the original "
-        "unreachable-cap defect, restored in the phase path")
+        "unreachable-cap defect, restored in the phase path"
+    )
 
 
 def test_a_HALF_DECLARED_phase_falls_through_instead_of_calling_None():
@@ -2522,10 +2539,11 @@ def test_the_JOIN_bound_is_a_CONSTANT_because_a_default_cannot_be_mutation_teste
     seconds on every run, which is the trade `cap_remaining`'s tests already record for the deadline."""
     assert M.JOIN_SEC == 10.0, "the pre-stated join bound moved without a reason"
     import inspect
+
     assert inspect.signature(M.stream_bounded).parameters["join_sec"].default == M.JOIN_SEC, (
         "the signature must reference the constant, not re-declare the number — a second copy is a second "
-        "thing to mutate, and the signature copy is the one mutation testing cannot see")
-
+        "thing to mutate, and the signature copy is the one mutation testing cannot see"
+    )
 
 
 def test_the_distinguishable_workers_that_fit_boundaries_the_probe_FOUND():
