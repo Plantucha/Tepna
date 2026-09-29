@@ -121,10 +121,45 @@ def generated_under_glob(mutants_src: str, glob: str) -> int:
     ⚠️ And the validating measurement could not have caught it: `oxy_inventory.identity` is
     module-level, at column 0 — the single shape where `^def` works. The function was checked only
     against the case that passes.
+
+    🔴 AND THE SAME HOLE WAS STILL OPEN FOR `async def`, ONE SHAPE OVER (measured 2026-09-28). mutmut
+    writes a coroutine's mutants as `async def x__run__mutmut_30(...)`, and `^\\s*def` does not match
+    `async def` — only whitespace may precede the keyword. Measured against a real scratch tree:
+    `wifi_uplink._run` had **44** mutants in `mutants/wifi_uplink.py` and this function returned **0**.
+
+    That is 309 of capture-host's 1959 functions (16 %), and it is concentrated exactly where it hurts:
+    47 of 64 in `webmon.py`, 85 in `capture.py`, all 10 of `as11_pull.py`. For every one of them the
+    three-way split collapsed the same way it had for methods — a genuine CRASH (generated >0, decided
+    0) took the BENIGN "nothing to mutate, pass" arm, so the §3 guard was disabled across the entire
+    async surface of an asyncio daemon.
+
+    The fix is the keyword, not another anchor: `async` is the only thing Python allows between the
+    line start and `def`. Both earlier fixes and this one share one root — the pattern was written
+    from the shape in front of the author, and the shapes it does not match report ABSENCE (`0`) rather
+    than refusing, which §∅ is precisely about. A count that cannot see a construct must not answer
+    for it. The tests below now pin all four shapes: module-level, indented method, async, and async
+    method.
     """
     stem = glob.rstrip("*")
-    fn = stem.split(".", 1)[1] if "." in stem else stem
-    return len(re.findall(r"^\s*def " + re.escape(fn) + r"\d+\(", mutants_src or "", re.M))
+    # The glob is built in exactly one place — `f"{stem_mod}.{s}__mutmut_*"` in tools/mutate_diff.py —
+    # so it carries EXACTLY ONE dot: a module stem that cannot contain one, and a mangled name that
+    # uses `ǁ` (U+01C1) for class qualification, never `.`. That made `split(".", 1)[1]` unobservable:
+    # `rsplit`, maxsplit 2 and maxsplit-absent all agree on a one-dot string, so three mutants of this
+    # line survived with nothing able to kill them (measured 2026-09-28).
+    #
+    # They are not recorded as equivalent, because the reason they agree is the reason the line was
+    # wrong: on a shape it does not expect it would pick a MIDDLE segment, the regex would then match
+    # nothing, and the count would come back 0 — the same silent zero for an unseen shape that this
+    # whole function was just fixed for. So the shape is now a stated contract rather than a guess,
+    # which is also what makes the line killable.
+    head, dot, tail = stem.partition(".")
+    if not dot:
+        fn = stem  # a bare mangled stem, already unqualified
+    elif "." in tail:
+        raise ValueError(f"unexpected mutant glob {glob!r}: a module-qualified glob has exactly one dot")
+    else:
+        fn = tail
+    return len(re.findall(r"^\s*(?:async\s+)?def " + re.escape(fn) + r"\d+\(", mutants_src or "", re.M))
 
 
 def generated_count(work: Path, module: str, glob: str) -> int:
