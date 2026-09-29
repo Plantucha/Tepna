@@ -1617,19 +1617,37 @@ class _RecordingProc:
     argument kills `wait(timeout=None)` and the `t0`-recomputed mutant INSTANTLY, where asserting
     elapsed time caught them only by taking 30 s — which the gate scores UNDECIDED, not killed."""
 
-    def __init__(self):
+    def __init__(self, pid=0):
         import subprocess as _sp
 
-        self._sp, self.killed, self.timeouts = _sp, False, []
+        self._sp, self.killed, self.timeouts, self.signals = _sp, False, [], []
         self.stdout = iter(())  # the reader finishes at once; nothing here is about the read
+        # pid 0 is deliberate and is NOT "unset": it makes `if pid:` false in `kill_process_group`, so
+        # this double takes the no-group path and records plain signals. The group path has its own
+        # doubles below, where the point IS the group.
+        self.pid = pid
+        self.returncode = None
 
     def kill(self):
         self.killed = True
+
+    def send_signal(self, sig):
+        """A child that IGNORES SIGTERM and dies on SIGKILL — the shape the escalation exists for. A
+        double that died on SIGTERM would let `(SIGKILL, REAP_SEC)` go unvisited and the reap bound
+        below would be asserted by nothing."""
+        import signal as _sig
+
+        self.signals.append(sig)
+        if sig == _sig.SIGKILL:
+            self.killed = True
 
     def wait(self, timeout=None):
         self.timeouts.append(timeout)
         if not self.killed:
             raise self._sp.TimeoutExpired("child", timeout)
+        # `returncode` appears when the process is REAPED, not when it is signalled — so a double whose
+        # wait never returns leaves it None, and the reaper cannot borrow an exit status it never saw.
+        self.returncode = -9
         return -9
 
 
@@ -2874,3 +2892,352 @@ def test_EVERY_TERMINAL_IN_main_EMITS_A_VERDICT_OBJECT():
         "every exit from main() must go through emit(), which is what builds the verdict object and "
         f"writes --json. Not via emit: {offenders}"
     )
+
+
+# ── #3202's ORPHAN: a deadline must reap the GROUP, not the pid ──────────────────────────────────────
+# The measurement behind every test below (2026-09-29, reproducing #3202 under a small GATE_BUDGET_SEC):
+# `mutmut run` re-spawns itself, `proc.kill()` reaped only the pid this tool started, and the child was
+# re-parented to systemd and kept generating for **2 h 32 m at 19.4 GB RSS** while holding the stdout it
+# inherited. `TOOL-BUILD-STANDARD` §2.3 requires the opposite — "SIGKILL to the parent must terminate the
+# entire job … no orphan writing to it after death" — and verification by the same section is "kill the
+# parent, assert the workers are gone", which is what the plant does. #3234 is the JS half of this fix.
+#
+# EVERY ASSERTION HERE IDENTIFIES A PROCESS BY `/proc/<pid>/cmdline`, NEVER BY A `pgrep -f` PATTERN
+# (§2.3, and §👥.4 for why the pattern also matches the asker). The recorded cmdline is compared
+# BYTE-FOR-BYTE, so pid reuse between the kill and the check cannot read as a survivor — and a zombie,
+# whose cmdline is empty, reads as dead rather than alive.
+
+_GRANDCHILD_INHERITS_THE_PIPE = (
+    "import os, subprocess, sys, time\n"
+    "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(300)'])\n"
+    "open(sys.argv[1], 'w').write(f'{os.getpid()}\\n{g.pid}\\n')\n"
+    "sys.stdout.write('parent up\\n'); sys.stdout.flush()\n"
+    "time.sleep(300)\n"
+)
+
+
+def _cmdline(pid):
+    """The pid's argv as bytes, or None if there is no such live process. A zombie reads as `b''`."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as fh:
+            return fh.read() or None
+    except OSError:
+        return None
+
+
+def _gone(pid, was):
+    """True once `pid` is no longer the process whose cmdline we recorded. Polled, because a group kill
+    and the kernel's reaping of a re-parented child are not the same instant."""
+    import time as _t
+
+    end = _t.monotonic() + 10.0
+    while _t.monotonic() < end:
+        if _cmdline(pid) != was:
+            return True
+        _t.sleep(0.05)
+    return False
+
+
+def test_PLANT_the_deadline_leaves_NO_DESCENDANT_alive(tmp_path):
+    """🔴 THE #3202 ORPHAN, pinned. A child in its own session with a grandchild that inherits the pipe:
+    the deadline must end BOTH. Under `proc.kill()` the grandchild survives this assertion — which is
+    exactly what it did on CI for 2 h 32 m — and under the group kill both are gone.
+
+    Both processes are identified by their recorded `/proc/<pid>/cmdline`, so nothing here can pass
+    because a pid was reused, and nothing here consults a command-name pattern."""
+    import subprocess as _sp
+    import sys as _sys
+    import time as _t
+
+    pids = tmp_path / "pids.txt"
+    proc = _sp.Popen(
+        [_sys.executable, "-c", _GRANDCHILD_INHERITS_THE_PIPE, str(pids)],
+        stdout=_sp.PIPE,
+        stderr=_sp.STDOUT,
+        text=True,
+        bufsize=1,
+        start_new_session=True,  # the property under test: the child LEADS the group the kill signals
+    )
+    end = _t.monotonic() + 15.0
+    while _t.monotonic() < end and len(pids.read_text().splitlines() if pids.exists() else []) < 2:
+        _t.sleep(0.05)
+    lines = pids.read_text().splitlines() if pids.exists() else []
+    assert len(lines) == 2, f"the plant never reported its pids; got {lines!r} — the test proves nothing"
+    parent, grandchild = int(lines[0]), int(lines[1])
+    was_p, was_g = _cmdline(parent), _cmdline(grandchild)
+    assert was_p and was_g, f"the plant is not running: parent={was_p!r} grandchild={was_g!r}"
+    assert parent == proc.pid, (parent, proc.pid)
+
+    rc, timed_out, _ = M.stream_bounded(proc, 1.0, lambda _l: None, join_sec=2.0)
+
+    assert timed_out is True, f"the cap did not fire, so the kill was never exercised: rc={rc}"
+    assert _gone(parent, was_p), f"the parent {parent} outlived its own deadline"
+    assert _gone(grandchild, was_g), (
+        f"THE ORPHAN. Grandchild {grandchild} survived the deadline holding the inherited pipe — "
+        f"§2.3: SIGKILL to the parent must terminate the entire job, leaving no orphan writing to it "
+        f"after death. This is #3202's 2 h 32 m / 19.4 GB process, reproduced."
+    )
+
+
+def test_a_child_that_does_NOT_lead_its_group_is_killed_ALONE(monkeypatch):
+    """🔴 THE FIX'S OWN WORST FAILURE MODE, pinned. `os.killpg` on a child started WITHOUT
+    `start_new_session=True` reaches OUR group — the gate would kill itself, and every sibling the
+    caller owns, in the name of reaping a child. So the group is signalled only when the child IS the
+    group leader; otherwise the child alone is signalled, which is no worse than the `proc.kill()` this
+    replaces. A mutant that drops the `getpgid(pid) == pid` test fails here instead of by suicide."""
+
+    class _Os:
+        def getpgid(self, pid):
+            return pid + 1  # a member, not the leader
+
+        def killpg(self, pid, sig):  # pragma: no cover — reaching this IS the failure
+            raise AssertionError(f"killpg({pid}, {sig}) on a group this child does not lead")
+
+    monkeypatch.setattr(M, "os", _Os())
+    proc = _RecordingProc(pid=4242)
+    rc = M.kill_process_group(proc)
+    assert proc.signals and proc.signals[-1].name == "SIGKILL", proc.signals
+    assert rc == -9, rc
+
+
+def test_an_UNREADABLE_pgid_falls_back_to_the_child_instead_of_guessing(monkeypatch):
+    """`getpgid` raises for a pid that exited between the wait and the kill. Fail CLOSED to the narrow
+    action: signal the child, never a group we could not confirm."""
+
+    class _Os:
+        def getpgid(self, pid):
+            raise ProcessLookupError(pid)
+
+        def killpg(self, pid, sig):  # pragma: no cover — reaching this IS the failure
+            raise AssertionError("killpg after an unreadable pgid")
+
+    monkeypatch.setattr(M, "os", _Os())
+    proc = _RecordingProc(pid=4242)
+    assert M.kill_process_group(proc) == -9
+    assert [s.name for s in proc.signals] == ["SIGTERM", "SIGKILL"], proc.signals
+
+
+def test_a_group_that_is_ALREADY_GONE_is_not_an_error(monkeypatch):
+    """Teardown must not become a new failure mode: the race where the whole group exits between the
+    deadline and the signal is the NORMAL end of a run, not a fault to raise out of a refusal path."""
+    calls = []
+
+    class _Os:
+        def getpgid(self, pid):
+            return pid  # the leader: the group path
+
+        def killpg(self, pid, sig):
+            calls.append(sig.name)
+            raise ProcessLookupError(pid)
+
+    monkeypatch.setattr(M, "os", _Os())
+
+    class _Dead(_RecordingProc):
+        def wait(self, timeout=None):
+            self.timeouts.append(timeout)
+            return 0  # already reaped
+
+    proc = _Dead(pid=4242)
+    assert M.kill_process_group(proc) == 0
+    assert calls == ["SIGTERM"], f"a group that is already gone must not be escalated to SIGKILL: {calls}"
+
+
+def test_SIGTERM_is_given_a_GRACE_and_SIGKILL_is_the_escalation():
+    """The order and both bounds, asserted as the arguments — SIGTERM first so a worker mid-write can
+    flush, SIGKILL after `GROUP_GRACE_SEC`, and each wait bounded (`timeout=None` on either hands an
+    unkillable child the power to hang the refusal, this function's own bug class)."""
+    proc = _RecordingProc(pid=0)
+    rc = M.kill_process_group(proc)
+    assert [s.name for s in proc.signals] == ["SIGTERM", "SIGKILL"], proc.signals
+    assert proc.timeouts == [M.GROUP_GRACE_SEC, M.REAP_SEC], (
+        f"the two waits must be bounded by the grace then the reap; got {proc.timeouts} — "
+        f"expected [{M.GROUP_GRACE_SEC}, {M.REAP_SEC}]"
+    )
+    assert rc == -9, rc
+
+
+def test_a_child_that_dies_on_SIGTERM_is_never_SIGKILLED():
+    """The grace exists to be usable. A double that exits on SIGTERM must return on the first wait, or
+    the escalation is unconditional and the grace is decoration."""
+
+    class _Polite(_RecordingProc):
+        def wait(self, timeout=None):
+            self.timeouts.append(timeout)
+            return 0
+
+    proc = _Polite(pid=0)
+    assert M.kill_process_group(proc) == 0
+    assert [s.name for s in proc.signals] == ["SIGTERM"], proc.signals
+
+
+def test_an_UNKILLABLE_child_still_RETURNS_and_reports_what_it_knows():
+    """A child in uninterruptible sleep survives SIGKILL. The reaper must not loop, not raise, and not
+    claim a returncode it does not have: it returns whatever the object knows (here None), and the
+    caller's refusal is still emitted. ∅ — an unknown exit status is None, never 0 and never -9."""
+
+    class _Unkillable(_RecordingProc):
+        def wait(self, timeout=None):
+            self.timeouts.append(timeout)
+            raise self._sp.TimeoutExpired("child", timeout)
+
+    proc = _Unkillable(pid=0)
+    assert M.kill_process_group(proc) is None
+    assert [s.name for s in proc.signals] == ["SIGTERM", "SIGKILL"], proc.signals
+    assert proc.timeouts == [M.GROUP_GRACE_SEC, M.REAP_SEC], proc.timeouts
+
+
+def test_a_wait_that_raises_on_a_NEVER_STARTED_child_stops_instead_of_escalating():
+    """`Popen.wait` raises ValueError on a process object that was never started. Escalating to SIGKILL
+    against nothing, twice, would be a loop over a broken object; stop and report."""
+
+    class _NeverStarted(_RecordingProc):
+        def wait(self, timeout=None):
+            self.timeouts.append(timeout)
+            raise ValueError("process not started")
+
+    proc = _NeverStarted(pid=0)
+    proc.returncode = None
+    assert M.kill_process_group(proc) is None
+    assert [s.name for s in proc.signals] == ["SIGTERM"], f"a broken wait must not be retried: {proc.signals}"
+
+
+# ── the RESULTS phase, which was bounded and NOT CAUGHT ─────────────────────────────────────────────
+
+
+def test_the_results_reason_says_NOTHING_WAS_READ_and_names_its_bound():
+    """A reader must be able to tell this from a slow mutation pass without reading the code: the
+    mutants ran, their outcomes are on disk, and the read never returned — so the run cannot claim a
+    kill OR a survivor. The bound is named because the first question is always "how long did it wait"."""
+    r = M.results_timeout_reason(300.0)
+    assert "300s" in r, r
+    assert "MB" not in r, f"no size was measured, so none is quoted (∅): {r}"
+    for phrase in ("nothing was killed", "never read"):
+        assert phrase in r, f"missing {phrase!r}: {r}"
+    grew = M.results_timeout_reason(300.0, 2 * 1024**3)
+    assert "2048 MB" in grew, grew
+
+
+# ── the signal PASS-THROUGH, which the session change makes mandatory ───────────────────────────────
+
+
+class _SigShim:
+    """A `signal` module double. Records installs, hands back a distinguishable previous handler, and
+    keeps the real module out of a test that must not actually catch SIGTERM."""
+
+    SIG_DFL = "DFL"
+
+    def __init__(self, raise_on_install=False):
+        import signal as _s
+
+        self.SIGTERM, self.SIGINT, self.SIGHUP = _s.SIGTERM, _s.SIGINT, _s.SIGHUP
+        self.SIGKILL = _s.SIGKILL  # `kill_process_group` runs under this shim too; it escalates for real
+        self.installs, self.raise_on_install = [], raise_on_install
+        self.handlers = {}
+
+    def signal(self, sig, handler):
+        if self.raise_on_install:
+            raise ValueError("signal only works in main thread")
+        self.installs.append((sig, handler))
+        prev = self.handlers.get(sig, "PREVIOUS")
+        self.handlers[sig] = handler
+        return prev
+
+
+class _OsShim:
+    """`os` for the handler path: records the re-raise instead of signalling this process."""
+
+    def __init__(self):
+        self.killed = []
+
+    def getpid(self):
+        return 777
+
+    def kill(self, pid, sig):
+        self.killed.append((pid, sig))
+
+    def getpgid(self, pid):
+        return pid  # the leader, so the group path is the one exercised
+
+    def killpg(self, pid, sig):
+        self.killed.append(("group", pid, sig))
+
+
+def test_a_TERMINATING_SIGNAL_reaps_the_group_then_lets_the_signal_through(monkeypatch):
+    """🔴 THE TRADE `start_new_session=True` MAKES, pinned. A session-led child is out of this process's
+    group, so a runner's job-timeout kill no longer reaches it — #3202's job ended with exactly that,
+    two orphan pythons. The handler must (1) reap the child's group, (2) restore the previous handler,
+    and (3) RE-RAISE, because a handler that swallows SIGTERM turns a stop into a hang."""
+    import signal as _sig
+
+    shim, osh = _SigShim(), _OsShim()
+    monkeypatch.setattr(M, "signal", shim)
+    monkeypatch.setattr(M, "os", osh)
+    proc = _RecordingProc(pid=4242)
+
+    with M.reap_group_on_signal(proc) as guard:
+        assert [s for s, _h in shim.installs] == list(M.REAP_SIGNALS), shim.installs
+        guard._on_signal(_sig.SIGTERM, None)
+
+    assert ("group", 4242, _sig.SIGKILL) in osh.killed, f"the group was not reaped: {osh.killed}"
+    assert osh.killed[-1] == (777, _sig.SIGTERM), (
+        f"the signal must be re-raised after the reap; got {osh.killed} — swallowing SIGTERM turns a "
+        "stop into a hang and the sender's exit status is lost"
+    )
+    # install[0:3] are the three arms; install[3] is the handler restoring SIGTERM's previous handler,
+    # and it must come BEFORE the re-raise or the re-raise re-enters this handler.
+    assert shim.installs[len(M.REAP_SIGNALS)] == (_sig.SIGTERM, "PREVIOUS"), (
+        f"the previous handler must be restored BEFORE the re-raise; got {shim.installs}"
+    )
+
+
+def test_the_previous_handlers_are_restored_on_the_way_OUT(monkeypatch):
+    """The guard covers one child, not the rest of the process's life: a handler left installed would
+    reap a dead `proc` on the next signal, and `mutate.py` runs `run_one` once per module."""
+    import signal as _sig
+
+    shim = _SigShim()
+    monkeypatch.setattr(M, "signal", shim)
+    with M.reap_group_on_signal(_RecordingProc(pid=0)):
+        pass
+    restored = {sig: h for sig, h in shim.installs[len(M.REAP_SIGNALS) :]}
+    assert set(restored) == set(M.REAP_SIGNALS), shim.installs
+    assert all(h == "PREVIOUS" for h in restored.values()), restored
+    assert _sig.SIGTERM in restored
+
+
+def test_NO_HANDLER_is_not_a_crash_when_this_is_not_the_main_thread(monkeypatch):
+    """`signal.signal` raises ValueError off the main thread. That degrades the guarantee to "the
+    deadline is the only bound", which is honest; raising inside a context manager's `__enter__` would
+    take the whole mutation run down for a mitigation that is not the point of the call."""
+    shim = _SigShim(raise_on_install=True)
+    monkeypatch.setattr(M, "signal", shim)
+    with M.reap_group_on_signal(_RecordingProc(pid=0)) as guard:
+        assert guard._prev == {}, guard._prev
+    assert shim.installs == [], shim.installs
+
+
+def test_the_guard_NEVER_SWALLOWS_the_caller_s_exception(monkeypatch):
+    """`__exit__` returning True would make a deadline-reaping context manager silently eat a real
+    failure from the body it wraps — the body here is the whole mutation run."""
+    shim = _SigShim()
+    monkeypatch.setattr(M, "signal", shim)
+    with pytest.raises(RuntimeError, match="from the body"):
+        with M.reap_group_on_signal(_RecordingProc(pid=0)):
+            raise RuntimeError("from the body")
+
+
+def test_a_handler_for_a_signal_that_was_NEVER_INSTALLED_falls_back_to_the_default(monkeypatch):
+    """The `_prev.get(sig, SIG_DFL)` branch: on the path where installation was refused, a handler that
+    still somehow runs must not restore `None` (which `signal.signal` rejects) — it restores the
+    default. Reached by driving the handler on a guard whose installs all failed."""
+    import signal as _sig
+
+    shim, osh = _SigShim(raise_on_install=True), _OsShim()
+    monkeypatch.setattr(M, "signal", shim)
+    monkeypatch.setattr(M, "os", osh)
+    proc = _RecordingProc(pid=0)
+    guard = M.reap_group_on_signal(proc)
+    guard.__enter__()
+    guard._on_signal(_sig.SIGINT, None)
+    assert osh.killed[-1] == (777, _sig.SIGINT), osh.killed
+    assert [s.name for s in proc.signals] == ["SIGTERM", "SIGKILL"], proc.signals
