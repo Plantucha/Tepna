@@ -39,10 +39,12 @@ from __future__ import annotations
 import ast
 import fnmatch
 import json
+import os
 import pathlib
 import re
 import stat as _stat
 import shutil
+import signal
 import subprocess
 import threading
 import time
@@ -64,6 +66,11 @@ __all__ = [
     "SCRATCH_OWNER_FILE",
     "JOIN_SEC",
     "GENERATION_DONE_RE",
+    "GROUP_GRACE_SEC",
+    "kill_process_group",
+    "REAP_SIGNALS",
+    "reap_group_on_signal",
+    "results_timeout_reason",
     "GENERATION_CAP_FRACTION",
     "UNKNOWN_SIZE_WORKERS",
     "mutants_size_record",
@@ -765,6 +772,11 @@ JOIN_SEC = 10.0
 # the `join_sec=10.0 → 11.0` mutant SURVIVED an assertion that would have failed on the real signature.
 # Same family as #3181's "survives mutmut's trampoline". A module constant is not decorated, so mutating
 # it is visible.
+GROUP_GRACE_SEC = 5.0
+# SIGTERM first, then SIGKILL after this grace. mutmut writes its results incrementally, so a terminating
+# worker that gets to flush leaves a readable partial record where a SIGKILLed one leaves a torn file —
+# the same reasoning #3234 gives for the JS sweep ("a restore that is interrupted is the failure being
+# fixed"). The grace is small because nothing here is transactional; it only has to beat a write.
 REAP_SEC = 30.0  # bound on the post-kill reap. `None` here would hand an unkillable child
 # the same unbounded wait this whole function exists to remove.
 
@@ -1155,6 +1167,181 @@ def memory_exhaustion_verdict(n_refused, decided):
     )
 
 
+def kill_process_group(proc, grace_sec=GROUP_GRACE_SEC, reap_sec=REAP_SEC):
+    """SIGTERM the child's process GROUP, SIGKILL what survives the grace, then reap. Returns the
+    returncode. Never raises: teardown must not become a new failure mode.
+
+    🔴 WHY THE GROUP AND NOT THE CHILD. `proc.kill()` signals the direct child only, and `mutmut run`
+    RE-SPAWNS ITSELF — measured 2026-09-29 reproducing #3202: the Popen'd pid had a child of the same
+    command line, the deadline killed the parent, and the child was re-parented to systemd and kept
+    generating for **2 h 32 m at 19.4 GB RSS**, holding the inherited stdout so every later read in
+    `run_one` blocked. No traceback, no verdict, and the CI job died at its 180-minute cap with two
+    orphan pythons logged. `TOOL-BUILD-STANDARD` §2.3 already required the opposite — *"SIGKILL to the
+    parent must terminate the entire job — every worker, thread and child … no orphan writing to it
+    after death"* — so this restores a standard rather than inventing a rule. #3234 fixed the same class
+    on the JS side (`detached: true` + `kill(-pid)`); this is the Python half.
+
+    ⚠️ IT REFUSES TO SIGNAL A GROUP THE CHILD DOES NOT LEAD. `os.killpg` on a child that was started
+    WITHOUT `start_new_session=True` reaches our own group — the gate would kill itself and every
+    sibling the caller owns. So the group is signalled only when the child IS the group leader
+    (`getpgid(pid) == pid`); otherwise this falls back to killing the child alone, which is strictly no
+    worse than the behaviour it replaces."""
+    pid = getattr(proc, "pid", None)
+    # 🔴 A PID OF 0 IS NOT "NO PID" — IT IS "EVERYONE HERE". `os.killpg(0, sig)` and `os.kill(0, sig)`
+    # both address the CALLER's own process group, so a 0 arriving from a double, a half-built proc
+    # object or a mutated flag does not fail safe: it reaps the gate and every sibling the caller owns.
+    # Measured 2026-09-29 on this function's own mutants: four of them leave the leader flag set past
+    # the `if`, and with a `pid=0` test double each one SIGTERMed the mutmut worker's process group —
+    # pytest died mid-run with no summary line, mutmut's counter stalled at 7 of 33, and the remaining
+    # 23 came back `not_checked`. That is how a mutant kills the runner that is judging it.
+    # So the pid is checked for being a REAL, POSITIVE pid, and checked again at the call site below,
+    # where the cost of being wrong is paid.
+    positive_pid = isinstance(pid, int) and not isinstance(pid, bool) and pid > 0
+    leader = False
+    if positive_pid:
+        try:
+            pgid = os.getpgid(pid)
+            # TWO INDEPENDENT CONDITIONS, and the second one is load-bearing twice over. The child must
+            # LEAD the group (`pgid == pid`) — otherwise `killpg` reaches whatever group it was born
+            # into, which for a child started without `start_new_session=True` is OURS. And the group
+            # must not be ours even so.
+            #
+            # 🔴 THE SECOND CLAUSE IS WHY THIS FUNCTION IS MUTATION-TESTABLE AT ALL. Measured on
+            # #3237's own CI run: with `pgid == pid` alone, a mutant that inverted it made the gate
+            # `killpg` its OWN process group — the mutmut runner died at mutant 7 of 30 (the job log
+            # shows the counter stop at `6/2202`) and the remaining 23 came back `not_checked`, i.e.
+            # UNMEASURED, which `mutate_diff` correctly refuses. A mutant that kills the runner cannot
+            # be killed BY the runner. With both clauses no SINGLE mutation can signal our group
+            # (inverting either one leaves the other blocking), so the mutants became decidable — and
+            # the belt-and-braces is worth having on its own account.
+            leader = pgid == pid and pgid != os.getpgrp()
+        except (ProcessLookupError, OSError):
+            leader = False
+    for sig, wait_s in ((signal.SIGTERM, grace_sec), (signal.SIGKILL, reap_sec)):
+        try:
+            if leader and positive_pid:
+                # The second half is not redundant: `leader` is derived state and a single edit can
+                # leave it true, while this reads the pid itself. Belt and braces on the one operation
+                # in this file whose worst case is killing the caller.
+                os.killpg(pid, sig)
+            else:
+                proc.send_signal(sig)
+        except (ProcessLookupError, PermissionError, OSError, ValueError):
+            pass  # already gone, or never started — both are "nothing left to signal"
+        try:
+            return proc.wait(timeout=wait_s)
+        except subprocess.TimeoutExpired:
+            continue  # the grace expired; escalate to SIGKILL on the next pass
+        except (ValueError, OSError):
+            # deliberate: the proc object cannot be waited on at all (never started, or a closed
+            # handle), so escalating a second signal against nothing would be a loop over a broken
+            # object. Stop and report whatever returncode it knows — which may be None (§∅).
+            break  # deliberate: an unwaitable proc, reported as its own returncode rather than retried
+    return getattr(proc, "returncode", None)
+
+
+REAP_SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+# The three ways this tool is asked to stop by something above it: a CI runner's job timeout (SIGTERM),
+# an operator's Ctrl-C (SIGINT), and a closed session (SIGHUP). SIGKILL is deliberately absent — it
+# cannot be handled, which is exactly why the handler below is not a substitute for the caller's own
+# discipline; it is the part that CAN be done.
+
+
+class reap_group_on_signal:
+    """Context manager: while it is open, a terminating signal to THIS process first reaps `proc`'s
+    group, then lets the signal do what it would have done.
+
+    🔴 WITHOUT THIS, `start_new_session=True` MAKES THE CI CASE WORSE, and that is not a trade this
+    change is allowed to make silently. Putting mutmut in its own session is what lets a deadline reap
+    the whole job — and it also takes mutmut OUT of the job's process group, so the runner's own group
+    kill at its 180-minute cap no longer reaches it. #3202's job log already ended with two orphan
+    pythons; a session-led child that nothing hands the signal on to would be orphaned by construction
+    rather than by accident. So the tool passes the signal down before dying: the child's group is
+    reaped, the previous handler is restored, and the signal is re-raised so the exit status is the one
+    the sender asked for (a handler that swallows SIGTERM turns a stop into a hang).
+
+    `signal.signal` only works on the main thread; a call from anywhere else raises ValueError, which
+    this treats as "no handler installed" and leaves the deadline as the only bound — degraded, honest,
+    and not a crash in teardown.
+
+    **SIG_IGN is honoured, never overridden** — see `__enter__`. A signal the launcher disabled keeps
+    its disposition and the deadline stays its only bound.
+
+    **A second signal during the grace re-enters `_on_signal` before the restore, and that is FINE** —
+    the second `killpg` lands on a group that is already dying (`ProcessLookupError`, suppressed) and
+    the second re-raise is what the second sender asked for. Do NOT "fix" it by guarding with a flag
+    that swallows the second signal: that would make the process ignore a stop it was told twice.
+    """
+
+    def __init__(self, proc, signals=REAP_SIGNALS):
+        self.proc, self.signals, self._prev = proc, signals, {}
+
+    def __enter__(self):
+        for sig in self.signals:
+            try:
+                # 🔴 AN IGNORED SIGNAL STAYS IGNORED. Installing over SIG_IGN converts a signal the
+                # launcher deliberately disabled into a handler that reaps the child and then re-raises
+                # into a no-op — so the run CONTINUES with its job dead and reports `phase: results`
+                # NOT_RUN for an event it was supposed to ignore. Measured 2026-09-29 on this box, and
+                # both live shapes are ones this repo actually uses:
+                #   `setsid nohup <gate> &`  (CLAUDE.md §4c's recipe for anything over ~100 s, and how
+                #                             the crawl and the drains run) → SIGHUP  = SIG_IGN
+                #   `bash -c '<gate> &'`     (a plain background job, no job control)
+                #                                                          → SIGINT, SIGQUIT = SIG_IGN
+                # So this is not a SIGHUP special case: any arm may arrive already ignored, and the
+                # deadline remains the bound for it. Read the disposition first and leave it alone.
+                if signal.getsignal(sig) is signal.SIG_IGN:
+                    continue  # deliberate: honouring SIG_IGN is the point — nothing is being hidden
+                self._prev[sig] = signal.signal(sig, self._on_signal)
+            except (ValueError, OSError):
+                pass  # not the main thread, or a signal this platform does not have
+        return self
+
+    def _on_signal(self, sig, _frame):
+        kill_process_group(self.proc)
+        # ONE default, not two. This was `.get(sig, signal.SIG_DFL)` AND the `is not None` ternary
+        # below — the same decision written twice, so neither spelling could be observed failing:
+        # mutation found both defaults surviving (`.get(sig, None)` and a one-argument `.get`) because
+        # the ternary silently repaired them. The ternary is the one that must stay, because `_prev`
+        # can legitimately HOLD None (a handler slot Python reports as unset), and `signal.signal`
+        # rejects None. So the lookup returns whatever is there and exactly one line converts it.
+        prev = self._prev.get(sig)
+        try:
+            signal.signal(sig, prev if prev is not None else signal.SIG_DFL)
+        except (ValueError, OSError):
+            # deliberate: nothing was hidden that matters — the restore is a courtesy to whoever
+            # installed the previous handler, and this process is about to take the signal anyway.
+            pass  # deliberate: the signal is re-raised on the next line either way
+        os.kill(os.getpid(), sig)  # re-raise: the sender decides this process's fate, not this handler
+
+    def __exit__(self, *_exc):
+        for sig, prev in self._prev.items():
+            try:
+                signal.signal(sig, prev)
+            except (ValueError, OSError):
+                # deliberate: teardown must not raise. A restore that fails leaves OUR handler in
+                # place, which reaps an already-dead proc on the next signal — a no-op that still
+                # re-raises — so nothing is hidden except the failure of the courtesy itself.
+                pass  # deliberate: teardown must not replace the caller's outcome with its own
+        return False  # never swallow: teardown does not get to decide the caller's exception
+
+
+def results_timeout_reason(timeout_sec, mutants_bytes=0):
+    """Why a run whose GENERATION and mutants completed but whose results pass hung is NOT_RUN.
+
+    The third phase, and it earns its own reason for the same purpose as `generation_timeout_reason`:
+    a reader must be able to tell WHICH phase ate the budget. Measured on #3202: with a surviving
+    mutmut child holding the pipe, `subprocess.run(..., capture_output=True, timeout=300)` does not
+    return at its timeout at all — the post-kill drain waits on an EOF a live writer never sends — so
+    this reason exists for the case where the pass is bounded and still cannot speak."""
+    grew = f", {mutants_bytes / (1024.0**2):.0f} MB of mutants on disk" if mutants_bytes > 0 else ""
+    return (
+        f"the mutants ran but `mutmut results` did not return inside {timeout_sec:.0f}s{grew}. NOT a "
+        f"verdict on the diff: the per-mutant outcomes are on disk and were never read, so nothing "
+        f"was killed and nothing survived as far as this run can say."
+    )
+
+
 def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=JOIN_SEC, phase_cap_sec=None, phase_done=None):
     """Drain `proc`'s stdout line by line into `on_line`, and KILL the child at `cap_sec`.
     Returns `(returncode, timed_out, phase_timed_out)` — ALWAYS three, never a shape that depends on
@@ -1218,8 +1405,7 @@ def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=JOIN_SEC, phase_cap
                 if not phase_done():
                     # Still in the first phase with its bound spent: this is the NOT_RUN case.
                     phase_timed_out = timed_out = True
-                    proc.kill()
-                    rc = proc.wait(timeout=REAP_SEC)
+                    rc = kill_process_group(proc)
                 else:
                     # The phase finished; the rest of the wall cap is the run's.
                     rc = proc.wait(timeout=cap_remaining(cap_sec, t0, time.monotonic()))
@@ -1227,8 +1413,7 @@ def stream_bounded(proc, cap_sec, on_line, t0=None, join_sec=JOIN_SEC, phase_cap
             rc = proc.wait(timeout=cap_remaining(cap_sec, t0, time.monotonic()))
     except subprocess.TimeoutExpired:
         timed_out = True
-        proc.kill()
-        rc = proc.wait(timeout=REAP_SEC)
+        rc = kill_process_group(proc)
     # Bounded join: a reader blocked on a pipe the kill did not close must not turn a refusal that
     # fired into a hang one frame later. Measured 2026-09-28 with a planted grandchild that inherits
     # stdout and outlives the kill — mutmut's worker shape: the call returns in cap + join, never hangs.
