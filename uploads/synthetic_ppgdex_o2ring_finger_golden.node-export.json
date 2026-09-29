@@ -51,8 +51,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "80b862e02881",
-        "computeHash": "3c4d3c663077"
+        "manifestHash": "8471c96c285e",
+        "computeHash": "7d13766cab23"
       },
       "evidence": {
         "envelopeRef": null,
@@ -81,8 +81,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "80b862e02881",
-        "computeHash": "3c4d3c663077"
+        "manifestHash": "8471c96c285e",
+        "computeHash": "7d13766cab23"
       },
       "evidence": {
         "envelopeRef": null,
@@ -185,6 +185,7 @@
   "apnea": {
     "cvhrIndex": null,
     "cvhrEvents": 0,
+    "cvhrReason": "beats 32 < 60",
     "cvhrMethod": "CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)",
     "cvhrTier": "emerging"
   },
