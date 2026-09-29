@@ -242,3 +242,55 @@ def test_qc_poller_reports_a_scope_fault_as_a_scope_fault(tmp_path, monkeypatch,
     assert any("SCOPE result, not a device fault" in m for m in msgs)
     assert any("2026-07-28 + 2026-07-27" in m for m in msgs), "the scope it searched must be named"
     assert sent == [], "a scope fault must not raise the night-has-a-gap alert"
+
+
+# ── data_quiet_s: the second of two questions that look alike ────────────────────────────────────────
+
+
+def test_the_quiet_is_measured_from_the_last_DEVICE_sample_not_the_last_file(tmp_path):
+    """`diskguard.active_nights` asks "is anything writing here" and counts ANY file — right for the
+    protect-lists that prune, mirror and archive read it as. This asks "has the DEVICE DATA gone quiet",
+    and a sidecar or a lifecycle file is not an answer to it. On vigil 2026-09-29 the live-vitals
+    `OXYLIFE.csv` kept `2026-09-28` "active" 11 h after its last sample."""
+    import time as _t
+
+    d = tmp_path / "2026-09-28"
+    d.mkdir()
+    cap = d / "Polar_H10_0284_20260928220000_ECG.txt"
+    cap.write_text("x\n")
+    old = _t.time() - 7200
+    os.utime(cap, (old, old))
+    (d / "OXYLIFE.csv").write_text("live\n")  # touched now — activity, not device data
+    q = nightqc.data_quiet_s(str(d))
+    assert 7100 <= q <= 7300, "the lifecycle append must not reset the quiet"
+
+
+def test_a_folder_with_no_capture_file_has_no_quiet_at_all(tmp_path):
+    """§∅: absence is null. `0.0` would read as "a sample just arrived" and a large number as "settled";
+    both are claims about a night that has produced nothing."""
+    d = tmp_path / "2026-09-29"
+    d.mkdir()
+    (d / "Tepna_20260929000000_LINK.csv").write_text("x\n")  # the midnight decoy: sidecars only
+    assert nightqc.data_quiet_s(str(d)) is None
+    assert nightqc.data_quiet_s(str(tmp_path / "does-not-exist")) is None
+
+
+def test_a_file_stamped_in_the_future_is_quiet_for_zero_not_a_negative_span(tmp_path):
+    import time as _t
+
+    d = tmp_path / "2026-09-30"
+    d.mkdir()
+    cap = d / "Polar_H10_0284_20260930220000_ECG.txt"
+    cap.write_text("x\n")
+    ahead = _t.time() + 600
+    os.utime(cap, (ahead, ahead))
+    assert nightqc.data_quiet_s(str(d)) == 0.0
+
+
+def test_the_clock_is_injectable_so_the_quiet_is_a_measurement_not_a_wall_clock_read(tmp_path):
+    d = tmp_path / "2026-09-30"
+    d.mkdir()
+    cap = d / "Polar_H10_0284_20260930220000_ECG.txt"
+    cap.write_text("x\n")
+    os.utime(cap, (1_000_000.0, 1_000_000.0))
+    assert nightqc.data_quiet_s(str(d), _now=lambda: 1_000_300.0) == 300.0

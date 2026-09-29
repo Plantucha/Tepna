@@ -1979,8 +1979,15 @@ function renderSolidNight(sn){
   pill.className = 'data-pill ' + (st === 'PASS' ? 'ok' : st === 'FAIL' ? 'bad'
                                  : pending || st === 'NOT_APPLICABLE' ? 'idle' : 'warn');
   txt.textContent = `${st} · ${sn.night || '—'}`;
-  det.textContent = sn.reason || '';
-  det.title = sn.reason || '';
+  // A PENDING night says WHEN, not just that it is pending: "still recording" and "you will know in 12
+  // min" are the operator's two questions at 07:00 and the card answered neither. Absent stays absent —
+  // a null quiet is a night whose data has no last sample, not a quiet of zero (§∅).
+  const mins = (x) => x == null ? null : (x < 90 ? `${Math.round(x)} s` : `${+(x/60).toFixed(1)} min`);
+  const when = pending && sn.quiet_s != null
+    ? ` — quiet ${mins(sn.quiet_s)}` + (sn.settles_in_s != null ? `, settles in ${mins(sn.settles_in_s)}` : '')
+    : '';
+  det.textContent = (sn.reason || '') + when;
+  det.title = det.textContent;
 }
 
 function renderStoragePill(st){

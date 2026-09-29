@@ -541,7 +541,11 @@ def make_app(
                 # operator asks each morning is whether last night counted and, if not, which term failed —
                 # and until this line existed the answer lived in a log line and a file on the box. Same
                 # reason as every block above it: published to STATUS and forwarded by nothing is not
-                # published. Null until the poller has composed a verdict for a settled night.
+                # published. Null only until the poller's first pass: a night still being captured is
+                # published as the composer's own UNKNOWN `not settled` — with `quiet_s` and
+                # `settles_in_s` beside it — rather than leaving the PREVIOUS night's verdict standing
+                # under the previous night's date, which is what an operator met every morning between
+                # doff and the audit.
                 "solid": status.get("solid"),
             }
         )

@@ -162,10 +162,10 @@ def _audit_writer(calls, write_file=True):
     return fake_write
 
 
-def _poll_once(monkeypatch, tmp_path):
+def _poll_once(monkeypatch, tmp_path, devices=()):
     capture._STOP = asyncio.Event()
     _stop_after(monkeypatch, 1)
-    _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
+    _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": list(devices)}, str(tmp_path)))
     capture._STOP.clear()
 
 
@@ -270,3 +270,95 @@ def test_CONTROL_a_night_whose_DATA_is_still_arriving_stays_INELIGIBLE(tmp_path,
     _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
     assert calls == [], "a night whose data is still arriving was judged"
     capture._STOP = asyncio.Event()
+
+
+# ── the pending statement: the night that has NOT settled ───────────────────────────────────────────
+
+
+def _cfg_devices():
+    return [{"name": "Polar H10 0284", "model": "H10"}]
+
+
+def test_a_night_still_receiving_data_is_published_as_pending_with_its_settle_countdown(tmp_path, monkeypatch):
+    """The morning case: between doff and the audit the surface had nothing new to say and kept the
+    PREVIOUS night's verdict under the previous night's date."""
+    _night(tmp_path, "2026-09-18")  # settled, audited by the loop
+    _night(tmp_path, "2026-09-19", data_age_s=120)  # still recording
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: {"2026-09-19"})
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
+    s = capture.STATUS["solid"]
+    assert s["night"] == "2026-09-19"
+    assert s["status"] == "UNKNOWN" and s["reason"] == capture.solid_night.NOT_SETTLED
+    assert 110 <= s["quiet_s"] <= 130
+    # The window is the config's, not a number spelled twice: `settles_in_s` is what is LEFT of it.
+    assert s["quiet_s"] + s["settles_in_s"] == capture._NIGHT_SETTLE_S
+    assert not (tmp_path / "captures" / "2026-09-19" / capture.solid_night.VERDICT_NAME).exists()
+
+
+def test_the_live_vitals_file_in_last_nights_folder_does_not_nominate_it_as_pending(tmp_path, monkeypatch):
+    """The box's own state, 2026-09-29: `OXYLIFE.csv` is appended into the session's START-date folder for
+    as long as the run lasts, so `2026-09-28` was `active` 11 h after its last device sample and 8 h after
+    its own verdict. Nominating on `active` would have replaced that verdict with "pending" all day."""
+    d = _night(tmp_path, "2026-09-28")  # device data 2 h quiet
+    (d / "OXYLIFE.csv").write_text("live\n")  # touched seconds ago — activity, but not device data
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: {"2026-09-28"})
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
+    # ⚠️ ASSERTED ON THE PENDING SHAPE, not on the key's absence. Before #3252 this night was ineligible
+    # and nothing was published at all, so `"solid" not in STATUS` said what was meant. #3252 made a
+    # night judgeable when its DATA goes quiet, so it now gets a REAL verdict here — which is the right
+    # outcome and the opposite of the defect. What must still never happen is the PENDING publication,
+    # and `settles_in_s` is the only key that distinguishes it (a verdict is a statement about the night;
+    # the settle countdown is a statement about the clock it is read at).
+    published = capture.STATUS.get("solid") or {}
+    assert published.get("night") == "2026-09-28", published
+    assert "settles_in_s" not in published, "a lifecycle append is not a reason to call a night pending"
+    assert published.get("reason") != "not settled", published
+
+
+def test_a_pending_night_older_than_what_is_published_does_not_pull_the_surface_back(tmp_path, monkeypatch):
+    _night(tmp_path, "2026-09-18", data_age_s=60)
+    monkeypatch.setattr(capture, "STATUS", {"solid": {"night": "2026-09-19", "status": "FAIL"}})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: {"2026-09-18"})
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
+    assert capture.STATUS["solid"] == {"night": "2026-09-19", "status": "FAIL"}
+
+
+def test_a_folder_with_no_device_data_is_never_the_pending_night(tmp_path, monkeypatch):
+    """The midnight decoy: at 00:00 the box creates tomorrow's folder and writes SIDECARS into it while
+    every sensor keeps appending to the session's start-date folder."""
+    _night(tmp_path, "2026-09-18", data_age_s=60)
+    d = tmp_path / "captures" / "2026-09-19"
+    d.mkdir(parents=True)
+    (d / "Tepna_20260919000000_LINK.csv").write_text("x\n")  # a sidecar, and lexically newer
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: {"2026-09-18", "2026-09-19"})
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
+    assert capture.STATUS["solid"]["night"] == "2026-09-18"
+
+
+def test_a_pending_verdict_that_cannot_be_composed_is_logged_and_nothing_is_published(tmp_path, monkeypatch, caplog):
+    _night(tmp_path, "2026-09-19", data_age_s=60)
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: {"2026-09-19"})
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    monkeypatch.setattr(
+        capture.solid_night, "pending_verdict", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    with caplog.at_level("WARNING"):
+        _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
+    assert any("solid-night: 2026-09-19 — pending verdict not composed" in r.getMessage() for r in caplog.records)
+    assert "solid" not in capture.STATUS
+
+
+def test_an_empty_captures_tree_publishes_nothing_rather_than_a_night_shaped_null(tmp_path, monkeypatch):
+    (tmp_path / "captures").mkdir(parents=True)
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
+    assert "solid" not in capture.STATUS
