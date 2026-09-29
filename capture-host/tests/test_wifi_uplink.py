@@ -179,7 +179,11 @@ def test_A_NONZERO_HELPER_EXIT_IS_SURFACED_WITH_ITS_STDERR(stub_helper):
 def test_A_HELPER_THAT_HANGS_IS_KILLED_AND_REPORTED(stub_helper):
     # A wedged supplicant must not wedge the daemon. The timeout is the only thing standing between a
     # hung `wpa_cli` and a monitor that never answers again.
-    stub_helper("sleep 30\n")
+    # 3 s, not 30: the bound under test is 0.5 s, so three is already six times the margin — and
+    # the length of this sleep is how long the suite takes when the bound is GONE. The mutant that
+    # drops the timeout was killed here in 60 s, which under mutmut is not a kill at all but a
+    # TIMEOUT, scored UNDECIDED. A test must fail FAST on the mutant it catches, not eventually.
+    stub_helper("sleep 3\n")
     rc, _out, err = asyncio.run(U._run("scan", timeout=0.5))
     assert rc == 124 and "timed out" in err
 
@@ -215,7 +219,7 @@ def test_A_PROCESS_THAT_DIES_DURING_ITS_OWN_TIMEOUT_KILL_IS_NOT_AN_ERROR(monkeyp
         returncode = None
 
         async def communicate(self, _stdin=None):
-            await asyncio.sleep(30)
+            await asyncio.sleep(3)  # see the note on the sleep above: long enough to bound, short enough to fail fast
 
         def kill(self):
             raise ProcessLookupError("already reaped")
@@ -349,3 +353,83 @@ def test_THE_SUPPLICANTS_OWN_ADDRESS_WINS_WHEN_IT_HAS_ONE():
 def test_NO_ADDRESS_ANYWHERE_STAYS_NONE_RATHER_THAN_GUESSING():
     st = asyncio.run(U.status(runner=Recorder(out="wpa_state=SCANNING\nwlp1s0  DOWN\n")))
     assert st["ip"] is None
+
+
+# ── what the PRIVILEGED INVOCATION actually hands out ─────────────────────────────────────────────
+# The four tests above drive the real path, but every one of them stubs `resolve` and `grant_warning`
+# with argument-ignoring lambdas and sets `SUDO = ()` — so the helper NAME, the path handed to the
+# safety check, and the privilege prefix were all unobserved. The 2026-09-28 reformat put `_run` in
+# the diff-scoped mutation gate's scope for the first time and three mutants walked straight through:
+# `resolve(None)`, `grant_warning(None)` and a dropped `*SUDO`. None is equivalent; all three are this
+# function's whole job. These assert the call as the OS would see it, with no process started.
+def _record_exec(monkeypatch, returncode=0, out=b"", err=b""):
+    """Capture the argv `_run` would execute, without executing anything."""
+    seen = {}
+
+    class Fake:
+        def __init__(self):
+            self.returncode = returncode
+
+        async def communicate(self, _stdin=None):
+            return out, err
+
+    async def _exec(*argv, **_kw):
+        seen["argv"] = argv
+        return Fake()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _exec)
+    return seen
+
+
+def test_THE_HELPER_IS_RESOLVED_BY_NAME_AND_THAT_PATH_IS_WHAT_IS_SAFETY_CHECKED(monkeypatch):
+    asked, checked = [], []
+    monkeypatch.setattr(U.helper_path, "resolve", lambda n: asked.append(n) or "/opt/tepna/tepna-wifi.sh")
+    monkeypatch.setattr(U.helper_path, "grant_warning", lambda p: checked.append(p) or None)
+    seen = _record_exec(monkeypatch)
+    asyncio.run(U._run("status"))
+    # Resolving anything else — `resolve(None)` survived here — either finds nothing or finds a
+    # DIFFERENT executable, and this function's argument is a path that is about to be run as root.
+    assert asked == [U.HELPER], "the helper is resolved by its own name"
+    # And the safety check must see the path that will actually be executed, not some other value:
+    # `grant_warning(None)` survived, and under it a user-writable helper would be run under sudo.
+    assert checked == ["/opt/tepna/tepna-wifi.sh"]
+    assert seen["argv"][-2:] == ("/opt/tepna/tepna-wifi.sh", "status"), "and it is that path that gets executed"
+
+
+def test_THE_PRIVILEGE_PREFIX_IS_PART_OF_THE_ARGV(monkeypatch):
+    # Every other real-path test sets `SUDO = ()` so it can run unprivileged, which left DROPPING the
+    # prefix invisible — the mutant that deletes `*SUDO,` survived. This one keeps the real constant
+    # and asserts the shape of the command line instead of running it.
+    monkeypatch.setattr(U.helper_path, "resolve", lambda _n: "/opt/tepna/tepna-wifi.sh")
+    monkeypatch.setattr(U.helper_path, "grant_warning", lambda _p: None)
+    seen = _record_exec(monkeypatch)
+    asyncio.run(U._run("join", ["Hotel Wifi", 5]))
+    assert seen["argv"] == ("sudo", "-n", "/opt/tepna/tepna-wifi.sh", "join", "Hotel Wifi", "5")
+    # `-n` is load-bearing: without it sudo would PROMPT, and a daemon has no terminal to prompt on.
+    assert U.SUDO == ("sudo", "-n")
+
+
+def test_THE_REQUESTED_DEADLINE_IS_THE_ONE_HANDED_TO_THE_HELPER(monkeypatch):
+    """The bound must be OBSERVED, not waited out.
+
+    `proc_util.communicate(proc, timeout, …)` → `(proc, None, …)` removes the bound entirely, and a
+    test that proves the bound by hanging cannot kill it: an unbounded mutant runs LONGER, and mutmut
+    scores a slow mutant as a TIMEOUT — UNDECIDED, which is unmeasured, not killed. So this asserts
+    the deadline that was REQUESTED, and finishes instantly for every mutant."""
+    got = {}
+
+    async def _fake_comm(proc, timeout, stdin=None):
+        got["timeout"] = timeout
+        got["stdin"] = stdin
+        return b"", b""
+
+    monkeypatch.setattr(U.helper_path, "resolve", lambda _n: "/opt/tepna/tepna-wifi.sh")
+    monkeypatch.setattr(U.helper_path, "grant_warning", lambda _p: None)
+    monkeypatch.setattr(U.proc_util, "communicate", _fake_comm)
+    _record_exec(monkeypatch)
+    asyncio.run(U._run("scan", timeout=U.SCAN_TIMEOUT))
+    assert got["timeout"] == U.SCAN_TIMEOUT, "an unbounded call is a wedged daemon, not a slow one"
+    # And each caller's own constant reaches it — they are not interchangeable.
+    asyncio.run(U._run("join", ["x"], stdin_text="psk\n", timeout=U.JOIN_TIMEOUT))
+    assert got["timeout"] == U.JOIN_TIMEOUT
+    assert got["stdin"] == b"psk\n", "the PSK travels on stdin, never in argv"
