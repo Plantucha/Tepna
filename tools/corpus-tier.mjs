@@ -60,15 +60,65 @@
  * tiered and the marker kept local: the run #2784's byte audit did by hand, as the tool's own check.
  */
 import { createHash } from 'node:crypto';
-import { createReadStream, promises as fs } from 'node:fs';
+import { createReadStream, promises as fs, statSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/* ── THE CHECKOUT ROOT, WHICH IS NOT ALWAYS ONE LEVEL ABOVE THIS FILE ───────────────────────────
+   `import.meta.url` is this file's path when the tool is run as a file, and the CWD when it is run
+   from stdin — `git show origin/main:tools/corpus-tier.mjs | node --input-type=module -`, which is
+   how a caller pins the tool to a REF rather than to the working tree. In that case
+   `dirname(import.meta.url)` is wherever the caller happened to stand, so `../verdict.js` resolved
+   against it points at a sibling of the CWD and the tool dies before doing anything:
+
+     Error: Cannot find module '/tmp/<wherever-the-caller-stood>/verdict.js'
+
+   Resolution is therefore by SEARCH, not by arithmetic on this file's location, and it refuses
+   rather than guessing:
+     1. `TEPNA_ROOT`, for a caller that knows (a unit, a harness, a worktree-aware script);
+     2. else walk UP from this file's parent and then from the CWD, to the first directory holding
+        `verdict.js` AND `package.json` — BOTH, because either alone matches too much;
+     3. else REFUSE, naming everything that was tried. A tool that cannot find its own spine must not
+        fall back to a path that might exist and belong to a different checkout. */
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const Verdict = createRequire(import.meta.url)(path.join(HERE, '..', 'verdict.js'));
+function findCheckoutRoot() {
+  const tried = [];
+  const holdsSpine = (d) => {
+    try {
+      return statSync(path.join(d, 'verdict.js')).isFile() && statSync(path.join(d, 'package.json')).isFile();
+    } catch {
+      return false;
+    }
+  };
+  if (process.env.TEPNA_ROOT) {
+    const r = path.resolve(process.env.TEPNA_ROOT);
+    if (holdsSpine(r)) return r;
+    tried.push('TEPNA_ROOT=' + r);
+  } else {
+    tried.push('TEPNA_ROOT (unset)');
+  }
+  /* This file's own parent FIRST, so the ordinary invocation stays independent of where the caller
+     stands; the CWD only matters under a pipe, where the first is meaningless. */
+  for (const start of [path.join(HERE, '..'), process.cwd()]) {
+    let d = path.resolve(start);
+    for (;;) {
+      if (holdsSpine(d)) return d;
+      const up = path.dirname(d);
+      if (up === d) break;
+      d = up;
+    }
+    tried.push('walked up from ' + path.resolve(start));
+  }
+  console.error('✕ corpus-tier: cannot find the checkout root — no directory holds BOTH verdict.js and package.json.');
+  console.error('  tried: ' + tried.join(' · '));
+  console.error('  Set TEPNA_ROOT=<checkout>, or run from inside one. Nothing was read and nothing was written.');
+  process.exit(2);
+}
+const ROOT = findCheckoutRoot();
+const Verdict = createRequire(path.join(ROOT, 'package.json'))(path.join(ROOT, 'verdict.js'));
 
 const args = process.argv.slice(2);
 const opt = (k, d) => {
@@ -151,8 +201,37 @@ async function selftest() {
     (st) => st.isFile() && st.size === 0,
     () => false
   );
+  /* ── THE PIPED INVOCATION, WHICH IS HOW A CALLER PINS THIS TOOL TO A REF ────────────────────────
+     `git show origin/main:tools/corpus-tier.mjs | node --input-type=module -` used to die before
+     doing anything, because `import.meta.url` is the CWD under a pipe. Driven as REAL child
+     processes from a temp cwd, because that is the only place the bug lives — the resolution reads
+     correct by inspection and was wrong in practice.
+
+     The tool's own arguments are deliberately invalid: what is under test is whether the module
+     LOADS, and reaching its own "not an NFS mountpoint" refusal proves it did. `Cannot find module`
+     means it did not. */
+  const srcText = await fs.readFile(fileURLToPath(import.meta.url), 'utf8');
+  const foreign = await fs.mkdtemp(path.join(os.tmpdir(), 'corpus-tier-foreign-'));
+  const pipeRun = (env) =>
+    spawnSync(process.execPath, ['--input-type=module', '-', '--src', path.join(foreign, 'nope'), '--nas', path.join(foreign, 'nope2'), '--json'], {
+      input: srcText,
+      cwd: foreign,
+      encoding: 'utf8',
+      env: { ...process.env, ...env }
+    });
+  const piped = pipeRun({ TEPNA_ROOT: ROOT });
+  const pipedNoRoot = pipeRun({ TEPNA_ROOT: '' });
+  await fs.rm(foreign, { recursive: true, force: true });
+  const loadedUnderPipe = !/Cannot find module/.test(String(piped.stderr) + String(piped.stdout));
+  const refusedNamingBoth = /cannot find the checkout root/.test(String(pipedNoRoot.stderr)) && /TEPNA_ROOT/.test(String(pipedNoRoot.stderr)) && /walked up from/.test(String(pipedNoRoot.stderr));
+
   const res = child && child.result ? child.result : {};
   const checks = {
+    /* ANTI-VACUITY: an empty stdout AND stderr would make both checks below pass by examining
+       nothing — the examined-nothing shape, in a plant. */
+    pipedChildActuallyRan: !!(String(piped.stdout) + String(piped.stderr)).trim(),
+    pipedRunResolvesItsSpine: loadedUnderPipe,
+    pipedWithNoRootRefusesNamingBoth: refusedNamingBoth,
     childVerdictFAILNamingThePlant: !!(child && child.status === 'FAIL' && /plant\.dat: sha256 differs/.test(child.reason || '')),
     controlTiered: control && res.replaced === 1,
     plantRefusedAndLeftLocal: plantLocal && res.refused === 1,
