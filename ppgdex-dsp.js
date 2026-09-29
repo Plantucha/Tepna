@@ -2603,8 +2603,14 @@
      produced one.
      Measured 2026-08-18: latent on real data (0 of 44 corpus nights trip it, because cvhrFromNN
      runs once per RECORD, not per epoch) but ACTIVE in the committed fixtures —
-     `synthetic_ppgdex_inverted_golden.node-export.json` is 39.99 s, so `M = 39 < 120`, and its
-     `cvhrIndex: 0` is this guard's fabricated value, byte-pinned and enforced by GATE-B.
+     `synthetic_ppgdex_inverted_golden.node-export.json` is 39.99 s and its `cvhrIndex` is this
+     guard's fabricated value, byte-pinned and enforced by GATE-B.
+     ⚠️ CORRECTED 2026-09-29: this said "so `M = 39 < 120`", naming the SPAN guard. It is not that one —
+     the record yields 42 beats, so the BEAT-COUNT guard fires first and the span check is never
+     reached. Now measurable rather than inferred: the regenerated golden reads
+     `apnea.cvhrReason: "beats 42 < 60"`. That a comment written about these guards misattributed which
+     one fired is the plainest argument for naming them, and it is why the reason is now forwarded to
+     the export block the Integrator reads.
      `events` stays `[]`: the event list genuinely is empty, and a list's absence is not a number
      awaiting measurement. Only the INDEX becomes null. */
   // DEEP-AUDIT-VI F10 — upper bound on a beat-time span before a consumer sizes arrays from it. TWO
@@ -2626,12 +2632,29 @@
      and the corroboration measures the dropouts, not the physiology. */
   function cvhrFromNN(nn, tt, activeSec) {
     const N = nn.length;
-    if (N < 60 || !tt || tt.length !== N) return { events: [], index: null };
+    /* ── EVERY REFUSAL NAMES ITSELF, WITH THE QUANTITY AND THE BOUND (§∅, residue
+       2026-09-29-ppgdex-cvhr-nulls-without-naming-which-guard-fired) ─────────────────────────────────
+       Two of these three guards used to return a bare `{ events: [], index: null }`, so a consumer
+       reading `cvhrIndex: null` could not tell a short recording from an internal inconsistency — and
+       `cvhrReason` is exported only when it exists, so all of them arrived as the same silent null.
+       Measured 2026-09-29: three of the six committed PpgDex fixtures carry exactly that unnamed null,
+       and a 23-night CVHR re-score hit it on 1 of 45 Verity fragments with nothing to report.
+
+       ⚠️ THE STRUCTURAL CHECKS COME FIRST, and that is a deliberate reordering. The old condition was
+       `N < 60 || !tt || tt.length !== N`, so "too few beats" won whenever both held. But a missing `tt`
+       or a `tt`/`nn` length mismatch is an INTERNAL INCONSISTENCY — a bug signal from this file's own
+       callers — while fewer than 60 beats is an ordinary short recording. When both are true the
+       inconsistency is the more important fact, so it is the one reported. The refusal itself is
+       unchanged in every case: `index: null` and `events: []`, exactly as before. */
+    if (!tt) return { events: [], index: null, reason: 'no beat-time series — tt absent' };
+    if (tt.length !== N) return { events: [], index: null, reason: 'tt/nn length mismatch ' + tt.length + ' ≠ ' + N };
+    if (N < 60) return { events: [], index: null, reason: 'beats ' + N + ' < 60' };
     const tEnd = tt[N - 1];
     // F10 — refuse an implausible SPAN before `M` sizes six arrays from it (see PPG_MAX_SPAN_S).
     if (!isFinite(tEnd) || tEnd > PPG_MAX_SPAN_S) return { events: [], index: null, reason: 'implausible-span' };
     const M = Math.floor(tEnd);
-    if (M < 120) return { events: [], index: null }; // < 2 min → no apnea-band train can be RESOLVED, so no index exists
+    // < 2 min → no apnea-band train can be RESOLVED, so no index exists
+    if (M < 120) return { events: [], index: null, reason: 'span ' + M + ' s < 120 s' };
     const hr = new Float64Array(M);
     let j = 0;
     for (let s = 0; s < M; s++) {
@@ -6134,6 +6157,14 @@
            nodes; without the denominator a consumer cannot tell a 5 /h from a 40 % covered night
            apart from a 5 /h from a clean one. */
         ...(r.cvhrIndex != null && r.cvhrDenomSec > 0 ? { cvhrHours: +(r.cvhrDenomSec / 3600).toFixed(2) } : {}),
+        /* 🔴 AND WHY, WHEN THERE IS NO INDEX. Naming the guards is inert without this line: `analyze`
+           carries `cvhrReason`, and this block — the one the Integrator actually reads
+           (`json.apnea.cvhrIndex`) — did not forward it, so every refusal reached a consumer as a bare
+           null no matter which guard fired. Measured 2026-09-29: all three committed PpgDex goldens whose
+           index is null carried NO reason for that reason, not because the guard was silent. Same
+           condition as `cvhrHours` above and for the same reason — attached only when it applies, so a
+           night with an index carries no field it does not need. */
+        ...(r.cvhrIndex == null && r.cvhrReason ? { cvhrReason: r.cvhrReason } : {}),
         cvhrMethod: 'CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)',
         cvhrTier: 'emerging'
       };

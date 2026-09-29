@@ -9983,6 +9983,98 @@
       var brief = run(90, { cvhrPeriodSec: 40, cvhrDepth: 0.18 });
       T.eq('a 90 s recording refuses rather than guessing', brief.cvhrIndex, null);
       T.eq('…and reports no events', brief.cvhrEvents, 0);
+
+      /* ── 6 · EVERY REFUSAL NAMES WHICH GUARD FIRED ───────────────────────────────────────────────
+         Residue `2026-09-29-ppgdex-cvhr-nulls-without-naming-which-guard-fired`. Two of `cvhrFromNN`'s
+         three guards returned a bare `{ events: [], index: null }`, and `cvhrReason` is exported only
+         when it exists, so a consumer reading `cvhrIndex: null` could not tell a short recording from an
+         internal inconsistency. Three of the six committed PpgDex fixtures carried exactly that unnamed
+         null, and a 23-night CVHR re-score (#3217) hit it on 1 of 45 Verity fragments with nothing to
+         report — which is how it was found.
+
+         The first two plants drive the REAL path (`ppg()` text → `parsePPG` → `analyze`), so the nn/tt
+         they refuse on are the ones production builds. The last two CANNOT: a missing `tt` and a
+         `tt`/`nn` length mismatch are internal inconsistencies that `buildPPI` never produces — that is
+         precisely why they are worth naming — so they are constructed from a REAL run's series and
+         perturbed, never hand-typed. Said plainly rather than left for a reader to infer. */
+      var short40 = run(40, {});
+      T.ok(
+        'ANTI-VACUITY · the 40 s record really does reach the beat-count guard',
+        short40.cvhrIndex == null && short40.nBeats != null && short40.nBeats < 60,
+        'nBeats=' + short40.nBeats + ' cvhrIndex=' + short40.cvhrIndex
+      );
+      T.ok('a too-short beat train names the COUNT and the bound', /^beats \d+ < 60$/.test(short40.cvhrReason || ''), short40.cvhrReason);
+
+      /* A 100 s record clears the 60-beat guard and refuses on the SPAN. ⚠️ An earlier version of this
+         leg used 150 s and an `||` escape, and PASSED VACUOUSLY: at 150 s the record publishes an index,
+         so the disjunction was satisfied without the span guard ever firing. The anti-vacuity assertion
+         below is what makes the refusal arm real — it names which guard was reached. */
+      var span60 = run(100, {});
+      T.ok('ANTI-VACUITY · the 100 s record clears the beat-count guard, so the SPAN guard is what it meets', span60.nBeats >= 60, 'nBeats=' + span60.nBeats);
+      T.ok(
+        'a span under two minutes names the SPAN and the bound',
+        span60.cvhrIndex === null && /^span \d+ s < 120 s$/.test(span60.cvhrReason || ''),
+        'nBeats=' + span60.nBeats + ' reason=' + span60.cvhrReason
+      );
+
+      /* The two structural guards, reached through the exported kernel with a REAL series perturbed. */
+      if (typeof P.cvhrFromNN !== 'function') T.ok('cvhrFromNN is exported so the structural guards can be reached', false, 'not exported');
+      else {
+        var real = P.analyze(P.parsePPG(ppg(400, { cvhrPeriodSec: 40, cvhrDepth: 0.18 }), undefined), null);
+        var nn = real.nnCorrected || real.nn || null;
+        var tt = real.ttCorrected || real.tt || null;
+        T.ok(
+          'ANTI-VACUITY · a real run yields the nn/tt series these guards judge',
+          !!(nn && tt && nn.length === tt.length && nn.length >= 60),
+          'nn=' + (nn && nn.length) + ' tt=' + (tt && tt.length)
+        );
+        if (nn && tt && nn.length === tt.length && nn.length >= 60) {
+          var noTt = P.cvhrFromNN(nn, undefined, 0);
+          T.ok('an ABSENT beat-time series says so, rather than reading as a short recording', noTt.index === null && /tt absent/.test(noTt.reason || ''), JSON.stringify(noTt.reason));
+          var cut = P.cvhrFromNN(nn, tt.slice(0, tt.length - 1), 0);
+          T.ok(
+            'a tt/nn LENGTH MISMATCH names both lengths — an internal inconsistency, not a short night',
+            cut.index === null && /^tt\/nn length mismatch \d+ ≠ \d+$/.test(cut.reason || ''),
+            cut.reason
+          );
+          /* 🔴 THE REORDERING IS THE POINT. The old condition was `N < 60 || !tt || tt.length !== N`, so
+             "too few beats" won whenever both held and the inconsistency was invisible. A 40-beat series
+             WITH a mismatched tt must now report the mismatch: the bug signal outranks the ordinary
+             short recording. On origin/main this leg reads `beats 40 < 60`. */
+          var both = P.cvhrFromNN(nn.slice(0, 40), tt.slice(0, 39), 0);
+          T.ok('…and when BOTH hold, the inconsistency is reported rather than the short count', /length mismatch/.test(both.reason || ''), both.reason);
+          /* Every refusal path is now named — asserted as a SET, so a fourth added later without a
+             reason is visible here rather than in a corpus re-score six days on. */
+          var paths = [P.cvhrFromNN([], tt, 0), noTt, cut, P.cvhrFromNN(nn.slice(0, 40), tt.slice(0, 40), 0)];
+          T.eq(
+            'no refusal path returns a null index with no reason',
+            paths.filter(function (r) {
+              return r.index === null && !r.reason;
+            }).length,
+            0,
+            JSON.stringify(
+              paths.map(function (r) {
+                return r.reason || 'UNNAMED';
+              })
+            )
+          );
+        }
+      }
+
+      /* ── CONTROL · a night that publishes an index carries NO reason field at all ────────────────
+         Presence stays conditional in this unit: a reason appears exactly when the index is null. The
+         export site's own comment justifies that conditional as "present ONLY when the span refusal
+         fired, so a refused null is told apart from a too-short one" — a rationale that is OBSOLETE now
+         that every refusal names itself, and which uses key presence to encode which guard fired. Making
+         `cvhrReason` unconditional would move the shape of nights that publish a perfectly good index,
+         so it is left as a follow-up candidate rather than folded in here. */
+      /* ⚠️ THE OPTION NAMES ARE THE GENERATOR'S, READ NOT GUESSED. This first read `{ per, depth }`,
+         which `ppg()` ignores, so the record was FLAT — and a flat record's honest answer IS
+         `cvhrIndex: 0` (pinned at the top of this group), which made the control fail against its own
+         `> 0`. The names are `cvhrPeriodSec` / `cvhrDepth`. */
+      var full = run(400, { cvhrPeriodSec: 40, cvhrDepth: 0.18 });
+      T.ok('CONTROL · a 400 s record with a real 40 s cycle publishes an index', full.cvhrIndex != null && full.cvhrIndex > 0, 'cvhrIndex=' + full.cvhrIndex);
+      T.ok('CONTROL · …and carries NO cvhrReason key — a reason appears exactly when the index is null', !('cvhrReason' in full), 'cvhrReason=' + JSON.stringify(full.cvhrReason));
     });
 
     /* DEEP-AUDIT-VI F10 — two unguarded siblings of the span refusals ECGDex received in #1800/#2030.

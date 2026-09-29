@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="956afc33bd71" data-compute-hash="078471cae5d3"><head>
+<html lang="en" data-manifest-hash="297d1f5c12dc" data-compute-hash="c7f408ec5816"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-K6Ew7pkxxVb/RqSGtD1UEcHPe/FR49HrsZSaJkWaUeY=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fJnV5W2XQ9trfLmB6Z/j1/okJF0+geeCapmteSAVrf8=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-mChfJ8uxCBfOu4ff0qJdSXD9srxAbGUrTwhfqP9E/5E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-K6Ew7pkxxVb/RqSGtD1UEcHPe/FR49HrsZSaJkWaUeY=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fJnV5W2XQ9trfLmB6Z/j1/okJF0+geeCapmteSAVrf8=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i4zZKqqUFx4Smi1oI0/x3h2nIQUfUoASR9+8YYOl+Fg=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -29413,8 +29413,14 @@ __exports.GlucoDex = window.GlucoDex;
      produced one.
      Measured 2026-08-18: latent on real data (0 of 44 corpus nights trip it, because cvhrFromNN
      runs once per RECORD, not per epoch) but ACTIVE in the committed fixtures —
-     `synthetic_ppgdex_inverted_golden.node-export.json` is 39.99 s, so `M = 39 < 120`, and its
-     `cvhrIndex: 0` is this guard's fabricated value, byte-pinned and enforced by GATE-B.
+     `synthetic_ppgdex_inverted_golden.node-export.json` is 39.99 s and its `cvhrIndex` is this
+     guard's fabricated value, byte-pinned and enforced by GATE-B.
+     ⚠️ CORRECTED 2026-09-29: this said "so `M = 39 < 120`", naming the SPAN guard. It is not that one —
+     the record yields 42 beats, so the BEAT-COUNT guard fires first and the span check is never
+     reached. Now measurable rather than inferred: the regenerated golden reads
+     `apnea.cvhrReason: "beats 42 < 60"`. That a comment written about these guards misattributed which
+     one fired is the plainest argument for naming them, and it is why the reason is now forwarded to
+     the export block the Integrator reads.
      `events` stays `[]`: the event list genuinely is empty, and a list's absence is not a number
      awaiting measurement. Only the INDEX becomes null. */
   // DEEP-AUDIT-VI F10 — upper bound on a beat-time span before a consumer sizes arrays from it. TWO
@@ -29436,12 +29442,29 @@ __exports.GlucoDex = window.GlucoDex;
      and the corroboration measures the dropouts, not the physiology. */
   function cvhrFromNN(nn, tt, activeSec) {
     const N = nn.length;
-    if (N < 60 || !tt || tt.length !== N) return { events: [], index: null };
+    /* ── EVERY REFUSAL NAMES ITSELF, WITH THE QUANTITY AND THE BOUND (§∅, residue
+       2026-09-29-ppgdex-cvhr-nulls-without-naming-which-guard-fired) ─────────────────────────────────
+       Two of these three guards used to return a bare `{ events: [], index: null }`, so a consumer
+       reading `cvhrIndex: null` could not tell a short recording from an internal inconsistency — and
+       `cvhrReason` is exported only when it exists, so all of them arrived as the same silent null.
+       Measured 2026-09-29: three of the six committed PpgDex fixtures carry exactly that unnamed null,
+       and a 23-night CVHR re-score hit it on 1 of 45 Verity fragments with nothing to report.
+
+       ⚠️ THE STRUCTURAL CHECKS COME FIRST, and that is a deliberate reordering. The old condition was
+       `N < 60 || !tt || tt.length !== N`, so "too few beats" won whenever both held. But a missing `tt`
+       or a `tt`/`nn` length mismatch is an INTERNAL INCONSISTENCY — a bug signal from this file's own
+       callers — while fewer than 60 beats is an ordinary short recording. When both are true the
+       inconsistency is the more important fact, so it is the one reported. The refusal itself is
+       unchanged in every case: `index: null` and `events: []`, exactly as before. */
+    if (!tt) return { events: [], index: null, reason: 'no beat-time series — tt absent' };
+    if (tt.length !== N) return { events: [], index: null, reason: 'tt/nn length mismatch ' + tt.length + ' ≠ ' + N };
+    if (N < 60) return { events: [], index: null, reason: 'beats ' + N + ' < 60' };
     const tEnd = tt[N - 1];
     // F10 — refuse an implausible SPAN before `M` sizes six arrays from it (see PPG_MAX_SPAN_S).
     if (!isFinite(tEnd) || tEnd > PPG_MAX_SPAN_S) return { events: [], index: null, reason: 'implausible-span' };
     const M = Math.floor(tEnd);
-    if (M < 120) return { events: [], index: null }; // < 2 min → no apnea-band train can be RESOLVED, so no index exists
+    // < 2 min → no apnea-band train can be RESOLVED, so no index exists
+    if (M < 120) return { events: [], index: null, reason: 'span ' + M + ' s < 120 s' };
     const hr = new Float64Array(M);
     let j = 0;
     for (let s = 0; s < M; s++) {
@@ -32944,6 +32967,14 @@ __exports.GlucoDex = window.GlucoDex;
            nodes; without the denominator a consumer cannot tell a 5 /h from a 40 % covered night
            apart from a 5 /h from a clean one. */
         ...(r.cvhrIndex != null && r.cvhrDenomSec > 0 ? { cvhrHours: +(r.cvhrDenomSec / 3600).toFixed(2) } : {}),
+        /* 🔴 AND WHY, WHEN THERE IS NO INDEX. Naming the guards is inert without this line: `analyze`
+           carries `cvhrReason`, and this block — the one the Integrator actually reads
+           (`json.apnea.cvhrIndex`) — did not forward it, so every refusal reached a consumer as a bare
+           null no matter which guard fired. Measured 2026-09-29: all three committed PpgDex goldens whose
+           index is null carried NO reason for that reason, not because the guard was silent. Same
+           condition as `cvhrHours` above and for the same reason — attached only when it applies, so a
+           night with an index carries no field it does not need. */
+        ...(r.cvhrIndex == null && r.cvhrReason ? { cvhrReason: r.cvhrReason } : {}),
         cvhrMethod: 'CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)',
         cvhrTier: 'emerging'
       };
