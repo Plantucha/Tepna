@@ -2719,3 +2719,50 @@ def test_the_refusal_reason_is_a_sentence_a_reader_can_act_on():
     ):
         why = M.unmeasured_zero(scan)
         assert why and why[0].islower() and scan["helper"] in why and len(why) > 40
+
+
+def test_the_refusal_NAMES_THE_GLOB_when_the_scan_carries_one():
+    """Seven mutants survived on the two label lines because every test above asserted the HELPER and
+    none asserted the glob. A refusal that says "generated_under_glob examined an empty population"
+    without saying *for which function* sends the reader to a 2000-line module with no starting point,
+    and on a run with several globs it is not even attributable."""
+    why = M.unmeasured_zero(
+        {
+            "helper": "generated_under_glob",
+            "glob": "wifi_uplink.x__run__mutmut_*",
+            "matched": 0,
+            "corroborated": 0,
+            "examined": 0,
+            "registered": 0,
+            "sourceBytes": 0,
+        }
+    )
+    assert "wifi_uplink.x__run__mutmut_*" in why
+    assert "for wifi_uplink.x__run__mutmut_*" in why, "and reads as a sentence, not a bare token"
+
+
+def test_a_scan_WITHOUT_a_glob_does_not_say_for_None():
+    """The other half of the same line. `where` is conditional precisely so a scan with no glob reads
+    cleanly; dropping the condition prints `for None`, which looks like a function actually called
+    None and is worse than saying nothing."""
+    why = M.unmeasured_zero(
+        {
+            "helper": "generated_under_glob",
+            "matched": 0,
+            "corroborated": 0,
+            "examined": 0,
+            "registered": 0,
+            "sourceBytes": 0,
+        }
+    )
+    assert why is not None
+    assert "None" not in why, "no stray None leaks into a message a human reads"
+    assert why.startswith("generated_under_glob read an absent")
+
+
+def test_a_scan_with_NO_HELPER_still_produces_a_readable_refusal():
+    """The `scan.get` default. A scan from a future caller that omits the key must not produce
+    "None examined an empty population" — the fallback is what keeps the sentence a sentence."""
+    why = M.unmeasured_zero({"matched": 0, "examined": 0})
+    assert why is not None and "None" not in why
+    assert why.startswith("a counting helper"), "the fallback label, not the absence of one"

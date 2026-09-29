@@ -6,6 +6,10 @@
 # signal — a crash's all-null meta, a test-tree change — and asserts the detector sees it, per the
 # brief's rule: run it against the real failure before believing it.
 import json
+import os
+import pathlib
+import subprocess
+import sys
 
 import pytest
 
@@ -605,3 +609,37 @@ def test_exit_codes_scan_on_a_meta_whose_TOP_LEVEL_is_not_an_object(tmp_path):
     odd = tmp_path / "list.meta"
     odd.write_text("[1, 2, 3]", encoding="utf-8")
     assert mmeta.exit_codes_scan(odd) == {"helper": "read_exit_codes", "present": True, "parsed": True, "keys": 0}
+
+
+def test_the_meta_is_read_as_UTF8_REGARDLESS_OF_THE_HOST_LOCALE(tmp_path):
+    """`read_text(encoding="utf-8")` → `encoding=None` survived, and it is not cosmetic.
+
+    With no explicit encoding Python uses the host locale's. On a box whose locale is C/POSIX that is
+    ASCII, and a meta containing any non-ASCII byte — a mangled name is free to, and mutmut's own
+    `_README`-style strings do — then raises `UnicodeDecodeError`. That is a `ValueError`, so one
+    layer up `read_exit_codes` CATCHES it and returns `{}`: a perfectly good meta read as "malformed",
+    the run diagnosed as a crash after generation, and the blame placed on mutmut for a file this tool
+    simply read wrong. In `exit_codes_scan` the same error is not caught at all (only `OSError` is) and
+    takes the tool down.
+
+    Not observable in-process — patching `locale.getencoding` does not reach the C-level open — so
+    this drives a real subprocess under `LC_ALL=C`. It ASSERTS that the subprocess actually got a
+    non-UTF-8 locale and skips loudly otherwise, because a test that silently passes without reaching
+    its condition is the examined-nothing shape this whole module is about.
+    """
+    meta = tmp_path / "m.py.meta"
+    meta.write_bytes(b'{"exit_code_by_key": {"x_f\xe2\x80\x94mutmut_1": 1}}')  # an em dash, UTF-8
+    code = (
+        "import sys, json, locale, pathlib;"
+        f"sys.path.insert(0, {str(pathlib.Path(mmeta.__file__).parent)!r});"
+        "import mmeta;"
+        "print(locale.getencoding());"
+        f"print(json.dumps(mmeta.exit_codes_scan(pathlib.Path({str(meta)!r}))))"
+    )
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+    run = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=60)
+    lines = run.stdout.splitlines()
+    if not lines or lines[0].upper().replace("-", "") in ("UTF8", "UTF_8"):
+        pytest.skip(f"this host forces UTF-8 even under LC_ALL=C ({lines[:1]}) — the condition was not reached")
+    assert run.returncode == 0, f"reading the meta must not depend on the locale:\n{run.stderr[-600:]}"
+    assert json.loads(lines[1]) == {"helper": "read_exit_codes", "present": True, "parsed": True, "keys": 1}
