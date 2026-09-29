@@ -10,10 +10,11 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**226 tools** · 224 with a purpose line · **2 without**
+**227 tools** · 225 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
+| [`absence-ledger.mjs`](../tools/absence-ledger.mjs) | A STATE PER FINDING FOR `audits/ABSENCE-SURVEY-2026-09-22.json`, written by this tool and never by hand. |
 | [`acc-acc-control.mjs`](../tools/acc-acc-control.mjs) | the CALIBRATION CONTROL for wide-range clock alignment. Backs CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF §2c. |
 | [`acc-select-compare.mjs`](../tools/acc-select-compare.mjs) | EXTERNAL-METHODS-SURVEY-FOLLOWUPS §2. Two tools pick a night's ACC fragments by different rules and disagree about which nights are alignable: |
 | [`acc-shared-movement.mjs`](../tools/acc-shared-movement.mjs) | EXTERNAL-METHODS-SURVEY §3's question, in our own units. §3: Brønd et al. |
