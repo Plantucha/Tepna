@@ -3152,6 +3152,12 @@ def test_the_results_reason_says_NOTHING_WAS_READ_and_names_its_bound():
         assert phrase in r, f"missing {phrase!r}: {r}"
     grew = M.results_timeout_reason(300.0, 2 * 1024**3)
     assert "2048 MB" in grew, grew
+    # ONE BYTE IS A MEASUREMENT. `mutants_bytes > 0` → `> 1` survived until this case existed: the
+    # boundary is "was anything measured", not "was it worth mentioning", and a size that rounds to
+    # 0 MB still says the generation phase produced something (§∅ — the distinction is measured vs
+    # not measured, never small vs zero).
+    one = M.results_timeout_reason(300.0, 1)
+    assert "0 MB of mutants on disk" in one, one
 
 
 # ── the signal PASS-THROUGH, which the session change makes mandatory ───────────────────────────────
@@ -3539,3 +3545,26 @@ def test_a_pid_of_ONE_is_an_ORDINARY_pid_and_the_bound_is_ZERO(monkeypatch):
         f"pid 1 leads a group like any other pid and must be signalled as one; got {seen}"
     )
     assert proc.signals == [], f"the group path must not also signal the child: {proc.signals}"
+
+
+def test_the_restore_hands_back_SIG_DFL_for_a_signal_that_was_never_recorded(monkeypatch):
+    """`prev if prev is not None else signal.SIG_DFL` → a mutant that always takes `prev`. With the
+    duplicated `.get` default removed, `prev` is then None for a signal absent from `_prev`, and
+    `signal.signal(sig, None)` raises TypeError — which this function must never do (it runs inside a
+    signal handler, mid-teardown). So the conversion is asserted on the VALUE handed back, which is the
+    only place the difference is visible."""
+    import signal as _sig
+
+    shim, osh = _SigShim(), _OsShim()
+    monkeypatch.setattr(M, "signal", shim)
+    monkeypatch.setattr(M, "os", osh)
+    guard = M.reap_group_on_signal(_RecordingProc(), signals=(_sig.SIGTERM,))
+    guard.__enter__()
+    guard._prev.clear()  # the signal arrives with nothing recorded for it — a half-installed guard
+    guard._on_signal(_sig.SIGTERM, None)
+
+    restores = [h for sg, h in shim.installs if sg == _sig.SIGTERM][1:]
+    assert restores == [shim.SIG_DFL], (
+        f"an unrecorded previous handler must restore to SIG_DFL, never None (which `signal.signal` "
+        f"rejects with TypeError); got {restores}"
+    )

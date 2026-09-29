@@ -1299,7 +1299,13 @@ class reap_group_on_signal:
 
     def _on_signal(self, sig, _frame):
         kill_process_group(self.proc)
-        prev = self._prev.get(sig, signal.SIG_DFL)
+        # ONE default, not two. This was `.get(sig, signal.SIG_DFL)` AND the `is not None` ternary
+        # below — the same decision written twice, so neither spelling could be observed failing:
+        # mutation found both defaults surviving (`.get(sig, None)` and a one-argument `.get`) because
+        # the ternary silently repaired them. The ternary is the one that must stay, because `_prev`
+        # can legitimately HOLD None (a handler slot Python reports as unset), and `signal.signal`
+        # rejects None. So the lookup returns whatever is there and exactly one line converts it.
+        prev = self._prev.get(sig)
         try:
             signal.signal(sig, prev if prev is not None else signal.SIG_DFL)
         except (ValueError, OSError):
