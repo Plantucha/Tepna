@@ -1,0 +1,9 @@
+{
+  "inputsDigest": "8ea391cea6a375f8",
+  "codeDigest": "5539f481b04cc507",
+  "nodes": [
+    "ECGDex",
+    "OxyDex",
+    "PpgDex"
+  ]
+}

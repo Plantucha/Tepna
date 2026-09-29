@@ -1,0 +1,26 @@
+{
+  "night": "2026-09-24",
+  "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 1,
+    "compared": 77,
+    "flaggedPct": 1.3
+  },
+  "nodes": [
+    "PpgDex",
+    "ECGDex",
+    "OxyDex"
+  ],
+  "compared": 77,
+  "adjudicable": 76,
+  "droppedFragments": 0,
+  "flagged": 0,
+  "flaggedPct": 0,
+  "fault": {
+    "PpgDex": 0,
+    "ECGDex": 0,
+    "OxyDex": 0
+  },
+  "epochs": []
+}
