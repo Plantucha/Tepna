@@ -260,10 +260,25 @@ def exit_codes_scan(meta_path: Path) -> dict:
     """
     p = Path(meta_path)
     try:
-        raw = p.read_text(encoding="utf-8")
+        raw = p.read_bytes()
     except OSError:
         return {"helper": "read_exit_codes", "present": False, "parsed": False, "keys": 0}
     try:
+        # BYTES, NOT TEXT, AND THE ENCODING IS NOT A PARAMETER. `read_text(encoding="utf-8")` was the
+        # obvious spelling and left a mutant nothing could kill: `encoding=None` uses the HOST LOCALE's
+        # encoding, which on this box is UTF-8, so no in-process test can tell the two apart. It is not
+        # cosmetic either — under C/POSIX the locale encoding is ASCII, a meta carrying any non-ASCII
+        # byte then raises UnicodeDecodeError, and that is a ValueError, so one layer up
+        # `read_exit_codes` CATCHES it and returns `{}`: a good meta reported as malformed and mutmut
+        # blamed for a file this tool read wrong.
+        #
+        # The subprocess test below it CAN observe that, and mutmut still cannot use it — a test whose
+        # only contact with the code is a subprocess registers no trampoline hit, so it is never
+        # selected against this mutant (the same fact `refresh_caches_if_tests_changed` records about
+        # stale selections). So the answer is not a better test: `json.loads` takes bytes and decodes
+        # UTF-8 per RFC 8259 whatever the locale says, which deletes the parameter, the locale
+        # dependency and the unkillable mutant together. Invalid UTF-8 still raises UnicodeDecodeError,
+        # still a ValueError, and lands in the `parsed: False` arm where it belongs.
         data = json.loads(raw)
     except ValueError:
         return {"helper": "read_exit_codes", "present": True, "parsed": False, "keys": 0}
