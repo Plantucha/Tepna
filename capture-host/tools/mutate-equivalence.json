@@ -4342,24 +4342,6 @@
       "key": "- marker = \"\" | + marker = None",
       "probe": "Hand-applied 2026-09-28 one at a time with PYTHONDONTWRITEBYTECODE=1 and __pycache__ cleared, against the whole of tests/test_mutation_diff.py (201 tests), and reverted with the file confirmed byte-identical. SURVIVED. Positive control in the same sweep: the five mutants predicted killable on the same lines (`mutants_bytes <= 1`, the two `encoding=` mutants, `now` recomputed, the age floor 0.0 -> 1.0) were all KILLED by that same run, so the suite can see this class of change and these six are not a blind spot in it.",
       "why": "`parse_owner_record` opens with `if not text: return None`, and both '' and None are falsy, so the two values are indistinguishable at every consumer. The empty string is kept because the variable is typed as the file's text everywhere else in the loop and a None would invite a `.strip()` on it later."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- if mutants_bytes <= 0 or available_bytes <= 0: | + if mutants_bytes <= 0 and available_bytes <= 0:",
-      "probe": "exhaustive grid over 1,980 input combinations: mutants_bytes and available_bytes each across {-1e9, -1, 0, 1, 2, 3, 15, 1000, 1e6, 562427047, 3 GiB, 1e12} x {-1e9, -1, 0, 1, 2, 3, 1000, 7 GiB, 14 GiB, 33 GiB, 1e13}, rss_factor across {0, 0.001, 1.0, 15.0, 1e6} and cap_fraction across {0, 0.5, 1.0}, comparing the mutant's return with the original's (ZeroDivisionError compared as a value). ZERO inputs distinguish. The same probe REFUTED three sibling mutants (`available_bytes <= 1`, `per_worker <= 1`, `//` -> `/`), which are now killed by tests \u2014 so this probe is known to find distinguishing inputs where they exist.",
-      "why": "A PROOF from the code's shape: the early guard is REDUNDANT with the arithmetic below it. With `and`, a single degenerate input no longer short-circuits \u2014 but `mutants_bytes <= 0` then makes `per_worker` 0, which the very next guard catches, and `available_bytes <= 0` makes `(available_bytes * cap_fraction) // per_worker` 0 or negative, which `max(0, ...)` floors to 0. Every path that the `or` returns 0 for still returns 0. The guard buys readability, not behaviour."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- if mutants_bytes <= 0 or available_bytes <= 0: | + if mutants_bytes < 0 or available_bytes <= 0:",
-      "probe": "exhaustive grid over 1,980 input combinations: mutants_bytes and available_bytes each across {-1e9, -1, 0, 1, 2, 3, 15, 1000, 1e6, 562427047, 3 GiB, 1e12} x {-1e9, -1, 0, 1, 2, 3, 1000, 7 GiB, 14 GiB, 33 GiB, 1e13}, rss_factor across {0, 0.001, 1.0, 15.0, 1e6} and cap_fraction across {0, 0.5, 1.0}, comparing the mutant's return with the original's (ZeroDivisionError compared as a value). ZERO inputs distinguish. The same probe REFUTED three sibling mutants (`available_bytes <= 1`, `per_worker <= 1`, `//` -> `/`), which are now killed by tests \u2014 so this probe is known to find distinguishing inputs where they exist.",
-      "why": "A PROOF: the two differ only at `mutants_bytes == 0`, and there `per_worker = 0 * rss_factor` is 0, so the `per_worker <= 0` guard immediately below returns the same 0. The boundary is covered twice by construction."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- if mutants_bytes <= 0 or available_bytes <= 0: | + if mutants_bytes <= 0 or available_bytes < 0:",
-      "probe": "exhaustive grid over 1,980 input combinations: mutants_bytes and available_bytes each across {-1e9, -1, 0, 1, 2, 3, 15, 1000, 1e6, 562427047, 3 GiB, 1e12} x {-1e9, -1, 0, 1, 2, 3, 1000, 7 GiB, 14 GiB, 33 GiB, 1e13}, rss_factor across {0, 0.001, 1.0, 15.0, 1e6} and cap_fraction across {0, 0.5, 1.0}, comparing the mutant's return with the original's (ZeroDivisionError compared as a value). ZERO inputs distinguish. The same probe REFUTED three sibling mutants (`available_bytes <= 1`, `per_worker <= 1`, `//` -> `/`), which are now killed by tests \u2014 so this probe is known to find distinguishing inputs where they exist.",
-      "why": "A PROOF: the two differ only at `available_bytes == 0`, and there the cap is `0 * cap_fraction` = 0, so `0 // per_worker` is 0 for every positive per_worker and `max(0, ...)` returns 0 \u2014 the same answer the guard gives. (`per_worker` cannot be 0 on this path: the guard above it has already returned for `mutants_bytes <= 0`, and a zero `rss_factor` is caught by the next guard.)"
     }
   ],
   "mutation_pure.py": [

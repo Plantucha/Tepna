@@ -1032,9 +1032,18 @@ def workers_that_fit(mutants_bytes, available_bytes, rss_factor=WORKER_RSS_PER_M
     The companion to `memory_refusal`: that function says "this does not fit", this one says "here is
     what does", which is the number to hand mutmut's `--max-children`. Inheriting `os.cpu_count()` is
     how a 24-core rig and a 4-core hosted runner BOTH over-committed on the same module — 24 x 8 GB and
-    4 x 8 GB are both over any cap we have."""
-    if mutants_bytes <= 0 or available_bytes <= 0:
-        return 0
+    4 x 8 GB are both over any cap we have.
+
+    ⚠️ AN EARLY GUARD USED TO STAND HERE — `if mutants_bytes <= 0 or available_bytes <= 0: return 0` — AND
+    IT DECIDED NOTHING. Three of its mutations survived the gate, and no input distinguished any of them or
+    the line's outright deletion, so it went rather than being excused: a line whose mutation cannot change
+    an answer is redundancy, not a missing test (Osprey's shape on their own rule code, #3211).
+
+    What remains is NOT redundant, and covers the same ground: `per_worker <= 0` catches an unmeasured
+    module (`mutants_bytes` 0 makes the product 0), a negative size (a negative product), and a zero
+    `rss_factor` — the last being the only thing standing between a caller and a ZeroDivisionError below.
+    Non-positive `available_bytes` needs no guard of its own: the cap is then 0 or negative, so the floor
+    division is 0 or negative and `max(0, …)` returns 0."""
     per_worker = mutants_bytes * rss_factor
     if per_worker <= 0:
         return 0
