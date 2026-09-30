@@ -12,11 +12,15 @@ The audit's §0 metric, run every night by the daemon and written beside QC-SUMM
   · summed as minutes per cause per device, and as the night's `worn_lost_min` — the gap minutes on
     nights where the device's own beat evidence says it was worn.
 
-⚠️ THE VERDICT IS UNKNOWN UNTIL THE OWNER SETS A BAR. The criterion is the measurement (what fraction
-of the worn span went unrecorded); no threshold has been ruled, so the object reports the number in
-`result` under `status: UNKNOWN` with that as the reason — a PASS/FAIL here would be a bar this
-module invented (memory `pre-state-the-threshold`). The day a bar exists, `THRESHOLD` becomes a
-number and the status follows. What the object already does, bar or no bar: a night the daemon
+THE BAR IS 1 % OF THE WORN SPAN, RULED BY THE OWNER 2026-09-29. Until that day this module reported
+the number under `status: UNKNOWN` and refused to judge it, because a PASS/FAIL would have been a bar
+the module invented (memory `pre-state-the-threshold`); the ruling supplies the missing half and the
+status now follows from it. The criterion is pre-stated with its source and is NOT derived from the
+nights it judges (§🧾): `worn_but_not_recorded_fraction <= 0.01`. ⚠️ The criterion's NAME is the
+published identity of the metric — it appears in `criterion.name` AND as the key in `result` — so it
+stays `worn_but_not_recorded_fraction` verbatim; the ruling reached this session paraphrased as
+`worn_not_recorded_fraction`, and renaming to match a paraphrase would break every consumer and every
+stored verdict for no gain. What the object already does, bar or no bar: a night the daemon
 itself tore names `daemon:not-worn drop` in `result.by_cause` the morning after — the tripwire that
 would have caught 2026-09-03 (25 fragments) eighteen nights before 2026-09-20.
 
@@ -44,10 +48,13 @@ GATE = "night-loss"
 TOOL = "capture-host/loss_audit.py"
 AUDIT_NAME = "LOSS-AUDIT.json"
 VERDICT_NAME = "LOSS-VERDICT.json"
-THRESHOLD: float | None = None  # the owner has not set a bar (2026-09-22); None ⇒ UNKNOWN with the number
+# THE OWNER'S BAR, 2026-09-29: worn-but-not-recorded must be at most 1 % of the worn minutes. Stated
+# here as a number with its source, before any night is judged by it — a threshold derived from the data
+# it judges is UNKNOWN by the verdict contract, not a bar.
+THRESHOLD: float = 0.01
 CRITERION = {
     "name": "worn_but_not_recorded_fraction",
-    "threshold": THRESHOLD if THRESHOLD is not None else 0,
+    "threshold": THRESHOLD,
     "unit": "fraction",
     "direction": "lte",
 }
@@ -1057,20 +1064,7 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
             tool=TOOL,
             commit=commit,
         )
-    if THRESHOLD is None:
-        return _verdict.make(
-            gate=GATE,
-            status="UNKNOWN",
-            population=pop,
-            criterion=CRITERION,
-            result=result,
-            evidence=evidence,
-            reason="no bar has been set by the owner for worn-but-not-recorded — measured, not judged"
-            + (f" (daemon-caused: {result['daemon_caused_min']} min)" if result["daemon_caused_min"] else ""),
-            tool=TOOL,
-            commit=commit,
-        )
-    if frac is None:  # pragma: no cover — reachable only once THRESHOLD is set and no device carried worn evidence
+    if frac is None:
         return _verdict.make(
             gate=GATE,
             status="NOT_APPLICABLE",
@@ -1082,7 +1076,7 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
             tool=TOOL,
             commit=commit,
         )
-    if frac <= THRESHOLD:  # pragma: no cover — bar-dependent branch, exercised the day THRESHOLD is set
+    if frac <= THRESHOLD:
         return _verdict.make(
             gate=GATE,
             status="PASS",
@@ -1094,14 +1088,14 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
             tool=TOOL,
             commit=commit,
         )
-    worst = max(checked.items(), key=lambda kv: kv[1]["lost_min"])  # pragma: no cover
+    worst = max(checked.items(), key=lambda kv: kv[1]["lost_min"])
     return _verdict.make(
         gate=GATE,
         status="FAIL",
         population=pop,
         criterion=CRITERION,
         result=result,
-        evidence=evidence,  # pragma: no cover
+        evidence=evidence,
         reason=f"{frac:.1%} of the worn span unrecorded (bar {THRESHOLD:.1%}); worst {worst[0]}: "
         f"{worst[1]['lost_min']} min, top cause {next(iter(worst[1]['by_cause']), 'none')}",
         tool=TOOL,
