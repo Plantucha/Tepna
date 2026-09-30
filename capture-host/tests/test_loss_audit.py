@@ -2044,3 +2044,142 @@ def test_CONTROL_exactly_one_percent_PASSES_because_the_direction_is_lte():
     over = loss_audit.night_verdict(_audit({"Polar H10": (1000.0, 10.1, True)}), night_dir="/n")
     assert over["result"]["worn_but_not_recorded_fraction"] == 0.0101
     assert over["status"] == "FAIL", "one tenth of a minute past the bar is outside it"
+
+
+def test_the_verdict_s_PUBLISHED_PRECISION_and_PROVENANCE_are_asserted_not_assumed():
+    """🔴 THE DRAIN of the 20 survivors `mutation (diff-scoped)` reported on #3244, every one of them on a
+    line this branch did not touch — setting the bar pulled all of `night_verdict` into scope, and the
+    gate's own words are "the unit is the FUNCTION, not the line".
+
+    My other plants could not see any of them because I chose ROUND numbers: 1000.0 spans, 0.0 and 30.0
+    lost. Nothing in `1000.0` distinguishes one decimal place from two, and `worn_span_min` is a number
+    that reaches the owner's report. So the numbers here are chosen per family to differ under each
+    mutation, and each assertion says which:
+
+      · `round(x, 1)` → `round(x, 2)` / `round(x, None)` / a dropped argument — 10.06 is 10.1 at one
+        place, 10.06 at two and 10 bare; 1000.04 is 1000.0 at one and 1000.04 at two;
+      · `round(frac, 4)` → 5 places — 10.06/1000.04 is 0.0101 at four and 0.01006 at five;
+      · `v.get("daemon_caused_min") or 0.0` → `or 1.0` — a second device that omits the key contributes
+        0.0, or 1.0 under the mutant, moving the sum from 2.1 to 3.1;
+      · `os.path.join(night_dir, AUDIT_NAME)` losing either argument — asserted as the whole path;
+      · `audit.get("journal")` → `audit.get(None)`; `commit=commit` → `None` or dropped — provenance is
+        not decoration, it is how a reader re-derives the verdict."""
+    a = {
+        "devices": {
+            "Polar H10": {
+                "file": "h10.txt",
+                "span_min": 1000.04,
+                "worn_evidence": True,
+                "worn_lost_min": 10.06,
+                "lost_min": 10.06,
+                "fragments": 2,
+                "by_cause": {"link:disconnected": 10.06},
+                "daemon_caused_min": 2.06,
+            },
+            # Worn, contributes nothing to span or loss, and OMITS `daemon_caused_min` — the input that
+            # separates `or 0.0` from `or 1.0`.
+            "Wellue O2Ring-S": {
+                "file": "ring.txt",
+                "span_min": 0.0,
+                "worn_evidence": True,
+                "worn_lost_min": 0.0,
+                "lost_min": 0.0,
+                "fragments": 1,
+                "by_cause": {},
+            },
+        },
+        "journal": "read",
+        "night": "2026-09-28",
+    }
+    o = loss_audit.night_verdict(a, night_dir="/n/2026-09-28", commit="abc1234")
+    verdict.validate(o)
+    r = o["result"]
+    assert r["worn_span_min"] == 1000.0, f"the span is published to ONE decimal; got {r['worn_span_min']}"
+    assert r["worn_lost_min"] == 10.1, f"the loss is published to ONE decimal; got {r['worn_lost_min']}"
+    assert r["worn_but_not_recorded_fraction"] == 0.0101, (
+        f"the fraction is FOUR places; got {r['worn_but_not_recorded_fraction']}"
+    )
+    assert r["daemon_caused_min"] == 2.1, (
+        f"a device that omits `daemon_caused_min` contributes NOTHING, not one minute; got {r['daemon_caused_min']}"
+    )
+    assert r["journal"] == "read", "the journal STATUS is read from the audit's own key"
+    assert o["evidence"] == [
+        loss_audit.TOOL,
+        "/n/2026-09-28/LOSS-AUDIT.json",
+        "journalctl -u tepna-capture",
+    ], f"evidence must name the night's own audit file, whole; got {o['evidence']}"
+    assert o["producedBy"]["commit"] == "abc1234", "the commit is provenance of the run, not a default"
+    # `by_device` is the per-device breakdown a reader opens after the headline number; its KEYS are the
+    # published shape, so `"lost_min"` → `"LOST_MIN"` is a consumer break that no status assertion sees.
+    assert r["by_device"]["Polar H10"] == {"lost_min": 10.06, "fragments": 2, "top_cause": "link:disconnected"}
+    # 0.0101 is above the 1 % bar, so this is a FAIL, and the reason must name the DEVICE — `worst[0]` —
+    # not the device's record. The record's repr contains the filename, so "Polar H10" appears either way:
+    # the position is what distinguishes them.
+    assert o["status"] == "FAIL"
+    assert "worst Polar H10: " in o["reason"], o["reason"]
+
+    # `worn_span > 0` → `> 1`: a worn span of EXACTLY one minute is a measurable span, and under the
+    # mutant it becomes an unmeasurable one — PASS turns into NOT_APPLICABLE.
+    one = loss_audit.night_verdict(_audit({"Polar H10": (1.0, 0.0, True)}), night_dir="/n")
+    assert one["status"] == "PASS" and one["result"]["worn_but_not_recorded_fraction"] == 0.0, one
+
+    # `next(iter(by_cause), "none")` → None / dropped / "NONE": the worst device must have NO cause for the
+    # default to be visible at all — a gap the journal could not explain.
+    b = {
+        "devices": {
+            "Polar H10": {
+                "file": "h10.txt",
+                "span_min": 100.0,
+                "worn_evidence": True,
+                "worn_lost_min": 5.0,
+                "lost_min": 5.0,
+                "fragments": 2,
+                "by_cause": {},
+                "daemon_caused_min": 0.0,
+            }
+        },
+        "journal": "read",
+        "night": "2026-09-28",
+    }
+    nc = loss_audit.night_verdict(b, night_dir="/n", commit="abc1234")
+    assert nc["status"] == "FAIL"
+    assert "top cause none" in nc["reason"], f"an unexplained gap reads `none`, lower-case, not None: {nc['reason']}"
+
+
+def test_every_EARLY_RETURN_carries_its_own_reason_and_the_commit():
+    """The rest of the #3244 drain. `night_verdict` has four returns besides FAIL, and each one builds its
+    own `_verdict.make(...)` call — so `commit=commit` and the reason string are written FOUR times and were
+    asserted in none of them. A dropped `commit=` leaves the verdict unattributable to a revision; a mangled
+    reason leaves the only human-readable half of an examined-nothing verdict saying nothing.
+
+    Each case is the input that reaches exactly one of those returns."""
+    # No devices configured at all ⇒ NOT_RUN. Nothing was examined, so there is no result (§🧾).
+    nr = loss_audit.night_verdict({"devices": {}, "journal": "read"}, night_dir="/n", commit="abc1234")
+    verdict.validate(nr)
+    assert nr["status"] == "NOT_RUN" and nr["result"] is None
+    assert nr["reason"] == "no device is configured — nothing to audit"
+    assert nr["producedBy"]["commit"] == "abc1234"
+
+    # Devices configured, none left a primary stream ⇒ every one EXCLUDED, so again nothing examined.
+    ns = loss_audit.night_verdict(
+        {"devices": {"COOSPO 808S": {"file": None, "span_min": 0.0, "worn_evidence": None}}, "journal": "read"},
+        night_dir="/n",
+        commit="abc1234",
+    )
+    verdict.validate(ns)
+    assert ns["status"] == "NOT_RUN" and ns["population"] == {"checked": 0, "eligible": 1, "excluded": 1}
+    assert ns["reason"] == "no configured device left a primary stream this night"
+    assert ns["producedBy"]["commit"] == "abc1234"
+
+    # A stream, but no worn evidence anywhere ⇒ the fraction is undefined and the criterion cannot bind.
+    na = loss_audit.night_verdict(_audit({"Polar H10": (100.0, 0.0, False)}), night_dir="/n", commit="abc1234")
+    verdict.validate(na)
+    assert na["status"] == "NOT_APPLICABLE" and na["result"] is None
+    assert na["reason"] == "no device carried worn evidence this night — the criterion does not bind"
+    assert na["producedBy"]["commit"] == "abc1234"
+
+    # And the PASS return, whose commit was never asserted either — a green verdict nobody can pin to a
+    # revision is the one most likely to be quoted later.
+    ok = loss_audit.night_verdict(_audit({"Polar H10": (1000.0, 0.0, True)}), night_dir="/n", commit="abc1234")
+    assert ok["status"] == "PASS" and ok["reason"] is None
+    assert ok["producedBy"]["commit"] == "abc1234"
