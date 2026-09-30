@@ -2183,3 +2183,225 @@ def test_every_EARLY_RETURN_carries_its_own_reason_and_the_commit():
     ok = loss_audit.night_verdict(_audit({"Polar H10": (1000.0, 0.0, True)}), night_dir="/n", commit="abc1234")
     assert ok["status"] == "PASS" and ok["reason"] is None
     assert ok["producedBy"]["commit"] == "abc1234"
+
+
+# ── SOLID-NIGHT §A5's record set: the journal's clock events, persisted beside the night ────────────
+
+
+def _clock_run(stdout, rc=0):
+    class R:
+        returncode = rc
+
+    R.stdout = stdout
+    return lambda *a, **k: R()
+
+
+def test_every_one_of_the_four_clock_event_phrases_is_a_record(tmp_path):
+    """The brief names all four and says why: matching `off host` alone missed the `device clock JUMPED`
+    line that recorded 2026-08-18, and the first cut of the detector then flagged a night the daemon had
+    logged. A FAILED re-sync is still a record that a clock event happened."""
+    lines = "\n".join(
+        f"2026-09-20T23:0{i}:00 vigil python[1]: Polar H10 02849638 {p}"
+        for i, p in enumerate(loss_audit.CLOCK_EVENT_PHRASES)
+    )
+    ev = loss_audit.read_clock_events(T0, T0 + dt.timedelta(hours=8), run=_clock_run(lines))
+    assert [p for _t, p, _ln in ev] == list(loss_audit.CLOCK_EVENT_PHRASES)
+
+
+def test_a_clock_event_record_is_NOT_a_loss_cause_bin(tmp_path):
+    """`KINDS` bins a line as the CAUSE of a gap; these phrases record that a clock event happened at all,
+    whether or not a gap followed. Folding them together would change loss attribution."""
+    assert set(loss_audit.CLOCK_EVENT_PHRASES) - {n for _c, n in loss_audit.KINDS} == {
+        "device clock JUMPED",
+        "re-sync busy",
+        "device clock unreadable",
+    }
+
+
+def test_an_unavailable_journal_yields_None_and_never_an_empty_record_set(tmp_path):
+    """§∅: `[]` means read, and no clock event happened — which LICENSES the tripwire to fire. "could not
+    be read" must stop it, so the two absences stay distinct all the way to the verdict."""
+
+    def boom(*a, **k):
+        raise OSError("no journalctl here")
+
+    assert loss_audit.read_clock_events(T0, T0, run=boom) is None
+    assert loss_audit.read_clock_events(T0, T0, run=_clock_run("", rc=1)) is None
+    assert loss_audit.read_clock_events(T0, T0, run=_clock_run("nothing matched here\n")) == []
+
+
+def test_the_audit_writes_the_clock_events_beside_the_night(tmp_path):
+    """`journal: "read"` has always been a STATUS. The lines themselves were never persisted, and journald
+    rotates, so after the audit ran "did the box record a clock event at 04:08?" was unanswerable from the
+    night's own files — which is exactly what A5's no-record check has to ask."""
+    d = tmp_path / "2026-09-20"
+    d.mkdir()
+    line = "2026-09-20T23:05:00 vigil python[1]: Polar H10 02849638 device clock JUMPED -41.0s — re-syncing"
+    out2 = loss_audit.audit_night(
+        str(d),
+        [{"name": "Polar H10 02849638", "address": "24:AC:AC:02:84:96", "model": "H10"}],
+        journal=lambda *a, **k: [],
+        clock_events=lambda since, until: [(T0, "device clock JUMPED", line)],
+    )
+    assert out2["clock_events"] == [
+        {"at": T0.isoformat(timespec="seconds"), "phrase": "device clock JUMPED", "devices": ["Polar H10 02849638"]}
+    ]
+    assert out2["clock_events_source"] == "journalctl -u tepna-capture"
+
+
+def test_an_unavailable_journal_is_recorded_as_such_not_as_no_events(tmp_path):
+    d = tmp_path / "2026-09-20"
+    d.mkdir()
+    out = loss_audit.audit_night(str(d), [], journal=lambda *a, **k: [], clock_events=lambda *a, **k: None)
+    assert out["clock_events"] is None and out["clock_events_source"] == "unavailable"
+
+
+def test_a_clock_line_naming_no_device_keeps_an_empty_device_list_not_a_drop(tmp_path):
+    """An event the box recorded is a record even when the line does not say whose clock it was, and a
+    tripwire must not fire through it. Dropping the line would do exactly that."""
+    d = tmp_path / "2026-09-20"
+    d.mkdir()
+    out = loss_audit.audit_night(
+        str(d),
+        [{"name": "Polar H10 02849638", "address": "24:AC:AC:02:84:96", "model": "H10"}],
+        journal=lambda *a, **k: [],
+        clock_events=lambda *a, **k: [(T0, "re-sync busy", "2026-09-20T23:00:00 vigil python[1]: re-sync busy")],
+    )
+    assert out["clock_events"][0]["devices"] == []
+
+
+def test_a_journal_line_with_a_stamp_but_no_clock_phrase_is_not_a_record(tmp_path):
+    lines = "2026-09-20T23:00:00 vigil python[1]: Polar H10 02849638 link error: TimeoutError\nno stamp here\n"
+    assert loss_audit.read_clock_events(T0, T0 + dt.timedelta(hours=8), run=_clock_run(lines)) == []
+
+
+def test_a_non_dict_device_entry_contributes_no_key(tmp_path):
+    d = tmp_path / "2026-09-20"
+    d.mkdir()
+    out = loss_audit.audit_night(
+        str(d),
+        ["not a dict", {"name": "Polar H10 02849638", "model": "H10"}],
+        journal=lambda *a, **k: [],
+        clock_events=lambda *a, **k: [(T0, "re-sync busy", "x Polar H10 02849638 re-sync busy")],
+    )
+    assert out["clock_events"][0]["devices"] == ["Polar H10 02849638"]
+
+
+# ── what the mutation gate could not see: the arguments, the ORDER, and where the file is written ────
+
+
+def _recording_run(stdout=""):
+    """A `run` stand-in that keeps the kwargs it was called with.
+
+    THE ARGUMENT, NOT THE ELAPSED TIME. A wall-clock assertion cannot separate `timeout=120` from
+    `timeout=121` without flaking, and `timeout=None` only shows up on a journal that actually hangs —
+    so a timing test leaves all three alive (`ext:memory/a-slow-mutant-is-undecided-not-killed`). The
+    deadline IS the observable, and here it is exact and instant."""
+    seen: dict = {}
+
+    class R:
+        returncode = 0
+
+    R.stdout = stdout
+
+    def run(cmd, **kw):
+        seen.update(kw)
+        seen["cmd"] = cmd
+        return R()
+
+    return run, seen
+
+
+def test_the_journal_read_is_given_a_DEADLINE_and_the_deadline_is_the_observable():
+    run, seen = _recording_run("")
+    assert loss_audit.read_clock_events(T0, T0 + dt.timedelta(hours=8), run=run) == []
+    assert seen["timeout"] == 120, "a bounded read: journald on a busy box must not hold the audit open"
+    assert seen["capture_output"] is True and seen["text"] is True
+    assert "--since" in seen["cmd"] and "-u" in seen["cmd"] and "tepna-capture" in seen["cmd"]
+
+
+def test_a_line_without_a_stamp_is_SKIPPED_and_never_ends_the_scan():
+    """`continue` and `break` read alike on a file whose first unstamped line is also its last. journald
+    interleaves multi-line output, so a `break` here would silently truncate the record set at the first
+    continuation line — and a truncated record set is what lets a consumer conclude nothing was recorded."""
+    lines = "a continuation line with no stamp\n2026-09-20T23:05:00 vigil python[1]: H10 re-sync busy\n"
+    ev = loss_audit.read_clock_events(T0, T0 + dt.timedelta(hours=8), run=_recording_run(lines)[0])
+    assert [p for _t, p, _ln in ev] == ["re-sync busy"], "the line after the unstamped one is still read"
+
+
+def test_events_at_the_SAME_stamp_keep_the_order_the_journal_wrote_them_in():
+    """Sorted by the STAMP ONLY, so equal stamps keep journald's own order (Python's sort is stable). A
+    whole-tuple sort would fall through to comparing the PHRASE, reordering two events the box logged in a
+    definite sequence — and the sequence is the evidence when a jump and its re-sync land in one second."""
+    # ⚠️ THE PLANT MUST NOT BE IN PHRASE ORDER. A first cut of this test listed the three events
+    # alphabetically, which is exactly what a whole-tuple sort produces — the assertion passed under the
+    # mutant and the gate said so. Journald's order here is deliberately the REVERSE of the phrase order.
+    lines = (
+        "2026-09-20T23:05:00 vigil python[1]: H10 off host (tolerance 2s)\n"
+        "2026-09-20T23:05:00 vigil python[1]: H10 device clock JUMPED -41.0s\n"
+    )
+    ev = loss_audit.read_clock_events(T0, T0 + dt.timedelta(hours=8), run=_recording_run(lines)[0])
+    assert [p for _t, p, _ln in ev] == ["off host (tolerance", "device clock JUMPED"]
+
+
+def test_write_night_FORWARDS_the_clock_event_reader_it_was_given(tmp_path):
+    """Otherwise the daemon's audit would carry whatever the default reader found and the caller's
+    injection would be silently ignored — which is also why no test could see the forward before this one."""
+    d = _night(tmp_path)
+    called: list = []
+
+    def fake(since, until):
+        called.append((since, until))
+        return [(T0, "re-sync busy", "x H10 re-sync busy")]
+
+    loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=fake)
+    audit = json.load(open(os.path.join(d, "LOSS-AUDIT.json")))
+    assert called, "the injected reader was never called"
+    assert audit["clock_events"] == [{"at": T0.isoformat(timespec="seconds"), "phrase": "re-sync busy", "devices": []}]
+
+
+def test_the_audit_is_written_BESIDE_THE_NIGHT_and_never_into_the_working_directory(tmp_path, monkeypatch):
+    """The temp file is joined to the night dir. Dropping that join writes it into whatever directory the
+    daemon happens to be running in, and `os.replace` still succeeds on the same filesystem — so the audit
+    lands correctly and a stray file accumulates in the process's cwd, invisibly, once per night."""
+    d = _night(tmp_path)
+    monkeypatch.setattr(os, "replace", lambda a, b: (_ for _ in ()).throw(OSError("held")))
+    o = loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=lambda *a: [])
+    assert o["status"] == "UNKNOWN", "the replace failed, so the audit decided nothing"
+    assert os.path.exists(os.path.join(d, "LOSS-AUDIT.json.tmp")), "the temp file belongs beside the night"
+
+
+def test_the_audit_json_is_written_to_be_READ_by_a_person(tmp_path):
+    """`indent=1` is the choice, and it is not cosmetic: these files are opened by hand every morning. A
+    compact dump puts a night on one line, and a wider indent changes every byte of a file whose diff is
+    read during a triage."""
+    d = _night(tmp_path)
+    loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=lambda *a: [])
+    text = open(os.path.join(d, "LOSS-AUDIT.json"), encoding="utf-8").read()
+    # EXACTLY one space. `text.startswith("{\n ")` is true of a two-space indent as well — that first cut
+    # of this assertion left `indent=1` → `indent=2` alive, and the gate named it.
+    first_key = text.split("\n")[1]
+    assert first_key.startswith(' "') and not first_key.startswith("  "), repr(first_key)
+
+
+def test_the_verdict_names_the_COMMIT_it_was_produced_at(tmp_path):
+    """Dropping the commit forward leaves every verdict claiming to come from an unknown revision, which
+    is the one field that makes a stored verdict re-derivable."""
+    d = _night(tmp_path)
+    o = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+    assert o["producedBy"]["commit"] == "abc1234"
+    # With no commit given the verdict resolves the CHECKOUT's own sha — so the forward is what makes a
+    # caller-supplied commit reach the file at all, and a dropped forward is indistinguishable from the
+    # default only if nobody ever passes one.
+    o = loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=lambda *a: [])
+    assert o["producedBy"]["commit"] != "abc1234"
+
+
+def test_a_CRASHED_audit_still_names_the_file_it_was_reaching_for(tmp_path, monkeypatch):
+    """The UNKNOWN a crash produces is only useful if it says WHERE. Without the evidence list a reader
+    gets an exception and no path, on the one code path where the audit itself is unavailable."""
+    d = _night(tmp_path)
+    monkeypatch.setattr(loss_audit, "audit_night", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("disk gone")))
+    o = loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=lambda *a: [])
+    assert o["status"] == "UNKNOWN" and "RuntimeError: disk gone" in o["reason"]
+    assert o["evidence"][:2] == [loss_audit.TOOL, os.path.join(d, loss_audit.AUDIT_NAME)]

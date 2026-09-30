@@ -143,6 +143,76 @@ def _access_start(line: str) -> _dt.datetime | None:
     return _dt.datetime(int(y), _MONTHS[mon], int(d), int(hh), int(mm), int(ss))
 
 
+# SOLID-NIGHT §A5's RECORD SET, which is NOT `KINDS` above and must never be folded into it. `KINDS` bins a
+# journal line as the CAUSE of a gap; these four phrases record that a CLOCK EVENT happened, whether or not
+# any gap followed. The brief is explicit about every phrase and about why: matching `off host` alone missed
+# the `device clock JUMPED` line that recorded 2026-08-18, and the tripwire then flagged a night the daemon
+# had logged. A FAILED re-sync is still a record that a clock event happened — the attempt reached the
+# device's clock whether or not it landed — so `re-sync busy` and `device clock unreadable` are records too.
+CLOCK_EVENT_PHRASES: tuple[str, ...] = (
+    "off host (tolerance",
+    "device clock JUMPED",
+    "re-sync busy",
+    "device clock unreadable",
+)
+
+
+def read_clock_events(
+    since: _dt.datetime, until: _dt.datetime, run=subprocess.run
+) -> list[tuple[_dt.datetime, str, str]] | None:
+    """`[(local stamp, the phrase matched, the raw line)]` for the night's clock-event lines, or None when
+    journalctl is unavailable.
+
+    ONE PASS FOR THE WHOLE NIGHT, not one per device, and the caller filters by device afterwards: the
+    phrases carry the device in the line itself, and `read_journal` above is already a subprocess per
+    device. Making this a second per-device call would double the audit's process count for a record set
+    that is a handful of lines a night — measured on vigil 2026-09-28, the whole window holds exactly ONE
+    (`device clock unreadable`), and none of the other three.
+
+    🔴 WHY THIS HAS TO BE PERSISTED AT ALL. `LOSS-AUDIT.json` has always written `journal: "read"` — a
+    STATUS, not the lines — so after the audit ran, "did the box record a clock event at 04:08?" was
+    unanswerable from the night's own files, and journald rotates. SOLID-NIGHT §A5's tripwire must not
+    fire on a step the box DID record, and the verdict side has no journal of its own. So the component
+    that already reads the journal writes what it read, beside the night, like every other piece of
+    evidence.
+
+    None, never `[]`, when the journal cannot be read: an empty list means "no clock event was recorded"
+    and would license the tripwire to fire, while "the record set could not be read" must stop it (§∅)."""
+    try:
+        r = run(
+            [
+                "journalctl",
+                "-u",
+                "tepna-capture",
+                "--no-pager",
+                "-o",
+                "short-iso",
+                "--since",
+                since.strftime("%Y-%m-%d %H:%M:%S"),
+                "--until",
+                until.strftime("%Y-%m-%d %H:%M:%S"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    out: list[tuple[_dt.datetime, str, str]] = []
+    for ln in r.stdout.split("\n"):
+        m = re.match(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", ln)
+        if not m:
+            continue
+        for phrase in CLOCK_EVENT_PHRASES:
+            if phrase in ln:
+                out.append((_dt.datetime.fromisoformat(m.group(1)), phrase, ln))
+                break
+    out.sort(key=lambda r: r[0])
+    return out
+
+
 def read_journal(
     name: str | tuple[str, ...], since: _dt.datetime, until: _dt.datetime, run=subprocess.run
 ) -> list[tuple[_dt.datetime, str]] | None:
@@ -837,7 +907,25 @@ def wear_ends(night_dir: str, model: str) -> dict:
     return {"available": True, "ends": ends, "worn_end": worn_end}
 
 
-def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) -> dict:
+def _device_keys(devices: list[dict]) -> list[str]:
+    """Every string that identifies a configured device in a log line — its name AND its address.
+
+    The same pair `read_journal` matches on, and for the same measured reason: the offline-op lines carry
+    ONLY the address, so a name-only match sees a fraction of them. A clock-event line that names neither
+    keeps an empty `devices` list rather than being dropped — an event the box recorded is a record even
+    when the line does not say whose clock it was, and a tripwire must not fire through it."""
+    out: list[str] = []
+    for d in devices:
+        if not isinstance(d, dict):
+            continue
+        for k in ("name", "address"):
+            v = d.get(k)
+            if v:
+                out.append(str(v))
+    return out
+
+
+def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal, clock_events=read_clock_events) -> dict:
     """The LOSS-AUDIT.json body: per device, the primary stream's gaps by cause, span, and whether the
     device's own evidence says it was worn that night."""
     night = os.path.basename(night_dir.rstrip("/"))
@@ -847,6 +935,24 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
         day = _dt.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     since, until = day - _dt.timedelta(hours=6), day + _dt.timedelta(hours=30)
     out: dict = {"night": night, "devices": {}, "journal": "read"}
+    # SOLID-NIGHT §A5's record set, read ONCE for the night and written beside it. `journal: "read"` above
+    # is a status; this is the evidence. `None` (journalctl unavailable) is kept DISTINCT from `[]` (read,
+    # and no clock event happened) — the tripwire may fire only over the second, and collapsing them is
+    # how a detector convicts a night the daemon logged.
+    ce = clock_events(since, until)
+    out["clock_events"] = (
+        None
+        if ce is None
+        else [
+            {
+                "at": t.isoformat(timespec="seconds"),
+                "phrase": phrase,
+                "devices": sorted(n for n in _device_keys(devices) if n and n in ln),
+            }
+            for t, phrase, ln in ce
+        ]
+    )
+    out["clock_events_source"] = "journalctl -u tepna-capture" if ce is not None else "unavailable"
     for d in devices:
         if not isinstance(d, dict):
             continue
@@ -1103,12 +1209,19 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
     )
 
 
-def write_night(night_dir: str, devices: list[dict], *, commit: str | None = None, journal=read_journal) -> dict:
+def write_night(
+    night_dir: str,
+    devices: list[dict],
+    *,
+    commit: str | None = None,
+    journal=read_journal,
+    clock_events=read_clock_events,
+) -> dict:
     """Audit + verdict beside the summary; returns the verdict. Never raises past a crash → UNKNOWN."""
     import json
 
     try:
-        audit = audit_night(night_dir, devices, journal=journal)
+        audit = audit_night(night_dir, devices, journal=journal, clock_events=clock_events)
         tmp = os.path.join(night_dir, AUDIT_NAME + ".tmp")
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(audit, fh, indent=1)
