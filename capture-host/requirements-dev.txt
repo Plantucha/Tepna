@@ -1,7 +1,7 @@
 # tepna-capture — development/gate dependencies (runtime deps live in requirements.txt)
 # Install on top of the runtime venv:  .venv/bin/pip install -r requirements-dev.txt
 mypy>=2.3.1          # advisory type gate (PYTHON-TYPES-AND-FORMAT-2026-08-27) — flips blocking at 0 errors
-ruff>=0.16.5           # lint (blocking) + `ruff format` (black-compatible style; changed-files advisory)
+ruff>=0.16.9           # lint (blocking) + `ruff format` (black-compatible style; changed-files advisory)
 pytest>=9.1.1
 pytest-cov>=7.1.0
 pytest-xdist>=3.8.0    # CI runs the suite `-n 4` (see capture-host-ci.yml); check.sh uses it when present
@@ -11,7 +11,7 @@ pytest-timeout>=2.4.0  # the per-test bound in check.sh + the CI pytest job. A H
                        # was killed by something else — no exit code, no failing test, indistinguishable
                        # from a slow gate (CLAUDE.md §4c). check.sh ANNOUNCES it when absent rather than
                        # running unbounded in silence, so this line is what makes the guard real.
-hypothesis>=6.165.10      # property tests for the clock surface — invariants over an input space,
+hypothesis>=6.168.3      # property tests for the clock surface — invariants over an input space,
                        # where a known-answer table cannot go (tests/test_clock_properties.py)
 mutmut==3.8.0          # tools/mutate_diff.py (the diff-scoped mutation gate) and tools/mutate.py.
                        # ⚠️ PINNED EXACTLY, the only `==` in this file, on purpose (2026-09-21): the
