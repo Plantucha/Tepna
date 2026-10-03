@@ -1286,12 +1286,6 @@
       "key": "- p = line.rstrip(\"\\n\").split(\";\") | + p = line.rstrip(None).split(\";\")",
       "probe": "tests/test_solid_night_inputs.py::test_an_rtc_offset_with_trailing_whitespace_is_still_read (` -1.6 `), plus the `read`-with-no-offset and short-row cases in the two tests beside it.",
       "why": "The stripped value is handed to `float`, which already tolerates surrounding whitespace including a newline — so `rstrip(\"\\n\")`, `rstrip(None)` and leaving the newline on all parse the same numbers, and a field of nothing but spaces raises `ValueError` under every variant alike. `lstrip(\"\\n\")` differs only for a line BEGINNING with a newline, which iterating a file's lines cannot produce. No input distinguishes them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- p = line.rstrip(\"\\n\").split(\";\") | + p = line.lstrip(\"\\n\").split(\";\")",
-      "probe": "tests/test_solid_night_inputs.py::test_an_rtc_offset_with_trailing_whitespace_is_still_read (` -1.6 `), plus the `read`-with-no-offset and short-row cases in the two tests beside it.",
-      "why": "The stripped value is handed to `float`, which already tolerates surrounding whitespace including a newline — so `rstrip(\"\\n\")`, `rstrip(None)` and leaving the newline on all parse the same numbers, and a field of nothing but spaces raises `ValueError` under every variant alike. `lstrip(\"\\n\")` differs only for a line BEGINNING with a newline, which iterating a file's lines cannot produce. No input distinguishes them."
     }
   ],
   "telemetry.py": [

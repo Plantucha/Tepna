@@ -103,6 +103,10 @@ _PMD_RATE = re.compile(r"^# pmd stream=\S+ negotiated=yes rate=(\d+(?:\.\d+)?)\b
 _FINAL = re.compile(r"^# final stream=\S+ seams=(\d+) examined=(\d+)")
 _MIN_RUN = re.compile(r"\bmin_run=(\d+)\b")
 _DECLARED_HZ = re.compile(r"@(\d+(?:\.\d+)?)Hz$")
+# The rate came from the NAME of the signal, not from a record of what the device and host agreed. A
+# named constant because `completeness` branches on it: matching the prose would break the moment the
+# wording changed, and the branch would go quiet rather than red.
+DECLARED_RATE_WHY = "declared in the acquisition evidence (A6)"
 
 
 def _decision(status: str, reason: str | None = None) -> dict:
@@ -214,7 +218,7 @@ def negotiated_rate(night_dir: str, device: str, model: str, primary: str) -> tu
         signal = str(((meta or {}).get("acquisition_evidence") or {}).get("signal") or "")
         m = _DECLARED_HZ.search(signal)
         if m:
-            return float(m.group(1)), "declared in the acquisition evidence (A6)"
+            return float(m.group(1)), DECLARED_RATE_WHY
         return None, "no rate declared in the stream's acquisition evidence"
     seams = primary[: -len(".txt")] + "SEAMS.txt"
     try:
@@ -241,8 +245,49 @@ def negotiated_rate(night_dir: str, device: str, model: str, primary: str) -> tu
     return None, "negotiated rate not written beside the stream (#2912)"
 
 
+def stated_expected_count(primary: str) -> int | None:
+    """The sample count the stream's OWN writer says to expect, or None when it declines to state one.
+
+    `acquisition_evidence.expected_sample_count` is the writer's answer to "how many samples should be
+    here". It is a POSITIVE INTEGER or the literal `"UNKNOWN"`, and `"UNKNOWN"` means the writer could
+    not say — which is an absence and never a zero (§∅). Measured across the box's whole corpus
+    2026-09-29: every one of the 370 live `_SPO2.csv` metas says `"UNKNOWN"`, while all 63 downloaded
+    `STORED.dat` metas carry a real count. So the two exist side by side today and the distinction is the
+    writer's own, not a guess about the device."""
+    a = (read_json(primary + ".meta.json") or {}).get("acquisition_evidence") or {}
+    n = a.get("expected_sample_count")
+    return n if isinstance(n, int) and not isinstance(n, bool) and n > 0 else None
+
+
 def completeness(night_dir: str, device: str, model: str, primaries: list[str], start, end) -> dict:
-    """§3.4 completeness on the primary stream (A2: an event stream is never scored here)."""
+    """§3.4 completeness on the primary stream (A2: an event stream is never scored here).
+
+    🔴 THE DENOMINATOR MUST BE STATED, NOT MANUFACTURED. `rate x span` is a completeness measure only
+    for a stream whose rate is a CLOCK. For a POLLED stream it is not: the host asks, the device answers,
+    and the period is the sleep PLUS the work, so the count drifts below the nominal on a night when
+    nothing was lost at all. Measured on the 2026-09-28 ring night: 23 826 rows against 24 179 s of worn
+    interval read 98.54 % and FAILED the 0.99 band, while the frame interval was mean 1.0149 s (median
+    1.019, p99 1.300) and not one frame was missing a value. The `@1Hz` the band divided by is the
+    nominal in the stream's signal NAME — `spo2_hr_motion@1Hz` — and the same file's acquisition evidence
+    says `expected_sample_count: "UNKNOWN"` in as many words. Reading a nominal where the writer wrote
+    UNKNOWN is the absence-as-value shape, one layer up from the sample.
+
+    So the denominator is taken in this order, and never invented:
+      1. the count the writer STATED (`expected_sample_count`) — the honest number when it exists;
+      2. `rate x span` when the rate came from a NEGOTIATED record (the device and host agreed it) —
+         unchanged for every PMD stream, which is where this band has always done its work;
+      3. otherwise the band does not bind: NOT_APPLICABLE, naming the polled stream and the nominal it
+         refuses to divide by. It neither passes nor fails the device, and coverage for that stream is
+         answered by CONTINUITY, which measures the gaps directly and is unaffected.
+
+    ⚠️ The device's own `duration_s` counter does NOT rescue case 3, and was checked before this shape was
+    chosen: on 2026-09-28 it read 24 177 s against the host's 24 179 s, so 23 826 / 24 177 = 98.55 % —
+    the same FAIL. The drift is in the POLL PERIOD, not in the span, so no better span can fix it."""
+    stated = [stated_expected_count(p) for p in primaries]
+    rows = sum(rows_between(p, start, end) for p in primaries)
+    if all(n is not None for n in stated) and primaries:
+        expected = float(sum(n for n in stated if n is not None))
+        return _complete_ratio(rows, expected, "expected_sample_count stated beside the stream")
     rates = [negotiated_rate(night_dir, device, model, p) for p in primaries]
     missing = [why for r, why in rates if r is None]
     if missing:
@@ -251,14 +296,31 @@ def completeness(night_dir: str, device: str, model: str, primaries: list[str], 
     if len(hz) != 1:
         return _decision("UNKNOWN", f"the primary files disagree on their rate: {hz}")
     rate = hz[0]
+    if any(why == DECLARED_RATE_WHY for _r, why in rates):
+        return _decision(
+            "NOT_APPLICABLE",
+            f"polled stream, rate declared not negotiated: {rate:g} Hz is the nominal in the signal name and "
+            f"the stream's own evidence states no expected_sample_count, so rows x span is not a completeness "
+            f"measure — coverage for this stream is the continuity band",
+        )
     expected = rate * (end - start).total_seconds()
     if expected <= 0:
         return _decision("UNKNOWN", "the worn interval has no length")
-    rows = sum(rows_between(p, start, end) for p in primaries)
+    return _complete_ratio(rows, expected, f"at {rate:g} Hz")
+
+
+def _complete_ratio(rows: int, expected: float, basis: str) -> dict:
+    """PASS inside the band, FAIL outside it, and the FAIL always names the BASIS it was judged against —
+    a percentage with no denominator behind it cannot be argued with.
+
+    `expected` is positive on both paths into here and no guard repeats that: the stated count is
+    accepted only when it is a positive integer, and the rate path checks `expected <= 0` before it calls
+    this. Coverage found the duplicate, and a guard no input can reach is one more thing a reader has to
+    rule out rather than protection."""
     ratio = rows / expected
     if COMPLETE_LO <= ratio <= COMPLETE_HI:
         return _decision("PASS")
-    return _decision("FAIL", f"{rows} rows against {expected:.0f} expected at {rate:g} Hz = {100 * ratio:.2f} %")
+    return _decision("FAIL", f"{rows} rows against {expected:.0f} expected {basis} = {100 * ratio:.2f} %")
 
 
 def validity(night_dir: str, model: str) -> dict:
