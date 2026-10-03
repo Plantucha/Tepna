@@ -1,0 +1,81 @@
+{
+ "schema": "tepna.published-number-record/1",
+ "producer": "tools/tch-pooled-hat.mjs",
+ "producerCommit": "d915f19b",
+ "invocation": "node tools/tch-pooled-hat.mjs --dir uploads/trio --json",
+ "generated": "2026-10-03",
+ "inputs": {
+  "path": "uploads/trio",
+  "committed": true,
+  "files": 658,
+  "digest": "6f6b14e7bcd4",
+  "note": "sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under uploads/trio at producerCommit — a RESOLVABLE upstream node: recompute it and a moved corpus is visible"
+ },
+ "publishedIn": "briefs/SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md §11 (re-derived over the SAME 90 nights after the per-segment host-axis re-fold, 2026-10-03)",
+ "supersedes": "analysis/published-numbers/tch-pooled-hat-2026-09-29.json (inputs a8f64980ac85, 658 files, 90 nights — the same 658 files and the same 90 nights, re-folded under closure 23ce26ba72921405; the night set did NOT change, so every movement here is the fold, not the population)",
+ "claims": {
+  "note": "the values EXACTLY as the prose states them (9 dp), so CLAIM … FROM … #claims/<key> compares equal; full precision is under result",
+  "gapH10": 0.014019917,
+  "gapVerity": 0.000163184,
+  "gapO2": 0.023873666,
+  "lhsH10": 0.014019917,
+  "lhsVerity": 0.000163184,
+  "lhsO2": 0.023873666,
+  "nightsUsed": 90,
+  "pooledSeconds": 1510244
+ },
+ "identity": {
+  "note": "lhs = σ²_pooled − σ²_weighted (computed here); gap = ½(B_AB + B_AC − B_BC) (the tool); |Δ| between them",
+  "absDelta": {
+   "h10": 4.683753385137379e-16,
+   "verity": 5.516420653606247e-16,
+   "o2": 1.2490009027033011e-15
+  }
+ },
+ "result": {
+  "dir": "uploads/trio",
+  "nights": 90,
+  "skipped": 57,
+  "pairs": {
+   "N": 1510244,
+   "hv": {
+    "within": 3.609065721216292,
+    "B": 0.014183101065338505,
+    "pooled": 3.6232488222816306,
+    "meanMu": 0.0423003628891484
+   },
+   "ho": {
+    "within": 13.900785779157339,
+    "B": 0.037893583705853044,
+    "pooled": 13.938679362863192,
+    "meanMu": 0.17329069588642418
+   },
+   "vo": {
+    "within": 13.65615220458748,
+    "B": 0.024036849884552867,
+    "pooled": 13.680189054472033,
+    "meanMu": 0.13099033299727564
+   }
+  },
+  "pooled": {
+   "h10": 1.9408695653363948,
+   "verity": 1.682379256945235,
+   "o2": 11.997809797526797
+  },
+  "weighted": {
+   "h10": 1.926849647893076,
+   "verity": 1.6822160733232163,
+   "o2": 11.973936131264262
+  },
+  "gap": {
+   "h10": 0.014019917443319343,
+   "verity": 0.0001631836220191661,
+   "o2": 0.023873666262533705
+  },
+  "medianSigma": {
+   "h10": 0.7735662420820615,
+   "verity": 0.9297668818546312,
+   "o2": 3.329850167408839
+  }
+ }
+}
