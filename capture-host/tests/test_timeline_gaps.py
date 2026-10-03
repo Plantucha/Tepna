@@ -213,3 +213,133 @@ def test_an_offset_is_ADDED_to_the_stamp_and_the_sign_is_observed():
         [_f(VERITY_ACC, 900, stream="ACCRAW", span_sec=60.0)], "0C301E3F", "ACCRAW", 50.0, offset_sec=7200.0
     )
     assert _start(iv) == stamp + 7200.0
+
+
+# ── THE EQUIVALENCE BATTERY for `ids.discard("")` ────────────────────────────────────────────────
+# ⚠️ THIS IS A COMMITTED BATTERY, AND THAT IS THE POINT. `tools/mutate-equivalence.json` requires a
+# `probe` field saying what was actually run, and MUTATION-EQUIVALENCE §8.4 names the failure this
+# avoids: "the batteries that produced them were never committed, so those verdicts cannot be
+# re-checked, widened, or re-run against moved code". Living here rather than in
+# `tools/probe_equivalence.py` because that prober's battery is written against polar_pmd's API by
+# name and its `observe`/`CANARIES` are part of its own test contract; a second battery belongs
+# beside the module it probes. Running in-process rather than per-subprocess keeps it at ~0.2 s.
+#
+# ⚠️ THE CANARY RULE — a battery that distinguishes nothing looks exactly like one too narrow to see.
+# So this asserts FIRST that four known-killable mutants each produce differences, and only then that
+# the candidate produces none. If a canary ever goes blind this test fails on the canary, which is the
+# honest failure: it says the battery stopped proving things, not that the candidate became equivalent.
+_TL_NAMES = [
+    VERITY_ACC,  # id = 0C301E3F
+    H10_ACC,  # id = 02849638
+    "Tepna_20260928213651_LINK.csv",  # no id field at all -> None
+    "ACC.txt",  # fewer than 3 parts -> None
+    "_20260928213651_ACC.txt",  # the id slot is EMPTY -> None, never ""
+]
+# The `device_id` axis IS the candidate: `ids.discard("")` can only matter if `""` reaches `ids`, so
+# the axis carries the str form (including `""`), the iterable form (including one holding `""`),
+# `None` and an empty one.
+_TL_DEVICE_IDS = ["", "0C301E3F", "NOPE", None, [], [""], ["0C301E3F"], ["", "0C301E3F"], ["", None], (None,)]
+_TL_DURATION_KEYS = [{}, {"span_sec": 60.0}, {"host_span_sec": 3600.0}, {"span_sec": 60.0, "host_span_sec": 3600.0}]
+
+# (anchor, replacement, why it is killable, the committed test that kills it)
+_TL_CANARIES = [
+    (
+        'if f["stream"] != tag or not ids',
+        'if f["stream"] == tag or not ids',
+        "stream tag filter inverted",
+        "test_a_dropping_stream_is_measured_by_its_OWN_host_stamps_not_by_received_samples",
+    ),
+    (
+        'if t0 is None or not f["rows"]:',
+        'if t0 is None or f["rows"]:',
+        "rows refusal inverted",
+        "test_the_device_clock_still_wins_when_the_file_carries_one",
+    ),
+    (
+        'dur = f.get("span_sec") or f.get("host_span_sec")',
+        'dur = f.get("host_span_sec") or f.get("span_sec")',
+        "duration preference order swapped",
+        "test_the_device_clock_still_wins_when_the_file_carries_one",
+    ),
+    (
+        "t0 += 0.0 if offset_sec is None else offset_sec",
+        "t0 -= 0.0 if offset_sec is None else offset_sec",
+        "frame offset sign flipped",
+        "test_an_offset_is_ADDED_to_the_stamp_and_the_sign_is_observed",
+    ),
+]
+_TL_CANDIDATE = ('ids.discard("")', "ids.discard(None)")
+
+
+def _tl_battery():
+    """(label, files, device_id, tag, fs, offset_sec) — every axis `_placed` branches on."""
+    filesets = []
+    for name in _TL_NAMES:
+        for stream in ("ACC", "ACCRAW"):
+            for rows in (0, 900):
+                for kw in _TL_DURATION_KEYS:
+                    filesets.append(
+                        (
+                            f"{name}|{stream}|{rows}|{','.join(sorted(kw)) or 'none'}",
+                            [{"file": name, "stream": stream, "rows": rows, **kw}],
+                        )
+                    )
+    # A multi-file set, so a mutant that stops the loop instead of skipping one record is visible —
+    # a single-file battery cannot tell `continue` from `break`.
+    filesets.append(("five-files", [{"file": n, "stream": "ACC", "rows": 900, "span_sec": 60.0} for n in _TL_NAMES]))
+    for label, files in filesets:
+        for dev in _TL_DEVICE_IDS:
+            for tag in ("ACC", "ACCRAW"):
+                for fs in (0.0, 50.0):
+                    for off in (0.0, None, 7200.0):
+                        yield (f"{label} dev={dev!r} {tag} fs={fs} off={off}", files, dev, tag, fs, off)
+
+
+def _tl_variant(before=None, after=None):
+    """`timeline` with one line optionally replaced, loaded into its own namespace."""
+    import types
+
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "timeline.py")).read()
+    if before is not None:
+        assert src.count(before) == 1, f"anchor matched {src.count(before)}x, need exactly 1: {before}"
+        src = src.replace(before, after)
+    mod = types.ModuleType("timeline_variant")
+    mod.__dict__["__file__"] = timeline.__file__
+    exec(compile(src, timeline.__file__, "exec"), mod.__dict__)
+    return mod
+
+
+def _tl_observe(mod):
+    """Everything a caller of `_placed` can see: the yielded pairs, or the exception instead."""
+    out = []
+    for label, files, dev, tag, fs, off in _tl_battery():
+        try:
+            out.append((label, tuple(mod._placed(files, dev, tag, fs, off))))
+        except Exception as e:  # an exception IS an observable outcome
+            out.append((label, "EXC:" + type(e).__name__))
+    return out
+
+
+def _tl_differences(a, b):
+    """How many observations distinguish the variant. A length mismatch is a difference — the largest
+    one — and `zip` alone cannot see it: a variant that dropped observations would read as equivalent."""
+    return sum(1 for x, y in zip(a, b) if x[1] != y[1]) + abs(len(a) - len(b))
+
+
+def test_the_discard_guard_is_unkillable_and_the_battery_can_PROVE_it():
+    """The committed battery behind `mutate-equivalence.json`'s `timeline.py` entry.
+
+    `ids.discard("")` can only matter if `""` reaches `ids` AND `writers.file_device_id` can return
+    `""`. The first is reachable; the second is not — its last line is
+    `return parts[i - 1] if i - 1 >= 2 and parts[i - 1] else None`, so an empty id slot yields None.
+    Asserted here rather than argued, and the canaries come first so a zero is evidence."""
+    base = _tl_observe(_tl_variant())
+    assert len(base) > 5000, f"the battery must be wide enough to mean something, got {len(base)}"
+    assert timeline._file_device_id("_20260928213651_ACC.txt") is None, "an empty id slot must not be ''"
+
+    for before, after, why, killed_by in _TL_CANARIES:
+        n = _tl_differences(base, _tl_observe(_tl_variant(before, after)))
+        assert n > 0, f"BATTERY BLIND to '{why}' (killed by {killed_by}) — it cannot prove anything"
+
+    n = _tl_differences(base, _tl_observe(_tl_variant(*_TL_CANDIDATE)))
+    assert n == 0, f"{_TL_CANDIDATE[0]} -> {_TL_CANDIDATE[1]} IS killable ({n} of {len(base)}) — the entry is wrong"
