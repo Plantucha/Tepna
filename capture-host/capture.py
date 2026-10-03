@@ -2638,6 +2638,68 @@ _RECONNECT_BACKOFF_CAP_S = 180.0
 # stall/charge/not-worn rechecks are steady cadences by design and must stay readable as such.
 _RETRY_JITTER = 0.10
 
+# ── E16 · THE RECONNECT BUDGET IS NOW MEASURED, NOT TRUSTED ─────────────────────────────────────────
+# `_RECONNECT_BACKOFF_CAP_S`'s comment above states a REQUIREMENT and a prediction: VIGIL-OVERNIGHT-
+# FINDINGS P2.1 asked for a cap of ~5 min and **< 20 attempts/hour**, and 180 s "gives a ~210 s cycle
+# ≈ 17/h". Nothing measured either number. E16 went looking at the 2026-09-28 night and found 35
+# `scan + connect` cycles between 04:24 and 06:20 EDT after the ring was doffed — 116 min, so **18.1
+# attempts/hour on a 199 s cycle**: inside the budget, within 5 % of the prediction, and the cap is
+# therefore doing exactly what it was specified to do. That is the whole reason this is a TRIPWIRE and
+# not a change to the cap: the finding E16 was raised on turned out to be the backoff honouring a
+# sourced requirement, and the defect was that nobody could have known either way.
+#
+# `blestats.retried` already counts retries per (device, why), but as a MONOTONIC total since process
+# start — which cannot answer "per hour". `_retry_sleep`'s own docstring says so in as many words:
+# *"a rising retry rate is itself the alert, and that needs a counter."* This is that counter.
+_RECONNECT_BUDGET_PER_HOUR = 20.0  # VIGIL-OVERNIGHT-FINDINGS P2.1 — a requirement, not a preference
+_RETRY_RATE_WINDOW_S = 3600.0  # the budget is stated per hour, so the window that judges it is an hour
+_RETRY_STAMPS: "dict[str, list[float]]" = {}  # device -> monotonic stamps of ERROR backoffs, pruned
+_RETRY_SINCE: dict[str, float] = {}  # device -> monotonic ts of its first error backoff (see below)
+_RETRY_ALERTED: dict[str, float] = {}  # device -> monotonic ts of the last budget warning
+
+
+def retry_rate_per_hour(
+    stamps: "list[float]", now: float, observing_since: float, window_sec: float = _RETRY_RATE_WINDOW_S
+) -> float | None:
+    """PURE: ERROR-backoff attempts per hour over the trailing `window_sec`, or **None** when the window
+    is not yet covered by observation.
+
+    ∅ THE None IS THE POINT. Ten attempts in the first ten minutes of a process is not 60/h, it is ten
+    attempts and an unknown rate — extrapolating a partial window would alert on every daemon start,
+    which is the fastest way to teach an operator to ignore this warning. A rate nobody has observed for
+    a full hour is NOT MEASURED, and §∅ says an unmeasured value is null rather than a plausible number.
+    `observing_since` is the device's FIRST error backoff, which is a lower bound on when watching
+    began: it can only make this function say "not yet", never make it alert early."""
+    if now - observing_since < window_sec:
+        return None
+    cut = now - window_sec
+    # `t <= now` is not defence against the impossible — it is the function's contract made total. A
+    # monotonic stamp from the future cannot reach the live caller, but a CALLER asking about an earlier
+    # `now` (a test replaying a measured night, which is how this was found) would otherwise have every
+    # later stamp counted into a window that ended before them, and read 34/h out of an 18/h night.
+    return sum(1 for t in stamps if cut < t <= now) * (3600.0 / window_sec)
+
+
+def retry_budget_alert(
+    stamps: "list[float]",
+    now: float,
+    observing_since: float,
+    last_alert: float | None,
+    budget_per_hour: float = _RECONNECT_BUDGET_PER_HOUR,
+    window_sec: float = _RETRY_RATE_WINDOW_S,
+) -> float | None:
+    """PURE: the measured attempts/hour when it EXCEEDS the budget AND a warning is due, else None.
+
+    One warning per window per device. The dedupe is here rather than at the call site because this is
+    the function a test can drive: a tripwire that fires on every retry once it trips is the same
+    unread warning #2365 produced, one line further down."""
+    rate = retry_rate_per_hour(stamps, now, observing_since, window_sec)
+    if rate is None or rate <= budget_per_hour:
+        return None
+    if last_alert is not None and (now - last_alert) < window_sec:
+        return None
+    return rate
+
 
 async def _retry_sleep(name: str, delay: float, why: str, attempt: int) -> float:
     """THE one wait a runner takes before trying its device again (CAPTURE-HOST-RESOURCE-ORCHESTRATION-
@@ -2666,6 +2728,27 @@ async def _retry_sleep(name: str, delay: float, why: str, attempt: int) -> float
     # STATUS; it does not make the RATE visible. #2365's retry absorbed 97 of 98 failures behind a
     # warning nobody had to read. A rising retry rate is itself the alert, and that needs a counter.
     blestats.retried(name, why)
+    # E16 · the RATE against the sourced budget, measured here because this is the one wait every
+    # runner takes. Only the ERROR backoff is counted: the charge/stall/not-worn rechecks are steady
+    # cadences by design (see `_RETRY_JITTER`) and have no attempts/hour requirement to breach.
+    if why == "backoff":
+        _mono = _time.monotonic()
+        _st = _RETRY_STAMPS.setdefault(name, [])
+        _st.append(_mono)
+        _st[:] = [t for t in _st if t > _mono - _RETRY_RATE_WINDOW_S]
+        _over = retry_budget_alert(_st, _mono, _RETRY_SINCE.setdefault(name, _mono), _RETRY_ALERTED.get(name))
+        if _over is not None:
+            _RETRY_ALERTED[name] = _mono
+            log.warning(
+                "%s: %.1f reconnect attempts/hour over the last %.0f min — above the %.0f/h budget "
+                "(VIGIL-OVERNIGHT-FINDINGS P2.1). The backoff cap is %.0f s; a rate above budget means "
+                "something is resetting it, not that the cap is wrong",
+                name,
+                _over,
+                _RETRY_RATE_WINDOW_S / 60.0,
+                _RECONNECT_BUDGET_PER_HOUR,
+                _RECONNECT_BACKOFF_CAP_S,
+            )
     _set(
         name,
         connected=False,

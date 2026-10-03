@@ -199,3 +199,127 @@ def test_config_override_raises_the_cap(tmp_path, monkeypatch):
     }
     asyncio.run(capture.run_oxyii(dev, str(tmp_path)))
     assert slept == [5, 10, 20, 40, 80, 160, 320, 400], slept
+
+
+# ── E16 · THE BUDGET IS NOW MEASURED ────────────────────────────────────────────────────────────────
+# The header above states P2.1's requirement — a cap of ~5 min and **< 20 attempts/hour** — and the
+# tests above pin the SCHEDULE that was supposed to deliver it. Nothing measured the rate itself, so
+# when E16 reported "the daemon keeps rescanning the doffed ring every ~3 min, 35 cycles between 04:24
+# and 06:20", there was no instrument to say whether that was a breach or the spec working. It is the
+# spec working: 35 over 116 min is 18.1/h on a 199 s cycle, inside the budget and within 5 % of the
+# cycle this file predicts. These tests exist so the next report of this shape is answered by a
+# measurement instead of an argument.
+
+
+@pytest.fixture
+def _fresh_rate_counters(monkeypatch):
+    """The rate counters are module-level and process-lifetime by design (like `_WORN_SINCE`), so they
+    must be isolated per test or the second test reads the first one's stamps."""
+    monkeypatch.setattr(capture, "_RETRY_STAMPS", {})
+    monkeypatch.setattr(capture, "_RETRY_SINCE", {})
+    monkeypatch.setattr(capture, "_RETRY_ALERTED", {})
+
+
+def test_a_rate_over_a_PARTIAL_window_is_None_not_a_big_number():
+    """∅ Ten attempts in the first ten minutes is ten attempts and an UNKNOWN rate. Extrapolating it to
+    60/h would alert on every daemon start, which is how a warning becomes unread."""
+    now = 10_000.0
+    stamps = [now - 60.0 * i for i in range(10)]
+    assert capture.retry_rate_per_hour(stamps, now, observing_since=now - 600.0) is None, (
+        "ten minutes of observation cannot answer a per-hour question"
+    )
+    assert capture.retry_rate_per_hour(stamps, now, observing_since=now - 3599.0) is None, "one second short"
+    assert capture.retry_rate_per_hour(stamps, now, observing_since=now - 3600.0) == 10.0, "exactly at the bound"
+
+
+def test_the_rate_counts_only_the_TRAILING_window():
+    now = 10_000.0
+    inside = [now - 100.0, now - 200.0, now - 3599.0]
+    outside = [now - 3601.0, now - 7200.0]  # older than the window: not this hour's attempts
+    assert capture.retry_rate_per_hour(inside + outside, now, observing_since=0.0) == 3.0
+    assert capture.retry_rate_per_hour(outside, now, observing_since=0.0) == 0.0, (
+        "a device that has stopped retrying reads ZERO, which is a measurement — not None"
+    )
+
+
+def test_E16_s_OWN_night_is_INSIDE_the_budget_and_that_is_the_finding():
+    """The number the whole unit turns on, as an assertion rather than a sentence: 35 `scan + connect`
+    cycles between 04:24 and 06:20 EDT on 2026-09-28. If a future change to the cap or the cycle pushes
+    that shape over 20/h, this test is where it will be noticed."""
+    start = 1000.0
+    cycle = (6 * 3600 + 20 * 60 - (4 * 3600 + 24 * 60)) / 35.0  # 116 min over 35 cycles
+    assert cycle == pytest.approx(198.9, abs=0.1), "the measured cycle, from E16's own two timestamps"
+    stamps = [start + cycle * i for i in range(35)]
+    episode = 116 * 60.0
+    end = start + episode
+    # ⚠️ TWO CORRECT ANSWERS, AND THE DIFFERENCE IS THE ENDPOINT CONVENTION — written down because the
+    # obvious "fix" is to make the function agree with the headline, and that would be wrong.
+    #   · E16's prose divides 35 attempts by 116 min and reports **18.1/h**. That counts BOTH endpoints
+    #     of the span, i.e. 35 points across 34 intervals.
+    #   · The shipped window is half-open, `cut < t <= now`, because that is what makes consecutive
+    #     windows partition the stamps instead of double-counting the boundary. Over the same span it
+    #     therefore counts 34 and reads **17.6/h**.
+    # The claim the unit rests on is unaffected: both are comfortably inside P2.1's < 20/h.
+    assert 35 / (episode / 3600.0) == pytest.approx(18.1, abs=0.1), "E16's prose arithmetic"
+    rate = capture.retry_rate_per_hour(stamps, end, observing_since=start, window_sec=episode)
+    assert rate == pytest.approx(17.6, abs=0.1), f"the shipped half-open window reads {rate}/h"
+    assert rate < capture._RECONNECT_BUDGET_PER_HOUR, (
+        "E16's rescan rate is INSIDE P2.1's budget — which is why E16 changed no constant"
+    )
+    # And through the shipped one-hour window, ending with the episode: the same answer.
+    hourly = capture.retry_rate_per_hour(stamps, end, observing_since=start)
+    assert hourly == pytest.approx(18.0, abs=1.0), f"trailing hour reads {hourly}/h"
+    assert hourly < capture._RECONNECT_BUDGET_PER_HOUR
+    assert capture.retry_budget_alert(stamps, end, start, None) is None, "and therefore raises no alert"
+    # ⚠️ A WINDOW THAT ENDS BEFORE THE STAMPS DO must not count them. Asking at the episode's START
+    # once an hour of observation exists reads the FIRST hour, 18 attempts — not all 35. Getting this
+    # wrong is what made the first draft of this test read 34/h out of an 18/h night.
+    assert capture.retry_rate_per_hour(stamps, start + 3600.0, observing_since=start) == 18.0
+
+
+def test_the_alert_fires_over_budget_ONCE_per_window_per_device():
+    now = 10_000.0
+    stamps = [now - 60.0 * i for i in range(25)]  # 25 in the hour, budget is 20
+    assert capture.retry_budget_alert(stamps, now, now - 3600.0, None) == 25.0
+    assert capture.retry_budget_alert(stamps, now, now - 3600.0, last_alert=now - 10.0) is None, (
+        "already warned this window — a tripwire that fires on every retry is the unread warning again"
+    )
+    assert capture.retry_budget_alert(stamps, now, now - 3600.0, last_alert=now - 3600.0) == 25.0, (
+        "a full window later it is due again"
+    )
+    at_budget = [now - 60.0 * i for i in range(20)]
+    assert capture.retry_budget_alert(at_budget, now, now - 3600.0, None) is None, (
+        "the requirement is < 20/h, so exactly 20 is not yet a breach — the boundary is the whole content"
+    )
+
+
+def test_only_the_ERROR_backoff_is_counted_and_the_warning_reaches_the_journal(_fresh_rate_counters, monkeypatch, caplog):
+    """Drives `_retry_sleep` itself, both sides of its one branch: the steady cadences must leave the
+    counter untouched, and a device over budget must say so in the journal."""
+    monkeypatch.setattr(capture, "_RETRY_JITTER", 0.0)
+    # No sleep patch: every call below passes delay 0.0, so `asyncio.sleep(0)` is what runs. Patching
+    # `capture.asyncio.sleep` with a lambda that calls `asyncio.sleep` recurses into itself — the two
+    # names are the same object.
+
+    async def _drive():
+        for why in ("charging", "stalled", "not_worn"):
+            await capture._retry_sleep("H10", 0.0, why, 1)
+        assert capture._RETRY_STAMPS == {}, "a steady recheck has no attempts/hour requirement to breach"
+        await capture._retry_sleep("H10", 0.0, "backoff", 1)
+        assert len(capture._RETRY_STAMPS["H10"]) == 1
+
+    asyncio.run(_drive())
+    assert "attempts/hour" not in caplog.text, "one backoff inside a partial window must not alert"
+
+    # Now a device whose first backoff was over an hour ago and which has retried 25 times since.
+    mono = capture._time.monotonic()
+    capture._RETRY_SINCE["O2Ring-S"] = mono - 7200.0
+    capture._RETRY_STAMPS["O2Ring-S"] = [mono - 60.0 * i for i in range(25)]
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture._retry_sleep("O2Ring-S", 0.0, "backoff", 9))
+    assert "attempts/hour" in caplog.text and "budget" in caplog.text, caplog.text
+    assert "O2Ring-S" in caplog.text
+    first = caplog.text.count("attempts/hour")
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture._retry_sleep("O2Ring-S", 0.0, "backoff", 10))
+    assert caplog.text.count("attempts/hour") == first, "deduped inside the window"
