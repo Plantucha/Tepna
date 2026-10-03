@@ -454,6 +454,28 @@ def oxyii_rtc_due(last_sync, now, session_restarted: bool, resync_sec: float) ->
     return None
 
 
+# ── THE RING'S VITALS CADENCE IS A DEADLINE, NOT A SLEEP AFTER THE WORK ──────────────────────────────────
+# The live loop used to `sleep(1.0)` (or `0.5 + raw poll + 0.5`) AFTER each cycle's writes, so every cycle
+# lasted 1 s PLUS its own work. Measured on vigil 2026-09-28: 23 826 frames over a 24 179 s night, mean
+# interval 1.0149 s, while the ring's own `duration_s` counter agreed with the host to 2 s. Nothing was lost,
+# but the live `_SPO2.csv` (one row per poll) read 98.54 % against a 1 Hz count, and OxyDex counts rows as
+# seconds (residues `2026-09-29-ring-vitals-poll-runs-at-one-second-plus-work`,
+# `2026-09-29-oxydex-counts-rows-as-seconds`). Each cycle now sleeps UNTIL its deadlines (start + ½·period
+# for the mid-cycle raw drain, start + period for the next poll), so the period is the period.
+_OXYII_POLL_PERIOD_S = 1.0
+
+
+def oxyii_next_cycle(start: float, now: float, period: float = _OXYII_POLL_PERIOD_S) -> float:
+    """PURE. When the next vitals cycle starts, given when this one started and the clock now.
+
+    Normally `start + period`. If the loop has fallen a WHOLE period or more behind that (a stalled D-Bus
+    write, a long settings write, a paused event loop), the schedule re-anchors on `now` instead of firing
+    the missed polls back to back: a burst of catch-up polls would ask the ring for frames it has not made,
+    and the ring answers a poll with the reading of that moment, not with the missed ones."""
+    nxt = start + period
+    return nxt if now - nxt < period else now
+
+
 # ── Session-restart STORM: when our presence is what keeps the ring restarting, leave it alone ───────
 # Measured 2026-09-05 02:27–02:57 (61 restarts, ring buzzing every ~40 s) and 2026-08-28 (520 restarts):
 # the ring sits in an UNCOMMITTED measurement (live [4] run_status 1, PI invalid), restarts it — and
@@ -6098,9 +6120,10 @@ async def run_oxyii(dev: dict, root: str):
                 if _why:
                     await _rtc_sync(_why)
                 last_frames, last_change = frames[0], _time.monotonic()
+                _cyc = _time.monotonic()  # this cycle's start — the deadlines below are measured from it
                 while (
                     client.is_connected and not _STOP.is_set() and not _OXYII_PAUSE.is_set() and not _RECOVER.is_set()
-                ):  # poll live ~1/s
+                ):  # poll live at _OXYII_POLL_PERIOD_S, on deadlines (see oxyii_next_cycle)
                     if _storm_hit[0] is not None:
                         # Drop the link BEFORE the next poll or RTC write: on a storm night every frame we
                         # ask for is another buzz. The outer loop idles until _OXYII_HOLD_UNTIL[addr].
@@ -6218,17 +6241,21 @@ async def run_oxyii(dev: dict, root: str):
                     # well under the cap, so capture is COMPLETE and every night's unsaturated counts
                     # measure the true fill rate for free. Vitals cadence unchanged (0x04 rides the
                     # full cycle); without the raw stream the loop sleeps exactly as before.
+                    # DEADLINES, not fixed sleeps: each sleep is the time LEFT until the mark, so the cycle's own
+                    # work does not lengthen the period (see oxyii_next_cycle). Same number of sleeps per cycle as
+                    # before — one, or two with the mid-cycle raw drain — at the same marks.
                     if ppg2wr:
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(max(0.0, _cyc + 0.5 * _OXYII_POLL_PERIOD_S - _time.monotonic()))
                         try:
                             await asyncio.wait_for(
                                 client.write_gatt_char(wch, oxyii.rt_ppg_frame(), response=False), _PMD_CTRL_TIMEOUT_S
                             )
                         except Exception as e:
                             log.debug("%s: mid-cycle raw IR/RED poll failed (%r) — vitals unaffected", name, e)
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(max(0.0, _cyc + _OXYII_POLL_PERIOD_S - _time.monotonic()))
                     else:
-                        await asyncio.sleep(1.0)
+                        await asyncio.sleep(max(0.0, _cyc + _OXYII_POLL_PERIOD_S - _time.monotonic()))
+                    _cyc = oxyii_next_cycle(_cyc, _time.monotonic())
                     # Same stall guard as the Polar path: a ring that holds its link but stops answering
                     # (auth/setup never accepted, every frame failing CRC, a handler raising inside
                     # bleak's dispatch) is indistinguishable from a healthy one from out here.
