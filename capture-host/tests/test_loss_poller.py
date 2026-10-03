@@ -60,8 +60,8 @@ def test_loss_poller_audits_settled_nights_once_and_skips_the_active_one(tmp_pat
     assert any("3 min of the night's gaps were the daemon's own doing" in r.getMessage() for r in caplog.records)
     # the night's files change ⇒ audited again
     d = tmp_path / "captures" / "2026-09-18"
-    # The night's DATA must be newer than its audit AND still old enough to be settled, so the VERDICT
-    # moves back rather than the data forward — moving the data to "now" would make the night read as
+    # The night's DATA must be newer than its audit AND still old enough to be settled, so the audit's
+    # own stamp moves back rather than the data forward — moving the data to "now" would make the night read as
     # still recording, which is the new predicate working, not a test to be worked around.
     _dm = os.path.getmtime(str(d / "Polar_H10_0284_20260920220000_ECG.txt"))
     os.utime(str(d / capture.loss_audit.VERDICT_NAME), (_dm - 5, _dm - 5))
@@ -118,7 +118,7 @@ def test_a_SIDECAR_touched_after_the_audit_does_not_re_audit_the_night(tmp_path,
     assert calls == ["2026-09-18"], "a sidecar or marker is not the night's data changing"
 
     # …and the positive control: the DATA being newer than the audit still re-audits, or the skip would
-    # be a silent stop. Expressed by moving the VERDICT back, not the data forward: data stamped "now"
+    # be a silent stop. Expressed by moving the audit's own stamp back, not the data forward: data stamped "now"
     # would read as still recording under the eligibility rule, and the control would then pass for the
     # wrong reason — it would prove the night was skipped, not that a moved file re-audits.
     _dm = os.path.getmtime(str(d / "Polar_H10_0284_20260920220000_ECG.txt"))
