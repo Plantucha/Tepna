@@ -189,20 +189,73 @@ def history(captures_dir: str, nights: list[str], active: set[str]) -> list[tupl
 
     The run starts at the first night that HAS a verdict — nights before the programme are not nights it
     failed. After that, a settled night with no verdict is UNKNOWN (it was not assessed, so it cannot bridge
-    a run — §3.1), and a still-active night is `not settled`."""
+    a run — §3.1), and a night with no verdict that is still active is `not settled`.
+
+    🔴 THE WRITTEN VERDICT WINS OVER `active`. A night that has a verdict beside it HAD settled when that
+    verdict was composed, and a later file touch cannot un-settle it. Reading `active` first made a
+    composed night unassessed, and §3.1 resets the run on a non-latest `not settled` — so the night's own
+    PASS would be thrown away by a file written next to it. This is not hypothetical: `active_nights`
+    calls a night active when ANY file in its directory is younger than `settle_sec`, and the daemon
+    appends the live-vitals `OXYLIFE.csv` into the PREVIOUS night's directory all day. Measured on vigil
+    2026-09-29 15:40: `2026-09-28` had device data quiet for 39 702 s and a FAIL verdict written 28 979 s
+    earlier, and read `not settled` because `OXYLIFE.csv` was 11.2 s old. The archive's `.archived` marker
+    (5703 s old on the same night) is a second instance of the same class. `nightqc.newest_data_mtime`
+    exists precisely because a directory-wide mtime answers a different question; the loss-audit trigger
+    was taught that and this was not."""
     out: list[tuple[str, str, str | None]] = []
     for night in sorted(nights):
-        if night in active:
-            if out:
-                out.append((night, "UNKNOWN", NOT_SETTLED))
-            continue
         v = _inputs.read_json(os.path.join(captures_dir, night, VERDICT_NAME))
-        if v is None:
-            if out:
-                out.append((night, "UNKNOWN", NO_VERDICT))
+        if v is not None:
+            out.append((night, str(v.get("status")), v.get("reason")))
             continue
-        out.append((night, str(v.get("status")), v.get("reason")))
+        if out:
+            out.append((night, "UNKNOWN", NOT_SETTLED if night in active else NO_VERDICT))
     return out
+
+
+def pending_verdict(
+    night_dir: str, devices: list, *, nights: list[str], active: set[str], commit: str | None = None,
+    at: str | None = None,
+) -> tuple[dict, dict]:
+    """The night still being CAPTURED, as `UNKNOWN` `not settled` — composed in memory and never written.
+
+    §2 composes a verdict on the loss audit's own trigger, which fires only once the night has settled.
+    That is right for the FILE: a verdict written beside a night whose data is still arriving would be a
+    claim over input that does not exist yet. It was wrong for the STATUS surface, which between doff and
+    the settle window had nothing new to publish and so kept displaying the PREVIOUS night's verdict under
+    the previous night's date — the one case an operator meets every single morning. `compose` has always
+    been able to say this (`settled=False`) and `monitor.html` has always been able to render it (the
+    `pending` branch styles the card idle rather than as a finding); only the producer was missing.
+
+    NO BAND IS EVALUATED. Scoring an in-flight night would measure completeness against an interval that
+    has not finished arriving and publish the shortfall as a finding — an output over absent input (§∅).
+    Each expected device therefore carries an EMPTY band set, which `device_outcome` reads as UNKNOWN
+    "no band was evaluated for this device", and `result.devices` says exactly that. None of it can reach
+    the status word: `compose` returns on `settled` before the band outcomes are consulted.
+
+    The loss audit is deliberately absent from `evidence` — it has not run for this night, and naming a
+    file that does not exist is the citation this suite refuses everywhere else."""
+    night = os.path.basename(night_dir.rstrip("/"))
+    expected: dict[str, dict] = {
+        str(d.get("name") or d.get("model")): {"bands": {}} for d in _inputs.expected_devices(night_dir, devices)
+    }
+    obj = compose(
+        night=night,
+        settled=False,
+        devices=expected,
+        evidence=[TOOL, "capture-host/solid_night_inputs.py"],
+        commit=commit,
+        at=at,
+    )
+    captures = os.path.dirname(night_dir.rstrip("/"))
+    past = [n for n in history(captures, nights, active) if n[0] < night]
+    run = consecutive([*past, (night, obj["status"], obj["reason"])])
+    # UNCONDITIONAL, unlike `write_night`'s: only NOT_APPLICABLE carries `result: null` by contract, and
+    # `compose` returns on `settled` long before it can reach that branch. A guard here would be a branch
+    # no input can take — protection against a case the function's own precondition excludes.
+    obj["result"]["run"] = run
+    _v.validate(obj)
+    return obj, run
 
 
 def write_night(
