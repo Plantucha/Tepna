@@ -9055,9 +9055,22 @@ async def loss_poller(cfg: dict, root: str):
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
+            # `active` is still computed, for `_solid_night` below — that consumer wants the broad
+            # "is anything writing here" answer. THIS poller does not, and borrowing it was the defect:
+            # a night's eligibility is about its DEVICE DATA going quiet, and the poller's own
+            # QC-SUMMARY / verdict writes land in the very folder it is asking about, so the night stayed
+            # `active` forever and was never judged. Measured on vigil 2026-10-03: 10-02's data stopped
+            # at 03:58:25 and its QC-SUMMARY was rewritten at 16:46:51, 12 h 48 m later, still unjudged;
+            # Wren measured 10-01 judged 10 h 55 m after doff, and only because a daytime session put
+            # data in another folder. See `nightqc.data_settled`. #2958 already fixed the RE-AUDIT skip
+            # below to key on data; this is the ELIGIBILITY gate upstream of it, which it could not reach.
             active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
             every = await asyncio.to_thread(diskguard.list_nights, captures)
-            nights = [n for n in every if n not in active]
+            _newest = {n: await asyncio.to_thread(nightqc.newest_data_mtime, os.path.join(captures, n)) for n in every}
+            # `_now()` rather than `time.time()`: this module's one clock, which the suite can shift and
+            # which the civil-time re-anchoring owns. A second time source here would drift from it.
+            _t = _now().timestamp()
+            nights = [n for n in every if nightqc.data_settled(_newest[n], settle, _t)]
             for night in nights[-int(lcfg.get("max_nights", 14)) :]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
@@ -9071,9 +9084,7 @@ async def loss_poller(cfg: dict, root: str):
                 # rewriting 24 files — forever, for nights whose data had not moved in days. The
                 # docstring above already promised "the night's PRIMARY files"; this is the code
                 # doing what it said.
-                newest = await asyncio.to_thread(nightqc.newest_data_mtime, nd)
-                if newest is None:
-                    continue  # no capture file: nothing to audit
+                newest = _newest[night]  # already measured for the eligibility test above
                 # audit only when the night's DATA changed since the last audit (otherwise it stands)
                 if not (os.path.exists(vpath) and os.path.getmtime(vpath) >= newest):
                     obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)

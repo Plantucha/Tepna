@@ -1483,6 +1483,35 @@ def _parse_phone_ts(raw: str) -> float | None:
     return float(calendar.timegm(dt.timetuple())) + dt.microsecond / 1e6
 
 
+def data_settled(newest_mtime: float | None, settle_sec: float, now: float) -> bool:
+    """Has this night's DATA gone quiet long enough to judge it? PURE — the IO is `newest_data_mtime`.
+
+    🔴 TWO QUESTIONS, ONE PREDICATE, AND THEY ARE NOT THE SAME. `diskguard.active_nights` answers "is
+    ANYTHING writing in this folder" and is right to count any file: it is a protect-list for destructive
+    work (prune, mirror, archive), where a folder someone is writing to must be left alone. "Has the
+    DEVICE DATA stopped" is a different question, and a verdict poller that borrows the first answer for
+    the second never judges a night at all — because the poller's OWN output lands in that folder.
+
+    Measured on vigil 2026-10-03 16:5x, with the daemon up since 06:53:40:
+      · 2026-10-02's last device file (`…_PPG2W.txt`, `…_RTCLOG.csv`) was written **03:58:25**;
+      · its `QC-SUMMARY.json` was rewritten at **16:46:51** — the QC poller re-writing the current
+        night every cycle, **12 h 48 m** after the data stopped;
+      · so the folder is永 `active`, the loss poller skips every active night, and the night is never
+        judged. Wren measured the same shape on 10-01: LOSS written 15:30:38, **10 h 55 m** after doff.
+    And the current night cannot advance: 2026-10-03's folder holds `Tepna_*_LINK.csv`,
+    `Tepna_*_CLOCK.csv` and `OXYLIFE.csv` — LINK and CLOCK are `_SIDECAR_TAGS`, and `OXYLIFE.csv` is
+    excluded because it does not parse as a capture name AT ALL — so `newest_data_mtime` is None there
+    and `_current_night` keeps returning 10-02. ⚠️ That last one is a latent trap: teach `OXYLIFE.csv`
+    to parse and it starts counting as data, which silently moves `_current_night`.
+
+    `None` (the folder holds no capture file) is NOT settled: there is nothing to judge, and saying
+    "settled" about a folder with no data would invite a verdict over an empty population (§🧾).
+    """
+    if newest_mtime is None:
+        return False
+    return (now - newest_mtime) >= settle_sec
+
+
 def newest_data_mtime(night_dir: str) -> float | None:
     """Newest mtime among this folder's DEVICE-CAPTURE files, or None if it holds none.
 
