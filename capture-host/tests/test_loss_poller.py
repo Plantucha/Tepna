@@ -6,24 +6,36 @@ active night untouched, a daemon-caused night logged as a warning, one bad night
 import asyncio
 import json
 import os
+import time
 
 import capture
 from tests.test_capture_coverage_100 import _run, _stop_after
 
 
-def _night(root, name):
+def _night(root, name, *, data_age_s=4 * 3600.0):
+    """A night folder whose DATA is `data_age_s` old — the quantity the poller now reads.
+
+    🔴 THE AGE IS THE SCENARIO. These tests used to declare "this night is settled" by monkeypatching
+    `diskguard.active_nights`, which is the predicate the poller was WRONG to use: a faked
+    `active_nights` can never expose the stall where a poller's own QC-SUMMARY / verdict writes keep the
+    folder active forever, because the fake does not know about them. Declaring it in the file's mtime
+    tests what production tests. `data_age_s=0` means "still recording"."""
     d = root / "captures" / name
     d.mkdir(parents=True)
-    (d / "Polar_H10_0284_20260920220000_ECG.txt").write_text(
-        "Phone timestamp;x\n2026-09-20T22:00:00.000;1\n2026-09-20T22:00:01.000;1\n"
-    )
+    f = d / "Polar_H10_0284_20260920220000_ECG.txt"
+    f.write_text("Phone timestamp;x\n2026-09-20T22:00:00.000;1\n2026-09-20T22:00:01.000;1\n")
+    if data_age_s:
+        t = time.time() - data_age_s
+        os.utime(str(f), (t, t))
     return d
 
 
 def test_loss_poller_audits_settled_nights_once_and_skips_the_active_one(tmp_path, monkeypatch, caplog):
-    for n in ("2026-09-18", "2026-09-19"):
-        _night(tmp_path, n)
-    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: {"2026-09-19"})
+    _night(tmp_path, "2026-09-18")  # data 4 h old ⇒ settled
+    _night(tmp_path, "2026-09-19", data_age_s=0)  # data written just now ⇒ still recording
+    # `active_nights` is left REAL on purpose: both folders are "active" by its rule (both were just
+    # created), and the poller must still judge 09-18. Under the old predicate it judged neither.
+    monkeypatch.setattr(capture.diskguard, "active_nights", capture.diskguard.active_nights)
     calls = []
 
     def fake_write(nd, devices, commit=None):
@@ -48,10 +60,11 @@ def test_loss_poller_audits_settled_nights_once_and_skips_the_active_one(tmp_pat
     assert any("3 min of the night's gaps were the daemon's own doing" in r.getMessage() for r in caplog.records)
     # the night's files change ⇒ audited again
     d = tmp_path / "captures" / "2026-09-18"
-    v = os.path.getmtime(str(d / capture.loss_audit.VERDICT_NAME))
-    os.utime(
-        str(d / "Polar_H10_0284_20260920220000_ECG.txt"), (v + 5, v + 5)
-    )  # the night's file is newer than its audit
+    # The night's DATA must be newer than its audit AND still old enough to be settled, so the VERDICT
+    # moves back rather than the data forward — moving the data to "now" would make the night read as
+    # still recording, which is the new predicate working, not a test to be worked around.
+    _dm = os.path.getmtime(str(d / "Polar_H10_0284_20260920220000_ECG.txt"))
+    os.utime(str(d / capture.loss_audit.VERDICT_NAME), (_dm - 5, _dm - 5))
     capture._STOP = asyncio.Event()
     _stop_after(monkeypatch, 1)
     _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
@@ -62,8 +75,7 @@ def test_loss_poller_audits_settled_nights_once_and_skips_the_active_one(tmp_pat
 
 
 def test_loss_poller_survives_a_failing_night(tmp_path, monkeypatch, caplog):
-    _night(tmp_path, "2026-09-18")
-    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    _night(tmp_path, "2026-09-18")  # data 4 h old ⇒ settled by its own mtime
     monkeypatch.setattr(capture.loss_audit, "write_night", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
     capture._STOP = asyncio.Event()
     _stop_after(monkeypatch, 1)
@@ -82,8 +94,7 @@ def test_a_SIDECAR_touched_after_the_audit_does_not_re_audit_the_night(tmp_path,
 
     `nightqc.newest_data_mtime` ranks device-capture files only; its own docstring says that exclusion
     is the whole point. The poller's docstring already promised "the night's PRIMARY files"."""
-    d = _night(tmp_path, "2026-09-18")
-    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    d = _night(tmp_path, "2026-09-18")  # data 4 h old ⇒ settled by its own mtime
     calls = []
 
     def fake_write(nd, devices, commit=None):
@@ -106,8 +117,12 @@ def test_a_SIDECAR_touched_after_the_audit_does_not_re_audit_the_night(tmp_path,
     _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
     assert calls == ["2026-09-18"], "a sidecar or marker is not the night's data changing"
 
-    # …and the positive control: the DATA moving still re-audits, or the skip would be a silent stop
-    os.utime(str(d / "Polar_H10_0284_20260920220000_ECG.txt"), (v + 90, v + 90))
+    # …and the positive control: the DATA being newer than the audit still re-audits, or the skip would
+    # be a silent stop. Expressed by moving the VERDICT back, not the data forward: data stamped "now"
+    # would read as still recording under the eligibility rule, and the control would then pass for the
+    # wrong reason — it would prove the night was skipped, not that a moved file re-audits.
+    _dm = os.path.getmtime(str(d / "Polar_H10_0284_20260920220000_ECG.txt"))
+    os.utime(str(d / capture.loss_audit.VERDICT_NAME), (_dm - 30, _dm - 30))
     capture._STOP = asyncio.Event()
     _stop_after(monkeypatch, 1)
     _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
@@ -201,3 +216,57 @@ def test_no_audit_on_disk_means_no_verdict_is_composed_over_nothing(tmp_path, mo
     _poll_once(monkeypatch, tmp_path)
     assert calls == ["2026-09-18"] and not (d / capture.solid_night.VERDICT_NAME).exists()
     assert "solid" not in capture.STATUS
+
+
+def test_PLANT_the_poller_s_OWN_verdict_writes_do_not_keep_a_night_unjudged(tmp_path, monkeypatch):
+    """🔴 THE STALL, reproduced. Wren measured it on the box and I confirmed the chain on vigil
+    2026-10-03: 2026-10-02's last device file was written **03:58:25**, its `QC-SUMMARY.json` was
+    rewritten at **16:46:51** — **12 h 48 m** later — and the night was still unjudged; Wren saw 10-01
+    judged 10 h 55 m after doff, and only because a daytime session put data in a different folder.
+
+    The chain: the QC poller rewrites `QC-SUMMARY.json` + the verdicts into `_current_night()` every
+    cycle → `diskguard.active_nights` counts ANY file younger than `settle_sec`, so the folder never
+    settles → `_current_night` cannot advance either, because the next date's folder holds only
+    `LINK`/`CLOCK` (both `_SIDECAR_TAGS`) and `OXYLIFE.csv` (which does not parse as a capture name at
+    all), so `newest_data_mtime` is None there → and the loss poller judged only nights NOT in
+    `active_nights`. The night was therefore never eligible, so #2958's data-keyed re-audit skip —
+    correct in itself — was never reached.
+
+    This plant writes exactly that state: data four hours quiet, a `QC-SUMMARY.json` written NOW. Under
+    the old predicate the folder is active and the night is skipped forever; under the new one the
+    night's DATA decides and it is judged."""
+    d = _night(tmp_path, "2026-10-02")
+    (d / "QC-SUMMARY.json").write_text("{}")  # the poller's own output, written this instant
+    calls = []
+
+    def fake_write(nd, devices, commit=None):
+        calls.append(os.path.basename(nd))
+        open(os.path.join(nd, capture.loss_audit.VERDICT_NAME), "w").write("{}")
+        return {"status": "UNKNOWN", "at": "x", "result": {"daemon_caused_min": 0.0}, "reason": "no bar"}
+
+    monkeypatch.setattr(capture.loss_audit, "write_night", fake_write)
+    # `active_nights` is REAL, and it reports this night as active — which is correct for its own job
+    # (something IS writing here) and is precisely why the verdict poller must not ask it.
+    assert "2026-10-02" in capture.diskguard.active_nights(str(tmp_path / "captures"), 1200.0)
+    capture._STOP = asyncio.Event()
+    _stop_after(monkeypatch, 1)
+    _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
+    assert calls == ["2026-10-02"], (
+        "the night's DATA had been quiet for four hours; only the poller's own QC-SUMMARY was fresh, "
+        "and that must not keep a night unjudged"
+    )
+    capture._STOP = asyncio.Event()
+
+
+def test_CONTROL_a_night_whose_DATA_is_still_arriving_stays_INELIGIBLE(tmp_path, monkeypatch):
+    """The control the plant needs, or "judge it anyway" would pass both. A night still recording must
+    NOT be judged: its gaps are not gaps yet, and a verdict over a live stream reports a loss that the
+    next minute of data fills in."""
+    _night(tmp_path, "2026-10-03", data_age_s=0)  # data written this instant
+    calls = []
+    monkeypatch.setattr(capture.loss_audit, "write_night", lambda nd, *a, **k: calls.append(nd))
+    capture._STOP = asyncio.Event()
+    _stop_after(monkeypatch, 1)
+    _run(capture.loss_poller({"loss_audit": {"poll_sec": 1}, "devices": []}, str(tmp_path)))
+    assert calls == [], "a night whose data is still arriving was judged"
+    capture._STOP = asyncio.Event()
