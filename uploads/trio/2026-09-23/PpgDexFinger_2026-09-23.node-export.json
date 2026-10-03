@@ -9,7 +9,7 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-29T09:46:24.998Z",
+    "generated": "2026-10-03T23:17:03.414Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -26,7 +26,7 @@
     "siteSource": "device-default",
     "coverage": {
       "kind": "sparse",
-      "spanSec": 18698,
+      "spanSec": 18672,
       "segments": [
         {
           "startMs": 1790205230456,
@@ -1774,100 +1774,108 @@
         },
         {
           "startMs": 1790209108017.951,
-          "durSec": 14630.107
+          "durSec": 14627.395
         },
         {
-          "startMs": 1790223804572.8174,
-          "durSec": 3.094
+          "startMs": 1790223736462.289,
+          "durSec": 1.619
         },
         {
-          "startMs": 1790223808449.3496,
-          "durSec": 0.682
+          "startMs": 1790223780537.2732,
+          "durSec": 1.977
         },
         {
-          "startMs": 1790223809671.4902,
-          "durSec": 0.485
+          "startMs": 1790223783014.1094,
+          "durSec": 0.341
         },
         {
-          "startMs": 1790223810752.2107,
-          "durSec": 0.485
+          "startMs": 1790223783377.454,
+          "durSec": 0.135
         },
         {
-          "startMs": 1790223811332.3032,
-          "durSec": 6.801
+          "startMs": 1790223784052.3271,
+          "durSec": 0.484
         },
         {
-          "startMs": 1790223818196.8677,
-          "durSec": 3.987
+          "startMs": 1790223785132.1245,
+          "durSec": 0.484
         },
         {
-          "startMs": 1790223822247.4297,
-          "durSec": 10.008
+          "startMs": 1790223785711.7214,
+          "durSec": 6.795
         },
         {
-          "startMs": 1790223832311.5476,
-          "durSec": 5.98
-        },
-        {
-          "startMs": 1790223838347.6165,
-          "durSec": 6.25
-        },
-        {
-          "startMs": 1790223844652.9841,
-          "durSec": 5.989
-        },
-        {
-          "startMs": 1790223850697.2092,
-          "durSec": 6.376
-        },
-        {
-          "startMs": 1790223857128.682,
-          "durSec": 5.978
-        },
-        {
-          "startMs": 1790223863162.16,
+          "startMs": 1790223792570.3289,
           "durSec": 3.986
         },
         {
-          "startMs": 1790223867203.823,
+          "startMs": 1790223796619.737,
+          "durSec": 10.003
+        },
+        {
+          "startMs": 1790223806678.2864,
+          "durSec": 5.977
+        },
+        {
+          "startMs": 1790223812711.189,
+          "durSec": 6.247
+        },
+        {
+          "startMs": 1790223819014.1743,
+          "durSec": 5.987
+        },
+        {
+          "startMs": 1790223825056.6162,
+          "durSec": 6.376
+        },
+        {
+          "startMs": 1790223831488.0886,
+          "durSec": 5.978
+        },
+        {
+          "startMs": 1790223837521.567,
+          "durSec": 3.986
+        },
+        {
+          "startMs": 1790223841563.23,
           "durSec": 7.985
         },
         {
-          "startMs": 1790223875244.6758,
+          "startMs": 1790223849604.0825,
           "durSec": 6.025
         },
         {
-          "startMs": 1790223881341.5037,
+          "startMs": 1790223855700.9104,
           "durSec": 8.978
         },
         {
-          "startMs": 1790223890391.2349,
+          "startMs": 1790223864750.6418,
           "durSec": 6.978
         },
         {
-          "startMs": 1790223897424.7817,
+          "startMs": 1790223871784.1885,
           "durSec": 5.962
         },
         {
-          "startMs": 1790223903442.4314,
+          "startMs": 1790223877801.8384,
           "durSec": 6.962
         },
         {
-          "startMs": 1790223910459.7551,
+          "startMs": 1790223884819.1619,
           "durSec": 5.97
         },
         {
-          "startMs": 1790223916485.2197,
+          "startMs": 1790223890844.6267,
           "durSec": 6.962
         },
         {
-          "startMs": 1790223923503.1343,
-          "durSec": 4.97
+          "startMs": 1790223897862.541,
+          "durSec": 4.953
         }
       ],
-      "recordedSec": 18595,
-      "nWithDuration": 459,
-      "n": 459,
+      "recordedSec": 18592,
+      "nWithDuration": 461,
+      "n": 461,
       "source": "ble-dropout"
     },
     "hostAxis": {
