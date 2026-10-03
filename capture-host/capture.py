@@ -9066,11 +9066,20 @@ async def loss_poller(cfg: dict, root: str):
             # below to key on data; this is the ELIGIBILITY gate upstream of it, which it could not reach.
             active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
             every = await asyncio.to_thread(diskguard.list_nights, captures)
-            _newest = {n: await asyncio.to_thread(nightqc.newest_data_mtime, os.path.join(captures, n)) for n in every}
             # `_now()` rather than `time.time()`: this module's one clock, which the suite can shift and
             # which the civil-time re-anchoring owns. A second time source here would drift from it.
             _t = _now().timestamp()
-            nights = [n for n in every if nightqc.data_settled(_newest[n], settle, _t)]
+            # A dict of SETTLED nights to their data mtime, so the value is a `float` by construction and
+            # the skip below needs no `None` guard — removing that guard without this left mypy unable to
+            # narrow (`float >= None`), and re-adding the guard would have been a branch no input can
+            # reach, i.e. a coverage hole dressed as caution. `m is not None` IS reachable: a folder with
+            # no capture file at all (tomorrow's sidecar-only folder, every night at midnight).
+            _settled: "dict[str, float]" = {}
+            for _n in every:
+                _m = await asyncio.to_thread(nightqc.newest_data_mtime, os.path.join(captures, _n))
+                if _m is not None and nightqc.data_settled(_m, settle, _t):
+                    _settled[_n] = _m
+            nights = [n for n in every if n in _settled]
             for night in nights[-int(lcfg.get("max_nights", 14)) :]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
@@ -9084,7 +9093,7 @@ async def loss_poller(cfg: dict, root: str):
                 # rewriting 24 files — forever, for nights whose data had not moved in days. The
                 # docstring above already promised "the night's PRIMARY files"; this is the code
                 # doing what it said.
-                newest = _newest[night]  # already measured for the eligibility test above
+                newest = _settled[night]  # measured for the eligibility test above; a float by construction
                 # audit only when the night's DATA changed since the last audit (otherwise it stands)
                 if not (os.path.exists(vpath) and os.path.getmtime(vpath) >= newest):
                     obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)

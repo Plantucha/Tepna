@@ -5342,3 +5342,25 @@ def test_PLANT_the_vote_ROUNDS_so_a_millisecond_cannot_move_the_zone(tmp_path):
     off, _data = _recovered(night)
     assert off["offset_sec"] == 14400.0, (off, "a sub-second shortfall moved the recovered zone")
     assert off["unanimous"] is True and off["voters"] == 2, off
+
+
+def test_data_settled_asks_about_the_DATA_and_treats_NO_DATA_as_unsettled():
+    """`nightqc.data_settled` — pure, and the predicate E8 put in the loss poller's eligibility gate.
+
+    Three cases, and the third is the one with an opinion in it. A folder holding NO capture file is
+    NOT settled: there is nothing to judge, and calling it settled invites a verdict over an empty
+    population (§🧾 — a PASS over `checked: 0` is the examined-nothing shape). `capture.py` also guards
+    `_m is not None` before calling this, for mypy narrowing and because that branch is reachable every
+    midnight; this asserts the contract directly rather than leaving it to the caller's belt."""
+    now = 1_000_000.0
+    assert nightqc.data_settled(now - 1200.0, 1200.0, now) is True, "exactly at the bound is settled"
+    assert nightqc.data_settled(now - 1199.0, 1200.0, now) is False, "one second short is not"
+    assert nightqc.data_settled(now - 4 * 3600.0, 1200.0, now) is True
+    assert nightqc.data_settled(None, 1200.0, now) is False, (
+        "a folder with no capture file has nothing to judge — 'settled' would licence a verdict over an "
+        "empty population"
+    )
+    # A file stamped in the FUTURE (a clock step, or a copy preserving mtimes) is not settled: the
+    # arithmetic goes negative and the night waits, which is the safe direction — judging it would
+    # measure a span the box does not believe in yet.
+    assert nightqc.data_settled(now + 60.0, 1200.0, now) is False
