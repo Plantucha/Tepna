@@ -129,3 +129,87 @@ def test_wedge_buckets_reports_nothing_before_the_radio_ever_worked():
     after a first confirmed connection, so flagging this stretch would report startup as a fault."""
     outside = {"H10": [(1000.0, 1, -60.0)], "Verity": [(1001.0, 1, -55.0)]}
     assert timeline.wedge_buckets(outside, 0.0, 10.0, 5) == [False] * 5
+
+
+# ── 2026-09-28: a dropping stream was measured by the samples it RECEIVED ────────────────────────
+VERITY_ACC = "Polar_VeritySense_0C301E3F_20260928213651_ACCRAW.txt"
+H10_ACC = "Polar_H10_02849638_20260928213612_ACC.txt"
+
+
+def _f(name, rows, stream="ACC", **kw):
+    """A session-file record as `timeline._placed` reads them: the filename carries the stamp and the
+    device id, `stream` is the file tag, `rows` is what arrived, and the duration keys are whichever
+    bases that file actually has."""
+    return {"file": name, "stream": stream, "rows": rows, **kw}
+
+
+def _start(iv):
+    assert len(iv) == 1, iv
+    return iv[0][0]
+
+
+def test_a_dropping_stream_is_measured_by_its_OWN_host_stamps_not_by_received_samples():
+    """2026-09-28: the Verity ACC ran to 04:20:39 and the bar stopped at ~03:52 — 28 min of real
+    recording painted as nothing. `rows / fs` measures RECEIVED SAMPLES, so a link that drops packets
+    writes fewer rows than the clock says elapsed, and the old order reached for it before the host
+    stamps. Here 3600 s of wall time at 50 Hz would be 180 000 rows; 90 000 arrived."""
+    dropping = [_f(VERITY_ACC, 90_000, stream="ACCRAW", host_span_sec=3600.0)]
+    iv = timeline.stream_intervals(dropping, "0C301E3F", "ACCRAW", 50.0)
+    assert len(iv) == 1
+    assert iv[0][1] - iv[0][0] == 3600.0, "the host stamps say an hour; received samples would say half"
+
+
+def test_the_device_clock_still_wins_when_the_file_carries_one():
+    """§A4c is untouched: `span_sec` is the file's own device clock and outranks both others."""
+    both = [_f(VERITY_ACC, 90_000, stream="ACCRAW", span_sec=1234.0, host_span_sec=3600.0)]
+    iv = timeline.stream_intervals(both, "0C301E3F", "ACCRAW", 50.0)
+    assert iv[0][1] - iv[0][0] == 1234.0
+
+
+def test_rows_over_fs_is_still_there_for_a_file_with_neither():
+    """Last, not gone — a file with no clock of its own and no host span is still measurable."""
+    iv = timeline.stream_intervals([_f(H10_ACC, 6000)], "02849638", "ACC", 50.0)
+    assert iv[0][1] - iv[0][0] == 120.0
+
+
+def test_no_basis_at_all_is_a_REFUSAL_and_counted_as_unmeasurable():
+    """§∅ — `None`, not a zero, and `unmeasurable_files` is what lets a percentage say so."""
+    nothing = [_f(H10_ACC, 6000)]
+    assert timeline.stream_intervals(nothing, "02849638", "ACC", 0.0) == []
+    assert timeline.unmeasurable_files(nothing, "02849638", "ACC", 0.0) == 1
+
+
+# ── `offset_sec` is the frame, and every branch of it is observed ────────────────────────────────
+# ⚠️ THESE THREE EXIST BECAUSE THE MUTATION GATE SAID SO, and they are the whole reason the carve-out
+# was worth making. `_placed` adds `offset_sec` to the floating stamp, and nothing in the suite looked
+# at the result: the default, the explicit `None` and the sign of the addition were all unobserved, so
+# a mutant could default it to 1.0, treat `None` as 1.0, or SUBTRACT the offset and stay green
+# (`timeline.x__placed__mutmut_1 / _34 / _36 / _37`, survivors in run 36618574693). The three
+# assertions below are about the FRAME, which is a Clock-Contract fact (§🔒 §1: the stamp is floating
+# and `offset_sec` is what raises it into the caller's), not about the duration this PR reorders.
+def test_the_start_is_the_bare_floating_stamp_when_no_offset_is_given():
+    """The default is 0.0 — "already one frame", which is what every synthetic file list here is."""
+    stamp = timeline._stamp_ms(VERITY_ACC)
+    assert stamp is not None, "the fixture filename must carry a readable stamp or this proves nothing"
+    iv = timeline.stream_intervals([_f(VERITY_ACC, 900, stream="ACCRAW", span_sec=60.0)], "0C301E3F", "ACCRAW", 50.0)
+    assert _start(iv) == stamp
+
+
+def test_an_explicit_None_offset_raises_the_stamp_by_nothing_rather_than_by_one_second():
+    """`None` means "the caller has no frame to add", which is 0.0 and not 1.0 — the distinction a
+    mutant erased, and the one that would silently shift a whole night's bar by a second."""
+    stamp = timeline._stamp_ms(VERITY_ACC)
+    iv = timeline.stream_intervals(
+        [_f(VERITY_ACC, 900, stream="ACCRAW", span_sec=60.0)], "0C301E3F", "ACCRAW", 50.0, offset_sec=None
+    )
+    assert _start(iv) == stamp
+
+
+def test_an_offset_is_ADDED_to_the_stamp_and_the_sign_is_observed():
+    """`build` passes the writer's recovered UTC offset here, so the sign is the difference between a
+    night rendered in the writer's frame and one rendered two offsets away from it."""
+    stamp = timeline._stamp_ms(VERITY_ACC)
+    iv = timeline.stream_intervals(
+        [_f(VERITY_ACC, 900, stream="ACCRAW", span_sec=60.0)], "0C301E3F", "ACCRAW", 50.0, offset_sec=7200.0
+    )
+    assert _start(iv) == stamp + 7200.0
