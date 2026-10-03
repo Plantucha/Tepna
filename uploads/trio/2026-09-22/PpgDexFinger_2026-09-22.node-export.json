@@ -9,7 +9,7 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-29T09:44:29.794Z",
+    "generated": "2026-10-03T23:16:48.339Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -26,7 +26,7 @@
     "siteSource": "device-default",
     "coverage": {
       "kind": "sparse",
-      "spanSec": 20858,
+      "spanSec": 20801,
       "segments": [
         {
           "startMs": 1790116768347,
@@ -474,46 +474,46 @@
         },
         {
           "startMs": 1790134728563.212,
-          "durSec": 2674.894
+          "durSec": 2628.145
         },
         {
-          "startMs": 1790137505683.2793,
-          "durSec": 17.092
+          "startMs": 1790137449307.4424,
+          "durSec": 16.676
         },
         {
-          "startMs": 1790137522831.1436,
-          "durSec": 11.024
+          "startMs": 1790137466039.7292,
+          "durSec": 11.019
         },
         {
-          "startMs": 1790137533910.882,
-          "durSec": 16.047
+          "startMs": 1790137477114.8774,
+          "durSec": 16.041
         },
         {
-          "startMs": 1790137550013.4546,
+          "startMs": 1790137493211.2449,
           "durSec": 15.05
         },
         {
-          "startMs": 1790137565119.516,
+          "startMs": 1790137508317.3057,
           "durSec": 14.026
         },
         {
-          "startMs": 1790137579201.746,
+          "startMs": 1790137522399.5356,
           "durSec": 13.042
         },
         {
-          "startMs": 1790137592299.5881,
+          "startMs": 1790137535497.3777,
           "durSec": 13.026
         },
         {
-          "startMs": 1790137605389.512,
+          "startMs": 1790137548587.3018,
           "durSec": 16.052
         },
         {
-          "startMs": 1790137621497.7195,
-          "durSec": 5.017
+          "startMs": 1790137564695.5093,
+          "durSec": 5.019
         }
       ],
-      "recordedSec": 20737,
+      "recordedSec": 20690,
       "nWithDuration": 121,
       "n": 121,
       "source": "ble-dropout"
