@@ -215,6 +215,54 @@ def test_an_offset_is_ADDED_to_the_stamp_and_the_sign_is_observed():
     assert _start(iv) == stamp + 7200.0
 
 
+# ── the two survivors the gate found that the tests above could NOT see ──────────────────────────
+# ⚠️ BOTH ARE REACHED ONLY BY CALLING `_placed` DIRECTLY OR WITH MORE THAN ONE FILE, which is why the
+# public-surface tests above missed them and the mutation gate did not (run 2026-10-03, local
+# `mutate_diff --base origin/main`: `timeline.x__placed__mutmut_1` and `__mutmut_28` survived while 47
+# of 51 were killed). Writing them down rather than excusing them: neither is unkillable.
+VERITY_ACC_LATER = "Polar_VeritySense_0C301E3F_20260928220000_ACCRAW.txt"
+
+
+def test_placeds_OWN_offset_default_is_zero_and_only_a_direct_call_can_see_it():
+    """`_placed`'s `offset_sec=0.0` default is invisible through both callers — `stream_intervals`
+    passes its own default through explicitly, and `unmeasurable_files` returns a COUNT, which no
+    offset can move. So a mutant defaulting the frame to 1.0 shifted every direct caller's night by a
+    second and stayed green. `_placed` is this module's own helper and the suite already drives
+    `_stamp_ms` and `_file_device_id` directly; this is the same, and it is a gap rather than an
+    equivalence precisely because one call reaches it."""
+    stamp = timeline._stamp_ms(VERITY_ACC)
+    assert stamp is not None
+    placed = list(timeline._placed([_f(VERITY_ACC, 900, stream="ACCRAW", span_sec=60.0)], "0C301E3F", "ACCRAW", 50.0))
+    assert placed == [(stamp, 60.0)], "the default must add nothing at all, not one second"
+
+
+def test_an_unplaceable_file_is_SKIPPED_and_the_rest_of_the_night_still_counts():
+    """The `continue` after the stamp/rows check is a SKIP, not a stop. A mutant turning it into
+    `break` discarded every file after the first unplaceable one — on a real night that is the whole
+    remainder of the session thrown away by one header-only file — and no single-file test can tell
+    the two apart, because with one file `continue` and `break` end the loop identically."""
+    files = [
+        _f(VERITY_ACC, 0, stream="ACCRAW", span_sec=60.0),  # rows 0 → unplaceable, must be SKIPPED
+        _f(VERITY_ACC_LATER, 900, stream="ACCRAW", span_sec=60.0),  # must still be placed
+    ]
+    later = timeline._stamp_ms(VERITY_ACC_LATER)
+    assert later is not None and later != timeline._stamp_ms(VERITY_ACC)
+    assert list(timeline._placed(files, "0C301E3F", "ACCRAW", 50.0)) == [(later, 60.0)]
+    assert timeline.stream_intervals(files, "0C301E3F", "ACCRAW", 50.0) == [(later, later + 60.0)]
+
+
+def test_a_file_of_ANOTHER_stream_is_skipped_rather_than_ending_the_scan():
+    """The sibling `continue`, on the tag/id filter. Already killed by the single-tag assertions above,
+    kept because it is the same `continue`-is-not-`break` claim one branch earlier and the two mutants
+    renumber independently."""
+    files = [
+        _f(VERITY_ACC, 900, stream="PPG", span_sec=60.0),  # wrong stream → skipped
+        _f(VERITY_ACC_LATER, 900, stream="ACCRAW", span_sec=60.0),
+    ]
+    later = timeline._stamp_ms(VERITY_ACC_LATER)
+    assert list(timeline._placed(files, "0C301E3F", "ACCRAW", 50.0)) == [(later, 60.0)]
+
+
 # ── THE EQUIVALENCE BATTERY for `ids.discard("")` ────────────────────────────────────────────────
 # ⚠️ THIS IS A COMMITTED BATTERY, AND THAT IS THE POINT. `tools/mutate-equivalence.json` requires a
 # `probe` field saying what was actually run, and MUTATION-EQUIVALENCE §8.4 names the failure this
@@ -296,10 +344,19 @@ def _tl_battery():
 
 
 def _tl_variant(before=None, after=None):
-    """`timeline` with one line optionally replaced, loaded into its own namespace."""
+    """`timeline` with one line optionally replaced, loaded into its own namespace.
+
+    ⚠️ THE SOURCE READ GOES THROUGH `_srcscan.module_source`, NOT `open()`. A raw read of a mutatable
+    module makes mutmut report "failed to collect stats" and the WHOLE module comes back unmeasurable —
+    it reads as an environment fault, not a test failure, and `test_mutation_hygiene.py` exists to catch
+    exactly this (it caught this battery's first draft). Here the helper's skip is also the right
+    behaviour on its own terms: under mutmut `timeline.py` is one file holding every mutant inline, so
+    re-parsing it and replacing a single line would be probing the mutant harness rather than `_placed`."""
     import types
 
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "timeline.py")).read()
+    from _srcscan import module_source
+
+    src = module_source("timeline.py")
     if before is not None:
         assert src.count(before) == 1, f"anchor matched {src.count(before)}x, need exactly 1: {before}"
         src = src.replace(before, after)
