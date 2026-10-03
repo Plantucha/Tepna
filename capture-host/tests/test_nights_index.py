@@ -3,6 +3,7 @@
 Built on a synthetic captures tree with the box's real file layouts: ISO-stamped Polar streams, the
 O2Ring's DMY `_SPO2.csv`, an EDF whose header states its span, and the two CPAP trees keyed by date."""
 
+import json
 import os
 
 
@@ -670,3 +671,134 @@ def test_a_derived_tool_and_the_arrival_list_resolve_against_the_capture_ROOT(tm
     assert e["arrival"] and any("PMDARRIVAL" in a for a in e["arrival"]), e["arrival"]
     # …and the paths are relative to ROOT, which is the thing `root` is for
     assert all(a.startswith("2026-09-28/") for a in e["arrival"]), e["arrival"]
+
+
+# ── the cache entry's SHAPE is part of its key (the 2026-10-03 "no nights on disk" outage) ───────────
+
+
+def test_an_entry_written_BEFORE_a_key_existed_is_recomputed_not_read_as_a_hit(tmp_path):
+    """The outage, planted. #3233 added `gaps_s` to the stats dict and `night_entry` reads it
+    unconditionally — right, because the magnitude exists and publishing null for it would be
+    absence-as-value in reverse. But the key was size+mtime, and a captured file that has stopped growing
+    never changes either, so every entry the pre-#3233 build wrote for a FINISHED night stayed a hit
+    while lacking the key. `/api/nights` raised `KeyError: gaps_s` and the Vigil Nights page read "no
+    nights on disk" for about 3.5 days."""
+    captures = tmp_path / "captures"
+    captures.mkdir()
+    p = captures / "s.txt"
+    _stream(p, [(0, 100), (150, 100)])
+    st = os.stat(p)
+    (tmp_path / "run").mkdir()
+    # exactly what the old build wrote: the old key, and stats WITHOUT `gaps_s`
+    (tmp_path / "run" / ni._CACHE_NAME).write_text(
+        json.dumps(
+            {
+                "s.txt": {
+                    "key": f"{st.st_size}:{st.st_mtime_ns}",
+                    "stats": {"fragments": 2, "coverage": 1.0, "span_s": 250.0, "gap_s": 2.0},
+                }
+            }
+        )
+    )
+    ni._cache.clear()
+    ni._cache_loaded_from = None
+    stats, pending = ni.cached_stats(str(captures), str(p), None)
+    assert pending is False
+    # 51 s is the real hole in this fixture (rows stop at t=99 and resume at t=150), measured from the
+    # file — not a null standing in for a key the entry never had.
+    assert stats["gaps_s"] == 51.0, "recomputed from the file, not read back short a key"
+    assert set(stats) == set(ni._STATS_KEYS)
+    # ... and the entry is rewritten, so the next process does not pay for it again
+    disk = json.load(open(tmp_path / "run" / ni._CACHE_NAME))
+    assert disk["s.txt"]["key"].endswith(f":{ni._STATS_SHAPE}")
+    assert "gaps_s" in disk["s.txt"]["stats"]
+
+
+def test_CONTROL_an_entry_of_the_CURRENT_shape_is_still_a_hit(tmp_path, monkeypatch):
+    """The cache must still save its seconds — the whole point of it is that a finished night is scanned
+    once. A fingerprint that invalidated every entry would turn a 15 s budget into a rescan of the box."""
+    captures = tmp_path / "captures"
+    captures.mkdir()
+    p = captures / "s.txt"
+    _stream(p, [(0, 100), (150, 100)])
+    ni._cache.clear()
+    ni._cache_loaded_from = None
+    first, _ = ni.cached_stats(str(captures), str(p), None)
+    ni._cache.clear()
+    ni._cache_loaded_from = None
+    monkeypatch.setattr(ni, "stream_stats", lambda *a, **k: (_ for _ in ()).throw(AssertionError("recounted")))
+    again, pending = ni.cached_stats(str(captures), str(p), None)
+    assert again == first and pending is False
+
+
+def test_the_declared_stats_shape_is_what_stream_stats_actually_RETURNS(tmp_path):
+    """The mechanism that stops this recurring. A version number someone has to remember to bump is the
+    same defect waiting for the next key; this reds the suite the moment `_STATS_KEYS` and `stream_stats`
+    disagree in either direction, which is what makes the cache key self-invalidating."""
+    p = tmp_path / "s.txt"
+    _stream(p, [(0, 100), (150, 100)])
+    assert set(ni.stream_stats(str(p))) == set(ni._STATS_KEYS)
+
+
+def test_ONE_bad_night_does_not_take_the_other_eighty_nine_down(tmp_path, monkeypatch):
+    """`index_nights` was a bare comprehension, so the first night that raised took the whole listing with
+    it and `/api/nights` returned one `{"error": …}` for a box holding 90 nights. The failing night keeps
+    its DATE and names what failed — omitting it would read as a night that was never captured, which is
+    the same absence-as-value trap one level up from the field."""
+    _night(tmp_path, "2026-09-19")
+    _night(tmp_path, "2026-09-20")
+    real = ni.night_entry
+
+    def boom(captures, night_dir, deadline):
+        if night_dir.endswith("2026-09-19"):
+            raise KeyError("gaps_s")
+        return real(captures, night_dir, deadline)
+
+    monkeypatch.setattr(ni, "night_entry", boom)
+    rows = ni.index_nights(str(tmp_path), 60)
+    assert [r["night"] for r in rows] == ["2026-09-19", "2026-09-20"], "both nights are still listed"
+    bad = next(r for r in rows if r["night"] == "2026-09-19")
+    assert bad["error"] == "KeyError: 'gaps_s'"
+    assert not any(k in bad for k in ni.COLUMNS), "an error row carries no node key to be mistaken for data"
+    assert next(r for r in rows if r["night"] == "2026-09-20")["OxyDex"] is not None
+    assert ni.pending_count(rows) >= 0, "the error row does not break the pending tally"
+
+
+def test_a_deadline_not_yet_PASSED_still_allows_the_work(tmp_path, monkeypatch):
+    """`>` not `>=`, pinned at the one instant that separates them. The budget is a deadline, so the work
+    is deferred once the clock is PAST it — at exactly the deadline there is still time, and deferring
+    there would make a zero-length budget defer everything while reading as if it had tried."""
+    captures = tmp_path / "captures"
+    captures.mkdir()
+    p = captures / "s.txt"
+    _stream(p, [(0, 100)])
+    ni._cache.clear()
+    ni._cache_loaded_from = None
+    monkeypatch.setattr(ni.time, "monotonic", lambda: 1000.0)
+    st, pending = ni.cached_stats(str(captures), str(p), deadline=1000.0)
+    assert pending is False and st["fragments"] == 1, "at the deadline, not past it"
+    # A SECOND FILE, because the first is now IN the cache and a hit beats the deadline by design — the
+    # one-line version of this test asserted the deferral against an entry it had just written.
+    p2 = captures / "t.txt"
+    _stream(p2, [(0, 100)])
+    st, pending = ni.cached_stats(str(captures), str(p2), deadline=999.999)
+    assert pending is True and st is None, "past it, the work is deferred and says so"
+
+
+def test_the_listing_defaults_to_SIXTY_nights_and_a_FIFTEEN_second_budget(tmp_path, monkeypatch):
+    """Both defaults are the contract `/api/nights` relies on when it passes neither, and a signature-
+    reading test cannot see them: mutmut applies a mutated default at CALL time while leaving the visible
+    `def` alone (`ext:memory/a-signature-reading-test-cannot-see-a-mutated-default`). So they are observed
+    through behaviour — how many nights come back, and what deadline the per-night call is handed."""
+    monkeypatch.setattr(ni, "list_nights", lambda root: [f"2026-07-{d:02d}" for d in range(1, 10)] * 7)
+    seen: list = []
+
+    def rec(captures, night_dir, deadline):
+        seen.append(deadline)
+        return {"night": os.path.basename(night_dir)}
+
+    monkeypatch.setattr(ni, "night_entry", rec)
+    monkeypatch.setattr(ni.time, "monotonic", lambda: 5000.0)
+    rows = ni.index_nights(str(tmp_path))
+    assert len(rows) == 60, "the newest sixty, which is what the page asks for when it asks for nothing"
+    assert seen and all(d == 5015.0 for d in seen), "a fifteen-second budget, handed to every night"

@@ -17,6 +17,7 @@ sidecar file starts a row with, and the O2Ring vendor layout `HH:MM:SS DD/MM/YYY
 from __future__ import annotations
 
 import datetime as _dt
+import hashlib
 import glob
 import json
 import os
@@ -211,6 +212,21 @@ def edf_hours(path: str) -> float | None:
 # computes only what fits in its time budget; the rest reads `pending` and the page asks again.
 GAP_S = 2.0
 _CACHE_NAME = "nights-index-cache.json"
+# 🔴 EVERY KEY `stream_stats` PUBLISHES, AND THE CACHE KEY CARRIES ITS FINGERPRINT. #3233 added `gaps_s`
+# to the stats dict and `night_entry` reads it unconditionally — correctly, because the magnitude exists
+# and publishing null for it would be absence-as-value in reverse. But the per-file key was size+mtime
+# only, and a captured file that has stopped growing never changes either, so every entry the pre-#3233
+# build wrote for a FINISHED night stayed a hit while lacking the key. `/api/nights` raised
+# `KeyError: gaps_s` and the Vigil Nights page read "no nights on disk" for about 3.5 days (owner report
+# 2026-10-03; the box's `/api/nights` had been returning that since at least 09-30 06:00).
+#
+# The fingerprint makes an entry whose SHAPE this reader does not produce a MISS, so it is recomputed
+# from the file on disk rather than read as a night with a missing magnitude. It is derived from the key
+# set rather than hand-bumped: a version number someone has to remember to raise is the same defect
+# waiting for the next key, and `test_the_declared_stats_shape_is_what_stream_stats_actually_returns`
+# reds the suite if a key is added here or there without the other.
+_STATS_KEYS = frozenset({"fragments", "coverage", "gaps_s", "span_s", "gap_s"})
+_STATS_SHAPE = hashlib.sha256("\0".join(sorted(_STATS_KEYS)).encode()).hexdigest()[:8]
 _cache: dict[str, dict] = {}
 _cache_loaded_from: str | None = None
 
@@ -353,7 +369,7 @@ def cached_stats(captures: str, path: str, deadline: float | None) -> tuple[dict
         st = os.stat(path)
     except OSError:
         return None, False
-    key = f"{st.st_size}:{st.st_mtime_ns}"
+    key = f"{st.st_size}:{st.st_mtime_ns}:{_STATS_SHAPE}"
     hit = _cache.get(rel)
     if hit and hit.get("key") == key:
         return hit.get("stats"), False
@@ -457,8 +473,27 @@ def index_nights(root: str, limit: int = 60, budget_s: float | None = 15.0) -> l
     captures = os.path.join(root, "captures")
     deadline = None if budget_s is None else time.monotonic() + budget_s
     picked = nights[-max(1, limit) :]
-    rows = [night_entry(captures, d, deadline) for d in reversed(picked)]
+    rows = [_night_row(captures, d, deadline) for d in reversed(picked)]
     return list(reversed(rows))
+
+
+def _night_row(captures: str, night_dir: str, deadline: float | None) -> dict:
+    """One night's row, or a row naming why that night could not be indexed.
+
+    ONE BAD NIGHT IS NOT NINETY. `index_nights` used to be a bare comprehension, so the first night that
+    raised took the whole listing with it — `/api/nights` returned a single `{"error": …}` and the page
+    said "no nights on disk" about a box holding 90 of them. That is the shape the `gaps_s` KeyError hit,
+    and the same would be true of any future read of a field one night happens to lack.
+
+    The error row keeps the night's DATE and says what failed, so the page can show the night as
+    unindexed rather than omitting it — an omitted night reads as a night that was never captured, which
+    is the absence-as-value trap one level up from the field. It carries no node keys at all, so nothing
+    downstream can mistake it for a night with no data: `pending_count` skips non-dict values, and a
+    consumer looking for a node finds the key missing rather than null."""
+    try:
+        return night_entry(captures, night_dir, deadline)
+    except Exception as exc:  # noqa: BLE001 — one night's defect must not hide the other eighty-nine
+        return {"night": os.path.basename(night_dir), "error": f"{type(exc).__name__}: {exc}"}
 
 
 def pending_count(rows: list[dict]) -> int:
