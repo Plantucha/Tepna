@@ -493,3 +493,36 @@ def test_an_autostart_failure_with_NO_recorded_error_does_not_invent_one():
     # and it IS reported when there is one, so the test cannot pass by the suffix never appearing
     r2 = W.assess(therapy_min=35.0, stream_min=0.0, attempts=4, last_error="BleakDeviceNotFoundError")
     assert "(last error: BleakDeviceNotFoundError)" in r2["detail"]
+
+
+def test_a_SHORT_session_that_did_stream_reports_its_streamed_minutes_to_one_decimal():
+    """Kills `round(s, 1)` → `round(s, None)` / `round(s, )` / `round(s, 2)` in the too-short branch.
+
+    ⚠️ MY FIRST ROUND OF KILLS MISSED THESE, AND THE REASON IS THE SAME TRAP ONE LEVEL IN. The
+    parametrised fixture for this branch passed `stream_min=0.0`, because "too short to judge"
+    sounded like a session nothing streamed. `round(0.0, 1)` is `0.0` and `round(0.0)` is `0`, and
+    `0 == 0.0`, so three mutants walked straight through a test written specifically to catch them.
+    A fixture can cover the right branch, assert the right field, and still choose the one value that
+    cannot tell the mutants apart.
+
+    A short session CAN have streamed minutes: the detector and the stream observe disjoint windows,
+    so a 10 min session where the stream caught 5.26 of it is both real and below the floor."""
+    r = W.assess(therapy_min=5.0, stream_min=5.26)  # t = 10.26, under the 30 min floor
+    assert r["state"] == W.OK
+    assert r["cover"] is None, "the too-short branch declines to compute a cover"
+    assert r["stream_min"] == 5.3, r["stream_min"]
+    assert r["therapy_min"] == 10.3
+    assert r["therapy_observed_min"] == 5.0
+
+
+def test_the_DIED_EARLY_line_states_the_percentage_it_covered():
+    """Kills `100 * cover` → `101 * cover` in the died-early detail.
+
+    The sibling mutant (`100 / cover`) died with the OK branch's percentage assertion, which is
+    exactly why this one survived: the two branches build the same sentence from different lines, so
+    asserting it once proves nothing about the other. The number an operator reads when the stream
+    DIED is the one they are most likely to act on."""
+    r = W.assess(therapy_min=20.26, stream_min=15.26)  # cover 0.4296… → 43.0 %
+    assert r["state"] == W.DIED_EARLY
+    assert "(43.0 %)" in r["detail"], r["detail"]
+    assert "stopped early" in r["detail"]
