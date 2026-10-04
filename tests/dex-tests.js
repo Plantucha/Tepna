@@ -8522,6 +8522,40 @@
       );
       var clean = draw(night({ vdF: { tier: 'go', label: 'FEASIBLE', why: { driftMs: 10, driftStat: 'stepP95', driftOK: true } } }));
       T.ok('a finger leg that PASSES its gate raises no flag at the hat', !/gate-rejected/.test(clean) && /Timing axes/.test(clean), 'the flag fires on a passing leg');
+      /* ── THE THREE-FLOOR HAT (E11's consumer side, #3267) ───────────────────────────────────────────
+         Until the ring had an arrival sidecar this page stated flatly that "the ring has no arrival-floor
+         axis", and the hat could only be solved on raw receive stamps. With `threeCorr` present the page
+         must show BOTH σ sets and must not report a difference between them: re-timing changes the axes,
+         so the three-floor hat is a separate estimate of the same quantity and not a correction of the
+         raw one — the same rule the drift-removed row carries, for the same reason. */
+      var floored = draw(
+        night({
+          threeCorr: { ok: true, n: 94, winMin: 5, sigma: { chest: 9.1, finger: 11.4, ankle: 18.2 }, variance: { chest: 83, finger: 130, ankle: 331 }, pairSd: { ab: 14.6, ac: 20.4, bc: 21.5 } }
+        })
+      );
+      // section() matches the EXACT `<h3>` text — a short needle returns '' and the assertion below then
+      // fails on an empty slice rather than on the page's content. (It did, on the first run.)
+      var fl = section(floored, 'three-floor hat — every leg on its own device’s arrival floor, a SEPARATE estimate over different axes');
+      T.ok('the three-floor hat gets its OWN row when every leg has a floor', fl.length > 0 && /three-floor hat σ/.test(fl), floored.replace(/<[^>]+>/g, ' ').slice(0, 200));
+      T.ok('…labelled a SEPARATE estimate over different axes, not a correction', /SEPARATE estimate over different axes/.test(floored), 'the row reads as a correction of the raw hat');
+      T.ok('…and the raw hat is still there beside it, both σ sets on the page', /classic hat σ/.test(floored) && /three-floor hat σ/.test(floored), 'one of the two σ sets is missing');
+      T.ok(
+        '…with NO delta between the raw and floored σ (a difference would read as "the smaller number is the better instrument")',
+        !/Δ[^<]{0,40}(floor|three-floor)/i.test(floored),
+        'a delta between the two hats reached the page'
+      );
+      T.ok('…and the axes note no longer claims the ring has none', !/the ring has none/.test(floored) && !/ring has no arrival-floor axis/.test(floored), 'the pre-E11 sentence is still on the page');
+      // The REFUSAL leg: a floored hat that did not solve names the worker's reason instead of vanishing.
+      var floorNo = draw(
+        night({
+          threeCorr: { ok: false, reason: 'O2Ring PPG: no positioned `PPG_FRAME` rows in the ring sidecar' },
+          floorSync: { available: true, bufferingDiffMs: 156, finger: { ok: false, reason: 'O2Ring PPG: no positioned `PPG_FRAME` rows in the ring sidecar' } }
+        })
+      );
+      T.ok('a three-floor hat that did not solve says WHY, quoting the worker', /no positioned/.test(floorNo) && /PPG_FRAME/.test(floorNo), floorNo.replace(/<[^>]+>/g, ' ').slice(0, 300));
+      // ANTI-VACUITY: with no `threeCorr` at all the section must be ABSENT, not empty — otherwise the
+      // three assertions above would pass on a page that always renders the heading.
+      T.ok('ANTI-VACUITY · with no floored hat the section is absent entirely', !/three-floor hat/.test(html), 'the heading renders unconditionally, so the tests above prove nothing');
       // ── the intake: sidecars and ACC reach the worker, both or neither ──
       var I = load(),
         f = function (n) {
@@ -8545,6 +8579,17 @@
         JSON.stringify(Object.keys(job))
       );
       T.ok('…and the ACC pair with them', job.ecgAccFile && /H10.*_ACC/.test(job.ecgAccFile.name) && job.ppgAccFile && /Verity.*_ACC/.test(job.ppgAccFile.name), JSON.stringify(Object.keys(job)));
+      /* The RING's sidecar now reaches the worker too, on its own slot. It used to classify to `null`
+         ("the ring's is not used here") because it carried only `OXYLIVE_DURATION_S` rows — no PPG packets
+         and no device position. E11 (#3267) writes one row per PPG frame with the ring's own cumulative
+         stream position, which is what the FINGER leg's floor anchors on. A separate slot, never folded
+         into `ppgArrFile`: that one is the ANKLE, and routing the finger's sidecar there would put two
+         devices on one floor. */
+      T.ok(
+        'the RING’s sidecar reaches the worker on its OWN slot, not the ankle’s',
+        job.ringArrFile && /O2Ring/i.test(job.ringArrFile.name) && !/O2Ring/i.test((job.ppgArrFile || {}).name || ''),
+        JSON.stringify(Object.keys(job))
+      );
       var J = load();
       J.P.onPick([f('Polar_H10_1_x_ECG.txt'), f('Polar_VeritySense_2_x_PPG.txt'), f('Wellue_O2Ring-S_3_x_PPG.txt'), f('Polar_H10_1_x_PMDARRIVAL.csv')]);
       J.P.run();
@@ -8594,6 +8639,117 @@
         'the ECG anchor is the LARGEST session, and the Verity waveform the one nearest it',
         /220910_ECG/.test(pk2.ecg.name) && /211125_PPG/.test(pk2.verity.name),
         pk2.ecg.name + ' | ' + pk2.verity.name
+      );
+    });
+
+    /* ════ THE RING'S FLOOR AXIS — the device's OWN counter, and the refusals that keep it honest ════
+       E11 (#3267) gives the O2Ring an arrival sidecar, so the finger leg can finally take a floor and the
+       PAT hat can be solved on three of them instead of on raw receive stamps.
+
+       Two counters exist for the ring's PPG and only one may anchor a floor: `_PPG.txt`'s
+       `sensor timestamp [ns]` is the HOST-SYNTHESIZED 125.000 Hz grid (gaps inserted from elapsed host
+       time), while the sidecar's `first_sample_idx` is the ring's own cumulative position. These tests pin
+       the second one and the accounting refusals around it.
+
+       ⚠️ SYNTHETIC BY NECESSITY, and that is stated rather than hidden: no captured night carries a ring
+       arrival sidecar yet — #3267 is daemon code and takes effect only after the box restarts on it. The
+       frame sequences below are constructed, so they prove the ARITHMETIC and the REFUSALS, not that a real
+       ring behaves this way. The brief's evidence line stays open until a real night exists. */
+    group('PAT Feasibility worker — the ring floor reads the sidecar’s own counter, and refuses the accounting it cannot map', 'pat-feasibility · floor · ring', function (T) {
+      var wsrc = (env.sources || {})['pat-feasibility-worker.js'];
+      if (wsrc == null) {
+        T.ok('pat-feasibility-worker.js is wired into this lane', false, 'missing from env.sources');
+        return;
+      }
+      var a = wsrc.indexOf('var RING_FS ='),
+        b = wsrc.indexOf('\n/* Host time on the floor axis', a);
+      T.ok('the ring floor block is extractable', a >= 0 && b > a, 'extraction is testing nothing');
+      if (!(a >= 0 && b > a)) return;
+      // A stub DexClock so `arrivalHostMs` resolves: the arrival column's PARSING is the Clock Contract's
+      // business and is tested there; here the floor arithmetic is what is under test.
+      var F = new Function(
+        'DexClock',
+        'function arrivalHostMs(s){var r=DexClock.parseTimestamp(s);return r&&isFinite(r.tMs)?r.tMs:null;}' +
+          wsrc.slice(a, b) +
+          '; return { ringPacket: ringPacket, ringDevColumn: ringDevColumn, MS: RING_MS_PER_SAMPLE };'
+      )({
+        parseTimestamp: function (str) {
+          var m2 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})$/.exec(String(str));
+          return m2 ? { tMs: Date.UTC(+m2[1], +m2[2] - 1, +m2[3], +m2[4], +m2[5], +m2[6], +m2[7]) } : null;
+        }
+      });
+      T.eq('one sample is 8.000 ms at the ADC rate capture.py states (O2PPG_FS_DEFAULT = 125.000)', F.MS, 8);
+
+      var HDR = 'Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx';
+      function row(stamp, n, idx) {
+        // the ns columns BLANK, exactly as writers.py writes them for a device with no clock
+        return stamp + ';O2Ring-S;PPG_FRAME;;;' + n + (idx === undefined ? '' : ';' + idx);
+      }
+
+      /* ── the packet key: the frame's LAST sample, and the BLANK clock columns are not read ── */
+      var pk = F.ringPacket(row('2026-10-05T00:00:01.000', 126, 1000).split(';'));
+      T.ok('a positioned frame yields a packet', !!pk, String(pk));
+      T.eq('…whose device ms is the LAST sample’s position, not the first', pk && pk[0], (1000 + 126 - 1) * 8);
+      T.eq('…and whose arrival is the host stamp', pk && pk[1], Date.UTC(2026, 9, 5, 0, 0, 1, 0));
+      T.eq('a SIX-column row (a pre-E11 file, or a resumed one keeping the narrow shape) yields NOTHING — never position 0', F.ringPacket(row('2026-10-05T00:00:01.000', 126).split(';')), null);
+      T.eq('a frame declaring zero samples yields nothing', F.ringPacket(row('2026-10-05T00:00:01.000', 0, 1000).split(';')), null);
+
+      /* ── the device column: walked from the frames, because a row index is not a position after a gap ── */
+      var frames = [
+        [0, 120],
+        [120, 126],
+        [246, 123]
+      ];
+      var text =
+        HDR +
+        '\n' +
+        frames
+          .map(function (f, i) {
+            return row('2026-10-05T00:00:0' + i + '.000', f[1], f[0]);
+          })
+          .join('\n') +
+        '\n';
+      var tot = 120 + 126 + 123;
+      var dc = F.ringDevColumn(text, tot);
+      T.ok('three positioned frames give a device column', dc.ok, dc.reason);
+      T.eq('…one entry per DELIVERED sample', dc.ok && dc.dev.length, tot);
+      T.eq('…the first sample sits at position 0', dc.ok && dc.dev[0], 0);
+      T.eq('…the first sample of the SECOND frame sits at its own declared position, not at the row index', dc.ok && dc.dev[120], 120 * 8);
+      T.eq('…and the last sample is the last frame’s last position', dc.ok && dc.dev[tot - 1], (246 + 123 - 1) * 8);
+
+      /* THE CASE THAT MOTIVATES ALL OF IT: a DROPOUT. The ring's counter jumps while the file writes no
+         rows for the missing samples (an honest gap writes none — capture.py:936), so a row index and a
+         device position diverge permanently after it. Keyed on the frames, the samples after the gap land
+         on their true device positions; keyed on the row index they would be 2000 samples early. */
+      var gapped = HDR + '\n' + row('2026-10-05T00:00:00.000', 120, 0) + '\n' + row('2026-10-05T00:00:17.000', 120, 2120) + '\n';
+      var gd = F.ringDevColumn(gapped, 240);
+      T.ok('a dropout does not break the walk', gd.ok, gd.reason);
+      T.eq('the sample after a 2000-sample dropout lands on its DEVICE position, not its row index', gd.ok && gd.dev[120], 2120 * 8);
+      T.ok(
+        '…so the gap is visible as real lost device time (16 s), not compressed away',
+        gd.ok && gd.dev[120] - gd.dev[119] === (2120 - 119) * 8,
+        gd.ok ? String(gd.dev[120] - gd.dev[119]) : gd.reason
+      );
+
+      /* ── THE REFUSALS. Each names what it saw; none patches. ── */
+      var none = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:01.000', 126) + '\n', 126);
+      T.ok('a sidecar with no POSITIONED frames refuses', !none.ok, JSON.stringify(none));
+      T.ok('…naming a pre-E11 capture rather than a corrupt one', !none.ok && /no positioned/.test(none.reason) && /pre-E11/.test(none.reason), none.reason);
+
+      var back = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:00.000', 120, 500) + '\n' + row('2026-10-05T00:00:01.000', 120, 400) + '\n', 240);
+      T.ok('frames whose positions go BACKWARDS refuse', !back.ok, JSON.stringify(back));
+      T.ok('…because one device position would map to two samples', !back.ok && /overlap or go backwards/.test(back.reason), back.reason);
+
+      var over = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:00.000', 120, 0) + '\n' + row('2026-10-05T00:00:01.000', 120, 60) + '\n', 240);
+      T.ok('frames that OVERLAP refuse too (the second starts inside the first)', !over.ok, JSON.stringify(over));
+
+      var mism = F.ringDevColumn(text, tot - 1);
+      T.ok('Σ n_samples ≠ the file’s row count refuses', !mism.ok, JSON.stringify(mism));
+      T.ok('…naming the accounting, the same refusal the ECG and Verity legs carry', !mism.ok && /row accounting differs/.test(mism.reason) && new RegExp(String(tot)).test(mism.reason), mism.reason);
+      T.ok(
+        'ANTI-VACUITY · the same text with the RIGHT row count still passes, so the refusal is about the count',
+        F.ringDevColumn(text, tot).ok,
+        'the positive leg must hold or every refusal above is unfalsifiable'
       );
     });
 
@@ -14808,7 +14964,14 @@
          deliberate one-line edit naming which producer grew. Two-sided on purpose — a DROP must also be
          declared, because a key becoming decidable is exactly as interesting as one becoming helper-reached
          and is the direction that shrinks the debt. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 23, 'sensor-trio-worker.js': 34, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* pat-feasibility-worker.js 23 → 26 on 2026-10-04 (PAT-HAT-RING-FLOOR, E11's consumer side): the
+         three keys the three-floor hat adds — `threeCorr`, `cpFCorr`, `cpFACorr` — are read inside the
+         page's `correctedRow` / `hatAxesNote` helpers rather than in a handler body, which is where this
+         page reads every other corrected-path key too. ⚠️ On the first run of that unit all three were
+         read NOWHERE: the dead-key leg above caught `cpFCorr,cpFACorr` crossing the boundary unread, the
+         same defect this worker already records for `detailCorr` and for `vdCorr` before #2117. They are
+         surfaced now, which is what moved them from DEAD to merely helper-reached. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 26, 'sensor-trio-worker.js': 34, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
