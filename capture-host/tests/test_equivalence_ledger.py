@@ -84,6 +84,11 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # diskguard.py is NEW at 2 on 2026-10-04 (absence drain group 2a): one extra step of a walk-up loop bounded by
 # path depth (13 paths, identical disk_usage arguments) and `>= 0` on the low-space floor (free bytes are never
 # negative; a 36-case grid).
+# writers.py 19 -> 35 on 2026-10-04 (absence drain 2b): the ECG relative-ms anchor fix sits in StreamWriter.__init__,
+# which put the whole constructor in scope: 49 survivors, 33 killed by tests/test_writers_resume_edges.py (9 of them
+# sized by Codex — the 1 MiB buffer, the /dev/full flush log, the gyro seam seed, an unknown stream resuming — each
+# verified by applying the mutant), 16 recorded here with a 29-session original-vs-mutant battery. ⚠️ That battery
+# compares FINAL bytes, so it called the buffer-size mutants identical; they differ only BEFORE the first flush.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
@@ -121,7 +126,7 @@ RATCHET = {
     "solid_night_inputs.py": 35,
     "telemetry.py": 1,
     "timeline.py": 1,
-    "writers.py": 19,
+    "writers.py": 35,
 }
 
 

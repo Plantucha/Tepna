@@ -153,8 +153,8 @@ export const SEEDS = [
   },
   {
     at: 'capture-host/writers.py:1544',
-    state: 'open',
-    note: 'that `except OSError: pass` is gone from this site; the pattern lives elsewhere WITH a reason comment. Not the same site, so not a fix of this finding'
+    state: 'fixed',
+    note: 'the site was still live (re-read 2026-10-04, Wren): a resumed ECG file whose anchor read raised fell back to lazy init and restarted `timestamp [ms]` at 0.0 mid-file. Now `_rel_anchor_lost` leaves the column EMPTY for the rest of the file (ECGDex skips a non-finite [ms]; nightqc never reads it). Plant: test_a_resumed_ecg_whose_anchor_CANNOT_be_read_leaves_the_relative_column_EMPTY'
   },
   {
     at: 'capture-host/diskguard.py:42',

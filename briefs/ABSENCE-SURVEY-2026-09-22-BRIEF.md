@@ -220,8 +220,9 @@ State per finding is `audits/ABSENCE-SURVEY-2026-09-22-STATE.json`, written only
 | PR | group (consumer) | closed | how | open after |
 |---|---|---|---|---|
 | #3266 | `capture-host/nightqc.py` | `d2ab13a24151` (F2, medium) · `f06c04c132be` (F5, medium) | `count_rows` → `None` for an unreadable file, stream reads `unreadable` and the QC verdict UNKNOWN (plant `test_an_unreadable_capture_is_unknown_never_missing_or_zero`, red on `origin/main`) · already fixed by #3030 (the doff is a clock second) | 285 of 290 |
-| this PR | capture-host `diskguard.py` · `telemetry.py` | `ac55d2678d14` (F3, low) · telemetry `rate = fs or … or 1` (F1, medium) | `free_pct` null when the filesystem reports no size · the broadcast rate is the DECLARED one (0 = irregular, null = undeclared; the 1 only sizes the ring) and the monitor reads it with `??` — each with a plant red on `origin/main`. `writers.py` (`69af7d0ae895`) is split out: its one-line fix sits in `StreamWriter.__init__`, which brings that constructor's whole mutation debt into scope, so it lands as its own unit | 283 of 290 |
+| #3268 | capture-host `diskguard.py` · `telemetry.py` | `ac55d2678d14` (F3, low) · telemetry `rate = fs or … or 1` (F1, medium) | `free_pct` null when the filesystem reports no size · the broadcast rate is the DECLARED one (0 = irregular, null = undeclared; the 1 only sizes the ring) and the monitor reads it with `??` — each with a plant red on `origin/main`. `writers.py` (`69af7d0ae895`) is split out: its one-line fix sits in `StreamWriter.__init__`, which brings that constructor's whole mutation debt into scope, so it lands as its own unit | 283 of 290 |
+| this PR | capture-host `writers.py` (`StreamWriter.__init__`) | `69af7d0ae895` (F5, low) | a resumed ECG file whose original anchor cannot be read back leaves the relative `timestamp [ms]` column EMPTY instead of restarting it at 0.0 mid-file (plant red on `origin/main`). The fix sits in the constructor, so its 49 pre-existing mutation survivors were drained here: 33 killed (`tests/test_writers_resume_edges.py`), 16 recorded equivalent with a run probe | 282 of 290 |
 
-Next groups, nearest a verdict surface first: capture-host `writers.py` (1, with
-`StreamWriter.__init__`'s debt) → `capture.py` (7) → the device paths (~9) → the tooling (4) → the dev probes (11) → JS by node, OxyDex first
+Next groups, nearest a verdict surface first: capture-host
+`capture.py` (7) → the device paths (~9) → the tooling (4) → the dev probes (11) → JS by node, OxyDex first
 (dsp 39 · render 28 · fusion 7).
