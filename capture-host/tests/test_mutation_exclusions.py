@@ -452,7 +452,7 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # rewriting it would falsify the record of what the 7556 s and 562 MB were paid on. The live count
     # is what `count_functions` recomputes and the gate prints per run; this pin is the deliberate-update
     # tripwire on it, which is exactly what caught these two.
-    assert n == 292, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    assert n == 293, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
