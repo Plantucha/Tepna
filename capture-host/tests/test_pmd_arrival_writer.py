@@ -11,8 +11,11 @@ This sidecar records the TRUE arrival beside the device stamp of the packet's fi
 minimum has a real floor. These tests pin the properties that make it usable, not merely that it writes.
 """
 
+import builtins
 import datetime as _dt
+import inspect
 import os
+from unittest import mock
 
 from writers import PmdArrivalLogWriter
 from tests._srcscan import module_source
@@ -83,6 +86,139 @@ def test_the_RING_writes_a_frame_POSITION_and_BLANK_clock_columns(tmp_path):
     assert f[3] == "" and f[4] == "", (f, "a clockless device must blank the ns columns, not write 0")
     assert f[5] == "20", f
     assert f[6] == "4000", (f, "the ring's own frame position is the column a floor can be taken against")
+
+
+def test_the_width_is_COUNTED_from_the_header_not_assumed(tmp_path):
+    """E11 · `self._cols` is `header.count(";") + 1`, and the arithmetic is what decides whether a
+    resumed file gets the new column. Driven across THREE widths so the `+1` is pinned as an off-by-one
+    boundary rather than observed once: a 6-field header has 5 semicolons, a 7-field one has 6, and a
+    deliberately absurd 8-field one must read as 8 and still never WIDEN a narrow file."""
+
+    def _w(name, header):
+        q = os.path.join(tmp_path, name)
+        with open(q, "w") as fh:
+            fh.write(header + "\n2026-10-03T00:00:00.000;H10;ECG;1;2;73\n")
+        return q
+
+    six = "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"
+    assert PmdArrivalLogWriter(_w("a_PMDARRIVAL.csv", six), fsync=False)._cols == 6
+    assert PmdArrivalLogWriter(_w("b_PMDARRIVAL.csv", six + ";first_sample_idx"), fsync=False)._cols == 7
+    assert PmdArrivalLogWriter(_w("c_PMDARRIVAL.csv", six + ";x;y"), fsync=False)._cols == 8
+    # A header with NO semicolon at all is one column — the degenerate end of the same arithmetic, and
+    # the case that distinguishes `+1` from `-1` and from a bare `count(";")`.
+    assert PmdArrivalLogWriter(_w("d_PMDARRIVAL.csv", "solo"), fsync=False)._cols == 1
+    # A FRESH file is 7 by construction, not by counting — the branch the three above never take.
+    assert PmdArrivalLogWriter(os.path.join(tmp_path, "fresh_PMDARRIVAL.csv"), fsync=False)._cols == 7
+
+
+def test_an_UNREADABLE_header_assumes_the_NARROW_shape_and_never_widens(tmp_path):
+    """∅ The `except OSError` branch, and its DIRECTION is the content. If the header cannot be read,
+    the writer must assume the OLDER six-column shape: guessing 7 on a file that is actually 6 appends
+    a column under a header that does not declare it, which is the self-contradictory file the whole
+    width-detection exists to prevent. Guessing 6 on a file that is actually 7 only drops a column —
+    recoverable, and visible as a blank. Errs toward the narrower claim."""
+    q = os.path.join(tmp_path, "unreadable_PMDARRIVAL.csv")
+    with open(q, "w") as fh:
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx\n")
+        fh.write("2026-10-03T00:00:00.000;H10;ECG;1;2;73;9\n")
+    real_open = builtins.open
+    seen = {"n": 0}
+
+    def boom(path, mode="r", *a, **kw):
+        # Fail ONLY the re-open for reading, which is the call under test — the append handle above it
+        # must still succeed or the test would be about a different failure.
+        # mode EXACTLY "r": the torn-tail handler opens the same path as "rb+", which contains an "r"
+        # and would be intercepted by a looser predicate — and that open is OUTSIDE the try under test,
+        # so the error would escape instead of exercising the branch. My first version did exactly that.
+        if str(path) == q and mode == "r":
+            seen["n"] += 1
+            raise OSError(5, "Input/output error")
+        return real_open(path, mode, *a, **kw)
+
+    with mock.patch.object(builtins, "open", boom):
+        w = PmdArrivalLogWriter(q, fsync=False)
+    assert seen["n"] == 1, "the header re-open must have been attempted, or this asserts nothing"
+    assert w._cols == 6, "an unreadable header must assume the NARROW shape, never the wide one"
+    w.write(_T0, "O2Ring-S", "PPG_FRAME", None, None, 20, 4000)
+    w.close()
+    assert _read(q)[-1].endswith(";20"), "and must therefore write six columns, dropping the position"
+
+
+def test_a_TORN_TAIL_is_truncated_to_the_last_COMPLETE_line(tmp_path):
+    """The resume path's torn-tail handling, which had NO test observing it — 13 of the mutants this
+    branch put in scope live in these four lines, and they survived because nothing read the result.
+
+    A capture killed mid-write leaves a final line with no newline. Appending after it would splice the
+    next row onto the stump and produce one corrupt row that every consumer parses as real. So the
+    partial line is cut back to the last complete one."""
+    q = os.path.join(tmp_path, "torn_PMDARRIVAL.csv")
+    with open(q, "w") as fh:
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        fh.write("2026-10-03T00:00:00.000;H10;ECG;1;2;73\n")
+        fh.write("2026-10-03T00:00:01.000;H10;ECG;3;4;7")  # killed mid-write: NO trailing newline
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 5, 6, 9)
+    w.close()
+    rows = _read(q)
+    assert len(rows) == 3, rows  # header + the one complete row + the new one
+    assert rows[1].endswith(";73"), rows
+    assert rows[2].endswith(";9"), (rows, "the new row must start a line of its own, not splice onto the stump")
+    assert not any(r.endswith(";7") for r in rows), (rows, "the torn row must be GONE, not merged")
+    assert all(len(r.split(";")) == 6 for r in rows), (rows, "and the file keeps its original width")
+
+
+def test_an_EMPTY_existing_file_is_not_a_resume(tmp_path):
+    """`os.path.getsize(path) > 0`, both halves. A zero-byte file is a file that exists and says
+    nothing — it must get a HEADER, not be appended to as though it already had one. (The 2026-10-03
+    ENOSPC truncations are why this matters: a zero-byte sidecar is a real state on this box, and
+    treating it as a resume would produce a file of rows with no header at all.)"""
+    q = os.path.join(tmp_path, "empty_PMDARRIVAL.csv")
+    open(q, "w").close()
+    assert os.path.getsize(q) == 0
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    rows = _read(q)
+    assert rows[0].startswith("Phone timestamp;"), (rows, "an empty file must receive the header")
+    assert rows[0].endswith(";first_sample_idx"), (rows, "and a fresh header is the CURRENT shape")
+    assert len(rows) == 2, rows
+
+
+def test_a_ONE_BYTE_file_is_truncated_away_and_then_headered(tmp_path):
+    """The `> 1` boundary: a one-byte file is a torn tail of a line that never completed. It is cut to
+    nothing, which makes it an empty file, which then takes the header path. Pinned because `> 0` and
+    `> 1` differ on exactly this file and on no other."""
+    q = os.path.join(tmp_path, "onebyte_PMDARRIVAL.csv")
+    with open(q, "w") as fh:
+        fh.write("x")
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    rows = _read(q)
+    assert rows[0].startswith("Phone timestamp;"), (rows, "the stray byte must not survive in front of the header")
+    # NOT `"x" not in rows[0]` — my first version asserted that and it failed on the "x" inside
+    # `first_sample_idx`. A substring check against a header that contains most letters is not an
+    # assertion about the stray byte at all.
+    assert len(rows) == 2, (rows, "header + the one written row, with nothing left of the torn byte")
+    assert not rows[0].startswith("x"), rows
+
+
+def test_the_writer_keeps_its_own_path_and_binds_health_to_it(tmp_path):
+    """`self.path = path` and `_FlushHealth(path)` — both trivially mutable to `None` and both
+    unobserved until now. The path is what a flush failure NAMES, so losing it turns a named failure
+    into an anonymous one."""
+    q = os.path.join(tmp_path, "named_PMDARRIVAL.csv")
+    w = PmdArrivalLogWriter(q, fsync=False)
+    assert w.path == q
+    assert getattr(w._health, "path", None) == q, "health must be bound to this file, not to None"
+    w.close()
+
+
+def test_fsync_defaults_ON_for_a_sidecar_that_must_survive_a_power_cut(tmp_path):
+    """The signature default. A capture box loses power; a sidecar buffered in the kernel and never
+    fsynced is the half that disappears. Asserted on the SIGNATURE rather than by observing a syscall,
+    because the default is the decision."""
+    assert inspect.signature(PmdArrivalLogWriter.__init__).parameters["fsync"].default is True
 
 
 def test_a_RESUMED_six_column_file_keeps_ONE_shape(tmp_path):
