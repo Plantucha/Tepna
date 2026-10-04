@@ -52,6 +52,16 @@
       "measuredAt": "2026-09-28",
       "host": "rig-x870"
     },
+    "nightqc.py@30b4905be29a": {
+      "generatedBytes": 53791656,
+      "measuredAt": "2026-09-29",
+      "host": "rig-x870"
+    },
+    "nightqc.py@76ec60075781": {
+      "generatedBytes": 53269400,
+      "measuredAt": "2026-09-28",
+      "host": "rig-x870"
+    },
     "solid_night_inputs.py@7e4cd329b389": {
       "generatedBytes": 3688680,
       "measuredAt": "2026-09-28",

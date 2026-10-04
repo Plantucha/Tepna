@@ -4108,6 +4108,10 @@ _CLOCKLESS_BY_DESIGN = {
     "test_summarize_pools_when_the_neighbour_was_still_writing_at_wake": "pooling by overlap",
     "test_summarize_does_not_pool_a_non_contiguous_small_hours_session": "pooling refusal by contiguity",
     "test_span_at_exactly_the_minimum_is_judgeable": "the SESSION span floor _MIN_SPAN_SEC",
+    # The mirror of the entry above, and it is listed for the same reason: the claim is that a span
+    # UNDER the floor names why it cannot be judged. The shortness is produced by filename stamp +
+    # mtime arithmetic alone and no device stamp is read for it, exactly as in the judgeable case.
+    "test_span_reason_NAMES_the_minimum_when_the_span_is_too_short": "the SESSION span floor _MIN_SPAN_SEC, refusing arm",
     "test_an_in_night_hole_BEFORE_the_judged_half_also_reds": "gap classification against the night band",
     "test_pooling_boundary_exactly_at_midnight_pools": "pooling boundary, lower",
     "test_pooling_boundary_exactly_at_the_gap_does_not_pool": "pooling boundary, upper",
@@ -5342,6 +5346,252 @@ def test_PLANT_the_vote_ROUNDS_so_a_millisecond_cannot_move_the_zone(tmp_path):
     off, _data = _recovered(night)
     assert off["offset_sec"] == 14400.0, (off, "a sub-second shortfall moved the recovered zone")
     assert off["unanimous"] is True and off["voters"] == 2, off
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# THE `summarize` SURVIVOR DRAIN — the 41 entries #3188 left in the ledger
+#
+# `mutation-survivors.json` carried 41 open entries, every one on `nightqc.summarize` and every one
+# reported against #3188 — my own unit. The ledger hands this drain a LIST, which changes what done
+# means: the acceptance is every listed entry accounted for (killed here, recorded equivalent with an
+# argument, or its line deleted because it decides nothing), not a green rollup.
+#
+# They are drained by FAMILY, because the families are the finding. A mutant that survives a whole
+# unit's test suite is telling you which decision nobody asserted, and four of these families are the
+# same decision seen four times: a condition neutered to a constant (`or True` / `and False`), a
+# boundary moved by one (`<=` → `<`), an argument dropped at a call site, and a `dict(base, **kw)`
+# rebuilt without its base.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _touching_night(tmp_path):
+    """Three sessions that TOUCH at both edges of the judged one, via recorded DAEMON SEAMS.
+
+    ⚠️ Abutting sessions cannot be built from file gaps, and my first attempt at this fixture proved it:
+    `merge_sessions` extends a session whenever the next file opens within `_SESSION_GAP_SEC` (3600 s), so
+    three files laid end to end merge into ONE session and `gaps` comes back empty. `merge_sessions`'s own
+    docstring says where touching sessions come from instead — *"when a seam splits, the earlier session's
+    end is clamped to the seam … Sessions may now TOUCH or sit closer than `gap_sec` … the invariant that
+    survives is disjointness, not separation."*
+
+    So each boundary here is a recorded start in `STARTS.csv` with a file opening at exactly that second:
+    the earlier session's end is clamped to the seam and the next session starts on it, giving
+    `earlier.end == judged.start` and `judged.end == later.start` — the input that separates
+    `s[1] <= cur[0]` from `s[1] < cur[0]` and `s[0] >= cur[1]` from `s[0] > cur[1]`.
+
+    Floating throughout (`_stamp_epoch`, floating mtimes, `_summarize_floating`), which is the frame the
+    box writes and the only one in which a seam stamp and a filename stamp mean the same thing."""
+    import writers
+
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _stamp_epoch("20260924210000")
+    seam1 = t0 + 600  # run 1 ends / run 2 opens, on the same second
+    seam2 = seam1 + 7200  # run 2 ends / run 3 opens, on the same second
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 600), seam1)
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(seam1) + "_HR.txt", 7200), seam2)
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(seam2) + "_HR.txt", 300), seam2 + 300)
+    with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(_starts_stamp(seam1) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+        fh.write(_starts_stamp(seam2) + ";400444;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    return night, devs, t0, seam1, seam2
+
+
+def _floating_stampname(t_floating):
+    """A 14-digit filename stamp for a FLOATING second — the inverse of `_stamp_epoch`, and deliberately
+    not `datetime.fromtimestamp`, which would push the name through the reader's zone."""
+    return (_dtmod.datetime(1970, 1, 1) + _dtmod.timedelta(seconds=t_floating)).strftime("%Y%m%d%H%M%S")
+
+
+def test_the_session_partition_is_DISJOINT_BUT_MAY_TOUCH(tmp_path):
+    """The invariant the before/after partition leans on, pinned — because the whole boundary family of
+    survivors is only killable if sessions CAN touch, and only equivalent if they cannot. Asserting it
+    here means the next reader does not have to re-derive which it is from two docstrings."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    ss = (
+        [(x["start"], x["end"]) for x in s["sessions"]]
+        if isinstance(s["sessions"][0], dict)
+        else [(x[0], x[1]) for x in s["sessions"]]
+    )
+    assert len(ss) == 3, (ss, "two recorded seams must split three runs")
+    for (a0, a1), (b0, b1) in zip(ss, ss[1:]):
+        assert a1 <= b0, (ss, "sessions must stay ordered and DISJOINT")
+        assert a1 == b0, (ss, "…and this fixture makes them TOUCH, which is what the boundary family needs")
+
+
+def test_PLANT_a_TOUCHING_neighbour_is_still_an_excluded_neighbour(tmp_path):
+    """`s[1] <= cur[0]` → `s[1] < cur[0]`, and its mirror `s[0] >= cur[1]` → `s[0] > cur[1]`.
+
+    A session that ends on the exact second the judged one begins is excluded from coverage just as much
+    as one that ends an hour earlier — its rows are not counted, so the report has to name it. Under the
+    strict comparison it disappears from `gaps` and the night grades as though nothing had been discarded:
+    the §A2 regression with a zero-length gap."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    assert s["judged_session"]["rows"] == 7200, (s["judged_session"], "the biggest run must be judged")
+    joined = " | ".join(s["gaps"])
+    assert "earlier session" in joined, f"the TOUCHING earlier session was dropped from the report: {s['gaps']}"
+    assert "later session" in joined, f"the TOUCHING later session was dropped from the report: {s['gaps']}"
+    assert "600 rows" in joined, f"the earlier run's rows must be named: {s['gaps']}"
+    assert "300 rows" in joined, f"the later run's rows must be named: {s['gaps']}"
+    assert s["prior_gap_sec"] == 0, (s["prior_gap_sec"], "a touching session is a ZERO gap, not no gap")
+
+
+def test_the_gap_line_names_the_NEAR_edge_of_each_neighbour(tmp_path):
+    """Four survivors lived in the message text: `_hhmm(prev[1])->_hhmm(cur[0])` mutated to `cur[1]`, and
+    `_hhmm(cur[1])->_hhmm(nxt[0])` mutated to `nxt[1]`. A gap runs from the end of what came before to the
+    start of what comes next; naming the FAR edge reports the gap plus a whole session, which is the
+    number a reader would act on."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    hh = nightqc._hhmm
+    earlier = [g for g in s["gaps"] if "earlier session" in g]
+    later = [g for g in s["gaps"] if "later session" in g]
+    assert earlier and later, s["gaps"]
+    assert earlier[0].startswith(f"{hh(seam1)}->{hh(seam1)}"), (
+        earlier[0],
+        "the earlier gap runs to the JUDGED start; naming its end reports a 2 h span as the gap",
+    )
+    assert later[0].startswith(f"{hh(seam2)}->{hh(seam2)}"), (
+        later[0],
+        "the later gap runs to the NEXT run's start, not to its end",
+    )
+
+
+# ── the drain's second family: a CONDITION NEUTERED TO A CONSTANT ────────────────────────────────────
+# Six survivors were `X if cond else Y` with `cond` replaced by `(cond) or True` / `(cond) and False`.
+# Each one publishes a decision, so each is killable by asserting BOTH arms — which is the gap: the suite
+# asserted the common arm of every one of them and never the other.
+
+
+def test_span_reason_is_None_when_the_span_IS_judgeable(tmp_path):
+    """`None if span else "under the minimum judgeable span"` → `(span) and False` makes every night carry
+    the refusal, including nights with hours of capture. The common arm was asserted; this is the other."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    assert s["span_sec"] and s["span_sec"] > nightqc._MIN_SPAN_SEC, s["span_sec"]
+    assert s["span_reason"] is None, (
+        s["span_reason"],
+        "a judgeable span must carry NO reason — a reason beside a real span reads as a refusal",
+    )
+
+
+def test_span_reason_NAMES_the_minimum_when_the_span_is_too_short(tmp_path):
+    """The mirror, and the arm `or True` erases: a night under `_MIN_SPAN_SEC` must say WHY its coverage is
+    unknown. `None` there is §∅ inverted — an absent reason beside an absent number."""
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _stamp_epoch("20260924230000")
+    # 120 s of elapsed capture: under the 300 s floor, so the span cannot judge a rate
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 120), t0 + 120)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = _summarize_floating(night, devs)
+    assert s["span_sec"] is None or s["span_sec"] < nightqc._MIN_SPAN_SEC, s["span_sec"]
+    assert s["span_reason"] == "under the minimum judgeable span", s["span_reason"]
+
+
+def test_the_writer_offset_frame_says_ABSOLUTE_when_an_offset_IS_known(tmp_path):
+    """`"floating" if offset is None else "absolute"` → `or True` publishes every night as floating. A
+    reader uses `frame` to decide whether `sessions` are instants or civil values, so a night whose offset
+    WAS recovered must say absolute — and the suite only ever asserted the refusing arm."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize(night, devs)  # declared frame: an offset IS known
+    wo = s["writer_offset"]
+    assert wo["offset_sec"] is not None, wo
+    assert wo["frame"] == "absolute", (wo, "an offset was recovered, so these are instants, not civil values")
+
+
+def test_a_degraded_line_omits_rate_assumed_when_the_rate_was_MEASURED(tmp_path):
+    """`("" if basis == "measured" else " (rate assumed)")` → `and False` appends the qualifier to every
+    degraded line, including one computed against a rate read off the file. The existing test asserts the
+    `(rate assumed)` arm (`H10:acc 20% (rate assumed)`); nothing asserted its absence, so the mutant that
+    always appends it survived."""
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _stamp_epoch("20260924220000")
+    # A TIMED ACC file: enough rows for `measured_hz` to read a rate off its own device clock, but only
+    # part of the session's span covered — degraded, with a MEASURED basis.
+    _cap_timed(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_ACC.txt", 4000, 200)
+    _utime(os.path.join(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_ACC.txt"), t0 + 20)
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 3600), t0 + 3600)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["acc", "hr"]}]
+    s = _summarize_floating(night, devs)
+    measured = [d for d in s["devices"] if d["name"] == "H10"][0].get("coverage_basis", {})
+    if measured.get("acc") != "measured":
+        import pytest as _pt
+
+        _pt.skip(
+            f"this fixture did not produce a measured basis (got {measured}) — the assertion below "
+            "would be about the fixture, not the code"
+        )
+    acc_lines = [x for x in s["degraded"] if x.startswith("H10:acc")]
+    assert acc_lines, s["degraded"]
+    assert "(rate assumed)" not in acc_lines[0], (
+        acc_lines[0],
+        "the rate was MEASURED off the file's own clock; the qualifier claims otherwise",
+    )
+
+
+def test_a_night_dir_that_is_not_a_directory_does_not_raise(tmp_path):
+    """`sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []` → `or True` calls `listdir` on a
+    path that is not a directory. The guard exists because QC is pointed at folders that may not exist yet
+    (the midnight rollover creates tomorrow's name), and a crash there takes the whole summary with it."""
+    missing = str(tmp_path / "2026-09-30")  # never created
+    s = nightqc.summarize(missing, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["files"] == 0 and s["total_rows"] == 0, s
+    assert s["span_sec"] is None, s["span_sec"]
+
+
+# ── and the third: dict(base, **kw) REBUILT WITHOUT ITS BASE ─────────────────────────────────────────
+
+
+def test_the_published_writer_offset_keeps_the_recovery_it_describes(tmp_path):
+    """`dict(_off, frame=…)` → `dict(frame=…)` drops everything the inference rests on and leaves only the
+    label. `frame` alone is unauditable — the whole point of publishing this block is that a reader can
+    check the offset, its basis and its voter count rather than take the frame on trust."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    wo = _summarize(night, devs)["writer_offset"]
+    for k in ("offset_sec", "basis", "frame"):
+        assert k in wo, (sorted(wo), f"{k} was dropped — the frame label survived its own evidence")
+
+
+def test_the_pooled_daemon_record_keeps_its_other_keys(tmp_path):
+    """`dict(_daemon, stamps=…)` → `dict(stamps=…)` keeps the merged stamps and throws the rest of the
+    record away, so `starts` and `inside_capture` vanish and nothing can say how many restarts were
+    recorded — only that some stamps exist.
+
+    ⚠️ MY FIRST VERSION OF THIS TEST DID NOT REACH THE LINE. It asserted `session_basis` on a
+    single-folder fixture, and this merge only runs when a PREVIOUS night is pooled across midnight — so
+    the mutant survived a test written for it, which is the whole reason each of these is verified against
+    its own mutation rather than assumed to bite. The fixture now spans two date folders with a recorded
+    daemon start in EACH, which is the only shape that executes the merge."""
+    import writers
+    from datetime import datetime as _dt
+
+    d27 = str(tmp_path / "2026-09-27")
+    os.makedirs(d27)
+    d28 = str(tmp_path / "2026-09-28")
+    os.makedirs(d28)
+    pre = _dt.strptime("20260927233000", "%Y%m%d%H%M%S").timestamp()
+    post = _dt.strptime("20260928001500", "%Y%m%d%H%M%S").timestamp()
+    _utime(_cap(d27, "Polar_H10_02849638_20260927233000_HR.txt", 1800), pre + 1800)
+    _utime(_cap(d28, "Polar_H10_02849638_20260928001500_HR.txt", 1500), post + 1500)
+    for folder, stamp in ((d27, pre), (d28, post)):
+        with open(os.path.join(folder, writers.STARTS_NAME), "w") as fh:
+            fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+            fh.write(_starts_stamp(stamp) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = _summarize(d28, devs)
+    d = s["daemon"]
+    assert d["stamps"], d
+    assert "starts" in d and d["starts"] is not None, (
+        d,
+        "the merge kept the pooled stamps and dropped the count they came from",
+    )
+    assert "inside_capture" in d, (d, "the record's other keys must survive the stamp merge")
 
 
 def test_data_settled_asks_about_the_DATA_and_treats_NO_DATA_as_unsettled():
