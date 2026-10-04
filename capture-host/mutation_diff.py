@@ -2144,24 +2144,63 @@ def root_reads(tree) -> list[str]:
     return sorted(found)
 
 
+def tree_shadowed(tree, names) -> list[str]:
+    """The staged names the TREE ITSELF already provides at the same relative path.
+
+    🔴 FOR THESE, STAGING INTO THE COPY IS A SUBSTITUTION, NOT A SPARE COPY — and that is the one case
+    `root_reads`' deliberate over-flagging is not cheap. Its docstring prices a stray mention at "one
+    spurious copy of a small file", which holds while the staged name exists only in the repo root. It
+    does not hold for a name that ALSO exists inside the tree: `copytree` has already put the tree's
+    own file at `work/<name>`, and staging writes the ROOT file over it.
+
+    Measured 2026-10-03 (#3245): there are two `tools/mutate-equivalence.json` — the JS ledger in the
+    repo root (9 modules, 463 entries) and capture-host's own (33 modules, 642) — and six capture-host
+    test files name the bare path in a literal or a DOCSTRING, so every scratch ran with the wrong
+    ledger at `work/tools/mutate-equivalence.json`. It was invisible for as long as nothing inside the
+    scratch read that file's CONTENTS; `test_equivalence_ledger.py`'s per-module count ratchet does, so
+    it saw a ledger with no `solid_night_inputs.py` key at all, failed in the CLEAN-TEST pass, and
+    `mutate_diff` refused the whole run with NOT_RUN — correctly, but about the staging and not about
+    the diff. The pin in `test_mutation_scratch_reuse.py` records the belief this corrects: those
+    entries were called "mentions, not reads: that test opens `tools/mutate-equivalence.json` (already
+    staged)". It opens the CAPTURE-HOST one. Two files, one name.
+
+    THE TREE'S OWN FILE WINS INSIDE THE TREE, because that is what the suite does OUTSIDE the gate: a
+    test reads the ledger beside itself, and a scratch that answers differently is not a copy of the
+    checkout. The `work/..` copy still happens — a genuine `tests/../..` read of a same-named ROOT file
+    resolves there, so refusing both would trade this defect for #2864's.
+
+    Same shape as `_subdir_index`'s ambiguous-basename rule one level earlier ("staging the wrong
+    README.md is worse than staging none") and as the stats cache in #3251: two different things
+    sharing one name, which is the error this suite keeps paying for."""
+    from pathlib import Path
+
+    tree = Path(tree)
+    return sorted({name for name in names if (tree / name).is_file()})
+
+
 def stage_root_reads(tree, work, names) -> int:
     """Copy each root file in `names` to BOTH places a `tests/../..`-shaped read resolves from: `work/`
     (the mutants run executes `work/mutants/tests/`, whose grandparent's parent is `work/`) and
     `work/..` (the clean baseline executes `work/tests/`). Returns copies made. A name that is not a
     regular file in the root is skipped, never fabricated — the read will then fail exactly as it
-    would in the tree, which is the honest outcome."""
+    would in the tree, which is the honest outcome.
+
+    A name `tree_shadowed` names is staged to `work/..` ONLY: see that function for why the tree's own
+    file must survive inside the tree."""
     import shutil
     from pathlib import Path
 
     tree = Path(tree)
     work = Path(work)
     root = tree.resolve().parent
+    shadowed = set(tree_shadowed(tree, names))
     n = 0
     for name in names:
         src = root / name
         if not src.is_file():
             continue
-        for dest in (work, work.parent):
+        dests = (work.parent,) if name in shadowed else (work, work.parent)
+        for dest in dests:
             # `name` may now be a repo-relative PATH (`uploads/x.txt`), so the SUBDIRECTORY has to
             # exist at the destination or the copy fails — a read staged into a missing parent is as
             # absent as no copy at all, and it would fail the same way (#2864).
