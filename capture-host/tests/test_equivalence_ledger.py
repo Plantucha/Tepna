@@ -45,6 +45,14 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # could actually distinguish the mutant, 5 by collapsing `_is_double`'s dead parameters, which is a
 # refactor the unkillable mutants themselves argued for. These 3 are the residue, each with a
 # COMMITTED battery whose canaries are asserted first.
+# solid_night_inputs.py stays at 34 on 2026-10-04 (#3263) and the number hides a SWAP, which is why it
+# is written here: the `len(anchors) < TB_MIN_ANCHORS` entry was REFUTED and DELETED, and one for the
+# clock-stream tag replaced it. ⚠️ THE REFUTATION IS A MATCHER FACT, NOT A WRONG ARGUMENT. `classify`
+# matches an entry on its KEY ALONE, and that line appears in BOTH `unrecorded_shift` and `timebase`
+# (solid_night_inputs.py:847 and :1004). The claim was written for the first, where it holds; #3263 put
+# the second in scope, where the mutant IS killable and WAS killed — so one entry spoke for two
+# functions and the gate reported the collision as a refutation, correctly by its own rule. Residue
+# 2026-10-04-an-equivalence-key-cannot-name-its-function.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,

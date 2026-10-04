@@ -5059,14 +5059,6 @@
     },
     {
       "brief": "SOLID-NIGHT-2026-09-23 §A5 (the unrecorded-shift tripwire, #3245) — drained 2026-10-03",
-      "class": "untestable-by-design",
-      "key": "- if len(anchors) < TB_MIN_ANCHORS: | + if len(anchors) <= TB_MIN_ANCHORS:",
-      "op": "boundary flip on the minimum anchor count",
-      "probe": "No probe: the two branches have the SAME OUTPUT by construction, shown below, so there is no input to compare. Confirmed on the 1,200-axis output probe recorded above (0 distinguishing).",
-      "why": "AN AXIS OF EXACTLY `TB_MIN_ANCHORS` CANNOT HOST A VANTAGE, so both branches return None. A vantage needs `times[0] + 90 s <= t <= times[-1] - 120 s`, i.e. a SEGMENT spanning at least 210 s; and the segment split puts any pair more than `A5_REANCHOR_S` = 60 s apart into different segments, so three anchors span at most 120 s in one segment. With `<=` the function returns None at the guard; with `<` it builds the segments, finds no eligible vantage, and returns None at `best is None`. The guard is a short-circuit for a case `timebase` already reports in its own words, not a correctness requirement — it is NOT removable, because `pts[0]` below needs a non-empty list. FALSIFY THIS by widening `A5_REANCHOR_S` past 105 s, or by narrowing the windows, so that three anchors can straddle both of them."
-    },
-    {
-      "brief": "SOLID-NIGHT-2026-09-23 §A5 (the unrecorded-shift tripwire, #3245) — drained 2026-10-03",
       "class": "no-distinguishing-input",
       "key": "- b0, b1 = int(lo_ms // A5_BIN_MS), int(hi_ms // A5_BIN_MS) | + b0, b1 = int(lo_ms / A5_BIN_MS), int(hi_ms // A5_BIN_MS)",
       "op": "floor division replaced by true division on the LOW bin index in `_rows_in`",
@@ -5104,6 +5096,14 @@
       "op": "constant shift on the persistence SIGN test in the crossing search",
       "probe": "No probe, because there is no input to compare: the mutated subexpression is only evaluated for `persistence_ms` values the caller cannot reach, shown in `why`. Confirmed over the 1,200-axis output probe recorded elsewhere in this file (0 distinguishing) and over the 1,224 single-step and 672 transient-plus-step plants run while draining this function.",
       "why": "THE CALLER CANNOT PRODUCE A PERSISTENCE IN THAT RANGE. `_a5_crossing` is private and has exactly one caller, the §A5 grid, which reaches it only after `abs(p) >= A5_STEP_MS` — 1000 ms — so `persistence_ms` is never 0 and never in (0, 1]. Both mutants differ from the original only inside that range: `>= 0` changes the arm chosen at exactly 0, and `> 1` only for a persistence of 1 ms or less. The sign test was DOUBLE until this PR (`(p > 0 and r >= half) or (p < 0 and r <= half)`), which was four such sites and also left the p == 0 case matching neither arm, so `next` would have raised StopIteration; collapsing it to one conditional expression removed two of the four and made the remaining pair the whole of the unreachable claim. FALSIFY THIS by lowering `A5_STEP_MS` to 1 ms or below, or by giving `_a5_crossing` a second caller that does not gate on it — at which point the right answer is a test, not this entry."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 §3.4 (the clock-stream spec, #3263) — drained 2026-10-04",
+      "class": "untestable-by-design",
+      "key": "- bands[\"timebase\"] = timebase(night_dir, name, clock_tag, clock_files, start, end) | + bands[\"timebase\"] = timebase(night_dir, name, None, clock_files, start, end)",
+      "op": "the clock STREAM TAG dropped at the timebase call site",
+      "probe": "No probe: `clock_tag` is read by exactly one line of `timebase` — the message for an EMPTY `clock_files` — and that list cannot be empty at this call site under today's `MODELS`, shown below. Every other path ignores the argument, so no input can separate the two values.",
+      "why": "FOR EVERY MODEL THAT DECLARES A CLOCK STREAM, `clock` EQUALS `primary` — H10 → ECG, VeritySense → PPG — and `score_devices` has already returned the `presence` band at `if not primaries` when that file is absent. So `stream_files(night_dir, model, clock_tag)` is non-empty whenever this line runs, `timebase` never reaches the branch that renders the tag, and the tag's VALUE cannot change an answer. The ring is the one model where clock ≠ primary and its clock is None, which the caller handles before this line. The invariant is not assumed: `test_the_CLOCK_TAG_per_model_is_the_stream_that_reports_a_DEVICE_time` asserts `all(m[\"clock\"] == m[\"primary\"] for m in MODELS.values() if m[\"clock\"] is not None)`, so the day a model declares a clock stream DIFFERENT from its primary that test fails, this mutant becomes reachable, and the right answer is a test of the rendered tag — not this entry. That is the falsifier, and it is a test rather than an argument."
     }
   ],
   "telemetry.py": [

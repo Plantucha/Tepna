@@ -56,11 +56,40 @@ PMDNEG_NAME = "PMDNEG.csv"
 
 # model → the file prefix the box writes, the PRIMARY stream (the one the loss audit reads, and the one
 # continuity and completeness are scored on), and the WAVEFORM streams whose validity sidecar is required.
+# 🔴 `clock` IS NOT `primary`, AND CONFLATING THEM MISREAD EVERY RING NIGHT. `primary` is the stream
+# continuity and completeness are scored on — for the ring that is the polled vitals CSV, which is the
+# right denominator for "did we get the samples we asked for". `clock` is the stream that carries a
+# DEVICE-REPORTED per-sample time, which is what the timebase band and §A5 need, and they are different
+# questions about different files. The timebase band read `primary`, so for the ring it opened
+# `…_SPO2.csv`, found no `sensor timestamp [ns]` column and said "no device clock" — true of that file
+# and not a finding about the night. 2026-10-04 is the first night with LOSS, H10 and Verity all PASS
+# and the ring alone UNKNOWN on exactly that; 10-02 read the same and 10-01 hid it behind a completeness
+# FAIL.
+#
+# `clock: None` FOR THE RING, AND THE REASON IS ABOUT THE EXPORTED AXIS, NEVER THE HARDWARE. The ring
+# HAS a crystal and we discipline it — `oxyii.SET_UTC_TIME (0xC0)` pushes host wall-clock to its RTC so
+# its stored-session `.dat` stamps line up — and `O2RING-PROTOCOL-2026-07-17-BRIEF` §153 says that RTC
+# "must never stamp the waveform". What the ring exports carries no per-sample clock reading: every
+# optical stream's `sensor timestamp [ns]` is the HOST's, not the device's. `accraw`, `ppg2w` and
+# `pletha` write it as a literal 0 ("this opcode exposes no device clock", writers.py), and `_PPG.txt`'s
+# column is `O2PpgGrid` — "the ring publishes NO PER-SAMPLE clock, so the host lays its samples on a
+# grid and writes that grid" (capture.py). Pointing the band at that grid would judge the host's own
+# reconstruction as a device axis and could PASS it, which is worse than refusing: a confident verdict
+# about an instrument that is not there. Measured 2026-10-04; `o2ring-timestamp-is-drawn` carries the
+# owner's correction on this wording.
 MODELS: dict[str, dict[str, Any]] = {
-    "H10": {"prefix": "Polar_H10_", "primary": "ECG", "ext": ".txt", "pmd": "ecg", "waveforms": ("ECG", "ACC")},
+    "H10": {
+        "prefix": "Polar_H10_",
+        "primary": "ECG",
+        "clock": "ECG",
+        "ext": ".txt",
+        "pmd": "ecg",
+        "waveforms": ("ECG", "ACC"),
+    },
     "VeritySense": {
         "prefix": "Polar_VeritySense_",
         "primary": "PPG",
+        "clock": "PPG",
         "ext": ".txt",
         "pmd": "ppg",
         "waveforms": ("PPG", "ACC"),
@@ -68,11 +97,16 @@ MODELS: dict[str, dict[str, Any]] = {
     "O2Ring-S": {
         "prefix": "Wellue_O2Ring-S_",
         "primary": "SPO2",
+        "clock": None,
         "ext": ".csv",
         "pmd": None,
         "waveforms": ("PPG", "PPG2W", "ACCRAW"),
     },
 }
+NO_DEVICE_AXIS = (
+    "this device stamps no waveform — its RTC disciplines the host, not the samples, so its exported "
+    "streams carry no per-sample device time for a timebase to be measured on"
+)
 
 # §3.4 continuity — the fixed-mechanism daemon classes whose recurrence inside the worn interval is a
 # regression. `daemon:charging hold` is NOT here: it is device-positive doff evidence (correct behaviour).
@@ -937,7 +971,7 @@ def unrecorded_shift(scan: dict, records: list[float], nominal_hz: float | None)
     }
 
 
-def timebase(night_dir: str, device: str, primaries: list[str], start, end) -> dict:
+def timebase(night_dir: str, device: str, clock_tag: str, clock_files: list[str], start, end) -> dict:
     """§3.4 timebase: the device axis is a CLOCK, it was disciplined by an independent host, its rate is
     plausible, and it carries no step. Judged on the largest primary file inside the worn interval.
 
@@ -956,7 +990,12 @@ def timebase(night_dir: str, device: str, primaries: list[str], start, end) -> d
     """
     if start is None:
         return _decision("UNKNOWN", "no worn interval, so no stretch of the axis could be judged")
-    path = max(primaries, key=os.path.getsize)
+    if not clock_files:
+        # ABSENCE, NOT INAPPLICABILITY. The spec names a clock-bearing stream for this model and this
+        # night does not hold one — so the rule binds and the input is missing, which is UNKNOWN (§∅).
+        # A model that names NO clock stream is a different answer and is decided by the caller.
+        return _decision("UNKNOWN", f"no `{clock_tag}` stream this night, so no device axis could be read")
+    path = max(clock_files, key=os.path.getsize)
     scan = residual_scan(path, start, end)
     if scan.get("reason"):
         return _decision("UNKNOWN", scan["reason"])
@@ -1131,6 +1170,20 @@ def score_devices(night_dir: str, devices: list) -> dict:
             bands["completeness"] = completeness(night_dir, name, model, primaries, start, end)
         bands["validity"] = validity(night_dir, model)
         bands["clocks"] = clocks(night_dir, model)
-        bands["timebase"] = timebase(night_dir, name, primaries, start, end)
+        # THE TIMEBASE BAND READS THE CLOCK STREAM, NOT THE PRIMARY — see `MODELS` above. A model that
+        # names no clock-bearing stream is NOT_APPLICABLE: the band was examined and the rule does not
+        # bind (§🧾), which is a different statement from "we could not tell" and the one an operator
+        # needs — the ring is not a broken clock, it is a device that exports none.
+        clock_tag = MODELS[model]["clock"]
+        if clock_tag is None:
+            bands["timebase"] = _decision("NOT_APPLICABLE", NO_DEVICE_AXIS)
+        else:
+            # `clock_files`, NOT `clocks`: `clocks` is the BAND FUNCTION two lines above, and a local of
+            # that name shadows it for the whole scope — including the call that has already run, which
+            # then raises UnboundLocalError. The same-name-two-things error, inside the unit that exists
+            # to separate two things that share a name. Caught by the suite immediately; named here
+            # because the next reader will reach for `clocks` too.
+            clock_files = stream_files(night_dir, model, clock_tag)
+            bands["timebase"] = timebase(night_dir, name, clock_tag, clock_files, start, end)
         out[name] = {"bands": bands}
     return out
