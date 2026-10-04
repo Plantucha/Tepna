@@ -5378,11 +5378,12 @@ def _touching_night(tmp_path):
     Floating throughout (`_stamp_epoch`, floating mtimes, `_summarize_floating`), which is the frame the
     box writes and the only one in which a seam stamp and a filename stamp mean the same thing."""
     import writers
+
     night = str(tmp_path / "2026-09-24")
     os.makedirs(night)
     t0 = _stamp_epoch("20260924210000")
-    seam1 = t0 + 600                     # run 1 ends / run 2 opens, on the same second
-    seam2 = seam1 + 7200                 # run 2 ends / run 3 opens, on the same second
+    seam1 = t0 + 600  # run 1 ends / run 2 opens, on the same second
+    seam2 = seam1 + 7200  # run 2 ends / run 3 opens, on the same second
     _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 600), seam1)
     _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(seam1) + "_HR.txt", 7200), seam2)
     _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(seam2) + "_HR.txt", 300), seam2 + 300)
@@ -5406,8 +5407,11 @@ def test_the_session_partition_is_DISJOINT_BUT_MAY_TOUCH(tmp_path):
     here means the next reader does not have to re-derive which it is from two docstrings."""
     night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
     s = _summarize_floating(night, devs)
-    ss = [(x["start"], x["end"]) for x in s["sessions"]] if isinstance(s["sessions"][0], dict) else [
-        (x[0], x[1]) for x in s["sessions"]]
+    ss = (
+        [(x["start"], x["end"]) for x in s["sessions"]]
+        if isinstance(s["sessions"][0], dict)
+        else [(x[0], x[1]) for x in s["sessions"]]
+    )
     assert len(ss) == 3, (ss, "two recorded seams must split three runs")
     for (a0, a1), (b0, b1) in zip(ss, ss[1:]):
         assert a1 <= b0, (ss, "sessions must stay ordered and DISJOINT")
@@ -5444,6 +5448,143 @@ def test_the_gap_line_names_the_NEAR_edge_of_each_neighbour(tmp_path):
     later = [g for g in s["gaps"] if "later session" in g]
     assert earlier and later, s["gaps"]
     assert earlier[0].startswith(f"{hh(seam1)}->{hh(seam1)}"), (
-        earlier[0], "the earlier gap runs to the JUDGED start; naming its end reports a 2 h span as the gap")
+        earlier[0],
+        "the earlier gap runs to the JUDGED start; naming its end reports a 2 h span as the gap",
+    )
     assert later[0].startswith(f"{hh(seam2)}->{hh(seam2)}"), (
-        later[0], "the later gap runs to the NEXT run's start, not to its end")
+        later[0],
+        "the later gap runs to the NEXT run's start, not to its end",
+    )
+
+
+# ── the drain's second family: a CONDITION NEUTERED TO A CONSTANT ────────────────────────────────────
+# Six survivors were `X if cond else Y` with `cond` replaced by `(cond) or True` / `(cond) and False`.
+# Each one publishes a decision, so each is killable by asserting BOTH arms — which is the gap: the suite
+# asserted the common arm of every one of them and never the other.
+
+
+def test_span_reason_is_None_when_the_span_IS_judgeable(tmp_path):
+    """`None if span else "under the minimum judgeable span"` → `(span) and False` makes every night carry
+    the refusal, including nights with hours of capture. The common arm was asserted; this is the other."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    assert s["span_sec"] and s["span_sec"] > nightqc._MIN_SPAN_SEC, s["span_sec"]
+    assert s["span_reason"] is None, (
+        s["span_reason"],
+        "a judgeable span must carry NO reason — a reason beside a real span reads as a refusal",
+    )
+
+
+def test_span_reason_NAMES_the_minimum_when_the_span_is_too_short(tmp_path):
+    """The mirror, and the arm `or True` erases: a night under `_MIN_SPAN_SEC` must say WHY its coverage is
+    unknown. `None` there is §∅ inverted — an absent reason beside an absent number."""
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _stamp_epoch("20260924230000")
+    # 120 s of elapsed capture: under the 300 s floor, so the span cannot judge a rate
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 120), t0 + 120)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = _summarize_floating(night, devs)
+    assert s["span_sec"] is None or s["span_sec"] < nightqc._MIN_SPAN_SEC, s["span_sec"]
+    assert s["span_reason"] == "under the minimum judgeable span", s["span_reason"]
+
+
+def test_the_writer_offset_frame_says_ABSOLUTE_when_an_offset_IS_known(tmp_path):
+    """`"floating" if offset is None else "absolute"` → `or True` publishes every night as floating. A
+    reader uses `frame` to decide whether `sessions` are instants or civil values, so a night whose offset
+    WAS recovered must say absolute — and the suite only ever asserted the refusing arm."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize(night, devs)  # declared frame: an offset IS known
+    wo = s["writer_offset"]
+    assert wo["offset_sec"] is not None, wo
+    assert wo["frame"] == "absolute", (wo, "an offset was recovered, so these are instants, not civil values")
+
+
+def test_a_degraded_line_omits_rate_assumed_when_the_rate_was_MEASURED(tmp_path):
+    """`("" if basis == "measured" else " (rate assumed)")` → `and False` appends the qualifier to every
+    degraded line, including one computed against a rate read off the file. The existing test asserts the
+    `(rate assumed)` arm (`H10:acc 20% (rate assumed)`); nothing asserted its absence, so the mutant that
+    always appends it survived."""
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _stamp_epoch("20260924220000")
+    # A TIMED ACC file: enough rows for `measured_hz` to read a rate off its own device clock, but only
+    # part of the session's span covered — degraded, with a MEASURED basis.
+    _cap_timed(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_ACC.txt", 4000, 200)
+    _utime(os.path.join(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_ACC.txt"), t0 + 20)
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 3600), t0 + 3600)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["acc", "hr"]}]
+    s = _summarize_floating(night, devs)
+    measured = [d for d in s["devices"] if d["name"] == "H10"][0].get("coverage_basis", {})
+    if measured.get("acc") != "measured":
+        import pytest as _pt
+
+        _pt.skip(
+            f"this fixture did not produce a measured basis (got {measured}) — the assertion below "
+            "would be about the fixture, not the code"
+        )
+    acc_lines = [x for x in s["degraded"] if x.startswith("H10:acc")]
+    assert acc_lines, s["degraded"]
+    assert "(rate assumed)" not in acc_lines[0], (
+        acc_lines[0],
+        "the rate was MEASURED off the file's own clock; the qualifier claims otherwise",
+    )
+
+
+def test_a_night_dir_that_is_not_a_directory_does_not_raise(tmp_path):
+    """`sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []` → `or True` calls `listdir` on a
+    path that is not a directory. The guard exists because QC is pointed at folders that may not exist yet
+    (the midnight rollover creates tomorrow's name), and a crash there takes the whole summary with it."""
+    missing = str(tmp_path / "2026-09-30")  # never created
+    s = nightqc.summarize(missing, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["files"] == 0 and s["total_rows"] == 0, s
+    assert s["span_sec"] is None, s["span_sec"]
+
+
+# ── and the third: dict(base, **kw) REBUILT WITHOUT ITS BASE ─────────────────────────────────────────
+
+
+def test_the_published_writer_offset_keeps_the_recovery_it_describes(tmp_path):
+    """`dict(_off, frame=…)` → `dict(frame=…)` drops everything the inference rests on and leaves only the
+    label. `frame` alone is unauditable — the whole point of publishing this block is that a reader can
+    check the offset, its basis and its voter count rather than take the frame on trust."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    wo = _summarize(night, devs)["writer_offset"]
+    for k in ("offset_sec", "basis", "frame"):
+        assert k in wo, (sorted(wo), f"{k} was dropped — the frame label survived its own evidence")
+
+
+def test_the_pooled_daemon_record_keeps_its_other_keys(tmp_path):
+    """`dict(_daemon, stamps=…)` → `dict(stamps=…)` keeps the merged stamps and throws the rest of the
+    record away, so `starts` and `inside_capture` vanish and nothing can say how many restarts were
+    recorded — only that some stamps exist.
+
+    ⚠️ MY FIRST VERSION OF THIS TEST DID NOT REACH THE LINE. It asserted `session_basis` on a
+    single-folder fixture, and this merge only runs when a PREVIOUS night is pooled across midnight — so
+    the mutant survived a test written for it, which is the whole reason each of these is verified against
+    its own mutation rather than assumed to bite. The fixture now spans two date folders with a recorded
+    daemon start in EACH, which is the only shape that executes the merge."""
+    import writers
+    from datetime import datetime as _dt
+
+    d27 = str(tmp_path / "2026-09-27")
+    os.makedirs(d27)
+    d28 = str(tmp_path / "2026-09-28")
+    os.makedirs(d28)
+    pre = _dt.strptime("20260927233000", "%Y%m%d%H%M%S").timestamp()
+    post = _dt.strptime("20260928001500", "%Y%m%d%H%M%S").timestamp()
+    _utime(_cap(d27, "Polar_H10_02849638_20260927233000_HR.txt", 1800), pre + 1800)
+    _utime(_cap(d28, "Polar_H10_02849638_20260928001500_HR.txt", 1500), post + 1500)
+    for folder, stamp in ((d27, pre), (d28, post)):
+        with open(os.path.join(folder, writers.STARTS_NAME), "w") as fh:
+            fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+            fh.write(_starts_stamp(stamp) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = _summarize(d28, devs)
+    d = s["daemon"]
+    assert d["stamps"], d
+    assert "starts" in d and d["starts"] is not None, (
+        d,
+        "the merge kept the pooled stamps and dropped the count they came from",
+    )
+    assert "inside_capture" in d, (d, "the record's other keys must survive the stamp merge")
