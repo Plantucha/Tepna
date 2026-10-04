@@ -451,3 +451,120 @@ def test_E6_bucket_stream_does_not_take_a_rate_it_cannot_use():
 
     params = list(inspect.signature(timeline.bucket_stream).parameters)
     assert params == ["intervals", "t0", "t1", "n"], params
+
+
+# ── `bucket_stream`'s coverage arithmetic (10 survivors, #3239 carve, 2026-10-04) ──────────────────
+# E6 changed this function's signature, which put the whole body in the gate's scope. Every survivor
+# below sits on a line E6 never touched: the existing tests assert the STATES for a clean window and a
+# half-covered one, and nothing pinned the bucket edges, the summation, or either threshold.
+def test_bucket_stream_with_ONE_bucket_still_reports_it():
+    """Kills `if n <= 0` → `n <= 1`. One bucket is a legal request — the monitor asks for exactly one
+    when the window is short — and widening the refusal silently returns an empty timeline."""
+    assert timeline.bucket_stream([(0.0, 10.0)], 0.0, 10.0, 1) == ["captured"]
+
+
+def test_each_bucket_spans_ONE_width_not_two():
+    """Kills `t0 + (i + 1) * width` → `(i + 2) * width`. With a double-width bucket 0, coverage that
+    belongs to bucket 1 is credited to bucket 0 and the picture shifts left."""
+    # 4 buckets of 10 s; the stream covers only the SECOND one
+    assert timeline.bucket_stream([(10.0, 20.0)], 0.0, 40.0, 4) == ["idle", "captured", "idle", "idle"]
+
+
+def test_an_UNCOVERED_bucket_starts_from_zero_coverage():
+    """Kills `covered = 0.0` → `1.0`. A single second of phantom coverage turns `idle` into
+    `degraded`, and idle-vs-degraded is the distinction an operator reads as "nothing was recorded"
+    against "something was"."""
+    assert timeline.bucket_stream([], 0.0, 10.0, 1) == ["idle"]
+    assert timeline.bucket_stream([(0.0, 10.0)], 0.0, 20.0, 2) == ["captured", "idle"]
+
+
+def test_an_interval_that_ENDS_before_a_bucket_does_not_stop_the_scan():
+    """Kills `continue` → `break` in the skip-earlier-intervals arm. With `break`, the first interval
+    that ends before the bucket aborts the whole scan, so every later interval — including the one
+    that covers this bucket — is lost and the bucket reads idle."""
+    ivs = [(0.0, 5.0), (10.0, 20.0)]  # the first ends before bucket 1 starts
+    assert timeline.bucket_stream(ivs, 0.0, 20.0, 2) == ["degraded", "captured"]
+
+
+def test_coverage_from_SEVERAL_intervals_in_one_bucket_is_SUMMED():
+    """Kills `covered += …` → `covered = …`. Two fragments of 4 s each in a 10 s bucket are 80 %
+    coverage — captured. Keeping only the last is 40 % — degraded. A dropping link writes exactly this
+    shape, so the bug would report every reconnecting stream as worse than it was."""
+    ivs = [(0.0, 4.0), (4.0, 8.0)]
+    assert timeline.bucket_stream(ivs, 0.0, 10.0, 1) == ["captured"]
+
+
+def test_EXACTLY_the_captured_threshold_is_captured():
+    """Kills `frac >= DEGRADED_BELOW` → `>`. 0.6 coverage is the boundary and must round up into
+    `captured`, or the state flips for a stream sitting exactly on the published bar."""
+    assert timeline.DEGRADED_BELOW == 0.6
+    assert timeline.bucket_stream([(0.0, 6.0)], 0.0, 10.0, 1) == ["captured"]
+
+
+def test_EXACTLY_the_degraded_floor_is_degraded_not_idle():
+    """Kills `frac > 0.02` → `>=`. At exactly 2 % the original reports `idle`; the mutant reports
+    `degraded`. The floor exists so a single stray row does not paint a whole bucket as recording."""
+    assert timeline.bucket_stream([(0.0, 0.2)], 0.0, 10.0, 1) == ["idle"]
+    assert timeline.bucket_stream([(0.0, 0.3)], 0.0, 10.0, 1) == ["degraded"]
+
+
+# ── `build`'s response fields (50 survivors, #3239 carve) ─────────────────────────────────────────
+# E4/E6 touched three call sites inside `build`, which put the whole 150-line orchestrator in scope.
+# The existing tests assert that a night BUILDS and that devices appear; almost nothing pinned the
+# scalar fields the monitor actually renders.
+def _night(tmp_path, rows=112, step_ms=1000, name="2026-07-25"):
+    """A night folder with one H10 ECG session. ⚠️ 112 rows at 1 s is not arbitrary: the span is 111 s
+    over 240 buckets, so `bucket_sec` is 0.5 at one decimal and 0.46 at two — the only shape that can
+    tell the rounding mutants apart. A round span cannot."""
+    d = tmp_path / name
+    d.mkdir()
+    out = []
+    for i in range(rows):
+        ms = i * step_ms
+        out.append(f"2026-07-25T22:{(ms // 60000) % 60:02d}:{(ms // 1000) % 60:02d}.{ms % 1000:03d};{i}000000000;1")
+    (d / "Polar_H10_02849638_20260725220000_ECG.txt").write_text(
+        "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(out) + "\n"
+    )
+    return d
+
+
+_DEV = [{"name": "H10", "device_id": "02849638", "model": "H10", "streams": ["ecg"]}]
+
+
+def test_bucket_sec_is_the_window_divided_by_the_buckets_to_ONE_decimal(tmp_path):
+    """Kills six mutants on the `bucket_sec` line — `round(x, None)`, `round(1)`, `round(x, )`,
+    `round(x, 2)`, `(t1 - t0) * buckets`, `(t1 + t0) / buckets`, and the `and False` that forces the
+    else arm. The field is what the monitor labels its x-axis with, and it was asserted nowhere."""
+    out = timeline.build(str(_night(tmp_path)), _DEV)
+    span = out["t1"] - out["t0"]
+    assert span == 111.0 and out["buckets"] == 240, (span, out["buckets"])
+    assert out["bucket_sec"] == 0.5, out["bucket_sec"]  # not 0, not 1, not 0.46, not 26640.0
+
+
+def test_the_night_name_is_the_folder_basename_with_a_trailing_slash_stripped(tmp_path):
+    """Kills `rstrip("/")` → `rstrip(None)` and → `lstrip("/")`. A path handed in with a trailing
+    slash must still name the night: `basename("…/2026-07-25/")` is the empty string, which is why the
+    strip is there. `lstrip` strips the wrong end and `rstrip(None)` strips whitespace instead."""
+    d = _night(tmp_path)
+    assert timeline.build(str(d), _DEV)["night"] == "2026-07-25"
+    assert timeline.build(str(d) + "/", _DEV)["night"] == "2026-07-25", "a trailing slash emptied the name"
+
+
+def test_the_writer_offset_keeps_its_own_fields_AND_gains_the_frame(tmp_path):
+    """Kills five mutants on the `writer_offset` line — `frame=None`, `dict(frame=…)` without `_off`,
+    `dict(_off, )` without the frame, and the two that swap the frame's words. `frame` is how a reader
+    knows whether the stamps are absolute or floating (§🔒), and dropping either half is silent."""
+    wo = timeline.build(str(_night(tmp_path)), _DEV)["writer_offset"]
+    assert wo["frame"] == "floating", wo.get("frame")  # no offset voted ⇒ floating, not absolute
+    assert wo["offset_sec"] is None and wo["voters"] == 0, wo
+    assert "reason" in wo and "the floor is 3" in wo["reason"], "the vote's own fields must survive"
+
+
+def test_a_degenerate_window_is_widened_by_exactly_one_second(tmp_path):
+    """Kills `t1 = t0 + 1` → `t0 - 1` and → `t0 + 2`, and `if t1 <= t0` → `<`. A night whose only file
+    carries a single row has t1 == t0; the window is nudged forward so the buckets exist at all.
+    Backwards would invert it, and two seconds would misreport the span."""
+    d = _night(tmp_path, rows=1)
+    out = timeline.build(str(d), _DEV)
+    assert out["t1"] - out["t0"] == 1.0, out["t1"] - out["t0"]
+    assert out["t1"] > out["t0"]
