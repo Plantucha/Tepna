@@ -1,0 +1,34 @@
+{
+  "schema": "tepna.mutation-unmeasured/1",
+  "note": "Functions the diff-scoped mutation gate REFUSED — selected, never mutated. The survivor ledger cannot hold these: it records SURVIVORS, and a function that was never mutated produces none, so without this file a reader sees the measured functions and no trace of the rest. Answers residue row 2026-09-28-five-timeline-functions-were-never-mutated-and-the-ledger-cannot-hold-that. `state` is `declared` when the key is in tools/mutate-exclusions.json (a measured, dated cost) and `undeclared` when it is not — the undeclared rows are the ones worth reading, and collapsing the two states would hide them. Ingested by `tools/mutate_diff.py --record-unmeasured`; the growth gate is tests/test_mutation_exclusions.py.",
+  "rows": [
+    {
+      "key": "timeline.py::build",
+      "state": "undeclared",
+      "why": "the 7200s gate budget was exhausted before this function could be mutated — not attempted, not a verdict",
+      "observedAt": "2026-09-28",
+      "source": "run 36399889018 (#3188), refused_budget; 17 functions were in one scope"
+    },
+    {
+      "key": "timeline.py::_stamp_ms",
+      "state": "undeclared",
+      "why": "the 7200s gate budget was exhausted before this function could be mutated — not attempted, not a verdict",
+      "observedAt": "2026-09-28",
+      "source": "run 36399889018 (#3188), refused_budget; 17 functions were in one scope"
+    },
+    {
+      "key": "timeline.py::read_link_samples",
+      "state": "undeclared",
+      "why": "the 7200s gate budget was exhausted before this function could be mutated — not attempted, not a verdict",
+      "observedAt": "2026-09-28",
+      "source": "run 36399889018 (#3188), refused_budget; 17 functions were in one scope"
+    },
+    {
+      "key": "timeline.py::stream_intervals",
+      "state": "undeclared",
+      "why": "the 7200s gate budget was exhausted before this function could be mutated — not attempted, not a verdict",
+      "observedAt": "2026-09-28",
+      "source": "run 36399889018 (#3188), refused_budget; 17 functions were in one scope"
+    }
+  ]
+}
