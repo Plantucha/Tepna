@@ -110,8 +110,20 @@ NO_DEVICE_AXIS = (
 
 # §3.4 continuity — the fixed-mechanism daemon classes whose recurrence inside the worn interval is a
 # regression. `daemon:charging hold` is NOT here: it is device-positive doff evidence (correct behaviour).
+# 🔴 OWNER RULING 2026-10-03: A PAUSE THE DAEMON DECLARES IS EXPLAINED, NOT A REGRESSION.
+# `daemon:pull paused live` was in this set because §5's re-audit traced the pull-pause CHURN to a fixed
+# mechanism (#2982/#2983), so a recurrence read as the fix regressing. The churn is the defect; the pause
+# itself is the H10/Verity offline-recording op doing what it does, and the journal names it with its
+# reason (`Polar <addr>: offline-recording op — live capture paused`). A discontinuity the system
+# DECLARES is explained, and §∅ says reduced coverage ANNOTATES where a discontinuity refuses — so it
+# leaves the band PASSing with the pause named rather than failing it, and it still counts toward the
+# LOSS bar, which is a different consumer and is untouched here.
+# Precedent both ways, and it is why this is a one-line set change rather than a new mechanism:
+# `operator:time-sync` already re-labels this identical journal line so it does not fail the band (the
+# 2026-09-24 one-press, two-FAIL fix in `loss_audit.py`), and `daemon:charging hold` was never in the set
+# because the device reported charging — device-positive doff evidence, correct behaviour.
+DECLARED_PAUSE = "daemon:pull paused live"
 DAEMON_REGRESSION = (
-    "daemon:pull paused live",
     "daemon:clock re-sync",
     "daemon:stream stall re-negotiate",
     "daemon:restart",
@@ -285,6 +297,18 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
     link = sum(s for c, s in inside if c.startswith("link:"))
     if worn_s > 0 and link / worn_s >= LINK_MAX_FRACTION:
         return _decision("FAIL", f"link drops {link:.0f} s = {100 * link / worn_s:.1f} % of the worn interval")
+    # THE ANNOTATION SITS AT THE PASS, AND THAT PLACEMENT IS THE WHOLE SAFETY ARGUMENT. Every rule above
+    # still decides first, so a declared pause can only ever turn a BARE pass into a REASONED one — it
+    # can never soften a FAIL or an UNKNOWN that another rule reached, and no precedence moves. A band
+    # that passes silently over a known discontinuity makes a healthy night unauditable later, which is
+    # the half of §∅ that annotates rather than refuses.
+    paused = [s for c, s in inside if c == DECLARED_PAUSE]
+    if paused:
+        return _decision(
+            "PASS",
+            f"explained discontinuity: {len(paused)} declared pause(s), {sum(paused):.0f} s "
+            f"({DECLARED_PAUSE}) inside the worn interval — counted toward the LOSS bar, not a band failure",
+        )
     return _decision("PASS")
 
 

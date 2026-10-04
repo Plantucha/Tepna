@@ -5104,6 +5104,14 @@
       "op": "the clock STREAM TAG dropped at the timebase call site",
       "probe": "No probe: `clock_tag` is read by exactly one line of `timebase` — the message for an EMPTY `clock_files` — and that list cannot be empty at this call site under today's `MODELS`, shown below. Every other path ignores the argument, so no input can separate the two values.",
       "why": "FOR EVERY MODEL THAT DECLARES A CLOCK STREAM, `clock` EQUALS `primary` — H10 → ECG, VeritySense → PPG — and `score_devices` has already returned the `presence` band at `if not primaries` when that file is absent. So `stream_files(night_dir, model, clock_tag)` is non-empty whenever this line runs, `timebase` never reaches the branch that renders the tag, and the tag's VALUE cannot change an answer. The ring is the one model where clock ≠ primary and its clock is None, which the caller handles before this line. The invariant is not assumed: `test_the_CLOCK_TAG_per_model_is_the_stream_that_reports_a_DEVICE_time` asserts `all(m[\"clock\"] == m[\"primary\"] for m in MODELS.values() if m[\"clock\"] is not None)`, so the day a model declares a clock stream DIFFERENT from its primary that test fails, this mutant becomes reachable, and the right answer is a test of the rendered tag — not this entry. That is the falsifier, and it is a test rather than an argument."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 §3.4 (the declared-pause band, #3259) — drained 2026-10-03",
+      "class": "untestable-by-design",
+      "key": "- if span is None or span[0] is None or span[0] > start or span[1] < end: | + if span is None or span[1] is None or span[0] > start or span[1] < end:",
+      "op": "the span's FIRST member tested for absence replaced by its LAST",
+      "probe": "No probe, because no input can separate them: `span[0] is None` and `span[1] is None` are the SAME predicate for every span this function can receive, shown below. The reachable half of the guard IS tested — `test_an_AUDITED_FILE_WITH_NO_READABLE_STAMP_is_not_examined` plants a `(None, None)` span and both the original and this mutant refuse it identically.",
+      "why": "`first_last` SETS BOTH MEMBERS OR NEITHER. It walks the file, sets `first` on the first parseable row stamp and `last` on every one, so a file with no parseable stamp yields `(None, None)` and a file with any yields two real datetimes — a MIXED pair is unconstructible. Every `spans` value reaching `continuity` comes from that one function (`score_devices` builds `{p: first_last(p) for p in primaries}`), so testing the first member for absence and testing the last are the same test. The mutant is not a different question answered the same way; it is the same question. FALSIFY THIS by giving `spans` a value from any other source, or by making `first_last` able to return one None and one stamp — at which point the right answer is a test of which end is meant, not this entry."
     }
   ],
   "telemetry.py": [
@@ -5265,6 +5273,14 @@
       "op": "a different multiplier in the sample fixture's per-row device OFFSET",
       "probe": "The fixture's four stated properties were measured on the bytes under this mutant and all four hold: `test_the_SAMPLE_FIXTURE_carries_the_four_properties_it_needs` passes, and so does `test_the_SAMPLE_is_a_night_that_passes_EVERY_band`. Nine of ten hand-applied mutations of this same layout DO die on those two tests (the offset's sign, a zero modulus, a per-row instead of per-frame offset, a negative jitter, a shifted frame boundary, a changed row count, a changed sample period); this one and only this one survives them.",
       "why": "THE MULTIPLIER IS A FREE PARAMETER AND THE PROPERTY IS WHAT IS REQUIRED. The offset exists so the device column is not a DRAWN counter (`clock.js CK_AXIS_DRAWN_SHARE`): what the fixture owes is that no modal delta reaches `TB_DRAWN_SHARE`, that the counter stays monotone, that it starts at 0 and that it ends within one offset of the nominal span. 7919 and 7920 are both coprime-enough to 211 to spread the deltas across the same range, and `(0 * k) % 211` is 0 for either, so every one of those four holds identically. Pinning the multiplier would be pinning an arbitrary choice as if it were a requirement. FALSIFY THIS by finding a multiplier the fixture's properties hold for and the band still reads as drawn — then the properties are the thing that is incomplete, and the fix is another property, not a test of this literal."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 §2 (the pending verdict, #3241) — drained 2026-10-04",
+      "class": "untestable-by-design",
+      "key": "- settled=False, | + settled=None,",
+      "op": "the `settled` flag's FALSE replaced by NONE at the compose call",
+      "probe": "No probe: the receiver tests the argument for FALSINESS, so the two values take the same branch for every input. Confirmed by running the full `tests/test_solid_night.py` against the mutant — 47 passed, byte-identical verdict object, including the `not settled` reason and the run's `pending` night that `monitor.html` reads.",
+      "why": "`compose` branches on `if not settled:` and returns the UNKNOWN `not settled` verdict there, so `False` and `None` are the SAME INPUT to the only code that reads it. The parameter is annotated `settled: bool`, which says what a caller should pass; it does not make the two distinguishable at runtime, and `pending_verdict`'s whole contract is that this call is never settled. Writing `settled=False` rather than a falsy stand-in is a statement to the READER, and that is the right reason to keep it. FALSIFY THIS by making `compose` distinguish an UNSTATED settle from a stated False — an `is False` test, or a three-valued settle where None means 'not known yet' — at which point the difference becomes real and this entry is wrong."
     }
   ],
   "blind_spots.py": [

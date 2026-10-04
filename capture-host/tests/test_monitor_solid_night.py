@@ -65,6 +65,28 @@ CASES: dict[str, dict | None] = {
         "solid": 0,
         "exit": False,
     },
+    # The same pending night, now carrying the two numbers the poller measures beside it.
+    "pending_timed": {
+        "night": "2026-09-24",
+        "status": "UNKNOWN",
+        "reason": "not settled",
+        "run": "0 solid of 0 nights over 0 days",
+        "solid": 0,
+        "exit": False,
+        "quiet_s": 754.0,
+        "settles_in_s": 446.0,
+    },
+    # A pending night whose folder holds no capture file at all: the quiet has no start (§∅).
+    "pending_no_quiet": {
+        "night": "2026-09-24",
+        "status": "UNKNOWN",
+        "reason": "not settled",
+        "run": "0 solid of 0 nights over 0 days",
+        "solid": 0,
+        "exit": False,
+        "quiet_s": None,
+        "settles_in_s": None,
+    },
     "nobody_wore": {
         "night": "2026-09-26",
         "status": "NOT_APPLICABLE",
@@ -170,3 +192,26 @@ def test_the_monitor_calls_it_and_has_somewhere_to_write():
 
 def test_a_page_without_the_card_does_not_throw():
     assert _render()["no_card"] == "survived"
+
+
+def test_a_pending_night_says_WHEN_it_will_be_known_not_only_that_it_is_pending():
+    """ "Still recording?" and "when will I know?" are the operator's two questions at 07:00, and
+    `not settled` on its own answers neither."""
+    o = _render()["pending_timed"]
+    assert o["cls"].endswith("idle") and o["text"] == "UNKNOWN · 2026-09-24"
+    assert o["det"] == "not settled — quiet 12.6 min, settles in 7.4 min"
+    assert o["title"] == o["det"]
+
+
+def test_an_absent_quiet_is_left_absent_rather_than_drawn_as_zero():
+    """§∅: a night with no capture file has no last sample. "quiet 0 s" would read as "a sample just
+    arrived", which is the opposite of what an empty folder means."""
+    o = _render()["pending_no_quiet"]
+    assert o["det"] == "not settled", "no number is better than a manufactured one"
+
+
+def test_a_settled_verdict_never_grows_a_countdown():
+    """The countdown belongs to the pending state alone: a FAIL that said "settles in 7 min" would be
+    describing a night that has already been judged."""
+    o = _render()["fail"]
+    assert "settles in" not in o["det"] and "quiet" not in o["det"]
