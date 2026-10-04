@@ -255,8 +255,16 @@ def test_merge_keeps_the_FIRST_observation_date_and_the_NEWEST_state():
 
 
 def test_merge_appends_sorted_and_drops_an_unkeyed_row():
-    out = M.merge_unmeasured({"rows": [{"key": "b.py::f"}]}, [{"key": "a.py::f"}, {"state": "x"}, {"key": ""}])
-    assert [r["key"] for r in out["rows"]] == ["a.py::f", "b.py::f"]
+    """⚠️ The unkeyed rows sit in the MIDDLE deliberately. Kills `x_merge_unmeasured__mutmut_27`
+    (`continue` -> `break`): with them last, the two are indistinguishable and a `break` silently
+    drops every row after the first unkeyed one. This is the SAME defect the sibling
+    `unmeasured_rows` test had — I fixed the pattern in one loop and left it in the other, which is
+    why the gate found it here after the first round of kills."""
+    out = M.merge_unmeasured(
+        {"rows": [{"key": "b.py::f"}]},
+        [{"state": "x"}, {"key": "a.py::f"}, {"key": ""}, {"key": "c.py::f"}],
+    )
+    assert [r["key"] for r in out["rows"]] == ["a.py::f", "b.py::f", "c.py::f"]
 
 
 def test_merge_takes_a_new_key_with_no_prior_date():
@@ -272,3 +280,74 @@ def test_merge_takes_the_NEW_date_when_the_existing_row_carries_none():
         [{"key": "a.py::f", "state": "declared", "observedAt": "2026-10-03"}],
     )
     assert out["rows"] == [{"key": "a.py::f", "state": "declared", "observedAt": "2026-10-03"}]
+
+
+# ── GAPS THE MUTATION GATE FOUND (19 survivors on the first real run of #3258) ─────────────────────
+# Each test below exists because a mutant survived, and each names the mutant. The gate ran for the
+# first time here: on the earlier attempts `stage_root_reads` clobbered the staged ledger so the clean
+# pass died and NOTHING was tested — an empty survivor list that meant "not checked", not "all killed".
+def test_a_head_carrying_its_own_colon_is_cut_at_it():
+    """Kills `x_exclusion_key_of__mutmut_6` — `partition(":")` -> a whitespace split. Every refusal I
+    had tested held no colon inside the head, so the line that strips one was never observed."""
+    assert M.exclusion_key_of("timeline.build:extra: budget exhausted") == "timeline.py::build"
+
+
+def test_a_head_that_STARTS_with_a_dot_has_no_module_and_is_refused():
+    """Kills `x_exclusion_key_of__mutmut_41` — `not mod or not func` -> `and`. With `and`, a head like
+    `.build` yields mod="" and func="build", one empty and one not, and the function returned
+    `.py::build` — a key naming no module at all."""
+    assert M.exclusion_key_of(".build: budget exhausted") == ""
+    assert M.exclusion_key_of("timeline.: budget exhausted") == ""
+
+
+def test_an_unreadable_refusal_in_the_MIDDLE_does_not_drop_the_ones_after_it():
+    """Kills `x_unmeasured_rows__mutmut_5` — `continue` -> `break`. My first test put the unreadable
+    line LAST, where continue and break are indistinguishable. With `break`, every refusal after the
+    first unreadable one vanishes from the ledger silently — the exact loss this ledger exists to
+    prevent, and invisible unless a readable row follows an unreadable one."""
+    rows = M.unmeasured_rows(
+        ["garbled", "timeline.build: budget exhausted", "nosep", "capture._f: budget exhausted"],
+        {},
+        "t",
+    )
+    assert [r["key"] for r in rows] == ["timeline.py::build", "capture.py::_f"]
+
+
+def test_a_refusal_whose_why_contains_a_SECOND_separator_keeps_the_whole_why():
+    """Kills `x_refused_key__mutmut_6` — `split(": ", 1)` -> `rsplit`. A refusal sentence readily
+    carries a second `": "`, and rsplit then takes the LAST one, so the head swallows the message."""
+    entry = "timeline.build: hit the budget: 7213s of 7200"
+    assert M.refused_key(entry) == "timeline.build"
+    assert M.unmeasured_rows([entry], {}, "t")[0]["why"] == "hit the budget: 7213s of 7200"
+
+
+def test_the_why_is_cut_at_the_separator_not_at_the_first_space():
+    """Kills `x_unmeasured_rows__mutmut_24` — `partition(": ")` -> a whitespace split. The two agree on
+    every single-spaced message, so only an extra space after the colon distinguishes them."""
+    assert M.unmeasured_rows(["timeline.build:  two spaces follow"], {}, "t")[0]["why"] == " two spaces follow"
+
+
+@pytest.mark.parametrize(
+    "text, must_name",
+    [
+        (json.dumps({"schema": "tepna.something-else/9", "exclusions": {}}), "tepna.something-else/9"),
+        (json.dumps([1, 2]), "list"),
+    ],
+)
+def test_the_schema_refusal_NAMES_what_it_actually_found(text, must_name):
+    """Kills `x_parse_exclusions__mutmut_10 / _12 / _14 / _15` — all four rewrite the `schema=` detail
+    inside the refusal message (`doc.get(None)`, `doc.get('SCHEMA')`, `type(None).__name__`, and an
+    `and False` that forces the else branch). Asserting only the prefix left the whole diagnostic
+    unobserved, and a refusal that cannot say what it found is the thing §4c warns about."""
+    with pytest.raises(ValueError) as exc:
+        M.parse_exclusions(text)
+    assert must_name in str(exc.value)
+
+
+def test_parse_returns_the_ENTRY_not_merely_the_key():
+    """Kills `x_parse_exclusions__mutmut_77` — `out[key] = e` -> `out[key] = None`. Every assertion I
+    had read only the KEYS, so a parser that returned the right set of keys mapped to nothing passed.
+    The callers read `cost` and `reason` out of these values."""
+    got = M.parse_exclusions(_doc({"capture.py::f": _entry(reason="because measured")}))
+    assert got["capture.py::f"]["reason"] == "because measured"
+    assert got["capture.py::f"]["cost"]["provenance"] == "run"

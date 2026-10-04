@@ -1773,10 +1773,10 @@ def refused_key(entry: str) -> str:
     matched against a declared exclusion, because a false match is exactly the escape hatch this design
     refuses to build.
     """
-    head = entry.split(": ", 1)[0].strip()
-    if not head or head == entry.strip():
+    head, sep, _rest = entry.partition(": ")
+    if not sep or not head.strip():
         return ""
-    return head
+    return head.strip()
 
 
 def exclusion_key_of(refused_entry: str) -> str:
@@ -1799,11 +1799,10 @@ def exclusion_key_of(refused_entry: str) -> str:
     head = refused_key(refused_entry)
     if not head:
         return ""
-    head = head.split(":")[0].strip()
-    if "." not in head:
+    head = head.partition(":")[0].strip()
+    mod, dot, rest = head.partition(".")
+    if not dot:
         return ""
-    mod = head.split(".", 1)[0]
-    rest = head.split(".", 1)[1]
     if "ǁ" in rest:
         return ""
     func = source_function_of_glob(head) if "__mutmut" in rest else rest
@@ -1873,7 +1872,12 @@ def unmeasured_rows(refused: list[str], declared: dict[str, dict], at: str) -> l
             {
                 "key": key,
                 "state": "declared" if key in declared else "undeclared",
-                "why": refused_key(r) and r.split(": ", 1)[1] if ": " in r else r,
+                # `r.partition(": ")[2]` and not a conditional: a non-empty `key` already PROVES
+                # `": "` is in `r`, because `exclusion_key_of` goes through `refused_key`, which
+                # returns "" without that separator. The `if ": " in r else r` that stood here was
+                # dead code — found by a surviving mutant that flipped the condition to `or True`
+                # and changed nothing, which is what an unreachable branch looks like from the gate.
+                "why": r.partition(": ")[2],
                 "observedAt": at,
             }
         )
