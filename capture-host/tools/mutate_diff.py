@@ -1369,9 +1369,17 @@ def main(argv=None) -> int:
         # it: UNKNOWN -> NOT_APPLICABLE, only while NOTHING is blocking, only when EVERY refused
         # function is declared. It cannot clear a survivor and it cannot produce PASS. `blocking` is
         # computed here from the same `cls` the verdict below reads, so the two cannot disagree.
-        _unmeasured = unmeasured_rows(_refused_budget, _declared, _now_utc())
-        if _unmeasured:
-            verdict["unmeasured"] = _unmeasured
+        # `_refusal_rows`, NOT `_unmeasured`: that name is already bound at the top of this function
+        # as `list[str]` for the globs whose COUNT could not be stood behind, and #3258 rebound it here
+        # to `list[dict]`. mypy flagged both the assignment and the later argument.
+        #
+        # It was never a live bug — the string consumer at the `if _unmeasured:` block above RETURNS,
+        # so this line can only run when that list is empty — but two unrelated things sharing one name
+        # in a 1,000-line function is exactly the setup where a later reorder loses data silently. The
+        # types said so before a reader would have.
+        _refusal_rows = unmeasured_rows(_refused_budget, _declared, _now_utc())
+        if _refusal_rows:
+            verdict["unmeasured"] = _refusal_rows
             if a.json:
                 Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
             # Ingestion is OPT-IN and writes only the ledger — never a verdict, never a status line
@@ -1382,11 +1390,11 @@ def main(argv=None) -> int:
                     _doc = json.loads(UNMEASURED_PATH.read_text(encoding="utf-8"))
                 except (OSError, ValueError):
                     _doc = {}
-                _merged = merge_unmeasured(_doc, _unmeasured)
+                _merged = merge_unmeasured(_doc, _refusal_rows)
                 UNMEASURED_PATH.write_text(
                     json.dumps(_merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
                 )
-                print(f"  ↳ recorded {len(_unmeasured)} unmeasured row(s) → tools/{UNMEASURED_PATH.name}")
+                print(f"  ↳ recorded {len(_refusal_rows)} unmeasured row(s) → tools/{UNMEASURED_PATH.name}")
         _sub = declared_exclusion_status(
             _bstatus,
             refused=_refused_budget,

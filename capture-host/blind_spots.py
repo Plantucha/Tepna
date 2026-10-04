@@ -107,13 +107,16 @@ def analyze(source: str, path: str = "<test>") -> list[dict]:
 
     def visit(node: ast.AST, depth: int, in_class: bool) -> None:
         for child in ast.iter_child_nodes(node):
-            is_fn = isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
-            if is_fn and _is_double(child, depth, in_class):
-                _record(child, path, out)
-            if isinstance(child, ast.ClassDef):
-                visit(child, depth, True)
-            elif is_fn:
+            # The isinstance test is IN the branch, not stored in `is_fn` first: a narrowing holds for
+            # the checked expression, and mypy cannot carry it through a bool variable — which is why
+            # `_record(child, …)` read as `AST` here even though the guard above it was exact. Same
+            # three branches, same order, one node can be only one of them.
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                if _is_double(child, depth, in_class):
+                    _record(child, path, out)
                 visit(child, depth + 1, False)
+            elif isinstance(child, ast.ClassDef):
+                visit(child, depth, True)
             else:
                 visit(child, depth, in_class)
 
@@ -122,13 +125,27 @@ def analyze(source: str, path: str = "<test>") -> list[dict]:
     return out
 
 
-def _record(fn: ast.AST, path: str, out: list[dict]) -> None:
+# The three node types `visit` actually hands to `_record`, and the only ones that have `.args` and
+# `.lineno`. The signature said `ast.AST`, which is true of every node in the tree and therefore says
+# nothing: mypy flagged `.args` twice and `.lineno` once because the base class has neither. The
+# isinstance check that makes those attributes safe lives at the call site, where the annotation could
+# not see it — so the type is narrowed here to what the caller already guarantees.
+_FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
+
+
+def _record(fn: _FunctionNode, path: str, out: list[dict]) -> None:
     reads = _body_reads(fn)
     named = [p for p in _param_names(fn.args) if p not in BOUND_NAMES and not p.startswith(IGNORED_PREFIX)]
     dropped = [p for p in named if p not in reads]
 
     kw = fn.args.kwarg
-    swallowed = bool(kw and not kw.arg.startswith(IGNORED_PREFIX) and kw.arg not in reads)
+    # The NAME, not a bool. `bool(kw and …)` threw away the one fact the later `kw.arg` depends on —
+    # that `kw` is not None — so mypy could not know the attribute access was safe, and neither could
+    # a reader. Carrying the name makes the guard and the use the same expression.
+    swallowed_name = (
+        kw.arg if kw and not kw.arg.startswith(IGNORED_PREFIX) and kw.arg not in reads else None
+    )
+    swallowed = swallowed_name is not None
 
     if not dropped and not swallowed:
         return
@@ -138,7 +155,7 @@ def _record(fn: ast.AST, path: str, out: list[dict]) -> None:
             "line": fn.lineno,
             "double": getattr(fn, "name", "<lambda>"),
             "discarded": dropped,
-            "swallowed": kw.arg if swallowed else None,
+            "swallowed": swallowed_name,
             "kind": SWALLOWED if swallowed and not dropped else DISCARDED,
             "n_params": len(named),
         }

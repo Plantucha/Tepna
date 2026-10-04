@@ -147,7 +147,11 @@ def grid_inflation(path: str) -> dict | None:
     # delta that is not it is an inserted gap. A uniform stretch (a mis-calibrated step) leaves exactly
     # one distinct delta, so `gaps == 0` while `inflation` is non-zero is the signature of a rate error —
     # the case this tool used to report as unrepairable phantom-gap stretching.
-    modal = max(deltas, key=deltas.get) if deltas else None
+    # `key=lambda d: deltas[d]`, not `key=deltas.get`: `dict.get` is typed as returning `V | None`,
+    # so the comparison key is Optional and mypy cannot match it to max()'s overload. The subscript
+    # cannot return None for a key taken from the same dict, which is also the stronger statement —
+    # the `.get` form would have silently compared None if a key ever went missing.
+    modal = max(deltas, key=lambda d: deltas[d]) if deltas else None
     gaps = sum(c for d, c in deltas.items() if d != modal)
     gap_seconds = sum(c * (d - modal) for d, c in deltas.items() if modal is not None and d > modal) / 1e9
     return {
