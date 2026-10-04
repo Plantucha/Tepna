@@ -51,8 +51,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "f9ddd19fd7d2",
-        "computeHash": "c28fc1bdc2a5"
+        "manifestHash": "01ec43bdb94c",
+        "computeHash": "eb8ebd979ff2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -81,8 +81,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "f9ddd19fd7d2",
-        "computeHash": "c28fc1bdc2a5"
+        "manifestHash": "01ec43bdb94c",
+        "computeHash": "eb8ebd979ff2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -111,6 +111,14 @@
     "ppiAgreementPct": 100,
     "ppiCorrFootPct": 0,
     "ppiCorrPeakPct": 0,
+    "deviceBeats": {
+      "ok": false,
+      "reason": "under-min-pairs",
+      "nSelf": 33,
+      "nDevice": 4,
+      "matched": 1,
+      "minPairs": 300
+    },
     "pinnedCoverage": [
       {
         "channel": 0,

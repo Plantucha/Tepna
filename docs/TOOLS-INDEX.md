@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**227 tools** · 225 with a purpose line · **2 without**
+**228 tools** · 226 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -127,6 +127,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`o2ring-step-imbalance.mjs`](../tools/o2ring-step-imbalance.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2 — does the step imbalance track the POLL INTERVAL? |
 | [`odi4-shhs-recut.mjs`](../tools/odi4-shhs-recut.mjs) | WHY THIS FILE EXISTS. Table 3 was published 2026-09-13 (#2475) from a pool run and hand arithmetic: no script, no committed record, so when the input under it moved twice — the `OX stat`… |
 | [`oracle-ecg-firmware-rr.mjs`](../tools/oracle-ecg-firmware-rr.mjs) | Runs MEASUREMENT-PROVENANCE-ROADMAP §5's first target over the real corpus: every H10 night that carries both `_ECG.txt` and `_RR.txt` is scored as ECGDex's own R-peak train… |
+| [`oracle-ppg-device-beats.mjs`](../tools/oracle-ppg-device-beats.mjs) | The twin of `tools/oracle-ecg-firmware-rr.mjs`, and it deliberately differs in exactly one place. |
 | [`oxy-hr-bias.mjs`](../tools/oxy-hr-bias.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ R5-HR-TRIPLET-REFERENCE §5 — "Investigate OxyDex's −0.36 bpm bias." |
 | [`oxydex-export-staleness.mjs`](../tools/oxydex-export-staleness.mjs) | re-run OxyDex on each export's OWN named source file and report which exports no longer reproduce. |
 | [`pat-axis-leg-audit.mjs`](../tools/pat-axis-leg-audit.mjs) | PAT-ROOT-CAUSE-FORENSICS §2/§3/§5: do the two legs of a PAT measurement ride the SAME time axis? |

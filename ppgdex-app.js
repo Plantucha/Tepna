@@ -625,6 +625,44 @@ import { PPGUI } from './ppgdex-render.js';
      on an HRV screen for the first time needs three things in this order: what is being compared, why
      that comparison is legitimate, and what the number licenses them to conclude. A bare "−1.00
      white/flicker-phase" satisfies none of them and would read as jargon decorating a guess. */
+  /* ── THE DEVICE'S OWN BEATS AS A REFEREE FOR OURS (owner order 2026-10-04) ──────────────────────
+     Three numbers, three KINDS, and the labels carry the difference because a reader who takes the lag
+     for an error will conclude the detector is broken. The ring's `156` rows are its own beat
+     detections (Wren: 304/304 PLETHA `156`s carry `beat=1`, three nights, 48–53/min vs PR 48–60), and
+     the marker records the firmware's DETECTION instant — so the lag is a DEVICE PROPERTY, ~184–200 ms
+     measured, and the AGREEMENT is its dispersion. Badged through `evBadge` like every other surfaced
+     number (§🎫), from the `beatLatency` / `beatLatencyMad` / `beatPpiDelta` registry rows.
+     ⚠️ SAME SENSOR, SAME STREAM (`R5-HR-TRIPLET-REFERENCE` §4) — a second ESTIMATOR, not a second
+     sensor, so the card says so rather than letting a reader infer device independence. */
+  function deviceBeatBlock(b) {
+    /* ⚠️ `evBadge(...)` IS CALLED LITERALLY IN EACH TILE, not through a local alias. The
+       badge-by-construction gate reads this file's TEXT and its `BADGED` regex recognises
+       `evBadge(` / `metricValue(` / `MetricRegistry.badge(` only — a local `const ev = evBadge`
+       renders an identical badge and still reads as a BARE TILE. The test's own comment records a
+       previous author hitting exactly this, and my first version hit it again: 4 bare value tiles. */
+    if (!b) return '';
+    if (!b.ok) {
+      // ∅ A refusal states which floor was not met. No number is shown, because none was measured.
+      const why =
+        b.reason === 'no-series'
+          ? 'this recording carries no device beat markers (a wrist layout, or a stream without them)'
+          : b.reason === 'under-min-pairs'
+            ? `only ${b.matched} beat pair(s) against a floor of ${b.minPairs} — a median over fewer is not a measurement`
+            : b.reason;
+      return `<div class="q-note" style="margin-top:14px"><b>Device beat referee</b> <span class="dim">— not measured: ${why}.</span></div>`;
+    }
+    const madOk = b.madWithinOneSample === true,
+      ppiOk = b.ppiDeltaWithinOneSample === true;
+    return `<div class="q-note" style="margin-top:14px">
+      <div style="font-weight:700;margin-bottom:4px">Device beat referee <span class="dim" style="font-weight:400"> · the ring's own <code>156</code> beat markers vs our detected feet</span></div>
+      <div class="q-grid" style="margin:8px 0">
+        <div class="q-stat"><div class="q-val neutral">${b.latencyMedianMs}</div><div class="q-lbl">lag ms${typeof evBadge === 'function' ? evBadge('Device beat lag') : ''}</div><div class="q-sub">firmware detection latency — a device property, not an error</div></div>
+        <div class="q-stat"><div class="q-val ${madOk ? 'ok' : 'warn'}">${b.latencyMadMs}</div><div class="q-lbl">lag MAD ms${typeof evBadge === 'function' ? evBadge('Beat lag MAD') : ''}</div><div class="q-sub">${madOk ? 'inside' : 'OUTSIDE'} one ADC sample (${b.sampleMs} ms)</div></div>
+        <div class="q-stat"><div class="q-val ${ppiOk ? 'ok' : 'warn'}">${b.ppiDeltaMedianMs}</div><div class="q-lbl">PPI &Delta; ms${typeof evBadge === 'function' ? evBadge('Beat PPI Δ') : ''}</div><div class="q-sub">latency-invariant; the ECGDex-comparable one</div></div>
+        <div class="q-stat"><div class="q-val neutral">${b.matched}</div><div class="q-lbl">paired${typeof evBadge === 'function' ? evBadge('Beat PPI Δ') : ''}</div><div class="q-sub">${b.unmatchedSelf} ours / ${b.unmatchedDevice} device unmatched</div></div>
+      </div>
+      <span class="dim">Lag spread across deciles ${b.latencySpreadMs == null ? '—' : b.latencySpreadMs + ' ms'} — published rather than averaged away, because a pairing that decays with beat index leaves the whole-night median looking healthy. SAME sensor, SAME stream: a second estimator, not a second sensor, so this validates our detector's timing and is not evidence of device independence.</span></div>`;
+  }
   function stabilityBlock(v) {
     if (!v || !v.usable) return '';
     if (!v.stability) {
@@ -699,7 +737,11 @@ import { PPGUI } from './ppgdex-render.js';
     <div class="q-note">Self-PPI (${v.nSelf} intervals from the optical waveform) against ${src}. <b>Both sides are artifact-corrected</b> with the same optical threshold, so the comparison measures the two detectors rather than one side's artifact rejection — ${v.devEctopyCorrected} firmware beat${v.devEctopyCorrected === 1 ? '' : 's'} corrected (raw firmware rMSSD ${v.devRawRMSSD} → ${v.devRMSSD} ms) against ${v.selfEctopyCorrected} on the self side. Uncorrected, this row can invert: a firmware series carrying more artifact reads as if <i>we</i> were over-smoothing.
     <span class="dim">Mean-only agreement ${v.deviceAgreementPct}% — that figure comes from the means alone and cannot see the rMSSD/SDNN rows above it. This is a validation lane only: self-PPI is never replaced by firmware PPI.</span></div>${stabilityBlock(v)}`;
     }
-    $('validationCard').innerHTML = body;
+    /* APPENDED OUTSIDE the branches above, deliberately. The device's beat markers are in the PPG file
+       itself, so the referee exists whether or not a `*_PPI.txt` comparison does — gating it on
+       `v.usable` would hide it on exactly the recordings that have no companion file, which is most
+       O2Ring nights. `deviceBeatBlock` renders its own refusal when there is nothing to measure. */
+    $('validationCard').innerHTML = body + deviceBeatBlock(r.deviceBeats);
     $('validationSection').style.display = 'block';
   }
 

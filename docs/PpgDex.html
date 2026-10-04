@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f9ddd19fd7d2" data-compute-hash="c28fc1bdc2a5">
+<html lang="en" data-manifest-hash="01ec43bdb94c" data-compute-hash="eb8ebd979ff2">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-RPA0T6R7ce42SoFxFvkjP6BKB0+p1Ld1uai94eRY6XA=' 'sha256-VBlsvn253U3jmEiIBzX7m/WXUpo/Vbm0dqg0Dfugsmo=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-gCWeWHL/WDuToOHOSpVRk7dpGOBIt4LizLoql9xiA1U=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-VEru6R4raVp1L/miJqQVTsnqJnNV8iqTUGbhNLrHdsU=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-gCWeWHL/WDuToOHOSpVRk7dpGOBIt4LizLoql9xiA1U=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.16.0</title>
@@ -5992,6 +5992,37 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     meanSqi: { label: 'Mean SQI', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean signal-quality index — direct per-pulse quality' },
     cleanPulses: { label: 'Clean pulses', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: '% pulses with SQI ≥ 0.5 — direct quality statistic' },
     motionIdx: { label: 'Mean motion idx', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Mean ACC-variance∪GYRO motion index — direct from inertial sensors' },
+    /* ── THE DEVICE'S OWN BEATS AS A REFEREE (owner order 2026-10-04) ────────────────────────────────
+       `measured` tier, and each of the three is a different KIND of number, which is why they are three
+       entries and not one. `beatLatency` is a DEVICE PROPERTY — the firmware's detection lag, ~184–200 ms
+       on the real corpus — so `goodDirection` is deliberately absent rather than 'down': a larger lag is
+       not a worse recording, and a badge implying otherwise would invite tuning our detector to shrink
+       someone else's constant. The two that ARE quality are the dispersion about that lag and the
+       latency-invariant interval delta. ⚠️ SAME SENSOR, SAME STREAM (`R5-HR-TRIPLET-REFERENCE` §4): a
+       second ESTIMATOR, not a second sensor, so none of these is evidence of device independence. */
+    beatLatency: {
+      label: 'Device beat lag',
+      unit: 'ms',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: "Median firmware-marker minus our detected foot — the ring's own detection latency, not an error (O2RING-PROTOCOL §156)"
+    },
+    beatLatencyMad: {
+      label: 'Beat lag MAD',
+      unit: 'ms',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'MAD of that lag — the agreement; one ADC sample at 125.000 Hz is 8 ms and a disagreement under one sample is not detectable'
+    },
+    beatPpiDelta: {
+      label: 'Beat PPI Δ',
+      unit: 'ms',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Median |our PPI − device PPI| — latency-invariant, the statistic comparable to ECGDex rr_delta_median ≤ 8 ms'
+    },
     accHz: { label: 'ACC Hz', unit: 'Hz', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Accelerometer sample rate — direct device statistic' },
     gyroHz: { label: 'GYRO Hz', unit: 'Hz', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Gyroscope sample rate — direct device statistic' },
     agreement: { label: 'Agreement', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Self-PPI vs device-PPI mean agreement — direct validation statistic' },
@@ -10845,6 +10876,197 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     }
     return { slope: sl, slopeSE: se == null ? null : se, nTau: nTau == null ? null : nTau, noise: name, candidates: null, meaning: meaning };
   }
+  /* ══ THE DEVICE'S OWN BEATS AS A REFEREE FOR OURS (owner order 2026-10-04) ══════════════════════
+     The firmware inserts one `156` row per detected beat (`markO2BeatMarkers`, published as
+     `beatMarkerSec`). Wren settled what they ARE by the device's own word rather than by inference:
+     across three nights, **304/304 PLETHA `156`s carry `beat=1` and every `beat=1` sits on a `156`**,
+     at 48–53/min against a PR of 48–60. Cross-stream alignment was tried first and is NOT identifiable
+     (PLETHA is a separately beat-marked waveform with its own `156`s and no device clock, so it is not
+     a subsequence of `_PPG.txt`) — the flag is what decides it.
+
+     ⚠️ WHAT THIS MEASURES IS A LATENCY, NOT AN ERROR, AND READING IT AS AGREEMENT IS THE TRAP.
+     The marker records the firmware's DETECTION instant, so it sits a fixed lag after our own foot:
+     measured ~184–200 ms with a MAD of 8 ms (`tests/dex-tests.js`, real corpus). A comparator that
+     published that ~190 ms as "disagreement" would report a working detector as broken. So the median
+     is published as `latencyMedianMs` — named for what it is — and **the agreement is its DISPERSION**.
+
+     WHY THIS PAIRS BY TIME WHERE `ecgdex-dsp.js alignFirmwareRR` PAIRS BY INDEX, which is the one place
+     this twin deliberately departs from its model. The H10's `_RR.txt` carries ARRIVAL stamps, so
+     differencing against them measures BLE batching (median −79 ms, SD 299 ms) and ECGDex must ignore
+     the axis and align interval-to-interval. Here both series are positions in the SAME FILE on the
+     SAME device-crystal grid, so the axis is shared by construction and time pairing is identifiable —
+     and it is the only pairing that can see the latency at all, because an index pairing is invariant
+     to it. Everything else is ECGDex's discipline kept: re-fit per window, REPORT the fan instead of
+     averaging over it, and an absolute floor of one sample period.
+
+     THE FLOOR IS THE INSTRUMENT, NOT THE DATA (§🧾). One ADC sample at `O2_ADC_HZ` is 8.000 ms, and a
+     disagreement below one sample is not a detectable disagreement — a beat lands on a sample. That
+     the measured MAD IS 8 ms means this detector already sits at the sampling floor; the criterion is
+     pre-stated from the crystal rate rather than fitted to the night it judges.
+
+     NOT A SECOND SENSOR (`R5-HR-TRIPLET-REFERENCE` §4). This is a second ESTIMATOR on one sensor and
+     one stream — no inter-device clock offset and no cross-channel common mode, which is its whole
+     value as a detector check, and exactly why it is not a fourth corner for the σ work. Sound for
+     intervals and for detector timing VARIABILITY; never for absolute PAT. */
+  const BEAT_PAIR_TOL_SEC = 0.3; // same tolerance `detectorStability` uses — one beat, not one night
+  const BEAT_ALIGN_MIN_PAIRS = 300; // mirrors ecgdex RR_ALIGN_MIN_PAIRS: for a median to mean anything
+  const BEAT_ALIGN_WINDOWS = 10; // deciles — enough to see a trend, few enough to stay populated
+  function _medianOf(a) {
+    if (!a.length) return null;
+    const b = Array.prototype.slice.call(a).sort((x, y) => x - y);
+    const m = b.length >> 1;
+    return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
+  }
+  /* Pairs our feet to the device's markers by TIME and returns the lag and its dispersion, or a
+     REFUSAL carrying its reason. Never a number over too few pairs: §∅ — an unmeasured dispersion is
+     null, and `{ ok: false, reason }` says which floor was not met rather than publishing a 0. */
+  function alignDeviceBeats(selfSec, deviceSec, opts) {
+    const tol = (opts && opts.maxPairSec > 0 ? opts.maxPairSec : BEAT_PAIR_TOL_SEC) || BEAT_PAIR_TOL_SEC;
+    const fs = opts && opts.fs > 0 ? opts.fs : O2_ADC_HZ;
+    const sampleMs = 1000 / fs;
+    const nSelf = selfSec ? selfSec.length : 0,
+      nDev = deviceSec ? deviceSec.length : 0;
+    if (!nSelf || !nDev) return { ok: false, reason: 'no-series', nSelf, nDevice: nDev };
+    const dev = Array.prototype.slice.call(deviceSec).sort((a, b) => a - b);
+    const lagMs = [],
+      atSec = [],
+      pairIdx = [],
+      usedDev = new Uint8Array(dev.length);
+    for (let k = 0; k < nSelf; k++) {
+      const t = selfSec[k];
+      let lo = 0,
+        hi = dev.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (dev[mid] < t) lo = mid + 1;
+        else hi = mid;
+      }
+      let bi = lo,
+        best = Math.abs(dev[lo] - t);
+      if (lo > 0 && Math.abs(dev[lo - 1] - t) < best) {
+        bi = lo - 1;
+        best = Math.abs(dev[lo - 1] - t);
+      }
+      // ONE device marker per foot: a marker already claimed cannot match a second foot, or a dropout
+      // in our own train pairs two feet to one marker and the lag spread reads as detector jitter.
+      if (best < tol && !usedDev[bi]) {
+        usedDev[bi] = 1;
+        lagMs.push((dev[bi] - t) * 1000); // POSITIVE = the device detected LATER, which is the expectation
+        atSec.push(t);
+        // Both indices, so the interval view can require a pair to be CONSECUTIVE in both trains.
+        pairIdx.push([k, bi]);
+      }
+    }
+    const matched = lagMs.length;
+    if (matched < BEAT_ALIGN_MIN_PAIRS) {
+      return { ok: false, reason: 'under-min-pairs', nSelf, nDevice: nDev, matched, minPairs: BEAT_ALIGN_MIN_PAIRS };
+    }
+    const med = _medianOf(lagMs);
+    const mad = _medianOf(lagMs.map((v) => Math.abs(v - med)));
+    /* THE FAN, per decile, for ECGDex's reason: a single median hides a pairing that decays with beat
+       index, and a comparison whose pairing silently degrades produces a number rather than an error. */
+    const step = Math.floor(matched / BEAT_ALIGN_WINDOWS),
+      byWindow = [];
+    for (let w = 0; w < BEAT_ALIGN_WINDOWS; w++) {
+      const slice = lagMs.slice(w * step, w === BEAT_ALIGN_WINDOWS - 1 ? matched : (w + 1) * step);
+      /* ∅ AN EMPTY DECILE IS null, NEVER 0. My first version wrote `+(_medianOf(slice) || 0)`, which
+         the `|| 0` fleet gate caught at this line — and it was right twice over: the coalesce turns an
+         UNMEASURED decile into a plausible 0 ms lag, and it is dead today only because the
+         `slice.length` guard happens to precede it. A dead `|| 0` beside a live absence is how the next
+         refactor ships a zero for a missing measurement. */
+      const m = slice.length ? _medianOf(slice) : null;
+      byWindow.push(m == null || !Number.isFinite(m) ? null : +m.toFixed(2));
+    }
+    const seen = byWindow.filter((v) => v != null);
+    const spreadMs = seen.length ? Math.max.apply(null, seen) - Math.min.apply(null, seen) : null;
+    return {
+      ok: true,
+      reason: null,
+      nSelf,
+      nDevice: nDev,
+      matched,
+      unmatchedSelf: nSelf - matched,
+      unmatchedDevice: nDev - matched,
+      latencyMedianMs: +med.toFixed(2),
+      latencyMadMs: +mad.toFixed(2),
+      sampleMs: +sampleMs.toFixed(3),
+      // The criterion, pre-stated from the crystal rate: a disagreement under one ADC sample is not a
+      // detectable disagreement. NOT a pass/fail on the latency itself, which is a device property.
+      madWithinOneSample: mad <= sampleMs,
+      byWindow,
+      // The fan across deciles. A stable lag is the licence to read one median as the whole night's.
+      latencySpreadMs: spreadMs == null ? null : +spreadMs.toFixed(2),
+      pairTolSec: tol,
+      // The matched pairs themselves, for the interval view below. Not exported in the node-export —
+      // `validateBeats` consumes them and publishes only statistics.
+      _pairSelf: atSec,
+      _pairDev: atSec.map((t, i) => t + lagMs[i] / 1000),
+      _pairSelfIdx: pairIdx,
+      spanSec: atSec.length ? +(atSec[atSec.length - 1] - atSec[0]).toFixed(1) : null
+    };
+  }
+  /* The published summary — `alignDeviceBeats` plus the interval view, which is the latency-invariant
+     half and the one directly comparable to ECGDex's `rr_delta_median <= 8 ms`. Differencing both
+     trains removes any constant lag, so a disagreement here is a disagreement about RHYTHM rather than
+     about when a beat is called. */
+  function validateBeats(selfSec, deviceSec, opts) {
+    const al = alignDeviceBeats(selfSec, deviceSec, opts);
+    if (!al.ok) return al;
+    // Recomputed from `opts` rather than read off `al`: the refusal and the success shapes are a union
+    // and `checkJs` cannot narrow `al.sampleMs` through the early return above. Deriving it from the
+    // same inputs keeps ONE definition of the floor instead of casting the narrowing away.
+    const sampleMs = 1000 / (opts && opts.fs > 0 ? opts.fs : O2_ADC_HZ);
+    /* ⚠️ THE INTERVALS ARE DIFFERENCED OVER THE MATCHED PAIRS, NOT OVER THE RAW TRAINS, and my first
+       version did the latter. Index-aligning `selfPPI[i]` against `devPPI[i]` from zero assumes the two
+       trains start on the same beat and never diverge — so one missed foot shifts every later pair by
+       one beat and the delta reads as rhythm disagreement. The oracle caught it on the real corpus:
+       `ppiDeltaMedianMs` tracked the MATCH RATE rather than the detectors (5.26 ms at 99.81 % matched,
+       85.34 ms at 79.74 %), which is a measurement of the pairing, not of what the pairing exists to
+       compare. The time alignment above already establishes which beat is which, so the honest
+       interval view differences CONSECUTIVE matched pairs — and requires them to be consecutive in BOTH
+       trains, because a pair straddling a beat either side skipped would span two intervals on one
+       side and one on the other. ECGDex re-fits an offset per window for the same reason; here the
+       per-beat pairing supersedes an offset, which is what sharing the axis buys. */
+    // Defaulted rather than cast: the union of the refusal and success shapes leaves these optional to
+    // `checkJs`, and an empty array makes the loop below a no-op instead of a throw if the shape ever
+    // changes — which is the direction a comparator should fail in.
+    const ps = al._pairSelf || [],
+      pd = al._pairDev || [],
+      pi = al._pairSelfIdx || [],
+      d = [];
+    let straddled = 0;
+    for (let i = 1; i < ps.length; i++) {
+      const consecutive = pi[i][0] === pi[i - 1][0] + 1 && pi[i][1] === pi[i - 1][1] + 1;
+      if (!consecutive) {
+        straddled++;
+        continue;
+      }
+      d.push(Math.abs((ps[i] - ps[i - 1]) * 1000 - (pd[i] - pd[i - 1]) * 1000));
+    }
+    const selfPPI = { length: Math.max(0, selfSec.length - 1) },
+      devPPI = { length: Math.max(0, deviceSec.length - 1) };
+    const ppiDeltaMedian = d.length ? _medianOf(d) : null;
+    const pub = Object.assign({}, al);
+    // The pair arrays are working state, not an export field: they are per-beat and would multiply the
+    // node-export's size by the beat count for no reader.
+    pub._pairSelf = undefined;
+    pub._pairDev = undefined;
+    pub._pairSelfIdx = undefined;
+    delete pub._pairSelf;
+    delete pub._pairDev;
+    delete pub._pairSelfIdx;
+    return Object.assign(pub, {
+      nSelfPPI: selfPPI.length,
+      nDevicePPI: devPPI.length,
+      // The population the interval statistic was actually computed over, and what it had to skip.
+      // Published because a median over 40 % of the beats is a different claim from one over 99 %.
+      nPpiPairs: d.length,
+      nPpiStraddled: straddled,
+      // THE latency-invariant statistic. Compare this with ECGDex's 8 ms, never `latencyMedianMs`.
+      ppiDeltaMedianMs: ppiDeltaMedian == null ? null : +ppiDeltaMedian.toFixed(2),
+      ppiDeltaWithinOneSample: ppiDeltaMedian == null ? null : ppiDeltaMedian <= sampleMs
+    });
+  }
   /* Pairs two beat-time series (SECONDS, on the same axis) and returns the stability of their
      disagreement. `maxPairSec` rejects a beat with no counterpart rather than pairing it across a
      dropout — a fabricated pair injects a step the curve would read as wander. */
@@ -11911,6 +12133,22 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     if (validation && validation.usable && ppiSource === 'o2ring-marker' && rec.beatMarkerSec) {
       validation.stability = detectorStability(footSec, Array.from(rec.beatMarkerSec));
     }
+    /* ── THE DEVICE-BEAT REFEREE, published whenever BOTH trains exist ───────────────────────────────
+       Deliberately NOT gated on `ppiSource === 'o2ring-marker'` the way the stability leg above is, and
+       the difference is the point: that gate asks "did the markers REPLACE our detector", and this asks
+       "do the markers CHECK it". A recording that also ships a `_PPI.txt` takes the explicit source for
+       its PPI comparison and still carries markers in-band, so it is exactly the case where both
+       questions have different answers — and under the old gate the check was skipped on every one of
+       them. The axis condition the comment above states still holds and is the real precondition:
+       markers and feet are rows of the SAME file on the SAME `relSec`.
+
+       ⚠️ PER SEGMENT, NOT PER NIGHT, when the axis is seamed. #3232 made the ring's host axis
+       piecewise because a reconnect replay is a seam, not drift; on 2026-09-21 one seam spanned 7.37 h.
+       `relSec` is the device-crystal grid here, which the seam does not move — but a night whose
+       markers and feet were rebuilt across a resync would pair across it, so the fan (`byWindow`,
+       `latencySpreadMs`) is published rather than averaged away and a seamed night shows as spread
+       instead of as a plausible median. */
+    const deviceBeats = rec.beatMarkerSec && rec.beatMarkerSec.length && footSec && footSec.length ? validateBeats(footSec, Array.from(rec.beatMarkerSec), { fs: O2_ADC_HZ }) : null;
 
     // markers
     const markers = (rec.markers || []).map((mk) => ({ relSec: mk.relSec, type: mk.type }));
@@ -12009,6 +12247,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       analyzablePct,
       // §∅ raw span sets, per optical channel — projected into the export's `quality.pinnedCoverage`.
       pinnedSpanSets: rec.spans || null,
+      /* The device-beat referee, carried HERE because this is the object the emitter reads as `r`.
+         ⚠️ My first attempt put it beside `sentinelRejected` in the quality object below, which is
+         exactly the mistake `pinnedCoverage`'s note in the emitter already records: that block never
+         reaches the export, so the field was INERT and every golden stayed byte-identical — which
+         reads as "export-inert" when it is "not wired at all". The goldens exposed it the same way,
+         by NOT moving. Two authors, one wrong assumption, one note that was already there to be read. */
+      deviceBeats,
       coveragePct: cleanBeatPct,
       correctionRate,
       nCorrected: corr.nCorr,
@@ -12443,6 +12688,10 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     cadenceSamples,
     beatRegularity,
     markO2BeatMarkers,
+    // The device's own beats as a referee for ours (owner order 2026-10-04). `validateBeats` is the
+    // published one; `alignDeviceBeats` is exported too because the oracle drives it directly.
+    alignDeviceBeats,
+    validateBeats,
     // §∅ absence-as-value: span detection + the DERIVED settling widening (never a constant).
     pinnedSpans,
     parsePinnedRuns,
@@ -12813,6 +13062,17 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
            mask two pinned ones. `rail: null` is a clean stream, and is DISTINCT from a rail existing
            with zero spans. Errs low — a consumer can filter `n` upward but can never recover a span
            that was never emitted. */
+        /* ── THE DEVICE'S OWN BEATS AS A REFEREE FOR OURS (owner order 2026-10-04) ─────────────────
+           A NEW FIELD and an ANNOTATION: never a sample value, never a gap. The `156` rows are the
+           ring's own beat detections — Wren 2026-10-04, 304/304 PLETHA `156`s carry `beat=1` and every
+           `beat=1` sits on a `156` across three nights, 48–53/min against a PR of 48–60 — so they
+           belong beside the waveform as a judgement ABOUT it. The old name `O2_PPG_INVALID` asserted
+           they marked ABSENT data, and that reading is what the O2RING-PROTOCOL §156 banner retires.
+           `latencyMedianMs` is the firmware's DETECTION LAG (~184–200 ms), a DEVICE PROPERTY and not an
+           error; the AGREEMENT is `latencyMadMs` and `ppiDeltaMedianMs`, the latter latency-invariant
+           and the one comparable to ECGDex's `rr_delta_median <= 8 ms`. A recording with no markers or
+           too few pairs publishes `{ ok: false, reason }` — never a 0, and never a silent null (§∅). */
+        deviceBeats: r.deviceBeats || null,
         pinnedCoverage: (r.pinnedSpanSets || []).map(function (sp, ci) {
           /* ── §∅ SATURATION IS ITS OWN STATE (owner ruling 2026-09-18) ──────────────────────────
              P5 ruled that a pinned span is an ABSENCE excluded like a gap. That ruling is now SCOPED
@@ -17804,6 +18064,44 @@ const { PPGUI } = __require('ppgdex-render.js');
      on an HRV screen for the first time needs three things in this order: what is being compared, why
      that comparison is legitimate, and what the number licenses them to conclude. A bare "−1.00
      white/flicker-phase" satisfies none of them and would read as jargon decorating a guess. */
+  /* ── THE DEVICE'S OWN BEATS AS A REFEREE FOR OURS (owner order 2026-10-04) ──────────────────────
+     Three numbers, three KINDS, and the labels carry the difference because a reader who takes the lag
+     for an error will conclude the detector is broken. The ring's `156` rows are its own beat
+     detections (Wren: 304/304 PLETHA `156`s carry `beat=1`, three nights, 48–53/min vs PR 48–60), and
+     the marker records the firmware's DETECTION instant — so the lag is a DEVICE PROPERTY, ~184–200 ms
+     measured, and the AGREEMENT is its dispersion. Badged through `evBadge` like every other surfaced
+     number (§🎫), from the `beatLatency` / `beatLatencyMad` / `beatPpiDelta` registry rows.
+     ⚠️ SAME SENSOR, SAME STREAM (`R5-HR-TRIPLET-REFERENCE` §4) — a second ESTIMATOR, not a second
+     sensor, so the card says so rather than letting a reader infer device independence. */
+  function deviceBeatBlock(b) {
+    /* ⚠️ `evBadge(...)` IS CALLED LITERALLY IN EACH TILE, not through a local alias. The
+       badge-by-construction gate reads this file's TEXT and its `BADGED` regex recognises
+       `evBadge(` / `metricValue(` / `MetricRegistry.badge(` only — a local `const ev = evBadge`
+       renders an identical badge and still reads as a BARE TILE. The test's own comment records a
+       previous author hitting exactly this, and my first version hit it again: 4 bare value tiles. */
+    if (!b) return '';
+    if (!b.ok) {
+      // ∅ A refusal states which floor was not met. No number is shown, because none was measured.
+      const why =
+        b.reason === 'no-series'
+          ? 'this recording carries no device beat markers (a wrist layout, or a stream without them)'
+          : b.reason === 'under-min-pairs'
+            ? `only ${b.matched} beat pair(s) against a floor of ${b.minPairs} — a median over fewer is not a measurement`
+            : b.reason;
+      return `<div class="q-note" style="margin-top:14px"><b>Device beat referee</b> <span class="dim">— not measured: ${why}.</span></div>`;
+    }
+    const madOk = b.madWithinOneSample === true,
+      ppiOk = b.ppiDeltaWithinOneSample === true;
+    return `<div class="q-note" style="margin-top:14px">
+      <div style="font-weight:700;margin-bottom:4px">Device beat referee <span class="dim" style="font-weight:400"> · the ring's own <code>156</code> beat markers vs our detected feet</span></div>
+      <div class="q-grid" style="margin:8px 0">
+        <div class="q-stat"><div class="q-val neutral">${b.latencyMedianMs}</div><div class="q-lbl">lag ms${typeof evBadge === 'function' ? evBadge('Device beat lag') : ''}</div><div class="q-sub">firmware detection latency — a device property, not an error</div></div>
+        <div class="q-stat"><div class="q-val ${madOk ? 'ok' : 'warn'}">${b.latencyMadMs}</div><div class="q-lbl">lag MAD ms${typeof evBadge === 'function' ? evBadge('Beat lag MAD') : ''}</div><div class="q-sub">${madOk ? 'inside' : 'OUTSIDE'} one ADC sample (${b.sampleMs} ms)</div></div>
+        <div class="q-stat"><div class="q-val ${ppiOk ? 'ok' : 'warn'}">${b.ppiDeltaMedianMs}</div><div class="q-lbl">PPI &Delta; ms${typeof evBadge === 'function' ? evBadge('Beat PPI Δ') : ''}</div><div class="q-sub">latency-invariant; the ECGDex-comparable one</div></div>
+        <div class="q-stat"><div class="q-val neutral">${b.matched}</div><div class="q-lbl">paired${typeof evBadge === 'function' ? evBadge('Beat PPI Δ') : ''}</div><div class="q-sub">${b.unmatchedSelf} ours / ${b.unmatchedDevice} device unmatched</div></div>
+      </div>
+      <span class="dim">Lag spread across deciles ${b.latencySpreadMs == null ? '—' : b.latencySpreadMs + ' ms'} — published rather than averaged away, because a pairing that decays with beat index leaves the whole-night median looking healthy. SAME sensor, SAME stream: a second estimator, not a second sensor, so this validates our detector's timing and is not evidence of device independence.</span></div>`;
+  }
   function stabilityBlock(v) {
     if (!v || !v.usable) return '';
     if (!v.stability) {
@@ -17878,7 +18176,11 @@ const { PPGUI } = __require('ppgdex-render.js');
     <div class="q-note">Self-PPI (${v.nSelf} intervals from the optical waveform) against ${src}. <b>Both sides are artifact-corrected</b> with the same optical threshold, so the comparison measures the two detectors rather than one side's artifact rejection — ${v.devEctopyCorrected} firmware beat${v.devEctopyCorrected === 1 ? '' : 's'} corrected (raw firmware rMSSD ${v.devRawRMSSD} → ${v.devRMSSD} ms) against ${v.selfEctopyCorrected} on the self side. Uncorrected, this row can invert: a firmware series carrying more artifact reads as if <i>we</i> were over-smoothing.
     <span class="dim">Mean-only agreement ${v.deviceAgreementPct}% — that figure comes from the means alone and cannot see the rMSSD/SDNN rows above it. This is a validation lane only: self-PPI is never replaced by firmware PPI.</span></div>${stabilityBlock(v)}`;
     }
-    $('validationCard').innerHTML = body;
+    /* APPENDED OUTSIDE the branches above, deliberately. The device's beat markers are in the PPG file
+       itself, so the referee exists whether or not a `*_PPI.txt` comparison does — gating it on
+       `v.usable` would hide it on exactly the recordings that have no companion file, which is most
+       O2Ring nights. `deviceBeatBlock` renders its own refusal when there is nothing to measure. */
+    $('validationCard').innerHTML = body + deviceBeatBlock(r.deviceBeats);
     $('validationSection').style.display = 'block';
   }
 

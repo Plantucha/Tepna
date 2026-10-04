@@ -36,6 +36,37 @@
     meanSqi: { label: 'Mean SQI', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean signal-quality index — direct per-pulse quality' },
     cleanPulses: { label: 'Clean pulses', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: '% pulses with SQI ≥ 0.5 — direct quality statistic' },
     motionIdx: { label: 'Mean motion idx', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Mean ACC-variance∪GYRO motion index — direct from inertial sensors' },
+    /* ── THE DEVICE'S OWN BEATS AS A REFEREE (owner order 2026-10-04) ────────────────────────────────
+       `measured` tier, and each of the three is a different KIND of number, which is why they are three
+       entries and not one. `beatLatency` is a DEVICE PROPERTY — the firmware's detection lag, ~184–200 ms
+       on the real corpus — so `goodDirection` is deliberately absent rather than 'down': a larger lag is
+       not a worse recording, and a badge implying otherwise would invite tuning our detector to shrink
+       someone else's constant. The two that ARE quality are the dispersion about that lag and the
+       latency-invariant interval delta. ⚠️ SAME SENSOR, SAME STREAM (`R5-HR-TRIPLET-REFERENCE` §4): a
+       second ESTIMATOR, not a second sensor, so none of these is evidence of device independence. */
+    beatLatency: {
+      label: 'Device beat lag',
+      unit: 'ms',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: "Median firmware-marker minus our detected foot — the ring's own detection latency, not an error (O2RING-PROTOCOL §156)"
+    },
+    beatLatencyMad: {
+      label: 'Beat lag MAD',
+      unit: 'ms',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'MAD of that lag — the agreement; one ADC sample at 125.000 Hz is 8 ms and a disagreement under one sample is not detectable'
+    },
+    beatPpiDelta: {
+      label: 'Beat PPI Δ',
+      unit: 'ms',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Median |our PPI − device PPI| — latency-invariant, the statistic comparable to ECGDex rr_delta_median ≤ 8 ms'
+    },
     accHz: { label: 'ACC Hz', unit: 'Hz', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Accelerometer sample rate — direct device statistic' },
     gyroHz: { label: 'GYRO Hz', unit: 'Hz', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Gyroscope sample rate — direct device statistic' },
     agreement: { label: 'Agreement', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Self-PPI vs device-PPI mean agreement — direct validation statistic' },

@@ -236,8 +236,43 @@ against the paired ECG at 49 bpm) — see `oxyii.parse_ppg`:
   column and the synthesized relative-ms column). Calibrated over 12 sessions / 5.8 h / 2 616 483 samples,
   per-session spread 125.59–125.88 Hz. Short-window swings (~84–147 Hz) are BLE delivery jitter, not ADC
   drift. Overridable per unit via `o2ring.ppg_fs` (`settings_schema.py`, range 100–200).
+> ### 🔴 CORRECTION 2026-10-04 — `156` IS THE RING'S OWN BEAT MARKER, NOT A MISSING-SAMPLE SENTINEL
+>
+> §156 below is kept as written, with this banner as the correction, per the house rule against
+> rewriting a record in place. What it got right is the detection rule (in-band, isolation not value);
+> what it got wrong is the SEMANTICS, and the wrong semantics is what made a consumer treat a detected
+> BEAT as absent data.
+>
+> **Settled by the device's own flag, not by inference.** Wren, 2026-10-04: across three nights,
+> **304/304 PLETHA `156`s carry `beat=1`, and every `beat=1` sits on a `156`** — a 2×2 with both
+> off-diagonals empty. Rate 48–53/min against a pulse rate of 48–60. Cross-stream alignment to
+> `_PPG.txt` was tried FIRST and is **not identifiable**: PLETHA is a separately beat-marked waveform
+> with its own `156`s and no device clock, so it is not a subsequence of the PPG stream. The flag
+> decides it; the alignment could not have.
+>
+> **Corroborating, from the PPG stream itself** (`ppgdex-dsp.js`, measured): 20,274 `156` rows a night,
+> **99 %** isolated from the local trend, at 48–53/min; the isolated subset's median interval is 1152 ms
+> = 52.1 bpm with 97.7 % of intervals inside 0.5–2× the median — a beat train, not a dropout pattern.
+> `capture.py`'s reading (a beat marker) was right and this section's was wrong.
+>
+> **Consequences, and the first is a bug this section caused.** A consumer that treats `156` as a gap
+> punches ~7 % of holes into valid signal and, worse, discards a free same-device fiducial: the rows are
+> now published as POSITIONS (`markO2BeatMarkers` → `beatMarkerSec`) and PpgDex reports agreement
+> between its own detected feet and the device's beats (`validateBeats`, export field `deviceBeats`,
+> oracle `tools/oracle-ppg-device-beats.mjs`).
+>
+> ⚠️ **The marker records the firmware's DETECTION instant, so it carries a fixed lag** — ~184–200 ms
+> after our own foot, MAD 8 ms = one ADC sample at the 125.000 Hz crystal. That lag is a DEVICE
+> PROPERTY: sound for intervals (PPI/HRV) and for detector-timing VARIABILITY, **never for absolute
+> PAT**, and never to be read as disagreement. And it is the SAME sensor and SAME stream — a second
+> ESTIMATOR, not a second sensor (`R5-HR-TRIPLET-REFERENCE` §4, standing), so it is not a fourth corner
+> for the σ work.
+>
+> The name `O2_PPG_INVALID` is retired; `markO2Sentinels` survives as a back-compat alias only.
+
 - **`156` (0x9C) is `PPG_INVALID` — the device's MISSING-SAMPLE SENTINEL, not noise** (PR #212; an earlier
-  revision of this section wrongly called it a scattered spike *"not a fixed marker"*). The vendor
+  revision of this section wrongly called it a scattered spike *"not a fixed marker"*). ⚠️ **The
+  SEMANTICS here are superseded — see the 2026-10-04 banner above; `156` is a detected beat.** The vendor
   interpolates it away; **we return it raw and named**, because fabricating a measurement over known-missing
   data is worse. A consumer must treat a sentinel as a **gap**, never median-fill it. No on-box DSP
   (HEALTH-BOX-VISION §4).

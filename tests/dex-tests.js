@@ -1581,6 +1581,149 @@
       T.eq('the retired name still resolves to the same function', P.markO2Sentinels, P.markO2BeatMarkers);
     });
 
+    /* ════ THE DEVICE'S OWN BEATS AS A REFEREE FOR OURS (owner order 2026-10-04) ════════════════════
+       Wren settled what the `156` rows ARE by the device's own word, not by inference: across three
+       nights, 304/304 PLETHA `156`s carry `beat=1` and every `beat=1` sits on a `156`, at 48–53/min
+       against a PR of 48–60. (Cross-stream alignment was tried FIRST and is not identifiable — PLETHA
+       is a separately beat-marked waveform with its own `156`s and no device clock, so it is not a
+       subsequence of `_PPG.txt`. The flag decides it; the alignment could not have.)
+
+       ⚠️ THESE PIN THE CONTRACT AND THE POLARITY OF THE READING, never one night's numbers. The marker
+       is the firmware's DETECTION instant, so it sits a FIXED lag after our foot (~184–200 ms measured,
+       MAD 8 ms = one sample at 125.000 Hz). A comparator that called that lag "disagreement" would
+       report a working detector as broken, so the median is published as a LATENCY and the agreement is
+       its dispersion. The latency-invariant statistic — and the only one comparable to ECGDex's
+       `rr_delta_median <= 8 ms` — is `ppiDeltaMedianMs`, because differencing both trains removes any
+       constant lag. */
+    group("PpgDex reports agreement with the device's own beats, and the lag as a LATENCY", 'ppgdex-dsp · device-beat-referee', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.validateBeats !== 'function') {
+        T.skip('PPGDSP.validateBeats available', 'not loaded');
+        return;
+      }
+      // A deterministic night: feet at 1.15 s, the device marker a FIXED 190 ms later plus ±4 ms.
+      var seed = 7;
+      function rnd() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff - 0.5;
+      }
+      var feet = [],
+        dev = [],
+        t = 10,
+        i;
+      for (i = 0; i < 1200; i++) {
+        feet.push(t);
+        dev.push(t + 0.19 + rnd() * 0.008);
+        t += 1.15;
+      }
+      var v = P.validateBeats(feet, dev, { fs: 125 });
+      T.ok('a night with both trains is measured, not refused', v.ok === true, 'reason=' + v.reason);
+      T.eq('every planted beat pairs exactly once', v.matched, 1200);
+      T.eq('and nothing is left unmatched on either side', [v.unmatchedSelf, v.unmatchedDevice].join('/'), '0/0');
+      T.ok('the median is the PLANTED LATENCY, not ~0 — it is a device property, not an error', Math.abs(v.latencyMedianMs - 190) < 2, 'latencyMedianMs=' + v.latencyMedianMs);
+      T.eq('one ADC sample at 125.000 Hz is the floor, from the crystal and not from the data', v.sampleMs, 8);
+      T.ok('the dispersion about that latency is the agreement, and it is inside one sample', v.madWithinOneSample === true, 'mad=' + v.latencyMadMs);
+      T.ok('the latency-invariant interval delta is also inside one sample (the ECGDex-comparable one)', v.ppiDeltaWithinOneSample === true, 'ppiDeltaMedianMs=' + v.ppiDeltaMedianMs);
+
+      /* THE FAN, and it is the leg that earns its keep. ECGDex measured a night whose whole-record
+         median read a healthy 4.88 ms while the pairing decayed monotonically by decile — invisible to
+         any summary. A lag climbing 190 -> 260 ms must therefore show up as DISPERSION and as spread,
+         never as a plausible median. */
+      var feet2 = [],
+        dev2 = [],
+        t2 = 10;
+      seed = 11;
+      for (i = 0; i < 1500; i++) {
+        var lag = 0.19 + 0.07 * (i / 1500);
+        feet2.push(t2);
+        dev2.push(t2 + lag + rnd() * 0.004);
+        t2 += 1.1;
+      }
+      var d = P.validateBeats(feet2, dev2, { fs: 125 });
+      T.ok('a DECAYING pairing is caught by the dispersion', d.madWithinOneSample === false, 'mad=' + d.latencyMadMs);
+      T.ok('…and the per-decile fan is published rather than averaged away', d.latencySpreadMs > 50, 'spread=' + d.latencySpreadMs);
+      T.ok('CONTROL · its median alone looks like an ordinary latency, which is why the fan exists', d.latencyMedianMs > 200 && d.latencyMedianMs < 260, 'median=' + d.latencyMedianMs);
+
+      /* OUR detector missing beats must land in `unmatchedDevice` and leave the latency alone. */
+      var feet3 = [],
+        dev3 = [],
+        t3 = 10;
+      for (i = 0; i < 1400; i++) {
+        dev3.push(t3 + 0.19);
+        if (i % 10) feet3.push(t3);
+        t3 += 1.1;
+      }
+      var m = P.validateBeats(feet3, dev3, { fs: 125 });
+      T.eq('a beat WE missed is an unmatched DEVICE beat', m.unmatchedDevice, 140);
+      T.ok('and it does not move the latency', Math.abs(m.latencyMedianMs - 190) < 1, 'median=' + m.latencyMedianMs);
+
+      /* A marker must never pair to two feet: a double-detection would otherwise read as agreement. */
+      var feet4 = [],
+        dev4 = [],
+        t4 = 10;
+      for (i = 0; i < 1300; i++) {
+        dev4.push(t4 + 0.19);
+        feet4.push(t4);
+        feet4.push(t4 + 0.02);
+        t4 += 1.1;
+      }
+      feet4.sort(function (a, b) {
+        return a - b;
+      });
+      var dd = P.validateBeats(feet4, dev4, { fs: 125 });
+      T.eq('one device marker pairs to ONE foot, so a double-detection cannot inflate the match', dd.matched, 1300);
+      T.eq('…and the surplus feet are reported as unmatched on our side', dd.unmatchedSelf, 1300);
+
+      /* 🔴 THE DEFECT THE ORACLE CAUGHT ON THE REAL CORPUS, now a test. The interval delta is
+         differenced over the MATCHED PAIRS; my first version index-aligned the two raw differenced
+         trains from zero, which assumes they start on the same beat and never diverge. One missed foot
+         then shifts every later pair by one beat, and `ppiDeltaMedianMs` measures the PAIRING instead
+         of the detectors — on real nights it tracked the match rate exactly (5.26 ms at 99.81 %
+         matched, 85.34 ms at 79.74 %). Here: our detector misses every 7th beat, the rhythm is
+         otherwise identical, and the interval delta must stay at the floor regardless. */
+      var feet5 = [],
+        dev5 = [],
+        t5 = 10,
+        kept = 0;
+      for (i = 0; i < 1500; i++) {
+        dev5.push(t5 + 0.19);
+        if (i % 7) {
+          feet5.push(t5);
+          kept++;
+        }
+        t5 += 1.1 + (i % 3) * 0.06; // a varying rhythm, so an off-by-one pairing cannot coincide
+      }
+      var mm = P.validateBeats(feet5, dev5, { fs: 125 });
+      T.eq('a missed beat is unmatched on the DEVICE side', mm.unmatchedDevice, 1500 - kept);
+      T.ok(
+        'and the interval delta stays at the floor — it must measure the DETECTORS, not the pairing',
+        mm.ppiDeltaWithinOneSample === true,
+        'ppiDeltaMedianMs=' + mm.ppiDeltaMedianMs + ' over ' + mm.nPpiPairs + ' pair(s), ' + mm.nPpiStraddled + ' straddled'
+      );
+      T.ok(
+        'the straddled pairs are COUNTED, so a median over few beats is not read as one over all',
+        mm.nPpiStraddled === 1500 - kept - 1 || mm.nPpiStraddled === 1500 - kept,
+        'straddled=' + mm.nPpiStraddled + ' of ' + mm.matched + ' matched'
+      );
+      T.ok(
+        'the per-beat pair arrays are NOT published — they would scale the export with the beat count',
+        mm._pairSelf === undefined,
+        Object.keys(mm)
+          .filter(function (k) {
+            return k[0] === '_';
+          })
+          .join(',')
+      );
+
+      /* ∅ REFUSALS CARRY THEIR REASON AND NEVER A ZERO. */
+      var few = P.validateBeats(feet.slice(0, 50), dev.slice(0, 50), { fs: 125 });
+      T.eq('too few pairs REFUSES by name', [few.ok, few.reason].join('/'), 'false/under-min-pairs');
+      T.eq('…and says which floor was not met', few.minPairs, 300);
+      var none = P.validateBeats([], dev, { fs: 125 });
+      T.eq('no series of our own REFUSES by name', [none.ok, none.reason].join('/'), 'false/no-series');
+      T.ok('a refusal publishes no statistic at all, rather than a 0', none.latencyMedianMs === undefined, JSON.stringify(none));
+    });
+
     /* ════ DETECTOR STABILITY — A THIRD ALLAN IMPLEMENTATION, PINNED TO THE OTHER TWO ════
        PpgDex compares its own beat detector against the device firmware's using overlapping Allan
        deviation of the two beat-time series' DIFFERENCE. That difference is a phase series and the
