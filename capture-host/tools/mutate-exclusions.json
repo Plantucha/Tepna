@@ -1,0 +1,33 @@
+{
+  "schema": "tepna.mutation-exclusions/1",
+  "note": "The DECLARED, BOUNDED set of functions the diff-scoped mutation gate may report NOT_APPLICABLE for instead of UNKNOWN, because the cost of measuring them has been measured and is not the diff's. Owner ruling 2026-10-03. Read mutation_diff.parse_exclusions for the shape it refuses, and mutation_diff.declared_exclusion_status for the only transition it is allowed to make (UNKNOWN -> NOT_APPLICABLE, never a survivor cleared, never a PASS). Keys are exact `module.py::function` strings: no globs, no bare module names. Every entry carries a reason, a date and a cost whose provenance says where the number came from, because a hand-typed number is indistinguishable from a measured one.",
+  "retiredBy": "briefs/MUTATION-SCOPED-GENERATION-2026-09-28-BRIEF.md",
+  "retiredWhen": "mutmut applies the glob at GENERATION as well as at RUN, so a one-function diff stops paying for the module's whole population. Every key below then becomes measurable and this file goes to empty — the exclusion is dated debt, not a design.",
+  "exclusions": {
+    "capture.py::_cpap_stream_watch_row": {
+      "reason": "capture.py's whole-module generation outruns the gate budget whatever the glob, so this function cannot be measured by narrowing the diff. #3238's scope was ideal — ONE 87-line function and one keyword argument — and the gate still reached no mutant: selection plus clean run 1337 s, generation under 1 s, then a silent traced stats pass of at least 7556 s. 618 spinner lines carried ZERO `N/M` ticks, which is what proves no mutant was tested rather than merely slow.",
+      "declaredAt": "2026-10-03",
+      "cost": {
+        "provenance": "run",
+        "source": "run 36617201687 job 109573496563 (#3238); sizes row capture.py@7cf809a4bbf4 in tools/mutation-sizes.json",
+        "statsPassSec": 7556,
+        "statsPassIsLowerBound": true,
+        "cleanRunSec": 1337,
+        "generatedBytes": 562427047,
+        "mutantsDecided": 0
+      }
+    },
+    "capture.py::_maybe_start_cpap_spool_pull": {
+      "reason": "Same module-level cause, measured independently and by a different mechanism: one `mutmut run` worker reached 8.2 GB RSS importing the 536 MB generated module — above the fleet's 8 GB standing per-process limit, while mutmut spawns one worker per core. The run was killed by hand after 21 minutes with `--timeout 900` never firing. #3185 made such a run END rather than FIT, so the honest outcome is still nothing measured.",
+      "declaredAt": "2026-10-03",
+      "cost": {
+        "provenance": "local",
+        "source": "rig-x870 2026-09-27, pid 2538640 under `python -m mutmut run capture.x__maybe_start_cpap_spool_pull__mutmut_*`; residue row 2026-09-27-capture-py-mutation-is-memory-bound-with-no-refusal (fixed #3185)",
+        "workerRssBytes": 8803112550,
+        "generatedBytes": 562427047,
+        "killedByHandAfterSec": 1260,
+        "mutantsDecided": 0
+      }
+    }
+  }
+}

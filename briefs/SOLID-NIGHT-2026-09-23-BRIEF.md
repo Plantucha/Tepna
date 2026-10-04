@@ -349,7 +349,9 @@ runner before it scores a night; `capture-host/solid_night_inputs.py`).
   inside the interval.
 - **The ring's SpO₂ rate is the one its writer declared** (`signal: spo2_hr_motion@1Hz` in the acquisition
   evidence). It is not a PMD stream, so it has no negotiated rate, and reading §3.4 literally would make it
-  UNKNOWN by construction (A2's trap).
+  UNKNOWN by construction (A2's trap). ⚠️ **AMENDED by A7** (2026-09-29): dividing by that declared nominal
+  turned the trap into a FAIL by construction, because the ring's vitals poll runs at 1 s + work. The rate
+  is still read where it is declared; it is no longer used as a completeness denominator.
 - **Scope, stated:** continuity and completeness are scored on each device's PRIMARY stream (ECG, Verity
   PPG, ring SpO₂); validity on every waveform file of the model (its RUNS sidecar must publish its own
   `min_run=`: the H10 ECG's is 30, #3006); clocks from a seam sidecar that `examined` rows, or the ring's
@@ -359,6 +361,37 @@ runner before it scores a night; `capture-host/solid_night_inputs.py`).
 - **The run** (§3.1) rides in each verdict's `result.run` and in the daemon's STATUS, as of that night. A
   settled night with no verdict after the first one is UNKNOWN (unassessed, so it resets); nights before the
   first verdict are not counted.
+
+**A7 · A band that does not bind is NOT_APPLICABLE, and the denominator must be STATED** (2026-09-29,
+Magpie, forced by the 2026-09-28 ring night). A2 ruled completeness defined for FIXED-RATE streams only,
+and the bullet above adopted the ring's declared `spo2_hr_motion@1Hz` precisely to escape A2's
+"UNKNOWN by construction" trap. That escape manufactured a denominator, and the trap simply changed
+shape: the ring's vitals poll sleeps a fixed interval and THEN does the work, so its period is 1 s + work
+and the count drifts below the nominal on a night when nothing was lost. Measured on 09-28: 23 826 rows
+against 24 179 s of worn interval = **98.54 %**, a FAIL against the 0.99 band, with frame interval mean
+1.0149 s (median 1.019, p99 1.300) and not one frame missing a value. UNKNOWN by construction became FAIL
+by construction, which is worse — it reads as a finding.
+
+- **The band's fourth outcome is `NOT_APPLICABLE`** — the verdict contract's own word, "examined and the
+  rule does not bind". It is not a flavour of UNKNOWN: UNKNOWN says the band could not be DECIDED and
+  RESETS the run (§3.1), while a band that does not bind was never a question about this device. A
+  device's outcome is computed over its APPLICABLE bands; an inapplicable one neither passes nor fails it
+  and MUST name why; **a device whose every band is inapplicable reads UNKNOWN, never PASS** — the same
+  rule as the empty band set, because a device judged on nothing has not been judged (§∅).
+- **The denominator is taken in this order and never invented:** (1) the count the writer STATED in
+  `acquisition_evidence.expected_sample_count`; (2) `rate × span` when the rate came from a NEGOTIATED
+  record — unchanged for every PMD stream; (3) otherwise NOT_APPLICABLE, naming the polled stream and the
+  nominal it refuses to divide by. Coverage for that stream is answered by CONTINUITY, which measures the
+  gaps directly and is unaffected.
+- **This self-heals.** Measured across the box's whole corpus 2026-09-29: all 370 live `_SPO2.csv` metas
+  say `expected_sample_count: "UNKNOWN"`, while all 63 downloaded `STORED.dat` metas carry a real count.
+  The day the live writer can state one, completeness binds again — against the number the writer stated,
+  never against a nominal.
+- **The device's own `duration_s` does not rescue case 3**, and was checked before this shape was chosen:
+  on 09-28 it read 24 177 s against the host's 24 179 s, so 23 826 / 24 177 = 98.55 % — the same FAIL. The
+  drift is in the POLL PERIOD, not in the span, so no better span can fix it. The capture-side half (poll
+  on a monotonic deadline so the stream really holds 1.000 Hz) is the owner's call and is residue
+  `2026-09-29-ring-vitals-poll-runs-at-one-second-plus-work`.
 
 **Open — found by scoring 09-23, NOT decided here:**
 - **BACKCHECK-VERDICT has no mapping into the night.** 09-23's is FAIL on 107 clipped regions (26 on the

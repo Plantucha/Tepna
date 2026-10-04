@@ -1584,3 +1584,238 @@ def test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it(tmp_p
     with open(r, "wb") as fh:
         fh.write(b"Phone timestamp;event;rtc_offset_s\nt;note;\xff\xfe\nt;read;-1.6\n")
     assert si.clocks(str(tmp_path), "O2Ring-S")["status"] == "PASS", "rtc log"
+
+
+# ── completeness on a POLLED stream: the denominator must be stated, not manufactured ───────────────
+
+RING = {"name": "Wellue O2Ring-S", "model": "O2Ring-S"}
+RING_BASE = "Wellue_O2Ring-S_S8AW2100_20260920230000"
+
+
+def _spo2(d, rows, period_s=1.0, expected=None, signal="spo2_hr_motion@1Hz"):
+    """A ring `_SPO2.csv` plus the acquisition evidence its writer lays beside it. `period_s` is the POLL
+    period: the box sleeps a fixed interval and then does the work, so the real cadence is 1 s + work."""
+    p = d / f"{RING_BASE}_SPO2.csv"
+    out = []
+    for i in range(rows):
+        t = T0 + dt.timedelta(seconds=i * period_s)
+        out.append(f"{t:%H:%M:%S %d/%m/%Y},97")
+    p.write_text("Time,Oxygen Level\n" + "\n".join(out) + "\n")
+    ev = {"signal": signal, "source": "live", "expected_sample_count": "UNKNOWN" if expected is None else expected}
+    (d / (p.name + ".meta.json")).write_text(json.dumps({"acquisition_evidence": ev}))
+    return p
+
+
+def test_a_polled_stream_does_not_bind_the_completeness_band(tmp_path):
+    """The 2026-09-28 ring night in miniature: the poll period is the sleep PLUS the work, so the count
+    drifts below the nominal on a night when nothing was lost. Dividing by the `@1Hz` in the signal NAME
+    produced a FAIL about drift."""
+    _spo2(tmp_path, 197, period_s=1.0149)
+    out = si.completeness(
+        str(tmp_path),
+        RING["name"],
+        "O2Ring-S",
+        [str(tmp_path / f"{RING_BASE}_SPO2.csv")],
+        T0,
+        T0 + dt.timedelta(seconds=200),
+    )
+    assert out["status"] == "NOT_APPLICABLE"
+    assert "polled stream, rate declared not negotiated" in out["reason"]
+    assert "1 Hz is the nominal in the signal name" in out["reason"]
+    assert "continuity band" in out["reason"], "the coverage question is named, not dropped"
+
+
+def test_a_writer_that_STATES_its_expected_count_is_judged_against_that_number(tmp_path):
+    """The rule self-heals: the box already writes a real `expected_sample_count` for downloaded
+    `STORED.dat` sessions, so the day the live writer can state one, completeness binds again — against
+    the number the writer stated, never against a nominal."""
+    _spo2(tmp_path, 200, expected=200)
+    p = [str(tmp_path / f"{RING_BASE}_SPO2.csv")]
+    assert si.completeness(str(tmp_path), RING["name"], "O2Ring-S", p, T0, T0 + dt.timedelta(seconds=200)) == {
+        "status": "PASS",
+        "reason": None,
+    }
+    _spo2(tmp_path, 150, expected=200)
+    out = si.completeness(str(tmp_path), RING["name"], "O2Ring-S", p, T0, T0 + dt.timedelta(seconds=200))
+    assert out["status"] == "FAIL"
+    assert "expected_sample_count stated beside the stream" in out["reason"], "the FAIL names its basis"
+    assert "200 expected" in out["reason"]
+
+
+def test_a_stated_count_that_is_not_a_positive_integer_is_no_count_at_all(tmp_path):
+    """§∅: `"UNKNOWN"`, a zero, a float and a bool are each an absence of a count, not a count. `True` is
+    an `int` in Python and would otherwise read as an expectation of one sample."""
+    p = [str(tmp_path / f"{RING_BASE}_SPO2.csv")]
+    for bad in (None, 0, -5, 1.5, True, "200"):
+        _spo2(tmp_path, 197, period_s=1.0149, expected=bad)
+        assert si.stated_expected_count(p[0]) is None, bad
+        assert (
+            si.completeness(str(tmp_path), RING["name"], "O2Ring-S", p, T0, T0 + dt.timedelta(seconds=200))["status"]
+            == "NOT_APPLICABLE"
+        ), bad
+
+
+def test_a_stream_with_no_meta_at_all_is_still_UNKNOWN_not_inapplicable(tmp_path):
+    """No evidence beside the stream is a different answer from evidence that says the rule does not
+    bind: without it there is no rate either, and an undecided band must not read as an excused one."""
+    (tmp_path / f"{RING_BASE}_SPO2.csv").write_text("Time,Oxygen Level\n23:00:00 20/09/2026,97\n")
+    out = si.completeness(
+        str(tmp_path),
+        RING["name"],
+        "O2Ring-S",
+        [str(tmp_path / f"{RING_BASE}_SPO2.csv")],
+        T0,
+        T0 + dt.timedelta(seconds=200),
+    )
+    assert out == {"status": "UNKNOWN", "reason": "no rate declared in the stream's acquisition evidence"}
+
+
+def test_a_NEGOTIATED_rate_still_binds_the_band_exactly_as_before(tmp_path):
+    """The change must not reach the PMD streams, which is where this band has always done its work: the
+    H10's rate comes from a record of what the device and host AGREED, and `rate x span` is a completeness
+    measure for a clocked stream."""
+    _ecg(tmp_path)
+    _seams(tmp_path)
+    _audit(tmp_path)
+    b = _bands(tmp_path)[H10["name"]]["bands"]["completeness"]
+    assert b["status"] == "PASS"
+    _ecg(tmp_path, seconds=100)
+    out = _bands(tmp_path)[H10["name"]]["bands"]["completeness"]
+    assert out["status"] == "FAIL" and "at 2 Hz" in out["reason"]
+
+
+# ── the drain: what the band's EDGES and its message actually say (#3243's 18 survivors) ─────────────
+
+
+def test_the_completeness_band_is_INCLUSIVE_at_both_edges(tmp_path):
+    """0.99 and 1.01 are the band, not the first values outside it. A night at exactly 99 % PASSES — an
+    exclusive edge would fail the one measurement the bar was chosen to admit, and the bar was set at ten
+    times a healthy H10 night's shortfall precisely so the edge is reachable."""
+    assert si._complete_ratio(99, 100.0, "basis") == {"status": "PASS", "reason": None}
+    assert si._complete_ratio(101, 100.0, "basis") == {"status": "PASS", "reason": None}
+    assert si._complete_ratio(9899, 10000.0, "basis")["status"] == "FAIL", "just under 0.99 is out"
+    assert si._complete_ratio(10101, 10000.0, "basis")["status"] == "FAIL", "just over 1.01 is out"
+
+
+def test_a_completeness_FAIL_states_the_rows_the_denominator_and_the_percentage(tmp_path):
+    """A percentage with no denominator behind it cannot be argued with, and the numbers are the whole
+    reason the band's reason exists — an operator reads them to tell a short night from a wrong rate."""
+    out = si._complete_ratio(23826, 24179.0, "at 1 Hz")
+    assert out["status"] == "FAIL"
+    assert out["reason"] == "23826 rows against 24179 expected at 1 Hz = 98.54 %", out["reason"]
+
+
+def test_a_stated_count_of_ONE_is_a_count(tmp_path):
+    """`n > 0`, not `n > 1`. A one-sample stream is a real stream, and treating its stated count as absent
+    would send it to the no-denominator path with a count sitting right there in its evidence."""
+    p = tmp_path / f"{RING_BASE}_SPO2.csv"
+    p.write_text("Time,Oxygen Level\n23:00:00 20/09/2026,97\n")
+    (tmp_path / (p.name + ".meta.json")).write_text(json.dumps({"acquisition_evidence": {"expected_sample_count": 1}}))
+    assert si.stated_expected_count(str(p)) == 1
+
+
+def test_a_worn_interval_of_exactly_ONE_expected_sample_is_still_a_length(tmp_path):
+    """`expected <= 0` is the refusal, not `expected <= 1`: a one-sample expectation is small, not absent,
+    and refusing it would read as "the worn interval has no length" about an interval that has one.
+
+    Driven through `completeness` itself, at the one denominator that separates the two cuts: 2 Hz over
+    half a second is expected == 1.0 exactly. Asserting `_complete_ratio` instead would never reach the
+    guard — it lives one call up."""
+    _ecg(tmp_path)
+    _seams(tmp_path)  # 2 Hz
+    p = [str(tmp_path / f"{BASE}_ECG.txt")]
+    out = si.completeness(str(tmp_path), H10["name"], "H10", p, T0, T0 + dt.timedelta(seconds=0.5))
+    assert out["reason"] != "the worn interval has no length", "one expected sample is a length"
+    assert out["status"] in ("PASS", "FAIL"), out
+
+
+def test_the_no_length_refusal_carries_the_STATUS_WORD_and_not_a_null(tmp_path):
+    """§∅ and §🧾 together: a decision whose status is None is not a decision, and `device_outcome` would
+    refuse it — but only if some test ever drives this arm."""
+    _ecg(tmp_path)
+    _seams(tmp_path)
+    p = [str(tmp_path / f"{BASE}_ECG.txt")]
+    out = si.completeness(str(tmp_path), H10["name"], "H10", p, T0, T0)  # zero-length interval
+    assert out == {"status": "UNKNOWN", "reason": "the worn interval has no length"}
+
+
+def test_COMPLETENESS_looks_the_rate_up_for_THIS_DEVICE(tmp_path):
+    """`PMDNEG.csv` is per device, so dropping the device from `completeness`'s lookup judges the night
+    against a denominator belonging to a different sensor — or against none at all, which reads as
+    "negotiated rate not written beside the stream" about a stream whose rate IS written.
+
+    There is no seam sidecar here on purpose: with one, the rate comes from the file and the device is
+    never consulted, so the mutant would survive a test that looks right."""
+    _ecg(tmp_path)
+    p = [str(tmp_path / f"{BASE}_ECG.txt")]
+    (tmp_path / "PMDNEG.csv").write_text(
+        "Phone timestamp;device;address;stream;requested_hz;offered_hz;chosen_hz;ack;how\n"
+        "t;Polar H10 02849638;a;ecg;;;2;ok;negotiated\n"
+    )
+    out = si.completeness(str(tmp_path), H10["name"], "H10", p, T0, T0 + dt.timedelta(seconds=200))
+    assert out == {"status": "PASS", "reason": None}, out
+    # the same call for a device with no row of its own cannot borrow the H10's rate
+    out = si.completeness(str(tmp_path), "SOMEBODY ELSE", "H10", p, T0, T0 + dt.timedelta(seconds=200))
+    assert out["reason"] == "negotiated rate not written beside the stream (#2912)"
+
+
+def test_a_rate_of_exactly_ONE_HERTZ_is_a_rate(tmp_path):
+    """`> 0`, not `> 1` — and this is not academic: 1 Hz is the O2Ring's own declared rate, the stream this
+    whole unit is about. Rejecting it would send every ring night down the no-rate path."""
+    _ecg(tmp_path)
+    _seams(tmp_path, rate="1")
+    p = str(tmp_path / f"{BASE}_ECG.txt")
+    assert si.negotiated_rate(str(tmp_path), H10["name"], "H10", p) == (1.0, "the stream's own # pmd line")
+    (tmp_path / f"{BASE}_ECGSEAMS.txt").unlink()
+    (tmp_path / "PMDNEG.csv").write_text(
+        "Phone timestamp;device;address;stream;requested_hz;offered_hz;chosen_hz;ack;how\n"
+        "t;Polar H10 02849638;a;ecg;;;1;ok;negotiated\n"
+    )
+    assert si.negotiated_rate(str(tmp_path), H10["name"], "H10", p) == (1.0, "PMDNEG.csv")
+
+
+def test_a_PMDNEG_row_of_EXACTLY_eight_cells_is_read(tmp_path):
+    """`len(p) >= 8`, and the boundary is the row the box actually writes when `how` is empty — a `> 8` or
+    `>= 9` cut drops it and the rate silently becomes unavailable."""
+    _ecg(tmp_path)
+    p = str(tmp_path / f"{BASE}_ECG.txt")
+    (tmp_path / "PMDNEG.csv").write_text(
+        "Phone timestamp;device;address;stream;requested_hz;offered_hz;chosen_hz;ack\n"
+        "t;Polar H10 02849638;a;ecg;;;130;ok\n"
+    )
+    assert si.negotiated_rate(str(tmp_path), H10["name"], "H10", p) == (130.0, "PMDNEG.csv")
+
+
+def test_the_PMDNEG_reader_declares_its_encoding_AND_degrades_on_a_bad_byte(tmp_path):
+    """The same two claims as the sidecar readers above, for the one reader E17's diff pulled into scope.
+
+    `errors="replace"` is testable in process: a PMDNEG row carrying a byte that is not valid UTF-8 must
+    still yield the stream's rate, because a `UnicodeDecodeError` here would take the whole night's
+    verdict down over one mangled device name. `encoding="utf-8"` is not — it is a claim about the BOX,
+    and on a UTF-8 machine `encoding=None` behaves identically — so it is asserted on the CALL with
+    `-X warn_default_encoding`, exactly as the seam readers are. The in-process call first is NOT
+    redundant: mutmut picks a mutant's tests from COVERAGE, and a subprocess is invisible to the tracer.
+    """
+    import subprocess
+    import sys
+
+    _ecg(tmp_path)
+    p = str(tmp_path / f"{BASE}_ECG.txt")
+    (tmp_path / "PMDNEG.csv").write_bytes(
+        b"Phone timestamp;device;address;stream;requested_hz;offered_hz;chosen_hz;ack;how\n"
+        b"t;Polar \xff\xfe H10;a;ecg;;;99;ok;negotiated\n"
+        b"t;Polar H10 02849638;a;ecg;;;130;ok;negotiated\n"
+    )
+    assert si.negotiated_rate(str(tmp_path), H10["name"], "H10", p) == (130.0, "PMDNEG.csv")
+    src = (
+        "import solid_night_inputs as si\n"
+        f"r = si.negotiated_rate({str(tmp_path)!r}, {H10['name']!r}, 'H10', {p!r})\n"
+        "assert r == (130.0, 'PMDNEG.csv'), r\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=str(si.__file__).rsplit("/", 1)[0],
+    )
+    assert r.returncode == 0, r.stderr

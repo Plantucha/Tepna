@@ -102,6 +102,17 @@ __all__ = [
     "scan_is_reliable",
     "resolve_interpreter",
     "zero_population_verdict",
+    "parse_exclusions",
+    "declared_exclusion_status",
+    "unmeasured_rows",
+    "merge_unmeasured",
+    "UNMEASURED_SCHEMA",
+    "exclusion_key_of",
+    "refused_key",
+    "EXCLUSIONS_FILE",
+    "EXCLUSIONS_SCHEMA",
+    "EXCLUSION_BOUND",
+    "COST_PROVENANCE",
     "result_inconsistency",
     "clean_run_failures",
     "STRING_ONLY",
@@ -1653,6 +1664,258 @@ def unmeasured_zero(scan: dict) -> str | None:
     return None
 
 
+# ── THE DECLARED EXCLUSION (owner ruling 2026-10-03) ─────────────────────────────────────────────────
+# A function the gate cannot mutate inside its budget is UNMEASURED, and `budget_exhaustion_verdict`
+# says so with UNKNOWN. That is correct and it is unactionable: every PR touching `capture.py` gets the
+# same UNKNOWN forever, because the cost is not the diff's, it is mutmut's — `mutmut run <glob>` applies
+# the glob when it RUNS mutants, never when it GENERATES them, so a one-function diff still generates
+# the module's whole population (capture.py: 562,427,047 bytes of mutants, and a traced stats pass that
+# alone outran the 7200 s budget at >= 7556 s).
+#
+# The exclusion makes that cost DECLARED instead of rediscovered. It is deliberately NOT an escape
+# hatch, and three properties keep it from becoming one:
+#
+#   1. The list is BOUNDED and explicit. Keys are exact `module::function` strings — no globs, no
+#      prefixes, no regexes — and `EXCLUSION_BOUND` caps how many may exist at once. A pattern would
+#      silently widen as code moves; an exact key cannot.
+#   2. It can only ever turn UNKNOWN into NOT_APPLICABLE. It can NEVER clear a survivor, and it can
+#      never produce PASS. See `declared_exclusion_status`, which refuses to act while anything is
+#      blocking — that is the whole safety argument and it is asserted in both directions.
+#   3. Every entry carries a REASON, a DATE and a COST WITH ITS PROVENANCE. A number typed by hand is
+#      indistinguishable from a measured one (the same rule `tools/mutation-sizes.json` states about
+#      itself), so `parse_exclusions` refuses an entry whose cost does not say where it came from.
+#
+# WHAT RETIRES THIS: `briefs/MUTATION-SCOPED-GENERATION-2026-09-28-BRIEF.md`. Scoping GENERATION to the
+# diff removes the cost that the exclusion exists to declare, and then every key here becomes
+# measurable and the file goes to empty. The exclusion is a ledger of debt, dated, not a design.
+EXCLUSIONS_FILE = "mutate-exclusions.json"
+EXCLUSIONS_SCHEMA = "tepna.mutation-exclusions/1"
+
+# The bound is a number somebody has to raise ON PURPOSE, in a commit, with the reason in it. It is not
+# a target and not headroom to spend: it EQUALS what is declared today, so the next function to be
+# excluded costs a bound raise in the same commit as its measurement. The growth gate in
+# `tests/test_mutation_exclusions.py` asserts both halves — the bound, and that the file's census
+# matches it exactly.
+#
+# ⚠️ WHY `timeline`'s FOUR REFUSED FUNCTIONS ARE NOT IN THE LIST, although residue row
+# `2026-09-28-five-timeline-functions-were-never-mutated-and-the-ledger-cannot-hold-that` is what
+# prompted this work. That run (36399889018) had **17 functions in one scope** and the budget was eaten
+# before four of them were attempted. That is a measurement about the SCOPE, not about the functions:
+# #3254 later mutated `timeline._placed` ALONE and decided all 51 of its mutants in 1392 s, well inside
+# the 7200 s budget. Declaring them unmeasurable would therefore record a fact nobody measured. They are
+# instead ingested as `undeclared` rows in the unmeasured ledger (`unmeasured_rows`), which is what that
+# residue row actually asked for — a trace where the survivor ledger can hold none.
+#
+# `capture.py` is different in KIND, and that is why it is the only module here: its cost is not the
+# diff's and not the function's. mutmut generates the whole module's population whatever the glob, so
+# ANY one-function capture.py diff pays 562,427,047 bytes of generated mutants and a traced stats pass
+# of >= 7556 s against a clean run of <= 1337 s. No scope narrowing reaches it.
+EXCLUSION_BOUND = 2
+
+# A cost is only a cost if you can get back to how it was obtained. `run` is a CI run/job, `local` a
+# named local measurement with its host, `sizes` a row of tools/mutation-sizes.json.
+COST_PROVENANCE = frozenset({"run", "local", "sizes"})
+
+
+def parse_exclusions(text: str) -> dict[str, dict]:
+    """The declared exclusion list, or RAISE. Pure — takes the file's text, touches no filesystem.
+
+    Refuses rather than tolerating, because every tolerated shape here is a silent widening of what the
+    gate may call NOT_APPLICABLE:
+      * a wrong or absent `schema` — this is not the file we think it is;
+      * a key that is not exactly `module::function` — a glob or a bare module name would exclude a
+        population nobody declared;
+      * more entries than `EXCLUSION_BOUND` — the bound is the "bounded" in "declared bounded list";
+      * a missing `reason` / `declaredAt`, or a `cost` whose `provenance` is not in `COST_PROVENANCE` —
+        an undated, unexplained or unsourced exclusion is indistinguishable from an excuse.
+    """
+    doc = json.loads(text)
+    if not isinstance(doc, dict) or doc.get("schema") != EXCLUSIONS_SCHEMA:
+        raise ValueError(f"not a {EXCLUSIONS_SCHEMA} document: schema={doc.get('schema') if isinstance(doc, dict) else type(doc).__name__!r}")
+    raw = doc.get("exclusions")
+    if not isinstance(raw, dict):
+        raise ValueError("`exclusions` must be an object of key -> entry")
+    if len(raw) > EXCLUSION_BOUND:
+        raise ValueError(
+            f"{len(raw)} declared exclusion(s) exceeds EXCLUSION_BOUND={EXCLUSION_BOUND} — raise the "
+            "bound in a commit that says why, or remove an entry"
+        )
+    out: dict[str, dict] = {}
+    for key, e in raw.items():
+        if not isinstance(e, dict):
+            raise ValueError(f"{key}: entry must be an object")
+        if any(ch in key for ch in "*?[") or key.count("::") != 1:
+            raise ValueError(f"{key!r} is not an exact `module::function` key (no globs, exactly one `::`)")
+        mod, func = key.split("::")
+        if not mod.endswith(".py") or not func:
+            raise ValueError(f"{key!r} must name a `.py` module and a function")
+        for field in ("reason", "declaredAt"):
+            if not e.get(field):
+                raise ValueError(f"{key}: missing `{field}` — an exclusion with no {field} is an excuse")
+        cost = e.get("cost")
+        if not isinstance(cost, dict) or cost.get("provenance") not in COST_PROVENANCE:
+            raise ValueError(
+                f"{key}: `cost.provenance` must be one of {sorted(COST_PROVENANCE)} — a hand-typed "
+                "number is indistinguishable from a measured one"
+            )
+        if not cost.get("source"):
+            raise ValueError(f"{key}: `cost.source` must name the run, host or sizes row the number came from")
+        out[key] = e
+    return out
+
+
+def refused_key(entry: str) -> str:
+    """The `module.function` identity inside one `_refused_*` line, or "" when the line has no prefix.
+
+    PURE. The refusal lines are human sentences — `"timeline.build: the 7200s gate budget was exhausted
+    before this function could be mutated"` — and the identity is the part before the first `": "`.
+    Returns "" rather than guessing when there is no separator: an unparsed refusal must never be
+    matched against a declared exclusion, because a false match is exactly the escape hatch this design
+    refuses to build.
+    """
+    head, sep, _rest = entry.partition(": ")
+    if not sep or not head.strip():
+        return ""
+    return head.strip()
+
+
+def exclusion_key_of(refused_entry: str) -> str:
+    """`module.function` or a mutmut glob (refusal prose) -> `module.py::function`, or `""`.
+
+    The two vocabularies differ and that is not cosmetic: a refusal line names either a SOURCE function
+    (`timeline._stamp_ms: the 7200s gate budget was exhausted…`) or a GLOB
+    (`timeline.x__placed__mutmut_*: hit the gate budget after 2504s`), while the declaration names a
+    source identity (`timeline.py::_placed`). Both shapes appear in one `_refused_budget` list.
+
+    The glob case DELEGATES to `source_function_of_glob` rather than re-deriving the mangling — mutmut
+    encodes `_placed` as `x_` + `_placed` = `x__placed`, so a naive `removeprefix("x__")` yields
+    `placed` and silently names a DIFFERENT function. One decoder, already tested, reused here.
+
+    FAILS CLOSED, returning `""`, on anything it cannot read exactly: no `": "` separator, no module
+    part, or a METHOD glob (`xǁClassǁname`), whose decoded bare name could match a module-level
+    function of the same name. A false match is precisely the escape hatch this design refuses to
+    build, so an unreadable refusal is never matched against a declaration.
+    """
+    head = refused_key(refused_entry)
+    if not head:
+        return ""
+    head = head.partition(":")[0].strip()
+    mod, dot, rest = head.partition(".")
+    if not dot:
+        return ""
+    if "ǁ" in rest:
+        return ""
+    func = source_function_of_glob(head) if "__mutmut" in rest else rest
+    if not mod or not func or "." in func:
+        return ""
+    return f"{mod}.py::{func}"
+
+
+def declared_exclusion_status(
+    status: str,
+    *,
+    refused: list[str],
+    declared: dict[str, dict],
+    blocking: int,
+) -> tuple[str, str] | None:
+    """Whether a DECLARED exclusion may restate this run's UNKNOWN as NOT_APPLICABLE. Pure.
+
+    Returns `(status, reason)` to substitute, or None to leave the verdict exactly as it was.
+
+    🔴 THE SAFETY ARGUMENT, and it is the only reason this function is allowed to exist:
+
+      * It acts ONLY on `UNKNOWN`. A `FAIL` is returned untouched, so a declared exclusion can never
+        clear a survivor — and it never yields `PASS`, so no green is ever produced by declaring
+        something. The strongest thing an exclusion can say is "the rule does not bind here", which is
+        what `NOT_APPLICABLE` means in the contract (§🧾: examined, and the rule does not bind).
+      * It acts only when EVERY refused function is declared. One undeclared refusal and the run stays
+        UNKNOWN, because the undeclared one is genuinely unknown and a partial declaration must not
+        speak for it.
+      * `blocking > 0` short-circuits before anything else. Survivors outrank a declaration, always.
+
+    A caller that wants "did the exclusion apply?" reads the returned reason; there is no second status
+    printer and no new verdict object (§🧾 PARTIAL-ADOPTION-DETECTION reds a tool that prints its own).
+    """
+    if blocking > 0 or status != "UNKNOWN" or not refused:
+        return None
+    keys = [exclusion_key_of(r) for r in refused]
+    if not all(keys):
+        return None
+    undeclared = sorted({k for k in keys if k not in declared})
+    if undeclared:
+        return None
+    named = sorted(set(keys))
+    return "NOT_APPLICABLE", (
+        f"{len(named)} refused function(s) are DECLARED unmeasurable inside the gate budget "
+        f"({', '.join(named)}); the criterion does not bind on a population mutmut cannot generate "
+        f"scoped — see tools/{EXCLUSIONS_FILE} for each reason, date and measured cost, and "
+        "briefs/MUTATION-SCOPED-GENERATION-2026-09-28-BRIEF.md for what retires the exclusion. "
+        "No survivor was excused: this run had none blocking."
+    )
+
+
+def unmeasured_rows(refused: list[str], declared: dict[str, dict], at: str) -> list[dict]:
+    """The `unmeasured` ledger rows one refusal list ingests. Pure, and it is the point of the row
+    `2026-09-28-five-timeline-functions-were-never-mutated-and-the-ledger-cannot-hold-that`:
+
+    the survivor ledger records SURVIVORS, so a function that was never mutated leaves NO entry at all
+    and the next reader sees the measured functions with no trace of the unmeasured ones. These rows are
+    that trace. `state` is `declared` when the key is in the exclusion list and `undeclared` when it is
+    not — the second is the one worth looking at, and collapsing them would hide it.
+    """
+    rows = []
+    for r in refused:
+        key = exclusion_key_of(r)
+        if not key:
+            continue
+        rows.append(
+            {
+                "key": key,
+                "state": "declared" if key in declared else "undeclared",
+                # `r.partition(": ")[2]` and not a conditional: a non-empty `key` already PROVES
+                # `": "` is in `r`, because `exclusion_key_of` goes through `refused_key`, which
+                # returns "" without that separator. The `if ": " in r else r` that stood here was
+                # dead code — found by a surviving mutant that flipped the condition to `or True`
+                # and changed nothing, which is what an unreachable branch looks like from the gate.
+                "why": r.partition(": ")[2],
+                "observedAt": at,
+            }
+        )
+    return rows
+
+
+UNMEASURED_SCHEMA = "tepna.mutation-unmeasured/1"
+
+
+def merge_unmeasured(doc: dict, rows: list[dict]) -> dict:
+    """Ingest refusal rows into the unmeasured ledger. Pure — returns a new document.
+
+    APPEND-OR-UPDATE, never drop. A key already present keeps its FIRST `observedAt` (the question was
+    first unasked then, and back-dating it would erase how long this has stood) and takes the newest
+    `state` and `why`, because a row that moves from `undeclared` to `declared` is the thing a reader
+    most wants to see change. Rows are sorted by key so the file's diff is reviewable.
+
+    A row whose key is empty is dropped: `exclusion_key_of` returns `""` for a refusal it could not
+    read exactly, and a ledger entry keyed on nothing is worse than no entry.
+    """
+    out = dict(doc)
+    out.setdefault("schema", UNMEASURED_SCHEMA)
+    existing = {r["key"]: dict(r) for r in doc.get("rows", []) if r.get("key")}
+    for r in rows:
+        key = r.get("key")
+        if not key:
+            continue
+        if key in existing:
+            first = existing[key].get("observedAt")
+            existing[key].update({k: v for k, v in r.items() if v})
+            if first:
+                existing[key]["observedAt"] = first
+        else:
+            existing[key] = dict(r)
+    out["rows"] = [existing[k] for k in sorted(existing)]
+    return out
+
+
 def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -> str | None:
     """Why this verdict's own numbers cannot all be true — or None when they can.
 
@@ -2144,24 +2407,63 @@ def root_reads(tree) -> list[str]:
     return sorted(found)
 
 
+def tree_shadowed(tree, names) -> list[str]:
+    """The staged names the TREE ITSELF already provides at the same relative path.
+
+    🔴 FOR THESE, STAGING INTO THE COPY IS A SUBSTITUTION, NOT A SPARE COPY — and that is the one case
+    `root_reads`' deliberate over-flagging is not cheap. Its docstring prices a stray mention at "one
+    spurious copy of a small file", which holds while the staged name exists only in the repo root. It
+    does not hold for a name that ALSO exists inside the tree: `copytree` has already put the tree's
+    own file at `work/<name>`, and staging writes the ROOT file over it.
+
+    Measured 2026-10-03 (#3245): there are two `tools/mutate-equivalence.json` — the JS ledger in the
+    repo root (9 modules, 463 entries) and capture-host's own (33 modules, 642) — and six capture-host
+    test files name the bare path in a literal or a DOCSTRING, so every scratch ran with the wrong
+    ledger at `work/tools/mutate-equivalence.json`. It was invisible for as long as nothing inside the
+    scratch read that file's CONTENTS; `test_equivalence_ledger.py`'s per-module count ratchet does, so
+    it saw a ledger with no `solid_night_inputs.py` key at all, failed in the CLEAN-TEST pass, and
+    `mutate_diff` refused the whole run with NOT_RUN — correctly, but about the staging and not about
+    the diff. The pin in `test_mutation_scratch_reuse.py` records the belief this corrects: those
+    entries were called "mentions, not reads: that test opens `tools/mutate-equivalence.json` (already
+    staged)". It opens the CAPTURE-HOST one. Two files, one name.
+
+    THE TREE'S OWN FILE WINS INSIDE THE TREE, because that is what the suite does OUTSIDE the gate: a
+    test reads the ledger beside itself, and a scratch that answers differently is not a copy of the
+    checkout. The `work/..` copy still happens — a genuine `tests/../..` read of a same-named ROOT file
+    resolves there, so refusing both would trade this defect for #2864's.
+
+    Same shape as `_subdir_index`'s ambiguous-basename rule one level earlier ("staging the wrong
+    README.md is worse than staging none") and as the stats cache in #3251: two different things
+    sharing one name, which is the error this suite keeps paying for."""
+    from pathlib import Path
+
+    tree = Path(tree)
+    return sorted({name for name in names if (tree / name).is_file()})
+
+
 def stage_root_reads(tree, work, names) -> int:
     """Copy each root file in `names` to BOTH places a `tests/../..`-shaped read resolves from: `work/`
     (the mutants run executes `work/mutants/tests/`, whose grandparent's parent is `work/`) and
     `work/..` (the clean baseline executes `work/tests/`). Returns copies made. A name that is not a
     regular file in the root is skipped, never fabricated — the read will then fail exactly as it
-    would in the tree, which is the honest outcome."""
+    would in the tree, which is the honest outcome.
+
+    A name `tree_shadowed` names is staged to `work/..` ONLY: see that function for why the tree's own
+    file must survive inside the tree."""
     import shutil
     from pathlib import Path
 
     tree = Path(tree)
     work = Path(work)
     root = tree.resolve().parent
+    shadowed = set(tree_shadowed(tree, names))
     n = 0
     for name in names:
         src = root / name
         if not src.is_file():
             continue
-        for dest in (work, work.parent):
+        dests = (work.parent,) if name in shadowed else (work, work.parent)
+        for dest in dests:
             # `name` may now be a repo-relative PATH (`uploads/x.txt`), so the SUBDIRECTORY has to
             # exist at the destination or the copy fails — a read staged into a missing parent is as
             # absent as no copy at all, and it would fail the same way (#2864).
