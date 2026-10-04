@@ -5154,6 +5154,14 @@
       "op": "a different multiplier in the sample fixture's per-row device OFFSET",
       "probe": "The fixture's four stated properties were measured on the bytes under this mutant and all four hold: `test_the_SAMPLE_FIXTURE_carries_the_four_properties_it_needs` passes, and so does `test_the_SAMPLE_is_a_night_that_passes_EVERY_band`. Nine of ten hand-applied mutations of this same layout DO die on those two tests (the offset's sign, a zero modulus, a per-row instead of per-frame offset, a negative jitter, a shifted frame boundary, a changed row count, a changed sample period); this one and only this one survives them.",
       "why": "THE MULTIPLIER IS A FREE PARAMETER AND THE PROPERTY IS WHAT IS REQUIRED. The offset exists so the device column is not a DRAWN counter (`clock.js CK_AXIS_DRAWN_SHARE`): what the fixture owes is that no modal delta reaches `TB_DRAWN_SHARE`, that the counter stays monotone, that it starts at 0 and that it ends within one offset of the nominal span. 7919 and 7920 are both coprime-enough to 211 to spread the deltas across the same range, and `(0 * k) % 211` is 0 for either, so every one of those four holds identically. Pinning the multiplier would be pinning an arbitrary choice as if it were a requirement. FALSIFY THIS by finding a multiplier the fixture's properties hold for and the band still reads as drawn — then the properties are the thing that is incomplete, and the fix is another property, not a test of this literal."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 §2 (the pending verdict, #3241) — drained 2026-10-04",
+      "class": "untestable-by-design",
+      "key": "- settled=False, | + settled=None,",
+      "op": "the `settled` flag's FALSE replaced by NONE at the compose call",
+      "probe": "No probe: the receiver tests the argument for FALSINESS, so the two values take the same branch for every input. Confirmed by running the full `tests/test_solid_night.py` against the mutant — 47 passed, byte-identical verdict object, including the `not settled` reason and the run's `pending` night that `monitor.html` reads.",
+      "why": "`compose` branches on `if not settled:` and returns the UNKNOWN `not settled` verdict there, so `False` and `None` are the SAME INPUT to the only code that reads it. The parameter is annotated `settled: bool`, which says what a caller should pass; it does not make the two distinguishable at runtime, and `pending_verdict`'s whole contract is that this call is never settled. Writing `settled=False` rather than a falsy stand-in is a statement to the READER, and that is the right reason to keep it. FALSIFY THIS by making `compose` distinguish an UNSTATED settle from a stated False — an `is False` test, or a three-valued settle where None means 'not known yet' — at which point the difference becomes real and this entry is wrong."
     }
   ],
   "blind_spots.py": [

@@ -58,6 +58,10 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # value comes from it, so the two are the SAME predicate for every span the function can receive —
 # the mutant asks the same question, not a different one. (My own earlier note said 23 -> 24; #3245
 # landed first and took the count to 34, so this is the rebase that re-bases the claim on it.)
+# solid_night.py 1 -> 2 on 2026-10-04 (#3241): `settled=False` -> `settled=None` at the compose call,
+# where the receiver tests the argument for FALSINESS — the same input to the only code that reads it.
+# #3245 landed first with this module's other entry (the sample fixture's device offset), so this is
+# the rebase that raises the count, exactly as that PR's note predicted.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
@@ -89,7 +93,7 @@ RATCHET = {
     "probe_oxyii_0x03.py": 1,
     "probe_ring_adv.py": 4,
     "pulsedex-dsp.js": 43,
-    "solid_night.py": 1,
+    "solid_night.py": 2,
     "solid_night_inputs.py": 35,
     "telemetry.py": 1,
     "timeline.py": 1,

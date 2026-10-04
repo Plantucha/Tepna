@@ -452,7 +452,12 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # rewriting it would falsify the record of what the 7556 s and 562 MB were paid on. The live count
     # is what `count_functions` recomputes and the gate prints per run; this pin is the deliberate-update
     # tripwire on it, which is exactly what caught these two.
-    assert n == 293, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 293 → 294 on 2026-10-04 (#3241): E9 adds `_solid_pending`, on top of main's 293. The pin rises
+    # on each rebase because the module keeps growing under it; the declaration's
+    # `moduleFunctionsAtDeclaration` does NOT, for the reason the note above gives — it records the
+    # count the measured COST was paid on, and rewriting it would falsify that record. I had edited
+    # it before reading that note; reverted.
+    assert n == 294, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
