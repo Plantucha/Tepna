@@ -2621,7 +2621,9 @@ def test_a_step_the_CLOCKSYNC_SIDECAR_recorded_reaches_the_BAND_and_excuses_it(t
         "Phone timestamp;device;address;event;skew_sec;detail\n"
         f"{at.isoformat(timespec='milliseconds')};{H10['name']};a;resynced;0.5;watchdog\n"
     )
-    tb = si.timebase(str(night), H10["name"], [str(night / f"{BASE}_ECG.txt")], T0, T0 + dt.timedelta(minutes=10))
+    tb = si.timebase(
+        str(night), H10["name"], "ECG", [str(night / f"{BASE}_ECG.txt")], T0, T0 + dt.timedelta(minutes=10)
+    )
     assert "unrecorded-shift-candidate" not in tb["reason"], tb["reason"]
     assert tb["status"] == "PASS", tb
 
@@ -2651,7 +2653,7 @@ def test_a_CLOCK_SET_RECORDED_AFTER_THE_STRAP_CAME_OFF_does_not_excuse_a_step(tm
             "Phone timestamp;device;address;event;skew_sec;detail\n"
             f"{sync_at.isoformat(timespec='milliseconds')};{H10['name']};a;resynced;0.5;watchdog\n"
         )
-        return si.timebase(str(night), H10["name"], p, T0, end)
+        return si.timebase(str(night), H10["name"], "ECG", p, T0, end)
 
     after = band(end + dt.timedelta(seconds=10))
     assert "unrecorded-shift-candidate" in after["reason"], after["reason"]
@@ -2674,7 +2676,9 @@ def test_the_SPAN_in_the_timebase_reason_is_MINUTES(tmp_path):
     (tmp_path / "LOSS-AUDIT.json").write_text(
         json.dumps({"journal": "read", "devices": {H10["name"]: {"file": f"{BASE}_ECG.txt", "gaps": []}}})
     )
-    tb = si.timebase(str(tmp_path), H10["name"], [str(tmp_path / f"{BASE}_ECG.txt")], T0, T0 + dt.timedelta(minutes=61))
+    tb = si.timebase(
+        str(tmp_path), H10["name"], "ECG", [str(tmp_path / f"{BASE}_ECG.txt")], T0, T0 + dt.timedelta(minutes=61)
+    )
     assert tb["status"] == "UNKNOWN", tb
     assert "over 61 min" in tb["reason"], tb["reason"]
     assert "the A5 record set could not be read" in tb["reason"]
@@ -2957,3 +2961,113 @@ def test_an_AUDIT_WITH_NO_ENTRY_for_the_device_leaves_both_bands_UNKNOWN(tmp_pat
         assert bands[term]["reason"] == f"no worn interval: {si.LOSS_AUDIT_NAME} has no entry for this device", (
             f"{term}: {bands[term]['reason']}"
         )
+
+
+# ── E18 · the CLOCK stream is a separate spec field from the completeness PRIMARY ───────────────────
+
+
+def test_the_RING_s_TIMEBASE_is_NOT_APPLICABLE_because_it_STAMPS_NO_WAVEFORM(tmp_path):
+    """🔴 THE 2026-10-04 NIGHT. First night with LOSS, H10 and Verity all PASS, and the ring alone
+    UNKNOWN — "`…_SPO2.csv` carries no `sensor timestamp [ns]` column — no device clock". True of that
+    file and not a finding about the night: the timebase band was reading the COMPLETENESS PRIMARY, and
+    for the ring that is a polled vitals CSV whose stamps the host draws.
+
+    The ring's answer is NOT_APPLICABLE and the reason is about the EXPORTED AXIS, never the hardware.
+    The ring HAS a crystal and we discipline it (`oxyii.SET_UTC_TIME`); `O2RING-PROTOCOL-2026-07-17`
+    §153 says that RTC "must never stamp the waveform", and every optical stream's `sensor timestamp
+    [ns]` is the HOST's — `accraw`/`ppg2w`/`pletha` write a literal 0, and `_PPG.txt`'s column is
+    `O2PpgGrid`, "the host lays its samples on a grid and writes that grid". Judging that grid as a
+    device axis could PASS it, which is worse than refusing."""
+    _spo2(tmp_path, rows=200)
+    _audit(tmp_path, file=f"{RING_BASE}_SPO2.csv")
+    tb = _bands(tmp_path, devices=(RING,))[RING["name"]]["bands"]["timebase"]
+    assert tb["status"] == "NOT_APPLICABLE", tb
+    assert tb["reason"] == si.NO_DEVICE_AXIS, tb["reason"]
+    assert "no device clock" not in tb["reason"], "the old wording was about the FILE, not the device"
+
+
+def test_a_RING_PPG_FILE_does_not_change_the_bands_answer(tmp_path):
+    """The control for the premise this unit started from. A `_PPG.txt` sitting beside the ring's SPO2 —
+    with the host's grid in its `sensor timestamp [ns]` column, exactly as the box writes it — must NOT
+    make the band start measuring: the ring's spec names no clock stream, so the file's presence is
+    irrelevant and the answer is the same NOT_APPLICABLE."""
+    _spo2(tmp_path, rows=200)
+    (tmp_path / f"{RING_BASE}_PPG.txt").write_text(
+        "# timebase=host\nPhone timestamp;sensor timestamp [ns];channel 0\n"
+        + "\n".join(f"2026-09-20T23:00:{i:02d}.000;{i * 7953045};{500 + i}" for i in range(40))
+        + "\n"
+    )
+    _audit(tmp_path, file=f"{RING_BASE}_SPO2.csv")
+    tb = _bands(tmp_path, devices=(RING,))[RING["name"]]["bands"]["timebase"]
+    assert tb["status"] == "NOT_APPLICABLE", tb
+    assert tb["reason"] == si.NO_DEVICE_AXIS
+
+
+def test_the_RING_s_COMPLETENESS_still_reads_the_SPO2_PRIMARY(tmp_path):
+    """The other half of the separation: moving the timebase band off the primary must not move the
+    completeness band onto something else. `primary` is still SPO2 and the polled-stream rule still
+    applies to it (#3243), so the band does not bind and says why."""
+    _spo2(tmp_path, rows=200)
+    _audit(tmp_path, file=f"{RING_BASE}_SPO2.csv")
+    # `completeness` called directly, as the other ring tests do: `_audit` keys its one device entry by
+    # the H10's name, so routing the ring through `_bands` gives it no worn interval and the band answers
+    # about THAT instead — a fixture artefact, not the property under test.
+    comp = si.completeness(
+        str(tmp_path),
+        RING["name"],
+        "O2Ring-S",
+        [str(tmp_path / f"{RING_BASE}_SPO2.csv")],
+        T0,
+        T0 + dt.timedelta(seconds=200),
+    )
+    assert comp["status"] == "NOT_APPLICABLE", comp
+    assert "polled stream" in comp["reason"], comp["reason"]
+    assert si.MODELS["O2Ring-S"]["primary"] == "SPO2", "and the band read the primary, which is unchanged"
+
+
+def test_a_DECLARED_CLOCK_STREAM_THAT_IS_MISSING_this_night_is_UNKNOWN_not_inapplicable(tmp_path):
+    """§∅, and the distinction the two answers carry. A model whose spec names NO clock stream is
+    NOT_APPLICABLE — examined, and the rule does not bind. A model whose spec DOES name one, on a night
+    that holds no such file, is UNKNOWN — the rule binds and the input is absent. Collapsing the two
+    would publish "not applicable" about a strap whose clock we simply failed to record."""
+    tb = si.timebase(str(tmp_path), H10["name"], "ECG", [], T0, T0 + dt.timedelta(hours=1))
+    assert tb["status"] == "UNKNOWN", tb
+    assert tb["reason"] == "no `ECG` stream this night, so no device axis could be read", tb["reason"]
+
+
+def test_the_CLOCK_TAG_per_model_is_the_stream_that_reports_a_DEVICE_time(tmp_path):
+    """Stated once, here, rather than re-derived per band: the Polars report a per-sample device time on
+    the stream they are judged on, and the ring reports none on any stream."""
+    assert si.MODELS["H10"]["clock"] == "ECG"
+    assert si.MODELS["VeritySense"]["clock"] == "PPG"
+    assert si.MODELS["O2Ring-S"]["clock"] is None
+    # …and `clock` is not `primary`: the ring is the device where they differ, which is the whole unit.
+    assert si.MODELS["O2Ring-S"]["primary"] == "SPO2"
+    assert all(m["clock"] == m["primary"] for k, m in si.MODELS.items() if m["clock"] is not None)
+
+
+def test_the_POLAR_BANDS_are_UNCHANGED_by_the_clock_spec_split(tmp_path):
+    """🔴 THE CONTROL FOR THE WHOLE UNIT. Both Polars' `clock` EQUALS their `primary`, so the band must
+    open the same file and reach the same verdict — and the assertion is the WHOLE decision dict for
+    every band, not a status, because a reason that moved would mean the band changed instrument.
+
+    Pinned as literal text rather than compared against a second code path: a control that recomputes
+    the expected value with the code under test cannot fail (§🧾, a threshold derived from the data it
+    judges). These five strings were measured against `origin/main` before the change."""
+    _ecg(tmp_path)
+    _seams(tmp_path)
+    _runs(tmp_path, "ECG")
+    _runs(tmp_path, "ACC")
+    _audit(tmp_path)
+    bands = _bands(tmp_path)[H10["name"]]["bands"]
+    assert bands["continuity"] == {"status": "PASS", "reason": None}
+    assert bands["completeness"] == {"status": "PASS", "reason": None}
+    assert bands["validity"] == {"status": "PASS", "reason": None}
+    assert bands["clocks"] == {"status": "PASS", "reason": None}
+    assert bands["timebase"] == {
+        "status": "PASS",
+        "reason": (
+            f"`{BASE}_ECG.txt`: axis is an independent clock at +0 ppm over 3 min; "
+            "the A5 tripwire found no unrecorded shift (seam sidecar + journal clock events + CLOCKSYNC.csv)"
+        ),
+    }, bands["timebase"]

@@ -454,3 +454,26 @@ def test_the_SAMPLE_FIXTURE_DECLARES_THE_ENCODING_IT_WRITES(tmp_path):
         cwd=str(sn.__file__).rsplit("/", 1)[0],
     )
     assert r.returncode == 0, r.stderr
+
+
+def test_an_INAPPLICABLE_TIMEBASE_lets_an_otherwise_clean_RING_night_PASS():
+    """🔴 THE POINT OF E18, at the device level. With the timebase band reading the completeness primary,
+    the ring's four other bands could all PASS and the device still read UNKNOWN — because a polled
+    vitals CSV has no `sensor timestamp [ns]` column and the band said so about the FILE. Measured here
+    both ways: NOT_APPLICABLE lets the device decide on the bands that bind, UNKNOWN does not.
+
+    `device_outcome` already computes over APPLICABLE bands only and already refuses a reasonless
+    NOT_APPLICABLE, so this needs no new machinery — only the band to say the true thing."""
+    clean = {t: {"status": "PASS", "reason": None} for t in ("continuity", "completeness", "validity", "clocks")}
+    inapplicable = dict(clean, timebase={"status": "NOT_APPLICABLE", "reason": sn._inputs.NO_DEVICE_AXIS})
+    assert sn.device_outcome(inapplicable) == ("PASS", []), sn.device_outcome(inapplicable)
+    # and the shape it replaces: the same night, UNKNOWN, carrying a reason about a file rather than a device
+    unknown = dict(
+        clean,
+        timebase={
+            "status": "UNKNOWN",
+            "reason": "`Wellue_O2Ring-S_…_SPO2.csv` carries no `sensor timestamp [ns]` column — no device clock",
+        },
+    )
+    status, reasons = sn.device_outcome(unknown)
+    assert status == "UNKNOWN" and len(reasons) == 1, (status, reasons)
