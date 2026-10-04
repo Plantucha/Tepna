@@ -117,10 +117,11 @@ def test_sample_json_solid_night_passes_four_terms_and_names_the_one_it_waits_fo
     assert night_verdicts.main(["--sample-json", "solid-night"]) == 0
     o = json.loads(capsys.readouterr().out)
     verdict.validate(o)
-    assert js_validate(o)["ok"] and o["gate"] == "solid-night" and o["status"] == "UNKNOWN"
-    # PR-B replaced `TIMEBASE_PENDING` with a measured reason: the sample's axis is now a realistic
-    # (jittered) device column, so the term reports an independent clock at a plausible rate and names
-    # the one outstanding sub-term. The night is still UNKNOWN, which is what this test is really about.
-    assert o["reason"].startswith("Polar H10 SAMPLE — timebase: ")
-    assert "A5 step tripwire has not run" in o["reason"]
-    assert o["result"]["failing"] == 0 and o["result"]["unknown"] == 1
+    assert js_validate(o)["ok"] and o["gate"] == "solid-night" and o["status"] == "PASS"
+    # A5 IS BUILT, and this is what changed: the sample's axis is a realistic (jittered) device column
+    # with the record set present and empty, the tripwire finds no candidate, and the term PASSES. Until
+    # it ran this object was UNKNOWN by construction, which is precisely what made it a poor sample — the
+    # adoption gate's corpus-free night could not show a clean night reading clean.
+    assert o["reason"] is None
+    assert o["result"]["failing"] == 0 and o["result"]["unknown"] == 0
+    assert o["result"]["devices"]["Polar H10 SAMPLE"] == {"status": "PASS", "reasons": []}

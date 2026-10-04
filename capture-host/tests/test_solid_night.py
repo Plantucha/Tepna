@@ -4,9 +4,13 @@
 that are already made, the population equality, the settle trigger, and the consecutive count. Every
 verdict is checked by BOTH validators — Python's `verdict.validate` (inside `make`) and verdict.js."""
 
+import collections
+import datetime as dt
+
 import pytest
 
 import solid_night as sn
+import solid_night_inputs as si
 from tests.test_verdict import js_validate
 
 EV = ["capture-host/solid_night.py", "captures/2026-09-20"]
@@ -334,3 +338,119 @@ def test_a_BAD_BAND_STATUS_names_the_band_the_status_and_the_vocabulary(tmp_path
     assert str(e.value) == (
         "band 'completeness': status 'SKIPPED' is not one of ('PASS', 'FAIL', 'UNKNOWN', 'NOT_APPLICABLE')"
     ), str(e.value)
+
+
+def test_the_SAMPLE_is_a_night_that_passes_EVERY_band(tmp_path):
+    """`sample_object` is the adoption gate's corpus-free emission, and its whole claim is that it is a
+    CLEAN night: every band PASSES from real inputs, so the night does too.
+
+    THE FIXTURE'S DETAILS ARE LOAD-BEARING AND THIS IS WHERE THEY ARE HELD. Two of them in particular:
+    the device column carries a per-row offset so the axis is not a DRAWN counter (`clock.js`'s
+    `CK_AXIS_DRAWN_SHARE` — a column advancing by a constant is by construction not a clock, and the
+    timebase term would score the gate's own sample as "not a clock"); and the host jitter is positive
+    and skips the first and last batch so no row crosses a whole second, which would move the
+    completeness denominator. A verdict of `unknown: 1` or a non-empty `reasons` is how either failure
+    shows up here."""
+    v = sn.sample_object()
+    assert v["status"] == "PASS", v.get("reason")
+    assert v["result"]["failing"] == 0
+    assert v["result"]["unknown"] == 0, "a band that cannot decide makes the sample a different claim"
+    assert v["result"]["not_applicable"] == {}
+    assert v["result"]["night"] == "2026-01-01"
+    assert v["result"]["devices"] == {"Polar H10 SAMPLE": {"status": "PASS", "reasons": []}}
+    assert v["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
+
+
+def test_the_SAMPLE_FIXTURE_carries_the_four_properties_it_needs(tmp_path):
+    """Measured on the BYTES, because none of the four is visible in the verdict the fixture produces.
+
+    Every band of `sample_object()` still passes when any one of them is violated, so the verdict cannot
+    hold them — twenty-five mutations of this layout survived the mutation gate for exactly that reason.
+    Reading the file the fixture wrote is the only place the claims are checkable."""
+    night = tmp_path / sn.SAMPLE_NIGHT
+    night.mkdir()
+    assert sn.sample_night(str(night)) == [sn.SAMPLE_DEVICE]
+    lines = (night / f"{sn.SAMPLE_BASE}_ECG.txt").read_text().splitlines()
+    hdr, rows = lines[0], lines[1:]
+    assert hdr.split(";") == ["Phone timestamp", "sensor timestamp [ns]", "timestamp [ms]", "ecg [uV]"]
+    assert len(rows) == sn.SAMPLE_ROWS
+
+    # THE NOMINAL COMES FROM THE FILENAME, NEVER FROM ROW 0. Taking `t0` from the first row makes the
+    # first row correct by construction — the §🧾 shape of a threshold derived from the data it judges —
+    # and a fixture that jitters EVERY row, including the two ends, then reads as perfectly aligned. The
+    # 14-digit stamp in the base name is the declared start (Clock Contract §4, anchor rule 2), and it is
+    # independent of the rows it names.
+    t0 = dt.datetime.strptime(sn.SAMPLE_BASE.rsplit("_", 1)[1], "%Y%m%d%H%M%S")
+    nominal = [t0 + dt.timedelta(seconds=i / 2) for i in range(sn.SAMPLE_ROWS)]
+    hosts = [dt.datetime.fromisoformat(r.split(";")[0]) for r in rows]
+    devs = [int(r.split(";")[1]) for r in rows]
+
+    # 1 · 2 Hz over exactly 200 s, both ends ON the nominal — the span is a length, not a rounding.
+    assert hosts[0] == nominal[0] and hosts[-1] == nominal[-1]
+    assert (hosts[-1] - hosts[0]).total_seconds() == 200.0
+
+    # 2 · ONE host offset per BLE frame. A frame is one real host measurement back-timed across its rows
+    # (§🔒.7), and `residual_scan` takes one anchor per frame; a per-ROW offset would fabricate anchors
+    # out of an interpolation. The first and last frames carry no offset at all, which is what keeps (1).
+    offs = [round((h - n).total_seconds() * 1000.0) for h, n in zip(hosts, nominal)]
+    frames = [offs[i : i + sn.SAMPLE_BATCH] for i in range(0, sn.SAMPLE_ROWS, sn.SAMPLE_BATCH)]
+    assert all(len(set(f)) == 1 for f in frames), "every row of a frame shares its frame's host offset"
+    assert set(offs[: sn.SAMPLE_BATCH]) == {0}, "the first frame is on the nominal"
+    assert offs[-1] == 0, "and so is the last row, which is a frame of its own"
+    # 1–5 ms, which is a BLE frame's back-timing span and not an arbitrary number: the stamps carry
+    # whole milliseconds, so the set of offsets IS the full statement of the magnitude.
+    assert set(offs) == {0, 1, 2, 3, 4, 5}, sorted(set(offs))
+
+    # 3 · NON-NEGATIVE, so no row crosses a whole second backwards and the second it lands in is the
+    # second its nominal lands in.
+    assert min(offs) == 0 and max(offs) > 0
+    assert all(h.second == n.second for h, n in zip(hosts, nominal))
+
+    # 4 · NOT A DRAWN COUNTER, measured with THE BAND'S OWN INSTRUMENT rather than a second opinion: a
+    # device column advancing by a constant is by construction not a clock (`clock.js
+    # CK_AXIS_DRAWN_SHARE`), and the timebase band would score the adoption gate's own sample as "not a
+    # clock". `TB_DRAWN_SHARE` is 0.67 because real streams measured at most 56 % and drawn ones at least
+    # 79 %, with nothing in between — so the fixture is held to the REAL-STREAM side of that gap, not
+    # merely to the near side of the threshold.
+    share = si.residual_scan(str(night / f"{sn.SAMPLE_BASE}_ECG.txt"), None, None)["drawn_share"]
+    assert share is not None
+    assert share < si.TB_DRAWN_SHARE, f"the modal device delta is {share:.0%} of the anchors — reads as drawn"
+    assert share <= 0.56, f"{share:.0%} is outside the range real streams measured at"
+    assert devs == sorted(devs), "a device counter does not go backwards"
+    # The device clock runs at the NOMINAL rate end to end — 0.5 s per row in ns — so the last stamp is
+    # the span, not the span plus an accumulated error. A rate wrong by a part per billion is invisible
+    # in the rendered ppm and visible here.
+    nominal_last = int((sn.SAMPLE_ROWS - 1) / 2 * 1e9)
+    assert 0 <= devs[-1] - nominal_last < 211, f"{devs[-1] - nominal_last} ns off the nominal span"
+    assert devs[0] == 0, "and it starts at zero"
+    assert len(collections.Counter(b - a for a, b in zip(devs, devs[1:]))) > 1, "the deltas spread"
+
+
+def test_the_SAMPLE_FIXTURE_DECLARES_THE_ENCODING_IT_WRITES(tmp_path):
+    """`encoding="utf-8"` on the four files the fixture writes, asserted on the CALL. `-X
+    warn_default_encoding` with `-W error::EncodingWarning` makes every `open()` that leaves `encoding`
+    unset — or explicitly None — raise, so the assertion holds on a UTF-8 machine and a C-locale one
+    alike. A corpus-free sample that decodes differently per machine is not corpus-free.
+
+    The in-process call first is NOT redundant: mutmut picks which tests to run for a mutant from
+    COVERAGE, and a subprocess is invisible to the tracer."""
+    import subprocess
+    import sys
+
+    night = tmp_path / sn.SAMPLE_NIGHT
+    night.mkdir()
+    assert sn.sample_night(str(night)) == [sn.SAMPLE_DEVICE]
+    out = tmp_path / "again"
+    (out / sn.SAMPLE_NIGHT).mkdir(parents=True)
+    src = (
+        "import solid_night as sn\n"
+        f"got = sn.sample_night({str(out / sn.SAMPLE_NIGHT)!r})\n"
+        "assert got == [sn.SAMPLE_DEVICE], got\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=str(sn.__file__).rsplit("/", 1)[0],
+    )
+    assert r.returncode == 0, r.stderr
