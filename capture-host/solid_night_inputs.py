@@ -41,6 +41,7 @@ The terms, per device:
 
 from __future__ import annotations
 
+import bisect as _bisect
 import datetime as _dt
 import glob
 import json
@@ -97,6 +98,49 @@ TB_DRAWN_SHARE = 0.67  # CK_AXIS_DRAWN_SHARE — real streams max 56 %, drawn mi
 TB_MAX_PPM = 50000.0  # CK_AXIS_MAX_PPM — a refusal bound with 16x headroom over the worst real device
 TB_FLOOR_S = 1.0  # take an anchor at least this often even when the residual never moves
 TB_WIN = 21  # CK_AXIS_WIN — running-median width, odd so the median is a real sample
+
+# ── SOLID-NIGHT §A5 — the unrecorded-shift TRIPWIRE ─────────────────────────────────────────────────
+# EVERY NUMBER HERE IS PRE-STATED IN THE BRIEF, measured over n = 36 clean nights (08-01 → 08-27 and
+# 09-13 → 09-23, storm nights excluded as unadjudicable), and NONE is derived from a night being judged
+# (§🧾). There is no measured signal side — the clean corpus holds ZERO true unrecorded steps — which is
+# exactly why the fire is a TRIPWIRE (UNKNOWN, flagged for review) and never a FAIL: a detector that has
+# never been validated against the thing it would convict must not convict.
+A5_STEP_MS = 1000.0  # |persistence| ≥ 1 s, ~12x the quiet windowed-shift p99.9 of 81 ms (median per file)
+A5_BEFORE_S = (-90.0, -30.0)  # the level BEFORE a candidate, relative to it
+A5_AFTER_S = (60.0, 120.0)  # ... and AFTER. Persistence is after minus before — never the windowed peak:
+# 1,237 of 1,756 corpus events above 1 s (70 %) were delivery-latency TRANSIENTS that RETURN, and a peak
+# cannot tell them from a step. Do not re-tune this band to the peak.
+A5_REANCHOR_S = 60.0  # split the anchors at re-anchors wider than this (the capture's own seam bound)
+A5_BIN_S = 10.0  # delivery-rate bin. At 130 Hz a 10 s bin holds 17–18 batches, so healthy bins sit within
+# about ±3 % — the quantisation Guard 1's 10 % is roughly three times.
+A5_BIN_MS = int(A5_BIN_S * 1000)  # the same bin in ms, named ONCE. Every `A5_BIN_S * 1000.0` written inline
+# was a separate mutation site whose `*`→`/` twin made the bin 0.01 ms; here that twin is `int(10.0 / 1000)`
+# = 0, so the first `// A5_BIN_MS` raises ZeroDivisionError and the mutant DIES instead of timing out.
+A5_RATE_TOL = 0.10  # Guard 1 (judgement): a window whose row rate departs from nominal by more than this
+# is a LATENCY REGIME, not a step. A clock step holds the nominal rate while the level moves; a backlog
+# collapses it (09-19: 25–90 % of nominal throughout its ramp). This is the discriminator the residual lacks.
+A5_GAP_NEAR_S = 10.0  # Guard 2: an after-window containing, or ending within this of, a gap or the end of
+# the stream cannot establish persistence — the level "after" must be measured on data that exists.
+A5_GAP_FLOOR_S = 2.0  # the host gap width recorded during the residual pass, so Guard 2 has gaps to read
+A5_RECORD_NEAR_S = 300.0  # a recorded clock event within this of a candidate MAKES IT RECORDED. Pre-stated
+# rather than fitted: the 08-18 positive was logged at 04:09:08 for an instant at ~04:08, a lag of ~68 s,
+# and 300 s is over four times that while staying inside the persistence window's own neighbourhood.
+A5_DENSE_RECORDS = 2  # ... and this many records inside one candidate's persistence span is
+# `clock-sets too dense to attribute` — the 08-28 → 09-12 resync storm, one set every ~5.5 min, where
+# ±15–30 s flips minutes apart cannot be assigned to one another.
+
+# THE SECOND-TO-MS CONVERSIONS, NAMED ONCE, for the reason `A5_BIN_MS` above already gives: every
+# `A5_X_S * 1000.0` written inline inside the function was a separate mutation site, and twenty of the
+# tripwire's survivors were perturbations of that one multiplier (`* 1001.0`, `/ 1000.0`, `- …`) rather
+# than of anything the detector decides. A constant has ONE value and a test states it; the same
+# arithmetic written out eight times has eight chances to be wrong and no single place to pin it. The
+# windows stay in SECONDS above because that is how the brief states them and how they were measured.
+A5_BEFORE_MS = (A5_BEFORE_S[0] * 1000.0, A5_BEFORE_S[1] * 1000.0)
+A5_AFTER_MS = (A5_AFTER_S[0] * 1000.0, A5_AFTER_S[1] * 1000.0)
+A5_REANCHOR_MS = A5_REANCHOR_S * 1000.0
+A5_GAP_NEAR_MS = A5_GAP_NEAR_S * 1000.0
+A5_RECORD_NEAR_MS = A5_RECORD_NEAR_S * 1000.0
+A5_GAP_FLOOR_MS = A5_GAP_FLOOR_S * 1000.0
 _SENSOR_NS_COL = "sensor timestamp [ns]"
 
 _PMD_RATE = re.compile(r"^# pmd stream=\S+ negotiated=yes rate=(\d+(?:\.\d+)?)\b")
@@ -500,6 +544,15 @@ def residual_scan(path: str, start, end) -> dict:
         anchors: list[tuple[float, float]] = []
         prev_r: float | None = None
         last_at = _dt.datetime.min
+        # SOLID-NIGHT §A5's two guards, collected in THIS pass rather than a second one. Guard 1 needs the
+        # DELIVERY RATE in the persistence windows — "a clock step keeps delivery at the nominal rate while
+        # the level moves; a latency backlog collapses the row rate" — and Guard 2 needs the gaps. Neither
+        # is derivable from the anchors: an anchor is one per BATCH, so the anchor cadence says nothing
+        # about how many rows arrived. `row_bins` counts DELIVERED rows (host stamp + device stamp both
+        # parsed), which is exactly the population Guard 1 compares against the negotiated rate.
+        row_bins: dict[int, int] = {}
+        gaps: list[tuple[float, float]] = []
+        prev_host_ms: float | None = None
         for line in fh:
             parts = line.split(";")
             if len(parts) <= ns_at:
@@ -523,6 +576,12 @@ def residual_scan(path: str, start, end) -> dict:
             prev_ns = ns
             if start is not None and (host < start or host > end):
                 continue
+            host_ms = host.timestamp() * 1000.0
+            b = int(host_ms // A5_BIN_MS)
+            row_bins[b] = row_bins.get(b, 0) + 1
+            if prev_host_ms is not None and host_ms - prev_host_ms > A5_GAP_FLOOR_MS:
+                gaps.append((prev_host_ms, host_ms))
+            prev_host_ms = host_ms
             # ONE ANCHOR PER BATCH, derived rather than guessed. SOLID-NIGHT §A5: `Phone timestamp` is
             # synthesised per row as `batch arrival + k/fs` while the device advances by the SAME k/fs,
             # so the residual is CONSTANT inside a batch and moves only at a boundary. A change in the
@@ -540,12 +599,361 @@ def residual_scan(path: str, start, end) -> dict:
             if prev_r is None or r != prev_r or (host - last_at).total_seconds() >= TB_FLOOR_S:
                 anchors.append((host.timestamp() * 1000.0, ns / 1e6))
                 prev_r, last_at = r, host
-    return {"anchors": anchors, "drawn_share": (top / total) if total else None, "reason": None}
+    return {
+        "anchors": anchors,
+        "drawn_share": (top / total) if total else None,
+        "reason": None,
+        "row_bins": row_bins,
+        "gaps": gaps,
+        "last_row_ms": prev_host_ms,
+    }
 
 
-def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> dict:
+def clock_records(night_dir: str, device: str, primary: str, start, end) -> tuple[list[float] | None, str]:
+    """Every clock event the box RECORDED for this device in the worn interval, as host ms — or
+    `(None, why)` when a record source could not be read.
+
+    🔴 ALL THREE SOURCES, OR NONE. SOLID-NIGHT §A5 requires the seam sidecar, the journal's clock-event
+    lines and `CLOCKSYNC.csv` together, and the brief records what happens otherwise: matching the journal
+    alone missed half the recorded clock-sets, and matching `off host` alone missed the `device clock
+    JUMPED` line that recorded 2026-08-18 — so the first cut of the detector flagged a night the daemon
+    had logged. A missing source therefore returns None and stops the tripwire, rather than shrinking the
+    record set and letting it fire (§∅: absence is not "no record").
+
+    The journal is not readable from here and must not be: the verdict side has never shelled out, and
+    journald rotates, so the answer has to be persisted WITH the night. `loss_audit.audit_night` writes
+    `clock_events` into `LOSS-AUDIT.json` from the pass it already makes; `None` there means journalctl
+    was unavailable and is kept distinct from `[]`, which means read and nothing happened.
+
+    ⚠️ CLOCKSYNC IS READ FROM THE NEIGHBOURING DATE TOO. `writers.clocksync_row` keys a row by the EVENT's
+    wall date, so a cross-midnight session leaves its late rows in the NEXT date's folder — and a night
+    that ends at 04:00 would otherwise have every post-midnight sync invisible here. Missing the record is
+    the one failure mode this function exists to prevent, so the neighbour is read and its absence is not
+    an error (most nights have none).
+
+    `deferred-absent` is the one event word excluded, and deliberately: it means the device was not
+    reachable and NOTHING was written to its clock — 153 of 09-28's rows. Every other word in the
+    vocabulary, including the failures, is a record that the daemon was writing to that clock at that
+    moment, which is the brief's own rule ("a FAILED re-sync is still a record that a clock event
+    happened")."""
+    out: list[float] = [r["host_ms"] for r in recorded_seams(primary, start, end)]
+    audit = read_json(os.path.join(night_dir, LOSS_AUDIT_NAME))
+    if audit is None:
+        return None, f"`{LOSS_AUDIT_NAME}` absent or unreadable, so the journal's clock events cannot be read"
+    if "clock_events" not in audit:
+        return None, f"`{LOSS_AUDIT_NAME}` predates the clock-event record and carries none"
+    ev = audit.get("clock_events")
+    if ev is None:
+        return None, "journalctl was unavailable when the night was audited, so the record set is incomplete"
+    for e in ev:
+        t = _ni.parse_host_stamp(str(e.get("at") or ""))
+        if t is None or (start is not None and (t < start or t > end)):
+            continue
+        devs = e.get("devices") or []
+        if devs and device not in devs:
+            continue  # a line that names OTHER devices is not this device's record; one that names none is
+        out.append(t.timestamp() * 1000.0)
+    seen = _clocksync_rows(night_dir, device, start, end)
+    if seen is None:
+        return None, f"`{writers_CLOCKSYNC}` is present but unreadable, so the record set is incomplete"
+    out.extend(seen)
+    out.sort()
+    return out, "seam sidecar + journal clock events + CLOCKSYNC.csv"
+
+
+_A5_NON_RECORD_EVENTS = ("deferred-absent",)
+writers_CLOCKSYNC = "CLOCKSYNC.csv"
+
+
+def _clocksync_rows(night_dir: str, device: str, start, end) -> list[float] | None:
+    """This device's CLOCKSYNC rows in the interval, as host ms, over the night's folder AND the next
+    date's. `None` only when a file exists and cannot be read — an ABSENT file is no rows, not an error,
+    because most nights never write one."""
+    out: list[float] = []
+    base = os.path.dirname(night_dir.rstrip("/"))
+    night = os.path.basename(night_dir.rstrip("/"))
+    dirs = [night_dir]
+    try:
+        nxt = (_dt.date.fromisoformat(night) + _dt.timedelta(days=1)).isoformat()
+        dirs.append(os.path.join(base, nxt))
+    except ValueError:
+        pass  # a folder that is not a date has no neighbour to read; the night's own file still counts
+    for d in dirs:
+        path = os.path.join(d, writers_CLOCKSYNC)
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    cells = line.rstrip("\n").split(";")
+                    if len(cells) < 4 or cells[1] != device:
+                        continue
+                    if cells[3] in _A5_NON_RECORD_EVENTS:
+                        continue
+                    t = _ni.parse_host_stamp(cells[0])
+                    if t is None or (start is not None and (t < start or t > end)):
+                        continue
+                    out.append(t.timestamp() * 1000.0)
+        except OSError:
+            return None
+    return out
+
+
+def seam_rate(primary: str) -> float | None:
+    """The stream's NOMINAL rate as its own seam sidecar records it, or None.
+
+    SOLID-NIGHT §A5's Guard 1 names this source exactly — "the seam sidecar's negotiated rate" — and not
+    `negotiated_rate`'s wider ladder: `PMDNEG.csv` records what was AGREED for the session, while the
+    guard compares the rate rows actually arrived at against the rate THIS FILE was negotiated to. Where
+    they differ, the sidecar beside the stream is the one that describes the stream."""
+    try:
+        with open(primary[: -len(".txt")] + "SEAMS.txt", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                m = _PMD_RATE.match(line)
+                if m and float(m.group(1)) > 0:
+                    return float(m.group(1))
+    except OSError:
+        return None
+    return None
+
+
+def _a5_crossing(times: list[float], vals: list[float], vantage_ms: float, persistence_ms: float) -> float:
+    """Where the residual actually moves between the two levels, given a vantage that saw the move.
+
+    The first anchor after the before-window whose residual has travelled HALF the persistence. Half,
+    rather than the full level, because a real transition is not instantaneous — the residual crosses the
+    midpoint once, while it may approach the far level asymptotically or overshoot it.
+
+    Starts from the before-window's end by BISECT rather than scanning from the segment's first anchor,
+    for the reason `_win_median` records below."""
+    lo = vantage_ms + A5_BEFORE_MS[1]
+    base: float = _win_median(times, vals, vantage_ms + A5_BEFORE_MS[0], lo)  # type: ignore[assignment]
+    half = base + persistence_ms / 2.0
+    i = _bisect.bisect_left(times, lo)
+    # UNCONDITIONAL, and both guards this used to carry were unreachable. `base` cannot be None: the only
+    # caller is the grid, which reached this line precisely because that window HAD a median. And some
+    # anchor must cross: the after-window's median IS the far level, so at least one anchor in it sits at
+    # or past the halfway mark, and every anchor in it is at or after `lo`. Coverage found both, and a
+    # guard no input can reach is not protection — it is a branch a reader has to rule out.
+    # ONE SIGN TEST, NOT TWO. This read `(persistence_ms > 0 and r >= half) or (persistence_ms < 0 and
+    # r <= half)`, which asks the same question twice and leaves the gap between the two arms — a
+    # persistence of exactly 0 — matching NEITHER, so `next` would raise StopIteration. The caller cannot
+    # produce it (`abs(p) >= A5_STEP_MS` is 1000 ms), so the second test was four unkillable mutation
+    # sites standing in for a case that is already impossible. A conditional expression has one.
+    return next(t for t, r in zip(times[i:], vals[i:]) if (r >= half if persistence_ms > 0 else r <= half))
+
+
+def _win_median(times: list[float], vals: list[float], lo_ms: float, hi_ms: float) -> float | None:
+    """The median residual over `[lo_ms, hi_ms)`, or None when the window holds no anchor. Never 0.0 for
+    an empty window — an unmeasured level is absent, and a persistence computed from one would be the
+    difference between a real level and a fiction (§∅).
+
+    🔴 BISECT, NEVER A SCAN, AND THE REASON IS THE MUTATION GATE. This used to filter the whole segment
+    per call, so the per-vantage cost was O(len(seg)) and the total cost depended on how many vantages the
+    caller chose. A mutant that defeats the caller's one-per-bin dedup — `seen.add(b)` becoming
+    `seen.add(None)`, measured as `x_unrecorded_shift__mutmut_77` on run 36651159596 — then evaluates
+    EVERY anchor at O(n) each, which is O(n²) on the largest plant and reads as UNDECIDED (a timeout)
+    rather than as a kill or an honest survivor. Two windows of 60 s hold about 60 anchors whatever the
+    night's length, so a bisect makes the per-vantage cost independent of the segment AND of the dedup:
+    the same mutant now finishes and gives an answer a test or a ledger entry can address. Bounding the
+    LOOP was not enough; the cost inside it was the other half of the same class.
+
+    `times` must be sorted, and `unrecorded_shift` sorts once when it builds the pair. Half-open by
+    construction: `bisect_left` at both ends is exactly `lo <= t < hi`."""
+    i = _bisect.bisect_left(times, lo_ms)
+    j = _bisect.bisect_left(times, hi_ms)
+    return _median(vals[i:j]) if j > i else None
+
+
+def _rows_in(row_bins: dict[int, int], lo_ms: float, hi_ms: float) -> tuple[int, float]:
+    """Delivered rows and the seconds they were counted over, on the residual pass's own bin grid. The
+    span is the BINS' span, not the requested one, so the rate is rows over the time actually covered."""
+    b0, b1 = int(lo_ms // A5_BIN_MS), int(hi_ms // A5_BIN_MS)
+    # BOUNDED BY THE DATA, NOT BY THE ARITHMETIC. Summing over `range(b0, b1 + 1)` walks a span the bin
+    # maths computes, so a mutant of the bin divisor makes that range millions wide and the test TIMES
+    # OUT instead of failing — the mutation gate then reports UNDECIDED, which is neither a kill nor an
+    # honest survivor (measured on run 36635883102: `_rows_in` mutants 8, 19 and 20). Filtering the bins
+    # that exist cannot exceed the dictionary, so the same mutant now produces a WRONG COUNT a test can
+    # see. CLAUDE.md §🧪 states the rule for hand-advanced indices; a computed `range` is the same trap.
+    n = sum(c for b, c in row_bins.items() if b0 <= b <= b1)
+    return n, max(A5_BIN_S, (b1 - b0 + 1) * A5_BIN_S)
+
+
+def unrecorded_shift(scan: dict, records: list[float], nominal_hz: float | None) -> dict | None:
+    """SOLID-NIGHT §A5: the strongest persistent residual shift on this axis, and what it is.
+
+    Returns a decision when something is worth saying — the tripwire's own fire, or one of the guards'
+    named UNKNOWNs — and `None` when the axis carries no candidate at all, which is the PASS path.
+
+    THE FIRE IS UNKNOWN `unrecorded-shift-candidate`, NEVER A FAIL, and this is the whole reason A5 is a
+    tripwire: over n = 36 clean nights the corpus holds ZERO true unrecorded steps, so the detector has
+    never been validated against the thing it would convict. It flags for review; it does not decide.
+
+    MEASURED ON A GRID, NOT AT PEAKS. Persistence is evaluated every `A5_BIN_S` across each segment —
+    the level 60–120 s after an instant minus the level 30–90 s before it — rather than at points where
+    a smoothed series jumps. A jump filter would be cheaper and would miss a WALK, the one class the
+    clean corpus cannot rule out because it contains none. The windowed peak is not used at all: 1,237
+    of 1,756 corpus events above 1 s were delivery-latency transients that RETURN.
+
+    PRECEDENCE, and it is not arbitrary. Each test below can only make the verdict SOFTER than a fire,
+    and the softest applicable one wins, because each says the candidate cannot be adjudicated for a
+    different reason:
+      1. recorded         — a clock event within `A5_RECORD_NEAR_S`. Not a finding at all: the box said
+                            so. Checked FIRST, because convicting a logged step is the 08-18 mistake.
+      2. too dense        — `A5_DENSE_RECORDS` records inside the persistence span; ±15–30 s flips
+                            minutes apart cannot be assigned to one another.
+      3. latency regime   — Guard 1: the row rate in either window departs from nominal by more than
+                            `A5_RATE_TOL`. A clock step holds delivery at the nominal rate.
+      4. across a gap     — Guard 2: the after-window contains, or ends within `A5_GAP_NEAR_S` of, a gap
+                            or the end of the stream. The level "after" must be measured on data that
+                            exists and is flowing normally.
+      5. the fire.
+    """
+    anchors = scan.get("anchors") or []
+    if len(anchors) < TB_MIN_ANCHORS:
+        return None  # `timebase` already says so in its own words; saying it twice adds nothing
+    # SORTED ONCE. The segment split already assumed host order, and `_win_median` now bisects on it, so
+    # the assumption is made explicit here instead of being inherited from the read order of a file.
+    pts = sorted((h, (h - d) - (anchors[0][0] - anchors[0][1])) for h, d in anchors)
+    row_bins = scan.get("row_bins") or {}
+    gaps = scan.get("gaps") or []
+    last_ms = scan.get("last_row_ms")
+    segs: list[list[tuple[float, float]]] = [[pts[0]]]
+    for prev, cur in zip(pts, pts[1:]):
+        (segs.append([cur]) if cur[0] - prev[0] > A5_REANCHOR_MS else segs[-1].append(cur))
+    # ONE `best`, CARRYING ITS OWN AXIS. This was three variables — `best`, `best_p` and `best_axis` —
+    # each with an initial value that nothing could read: the `best is None` return below is reached
+    # before any of them is used, so `best_p = 0.0` and `best_axis = ([], [])` were unkillable mutation
+    # sites rather than decisions (`__mutmut_51`, `__mutmut_52`). A single Optional tuple has no
+    # unreadable initial state, so there is nothing there to be wrong about.
+    best: tuple[float, float, list[float], list[float]] | None = None  # (persistence, vantage, times, vals)
+    # HOW MANY VANTAGES WERE ACTUALLY EVALUATED. Published on every decision below as `vantages`, a NEW
+    # FIELD carrying NEW DATA (§🧪's back-compatible shape) — `timebase` forwards only status and reason,
+    # so no verdict file changes. It exists because the one-per-bin dedup was otherwise UNOBSERVABLE: with
+    # `_win_median` bisected, a mutant that defeats the dedup (`seen.add(b)` → `seen.add(None)`,
+    # `x_unrecorded_shift__mutmut_77`) evaluates every anchor instead of one per bin, finishes in the same
+    # time and returns the SAME answer — an honest survivor rather than a timeout, but still a survivor.
+    # The count is the thing it changes, so the count is what a test can hold it to.
+    vantages = 0
+    for seg in segs:
+        # THE VANTAGES ARE THE ANCHORS, ONE PER BIN — bounded by the DATA and by nothing computed.
+        # CLAUDE.md §🧪 names the hand-advanced `while` index; a *computed count* is the same trap wearing
+        # different clothes, and both cost a cycle here. `while t <= end: ... t += step` let a mutant of
+        # the advance line run forever (run 36635883102, mutants 112–114), and replacing it with
+        # `for k in range(steps)` over `steps = int((last - start) // step) + 1` merely moved the
+        # arithmetic: mutant 68 turned `A5_BIN_S * 1000.0` into `A5_BIN_S / 1000.0`, a 0.01 ms step and
+        # ~10^9 vantages, so the gate reported UNDECIDED again (run 36646177195; read from the generated
+        # mutant source, not inferred). Iterating the segment's own anchors cannot exceed `len(seg)`
+        # whatever the bin arithmetic becomes — the worst a mutation can now do is evaluate MORE of the
+        # anchors it already has, which is a wrong answer a test can see rather than a run that never ends.
+        times = [t for t, _r in seg]
+        vals = [r for _t, r in seg]
+        lo = times[0] - A5_BEFORE_MS[0]
+        hi = times[-1] - A5_AFTER_MS[1]
+        seen: set[int] = set()
+        for t in times:
+            if t < lo or t > hi:
+                continue  # a vantage whose windows fall outside the segment measures nothing
+            b = int(t // A5_BIN_MS)
+            if b in seen:
+                continue  # one vantage per bin: the grid's spacing, taken from where data exists
+            seen.add(b)
+            vantages += 1
+            # BOTH WINDOWS ARE POPULATED BY CONSTRUCTION, and the `is not None` guard this used to carry
+            # was unreachable: a window is 60 s wide, the segments were split at anchor gaps WIDER than
+            # 60 s, so a gap able to empty a window has already ended the segment. Coverage found the
+            # branch, and a guard no input can reach is not protection — it is one more thing a reader
+            # has to rule out. `_win_median` still returns None for the callers that can see it.
+            before = _win_median(times, vals, t + A5_BEFORE_MS[0], t + A5_BEFORE_MS[1])
+            after = _win_median(times, vals, t + A5_AFTER_MS[0], t + A5_AFTER_MS[1])
+            p = (after or 0.0) - (before or 0.0)
+            if abs(p) >= A5_STEP_MS and (best is None or abs(p) > abs(best[0])):
+                best = (p, t, times, vals)
+    if best is None:
+        return None
+    best_p, vantage, b_times, b_vals = best
+    # ⚠️ THE STRONGEST VANTAGE IS NOT THE INSTANT. Persistence is measured from a point whose windows
+    # straddle the shift, and every point in a wide plateau sees the SAME level difference — the earliest
+    # of them, which is what the scan above keeps, sits about a window-width EARLY. Reporting that time
+    # would put the guards' windows and the record match in the wrong place, which is how a detector
+    # excuses the wrong event or reads the wrong stretch of delivery. So the instant is refined to where
+    # the residual actually crosses between the two levels, inside the span the windows leave open.
+    at = _a5_crossing(b_times, b_vals, vantage, best_p)
+    # NO SEPARATE `sign`. `+.3g` already prints one, so a trailing `(+ve)` restated it — and five of the
+    # tripwire's survivors were mutations of that restatement, three of them unkillable by construction
+    # (`best_p > 0` cannot be reached with `best_p` in (0, 1], because |p| >= A5_STEP_MS = 1000). A
+    # duplicated fact is a second place to be wrong about one thing; it is removed, not covered.
+    what = f"{best_p / 1000.0:+.3g} s persistent shift at {_dt.datetime.fromtimestamp(at / 1000.0):%H:%M:%S}"
+    # DENSITY IS CHECKED BEFORE ATTRIBUTION, and the order is load-bearing. Dense clock-sets are dense
+    # precisely because several of them sit NEAR the candidate, so testing "is one within the match
+    # window" first would absorb every storm night as "recorded" and this branch would be unreachable —
+    # a rule that cannot fire is not a rule. The storm's point is that ±15–30 s flips minutes apart
+    # cannot be assigned to one another, which is neither "recorded" nor "unrecorded" but unadjudicable.
+    span = [r for r in records if at + A5_BEFORE_MS[0] <= r <= at + A5_AFTER_MS[1]]
+    if len(span) >= A5_DENSE_RECORDS:
+        return {
+            **_decision("UNKNOWN", f"clock-sets too dense to attribute — {len(span)} records around {what}"),
+            "vantages": vantages,
+        }
+    near = [r for r in records if abs(r - at) <= A5_RECORD_NEAR_MS]
+    if near:
+        return None  # the box recorded a clock event here; a recorded step is not an unrecorded one
+    if not nominal_hz:
+        # Both guards must PASS before the tripwire may fire, so a guard that cannot be applied stops it.
+        # Reporting the candidate anyway would be a fire that skipped a guard — the shape A5 was rewritten
+        # to prevent, since the only positive the first cut produced was one Guard 1 would have refused.
+        return {
+            **_decision(
+                "UNKNOWN",
+                f"{what}, but the stream's seam sidecar records no negotiated rate, so Guard 1 (delivery "
+                f"rate) could not be applied and the candidate cannot be adjudicated",
+            ),
+            "vantages": vantages,
+        }
+    # No `if nominal_hz:` — the refusal above already returned for a missing one, so the test was always
+    # true here and its other arm was a branch nothing could take.
+    for label, win in (("before", A5_BEFORE_MS), ("after", A5_AFTER_MS)):
+        n, secs = _rows_in(row_bins, at + win[0], at + win[1])
+        if abs(n / secs - nominal_hz) / nominal_hz > A5_RATE_TOL:
+            return {
+                **_decision(
+                    "UNKNOWN",
+                    f"latency regime — the {label} window delivered {n / secs:.3g} rows/s against a nominal "
+                    f"{nominal_hz:g} Hz, so {what} is a delivery backlog and not a step",
+                ),
+                "vantages": vantages,
+            }
+    a0, a1 = at + A5_AFTER_MS[0], at + A5_AFTER_MS[1]
+    if any(g1 > a0 and g0 < a1 + A5_GAP_NEAR_MS for g0, g1 in gaps) or (
+        last_ms is not None and last_ms < a1 + A5_GAP_NEAR_MS
+    ):
+        return {
+            **_decision("UNKNOWN", f"persistence across a gap — the window after {what} is not flowing normally"),
+            "vantages": vantages,
+        }
+    return {
+        **_decision("UNKNOWN", f"unrecorded-shift-candidate — {what}, with no record in any of the three sources"),
+        "vantages": vantages,
+    }
+
+
+def timebase(night_dir: str, device: str, primaries: list[str], start, end) -> dict:
     """§3.4 timebase: the device axis is a CLOCK, it was disciplined by an independent host, its rate is
-    plausible, and it carries no step. Judged on the largest primary file inside the worn interval."""
+    plausible, and it carries no step. Judged on the largest primary file inside the worn interval.
+
+    NO `model` PARAMETER. It was accepted and never read — the stream map is resolved by the caller,
+    which passes `primaries` already — so it was a dead parameter, and the mutation gate reported it as
+    one: replacing it with `None` changed no answer (`x_score_devices__mutmut_168`). A dead parameter is
+    removed rather than given a test that cannot fail; `_seam_cause` above records the same shape.
+
+    🔴 `device` IS THE DEVICE NAME AND `who` IS THE FILE LABEL, and conflating them cost the record set.
+    `clock_records` filters the journal's clock-event lines and every `CLOCKSYNC.csv` row BY DEVICE NAME,
+    so passing the file's basename there matched nothing: the CLOCKSYNC half of §A5's record set was
+    discarded in full, and every journal line that names its devices with it — leaving the tripwire free
+    to convict a step the daemon had written down, which is precisely the 2026-08-18 mistake §A5 exists
+    to prevent. Found by the mutation gate: replacing the argument with `None` changed no answer, because
+    neither value ever matched (`test_a_step_the_CLOCKSYNC_SIDECAR_recorded_reaches_the_BAND_and_excuses_it`).
+    """
     if start is None:
         return _decision("UNKNOWN", "no worn interval, so no stretch of the axis could be judged")
     path = max(primaries, key=os.path.getsize)
@@ -639,22 +1047,42 @@ def timebase(night_dir: str, model: str, primaries: list[str], start, end) -> di
                         f"{tag} host-vs-device rate {ppm:+.0f} ppm over {span_s / 60:.0f} min — beyond the plausibility bound, so the two columns are not the two clocks{seam_note}",
                     )
                 else:
-                    out = _decision(
-                        "UNKNOWN",
-                        f"{tag}: axis is an independent clock at {ppm:+.0f} ppm over {span_s / 60:.0f} min — the A5 step tripwire has not run{seam_note}",
-                    )
+                    # ── SOLID-NIGHT §A5 — the tripwire, which is what stood between a healthy axis and a
+                    # PASS. Until it ran, EVERY night read UNKNOWN here by construction and the 14-night
+                    # run could never start; the band said so in as many words rather than passing on an
+                    # unexamined term, and this is that examination.
+                    recs, how = clock_records(night_dir, device, path, start, end)
+                    if recs is None:
+                        out = _decision(
+                            "UNKNOWN",
+                            f"{tag}: axis is an independent clock at {ppm:+.0f} ppm over {span_s / 60:.0f} min, "
+                            f"but the A5 record set could not be read — {how}{seam_note}",
+                        )
+                    else:
+                        trip = unrecorded_shift(scan, recs, seam_rate(path))
+                        if trip is not None:
+                            out = _decision(trip["status"], f"{tag}: {trip['reason']}{seam_note}")
+                        else:
+                            # A PASS CARRIES ITS MEASUREMENT. `device_outcome` collects reasons only from
+                            # FAIL and UNKNOWN bands, so this changes no verdict — but a band that passes
+                            # silently publishes nothing, and the rate, the span, the segment tag and the
+                            # seams consumed are exactly what makes a healthy night auditable later. The
+                            # old UNKNOWN text said all of it; passing is no reason to start saying less.
+                            out = _decision(
+                                "PASS",
+                                f"{tag}: axis is an independent clock at {ppm:+.0f} ppm over {span_s / 60:.0f} min; "
+                                f"the A5 tripwire found no unrecorded shift ({how}){seam_note}",
+                            )
         if worst_out is None or rank[out["status"]] > rank[worst_out["status"]]:
             worst_out = out
     assert worst_out is not None  # `anchors` is non-empty above, so `segs` carries at least one segment
     return worst_out
-    # A5 IS A SEPARATE UNIT AND IS DELIBERATELY NOT HALF-BUILT HERE. SOLID-NIGHT §A5 makes the
-    # UNRECORDED-shift detector a TRIPWIRE whose fire is UNKNOWN `unrecorded-shift-candidate`, never a
-    # FAIL — "the clean corpus holds zero true unrecorded steps, so the detector has never been
-    # validated against the thing it would convict" — and it needs a no-record check across three
-    # sources (seam sidecar, journal clock-event lines, CLOCKSYNC `synced`/`resynced`) plus two guards
-    # that each yield their OWN named UNKNOWN. The segment split above does NOT build it and must not be
-    # read as having built it: it consumes a step the box RECORDED, which is the opposite of detecting an
-    # unrecorded one. Where no seam file exists there is ONE segment and the number is unchanged.
+    # A5 IS BUILT ABOVE (`unrecorded_shift`), and the distinction this note used to draw still holds: the
+    # segment split consumes a step the box RECORDED, which is the opposite of detecting an unrecorded
+    # one. Where no seam file exists there is ONE segment and the number is unchanged. The tripwire's
+    # fire is UNKNOWN `unrecorded-shift-candidate`, never a FAIL — "the clean corpus holds zero true
+    # unrecorded steps, so the detector has never been validated against the thing it would convict" —
+    # and it runs only after the record set has been read from all three sources and both guards pass.
 
 
 def expected_devices(night_dir: str, devices: list) -> list[dict]:
@@ -703,6 +1131,6 @@ def score_devices(night_dir: str, devices: list) -> dict:
             bands["completeness"] = completeness(night_dir, name, model, primaries, start, end)
         bands["validity"] = validity(night_dir, model)
         bands["clocks"] = clocks(night_dir, model)
-        bands["timebase"] = timebase(night_dir, model, primaries, start, end)
+        bands["timebase"] = timebase(night_dir, name, primaries, start, end)
         out[name] = {"bands": bands}
     return out
