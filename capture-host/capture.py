@@ -4064,7 +4064,13 @@ async def run_polar(dev: dict, root: str):
                             # publish is what let a stale `True` survive ten hours of desk streaming.
                             _publish_worn(_worn, _why, _votes)
                     # Live push — RAW, per-stream shape (no on-box DSP):
-                    key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
+                    # ∅ The NEGOTIATED rate or None — never the vendor default (ABSENCE-SURVEY dd0aa7a41642; ruled
+                    # 2026-10-04 under #3268's declared-rate contract). `or pmd.SAMPLE_HZ` pushed a rate this
+                    # stream never agreed to (a NO_ACK-kept stream, one still owned by a dead subscriber) as if
+                    # measured — the very default the registration above refuses ("RATE UNKNOWN UNTIL
+                    # NEGOTIATED — 0"). With None the bus publishes what was DECLARED for the stream: 0 until
+                    # negotiation, the agreed rate after, and nothing when the stream was never registered.
+                    key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas)
                     # The frame's LAST sample on the DEVICE's own counter. `effFs` is measured off this
                     # rather than off arrival times (DEVICE-RATE-TRUTH §6.3): BLE hands several frames
                     # over in one connection event, so their arrival times collapse together and an
