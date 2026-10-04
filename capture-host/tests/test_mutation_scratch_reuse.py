@@ -729,3 +729,85 @@ def test_root_reads_still_RAISES_when_a_file_exists_and_cannot_be_read(tmp_path,
     monkeypatch.setattr(Path, "read_text", _read_text_raising_for("test_unreadable.py", PermissionError(13, "denied")))
     with pytest.raises(PermissionError):
         mutation_diff.root_reads(tree)
+
+
+def _two_same_name(tmp_path):
+    """The real shape in miniature: ONE relative path, TWO files — one in the repo root, one inside the
+    tree. `copytree` has already put the tree's own copy in `work/`, which is what a scratch is."""
+    import shutil
+
+    root = tmp_path / "repo"
+    tree = root / "capture-host"
+    (tree / "tests").mkdir(parents=True)
+    (root / "tools").mkdir()
+    (root / "tools" / "led.json").write_text('{"whose": "root"}')
+    (tree / "tools").mkdir()
+    (tree / "tools" / "led.json").write_text('{"whose": "capture-host"}')
+    (tree / "tests" / "test_reads_it.py").write_text(
+        "import json\ndef test_r():\n    json.load(open('tools/led.json'))\n"
+    )
+    scratch = tmp_path / "scratch"
+    work = scratch / "work"
+    (work / "tests").mkdir(parents=True)
+    (work / "tools").mkdir()
+    shutil.copy2(tree / "tools" / "led.json", work / "tools" / "led.json")
+    return root, tree, work
+
+
+def test_a_staged_root_read_NEVER_REPLACES_the_trees_own_file(tmp_path):
+    """🔴 THE PLANT FOR residue 2026-10-03-root-read-staging-clobbers-a-samename-file. Over-flagging is
+    priced at "one spurious copy of a small file", which is true only while the staged name exists ONLY
+    in the repo root. For a name the tree ALSO has, staging is a SUBSTITUTION: the scratch then answers
+    a read differently from the checkout it is supposed to be a copy of.
+
+    Measured on the real tree: two `tools/mutate-equivalence.json` (the root JS ledger, 9 modules; the
+    capture-host one, 33) and six test files naming the bare path — one in a DOCSTRING. Invisible until
+    `test_equivalence_ledger.py` read that file's CONTENTS, found no `solid_night_inputs.py` key, and
+    failed the CLEAN pass, which made the gate refuse the whole run as NOT_RUN."""
+    import json
+
+    _root, tree, work = _two_same_name(tmp_path)
+    names = mutation_diff.root_reads(tree)
+    assert "tools/led.json" in names, names
+    mutation_diff.stage_root_reads(tree, work, names)
+    # THE BEHAVIOUR FIRST, so this fails on the SUBSTITUTION rather than on a missing helper.
+    assert json.load(open(work / "tools" / "led.json"))["whose"] == "capture-host", (
+        "the staged ROOT file replaced the tree's own copy inside the tree"
+    )
+    assert json.load(open(work.parent / "tools" / "led.json"))["whose"] == "root", (
+        "and a genuine `tests/../..` read of the ROOT file must still resolve"
+    )
+    assert mutation_diff.tree_shadowed(tree, names) == ["tools/led.json"]
+
+
+def test_a_root_read_the_tree_does_NOT_shadow_is_still_staged_to_BOTH(tmp_path):
+    """The other side, and it is the one that keeps this fix from trading one defect for #2864's: a root
+    file the tree has no copy of is still staged to both locations."""
+    root, tree, work = _two_same_name(tmp_path)
+    (root / "only-at-the-root.js").write_text("const X = 1;\n")
+    (tree / "tests" / "test_names_it.py").write_text("def test_n():\n    open('only-at-the-root.js')\n")
+    names = mutation_diff.root_reads(tree)
+    assert "only-at-the-root.js" in names
+    mutation_diff.stage_root_reads(tree, work, names)
+    assert (work / "only-at-the-root.js").is_file(), "staging a genuine root read must not regress"
+    assert (work.parent / "only-at-the-root.js").is_file()
+    assert "only-at-the-root.js" not in mutation_diff.tree_shadowed(tree, names)
+
+
+def test_the_REAL_trees_SHADOWED_set_is_exactly_the_two_we_know_about():
+    """Pinned as an EQUALITY, like the root-reads population above and for the same reason: a NEW
+    collision is a file the scratch would start answering wrongly, and the author should see it here
+    rather than in a clean-test failure three steps later.
+
+    `README.md` is the second one and was being substituted too — the repo root's README replacing
+    `capture-host/README.md` in every scratch since the 2026-09-22 widening, unnoticed because nothing
+    in the scratch reads its contents."""
+    from pathlib import Path
+
+    import pytest
+
+    here = Path(__file__).resolve().parent.parent
+    if here.name != "capture-host":
+        pytest.skip("population pin is about the real checkout's root; this is a scratch copy")
+    got = mutation_diff.tree_shadowed(here, mutation_diff.root_reads(here))
+    assert got == ["README.md", "tools/mutate-equivalence.json"], got
