@@ -14,6 +14,7 @@ import pathlib
 import pytest
 
 import mutation_diff as M
+from _srcscan import module_source
 
 HERE = pathlib.Path(__file__).resolve().parent.parent
 EXCLUSIONS = HERE / "tools" / M.EXCLUSIONS_FILE
@@ -109,7 +110,10 @@ def test_every_declared_key_names_a_function_that_EXISTS():
             assert (HERE / key).is_file(), f"{key} names no module in the tree"
             continue
         mod, func = key.split("::")
-        src = (HERE / mod).read_text(encoding="utf-8")
+        # via `module_source`, never `read_text`: a raw read of a mutatable module makes mutmut report
+        # "failed to collect stats" and takes the WHOLE module to unmeasured. `test_mutation_hygiene`
+        # enforces it, and it caught this file — the second time I have made this exact mistake.
+        src = module_source(mod)
         names = {
             n.name
             for n in ast.walk(ast.parse(src))
@@ -444,8 +448,7 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     """A module-level exclusion retires every function in the module, so the size of the blind spot is
     the number that matters — and it drifts. MUTATION-SCOPED-GENERATION cites 226 (2026-09-28); the
     module has grown. `count_functions` recomputes it, which is why the gate prints it per run."""
-    src = (HERE / "capture.py").read_text(encoding="utf-8")
-    n = M.count_functions(src)
+    n = M.count_functions(module_source("capture.py"))
     assert n > 226, f"count_functions says {n}; the brief's 226 is stale, which is the point"
     assert n == 290, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
