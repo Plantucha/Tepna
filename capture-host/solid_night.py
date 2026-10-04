@@ -244,56 +244,97 @@ def write_night(
     return obj, run
 
 
+SAMPLE_NIGHT = "2026-01-01"
+SAMPLE_BASE = "Polar_H10_SAMPLE_20260101220000"
+SAMPLE_DEVICE = {"name": "Polar H10 SAMPLE", "model": "H10"}
+SAMPLE_ROWS = 401  # 2 Hz over exactly 200 s, inclusive of both ends
+SAMPLE_BATCH = 4  # rows per BLE frame: one real host measurement, back-timed across the frame (§🔒.7)
+
+
+def sample_night(night: str) -> list[dict]:
+    """Lay out a synthetic CLEAN H10 night in `night` and return its device list.
+
+    SPLIT OUT OF `sample_object` SO A TEST CAN MEASURE THE FIXTURE. Four properties of these bytes are
+    load-bearing, and NONE of them is visible in the verdict the fixture produces — every band still
+    passes when they are violated one at a time, which is why twenty-five mutations of this layout
+    survived the gate while `sample_object` was the only way in:
+      · `SAMPLE_ROWS` rows at 2 Hz, the first and last landing EXACTLY on the nominal, so the span is
+        exactly 200 s and the completeness denominator is not a rounding;
+      · host stamps in batches of `SAMPLE_BATCH` sharing one offset, because a BLE frame IS one host
+        measurement and `residual_scan` takes one anchor per frame (treating each row as an anchor
+        fabricates anchors out of an interpolation);
+      · a per-row device offset, so the column is not a DRAWN counter (`clock.js CK_AXIS_DRAWN_SHARE`:
+        a column advancing by a constant is by construction not a clock, and the timebase term would
+        score the adoption gate's own sample as "not a clock");
+      · a NON-NEGATIVE host offset, so no row crosses a whole second backwards.
+    `test_the_SAMPLE_FIXTURE_carries_the_four_properties_it_needs` holds all four."""
+    # THE START COMES FROM THE NAME, so the fixture cannot disagree with itself. The 14-digit stamp in
+    # `SAMPLE_BASE` is the declared start (Clock Contract §4, anchor rule 2) and the only place it is
+    # written; a second literal here was one more thing to keep in step, and `datetime(2026, 1, 1, 22,
+    # 0, 0)` with its trailing default second was two mutation sites that could not change an answer.
+    t0 = _dt.datetime.strptime(SAMPLE_BASE.rsplit("_", 1)[1], "%Y%m%d%H%M%S")
+
+    def put(name: str, text: str) -> None:
+        with open(os.path.join(night, name), "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+    rows = []
+    for i in range(SAMPLE_ROWS):
+        frame = i // SAMPLE_BATCH
+        # ONE OFFSET PER FRAME, AND THE EDGE RULE IS STATED IN FRAMES. It used to be `i < SAMPLE_BATCH or
+        # i >= SAMPLE_ROWS - SAMPLE_BATCH`, which STRADDLES the frame grid: 401 rows is 100 frames plus a
+        # row, so that zeroed rows 397-400 — three of them inside the frame that starts at 396. A frame
+        # with two offsets is two host measurements, which is the thing this fixture exists not to be, and
+        # the straddle is why the property could not be stated as a test at all (seven of the twenty-five
+        # survivors lived in that one expression). Zero on the FIRST frame and on the last lone row is all
+        # property 1 needs: the span's two ends land on the nominal.
+        jit = 0 if (frame == 0 or i == SAMPLE_ROWS - 1) else (1 + frame % 5)
+        ns = int(i / 2 * 1e9) + ((i * 7919) % 211)
+        t = t0 + _dt.timedelta(seconds=i / 2, milliseconds=jit)
+        rows.append(f"{t.isoformat(timespec='milliseconds')};{ns};{i};100")
+    put(
+        f"{SAMPLE_BASE}_ECG.txt",
+        "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n" + "\n".join(rows) + "\n",
+    )
+    put(
+        f"{SAMPLE_BASE}_ECGSEAMS.txt",
+        f"# pmd stream=ecg negotiated=yes rate=2 offered=2\n# final stream=ecg seams=0 examined={SAMPLE_ROWS}\n",
+    )
+    put(f"{SAMPLE_BASE}_ECGRUNS.txt", "# stream=ecg rule=stuck min_run=30\n")
+    put(
+        _inputs.LOSS_AUDIT_NAME,
+        json.dumps(
+            {
+                "journal": "read",
+                # §A5's record set, read and empty: the sample is a CLEAN night, so the honest value
+                # is "the journal was read and no clock event happened" — `[]`, never a missing key
+                # (an audit older than the record) and never `null` (journalctl unavailable). Those
+                # are the three absences the tripwire must tell apart, and the sample shows the one
+                # that lets it run.
+                "clock_events": [],
+                "devices": {
+                    SAMPLE_DEVICE["name"]: {
+                        "file": f"{SAMPLE_BASE}_ECG.txt",
+                        "gaps": [],
+                        "wear": {"available": True, "worn_end": {"at": "2026-01-01T22:03:00", "reason": "doff"}},
+                    }
+                },
+            }
+        ),
+    )
+    return [dict(SAMPLE_DEVICE)]
+
+
 def sample_object() -> dict:
-    """Corpus-free emission for the adoption gate: a synthetic CLEAN H10 night laid out as the box writes one.
-    Continuity, completeness, validity and clocks all PASS from their real inputs; the night is still
-    UNKNOWN, because the timebase term names the residual pass it waits for — exactly what a real night
-    reads until that lands."""
+    """Corpus-free emission for the adoption gate: a synthetic CLEAN H10 night laid out as the box writes
+    one, scored by the real `night_verdict`.
+
+    EVERY band PASSES from its real inputs, and the night with them. It read UNKNOWN until §A5 landed,
+    because the timebase term then named the residual pass it was waiting for; the tripwire now runs over
+    this axis, finds no candidate, and the sample became the thing it claims to be."""
     import tempfile
 
-    base = "Polar_H10_SAMPLE_20260101220000"
-    t0 = _dt.datetime(2026, 1, 1, 22, 0, 0)
     with tempfile.TemporaryDirectory() as d:
-        night = os.path.join(d, "2026-01-01")
+        night = os.path.join(d, SAMPLE_NIGHT)
         os.makedirs(night)
-
-        def put(name: str, text: str) -> None:
-            with open(os.path.join(night, name), "w", encoding="utf-8") as fh:
-                fh.write(text)
-
-        # A REALISTIC device axis and a batch-structured host stamp, for the same reason the test
-        # fixtures carry them (clock.js CK_AXIS_DRAWN_SHARE): this column used to advance by 1 ns per
-        # row, which is by construction a DRAWN counter, and the timebase term would score the adoption
-        # gate's own sample as "not a clock". Host jitter is POSITIVE and skips the first and last batch
-        # so no row crosses a whole second and the completeness arithmetic is unchanged.
-        rows = []
-        for i in range(401):
-            ns = int(i / 2 * 1e9) + ((i * 7919) % 211)
-            jit = 0 if (i < 4 or i >= 397) else (1 + (i // 4) % 5)
-            t = t0 + _dt.timedelta(seconds=i / 2, milliseconds=jit)
-            rows.append(f"{t.isoformat(timespec='milliseconds')};{ns};{i};100")
-        put(
-            f"{base}_ECG.txt",
-            "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n" + "\n".join(rows) + "\n",
-        )
-        put(
-            f"{base}_ECGSEAMS.txt",
-            "# pmd stream=ecg negotiated=yes rate=2 offered=2\n# final stream=ecg seams=0 examined=401\n",
-        )
-        put(f"{base}_ECGRUNS.txt", "# stream=ecg rule=stuck min_run=30\n")
-        put(
-            _inputs.LOSS_AUDIT_NAME,
-            json.dumps(
-                {
-                    "journal": "read",
-                    "devices": {
-                        "Polar H10 SAMPLE": {
-                            "file": f"{base}_ECG.txt",
-                            "gaps": [],
-                            "wear": {"available": True, "worn_end": {"at": "2026-01-01T22:03:00", "reason": "doff"}},
-                        }
-                    },
-                }
-            ),
-        )
-        return night_verdict(night, [{"name": "Polar H10 SAMPLE", "model": "H10"}])
+        return night_verdict(night, sample_night(night))
