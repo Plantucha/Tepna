@@ -309,3 +309,16 @@ def test_ENCLOSURE_is_the_whole_question_and_both_ways_in_count_the_same():
         "a top-level helper was reported as a double — the scan started as if already enclosed"
     )
     assert "test_t" not in found, "a test function's unused parameter is a fixture, not a dropped arg"
+
+
+def test_enclosure_survives_a_statement_in_between():
+    """Kills `visit(child, enclosed)` → `visit(child, None)` in the pass-through branch.
+
+    A double is not always a direct child of the function that encloses it — put it under an `if`,
+    a `with` or a `for` and the walk reaches it through the branch that forwards the flag unchanged.
+    Every other test nests the double DIRECTLY, where that branch is never taken, so a mutant that
+    drops the flag there changed nothing. `None` is falsy, so the inner double silently stopped being
+    one: the scan would under-report exactly the doubles that sit inside a conditional helper."""
+    src = "def outer():\n    if True:\n        def inner(a, b):\n            return a\n"
+    found = {r["double"] for r in analyze(src, path="t.py")}
+    assert "inner" in found, "a double under an `if` lost its enclosure on the way down"

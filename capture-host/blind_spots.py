@@ -82,7 +82,10 @@ def _body_reads(fn: ast.AST) -> set[str]:
     return reads
 
 
-def _is_double(fn: ast.AST, enclosed: bool) -> bool:
+_FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
+
+
+def _is_double(fn: _FunctionNode, enclosed: bool) -> bool:
     """A double is a callable a test hands to production code: a NESTED def, a lambda, or a method on a
     helper class. A top-level `def test_...` is not one — its parameters are pytest fixtures, and an
     unused fixture is a different smell with a different fix (it is usually requested for its side
@@ -102,8 +105,12 @@ def _is_double(fn: ast.AST, enclosed: bool) -> bool:
     double, and a test sees it."""
     if isinstance(fn, ast.Lambda):
         return True
-    name = getattr(fn, "name", "")
-    if name.startswith("test_"):
+    # `fn.name`, not `getattr(fn, "name", "")`. The caller only ever passes the three node kinds in
+    # `_FunctionNode`, and the Lambda — the one without a `.name` — has already returned above, so
+    # mypy narrows this to FunctionDef | AsyncFunctionDef and the default was unreachable. The gate
+    # said so first: two mutants of that default (`None`, and dropping it) survived every test,
+    # because nothing can reach a default that never applies.
+    if fn.name.startswith("test_"):
         return False
     return enclosed
 
@@ -147,9 +154,6 @@ def analyze(source: str, path: str = "<test>") -> list[dict]:
 # nothing: mypy flagged `.args` twice and `.lineno` once because the base class has neither. The
 # isinstance check that makes those attributes safe lives at the call site, where the annotation could
 # not see it — so the type is narrowed here to what the caller already guarantees.
-_FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
-
-
 def _record(fn: _FunctionNode, path: str, out: list[dict]) -> None:
     reads = _body_reads(fn)
     named = [p for p in _param_names(fn.args) if p not in BOUND_NAMES and not p.startswith(IGNORED_PREFIX)]
