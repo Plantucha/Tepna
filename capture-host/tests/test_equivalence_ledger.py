@@ -71,6 +71,7 @@ RATCHET = {
     "solid_night.py": 1,
     "solid_night_inputs.py": 34,
     "telemetry.py": 1,
+    "timeline.py": 1,
     "writers.py": 2,
 }
 

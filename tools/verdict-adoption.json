@@ -285,6 +285,10 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_mutation_exclusions.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
     "capture-host/tests/test_night_report.py": {
       "bin": "test",
       "status": "exempt"
