@@ -106,6 +106,11 @@ from mutation_diff import (  # noqa: E402
     budget_exhaustion_verdict,
     memory_exhaustion_verdict,
     verdict_object,
+    parse_exclusions,
+    declared_exclusion_status,
+    unmeasured_rows,
+    merge_unmeasured,
+    EXCLUSIONS_FILE,
 )
 
 
@@ -216,6 +221,27 @@ def load_equivalence() -> dict:
     return {}
 
 
+EXCLUSIONS_PATH = HERE / "tools" / EXCLUSIONS_FILE
+UNMEASURED_PATH = HERE / "tools" / "mutate-unmeasured.json"
+
+
+def load_exclusions() -> dict:
+    """The declared exclusions, or `{}` — and a MALFORMED file is `{}` too, loudly.
+
+    Asymmetric on purpose, and the asymmetry is the safety property: a missing or broken exclusion file
+    must never be able to *grant* an exclusion, so every failure path yields the empty set and the gate
+    keeps its UNKNOWN. `parse_exclusions` is the strict reader; this is the one place that decides what
+    a reader's refusal means operationally, and it means "nothing is declared".
+    """
+    try:
+        return parse_exclusions(EXCLUSIONS_PATH.read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+    except ValueError as exc:
+        print(f"  ⚠ {EXCLUSIONS_PATH.name} is malformed and grants NOTHING: {exc}", flush=True)
+        return {}
+
+
 def _head_sha() -> str | None:
     """Short sha of the tree the gate ran in — provenance of the RUN; None outside a checkout."""
     try:
@@ -236,6 +262,11 @@ def main(argv=None) -> int:
     ap.add_argument("--report-only", action="store_true", help="never exit non-zero")
     ap.add_argument("--json", default=None, help="write the verdict here")
     ap.add_argument("--selftest", action="store_true", help="pin the classifier, run no mutants")
+    ap.add_argument(
+        "--record-unmeasured",
+        action="store_true",
+        help="ingest this run's refused functions into tools/mutate-unmeasured.json (writes no verdict)",
+    )
     ap.add_argument(
         "--verdict-sample",
         action="store_true",
@@ -1229,7 +1260,57 @@ def main(argv=None) -> int:
         _bstatus, _breason = budget_exhaustion_verdict(
             len(_refused_budget), _counts["decided"], time.monotonic() - _gate_t0
         )
-        _b = emit(_bstatus, _breason, 2)
+        # ── THE DECLARED EXCLUSION (owner ruling 2026-10-03) ─────────────────────────────────────
+        # The refusal above is correct and, for `capture.py`, permanent: mutmut generates the whole
+        # module's population whatever the glob, so no narrowing of the diff reaches it. Where that
+        # cost has been MEASURED and DECLARED, the honest status is NOT_APPLICABLE — the criterion
+        # does not bind on a population the tool cannot generate scoped — rather than an UNKNOWN that
+        # every future PR on that function rediscovers.
+        #
+        # 🔴 The exclusion is allowed exactly one transition and `declared_exclusion_status` enforces
+        # it: UNKNOWN -> NOT_APPLICABLE, only while NOTHING is blocking, only when EVERY refused
+        # function is declared. It cannot clear a survivor and it cannot produce PASS. `blocking` is
+        # computed here from the same `cls` the verdict below reads, so the two cannot disagree.
+        _declared = load_exclusions()
+        _unmeasured = unmeasured_rows(_refused_budget, _declared, _now_utc())
+        if _unmeasured:
+            verdict["unmeasured"] = _unmeasured
+            if a.json:
+                Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+            # Ingestion is OPT-IN and writes only the ledger — never a verdict, never a status line
+            # (§🧾 PARTIAL-ADOPTION-DETECTION reds a second status printer). CI does not pass the
+            # flag: a gate that rewrites a committed file mid-run dirties the tree it is judging.
+            if a.record_unmeasured:
+                try:
+                    _doc = json.loads(UNMEASURED_PATH.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    _doc = {}
+                _merged = merge_unmeasured(_doc, _unmeasured)
+                UNMEASURED_PATH.write_text(
+                    json.dumps(_merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+                )
+                print(f"  ↳ recorded {len(_unmeasured)} unmeasured row(s) → tools/{UNMEASURED_PATH.name}")
+        _sub = declared_exclusion_status(
+            _bstatus,
+            refused=_refused_budget,
+            declared=_declared,
+            blocking=len(cls["unclassified"]) + len(cls["real_gap"]),
+        )
+        _bcode = 2
+        if _sub:
+            _bstatus, _breason = _sub
+            _bcode = 0
+            print(
+                f"\n  ✓ every refused function is DECLARED in tools/{EXCLUSIONS_FILE} — the gate "
+                "reports NOT_APPLICABLE, not UNKNOWN."
+            )
+            print(
+                "    Nothing was excused: no survivor was blocking on this run, and a declaration "
+                "cannot clear one.\n"
+                "    This is dated debt. briefs/MUTATION-SCOPED-GENERATION-2026-09-28-BRIEF.md is "
+                "what retires it."
+            )
+        _b = emit(_bstatus, _breason, _bcode)
         if not a.report_only:
             return _b
         _refusal = _b
