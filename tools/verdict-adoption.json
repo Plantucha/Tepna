@@ -1077,6 +1077,18 @@
       },
       "note": "pooled bands CONSISTENT/SHORTFALL/INVESTIGATE/UNDERPOWERED → verdictObject(); --json emits the object at the top level, --verdict-sample the synthetic-shape object the gate reads"
     },
+    "tools/oracle-ppg-device-beats.mjs": {
+      "bin": "already-json",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/oracle-ppg-device-beats.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the PPG twin of oracle-ecg-firmware-rr: PpgDex's feet against the O2Ring's own `156` beat markers. Criterion is `ppi_delta_median` <= one ADC sample (8.000 ms at the 125.000 Hz crystal), pre-stated from the instrument rather than the data; the ~190 ms firmware DETECTION LAG is reported beside it as a latency and is deliberately unbanded, because it is a device property and scoring it would report a working detector as broken. scope: internal — a second estimator on one sensor, not a second sensor (R5-HR-TRIPLET-REFERENCE §4)"
+    },
     "tools/pat-axis-leg-audit.mjs": {
       "bin": "word-only",
       "status": "exempt",
