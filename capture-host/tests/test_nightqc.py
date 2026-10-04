@@ -4108,6 +4108,10 @@ _CLOCKLESS_BY_DESIGN = {
     "test_summarize_pools_when_the_neighbour_was_still_writing_at_wake": "pooling by overlap",
     "test_summarize_does_not_pool_a_non_contiguous_small_hours_session": "pooling refusal by contiguity",
     "test_span_at_exactly_the_minimum_is_judgeable": "the SESSION span floor _MIN_SPAN_SEC",
+    # The mirror of the entry above, and it is listed for the same reason: the claim is that a span
+    # UNDER the floor names why it cannot be judged. The shortness is produced by filename stamp +
+    # mtime arithmetic alone and no device stamp is read for it, exactly as in the judgeable case.
+    "test_span_reason_NAMES_the_minimum_when_the_span_is_too_short": "the SESSION span floor _MIN_SPAN_SEC, refusing arm",
     "test_an_in_night_hole_BEFORE_the_judged_half_also_reds": "gap classification against the night band",
     "test_pooling_boundary_exactly_at_midnight_pools": "pooling boundary, lower",
     "test_pooling_boundary_exactly_at_the_gap_does_not_pool": "pooling boundary, upper",
