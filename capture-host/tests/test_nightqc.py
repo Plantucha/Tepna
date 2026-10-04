@@ -5342,3 +5342,71 @@ def test_PLANT_the_vote_ROUNDS_so_a_millisecond_cannot_move_the_zone(tmp_path):
     off, _data = _recovered(night)
     assert off["offset_sec"] == 14400.0, (off, "a sub-second shortfall moved the recovered zone")
     assert off["unanimous"] is True and off["voters"] == 2, off
+
+
+def test_data_settled_asks_about_the_DATA_and_treats_NO_DATA_as_unsettled():
+    """`nightqc.data_settled` — pure, and the predicate E8 put in the loss poller's eligibility gate.
+
+    Three cases, and the third is the one with an opinion in it. A folder holding NO capture file is
+    NOT settled: there is nothing to judge, and calling it settled invites a verdict over an empty
+    population (§🧾 — a PASS over `checked: 0` is the examined-nothing shape). `capture.py` also guards
+    `_m is not None` before calling this, for mypy narrowing and because that branch is reachable every
+    midnight; this asserts the contract directly rather than leaving it to the caller's belt."""
+    now = 1_000_000.0
+    assert nightqc.data_settled(now - 1200.0, 1200.0, now) is True, "exactly at the bound is settled"
+    assert nightqc.data_settled(now - 1199.0, 1200.0, now) is False, "one second short is not"
+    assert nightqc.data_settled(now - 4 * 3600.0, 1200.0, now) is True
+    assert nightqc.data_settled(None, 1200.0, now) is False, (
+        "a folder with no capture file has nothing to judge — 'settled' would licence a verdict over an "
+        "empty population"
+    )
+    # A file stamped in the FUTURE (a clock step, or a copy preserving mtimes) is not settled: the
+    # arithmetic goes negative and the night waits, which is the safe direction — judging it would
+    # measure a span the box does not believe in yet.
+    assert nightqc.data_settled(now + 60.0, 1200.0, now) is False
+
+
+def test_the_daemon_s_OWN_lifecycle_LOG_never_ages_a_night_even_once_it_PARSES(tmp_path):
+    """🔴 E16 · THE EXCLUSION MUST HOLD BY RULE, NOT BY A MISSING UNDERSCORE.
+
+    `OXYLIFE.csv` was excluded from `newest_data_mtime` everywhere it mattered, and for the wrong
+    reason: the writer uses one FIXED name per night (deliberately — an unstamped name makes the append
+    idempotent), a name with no `_` does not parse as a capture name at all, so `parse_capture_name`
+    returned None and every consumer dropped it as "not a capture file". Stamp that writer the way LINK
+    and CLOCK are stamped and `Tepna_<box>_OXYLIFE.csv` parses, with a tag that was in no exclusion set:
+    the daemon's own chatter would then age the night, which moves `_current_night` and restarts the
+    settle clock `data_settled` exists to run down. 2026-09-28 is what that costs — 35 reconnect cycles
+    after the doff, 171 OXYLIFE rows, SOLID-NIGHT still UNKNOWN two hours after the sensors were off.
+
+    So this test asks the question the old code could not answer: with the chatter made PARSEABLE, does
+    the night still age only on device data? Both spellings are planted, which is why it would have
+    failed before the fix and cannot pass by accident now."""
+    d = tmp_path / "2026-10-03"
+    d.mkdir()
+    old = time.time() - 4 * 3600.0
+    data = d / "Wellue_O2Ring-S_S8AW2100_20261003213651_PPG.txt"
+    data.write_text("x\n")
+    os.utime(data, (old, old))
+    # Both forms of the daemon's lifecycle log, written THIS INSTANT.
+    (d / "OXYLIFE.csv").write_text("x\n")  # the fixed name as the writer spells it today
+    (d / "Tepna_box01_OXYLIFE.csv").write_text("x\n")  # the stamped form — this one PARSES
+    assert nightqc.parse_capture_name("Tepna_box01_OXYLIFE.csv") == ("OXYLIFE", "csv"), (
+        "the plant is only a plant if the stamped name really does parse — if this ever stops being "
+        "true the test below passes for a reason that has nothing to do with the rule it checks"
+    )
+
+    newest = nightqc.newest_data_mtime(str(d))
+    assert newest == pytest.approx(old, abs=2.0), (
+        "the night must age on its PPG file, four hours quiet — not on either spelling of the daemon's "
+        f"own lifecycle log written a moment ago (got {newest}, data at {old})"
+    )
+    assert nightqc.data_settled(newest, 1200.0, time.time()) is True, (
+        "and the night is therefore judgeable: the data went quiet four hours ago, and the box talking "
+        "about itself is not a reason to keep a verdict waiting"
+    )
+
+    # CONTROL · the same folder with REAL data arriving now is NOT settled, or the assertion above
+    # would pass for a predicate that simply always says yes.
+    fresh = d / "Polar_H10_02849638_20261003213651_ECG.txt"
+    fresh.write_text("x\n")
+    assert nightqc.data_settled(nightqc.newest_data_mtime(str(d)), 1200.0, time.time()) is False
