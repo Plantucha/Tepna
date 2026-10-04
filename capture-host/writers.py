@@ -1931,7 +1931,7 @@ class StreamWriter:
         self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{pp_ms};{err_ms};{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}\n")
 
-    def write_hr(self, phone: _dt.datetime, sensor_ns: int, bpm: int, rr_ms: Iterable[int]) -> None:
+    def write_hr(self, phone: _dt.datetime, sensor_ns: int | None, bpm: int, rr_ms: Iterable[int]) -> None:
         # FED EVEN THOUGH THE ROW DROPS sensor_ns. PSL's _HR/_RR carry only the phone timestamp, but
         # the device clock still ARRIVES here, so a seam is detectable even where it is not written.
         # Skipping it because the column is absent would confuse 'not recorded' with 'not observed'.
