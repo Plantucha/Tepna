@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (BUILT in this PR — the declared list, the one verdict transition, the unmeasured ledger and its growth gate all land here with tests. It stays IN-PROGRESS rather than DONE for one reason: the acceptance item "the diff gate runs clean on `main` with the exclusion in place" cannot be demonstrated while `stage_root_reads` clobbers the staged equivalence ledger — every capture-host mutation run currently refuses before reaching a mutant, on five open PRs as well as this one. Flip to DONE when that fix is on `main` and one diff-scoped run on a `capture.py` function reports NOT_APPLICABLE rather than UNKNOWN.) · **Created:** 2026-10-03
+**Status:** IN-PROGRESS (first built #3258 2026-10-03 as a per-function list; **re-shaped the same day on OWNER RULING — "One module-level declaration"** — after the first PRs to need it showed the per-function form was wrong, and after #3238 exposed a defect in the shipped version. Both land in this PR with tests. Still not DONE: the last acceptance item is one real diff-scoped run reporting `NOT_APPLICABLE` on a `capture.py` PR, which #3238 provides once this lands — stamping DONE before that run is exactly what §📌 forbids.) · **Created:** 2026-10-03
 
 # A cost that is not the diff's should be declared once, not rediscovered every PR
 
@@ -28,59 +28,108 @@ carried **zero `N/M` ticks**, which is what proves nothing was tested rather tha
 
 | property (owner's) | where |
 |---|---|
-| a declared **bounded** list of function keys with reason / date / **measured** cost | `capture-host/tools/mutate-exclusions.json`, read by `mutation_diff.parse_exclusions` |
+| a declared **bounded** declaration with reason / date / **measured** cost | `capture-host/tools/mutate-exclusions.json`, read by `mutation_diff.parse_exclusions` |
 | `NOT_APPLICABLE` in the verdict **without turning FAIL into PASS** | `mutation_diff.declared_exclusion_status` |
-| `unmeasured` ledger ingestion **with a growth gate** | `capture-host/tools/mutate-unmeasured.json`, `--record-unmeasured`, `tests/test_mutation_exclusions.py` |
+| `unmeasured` ledger ingestion **with a growth gate** | `tools/mutate-unmeasured.json`, `--record-unmeasured`, `tests/test_mutation_exclusions.py` |
 | the brief names what **retires** it | this file, and `retiredBy` inside the JSON |
-| **no second status printer** | the existing `emit` path only; the new flag writes a ledger and prints no verdict |
+| **no second status printer** | the existing `emit` path only; the flag writes a ledger and prints no verdict |
 
 ### The safety argument, which is the whole design
 
-`declared_exclusion_status` is allowed **exactly one transition**: `UNKNOWN → NOT_APPLICABLE`. It
+`declared_exclusion_status` is allowed **exactly one transition**: `UNKNOWN` or `NOT_RUN` →
+`NOT_APPLICABLE`. It
 
-* returns the status untouched unless it is `UNKNOWN`, so **it can never rewrite a `FAIL`**;
-* **never returns `PASS`** under any input — asserted over the entire status enum × blocking ∈ {0,1};
+* returns the status untouched for every **settled** status, so **it can never rewrite a `FAIL`**;
+* **never returns `PASS`** under any input — asserted over the whole status enum × blocking ∈ {0,1};
 * short-circuits while **anything is blocking** — a survivor outranks every declaration, always;
-* acts only when **every** refused function is declared; one undeclared refusal and the run stays
-  `UNKNOWN`, because a partial declaration must not speak for the rest;
+* acts only when **every** refused function is declared;
 * **fails closed** on a refusal line it cannot decode exactly, and on a method glob whose decoded bare
-  name could match a module-level function of the same name. A false match is the escape hatch this
-  design exists to refuse.
+  name could match a module-level function of the same name;
+* is wired **only** into the budget-refusal and declared-module paths, so a crash, a memory refusal or
+  a generation timeout cannot reach it whatever status they carry. That wiring does more of the safety
+  work than the status check ever did.
 
-A malformed or missing exclusion file yields the **empty set**, loudly. A broken file must never be able
+A missing or malformed exclusion file yields the **empty set**, loudly: a broken file must never be able
 to *grant* an exclusion.
 
-### Why the list is short, and why `timeline` is not in it
+## 🔴 Two defects in the version that shipped as #3258, and what they cost
+
+**1. The guard read `status != "UNKNOWN"`, so it never fired on the canonical case.**
+`budget_exhaustion_verdict` answers `NOT_RUN` when `decided == 0` and `UNKNOWN` only when `decided > 0`.
+A diff whose **entire scope** is one declared function decides nothing — so #3238, the first PR to
+exercise the exclusion for real, produced `NOT_RUN` and stayed red. I had built and tested only the
+**mixed** case (some functions measured, some refused).
+
+⚠️ **My own test asserted the defect as a contract.**
+`test_it_acts_ONLY_on_UNKNOWN_so_it_can_never_rewrite_a_FAIL` listed `NOT_RUN` among the statuses the
+function must refuse. So 60 passing tests, a clean mutation run over the exclusion's own six functions,
+and 100 % statement-and-branch coverage all agreed with me. **A test can pin a defect in place**, and
+the only thing that found this one was pointing the instrument at the first real case.
+
+**2. The check was in the right logic and the wrong place.** It was consulted at the budget-refusal
+point — *after* `clean_run_seconds` and after the budget was spent. #3238 measured **7693 s** to reach a
+refusal whose answer sat in a committed file before any work started. Declaring saved the declaring PR
+nothing, and since a later diff rarely touches the same function, it saved the fleet nothing. The check
+now runs at **selection**, where the scoped stems are already known, so a declared module costs seconds.
+
+Neither defect filed a residue row: both were found and fixed inside one session, and §📌 rows are for
+defects that outlive the PR that found them. They are recorded here instead.
+
+## Why ONE module key, and not a list of functions
+
+The cost is a property of the **module**. `mutmut run <glob>` applies the glob when it **runs** mutants
+and never when it **generates** them, so every `capture.py` diff pays for the whole module's population
+whatever it touched. N function keys each citing one module-level measurement dressed **one fact as N**,
+and the bound each of them raised became decoration. The owner ruled one module-level declaration.
+
+**What that costs, stated plainly, because a one-line declaration should not hide it:** `capture.py` is
+**13,673 lines**, with **229 module-level defs** and **290 functions** counting nested ones and methods,
+and the declaration covers **all of them**. So the gate prints that count — recomputed from the module's
+own AST, never quoted — together with how many of the diff's own functions fell under it, **on every
+run**. The blind spot is re-counted per PR rather than agreed once and forgotten. (The "226 functions" in
+`MUTATION-SCOPED-GENERATION-2026-09-28` was measured on 2026-09-28 and is already stale, which is itself
+the argument for counting rather than quoting.)
+
+**E7's two function keys are gone, not kept as examples.** The module key matches first, so they could
+never fire again, and a declaration that can never fire is the stale-key hazard
+`test_every_declared_key_names_a_function_that_EXISTS` exists to catch. Their two measurements — one by
+time, one by memory, taken by independent mechanisms — are the module entry's `cost.source`.
+
+### Why `timeline` is in no declaration at all
 
 Residue row `2026-09-28-five-timeline-functions-were-never-mutated-and-the-ledger-cannot-hold-that`
-prompted this work, and the obvious move — declare its five `timeline` functions — would have recorded a
-fact **nobody measured**. That run (36399889018) had **17 functions in one scope**; four were never
-attempted because the budget was eaten, not because they are unmeasurable. #3254 then mutated
-`timeline._placed` **alone** and decided all 51 of its mutants in **1392 s**, comfortably inside the
-budget.
+prompted this work, and declaring its functions would have recorded **a fact nobody measured**: that run
+had **17 functions in one scope**, and #3254 later mutated `timeline._placed` **alone** and decided all
+**51** of its mutants in **1392 s**. Their unmeasurability was an artifact of **scope size**. They are
+`undeclared` rows in the unmeasured ledger instead — the trace that row actually asked for.
 
-So the declared list holds **only `capture.py`**, whose cost is different in kind: module-level,
-independent of the glob, unreachable by any narrowing of the diff. The four `timeline` functions are
-instead ingested as `undeclared` rows in the unmeasured ledger — which is what that residue row actually
-asked for, a trace where the survivor ledger can hold none.
+**The rule this produced:** measurable-vs-unmeasurable, like gap-vs-equivalence, is a **per-mutant and
+per-scope** question, never a property of a function. A declaration is about **cost**, never testability.
 
-**The sharper rule this produced, worth keeping:** *gap vs equivalence, and measurable vs unmeasurable,
-are per-MUTANT and per-SCOPE questions — never properties of a function.* Within one 29-line function a
-line-1 mutant was a test gap while a middle-of-function mutant was a true equivalence. An exclusion keyed
-on a function is therefore a declaration about **cost**, never about testability.
+### One more thing the speed-up nearly broke
+
+Moving the check to selection removed the budget refusal for a declared module — and
+`unmeasured_rows` reads that refusal list. Without `declared_module_rows`, the ledger would have
+recorded **nothing** for the one module whose blind spot it exists to enumerate. Making the gate faster
+would have silently deleted the record of what the gate stopped measuring (§∅: an absent row is not an
+absent gap).
 
 ## Acceptance
 
-1. ✅ The declared set is exactly the committed census, and `EXCLUSION_BOUND` **equals** it — headroom
-   would make the bound decoration, so the next exclusion costs a deliberate raise.
-2. ✅ `parse_exclusions` refuses: wrong schema, glob or bare-module key, missing reason or date, a cost
-   with no provenance or no source, more entries than the bound. Fourteen refusal shapes asserted.
-3. ✅ Every declared key names a function that **exists** (AST-checked) — a stale key reads as a live
-   declaration and grants nothing.
-4. ✅ The safety property asserted in **both** directions.
-5. ✅ The unmeasured ledger does not grow silently; every `declared` row is actually declared.
-6. ✅ Both ledgers are byte-canonical `json.dumps(indent=2, ensure_ascii=False) + "\n"`.
-7. ⏳ One diff-scoped run on a `capture.py` function reports `NOT_APPLICABLE` — **blocked**, see Status.
+1. ✅ The declared set is exactly the committed census, and `EXCLUSION_BOUND` **equals** it (now 1).
+2. ✅ Exactly **one** module key is permitted; a second raises. Checked independently of the bound —
+   with the bound at 1 the bound check *masked* this rule, so it now runs after the per-entry rules.
+3. ✅ A module key requires `cost.scope: module` **and both module measurements**; a function key
+   requires `cost.scope: function`. Nineteen refusal shapes asserted.
+4. ✅ `declared_module` matches a bare module key only — a function key is invisible to it, because
+   reading one as the other is how a statement about one function would excuse 290.
+5. ✅ The safety property asserted in **both** directions, including on `NOT_RUN`.
+6. ✅ The covered-function count is **measured from the AST** and asserted to exceed the brief's stale
+   226.
+7. ✅ A declared module's skipped functions reach the unmeasured ledger as `declared` rows, ingested by
+   a real run only.
+8. ⏳ One real diff-scoped run reports `NOT_APPLICABLE` on a `capture.py` PR — #3238 provides it once
+   this lands. **Not stamped until that run exists.**
 
 ## What retires this
 
