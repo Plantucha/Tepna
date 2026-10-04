@@ -151,11 +151,29 @@ def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float
 
     The duration rule lives here, in preference order:
       1. `span_sec` — the file's OWN device clock, era-correct because the device wrote it.
-      2. `rows / fs` — today's configured rate, which over-states an older night (§A4c above).
-      3. `host_span_sec` — the host stamps, and ONLY where neither of the above exists: the ring's raw
-         buffers have no nominal rate (`_expected_hz` is None by design) and write no device clock, so
-         without this they were dropped here and then published as 0 % captured.
+      2. `host_span_sec` — the file's own FIRST-TO-LAST HOST STAMP, also era-correct.
+      3. `rows / fs` — today's configured rate, and last because it is the only one that can be wrong
+         about the night in two directions at once.
     `None` where no basis exists at all, which is a refusal and not a zero.
+
+    ⚠️ `host_span_sec` MOVED AHEAD OF `rows / fs` (2026-09-28). Measured: that night's Verity ACC ran
+    to 04:20:39 and the bar stopped at ~03:52 — 28 minutes of real recording painted as nothing —
+    because `rows / fs` measures RECEIVED SAMPLES, and a link that drops packets writes fewer rows
+    than the clock says elapsed. The old order reached for it second and only fell through to the host
+    stamps when there was no rate at all, so every dropping stream was shortened by exactly its losses.
+
+    The §A4c argument that put `rows / fs` second is untouched and now argues for this order rather
+    than against it: `fs` is the rate configured TODAY, so a re-negotiated or corrected rate OVER-states
+    an old night (196.7 % on the 2026-07-16 H10 ACC, 134.6 % on the 2026-07-20 Verity ACC). So
+    `rows / fs` over-states when the rate moved and UNDER-states when packets dropped, while both
+    numbers above it are written by the night itself and can do neither.
+
+    The ring's raw buffers, which `host_span_sec` was added for, are unaffected by the reorder: they
+    have no nominal rate (`_expected_hz` is None by design) and write no device clock, so they reached
+    it before and reach it now.
+
+    Still never the file's mtime, for a killed or still-open session that is when the last flush landed
+    rather than where the data ends — that refusal is unchanged and is why this list has a `None`.
     """
     ids = {device_id} if isinstance(device_id, str) else {i for i in (device_id or []) if i}
     ids.discard("")
@@ -168,7 +186,7 @@ def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float
         # The stamp is floating; `offset_sec` raises it into the frame the caller's window is in. 0.0 (the
         # default) means "already one frame", which is what every synthetic file list in the suite is.
         t0 += 0.0 if offset_sec is None else offset_sec
-        dur = f.get("span_sec") or (f["rows"] / fs if fs > 0 else f.get("host_span_sec"))
+        dur = f.get("span_sec") or f.get("host_span_sec") or (f["rows"] / fs if fs > 0 else None)
         yield (t0, dur or None)
 
 
