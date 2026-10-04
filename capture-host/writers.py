@@ -1762,6 +1762,9 @@ class StreamWriter:
             self._rr_path = rr_path  # remembered so `paths`/`discard` can see it
         self._n = 0
         self._first_ns: int | None = None  # per-file anchor for the relative `timestamp [ms]` column
+        # True when a RESUMED ECG file's original anchor could not be read back (below). The column is then
+        # written EMPTY for the rest of the file rather than restarted at 0.0 — see `_rel_ms`.
+        self._rel_anchor_lost = False
         # §3.2 (no re-anchor): on a resumed ECG file the relative `timestamp [ms]` column must keep the
         # ORIGINAL anchor — left to its lazy init it would restart at 0.0 mid-file, and ECGDex's headless
         # parser infers fs from this column's STEP, so one reset fabricates a step the size of the whole
@@ -1777,7 +1780,14 @@ class StreamWriter:
                             self._first_ns = int(_c[1])
                             break
             except OSError:
-                pass  # unreadable ⇒ lazy init; worse column, never a crash
+                # ∅ ABSENCE-SURVEY 69af7d0ae895: this was `pass` → lazy init, which RESTARTED the relative
+                # column at 0.0 mid-file — a discontinuity written as if it were the file's own axis, and
+                # ECGDex's coverage reads that column's first and last values. The anchor is unknown, so the
+                # column is left EMPTY from here on (ECGDex skips a non-finite `[ms]`; nightqc never reads it
+                # as a waveform), the device-clock `sensor timestamp [ns]` column still carries the timing,
+                # and the recording continues — never a crash.
+                self._rel_anchor_lost = True
+                _log.warning("ECG resume: %s could not be read back, so its relative ms column is left empty", path)
         # The constant-run sidecar, for optical streams only. Built LAST among the file handles so a
         # failure here cannot leave the sample file half-open; `_RunSidecar` swallows its own OSError
         # for the same reason — the recording must not fail because a note about it could not.
@@ -1818,6 +1828,8 @@ class StreamWriter:
     #   rounded to integer ms (7.692→7/8 makes the parser read 143/125 Hz instead of 130) and must NOT be
     #   the absolute device-clock ms. Emit fractional, relative, trailing-zeros stripped → "0.0" first row.
     def _rel_ms(self, sensor_ns: int) -> str:
+        if self._rel_anchor_lost:
+            return ""  # the resumed file's anchor is unknown: absent, never a restarted 0.0
         if self._first_ns is None:
             self._first_ns = sensor_ns
         v = (sensor_ns - self._first_ns) / 1e6
