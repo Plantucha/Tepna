@@ -464,6 +464,60 @@ def test_run_oxyii_captures_a_live_reply(tmp_path, monkeypatch):
     assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "a SpO2 sidecar must be written"
 
 
+# ── the ring's vitals cadence is a deadline (residue 2026-09-29-ring-vitals-poll-runs-at-one-second-plus-work) ──
+def test_oxyii_next_cycle_is_the_period_and_reanchors_after_a_whole_period_behind():
+    assert capture.oxyii_next_cycle(10.0, 11.015) == 11.0, "on time: the next start is start + period"
+    assert capture.oxyii_next_cycle(10.0, 11.999, 1.0) == 11.0, "under a period behind: keep the schedule"
+    assert capture.oxyii_next_cycle(10.0, 12.0, 1.0) == 12.0, "a whole period behind: re-anchor on now"
+    assert capture.oxyii_next_cycle(10.0, 15.3, 1.0) == 15.3, "never a burst of catch-up polls"
+    assert capture.oxyii_next_cycle(10.0, 10.2, 0.5) == 10.5
+    assert capture._OXYII_POLL_PERIOD_S == 1.0
+
+
+def _ring_poll_times(tmp_path, monkeypatch, streams, cycles, work_s=0.015):
+    """Run the REAL loop on a fake clock where every live poll costs `work_s` of work. Returns the clock time
+    of each live-frame write and every sleep the loop asked for."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    clock = {"t": 1000.0}
+    lives, sleeps = [], []
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            lives.append(clock["t"])
+            clock["t"] += work_s
+            c.notify(0, _o2ring_live_reply())
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    per_cycle = 2 if "ppg2w" in streams else 1
+    limit = 3 + per_cycle * cycles  # auth + setup + RTC, then the live cycles
+
+    async def fake_sleep(secs):
+        sleeps.append(secs)
+        clock["t"] += secs
+        if len(sleeps) >= limit:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=streams), str(tmp_path)))
+    return lives, sleeps
+
+
+@pytest.mark.parametrize("streams", [["spo2"], ["spo2", "ppg2w"]])
+def test_run_oxyii_polls_the_ring_once_per_period_however_long_the_work_takes(tmp_path, monkeypatch, streams):
+    """MEASURED 2026-09-28 on vigil: a fixed sleep AFTER 15 ms of work made the period 1.0149 s, so the live
+    SpO2 file held 23 826 rows for a 24 179 s night. With deadlines the polls are exactly one period apart,
+    on both branches (with and without the mid-cycle raw drain)."""
+    lives, sleeps = _ring_poll_times(tmp_path, monkeypatch, streams, cycles=6)
+    assert len(lives) >= 5, (lives, sleeps)  # anti-vacuity: the loop really ran several cycles
+    gaps = [round(b - a, 9) for a, b in zip(lives, lives[1:])]
+    assert gaps == [1.0] * len(gaps), f"poll spacing {gaps} — the cycle's work must not lengthen the period"
+
+
 def test_run_oxyii_journals_both_axes_worn_flip_and_recording_close(tmp_path, monkeypatch):
     """One faked poll sequence drives BOTH axes end-to-end through the PRODUCTION callback (execution
     witness, not a helper test): worn advancing frames → link LIVE + rec RECORDING; an unworn frame with
