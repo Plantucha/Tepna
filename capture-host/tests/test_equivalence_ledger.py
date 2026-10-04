@@ -39,9 +39,16 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # stream reports no device clock at all. Twelve §A5 entries were added. The third sibling, for
 # `recorded_seams`, was re-measured (5,040 sidecars, 0 distinguishing) and KEPT with a reason about
 # that site's own two consumers rather than the one that had now been refuted twice.
+# blind_spots.py (1) and ppg_grid_check.py (2) are NEW on 2026-10-04: the mypy-drift PR narrowed types
+# inside `analyze`, `_is_double` and `grid_inflation`, which put those whole functions in the gate's
+# scope for the first time and surfaced 21 survivors. 18 were killed outright — 13 by fixtures that
+# could actually distinguish the mutant, 5 by collapsing `_is_double`'s dead parameters, which is a
+# refactor the unkillable mutants themselves argued for. These 3 are the residue, each with a
+# COMMITTED battery whose canaries are asserted first.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
+    "blind_spots.py": 1,
     "clock.js": 3,
     "cpap_edf.py": 1,
     "cpap_edf_writer.py": 4,
@@ -64,6 +71,7 @@ RATCHET = {
     "oxy_inventory.py": 6,
     "oxy_transfer.py": 5,
     "oxyii.py": 3,
+    "ppg_grid_check.py": 2,
     "ppgdex-dsp.js": 130,
     "probe_oxyii_0x03.py": 1,
     "probe_ring_adv.py": 4,

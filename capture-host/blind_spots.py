@@ -82,17 +82,37 @@ def _body_reads(fn: ast.AST) -> set[str]:
     return reads
 
 
-def _is_double(fn: ast.AST, depth: int, in_test_class: bool) -> bool:
+_FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
+
+
+def _is_double(fn: _FunctionNode, enclosed: bool) -> bool:
     """A double is a callable a test hands to production code: a NESTED def, a lambda, or a method on a
     helper class. A top-level `def test_...` is not one — its parameters are pytest fixtures, and an
     unused fixture is a different smell with a different fix (it is usually requested for its side
-    effect, e.g. monkeypatching, which is exactly why it is not read)."""
+    effect, e.g. monkeypatching, which is exactly why it is not read).
+
+    `enclosed` is "this node sits inside a function or a class" — ONE boolean, which is all this ever
+    computed. It used to take `depth: int` and `in_test_class: bool` and return `depth > 0 or
+    in_test_class`, so the integer was never a depth to this function: only its sign mattered, and
+    either argument alone could decide the answer.
+
+    ⚠️ THE MUTATION GATE IS WHAT MEASURED THAT. Five mutants of `analyze` survived every test —
+    `depth + 1` → `depth + 2`, and `False` → `True` → `None` at three call sites — because none of
+    them could change `depth > 0 or in_test_class` for a node already enclosed. Unkillable mutants on
+    arguments that cannot alter an answer are not a test gap; they are the measurement saying the
+    parameters were dead structure. Collapsing them makes the remaining constants significant again:
+    flipping the one at `visit(tree, enclosed=False)` now promotes every top-level function to a
+    double, and a test sees it."""
     if isinstance(fn, ast.Lambda):
         return True
-    name = getattr(fn, "name", "")
-    if name.startswith("test_"):
+    # `fn.name`, not `getattr(fn, "name", "")`. The caller only ever passes the three node kinds in
+    # `_FunctionNode`, and the Lambda — the one without a `.name` — has already returned above, so
+    # mypy narrows this to FunctionDef | AsyncFunctionDef and the default was unreachable. The gate
+    # said so first: two mutants of that default (`None`, and dropping it) survived every test,
+    # because nothing can reach a default that never applies.
+    if fn.name.startswith("test_"):
         return False
-    return depth > 0 or in_test_class
+    return enclosed
 
 
 def analyze(source: str, path: str = "<test>") -> list[dict]:
@@ -105,30 +125,48 @@ def analyze(source: str, path: str = "<test>") -> list[dict]:
     tree = ast.parse(source, filename=path)
     out: list[dict] = []
 
-    def visit(node: ast.AST, depth: int, in_class: bool) -> None:
+    def visit(node: ast.AST, enclosed: bool) -> None:
+        """`enclosed` replaces the old `(depth, in_class)` pair, which only ever reached `_is_double`
+        as `depth > 0 or in_class`. Both ways of becoming enclosed — descending into a function, or
+        into a class — set the same single flag, and nothing ever clears it, because neither a
+        function nor a class can un-nest what is inside it."""
         for child in ast.iter_child_nodes(node):
-            is_fn = isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
-            if is_fn and _is_double(child, depth, in_class):
-                _record(child, path, out)
-            if isinstance(child, ast.ClassDef):
-                visit(child, depth, True)
-            elif is_fn:
-                visit(child, depth + 1, False)
+            # The isinstance test is IN the branch, not stored in `is_fn` first: a narrowing holds for
+            # the checked expression, and mypy cannot carry it through a bool variable — which is why
+            # `_record(child, …)` read as `AST` here even though the guard above it was exact. Same
+            # three branches, same order, one node can be only one of them.
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                if _is_double(child, enclosed):
+                    _record(child, path, out)
+                visit(child, True)
+            elif isinstance(child, ast.ClassDef):
+                visit(child, True)
             else:
-                visit(child, depth, in_class)
+                visit(child, enclosed)
 
-    visit(tree, 0, False)
+    visit(tree, False)
     out.sort(key=lambda r: (r["file"], r["line"]))
     return out
 
 
-def _record(fn: ast.AST, path: str, out: list[dict]) -> None:
+# The three node types `visit` actually hands to `_record`, and the only ones that have `.args` and
+# `.lineno`. The signature said `ast.AST`, which is true of every node in the tree and therefore says
+# nothing: mypy flagged `.args` twice and `.lineno` once because the base class has neither. The
+# isinstance check that makes those attributes safe lives at the call site, where the annotation could
+# not see it — so the type is narrowed here to what the caller already guarantees.
+def _record(fn: _FunctionNode, path: str, out: list[dict]) -> None:
     reads = _body_reads(fn)
     named = [p for p in _param_names(fn.args) if p not in BOUND_NAMES and not p.startswith(IGNORED_PREFIX)]
     dropped = [p for p in named if p not in reads]
 
     kw = fn.args.kwarg
-    swallowed = bool(kw and not kw.arg.startswith(IGNORED_PREFIX) and kw.arg not in reads)
+    # The NAME, not a bool. `bool(kw and …)` threw away the one fact the later `kw.arg` depends on —
+    # that `kw` is not None — so mypy could not know the attribute access was safe, and neither could
+    # a reader. Carrying the name makes the guard and the use the same expression.
+    swallowed_name = (
+        kw.arg if kw and not kw.arg.startswith(IGNORED_PREFIX) and kw.arg not in reads else None
+    )
+    swallowed = swallowed_name is not None
 
     if not dropped and not swallowed:
         return
@@ -138,7 +176,7 @@ def _record(fn: ast.AST, path: str, out: list[dict]) -> None:
             "line": fn.lineno,
             "double": getattr(fn, "name", "<lambda>"),
             "discarded": dropped,
-            "swallowed": kw.arg if swallowed else None,
+            "swallowed": swallowed_name,
             "kind": SWALLOWED if swallowed and not dropped else DISCARDED,
             "n_params": len(named),
         }

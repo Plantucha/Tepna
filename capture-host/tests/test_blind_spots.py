@@ -7,7 +7,10 @@
 # the tool exists to withhold. Every case below is a shape taken from this suite, not an invented one.
 import pytest
 
+import blind_spots as _B_MOD
 from blind_spots import DISCARDED, SWALLOWED, analyze, rank, summarize
+
+B_FILE = _B_MOD.__file__
 
 
 def _one(src):
@@ -263,3 +266,133 @@ def test_summarize_counts_each_swallower_once():
     )
     assert s["swallowing"] == 2, f"two doubles swallow kwargs, not {s['swallowing']}"
     assert s["doubles"] == 2
+
+
+def test_a_file_that_cannot_be_parsed_names_ITSELF_in_the_error():
+    """Kills `ast.parse(source, filename=path)` → `ast.parse(source, )`.
+
+    `analyze` deliberately raises SyntaxError to the caller rather than returning [] — its docstring
+    says why: silently returning nothing would read as "no blind spots here". But the exception is
+    only actionable if it names the file, and the `filename=` was asserted nowhere, so dropping it
+    changed the error from `x/y.py` to `<unknown>` with every test still green. A sweep over hundreds
+    of test files that cannot say WHICH one failed to parse is not much better than silence."""
+    with pytest.raises(SyntaxError) as excinfo:
+        analyze("def (:\n", path="tests/x_y.py")
+    assert excinfo.value.filename == "tests/x_y.py", excinfo.value.filename
+
+
+def test_ENCLOSURE_is_the_whole_question_and_both_ways_in_count_the_same():
+    """Pins the contract `_is_double` was collapsed to (2026-10-04).
+
+    It used to take `(depth: int, in_test_class: bool)` and return `depth > 0 or in_test_class`, so
+    the integer was never a depth: only its sign mattered, and either argument could decide alone.
+    Five mutants of `analyze` were unkillable because of it — `depth + 1` → `depth + 2`, and
+    `False`/`True`/`None` at three call sites — none of which can change the answer for a node that
+    is already enclosed. The parameters were dead structure and the gate is what measured it.
+
+    These four cases are the collapsed contract, and each one now has a mutant behind it: flipping
+    `visit(tree, False)` promotes case 1 to a double, and flipping either `visit(child, True)`
+    demotes cases 2 and 3."""
+    src = (
+        "def helper(a, b):\n"           # 1 · top level, drops b — NOT a double
+        "    return a\n"
+        "def outer():\n"
+        "    def inner(a, b):\n"        # 2 · nested in a function — IS a double
+        "        return a\n"
+        "class Helper:\n"
+        "    def meth(self, a, b):\n"   # 3 · method on a helper class — IS a double
+        "        return a\n"
+        "def test_t(a, b):\n"           # 4 · a test function — NEVER a double
+        "    return a\n"
+    )
+    found = {r["double"] for r in analyze(src, path="t.py")}
+    assert "inner" in found, "a function nested in a function is a double"
+    assert "meth" in found, "a method on a helper class is a double — the OTHER way of being enclosed"
+    assert "helper" not in found, (
+        "a top-level helper was reported as a double — the scan started as if already enclosed"
+    )
+    assert "test_t" not in found, "a test function's unused parameter is a fixture, not a dropped arg"
+
+
+def test_enclosure_survives_a_statement_in_between():
+    """Kills `visit(child, enclosed)` → `visit(child, None)` in the pass-through branch.
+
+    A double is not always a direct child of the function that encloses it — put it under an `if`,
+    a `with` or a `for` and the walk reaches it through the branch that forwards the flag unchanged.
+    Every other test nests the double DIRECTLY, where that branch is never taken, so a mutant that
+    drops the flag there changed nothing. `None` is falsy, so the inner double silently stopped being
+    one: the scan would under-report exactly the doubles that sit inside a conditional helper."""
+    src = "def outer():\n    if True:\n        def inner(a, b):\n            return a\n"
+    found = {r["double"] for r in analyze(src, path="t.py")}
+    assert "inner" in found, "a double under an `if` lost its enclosure on the way down"
+
+
+# ── THE EQUIVALENCE BATTERY (tools/mutate-equivalence.json, blind_spots.py) ────────────────────────
+# `visit(tree, False)` → `visit(tree, None)` survives every test. Both are falsy and `enclosed` is
+# consumed only by `if _is_double(...)`, so no source can tell them apart — but that claim is worth
+# recording only if the instrument can detect a difference at all, so the canaries run FIRST.
+import types
+
+from _srcscan import module_source
+
+_BS_CANARIES = [
+    ("visit(tree, False)", "visit(tree, True)", "every top-level function becomes a double"),
+    ("visit(child, True)", "visit(child, False)", "nothing nested is a double any more"),
+    ('if fn.name.startswith("test_")', 'if fn.name.endswith("test_")', "test functions stop being exempt"),
+]
+_BS_CANDIDATE = ("visit(tree, False)", "visit(tree, None)")
+
+_BS_CORPUS = [
+    "def helper(a, b):\n    return a\n",
+    "def outer():\n    def inner(a, b):\n        return a\n",
+    "class H:\n    def meth(self, a, b):\n        return a\n",
+    "def test_t(a, b):\n    return a\n",
+    "f = lambda a, b: a\n",
+    "def outer():\n    if True:\n        def inner(a, b):\n            return a\n",
+    "class H:\n    def m(self):\n        def deep(a, b):\n            return a\n",
+    # ⚠️ AN ENCLOSED `test_*`, and the battery is wrong without it: the exemption only CHANGES an
+    # answer where the node would otherwise be a double, i.e. where it is enclosed. With the test
+    # function at top level, `startswith` and `endswith` both end at `return enclosed` = False and
+    # the canary goes uncaught — which is how the canary rule caught this battery being too narrow
+    # before it certified anything.
+    "class H:\n    def test_m(self, a, b):\n        return a\n",
+    "def outer():\n    def test_inner(a, b):\n        return a\n",
+    "def outer(**kw):\n    return 1\n",
+    "def outer():\n    def inner(**kw):\n        return 1\n",
+    "",
+]
+
+
+def _bs_variant(before=None, after=None):
+    src = module_source("blind_spots.py")
+    if before is not None:
+        assert src.count(before) >= 1, f"anchor {before!r} absent — the battery would test nothing"
+        src = src.replace(before, after)
+    mod = types.ModuleType("blind_spots_variant")
+    exec(compile(src, B_FILE, "exec"), mod.__dict__)
+    return mod
+
+
+def _bs_observe(mod):
+    out = []
+    for i, src in enumerate(_BS_CORPUS):
+        try:
+            out.append(sorted((r["double"], r["kind"], tuple(r["discarded"])) for r in mod.analyze(src, f"t{i}.py")))
+        except SyntaxError as e:  # part of the observable behaviour, and it names the file
+            out.append(("SyntaxError", e.filename))
+    return out
+
+
+def test_the_falsy_enclosure_constant_is_unkillable_and_the_battery_can_PROVE_it():
+    base = _bs_observe(_bs_variant())
+    assert any(r for r in base), "the corpus found no doubles at all — it measures nothing"
+
+    for before, after, why in _BS_CANARIES:
+        assert _bs_observe(_bs_variant(before, after)) != base, (
+            f"canary NOT caught ({why}) — this battery cannot detect a difference"
+        )
+
+    before, after = _BS_CANDIDATE
+    assert _bs_observe(_bs_variant(before, after)) == base, (
+        f"{before!r} -> {after!r} IS distinguishable — a test gap, not an equivalence"
+    )

@@ -187,3 +187,185 @@ def test_the_cli_reports_a_uniform_stretch_as_rescalable(tmp_path, capsys):
     assert "PHANTOM GAPS" not in out, "a file with zero gaps must not be described as gap-stretched"
     assert "cannot be repaired" not in out
     assert "scale x" in out, "a uniform stretch is exactly rescalable — say by how much"
+
+
+# ── THE ARITHMETIC CORE, which the mutation gate found unobserved (2026-10-04) ─────────────────────
+# A mypy fix inside `grid_inflation` pulled the whole function into the gate's scope, and 12 of its
+# mutants had no test that could see them — every one on a line the fix never touched. The existing
+# tests assert the VERDICT (`ok`, `gaps`, `distinct_steps`) and the inflation to 1e-5; none pins the
+# intermediate quantities the verdict is computed from, so the subtraction, the divisor and the
+# field index were all free to change.
+def _raw(tmp_path, rows, name=None):
+    """A PPG file written row by row, for fixtures `_write` cannot express — a non-zero first
+    `sensor_ns`, a sub-second wall span, a torn first row."""
+    p = tmp_path / (name or _name())
+    p.write_text("Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(rows) + "\n")
+    return str(p)
+
+
+def _row(ms, ns, ch=1234):
+    t = _dt.datetime(2026, 7, 25, 2, 7, 23) + _dt.timedelta(milliseconds=ms)
+    return f"{t.strftime('%Y-%m-%dT%H:%M:%S.')}{t.microsecond // 1000:03d};{ns};{ch}"
+
+
+def test_the_grid_span_is_the_DIFFERENCE_of_the_two_sensor_stamps(tmp_path):
+    """Kills `(ns1 - ns0)` → `(ns1 + ns0)` and `int(fp[1])` → `int(fp[2])`.
+
+    ⚠️ Every existing fixture starts `sensor_ns` at ZERO, where `ns1 - ns0` and `ns1 + ns0` are the
+    same number — so the subtraction was never observed. A real O2Ring file starts wherever the ring's
+    counter happens to be."""
+    f = _raw(tmp_path, [_row(0, 1_000_000_000, ch=7), _row(2000, 3_000_000_000, ch=9)])
+    m = pgc.grid_inflation(f)
+    assert m["grid_s"] == 2.0, m["grid_s"]  # (3e9 - 1e9) / 1e9, not 4.0 and not (3e9 - 7)/1e9
+
+
+def test_the_grid_span_is_divided_by_EXACTLY_one_billion(tmp_path):
+    """Kills `/ 1e9` → `/ 1000000001.0` on the grid span. The spans in the other fixtures are long
+    enough that a one-part-in-1e9 divisor error hides under the 1e-5 inflation tolerance; an exact
+    equality on a span that divides evenly does not let it."""
+    f = _raw(tmp_path, [_row(0, 0), _row(2000, 2_000_000_000)])
+    assert pgc.grid_inflation(f)["grid_s"] == 2.0
+
+
+def test_a_SUB_SECOND_file_is_still_measured(tmp_path):
+    """Kills `if wall <= 0` → `wall <= 1`. The guard rejects a file whose host clock did not advance;
+    widening it to a second silently discards every short fragment as unjudgeable."""
+    f = _raw(tmp_path, [_row(0, 0), _row(500, 500_000_000)])
+    m = pgc.grid_inflation(f)
+    assert m is not None, "a 0.5 s file was discarded as if its clock had not advanced"
+    assert m["wall_s"] == 0.5
+
+
+def test_a_torn_row_on_EITHER_side_makes_the_file_unjudgeable(tmp_path):
+    """Kills `len(fp) < 3 or len(lp) < 3` → `and`. With `and`, one torn row is tolerated as long as
+    the other is intact, and the file is judged from a row it could not read."""
+    short_first = _raw(tmp_path, ["2026-07-25T02:07:23.000;0", _row(2000, 2_000_000_000)])
+    assert pgc.grid_inflation(short_first) is None
+    short_last = _raw(tmp_path, [_row(0, 0), "2026-07-25T02:07:25.000;2000000000"], name=_name("20260725020724"))
+    assert pgc.grid_inflation(short_last) is None
+
+
+def _gappy(tmp_path):
+    """Two gap jumps of known size on a 10-row grid: modal step 1e6 ns, two deltas of 3e6."""
+    ns, rows = 0, []
+    for i in range(10):
+        rows.append(_row(i * 10, ns))
+        ns += 3_000_000 if i in (3, 6) else 1_000_000
+    return _raw(tmp_path, rows)
+
+
+def test_the_fabricated_seconds_are_the_SUM_OF_THE_EXCESS_over_the_modal_step(tmp_path):
+    """Kills six mutants on the `gap_seconds` line at once — `/ 1e9` → `* 1e9`, `c * (d - modal)` →
+    `c / (d - modal)`, `(d - modal)` → `(d + modal)`, `and` → `or`, `modal is not None` → `is None`,
+    and `/ 1e9` → `/ 1000000001.0`. The quantity was computed and returned and never asserted.
+
+    Two jumps of 3e6 ns against a modal step of 1e6 ns: each contributes 2e6 ns of fabricated time,
+    so 4e6 ns = 0.004 s."""
+    m = pgc.grid_inflation(_gappy(tmp_path))
+    assert m["modal_step_ns"] == 1_000_000
+    assert m["gaps"] == 2
+    assert m["gap_seconds"] == 0.004, m["gap_seconds"]
+
+
+def test_fabricated_seconds_are_the_grid_MINUS_the_wall(tmp_path):
+    """Kills `grid - wall` → `grid + wall`. A sign error here reports a file that LOST time as one
+    that invented it, which is the whole distinction this module exists to make."""
+    f = _raw(tmp_path, [_row(0, 0), _row(2000, 1_000_000_000)])  # grid 1.0 s over a 2.0 s wall
+    m = pgc.grid_inflation(f)
+    assert m["wall_s"] == 2.0 and m["grid_s"] == 1.0
+    assert m["fabricated_s"] == -1.0, "a file that lost a second was reported as fabricating three"
+
+
+def test_a_step_SHORTER_than_the_modal_one_does_not_count_as_fabricated_time(tmp_path):
+    """Kills `modal is not None and d > modal` → `or`.
+
+    ⚠️ MY FIRST GAP FIXTURE COULD NOT SEE THIS, for the third instance of the same trap today: with
+    `or` the condition is true for every delta, but the modal term contributes `c * (d - modal)` = 0
+    and the only other deltas were LARGER, so the sum was unchanged. A delta BELOW the modal step is
+    what separates them — it contributes a negative term, and fabricated time that goes DOWN because
+    one step was short is exactly the arithmetic this guard exists to prevent.
+
+    Deltas here: 7 × 1e6 (modal), one 5e5, one 3e6. Only the 3e6 is fabricated: 2e6 ns = 0.002 s.
+    Under `or` the short step subtracts 5e5 and the answer becomes 0.0015."""
+    ns, rows, steps = 0, [], [1_000_000] * 3 + [500_000] + [1_000_000] * 3 + [3_000_000] + [1_000_000]
+    rows.append(_row(0, ns))
+    for i, st in enumerate(steps):
+        ns += st
+        rows.append(_row((i + 1) * 10, ns))
+    m = pgc.grid_inflation(_raw(tmp_path, rows))
+    assert m["modal_step_ns"] == 1_000_000
+    assert m["gaps"] == 2, m["gaps"]
+    assert m["gap_seconds"] == 0.002, m["gap_seconds"]
+
+
+# ── THE EQUIVALENCE BATTERY (tools/mutate-equivalence.json, ppg_grid_check.py) ─────────────────────
+# Two mutants in `grid_inflation` survive every test, and the claim that they CANNOT be killed is only
+# worth recording if the instrument making it can detect a difference at all. So the canaries run
+# FIRST and must all be caught: a battery that distinguishes nothing is indistinguishable from one too
+# narrow to distinguish anything (tools/probe_equivalence.py's rule).
+import types
+
+from _srcscan import module_source
+
+_PGC_CANARIES = [
+    # (before, after, why it MUST be caught)
+    ("(ns1 - ns0) / 1e9", "(ns1 + ns0) / 1e9", "the grid span is a difference, not a sum"),
+    ("if modal is not None and d > modal", "if modal is not None and d < modal", "the gap filter flips"),
+    ("if wall <= 0", "if wall <= 1", "the unjudgeable-file guard widens to a second"),
+]
+_PGC_CANDIDATES = [
+    ("if deltas else None", "if (deltas) or True else None"),
+    ("if modal is not None and d > modal", "if modal is not None and d >= modal"),
+]
+
+
+def _pgc_variant(before=None, after=None):
+    src = module_source("ppg_grid_check.py")
+    if before is not None:
+        assert src.count(before) == 1, f"anchor {before!r} is not unique — the battery would test nothing"
+        src = src.replace(before, after)
+    mod = types.ModuleType("pgc_variant")
+    exec(compile(src, pgc.__file__, "exec"), mod.__dict__)
+    return mod
+
+
+def _pgc_corpus(tmp_path):
+    """Files spanning every shape `grid_inflation` branches on: clean, gappy above the modal step,
+    gappy BELOW it, both at once, a non-zero start, a sub-second span, a single step."""
+    out, mk = [], lambda i, steps, ns0=0: _raw(
+        tmp_path,
+        [_row(0, ns0)] + [_row((j + 1) * 10, ns0 + sum(steps[: j + 1])) for j in range(len(steps))],
+        name=_name(f"2026072502{i:04d}"),
+    )
+    out.append(mk(1, [1_000_000] * 9))
+    out.append(mk(2, [1_000_000] * 3 + [3_000_000] + [1_000_000] * 5))
+    out.append(mk(3, [1_000_000] * 3 + [500_000] + [1_000_000] * 5))
+    out.append(mk(4, [1_000_000, 500_000, 3_000_000, 1_000_000, 1_000_000, 250_000, 1_000_000]))
+    out.append(mk(5, [1_000_000] * 9, ns0=7_000_000_000))
+    out.append(mk(6, [50_000] * 9))
+    out.append(mk(7, [2_000_000_000]))
+    return out
+
+
+def _pgc_observe(mod, files):
+    return [mod.grid_inflation(f) for f in files]
+
+
+def test_the_two_inert_grid_mutants_are_unkillable_and_the_battery_can_PROVE_it(tmp_path):
+    files = _pgc_corpus(tmp_path)
+    base = _pgc_observe(_pgc_variant(), files)
+    assert any(r is not None for r in base), "the corpus produced no judgeable file — it measures nothing"
+
+    caught = 0
+    for before, after, why in _PGC_CANARIES:
+        if _pgc_observe(_pgc_variant(before, after), files) != base:
+            caught += 1
+        else:
+            raise AssertionError(f"canary NOT caught ({why}) — this battery cannot detect a difference")
+    assert caught == len(_PGC_CANARIES)
+
+    for before, after in _PGC_CANDIDATES:
+        assert _pgc_observe(_pgc_variant(before, after), files) == base, (
+            f"{before!r} -> {after!r} IS distinguishable on this corpus — it is a test gap, not an "
+            "equivalence, and the ledger entry must be withdrawn"
+        )

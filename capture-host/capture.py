@@ -6188,7 +6188,18 @@ async def run_oxyii(dev: dict, root: str):
                 # session at its START, so the sync is driven by the two events that can actually bake in a
                 # wrong time — first contact, and a new recording session — with a long interval as the
                 # drift backstop. Reconnect storms now cost zero clock writes.
-                async def _rtc_sync(why: str) -> None:
+                # `why` is a LOG LABEL and nothing else — it reaches one `log.info` and no decision —
+                # so `str | None` is its honest type. The caller at the restart latch passes the policy
+                # function's result straight through, and that result is typed `str | None`.
+                #
+                # It cannot actually be None there: `oxyii_rtc_due` returns "first contact" when
+                # `last_sync is None` and "new recording session" when `session_restarted`, both before
+                # the cadence check, so a restart is always due. The alternatives were worse than
+                # widening a label's type — a `if _why:` guard adds an arm no input can reach and the
+                # 100 % branch floor would have nothing to cover it with, and `or "new recording
+                # session"` duplicates a literal that can never fire. If the invariant ever breaks the
+                # log says so instead of printing "None".
+                async def _rtc_sync(why: str | None) -> None:
                     _clk = _now()
                     await _bounded_setup(
                         client.write_gatt_char(wch, oxyii.set_time_frame(_clk), response=False)
@@ -6196,7 +6207,12 @@ async def run_oxyii(dev: dict, root: str):
                     rtcwr.write(_now(), "push")
                     _OXYII_RTC_AT[addr] = _clk
                     _set(name, clock_synced=_clk.isoformat(timespec="seconds"))
-                    log.info("%s RTC synced to host %s (%s)", name, _clk.strftime("%Y-%m-%d %H:%M:%S"), why)
+                    log.info(
+                        "%s RTC synced to host %s (%s)",
+                        name,
+                        _clk.strftime("%Y-%m-%d %H:%M:%S"),
+                        why or "reason not recorded",
+                    )
                     await asyncio.sleep(0.4)
 
                 _why = oxyii_rtc_due(_OXYII_RTC_AT.get(addr), _now(), False, _OXYII_RTC_RESYNC_SEC)
@@ -13416,7 +13432,11 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         # a firmware change could name characteristics that no longer exist. The cost is bounded to one
         # settle window because `_settle_gatt_chars` already gives up and hands the verdict to
         # `start_notify`; it is never allowed to decide anything on its own.
-        _want = (_L.GATT_RX, _L.GATT_TX)
+        # ANNOTATED WIDE because it is reassigned wide: the literal pair is `tuple[str, str]`, and the
+        # `tuple(sorted(...))` below is `tuple[str, ...]`. Without the annotation the first assignment
+        # fixed the narrower type and the second was an error — the variable's real type is the union
+        # of what both branches put in it, which is what this says.
+        _want: tuple[str, ...] = (_L.GATT_RX, _L.GATT_TX)
         _hint = gattmap.wait_hint(ble_addr)
         if _hint:
             _want = tuple(sorted({u.lower() for u in _want} | _hint))
