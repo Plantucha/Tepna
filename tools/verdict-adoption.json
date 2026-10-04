@@ -293,6 +293,10 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_ppg_grid_check.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
     "capture-host/tests/test_night_verdicts_cli.py": {
       "bin": "test",
       "status": "exempt"
