@@ -22,6 +22,45 @@ def _write_night(tmp_path, name, lines):
     return p
 
 
+def test_a_SEVEN_column_file_is_read_not_silently_skipped(tmp_path):
+    """🔴 THE BREAK E11 WOULD HAVE SHIPPED, and the reason the other 30 tests here could not see it.
+
+    E11 appended `first_sample_idx` to `_PMDARRIVAL.csv` for the O2Ring, which has no clock. This
+    reader gated on `len(parts) != 6`, so against a seven-column file it skipped EVERY ROW — and
+    skipping is invisible here by design: the floor is a MINIMUM over parsed rows, so "no rows" yields
+    nothing rather than reding anything. Every existing test fed a six-column fixture, so the whole
+    file passed while the first night after the box restarts would have read as empty.
+
+    The two shapes are asserted to give the SAME floor, which is the real contract: an appended column
+    is not information this function uses, and it must not change the answer."""
+    six = _real_clock_stream(n=60)
+    seven = [ln + ";4000" for ln in six]
+    p6 = _write_night(tmp_path, "six_20261004220000", six)
+    p7 = tmp_path / "seven_20261004220000_PMDARRIVAL.csv"
+    p7.write_text(
+        "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx\n"
+        + "\n".join(seven)
+        + "\n"
+    )
+    got6 = jf.parse_pmdarrival(p6)
+    got7 = jf.parse_pmdarrival(p7)
+    assert got7, "a seven-column file must not read as EMPTY — that is the silent skip"
+    assert {k: len(v) for k, v in got7.items()} == {k: len(v) for k, v in got6.items()}, (got6, got7)
+    assert got7 == got6, "an appended column this function does not read must not change its answer"
+
+    # AND A ROW WITH NO DEVICE CLOCK IS STILL SKIPPED, for its own reason: the ring's frame rows carry
+    # a blank `first_sensor_ns`, and a floor cannot be taken against a device time that does not exist.
+    # That skip is CORRECT and must survive the widening — it is `int(parts[3])` failing, not the width.
+    ring = [ln.split(";")[0] + ";O2Ring-S;PPG_FRAME;;;20;4000" for ln in six[:5]]
+    p8 = tmp_path / "ring_20261004220000_PMDARRIVAL.csv"
+    p8.write_text(
+        "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx\n"
+        + "\n".join(ring)
+        + "\n"
+    )
+    assert jf.parse_pmdarrival(p8) == {}, "a clockless row has no floor to contribute"
+
+
 def _real_clock_stream(n=120, base_s=0.5, jitter_ms=(3, -3)):
     """Device clock with CRYSTAL-SCALE wander; host arrivals carry alternating planted jitter.
 

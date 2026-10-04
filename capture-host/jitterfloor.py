@@ -60,7 +60,12 @@ def parse_pmdarrival(path: Path) -> dict[str, list[tuple[float, int]]]:
     folds: dict[str, LocalStampResolver] = {}
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         parts = line.split(";")
-        if len(parts) != 6 or parts[0] == "Phone timestamp":
+        # ⚠️ `>= 6`, NOT `!= 6` — E11 (2026-10-04) appended `first_sample_idx` for the O2Ring, which has
+        # no clock. Under the exact test this reader would have skipped EVERY ROW of a seven-column file
+        # and read a new night as empty, silently: the floor is a minimum over parsed rows, so "no rows"
+        # does not red anything here, it just produces nothing. A width equality is a positional
+        # contract nobody declared — the columns this function reads are 0..3, and those are stable.
+        if len(parts) < 6 or parts[0] == "Phone timestamp":
             continue
         dt = _parse_stamp(parts[0])
         if dt is None:
