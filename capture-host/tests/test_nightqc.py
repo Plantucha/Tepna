@@ -191,6 +191,7 @@ def test_an_unreadable_capture_is_unknown_never_missing_or_zero(tmp_path, _tz):
         assert s["ok"] is False
         v = nightqc.qc_verdict(s, _devices(), night_dir=night)
         assert v["status"] == "UNKNOWN" and "H10:acc" in v["reason"], v["reason"]
+        assert v["result"] is not None and v["result"]["missing"] == [], v["result"]  # the result travels with UNKNOWN
     finally:
         os.chmod(locked, 0o644)
 
