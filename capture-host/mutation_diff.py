@@ -104,7 +104,12 @@ __all__ = [
     "zero_population_verdict",
     "parse_exclusions",
     "declared_exclusion_status",
+    "declared_module",
+    "count_functions",
+    "module_exclusion_note",
+    "COST_SCOPES",
     "unmeasured_rows",
+    "declared_module_rows",
     "merge_unmeasured",
     "UNMEASURED_SCHEMA",
     "exclusion_key_of",
@@ -1692,29 +1697,38 @@ EXCLUSIONS_FILE = "mutate-exclusions.json"
 EXCLUSIONS_SCHEMA = "tepna.mutation-exclusions/1"
 
 # The bound is a number somebody has to raise ON PURPOSE, in a commit, with the reason in it. It is not
-# a target and not headroom to spend: it EQUALS what is declared today, so the next function to be
-# excluded costs a bound raise in the same commit as its measurement. The growth gate in
-# `tests/test_mutation_exclusions.py` asserts both halves — the bound, and that the file's census
-# matches it exactly.
+# a target and not headroom to spend: it EQUALS the number of declared entries, so the next declaration
+# costs a bound raise in the same commit as its measurement. `tests/test_mutation_exclusions.py`
+# asserts both halves — the bound, and that the file's census matches it exactly.
 #
-# ⚠️ WHY `timeline`'s FOUR REFUSED FUNCTIONS ARE NOT IN THE LIST, although residue row
-# `2026-09-28-five-timeline-functions-were-never-mutated-and-the-ledger-cannot-hold-that` is what
-# prompted this work. That run (36399889018) had **17 functions in one scope** and the budget was eaten
-# before four of them were attempted. That is a measurement about the SCOPE, not about the functions:
-# #3254 later mutated `timeline._placed` ALONE and decided all 51 of its mutants in 1392 s, well inside
-# the 7200 s budget. Declaring them unmeasurable would therefore record a fact nobody measured. They are
-# instead ingested as `undeclared` rows in the unmeasured ledger (`unmeasured_rows`), which is what that
-# residue row actually asked for — a trace where the survivor ledger can hold none.
+# 🔴 OWNER RULING 2026-10-03, after the first three PRs to need this showed the per-function shape was
+# wrong: "One module-level declaration." The cost is a property of the MODULE, not of any function in
+# it — `mutmut run <glob>` applies the glob when it RUNS mutants and never when it GENERATES them, so
+# EVERY capture.py diff pays for the whole module's population whatever it touched. N function keys each
+# citing one module-level measurement dressed one fact as N, and the bound they each raised became
+# decoration. One key, one measurement, one date.
 #
-# `capture.py` is different in KIND, and that is why it is the only module here: its cost is not the
-# diff's and not the function's. mutmut generates the whole module's population whatever the glob, so
-# ANY one-function capture.py diff pays 562,427,047 bytes of generated mutants and a traced stats pass
-# of >= 7556 s against a clean run of <= 1337 s. No scope narrowing reaches it.
-EXCLUSION_BOUND = 2
+# What that costs, stated plainly because a one-line declaration should not hide it: capture.py is
+# 13,673 lines with 229 module-level defs and 290 functions counting nested ones and methods, and the
+# declaration covers ALL of them. The gate prints that count and how many of the diff's own functions
+# fell under it on every run, so the blind spot is re-counted on every PR rather than agreed once. (The
+# "226 functions" in MUTATION-SCOPED-GENERATION-2026-09-28 was measured on 2026-09-28; the module has
+# grown since, which is itself an argument for counting it per run instead of quoting it.)
+#
+# ⚠️ E7's two function keys (`_cpap_stream_watch_row`, `_maybe_start_cpap_spool_pull`) are GONE, not
+# kept as examples: the module key matches first, so they could never fire again, and a declaration
+# that can never fire is the stale-key hazard `test_every_declared_key_names_a_function_that_EXISTS`
+# was written to catch. Their measurements are not lost — they are the module entry's evidence, both
+# cited in its `cost.source`, which is the honest place for them.
+EXCLUSION_BOUND = 1
 
 # A cost is only a cost if you can get back to how it was obtained. `run` is a CI run/job, `local` a
 # named local measurement with its host, `sizes` a row of tools/mutation-sizes.json.
 COST_PROVENANCE = frozenset({"run", "local", "sizes"})
+
+# A cost is MODULE-level or FUNCTION-level, and the key's shape must match it. This is the field that
+# stops a bare module key from being written with a per-function measurement, or vice versa.
+COST_SCOPES = frozenset({"module", "function"})
 
 
 def parse_exclusions(text: str) -> dict[str, dict]:
@@ -1735,23 +1749,15 @@ def parse_exclusions(text: str) -> dict[str, dict]:
     raw = doc.get("exclusions")
     if not isinstance(raw, dict):
         raise ValueError("`exclusions` must be an object of key -> entry")
-    if len(raw) > EXCLUSION_BOUND:
-        raise ValueError(
-            f"{len(raw)} declared exclusion(s) exceeds EXCLUSION_BOUND={EXCLUSION_BOUND} — raise the "
-            "bound in a commit that says why, or remove an entry"
-        )
     out: dict[str, dict] = {}
+    modules_declared = 0
     for key, e in raw.items():
         if not isinstance(e, dict):
             raise ValueError(f"{key}: entry must be an object")
-        if any(ch in key for ch in "*?[") or key.count("::") != 1:
-            raise ValueError(f"{key!r} is not an exact `module::function` key (no globs, exactly one `::`)")
-        mod, func = key.split("::")
-        if not mod.endswith(".py") or not func:
-            raise ValueError(f"{key!r} must name a `.py` module and a function")
-        for field in ("reason", "declaredAt"):
-            if not e.get(field):
-                raise ValueError(f"{key}: missing `{field}` — an exclusion with no {field} is an excuse")
+        if any(ch in key for ch in "*?["):
+            raise ValueError(f"{key!r} may not contain a glob character — a pattern widens as code moves")
+        if key.count("::") > 1:
+            raise ValueError(f"{key!r} is not an exact key (at most one `::`)")
         cost = e.get("cost")
         if not isinstance(cost, dict) or cost.get("provenance") not in COST_PROVENANCE:
             raise ValueError(
@@ -1760,8 +1766,100 @@ def parse_exclusions(text: str) -> dict[str, dict]:
             )
         if not cost.get("source"):
             raise ValueError(f"{key}: `cost.source` must name the run, host or sizes row the number came from")
+        scope = cost.get("scope")
+        if scope not in COST_SCOPES:
+            raise ValueError(f"{key}: `cost.scope` must be one of {sorted(COST_SCOPES)}")
+        if "::" in key:
+            mod, func = key.split("::")
+            if not mod.endswith(".py") or not func:
+                raise ValueError(f"{key!r} must name a `.py` module and a function")
+            if scope != "function":
+                raise ValueError(f"{key!r} is a function key but declares `cost.scope` {scope!r}")
+        else:
+            # A MODULE key. The owner ruled one module-level declaration (2026-10-03) because the cost
+            # is the module's, but a bare key is also the widest thing this file can say, so it is
+            # fenced hardest: it must be a `.py` module, it must carry a module-level cost with BOTH
+            # module measurements in it, and there may be only ONE in the file. Without the count
+            # limit, "one module-level declaration" becomes "modules are declarable", which is a
+            # different policy than the one that was ruled.
+            if not key.endswith(".py"):
+                raise ValueError(f"{key!r} is neither a `module.py::function` key nor a `module.py` module")
+            if scope != "module":
+                raise ValueError(f"{key!r} is a module key but declares `cost.scope` {scope!r}")
+            for field in ("generatedBytes", "statsPassSec"):
+                if not cost.get(field):
+                    raise ValueError(
+                        f"{key}: a module key needs `cost.{field}` — the module-level claim is only as "
+                        "good as the two numbers behind it"
+                    )
+            modules_declared += 1
+            if modules_declared > 1:
+                raise ValueError(
+                    "more than one MODULE key declared — the owner ruled ONE module-level declaration "
+                    "(2026-10-03); a second one is a policy change, not an entry"
+                )
+        for field in ("reason", "declaredAt"):
+            if not e.get(field):
+                raise ValueError(f"{key}: missing `{field}` — an exclusion with no {field} is an excuse")
         out[key] = e
+    # The bound is checked LAST, on purpose. With the bound at 1 it fired FIRST and masked the
+    # one-module-key rule: `test_only_ONE_module_key_may_exist` got a bound error, so the rule it meant
+    # to pin went unexercised. A rule verified only while another rule happens not to shadow it is not
+    # verified. Per-entry errors are also the more actionable diagnostic — "you added a second module
+    # key" says what to do, where "you exceeded the bound" invites raising the bound.
+    if len(out) > EXCLUSION_BOUND:
+        raise ValueError(
+            f"{len(out)} declared exclusion(s) exceeds EXCLUSION_BOUND={EXCLUSION_BOUND} — raise the "
+            "bound in a commit that says why, or remove an entry"
+        )
     return out
+
+
+def count_functions(source: str) -> int:
+    """How many functions a module defines, counting nested ones and methods. Pure; 0 if unparsable.
+
+    MEASURED, never quoted. A module-level exclusion retires every one of these from mutation testing,
+    and the number is the size of the blind spot, so the gate recomputes it from the module's own AST on
+    every run. MUTATION-SCOPED-GENERATION-2026-09-28 cites "226 functions across capture.py" measured on
+    2026-09-28; the module now defines 290 (229 at module level). A number that drifts is exactly the
+    kind that must not be hard-coded into the thing reporting it.
+
+    Unparsable source returns 0 rather than raising: this is a reporting count, and failing the gate
+    because a count could not be taken would convert a cosmetic problem into a verdict.
+    """
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return 0
+    return sum(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) for n in ast.walk(tree))
+
+
+def declared_module(declared: dict[str, dict], module: str) -> dict | None:
+    """The MODULE-level declaration covering `module`, or None. Pure.
+
+    Only a bare `module.py` key matches. A function key (`module.py::f`) is deliberately invisible here:
+    the two answer different questions, and reading one as the other is how a declaration about ONE
+    function would come to excuse a whole module.
+    """
+    entry = declared.get(module)
+    if entry and (entry.get("cost") or {}).get("scope") == "module":
+        return entry
+    return None
+
+
+def module_exclusion_note(module: str, scoped: list[str], covers: int) -> str:
+    """What the gate prints and puts in the verdict when a module-level declaration applies.
+
+    The COUNTS are the point. A one-line declaration can retire a 13,673-line module from mutation
+    testing, so the gate re-states on every run how many functions it covers and how many of this
+    diff's own functions fell under it — the blind spot is counted per PR, not agreed once and
+    forgotten. `covers` is measured from the module's AST by the caller, never quoted from a brief.
+    """
+    return (
+        f"{module} carries a MODULE-level exclusion: {len(scoped)} function(s) in this diff "
+        f"({', '.join(sorted(scoped))}) and {covers} in the module are declared unmeasurable inside "
+        f"the gate budget"
+    )
 
 
 def refused_key(entry: str) -> str:
@@ -1836,7 +1934,21 @@ def declared_exclusion_status(
     A caller that wants "did the exclusion apply?" reads the returned reason; there is no second status
     printer and no new verdict object (§🧾 PARTIAL-ADOPTION-DETECTION reds a tool that prints its own).
     """
-    if blocking > 0 or status != "UNKNOWN" or not refused:
+    # UNKNOWN *or* NOT_RUN. 🔴 THIS GUARD READ `status != "UNKNOWN"` AND THAT WAS A DEFECT — found by
+    # #3238, the first PR to exercise the exclusion for real. `budget_exhaustion_verdict` answers
+    # NOT_RUN when `decided == 0` and UNKNOWN only when `decided > 0`, so a diff whose ENTIRE scope is
+    # one declared function — the canonical case — produced NOT_RUN and the substitution never fired.
+    # I had built and tested only the MIXED case (some functions measured, some refused), and my own
+    # test parametrised NOT_RUN among the statuses this must not touch, so the suite asserted the bug
+    # as intended behaviour and could never have caught it.
+    #
+    # NOT_APPLICABLE is right for both: §🧾 reserves NOT_RUN for "examined nothing", and with a DECLARED
+    # exclusion the measurability question WAS examined — in advance, with the measurements in the file.
+    # The safety property is untouched and does not rest on this status check: a FAIL is still returned
+    # unchanged, PASS is still never produced, a blocking survivor still short-circuits, every refused
+    # function must still be declared, and the caller wires this ONLY into the budget-refusal path, so a
+    # crash, a memory refusal or a generation timeout cannot reach it whatever their status.
+    if blocking > 0 or status not in ("UNKNOWN", "NOT_RUN") or not refused:
         return None
     keys = [exclusion_key_of(r) for r in refused]
     if not all(keys):
@@ -1885,6 +1997,30 @@ def unmeasured_rows(refused: list[str], declared: dict[str, dict], at: str) -> l
 
 
 UNMEASURED_SCHEMA = "tepna.mutation-unmeasured/1"
+
+
+def declared_module_rows(module: str, scoped: list[str], at: str) -> list[dict]:
+    """Unmeasured-ledger rows for the functions a MODULE-level declaration skipped. Pure.
+
+    ⚠️ WHY THIS EXISTS AT ALL. Moving the declaration check to SELECTION removed the budget refusal for
+    a declared module, and `unmeasured_rows` reads `_refused_budget` — so the ledger would have recorded
+    NOTHING for exactly the module whose blind spot it is meant to enumerate. Making the gate faster
+    silently removed the record of what the gate stopped measuring, which is the shape §∅ warns about:
+    the absence of a row is not the absence of a gap.
+
+    `state` is `declared`, and the rows are still only written by a real run through
+    `--record-unmeasured`. Hand-writing them would fabricate an observation, and the growth gate counts
+    rows without being able to tell a measured one from a typed one.
+    """
+    return [
+        {
+            "key": f"{module}::{fn}",
+            "state": "declared",
+            "why": f"{module} carries a MODULE-level exclusion — not attempted, not a verdict",
+            "observedAt": at,
+        }
+        for fn in sorted(scoped)
+    ]
 
 
 def merge_unmeasured(doc: dict, rows: list[dict]) -> dict:

@@ -108,7 +108,11 @@ from mutation_diff import (  # noqa: E402
     verdict_object,
     parse_exclusions,
     declared_exclusion_status,
+    declared_module,
+    count_functions,
+    module_exclusion_note,
     unmeasured_rows,
+    declared_module_rows,
     merge_unmeasured,
     EXCLUSIONS_FILE,
 )
@@ -223,6 +227,15 @@ def load_equivalence() -> dict:
 
 EXCLUSIONS_PATH = HERE / "tools" / EXCLUSIONS_FILE
 UNMEASURED_PATH = HERE / "tools" / "mutate-unmeasured.json"
+
+
+def count_module_functions(path) -> int:
+    """`count_functions` over a file; 0 when it cannot be read. The count is for REPORTING the size of
+    a module-level blind spot, so an unreadable module must not fail the gate over it."""
+    try:
+        return count_functions(path.read_text(encoding="utf-8"))
+    except OSError:
+        return 0
 
 
 def load_exclusions() -> dict:
@@ -472,6 +485,8 @@ def main(argv=None) -> int:
     _unmeasured: list[str] = []
     # ── THE RUN BUDGET (mutation_diff.GATE_BUDGET_SEC) — a refusal is a verdict, a SIGTERM is not ──
     _gate_t0 = time.monotonic()
+    _declared = load_exclusions()
+    _declared_modules: list[dict] = []  # modules retired by a MODULE-level declaration, with counts
     _refused_budget: list[str] = []
     _refused_memory: list[str] = []  # projected RSS over the cap — refused before starting
     _prework_sec = 0.0  # clean-baseline time: reported, but not charged to the
@@ -526,6 +541,35 @@ def main(argv=None) -> int:
             f"  {module}: {len(lines)} changed line(s) in {len(stems)} function(s) → {', '.join(sorted(stems))}",
             flush=True,
         )
+        # ── THE MODULE-LEVEL DECLARATION, CHECKED AT SELECTION (owner ruling 2026-10-03) ─────────
+        # 🔴 PLACEMENT IS THE WHOLE VALUE. The declaration used to be consulted at the budget-refusal
+        # point below, which is AFTER `clean_run_seconds` and after the budget has been spent: #3238
+        # measured 7693 s to reach a refusal whose answer was knowable from a committed file before any
+        # work started. Declaring saved the declaring PR nothing, and since a later diff rarely touches
+        # the same function, it saved the fleet nothing either. Here the stems are already known, so a
+        # declared module costs seconds.
+        #
+        # `continue` and not a return: another module in the same diff may still be measurable, and a
+        # survivor there must still FAIL. Nothing is excused — the functions stay in `_pop["eligible"]`
+        # (counted above) and never reach `checked`, so `excluded = eligible - checked` reports them.
+        _mod_decl = declared_module(_declared, module)
+        if _mod_decl:
+            _covers = count_module_functions(HERE / module)
+            _note = module_exclusion_note(module, sorted(stems), _covers)
+            _declared_modules.append({"module": module, "scoped": sorted(stems), "covers": _covers})
+            print(f"  ⊘ {_note}", flush=True)
+            print(
+                f"    Declared {_mod_decl['declaredAt']}: {_mod_decl['reason'][:140]}…"
+                if len(_mod_decl.get("reason", "")) > 140
+                else f"    Declared {_mod_decl['declaredAt']}: {_mod_decl.get('reason', '')}",
+                flush=True,
+            )
+            print(
+                "    NOT a pass and NOT an excuse for a survivor: nothing here was measured, and "
+                "briefs/MUTATION-SCOPED-GENERATION-2026-09-28-BRIEF.md is what retires it.",
+                flush=True,
+            )
+            continue
         # The clean run is timed ONCE per module and handed to every glob's run_one. Re-timing it per
         # glob was the 2026-09-17 "hang" (capture.py: 936.7 s × 5 globs before any mutant, measured).
         _tests = mut.tests_for(module)
@@ -932,6 +976,60 @@ def main(argv=None) -> int:
             f"{len(_nothing_to_mutate)} changed function(s) generated no mutants — nothing behavioural to test",
             0,
         )
+    # ── EVERY module in scope carries a MODULE-level declaration, so nothing was mutated ────────
+    # Fires only when NOTHING else ran and no other refusal is pending: a mixed diff falls through to
+    # the normal logic, where the measured module's survivors still FAIL and the declared module's
+    # functions are simply reported as `excluded`. This branch cannot clear a survivor because there
+    # cannot be one — no mutant was generated, let alone tested.
+    if (
+        _declared_modules
+        and not _ran
+        and not _attempted
+        and not _crashed
+        and not _refused_budget
+        and not _refused_memory
+        and not _refused_generation
+        and not _refused_results
+    ):
+        if a.record_unmeasured:
+            _rows: list[dict] = []
+            for _d in _declared_modules:
+                _rows += declared_module_rows(_d["module"], _d["scoped"], _now_utc())
+            if _rows:
+                try:
+                    _doc = json.loads(UNMEASURED_PATH.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    _doc = {}
+                UNMEASURED_PATH.write_text(
+                    json.dumps(merge_unmeasured(_doc, _rows), indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                print(f"  ↳ recorded {len(_rows)} unmeasured row(s) → tools/{UNMEASURED_PATH.name}")
+        _scoped_n = sum(len(d["scoped"]) for d in _declared_modules)
+        _covers_n = sum(d["covers"] for d in _declared_modules)
+        verdict["declaredModules"] = _declared_modules
+        if a.json:
+            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+        print(
+            f"\nmutate-diff: NOT_APPLICABLE — every function this diff changed sits in a module with a "
+            f"MODULE-level exclusion ({', '.join(d['module'] for d in _declared_modules)})."
+        )
+        print(
+            f"  {_scoped_n} scoped function(s); the declaration(s) cover {_covers_n} function(s) in "
+            f"all. Nothing was measured here and nothing is claimed about it."
+        )
+        print("  Decided in seconds rather than spending the budget to reach the same answer.")
+        _ran_box[0] = _ran
+        return emit(
+            "NOT_APPLICABLE",
+            (
+                f"{_scoped_n} changed function(s) are in {len(_declared_modules)} module(s) declared "
+                f"unmeasurable inside the gate budget, covering {_covers_n} function(s) in all — see "
+                f"tools/{EXCLUSIONS_FILE} for the measurement and "
+                "briefs/MUTATION-SCOPED-GENERATION-2026-09-28-BRIEF.md for what retires it"
+            ),
+            0,
+        )
     if _attempted and not _ran:
         print(
             f"\nmutate-diff: REFUSING — all {_attempted} mutmut invocation(s) failed, so no mutant "
@@ -1271,7 +1369,6 @@ def main(argv=None) -> int:
         # it: UNKNOWN -> NOT_APPLICABLE, only while NOTHING is blocking, only when EVERY refused
         # function is declared. It cannot clear a survivor and it cannot produce PASS. `blocking` is
         # computed here from the same `cls` the verdict below reads, so the two cannot disagree.
-        _declared = load_exclusions()
         _unmeasured = unmeasured_rows(_refused_budget, _declared, _now_utc())
         if _unmeasured:
             verdict["unmeasured"] = _unmeasured
