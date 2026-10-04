@@ -720,6 +720,17 @@ def test_A_ZERO_STAMPED_FRAME_PUBLISHES_NO_SKEW_AT_ALL(tmp_path, monkeypatch, ca
     this cannot pass by the card simply never being written."""
     import logging
 
+    # ⚠️ THE ONSET LEDGER MUST BE EMPTY OR THERE IS NO ONSET TO OBSERVE. `capture._CLOCK_ABSENT` holds
+    # the (device, meas) pairs already declared THIS PROCESS — the journal says ABSENT on onset, not
+    # per frame (capture.py:164), which is deliberate. So in one sequential process an earlier test
+    # that drove the same pair consumes the onset and this test's `any("ABSENT" …)` finds nothing.
+    #
+    # It passed under xdist and alone, and failed only in mutmut's single sequential process, so
+    # `check.sh` could never see it: xdist spreads the file across workers and this test happened to
+    # be first in its own. Found 2026-10-04 when a blind_spots diff pulled this file into the mutation
+    # gate's covering set, where the clean run is one process and strictly ordered.
+    monkeypatch.setattr(capture, "_CLOCK_ABSENT", {})
+
     with caplog.at_level(logging.WARNING):
         _drive(monkeypatch, tmp_path, ["ecg"], frames=[T._ecg_frame(ns=0)])
     card = capture.STATUS["devices"]["H10"]
