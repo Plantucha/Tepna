@@ -77,7 +77,14 @@ def _seam_rows(d, rows, name=BASE, stream="ECG", examined=10):
 
 
 def _runs(d, stream, min_run=True, name=BASE):
-    (d / f"{name}_{stream}.txt").exists() or (d / f"{name}_{stream}.txt").write_text("Phone timestamp;x\n")
+    # THE PLACEHOLDER CARRIES A DATA ROW, and it has to: `validity` now excludes a ZERO-ROW waveform as
+    # an empty session, so a header-only stand-in would make every fixture using this helper report one
+    # — which is not what any of them means. The file exists here to be the sidecar's pair, i.e. to
+    # represent a session that RECORDED something. A fixture must carry the property the code reasons
+    # about; this one used to omit it because nothing read the rows.
+    (d / f"{name}_{stream}.txt").exists() or (d / f"{name}_{stream}.txt").write_text(
+        "Phone timestamp;x\n2026-09-20T23:00:00.000;1\n"
+    )
     head = f"# stream={stream.lower()} rule=stuck" + (" min_run=30" if min_run else "")
     (d / f"{name}_{stream}RUNS.txt").write_text(head + "\nPhone timestamp;stream\n")
 
@@ -3263,3 +3270,212 @@ def test_an_AUDITED_FILE_WITH_NO_READABLE_STAMP_is_not_examined(tmp_path):
     assert out["reason"] == (f"the loss audit examined `{BASE}_ACC.txt`, which does not cover the worn interval"), out[
         "reason"
     ]
+
+
+# ── §3.4 validity: an EMPTY SESSION is an absence, not an undecided band ────────────────────────────
+#
+# 🔴 LIVE ON THE BOX, 2026-10-04: `/api/state.solid` read UNKNOWN for the night on
+# "Polar Sense — validity: `…20261004150633_PPGRUNS.txt` publishes no min_run". The Verity connected at
+# 15:06 on its charger, battery 100 %, never worn, and opened a session whose `_PPG.txt` has 0 rows. The
+# `min_run=` header is written at the FIRST run, so a session that recorded nothing leaves a 0-line
+# sidecar — and the band, iterating every waveform file in the folder, returned UNKNOWN on it. With the
+# night's real session landing in the same date folder, an empty file costs the first PASS-capable night.
+
+
+def _session(d, stamp, rows=1, min_run=True, stream="PPG", model_base="Polar_VeritySense_0C301E3F"):
+    """One Verity session: a `_PPG.txt` with `rows` data rows and its RUNS sidecar.
+
+    `rows=0` is the box's empty session — 0 bytes on the mirror, not even a header — and its sidecar is
+    0 lines because `min_run=` is written at the first run."""
+    base = f"{model_base}_{stamp}"
+    wav = d / f"{base}_{stream}.txt"
+    if rows:
+        wav.write_text(
+            "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n"
+            + "".join(f"2026-10-04T23:{i // 60:02d}:{i % 60:02d}.000;{i * 7692307};5;5;5;0\n" for i in range(rows))
+        )
+        head = "# stream=ppg rule=stuck" + (" min_run=30" if min_run else "")
+        (d / f"{base}_{stream}RUNS.txt").write_text(head + "\nPhone timestamp;stream\n")
+    else:
+        wav.write_text("")  # 0 bytes, as the mirror's 30 zero-row files are
+        (d / f"{base}_{stream}RUNS.txt").write_text("")  # 0 lines: no run, so no header
+    return wav
+
+
+def test_an_EMPTY_SESSION_is_EXCLUDED_from_validity_and_the_FULL_one_decides(tmp_path):
+    """🔴 THE 10-04 PLANT. A folder holding a real session AND the charger's empty one: validity is
+    decided on the full session and the empty one is listed as excluded, with the count stated. A
+    session that recorded nothing has no validity to assess — UNKNOWN would say "we could not tell"
+    about a file that never claimed to contain anything."""
+    _session(tmp_path, "20261004213000", rows=5)
+    _session(tmp_path, "20261004150633", rows=0)
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "PASS", out
+    assert "1 waveform file(s) checked, 1 excluded as empty-session" in out["reason"], out["reason"]
+    assert "20261004150633_PPG.txt" in out["reason"], "the excluded file is NAMED, not just counted"
+    assert "recorded nothing has no validity to assess" in out["reason"]
+
+
+def test_a_NON_EMPTY_file_whose_sidecar_LACKS_MIN_RUN_is_still_UNKNOWN(tmp_path):
+    """🔴 THE CONTROL THAT MATTERS MOST, and the measurement says why. A sidecar with no `min_run=`
+    beside a session that DID record is a real blind floor: we do not know what run length the stuck
+    detector could see, so we cannot say the stream was checked.
+
+    The mirror's 2787 waveform files partition as 30 zero-row · 115 with rows and a proper header ·
+    **2642 with rows and NO SIDECAR AT ALL** (pre-#2950 writers, reported under this band's other
+    reason) · and ZERO with a sidecar present but lacking `min_run`. So this exact shape does not occur
+    on the mirror and the test is a CONSTRUCTED control — which is the point: keying the exclusion off
+    the sidecar rather than the ROWS would sweep in those 2642, the historical majority."""
+    _session(tmp_path, "20261004213000", rows=5, min_run=False)
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "UNKNOWN", out
+    assert "publishes no min_run" in out["reason"], out["reason"]
+    assert "blind floor is unknown" in out["reason"]
+
+
+def test_a_NIGHT_OF_NOTHING_BUT_EMPTY_SESSIONS_is_UNKNOWN_not_PASS(tmp_path):
+    """§∅ and the empty-denominator rule. Excluding every file leaves nothing checked, and a band that
+    examined nothing has not passed — the same shape as `device_outcome`'s all-inapplicable device. The
+    count is named so the two cases stay distinguishable in the verdict."""
+    _session(tmp_path, "20261004150633", rows=0)
+    _session(tmp_path, "20261004151204", rows=0)
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "UNKNOWN", out
+    assert "no waveform file this night is judgeable yet: 2 empty session(s)" in out["reason"], out["reason"]
+
+
+def test_a_CLEAN_NIGHT_WITH_NO_EMPTY_SESSION_still_PASSES_SILENTLY(tmp_path):
+    """No exclusion, no reason: the band says nothing when there is nothing to say. A PASS that always
+    carried prose would make the annotated case unreadable."""
+    _session(tmp_path, "20261004213000", rows=5)
+    assert si.validity(str(tmp_path), "VeritySense") == {"status": "PASS", "reason": None}
+
+
+def test_has_rows_STOPS_AT_THE_FIRST_ROW_and_reads_neither_comment_nor_header(tmp_path):
+    """`has_rows` is O(1) on a real stream — a night's ECG is ~160 MB and this reads one line of it. The
+    writer's `# timebase=` comment and `Phone timestamp;…` header are the file saying what it WOULD
+    contain, so neither counts as a sample."""
+    p = tmp_path / "x.txt"
+    p.write_text("")
+    assert si.has_rows(str(p)) is False, "0 bytes"
+    p.write_text("Phone timestamp;sensor timestamp [ns];channel 0\n")
+    assert si.has_rows(str(p)) is False, "a header is not a sample"
+    p.write_text("# timebase=host\nPhone timestamp;x\n")
+    assert si.has_rows(str(p)) is False, "nor is a comment"
+    p.write_text("# timebase=host\nPhone timestamp;x\n\n   \n")
+    assert si.has_rows(str(p)) is False, "nor are blank lines"
+    p.write_text("# timebase=host\nPhone timestamp;x\n2026-10-04T23:00:00.000;1\n")
+    assert si.has_rows(str(p)) is True
+    assert si.has_rows(str(tmp_path / "absent.txt")) is False, "a file we cannot open holds no row we can see"
+
+
+def test_a_SESSION_STILL_BEING_WRITTEN_is_NOT_YET_JUDGEABLE_never_UNKNOWN(tmp_path):
+    """🔴 THE 19:37 RED, PLANTED. On 2026-10-04 a Verity session open since 19:08 was judged at 19:37
+    and the night read UNKNOWN on `…_PPGRUNS.txt publishes no min_run`. The sidecar had not failed to
+    state its rule: `_RunSidecar` writes that header into a 64 KB buffer at construction, and
+    `StreamWriter.flush()` flushes the waveform and its `_RR` sibling but NOT `_runs` — so a live
+    session's sidecar sits at 0 bytes until 64 KB of run rows accumulate or `close()` runs. The same
+    file later carried `min_run=200` on line 1 and nine lines.
+
+    PRESENT-AND-EMPTY is a different fact from ABSENT, and the two keep different answers: a 0-byte
+    sidecar cannot survive a clean close, so it means live or torn; an absent one is the pre-#2950
+    writers and keeps its own UNKNOWN. Verified against main in `/tmp/claude-1000/plants.py`: main
+    returns UNKNOWN here."""
+    full = _session(tmp_path, "20261004213000", rows=5)
+    live = _session(tmp_path, "20261004190825", rows=5)
+    (tmp_path / f"{live.name[: -len('.txt')]}RUNS.txt").write_text("")  # open("w") made it; nothing flushed
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "PASS", out
+    assert "1 waveform file(s) checked" in out["reason"], out["reason"]
+    assert "1 not yet judgeable, still being written" in out["reason"]
+    # the WAVEFORM is named, not its sidecar: the waveform is the unit excluded from the band's
+    # population, and `empty-session` names it the same way. The box's operator message named the
+    # sidecar because that is what `validity` had refused on.
+    assert "20261004190825_PPG.txt" in out["reason"], "the excluded waveform is NAMED"
+    assert "in the writer's buffer, not absent" in out["reason"]
+    assert full.exists()
+
+
+def test_an_ABSENT_sidecar_keeps_its_OWN_UNKNOWN_and_is_not_mistaken_for_a_buffer(tmp_path):
+    """The distinction the fix turns on, and the mirror is why it matters: 2642 of its 2787 waveform
+    files have rows and NO SIDECAR AT ALL (pre-#2950), against ZERO with a sidecar present but empty.
+    Folding present-and-empty into absent would sweep in that historical majority."""
+    wav = _session(tmp_path, "20261004213000", rows=5)
+    (tmp_path / f"{wav.name[: -len('.txt')]}RUNS.txt").unlink()
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "UNKNOWN", out
+    assert "absent — absences not examined (#2950)" in out["reason"], out["reason"]
+
+
+def test_a_NIGHT_OF_ONLY_LIVE_SESSIONS_is_UNKNOWN_and_says_which_kind(tmp_path):
+    """Nothing judgeable leaves nothing checked, and a band that examined nothing has not passed — but
+    the reason distinguishes an empty session from a live one, because they call for different actions:
+    one is a session that recorded nothing, the other is a night still being recorded."""
+    live = _session(tmp_path, "20261004190825", rows=5)
+    (tmp_path / f"{live.name[: -len('.txt')]}RUNS.txt").write_text("")
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "UNKNOWN", out
+    assert "0 empty session(s), 1 still being written" in out["reason"], out["reason"]
+
+
+def test_HAS_ROWS_and_the_SIDECAR_READER_both_DECLARE_their_encoding(tmp_path):
+    """`encoding="utf-8"` asserted on the CALL for both readers this unit adds. `-X
+    warn_default_encoding` with `-W error::EncodingWarning` makes every `open()` that leaves `encoding`
+    unset — or explicitly None — raise, so the assertion holds on a UTF-8 machine and a C-locale one
+    alike. A capture written on the box must read the same here.
+
+    The in-process calls first are NOT redundant: mutmut picks which tests to run for a mutant from
+    COVERAGE, and a subprocess is invisible to the tracer — without them these mutants read unkillable."""
+    import subprocess
+    import sys
+
+    _session(tmp_path, "20261004213000", rows=3)
+    wav = str(tmp_path / "Polar_VeritySense_0C301E3F_20261004213000_PPG.txt")
+    assert si.has_rows(wav) is True
+    assert si.validity(str(tmp_path), "VeritySense")["status"] == "PASS"
+    src = (
+        "import solid_night_inputs as si\n"
+        f"assert si.has_rows({wav!r}) is True\n"
+        f"assert si.validity({str(tmp_path)!r}, 'VeritySense')['status'] == 'PASS'\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=str(si.__file__).rsplit("/", 1)[0],
+    )
+    assert r.returncode == 0, r.stderr
+
+
+def test_BOTH_READERS_REPLACE_an_undecodable_byte_rather_than_dying_on_it(tmp_path):
+    """`errors="replace"`, killed IN PROCESS with a byte no UTF-8 decoder accepts. A capture file is
+    device bytes: the O2Ring's `Pölar` spellings and a torn write both put non-UTF-8 in the stream, and
+    the default `errors=None` is STRICT — a `UnicodeDecodeError` is not an `OSError`, so it would
+    escape these readers and take the night's whole verdict with it rather than skipping a line.
+
+    Both readers are covered because both open a file this unit put in the path: `has_rows` the waveform
+    and `validity` the sidecar."""
+    _session(tmp_path, "20261004213000", rows=3)
+    wav = tmp_path / "Polar_VeritySense_0C301E3F_20261004213000_PPG.txt"
+    runs = tmp_path / "Polar_VeritySense_0C301E3F_20261004213000_PPGRUNS.txt"
+    with open(wav, "wb") as fh:
+        fh.write(b"Phone timestamp;x\n2026-10-04T23:00:00.000;\xff\xfe5\n")
+    assert si.has_rows(str(wav)) is True, "an undecodable byte is a row, not a crash"
+    with open(runs, "wb") as fh:
+        fh.write(b"# stream=ppg rule=stuck min_run=30 \xff\xfe\nPhone timestamp;stream\n")
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out["status"] == "PASS", out
+    # and the other direction: the undecodable byte must not swallow the header the band reads for
+    with open(runs, "wb") as fh:
+        fh.write(b"# stream=ppg rule=stuck \xff\xfe\nPhone timestamp;stream\n")
+    assert si.validity(str(tmp_path), "VeritySense")["status"] == "UNKNOWN", "no min_run is still UNKNOWN"
+
+
+def test_a_NIGHT_WITH_NO_WAVEFORM_AT_ALL_carries_the_STATUS_and_the_reason(tmp_path):
+    """A decision is the pair (§🧾). This path had its prose asserted and its STATUS word free, so a
+    mutant could publish `None` as the status and no test would see it."""
+    out = si.validity(str(tmp_path), "VeritySense")
+    assert out == {
+        "status": "UNKNOWN",
+        "reason": "no waveform file this night, so no sidecar could be checked",
+    }
