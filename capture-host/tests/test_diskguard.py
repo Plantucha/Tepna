@@ -255,7 +255,7 @@ def test_a_zero_total_reports_NO_percent_rather_than_dividing_by_it(monkeypatch,
 import collections as _collections
 
 _GiB = 1024**3
-_usage = _collections.namedtuple("usage", "total used free")
+_usage = _collections.namedtuple("_usage", "total used free")
 
 
 def _fake_usage(monkeypatch, total, free):
