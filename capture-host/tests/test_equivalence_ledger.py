@@ -79,6 +79,11 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # where the receiver tests the argument for FALSINESS — the same input to the only code that reads it.
 # #3245 landed first with this module's other entry (the sample fixture's device offset), so this is
 # the rebase that raises the count, exactly as that PR's note predicted.
+# nightqc.py 23 -> 38 on 2026-10-04 BANKS #3266 (merged): 15 survivors of the unreadable-file fix recorded
+# equivalent with probes that were RUN (an 8-night original-vs-mutant summarize battery, a 50-file chunk probe).
+# diskguard.py is NEW at 2 on 2026-10-04 (absence drain group 2a): one extra step of a walk-up loop bounded by
+# path depth (13 paths, identical disk_usage arguments) and `>= 0` on the low-space floor (free bytes are never
+# negative; a 36-case grid).
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
@@ -90,6 +95,7 @@ RATCHET = {
     "cpap_spool.py": 3,
     "cpap_stream.py": 2,
     "cpapdex-dsp.js": 26,
+    "diskguard.py": 2,
     "ecgdex-dsp.js": 1,
     "glucodex-dsp.js": 48,
     "hrvdex-dsp.js": 71,
@@ -101,7 +107,7 @@ RATCHET = {
     "mutation_pure.py": 5,
     "mutation_triage.py": 2,
     "night_report.py": 8,
-    "nightqc.py": 23,
+    "nightqc.py": 38,
     "nights_index.py": 9,
     "oxy_inventory.py": 6,
     "oxy_transfer.py": 5,
