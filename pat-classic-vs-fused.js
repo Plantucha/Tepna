@@ -65,6 +65,14 @@
     ],
     delta: ['experimental', 'fused minus classic — a difference of two experimental estimates, not a measurement of either'],
     hatDF: ['experimental', 'the drift-removed hat on the WEIGHTED 5-min medians — the same differencing, and the same non-comparability with any undifferenced σ'],
+    /* The three-floor hat: the same estimator as `hat`, over axes that were DERIVED from measured packet
+       arrivals rather than read off receive stamps. `experimental` for the same reason `floor` is — a
+       re-timing validated against no reference — and deliberately NOT a tier above the raw hat: removing
+       buffering does not validate the independence assumption the hat still rests on. */
+    hatFloor: [
+      'experimental',
+      'the classic hat with every leg re-timed on its own device’s packet-arrival floor (the ring’s from its own cumulative stream position) — derived axes, unvalidated, and the independence assumption is unchanged'
+    ],
     verdict: ['experimental', 'the PAT gate (pat-gate.js) on this leg — pre-stated thresholds over consumer-sensor timing; a classification, not a validated measurement'],
     match: ['measured', 'share of the beats that could couple which did — a direct count ratio'],
     resid: ['experimental', 'IQR of each beat’s lag minus its local median — a derived beat-to-beat dispersion'],
@@ -254,14 +262,24 @@
   function hatAxesNote(m) {
     var s2 =
       '<div class="note"><b>Timing axes.</b> The hat is solved on the legs as the phone <b>received</b> them, so each corner’s σ includes its device’s Bluetooth buffering jitter, not only its pulse timing. ';
-    if (m.cpCorr && m.cpCorr.ok)
+    /* ⚠️ THIS PARAGRAPH SAID "the ring has no arrival-floor axis" UNTIL E11 (#3267), which gave the ring
+       one. The three states are now distinct and each is said in its own words: the three-floor hat
+       SOLVED (both σ sets, side by side, never a difference between them — the drift-removed row's rule);
+       the chest → ankle leg corrected but the FINGER floor refused, in which case the refusal is quoted
+       from the worker rather than re-stated as a general limitation; and no corrected leg at all. */
+    if (m.threeCorr && m.threeCorr.ok)
+      s2 +=
+        'Both hats are shown below: the RAW one above and a <b>three-floor</b> one with every leg re-timed on its own device’s packet-arrival floor — the ring’s from its own cumulative stream position (E11), the two Polars from their packet stamps. The two are separate estimates over different axes, so neither σ set is a correction of the other and no difference between them is reported. ';
+    else if (m.cpCorr && m.cpCorr.ok)
       s2 +=
         'The chest → ankle leg has a buffering-corrected lag below (' +
         num(m.cpCorr.med) +
         ' ms on the arrival-floor axis, ' +
         num(m.cp && m.cp.med) +
-        ' ms raw). The hat cannot use it: the ring has no arrival-floor axis, and mixing axes puts the ring’s buffering into finger → ankle. ';
-    else s2 += 'A buffering-corrected hat needs every site on an arrival-floor axis, and the ring has none. ';
+        ' ms raw). The hat cannot use it: ' +
+        (m.floorSync && m.floorSync.finger && !m.floorSync.finger.ok ? esc(m.floorSync.finger.reason) : 'the finger leg has no floor axis on this night') +
+        ' — and mixing axes puts the ring’s buffering into finger → ankle. ';
+    else s2 += 'A buffering-corrected hat needs every site on an arrival-floor axis. ';
     var vf = m.vdF;
     if (vf && vf.tier === 'no')
       s2 +=
@@ -285,7 +303,27 @@
       card('buffering removed', num(fsy.bufferingDiffMs), 'ms', 'raw − corrected median: the Verity’s link buffering minus the H10’s', C.ink, 'buffer') +
       card('gate (corrected)', m.vdCorr ? m.vdCorr.label : '—', '', m.vdCorr ? gateWhy(m.vdCorr) : 'not run', m.vdCorr && m.vdCorr.tier === 'go' ? C.green : C.amber, 'verdict') +
       card('coupled', pct(cc.matchRate), '%', 'of the beats that could couple', C.ink, 'match') +
-      '</div>'
+      '</div>' +
+      /* ── THE OTHER TWO LEGS, ONCE THE FINGER HAS A FLOOR (E11, #3267) ────────────────────────────
+         Until the ring had an arrival sidecar only chest → ankle could be corrected, so this section was
+         one leg wide. With the finger on its own floor all three legs exist on the floor axes, and the
+         two that involve the finger belong here beside the first — each with its RAW median next to it,
+         never a delta (the three-floor hat's rule, and the drift-removed row's before it).
+         ⚠️ They are rendered BECAUSE they are computed: `cpFCorr` / `cpFACorr` cross the worker boundary,
+         and the boundary gate caught them unread on the first run of this unit — the same defect this
+         worker already records for `detailCorr` ("computed, sent across the boundary, read by nobody")
+         and for `vdCorr` before #2117. Surfaced rather than deleted: the corrected per-leg lags are what
+         a reader compares the corrected hat's σ against. */
+      (m.cpFCorr || m.cpFACorr
+        ? '<div class="kpis">' +
+          (m.cpFCorr && m.cpFCorr.ok
+            ? card('chest → finger, corrected', num(m.cpFCorr.med), 'ms', 'IQR ' + num(m.cpFCorr.p25) + '–' + num(m.cpFCorr.p75) + ' · raw ' + num(m.cpF && m.cpF.med) + ' ms', C.green, 'corr')
+            : card('chest → finger, corrected', '—', '', (m.cpFCorr && m.cpFCorr.reason) || 'not computed', C.mut, 'corr')) +
+          (m.cpFACorr && m.cpFACorr.ok
+            ? card('finger → ankle, corrected', num(m.cpFACorr.med), 'ms', 'IQR ' + num(m.cpFACorr.p25) + '–' + num(m.cpFACorr.p75) + ' · raw ' + num(m.cpFA && m.cpFA.med) + ' ms', C.green, 'corr')
+            : card('finger → ankle, corrected', '—', '', (m.cpFACorr && m.cpFACorr.reason) || 'not computed', C.mut, 'corr')) +
+          '</div>'
+        : '')
     );
   }
 
@@ -334,6 +372,21 @@
     out.push(hatRow('fused hat σ', m.threeFused, 'hatF'));
     out.push('</div>');
     out.push(hatAxesNote(m));
+    /* ── THE THREE-FLOOR HAT: ITS OWN ROW, BOTH σ SETS, NEVER A DELTA ────────────────────────────
+       The same rule the drift-removed row below states, for the same reason: re-timing every leg onto its
+       device's arrival floor CHANGES THE AXES, so this is a separate estimate of the same quantity over
+       different inputs — not a better measurement of it. A Δ against the raw σ would read as "the smaller
+       number is the improved instrument", which is the reading the owner's item 2 forbids. Its own row,
+       its own basis named.
+       It exists at all only because of E11 (#3267): the ring's PPG frames now carry the device's own
+       cumulative stream position, so the FINGER leg can take a floor and all three legs share one kind of
+       axis. Before that, mixing axes would have put the ring's buffering into finger → ankle. */
+    if (m.threeCorr)
+      out.push(
+        '<h3>three-floor hat — every leg on its own device’s arrival floor, a SEPARATE estimate over different axes</h3><div class="kpis">' +
+          (m.threeCorr.ok ? hatRow('three-floor hat σ', m.threeCorr, 'hatFloor') : card('three-floor hat σ', '—', '', m.threeCorr.reason || 'not solved', C.mut, 'hatFloor')) +
+          '</div>'
+      );
     /* ── THE DRIFT-REMOVED HAT GETS ITS OWN ROW, AND NEVER A DELTA ───────────────────────────────
        Differencing removes a drift shared by all three sites, which CHANGES THE ESTIMAND: it is not a
        better measurement of the same quantity, so a Δ against the classic σ would invite exactly the
@@ -425,7 +478,7 @@
      question about one night, and the monitor's night-derived link hands it exactly one night's files
      (`NIGHT_INPUT` → `#fileInput`, `NIGHT_RUN` → `#run`). A second copy of that page's night grouping
      would be a second copy of its ingest, which is the thing this page exists NOT to do. */
-  var PICK = { ecg: null, verity: null, ring: null, ecgArr: null, ppgArr: null, ecgAcc: null, ppgAcc: null };
+  var PICK = { ecg: null, verity: null, ring: null, ecgArr: null, ppgArr: null, ringArr: null, ecgAcc: null, ppgAcc: null };
   function classify(f) {
     var n = String(f.name || '');
     if (/_ECG\.txt$/i.test(n)) return 'ecg';
@@ -434,7 +487,9 @@
        3-column night (`ppgdex-dsp.js`'s measured 526-vs-261 finding). */
     /* OPTIONAL inputs, told apart by VENDOR like the waveforms: each Polar device's packet-arrival sidecar (the
        arrival-floor axis) and its ACC (the motion check on that axis). The ring writes neither. */
-    if (/_PMDARRIVAL\.csv$/i.test(n)) return /Polar_H10/i.test(n) ? 'ecgArr' : /VeritySense/i.test(n) ? 'ppgArr' : null;
+    // the ring's sidecar used to classify to null — it carried no PPG packets and no device position until
+    // E11 (#3267). It now feeds the FINGER leg's floor, so it gets its own slot on this page too.
+    if (/_PMDARRIVAL\.csv$/i.test(n)) return /Polar_H10/i.test(n) ? 'ecgArr' : /VeritySense/i.test(n) ? 'ppgArr' : /O2Ring/i.test(n) ? 'ringArr' : null;
     if (/_ACC\.txt$/i.test(n)) return /Polar_H10/i.test(n) ? 'ecgAcc' : /VeritySense/i.test(n) ? 'ppgAcc' : null;
     if (/_PPG\.txt$/i.test(n)) return /wellue|o2ring|viatom|checkme/i.test(n) ? 'ring' : 'verity';
     return null;
@@ -459,7 +514,7 @@
     }).file;
   }
   function onPick(files) {
-    PICK = { ecg: null, verity: null, ring: null, ecgArr: null, ppgArr: null, ecgAcc: null, ppgAcc: null };
+    PICK = { ecg: null, verity: null, ring: null, ecgArr: null, ppgArr: null, ringArr: null, ecgAcc: null, ppgAcc: null };
     var cand = {};
     for (var i = 0; i < files.length; i++) {
       var k = classify(files[i]);
@@ -477,6 +532,11 @@
     PICK.ecgAcc = nearest(cand.ecgAcc, tE);
     PICK.ppgArr = nearest(cand.ppgArr, tV);
     PICK.ppgAcc = nearest(cand.ppgAcc, tV);
+    // the RING's sidecar, matched to the RING's own session rather than to the ECG anchor: the ring runs
+    // its own file-set, so its sidecar shares a stamp with its `_PPG.txt` and not with the chest's.
+    // (Declaring the slot and the classifier without this line is what the intake test caught — the key
+    // existed on the job and was always null, which reads as "no sidecar recorded".)
+    PICK.ringArr = nearest(cand.ringArr, PICK.ring ? stampOf(PICK.ring.name) : tE);
     var have = Object.keys(PICK).filter(function (k) {
       return PICK[k];
     });
@@ -522,6 +582,7 @@
     if (PICK.ecgArr && PICK.ppgArr) {
       job.ecgArrFile = PICK.ecgArr;
       job.ppgArrFile = PICK.ppgArr;
+      job.ringArrFile = PICK.ringArr;
     }
     if (PICK.ecgAcc && PICK.ppgAcc) {
       job.ecgAccFile = PICK.ecgAcc;

@@ -104,9 +104,20 @@
     if ((mo = n.match(/_(\d{8})_?(\d{6})_PPG\.txt$/i))) return { role: /O2Ring/i.test(n) ? 'finger' : 'ppg', stamp: mo[1] + mo[2] };
     // ACC on BOTH devices → the cross-device drift anchor (H10 chest vs Verity arm)
     if ((mo = n.match(/_(\d{8})_?(\d{6})_ACC\.txt$/i))) return { role: /Polar_H10/i.test(n) ? 'ecgacc' : 'ppgacc', stamp: mo[1] + mo[2] };
-    // the packet-arrival sidecar: the corrected path's anchor (one per device; the ring's is not used here)
+    /* the packet-arrival sidecar: the corrected path's anchor, one per device. The ring's used to classify
+       to `null` ("not used here") because it carried only `OXYLIVE_DURATION_S` rows — no PPG packets and no
+       device position, so there was nothing to anchor. E11 (#3267) writes one row per PPG frame with the
+       ring's own cumulative stream position, so it now has its own role and the FINGER leg can take a
+       floor. A sidecar from before that change still parses: it carries no positioned frames and the
+       worker refuses the finger floor by name rather than silently mixing axes. */
     if ((mo = n.match(/_(\d{8})_?(\d{6})_PMDARRIVAL\.csv$/i)))
-      return /Polar_H10/i.test(n) ? { role: 'ecgarr', stamp: mo[1] + mo[2] } : /VeritySense|Polar_Sense/i.test(n) ? { role: 'ppgarr', stamp: mo[1] + mo[2] } : null;
+      return /Polar_H10/i.test(n)
+        ? { role: 'ecgarr', stamp: mo[1] + mo[2] }
+        : /VeritySense|Polar_Sense/i.test(n)
+          ? { role: 'ppgarr', stamp: mo[1] + mo[2] }
+          : /O2Ring/i.test(n)
+            ? { role: 'ringarr', stamp: mo[1] + mo[2] }
+            : null;
     return null;
   }
   // sessions starting before noon fold into the PREVIOUS evening (floating civil time)
@@ -160,7 +171,10 @@
       pa = nearestTo(nt.cand.ppgacc, p ? stampMs(p.stamp) : eMs),
       er = nearestTo(nt.cand.ecgarr, eMs),
       pr = nearestTo(nt.cand.ppgarr, p ? stampMs(p.stamp) : eMs),
-      fg = nearestTo(nt.cand.finger, eMs);
+      fg = nearestTo(nt.cand.finger, eMs),
+      // the ring's sidecar is matched to the RING's own session, not to the ECG anchor: the ring runs its
+      // own file-set and its session start is the thing its sidecar shares a stamp with.
+      rr = nearestTo(nt.cand.ringarr, fg ? stampMs(fg.stamp) : eMs);
     nt.ecg = e ? e.file : null;
     nt.ppg = p ? p.file : null;
     nt.ecgAcc = ea ? ea.file : null;
@@ -168,6 +182,7 @@
     nt.ecgArr = er ? er.file : null;
     nt.ppgArr = pr ? pr.file : null;
     nt.finger = fg ? fg.file : null;
+    nt.ringArr = rr ? rr.file : null;
   }
   var eligible = function (nt) {
     return !!(nt.ecg && nt.ppg);
@@ -181,7 +196,7 @@
         c = classify(f);
       if (!c) continue;
       var nk = nightKeyOf(c.stamp),
-        nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [], ecgarr: [], ppgarr: [] } });
+        nt = NIGHTS[nk] || (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [], ecgarr: [], ppgarr: [], ringarr: [] } });
       nt.cand[c.role].push({ file: f, stamp: c.stamp });
     }
     Object.keys(NIGHTS).forEach(function (k) {
@@ -331,6 +346,7 @@
         fingerFile: nt.finger || null,
         ecgArrFile: nt.ecgArr || null,
         ppgArrFile: nt.ppgArr || null,
+        ringArrFile: nt.ringArr || null,
         detail: false
       });
     }
@@ -567,6 +583,7 @@
       fingerFile: nt.finger || null,
       ecgArrFile: nt.ecgArr || null,
       ppgArrFile: nt.ppgArr || null,
+      ringArrFile: nt.ringArr || null,
       detail: true
     });
   }
@@ -771,17 +788,55 @@
         )
       );
       hc.push(hcard('windows solved', String(h.n), '', 'all three legs ≥ 50 beats in the same ' + h.winMin + ' min', C.ink, 'count'));
-      // The axes the hat was solved on, stated beside it (see hatSiteArgs): raw receive stamps, buffering included.
-      hc.push(
-        hcard(
-          'timing axes',
-          'RAW',
-          '',
-          'phone receive stamps — each σ includes its device’s Bluetooth buffering; a corrected hat needs the ring on an arrival-floor axis, which is not recorded',
-          C.amber,
-          'hat'
-        )
-      );
+      /* ── THE AXES, AND BOTH σ SETS WHEN THERE ARE TWO ────────────────────────────────────────────────
+         This card used to read "RAW … a corrected hat needs the ring on an arrival-floor axis, which is
+         not recorded", which stopped being true with E11 (#3267). Now: when the three-floor hat solved,
+         the RAW set and the CORRECTED set are shown SIDE BY SIDE, each labelled with its own axis.
+
+         NEVER A DELTA between them, which is the drift-removed row's rule in PAT-HAT-DRIFT-DIFFERENCED: the
+         two hats are different estimators over different axes, so a difference is not an error bar and a
+         reader who sees one number will treat it as one. Two sets, both badged, both named.
+
+         When it did NOT solve the card stays RAW and carries the FLOOR LAYER'S OWN REASON rather than a
+         general sentence — "no arrival sidecar for the O2Ring" and "the row accounting differs" are
+         different findings and the page must not blur them (§∅: name the absence). */
+      var hcorr = m.threeCorr,
+        fsF = m.floorSync && m.floorSync.finger;
+      if (hcorr && hcorr.ok) {
+        hc.push(hcard('timing axes', 'RAW + FLOOR', '', 'both hats below: raw receive stamps, and every leg re-timed on its own device’s packet-arrival floor', C.ink, 'floor'));
+        [
+          ['chest', 'H10 chest ECG', C.teal],
+          ['finger', 'O2Ring finger', C.amber],
+          ['ankle', 'Verity ankle', '#B98AFF']
+        ].forEach(function (r) {
+          var a = hatSiteArgs(hcorr, r[0], r[1], r[2]);
+          // the same site card as the raw set, re-labelled so the two can never be read as one series
+          hc.push(hcard(a[0] + ' · floor', a[1], a[2], a[3], a[4], 'floor'));
+        });
+        hc.push(
+          hcard(
+            'pair spreads · floor',
+            hcorr.pairSd.ab.toFixed(1) + ' · ' + hcorr.pairSd.ac.toFixed(1) + ' · ' + hcorr.pairSd.bc.toFixed(1),
+            'ms',
+            'IQR/1.349 of window medians on the floor axes · finger · ankle · finger→ankle',
+            C.ink,
+            'floor'
+          )
+        );
+        hc.push(hcard('windows solved · floor', String(hcorr.n), '', 'all three FLOOR legs ≥ 50 beats in the same ' + hcorr.winMin + ' min', C.ink, 'count'));
+      } else {
+        hc.push(
+          hcard(
+            'timing axes',
+            'RAW',
+            '',
+            'phone receive stamps — each σ includes its device’s Bluetooth buffering. Corrected hat not solved: ' +
+              ((hcorr && hcorr.reason) || (fsF && !fsF.ok && fsF.reason) || 'no arrival-floor result for the finger'),
+            C.amber,
+            'hat'
+          )
+        );
+      }
     } else hc.push(hcard('three-cornered hat', '—', '', h && h.reason ? h.reason : 'not solved', C.mut));
     hb.innerHTML = hc.join('');
     drawThree(h);
