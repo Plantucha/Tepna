@@ -3033,20 +3033,53 @@ class PmdArrivalLogWriter:
                     _t.truncate(_c + 1 if _c >= 0 else 0)
             _resume = os.path.getsize(path) > 0
         self._fh = open(path, "a" if _resume else "w", buffering=1 << 16, newline="\n")
-        if not _resume:
-            self._fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        # ── `first_sample_idx` — THE RING'S OWN FRAME POSITION, APPENDED 2026-10-04 (E11) ───────────
+        # The Polars stamp every packet with a device clock, so `first_sensor_ns` IS their frame
+        # position and an arrival FLOOR falls out of `min(arrival - first_sensor_ns)`. The O2Ring has
+        # no clock at all, so those two columns are blank for it (`write` already blanks `None` rather
+        # than fabricating a 0) and without a position there is nothing to take the minimum against —
+        # which is exactly why no corrected PAT hat could include the finger (residue
+        # 2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat). The ring does supply its
+        # own u32 stream offset per frame (`oxyii.ppg_stream_offset`), so that goes here: a POSITION in
+        # samples, not a time, which is the honest thing the device actually knows.
+        #
+        # ⚠️ ONE FILE, ONE SHAPE — and the resume path is why this is not a one-line header change. A
+        # resumed session re-opens this sidecar and appends; if the file on disk carries the OLD
+        # six-column header, appending seven-column rows produces a file whose own header lies about
+        # half its rows, and every consumer splitting on `;` reads the new column as part of the old
+        # one. So the shape is read FROM THE FILE: a resumed six-column file keeps writing six columns
+        # for the rest of its life, and only a fresh file gets the new column. A mixed file is the one
+        # outcome that must not be possible.
+        self._cols = 7
+        if _resume:
+            try:
+                with open(path, "r", encoding="utf-8", errors="replace") as _h:
+                    self._cols = (_h.readline() or "").rstrip("\n").count(";") + 1
+            except OSError:
+                self._cols = 6  # unreadable header: assume the older, narrower shape and never widen it
+        else:
+            self._fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
 
-    def write(self, arrival: _dt.datetime, device: str, meas, first_ns, last_ns, n_samples: int) -> None:
+    def write(
+        self, arrival: _dt.datetime, device: str, meas, first_ns, last_ns, n_samples: int, first_sample_idx=None
+    ) -> None:
+        """`first_sample_idx` is OPTIONAL and LAST, so every existing caller is byte-identical: the
+        Polars pass six arguments and get six columns' worth of content with a trailing blank, which is
+        the same absence the two ns columns already use for a device that cannot supply them."""
+
         def _f(v):
             return "" if v is None else str(v)  # blank, never a fabricated 0
 
-        landed = self._health.put(
-            self._fh, f"{_phone_ts(arrival)};{device};{_f(meas)};{_f(first_ns)};{_f(last_ns)};{n_samples}\n"
-        )
+        row = f"{_phone_ts(arrival)};{device};{_f(meas)};{_f(first_ns)};{_f(last_ns)};{n_samples}"
+        # Six on a resumed six-column file (see __init__): the column is dropped rather than the file
+        # being left self-contradictory. A caller that NEEDS the position must open a fresh file.
+        if self._cols >= 7:
+            row += f";{_f(first_sample_idx)}"
+        landed = self._health.put(self._fh, row + "\n")
         if landed:
             self.rows += 1
         now = _time.monotonic()

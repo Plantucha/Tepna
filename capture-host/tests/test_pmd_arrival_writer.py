@@ -11,10 +11,13 @@ This sidecar records the TRUE arrival beside the device stamp of the packet's fi
 minimum has a real floor. These tests pin the properties that make it usable, not merely that it writes.
 """
 
+import builtins
 import datetime as _dt
+import inspect
 import os
+from unittest import mock
 
-from writers import PmdArrivalLogWriter
+from writers import _FlushHealth, PmdArrivalLogWriter
 from tests._srcscan import module_source
 
 _T0 = _dt.datetime(2026, 8, 11, 22, 0, 0)
@@ -53,13 +56,309 @@ def test_header_and_one_row(tmp_path):
     w.write(_T0, "Polar H10 02849638", "ECG", 839728574462147086, 839728574531147086, 10)
     w.close()
     rows = _read(p)
-    assert rows[0] == "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"
+    # `first_sample_idx` appended 2026-10-04 (E11) — a DEVICE POSITION for a device with no clock.
+    assert rows[0] == "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx"
     f = rows[1].split(";")
     assert f[1] == "Polar H10 02849638" and f[2] == "ECG"
     # the device stamps must survive as EXACT integers — a float would lose ns resolution at 8.4e17,
     # which is the whole quantity being recorded
     assert f[3] == "839728574462147086" and f[4] == "839728574531147086"
     assert f[5] == "10"
+    # A SIX-ARGUMENT CALLER IS BYTE-IDENTICAL IN EVERY FIELD IT WRITES: the new column is optional and
+    # last, so a Polar's row gains a trailing blank and nothing else. That blank is the same absence
+    # the two ns columns already carry for a device that cannot supply them.
+    assert f[6] == "", f
+    assert len(f) == 7, f
+
+
+def test_the_RING_writes_a_frame_POSITION_and_BLANK_clock_columns(tmp_path):
+    """∅ E11 · The O2Ring has no clock — not one we distrust, none at all — so `first_sensor_ns` and
+    `last_sensor_ns` must be BLANK for it, never 0. A 0 there reads as "this frame's first sample is at
+    the epoch", which is what would let a consumer compute an arrival floor against a fabricated zero
+    and get a plausible, wrong offset. What the ring DOES know is its own u32 stream offset per frame,
+    so that is what the new column carries: a position in samples, not a time."""
+    p = os.path.join(tmp_path, "Wellue_20261004220000_PMDARRIVAL.csv")
+    w = PmdArrivalLogWriter(p, fsync=False)
+    w.write(_T0, "O2Ring-S S8AW2100", "PPG_FRAME", None, None, 20, 4000)
+    w.close()
+    f = _read(p)[1].split(";")
+    assert f[2] == "PPG_FRAME"
+    assert f[3] == "" and f[4] == "", (f, "a clockless device must blank the ns columns, not write 0")
+    assert f[5] == "20", f
+    assert f[6] == "4000", (f, "the ring's own frame position is the column a floor can be taken against")
+
+
+def test_the_width_is_COUNTED_from_the_header_not_assumed(tmp_path):
+    """E11 · `self._cols` is `header.count(";") + 1`, and the arithmetic is what decides whether a
+    resumed file gets the new column. Driven across THREE widths so the `+1` is pinned as an off-by-one
+    boundary rather than observed once: a 6-field header has 5 semicolons, a 7-field one has 6, and a
+    deliberately absurd 8-field one must read as 8 and still never WIDEN a narrow file."""
+
+    def _w(name, header):
+        q = os.path.join(tmp_path, name)
+        with open(q, "w") as fh:
+            fh.write(header + "\n2026-10-03T00:00:00.000;H10;ECG;1;2;73\n")
+        return q
+
+    six = "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"
+    assert PmdArrivalLogWriter(_w("a_PMDARRIVAL.csv", six), fsync=False)._cols == 6
+    assert PmdArrivalLogWriter(_w("b_PMDARRIVAL.csv", six + ";first_sample_idx"), fsync=False)._cols == 7
+    assert PmdArrivalLogWriter(_w("c_PMDARRIVAL.csv", six + ";x;y"), fsync=False)._cols == 8
+    # A header with NO semicolon at all is one column — the degenerate end of the same arithmetic, and
+    # the case that distinguishes `+1` from `-1` and from a bare `count(";")`.
+    assert PmdArrivalLogWriter(_w("d_PMDARRIVAL.csv", "solo"), fsync=False)._cols == 1
+    # A FRESH file is 7 by construction, not by counting — the branch the three above never take.
+    assert PmdArrivalLogWriter(os.path.join(tmp_path, "fresh_PMDARRIVAL.csv"), fsync=False)._cols == 7
+
+
+def test_an_UNREADABLE_header_assumes_the_NARROW_shape_and_never_widens(tmp_path):
+    """∅ The `except OSError` branch, and its DIRECTION is the content. If the header cannot be read,
+    the writer must assume the OLDER six-column shape: guessing 7 on a file that is actually 6 appends
+    a column under a header that does not declare it, which is the self-contradictory file the whole
+    width-detection exists to prevent. Guessing 6 on a file that is actually 7 only drops a column —
+    recoverable, and visible as a blank. Errs toward the narrower claim."""
+    q = os.path.join(tmp_path, "unreadable_PMDARRIVAL.csv")
+    with open(q, "w") as fh:
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx\n")
+        fh.write("2026-10-03T00:00:00.000;H10;ECG;1;2;73;9\n")
+    real_open = builtins.open
+    seen = {"n": 0}
+
+    def boom(path, mode="r", *a, **kw):
+        # Fail ONLY the re-open for reading, which is the call under test — the append handle above it
+        # must still succeed or the test would be about a different failure.
+        # mode EXACTLY "r": the torn-tail handler opens the same path as "rb+", which contains an "r"
+        # and would be intercepted by a looser predicate — and that open is OUTSIDE the try under test,
+        # so the error would escape instead of exercising the branch. My first version did exactly that.
+        if str(path) == q and mode == "r":
+            seen["n"] += 1
+            raise OSError(5, "Input/output error")
+        return real_open(path, mode, *a, **kw)
+
+    with mock.patch.object(builtins, "open", boom):
+        w = PmdArrivalLogWriter(q, fsync=False)
+    assert seen["n"] == 1, "the header re-open must have been attempted, or this asserts nothing"
+    assert w._cols == 6, "an unreadable header must assume the NARROW shape, never the wide one"
+    w.write(_T0, "O2Ring-S", "PPG_FRAME", None, None, 20, 4000)
+    w.close()
+    assert _read(q)[-1].endswith(";20"), "and must therefore write six columns, dropping the position"
+
+
+def test_a_TORN_TAIL_is_truncated_to_the_last_COMPLETE_line(tmp_path):
+    """The resume path's torn-tail handling, which had NO test observing it — 13 of the mutants this
+    branch put in scope live in these four lines, and they survived because nothing read the result.
+
+    A capture killed mid-write leaves a final line with no newline. Appending after it would splice the
+    next row onto the stump and produce one corrupt row that every consumer parses as real. So the
+    partial line is cut back to the last complete one."""
+    q = os.path.join(tmp_path, "torn_PMDARRIVAL.csv")
+    with open(q, "w") as fh:
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        fh.write("2026-10-03T00:00:00.000;H10;ECG;1;2;73\n")
+        fh.write("2026-10-03T00:00:01.000;H10;ECG;3;4;7")  # killed mid-write: NO trailing newline
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 5, 6, 9)
+    w.close()
+    rows = _read(q)
+    assert len(rows) == 3, rows  # header + the one complete row + the new one
+    assert rows[1].endswith(";73"), rows
+    assert rows[2].endswith(";9"), (rows, "the new row must start a line of its own, not splice onto the stump")
+    assert not any(r.endswith(";7") for r in rows), (rows, "the torn row must be GONE, not merged")
+    assert all(len(r.split(";")) == 6 for r in rows), (rows, "and the file keeps its original width")
+
+
+def test_an_EMPTY_existing_file_is_not_a_resume(tmp_path):
+    """`os.path.getsize(path) > 0`, both halves. A zero-byte file is a file that exists and says
+    nothing — it must get a HEADER, not be appended to as though it already had one. (The 2026-10-03
+    ENOSPC truncations are why this matters: a zero-byte sidecar is a real state on this box, and
+    treating it as a resume would produce a file of rows with no header at all.)"""
+    q = os.path.join(tmp_path, "empty_PMDARRIVAL.csv")
+    open(q, "w").close()
+    assert os.path.getsize(q) == 0
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    rows = _read(q)
+    assert rows[0].startswith("Phone timestamp;"), (rows, "an empty file must receive the header")
+    assert rows[0].endswith(";first_sample_idx"), (rows, "and a fresh header is the CURRENT shape")
+    assert len(rows) == 2, rows
+
+
+def test_a_ONE_BYTE_file_is_truncated_away_and_then_headered(tmp_path):
+    """The `> 1` boundary: a one-byte file is a torn tail of a line that never completed. It is cut to
+    nothing, which makes it an empty file, which then takes the header path. Pinned because `> 0` and
+    `> 1` differ on exactly this file and on no other."""
+    q = os.path.join(tmp_path, "onebyte_PMDARRIVAL.csv")
+    with open(q, "w") as fh:
+        fh.write("x")
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    rows = _read(q)
+    assert rows[0].startswith("Phone timestamp;"), (rows, "the stray byte must not survive in front of the header")
+    # NOT `"x" not in rows[0]` — my first version asserted that and it failed on the "x" inside
+    # `first_sample_idx`. A substring check against a header that contains most letters is not an
+    # assertion about the stray byte at all.
+    assert len(rows) == 2, (rows, "header + the one written row, with nothing left of the torn byte")
+    assert not rows[0].startswith("x"), rows
+
+
+def test_the_writer_keeps_its_own_path_and_binds_health_to_it(tmp_path):
+    """`self.path = path` and `_FlushHealth(path)` — both trivially mutable to `None` and both
+    unobserved until now. The path is what a flush failure NAMES, so losing it turns a named failure
+    into an anonymous one."""
+    q = os.path.join(tmp_path, "named_PMDARRIVAL.csv")
+    w = PmdArrivalLogWriter(q, fsync=False)
+    assert w.path == q
+    assert getattr(w._health, "path", None) == q, "health must be bound to this file, not to None"
+    w.close()
+
+
+def test_fsync_defaults_ON_for_a_sidecar_that_must_survive_a_power_cut(tmp_path):
+    """The signature default. A capture box loses power; a sidecar buffered in the kernel and never
+    fsynced is the half that disappears. Asserted on the SIGNATURE rather than by observing a syscall,
+    because the default is the decision."""
+    assert inspect.signature(PmdArrivalLogWriter.__init__).parameters["fsync"].default is True
+
+
+def test_a_file_that_is_EXACTLY_ONE_NEWLINE_is_a_resume(tmp_path):
+    """The `> 0` / `> 1` boundary, and the only input that distinguishes them. A one-byte file of "x"
+    does NOT: it is a torn tail, truncated to nothing, so both predicates see 0 afterwards. A file whose
+    single byte is "\\n" is complete, is never truncated, and has size 1 — so `> 0` resumes and `> 1`
+    rewrites the file from scratch, destroying whatever a previous session recorded."""
+    q = os.path.join(tmp_path, "nl_PMDARRIVAL.csv")
+    with open(q, "w") as fh:
+        fh.write("\n")
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    text = open(q).read()
+    assert not text.startswith("Phone timestamp;"), (
+        text,
+        "a complete one-byte file is a RESUME — re-emitting the header here would mean a `> 1` bound "
+        "silently rewrote a file that already held rows",
+    )
+    assert text.startswith("\n"), text
+
+
+def test_a_torn_tail_whose_only_newline_is_the_FIRST_byte_truncates_to_it(tmp_path):
+    """`_c >= 0`, exactly. `_d.rfind(b"\\n")` is 0 when the file's only newline is its first byte, and
+    `_c >= 1` / `_c > 0` then truncate to ZERO instead of to 1 — discarding a complete (if empty) line
+    and turning a resume into a rewrite. The off-by-one is only visible on this file."""
+    q = os.path.join(tmp_path, "firstbyte_PMDARRIVAL.csv")
+    with open(q, "wb") as fh:
+        fh.write(b"\npartial-row-no-newline")
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    text = open(q).read()
+    assert text.startswith("\n"), (text, "the one complete line must survive truncation")
+    assert "partial-row" not in text, (text, "and the torn remainder must be gone")
+    assert not text.startswith("Phone timestamp;"), (text, "a surviving line means this was a RESUME")
+
+
+def test_a_torn_tail_is_cut_to_the_newline_and_NOT_ONE_BYTE_PAST_IT(tmp_path):
+    """`_t.truncate(_c + 1 ...)`, exactly. `_c + 2` keeps the first character of the torn row, so the
+    next append lands behind it and produces ONE CORRUPT ROW that every consumer parses as real — the
+    precise failure the torn-tail handling exists to prevent. The earlier torn-tail test counts rows and
+    checks the suffix, which a one-byte stump survives; this one asserts the row EXACTLY."""
+    q = os.path.join(tmp_path, "exact_PMDARRIVAL.csv")
+    good = "2026-10-03T00:00:00.000;H10;ECG;1;2;73"
+    with open(q, "w") as fh:
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        fh.write(good + "\n")
+        fh.write("2026-10-03T00:00:01.000;H10;ECG;3;4;7")  # torn
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 5, 6, 9)
+    w.close()
+    rows = _read(q)
+    assert rows[1] == good, (rows, "the complete row must be untouched")
+    # THE LEG THAT CATCHES `_c + 2`: the new row must be the whole line, with no inherited stump.
+    assert rows[2].startswith("2026-08-11T"), (rows, "a leading stump would prefix the stamp")
+    assert rows[2].count(";") == 5, (rows, "and would not change the field count — only the stamp shows it")
+    assert rows[2] == f"{rows[2].split(';')[0]};H10;ECG;5;6;9", rows
+
+
+def test_an_UNDECODABLE_header_byte_is_REPLACED_not_raised(tmp_path):
+    """`errors="replace"` on the header read, which `errors=None` (strict) mutates away. A sidecar whose
+    header carries a stray non-UTF-8 byte — a torn write, a bad disk — must still be readable enough to
+    count its columns. Strict decoding would raise inside `__init__` and take the whole capture runner
+    down with it, which is the opposite of what a telemetry sidecar may do."""
+    q = os.path.join(tmp_path, "badbyte_PMDARRIVAL.csv")
+    with open(q, "wb") as fh:
+        fh.write(b"Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;\xff\xfeidx\n")
+        fh.write(b"2026-10-03T00:00:00.000;H10;ECG;1;2;73;9\n")
+    w = PmdArrivalLogWriter(q, fsync=False)  # must not raise
+    assert w._cols == 7, "the columns are still countable through the replacement characters"
+    w.close()
+
+
+def test_fsync_is_ON_by_default_as_BEHAVIOUR_not_as_a_signature(tmp_path):
+    """⚠️ Asserting the default via `inspect.signature` does NOT kill the mutant, and I learned that
+    from the gate: under mutation `__init__` is a dispatcher, so the signature a test reads is the
+    ORIGINAL one and `fsync: bool = False` survives untouched. The default has to be observed through
+    what it DOES.
+
+    Counted at `_FlushHealth.fsync`, not at `os.fsync`: the health object hands a DUP'd fd to a worker
+    thread, so an assertion on `os.fsync` races the thread and would pass or fail by timing. This is the
+    synchronous consequence of the flag."""
+    q = os.path.join(tmp_path, "fsync_PMDARRIVAL.csv")
+    calls = {"n": 0}
+
+    with mock.patch.object(_FlushHealth, "fsync", lambda self, fh: calls.__setitem__("n", calls["n"] + 1)):
+        w = PmdArrivalLogWriter(q)  # NO fsync argument — the default is what is under test
+        w.write(_T0, "H10", "ECG", 1, 2, 73)
+        w.flush()
+        w.close()
+    assert calls["n"] >= 1, "the default must actually fsync, or a power cut loses the sidecar"
+    # And the opposite leg, so the assertion above is about the DEFAULT and not about flushing at all.
+    calls["n"] = 0
+    with mock.patch.object(_FlushHealth, "fsync", lambda self, fh: calls.__setitem__("n", calls["n"] + 1)):
+        w = PmdArrivalLogWriter(os.path.join(tmp_path, "nofsync_PMDARRIVAL.csv"), fsync=False)
+        w.write(_T0, "H10", "ECG", 1, 2, 73)
+        w.flush()
+        w.close()
+    assert calls["n"] == 0, "and fsync=False must not fsync"
+
+
+def test_the_torn_tail_probe_reads_the_LAST_byte_not_the_THIRD(tmp_path):
+    """`_t.seek(-1, 2)` is END-relative, and `seek(2)` (absolute) mutates it into reading byte index 2.
+    The distinguishing input is a file whose THIRD byte is a newline and whose tail is torn: the mutant
+    sees that newline, concludes the file ends cleanly, and appends behind the stump — producing exactly
+    the spliced row the handler exists to prevent, on a file the earlier tests happen not to have."""
+    q = os.path.join(tmp_path, "thirdbyte_PMDARRIVAL.csv")
+    with open(q, "wb") as fh:
+        fh.write(b"ab\ncd")  # byte[2] is "\n"; the LAST byte is "d" — a torn tail
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    text = open(q).read()
+    assert "cd" not in text, (text, "the torn remainder must be cut, which only an END-relative probe sees")
+    assert text.startswith("ab\n"), text
+    assert text.splitlines()[1].endswith(";73"), text.splitlines()
+
+
+def test_a_RESUMED_six_column_file_keeps_ONE_shape(tmp_path):
+    """⚠️ The resume path is why the header change is not a one-liner. A resumed session re-opens this
+    sidecar and APPENDS; a file carrying the old six-column header must not then receive seven-column
+    rows, or its own header lies about half its rows and every consumer splitting on `;` misreads the
+    last field. The shape is therefore read FROM THE FILE, and a narrow file stays narrow for life."""
+    p = os.path.join(tmp_path, "Tepna_20260811220000_PMDARRIVAL.csv")
+    with open(p, "w") as fh:  # exactly what the previous version of this writer produced
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        fh.write("2026-10-03T00:00:00.000;Polar H10 02849638;ECG;1;2;73\n")
+    w = PmdArrivalLogWriter(p, fsync=False)
+    w.write(_T0, "O2Ring-S S8AW2100", "PPG_FRAME", None, None, 20, 4000)
+    w.close()
+    rows = _read(p)
+    assert {len(r.split(";")) for r in rows} == {6}, (rows, "a mixed-width file is the one outcome forbidden")
+    assert rows[-1].endswith(";20"), (rows, "the position is DROPPED rather than the file left self-contradictory")
+    # And a FRESH file in the same session still gets the column — the narrowing is per-file, not global.
+    p2 = os.path.join(tmp_path, "Tepna_20260811230000_PMDARRIVAL.csv")
+    w2 = PmdArrivalLogWriter(p2, fsync=False)
+    w2.write(_T0, "O2Ring-S S8AW2100", "PPG_FRAME", None, None, 20, 4000)
+    w2.close()
+    assert _read(p2)[-1].endswith(";4000")
 
 
 def test_arrival_is_recorded_not_derived(tmp_path):

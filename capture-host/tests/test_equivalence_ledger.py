@@ -32,6 +32,23 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # solid_night_inputs.py went 24 -> 23 on 2026-10-03: #3243 DELETED the entry excusing
 # `rstrip("\\n")` -> `lstrip("\\n")` because the gate refuted it — cell 7 is compared as a string
 # to "ok", so the surviving newline skips the row. A refuted claim is removed, not softened.
+# writers.py went 2 -> 19 and jitterfloor.py entered at 5 on 2026-10-04 (night-0928 row E11). E11 edits
+# PmdArrivalLogWriter.__init__, which put that whole function in the gate's scope: 41 survivors, of which
+# only 13 were the new header-width read. Six more were killed with real tests (a file of exactly "\n" is
+# the only input separating `getsize > 0` from `> 1`; `rfind` returning 0 separates `_c >= 0` from `>= 1`;
+# `_c + 2` keeps a one-byte stump; `seek(2)` reads the third byte instead of the last; strict decoding
+# raises on one bad byte; `dev_ms` resolves the 2026-11-01 DST fold). The rest are declared with probes
+# that were RUN: the open()/read_text() keyword family (1 << 17 and 2 << 16 are the same number;
+# newline=None translates to os.linesep, "\n" here; LC_ALL=C still read 7 columns), the torn-tail probes
+# that are equivalent BY POSITION (one byte remains after seek(-1, 2)), and `_c + 1 if (_c >= 0) or True`
+# (the false arm computes the same number, -1 + 1 == 0). One is `knife-edge-only`, not equivalence, and
+# one is `untestable-by-design`: freezing _time.monotonic to pin the flush boundary crashed both writer
+# globs and cost 132 verdicts, the second time this suite has had to retire a test that reaches into the
+# harness it runs on. Two carry a structural proof rather than a sampling: the `rstrip("\\n")` ->
+# `lstrip`/`rstrip(None)` pair on the width line, whose stripped string is consumed ONLY by
+# `count(";")`. ⚠️ #3243 DELETED that identical mutation's entry for solid_night_inputs.py because
+# there the cell is string-compared to "ok" — a refutation does not transfer between call sites just
+# because the mutation looks the same, and both entries now say so beside their keys.
 # solid_night_inputs.py went 23 -> 34 on 2026-10-03 (#3245) and that NET RISE hides a second deletion
 # the count cannot show: the SIBLING entry excusing `cols = header.rstrip("\\n")` -> `lstrip` in
 # `residual_scan` was refuted the same way and removed — `_SENSOR_NS_COL not in cols` is a STRING
@@ -76,6 +93,7 @@ RATCHET = {
     "ecgdex-dsp.js": 1,
     "glucodex-dsp.js": 48,
     "hrvdex-dsp.js": 71,
+    "jitterfloor.py": 5,
     "loss_audit.py": 20,
     "mmeta.py": 9,
     "motiondex-dsp.js": 100,
@@ -97,7 +115,7 @@ RATCHET = {
     "solid_night_inputs.py": 35,
     "telemetry.py": 1,
     "timeline.py": 1,
-    "writers.py": 2,
+    "writers.py": 19,
 }
 
 
