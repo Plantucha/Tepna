@@ -274,3 +274,25 @@ def test_fabricated_seconds_are_the_grid_MINUS_the_wall(tmp_path):
     m = pgc.grid_inflation(f)
     assert m["wall_s"] == 2.0 and m["grid_s"] == 1.0
     assert m["fabricated_s"] == -1.0, "a file that lost a second was reported as fabricating three"
+
+
+def test_a_step_SHORTER_than_the_modal_one_does_not_count_as_fabricated_time(tmp_path):
+    """Kills `modal is not None and d > modal` → `or`.
+
+    ⚠️ MY FIRST GAP FIXTURE COULD NOT SEE THIS, for the third instance of the same trap today: with
+    `or` the condition is true for every delta, but the modal term contributes `c * (d - modal)` = 0
+    and the only other deltas were LARGER, so the sum was unchanged. A delta BELOW the modal step is
+    what separates them — it contributes a negative term, and fabricated time that goes DOWN because
+    one step was short is exactly the arithmetic this guard exists to prevent.
+
+    Deltas here: 7 × 1e6 (modal), one 5e5, one 3e6. Only the 3e6 is fabricated: 2e6 ns = 0.002 s.
+    Under `or` the short step subtracts 5e5 and the answer becomes 0.0015."""
+    ns, rows, steps = 0, [], [1_000_000] * 3 + [500_000] + [1_000_000] * 3 + [3_000_000] + [1_000_000]
+    rows.append(_row(0, ns))
+    for i, st in enumerate(steps):
+        ns += st
+        rows.append(_row((i + 1) * 10, ns))
+    m = pgc.grid_inflation(_raw(tmp_path, rows))
+    assert m["modal_step_ns"] == 1_000_000
+    assert m["gaps"] == 2, m["gaps"]
+    assert m["gap_seconds"] == 0.002, m["gap_seconds"]
