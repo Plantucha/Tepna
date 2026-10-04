@@ -542,3 +542,56 @@ def test_the_observed_gaps_are_MEASURED_from_the_pushes_not_asserted():
     assert g["maxS"] >= g["p99S"] >= 0.0 and g["maxS"] >= g["medianS"], g
     # and the state is still the stream's nature, not a verdict about these four pushes
     assert row["health"] == "intermittent", row
+
+
+# ── absence drain group 2a: the diff-scoped survivors in push() / snapshot() ─────────────────────────
+
+
+def test_the_ring_KEEPS_its_history_across_pushes_and_across_a_resize():
+    """mutants 50 / 51 (`ring = None` / `.get(None)`) rebuild an empty ring on every push; 54 (`== cap`)
+    never resizes; 58 (`deque(maxlen=cap)`) resizes but drops what it held."""
+    bus = telemetry.TelemetryBus(ring_seconds=1.0)
+    bus.push("ecg", list(range(100)), fs=100)  # cap 100
+    bus.push("ecg", [100, 101], fs=100)
+    v = bus.snapshot("ecg")["v"]
+    assert len(v) == 100 and v[-1] == 101.0 and v[0] == 2.0  # history kept, oldest two evicted
+    bus.push("ecg", [102], fs=200)  # cap 200: the ring grows and carries its contents over
+    v = bus.snapshot("ecg")["v"]
+    assert len(v) == 101 and v[0] == 2.0 and v[-1] == 102.0
+    bus.push("ecg", list(range(1000, 1150)), fs=200)
+    assert len(bus.snapshot("ecg")["v"]) == 200  # the grown cap is the one enforced
+
+
+def test_a_declared_streams_snapshot_carries_its_rate_and_labels():
+    """mutants 9 / 18: `if (m) and False` publishes a DECLARED stream as undeclared (no rate, no labels)."""
+    bus = telemetry.TelemetryBus()
+    bus.register("acc_h10", "ACC (Polar H10)", "g", 200, chans=3, labels=("X", "Y", "Z"))
+    snap = bus.snapshot("acc_h10")
+    assert snap["fs"] == 200 and snap["labels"] == ["X", "Y", "Z"] and snap["chans"] == 3
+
+
+def test_the_rate_window_keeps_an_entry_exactly_at_its_cutoff(monkeypatch):
+    """mutant 76: `w[0][0] <= cutoff` drops a frame that is exactly _RATE_WIN_S old; the window is
+    half-open at its far end, so it stays."""
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(telemetry.time, "monotonic", lambda: clock["t"])
+    bus = telemetry.TelemetryBus()
+    bus.push("ecg", [1], fs=130)
+    clock["t"] += telemetry._RATE_WIN_S
+    bus.push("ecg", [2], fs=130)
+    assert len(bus._win["ecg"]) == 2
+    clock["t"] += 0.001
+    bus.push("ecg", [3], fs=130)
+    assert len(bus._win["ecg"]) == 2  # the first is now past the cutoff
+
+
+def test_a_shape_breach_is_logged_naming_the_stream_and_the_mismatch(caplog):
+    """mutants 32 / 33: the log line's arguments replaced by None would still log, naming nothing."""
+    import logging
+
+    bus = telemetry.TelemetryBus()
+    bus.register("acc_h10", "ACC", "g", 200, chans=3)
+    with caplog.at_level(logging.ERROR, logger="tepna.telemetry"):
+        bus.push("acc_h10", [[1, 2]])
+    msgs = [r.getMessage() for r in caplog.records if "SHAPE BREACH" in r.getMessage()]
+    assert len(msgs) == 1 and "'acc_h10'" in msgs[0] and "declared 3 channel(s), frame carried 2" in msgs[0], msgs

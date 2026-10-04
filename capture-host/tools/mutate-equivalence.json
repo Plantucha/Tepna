@@ -5434,5 +5434,19 @@
       "probe": "MEASURED 2026-10-04, same probe: identical floors.",
       "why": "A PROOF for THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, which is the precedent I should have matched from the start. Dropping `encoding` is passing None. See the entry above."
     }
+  ],
+  "diskguard.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for _ in range(path.count(os.sep) + 1): | + for _ in range(path.count(os.sep) + 2):",
+      "probe": "13 paths through the original and the mutated module (each loaded from its own copy) with shutil.disk_usage recording its argument: '', '/', 'x', 'rel/a/b', 'rel//a', './x/y', '../x', an existing dir, an existing nested dir, a missing chain under it, '/no/such/at/all/here', 'a/b/c/d/e/f/g/h', a trailing-slash path — identical disk_usage arguments on all 13 (Wren, 2026-10-04)",
+      "why": "each step drops one path component, so depth + 1 steps always end on an existing path or on \"/\"; the extra step the mutant allows only ever runs once the probe already exists, where the loop breaks at once."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- \"low\": bool(min_free_gb > 0 and free_gb < min_free_gb), | + \"low\": bool(min_free_gb >= 0 and free_gb < min_free_gb),",
+      "probe": "a 6 x 6 grid of free bytes (0, 1 MiB, 1 GiB, 5 GiB, 1 TiB, 1 B) by floor (0.0, 0.0001, 0.5, 1.0, 5.0, -1.0) through original and mutant — 0 of 36 reports differ (Wren, 2026-10-04)",
+      "why": "the two differ only at min_free_gb == 0, where the second conjunct is free_gb < 0, and free bytes from shutil.disk_usage are never negative."
+    }
   ]
 }

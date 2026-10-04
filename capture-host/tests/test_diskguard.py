@@ -248,3 +248,48 @@ def test_a_zero_total_reports_NO_percent_rather_than_dividing_by_it(monkeypatch,
     monkeypatch.setattr(diskguard.shutil, "disk_usage", lambda p: U())
     r = diskguard.disk_report(str(tmp_path))
     assert r["free_pct"] is None and r["total_gb"] == 0.0
+
+
+# ── absence drain group 2a: the diff-scoped survivors in disk_report ─────────────────────────────────
+
+import collections as _collections
+
+_GiB = 1024**3
+_usage = _collections.namedtuple("usage", "total used free")
+
+
+def _fake_usage(monkeypatch, total, free):
+    seen = []
+
+    def _du(p):
+        seen.append(p)
+        return _usage(total, total - free, free)
+
+    monkeypatch.setattr(diskguard.shutil, "disk_usage", _du)
+    return seen
+
+
+def test_disk_report_asks_about_the_NEAREST_existing_path_not_the_root(tmp_path, monkeypatch):
+    """mutants 2 / 7 / 17: `probe = None`, `not probe and exists` and `probe and "/"` all end up asking
+    about "/" — a different filesystem whenever the capture root is its own mount."""
+    seen = _fake_usage(monkeypatch, 100 * _GiB, 50 * _GiB)
+    diskguard.disk_report(str(tmp_path))
+    diskguard.disk_report(str(tmp_path / "not" / "yet"))
+    assert seen == [str(tmp_path), str(tmp_path)], seen
+
+
+def test_disk_report_rounds_GiB_to_two_decimals(tmp_path, monkeypatch):
+    """mutants 27 / 35: rounding to 3 places would publish 1.235 for 1.23456 GiB."""
+    _fake_usage(monkeypatch, int(7.65432 * _GiB), int(1.23456 * _GiB))
+    r = diskguard.disk_report(str(tmp_path))
+    assert r["free_gb"] == 1.23 and r["total_gb"] == 7.65
+
+
+def test_disk_report_low_flag_thresholds(tmp_path, monkeypatch):
+    """mutant 1: a default floor of 1 GB would flag 0.5 GB free with no floor configured; 53: `> 1`
+    ignores a sub-gigabyte floor; 54: `<=` flags a disk sitting exactly ON the floor."""
+    _fake_usage(monkeypatch, 100 * _GiB, _GiB // 2)
+    assert diskguard.disk_report(str(tmp_path))["low"] is False  # no floor configured
+    assert diskguard.disk_report(str(tmp_path), min_free_gb=0.75)["low"] is True  # a sub-GB floor binds
+    _fake_usage(monkeypatch, 100 * _GiB, 2 * _GiB)
+    assert diskguard.disk_report(str(tmp_path), min_free_gb=2.0)["low"] is False  # exactly on the floor
