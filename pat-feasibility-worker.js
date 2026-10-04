@@ -865,6 +865,43 @@ function ringDevColumn(sidecarText, nRows) {
     frames.push([i0, n]);
   }
   if (!frames.length) return { ok: false, reason: 'no positioned `PPG_FRAME` rows in the ring sidecar — a pre-E11 capture carries arrival rows with no stream position' };
+  /* ── THE FIELD IS DEVICE-DEAD ON THIS RING, AND THAT IS NOT A CORRUPT FILE ──────────────────────────
+     Measured 2026-10-04 (Wren, two independent witnesses): `oxyii.ppg_stream_offset` — 0x04's `[20:24]`,
+     which is what E11 writes into `first_sample_idx` — is ZERO on every frame this ring has ever sent.
+     819 `*_OXYFRAME.txt` files from 07-25 to 10-04 carry no nonzero `ppg_offset` row, and the committed
+     real frame `tests/test_oxyii.py::_REAL_PPG_FRAME` reads `[20:24] = 00000000` while its `[0:4]`
+     duration says 10,719 s — a frame three hours into a session reporting position zero. The firmware
+     never fills the vendor's field; the vendor's own SDK decodes and discards it too.
+
+     ⚠️ WHY THIS NEEDS ITS OWN REFUSAL WHEN TWO GUARDS ALREADY FIRE. Measured on all-zero rows: the
+     overlap check below returns "positions overlap or go backwards at frame 1 (0 after 126)", and
+     `floorMap` returns "0 usable windows … refused as smeared, median spread 6000.0 ms". So no wrong
+     floor was ever produced — but both messages describe a CORRUPT capture, and a reader who believes
+     them goes looking for a bad file or a resync. The absence is structural and permanent on this
+     device, and saying so is the difference between "wait for a better night" and "this ring cannot
+     anchor a floor at all".
+
+     ∅ THE TEST IS NON-ADVANCE, NEVER THE VALUE 0. `ppg_stream_offset`'s own docstring records that
+     "0 is a real offset — it is what the first frame of a session reports", so a value-keyed detector
+     would refuse a legitimate first frame, and the rule in CLAUDE.md §∅ says to detect by the stream's
+     own behaviour rather than by value membership. A constant offset at ANY value is equally dead, and
+     this catches those too. */
+  var advances = false;
+  for (var a0 = 1; a0 < frames.length; a0++)
+    if (frames[a0][0] !== frames[0][0]) {
+      advances = true;
+      break;
+    }
+  if (!advances && frames.length > 1)
+    return {
+      ok: false,
+      reason:
+        'ring-offset-never-advances: all ' +
+        frames.length +
+        ' `PPG_FRAME` rows report stream position ' +
+        frames[0][0] +
+        " — the O2Ring firmware does not fill the vendor's offset field (measured 2026-10-04 over 819 OXYFRAME files and the committed real frame), so the ring exposes NO device position and the finger has no floor to anchor. This is structural, not a bad capture."
+    };
   var total = 0;
   for (var k = 0; k < frames.length; k++) {
     if (k && frames[k][0] < frames[k - 1][0] + frames[k - 1][1])
