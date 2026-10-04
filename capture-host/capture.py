@@ -6112,6 +6112,8 @@ async def run_oxyii(dev: dict, root: str):
                         # unjournaled for 6 h on 2026-08-24 (docked-charging: connected, contact=0).
                         if live.get("worn"):
                             _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.LIVE, "worn — frames flowing")
+                        elif live.get("worn") is None:
+                            pass  # probe unplugged / fault: wear UNKNOWN, so the link axis makes no flip on it
                         else:
                             _oxy_emit(
                                 _oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.IDLE_UNWORN, "ring reports not-worn"
@@ -6173,7 +6175,13 @@ async def run_oxyii(dev: dict, root: str):
                                 motion=live["motion"],
                                 battery=live["batt"],
                                 charging=bool(live.get("batt_state")),
-                                last_error=None if live["worn"] else "no finger contact",
+                                last_error=None
+                                if live["worn"]
+                                else (
+                                    "no finger contact"
+                                    if live["worn"] is False
+                                    else f"ring probe reports a fault (contact={live.get('contact')}) — wear unknown"
+                                ),
                             )
                             _power_observe(name, worn=live["worn"], battery=live["batt"])
 

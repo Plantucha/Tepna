@@ -953,7 +953,9 @@ def test_the_contact_enum_is_FOUR_states_and_only_ONE_of_them_is_worn():
     ciphertext heuristic as evidence of encryption. The old test asserted `contact 0x03 -> worn True`;
     that was the CODE's belief mirrored into an assertion, not evidence — the vendor-parser citation
     beside it is about the PI/motion offsets, not about this byte."""
-    for value, worn in ((0, False), (1, True), (2, False), (3, False)):
+    # 2026-10-04 (ABSENCE-SURVEY cff33c90fd16): 2 and 3 are the sensor unable to look, so wear is None —
+    # unknown — rather than False, which journaled a faulted probe as a bare finger.
+    for value, worn in ((0, False), (1, True), (2, None), (3, None)):
         v = oxyii.parse_live(_live_frame(contact=value))
         assert v["contact"] == value
         assert v["worn"] is worn, f"sensorState {value}: worn should be {worn}"
