@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (first built #3258 2026-10-03 as a per-function list; **re-shaped the same day on OWNER RULING — "One module-level declaration"** — after the first PRs to need it showed the per-function form was wrong, and after #3238 exposed a defect in the shipped version. Both land in this PR with tests. Still not DONE: the last acceptance item is one real diff-scoped run reporting `NOT_APPLICABLE` on a `capture.py` PR, which #3238 provides once this lands — stamping DONE before that run is exactly what §📌 forbids.) · **Created:** 2026-10-03
+**Status:** DONE — 2026-10-04 (first built #3258 2026-10-03 as a per-function list; re-shaped the same day on OWNER RULING — "One module-level declaration" — as #3260, which also fixed two defects #3238 exposed in the shipped version. **All eight acceptance items met**: item 8, one real diff-scoped run reporting `NOT_APPLICABLE` on a capture.py PR, landed with #3238 on 2026-10-04 and is quoted in §Acceptance.) · **Created:** 2026-10-03
 
 # A cost that is not the diff's should be declared once, not rediscovered every PR
 
@@ -128,8 +128,18 @@ absent gap).
    226.
 7. ✅ A declared module's skipped functions reach the unmeasured ledger as `declared` rows, ingested by
    a real run only.
-8. ⏳ One real diff-scoped run reports `NOT_APPLICABLE` on a `capture.py` PR — #3238 provides it once
-   this lands. **Not stamped until that run exists.**
+8. ✅ One real diff-scoped run reports `NOT_APPLICABLE` on a `capture.py` PR — **#3238, 2026-10-04**:
+   `⊘ capture.py carries a MODULE-level exclusion: 1 function(s) in this diff
+   (x__cpap_stream_watch_row) and 290 in the module`, verdict **PASS** with population
+   `checked 2 / eligible 3 / excluded 1` — the excluded 1 is the declaration, counted and not hidden.
+   The run took **~3 minutes** where the same diff previously spent **7693 s** reaching a refusal.
+
+   ⚠️ **And that run exposed what the refusal had been hiding: 26 survivors in
+   `cpap_stream_watch.assess`**, E7's own module. A refusal outranks survivors *and returns before the
+   survivor report prints*, so #3238 had been reporting `UNKNOWN` while 228 of its mutants were
+   already decided and 26 had survived. Drained in #3238. **The exclusion's real benefit turned out to
+   be the measurement it un-hid, not the two hours it saved** — and the same should be expected of the
+   other capture.py PRs as they rebase.
 
 ## What retires this
 
