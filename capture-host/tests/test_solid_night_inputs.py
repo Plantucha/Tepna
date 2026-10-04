@@ -3071,3 +3071,195 @@ def test_the_POLAR_BANDS_are_UNCHANGED_by_the_clock_spec_split(tmp_path):
             "the A5 tripwire found no unrecorded shift (seam sidecar + journal clock events + CLOCKSYNC.csv)"
         ),
     }, bands["timebase"]
+
+
+# ── §3.4 continuity: a pause the daemon DECLARES is explained, not a regression ─────────────────────
+#
+# 🔴 OWNER RULING 2026-10-03, "No, if declared". The H10/Verity offline-recording op pauses live capture
+# and the journal names it with its reason; that is the system declaring its own discontinuity, and §∅
+# puts annotation — not refusal — on the reduced-coverage side of the line. The pause still counts toward
+# the LOSS bar, which is a different consumer.
+
+
+def test_a_DECLARED_PAUSE_inside_the_worn_interval_PASSES_and_the_BAND_NAMES_IT(tmp_path):
+    """The 2026-10-01 H10 plant: one 11 s gap at 20:44:53 whose cause the journal declared. It passes,
+    and the reason says so — a band that passed SILENTLY over a known discontinuity would make a healthy
+    night unauditable later, which is the half of §∅ that annotates rather than refuses."""
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 11.0, si.DECLARED_PAUSE)])
+    assert out["status"] == "PASS", out
+    assert out["reason"] == (
+        f"explained discontinuity: 1 declared pause(s), 11 s ({si.DECLARED_PAUSE}) inside the worn "
+        "interval — counted toward the LOSS bar, not a band failure"
+    ), out["reason"]
+
+
+def test_an_UNDECLARED_DAEMON_GAP_still_FAILS_so_the_rule_is_NARROWED_not_HOLLOWED(tmp_path):
+    """The control that binds. Dropping one cause from the regression set must not stop the set working:
+    `daemon:restart` is idle-gated, so one that tore a worn recording is still a defect and still fails.
+
+    ⚠️ The control this unit was first specified with does NOT bind, measured on origin/main: the SAME
+    gap "with no recorded cause" already PASSED before the change, because an uncaused 11 s gap goes down
+    the UNATTRIBUTED path, which judges totals (60 s) and counts (5) rather than this gap. A control that
+    passes both before and after proves nothing, so the real undeclared case is the one below."""
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 11.0, "daemon:restart")])
+    assert out == {"status": "FAIL", "reason": "daemon regression inside the worn interval: daemon:restart"}
+
+
+def test_a_DECLARED_PAUSE_cannot_SOFTEN_a_real_regression_beside_it(tmp_path):
+    """The annotation sits at the PASS, so every rule above still decides first. A night carrying both a
+    declared pause and a real regression FAILS on the regression — the pause can only ever turn a BARE
+    pass into a reasoned one, never a FAIL into a pass."""
+    out = _cont(
+        tmp_path,
+        gaps=[
+            ("2026-09-20T23:01:00", 11.0, si.DECLARED_PAUSE),
+            ("2026-09-20T23:01:30", 9.0, "daemon:restart"),
+        ],
+    )
+    assert out["status"] == "FAIL", out
+    assert "daemon:restart" in out["reason"]
+    assert "explained discontinuity" not in out["reason"]
+
+
+def test_a_GAP_WITH_NO_JOURNAL_AT_ALL_is_still_UNKNOWN_which_is_the_undeclared_case(tmp_path):
+    """THE REAL "undeclared" CONTROL. A cause label exists only because the journal declared it, so the
+    way a pause can be undeclared is for the journal not to be there — and that is UNKNOWN, unchanged:
+    a gap nobody can attribute is not a gap anybody has explained (§∅, a named reason not a borrowed one)."""
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 11.0, "unattributed (no journal)")])
+    assert out == {
+        "status": "UNKNOWN",
+        "reason": "a gap inside the worn interval is unattributed for want of a journal",
+    }
+
+
+def test_the_DECLARED_PAUSE_is_STILL_COUNTED_by_the_LOSS_AUDIT(tmp_path):
+    """The owner's other half: it does not fail the band AND it still counts as loss. The two live in
+    different consumers — `by_cause` is the audit's accounting and the band is the verdict's — so the
+    band change must leave the seconds where they were. Asserted on the audit's own projection."""
+    import loss_audit
+
+    at = dt.datetime(2026, 9, 20, 23, 1, 0)
+    # `by_cause_of` reports MINUTES — measured, not assumed: an 11 s pause is 11/60 min there, and the
+    # band's reason states the same pause in SECONDS. Two units for one quantity in two consumers, which
+    # is worth writing down in the test that spans both.
+    got = loss_audit.by_cause_of([(at, 11.0, si.DECLARED_PAUSE)])
+    assert got == {si.DECLARED_PAUSE: 11.0 / 60.0}, got
+    assert si.DECLARED_PAUSE not in si.DAEMON_REGRESSION, "the band no longer fails it"
+
+
+# ── §3.4 continuity, the edges of the rules the declared-pause change sits beside ───────────────────
+#
+# Pre-existing survivors, surfaced because a 25-line change in `continuity` pulls the WHOLE function
+# into the diff-scoped gate's view. The families are the ones #3245 drained one module over: a closed
+# interval's two edges, a status word asserted nowhere, and a reason asserted by fragment.
+
+
+def test_the_GAP_INTERVAL_IS_CLOSED_at_both_ends(tmp_path):
+    """`start <= at <= end` — a gap starting exactly when the strap went on, or exactly when it came
+    off, is INSIDE the worn interval. Both edges need their own plant: the band counts gaps by number
+    as well as by seconds, so one dropped at an edge changes a FAIL into a PASS silently."""
+    worn_start, worn_end = T0, dt.datetime.fromisoformat("2026-09-20T23:03:00")
+    for at, where in ((worn_start, "the worn start"), (worn_end, "the worn end")):
+        d = tmp_path / f"edge-{at:%H%M%S}"
+        d.mkdir()
+        out = _cont(d, gaps=[(at.isoformat(), 11.0, si.DECLARED_PAUSE)])
+        assert out["reason"] and "explained discontinuity" in out["reason"], f"{where}: {out}"
+    # and one millisecond outside either edge is NOT counted
+    for at, where in (
+        (worn_start - dt.timedelta(milliseconds=1), "before the worn start"),
+        (worn_end + dt.timedelta(milliseconds=1), "after the worn end"),
+    ):
+        d = tmp_path / f"out-{abs(hash(where)) % 9999}"
+        d.mkdir()
+        out = _cont(d, gaps=[(at.isoformat(), 11.0, si.DECLARED_PAUSE)])
+        assert out == {"status": "PASS", "reason": None}, f"{where}: {out}"
+
+
+def test_the_AUDITED_FILE_MUST_COVER_the_worn_interval_at_BOTH_ENDS(tmp_path):
+    """The 2026-09-10 defect's guard: the audit's one file was the previous night's tail, so its empty
+    gap list meant nothing. The guard needs BOTH ends and it needs the STATUS, not just the wording —
+    a decision is a status and a reason, and asserting the prose leaves the status word free."""
+    out = _cont(tmp_path, file="some_other_night_ECG.txt")
+    assert out["status"] == "UNKNOWN", out
+    assert out["reason"] == (
+        "the loss audit examined `some_other_night_ECG.txt`, which does not cover the worn interval"
+    ), out["reason"]
+    # The far end: the worn interval runs PAST the audited file's last row.
+    late = tmp_path / "late"
+    late.mkdir()
+    out_late = _cont(late, end="2026-09-20T23:59:00")
+    assert out_late["status"] == "UNKNOWN" and "does not cover" in out_late["reason"]
+    # …and a file that ends EXACTLY at the worn end does cover it — `span[1] < end`, not `<=`.
+    exact = tmp_path / "exact"
+    exact.mkdir()
+    _good_h10(exact)
+    p = str(exact / f"{BASE}_ECG.txt")
+    audit = json.loads((exact / "LOSS-AUDIT.json").read_text())
+    dev = audit["devices"][H10["name"]]
+    first, last = si.first_last(p)
+    assert si.continuity(audit, dev, first, last, {p: (first, last)})["status"] == "PASS", "exact cover"
+
+
+def test_an_UNREADABLE_JOURNAL_and_an_UNCOVERED_FILE_both_carry_the_STATUS_UNKNOWN(tmp_path):
+    """Both refusals name their reason and both are UNKNOWN. §🧾: a decision is the pair, and a status
+    word nothing asserts is a word that can be anything."""
+    out = _cont(tmp_path, journal="unavailable — every gap is unattributed")
+    assert out == {
+        "status": "UNKNOWN",
+        "reason": "the loss audit could not read the journal — no gap can be attributed",
+    }
+
+
+def test_the_LINK_FAIL_states_the_SECONDS_the_PERCENTAGE_and_the_bound_it_crossed(tmp_path):
+    """`link drops N s = X %` — the numbers are the finding, and a reason asserted by fragment leaves
+    every arithmetic mutation of the rest alive. 1.8 s over a 180 s worn interval is 1.0 %, which is
+    exactly `LINK_MAX_FRACTION`, and the comparison is INCLUSIVE."""
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 1.8, "link:timeout / not found")])
+    assert out["status"] == "FAIL", out
+    assert out["reason"] == "link drops 2 s = 1.0 % of the worn interval", out["reason"]
+    under = tmp_path / "under"
+    under.mkdir()
+    assert _cont(under, gaps=[("2026-09-20T23:01:00", 1.7, "link:timeout / not found")]) == {
+        "status": "PASS",
+        "reason": None,
+    }
+
+
+def test_a_WORN_INTERVAL_OF_ONE_SECOND_still_divides(tmp_path):
+    """`worn_s > 0` guards the division, and the bound is ZERO, not one: a one-second worn interval is
+    absurd as a night and arithmetically fine, so the link fraction is computed over it rather than
+    skipped. A guard at `> 1` would silently stop judging the shortest intervals."""
+    _good_h10(tmp_path)
+    p = str(tmp_path / f"{BASE}_ECG.txt")
+    audit = json.loads((tmp_path / "LOSS-AUDIT.json").read_text())
+    dev = audit["devices"][H10["name"]]
+    dev["gaps"] = [{"at": T0.isoformat(), "s": 0.5, "cause": "link:dbus busy"}]
+    one_sec = T0 + dt.timedelta(seconds=1)
+    out = si.continuity(audit, dev, T0, one_sec, {p: (T0, one_sec)})
+    assert out["status"] == "FAIL", f"0.5 s of link drop in a 1 s interval is 50 %: {out}"
+    assert out["reason"] == "link drops 0 s = 50.0 % of the worn interval", out["reason"]
+
+
+def test_an_AUDITED_FILE_WITH_NO_READABLE_STAMP_is_not_examined(tmp_path):
+    """`span[0] is None` guards a file whose rows carry no parseable stamp, and it is REACHABLE: a night
+    with TWO primaries passes `worn_interval` on the one that has stamps, so `spans` still holds a
+    `(None, None)` entry for the other — and if the AUDIT examined that one, its empty gap list says
+    nothing about the night. §∅: an unreadable span is absent, not a span of zero, and the band refuses
+    with a named reason rather than scoring over it.
+
+    The guard must also not be reordered into `and`: `None > start` raises TypeError, so an `and` here
+    turns a refusal into a crash that takes the whole night's verdict with it."""
+    _good_h10(tmp_path)
+    good = str(tmp_path / f"{BASE}_ECG.txt")
+    blind = str(tmp_path / f"{BASE}_ACC.txt")
+    (tmp_path / f"{BASE}_ACC.txt").write_text("Phone timestamp;sensor timestamp [ns];X [mg]\nnot-a-stamp;1;2\n")
+    assert si.first_last(blind) == (None, None), "the fixture's point: no parseable stamp"
+    audit = json.loads((tmp_path / "LOSS-AUDIT.json").read_text())
+    dev = dict(audit["devices"][H10["name"]], file=f"{BASE}_ACC.txt", gaps=[])
+    spans = {good: si.first_last(good), blind: (None, None)}
+    first, last = si.first_last(good)
+    out = si.continuity(audit, dev, first, last, spans)
+    assert out["status"] == "UNKNOWN", out
+    assert out["reason"] == (f"the loss audit examined `{BASE}_ACC.txt`, which does not cover the worn interval"), out[
+        "reason"
+    ]
