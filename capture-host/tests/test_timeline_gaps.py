@@ -39,7 +39,7 @@ def test_stamp_ms_none_when_the_stamp_is_not_a_real_instant():
 def test_bucket_stream_refuses_a_degenerate_window(n, t0, t1):
     """A zero/negative bucket count or a non-advancing window has no honest rendering — return empty
     rather than divide by zero or emit buckets spanning backwards time."""
-    assert timeline.bucket_stream([(0.0, 5.0)], t0, t1, n, 25.0) == []
+    assert timeline.bucket_stream([(0.0, 5.0)], t0, t1, n) == []
 
 
 @pytest.mark.parametrize("n,t0,t1", [(0, 0.0, 10.0), (4, 10.0, 10.0)])
@@ -292,8 +292,12 @@ _TL_DURATION_KEYS = [{}, {"span_sec": 60.0}, {"host_span_sec": 3600.0}, {"span_s
 # (anchor, replacement, why it is killable, the committed test that kills it)
 _TL_CANARIES = [
     (
-        'if f["stream"] != tag or not ids',
-        'if f["stream"] == tag or not ids',
+        # ⚠️ ANCHOR UPDATED 2026-10-04 with the line it guards: E4 made `tag` a SET, so the filter is
+        # now `not in want`. The battery refused rather than quietly testing nothing — "anchor matched
+        # 0x, need exactly 1" — which is the assertion that makes a committed battery survive the code
+        # moving under it. A canary whose anchor has gone stale proves nothing and says so.
+        'if f["stream"] not in want or not ids',
+        'if f["stream"] in want or not ids',
         "stream tag filter inverted",
         "test_a_dropping_stream_is_measured_by_its_OWN_host_stamps_not_by_received_samples",
     ),
@@ -400,3 +404,50 @@ def test_the_discard_guard_is_unkillable_and_the_battery_can_PROVE_it():
 
     n = _tl_differences(base, _tl_observe(_tl_variant(*_TL_CANDIDATE)))
     assert n == 0, f"{_TL_CANDIDATE[0]} -> {_TL_CANDIDATE[1]} IS killable ({n} of {len(base)}) — the entry is wrong"
+
+
+# ── E4 · the ring's ACCRAW, carved out of #3239 ───────────────────────────────────────────────────
+def test_E4_the_rings_ACCRAW_is_FOUND_under_the_acc_stream():
+    """2026-09-28: the ring's 10,137,042-byte `_ACCRAW.txt` matched nothing and its whole night was
+    painted `idle` — the one state that reads as a FINDING rather than a miss. `timeline` compared the
+    file tag against `s.upper()` alone; `nightqc.stream_file_tags('acc')` has always returned BOTH."""
+    import nightqc
+
+    tags = nightqc.stream_file_tags("acc")
+    assert "ACCRAW" in tags and "ACC" in tags, tags
+    ring = [_f("Polar_VeritySense_0C301E3F_20260928213651_ACCRAW.txt", 900, stream="ACCRAW", span_sec=60.0)]
+    assert timeline.stream_intervals(ring, "0C301E3F", tags, 50.0) != [], "the ring's file must be placed"
+    assert timeline.stream_intervals(ring, "0C301E3F", "ACC", 50.0) == [], "…and the single-tag call is what missed it"
+
+
+def test_E4_accepting_both_tags_cannot_let_one_device_cover_for_another():
+    """The UNION is safe only because the id filter is independent of the tag — asserted, not assumed,
+    since that is the whole reason nightqc could make it a union rather than a per-device mapping."""
+    import nightqc
+
+    mixed = [
+        _f("Polar_VeritySense_0C301E3F_20260928213651_ACCRAW.txt", 900, stream="ACCRAW", span_sec=60.0),
+        _f("Polar_H10_02849638_20260928213612_ACC.txt", 900, stream="ACC", span_sec=60.0),
+    ]
+    only_ring = timeline.stream_intervals(mixed, "0C301E3F", nightqc.stream_file_tags("acc"), 50.0)
+    assert len(only_ring) == 1, "the other device's file is excluded by ID, not by tag"
+
+
+def test_E4_a_bare_string_tag_still_works_so_every_existing_caller_is_unchanged():
+    """The parameter widened; it did not change. A single tag is still a single tag."""
+    h10 = [_f("Polar_H10_02849638_20260928213612_ACC.txt", 900, stream="ACC", span_sec=60.0)]
+    assert timeline.stream_intervals(h10, "02849638", "ACC", 50.0) != []
+    assert timeline.stream_intervals(h10, "02849638", ("ACC",), 50.0) != []
+    assert timeline.stream_intervals(h10, "02849638", "ACCRAW", 50.0) == []
+
+
+# ── E6 · the rate `bucket_stream` never used ──────────────────────────────────────────────────────
+def test_E6_bucket_stream_does_not_take_a_rate_it_cannot_use():
+    """`bucket_stream` buckets INTERVALS against a window; the sample rate never entered the
+    arithmetic. An accepted-and-ignored parameter is worse than none: every caller had to invent a
+    value, and a reader had to check whether it mattered. Pinned by signature so it cannot come back
+    silently."""
+    import inspect
+
+    params = list(inspect.signature(timeline.bucket_stream).parameters)
+    assert params == ["intervals", "t0", "t1", "n"], params

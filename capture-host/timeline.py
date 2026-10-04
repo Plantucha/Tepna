@@ -106,7 +106,7 @@ def _stamp_ms(name: str) -> float | None:
 
 
 def stream_intervals(
-    files: list[dict], device_id, tag: str, fs: float, offset_sec: float | None = 0.0
+    files: list[dict], device_id, tag: str | tuple[str, ...], fs: float, offset_sec: float | None = 0.0
 ) -> list[tuple[float, float]]:
     """[(start_s, end_s)] this stream was writing, from session files alone.
 
@@ -122,11 +122,20 @@ def stream_intervals(
     cannot go stale.
 
     `device_id` may be one id or several — a device that had its id corrected still owns the
-    files written under the old one (writers.device_ids)."""
+    files written under the old one (writers.device_ids).
+
+    ⚠️ `tag` MAY BE SEVERAL TAGS, AND THE SET IS `nightqc.stream_file_tags`'s, NEVER A SECOND COPY.
+    One configured stream can legitimately be written under more than one file tag — `acc` arrives as
+    `_ACC.` from the H10 and `_ACCRAW.` from the ring — and this module used to compare against
+    `s.upper()` alone. Measured 2026-09-28: the ring's 10,137,042-byte `_ACCRAW.txt` matched nothing
+    here and its whole night was painted `idle`, which is the one state that looks like a FINDING
+    rather than a miss. nightqc already owned the mapping and its reasoning (a UNION, because no
+    device writes both — verified 38 `_ACCRAW.` against 2 `_ACC.` on 2026-09-05, disjoint by device);
+    two copies of that rule is how the timeline and the QC would come to disagree about one night."""
     return sorted((t0, t0 + dur) for t0, dur in _placed(files, device_id, tag, fs, offset_sec) if dur)
 
 
-def unmeasurable_files(files: list[dict], device_id, tag: str, fs: float) -> int:
+def unmeasurable_files(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float) -> int:
     """How many of this stream's files carry rows that `stream_intervals` could place no duration on.
 
     The difference between "captured nothing" and "cannot say" is not visible in the interval list:
@@ -141,7 +150,7 @@ def unmeasurable_files(files: list[dict], device_id, tag: str, fs: float) -> int
     return sum(1 for _t0, dur in _placed(files, device_id, tag, fs) if not dur)
 
 
-def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float | None = 0.0):
+def _placed(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float, offset_sec: float | None = 0.0):
     """`(start_ms, duration_or_None)` for every file of this stream that carries rows.
 
     `offset_sec` raises the floating start stamp into the caller's frame (see `_stamp_ms`); the duration
@@ -177,8 +186,11 @@ def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float
     """
     ids = {device_id} if isinstance(device_id, str) else {i for i in (device_id or []) if i}
     ids.discard("")
+    # A SET, because one configured stream can be written under more than one file tag. A bare string
+    # stays accepted so every existing caller keeps its exact behaviour.
+    want = {tag} if isinstance(tag, str) else set(tag)
     for f in files:
-        if f["stream"] != tag or not ids or _file_device_id(f["file"]) not in ids:
+        if f["stream"] not in want or not ids or _file_device_id(f["file"]) not in ids:
             continue
         t0 = _stamp_ms(f["file"])
         if t0 is None or not f["rows"]:
@@ -190,7 +202,7 @@ def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float
         yield (t0, dur or None)
 
 
-def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int, fs: float) -> list[str]:
+def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int) -> list[str]:
     """Bucket the covered intervals into `n` states across [t0, t1].
 
     A bucket is `captured` when the intervals cover enough of it, `degraded` when they cover some but
@@ -564,8 +576,8 @@ def build(
         for s in d.get("streams") or []:
             fs = nightqc._expected_hz(d, s) or 0
             ids = writers.device_ids(d)
-            iv = stream_intervals(data, ids, s.upper(), fs, offset_sec=_offset)
-            st = apply_link_states(bucket_stream(iv, t0, t1, buckets, fs), conn, wedged)
+            iv = stream_intervals(data, ids, nightqc.stream_file_tags(s), fs, offset_sec=_offset)
+            st = apply_link_states(bucket_stream(iv, t0, t1, buckets), conn, wedged)
             covered = covered_seconds(iv)
             # ∅ — A PERCENTAGE OF NOTHING IS NOT ZERO PERCENT. `_expected_hz` returns None for a stream
             # with no reference rate, documenting that there is "no coverage claim" for it, and the ring's
@@ -575,7 +587,7 @@ def build(
             # which is a measurement of zero standing in for an absent denominator. Now: a percentage
             # where something could be measured, with the unmeasured file count beside it, and an
             # explicit refusal with a reason where nothing could.
-            unmeasured = unmeasurable_files(data, ids, s.upper(), fs)
+            unmeasured = unmeasurable_files(data, ids, nightqc.stream_file_tags(s), fs)
             streams[s] = {
                 "states": st,
                 "covered_sec": round(covered),
