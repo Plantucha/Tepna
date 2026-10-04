@@ -309,9 +309,11 @@ def test_a_session_that_never_streamed_writes_no_file(tmp_path):
     assert sink.path is None
 
 
-def test_a_partial_batch_missing_a_channel_does_not_crash_or_desync(tmp_path):
-    """A batch carrying only one channel contributes to that channel alone; the two are padded to equal
-    length only at build time, so a dropped channel never shifts flow and pressure out of lockstep."""
+def test_a_batch_carrying_ONE_channel_is_skipped_for_BOTH_so_flow_and_pressure_stay_aligned(tmp_path):
+    """PLANT 47172a6147cd. This test used to assert that a flow-only batch at 22:15:03 and a pressure-only
+    batch at 22:15:04 "pad to one whole record" — i.e. one record whose flow came from one second and whose
+    pressure came from the next. Padding at the END cannot undo a shift in the MIDDLE. A one-channel batch is
+    now skipped for both channels and counted, so the only record is the paired batch, aligned."""
     sink = W.EdfSink(str(tmp_path / "x"), SERIAL)
     sink.open({}, 25.0)
     sink.on_batch(
@@ -320,6 +322,8 @@ def test_a_partial_batch_missing_a_channel_does_not_crash_or_desync(tmp_path):
     sink.on_batch(
         {"start_time": "2026-08-23T22:15:04.000Z", "interval_ms": 40, "channels": {"MaskPressure": [5.0] * 25}}
     )  # no flow
+    sink.on_batch(_batch("2026-08-23T22:15:05.000Z", [0.2] * 25, [6.0] * 25))  # the one PAIRED second
     sink.close()
+    assert sink.unpaired_batches == 2
     edf = cpap_edf.read_edf(open(sink.path, "rb").read())
-    assert edf.n_records == 1  # padded to one whole record
+    assert edf.n_records == 1, "only the paired batch reaches the file"
