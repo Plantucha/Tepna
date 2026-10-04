@@ -5905,8 +5905,12 @@ async def run_oxyii(dev: dict, root: str):
                             # sidecar must never disturb the data callback (and nothing in the SAMPLES
                             # changes: this adds a row to a sidecar and touches no stream).
                             try:
-                                if oxy_arr_wr is not None:
-                                    oxy_arr_wr.write(arr, name, "PPG_FRAME", None, None, nps, n_off)
+                                # No `is not None` guard, deliberately: the sibling duration row does
+                                # not carry one either, because an AttributeError on a None writer is
+                                # caught by this same except. A guard here would add a branch no test
+                                # can take — the writer is bound before the poll loop runs — and an
+                                # unreachable-false branch is a coverage hole dressed as caution.
+                                oxy_arr_wr.write(arr, name, "PPG_FRAME", None, None, nps, n_off)
                             except Exception:  # telemetry must never disturb the data callback
                                 pass
                             # ── HONEST GAPS (O2RING-PPG-GAP §1) ────────────────────────────────────

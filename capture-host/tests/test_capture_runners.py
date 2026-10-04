@@ -6770,6 +6770,51 @@ def test_run_polar_writes_the_arrival_sidecar(tmp_path, monkeypatch):
     assert lines[1].split(";")[2] == "ecg"
 
 
+def test_E11_an_arrival_sidecar_FAILURE_does_not_disturb_the_data_callback(tmp_path, monkeypatch):
+    """The `except Exception: pass` around the frame row, driven rather than pragma'd. The contract it
+    encodes is the whole reason telemetry is allowed in a BLE data callback at all: a sidecar that
+    cannot be written must cost a ROW, never a sample. So the writer is made to raise on every
+    `PPG_FRAME` row and the PPG stream must still arrive intact."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    real_write = capture.PmdArrivalLogWriter.write
+    hit = {"n": 0}
+
+    def boom(self, arrival, device, meas, first_ns, last_ns, n_samples, first_sample_idx=None):
+        if meas == "PPG_FRAME":
+            hit["n"] += 1
+            raise OSError(28, "No space left on device")  # the 2026-10-03 failure, as it happened
+        return real_write(self, arrival, device, meas, first_ns, last_ns, n_samples, first_sample_idx)
+
+    monkeypatch.setattr(capture.PmdArrivalLogWriter, "write", boom)
+    N = 126
+    body = N.to_bytes(2, "little") + bytes(i % 256 for i in range(N))
+
+    def reply():
+        hdr = bytearray(24)
+        hdr[6], hdr[8], hdr[10], hdr[13] = 96, 55, 1, 90
+        hdr[0:4] = (900).to_bytes(4, "little")
+        return oxyii.encode(oxyii.OP_LIVE, bytes(hdr) + body)
+
+    c = FakeGattClient()
+    c.on_live = lambda data: c.notify(0, reply()) if data[1] == oxyii.OP_LIVE else None
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg"]), str(tmp_path)))
+
+    assert hit["n"] >= 1, "the plant must actually have been reached, or this asserts nothing"
+    ppg = list((tmp_path / "captures").rglob("*_PPG.txt"))
+    assert ppg, "a failing SIDECAR must not cost the stream"
+    assert len([ln for ln in ppg[0].read_text().splitlines()[1:] if ln.strip()]) >= N, (
+        "every delivered sample must still be written"
+    )
+    # And the duration rows — written through the same writer by a DIFFERENT call — still land, because
+    # the swallow is per-row and not a session-wide give-up.
+    arr = list((tmp_path / "captures").rglob("*_PMDARRIVAL.csv"))
+    assert arr and any("OXYLIVE_DURATION_S" in ln for ln in arr[0].read_text().splitlines()), arr
+
+
 def test_E11_CONTROL_a_POLAR_arrival_row_is_byte_identical_in_every_field_it_writes(tmp_path, monkeypatch):
     """🔴 E11 · THE CONTROL. Widening this shared sidecar must not move a single byte a Polar writes.
 

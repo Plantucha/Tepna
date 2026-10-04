@@ -17,7 +17,8 @@ import inspect
 import os
 from unittest import mock
 
-from writers import PmdArrivalLogWriter
+import writers
+from writers import _FlushHealth, PmdArrivalLogWriter
 from tests._srcscan import module_source
 
 _T0 = _dt.datetime(2026, 8, 11, 22, 0, 0)
@@ -219,6 +220,146 @@ def test_fsync_defaults_ON_for_a_sidecar_that_must_survive_a_power_cut(tmp_path)
     fsynced is the half that disappears. Asserted on the SIGNATURE rather than by observing a syscall,
     because the default is the decision."""
     assert inspect.signature(PmdArrivalLogWriter.__init__).parameters["fsync"].default is True
+
+
+def test_a_file_that_is_EXACTLY_ONE_NEWLINE_is_a_resume(tmp_path):
+    """The `> 0` / `> 1` boundary, and the only input that distinguishes them. A one-byte file of "x"
+    does NOT: it is a torn tail, truncated to nothing, so both predicates see 0 afterwards. A file whose
+    single byte is "\\n" is complete, is never truncated, and has size 1 — so `> 0` resumes and `> 1`
+    rewrites the file from scratch, destroying whatever a previous session recorded."""
+    q = os.path.join(tmp_path, "nl_PMDARRIVAL.csv")
+    with open(q, "w") as fh:
+        fh.write("\n")
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    text = open(q).read()
+    assert not text.startswith("Phone timestamp;"), (
+        text,
+        "a complete one-byte file is a RESUME — re-emitting the header here would mean a `> 1` bound "
+        "silently rewrote a file that already held rows",
+    )
+    assert text.startswith("\n"), text
+
+
+def test_a_torn_tail_whose_only_newline_is_the_FIRST_byte_truncates_to_it(tmp_path):
+    """`_c >= 0`, exactly. `_d.rfind(b"\\n")` is 0 when the file's only newline is its first byte, and
+    `_c >= 1` / `_c > 0` then truncate to ZERO instead of to 1 — discarding a complete (if empty) line
+    and turning a resume into a rewrite. The off-by-one is only visible on this file."""
+    q = os.path.join(tmp_path, "firstbyte_PMDARRIVAL.csv")
+    with open(q, "wb") as fh:
+        fh.write(b"\npartial-row-no-newline")
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    text = open(q).read()
+    assert text.startswith("\n"), (text, "the one complete line must survive truncation")
+    assert "partial-row" not in text, (text, "and the torn remainder must be gone")
+    assert not text.startswith("Phone timestamp;"), (text, "a surviving line means this was a RESUME")
+
+
+def test_a_torn_tail_is_cut_to_the_newline_and_NOT_ONE_BYTE_PAST_IT(tmp_path):
+    """`_t.truncate(_c + 1 ...)`, exactly. `_c + 2` keeps the first character of the torn row, so the
+    next append lands behind it and produces ONE CORRUPT ROW that every consumer parses as real — the
+    precise failure the torn-tail handling exists to prevent. The earlier torn-tail test counts rows and
+    checks the suffix, which a one-byte stump survives; this one asserts the row EXACTLY."""
+    q = os.path.join(tmp_path, "exact_PMDARRIVAL.csv")
+    good = "2026-10-03T00:00:00.000;H10;ECG;1;2;73"
+    with open(q, "w") as fh:
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        fh.write(good + "\n")
+        fh.write("2026-10-03T00:00:01.000;H10;ECG;3;4;7")  # torn
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 5, 6, 9)
+    w.close()
+    rows = _read(q)
+    assert rows[1] == good, (rows, "the complete row must be untouched")
+    # THE LEG THAT CATCHES `_c + 2`: the new row must be the whole line, with no inherited stump.
+    assert rows[2].startswith("2026-08-11T"), (rows, "a leading stump would prefix the stamp")
+    assert rows[2].count(";") == 5, (rows, "and would not change the field count — only the stamp shows it")
+    assert rows[2] == f"{rows[2].split(';')[0]};H10;ECG;5;6;9", rows
+
+
+def test_an_UNDECODABLE_header_byte_is_REPLACED_not_raised(tmp_path):
+    """`errors="replace"` on the header read, which `errors=None` (strict) mutates away. A sidecar whose
+    header carries a stray non-UTF-8 byte — a torn write, a bad disk — must still be readable enough to
+    count its columns. Strict decoding would raise inside `__init__` and take the whole capture runner
+    down with it, which is the opposite of what a telemetry sidecar may do."""
+    q = os.path.join(tmp_path, "badbyte_PMDARRIVAL.csv")
+    with open(q, "wb") as fh:
+        fh.write(b"Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;\xff\xfeidx\n")
+        fh.write(b"2026-10-03T00:00:00.000;H10;ECG;1;2;73;9\n")
+    w = PmdArrivalLogWriter(q, fsync=False)  # must not raise
+    assert w._cols == 7, "the columns are still countable through the replacement characters"
+    w.close()
+
+
+def test_fsync_is_ON_by_default_as_BEHAVIOUR_not_as_a_signature(tmp_path):
+    """⚠️ Asserting the default via `inspect.signature` does NOT kill the mutant, and I learned that
+    from the gate: under mutation `__init__` is a dispatcher, so the signature a test reads is the
+    ORIGINAL one and `fsync: bool = False` survives untouched. The default has to be observed through
+    what it DOES.
+
+    Counted at `_FlushHealth.fsync`, not at `os.fsync`: the health object hands a DUP'd fd to a worker
+    thread, so an assertion on `os.fsync` races the thread and would pass or fail by timing. This is the
+    synchronous consequence of the flag."""
+    q = os.path.join(tmp_path, "fsync_PMDARRIVAL.csv")
+    calls = {"n": 0}
+
+    with mock.patch.object(_FlushHealth, "fsync", lambda self, fh: calls.__setitem__("n", calls["n"] + 1)):
+        w = PmdArrivalLogWriter(q)  # NO fsync argument — the default is what is under test
+        w.write(_T0, "H10", "ECG", 1, 2, 73)
+        w.flush()
+        w.close()
+    assert calls["n"] >= 1, "the default must actually fsync, or a power cut loses the sidecar"
+    # And the opposite leg, so the assertion above is about the DEFAULT and not about flushing at all.
+    calls["n"] = 0
+    with mock.patch.object(_FlushHealth, "fsync", lambda self, fh: calls.__setitem__("n", calls["n"] + 1)):
+        w = PmdArrivalLogWriter(os.path.join(tmp_path, "nofsync_PMDARRIVAL.csv"), fsync=False)
+        w.write(_T0, "H10", "ECG", 1, 2, 73)
+        w.flush()
+        w.close()
+    assert calls["n"] == 0, "and fsync=False must not fsync"
+
+
+def test_the_flush_interval_fires_ON_the_boundary_not_past_it(tmp_path):
+    """`now - self._last_flush >= self._flush_interval`, the `>=`. At exactly the interval the writer
+    must flush; `>` defers it to the next row, which on a 1 Hz sidecar means the last row before a power
+    cut is the one that is lost. Driven by pinning the clock to the exact boundary, which is the only
+    input where the two differ."""
+    q = os.path.join(tmp_path, "boundary_PMDARRIVAL.csv")
+    w = PmdArrivalLogWriter(q, flush_interval=10.0, fsync=False)
+    flushes = {"n": 0}
+    real_flush = w.flush
+
+    def counting():
+        flushes["n"] += 1
+        return real_flush()
+
+    w.flush = counting
+    w._last_flush = 100.0
+    with mock.patch.object(writers._time, "monotonic", lambda: 110.0):  # EXACTLY last + interval
+        w.write(_T0, "H10", "ECG", 1, 2, 73)
+    assert flushes["n"] == 1, "a row landing exactly on the interval must flush"
+    w.flush = real_flush
+    w.close()
+
+
+def test_the_torn_tail_probe_reads_the_LAST_byte_not_the_THIRD(tmp_path):
+    """`_t.seek(-1, 2)` is END-relative, and `seek(2)` (absolute) mutates it into reading byte index 2.
+    The distinguishing input is a file whose THIRD byte is a newline and whose tail is torn: the mutant
+    sees that newline, concludes the file ends cleanly, and appends behind the stump — producing exactly
+    the spliced row the handler exists to prevent, on a file the earlier tests happen not to have."""
+    q = os.path.join(tmp_path, "thirdbyte_PMDARRIVAL.csv")
+    with open(q, "wb") as fh:
+        fh.write(b"ab\ncd")  # byte[2] is "\n"; the LAST byte is "d" — a torn tail
+    w = PmdArrivalLogWriter(q, fsync=False)
+    w.write(_T0, "H10", "ECG", 1, 2, 73)
+    w.close()
+    text = open(q).read()
+    assert "cd" not in text, (text, "the torn remainder must be cut, which only an END-relative probe sees")
+    assert text.startswith("ab\n"), text
+    assert text.splitlines()[1].endswith(";73"), text.splitlines()
 
 
 def test_a_RESUMED_six_column_file_keeps_ONE_shape(tmp_path):
