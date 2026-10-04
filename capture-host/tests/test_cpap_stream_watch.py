@@ -5,6 +5,8 @@
 The 2026-08-26 night: a full session, `edf_dir` empty, and no warning anywhere. The harm was the
 SILENCE, not the missed click — absence produces no event unless something is built to notice it."""
 
+import pytest
+
 import cpap_stream_watch as W
 
 
@@ -356,3 +358,138 @@ def test_the_numbers_and_the_state_are_IDENTICAL_with_and_without_the_note():
     a = W.assess(1.0, 775.0, window_note=note)
     b = W.assess(1.0, 775.0)
     assert {k: v for k, v in a.items() if k != "detail"} == {k: v for k, v in b.items() if k != "detail"}
+
+
+# ── THE 26 SURVIVORS `assess` CARRIED, and why they were invisible until 2026-10-04 ────────────────
+# E7 touched `assess`, the mutation gate's unit is the FUNCTION, and 26 of its mutants turned out to
+# have no test that could see them. They were not E7's regressions — most sit on lines E7 never
+# changed — and they were HIDDEN, not merely unnoticed: capture.py's generation timeout refused the
+# whole run and a refusal RETURNS BEFORE the survivor report prints, so #3238's earlier run announced
+# UNKNOWN while 228 of its mutants had already been decided and 26 had survived. #3260's module-level
+# exclusion removed the refusal, and the gate then said what it had always known.
+#
+# Every test below names the mutant it kills. All 26 are genuine gaps — none is an equivalence, which
+# is why none of them went to tools/mutate-equivalence.json.
+
+
+@pytest.mark.parametrize(
+    "obs, s, kw, state, want",
+    [
+        # the "too short to judge" branch
+        (10.26, 0.0, {}, W.OK, {"therapy_min": 10.3, "therapy_observed_min": 10.3, "stream_min": 0.0}),
+        # therapy ran, nothing opened
+        (35.26, 0.0, {}, W.NEVER_STARTED, {"therapy_min": 35.3, "therapy_observed_min": 35.3}),
+        # the automation tried and failed
+        (35.26, 0.0, {"attempts": 3}, W.AUTOSTART_FAILED, {"therapy_min": 35.3, "therapy_observed_min": 35.3}),
+        # opened and stopped early
+        (
+            20.26,
+            15.26,
+            {},
+            W.DIED_EARLY,
+            {"therapy_min": 35.5, "therapy_observed_min": 20.3, "stream_min": 15.3, "cover": 0.43},
+        ),
+        # covered the session
+        (
+            10.26,
+            25.26,
+            {},
+            W.OK,
+            {"therapy_min": 35.5, "therapy_observed_min": 10.3, "stream_min": 25.3, "cover": 0.711},
+        ),
+    ],
+)
+def test_every_reported_duration_keeps_ONE_decimal_and_cover_keeps_THREE(obs, s, kw, state, want):
+    """Kills the fifteen rounding mutants — `round(x, 1)` → `round(x, None)` / `round(1)` /
+    `round(x, )` / `round(x, 2)`, and `round(cover, 3)` → `round(cover, None)` / `round(cover, )` /
+    `round(cover, 4)`.
+
+    ⚠️ THE FIXTURES CARRY TWO DECIMALS ON PURPOSE, AND THAT IS THE WHOLE TEST. A value like `5.0`
+    cannot distinguish `round(5.0, 1)` from `round(5.0)`: the first is `5.0`, the second is `5`, and
+    `5 == 5.0` is True in Python, so the assertion passes against the mutant. Minutes that end in
+    `.26` separate one decimal (10.3) from none (10) from two (10.26), and a cover of 0.4296…
+    separates three (0.43) from four (0.4296) from an integer (0). Every existing test used round
+    numbers, which is exactly why fifteen mutants lived here.
+    """
+    r = W.assess(therapy_min=obs, stream_min=s, **kw)
+    assert r["state"] == state
+    for field, expected in want.items():
+        assert r[field] == expected, f"{field}: {r[field]!r} != {expected!r}"
+
+
+def test_a_session_with_no_stream_reports_ZERO_streamed_and_ZERO_cover(
+):
+    """Kills `stream_min: 0.0` → `1.0` and `cover: 0.0` → `1.0` in both no-stream branches. The
+    literals were asserted nowhere, so the watchdog could have reported a minute of stream and full
+    coverage for a night nothing opened."""
+    for kw in ({}, {"attempts": 2}):
+        r = W.assess(therapy_min=35.26, stream_min=0.0, **kw)
+        assert r["stream_min"] == 0.0, f"{kw}: {r['stream_min']!r}"
+        assert r["cover"] == 0.0, f"{kw}: {r['cover']!r}"
+
+
+def test_at_EXACTLY_the_therapy_floor_the_session_is_JUDGED_not_waved_through():
+    """Kills `if t < float(min_therapy_min)` → `<=`.
+
+    A session exactly at the floor must be judged, not excused. Both outcomes are `state == OK`, so
+    the state cannot tell them apart — the tell is `cover`, which the too-short branch returns as
+    `None` because it declines to compute one."""
+    r = W.assess(therapy_min=15.0, stream_min=15.0)  # t == 30.0 == MIN_THERAPY_MIN
+    assert r["state"] == W.OK
+    assert r["cover"] == 0.5, "at exactly the floor the session was waved through as too short"
+    assert "below the" not in r["detail"]
+
+
+def test_at_EXACTLY_the_cover_floor_the_stream_is_NOT_called_died_early():
+    """Kills `if cover < float(min_cover)` → `<=`. Exactly meeting the bar is meeting it."""
+    r = W.assess(therapy_min=15.0, stream_min=15.0)  # cover == 0.5 == MIN_COVER
+    assert r["state"] == W.OK, "a stream that exactly met the cover floor was called died-early"
+
+
+def test_the_percentage_in_the_detail_IS_a_percentage():
+    """Kills `100 * cover` → `100 / cover` (200.0 %) and → `101 * cover` (50.5 %). The percentage was
+    printed and never read, so an inverted ratio would have reached an operator."""
+    r = W.assess(therapy_min=15.0, stream_min=15.0)
+    assert "(50.0 %)" in r["detail"], r["detail"]
+
+
+def test_a_total_of_ZERO_does_not_divide_by_it():
+    """Kills `0.0 if t <= 0` → `t < 0` and → `(t <= 0) and False`. Both drop the guard, and
+    `s / t` with t == 0 raises ZeroDivisionError — the watchdog would crash on a night with no
+    measured therapy and no stream instead of reporting it."""
+    r = W.assess(therapy_min=0.0, stream_min=0.0, min_therapy_min=0.0)
+    assert r["state"] == W.NEVER_STARTED
+    assert r["cover"] == 0.0
+
+
+def test_a_total_UNDER_one_minute_is_still_divided_honestly():
+    """Kills `0.0 if t <= 0` → `t <= 1`. A sub-minute session is tiny, not zero: widening the guard
+    to one minute reports zero coverage for a stream that covered all of it."""
+    r = W.assess(therapy_min=0.0, stream_min=0.5, min_therapy_min=0.0)
+    assert r["state"] == W.OK
+    assert r["cover"] == 1.0, "a 0.5 min session fully covered was reported as zero coverage"
+
+
+def test_the_zero_total_guard_yields_ZERO_cover_not_FULL_cover():
+    """Kills `0.0 if t <= 0` → `1.0 if t <= 0`.
+
+    ⚠️ THE ONLY INPUT THAT REACHES THIS GUARD WITH `cover` OBSERVABLE IS A NEGATIVE OBSERVED
+    DURATION, and that is worth stating rather than hiding in a fixture. With non-negative inputs,
+    `t <= 0` implies `s == 0`, and the no-stream branch returns a hardcoded cover before the computed
+    one is read. So this asserts the guard's VALUE through the one door that exists; the guard is
+    defensive, and a defensive guard returning the wrong constant is still wrong."""
+    r = W.assess(therapy_min=-5.0, stream_min=5.0, min_therapy_min=0.0)
+    assert r["cover"] == 0.0, "a zero-total session was reported as fully covered"
+    assert r["state"] == W.DIED_EARLY
+
+
+def test_an_autostart_failure_with_NO_recorded_error_does_not_invent_one():
+    """Kills `if last_error else ""` → `if (last_error) or True`. With `or True` the suffix is always
+    appended, so a failure that recorded no error reads as `(last error: None)` — a fabricated
+    diagnostic, which is the §∅ shape: absence rendered as a value."""
+    r = W.assess(therapy_min=35.0, stream_min=0.0, attempts=4)
+    assert r["state"] == W.AUTOSTART_FAILED
+    assert "last error" not in r["detail"], r["detail"]
+    # and it IS reported when there is one, so the test cannot pass by the suffix never appearing
+    r2 = W.assess(therapy_min=35.0, stream_min=0.0, attempts=4, last_error="BleakDeviceNotFoundError")
+    assert "(last error: BleakDeviceNotFoundError)" in r2["detail"]
