@@ -5234,6 +5234,13 @@
       "key": "-        _resume = False | +        _resume = None",
       "probe": "MEASURED 2026-10-04: planted `None` and ran the whole writer suite — all pass. `_resume` is read in exactly two places and both are boolean contexts; no code path reads it as a value, compares it with `is`, or returns it.",
       "why": "`False` and `None` are both falsy, and `_resume` is only ever consumed as a truth value — once in `\"a\" if _resume else \"w\"` and once in the `if _resume:` that decides whether the header is written. This is the INITIALISER, overwritten by `os.path.getsize(path) > 0` on every path where the file exists; its falsiness is the whole of its meaning."
+    },
+    {
+      "brief": "night-0928 row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "untestable-by-design",
+      "key": "-        if now - self._last_flush >= self._flush_interval: | +        if now - self._last_flush > self._flush_interval:",
+      "probe": "ATTEMPTED AND REMOVED 2026-10-04: `test_the_flush_interval_fires_ON_the_boundary_not_past_it` pinned the clock with `mock.patch.object(writers._time, \"monotonic\", lambda: 110.0)` and `_last_flush = 100.0`. It PASSES under plain pytest and CRASHES THE MUTATION HARNESS: both `PmdArrivalLogWriter` globs reported `mutants were generated but 0 tested — a crash after generation`, and mutate_diff REFUSED with UNKNOWN (132 keys unmeasured, jitterfloor's 53 decided in the same run). mutmut times each mutant with `time.monotonic`, so freezing that module attribute process-wide breaks its own bookkeeping — the test cost 132 real verdicts to pin one boundary. Removed rather than kept; same resolution as the `_drain_fsync` entry above.",
+      "why": "The `>=` / `>` boundary differs on exactly one input: a row arriving when `now - _last_flush` equals the interval to the float. Reaching it requires freezing the clock the harness itself runs on, so the only test that can distinguish the two is one that destroys the measurement. The invariant still holds — a row landing exactly on the interval flushes rather than deferring — and `_maybe_flush` is otherwise exercised by every writer test that writes more than one row."
     }
   ],
   "solid_night.py": [

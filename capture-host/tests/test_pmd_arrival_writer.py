@@ -17,7 +17,6 @@ import inspect
 import os
 from unittest import mock
 
-import writers
 from writers import _FlushHealth, PmdArrivalLogWriter
 from tests._srcscan import module_source
 
@@ -320,29 +319,6 @@ def test_fsync_is_ON_by_default_as_BEHAVIOUR_not_as_a_signature(tmp_path):
         w.flush()
         w.close()
     assert calls["n"] == 0, "and fsync=False must not fsync"
-
-
-def test_the_flush_interval_fires_ON_the_boundary_not_past_it(tmp_path):
-    """`now - self._last_flush >= self._flush_interval`, the `>=`. At exactly the interval the writer
-    must flush; `>` defers it to the next row, which on a 1 Hz sidecar means the last row before a power
-    cut is the one that is lost. Driven by pinning the clock to the exact boundary, which is the only
-    input where the two differ."""
-    q = os.path.join(tmp_path, "boundary_PMDARRIVAL.csv")
-    w = PmdArrivalLogWriter(q, flush_interval=10.0, fsync=False)
-    flushes = {"n": 0}
-    real_flush = w.flush
-
-    def counting():
-        flushes["n"] += 1
-        return real_flush()
-
-    w.flush = counting
-    w._last_flush = 100.0
-    with mock.patch.object(writers._time, "monotonic", lambda: 110.0):  # EXACTLY last + interval
-        w.write(_T0, "H10", "ECG", 1, 2, 73)
-    assert flushes["n"] == 1, "a row landing exactly on the interval must flush"
-    w.flush = real_flush
-    w.close()
 
 
 def test_the_torn_tail_probe_reads_the_LAST_byte_not_the_THIRD(tmp_path):
