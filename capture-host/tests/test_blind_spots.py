@@ -276,3 +276,36 @@ def test_a_file_that_cannot_be_parsed_names_ITSELF_in_the_error():
     with pytest.raises(SyntaxError) as excinfo:
         analyze("def (:\n", path="tests/x_y.py")
     assert excinfo.value.filename == "tests/x_y.py", excinfo.value.filename
+
+
+def test_ENCLOSURE_is_the_whole_question_and_both_ways_in_count_the_same():
+    """Pins the contract `_is_double` was collapsed to (2026-10-04).
+
+    It used to take `(depth: int, in_test_class: bool)` and return `depth > 0 or in_test_class`, so
+    the integer was never a depth: only its sign mattered, and either argument could decide alone.
+    Five mutants of `analyze` were unkillable because of it — `depth + 1` → `depth + 2`, and
+    `False`/`True`/`None` at three call sites — none of which can change the answer for a node that
+    is already enclosed. The parameters were dead structure and the gate is what measured it.
+
+    These four cases are the collapsed contract, and each one now has a mutant behind it: flipping
+    `visit(tree, False)` promotes case 1 to a double, and flipping either `visit(child, True)`
+    demotes cases 2 and 3."""
+    src = (
+        "def helper(a, b):\n"           # 1 · top level, drops b — NOT a double
+        "    return a\n"
+        "def outer():\n"
+        "    def inner(a, b):\n"        # 2 · nested in a function — IS a double
+        "        return a\n"
+        "class Helper:\n"
+        "    def meth(self, a, b):\n"   # 3 · method on a helper class — IS a double
+        "        return a\n"
+        "def test_t(a, b):\n"           # 4 · a test function — NEVER a double
+        "    return a\n"
+    )
+    found = {r["double"] for r in analyze(src, path="t.py")}
+    assert "inner" in found, "a function nested in a function is a double"
+    assert "meth" in found, "a method on a helper class is a double — the OTHER way of being enclosed"
+    assert "helper" not in found, (
+        "a top-level helper was reported as a double — the scan started as if already enclosed"
+    )
+    assert "test_t" not in found, "a test function's unused parameter is a fixture, not a dropped arg"
