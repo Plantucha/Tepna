@@ -55,6 +55,8 @@ def test_night_qc_pass_names_the_population_split_by_optional():
     assert o["gate"] == "night-qc" and o["status"] == "PASS" and o["reason"] is None
     assert o["population"] == {"checked": 2, "eligible": 3, "excluded": 1}  # the Spare's hr is declared, not judged
     assert o["result"]["coverage"] == {"H10:ecg": 0.98, "H10:acc": 0.97}
+    assert o["result"]["span_sec"] == 7200  # mutant 71: summary.get(None)
+    assert o["result"]["absent_witnessed_by"] == []  # mutant 136: nothing absent ⇒ no witnesses named
     assert "/n/2026-09-19/QC-SUMMARY.json" in o["evidence"]
 
 
@@ -80,6 +82,9 @@ def test_night_qc_underpowered_under_the_minimum_span_is_unknown_not_low():
         o = nightqc.qc_verdict(_summary(span_sec=span, devices=[{"name": "H10", "coverage": {}}]), DEV)
         assert o["status"] == "UNDERPOWERED", span
         assert "300 s minimum" in o["reason"] and "unknown, not low" in o["reason"]
+        assert o["result"] is not None and o["result"]["span_sec"] == span  # mutant 325: result=None
+        # mutants 339-343: the span is named when there is one, and "unknown" when there is not
+        assert o["reason"].startswith("span unknown s" if span is None else f"span {span} s"), o["reason"]
 
 
 def test_night_qc_with_no_device_configured_is_not_run_not_pass():
@@ -97,6 +102,7 @@ def test_a_crash_inside_night_qc_is_UNKNOWN_naming_the_exception():
     o = nightqc.qc_verdict({"devices": "not-a-list"}, DEV)  # .items() on a str inside the builder
     verdict.validate(o)
     assert o["status"] == "UNKNOWN" and "the gate raised" in o["reason"]
+    assert "AttributeError" in o["reason"], o["reason"]  # mutant 397: exc=None loses WHICH exception
 
 
 # ── back-check ──────────────────────────────────────────────────────────────────────────────────────
@@ -444,3 +450,44 @@ def test_CONTROL_a_device_identified_only_by_device_id_is_still_judged():
     devs = [{"device_id": "02849638", "streams": ["ecg"]}]
     o = nightqc.qc_verdict(_summary(), devs)
     assert "unidentified_devices" not in o["result"]
+
+
+# ── #3266's diff-scoped survivors in qc_verdict ─────────────────────────────────────────────────────
+
+
+def test_a_span_EXACTLY_at_the_minimum_is_judged_not_underpowered():
+    """mutant 320: `span <= _MIN_SPAN_SEC` would refuse a span sitting on the minimum."""
+    o = nightqc.qc_verdict(_summary(span_sec=nightqc._MIN_SPAN_SEC), DEV)
+    assert o["status"] == "PASS", o["reason"]
+
+
+def test_a_fail_reason_names_only_the_kinds_that_occurred():
+    """mutants 250 / 258: `or True` writes an empty `missing:` / `degraded` clause beside the real one."""
+    only_degraded = nightqc.qc_verdict(_summary(degraded=["H10:ecg 31%"]), DEV)
+    assert only_degraded["status"] == "FAIL" and "missing" not in only_degraded["reason"], only_degraded["reason"]
+    only_missing = nightqc.qc_verdict(_summary(missing=["H10:acc"]), DEV)
+    assert only_missing["status"] == "FAIL" and "degraded" not in only_missing["reason"], only_missing["reason"]
+
+
+def test_an_OPTIONAL_device_with_no_identity_is_not_reported_as_unidentified():
+    """mutant 81: `d.get(None)` for "optional" would judge an anonymous backup as a malformed entry."""
+    devs = [DEV[0], {"streams": ["hr"], "optional": True}]
+    o = nightqc.qc_verdict(_summary(), devs)
+    assert o["status"] == "PASS" and "unidentified_devices" not in o["result"], o["result"]
+
+
+def test_a_device_with_a_NAME_and_no_device_id_is_identified():
+    """mutant 86: `d.get(None) or d.get("device_id")` would call a named device unidentified."""
+    devs = [{"name": "H10", "streams": ["ecg", "acc"]}]
+    o = nightqc.qc_verdict(_summary(), devs)
+    assert o["status"] == "PASS" and "unidentified_devices" not in o["result"], o["result"]
+    assert o["population"] == {"checked": 2, "eligible": 2, "excluded": 0}
+
+
+def test_an_absent_device_whose_NAME_CARRIES_A_COLON_is_still_excluded_whole():
+    """`m.split(":", 1)[0]` cut "Ring:A:spo2" at its first colon, so the absent Ring:A's stream stayed in
+    `missing` and the night FAILED although its only recording sibling was clean (mutants 235/236/238)."""
+    devs = [DEV[0], {"name": "Ring:A", "device_id": "S8AW", "streams": ["spo2"]}]
+    o = nightqc.qc_verdict(_summary(missing=["Ring:A:spo2"]), devs)
+    assert o["status"] == "PASS", o["reason"]
+    assert o["result"]["absent"] == ["Ring:A"] and o["result"]["missing"] == []

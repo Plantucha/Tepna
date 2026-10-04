@@ -183,6 +183,7 @@ def test_an_unreadable_capture_is_unknown_never_missing_or_zero(tmp_path, _tz):
         s = _summarize_floating(night, _devices())
         h10 = next(d for d in s["devices"] if d["name"] == "H10")
         assert h10["streams"]["acc"] is None and h10["streams"]["ecg"] == 100
+        assert h10["streams"]["hr"] == 10, "the stream AFTER the unreadable one is still counted"
         assert "H10:acc" not in s["missing"]
         assert s["unreadable"] == [f"H10:acc ({os.path.basename(locked)})"]
         assert s["unreadable_files"] == [os.path.basename(locked)]
@@ -312,7 +313,7 @@ def test_folder_date_helpers_reject_a_non_date_name(tmp_path):
     assert s["night"] == "incoming" and s["missing"] == []
 
 
-def test_summarize_unifies_a_cross_midnight_session(tmp_path):
+def test_summarize_unifies_a_cross_midnight_session(tmp_path, _tz):
     """A real overnight begins before midnight, so night_dir splits it across two date folders (each
     connection rolls into a folder by its START date). Coverage must see the WHOLE session across both
     folders — else a device that streamed cleanly across midnight reads as badly degraded (observed live
@@ -2920,7 +2921,7 @@ def test_a_NON_spo2_file_is_never_mistaken_for_the_spo2_half(tmp_path, monkeypat
     assert calls[0][1].endswith("_SPO2.csv"), f"the SpO2 slot must hold the SpO2 file, got {calls[0][1]}"
 
 
-def test_the_cross_midnight_pool_is_EXCLUSIVE_at_exactly_the_gap(tmp_path):
+def test_the_cross_midnight_pool_is_EXCLUSIVE_at_exactly_the_gap(tmp_path, _tz):
     """The boundary of the pooling guard, which its own comment records getting wrong three times
     (`0 <=` read a −190 s overlap as non-contiguous, and a 17-file night went unjudged). `< gap` and
     `<= gap` differ on exactly one input: a previous folder whose last write is the gap away to the
@@ -4131,6 +4132,10 @@ _TIME_CLAIM_WORDS = (
 )
 
 _CLOCKLESS_BY_DESIGN = {
+    # #3266 survivor kills. Both are SESSION-level: a span from a filename stamp to an mtime, and coverage
+    # as rows over that span against the EXPECTED rate — no device clock takes part in either.
+    "test_a_degraded_line_ROUNDS_its_percent_and_never_truncates_it": "session-span coverage against the expected rate; the claim is the printed percent",
+    "test_span_reason_is_NULL_when_there_is_a_span_and_session_end_NULL_when_there_is_not": "session span from stamp and mtime; the claim is which fields are null",
     # SESSION-LEVEL CLAIMS. Decided by filename stamps and mtimes; a device clock plays no part, and
     # the outputs asserted (`span_sec` at the session level, `gaps`, pooling) are computed without one.
     "test_summarize_unifies_a_cross_midnight_session": "session grouping across a date-folder boundary",
@@ -5561,13 +5566,9 @@ def test_a_degraded_line_omits_rate_assumed_when_the_rate_was_MEASURED(tmp_path)
     devs = [{"name": "H10", "device_id": "02849638", "streams": ["acc", "hr"]}]
     s = _summarize_floating(night, devs)
     measured = [d for d in s["devices"] if d["name"] == "H10"][0].get("coverage_basis", {})
-    if measured.get("acc") != "measured":
-        import pytest as _pt
-
-        _pt.skip(
-            f"this fixture did not produce a measured basis (got {measured}) — the assertion below "
-            "would be about the fixture, not the code"
-        )
+    # Asserted, never skipped: a skip here turned `basis = None` into a green run (mutant 385, #3266) —
+    # the mutant makes the basis unmeasured, the skip fired, and a skip counts as a pass.
+    assert measured.get("acc") == "measured", measured
     acc_lines = [x for x in s["degraded"] if x.startswith("H10:acc")]
     assert acc_lines, s["degraded"]
     assert "(rate assumed)" not in acc_lines[0], (
@@ -5584,6 +5585,7 @@ def test_a_night_dir_that_is_not_a_directory_does_not_raise(tmp_path):
     s = nightqc.summarize(missing, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
     assert s["files"] == 0 and s["total_rows"] == 0, s
     assert s["span_sec"] is None, s["span_sec"]
+    assert s["span_reason"] == "no capture data", s["span_reason"]  # mutant 130: no data names its reason
 
 
 # ── and the third: dict(base, **kw) REBUILT WITHOUT ITS BASE ─────────────────────────────────────────
@@ -5761,3 +5763,189 @@ def test_an_unreadable_file_does_not_STOP_the_scan_at_itself(tmp_path, monkeypat
         f"the scan must carry on past the unreadable file and age the night on {good.name} "
         f"(got {newest}, expected ~{when})"
     )
+
+
+# ── #3266's diff-scoped survivors in the functions the unreadable-file fix touched ─────────────────────
+# Each test names the mutant it kills. The row-apportioning ones call `night_view` directly with files
+# placed ON the band edges, because only an edge separates `<` from `<=` and a point from a span.
+
+
+def _band_session():
+    b0, b1 = nightqc.night_band(_stamp_epoch("20260719230000"))
+    return b0, b1, (b0, b1, [])
+
+
+def test_night_view_skips_an_unreadable_file_and_keeps_counting_the_rest():
+    """mutant 30: `continue` -> `break` stops at the unreadable file and drops every file after it."""
+    b0, b1, sess = _band_session()
+    files = [{"session": b0 + 10, "rows": None}, {"session": b0 + 20, "rows": 100, "span_sec": None}]
+    assert nightqc.night_view(sess, files)["rows"] == 100
+
+
+def test_night_view_places_a_spanless_file_as_a_POINT_at_the_band_end():
+    """mutant 38: an unknown span read as 1.0 s would apportion half of a file starting 0.5 s before the
+    band's end; as a point inside the band it carries all of its rows."""
+    b0, b1, sess = _band_session()
+    assert nightqc.night_view(sess, [{"session": b1 - 0.5, "rows": 100, "span_sec": None}])["rows"] == 100
+
+
+def test_night_view_apportions_a_sub_second_span_rather_than_treating_it_as_a_point():
+    """mutant 42: `dur <= 1` would make a 0.5 s file a point; half of it lies past the band's end."""
+    b0, b1, sess = _band_session()
+    assert nightqc.night_view(sess, [{"session": b1 - 0.25, "rows": 100, "span_sec": 0.5}])["rows"] == 50
+
+
+def test_night_view_SUMS_point_files_and_spanned_files():
+    """mutants 43 / 53: `rows =` instead of `+=` keeps only the last file of each kind."""
+    b0, b1, sess = _band_session()
+    points = [{"session": b0 + 10, "rows": 100, "span_sec": None}, {"session": b0 + 20, "rows": 7, "span_sec": None}]
+    spans = [{"session": b0 + 10, "rows": 100, "span_sec": 60}, {"session": b0 + 100, "rows": 7, "span_sec": 60}]
+    assert nightqc.night_view(sess, points)["rows"] == 107
+    assert nightqc.night_view(sess, spans)["rows"] == 107
+
+
+def test_night_view_band_is_HALF_OPEN_for_a_point_file():
+    """mutants 49 / 50: a point exactly at the band's start is inside it, one exactly at its end is not."""
+    b0, b1, sess = _band_session()
+    assert nightqc.night_view(sess, [{"session": b0, "rows": 100, "span_sec": None}])["rows"] == 100
+    assert nightqc.night_view(sess, [{"session": b1, "rows": 100, "span_sec": None}])["rows"] == 0
+
+
+def test_a_degraded_line_ROUNDS_its_percent_and_never_truncates_it(tmp_path):
+    """`int(scov * 100)` printed 0.29 as 28 % (0.29 * 100 == 28.999999999999996) — mutant 430's arithmetic,
+    and a real misreport. 290 rows of 1 Hz HR over a 1000 s session is 0.29."""
+    night = str(tmp_path / "2026-07-19")
+    os.makedirs(night)
+    t0 = _stamp_epoch()
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 290), t0 + 1000)
+    s = _summarize_floating(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["degraded"] == ["H10:hr 29% (rate assumed)"], s["degraded"]
+
+
+def test_a_device_span_of_EXACTLY_the_minimum_is_judged_on_the_device_basis(tmp_path):
+    """mutant 329: `dev_span <= _MIN_SPAN_SEC` would refuse a device span that sits ON the minimum."""
+    night = str(tmp_path / "2026-07-19")
+    os.makedirs(night)
+    t0 = _stamp_epoch()
+    p = _cap_timed(night, "Polar_H10_02849638_20260719220000_HR.txt", 301, 1)
+    assert nightqc.file_span_sec(p) == nightqc._MIN_SPAN_SEC, "the fixture must sit ON the boundary"
+    _utime(p, t0 + 600)
+    s = _summarize_floating(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    h10 = s["devices"][0]
+    assert h10["span_basis"] == {"hr": "device"} and h10["span_sec"] == 300, h10
+
+
+def test_span_reason_is_NULL_when_there_is_a_span_and_session_end_NULL_when_there_is_not(tmp_path):
+    """mutant 130: `_span_reason = ""` — an empty string where there is no reason; mutant 529: `and` ->
+    `or` publishes a session end for a session too short to have a span."""
+    night = str(tmp_path / "2026-07-19")
+    os.makedirs(night)
+    t0 = _stamp_epoch()
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 3600), t0 + 3600)
+    dev = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = _summarize_floating(night, dev)
+    assert s["span_sec"] == 3600 and s["span_reason"] is None
+    short = str(tmp_path / "2026-07-20")
+    os.makedirs(short)
+    _utime(_cap(short, "Polar_H10_02849638_20260720220000_HR.txt", 10), _stamp_epoch("20260720220000") + 10)
+    s2 = _summarize_floating(short, dev)
+    assert s2["span_sec"] is None and s2["devices"][0]["session_end"] is None, s2["devices"][0]
+
+
+# ── #3266: the offset and partition survivors, sized by Codex (read-only) and verified by mutant ───────
+# A DECLARED writer offset of 5 h: filename stamps and STARTS rows are floating civil time, mtimes are
+# absolute = floating + offset. Only a NONZERO offset separates "raised into the mtime frame" from
+# "left floating", and every earlier fixture here was built at offset 0.
+
+_X = 5 * 3600.0
+
+
+def _abs_cap(night, t_open, rows, t_end, offset=_X):
+    p = _cap(night, "Polar_H10_02849638_" + _floating_stampname(t_open) + "_HR.txt", rows)
+    os.utime(p, (t_end + offset,) * 2)
+    return p
+
+
+def _starts(night, *seams):
+    import writers
+
+    with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        for i, t in enumerate(seams):
+            fh.write(_starts_stamp(t) + f";{400443 + i};2cd12712;no;F4:CE:36:2E:CD:98\n")
+
+
+_DEV_HR = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+
+
+def test_daemon_seams_are_raised_into_the_mtime_frame_by_the_DECLARED_offset(tmp_path):
+    """mutants 21 / 145: `daemon_starts` or `merge_sessions` called without the offset puts the seams and
+    the file intervals in different frames 5 h apart, so the two seams split nothing and the three runs
+    merge. The same night at offset 0 is the twin: under the declared offset it must partition the same."""
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    t0 = _stamp_epoch("20260924210000")
+    seam1, seam2 = t0 + 600, t0 + 7800
+    _abs_cap(night, t0, 600, seam1)
+    _abs_cap(night, seam1, 7200, seam2)
+    _abs_cap(night, seam2, 300, seam2 + 300)
+    _starts(night, seam1, seam2)
+    s = nightqc.summarize(night, _DEV_HR, writer_offset=nightqc.declared_offset(_X))
+    assert [(x["start"], x["end"]) for x in s["sessions"]] == [
+        (round(t0 + _X), round(seam1 + _X)),
+        (round(seam1 + _X), round(seam2 + _X)),
+        (round(seam2 + _X), round(seam2 + 300 + _X)),
+    ], s["sessions"]
+    assert s["daemon"]["stamps"] == [seam1 + _X, seam2 + _X]
+
+
+def test_the_POOLED_previous_folders_seams_are_raised_by_the_offset_too(tmp_path):
+    """mutants 101 / 104: the previous folder's `daemon_starts` without the offset leaves ITS seam floating,
+    so the split it records inside the pooled half disappears."""
+    d23 = str(tmp_path / "2026-09-23")
+    d24 = str(tmp_path / "2026-09-24")
+    os.makedirs(d23)
+    os.makedirs(d24)
+    a = _stamp_epoch("20260923220000")
+    seam = a + 3600  # 23:00: run A ends, run B opens on the same second
+    _abs_cap(d23, a, 3600, seam)
+    _abs_cap(d23, seam, 3000, seam + 3000)  # B runs to 23:50
+    _starts(d23, seam)
+    c = _stamp_epoch("20260924001000")  # 00:10, inside the near-midnight pool window
+    _abs_cap(d24, c, 3000, c + 3000)
+    s = nightqc.summarize(d24, _DEV_HR, writer_offset=nightqc.declared_offset(_X))
+    assert len(s["searched_dirs"]) == 2, s["searched_dirs"]
+    assert [x["start"] for x in s["sessions"]] == [round(a + _X), round(seam + _X)], s["sessions"]
+
+
+def test_pooling_asks_contiguity_in_ONE_frame_under_a_nonzero_offset(tmp_path):
+    """mutant 81: `(earliest - offset) - prev_last` puts the floating start 2 offsets away from the
+    absolute last write. The previous folder ends 00:00 and this one opens 01:30 — 90 min, not contiguous
+    — but the mutant reads it as 90 min minus 10 h and pools a separate sitting."""
+    d23 = str(tmp_path / "2026-09-23")
+    d24 = str(tmp_path / "2026-09-24")
+    os.makedirs(d23)
+    os.makedirs(d24)
+    a = _stamp_epoch("20260923230000")
+    _abs_cap(d23, a, 3600, a + 3600)  # last write 00:00
+    c = _stamp_epoch("20260924013000")
+    _abs_cap(d24, c, 1800, c + 1800)
+    s = nightqc.summarize(d24, _DEV_HR, writer_offset=nightqc.declared_offset(_X))
+    assert len(s["searched_dirs"]) == 1, s["searched_dirs"]
+    assert s["devices"][0]["streams"]["hr"] == 1800
+
+
+def test_a_zero_length_session_TOUCHING_the_judged_one_is_reported_once_on_its_own_side(tmp_path):
+    """mutants 181 / 183: sessions may TOUCH at a daemon seam, and a zero-length one sharing the judged
+    session's edge satisfies BOTH mutated predicates — it would be reported as earlier AND later."""
+    for judged_first, own_side in ((True, "later session"), (False, "earlier session")):
+        night = str(tmp_path / ("a" if judged_first else "b") / "2026-09-24")
+        os.makedirs(night)
+        t0 = _stamp_epoch("20260924210000")
+        seam = t0 + 600
+        _abs_cap(night, t0, 600 if judged_first else 1, seam, offset=0.0)
+        _abs_cap(night, seam, 1 if judged_first else 600, seam, offset=0.0)  # zero length: opens AT its last write
+        _starts(night, seam)
+        s = _summarize_floating(night, _DEV_HR)
+        assert len(s["sessions"]) == 2, s["sessions"]
+        assert len(s["gaps"]) == 1 and own_side in s["gaps"][0], (judged_first, s["gaps"])

@@ -3207,7 +3207,10 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
     # unknown) until a judge-able span has accrued.
     current = data
     span = None
-    _span_reason = None
+    # Overwritten whenever a session exists; it survives only for a night with NO data, which is the first
+    # of the three cases `span_reason` exists to tell apart. It published None there, so an empty night
+    # read span-null with no reason (#3266, mutant 130).
+    _span_reason: str | None = "no capture data"
     sessions: list[list] = []
     cur = None
     # The judged session's END, captured where `cur` is known to exist so the per-device block below can
@@ -3315,7 +3318,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 line = (
                     f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
                     f"{len(before)} earlier session(s), "
-                    f"{sum(f['rows'] for s in before for f in s[2])} rows, excluded from coverage"
+                    f"{known_rows([f for s in before for f in s[2]])} rows, excluded from coverage"
                     f" [{cls}]"
                 )
                 gaps.append(line)
@@ -3327,7 +3330,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 line = (
                     f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
                     f"{len(after)} later session(s), "
-                    f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage"
+                    f"{known_rows([f for s in after for f in s[2]])} rows, excluded from coverage"
                     f" [{cls}]"
                 )
                 gaps.append(line)
@@ -3471,7 +3474,8 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 session_coverage[s] = scov
                 if scov < _DEGRADED_BELOW:
                     degraded.append(
-                        f"{name}:{s} {int(scov * 100)}%" + ("" if basis == "measured" else " (rate assumed)")
+                        # `:.0%`, not `int(scov * 100)`: the float product TRUNCATES, so 0.29 printed as 28 %.
+                        f"{name}:{s} {scov:.0%}" + ("" if basis == "measured" else " (rate assumed)")
                     )
         # SECONDS SINCE THIS DEVICE LAST WROTE, measured against the night's NEWEST write rather
         # than wall-clock now(). Two reasons: reading an old night back must not report every
@@ -3834,10 +3838,14 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
             )
         # Only the RECORDING devices' faults are judged; an absent device's streams are excluded above,
         # so its `missing` entries must not also convict it here.
-        result["missing"] = [m for m in result["missing"] if m.split(":", 1)[0] not in set(absent)]
+        # The ENTRIES an absent device contributed, matched whole. `m.split(":", 1)[0]` recovered the device
+        # from "name:stream" and so cut a name that itself carries a colon at its FIRST colon — the absent
+        # device's streams then stayed in `missing` and its sibling's verdict became a FAIL.
+        _absent_keys = {f"{n}:{s}" for n in absent for s in _declared[n]}
+        result["missing"] = [m for m in result["missing"] if m not in _absent_keys]
         if result["missing"] or result["degraded"]:
             parts = ([f"missing: {', '.join(result['missing'])}"] if result["missing"] else []) + (
-                [f"degraded (< {int(_DEGRADED_BELOW * 100)} %): {', '.join(result['degraded'])}"]
+                [f"degraded (< {_DEGRADED_BELOW * 100:g} %): {', '.join(result['degraded'])}"]
                 if result["degraded"]
                 else []
             )
