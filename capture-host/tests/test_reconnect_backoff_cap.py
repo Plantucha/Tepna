@@ -293,7 +293,9 @@ def test_the_alert_fires_over_budget_ONCE_per_window_per_device():
     )
 
 
-def test_only_the_ERROR_backoff_is_counted_and_the_warning_reaches_the_journal(_fresh_rate_counters, monkeypatch, caplog):
+def test_only_the_ERROR_backoff_is_counted_and_the_warning_reaches_the_journal(
+    _fresh_rate_counters, monkeypatch, caplog
+):
     """Drives `_retry_sleep` itself, both sides of its one branch: the steady cadences must leave the
     counter untouched, and a device over budget must say so in the journal."""
     monkeypatch.setattr(capture, "_RETRY_JITTER", 0.0)
