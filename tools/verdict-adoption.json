@@ -571,6 +571,19 @@
       },
       "note": "the partition proof as ONE object (§3d): children = its named checks (provenance 'check'), criterion = the union equals the plan; --deep adds the empirical checks AND, since the shards emit objects (#2835), a CONSUMER check — the shard objects aggregated through aggregateChildren must reach the full run's object (a shard with no or an invalid object fails it). Not filtered: the non-deep run IS the CI plan. Measured: PASS over 12/12 checks; --json; the exit code stays."
     },
+    "tools/absence-ledger.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/absence-ledger.mjs",
+          "--ratchet",
+          "--json"
+        ]
+      },
+      "note": "the ABSENCE-SURVEY drain ratchet (owner-commissioned 2026-10-04) — the open-finding count held EQUAL to a committed ceiling, plus the state file byte-identical to its rebuild; FAIL on a rise, an un-lowered fall or a hand-edited state"
+    },
     "tools/acc-acc-control.mjs": {
       "bin": "decides",
       "status": "adopted",

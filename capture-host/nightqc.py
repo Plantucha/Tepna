@@ -264,13 +264,15 @@ def night_view(session, files) -> "dict | None":
         # this function, because a file whose span we cannot measure has to be placed SOMEWHERE and a
         # point at its start stamp is the only defensible choice — but they are separated here so the
         # distinction survives, and so a future caller reading this does not learn the wrong idiom.
+        if f["rows"] is None:
+            continue  # unreadable: no row count to place (count_rows); named at the summary level
         raw = f.get("span_sec")
         dur = 0.0 if raw is None else float(raw)
         if dur <= 0:
             rows += f["rows"] if b0 <= st < b1 else 0.0  # unknown or zero span ⇒ a point in time
             continue
         rows += f["rows"] * _overlap(st, st + dur, b0, b1) / dur
-    total = sum(f["rows"] for f in files)
+    total = known_rows(files)
     return {
         "begin": round(b0),
         "end": round(b1),
@@ -819,10 +821,15 @@ def parse_capture_name(fname: str) -> tuple[str, str] | None:
     return tag.upper(), ext
 
 
-def count_rows(path: str) -> int:
+def count_rows(path: str) -> int | None:
     """Data rows in a capture file = newline count − 1 (the single header line). 0 for an empty or
     header-only file. Counts newlines in binary chunks so a multi-GB ECG file is cheap and never loaded
-    whole into memory."""
+    whole into memory.
+
+    None when the file cannot be READ (ABSENCE-SURVEY d2ab13a24151). This returned 0, so a file that exists
+    and could not be opened reported "the device delivered nothing" — a measurement nobody made, and one
+    that landed its stream in `missing` and convicted the device. An unreadable file is neither empty nor
+    delivered: callers keep it out of every row sum and name it (`unreadable` / `unreadable_files`)."""
     newlines = 0
     try:
         with open(path, "rb") as fh:
@@ -832,8 +839,15 @@ def count_rows(path: str) -> int:
                     break
                 newlines += chunk.count(b"\n")
     except OSError:
-        return 0
+        return None
     return max(0, newlines - 1)
+
+
+def known_rows(files: list[dict]) -> int:
+    """The row sum over the files whose rows COULD be counted. Named for what it is: an unreadable file
+    (`rows: None`) is left out rather than counted as 0, and every published sum built on this sits beside
+    `unreadable_files`, which names what was left out."""
+    return sum(f["rows"] for f in files if f["rows"] is not None)
 
 
 def file_span_sec(path: str) -> float | None:
@@ -1390,7 +1404,9 @@ def judged_session(sessions: list[list]):
     `timeline` falls back to is unchanged."""
     if not sessions:
         return None
-    return max(sessions, key=lambda sess: (sum(f["rows"] for f in sess[2]), sess[1]))
+    # A RANKING, never published: an unreadable file contributes no evidence for its session, which is
+    # not the same as asserting it holds zero rows (its name is published as `unreadable_files`).
+    return max(sessions, key=lambda sess: (known_rows(sess[2]), sess[1]))
 
 
 def scan_night(night_dir: str) -> list[dict]:
@@ -3218,7 +3234,10 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
     # unknown) until a judge-able span has accrued.
     current = data
     span = None
-    _span_reason = None
+    # Overwritten whenever a session exists; it survives only for a night with NO data, which is the first
+    # of the three cases `span_reason` exists to tell apart. It published None there, so an empty night
+    # read span-null with no reason (#3266, mutant 130).
+    _span_reason: str | None = "no capture data"
     sessions: list[list] = []
     cur = None
     # The judged session's END, captured where `cur` is known to exist so the per-device block below can
@@ -3326,7 +3345,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 line = (
                     f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
                     f"{len(before)} earlier session(s), "
-                    f"{sum(f['rows'] for s in before for f in s[2])} rows, excluded from coverage"
+                    f"{known_rows([f for s in before for f in s[2]])} rows, excluded from coverage"
                     f" [{cls}]"
                 )
                 gaps.append(line)
@@ -3338,7 +3357,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 line = (
                     f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
                     f"{len(after)} later session(s), "
-                    f"{sum(f['rows'] for s in after for f in s[2])} rows, excluded from coverage"
+                    f"{known_rows([f for s in after for f in s[2]])} rows, excluded from coverage"
                     f" [{cls}]"
                 )
                 gaps.append(line)
@@ -3347,6 +3366,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
     per_device = []
     newest = max((f["mtime"] for f in current), default=None)
     missing: list[str] = []
+    unreadable: list[str] = []
     degraded = []
     optional_absent: list[str] = []
     # Read every stream's ACTUAL rate once, up front: the coverage loop below divides by it, and the
@@ -3399,7 +3419,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         stopped_early_s = (
             round(_cur_end - _dev_end) if (_cur_end is not None and _dev_end is not None and span is not None) else None
         )
-        streams: dict[str, int] = {}
+        streams: dict[str, int | None] = {}
         coverage: dict[str, float] = {}
         #: Per stream: "device" when the denominator was this device's own recording extent, "session"
         #: when it fell back because some file carried no measurable span. The rate's provenance is in
@@ -3423,7 +3443,16 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # Everything is the CURRENT SESSION (the `current` set, unified across midnight) — so a stream
             # is `missing` only if it produced nothing THIS session, and its row count + coverage reflect
             # the session, never an earlier daytime or previous-night one.
-            rows = sum(f["rows"] for f in current if writers.file_device_id(f["file"]) in dids and f["stream"] in tags)
+            _mine = [f for f in current if writers.file_device_id(f["file"]) in dids and f["stream"] in tags]
+            # ∅ A STREAM WITH AN UNREADABLE FILE HAS NO ROW COUNT. It is neither `missing` (the device may
+            # have delivered everything) nor covered (the rows cannot be counted), so it gets its own
+            # list, `ok` is False, and no coverage is computed over a numerator nobody measured.
+            _unread = sorted(f["file"] for f in _mine if f["rows"] is None)
+            if _unread:
+                streams[s] = None
+                unreadable.append(f"{name}:{s} ({', '.join(_unread)})")
+                continue
+            rows = known_rows(_mine)
             streams[s] = rows
             if rows == 0:
                 # An OPTIONAL backup device that did not join is EXPECTED, not a gap — it stays out of
@@ -3472,7 +3501,8 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 session_coverage[s] = scov
                 if scov < _DEGRADED_BELOW:
                     degraded.append(
-                        f"{name}:{s} {int(scov * 100)}%" + ("" if basis == "measured" else " (rate assumed)")
+                        # `:.0%`, not `int(scov * 100)`: the float product TRUNCATES, so 0.29 printed as 28 %.
+                        f"{name}:{s} {scov:.0%}" + ("" if basis == "measured" else " (rate assumed)")
                     )
         # SECONDS SINCE THIS DEVICE LAST WROTE, measured against the night's NEWEST write rather
         # than wall-clock now(). Two reasons: reading an old night back must not report every
@@ -3561,6 +3591,8 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             "system_files": system_file_drift(),
             "devices": per_device,
             "missing": missing,
+            # Streams whose row count is UNKNOWN because a file could not be read — see count_rows.
+            "unreadable": unreadable,
             "degraded": degraded,
             "gaps": gaps,
             # THE SUBSET THAT ACTUALLY BEARS ON THE NIGHT, and the only one `ok` reads. `gaps` stays
@@ -3570,9 +3602,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             "optional_absent": optional_absent,
             # Every session on this night, oldest first — so `span_sec`/`coverage`/`missing`/`silent_sec`
             # being CURRENT-session-scoped is visible rather than implied.
-            "sessions": [
-                {"start": round(s[0]), "end": round(s[1]), "rows": sum(f["rows"] for f in s[2])} for s in sessions
-            ],
+            "sessions": [{"start": round(s[0]), "end": round(s[1]), "rows": known_rows(s[2])} for s in sessions],
             "prior_gap_sec": round(prior_gap) if prior_gap is not None else None,
             "span_sec": round(span) if span else None,
             # ∅ WHY there is no span, when there is none — the three cases are different and a bare None
@@ -3585,7 +3615,9 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # expressed in, because in the refusing case they are floating civil values and not instants.
             "writer_offset": dict(_off, frame="floating" if _off["offset_sec"] is None else "absolute"),
             "files": len(scanned),
-            "total_rows": sum(f["rows"] for f in scanned),
+            "total_rows": known_rows(scanned),
+            # The files whose rows are NOT in any row count above, because they could not be read.
+            "unreadable_files": sorted(f["file"] for f in scanned if f["rows"] is None),
             "total_bytes": sum(f["bytes"] for f in scanned),
             "sidecars": sorted({f["stream"] for f in scanned if f["stream"] in _SIDECAR_TAGS}),
             # THE SCOPE THIS VERDICT RESTS ON, REPORTED RATHER THAN IMPLIED. On 2026-07-28 the summary
@@ -3595,7 +3627,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             "judged_dir": os.path.basename(night_dir.rstrip("/")),
             # WHICH session the verdict rests on, on the same principle as `judged_dir`/`searched_dirs`
             # below: a verdict that cannot be audited against the ground it was computed from is a claim.
-            "judged_session": {"start": round(cur[0]), "end": round(cur[1]), "rows": sum(f["rows"] for f in cur[2])}
+            "judged_session": {"start": round(cur[0]), "end": round(cur[1]), "rows": known_rows(cur[2])}
             if cur
             else None,
             # WHAT OF THAT SESSION WAS ACTUALLY NIGHT. Published beside the session rather than replacing
@@ -3612,7 +3644,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             "scope_suspect": bool(devices) and not data,
             # A hole in the night is a reason to look, exactly like a missing or degraded stream. `ok` is a
             # claim about THE NIGHT; if half of it was excluded from the judgement, the claim is unsupported.
-            "ok": not missing and not degraded and not gaps_in_night,
+            "ok": not missing and not unreadable and not degraded and not gaps_in_night,
             # THE ARRIVAL SIDECAR IS ONLY WORTH WRITING IF ITS EDGE IS AN EDGE (PAT-PACKET-ARRIVAL §3).
             # It exists so `min(arrival - device)` recovers the per-connection BLE offset, which works only
             # because buffering is one-sided. If a night's distribution comes back SMEARED anyway — a wedged
@@ -3833,10 +3865,14 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
             )
         # Only the RECORDING devices' faults are judged; an absent device's streams are excluded above,
         # so its `missing` entries must not also convict it here.
-        result["missing"] = [m for m in result["missing"] if m.split(":", 1)[0] not in set(absent)]
+        # The ENTRIES an absent device contributed, matched whole. `m.split(":", 1)[0]` recovered the device
+        # from "name:stream" and so cut a name that itself carries a colon at its FIRST colon — the absent
+        # device's streams then stayed in `missing` and its sibling's verdict became a FAIL.
+        _absent_keys = {f"{n}:{s}" for n in absent for s in _declared[n]}
+        result["missing"] = [m for m in result["missing"] if m not in _absent_keys]
         if result["missing"] or result["degraded"]:
             parts = ([f"missing: {', '.join(result['missing'])}"] if result["missing"] else []) + (
-                [f"degraded (< {int(_DEGRADED_BELOW * 100)} %): {', '.join(result['degraded'])}"]
+                [f"degraded (< {_DEGRADED_BELOW * 100:g} %): {', '.join(result['degraded'])}"]
                 if result["degraded"]
                 else []
             )
@@ -3849,6 +3885,20 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
                 evidence=ev,
                 reason="; ".join(parts),
                 tool=_TOOL,
+            )
+        # An unreadable stream is not judged either way: a FAIL elsewhere (above) is a positive finding
+        # and stands, but nothing here may PASS over a row count nobody could take (count_rows).
+        if summary.get("unreadable"):
+            return _v.make(
+                gate=_QC_GATE,
+                status="UNKNOWN",
+                population=pop,
+                criterion=_QC_CRITERION,
+                result=result,
+                evidence=ev,
+                tool=_TOOL,
+                reason="a capture file could not be read, so its stream has no row count — neither "
+                "delivered nor missing: " + "; ".join(summary["unreadable"]),
             )
         if span is None or span < _MIN_SPAN_SEC:
             return _v.make(
