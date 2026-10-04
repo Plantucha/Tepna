@@ -1,0 +1,739 @@
+{
+ "_README": [
+  "WHICH TEST FIXTURES CARRY REAL BYTES — one entry per file under capture-host/tests that holds an ISO timestamp, a hex",
+  "literal of 24+ bytes, or is not a .py file. Gated by tests/test_fixture_provenance.py as an EQUALITY: a new such file",
+  "fails until classified here. Classes: captured (bytes from a real device, host or night) · derived (values transcribed",
+  "from a real night or its audit) · format (a real layout or header, no data) · synthetic (constructed or standard",
+  "vectors) · authored (built in the test). A file holding any address not in `synthetic_addresses` is `captured`: an",
+  "address identifies the owner's hardware. `sha256` pins a whole-file capture (non-.py); a .py entry is held by the",
+  "address rule instead, because a whole-module hash would fail every edit to the test. tools/codex-export.mjs omits",
+  "every captured / derived path."
+ ],
+ "synthetic_addresses": [
+  "00:00:00:00:00:00",
+  "00:11:22:33:44:55",
+  "00:11:22:33:44:66",
+  "00:11:22:33:44:77",
+  "00:1A:7D:AA:AA:AA",
+  "00:55:DA:B0:00:01",
+  "11:11:11:11:11:11",
+  "11:22:33:44:55:66",
+  "22:22:22:22:22:22",
+  "28:0C:50:BB:BB:BB",
+  "66:55:44:33:22:11",
+  "99:88:77:66:55:44",
+  "99:99:99:99:99:99",
+  "A0:9E:1A:00:00:01",
+  "A1:B2:C3:D4:E5:F6",
+  "AA:AA:AA:AA:AA:AA",
+  "AA:BB:CC:00:00:01",
+  "AA:BB:CC:00:00:02",
+  "AA:BB:CC:DD:EE:00",
+  "AA:BB:CC:DD:EE:01",
+  "AA:BB:CC:DD:EE:02",
+  "AA:BB:CC:DD:EE:03",
+  "AA:BB:CC:DD:EE:04",
+  "AA:BB:CC:DD:EE:05",
+  "AA:BB:CC:DD:EE:06",
+  "AA:BB:CC:DD:EE:FF",
+  "BB:BB:BB:BB:BB:BB",
+  "BB:CC:DD:EE:FF:00",
+  "CC:CC:CC:CC:CC:CC",
+  "DD:DD:DD:DD:DD:DD",
+  "DE:AD:BE:EF:00:01",
+  "F2:35:00:00:00:01",
+  "FF:FF:FF:FF:FF:FF"
+ ],
+ "entries": {
+  "test_accraw_rate_and_ns.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_acq_evidence_cpap.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_as11_cipher.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_as11_clock.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_as11_link.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_as11_pull.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_ble_discovery.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_ble_sniff.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "RESMED = 04:CD:15:3A:0B:BD, a real device address",
+   "sha256": null
+  },
+  "test_ble_visibility.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 04:CD:15:3A:0B:BD; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_bluez_wedge_wire.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 24:AC:AC:02:84:96, 28:0C:50:0C:18:FD; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_capture.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) D1:98:62:7C:92:B3; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_capture_clock.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_capture_clock_and_health.py": {
+   "class": "captured",
+   "kind": "host-output",
+   "source": "\"REAL output, copied from the Zephyr/nRF52840 dongle (USB 2fe3:000b) on 2026-08-26\"",
+   "sha256": null
+  },
+  "test_capture_coverage_100.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 00:01:95:CC:53:02, 24:AC:AC:02:84:96, 99:67:24:2E:CD:98 …; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_capture_host.py": {
+   "class": "captured",
+   "kind": "host-output",
+   "source": "\"Verbatim from this host (2026-07-18)\"",
+   "sha256": null
+  },
+  "test_capture_runners.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 00:01:95:CC:53:02, 24:AC:AC:02:84:96, AC:A7:F1:29:9D:1D …; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_clocksync_sidecar.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_coverage_branch_arms.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) D1:98:62:7C:92:B3; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_coverage_gap_fill.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) AC:A7:F1:29:9D:1D; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_coverage_gap_fill_ii.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_acq.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_continuity.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_detect.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_edf_writer.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_events.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_inventory.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_inventory_adapter.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_pair_wire.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 28:0C:50:0C:18:FD; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_record.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_shadow_runner.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_spool.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_spool_caller.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_spool_wire.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_stream.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 04:CD:15:3A:0B:BD; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_cpap_stream_cost.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 04:CD:15:3A:0B:BD; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_device_identity.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 24:AC:AC:0C:30:1E; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_gattmap.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_heap_probe.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_host_clock_and_helper_path.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_jitterfloor.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_link_baselines.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 00:01:95:CC:53:02, AC:A7:F1:29:9D:1D; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_localstamp_dst.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_loss_audit.py": {
+   "class": "captured",
+   "kind": "real-night-values+device-address",
+   "source": "real device address(es) 24:AC:AC:02:84:96; was: \"the real night's numbers are transcribed from its own committed audit output\"",
+   "sha256": null
+  },
+  "test_loss_poller.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_monitor_boxhealth_tiles.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_monitor_coverage_text.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_monitor_live_loss.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_monitor_ring_rtc_alarm.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_monitor_storm_chip.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_mutation_diff.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_mutation_exclusions.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_night_report.py": {
+   "class": "derived",
+   "kind": "real-night-values",
+   "source": "\"THE REAL class-B BLOCKS, copied from /srv/tepna/captures/2026-09-08/QC-SUMMARY.json on the box\"",
+   "sha256": null
+  },
+  "test_nightqc.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) F4:CE:36:2E:CD:98; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_nightqc_corrupt_bytes.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_nights_index.py": {
+   "class": "format",
+   "kind": "real-layout",
+   "source": "\"a synthetic captures tree with the box's real file layouts\"",
+   "sha256": null
+  },
+  "test_o2ring.py": {
+   "class": "synthetic",
+   "kind": "standard-vectors",
+   "source": "AES test vectors (the file's \"C.2\" comment) and encoded frames built in the test",
+   "sha256": null
+  },
+  "test_offline_lock.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_oxy_lifecycle.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_oxy_power.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) D1:98:62:7C:92:B3; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_oxy_rec_axis.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_oxyii.py": {
+   "class": "captured",
+   "kind": "device-sensor-bytes",
+   "source": "\"fixture is a REAL captured cmd=0x04 reply\" (the file's comment)",
+   "sha256": null
+  },
+  "test_oxyii_ppg_file_family.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) D1:98:62:7C:92:B3; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_oxyii_storm.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_parse_dat.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_pmd_arrival_writer.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_pmd_delta.py": {
+   "class": "captured",
+   "kind": "device-sensor-bytes",
+   "source": "\"real GYRO frame, 219 B payload\" (the file's comment)",
+   "sha256": null
+  },
+  "test_polar_pmd.py": {
+   "class": "captured",
+   "kind": "device-protocol",
+   "source": "\"settings-response fixtures are REAL bytes captured from the H10 + Verity Sense on 2026-07-16\"",
+   "sha256": null
+  },
+  "test_polar_psftp_client.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 24:AC:AC:0C:30:1E; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_ppg_grid_check.py": {
+   "class": "format",
+   "kind": "real-shape",
+   "source": "reproduces a real file's SHAPE synthetically (331,552 rows, one value)",
+   "sha256": null
+  },
+  "test_probe_as11_clock.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_probe_as11_shadow.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_probe_pmd_surface.py": {
+   "class": "captured",
+   "kind": "device-protocol",
+   "source": "PMD settings/status replies with no stated generator — captured by default (Kestrel, 2026-10-04)",
+   "sha256": null
+  },
+  "test_probe_polar_usb.py": {
+   "class": "captured",
+   "kind": "device-protocol",
+   "source": "the same real Verity USB listing bytes as test_psftp_protocol.py",
+   "sha256": null
+  },
+  "test_probe_rtc_read.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_probe_verity_survey.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_psftp_protocol.py": {
+   "class": "captured",
+   "kind": "device-protocol",
+   "source": "\"came off the REAL Verity 0C301E3F, 2026-08-09, over the USB HID pipe\"",
+   "sha256": null
+  },
+  "test_pull_identity_key.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) D1:98:62:7C:92:B3; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_qc_scope_resolution.py": {
+   "class": "captured",
+   "kind": "real-night-values+device-address",
+   "source": "real device address(es) 24:AC:AC:02:84:96, 24:AC:AC:0C:30:1E; was: 2026-07-28 session times, \"verbatim\"",
+   "sha256": null
+  },
+  "test_radioclock.py": {
+   "class": "captured",
+   "kind": "constructed+device-address",
+   "source": "real device address(es) 28:0C:50:0C:18:FD, A0:9E:1A:9C:3B:60, E4:22:F1:C2:23:2B; was: \"CONSTRUCTED FROM A HEADER, NOT CAPTURED FROM THE AIR\"",
+   "sha256": null
+  },
+  "test_rec_to_psl.py": {
+   "class": "derived",
+   "kind": "real-night-values",
+   "source": "\"Transcribed from a real capture (Polar_H10_02849638_20260610_211534_PPI.txt, first data row)\"",
+   "sha256": null
+  },
+  "test_scan_coexistence.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_seal_poller.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_seam_sidecar.py": {
+   "class": "derived",
+   "kind": "real-night-values",
+   "source": "device-clock values \"verbatim from the file\"",
+   "sha256": null
+  },
+  "test_solid_night.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_solid_night_inputs.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_stale_bond_and_empty_writers.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 24:AC:AC:02:84:96; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_storage_targets.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_telemetry.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_tepna_restart_sh.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_tepna_wifi_sh.py": {
+   "class": "synthetic",
+   "kind": "standard-vectors",
+   "source": "the same TestNet PSK as test_wifi_join.py",
+   "sha256": null
+  },
+  "test_timeline.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 00:1A:7D:DA:71:13, 24:AC:AC:02:84:96, 24:AC:AC:0C:30:1E; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_timeline_gaps.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 24:AC:AC:02:84:96, AC:A7:F1:29:9D:1D; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_verdict.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_vigil_update.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_webmon_error_contract.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 24:AC:AC:0C:30:1E, D1:98:62:7C:92:B3; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_webmon_nights.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_webmon_state_contract.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) D1:98:62:7C:92:B3; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_wifi_join.py": {
+   "class": "captured",
+   "kind": "standard-vectors+device-address",
+   "source": "real device address(es) 10:5A:95:88:79:EC, 10:5A:95:88:79:ED, 52:DC:E7:1F:45:0E …; was: PSK = wpa_passphrase TestNet \"correct horse battery\" (re-derived 2026-10-04)",
+   "sha256": null
+  },
+  "test_worn_detectors.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "test_writers.py": {
+   "class": "format",
+   "kind": "real-headers",
+   "source": "headers \"taken from the real PSL corpus\"; no data",
+   "sha256": null
+  },
+  "test_writers_sidecars.py": {
+   "class": "captured",
+   "kind": "device-address",
+   "source": "real device address(es) 00:1A:7D:DA:71:13, 24:AC:AC:0C:30:1E; was: stamps and bytes built in the test; no provenance claim in the file",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/TESTBOX0-2026-09-20.tepna": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/expected.json": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/plants/expected.json": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/plants/plant-consent_absent.tepna": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/plants/plant-consent_disagrees.tepna": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/plants/plant-flipped_byte_in_one_stream.tepna": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/plants/plant-truncated_payload.tepna": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/plants/plant-unknown_signing_key.tepna": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/test-card-key.txt": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/test-signing-key-other.pem": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/test-signing-key.pem": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "vectors/tepna-seal-1/verdict-sample.json": {
+   "class": "synthetic",
+   "kind": "test-box-vectors",
+   "source": "TESTBOX0 seal vectors, test keys and plants",
+   "sha256": null
+  },
+  "wire/polar-h10-fw5.0.0.json": {
+   "class": "captured",
+   "kind": "device-protocol",
+   "source": "probe output, Polar H10 24:AC:AC:02:84:96, probed_at 2026-08-10 (the file's own fields)",
+   "sha256": "09705ef635673b7fc0111fcf59bec86b6391874e90a222d85f38f62e38975640"
+  },
+  "wire/verity-sense-INW4J-fw0.1.5.json": {
+   "class": "captured",
+   "kind": "device-protocol",
+   "source": "probe output, Verity Sense 24:AC:AC:0C:30:1E, probed_at 2026-08-10 (the file's own fields)",
+   "sha256": "6cee78e6d1e140f69345175ee2413b40450fe1b73fe983053948c232cb285966"
+  }
+ }
+}
