@@ -32,7 +32,7 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # solid_night_inputs.py went 24 -> 23 on 2026-10-03: #3243 DELETED the entry excusing
 # `rstrip("\\n")` -> `lstrip("\\n")` because the gate refuted it — cell 7 is compared as a string
 # to "ok", so the surviving newline skips the row. A refuted claim is removed, not softened.
-# writers.py went 2 -> 17 and jitterfloor.py entered at 5 on 2026-10-04 (night-0928 row E11). E11 edits
+# writers.py went 2 -> 19 and jitterfloor.py entered at 5 on 2026-10-04 (night-0928 row E11). E11 edits
 # PmdArrivalLogWriter.__init__, which put that whole function in the gate's scope: 41 survivors, of which
 # only 13 were the new header-width read. Six more were killed with real tests (a file of exactly "\n" is
 # the only input separating `getsize > 0` from `> 1`; `rfind` returning 0 separates `_c >= 0` from `>= 1`;
@@ -44,7 +44,11 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # (the false arm computes the same number, -1 + 1 == 0). One is `knife-edge-only`, not equivalence, and
 # one is `untestable-by-design`: freezing _time.monotonic to pin the flush boundary crashed both writer
 # globs and cost 132 verdicts, the second time this suite has had to retire a test that reaches into the
-# harness it runs on.
+# harness it runs on. Two are `equivalent` (a structural proof, not a sampling): the `rstrip("\\n")` ->
+# `lstrip`/`rstrip(None)` pair on the width line, whose stripped string is consumed ONLY by
+# `count(";")`. ⚠️ #3243 DELETED that identical mutation's entry for solid_night_inputs.py because
+# there the cell is string-compared to "ok" — a refutation does not transfer between call sites just
+# because the mutation looks the same, and both entries now say so beside their keys.
 # solid_night_inputs.py went 23 -> 34 on 2026-10-03 (#3245) and that NET RISE hides a second deletion
 # the count cannot show: the SIBLING entry excusing `cols = header.rstrip("\\n")` -> `lstrip` in
 # `residual_scan` was refuted the same way and removed — `_SENSOR_NS_COL not in cols` is a STRING
@@ -102,7 +106,7 @@ RATCHET = {
     "solid_night_inputs.py": 34,
     "telemetry.py": 1,
     "timeline.py": 1,
-    "writers.py": 17,
+    "writers.py": 19,
 }
 
 
