@@ -7,7 +7,10 @@
 # the tool exists to withhold. Every case below is a shape taken from this suite, not an invented one.
 import pytest
 
+import blind_spots as _B_MOD
 from blind_spots import DISCARDED, SWALLOWED, analyze, rank, summarize
+
+B_FILE = _B_MOD.__file__
 
 
 def _one(src):
@@ -322,3 +325,74 @@ def test_enclosure_survives_a_statement_in_between():
     src = "def outer():\n    if True:\n        def inner(a, b):\n            return a\n"
     found = {r["double"] for r in analyze(src, path="t.py")}
     assert "inner" in found, "a double under an `if` lost its enclosure on the way down"
+
+
+# ── THE EQUIVALENCE BATTERY (tools/mutate-equivalence.json, blind_spots.py) ────────────────────────
+# `visit(tree, False)` → `visit(tree, None)` survives every test. Both are falsy and `enclosed` is
+# consumed only by `if _is_double(...)`, so no source can tell them apart — but that claim is worth
+# recording only if the instrument can detect a difference at all, so the canaries run FIRST.
+import types
+
+from _srcscan import module_source
+
+_BS_CANARIES = [
+    ("visit(tree, False)", "visit(tree, True)", "every top-level function becomes a double"),
+    ("visit(child, True)", "visit(child, False)", "nothing nested is a double any more"),
+    ('if fn.name.startswith("test_")', 'if fn.name.endswith("test_")', "test functions stop being exempt"),
+]
+_BS_CANDIDATE = ("visit(tree, False)", "visit(tree, None)")
+
+_BS_CORPUS = [
+    "def helper(a, b):\n    return a\n",
+    "def outer():\n    def inner(a, b):\n        return a\n",
+    "class H:\n    def meth(self, a, b):\n        return a\n",
+    "def test_t(a, b):\n    return a\n",
+    "f = lambda a, b: a\n",
+    "def outer():\n    if True:\n        def inner(a, b):\n            return a\n",
+    "class H:\n    def m(self):\n        def deep(a, b):\n            return a\n",
+    # ⚠️ AN ENCLOSED `test_*`, and the battery is wrong without it: the exemption only CHANGES an
+    # answer where the node would otherwise be a double, i.e. where it is enclosed. With the test
+    # function at top level, `startswith` and `endswith` both end at `return enclosed` = False and
+    # the canary goes uncaught — which is how the canary rule caught this battery being too narrow
+    # before it certified anything.
+    "class H:\n    def test_m(self, a, b):\n        return a\n",
+    "def outer():\n    def test_inner(a, b):\n        return a\n",
+    "def outer(**kw):\n    return 1\n",
+    "def outer():\n    def inner(**kw):\n        return 1\n",
+    "",
+]
+
+
+def _bs_variant(before=None, after=None):
+    src = module_source("blind_spots.py")
+    if before is not None:
+        assert src.count(before) >= 1, f"anchor {before!r} absent — the battery would test nothing"
+        src = src.replace(before, after)
+    mod = types.ModuleType("blind_spots_variant")
+    exec(compile(src, B_FILE, "exec"), mod.__dict__)
+    return mod
+
+
+def _bs_observe(mod):
+    out = []
+    for i, src in enumerate(_BS_CORPUS):
+        try:
+            out.append(sorted((r["double"], r["kind"], tuple(r["discarded"])) for r in mod.analyze(src, f"t{i}.py")))
+        except SyntaxError as e:  # part of the observable behaviour, and it names the file
+            out.append(("SyntaxError", e.filename))
+    return out
+
+
+def test_the_falsy_enclosure_constant_is_unkillable_and_the_battery_can_PROVE_it():
+    base = _bs_observe(_bs_variant())
+    assert any(r for r in base), "the corpus found no doubles at all — it measures nothing"
+
+    for before, after, why in _BS_CANARIES:
+        assert _bs_observe(_bs_variant(before, after)) != base, (
+            f"canary NOT caught ({why}) — this battery cannot detect a difference"
+        )
+
+    before, after = _BS_CANDIDATE
+    assert _bs_observe(_bs_variant(before, after)) == base, (
+        f"{before!r} -> {after!r} IS distinguishable — a test gap, not an equivalence"
+    )

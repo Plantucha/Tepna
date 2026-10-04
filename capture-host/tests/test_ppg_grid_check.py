@@ -296,3 +296,76 @@ def test_a_step_SHORTER_than_the_modal_one_does_not_count_as_fabricated_time(tmp
     assert m["modal_step_ns"] == 1_000_000
     assert m["gaps"] == 2, m["gaps"]
     assert m["gap_seconds"] == 0.002, m["gap_seconds"]
+
+
+# ── THE EQUIVALENCE BATTERY (tools/mutate-equivalence.json, ppg_grid_check.py) ─────────────────────
+# Two mutants in `grid_inflation` survive every test, and the claim that they CANNOT be killed is only
+# worth recording if the instrument making it can detect a difference at all. So the canaries run
+# FIRST and must all be caught: a battery that distinguishes nothing is indistinguishable from one too
+# narrow to distinguish anything (tools/probe_equivalence.py's rule).
+import types
+
+from _srcscan import module_source
+
+_PGC_CANARIES = [
+    # (before, after, why it MUST be caught)
+    ("(ns1 - ns0) / 1e9", "(ns1 + ns0) / 1e9", "the grid span is a difference, not a sum"),
+    ("if modal is not None and d > modal", "if modal is not None and d < modal", "the gap filter flips"),
+    ("if wall <= 0", "if wall <= 1", "the unjudgeable-file guard widens to a second"),
+]
+_PGC_CANDIDATES = [
+    ("if deltas else None", "if (deltas) or True else None"),
+    ("if modal is not None and d > modal", "if modal is not None and d >= modal"),
+]
+
+
+def _pgc_variant(before=None, after=None):
+    src = module_source("ppg_grid_check.py")
+    if before is not None:
+        assert src.count(before) == 1, f"anchor {before!r} is not unique — the battery would test nothing"
+        src = src.replace(before, after)
+    mod = types.ModuleType("pgc_variant")
+    exec(compile(src, pgc.__file__, "exec"), mod.__dict__)
+    return mod
+
+
+def _pgc_corpus(tmp_path):
+    """Files spanning every shape `grid_inflation` branches on: clean, gappy above the modal step,
+    gappy BELOW it, both at once, a non-zero start, a sub-second span, a single step."""
+    out, mk = [], lambda i, steps, ns0=0: _raw(
+        tmp_path,
+        [_row(0, ns0)] + [_row((j + 1) * 10, ns0 + sum(steps[: j + 1])) for j in range(len(steps))],
+        name=_name(f"2026072502{i:04d}"),
+    )
+    out.append(mk(1, [1_000_000] * 9))
+    out.append(mk(2, [1_000_000] * 3 + [3_000_000] + [1_000_000] * 5))
+    out.append(mk(3, [1_000_000] * 3 + [500_000] + [1_000_000] * 5))
+    out.append(mk(4, [1_000_000, 500_000, 3_000_000, 1_000_000, 1_000_000, 250_000, 1_000_000]))
+    out.append(mk(5, [1_000_000] * 9, ns0=7_000_000_000))
+    out.append(mk(6, [50_000] * 9))
+    out.append(mk(7, [2_000_000_000]))
+    return out
+
+
+def _pgc_observe(mod, files):
+    return [mod.grid_inflation(f) for f in files]
+
+
+def test_the_two_inert_grid_mutants_are_unkillable_and_the_battery_can_PROVE_it(tmp_path):
+    files = _pgc_corpus(tmp_path)
+    base = _pgc_observe(_pgc_variant(), files)
+    assert any(r is not None for r in base), "the corpus produced no judgeable file — it measures nothing"
+
+    caught = 0
+    for before, after, why in _PGC_CANARIES:
+        if _pgc_observe(_pgc_variant(before, after), files) != base:
+            caught += 1
+        else:
+            raise AssertionError(f"canary NOT caught ({why}) — this battery cannot detect a difference")
+    assert caught == len(_PGC_CANARIES)
+
+    for before, after in _PGC_CANDIDATES:
+        assert _pgc_observe(_pgc_variant(before, after), files) == base, (
+            f"{before!r} -> {after!r} IS distinguishable on this corpus — it is a test gap, not an "
+            "equivalence, and the ledger entry must be withdrawn"
+        )
