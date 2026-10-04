@@ -18,6 +18,7 @@ import json
 import cmath
 import math
 import os
+import time as _time
 import logging
 import subprocess
 
@@ -1551,6 +1552,32 @@ def data_settled(newest_mtime: float | None, settle_sec: float, now: float) -> b
     if newest_mtime is None:
         return False
     return (now - newest_mtime) >= settle_sec
+
+
+def data_quiet_s(night_dir: str, _now=_time.time) -> float | None:
+    """Seconds since this night's last DEVICE sample, or None if it holds no capture file at all.
+
+    🔴 THE SECOND OF TWO QUESTIONS THAT LOOK ALIKE. `diskguard.active_nights` answers *is anything
+    writing here* — ANY file younger than the settle window — and is correct as it stands for the
+    protect-lists that prune, mirror and archive read it as: for "leave this alone", any activity is the
+    conservative test. This answers a different question — *has this night's DEVICE DATA gone quiet* —
+    and only capture files count. Borrowing the first for the second is how a night that finished 11
+    hours ago reads as still in progress: the daemon appends the live-vitals `OXYLIFE.csv` into the
+    session's START-date folder for as long as the run lasts, so on vigil 2026-09-29 `2026-09-28` was
+    `active` with its device data quiet 39 702 s and its own FAIL verdict written 8 h earlier. Named
+    separately, and beside BOTH its twins, so a reader cannot reach for the wrong one:
+    `diskguard.active_nights` answers *is anything writing here*, `data_settled` just above answers
+    *has it been quiet long enough* as a BOOL against the caller's window, and this one answers *how
+    long* as a DURATION. Three questions that share a folder and are not interchangeable.
+
+    Returns a DURATION, not a boolean: the settle window belongs to the caller's config, and the surface
+    that reports a pending night wants the number, not the verdict about it. Never negative — a file
+    stamped in the future is quiet for zero seconds, not for a negative span.
+
+    ABSENCE IS NULL: a folder with no capture file has no last sample, and that is `None`, never `0.0`
+    (which would read as "a sample just arrived") and never a large number (which would read as settled)."""
+    m = newest_data_mtime(night_dir)
+    return None if m is None else max(0.0, _now() - m)
 
 
 def newest_data_mtime(night_dir: str) -> float | None:

@@ -3,6 +3,8 @@
 """jitterfloor: planted-value recovery, the drawn-axis refusal, and every parse rejection path."""
 
 import json
+import os
+import time
 
 
 import jitterfloor as jf
@@ -20,6 +22,123 @@ def _write_night(tmp_path, name, lines):
     p = tmp_path / ("%s_PMDARRIVAL.csv" % name)
     p.write_text("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n" + "\n".join(lines) + "\n")
     return p
+
+
+def test_the_DEVICE_CLOCK_resolves_the_DST_FOLD_and_not_the_previous_host_stamp(tmp_path, monkeypatch):
+    """`resolve_ms(dt, dev_ms=first_ns / 1e6)` — the `dev_ms` argument, which nothing here observed.
+
+    On 2026-11-01 the box's wall clock passes 01:00–02:00 TWICE, so a stamp inside the fold has two
+    possible instants an hour apart. `LocalStampResolver` resolves it from the DEVICE clock when it has
+    an offset to compare against, and falls back to "later than the previous host stamp" when it does
+    not. Those two rules DISAGREE on the second pass: the fallback picks the FIRST (EDT) candidate
+    because it is still ≥ the previous stamp, while the device — whose counter is monotonic and has
+    advanced a real hour — picks the SECOND (EST) one, which is the true instant.
+
+    So this file holds a pre-fold row to establish the offset, then a fold row whose device counter has
+    advanced ~1 h. Dropping `dev_ms` or passing None sends the fold row an hour into the past, and the
+    floor is computed over host↔device differences, so the whole stream's estimate moves with it."""
+    before = os.environ.get("TZ")
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    try:
+        q = tmp_path / "fold_PMDARRIVAL.csv"
+        rows = ["Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"]
+        # Pre-fold, unambiguous: 00:30 EDT. Device at 0 s, so prev_offset is established here.
+        rows.append("2026-11-01T00:30:00.000;H10;ECG;0;7812500;130")
+        # INSIDE the fold, on the SECOND pass: wall clock 01:30, device counter at 7200 s.
+        #
+        # ⚠️ 7200 and not 3600, and the difference is the whole test. The second pass through 01:30 is
+        # TWO hours after 00:30 EDT, because the hour 01:00–02:00 has already been spent once. I first
+        # wrote 3600 s, which describes the FIRST pass — and there both rules agree on the earlier
+        # candidate, so the test passed with `dev_ms=None` planted and asserted nothing at all. A
+        # two-hour advance is what makes the device clock and the previous-host fallback DISAGREE.
+        rows.append("2026-11-01T01:30:00.000;H10;ECG;7200000000000;7200007812500;130")
+        rows.append("2026-11-01T01:30:01.000;H10;ECG;7201000000000;7201007812500;130")
+        q.write_text("\n".join(rows) + "\n")
+
+        streams = jf.parse_pmdarrival(q)
+        assert "H10|ECG" in streams, streams
+        hosts = [h for h, _ in streams["H10|ECG"]]
+        assert len(hosts) == 3, hosts
+        # The fold rows must land an hour AFTER the naive EDT reading of 01:30 — i.e. the host↔device
+        # difference stays flat across the seam instead of jumping by 3,600,000 ms.
+        diffs = [h - (ns / 1e6) for h, ns in streams["H10|ECG"]]
+        assert abs(diffs[1] - diffs[0]) < 1000.0, (
+            diffs,
+            "the device clock must have resolved the fold: a 3.6e6 ms jump here means the fold row was "
+            "placed on the FIRST pass, which is what dropping dev_ms does",
+        )
+        assert abs(diffs[2] - diffs[0]) < 1000.0, diffs
+    finally:
+        if before is None:
+            monkeypatch.delenv("TZ", raising=False)
+        else:
+            monkeypatch.setenv("TZ", before)
+        time.tzset()
+
+
+def test_an_UNDECODABLE_BYTE_in_the_file_is_REPLACED_not_raised(tmp_path):
+    """`read_text(encoding="utf-8", errors="replace")`, both keywords. A sidecar with one bad byte — a
+    torn write, a bad sector — must still yield a floor from the rows that ARE readable. Strict
+    decoding raises instead, which turns one corrupt byte into a lost night of jitter data.
+
+    The bad byte is placed in a row the parser will reject anyway, so the measurement is unchanged and
+    the test is about the READ surviving, not about the value."""
+    good = (
+        "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n"
+        "2026-06-10T22:00:00.000;H10;ECG;1000000000;1007812500;130\n"
+        "2026-06-10T22:00:01.000;H10;ECG;2000000000;2007812500;130\n"
+        "2026-06-10T22:00:02.000;H10;ECG;3000000000;3007812500;130\n"
+    )
+    clean = tmp_path / "clean_PMDARRIVAL.csv"
+    clean.write_text(good)
+    dirty = tmp_path / "dirty_PMDARRIVAL.csv"
+    with open(dirty, "wb") as fh:
+        fh.write(good.encode())
+        fh.write(b"2026-06-10T22:00:03.000;H1\xff0;ECG;notanumber;x;130\n")
+
+    want = jf.parse_pmdarrival(clean)
+    got = jf.parse_pmdarrival(dirty)  # must not raise
+    assert got == want, (got, want, "the readable rows must give the same answer")
+
+
+def test_a_SEVEN_column_file_is_read_not_silently_skipped(tmp_path):
+    """🔴 THE BREAK E11 WOULD HAVE SHIPPED, and the reason the other 30 tests here could not see it.
+
+    E11 appended `first_sample_idx` to `_PMDARRIVAL.csv` for the O2Ring, which has no clock. This
+    reader gated on `len(parts) != 6`, so against a seven-column file it skipped EVERY ROW — and
+    skipping is invisible here by design: the floor is a MINIMUM over parsed rows, so "no rows" yields
+    nothing rather than reding anything. Every existing test fed a six-column fixture, so the whole
+    file passed while the first night after the box restarts would have read as empty.
+
+    The two shapes are asserted to give the SAME floor, which is the real contract: an appended column
+    is not information this function uses, and it must not change the answer."""
+    six = _real_clock_stream(n=60)
+    seven = [ln + ";4000" for ln in six]
+    p6 = _write_night(tmp_path, "six_20261004220000", six)
+    p7 = tmp_path / "seven_20261004220000_PMDARRIVAL.csv"
+    p7.write_text(
+        "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx\n"
+        + "\n".join(seven)
+        + "\n"
+    )
+    got6 = jf.parse_pmdarrival(p6)
+    got7 = jf.parse_pmdarrival(p7)
+    assert got7, "a seven-column file must not read as EMPTY — that is the silent skip"
+    assert {k: len(v) for k, v in got7.items()} == {k: len(v) for k, v in got6.items()}, (got6, got7)
+    assert got7 == got6, "an appended column this function does not read must not change its answer"
+
+    # AND A ROW WITH NO DEVICE CLOCK IS STILL SKIPPED, for its own reason: the ring's frame rows carry
+    # a blank `first_sensor_ns`, and a floor cannot be taken against a device time that does not exist.
+    # That skip is CORRECT and must survive the widening — it is `int(parts[3])` failing, not the width.
+    ring = [ln.split(";")[0] + ";O2Ring-S;PPG_FRAME;;;20;4000" for ln in six[:5]]
+    p8 = tmp_path / "ring_20261004220000_PMDARRIVAL.csv"
+    p8.write_text(
+        "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx\n"
+        + "\n".join(ring)
+        + "\n"
+    )
+    assert jf.parse_pmdarrival(p8) == {}, "a clockless row has no floor to contribute"
 
 
 def _real_clock_stream(n=120, base_s=0.5, jitter_ms=(3, -3)):

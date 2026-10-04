@@ -71,7 +71,12 @@ def _write_and_recover(tmp_path, ppm: float, minutes: int = 40, hz: float = 130.
                 continue
             host = dt.datetime.strptime(c[0], "%Y-%m-%dT%H:%M:%S.%f")
             rows.append((host, int(c[3])))
-    assert header == "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"
+    # `first_sample_idx` appended 2026-10-04 (E11) for the O2Ring, which has no clock and therefore no
+    # `first_sensor_ns`. ⚠️ THIS READER NEEDED NO OTHER CHANGE, and that is worth noticing: it already
+    # skips a row whose `c[3]` is blank and already bounds on `len(c) < 6` rather than `!= 6`, so a
+    # clockless device's rows are invisible to it and an appended column is harmless. A consumer that
+    # had pinned the width or indexed from the end would have broken instead.
+    assert header == "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx"
     assert len(rows) > 100, f"only {len(rows)} rows survived the write path"
 
     h0, d0 = rows[0][0], rows[0][1]

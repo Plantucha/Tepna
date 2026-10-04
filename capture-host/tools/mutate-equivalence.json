@@ -5194,6 +5194,14 @@
       "op": "the clock STREAM TAG dropped at the timebase call site",
       "probe": "No probe: `clock_tag` is read by exactly one line of `timebase` — the message for an EMPTY `clock_files` — and that list cannot be empty at this call site under today's `MODELS`, shown below. Every other path ignores the argument, so no input can separate the two values.",
       "why": "FOR EVERY MODEL THAT DECLARES A CLOCK STREAM, `clock` EQUALS `primary` — H10 → ECG, VeritySense → PPG — and `score_devices` has already returned the `presence` band at `if not primaries` when that file is absent. So `stream_files(night_dir, model, clock_tag)` is non-empty whenever this line runs, `timebase` never reaches the branch that renders the tag, and the tag's VALUE cannot change an answer. The ring is the one model where clock ≠ primary and its clock is None, which the caller handles before this line. The invariant is not assumed: `test_the_CLOCK_TAG_per_model_is_the_stream_that_reports_a_DEVICE_time` asserts `all(m[\"clock\"] == m[\"primary\"] for m in MODELS.values() if m[\"clock\"] is not None)`, so the day a model declares a clock stream DIFFERENT from its primary that test fails, this mutant becomes reachable, and the right answer is a test of the rendered tag — not this entry. That is the falsifier, and it is a test rather than an argument."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 §3.4 (the declared-pause band, #3259) — drained 2026-10-03",
+      "class": "untestable-by-design",
+      "key": "- if span is None or span[0] is None or span[0] > start or span[1] < end: | + if span is None or span[1] is None or span[0] > start or span[1] < end:",
+      "op": "the span's FIRST member tested for absence replaced by its LAST",
+      "probe": "No probe, because no input can separate them: `span[0] is None` and `span[1] is None` are the SAME predicate for every span this function can receive, shown below. The reachable half of the guard IS tested — `test_an_AUDITED_FILE_WITH_NO_READABLE_STAMP_is_not_examined` plants a `(None, None)` span and both the original and this mutant refuse it identically.",
+      "why": "`first_last` SETS BOTH MEMBERS OR NEITHER. It walks the file, sets `first` on the first parseable row stamp and `last` on every one, so a file with no parseable stamp yields `(None, None)` and a file with any yields two real datetimes — a MIXED pair is unconstructible. Every `spans` value reaching `continuity` comes from that one function (`score_devices` builds `{p: first_last(p) for p in primaries}`), so testing the first member for absence and testing the last are the same test. The mutant is not a different question answered the same way; it is the same question. FALSIFY THIS by giving `spans` a value from any other source, or by making `first_last` able to return one None and one stamp — at which point the right answer is a test of which end is meant, not this entry."
     }
   ],
   "telemetry.py": [
@@ -5226,6 +5234,125 @@
       "key": "- if self._prev_ns is not None and self._prev_phone_ms is not None: | + if self._prev_ns is not None or self._prev_phone_ms is not None:",
       "probe": "tests/test_seam_sidecar.py — the whole file: every test feeds a fresh instance, so both members are None on the first sample and set on every one after.",
       "why": "`self._prev_ns` and `self._prev_phone_ms` are assigned TOGETHER at the end of `feed`, on adjacent lines, and nothing else writes either. So they are both None before the first sample and both set after it, and no state exists in which `and` and `or` differ. The pair is written as two names rather than a tuple because each is consumed separately below; the guard reads both for symmetry with that, not because they can disagree."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\" if _resume else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"a\" if _resume else \"w\", buffering=1 << 17, newline=\"\\n\")",
+      "probe": "MEASURED 2026-10-04: `1 << 17` and `2 << 16` are the SAME NUMBER (131072), so two of these mutants are not even distinguishable from each other. Wrote a 7-column file through both buffer sizes and diffed: byte-identical. No input makes them differ because the writer never relies on a partial buffer being visible.",
+      "why": "A buffer SIZE has no observable consequence: every assertion in this suite reads the file after a `flush()` or a `close()`, both of which empty the buffer whatever its capacity. The only difference is HOW OFTEN the kernel is called, which no test can see without timing the syscalls — and a timing assertion on a shared capture box is a flake, not a test."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\" if _resume else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"a\" if _resume else \"w\", buffering=2 << 16, newline=\"\\n\")",
+      "probe": "MEASURED 2026-10-04: `python3 -c 'print(2 << 16, 1 << 17)'` -> `131072 131072`. A mutant equal to another mutant of the same line cannot be distinguished by any test.",
+      "why": "Same as the `1 << 17` mutant, and literally the same value: `2 << 16 == 1 << 17 == 131072`."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\" if _resume else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"a\" if _resume else \"w\", newline=\"\\n\")",
+      "probe": "MEASURED 2026-10-04 alongside the size mutants: byte-identical output file.",
+      "why": "Dropping `buffering` falls back to Python's default buffer size. Same argument as the size mutants: capacity is invisible after a flush."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\" if _resume else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"a\" if _resume else \"w\", buffering=1 << 16, newline=None)",
+      "probe": "MEASURED 2026-10-04: wrote `'a;b\\n'` through `newline=\"\\n\"` and `newline=None` and read the raw bytes back — both `b'a;b\\n'`; `os.linesep` is `'\\n'`. The pin stays because it states the intent, not because a test here can fail without it.",
+      "why": "A PROOF for THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, which is the precedent I should have matched from the start. `newline=\"\\n\"` pins the line terminator against universal-newline translation on WRITE. With `newline=None` Python translates `\\n` to `os.linesep` — which on Linux IS `\\n`. The explicit form is defensive against a Windows host, and this capture host is Linux-only (systemd + BlueZ throughout), so no input on any machine that can run this code distinguishes them."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\" if _resume else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"a\" if _resume else \"w\", buffering=1 << 16, )",
+      "probe": "MEASURED 2026-10-04, same probe: byte-identical on Linux.",
+      "why": "A PROOF for THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, which is the precedent I should have matched from the start. Dropping `newline` is the same as passing None. See the `newline=None` entry."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\" if _resume else \"w\", buffering=1 << 16, newline=\"\\n\") | + self._fh = open(path, \"a\" if (_resume) or True else \"w\", buffering=1 << 16, newline=\"\\n\")",
+      "probe": "MEASURED 2026-10-04 by reasoning over the three reachable states and confirmed against the suite: the mode mutant passes every writer test, including the torn-tail, empty-file, newline-only and one-byte cases that drive every branch of `_resume`. The truncation that makes the fourth state unreachable is itself pinned by `test_a_torn_tail_is_cut_to_the_newline_and_NOT_ONE_BYTE_PAST_IT`.",
+      "why": "Forcing append MODE changes nothing, because `_resume` — the variable — is untouched and is what decides whether the header is written. The three reachable states: a MISSING file (\"a\" and \"w\" both create it empty), an EMPTY existing file (\"w\" truncates nothing; \"a\" appends to nothing), and a RESUME (the real code already passes \"a\"). A file with content and `_resume` false is unreachable: `_resume` is false only when the file is missing or was truncated to zero bytes in the lines immediately above."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as _h: | + with open(path, encoding=\"utf-8\", errors=\"replace\") as _h:",
+      "probe": "MEASURED 2026-10-04: the mutant is the documented default (`open()` mode defaults to `'r'`); the full writer suite passes with it. No input can distinguish a value from its own default.",
+      "why": "Dropping the mode string leaves the default, which IS `\"r\"`."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as _h: | + with open(path, \"r\", encoding=None, errors=\"replace\") as _h:",
+      "probe": "MEASURED 2026-10-04: ran the writer against a 7-column file under `LC_ALL=C`; `locale.getpreferredencoding(False)` reported `utf-8` on this box and `_cols` read 7 either way. A test that pinned the codec would have to set a non-UTF-8 locale for the whole process, which this suite deliberately does not do (see the DST suite's fixture for how invasive even a TZ change is).",
+      "why": "A PROOF for THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, which is the precedent I should have matched from the start. `encoding=None` uses the locale's preferred encoding. The header is pure ASCII, and `errors=\"replace\"` (unmutated here) prevents a raise on any byte whatever the codec, so the semicolon count — the only thing read from this line — is the same under every single-byte or UTF-8 locale. The explicit `utf-8` is still correct to keep: it makes the read independent of the box's locale rather than merely compatible with it."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as _h: | + with open(path, \"r\", errors=\"replace\") as _h:",
+      "probe": "MEASURED 2026-10-04, same `LC_ALL=C` probe: `_cols` unchanged at 7.",
+      "why": "A PROOF for THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, which is the precedent I should have matched from the start. Dropping `encoding` is the same as passing None. See the `encoding=None` entry."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- if _t.read(1) != b\"\\n\": | + if _t.read(2) != b\"\\n\":",
+      "probe": "PROVEN by position, not by sampling: after `seek(-1, 2)` exactly one byte remains, so `read(n)` for every n >= 1 returns the same one-byte string. Confirmed 2026-10-04 against the torn-tail, empty, one-byte, newline-only and third-byte fixtures — all pass with the mutant.",
+      "why": "The handle has just been positioned at `seek(-1, 2)` — ONE byte from the end. `read(2)` can therefore only ever return that same single byte, so the comparison against `b\"\\n\"` has an identical result for every possible file."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- if _t.read(1) != b\"\\n\": | + if _t.read(None) != b\"\\n\":",
+      "probe": "PROVEN by position, 2026-10-04: identical to the `read(2)` case.",
+      "why": "`read(None)` reads to EOF, which from one byte before EOF is that one byte. Same proof as `read(2)`."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- _t.seek(-1, 2) | + _t.seek(+1, 2)",
+      "probe": "MEASURED 2026-10-04: planted `seek(+1, 2)` and ran the writer suite — all pass, including the newline-only file (size 1, must stay a resume), the clean 6- and 7-column resumes, and the three torn-tail fixtures. The mutant does strictly MORE work for the same result.",
+      "why": "`seek(1, 2)` lands one byte PAST the end, so the read returns `b\"\"`, which is `!= b\"\\n\"`, so the mutant always takes the truncate path. That path truncates to `rfind(b\"\\n\") + 1` — and for a file that genuinely ends in a newline that offset IS the file length, so the truncation is a no-op. Every file therefore ends in the same state: cleanly-terminated files are untouched, torn files are cut identically."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- _t.truncate(_c + 1 if _c >= 0 else 0) | + _t.truncate(_c + 1 if (_c >= 0) or True else 0)",
+      "probe": "PROVEN arithmetically and checked 2026-10-04 on the no-newline fixture: both arms truncate to 0.",
+      "why": "Forcing the true arm is harmless because the false arm computes the SAME NUMBER: `_c` is `rfind`'s result, which is -1 exactly when there is no newline, and `-1 + 1 == 0` is the false arm's value. The conditional is defensive clarity, not a branch with two outcomes."
+    },
+    {
+      "brief": "night-0928 row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- _resume = False | + _resume = None",
+      "probe": "MEASURED 2026-10-04: planted `None` and ran the whole writer suite — all pass. `_resume` is read in exactly two places and both are boolean contexts; no code path reads it as a value, compares it with `is`, or returns it.",
+      "why": "`False` and `None` are both falsy, and `_resume` is only ever consumed as a truth value — once in `\"a\" if _resume else \"w\"` and once in the `if _resume:` that decides whether the header is written. This is the INITIALISER, overwritten by `os.path.getsize(path) > 0` on every path where the file exists; its falsiness is the whole of its meaning."
+    },
+    {
+      "brief": "night-0928 row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "untestable-by-design",
+      "key": "- if now - self._last_flush >= self._flush_interval: | + if now - self._last_flush > self._flush_interval:",
+      "probe": "ATTEMPTED AND REMOVED 2026-10-04: `test_the_flush_interval_fires_ON_the_boundary_not_past_it` pinned the clock with `mock.patch.object(writers._time, \"monotonic\", lambda: 110.0)` and `_last_flush = 100.0`. It PASSES under plain pytest and CRASHES THE MUTATION HARNESS: both `PmdArrivalLogWriter` globs reported `mutants were generated but 0 tested — a crash after generation`, and mutate_diff REFUSED with UNKNOWN (132 keys unmeasured, jitterfloor's 53 decided in the same run). mutmut times each mutant with `time.monotonic`, so freezing that module attribute process-wide breaks its own bookkeeping — the test cost 132 real verdicts to pin one boundary. Removed rather than kept; same resolution as the `_drain_fsync` entry above.",
+      "why": "The `>=` / `>` boundary differs on exactly one input: a row arriving when `now - _last_flush` equals the interval to the float. Reaching it requires freezing the clock the harness itself runs on, so the only test that can distinguish the two is one that destroys the measurement. The invariant still holds — a row landing exactly on the interval flushes rather than deferring — and `_maybe_flush` is otherwise exercised by every writer test that writes more than one row."
+    },
+    {
+      "brief": "night-0928 row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- self._cols = (_h.readline() or \"\").rstrip(\"\\n\").count(\";\") + 1 | + self._cols = (_h.readline() or \"\").lstrip(\"\\n\").count(\";\") + 1",
+      "probe": "MEASURED 2026-10-04: planted each form and ran the whole writer suite, including `test_the_width_is_COUNTED_from_the_header_not_assumed`, which pins 1, 6, 7 and 8 columns — identical counts throughout. ⚠️ THE SAME MUTATION WAS REFUTED ELSEWHERE AND THE DIFFERENCE IS THE CONSUMER: #3243 deleted solid_night_inputs.py's `rstrip(\"\\\\n\")` -> `lstrip(\"\\\\n\")` entry because that cell is string-COMPARED to \"ok\", so a surviving newline skipped the row. Here the only consumer is `count(\";\")`. A refutation does not transfer between call sites just because the mutation is identical, and this entry exists partly to say so beside the key. ⚠️ AND VERIFIED AGAINST THE CLAIM, under the owner's 2026-10-04 ruling that Codex sizes survivors and the Claude session verifies: `codex exec --sandbox read-only` was asked for ONE distinguishing input or a precise argument that none exists, and answered 'No such input' for both, citing writers.py:3057 and the `_cols >= 7` consumer at :3080 — the same argument reached here independently. Because both claims are 'no input exists', one input proves nothing, so the verification is a probe over the adversarial SPACE: 1300 candidate first lines (every CORES x leading/trailing whitespace x with/without a trailing newline, where the whitespace set covers everything `rstrip(None)` touches and `rstrip(\"\\n\")` does not — space, tab, \\v, \\f, \\r, U+00A0, U+2009 — plus the empty line, the bare newline and None). 0 disagreements on `_cols`. Codex corroborated; it did not establish.",
+      "why": "A STRUCTURAL PROOF, not a sampling — but filed under `no-distinguishing-input`, because `mutation_diff.EXCUSING` is exactly two words and `equivalent` is not one of them: this gate buckets an `equivalent` entry as a REAL GAP. (The four existing `equivalent` entries are all JS, read by the mutate.mjs sibling, where it marks an upgrade FROM this class. Same file, two consumers, different vocabularies.) The whole of the stripped string's use is `count(\";\")`, and whitespace at either end cannot contain or hide a semicolon — so the count, and therefore `_cols`, is invariant. `lstrip` can only remove leading newlines, and a `readline()` result can begin with a newline ONLY when the line is empty — in which case the newline IS the whole string and both forms reduce it to `\"\"`. A `readline()` result holds at most ONE newline and only in final position, which is what makes this a structural proof rather than a sampling."
+    },
+    {
+      "brief": "night-0928 row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- self._cols = (_h.readline() or \"\").rstrip(\"\\n\").count(\";\") + 1 | + self._cols = (_h.readline() or \"\").rstrip(None).count(\";\") + 1",
+      "probe": "MEASURED 2026-10-04: planted each form and ran the whole writer suite, including `test_the_width_is_COUNTED_from_the_header_not_assumed`, which pins 1, 6, 7 and 8 columns — identical counts throughout. ⚠️ THE SAME MUTATION WAS REFUTED ELSEWHERE AND THE DIFFERENCE IS THE CONSUMER: #3243 deleted solid_night_inputs.py's `rstrip(\"\\\\n\")` -> `lstrip(\"\\\\n\")` entry because that cell is string-COMPARED to \"ok\", so a surviving newline skipped the row. Here the only consumer is `count(\";\")`. A refutation does not transfer between call sites just because the mutation is identical, and this entry exists partly to say so beside the key. ⚠️ AND VERIFIED AGAINST THE CLAIM, under the owner's 2026-10-04 ruling that Codex sizes survivors and the Claude session verifies: `codex exec --sandbox read-only` was asked for ONE distinguishing input or a precise argument that none exists, and answered 'No such input' for both, citing writers.py:3057 and the `_cols >= 7` consumer at :3080 — the same argument reached here independently. Because both claims are 'no input exists', one input proves nothing, so the verification is a probe over the adversarial SPACE: 1300 candidate first lines (every CORES x leading/trailing whitespace x with/without a trailing newline, where the whitespace set covers everything `rstrip(None)` touches and `rstrip(\"\\n\")` does not — space, tab, \\v, \\f, \\r, U+00A0, U+2009 — plus the empty line, the bare newline and None). 0 disagreements on `_cols`. Codex corroborated; it did not establish.",
+      "why": "A STRUCTURAL PROOF, not a sampling — but filed under `no-distinguishing-input`, because `mutation_diff.EXCUSING` is exactly two words and `equivalent` is not one of them: this gate buckets an `equivalent` entry as a REAL GAP. (The four existing `equivalent` entries are all JS, read by the mutate.mjs sibling, where it marks an upgrade FROM this class. Same file, two consumers, different vocabularies.) The whole of the stripped string's use is `count(\";\")`, and whitespace at either end cannot contain or hide a semicolon — so the count, and therefore `_cols`, is invariant. `rstrip(None)` strips every kind of trailing whitespace rather than just the newline, which is a superset of what the original removes and still touches no semicolon. A `readline()` result holds at most ONE newline and only in final position, which is what makes this a structural proof rather than a sampling."
     }
   ],
   "solid_night.py": [
@@ -5236,6 +5363,14 @@
       "op": "a different multiplier in the sample fixture's per-row device OFFSET",
       "probe": "The fixture's four stated properties were measured on the bytes under this mutant and all four hold: `test_the_SAMPLE_FIXTURE_carries_the_four_properties_it_needs` passes, and so does `test_the_SAMPLE_is_a_night_that_passes_EVERY_band`. Nine of ten hand-applied mutations of this same layout DO die on those two tests (the offset's sign, a zero modulus, a per-row instead of per-frame offset, a negative jitter, a shifted frame boundary, a changed row count, a changed sample period); this one and only this one survives them.",
       "why": "THE MULTIPLIER IS A FREE PARAMETER AND THE PROPERTY IS WHAT IS REQUIRED. The offset exists so the device column is not a DRAWN counter (`clock.js CK_AXIS_DRAWN_SHARE`): what the fixture owes is that no modal delta reaches `TB_DRAWN_SHARE`, that the counter stays monotone, that it starts at 0 and that it ends within one offset of the nominal span. 7919 and 7920 are both coprime-enough to 211 to spread the deltas across the same range, and `(0 * k) % 211` is 0 for either, so every one of those four holds identically. Pinning the multiplier would be pinning an arbitrary choice as if it were a requirement. FALSIFY THIS by finding a multiplier the fixture's properties hold for and the band still reads as drawn — then the properties are the thing that is incomplete, and the fix is another property, not a test of this literal."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 §2 (the pending verdict, #3241) — drained 2026-10-04",
+      "class": "untestable-by-design",
+      "key": "- settled=False, | + settled=None,",
+      "op": "the `settled` flag's FALSE replaced by NONE at the compose call",
+      "probe": "No probe: the receiver tests the argument for FALSINESS, so the two values take the same branch for every input. Confirmed by running the full `tests/test_solid_night.py` against the mutant — 47 passed, byte-identical verdict object, including the `not settled` reason and the run's `pending` night that `monitor.html` reads.",
+      "why": "`compose` branches on `if not settled:` and returns the UNKNOWN `not settled` verdict there, so `False` and `None` are the SAME INPUT to the only code that reads it. The parameter is annotated `settled: bool`, which says what a caller should pass; it does not make the two distinguishable at runtime, and `pending_verdict`'s whole contract is that this call is never settled. Writing `settled=False` rather than a falsy stand-in is a statement to the READER, and that is the right reason to keep it. FALSIFY THIS by making `compose` distinguish an UNSTATED settle from a stated False — an `is False` test, or a three-valued settle where None means 'not known yet' — at which point the difference becomes real and this entry is wrong."
     }
   ],
   "blind_spots.py": [
@@ -5261,6 +5396,43 @@
       "key": "- gap_seconds = sum(c * (d - modal) for d, c in deltas.items() if modal is not None and d > modal) / 1e9 | + gap_seconds = sum(c * (d - modal) for d, c in deltas.items() if modal is not None and d >= modal) / 1e9",
       "probe": "`pytest tests/test_ppg_grid_check.py::test_the_two_inert_grid_mutants_are_unkillable_and_the_battery_can_PROVE_it` — COMMITTED. 3 canaries (`ns1 - ns0` -> `+`, the gap filter flipped to `<`, the unjudgeable guard widened to a second) over 7 file shapes: clean, gappy above the modal step, gappy BELOW it, both at once, a non-zero first `sensor_ns`, a sub-second span, a single step. All three caught.",
       "why": "Widening `>` to `>=` admits exactly the terms where `d == modal`, and each contributes `c * (d - modal)` = `c * 0` = 0 to the sum. The value is identical for every possible histogram, by arithmetic rather than by the corpus. ⚠️ The SIBLING mutant on this same line, `and` -> `or`, is NOT equivalent and is killed by `test_a_step_SHORTER_than_the_modal_one_does_not_count_as_fabricated_time`: `or` admits deltas BELOW the modal step, which contribute negative terms. Same line, two mutants, opposite verdicts — which is why this file classifies per MUTANT and never per line."
+    }
+  ],
+  "jitterfloor.py": [
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- if len(parts) < 6 or parts[0] == \"Phone timestamp\": | + if len(parts) < 6 and parts[0] == \"Phone timestamp\":",
+      "probe": "MEASURED 2026-10-04: planted the `and` and ran all jitterfloor tests — identical floors on 6-column, 7-column, DST-fold and bad-byte files. The explicit check stays because it says WHY the row is skipped; the stamp parser is the backstop that makes it unobservable.",
+      "why": "The `or` short-circuit skips the header row explicitly; with `and` the header row is no longer skipped there — but it then reaches `_parse_stamp(\"Phone timestamp\")`, which returns None, and the loop `continue`s on the very next line. The row is discarded either way, and the function's only outputs are the parsed rows."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- if len(parts) < 6 or parts[0] == \"Phone timestamp\": | + if len(parts) < 6 or parts[1] == \"Phone timestamp\":",
+      "probe": "MEASURED 2026-10-04 with the same four fixtures: identical output. Same backstop as the `and` mutant.",
+      "why": "Reading the header sentinel from the DEVICE column instead of the stamp column means the header is not recognised — and then, exactly as with the `and` mutant, `_parse_stamp` rejects it one line later. No real row has `\"Phone timestamp\"` in its device field either, so nothing legitimate is dropped."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "untestable-by-design",
+      "key": "- host = folds.setdefault(key, LocalStampResolver()).resolve_ms(dt, dev_ms=first_ns / 1e6) | + host = folds.setdefault(key, LocalStampResolver()).resolve_ms(dt, dev_ms=first_ns / 1000001.0)",
+      "probe": "NOT ATTEMPTED as a test, deliberately, and this entry says so rather than claiming equivalence. A fixture tuned to that knife edge would assert that one arbitrary float beats another by a hair; it would break on any change to the fold arithmetic and would document nothing about the contract. What IS pinned is that `dev_ms` reaches the resolver AT ALL and resolves the fold correctly — `test_the_DEVICE_CLOCK_resolves_the_DST_FOLD_and_not_the_previous_host_stamp` (2026-10-04), which kills the `dev_ms=None` and dropped-argument mutants on the same line. WARNING: that test only works because the fold row's device counter advances TWO hours, not one — at one hour the device rule and the previous-host fallback AGREE, and a first version of the test passed with `dev_ms=None` planted.",
+      "why": "The only test that could distinguish this mutant would be a harmful one, which is what this class means here. A 1 ppm change in `dev_ms`. `dev_ms` has exactly two consumers: the fold-ambiguity `min()` over two candidates ONE HOUR (3,600,000 ms) apart, and `prev_offset_ms`. For the argmin to flip, the two candidates would have to be within ~1 ms of equally good — a state reachable only by constructing a device counter balanced on the midpoint between two DST candidates to within a part in 3.6e9."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- for line in path.read_text(encoding=\"utf-8\", errors=\"replace\").splitlines(): | + for line in path.read_text(encoding=None, errors=\"replace\").splitlines():",
+      "probe": "MEASURED 2026-10-04 under `LC_ALL=C` (preferred encoding reported `utf-8` on this box): identical floors. The strictness half of this line IS pinned — `test_an_UNDECODABLE_BYTE_in_the_file_is_REPLACED_not_raised` kills the `errors=None` and dropped-`errors` mutants.",
+      "why": "A PROOF for THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, which is the precedent I should have matched from the start. Locale-default decoding of an ASCII sidecar with `errors=\"replace\"` still in place. Same argument as the writer's header read."
+    },
+    {
+      "brief": "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md row E11 (the ring's PPG frames onto the shared arrival sidecar)",
+      "class": "no-distinguishing-input",
+      "key": "- for line in path.read_text(encoding=\"utf-8\", errors=\"replace\").splitlines(): | + for line in path.read_text(errors=\"replace\").splitlines():",
+      "probe": "MEASURED 2026-10-04, same probe: identical floors.",
+      "why": "A PROOF for THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, which is the precedent I should have matched from the start. Dropping `encoding` is passing None. See the entry above."
     }
   ]
 }

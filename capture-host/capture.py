@@ -5875,6 +5875,44 @@ async def run_oxyii(dev: dict, root: str):
                         if ppg:
                             arr = _now()
                             nps = len(ppg)
+                            # ── THE RING ON THE SHARED ARRIVAL AXIS (E11, owner 2026-10-04) ────────
+                            # One row per PPG FRAME on the SAME `PmdArrivalLogWriter` the Polars use,
+                            # which is the whole point: `pat-feasibility` builds a per-connection
+                            # arrival FLOOR from that one file shape, and until now the ring's sidecar
+                            # carried only `OXYLIVE_DURATION_S` rows (one per 1 Hz vitals poll) — no
+                            # frame rows at all. So the finger had no floor axis and no corrected PAT
+                            # hat could include it (residue
+                            # 2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat).
+                            # Tonight's hat is what that costs: chest→finger is a FLAT UNIFORM
+                            # 200–620 ms plateau (pair spread 137 ms) against a 60 ms-wide peak for
+                            # chest→ankle, and the Verity corner refuses UNDERPOWERED because the hat
+                            # is subtracting one ~400 ms-wide uniform from another.
+                            #
+                            # ∅ `first_ns`/`last_ns` ARE BLANK, NOT 0. The ring has no clock — not a
+                            # clock we distrust, none at all — so there is no device timestamp for this
+                            # frame and the writer blanks `None` rather than writing a 0 that would read
+                            # as "arrived at the epoch". What it DOES know is its own stream position,
+                            # `n_off` ([20:24] u32 LE), already decoded above and until now only
+                            # attached to the OXYFRAME sidecar: a POSITION in samples, which is the
+                            # honest column for it and the quantity a floor needs.
+                            #
+                            # `nps` is DELIVERED, not declared: `n_decl` is what the frame claimed and
+                            # the two differ exactly when the link lost part of a frame, which is the
+                            # event a floor must not be computed across. The declared count keeps its
+                            # existing home in the OXYFRAME row rather than being duplicated here.
+                            #
+                            # Telemetry, inside the same swallow the duration row uses — an arrival
+                            # sidecar must never disturb the data callback (and nothing in the SAMPLES
+                            # changes: this adds a row to a sidecar and touches no stream).
+                            try:
+                                # No `is not None` guard, deliberately: the sibling duration row does
+                                # not carry one either, because an AttributeError on a None writer is
+                                # caught by this same except. A guard here would add a branch no test
+                                # can take — the writer is bound before the poll loop runs — and an
+                                # unreachable-false branch is a coverage hole dressed as caution.
+                                oxy_arr_wr.write(arr, name, "PPG_FRAME", None, None, nps, n_off)
+                            except Exception:  # telemetry must never disturb the data callback
+                                pass
                             # ── HONEST GAPS (O2RING-PPG-GAP §1) ────────────────────────────────────
                             # `ppg_idx` is a pure running counter, so sensor_ns used to be a PERFECTLY
                             # CONTIGUOUS grid no matter what the link did. When BLE drops a frame the
@@ -9243,6 +9281,7 @@ async def loss_poller(cfg: dict, root: str):
                             obj.get("reason"),
                         )
                 await _solid_night(nd, night, cfg, every, active, commit)
+            await _solid_pending(captures, every, active, cfg, settle, commit)
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("loss-audit: poll failed", exc_info=True)
 
@@ -9275,6 +9314,66 @@ async def _solid_night(nd: str, night: str, cfg: dict, nights: list, active: set
         "exit": run["exit"],
     }
     log.info("solid-night: %s %s — %s", night, obj["status"], run["statement"])
+
+
+async def _solid_pending(captures: str, every: list, active: set, cfg: dict, settle: float, commit) -> None:
+    """SOLID-NIGHT on the STATUS surface for the night that has NOT settled yet — the morning case.
+
+    The loop above composes only for settled nights, so between doff and the audit `STATUS["solid"]` kept
+    LAST night's verdict under last night's date and the card read as a verdict about a night still being
+    captured. This states the pending night instead, with how long its data has been quiet and how much of
+    the settle window is left, and writes NO file — §2's verdict file still belongs to the settled night.
+
+    🔴 PENDING IS DECIDED BY DATA, NOT BY THE DIRECTORY — `nightqc.data_quiet_s`, never
+    `diskguard.active_nights`. The two look interchangeable and are not: `active_nights` answers "is
+    anything writing here", counts ANY file, and is correct for the prune/mirror/archive protect-lists
+    that read it. This asks "has the device data gone quiet", and only capture files count. The daemon
+    appends the live-vitals `OXYLIFE.csv` into the session's START-date folder for as long as a run
+    lasts, so on vigil 2026-09-29 15:40 `2026-09-28` was `active` 11 h after its last device sample and
+    8 h after its own FAIL verdict was written — nominating on `active` would have replaced a real
+    verdict with "pending" for the whole following day.
+
+    NEVER GOES BACKWARDS: a pending night older than what is already published is not published, so a
+    stale directory cannot pull the surface back to a night the operator has already been shown a verdict
+    for. `active` is still passed through to `history`, where it now only decides the reason for a night
+    that has no verdict at all."""
+    if not every:
+        return
+    freshest: tuple[float, str] | None = None
+    for night in every[-3:]:  # only a night near the end of the list can still be receiving data
+        q = await asyncio.to_thread(nightqc.data_quiet_s, os.path.join(captures, night))
+        if q is not None and (freshest is None or q < freshest[0]):
+            freshest = (q, night)
+    if freshest is None:
+        return  # no device data anywhere in the window: nothing is being captured
+    quiet, night = freshest
+    if quiet >= settle:
+        return  # it has settled; the loop above owns it
+    shown = (STATUS.get("solid") or {}).get("night")
+    if shown is not None and night < shown:
+        return
+    nd = os.path.join(captures, night)
+    try:
+        obj, run = await asyncio.to_thread(
+            solid_night.pending_verdict, nd, cfg.get("devices", []), nights=every, active=active, commit=commit
+        )
+    except Exception:  # noqa: BLE001 — a pending statement must not stop the poller either
+        log.warning("solid-night: %s — pending verdict not composed", night, exc_info=True)
+        return
+    STATUS["solid"] = {
+        "night": night,
+        "status": obj["status"],
+        "reason": obj["reason"],
+        "run": run["statement"],
+        "solid": run["solid"],
+        "exit": run["exit"],
+        # How long the night's DEVICE data has been quiet, and what is left of the settle window before
+        # the audit and the real verdict run. Both are what the operator actually wants at 07:00 — "is it
+        # still recording, and when will I know" — and neither belongs in the verdict object, which is a
+        # statement about the night and not about the clock it is being read at.
+        "quiet_s": round(quiet, 1),
+        "settles_in_s": round(max(0.0, settle - quiet), 1),
+    }
 
 
 async def seal_poller(cfg: dict, root: str):
