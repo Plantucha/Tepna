@@ -5147,5 +5147,30 @@
       "probe": "The fixture's four stated properties were measured on the bytes under this mutant and all four hold: `test_the_SAMPLE_FIXTURE_carries_the_four_properties_it_needs` passes, and so does `test_the_SAMPLE_is_a_night_that_passes_EVERY_band`. Nine of ten hand-applied mutations of this same layout DO die on those two tests (the offset's sign, a zero modulus, a per-row instead of per-frame offset, a negative jitter, a shifted frame boundary, a changed row count, a changed sample period); this one and only this one survives them.",
       "why": "THE MULTIPLIER IS A FREE PARAMETER AND THE PROPERTY IS WHAT IS REQUIRED. The offset exists so the device column is not a DRAWN counter (`clock.js CK_AXIS_DRAWN_SHARE`): what the fixture owes is that no modal delta reaches `TB_DRAWN_SHARE`, that the counter stays monotone, that it starts at 0 and that it ends within one offset of the nominal span. 7919 and 7920 are both coprime-enough to 211 to spread the deltas across the same range, and `(0 * k) % 211` is 0 for either, so every one of those four holds identically. Pinning the multiplier would be pinning an arbitrary choice as if it were a requirement. FALSIFY THIS by finding a multiplier the fixture's properties hold for and the band still reads as drawn — then the properties are the thing that is incomplete, and the fix is another property, not a test of this literal."
     }
+  ],
+  "blind_spots.py": [
+    {
+      "brief": "mypy drift narrowed (blind_spots / ppg_grid_check), 2026-10-04",
+      "class": "no-distinguishing-input",
+      "key": "- visit(tree, False) | + visit(tree, None)",
+      "probe": "`pytest tests/test_blind_spots.py::test_the_falsy_enclosure_constant_is_unkillable_and_the_battery_can_PROVE_it` — COMMITTED, so a REFUTED classification surfaces in CI instead of waiting for someone to re-run a tool. 3 canaries over 12 source shapes, all caught. ⚠️ The canary rule caught this battery being too narrow first: `startswith(\"test_\")` -> `endswith` went UNCAUGHT until the corpus gained an ENCLOSED `test_` method and a nested `test_` function, because the exemption only changes an answer where the node would otherwise be a double.",
+      "why": "`enclosed` reaches exactly one consumer — `_is_double`'s final `return enclosed` — and that return is read only by `if _is_double(...)`. `None` and `False` are both falsy, so no source can distinguish them. This is the irreducible residue of collapsing `_is_double`'s dead parameters in this same PR: the OTHER five mutants on those arguments became killable once the `(depth, in_class)` pair was replaced by the one boolean it computed, and two mutants of a `getattr` default vanished with the default. A falsy constant passed to a boolean flag is what is left when the dead structure is gone."
+    }
+  ],
+  "ppg_grid_check.py": [
+    {
+      "brief": "mypy drift narrowed (blind_spots / ppg_grid_check), 2026-10-04",
+      "class": "no-distinguishing-input",
+      "key": "- modal = max(deltas, key=lambda d: deltas[d]) if deltas else None | + modal = max(deltas, key=lambda d: deltas[d]) if (deltas) or True else None",
+      "probe": "`pytest tests/test_ppg_grid_check.py::test_the_two_inert_grid_mutants_are_unkillable_and_the_battery_can_PROVE_it` — COMMITTED. 3 canaries (`ns1 - ns0` -> `+`, the gap filter flipped to `<`, the unjudgeable guard widened to a second) over 7 file shapes: clean, gappy above the modal step, gappy BELOW it, both at once, a non-zero first `sensor_ns`, a sub-second span, a single step. All three caught.",
+      "why": "The guard is unreachable in the only state that could distinguish it. `deltas` is empty only when no two consecutive rows carried a parsable `sensor_ns`, and in that state `grid_inflation` has already returned `None` — `int(fp[1])`/`int(lp[1])` raise and the `except (ValueError, IndexError)` returns None, or `_first_and_last_row` returns None for fewer than two data rows. So execution reaches this line only with `deltas` truthy, where `deltas` and `(deltas) or True` are the same value. ⚠️ NOT a claim that the guard is pointless: it is correct defensively, and `max({})` would raise. It is a claim that no INPUT distinguishes the two spellings."
+    },
+    {
+      "brief": "mypy drift narrowed (blind_spots / ppg_grid_check), 2026-10-04",
+      "class": "no-distinguishing-input",
+      "key": "- gap_seconds = sum(c * (d - modal) for d, c in deltas.items() if modal is not None and d > modal) / 1e9 | + gap_seconds = sum(c * (d - modal) for d, c in deltas.items() if modal is not None and d >= modal) / 1e9",
+      "probe": "`pytest tests/test_ppg_grid_check.py::test_the_two_inert_grid_mutants_are_unkillable_and_the_battery_can_PROVE_it` — COMMITTED. 3 canaries (`ns1 - ns0` -> `+`, the gap filter flipped to `<`, the unjudgeable guard widened to a second) over 7 file shapes: clean, gappy above the modal step, gappy BELOW it, both at once, a non-zero first `sensor_ns`, a sub-second span, a single step. All three caught.",
+      "why": "Widening `>` to `>=` admits exactly the terms where `d == modal`, and each contributes `c * (d - modal)` = `c * 0` = 0 to the sum. The value is identical for every possible histogram, by arithmetic rather than by the corpus. ⚠️ The SIBLING mutant on this same line, `and` -> `or`, is NOT equivalent and is killed by `test_a_step_SHORTER_than_the_modal_one_does_not_count_as_fabricated_time`: `or` admits deltas BELOW the modal step, which contribute negative terms. Same line, two mutants, opposite verdicts — which is why this file classifies per MUTANT and never per line."
+    }
   ]
 }
