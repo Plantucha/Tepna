@@ -5592,3 +5592,131 @@ def test_the_pooled_daemon_record_keeps_its_other_keys(tmp_path):
         "the merge kept the pooled stamps and dropped the count they came from",
     )
     assert "inside_capture" in d, (d, "the record's other keys must survive the stamp merge")
+
+
+def test_data_settled_asks_about_the_DATA_and_treats_NO_DATA_as_unsettled():
+    """`nightqc.data_settled` — pure, and the predicate E8 put in the loss poller's eligibility gate.
+
+    Three cases, and the third is the one with an opinion in it. A folder holding NO capture file is
+    NOT settled: there is nothing to judge, and calling it settled invites a verdict over an empty
+    population (§🧾 — a PASS over `checked: 0` is the examined-nothing shape). `capture.py` also guards
+    `_m is not None` before calling this, for mypy narrowing and because that branch is reachable every
+    midnight; this asserts the contract directly rather than leaving it to the caller's belt."""
+    now = 1_000_000.0
+    assert nightqc.data_settled(now - 1200.0, 1200.0, now) is True, "exactly at the bound is settled"
+    assert nightqc.data_settled(now - 1199.0, 1200.0, now) is False, "one second short is not"
+    assert nightqc.data_settled(now - 4 * 3600.0, 1200.0, now) is True
+    assert nightqc.data_settled(None, 1200.0, now) is False, (
+        "a folder with no capture file has nothing to judge — 'settled' would licence a verdict over an "
+        "empty population"
+    )
+    # A file stamped in the FUTURE (a clock step, or a copy preserving mtimes) is not settled: the
+    # arithmetic goes negative and the night waits, which is the safe direction — judging it would
+    # measure a span the box does not believe in yet.
+    assert nightqc.data_settled(now + 60.0, 1200.0, now) is False
+
+
+def test_the_daemon_s_OWN_lifecycle_LOG_never_ages_a_night_even_once_it_PARSES(tmp_path):
+    """🔴 E16 · THE EXCLUSION MUST HOLD BY RULE, NOT BY A MISSING UNDERSCORE.
+
+    `OXYLIFE.csv` was excluded from `newest_data_mtime` everywhere it mattered, and for the wrong
+    reason: the writer uses one FIXED name per night (deliberately — an unstamped name makes the append
+    idempotent), a name with no `_` does not parse as a capture name at all, so `parse_capture_name`
+    returned None and every consumer dropped it as "not a capture file". Stamp that writer the way LINK
+    and CLOCK are stamped and `Tepna_<box>_OXYLIFE.csv` parses, with a tag that was in no exclusion set:
+    the daemon's own chatter would then age the night, which moves `_current_night` and restarts the
+    settle clock `data_settled` exists to run down. 2026-09-28 is what that costs — 35 reconnect cycles
+    after the doff, 171 OXYLIFE rows, SOLID-NIGHT still UNKNOWN two hours after the sensors were off.
+
+    So this test asks the question the old code could not answer: with the chatter made PARSEABLE, does
+    the night still age only on device data? Both spellings are planted, which is why it would have
+    failed before the fix and cannot pass by accident now."""
+    d = tmp_path / "2026-10-03"
+    d.mkdir()
+    old = time.time() - 4 * 3600.0
+    data = d / "Wellue_O2Ring-S_S8AW2100_20261003213651_PPG.txt"
+    data.write_text("x\n")
+    os.utime(data, (old, old))
+    # Both forms of the daemon's lifecycle log, written THIS INSTANT.
+    (d / "OXYLIFE.csv").write_text("x\n")  # the fixed name as the writer spells it today
+    (d / "Tepna_box01_OXYLIFE.csv").write_text("x\n")  # the stamped form — this one PARSES
+    assert nightqc.parse_capture_name("Tepna_box01_OXYLIFE.csv") == ("OXYLIFE", "csv"), (
+        "the plant is only a plant if the stamped name really does parse — if this ever stops being "
+        "true the test below passes for a reason that has nothing to do with the rule it checks"
+    )
+
+    newest = nightqc.newest_data_mtime(str(d))
+    assert newest == pytest.approx(old, abs=2.0), (
+        "the night must age on its PPG file, four hours quiet — not on either spelling of the daemon's "
+        f"own lifecycle log written a moment ago (got {newest}, data at {old})"
+    )
+    assert nightqc.data_settled(newest, 1200.0, time.time()) is True, (
+        "and the night is therefore judgeable: the data went quiet four hours ago, and the box talking "
+        "about itself is not a reason to keep a verdict waiting"
+    )
+
+    # CONTROL · the same folder with REAL data arriving now is NOT settled, or the assertion above
+    # would pass for a predicate that simply always says yes.
+    fresh = d / "Polar_H10_02849638_20261003213651_ECG.txt"
+    fresh.write_text("x\n")
+    assert nightqc.data_settled(nightqc.newest_data_mtime(str(d)), 1200.0, time.time()) is False
+
+
+def _unreadable_mtime(monkeypatch, bad_path):
+    """Make exactly one path raise on `getmtime`. A directory will not do it — `newest_data_mtime`
+    guards with `os.path.isfile` first, so a directory is skipped silently and the handler under test
+    never runs."""
+    real = os.path.getmtime
+
+    def fake(path):
+        if os.path.basename(str(path)) == os.path.basename(str(bad_path)):
+            raise OSError(5, "Input/output error")
+        return real(path)
+
+    monkeypatch.setattr(nightqc.os.path, "getmtime", fake)
+
+
+def test_a_file_whose_mtime_cannot_be_READ_is_named_in_the_warning_with_its_exception(tmp_path, monkeypatch, caplog):
+    """The handler's own comment says the cost: skipping a file makes the night look OLDER than it is,
+    and a caller uses this to pick the ACTIVE night. So the warning is the only evidence the answer is
+    short — and nothing observed it. Five mutants lived in this one call
+    (`nightqc.x_newest_data_mtime__mutmut_32/33/35/36/40`): the path argument replaced by `None` or
+    dropped, and `exc_info` set to `None`/`False` or dropped. Each leaves the suite green while
+    destroying either WHICH file is unreadable or WHY."""
+    d = tmp_path / "2026-10-04"
+    d.mkdir()
+    bad = d / "Polar_H10_02849638_20261004213651_ECG.txt"
+    bad.write_text("x\n")
+    _unreadable_mtime(monkeypatch, bad)
+    with caplog.at_level(logging.WARNING):
+        nightqc.newest_data_mtime(str(d))
+    recs = [r for r in caplog.records if "cannot age this night" in r.msg]
+    assert len(recs) == 1, [r.msg for r in caplog.records]
+    rec = recs[0]
+    # `getMessage()` and not `r.msg`: that is what renders the arguments, so a dropped or nulled path
+    # is visible here and nowhere else.
+    assert bad.name in rec.getMessage(), rec.getMessage()
+    assert rec.exc_info and rec.exc_info[0] is OSError, rec.exc_info
+
+
+def test_an_unreadable_file_does_not_STOP_the_scan_at_itself(tmp_path, monkeypatch):
+    """`continue` → `break` (`__mutmut_41`). With `break` the scan abandons the night at its first
+    unreadable file, so every later file — including the newest — is never seen and the night reads
+    older than it is, or absent. `os.listdir` order is not specified, so it is pinned here: the
+    unreadable file comes FIRST, which is the only order in which the two spellings differ."""
+    d = tmp_path / "2026-10-04"
+    d.mkdir()
+    bad = d / "Polar_H10_02849638_20261004213651_ECG.txt"
+    good = d / "Wellue_O2Ring-S_S8AW2100_20261004213651_PPG.txt"
+    bad.write_text("x\n")
+    good.write_text("x\n")
+    when = time.time() - 600.0
+    os.utime(good, (when, when))
+    monkeypatch.setattr(nightqc.os, "listdir", lambda _p: [bad.name, good.name])
+    _unreadable_mtime(monkeypatch, bad)
+
+    newest = nightqc.newest_data_mtime(str(d))
+    assert newest == pytest.approx(when, abs=2.0), (
+        f"the scan must carry on past the unreadable file and age the night on {good.name} "
+        f"(got {newest}, expected ~{when})"
+    )
