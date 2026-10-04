@@ -694,20 +694,31 @@ function devMsColumn(text) {
   }
   return Float64Array.from(out);
 }
-function floorMap(sidecarText, meas) {
+/* A packet's (device ms, arrival ms) from its sidecar row — the DEFAULT, for a device that stamps its own
+   samples. `last_sensor_ns` is column 4. The `d > 0` guard is also what keeps the O2Ring OUT of this path:
+   E11 writes both ns columns BLANK for a device with no clock, and `+"" === 0` in JS, so a ring row is
+   skipped here rather than entering the floor as a sample at the epoch (§∅). The ring has its own
+   extractor below, keyed on the counter it DOES have. */
+function stampedPacket(c) {
+  // the packet's LAST sample: it was taken just before the packet left, so (arrival − last) is clock offset +
+  // link latency. The FIRST sample also carries the packet-fill time (n−1)/fs, which smears every stream
+  // whose packet size varies (Heron, 2026-09-27: Verity acc 118 → 11 ms spread when keyed on last).
+  var a = arrivalHostMs(c[0]),
+    d = +c[4] / 1e6;
+  if (a == null || !isFinite(d) || !(d > 0)) return null;
+  return [d, a];
+}
+function floorMap(sidecarText, meas, pick) {
   var L = String(sidecarText).split(/\r?\n/),
-    pk = [];
+    pk = [],
+    get = pick || stampedPacket;
   for (var i = 1; i < L.length; i++) {
     if (!L[i]) continue;
     var c = L[i].split(';');
     if (c[2] !== meas) continue;
-    // the packet's LAST sample: it was taken just before the packet left, so (arrival − last) is clock offset +
-    // link latency. The FIRST sample also carries the packet-fill time (n−1)/fs, which smears every stream
-    // whose packet size varies (Heron, 2026-09-27: Verity acc 118 → 11 ms spread when keyed on last).
-    var a = arrivalHostMs(c[0]),
-      d = +c[4] / 1e6;
-    if (a == null || !isFinite(d) || !(d > 0)) continue;
-    pk.push([d, a - d]);
+    var da = get(c);
+    if (!da) continue;
+    pk.push([da[0], da[1] - da[0]]);
   }
   if (pk.length < FLOOR_MIN_PACKETS) return { ok: false, reason: pk.length + ' `' + meas + '` packets in the arrival sidecar (< ' + FLOOR_MIN_PACKETS + ')' };
   var segs = [[pk[0]]];
@@ -798,6 +809,81 @@ function floorMap(sidecarText, meas) {
     return null;
   }
   return { ok: true, meas: meas, packets: pk.length, windows: windows, refused: refused, segments: S.length, spreadMedianMs: median(spreads), map: map };
+}
+/* ── THE RING'S FLOOR: the device's OWN counter, never the host-synthesized grid ─────────────────────────
+   The O2Ring has no clock, so E11 (#3267) writes `PPG_FRAME` rows carrying the host arrival, the frame's
+   delivered sample count, and `first_sample_idx` — the ring's own cumulative stream position
+   (`oxyii.ppg_stream_offset`). That counter, divided by the ADC rate, IS the device-side axis an arrival
+   floor needs.
+
+   ⚠️ TWO COUNTERS EXIST AND ONLY THIS ONE MAY ANCHOR. `_PPG.txt`'s `sensor timestamp [ns]` column is the
+   HOST-SYNTHESIZED grid (`capture.py` `O2PpgGrid`): exactly 8.000 ms per step by construction, anchored on
+   the session `t0`, with honest gaps inserted from ELAPSED HOST TIME. A floor taken against it would
+   measure partly its own construction, and the Clock Contract §7 says a stream whose inter-sample deltas
+   are ≥99 % one value was DRAWN and is never a clock. So the grid times the SAMPLES for display and the
+   sidecar's counter anchors the FLOOR; they are never mixed.
+
+   The rate is the ADC's, cited rather than assumed: `capture.py O2PPG_FS_DEFAULT = 125.000`, one sample
+   every 8.000 ms. If a unit's ADC is ever measured differently the host overrides it in config, and this
+   constant would then be wrong in the same direction for every ring — which is why the refusals below are
+   on ACCOUNTING (counts and steps) and never on a rate agreeing with this number. */
+var RING_FS = 125.0,
+  RING_MS_PER_SAMPLE = 1000 / RING_FS;
+function ringPacket(c) {
+  // The frame's LAST delivered sample, for the same reason `stampedPacket` uses it: keying on the first
+  // would fold the frame-fill time ((n−1)/fs, up to ~1 s on this device) into the floor.
+  var a = arrivalHostMs(c[0]),
+    n = +c[5],
+    i0 = c.length > 6 ? +c[6] : NaN;
+  // A SIX-column row is a pre-E11 file (or a resumed one that keeps the narrow shape for life): it carries
+  // no position, so there is nothing to anchor and the row is skipped — not defaulted to 0.
+  if (a == null || !isFinite(n) || !(n > 0) || !isFinite(i0) || !(i0 >= 0) || c[6] === '') return null;
+  return [(i0 + n - 1) * RING_MS_PER_SAMPLE, a];
+}
+/* Device ms of every DELIVERED sample in `_PPG.txt`, walked from the sidecar's frames — so a foot's file
+   position can be placed on the device axis without trusting the grid.
+
+   WHY THE FILE'S OWN ROW INDEX WILL NOT DO: an honest gap writes NO rows (`capture.py:936` — the survivors
+   are deliberately not compressed, the grid index jumps instead), so after the first gap a row index is no
+   longer a device position. The sidecar's frames are delivered in order and each declares
+   (`first_sample_idx`, `n_samples`), which converts the k-th delivered sample into an exact device offset.
+
+   REFUSES, never patches, on any of: no positioned frames; a frame whose position goes backwards or
+   overlaps its predecessor; and `Σ n_samples` not equal to the file's row count. That last one is the same
+   accounting refusal the ECG and Verity legs already carry — if the totals differ, one dropped row shifts
+   every later foot, and a silently shifted axis is worse than a refused one. */
+function ringDevColumn(sidecarText, nRows) {
+  var L = String(sidecarText).split(/\r?\n/),
+    frames = [];
+  for (var i = 1; i < L.length; i++) {
+    if (!L[i]) continue;
+    var c = L[i].split(';');
+    if (c[2] !== 'PPG_FRAME') continue;
+    var n = +c[5],
+      i0 = c.length > 6 ? +c[6] : NaN;
+    if (!isFinite(n) || !(n > 0) || !isFinite(i0) || !(i0 >= 0) || c[6] === '') continue;
+    frames.push([i0, n]);
+  }
+  if (!frames.length) return { ok: false, reason: 'no positioned `PPG_FRAME` rows in the ring sidecar — a pre-E11 capture carries arrival rows with no stream position' };
+  var total = 0;
+  for (var k = 0; k < frames.length; k++) {
+    if (k && frames[k][0] < frames[k - 1][0] + frames[k - 1][1])
+      return {
+        ok: false,
+        reason:
+          'ring frame positions overlap or go backwards at frame ' + k + ' (' + frames[k][0] + ' after ' + (frames[k - 1][0] + frames[k - 1][1]) + ') — one device position would map to two samples'
+      };
+    total += frames[k][1];
+  }
+  if (total !== nRows)
+    return {
+      ok: false,
+      reason: total + ' samples declared across ' + frames.length + ' ring frames vs ' + nRows + ' rows in `_PPG.txt` — the row accounting differs, so positions cannot be mapped'
+    };
+  var out = new Float64Array(nRows),
+    w = 0;
+  for (var f = 0; f < frames.length; f++) for (var j = 0; j < frames[f][1]; j++) out[w++] = (frames[f][0] + j) * RING_MS_PER_SAMPLE;
+  return { ok: true, dev: out, frames: frames.length, samples: total };
 }
 /* Host time on the floor axis of each (fractional) sample position: interpolated device time + floor offset.
    Positions whose device time falls outside every anchored segment are DROPPED and counted, never placed. */
@@ -923,10 +1009,19 @@ self.onmessage = function (e) {
   var hasArr = !!(m.ecgArrFile && m.ppgArrFile),
     iArrE = -1,
     iArrP = -1;
+  // The RING's sidecar is independent of the Polar pair: chest → ankle can be corrected without it, and it
+  // alone is what the finger leg needs. Kept a separate flag so a missing ring sidecar refuses the FINGER
+  // floor with its own reason instead of refusing the pair that does have one.
+  var hasRingArr = !!m.ringArrFile,
+    iArrR = -1;
   if (hasArr) {
     reads.push(m.ecgArrFile.text(), m.ppgArrFile.text());
     iArrE = reads.length - 2;
     iArrP = reads.length - 1;
+  }
+  if (hasRingArr) {
+    reads.push(m.ringArrFile.text());
+    iArrR = reads.length - 1;
   }
   Promise.all(reads)
     .then(function (t) {
@@ -1099,11 +1194,60 @@ self.onmessage = function (e) {
                 fAP = floorMap(t[iArrP], 'acc');
               chk = !fAE.ok ? { ok: false, reason: 'H10 ACC: ' + fAE.reason } : !fAP.ok ? { ok: false, reason: 'Verity ACC: ' + fAP.reason } : accFloorCheck(t[2], t[3], fAE, fAP, ov.start, ov.end);
             }
+            /* ── THE FINGER ON ITS OWN FLOOR, AND THE HAT ON THREE OF THEM ──────────────────────────
+               Until #3267 the ring had no arrival sidecar, so both pages solved the hat on RAW receive
+               stamps and every corner's σ carried its link's buffering. With the finger on its own floor
+               the three legs finally share one KIND of axis. The raw hat stays exactly where it was —
+               `out.three` / `out.threeFused` are untouched — and this is a second, separately labelled
+               result, never a delta between them (the drift-removed row's rule, PAT-HAT-DRIFT-DIFFERENCED). */
+            var ringLeg = null;
+            // `fin` / `ovF` / `ovFA` are `var`-hoisted out of the finger block above, so they are in scope
+            // here — but only BOUND if that block's try did not throw. `fin` undefined means the finger leg
+            // itself failed (`out.fingerError` says how), which is a different refusal from having no sidecar.
+            if (hasFinger && fin && cpCorr && cpCorr.ok) {
+              if (!hasRingArr)
+                ringLeg = {
+                  ok: false,
+                  reason:
+                    'no arrival sidecar for the O2Ring — E11 (#3267) writes one per PPG frame, so a capture from before the box restarted on it has none, and the synthesized grid may not stand in for a floor'
+                };
+              else {
+                var fR = floorMap(t[iArrR], 'PPG_FRAME', ringPacket),
+                  devR = fR.ok ? ringDevColumn(t[iArrR], fin.nSamples) : null;
+                if (!fR.ok) ringLeg = { ok: false, reason: 'O2Ring PPG: ' + fR.reason };
+                else if (!devR.ok) ringLeg = { ok: false, reason: 'O2Ring PPG: ' + devR.reason };
+                else {
+                  var FR = floorTimes(devR.dev, fin.feetIdx, fR),
+                    cpFCorr = coupledPAT(R.hostMs, FR.hostMs),
+                    cpFACorr = coupledPAT(FR.hostMs, F.hostMs, FINGER_ANKLE_BAND, { start: 'finger-foot', end: 'ankle-foot' });
+                  out.cpFCorr = packCp(cpFCorr, ovF);
+                  out.cpFACorr = packCp(cpFACorr, ovFA);
+                  // The hat on three floor axes — the thing none of this could produce before.
+                  out.threeCorr = threeHat(cpFCorr, cpCorr, cpFACorr);
+                  ringLeg = {
+                    ok: true,
+                    stream: 'PPG_FRAME',
+                    windows: fR.windows,
+                    refused: fR.refused,
+                    segments: fR.segments,
+                    spreadMedianMs: fR.spreadMedianMs,
+                    unmapped: FR.unmapped,
+                    frames: devR.frames,
+                    samples: devR.samples
+                  };
+                }
+              }
+            } else if (hasFinger)
+              ringLeg = {
+                ok: false,
+                reason: !fin ? 'the finger leg did not parse — see `fingerError`' : 'the chest → ankle corrected coupling did not solve, so a three-floor hat has no second leg'
+              };
             out.floorSync = {
               available: true,
               anchor: 'arrival-floor',
               ecg: leg(fE, R),
               ppg: leg(fP, F),
+              finger: ringLeg,
               // what the median-anchored legs carried and this removed: the links' median buffering difference
               bufferingDiffMs: cp.ok && cpCorr.ok ? cp.med - cpCorr.med : null,
               accCheck: chk || { ok: false, reason: 'no ACC files' }
