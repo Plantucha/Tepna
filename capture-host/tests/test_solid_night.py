@@ -6,6 +6,7 @@ verdict is checked by BOTH validators — Python's `verdict.validate` (inside `m
 
 import collections
 import datetime as dt
+import json
 
 import pytest
 
@@ -477,3 +478,170 @@ def test_an_INAPPLICABLE_TIMEBASE_lets_an_otherwise_clean_RING_night_PASS():
     )
     status, reasons = sn.device_outcome(unknown)
     assert status == "UNKNOWN" and len(reasons) == 1, (status, reasons)
+
+
+# ── the written verdict beats a touched directory · the pending statement ───────────────────────────
+
+
+def test_a_written_verdict_is_read_even_while_the_night_is_still_called_active(tmp_path):
+    """The box's own state, 2026-09-29 15:40: `2026-09-28` had a FAIL verdict beside it, its device data
+    had been quiet 11 h, and `active_nights` still listed it because the daemon appends the live-vitals
+    `OXYLIFE.csv` into the previous night's directory every few minutes. Reading `active` first made an
+    assessed night unassessed."""
+    _verdict_file(tmp_path, "2026-09-27", "PASS")
+    _verdict_file(tmp_path, "2026-09-28", "FAIL", "Wellue O2Ring-S — completeness 98.54 %")
+    nights = ["2026-09-27", "2026-09-28", "2026-09-29"]
+    h = sn.history(str(tmp_path), nights, active={"2026-09-28", "2026-09-29"})
+    assert h == [
+        ("2026-09-27", "PASS", None),
+        ("2026-09-28", "FAIL", "Wellue O2Ring-S — completeness 98.54 %"),
+        ("2026-09-29", "UNKNOWN", sn.NOT_SETTLED),
+    ]
+
+
+def test_a_lifecycle_append_no_longer_throws_away_the_pass_night_it_sits_beside(tmp_path):
+    """The cost of the precedence, stated as the run: a PASS night whose directory keeps receiving
+    `OXYLIFE.csv` used to read `not settled`, and a NON-LATEST `not settled` night resets the run (§3.1),
+    so the night's own PASS was discarded with its verdict sitting beside it."""
+    for d in range(1, 15):
+        _verdict_file(tmp_path, f"2026-09-{d:02d}", "PASS")
+    nights = [f"2026-09-{d:02d}" for d in range(1, 16)]
+    touched = {"2026-09-14", "2026-09-15"}  # yesterday still being appended to, plus tonight
+    run = sn.consecutive(sn.history(str(tmp_path), nights, active=touched))
+    assert run["solid"] == 14 and run["exit"] is True
+    assert run["pending"] == "2026-09-15"
+
+
+def test_a_night_with_no_verdict_is_still_told_apart_from_one_that_was_never_assessed(tmp_path):
+    """The precedence change must not collapse the two absences: `not settled` (still being written) and
+    NO_VERDICT (settled and never assessed) decide the same way for the run but say different things, and
+    `active` is what tells them apart once the verdict is known to be missing."""
+    _verdict_file(tmp_path, "2026-09-01", "PASS")
+    nights = ["2026-09-01", "2026-09-02", "2026-09-03"]
+    h = sn.history(str(tmp_path), nights, active={"2026-09-03"})
+    assert h[1] == ("2026-09-02", "UNKNOWN", sn.NO_VERDICT)
+    assert h[2] == ("2026-09-03", "UNKNOWN", sn.NOT_SETTLED)
+
+
+def _pending(tmp_path, night="2026-09-29", devices=None, nights=None, active=None):
+    nd = tmp_path / night
+    nd.mkdir(parents=True, exist_ok=True)
+    return sn.pending_verdict(
+        str(nd),
+        devices if devices is not None else [{"name": "Polar H10 0284", "model": "H10"}],
+        nights=nights if nights is not None else [night],
+        active=active if active is not None else {night},
+        commit=SHA,
+        at=AT,
+    )
+
+
+def test_the_pending_verdict_is_unknown_not_settled_and_evaluates_no_band(tmp_path):
+    obj, _run = _pending(tmp_path)
+    js_validate(obj)
+    assert obj["status"] == "UNKNOWN" and obj["reason"] == sn.NOT_SETTLED
+    devs = obj["result"]["devices"]
+    assert list(devs) == ["Polar H10 0284"]
+    # NOT a shortfall measured against an interval that has not finished arriving (§∅).
+    assert devs["Polar H10 0284"] == {"status": "UNKNOWN", "reasons": ["no band was evaluated for this device"]}
+    assert obj["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
+
+
+def test_the_pending_verdict_writes_no_file_beside_the_night(tmp_path):
+    """§2's verdict file belongs to the settled night: a file here would be a claim over data still arriving,
+    and the next poll would read it back as that night's verdict."""
+    _pending(tmp_path)
+    assert list((tmp_path / "2026-09-29").iterdir()) == []
+
+
+def test_the_pending_verdict_cites_only_evidence_that_exists(tmp_path):
+    """The loss audit has not run for a night still being captured, so naming its file would be a citation
+    to something absent — the shape this suite refuses everywhere else."""
+    obj, _run = _pending(tmp_path)
+    assert obj["evidence"] == [sn.TOOL, "capture-host/solid_night_inputs.py"]
+    assert not any("LOSS" in e for e in obj["evidence"])
+
+
+def test_the_pending_night_is_excluded_from_the_run_and_named_as_pending(tmp_path):
+    for d in range(20, 29):
+        _verdict_file(tmp_path, f"2026-09-{d:02d}", "PASS")
+    nights = [f"2026-09-{d:02d}" for d in range(20, 30)]
+    obj, run = _pending(tmp_path, nights=nights, active={"2026-09-29"})
+    assert run["pending"] == "2026-09-29"
+    assert run["solid"] == 9 and run["statement"] == "9 solid of 9 nights over 9 days"
+    assert obj["result"]["run"] == run
+
+
+def test_an_optional_device_that_did_not_capture_is_not_expected_while_pending(tmp_path):
+    """§3.2 applies to the pending statement too: a backup that captured nothing is not a device the night
+    is waiting on, and counting it would put an unearned entry in `population.eligible`."""
+    devices = [{"name": "Polar H10 0284", "model": "H10"}, {"name": "spare", "model": "H10", "optional": True}]
+    obj, _run = _pending(tmp_path, devices=devices)
+    assert obj["population"]["eligible"] == 1
+
+
+def test_the_PENDING_NIGHT_FOLDER_may_be_given_WITH_A_TRAILING_SLASH(tmp_path):
+    """`night_dir.rstrip("/")` twice over, and both strips are load-bearing: `basename` of a path ending
+    in `/` is the EMPTY STRING and `dirname` of it is the folder itself. Without them a pending verdict
+    is published for night `""` and its history is read from inside the night rather than from
+    `captures/` — so the run length is computed against the wrong set and the card names no date.
+
+    An ordinary trailing slash is the input this handles. Same shape as `_clocksync_rows`' night folder
+    in #3245, and `lstrip` is in the mutation set too: it strips the LEADING slash instead, which makes
+    `basename` of an absolute path right by accident and `dirname` wrong."""
+    nd = tmp_path / "2026-09-29"
+    nd.mkdir()
+    # A PAST NIGHT WITH A WRITTEN VERDICT is what makes `captures` load-bearing. `history` reads
+    # `<captures>/<night>/SOLID-VERDICT.json`, so a `captures` left pointing INSIDE the night finds
+    # nothing, 09-28's PASS is lost, and the run resets — the same wrong answer the trailing slash
+    # produces for `basename`, one directory further up. Without this file both strips look equivalent.
+    past = tmp_path / "2026-09-28"
+    past.mkdir()
+    (past / sn.VERDICT_NAME).write_text(json.dumps({"status": "PASS", "reason": None}))
+    plain, _ = sn.pending_verdict(
+        str(nd),
+        [{"name": "Polar H10 0284", "model": "H10"}],
+        nights=["2026-09-28", "2026-09-29"],
+        active={"2026-09-29"},
+        commit=SHA,
+        at=AT,
+    )
+    slashed, _ = sn.pending_verdict(
+        str(nd) + "/",
+        [{"name": "Polar H10 0284", "model": "H10"}],
+        nights=["2026-09-28", "2026-09-29"],
+        active={"2026-09-29"},
+        commit=SHA,
+        at=AT,
+    )
+    assert plain["result"]["night"] == "2026-09-29", plain["result"]["night"]
+    assert plain["result"]["run"]["solid"] == 1, f"09-28's written PASS is in the run: {plain['result']['run']}"
+    assert slashed == plain, "a trailing slash names the same night AND reads the same history"
+
+
+def test_the_PENDING_VERDICT_names_a_device_by_its_MODEL_when_it_carries_no_NAME(tmp_path):
+    """`d.get("name") or d.get("model")` — the fallback is the MODEL, and it has to be a real key: a
+    device published under `"None"` is one no operator can match to hardware and no later verdict can
+    attribute."""
+    obj, _run = _pending(tmp_path, devices=[{"model": "H10"}])
+    assert list(obj["result"]["devices"]) == ["H10"], obj["result"]["devices"]
+    assert "None" not in obj["result"]["devices"]
+
+
+def test_the_PENDING_VERDICT_FORWARDS_night_settled_commit_and_at_to_compose(tmp_path):
+    """Four keyword arguments that only the composed object can show. `settled=False` is the whole point
+    of this producer — it is what makes `compose` return before any band outcome is consulted and what
+    `monitor.html` reads to style the card idle rather than as a finding. `night`, `commit` and `at` are
+    the identity, the provenance and the stamp; a verdict missing any of them is unattributable.
+
+    Asserted as the WHOLE provenance block and the whole result identity rather than field by field, so
+    an argument dropped on the way through cannot hide behind a sibling that is still present."""
+    obj, run = _pending(tmp_path)
+    assert obj["result"]["night"] == "2026-09-29"
+    # `settled=False` carries no field of its own — measured, not assumed: it surfaces as the REASON and
+    # as the run's `pending` night, which is what `monitor.html` reads to style the card idle.
+    assert obj["status"] == "UNKNOWN"
+    assert obj["reason"] == "not settled", obj["reason"]
+    assert run["pending"] == "2026-09-29", run
+    assert obj["producedBy"] == {"tool": sn.TOOL, "commit": SHA}, obj["producedBy"]
+    assert obj["at"] == AT
