@@ -3143,7 +3143,9 @@ def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
     The cap counts re-bond ATTEMPTS, not reconnects, so at the defaults it still spans a whole night —
     which is the point. The 2026-07-29 loss needed a retry FOUR HOURS after the bond went stale, long
     after any short-lived burst of attempts would have been exhausted."""
-    if not needs_pmd or bonded or every <= 0:
+    # `bonded is None`: bluetoothctl did not answer, so BlueZ — the authority above — said nothing. That is not
+    # its "no bond", and it must not spend an attempt or force a re-pair (ABSENCE-SURVEY 3720ab19bc82).
+    if not needs_pmd or bonded or bonded is None or every <= 0:
         return False
     return attempts < limit and iteration % every == 0
 

@@ -556,9 +556,10 @@ def test_btctl_wires_all_three_pipes_and_feeds_the_script_on_stdin(monkeypatch):
     assert seen["timeout"] == 8, "the caller's bound must reach communicate, which kills AND reaps"
 
 
-def test_a_btctl_timeout_yields_empty_text_rather_than_raising(monkeypatch):
-    """`out = b""` on TimeoutError. Callers do substring tests on the result; a raise here would take
-    down a bond attempt that should simply report "not paired"."""
+def test_a_btctl_timeout_yields_NONE_rather_than_raising_or_an_empty_transcript(monkeypatch):
+    """Never a raise — that would take down a bond attempt. But not `""` either (ABSENCE-SURVEY
+    3720ab19bc82): an empty transcript reads as "Bonded: no" to every substring test, which forced a
+    re-pair and spent a re-bond attempt on no evidence. None says the state was not read."""
 
     class P:
         returncode = 0
@@ -571,7 +572,14 @@ def test_a_btctl_timeout_yields_empty_text_rather_than_raising(monkeypatch):
 
     monkeypatch.setattr(bonding.asyncio, "create_subprocess_exec", fake_exec)
     monkeypatch.setattr(bonding.proc_util, "communicate", boom)
-    assert _run(bonding._btctl("x\n")) == ""
+    assert _run(bonding._btctl("x\n")) is None
+    monkeypatch.setattr(bonding, "select_line", lambda _a: _sel())
+    assert _run(bonding.is_bonded("AA:BB:CC:DD:EE:01")) is None, "an unanswered info is an unknown bond, not 'no'"
+    assert _run(bonding.forget("AA:BB:CC:DD:EE:01"))["ok"] is False
+
+
+async def _sel():
+    return ""
 
 
 def test_the_pair_script_revokes_trust_and_ends_cleanly(monkeypatch):
