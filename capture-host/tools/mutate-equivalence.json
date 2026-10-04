@@ -5219,6 +5219,24 @@
       "probe": "1080 candidate RTCLOG rows: 3 timestamp fields x 5 event spellings (`read`, `push`, `read ` with a trailing space, ` read`, `battery`) x 9 offset fields (`0.4`, empty, a single space, `0.4 `, ` 0.4`, `-1.2`, `nan`, `abc`, `0.4\\t`) x 4 line endings (`\\n`, none, `\\r\\n`, `\\n\\n`) x 2 leading-newline variants. Compared the scan's DECISION per row — PASS / skip-this-row / next-row — across rstrip(\"\\n\"), rstrip(None) and lstrip(\"\\n\"): 0 disagreements.",
       "why": "The only consumer of the stripped text is `float(p[2])`, which already tolerates surrounding whitespace, so a newline left on the last field parses identically. `p[1] == \"read\"` compares an INTERIOR field that no end-of-line strip can reach, and a row whose event field carries its own trailing space fails that comparison the same way under all three. The twin entry for `rstrip(None)` records the same argument; this is the direction flip, which that key does not match.",
       "note": "A PRE-EXISTING line, pulled into diff scope because this unit changed the enclosing function's loop header to iterate a pooled, band-filtered file list. The scan body is untouched by #3297."
+    },
+    {
+      "brief": "SOLID-NIGHT-RTC-2026-10-04 (the `rtc` band, #3324) — drained 2026-10-05",
+      "class": "no-distinguishing-input",
+      "key": "- c = line.rstrip(\"\\n\").split(\";\") | + c = line.rstrip(None).split(\";\")",
+      "op": "strip-argument substitution on the RTCLOG row split (`\"\\n\"` -> None)",
+      "probe": "4536 candidate RTCLOG rows: 3 timestamp fields x 7 event spellings (`read`, `push`, `reset`, `read ` with a trailing space, ` read`, `battery`, empty) x 9 offset fields x 3 trailing-column shapes (none, the writer's `;;;;`, a bare `;`) x 4 line endings x 2 leading-newline variants. Compared the reader's DECISION per row -- skip / drop / read / push / reset -- across rstrip(\"\\n\"), rstrip(None) and lstrip(\"\\n\"): 0 disagreements.",
+      "why": "The stripped text has exactly two consumers and an end-of-line strip reaches neither: `c[1] not in (\"push\", \"read\", \"reset\")` compares an INTERIOR field, and `float(c[2])` already tolerates surrounding whitespace. `len(c) < 3` counts `;` separators, which no strip variant changes. A row whose event field carries its own trailing space fails the membership test identically under all three.",
+      "note": "PROBED AT THIS CALL SITE, not transferred. The same mutation text in `clocks` has its own pair of entries with its own probe, and this file's history records that a claim does not carry between call sites because the mutation looks the same — there the consumer is `float(p[2])` alone, here it is also an exact membership test on `c[1]`."
+    },
+    {
+      "brief": "SOLID-NIGHT-RTC-2026-10-04 (the `rtc` band, #3324) — drained 2026-10-05",
+      "class": "no-distinguishing-input",
+      "key": "- c = line.rstrip(\"\\n\").split(\";\") | + c = line.lstrip(\"\\n\").split(\";\")",
+      "op": "strip-direction substitution on the RTCLOG row split (rstrip -> lstrip)",
+      "probe": "4536 candidate RTCLOG rows: 3 timestamp fields x 7 event spellings (`read`, `push`, `reset`, `read ` with a trailing space, ` read`, `battery`, empty) x 9 offset fields x 3 trailing-column shapes (none, the writer's `;;;;`, a bare `;`) x 4 line endings x 2 leading-newline variants. Compared the reader's DECISION per row -- skip / drop / read / push / reset -- across rstrip(\"\\n\"), rstrip(None) and lstrip(\"\\n\"): 0 disagreements.",
+      "why": "The stripped text has exactly two consumers and an end-of-line strip reaches neither: `c[1] not in (\"push\", \"read\", \"reset\")` compares an INTERIOR field, and `float(c[2])` already tolerates surrounding whitespace. `len(c) < 3` counts `;` separators, which no strip variant changes. A row whose event field carries its own trailing space fails the membership test identically under all three.",
+      "note": "PROBED AT THIS CALL SITE, not transferred. The same mutation text in `clocks` has its own pair of entries with its own probe, and this file's history records that a claim does not carry between call sites because the mutation looks the same — there the consumer is `float(p[2])` alone, here it is also an exact membership test on `c[1]`."
     }
   ],
   "telemetry.py": [

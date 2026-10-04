@@ -47,6 +47,15 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # end-of-line strip can reach. Its `rstrip(None)` twin was already in the file. ⚠️ And per the note above
 # about #3243: that deletion was for `cells = line.rstrip(...)` in a different reader, where the cell is
 # string-compared to "ok" — a different key and a different call site, so it does not transfer here.
+# solid_night_inputs.py went 32 -> 34 on 2026-10-05 (#3324, the `rtc` band): TWO entries ADDED for the
+# `c = line.rstrip("\\n")` pair in `rtc_events`, probed over 4,536 candidate RTCLOG rows with 0
+# disagreements in the reader's decision. ⚠️ PROBED AT THIS CALL SITE rather than transferred from the
+# identical mutation text in `clocks`: there the stripped text feeds `float(p[2])` alone, here it also
+# feeds an exact membership test on `c[1]`, and this file's own history is explicit that a claim does not
+# carry between call sites because the mutation matches. The band's 28 arithmetic survivors were NOT
+# excused — the drift formula was extracted as `rtc_drift` and pinned to exact floats, because inside
+# `rtc_band` those numbers only ever reached a reader as `f"{ppm:+.0f}"` and a test could assert the
+# sentence while missing an index substitution worth less than half a ppm.
 # THE RATCHET: entries per module, committed. It may only go UP without a reason stated in the commit —
 # a drop is either a deliberate removal (say which entry and why it excuses nothing) or the merge defect
 # above. Restored 2026-09-29 after #3237; the numbers are the file's own, not a target.
@@ -153,7 +162,7 @@ RATCHET = {
     "probe_ring_adv.py": 4,
     "pulsedex-dsp.js": 43,
     "solid_night.py": 2,
-    "solid_night_inputs.py": 32,
+    "solid_night_inputs.py": 34,
     "telemetry.py": 1,
     "timeline.py": 1,
     "writers.py": 35,

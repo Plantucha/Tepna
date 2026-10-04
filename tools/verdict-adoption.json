@@ -194,7 +194,7 @@
           "solid-night"
         ]
       },
-      "note": "solid-night (SOLID-NIGHT-2026-09-23-BRIEF §3.1): one tepna.verdict/1 per settled night, composed from band decisions made by solid_night_inputs.py and written as SOLID-VERDICT.json beside the loss audit by capture.loss_poller on the audit's own trigger; the §3.1 run ('S solid of N nights over D days') rides in result.run. Criterion 'failing band decisions' eq 0, pre-stated in §3 before any night was scored. The sample is a clean synthetic H10 night: four terms PASS from their real inputs and the night is UNKNOWN on the timebase term, as every real night is until the residual pass lands."
+      "note": "solid-night (SOLID-NIGHT-2026-09-23-BRIEF §3.1): one tepna.verdict/1 per settled night, composed from band decisions made by solid_night_inputs.py and written as SOLID-VERDICT.json beside the loss audit by capture.loss_poller on the audit's own trigger; the §3.1 run ('S solid of N nights over D days') rides in result.run. Criterion 'failing band decisions' eq 0, pre-stated in §3 before any night was scored. The sample is a clean synthetic H10 night and EVERY term PASSES from its real inputs, the night with them. It read UNKNOWN on the timebase term until \u00a7A5's residual pass landed (#3245); the tripwire now runs over that axis, finds no candidate, and the sample became the thing it claims to be. The `rtc` term (#3265) is NOT_APPLICABLE there, because an H10 keeps no RTC log."
     },
     "capture-host/solid_night_inputs.py": {
       "bin": "word-only",
