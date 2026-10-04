@@ -5104,6 +5104,14 @@
       "op": "the clock STREAM TAG dropped at the timebase call site",
       "probe": "No probe: `clock_tag` is read by exactly one line of `timebase` — the message for an EMPTY `clock_files` — and that list cannot be empty at this call site under today's `MODELS`, shown below. Every other path ignores the argument, so no input can separate the two values.",
       "why": "FOR EVERY MODEL THAT DECLARES A CLOCK STREAM, `clock` EQUALS `primary` — H10 → ECG, VeritySense → PPG — and `score_devices` has already returned the `presence` band at `if not primaries` when that file is absent. So `stream_files(night_dir, model, clock_tag)` is non-empty whenever this line runs, `timebase` never reaches the branch that renders the tag, and the tag's VALUE cannot change an answer. The ring is the one model where clock ≠ primary and its clock is None, which the caller handles before this line. The invariant is not assumed: `test_the_CLOCK_TAG_per_model_is_the_stream_that_reports_a_DEVICE_time` asserts `all(m[\"clock\"] == m[\"primary\"] for m in MODELS.values() if m[\"clock\"] is not None)`, so the day a model declares a clock stream DIFFERENT from its primary that test fails, this mutant becomes reachable, and the right answer is a test of the rendered tag — not this entry. That is the falsifier, and it is a test rather than an argument."
+    },
+    {
+      "brief": "SOLID-NIGHT-2026-09-23 §3.4 (the declared-pause band, #3259) — drained 2026-10-03",
+      "class": "untestable-by-design",
+      "key": "- if span is None or span[0] is None or span[0] > start or span[1] < end: | + if span is None or span[1] is None or span[0] > start or span[1] < end:",
+      "op": "the span's FIRST member tested for absence replaced by its LAST",
+      "probe": "No probe, because no input can separate them: `span[0] is None` and `span[1] is None` are the SAME predicate for every span this function can receive, shown below. The reachable half of the guard IS tested — `test_an_AUDITED_FILE_WITH_NO_READABLE_STAMP_is_not_examined` plants a `(None, None)` span and both the original and this mutant refuse it identically.",
+      "why": "`first_last` SETS BOTH MEMBERS OR NEITHER. It walks the file, sets `first` on the first parseable row stamp and `last` on every one, so a file with no parseable stamp yields `(None, None)` and a file with any yields two real datetimes — a MIXED pair is unconstructible. Every `spans` value reaching `continuity` comes from that one function (`score_devices` builds `{p: first_last(p) for p in primaries}`), so testing the first member for absence and testing the last are the same test. The mutant is not a different question answered the same way; it is the same question. FALSIFY THIS by giving `spans` a value from any other source, or by making `first_last` able to return one None and one stamp — at which point the right answer is a test of which end is meant, not this entry."
     }
   ],
   "telemetry.py": [
