@@ -50,16 +50,27 @@
  *   node tools/absence-ledger.mjs             # verify: re-key and compare against the committed file
  *   node tools/absence-ledger.mjs --write     # (re)write the sidecar
  *   node tools/absence-ledger.mjs --selftest  # the properties below
+ *   node tools/absence-ledger.mjs --ratchet [--json]   # the gate (`npm run verify:absence`)
+ *
+ * ── THE RATCHET (owner-commissioned drain, 2026-10-04) ──────────────────────────────────────────
+ * `audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json` holds ONE number, the open count, and the gate holds
+ * it EQUAL to the state file's `counts.open` — an equality, not a floor. A rise is red (a finding was
+ * re-opened or a seed lost); a fall without lowering the ceiling in the same PR is red too, because a
+ * ceiling left above the count is headroom the next regression spends silently. The gate also requires
+ * the state file to be byte-identical to a rebuild, so the count it reads was written by this tool and
+ * not by hand. One `tepna.verdict/1` object, `--json` printing only that.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const SURVEY = join(ROOT, 'audits', 'ABSENCE-SURVEY-2026-09-22.json');
 export const LEDGER = join(ROOT, 'audits', 'ABSENCE-SURVEY-2026-09-22-STATE.json');
+export const RATCHET = join(ROOT, 'audits', 'ABSENCE-SURVEY-2026-09-22-RATCHET.json');
 
 export const STATES = ['open', 'fixed', 'accepted-with-reason'];
 
@@ -132,8 +143,13 @@ export const SEEDS = [
   },
   {
     at: 'capture-host/nightqc.py:1676',
-    state: 'open',
-    note: 'the recorded line was refactored away; whether the defect went with it is NOT decidable from content, so it stays open rather than being credited'
+    state: 'fixed',
+    note: "fixed #3030 (5997a632): the doff is now the trailing off-run's first CLOCK second (`ppg2w_contact` tail_start → `doff_at`), so the count arithmetic `t0 + (epochs - trailing_off_epochs)` that this finding names is gone with its defect, not just reworded. Re-read 2026-10-04 (Wren); it was held open 09-29 because content alone could not decide it"
+  },
+  {
+    at: 'capture-host/nightqc.py:713',
+    state: 'fixed',
+    note: 'count_rows returns None for an unreadable file, and summarize keeps it out of every row sum, lists the stream under `unreadable` and the file under `unreadable_files`; qc_verdict reads UNKNOWN naming it. Plant: test_an_unreadable_capture_is_unknown_never_missing_or_zero (2026-10-04, Wren)'
   },
   {
     at: 'capture-host/writers.py:1544',
@@ -192,6 +208,46 @@ export function build(survey, seeds = SEEDS) {
 }
 
 const render = (o) => `${JSON.stringify(o, null, 1)}\n`;
+
+/** The ONE verdict this tool emits. Pure given its inputs, so the selftest exercises the real shape.
+ *  `ceiling` is the committed ratchet number; `built` is the rebuilt state; `identical` says whether the
+ *  committed state file matched that rebuild. Every finding is examined to decide whether it is open, so
+ *  the population is all of them — the open count is the RESULT, not the population. */
+export function ratchetVerdictObject({ ceiling, built, identical }) {
+  const open = built.counts.open;
+  const findings = built.counts.findings;
+  let status = 'PASS';
+  let reason = null;
+  if (!identical) {
+    status = 'FAIL';
+    reason = 'the committed state file is not what this tool would write — re-run `node tools/absence-ledger.mjs --write`; it is never hand-edited';
+  } else if (!Number.isInteger(ceiling)) {
+    status = 'UNKNOWN';
+    reason = `the ratchet file carries no integer \`open\` (got ${JSON.stringify(ceiling)})`;
+  } else if (open > ceiling) {
+    status = 'FAIL';
+    reason = `open findings ROSE: ${open} > ceiling ${ceiling} — a finding was re-opened or a seed was lost`;
+  } else if (open < ceiling) {
+    status = 'FAIL';
+    reason = `open findings fell to ${open} but the ceiling is still ${ceiling} — set \`open: ${open}\` in audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json IN THIS PR`;
+  }
+  return makeVerdict({
+    gate: 'absence-survey-ratchet',
+    tool: 'tools/absence-ledger.mjs',
+    status,
+    scope: 'internal',
+    population: { checked: findings, eligible: findings, excluded: 0 },
+    criterion: { name: 'open_absence_findings', threshold: Number.isInteger(ceiling) ? ceiling : 0, unit: 'findings', direction: 'eq' },
+    result: status === 'UNKNOWN' ? null : { open, ceiling, fixed: built.counts.fixed, accepted: built.counts['accepted-with-reason'] },
+    evidence: ['audits/ABSENCE-SURVEY-2026-09-22-STATE.json', 'audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json'],
+    reason
+  });
+}
+
+export function readCeiling() {
+  if (!existsSync(RATCHET)) return undefined;
+  return JSON.parse(readFileSync(RATCHET, 'utf8')).open;
+}
 
 export function selftest() {
   const fail = [];
@@ -252,6 +308,18 @@ export function selftest() {
   ok(built.counts.fixed === SEEDS.filter((s) => s.state === 'fixed').length, 'the fixed count is the seeded one');
   ok(built.counts['accepted-with-reason'] === SEEDS.filter((s) => s.state === 'accepted-with-reason').length, 'the accepted count is the seeded one');
   ok(new Set(built.entries.map((e) => e.key)).size === built.entries.length, 'keys are unique');
+  /* 8 · the ratchet is an EQUALITY: a rise and an un-lowered fall are both red, equal is green, a
+   *     hand-edited state is red whatever the count, and a ratchet file with no number cannot pass. */
+  const n = built.counts.open;
+  const rv = (ceiling, identical = true) => ratchetVerdictObject({ ceiling, built, identical }).status;
+  ok(rv(n) === 'PASS', 'open == ceiling passes');
+  ok(rv(n - 1) === 'FAIL', 'a rise above the ceiling fails');
+  ok(rv(n + 1) === 'FAIL', 'a fall without lowering the ceiling fails');
+  ok(rv(n, false) === 'FAIL', 'a state file that is not the rebuild fails at any count');
+  ok(rv(undefined) === 'UNKNOWN', 'no ceiling is UNKNOWN, never a pass');
+  ok(ratchetVerdictObject({ ceiling: n, built, identical: true }).population.checked === built.counts.findings, 'the population is every finding');
+  const committed = readCeiling();
+  ok(committed === undefined || rv(committed) === 'PASS', 'the committed ceiling equals the open count');
 
   if (fail.length) {
     console.error(`✗ absence-ledger selftest: ${fail.length} failed`);
@@ -264,8 +332,21 @@ export function selftest() {
 }
 
 function main(argv) {
-  refuseUnknownArgvOrExit(argv, { boolean: ['--write', '--selftest'], valued: [] }, { tool: 'absence-ledger' });
+  refuseUnknownArgvOrExit(argv, { boolean: ['--write', '--selftest', '--ratchet', '--json'], valued: [] }, { tool: 'absence-ledger' });
   if (argv.includes('--selftest')) return selftest();
+  if (argv.includes('--ratchet')) {
+    const b = build(JSON.parse(readFileSync(SURVEY, 'utf8')));
+    const identical = existsSync(LEDGER) && readFileSync(LEDGER, 'utf8') === render(b);
+    const v = ratchetVerdictObject({ ceiling: readCeiling(), built: b, identical });
+    if (argv.includes('--json')) {
+      console.log(JSON.stringify(v));
+    } else {
+      const mark = v.status === 'PASS' ? '✓' : '✗';
+      console.log(`  ${mark} absence-survey ratchet ${v.status}: ${b.counts.open} open of ${b.counts.findings}` + (v.reason ? ` — ${v.reason}` : ''));
+      console.log(JSON.stringify(v));
+    }
+    return v.status === 'PASS' ? 0 : 1;
+  }
   const built = render(build(JSON.parse(readFileSync(SURVEY, 'utf8'))));
   if (argv.includes('--write')) {
     writeFileSync(LEDGER, built, 'utf8');

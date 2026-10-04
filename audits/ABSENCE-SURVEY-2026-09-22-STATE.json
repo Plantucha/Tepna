@@ -20,8 +20,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 287,
-  "fixed": 2,
+  "open": 285,
+  "fixed": 4,
   "accepted-with-reason": 1
  },
  "entries": [
@@ -836,7 +836,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 713,
-   "state": "open"
+   "state": "fixed",
+   "note": "count_rows returns None for an unreadable file, and summarize keeps it out of every row sum, lists the stream under `unreadable` and the file under `unreadable_files`; qc_verdict reads UNKNOWN naming it. Plant: test_an_unreadable_capture_is_unknown_never_missing_or_zero (2026-10-04, Wren)"
   },
   {
    "key": "f06c04c132be",
@@ -845,8 +846,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1676,
-   "state": "open",
-   "note": "the recorded line was refactored away; whether the defect went with it is NOT decidable from content, so it stays open rather than being credited"
+   "state": "fixed",
+   "note": "fixed #3030 (5997a632): the doff is now the trailing off-run's first CLOCK second (`ppg2w_contact` tail_start → `doff_at`), so the count arithmetic `t0 + (epochs - trailing_off_epochs)` that this finding names is gone with its defect, not just reworded. Re-read 2026-10-04 (Wren); it was held open 09-29 because content alone could not decide it"
   },
   {
    "key": "26c95d28e17e",

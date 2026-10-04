@@ -155,7 +155,48 @@ def test_count_rows(tmp_path):
     empty = os.path.join(tmp_path, "a_b_c_1_MAG.txt")
     open(empty, "w").close()
     assert nightqc.count_rows(empty) == 0  # empty file → 0
-    assert nightqc.count_rows(str(tmp_path / "does-not-exist")) == 0  # missing → 0 (OSError swallowed)
+    # Unreadable → None, never 0: a file that cannot be opened did not deliver "nothing" (ABSENCE-SURVEY
+    # d2ab13a24151). `is None`, because `== 0` and a falsy check would both pass on the old defect.
+    assert nightqc.count_rows(str(tmp_path / "does-not-exist")) is None
+
+
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root reads a 0o000 file")
+def test_an_unreadable_capture_is_unknown_never_missing_or_zero(tmp_path, _tz):
+    """PLANT (ABSENCE-SURVEY d2ab13a24151): one stream file exists and cannot be read. Before the fix it
+    counted 0 rows, landed in `missing`, and the verdict FAILed the device for delivering nothing."""
+    night = str(tmp_path / "2026-07-19")
+    os.makedirs(night)
+    t = _stamp_epoch() + 10  # too young to judge coverage, so nothing else can FAIL and mask the plant
+    for name, rows in [
+        ("Polar_H10_02849638_20260719220000_ECG.txt", 100),
+        ("Polar_H10_02849638_20260719220000_ACC.txt", 50),
+        ("Polar_H10_02849638_20260719220000_HR.txt", 10),
+        ("Wellue_O2Ring-S_S8AW_20260719220000_SPO2.csv", 900),
+        ("Wellue_O2Ring-S_S8AW_20260719220000_PPG.txt", 8000),
+    ]:
+        _utime(_cap(night, name, rows), t)
+    locked = os.path.join(night, "Polar_H10_02849638_20260719220000_ACC.txt")
+    os.chmod(locked, 0)
+    try:
+        scanned = {f["file"]: f for f in nightqc.scan_night(night)}
+        assert scanned[os.path.basename(locked)]["rows"] is None
+        s = _summarize_floating(night, _devices())
+        h10 = next(d for d in s["devices"] if d["name"] == "H10")
+        assert h10["streams"]["acc"] is None and h10["streams"]["ecg"] == 100
+        assert "H10:acc" not in s["missing"]
+        assert s["unreadable"] == [f"H10:acc ({os.path.basename(locked)})"]
+        assert s["unreadable_files"] == [os.path.basename(locked)]
+        assert s["total_rows"] == 100 + 10 + 900 + 8000  # the unknown file is left out, and named
+        assert s["ok"] is False
+        v = nightqc.qc_verdict(s, _devices(), night_dir=night)
+        assert v["status"] == "UNKNOWN" and "H10:acc" in v["reason"], v["reason"]
+    finally:
+        os.chmod(locked, 0o644)
+
+
+def test_known_rows_leaves_out_an_unreadable_file_rather_than_zeroing_it():
+    assert nightqc.known_rows([{"rows": 3}, {"rows": None}, {"rows": 0}]) == 3
+    assert nightqc.known_rows([]) == 0
 
 
 def test_scan_night_lists_capture_files_only(tmp_path, _tz):
