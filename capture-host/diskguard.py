@@ -32,14 +32,21 @@ def disk_report(path: str, min_free_gb: float = 0.0) -> dict:
     `path` need not exist yet — we walk up to the nearest existing parent so a not-yet-created root still
     reports the filesystem it will live on (rather than raising)."""
     probe = path
-    while probe and not os.path.exists(probe):
+    # BOUNDED by the path's own depth, never a hand-advanced `while`: every step drops one component, so
+    # depth + 1 steps always reach "/" — and a mutated loop condition then times out a test (UNDECIDED,
+    # which the mutation gate refuses) instead of failing it (CLAUDE.md §🧪).
+    for _ in range(path.count(os.sep) + 1):
+        if not probe or os.path.exists(probe):
+            break
         probe = os.path.dirname(probe) or "/"  # walk up; a relative path bottoms out at "/", which exists
     u = shutil.disk_usage(probe or "/")
     free_gb = u.free / _GiB
     return {
         "free_gb": round(free_gb, 2),
         "total_gb": round(u.total / _GiB, 2),
-        "free_pct": round(100 * u.free / u.total, 1) if u.total else 0.0,
+        # ∅ None when the filesystem reports no size: a free FRACTION of an unknown total is not
+        # computable, and 0.0 read as "the disk is full" (ABSENCE-SURVEY ac55d2678d14).
+        "free_pct": round(100 * u.free / u.total, 1) if u.total else None,
         "low": bool(min_free_gb > 0 and free_gb < min_free_gb),
     }
 

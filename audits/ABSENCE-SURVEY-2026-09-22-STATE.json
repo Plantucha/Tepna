@@ -20,8 +20,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 285,
-  "fixed": 4,
+  "open": 283,
+  "fixed": 6,
   "accepted-with-reason": 1
  },
  "entries": [
@@ -939,7 +939,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 874,
-   "state": "open"
+   "state": "fixed",
+   "note": "push() broadcasts the DECLARED rate (frame fs, else the stream fs, 0 = irregular, else None) instead of `or 1`; the 1 survives only as ring sizing. snapshot() reports None for an undeclared stream. monitor.html reads `d.fs ?? …` in both SSE handlers. Plants: test_push_publishes_a_DECLARED_irregular_stream_as_rate_0_never_1, test_push_publishes_NO_rate_for_an_unmetered_stream_and_still_sizes_its_ring (2026-10-04, Wren)"
   },
   {
    "key": "c368b8dd624b",
@@ -2190,7 +2191,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 42,
-   "state": "open"
+   "state": "fixed",
+   "note": "`free_pct` is None, not 0.0 (a full disk), when the filesystem reports no size; monitor.html renders \"size unknown\" / \"free fraction unknown\". Plant: test_a_zero_total_reports_NO_percent_rather_than_dividing_by_it (2026-10-04, Wren)"
   },
   {
    "key": "fc45870e8f2f",

@@ -81,7 +81,9 @@ def test_unregister_drops_stream_everywhere():
 def test_snapshot_of_unknown_stream_is_empty_not_error():
     bus = telemetry.TelemetryBus()
     snap = bus.snapshot("nope")
-    assert snap["v"] == [] and snap["fs"] == 0 and snap["chans"] == 1
+    # `fs` None, not 0: 0 is StreamMeta's encoding for a DECLARED irregular stream, and this one was never
+    # declared at all (ABSENCE-SURVEY drain, group 2).
+    assert snap["v"] == [] and snap["fs"] is None and snap["chans"] == 1
 
 
 # ── Link health (weak-signal warning, stream-rate side) ──────────────────────────────────────────────
@@ -188,11 +190,29 @@ def test_full_subscriber_queue_drops_oldest_keeps_newest():
     assert got == [2.0, 3.0]  # oldest (0,1) evicted, newest kept — never blocks
 
 
-def test_push_rate_falls_back_to_one_for_unmetered_stream():
-    bus = telemetry.TelemetryBus()
+def test_push_publishes_NO_rate_for_an_unmetered_stream_and_still_sizes_its_ring():
+    """`rate = fs or … or 1` broadcast an undeclared stream as 1 Hz and the monitor adopted it. The rate is
+    now None on the wire; the 1 survives only inside the ring sizing, which is unchanged: cap = max(64, 1 x
+    ring_seconds), so 100 seconds of ring keep 100 events."""
+    bus = telemetry.TelemetryBus(ring_seconds=100.0)
     q = bus.subscribe()
-    bus.push("nosuchstream", [5], fs=None)  # no meta, no fs → rate = 1 (not 0)
-    assert q.get_nowait()["fs"] == 1
+    bus.push("nosuchstream", list(range(150)), fs=None)
+    assert q.get_nowait()["fs"] is None
+    assert len(bus.snapshot("nosuchstream")["v"]) == 100
+
+
+def test_push_publishes_a_DECLARED_irregular_stream_as_rate_0_never_1():
+    """A stream registered with fs=0 ("irregular / per-event") was broadcast as fs=1, and the monitor's
+    SSE handler (`st.fs = d.fs || st.fs`) then windowed it as a 1 Hz stream — the bug its STREAMS loop
+    had already been fixed for. The declared 0 travels as 0; the ring is still sized at 1 per second."""
+    bus = telemetry.TelemetryBus(ring_seconds=100.0)
+    bus.register("motion_o2", "Motion (O2Ring)", "", 0)
+    q = bus.subscribe()
+    bus.push("motion_o2", list(range(150)))
+    assert q.get_nowait()["fs"] == 0
+    assert len(bus.snapshot("motion_o2")["v"]) == 100
+    bus.push("motion_o2", [1], fs=4)  # a frame that states its own rate still wins
+    assert q.get_nowait()["fs"] == 4
 
 
 # ── STREAM SHAPE IS AN INVARIANT (VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §2) ────────────────────

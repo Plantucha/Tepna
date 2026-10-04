@@ -10,6 +10,14 @@ def test_disk_report_reports_free_and_total(tmp_path):
     assert r["total_gb"] > 0 and 0 <= r["free_pct"] <= 100 and r["low"] is False
 
 
+def test_disk_report_free_pct_rounds_to_one_decimal(tmp_path, monkeypatch):
+    import collections
+
+    usage = collections.namedtuple("usage", "total used free")
+    monkeypatch.setattr(diskguard.shutil, "disk_usage", lambda p: usage(3000, 2000, 1000))
+    assert diskguard.disk_report(str(tmp_path))["free_pct"] == 33.3
+
+
 def test_disk_report_low_flag(tmp_path):
     r = diskguard.disk_report(str(tmp_path), min_free_gb=1e9)  # no disk has an exabyte free
     assert r["low"] is True
@@ -227,13 +235,16 @@ def test_the_report_is_rounded_for_display_not_left_raw(tmp_path):
     assert round(r["free_pct"], 1) == r["free_pct"], "free_pct is 1dp"
 
 
-def test_a_zero_total_reports_zero_percent_rather_than_dividing_by_it(monkeypatch, tmp_path):
+def test_a_zero_total_reports_NO_percent_rather_than_dividing_by_it(monkeypatch, tmp_path):
     """A pseudo-filesystem can report total=0. Without the guard this is a ZeroDivisionError out of the
-    daemon's health check — the check that exists to notice trouble becoming the trouble."""
+    daemon's health check — the check that exists to notice trouble becoming the trouble.
+
+    The guard used to answer 0.0, which reads as a FULL disk (ABSENCE-SURVEY ac55d2678d14): a free fraction
+    of an unknown total is not computable, so it is None."""
 
     class U:
         free, total, used = 0, 0, 0
 
     monkeypatch.setattr(diskguard.shutil, "disk_usage", lambda p: U())
     r = diskguard.disk_report(str(tmp_path))
-    assert r["free_pct"] == 0.0 and r["total_gb"] == 0.0
+    assert r["free_pct"] is None and r["total_gb"] == 0.0
