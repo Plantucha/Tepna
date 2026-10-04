@@ -33,7 +33,29 @@ log = logging.getLogger("tepna-capture")
 
 # Sidecars the box writes that are NOT a device capture stream — excluded from the per-device rollup so a
 # LINK/CLOCK/QC file never masquerades as sensor data.
-_SIDECAR_TAGS = {"LINK", "CLOCK", "OXYFRAME"}
+#
+# `OXYLIFE` joined this set on 2026-10-03 (E16). It was ALREADY excluded everywhere it mattered, but by
+# accident: the writer uses ONE FIXED name per night (`OXYLIFE.csv` — deliberately unstamped, so the
+# append is idempotent; `writers.OxyLifeLogWriter`), and a name with no `_` does not parse as a capture
+# name AT ALL, so `parse_capture_name` returned None and every consumer dropped it for the wrong reason.
+# Stamp that writer the way LINK and CLOCK are stamped — a one-line change nothing here would object to —
+# and `Tepna_<box>_OXYLIFE.csv` starts parsing, with tag `OXYLIFE` absent from this set: it would then
+# count as DEVICE DATA in all six places that filter on this set, and the first symptom would be
+# `newest_data_mtime` tracking the daemon's own chatter, which moves `_current_night` and restarts the
+# settle clock `data_settled` exists to run down. The ring's lifecycle log is the box talking about
+# itself by the definition this set already states, exactly as `OXYFRAME` is, so it belongs here. No
+# observable behaviour changes today — no parseable OXYLIFE file exists — and that is the point: the
+# exclusion now holds BY RULE instead of by a filename that happens to lack an underscore.
+_SIDECAR_TAGS = {"LINK", "CLOCK", "OXYFRAME", "OXYLIFE"}
+
+# ⚠️ A NAME-KEYED GUARD WAS ADDED HERE AND THE MUTATION GATE REFUTED IT. I wrote
+# `_DAEMON_FIXED_NAMES = {"OXYLIFE.csv"}` beside the tag above and claimed in the commit that "both
+# halves are needed". They are not: `or n in _DAEMON_FIXED_NAMES` survived mutation to `and`
+# (nightqc.x_newest_data_mtime__mutmut_4) because nothing reaches it that was not already excluded —
+# the BARE name has no `_` so `parse_capture_name` returns None and the next branch drops it, and any
+# STAMPED form parses to tag `OXYLIFE`, which is in `_SIDECAR_TAGS`. One rule covers both spellings, so
+# the second guard was dead code wearing a safety argument. If a future fixed-name log is spelled so
+# that it DOES parse, the fix is its tag in the set above, not a second list of names here.
 
 # ── DEPLOY-FILE DRIFT, CHECKED NIGHTLY ──────────────────────────────────────────────────────────────
 # `deploy/check-system-files.sh` is the ONLY instrument that can see an installed helper diverging from
@@ -1481,6 +1503,38 @@ def _parse_phone_ts(raw: str) -> float | None:
     except (ValueError, TypeError):
         return None
     return float(calendar.timegm(dt.timetuple())) + dt.microsecond / 1e6
+
+
+def data_settled(newest_mtime: float | None, settle_sec: float, now: float) -> bool:
+    """Has this night's DATA gone quiet long enough to judge it? PURE — the IO is `newest_data_mtime`.
+
+    🔴 TWO QUESTIONS, ONE PREDICATE, AND THEY ARE NOT THE SAME. `diskguard.active_nights` answers "is
+    ANYTHING writing in this folder" and is right to count any file: it is a protect-list for destructive
+    work (prune, mirror, archive), where a folder someone is writing to must be left alone. "Has the
+    DEVICE DATA stopped" is a different question, and a verdict poller that borrows the first answer for
+    the second never judges a night at all — because the poller's OWN output lands in that folder.
+
+    Measured on vigil 2026-10-03 16:5x, with the daemon up since 06:53:40:
+      · 2026-10-02's last device file (`…_PPG2W.txt`, `…_RTCLOG.csv`) was written **03:58:25**;
+      · its `QC-SUMMARY.json` was rewritten at **16:46:51** — the QC poller re-writing the current
+        night every cycle, **12 h 48 m** after the data stopped;
+      · so the folder is永 `active`, the loss poller skips every active night, and the night is never
+        judged. Wren measured the same shape on 10-01: LOSS written 15:30:38, **10 h 55 m** after doff.
+    And the current night cannot advance: 2026-10-03's folder holds `Tepna_*_LINK.csv`,
+    `Tepna_*_CLOCK.csv` and `OXYLIFE.csv` — so `newest_data_mtime` is None there and `_current_night`
+    keeps returning 10-02. That exclusion USED TO BE A LATENT TRAP and is no longer: LINK and CLOCK were
+    excluded by tag, but `OXYLIFE.csv` only by failing to parse, so stamping that writer would have made
+    the daemon's own chatter count as device data. `OXYLIFE` is now in `_SIDECAR_TAGS` and the fixed name
+    excluded by the tag, not by the underscore (E16, 2026-10-03) — and the bare name never reaches that
+    rule only because it cannot parse, which is harmless: a name with no `_` is not a capture file under
+    any spelling. A second name-keyed guard was tried here and the mutation gate showed it was dead.
+
+    `None` (the folder holds no capture file) is NOT settled: there is nothing to judge, and saying
+    "settled" about a folder with no data would invite a verdict over an empty population (§🧾).
+    """
+    if newest_mtime is None:
+        return False
+    return (now - newest_mtime) >= settle_sec
 
 
 def newest_data_mtime(night_dir: str) -> float | None:

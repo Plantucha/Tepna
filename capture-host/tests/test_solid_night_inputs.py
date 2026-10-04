@@ -92,6 +92,7 @@ def _audit(
     journal="read",
     wear=None,
     gaps_key=True,
+    clock_events=(),
 ):
     dev = {
         "file": file,
@@ -101,7 +102,13 @@ def _audit(
     }
     if gaps_key:
         dev["gaps"] = [{"at": a, "s": s, "cause": c} for a, s, c in gaps]
-    (d / "LOSS-AUDIT.json").write_text(json.dumps({"journal": journal, "devices": {H10["name"]: dev}}))
+    obj = {"journal": journal, "devices": {H10["name"]: dev}}
+    # `clock_events=None` is "journalctl was unavailable", `()` is "read, and nothing happened", and
+    # omitting the key entirely is an audit written before the record existed. Three different absences,
+    # and A5 must tell them apart, so the fixture can produce each.
+    if clock_events != "absent":
+        obj["clock_events"] = None if clock_events is None else list(clock_events)
+    (d / "LOSS-AUDIT.json").write_text(json.dumps(obj))
 
 
 def _good_h10(d, **audit):
@@ -119,7 +126,7 @@ def _bands(d, devices=(H10,)):
 # ── the whole path, one device ──────────────────────────────────────────────────────────────────────
 
 
-def test_a_clean_h10_passes_every_term_but_timebase_which_names_what_it_waits_for(tmp_path):
+def test_a_clean_h10_now_passes_EVERY_term_including_the_timebase(tmp_path):
     _good_h10(tmp_path)
     b = _bands(tmp_path)[H10["name"]]["bands"]
     assert {k: v["status"] for k, v in b.items()} == {
@@ -127,13 +134,17 @@ def test_a_clean_h10_passes_every_term_but_timebase_which_names_what_it_waits_fo
         "completeness": "PASS",
         "validity": "PASS",
         "clocks": "PASS",
-        "timebase": "UNKNOWN",
+        "timebase": "PASS",
     }
-    # The reason CHANGED with PR-B and the change is the point: the band no longer says the scan is
-    # unbuilt, it says the axis was measured — an independent clock at a plausible rate — and names the
-    # ONE term still outstanding. Whole-band UNKNOWN is still correct while A5 has not run (§∅).
-    assert "A5 step tripwire has not run" in b["timebase"]["reason"]
-    assert "ppm" in b["timebase"]["reason"]
+    # A5 HAS NOW RUN, and this is the assertion that changes: a clean axis with the record set readable
+    # and no candidate PASSES. Until the tripwire was built every night read UNKNOWN here by
+    # construction, so the 14-night run could never start — this is the term that unblocked it.
+    assert b["timebase"]["status"] == "PASS"
+    # A PASS publishes what it passed ON — the rate, the span, and which record sources were read. A band
+    # that goes silent on success makes a healthy night unauditable later.
+    assert "an independent clock at +0 ppm over 3 min" in b["timebase"]["reason"]
+    assert "the A5 tripwire found no unrecorded shift" in b["timebase"]["reason"]
+    assert "seam sidecar + journal clock events + CLOCKSYNC.csv" in b["timebase"]["reason"]
 
 
 def test_an_absent_primary_is_no_wear_or_radio_down_never_a_pass(tmp_path):
@@ -383,12 +394,12 @@ def test_read_json_refuses_absent_broken_and_non_object_files(tmp_path):
 
 
 # ── §3.4 timebase · the residual pass (PR-B) ────────────────────────────────────────────────────────
-def _tb(d, **kw):
+def _tb(d, clock_events=(), **kw):
     _ecg(d, **kw)
     _seams(d)
     _runs(d, "ECG")
     _runs(d, "ACC")
-    _audit(d)
+    _audit(d, clock_events=clock_events)
     return _bands(d)[H10["name"]]["bands"]["timebase"]
 
 
@@ -449,13 +460,16 @@ def test_anchors_are_batches_not_rows(tmp_path):
     assert len(scan["anchors"]) < rows / 2, len(scan["anchors"])
 
 
-def test_a_healthy_axis_stops_at_the_unbuilt_step_scan_rather_than_passing(tmp_path):
-    """§∅: the A5 tripwire has not run, so the band must not claim a clean one."""
-    tb = _tb(tmp_path)
+def test_a_healthy_axis_stops_when_the_A5_RECORD_SET_cannot_be_read(tmp_path):
+    """§∅: the tripwire must not fire without the records to check against, and it must not PASS over an
+    unexamined term either. A `LOSS-AUDIT.json` written before the clock-event record existed carries no
+    `clock_events` key at all, which is an absence and not an empty record set."""
+    tb = _tb(tmp_path, clock_events="absent")
     assert tb["status"] == "UNKNOWN"
     # a bounded, non-drifting host jitter is a REAL clock with NO rate: +0 ppm is the measurement.
     assert "an independent clock at +0 ppm over 3 min" in tb["reason"], tb["reason"]
-    assert "A5 step tripwire has not run" in tb["reason"]
+    assert "A5 record set could not be read" in tb["reason"]
+    assert "predates the clock-event record" in tb["reason"]
 
 
 def test_an_unreadable_stream_is_named_not_scored(tmp_path):
@@ -520,7 +534,8 @@ def test_a_real_drift_is_measured_and_pins_the_median_windows(tmp_path):
     bounds themselves. -464 ppm for a device running 500 ppm fast: the host-minus-device residual FALLS,
     and the median-of-ends estimator under-reads the planted rate by the known end-clamp bias (§7)."""
     tb = _tb(tmp_path, dev_ppm=500.0)
-    assert tb["status"] == "UNKNOWN"
+    # The status moved to PASS when A5 was built; the LINE is what this test pins, and it is unchanged.
+    assert tb["status"] == "PASS"
     assert "an independent clock at -464 ppm over 3 min" in tb["reason"], tb["reason"]
     # and the reason NAMES THE FILE it judged. Without this a `who = None` mutation passes every other
     # assertion here, and the band would tell a reader "`None` ... at -464 ppm".
@@ -640,7 +655,7 @@ def test_the_ppm_scale_is_observed_at_a_rounding_edge(tmp_path):
         h = 1000 * i + (i % 3) * 7 + (i % 7) * 11
         pairs.append((h, round((h + k * i) * 1_000_000)))
     tb = _tb_pairs(tmp_path, pairs)
-    assert tb["status"] == "UNKNOWN", tb
+    assert tb["status"] == "PASS", tb
     assert "at -40000 ppm" in tb["reason"], tb["reason"]
 
 
@@ -1202,7 +1217,7 @@ def test_an_UNKNOWN_rate_names_the_span_in_MINUTES(tmp_path):
     """`span_s / 60` -> `/ 61` in the independent-clock reason: 61 min becomes 60, and the operator is
     told the axis was judged over a minute less than it was."""
     tb = _long_night(tmp_path, minutes=61, dev_ppm=-166.7)
-    assert tb["status"] == "UNKNOWN", tb["reason"]
+    assert tb["status"] == "PASS", tb["reason"]
     assert "ppm over 61 min" in tb["reason"], tb["reason"]
 
 
@@ -1819,3 +1834,1126 @@ def test_the_PMDNEG_reader_declares_its_encoding_AND_degrades_on_a_bad_byte(tmp_
         cwd=str(si.__file__).rsplit("/", 1)[0],
     )
     assert r.returncode == 0, r.stderr
+
+
+# ── SOLID-NIGHT §A5 — the unrecorded-shift tripwire ─────────────────────────────────────────────────
+
+
+def _axis(
+    minutes=10,
+    rate=2.0,
+    step_ms=0.0,
+    at_min=5.0,
+    rows_hz=None,
+    cut_at_min=None,
+    latency_from_min=None,
+    gap_min=None,
+    gap_s=30.0,
+):
+    """A two-clock stream with a plantable device-clock STEP and a plantable delivery collapse.
+
+    `step_ms` shifts the DEVICE column from `at_min` onward — host arrival is untouched, so the residual
+    (host − device) moves by exactly that much and STAYS there, which is what a clock step looks like and
+    what a latency transient does not. `latency_from_min` thins the rows instead, leaving the residual
+    alone: that is the 09-19 shape Guard 1 exists to refuse."""
+    rows = []
+    t0 = T0
+    n = int(minutes * 60 * (rows_hz or rate))
+    for i in range(n):
+        sec = i / (rows_hz or rate)
+        host = t0 + dt.timedelta(seconds=sec)
+        if cut_at_min is not None and sec >= cut_at_min * 60:
+            break
+        if latency_from_min is not None and sec >= latency_from_min * 60 and i % 4:
+            continue  # the link delivers a quarter of the rows: a backlog, not a step
+        if gap_min is not None and gap_min * 60 <= sec < gap_min * 60 + gap_s:
+            continue  # nothing arrives at all for `gap_s`: the after-window is not flowing normally
+        # DEVICE JITTER IS NOT DECORATION. A perfectly regular device column is a DRAWN axis by the band's
+        # own test (99.9 % modal delta), and the night is refused before the tripwire is ever consulted.
+        jit = (i * 37) % 101 - 50  # 101 distinct offsets, so no delta value can dominate
+        dev_ns = int(sec * 1e9) + jit * 1_000_000 - (int(step_ms * 1e6) if sec >= at_min * 60 else 0)
+        rows.append(f"{host:%Y-%m-%dT%H:%M:%S}.{host.microsecond // 1000:03d};{dev_ns};1")
+    return "Phone timestamp;sensor timestamp [ns];ecg\n" + "\n".join(rows) + "\n"
+
+
+def test_the_DEVICE_COLUMN_may_be_the_LAST_one_in_the_header(tmp_path):
+    """The header is resolved by NAME, so the device column's POSITION is not part of the contract — and
+    when it is last, the header line's own newline is still attached to it. The box itself wrote a
+    different column order until 2026-08-05 (`5e5ac71a`, see `loss_audit.py`), a Polar Sensor Logger
+    export is a first-class input (CLAUDE.md §🎙️) and `test_loss_audit.py`'s `_polar(dev_last=True)`
+    already exercises exactly this shape. `rstrip` is what makes the name match: `lstrip` leaves
+    `"sensor timestamp [ns]\n"`, the membership test misses, and a two-clock stream reports NO DEVICE
+    CLOCK — the axis is not measured and §A5 never runs over it."""
+    cols = _axis().splitlines()
+    hdr = cols[0].split(";")
+    assert hdr[1] == si._SENSOR_NS_COL, "the helper writes the device column second; this test moves it last"
+    reordered = [";".join([hdr[0], hdr[2], hdr[1]])]
+    for line in cols[1:]:
+        c = line.split(";")
+        reordered.append(";".join([c[0], c[2], c[1]]))
+    p = tmp_path / f"{BASE}_ECG.txt"
+    p.write_text("\n".join(reordered) + "\n")
+    scan = si.residual_scan(str(p), None, None)
+    assert scan["reason"] is None, scan["reason"]
+    assert len(scan["anchors"]) > 2, "the device column was found and the axis was measured"
+
+
+def _a5(d, *, records=(), nominal=2.0, **kw):
+    p = d / f"{BASE}_ECG.txt"
+    p.write_text(_axis(**kw))
+    scan = si.residual_scan(str(p), None, None)
+    return si.unrecorded_shift(scan, [r.timestamp() * 1000.0 for r in records], nominal)
+
+
+def test_CONTROL_a_stepless_night_trips_nothing(tmp_path):
+    """The control the owner asked for: no step planted, no candidate found, so the band may PASS."""
+    assert _a5(tmp_path) is None
+
+
+def test_a_planted_unrecorded_step_fires_the_tripwire_as_UNKNOWN_never_FAIL(tmp_path):
+    """The fire is UNKNOWN `unrecorded-shift-candidate`. It is NOT a FAIL, and that is the whole shape of
+    A5: over n = 36 clean nights the corpus holds zero true unrecorded steps, so the detector has never
+    been validated against the thing it would convict."""
+    out = _a5(tmp_path, step_ms=4000.0)
+    assert out["status"] == "UNKNOWN"
+    assert "unrecorded-shift-candidate" in out["reason"]
+    assert "+4 s persistent shift" in out["reason"]
+    assert "no record in any of the three sources" in out["reason"]
+    # ONE VANTAGE PER 10 s BIN, and the count is derived rather than magic: the 600 s segment is eligible
+    # from +90 s (the before-window's width) to −120 s (the after-window's), so 390 s / `A5_BIN_S` = 39.
+    # This is the ONLY thing the one-per-bin dedup changes — with `_win_median` bisected, defeating it
+    # evaluates every anchor, finishes just as fast and returns the same verdict. Without this assertion
+    # that mutant is an honest survivor; with it, it dies on the number.
+    assert out["vantages"] == 39
+    assert out["vantages"] == int((10 * 60 - 90 - 120) / si.A5_BIN_S) + 0
+
+
+def test_a_step_the_box_RECORDED_is_not_a_finding(tmp_path):
+    """The 2026-08-18 mistake, planted: the same step with a clock event logged 68 s later — the real lag
+    in that night's journal — must not be convicted."""
+    rec = T0 + dt.timedelta(minutes=5, seconds=68)
+    assert _a5(tmp_path, step_ms=4000.0, records=(rec,)) is None
+
+
+def test_a_record_just_OUTSIDE_the_match_window_does_not_excuse_the_step(tmp_path):
+    """The window is pre-stated at 300 s and is not a licence to absorb any nearby event."""
+    rec = T0 + dt.timedelta(minutes=5, seconds=si.A5_RECORD_NEAR_S + 30)
+    out = _a5(tmp_path, step_ms=4000.0, records=(rec,))
+    assert out is not None and "unrecorded-shift-candidate" in out["reason"]
+
+
+def test_clock_sets_too_dense_to_attribute_are_named_not_convicted(tmp_path):
+    """The 08-28 → 09-12 resync storm: one set every ~5.5 min, where flips minutes apart cannot be
+    assigned to one another. The records sit inside the persistence span but outside the match window."""
+    recs = [T0 + dt.timedelta(minutes=5, seconds=s) for s in (-85, 115)]
+    out = _a5(tmp_path, step_ms=4000.0, records=recs)
+    assert out["status"] == "UNKNOWN" and "too dense to attribute" in out["reason"]
+
+
+def test_GUARD_1_a_delivery_collapse_is_a_latency_regime_not_a_step(tmp_path):
+    """09-19, the night that shaped both guards: the residual ramps while the ROW RATE collapses to
+    25–90 % of nominal. A clock step holds delivery at the nominal rate while the level moves."""
+    out = _a5(tmp_path, step_ms=4000.0, latency_from_min=5.0)
+    assert out["status"] == "UNKNOWN" and "latency regime" in out["reason"]
+    assert "rows/s against a nominal" in out["reason"]
+
+
+def test_GUARD_2_a_step_at_the_end_of_the_stream_cannot_establish_persistence(tmp_path):
+    """The level "after" must be measured on data that exists: 09-19's after-window sat inside the
+    backlog, just before the link was cut."""
+    # The gap sits just AFTER the after-window (which runs to +120 s) and inside `A5_GAP_NEAR_S` of its
+    # end, so delivery inside the window is nominal and Guard 1 has nothing to say: this isolates Guard 2.
+    out = _a5(tmp_path, step_ms=4000.0, at_min=5.0, gap_min=425.0 / 60.0, gap_s=3.0)
+    assert out["status"] == "UNKNOWN" and "persistence across a gap" in out["reason"]
+
+
+def test_a_guard_that_CANNOT_BE_APPLIED_stops_the_fire_rather_than_skipping(tmp_path):
+    """Both guards must PASS before the tripwire may fire, so a nominal rate that is not recorded beside
+    the stream stops it — the only positive the first cut of this detector produced was one Guard 1 would
+    have refused."""
+    out = _a5(tmp_path, step_ms=4000.0, nominal=None)
+    assert out["status"] == "UNKNOWN" and "Guard 1 (delivery rate) could not be applied" in out["reason"]
+
+
+def test_a_shift_UNDER_the_pre_stated_bound_is_not_a_candidate(tmp_path):
+    """The bound is 1 s against a quiet windowed-shift p99.9 of 81 ms over n = 36 clean nights, pre-stated
+    in the brief and never derived from a night being judged."""
+    assert _a5(tmp_path, step_ms=si.A5_STEP_MS - 200.0) is None
+    assert _a5(tmp_path, step_ms=si.A5_STEP_MS + 200.0) is not None
+
+
+def test_a_TRANSIENT_that_returns_is_not_a_step(tmp_path):
+    """Persistence, never the windowed peak: 1 237 of 1 756 corpus events above 1 s were delivery-latency
+    transients that RETURN. A peak detector convicts every one of them."""
+    p = tmp_path / f"{BASE}_ECG.txt"
+    rows, t0 = [], T0
+    for i in range(10 * 60 * 2):
+        sec = i / 2.0
+        host = t0 + dt.timedelta(seconds=sec)
+        bump = int(4000 * 1e6) if 300.0 <= sec < 320.0 else 0  # a 20 s excursion that comes back
+        rows.append(f"{host:%Y-%m-%dT%H:%M:%S}.{host.microsecond // 1000:03d};{int(sec * 1e9) - bump};1")
+    p.write_text("Phone timestamp;sensor timestamp [ns];ecg\n" + "\n".join(rows) + "\n")
+    assert si.unrecorded_shift(si.residual_scan(str(p), None, None), [], 2.0) is None
+
+
+def _clocksync(d, rows, name="2026-09-20"):
+    p = d / name
+    p.mkdir(exist_ok=True)
+    (p / "CLOCKSYNC.csv").write_text("Phone timestamp;device;address;event;skew_sec;detail\n" + "\n".join(rows) + "\n")
+
+
+def test_the_record_set_reads_CLOCKSYNC_from_the_NEXT_date_too(tmp_path):
+    """`writers.clocksync_row` keys a row by the EVENT's wall date, so a cross-midnight session leaves its
+    late rows in the NEXT date's folder. A night that ends at 04:00 would otherwise have every
+    post-midnight sync invisible — and missing the record is the one failure mode this must not have."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / "LOSS-AUDIT.json").write_text(json.dumps({"clock_events": []}))
+    _clocksync(tmp_path, ["2026-09-21T00:30:00;Polar H10 02849638;a;resynced;1.0;watchdog"], name="2026-09-21")
+    recs, how = si.clock_records(
+        str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=8)
+    )
+    assert len(recs) == 1 and "CLOCKSYNC.csv" in how
+
+
+def test_deferred_absent_is_the_one_event_word_that_is_NOT_a_record(tmp_path):
+    """It means the device was not reachable and NOTHING was written to its clock — 153 of 2026-09-28's
+    rows. Every other word, including the failures, records that the daemon was writing to that clock."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / "LOSS-AUDIT.json").write_text(json.dumps({"clock_events": []}))
+    _clocksync(
+        tmp_path,
+        [
+            "2026-09-20T23:10:00;Polar H10 02849638;a;deferred-absent;;attempt 1",
+            "2026-09-20T23:20:00;Polar H10 02849638;a;resync-failed;;hard",
+            "2026-09-20T23:30:00;Polar Sense 0C301E3F;a;resynced;;other device",
+        ],
+    )
+    recs, _how = si.clock_records(
+        str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=8)
+    )
+    assert len(recs) == 1, "the failure is a record, the deferral is not, the other device is not ours"
+
+
+def test_a_MISSING_record_source_returns_None_rather_than_a_shorter_record_set(tmp_path):
+    """§∅ and the 08-18 lesson in one: a record set that silently shrinks lets the tripwire fire on a step
+    the box logged. An unreadable source stops it instead."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    p = str(night / f"{BASE}_ECG.txt")
+    recs, why = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs is None and "absent or unreadable" in why
+    (night / "LOSS-AUDIT.json").write_text(json.dumps({"journal": "read"}))
+    recs, why = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs is None and "predates the clock-event record" in why
+    (night / "LOSS-AUDIT.json").write_text(json.dumps({"clock_events": None}))
+    recs, why = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert recs is None and "journalctl was unavailable" in why
+
+
+def test_the_JOURNAL_half_of_the_record_set_excuses_a_step_and_respects_the_device(tmp_path):
+    """The other two sources are files beside the night; this is the one that had to be carried there by
+    the audit. A line that names ANOTHER device is not this device's record; one that names none is."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    at = (T0 + dt.timedelta(minutes=5)).isoformat(timespec="seconds")
+    (night / "LOSS-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "clock_events": [
+                    {"at": at, "phrase": "device clock JUMPED", "devices": ["Polar Sense 0C301E3F"]},
+                    {"at": "not-a-stamp", "phrase": "re-sync busy", "devices": []},
+                    {"at": (T0 + dt.timedelta(days=3)).isoformat(), "phrase": "re-sync busy", "devices": []},
+                    {"at": at, "phrase": "off host (tolerance", "devices": []},
+                ]
+            }
+        )
+    )
+    recs, _how = si.clock_records(
+        str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=8)
+    )
+    assert recs == [(T0 + dt.timedelta(minutes=5)).timestamp() * 1000.0], (
+        "the other device's line, the unplaceable one and the one outside the interval are all excluded"
+    )
+
+
+def test_an_UNREADABLE_clocksync_stops_the_record_set_rather_than_shortening_it(tmp_path):
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / "LOSS-AUDIT.json").write_text(json.dumps({"clock_events": []}))
+    (night / "CLOCKSYNC.csv").mkdir()  # present, and not a file we can read
+    recs, why = si.clock_records(
+        str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=8)
+    )
+    assert recs is None and "unreadable" in why
+
+
+def test_a_night_folder_that_is_not_a_date_still_reads_its_own_clocksync(tmp_path):
+    """There is no neighbouring date to compute, and that is not an error — the night's own file counts."""
+    night = tmp_path / "not-a-date"
+    night.mkdir()
+    (night / "LOSS-AUDIT.json").write_text(json.dumps({"clock_events": []}))
+    (night / "CLOCKSYNC.csv").write_text(
+        "Phone timestamp;device;address;event;skew_sec;detail\n"
+        "2026-09-20T23:05:00;Polar H10 02849638;a;resynced;1.0;watchdog\n"
+        "short;row\n"
+    )
+    recs, _why = si.clock_records(
+        str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=8)
+    )
+    assert len(recs) == 1
+
+
+def test_too_few_anchors_is_left_to_the_band_to_say_once(tmp_path):
+    assert si.unrecorded_shift({"anchors": [(0.0, 0.0), (1.0, 1.0)]}, [], 2.0) is None
+
+
+def test_the_TRIPWIRE_reaches_the_TIMEBASE_BAND_and_not_only_the_detector(tmp_path):
+    """End to end: a planted unrecorded step makes the night's timebase band UNKNOWN with the tripwire's
+    own words, rather than the detector saying so to nobody."""
+    (tmp_path / f"{BASE}_ECG.txt").write_text(_axis(step_ms=4000.0))
+    _seams(tmp_path)
+    _runs(tmp_path, "ECG")
+    _runs(tmp_path, "ACC")
+    # The worn interval has to COVER the step, or the band never looks at it — the default fixture ends
+    # at 23:03 and the step is planted at 23:05.
+    _audit(tmp_path, clock_events=(), end="2026-09-20T23:10:00")
+    tb = _bands(tmp_path)[H10["name"]]["bands"]["timebase"]
+    assert tb["status"] == "UNKNOWN" and "unrecorded-shift-candidate" in tb["reason"]
+
+
+def test_a_clocksync_row_that_is_unplaceable_or_outside_the_interval_is_not_a_record(tmp_path):
+    """§∅ again, one layer down: a row whose stamp cannot be parsed places no event, and one outside the
+    worn interval is not evidence about the stretch being judged. Neither may excuse a candidate."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / "LOSS-AUDIT.json").write_text(json.dumps({"clock_events": []}))
+    (night / "CLOCKSYNC.csv").write_text(
+        "Phone timestamp;device;address;event;skew_sec;detail\n"
+        "not-a-stamp;Polar H10 02849638;a;resynced;;unplaceable\n"
+        "2026-09-19T12:00:00;Polar H10 02849638;a;resynced;;the day before\n"
+        "2026-09-20T23:05:00;Polar H10 02849638;a;resynced;;inside\n"
+    )
+    recs, _why = si.clock_records(
+        str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=8)
+    )
+    assert recs == [(T0 + dt.timedelta(minutes=5)).timestamp() * 1000.0]
+
+
+def test_a_step_ACROSS_a_segment_split_is_not_one_axis_and_is_not_measured(tmp_path):
+    """A re-anchor wider than `A5_REANCHOR_S` ends the segment, so no vantage has one level before the
+    hole and the other after it. That is the point of splitting: the two stretches are not one clock, and
+    a persistence taken across them would be the difference between two different axes."""
+    ms = 1_000.0
+    anchors = [(i * ms, i * ms) for i in range(0, 120)]  # 0–119 s
+    anchors += [(i * ms, i * ms - 4000.0) for i in range(180, 400)]  # a 60 s hole, then a 4 s step
+    out = si.unrecorded_shift({"anchors": anchors, "row_bins": {}, "gaps": [], "last_row_ms": 399 * ms}, [], None)
+    assert out is None, "neither side of the hole offers a vantage with both windows populated"
+
+
+# ── §A5 at the EDGES: the pre-stated constants, one test per boundary ───────────────────────────────
+#
+# These build the `scan` dict DIRECTLY rather than writing a stream and measuring it. That is the point:
+# `residual_scan` adds device jitter, BLE batching and float conversion between the plant and the level
+# the tripwire reads, so a file-driven test cannot place a residual at EXACTLY `A5_STEP_MS` or a window
+# edge on EXACTLY an anchor — and a boundary nothing sits on is a boundary no test can hold. The
+# file-driven tests above own the integration; these own the arithmetic.
+
+A5_T0_MS = T0.timestamp() * 1000.0
+
+
+def _scan(levels, *, spacing_ms=1000.0, span_s=400.0, rate=2.0, gaps=(), last=None, rows_hz=None):
+    """A synthetic residual axis. `levels` is a list of `(from_s, residual_ms)` steps, applied in order;
+    the residual at an anchor is the last level whose `from_s` it has reached.
+
+    The first anchor's residual is subtracted from every anchor by `unrecorded_shift` itself, so
+    `levels` must start at 0.0 ms for the numbers here to be the numbers the tripwire sees — asserted,
+    not assumed."""
+    assert levels[0][1] == 0.0, "the first level is the origin and the origin is subtracted"
+    n = int(span_s * 1000.0 / spacing_ms) + 1
+    anchors, times = [], []
+    for i in range(n):
+        t = A5_T0_MS + i * spacing_ms
+        r = 0.0
+        for frm, lvl in levels:
+            if t >= A5_T0_MS + frm * 1000.0:
+                r = lvl
+        anchors.append((t, t - r))  # residual = host - device = r
+        times.append(t)
+    # Delivered rows at exactly the nominal rate over every bin the axis spans, so Guard 1 passes unless
+    # a test says otherwise. `_rows_in` sums the bins that EXIST, so the grid must cover the windows.
+    hz = rows_hz if rows_hz is not None else rate
+    b0 = int((A5_T0_MS - 200_000) // si.A5_BIN_MS)
+    b1 = int((A5_T0_MS + span_s * 1000.0 + 200_000) // si.A5_BIN_MS)
+    row_bins = {b: int(hz * si.A5_BIN_S) for b in range(b0, b1 + 1)}
+    return {
+        "anchors": anchors,
+        "drawn_share": 0.1,
+        "reason": None,
+        "row_bins": row_bins,
+        "gaps": list(gaps),
+        "last_row_ms": times[-1] + 200_000 if last is None else last,
+    }
+
+
+def _at(sec):
+    """The rendered `%H:%M:%S` of `sec` seconds after the axis origin — what the message must name."""
+    return f"{dt.datetime.fromtimestamp(A5_T0_MS / 1000.0 + sec):%H:%M:%S}"
+
+
+def test_a_persistence_of_EXACTLY_A5_STEP_MS_fires_and_the_REASON_IS_ASSERTED_WHOLE(tmp_path):
+    """`abs(p) >= A5_STEP_MS` is INCLUSIVE, and 1000.0 ms is the pre-stated bound — so a shift of exactly
+    one second is a finding and the next one down is not.
+
+    The reason is asserted WHOLE, not by fragment. A `match=`/`in` on part of a message leaves every
+    mutation of the rest alive: the magnitude's divisor, the instant's divisor and the wording are all
+    inside this one f-string, and only the whole string holds all three."""
+    out = si.unrecorded_shift(_scan([(0.0, 0.0), (200.0, si.A5_STEP_MS)]), [], 2.0)
+    assert out is not None, "a shift of exactly A5_STEP_MS is at the bound, and the bound is inclusive"
+    assert out["status"] == "UNKNOWN"
+    assert out["reason"] == (
+        f"unrecorded-shift-candidate — +1 s persistent shift at {_at(200.0)}, "
+        "with no record in any of the three sources"
+    )
+
+
+def test_a_persistence_ONE_MILLISECOND_under_the_bound_is_not_a_candidate(tmp_path):
+    """The other side of the same edge — without it, "inclusive" is untested in the only direction that
+    distinguishes it from "any shift at all"."""
+    assert si.unrecorded_shift(_scan([(0.0, 0.0), (200.0, si.A5_STEP_MS - 1.0)]), [], 2.0) is None
+
+
+def test_a_NEGATIVE_shift_whose_AFTER_level_is_EXACTLY_ZERO_is_still_a_shift(tmp_path):
+    """§∅ in the small: the level after the step is 0.0 ms, which is a MEASURED level and not an absent
+    one. `(after or 0.0)` must not read a measured zero as missing — a residual that returns exactly to
+    its origin is the most ordinary thing a negative step can do."""
+    # The rise to 1000 ms sits at 20 s, inside the first before-window: the earliest vantage is at
+    # +90 s and its before-window already reads 1000, so the rise is never a candidate and the FALL is
+    # the only one. Without that, the two are equally strong and the earlier one wins on its own merits.
+    out = si.unrecorded_shift(_scan([(0.0, 0.0), (20.0, 1000.0), (250.0, 0.0)]), [], 2.0)
+    assert out is not None
+    assert out["reason"] == (
+        f"unrecorded-shift-candidate — -1 s persistent shift at {_at(250.0)}, "
+        "with no record in any of the three sources"
+    )
+
+
+def test_TWO_EQUALLY_STRONG_shifts_report_the_EARLIER_INSTANT(tmp_path):
+    """A tie must resolve one way and the earlier instant is the one worth reviewing: it is where the axis
+    first stopped describing one clock. `abs(p) > abs(best_p)` keeps the FIRST of equal candidates; `>=`
+    would silently report the last, and within one plateau both read the same instant, so only two
+    separate steps can tell them apart.
+
+    480 s apart, which is deliberate: one vantage reaches from −90 s to +120 s, so steps closer than
+    210 s share a window and the windowed difference then reports a COMBINATION of the two rather than
+    either (measured here: 120 s and 260 s apart gave +2.25 s, the mean of 1500 and 3000, from a vantage
+    whose after-window straddled the second step exactly in half). That is a property of the windowed
+    method, not of the tie-break, and this test is about the tie-break."""
+    out = si.unrecorded_shift(_scan([(0.0, 0.0), (120.0, 1500.0), (600.0, 3000.0)], span_s=800.0), [], 2.0)
+    assert out is not None
+    assert out["reason"] == (
+        f"unrecorded-shift-candidate — +1.5 s persistent shift at {_at(120.0)}, "
+        "with no record in any of the three sources"
+    ), "the EARLIER of two equally strong shifts"
+
+
+def test_the_EARLIEST_and_LATEST_USABLE_VANTAGE_are_both_evaluated(tmp_path):
+    """`t < lo or t > hi` excludes the vantages whose windows fall outside the segment, and both ends are
+    USABLE: at `lo` the before-window's far edge is the segment's first anchor, at `hi` the after-window's
+    far edge is its last. One anchor per `A5_BIN_S` makes the count the vantage count, so excluding
+    either end shows up as a number rather than as nothing at all."""
+    scan = _scan([(0.0, 0.0), (200.0, 4000.0)], spacing_ms=si.A5_BIN_MS, span_s=400.0)
+    out = si.unrecorded_shift(scan, [], 2.0)
+    assert out is not None
+    # lo = first + 90 s, hi = last − 120 s, inclusive at both ends, one anchor every 10 s:
+    assert out["vantages"] == int((400.0 - 90.0 - 120.0) / si.A5_BIN_S) + 1 == 20
+
+
+def test_the_VANTAGES_are_ONE_PER_BIN_even_when_the_ANCHORS_are_denser(tmp_path):
+    """The dedup, stated as a number over a grid ten times finer than the bin. This is the one thing the
+    dedup changes: `_win_median` bisects, so a mutant that defeats it evaluates every anchor, returns the
+    same verdict and finishes just as fast (`x_unrecorded_shift__mutmut_77` on run 36651159596)."""
+    dense = _scan([(0.0, 0.0), (200.0, 4000.0)], spacing_ms=1000.0, span_s=400.0)
+    coarse = _scan([(0.0, 0.0), (200.0, 4000.0)], spacing_ms=si.A5_BIN_MS, span_s=400.0)
+    a, b = si.unrecorded_shift(dense, [], 2.0), si.unrecorded_shift(coarse, [], 2.0)
+    assert a is not None and b is not None
+    assert a["vantages"] == b["vantages"] == 20, "ten times the anchors, the same grid"
+    assert a["reason"] == b["reason"]
+
+
+def test_the_FIRST_ANCHOR_of_a_segment_BELONGS_to_it(tmp_path):
+    """The segment is seeded with `pts[0]`, so the earliest usable vantage is measured from the axis's own
+    first anchor. Seeding with `pts[1]` instead loses one anchor and one bin of eligibility — invisible in
+    the verdict, visible in the count."""
+    scan = _scan([(0.0, 0.0), (200.0, 4000.0)], spacing_ms=si.A5_BIN_MS, span_s=400.0)
+    out = si.unrecorded_shift(scan, [], 2.0)
+    assert out["vantages"] == 20
+    dropped = dict(scan, anchors=scan["anchors"][1:])
+    assert si.unrecorded_shift(dropped, [], 2.0)["vantages"] == 19, "one anchor fewer IS one vantage fewer"
+
+
+def test_EVERY_CONSECUTIVE_PAIR_decides_the_SEGMENT_SPLIT(tmp_path):
+    """A re-anchor wider than `A5_REANCHOR_S` splits the axis, and the split is decided on ADJACENT pairs.
+    Comparing every other pair instead both misses a split and drops an anchor; here the gap sits between
+    the second and third anchors, where only an adjacent comparison can see it."""
+    scan = _scan([(0.0, 0.0), (200.0, 4000.0)], spacing_ms=si.A5_BIN_MS, span_s=400.0)
+    a = list(scan["anchors"])
+    shifted = [(t + 70_000.0, d + 70_000.0) for t, d in a[2:]]  # a 70 s re-anchor after the 2nd anchor
+    out = si.unrecorded_shift(dict(scan, anchors=a[:2] + shifted, last_row_ms=shifted[-1][0] + 200_000), [], 2.0)
+    assert out is not None, "the second segment is long enough to carry the step"
+    # The two-anchor head cannot host a vantage at all, so the count is the TAIL segment's alone: it spans
+    # 400 − 20 = 380 s and loses the two window widths.
+    assert out["vantages"] == int((380.0 - 90.0 - 120.0) / si.A5_BIN_S) + 1 == 18
+
+
+def test_GUARD_2_fires_on_the_END_OF_THE_STREAM_ALONE_with_no_gap_recorded(tmp_path):
+    """The two arms of Guard 2 are separate facts. A night can end cleanly — no host gap anywhere — and
+    still leave an after-window that runs off the end of the data, and `last_row_ms` is the only thing
+    that says so. With `gaps` empty, this is the only arm that can fire."""
+    scan = _scan([(0.0, 0.0), (200.0, 4000.0)])
+    at_ms = A5_T0_MS + 200_000.0
+    ends_early = dict(scan, gaps=[], last_row_ms=at_ms + si.A5_AFTER_MS[1] + si.A5_GAP_NEAR_MS - 1.0)
+    out = si.unrecorded_shift(ends_early, [], 2.0)
+    assert out is not None and "persistence across a gap" in out["reason"], out
+    flowing = dict(scan, gaps=[], last_row_ms=at_ms + si.A5_AFTER_MS[1] + si.A5_GAP_NEAR_MS)
+    assert "unrecorded-shift-candidate" in si.unrecorded_shift(flowing, [], 2.0)["reason"], "at the bound it flows"
+
+
+def test_GUARD_1_is_INCLUSIVE_at_its_TOLERANCE_and_states_the_RATE_IT_MEASURED(tmp_path):
+    """`> A5_RATE_TOL` is strict, so a window exactly 10 % off nominal is NOT a latency regime — the
+    tolerance is the width of the band that counts as nominal, not the first value outside it. And the
+    refusal must quote the rate it measured, which is rows DIVIDED by seconds."""
+    at_s = 200.0
+    # 11 Hz AGAINST A NOMINAL 10, and the numbers are chosen for BINARY EXACTNESS, not for realism:
+    # `abs(11.0 - 10.0) / 10.0` is `1.0 / 10.0`, which IS the double that `A5_RATE_TOL = 0.10` denotes,
+    # so the comparison sits exactly on the bound. The obvious plant — 1.8 Hz against 2 — computes
+    # 0.09999999999999998 and lands INSIDE the band whichever way the operator points, which is a
+    # boundary test that tests no boundary.
+    assert abs(11.0 - 10.0) / 10.0 == si.A5_RATE_TOL, "the plant must be bit-exactly ON the bound"
+    edge = _scan([(0.0, 0.0), (at_s, 4000.0)], rows_hz=11.0)
+    assert "unrecorded-shift-candidate" in si.unrecorded_shift(edge, [], 10.0)["reason"], "10 % off is nominal"
+    over = _scan([(0.0, 0.0), (at_s, 4000.0)], rows_hz=11.1)
+    out = si.unrecorded_shift(over, [], 10.0)
+    assert out["reason"] == (
+        f"latency regime — the before window delivered 11.1 rows/s against a nominal 10 Hz, so "
+        f"+4 s persistent shift at {_at(at_s)} is a delivery backlog and not a step"
+    )
+
+
+def test_the_MS_CONSTANTS_ARE_the_briefs_SECONDS_and_nothing_else(tmp_path):
+    """The second-to-millisecond conversions are named once, so their values are stated once here rather
+    than re-derived at eight call sites. §A5's windows are −90..−30 s before and +60..+120 s after."""
+    assert si.A5_BEFORE_MS == (-90_000.0, -30_000.0)
+    assert si.A5_AFTER_MS == (60_000.0, 120_000.0)
+    assert si.A5_REANCHOR_MS == 60_000.0
+    assert si.A5_GAP_NEAR_MS == 10_000.0
+    assert si.A5_RECORD_NEAR_MS == 300_000.0
+    assert si.A5_GAP_FLOOR_MS == 2_000.0
+    assert si.A5_BIN_MS == 10_000
+
+
+def test_an_EMPTY_WINDOW_has_NO_MEDIAN_and_says_so_rather_than_returning_zero(tmp_path):
+    """`_win_median`'s stated contract, tested where the contract lives. §∅ in the small: an unmeasured
+    level is absent, and a persistence computed from a fabricated 0.0 would be the difference between a
+    real level and a fiction.
+
+    TESTED DIRECTLY, because `unrecorded_shift` cannot produce an empty window — the segments are split
+    at anchor gaps WIDER than the window, so a gap able to empty one has already ended the segment. The
+    guard is still the function's promise to every other caller, and `j > i` is the whole of it."""
+    times = [1000.0, 2000.0, 3000.0]
+    vals = [10.0, 20.0, 30.0]
+    assert si._win_median(times, vals, 1000.0, 3001.0) == 20.0
+    assert si._win_median(times, vals, 1200.0, 1900.0) is None, "a window between two anchors holds none"
+    assert si._win_median(times, vals, 2000.0, 2000.0) is None, "a window of zero width holds none"
+    assert si._win_median(times, vals, 4000.0, 5000.0) is None, "past the last anchor"
+    assert si._win_median([], [], 0.0, 1.0) is None, "no anchors at all"
+    # HALF-OPEN, which is what makes the zero-width case empty rather than one-sided.
+    assert si._win_median(times, vals, 2000.0, 3000.0) == 20.0
+    assert si._win_median(times, vals, 2001.0, 3001.0) == 30.0
+
+
+def test_the_CROSSING_is_the_FIRST_ANCHOR_AT_OR_PAST_HALF_the_persistence(tmp_path):
+    """HALF is pre-stated, and the reason is in `_a5_crossing`'s docstring: a real transition is not
+    instantaneous, and the residual crosses the MIDPOINT once while it may approach the far level
+    asymptotically or overshoot it. A third of the way is not the midpoint, and an anchor sitting exactly
+    ON the midpoint has crossed it."""
+    t = [float(i) * 1000.0 for i in range(10)]
+    #            0    1    2    3      4      5       6       7       8       9
+    vals = [0.0, 0.0, 0.0, 0.0, 400.0, 500.0, 1000.0, 1000.0, 1000.0, 1000.0]
+    # Vantage 4000 puts the before-window's end (vantage − 30 s) before every anchor, so the search runs
+    # from the first: the midpoint of a +1000 ms step is 500, and anchor 5 is the first AT it.
+    assert si._a5_crossing(t, vals, 34_000.0, 1000.0) == 5000.0, "at the midpoint counts as crossed"
+    # A THIRD would have taken anchor 4 — 400 is past 333 and short of 500.
+    assert 400.0 > 1000.0 / 3.0 and 400.0 < 1000.0 / 2.0, "the plant separates the half from the third"
+    down = [1000.0, 1000.0, 1000.0, 1000.0, 600.0, 500.0, 0.0, 0.0, 0.0, 0.0]
+    assert si._a5_crossing(t, down, 34_000.0, -1000.0) == 5000.0, "and the same on the way down"
+
+
+def test_the_CROSSING_SEARCH_STARTS_at_the_BEFORE_WINDOWS_END(tmp_path):
+    """`bisect_left(times, lo)` is not only an optimisation: the level BEFORE the step may already have
+    sat at or past the midpoint earlier in the segment, and scanning from the segment's first anchor
+    would then name that earlier instant instead of the transition. `times[None:]` is the whole list, so
+    the mutant that drops the bisect reads as a scan from the start."""
+    t = [float(i) * 10_000.0 for i in range(20)]
+    # A spike to the far level at anchor 1, long before the real transition at anchor 15. The vantage's
+    # before-window ends at anchor 12, so the search must not see the spike.
+    vals = [0.0] * 20
+    vals[1] = 1000.0
+    for i in range(15, 20):
+        vals[i] = 1000.0
+    at = si._a5_crossing(t, vals, t[15] + si.A5_BEFORE_MS[1] * -1.0 + 0.0, 1000.0)
+    assert at == t[15], f"the transition, not the earlier spike at {t[1]}"
+
+
+def test_a_HOST_GAP_of_EXACTLY_the_FLOOR_is_not_a_gap(tmp_path):
+    """`A5_GAP_FLOOR_S` is the width at which a host gap becomes worth recording for Guard 2, and the
+    comparison is strict: exactly 2.000 s is the last width that is not one."""
+    hdr = "Phone timestamp;sensor timestamp [ns];ecg\n"
+
+    def axis(gap_ms):
+        rows = []
+        for i in range(40):
+            sec = i * 1.0 + (gap_ms / 1000.0 if i >= 20 else 0.0)
+            h = T0 + dt.timedelta(seconds=sec)
+            rows.append(f"{h:%Y-%m-%dT%H:%M:%S}.{h.microsecond // 1000:03d};{int(sec * 1e9) + (i * 37) % 101};1")
+        p = tmp_path / f"{BASE}_ECG.txt"
+        p.write_text(hdr + "\n".join(rows) + "\n")
+        return si.residual_scan(str(p), None, None)["gaps"]
+
+    # The row cadence is 1 s, so a planted shift of `gap_ms − 1000` makes the gap exactly `gap_ms`.
+    assert axis(1000.0) == [], "the 2.000 s gap is exactly the floor, and the floor is not crossed"
+    assert len(axis(1001.0)) == 1, "one millisecond more IS a gap"
+
+
+def test_the_DELIVERY_BINS_COUNT_FROM_ZERO(tmp_path):
+    """`row_bins.get(b, 0) + 1` — the first row in a bin makes the count 1, not 2. Guard 1 divides this
+    count by the bin span to get a delivery rate, so a default of 1 inflates every bin that holds few
+    rows and would read a healthy stream as delivering faster than nominal."""
+    hdr = "Phone timestamp;sensor timestamp [ns];ecg\n"
+    rows = []
+    for i in range(20):  # 2 Hz over 9.5 s: one 10 s bin, exactly 20 rows
+        h = T0 + dt.timedelta(seconds=i * 0.5)
+        rows.append(f"{h:%Y-%m-%dT%H:%M:%S}.{h.microsecond // 1000:03d};{int(i * 0.5 * 1e9) + (i * 37) % 101};1")
+    p = tmp_path / f"{BASE}_ECG.txt"
+    p.write_text(hdr + "\n".join(rows) + "\n")
+    bins = si.residual_scan(str(p), None, None)["row_bins"]
+    # T0 is 23:00:00, so the 10 s span lands wholly inside one bin — 20 rows, not 21.
+    assert sorted(bins.values()) == [20], bins
+    assert si._rows_in(bins, T0.timestamp() * 1000.0, T0.timestamp() * 1000.0 + 9_500.0) == (20, si.A5_BIN_S)
+    assert sum(bins.values()) == 20, "the count is the rows, and the first row in a bin makes it 1"
+
+
+def test_a_RATE_of_EXACTLY_ONE_HERTZ_is_a_rate_and_a_rate_of_ZERO_is_not(tmp_path):
+    """`seam_rate` reads the negotiated rate the sidecar recorded. `> 0` is the whole test: a rate of
+    exactly 1 Hz is a rate (it is the O2Ring's own declared rate, and rejecting it would send every ring
+    night down the no-rate path), while 0 Hz is the absence of one and must read as absent, never as
+    zero (§∅)."""
+    p = tmp_path / f"{BASE}_ECG.txt"
+
+    def rate(text):
+        (tmp_path / f"{BASE}_ECGSEAMS.txt").write_text(text)
+        return si.seam_rate(str(p))
+
+    assert rate("# pmd stream=ecg negotiated=yes rate=1 offered=1\n") == 1.0
+    assert rate("# pmd stream=ecg negotiated=yes rate=130 offered=130\n") == 130.0
+    # `negotiated=yes` deliberately: the regex requires it, so a `negotiated=no` line fails to match at
+    # all and would test the regex rather than the `> 0` guard — a boundary test that tests no boundary.
+    assert rate("# pmd stream=ecg negotiated=yes rate=0 offered=0\n") is None, "0 Hz is not a rate"
+    assert rate("# final stream=ecg seams=0 examined=10\n") is None, "no pmd line at all"
+
+
+def test_the_SEAM_RATE_READER_DECLARES_ITS_ENCODING(tmp_path):
+    """`encoding="utf-8"` asserted on the CALL, not on a decoded byte: `-X warn_default_encoding` with
+    `-W error::EncodingWarning` makes every `open()` that leaves `encoding` unset — or explicitly None —
+    raise, so the assertion holds on a UTF-8 machine and a C-locale one alike.
+
+    The in-process call first is NOT redundant: mutmut picks which tests to run for a mutant from
+    COVERAGE, and a subprocess is invisible to the tracer, so without it this test never runs against
+    the very mutants it kills."""
+    import subprocess
+    import sys
+
+    p = tmp_path / f"{BASE}_ECG.txt"
+    (tmp_path / f"{BASE}_ECGSEAMS.txt").write_text("# pmd stream=ecg negotiated=yes rate=2 offered=2\n")
+    assert si.seam_rate(str(p)) == 2.0
+    src = f"import solid_night_inputs as si\nassert si.seam_rate({str(p)!r}) == 2.0\n"
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=str(si.__file__).rsplit("/", 1)[0],
+    )
+    assert r.returncode == 0, r.stderr
+
+
+def test_a_CLOCKSYNC_ROW_AT_EITHER_END_of_the_worn_interval_is_INSIDE_it(tmp_path):
+    """The interval is CLOSED at both ends. A clock-set logged at the instant the strap went on, or at
+    the instant it came off, is a record of this night's axis — excluding it would leave the tripwire
+    free to convict a step the box recorded, which is the 2026-08-18 mistake at one millisecond's
+    remove."""
+    start, end = T0, T0 + dt.timedelta(hours=1)
+    _clocksync(
+        tmp_path,
+        [
+            f"{start.isoformat(timespec='milliseconds')};H10-01;AA;resync;0.5;ok",
+            f"{end.isoformat(timespec='milliseconds')};H10-01;AA;resync;0.5;ok",
+            f"{(start - dt.timedelta(milliseconds=1)).isoformat(timespec='milliseconds')};H10-01;AA;resync;0;ok",
+            f"{(end + dt.timedelta(milliseconds=1)).isoformat(timespec='milliseconds')};H10-01;AA;resync;0;ok",
+        ],
+    )
+    got = si._clocksync_rows(str(tmp_path / "2026-09-20"), "H10-01", start, end)
+    assert got == [start.timestamp() * 1000.0, end.timestamp() * 1000.0], "both ends in, both neighbours out"
+
+
+def test_a_CLOCKSYNC_ROW_of_EXACTLY_FOUR_CELLS_is_read(tmp_path):
+    """`len(cells) < 4` is the reader's own contract: the four cells it reads are the stamp, the device,
+    the address and the event, so a row carrying exactly those is complete FOR THIS READER even though
+    the writer's header names six. A row torn by a crash mid-append is the case that produces one, and
+    dropping it would silently shrink the record set — which §∅ says must stop the tripwire, not shorten
+    it."""
+    at = T0 + dt.timedelta(minutes=5)
+    p = tmp_path / "2026-09-20"
+    p.mkdir()
+    (p / "CLOCKSYNC.csv").write_text(
+        "Phone timestamp;device;address;event;skew_sec;detail\n"
+        f"{at.isoformat(timespec='milliseconds')};H10-01;AA;resync\n"
+        f"{(at + dt.timedelta(minutes=1)).isoformat(timespec='milliseconds')};H10-01;AA\n"
+    )
+    got = si._clocksync_rows(str(p), "H10-01", None, None)
+    assert got == [at.timestamp() * 1000.0], "four cells is a record; three is a row this reader cannot place"
+
+
+def test_the_NIGHT_FOLDER_may_be_given_WITH_A_TRAILING_SLASH(tmp_path):
+    """`night_dir.rstrip("/")` is why the next date's folder is found at all: `dirname` and `basename` of
+    a path ending in `/` are the folder itself and the empty string, so without the strip the neighbour
+    is looked for inside the night and the night's own name is not a date. An ordinary trailing slash is
+    the input this handles, and a reader that drops it looks in the wrong place silently."""
+    late = T0 + dt.timedelta(hours=5)  # 04:00 the next morning — the cross-midnight case
+    _clocksync(tmp_path, [f"{late.isoformat(timespec='milliseconds')};H10-01;AA;resync;0.5;ok"], name="2026-09-21")
+    for given in (str(tmp_path / "2026-09-20"), str(tmp_path / "2026-09-20") + "/"):
+        got = si._clocksync_rows(given, "H10-01", None, None)
+        assert got == [late.timestamp() * 1000.0], f"the next date's row, with the night given as {given!r}"
+
+
+def test_the_CLOCKSYNC_READER_DECLARES_ITS_ENCODING(tmp_path):
+    """`encoding="utf-8"` on the CALL, by the same lever and for the same reason as the seam readers'."""
+    import subprocess
+    import sys
+
+    at = T0 + dt.timedelta(minutes=5)
+    _clocksync(tmp_path, [f"{at.isoformat(timespec='milliseconds')};H10-01;AA;resync;0.5;ok"])
+    night = str(tmp_path / "2026-09-20")
+    assert si._clocksync_rows(night, "H10-01", None, None) == [at.timestamp() * 1000.0]
+    src = (
+        "import solid_night_inputs as si\n"
+        f"got = si._clocksync_rows({night!r}, 'H10-01', None, None)\n"
+        f"assert got == [{at.timestamp() * 1000.0!r}], got\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=str(si.__file__).rsplit("/", 1)[0],
+    )
+    assert r.returncode == 0, r.stderr
+
+
+def test_a_JOURNAL_CLOCK_EVENT_AT_EITHER_END_of_the_worn_interval_is_INSIDE_it(tmp_path):
+    """The journal half of the record set, at the same closed edges as the CLOCKSYNC half. The two halves
+    carry the same interval test and each needs its own plant: a test that only exercises one leaves the
+    other's edges unmeasured."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    start, end = T0, T0 + dt.timedelta(hours=8)
+    night.joinpath("LOSS-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "clock_events": [
+                    {"at": start.isoformat(), "phrase": "device clock JUMPED", "devices": []},
+                    {"at": end.isoformat(), "phrase": "device clock JUMPED", "devices": []},
+                    {"at": (start - dt.timedelta(milliseconds=1)).isoformat(), "phrase": "re-sync busy", "devices": []},
+                    {"at": (end + dt.timedelta(milliseconds=1)).isoformat(), "phrase": "re-sync busy", "devices": []},
+                ]
+            }
+        )
+    )
+    recs, _how = si.clock_records(str(night), H10["name"], str(night / f"{BASE}_ECG.txt"), start, end)
+    assert recs == [start.timestamp() * 1000.0, end.timestamp() * 1000.0], "both ends in, both neighbours out"
+
+
+def test_a_RECORDED_SEAM_OUTSIDE_the_worn_interval_is_not_in_the_record_set(tmp_path):
+    """`clock_records` forwards the interval to `recorded_seams`, and must: a seam recorded while nobody
+    was wearing the strap splits no axis this night measured, so counting it as a record would excuse a
+    step it has nothing to do with. Dropping the `start` on the way through is invisible unless a seam
+    sits outside."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    night.joinpath("LOSS-AUDIT.json").write_text(json.dumps({"clock_events": []}))
+    inside, outside = 5 * 60_000, 9 * 60 * 60_000  # +5 min, and +9 h — past an 8 h worn interval
+    _seam_rows(night, [(inside, 2500.0), (outside, 2500.0)])
+    p = str(night / f"{BASE}_ECG.txt")
+    worn, _ = si.clock_records(str(night), H10["name"], p, T0, T0 + dt.timedelta(hours=8))
+    assert worn == [(T0 + dt.timedelta(minutes=5)).timestamp() * 1000.0], "only the seam inside the interval"
+    unbounded, _ = si.clock_records(str(night), H10["name"], p, None, None)
+    assert len(unbounded) == 2, "with no interval stated, both seams are records — the control"
+
+
+def test_a_step_the_CLOCKSYNC_SIDECAR_recorded_reaches_the_BAND_and_excuses_it(tmp_path):
+    """🔴 THE RECORD SET MUST ARRIVE AT THE BAND, not just at the detector. `clock_records` filters both
+    the journal's lines and the CLOCKSYNC rows BY DEVICE NAME, so whatever `timebase` hands it as the
+    device decides whether those two sources match anything at all.
+
+    This is the 2026-08-18 mistake at the top of the call chain: the night below has a step the box
+    wrote down in `CLOCKSYNC.csv`, and a record set that cannot see that row convicts it as
+    unrecorded. `test_the_JOURNAL_half_of_the_record_set_excuses_a_step_and_respects_the_device` makes
+    the same point one layer down, against `clock_records` directly — which is exactly why it could not
+    see this: the defect was in the ARGUMENT, not in the function."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / f"{BASE}_ECG.txt").write_text(_axis(step_ms=4000.0))
+    _seams(night)
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night, clock_events=(), end="2026-09-20T23:10:00")
+    at = T0 + dt.timedelta(minutes=5)
+    (night / "CLOCKSYNC.csv").write_text(
+        "Phone timestamp;device;address;event;skew_sec;detail\n"
+        f"{at.isoformat(timespec='milliseconds')};{H10['name']};a;resynced;0.5;watchdog\n"
+    )
+    tb = si.timebase(str(night), H10["name"], [str(night / f"{BASE}_ECG.txt")], T0, T0 + dt.timedelta(minutes=10))
+    assert "unrecorded-shift-candidate" not in tb["reason"], tb["reason"]
+    assert tb["status"] == "PASS", tb
+
+
+def test_a_CLOCK_SET_RECORDED_AFTER_THE_STRAP_CAME_OFF_does_not_excuse_a_step(tmp_path):
+    """The worn interval travels with the record set, and it has to: a clock-set written down after the
+    strap came off is not evidence about the stretch being judged. The record below sits 160 s from the
+    candidate — well inside `A5_RECORD_NEAR_S` — and 10 s outside the worn interval, which is the only
+    geometry that separates "near the candidate" from "inside the night".
+
+    The two bounds nearly coincide by construction: a candidate needs 120 s of after-window inside the
+    scanned interval, so it can never be closer than that to the end, and 300 s of match window minus
+    that leaves a narrow band for the record to land in. Here the candidate is at 23:07:30, the interval
+    ends at 23:10:00 and the record is at 23:10:10."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / f"{BASE}_ECG.txt").write_text(_axis(step_ms=4000.0, at_min=7.5, minutes=11))
+    _seams(night)
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night, clock_events=(), end="2026-09-20T23:10:00")
+    p = [str(night / f"{BASE}_ECG.txt")]
+    end = T0 + dt.timedelta(minutes=10)
+
+    def band(sync_at):
+        (night / "CLOCKSYNC.csv").write_text(
+            "Phone timestamp;device;address;event;skew_sec;detail\n"
+            f"{sync_at.isoformat(timespec='milliseconds')};{H10['name']};a;resynced;0.5;watchdog\n"
+        )
+        return si.timebase(str(night), H10["name"], p, T0, end)
+
+    after = band(end + dt.timedelta(seconds=10))
+    assert "unrecorded-shift-candidate" in after["reason"], after["reason"]
+    inside = band(end - dt.timedelta(seconds=10))
+    assert "unrecorded-shift-candidate" not in inside["reason"], (
+        "the control: the SAME record 20 s earlier is inside the interval, and then it is a record"
+    )
+
+
+def test_the_SPAN_in_the_timebase_reason_is_MINUTES(tmp_path):
+    """`span_s / 60` — and a 61-minute axis is the plant that can tell 60 from anything near it, because
+    the reason rounds to whole minutes and 3,660 s over 61 reads as exactly 60."""
+    (tmp_path / f"{BASE}_ECG.txt").write_text(_axis(minutes=61, step_ms=0.0))
+    _seams(tmp_path)
+    _runs(tmp_path, "ECG")
+    _runs(tmp_path, "ACC")
+    # No `clock_events` key at all: the record set is unreadable, which is the branch that renders the
+    # span. The night is UNKNOWN for that reason and the axis measurement is still stated.
+    _audit(tmp_path, end="2026-09-21T00:01:00")
+    (tmp_path / "LOSS-AUDIT.json").write_text(
+        json.dumps({"journal": "read", "devices": {H10["name"]: {"file": f"{BASE}_ECG.txt", "gaps": []}}})
+    )
+    tb = si.timebase(str(tmp_path), H10["name"], [str(tmp_path / f"{BASE}_ECG.txt")], T0, T0 + dt.timedelta(minutes=61))
+    assert tb["status"] == "UNKNOWN", tb
+    assert "over 61 min" in tb["reason"], tb["reason"]
+    assert "the A5 record set could not be read" in tb["reason"]
+
+
+def test_GUARD_2_reads_THE_AFTER_WINDOW_and_its_neighbourhood_and_nothing_else(tmp_path):
+    """Guard 2's question is whether the level AFTER the candidate was measured on data that exists and
+    is flowing normally, so the stretch it looks at is the after-window `[at+60 s, at+120 s)` plus
+    `A5_GAP_NEAR_S` past its far edge — and nothing before it. A gap in the 60 s between the candidate
+    and the window is not in that stretch: the level after is still measured on flowing data.
+
+    Both arms of the overlap are needed and each needs its own plant. `g1 > a0` asks whether the gap
+    reaches INTO the window and `g0 < a1 + near` whether it starts before the neighbourhood ends; an
+    `or` between them makes any gap anywhere fire, and either edge slipping by a millisecond changes
+    which nights are refused."""
+    at = A5_T0_MS + 200_000.0
+    a0, a1 = at + si.A5_AFTER_MS[0], at + si.A5_AFTER_MS[1]
+
+    def band(*gaps):
+        return si.unrecorded_shift(_scan([(0.0, 0.0), (200.0, 4000.0)], gaps=gaps), [], 2.0)["reason"]
+
+    fires = "persistence across a gap"
+    assert fires in band((a0 + 1_000.0, a0 + 3_000.0)), "a gap INSIDE the window — the plain case"
+    assert fires not in band((at + 1_000.0, a0 - 1_000.0)), "between the candidate and the window: not read"
+    assert fires not in band((A5_T0_MS + 1_000.0, A5_T0_MS + 3_000.0)), "long before the candidate: not read"
+    # The two edges, at the millisecond.
+    assert fires not in band((a0 - 2_000.0, a0)), "a gap ENDING exactly at the window's start is before it"
+    assert fires in band((a0 - 2_000.0, a0 + 1.0)), "one millisecond into the window IS into the window"
+    near_end = a1 + si.A5_GAP_NEAR_MS
+    assert fires not in band((near_end, near_end + 2_000.0)), "a gap starting at the end of the neighbourhood"
+    assert fires in band((near_end - 1.0, near_end + 2_000.0)), "one millisecond earlier is inside it"
+
+
+def test_a_RECORD_at_EXACTLY_the_MATCH_DISTANCE_makes_the_step_RECORDED(tmp_path):
+    """`A5_RECORD_NEAR_S` is pre-stated at 300 s — "over four times" the 68 s lag the 2026-08-18 journal
+    actually showed — and the bound is INCLUSIVE. A record at exactly 300 s is a record; convicting the
+    step it belongs to is the mistake the constant exists to prevent."""
+    at = A5_T0_MS + 200_000.0
+    scan = _scan([(0.0, 0.0), (200.0, 4000.0)])
+    assert si.unrecorded_shift(scan, [at + si.A5_RECORD_NEAR_MS], 2.0) is None, "exactly 300 s after"
+    assert si.unrecorded_shift(scan, [at - si.A5_RECORD_NEAR_MS], 2.0) is None, "and exactly 300 s before"
+    out = si.unrecorded_shift(scan, [at + si.A5_RECORD_NEAR_MS + 1.0], 2.0)
+    assert out is not None and "unrecorded-shift-candidate" in out["reason"], "one millisecond further is not"
+
+
+def test_the_DENSITY_SPAN_is_CLOSED_at_both_of_the_persistence_windows_far_edges(tmp_path):
+    """`clock-sets too dense to attribute` counts the records inside one candidate's PERSISTENCE SPAN —
+    from the before-window's far edge to the after-window's — and the span is closed at both. Two
+    records sitting exactly on the two edges are the storm's minimum case: ±15–30 s flips minutes apart
+    that cannot be assigned to one another, which is neither recorded nor unrecorded."""
+    at = A5_T0_MS + 200_000.0
+    scan = _scan([(0.0, 0.0), (200.0, 4000.0)])
+    edges = [at + si.A5_BEFORE_MS[0], at + si.A5_AFTER_MS[1]]
+    out = si.unrecorded_shift(scan, edges, 2.0)
+    assert out is not None and "clock-sets too dense to attribute" in out["reason"], out
+    assert f"{si.A5_DENSE_RECORDS} records around" in out["reason"]
+    # A millisecond outside either edge and the pair is no longer inside one span — the earlier record
+    # then simply makes the step RECORDED, which is the softer answer and the right one.
+    assert si.unrecorded_shift(scan, [edges[0] - 1.0, edges[1]], 2.0) is None
+    assert si.unrecorded_shift(scan, [edges[0], edges[1] + 1.0], 2.0) is None
+
+
+def test_a_REANCHOR_of_EXACTLY_A5_REANCHOR_S_does_not_split_the_axis(tmp_path):
+    """`A5_REANCHOR_S` is the capture's own seam bound, and the split is strict: a 60.000 s re-anchor is
+    the widest one that leaves the anchors on ONE axis. The count is where it shows — a split that
+    should not have happened loses the vantages that straddle it."""
+    base = _scan([(0.0, 0.0), (200.0, 4000.0)], spacing_ms=si.A5_BIN_MS, span_s=400.0)
+    whole = si.unrecorded_shift(base, [], 2.0)
+    assert whole["vantages"] == 20
+
+    def with_reanchor(gap_ms):
+        a = list(base["anchors"])
+        tail = [(t + gap_ms - si.A5_BIN_MS, d + gap_ms - si.A5_BIN_MS) for t, d in a[20:]]
+        return si.unrecorded_shift(dict(base, anchors=a[:20] + tail, last_row_ms=tail[-1][0] + 200_000), [], 2.0)
+
+    at_bound = with_reanchor(si.A5_REANCHOR_MS)
+    assert at_bound["vantages"] == 20, "exactly 60 s is still one axis, so every vantage survives"
+    # A millisecond more IS a split, and here it costs the candidate entirely: the two halves span 200 s
+    # each, under the 210 s a vantage needs, so neither can host one. That is the right answer for a
+    # split axis — two clocks are not one stretch of signal — and it is the sharpest possible evidence
+    # that the comparison is strict.
+    assert with_reanchor(si.A5_REANCHOR_MS + 1.0) is None
+
+
+def test_the_BEFORE_WINDOW_ENDS_BEFORE_THE_VANTAGE_and_never_reaches_past_it(tmp_path):
+    """The before-window is `[vantage − 90 s, vantage − 30 s)`: it ends BEFORE the vantage, so the level
+    it reports is a level that existed before the candidate. A window reaching 30 s PAST the vantage
+    instead would mix data from after the candidate into the level "before" it, which is not before by
+    any reading — and the magnitude it then reports is the difference between two overlapping windows.
+
+    A LATENCY TRANSIENT FOLLOWED BY A STEP is what separates the two, and it is the corpus's commonest
+    shape: 1,237 of 1,756 events above 1 s were transients that RETURN. A single step cannot separate
+    them at all (measured: 1,224 single-step plants, 0 distinguishing), because the strongest vantage's
+    before-window is clear of the step either way. Here the residual dips to −3 s at 20 s, returns at
+    65 s, and the real step lands at 95 s."""
+    out = si.unrecorded_shift(_scan([(0.0, 0.0), (20.0, -3000.0), (65.0, 0.0), (95.0, 4000.0)]), [], 2.0)
+    assert out is not None
+    assert out["reason"] == (
+        f"unrecorded-shift-candidate — +7 s persistent shift at {_at(95.0)}, with no record in any of the three sources"
+    ), "the instant is the step; the magnitude is from the level the window actually measured"
+
+
+# ── §3.2 `score_devices` — the band assembly, which is a set of ARGUMENT FORWARDINGS ────────────────
+#
+# This function decides almost nothing itself; what it does is hand each band the night, the DEVICE and
+# the model. A forwarding is invisible in a verdict unless the test gives the argument something to
+# matter FOR — which is exactly how a basename reached `clock_records` where a device name belonged, and
+# why `test_a_step_the_CLOCKSYNC_SIDECAR_recorded_reaches_the_BAND_and_excuses_it` could not see it: that
+# test calls `timebase` directly, so the CALL SITE went unobserved.
+
+
+def test_score_devices_FORWARDS_the_device_NAME_to_the_bands_that_key_on_it(tmp_path):
+    """Two devices, and the night's evidence names only ONE of them. `completeness` looks the declared
+    rate up per device and `timebase` hands the device on to the record set, so a name that does not
+    arrive makes both bands answer about a device that is not there."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / f"{BASE}_ECG.txt").write_text(_axis(step_ms=4000.0))
+    _seams(night)
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night, clock_events=(), end="2026-09-20T23:10:00")
+    at = T0 + dt.timedelta(minutes=5)
+    (night / "CLOCKSYNC.csv").write_text(
+        "Phone timestamp;device;address;event;skew_sec;detail\n"
+        f"{at.isoformat(timespec='milliseconds')};{H10['name']};a;resynced;0.5;watchdog\n"
+    )
+    tb = _bands(night)[H10["name"]]["bands"]["timebase"]
+    assert "unrecorded-shift-candidate" not in tb["reason"], tb["reason"]
+    # The control that makes it a forwarding test: the SAME night with the record written against a
+    # DIFFERENT device name is not this device's record, so the tripwire fires.
+    (night / "CLOCKSYNC.csv").write_text(
+        "Phone timestamp;device;address;event;skew_sec;detail\n"
+        f"{at.isoformat(timespec='milliseconds')};Polar VeritySense 1234;a;resynced;0.5;watchdog\n"
+    )
+    other = _bands(night)[H10["name"]]["bands"]["timebase"]
+    assert "unrecorded-shift-candidate" in other["reason"], other["reason"]
+
+
+def test_score_devices_FORWARDS_the_MODEL_and_the_NIGHT_to_every_band(tmp_path):
+    """The model selects the stream map and the night selects the files. A device whose model does not
+    reach the bands is scored against the wrong stream set; a night that does not reach
+    `expected_devices` makes an OPTIONAL device's "did it capture?" test read the wrong directory."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / f"{BASE}_ECG.txt").write_text(_axis())
+    _seams(night)
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night, clock_events=())
+    got = _bands(night)[H10["name"]]["bands"]
+    assert got["validity"]["status"] == "PASS", got["validity"]
+    assert got["clocks"]["status"] == "PASS", got["clocks"]
+    # An OPTIONAL device is included only on a night that holds its files — which needs the NIGHT.
+    ring = {"name": "Wellue O2Ring-S", "model": "O2Ring-S", "optional": True}
+    assert si.expected_devices(str(night), [H10, ring]) == [H10], "the ring captured nothing this night"
+    assert si.expected_devices(str(night), [ring]) == [], "and it is not expected on its own"
+
+
+def test_score_devices_names_a_device_by_its_MODEL_when_it_carries_no_NAME(tmp_path):
+    """`d.get("name") or d.get("model")` — the fallback is the model, and it has to be a real key: a
+    device keyed under `"None"` would be a device the audit can never match and the verdict can never
+    attribute."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    got = si.score_devices(str(night), [{"model": "H10"}])
+    assert list(got) == ["H10"], got
+    assert "None" not in got
+
+
+def test_score_devices_KEEPS_GOING_after_a_device_it_cannot_score(tmp_path):
+    """`continue`, not `break`: an unscorable device is skipped and the NEXT one is still scored. The
+    fixture puts the scorable device AFTER both skipped ones, because that is the only arrangement in
+    which the loop's skip semantics are observable at all — a `break` on either skip would silently drop
+    every device behind it, and a night would be judged on a subset nobody chose."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / f"{BASE}_ECG.txt").write_text(_axis())
+    _seams(night)
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night, clock_events=())
+    unknown_model = {"name": "Mystery Strap", "model": "NotAModel"}  # hits the `model not in MODELS` skip
+    no_files = {"name": "Wellue O2Ring-S", "model": "O2Ring-S"}  # hits the `not primaries` skip
+    got = si.score_devices(str(night), [unknown_model, no_files, H10])
+    assert list(got) == ["Mystery Strap", "Wellue O2Ring-S", H10["name"]], list(got)
+    assert "no stream map" in got["Mystery Strap"]["bands"]["presence"]["reason"]
+    assert "indistinguishable" in got["Wellue O2Ring-S"]["bands"]["presence"]["reason"]
+    assert got[H10["name"]]["bands"]["validity"]["status"] == "PASS", "the device BEHIND the skips is scored"
+
+
+def test_an_ABSENT_AUDIT_leaves_both_bands_UNKNOWN_and_says_which_term_is_missing(tmp_path):
+    """§∅: with no `LOSS-AUDIT.json` there is no worn interval, so continuity and completeness are
+    UNKNOWN — and each carries its own named reason rather than a bare status. The status word and the
+    reason are separate claims and a decision needs both."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / f"{BASE}_ECG.txt").write_text(_axis())
+    _seams(night)
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    bands = _bands(night)[H10["name"]]["bands"]
+    assert bands["continuity"]["status"] == "UNKNOWN"
+    assert bands["continuity"]["reason"] == f"{si.LOSS_AUDIT_NAME} absent or unreadable"
+    assert bands["completeness"]["status"] == "UNKNOWN"
+    assert bands["completeness"]["reason"].startswith("no worn interval: "), bands["completeness"]
+    assert len(bands["completeness"]["reason"]) > len("no worn interval: "), "the reason names the term"
+
+
+def test_score_devices_FORWARDS_the_NAME_to_COMPLETENESS_through_the_PMDNEG_ROW(tmp_path):
+    """The forwarding that only a night WITHOUT a seam sidecar can observe. `negotiated_rate` reads the
+    sidecar beside the stream first, and that is keyed by the FILE — so while one exists the device name
+    is never consulted and a dropped name changes nothing. With the sidecar's rate absent the lookup
+    falls back to `PMDNEG.csv`, whose rows are keyed by DEVICE, and the name becomes load-bearing: no
+    name, no rate, and the completeness band stops binding at all.
+
+    This is the same measurement #3243 recorded for `completeness` directly. Here it is the CALL SITE."""
+    _ecg(tmp_path, seconds=200, rate=2.0)
+    _seams(tmp_path, rate=None)  # a sidecar with NO negotiated rate, so the device lookup is reached
+    _runs(tmp_path, "ECG")
+    _runs(tmp_path, "ACC")
+    _audit(tmp_path)
+    (tmp_path / "PMDNEG.csv").write_text(
+        "Phone timestamp;device;address;stream;requested_hz;offered_hz;chosen_hz;ack;how\n"
+        f"t;{H10['name']};a;ecg;;130;2;ok;negotiated\n"
+    )
+    bound = _bands(tmp_path)[H10["name"]]["bands"]["completeness"]
+    assert bound["status"] in ("PASS", "FAIL"), f"the band BINDS when the rate is found: {bound}"
+    # The control: the same row written against another device is not this device's rate.
+    (tmp_path / "PMDNEG.csv").write_text(
+        "Phone timestamp;device;address;stream;requested_hz;offered_hz;chosen_hz;ack;how\n"
+        "t;Polar VeritySense 1234;a;ecg;;130;2;ok;negotiated\n"
+    )
+    unbound = _bands(tmp_path)[H10["name"]]["bands"]["completeness"]
+    assert unbound["status"] == "UNKNOWN", f"no rate for THIS device, so no denominator: {unbound}"
+
+
+def test_score_devices_FORWARDS_the_NIGHT_to_the_OPTIONAL_device_test(tmp_path):
+    """§3.2: an `optional` device is expected only on a night that holds its files, and "this night" is
+    the argument. A night that does not reach `expected_devices` makes that test read the wrong
+    directory — and then an optional backup is either scored on a night it never captured or dropped
+    from one it did."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    _ecg(night)
+    _seams(night)
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    _audit(night)
+    ring = {"name": "Wellue O2Ring-S", "model": "O2Ring-S", "optional": True}
+    assert list(si.score_devices(str(night), [H10, ring])) == [H10["name"]], "the ring captured nothing"
+    # Now give the ring a file IN THIS NIGHT: it becomes expected, and is scored.
+    (night / "Wellue_O2Ring-S_S8AW2100_20260920230000_SPO2.csv").write_text("Time;Oxygen Level\n")
+    got = si.score_devices(str(night), [H10, ring])
+    assert list(got) == [H10["name"], ring["name"]], list(got)
+
+
+def test_an_AUDIT_WITH_NO_ENTRY_for_the_device_leaves_both_bands_UNKNOWN(tmp_path):
+    """The other no-worn-interval path, and it is a DIFFERENT branch from an absent audit: the file is
+    there and readable, and it simply does not mention this device. Continuity and completeness are both
+    UNKNOWN and both name the term that is missing — a status without its reason is half a decision, and
+    §∅ wants the absence NAMED rather than scored.
+
+    Separate from `test_an_ABSENT_AUDIT_leaves_both_bands_UNKNOWN_and_says_which_term_is_missing`
+    because the two arms are written out twice in `score_devices`, so a test of one leaves the other's
+    status unobserved — measured: the second arm's status word survived mutation with the first covered."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    _ecg(night)
+    _seams(night)
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    # An audit that names ANOTHER device: readable, present, and silent about this one.
+    (night / "LOSS-AUDIT.json").write_text(
+        json.dumps({"journal": "read", "clock_events": [], "devices": {"Polar VeritySense 1234": {"gaps": []}}})
+    )
+    bands = _bands(night)[H10["name"]]["bands"]
+    for term in ("continuity", "completeness"):
+        assert bands[term]["status"] == "UNKNOWN", f"{term}: {bands[term]}"
+        assert bands[term]["reason"] == f"no worn interval: {si.LOSS_AUDIT_NAME} has no entry for this device", (
+            f"{term}: {bands[term]['reason']}"
+        )

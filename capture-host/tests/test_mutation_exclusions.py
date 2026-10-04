@@ -114,11 +114,7 @@ def test_every_declared_key_names_a_function_that_EXISTS():
         # "failed to collect stats" and takes the WHOLE module to unmeasured. `test_mutation_hygiene`
         # enforces it, and it caught this file — the second time I have made this exact mistake.
         src = module_source(mod)
-        names = {
-            n.name
-            for n in ast.walk(ast.parse(src))
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-        }
+        names = {n.name for n in ast.walk(ast.parse(src)) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
         assert func in names, f"{key} names no function in {mod} — a stale exclusion declares nothing"
 
 
@@ -158,14 +154,18 @@ def test_both_ledgers_are_byte_canonical(path):
         (_doc({"capture.py::a::b": _entry()}), "not an exact key"),
         # a BARE key is now legal — but only as a MODULE key, and only with a module-level cost
         (_doc({"capture.py": _entry()}), "module key but declares `cost.scope`"),
-        (_doc({"capture.py::f": _entry(cost={"provenance": "run", "source": "x", "scope": "module"})}),
-         "function key but declares `cost.scope`"),
+        (
+            _doc({"capture.py::f": _entry(cost={"provenance": "run", "source": "x", "scope": "module"})}),
+            "function key but declares `cost.scope`",
+        ),
         (_doc({"capture.py::f": _entry(cost={"provenance": "run", "source": "x"})}), "cost.scope"),
         (_doc({"capture.py::f": _entry(cost={"provenance": "run", "source": "x", "scope": "vibes"})}), "cost.scope"),
         (_doc({"notapy": _MOD()}), "neither a `module.py::function` key nor a `module.py` module"),
         (_doc({"capture.py": _MOD(cost=dict(_MOD_COST, generatedBytes=0))}), "cost.generatedBytes"),
-        (_doc({"capture.py": _MOD(cost={k: v for k, v in _MOD_COST.items() if k != "statsPassSec"})}),
-         "cost.statsPassSec"),
+        (
+            _doc({"capture.py": _MOD(cost={k: v for k, v in _MOD_COST.items() if k != "statsPassSec"})}),
+            "cost.statsPassSec",
+        ),
         (_doc({"capture.txt::f": _entry()}), "must name a `.py` module"),
         (_doc({"capture.py::": _entry()}), "must name a `.py` module"),
         (_doc({"capture.py::f": "nope"}), "must be an object"),
@@ -291,9 +291,7 @@ def test_no_refusals_at_all_is_not_an_exclusion():
 
 # ── the ledger rows and their merge ─────────────────────────────────────────────────────────────────
 def test_unmeasured_rows_separates_declared_from_undeclared():
-    rows = M.unmeasured_rows(
-        REFUSED + ["timeline.build: budget exhausted", "garbled"], DECL, "2026-10-03T00:00:00Z"
-    )
+    rows = M.unmeasured_rows(REFUSED + ["timeline.build: budget exhausted", "garbled"], DECL, "2026-10-03T00:00:00Z")
     assert [r["key"] for r in rows] == ["capture.py::_cpap_stream_watch_row", "timeline.py::build"]
     assert [r["state"] for r in rows] == ["declared", "undeclared"]
     assert rows[0]["why"] == "the 7200s gate budget was exhausted"
@@ -413,7 +411,7 @@ def test_parse_returns_the_ENTRY_not_merely_the_key():
 
 # ── THE MODULE-LEVEL DECLARATION (owner ruling 2026-10-03) ──────────────────────────────────────────
 def test_only_ONE_module_key_may_exist():
-    """"One module-level declaration" is the ruling. Without a count limit it quietly becomes "modules
+    """ "One module-level declaration" is the ruling. Without a count limit it quietly becomes "modules
     are declarable", which is a different policy than the one that was ruled."""
     with pytest.raises(ValueError, match="more than one MODULE key"):
         M.parse_exclusions(_doc({"capture.py": _MOD(), "timeline.py": _MOD()}))
@@ -426,9 +424,7 @@ def test_a_module_key_matches_the_module_and_a_function_key_never_does():
     assert M.declared_module(mod_only, "capture.py") is not None
     assert M.declared_module(mod_only, "timeline.py") is None
     fn_only = M.parse_exclusions(_doc({"capture.py::f": _entry()}))
-    assert M.declared_module(fn_only, "capture.py") is None, (
-        "a function key was read as a module-level declaration"
-    )
+    assert M.declared_module(fn_only, "capture.py") is None, "a function key was read as a module-level declaration"
 
 
 def test_the_committed_module_entry_carries_BOTH_measurements_and_says_it_is_module_level():
@@ -450,7 +446,13 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     module has grown. `count_functions` recomputes it, which is why the gate prints it per run."""
     n = M.count_functions(module_source("capture.py"))
     assert n > 226, f"count_functions says {n}; the brief's 226 is stale, which is the point"
-    assert n == 290, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 290 → 292 on 2026-10-04: E16 added `retry_rate_per_hour` and `retry_budget_alert` to capture.py
+    # (#3252). ⚠️ The declaration's own `cost.moduleFunctionsAtDeclaration` is NOT moved with it — that
+    # field is named for what it is, the count MEASURED when the cost was measured on 2026-10-03, and
+    # rewriting it would falsify the record of what the 7556 s and 562 MB were paid on. The live count
+    # is what `count_functions` recomputes and the gate prints per run; this pin is the deliberate-update
+    # tripwire on it, which is exactly what caught these two.
+    assert n == 292, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
