@@ -457,7 +457,13 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # `moduleFunctionsAtDeclaration` does NOT, for the reason the note above gives — it records the
     # count the measured COST was paid on, and rewriting it would falsify that record. I had edited
     # it before reading that note; reverted.
-    assert n == 294, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 294 → 295 on 2026-10-04 (RING-POLL-SPLIT): `wave_poll_mode(cfg, log_warn)`, which exists as a named
+    # function precisely so a test can reach the decision — an unrecognised `o2ring.wave_poll_mode` must
+    # warn by name and run the proven path, because a typo in the experiment's own flag would make the
+    # experiment night behave like a control and read as a refutation. `moduleFunctionsAtDeclaration`
+    # stays where it is, per the note above: it records the count the measured 7556 s / 562 MB was paid
+    # on, and moving it would falsify that record.
+    assert n == 295, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
