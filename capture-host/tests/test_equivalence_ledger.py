@@ -44,7 +44,7 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # (the false arm computes the same number, -1 + 1 == 0). One is `knife-edge-only`, not equivalence, and
 # one is `untestable-by-design`: freezing _time.monotonic to pin the flush boundary crashed both writer
 # globs and cost 132 verdicts, the second time this suite has had to retire a test that reaches into the
-# harness it runs on. Two are `equivalent` (a structural proof, not a sampling): the `rstrip("\\n")` ->
+# harness it runs on. Two carry a structural proof rather than a sampling: the `rstrip("\\n")` ->
 # `lstrip`/`rstrip(None)` pair on the width line, whose stripped string is consumed ONLY by
 # `count(";")`. ⚠️ #3243 DELETED that identical mutation's entry for solid_night_inputs.py because
 # there the cell is string-compared to "ok" — a refutation does not transfer between call sites just
