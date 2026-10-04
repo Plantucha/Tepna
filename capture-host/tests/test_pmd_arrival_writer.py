@@ -53,13 +53,59 @@ def test_header_and_one_row(tmp_path):
     w.write(_T0, "Polar H10 02849638", "ECG", 839728574462147086, 839728574531147086, 10)
     w.close()
     rows = _read(p)
-    assert rows[0] == "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"
+    # `first_sample_idx` appended 2026-10-04 (E11) — a DEVICE POSITION for a device with no clock.
+    assert rows[0] == "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx"
     f = rows[1].split(";")
     assert f[1] == "Polar H10 02849638" and f[2] == "ECG"
     # the device stamps must survive as EXACT integers — a float would lose ns resolution at 8.4e17,
     # which is the whole quantity being recorded
     assert f[3] == "839728574462147086" and f[4] == "839728574531147086"
     assert f[5] == "10"
+    # A SIX-ARGUMENT CALLER IS BYTE-IDENTICAL IN EVERY FIELD IT WRITES: the new column is optional and
+    # last, so a Polar's row gains a trailing blank and nothing else. That blank is the same absence
+    # the two ns columns already carry for a device that cannot supply them.
+    assert f[6] == "", f
+    assert len(f) == 7, f
+
+
+def test_the_RING_writes_a_frame_POSITION_and_BLANK_clock_columns(tmp_path):
+    """∅ E11 · The O2Ring has no clock — not one we distrust, none at all — so `first_sensor_ns` and
+    `last_sensor_ns` must be BLANK for it, never 0. A 0 there reads as "this frame's first sample is at
+    the epoch", which is what would let a consumer compute an arrival floor against a fabricated zero
+    and get a plausible, wrong offset. What the ring DOES know is its own u32 stream offset per frame,
+    so that is what the new column carries: a position in samples, not a time."""
+    p = os.path.join(tmp_path, "Wellue_20261004220000_PMDARRIVAL.csv")
+    w = PmdArrivalLogWriter(p, fsync=False)
+    w.write(_T0, "O2Ring-S S8AW2100", "PPG_FRAME", None, None, 20, 4000)
+    w.close()
+    f = _read(p)[1].split(";")
+    assert f[2] == "PPG_FRAME"
+    assert f[3] == "" and f[4] == "", (f, "a clockless device must blank the ns columns, not write 0")
+    assert f[5] == "20", f
+    assert f[6] == "4000", (f, "the ring's own frame position is the column a floor can be taken against")
+
+
+def test_a_RESUMED_six_column_file_keeps_ONE_shape(tmp_path):
+    """⚠️ The resume path is why the header change is not a one-liner. A resumed session re-opens this
+    sidecar and APPENDS; a file carrying the old six-column header must not then receive seven-column
+    rows, or its own header lies about half its rows and every consumer splitting on `;` misreads the
+    last field. The shape is therefore read FROM THE FILE, and a narrow file stays narrow for life."""
+    p = os.path.join(tmp_path, "Tepna_20260811220000_PMDARRIVAL.csv")
+    with open(p, "w") as fh:  # exactly what the previous version of this writer produced
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        fh.write("2026-10-03T00:00:00.000;Polar H10 02849638;ECG;1;2;73\n")
+    w = PmdArrivalLogWriter(p, fsync=False)
+    w.write(_T0, "O2Ring-S S8AW2100", "PPG_FRAME", None, None, 20, 4000)
+    w.close()
+    rows = _read(p)
+    assert {len(r.split(";")) for r in rows} == {6}, (rows, "a mixed-width file is the one outcome forbidden")
+    assert rows[-1].endswith(";20"), (rows, "the position is DROPPED rather than the file left self-contradictory")
+    # And a FRESH file in the same session still gets the column — the narrowing is per-file, not global.
+    p2 = os.path.join(tmp_path, "Tepna_20260811230000_PMDARRIVAL.csv")
+    w2 = PmdArrivalLogWriter(p2, fsync=False)
+    w2.write(_T0, "O2Ring-S S8AW2100", "PPG_FRAME", None, None, 20, 4000)
+    w2.close()
+    assert _read(p2)[-1].endswith(";4000")
 
 
 def test_arrival_is_recorded_not_derived(tmp_path):

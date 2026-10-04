@@ -1530,6 +1530,110 @@ def test_run_oxyii_reports_the_ppg_frame_ledger_at_session_end(tmp_path, monkeyp
     assert "declared" in msg and "truncated" in msg
 
 
+def test_E11_the_ring_writes_ONE_ARRIVAL_ROW_PER_PPG_FRAME_on_the_shared_axis(tmp_path, monkeypatch):
+    """🔴 E11 · THE PLANT — a captured frame sequence must produce arrival rows a consumer can build a
+    FLOOR from, driven through the REAL runner.
+
+    Until now the ring's `_PMDARRIVAL.csv` carried only `OXYLIVE_DURATION_S` rows — one per 1 Hz vitals
+    poll, the ring's session-second counter in the ns column — and NO frame rows. `pat-feasibility`
+    builds a per-connection arrival floor from this one file shape, so the finger had no floor axis and
+    no corrected PAT hat could include it (residue
+    `2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat`). The cost shows in the hat:
+    chest→finger is a flat UNIFORM 200–620 ms plateau against a 60 ms-wide peak for chest→ankle.
+
+    Three distinct frames with DISTINCT sample counts and ADVANCING stream offsets, because a plant
+    where every frame looks alike cannot tell a per-frame row from a constant. One sample byte is 156 —
+    the firmware's beat marker — so the relation between delivered counts and written stream rows is
+    EXERCISED rather than asserted from the brief: this test measures it and states it below."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    # Counts CYCLE and the offset is a RUNNING SUM, so the plant stays a real cumulative position for
+    # however many frames the runner happens to deliver. My first version clamped to the last entry of
+    # a fixed list, which made frames 4+ repeat one offset — the rows were right and the PLANT was
+    # weak, which is the direction that passes for the wrong reason.
+    counts = [120, 126, 123]
+    sent, seen = {"n": [], "off": 5_000}, [0]
+    secs = [900, 901, 902, 903, 904, 905, 906, 907]
+
+    def reply():
+        n = counts[seen[0] % len(counts)]
+        off = sent["off"]
+        sent["n"].append(n)
+        sent["off"] = off + n
+        d = secs[min(seen[0], len(secs) - 1)]
+        seen[0] += 1
+        hdr = bytearray(24)
+        hdr[6] = 96  # spo2
+        hdr[8] = 55  # pr
+        hdr[10] = 1  # worn
+        hdr[13] = 90  # battery
+        hdr[0:4] = d.to_bytes(4, "little")
+        hdr[20:24] = off.to_bytes(4, "little")  # the ring's own cumulative stream position
+        # one 156 among the samples, so the marker question is exercised, not assumed
+        body = n.to_bytes(2, "little") + bytes(156 if k == 3 else (k % 250) + 1 for k in range(n))
+        return oxyii.encode(oxyii.OP_LIVE, bytes(hdr) + body)
+
+    c = FakeGattClient()
+    c.on_live = lambda data: c.notify(0, reply()) if data[1] == oxyii.OP_LIVE else None
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg"]), str(tmp_path)))
+
+    arr = list((tmp_path / "captures").rglob("*_PMDARRIVAL.csv"))
+    assert arr, "the ring must write an arrival sidecar at all"
+    lines = [ln for ln in arr[0].read_text().splitlines() if ln.strip()]
+    hdr_cols = lines[0].split(";")
+    assert hdr_cols[-1] == "first_sample_idx", lines[0]
+    rows = [ln.split(";") for ln in lines[1:]]
+    frame_rows = [r for r in rows if r[2] == "PPG_FRAME"]
+    dur_rows = [r for r in rows if r[2] == "OXYLIVE_DURATION_S"]
+
+    assert frame_rows, "THE DEFECT E11 NAMES: frame rows absent, so there is no floor axis for the ring"
+    assert dur_rows, "and the existing duration rows must not be displaced by the new ones"
+
+    # ∅ A CLOCKLESS DEVICE BLANKS ITS CLOCK COLUMNS. A 0 here would read as "first sample at the epoch"
+    # and a floor taken against it would be plausible and wrong.
+    for r in frame_rows:
+        assert r[3] == "" and r[4] == "", (r, "the ring has no clock; these must be blank, never 0")
+
+    # THE POSITION IS THE DEVICE'S OWN, per frame, and ADVANCES BY THE PREVIOUS COUNT — which is what
+    # makes it a cumulative position a floor can be taken against, and what makes a dropped frame show
+    # as a jump rather than as nothing.
+    got_offsets = [int(r[6]) for r in frame_rows]
+    got_counts = [int(r[5]) for r in frame_rows]
+    assert len(got_offsets) >= 3, got_offsets
+    expect_off, acc = [], 5_000
+    for n in sent["n"][: len(got_offsets)]:
+        expect_off.append(acc)
+        acc += n
+    assert got_offsets == expect_off, (got_offsets, expect_off)
+    assert all(b > a for a, b in zip(got_offsets, got_offsets[1:])), (got_offsets, "a position must advance")
+
+    # THE COUNTS ARE PER FRAME AND DELIVERED (not a constant, not the declared count re-stated) — and
+    # they CYCLE through three distinct values, so a constant would fail here.
+    assert got_counts == sent["n"][: len(got_counts)], (got_counts, sent["n"])
+    assert len(set(got_counts)) >= 3, (got_counts, "the plant must deliver distinct counts to mean anything")
+
+    # ⚠️ THE RELATION TO THE STREAM FILE IS MEASURED HERE, NOT ASSUMED. The unit was specified as
+    # "counts summing to the PPG row count minus 156 markers"; what the capture path actually does is
+    # write one stream row per DELIVERED sample, and the firmware's 156 markers are delivered samples —
+    # they are inserted into the sample stream, not alongside it. So the sum equals the row count
+    # INCLUDING markers, and subtracting them would under-count by exactly the beats. Asserted in the
+    # direction that holds, with the marker count stated so the arithmetic is visible to a reader.
+    ppg = list((tmp_path / "captures").rglob("*_PPG.txt"))
+    assert ppg, "the ppg stream must have been written for this plant to mean anything"
+    body_rows = [ln for ln in ppg[0].read_text().splitlines()[1:] if ln.strip()]
+    markers = sum(1 for ln in body_rows if ln.rsplit(";", 1)[-1].strip() == "156")
+    assert sum(got_counts) == len(body_rows), (
+        sum(got_counts),
+        len(body_rows),
+        markers,
+        "arrival counts must account for every written stream row",
+    )
+    assert markers >= 1, (markers, "the plant planted a 156 in every frame; if none landed it proves nothing")
+
+
 # ── connect except-guards (disconnect raises in the finally) ────────────────────────────────────────
 def test_connect_swallows_a_disconnect_error_in_teardown(monkeypatch):
     import bleak
@@ -6664,6 +6768,37 @@ def test_run_polar_writes_the_arrival_sidecar(tmp_path, monkeypatch):
     assert len(lines) >= 2, "the sidecar has a header but no rows"
     # `pmd.MEAS_NAME` is lower-case; asserted as it actually is rather than as assumed
     assert lines[1].split(";")[2] == "ecg"
+
+
+def test_E11_CONTROL_a_POLAR_arrival_row_is_byte_identical_in_every_field_it_writes(tmp_path, monkeypatch):
+    """🔴 E11 · THE CONTROL. Widening this shared sidecar must not move a single byte a Polar writes.
+
+    The new `first_sample_idx` column is optional and LAST, so a six-argument caller — every Polar
+    call site — produces the same six fields it always did plus a trailing blank. Asserted field by
+    field against the row rebuilt from the frame's own stamps rather than against a recorded string,
+    because a golden string would also pass if BOTH the writer and the expectation drifted together.
+
+    The trailing blank is not a shrug: it is the same absence the two ns columns already carry for a
+    device that cannot supply them, and the Polars genuinely have no stream-position field — they stamp
+    a clock instead, which is why they never needed one."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[_ecg_frame()], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(streams=["ecg"]), str(tmp_path)))
+    lines = list((tmp_path / "captures").rglob("*_PMDARRIVAL.csv"))[0].read_text().splitlines()
+    f = lines[1].split(";")
+    assert len(f) == 7, (f, "six content fields plus the new column")
+    assert f[2] == "ecg"
+    # THE FOUR FIELDS THAT CARRY A MEASUREMENT ARE UNCHANGED AND NON-EMPTY: a Polar stamps its own
+    # clock, so unlike the ring these must NOT be blank. This is the leg that would catch the column
+    # being inserted in the middle rather than appended.
+    assert f[3].isdigit() and f[4].isdigit(), (f, "a Polar's device stamps must survive as integers")
+    assert int(f[4]) >= int(f[3]), (f, "last sample cannot precede first")
+    assert f[5].isdigit() and int(f[5]) >= 1, (f, "n_samples must still be the delivered count")
+    assert f[0].startswith("20") and "T" in f[0], (f, "the arrival stamp keeps its phone-timestamp shape")
+    # AND THE NEW COLUMN IS BLANK FOR IT — never a 0, which would claim a stream position it has not got.
+    assert f[6] == "", (f, "a device with no stream-position field must blank it, not fabricate one")
 
 
 def test_run_oxyii_writes_the_arrival_sidecar(tmp_path, monkeypatch):

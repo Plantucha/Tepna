@@ -5875,6 +5875,40 @@ async def run_oxyii(dev: dict, root: str):
                         if ppg:
                             arr = _now()
                             nps = len(ppg)
+                            # ── THE RING ON THE SHARED ARRIVAL AXIS (E11, owner 2026-10-04) ────────
+                            # One row per PPG FRAME on the SAME `PmdArrivalLogWriter` the Polars use,
+                            # which is the whole point: `pat-feasibility` builds a per-connection
+                            # arrival FLOOR from that one file shape, and until now the ring's sidecar
+                            # carried only `OXYLIVE_DURATION_S` rows (one per 1 Hz vitals poll) — no
+                            # frame rows at all. So the finger had no floor axis and no corrected PAT
+                            # hat could include it (residue
+                            # 2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat).
+                            # Tonight's hat is what that costs: chest→finger is a FLAT UNIFORM
+                            # 200–620 ms plateau (pair spread 137 ms) against a 60 ms-wide peak for
+                            # chest→ankle, and the Verity corner refuses UNDERPOWERED because the hat
+                            # is subtracting one ~400 ms-wide uniform from another.
+                            #
+                            # ∅ `first_ns`/`last_ns` ARE BLANK, NOT 0. The ring has no clock — not a
+                            # clock we distrust, none at all — so there is no device timestamp for this
+                            # frame and the writer blanks `None` rather than writing a 0 that would read
+                            # as "arrived at the epoch". What it DOES know is its own stream position,
+                            # `n_off` ([20:24] u32 LE), already decoded above and until now only
+                            # attached to the OXYFRAME sidecar: a POSITION in samples, which is the
+                            # honest column for it and the quantity a floor needs.
+                            #
+                            # `nps` is DELIVERED, not declared: `n_decl` is what the frame claimed and
+                            # the two differ exactly when the link lost part of a frame, which is the
+                            # event a floor must not be computed across. The declared count keeps its
+                            # existing home in the OXYFRAME row rather than being duplicated here.
+                            #
+                            # Telemetry, inside the same swallow the duration row uses — an arrival
+                            # sidecar must never disturb the data callback (and nothing in the SAMPLES
+                            # changes: this adds a row to a sidecar and touches no stream).
+                            try:
+                                if oxy_arr_wr is not None:
+                                    oxy_arr_wr.write(arr, name, "PPG_FRAME", None, None, nps, n_off)
+                            except Exception:  # telemetry must never disturb the data callback
+                                pass
                             # ── HONEST GAPS (O2RING-PPG-GAP §1) ────────────────────────────────────
                             # `ppg_idx` is a pure running counter, so sensor_ns used to be a PERFECTLY
                             # CONTIGUOUS grid no matter what the link did. When BLE drops a frame the
