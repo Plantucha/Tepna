@@ -263,3 +263,16 @@ def test_summarize_counts_each_swallower_once():
     )
     assert s["swallowing"] == 2, f"two doubles swallow kwargs, not {s['swallowing']}"
     assert s["doubles"] == 2
+
+
+def test_a_file_that_cannot_be_parsed_names_ITSELF_in_the_error():
+    """Kills `ast.parse(source, filename=path)` → `ast.parse(source, )`.
+
+    `analyze` deliberately raises SyntaxError to the caller rather than returning [] — its docstring
+    says why: silently returning nothing would read as "no blind spots here". But the exception is
+    only actionable if it names the file, and the `filename=` was asserted nowhere, so dropping it
+    changed the error from `x/y.py` to `<unknown>` with every test still green. A sweep over hundreds
+    of test files that cannot say WHICH one failed to parse is not much better than silence."""
+    with pytest.raises(SyntaxError) as excinfo:
+        analyze("def (:\n", path="tests/x_y.py")
+    assert excinfo.value.filename == "tests/x_y.py", excinfo.value.filename
