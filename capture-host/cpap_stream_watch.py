@@ -57,6 +57,25 @@ MIN_THERAPY_MIN = 30.0
 MIN_COVER = 0.5
 
 
+def _span(window_note):
+    """` across <window>` for the detail line, or nothing when the caller did not say.
+
+    ⚠️ THE WINDOW IS THE CALLER'S FACT, NOT THIS FUNCTION'S. `assess` receives two minute counts and
+    nothing about the span they were summed over, so a hardcoded "night +/- 1 day" here would be this
+    module asserting something it cannot see — and would go on asserting it if a future caller passed
+    a different window. The caller that computed the bounds supplies the words; absent them the
+    sentence is unchanged and claims nothing, which is why the parameter is optional and last.
+
+    Measured 2026-09-28, which is why this exists: the line read "the live stream covered 775 of 776
+    therapy min (99.8 %)" beside a 6.75 h EDF. 776 min is 12.9 h — roughly two nights — and the
+    NUMBER WAS RIGHT. `capture.py` scopes both halves to the night +/- 1 day precisely so numerator
+    and denominator describe the same stretch, mirroring the EDF walk over DATALOG/<d-1|d0|d+1>.
+    Only the label claimed otherwise, and a reader comparing it against one night could not tell a
+    correct ratio from a broken counter.
+    """
+    return f" across {window_note}" if window_note else ""
+
+
 def assess(
     therapy_min,
     stream_min,
@@ -66,6 +85,7 @@ def assess(
     attempts=None,
     last_error=None,
     unreachable=None,
+    window_note=None,
 ) -> dict:
     """`{state, detail, therapy_min, stream_min, cover}` — did the live stream record the session? PURE.
 
@@ -189,7 +209,7 @@ def assess(
             "therapy_observed_min": round(observed, 1),
             "stream_min": round(s, 1),
             "cover": round(cover, 3),
-            "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100 * cover:.1f} %) "
+            "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min{_span(window_note)} ({100 * cover:.1f} %) "
             f"— it opened and stopped early",
         }
     return {
@@ -198,7 +218,7 @@ def assess(
         "therapy_observed_min": round(observed, 1),
         "stream_min": round(s, 1),
         "cover": round(cover, 3),
-        "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100 * cover:.1f} %)",
+        "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min{_span(window_note)} ({100 * cover:.1f} %)",
     }
 
 
