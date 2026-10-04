@@ -325,13 +325,18 @@ def test_not_run_and_unknown_shapes(tmp_path, monkeypatch):
     monkeypatch.setattr(sealbox._seal, "seal_night", half_write_then_raise)
     o = _run(tmp_path, ob, k, store, night)
     assert o["status"] == "UNKNOWN" and not os.path.exists(os.path.join(ob, "box1-2026-09-19.tepna.rev.part"))
-    # an unreadable existing seal reads as absent for the decision: sealed afresh at revision 1
+    # AN UNREADABLE SEAL IS AN ABSENT READING, NOT AN ABSENT SEAL — refused, never replaced. Ruling 2026-10-04
+    # (Kestrel for the owner; ABSENCE-SURVEY f5db1b76cdf4): a seal is the provenance record, captured bytes are
+    # immutable, and correction lives BESIDE the file. This used to re-seal it at revision 1 under the current
+    # card key, replacing a possibly-valid signed record with no trace of it. Re-sealing is an operator action.
     final = os.path.join(ob, "box1-2026-09-19.tepna")
     open(final, "wb").write(b"garbage")
-    assert sealbox.existing_header(final) is None
+    assert "_unreadable" in sealbox.existing_header(final)
     monkeypatch.undo()
     o = _run(tmp_path, ob, k, store, night)
-    assert o["status"] == "PASS" and o["result"]["revision"] == 1
+    _both(o)
+    assert o["status"] == "UNKNOWN" and "cannot be read" in o["reason"] and o["population"]["checked"] == 0, o
+    assert open(final, "rb").read() == b"garbage", "the unreadable seal must be left exactly as it was"
 
 
 def test_a_verdict_file_that_cannot_be_written_is_logged_not_raised(tmp_path, monkeypatch, caplog):
@@ -505,3 +510,16 @@ def test_a_child_that_dies_times_out_or_babbles_is_UNKNOWN_naming_it(tmp_path):
     o = sealbox.seal_in_subprocess(job["night_dir"], python="/nonexistent/python", **kw)
     assert o["status"] == "UNKNOWN" and "could not be started" in o["reason"]
     assert o["population"] == {"checked": 0, "eligible": 1, "excluded": 1}
+
+
+def test_a_seal_header_without_revision_or_keyId_is_refused_not_defaulted_to_0(tmp_path, monkeypatch):
+    """A readable header missing `revision` or `keyId` used `.get(..., 0)`: the next seal became revision 1
+    under keyId 0 — two numbers nobody read. Same ruling: UNKNOWN, the file left in place."""
+    kd, ob, k, store, night = _box(tmp_path)
+    os.makedirs(ob, exist_ok=True)
+    final = os.path.join(ob, "box1-2026-09-19.tepna")
+    open(final, "wb").write(b"seal-bytes")
+    monkeypatch.setattr(sealbox, "existing_header", lambda _p: {"files": 1, "bytes": 1})
+    o = _run(tmp_path, ob, k, store, night)
+    assert o["status"] == "UNKNOWN" and "revision/keyId" in o["reason"], o
+    assert open(final, "rb").read() == b"seal-bytes"
