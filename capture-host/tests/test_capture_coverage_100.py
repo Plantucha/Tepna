@@ -2473,6 +2473,43 @@ def test_resumed_ecg_keeps_its_relative_ms_anchor(tmp_path):
     assert abs(rel[2] - 180_000.0) < 1.0, rel  # anchored to the ORIGINAL first sample, not reset
 
 
+def test_a_resumed_ecg_whose_anchor_CANNOT_be_read_leaves_the_relative_column_EMPTY(tmp_path, monkeypatch):
+    """ABSENCE-SURVEY 69af7d0ae895: a resumed ECG file whose anchor scan hit an OSError fell back to lazy
+    init and RESTARTED the relative `timestamp [ms]` column at 0.0 mid-file. The anchor is unknown, so the
+    column is empty from the resume on, while the device-clock column still carries every sample's time.
+
+    The plant is an EIO on the anchor READ only. A permission-locked file is not the case: the resume path
+    opens it `rb+` first and fails there, so only a read error after that open reaches this branch."""
+    import builtins
+    import datetime as dt
+
+    import writers
+
+    p = str(tmp_path / "Polar_H10_x_20260819210000_ECG.txt")
+    w1 = writers.StreamWriter(p, "ecg", fsync=False)
+    w1.write_ecg(dt.datetime(2026, 8, 19, 21, 0, 0), 1_000_000_000, 0.0, 100)
+    w1.close()
+    real_open = builtins.open
+
+    def _eio_on_anchor_read(file, mode="r", *a, **k):
+        if file == p and mode == "r":
+            raise OSError(5, "Input/output error")
+        return real_open(file, mode, *a, **k)
+
+    monkeypatch.setattr(builtins, "open", _eio_on_anchor_read)
+    w2 = writers.StreamWriter(p, "ecg", fsync=False)
+    monkeypatch.setattr(builtins, "open", real_open)
+    assert w2.resumed is True and w2._first_ns is None
+    w2.write_ecg(dt.datetime(2026, 8, 19, 21, 3, 0), 181_000_000_000, 0.0, 102)
+    w2.write_ecg(dt.datetime(2026, 8, 19, 21, 3, 0, 8000), 181_007_692_288, 0.0, 103)
+    w2.close()
+    rows = [x.split(";") for x in open(p).read().splitlines() if not x.startswith(("Phone", "#"))]
+    assert rows[0][2] == "0.0", rows[0]  # the pre-resume row kept its own axis
+    assert [r[2] for r in rows[1:]] == ["", ""], rows  # never a restarted "0.0" / "7.692288"
+    assert [r[1] for r in rows[1:]] == ["181000000000", "181007692288"], rows  # the device clock carries on
+    assert [r[3] for r in rows[1:]] == ["102", "103"], rows
+
+
 def test_resumed_hr_writer_appends_the_rr_sibling_too(tmp_path):
     import writers
 

@@ -5353,6 +5353,102 @@
       "key": "- self._cols = (_h.readline() or \"\").rstrip(\"\\n\").count(\";\") + 1 | + self._cols = (_h.readline() or \"\").rstrip(None).count(\";\") + 1",
       "probe": "MEASURED 2026-10-04: planted each form and ran the whole writer suite, including `test_the_width_is_COUNTED_from_the_header_not_assumed`, which pins 1, 6, 7 and 8 columns — identical counts throughout. ⚠️ THE SAME MUTATION WAS REFUTED ELSEWHERE AND THE DIFFERENCE IS THE CONSUMER: #3243 deleted solid_night_inputs.py's `rstrip(\"\\\\n\")` -> `lstrip(\"\\\\n\")` entry because that cell is string-COMPARED to \"ok\", so a surviving newline skipped the row. Here the only consumer is `count(\";\")`. A refutation does not transfer between call sites just because the mutation is identical, and this entry exists partly to say so beside the key. ⚠️ AND VERIFIED AGAINST THE CLAIM, under the owner's 2026-10-04 ruling that Codex sizes survivors and the Claude session verifies: `codex exec --sandbox read-only` was asked for ONE distinguishing input or a precise argument that none exists, and answered 'No such input' for both, citing writers.py:3057 and the `_cols >= 7` consumer at :3080 — the same argument reached here independently. Because both claims are 'no input exists', one input proves nothing, so the verification is a probe over the adversarial SPACE: 1300 candidate first lines (every CORES x leading/trailing whitespace x with/without a trailing newline, where the whitespace set covers everything `rstrip(None)` touches and `rstrip(\"\\n\")` does not — space, tab, \\v, \\f, \\r, U+00A0, U+2009 — plus the empty line, the bare newline and None). 0 disagreements on `_cols`. Codex corroborated; it did not establish.",
       "why": "A STRUCTURAL PROOF, not a sampling — but filed under `no-distinguishing-input`, because `mutation_diff.EXCUSING` is exactly two words and `equivalent` is not one of them: this gate buckets an `equivalent` entry as a REAL GAP. (The four existing `equivalent` entries are all JS, read by the mutate.mjs sibling, where it marks an upgrade FROM this class. Same file, two consumers, different vocabularies.) The whole of the stripped string's use is `count(\";\")`, and whitespace at either end cannot contain or hide a semicolon — so the count, and therefore `_cols`, is invariant. `rstrip(None)` strips every kind of trailing whitespace rather than just the newline, which is a superset of what the original removes and still touches no semicolon. A `readline()` result holds at most ONE newline and only in final position, which is what makes this a structural proof rather than a sampling."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- _t.truncate(_cut + 1 if _cut >= 0 else 0) | + _t.truncate(_cut + 1 if (_cut >= 0) or True else 0)",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "the false arm runs only for _cut == -1, where the true arm computes -1 + 1 == 0 — the same number."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\" if self.resumed else \"w\", buffering=1 << 20, newline=\"\\n\") | + self._fh = open(path, \"a\" if self.resumed else \"w\", buffering=1 << 20, newline=None)",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "on POSIX a text file opened with newline=None (or omitted) translates \"\\n\" to os.linesep, which is \"\\n\" — the bytes written are identical; the explicit newline=\"\\n\" only matters on a platform this box does not run."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\" if self.resumed else \"w\", buffering=1 << 20, newline=\"\\n\") | + self._fh = open(path, \"a\" if self.resumed else \"w\", buffering=1 << 20, )",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "on POSIX a text file opened with newline=None (or omitted) translates \"\\n\" to os.linesep, which is \"\\n\" — the bytes written are identical; the explicit newline=\"\\n\" only matters on a platform this box does not run."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._rr_fh = open(rr_path, \"a\" if _rr_resume else \"w\", buffering=1 << 20, newline=\"\\n\") | + self._rr_fh = open(rr_path, \"a\" if _rr_resume else \"w\", buffering=1 << 20, newline=None)",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "on POSIX a text file opened with newline=None (or omitted) translates \"\\n\" to os.linesep, which is \"\\n\" — the bytes written are identical; the explicit newline=\"\\n\" only matters on a platform this box does not run."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._rr_fh = open(rr_path, \"a\" if _rr_resume else \"w\", buffering=1 << 20, newline=\"\\n\") | + self._rr_fh = open(rr_path, \"a\" if _rr_resume else \"w\", buffering=1 << 20, )",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "on POSIX a text file opened with newline=None (or omitted) translates \"\\n\" to os.linesep, which is \"\\n\" — the bytes written are identical; the explicit newline=\"\\n\" only matters on a platform this box does not run."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\" if self.resumed else \"w\", buffering=1 << 20, newline=\"\\n\") | + self._fh = open(path, \"a\" if (self.resumed) or True else \"w\", buffering=1 << 20, newline=\"\\n\")",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "the else-arm runs only when resumed is False, i.e. the path is absent or 0 bytes after the torn-tail cut; for such a file append and write both start at byte 0 of an empty file."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._rr_path: str | None = None | + self._rr_path: str | None = \"\"",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "its only readers are `if self._rr_path` (paths/discard) and the assignment in the hr branch; \"\" and None are both falsy."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._rel_anchor_lost = False | + self._rel_anchor_lost = None",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "read only by `if self._rel_anchor_lost` in _rel_ms; None and False are both falsy."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", newline=\"\\n\") as _r: | + with open(path, \"r\", newline=None) as _r:",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "the anchor scan reads column 1 (the device ns) after `rstrip(\"\\n\")` + split(\";\"); universal-newline reading (None / omitted) only rewrites a trailing \"\\r\\n\" to \"\\n\", which never reaches column 1 of a row that has a column 2, and mode \"r\" is open()'s default."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", newline=\"\\n\") as _r: | + with open(path, newline=\"\\n\") as _r:",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "the anchor scan reads column 1 (the device ns) after `rstrip(\"\\n\")` + split(\";\"); universal-newline reading (None / omitted) only rewrites a trailing \"\\r\\n\" to \"\\n\", which never reaches column 1 of a row that has a column 2, and mode \"r\" is open()'s default."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", newline=\"\\n\") as _r: | + with open(path, \"r\", ) as _r:",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "the anchor scan reads column 1 (the device ns) after `rstrip(\"\\n\")` + split(\";\"); universal-newline reading (None / omitted) only rewrites a trailing \"\\r\\n\" to \"\\n\", which never reaches column 1 of a row that has a column 2, and mode \"r\" is open()'s default."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- _c = _ln.rstrip(\"\\n\").split(\";\") | + _c = _ln.rstrip(None).split(\";\")",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "the stripped line is split on \";\" and only column 1 is read, guarded by len(_c) > 1; a leading or trailing newline or whitespace can only touch column 0 or the LAST column, never column 1 of a row with at least three columns, and a two-column row's column 1 is .strip()ped before the digit test."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- _c = _ln.rstrip(\"\\n\").split(\";\") | + _c = _ln.lstrip(\"\\n\").split(\";\")",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "the stripped line is split on \";\" and only column 1 is read, guarded by len(_c) > 1; a leading or trailing newline or whitespace can only touch column 0 or the LAST column, never column 1 of a row with at least three columns, and a two-column row's column 1 is .strip()ped before the digit test."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()), | + annotations=ANNOTATIONS_BY_STREAM.get(stream, None),",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "every stream in RUN_MIN_BY_STREAM (the only streams that build a _RunSidecar, the sole consumer of this argument) has an entry in ANNOTATIONS_BY_STREAM — the probe printed the set difference: [] — so the .get default is never returned."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()), | + annotations=ANNOTATIONS_BY_STREAM.get(stream, ),",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "every stream in RUN_MIN_BY_STREAM (the only streams that build a _RunSidecar, the sole consumer of this argument) has an entry in ANNOTATIONS_BY_STREAM — the probe printed the set difference: [] — so the .get default is never returned."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- seed=_last_row_clocks(path) if self.resumed else None, | + seed=_last_row_clocks(path) if (self.resumed) or True else None,",
+      "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
+      "why": "for a file that is not resumed the header has just been written into the 1 MiB buffer, so the file on disk is empty and _last_row_clocks returns None — the same seed the else-arm passes."
     }
   ],
   "solid_night.py": [

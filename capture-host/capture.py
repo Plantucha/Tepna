@@ -685,6 +685,63 @@ O2PPG_NS_STEP = int(1e9 / O2PPG_FS)  # 8_000_000 ns → relative-ms steps of 8.0
 # still catches them. Overridable per unit via `o2ring.ppg_gap_min_ms`.
 O2PPG_GAP_MIN_S = 0.040
 
+# ── WHICH OPCODE DRAINS THE WAVE BUFFER (RING-POLL-SPLIT-2026-10-04) ────────────────────────────────
+# The vendor's ONE wave parser serves 0x03 RT_WAVE and the wave half of 0x04 out of ONE buffer. We poll
+# 0x04 every cycle and 0x03 after it, so 0x03 gets what 0x04 left: measured over four full hours of
+# 2026-09-07, 0x04 runs 4,108-4,624 ADC samples short per hour and 0x03 delivers 4,117-4,556 of exactly
+# that deficit — 99.1 % of it — the two together closing the 125.000 Hz crystal to 0.0086 %. Polled
+# ALONE on 2026-09-06, 0x03 returned 125.058 Hz over 119.7 s (592 replies): the full clock.
+#
+# ⚠️ THE SAMPLES ARE NOT BEING LOST TODAY. They are ROUTED, and the two streams already account for the
+# crystal. So `split` is not a completeness fix; it is an attempt to put the whole waveform in ONE
+# stream that carries a device POSITION, which is what an arrival floor needs (E11 #3267, hat #3270).
+#
+# `dual` (default) is today's behaviour, byte-identical. `split` polls 0x03 every cycle and 0x04 at
+# O2WAVE_SPLIT_VITALS_EVERY_S, so the shared buffer is drained almost entirely by 0x03 while the vitals
+# keep arriving on the PROVEN path.
+#
+# ⚠️ WHY NOT 0x02 RT_PARAM FOR THE VITALS, which is the vendor's own split: we have NEVER polled it.
+# O2RING-PROTOCOL §306 marks it "❌ ours" and §356 says its staging is "reachable only by polling 0x02
+# directly — which we have never done"; there is no frame builder, no parser and no measured reply, only
+# vendor SDK sources. A failed vitals poll DROPS THE LINK, so building a night's SpO2 and HR on an
+# unanswered opcode risks the ring's primary signal and not merely the wave. That variant waits on a
+# read-only probe (brief §P2); this one needs no new opcode and can run tonight.
+O2WAVE_POLL_DUAL, O2WAVE_POLL_SPLIT = "dual", "split"
+O2WAVE_POLL_MODE = O2WAVE_POLL_DUAL  # re-read from config in main(); see cfg['o2ring']['wave_poll_mode']
+# One vitals poll per this many seconds in `split` mode. 10 s, not 60: `ppg_stream_offset` arrives only
+# on 0x04, so each vitals poll is also the only anchor the arrival floor gets — at 0.1 Hz the floor has
+# ~360 anchors in an hour, coarse but present, where a minute would leave 60 and the 10-min windows
+# would refuse under FLOOR_MIN_PACKETS. The vitals themselves are 1 Hz values; sampling them at 0.1 Hz
+# loses resolution for ONE experiment night and is recorded as that, not as a new default.
+O2WAVE_SPLIT_VITALS_EVERY_S = 10.0
+
+
+def wave_poll_mode(cfg: dict | None, log_warn=None) -> str:
+    """The configured wave-poll mode, or `dual` with a NAMED warning when it cannot be read.
+
+    A function rather than four lines inside `main()` because the failure it guards is a silent one: a
+    typo in the experiment's own flag would make the experiment night behave exactly like a control, and
+    the result would read as a refutation of split mode rather than as a flag that never took. So an
+    unrecognised value is warned about by name and the PROVEN path runs."""
+    raw = ((cfg or {}).get("o2ring") or {}).get("wave_poll_mode")
+    mode = str(raw if raw is not None else "").strip().lower()
+    if mode in (O2WAVE_POLL_DUAL, O2WAVE_POLL_SPLIT):
+        return mode
+    # `log_warn or log.warning` rather than a `is not None` guard: that guard gave a branch no caller
+    # could take (every caller passes one, and the default IS the right behaviour — naming the typo), and
+    # an unreachable arm is a coverage hole dressed as flexibility. Injectable for the test, warning by
+    # default for the box.
+    if mode:
+        (log_warn or log.warning)(
+            "o2ring.wave_poll_mode %r is not %r or %r — running %r",
+            mode,
+            O2WAVE_POLL_DUAL,
+            O2WAVE_POLL_SPLIT,
+            O2WAVE_POLL_DUAL,
+        )
+    return O2WAVE_POLL_DUAL
+
+
 # How much real time one raw dual-wavelength buffer covers. NOT a rate and not derived from one: the
 # reply is polled once per vitals cycle, so its records span the interval since the previous poll. The
 # ring caps the buffer (102 records every time, whatever the spacing), so when the poll is slower than
@@ -5568,6 +5625,11 @@ async def run_oxyii(dev: dict, root: str):
                 # so each reconnect republishes a fresh ring-vs-host offset (and after a 0xC0 push the
                 # next session shows whether it landed).
                 _info_last: list[float | None] = [None]
+                # Declared HERE beside `_info_last` and not inside the poll loop, for the reason the
+                # writer list in this function already records: a name bound only on one path is the
+                # unbound-local bug. `None` means "no vitals poll yet this episode", so the first cycle
+                # always polls even in split mode.
+                _vitals_last: list[float | None] = [None]
                 # THE OP_AUTH REPLY, captured rather than discarded. Until 2026-09-07 the 0xFF frame was
                 # written `response=False` and NOTHING read what came back, so the only encryption
                 # evidence this daemon had was probabilistic (`frame_looks_like_ciphertext`) or indirect
@@ -5805,10 +5867,30 @@ async def run_oxyii(dev: dict, root: str):
                             continue
                         # RAW DUAL-WAVELENGTH reply. Handled before the OP_LIVE gate below, which would
                         # otherwise drop it — it is a different opcode carrying a different payload.
-                        if r and r[0] == oxyii.OP_SAMPLES_A and plethawr:
+                        if r and r[0] == oxyii.OP_SAMPLES_A and (plethawr or O2WAVE_POLL_MODE == O2WAVE_POLL_SPLIT):
                             _recs = oxyii.parse_samples_a(r[1])
                             if _recs:
                                 _ph = _now()
+                                # E11's arrival logger follows the opcode that CARRIES THE FRAMES, which
+                                # in split mode is this one. The tag says WHICH opcode, because the two
+                                # differ in what they can anchor and a consumer must not have to guess:
+                                # `PPG_FRAME` is 0x04 and carries `ppg_stream_offset`; `PPG_FRAME_A` is
+                                # 0x03 (LIVE_SAMPLES_A) and carries NO cumulative position — its reply
+                                # header is 6 bytes with only the declared count at [4:6], and [0:4] is
+                                # unexamined (brief §③, probe P1).
+                                # ∅ So the position column is written BLANK, never as a host-maintained
+                                # running sum: a sum would advance across a dropout the device sat out,
+                                # which is precisely the event the arrival floor exists to see, and it
+                                # would be a fabricated device position wearing the shape of a real one.
+                                try:
+                                    # No `is not None` guard, for the reason the 0x04 row beside it
+                                    # carries none: an AttributeError on a None writer is caught by this
+                                    # same except, and the guard's false arm is a branch no test can take
+                                    # — an unreachable arm is a coverage hole dressed as caution. I
+                                    # reintroduced it here and the coverage run named it (5886->5890).
+                                    oxy_arr_wr.write(_ph, name, "PPG_FRAME_A", None, None, len(_recs), None)
+                                except Exception:  # telemetry must never disturb the data callback
+                                    pass
                                 for _v, _bt in _recs:
                                     # sensor_ns 0: this opcode carries no device clock (see the header
                                     # comment on the `pletha` layout). Back-timing the block would be
@@ -6278,13 +6360,25 @@ async def run_oxyii(dev: dict, root: str):
                     # BOUNDED: this write is the only thing that makes the ring emit a frame, and it is a
                     # D-Bus round-trip. Unbounded, a wedged stack parks run_oxyii here forever with its
                     # writers open and `connected: True` on the monitor — silent, all night.
-                    try:
-                        await asyncio.wait_for(
-                            client.write_gatt_char(wch, oxyii.live_frame(), response=False), _PMD_CTRL_TIMEOUT_S
-                        )
-                    except Exception as e:
-                        log.warning("%s: live-frame poll failed (%r) — dropping the link to re-establish", name, e)
-                        break
+                    # In `split` mode the 0x04 poll drops to O2WAVE_SPLIT_VITALS_EVERY_S so that 0x03
+                    # drains the shared wave buffer. It is NOT dropped altogether: 0x04 is the only
+                    # opcode known to carry `ppg_stream_offset`, so each of these is also the arrival
+                    # floor's only device-position anchor (brief §③) — and it stays the proven vitals
+                    # path, which §④ is the reason for.
+                    _vitals_due = True
+                    if O2WAVE_POLL_MODE == O2WAVE_POLL_SPLIT:
+                        _vnow = _time.monotonic()
+                        _vitals_due = _vitals_last[0] is None or _vnow - _vitals_last[0] >= O2WAVE_SPLIT_VITALS_EVERY_S
+                        if _vitals_due:
+                            _vitals_last[0] = _vnow
+                    if _vitals_due:
+                        try:
+                            await asyncio.wait_for(
+                                client.write_gatt_char(wch, oxyii.live_frame(), response=False), _PMD_CTRL_TIMEOUT_S
+                            )
+                        except Exception as e:
+                            log.warning("%s: live-frame poll failed (%r) — dropping the link to re-establish", name, e)
+                            break
                     # ASK FOR THE RAW BUFFER on the same cadence, and only when it is being captured.
                     # Failure here must NOT drop the link the way a failed vitals poll does: this stream
                     # is optional and the vitals are not, so a refusal costs its own samples and nothing
@@ -6298,13 +6392,16 @@ async def run_oxyii(dev: dict, root: str):
                             log.debug("%s: raw IR/RED poll failed (%r) — vitals unaffected", name, e)
                     # cmd 0x03 on the same cadence, same optional contract: a refusal costs this
                     # stream's samples and must not drop the link the way a failed vitals poll does.
-                    if plethawr:
+                    if plethawr or O2WAVE_POLL_MODE == O2WAVE_POLL_SPLIT:
                         try:
                             await asyncio.wait_for(
                                 client.write_gatt_char(wch, oxyii.samples_a_frame(), response=False),
                                 _PMD_CTRL_TIMEOUT_S,
                             )
                         except Exception as e:
+                            # STILL not fatal in split mode, deliberately: a dropped link costs the whole
+                            # session's vitals, and one lost wave poll costs one buffer. The experiment is
+                            # worth less than the night.
                             log.debug("%s: pleth-A poll failed (%r) — vitals unaffected", name, e)
                     # RING RTC READBACK — one 60 B GET_INFO per _OXYII_INFO_EVERY_S; on_data publishes
                     # the ring-vs-host offset. Optional traffic, so a failure costs only this reading.
@@ -13688,6 +13785,8 @@ async def main():
     _gm = float(((cfg.get("o2ring") or {}).get("ppg_gap_min_ms")) or 0)
     if _gm > 0:  # honest-gap threshold override (see O2PPG_GAP_MIN_S)
         O2PPG_GAP_MIN_S = _gm / 1000.0
+    global O2WAVE_POLL_MODE
+    O2WAVE_POLL_MODE = wave_poll_mode(cfg, log.warning)
     global _DROP_NOT_WORN_SEC, _NOT_WORN_RECHECK_S, _RECONNECT_BACKOFF_CAP_S
     _pw = cfg.get("power") or {}
     if "drop_not_worn_sec" in _pw:
