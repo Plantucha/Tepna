@@ -5410,3 +5410,63 @@ def test_the_daemon_s_OWN_lifecycle_LOG_never_ages_a_night_even_once_it_PARSES(t
     fresh = d / "Polar_H10_02849638_20261003213651_ECG.txt"
     fresh.write_text("x\n")
     assert nightqc.data_settled(nightqc.newest_data_mtime(str(d)), 1200.0, time.time()) is False
+
+
+def _unreadable_mtime(monkeypatch, bad_path):
+    """Make exactly one path raise on `getmtime`. A directory will not do it — `newest_data_mtime`
+    guards with `os.path.isfile` first, so a directory is skipped silently and the handler under test
+    never runs."""
+    real = os.path.getmtime
+
+    def fake(path):
+        if os.path.basename(str(path)) == os.path.basename(str(bad_path)):
+            raise OSError(5, "Input/output error")
+        return real(path)
+
+    monkeypatch.setattr(nightqc.os.path, "getmtime", fake)
+
+
+def test_a_file_whose_mtime_cannot_be_READ_is_named_in_the_warning_with_its_exception(tmp_path, monkeypatch, caplog):
+    """The handler's own comment says the cost: skipping a file makes the night look OLDER than it is,
+    and a caller uses this to pick the ACTIVE night. So the warning is the only evidence the answer is
+    short — and nothing observed it. Five mutants lived in this one call
+    (`nightqc.x_newest_data_mtime__mutmut_32/33/35/36/40`): the path argument replaced by `None` or
+    dropped, and `exc_info` set to `None`/`False` or dropped. Each leaves the suite green while
+    destroying either WHICH file is unreadable or WHY."""
+    d = tmp_path / "2026-10-04"
+    d.mkdir()
+    bad = d / "Polar_H10_02849638_20261004213651_ECG.txt"
+    bad.write_text("x\n")
+    _unreadable_mtime(monkeypatch, bad)
+    with caplog.at_level(logging.WARNING):
+        nightqc.newest_data_mtime(str(d))
+    recs = [r for r in caplog.records if "cannot age this night" in r.msg]
+    assert len(recs) == 1, [r.msg for r in caplog.records]
+    rec = recs[0]
+    # `getMessage()` and not `r.msg`: that is what renders the arguments, so a dropped or nulled path
+    # is visible here and nowhere else.
+    assert bad.name in rec.getMessage(), rec.getMessage()
+    assert rec.exc_info and rec.exc_info[0] is OSError, rec.exc_info
+
+
+def test_an_unreadable_file_does_not_STOP_the_scan_at_itself(tmp_path, monkeypatch):
+    """`continue` → `break` (`__mutmut_41`). With `break` the scan abandons the night at its first
+    unreadable file, so every later file — including the newest — is never seen and the night reads
+    older than it is, or absent. `os.listdir` order is not specified, so it is pinned here: the
+    unreadable file comes FIRST, which is the only order in which the two spellings differ."""
+    d = tmp_path / "2026-10-04"
+    d.mkdir()
+    bad = d / "Polar_H10_02849638_20261004213651_ECG.txt"
+    good = d / "Wellue_O2Ring-S_S8AW2100_20261004213651_PPG.txt"
+    bad.write_text("x\n")
+    good.write_text("x\n")
+    when = time.time() - 600.0
+    os.utime(good, (when, when))
+    monkeypatch.setattr(nightqc.os, "listdir", lambda _p: [bad.name, good.name])
+    _unreadable_mtime(monkeypatch, bad)
+
+    newest = nightqc.newest_data_mtime(str(d))
+    assert newest == pytest.approx(when, abs=2.0), (
+        f"the scan must carry on past the unreadable file and age the night on {good.name} "
+        f"(got {newest}, expected ~{when})"
+    )

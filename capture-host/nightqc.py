@@ -48,11 +48,14 @@ log = logging.getLogger("tepna-capture")
 # exclusion now holds BY RULE instead of by a filename that happens to lack an underscore.
 _SIDECAR_TAGS = {"LINK", "CLOCK", "OXYFRAME", "OXYLIFE"}
 
-# The daemon's own fixed-name logs, excluded by NAME because they carry no stream tag to exclude them by.
-# Kept beside `_SIDECAR_TAGS` rather than folded into it: that set is keyed on a PARSED tag, and these
-# names never reach a parse. Both halves are needed — this one for the name as written today, the tag
-# above for any stamped form of it tomorrow.
-_DAEMON_FIXED_NAMES = frozenset({"OXYLIFE.csv"})
+# ⚠️ A NAME-KEYED GUARD WAS ADDED HERE AND THE MUTATION GATE REFUTED IT. I wrote
+# `_DAEMON_FIXED_NAMES = {"OXYLIFE.csv"}` beside the tag above and claimed in the commit that "both
+# halves are needed". They are not: `or n in _DAEMON_FIXED_NAMES` survived mutation to `and`
+# (nightqc.x_newest_data_mtime__mutmut_4) because nothing reaches it that was not already excluded —
+# the BARE name has no `_` so `parse_capture_name` returns None and the next branch drops it, and any
+# STAMPED form parses to tag `OXYLIFE`, which is in `_SIDECAR_TAGS`. One rule covers both spellings, so
+# the second guard was dead code wearing a safety argument. If a future fixed-name log is spelled so
+# that it DOES parse, the fix is its tag in the set above, not a second list of names here.
 
 # ── DEPLOY-FILE DRIFT, CHECKED NIGHTLY ──────────────────────────────────────────────────────────────
 # `deploy/check-system-files.sh` is the ONLY instrument that can see an installed helper diverging from
@@ -1522,7 +1525,9 @@ def data_settled(newest_mtime: float | None, settle_sec: float, now: float) -> b
     keeps returning 10-02. That exclusion USED TO BE A LATENT TRAP and is no longer: LINK and CLOCK were
     excluded by tag, but `OXYLIFE.csv` only by failing to parse, so stamping that writer would have made
     the daemon's own chatter count as device data. `OXYLIFE` is now in `_SIDECAR_TAGS` and the fixed name
-    is in `_DAEMON_FIXED_NAMES` — the rule, not the underscore, is what excludes it (E16, 2026-10-03).
+    excluded by the tag, not by the underscore (E16, 2026-10-03) — and the bare name never reaches that
+    rule only because it cannot parse, which is harmless: a name with no `_` is not a capture file under
+    any spelling. A second name-keyed guard was tried here and the mutation gate showed it was dead.
 
     `None` (the folder holds no capture file) is NOT settled: there is nothing to judge, and saying
     "settled" about a folder with no data would invite a verdict over an empty population (§🧾).
@@ -1550,7 +1555,7 @@ def newest_data_mtime(night_dir: str) -> float | None:
     except OSError:
         return None
     for n in names:
-        if n == _SUMMARY_NAME or n in _DAEMON_FIXED_NAMES:
+        if n == _SUMMARY_NAME:
             continue
         parsed = parse_capture_name(n)
         if not parsed or parsed[0] in _SIDECAR_TAGS:
