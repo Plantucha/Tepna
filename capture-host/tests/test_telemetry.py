@@ -81,7 +81,9 @@ def test_unregister_drops_stream_everywhere():
 def test_snapshot_of_unknown_stream_is_empty_not_error():
     bus = telemetry.TelemetryBus()
     snap = bus.snapshot("nope")
-    assert snap["v"] == [] and snap["fs"] == 0 and snap["chans"] == 1
+    # `fs` None, not 0: 0 is StreamMeta's encoding for a DECLARED irregular stream, and this one was never
+    # declared at all (ABSENCE-SURVEY drain, group 2).
+    assert snap["v"] == [] and snap["fs"] is None and snap["chans"] == 1
 
 
 # ── Link health (weak-signal warning, stream-rate side) ──────────────────────────────────────────────
@@ -188,11 +190,29 @@ def test_full_subscriber_queue_drops_oldest_keeps_newest():
     assert got == [2.0, 3.0]  # oldest (0,1) evicted, newest kept — never blocks
 
 
-def test_push_rate_falls_back_to_one_for_unmetered_stream():
-    bus = telemetry.TelemetryBus()
+def test_push_publishes_NO_rate_for_an_unmetered_stream_and_still_sizes_its_ring():
+    """`rate = fs or … or 1` broadcast an undeclared stream as 1 Hz and the monitor adopted it. The rate is
+    now None on the wire; the 1 survives only inside the ring sizing, which is unchanged: cap = max(64, 1 x
+    ring_seconds), so 100 seconds of ring keep 100 events."""
+    bus = telemetry.TelemetryBus(ring_seconds=100.0)
     q = bus.subscribe()
-    bus.push("nosuchstream", [5], fs=None)  # no meta, no fs → rate = 1 (not 0)
-    assert q.get_nowait()["fs"] == 1
+    bus.push("nosuchstream", list(range(150)), fs=None)
+    assert q.get_nowait()["fs"] is None
+    assert len(bus.snapshot("nosuchstream")["v"]) == 100
+
+
+def test_push_publishes_a_DECLARED_irregular_stream_as_rate_0_never_1():
+    """A stream registered with fs=0 ("irregular / per-event") was broadcast as fs=1, and the monitor's
+    SSE handler (`st.fs = d.fs || st.fs`) then windowed it as a 1 Hz stream — the bug its STREAMS loop
+    had already been fixed for. The declared 0 travels as 0; the ring is still sized at 1 per second."""
+    bus = telemetry.TelemetryBus(ring_seconds=100.0)
+    bus.register("motion_o2", "Motion (O2Ring)", "", 0)
+    q = bus.subscribe()
+    bus.push("motion_o2", list(range(150)))
+    assert q.get_nowait()["fs"] == 0
+    assert len(bus.snapshot("motion_o2")["v"]) == 100
+    bus.push("motion_o2", [1], fs=4)  # a frame that states its own rate still wins
+    assert q.get_nowait()["fs"] == 4
 
 
 # ── STREAM SHAPE IS AN INVARIANT (VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §2) ────────────────────
@@ -522,3 +542,56 @@ def test_the_observed_gaps_are_MEASURED_from_the_pushes_not_asserted():
     assert g["maxS"] >= g["p99S"] >= 0.0 and g["maxS"] >= g["medianS"], g
     # and the state is still the stream's nature, not a verdict about these four pushes
     assert row["health"] == "intermittent", row
+
+
+# ── absence drain group 2a: the diff-scoped survivors in push() / snapshot() ─────────────────────────
+
+
+def test_the_ring_KEEPS_its_history_across_pushes_and_across_a_resize():
+    """mutants 50 / 51 (`ring = None` / `.get(None)`) rebuild an empty ring on every push; 54 (`== cap`)
+    never resizes; 58 (`deque(maxlen=cap)`) resizes but drops what it held."""
+    bus = telemetry.TelemetryBus(ring_seconds=1.0)
+    bus.push("ecg", list(range(100)), fs=100)  # cap 100
+    bus.push("ecg", [100, 101], fs=100)
+    v = bus.snapshot("ecg")["v"]
+    assert len(v) == 100 and v[-1] == 101.0 and v[0] == 2.0  # history kept, oldest two evicted
+    bus.push("ecg", [102], fs=200)  # cap 200: the ring grows and carries its contents over
+    v = bus.snapshot("ecg")["v"]
+    assert len(v) == 101 and v[0] == 2.0 and v[-1] == 102.0
+    bus.push("ecg", list(range(1000, 1150)), fs=200)
+    assert len(bus.snapshot("ecg")["v"]) == 200  # the grown cap is the one enforced
+
+
+def test_a_declared_streams_snapshot_carries_its_rate_and_labels():
+    """mutants 9 / 18: `if (m) and False` publishes a DECLARED stream as undeclared (no rate, no labels)."""
+    bus = telemetry.TelemetryBus()
+    bus.register("acc_h10", "ACC (Polar H10)", "g", 200, chans=3, labels=("X", "Y", "Z"))
+    snap = bus.snapshot("acc_h10")
+    assert snap["fs"] == 200 and snap["labels"] == ["X", "Y", "Z"] and snap["chans"] == 3
+
+
+def test_the_rate_window_keeps_an_entry_exactly_at_its_cutoff(monkeypatch):
+    """mutant 76: `w[0][0] <= cutoff` drops a frame that is exactly _RATE_WIN_S old; the window is
+    half-open at its far end, so it stays."""
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(telemetry.time, "monotonic", lambda: clock["t"])
+    bus = telemetry.TelemetryBus()
+    bus.push("ecg", [1], fs=130)
+    clock["t"] += telemetry._RATE_WIN_S
+    bus.push("ecg", [2], fs=130)
+    assert len(bus._win["ecg"]) == 2
+    clock["t"] += 0.001
+    bus.push("ecg", [3], fs=130)
+    assert len(bus._win["ecg"]) == 2  # the first is now past the cutoff
+
+
+def test_a_shape_breach_is_logged_naming_the_stream_and_the_mismatch(caplog):
+    """mutants 32 / 33: the log line's arguments replaced by None would still log, naming nothing."""
+    import logging
+
+    bus = telemetry.TelemetryBus()
+    bus.register("acc_h10", "ACC", "g", 200, chans=3)
+    with caplog.at_level(logging.ERROR, logger="tepna.telemetry"):
+        bus.push("acc_h10", [[1, 2]])
+    msgs = [r.getMessage() for r in caplog.records if "SHAPE BREACH" in r.getMessage()]
+    assert len(msgs) == 1 and "'acc_h10'" in msgs[0] and "declared 3 channel(s), frame carried 2" in msgs[0], msgs

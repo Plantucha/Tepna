@@ -1626,7 +1626,7 @@ function renderStorageStatus(){
   const st = (STATE&&STATE.storage)||{}, r = (STORAGE&&STORAGE.ready)||null;
   const held = (st.retention_held||[]).length;
   $('#stDisk').innerHTML = st.free_gb==null ? '—' :
-    `<b>${st.free_gb} GB free</b> of ${st.total_gb} GB (${st.free_pct}%) · keeping ${st.keep_nights} nights`
+    `<b>${st.free_gb} GB free</b> of ${st.total_gb} GB (${st.free_pct!=null ? st.free_pct+'%' : 'size unknown'}) · keeping ${st.keep_nights} nights`
     + (held ? `<br><span class="bad">⚠ retention HELD on ${held} night(s)</span> — ${esc(st.retention_held_reason||'')}` : '');
   const u = (STORAGE&&STORAGE.mount_unit)||null;
   $('#stUnitCard').style.display = u ? '' : 'none';
@@ -3289,7 +3289,7 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive){
     cards.push(`<div class="ov-stat" style="border-left-color:${warn?'var(--status-caution)':'var(--status-ok)'}">
       <div class="lab">Disk</div>
       <div class="val">${esc(storage.free_gb)} GB</div>
-      <div class="sub">${esc(storage.free_pct)}% free · ${esc(keep)}${warn?' · LOW':''}</div></div>`);
+      <div class="sub">${storage.free_pct!=null ? esc(storage.free_pct)+'% free' : 'free fraction unknown'} · ${esc(keep)}${warn?' · LOW':''}</div></div>`);
   }
   if(qc){
     const miss = qc.missing||[], degr = qc.degraded||[], holes = qc.gaps||[];
@@ -3451,7 +3451,7 @@ function ovSubscribe(){                          // ONE multiplexed SSE for all 
     const d = JSON.parse(ev.data), key = d.stream; if(!key) return;
     const st = OV[key] = OV[key] || { buf:[], fs:d.fs ?? 1, last:null, rate:null };
     st.canvas = st.canvas || document.getElementById('ovcv-'+key);
-    st.fs = d.fs || st.fs;
+    st.fs = d.fs ?? st.fs;   /* `??`, never `||`: 0 is the declared "irregular" rate (see the STREAMS loop above) */
     const v = d.v || []; for(const x of v) st.buf.push(x);          // x is a number OR a [ch,...] array
     const cap = st.fs>0 ? Math.max(64, Math.floor(7*st.fs)) : 256;
     if(st.buf.length>cap) st.buf.splice(0, st.buf.length-cap);
@@ -3774,7 +3774,7 @@ function pick(key){
   if(es) es.close();
   resetScope();
   es = new EventSource('/api/stream/'+key);
-  const onData = e=>{ const d=JSON.parse(e.data); fs=d.fs||fs; feed(d.v||[]); };
+  const onData = e=>{ const d=JSON.parse(e.data); fs=d.fs ?? fs; feed(d.v||[]); };   // 0 = irregular; sizing reads fs||1
   es.addEventListener('snapshot', onData);
   es.onmessage = onData;
   (key==='spo2'||key==='pr') ? openOxi() : closeOxi();

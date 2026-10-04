@@ -1043,7 +1043,14 @@ class TelemetryBus:
         rows = [tuple(float(x) for x in row) for row in values] if multi else [float(v) for v in values]
         nch = len(rows[0]) if multi else 1
         m = self._meta.get(stream)
-        rate = fs or (m.fs if m else 0) or 1
+        # ∅ THE PUBLISHED RATE IS THE DECLARED ONE (ABSENCE-SURVEY, telemetry.py `rate = fs or … or 1`).
+        # `or 1` broadcast every irregular stream (declared fs 0 — StreamMeta's own encoding for "per-event,
+        # no rate") and every undeclared one as 1 Hz, and the monitor adopted it as the stream's rate. So
+        # `fs` travels as declared: the frame's own rate, else the stream's declared one (0 = irregular),
+        # else None when nothing declared one. The 1 stays, but only where a NUMBER is mandatory and never
+        # leaves this object: sizing the ring buffer.
+        rate = fs if fs else (m.fs if m else None)
+        ring_rate = rate or 1
         # STREAM SHAPE IS AN INVARIANT, NOT A FIELD TO REFRESH (2026-07-25). This used to do
         # `m.chans = nch` — silently conforming the DECLARED shape to whatever arrived. A stream's
         # channel count is fixed by the hardware (`_LIVE_META` in capture.py declares it at START:
@@ -1072,7 +1079,7 @@ class TelemetryBus:
             # the flag says so out loud. The durable file is unaffected: it was written before this call.
             return
         # Min 64 keeps slow/event streams (spo2/pr/ppi/rr @ ~1 Hz) to a usable window, not ~12 samples.
-        cap = max(64, int(self._ring_seconds * rate))
+        cap = max(64, int(self._ring_seconds * ring_rate))
         ring = self._rings.get(stream)
         if ring is None or ring.maxlen != cap:
             ring = collections.deque(ring or (), maxlen=cap)
@@ -1107,7 +1114,7 @@ class TelemetryBus:
         m = self._meta.get(stream)
         return {
             "stream": stream,
-            "fs": m.fs if m else 0,
+            "fs": m.fs if m else None,  # ∅ an undeclared stream has no rate; 0 is "declared irregular"
             "chans": m.chans if m else 1,
             "labels": list(m.labels) if m else [],
             "v": list(ring) if ring else [],
