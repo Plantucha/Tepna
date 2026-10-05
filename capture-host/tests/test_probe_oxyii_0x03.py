@@ -725,3 +725,14 @@ def test_verdict_band_is_RELATIVE_and_INCLUSIVE_with_a_four_digit_closest_fracti
     assert probe.verdict_object(_B(125.123))["result"]["closest_fraction"] == 0.001
     v = probe.verdict_object(_B(100))
     assert v["status"] == "FAIL" and "neither 112.9 nor 125.0 Hz" in v["reason"]
+
+
+def test_the_pulse_rate_mean_publishes_the_n_it_rests_on(monkeypatch):
+    """ABSENCE-SURVEY fc45870e8f2f: a poll with no PR is dropped from the mean, so `beats_polled` overstates
+    what the mean (and records_per_beat) rests on. `reported_pr_n` is that n."""
+    ring = _FakeRing(pr=[60, 0])
+    _install(monkeypatch, ring, device=_FakeDevice())
+    s = _run(probe.run("D1:98:62:7C:92:B3", 30.0, 5.0, None))["summary"]
+    assert s["beats_polled"] >= 2
+    assert s["reported_pr_n"] == sum(1 for b in range(s["beats_polled"]) if b % 2 == 0)
+    assert s["reported_pr_n"] < s["beats_polled"] and s["reported_pr_mean"] == 60.0
