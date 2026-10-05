@@ -33,29 +33,58 @@ the scope proposes to pull.
 
 So the recording IS split, and one calendar folder currently mixes three recordings.
 
-## ② 🔴 Three claims in the hand-off do not survive measurement
+## ② RECONCILED — I was wrong, and the overwrite is the finding
 
-**There is no 19:37 verdict, and no UNKNOWN on 10-04.** Every verdict in both folders was written
-**between 04:31 and 05:01 on 10-05** — after the last stream write at 04:17:
+**My first pass asserted "there is no 19:37 verdict". That was wrong, and the error is instructive.** I
+grepped the journal for `qc` and found one line; the unit logs as **`solid-night`**. Kestrel's direct read
+at box 04:31 saw `SOLID-VERDICT.json` carrying `status: UNKNOWN`, `at: 2026-10-04T23:37:37Z`. My later read
+saw `FAIL`. Both reads were correct: **the file was overwritten between them.** I read the survivor and
+reported the absence of what it replaced.
 
-| folder | file | status | written |
-|---|---|---|---|
-| 10-04 | ADAPTERHCI / BACKCHECK / QC / LOSS / SOLID | PASS · FAIL · **SHORTFALL** · FAIL · FAIL | 04:31–04:50 |
-| 10-05 | ADAPTERHCI / BACKCHECK / QC | PASS · **UNKNOWN** · SHORTFALL | 05:01 |
+**The journal, searched for the right unit, settles it — and there were SIX, not one:**
 
-No judge ran at 19:37: the journal for 2026-10-04 18:00 → 2026-10-05 06:00 is readable (11,188 lines) and
-contains **exactly one** line mentioning qc — `04:41:48 … qc: 2026-10-05 missing stream(s): Wellue
-O2Ring-S:spo2…`. So no verdict was written before the ring connected, and the only `UNKNOWN` is
-BACKCHECK's, in the **10-05** folder.
+```
+2026-10-04T12:30:09  INFO solid-night: 2026-10-04 UNKNOWN — 0 solid of 0 nights over 0 days
+2026-10-04T13:34:57  …  15:37:01  …  17:35:11  …  18:47:00  …
+2026-10-04T19:37:37  INFO solid-night: 2026-10-04 UNKNOWN — 0 solid of 0 nights over 0 days
+2026-10-05T04:50:40  INFO solid-night: 2026-10-04 FAIL   — 0 solid of 0 nights over 0 days
+```
 
-**The real harm is sharper than the one described, and that one journal line is it:** one recording got
-**two verdict sets**, and the 10-05 set judges a 23-minute fragment — which is why the judge reports the
-ring's `spo2` as a *missing stream* for a night on which it ran from 22:00 to 04:39. A fragment judged as
-a night is the defect; a pre-recording verdict is not what happened.
+**(i) The clock is CORRECT — there is no Clock Contract defect here.** `2026-10-04T23:37:37Z` is exactly
+`19:37:37 EDT` on a `-0400` box, so the `at` is a true UTC stamp of a 19:37-local write, not a local time
+mislabelled `Z`. That question is closed.
 
-**And 10-04's SHORTFALL is a different defect again**, worth not conflating: *"every stream met coverage,
-but a capture session inside the night window was excluded from the judgement: 07:07→09:49 162min gap; 5
-later session(s)"* — the multi-recording folder of ①, not the midnight split.
+**(ii) And the 19:37 pass was not special: it was the sixth of six.** Every pass from 12:30 onward
+published `UNKNOWN` over `0 solid of 0 nights over 0 days` — a night that did not exist, hours before the
+ring connected at 22:00 — and each overwrote the last. The surviving `FAIL` at 04:50:40 local is a real
+judgement (`checked: 3`, with per-device completeness: Polar Sense 46.25 % of 5,489,055 rows expected at
+55 Hz).
+
+**So the defect is two defects, and neither is the one originally described:**
+
+**(a) THE JUDGE PUBLISHES A VERDICT ON A NIGHT THAT HAS NOT BEGUN, with the wrong status.** `0 solid of 0
+nights over 0 days` is the examined-nothing shape, and §🧾 is explicit that **`NOT_RUN` examined nothing
+while `UNKNOWN` means examined and undecided**. Six `UNKNOWN`s over zero nights are six status errors, not
+six judgements — and a reader at 20:00 could not tell "the night has not started" from "the night is
+unjudgeable".
+
+**(b) A VERDICT IS OVERWRITTEN WITHOUT WITHDRAWAL.** E9's principle — a verdict on disk outranks — did not
+protect the 19:37 file, and nothing records that it ever existed. The final verdict happens to be the
+right one, so the harm is not a wrong answer: it is that the trail from six UNKNOWNs to one FAIL is
+unrecoverable from the artefacts, and only the journal preserved it. **This is the defect worth planting a
+test against**, and it generalises beyond this night: any judge pass that replaces a published verdict
+should withdraw it with a reason, not silently replace it.
+
+**What my first pass did get right** stands: one recording still produced **two verdict sets** (10-04's
+five at 04:31–04:50 and 10-05's three at 05:01), the later judging a 23-minute fragment — which is why
+`04:41:48 qc: 2026-10-05 missing stream(s): Wellue O2Ring-S:spo2` reports a stream missing for a night it
+ran 22:00 → 04:39. And 10-04's `SHORTFALL` is a third, separate thing: a session excluded over a 162-min
+gap, the multi-recording folder of ①.
+
+**Method note, since it cost a round trip:** I searched the journal for the CONSUMER's name (`qc`) rather
+than the PRODUCER's (`solid-night`), then read a single artefact and treated its content as the history of
+that artefact. A file is a snapshot; the journal is the record. Kestrel's two-reads-disagree reasoning is
+what recovered it.
 
 ## ③ 🔴 The folder boundary was already proposed and rejected, with named failure modes
 
@@ -111,17 +140,24 @@ two that would also have fixed last night, whose split was an outage rather than
   with no file moved; under (a) it must be re-filed, which is migration over the whole corpus rather than
   two folders.
 
-## ⑥ Migration, and what it may NOT claim
+## ⑥ Migration, reworded by ② (scope (3))
 
-Scope item (3) asks the migration to remove "the 19:37 verdict as pre-recording". **No such verdict
-exists**, so there is nothing to remove on that ground. What the migration must handle instead is the
-**two verdict sets** of ②: the 10-05 set judges a fragment, and when the recording is unified that set is
-superseded and must be withdrawn with its reason recorded — not silently deleted.
+**There is no "pre-recording verdict" left to remove** — the six 19:37-and-earlier UNKNOWNs were already
+overwritten by the 04:50 FAIL before anyone could act on them, which is itself defect ②(b). So the
+migration's removal step has no target, and inventing one would be deleting a verdict that is already gone.
 
-The principle stands as a rule even though this instance does not exercise it, and E9 is its citation: a
-verdict surfaced without its reason (`state.solid` → `null` with no explanation) is what E9 names. **A
-verdict written before the recording existed is not a verdict on it** — and by the same token a verdict
-written over a fragment is not a verdict on the recording.
+What it must do instead, confirmed with the owner's deputy:
+
+- **withdraw the superseded FRAGMENT verdict** — 10-05's three, judging the 23-minute tail — **with its
+  reason recorded**. Nothing is deleted; the withdrawal is a record, which is exactly the property ②(b)
+  shows the judge currently lacks;
+- **judge the recording once, in its FIRST session's folder**, leaving the later folder a pointer.
+
+**And the principle the original wording reached for still holds, so the brief states it as a rule rather
+than as this night's event:** a verdict written before the recording existed is not a verdict on it, and a
+verdict written over a fragment is not a verdict on the recording. E9 is the citation — a verdict
+surfaced without its reason (`state.solid` → `null` with no explanation) is what E9 names, and ②(b) is the
+same failure one layer out: a verdict replaced without its reason.
 
 Dry-run first, on the rig corpus copy; **the box run is owner-authorized** and waits.
 
@@ -135,12 +171,32 @@ Dry-run first, on the rig corpus copy; **the box run is owner-authorized** and w
       not straddle a boundary.
 - [ ] The superseded fragment verdict is withdrawn **with its reason recorded**, never deleted silently.
 - [ ] `briefs/RESIDUE.md` row for whichever of ⑤'s two cases the owner does not rule on now.
+- [ ] ②(a): a judge pass over **zero nights** emits `NOT_RUN`, never `UNKNOWN` — §🧾's own distinction,
+      planted so a pass that examined nothing cannot publish an undecided verdict.
+- [ ] ②(b): a judge pass that REPLACES a published verdict withdraws it with a reason; the six-UNKNOWNs
+      → one-FAIL trail of 2026-10-04 is reconstructible from the artefacts, not only from the journal.
 
 **MINOR** if the folder assignment moves (route (a) — a contract change); **PATCH** under route (b), which
 changes no layout. Nothing here is claimed about a night that has not been re-judged.
 
-## Coordination
+## Coordination — the exact seam Magpie and I both touch
 
-Scope item (2) folds "a sidecar without a header belongs to a session still being written" into the E8
-quiet test, which is **Magpie's URGENT PR**. Messaged before writing any code so we do not both touch the
-eligibility test; this brief does not change it.
+Scope item (2) folds *"a sidecar without a header belongs to a session still being written"* into the
+eligibility test. Named precisely so it can be sequenced rather than guessed at:
+
+- **`capture._current_night(captures, settle_sec)`** is the entry point. It calls
+- **`diskguard.active_nights(captures, settle_sec)`** — which #3252 (E8) changed, excluding lifecycle
+  sidecars by RULE rather than by failing to parse — and
+- **`nightqc.newest_data_mtime(night_dir)`**, which ranks the active folders by where the DATA is.
+
+A header check on a sidecar lands in one of the last two. **Magpie's URGENT PR goes first**; this brief
+changes neither function, and the route-(b) work touches the verdict's SCOPE rather than the eligibility
+test, so the two need not collide at all once sequenced.
+
+⚠️ **And `_current_night` is itself prior work on this brief's subject**, which strengthens route (b): its
+comment already records that *"a cross-midnight session leaves TWO folders active… at 00:00 the LINK/CLOCK
+sidecars roll into a fresh date dir while every sensor keeps appending to the session's START-date
+folder"*, and that ranking by folder NAME judged two sidecars and reported nine missing streams against
+942 MB of healthy recording on 2026-07-28. The reader already knows a recording spans folders and ranks on
+data to cope. **The verdict writer does not.** That asymmetry is the bug route (b) closes, and it is
+confined to the judge.
