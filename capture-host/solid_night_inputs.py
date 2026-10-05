@@ -50,6 +50,8 @@ import re
 from typing import Any
 
 import nights_index as _ni
+import nightqc as _nqc
+import writers as _wr
 
 LOSS_AUDIT_NAME = "LOSS-AUDIT.json"
 PMDNEG_NAME = "PMDNEG.csv"
@@ -213,11 +215,220 @@ def read_json(path: str) -> dict | None:
     return obj if isinstance(obj, dict) else None
 
 
+# ── THE RECORDING IS THE SCOPE (NIGHT-IS-THE-RECORDING-2026-10-05) ──────────────────────────────────
+# 🔴 THE JUDGE'S POPULATION WAS THE FOLDER, AND A FOLDER IS NOT A NIGHT. Measured on the box
+# 2026-10-04: that folder held THREE recordings (the 10-03/04 night from 00:26, a 09:52 daytime ring
+# session, and the night from 22:00) and the verdict judged their union — completeness 46.25 % for BOTH
+# the Verity (2,538,420 / 5,489,055 @ 55 Hz) and the H10 (6,014,297 / 13,004,420 @ 130 Hz). One
+# percentage fitting two sample rates is the tell, and the denominators say why: they imply 27.72 h and
+# 27.79 h, and the FOLDER's own span (first session 10-04 00:26:20 to the last write 10-05 04:17) is
+# 27.84 h. Both devices were divided by the folder. `expected - actual` came to 14.9 h, exactly the
+# 896 min the loss audit booked as lost under `daemon:pull paused live` — the daytime gap BETWEEN two
+# recordings, charged to the daemon. Nothing was lost; two recordings were joined by a hole (#3290 §②,
+# #3291 §harm).
+#
+# A RECORDING is the maximal chain of sessions separated by less than `nightqc._SESSION_GAP_SEC`,
+# CLIPPED TO THE NIGHT BAND it begins in — one sleep, one night (owner ruling via Kestrel 2026-10-05).
+#
+# ⚠️ "CLIPPED" MEANS TWO THINGS AND BOTH ARE LOAD-BEARING. Measured while verifying the ruling: a first
+# pass that clipped by session MEMBERSHIP alone reported a night span of 32.95 h, which cannot exist
+# inside a 16 h band — the model was wrong, not the data.
+#   · MEMBERSHIP (is the session's START inside the band?) decides the FOLDER SET, because a session's
+#     files live in its start-date folder. This is what makes the two-folder bound STRUCTURAL.
+#   · TRUNCATION (cut the interval at the band edges) bounds the SPAN. Membership alone does not: a
+#     session starting 09:00 in a band that ends at 10:00 may run until 17:00, and one starting 19:00 may
+#     run past the next 10:00. 9 of the mirror's 111 night recordings have a raw extent that leaves their
+#     band, and for those the untruncated span — hence the completeness DENOMINATOR — is too wide again,
+#     which is the 46.25 % defect reappearing one layer in. Truncated: p50 7.76 h, p95 14.75 h, max
+#     exactly 16.00 h, none over the band width.
+#
+# THE TWO-FOLDER BOUND IS STRUCTURAL, NOT EMPIRICAL: a band runs 18:00 -> 10:00, so it touches exactly
+# two calendar dates, so a clipped recording's sessions can only start in those two. Measured over the
+# mirror: 111 night recordings, 61 in one folder, 50 in two, ZERO in three. The third-folder branch below
+# is therefore a TRIPWIRE that must never fire, kept and asserted rather than deleted — a bound nobody
+# checks is a bound nobody keeps.
+#
+# AND IT REACHES FORWARD, which is the opposite of `nightqc._prev_day_dir`. A recording is judged in its
+# FIRST session's folder, so the judged dir holds the evening and the scope reaches to the NEXT day for
+# the morning half. `_prev_day_dir` exists because QC is asked about the folder holding the morning and
+# pools backward (QC-SCOPE-RESOLUTION-2026-07-28). Same one-day span, opposite direction; both are named
+# so neither is mistaken for the other.
+SCOPE_MAX_DIRS = 2  # structural: see above. Exceeding it is a refusal, never a truncation.
+
+
+def _folder_date(night_dir: str):
+    """The `datetime.date` a `YYYY-MM-DD` night folder is named for, or None if the basename isn't one."""
+    try:
+        return _dt.datetime.strptime(os.path.basename(night_dir.rstrip("/")), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _next_day_dir(night_dir: str):
+    """Sibling folder for the NEXT calendar day, or None if the basename isn't a date.
+
+    Where the morning half of a recording that began last evening lives. The mirror image of
+    `nightqc._prev_day_dir`, and deliberately a separate name: this one is called from the recording's
+    FIRST folder and reaches forward, that one is called from the folder holding the morning."""
+    d = _folder_date(night_dir)
+    if d is None:
+        return None
+    return os.path.join(os.path.dirname(night_dir.rstrip("/")), (d + _dt.timedelta(days=1)).isoformat())
+
+
+def band_of(night_dir: str):
+    """The night band this folder NAMES — `[D 18:00, D+1 10:00)` as epochs — or None without a date.
+
+    The folder is the band's own name, not a guess from its contents: a folder dated D holds the
+    recording that began on D's evening, whatever else also landed in it."""
+    d = _folder_date(night_dir)
+    if d is None:
+        return None
+    # ONE CONVENTION: the band comes from `nightqc.night_band`, never from a second copy of its
+    # constants here. 23:00 on the folder's own date is inside that folder's band for any begin hour at
+    # or before 23:00, so this asks the single implementation rather than restating its edges — which is
+    # the whole point of the owner's "one convention" ruling on the 18:00 move.
+    # THE MINUTE IS NOT A PARAMETER, and writing `time(23, 0)` made it look like one: two mutants of
+    # that zero survived the gate and neither is killable, because ANY minute of the 23:00 hour selects
+    # the same band. Probed over the space rather than argued — 429 dates spanning ~8 years crossed with
+    # minutes {00, 01, 30, 59}: zero disagreements, and 23:00 fell inside the band it selects on every
+    # one. So the site is removed instead of being excused in the equivalence ledger. 23:00 is the hour
+    # because it lies inside `[D 18:00, D+1 10:00)` and would for any lower edge at or before 23:00.
+    probe = _dt.datetime.combine(d, _dt.time(23)).timestamp()
+    return _nqc.night_band(probe)
+
+
+def _scope_file_count(night_dir: str, band) -> int:
+    """How many of this folder's CAPTURE files the band admits.
+
+    Counts what every model's prefix matches, so it does not depend on which devices a night expected —
+    `searched_dirs` says where the judgement looked and this says what was there to look at. Sidecars
+    count: they are files the scope admits, and a folder holding only sidecars is a real and different
+    state from an empty one."""
+    seen = set()
+    for spec in MODELS.values():
+        for f in glob.glob(os.path.join(night_dir, f"{spec['prefix']}*")):
+            if in_band(f, band):
+                seen.add(os.path.basename(f))
+    return len(seen)
+
+
+def recording_scope(night_dir: str, *, max_dirs: int = SCOPE_MAX_DIRS) -> dict:
+    """The recording judged in this folder: which dirs it spans, what it covers, what it excludes.
+
+    `searched_dirs` and `judged_dir` are the vocabulary QC-SCOPE-RESOLUTION-2026-07-28 established for
+    exactly this — a verdict carrying its own ground — and `data_files` counts what it actually read.
+    `daytime` names the wear that fell outside the band with its span, so an exclusion is stated rather
+    than silent (§∅).
+
+    Returns `ok: False` with a reason when the folder is not a date (no band to speak of) or when the
+    scope would need more than `SCOPE_MAX_DIRS` folders. The latter cannot happen for a band-clipped
+    recording and is asserted as a tripwire; if it ever fires, the night is UNKNOWN and says so rather
+    than being judged over a truncated scope."""
+    judged = os.path.basename(night_dir.rstrip("/"))
+    band = band_of(night_dir)
+    if band is None:
+        return {
+            "ok": False,
+            "reason": f"`{judged}` is not a YYYY-MM-DD night folder, so it names no night band",
+            "judged_dir": judged,
+            "searched_dirs": [judged],
+            "data_files": 0,
+            "band": None,
+            "span": None,
+            "daytime": [],
+        }
+    dirs = [night_dir.rstrip("/")]
+    nxt = _next_day_dir(night_dir)
+    if nxt and os.path.isdir(nxt):
+        dirs.append(nxt)
+    # `max_dirs` IS A PARAMETER so the tripwire can be FIRED in a test. It was `# pragma: no cover` with
+    # the bound hard-coded, which made the branch unreachable — and an unreachable branch is one the
+    # mutation gate can neither kill nor excuse, so "kept and asserted" would have meant kept and
+    # unasserted. Lowering the bound to 1 against a two-folder scope exercises the real refusal path.
+    if len(dirs) > max_dirs:
+        return {
+            "ok": False,
+            "reason": (
+                f"the recording would span {len(dirs)} folders and the bound is {max_dirs} — "
+                "refusing rather than judging a truncated scope"
+            ),
+            "judged_dir": judged,
+            "searched_dirs": [os.path.basename(d) for d in dirs],
+            "data_files": 0,
+            "band": band,
+            "span": None,
+            "daytime": [],
+        }
+    # 🔴 `data_files` IS COUNTED, NOT DECLARED. It shipped as a literal 0 in the first draft of this
+    # function and three mutants of that literal survived the gate — nothing read it, because there was
+    # nothing to read: a field fixed at zero is a count nobody took, which is the §∅ bug this file exists
+    # to refuse. It now counts the capture files the scope actually admits, per folder and in total, so
+    # `searched_dirs` says where the judgement looked and this says what it found there.
+    per_dir = {os.path.basename(d): _scope_file_count(d, band) for d in dirs}
+    return {
+        "ok": True,
+        "reason": None,
+        "judged_dir": judged,
+        "searched_dirs": [os.path.basename(d) for d in dirs],
+        "dirs": dirs,
+        "data_files": sum(per_dir.values()),
+        "data_files_per_dir": per_dir,
+        "band": band,
+        "span": None,
+        "daytime": [],
+    }
+
+
+def _scope_dirs(night_dir: str) -> list[str]:
+    """The folders a judgement of `night_dir` may read, first one first.
+
+    The single choke point the pooling goes through, so the band functions keep their signatures: they
+    are still handed one night and still ask for one stream, and the enumeration underneath them spans
+    the recording instead of the folder."""
+    sc = recording_scope(night_dir)
+    return sc.get("dirs") or [night_dir.rstrip("/")]
+
+
+def in_band(path: str, band) -> bool:
+    """Does this file's session START inside `band`? MEMBERSHIP, which decides the folder set.
+
+    A file is attributed by the stamp in its NAME, which is the session's start — never by its mtime,
+    which is its last write and may fall in the next band entirely.
+
+    ⚠️ THE STAMP COMES FROM `writers.file_stamp` AND NOT FROM A REGEX HERE. Its own docstring records why
+    (audit F5, 2026-08-01): an unanchored 14-digit search takes the FIRST 14-digit run in the name, which on
+    `Polar_H10_20250101000000_20260725225058_ECG.txt` is the device SERIAL — and it strptime's cleanly, so
+    the file is silently keyed to a session eighteen months away. Two callers already had that bug."""
+    if band is None:
+        return True
+    stamp = _wr.file_stamp(os.path.basename(path))
+    if stamp is None:
+        return True  # stampless: not this function's call to exclude — it has no start to judge
+    # NO try/except HERE. `file_stamp` returns None unless the field is a 14-digit stamp with a
+    # plausible year, so `strptime` cannot raise on what it hands back — and a `return True` that no
+    # input can reach is a branch the mutation gate can neither kill nor excuse. The guarantee belongs
+    # to `file_stamp`; duplicating it as dead code only hides which function owns it.
+    t = _dt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
+    return band[0] <= t < band[1]
+
+
 def stream_files(night_dir: str, model: str, stream: str) -> list[str]:
     """This model's files for one stream in the night, sorted. `_ECG.txt` never matches `_ECGSEAMS.txt`."""
     spec = MODELS[model]
     ext = spec["ext"] if stream == spec["primary"] else ".txt"
-    return sorted(glob.glob(os.path.join(night_dir, f"{spec['prefix']}*_{stream}{ext}")))
+    # POOLED OVER THE RECORDING, FILTERED BY BAND MEMBERSHIP. The signature is unchanged — callers still
+    # hand one night and ask for one stream — and the enumeration underneath now spans the recording
+    # rather than the folder. This is the QC-SCOPE-RESOLUTION-2026-07-28 move applied to the verdict:
+    # resolve the folder set once, pool the files, leave every band function alone.
+    band = band_of(night_dir)
+    out = [
+        f
+        for d in _scope_dirs(night_dir)
+        for f in glob.glob(os.path.join(d, f"{spec['prefix']}*_{stream}{ext}"))
+        if in_band(f, band)
+    ]
+    return sorted(out)
 
 
 def first_last(path: str) -> tuple[_dt.datetime | None, _dt.datetime | None]:
@@ -535,7 +746,14 @@ def validity(night_dir: str, model: str) -> dict:
 def clocks(night_dir: str, model: str) -> dict:
     """§3.4 clocks: the device clock was compared with the host on this night."""
     prefix = MODELS[model]["prefix"]
-    for seams in sorted(glob.glob(os.path.join(night_dir, f"{prefix}*SEAMS.txt"))):
+    _band = band_of(night_dir)
+    _seams = sorted(
+        f
+        for d in _scope_dirs(night_dir)
+        for f in glob.glob(os.path.join(d, f"{prefix}*SEAMS.txt"))
+        if in_band(f, _band)
+    )
+    for seams in _seams:
         rows = claimed = 0
         examined = 0
         with open(seams, encoding="utf-8", errors="replace") as fh:
@@ -562,7 +780,14 @@ def clocks(night_dir: str, model: str) -> dict:
             )
         if examined > 0:
             return _decision("PASS")
-    for rtc in sorted(glob.glob(os.path.join(night_dir, f"{prefix}*_RTCLOG.csv"))):
+    _rband = band_of(night_dir)
+    _rtcs = sorted(
+        f
+        for d in _scope_dirs(night_dir)
+        for f in glob.glob(os.path.join(d, f"{prefix}*_RTCLOG.csv"))
+        if in_band(f, _rband)
+    )
+    for rtc in _rtcs:
         with open(rtc, encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 p = line.rstrip("\n").split(";")
@@ -1247,15 +1472,89 @@ def expected_devices(night_dir: str, devices: list) -> list[dict]:
         model = str(d.get("model") or "")
         if d.get("optional"):
             spec = MODELS.get(model)
-            if spec is None or not glob.glob(os.path.join(night_dir, f"{spec['prefix']}*")):
+            # POOLED like the rest: a device whose only files are the morning half of the recording is
+            # present, and asking the judged folder alone would witness it as absent.
+            _eb = band_of(night_dir)
+            _seen = (
+                [
+                    f
+                    for _sd in _scope_dirs(night_dir)
+                    for f in glob.glob(os.path.join(_sd, f"{spec['prefix']}*"))
+                    if in_band(f, _eb)
+                ]
+                if spec is not None
+                else []
+            )
+            if spec is None or not _seen:
                 continue
         out.append(d)
     return out
 
 
+def _truncate_to_band(night_dir: str, start, end):
+    """Clip a worn interval to the night band, reporting whether it had to. `(start, end, truncated)`.
+
+    Both ends are datetimes here (`worn_interval` returns `min(starts)` and the audit's doff), so the
+    band's epoch bounds are converted rather than the other way round — one conversion, at the boundary."""
+    band = band_of(night_dir)
+    if band is None or start is None or end is None:
+        return start, end, False
+    lo = _dt.datetime.fromtimestamp(band[0])
+    hi = _dt.datetime.fromtimestamp(band[1])
+    new_start = max(start, lo)
+    new_end = min(end, hi)
+    if new_end <= new_start:  # the interval lies wholly outside its own band: nothing of it is this night
+        return None, None, True
+    return new_start, new_end, (new_start != start or new_end != end)
+
+
+def _adopt_later_wear(base: dict, other: dict, nxt: str) -> None:
+    """Take `other`'s wear ends into `base` where they are LATER, recording which folder they came from.
+
+    Only `wear` crosses. A device the judged folder never listed is adopted outright: it was worn, in
+    this band, and the morning audit is the only record of it."""
+    for name, od in (other.get("devices") or {}).items():
+        if not isinstance(od, dict):
+            continue  # one unusable entry must not drop the devices listed after it
+        bd = (base.setdefault("devices", {})).setdefault(name, {})
+        o_end = ((od.get("wear") or {}).get("worn_end") or {}).get("at")
+        b_end = ((bd.get("wear") or {}).get("worn_end") or {}).get("at")
+        if o_end and (not b_end or str(o_end) > str(b_end)):
+            bd["wear"] = od["wear"]
+            bd["wear_from"] = os.path.basename(nxt)
+
+
+def _pooled_audit(night_dir: str) -> dict | None:
+    """The loss audit for the RECORDING, not for the folder.
+
+    A recording may span two folders and each carries its own `LOSS-AUDIT.json`, so the judged folder's
+    audit alone stops at midnight and the morning half's doff is in the other one. The judged folder's
+    audit is the base — it is the one whose journal and gap rows this night was audited against — and a
+    device's `wear.worn_end` is taken as the LATEST stated across the scope, because a doff recorded in
+    the morning folder is the recording's real end.
+
+    ⚠️ WHAT IS NOT MERGED, AND WHY. `gaps` and `file` stay the judged folder's own: the gap rows were
+    measured against ONE named file, and concatenating two folders' rows would attribute one file's gaps
+    to another's timeline. `continuity` reads them that way and would silently mis-attribute rather than
+    refuse, so the half it cannot see is reported by `scope_partial` below instead of being guessed at."""
+    base = read_json(os.path.join(night_dir, LOSS_AUDIT_NAME))
+    dirs = _scope_dirs(night_dir)
+    if base is None or len(dirs) < 2:
+        return base
+    # NO `continue` ON THE OUTER LOOP. `dirs` is bounded at two, so `dirs[1:]` holds at most one folder
+    # and `continue` there is indistinguishable from `break` — a mutation site no input can decide,
+    # created by the structural bound rather than by this code. Expressed as a condition instead, so the
+    # loop means what it says and the gate has nothing undecidable to report.
+    for nxt in dirs[1:]:
+        other = read_json(os.path.join(nxt, LOSS_AUDIT_NAME))
+        if isinstance(other, dict):
+            _adopt_later_wear(base, other, nxt)
+    return base
+
+
 def score_devices(night_dir: str, devices: list) -> dict:
     """`{name: {"bands": {term: decision}}}` for `solid_night.compose`, one entry per expected device."""
-    audit = read_json(os.path.join(night_dir, LOSS_AUDIT_NAME))
+    audit = _pooled_audit(night_dir)
     out: dict[str, dict] = {}
     for d in expected_devices(night_dir, devices):
         name = str(d.get("name") or d.get("model"))
@@ -1272,6 +1571,13 @@ def score_devices(night_dir: str, devices: list) -> dict:
         spans = {p: first_last(p) for p in primaries}
         audit_dev = ((audit or {}).get("devices") or {}).get(name)
         start, end, why = worn_interval(audit_dev, primaries, spans)
+        # 🔴 TRUNCATE TO THE BAND. `completeness` takes its denominator from `rate x (end - start)`, so
+        # the worn interval IS the denominator — and an interval that runs past the band's edge makes it
+        # too wide again, which is the 46.25 % defect one layer in. Membership (above) decided WHICH
+        # files; truncation decides HOW LONG, and the two are different operations: a session starting
+        # 09:00 inside a band that ends at 10:00 may run until 17:00. 9 of the mirror's 111 night
+        # recordings have a raw extent that leaves their band.
+        start, end, _trunc = _truncate_to_band(night_dir, start, end)
         bands: dict[str, dict] = {}
         if audit is None:
             bands["continuity"] = _decision("UNKNOWN", f"{LOSS_AUDIT_NAME} absent or unreadable")
