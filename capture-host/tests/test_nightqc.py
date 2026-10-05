@@ -1229,13 +1229,48 @@ def test_either_side_of_one_midnight_is_the_SAME_night():
 
 
 def test_the_band_boundary_is_where_it_claims_to_be():
-    """20:00 opens a new band; 19:59 still belongs to the previous evening's."""
-    late = nightqc.night_band(_ts(2026, 8, 14, 20, 0))
-    early = nightqc.night_band(_ts(2026, 8, 14, 19, 59))
+    """18:00 opens a new band; 17:59 still belongs to the previous evening's.
+
+    🔴 THE EDGE MOVED 20 -> 18 ON 2026-10-05 BY OWNER RULING, not by a refit — "the recording defines
+    the night", and a recording begins at the first donning after 18:00. This test pinned 20:00 and so
+    it moves with the constant; what it still asserts is the PROPERTY, that the edge is exactly where
+    the constant says and that the band is one contiguous stretch from it."""
+    late = nightqc.night_band(_ts(2026, 8, 14, 18, 0))
+    early = nightqc.night_band(_ts(2026, 8, 14, 17, 59))
     assert late != early
-    assert late[0] == _ts(2026, 8, 14, 20)
-    assert early[0] == _ts(2026, 8, 13, 20)
-    assert round(late[1] - late[0]) == 14 * 3600  # 20:00 -> 10:00 is 14 h
+    assert late[0] == _ts(2026, 8, 14, 18)
+    assert early[0] == _ts(2026, 8, 13, 18)
+    assert round(late[1] - late[0]) == 16 * 3600  # 18:00 -> 10:00 is 16 h
+
+
+def test_a_19_00_DONNING_now_belongs_to_THE_EVENING_IT_STARTED_IN(tmp_path):
+    """What the ruling bought, and the one case the old edge got wrong.
+
+    Under 20:00 a 19:00 stamp anchored to the PREVIOUS evening — a band running 20:00 yesterday to
+    10:00 today, which does not even contain 19:00 today. #3290 measured the consequence on the box:
+    on 2026-10-04 the Verity donned at 19:08 and banded to 10-03 while the ring (22:00) and the H10
+    (22:02) banded to 10-04 — one recording split across two bands at the BAND layer, independent of
+    the folder and of the outage. Under 18:00 all three land in one band."""
+    ts = _ts(2026, 8, 14, 19, 0)
+    begin, end = nightqc.night_band(ts)
+    assert begin <= ts < end, "a stamp must fall INSIDE the band it is assigned to"
+    assert begin == _ts(2026, 8, 14, 18)
+
+
+def test_the_28_NIGHT_FIT_IS_UNTOUCHED_BY_THE_MOVED_EDGE():
+    """The pre-stated control, and the reason it passes is worth recording.
+
+    HRVDEX-ALL-NIGHT-SCOPE-2026-07-20 measured 28 nights: 27 started 21:00-23:00 and one at 01:06. All
+    28 land in the same band under either edge — ⚠️ not because the edit is safe, but because those
+    hours are OUTSIDE [18:00, 20:00), the only window this constant can reassign. A control whose
+    population excludes the affected cases cannot police the change; the real impact is asserted in
+    `test_a_19_00_DONNING_...` above and measured in `nightqc._NIGHT_BEGIN_H`'s own comment."""
+    for h, m in [(21, 0), (22, 30), (23, 59), (1, 6)]:
+        d = 15 if h < 18 else 14
+        ts = _ts(2026, 8, d, h, m)
+        anchor = nightqc.night_band(ts)[0]
+        expected = _ts(2026, 8, 14, 18)
+        assert anchor == expected, f"{h:02d}:{m:02d} changed band"
 
 
 def test_a_session_wholly_inside_the_band_keeps_all_of_itself():
@@ -1253,7 +1288,7 @@ def test_a_session_running_through_midday_is_CLIPPED_and_its_rows_apportioned():
     v = nightqc.night_view((s0, s1), files)
     assert v["span_sec"] < (s1 - s0) / 1.5, v  # roughly halved, not merely trimmed
     assert 0.0 < v["row_fraction"] < 1.0, v
-    assert v["begin"] == round(_ts(2026, 8, 15, 20))  # the evening the night began
+    assert v["begin"] == round(_ts(2026, 8, 15, 18))  # the evening the night began (edge moved 20->18)
 
 
 def test_a_session_entirely_in_daylight_yields_no_night_rows():
@@ -2334,11 +2369,16 @@ def test_pooling_boundary_exactly_at_the_gap_does_not_pool(tmp_path):
 def test_the_night_band_is_chosen_by_the_sessions_MIDPOINT(tmp_path):
     """Which band a gap is judged against comes from the judged session's MIDPOINT, not either end.
 
-    It only matters for a session straddling 20:00 — the hour `night_band` anchors on — and then it
-    matters completely, because the two choices name different nights. A 16:00->22:00 session has its
-    midpoint at 19:00 (band: yesterday 20:00 -> today 10:00) and its end at 22:00 (band: today 20:00 ->
-    tomorrow 10:00). An excluded 02:00 sitting is INSIDE the first and OUTSIDE the second, so the two
-    disagree about whether this night has a hole.
+    It only matters for a session straddling `_NIGHT_BEGIN_H` — the hour `night_band` anchors on — and
+    then it matters completely, because the two choices name different nights. A 14:00->20:00 session
+    has its midpoint at 17:00 (band: yesterday 18:00 -> today 10:00) and its end at 20:00 (band: today
+    18:00 -> tomorrow 10:00). An excluded 02:00 sitting is INSIDE the first and OUTSIDE the second, so
+    the two disagree about whether this night has a hole.
+
+    ⚠️ THE HOURS MOVED WITH THE CONSTANT (20 -> 18, owner ruling 2026-10-05) and had to: the old
+    16:00->22:00 session straddled 20:00 and no longer straddles anything, so under the new edge both
+    midpoint and end would pick the SAME band and the test would pass while testing nothing — a green
+    that examined no disagreement. The property is unchanged; only the hours that exhibit it moved.
 
     Mutation found this untested: `(cur[0] + cur[1]) / 2.0` could become `(cur[1] + cur[1]) / 2.0` —
     silently judging against tomorrow's band — with the whole suite green."""
@@ -2347,14 +2387,14 @@ def test_the_night_band_is_chosen_by_the_sessions_MIDPOINT(tmp_path):
     night = str(tmp_path / "2026-07-22")
     os.makedirs(night)
     early = _dt.strptime("20260722020000", "%Y%m%d%H%M%S").timestamp()  # 02:00, the SMALL half
-    main = _dt.strptime("20260722160000", "%Y%m%d%H%M%S").timestamp()  # 16:00 -> 22:00, straddles 20:00
+    main = _dt.strptime("20260722140000", "%Y%m%d%H%M%S").timestamp()  # 14:00 -> 20:00, straddles 18:00
     _utime(_cap(night, "Polar_H10_02849638_20260722020000_HR.txt", 1800), early + 1800)
-    _utime(_cap(night, "Polar_H10_02849638_20260722160000_HR.txt", 21600), main + 21600)
+    _utime(_cap(night, "Polar_H10_02849638_20260722140000_HR.txt", 21600), main + 21600)
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
     assert s["judged_session"]["rows"] == 21600, "the straddling session is the substantive one"
     assert s["gaps"], "the 02:00 sitting is excluded and must be reported"
     # 02:00 lies inside the MIDPOINT's band and outside the END's. The midpoint is correct: the session
-    # began at 16:00, so the night it belongs to is the one that opened at 20:00 YESTERDAY.
+    # began at 14:00, so the night it belongs to is the one that opened at 18:00 YESTERDAY.
     assert "[in-night]" in s["gaps"][0], "judged against the midpoint's band, 02:00 is a hole"
     assert s["ok"] is False, "a hole in the judged night cannot grade green"
 

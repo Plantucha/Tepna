@@ -87,6 +87,44 @@ A failed vitals poll **drops the link** today (`capture.py`, the `live_frame` wr
 are explicitly optional. So building the night's vitals on an opcode with no measured reply risks losing
 **SpO2 and HR** — the ring's primary signal — not merely the wave.
 
+## ⑤ THE NO-SPLIT CONTROL — night `2026-10-04`, ring session `…20261004220023`
+
+Measured on the box, read-only, 2026-10-05. **It confirms the routing model on a second independent night
+and corrects one word of how the control was handed over.**
+
+| hour | PPG rows | markers | ADC (0x04) | Hz | deficit vs 450,000 | 0x03 rows | 0x03 ÷ deficit | **sum vs crystal** |
+|---|---|---|---|---|---|---|---|---|
+| 23 | 451,787 | 3,830 | 447,957 | 124.433 | 2,043 | 1,887 | 92.4 % | **99.965 %** |
+| 00 | 452,222 | 3,958 | 448,264 | 124.518 | 1,736 | 1,703 | 98.1 % | **99.993 %** |
+| 01 | 451,690 | 3,952 | 447,738 | 124.372 | 2,262 | 1,943 | 85.9 % | **99.929 %** |
+| 02 | 450,743 | 3,926 | 446,817 | 124.116 | 3,183 | 2,606 | 81.9 % | **99.872 %** |
+| 03 | 450,556 | 3,633 | 446,923 | 124.145 | 3,077 | 1,924 | 62.5 % | **99.744 %** |
+
+22:00 and 04:00 are partial — session start 22:00:23, last write 04:17 — and are excluded for the reason
+②'s table excludes partial hours: a partial hour's denominator is not an hour.
+
+**What it CONFIRMS, which is the point of a second night.** The two streams together account for the
+125.000 Hz crystal to between **0.007 % and 0.26 %**, matching residue
+`2026-09-27-the-0x04-shortfall-is-the-0x03-stream`'s 0.0086 % over four hours of 2026-09-07. **The samples
+are routed, not lost** — now shown on a night recorded a month later with a different session shape. That
+is why criterion ②'s control arm must sum both opcodes.
+
+**⚠️ What it CORRECTS.** This was handed over as *"0x04 ALONE fed PPG.txt losslessly"*. Two senses of
+lossless have to be kept apart, and only the first holds:
+
+- **against its own declarations — yes.** Rows match the device's declared `ppg_sample_count` to within
+  roughly 80 per hour, so the WRITER loses essentially nothing of what the device hands it;
+- **against the crystal — no.** 0x04 alone runs at **124.12–124.52 Hz**, short by **1,736–3,183 samples
+  per hour**, and 0x03's 1,703–2,606 rows/h cover **62–98 % of exactly that deficit**.
+
+So this is **not** a no-split night. It is a night where the split is **smaller and noisier** than on
+2026-09-07 — 62–98 % closure per hour rather than ~99 % over four — and **0x04 alone is not the full ADC**.
+That is the measurement the experiment turns on: criterion (a) scored on a single opcode would report a
+deficit on a healthy night, so the two-stream sum stays the honest control arm.
+
+**Markers counted out by the residue row's method:** 3,633–3,958 per hour, tracking the ring's own pulse
+rather than a rate — which is what identifies them as one row per beat and not samples.
+
 ## Two preconditions, both READ-ONLY, both box-local (Wren's lane)
 
 `capture-host/probe_oxyii_0x03.py` already exists and already logs reply headers; it is the template for
