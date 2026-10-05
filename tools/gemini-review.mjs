@@ -88,7 +88,12 @@ export function buildRequest(promptText, sources, model) {
   return {
     model,
     contents: [{ parts: [{ text: body.join('\n') }] }],
-    generationConfig: { temperature: 0, maxOutputTokens: 16384 }
+    /* 65536 is this model class's own output limit, and the budget must be near it because THINKING
+       TOKENS COUNT AGAINST IT. Measured 2026-10-05: a 41-id prompt spent 15,739 thought tokens and
+       emitted 654 visible ones inside a 16,384 cap, so the answer truncated mid-sentence with
+       finishReason MAX_TOKENS — a short answer that reads like a weak model and is a starved one.
+       Always read finishReason before scoring; a truncated answer is not a measurement. */
+    generationConfig: { temperature: 0, maxOutputTokens: 65536 }
   };
 }
 
