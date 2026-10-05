@@ -976,3 +976,38 @@ def test_a_baseline_under_the_fixture_takes_under_ONE_SECOND():
     t0 = _time.monotonic()
     _run(oxs.learn_baseline(_R()))
     assert _time.monotonic() - t0 < 1.0
+
+
+# ── learn_baseline: inputs from the Codex reader, each verified against the original ─────────────────
+class _Seq:
+    """A ring whose successive `send` replies are a fixed script: LIVE samples, the CONTROL, LIVE samples."""
+
+    def __init__(self, seq):
+        self.seq = list(seq)
+
+    async def send(self, op, payload=b"", timeout=None):
+        return self.seq.pop(0) if self.seq else None
+
+
+def test_an_EXPLICIT_baseline_gap_is_honoured_over_the_constant(monkeypatch):
+    slept = []
+
+    async def rec(s):
+        slept.append(s)
+
+    monkeypatch.setattr(oxs.asyncio, "sleep", rec)
+    _run(oxs.learn_baseline(_Seq([b"\x01"] * 5), n=2, gap=0.5))
+    assert slept and set(slept) == {0.5}
+
+
+def test_a_SHORTER_after_frame_drops_the_bytes_it_does_not_carry():
+    assert _run(oxs.learn_baseline(_Seq([b"\x10\x20", None, b"\x10"]), n=1, gap=0)) == (b"\x10", [0])
+
+
+def test_a_ONE_frame_baseline_compares_against_that_frame():
+    assert _run(oxs.learn_baseline(_Seq([b"\x10", None, b"\x10"]), n=1, gap=0)) == (b"\x10", [0])
+
+
+def test_the_baseline_returns_the_LAST_frame_seen():
+    assert _run(oxs.learn_baseline(_Seq([b"\x01", b"\x01", None, b"\x02", b"\x02"]), n=2, gap=0)) == (b"\x02", [])
+    assert _run(oxs.learn_baseline(_Seq([b"\x01", None, b"\x02"]), n=1, gap=0)) == (b"\x02", [])
