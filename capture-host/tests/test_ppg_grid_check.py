@@ -332,10 +332,13 @@ def _pgc_variant(before=None, after=None):
 def _pgc_corpus(tmp_path):
     """Files spanning every shape `grid_inflation` branches on: clean, gappy above the modal step,
     gappy BELOW it, both at once, a non-zero start, a sub-second span, a single step."""
-    out, mk = [], lambda i, steps, ns0=0: _raw(
-        tmp_path,
-        [_row(0, ns0)] + [_row((j + 1) * 10, ns0 + sum(steps[: j + 1])) for j in range(len(steps))],
-        name=_name(f"2026072502{i:04d}"),
+    out, mk = (
+        [],
+        lambda i, steps, ns0=0: _raw(
+            tmp_path,
+            [_row(0, ns0)] + [_row((j + 1) * 10, ns0 + sum(steps[: j + 1])) for j in range(len(steps))],
+            name=_name(f"2026072502{i:04d}"),
+        ),
     )
     out.append(mk(1, [1_000_000] * 9))
     out.append(mk(2, [1_000_000] * 3 + [3_000_000] + [1_000_000] * 5))

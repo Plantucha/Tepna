@@ -163,9 +163,7 @@ def _record(fn: _FunctionNode, path: str, out: list[dict]) -> None:
     # The NAME, not a bool. `bool(kw and …)` threw away the one fact the later `kw.arg` depends on —
     # that `kw` is not None — so mypy could not know the attribute access was safe, and neither could
     # a reader. Carrying the name makes the guard and the use the same expression.
-    swallowed_name = (
-        kw.arg if kw and not kw.arg.startswith(IGNORED_PREFIX) and kw.arg not in reads else None
-    )
+    swallowed_name = kw.arg if kw and not kw.arg.startswith(IGNORED_PREFIX) and kw.arg not in reads else None
     swallowed = swallowed_name is not None
 
     if not dropped and not swallowed:

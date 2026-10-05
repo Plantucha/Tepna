@@ -74,7 +74,7 @@
  * memory is returned to the OS on exit, so nothing accumulates across the corpus, and no
  * --max-old-space-size is needed on the command line: the parent sizes each child's heap to the host.
  */
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync, fstatSync } from 'node:fs';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
 import { anchoredRec, startOf } from './trio-anchor.mjs';
@@ -587,6 +587,66 @@ if (flag('--selftest')) {
       'a/Polar_H10_x_20260606_220647_ECG.txt|b/Polar_H10_x_20260606_220647_ECG.txt'
     );
     // Distinct recordings are UNTOUCHED — the rule must not convict working behaviour.
+    /* ── THE `.superseded` MARKER (owner ruling 2026-10-04) ────────────────────────────────────────
+       An ambiguity somebody has already answered should not refuse a night. The readers are injected so
+       these stay synthetic: `readMarker` returns marker text by path, `isPrefixOf` answers the
+       byte-superset question. ⚠️ SYNTHETIC BY NECESSITY and stated as such — no `.superseded` marker
+       exists in the corpus yet, and the conflicting pair the ruling describes (a mid-write NAS snapshot
+       beside the canonical rig file) lives on a tree the rig cannot see, so these assertions pin the
+       DECISION TABLE and not any real pair. */
+    const pair = () => [
+      { name: 'Polar_VeritySense_x_20260815221142_PPG.txt', full: 'nas/Polar_VeritySense_x_20260815221142_PPG.txt', bytes: 100 },
+      { name: 'Polar_VeritySense_x_20260815221142_PPG.txt', full: 'rig/Polar_VeritySense_x_20260815221142_PPG.txt', bytes: 300 }
+    ];
+    const marker = (kept, reason, date = '2026-10-04') => `date: ${date}\nkept: ${kept}\nreason: ${reason}\n`;
+    const onSmall = (text) => (path) => (path === 'nas/Polar_VeritySense_x_20260815221142_PPG.txt.superseded' ? text : null);
+    // ① resolved: marker names THIS keeper, and the small copy is a byte prefix of it
+    const okRes = dedupeStream(pair(), {
+      readMarker: onSmall(marker('rig/Polar_VeritySense_x_20260815221142_PPG.txt', 'mid-write NAS snapshot')),
+      isPrefixOf: () => true
+    });
+    eq('a marker that names the keeper and verifies FOLDS the keeper', JSON.stringify([okRes.conflicts.length, okRes.kept.length, okRes.kept[0].bytes]), '[0,1,300]');
+    eq(
+      '…and EXCLUDES the other with the marker’s own reason and its keeper',
+      JSON.stringify([okRes.excluded.length, okRes.excluded[0].reason, okRes.excluded[0].path]),
+      JSON.stringify([1, 'mid-write NAS snapshot (marker dated 2026-10-04)', 'nas/Polar_VeritySense_x_20260815221142_PPG.txt'])
+    );
+    eq('…and an excluded file is NOT counted as a de-duplicated copy (different claims)', okRes.dropped.length, 0);
+    // ② UNKNOWN: the small copy is not a prefix — two different recordings, not a snapshot
+    const notPref = dedupeStream(pair(), {
+      readMarker: onSmall(marker('rig/Polar_VeritySense_x_20260815221142_PPG.txt', 'mid-write NAS snapshot')),
+      isPrefixOf: () => false
+    });
+    eq('a marker whose keeper is NOT a byte-superset refuses, and does not fold', JSON.stringify([notPref.conflicts.length, notPref.excluded.length]), '[1,0]');
+    eq('…naming the superset failure, not the sizes', /NOT a prefix/.test(notPref.conflicts[0].markerUnknown || ''), true);
+    // ③ UNKNOWN: the marker names a third file — a claim about something else
+    const other = dedupeStream(pair(), { readMarker: onSmall(marker('rig/SOMETHING_ELSE_PPG.txt', 'x')), isPrefixOf: () => true });
+    eq('a marker naming a file that is not the other copy is UNKNOWN, never a fold', JSON.stringify([other.conflicts.length, other.excluded.length]), '[1,0]');
+    eq('…and says which file it named', /SOMETHING_ELSE_PPG/.test(other.conflicts[0].markerUnknown || ''), true);
+    // ④ a marker missing its reason explains nothing, so it may not exclude anything
+    const noWhy = dedupeStream(pair(), { readMarker: onSmall('date: 2026-10-04\nkept: rig/Polar_VeritySense_x_20260815221142_PPG.txt\n'), isPrefixOf: () => true });
+    eq('a marker with no `reason` is UNUSABLE — an exclusion must carry its why', JSON.stringify([noWhy.conflicts.length, /no reason/.test(noWhy.conflicts[0].markerUnknown || '')]), '[1,true]');
+    const noKept = dedupeStream(pair(), { readMarker: onSmall('date: 2026-10-04\nreason: x\n'), isPrefixOf: () => true });
+    eq('…and one with no `kept` names nothing it could resolve', /no kept file/.test(noKept.conflicts[0].markerUnknown || ''), true);
+    // ⑤ an UNREADABLE marker is not an ABSENT one (§∅)
+    const boom = dedupeStream(pair(), {
+      readMarker: () => {
+        const e = new Error('EACCES: permission denied');
+        throw e;
+      },
+      isPrefixOf: () => true
+    });
+    eq('a marker that exists and cannot be read is UNKNOWN, not absent', /could not be read/.test(boom.conflicts[0].markerUnknown || ''), true);
+    // ⑥ NO marker at all: the refusal is exactly what it was, with nothing added
+    const bare = dedupeStream(pair(), { readMarker: () => null, isPrefixOf: () => true });
+    eq('ANTI-VACUITY · with NO marker the refusal stands and carries no UNKNOWN', JSON.stringify([bare.conflicts.length, bare.conflicts[0].markerUnknown]), '[1,null]');
+    // ⑦ the marker is consulted on the SMALLER copy only — one beside the longer file resolves nothing
+    const onBig = dedupeStream(pair(), {
+      readMarker: (path) => (path === 'rig/Polar_VeritySense_x_20260815221142_PPG.txt.superseded' ? marker('nas/Polar_VeritySense_x_20260815221142_PPG.txt', 'wrong way round') : null),
+      isPrefixOf: () => true
+    });
+    eq('a marker beside the LONGER copy is not consulted — it would claim a file was superseded by its own prefix', JSON.stringify([onBig.conflicts.length, onBig.excluded.length]), '[1,0]');
+
     const distinct = dedupeStream([
       { name: 'Polar_H10_x_20260717213258_ECG.txt', full: 'a/Polar_H10_x_20260717213258_ECG.txt', bytes: 25 },
       { name: 'Polar_H10_x_20260717222753_ECG.txt', full: 'a/Polar_H10_x_20260717222753_ECG.txt', bytes: 1 }
@@ -913,7 +973,126 @@ const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600e3).toISOString().slice(0, 1
        coverage annotates. Guessing here would silently pick one night's data over another's.
    Drops are a NAMED SET on the night (`n.dropped`), never a count, so the offending paths are visible
    on the first run rather than on the sixth ingest; `n.conflicts` carries the refusing kind. */
-function dedupeStream(recs) {
+/* ── THE `.superseded` MARKER: an ambiguity the OWNER has resolved, read rather than re-guessed ──────
+   Two copies of one basename at DIFFERENT sizes is an ambiguity `dedupeStream` refuses on, and rightly:
+   which bytes are the recording cannot be inferred from a length. But the ambiguity is sometimes already
+   answered — a mid-write NAS snapshot beside the canonical rig file — and the owner's ruling (2026-10-04)
+   is that the shorter copy carries a dated `<file>.superseded` marker naming the keeper. Then the night
+   folds on the kept file and the other is EXCLUDED with the marker's own reason, instead of the whole
+   night being refused over a question somebody has answered.
+
+   ⚠️ THE SUPERSET CHECK READS BYTES, NOT SIZES, and that is the owner's earlier ruling rather than my
+   caution: CORPUS-TIER-30-NIGHTS §4 records that "the same-size-different-bytes case is the reason the
+   owner ruled full hashing. A size-only check passes it. It is also the shape of every rsync failure
+   that leaves a file behind: right length, wrong content." A mid-write snapshot must be a PREFIX of the
+   file that superseded it; if it is not, the two are different recordings and no marker may merge them.
+
+   ∅ THREE OUTCOMES, AND ONLY ONE OF THEM FOLDS:
+     · marker present, keeper exists, keeper is a byte-superset  → fold the keeper, EXCLUDE the other
+       with the marker's reason;
+     · marker present, keeper missing OR not a superset          → UNKNOWN, never a silent skip: a
+       marker pointing at nothing is a claim that failed, which is a different finding from no claim;
+     · no marker                                                 → the refusal stands, unchanged.
+
+   The readers are INJECTED (`opts.readMarker`, `opts.isPrefixOf`) so this function stays pure over
+   metadata and its selftest keeps constructing synthetic records with declared byte counts. Defaults do
+   the real filesystem work. New params last and optional, per the back-compatibility rule. */
+function parseMarker(text) {
+  /* The marker's shape, as the owner described it: dated, naming the kept file, with a reason. Parsed
+     tolerantly on the KEY=VALUE lines it must carry and strictly on their presence — a marker missing
+     `kept` names nothing and cannot resolve anything. `reason` is required too: the whole point is that
+     the exclusion is reported WITH why, so a marker that excludes a file silently is not usable. */
+  const kv = new Map();
+  for (const line of String(text).split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z_]+)\s*[:=]\s*(.+?)\s*$/.exec(line);
+    if (m) kv.set(m[1].toLowerCase(), m[2]);
+  }
+  const kept = kv.get('kept') || kv.get('superseded_by') || null;
+  const reason = kv.get('reason') || null;
+  const dated = kv.get('date') || kv.get('dated') || null;
+  if (!kept || !reason) return { ok: false, reason: `the marker names ${!kept ? 'no kept file' : 'no reason'} — it cannot resolve an ambiguity it does not explain` };
+  return { ok: true, kept, reason, dated };
+}
+/* Does the SMALLER copy carry a marker that resolves this ambiguity? Returns one of three states and
+   never guesses between them. `resolved` folds; `unknown` is a sentence that travels INTO the refusal so
+   a reader learns the marker was tried and why it did not hold; neither set means no marker was offered. */
+function resolveSuperseded(small, big, opts = {}) {
+  const readMarker = opts.readMarker || defaultReadMarker;
+  const isPrefixOf = opts.isPrefixOf || defaultIsPrefixOf;
+  let raw = null;
+  try {
+    raw = readMarker(String(small.full) + '.superseded');
+  } catch (e) {
+    // A marker that EXISTS and cannot be read is not an absent marker, and must not read as one.
+    return { resolved: false, unknown: `a \`.superseded\` marker beside ${small.full} could not be read (${(e && e.message) || e}) — the ambiguity is unresolved, not absent` };
+  }
+  if (raw == null) return { resolved: false };
+  const m = parseMarker(raw);
+  if (!m.ok) return { resolved: false, unknown: `the \`.superseded\` marker beside ${small.full} is UNUSABLE: ${m.reason}` };
+  /* The marker names its keeper, and it must be THIS keeper. A marker naming some third file is not a
+     resolution of the pair in hand — it is a claim about something else, and acting on it would fold a
+     night on a file nobody compared. */
+  if (basename(m.kept) !== basename(String(big.full)) && m.kept !== String(big.full))
+    return {
+      resolved: false,
+      unknown: `the marker beside ${small.full} names \`${m.kept}\` as the keeper, which is not the other copy in this pair (${big.full}) — UNKNOWN rather than a fold on an uncompared file`
+    };
+  let pref;
+  try {
+    pref = isPrefixOf(String(small.full), String(big.full));
+  } catch (e) {
+    return { resolved: false, unknown: `the marker beside ${small.full} could not be verified (${(e && e.message) || e}) — a superset claim that cannot be checked is UNKNOWN` };
+  }
+  if (pref !== true)
+    return {
+      resolved: false,
+      unknown: `the marker beside ${small.full} claims it was superseded by ${big.full}, but its bytes are NOT a prefix of that file — so these are two different recordings, not a snapshot and its completion (CORPUS-TIER-30-NIGHTS §4: a size-only check passes exactly this case)`
+    };
+  return { resolved: true, reason: m.reason + (m.dated ? ` (marker dated ${m.dated})` : '') };
+}
+function defaultReadMarker(path) {
+  // ENOENT is "no marker" — every other error propagates, because an unreadable marker is not an absent
+  // one and the caller distinguishes them.
+  try {
+    return readFileSync(path, 'utf8');
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return null;
+    throw e;
+  }
+}
+function defaultIsPrefixOf(smallPath, bigPath) {
+  /* The superset check the owner's full-hashing ruling implies, done streaming rather than by slurping:
+     these are capture files of hundreds of MB and the fold already sizes its children off free RAM, so
+     reading two whole files to compare them would be the greedy-script failure the 8 GB rule exists to
+     prevent. 1 MiB at a time, stopping at the first difference. */
+  const CH = 1 << 20;
+  const a = openSync(smallPath, 'r');
+  try {
+    const b = openSync(bigPath, 'r');
+    try {
+      const sa = fstatSync(a).size;
+      const sb = fstatSync(b).size;
+      if (sa > sb) return false;
+      const ba = Buffer.allocUnsafe(CH);
+      const bb = Buffer.allocUnsafe(CH);
+      let off = 0;
+      while (off < sa) {
+        const want = Math.min(CH, sa - off);
+        const ra = readSync(a, ba, 0, want, off);
+        const rb = readSync(b, bb, 0, want, off);
+        if (ra !== want || rb !== want) return false;
+        if (!ba.subarray(0, want).equals(bb.subarray(0, want))) return false;
+        off += want;
+      }
+      return true;
+    } finally {
+      closeSync(b);
+    }
+  } finally {
+    closeSync(a);
+  }
+}
+function dedupeStream(recs, opts = {}) {
   const byName = new Map();
   /* Order decides WHICH copy is kept, so it is not arbitrary: a path with no hidden segment wins over
      one that has (a staging copy must never displace the corpus file), then lexicographic for
@@ -929,21 +1108,49 @@ function dedupeStream(recs) {
     const k = basename(r.name || r.full);
     const seen = byName.get(k);
     if (!seen) {
-      byName.set(k, { keep: r, dropped: [], conflict: null });
+      byName.set(k, { keep: r, dropped: [], conflict: null, excluded: [] });
       continue;
     }
     if (Number(seen.keep.bytes) === Number(r.bytes)) seen.dropped.push(r.full);
-    else seen.conflict = { name: k, kept: seen.keep.full, keptBytes: seen.keep.bytes, other: r.full, otherBytes: r.bytes };
+    else {
+      /* The ambiguity, offered to the marker before it becomes a refusal. The SMALLER copy is the one
+         that may carry the marker — a mid-write snapshot is shorter than the file that replaced it — so
+         that is the only side consulted; a marker beside the longer copy would be claiming the recording
+         was superseded by its own prefix. */
+      const big = Number(seen.keep.bytes) > Number(r.bytes) ? seen.keep : r;
+      const small = big === seen.keep ? r : seen.keep;
+      const res = resolveSuperseded(small, big, opts);
+      if (res.resolved) {
+        seen.keep = big;
+        seen.excluded.push({ path: small.full, bytes: small.bytes, reason: res.reason, keeper: big.full });
+        continue;
+      }
+      seen.conflict = {
+        name: k,
+        kept: seen.keep.full,
+        keptBytes: seen.keep.bytes,
+        other: r.full,
+        otherBytes: r.bytes,
+        // null when no marker was offered at all; a sentence when one was and could not be trusted.
+        markerUnknown: res.unknown || null
+      };
+    }
   }
   const kept = [];
   const dropped = [];
   const conflicts = [];
+  // EXCLUDED is its own channel, never folded into `dropped`: a dropped file was a byte-identical copy
+  // of something kept, while an excluded one is a DIFFERENT, shorter file that an owner ruling set
+  // aside. Reporting them together would lose the reason, which is the only thing that makes the
+  // exclusion legitimate (§∅ — name the absence).
+  const excluded = [];
   for (const v of byName.values()) {
     kept.push(v.keep);
     dropped.push(...v.dropped);
+    excluded.push(...(v.excluded || []));
     if (v.conflict) conflicts.push(v.conflict);
   }
-  return { kept, dropped, conflicts };
+  return { kept, dropped, conflicts, excluded };
 }
 
 const nights = new Map();
@@ -1053,12 +1260,14 @@ const DEDUPE_LISTS = ['ecg', 'acc_h10', 'ppg', 'acc_ver', 'gyro', 'magn', 'oxy',
 for (const n of nights.values()) {
   n.dropped = [];
   n.conflicts = [];
+  n.excluded = [];
   for (const list of DEDUPE_LISTS) {
     if (!Array.isArray(n[list]) || n[list].length < 2) continue;
-    const { kept, dropped, conflicts } = dedupeStream(n[list]);
+    const { kept, dropped, conflicts, excluded } = dedupeStream(n[list]);
     n[list] = kept;
     n.dropped.push(...dropped);
     n.conflicts.push(...conflicts);
+    n.excluded.push(...(excluded || []));
   }
 }
 const dupNights = [...nights.values()].filter((n) => n.dropped.length);
@@ -1069,10 +1278,24 @@ if (dupNights.length) {
   for (const n of dupNights.slice(0, 6)) console.log(`    ${n.key}: ${n.dropped.length} dropped, e.g. ${n.dropped[0]}`);
   if (dupNights.length > 6) console.log(`    … +${dupNights.length - 6} more night(s)`);
 }
+/* EXCLUDED BY AN OWNER RULING, printed with its reason and its keeper. Separate from the de-duplicated
+   line above because the two are different claims: a dropped file was byte-identical to what was kept, an
+   excluded one is a shorter DIFFERENT file whose marker says it was superseded — and its exclusion is
+   legitimate only because the reason travels with it (§∅). Counted, never silent. */
+const excludedNights = [...nights.values()].filter((n) => (n.excluded || []).length);
+if (excludedNights.length) {
+  const files = excludedNights.reduce((t, n) => t + n.excluded.length, 0);
+  console.log(`\n  superseded: ${files} file(s) across ${excludedNights.length} night(s) EXCLUDED by a \`.superseded\` marker — the keeper folds, the marker's reason is printed`);
+  for (const n of excludedNights) for (const x of n.excluded) console.log(`    ${n.key}: ${x.path} (${x.bytes} B) — ${x.reason}\n      keeper: ${x.keeper}`);
+}
 for (const n of conflictNights) {
   for (const c of n.conflicts)
     console.log(
-      `  ✗ ${n.key}: ${c.name} exists twice with DIFFERENT sizes (${c.keptBytes} vs ${c.otherBytes}) — which bytes are the recording is ambiguous; night REFUSED\n      ${c.kept}\n      ${c.other}`
+      `  ✗ ${n.key}: ${c.name} exists twice with DIFFERENT sizes (${c.keptBytes} vs ${c.otherBytes}) — which bytes are the recording is ambiguous; night REFUSED\n      ${c.kept}\n      ${c.other}` +
+        /* A marker that was TRIED and did not hold is part of this refusal, not a separate
+           event: without it a reader sees "ambiguous" and writes another marker, which is the
+           one that already failed. UNKNOWN per §🧾 — examined and undecided, not unexamined. */
+        (c.markerUnknown ? `\n      ⚠️ UNKNOWN: ${c.markerUnknown}` : '')
     );
 }
 
