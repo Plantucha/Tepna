@@ -20,8 +20,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 253,
-  "fixed": 35,
+  "open": 252,
+  "fixed": 36,
   "accepted-with-reason": 2
  },
  "entries": [
@@ -905,7 +905,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 163,
-   "state": "open"
+   "state": "fixed",
+   "note": "an unanswered final status read publishes left_running None with left_running_reason, never [] (nothing running), and sends no stop blind. Plant: test_pmd_an_UNANSWERED_final_status_read_is_unknown_never_nothing_running (2026-10-05, Wren; survivors through the Codex reader)"
   },
   {
    "key": "7fc0ece58810",
