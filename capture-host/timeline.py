@@ -494,17 +494,7 @@ def build(
     # refusal as `nightqc.summarize` (see `nightqc.recover_writer_offset`). Every stamp below is floating
     # civil; this is the one number that turns them into instants, and where it cannot be recovered the
     # coverage figures refuse rather than measure against a window built on a guessed zone.
-    # PRECEDENCE, and it is the point of the residue row this closes
-    # (2026-09-28-writer-records-no-utc-offset): a caller that KNOWS the frame wins, then the offset the
-    # WRITER RECORDED at session open, then — only for nights captured before the writer recorded it —
-    # the mtime-vs-last-row vote. An explicit `is not None` rather than `or`, because a dict is the
-    # success value here and a falsy-dict test would be a trap waiting for an empty one.
-    _recorded = nightqc.recorded_writer_offset(night_dir)
-    _off = (
-        writer_offset
-        if writer_offset is not None
-        else (_recorded if _recorded is not None else nightqc.recover_writer_offset(night_dir, data))
-    )
+    _off = writer_offset if writer_offset is not None else nightqc.recover_writer_offset(night_dir, data)
     _offset = _off["offset_sec"]
     _shift = 0.0 if _offset is None else _offset
     dirs = [night_dir]
