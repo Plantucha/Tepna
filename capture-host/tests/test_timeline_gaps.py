@@ -630,3 +630,40 @@ def test_the_window_spans_the_whole_judged_session(tmp_path):
     t0 = _dt.datetime.fromtimestamp(out["t0"], _dt.UTC)
     assert (t0.hour, t0.minute, t0.second) == (22, 0, 0), t0
     assert out["t1"] - out["t0"] == 111.0, "the window collapsed toward the session's end"
+
+
+def test_an_unrecoverable_writer_offset_REFUSES_coverage_and_names_why(tmp_path):
+    """Kills `if _offset is None` → `if (_offset is None) and False` in the coverage-reason ladder.
+
+    Without a recovered offset the window is built from floating stamps plus the files' own durations,
+    so `t1 - t0` collapses toward `covered` and the ratio tends to 1 BY CONSTRUCTION — a coverage
+    figure that cannot go down is not a measurement (§∅). The refusal names its cause; measuring would
+    hide it. With `and False` the ladder falls through to the next arm and the night reports either
+    `None` with no reason or the wrong reason, which is the difference between "we could not measure
+    this" and "there was nothing to measure"."""
+    out = timeline.build(str(_night(tmp_path)), _DEV)
+    assert out["writer_offset"]["offset_sec"] is None, "this fixture must have no recoverable offset"
+    s = out["devices"][0]["streams"]["ecg"]
+    assert s["coverage_reason"] == "writer-offset-unrecoverable", s["coverage_reason"]
+    assert s["coverage_pct"] is None, "a ratio that cannot go down must not be published"
+
+
+def test_every_bucket_carries_a_STATE_not_an_absent_list(tmp_path):
+    """Kills `st = apply_link_states(...)` → `st = None`. The states list IS the timeline — it is what
+    the monitor draws — and nothing asserted it was a list at all, so a stream could report no states
+    and the strip would render empty rather than wrong, which reads as "no data" instead of a bug."""
+    out = timeline.build(str(_night(tmp_path)), _DEV)
+    states = out["devices"][0]["streams"]["ecg"]["states"]
+    assert isinstance(states, list) and states, f"states is {states!r}"
+    assert len(states) == out["buckets"], (len(states), out["buckets"])
+    assert set(states) <= {"captured", "degraded", "idle", "nosignal", "wedged"}, set(states)
+
+
+def test_each_device_row_carries_the_five_fields_the_monitor_reads(tmp_path):
+    """Kills the `out_devs.append({...})` mutant. The device record is the row a reader identifies a
+    sensor by; dropping or renaming a key leaves the strip unable to say WHICH device it is drawing,
+    and no test asserted the record's shape."""
+    dev = timeline.build(str(_night(tmp_path)), _DEV)["devices"][0]
+    assert sorted(dev) == ["address", "device_id", "name", "rssi", "streams"], sorted(dev)
+    assert dev["name"] == "H10" and dev["device_id"] == "02849638"
+    assert "ecg" in dev["streams"]
