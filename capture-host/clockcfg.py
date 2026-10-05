@@ -70,11 +70,13 @@ async def status() -> dict:
     off_sec = _time.localtime().tm_gmtoff  # seconds east of UTC, current (DST-aware)
     off_min = off_sec // 60 if off_sec is not None else None
     servers = (b.get("SystemNTPServers") or b.get("ServerName") or "").split()
-    synced = a.get("NTPSynchronized") == "yes"
+    # ∅ When `timedatectl show` failed nothing was observed, and False would read as "observed off"
+    # (ABSENCE-SURVEY ead75099aee7): the flags are None, and `available: False` says why.
+    synced = (a.get("NTPSynchronized") == "yes") if rc1 == 0 else None
     tz = a.get("Timezone")
     return {
         "available": rc1 == 0,
-        "ntp_enabled": a.get("NTP") == "yes",  # systemd time sync turned on
+        "ntp_enabled": (a.get("NTP") == "yes") if rc1 == 0 else None,  # systemd time sync turned on
         "synchronized": synced,
         "timezone": tz,
         "offset_min": off_min,
@@ -89,7 +91,7 @@ async def status() -> dict:
         # Clock-Contract health (the box side of CLAUDE.md §🔒):
         "contract": {
             "synced": synced,  # stamps trace to real time
-            "tz_set": bool(tz),  # a local zone is set (contract needs the REAL local zone)
+            "tz_set": bool(tz) if rc1 == 0 else None,  # a local zone is set (contract needs the REAL local zone)
             "stamp_format": "local-civil, zone-free",  # how writers.py emits — always compliant by construction
         },
     }

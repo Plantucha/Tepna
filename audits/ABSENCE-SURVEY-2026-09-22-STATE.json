@@ -20,8 +20,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 269,
-  "fixed": 19,
+  "open": 268,
+  "fixed": 20,
   "accepted-with-reason": 2
  },
  "entries": [
@@ -2186,7 +2186,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 74,
-   "state": "open"
+   "state": "fixed",
+   "note": "when `timedatectl show` fails, ntp_enabled / synchronized / contract.tz_set are None (not False) beside available: false, and both monitor pills read a grey \"unknown\" instead of NTP \"off\" / \"check zone/sync\". Plant: test_clockcfg (2 tests red on origin/main) (2026-10-05, Wren)"
   },
   {
    "key": "47172a6147cd",
