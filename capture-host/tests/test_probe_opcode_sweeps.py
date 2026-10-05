@@ -50,6 +50,15 @@ def _no_baseline_wait(monkeypatch):
         return await _real_wait_for(aw, timeout)
 
     monkeypatch.setattr(oxs.asyncio, "wait_for", _bounded_wait_for)
+
+    # NO TEST MAY SPAWN A REAL PROCESS. The wedge recovery runs `bluetoothctl power off/on` with real 2-3 s
+    # settles; a test (or a mutant) that reaches it unstubbed would power-cycle THIS machine's adapter and
+    # wait it out. Refused here; `_cycle_adapter` reads the refusal as a failed best-effort recovery. The
+    # tests that drive it on purpose install their own spawn on top of this.
+    async def _no_spawn(*a, **k):
+        raise AssertionError(f"a test tried to spawn a real process: {a[:3]}")
+
+    monkeypatch.setattr(oxs.asyncio, "create_subprocess_exec", _no_spawn)
     monkeypatch.setattr(oxs, "REPLY_TIMEOUT_S", 0.01)
     monkeypatch.setattr(pms, "SEND_SPACING_S", 0.0)
     monkeypatch.setattr(pms, "REPLY_TIMEOUT_S", 0.01)
