@@ -360,7 +360,8 @@ def test_cipher_wrap_unwrap_rules(capsys):
     assert c.unwrap(o2ring.OP_HELLO, b"") == b""  # not AES-shaped: pass-through
     assert c.unwrap(o2ring.OP_HELLO, b"\x01\x02\x03") == b"\x01\x02\x03"
     junk = b"\x00" * 16
-    assert c.unwrap(o2ring.OP_GET_INFO, junk) == junk and c.errors == 1
+    # Withheld, not passed through (ABSENCE-SURVEY c82b7dbaf55f): the plaintext was not recovered.
+    assert c.unwrap(o2ring.OP_GET_INFO, junk) is None and c.errors == 1
     assert "did not decrypt" in capsys.readouterr().out
     assert c.unwrap(o2ring.OP_GET_INFO, c.wrap(o2ring.OP_GET_INFO, b"hi")) == b"hi"
 
@@ -569,6 +570,28 @@ def test_pull_session_reassembles(capsys):
         ]
     )
     assert o2ring.pull_session(dev, "sid") == b"\x01\x02\x03\x04\x05\x06"
+
+
+def test_pull_session_REFUSES_a_chunk_that_did_not_decrypt_rather_than_writing_ciphertext(monkeypatch):
+    """PLANT c82b7dbaf55f: in a keyed session a FILE_DATA reply that fails to decrypt was passed through as
+    "plaintext", and `pull_session` appended it to the file as file bytes. The pull now stops and says so,
+    after closing the transfer."""
+    monkeypatch.setattr(o2ring.SESSION, "key", bytes(range(16)))
+    monkeypatch.setattr(o2ring.SESSION, "errors", 0)
+    start = o2ring.SESSION.wrap(o2ring.OP_FILE_START, struct.pack("<I", 32))
+    dev = FakeDev(
+        [
+            reply(o2ring.OP_FILE_START, start),
+            reply(o2ring.OP_FILE_DATA, b"\x00" * 16),  # 16 bytes the session key cannot decrypt
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
+    ended = []
+    real_end = o2ring.file_end
+    monkeypatch.setattr(o2ring, "file_end", lambda d: (ended.append(1), real_end(d))[1])
+    with pytest.raises(RuntimeError, match="did not decrypt"):
+        o2ring.pull_session(dev, "sid")
+    assert ended == [1], "the transfer is closed before the refusal"
 
 
 def test_pull_session_raises_without_start():
