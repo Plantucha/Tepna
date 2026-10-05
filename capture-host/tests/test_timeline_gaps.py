@@ -659,3 +659,41 @@ def test_a_session_a_FULL_GAP_after_midnight_does_NOT_pool(tmp_path):
     assert _dt.datetime.fromtimestamp(out["t0"], _dt.UTC).day == 25, (
         "a session a full gap after midnight pooled the previous day anyway"
     )
+
+
+def test_an_EMPTY_night_still_names_itself_even_with_a_trailing_slash(tmp_path):
+    """Kills `rstrip("/")` → `rstrip(None)` and → `lstrip("/")` on the EMPTY-NIGHT return.
+
+    ⚠️ A SECOND COPY OF THE SAME EXPRESSION, on a different line and reached by a different path.
+    `test_the_night_name_is_the_folder_basename_with_a_trailing_slash_stripped` pins the final return
+    and kills its mutants; this early return — taken when nothing in the folder produced a span —
+    carries its own `basename(rstrip("/"))` and its own mutants. The existing empty-night test asserts
+    `buckets == 0` and `devices == []` and never looks at the name, so a night that recorded nothing
+    could report itself as the empty string, which is the row a reader would skip rather than chase."""
+    d = tmp_path / "2026-07-25"
+    d.mkdir()
+    for path in (str(d), str(d) + "/"):
+        out = timeline.build(path, _DEV)
+        assert out["night"] == "2026-07-25", f"{path!r} -> {out['night']!r}"
+        assert out["buckets"] == 0 and out["devices"] == []
+
+
+def test_the_window_spans_the_whole_judged_session(tmp_path):
+    """Pins the window against the judged session's own bounds.
+
+    ⚠️ IT DOES NOT KILL `spans = [cur[0], cur[1]]` → `[cur[1], cur[1]]`, and I checked rather than
+    assumed: hand-applying that mutant leaves this suite green. The seed is immediately followed by a
+    loop that appends every file's own stamp, and `cur[0]` IS the earliest of those stamps — so
+    re-seeding with the end is undone by the next few lines and `min(spans)` is unchanged. Killing it
+    needs a session whose opening is NOT any file's stamp (a LINK-only window, or a file whose
+    `session` parses while its FILENAME stamp does not), which is a different fixture than this one;
+    until that exists the mutant stays on the survivor list rather than behind a test that claims it.
+
+    What this does pin is the window itself, which nothing else asserted."""
+    out = timeline.build(str(_night(tmp_path, rows=112)), _DEV)
+    # 112 rows at 1 s: the session opens at 22:00:00 and the window must start there, not at 22:01:51
+    import datetime as _dt
+
+    t0 = _dt.datetime.fromtimestamp(out["t0"], _dt.UTC)
+    assert (t0.hour, t0.minute, t0.second) == (22, 0, 0), t0
+    assert out["t1"] - out["t0"] == 111.0, "the window collapsed toward the session's end"
