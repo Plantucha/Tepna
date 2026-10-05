@@ -45,6 +45,12 @@
   "FF:FF:FF:FF:FF:FF"
  ],
  "entries": {
+  "test_absence_drain_g4.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and frames built in the test (ring live replies by contact code, scripted CPAP batches, a 15-byte frame); no provenance claim in the file",
+   "sha256": null
+  },
   "test_accraw_rate_and_ns.py": {
    "class": "authored",
    "kind": "constructed-stamps",
