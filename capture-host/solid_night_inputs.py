@@ -50,6 +50,7 @@ import re
 from typing import Any
 
 import nights_index as _ni
+import loss_audit as _la
 import nightqc as _nqc
 import writers as _wr
 
@@ -478,6 +479,74 @@ def worn_interval(audit_dev: dict | None, primaries: list[str], spans: dict[str,
     if end.get("reason") != "doff":
         return None, None, f"worn end is `{end.get('reason')}` — doff or loss, indistinguishable (§3.3)"
     return min(starts), _dt.datetime.fromisoformat(end["at"]), None
+
+
+SEAM_UNASSESSED = "the seam between folders was not assessed"
+
+
+def _scan_shape(entry: dict) -> dict | None:
+    """A published `files[]` entry back in the shape `loss_audit.boundary_gap` consumes, or None.
+
+    The six fields #3297's follow-on added to the audit (`first`, `last`, `first_dev`, `last_dev`,
+    `period_ns`, `cut`) are exactly `boundary_gap`'s inputs, so the judge is reused rather than
+    reimplemented — including its device-counter test that separates a DELAY from a LOSS (#3157).
+
+    🔴 RETURNS None FOR AN OLDER-SHAPE ENTRY, and that is the whole point of the check: the box runs
+    behind `main` until the owner deploys, so an audit written by the older daemon carries only
+    `{file, span_min, gaps, delays}`. An absent endpoint must become "not assessed", never a seam judged
+    against a time nobody recorded (§∅)."""
+    if not isinstance(entry, dict):
+        return None
+    if "first" not in entry or "last" not in entry:
+        return None  # an older audit: it cannot say, and a default here would invent an answer
+    try:
+        first = _dt.datetime.fromisoformat(entry["first"]) if entry.get("first") else None
+        last = _dt.datetime.fromisoformat(entry["last"]) if entry.get("last") else None
+    except (TypeError, ValueError):
+        return None
+    return {
+        "first": first,
+        "last": last,
+        "first_dev": entry.get("first_dev"),
+        "last_dev": entry.get("last_dev"),
+        "period_ns": entry.get("period_ns"),
+        "cut": entry.get("cut") or 0.0,
+    }
+
+
+def seam_gap(prev_audit_dev: dict | None, next_audit_dev: dict | None) -> tuple:
+    """The gap ACROSS the folder boundary: `(rows, reason)` — `([], reason)` when it cannot be judged.
+
+    🔴 "SUM THE FILES' GAPS" MISSES EXACTLY THIS. `loss_audit.stream_scan` says so in its own docstring:
+    a gap BETWEEN two files is a real delivery event no per-file scan can see, and for a recording that
+    spans two folders the gap between the evening's last file and the morning's first is seen by NEITHER
+    audit — each one judges boundaries only among its own files. Merging the two gap lists therefore
+    gives the union of two halves' internal holes and stays blind to the seam joining them, which is the
+    single most likely place for loss in exactly the recordings this exists to judge.
+
+    Returns rows in the audit's own gap shape so `continuity` can read them beside the merged ones, each
+    marked `seam: True` and carrying the two files it joins."""
+    if not isinstance(prev_audit_dev, dict) or not isinstance(next_audit_dev, dict):
+        return [], f"{SEAM_UNASSESSED}: one side has no audit entry for this device"
+    prev_files = [f for f in (prev_audit_dev.get("files") or []) if isinstance(f, dict)]
+    next_files = [f for f in (next_audit_dev.get("files") or []) if isinstance(f, dict)]
+    if not prev_files or not next_files:
+        return [], f"{SEAM_UNASSESSED}: one side audited no file for this device"
+    # the evening's LAST file by its own last row, and the morning's FIRST by its own first row — never
+    # by name, which carries only the session start and would put the boundary the wrong way round for a
+    # fragment whose name lies (the ordering `loss_audit` itself uses)
+    pv = [sc for sc in (_scan_shape(f) for f in prev_files) if sc and sc["last"] is not None]
+    nx = [sc for sc in (_scan_shape(f) for f in next_files) if sc and sc["first"] is not None]
+    if not pv or not nx:
+        return [], f"{SEAM_UNASSESSED}: the audit publishes no per-file endpoints (written before #3297)"
+    a = max(pv, key=lambda sc: sc["last"])
+    b = min(nx, key=lambda sc: sc["first"])
+    judged = _la.boundary_gap(a, b)
+    if judged is None:
+        return [], None  # judged, and there is no seam gap to report: silence here is a measurement
+    if judged[0] == "delay":
+        return [], None  # a delay is not a loss (#3157): the counter advanced by less than a period
+    return [{"at": judged[1].isoformat(), "s": judged[2], "seam": True}], None
 
 
 def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]) -> dict:
@@ -1522,6 +1591,22 @@ def _adopt_later_wear(base: dict, other: dict, nxt: str) -> None:
         if o_end and (not b_end or str(o_end) > str(b_end)):
             bd["wear"] = od["wear"]
             bd["wear_from"] = os.path.basename(nxt)
+        # THE GAP ROWS MERGE BY FILE IDENTITY, and the SEAM between the two halves is judged separately,
+        # because no per-file scan can see it (`loss_audit.stream_scan`: "sum the files' gaps misses
+        # exactly the loss that made the night fragment"). Each row already names its `file`, and a
+        # filename carries its own 14-digit session start, so identity is the filename and a row from the
+        # morning folder cannot be mistaken for one from the evening.
+        seen = {r.get("file") for r in (bd.get("gaps") or []) if isinstance(r, dict)}
+        merged = list(bd.get("gaps") or [])
+        for r in od.get("gaps") or []:
+            if isinstance(r, dict) and r.get("file") not in seen:
+                merged.append(dict(r, folder=os.path.basename(nxt)))
+        rows, why = seam_gap(bd, od)
+        merged.extend(rows)
+        bd["gaps"] = sorted(merged, key=lambda r: (str(r.get("at")), r.get("s") or 0.0))
+        # NAMED, NEVER SILENT: a seam nobody could judge says so, so `continuity` cannot read the absence
+        # of a seam row as the absence of a seam gap (§∅).
+        bd["seam_unassessed"] = why
 
 
 def _pooled_audit(night_dir: str) -> dict | None:
