@@ -157,7 +157,11 @@ def test_status_reports_unavailable_when_timedatectl_is_missing(monkeypatch):
         return 127, "timedatectl not found"
 
     monkeypatch.setattr(clockcfg, "_run", fake_run)
-    assert _go(clockcfg.status())["available"] is False
+    st = _go(clockcfg.status())
+    assert st["available"] is False
+    # PLANT ead75099aee7: nothing was observed, so nothing reads as "observed off" — None, never False.
+    assert st["ntp_enabled"] is None and st["synchronized"] is None, st
+    assert st["contract"]["synced"] is None and st["contract"]["tz_set"] is None, st["contract"]
 
 
 def test_status_reads_timezone_and_sync_flag(monkeypatch):
@@ -224,7 +228,8 @@ def test_a_failed_probe_is_discarded_rather_than_parsed(monkeypatch):
     _stub_run(monkeypatch, {("timedatectl", "show"): (1, "Failed to connect to bus\n")})
     r = asyncio.run(clockcfg.status())
     assert r["available"] is False
-    assert r["ntp_enabled"] is False and r["synchronized"] is False and r["timezone"] is None
+    # None, not False (ABSENCE-SURVEY ead75099aee7): False is "observed off", and nothing was observed.
+    assert r["ntp_enabled"] is None and r["synchronized"] is None and r["timezone"] is None
 
 
 def test_only_the_exact_yes_counts_as_enabled_or_synchronised(monkeypatch):
