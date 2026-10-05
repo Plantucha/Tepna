@@ -3143,7 +3143,9 @@ def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
     The cap counts re-bond ATTEMPTS, not reconnects, so at the defaults it still spans a whole night —
     which is the point. The 2026-07-29 loss needed a retry FOUR HOURS after the bond went stale, long
     after any short-lived burst of attempts would have been exhausted."""
-    if not needs_pmd or bonded or every <= 0:
+    # `bonded is None`: bluetoothctl did not answer, so BlueZ — the authority above — said nothing. That is not
+    # its "no bond", and it must not spend an attempt or force a re-pair (ABSENCE-SURVEY 3720ab19bc82).
+    if not needs_pmd or bonded or bonded is None or every <= 0:
         return False
     return attempts < limit and iteration % every == 0
 
@@ -7761,7 +7763,14 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             bluez = False
             try:
                 info = await bonding._btctl(f"info {d['address']}\nquit\n", timeout=6)
-                bluez = "Connected: yes" in info
+                if info is None:
+                    # bluetoothctl did not answer (ABSENCE-SURVEY 3720ab19bc82): no evidence either way, said as
+                    # such rather than reached through a TypeError in the handler below.
+                    log.warning(
+                        "watchdog: BlueZ did not answer about %s — no phantom-link evidence from it", d["address"]
+                    )
+                else:
+                    bluez = "Connected: yes" in info
             except Exception:
                 # UNDER-reports, never over-reports: `bluez_connected` is read ONLY positively (a link BlueZ
                 # sees while we do not = phantom), so a failed probe costs evidence rather than manufacturing

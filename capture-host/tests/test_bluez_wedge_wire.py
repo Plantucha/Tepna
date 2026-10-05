@@ -478,3 +478,29 @@ def test_another_live_device_on_that_adapter_BLOCKS_the_handoff(monkeypatch):
         status_extra={"OnIntel": {"connected": True, "worn": True}},
     )
     assert rebinds == [], "handoff fired while another device on that adapter was streaming"
+
+
+def test_an_UNANSWERED_bluez_probe_is_said_as_such_not_reached_through_a_TypeError(monkeypatch, caplog):
+    """3720ab19bc82: `_btctl` returns None when bluetoothctl does not answer. The watchdog says BlueZ did not
+    answer and claims no phantom-link evidence; it does not fall into the exception handler by indexing None."""
+    import logging
+
+    from test_capture_runners import _dev, _run, _stop_after
+
+    async def silent_btctl(script, timeout=6):
+        return None
+
+    monkeypatch.setattr(capture.bonding, "_btctl", silent_btctl)
+    capture._STOP.clear()
+    _stop_after(monkeypatch, 1)
+    capture.STATUS["devices"]["H10"] = {"connected": True, "address": "11:22:33:44:55:66"}
+    cfg = {
+        "watchdog": {"enabled": True, "interval_sec": 60},
+        "devices": [_dev(name="H10", address="11:22:33:44:55:66")],
+    }
+    with caplog.at_level(logging.WARNING, logger=capture.log.name):
+        _run(capture.adapter_watchdog("hci0", cfg))
+    capture._STOP.clear()
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("BlueZ did not answer about" in m for m in msgs), msgs
+    assert not any("could not ask BlueZ" in m for m in msgs), msgs

@@ -319,9 +319,10 @@ def test_btctl_decodes_the_subprocess_output(monkeypatch):
     assert "Polar H10" in out
 
 
-def test_btctl_returns_empty_on_timeout(monkeypatch):
+def test_btctl_returns_NONE_on_timeout(monkeypatch):
+    # None, not "": bluetoothctl never answered, so no state was read (ABSENCE-SURVEY 3720ab19bc82).
     _fake_subprocess(monkeypatch, timeout=True)
-    assert _run(bonding._btctl("scan on\n", timeout=0.1)) == ""
+    assert _run(bonding._btctl("scan on\n", timeout=0.1)) is None
 
 
 def test_delayed_script_runs_timed_commands(monkeypatch):

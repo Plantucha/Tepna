@@ -139,6 +139,13 @@ def test_the_drift_backstop_reports_the_age_in_hours():
 
 
 # ── rebond_due: the cadence that must span a whole night ────────────────────────────────────────────
+def test_an_UNANSWERED_bond_query_is_not_a_lost_bond():
+    """PLANT 3720ab19bc82: `bonded=None` — bluetoothctl did not answer — must not force a re-pair or spend an
+    attempt; only BlueZ's own "no" does. The same arguments with `bonded=False` do schedule one."""
+    assert capture.rebond_due(needs_pmd=True, bonded=None, iteration=3, attempts=0, every=1, limit=72) is False
+    assert capture.rebond_due(needs_pmd=True, bonded=False, iteration=3, attempts=0, every=1, limit=72) is True
+
+
 def test_a_cadence_of_one_means_every_reconnect_not_disabled():
     """`every <= 0` → `every <= 1`. `every=1` means 'try on every reconnect', a legal and deliberate
     configuration; the mutant reads it as 'disabled' and silently never re-bonds."""
