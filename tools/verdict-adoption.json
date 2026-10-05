@@ -723,6 +723,19 @@
       "status": "exempt",
       "reason": "verdict words appear only in comments"
     },
+    "tools/codex-export.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/codex-export.mjs",
+          "--json",
+          "--cleanup"
+        ]
+      },
+      "note": "the source-only export an external reader (Codex) may see (owner ruling 2026-10-04): omits uploads/ provenance/ audits/ briefs/ docs/ docs-archive/ papers/ changes/ and every capture-host/tests fixture the FIXTURE-PROVENANCE registry classes captured or derived, then VERIFIES the export holds none; FAIL on a leak, UNKNOWN when the ref has no registry"
+    },
     "tools/cohort-fit.mjs": {
       "bin": "decides",
       "status": "adopted",
