@@ -5659,6 +5659,12 @@
       "key": "- out[\"left_running\"] = [pmd.MEAS_NAME.get(m, hex(m)) for m in active] | + out[\"left_running\"] = [pmd.MEAS_NAME.get(m, ) for m in active]",
       "probe": "read polar_pmd.parse_status_response: it adds a measurement id to its result only if meas in MEAS_NAME, and active comes from that result alone.",
       "why": "PROOF: every m in active is a key of MEAS_NAME, so MEAS_NAME.get(m, <default>) never returns its default; hex(m), None and no default give the same name. (Codex reader, verified at the MEAS_NAME filter in polar_pmd.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- dev = None | + dev = \"\"",
+      "probe": "read the scan: `for _ in range(3): dev = await ...find_device_by_address(...)` assigns dev on every one of exactly three iterations before dev is first read; and the test that scans None three times passed under this mutant.",
+      "why": "PROOF: the initialiser is dead — range(3) is never empty, so dev is overwritten before any read, and None vs \"\" is never observed. The Codex reader claimed a distinguishing input (three None scans) and was WRONG: the loop reassigns dev each time."
     }
   ],
   "probe_pmd_surface.py": [
