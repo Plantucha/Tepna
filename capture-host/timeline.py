@@ -202,7 +202,7 @@ def _placed(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float,
         yield (t0, dur or None)
 
 
-def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int, fs: float) -> list[str]:
+def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int) -> list[str]:
     """Bucket the covered intervals into `n` states across [t0, t1].
 
     A bucket is `captured` when the intervals cover enough of it, `degraded` when they cover some but
@@ -216,11 +216,19 @@ def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n:
     for i in range(n):
         b0, b1 = t0 + i * width, t0 + (i + 1) * width
         covered = 0.0
+        # ⚠️ `continue`, NOT `break`. The early exit assumed the intervals arrive sorted by start —
+        # true of the one production caller (`stream_intervals` returns `sorted(...)`) and stated
+        # nowhere, so the signature accepted input it answered wrongly. Measured: the same data as
+        # [(5,10), (0,5)] over [0,10) in 2 buckets gave ['idle', 'captured'] unsorted against
+        # ['captured', 'captured'] sorted — a bucket the intervals DO cover reported as `idle`, which
+        # is the one state that reads as a FINDING rather than a miss, and the same failure mode as
+        # the ring's ACCRAW. An unsorted list is now answered correctly instead of quickly; the early
+        # exit was never measured to matter, and a wrong answer is not worth an unmeasured optimisation.
         for s, e in intervals:
             if e <= b0:
                 continue
             if s >= b1:
-                break
+                continue
             covered += min(e, b1) - max(s, b0)
         frac = covered / width if width else 0.0
         out.append("captured" if frac >= DEGRADED_BELOW else ("degraded" if frac > 0.02 else "idle"))
@@ -586,7 +594,7 @@ def build(
             fs = nightqc._expected_hz(d, s) or 0
             ids = writers.device_ids(d)
             iv = stream_intervals(data, ids, nightqc.stream_file_tags(s), fs, offset_sec=_offset)
-            st = apply_link_states(bucket_stream(iv, t0, t1, buckets, fs), conn, wedged)
+            st = apply_link_states(bucket_stream(iv, t0, t1, buckets), conn, wedged)
             covered = covered_seconds(iv)
             # ∅ — A PERCENTAGE OF NOTHING IS NOT ZERO PERCENT. `_expected_hz` returns None for a stream
             # with no reference rate, documenting that there is "no coverage claim" for it, and the ring's
