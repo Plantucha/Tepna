@@ -1038,3 +1038,13 @@ def test_no_stamp_BEFORE_the_write_is_inconclusive_never_unchanged():
     }
     got = probe._clock_conclusion(out)
     assert "inconclusive" in got and "BEFORE" in got and "unchanged" not in got
+
+
+def test_a_MISSING_before_or_after_block_reads_as_empty_not_a_crash():
+    assert "no sample stamp came back" in probe._clock_conclusion({})
+    assert "BEFORE" in probe._clock_conclusion({"after": {"device_stamps": [1]}})
+
+
+def test_a_device_that_AGREES_does_not_reach_the_disagreement_sentence():
+    got = probe._clock_conclusion({"after": {"device_stamps": [1], "device_reports": True, "verdict": "AGREES"}})
+    assert "BEFORE" in got and "does not follow" not in got
