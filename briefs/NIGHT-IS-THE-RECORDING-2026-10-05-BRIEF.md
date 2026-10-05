@@ -68,12 +68,31 @@ while `UNKNOWN` means examined and undecided**. Six `UNKNOWN`s over zero nights 
 six judgements — and a reader at 20:00 could not tell "the night has not started" from "the night is
 unjudgeable".
 
-**(b) A VERDICT IS OVERWRITTEN WITHOUT WITHDRAWAL.** E9's principle — a verdict on disk outranks — did not
-protect the 19:37 file, and nothing records that it ever existed. The final verdict happens to be the
-right one, so the harm is not a wrong answer: it is that the trail from six UNKNOWNs to one FAIL is
-unrecoverable from the artefacts, and only the journal preserved it. **This is the defect worth planting a
-test against**, and it generalises beyond this night: any judge pass that replaces a published verdict
-should withdraw it with a reason, not silently replace it.
+**(b) THE COMPOSE RAN OVER A LIVE SESSION, AND THE REPLACEMENT LEFT NO RECORD.**
+
+⚠️ **Corrected by Magpie, and verified here before folding it in — my first reading blamed the wrong
+mechanism.** I wrote that "E9's principle — a verdict on disk outranks — did not protect the 19:37 file".
+That is a misattribution twice over: **E9 governs `history`'s READ preference**, not this write path, and
+the rewrite was the poller's own write guard firing **legitimately**. `capture.py:9428`:
+
+```python
+if os.path.exists(spath) and os.path.getmtime(spath) >= os.path.getmtime(vpath):
+    return  # composed since the audit last changed
+```
+
+Re-compose happens exactly when the loss audit is NEWER than the solid verdict — which it was on every
+pass, because the night's data was growing. The guard did what it says. Nothing failed to protect
+anything.
+
+So the two real defects in this half are:
+
+- **composing over a LIVE session at all.** The eligibility test admitted a night that had not begun, six
+  times, and each pass published a verdict about it. The guard's job is "has the audit moved since I last
+  composed", not "is this night finished" — no layer asked the second question;
+- **no WITHDRAWAL RECORD on replacement.** The final verdict is the right one, so the harm is not a wrong
+  answer: it is that the trail from six UNKNOWNs to one FAIL is unrecoverable from the artefacts and
+  survived only in the journal. **This is the defect worth planting a test against**, and it generalises
+  past this night: a pass that replaces a published verdict should withdraw it with a reason.
 
 **What my first pass did get right** stands: one recording still produced **two verdict sets** (10-04's
 five at 04:31–04:50 and 10-05's three at 05:01), the later judging a 23-minute fragment — which is why
@@ -155,9 +174,12 @@ What it must do instead, confirmed with the owner's deputy:
 
 **And the principle the original wording reached for still holds, so the brief states it as a rule rather
 than as this night's event:** a verdict written before the recording existed is not a verdict on it, and a
-verdict written over a fragment is not a verdict on the recording. E9 is the citation — a verdict
-surfaced without its reason (`state.solid` → `null` with no explanation) is what E9 names, and ②(b) is the
-same failure one layer out: a verdict replaced without its reason.
+verdict written over a fragment is not a verdict on the recording.
+
+⚠️ **E9 is a neighbour, not the citation.** E9 names a verdict SURFACED without its reason (`state.solid`
+→ `null` with no explanation) and governs `history`'s read preference; ②(b) is a verdict REPLACED without
+its reason, one layer out on the write side. Related in shape, different in mechanism — and conflating
+them is what sent my first reading looking for a protection that was never on that path.
 
 Dry-run first, on the rig corpus copy; **the box run is owner-authorized** and waits.
 
@@ -179,7 +201,19 @@ Dry-run first, on the rig corpus copy; **the box run is owner-authorized** and w
 **MINOR** if the folder assignment moves (route (a) — a contract change); **PATCH** under route (b), which
 changes no layout. Nothing here is claimed about a night that has not been re-judged.
 
-## Coordination — the exact seam Magpie and I both touch
+## Lane split (settled 2026-10-05, after Magpie corrected the seam)
+
+Magpie's header check lands in **`solid_night_inputs.validity`** (the band), not in `active_nights` /
+`newest_data_mtime` — so those three seam functions are mine and there is no collision there. But route
+(b) touches `compose` / `pending_verdict` / `score_devices` / `history` / `write_night`, all Magpie's
+files, and **both defects of ② live there too**. So, by lane and on disjoint files:
+
+| who | what |
+|---|---|
+| **Magpie** | route (b)'s judge scope + ②(a) `NOT_RUN` over an empty population + ②(b) the withdrawal record, in one PR after its URGENT one, **from this brief** |
+| **Heron** | this brief (owner of the acceptance items), the daemon seam, and the fragment-withdrawal migration tool for 10-04/10-05 |
+
+## The seam, named so it stays disjoint
 
 Scope item (2) folds *"a sidecar without a header belongs to a session still being written"* into the
 eligibility test. Named precisely so it can be sequenced rather than guessed at:
