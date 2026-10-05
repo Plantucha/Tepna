@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-04 · **Created:** 2026-10-04
+**Status:** IN-PROGRESS — 2026-10-05 · **Created:** 2026-10-04
 
 # PAT-HAT-RING-FLOOR — the finger leg joins the arrival-floor axis, and the hat is solved on three floors
 
@@ -115,4 +115,25 @@ then:
   on a step rather than interpolate across it, and the first real night decides which behaviour the ring
   has. This brief does not guess.
 
-**Evidence (first corrected night):** OPEN — nothing recorded on E11 yet.
+**Evidence (first corrected night): 2026-10-04, and it ANSWERS the open question — the offset does NOT
+advance.** Measured read-only on the rig mirror
+(`/srv/data/tepna-corpus/smoketest-captures/2026-10-04`, ring session `…20261004220023`): across the whole
+night `first_sample_idx` has **ONE distinct value, 0** — on **22,645 of 22,645 `PPG_FRAME` rows** and on all
+**2,407 `PPG_FRAME_A` rows**. The question this brief refused to guess at ("whether `ppg_stream_offset`
+advances across a dropout … the first real night decides which behaviour the ring has") is therefore
+settled in the second direction: a dropout COMPRESSES the device axis, so a floor built on this field would
+read a step as elapsed device time.
+
+**So the hat on this night is TWO corrected floors plus ONE NAMED REFUSAL, not three.** The finger leg
+refuses as `ring-offset-never-advances`, which is this brief's designed outcome rather than a failure, and
+**no corrected finger σ may be quoted** — for this night or any night from this firmware. §∅: the refusal
+carries its own reason rather than borrowing the ankle's.
+
+The raw hat on the same night, as ONE recording (22:02 → 04:15, n = 38 five-minute windows): σ chest
+**77.5 ms**, σ finger **165.7 ms**, σ ankle **REFUSED (negative variance −5183)**. ⚠️ This does NOT reproduce
+`PAT-HAT-DRIFT-DIFFERENCED-2026-09-27`: σ is 3–6× that night's legs (10.8 / 24.9 / 28.3 ms) and the negative
+corner has MOVED from the chest to the ankle. Different night, different grid (5-min vs 30-min blocks) and
+6.2 h against a full night — so the pair is two observations, not a trend. And n = 38 is **not** an
+UNDERPOWERED verdict: this tool prints no CI, and 09-27's came from a bootstrap not re-run here. All that is
+defensible is that 38 windows is strictly less resolved than the 98 at which the chest CI already spanned
+zero, so a negative ankle variance cannot be separated from a small positive one.
