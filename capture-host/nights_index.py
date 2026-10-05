@@ -89,11 +89,24 @@ DERIVED: dict[str, tuple[str, ...]] = {
     "PAT fused": ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_PPG.txt"),
 }
 COLUMNS = tuple(NODES) + tuple(DERIVED)
-# The two Polar devices' PACKET-ARRIVAL sidecars (writers.PmdArrivalLogWriter). Not an analyzer's ingest, so not a
+# EVERY device's PACKET-ARRIVAL sidecar (writers.PmdArrivalLogWriter). Not an analyzer's ingest, so not a
 # node's file list — a per-night field of its own that the monitor's PAT click hands over: PAT Feasibility's
-# corrected lag re-times both legs on these floors (route-PAT fix, 2026-09-27). The ring's sidecar carries no
-# PMD stream PAT uses, so it is not listed.
-ARRIVAL: tuple[str, ...] = ("Polar_H10_*_PMDARRIVAL.csv", "Polar_VeritySense_*_PMDARRIVAL.csv")
+# corrected lag re-times each leg on its own floor (route-PAT fix, 2026-09-27).
+#
+# 🔴 ONE WILDCARD, NOT A DEVICE ALLOWLIST, AND THE PREVIOUS COMMENT IS WHY. It read "the ring's sidecar
+# carries no PMD stream PAT uses, so it is not listed" — TRUE when written, because the ring's sidecar held
+# only `OXYLIVE_DURATION_S` rows. E11 (#3267) made it write one `PPG_FRAME` row per frame, and this list was
+# not revisited: the sidecar existed, the worker could read it, and the monitor still handed over two files
+# of three. PAT Feasibility then printed its "no arrival sidecar for the O2Ring — a capture from before the
+# box restarted on it has none" branch for a night that HAS one (2026-10-04, 22,645 `PPG_FRAME` rows), which
+# reads as a statement about the CAPTURE and was a statement about this tuple.
+#
+# An allowlist keyed on device NAME fails closed in the wrong direction: a device that gains a sidecar, or a
+# new device, silently contributes nothing and the page explains the absence with a reason that is false. A
+# sidecar is identified by what it IS — `*_PMDARRIVAL.csv`, the one name `PmdArrivalLogWriter` writes — so a
+# device added later cannot fall out again. Deciding whether a given sidecar is USABLE belongs to the
+# consumer, which already refuses by name (`ring-offset-never-advances`) rather than ignoring the file.
+ARRIVAL: tuple[str, ...] = ("*_PMDARRIVAL.csv",)
 
 _ISO = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})")
 _O2 = re.compile(r"^(\d{2}):(\d{2}):(\d{2}) (\d{2})/(\d{2})/(\d{4})")  # HH:MM:SS DD/MM/YYYY (DMY)

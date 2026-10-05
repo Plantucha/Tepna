@@ -373,23 +373,36 @@ def test_parse_host_stamp_falls_back_to_the_other_layout_and_never_fabricates():
     assert ni.parse_host_stamp("2026-13-45T99:99:99.000") is None, "range-invalid, not rolled"
 
 
-def test_the_arrival_sidecars_of_both_polar_devices_are_listed_and_the_ring_s_is_not(tmp_path):
-    """PAT Feasibility's corrected lag is anchored on each Polar device's packet-arrival floor, so the index hands
-    the monitor both sidecars as their own per-night field (never inside a node's ingest list). The ring's sidecar
-    carries no PMD stream PAT uses. A night without sidecars lists none — an empty list, not a missing key."""
+def test_EVERY_device_s_arrival_sidecar_is_listed_including_a_device_added_later(tmp_path):
+    """PAT Feasibility re-times each leg on its own packet-arrival floor, so the index hands the monitor the
+    sidecars as their own per-night field (never inside a node's ingest list).
+
+    🔴 THIS TEST ASSERTED THE OPPOSITE UNTIL 2026-10-05 — "and the ring's is not" — on the premise that the
+    ring's sidecar carried no PMD stream PAT uses. That was true when written and E11 (#3267) ended it: the
+    ring now writes one `PPG_FRAME` row per frame. The list was not revisited, so the monitor handed over two
+    sidecars of three and the page printed "no arrival sidecar for the O2Ring" for a night that has one.
+
+    So the assertion is now about the SHAPE of the rule, not about today's device roster: a sidecar is
+    identified by the only name `PmdArrivalLogWriter` writes, and the UNKNOWN device below is the real
+    regression guard — under an allowlist keyed on device name it falls out silently, and the page explains
+    its absence with a reason that is false. A night without sidecars lists none — an empty list, not a
+    missing key."""
     root = str(tmp_path)
     d = _night(root)
-    for name in (
+    names = (
         "Polar_H10_02849638_20260919220000_PMDARRIVAL.csv",
         "Polar_VeritySense_0C301E3F_20260919220000_PMDARRIVAL.csv",
         "Wellue_O2Ring-S_S8AW2100_20260919220000_PMDARRIVAL.csv",
-    ):
+        # a device this repo has never seen: the thing an allowlist cannot admit
+        "Acme_FutureSensor_ABCD1234_20260919220000_PMDARRIVAL.csv",
+    )
+    for name in names:
         _w(os.path.join(d, name), "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
     e = ni.night_entry(os.path.join(root, "captures"), d)
-    assert e["arrival"] == [
-        "2026-09-19/Polar_H10_02849638_20260919220000_PMDARRIVAL.csv",
-        "2026-09-19/Polar_VeritySense_0C301E3F_20260919220000_PMDARRIVAL.csv",
-    ]
+    assert e["arrival"] == sorted("2026-09-19/" + n for n in names), (
+        "every sidecar in the folder is handed over, the ring's and an unknown device's included"
+    )
+    assert any("O2Ring" in f for f in e["arrival"]), "the ring's sidecar is the one E11 made usable"
     assert not any("PMDARRIVAL" in f for c in ni.NODES if e[c] for f in e[c]["files"]), (
         "a sidecar leaked into an ingest list"
     )
