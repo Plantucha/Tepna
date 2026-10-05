@@ -1224,6 +1224,16 @@ _SELFTEST_FAULTS = [
         "an absent mutant must read not_decided",
     ),
     ("kill_is_a_detection", lambda ec: (True, ""), "pytest exit 3 was accepted as a detection"),
+    # ⚠️ The SECOND half of each plant: the REASON going silent. These two stubs leave the boolean
+    # correct and empty the reason, so exactly ONE side of each `or` is true — which is what makes the
+    # `or` → `and` mutants observable. With both sides true (the stub above) `and` fires too and the
+    # check cannot tell the operators apart.
+    ("kill_is_a_detection", lambda ec: (False, ""), "pytest exit 3 was accepted as a detection"),
+    (
+        "refutation_corroborated",
+        lambda first, second: (False, ""),
+        "an exit-3 re-run corroborated a refutation, or stopped naming why",
+    ),
 ]
 
 
