@@ -781,7 +781,14 @@ def classify(entries, survivors, killed, generated=()):
     what a reaped worker, a partial run and an unreported shard all look like."""
     surv = {sv["key"]: sv for sv in survivors}
     kills = set(killed or ())
-    gen = set(generated) | set(surv) | kills
+    # JUST `generated`, and the two unions it used to carry are gone for two reasons. They were
+    # PROVABLY DEAD: a key in `surv` or in `kills` is routed by the branches below before the `k in
+    # gen` test is ever reached, so neither term can contribute a key that reaches it. And the key
+    # `diff_key` builds for this line contained the ` | ` separator that keys are JOINED with, so the
+    # survivor printer split it and rendered a mutant on this line as an unreadable no-op diff —
+    # residue `2026-09-29-survivor-printer-splits-a-key-on-its-own-separator`, met here by writing a
+    # line that walks into it. A line whose survivors cannot be read is a line nobody can drain.
+    gen = set(generated)
     out = {
         "excused": [],
         "real_gap": [],
@@ -2291,9 +2298,17 @@ def selftest() -> int:
         fail("  selftest FAIL: an absent mutant was REFUTED — absence is not a kill")
     if [x["key"] for x in _missing["not_decided"]] != ["a"]:
         fail(f"  selftest FAIL: an absent mutant must read not_decided, got {_missing}")
-    # and a kill mutmut calls a kill but pytest called an internal error is NOT a detection
-    if kill_is_a_detection(3)[0] or refutation_corroborated(1, 3)[0]:
-        fail("  selftest FAIL: pytest exit 3 was accepted as a detection")
+    # And a kill mutmut calls a kill but pytest called an internal error is NOT a detection. TWO
+    # separate checks, not one `or`: with a single condition, `or` → `and` never fires and no fault
+    # that breaks ONE half can show it. Each also pins the REASON, because the boolean alone is true
+    # of every non-detection — exit 4 and None are not detections either, so asserting only `not ok`
+    # let a mutant swap the exit code for another and change nothing observable.
+    _d3 = kill_is_a_detection(3)
+    if _d3[0] or "internal error in pytest means a kill" not in _d3[1]:
+        fail(f"  selftest FAIL: pytest exit 3 was accepted as a detection, or stopped naming why: {_d3}")
+    _c3 = refutation_corroborated(1, 3)
+    if _c3[0] or "internal error in pytest means a kill" not in _c3[1]:
+        fail(f"  selftest FAIL: an exit-3 re-run corroborated a refutation, or stopped naming why: {_c3}")
 
     # ── is_string_only: the CHANGED TOKEN, not the line's contents ───────────────────────────────
     # The old rule asked whether the added line CONTAINED a quote. Measured 2026-08-24: two identical

@@ -192,3 +192,15 @@ def test_an_uncorroborated_refutation_says_WHICH_half_failed():
     entry, and those are opposite responses."""
     assert "the first kill is not a detection" in md.refutation_corroborated(3, 1)[1]
     assert "isolated re-run did not corroborate" in md.refutation_corroborated(1, 36)[1]
+
+
+def test_an_UNRECORDED_exit_code_says_it_was_never_decided_not_merely_that_it_is_not_a_kill():
+    """`if exit_code is None` → `is not None` SURVIVED the boolean assertions above, because every
+    non-detection returns False and only the REASON differs. The reason is the whole value of the
+    `None` arm: "never decided in this run" tells a reader to re-run, while "not pytest's
+    test-failure exit" tells them to look at the mutant. Opposite responses, so the words matter."""
+    ok, why = md.kill_is_a_detection(None)
+    assert not ok
+    assert "never decided in this run" in why, why
+    # and the inverted guard would hand this sentence to a RECORDED code, which is the other half
+    assert "never decided" not in md.kill_is_a_detection(0)[1]
