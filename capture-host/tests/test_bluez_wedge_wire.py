@@ -493,8 +493,11 @@ def test_an_UNANSWERED_bluez_probe_is_said_as_such_not_reached_through_a_TypeErr
     monkeypatch.setattr(capture.bonding, "_btctl", silent_btctl)
     capture._STOP.clear()
     _stop_after(monkeypatch, 1)
-    capture.STATUS["devices"]["H10"] = {"connected": True, "address": "24:AC:AC:02:84:96"}
-    cfg = {"watchdog": {"enabled": True, "interval_sec": 60}, "devices": [_dev(name="H10")]}
+    capture.STATUS["devices"]["H10"] = {"connected": True, "address": "11:22:33:44:55:66"}
+    cfg = {
+        "watchdog": {"enabled": True, "interval_sec": 60},
+        "devices": [_dev(name="H10", address="11:22:33:44:55:66")],
+    }
     with caplog.at_level(logging.WARNING, logger=capture.log.name):
         _run(capture.adapter_watchdog("hci0", cfg))
     capture._STOP.clear()

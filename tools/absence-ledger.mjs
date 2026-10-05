@@ -231,6 +231,11 @@ export const SEEDS = [
     at: 'capture-host/telemetry.py:874',
     state: 'fixed',
     note: 'push() broadcasts the DECLARED rate (frame fs, else the stream fs, 0 = irregular, else None) instead of `or 1`; the 1 survives only as ring sizing. snapshot() reports None for an undeclared stream. monitor.html reads `d.fs ?? …` in both SSE handlers. Plants: test_push_publishes_a_DECLARED_irregular_stream_as_rate_0_never_1, test_push_publishes_NO_rate_for_an_unmetered_stream_and_still_sizes_its_ring (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/bonding.py:79',
+    state: 'fixed',
+    note: '_btctl returns None when bluetoothctl does not answer; is_bonded / trusted_flags / scan read it as unknown (no forced re-pair, no "BlueZ reports no bond" on no evidence) and the adapter watchdog says BlueZ did not answer instead of reaching it through a TypeError. Plants: test_bonding unanswered-info + test_an_UNANSWERED_bluez_probe_is_said_as_such_not_reached_through_a_TypeError (2026-10-04, Wren)'
   }
 ];
 
