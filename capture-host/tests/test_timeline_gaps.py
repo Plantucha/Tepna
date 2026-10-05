@@ -11,6 +11,7 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import nightqc
 import timeline  # noqa: E402
 
 HDR = "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;link_epoch;address\n"
@@ -568,3 +569,93 @@ def test_a_degenerate_window_is_widened_by_exactly_one_second(tmp_path):
     out = timeline.build(str(d), _DEV)
     assert out["t1"] - out["t0"] == 1.0, out["t1"] - out["t0"]
     assert out["t1"] > out["t0"]
+
+
+def _two_sessions(tmp_path, seam_at=None):
+    """Two ECG sessions whose OPENINGS are 20 s apart, each carrying 10 s of rows, optionally with a
+    daemon restart between them in `STARTS.csv`. Under the 3600 s gap rule the two merge into one
+    session; a daemon start between their openings splits them however small the gap."""
+    d = tmp_path / "2026-07-25"
+    d.mkdir(parents=True)
+    for start, hhmmss in ((0, "220000"), (20, "220020")):
+        rows = [f"2026-07-25T22:00:{start + i:02d}.000;{i}000000000;1" for i in range(10)]
+        (d / f"Polar_H10_02849638_20260725{hhmmss}_ECG.txt").write_text(
+            "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(rows) + "\n"
+        )
+    if seam_at is not None:
+        (d / "STARTS.csv").write_text(
+            "Phone timestamp;pid;git;dirty;adapter\n"
+            f"2026-07-25T22:00:{seam_at:02d}.000;400443;2cd12712;no;F4:CE:36:2E:CD:98\n"
+        )
+    return d
+
+
+def test_a_daemon_RESTART_between_two_sessions_splits_the_night(tmp_path):
+    """Kills three `build` mutants at once — `_seams = None`, `starts=None`, and the `starts=` argument
+    dropped. All three make the seam list empty, and `nightqc.merge_sessions` then merges the two runs
+    under the gap rule, so the night's window silently spans both.
+
+    A daemon restart means the two files belong to DIFFERENT runs however small the gap between them,
+    which is the whole reason `build` collects `daemon_starts` and hands them over.
+
+    ⚠️ The distinguishing input came from Codex (owner's standing rule, 2026-10-04) — a seam inside
+    `(session_start, next_file_start]`, which is `nightqc.py:1360`'s predicate — and was VERIFIED here
+    before being written: `merge_sessions` on those two files returns 2 sessions with `starts=[1015]`
+    and 1 with `starts=None`. The assertion below is on `build`'s OWN output, not on merge_sessions,
+    because that is where the mutants live."""
+    merged = timeline.build(str(_two_sessions(tmp_path / "a")), _DEV)
+    assert merged["t1"] - merged["t0"] == 29.0, "without a restart the two runs are one session"
+
+    split = timeline.build(str(_two_sessions(tmp_path / "b", seam_at=15)), _DEV)
+    assert split["t1"] - split["t0"] == 9.0, (
+        f"the restart must split the night; got a {split['t1'] - split['t0']} s window, which means the "
+        "seam was not consulted"
+    )
+    assert split["t0"] > merged["t0"], "the judged session must be the one AFTER the restart"
+
+
+def _day(root, date, hhmmss, rows=10, base_sec=0):
+    """One day's folder with a single ECG session opening at `hhmmss`."""
+    d = root / date
+    d.mkdir(parents=True, exist_ok=True)
+    hh, mm, ss = int(hhmmss[:2]), int(hhmmss[2:4]), int(hhmmss[4:])
+    lines = [f"{date}T{hh:02d}:{mm:02d}:{ss + i:02d}.000;{i}000000000;1" for i in range(rows)]
+    (d / f"Polar_H10_02849638_{date.replace('-', '')}{hhmmss}_ECG.txt").write_text(
+        "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(lines) + "\n"
+    )
+    return d
+
+
+def test_a_session_opening_EXACTLY_at_midnight_pools_the_previous_day(tmp_path):
+    """Kills `0 <= earliest - midnight` → `1 <=` and → `0 <`.
+
+    The pooling gate asks whether this folder's earliest session began just after midnight, because
+    that is the tail of a session the previous day's folder holds the head of. A session opening at
+    exactly 00:00:00 is the boundary case, and both mutants exclude it — so the pre-midnight half of
+    a cross-midnight night silently disappears from the timeline, which is the shape that reported a
+    full night as a short one."""
+    _day(tmp_path, "2026-07-24", "230000")  # yesterday's half
+    tonight = _day(tmp_path, "2026-07-25", "000000")  # opens AT midnight
+    out = timeline.build(str(tonight), _DEV)
+    assert out["t0"] < out["t1"]
+    # pooling pulls yesterday's 23:00 session in, so the window starts the previous DAY
+    import datetime as _dt
+
+    assert _dt.datetime.fromtimestamp(out["t0"], _dt.UTC).day == 24, (
+        f"the previous day was not pooled; window starts {_dt.datetime.fromtimestamp(out['t0'], _dt.UTC)}"
+    )
+
+
+def test_a_session_a_FULL_GAP_after_midnight_does_NOT_pool(tmp_path):
+    """Kills `< nightqc._SESSION_GAP_SEC` → `<=`. At exactly the gap the session is NOT the tail of
+    anything — that is what the gap means — and pooling yesterday there would merge two separate
+    nights into one window."""
+    assert nightqc._SESSION_GAP_SEC == 3600.0
+    _day(tmp_path, "2026-07-24", "230000")
+    tonight = _day(tmp_path, "2026-07-25", "010000")  # exactly 3600 s after midnight
+    out = timeline.build(str(tonight), _DEV)
+    import datetime as _dt
+
+    assert _dt.datetime.fromtimestamp(out["t0"], _dt.UTC).day == 25, (
+        "a session a full gap after midnight pooled the previous day anyway"
+    )
