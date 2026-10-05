@@ -4064,7 +4064,13 @@ async def run_polar(dev: dict, root: str):
                             # publish is what let a stale `True` survive ten hours of desk streaming.
                             _publish_worn(_worn, _why, _votes)
                     # Live push — RAW, per-stream shape (no on-box DSP):
-                    key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
+                    # ∅ The NEGOTIATED rate or None — never the vendor default (ABSENCE-SURVEY dd0aa7a41642; ruled
+                    # 2026-10-04 under #3268's declared-rate contract). `or pmd.SAMPLE_HZ` pushed a rate this
+                    # stream never agreed to (a NO_ACK-kept stream, one still owned by a dead subscriber) as if
+                    # measured — the very default the registration above refuses ("RATE UNKNOWN UNTIL
+                    # NEGOTIATED — 0"). With None the bus publishes what was DECLARED for the stream: 0 until
+                    # negotiation, the agreed rate after, and nothing when the stream was never registered.
+                    key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas)
                     # The frame's LAST sample on the DEVICE's own counter. `effFs` is measured off this
                     # rather than off arrival times (DEVICE-RATE-TRUTH §6.3): BLE hands several frames
                     # over in one connection event, so their arrival times collapse together and an
@@ -6106,6 +6112,8 @@ async def run_oxyii(dev: dict, root: str):
                         # unjournaled for 6 h on 2026-08-24 (docked-charging: connected, contact=0).
                         if live.get("worn"):
                             _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.LIVE, "worn — frames flowing")
+                        elif live.get("worn") is None:
+                            pass  # probe unplugged / fault: wear UNKNOWN, so the link axis makes no flip on it
                         else:
                             _oxy_emit(
                                 _oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.IDLE_UNWORN, "ring reports not-worn"
@@ -6167,7 +6175,13 @@ async def run_oxyii(dev: dict, root: str):
                                 motion=live["motion"],
                                 battery=live["batt"],
                                 charging=bool(live.get("batt_state")),
-                                last_error=None if live["worn"] else "no finger contact",
+                                last_error=None
+                                if live["worn"]
+                                else (
+                                    "no finger contact"
+                                    if live["worn"] is False
+                                    else f"ring probe reports a fault (contact={live.get('contact')}) — wear unknown"
+                                ),
                             )
                             _power_observe(name, worn=live["worn"], battery=live["batt"])
 

@@ -75,15 +75,16 @@ def detector_age_s(now_ms, detector_host_ms):
     ⚠️ COMPUTED SERVER-SIDE, AT SERVE TIME, ON PURPOSE. `detector_host_ms` is a BOX-local stamp; a
     browser aging it against its own clock subtracts two different clocks and prints the difference as
     a duration. Both operands here come from the same host clock, so the subtraction means something.
-    A negative age (a clock step between publish and serve) is reported as 0 rather than as a reading
-    from the future."""
+    A NEGATIVE age (a clock step between publish and serve) is None, not 0 (ABSENCE-SURVEY 3326a41788d9): 0
+    made a reading the host clock could no longer date read as published THIS instant, so the page showed
+    it as fresh. Its age is unknown, and `live_view` then reports the state as unknown."""
     if detector_host_ms is None or now_ms is None:
         return None
     try:
         age = (float(now_ms) - float(detector_host_ms)) / 1000.0
     except (TypeError, ValueError):
         return None
-    return max(0.0, age)
+    return age if age >= 0 else None
 
 
 def live_view(cpap, now_ms, poll_interval_s: float = 30.0):

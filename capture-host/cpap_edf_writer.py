@@ -84,6 +84,7 @@ class EdfSink:
         self._part = None  # the .part path once the start is known
         self._final = None  # the final path
         self._flushed_records = 0  # whole records already written to .part
+        self.unpaired_batches = 0  # batches carrying one channel only, skipped to keep flow/pressure aligned
         self._interval_checked = False  # §2 — observed-interval validated once, on the first batch
         self._closed = False
 
@@ -94,9 +95,14 @@ class EdfSink:
 
     def on_batch(self, batch):
         """One StreamData batch: set the start from the DEVICE clock on the first, then accumulate the
-        flow and pressure samples. A batch missing a channel contributes nothing for it (the builder
-        zero-pads to whole records), so a partial batch never shifts the two channels out of lockstep —
-        they are padded to equal length only at build time."""
+        flow and pressure samples.
+
+        ∅ A BATCH CARRYING ONLY ONE OF THE TWO CHANNELS IS SKIPPED FOR BOTH (ABSENCE-SURVEY 47172a6147cd).
+        This docstring used to say a partial batch "never shifts the two channels out of lockstep" because
+        they are padded at build time — but padding at the END cannot undo a shift in the MIDDLE: once flow
+        ran ahead by one batch, every later pressure sample was paired with a flow sample from another
+        instant. Keeping the pair aligned costs the lone channel's samples for that batch; they are counted
+        in `unpaired_batches` and logged, so the loss is visible rather than silent misalignment."""
         if self._start is None:
             self._set_start(batch.get("start_time"))
         if not self._interval_checked:
@@ -111,8 +117,19 @@ class EdfSink:
                         _EXPECTED_INTERVAL_MS,
                     )
         chans = batch.get("channels") or {}
-        self._flow.extend(self._flow_to_lps(v) for v in (chans.get(FLOW_ID) or []))
-        self._press.extend(chans.get(PRESS_ID) or [])
+        flow, press = chans.get(FLOW_ID) or [], chans.get(PRESS_ID) or []
+        if bool(flow) != bool(press):
+            self.unpaired_batches += 1
+            _log.warning(
+                "CPAP EDF sink: a batch carried %s but not %s — skipped for both so the channels stay aligned "
+                "(%d unpaired batch(es) so far)",
+                "flow" if flow else "pressure",
+                "pressure" if flow else "flow",
+                self.unpaired_batches,
+            )
+            return
+        self._flow.extend(self._flow_to_lps(v) for v in flow)
+        self._press.extend(press)
         self._flush()
 
     def close(self):

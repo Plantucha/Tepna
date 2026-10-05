@@ -134,6 +134,18 @@
       "key": "- return calendar.timegm((y, mo, d, hh, mm, ss, 0, 0, 0)) * 1000.0 | + return calendar.timegm((y, mo, d, hh, mm, ss, 0, 0, 1)) * 1000.0",
       "probe": "Swept tm_wday/tm_yday/tm_isdst over {0,1,6,-1,99} x {0,1,366,-1} x {0,1,-1} across five dates (2026-08-23, 2000-02-29 leap, 1970-01-01 epoch, 2038-01-19, 2026-12-31) — 300 tuples, 0 differed from the (…,0,0,0) reference. Run empirically 2026-08-26.",
       "why": "`calendar.timegm` reads ONLY tm_year..tm_sec (the first six struct_time fields); tm_wday, tm_yday and tm_isdst are ignored by construction — unlike `time.mktime`, which consults tm_isdst. So mutating any of the three trailing zeros cannot change the result for any input. This entry covers the tm_isdst variant; the same 300-tuple probe covers all three."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._start_iso = None # the verbatim device stamp, kept for provenance | + self._start_iso = \"\" # the verbatim device stamp, kept for provenance",
+      "probe": "grep of the whole capture-host tree: `_start_iso` is assigned here and in _set_start and READ NOWHERE (2026-10-04)",
+      "why": "a write-only field: no code reads _start_iso, so its initial value cannot reach any output."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._part = None # the .part path once the start is known | + self._part = \"\" # the .part path once the start is known",
+      "probe": "every read of `self._part` (close, _flush) is reached only after _set_start has assigned it the .part path; close() returns early while _start is None (read 2026-10-04)",
+      "why": "the initial value is overwritten before any read: close() returns before touching _part while no start is set, and _flush runs only from on_batch after the start is set."
     }
   ],
   "cpap_record.py": [
@@ -5543,6 +5555,34 @@
       "key": "- \"low\": bool(min_free_gb > 0 and free_gb < min_free_gb), | + \"low\": bool(min_free_gb >= 0 and free_gb < min_free_gb),",
       "probe": "a 6 x 6 grid of free bytes (0, 1 MiB, 1 GiB, 5 GiB, 1 TiB, 1 B) by floor (0.0, 0.0001, 0.5, 1.0, 5.0, -1.0) through original and mutant — 0 of 36 reports differ (Wren, 2026-10-04)",
       "why": "the two differ only at min_free_gb == 0, where the second conjunct is free_gb < 0, and free bytes from shutil.disk_usage are never negative."
+    }
+  ],
+  "cpap_live.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if detector_host_ms is None or now_ms is None: | + if detector_host_ms is None and now_ms is None:",
+      "probe": "a 10 x 10 grid (None, 0, 1, 1000, 100000, -5, 1.5, 'nope', '100', nan) through original and mutant — 0 of 100 differ (Wren, 2026-10-04)",
+      "why": "when only ONE operand is None the mutant falls through to float(None), which raises TypeError and is caught by the except below, returning the same None."
+    }
+  ],
+  "o2ring.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- size = struct.unpack_from(\"<I\", st[\"payload\"], 0)[0] if len(st[\"payload\"]) >= 4 else None | + size = struct.unpack_from(\"<I\", st[\"payload\"], )[0] if len(st[\"payload\"]) >= 4 else None",
+      "probe": "224 scripted pulls through the ORIGINAL and the MUTATED module (each loaded from its own copy): FILE_START sizes None/0/1/3/4/6/8/48 x 7 chunk patterns (none, 1 byte, 3, 3+3, 10, five 1-byte, an empty chunk) x max_bytes 2/4/6/1 MiB, on a device that RAISES on a read past its script; return value, exception and unread replies compared — 0 differ (Wren, 2026-10-04). The same battery REFUTED the sibling `if (size) or True` claim (9 of 224 differ), which is now a test.",
+      "why": "struct.unpack_from's offset defaults to 0."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- while offset < (size or max_bytes) and offset < max_bytes: | + while offset <= (size or max_bytes) and offset < max_bytes:",
+      "probe": "224 scripted pulls through the ORIGINAL and the MUTATED module (each loaded from its own copy): FILE_START sizes None/0/1/3/4/6/8/48 x 7 chunk patterns (none, 1 byte, 3, 3+3, 10, five 1-byte, an empty chunk) x max_bytes 2/4/6/1 MiB, on a device that RAISES on a read past its script; return value, exception and unread replies compared — 0 differ (Wren, 2026-10-04). The same battery REFUTED the sibling `if (size) or True` claim (9 of 224 differ), which is now a test.",
+      "why": "with a size, the inner `offset >= size` break leaves the loop before offset can equal it at the head; without one, the second conjunct `offset < max_bytes` is the same bound."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if size and offset >= size: | + if size and offset > size:",
+      "probe": "224 scripted pulls through the ORIGINAL and the MUTATED module (each loaded from its own copy): FILE_START sizes None/0/1/3/4/6/8/48 x 7 chunk patterns (none, 1 byte, 3, 3+3, 10, five 1-byte, an empty chunk) x max_bytes 2/4/6/1 MiB, on a device that RAISES on a read past its script; return value, exception and unread replies compared — 0 differ (Wren, 2026-10-04). The same battery REFUTED the sibling `if (size) or True` claim (9 of 224 differ), which is now a test.",
+      "why": "when offset == size the mutant skips the break, but the loop condition `offset < size` then ends the loop with no further read."
     }
   ]
 }
