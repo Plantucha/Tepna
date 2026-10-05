@@ -46,6 +46,19 @@ def _fast_settle(monkeypatch):
     monkeypatch.setattr(psv, "SETTLE_SEC", 0.001)
     monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.01)
     monkeypatch.setattr(psv, "CP_PACE_S", 0.0)
+    # NO TEST MAY WAIT WITHOUT A BOUND (the same guard as test_probe_opcode_sweeps.py). Every real wait passes a
+    # number; a `None` timeout can only come from a defect or a mutant that drops it, and against a fake that
+    # never answers it waits FOREVER — recorded by the mutation gate as UNDECIDED, never as a kill.
+    _real_wait_for = asyncio.wait_for
+
+    async def _bounded_wait_for(aw, timeout):
+        if timeout is None:
+            if hasattr(aw, "close"):
+                aw.close()
+            raise AssertionError("an unbounded wait: wait_for(..., timeout=None)")
+        return await _real_wait_for(aw, timeout)
+
+    monkeypatch.setattr(psv.asyncio, "wait_for", _bounded_wait_for)
 
 
 # ── a Verity that keeps state ───────────────────────────────────────────────────────────────────────
