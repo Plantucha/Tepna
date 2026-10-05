@@ -747,3 +747,29 @@ def test_ZERO_buckets_reports_a_bucket_sec_of_ZERO_instead_of_dividing_by_it(tmp
     out = timeline.build(str(_night(tmp_path)), _DEV, buckets=0)
     assert out["buckets"] == 0 and out["t1"] > out["t0"], out  # a real window, so the dict is reached
     assert out["bucket_sec"] == 0, out["bucket_sec"]  # not 1, and not a ZeroDivisionError
+
+
+def test_a_DECLARED_writer_offset_makes_the_frame_ABSOLUTE_not_floating(tmp_path):
+    """Kills `frame="floating" if (_offset is None) or True else "absolute"`, which forces the floating
+    arm for every night. `frame` is how a reader knows whether `t0`/`t1` are instants or floating civil
+    values (§🔒), and a night whose offset IS known being published as floating is the §∅ failure in
+    reverse: a value that WAS measured reported as absent. `test_the_writer_offset_keeps_its_own_fields`
+    covers the floating arm; nothing reached this one, because every fixture let the offset be recovered
+    and the recovery floor is 3 voters.
+
+    ⚠️ Only the FRAME is asserted here, deliberately. `merge_sessions` in an absolute frame takes a
+    file's end from its mtime, and a fixture's files are written seconds ago — so `t1` on a freshly
+    created July night is the CURRENT clock, and any window assertion here would be a clock-dependent
+    one. The mtime is pinned below so the fixture does not quietly depend on when the suite runs; it was
+    measured as the cause (session end 1791… with mtime now, 1785… with mtime pinned), not guessed."""
+    d = _night(tmp_path)
+    for f in os.listdir(str(d)):
+        os.utime(os.path.join(str(d), f), (1785016911.0, 1785016911.0))
+
+    declared = {"offset_sec": 7200.0, "voters": 3, "reason": "declared by the caller"}
+    wo = timeline.build(str(d), _DEV, writer_offset=declared)["writer_offset"]
+    assert wo["frame"] == "absolute", f"a known offset must not publish as floating: {wo}"
+    assert wo["offset_sec"] == 7200.0 and wo["voters"] == 3, wo  # the caller's own fields survive
+
+    recovered = timeline.build(str(d), _DEV)["writer_offset"]
+    assert recovered["frame"] == "floating", recovered  # and the other arm still works
