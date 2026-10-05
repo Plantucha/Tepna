@@ -645,6 +645,12 @@
    "source": "headers \"taken from the real PSL corpus\"; no data",
    "sha256": null
   },
+  "test_writers_resume_edges.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "stamps and bytes built in the test (resume-edge files of 0-5 bytes, scripted HR/ECG rows); no provenance claim in the file",
+   "sha256": null
+  },
   "test_writers_sidecars.py": {
    "class": "captured",
    "kind": "device-address",
