@@ -5,6 +5,7 @@ a synthetic night laid out exactly as the box writes one (checked against 2026-0
 `…SEAMS.txt` / `…RUNS.txt` sidecars, `PMDNEG.csv`, the ring's `RTCLOG.csv` and SpO₂ `.meta.json`, and the
 loss audit's `wear` + per-gap `gaps`. A 2 Hz primary stream keeps the completeness arithmetic exact."""
 
+import os
 import datetime as dt
 import json
 
@@ -3479,3 +3480,694 @@ def test_a_NIGHT_WITH_NO_WAVEFORM_AT_ALL_carries_the_STATUS_and_the_reason(tmp_p
         "status": "UNKNOWN",
         "reason": "no waveform file this night, so no sidecar could be checked",
     }
+
+
+# ── THE RECORDING IS THE SCOPE (NIGHT-IS-THE-RECORDING-2026-10-05) ──────────────────────────────────
+
+
+def _sess(d, stamp, stream="PPG", model="VeritySense", rows=3):
+    """A session's primary file, named as the writer names it: prefix, serial, 14-digit START stamp."""
+    pref = {"VeritySense": "Polar_VeritySense_0C301E3F", "H10": "Polar_H10_02849638"}[model]
+    p = d / f"{pref}_{stamp}_{stream}.txt"
+    p.write_text("Phone timestamp;x\n" + "".join(f"2026-10-04T00:00:0{i};1\n" for i in range(rows)))
+    (d / f"{pref}_{stamp}_{stream}RUNS.txt").write_text("# stream=ppg rule=stuck min_run=30\n")
+    return p
+
+
+def test_THE_BAND_A_FOLDER_NAMES_COMES_FROM_NIGHTQC_not_a_second_copy(tmp_path):
+    """ONE CONVENTION (owner, 2026-10-05). The band is `nightqc.night_band`'s answer, asked about the
+    folder's own date — not a restatement of its edges here. If `_NIGHT_BEGIN_H` moves again, this moves
+    with it, which is the whole point of the ruling."""
+    import nightqc
+
+    band = si.band_of(str(tmp_path / "2026-10-04"))
+    probe = dt.datetime(2026, 10, 4, 23, 0).timestamp()
+    assert band == nightqc.night_band(probe), "the single implementation, not a copy"
+    assert round(band[1] - band[0]) == (24 - nightqc._NIGHT_BEGIN_H + nightqc._NIGHT_END_H) * 3600
+    assert si.band_of(str(tmp_path / "not-a-date")) is None
+
+
+def test_THE_SCOPE_REACHES_FORWARD_to_the_mornings_folder(tmp_path):
+    """A recording is judged in its FIRST session's folder, so the scope reaches to the NEXT day — the
+    mirror image of `nightqc._prev_day_dir`, which is called from the folder holding the morning."""
+    (tmp_path / "2026-10-04").mkdir()
+    (tmp_path / "2026-10-05").mkdir()
+    sc = si.recording_scope(str(tmp_path / "2026-10-04"))
+    assert sc["ok"] is True
+    assert sc["judged_dir"] == "2026-10-04"
+    assert sc["searched_dirs"] == ["2026-10-04", "2026-10-05"], "forward, not backward"
+    assert len(sc["searched_dirs"]) <= si.SCOPE_MAX_DIRS
+
+
+def test_A_SCOPE_WITH_NO_NEXT_FOLDER_IS_ONE_FOLDER_and_still_ok(tmp_path):
+    """61 of the mirror's 111 night recordings live in one folder. A missing next day is the ordinary
+    case, not a failure."""
+    (tmp_path / "2026-10-04").mkdir()
+    sc = si.recording_scope(str(tmp_path / "2026-10-04"))
+    assert sc["ok"] is True and sc["searched_dirs"] == ["2026-10-04"]
+
+
+def test_A_FOLDER_THAT_IS_NOT_A_DATE_NAMES_NO_BAND_and_is_UNKNOWN_not_judged(tmp_path):
+    """`captures/` also holds `stored/` and hundreds of session-id subdirectories. A judgement asked
+    about one of those has no band to clip to, and says so rather than inventing one."""
+    (tmp_path / "stored").mkdir()
+    sc = si.recording_scope(str(tmp_path / "stored"))
+    assert sc["ok"] is False
+    assert "names no night band" in sc["reason"]
+    assert sc["band"] is None
+
+
+def test_THE_TWO_FOLDER_BOUND_IS_A_TRIPWIRE_THAT_MUST_NEVER_FIRE():
+    """🔴 STRUCTURAL, AND ASSERTED BECAUSE A BOUND NOBODY CHECKS IS A BOUND NOBODY KEEPS. A band runs
+    18:00 -> 10:00, so it touches exactly two calendar dates, so a band-clipped recording's sessions can
+    only start in those two. Measured over the vigil mirror: 111 night recordings — 61 in one folder, 50
+    in two, ZERO in three. The branch is kept so that if the premise ever changes the night goes UNKNOWN
+    with its reason instead of being judged over a scope silently cut short."""
+    assert si.SCOPE_MAX_DIRS == 2
+    import nightqc
+
+    width_h = 24 - nightqc._NIGHT_BEGIN_H + nightqc._NIGHT_END_H
+    assert width_h <= 24, "a band wider than a day could touch three dates and break the bound"
+    assert width_h / 24 < 2, "and the bound is two folders, so the band must stay inside two dates"
+
+
+def test_A_SESSION_IS_ATTRIBUTED_BY_ITS_START_and_never_by_the_device_serial(tmp_path):
+    """MEMBERSHIP, via `writers.file_stamp`. Its docstring records why a regex here would be wrong
+    (audit F5): an unanchored 14-digit search takes the FIRST run in the name, which on
+    `Polar_H10_20250101000000_20260725225058_ECG.txt` is the SERIAL — and it parses cleanly, so the file
+    is silently keyed to a session eighteen months away. Two callers already shipped that bug."""
+    band = si.band_of(str(tmp_path / "2026-10-04"))
+    assert si.in_band("Polar_H10_20250101000000_20261004220000_ECG.txt", band) is True
+    assert si.in_band("Polar_H10_20250101000000_20261004120000_ECG.txt", band) is False
+    assert si.in_band("no-stamp-at-all.txt", band) is True, "a file with no start is not ours to exclude"
+
+
+def test_THE_19_08_SPLIT_AND_THE_04_17_MORNING_LAND_IN_ONE_RECORDING(tmp_path):
+    """🔴 #3290's measured case. On 2026-10-04 the Verity donned at 19:08 and banded to 10-03 while the
+    ring (22:00) and the H10 (22:02) banded to 10-04 — one recording split at the band layer. And the
+    night's morning half (to 04:17) is filed in the NEXT folder. All of it is one recording here."""
+    band = si.band_of(str(tmp_path / "2026-10-04"))
+    for stamp in ("20261004190825", "20261004220000", "20261004220200", "20261005041700"):
+        assert si.in_band(f"Polar_H10_02849638_{stamp}_ECG.txt", band) is True, stamp
+    # and the daytime session of the same folder is NOT part of it
+    assert si.in_band("Polar_VeritySense_0C301E3F_20261004095250_PPG.txt", band) is False
+
+
+def test_PRIMARIES_ARE_POOLED_ACROSS_THE_RECORDING_and_filtered_by_band(tmp_path):
+    """The whole scope change in one assertion: the evening half in the judged folder, the morning half
+    in the next, a daytime session in each — and `stream_files` returns exactly the recording.
+
+    Measured equivalent on real data: judging `2026-10-03` on the vigil mirror finds 0 primaries on
+    `origin/main` (the night's sessions are filed in `2026-10-04`) and the actual cross-midnight
+    recording here. The folder is not the recording in EITHER direction."""
+    d4 = tmp_path / "2026-10-04"
+    d5 = tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    _sess(d4, "20261004220000")  # evening: in
+    _sess(d5, "20261005041700")  # morning:  in
+    _sess(d4, "20261004095250")  # daytime before the band opens: out
+    _sess(d5, "20261005143000")  # next afternoon, past the band's end: out
+    got = sorted(os.path.basename(p) for p in si.stream_files(str(d4), "VeritySense", "PPG"))
+    assert got == [
+        "Polar_VeritySense_0C301E3F_20261004220000_PPG.txt",
+        "Polar_VeritySense_0C301E3F_20261005041700_PPG.txt",
+    ], got
+
+
+def test_THE_WORN_INTERVAL_IS_TRUNCATED_AT_THE_BAND_EDGES(tmp_path):
+    """🔴 THE SECOND MEANING OF "CLIPPED", and the one a first pass missed. `completeness` takes its
+    denominator from `rate x (end - start)`, so the worn interval IS the denominator. Membership decided
+    WHICH files; truncation decides HOW LONG. A first clipped run that used membership alone reported a
+    night span of 32.95 h — impossible inside a 16 h band, and the 46.25 % over-wide denominator
+    reappearing one layer in. 9 of the mirror's 111 night recordings have a raw extent leaving their band."""
+    nd = str(tmp_path / "2026-10-04")
+    (tmp_path / "2026-10-04").mkdir()
+    lo, hi = (dt.datetime.fromtimestamp(t) for t in si.band_of(nd))
+    # a session that starts inside the band and runs eight hours past its end
+    s, e, cut = si._truncate_to_band(nd, lo + dt.timedelta(hours=2), hi + dt.timedelta(hours=8))
+    assert cut is True
+    assert s == lo + dt.timedelta(hours=2) and e == hi, "the end is clipped, the start is untouched"
+    assert (e - s).total_seconds() <= (hi - lo).total_seconds()
+    # one wholly inside is returned unchanged and not reported as truncated
+    s2, e2, cut2 = si._truncate_to_band(nd, lo + dt.timedelta(hours=1), lo + dt.timedelta(hours=9))
+    assert cut2 is False and s2 == lo + dt.timedelta(hours=1)
+    # one wholly OUTSIDE its band is no part of this night at all
+    s3, e3, cut3 = si._truncate_to_band(nd, hi + dt.timedelta(hours=1), hi + dt.timedelta(hours=3))
+    assert (s3, e3) == (None, None) and cut3 is True
+
+
+def test_A_TRUNCATED_SPAN_NEVER_EXCEEDS_THE_BAND_WIDTH(tmp_path):
+    """The invariant behind the measurement: truncated spans came out p50 7.76 h, p95 14.75 h, max
+    exactly 16.00 h with none over. Asserted rather than trusted."""
+    nd = str(tmp_path / "2026-10-04")
+    (tmp_path / "2026-10-04").mkdir()
+    band = si.band_of(nd)
+    width = band[1] - band[0]
+    lo = dt.datetime.fromtimestamp(band[0])
+    for off_start, off_end in ((-5, 30), (0, 16), (-1, 1), (3, 50)):
+        s, e, _c = si._truncate_to_band(nd, lo + dt.timedelta(hours=off_start), lo + dt.timedelta(hours=off_end))
+        if s is not None:
+            assert (e - s).total_seconds() <= width + 1e-6, (off_start, off_end)
+
+
+def test_THE_WEAR_END_IS_TAKEN_FROM_THE_MORNINGS_AUDIT_when_it_is_later(tmp_path):
+    """A recording spanning two folders has two `LOSS-AUDIT.json`, and the doff of a night that ended at
+    04:17 is recorded in the MORNING folder's. The judged folder's audit stays the base — it holds the
+    journal and the gap rows this night was audited against — and only `wear` is taken forward."""
+    d4 = tmp_path / "2026-10-04"
+    d5 = tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    dev = "Polar H10 02849638"
+    (d4 / si.LOSS_AUDIT_NAME).write_text(
+        json.dumps(
+            {
+                "journal": "ok",
+                "devices": {
+                    dev: {
+                        "wear": {"available": True, "worn_end": {"at": "2026-10-04T23:59:00", "reason": "doff"}},
+                        "gaps": [],
+                        "file": "a",
+                    }
+                },
+            }
+        )
+    )
+    (d5 / si.LOSS_AUDIT_NAME).write_text(
+        json.dumps(
+            {
+                "journal": "ok",
+                "devices": {
+                    dev: {
+                        "wear": {"available": True, "worn_end": {"at": "2026-10-05T04:17:00", "reason": "doff"}},
+                        "gaps": [{"x": 1}],
+                        "file": "b",
+                    }
+                },
+            }
+        )
+    )
+    pooled = si._pooled_audit(str(d4))
+    assert pooled["devices"][dev]["wear"]["worn_end"]["at"] == "2026-10-05T04:17:00", "the later doff wins"
+    assert pooled["devices"][dev]["wear_from"] == "2026-10-05", "and it says where it came from"
+    assert pooled["devices"][dev]["gaps"] == [], "gaps are NOT merged — they belong to one named file"
+    assert pooled["devices"][dev]["file"] == "a", "nor is the file they were measured against"
+
+
+def test_A_ONE_FOLDER_RECORDING_READS_ITS_OWN_AUDIT_UNCHANGED(tmp_path):
+    """The control: pooling must be a no-op when there is nothing to pool, byte for byte."""
+    d4 = tmp_path / "2026-10-04"
+    d4.mkdir()
+    payload = {"journal": "ok", "devices": {"H10": {"wear": {"available": True}, "gaps": [1], "file": "a"}}}
+    (d4 / si.LOSS_AUDIT_NAME).write_text(json.dumps(payload))
+    assert si._pooled_audit(str(d4)) == payload
+
+
+def test_NEXT_DAY_OF_A_NON_DATE_FOLDER_IS_NOTHING(tmp_path):
+    """`stored/` and the session-id subdirectories have no next day, because they have no date."""
+    assert si._next_day_dir(str(tmp_path / "stored")) is None
+    assert si._next_day_dir(str(tmp_path / "2026-10-04")).endswith("2026-10-05")
+    # and the month rolls, because `date` arithmetic does it and string arithmetic would not
+    assert si._next_day_dir(str(tmp_path / "2026-10-31")).endswith("2026-11-01")
+
+
+def test_A_MORNING_AUDIT_THAT_IS_UNREADABLE_OR_MALFORMED_LEAVES_THE_BASE_ALONE(tmp_path):
+    """The pooling must not be able to damage the judged folder's own audit. Three shapes, each of which
+    a real second folder can present: no audit at all, an audit that is not an object, and a device entry
+    that is not an object."""
+    d4 = tmp_path / "2026-10-04"
+    d5 = tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    base = {
+        "journal": "ok",
+        "devices": {"H10": {"wear": {"available": True, "worn_end": {"at": "2026-10-04T23:00:00"}}}},
+    }
+    (d4 / si.LOSS_AUDIT_NAME).write_text(json.dumps(base))
+
+    (d5 / si.LOSS_AUDIT_NAME).write_text("[1, 2, 3]")  # valid JSON, not an audit object
+    assert si._pooled_audit(str(d4)) == base
+
+    (d5 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"devices": {"H10": "not-an-object"}}))
+    assert si._pooled_audit(str(d4)) == base
+
+    (d5 / si.LOSS_AUDIT_NAME).write_text("{ not json at all")
+    assert si._pooled_audit(str(d4)) == base
+
+
+def test_AN_EARLIER_OR_ABSENT_MORNING_DOFF_DOES_NOT_REPLACE_A_LATER_ONE(tmp_path):
+    """Only a LATER doff wins. A second folder whose audit states an earlier end — or states none —
+    must not pull the recording's end backwards, which would shrink the denominator instead of widening
+    it and read as better completeness than the night earned."""
+    d4 = tmp_path / "2026-10-04"
+    d5 = tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    dev = "H10"
+    late = {"available": True, "worn_end": {"at": "2026-10-05T04:17:00", "reason": "doff"}}
+    (d4 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"journal": "ok", "devices": {dev: {"wear": late}}}))
+    (d5 / si.LOSS_AUDIT_NAME).write_text(
+        json.dumps({"devices": {dev: {"wear": {"available": True, "worn_end": {"at": "2026-10-05T01:00:00"}}}}})
+    )
+    assert si._pooled_audit(str(d4))["devices"][dev]["wear"] == late, "the earlier end loses"
+    assert "wear_from" not in si._pooled_audit(str(d4))["devices"][dev]
+
+    (d5 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"devices": {dev: {"gaps": []}}}))  # no wear at all
+    assert si._pooled_audit(str(d4))["devices"][dev]["wear"] == late
+
+    # a device the judged folder never saw is still ADOPTED from the morning: it was worn, in this band
+    (d5 / si.LOSS_AUDIT_NAME).write_text(
+        json.dumps(
+            {"devices": {"VeritySense": {"wear": {"available": True, "worn_end": {"at": "2026-10-05T04:00:00"}}}}}
+        )
+    )
+    pooled = si._pooled_audit(str(d4))
+    assert pooled["devices"]["VeritySense"]["wear_from"] == "2026-10-05"
+
+
+def test_THE_SCOPE_COUNTS_THE_FILES_IT_ADMITS_per_folder_and_in_total(tmp_path):
+    """🔴 `data_files` SHIPPED AS A LITERAL 0 and three mutants of it survived the gate — nothing read it
+    because there was nothing to read. A field fixed at zero is a count nobody took, which is the §∅ bug
+    this file exists to refuse. It is counted now, and the per-folder split is what makes a cross-folder
+    recording legible: `searched_dirs` says where the judgement looked, this says what it found there."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    (d4 / "Polar_H10_02849638_20261004220000_ECG.txt").write_text("x")
+    (d4 / "Polar_H10_02849638_20261004095250_ECG.txt").write_text("x")  # daytime: not admitted
+    (d5 / "Polar_H10_02849638_20261005041700_ECG.txt").write_text("x")
+    sc = si.recording_scope(str(d4))
+    assert sc["data_files"] == 2, sc
+    assert sc["data_files_per_dir"] == {"2026-10-04": 1, "2026-10-05": 1}
+    assert sc["data_files"] == sum(sc["data_files_per_dir"].values()), "the total IS the parts"
+    # An empty scope counts zero, and that zero was MEASURED — the distinction the literal destroyed.
+    # The judged folder is always in scope even when it holds nothing, so it appears with its own 0:
+    # "I looked here and found none" is a different statement from "I did not look", and the per-folder
+    # split is where the difference is visible.
+    empty = si.recording_scope(str(tmp_path / "2026-11-01"))
+    assert empty["data_files"] == 0
+    assert empty["data_files_per_dir"] == {"2026-11-01": 0}, "looked, found none — not absent from the map"
+
+
+def test_A_NON_DATE_FOLDER_SCOPE_IS_NOT_OK_and_carries_no_dirs(tmp_path):
+    """`ok: False` asserted on the branch itself: a scope that cannot be delimited must not read as
+    resolved, or `compose` judges the night over it."""
+    (tmp_path / "stored").mkdir()
+    sc = si.recording_scope(str(tmp_path / "stored"))
+    assert sc["ok"] is False and sc["band"] is None
+    assert sc["span"] is None and sc["daytime"] == []
+    assert sc["data_files"] == 0
+    assert "dirs" not in sc, "an unresolved scope offers no folders to read"
+    assert si._scope_dirs(str(tmp_path / "stored")) == [str(tmp_path / "stored")], "falls back to itself"
+
+
+def test_A_TRAILING_SLASH_NEVER_CHANGES_THE_SCOPE(tmp_path):
+    """`rstrip("/")` in four places, and `lstrip` would turn an absolute path into a relative one while
+    leaving the trailing slash — so `basename` returns "" and the scope names a folder called nothing.
+    The daemon joins paths from config and a config value ending in a separator is ordinary."""
+    (tmp_path / "2026-10-04").mkdir()
+    bare = si.recording_scope(str(tmp_path / "2026-10-04"))
+    slashed = si.recording_scope(str(tmp_path / "2026-10-04") + "/")
+    assert slashed["judged_dir"] == "2026-10-04" == bare["judged_dir"]
+    assert slashed["searched_dirs"] == bare["searched_dirs"]
+    assert si._scope_dirs(str(tmp_path / "2026-10-04") + "/") == si._scope_dirs(str(tmp_path / "2026-10-04"))
+    assert si._next_day_dir(str(tmp_path / "2026-10-04") + "/").endswith("2026-10-05")
+    assert si.band_of(str(tmp_path / "2026-10-04") + "/") == si.band_of(str(tmp_path / "2026-10-04"))
+
+
+def test_THE_BAND_IS_HALF_OPEN_at_both_edges(tmp_path):
+    """`band[0] <= t < band[1]`. The edges are where a session is assigned to one night or the next, so
+    both comparisons carry a whole night: 18:00:00 exactly opens this band, and 10:00:00 exactly belongs
+    to the next one, not to this."""
+    band = si.band_of(str(tmp_path / "2026-10-04"))
+    lo, hi = (dt.datetime.fromtimestamp(t) for t in band)
+    at = lambda d: f"Polar_H10_02849638_{d:%Y%m%d%H%M%S}_ECG.txt"
+    assert si.in_band(at(lo), band) is True, "18:00:00 exactly IS this night"
+    assert si.in_band(at(lo - dt.timedelta(seconds=1)), band) is False
+    assert si.in_band(at(hi), band) is False, "10:00:00 exactly is the NEXT night"
+    assert si.in_band(at(hi - dt.timedelta(seconds=1)), band) is True
+
+
+def test_THE_NEXT_DAY_FOLDER_IS_A_SIBLING_not_a_child(tmp_path):
+    """`os.path.dirname` then join: the next day sits BESIDE this folder under `captures/`, and a mutant
+    that drops the dirname would look for it inside the night itself."""
+    (tmp_path / "2026-10-04").mkdir()
+    nxt = si._next_day_dir(str(tmp_path / "2026-10-04"))
+    assert nxt == str(tmp_path / "2026-10-05")
+    assert os.path.dirname(nxt) == str(tmp_path), "a sibling of the judged folder"
+
+
+def test_TRUNCATION_NEEDS_BOTH_ENDS_and_reports_honestly_when_it_did_nothing(tmp_path):
+    """`band is None or start is None or end is None` — ALL THREE, because a half-open interval cannot
+    be clipped: with `and`, a start of None and a real end would fall through to `max(None, lo)`. And an
+    interval already inside its band reports `truncated=False`, which is what tells a reader the span is
+    the recording's own and not a clipped remnant."""
+    nd = str(tmp_path / "2026-10-04")
+    (tmp_path / "2026-10-04").mkdir()
+    lo = dt.datetime.fromtimestamp(si.band_of(nd)[0])
+    assert si._truncate_to_band(nd, None, lo + dt.timedelta(hours=2)) == (None, lo + dt.timedelta(hours=2), False)
+    assert si._truncate_to_band(nd, lo + dt.timedelta(hours=2), None) == (lo + dt.timedelta(hours=2), None, False)
+    assert si._truncate_to_band(str(tmp_path / "stored"), lo, lo) == (lo, lo, False), "no band, no truncation"
+    s, e, cut = si._truncate_to_band(nd, lo + dt.timedelta(hours=1), lo + dt.timedelta(hours=2))
+    assert cut is False, "untouched means untouched, and a reader relies on that"
+
+
+def test_AN_INTERVAL_THAT_ENDS_EXACTLY_WHERE_IT_STARTS_IS_NOT_THIS_NIGHT(tmp_path):
+    """`new_end <= new_start`, not `<`. A zero-length interval is no part of the night: it would make the
+    completeness denominator zero and the band would divide by it."""
+    nd = str(tmp_path / "2026-10-04")
+    (tmp_path / "2026-10-04").mkdir()
+    lo, hi = (dt.datetime.fromtimestamp(t) for t in si.band_of(nd))
+    assert si._truncate_to_band(nd, hi, hi + dt.timedelta(hours=1)) == (None, None, True), "clipped to zero"
+    assert si._truncate_to_band(nd, lo - dt.timedelta(hours=2), lo) == (None, None, True)
+
+
+def test_THE_BAND_PROBE_IS_INSIDE_THE_FOLDERS_OWN_NIGHT(tmp_path):
+    """`time(23, 0)` — the hour asked of `nightqc.night_band`. It has to be an hour that lies in the
+    folder's OWN band under any plausible lower edge, and the minutes must not drift it: 23:00 on date D
+    is inside `[D 18:00, D+1 10:00)` and would still be for any begin hour at or before 23:00."""
+    band = si.band_of(str(tmp_path / "2026-10-04"))
+    probe = dt.datetime(2026, 10, 4, 23, 0).timestamp()
+    assert band[0] <= probe < band[1], "the probe must fall inside the band it is asking about"
+    assert dt.datetime.fromtimestamp(band[0]).date() == dt.date(2026, 10, 4), "and anchor on THIS date"
+
+
+def test_POOLING_NEEDS_A_BASE_AND_A_SECOND_FOLDER_not_either(tmp_path):
+    """`base is None or len(dirs) < 2` — OR, not AND. With `and`, a judged folder whose own audit is
+    missing would fall through into the merge loop and `base.setdefault` on None would raise, losing the
+    night's verdict entirely to an audit that simply was not there yet."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    (d5 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"devices": {"H10": {"wear": {"available": True}}}}))
+    assert si._pooled_audit(str(d4)) is None, "no base audit: nothing to pool INTO, and no crash"
+    # and the mirror case: a base with no second folder is returned as it is
+    only = tmp_path / "2026-11-01"
+    only.mkdir()
+    payload = {"journal": "ok", "devices": {}}
+    (only / si.LOSS_AUDIT_NAME).write_text(json.dumps(payload))
+    assert si._pooled_audit(str(only)) == payload
+
+
+def test_ONE_UNUSABLE_DEVICE_ENTRY_DOES_NOT_ABANDON_THE_REST(tmp_path):
+    """`continue`, not `break`. A second folder's audit may carry one malformed device entry beside good
+    ones, and stopping at the first would silently drop every device after it — the morning doff of a
+    device listed later would vanish because an earlier one was unreadable."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    (d4 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"journal": "ok", "devices": {}}))
+    (d5 / si.LOSS_AUDIT_NAME).write_text(
+        json.dumps(
+            {
+                "devices": {
+                    "aaa-bad": "not-an-object",
+                    "zzz-good": {"wear": {"available": True, "worn_end": {"at": "2026-10-05T04:17:00"}}},
+                }
+            }
+        )
+    )
+    pooled = si._pooled_audit(str(d4))
+    assert "zzz-good" in pooled["devices"], "the entry AFTER the bad one still arrives"
+    assert pooled["devices"]["zzz-good"]["wear_from"] == "2026-10-05"
+
+
+def test_AN_EQUAL_DOFF_IS_NOT_A_LATER_ONE(tmp_path):
+    """`str(o_end) > str(b_end)`, strictly. Two folders stating the SAME end is the ordinary case for a
+    recording whose doff both audits saw; adopting it again would rewrite `wear` and stamp a `wear_from`
+    that claims the morning folder decided something it merely agreed with."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    same = {"available": True, "worn_end": {"at": "2026-10-05T04:17:00", "reason": "doff"}}
+    (d4 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"journal": "ok", "devices": {"H10": {"wear": dict(same)}}}))
+    (d5 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"devices": {"H10": {"wear": dict(same)}}}))
+    pooled = si._pooled_audit(str(d4))
+    assert "wear_from" not in pooled["devices"]["H10"], "agreement is not a later doff"
+
+
+def test_POOLING_WRITES_INTO_THE_DEVICES_MAP_it_was_given(tmp_path):
+    """`setdefault("devices", {})` — the default has to be a MAP. With None, adopting a device the judged
+    folder never listed would raise on the next `setdefault`, which is exactly the case pooling exists
+    for: a device that only appears in the morning half."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    (d4 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"journal": "ok"}))  # NO devices key at all
+    (d5 / si.LOSS_AUDIT_NAME).write_text(
+        json.dumps(
+            {"devices": {"VeritySense": {"wear": {"available": True, "worn_end": {"at": "2026-10-05T04:00:00"}}}}}
+        )
+    )
+    pooled = si._pooled_audit(str(d4))
+    assert pooled["devices"]["VeritySense"]["wear_from"] == "2026-10-05"
+
+
+def test_SEAM_AND_RTC_SIDECARS_ARE_POOLED_AND_BAND_FILTERED(tmp_path):
+    """The other two enumeration sites. A clock record in the morning half belongs to this recording; one
+    from the afternoon before it does not, and reading the folder alone gets both wrong at once."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    pref = "Polar_H10_02849638"
+    hdr = "Phone timestamp;event;rtc_offset_s\n"
+    (d4 / f"{pref}_20261004220000_RTCLOG.csv").write_text(hdr + "2026-10-04T22:00:01;read;0.4\n")
+    (d5 / f"{pref}_20261005041700_RTCLOG.csv").write_text(hdr + "2026-10-05T04:17:01;read;0.5\n")
+    (d4 / f"{pref}_20261004095250_RTCLOG.csv").write_text(hdr + "2026-10-04T09:52:51;read;9.9\n")
+    band = si.band_of(str(d4))
+    admitted = [
+        f
+        for d in si._scope_dirs(str(d4))
+        for f in sorted(os.listdir(d))
+        if f.endswith("_RTCLOG.csv") and si.in_band(os.path.join(d, f), band)
+    ]
+    assert admitted == [f"{pref}_20261004220000_RTCLOG.csv", f"{pref}_20261005041700_RTCLOG.csv"], admitted
+
+
+def test_CLOCKS_IGNORES_A_SIDECAR_FROM_OUTSIDE_THE_BAND(tmp_path):
+    """🔴 THE BAND FILTER ON THE CLOCK SIDECARS, which no existing test reached: the suite's other
+    `clocks` cases use a bare `tmp_path`, so `band_of` is None and nothing is filtered. In a real
+    date-named folder a seam sidecar from the AFTERNOON is not this night's clock evidence, and counting
+    it would let a daytime session's comparison vouch for a night that never had one."""
+    nd = tmp_path / "2026-09-20"
+    nd.mkdir()
+    # only an out-of-band sidecar (12:00, before the band opens): no clock evidence for this night
+    _seams(nd, examined=50, name="Polar_H10_02849638_20260920120000")
+    assert si.clocks(str(nd), "H10")["status"] == "UNKNOWN", "a daytime comparison is not this night's"
+    # and an in-band one decides it
+    _seams(nd, examined=50, name="Polar_H10_02849638_20260920230000")
+    assert si.clocks(str(nd), "H10")["status"] == "PASS"
+
+
+def test_CLOCKS_READS_THE_MORNING_HALFS_SIDECAR_TOO(tmp_path):
+    """The other direction, and the reason pooling exists here: a recording's clock comparison may have
+    been written after midnight, in the NEXT folder."""
+    d4 = tmp_path / "2026-09-20"
+    d5 = tmp_path / "2026-09-21"
+    d4.mkdir()
+    d5.mkdir()
+    _seams(d5, examined=50, name="Polar_H10_02849638_20260921040000")  # 04:00, in the band
+    assert si.clocks(str(d4), "H10")["status"] == "PASS", "the morning folder's sidecar is this night's"
+
+
+def test_AN_OPTIONAL_DEVICE_WITH_ONLY_OUT_OF_BAND_FILES_DID_NOT_CAPTURE(tmp_path):
+    """§3.2: an optional backup counts only on a night it captured. Its daytime files are not that night,
+    so a device that ran at noon and not at all overnight must not be expected of the night — it would
+    then be scored, and score UNKNOWN, against a night it never joined."""
+    nd = tmp_path / "2026-09-20"
+    nd.mkdir()
+    opt = [{"name": "Polar H10 02849638", "model": "H10", "optional": True}]
+    (nd / "Polar_H10_02849638_20260920120000_ECG.txt").write_text("x")  # noon only
+    assert si.expected_devices(str(nd), opt) == [], "a noon-only backup did not capture this night"
+    (nd / "Polar_H10_02849638_20260920230000_ECG.txt").write_text("x")  # and now it did
+    assert len(si.expected_devices(str(nd), opt)) == 1
+
+
+def test_AN_OPTIONAL_DEVICE_THAT_ONLY_RAN_AFTER_MIDNIGHT_DID_CAPTURE(tmp_path):
+    """The pooled half of the same rule: a backup brought in at 02:00 captured this night, and asking
+    the judged folder alone would witness it as absent."""
+    d4 = tmp_path / "2026-09-20"
+    d5 = tmp_path / "2026-09-21"
+    d4.mkdir()
+    d5.mkdir()
+    (d5 / "Polar_H10_02849638_20260921020000_ECG.txt").write_text("x")
+    opt = [{"name": "Polar H10 02849638", "model": "H10", "optional": True}]
+    assert len(si.expected_devices(str(d4), opt)) == 1
+
+
+def test_THE_FILE_COUNT_IS_KEYED_BY_PREFIX_AND_BY_NAME(tmp_path):
+    """`_scope_file_count` globs each model's PREFIX and keys the set on each file's BASENAME. Dropping
+    the prefix would count every file in the folder — verdicts, audits, logs — and keying on anything
+    constant would collapse them all to one."""
+    nd = tmp_path / "2026-10-04"
+    nd.mkdir()
+    (nd / "Polar_H10_02849638_20261004220000_ECG.txt").write_text("x")
+    (nd / "Polar_H10_02849638_20261004220000_ACC.txt").write_text("x")
+    (nd / "SOLID-VERDICT.json").write_text("{}")  # not a capture file
+    (nd / "watchdog.log").write_text("x")
+    band = si.band_of(str(nd))
+    assert si._scope_file_count(str(nd), band) == 2, "two capture files, and the verdict/log are not"
+
+
+def test_A_NON_DATE_FOLDER_WITH_A_TRAILING_SLASH_STILL_FALLS_BACK_TO_ITSELF(tmp_path):
+    """The `_scope_dirs` fallback runs only for an UNRESOLVED scope, so the trailing slash has to be
+    stripped there too — otherwise the one folder it does read is spelled differently from every other
+    path the judgement handles."""
+    (tmp_path / "stored").mkdir()
+    bare = str(tmp_path / "stored")
+    assert si._scope_dirs(bare + "/") == [bare], "the fallback is the folder, without its slash"
+    assert si._next_day_dir(bare + "/") is None
+
+
+def test_THE_TRIPWIRE_FIRES_when_the_bound_is_crossed(tmp_path):
+    """🔴 THE REFUSAL PATH, EXERCISED. Kestrel's ruling was "keep it, assert it" — but with the bound
+    hard-coded the branch was unreachable, and an unreachable branch is one the mutation gate can neither
+    kill nor excuse, so "asserted" would have been a word rather than a test. `max_dirs` is a parameter
+    for exactly this: lowering it to 1 against a real two-folder scope fires the refusal.
+
+    The bound stays 2 in production and is structural (a band touches two calendar dates), so nothing in
+    the corpus can trip it — 111 night recordings, 61 in one folder, 50 in two, 0 in three."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    ok = si.recording_scope(str(d4))
+    assert ok["ok"] is True and len(ok["searched_dirs"]) == 2, "two folders, inside the real bound"
+
+    tripped = si.recording_scope(str(d4), max_dirs=1)
+    assert tripped["ok"] is False, "crossing the bound REFUSES"
+    assert "would span 2 folders and the bound is 1" in tripped["reason"], tripped["reason"]
+    assert "refusing rather than judging a truncated scope" in tripped["reason"]
+    assert tripped["searched_dirs"] == ["2026-10-04", "2026-10-05"], "it still says what it saw"
+    assert tripped["judged_dir"] == "2026-10-04"
+    assert tripped["data_files"] == 0, "and claims no count it did not take"
+    assert tripped["band"] is not None, "the band was resolvable; the SCOPE was not"
+    assert "dirs" not in tripped, "a refused scope offers no folders to read"
+
+
+def test_THE_PRODUCTION_BOUND_IS_TWO(tmp_path):
+    """The default is the structural bound, so a caller that passes nothing gets it."""
+    assert si.SCOPE_MAX_DIRS == 2
+    d4, d5, d6 = tmp_path / "2026-10-04", tmp_path / "2026-10-05", tmp_path / "2026-10-06"
+    for d in (d4, d5, d6):
+        d.mkdir()
+    sc = si.recording_scope(str(d4))
+    assert sc["ok"] is True
+    assert sc["searched_dirs"] == ["2026-10-04", "2026-10-05"], "never reaches a third, even when it exists"
+
+
+def test_A_TRAILING_SLASH_GIVES_THE_SIBLING_not_a_child(tmp_path):
+    """`os.path.dirname(night_dir.rstrip("/"))` — the rstrip is what makes dirname step UP. With
+    `rstrip(None)` the slash stays, dirname returns the night itself, and the next day is looked for
+    INSIDE it: `/x/2026-10-04/2026-10-05`. Asserting `endswith` could not see that; the full path can."""
+    (tmp_path / "2026-10-04").mkdir()
+    assert si._next_day_dir(str(tmp_path / "2026-10-04") + "/") == str(tmp_path / "2026-10-05")
+    assert si._next_day_dir(str(tmp_path / "2026-10-04")) == str(tmp_path / "2026-10-05")
+
+
+def test_A_MALFORMED_DEVICE_ENTRY_BEFORE_A_GOOD_ONE_DOES_NOT_HIDE_IT(tmp_path):
+    """`continue` in `expected_devices`, not `break`: a config list may carry a stray non-dict entry, and
+    stopping there would silently drop every device configured after it — the night would then be judged
+    against fewer devices than it expected and could still PASS."""
+    nd = tmp_path / "2026-09-20"
+    nd.mkdir()
+    devices = ["not-a-dict", {"name": "Polar H10 02849638", "model": "H10"}]
+    got = si.expected_devices(str(nd), devices)
+    assert [d["name"] for d in got] == ["Polar H10 02849638"], got
+
+
+def test_A_STAMPLESS_FILE_IS_ADMITTED_rather_than_silently_dropped(tmp_path):
+    """`in_band` returns True for a file carrying no start stamp. It is not this function's call to
+    exclude one: a file with no start has no membership to judge, and dropping it here would remove it
+    from the night without any reason being recorded (§∅)."""
+    band = si.band_of(str(tmp_path / "2026-10-04"))
+    assert si.in_band("Polar_H10_02849638_ECG.txt", band) is True, "no stamp, no exclusion"
+    assert si.in_band("README.md", band) is True
+    assert si.in_band("Polar_H10_02849638_20261004120000_ECG.txt", band) is False, "a stamp IS judged"
+
+
+def test_CLOCKS_RTC_READS_ARE_BAND_FILTERED_AND_POOLED(tmp_path):
+    """🔴 THE RING'S RTC PATH, which the suite reached only through a bare `tmp_path` where `band_of` is
+    None and nothing filters. A daytime RTC read is not this night's clock comparison, and a read taken
+    after midnight is."""
+    d4, d5 = tmp_path / "2026-09-20", tmp_path / "2026-09-21"
+    d4.mkdir()
+    d5.mkdir()
+    pref = "Wellue_O2Ring-S_S8AW2100"
+    hdr = "Phone timestamp;event;rtc_offset_s\n"
+    # only a NOON log: no comparison belonging to this night
+    (d4 / f"{pref}_20260920120000_RTCLOG.csv").write_text(hdr + "t;read;0.4\n")
+    assert si.clocks(str(d4), "O2Ring-S")["status"] == "UNKNOWN", "a daytime read is not this night's"
+    assert "no device-vs-host clock comparison" in si.clocks(str(d4), "O2Ring-S")["reason"]
+    # a read in the MORNING half, in the next folder, is this night's and decides it
+    (d5 / f"{pref}_20260921040000_RTCLOG.csv").write_text(hdr + "t;read;0.5\n")
+    assert si.clocks(str(d4), "O2Ring-S")["status"] == "PASS", "the morning folder's read counts"
+
+
+def test_CLOCKS_RTC_NEEDS_A_READ_WITH_A_NUMBER(tmp_path):
+    """A `read` row whose offset field is empty measured nothing — `float("")` raises and the scan keeps
+    looking. The row's own columns are split on `;` after stripping only the NEWLINE: `rstrip(None)`
+    would eat a trailing field's spaces and `lstrip` would leave the newline on the last column, so a
+    one-column file would read as three."""
+    nd = tmp_path / "2026-09-20"
+    nd.mkdir()
+    pref = "Wellue_O2Ring-S_S8AW2100"
+    rtc = nd / f"{pref}_20260920230000_RTCLOG.csv"
+    hdr = "Phone timestamp;event;rtc_offset_s\n"
+    rtc.write_text(hdr + "t;push;\nt;read;\n")
+    assert si.clocks(str(nd), "O2Ring-S")["status"] == "UNKNOWN", "a read with no offset measured nothing"
+    rtc.write_text(hdr + "t;push;\nt;read;\nt;read;0.4\n")
+    assert si.clocks(str(nd), "O2Ring-S")["status"] == "PASS", "and a later real read still decides it"
+    # the last line without a trailing newline must parse the same as one with it
+    rtc.write_text(hdr + "t;read;0.4")
+    assert si.clocks(str(nd), "O2Ring-S")["status"] == "PASS"
+
+
+def test_CLOCKS_RTC_DECODES_A_NON_UTF8_BYTE_rather_than_dying(tmp_path):
+    """`encoding="utf-8", errors="replace"` on the RTC log, asserted in process. A capture sidecar is
+    device bytes; the default `errors=None` is STRICT, and a `UnicodeDecodeError` is not caught here, so
+    one bad byte would take the whole night's verdict instead of one unreadable line."""
+    nd = tmp_path / "2026-09-20"
+    nd.mkdir()
+    rtc = nd / "Wellue_O2Ring-S_S8AW2100_20260920230000_RTCLOG.csv"
+    with open(rtc, "wb") as fh:
+        fh.write(b"Phone timestamp;event;rtc_offset_s\nt;read;\xff\xfe\nt;read;0.4\n")
+    assert si.clocks(str(nd), "O2Ring-S")["status"] == "PASS", "an undecodable byte is a skipped row"
+
+
+def test_CLOCKS_RTC_DECLARES_ITS_ENCODING_on_the_call(tmp_path):
+    """And the call-site assertion, so the same sidecar reads identically on a C-locale box."""
+    import subprocess
+    import sys
+
+    nd = tmp_path / "2026-09-20"
+    nd.mkdir()
+    (nd / "Wellue_O2Ring-S_S8AW2100_20260920230000_RTCLOG.csv").write_text(
+        "Phone timestamp;event;rtc_offset_s\nt;read;0.4\n"
+    )
+    assert si.clocks(str(nd), "O2Ring-S")["status"] == "PASS"
+    src = f"import solid_night_inputs as si\nassert si.clocks({str(nd)!r}, 'O2Ring-S')['status'] == 'PASS'\n"
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.abspath(si.__file__)),
+    )
+    assert r.returncode == 0, r.stderr
+
+
+def test_THE_PRIMARY_STREAMS_EXTENSION_IS_NOT_EVERY_STREAMS(tmp_path):
+    """`ext = spec["ext"] if stream == spec["primary"] else ".txt"` — the condition carries real weight
+    on the ring, whose primary `SPO2` is a `.csv` while its waveforms are `.txt`. A mutant that makes the
+    condition always true would look for `*_PPG.csv`, find nothing, and the device would read as no-wear
+    or radio-down on a night it recorded perfectly."""
+    nd = tmp_path / "2026-09-20"
+    nd.mkdir()
+    pref = "Wellue_O2Ring-S_S8AW2100_20260920230000"
+    (nd / f"{pref}_SPO2.csv").write_text("x")  # the primary, a CSV
+    (nd / f"{pref}_PPG.txt").write_text("x")  # a waveform, a TXT
+    assert si.MODELS["O2Ring-S"]["ext"] == ".csv" and si.MODELS["O2Ring-S"]["primary"] == "SPO2"
+    prim = si.stream_files(str(nd), "O2Ring-S", "SPO2")
+    wave = si.stream_files(str(nd), "O2Ring-S", "PPG")
+    assert [os.path.basename(p) for p in prim] == [f"{pref}_SPO2.csv"], prim
+    assert [os.path.basename(p) for p in wave] == [f"{pref}_PPG.txt"], wave

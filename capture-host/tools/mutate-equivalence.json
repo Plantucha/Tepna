@@ -5101,30 +5101,6 @@
     },
     {
       "class": "no-distinguishing-input",
-      "key": "- with open(seams, encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(seams, encoding=None, errors=\"replace\") as fh:",
-      "probe": "tests/test_solid_night_inputs.py::test_both_sidecars_are_read_as_UTF8_whatever_the_boxs_locale_is (non-ASCII in each file, read under `LC_CTYPE=C` where a default-encoding read decodes as ASCII) and ::test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it (a raw \\xff\\xfe mid-file). Both PASS under every variant of the open: the outcome does not move.",
-      "why": "The lines this reader MATCHES are ASCII by format. `# final stream=\\S+ seams=(\\d+) examined=(\\d+)` and the RTC row's `p[1] == \"read\"` plus `float(p[2])` are made of a fixed vocabulary and digits, and `errors=\"replace\"` substitutes U+FFFD without changing the `;` structure or the anchored pattern — so a mangled stream name still matches `\\S+` and a mangled note column is never the one read. The decode therefore cannot alter the decision for any input this reader accepts. Kept explicit because the FILES may carry non-ASCII (an operator note, a renamed sensor) and a strict decode would raise inside the audit; that half IS observable and is pinned by the second probe above."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- with open(seams, encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(seams, errors=\"replace\") as fh:",
-      "probe": "tests/test_solid_night_inputs.py::test_both_sidecars_are_read_as_UTF8_whatever_the_boxs_locale_is (non-ASCII in each file, read under `LC_CTYPE=C` where a default-encoding read decodes as ASCII) and ::test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it (a raw \\xff\\xfe mid-file). Both PASS under every variant of the open: the outcome does not move.",
-      "why": "The lines this reader MATCHES are ASCII by format. `# final stream=\\S+ seams=(\\d+) examined=(\\d+)` and the RTC row's `p[1] == \"read\"` plus `float(p[2])` are made of a fixed vocabulary and digits, and `errors=\"replace\"` substitutes U+FFFD without changing the `;` structure or the anchored pattern — so a mangled stream name still matches `\\S+` and a mangled note column is never the one read. The decode therefore cannot alter the decision for any input this reader accepts. Kept explicit because the FILES may carry non-ASCII (an operator note, a renamed sensor) and a strict decode would raise inside the audit; that half IS observable and is pinned by the second probe above."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- with open(rtc, encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(rtc, encoding=None, errors=\"replace\") as fh:",
-      "probe": "tests/test_solid_night_inputs.py::test_both_sidecars_are_read_as_UTF8_whatever_the_boxs_locale_is (non-ASCII in each file, read under `LC_CTYPE=C` where a default-encoding read decodes as ASCII) and ::test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it (a raw \\xff\\xfe mid-file). Both PASS under every variant of the open: the outcome does not move.",
-      "why": "The lines this reader MATCHES are ASCII by format. `# final stream=\\S+ seams=(\\d+) examined=(\\d+)` and the RTC row's `p[1] == \"read\"` plus `float(p[2])` are made of a fixed vocabulary and digits, and `errors=\"replace\"` substitutes U+FFFD without changing the `;` structure or the anchored pattern — so a mangled stream name still matches `\\S+` and a mangled note column is never the one read. The decode therefore cannot alter the decision for any input this reader accepts. Kept explicit because the FILES may carry non-ASCII (an operator note, a renamed sensor) and a strict decode would raise inside the audit; that half IS observable and is pinned by the second probe above."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- with open(rtc, encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(rtc, errors=\"replace\") as fh:",
-      "probe": "tests/test_solid_night_inputs.py::test_both_sidecars_are_read_as_UTF8_whatever_the_boxs_locale_is (non-ASCII in each file, read under `LC_CTYPE=C` where a default-encoding read decodes as ASCII) and ::test_both_sidecars_REPLACE_an_undecodable_byte_rather_than_dying_on_it (a raw \\xff\\xfe mid-file). Both PASS under every variant of the open: the outcome does not move.",
-      "why": "The lines this reader MATCHES are ASCII by format. `# final stream=\\S+ seams=(\\d+) examined=(\\d+)` and the RTC row's `p[1] == \"read\"` plus `float(p[2])` are made of a fixed vocabulary and digits, and `errors=\"replace\"` substitutes U+FFFD without changing the `;` structure or the anchored pattern — so a mangled stream name still matches `\\S+` and a mangled note column is never the one read. The decode therefore cannot alter the decision for any input this reader accepts. Kept explicit because the FILES may carry non-ASCII (an operator note, a renamed sensor) and a strict decode would raise inside the audit; that half IS observable and is pinned by the second probe above."
-    },
-    {
-      "class": "no-distinguishing-input",
       "key": "- p = line.rstrip(\"\\n\").split(\";\") | + p = line.rstrip(None).split(\";\")",
       "probe": "tests/test_solid_night_inputs.py::test_an_rtc_offset_with_trailing_whitespace_is_still_read (` -1.6 `), plus the `read`-with-no-offset and short-row cases in the two tests beside it.",
       "why": "The stripped value is handed to `float`, which already tolerates surrounding whitespace including a newline — so `rstrip(\"\\n\")`, `rstrip(None)` and leaving the newline on all parse the same numbers, and a field of nothing but spaces raises `ValueError` under every variant alike. `lstrip(\"\\n\")` differs only for a line BEGINNING with a newline, which iterating a file's lines cannot produce. No input distinguishes them."
@@ -5232,6 +5208,15 @@
       "op": "the span's FIRST member tested for absence replaced by its LAST",
       "probe": "No probe, because no input can separate them: `span[0] is None` and `span[1] is None` are the SAME predicate for every span this function can receive, shown below. The reachable half of the guard IS tested — `test_an_AUDITED_FILE_WITH_NO_READABLE_STAMP_is_not_examined` plants a `(None, None)` span and both the original and this mutant refuse it identically.",
       "why": "`first_last` SETS BOTH MEMBERS OR NEITHER. It walks the file, sets `first` on the first parseable row stamp and `last` on every one, so a file with no parseable stamp yields `(None, None)` and a file with any yields two real datetimes — a MIXED pair is unconstructible. Every `spans` value reaching `continuity` comes from that one function (`score_devices` builds `{p: first_last(p) for p in primaries}`), so testing the first member for absence and testing the last are the same test. The mutant is not a different question answered the same way; it is the same question. FALSIFY THIS by giving `spans` a value from any other source, or by making `first_last` able to return one None and one stamp — at which point the right answer is a test of which end is meant, not this entry."
+    },
+    {
+      "brief": "NIGHT-IS-THE-RECORDING-2026-10-05 (the recording as the verdict's scope, #3297) — drained 2026-10-05",
+      "class": "no-distinguishing-input",
+      "key": "- p = line.rstrip(\"\\n\").split(\";\") | + p = line.lstrip(\"\\n\").split(\";\")",
+      "op": "strip-direction substitution on the RTC row split (rstrip -> lstrip)",
+      "probe": "1080 candidate RTCLOG rows: 3 timestamp fields x 5 event spellings (`read`, `push`, `read ` with a trailing space, ` read`, `battery`) x 9 offset fields (`0.4`, empty, a single space, `0.4 `, ` 0.4`, `-1.2`, `nan`, `abc`, `0.4\\t`) x 4 line endings (`\\n`, none, `\\r\\n`, `\\n\\n`) x 2 leading-newline variants. Compared the scan's DECISION per row — PASS / skip-this-row / next-row — across rstrip(\"\\n\"), rstrip(None) and lstrip(\"\\n\"): 0 disagreements.",
+      "why": "The only consumer of the stripped text is `float(p[2])`, which already tolerates surrounding whitespace, so a newline left on the last field parses identically. `p[1] == \"read\"` compares an INTERIOR field that no end-of-line strip can reach, and a row whose event field carries its own trailing space fails that comparison the same way under all three. The twin entry for `rstrip(None)` records the same argument; this is the direction flip, which that key does not match.",
+      "note": "A PRE-EXISTING line, pulled into diff scope because this unit changed the enclosing function's loop header to iterate a pooled, band-filtered file list. The scan body is untouched by #3297."
     }
   ],
   "telemetry.py": [
