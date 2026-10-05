@@ -64182,6 +64182,86 @@
        The compound gates get one test per OPERAND, never a joint move: §2c's rule that "all-or-none
        in the DATA is not all-or-none in the GATE" — varying both halves together can never separate
        `&&` from `||`.                                                                              */
+    group('OxyDex B2 · a score or a verdict over an unmeasured input is no score', 'oxydex-dsp · score · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B || typeof B.computeSleepStabilityScore !== 'function') {
+        T.skip('OxyDex._bare scoring functions exposed', 'not on the bare surface');
+        return;
+      }
+      // cba3361dfcfd / 131d841e27b4 — s1 and s6 over a null statistic were a PERFECT 100
+      var st = B.computeSleepStabilityScore({ spo2Std: null, t95pct: null, motionPct: 1 }, { hrFloor: 52 }, { episodeCount: 2 }, { rate: 3 });
+      T.eq('B2 · SpO2 variability unmeasured ⇒ its subscore is null, not 100', st && st.components && st.components.spo2Stab, null);
+      T.eq('B2 · time below 95 % unmeasured ⇒ its subscore is null, not 100', st && st.components && st.components.t95, null);
+      // 12fb862b4f54 — with no motion read in any window, there is no stage estimate (not 0.0 % REM)
+      var rowsNull = [];
+      for (var i = 0; i < 2000; i++) rowsNull.push({ t: new Date(Date.UTC(2026, 0, 1, 0, 0, i)), hr: 60 + (i % 3), spo2: 95, motion: null });
+      T.eq('B2 · no window with motion read ⇒ no stage estimate', B.computeSleepStageProxy(rowsNull), null);
+      var rows0 = rowsNull.map(function (r) {
+        return { t: r.t, hr: r.hr, spo2: r.spo2, motion: 0 };
+      });
+      T.ok('B2 · CONTROL · with motion read the estimate still exists', !!B.computeSleepStageProxy(rows0));
+      // d465645b6edd — an unentered age is ASSUMED, named, and costs confidence
+      var vA = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, undefined);
+      var vE = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, 49);
+      T.eq('B2 · no age entered ⇒ ageAssumed', vA && vA.ageAssumed, true);
+      T.eq('B2 · an entered 49 is not assumed', vE && vE.ageAssumed, false);
+      T.eq('B2 · …and the assumption costs exactly 15 confidence points', vA && vE && vE.vo2Conf - vA.vo2Conf, 15);
+      // c76326c67f23 — OK is a verdict and needs measured inputs (the shape #3283 fixed for CPAP COMPLETE)
+      // every other input present but empty, so only the core statistics decide
+      var flagArgs = function (stats) {
+        return [
+          stats,
+          [],
+          null, // period: no periodicity found
+          { episodeCount: 0 },
+          { rate: stats.t90pct == null ? null : 0 },
+          { rate: stats.t90pct == null ? null : 0 },
+          { hrFloor: null, hrSlope: null, pnn3: null },
+          { arousalIndex: null },
+          { score: null },
+          { bradyCount: 0, tachyCount: 0 },
+          { autoArousalIdx: null, divergePct: null },
+          { wtdsi: null },
+          { nsi: null },
+          { sbii: null, sbiiQ: null },
+          { pred3p: null, pred3pQ: null }
+        ];
+      };
+      var fl = B.buildFlags.apply(null, flagArgs({ t90pct: null, minSpo2: null, maxHr: null, t95pct: null }));
+      T.eq(
+        'B2 · nothing measured ⇒ NOT_FULLY_ASSESSED, never OK',
+        fl &&
+          fl
+            .map(function (f) {
+              return f.code;
+            })
+            .join(','),
+        'NOT_FULLY_ASSESSED'
+      );
+      var flOk = B.buildFlags.apply(null, flagArgs({ t90pct: 0, minSpo2: 94, maxHr: 80, t95pct: 0 }));
+      T.eq(
+        'B2 · CONTROL · a measured clean night is still OK',
+        flOk &&
+          flOk
+            .map(function (f) {
+              return f.code;
+            })
+            .join(','),
+        'OK'
+      );
+      // d975e352ce7b — nothing scoreable ⇒ no overall score (0 is the HEALTHY end of the 0-10 scale)
+      T.ok(
+        'B2 · an UNMEASURED nadir raises no critical-dip flag (null <= 88 is true in JS)',
+        fl &&
+          fl.every(function (f) {
+            return f.code !== 'SPO2_CRITICAL_DIP';
+          }),
+        fl && JSON.stringify(fl)
+      );
+      var sm = B.computeSmartSummary({ stats: {} });
+      T.eq('B2 · nothing scoreable ⇒ overallScore null, not 0', sm && sm.overallScore, null);
+    });
+
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
       var O = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
       var K = O && O.computeKarvonenZones;
@@ -64204,7 +64284,11 @@
       T.eq('rmssd 1.19 ⇒ 10', sc({ rmssd: 1.19 }).rmssd, 10);
       T.eq('rmssd 0.70 ⇒ 10', sc({ rmssd: 0.7 }).rmssd, 10);
       T.eq('rmssd 0.69 ⇒ 4 (the floor, not 0)', sc({ rmssd: 0.69 }).rmssd, 4);
-      T.eq('rmssd null ⇒ 0, not the 4 floor — absent is not "worst"', sc({ rmssd: null }).rmssd, 0);
+      /* ⚠ RECONCILED (ABSENCE-SURVEY bf25e4f0f71c) — this pinned `0` as the answer for an absent rMSSD: not the
+         "worst" floor, but still a measured-looking 0 of 30 summed into readiness. Absent is now UNSCORED and leaves
+         the total like spo2 does; the ladder rungs above remain the controls. */
+      T.eq('rmssd null ⇒ the component is NOT SCORED (null), not 0 of 30', sc({ rmssd: null }).rmssd, null);
+      T.eq('hrSlope null ⇒ NOT SCORED either, not the half-credit 5 (c05e8f22a91b)', sc({ rmssd: 2.3, hrSlope: null }).hrSlope, null);
 
       /* ── SpO2 ladder: each rung is a COMPOUND gate, so each operand is moved ALONE ──────────── */
       T.eq('odi4 1 · hd94 29 ⇒ 25 (both inside the top rung)', sc(null, { rate: 1 }, { hd94PerHr: 29 }).spo2, 25);
@@ -64230,8 +64314,12 @@
       var full = function (hrv, odi4, hypDose, stageProxy, hint) {
         return K(null, hrv || { rmssd: 2.3 }, { hrRest: 60 }, odi4, hypDose, null, stageProxy, 49, hint) || {};
       };
-      var allPresent = full(null, { rate: 1 }, { hd94PerHr: 29 });
-      var spo2Absent = full(null, null, null);
+      /* EVERY component genuinely measured — rMSSD, the dip slope, a stage estimate and a duration. The old fixture
+         omitted three of them and the code fabricated them; under §∅ a fixture must supply what it calls present. */
+      var MEASURED = { rmssd: 2.3, hrSlope: -0.6 };
+      var STAGES = { remProxyMin: 45, nremDeepMin: 60 };
+      var allPresent = full(MEASURED, { rate: 1 }, { hd94PerHr: 29 }, STAGES, 420);
+      var spo2Absent = full(MEASURED, null, null, STAGES, 420);
       T.eq('with every component measured the basis is the whole 100 points', JSON.stringify(allPresent.readinessBasis.weightPresent), '100');
       T.eq(
         'CONTROL · and the total is then IDENTICAL to the plain sum it always was — renormalising by 100 is the identity',
@@ -64256,12 +64344,16 @@
       );
 
       /* ── Sleep ladder: duration rungs 420/360/300, plus stage bonuses ───────────────────────── */
-      T.eq('no stageProxy ⇒ neutral +5, and 420 min ⇒ 10 ⇒ 15', sc(null, null, null, null, 420).sleep, 15);
-      T.eq('419 min drops the duration rung ⇒ 7 + 5 = 12', sc(null, null, null, null, 419).sleep, 12);
-      T.eq('360 min ⇒ 7 + 5 = 12', sc(null, null, null, null, 360).sleep, 12);
-      T.eq('359 min ⇒ 4 + 5 = 9', sc(null, null, null, null, 359).sleep, 9);
-      T.eq('300 min ⇒ 4 + 5 = 9', sc(null, null, null, null, 300).sleep, 9);
-      T.eq('299 min ⇒ the 1-point floor + 5 = 6', sc(null, null, null, null, 299).sleep, 6);
+      /* ⚠ RECONCILED (ABSENCE-SURVEY f0210dc347e1) — these pinned a "neutral +5" for an ABSENT stage estimate, a
+         value inside the range a measured stage produces. With no stage the component is the DURATION half alone,
+         out of 10 (`sleepMax`), and readiness renormalises over it. */
+      T.eq('no stageProxy ⇒ the duration half alone: 420 min ⇒ 10', sc(null, null, null, null, 420).sleep, 10);
+      T.eq('…and the component is worth 10, not 20', sc(null, null, null, null, 420).sleepMax, 10);
+      T.eq('419 min drops the duration rung ⇒ 7', sc(null, null, null, null, 419).sleep, 7);
+      T.eq('360 min ⇒ 7', sc(null, null, null, null, 360).sleep, 7);
+      T.eq('359 min ⇒ 4', sc(null, null, null, null, 359).sleep, 4);
+      T.eq('300 min ⇒ 4', sc(null, null, null, null, 300).sleep, 4);
+      T.eq('299 min ⇒ the 1-point floor', sc(null, null, null, null, 299).sleep, 1);
       /* A PRESENT stageProxy replaces the neutral +5 with earned points — so a night with stage data
          and poor stages scores WORSE than one with none, which is the intended asymmetry. */
       T.eq('stageProxy present but both proxies 0 ⇒ 10 + 0 + 0 = 10, below the neutral 15', sc(null, null, null, { remProxyMin: 0, nremDeepMin: 0 }, 420).sleep, 10);
@@ -64273,8 +64365,15 @@
       T.eq('rem 45 alone ⇒ 10 + 5 = 15', sc(null, null, null, { remProxyMin: 45, nremDeepMin: 0 }, 420).sleep, 15);
       T.eq('deep 60 alone ⇒ 10 + 5 = 15', sc(null, null, null, { remProxyMin: 0, nremDeepMin: 60 }, 420).sleep, 15);
 
-      /* ── durationMinHint is a FALLBACK, not an override — n>0 wins, and absent ⇒ 360 ────────── */
-      T.eq('no rows and no hint ⇒ the 360 default ⇒ 7 + 5 = 12', sc(null, null, null, null, null).sleep, 12);
+      /* ── durationMinHint is a FALLBACK, not an override — n>0 wins, and absent is ABSENT ──────── */
+      /* ⚠ RECONCILED (ABSENCE-SURVEY 51755be2e2ca) — this pinned an assumed six-hour night (+7) for no rows and no hint. */
+      T.eq('no rows, no hint and no stages ⇒ the sleep component is NOT SCORED', sc(null, null, null, null, null).sleep, null);
+      T.eq('…and carries no weight', sc(null, null, null, null, null).sleepMax, 0);
+      T.eq(
+        'a stage estimate alone still scores its half: rem 45 + deep 60 ⇒ 10 of 10',
+        JSON.stringify([sc(null, null, null, STAGES, null).sleep, sc(null, null, null, STAGES, null).sleepMax]),
+        '[10,10]'
+      );
     });
 
     group('OxyDex refuses fabricated dates and inflated spans — §F2/§F1.4', 'oxydex-dsp · clock · guards', function (T) {
