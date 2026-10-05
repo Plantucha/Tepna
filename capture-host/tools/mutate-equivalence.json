@@ -32,7 +32,9 @@
     "               excluded from every count until re-verified, so a stale entry shrinks nothing.",
     "  · unclassified survivors are counted and named, so silence is never mistaken for equivalence.",
     "",
-    "Only `no-distinguishing-input` and `untestable-by-design` leave the denominator. `real-gap` does not."
+    "Only `no-distinguishing-input` and `untestable-by-design` leave the denominator. `real-gap` does not.",
+    "",
+    "EDITING THIS FILE: match its existing indent and trailing newline, and check the DIFF SIZE is proportional to the change. A json round-trip at the wrong indent rewrote all 5,653 lines on 2026-10-05 (#3297) — a wholesale reformat of a ledger four sessions append to, in which another session's entry would be invisible, and no gate inspects formatting. Re-reading it at indent=2 with a final newline turned the same edit into 9 insertions and 24 deletions."
   ],
   "acq_evidence_cpap.py": [
     {
