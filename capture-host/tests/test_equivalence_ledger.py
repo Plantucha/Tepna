@@ -114,7 +114,7 @@ RATCHET = {
     "loss_audit.py": 20,
     "mmeta.py": 9,
     "motiondex-dsp.js": 100,
-    "mutation_diff.py": 37,
+    "mutation_diff.py": 38,
     "mutation_pure.py": 5,
     "mutation_triage.py": 2,
     "night_report.py": 8,

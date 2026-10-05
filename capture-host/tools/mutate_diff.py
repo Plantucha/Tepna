@@ -497,7 +497,18 @@ def main(argv=None) -> int:
     # _counts['astNarrowed'] at emit so the verdict OBJECT carries it too
     for module, lines in sorted(changed.items()):
         _msrc = _read_source(HERE / module)  # read ONCE per module; the loop below reuses it
-        stems = functions_covering(_msrc, lines)
+        # ∅ A module whose scope could not be determined is UNMEASURED, never "none inside a function"
+        # (ABSENCE-SURVEY 45ccc1146b37). A deleted file never reaches here (`changed_lines` keeps `+++ b/`
+        # only), so an empty read of a module with changed lines is an unreadable one.
+        stems = functions_covering(_msrc, lines) if _msrc else None
+        if stems is None:
+            _why_scope = "source does not parse" if _msrc else "source could not be read"
+            print(
+                f"  ⊘ {module}: NOT MEASURED — {_why_scope}; its {len(lines)} changed line(s) were never examined",
+                flush=True,
+            )
+            _unmeasured.append(f"{module}: {_why_scope} — its changed lines were never examined")
+            continue
         if not stems:
             print(f"  {module}: {len(lines)} changed line(s), none inside a function — skipped")
             continue
@@ -788,7 +799,13 @@ def main(argv=None) -> int:
             # real `survived` — the impossible `generated: 0, decided: 0, survived: 26` block. All
             # three are measured here, from the same meta `_tested` comes from.
             _counts["decided"] += _tested
-            _counts["generated"] += mmeta.generated_count(work, module, g)
+            _gen = mmeta.generated_count(work, module, g)
+            if _gen is None:
+                # ∅ ABSENCE-SURVEY f2f47e27c21e: the mutants file could not be read back, so this glob's
+                # generated count was not taken — refused as unmeasured, never summed in as 0.
+                _unmeasured.append(f"{g}: the mutants file could not be read back — its generated count was not taken")
+            else:
+                _counts["generated"] += _gen
             _counts["killed"] += mmeta.killed_count(work, module, g)
             # ── the GENERATED set, for REFUTED detection ────────────────────────────────────────
             # `mutmut results` lists survivors and not-checked ONLY — a KILLED mutant is absent from
@@ -1391,9 +1408,7 @@ def main(argv=None) -> int:
                 except (OSError, ValueError):
                     _doc = {}
                 _merged = merge_unmeasured(_doc, _refusal_rows)
-                UNMEASURED_PATH.write_text(
-                    json.dumps(_merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-                )
+                UNMEASURED_PATH.write_text(json.dumps(_merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
                 print(f"  ↳ recorded {len(_refusal_rows)} unmeasured row(s) → tools/{UNMEASURED_PATH.name}")
         _sub = declared_exclusion_status(
             _bstatus,

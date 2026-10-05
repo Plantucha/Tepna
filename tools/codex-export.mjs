@@ -114,6 +114,24 @@ export function build({ ref = 'HEAD', out = null } = {}) {
   return { dir, files, bad, verdict: v };
 }
 
+/** The real-export checks. A refusal (`dir: null`) records its own reason as the failure and stops there:
+ * every check below reads the exported tree, and `rmSync(null)` / `join(null, …)` threw a TypeError that
+ * discarded that reason — the one message saying why nothing was exported. */
+function checkExport(r, ok) {
+  const v = r.verdict;
+  ok(v.status === 'PASS', `the export of HEAD is clean (got ${v.status}: ${v.reason})`);
+  if (!r.dir) return;
+  try {
+    ok(v.population.checked + v.population.excluded === v.population.eligible, 'checked + excluded = eligible');
+    ok(!existsSync(join(r.dir, 'uploads')) && !existsSync(join(r.dir, 'audits')), 'no uploads/ or audits/ directory exists');
+    ok(r.files.includes('tools/codex-export.mjs') && r.files.includes('CLAUDE.md'), 'code and root docs are present');
+    const withheld = withheldPaths(readFileSync(join(ROOT, REGISTRY), 'utf8'));
+    ok(withheld.length > 0 && withheld.every((p) => !existsSync(join(r.dir, p))), 'no withheld fixture was exported');
+  } finally {
+    rmSync(r.dir, { recursive: true, force: true });
+  }
+}
+
 export function selftest() {
   const fail = [];
   let ran = 0;
@@ -137,18 +155,20 @@ export function selftest() {
   const none = build({ ref: rootRef });
   ok(none.verdict.status === 'UNKNOWN' && none.dir === null, 'no registry at the ref is UNKNOWN with no export');
   /* 4 · the REAL export of this tree: clean, an equality population, and spot checks both ways */
-  const r = build({});
+  checkExport(build({}), ok);
+  /* 5 · A REFUSED export reports its own reason — it does not die in its cleanup (residue
+     2026-10-05-codex-export-selftest-dies-in-its-own-cleanup). The refusal from section 3 is driven
+     through the same check: exactly one failure, and it is the refusal's reason. */
+  const seen = [];
+  let threw = null;
   try {
-    const v = r.verdict;
-    ok(v.status === 'PASS', `the export of HEAD is clean (got ${v.status}: ${v.reason})`);
-    ok(v.population.checked + v.population.excluded === v.population.eligible, 'checked + excluded = eligible');
-    ok(!existsSync(join(r.dir, 'uploads')) && !existsSync(join(r.dir, 'audits')), 'no uploads/ or audits/ directory exists');
-    ok(r.files.includes('tools/codex-export.mjs') && r.files.includes('CLAUDE.md'), 'code and root docs are present');
-    const withheld = withheldPaths(readFileSync(join(ROOT, REGISTRY), 'utf8'));
-    ok(withheld.length > 0 && withheld.every((p) => !existsSync(join(r.dir, p))), 'no withheld fixture was exported');
-  } finally {
-    rmSync(r.dir, { recursive: true, force: true });
+    checkExport(none, (c, what) => {
+      if (!c) seen.push(what);
+    });
+  } catch (e) {
+    threw = e;
   }
+  ok(threw === null && seen.length === 1 && seen[0].includes('does not exist at'), 'a refused export reports its reason, not a cleanup TypeError');
   if (fail.length) {
     console.error(`✗ codex-export selftest: ${fail.length} failed`);
     for (const f of fail) console.error(`    ${f}`);
