@@ -442,14 +442,64 @@ def is_string_only(diff_text: str) -> bool:
     return string_only_verdict(diff_text)[0] in (STRING_ONLY, EMPTY_DIFF)
 
 
+def changed_lines_of(diff_text: str) -> list[str]:
+    """The mutation's own changed lines, whitespace-normalised. The CONTENT half of an identity."""
+    keep = [ln for ln in diff_text.splitlines() if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++"))]
+    return [" ".join(ln.split()) for ln in keep]
+
+
 def diff_key(diff_text: str) -> str:
-    """A mutant's stable identity: its changed lines, whitespace-normalised.
+    """A mutation's CONTENT, whitespace-normalised. ⚠️ NOT a full identity on its own — see `mutant_key`.
 
     NOT `__mutmut_N`. That index shifts whenever anything earlier in the function changes, so an entry
     keyed on it would keep matching while silently pointing at a different mutation — the failure this
-    whole mechanism exists to make impossible."""
-    keep = [ln for ln in diff_text.splitlines() if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++"))]
-    return " | ".join(" ".join(ln.split()) for ln in keep)
+    whole mechanism exists to make impossible. Kept as the content half, and as the renderer a reader
+    sees; `mutant_key` is what the ledger matches on."""
+    return " | ".join(changed_lines_of(diff_text))
+
+
+KEY_SEP = "\0"
+
+
+def mutant_key(module: str, function: str, diff_text: str, ordinal: int = 0) -> str:
+    """A mutant's FULL identity: module, function, content, and its ordinal among identical twins.
+
+    ⚠️ BOTH OBVIOUS IDENTITIES FAIL, IN OPPOSITE DIRECTIONS, and this one is the pair of them.
+    · Pure CONTENT merges two identical things. Measured on `loss_audit.py`: 8 of 27 functions generate
+      a duplicate key — 28 colliding texts over 86 of 2141 mutants — and the recurring shape is
+      `- continue | + break`. `timeline.py` holds 14 bare `continue` statements across 6 functions, so
+      one recorded argument about one of them excused every other.
+    · Pure POSITION (a raw line index) orphans every entry the next time anything above it changes —
+      the instability that made `__mutmut_N` unusable, arriving from the other side.
+    The stable part of position is the ORDINAL AMONG TWINS: it moves only when a twin is added or
+    removed, which is the one event that genuinely changes which occurrence is which. The raw line
+    stays a breadcrumb OUTSIDE the key.
+
+    ⚠️ ORDINAL 0 CONTRIBUTES NOTHING, deliberately. Every entry written before ordinals existed keys
+    identically under this function, so the migration is a no-op for them — and the migration tool
+    CHECKS that rather than assuming it, because "nothing should change" is the assumption that loses
+    data quietly.
+
+    NUL-separated, following the JS side (`tools/mutate.mjs`), so a field boundary cannot be forged by
+    text in a source line. Nothing here is truncated: a key cut to 100 characters orphans any entry
+    hand-written for a longer line, and the JS side already carried the full line beside the cut one.
+    """
+    parts = [module, function, *changed_lines_of(diff_text)]
+    if ordinal:
+        parts.append(f"ord{ordinal}")
+    return KEY_SEP.join(parts)
+
+
+def ordinals_for(keys: list[str]) -> list[int]:
+    """`[ordinal]` per key, in order: 0 for a key's first occurrence, then 1, 2, … for its twins.
+
+    Pure, so the generator and the migration cannot disagree about which occurrence is which."""
+    seen: dict[str, int] = {}
+    out = []
+    for k in keys:
+        out.append(seen.get(k, 0))
+        seen[k] = seen.get(k, 0) + 1
+    return out
 
 
 def functions_with_changed_ast(old_src: str, new_src: str) -> tuple[set[str], str | None]:
@@ -779,7 +829,19 @@ def classify(entries, survivors, killed, generated=()):
     `killed` are both POSITIVE observations and are tested as such; everything else falls through to
     `not_decided` or `orphaned`. Absence can no longer reach `refuted` by any path, because absence is
     what a reaped worker, a partial run and an unreported shard all look like."""
-    surv = {sv["key"]: sv for sv in survivors}
+    # ⚠️ A DICT HERE DROPPED FINDINGS BEFORE THE LEDGER WAS EVEN READ. Keyed on the identity string,
+    # two survivors sharing a key DEDUPLICATED: the gate reported one where two existed, and the loss
+    # was invisible because the count merely looked lower. `mutant_key` now separates twins by their
+    # ordinal, so a collision should be impossible — which is exactly why a residual one must be LOUD
+    # rather than absorbed. Collected and returned; never silently overwritten.
+    surv: dict = {}
+    collided: list = []
+    for sv in survivors:
+        _k = sv.get("key", "")
+        if _k in surv:
+            collided.append(_k)
+            continue
+        surv[_k] = sv
     kills = set(killed or ())
     # JUST `generated`, and the two unions it used to carry are gone for two reasons. They were
     # PROVABLY DEAD: a key in `surv` or in `kills` is routed by the branches below before the `k in
@@ -797,6 +859,7 @@ def classify(entries, survivors, killed, generated=()):
         "unclassified": [],
         "unproven": [],
         "not_decided": [],
+        "key_collisions": collided,
     }
     claimed = set()
     for e in entries or []:
