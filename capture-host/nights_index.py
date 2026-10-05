@@ -24,6 +24,8 @@ import os
 import re
 import time
 
+import nightqc
+
 # analyzer -> (input globs relative to the night dir — `{ymd}` for the CPAP trees keyed by date —, the
 # primary glob whose first→last stamp is the covered span). The list order is the ingest order.
 # A pattern is one glob, or a tuple of ALTERNATIVE globs: the first alternative with files wins and the
@@ -107,6 +109,41 @@ COLUMNS = tuple(NODES) + tuple(DERIVED)
 # device added later cannot fall out again. Deciding whether a given sidecar is USABLE belongs to the
 # consumer, which already refuses by name (`ring-offset-never-advances`) rather than ignoring the file.
 ARRIVAL: tuple[str, ...] = ("*_PMDARRIVAL.csv",)
+
+
+# ── THE FOLDER IS NOT THE RECORDING (NIGHT-IS-THE-RECORDING-2026-10-05 §⑥) ────────────────────────
+# A calendar folder holds every session whose stamp fell on that DATE, which is not one night's sleep:
+# 2026-10-04 holds a 00:26 session (the night that began 10-03) AND a 22:00 one (the night that began
+# 10-04) — measured, 18 files of two recordings. The monitor handed that whole folder to a page and the
+# page had to re-group it, which is how `pat-three-corner` came to pick an ECG from one recording and a
+# ring from another and compute a -14.94 h overlap (residue
+# 2026-10-05-pat-three-corner-picks-the-biggest-file-per-device-and-straddles-recordings).
+#
+# So the index publishes the RECORDINGS beside the folder view. Grouping is `nightqc.night_band`, the same
+# 18:00→10:00 band the verdict is scoped by (#3292/#3297), so a monitor click and a QC verdict cannot
+# disagree about which sessions are one night. The folder-wide keys are UNCHANGED — this is a new field,
+# not a new shape, because every existing reader of `files` would otherwise silently see a subset.
+_SESSION_STAMP = re.compile(r"_(\d{8})_?(\d{6})(?:_|\.)")
+
+
+def session_epoch(name: str) -> float | None:
+    """The FLOATING epoch of a capture filename's `YYYYMMDD[_]HHMMSS` session stamp, or None.
+
+    ∅ None means "this name carries no session stamp", never a default time. The CPAP trees are keyed by
+    DATE rather than by session and carry none, so they are reported unassigned rather than being filed
+    under whichever band a fabricated stamp would have landed in.
+
+    Anchored between separators for the same reason the monitor's own classifier is (`pat-feasibility.js`:
+    a loose 8-then-6 scan grabs a device serial instead of the date), and accepting both layouts because
+    the phone app writes `YYYYMMDD_HHMMSS` and the capture host the same 14 digits unseparated."""
+    m = _SESSION_STAMP.search(os.path.basename(name))
+    if not m:
+        return None
+    try:
+        return _dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").timestamp()
+    except ValueError:
+        return None  # a real-looking stamp that is not a real instant (month 13, day 32)
+
 
 _ISO = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})")
 _O2 = re.compile(r"^(\d{2}):(\d{2}):(\d{2}) (\d{2})/(\d{2})/(\d{4})")  # HH:MM:SS DD/MM/YYYY (DMY)
@@ -463,7 +500,60 @@ def night_entry(root: str, night_dir: str, deadline: float | None = None) -> dic
     for tool, required in DERIVED.items():
         out[tool] = all(_expand(root, night_dir, p) for p in required)
     out["arrival"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(root, night_dir, p))
+    # the RECORDINGS beside the folder view — see `recordings_of`. Additive: every key above is unchanged.
+    out["recordings"], out["recordings_unassigned"] = recordings_of(out)
     return out
+
+
+def recordings_of(entry: dict) -> tuple[list[dict], list[str]]:
+    """A night entry's file lists partitioned into RECORDINGS, plus the files that carry no session stamp.
+
+    PURE — it reads the entry the caller already built and touches no filesystem, so grouping costs nothing
+    on top of the walk and can be unit-tested without a tree.
+
+    A recording is named by the EVENING date its band is anchored on, which is what makes two folders'
+    halves of one night carry the SAME name: the 22:00 session in folder 2026-10-04 and a 03:00 session in
+    folder 2026-10-05 both band to `2026-10-04`. That is the point — the monitor can hand a page one night
+    even when the bytes live under two dates.
+
+    ∅ A file with no session stamp is RETURNED SEPARATELY, never filed under a band. The CPAP trees are
+    keyed by date and carry none; assigning them to whichever band the folder's name suggests would be a
+    guess presented as grouping, and dropping them would make the monitor's own handoff lossy. The caller
+    names them.
+
+    Ordered by band start, so "the first recording" is the earliest and a two-recording folder reads in the
+    order the nights happened."""
+    by_band: dict[str, dict] = {}
+    unassigned: list[str] = []
+    lists: list[tuple[str, list[str]]] = [("arrival", list(entry.get("arrival") or []))]
+    for node in NODES:
+        cell = entry.get(node)
+        if isinstance(cell, dict) and cell.get("files"):
+            lists.append((node, list(cell["files"])))
+    for key, files in lists:
+        for f in files:
+            ts = session_epoch(f)
+            if ts is None:
+                if f not in unassigned:
+                    unassigned.append(f)
+                continue
+            b0, b1 = nightqc.night_band(ts)
+            name = _dt.datetime.fromtimestamp(b0).strftime("%Y-%m-%d")
+            r = by_band.setdefault(
+                name, {"recording": name, "begin": b0, "end": b1, "first": ts, "arrival": [], "files": {}}
+            )
+            r["first"] = min(r["first"], ts)
+            if key == "arrival":
+                r["arrival"].append(f)
+            else:
+                r["files"].setdefault(key, []).append(f)
+    out = []
+    for name in sorted(by_band):
+        r = by_band[name]
+        r["arrival"] = sorted(r["arrival"])
+        r["files"] = {k: sorted(v) for k, v in sorted(r["files"].items())}
+        out.append(r)
+    return out, sorted(unassigned)
 
 
 def list_nights(root: str) -> list[str]:

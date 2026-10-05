@@ -108,7 +108,10 @@ def test_a_full_trio_night_fills_every_column_from_its_own_files(tmp_path):
     assert e["GlucoDex"] is None and e["EEGDex"] is None, "no CGM, no Muse: absent, never 0"
     assert e["Integrator"]["loadable"] is False and e["ECGDex"]["loadable"] is True
     assert e["3 corner hat"] is True and e["PAT"] is True
-    assert set(e) == {"night", "arrival", *ni.COLUMNS}
+    # `recordings`/`recordings_unassigned` joined the entry on 2026-10-05: the folder is not the recording,
+    # so the index publishes the band grouping BESIDE the folder-wide view. Additive by design — every key
+    # below is unchanged — and named here because the key set is the API's contract.
+    assert set(e) == {"night", "arrival", "recordings", "recordings_unassigned", *ni.COLUMNS}
 
 
 def test_a_night_without_the_h10_loses_its_ecg_columns_and_the_derived_tools(tmp_path):
@@ -815,3 +818,77 @@ def test_the_listing_defaults_to_SIXTY_nights_and_a_FIFTEEN_second_budget(tmp_pa
     rows = ni.index_nights(str(tmp_path))
     assert len(rows) == 60, "the newest sixty, which is what the page asks for when it asks for nothing"
     assert seen and all(d == 5015.0 for d in seen), "a fifteen-second budget, handed to every night"
+
+
+# ── the folder is not the recording (NIGHT-IS-THE-RECORDING-2026-10-05 §⑥) ───────────────────────────
+
+
+def test_a_folder_holding_TWO_NIGHTS_is_published_as_TWO_RECORDINGS(tmp_path):
+    """A calendar folder holds every session stamped that DATE, which is not one night's sleep. Measured on
+    2026-10-04: a 00:26 session (the night that began 10-03) and a 22:00 one, 18 files, handed to a page as
+    one set — and `pat-three-corner` re-grouped it wrong, taking the largest file per device independently
+    and computing a -14.94 h three-way overlap.
+
+    Grouping is `nightqc.night_band`, the SAME band the QC verdict is scoped by, so a monitor click and a
+    verdict cannot disagree about which sessions are one night. The folder-wide keys stay as they were —
+    this is an additive field, because an existing reader of `files` must not silently receive a subset."""
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-04")
+    os.makedirs(d, exist_ok=True)
+    # the night that BEGAN 10-03: a 00:26 session, before the 18:00 band edge
+    _w(os.path.join(d, "Polar_H10_02849638_20261004002801_ECG.txt"), ISO_ROWS)
+    _w(os.path.join(d, "Polar_H10_02849638_20261004002801_PMDARRIVAL.csv"), "Phone timestamp;device;meas\n")
+    # the night that BEGAN 10-04: a 22:00 session, after it
+    _w(os.path.join(d, "Polar_H10_02849638_20261004220206_ECG.txt"), ISO_ROWS)
+    _w(os.path.join(d, "Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"), "Phone timestamp;device;meas\n")
+
+    e = ni.night_entry(os.path.join(root, "captures"), d)
+    names = [r["recording"] for r in e["recordings"]]
+    assert names == ["2026-10-03", "2026-10-04"], (
+        "one folder, two recordings, named by the EVENING each band is anchored on and ordered as the "
+        f"nights happened: {names}"
+    )
+    first, second = e["recordings"]
+    assert first["files"]["ECGDex"] == ["2026-10-04/Polar_H10_02849638_20261004002801_ECG.txt"]
+    assert second["files"]["ECGDex"] == ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]
+    assert first["arrival"] == ["2026-10-04/Polar_H10_02849638_20261004002801_PMDARRIVAL.csv"]
+    assert second["arrival"] == ["2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"]
+    # ⚠️ CONSECUTIVE BANDS DO NOT ABUT, and the gap is the design, not a hole: a band is 16 h
+    # (18:00→10:00), so 10:00–18:00 belongs to NO night. That is the DAYTIME class — wear there is excluded
+    # from the night with its span named (NIGHT-IS-THE-RECORDING §scope) rather than folded into whichever
+    # night is nearer. I first asserted the bands abutted; they are 8 h apart and should be.
+    assert second["begin"] - first["end"] == 8 * 3600.0, (
+        f"the daytime window between two nights is 8 h and belongs to neither: {first['end']} → {second['begin']}"
+    )
+    assert first["end"] - first["begin"] == 16 * 3600.0
+    # ADDITIVE: the folder-wide view still holds everything, so an existing reader sees no subset
+    assert len(e["ECGDex"]["files"]) == 2 and len(e["arrival"]) == 2
+
+
+def test_a_file_with_NO_SESSION_STAMP_is_named_not_filed_under_a_guessed_band(tmp_path):
+    """∅ The CPAP trees are keyed by DATE and carry no session stamp. Assigning them to whichever band the
+    folder's name suggests would be a guess presented as grouping, and dropping them would make the
+    monitor's own handoff lossy — so they are returned separately and the caller says so."""
+    entry = {
+        "arrival": ["2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"],
+        "ECGDex": {"files": ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]},
+        "CPAPDex": {"files": ["2026-10-04/cpap/DATALOG/20261004/20261004_220000_BRP.edf"]},
+    }
+    recs, unassigned = ni.recordings_of(entry)
+    assert [r["recording"] for r in recs] == ["2026-10-04"]
+    assert recs[0]["files"] == {"ECGDex": ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]}, (
+        "the stamped file bands; the CPAP tree does not appear under it"
+    )
+    assert unassigned == ["2026-10-04/cpap/DATALOG/20261004/20261004_220000_BRP.edf"]
+    assert all("cpap" not in f for r in recs for v in r["files"].values() for f in v)
+
+
+def test_session_epoch_refuses_a_serial_and_an_impossible_instant(tmp_path):
+    """The stamp is anchored between separators for the reason `pat-feasibility.js` is: a loose 8-then-6
+    scan grabs the H10's device serial instead of the date, which is the zero-nights bug. And a stamp that
+    looks real but names no instant is None, never a rolled-over date."""
+    assert ni.session_epoch("Polar_H10_H10-01_ECG.txt") is None
+    assert ni.session_epoch("Polar_X_20261332999999_ECG.txt") is None, "month 13 is not a time"
+    assert ni.session_epoch("cpap/DATALOG/20261004/x_BRP.edf") is None
+    assert ni.session_epoch("Polar_H10_02849638_20261004220206_ECG.txt") is not None
+    assert ni.session_epoch("Polar_H10_02849638_20260919_220000_ECG.txt") is not None, "both layouts parse"
