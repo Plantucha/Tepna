@@ -773,3 +773,52 @@ def test_a_DECLARED_writer_offset_makes_the_frame_ABSOLUTE_not_floating(tmp_path
 
     recovered = timeline.build(str(d), _DEV)["writer_offset"]
     assert recovered["frame"] == "floating", recovered  # and the other arm still works
+
+
+def test_a_NAME_keyed_sidecar_still_finds_the_device_when_the_address_column_is_empty(tmp_path):
+    """Kills `d.get("name")` → `d.get(None)` in the key list handed to `merge_link_samples`.
+
+    The address column arrived mid-corpus, so rows written before it landed carry only the device NAME
+    and `read_link_samples` leaves them keyed under it. A device whose sidecar rows are all name-keyed
+    therefore has its entire signal trace reachable only through the name, and dropping that key does
+    not error — it returns an empty sample list, which renders as a flat trace. `merge_link_samples`'s
+    own docstring records the real 2026-07-26 night this family cost: 1238 name-keyed rows against 158
+    address-keyed ones for the same H10, where a short flat trace read as a quiet night rather than a
+    missing one. The `rssi` assertion below is what distinguishes the two readings."""
+    d = _night(tmp_path)
+    (d / "Tepna_20260725_LINK.csv").write_text(
+        HDR + "".join(f"2026-07-25T22:00:{i:02d}.000;H10;1;-7{i};80;0;0;1;\n" for i in range(3))
+    )
+    link = timeline.read_link_samples([str(d)])
+    assert list(link) == ["H10"], f"the fixture must be NAME-keyed, or the mutant is not exercised: {list(link)}"
+
+    dev = [{"name": "H10", "address": "F4:CE:36:2E:CD:98", "device_id": "02849638", "model": "H10", "streams": ["ecg"]}]
+    rssi = timeline.build(str(d), dev)["devices"][0]["rssi"]
+    assert any(v is not None for v in rssi), (
+        "every sidecar row for this device is name-keyed, so dropping the name key loses the whole "
+        "trace — and an empty trace reads as a quiet night, not a missing one"
+    )
+
+
+def test_a_night_whose_files_ALL_LACK_a_stamp_has_no_earliest_rather_than_crashing(tmp_path):
+    """Kills `earliest = min(_stamped) if _stamped else None` → `if (_stamped) or True`, which calls
+    `min([])` and raises ValueError on any night whose files carry no parsable stamp.
+
+    `_stamped` drops the `None` sessions deliberately — an unstamped file has no floating start to be
+    the earliest of (§∅: absent, not defaulted). The guard is therefore load-bearing exactly when the
+    night is least well formed, which is when the timeline is most needed: a reader opening a night of
+    unstamped files must get a timeline that says so, not a traceback. `data` is non-empty here, so the
+    `if data:` block IS entered and the guard IS reached — that is what makes the mutant reachable."""
+    d = tmp_path / "2026-07-25"
+    d.mkdir(parents=True)
+    rows = [f"2026-07-25T22:00:{i:02d}.000;{i}000000000;1" for i in range(10)]
+    (d / "Polar_H10_02849638_ECG.txt").write_text(  # no 14-digit stamp anywhere in the name
+        "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(rows) + "\n"
+    )
+    data = [f for f in nightqc.scan_night(str(d)) if f["stream"] not in nightqc._SIDECAR_TAGS]
+    assert data and all(f["session"] is None for f in data), (
+        f"the fixture must yield files with NO session, or the guard is not reached: {data}"
+    )
+
+    out = timeline.build(str(d), _DEV)  # must not raise
+    assert out["night"] == "2026-07-25"
