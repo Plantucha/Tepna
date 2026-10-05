@@ -2,7 +2,12 @@
 
 **Status:** DONE — 2026-10-05 (OWNER ADOPTED Gemini as the INTERIM reader 2026-10-05) · **Created:** 2026-10-05
 
-# Gemini as the second mutation reader — a scored trial, and a prompt-shape finding
+# The second mutation reader — four providers scored, and a prompt-shape finding
+
+⚠️ **The filename says GEMINI because filenames are FROZEN at creation (§📌) and this brief began as
+the Gemini trial.** The owner then ordered three more providers into the same unit. Renaming would
+break the `DOCS-INDEX.md` link and the gate that checks it, so the name stays and the scope is stated
+here: ONE reader tool with provider adapters, and a table per provider.
 
 **Why.** Codex's free tier is exhausted until 2026-11-03 (owner ruling 2026-10-05; it died on Wren's
 7th batch having read 110 survivors that day, 4 misses, all caught by verification). The owner chose to
@@ -12,6 +17,74 @@ acceptance.
 **Model.** `models/gemini-3.8-flash`, version string `3.0` as the API reports it — pinned, not an
 alias, because `gemini-flash-latest` cannot satisfy "state the version": the thing it names changes
 under the scorecard. Recorded in every jsonl record. Free tier, ~1,500 req/day.
+
+## The four providers, as measured
+
+ONE tool, `tools/gemini-review.mjs`, with a row per provider: everything a provider differs in lives in
+its row, everything the rules require lives on the shared path. The selftest asserts, for EVERY row,
+temperature 0, that the budget reaches the body, a declared stop word, a well-formed key variable, the
+`~/.config/tepna/<provider>.env` convention, and that `read({})` does not throw — so a fifth provider
+cannot arrive without the key contract, the export boundary, the scrub, the finish-reason refusal or
+the jsonl record.
+
+| provider | model (verified served, not remembered) | score | free-tier limit observed |
+|---|---|---|---|
+| **gemini** | `gemini-3.8-flash` (v `3.0`) | **38/41** per id · 31/42 grouped | 503 under load all day, then **429 RESOURCE_EXHAUSTED** — one day of trial volume reached the DAILY cap |
+| **github-models** | `openai/gpt-4.1` | **not scored** — host unreachable | n/a |
+| **groq** | `openai/gpt-oss-120b` (largest reasoning-capable of 11 served) | **5/8 verifiable claims · PARTIAL** | **8,000 tokens per minute**, hard `413` |
+| **openrouter** | `nvidia/nemotron-3-ultra-550b-a55b:free` (largest of the 16 `:free` of 464) | **all 41 answered**, 6/6 digit group, 5/5 equivalences | **no rate-limit headers at all** — the ~50/day cap is not observable from a response |
+
+**Codex on the same set: 40/42.** The bar was `>= 40/42`; no provider reached it. The owner adopted
+Gemini as the INTERIM reader at the 38/41 class anyway, with drains **spread across providers** and
+**OpenRouter nemotron as the second row**.
+
+### github-models — not a provider failure, and not mine to bypass
+
+Every request to `models.github.ai` returns a **4-byte `OK` as `text/plain` with no server header**,
+while `api.github.com/zen` returns 200 with `server: github.com` and a real body, and
+`models.inference.ai.azure.com` does not resolve at all. GitHub's own API is reachable; the Models host
+is answered by an interceptor. The adapter refuses it BY NAME — *"HTTP 200 but the body is not JSON
+(4 byte(s), content-type text/plain). A 200 is not an answer"* — which is exactly the trap a 200-stub
+sets for a tool that checks only the status code. **A network restriction is not mine to work around**,
+so no sandbox override was used; the host needs allowlisting and then this row gets scored.
+
+### groq — PARTIAL BY CONSTRUCTION, and no trimming
+
+`HTTP 413 — "Limit 8000, Requested 30970"` on tokens per minute. Per-module batching gets three of five
+groups through (AB 30 ids, C 2, E 4); **D at 9,080 and F at 9,718 source tokens cannot be sent whole at
+all.** Those two are recorded PARTIAL with that reason and the source was NOT trimmed to fit — a reader
+shown less source than the others is a different experiment, not a lower score.
+
+Of the claims its three batches made and I could verify by execution: **5 of 8**. Correct on A1, A2, A3,
+A6 and E1. Two real misses: `saturated_fraction` 4→5 (its input yields a ratio that rounds identically
+at both digit counts) and **both `int(size)` ids**, because it supplied the size as the STRING `"100"`
+and included no zero-size entry, so neither `<= 0` nor `< 1` is ever reached.
+
+### openrouter — the strongest showing, and one sentence separates it from Gemini
+
+All 41 ids answered on the first attempt, with tailored per-id inputs, and it **cites line numbers**,
+which Gemini mostly did not. 6/6 on the digit-count group verified by execution; all five equivalences
+correct with line-citing arguments.
+
+**And on the `_settings` wire format it DECLINED TO INVENT BYTES** — it described the input ("a reply
+containing a setting with `sid=0xFF`, not in `pmd.SETTING_NAME`") and named the mechanism and the
+resulting key, rather than producing a literal it had not checked. That is the sentence separating its
+F from Gemini's: Gemini produced two concrete byte strings and both were wrong, in different ways.
+**A reader that says what it does not know is worth more than one that guesses precisely.**
+
+### The one mutant every reader missed, and it was already dead
+
+`closest_fraction` 4→5 digits was missed by Codex, by Gemini in BOTH shapes, and by OpenRouter — whose
+reasoning was wrong instructively: it offered `rate=125.0` claiming `0.1072` vs `0.10717`, having
+computed only the 112.9 candidate and forgotten that **125 is itself a candidate**, so the real fraction
+is `0.0` and rounds identically either way.
+
+⚠️ **It was already killed on main**, deliberately: `test_verdict_band_is_RELATIVE_and_INCLUSIVE_with_a_four_digit_closest_fraction`
+asserts `closest_fraction == 0.001` at rate 125.123, which the mutant makes `0.00098` — the four-digit
+property is in the test's own NAME. So this is a **reader miss shared by three readers against a truth
+the drain already held**, not a gap. My own two distinguishing inputs (`112.912345` → `0.0001` vs
+`0.00011`; `125.0012345` → `0.0` vs `1e-05`) are independent confirmations, and I first reported it as
+a new kill, which overstated it.
 
 ## The rule does NOT point at Gemini on the strength of the grouped prompt
 

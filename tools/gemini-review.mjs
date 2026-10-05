@@ -32,37 +32,148 @@ import { homedir } from 'node:os';
 import { makeVerdict } from './verdict-emit.mjs';
 import { join } from 'node:path';
 
-const KEY_FILE = join(homedir(), '.config', 'tepna', 'gemini.env');
-/* Pinned, not an alias. `gemini-flash-latest` cannot satisfy "state the version in the brief", because
-   the thing it names changes under the scorecard. Measured 2026-10-05: 3.8-flash and 3.6-flash answer,
-   3.7-flash returns 503, so "newest" is not the same as "served". */
-const DEFAULT_MODEL = 'gemini-3.8-flash';
+/* ── THE PROVIDER TABLE ────────────────────────────────────────────────────────────────────────────
+   ONE reader with adapters, not a tool per provider (owner 2026-10-05; mistral, cerebras, groq,
+   openrouter and nvidia are expected to follow). Everything a provider differs in lives in one row;
+   everything the RULES require lives in the shared path, so a new provider cannot arrive without the
+   key contract, the export boundary, the scrub, the finish-reason refusal or the jsonl record.
+
+   Key convention: `~/.config/tepna/<provider>.env`, mode 0600, one `<VAR>=value` line. The VAR is per
+   row because GitHub's is a fine-grained TOKEN rather than an api key, and pretending otherwise would
+   mean a refusal naming a variable the owner never wrote.
+
+   `stop` is the provider's own word for "it finished". Gemini says STOP, OpenAI-compatible APIs say
+   stop — and the one that matters is the OTHER value: `length`/`MAX_TOKENS` means truncated, which is
+   not an answer. */
+const PROVIDERS = {
+  gemini: {
+    keyVar: 'GEMINI_API_KEY',
+    /* Pinned, not an alias. `gemini-flash-latest` cannot satisfy "state the version in the brief",
+       because the thing it names changes under the scorecard. Measured 2026-10-05: 3.8-flash and
+       3.6-flash answer, 3.7-flash returns 503 — "newest" is not the same as "served". */
+    defaultModel: 'gemini-3.8-flash',
+    url: (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    metaUrl: (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}`,
+    headers: (key) => ({ 'x-goog-api-key': key, 'content-type': 'application/json' }),
+    body: (prompt, model, maxTokens) => ({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: maxTokens }
+    }),
+    stop: 'STOP',
+    read: (d) => ({
+      text: d?.candidates?.[0]?.content?.parts?.map((x) => x.text || '').join('') || '',
+      finish: d?.candidates?.[0]?.finishReason,
+      thinking: d?.usageMetadata?.thoughtsTokenCount ?? 0,
+      answerTokens: d?.usageMetadata?.candidatesTokenCount ?? 0
+    })
+  },
+  openrouter: {
+    keyVar: 'OPENROUTER_API_KEY',
+    /* ONLY `:free` ids — the account holds no credit, so a paid id would simply fail, and picking one
+       by accident is how a "free tier trial" quietly becomes a bill. 16 of OpenRouter's 464 models
+       carry the suffix (read from /models, not from memory). The strongest reasoning-capable one by
+       scale is the 550B Nemotron at a 1M context; `cohere/north-mini-code` and `poolside/laguna-*` are
+       code-specialised but an order of magnitude smaller. */
+    defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+    url: () => 'https://openrouter.ai/api/v1/chat/completions',
+    metaUrl: null,
+    headers: (key) => ({ Authorization: `Bearer ${key}`, 'content-type': 'application/json' }),
+    body: (prompt, model, maxTokens) => ({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+      max_tokens: maxTokens
+    }),
+    stop: 'stop',
+    read: (d) => ({
+      text: d?.choices?.[0]?.message?.content || '',
+      finish: d?.choices?.[0]?.finish_reason,
+      thinking: d?.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
+      answerTokens: d?.usage?.completion_tokens ?? 0
+    })
+  },
+  groq: {
+    keyVar: 'GROQ_API_KEY',
+    /* The largest reasoning-capable model the free tier SERVES, read from /models rather than from
+       memory: 120B at a 131,072-token context. The rest of the catalogue is 27B or smaller, or audio
+       (whisper), guard (prompt-guard) and TTS (orpheus) models. ⚠️ Context is not the binding limit —
+       the free tier's `x-ratelimit-limit-tokens` is 8,000, which is why a 35k-token prompt must be
+       batched per module here and need not be for Gemini. */
+    defaultModel: 'openai/gpt-oss-120b',
+    url: () => 'https://api.groq.com/openai/v1/chat/completions',
+    metaUrl: null,
+    headers: (key) => ({ Authorization: `Bearer ${key}`, 'content-type': 'application/json' }),
+    body: (prompt, model, maxTokens) => ({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+      /* Both `max_tokens` and `max_completion_tokens` were accepted by this model (verified, not
+         assumed); the completion form is the one reasoning models document. */
+      max_completion_tokens: maxTokens
+    }),
+    stop: 'stop',
+    read: (d) => ({
+      text: d?.choices?.[0]?.message?.content || '',
+      finish: d?.choices?.[0]?.finish_reason,
+      thinking: d?.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
+      answerTokens: d?.usage?.completion_tokens ?? 0
+    })
+  },
+  'github-models': {
+    keyVar: 'GITHUB_MODELS_TOKEN',
+    defaultModel: 'openai/gpt-4.1',
+    url: () => 'https://models.github.ai/inference/chat/completions',
+    metaUrl: null, // OpenAI-compatible APIs carry no per-model metadata endpoint here
+    headers: (key) => ({ Authorization: `Bearer ${key}`, 'content-type': 'application/json' }),
+    body: (prompt, model, maxTokens) => ({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+      max_tokens: maxTokens
+    }),
+    stop: 'stop',
+    read: (d) => ({
+      text: d?.choices?.[0]?.message?.content || '',
+      finish: d?.choices?.[0]?.finish_reason,
+      thinking: d?.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
+      answerTokens: d?.usage?.completion_tokens ?? 0
+    })
+  }
+};
+
+export function keyFileFor(provider) {
+  return join(homedir(), '.config', 'tepna', `${provider}.env`);
+}
 /* This model class's own output limit. Thinking tokens count against it — see the finishReason refusal. */
+/* ⚠️ THINKING TOKENS COUNT AGAINST THE OUTPUT BUDGET, so the budget must sit near the model's own
+   limit rather than at a comfortable-looking number. Measured 2026-10-05: a 41-id prompt spent 15,739
+   thought tokens and emitted 654 visible ones inside a 16,384 cap, truncating mid-sentence with
+   finishReason MAX_TOKENS — 2,204 bytes against 13,229 for the same prompt at 65,536. A starved answer
+   reads exactly like a weak model, which is why the finish reason is a REFUSAL and not a note. */
 export const REQ_MAX_OUTPUT_TOKENS = 65536;
-const API = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 /** Everything this tool prints goes through here. A leak is one interpolated error away. */
 export function scrub(text, secret) {
   const s = String(text ?? '');
   if (!secret) return s;
-  return s.split(secret).join('<GEMINI_API_KEY REDACTED>');
+  return s.split(secret).join('<API KEY REDACTED>');
 }
 
 /** `{ key }` or `{ reason }` — PURE over an injected environment and stat, so --selftest can pin every
  *  refusal without a key on the box. The reason NAMES which condition failed; "no key" and "the file is
  *  world-readable" call for opposite responses from a reader. */
-export function resolveKey({ env = {}, exists = () => false, mode = () => 0o600, read = () => '' } = {}) {
-  if (env.GEMINI_API_KEY && String(env.GEMINI_API_KEY).trim()) return { key: String(env.GEMINI_API_KEY).trim(), from: 'environment' };
-  if (!exists(KEY_FILE)) return { reason: `no GEMINI_API_KEY in the environment and no key file at ${KEY_FILE} — refusing rather than running unauthenticated` };
-  const m = mode(KEY_FILE) & 0o777;
-  if (m & 0o077) return { reason: `the key file ${KEY_FILE} is mode ${m.toString(8)} — group- or world-readable, so it is not a secret; refusing until it is 0600` };
-  const line = String(read(KEY_FILE))
+export function resolveKey({ keyVar = 'GEMINI_API_KEY', keyFile = '', env = {}, exists = () => false, mode = () => 0o600, read = () => '' } = {}) {
+  if (env[keyVar] && String(env[keyVar]).trim()) return { key: String(env[keyVar]).trim(), from: 'environment' };
+  if (!exists(keyFile)) return { reason: `no ${keyVar} in the environment and no key file at ${keyFile} — refusing rather than running unauthenticated` };
+  const m = mode(keyFile) & 0o777;
+  if (m & 0o077) return { reason: `the key file ${keyFile} is mode ${m.toString(8)} — group- or world-readable, so it is not a secret; refusing until it is 0600` };
+  const line = String(read(keyFile))
     .split('\n')
     .map((l) => l.trim())
-    .find((l) => l.startsWith('GEMINI_API_KEY='));
-  if (!line) return { reason: `the key file ${KEY_FILE} carries no GEMINI_API_KEY= line` };
-  const v = line.slice('GEMINI_API_KEY='.length).trim();
-  if (!v) return { reason: `the key file ${KEY_FILE} has an EMPTY GEMINI_API_KEY value` };
+    .find((l) => l.startsWith(`${keyVar}=`));
+  if (!line) return { reason: `the key file ${keyFile} carries no ${keyVar}= line` };
+  const v = line.slice(`${keyVar}=`.length).trim();
+  if (!v) return { reason: `the key file ${keyFile} has an EMPTY ${keyVar} value` };
   return { key: v, from: 'key file' };
 }
 
@@ -115,22 +226,13 @@ export function reviewVerdict({ status, reason, model, version, ids = 0, answerB
   });
 }
 
-export function buildRequest(promptText, sources, model) {
+export function buildPrompt(promptText, sources) {
   /* The survivor list FIRST and the source after it, because the question is what the reader is being
      asked to do and the files are the evidence. Each file is fenced with its repo-relative path, so a
      line-number citation in the answer is checkable against the tree. */
   const body = [promptText.trim(), '', '--- SOURCE (read-only; cite line numbers from these files) ---'];
   for (const [path, text] of sources) body.push('', `### ${path}`, '```python', text.replace(/\s+$/, ''), '```');
-  return {
-    model,
-    contents: [{ parts: [{ text: body.join('\n') }] }],
-    /* 65536 is this model class's own output limit, and the budget must be near it because THINKING
-       TOKENS COUNT AGAINST IT. Measured 2026-10-05: a 41-id prompt spent 15,739 thought tokens and
-       emitted 654 visible ones inside a 16,384 cap, so the answer truncated mid-sentence with
-       finishReason MAX_TOKENS — a short answer that reads like a weak model and is a starved one.
-       Always read finishReason before scoring; a truncated answer is not a measurement. */
-    generationConfig: { temperature: 0, maxOutputTokens: REQ_MAX_OUTPUT_TOKENS }
-  };
+  return body.join('\n');
 }
 
 /** ⚠️ THE TRANSCRIPT IS SCRUBBED TOO, and that was a real gap CodeQL found rather than a precaution.
@@ -157,7 +259,7 @@ async function main(argv) {
         reviewVerdict({
           status: 'PASS',
           reason: null,
-          model: DEFAULT_MODEL,
+          model: PROVIDERS.gemini.defaultModel,
           version: 'sample',
           ids: 41,
           answerBytes: 13229,
@@ -171,7 +273,21 @@ async function main(argv) {
     return 0;
   }
 
-  const k = resolveKey({ env: process.env, exists: existsSync, mode: (p) => statSync(p).mode, read: (p) => readFileSync(p, 'utf8') });
+  const providerName = val('--provider') || 'gemini';
+  const P = PROVIDERS[providerName];
+  if (!P) {
+    console.error(`gemini-review: REFUSING — unknown --provider ${providerName}; known: ${Object.keys(PROVIDERS).join(', ')}`);
+    return 1;
+  }
+  const keyFile = keyFileFor(providerName);
+  const k = resolveKey({
+    keyVar: P.keyVar,
+    keyFile,
+    env: process.env,
+    exists: existsSync,
+    mode: (f) => statSync(f).mode,
+    read: (f) => readFileSync(f, 'utf8')
+  });
   if (k.reason) {
     console.error(`gemini-review: REFUSING — ${k.reason}`);
     return 1;
@@ -189,7 +305,7 @@ async function main(argv) {
       console.error('gemini-review: REFUSING — --prompt <file> is required and must exist');
       return 1;
     }
-    const model = val('--model') || DEFAULT_MODEL;
+    const model = val('--model') || P.defaultModel;
     const out = val('--out');
     const promptText = readFileSync(promptFile, 'utf8');
     const grouped = groupedIdLines(promptText);
@@ -217,46 +333,63 @@ async function main(argv) {
       return 1;
     }
 
-    const req = buildRequest(promptText, sources, model);
-    const meta = await (await fetch(`${API}/${model}`, { headers: { 'x-goog-api-key': key } })).json();
-    const version = meta?.version || 'unknown';
+    const prompt = buildPrompt(promptText, sources);
     const at = new Date().toISOString();
-    record(out, { at, model, version, kind: 'request', sources: sources.map(([p, t]) => ({ path: p, bytes: t.length })), prompt: req.contents[0].parts[0].text }, key);
+    /* Per-model metadata where the provider has it; an OpenAI-compatible endpoint does not, and the
+       MODEL ID is the thing that must appear in every record either way. */
+    let version = 'n/a';
+    if (P.metaUrl) {
+      try {
+        version = (await (await fetch(P.metaUrl(model), { headers: P.headers(key) })).json())?.version || 'unknown';
+      } catch {
+        version = 'unknown';
+      }
+    }
+    record(out, { at, provider: providerName, model, version, kind: 'request', sources: sources.map(([pp, tt]) => ({ path: pp, bytes: tt.length })), prompt }, key);
 
-    const r = await fetch(`${API}/${model}:generateContent`, {
+    const r = await fetch(P.url(model), {
       method: 'POST',
-      headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
-      body: JSON.stringify({ contents: req.contents, generationConfig: req.generationConfig })
+      headers: P.headers(key),
+      body: JSON.stringify(P.body(prompt, model, REQ_MAX_OUTPUT_TOKENS))
     });
     const raw = await r.text();
-    record(out, { at: new Date().toISOString(), model, version, kind: 'response', http: r.status, body: raw }, key);
+    /* RATE-LIMIT HEADERS ARE RECORDED, not inferred from a 429. A free tier's real ceiling is the one
+       it tells you about before you hit it, and a transcript without them cannot answer "what did the
+       cap turn out to be" after the fact. */
+    const limits = {};
+    for (const [h, v] of r.headers) if (/ratelimit|retry-after|x-request-id/i.test(h)) limits[h] = v;
+    record(out, { at: new Date().toISOString(), provider: providerName, model, version, kind: 'response', http: r.status, limits, body: raw }, key);
     if (!r.ok) {
       console.error(scrub(`gemini-review: HTTP ${r.status} — ${raw.slice(0, 400)}`, key));
       return 1;
     }
-    const d = JSON.parse(raw);
-    const cand = d?.candidates?.[0];
-    const text = cand?.content?.parts?.map((p) => p.text || '').join('') || '';
-    const fin = cand?.finishReason;
-    /* ⚠️ A TRUNCATED ANSWER IS NOT AN ANSWER, and it reads like a weak model. Measured 2026-10-05: a
-       41-id prompt spent 15,739 THINKING tokens and emitted 654 visible ones inside a 16,384 cap, so
-       the reply stopped mid-sentence at 2,204 bytes against 6,743 for an easier prompt — which looks
-       exactly like "it does worse when asked per id". Raising the cap to this model's own 65,536
-       returned 13,229 bytes and STOP. Refused by NAME so nobody scores a starved reply. */
-    if (fin && fin !== 'STOP') {
+    let d;
+    try {
+      d = JSON.parse(raw);
+    } catch {
+      /* A 200 that is not JSON is not an answer. Measured 2026-10-05: every request to
+         models.github.ai from this sandbox returned a 4-byte `OK` as text/plain with no server
+         header — an interceptor, not the API — so "200" alone would have read as success. */
       console.error(
-        `gemini-review: REFUSING — finishReason ${fin}, so this is a TRUNCATED or blocked reply and not an answer. ` +
-          `${d?.usageMetadata?.thoughtsTokenCount ?? 0} thinking token(s) and ` +
-          `${d?.usageMetadata?.candidatesTokenCount ?? 0} answer token(s) against maxOutputTokens ` +
-          `${REQ_MAX_OUTPUT_TOKENS}. Do not score it.`
+        `gemini-review: REFUSING — HTTP ${r.status} but the body is not JSON (${raw.length} byte(s), content-type ` +
+          `${r.headers.get('content-type')}): ${JSON.stringify(raw.slice(0, 60))}. A 200 is not an answer.`
+      );
+      return 1;
+    }
+    const { text, finish, thinking, answerTokens } = P.read(d);
+    if (finish && finish !== P.stop) {
+      console.error(
+        `gemini-review: REFUSING — finish reason ${finish} (provider's completed value is ${P.stop}), so this is a ` +
+          `TRUNCATED or blocked reply and not an answer. ${thinking} thinking token(s) and ${answerTokens} answer ` +
+          `token(s) against a budget of ${REQ_MAX_OUTPUT_TOKENS}. Do not score it.`
       );
       return 1;
     }
     if (!text.trim()) {
-      console.error(`gemini-review: EMPTY answer (finishReason ${fin}) — nothing was read`);
+      console.error(`gemini-review: EMPTY answer (finish ${finish}) — nothing was read`);
       return 1;
     }
-    console.log(`# model ${model} version ${version}  ·  ${sources.length} source file(s) sent  ·  jsonl ${out || '(not kept)'}`);
+    console.log(`# provider ${providerName}  ·  model ${model} version ${version}  ·  ${sources.length} source file(s) sent  ·  jsonl ${out || '(not kept)'}`);
     console.log(text);
     if (argv.includes('--json'))
       console.log(
@@ -305,13 +438,13 @@ function selftest() {
   ck('an EMPTY value refuses', /EMPTY GEMINI_API_KEY value/.test(empty.reason), true);
   ck('a 0600 file is read', resolveKey({ env: {}, exists: () => true, mode: () => 0o600, read: () => 'GEMINI_API_KEY=abc\n' }), { key: 'abc', from: 'key file' });
   /* THE SCRUB. A secret that appears in a stack trace is leaked exactly as hard as one printed. */
-  ck('scrub replaces every occurrence', scrub('a SEK b SEK', 'SEK'), 'a <GEMINI_API_KEY REDACTED> b <GEMINI_API_KEY REDACTED>');
+  ck('scrub replaces every occurrence', scrub('a SEK b SEK', 'SEK'), 'a <API KEY REDACTED> b <API KEY REDACTED>');
   ck('scrub survives no secret', scrub('plain', ''), 'plain');
   ck('scrub survives a null message', scrub(null, 'SEK'), '');
   /* The TRANSCRIPT path, not just the console one: CodeQL flagged `body: raw` reaching the jsonl
      unscrubbed as clear-text logging of sensitive information, and it was right — an API error can
      echo the request it rejected, and the jsonl is the artefact we keep. */
-  ck('a recorded line is scrubbed', scrub(JSON.stringify({ body: 'oops SEK here' }), 'SEK'), '{"body":"oops <GEMINI_API_KEY REDACTED> here"}');
+  ck('a recorded line is scrubbed', scrub(JSON.stringify({ body: 'oops SEK here' }), 'SEK'), '{"body":"oops <API KEY REDACTED> here"}');
   /* THE EXPORT BOUNDARY: a plain checkout must be refused, and the reason must say which tree betrayed it. */
   const chk = verifyExport('/x', { exists: (p) => p === '/x' || p.endsWith('CLAUDE.md') || p.endsWith('uploads') });
   ck('a dir carrying uploads/ is refused', /carries uploads\/ — that is a checkout/.test(chk.reason), true);
@@ -320,10 +453,21 @@ function selftest() {
   ck('an absent --src is refused by name', /--src is required/.test(verifyExport('').reason), true);
   ck('a real export passes', verifyExport('/x', { exists: (p) => p === '/x' || p.endsWith('CLAUDE.md') }), { ok: true });
   /* The request carries the question BEFORE the evidence, and fences each file with its path. */
-  const req = buildRequest('Q?', [['capture-host/a.py', 'code\n']], 'm');
-  ck('the prompt leads', req.contents[0].parts[0].text.startsWith('Q?'), true);
-  ck('the source is fenced with its path', /### capture-host\/a\.py\n```python\ncode\n```/.test(req.contents[0].parts[0].text), true);
-  ck('temperature is pinned to 0', req.generationConfig.temperature, 0);
+  const prompt = buildPrompt('Q?', [['capture-host/a.py', 'code\n']]);
+  ck('the prompt leads', prompt.startsWith('Q?'), true);
+  ck('the source is fenced with its path', /### capture-host\/a\.py\n```python\ncode\n```/.test(prompt), true);
+  /* EVERY provider row, so a new adapter cannot arrive without temperature 0, a stop word, a key var
+     and a default model — the four things the rules depend on and the one place they could be forgotten. */
+  for (const [name, P] of Object.entries(PROVIDERS)) {
+    const b = P.body('Q?', P.defaultModel, 123);
+    ck(`${name}: temperature pinned to 0`, JSON.stringify(b).includes('"temperature":0'), true);
+    ck(`${name}: the budget reaches the body`, JSON.stringify(b).includes('123'), true);
+    ck(`${name}: names its stop word`, typeof P.stop === 'string' && P.stop.length > 0, true);
+    ck(`${name}: names its key variable`, /^[A-Z][A-Z0-9_]+$/.test(P.keyVar), true);
+    ck(`${name}: key file is ~/.config/tepna/<provider>.env`, keyFileFor(name).endsWith(`/.config/tepna/${name}.env`), true);
+    ck(`${name}: reads an empty response without throwing`, typeof P.read({}).text, 'string');
+  }
+  ck('an unknown provider is not silently defaulted', PROVIDERS['nope'] === undefined, true);
   ck('a grouped id line is detected', groupedIdLines(' 36/70/85: a round digit count\n A1: x\n'), ['36/70/85: a round digit count']);
   ck('a one-id-per-line prompt is clean', groupedIdLines(' A1: x\n B2: y\n'), []);
   ck('a bare number line is not a group', groupedIdLines(' 13: s["count"] > 0\n'), []);
