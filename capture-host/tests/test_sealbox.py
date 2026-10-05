@@ -523,3 +523,97 @@ def test_a_seal_header_without_revision_or_keyId_is_refused_not_defaulted_to_0(t
     o = _run(tmp_path, ob, k, store, night)
     assert o["status"] == "UNKNOWN" and "revision/keyId" in o["reason"], o
     assert open(final, "rb").read() == b"seal-bytes"
+
+
+# ── absence drain group 4d: the diff-scoped survivors in existing_header / seal_or_reissue ──────────
+def _spy(monkeypatch):
+    """Record the kwargs the real sealer and reader are called with, and still run them."""
+    calls = {}
+    real_seal, real_verdict = sealbox._seal.seal_night, sealbox._unseal.verdict
+
+    def seal_night(night_dir, target, **kw):
+        calls["seal"] = {"target": target, **kw}
+        return real_seal(night_dir, target, **kw)
+
+    def verdict_(target, **kw):
+        calls["verdict"] = kw
+        return real_verdict(target, **kw)
+
+    monkeypatch.setattr(sealbox._seal, "seal_night", seal_night)
+    monkeypatch.setattr(sealbox._unseal, "verdict", verdict_)
+    return calls
+
+
+def test_a_first_seal_is_written_STRAIGHT_to_its_final_name_with_every_fact_passed_through(
+    tmp_path, monkeypatch, caplog
+):
+    kd, ob, k, store, night = _box(tmp_path)
+    calls = _spy(monkeypatch)
+    with caplog.at_level("INFO"):
+        o = _run(tmp_path, ob, k, store, night, cfg={"seal": {"research_consent": True}})
+    final = os.path.join(ob, "box1-2026-09-19.tepna")
+    assert o["status"] == "PASS" and o["result"]["reader"] == "PASS"
+    assert o["producedBy"]["commit"] == "abc1234"
+    sc = calls["seal"]
+    assert sc["target"] == final and sc["night"] == "2026-09-19" and sc["consent"] == "yes" and sc["revision"] == 1
+    assert sc["extra_info"] == sealbox.extra_info(
+        {"seal": {"research_consent": True}}, version="2.6.0", commit="abc1234", revision=1
+    )
+    assert calls["verdict"]["known_revision"] == 1
+    n_files, n_bytes = sealbox.night_signature(night)
+    key_id = o["result"]["keyId"]
+    want = f"seal: 2026-09-19 revision 1 written ({n_files} files, {n_bytes} bytes, keyId {key_id}) — verified"
+    assert want in [r.getMessage() for r in caplog.records]
+
+
+def test_a_reissue_is_verified_at_ITS_revision(tmp_path, monkeypatch):
+    kd, ob, k, store, night = _box(tmp_path)
+    _run(tmp_path, ob, k, store, night)
+    (tmp_path / "captures" / "2026-09-19" / "late.txt").write_text("x")
+    calls = _spy(monkeypatch)
+    o = _run(tmp_path, ob, k, store, night)
+    assert o["status"] == "PASS" and calls["verdict"]["known_revision"] == 2
+    assert calls["seal"]["target"].endswith(".rev.part")
+
+
+def test_the_unwritable_verdict_warning_names_the_path_and_carries_the_traceback(tmp_path, monkeypatch, caplog):
+    kd, ob, k, store, night = _box(tmp_path)
+    monkeypatch.setattr(sealbox._verdict, "write", lambda p, o: (_ for _ in ()).throw(OSError("ro")))
+    with caplog.at_level("WARNING"):
+        _run(tmp_path, ob, k, store, night)
+    vpath = os.path.join(ob, "box1-2026-09-19.tepna.verdict.json")
+    recs = [r for r in caplog.records if r.getMessage() == f"seal: could not write {vpath}"]
+    assert recs and recs[0].exc_info is not None and recs[0].exc_info[0] is OSError
+
+
+@pytest.mark.parametrize("header", [{"revision": 1}, {"keyId": 0}], ids=["no-keyId", "no-revision"])
+def test_a_header_missing_EITHER_number_is_refused_and_counts_as_unchecked(tmp_path, monkeypatch, header):
+    kd, ob, k, store, night = _box(tmp_path)
+    monkeypatch.setattr(sealbox, "existing_header", lambda _p: dict(header, files=1, bytes=1))
+    o = _run(tmp_path, ob, k, store, night)
+    assert o["status"] == "UNKNOWN" and "revision/keyId" in o["reason"]
+    assert o["population"] == {"checked": 0, "eligible": 1, "excluded": 1}
+
+
+def test_a_header_WITHOUT_its_counts_never_reads_as_current(tmp_path, monkeypatch):
+    """A one-file, one-byte night against a header that carries no counts: nothing shows the seal is current,
+    so it is re-issued, never NOT_APPLICABLE."""
+    kd, ob, k, store, night = _box(tmp_path)
+    one = tmp_path / "one"
+    one.mkdir()
+    (one / "a.txt").write_text("x")
+    assert sealbox.night_signature(str(one)) == (1, 1)
+    _run(tmp_path, ob, k, store, str(one))
+    real = sealbox.existing_header(os.path.join(ob, "box1-2026-09-19.tepna"))
+    for drop in ("files", "bytes"):
+        stripped = {kk: v for kk, v in real.items() if kk != drop}
+        monkeypatch.setattr(sealbox, "existing_header", lambda _p, h=stripped: h)
+        o = _run(tmp_path, ob, k, store, str(one))
+        assert o["status"] == "PASS" and o["result"]["revision"] == real["revision"] + 1, (drop, o)
+
+
+def test_an_unreadable_seal_names_the_EXCEPTION_it_raised(tmp_path):
+    p = tmp_path / "bad.tepna"
+    p.write_bytes(b"garbage")
+    why = sealbox.existing_header(str(p))["_unreadable"]
+    assert why.startswith("SealRefused: magic"), why

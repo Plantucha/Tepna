@@ -372,7 +372,10 @@ def seal_or_reissue(
             "so it is NOT replaced",
             checked=0,
         )
-    if header is not None and int(header.get("files", -1)) == n_files and int(header.get("bytes", -1)) == n_bytes:
+    # A header without its counts cannot show the seal is current: a missing count matches nothing (∅), it is
+    # not compared as a -1 that only happens never to equal a real count.
+    seen_files, seen_bytes = (header or {}).get("files"), (header or {}).get("bytes")
+    if seen_files is not None and seen_bytes is not None and (int(seen_files), int(seen_bytes)) == (n_files, n_bytes):
         return _emit(
             "NOT_APPLICABLE",
             None,
