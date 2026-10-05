@@ -7749,7 +7749,14 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             bluez = False
             try:
                 info = await bonding._btctl(f"info {d['address']}\nquit\n", timeout=6)
-                bluez = "Connected: yes" in info
+                if info is None:
+                    # bluetoothctl did not answer (ABSENCE-SURVEY 3720ab19bc82): no evidence either way, said as
+                    # such rather than reached through a TypeError in the handler below.
+                    log.warning(
+                        "watchdog: BlueZ did not answer about %s — no phantom-link evidence from it", d["address"]
+                    )
+                else:
+                    bluez = "Connected: yes" in info
             except Exception:
                 # UNDER-reports, never over-reports: `bluez_connected` is read ONLY positively (a link BlueZ
                 # sees while we do not = phantom), so a failed probe costs evidence rather than manufacturing
