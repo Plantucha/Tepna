@@ -978,3 +978,48 @@ def test_the_pacing_is_read_at_CALL_time(monkeypatch):
     cp = psv.Control(_C())
     assert _run(cp.send(psv.pmd.status_cmd(), timeout=0.001)) is None
     assert slept == [0.007]
+
+
+# ── Control.send: survivors through the Codex reader, each verified against the original ───────────
+class _StrictCP:
+    """Records every write; answers ONLY a write to the PMD control point with response=True, as the real
+    characteristic does, and can refuse or answer late."""
+
+    def __init__(self, q, reply=b"\xf0\x05", refuse=None, delay=0.0):
+        self.q, self.reply, self.refuse, self.delay, self.writes = q, reply, refuse, delay, []
+
+    async def write_gatt_char(self, uuid, data, response=False):
+        self.writes.append((uuid, bytes(data), response))
+        if self.refuse:
+            raise self.refuse
+        if uuid == psv.pmd.PMD_CONTROL and response is True:
+            if self.delay:
+                asyncio.get_running_loop().call_later(self.delay, self.q.put_nowait, self.reply)
+            else:
+                self.q.put_nowait(self.reply)
+
+
+def _cp(**kw):
+    cp = psv.Control(None)
+    cp.client = _StrictCP(cp.q, **kw)
+    return cp
+
+
+def test_send_writes_the_CONTROL_POINT_with_a_confirmed_write_and_logs_the_reply():
+    cp = _cp()
+    assert _run(cp.send(b"\x05")) == b"\xf0\x05"
+    assert cp.client.writes == [(psv.pmd.PMD_CONTROL, b"\x05", True)]
+    assert cp.log == [{"sent": "05", "reply": "f005"}]
+
+
+def test_a_refused_write_is_logged_with_the_exception_name_and_re_raised():
+    cp = _cp(refuse=ValueError("denied"))
+    with pytest.raises(ValueError):
+        _run(cp.send(b"\x05"))
+    assert cp.log == [{"sent": "05", "refused": "ValueError: denied"}]
+
+
+def test_an_EXPLICIT_timeout_overrides_the_default_one():
+    """The fixture sets the default reply timeout to 10 ms; a reply 20 ms late arrives inside an explicit 50."""
+    cp = _cp(delay=0.02)
+    assert _run(cp.send(b"\x05", timeout=0.05)) == b"\xf0\x05"
