@@ -63,6 +63,24 @@ ExecStartPre=/usr/bin/git switch -q --detach origin/main
 # ⚠️ NEVER add `--jobs`: forcing the fold's parallelism is a standing fleet rule. The tool sizes itself
 # against the box; a fixed count either starves peers' gates or overruns memory.
 ExecStart=/bin/sh -c '[ -f tools/trio-batch.mjs ] || { echo "trio-batch.mjs not on origin/main yet — nothing to run"; exit 0; }; [ -n "$FOLD_SRC" ] && [ -d "$FOLD_SRC" ] || { echo "fold.env: FOLD_SRC missing or not a directory ($FOLD_SRC)"; exit 2; }; node tools/trio-batch.mjs --src "$FOLD_SRC" --out uploads/trio --skip-existing --json'
+# 🔴 THE TRIPWIRE, BEFORE THE HANDOFF. `uploads/*` ignores the `uploads/trio` DIRECTORY and
+# `!uploads/trio/**` un-ignores its children — but git does not descend into an ignored directory, so the
+# negation reaches those children only while something in there is ALREADY TRACKED. Measured in a scratch
+# repo carrying those exact two lines with nothing tracked: `git status --porcelain -- uploads/trio` is
+# EMPTY after a fold has written files, and `git add -- uploads/trio` is refused outright. Both work in
+# this checkout only because main tracks 658 files there.
+#
+# So the handoff's own guard is NOT self-validating: "git sees no change" means EITHER nothing was folded
+# OR git has gone blind to the whole directory, and those two must never share an exit code. A silent
+# no-op every night is exactly how a fold backlog returns unnoticed — the defect E12 exists to end.
+#
+# ⚠️ KEYED ON TRACKEDNESS, NOT ON "the fold reported work", and deliberately: the run verdict carries no
+# count of nights RECOMPUTED this tick (`folded` counts every PASS night, skipped ones included), so a
+# tripwire reading it would fire on every all-skipped night and red the timer for working correctly.
+# Trackedness is the condition that actually has to hold, it cannot be flaky, and it fires even on a tick
+# that folded nothing — before the breakage can hide behind a quiet run.
+ExecStartPost=/bin/sh -c 'test -n "$(git ls-files uploads/trio | head -1)" || { echo "REFUSING: uploads/trio is fully untracked here, so git cannot see a fold under it — uploads/* ignores the directory and !uploads/trio/** cannot reach into an ignored dir with nothing tracked. A commit would silently stage nothing. Restore the tracked fold tree before enabling this timer."; exit 2; }'
 # The handoff. Separate from the fold so a fold that succeeded is never undone by a bookkeeping failure,
-# and guarded on there being a change at all.
+# and guarded on there being a change at all — reached only once the tripwire above has proved git can see
+# the directory, so this exit 0 means "nothing was folded" and nothing else.
 ExecStartPost=/bin/sh -c 'test -n "$(git status --porcelain -- uploads/trio)" || { echo "fold changed nothing under uploads/trio — no commit owed"; exit 0; }; b="fold/$(date +%%Y-%%m-%%d-%%H%%M)"; git switch -q -c "$b" && git add -- uploads/trio && git -c user.name="Tepna fold timer" -c user.email="fold-timer@localhost" commit -q -m "fold: nights folded $(date +%%Y-%%m-%%d) by tepna-trio-fold" -m "Unattended fold, LOCAL ONLY — this commit has never been pushed and the unit holds no credential. Relay it as a PR after reading the run verdict in uploads/trio/trio-batch-verdicts.json." -m "Fleet-Session: fold-timer" && echo "fold committed on $b — not pushed; relay it when a session reads the verdict"'
