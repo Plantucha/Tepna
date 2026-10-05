@@ -246,6 +246,26 @@ export const SEEDS = [
     at: 'capture-host/sealbox.py:342',
     state: 'fixed',
     note: 'an unreadable existing seal is an absent READING, not an absent seal: existing_header returns {_unreadable: why}, seal_or_reissue emits UNKNOWN (checked 0) and leaves the file exactly as it was (re-sealing is an operator action); a header missing revision or keyId is UNKNOWN, never revision 1 under keyId 0. Owner ruling 2026-10-04. Plants: test_sealbox unreadable-seal + missing-number tests (2026-10-05, Wren)'
+  },
+  {
+    at: 'capture-host/mmeta.py:112',
+    state: 'fixed',
+    note: 'generated_count returns None (not 0) for an unreadable mutants file, and mutate_diff refuses that glob as NOT MEASURED instead of summing 0 into the verdict generated total; the benign-arm consumer the survey traced was already guarded by generated_scan + unmeasured_zero. Plant: test_generated_count_is_NONE_not_zero_when_the_mutants_file_is_absent (2026-10-05, Wren)'
+  },
+  {
+    at: 'capture-host/mutation_diff.py:146',
+    state: 'fixed',
+    note: 'functions_covering returns None on source that does not parse, and mutate_diff refuses an unparseable or unreadable module as NOT MEASURED instead of printing none-inside-a-function and dropping it from the population. Plant: test_functions_covering_yields_nothing_outside_a_function_or_on_bad_source (2026-10-05, Wren)'
+  },
+  {
+    at: 'capture-host/night_report.py:129',
+    state: 'fixed',
+    note: 'fixed #2971 (4b5b0c3e): back_check returns UNKNOWN when no class-B block was examined, never ok over an empty population. Re-read 2026-10-05 (Wren)'
+  },
+  {
+    at: 'capture-host/acq_evidence_cpap.py:141',
+    state: 'fixed',
+    note: 'COMPLETE requires lost_coverage_missing present and empty and total_lost present, else UNKNOWN with provenance.unmeasured_loss naming the categories (ruled 2026-10-05 for the owner). Every live CPAP session now reads UNKNOWN: stalls / post_drop_tail have no writer (residue 2026-10-05-cpap-stall-and-post-drop-counters-have-no-writer). Plant: test_TODAYS_live_summary_shape_is_UNKNOWN_with_the_unmeasured_categories_named (2026-10-05, Wren)'
   }
 ];
 

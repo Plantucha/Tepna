@@ -214,7 +214,7 @@ def _decorator_name(node: ast.expr) -> str:
     return getattr(node, "attr", "")
 
 
-def functions_covering(source: str, lines: set[int]) -> set[str]:
+def functions_covering(source: str, lines: set[int]) -> set[str] | None:
     """mutmut mutant-name stems for the functions containing `lines`.
 
     Module-level functions are `x_<name>`; methods are `xǁ<Class>ǁ<name>` (mutmut's own separator).
@@ -222,11 +222,17 @@ def functions_covering(source: str, lines: set[int]) -> set[str]:
     generate mutants there under a function name, so there is nothing to require.
 
     Takes SOURCE TEXT, not a path: the read is plumbing and belongs to the caller, the AST walk is the
-    decision. Splitting them is what lets this sit inside the coverage floor at all."""
+    decision. Splitting them is what lets this sit inside the coverage floor at all.
+
+    ∅ None on source that does not parse (ABSENCE-SURVEY 45ccc1146b37). The empty set is a MEASUREMENT —
+    "the changed lines are all module-level" — and returning it for an unparseable module told the caller
+    nothing needed mutating, so the module left the population with a pass-shaped line. None says the
+    scope was never determined; the caller refuses it as unmeasured (cf. `annotation_only`, which already
+    answers a parse failure with "never a guess")."""
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        return set()
+        return None
     found: set[str] = set()
 
     def visit(node, cls: str | None):
@@ -1745,7 +1751,9 @@ def parse_exclusions(text: str) -> dict[str, dict]:
     """
     doc = json.loads(text)
     if not isinstance(doc, dict) or doc.get("schema") != EXCLUSIONS_SCHEMA:
-        raise ValueError(f"not a {EXCLUSIONS_SCHEMA} document: schema={doc.get('schema') if isinstance(doc, dict) else type(doc).__name__!r}")
+        raise ValueError(
+            f"not a {EXCLUSIONS_SCHEMA} document: schema={doc.get('schema') if isinstance(doc, dict) else type(doc).__name__!r}"
+        )
     raw = doc.get("exclusions")
     if not isinstance(raw, dict):
         raise ValueError("`exclusions` must be an object of key -> entry")

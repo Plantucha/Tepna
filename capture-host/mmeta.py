@@ -291,12 +291,16 @@ def exit_codes_scan(meta_path: Path) -> dict:
     }
 
 
-def generated_count(work: Path, module: str, glob: str) -> int:
-    """`generated_under_glob` against the scratch's mutants file, `{}`-safe if it is absent."""
+def generated_count(work: Path, module: str, glob: str) -> int | None:
+    """`generated_under_glob` against the scratch's mutants file; None when that file cannot be read.
+
+    ∅ NOT 0 (ABSENCE-SURVEY f2f47e27c21e). A 0 is a legal count — a function with no mutable operator —
+    so an unread file returned as 0 was indistinguishable from it, and the caller summed it into the
+    verdict's `generated` total, understating a count it had not taken."""
     try:
         src = (Path(work) / "mutants" / module).read_text(encoding="utf-8")
     except OSError:
-        return 0
+        return None
     return generated_under_glob(src, glob)
 
 
