@@ -134,9 +134,24 @@ def assemble_live(
     lost = 0
     if counters:
         lost = int(counters.get("total_lost") or 0) + int(counters.get("sink_errors") or 0)
+    # ∅ COMPLETE IS A CLAIM ABOUT EVERY LOSS CATEGORY (ABSENCE-SURVEY aa1146c0a994; ruled 2026-10-05 for the
+    # owner). `lost_coverage_missing` names the categories `total_lost` does not measure, and a category
+    # nothing measures is absence — neither a discontinuity to refuse nor reduced coverage to annotate. So
+    # COMPLETE needs that list present and EMPTY and `total_lost` present; otherwise the acquisition is
+    # UNKNOWN, with the unmeasured categories named in provenance. Today `stalls` and `post_drop_tail` have
+    # no writer (cpap_ingest.py), so every live session reads UNKNOWN: the stamp was never earned.
+    unmeasured_loss: list[str] = []
+    if counters:
+        if counters.get("total_lost") is None:
+            unmeasured_loss.append("total_lost")
+        missing_cov = counters.get("lost_coverage_missing")
+        if isinstance(missing_cov, list):
+            unmeasured_loss.extend(str(c) for c in missing_cov)
+        else:
+            unmeasured_loss.append("lost_coverage_missing")
     if lost or stopped_cleanly is False or duration_check.agrees is False:
         completeness = ae.PARTIAL
-    elif stopped_cleanly is True and counters:
+    elif stopped_cleanly is True and counters and not unmeasured_loss:
         completeness = ae.COMPLETE
     else:
         completeness = ae.UNKNOWN
@@ -171,6 +186,8 @@ def assemble_live(
         provenance={
             # the UNPROJECTED accounting — `transport_gaps`/`decode_gaps` are a lossy view of this
             "gap_counters": counters,
+            # the loss categories nothing measured — why `completeness` cannot be COMPLETE (§∅)
+            "unmeasured_loss": unmeasured_loss,
             # the DERIVED artifact, never confused with the authoritative record above (INV9)
             "edf_artifact": edf_path,
             "records": facts.get("records"),

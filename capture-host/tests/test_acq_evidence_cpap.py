@@ -54,6 +54,8 @@ def _counters(**over):
         "post_drop_tail": 0,
         "sink_errors": 0,
         "total_lost": 0,
+        # every loss category measured: the state in which COMPLETE is earned (cpap_ingest summary shape)
+        "lost_coverage_missing": [],
     }
     c.update(over)
     return c
@@ -413,7 +415,10 @@ def test_the_production_pump_emits_the_envelope_after_the_sinks_close():
     ev = got[0]
     # it describes the REAL artifact, and was assembled AFTER the close (else validation is UNKNOWN)
     assert ev.validation == ae.VALID, "assembled after the sink closed"
-    assert ev.completeness == ae.COMPLETE
+    # ABSENCE-SURVEY aa1146c0a994: the PRODUCTION summary leaves stalls / post_drop_tail unmeasured (nothing
+    # assigns them), so a clean, lossless session is UNKNOWN — the COMPLETE this asserted was never earned.
+    assert ev.completeness == ae.UNKNOWN
+    assert ev.provenance["unmeasured_loss"] == ["stalls", "post_drop_tail"]
     assert ev.artifact_path == "/tmp/cpap-raw-x.jsonl"
     assert ev.provenance["edf_artifact"] == "/tmp/night/x_BRP.edf"
     assert ev.provenance["observed_interval_ms"] == 40, "the DEVICE's observed interval reached it"
@@ -1126,3 +1131,31 @@ def test_the_envelope_carries_None_not_a_default_when_no_tracker_was_wired():
 
     env = acq_evidence_cpap.assemble_live({"session_id": "s", "device_id": "d"}, counters=None)
     assert env.provenance["continuity"] is None
+
+
+# ── ABSENCE-SURVEY aa1146c0a994: COMPLETE is a claim about EVERY loss category ───────────────────────
+def test_TODAYS_live_summary_shape_is_UNKNOWN_with_the_unmeasured_categories_named():
+    """The real cpap_ingest summary: stalls / post_drop_tail have no writer, so they are None and listed in
+    lost_coverage_missing. A cleanly stopped session with zero counted loss used to read COMPLETE here."""
+    c = _counters(stalls=None, post_drop_tail=None, lost_coverage_missing=["stalls", "post_drop_tail"])
+    ev = cpap.assemble_live(_facts(), counters=c, stopped_cleanly=True)
+    assert ev.completeness == ae.UNKNOWN
+    assert ev.provenance["unmeasured_loss"] == ["stalls", "post_drop_tail"]
+
+
+def test_a_summary_WITHOUT_a_total_or_a_coverage_list_is_not_complete():
+    for drop in ("total_lost", "lost_coverage_missing"):
+        c = {k: v for k, v in _counters().items() if k != drop}
+        ev = cpap.assemble_live(_facts(), counters=c, stopped_cleanly=True)
+        assert ev.completeness == ae.UNKNOWN and ev.provenance["unmeasured_loss"] == [drop], drop
+
+
+def test_KNOWN_loss_still_reads_partial_even_with_categories_unmeasured():
+    c = _counters(overflow=7, total_lost=7, lost_coverage_missing=["stalls"])
+    ev = cpap.assemble_live(_facts(), counters=c, stopped_cleanly=True)
+    assert ev.completeness == ae.PARTIAL and ev.provenance["unmeasured_loss"] == ["stalls"]
+
+
+def test_complete_is_reachable_once_every_category_is_measured():
+    ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True)
+    assert ev.completeness == ae.COMPLETE and ev.provenance["unmeasured_loss"] == []

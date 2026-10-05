@@ -173,8 +173,9 @@ def test_generated_count_reads_the_scratch(tmp_path):
     assert mmeta.generated_count(tmp_path, "m.py", "m.x_identity__mutmut_*") == 0
 
 
-def test_generated_count_is_zero_when_the_mutants_file_is_absent(tmp_path):
-    assert mmeta.generated_count(tmp_path, "absent.py", "m.x_a__mutmut_*") == 0
+def test_generated_count_is_NONE_not_zero_when_the_mutants_file_is_absent(tmp_path):
+    """ABSENCE-SURVEY f2f47e27c21e: an unread file is not a function with no mutable operator."""
+    assert mmeta.generated_count(tmp_path, "absent.py", "m.x_a__mutmut_*") is None
 
 
 def test_the_three_way_split_is_exhaustive(tmp_path):
