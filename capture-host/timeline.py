@@ -190,7 +190,7 @@ def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float
         yield (t0, dur or None)
 
 
-def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int, fs: float) -> list[str]:
+def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int) -> list[str]:
     """Bucket the covered intervals into `n` states across [t0, t1].
 
     A bucket is `captured` when the intervals cover enough of it, `degraded` when they cover some but
@@ -565,7 +565,7 @@ def build(
             fs = nightqc._expected_hz(d, s) or 0
             ids = writers.device_ids(d)
             iv = stream_intervals(data, ids, s.upper(), fs, offset_sec=_offset)
-            st = apply_link_states(bucket_stream(iv, t0, t1, buckets, fs), conn, wedged)
+            st = apply_link_states(bucket_stream(iv, t0, t1, buckets), conn, wedged)
             covered = covered_seconds(iv)
             # ∅ — A PERCENTAGE OF NOTHING IS NOT ZERO PERCENT. `_expected_hz` returns None for a stream
             # with no reference rate, documenting that there is "no coverage claim" for it, and the ring's

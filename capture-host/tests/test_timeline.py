@@ -50,16 +50,16 @@ def test_a_header_only_file_contributes_nothing():
 # ── bucketing ─────────────────────────────────────────────────────────────────────────────────
 def test_full_coverage_is_captured_and_no_coverage_is_idle():
     t0, t1 = _ts(22, 0), _ts(23, 0)
-    assert timeline.bucket_stream([(t0, t1)], t0, t1, 10, 130) == ["captured"] * 10
-    assert timeline.bucket_stream([], t0, t1, 10, 130) == ["idle"] * 10
+    assert timeline.bucket_stream([(t0, t1)], t0, t1, 10) == ["captured"] * 10
+    assert timeline.bucket_stream([], t0, t1, 10) == ["idle"] * 10
 
 
 def test_partial_coverage_reads_degraded_not_captured():
     t0, t1 = _ts(22, 0), _ts(23, 0)
     mid = t0 + (t1 - t0) * 0.2  # covers 20 % of a single bucket
-    st = timeline.bucket_stream([(t0, mid)], t0, t1, 5, 130)
+    st = timeline.bucket_stream([(t0, mid)], t0, t1, 5)
     assert st[0] == "captured" and st[1] == "idle"
-    st2 = timeline.bucket_stream([(t0, t0 + (t1 - t0) * 0.1)], t0, t1, 5, 130)
+    st2 = timeline.bucket_stream([(t0, t0 + (t1 - t0) * 0.1)], t0, t1, 5)
     assert st2[0] == "degraded", "half a bucket is not a clean capture"
 
 
