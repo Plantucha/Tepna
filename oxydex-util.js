@@ -149,12 +149,20 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
   for (i = 0; i < n; i++) {
     if (i > 0) {
-      hist[bin(spo2[i - 1])]++;
-      cnt++;
+      // §∅: absences (null) are NOT measured 0 — they stay out of the histogram,
+      // otherwise a dropout drags the p90 ceiling toward 0 and manufactures events.
+      var prev = spo2[i - 1];
+      if (prev != null) {
+        hist[bin(prev)]++;
+        cnt++;
+      }
     }
     if (i > WIN) {
-      hist[bin(spo2[i - WIN - 1])]--;
-      cnt--;
+      var old = spo2[i - WIN - 1];
+      if (old != null) {
+        hist[bin(old)]--;
+        cnt--;
+      }
     }
     if (cnt > 0) {
       var target = Math.ceil((pct / 100) * cnt);
