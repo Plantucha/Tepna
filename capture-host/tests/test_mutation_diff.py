@@ -94,7 +94,8 @@ def test_functions_covering_names_module_functions_and_methods_the_mutmut_way():
 
 def test_functions_covering_yields_nothing_outside_a_function_or_on_bad_source():
     assert M.functions_covering(_SRC, {1}) == set()  # an import line
-    assert M.functions_covering("def broken(:\n", {1}) == set()
+    # ABSENCE-SURVEY 45ccc1146b37: unparseable source names NO scope (None), never the empty one.
+    assert M.functions_covering("def broken(:\n", {1}) is None
     assert M.functions_covering("", {1}) == set()  # the caller's unreadable-file case
 
 
