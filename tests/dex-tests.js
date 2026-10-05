@@ -67082,7 +67082,8 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should not include an oxyCrashRate field in its output when the condition n < 60 is met. */
       {
         var out = NS._bare.computeOxyCrash([]);
-        T.eq('OxyDex._bare.computeOxyCrash([]) → out.oxyCrashRate', JSON.stringify(out.oxyCrashRate), '@undef');
+        // ⚠ RECONCILED (ABSENCE-SURVEY 93912aa2a698) — an empty recording searched nothing: no result, not a count-only object
+        T.eq('OxyDex._bare.computeOxyCrash([]) → null (no search ran)', JSON.stringify(out), 'null');
       }
       /* mutant: bool || → &&  @ if (!rec || !rec.rows || rec.rows.length < 5000) {
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly reports whether the SpO2 waveform data is usable based on sample count thresholds, prev */
