@@ -58,7 +58,7 @@ function showError(msg) {
 }
 function reset() {
   safeStyle('uploadArea', 'display', 'block');
-  safeSet('fileInput', 'value', '');
+  setIfPresent('fileInput', 'value', '');
   safeStyle('errorMsg', 'display', 'none');
   setStatus('');
 }
@@ -95,7 +95,7 @@ function clearAll() {
   } catch (_cr) {}
   _lineChartCache = {};
   window._upHRrest = null;
-  safeSet('results', 'innerHTML', '');
+  setIfPresent('results', 'innerHTML', '');
   safeStyle('results', 'display', 'none');
   safeStyle('errorMsg', 'display', 'none');
   safeStyle('userProfilePanel', 'display', 'none');
@@ -827,7 +827,7 @@ window.oxyRenderSpo2w = function (res, stem) {
   };
   el.innerHTML =
     '<div class="sec-label">Waveform SpO\u2082 (experimental) \u00b7 ' +
-    stem +
+    escHTML(stem) +
     '</div>' +
     '<div class="dim" style="margin:4px 0 8px">Per-session self-calibration vs the device\u2019s own SpO\u2082 (r=' +
     c.r.toFixed(3) +
