@@ -23,7 +23,7 @@
  *   node tools/codex-export.mjs --selftest
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -93,7 +93,8 @@ export function build({ ref = 'HEAD', out = null } = {}) {
   if (!all.includes(REGISTRY)) return noRegistry(ref, all);
   const regText = git(['show', `${ref}:${REGISTRY}`]);
   const withheld = withheldPaths(regText);
-  const dir = out || mkdtempSync(join(tmpdir(), 'codex-export-'));
+  // `--out` names a directory that need not exist yet: `tar -x -C` into a missing one died as an EPIPE stack.
+  const dir = out ? (mkdirSync(out, { recursive: true }), out) : mkdtempSync(join(tmpdir(), 'codex-export-'));
   const specs = ['.', ...OMIT_DIRS.map((d) => `:(exclude)${d}`), ...withheld.map((p) => `:(exclude)${p}`)];
   const tar = execFileSync('git', ['archive', '--format=tar', ref, '--', ...specs], { cwd: ROOT, maxBuffer: 1 << 30 });
   execFileSync('tar', ['-x', '-C', dir], { input: tar });
@@ -169,6 +170,18 @@ export function selftest() {
     threw = e;
   }
   ok(threw === null && seen.length === 1 && seen[0].includes('does not exist at'), 'a refused export reports its reason, not a cleanup TypeError');
+  /* 6 · `--out` into a directory that does not exist yet is created, not an EPIPE crash */
+  const nested = join(mkdtempSync(join(tmpdir(), 'codex-export-out-')), 'a', 'b');
+  let outErr = null;
+  try {
+    const o = build({ out: nested });
+    ok(o.verdict.status === 'PASS' && o.dir === nested && existsSync(join(nested, 'CLAUDE.md')), 'an --out directory that does not exist is created and filled');
+  } catch (e) {
+    outErr = e;
+  } finally {
+    rmSync(join(nested, '..', '..'), { recursive: true, force: true });
+  }
+  ok(outErr === null, `--out into a missing directory does not throw (${outErr && outErr.code})`);
   if (fail.length) {
     console.error(`✗ codex-export selftest: ${fail.length} failed`);
     for (const f of fail) console.error(`    ${f}`);
