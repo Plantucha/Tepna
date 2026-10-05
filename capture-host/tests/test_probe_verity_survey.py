@@ -39,8 +39,13 @@ import pytest  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _fast_settle(monkeypatch):
-    """The real 6 s inter-attempt settle is a hardware fact, not a test fact."""
+    """The real 6 s inter-attempt settle is a hardware fact, not a test fact — and so are the 6 s reply
+    timeout and the 0.25 s pacing. The fixture shortened only the settle, so every op a fake left
+    unanswered waited the full 6 s (three tests at ~7.7 s each). All three are read at call time; the
+    hardware values are pinned with the fixture undone (`test_the_HARDWARE_timing_values`)."""
     monkeypatch.setattr(psv, "SETTLE_SEC", 0.001)
+    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(psv, "CP_PACE_S", 0.0)
 
 
 # ── a Verity that keeps state ───────────────────────────────────────────────────────────────────────
@@ -937,3 +942,26 @@ def test_an_UNANSWERED_settings_query_is_None_not_an_empty_menu():
 
 def test_an_UNNAMED_setting_id_is_named_by_its_hex_code():
     assert psv._settings(b"\xf0\x01\x01\x00\x00\x03\x01\x07\x00") == {"setting_0x03": [7]}
+
+
+def test_the_HARDWARE_timing_values(monkeypatch):
+    """The fixture shortens them for speed; these are what the probe uses on a real link."""
+    monkeypatch.undo()
+    assert (psv.SETTLE_SEC, psv.CP_REPLY_TIMEOUT_S, psv.CP_PACE_S) == (6.0, 6.0, 0.25)
+
+
+def test_the_pacing_is_read_at_CALL_time(monkeypatch):
+    slept = []
+
+    async def rec(s):
+        slept.append(s)
+
+    class _C:
+        async def write_gatt_char(self, *_a, **_k):
+            return None
+
+    monkeypatch.setattr(psv, "CP_PACE_S", 0.007)
+    monkeypatch.setattr(psv.asyncio, "sleep", rec)
+    cp = psv.Control(_C())
+    assert _run(cp.send(psv.pmd.status_cmd(), timeout=0.001)) is None
+    assert slept == [0.007]
