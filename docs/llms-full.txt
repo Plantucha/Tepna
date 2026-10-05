@@ -1,5 +1,5 @@
 # Tepna — the Dex Suite — concatenated authoritative context
-# Generated 2026-09-27. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
+# Generated 2026-10-05. Public docs only (the internal build/gate constitution CLAUDE.md is intentionally excluded).
 
 
 
@@ -21,7 +21,7 @@
 **Your data never leaves the browser — and CI proves it on every commit.**
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
-[![Suite v2.16.0](https://img.shields.io/badge/suite-v2.16.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
+[![Suite v2.17.0](https://img.shields.io/badge/suite-v2.17.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
 [![DOI](https://zenodo.org/badge/1286425809.svg)](https://doi.org/10.5281/zenodo.22068939)
 
@@ -29,7 +29,7 @@
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#every-number-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
-![Releases](https://img.shields.io/badge/releases-42_shipped-555)
+![Releases](https://img.shields.io/badge/releases-43_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
@@ -114,7 +114,7 @@ Policy with `connect-src 'none'` and hash-only `script-src`. [`verify-provenance
 content-addresses every bundle and every known-answer fixture, so a shipped app is provably the code
 it claims to be.
 
-**Nine checks are required on every pull request:** `tests` (**11,095 assertions** across **695 groups**,
+**Nine checks are required on every pull request:** `tests` (**11,109 assertions** across **695 groups**,
 six partitioned shards) · `no-network` · `types` · `biome` · `browser-gates` (every bundle booted
 headless, computed values asserted in the DOM) · `stale-file` (a brief cannot be overwritten by an
 edit that never read the upstream version) · `capture-host` on py3.12 and py3.13 —
@@ -157,7 +157,7 @@ Per-device capture instructions without the box live in [`how-to-collect/`](how-
   purpose and report what the suite fails to notice; surviving mutants are ledgered with the probe
   that excused them, never waved through.
 
-**Since `2.16.0` (2026-09-27 → 2026-10-04, 101 commits, 82 changesets).** The capture lane learned to
+**In `2.17.0` (2026-09-27 → 2026-10-05, 125 commits, 99 changesets).** The capture lane learned to
 judge a night on its own: the loss audit got its bar, SOLID-NIGHT its tripwire for unrecorded clock
 shifts, the ring its honest completeness model and a declared clock stream, and the box judges a
 night twenty minutes after its data goes quiet instead of the next evening. The mutation gate stopped
@@ -168,7 +168,7 @@ Codex as a second opinion under mechanical verification. Full history in the **[
 
 ## Suite at a glance
 
-**Suite version:** 2.16.0 &nbsp;—&nbsp; **42** ledger-backed releases, each computed from a green tree, with **82 changesets** pending since (v2.16.0, 2026-09-27).
+**Suite version:** 2.17.0 &nbsp;—&nbsp; **43** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
 
 Every one of the **23 working preprints** in [`papers/`](papers/papers.html) regenerates from the live
 tool behind it. The methods overview is [`Science.html`](Science.html); the system design is
