@@ -50,6 +50,15 @@ def _no_baseline_wait(monkeypatch):
         return await _real_wait_for(aw, timeout)
 
     monkeypatch.setattr(oxs.asyncio, "wait_for", _bounded_wait_for)
+
+    # NO TEST MAY SPAWN A REAL PROCESS. The wedge recovery runs `bluetoothctl power off/on` with real 2-3 s
+    # settles; a test (or a mutant) that reaches it unstubbed would power-cycle THIS machine's adapter and
+    # wait it out. Refused here; `_cycle_adapter` reads the refusal as a failed best-effort recovery. The
+    # tests that drive it on purpose install their own spawn on top of this.
+    async def _no_spawn(*a, **k):
+        raise AssertionError(f"a test tried to spawn a real process: {a[:3]}")
+
+    monkeypatch.setattr(oxs.asyncio, "create_subprocess_exec", _no_spawn)
     monkeypatch.setattr(oxs, "REPLY_TIMEOUT_S", 0.01)
     monkeypatch.setattr(pms, "SEND_SPACING_S", 0.0)
     monkeypatch.setattr(pms, "REPLY_TIMEOUT_S", 0.01)
@@ -487,6 +496,10 @@ def test_oxyii_a_ring_that_never_answers_live_leaves_the_detector_blind(monkeypa
     _patch_ring(monkeypatch, _NoLive())
     res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
     assert "detector_blind" in res and res["live_before"] is None
+    assert res["detector_blind"] == (
+        "every byte of the live frame moves on its own, so a state "
+        "change cannot be attributed to any opcode — refusing to sweep"
+    )
 
 
 def test_oxyii_a_write_failure_stops_the_sweep(monkeypatch):
@@ -502,6 +515,7 @@ def test_oxyii_a_write_failure_stops_the_sweep(monkeypatch):
     _patch_ring(monkeypatch, _Dead())
     res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
     assert res["aborted_at"] == "0x20"
+    assert res["opcodes"]["0x20"] == {"error": "RuntimeError: link gone"}
 
 
 def test_oxyii_reports_an_absent_ring_by_its_real_cause(monkeypatch):
@@ -540,7 +554,7 @@ def test_oxyii_a_link_lost_on_the_closing_snapshot_does_not_discard_the_sweep(mo
     _patch_ring(monkeypatch, c)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x24, dry=False))
     assert len(res["opcodes"]) == 5, "every opcode probed must survive the closing failure"
-    assert "Service Discovery" in res["link_lost"]
+    assert res["link_lost"] == "RuntimeError: Service Discovery has not been performed yet"
     assert res["responders"] == []
     assert "live_before" in res
 
@@ -1011,6 +1025,142 @@ def test_a_ONE_frame_baseline_compares_against_that_frame():
 def test_the_baseline_returns_the_LAST_frame_seen():
     assert _run(oxs.learn_baseline(_Seq([b"\x01", b"\x01", None, b"\x02", b"\x02"]), n=2, gap=0)) == (b"\x02", [])
     assert _run(oxs.learn_baseline(_Seq([b"\x01", None, b"\x02"]), n=1, gap=0)) == (b"\x02", [])
+
+
+class _GoesDark(_RingClient):
+    """Answers the baseline and the op normally, then stops answering LIVE right after `dark_after`."""
+
+    def __init__(self, dark_after, **kw):
+        super().__init__(**kw)
+        self.dark_after, self.dark = dark_after, False
+
+    async def write_gatt_char(self, _c, data, response=False):
+        op = data[1]
+        if self.dark and op == oxs.oxyii.OP_LIVE:
+            self.writes.append(op)
+            return
+        await super().write_gatt_char(_c, data, response)
+        if op == self.dark_after:
+            self.dark = True
+
+
+def test_oxyii_an_UNANSWERED_verification_snapshot_is_UNVERIFIED_and_stops_the_sweep(monkeypatch):
+    """ABSENCE-SURVEY 7214c8dc2397: `_changed` read a missing snapshot as "no byte moved" — a clean
+    verdict for an op whose effect nobody saw. It is UNVERIFIED, and the sweep pokes no further."""
+    ring = _GoesDark(0x20, responders={0x20, 0x21})
+    _patch_ring(monkeypatch, ring)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
+    assert res["opcodes"]["0x20"]["effect"].startswith("UNVERIFIED")
+    assert "state_changed" not in res["opcodes"]["0x20"]
+    assert res["aborted_at"] == "0x20" and "not answered" in res["abort_reason"]
+    assert 0x21 not in ring.writes and "0x21" not in res["opcodes"]
+
+
+# ── OxyII run(): survivors through the Codex reader, each verified against the original ─────────────
+class _Script(_RingClient):
+    """LIVE read number k (1-based) carries byte `B` = script[k] (default `base`), or no reply when the
+    script says None. The baseline takes 10 LIVE reads, so read 11 is the first verification snapshot."""
+
+    B = 12
+
+    def __init__(self, script, base=0x10, **kw):
+        super().__init__(**kw)
+        self.script, self.base, self.n_live = script, base, 0
+
+    async def write_gatt_char(self, _c, data, response=False):
+        op = data[1]
+        self.writes.append(op)
+        if op == oxs.oxyii.OP_LIVE:
+            self.n_live += 1
+            v = self.script.get(self.n_live, self.base)
+            if v is None:
+                return
+            pl = bytearray(b"\x00\x00\x00\x00\xc7\x00\x62\x48\x00\x00\x00\x00")
+            pl[self.B - 7] = v
+            self._cb(0, bytearray(oxs.oxyii.encode(oxs.oxyii.OP_LIVE, bytes(pl))))
+        elif op in self.responders:
+            self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
+
+
+def test_oxyii_a_drift_that_settles_is_ROLLED_into_the_baseline_not_convicted_later(monkeypatch):
+    """0x20 moves byte B, the control moves it again (drift), and it then holds. Rolling the baseline forward
+    to the control's frame is what keeps 0x21 from being convicted against the stale one."""
+    _patch_ring(monkeypatch, _Script({11: 0x20, 12: 0x30, 13: 0x30, 14: 0x30}, responders={0x20, 0x21}))
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
+    assert "aborted_at" not in res and "drift_suspected" in res["opcodes"]["0x20"]
+
+
+def test_oxyii_a_real_effect_AFTER_a_roll_is_convicted_against_the_rolled_baseline(monkeypatch):
+    _patch_ring(monkeypatch, _Script({11: 0x20, 12: 0x30, 13: 0x40, 14: 0x40}, responders={0x20, 0x21}))
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
+    assert res["aborted_at"] == "0x21"
+
+
+def test_oxyii_a_SILENT_control_snapshot_keeps_the_baseline_and_convicts(monkeypatch):
+    _patch_ring(monkeypatch, _Script({11: 0x20, 12: None}, responders={0x20}))
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x20, dry=False))
+    assert "state_changed" in res["opcodes"]["0x20"] and res["aborted_at"] == "0x20"
+
+
+def test_oxyii_the_dry_plan_honours_skip_and_previews_twenty():
+    assert _run(oxs.run("AA:BB", None, 0x20, 0x20, True, skip=(0x20,)))["planned"] == 0
+    res = _run(oxs.run("AA:BB", None, 0x00, 0x30, True))
+    assert len(res["first_20"]) == 20 and res["dry_run"] == "nothing sent"
+
+
+def test_oxyii_scans_with_a_15s_timeout_and_names_a_scan_error(monkeypatch):
+    seen = _patch_ring(monkeypatch, _RingClient(responders={0x20}))
+    _run(oxs.run("AA:BB", None, 0x20, 0x20, dry=False))
+    assert seen["find"][0] == ("AA:BB", 15.0)
+
+    async def wedged(addr, timeout=0):
+        raise ValueError("wedged")
+
+    async def cycled():
+        return True
+
+    monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", wedged)
+    monkeypatch.setattr(oxs, "_cycle_adapter", cycled)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x20, dry=False))
+    assert res["scan_errors"][0] == "ValueError: wedged"
+
+
+def test_oxyii_connects_on_the_named_adapter(monkeypatch):
+    kws = []
+    _patch_ring(monkeypatch, _RingClient(responders={0x20}))
+    real_mk = oxs.BleakClient
+
+    def mk(dev, **kw):
+        kws.append(kw)
+        return real_mk(dev, **kw)
+
+    monkeypatch.setattr(oxs, "BleakClient", mk)
+    _run(oxs.run("AA:BB", "hci1", 0x20, 0x20, dry=False))
+    _run(oxs.run("AA:BB", None, 0x20, 0x20, dry=False))
+    assert kws == [{"bluez": {"adapter": "hci1"}}, {"bluez": {}}]
+
+
+def test_oxyii_publishes_the_live_baseline_and_each_reply_frame(monkeypatch):
+    c = _RingClient(responders={0x20})
+    _patch_ring(monkeypatch, c)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x20, dry=False))
+    assert res["live_before"] == bytes(c.live).hex()
+    assert res["opcodes"]["0x20"]["frame"] == oxs.oxyii.encode(0x20, b"\x01").hex()[:80]
+
+
+def test_oxyii_a_long_reply_frame_is_cut_at_80_hex_characters(monkeypatch):
+    class _Long(_RingClient):
+        async def write_gatt_char(self, _c, data, response=False):
+            op = data[1]
+            self.writes.append(op)
+            if op == oxs.oxyii.OP_LIVE:
+                self._cb(0, bytearray(self.live))
+            elif op == 0x20:
+                self._cb(0, bytearray(oxs.oxyii.encode(0x20, bytes(range(60)))))
+
+    _patch_ring(monkeypatch, _Long())
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x20, dry=False))
+    assert len(res["opcodes"]["0x20"]["frame"]) == 80
 
 
 def test_pmd_an_UNANSWERED_final_status_read_is_unknown_never_nothing_running(monkeypatch):

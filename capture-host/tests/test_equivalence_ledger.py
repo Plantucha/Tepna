@@ -26,6 +26,27 @@ from _srcscan import HERE  # noqa: E402
 
 LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 
+# solid_night_inputs.py went 35 -> 32 on 2026-10-05 (#3297, the recording as the verdict's scope). FOUR
+# entries DELETED because the gate REFUTED them in as many words — "the mutant was killed, so the
+# recorded claim is wrong" — and this file's own rule is that a refuted claim is removed, not softened.
+# All four claimed `no-distinguishing-input` for the encoding keywords on the two sidecar readers in
+# `clocks`: `open(seams, encoding="utf-8", errors="replace")` and the same on `rtc`, each in its
+# `encoding=None` and dropped-keyword form. They were true when written, and #3297 made them false: the
+# unit put those readers in a DATE-named folder for the first time (the suite's other `clocks` cases use
+# a bare `tmp_path`, where `band_of` is None and nothing filters), and the tests it added read each
+# sidecar under `-X warn_default_encoding -W error::EncodingWarning` and with a raw \xff\xfe mid-file.
+# Both of those distinguish the original from every variant, so the claim no longer holds. ⚠️ The entries
+# were not wrong when made — coverage grew past them, which is the good outcome and still obliges the
+# deletion. ONE entry was ADDED in the same unit, so the arithmetic is 35 + 1 - 4 = 32 and the ratchet
+# is set to exactly that — a floor below the real count does not ratchet, it only looks like it does.
+# The addition: the `rstrip("\n")` -> `lstrip`
+# direction flip on `p = line.rstrip("\n").split(";")` in the RTC row scan, probed over 1080 candidate
+# rows (3 timestamps x 5 event spellings x 9 offset fields x 4 line endings x 2 leading-newline variants)
+# with 0 disagreements in the scan's decision, because the stripped text is consumed only by `float()`,
+# which tolerates surrounding whitespace, while `p[1] == "read"` compares an interior field no
+# end-of-line strip can reach. Its `rstrip(None)` twin was already in the file. ⚠️ And per the note above
+# about #3243: that deletion was for `cells = line.rstrip(...)` in a different reader, where the cell is
+# string-compared to "ok" — a different key and a different call site, so it does not transfer here.
 # THE RATCHET: entries per module, committed. It may only go UP without a reason stated in the commit —
 # a drop is either a deliberate removal (say which entry and why it excuses nothing) or the merge defect
 # above. Restored 2026-09-29 after #3237; the numbers are the file's own, not a target.
@@ -132,7 +153,7 @@ RATCHET = {
     "probe_ring_adv.py": 4,
     "pulsedex-dsp.js": 43,
     "solid_night.py": 2,
-    "solid_night_inputs.py": 35,
+    "solid_night_inputs.py": 32,
     "telemetry.py": 1,
     "timeline.py": 1,
     "writers.py": 35,

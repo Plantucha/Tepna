@@ -306,6 +306,16 @@ export const SEEDS = [
     at: 'capture-host/probe_verity_offline.py:187',
     state: 'fixed',
     note: 'fixed #3042 (13c2e96a): recording_confirmed_by_device is not published False from an unanswered read. Re-read 2026-10-05 (Wren)'
+  },
+  {
+    at: 'capture-host/probe_oxyii_0x03.py:303',
+    state: 'fixed',
+    note: 'run() publishes reported_pr_n beside reported_pr_mean, the n of polls that carried a PR (the mean and records_per_beat rest on it, not on beats_polled). Plant: test_the_pulse_rate_mean_publishes_the_n_it_rests_on (2026-10-05, Wren)'
+  },
+  {
+    at: 'capture-host/probe_oxyii_opcodes.py:168',
+    state: 'fixed',
+    note: 'an unanswered verification snapshot marks the op effect UNVERIFIED and stops the sweep (aborted_at + abort_reason), never _changed()=[] read as no byte moved. Plant: test_oxyii_an_UNANSWERED_verification_snapshot_is_UNVERIFIED_and_stops_the_sweep (2026-10-05, Wren; survivors through the Codex reader)'
   }
 ];
 
