@@ -36,9 +36,109 @@ def _no_baseline_wait(monkeypatch):
     CALL time; a constant bound as a default is out of this fixture's reach, which is how the gap patch
     above did nothing for as long as it existed (`test_the_baseline_gap_patch_REACHES_learn_baseline`)."""
     monkeypatch.setattr(oxs, "BASELINE_GAP_S", 0.0)
+    # NO TEST MAY WAIT WITHOUT A BOUND. Every real wait passes a number; a `None` timeout can only come
+    # from a defect (or a mutant that drops one), and against a fake that never answers it waits
+    # FOREVER — the mutation gate then records a timeout (UNDECIDED), never a kill. Failing it here, at
+    # once, turns every such wait into a fast, attributable failure.
+    _real_wait_for = asyncio.wait_for
+
+    async def _bounded_wait_for(aw, timeout):
+        if timeout is None:
+            if hasattr(aw, "close"):
+                aw.close()
+            raise AssertionError("an unbounded wait: wait_for(..., timeout=None)")
+        return await _real_wait_for(aw, timeout)
+
+    monkeypatch.setattr(oxs.asyncio, "wait_for", _bounded_wait_for)
     monkeypatch.setattr(oxs, "REPLY_TIMEOUT_S", 0.01)
     monkeypatch.setattr(pms, "SEND_SPACING_S", 0.0)
     monkeypatch.setattr(pms, "REPLY_TIMEOUT_S", 0.01)
+
+
+# FIRST IN THE FILE ON PURPOSE: mutmut stops at the first failing test, and a mutant that drops a
+# reply timeout makes every UNBOUNDED sweep test below wait forever. These bounded tests fail it in
+# 1 s before any of those can hang — otherwise it is UNDECIDED (a timeout), never killed.
+# ── the two send() contracts, each call under an OUTER bound so a mutant that waits forever FAILS ───
+class _Link:
+    """Records every write; `reply` (if set) is queued on the probe's own queue as the device answer."""
+
+    def __init__(self, owner_q=None, reply=None):
+        self.writes, self.q, self.reply = [], owner_q, reply
+
+    async def start_notify(self, *_a):
+        return None
+
+    async def write_gatt_char(self, char, data, response=None):
+        self.writes.append((char, bytes(data), response))
+        if self.reply is not None:
+            self.q.put_nowait(self.reply)
+
+
+def _bounded(coro):
+    return _run(asyncio.wait_for(coro, 1.0))
+
+
+def test_ring_send_writes_the_encoded_op_and_returns_the_FRESH_reply():
+    r = oxs.Ring(None)
+    r.c = _Link(r.q, reply=b"fresh")
+    r.q.put_nowait(b"stale")  # left over from an earlier op: must be drained, never returned
+    assert _bounded(r.send(0x04, b"\x01")) == b"fresh"
+    assert r.c.writes == [(oxs.oxyii.OXYII_WRITE, oxs.oxyii.encode(0x04, b"\x01"), False)]
+    assert r.q.empty()
+
+
+def test_ring_send_returns_None_on_an_unanswered_op_and_honours_an_explicit_timeout(monkeypatch):
+    seen = []
+    real = asyncio.wait_for
+
+    async def rec(aw, timeout):
+        seen.append(timeout)
+        return await real(aw, timeout)
+
+    r = oxs.Ring(None)
+    r.c = _Link()
+    assert _bounded(r.send(0x04)) is None
+    monkeypatch.setattr(oxs.asyncio, "wait_for", rec)
+    r2 = oxs.Ring(None)  # a fresh queue: asyncio binds one to the loop it first waited on
+    r2.c = _Link()
+    assert _bounded(r2.send(0x04, timeout=0.004)) is None
+    assert seen[-1] == 0.004 and r.c.writes[0] == (oxs.oxyii.OXYII_WRITE, oxs.oxyii.encode(0x04, b""), False)
+
+
+def test_control_send_spaces_writes_the_cmd_and_returns_the_FRESH_reply(monkeypatch):
+    slept = []
+    real_sleep = asyncio.sleep
+
+    async def rec_sleep(s):
+        slept.append(s)
+        await real_sleep(0)
+
+    monkeypatch.setattr(pms, "SEND_SPACING_S", 0.007)
+    monkeypatch.setattr(pms.asyncio, "sleep", rec_sleep)
+    c = pms.Control(None)
+    c.client = _Link(c.q, reply=b"fresh")
+    c.q.put_nowait(b"stale")
+    assert _bounded(c.send(b"\x05")) == b"fresh"
+    assert slept == [0.007] and c.client.writes == [(pms.pmd.PMD_CONTROL, b"\x05", True)]
+    assert c.q.empty()
+
+
+def test_control_send_returns_None_on_no_reply_and_honours_an_explicit_timeout(monkeypatch):
+    seen = []
+    real = asyncio.wait_for
+
+    async def rec(aw, timeout):
+        seen.append(timeout)
+        return await real(aw, timeout)
+
+    c = pms.Control(None)
+    c.client = _Link()
+    assert _bounded(c.send(b"\x05")) is None
+    monkeypatch.setattr(pms.asyncio, "wait_for", rec)
+    c2 = pms.Control(None)
+    c2.client = _Link()
+    assert _bounded(c2.send(b"\x05", timeout=0.004)) is None
+    assert seen[-1] == 0.004
 
 
 # ══ Polar PMD sweep ══════════════════════════════════════════════════════════════════════════════════
@@ -876,86 +976,3 @@ def test_a_baseline_under_the_fixture_takes_under_ONE_SECOND():
     t0 = _time.monotonic()
     _run(oxs.learn_baseline(_R()))
     assert _time.monotonic() - t0 < 1.0
-
-
-# ── the two send() contracts, each call under an OUTER bound so a mutant that waits forever FAILS ───
-class _Link:
-    """Records every write; `reply` (if set) is queued on the probe's own queue as the device answer."""
-
-    def __init__(self, owner_q=None, reply=None):
-        self.writes, self.q, self.reply = [], owner_q, reply
-
-    async def start_notify(self, *_a):
-        return None
-
-    async def write_gatt_char(self, char, data, response=None):
-        self.writes.append((char, bytes(data), response))
-        if self.reply is not None:
-            self.q.put_nowait(self.reply)
-
-
-def _bounded(coro):
-    return _run(asyncio.wait_for(coro, 1.0))
-
-
-def test_ring_send_writes_the_encoded_op_and_returns_the_FRESH_reply():
-    r = oxs.Ring(None)
-    r.c = _Link(r.q, reply=b"fresh")
-    r.q.put_nowait(b"stale")  # left over from an earlier op: must be drained, never returned
-    assert _bounded(r.send(0x04, b"\x01")) == b"fresh"
-    assert r.c.writes == [(oxs.oxyii.OXYII_WRITE, oxs.oxyii.encode(0x04, b"\x01"), False)]
-    assert r.q.empty()
-
-
-def test_ring_send_returns_None_on_an_unanswered_op_and_honours_an_explicit_timeout(monkeypatch):
-    seen = []
-    real = asyncio.wait_for
-
-    async def rec(aw, timeout):
-        seen.append(timeout)
-        return await real(aw, timeout)
-
-    r = oxs.Ring(None)
-    r.c = _Link()
-    assert _bounded(r.send(0x04)) is None
-    monkeypatch.setattr(oxs.asyncio, "wait_for", rec)
-    r2 = oxs.Ring(None)  # a fresh queue: asyncio binds one to the loop it first waited on
-    r2.c = _Link()
-    assert _bounded(r2.send(0x04, timeout=0.004)) is None
-    assert seen[-1] == 0.004 and r.c.writes[0] == (oxs.oxyii.OXYII_WRITE, oxs.oxyii.encode(0x04, b""), False)
-
-
-def test_control_send_spaces_writes_the_cmd_and_returns_the_FRESH_reply(monkeypatch):
-    slept = []
-    real_sleep = asyncio.sleep
-
-    async def rec_sleep(s):
-        slept.append(s)
-        await real_sleep(0)
-
-    monkeypatch.setattr(pms, "SEND_SPACING_S", 0.007)
-    monkeypatch.setattr(pms.asyncio, "sleep", rec_sleep)
-    c = pms.Control(None)
-    c.client = _Link(c.q, reply=b"fresh")
-    c.q.put_nowait(b"stale")
-    assert _bounded(c.send(b"\x05")) == b"fresh"
-    assert slept == [0.007] and c.client.writes == [(pms.pmd.PMD_CONTROL, b"\x05", True)]
-    assert c.q.empty()
-
-
-def test_control_send_returns_None_on_no_reply_and_honours_an_explicit_timeout(monkeypatch):
-    seen = []
-    real = asyncio.wait_for
-
-    async def rec(aw, timeout):
-        seen.append(timeout)
-        return await real(aw, timeout)
-
-    c = pms.Control(None)
-    c.client = _Link()
-    assert _bounded(c.send(b"\x05")) is None
-    monkeypatch.setattr(pms.asyncio, "wait_for", rec)
-    c2 = pms.Control(None)
-    c2.client = _Link()
-    assert _bounded(c2.send(b"\x05", timeout=0.004)) is None
-    assert seen[-1] == 0.004
