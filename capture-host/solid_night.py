@@ -150,8 +150,32 @@ def consecutive(nights: list[tuple[str, str, str | None]]) -> dict:
     run's first PASS to its last, D the calendar days between them inclusive, so a run stretched by
     weeks of skips stays visible.
 
+    ⚠️ NO NIGHTS AT ALL is `status: NOT_RUN` with every count NULL, never three zeros — a pass that
+    examined nothing has not measured a run of length zero. `status` is `PASS` once the run reaches
+    `EXIT_SOLID` and `SHORTFALL` below it, so a consumer reads the run's own verdict rather than
+    re-deriving it from `exit`.
+
     One verdict per night: a date given twice is refused, since which of the two counts would be a guess.
     Dates are parsed before sorting, so the order is calendar order whatever ISO spelling came in."""
+    # 🔴 EXAMINED NOTHING IS NOT A MEASURED ZERO (§🧾, §∅ in reverse). `consecutive([])` used to return
+    # `solid 0 / nights 0 / days 0` and the sentence "0 solid of 0 nights over 0 days" — BYTE-IDENTICAL
+    # to the answer for a pass that examined a night and found no run. Measured on the box 2026-10-04:
+    # six judge passes (12:30, 13:34, 15:37, 17:35, 18:47, 19:37) each published that sentence while no
+    # night had a verdict at all, so `history` had returned an empty list and there was nothing to count.
+    # A reader cannot tell "no solid nights" from "no nights", and the three zeros state the stronger
+    # claim. §🧾's word for a pass that examined nothing is NOT_RUN, so the counts go NULL and say so.
+    if not nights:
+        return {
+            "solid": None,
+            "nights": None,
+            "days": None,
+            "first": None,
+            "last": None,
+            "pending": None,
+            "exit": False,  # not an exit, and not a claim about one: nothing was examined
+            "status": "NOT_RUN",
+            "statement": "no night was examined, so there is no run to report",
+        }
     parsed = [(_dt.date.fromisoformat(d), st, rs) for d, st, rs in nights]
     if len({day for day, _st, _rs in parsed}) != len(parsed):
         raise ValueError("a night appears twice: one verdict per night")
@@ -183,6 +207,9 @@ def consecutive(nights: list[tuple[str, str, str | None]]) -> dict:
         "last": run[1].isoformat() if run is not None else None,
         "pending": pending,
         "exit": solid >= EXIT_SOLID,
+        # The counts were MEASURED over at least one night, which is what separates this from the
+        # NOT_RUN above. A caller that only prints `statement` still cannot conflate the two.
+        "status": "PASS" if solid >= EXIT_SOLID else "SHORTFALL",
         "statement": f"{solid} solid of {span_nights} nights over {days} days",
     }
 
@@ -281,12 +308,80 @@ def pending_verdict(
     return obj, run
 
 
+WITHDRAWN_NAME = "SOLID-VERDICT-WITHDRAWN.jsonl"
+# How many superseded verdicts a night keeps. Six passes judged 2026-10-04 before its data was in, so a
+# cap of one would have discarded five of the six and left exactly the trail that was missing.
+WITHDRAWN_KEEP = 32
+
+
+def _provenance(v: dict) -> dict:
+    """The identifying fields of a verdict, for the withdrawal record.
+
+    ⚠️ THE COMMIT LIVES IN `producedBy`, not at the top level — §🧾's own shape. My first version read
+    `v.get("commit")` and would have published `null` for every real verdict while passing against
+    synthetic dicts that carried a top-level key. A fixture has to carry the property the code reasons
+    about; this one did not, and the result would have been an unmeasured field presented as measured
+    (§∅). The top-level read stays as a fallback for a hand-written or legacy object."""
+    return {
+        "status": v.get("status"),
+        "reason": v.get("reason"),
+        "at": v.get("at"),
+        "commit": ((v.get("producedBy") or {}).get("commit")) or v.get("commit"),
+    }
+
+
+def _withdraw(night_dir: str, replacement: dict) -> dict | None:
+    """Record the verdict about to be REPLACED, before it is. Returns the withdrawal entry, or None.
+
+    🔴 `os.replace` IS ATOMIC AND LOSSY, and the second property cost a night. Measured on the box
+    2026-10-04: six judge passes (12:30 … 19:37) published verdicts over a night whose data had not
+    arrived, the 19:37 UNKNOWN was overwritten by the 04:50 FAIL, and afterwards the night's own
+    artefacts held no evidence that any of the six existed — the trail was reconstructible only from the
+    journal, which rotates. A verdict is a published claim; withdrawing one is itself a fact, so it is
+    recorded beside the night rather than erased.
+
+    APPEND-ONLY and never fatal: a withdrawal that cannot be written must not stop the night getting its
+    correct verdict, so the failure is reported in the return value and the replacement proceeds. Losing
+    the record of a superseded claim is bad; refusing to publish the true one is worse."""
+    path = os.path.join(night_dir, VERDICT_NAME)
+    prior = _inputs.read_json(path)
+    if prior is None:
+        return None  # nothing published yet: a first verdict withdraws nothing
+    entry = {
+        "withdrawn": _provenance(prior),
+        "replaced_by": _provenance(replacement),
+        "reason": (
+            "re-judged: the night's loss audit re-ran over data that had arrived since, so this verdict "
+            "was composed over an input set that no longer describes the night"
+        ),
+        "at": replacement.get("at"),
+    }
+    kept: list[str] = []
+    try:
+        wpath = os.path.join(night_dir, WITHDRAWN_NAME)
+        if os.path.exists(wpath):
+            with open(wpath, encoding="utf-8") as fh:
+                kept = [ln for ln in fh if ln.strip()]
+        kept.append(json.dumps(entry) + "\n")
+        with open(wpath, "w", encoding="utf-8") as fh:
+            fh.writelines(kept[-WITHDRAWN_KEEP:])
+    except OSError as exc:
+        entry["recorded"] = False
+        entry["record_error"] = str(exc)
+        return entry
+    entry["recorded"] = True
+    return entry
+
+
 def write_night(
     night_dir: str, devices: list, *, nights: list[str], active: set[str], commit: str | None = None
 ) -> tuple[dict, dict]:
     """Write the night's verdict beside its loss audit, with the run AS OF this night in `result.run` — the
     owner's exit counter, "S solid of N nights over D days" (§3.1). Returns `(verdict, run)` — the run
-    separately, because a NOT_APPLICABLE verdict carries `result: null` by contract and has nowhere to hold it."""
+    separately, because a NOT_APPLICABLE verdict carries `result: null` by contract and has nowhere to hold it.
+
+    A verdict already published here is WITHDRAWN with its reason (`_withdraw`) before it is replaced,
+    never silently overwritten."""
     obj = night_verdict(night_dir, devices, commit=commit)
     captures = os.path.dirname(night_dir.rstrip("/"))
     night = os.path.basename(night_dir.rstrip("/"))
@@ -294,6 +389,11 @@ def write_night(
     run = consecutive([*past, (night, obj["status"], obj["reason"])])
     if obj.get("result") is not None:
         obj["result"]["run"] = run
+    _v.validate(obj)
+    # WITHDRAW BEFORE REPLACING, not after: the prior verdict has to be read while it is still there.
+    withdrawn = _withdraw(night_dir, obj)
+    if withdrawn is not None and obj.get("result") is not None:
+        obj["result"]["withdrew"] = withdrawn
     _v.validate(obj)
     tmp = os.path.join(night_dir, VERDICT_NAME + ".tmp")
     with open(tmp, "w", encoding="utf-8") as fh:
