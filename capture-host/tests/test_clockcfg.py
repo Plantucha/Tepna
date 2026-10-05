@@ -255,3 +255,61 @@ def test_the_utc_offset_is_reported_in_whole_minutes(monkeypatch):
     _stub_run(monkeypatch, {("timedatectl", "show"): (0, "NTP=yes\n")})
     monkeypatch.setattr(clockcfg._time, "localtime", lambda *a: type("T", (), {"tm_gmtoff": -4 * 3600})())
     assert asyncio.run(clockcfg.status())["offset_min"] == -240, "minutes east of UTC, not seconds"
+
+
+# ── absence drain group 4c: the diff-scoped survivors in status() ───────────────────────────────────
+_SHOW = "NTP=yes\nNTPSynchronized=yes\nTimezone=Europe/Prague\nTimeUSec=Sun 2026-10-04 22:00:00 CEST\n"
+_SYNC = (
+    "SystemNTPServers=10.0.0.1 10.0.0.2\nServerName=10.0.0.1\nFallbackNTPServers=0.pool.ntp.org 1.pool.ntp.org\n"
+    "PollIntervalMinUSec=32s\nPollIntervalMaxUSec=34min 8s\nPollIntervalUSec=2048000000\n"
+)
+
+
+def _status_with(monkeypatch, show, sync, gmtoff=7200):
+    async def fake_run(*args, timeout=12):
+        return show if args[1] == "show" else sync
+
+    class _Lt:
+        tm_gmtoff = gmtoff
+
+    monkeypatch.setattr(clockcfg, "_run", fake_run)
+    monkeypatch.setattr(clockcfg._time, "localtime", lambda *a: _Lt())
+    return _go(clockcfg.status())
+
+
+def test_status_reports_EVERY_field_from_a_full_transcript(monkeypatch):
+    st = _status_with(monkeypatch, (0, _SHOW), (0, _SYNC))
+    st.pop("can_write")
+    assert st == {
+        "available": True,
+        "ntp_enabled": True,
+        "synchronized": True,
+        "timezone": "Europe/Prague",
+        "offset_min": 120,
+        "host_time": "Sun 2026-10-04 22:00:00 CEST",
+        "server_active": "10.0.0.1",
+        "servers": ["10.0.0.1", "10.0.0.2"],
+        "fallback": ["0.pool.ntp.org", "1.pool.ntp.org"],
+        "poll_min_sec": 32,
+        "poll_max_sec": 2048,
+        "poll_now_sec": 2048,
+        "contract": {"synced": True, "tz_set": True, "stamp_format": "local-civil, zone-free"},
+    }
+
+
+def test_status_falls_back_to_the_ACTIVE_server_when_no_system_list_is_set(monkeypatch):
+    st = _status_with(monkeypatch, (0, _SHOW), (0, "ServerName=10.0.0.9\n"))
+    assert st["servers"] == ["10.0.0.9"]
+
+
+def test_a_FAILED_command_contributes_nothing_even_if_it_printed_key_value_lines(monkeypatch):
+    """rc != 0 is the verdict; output beside a failure (an error that happens to contain `=`) is not data."""
+    st = _status_with(monkeypatch, (1, _SHOW), (1, _SYNC))
+    assert st["timezone"] is None and st["host_time"] is None
+    assert st["servers"] == [] and st["fallback"] == [] and st["poll_now_sec"] is None
+    assert st["contract"]["tz_set"] is None
+
+
+def test_offset_min_floors_a_non_whole_minute_offset_and_passes_an_unknown_one_through(monkeypatch):
+    assert _status_with(monkeypatch, (0, _SHOW), (0, _SYNC), gmtoff=-12345)["offset_min"] == -206
+    assert _status_with(monkeypatch, (0, _SHOW), (0, _SYNC), gmtoff=None)["offset_min"] is None
