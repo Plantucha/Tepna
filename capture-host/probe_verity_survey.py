@@ -240,6 +240,10 @@ def _states(reply):
 
 
 def _settings(reply):
+    # ∅ ABSENCE-SURVEY dc5852859e57: `cp.send` returns None on a timeout, and `None or b""` parsed to {} —
+    # "this mode has no settings", a capability fact, from a query nobody answered. None says unanswered.
+    if reply is None:
+        return None
     return {
         pmd.SETTING_NAME.get(sid, f"setting_{sid:#04x}"): vals
         for sid, vals in pmd.parse_settings_response(reply or b"").items()

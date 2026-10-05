@@ -926,21 +926,27 @@ def test_THE_RUN_IS_BUILT_FROM_THE_NIGHTS_THAT_PRECEDE_THIS_ONE(tmp_path):
     """`history(captures, nights, active)` — all three arguments. `active` decides the reason a
     verdict-less night carries, and a night with no verdict that is still capturing must not reset the
     run (§3.1). Dropping it changes a pending night into an unassessed one."""
+    # ⚠️ THE FOLDER DATES MUST AGREE WITH THE FIXTURE'S OWN STAMPS, and this test used to file the sample
+    # night under `2026-10-02` while `SAMPLE_BASE` is stamped `20260101220000`. Nothing checked that
+    # before the recording scope; now a file whose session START falls outside its folder's band is not
+    # part of that night, so the sample was excluded and the night scored against nothing. A fixture has
+    # to carry the property the code reasons about — here, that its stamp lies in the band it is filed in.
     captures = tmp_path
-    for d in ("2026-10-01", "2026-10-02"):
+    prior, night_name = "2025-12-31", sn.SAMPLE_NIGHT
+    for d in (prior, night_name):
         (captures / d).mkdir()
-    (captures / "2026-10-01" / sn.VERDICT_NAME).write_text(
-        json.dumps({"status": "PASS", "reason": None, "at": "a", "result": {"night": "2026-10-01"}})
+    (captures / prior / sn.VERDICT_NAME).write_text(
+        json.dumps({"status": "PASS", "reason": None, "at": "a", "result": {"night": prior}})
     )
-    night = captures / "2026-10-02"
+    night = captures / night_name
     devices = sn.sample_night(str(night))
-    _obj, run = sn.write_night(str(night), devices, nights=["2026-10-01", "2026-10-02"], active=set(), commit="abc1234")
+    _obj, run = sn.write_night(str(night), devices, nights=[prior, night_name], active=set(), commit="abc1234")
     assert run["status"] != "NOT_RUN", "two nights were examined"
     # `>= 1` WOULD NOT HAVE BEEN ENOUGH: selecting the past by `n[1] < night` (the STATUS string, not the
     # date) drops every earlier night, and this night's own PASS still leaves solid == 1. The run has to
     # be pinned to BOTH nights for the selector to be observable at all.
     assert run["solid"] == 2, "the preceding PASS and this night"
-    assert run["first"] == "2026-10-01" and run["last"] == "2026-10-02"
+    assert run["first"] == prior and run["last"] == night_name
 
 
 def test_THE_WITHDRAWAL_READS_THE_COMMIT_FROM_WHERE_A_REAL_VERDICT_KEEPS_IT(tmp_path):
@@ -989,3 +995,105 @@ def test_REPLACING_A_VERDICT_WITH_A_NOT_APPLICABLE_ONE_DOES_NOT_CRASH(tmp_path, 
     trail = [json.loads(ln) for ln in (nd / sn.WITHDRAWN_NAME).read_text().splitlines() if ln.strip()]
     assert len(trail) == 1 and trail[0]["withdrawn"]["status"] == "FAIL", "withdrawn to the trail instead"
     assert json.loads((nd / sn.VERDICT_NAME).read_text())["status"] == "NOT_APPLICABLE"
+
+
+def test_A_SCOPE_THAT_CANNOT_BE_RESOLVED_MAKES_THE_NIGHT_UNKNOWN_before_any_band(tmp_path):
+    """🔴 THE TRIPWIRE PATH THROUGH `compose`. A scope that is not `ok` is not a night that failed — it
+    is a night nobody could delimit, so it is UNKNOWN with the scope's own reason, decided BEFORE any
+    device or band is consulted. Reached in practice only by a folder that names no band (`stored/`), the
+    two-folder bound being structural; kept so that if the premise ever changes the night refuses instead
+    of being judged over a scope silently cut short."""
+    bad = {"ok": False, "reason": "`stored` is not a YYYY-MM-DD night folder, so it names no night band"}
+    v = sn.compose(
+        night="stored",
+        settled=True,
+        devices={"H10": {"bands": {"continuity": {"status": "FAIL", "reason": "would have failed"}}}},
+        evidence=EV,
+        commit=SHA,
+        at=AT,
+        scope=bad,
+    )
+    js_validate(v)
+    assert v["status"] == "UNKNOWN", "not FAIL — the failing band must not decide an undelimited night"
+    assert v["reason"] == bad["reason"]
+    assert v["result"]["scope"] == bad, "and the verdict carries the scope it could not resolve"
+
+
+def test_A_VERDICT_CARRIES_THE_SCOPE_IT_MEASURED(tmp_path):
+    """QC-SCOPE-RESOLUTION-2026-07-28's L4 applied to the judge: `judged_dir` names where the verdict
+    lives, `searched_dirs` every folder it read. A verdict that does not say what it measured cannot be
+    checked — which is how the 46.25 % folder-wide denominator went unnoticed."""
+    night = tmp_path / sn.SAMPLE_NIGHT
+    night.mkdir()
+    devices = sn.sample_night(str(night))
+    obj, _ = sn.write_night(str(night), devices, nights=[sn.SAMPLE_NIGHT], active=set(), commit="abc1234")
+    sc = obj["result"]["scope"]
+    assert sc["ok"] is True
+    assert sc["judged_dir"] == sn.SAMPLE_NIGHT
+    assert sc["searched_dirs"] == [sn.SAMPLE_NIGHT], "no next-day folder exists in this fixture"
+    assert any(sn.SAMPLE_NIGHT in e for e in obj["evidence"]), "every folder read is cited"
+
+
+def test_A_SCOPE_THAT_NEVER_SAYS_WHETHER_IT_RESOLVED_IS_UNKNOWN_not_assumed_fine(tmp_path):
+    """🔴 §∅ ON MY OWN CODE, found by the mutation gate. The check was `not scope.get("ok", True)`, so a
+    scope dict carrying no `ok` key was judged as though it had resolved — a default standing in for a
+    fact nobody measured. Three mutants of that default survived precisely because no test supplied the
+    one input that separates them: a scope that is silent about its own validity.
+
+    `ok` is now required to be exactly True. A scope that does not state it gets the night an UNKNOWN
+    with a reason of its own, since a borrowed reason would be worse than none (§∅: a named reason,
+    never a borrowed one)."""
+    bands = {"H10": {"bands": {"continuity": {"status": "PASS", "reason": None}}}}
+    silent = sn.compose(night="2026-10-04", settled=True, devices=bands, evidence=EV, commit=SHA, at=AT, scope={})
+    js_validate(silent)
+    assert silent["status"] == "UNKNOWN"
+    assert silent["reason"] == "the recording scope did not state whether it resolved"
+
+    # a scope that DOES say it resolved is judged normally — the control, or the above proves nothing
+    good = sn.compose(
+        night="2026-10-04",
+        settled=True,
+        devices=bands,
+        evidence=EV,
+        commit=SHA,
+        at=AT,
+        scope={"ok": True, "judged_dir": "2026-10-04", "searched_dirs": ["2026-10-04"]},
+    )
+    assert good["status"] == "PASS", good.get("reason")
+
+    # and a truthy-but-not-True `ok` is not a statement either
+    fuzzy = sn.compose(night="2026-10-04", settled=True, devices=bands, evidence=EV, commit=SHA, at=AT, scope={"ok": 1})
+    assert fuzzy["status"] == "UNKNOWN", "only an explicit True counts as resolved"
+
+
+def test_THE_VERDICT_CITES_EVERY_FOLDER_IT_READ_and_carries_its_own_stamp(tmp_path):
+    """`evidence` lists each folder's loss audit, not only the judged one — a citation that names a file
+    the judgement did not open, or omits one it did, is the shape this suite refuses everywhere else. And
+    `at` has to reach the verdict: a verdict with no time cannot be ordered against the one it replaced,
+    which is what the withdrawal trail is for."""
+    night = tmp_path / sn.SAMPLE_NIGHT
+    night.mkdir()
+    nxt = tmp_path / "2026-01-02"
+    nxt.mkdir()
+    devices = sn.sample_night(str(night))
+    v = sn.night_verdict(str(night), devices, commit=SHA, at=AT)
+    js_validate(v)
+    assert v["at"] == AT, "the stamp passed in is the stamp published"
+    audits = [e for e in v["evidence"] if e.endswith(sn._inputs.LOSS_AUDIT_NAME)]
+    assert len(audits) == 2, audits
+    assert any(sn.SAMPLE_NIGHT in a for a in audits) and any("2026-01-02" in a for a in audits)
+    for a in audits:
+        assert os.path.basename(a) == sn._inputs.LOSS_AUDIT_NAME, "each citation names the audit file"
+        assert os.path.dirname(a), "and the folder it sits in"
+
+
+def test_A_ONE_FOLDER_NIGHT_CITES_ONE_AUDIT(tmp_path):
+    """The control for the above: the citation list follows the scope, so it must shrink when the scope
+    does. 61 of the mirror's 111 night recordings live in one folder."""
+    night = tmp_path / sn.SAMPLE_NIGHT
+    night.mkdir()
+    devices = sn.sample_night(str(night))
+    v = sn.night_verdict(str(night), devices, commit=SHA, at=AT)
+    audits = [e for e in v["evidence"] if e.endswith(sn._inputs.LOSS_AUDIT_NAME)]
+    assert len(audits) == 1 and sn.SAMPLE_NIGHT in audits[0]
+    assert v["result"]["scope"]["searched_dirs"] == [sn.SAMPLE_NIGHT]

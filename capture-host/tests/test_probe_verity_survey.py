@@ -927,3 +927,13 @@ def test_CONTROL_an_answered_device_still_confirms_exactly_as_before(monkeypatch
     out2 = {}
     _run(psv.stop_everything("AA:BB", None, out2))
     assert out2["left_clean"]["still_active"] == []
+
+
+def test_an_UNANSWERED_settings_query_is_None_not_an_empty_menu():
+    """ABSENCE-SURVEY dc5852859e57: {} means "this mode has no settings"; a timed-out query says nothing."""
+    assert psv._settings(None) is None
+    assert psv._settings(b"") == {}
+
+
+def test_an_UNNAMED_setting_id_is_named_by_its_hex_code():
+    assert psv._settings(b"\xf0\x01\x01\x00\x00\x03\x01\x07\x00") == {"setting_0x03": [7]}

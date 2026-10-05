@@ -69,6 +69,11 @@ KNOWN = {
 SKIP_BY_DEFAULT = {0x08, 0x09}
 
 
+# Read at CALL time (not bound as defaults), so a test can shorten them — a default captures the value
+# at definition and a patched constant never reaches it.
+SEND_SPACING_S, REPLY_TIMEOUT_S = 0.25, 5.0
+
+
 class Control:
     def __init__(self, client):
         self.client, self.q = client, asyncio.Queue()
@@ -76,8 +81,9 @@ class Control:
     async def start(self):
         await self.client.start_notify(pmd.PMD_CONTROL, lambda _s, d: self.q.put_nowait(bytes(d)))
 
-    async def send(self, cmd: bytes, timeout: float = 5.0):
-        await asyncio.sleep(0.25)
+    async def send(self, cmd: bytes, timeout: float | None = None):
+        timeout = REPLY_TIMEOUT_S if timeout is None else timeout
+        await asyncio.sleep(SEND_SPACING_S)
         while not self.q.empty():
             self.q.get_nowait()
         await self.client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True)
@@ -111,7 +117,17 @@ async def snapshot(cp) -> dict:
 
 
 def diff(a: dict, b: dict) -> dict:
-    return {k: {"before": a.get(k), "after": b.get(k)} for k in a if a.get(k) != b.get(k)}
+    """Keys whose state moved — and keys whose state was NOT READ on either side.
+
+    ∅ ABSENCE-SURVEY dc5cad86b260: `snapshot` records a timed-out read as None, and `None != None` is
+    False, so two unread reads compared as "unchanged" and `net_state_change` published "none" over keys
+    nobody read. An unread key is reported (`unread: True`), which also trips the sweep's abort gate: a
+    sweep that cannot read the state cannot claim an undocumented write left it alone."""
+    return {
+        k: {"before": a.get(k), "after": b.get(k), **({"unread": True} if a.get(k) is None or b.get(k) is None else {})}
+        for k in a
+        if a.get(k) is None or b.get(k) is None or a.get(k) != b.get(k)
+    }
 
 
 async def run(address, adapter, lo, hi, include_dangerous, dry_run) -> dict:
