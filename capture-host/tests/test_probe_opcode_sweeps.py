@@ -1011,3 +1011,32 @@ def test_a_ONE_frame_baseline_compares_against_that_frame():
 def test_the_baseline_returns_the_LAST_frame_seen():
     assert _run(oxs.learn_baseline(_Seq([b"\x01", b"\x01", None, b"\x02", b"\x02"]), n=2, gap=0)) == (b"\x02", [])
     assert _run(oxs.learn_baseline(_Seq([b"\x01", None, b"\x02"]), n=1, gap=0)) == (b"\x02", [])
+
+
+class _GoesDark(_RingClient):
+    """Answers the baseline and the op normally, then stops answering LIVE right after `dark_after`."""
+
+    def __init__(self, dark_after, **kw):
+        super().__init__(**kw)
+        self.dark_after, self.dark = dark_after, False
+
+    async def write_gatt_char(self, _c, data, response=False):
+        op = data[1]
+        if self.dark and op == oxs.oxyii.OP_LIVE:
+            self.writes.append(op)
+            return
+        await super().write_gatt_char(_c, data, response)
+        if op == self.dark_after:
+            self.dark = True
+
+
+def test_oxyii_an_UNANSWERED_verification_snapshot_is_UNVERIFIED_and_stops_the_sweep(monkeypatch):
+    """ABSENCE-SURVEY 7214c8dc2397: `_changed` read a missing snapshot as "no byte moved" — a clean
+    verdict for an op whose effect nobody saw. It is UNVERIFIED, and the sweep pokes no further."""
+    ring = _GoesDark(0x20, responders={0x20, 0x21})
+    _patch_ring(monkeypatch, ring)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
+    assert res["opcodes"]["0x20"]["effect"].startswith("UNVERIFIED")
+    assert "state_changed" not in res["opcodes"]["0x20"]
+    assert res["aborted_at"] == "0x20" and "not answered" in res["abort_reason"]
+    assert 0x21 not in ring.writes and "0x21" not in res["opcodes"]
