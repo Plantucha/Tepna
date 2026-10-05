@@ -141,7 +141,7 @@ def unmeasurable_files(files: list[dict], device_id, tag: str, fs: float) -> int
     return sum(1 for _t0, dur in _placed(files, device_id, tag, fs) if not dur)
 
 
-def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float | None = 0.0):
+def _placed(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float, offset_sec: float | None = 0.0):
     """`(start_ms, duration_or_None)` for every file of this stream that carries rows.
 
     `offset_sec` raises the floating start stamp into the caller's frame (see `_stamp_ms`); the duration
@@ -177,8 +177,11 @@ def _placed(files: list[dict], device_id, tag: str, fs: float, offset_sec: float
     """
     ids = {device_id} if isinstance(device_id, str) else {i for i in (device_id or []) if i}
     ids.discard("")
+    # A SET, because one configured stream can be written under more than one file tag. A bare string
+    # stays accepted so every existing caller keeps its exact behaviour.
+    want = {tag} if isinstance(tag, str) else set(tag)
     for f in files:
-        if f["stream"] != tag or not ids or _file_device_id(f["file"]) not in ids:
+        if f["stream"] not in want or not ids or _file_device_id(f["file"]) not in ids:
             continue
         t0 = _stamp_ms(f["file"])
         if t0 is None or not f["rows"]:

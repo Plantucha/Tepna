@@ -72,10 +72,17 @@ def summarize_fs(entries) -> dict:
     that quietly excludes things is how a capacity figure becomes a wrong number."""
     rec_bytes = sys_bytes = 0
     sessions: set[str] = set()
+    # ∅ ABSENCE-SURVEY 7fc0ece58810: an entry with no size, and the -1 of a directory whose listing
+    # raised, were folded in as 0 bytes. They are counted instead, and the totals cover the sized
+    # entries only — reduced coverage, annotated, never a number standing in for one nobody read.
+    unsized = 0
     for path, size, is_dir in entries:
         if is_dir:
             continue
-        size = max(0, int(size or 0))
+        if size is None or int(size) < 0:
+            unsized += 1
+            continue
+        size = int(size)
         if path.startswith("/U/"):
             rec_bytes += size
             head = path.rsplit("/", 1)[0]
@@ -89,6 +96,7 @@ def summarize_fs(entries) -> dict:
         "recording_bytes": rec_bytes,
         "system_bytes": sys_bytes,
         "total_bytes": rec_bytes + sys_bytes,
+        "unsized_entries": unsized,
     }
 
 

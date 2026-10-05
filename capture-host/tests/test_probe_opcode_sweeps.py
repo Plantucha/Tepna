@@ -30,8 +30,115 @@ def _run(c):
 @pytest.fixture(autouse=True)
 def _no_baseline_wait(monkeypatch):
     """The ~1 s spacing between baseline samples matches the ring's 1 Hz frame cadence — a hardware fact,
-    not a test fact. The COUNT still applies, so the sampling logic is exercised for real."""
+    not a test fact. The COUNT still applies, so the sampling logic is exercised for real.
+
+    The reply timeouts and the PMD command spacing are shortened the same way. All four are read at
+    CALL time; a constant bound as a default is out of this fixture's reach, which is how the gap patch
+    above did nothing for as long as it existed (`test_the_baseline_gap_patch_REACHES_learn_baseline`)."""
     monkeypatch.setattr(oxs, "BASELINE_GAP_S", 0.0)
+    # NO TEST MAY WAIT WITHOUT A BOUND. Every real wait passes a number; a `None` timeout can only come
+    # from a defect (or a mutant that drops one), and against a fake that never answers it waits
+    # FOREVER — the mutation gate then records a timeout (UNDECIDED), never a kill. Failing it here, at
+    # once, turns every such wait into a fast, attributable failure.
+    _real_wait_for = asyncio.wait_for
+
+    async def _bounded_wait_for(aw, timeout):
+        if timeout is None:
+            if hasattr(aw, "close"):
+                aw.close()
+            raise AssertionError("an unbounded wait: wait_for(..., timeout=None)")
+        return await _real_wait_for(aw, timeout)
+
+    monkeypatch.setattr(oxs.asyncio, "wait_for", _bounded_wait_for)
+    monkeypatch.setattr(oxs, "REPLY_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(pms, "SEND_SPACING_S", 0.0)
+    monkeypatch.setattr(pms, "REPLY_TIMEOUT_S", 0.01)
+
+
+# FIRST IN THE FILE ON PURPOSE: mutmut stops at the first failing test, and a mutant that drops a
+# reply timeout makes every UNBOUNDED sweep test below wait forever. These bounded tests fail it in
+# 1 s before any of those can hang — otherwise it is UNDECIDED (a timeout), never killed.
+# ── the two send() contracts, each call under an OUTER bound so a mutant that waits forever FAILS ───
+class _Link:
+    """Records every write; `reply` (if set) is queued on the probe's own queue as the device answer."""
+
+    def __init__(self, owner_q=None, reply=None):
+        self.writes, self.q, self.reply = [], owner_q, reply
+
+    async def start_notify(self, *_a):
+        return None
+
+    async def write_gatt_char(self, char, data, response=None):
+        self.writes.append((char, bytes(data), response))
+        if self.reply is not None:
+            self.q.put_nowait(self.reply)
+
+
+def _bounded(coro):
+    return _run(asyncio.wait_for(coro, 1.0))
+
+
+def test_ring_send_writes_the_encoded_op_and_returns_the_FRESH_reply():
+    r = oxs.Ring(None)
+    r.c = _Link(r.q, reply=b"fresh")
+    r.q.put_nowait(b"stale")  # left over from an earlier op: must be drained, never returned
+    assert _bounded(r.send(0x04, b"\x01")) == b"fresh"
+    assert r.c.writes == [(oxs.oxyii.OXYII_WRITE, oxs.oxyii.encode(0x04, b"\x01"), False)]
+    assert r.q.empty()
+
+
+def test_ring_send_returns_None_on_an_unanswered_op_and_honours_an_explicit_timeout(monkeypatch):
+    seen = []
+    real = asyncio.wait_for
+
+    async def rec(aw, timeout):
+        seen.append(timeout)
+        return await real(aw, timeout)
+
+    r = oxs.Ring(None)
+    r.c = _Link()
+    assert _bounded(r.send(0x04)) is None
+    monkeypatch.setattr(oxs.asyncio, "wait_for", rec)
+    r2 = oxs.Ring(None)  # a fresh queue: asyncio binds one to the loop it first waited on
+    r2.c = _Link()
+    assert _bounded(r2.send(0x04, timeout=0.004)) is None
+    assert seen[-1] == 0.004 and r.c.writes[0] == (oxs.oxyii.OXYII_WRITE, oxs.oxyii.encode(0x04, b""), False)
+
+
+def test_control_send_spaces_writes_the_cmd_and_returns_the_FRESH_reply(monkeypatch):
+    slept = []
+    real_sleep = asyncio.sleep
+
+    async def rec_sleep(s):
+        slept.append(s)
+        await real_sleep(0)
+
+    monkeypatch.setattr(pms, "SEND_SPACING_S", 0.007)
+    monkeypatch.setattr(pms.asyncio, "sleep", rec_sleep)
+    c = pms.Control(None)
+    c.client = _Link(c.q, reply=b"fresh")
+    c.q.put_nowait(b"stale")
+    assert _bounded(c.send(b"\x05")) == b"fresh"
+    assert slept == [0.007] and c.client.writes == [(pms.pmd.PMD_CONTROL, b"\x05", True)]
+    assert c.q.empty()
+
+
+def test_control_send_returns_None_on_no_reply_and_honours_an_explicit_timeout(monkeypatch):
+    seen = []
+    real = asyncio.wait_for
+
+    async def rec(aw, timeout):
+        seen.append(timeout)
+        return await real(aw, timeout)
+
+    c = pms.Control(None)
+    c.client = _Link()
+    assert _bounded(c.send(b"\x05")) is None
+    monkeypatch.setattr(pms.asyncio, "wait_for", rec)
+    c2 = pms.Control(None)
+    c2.client = _Link()
+    assert _bounded(c2.send(b"\x05", timeout=0.004)) is None
+    assert seen[-1] == 0.004
 
 
 # ══ Polar PMD sweep ══════════════════════════════════════════════════════════════════════════════════
@@ -792,3 +899,115 @@ def _dt_obj():
     import datetime
 
     return datetime.datetime(2026, 8, 4, 3, 0, 0)
+
+
+# ── ABSENCE-SURVEY dc5cad86b260: an unread state is not an unchanged one ───────────────────────────
+def test_pmd_diff_reports_an_UNREAD_key_instead_of_matching_None_to_None():
+    a = {"measurement_status": None, "sdk_mode": "01", "ppg_settings": "02"}
+    b = {"measurement_status": None, "sdk_mode": "01", "ppg_settings": "03"}
+    assert pms.diff(a, b) == {
+        "measurement_status": {"before": None, "after": None, "unread": True},
+        "ppg_settings": {"before": "02", "after": "03"},
+    }
+    assert pms.diff({"x": "01"}, {"x": None}) == {"x": {"before": "01", "after": None, "unread": True}}
+    assert pms.diff({"x": "01"}, {"x": "01"}) == {}
+
+
+# ── the fixture's patches must REACH their targets ──────────────────────────────────────────────────
+def test_the_baseline_gap_patch_REACHES_learn_baseline(monkeypatch):
+    """`gap=BASELINE_GAP_S` bound as a default captured 1.0 at definition, so the autouse patch to 0.0
+    reached nothing and every baseline slept 5 x 1 s for real. The constant is now read at call time."""
+    monkeypatch.setattr(oxs, "BASELINE_GAP_S", 0.123)
+    slept = []
+
+    async def rec(s):
+        slept.append(s)
+
+    monkeypatch.setattr(oxs.asyncio, "sleep", rec)
+
+    class _R:
+        async def send(self, op, payload=b"", timeout=None):
+            return bytes(20)
+
+    _run(oxs.learn_baseline(_R(), n=2))
+    assert slept and set(slept) == {0.123}
+
+
+def test_the_reply_timeouts_and_spacing_are_read_at_CALL_time(monkeypatch):
+    seen = []
+    real_wait_for = asyncio.wait_for
+
+    async def rec_wait_for(aw, timeout):
+        seen.append(timeout)
+        return await real_wait_for(aw, timeout)
+
+    monkeypatch.setattr(oxs.asyncio, "wait_for", rec_wait_for)
+
+    class _C:
+        async def start_notify(self, *_a):
+            return None
+
+        async def write_gatt_char(self, *_a, **_k):
+            return None
+
+    monkeypatch.setattr(oxs, "REPLY_TIMEOUT_S", 0.002)
+    assert _run(oxs.Ring(_C()).send(0x04)) is None
+    monkeypatch.setattr(pms, "REPLY_TIMEOUT_S", 0.003)
+    assert _run(pms.Control(_C()).send(b"\x05")) is None
+    assert seen == [0.002, 0.003]
+
+
+def test_the_HARDWARE_values_behind_the_shortened_constants(monkeypatch):
+    """The fixture shortens them for speed; these are the values the probes run with on a real link."""
+    monkeypatch.undo()
+    assert (oxs.BASELINE_N, oxs.BASELINE_GAP_S, oxs.REPLY_TIMEOUT_S) == (5, 1.0, 2.5)
+    assert (pms.SEND_SPACING_S, pms.REPLY_TIMEOUT_S) == (0.25, 5.0)
+
+
+def test_a_baseline_under_the_fixture_takes_under_ONE_SECOND():
+    """The guard against the next default bound at definition: a constant the fixture cannot reach makes
+    this wait out the real 5 x 1 s spacing, and the wall clock says so even when no assertion looks."""
+    import time as _time
+
+    class _R:
+        async def send(self, op, payload=b"", timeout=None):
+            return bytes(20)
+
+    t0 = _time.monotonic()
+    _run(oxs.learn_baseline(_R()))
+    assert _time.monotonic() - t0 < 1.0
+
+
+# ── learn_baseline: inputs from the Codex reader, each verified against the original ─────────────────
+class _Seq:
+    """A ring whose successive `send` replies are a fixed script: LIVE samples, the CONTROL, LIVE samples."""
+
+    def __init__(self, seq):
+        self.seq = list(seq)
+
+    async def send(self, op, payload=b"", timeout=None):
+        return self.seq.pop(0) if self.seq else None
+
+
+def test_an_EXPLICIT_baseline_gap_is_honoured_over_the_constant(monkeypatch):
+    slept = []
+
+    async def rec(s):
+        slept.append(s)
+
+    monkeypatch.setattr(oxs.asyncio, "sleep", rec)
+    _run(oxs.learn_baseline(_Seq([b"\x01"] * 5), n=2, gap=0.5))
+    assert slept and set(slept) == {0.5}
+
+
+def test_a_SHORTER_after_frame_drops_the_bytes_it_does_not_carry():
+    assert _run(oxs.learn_baseline(_Seq([b"\x10\x20", None, b"\x10"]), n=1, gap=0)) == (b"\x10", [0])
+
+
+def test_a_ONE_frame_baseline_compares_against_that_frame():
+    assert _run(oxs.learn_baseline(_Seq([b"\x10", None, b"\x10"]), n=1, gap=0)) == (b"\x10", [0])
+
+
+def test_the_baseline_returns_the_LAST_frame_seen():
+    assert _run(oxs.learn_baseline(_Seq([b"\x01", b"\x01", None, b"\x02", b"\x02"]), n=2, gap=0)) == (b"\x02", [])
+    assert _run(oxs.learn_baseline(_Seq([b"\x01", None, b"\x02"]), n=1, gap=0)) == (b"\x02", [])
