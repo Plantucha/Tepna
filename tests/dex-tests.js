@@ -64992,11 +64992,26 @@
         R.set('allNights', { a: night0 });
         env.OxyRecomputeFromProfile();
         T.eq('profile · CONTROL · RMSSD 1.4 ⇒ a MEASURED 0 adjustment', night0.vo2est && night0.vo2est.rmssdAdj, 0);
+        // the adjustment's own arithmetic, both signs and both ±3 clamps (a 0-adjustment control alone cannot see a literal → 0)
+        var adjAt = function (rmssd) {
+          var nn = { hrv: { hrFloor: 55, rmssd: rmssd }, stats: {} };
+          R.set('allNights', { a: nn });
+          env.OxyRecomputeFromProfile();
+          return nn.vo2est ? [nn.vo2est.rmssdAdj, nn.vo2est.vo2est] : null;
+        };
+        T.eq('profile · RMSSD 3.4 ⇒ +2.1, vo2est 52.2', JSON.stringify(adjAt(3.4)), '[2.1,52.2]');
+        T.eq('profile · RMSSD −0.6 ⇒ −2.1, vo2est 48', JSON.stringify(adjAt(-0.6)), '[-2.1,48]');
+        T.eq('profile · RMSSD 5.4 ⇒ clamped at +3', JSON.stringify(adjAt(5.4)), '[3,53.1]');
+        T.eq('profile · RMSSD −2.6 ⇒ clamped at −3', JSON.stringify(adjAt(-2.6)), '[-3,47.1]');
         // 7e34d2b1ab62 — one resting-HR source decision; an estimate is marked on the chips
         var RH = env.OxyRestingHR,
           ZC = env.OxyZoneChipText;
-        T.ok('profile · the resting-HR source and chip-text seams exist (none existed: the chips wrote straight to the DOM)', typeof RH === 'function' && typeof ZC === 'function');
-        if (typeof RH === 'function' && typeof ZC === 'function') {
+        var CV = env.OxyHRrestCaveat;
+        T.ok(
+          'profile · the resting-HR source, chip-text and caveat seams exist (none existed: the chips wrote straight to the DOM)',
+          typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function'
+        );
+        if (typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function') {
           R.set('UP', { age: 40 });
           R.set('_upHRrest', 83); // detected p5 + 8 above the zones' 80 bound
           T.eq('profile · a detected 83 bpm is refused by the zones ⇒ source "estimate", 71 − 0.25 × 40 = 61', JSON.stringify(RH()), '{"hrRest":61,"source":"estimate"}');
@@ -65019,9 +65034,11 @@
           T.eq('profile · the estimate is clamped at 45', RH().hrRest, 45);
           R.set('UP', { age: -100 });
           T.eq('profile · …and at 80', RH().hrRest, 80);
-          T.eq('profile · an estimated zone is marked ≈', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, true), '≈ 120–140 bpm');
-          T.eq('profile · CONTROL · a measured zone is not', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, false), '120–140 bpm');
-          T.eq('profile · the top zone runs to HRmax+', ZC({ low: 160, high: 180 }, { lo: 0.9 }, 180, false), '160–180+ bpm');
+          T.eq('profile · an estimated zone is marked ≈', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'estimate'), '≈ 120–140 bpm');
+          T.eq('profile · CONTROL · a detected zone is not', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'data'), '120–140 bpm');
+          T.eq('profile · the top zone runs to HRmax+', ZC({ low: 160, high: 180 }, { lo: 0.9 }, 180, 'manual'), '160–180+ bpm');
+          T.ok('profile · the sublabel caveat names the fallback for an estimate', /zones use the age estimate/.test(CV({ source: 'estimate' })));
+          T.eq('profile · CONTROL · no caveat for a detected value', CV({ source: 'data' }), '');
         }
       } finally {
         R.set('UP', saved.UP);

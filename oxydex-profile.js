@@ -283,9 +283,13 @@ function upRestingHR() {
   if (window._upHRrest && window._upHRrest > 30 && window._upHRrest < 80) return { hrRest: window._upHRrest, source: 'data' };
   return { hrRest: Math.round(Math.max(45, Math.min(80, 71 - 0.25 * (UP.age || 49)))), source: 'estimate' }; // literature: ~71-0.25×age
 }
-// a zone chip's text; an ESTIMATED resting HR is marked ≈ so the bpm range never reads as measured
-function upZoneChipText(zn, z, hrm, estimated) {
-  return (estimated ? '≈ ' : '') + zn.low + '–' + (z.lo === 0.9 ? hrm + '+' : zn.high) + ' bpm';
+// a zone chip's text, given the resting HR's SOURCE: an estimate is marked ≈ so the bpm range never reads as measured
+function upZoneChipText(zn, z, hrm, source) {
+  return (source === 'estimate' ? '≈ ' : '') + zn.low + '–' + (z.lo === 0.9 ? hrm + '+' : zn.high) + ' bpm';
+}
+// the caveat the data-driven HRrest sublabel carries when the zones could not use the detected value
+function upHRrestCaveat(rest) {
+  return rest && rest.source === 'estimate' ? ' · outside 30–80 bpm, so the zones use the age estimate' : '';
 }
 
 function profileDerivedUpdate() {
@@ -325,7 +329,6 @@ function profileDerivedUpdate() {
   // HRrest priority: 1) manual entry, 2) derived from user's nocturnal data, 3) age-adjusted population estimate
   var _rest = upRestingHR();
   var hrRest = _rest.hrRest;
-  var hrRestEstimated = _rest.source === 'estimate';
   var zones = [
     { id: 'pz1', lo: 0.5, hi: 0.6, label: 'Z1' },
     { id: 'pz2', lo: 0.6, hi: 0.7, label: 'Z2' },
@@ -337,8 +340,8 @@ function profileDerivedUpdate() {
     var zn = upKarvonenZone(z.lo, z.hi, hrRest, hrm);
     var el = document.getElementById(z.id);
     if (el) {
-      el.textContent = upZoneChipText(zn, z, hrm, hrRestEstimated);
-      el.title = hrRestEstimated ? 'Resting HR estimated from age (71 − 0.25 × age) — enter it, or load nights, for measured zones' : '';
+      el.textContent = upZoneChipText(zn, z, hrm, _rest.source);
+      el.title = upHRrestCaveat(_rest) ? 'Resting HR estimated from age (71 − 0.25 × age) — enter it, or load nights, for measured zones' : '';
     }
   });
 
@@ -566,7 +569,7 @@ function profileAutoDetectUpdate(allNights) {
       }
       txt += ' · trained athletes typically 12–15 bpm lower';
       // ∅ the zones refuse a detected value outside 30–80 and use the age estimate — say so beside the figure
-      if (upRestingHR().source === 'estimate') txt += ' · outside 30–80 bpm, so the zones use the age estimate';
+      txt += upHRrestCaveat(upRestingHR());
       hrSub.textContent = txt;
     }
   }

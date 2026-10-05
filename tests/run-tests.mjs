@@ -2614,6 +2614,7 @@ async function main() {
        NARROW accessor for the three realm globals they read (UP, allNights, _upHRrest) so a test can set and restore them. */
     OxyRestingHR: ctx.upRestingHR,
     OxyZoneChipText: ctx.upZoneChipText,
+    OxyHRrestCaveat: ctx.upHRrestCaveat,
     OxyUpFromDOM: ctx.upFromDOM,
     OxyRecomputeFromProfile: ctx.recomputeFromProfile,
     oxyProfileRealm: {
