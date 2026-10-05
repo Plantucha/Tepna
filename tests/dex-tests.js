@@ -64182,6 +64182,48 @@
        The compound gates get one test per OPERAND, never a joint move: §2c's rule that "all-or-none
        in the DATA is not all-or-none in the GATE" — varying both halves together can never separate
        `&&` from `||`.                                                                              */
+    /* oxydex-render.js is loaded as TEXT in this lane (env.sources), so these EXTRACT the exact statements and RUN
+       them — a flipped operator changes the answer, which a regex over spelling cannot see. A failed extraction reds:
+       a refactor must move this test, never silently skip it. */
+    group('OxyDex B2 · render · an unmeasured score is shown as not measured (extract-and-run)', 'oxydex-render · absence · extract-and-run', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      var scLine = R.match(/var sc = s\.overallScore == null \?[^;]*;/);
+      T.ok('B2 · render · the summary colour statement extracted', !!scLine);
+      if (scLine) {
+        var colour = new Function('s', scLine[0] + ' return sc;');
+        T.eq('B2 · render · null ⇒ ss-na, never good', colour({ overallScore: null }), 'ss-na');
+        T.eq('B2 · render · 2.9 ⇒ good', colour({ overallScore: 2.9 }), 'ss-good');
+        T.eq('B2 · render · 3 ⇒ warn (< 3 is strict)', colour({ overallScore: 3 }), 'ss-warn');
+        T.eq('B2 · render · 6 ⇒ bad (< 6 is strict)', colour({ overallScore: 6 }), 'ss-bad');
+      }
+      var rowsLit = R.match(/var _kRows = \[[\s\S]*?\];/);
+      var guard = R.match(/if \(([^{]*)\) \{\s*html \+= '<div class="proj-factor pf-prog"><span>' \+ r\.label \+ '<\/span><span class="pf-val">not measured/);
+      var pctLine = R.match(/var pct = Math\.min\([^;]*;/);
+      T.ok('B2 · render · the readiness-bar statements extracted', !!(rowsLit && guard && pctLine));
+      if (rowsLit && guard && pctLine) {
+        var bars = new Function('k', rowsLit[0] + ' return _kRows.map(function (r) { if (' + guard[1] + ') return "na"; ' + pctLine[0] + ' return Math.round(pct); });');
+        T.eq(
+          'B2 · render · measured bars: 15/30 ⇒ 50 %, an old export without sleepMax keeps the 20 basis ⇒ 75 %',
+          JSON.stringify(bars({ scores: { rmssd: 15, spo2: 25, sleep: 15, hrFloor: 0, hrSlope: 10 } })),
+          '[50,100,75,0,100]'
+        );
+        T.eq(
+          'B2 · render · unmeasured components ⇒ "not measured", and a 10-point sleep basis',
+          JSON.stringify(bars({ scores: { rmssd: null, spo2: 25, sleep: 7, sleepMax: 10, hrFloor: null, hrSlope: null } })),
+          '["na",100,70,"na","na"]'
+        );
+        T.eq(
+          'B2 · render · a sleep basis of 0 is no basis ⇒ not measured',
+          JSON.stringify(bars({ scores: { rmssd: 30, spo2: 25, sleep: 0, sleepMax: 0, hrFloor: 15, hrSlope: 10 } })),
+          '[100,100,"na",100,100]'
+        );
+      }
+    });
+
     group('OxyDex B2 · a score or a verdict over an unmeasured input is no score', 'oxydex-dsp · score · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B || typeof B.computeSleepStabilityScore !== 'function') {
@@ -64249,6 +64291,43 @@
             .join(','),
         'OK'
       );
+      // each core statistic is load-bearing ALONE: one measured among unmeasured is still not assessed
+      var codes = function (st) {
+        return B.buildFlags
+          .apply(null, flagArgs(st))
+          .map(function (f) {
+            return f.code;
+          })
+          .join(',');
+      };
+      T.eq('B2 · t90 measured, nadir and max HR not ⇒ still NOT_FULLY_ASSESSED', codes({ t90pct: 0, minSpo2: null, maxHr: null, t95pct: 0 }), 'NOT_FULLY_ASSESSED');
+      T.eq('B2 · max HR measured alone ⇒ still NOT_FULLY_ASSESSED', codes({ t90pct: null, minSpo2: null, maxHr: 80, t95pct: null }), 'NOT_FULLY_ASSESSED');
+      // the assumption fires at 0 too (`age > 0`, not `>= 0`), and assumes exactly the 49 an entered 49 gives
+      var v0 = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, 0);
+      T.eq('B2 · an age of 0 is not an age ⇒ assumed', v0 && v0.ageAssumed, true);
+      T.eq('B2 · the assumed age is 49: same estimate as an entered 49', vA && vE && vA.vo2est, vE && vE.vo2est);
+      // the label ladder at both sides of each rung (inputs found by search; vo2est asserted first so a drift reds here)
+      var vo2At = function (hr, rmssd) {
+        var rr = [];
+        for (var q = 0; q < 1800; q++) rr.push({ hr: hr, motion: 0, spo2: 95 });
+        var v = B.computeVO2maxEstimate(rr, { rmssd: rmssd, hrFloor: 52 }, null, null, 49);
+        return v ? v.vo2est + ' ' + v.label : 'null';
+      };
+      T.eq('B2 · VO2 42.0 ⇒ the top rung (>= is inclusive)', vo2At(62, 0.5), '42 Top-25% for age 49');
+      T.eq('B2 · VO2 41.9 ⇒ Above average', vo2At(62, 0.4), '41.9 Above average');
+      T.eq('B2 · VO2 35.0 ⇒ Above average', vo2At(74, 0.4), '35 Above average');
+      T.eq('B2 · VO2 34.9 ⇒ Average', vo2At(74, 0.31), '34.9 Average');
+      T.eq('B2 · VO2 30.0 ⇒ Average', vo2At(85, 0.2), '30 Average');
+      T.eq('B2 · VO2 29.9 ⇒ Below average', vo2At(86, 0.31), '29.9 Below average');
+      // durationMin: a 0 hint is no duration; rows win over a hint, at one row per second
+      var KZ = function (rows, hint) {
+        var r = B.computeKarvonenZones(rows, { rmssd: 2.3 }, { hrRest: 60 }, null, null, null, null, 49, hint);
+        return r && r.scores ? r.scores.sleep : 'no result';
+      };
+      T.eq('B2 · a hint of 0 minutes is no duration ⇒ sleep NOT SCORED', KZ(null, 0), null);
+      var rows100 = [];
+      for (var q2 = 0; q2 < 100; q2++) rows100.push({ hr: 60, motion: 0, spo2: 95 });
+      T.eq('B2 · 100 rows = 1.7 min beat a 420-min hint ⇒ the 1-point floor', KZ(rows100, 420), 1);
       // d975e352ce7b — nothing scoreable ⇒ no overall score (0 is the HEALTHY end of the 0-10 scale)
       T.ok(
         'B2 · an UNMEASURED nadir raises no critical-dip flag (null <= 88 is true in JS)',
