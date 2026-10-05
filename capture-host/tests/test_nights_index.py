@@ -892,3 +892,46 @@ def test_session_epoch_refuses_a_serial_and_an_impossible_instant(tmp_path):
     assert ni.session_epoch("cpap/DATALOG/20261004/x_BRP.edf") is None
     assert ni.session_epoch("Polar_H10_02849638_20261004220206_ECG.txt") is not None
     assert ni.session_epoch("Polar_H10_02849638_20260919_220000_ECG.txt") is not None, "both layouts parse"
+
+
+def test_an_unstamped_file_does_not_STOP_the_grouping_and_first_is_the_EARLIEST_session(tmp_path):
+    """Two mutants of `recordings_of` that the tests above could not see, each needing its own shape.
+
+    `continue` → `break`: a file with no session stamp must be SKIPPED, not end the walk. One unstamped
+    file at the end of a list cannot show the difference — the loop was finishing anyway. So the list here
+    puts the CPAP tree FIRST, with stamped files after it: under `break` those never band and the recording
+    loses them silently, which is the §∅ failure (a dropped file reported as an absent night).
+
+    `r["first"] = min(...)` → `None`: a recording's `first` is the earliest session IN it, and a band holds
+    several. A single-session recording cannot see this — min(x, x) is x either way — so this band carries
+    three sessions and the assertion names the earliest, which is also what makes `first` usable as "when
+    did this night actually start" rather than "whichever session was walked last"."""
+    entry = {
+        "arrival": [],
+        "CPAPDex": {
+            "files": [
+                # FIRST in the list, and unstamped: the position is the point
+                "2026-10-04/cpap/DATALOG/20261004/20261004_220000_BRP.edf",
+            ]
+        },
+        "ECGDex": {
+            "files": [
+                "2026-10-04/cpap/DATALOG/20261004/nostamp_BRP.edf",
+                "2026-10-04/Polar_H10_02849638_20261004233000_ECG.txt",
+                "2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt",
+                "2026-10-04/Polar_H10_02849638_20261005010000_ECG.txt",
+            ]
+        },
+    }
+    recs, unassigned = ni.recordings_of(entry)
+    assert [r["recording"] for r in recs] == ["2026-10-04"], recs
+    got = recs[0]["files"]["ECGDex"]
+    assert len(got) == 3, f"an unstamped file must not end the walk — the three stamped files band: {got}"
+    assert len(unassigned) == 2
+
+    want = ni.session_epoch("Polar_H10_02849638_20261004220206_ECG.txt")
+    assert recs[0]["first"] == want, (
+        "`first` is the EARLIEST session in the recording (22:02), not the last one walked (01:00) "
+        f"and not None: {recs[0]['first']} != {want}"
+    )
+    assert recs[0]["begin"] <= recs[0]["first"] < recs[0]["end"]
