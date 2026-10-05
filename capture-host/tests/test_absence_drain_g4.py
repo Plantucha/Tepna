@@ -42,3 +42,55 @@ def test_a_FAULTED_probe_is_wear_UNKNOWN_and_journals_no_unworn_flip(tmp_path, m
     st = capture.STATUS["devices"]["Ring"]
     assert st.get("worn") is None, st.get("worn")
     assert "fault" in (st.get("last_error") or "") and "unknown" in st["last_error"], st.get("last_error")
+
+
+# ── absence drain group 4a: the diff-scoped survivors in EdfSink / parse_live ────────────────────────
+
+
+def test_the_EDF_sink_names_WHICH_channel_a_skipped_batch_carried_and_counts_them(tmp_path, caplog):
+    import logging
+
+    import cpap_edf_writer as W
+
+    sink = W.EdfSink(str(tmp_path / "x"), "SER")
+    sink.open({}, 25.0)
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        sink.on_batch({"start_time": "2026-08-23T22:15:03.000Z", "interval_ms": 40, "channels": {"PatientFlow": [0.1]}})
+        sink.on_batch(
+            {"start_time": "2026-08-23T22:15:04.000Z", "interval_ms": 40, "channels": {"MaskPressure": [5.0]}}
+        )
+    msgs = [r.getMessage() for r in caplog.records if "batch carried" in r.getMessage()]
+    assert msgs == [
+        "CPAP EDF sink: a batch carried flow but not pressure — skipped for both so the channels stay aligned "
+        "(1 unpaired batch(es) so far)",
+        "CPAP EDF sink: a batch carried pressure but not flow — skipped for both so the channels stay aligned "
+        "(2 unpaired batch(es) so far)",
+    ], msgs
+
+
+def test_the_EDF_sink_warns_in_full_when_the_device_interval_is_not_25_Hz(tmp_path, caplog):
+    import logging
+
+    import cpap_edf_writer as W
+
+    sink = W.EdfSink(str(tmp_path / "x"), "SER")
+    sink.open({}, 25.0)
+    b = {
+        "start_time": "2026-08-23T22:15:03.000Z",
+        "interval_ms": 20,
+        "channels": {"PatientFlow": [0.1], "MaskPressure": [5.0]},
+    }
+    with caplog.at_level(logging.WARNING, logger="tepna.cpap"):
+        sink.on_batch(b)
+    msgs = [r.getMessage() for r in caplog.records if "observed interval" in r.getMessage()]
+    assert msgs == [
+        "CPAP EDF sink: observed interval 20 ms != the BRP 25 Hz rate (40 ms) — the EDF is built at 25 Hz, "
+        "so its timing will not match the stream"
+    ], msgs
+
+
+def test_alarm_raw_is_read_from_a_frame_of_EXACTLY_15_bytes():
+    """`len(payload) > 14`: byte [14] exists in a 15-byte frame. `> 15` would call it absent."""
+    b = bytearray(15)
+    b[5], b[6], b[14] = 1, 96, 0x5A
+    assert oxyii.parse_live(bytes(b))["alarm_raw"] == 0x5A
