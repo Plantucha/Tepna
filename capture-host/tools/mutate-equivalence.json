@@ -5478,6 +5478,26 @@
       "why": "`enclosed` reaches exactly one consumer — `_is_double`'s final `return enclosed` — and that return is read only by `if _is_double(...)`. `None` and `False` are both falsy, so no source can distinguish them. This is the irreducible residue of collapsing `_is_double`'s dead parameters in this same PR: the OTHER five mutants on those arguments became killable once the `(depth, in_class)` pair was replaced by the one boolean it computed, and two mutants of a `getattr` default vanished with the default. A falsy constant passed to a boolean flag is what is left when the dead structure is gone."
     }
   ],
+  "bonding.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- address=addr, name=name, health=bool(_HEALTH_HINT.search(name)), rssi=cur.rssi if cur else None | + address=addr, name=name, health=bool(_HEALTH_HINT.search(name)), rssi=None",
+      "probe": "read every `.rssi =` assignment in bonding.py (two, both after the loop) and Found's default (`rssi: int | None = None`).",
+      "why": "PROOF BY CONSTRUCTION: inside the first `_ADDR_RE` loop every Found is built with `rssi=cur.rssi if cur else None`, and `rssi` is assigned only AFTER that loop (the `_RSSI_LINE_RE` pass and the `info` enrichment). By induction `cur.rssi` is None at every construction, so the expression is always None and every rewrite of it builds the same Found."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- address=addr, name=name, health=bool(_HEALTH_HINT.search(name)), rssi=cur.rssi if cur else None | - ) | + address=addr, name=name, health=bool(_HEALTH_HINT.search(name)), )",
+      "probe": "read every `.rssi =` assignment in bonding.py (two, both after the loop) and Found's default (`rssi: int | None = None`).",
+      "why": "PROOF BY CONSTRUCTION: inside the first `_ADDR_RE` loop every Found is built with `rssi=cur.rssi if cur else None`, and `rssi` is assigned only AFTER that loop (the `_RSSI_LINE_RE` pass and the `info` enrichment). By induction `cur.rssi` is None at every construction, so the expression is always None and every rewrite of it builds the same Found."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- address=addr, name=name, health=bool(_HEALTH_HINT.search(name)), rssi=cur.rssi if cur else None | + address=addr, name=name, health=bool(_HEALTH_HINT.search(name)), rssi=cur.rssi if (cur) and False else None",
+      "probe": "read every `.rssi =` assignment in bonding.py (two, both after the loop) and Found's default (`rssi: int | None = None`).",
+      "why": "PROOF BY CONSTRUCTION: inside the first `_ADDR_RE` loop every Found is built with `rssi=cur.rssi if cur else None`, and `rssi` is assigned only AFTER that loop (the `_RSSI_LINE_RE` pass and the `info` enrichment). By induction `cur.rssi` is None at every construction, so the expression is always None and every rewrite of it builds the same Found."
+    }
+  ],
   "ppg_grid_check.py": [
     {
       "brief": "mypy drift narrowed (blind_spots / ppg_grid_check), 2026-10-04",

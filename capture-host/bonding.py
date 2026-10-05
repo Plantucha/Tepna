@@ -216,7 +216,9 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
         if nm and is_placeholder_name(f.name):
             f.name = nm.group(1).strip()
             f.health = bool(_HEALTH_HINT.search(f.name))
-    return sorted(seen.values(), key=lambda d: (not d.health, d.rssi is None, -(d.rssi or -999)))
+    # Absence is the `is None` component; the third is the reading itself. `-(rssi or -999)` read a legal
+    # 0 dBm as absent and ranked the strongest possible signal as the weakest.
+    return sorted(seen.values(), key=lambda d: (not d.health, d.rssi is None, 0 if d.rssi is None else -d.rssi))
 
 
 async def is_bonded(address: str, adapter_mac: str | None = None) -> bool | None:

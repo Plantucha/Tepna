@@ -726,3 +726,113 @@ def test_a_real_name_replaces_a_placeholder_for_the_same_address(monkeypatch):
     found = _run(bonding.scan())
     assert len(found) == 1, "one address, one entry"
     assert "Polar" in found[0].name, "the real name must win over the placeholder"
+
+
+# ── absence drain group 4b: the diff-scoped survivors in _btctl / is_bonded / scan / trusted_flags ───
+A1, A2 = "11:22:33:44:55:01", "11:22:33:44:55:02"
+
+
+def _scan_with(monkeypatch, out, infos):
+    """Run `scan` against a scripted bluetoothctl transcript and per-address `info` answers; record calls."""
+    seen = {"script": None, "timeouts": []}
+
+    async def fake_delayed(script):
+        seen["script"] = list(script)
+        return out
+
+    async def fake_btctl(script, timeout=20.0):
+        seen["timeouts"].append(timeout)
+        addr = script.split("info ")[1].split("\n")[0]
+        return infos.get(addr)
+
+    async def no_sel(_a):
+        return ""
+
+    async def no_addr(_a):
+        return None
+
+    monkeypatch.setattr(bonding, "_delayed_script", fake_delayed)
+    monkeypatch.setattr(bonding, "_btctl", fake_btctl)
+    monkeypatch.setattr(bonding, "select_line", no_sel)
+    monkeypatch.setattr(bonding, "bluez_address", no_addr)
+    return _run(bonding.scan()), seen
+
+
+def test_scan_runs_the_exact_timed_script_and_asks_info_with_an_8s_budget(monkeypatch):
+    """The `(delay, command)` script and the info timeout are the scan's whole timing contract."""
+    found, seen = _scan_with(monkeypatch, f"[NEW] Device {A1} Polar H10\n", {A1: "Bonded: no\n"})
+    assert seen["script"][-4:] == [(0.5, "scan on"), (8.0, "scan off"), (0.3, "devices"), (0.2, "quit")]
+    assert seen["timeouts"] == [8]
+
+
+def test_scan_skips_a_property_line_and_keeps_reading(monkeypatch):
+    """A `[CHG] … RSSI:` line is skipped with `continue`; a `break` would lose every announcement after it."""
+    out = f"[CHG] Device {A1} RSSI: 0xffffffc4 (-60)\n[NEW] Device {A2} Polar H10\n"
+    found, _ = _scan_with(monkeypatch, out, {A2: "Bonded: no\n"})
+    assert [f.address for f in found] == [A2]
+
+
+def test_scan_marks_an_UNANSWERED_info_unknown_and_still_enriches_the_rest(monkeypatch):
+    out = f"[NEW] Device {A1} Polar H10\n[NEW] Device {A2} Polar Sense\n"
+    found, _ = _scan_with(monkeypatch, out, {A1: None, A2: "Bonded: yes\nConnected: yes\n"})
+    by = {f.address: f for f in found}
+    assert by[A1].bonded is None and by[A1].connected is None
+    assert by[A2].bonded is True and by[A2].connected is True
+
+
+def test_scan_takes_the_info_name_ONLY_over_a_placeholder(monkeypatch):
+    """`nm and is_placeholder_name(f.name)`: a real scanned name is kept; an address-like placeholder is
+    replaced by the authoritative `Name:` from info."""
+    out = f"[NEW] Device {A1} Polar H10\n[NEW] Device {A2} {A2.replace(':', '-')}\n"
+    infos = {A1: "Name: Something Else\n", A2: "Name: Polar Sense ABC\n"}
+    found, _ = _scan_with(monkeypatch, out, infos)
+    by = {f.address: f for f in found}
+    assert by[A1].name == "Polar H10"
+    assert by[A2].name == "Polar Sense ABC"
+
+
+def test_info_queries_carry_their_8s_budget_and_btctl_defaults_to_20s(monkeypatch):
+    budgets = []
+
+    async def fake_btctl(script, timeout=20.0):
+        budgets.append(timeout)
+        return "Trusted: yes\nBonded: yes\n"
+
+    async def no_sel(_a):
+        return ""
+
+    monkeypatch.setattr(bonding, "_btctl", fake_btctl)
+    monkeypatch.setattr(bonding, "select_line", no_sel)
+    _run(bonding.is_bonded(A1))
+    _run(bonding.trusted_flags([A1]))
+    assert budgets == [8, 8]
+    import inspect
+
+    assert (
+        inspect.signature(bonding._btctl.__wrapped__ if hasattr(bonding._btctl, "__wrapped__") else bonding._btctl)
+        .parameters["timeout"]
+        .default
+        == 20.0
+    )
+
+
+def test_trusted_flags_continues_past_an_address_that_RAISED(monkeypatch):
+    async def fake_btctl(script, timeout=20.0):
+        if A1 in script:
+            raise RuntimeError("bluetoothctl died")
+        return "Trusted: yes\n"
+
+    async def no_sel(_a):
+        return ""
+
+    monkeypatch.setattr(bonding, "_btctl", fake_btctl)
+    monkeypatch.setattr(bonding, "select_line", no_sel)
+    assert _run(bonding.trusted_flags([A1, A2])) == [A2]
+
+
+def test_scan_ranks_an_RSSI_of_0_dBm_as_the_STRONGEST_not_as_absent(monkeypatch):
+    """0 is a legal reading. The old key `-(rssi or -999)` read it as absent and sorted it after -70 dBm."""
+    out = f"[NEW] Device {A1} Polar H10\n[NEW] Device {A2} Polar Sense\n"
+    out += f"[CHG] Device {A1} RSSI: 0xffffffba (-70)\n[CHG] Device {A2} RSSI: 0x00000000 (0)\n"
+    found, _ = _scan_with(monkeypatch, out, {A1: "Bonded: no\n", A2: "Bonded: no\n"})
+    assert [(f.address, f.rssi) for f in found] == [(A2, 0), (A1, -70)]
