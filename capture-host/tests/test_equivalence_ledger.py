@@ -93,7 +93,7 @@ RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
     "blind_spots.py": 1,
-    "bonding.py": 3,
+    "bonding.py": 4,
     "clock.js": 3,
     "cpap_edf.py": 1,
     "cpap_edf_writer.py": 4,

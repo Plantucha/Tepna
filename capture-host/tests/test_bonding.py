@@ -791,7 +791,7 @@ def test_scan_takes_the_info_name_ONLY_over_a_placeholder(monkeypatch):
     assert by[A2].name == "Polar Sense ABC"
 
 
-def test_info_queries_carry_their_8s_budget_and_btctl_defaults_to_20s(monkeypatch):
+def test_info_queries_carry_their_8s_budget(monkeypatch):
     budgets = []
 
     async def fake_btctl(script, timeout=20.0):
@@ -806,14 +806,26 @@ def test_info_queries_carry_their_8s_budget_and_btctl_defaults_to_20s(monkeypatc
     _run(bonding.is_bonded(A1))
     _run(bonding.trusted_flags([A1]))
     assert budgets == [8, 8]
-    import inspect
 
-    assert (
-        inspect.signature(bonding._btctl.__wrapped__ if hasattr(bonding._btctl, "__wrapped__") else bonding._btctl)
-        .parameters["timeout"]
-        .default
-        == 20.0
-    )
+
+def test_btctl_without_a_timeout_hands_communicate_its_20s_default(monkeypatch):
+    """Observed at the call, not via inspect.signature: the default is what reaches proc_util.communicate."""
+    seen = []
+
+    class _Proc:
+        pass
+
+    async def fake_exec(*_a, **_k):
+        return _Proc()
+
+    async def fake_communicate(proc, timeout, data):
+        seen.append(timeout)
+        return b"Bonded: yes\n", b""
+
+    monkeypatch.setattr(bonding.asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(bonding.proc_util, "communicate", fake_communicate)
+    assert _run(bonding._btctl("info X\nquit\n")) == "Bonded: yes\n"
+    assert seen == [20.0]
 
 
 def test_trusted_flags_continues_past_an_address_that_RAISED(monkeypatch):
