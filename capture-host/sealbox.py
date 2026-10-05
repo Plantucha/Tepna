@@ -265,12 +265,18 @@ def night_signature(night_dir: str) -> tuple[int, int]:
 
 
 def existing_header(seal_path: str) -> dict | None:
+    """The existing seal's header; None ONLY when there is no seal file.
+
+    ∅ AN UNREADABLE SEAL IS NOT AN ABSENT ONE (ABSENCE-SURVEY f5db1b76cdf4). This returned None for both, so a
+    seal that existed and could not be read was re-sealed as revision 1 under the current card key — a signed
+    record replaced with no trace of the one it replaced, and the "verdict names it" this comment promised
+    was never written. It now returns `{"_unreadable": <why>}`, and `seal_or_reissue` refuses that night."""
     if not os.path.exists(seal_path):
         return None
     try:
         return _unseal.read_header(seal_path)
-    except Exception:  # noqa: BLE001 — an unreadable seal is treated as absent for the decision; the verdict names it
-        return None
+    except Exception as e:  # noqa: BLE001 — named below, per night; one bad seal must not stop the others
+        return {"_unreadable": f"{type(e).__name__}: {e}"}
 
 
 def closed_at_ms(night_dir: str) -> int | None:
@@ -350,17 +356,41 @@ def seal_or_reissue(
 
     if n_files == 0:
         return _emit("NOT_RUN", None, f"{night_dir} holds no files — nothing to seal", checked=0)
-    if header is not None and int(header.get("files", -1)) == n_files and int(header.get("bytes", -1)) == n_bytes:
+    if header is not None and "_unreadable" in header:
+        return _emit(
+            "UNKNOWN",
+            None,
+            f"the existing seal {final} cannot be read ({header['_unreadable']}) — it is NOT replaced: a signed "
+            "record is overwritten only by an operator",
+            checked=0,
+        )
+    if header is not None and ("revision" not in header or "keyId" not in header):
+        return _emit(
+            "UNKNOWN",
+            None,
+            f"the existing seal {final} carries no revision/keyId — the next revision and its card key are unknown, "
+            "so it is NOT replaced",
+            checked=0,
+        )
+    # A header without its counts cannot show the seal is current: a missing count matches nothing (∅), it is
+    # not compared as a -1 that only happens never to equal a real count.
+    seen_files, seen_bytes = (header or {}).get("files"), (header or {}).get("bytes")
+    if (
+        header is not None
+        and seen_files is not None
+        and seen_bytes is not None
+        and (int(seen_files), int(seen_bytes)) == (n_files, n_bytes)
+    ):
         return _emit(
             "NOT_APPLICABLE",
             None,
             f"seal revision {header.get('revision')} still matches the directory ({n_files} files, {n_bytes} bytes)",
         )
-    revision = 1 if header is None else int(header.get("revision", 0)) + 1
+    revision = 1 if header is None else int(header["revision"]) + 1
     if header is None:
         key_id, card_key = current_card_key(store)
     else:
-        key_id = int(header.get("keyId", 0))
+        key_id = int(header["keyId"])
         ck = card_key_for(store, key_id)
         if ck is None:
             return _emit(
