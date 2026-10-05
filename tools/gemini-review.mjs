@@ -36,6 +36,8 @@ const KEY_FILE = join(homedir(), '.config', 'tepna', 'gemini.env');
    the thing it names changes under the scorecard. Measured 2026-10-05: 3.8-flash and 3.6-flash answer,
    3.7-flash returns 503, so "newest" is not the same as "served". */
 const DEFAULT_MODEL = 'gemini-3.8-flash';
+/* This model class's own output limit. Thinking tokens count against it — see the finishReason refusal. */
+export const REQ_MAX_OUTPUT_TOKENS = 65536;
 const API = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 /** Everything this tool prints goes through here. A leak is one interpolated error away. */
@@ -79,6 +81,18 @@ export function verifyExport(dir, { exists = existsSync } = {}) {
   return { ok: true };
 }
 
+/** Ids sharing one line, e.g. `36/70/85: …`. OWNER RULING 2026-10-05 adopted the ONE-ID-PER-LINE form
+ *  because grouping is most of what a grouped prompt loses: one input per group only distinguishes the
+ *  members whose value has enough decimals to survive a rounding change. Measured on the 6a set — the
+ *  same ids scored 6/14 grouped and 13/13 one per line. Reported, not refused: a caller re-running
+ *  Wren's archived grouped prompts for comparison is doing the right thing deliberately. */
+export function groupedIdLines(promptText) {
+  return String(promptText || '')
+    .split('\n')
+    .filter((l) => /^\s*\d+(\s*\/\s*\d+)+\s*:/.test(l))
+    .map((l) => l.trim().slice(0, 60));
+}
+
 export function buildRequest(promptText, sources, model) {
   /* The survivor list FIRST and the source after it, because the question is what the reader is being
      asked to do and the files are the evidence. Each file is fenced with its repo-relative path, so a
@@ -93,7 +107,7 @@ export function buildRequest(promptText, sources, model) {
        emitted 654 visible ones inside a 16,384 cap, so the answer truncated mid-sentence with
        finishReason MAX_TOKENS — a short answer that reads like a weak model and is a starved one.
        Always read finishReason before scoring; a truncated answer is not a measurement. */
-    generationConfig: { temperature: 0, maxOutputTokens: 65536 }
+    generationConfig: { temperature: 0, maxOutputTokens: REQ_MAX_OUTPUT_TOKENS }
   };
 }
 
@@ -129,6 +143,12 @@ async function main(argv) {
     const model = val('--model') || DEFAULT_MODEL;
     const out = val('--out');
     const promptText = readFileSync(promptFile, 'utf8');
+    const grouped = groupedIdLines(promptText);
+    if (grouped.length)
+      console.error(
+        `gemini-review: ⚠ ${grouped.length} line(s) GROUP several ids. The adopted form is ONE ID PER LINE ` +
+          `(owner 2026-10-05): grouped, the 6a set scored 6/14 on these; one per line, 13/13. First: ${grouped[0]}`
+      );
 
     /* Which files to send: every `module.function` named in the prompt, resolved INSIDE the export. A
        path that escapes the export is a refusal, not a skip — the boundary is the point. */
@@ -166,9 +186,25 @@ async function main(argv) {
       return 1;
     }
     const d = JSON.parse(raw);
-    const text = d?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+    const cand = d?.candidates?.[0];
+    const text = cand?.content?.parts?.map((p) => p.text || '').join('') || '';
+    const fin = cand?.finishReason;
+    /* ⚠️ A TRUNCATED ANSWER IS NOT AN ANSWER, and it reads like a weak model. Measured 2026-10-05: a
+       41-id prompt spent 15,739 THINKING tokens and emitted 654 visible ones inside a 16,384 cap, so
+       the reply stopped mid-sentence at 2,204 bytes against 6,743 for an easier prompt — which looks
+       exactly like "it does worse when asked per id". Raising the cap to this model's own 65,536
+       returned 13,229 bytes and STOP. Refused by NAME so nobody scores a starved reply. */
+    if (fin && fin !== 'STOP') {
+      console.error(
+        `gemini-review: REFUSING — finishReason ${fin}, so this is a TRUNCATED or blocked reply and not an answer. ` +
+          `${(d?.usageMetadata?.thoughtsTokenCount ?? 0)} thinking token(s) and ` +
+          `${(d?.usageMetadata?.candidatesTokenCount ?? 0)} answer token(s) against maxOutputTokens ` +
+          `${REQ_MAX_OUTPUT_TOKENS}. Do not score it.`
+      );
+      return 1;
+    }
     if (!text.trim()) {
-      console.error(`gemini-review: EMPTY answer (finishReason ${d?.candidates?.[0]?.finishReason}) — nothing was read`);
+      console.error(`gemini-review: EMPTY answer (finishReason ${fin}) — nothing was read`);
       return 1;
     }
     console.log(`# model ${model} version ${version}  ·  ${sources.length} source file(s) sent  ·  jsonl ${out || '(not kept)'}`);
@@ -220,7 +256,13 @@ function selftest() {
   ck('the prompt leads', req.contents[0].parts[0].text.startsWith('Q?'), true);
   ck('the source is fenced with its path', /### capture-host\/a\.py\n```python\ncode\n```/.test(req.contents[0].parts[0].text), true);
   ck('temperature is pinned to 0', req.generationConfig.temperature, 0);
-  console.log(bad ? `  selftest: ${bad} FAILED` : '  selftest: resolveKey + scrub + verifyExport + buildRequest OK');
+  ck('a grouped id line is detected', groupedIdLines(' 36/70/85: a round digit count\n A1: x\n'), [
+    '36/70/85: a round digit count'
+  ]);
+  ck('a one-id-per-line prompt is clean', groupedIdLines(' A1: x\n B2: y\n'), []);
+  ck('a bare number line is not a group', groupedIdLines(' 13: s["count"] > 0\n'), []);
+  ck('the output budget is the model class limit', REQ_MAX_OUTPUT_TOKENS, 65536);
+  console.log(bad ? `  selftest: ${bad} FAILED` : '  selftest: resolveKey + scrub + verifyExport + buildRequest + groupedIdLines OK');
   return bad ? 1 : 0;
 }
 

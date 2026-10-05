@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** DONE — 2026-10-05 · **Created:** 2026-10-05
+**Status:** DONE — 2026-10-05 (OWNER ADOPTED Gemini as the INTERIM reader 2026-10-05) · **Created:** 2026-10-05
 
 # Gemini as the second mutation reader — a scored trial, and a prompt-shape finding
 
@@ -47,7 +47,25 @@ none, each with a line-citing argument.
 **Where it beat Codex.** `summarize_fs` `<0` vs `<=0` — Codex's miss #1. Gemini's input
 `[("/other/zero.bin", 0, False)]` distinguishes both `<= 0` and `< 1`, verified.
 
-## Recommendation
+## 🔴 THE RULE, as the owner set it 2026-10-05
+
+**Gemini is the INTERIM reader at the 38/41 class for the four weeks Codex is gone. Codex is primary
+again from 2026-11-03.** The owner adopted it having seen both tables.
+
+Standing form, every one of these enforced in `tools/gemini-review.mjs` rather than only written here:
+
+| rule | how it is enforced |
+|---|---|
+| **ONE ID PER LINE** | `groupedIdLines` reports any line sharing several ids, with the 6/14-vs-13/13 measurement in the warning. Reported and not refused, so re-running Wren's archived grouped prompts for comparison stays possible |
+| **`finishReason` read before scoring; `MAX_TOKENS` is NOT an answer** | any `finishReason` other than `STOP` is a named REFUSAL that quotes the thinking-token and answer-token counts against the budget |
+| **`maxOutputTokens` 65,536** | `REQ_MAX_OUTPUT_TOKENS`, exported and pinned by the selftest |
+| **model + version in every jsonl record** | written on both the request and the response record |
+| **the bird verifies every claim against the original before writing a test** | unchanged from the Codex rule — the reader decides nothing, and every error in this trial was caught this way |
+
+**Drain PRs say, in the body:**
+`survivors read by Gemini (interim, 38/41 class on the 6a set, #3326)`
+
+## Recommendation (pre-ruling, kept for the record)
 
 Usable as a second reader **with the one-id-per-line prompt and the standing verification rule** —
 38/41 is near Codex's class, and every error it made was caught by verifying claims before writing
