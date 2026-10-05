@@ -4103,7 +4103,10 @@ async def run_polar(dev: dict, root: str):
                     if not hr_writer:  # pragma: no cover — on_hr is only subscribed when hr_writer is
                         return  # truthy (the `if hr_writer:` gate below), so this never returns.
                     bpm, rr, contact = _parse_hr(bytes(data))
-                    hr_writer.write_hr(_now(), 0, bpm, rr)
+                    # ∅ None, not 0 (ABSENCE-SURVEY 875bb6954cdb): the SIG Heart Rate characteristic carries NO
+                    # device timestamp, and the seam sidecar treats only None as "no clock" — a 0 here opened a
+                    # device axis that never moves, against which every host gap read as a clock step.
+                    hr_writer.write_hr(_now(), None, bpm, rr)
                     # Only straps that ADVERTISE contact support get a worn verdict; on a unit that
                     # does not, leaving it None is honest — better an unknown than a fabricated "worn".
                     #
@@ -4405,15 +4408,21 @@ async def run_polar(dev: dict, root: str):
                                     },
                                 )
                             # publish the device's own menu so Settings can offer exactly the legal values
-                            _set(
-                                name,
-                                **{
-                                    "pmd_options": {
-                                        **(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
-                                        pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or [],
-                                    }
-                                },
-                            )
+                            # ∅ A MENU NOT READ IS NOT AN EMPTY MENU (ABSENCE-SURVEY 49b190952a2b). `or []` published an
+                            # empty list for a stream whose GET_SETTINGS timed out or parsed to nothing, and webmon
+                            # copies any non-empty `pmd_options` into `pmd_options_seen` — erasing the menu it had
+                            # actually seen. A stream with no menu read now contributes no key at all.
+                            _menu = settings.get(0x00) if settings else None
+                            if _menu:
+                                _set(
+                                    name,
+                                    **{
+                                        "pmd_options": {
+                                            **(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
+                                            pmd.MEAS_NAME.get(meas, str(meas)): _menu,
+                                        }
+                                    },
+                                )
                             # `pmd_started`, not `started`: that name already holds a datetime in this scope
                             pmd_started = False
                             transient = False
@@ -12507,8 +12516,19 @@ def _cpap_autostart_load(root, session_ms):
         if float(rec["session_ms"]) != float(session_ms):
             return None, 0  # a different session's record: not ours, not an error
         return (float(session_ms) if rec.get("manual_stop") else None), int(rec.get("attempts", 0))
-    except (OSError, ValueError, KeyError, TypeError):
-        return None, 0
+    except FileNotFoundError:
+        return None, 0  # no record yet: nothing was decided for this session
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        # ∅ A RECORD THAT EXISTS AND CANNOT BE READ IS NOT "NO RECORD" (ABSENCE-SURVEY c909513fc866). It
+        # answered (None, 0) — no manual stop, no attempts — so a corrupt or unreadable file could re-arm an
+        # auto-start the operator had stopped. The rule above is that a restart never overrules the
+        # operator, so an unknown record reads as STOPPED, and says why.
+        log.warning(
+            "CPAP auto-start: %s could not be read (%s) — treated as a manual stop",
+            _cpap_autostart_path(root),
+            type(e).__name__,
+        )
+        return float(session_ms), 0
 
 
 def _cpap_autostart_save(root, session_ms, *, manual_stop=False, attempts=0, last_error=None, now_ms=None):
@@ -12992,8 +13012,23 @@ async def _presence_scan_loop(*, addresses, window_s, scan, sleep=None, mono=Non
             seen = await scan(window_s)
         except Exception as e:  # noqa: BLE001 — an observer must never take the daemon down
             log.info("presence scan failed (%s) — observation unchanged", type(e).__name__)
-            seen = {}
-        _PRESENCE.update(presence_fold(_PRESENCE, seen, addresses, mono()))
+            seen = None
+        # ∅ A FAILED SCAN IS NOT AN EMPTY ONE (ABSENCE-SURVEY 7ddec5309f42). This folded `{}` — "the radio
+        # looked and saw nothing" — so a run of failed windows aged a present ring to ABSENT though the
+        # radio never looked, and the log line already promised "observation unchanged". Now the fold is
+        # skipped: no tick is recorded, and silence accrues only from windows that actually listened.
+        if seen is not None:
+            _PRESENCE.update(presence_fold(_PRESENCE, seen, addresses, mono()))
+        else:
+            # A ring nothing has listened for yet is still PUBLISHED, as UNKNOWN with the reason — never
+            # left out of the status, and never touched if a real observation already exists.
+            for _a in addresses:
+                _PRESENCE.setdefault(
+                    _a,
+                    oxy_presence.Presence(
+                        oxy_presence.OxyPresState.UNKNOWN, 0, None, "the scan failed — no window has listened yet"
+                    ),
+                )
         # §19/§20 — publish the observation and the CHAIN'S FIRST GAP per device. Deliberately via
         # `_set`, not a bare STATUS write: `_set` keys are what `find_unwired`'s scan 1 enumerates, so
         # a field published here and consumed by nobody REDS the gate. That is the point — §20 says
@@ -13663,11 +13698,13 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         # (`GapCounters.bytes_wire`) into radio cost: notifications per frame = ceil(bytes / (MTU-3)).
         # Best-effort, reporting first: a failure leaves the placeholder and the write step at 20.
         _be = getattr(client, "_backend", None)
+        # Only a FAILED acquire leaves the placeholder; a backend with no acquire step reports its own MTU.
+        _mtu_placeholder = False
         if _be is not None and hasattr(_be, "_acquire_mtu"):
             try:
                 await _be._acquire_mtu()
             except Exception:  # noqa: BLE001 — a diagnostic must not cost the link
-                pass
+                _mtu_placeholder = True
     except BaseException as exc:
         # 🔴 READ THE EVIDENCE BEFORE DESTROYING IT — these two lines MUST precede the disconnect.
         # `client.disconnect()` nulls bleak's service collection (it ends with
@@ -13697,9 +13734,18 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
             )
             return await _cpap_ble_connect(ble_addr, hci, timeout, retry_missing_char=False)
         raise
-    mtu = getattr(client, "mtu_size", 23) or 23
+    # ∅ After a FAILED acquire BlueZ still reports its placeholder 23, truthy and indistinguishable from a
+    # negotiated 23 (ABSENCE-SURVEY 0565efb3f0a7). The write step is the same safe default either way; what
+    # changes is the log, which says the MTU is unknown rather than publishing the placeholder as measured.
+    _mtu_seen = None if _mtu_placeholder else getattr(client, "mtu_size", None)
+    mtu = _mtu_seen or 23
     step = max(20, mtu - 3)
-    log.info("CPAP %s: link MTU=%s (write step %d)", ble_addr, mtu, step)
+    log.info(
+        "CPAP %s: link MTU=%s (write step %d)",
+        ble_addr,
+        _mtu_seen or "unknown (ATT default 23 assumed)",
+        step,
+    )
 
     async def write(frame):
         for i in range(0, len(frame), step):
