@@ -108,9 +108,19 @@ run_gate "unwired"    "$PY" tools/find_unwired.py --check
 # number may only go DOWN). ⚠️ THIS LINE USED TO CARRY THE NUMBER ITSELF and drifted the moment
 # the ratchet was banked: it still read "baseline 99, 2026-09-13" after MYPY_BASELINE moved to
 # 68, and that stale prose was handed between sessions as if it were a reading. A number written
-# twice has one copy that nobody updates; the constant is the only place it may live. The
-# changed-files format check flips after one fleet-notice cycle — STILL PENDING, so the leg stays
-# advisory here; zero debt is not the stated condition and does not substitute for the notice.
+# twice has one copy that nobody updates; the constant is the only place it may live.
+#
+# 🔴 THE FORMAT LEG IS NOW BLOCKING, AND OVER THE WHOLE TREE. The condition this line used to call
+# "STILL PENDING" was DISCHARGED by the owner on 2026-10-05 ("Add formatter."); that word is the
+# notice. Two things changed with it, and the second matters more:
+#   · advisory → blocking, so a reformat-needed file REDS the gate instead of printing a note a
+#     reader may skip. It was skipped: this leg reported `format=ISSUES` through 2026-10-04 while
+#     six files sat drifted on main for a week, and the advisory line was read as noise;
+#   · changed-files → WHOLE TREE, because DRIFT ON MAIN is the thing worth catching and a
+#     changed-files check structurally cannot see it — a branch touching none of the drifted files
+#     printed "0 changed .py files … nothing in scope" and passed while main itself was unformatted.
+# The honest-empty-scope wording went with it, deliberately: `ruff format --check .` is never empty,
+# so prose explaining that nothing was examined would now be unreachable.
 #
 # ⚠️ THE BIG-BANG PROHIBITION IS DISCHARGED, not ignored. It read "a big-bang reformat is FORBIDDEN
 # by the brief: mutation canaries/journals/equivalence are keyed on line text+numbers, and a
@@ -239,18 +249,12 @@ else
 '
   adv_names+=("mypy"); adv_codes+=(127); adv_notes+=("not installed — nothing was examined"); adv_states+=("NOT_INSTALLED")
 fi
-# Changed .py files vs origin/main — honest empty-scope line when none (a formatter that checked
-# nothing must say so, never read as clean).
-mapfile -t changed_py < <(git diff --name-only origin/main...HEAD -- '*.py' 2>/dev/null | while read -r f; do [ -f "../$f" ] && echo "../$f"; done)
-if [ "${#changed_py[@]}" -gt 0 ]; then
-  run_advisory "format" "ruff format --check on ${#changed_py[@]} changed file(s); flips blocking after fleet notice"     "$PY" -m ruff format --check "${changed_py[@]}"
-else
-  printf '
-[1m▸ format (advisory)[0m
-  0 changed .py files vs origin/main — nothing in scope (not a pass, an empty scope)
-'
-  adv_names+=("format"); adv_codes+=(0); adv_notes+=("empty scope"); adv_states+=("EMPTY_SCOPE")
-fi
+# THE WHOLE TREE, and BLOCKING since the owner's 2026-10-05 notice (see the block at the top of this
+# file for why both halves changed). `ruff format --check .` reads every tracked .py under this
+# directory, so there is no scope to be empty and no drifted file on main that a branch can miss by
+# not touching it — which is exactly how six files stayed unformatted for a week while this leg
+# printed "empty scope" and passed.
+run_gate "format" "$PY" -m ruff format --check .
 
 echo
 echo "──────── capture-host gates ────────"
