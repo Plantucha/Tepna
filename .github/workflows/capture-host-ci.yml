@@ -181,6 +181,17 @@ jobs:
       - name: Lint (ruff — real errors only)
         if: needs.changes.outputs.run == 'true'
         run: ruff check .
+      # ⚠️ AGENT-NEUTRAL BY DESIGN. `check.sh` runs this same check, but "hook-enforced" means a
+      # Claude session in a checkout that pulled the hook — a terminal, the GitHub UI, another agent
+      # and an un-pulled tree inherit nothing (CLAUDE.md §👥.2). The format leg went blocking in
+      # check.sh on the owner's 2026-10-05 notice; without this step the enforcement would be
+      # agent-coupled, which is exactly how six files drifted on main for a week while the advisory
+      # line printed `format=ISSUES` and was read as noise.
+      # WHOLE TREE, not changed files: drift on main is the thing being caught, and a changed-files
+      # check structurally cannot see a drifted file the branch does not touch.
+      - name: Format (ruff format --check — whole tree)
+        if: needs.changes.outputs.run == 'true'
+        run: ruff format --check .
       # ⚠️ THE SHELL FLOOR IS `style` — the STRICTEST level, and it is a floor for the same reason the
       # coverage number is. Python coverage here is 100% statement+branch, but that denominator is .py
       # files: the ~16 shell scripts beside them — including the three holding NOPASSWD root grants and

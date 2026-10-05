@@ -417,8 +417,7 @@ def test_every_reported_duration_keeps_ONE_decimal_and_cover_keeps_THREE(obs, s,
         assert r[field] == expected, f"{field}: {r[field]!r} != {expected!r}"
 
 
-def test_a_session_with_no_stream_reports_ZERO_streamed_and_ZERO_cover(
-):
+def test_a_session_with_no_stream_reports_ZERO_streamed_and_ZERO_cover():
     """Kills `stream_min: 0.0` → `1.0` and `cover: 0.0` → `1.0` in both no-stream branches. The
     literals were asserted nowhere, so the watchdog could have reported a minute of stream and full
     coverage for a night nothing opened."""

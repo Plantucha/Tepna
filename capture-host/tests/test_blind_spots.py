@@ -294,15 +294,15 @@ def test_ENCLOSURE_is_the_whole_question_and_both_ways_in_count_the_same():
     `visit(tree, False)` promotes case 1 to a double, and flipping either `visit(child, True)`
     demotes cases 2 and 3."""
     src = (
-        "def helper(a, b):\n"           # 1 · top level, drops b — NOT a double
+        "def helper(a, b):\n"  # 1 · top level, drops b — NOT a double
         "    return a\n"
         "def outer():\n"
-        "    def inner(a, b):\n"        # 2 · nested in a function — IS a double
+        "    def inner(a, b):\n"  # 2 · nested in a function — IS a double
         "        return a\n"
         "class Helper:\n"
-        "    def meth(self, a, b):\n"   # 3 · method on a helper class — IS a double
+        "    def meth(self, a, b):\n"  # 3 · method on a helper class — IS a double
         "        return a\n"
-        "def test_t(a, b):\n"           # 4 · a test function — NEVER a double
+        "def test_t(a, b):\n"  # 4 · a test function — NEVER a double
         "    return a\n"
     )
     found = {r["double"] for r in analyze(src, path="t.py")}
