@@ -17,6 +17,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
+import re  # noqa: E402
+
 import find_unwired  # noqa: E402
 
 
@@ -1028,3 +1030,53 @@ def test_main_passes_the_REAL_version_to_the_floor_check(monkeypatch):
     monkeypatch.setattr(find_unwired, "interpreter_floor_reason", record)
     assert find_unwired.main([]) == 2
     assert seen == [tuple(sys.version_info[:2])]
+
+
+# ── the one-pass counters must give EXACTLY the per-name regex counts they replaced ─────────────────
+def _old_uses(name, text):
+    return len(re.findall(r"\b%s\b" % re.escape(name), text))
+
+
+def _old_defs(name, text, kw):
+    return len(re.findall(r"%s\s+%s\b" % (re.escape(kw), re.escape(name)), text))
+
+
+def test_the_one_pass_counts_EQUAL_the_per_name_regex_counts_on_random_text():
+    import random
+
+    rng = random.Random(20261005)
+    alphabet = "abcdef_xyz019 \t\n().,:$=def"
+    names = ["foo", "foo_bar", "_x", "x1", "def", "undef", "abcdef", "a"]
+    for _ in range(400):
+        text = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 120)))
+        text += " ".join(rng.choice(names) for _ in range(rng.randint(0, 6)))
+        words, defs = find_unwired.word_counts(text), find_unwired.def_counts(text, "def")
+        for n in names:
+            # through the path the scan uses, so the fallback for a name ending in the keyword is exercised
+            got = find_unwired._uses_defs(n, text, "def", words, defs)
+            assert got == (_old_uses(n, text), _old_defs(n, text, "def")), (n, text)
+
+
+def test_a_name_ENDING_IN_the_keyword_falls_back_because_its_matches_can_overlap():
+    """`abcdef def def`: the per-name search for `def` is non-overlapping and counts 1; a lookahead
+    counts 2. Found by the random test above — the fallback is what keeps the counts identical."""
+    text = "abcdef def def _x"
+    words, defs = find_unwired.word_counts(text), find_unwired.def_counts(text, "def")
+    assert defs["def"] == 2 and _old_defs("def", text, "def") == 1
+    assert find_unwired._uses_defs("def", text, "def", words, defs)[1] == 1
+
+
+def test_a_definition_that_starts_INSIDE_a_previous_match_is_still_counted():
+    r"""`def abcdef foo`: a non-overlapping scan for `def\s+\w+` consumes `def abcdef` and never sees the
+    `def foo` that starts inside it; the per-name search did. The lookahead counter must match it."""
+    text = "def abcdef foo"
+    assert find_unwired.def_counts(text, "def")["foo"] == _old_defs("foo", text, "def") == 1
+
+
+def test_a_name_with_a_NON_WORD_character_keeps_the_per_name_search():
+    text = "function $go() {} $go(); $go;"
+    words, defs = find_unwired.word_counts(text), find_unwired.def_counts(text, "function")
+    assert find_unwired._uses_defs("$go", text, "function", words, defs) == (
+        _old_uses("$go", text),
+        _old_defs("$go", text, "function"),
+    )
