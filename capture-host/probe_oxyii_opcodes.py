@@ -77,7 +77,8 @@ class Ring:
 
         await self.c.start_notify(oxyii.OXYII_NOTIFY, on)
 
-    async def send(self, op: int, payload: bytes = b"", timeout: float = 2.5):
+    async def send(self, op: int, payload: bytes = b"", timeout: float | None = None):
+        timeout = REPLY_TIMEOUT_S if timeout is None else timeout
         while not self.q.empty():
             self.q.get_nowait()
         await self.c.write_gatt_char(oxyii.OXYII_WRITE, oxyii.encode(op, payload), response=False)
@@ -118,6 +119,10 @@ async def snapshot(r):
 # How many live frames to sample, and how far apart, before deciding which bytes are the device's own
 # noise. Five at ~1 s covers the 1 Hz frame cadence with margin.
 BASELINE_N, BASELINE_GAP_S = 5, 1.0
+# How long a reply may take. Like the gap above it is read at CALL time, never bound as a default: a
+# default captures the value at definition, so a test that patched the constant never reached it and
+# the sweep tests waited out every real timeout (440 s per run of the file, ~57 s per mutant).
+REPLY_TIMEOUT_S = 2.5
 
 # The null's control command. FILE_LIST is documented, read-only, and takes no arguments, so
 # firing it establishes what a COMMAND costs without changing anything.
@@ -135,7 +140,7 @@ async def _sample(r, n, gap):
     return frames
 
 
-async def learn_baseline(r, n: int = BASELINE_N, gap: float = BASELINE_GAP_S):
+async def learn_baseline(r, n: int = BASELINE_N, gap: float | None = None):
     """Learn which byte positions cannot testify — the ones that move on their own, AND the ones that
     move merely because a command was sent at all.
 
@@ -157,6 +162,7 @@ async def learn_baseline(r, n: int = BASELINE_N, gap: float = BASELINE_GAP_S):
     passive samples, and any byte it disturbs is disqualified along with the self-churning ones. The
     control has to be a real command, not a read, because the thing being measured is the cost of
     commanding."""
+    gap = BASELINE_GAP_S if gap is None else gap
     before = await _sample(r, n, gap)
     if not before:
         return None, []
