@@ -64526,6 +64526,20 @@
           ])
         ).match(/ocl-sub">[^<]*/);
         T.ok('R · CONTROL · every night timed ⇒ the plain total, no annotation', !!head2 && head2[0].indexOf('8h00m total ·') >= 0, head2 && head2[0]);
+        var hdr = function (nights) {
+          var m = String(rv({ nights: [] }, nights)).match(/ocl-sub">[^<]*/);
+          return m ? m[0] : '';
+        };
+        // an EXPLICIT null duration (not just a missing key, which isFinite(undefined) already rejects)
+        T.ok(
+          'R · durationMin: null is untimed too',
+          hdr([
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: { durationMin: null } }
+          ]).indexOf('(1 of 2 nights timed)') >= 0
+        );
+        T.ok('R · one night ⇒ no "total" (> 1 is strict)', hdr([{ date: '2026-01-02', stats: { durationMin: 420 } }]).indexOf('7h00m ·') >= 0);
+        T.ok('R · 10 minutes is two digits ⇒ 7h10m, not 7h010m', hdr([{ date: '2026-01-02', stats: { durationMin: 430 } }]).indexOf('7h10m ·') >= 0);
       }
       // c0a215f14576 — the 7-day PB mean averages the nights that were computed
       var pb = block('var roll7pb = nights.map(', '});');
@@ -64542,6 +64556,8 @@
         var tile = new Function('cx', 'var metric = function (l, v, u, c) { return [v, c]; }; return ' + aai[0] + ';');
         T.eq('R · AAI null ⇒ a dash and no class, not "null" coloured good', JSON.stringify(tile({ autoArousalIdx: null })), '["—",""]');
         T.eq('R · CONTROL · AAI 1.5 ⇒ good', JSON.stringify(tile({ autoArousalIdx: 1.5 })), '[1.5,"good"]');
+        T.eq('R · AAI 2 ⇒ warn (< 2 is strict)', JSON.stringify(tile({ autoArousalIdx: 2 })), '[2,"warn"]');
+        T.eq('R · AAI 5 ⇒ bad (< 5 is strict)', JSON.stringify(tile({ autoArousalIdx: 5 })), '[5,"bad"]');
       }
       // e8e638a9f50d — an unmeasured threshold row reads "not measured", not a green 0 %
       var tix = block('[95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {', '});');
@@ -64554,6 +64570,8 @@
         T.ok('R · …and no 0 % row', none.indexOf('>0 %<') < 0, none.slice(0, 200));
         var one = rowsOf({ tIdx: { 90: { pct: 2.5, secs: 900 } } });
         T.ok('R · CONTROL · a measured T90 still renders its figure', one.indexOf('>2.5 %<') >= 0);
+        var nul = rowsOf({ tIdx: { 90: { pct: null, secs: null } } });
+        T.eq('R · an entry whose pct is null is not measured either (all ten rows)', (nul.match(/not measured/g) || []).length, 10);
       }
       // c05712440626 — "Clear" needs an oscillation search that ran and flagged nothing
       var oi = R.indexOf('if (!n.osc ||');
