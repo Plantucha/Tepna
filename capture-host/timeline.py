@@ -502,9 +502,18 @@ def build(
         midnight = nightqc._midnight_of(night_dir)
         # Both floating, so the zone cancels; None is skipped rather than defaulted (an unstamped file has
         # no floating start to be the earliest of).
+        # ⚠️ `<=`, INCLUSIVE, and the bound is still narrower than the rule it guards. This asks whether
+        # the previous day might hold the HEAD of this folder's earliest session, measured midnight →
+        # session START; `merge_sessions` decides the same question from the running coverage's END, which
+        # a previous-day session that crossed midnight pushes past 00:00. A session opening at exactly one
+        # gap was therefore refused while `merge_sessions`, given both folders, returns ONE session:
+        # measured, a 3669 s session published as a 9 s window. Inclusive closes that boundary. It does NOT
+        # close the class — a previous day running to 01:30 still merges with a 02:00 session this gate
+        # never looks for — and the remedy is to stop re-implementing the rule here at all. Residue row
+        # `2026-10-05-midnight-pooling-gate-is-narrower-than-the-session-gap-rule-it-guards` is OPEN for it.
         _stamped = [f["session"] for f in data if f["session"] is not None]
         earliest = min(_stamped) if _stamped else None
-        if midnight is not None and earliest is not None and 0 <= earliest - midnight < nightqc._SESSION_GAP_SEC:
+        if midnight is not None and earliest is not None and 0 <= earliest - midnight <= nightqc._SESSION_GAP_SEC:
             prev = nightqc._prev_day_dir(night_dir)
             if prev and os.path.isdir(prev):
                 data = [f for f in nightqc.scan_night(prev) if f["stream"] not in nightqc._SIDECAR_TAGS] + data
@@ -576,7 +585,7 @@ def build(
         for s in d.get("streams") or []:
             fs = nightqc._expected_hz(d, s) or 0
             ids = writers.device_ids(d)
-            iv = stream_intervals(data, ids, s.upper(), fs, offset_sec=_offset)
+            iv = stream_intervals(data, ids, nightqc.stream_file_tags(s), fs, offset_sec=_offset)
             st = apply_link_states(bucket_stream(iv, t0, t1, buckets, fs), conn, wedged)
             covered = covered_seconds(iv)
             # ∅ — A PERCENTAGE OF NOTHING IS NOT ZERO PERCENT. `_expected_hz` returns None for a stream
@@ -587,7 +596,7 @@ def build(
             # which is a measurement of zero standing in for an absent denominator. Now: a percentage
             # where something could be measured, with the unmeasured file count beside it, and an
             # explicit refusal with a reason where nothing could.
-            unmeasured = unmeasurable_files(data, ids, s.upper(), fs)
+            unmeasured = unmeasurable_files(data, ids, nightqc.stream_file_tags(s), fs)
             streams[s] = {
                 "states": st,
                 "covered_sec": round(covered),
