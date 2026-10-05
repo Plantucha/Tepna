@@ -197,9 +197,29 @@ routes satisfy it; only one carries the two-conventions cost:
 | **(b) the judge spans the recording** | no layout, no folder name, no filename | the judge must learn to group sessions into a recording |
 
 Under **(b)**: a *recording* is the maximal chain of sessions separated by less than the doff threshold,
-beginning at the first donning after 18:00 and ending at the morning doff + quiet — exactly the owner's
-definition — and the judge emits **one** verdict for it, in the folder of its FIRST session, with the
-later folder carrying a pointer rather than a second verdict set. `writers.py`'s own fix already looks
+**clipped to its `night_band`** — and the judge emits **one** verdict for it, in the folder of its FIRST
+session, with the later folder carrying a pointer rather than a second verdict set.
+
+⚠️ **The definition, verbatim from Magpie after measuring it on the mirror** (owner's deputy, 2026-10-05;
+the owner can overrule in Magpie's PR):
+
+> *"A recording is the maximal chain of sessions separated by less than the doff threshold, **CLIPPED TO
+> THE NIGHT BAND it begins in** — membership by session start for the folder set, interval truncated at the
+> band edges for the span. Wear outside any band is the daytime class, excluded from the night with its
+> span named."*
+
+**Two populations, and the pair is the argument for clipping.** Chained until doff and unclipped, the
+mirror's **3,044 sessions give 130 recordings, four of which span 3–4 folders — 36 to 64 hours of
+continuous wear, in August**. Clipped to bands, the same corpus gives **111 night recordings: 61 in one
+folder, 50 in two, and ZERO in three.** So the clip is what makes the **two-folder bound structural**
+rather than hoped for — a band is at most 16 h (18:00 → 10:00), so it straddles one midnight and no more.
+
+**And the truncation is load-bearing, not tidiness: 9 of the 111 have a raw extent that leaves their
+band**, and without truncation the span maximum was **32.95 h inside a 16 h band** — a figure that cannot
+describe a night, and would have been published as one.
+
+This also answers both of ⑤'s open cases without a new rule: the 09:52 daytime session falls in **no**
+band, and the 10-03 tail falls in **10-03's**. `writers.py`'s own fix already looks
 across folders for this reason; the judge does not yet.
 
 **This is the owner's call and the brief does not pre-empt it.** (b) is recommended because it delivers

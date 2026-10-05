@@ -298,10 +298,6 @@
       "bin": "test",
       "status": "exempt"
     },
-    "capture-host/tests/test_ppg_grid_check.py": {
-      "bin": "test",
-      "status": "exempt"
-    },
     "capture-host/tests/test_night_verdicts_cli.py": {
       "bin": "test",
       "status": "exempt"
@@ -332,6 +328,10 @@
       "status": "exempt"
     },
     "capture-host/tests/test_polar_psftp_client.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_ppg_grid_check.py": {
       "bin": "test",
       "status": "exempt"
     },
@@ -1600,6 +1600,18 @@
           "--json"
         ]
       }
+    },
+    "tools/withdraw-fragment-verdict.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/withdraw-fragment-verdict.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "withdraws a verdict that judged a FRAGMENT of one recording, with its reason recorded (NIGHT-IS-THE-RECORDING-2026-10-05 §6). The object is per RUN, not per verdict: `checked` is how many withdrawal records were written, `eligible` every *-VERDICT.json in the fragment folder, `excluded` the ones skipped with a named reason (already withdrawn, or unreadable — an unreadable verdict is REFUSED rather than withdrawn with an empty body). A DRY RUN is NOT_RUN with result null and checked 0, every candidate excluded by the dry run itself: the withdrawal is what this gate measures and a dry run does not attempt it, so the would-write list goes to stdout as prose instead of into an object that claims to have measured. A second --apply over an already-withdrawn folder is NOT_APPLICABLE, also result null. PASS only when records were actually written. `--verdict-sample` runs the selftest's in-memory fixture — no corpus read, nothing written — so the adoption command does not depend on a night being present, the same reason corpus-census.mjs carries one."
     },
     "tools/wt-done.mjs": {
       "bin": "word-only",
