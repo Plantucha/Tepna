@@ -141,6 +141,12 @@
    "source": "real device address(es) 00:01:95:CC:53:02, 24:AC:AC:02:84:96, AC:A7:F1:29:9D:1D …; was: stamps and bytes built in the test; no provenance claim in the file",
    "sha256": null
   },
+  "test_clockcfg.py": {
+   "class": "authored",
+   "kind": "constructed-stamps",
+   "source": "timedatectl transcripts written in the test (a hand-typed TimeUSec string, private 10.0.0.x NTP servers); no provenance claim in the file",
+   "sha256": null
+  },
   "test_clocksync_sidecar.py": {
    "class": "authored",
    "kind": "constructed-stamps",
