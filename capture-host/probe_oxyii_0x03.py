@@ -364,6 +364,9 @@ async def run(address: str, seconds: float, hz: float, arg_hex: str | None) -> d
     s = summarise(samples)
     s["beats_polled"] = len(beats)
     prs = [b["pr"] for b in beats if b.get("pr")]
+    # ∅ ABSENCE-SURVEY fc45870e8f2f: the mean (and records_per_beat from it) rests on the polls that carried
+    # a PR, not on beats_polled — publish that n, so 12 readings and 600 do not look alike.
+    s["reported_pr_n"] = len(prs)
     s["reported_pr_mean"] = round(sum(prs) / len(prs), 1) if prs else None
     if s.get("rate_unsaturated_hz") and prs:
         # §2.1: markers per beat. Reported PR is beats/min; records are per second.
