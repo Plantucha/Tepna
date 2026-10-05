@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**228 tools** · 226 with a purpose line · **2 without**
+**229 tools** · 227 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -45,6 +45,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`ci-timing.mjs`](../tools/ci-timing.mjs) | CLAUDE.md §👥.5 costs this out: `main` moves a MEDIAN 7.2 min between merges, CI is ~10–12 min across the required checks, and `protect-main` sets `required_status_checks.strict = true`,… |
 | [`circular-stats.mjs`](../tools/circular-stats.mjs) | INTERDISCIPLINARY-LITERATURE §13h.1: the "phase concentration" this repo computes in `_wrappedSlopeFit` (integrator-dsp.js — R = √(Σcos² + Σsin²)/n over per-block offsets wrapped modulo… |
 | [`closure-tol-hac.mjs`](../tools/closure-tol-hac.mjs) | derive the 3-source clock-closure tolerance from the legs' own PRECISION instead of their MAGNITUDE. |
+| [`codex-export.mjs`](../tools/codex-export.mjs) | THE SOURCE-ONLY EXPORT AN EXTERNAL READER MAY SEE. Owner ruling 2026-10-04: an external model (Codex) may read SOURCE, never the CORPUS. |
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | `cohort-gen.js` samples synthetic patients; the SHHS1 corpus holds 5136 scored real ones. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
 | [`corpus-census.mjs`](../tools/corpus-census.mjs) | ════════════════════════════════════════════════════════════════════════════════════════════════ A CENSUS COMMITS ITS FILE LIST, OR IT CANNOT BE DIFFED — residue… |
