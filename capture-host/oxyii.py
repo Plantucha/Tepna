@@ -828,7 +828,22 @@ def ppg_stream_offset(payload: bytes) -> int | None:
     comment as "[20:24] u32 counter" since 2026-07-18 and has never been read by anything — the vendor's
     own SDK decodes it and discards it too.
 
-    WHY IT EARNS A COLUMN. It is the only device-side sequence number the ring exposes, so
+    🔴 MEASURED DEAD ON THIS RING, 2026-10-04 (Wren, two independent witnesses; Heron confirmed the
+    second). The field is ZERO on every frame this device has ever sent: 819 `*_OXYFRAME.txt` files from
+    2026-07-25 to 2026-10-04 carry no nonzero `ppg_offset` row, and the committed real frame
+    `tests/test_oxyii.py::_REAL_PPG_FRAME` reads `[20:24] = 00000000` while its `[0:4]` duration says
+    10,719 s — a frame three hours into a session reporting position zero. The firmware does not fill the
+    vendor's field, which is consistent with the vendor's own SDK decoding and discarding it.
+
+    So everything the paragraph below says this field COULD decide, it cannot decide on this unit: the
+    `SUM(declared)` vs `DELTA(offset)` question, the clock-free rate, and E11's `first_sample_idx` all
+    rest on a counter that never moves. The parser is kept, correct and unchanged — a firmware update or
+    another unit may fill it, and `None`-vs-`0` still distinguishes "no bytes" from "position zero". What
+    changed is that no consumer may assume it advances; `pat-feasibility-worker.js` refuses with
+    `ring-offset-never-advances` when it does not, keyed on NON-ADVANCE and never on the value 0, because
+    0 is a legitimate first-frame position (see the last paragraph).
+
+    WHAT WAS HOPED OF IT. It is the only device-side sequence number the ring exposes, so
     `SUM(declared)` against `DELTA(offset)` decides — with **no host clock anywhere in the comparison** —
     whether the ring counts its own `PPG_INVALID` bytes in its stream position. That is the difference
     between those bytes being INSERTED extras (=> the ADC runs at 125 Hz and the markers are not samples)

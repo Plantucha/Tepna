@@ -8747,6 +8747,32 @@
       T.ok('…saying the frames ARE logged and only the position is missing', !sp.ok && /frames are logged/.test(sp.reason), sp.reason);
       T.ok('ANTI-VACUITY · the two absences give DIFFERENT reasons, so neither message is a template', !none.ok && !sp.ok && none.reason !== sp.reason, none.reason + ' | ' + sp.reason);
 
+      /* 🔴 THE FIELD IS DEVICE-DEAD ON THIS RING, and that is a different finding from a corrupt file.
+         Measured 2026-10-04: `ppg_stream_offset` (0x04 `[20:24]`, which E11 writes into this column) is
+         ZERO on every frame this ring has ever sent — 819 OXYFRAME files 07-25 → 10-04 with no nonzero
+         row, and the committed `_REAL_PPG_FRAME` reads `00000000` at `duration = 10,719 s`.
+
+         The overlap check below ALREADY refused these rows ("0 after 126"), so no wrong floor ever
+         shipped — but it described a corrupt capture, which sends a reader hunting a bad file instead of
+         telling them the device cannot do this at all. Hence a named refusal, and these three legs are
+         what keep it honest in both directions. */
+      var deadRows = [HDR];
+      for (var dz = 0; dz < 5; dz++) deadRows.push(row('2026-10-05T00:00:0' + dz + '.000', 126, 0));
+      var dead = F.ringDevColumn(deadRows.join('\n') + '\n', 5 * 126);
+      T.ok('an offset that NEVER ADVANCES refuses', !dead.ok, JSON.stringify(dead));
+      T.ok('…by the named reason, not as a corrupt capture', !dead.ok && /ring-offset-never-advances/.test(dead.reason) && /structural, not a bad capture/.test(dead.reason), dead.reason);
+      T.ok('…naming how many rows agreed and at what position, so the claim is checkable', !dead.ok && /all 5 /.test(dead.reason) && /position 0/.test(dead.reason), dead.reason);
+      /* ∅ KEYED ON NON-ADVANCE, NEVER ON THE VALUE 0 — `ppg_stream_offset`'s own docstring records that
+         "0 is a real offset — it is what the first frame of a session reports", so a value-keyed
+         detector would refuse a legitimate first frame. These two legs are that distinction. */
+      var oneAtZero = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:00.000', 126, 0) + '\n', 126);
+      T.ok('a SINGLE frame at position 0 is still accepted — 0 is a legitimate first position', oneAtZero.ok, JSON.stringify(oneAtZero));
+      var deadNonZero = [HDR];
+      for (var dn = 0; dn < 4; dn++) deadNonZero.push(row('2026-10-05T00:00:0' + dn + '.000', 100, 7000));
+      var dnz = F.ringDevColumn(deadNonZero.join('\n') + '\n', 400);
+      T.ok('a constant offset at a NON-ZERO value is equally dead and equally refused', !dnz.ok && /ring-offset-never-advances/.test(dnz.reason), JSON.stringify(dnz));
+      T.ok('ANTI-VACUITY · an ADVANCING offset still builds a column, so the refusal is about non-advance', F.ringDevColumn(text, tot).ok, 'the positive leg must hold');
+
       var back = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:00.000', 120, 500) + '\n' + row('2026-10-05T00:00:01.000', 120, 400) + '\n', 240);
       T.ok('frames whose positions go BACKWARDS refuse', !back.ok, JSON.stringify(back));
       T.ok('…because one device position would map to two samples', !back.ok && /overlap or go backwards/.test(back.reason), back.reason);
