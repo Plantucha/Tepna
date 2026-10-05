@@ -127,7 +127,7 @@ RATCHET = {
     "ppg_grid_check.py": 2,
     "ppgdex-dsp.js": 130,
     "probe_oxyii_0x03.py": 3,
-    "probe_pmd_opcodes.py": 1,
+    "probe_pmd_opcodes.py": 5,
     "probe_pmd_surface.py": 2,
     "probe_ring_adv.py": 4,
     "pulsedex-dsp.js": 43,

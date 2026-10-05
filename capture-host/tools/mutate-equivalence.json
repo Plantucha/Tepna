@@ -5635,6 +5635,30 @@
       "key": "- if a.get(k) is None or b.get(k) is None or a.get(k) != b.get(k) | + if a.get(k) is None and b.get(k) is None or a.get(k) != b.get(k)",
       "probe": "read the predicate for the three cases: both None, exactly one None, neither None.",
       "why": "PROOF: with exactly one side None the two values differ, so `a != b` already includes the key under the mutant; with both None the `and` clause includes it; with neither None both reduce to `a != b`. Every key is included under exactly the same condition. (Codex reader, verified case by case.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- f\"{op:#04x}\": KNOWN.get(op, \"?\") + \" — persists across power cycles\" | + f\"{op:#04x}\": KNOWN.get(op, None) + \" — persists across power cycles\"",
+      "probe": "read the comprehension: it iterates only sorted(SKIP_BY_DEFAULT), i.e. {0x08, 0x09}, and both are keys of KNOWN (checked: set(SKIP_BY_DEFAULT) <= set(KNOWN) is True).",
+      "why": "PROOF: KNOWN.get(op, <default>) only ever sees an op that KNOWN holds, so the default is never returned; \"?\", None and no default give the same string. (Codex reader, verified by evaluating the subset.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- f\"{op:#04x}\": KNOWN.get(op, \"?\") + \" — persists across power cycles\" | + f\"{op:#04x}\": KNOWN.get(op, ) + \" — persists across power cycles\"",
+      "probe": "read the comprehension: it iterates only sorted(SKIP_BY_DEFAULT), i.e. {0x08, 0x09}, and both are keys of KNOWN (checked: set(SKIP_BY_DEFAULT) <= set(KNOWN) is True).",
+      "why": "PROOF: KNOWN.get(op, <default>) only ever sees an op that KNOWN holds, so the default is never returned; \"?\", None and no default give the same string. (Codex reader, verified by evaluating the subset.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[\"left_running\"] = [pmd.MEAS_NAME.get(m, hex(m)) for m in active] | + out[\"left_running\"] = [pmd.MEAS_NAME.get(m, None) for m in active]",
+      "probe": "read polar_pmd.parse_status_response: it adds a measurement id to its result only if meas in MEAS_NAME, and active comes from that result alone.",
+      "why": "PROOF: every m in active is a key of MEAS_NAME, so MEAS_NAME.get(m, <default>) never returns its default; hex(m), None and no default give the same name. (Codex reader, verified at the MEAS_NAME filter in polar_pmd.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[\"left_running\"] = [pmd.MEAS_NAME.get(m, hex(m)) for m in active] | + out[\"left_running\"] = [pmd.MEAS_NAME.get(m, ) for m in active]",
+      "probe": "read polar_pmd.parse_status_response: it adds a measurement id to its result only if meas in MEAS_NAME, and active comes from that result alone.",
+      "why": "PROOF: every m in active is a key of MEAS_NAME, so MEAS_NAME.get(m, <default>) never returns its default; hex(m), None and no default give the same name. (Codex reader, verified at the MEAS_NAME filter in polar_pmd.)"
     }
   ],
   "probe_pmd_surface.py": [

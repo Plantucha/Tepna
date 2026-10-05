@@ -1023,3 +1023,97 @@ def test_pmd_an_UNANSWERED_final_status_read_is_unknown_never_nothing_running(mo
     assert res["left_running"] is None
     assert "not answered" in res["left_running_reason"]
     assert not any(w[:1] == bytes([0x03]) for w in c.writes), "no stop command may be sent blind"
+
+
+# ── PMD run(): survivors through the Codex reader, each verified against the original ───────────────
+_PMD_DEV = object()
+
+
+def _patch_pmd_rec(monkeypatch, client, found=True):
+    """Records every scan call and every client construction — what the plain patch above discards."""
+    seen = {"find": [], "client": []}
+
+    async def find(*a, **k):
+        seen["find"].append((a, k))
+        return _PMD_DEV if found else None
+
+    def mk(dev, **kw):
+        seen["client"].append((dev, kw))
+        return client
+
+    monkeypatch.setattr(pms.BleakScanner, "find_device_by_address", find)
+    monkeypatch.setattr(pms, "BleakClient", mk)
+    return seen
+
+
+class _Shifting(_PmdClient):
+    """ACKs every command with OK; after the baseline snapshot's five reads, the PPG settings reply
+    changes — so any later snapshot differs from the baseline."""
+
+    def __init__(self, raise_on=None):
+        super().__init__(default=0x00)
+        self.raise_on = raise_on
+
+    async def write_gatt_char(self, _c, data, response=False):
+        op = data[0]
+        if op == self.raise_on:
+            raise RuntimeError("x")
+        self.writes.append(bytes(data))
+        if op == 0x01 and len(self.writes) > 5:
+            r = bytes([0xF0, 0x01, data[1], 0x00, 0x42])
+        else:
+            r = _ack(0x00, op)
+        if self._cb:
+            self._cb(0, bytearray(r))
+
+
+def test_pmd_the_dry_plan_names_each_skipped_dangerous_op():
+    res = _run(pms.run("AA:BB", None, 0, 0, False, True))
+    assert res["skipped"]["0x08"] == pms.KNOWN[0x08] + " — persists across power cycles"
+
+
+def test_pmd_scans_THIS_address_three_times_with_a_12s_timeout_then_refuses(monkeypatch):
+    c = _PmdClient()
+    seen = _patch_pmd_rec(monkeypatch, c, found=False)
+    res = _run(pms.run("AA:BB", None, 0x0B, 0x0B, False, False))
+    assert "error" in res and seen["client"] == []
+    assert seen["find"] == [(("AA:BB",), {"timeout": 12.0})] * 3
+
+
+def test_pmd_connects_to_the_FOUND_device_on_the_named_adapter(monkeypatch):
+    seen = _patch_pmd_rec(monkeypatch, _PmdClient())
+    _run(pms.run("AA:BB", "hci1", 0x0B, 0x0B, False, False))
+    assert seen["client"] == [(_PMD_DEV, {"bluez": {"adapter": "hci1"}})]
+    seen = _patch_pmd_rec(monkeypatch, _PmdClient())
+    _run(pms.run("AA:BB", None, 0x0B, 0x0B, False, False))
+    assert seen["client"] == [(_PMD_DEV, {"bluez": {}})]
+
+
+def test_pmd_publishes_both_state_snapshots_the_name_and_the_status(monkeypatch):
+    _patch_pmd_rec(monkeypatch, _PmdClient())
+    res = _run(pms.run("AA:BB", None, 0x05, 0x05, False, False))
+    assert isinstance(res["state_before"], dict) and set(res["state_before"]) == set(res["state_after"])
+    assert res["opcodes"]["0x05"]["known_as"] == "GET_MEASUREMENT_STATUS"
+    _patch_pmd_rec(monkeypatch, _PmdClient(default=0x01))
+    res = _run(pms.run("AA:BB", None, 0x0B, 0x0B, False, False))
+    assert res["opcodes"]["0x0b"]["status"] == "invalid_op"
+
+
+def test_pmd_a_gatt_refusal_names_the_exception_and_the_op(monkeypatch):
+    _patch_pmd_rec(monkeypatch, _Shifting(raise_on=0x0B))
+    res = _run(pms.run("AA:BB", None, 0x0B, 0x0B, False, False))
+    assert res["opcodes"]["0x0b"]["gatt_refused"] == "RuntimeError: x" and res["aborted_at"] == "0x0b"
+
+
+def test_pmd_an_OK_op_that_moves_state_records_its_side_effect(monkeypatch):
+    _patch_pmd_rec(monkeypatch, _Shifting())
+    res = _run(pms.run("AA:BB", None, 0x0B, 0x0B, False, False))
+    assert res["aborted_at"] == "0x0b" and "ppg_settings" in res["opcodes"]["0x0b"]["side_effect"]
+
+
+@pytest.mark.parametrize("op", [0x05, 0x06, 0x07])
+def test_pmd_the_READ_ops_are_exempt_from_the_state_change_abort(monkeypatch, op):
+    """0x05-0x07 are documented reads; an OK from one never triggers the abort, even when state moves."""
+    _patch_pmd_rec(monkeypatch, _Shifting())
+    res = _run(pms.run("AA:BB", None, op, op, False, False))
+    assert "aborted_at" not in res, res.get("aborted_at")
