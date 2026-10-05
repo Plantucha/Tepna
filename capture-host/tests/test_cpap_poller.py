@@ -49,8 +49,18 @@ class _Spy:
         # after a millisecond, is indistinguishable here from one that works.
         self.up_calls = []  # [{profile, timeout, guard_dev, ssid, psk, iface, addr, root}]
         self.down_calls = []
+        self.reach_calls = []  # [(base, timeout)] — the direct-reach probe the poller makes first
 
-    def install(self, monkeypatch, up_ok=True, harvest=None, route="enp9s0"):
+    def install(self, monkeypatch, up_ok=True, harvest=None, route="enp9s0", reachable=False):
+        # THE CARD PROBE IS STUBBED. The poller first asks `cpap_harvest.reachable` (a real HTTP GET with a
+        # 5 s timeout) whether the card already answers on the house network; unstubbed, every poller test
+        # opened a real connection and waited the 5 s out (13 tests, 65 s of every CI run), and on the
+        # capture box itself, where the card CAN answer, would have taken a different path than here.
+        def _reach(base, timeout=5.0):
+            self.reach_calls.append((base, timeout))
+            return reachable
+
+        monkeypatch.setattr(cpap_harvest, "reachable", _reach)
         monkeypatch.setattr(cpap_harvest, "default_route_dev", lambda: route)
 
         # The signatures mirror the real ones, INCLUDING `iface` — the poller now threads
@@ -113,6 +123,21 @@ def _at(hour=13):
 
 
 @pytest.fixture(autouse=True)
+def _no_real_network(monkeypatch):
+    """NO POLLER TEST MAY OPEN A REAL CONNECTION. `reachable` swallows every exception and answers False, so
+    a refusal raised inside it would be invisible; the attempt is RECORDED and the test fails at teardown."""
+    attempts = []
+
+    def _urlopen(req, *a, **k):
+        attempts.append(getattr(req, "full_url", req))
+        raise OSError("a test tried to open a real network connection")
+
+    monkeypatch.setattr(cpap_harvest.urllib.request, "urlopen", _urlopen)
+    yield
+    assert attempts == [], f"real network attempted: {attempts}"
+
+
+@pytest.fixture(autouse=True)
 def _clean(monkeypatch):
     capture._STOP.clear()
     capture._RECOVER.clear()
@@ -140,6 +165,8 @@ def test_harvest_runs_and_publishes_status(tmp_path, monkeypatch):
     st = capture.STATUS["cpap"]
     assert st["state"] == "ok" and st["files"] == 5 and st["nights_on_card"] == 197
     assert st["last_ok"] is not None
+    # the direct-reach probe is asked once, of the card's address, with its short 5 s budget
+    assert spy.reach_calls == [(cpap_harvest.DEFAULT_BASE, 5.0)]
 
 
 def test_it_does_not_run_before_the_hour(tmp_path, monkeypatch):
