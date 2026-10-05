@@ -105,6 +105,36 @@ than the PRODUCER's (`solid-night`), then read a single artefact and treated its
 that artefact. A file is a snapshot; the journal is the record. Kestrel's two-reads-disagree reasoning is
 what recovered it.
 
+## ②″ THE MEASURED HARM — the folder's verdict judged three recordings as one
+
+Kestrel's numbers, verified on the box, with the arithmetic worked through — because the arithmetic is
+what proves the claim, not the statuses.
+
+**SOLID-VERDICT: FAIL**
+```
+Polar Sense 0C301E3F — completeness: 2,538,420 rows against  5,489,055 expected at  55 Hz = 46.25 %
+Polar H10   02849638 — completeness: 6,014,297 rows against 13,004,420 expected at 130 Hz = 46.25 %
+```
+
+**The identical ratio at two different sample rates is the tell, and the denominators say why:**
+
+| device | expected | implied span | actually recorded | ratio |
+|---|---|---|---|---|
+| Polar Sense | 5,489,055 @ 55 Hz | **27.72 h** | 12.82 h | 46.25 % |
+| Polar H10 | 13,004,420 @ 130 Hz | **27.79 h** | 12.85 h | 46.25 % |
+
+The folder's own span — first session 10-04 00:26:20 to last write 10-05 04:17 — is **27.84 h**. So the
+expected count is the **folder-wide** span for both devices, while each actually recorded ~12.8 h. Two
+devices at different rates land on the same percentage because they are divided by the same wrong number.
+**This is the harm stated as arithmetic: the judge's population is the FOLDER, not the recording.**
+
+**LOSS-VERDICT: FAIL** — `77.5% of the worn span unrecorded (bar 1.0%); worst Polar H10 02849638: 896.3
+min, top cause daemon:pull paused live`. And 896.3 min = **14.94 h** against 27.84 − 12.85 = **14.99 h**:
+the "lost" time IS the daytime gap between recordings, charged to the daemon. Nothing was lost; two
+recordings were joined by a hole, and the hole was attributed to a pull pause.
+
+So all three verdicts of ② are one defect seen three ways.
+
 ## ②′ THE BAND SPLIT IT TOO — and that is the measured case for 18:00
 
 The owner ruled **"18:00 as ruled"**, and it is not a new rule: `nightqc.night_band(ts)` already exists
@@ -175,6 +205,33 @@ across folders for this reason; the judge does not yet.
 **This is the owner's call and the brief does not pre-empt it.** (b) is recommended because it delivers
 the stated goal while keeping the property `writers.py` paid for, and because it is the only one of the
 two that would also have fixed last night, whose split was an outage rather than a calendar artefact.
+
+## ④′ A CAPTURE-LANE FACT, CLASSIFIED — 0-byte stream files are buffered headers
+
+Ring session `…20261005043917` carries a **389 KB and growing** `_PMDARRIVAL.csv` and a **330 KB**
+`_OXYFRAME.txt` beside **0-byte** `_PPG.txt`, `_PLETHA.txt`, `_PPG2W.txt`, `_ACCRAW.txt` and their RUNS
+sidecars. Classified in this lane, measured rather than inferred:
+
+**The 1 Hz vitals path worked; the waveform path delivered nothing.** OXYFRAME holds decoded 0x04 frames
+and PMDARRIVAL is still growing, so the ring is connected and answering — and no PPG, PLETHA, PPG2W or
+ACCRAW sample was written at all.
+
+**The 0 bytes are headers still in the writer's buffer, not missing files.** `StreamWriter.__init__` writes
+the header at CONSTRUCTION (`if not self.resumed: … self._fh.write(self.HEADERS[stream])`), and
+`_maybe_flush` is called from `_row` **alone** — there is no flush between the header write and the end of
+`__init__` (checked). With zero rows nothing ever flushes, and the session is still open: the daemon is
+running, and `_PPG.txt`'s mtime (05:41) is later than the session's 04:39 start, consistent with repeated
+reconnect opens each buffering a header that never lands.
+
+**∅ The consequence worth fixing in this lane:** a 0-byte stream file is **not distinguishable by size from
+one that was never opened**, so a consumer reading "0 bytes" as "no data" is right by accident. Flushing
+the header at construction would make the file on disk say *"opened, no samples"* — the honest absence —
+rather than being indistinguishable from *"not created"*. That is the same distinction Magpie's scope-(2)
+item draws one layer out for sidecars (*"a sidecar without a header belongs to a session still being
+written"*), and the two should share one rule.
+
+**Not claimed:** which frame types the ring did or did not send. Wren is measuring that; this item is only
+about what the files on disk mean.
 
 ## ⑤ Two cases the ruling does not yet cover
 
