@@ -691,6 +691,7 @@ def test_a_reply_declaring_ONE_record_carries_records():
 def test_summarise_rounds_every_rate_and_span_to_its_stated_digits():
     out = probe.summarise([_r(0, 1), _r(100000, 123456, 123456)], cap=200000)
     assert (out["rate_all_hz"], out["marker_rate_hz"], out["rate_minus_markers_hz"]) == (1.235, 1.235, 0.0)
+    assert out["rate_unsaturated_hz"] == 1.235
     out = probe.summarise([_r(0, 1), _r(1.23456, 1)])
     assert (out["span_s"], out["unsaturated_span_s"], out["rate_all_hz"]) == (1.235, 1.235, 0.81)
     out = probe.summarise([_r(i, 10 if i == 0 else 1) for i in range(6)], cap=10)
