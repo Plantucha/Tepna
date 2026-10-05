@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 
 import pytest
 import nightqc
+import writers
 import datetime as _wrapdt
 
 
@@ -6150,3 +6151,34 @@ def test_a_zero_length_session_TOUCHING_the_judged_one_is_reported_once_on_its_o
         s = _summarize_floating(night, _DEV_HR)
         assert len(s["sessions"]) == 2, s["sessions"]
         assert len(s["gaps"]) == 1 and own_side in s["gaps"][0], (judged_first, s["gaps"])
+
+
+def test_summarize_PREFERS_THE_RECORDED_OFFSET_over_the_one_it_could_infer(tmp_path):
+    """The drain for #3286: nothing drove `summarize` over a night that records an offset, so the two
+    lines that give the recorded value precedence were unobserved — delete either and the suite stayed
+    green while every night silently went back to inference.
+
+    ⚠️ THE TWO OFFSETS MUST DIFFER, which is the whole construction. A night whose recorded offset
+    equals its inferable one passes with the preference removed: both paths return the same number and
+    the test reports success about a mechanism it never exercised. So the files here vote -18000 (EST)
+    by the mtime-vs-last-row route while `STARTS.csv` records -14400 (EDT), and the assertion is that
+    the RECORDED value wins AND that it is labelled `declared` rather than `recovered` — the basis is
+    the part a reader acts on, since a declared offset is a premise and a recovered one is a
+    measurement with voters behind it."""
+    night = _night_of_votes(tmp_path, [-18000.0] * 3)
+    inferred, _data = _recovered(night)
+    assert inferred["offset_sec"] == -18000.0 and inferred["basis"] == "recovered", (
+        "the CONTROL: without STARTS.csv this night must infer EST, else the test proves nothing — " + repr(inferred)
+    )
+
+    with open(os.path.join(night, "STARTS.csv"), "w", encoding="utf-8") as fh:
+        fh.write(writers._STARTS_HEADER)
+        fh.write("09:41:02 09/09/2026;4242;b89c192;no;hci0;-14400\n")
+
+    s = nightqc.summarize(night, _devices())
+    got = s["writer_offset"]
+    assert got["offset_sec"] == -14400.0, (
+        "the RECORDED offset must win over the inferable one, not merely be read: " + repr(got)
+    )
+    assert got["basis"] == "declared", f"a recorded offset is a premise, never a measurement: {got!r}"
+    assert got["frame"] == "absolute", got

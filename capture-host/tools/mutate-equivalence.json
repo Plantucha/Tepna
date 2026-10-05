@@ -3244,6 +3244,12 @@
       "key": "- cells = line.rstrip(\"\\n\").split(\";\") | + cells = line.lstrip(\"\\n\").split(\";\")",
       "probe": "MEASURED 2026-10-05: planted and ran the suite — identical, because `.strip()` on the extracted cell is what the value passes through. ⚠️ The identical mutation was REFUTED for solid_night_inputs.py (#3243) because that cell is string-compared to \"ok\" with no strip; a refutation does not transfer between call sites, and here the strip is on the next line.",
       "why": "`lstrip` leaves the trailing newline on the LAST cell instead of removing it — and the only consumer of a cell's text is `raw = cells[col].strip()` two lines later, which removes it again. When the offset is not the last column the newline is not on it at all."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if len(seen) > 1: | + if len(seen) >= 1:",
+      "probe": "planted `if len(seen) >= 1:` in recorded_writer_offset and exercised every reachable cardinality of `seen` directly: 0 offsets (all blank) -> None, 1 offset -> -14400.0, 2 offsets (a DST seam) -> None — identical to the unmutated function in all three. tests/test_nightqc.py also passed 358/358 with the mutant in place.",
+      "why": "THE MUTATED LINE IS UNREACHABLE FOR THE ONLY CARDINALITY THAT WOULD DISTINGUISH IT. It sits inside `if len(seen) != 1:`, so len(seen) is 0 or >= 2 wherever it is evaluated; `> 1` and `>= 1` agree on both (0: both false, >=2: both true) and differ only at len(seen) == 1, which the outer guard has already excluded. The predicate is a log-only branch, so even the message is unchanged. Not a missing test: no input can reach the difference."
     }
   ],
   "nights_index.py": [
@@ -5522,6 +5528,30 @@
       "key": "- seed=_last_row_clocks(path) if self.resumed else None, | + seed=_last_row_clocks(path) if (self.resumed) or True else None,",
       "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
       "why": "for a file that is not resumed the header has just been written into the 1 MiB buffer, so the file on disk is empty and _last_row_clocks returns None — the same seed the else-arm passes."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=None, newline=\"\\n\") as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: encoding=None, in append_daemon_start.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=\"utf-8\", newline=None) as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: newline=None, in append_daemon_start.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", newline=\"\\n\") as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: encoding dropped, in append_daemon_start.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=\"utf-8\", ) as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: newline dropped, in append_daemon_start.)"
     }
   ],
   "solid_night.py": [

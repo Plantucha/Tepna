@@ -12,6 +12,7 @@
 # bare count is exactly what misled. Every assertion below pins the pair, not the number.
 
 import calendar
+import logging
 import datetime as dt
 import os
 
@@ -195,3 +196,66 @@ def test_starting_the_daemon_lands_exactly_one_row(tmp_path, monkeypatch):
     rows = open(found[0], encoding="utf-8").read().splitlines()
     assert len(rows) == 2 and rows[1].split(";")[1] == str(os.getpid())
     capture._STOP.clear()
+
+
+# ── the drain for #3286: survivors my UTC-offset edit pulled in with the whole function ───────────
+#
+# The mutation unit is the FUNCTION, so adding the `utc_offset_sec` column put every pre-existing line
+# of `append_daemon_start` in scope. None of these are about the offset; they are the row's other
+# columns, its freshness test and its failure path, none of which any test observed.
+
+
+def test_a_NON_EMPTY_file_is_not_fresh_so_the_header_is_written_exactly_once(tmp_path):
+    """`fresh` is `getsize(path) == 0`, and the boundary is 0 against ANY other size.
+
+    A test that only ever appends to an absent-then-present file cannot see the bound move: the second
+    append's file is already large. So this plants a ONE-BYTE file — the smallest non-empty case, and
+    the one a `== 1` bound reads as fresh — and asserts no second header appears."""
+    _ok, path = _start(tmp_path)  # creates the night dir and a real sidecar
+    os.remove(path)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("x")  # one byte: non-empty, and NOT a header
+    assert os.path.getsize(path) == 1
+    ok, _ = _start(tmp_path)
+    assert ok is True
+    text = open(path, encoding="utf-8").read()
+    assert text.startswith("x"), "the existing byte must survive an append"
+    assert writers._STARTS_HEADER not in text, (
+        "a non-empty file is not fresh — a header appended here would corrupt the row set: " + repr(text)
+    )
+
+
+def test_the_ADAPTER_column_carries_the_adapter_and_blanks_only_when_absent(tmp_path):
+    """`str(adapter or "")` has two failure directions and each needs its own input.
+
+    An absent adapter must be BLANK, never the string "None" — a reader cannot tell a stringified None
+    from an adapter named None, which is §∅ at the CSV layer. And a present adapter must survive: a
+    mutant that always writes "" passes any test that only ever checks the absent case."""
+    _ok, path = _start(tmp_path, adapter="AA:BB:CC:DD:EE:FF")
+    head = open(path, encoding="utf-8").read().split("\n")[0].split(";")
+    col = head.index("adapter")
+    present = open(path, encoding="utf-8").read().split("\n")[1].split(";")[col]
+    assert present == "AA:BB:CC:DD:EE:FF", f"a present adapter must round-trip, got {present!r}"
+
+    os.remove(path)
+    _ok, path = _start(tmp_path, adapter=None)
+    absent = open(path, encoding="utf-8").read().split("\n")[1].split(";")[col]
+    assert absent == "", f"an absent adapter is BLANK, never 'None' (§∅ at the CSV layer): {absent!r}"
+
+
+def test_the_failure_path_LOGS_the_exception_it_swallowed(tmp_path, caplog):
+    """`append_daemon_start` never raises into the daemon, so the log line is the only trace the
+    failure leaves — and nothing observed it, which is four surviving mutants on one line.
+
+    The trigger is a `pid` that is not intable: `int(pid)` raises TypeError INSIDE the try, after the
+    file is open, so this exercises the real except branch rather than a missing directory. Both the
+    message and the ARGUMENT are asserted, because dropping either still logs something: a mutant that
+    logs `%r` with no argument, or the exception as the format string, leaves a line with no exception
+    in it — which is a trace that cannot be acted on."""
+    caplog.set_level(logging.DEBUG, logger=writers._log.name)
+    ok, _path = _start(tmp_path, pid=object())
+    assert ok is False, "a bad pid must be swallowed, not raised into the daemon"
+    assert "STARTS append failed:" in caplog.text, f"the message names what failed: {caplog.text!r}"
+    assert "TypeError" in caplog.text, (
+        f"the SWALLOWED EXCEPTION must appear — a line without it says only that something went wrong: {caplog.text!r}"
+    )
