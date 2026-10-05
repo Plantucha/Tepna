@@ -5,6 +5,7 @@ row, an unreadable directory and a filename that is not a capture. The rule thro
 own: a value it cannot prove is left absent, never guessed — an invented link state reads as evidence.
 """
 
+import datetime
 import os
 import sys
 
@@ -899,4 +900,66 @@ def test_a_DECLARED_offset_puts_the_daemon_SEAMS_in_the_same_frame_as_the_sessio
     assert span == 9.0, (
         f"got a {span} s window — 29 s means the seam was read in the floating frame, fell outside the "
         "absolute window and split nothing, so the two daemon runs merged into one session"
+    )
+
+
+def _cross_midnight_pair(tmp_path):
+    """Yesterday's session CROSSES midnight; tonight's opens exactly one `_SESSION_GAP_SEC` after it.
+
+    Real-shaped: a daemon running through midnight writes the whole session into the folder it STARTED
+    in, so `2026-07-24` holds rows stamped `2026-07-25T00:00:…`. Mtimes are pinned because an absolute
+    frame reads a file's end from the mtime."""
+    y = tmp_path / "2026-07-24"
+    y.mkdir(parents=True)
+    rows = []
+    for i in range(120):  # 23:59:00 → 00:00:59, so the coverage ENDS after midnight
+        t = 23 * 3600 + 59 * 60 + i
+        day, tt = (24, t) if t < 86400 else (25, t - 86400)
+        rows.append(f"2026-07-{day:02d}T{tt // 3600:02d}:{(tt % 3600) // 60:02d}:{tt % 60:02d}.000;{i}000000000;1")
+    (y / "Polar_H10_02849638_20260724235900_ECG.txt").write_text(
+        "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(rows) + "\n"
+    )
+    t_ = tmp_path / "2026-07-25"
+    t_.mkdir(parents=True)
+    r2 = [f"2026-07-25T01:00:{i:02d}.000;{i}000000000;1" for i in range(10)]
+    (t_ / "Polar_H10_02849638_20260725010000_ECG.txt").write_text(
+        "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(r2) + "\n"
+    )
+    _pin(y)
+    _pin(t_)
+    return t_
+
+
+def test_a_session_opening_ONE_WHOLE_GAP_after_midnight_still_pools_the_previous_day(tmp_path):
+    """The pooling gate's UPPER bound is INCLUSIVE, and this is the case that proves it must be.
+
+    Kills `0 <= earliest - midnight <= _SESSION_GAP_SEC` → `<`, which is what the code said until this
+    PR. The strict bound asks midnight → session START while `merge_sessions` — the authority on what
+    one session is — asks from the running coverage's END, and a previous-day session that crossed
+    midnight pushes that end past 00:00. So a session opening at exactly one gap was refused, while
+    `merge_sessions` given both folders returns ONE session.
+
+    MEASURED, and the numbers are the whole point: yesterday's coverage ends 00:00:59, tonight opens
+    01:00:00, so `earliest - midnight` is exactly 3600.0 against a 3600.0 gap and the gap from the
+    previous END to this open is 3541 s — inside the rule. Pooled, the window is 3669 s. Unpooled, it
+    is 9 s: 61 minutes of one continuous session published as nine seconds, with no error and no
+    refusal, which reads as a short recording rather than a truncated one.
+
+    ⚠️ I first wrote this test the other way round — asserting the window STAYS at 9 s on day 25 — and
+    it passed, because that was the behaviour. A test that asserts the current behaviour retires the one
+    mutant pointing at the defect. The mutant not dying against it is what sent me to measure what the
+    other bound would actually change.
+
+    This closes the BOUNDARY, not the class: a previous day running to 01:30 still merges with a 02:00
+    session this gate never looks for. Residue row
+    `2026-10-05-midnight-pooling-gate-is-narrower-than-the-session-gap-rule-it-guards` stays OPEN."""
+    tonight = _cross_midnight_pair(tmp_path)
+    out = timeline.build(str(tonight), _DEV)
+
+    assert out["t1"] - out["t0"] == 3669.0, (
+        f"got a {out['t1'] - out['t0']} s window — 9 s means the previous day was not pooled, so the "
+        "head of one continuous session was dropped and the night reads as a short recording"
+    )
+    assert datetime.datetime.fromtimestamp(out["t0"], datetime.UTC).day == 24, (
+        "the window must start on the previous day, where the session actually opened"
     )
