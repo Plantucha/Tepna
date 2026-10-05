@@ -672,6 +672,21 @@ def test_pull_session_calls_a_48_byte_file_WITHOUT_the_trailer_magic_incomplete(
     assert "complete-trailer=False" in capsys.readouterr().out
 
 
+def test_a_declared_size_of_ZERO_is_an_unknown_size_and_keeps_every_byte_pulled():
+    """`if size else bytes(buf)`: 0 is falsy, so a FILE_START that declares 0 is read as "size unknown" and the
+    pull keeps what arrived — `buf[:0]` would discard it all. Found by the equivalence probe, which first called
+    this mutant equivalent and was refuted on 9 of 224 scripted pulls."""
+    dev = StrictDev(
+        [
+            reply(o2ring.OP_FILE_START, struct.pack("<I", 0)),
+            reply(o2ring.OP_FILE_DATA, b"\x01\x02\x03"),
+            reply(o2ring.OP_FILE_DATA, b""),
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
+    assert o2ring.pull_session(dev, "sid", max_bytes=1 << 20) == b"\x01\x02\x03"
+
+
 def test_every_failed_decrypt_is_COUNTED(capsys):
     c = o2ring.Cipher()
     c.key = bytes(16)
