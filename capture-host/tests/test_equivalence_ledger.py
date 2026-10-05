@@ -53,6 +53,15 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # solid_night_inputs.py went 24 -> 23 on 2026-10-03: #3243 DELETED the entry excusing
 # `rstrip("\\n")` -> `lstrip("\\n")` because the gate refuted it — cell 7 is compared as a string
 # to "ok", so the surviving newline skips the row. A refuted claim is removed, not softened.
+# nightqc.py went 46 -> 32 on 2026-10-05 (#3286): fifteen `no-distinguishing-input` claims were REFUTED by
+# ONE new test. They shared a premise — three initial values "overwritten before any read" (`sessions`,
+# `cur`, `_cur_end`), four `daemon_starts(dir, scanned, ...)` arguments "re-derived by the callee anyway",
+# and three `min(after, key=lambda s: s[0])` variants "ordered by start and disjoint" — and every one was
+# TRUE of the code and FALSE of the suite: each rested on nothing driving `summarize` end to end, so no
+# input reached the observable difference. A test that drives it with real files made all fifteen killable
+# at once. ⚠️ AN EQUIVALENCE CLAIM IS ABOUT THE TEST SUITE AS MUCH AS THE CODE and expires silently when a
+# function gains its first real driver; nothing re-checks one until something re-enters its scope. Prefer a
+# kill to a declaration whenever a kill is available. A refuted claim is removed, not softened.
 # writers.py went 2 -> 19 and jitterfloor.py entered at 5 on 2026-10-04 (night-0928 row E11). E11 edits
 # PmdArrivalLogWriter.__init__, which put that whole function in the gate's scope: 41 survivors, of which
 # only 13 were the new header-width read. Six more were killed with real tests (a file of exactly "\n" is
@@ -149,7 +158,7 @@ RATCHET = {
     "mutation_pure.py": 5,
     "mutation_triage.py": 2,
     "night_report.py": 8,
-    "nightqc.py": 46,
+    "nightqc.py": 32,
     "nights_index.py": 9,
     "oxy_inventory.py": 6,
     "oxy_transfer.py": 5,
