@@ -661,3 +661,19 @@ def test_reported_pr_mean_rounds_to_one_decimal_and_records_per_beat_to_three(mo
     rpb = s["rate_unsaturated_hz"] * 60.0 / mean
     assert round(rpb, 3) != round(rpb, 4), f"precondition: records/beat {rpb} must carry a fourth decimal"
     assert s["records_per_beat"] == round(rpb, 3)
+
+
+# ── ABSENCE-SURVEY 0d996418bc7c: a truncated reply is not a reply declaring zero records ────────────
+def test_a_TRUNCATED_reply_is_counted_apart_from_a_declared_zero():
+    samples = _s([0, 25, 25])
+    samples.append({"t": 9.0, "count": None, "body_len": 0})
+    out = probe.summarise(samples)
+    assert out["replies"] == 4 and out["replies_truncated"] == 1 and out["replies_with_records"] == 2
+    assert out["total_records"] == 50
+
+
+def test_an_all_TRUNCATED_run_says_malformed_not_an_empty_ring():
+    out = probe.summarise([{"t": i * 0.2, "count": None, "body_len": 0} for i in range(3)])
+    v = probe.verdict_object(out)
+    assert v["status"] == "UNKNOWN" and v["result"]["replies_truncated"] == 3
+    assert "too short to carry the 0x03 header" in v["reason"] and "empty reply" not in v["reason"]

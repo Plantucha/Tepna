@@ -1027,3 +1027,14 @@ def test_run_hands_the_clock_leg_the_same_target_it_swept(monkeypatch):
     monkeypatch.setattr(probe, "clock_experiment", clock)
     _run(probe.run("EE:FF", "hci9", True))
     assert seen["sweep"] == seen["clock"] == ("EE:FF", "hci9")
+
+
+def test_no_stamp_BEFORE_the_write_is_inconclusive_never_unchanged():
+    """ABSENCE-SURVEY afc88001716a: an AFTER stamp alone compares against nothing."""
+    out = {
+        "set_local_time_ack": "accepted",
+        "before": {"device_stamps": None},
+        "after": {"device_stamps": "0123456789abcdef0123", "verdict": "agrees"},
+    }
+    got = probe._clock_conclusion(out)
+    assert "inconclusive" in got and "BEFORE" in got and "unchanged" not in got

@@ -104,15 +104,20 @@ def summarise(samples: list[dict], cap: int = REC_CAP) -> dict:
     AND the interval that follows it, because a saturated reply tells you the buffer was full at some
     unknown earlier moment — its records did not all arrive in that interval. Both are reported: if
     they disagree, the saturated ones are the reason, and that disagreement is the finding."""
-    with_recs = [s for s in samples if (s["count"] or 0) > 0]
+    # ∅ ABSENCE-SURVEY 0d996418bc7c: `parse_counts` returns count None for a reply too short to carry the
+    # header — a DIFFERENT fact from a reply declaring zero, which `(count or 0)` merged. Truncated replies
+    # are counted on their own and never enter the record sums.
+    truncated = [s for s in samples if s["count"] is None]
+    with_recs = [s for s in samples if s["count"] is not None and s["count"] > 0]
     sat = [s for s in with_recs if s["count"] >= cap]
     out = {
         "replies": len(samples),
+        "replies_truncated": len(truncated),
         "replies_with_records": len(with_recs),
         "saturated_replies": len(sat),
         "saturated_fraction": round(len(sat) / len(with_recs), 4) if with_recs else None,
         "cap": cap,
-        "total_records": sum(s["count"] or 0 for s in with_recs),
+        "total_records": sum(s["count"] for s in with_recs),
         "rate_all_hz": None,
         "rate_unsaturated_hz": None,
         "span_s": None,
@@ -181,6 +186,7 @@ def verdict_object(s: dict) -> dict:
     tool = "capture-host/probe_oxyii_0x03.py"
     keep = (
         "replies",
+        "replies_truncated",
         "replies_with_records",
         "saturated_replies",
         "saturated_fraction",
@@ -201,7 +207,12 @@ def verdict_object(s: dict) -> dict:
             result=result,
             evidence=ev,
             tool=tool,
-            reason="the ring returned no 0x03 records — an empty reply and a wrong request "
+            reason=(
+                f"{s['replies_truncated']} of {s['replies']} replies were too short to carry the 0x03 header — "
+                "malformed replies, not an empty ring, so nothing was decided"
+            )
+            if s.get("replies_truncated")
+            else "the ring returned no 0x03 records — an empty reply and a wrong request "
             "argument are indistinguishable, so nothing was decided",
         )
     if r is None:

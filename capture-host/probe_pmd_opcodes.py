@@ -111,7 +111,17 @@ async def snapshot(cp) -> dict:
 
 
 def diff(a: dict, b: dict) -> dict:
-    return {k: {"before": a.get(k), "after": b.get(k)} for k in a if a.get(k) != b.get(k)}
+    """Keys whose state moved — and keys whose state was NOT READ on either side.
+
+    ∅ ABSENCE-SURVEY dc5cad86b260: `snapshot` records a timed-out read as None, and `None != None` is
+    False, so two unread reads compared as "unchanged" and `net_state_change` published "none" over keys
+    nobody read. An unread key is reported (`unread: True`), which also trips the sweep's abort gate: a
+    sweep that cannot read the state cannot claim an undocumented write left it alone."""
+    return {
+        k: {"before": a.get(k), "after": b.get(k), **({"unread": True} if a.get(k) is None or b.get(k) is None else {})}
+        for k in a
+        if a.get(k) is None or b.get(k) is None or a.get(k) != b.get(k)
+    }
 
 
 async def run(address, adapter, lo, hi, include_dangerous, dry_run) -> dict:
