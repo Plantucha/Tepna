@@ -172,24 +172,36 @@ _PREV_PROBE_SEC = 12 * 3600.0
 # `searched_dirs` spans both folders (QC-SCOPE-RESOLUTION-2026-07-28); all three judged sessions above
 # cross midnight correctly. What remains is day-vs-night INSIDE one contiguous session.
 #
-# 20:00 -> 10:00 deliberately WIDE. Measured over 28 nights (HRVDEX-ALL-NIGHT-SCOPE-2026-07-20): 27
-# started 21:00-23:00 and one started at 01:06, and a `getUTCHours() < 10` "morning only" rule kept 1 of
-# 28. A band fitted to the mode drops the outlier night entirely, which is the failure this inherits
-# rather than repeats. 14 h is longer than anyone sleeps ON PURPOSE — it bounds where a night may fall,
-# it does not claim the subject was in bed for it.
-_NIGHT_BEGIN_H = 20
+# 18:00 -> 10:00 deliberately WIDE. The upper edge was measured over 28 nights
+# (HRVDEX-ALL-NIGHT-SCOPE-2026-07-20): 27 started 21:00-23:00 and one started at 01:06, and a
+# `getUTCHours() < 10` "morning only" rule kept 1 of 28. A band fitted to the mode drops the outlier
+# night entirely, which is the failure this inherits rather than repeats. 16 h is longer than anyone
+# sleeps ON PURPOSE — it bounds where a night may fall, it does not claim the subject was in bed for it.
+#
+# 🔴 THE LOWER EDGE WAS MOVED 20 -> 18 BY OWNER RULING ON 2026-10-05, NOT BY A REFIT. "The recording
+# defines the night", and a recording begins at the first donning after 18:00; the 28-night measurement
+# above never bore on this edge, since every one of those nights began at 21:00 or later (and one at
+# 01:06). Recorded as a ruling so a later reader does not mistake it for a measured result and
+# "correct" it back.
+# ⚠️ AND IT IS NOT A NO-OP, measured before the edit over the vigil mirror (73 nights, 4060 distinct
+# sessions): 437 sessions start in [18:00, 20:00) — the ONLY window this constant can reassign — and
+# they sit in 50 of the 73 nights. Under 20 a 18:30 donning anchored to the PREVIOUS evening's band, a
+# band that does not even contain it (the [10:00, begin) hours fall in no band that contains them);
+# under 18 it anchors to the evening it started in, which is what the ruling asks for. The 23 nights
+# with no 18:00-19:59 session are unchanged by construction.
+_NIGHT_BEGIN_H = 18
 _NIGHT_END_H = 10
 
 
 def night_band(ts: float) -> tuple:
     """The [begin, end) night band containing `ts`, as epochs.
 
-    Anchored on the EVENING date: a stamp at or after 20:00 belongs to the band starting that evening, a
-    stamp before it belongs to the previous evening's. So 02:42 and 22:30 either side of one midnight
-    land in the SAME band, which is the whole point.
+    Anchored on the EVENING date: a stamp at or after `_NIGHT_BEGIN_H` belongs to the band starting that
+    evening, a stamp before it belongs to the previous evening's. So 02:42 and 22:30 either side of one
+    midnight land in the SAME band, which is the whole point.
 
     ⚠️ Naive local arithmetic, matching `_midnight_of` — an hour off on the two DST changeover days a
-    year. Bounded and benign for a band this wide; a 14 h window does not care about one hour.
+    year. Bounded and benign for a band this wide; a 16 h window does not care about one hour.
     """
     d = datetime.fromtimestamp(ts)
     anchor = d.date() if d.hour >= _NIGHT_BEGIN_H else (d - timedelta(days=1)).date()
