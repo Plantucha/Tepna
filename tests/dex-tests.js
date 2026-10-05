@@ -30126,6 +30126,36 @@
       T.eq('…while a 7-night window of 97 with ONE absent night averaged 83.1, not 97', +((97 * 6) / 7).toFixed(1), 83.1);
     });
 
+    group('OxyDex B1 · an unread motion cell and a synthesised gap span are not readings', 'oxydex-dsp · parse · absence', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeDataGaps === 'function')) {
+        T.skip('OxyDex._bare.parseCSV / computeDataGaps exposed', 'not on the bare surface');
+        return;
+      }
+      // 1a3cd7699ce2 — `parseInt('') || 0` read an empty or unparseable cell as motion 0, i.e. "still"
+      var csv = 'Time,Oxygen Level,Pulse Rate,Motion\n' + '20:21:36 13/08/2026,96,52,0\n' + '20:21:37 13/08/2026,95,53,\n' + '20:21:38 13/08/2026,95,53,x\n' + '20:21:39 13/08/2026,94,54,3\n';
+      var rows = OB.parseCSV(csv, { fname: 'x_SPO2.csv' });
+      T.eq('B1 · four rows parsed', rows.length, 4);
+      T.eq(
+        'B1 · motion is 0 / null / null / 3 — a written 0 stays 0, an empty or unparseable cell is null',
+        rows
+          .map(function (r) {
+            return r.motion === null ? 'null' : String(r.motion);
+          })
+          .join(','),
+        '0,null,null,3'
+      );
+      // 4fc9554e37da — with no wall-clock span the gap percentage rests on an ASSUMED 1 Hz, and says so
+      var stamped = OB.computeDataGaps(rows);
+      T.eq('B1 · a stamped night carries no span-source label (its output is unchanged)', 'gapSpanSource' in stamped, false);
+      var unstamped = OB.computeDataGaps(
+        rows.map(function (r) {
+          return Object.assign({}, r, { t: null });
+        })
+      );
+      T.eq('B1 · a stampless night names its span as assumed', unstamped.gapSpanSource, 'assumed-1Hz');
+    });
+
     group('OxyDex parseJSONL round-trips every field, and tells ABSENT from ZERO', 'oxydex-dsp · parse · known-answer · mutation-pinned', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseJSONL === 'function')) {
@@ -30423,13 +30453,43 @@
       T.eq('…minHr too', mn && mn.stats.minHr, 44);
       T.eq('…and t0Ms still comes from stats.startTs', mn && mn.t0Ms, 1780356420000);
       T.eq('…spikes on a bare record is an empty list, not null', mn && mn.spikes && mn.spikes.length, 0);
-      /* osc does NOT default to null like hrv — it gets a zero-shaped object. Asserting the real
-         default rather than the one symmetry suggested; the difference is the point of checking. */
-      T.eq('…osc defaults to a ZERO-SHAPED object, unlike hrv', mn && mn.osc && mn.osc.episodeCount, 0);
-      T.eq('…with an empty windows list', mn && mn.osc && mn.osc.windows.length, 0);
+      /* osc is NULL when absent, like hrv and odi4 (ABSENCE-SURVEY e012278db97c). It used to default to a
+         zero-shaped object — "the detector ran and found 0 episodes" — from an export carrying no evidence
+         the detector ran at all; oxyBuildNightElement re-exported that as a clean night. The old expectation
+         here pinned that, the same way the odi4 one above did. Every reader guards with `n.osc`. */
+      T.eq('…osc is NULL when absent — a zero-filled block reads as a clean night', mn && mn.osc, null);
       T.eq('…hb is null', mn && mn.hb, null);
       T.eq('…comp is null', mn && mn.comp, null);
       T.eq('…and a spread newMetrics key is absent rather than 0', mn && mn.vo2est, null);
+
+      // ── ABSENCE-SURVEY group B1: what the importer and the CSV parser used to turn into 0 ──────────
+      var clone = function (o) {
+        return JSON.parse(JSON.stringify(o));
+      };
+      // 0e9b40d1425a — the stats block's three `|| 0` holdouts
+      var r1 = clone(REC);
+      delete r1.stats.n;
+      delete r1.stats.artifactHrCleaned;
+      delete r1.stats.artifactSpikesRemoved;
+      var m1 = one(r1);
+      T.eq('B1 · an absent sample count is null, not 0', m1 && m1.stats.n, null);
+      T.eq('B1 · absent artifact counts are null, not 0', m1 && [m1.stats.artifactHrCleaned, m1.stats.artifactSpikesRemoved].join(','), ',');
+      // 483e784c9219 — no sample count and no duration: no basis, never `secs: 0` labelled a wall duration
+      var r2 = clone(REC);
+      delete r2.research;
+      delete r2.stats.n;
+      delete r2.stats.durationMin;
+      var m2 = one(r2);
+      T.eq('B1 · T95 seconds are null when nothing gives a basis', m2 && m2.tIdx && m2.tIdx[95] && m2.tIdx[95].secs, null);
+      T.eq('B1 · …and no basis is named', m2 && m2.tIdx && m2.tIdx.tIdxBasis, null);
+      // 773f10412ae2 — a detail-less spike is skippable (null), and an unparseable time is not minute 0
+      var r3 = clone(REC);
+      r3.hr_spikes = { events: [{ time: 'not-a-time', peak: 91 }] };
+      var m3 = one(r3);
+      var sp3 = m3 && m3.spikes && m3.spikes[0];
+      T.eq('B1 · an absent spike baseline is null, not a 0 bpm baseline', sp3 && sp3.baseline, null);
+      T.eq('B1 · …a present peak survives', sp3 && sp3.peak, 91);
+      T.eq('B1 · …and an unparseable time gives no minute, not minute 0', sp3 && sp3.mfm, null);
     });
 
     group('OxyDex sanity filter drops out-of-range rows, one axis at a time (mutate.mjs survivor)', 'oxydex-dsp · parse · known-answer', function (T) {
