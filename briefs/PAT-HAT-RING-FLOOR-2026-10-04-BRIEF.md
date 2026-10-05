@@ -45,7 +45,38 @@ path**; the ring needs its own key, and E11 wrote exactly the one it needs.
 | counter | what it is | may it anchor? |
 |---|---|---|
 | `_PPG.txt`'s `sensor timestamp [ns]` column | the HOST-SYNTHESIZED 125.000 Hz grid (`O2PpgGrid`), anchored on the session `t0`, with honest gaps inserted from ELAPSED HOST TIME (`capture.py:954` — *"grid position of the NEXT sample — counts inserted gaps, not just arrivals"*) | **NO.** It is derived from the host clock, so a floor taken against it measures partly its own construction. Clock Contract §7: a stream whose inter-sample deltas are ≥99 % one value was DRAWN and is never a clock — this grid is 8.000 ms by construction. |
-| the sidecar's `first_sample_idx` | the RING's own cumulative stream position (`oxyii.ppg_stream_offset`, `[20:24]` u32 LE), as the device reports it | **YES.** It is the device's own counter, which is what an arrival floor requires on the device side. |
+| the sidecar's `first_sample_idx` | the RING's own cumulative stream position (`oxyii.ppg_stream_offset`, `[20:24]` u32 LE), as the device reports it | **IN PRINCIPLE YES — IN FACT THE FIELD IS DEAD ON THIS RING.** See the correction below. |
+
+### 🔴 CORRECTION, 2026-10-04 evening: the field this brief anchors on is device-dead
+
+Measured after this brief was written (Wren, two independent witnesses; I confirmed the second myself):
+**`ppg_stream_offset` is ZERO on every frame this ring has ever sent.** 819 `*_OXYFRAME.txt` files from
+2026-07-25 to 2026-10-04 carry no nonzero `ppg_offset` row, and the committed real frame
+`tests/test_oxyii.py::_REAL_PPG_FRAME` reads `[20:24] = 00000000` while its `[0:4]` duration says
+**10,719 s** — a frame three hours into a session reporting position zero. The firmware never fills the
+vendor's field.
+
+**What this does NOT mean.** No wrong floor was ever produced. Measured on all-zero rows, both halves
+already refused: `ringDevColumn` returned *"positions overlap or go backwards at frame 1 (0 after 126)"*
+and `floorMap` returned *"0 usable 10-min floor window(s) … refused as smeared, median spread 6000.0 ms"*.
+The design's refusals held; what they lacked was a reason a reader could act on, since both describe a
+corrupt capture rather than a permanent property of the device.
+
+**What it does mean.** The finger leg is **absent on this ring, structurally**, until some other device
+position exists. `ring-offset-never-advances` now says so by name, keyed on NON-ADVANCE rather than on
+the value 0 — because `ppg_stream_offset`'s own docstring records that *"0 is a real offset — it is what
+the first frame of a session reports"*, so a value-keyed detector would refuse a legitimate first frame,
+and §∅ says to detect by the stream's own behaviour and not by value membership.
+
+**And `126 × frames` is NOT a substitute.** `O2RING-PROTOCOL` §3b measured N = 126 samples per status
+frame as a lock, where `126 × frames − samples` gives the exact dropped count. That works as a LOSS
+measure because it compares two host-side quantities to find drops *inside delivered frames*. As a floor
+anchor it is a host-maintained sum in disguise: there is no device-side frame counter — we count replies
+RECEIVED — so a frame lost in transit makes the product under-count by exactly 126, which is precisely
+the dropout an arrival floor exists to expose. A position that cannot see a dropout cannot anchor a floor.
+
+**Acceptance item (b) of RING-POLL-SPLIT is therefore blocked on the same probe**: with `0x04`'s offset
+dead, the 0x03 header probe (P1) is the only remaining candidate for a device position on this ring.
 
 So the finger leg's device axis is `first_sample_idx / O2PPG_FS`, and the per-frame floor is
 `arrival − (first_sample_idx + n_samples − 1) / O2PPG_FS` — keyed on the frame's LAST sample for the same
