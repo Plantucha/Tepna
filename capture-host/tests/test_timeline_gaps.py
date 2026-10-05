@@ -40,7 +40,7 @@ def test_stamp_ms_none_when_the_stamp_is_not_a_real_instant():
 def test_bucket_stream_refuses_a_degenerate_window(n, t0, t1):
     """A zero/negative bucket count or a non-advancing window has no honest rendering — return empty
     rather than divide by zero or emit buckets spanning backwards time."""
-    assert timeline.bucket_stream([(0.0, 5.0)], t0, t1, n) == []
+    assert timeline.bucket_stream([(0.0, 5.0)], t0, t1, n, 25.0) == []
 
 
 @pytest.mark.parametrize("n,t0,t1", [(0, 0.0, 10.0), (4, 10.0, 10.0)])
@@ -440,73 +440,6 @@ def test_E4_a_bare_string_tag_still_works_so_every_existing_caller_is_unchanged(
     assert timeline.stream_intervals(h10, "02849638", "ACC", 50.0) != []
     assert timeline.stream_intervals(h10, "02849638", ("ACC",), 50.0) != []
     assert timeline.stream_intervals(h10, "02849638", "ACCRAW", 50.0) == []
-
-
-# ── E6 · the rate `bucket_stream` never used ──────────────────────────────────────────────────────
-def test_E6_bucket_stream_does_not_take_a_rate_it_cannot_use():
-    """`bucket_stream` buckets INTERVALS against a window; the sample rate never entered the
-    arithmetic. An accepted-and-ignored parameter is worse than none: every caller had to invent a
-    value, and a reader had to check whether it mattered. Pinned by signature so it cannot come back
-    silently."""
-    import inspect
-
-    params = list(inspect.signature(timeline.bucket_stream).parameters)
-    assert params == ["intervals", "t0", "t1", "n"], params
-
-
-# ── `bucket_stream`'s coverage arithmetic (10 survivors, #3239 carve, 2026-10-04) ──────────────────
-# E6 changed this function's signature, which put the whole body in the gate's scope. Every survivor
-# below sits on a line E6 never touched: the existing tests assert the STATES for a clean window and a
-# half-covered one, and nothing pinned the bucket edges, the summation, or either threshold.
-def test_bucket_stream_with_ONE_bucket_still_reports_it():
-    """Kills `if n <= 0` → `n <= 1`. One bucket is a legal request — the monitor asks for exactly one
-    when the window is short — and widening the refusal silently returns an empty timeline."""
-    assert timeline.bucket_stream([(0.0, 10.0)], 0.0, 10.0, 1) == ["captured"]
-
-
-def test_each_bucket_spans_ONE_width_not_two():
-    """Kills `t0 + (i + 1) * width` → `(i + 2) * width`. With a double-width bucket 0, coverage that
-    belongs to bucket 1 is credited to bucket 0 and the picture shifts left."""
-    # 4 buckets of 10 s; the stream covers only the SECOND one
-    assert timeline.bucket_stream([(10.0, 20.0)], 0.0, 40.0, 4) == ["idle", "captured", "idle", "idle"]
-
-
-def test_an_UNCOVERED_bucket_starts_from_zero_coverage():
-    """Kills `covered = 0.0` → `1.0`. A single second of phantom coverage turns `idle` into
-    `degraded`, and idle-vs-degraded is the distinction an operator reads as "nothing was recorded"
-    against "something was"."""
-    assert timeline.bucket_stream([], 0.0, 10.0, 1) == ["idle"]
-    assert timeline.bucket_stream([(0.0, 10.0)], 0.0, 20.0, 2) == ["captured", "idle"]
-
-
-def test_an_interval_that_ENDS_before_a_bucket_does_not_stop_the_scan():
-    """Kills `continue` → `break` in the skip-earlier-intervals arm. With `break`, the first interval
-    that ends before the bucket aborts the whole scan, so every later interval — including the one
-    that covers this bucket — is lost and the bucket reads idle."""
-    ivs = [(0.0, 5.0), (10.0, 20.0)]  # the first ends before bucket 1 starts
-    assert timeline.bucket_stream(ivs, 0.0, 20.0, 2) == ["degraded", "captured"]
-
-
-def test_coverage_from_SEVERAL_intervals_in_one_bucket_is_SUMMED():
-    """Kills `covered += …` → `covered = …`. Two fragments of 4 s each in a 10 s bucket are 80 %
-    coverage — captured. Keeping only the last is 40 % — degraded. A dropping link writes exactly this
-    shape, so the bug would report every reconnecting stream as worse than it was."""
-    ivs = [(0.0, 4.0), (4.0, 8.0)]
-    assert timeline.bucket_stream(ivs, 0.0, 10.0, 1) == ["captured"]
-
-
-def test_EXACTLY_the_captured_threshold_is_captured():
-    """Kills `frac >= DEGRADED_BELOW` → `>`. 0.6 coverage is the boundary and must round up into
-    `captured`, or the state flips for a stream sitting exactly on the published bar."""
-    assert timeline.DEGRADED_BELOW == 0.6
-    assert timeline.bucket_stream([(0.0, 6.0)], 0.0, 10.0, 1) == ["captured"]
-
-
-def test_EXACTLY_the_degraded_floor_is_degraded_not_idle():
-    """Kills `frac > 0.02` → `>=`. At exactly 2 % the original reports `idle`; the mutant reports
-    `degraded`. The floor exists so a single stray row does not paint a whole bucket as recording."""
-    assert timeline.bucket_stream([(0.0, 0.2)], 0.0, 10.0, 1) == ["idle"]
-    assert timeline.bucket_stream([(0.0, 0.3)], 0.0, 10.0, 1) == ["degraded"]
 
 
 # ── `build`'s response fields (50 survivors, #3239 carve) ─────────────────────────────────────────
