@@ -148,6 +148,35 @@ def _start(iv):
     return iv[0][0]
 
 
+def test_placed_accepts_a_TAG_SET_so_one_stream_can_arrive_under_TWO_file_tags():
+    """`_placed` is the one place the file tag is compared, so it is the one place that has to accept
+    a SET of them. One configured stream can legitimately be written under more than one tag — `acc`
+    arrives as `_ACC.` from the H10 and `_ACCRAW.` from the ring — and `nightqc.stream_file_tags`
+    already owns that mapping and its reasoning (a UNION, because no device writes both: 38 `_ACCRAW.`
+    against 2 `_ACC.` on the 2026-09-05 corpus, disjoint by device).
+
+    Measured 2026-09-28, which is why this is not a tidy-up: the ring's 10,137,042-byte `_ACCRAW.txt`
+    matched nothing here and its whole night was painted `idle` — the one state that reads as a
+    FINDING rather than a miss.
+
+    ⚠️ Called DIRECTLY rather than through `stream_intervals`, deliberately. The callers' annotations
+    still say `tag: str`, so a tuple passed through one of them would red mypy before this capability
+    is in place. That is also why this lands first: on `origin/main`'s `_placed`, `f["stream"] != tag`
+    against a tuple is true for EVERY file, so a caller that hands one over skips the whole night —
+    measured, the bare string places the ring's file and the tuple returns nothing. The capability has
+    to exist before anything passes one.
+
+    The four assertions pin the set in both directions: a tuple containing the tag places the file, a
+    bare string still behaves exactly as before, a non-matching bare string still discriminates, and a
+    tuple that EXCLUDES the tag still excludes it — which is what stops `set(tag)` on a string (whose
+    members would be the letters) and `not in` → `in` from passing."""
+    ring = [_f("Polar_VeritySense_0C301E3F_20260928213651_ACCRAW.txt", 900, stream="ACCRAW", span_sec=60.0)]
+    assert list(timeline._placed(ring, "0C301E3F", ("ACC", "ACCRAW"), 50.0)), "a tag SET must place it"
+    assert list(timeline._placed(ring, "0C301E3F", "ACCRAW", 50.0)), "a bare string must be unchanged"
+    assert list(timeline._placed(ring, "0C301E3F", "ACC", 50.0)) == [], "a bare non-match still excludes"
+    assert list(timeline._placed(ring, "0C301E3F", ("ACC",), 50.0)) == [], "a SET without the tag excludes"
+
+
 def test_a_dropping_stream_is_measured_by_its_OWN_host_stamps_not_by_received_samples():
     """2026-09-28: the Verity ACC ran to 04:20:39 and the bar stopped at ~03:52 — 28 min of real
     recording painted as nothing. `rows / fs` measures RECEIVED SAMPLES, so a link that drops packets
@@ -292,8 +321,12 @@ _TL_DURATION_KEYS = [{}, {"span_sec": 60.0}, {"host_span_sec": 3600.0}, {"span_s
 # (anchor, replacement, why it is killable, the committed test that kills it)
 _TL_CANARIES = [
     (
-        'if f["stream"] != tag or not ids',
-        'if f["stream"] == tag or not ids',
+        # ⚠️ RE-ANCHORED 2026-10-05 when `_placed` began accepting a tag SET: the line is now
+        # `not in want`, so the old `!= tag` anchor matched 0 times and `_tl_variant`'s
+        # `count(before) == 1` failed the battery loudly rather than silently canarying nothing.
+        # That assert is the reason this was a red test and not a quiet downgrade — keep it.
+        'if f["stream"] not in want or not ids',
+        'if f["stream"] in want or not ids',
         "stream tag filter inverted",
         "test_a_dropping_stream_is_measured_by_its_OWN_host_stamps_not_by_received_samples",
     ),

@@ -316,6 +316,18 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None
                         # The verification snapshot is INSIDE the guard too — a link that dies while
                         # confirming an op's effect must not cost the ops already mapped.
                         after = await snapshot(r)
+                        if after is None:
+                            # ∅ ABSENCE-SURVEY 7214c8dc2397: no live frame came back, and `_changed` read that
+                            # as "no byte moved" — a clean verdict for an op whose effect nobody saw. It is
+                            # UNVERIFIED, and the sweep stops: poking further past an unobserved effect is the
+                            # one thing this probe exists not to do.
+                            res[f"{op:#04x}"]["effect"] = "UNVERIFIED — no live frame came back after the op"
+                            out["aborted_at"] = f"{op:#04x}"
+                            out["abort_reason"] = (
+                                "the verification snapshot was not answered, so this op's effect is "
+                                "unknown — stopping rather than poking further"
+                            )
+                            break
                         moved = _changed(base_frame, after, stable)
                         if moved:
                             # ADJUDICATE BEFORE CONVICTING. The null lasts ~10 s; the sweep lasts
