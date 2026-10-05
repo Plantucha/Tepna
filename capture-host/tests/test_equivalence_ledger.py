@@ -89,6 +89,10 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # sized by Codex — the 1 MiB buffer, the /dev/full flush log, the gyro seam seed, an unknown stream resuming — each
 # verified by applying the mutant), 16 recorded here with a 29-session original-vs-mutant battery. ⚠️ That battery
 # compares FINAL bytes, so it called the buffer-size mutants identical; they differ only BEFORE the first flush.
+# 2026-10-04 (absence drain 4a): cpap_edf_writer.py 4 -> 6 (three EdfSink.__init__ initial values
+# read only by truthiness, never before assignment, or never at all — one key was already present); cpap_live.py ENTERS at
+# 1 and o2ring.py at 3 (detector_age_s `or`->`and` falls into the same except; pull_session's
+# default offset and two loop-boundary variants, on a 224-pull battery that REFUTED a fourth claim, now a test).
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
@@ -96,7 +100,8 @@ RATCHET = {
     "bonding.py": 4,
     "clock.js": 3,
     "cpap_edf.py": 1,
-    "cpap_edf_writer.py": 4,
+    "cpap_edf_writer.py": 6,
+    "cpap_live.py": 1,
     "cpap_record.py": 2,
     "cpap_spool.py": 3,
     "cpap_stream.py": 2,
@@ -117,6 +122,7 @@ RATCHET = {
     "nights_index.py": 9,
     "oxy_inventory.py": 6,
     "oxy_transfer.py": 5,
+    "o2ring.py": 3,
     "oxyii.py": 3,
     "ppg_grid_check.py": 2,
     "ppgdex-dsp.js": 130,

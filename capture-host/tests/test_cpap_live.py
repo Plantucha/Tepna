@@ -29,7 +29,10 @@ def test_age_is_computed_from_ONE_clock_domain_and_never_reads_from_the_future()
     """Both operands are the box's own clock; a browser aging a foreign stamp subtracts two clocks.
     A clock step between publish and serve yields 0, not a negative duration."""
     assert L.detector_age_s(100_000, 40_000) == 60.0
-    assert L.detector_age_s(100_000, 140_000) == 0.0  # stamp from the "future" -> 0, not -40
+    # A stamp from the "future" (a clock step between publish and serve) is an age NOBODY can state —
+    # None, not 0: 0 read as "published this instant" and showed the reading as fresh (3326a41788d9).
+    assert L.detector_age_s(100_000, 140_000) is None
+    assert L.detector_age_s(100_000, 100_000) == 0.0  # the boundary: a reading of THIS instant is age 0
     assert L.detector_age_s(100_000, None) is None
     assert L.detector_age_s(None, 40_000) is None
     assert L.detector_age_s(100_000, "nope") is None
