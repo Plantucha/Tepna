@@ -433,3 +433,38 @@ def test_the_discard_guard_is_unkillable_and_the_battery_can_PROVE_it():
 
     n = _tl_differences(base, _tl_observe(_tl_variant(*_TL_CANDIDATE)))
     assert n == 0, f"{_TL_CANDIDATE[0]} -> {_TL_CANDIDATE[1]} IS killable ({n} of {len(base)}) — the entry is wrong"
+
+
+# ── E4 · the ring's ACCRAW, carved out of #3239 ───────────────────────────────────────────────────
+def test_E4_the_rings_ACCRAW_is_FOUND_under_the_acc_stream():
+    """2026-09-28: the ring's 10,137,042-byte `_ACCRAW.txt` matched nothing and its whole night was
+    painted `idle` — the one state that reads as a FINDING rather than a miss. `timeline` compared the
+    file tag against `s.upper()` alone; `nightqc.stream_file_tags('acc')` has always returned BOTH."""
+    import nightqc
+
+    tags = nightqc.stream_file_tags("acc")
+    assert "ACCRAW" in tags and "ACC" in tags, tags
+    ring = [_f("Polar_VeritySense_0C301E3F_20260928213651_ACCRAW.txt", 900, stream="ACCRAW", span_sec=60.0)]
+    assert timeline.stream_intervals(ring, "0C301E3F", tags, 50.0) != [], "the ring's file must be placed"
+    assert timeline.stream_intervals(ring, "0C301E3F", "ACC", 50.0) == [], "…and the single-tag call is what missed it"
+
+
+def test_E4_accepting_both_tags_cannot_let_one_device_cover_for_another():
+    """The UNION is safe only because the id filter is independent of the tag — asserted, not assumed,
+    since that is the whole reason nightqc could make it a union rather than a per-device mapping."""
+    import nightqc
+
+    mixed = [
+        _f("Polar_VeritySense_0C301E3F_20260928213651_ACCRAW.txt", 900, stream="ACCRAW", span_sec=60.0),
+        _f("Polar_H10_02849638_20260928213612_ACC.txt", 900, stream="ACC", span_sec=60.0),
+    ]
+    only_ring = timeline.stream_intervals(mixed, "0C301E3F", nightqc.stream_file_tags("acc"), 50.0)
+    assert len(only_ring) == 1, "the other device's file is excluded by ID, not by tag"
+
+
+def test_E4_a_bare_string_tag_still_works_so_every_existing_caller_is_unchanged():
+    """The parameter widened; it did not change. A single tag is still a single tag."""
+    h10 = [_f("Polar_H10_02849638_20260928213612_ACC.txt", 900, stream="ACC", span_sec=60.0)]
+    assert timeline.stream_intervals(h10, "02849638", "ACC", 50.0) != []
+    assert timeline.stream_intervals(h10, "02849638", ("ACC",), 50.0) != []
+    assert timeline.stream_intervals(h10, "02849638", "ACCRAW", 50.0) == []
