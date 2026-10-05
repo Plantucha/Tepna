@@ -64970,6 +64970,66 @@
       }
     });
 
+    group('OxyDex profile · an unentered setting or unmeasured term is not a number', 'oxydex-profile · absence', function (T) {
+      var R = env.oxyProfileRealm;
+      if (!R || typeof env.OxyRecomputeFromProfile !== 'function') {
+        T.skip('oxydex-profile co-loaded with its realm accessor', 'not in this lane');
+        return;
+      }
+      var saved = { UP: R.get('UP'), allNights: R.get('allNights'), _upHRrest: R.get('_upHRrest') };
+      try {
+        // 643c0167154c — an empty elevation field is not entered, never sea level (headless gv() returns '')
+        env.OxyUpFromDOM();
+        T.eq('profile · an empty elevation field ⇒ null, not 0 m', R.get('UP').elevation, null);
+        // e294b096e810 — no RMSSD ⇒ no adjustment term (null), and the estimate is the Uth–Sørensen base alone
+        R.set('UP', { age: 40 });
+        var night = { hrv: { hrFloor: 55 }, stats: {} };
+        R.set('allNights', { a: night });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · no RMSSD ⇒ rmssdAdj null, not a measured-looking 0', night.vo2est && night.vo2est.rmssdAdj, null);
+        T.eq('profile · …and vo2est is the base alone: 15.3 × 180 / 55 = 50.1', night.vo2est && night.vo2est.vo2est, 50.1);
+        var night0 = { hrv: { hrFloor: 55, rmssd: 1.4 }, stats: {} };
+        R.set('allNights', { a: night0 });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · CONTROL · RMSSD 1.4 ⇒ a MEASURED 0 adjustment', night0.vo2est && night0.vo2est.rmssdAdj, 0);
+        // 7e34d2b1ab62 — one resting-HR source decision; an estimate is marked on the chips
+        var RH = env.OxyRestingHR,
+          ZC = env.OxyZoneChipText;
+        T.ok('profile · the resting-HR source and chip-text seams exist (none existed: the chips wrote straight to the DOM)', typeof RH === 'function' && typeof ZC === 'function');
+        if (typeof RH === 'function' && typeof ZC === 'function') {
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83); // detected p5 + 8 above the zones' 80 bound
+          T.eq('profile · a detected 83 bpm is refused by the zones ⇒ source "estimate", 71 − 0.25 × 40 = 61', JSON.stringify(RH()), '{"hrRest":61,"source":"estimate"}');
+          R.set('_upHRrest', 62);
+          T.eq('profile · CONTROL · a detected 62 ⇒ source "data"', JSON.stringify(RH()), '{"hrRest":62,"source":"data"}');
+          R.set('UP', { age: 40, hrRestOverride: 58 });
+          T.eq('profile · CONTROL · a manual 58 wins ⇒ source "manual"', JSON.stringify(RH()), '{"hrRest":58,"source":"manual"}');
+          R.set('UP', { age: 40, hrRestOverride: 100 });
+          T.eq('profile · a manual 100 is out of range (< 100 is strict) ⇒ not manual', RH().source, 'data');
+          R.set('_upHRrest', 80);
+          T.eq('profile · a detected 80 is out of range (< 80 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('_upHRrest', 30);
+          T.eq('profile · a detected 30 is out of range (> 30 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('UP', { age: 40, hrRestOverride: 30 });
+          T.eq('profile · a manual 30 is out of range (> 30 is strict) ⇒ not manual', RH().source, 'estimate');
+          R.set('UP', { hrRestOverride: 0 });
+          R.set('_upHRrest', null);
+          T.eq('profile · no age ⇒ the 49 the rest of the file assumes ⇒ 71 − 12.25 = 59', RH().hrRest, 59);
+          R.set('UP', { age: 400 });
+          T.eq('profile · the estimate is clamped at 45', RH().hrRest, 45);
+          R.set('UP', { age: -100 });
+          T.eq('profile · …and at 80', RH().hrRest, 80);
+          T.eq('profile · an estimated zone is marked ≈', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, true), '≈ 120–140 bpm');
+          T.eq('profile · CONTROL · a measured zone is not', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, false), '120–140 bpm');
+          T.eq('profile · the top zone runs to HRmax+', ZC({ low: 160, high: 180 }, { lo: 0.9 }, 180, false), '160–180+ bpm');
+        }
+      } finally {
+        R.set('UP', saved.UP);
+        R.set('allNights', saved.allNights);
+        R.set('_upHRrest', saved._upHRrest);
+      }
+    });
+
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
       var O = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
       var K = O && O.computeKarvonenZones;

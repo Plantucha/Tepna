@@ -115,7 +115,9 @@ function upFromDOM() {
   var vo2 = parseFloat(gv('profVO2')) || 0;
   var hrm = parseInt(gv('profHRmax'), 10) || 0;
   var hrr = parseInt(gv('profHRrest'), 10) || 0;
-  var elv = parseInt(gv('profElevation'), 10) || 0;
+  // ∅ an empty elevation is NOT ENTERED (null), never sea level — upLoad and upToDOM already keep it null
+  var _elv = parseInt(gv('profElevation'), 10);
+  var elv = isFinite(_elv) ? _elv : null;
   var cpap = gv('profCPAP') || 'no';
   UP = { age: age, sex: sex, weight: wt, height: ht, sbp: sbp, dbp: dbp, vo2GT: vo2, hrmaxOverride: hrm, hrRestOverride: hrr, elevation: elv, cpap: cpap };
 }
@@ -273,6 +275,19 @@ function upKarvonenZone(lo, hi, hrRest, hrMax) {
   return { low: Math.round(hrr * lo + hrRest), high: Math.round(hrr * hi + hrRest) };
 }
 
+/* ∅ The resting HR the Karvonen zones use, and WHERE it came from: a manual entry, the nocturnal p5 + 8 from loaded
+   nights, or the age regression. One decision, read by the zone chips AND the HRrest sublabel, so a detected value
+   outside 30–80 can no longer feed the chips the estimate while the sublabel quotes the detected figure. */
+function upRestingHR() {
+  if (UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverride < 100) return { hrRest: UP.hrRestOverride, source: 'manual' };
+  if (window._upHRrest && window._upHRrest > 30 && window._upHRrest < 80) return { hrRest: window._upHRrest, source: 'data' };
+  return { hrRest: Math.round(Math.max(45, Math.min(80, 71 - 0.25 * (UP.age || 49)))), source: 'estimate' }; // literature: ~71-0.25×age
+}
+// a zone chip's text; an ESTIMATED resting HR is marked ≈ so the bpm range never reads as measured
+function upZoneChipText(zn, z, hrm, estimated) {
+  return (estimated ? '≈ ' : '') + zn.low + '–' + (z.lo === 0.9 ? hrm + '+' : zn.high) + ' bpm';
+}
+
 function profileDerivedUpdate() {
   var hrm = upHRmax();
   var bmi = upBMI();
@@ -308,9 +323,9 @@ function profileDerivedUpdate() {
 
   // Karvonen zones — use UP.hrRest if auto-detected, else estimate
   // HRrest priority: 1) manual entry, 2) derived from user's nocturnal data, 3) age-adjusted population estimate
-  var hrRestFallback = Math.round(Math.max(45, Math.min(80, 71 - 0.25 * (UP.age || 49)))); // literature: ~71-0.25×age
-  var hrRest =
-    UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverride < 100 ? UP.hrRestOverride : window._upHRrest && window._upHRrest > 30 && window._upHRrest < 80 ? window._upHRrest : hrRestFallback;
+  var _rest = upRestingHR();
+  var hrRest = _rest.hrRest;
+  var hrRestEstimated = _rest.source === 'estimate';
   var zones = [
     { id: 'pz1', lo: 0.5, hi: 0.6, label: 'Z1' },
     { id: 'pz2', lo: 0.6, hi: 0.7, label: 'Z2' },
@@ -321,7 +336,10 @@ function profileDerivedUpdate() {
   zones.forEach(function (z) {
     var zn = upKarvonenZone(z.lo, z.hi, hrRest, hrm);
     var el = document.getElementById(z.id);
-    if (el) el.textContent = zn.low + '–' + (z.lo === 0.9 ? hrm + '+' : zn.high) + ' bpm';
+    if (el) {
+      el.textContent = upZoneChipText(zn, z, hrm, hrRestEstimated);
+      el.title = hrRestEstimated ? 'Resting HR estimated from age (71 − 0.25 × age) — enter it, or load nights, for measured zones' : '';
+    }
   });
 
   // Weight/height hint
@@ -547,6 +565,8 @@ function profileAutoDetectUpdate(allNights) {
         txt += ' · last ' + lastNightVals.hrRest + ' (p5 ' + lastNightVals.hrFloor + ' + 8)';
       }
       txt += ' · trained athletes typically 12–15 bpm lower';
+      // ∅ the zones refuse a detected value outside 30–80 and use the age estimate — say so beside the figure
+      if (upRestingHR().source === 'estimate') txt += ' · outside 30–80 bpm, so the zones use the age estimate';
       hrSub.textContent = txt;
     }
   }
@@ -602,9 +622,10 @@ function recomputeFromProfile() {
       var hrMax = UP.hrmaxOverride && UP.hrmaxOverride > 100 ? UP.hrmaxOverride : Math.round(208 - 0.7 * (UP.age || 49));
       var hrRest = UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverride < 100 ? UP.hrRestOverride : n.vo2est ? n.vo2est.hrRest : n.hrv ? n.hrv.hrFloor : null;
       if (hrRest && hrRest > 30 && hrRest < 80 && hrMax > 100) {
-        var _rmssdAdj = n.hrv && n.hrv.rmssd != null ? +Math.max(-3, Math.min(3, (n.hrv.rmssd - 1.4) * 1.05)).toFixed(1) : 0;
+        // ∅ no RMSSD ⇒ no adjustment term (null), distinguishable from a measured 0.0; the estimate is the base alone
+        var _rmssdAdj = n.hrv && n.hrv.rmssd != null ? +Math.max(-3, Math.min(3, (n.hrv.rmssd - 1.4) * 1.05)).toFixed(1) : null;
         var _newBase = +(15.3 * (hrMax / hrRest)).toFixed(1);
-        var _newVo2 = +(_newBase + _rmssdAdj).toFixed(1);
+        var _newVo2 = _rmssdAdj != null ? +(_newBase + _rmssdAdj).toFixed(1) : _newBase;
         if (!n.vo2est) n.vo2est = {};
         n.vo2est.hrRest = hrRest;
         n.vo2est.hrMax = hrMax;
