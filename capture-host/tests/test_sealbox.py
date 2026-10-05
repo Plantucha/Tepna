@@ -325,8 +325,8 @@ def test_not_run_and_unknown_shapes(tmp_path, monkeypatch):
     monkeypatch.setattr(sealbox._seal, "seal_night", half_write_then_raise)
     o = _run(tmp_path, ob, k, store, night)
     assert o["status"] == "UNKNOWN" and not os.path.exists(os.path.join(ob, "box1-2026-09-19.tepna.rev.part"))
-    # AN UNREADABLE SEAL IS AN ABSENT READING, NOT AN ABSENT SEAL — refused, never replaced. Ruling 2026-10-04
-    # (Kestrel for the owner; ABSENCE-SURVEY f5db1b76cdf4): a seal is the provenance record, captured bytes are
+    # AN UNREADABLE SEAL IS AN ABSENT READING, NOT AN ABSENT SEAL — refused, never replaced. Ruling of the owner,
+    # 2026-10-04 (ABSENCE-SURVEY f5db1b76cdf4): a seal is the provenance record, captured bytes are
     # immutable, and correction lives BESIDE the file. This used to re-seal it at revision 1 under the current
     # card key, replacing a possibly-valid signed record with no trace of it. Re-sealing is an operator action.
     final = os.path.join(ob, "box1-2026-09-19.tepna")
