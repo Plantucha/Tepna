@@ -105,6 +105,31 @@ than the PRODUCER's (`solid-night`), then read a single artefact and treated its
 that artefact. A file is a snapshot; the journal is the record. Kestrel's two-reads-disagree reasoning is
 what recovered it.
 
+## ②′ THE BAND SPLIT IT TOO — and that is the measured case for 18:00
+
+The owner ruled **"18:00 as ruled"**, and it is not a new rule: `nightqc.night_band(ts)` already exists
+with `_NIGHT_BEGIN_H = 20`, so scope (1) cites **`night_band` as the recording's definition** and the
+change is one constant, 20 → 18. `_SESSION_GAP_SEC = 3600` stays the doff threshold.
+
+**Measured, because the justification is in last night's own data: the band split the recording as well as
+the folder, and split it differently.** Last night's FIRST donning was the Verity at **19:08**:
+
+| session | `_NIGHT_BEGIN_H = 20` (today) | `= 18` (as ruled) |
+|---|---|---|
+| Verity 19:08 | band **10-03** 20:00 → 10-04 10:00 | band **10-04** 18:00 → 10-05 10:00 |
+| ring 22:00 | band **10-04** 20:00 → 10-05 10:00 | band **10-04** 18:00 → 10-05 10:00 |
+| H10 22:02 | band **10-04** 20:00 → 10-05 10:00 | band **10-04** 18:00 → 10-05 10:00 |
+
+So under the current constant **the recording's first device is assigned to the previous night** while the
+other two are assigned to this one. A third split, at a different layer from ① (folders) and independent
+of the 21-minute outage: 19:08 is after 18:00 and before 20:00, so the band boundary falls INSIDE the
+recording.
+
+Under 18:00 all three land in one band. **This is the arithmetic that makes 18:00 the right constant, and
+it is last night's rather than a hypothetical** — which also names the control: any night whose first
+donning fell in 18:00–20:00 is mis-banded the same way today, and the 28-night refit must show those
+re-banded and no others moved.
+
 ## ③ 🔴 The folder boundary was already proposed and rejected, with named failure modes
 
 `capture-host/writers.py:766`, section **"WHY NOT MOVE THE BOUNDARY (the noon-to-noon proposal)"**:
@@ -192,7 +217,12 @@ Dry-run first, on the rig corpus copy; **the box run is owner-authorized** and w
 - [ ] Controls: the last three nights' verdicts are **unchanged** — byte-identical where the recording did
       not straddle a boundary.
 - [ ] The superseded fragment verdict is withdrawn **with its reason recorded**, never deleted silently.
-- [ ] `briefs/RESIDUE.md` row for whichever of ⑤'s two cases the owner does not rule on now.
+- [ ] A row for whichever of ⑤'s two cases the owner does not rule on now — in a **RESIDUE-only PR**, per
+      the 2026-10-05 stopgap: main takes rows every ~30 min, so a code PR carrying one goes DIRTY on each
+      merge and loses its CI dispatch (#3277 thrashed three times in three hours; #3286 hit it today and
+      was split, #3289 carrying its rows).
+- [ ] The 28-night refit shows every night whose first donning fell in 18:00–20:00 re-banded, and no other
+      night's band moved.
 - [ ] ②(a): a judge pass over **zero nights** emits `NOT_RUN`, never `UNKNOWN` — §🧾's own distinction,
       planted so a pass that examined nothing cannot publish an undecided verdict.
 - [ ] ②(b): a judge pass that REPLACES a published verdict withdraws it with a reason; the six-UNKNOWNs
