@@ -49,13 +49,20 @@ def test_a_record_for_ANOTHER_session_is_not_matched(tmp_path):
     assert capture._cpap_autostart_load(str(tmp_path), 222.0) == (None, 0)
 
 
-def test_an_absent_or_corrupt_record_is_not_an_error(tmp_path):
+def test_an_absent_record_is_no_decision_and_a_CORRUPT_one_reads_as_STOPPED(tmp_path, caplog):
+    """Neither is an error (no raise into the loop). But they are opposite facts: NO record means nothing was
+    decided for this session; a record that EXISTS and cannot be read may hold an operator's manual stop,
+    and a restart must never overrule that — so it reads as stopped, and the warning names the file
+    (ABSENCE-SURVEY c909513fc866: both used to answer `(None, 0)`, re-arming a stopped auto-start)."""
     assert capture._cpap_autostart_load(str(tmp_path), 1.0) == (None, 0)
     p = capture._cpap_autostart_path(str(tmp_path))
     os.makedirs(os.path.dirname(p), exist_ok=True)
     for bad in ("{oops", "[]", "{}", '{"session_ms": "x"}', '{"session_ms": 1, "attempts": "x"}'):
         open(p, "w").write(bad)
-        assert capture._cpap_autostart_load(str(tmp_path), 1.0) == (None, 0), bad
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            assert capture._cpap_autostart_load(str(tmp_path), 1.0) == (1.0, 0), bad
+        assert any(p in r.getMessage() and "treated as a manual stop" in r.getMessage() for r in caplog.records), bad
 
 
 def test_the_record_is_written_atomically(tmp_path):

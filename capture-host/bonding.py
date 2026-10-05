@@ -66,12 +66,12 @@ class Found:
     address: str
     name: str
     rssi: int | None = None
-    bonded: bool = False
-    connected: bool = False
+    bonded: bool | None = False  # None: `info` did not answer, so the state was not read
+    connected: bool | None = False
     health: bool = False  # matches a known sensor name pattern (UI can foreground these)
 
 
-async def _btctl(script: str, timeout: float = 20.0) -> str:
+async def _btctl(script: str, timeout: float = 20.0) -> str | None:
     """Feed a newline script to one bluetoothctl session; return combined stdout+stderr."""
     proc = await asyncio.create_subprocess_exec(
         "bluetoothctl", stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
@@ -82,7 +82,10 @@ async def _btctl(script: str, timeout: float = 20.0) -> str:
         # leaving a zombie for the daemon's lifetime (CAPTURE-HOST-DEEP-AUDIT §E1).
         out, _ = await proc_util.communicate(proc, timeout, script.encode())
     except asyncio.TimeoutError:
-        out = b""
+        # ∅ None, not "" (ABSENCE-SURVEY 3720ab19bc82): bluetoothctl never answered, so the bond, trust and
+        # connect state were NOT read. An empty transcript reads as "Bonded: no", which drove a forced
+        # re-pair, spent a re-bond attempt and logged "BlueZ reports no bond" on no evidence at all.
+        return None
     return out.decode(errors="replace")
 
 
@@ -201,6 +204,9 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
     sel = await select_line(adapter_mac)
     for addr, f in seen.items():
         info = await _btctl(sel + f"info {addr}\nquit\n", timeout=8)
+        if info is None:
+            f.bonded = f.connected = None
+            continue
         f.bonded = "Bonded: yes" in info or "Paired: yes" in info
         f.connected = "Connected: yes" in info
         r = re.search(r"RSSI:.*\((-?\d+)\)", info)
@@ -210,11 +216,16 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
         if nm and is_placeholder_name(f.name):
             f.name = nm.group(1).strip()
             f.health = bool(_HEALTH_HINT.search(f.name))
-    return sorted(seen.values(), key=lambda d: (not d.health, d.rssi is None, -(d.rssi or -999)))
+    # Absence is the `is None` component; the third is the reading itself. `-(rssi or -999)` read a legal
+    # 0 dBm as absent and ranked the strongest possible signal as the weakest.
+    return sorted(seen.values(), key=lambda d: (not d.health, d.rssi is None, 0 if d.rssi is None else -d.rssi))
 
 
-async def is_bonded(address: str, adapter_mac: str | None = None) -> bool:
+async def is_bonded(address: str, adapter_mac: str | None = None) -> bool | None:
+    """True / False from BlueZ's own answer; None when bluetoothctl did not answer (nothing was read)."""
     info = await _btctl(await select_line(adapter_mac) + f"info {address}\nquit\n", timeout=8)
+    if info is None:
+        return None
     # `Bonded: yes` ONLY (VIGIL-DEEP-ANALYSIS §2D). For LE, `Paired: yes` can be a transient pairing that
     # lacks the stored long-term keys `Bonded` implies — and the bond exists precisely because the strap
     # drops discovery on an unauthenticated link, so treating Paired-without-Bonded as bonded skips the
@@ -239,7 +250,7 @@ async def trusted_flags(addresses, adapter_mac: str | None = None) -> list[str]:
             info = await _btctl(sel + f"info {address}\nquit\n", timeout=8)
         except Exception:
             continue  # unreadable ⇒ unknown, never "trusted"; the caller warns only on evidence
-        if "Trusted: yes" in info:
+        if info is not None and "Trusted: yes" in info:
             out.append(address)
     return out
 
@@ -315,6 +326,8 @@ async def bond(address: str, adapter_mac: str | None = None) -> dict:
 
 async def forget(address: str, adapter_mac: str | None = None) -> dict:
     out = await _btctl(await select_line(adapter_mac) + f"remove {address}\nquit\n")
+    if out is None:
+        return {"ok": False, "address": address, "detail": "bluetoothctl did not answer"}
     return {"ok": ("Device has been removed" in out) or ("removed" in out.lower()), "address": address}
 
 

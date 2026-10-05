@@ -3037,7 +3037,9 @@ function fmtOffset(min){ if(min==null) return ''; const sg=min<0?'-':'+', a=Math
 async function loadClock(){
   let c; try{ c = await api('/api/clock'); }catch(_){ return; }
   const k = c.contract || {};
-  const ntpPill = c.synchronized ? '<span class="pill pill-green">synced</span>'
+  /* `available === false`: timedatectl did not answer, so nothing was observed — never "off". */
+  const ntpPill = c.available === false ? '<span class="pill pill-gray">unknown</span>'
+                : c.synchronized ? '<span class="pill pill-green">synced</span>'
                 : c.ntp_enabled ? '<span class="pill pill-amber">syncing…</span>'
                 : '<span class="pill pill-gray">off</span>';
   $('#clkStatus').innerHTML = [
@@ -3045,7 +3047,7 @@ async function loadClock(){
     ['NTP', ntpPill + (c.server_active?(' <span style="color:var(--text3)">'+esc(c.server_active)+'</span>'):'')],
     ['Every', fmtEvery(c.poll_now_sec) + (c.poll_max_sec?(' <span style="color:var(--text4)">(max '+fmtEvery(c.poll_max_sec)+')</span>'):'')],
     ['Zone', esc(c.timezone||'—') + ' <span style="color:var(--text4)">'+fmtOffset(c.offset_min)+'</span>'],
-    ['Stamps', (k.stamp_format||'local-civil') + (k.synced&&k.tz_set?' <span class="pill pill-green">contract ✓</span>':' <span class="pill pill-amber">check zone/sync</span>')],
+    ['Stamps', (k.stamp_format||'local-civil') + (c.available===false?' <span class="pill pill-gray">unknown</span>':k.synced&&k.tz_set?' <span class="pill pill-green">contract ✓</span>':' <span class="pill pill-amber">check zone/sync</span>')],
   ].map(([l,v])=>`<div class="clk-row"><span class="clk-lab">${l}</span><span class="clk-val">${v}</span></div>`).join('');
   if(document.activeElement!==$('#ntpServers') && (c.servers||[]).length) $('#ntpServers').value = c.servers.join(' ');
   if(document.activeElement!==$('#tzInput') && c.timezone) $('#tzInput').value = c.timezone;

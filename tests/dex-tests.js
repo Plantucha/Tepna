@@ -8735,6 +8735,17 @@
       var none = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:01.000', 126) + '\n', 126);
       T.ok('a sidecar with no POSITIONED frames refuses', !none.ok, JSON.stringify(none));
       T.ok('…naming a pre-E11 capture rather than a corrupt one', !none.ok && /no positioned/.test(none.reason) && /pre-E11/.test(none.reason), none.reason);
+      /* ∅ AND THE SPLIT-MODE ABSENCE IS A DIFFERENT ONE, with a different remedy. A RING-POLL-SPLIT night
+         logs `PPG_FRAME_A` rows: the wave arrived on 0x03 LIVE_SAMPLES_A, whose 6-byte reply header
+         carries only a declared count, so the frames ARE there and the POSITION is what is missing — by
+         the opcode's nature, not by the capture's age. Calling that "a pre-E11 capture" sends a reader to
+         the wrong fix (wait for a post-#3267 night), when the actual fix is the opcode or the probe. */
+      var splitTxt = HDR + '\n2026-10-05T00:00:01.000;O2Ring-S;PPG_FRAME_A;;;126\n2026-10-05T00:00:02.000;O2Ring-S;PPG_FRAME_A;;;120\n';
+      var sp = F.ringDevColumn(splitTxt, 246);
+      T.ok('a SPLIT-MODE sidecar refuses too — 0x03 carries no cumulative position', !sp.ok, JSON.stringify(sp));
+      T.ok('…and names the OPCODE rather than blaming the capture’s age', !sp.ok && /0x03/.test(sp.reason) && /LIVE_SAMPLES_A/.test(sp.reason) && !/pre-E11/.test(sp.reason), sp.reason);
+      T.ok('…saying the frames ARE logged and only the position is missing', !sp.ok && /frames are logged/.test(sp.reason), sp.reason);
+      T.ok('ANTI-VACUITY · the two absences give DIFFERENT reasons, so neither message is a template', !none.ok && !sp.ok && none.reason !== sp.reason, none.reason + ' | ' + sp.reason);
 
       /* 🔴 THE FIELD IS DEVICE-DEAD ON THIS RING, and that is a different finding from a corrupt file.
          Measured 2026-10-04: `ppg_stream_offset` (0x04 `[20:24]`, which E11 writes into this column) is

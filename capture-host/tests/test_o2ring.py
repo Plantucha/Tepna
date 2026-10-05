@@ -360,7 +360,8 @@ def test_cipher_wrap_unwrap_rules(capsys):
     assert c.unwrap(o2ring.OP_HELLO, b"") == b""  # not AES-shaped: pass-through
     assert c.unwrap(o2ring.OP_HELLO, b"\x01\x02\x03") == b"\x01\x02\x03"
     junk = b"\x00" * 16
-    assert c.unwrap(o2ring.OP_GET_INFO, junk) == junk and c.errors == 1
+    # Withheld, not passed through (ABSENCE-SURVEY c82b7dbaf55f): the plaintext was not recovered.
+    assert c.unwrap(o2ring.OP_GET_INFO, junk) is None and c.errors == 1
     assert "did not decrypt" in capsys.readouterr().out
     assert c.unwrap(o2ring.OP_GET_INFO, c.wrap(o2ring.OP_GET_INFO, b"hi")) == b"hi"
 
@@ -559,8 +560,19 @@ def test_file_start_and_data_and_end():
     assert o2ring.file_end(dev)["op"] == o2ring.OP_FILE_END
 
 
+class StrictDev(FakeDev):
+    """A FakeDev that FAILS the moment it is read past its scripted replies. FakeDev answers an exhausted
+    script with an empty read, which `read_reply` then waits out against the REAL clock — so a mutant that
+    asks for one chunk too many was slow rather than wrong, and timed out the mutation run (UNDECIDED)."""
+
+    def read(self, size, timeout_ms=0):
+        if not self.replies:
+            raise AssertionError("read past the scripted replies — the pull asked for more than the file holds")
+        return super().read(size, timeout_ms)
+
+
 def test_pull_session_reassembles(capsys):
-    dev = FakeDev(
+    dev = StrictDev(
         [
             reply(o2ring.OP_FILE_START, struct.pack("<I", 6)),
             reply(o2ring.OP_FILE_DATA, b"\x01\x02\x03"),
@@ -571,9 +583,116 @@ def test_pull_session_reassembles(capsys):
     assert o2ring.pull_session(dev, "sid") == b"\x01\x02\x03\x04\x05\x06"
 
 
+def test_pull_session_REFUSES_a_chunk_that_did_not_decrypt_rather_than_writing_ciphertext(monkeypatch):
+    """PLANT c82b7dbaf55f: in a keyed session a FILE_DATA reply that fails to decrypt was passed through as
+    "plaintext", and `pull_session` appended it to the file as file bytes. The pull now stops and says so,
+    after closing the transfer."""
+    monkeypatch.setattr(o2ring.SESSION, "key", bytes(range(16)))
+    monkeypatch.setattr(o2ring.SESSION, "errors", 0)
+    start = o2ring.SESSION.wrap(o2ring.OP_FILE_START, struct.pack("<I", 32))
+    dev = FakeDev(
+        [
+            reply(o2ring.OP_FILE_START, start),
+            reply(o2ring.OP_FILE_DATA, b"\x00" * 16),  # 16 bytes the session key cannot decrypt
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
+    ended = []
+    real_end = o2ring.file_end
+    monkeypatch.setattr(o2ring, "file_end", lambda d: (ended.append(1), real_end(d))[1])
+    with pytest.raises(RuntimeError, match="did not decrypt"):
+        o2ring.pull_session(dev, "sid")
+    assert ended == [1], "the transfer is closed before the refusal"
+
+
 def test_pull_session_raises_without_start():
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError, match=r"^FILE_START timed out \(is the ring OFF-body / docked\?\)$"):
         o2ring.pull_session(FakeDev(), "sid")
+
+
+# ── absence drain group 4a: the diff-scoped survivors in pull_session / unwrap ───────────────────────
+
+
+def test_pull_session_REFUSES_a_FILE_START_that_did_not_decrypt(monkeypatch):
+    monkeypatch.setattr(o2ring.SESSION, "key", bytes(range(16)))
+    dev = FakeDev([reply(o2ring.OP_FILE_START, b"\x00" * 16)])  # 16 bytes the key cannot decrypt
+    with pytest.raises(
+        RuntimeError, match=r"^FILE_START reply did not decrypt with the session key — the file size is unknown$"
+    ):
+        o2ring.pull_session(dev, "sid")
+
+
+def test_pull_session_reads_the_size_UNSIGNED_and_prints_it(capsys):
+    """`<I`, not `<i`: a size of 2**31 + 1 read signed is negative, and the pull would fetch nothing."""
+    dev = StrictDev(
+        [
+            reply(o2ring.OP_FILE_START, struct.pack("<I", 2**31 + 1)),
+            reply(o2ring.OP_FILE_DATA, b"\x07\x08"),
+            reply(o2ring.OP_FILE_DATA, b""),
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
+    assert o2ring.pull_session(dev, "sid", max_bytes=1 << 20) == b"\x07\x08"
+    assert f"size={2**31 + 1}" in capsys.readouterr().out
+
+
+def test_pull_session_stops_at_max_bytes_even_when_the_file_is_larger():
+    """`and offset < max_bytes`, strictly: a file larger than the cap is read up to the cap and no further."""
+    dev = StrictDev(
+        [
+            reply(o2ring.OP_FILE_START, struct.pack("<I", 8)),
+            reply(o2ring.OP_FILE_DATA, b"\x01\x02\x03\x04"),
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
+    assert o2ring.pull_session(dev, "sid", max_bytes=4) == b"\x01\x02\x03\x04"
+
+
+def test_pull_session_caps_an_over_read_at_the_declared_size():
+    """`bytes(buf[:size])`: a final chunk longer than the remainder must not leak past the declared size."""
+    dev = StrictDev(
+        [
+            reply(o2ring.OP_FILE_START, struct.pack("<I", 4)),
+            reply(o2ring.OP_FILE_DATA, b"\x01\x02\x03\x04\x05\x06"),
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
+    assert o2ring.pull_session(dev, "sid") == b"\x01\x02\x03\x04"
+
+
+def test_pull_session_calls_a_48_byte_file_WITHOUT_the_trailer_magic_incomplete(capsys):
+    dev = StrictDev(
+        [
+            reply(o2ring.OP_FILE_START, struct.pack("<I", 48)),
+            reply(o2ring.OP_FILE_DATA, bytes(48)),
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
+    o2ring.pull_session(dev, "sid")
+    assert "complete-trailer=False" in capsys.readouterr().out
+
+
+def test_a_declared_size_of_ZERO_is_an_unknown_size_and_keeps_every_byte_pulled():
+    """`if size else bytes(buf)`: 0 is falsy, so a FILE_START that declares 0 is read as "size unknown" and the
+    pull keeps what arrived — `buf[:0]` would discard it all. Found by the equivalence probe, which first called
+    this mutant equivalent and was refuted on 9 of 224 scripted pulls."""
+    dev = StrictDev(
+        [
+            reply(o2ring.OP_FILE_START, struct.pack("<I", 0)),
+            reply(o2ring.OP_FILE_DATA, b"\x01\x02\x03"),
+            reply(o2ring.OP_FILE_DATA, b""),
+            reply(o2ring.OP_FILE_END),
+        ]
+    )
+    assert o2ring.pull_session(dev, "sid", max_bytes=1 << 20) == b"\x01\x02\x03"
+
+
+def test_every_failed_decrypt_is_COUNTED(capsys):
+    c = o2ring.Cipher()
+    c.key = bytes(16)
+    c.unwrap(o2ring.OP_GET_INFO, b"\x00" * 16)
+    c.unwrap(o2ring.OP_GET_INFO, b"\x00" * 16)
+    assert c.errors == 2
 
 
 def test_pull_session_no_size_breaks_on_empty():

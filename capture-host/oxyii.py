@@ -717,7 +717,11 @@ def parse_live(payload: bytes) -> dict | None:
         "batt_state": payload[12],  # 0 = not charging
         "run_status": payload[4],
         "contact": contact,  # 0 lead-off · 1 normal · 2 probe unplugged · 3 fault
-        "worn": contact == 1,  # ONLY 1; 2 and 3 are faults, not wear
+        # ∅ THREE-VALUED (ABSENCE-SURVEY cff33c90fd16): 1 is a finger, 0 (lead-off) is an OBSERVED absence of
+        # one, and 2 (probe unplugged) / 3 (probe fault) mean the sensor could not look — wear is UNKNOWN, not
+        # "not worn". False there had a faulted probe journaled as a bare finger exactly as the 09-06 fix had
+        # stopped it being journaled as a worn one.
+        "worn": True if contact == 1 else (False if contact == 0 else None),
         # Byte [14]'s four 2-bit subfields (&3 invalid-IV state, >>2 SpO2 alarm, >>4 HR alarm,
         # >>6 motion alarm), recorded RAW and uninterpreted — same discipline as `flag_raw`. None,
         # never 0, when the frame is too short to carry it: an absent byte is not a quiet alarm.

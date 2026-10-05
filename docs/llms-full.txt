@@ -20,133 +20,35 @@
 ### Read one raw biosignal → grade every number → fuse across signals.
 **Your data never leaves the browser — and CI proves it on every commit.**
 
-A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
-
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
 [![Suite v2.16.0](https://img.shields.io/badge/suite-v2.16.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
 [![DOI](https://zenodo.org/badge/1286425809.svg)](https://doi.org/10.5281/zenodo.22068939)
 
 [![No network · CI-enforced](https://img.shields.io/badge/no_network-CI--enforced-1f8a5b)](no-network.html)
-[![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](docs/WHY-THIS-EXISTS.md)
-[![Tests green](https://img.shields.io/badge/tests-9.1k_assertions_green-1f8a5b)](#-the-privacy-claim-is-a-test-not-a-promise)
-[![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
+[![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#every-number-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
 ![Releases](https://img.shields.io/badge/releases-42_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
-<!-- readme-synced: cdae44a5 2026-09-06 -->
-<sub>README last synced to commit `cdae44a5` (2026-09-06). Next refresh: `git log --oneline cdae44a5..origin/main`
-lists exactly what this page has not seen yet — fold that in, then move this stamp.</sub>
+<!-- readme-synced: 779f348d 2026-10-04 -->
+<sub>README last synced to commit `779f348d` (2026-10-04). Next refresh: `git log --oneline 779f348d..origin/main`
+lists what this page has not seen yet — fold that in, then move this stamp.</sub>
 
 </div>
 
-> **One signal in, honest numbers out.** Each analyzer reads **one** raw biosignal from a consumer
-> device, derives metrics from it, and reports inward over a shared event bus (**Ganglior**) so a
-> fusion layer (the **Integrator**) can read across them. Every number carries an **evidence grade**,
-> so you always know which kind of number you're looking at. And "100% client-side" isn't a promise
-> — it's a **test**: a headless privacy gate boots every shipped surface and fails the build if
-> anything so much as *reaches* for the network.
+Tepna is a set of single-signal analyzers for the physiology sensors people actually own — a ring
+oximeter, a chest strap, an armband, a CGM, a CPAP machine — plus one capture box that records them
+all night on one clock. Each analyzer reads **one** raw signal, derives its metrics, and reports over a
+shared bus (**Ganglior**) so a fusion layer (the **Integrator**) can read across signals. Every number
+carries an **evidence grade**. Nothing is uploaded, ever: a headless gate boots every shipped surface
+and fails the build if anything reaches for the network.
 
----
-
-## 🧭 Why this exists
-
-The story goes that August Strindberg once blew pipe smoke into a bucket of water to see if he could
-make gold. Maybe he wasn't the man who thought smoke could make gold — maybe he was the man who
-**proved that it couldn't**. Someone has to walk the wrong path all the way to the end and come back
-to tell everyone else: *"Not this way, friends."*
-
-Tepna is that, for consumer-wearable physiology. It asks what a chest strap, a ring oximeter, an
-armband, a CGM and a CPAP machine — the sensors people actually own — can **honestly** measure, and
-publishes the answer in both directions:
-
-- **What holds** ships as a metric with an [evidence grade](#the-evidence-ladder-every-metric-is-graded)
-  on every number — nothing reaches your eye unlabelled.
-- **What fails** is not deleted; it is published. [*Dead Ends*](papers/dead-ends.html) is a citable
-  map of the walls — optical PRV that isn't ECG HRV, a cuffless-BP path withdrawn, a "coupling" that
-  collapsed under one confounder — each with the evidence that felled it. Negative results are the
-  product, not the waste.
-
-Two constraints shape everything. **Privacy is a gate, not a promise** — your raw physiology never
-leaves the browser, and CI fails the build if anything reaches for the network. And **maximum
-information, minimum hardware** — the whole suite runs on a handful of consumer devices and one small
-bedside box, because a measurement setup you can't live with is a measurement setup you'll stop
-wearing.
-
-The long-form colophon — Strindberg, the maze, the Wife Acceptance Factor as a load-bearing
-engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md) *(styled:
-[Why This Exists.html](https://tepna.net/Why%20This%20Exists.html))*.
-
----
-
-## 📊 Suite at a glance
-
-**Suite version:** 2.16.0 &nbsp;—&nbsp; **42** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
-
-| | |
-|---|---|
-| 🧠 **Analyzers** | **8 live** single-signal nodes · **1 planned** (EEGDex) |
-| 🔀 **Fusion** | **Integrator** (cross-signal) + 2 ingest front doors — **Data Unifier** · **OverDex** — all live |
-| 🧪 **Tests** | **10,783 assertions** across **681 groups**, run as **6 partitioned CI shards** — green on every push |
-| 🐍 **Capture lane** | the **Health Box** (`capture-host/`) — **6,800+ Python tests** at a **100 % statement *and* branch** coverage floor |
-| 🛡️ **CI gates** | 8 required on every PR — `no-network` · `tests` · `types` · `biome` · `capture-host` (py3.12 · py3.13) · `browser-gates` · `stale-file` — plus `CodeQL`, a diff-scoped **mutation** run and the `static` ledger job; the privacy claim is **enforced, not asserted** |
-| 🎫 **Honesty** | every surfaced number carries an **evidence grade** — nothing ships unlabelled |
-| 🔬 **Reproducible** | every preprint **regenerates from its live tool**; every bundle is **content-addressed** |
-
-**Roadmap** &nbsp; `▰▰▰▰▰▰▰▰▱` &nbsp; **8 of 9** planned analyzers live — EEGDex (Muse) is next.
-
-> **Momentum.** `v2.0.0` is the suite's only **MAJOR** release, and the break is a *retirement*:
-> ECGDex's `apnea.estimatedAHI` and `apnea.riskCategory` were the CVHR index wearing AHI's units and
-> clinical cut-points — measured at **r = −0.151** against device-scored AHI — so they were withdrawn
-> rather than relabelled. It also closed a cross-device timing gap nobody had measured: the two
-> wearables were never compared to *each other* and turn out to sit **~3.3 s apart on every
-> phone-captured night**.
->
-> The `2.1 → 2.5` line has been about **finding out which gates were bluffing**. `tools/mutate.mjs`
-> breaks the code on purpose and reports which tests fail to notice — its first sweep found that
-> **41 % of mutations to `clock.js`, the Clock Contract itself, went unnoticed**, and closing that is
-> ongoing work with published numbers rather than a claim. Alongside it, the **host-disciplined time
-> axis** (Clock Contract §7) reconciles the device crystal against the capture host's clock, and it
-> refuses rather than guesses: an O2Ring axis that turned out to be **drawn** — synthesized from a
-> sample index, not a clock — is now detected and declared as such instead of being silently trusted.
->
-> **In `2.13.0` (2026-09-17 → 2026-09-21, 181 commits, 143 changesets — four days).** The theme is
-> **absence as a value, at every layer.** OxyDex's primary stats builder had counted a dropout as a
-> reading (`null < 90` is true in JavaScript, so every absent second scored as desaturated); it now
-> rates over measured seconds only, and the NSRR adapter reads SHHS1's own `OX stat` validity channel
-> instead of discarding it. On the wearables, PpgDex reads the capture host's constant-run sidecar as a
-> **second population** rather than a second sentinel, a *saturated* span is labelled distinctly from
-> an *absent* one (owner ruling), and ECGDex's rail check — which had keyed on a global constant and
-> **fired on nothing** across 112 real saturation runs — now finds each file's own rail. Measurements
-> now travel with their provenance: OxyDex emits per-instance **measurement blocks** (value, window,
-> channel, code identity, input lineage; schema 2.1) and the Integrator consumes them behind a
-> fail-closed adapter; a published table can carry a `TABLE-PROVENANCE` stamp whose output hash reds
-> a hand-edited cell; and two withheld corrections are out — a shipped bundle had carried retracted
-> validation figures for **thirteen days**, the published site its uncorrected claims for **over a
-> month**. ECGDex's Pan–Tompkins was scored against the strap's firmware detector on **52 real nights**
-> with bands stated in advance: **98.7 %** of beats paired, RR |Δ| **0.45 ms**. The capture box asks a spare radio for an HCI round trip before
-> failing over onto it, sends the passive-scan filter BlueZ actually requires, resolves the DST
-> fall-back hour on its naive stamps, and keeps the **30 most recent nights** local while the rest are
-> tiered to the NAS after a byte-for-byte check. capture-host's mypy count fell **100 → 41** with the
-> ratchet banked at each step, and a five-round brief drain re-stamped dozens of status headers
-> against the tree rather than against memory. Full history in the **[changelog](CHANGELOG.md)**.
-
-### Node status
-
-| Node | Signal | Device | Status | Flagship metric |
-|---|---|---|:---:|---|
-| **OxyDex** | SpO₂ / oximetry | O2Ring · Wellue · ViATOM | 🟢 **Live** | ODI-4 · T90 · hypoxic burden |
-| **ECGDex** | Raw ECG | Polar H10 | 🟢 **Live** | QTc · rMSSD |
-| **PulseDex** | HRV from raw RR | Polar H10 · Coospo · Wahoo | 🟢 **Live** | rMSSD · SDNN |
-| **PpgDex** | Wrist PPG | Polar Verity Sense · O2Ring (`_PPG2W`) | 🟢 **Live** | PPI → HRV + pulse-wave morphology |
-| **HRVDex** | HRV summaries | *(exports)* | 🟢 **Live** | additive multi-day rMSSD / SDNN ledger |
-| **GlucoDex** | CGM | *(exports)* | 🟢 **Live** | Time in Range · GMI |
-| **CPAPDex** | CPAP therapy | ResMed · EDF | 🟢 **Live** | pressure · leak · respiratory events |
-| **MotionDex** | Inertial motion (IMU) | Polar Verity Sense · H10 (`*_ACC/_GYRO/_MAGN`) | 🟢 **Live** | body position · actigraphy · motion SQI |
-| **EEGDex** | EEG | Muse | ⚪ **Planned** | — |
+What it finds that **holds** ships as a graded metric. What **fails** is published too — [*Dead
+Ends*](papers/dead-ends.html) is the citable map of the walls. The long-form *why* is
+[`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md).
 
 ---
 
@@ -156,367 +58,174 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 git clone https://github.com/Plantucha/Tepna.git
 ```
 
-Then open **`index.html`** in any modern browser and click your device. No build step, no server, no
-install — every node app is a single self-contained HTML file that runs straight from disk.
-
-> 💡 **Why that's remarkable:** an entire overnight sleep-apnea screen, an ECG QT analysis, or a
-> CGM report runs from a file on your disk — the raw biosignal is parsed, the math is done, and the
-> figures are drawn, all without a single byte leaving the tab.
-
----
-
-## 🔒 The privacy claim is a *test*, not a promise
-
-Most health apps *say* your data is private. Tepna **proves it, mechanically, on every commit.**
-
-[`no-network.html`](no-network.html) is a self-verifying gate — the privacy analogue of a build
-signature. It statically scans every shipped surface (the 9 provenance-gated bundles + the 2
-orchestrators + their loose modules), **boots each one in a trapped iframe** where any cross-origin
-request throws, and asserts **zero network egress**. A planted-canary negative control ships inside
-the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **every push**.
-
-| CI gate | What it guarantees |
-|---|---|
-| **no-network** | No shipped surface reaches the network — privacy is enforced, not asserted |
-| **tests** | 9,124 assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
-| **types** | JSDoc type-checking (`tsc --checkJs`) across the signal contracts |
-| **biome** | Format + house-invariant lint (frozen names, Clock Contract, SPDX, evidence vocabulary) |
-| **browser-gates** | Render-coverage — boots each real app bundle headless in an iframe and asserts computed values reach the DOM (`Dex-Test-Suite.html?full`, run on every PR) |
-| **stale-file** | A brief cannot be overwritten by an edit that never read the upstream version — required, with no escape hatch but rebasing |
-| **capture-host** | The Python capture lane on its own runners, py3.12 **and** py3.13 — `ruff` · `shellcheck` (strictest level, every `.sh`) · `pytest` at a **100 % statement and branch** coverage floor · `find_unwired --check` (no published stream without a consumer); `mypy` advisory, ratcheting down from a 103-error baseline |
-| **CodeQL** | Static security analysis on every push |
-| **mutation** *(advisory)* | Diff-scoped: mutates only the lines a PR touched and reports which of them the suite would not notice |
-
-The `tests` workflow also carries a **`static`** job that re-derives every ledger the tree claims — bundle
-hashes, served `docs/` copies, the analysis tools, brief and release ledgers, commit shape — so a green
-test shard with a stale artefact still reds the PR.
-
-Beyond CI, [`verify-provenance.html`](verify-provenance.html) content-addresses every bundle
-(GATE A: code identity) and every fixture (GATE B: known-answer reproducibility) — so a shipped app
-is provably the code it claims to be.
-
-**Browser-enforced, too.** Every bundle ships a strict Content-Security-Policy. `connect-src 'none'`
-blocks egress at the browser layer, and `script-src` lists a per-inline-script `sha256` hash with
-**no `'unsafe-inline'`** — so even a `<script>` injected into the DOM (a future untrusted→HTML
-regression) cannot execute. CSP is an *injection* backstop, not just an egress control; a headless
-negative-control test asserts an injected script stays inert, and the `security · csp-strict` gate
-holds the invariant (no inline handler survives, every `script-src` is hash-based).
+Open **`index.html`** in a browser and click your device. No build, no server, no install: every app
+is one self-contained HTML file that runs from disk. One sensor is a complete starting point — an
+O2Ring alone feeds OxyDex, an H10 alone feeds ECGDex and PulseDex — and an Android phone running the
+free Polar Sensor Logger or the Wellue app produces files the apps read directly. The capture box is
+the always-on, one-clock upgrade, not the entry fee.
 
 ---
 
-## Start here: what Tepna actually measures well
+## The apps
 
-Tepna derives a large surface of metrics, but they are **not all equally trustworthy** — and we
-say so on every number. The honest front door is this short list of **externally validated**
-metrics, each anchored to a published standard. If you read nothing else, read these.
-
-| Metric | Signal · App | What it is | Anchor |
-|---|---|---|---|
-| **ODI-4** | SpO₂ · OxyDex | 4% oxygen-desaturation index — apnea-screening workhorse | AASM |
-| **T90** | SpO₂ · OxyDex | % of night below 90% SpO₂ — hypoxia severity | Sleep-apnea literature |
-| **Hypoxic burden** | SpO₂ · OxyDex | Area·depth·duration of desaturations | Azarbarzin 2019 |
-| **rMSSD** | RR/ECG · PulseDex · ECGDex · HRVDex | Short-term parasympathetic HRV | Task Force 1996 |
-| **SDNN** | RR/ECG · PulseDex · ECGDex | Overall HRV over the window | Task Force 1996 |
-| **QTc** | ECG · ECGDex | Rate-corrected QT (Bazett / Fridericia) | Repolarisation standard |
-| **Time in Range** | CGM · GlucoDex | % time 70–180 mg/dL — primary CGM metric | 2019 consensus |
-| **GMI** | CGM · GlucoDex | Glucose Management Indicator from mean glucose | Bergenstal 2018 |
-
-Everything past this list exists, but lives lower on the evidence ladder. Treat it accordingly.
-
----
-
-## The evidence ladder (every metric is graded)
-
-Each metric carries one of five evidence tiers. The grade is shown as a **disc badge** in every
-app — **disc shape encodes trust, never hue** (so the ladder reads the same to colour-blind users
-and in greyscale print). The grade is a per-node fact, defined once in each node's registry.
-
-| Rank | Tier | Means | Example |
-|---|---|---|---|
-| 0 | **measured** | Read directly off the device, not derived | Mean SpO₂, Mean HR |
-| 1 | **validated** | Established + externally validated against a published standard | ODI-4, rMSSD, TIR |
-| 2 | **emerging** | Published, but device-dependent or less standardized | Nonlinear HRV, coupling |
-| 3 | **experimental** | Plausible, internally consistent, not externally confirmed | Composite indices |
-| 4 | **heuristic** | Rule-of-thumb estimate — directional signal only | Sleep-derived BP estimate |
-
-A metric's tier is sourced from its node's registry (`*-registry.js`) and mirrored into the
-reference guides; the badge visuals come from one canonical stylesheet. **A higher rank is not a
-"better" metric — it's a louder one.** A heuristic that points the right direction can still be
-useful; the ladder just makes sure you always know which kind of number you're looking at.
-
----
-
-## The nodes
-
-| App | Signal | Device | Reads | Reference |
+| App | Signal | Device | What it reports | Guide |
 |---|---|---|---|---|
-| **OxyDex** | SpO₂ / oximetry | O2Ring / Wellue / ViATOM | Raw 1 Hz overnight SpO₂·HR·motion | [Technical guide](OxyDex%20Reference.html) |
-| **PpgDex** | Wrist PPG | Polar Verity Sense | Raw optical pulse → PPI → HRV + pulse-wave morphology | [Technical guide](PpgDex%20Reference.html) |
-| **PulseDex** | HRV from raw RR | Polar H10 (`*_RR.txt`; Coospo/Wahoo too) | Beat-to-beat RR-interval streams | [Technical guide](PulseDex%20Reference.html) |
-| **ECGDex** | Raw ECG | Polar H10 | ECG (~130 Hz, Polar Sensor Logger) | [Technical guide](ECGDex%20Reference.html) |
-| **HRVDex** | HRV summaries | — | Vendor HRV exports + ECGDex exports (additive, multi-day) | [Technical guide](HRVDex%20Reference.html) |
-| **GlucoDex** | CGM | — | Continuous glucose traces | [Technical guide](GlucoDex%20Reference.html) |
-| **CPAPDex** | CPAP therapy | ResMed · EDF | EDF therapy data — pressure · leak · respiratory events | [Technical guide](CPAPDex%20Reference.html) |
-| **MotionDex** | Inertial motion (IMU) | Polar Verity Sense · H10 | Accelerometer / gyro / magnetometer streams → body position, actigraphy, respiratory effort, motion SQI | *(no reference guide yet)* |
-| **EEGDex** | EEG *(planned)* | Muse | Raw EEG | *(planned)* |
+| **OxyDex** | SpO₂ | Wellue O2Ring | ODI-4 · T90 · hypoxic burden | [reference](OxyDex%20Reference.html) |
+| **ECGDex** | raw ECG | Polar H10 | QTc · rMSSD · beat-level RR | [reference](ECGDex%20Reference.html) |
+| **PulseDex** | RR intervals | Polar H10 · Coospo · Wahoo | rMSSD · SDNN · nonlinear HRV | [reference](PulseDex%20Reference.html) |
+| **PpgDex** | raw PPG | Polar Verity Sense · O2Ring | PPI → HRV · pulse-wave morphology | [reference](PpgDex%20Reference.html) |
+| **HRVDex** | HRV summaries | exports | an additive multi-day HRV ledger | [reference](HRVDex%20Reference.html) |
+| **GlucoDex** | CGM | exports | Time in Range · GMI | [reference](GlucoDex%20Reference.html) |
+| **CPAPDex** | CPAP therapy | ResMed EDF | pressure · leak · respiratory events · breath rate | [reference](CPAPDex%20Reference.html) |
+| **MotionDex** | IMU | Polar Verity Sense · H10 | body position · actigraphy · motion quality | *(no guide yet)* |
+| **EEGDex** | EEG | Muse | *planned* | — |
 
-Each node emits a `ganglior.node-export` JSON that the **Integrator** fuses across signals. Two
-ingest front-doors feed it: the **Data Unifier** takes individual files you drop and routes each to
-the right node, and **OverDex** takes a whole *folder* of mixed exports — it walks the tree, runs the
-right node on each file, and hands every result to the Integrator automatically.
-
-**HRVDex is the suite's HRV ledger.** Its imports are *additive*: every Welltory CSV or ECGDex export (CSV **or** `ganglior.node-export` JSON, including the multi-recording array) appends to one accumulating multi-day table — drop many files or nights at once, exact-duplicate measurements are skipped, and the table is persisted in the browser between visits (clear it with **Clear saved history**). ECGDex's **⬇ HRVDex** export writes a Welltory-style CSV with *all* loaded nights in one file, so a whole H10 history lands in HRVDex in a single drop.
-
-> **MotionDex is live but not yet fully surfaced.** It has its own bundle, its own DSP/registry
-> modules and a provenance ledger fragment, and the Integrator consumes its output to motion-gate
-> HRV — but it has **no reference guide yet** and no tile on the landing picker. Both are open work.
+Each app writes a `ganglior.node-export` JSON. The **Integrator** fuses them; the **Data Unifier**
+routes single dropped files to the right app; **OverDex** does the same for a whole folder.
 
 ---
 
-## 📻 The Health Box — where the raw signals come from
+## Every number is graded
 
-The suite reads files. Something has to *write* them, and for the nightly multi-device recordings
-that is **`capture-host/`** — an out-of-suite Python service for a bedside mini-PC (a used Lenovo ThinkCentre M900 Tiny) that holds
-the live BLE links (Polar H10 ECG, Verity PPG/ACC, the O2Ring's SpO₂ and raw PPG, and the AirSense 11
-CPAP's live flow) and writes **existing vendor layouts** into
-per-night directories the Dex apps already know how to read. It is a *producer*, deliberately
-outside the browser suite: no Dex app ever talks to a device.
+Each metric carries one of five evidence tiers, shown as a disc badge whose **shape** encodes trust
+(so it reads the same in greyscale and to colour-blind users). A higher tier is not a better metric,
+only a louder one.
 
-It is also a **separate lane with a separate gate.** `npm run check` does not cover it —
-`capture-host/check.sh` does, and CI runs the same jobs: `ruff`, `shellcheck` at its strictest
-level over every shell script, `find_unwired` (every stream written has a reader), and `pytest` with a
-**100 % statement *and* branch** coverage floor across **6,500+ tests**, on two Python versions. That floor is the point: this code runs unattended overnight against
-hardware that misbehaves, so the failure modes it must survive are the ones nobody is awake to see.
-
-Per-device capture instructions for everyone else — no Pi required — live in
-[`how-to-collect/`](how-to-collect/health-box.md).
-
----
-
-## Measurement before interpretation
-
-A calculated number is not automatically a valid measurement. The chain runs:
-
-```text
-physical signal → acquisition → timestamping → conditioning → event detection
-              → metric → cross-signal fusion → physiological interpretation
-```
-
-A failure at any earlier stage invalidates everything downstream, and a sophisticated algorithm cannot
-recover information the acquisition path never preserved. That matters most with consumer sensors,
-where an exported value can hide resampling, proprietary filtering, buffering, transport latency, clock
-drift, reconstructed samples, or an undocumented event detector.
-
-This is not hypothetical here. **ECGDex's `apnea.estimatedAHI` was withdrawn in v2.0.0**, not
-relabelled: it was a CVHR index wearing AHI's units and clinical cut-points, and it correlated with
-device-scored AHI at **r = −0.151**. The algorithm was fine. The construct was not.
-
----
-
-## Time is a measurement
-
-A timestamp is an observation of time, not automatically the truth — and cross-device work makes that
-the whole problem. Two devices can each report milliseconds and still not share a millisecond.
-
-Measured on this corpus:
-
-| | |
-|---|---|
-| H10 ↔ Verity offset, **phone**-captured nights | **~3.3 s** |
-| the same pair, **box**-captured nights | **~0.2 s** |
-| the capture host's own clock | 0.008 ppm |
-| an O2Ring vs the host, worst case | **−3035 ppm apparent** — and the mechanism is BLE link stalls, not the crystal (which holds sub-ppm between dropouts), so a single ppm figure is the wrong model, not merely an imprecise one |
-
-Hence `DexClock.hostAxis`: a running median over host/device anchor pairs, which **refuses** rather than
-guessing when it has fewer than three anchors or the divergence exceeds 5 %. A node may not hand-roll a
-rate correction, and a refusal returns no correction at all — a caller must not be able to apply a
-silent zero.
-
----
-
-## Agreement is not confirmation
-
-Two sensors agreeing is evidence of physiological truth only if they are independent. They may instead
-share a clock, an artifact, a preprocessing step, or a selection rule.
-
-The suite has a measured instance. Whether a recording contains a **second clock at all** is decided by
-the *spread* of host-vs-device residuals, not by the rate — and the corpus is bimodal with nothing in
-between:
-
-| capture | residual spread | meaning |
+| Tier | Means | Example |
 |---|---|---|
-| box | 101.89 ms – 5124 ms | two genuinely independent clocks |
-| phone | **0.13 – 1.00 ms** | one stamp quantum — the "host" column is the device stamp, rounded |
+| **measured** | read off the device | mean SpO₂, mean HR |
+| **validated** | anchored to a published standard | ODI-4 · rMSSD · SDNN · QTc · Time in Range · GMI · hypoxic burden |
+| **emerging** | published, device-dependent | nonlinear HRV, cardiopulmonary coupling |
+| **experimental** | internally consistent, not externally confirmed | composite indices |
+| **heuristic** | directional only | sleep-derived BP estimate |
 
-A phone-captured night therefore has **no second clock**, and a near-zero drift there is the *absence*
-of a measurement wearing the shape of one. It also explains the ~3.3 s vs ~0.2 s split in the previous
-section: only the box actually puts both devices on one timebase, so only there is the offset a
-measurement rather than an artifact of shared derivation. `hostAxis` publishes `independent` so a
-consumer cannot mistake the two.
-
----
-
-## Adversarial testing
-
-The suite is built to attack its own attractive results, and a useful failure is kept as a regression
-test rather than deleted.
-
-- The privacy gate ships a **planted-canary negative control**, so a vacuous "all clear" cannot pass.
-- A packet-arrival check had two arms; the `smeared` arm was **retired for firing on every stream** on
-  its first real night. The premise was wrong, not the threshold. Its surviving arm was only wired in
-  after a corpus check across **355 sessions returned zero false positives**.
-- Fixtures prefer an adversarial *committed* twin over a real recording, because CI can re-run the twin
-  from committed bytes and cannot re-run a gitignored night.
-
-The questions it asks of itself: can correlated artifacts manufacture multimodal agreement? Can a
-host-derived clock validate itself? Can quality filtering select only the observations that support the
-desired relationship? Can a synthetic test share an assumption with the algorithm it is testing?
+The eight registries define **520 graded metrics**; just under half are measured or validated and
+nearly two-fifths sit at experimental or heuristic. The distribution is the honest version of the
+count, which is why the ladder leads. If you read nothing else, read the validated row.
 
 ---
 
-## 🔬 Scientific Foundation
+## The privacy claim is a test
 
-Every non-trivial number traces to a published method, and each of the **22 working preprints** in
-**[`papers/`](papers/papers.html)** is **regenerated from the live tool behind it** — no hand-drawn
-figures, no cherry-picked runs. Highlights:
+[`no-network.html`](no-network.html) statically scans every shipped surface, boots each one in a
+trapped iframe where any cross-origin request throws, and asserts zero egress; a planted canary inside
+the gate means a vacuous "all clear" cannot pass. Every bundle also ships a strict Content-Security-
+Policy with `connect-src 'none'` and hash-only `script-src`. [`verify-provenance.html`](verify-provenance.html)
+content-addresses every bundle and every known-answer fixture, so a shipped app is provably the code
+it claims to be.
 
-- **[One phone is not one clock](papers/wearable-clock-drift.html)** — a single-subject methods study,
-  twice self-corrected: the negative result stands (beat-level cross-device PAT is not recoverable,
-  0 of 54 pairings) but v1's "47.7 ppm drift" was one mis-attributed RR interval — the real
-  inter-device rate is ~1.5 ppm, and the failure is beat-slip, not clock drift.
-- **[Dead ends](papers/dead-ends.html)** — a synthesis of the walls the suite hit and why: fixed,
-  flagged, or fundamental. Negative results, reported honestly.
-- **Sensor-trio power &amp; σ analyses, rMSSD equivalence, ODI-4 calibration, timestamp pathology** —
-  each with its live regenerating tool.
-
-The methods overview is **[`Science.html`](Science.html)** and the system design is
-**[`Architecture.html`](Architecture.html)**.
+**Nine checks are required on every pull request:** `tests` (**11,095 assertions** across **695 groups**,
+six partitioned shards) · `no-network` · `types` · `biome` · `browser-gates` (every bundle booted
+headless, computed values asserted in the DOM) · `stale-file` (a brief cannot be overwritten by an
+edit that never read the upstream version) · `capture-host` on py3.12 and py3.13 —
+**9,300+ Python tests** at a 100 % statement *and* branch floor — and a diff-scoped **mutation** gate
+that breaks the lines a PR touched and refuses to merge what the suite would not notice. `CodeQL` runs beside them,
+and a `static` job re-derives every ledger the tree claims so a stale artefact reds the PR.
 
 ---
 
-## Repo map — where things live
+## The Health Box
 
-Most people never need this: open **`index.html`** and click your device. For anyone reading the
-source, here's the lay of the land.
+The apps read files; something has to write them. **`capture-host/`** is a Python service for a small
+bedside PC that holds the live Bluetooth links — H10 ECG, Verity PPG and IMU, the O2Ring's SpO₂ and
+raw PPG, the CPAP's live flow — and writes the vendors' own file layouts into per-night folders. It
+is a producer outside the browser suite: no app ever talks to a device. It has its own gate,
+`capture-host/check.sh`, because this code runs unattended against hardware that misbehaves while
+nobody is awake.
+
+Every morning the box judges the night it recorded. **Night QC** checks coverage and gaps, the
+**loss audit** attributes every minute worn but not recorded to its cause and holds it to the owner's
+bar (≤ 1 % of worn time), and **SOLID-NIGHT** composes one verdict per night across devices and
+bands. Every judgement is one `tepna.verdict/1` object with a pre-stated criterion, written beside its
+prose — and an absent measurement is `null` with a reason, never a zero.
+
+Per-device capture instructions without the box live in [`how-to-collect/`](how-to-collect/health-box.md).
+
+---
+
+## Method, in four rules
+
+- **Measurement before interpretation.** A number is not a measurement until the acquisition path
+  that produced it has been checked. ECGDex's `estimatedAHI` was withdrawn in v2.0.0, not relabelled:
+  it correlated with device-scored AHI at r = −0.151.
+- **Time is a measurement.** Two devices reporting milliseconds need not share one. The Clock Contract
+  puts every stream on a floating wall-clock axis, reconciles device crystals against the capture
+  host with a running median that refuses rather than guesses, and names a drawn axis as drawn.
+- **Agreement is not confirmation.** Two sensors agreeing is evidence only if they are independent;
+  whether a recording holds a second clock at all is decided by the spread of residuals, not by a rate.
+- **The gates are tested too.** `tools/mutate.mjs` and the Python mutation gate break the code on
+  purpose and report what the suite fails to notice; surviving mutants are ledgered with the probe
+  that excused them, never waved through.
+
+**Since `2.16.0` (2026-09-27 → 2026-10-04, 101 commits, 82 changesets).** The capture lane learned to
+judge a night on its own: the loss audit got its bar, SOLID-NIGHT its tripwire for unrecorded clock
+shifts, the ring its honest completeness model and a declared clock stream, and the box judges a
+night twenty minutes after its data goes quiet instead of the next evening. The mutation gate stopped
+hiding survivors behind timeouts, declared the one module it cannot measure, and started reading
+Codex as a second opinion under mechanical verification. Full history in the **[changelog](CHANGELOG.md)**.
+
+---
+
+## Suite at a glance
+
+**Suite version:** 2.16.0 &nbsp;—&nbsp; **42** ledger-backed releases, each computed from a green tree, with **82 changesets** pending since (v2.16.0, 2026-09-27).
+
+Every one of the **23 working preprints** in [`papers/`](papers/papers.html) regenerates from the live
+tool behind it. The methods overview is [`Science.html`](Science.html); the system design is
+[`Architecture.html`](Architecture.html).
+
+---
+
+## The hardware
+
+Every sensor is bone-stock and spoken to over the vendor's own protocol; the CPAP link is read-only by
+construction. Approximate US street prices, 2026:
+
+| Hardware | Role | Price |
+|---|---|---:|
+| Lenovo ThinkCentre M900 Tiny (used) | the Health Box | ~$120 |
+| Wellue O2Ring-S | overnight SpO₂ · pulse · raw PPG | ~$170 |
+| Polar H10 | raw ECG · RR · IMU | ~$90 |
+| Polar Verity Sense | raw PPG · IMU | ~$105 |
+| nRF52840 dongles ×3 (open-source Zephyr HCI image) | the box's Bluetooth radios | ~$30 |
+| ez Share WiFi SD card | pulls the CPAP's card | ~$25 |
+| | **core capture kit** | **≈ $550** |
+
+Optional: a GPS stratum-1 time server (the box holds microsecond offsets against it), a ResMed
+AirSense 11 (therapy equipment that was already there), an Abbott Lingo CGM, a Muse S for the planned
+EEG node. One attended lab night costs more than the whole kit and records one night; this records every
+night, raw, in your own bed. The two are not substitutes: if you suspect a sleep disorder, see a
+physician, and bring your exports.
+
+---
+
+## Repo map
 
 | You want… | Look at |
 |---|---|
-| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~500 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
-| **The app for your device** | the bundled `OxyDex.html`, `PpgDex.html`, `PulseDex.html`, `ECGDex.html`, `HRVDex.html`, `GlucoDex.html`, `CPAPDex.html`, `MotionDex.html` — open them directly. `Integrator.html` fuses them all; `Data Unifier.html` routes any file you drop to the right node, and `OverDex.html` runs a whole folder at once. |
-| **The front door** | `index.html` (the landing/device picker) — the page normal people start from. |
-| **How an app is built** | its source modules — `<node>-dsp.js` (signal math), `-render.js`, `-app.js`, `-registry.js` — plus `<App>.src.html`. Edit these; **never** the bundled `*.html`, then re-bundle. |
-| **Shared engine** | `metric-registry.js` (evidence badges), `ganglior-provenance.js`, `ans-design.css`. |
-| **Research tools** | `*-analysis.html` — the live tool behind each paper — plus `cohort-*.html`, `synth-gen.html`. Gates: `Dex-Test-Suite.html`, `verify-provenance.html`. |
-| **The papers** | `papers/` — 22 working preprints, each regenerated from its tool. |
-| **The capture service** | `capture-host/` — the Health Box Python lane (its own gate: `capture-host/check.sh`). Device-by-device capture instructions: `how-to-collect/`. |
-| **Testing the tests** | `tools/mutate.mjs` — breaks the code on purpose and reports which gates fail to notice. The honest measure of whether a green suite means anything; results in [`docs/MUTATION-INVENTORY.md`](docs/MUTATION-INVENTORY.md). |
-| **Every tool, indexed** | [`docs/TOOLS-INDEX.md`](docs/TOOLS-INDEX.md) — the ~190 scripts under `tools/`, each with its purpose; gate-backed so a new tool cannot land undocumented. |
-| **Architecture docs** | `wiring/` — the "How It's Wired" reference set; start at `wiring/How It's Wired - the Dex Suite.html`. |
-| **Design system** | `templates/` — visual-language spec, theme + evidence-badge previews. |
-| **House rules** | `CLAUDE.md` (constitution) · `CONTRIBUTING.md` (on-ramp) · `ARCHITECTURE-PRINCIPLES.md` · [`docs/LEXICON.md`](docs/LEXICON.md). Open verified defects: [`briefs/RESIDUE.md`](briefs/RESIDUE.md), one row each. |
-
----
-
-## On the metric count
-
-The eight node registries define **520 graded metrics** (counted from the `evidence` field of every
-registry entry at `cdae44a5`). That number describes **surface area, not confidence** — which is
-exactly why the suite publishes the breakdown rather than the headline:
-
-| Tier | Count | Share |
-|---|---:|---:|
-| **measured** — read off the device | 149 | 29 % |
-| **validated** — anchored to a published standard | 86 | 17 % |
-| **emerging** — published, device-dependent | 85 | 16 % |
-| **experimental** — internally consistent, not externally confirmed | 143 | 27 % |
-| **heuristic** — directional only | 57 | 11 % |
-
-So **just under half** the surface is `measured` or `validated`, and **nearly two-fifths** sits at
-`experimental` or `heuristic` — the share at the bottom of the ladder *grew* since the last count
-(404 metrics, 31 %), because the metrics added were surfaced honestly at the tier the evidence
-supports and two existing ones were re-tiered *down* on measurement. A count of 520 would be a
-boast; the distribution is the honest version of the same fact, and it is why the ladder leads and
-the count follows.
-
----
-
-## 💰 The hardware — what this actually runs on
-
-Max information, minimum hardware, priced honestly. **Every sensor is bone-stock**: no rooting, no
-hardware mods, no modified sensor firmware. Every sensor, the CPAP included, runs exactly as it
-shipped from the factory and is spoken to over the vendor's own protocol. Where therapy is involved
-the code is **read-only by construction** — the CPAP link contains no write commands at all; Tepna
-only reads what the machine records. The one thing that is *not* stock is on our side of the link:
-the box's BLE radios are nRF52840 dongles running a **self-built open-source Zephyr `hci_uart`
-image** (+20 dBm TX, fixed public address). That is our own controller, built from published
-sources — no vendor firmware is touched, and nothing in the therapy path changes. Every signal in the suite comes off this kit
-(approximate US street prices, August 2026; the box was bought **used**):
-
-| Hardware | Role | Approx. price |
-|---|---|---:|
-| **Lenovo ThinkCentre M900 Tiny** (refurbished — any 6th-gen-i5 tiny works) | the Health Box — 24/7 bedside capture daemon · LAN server · clock disciplined µs-level against the GPS+PPS stratum-1 below; its built-in Intel AX210 carries the CPAP link | ~$80–130 |
-| **Wellue O2Ring** (O2Ring-S) | overnight SpO₂ · pulse · raw PPG → OxyDex / PpgDex | ~$170 |
-| **Polar H10** chest strap | raw ECG (~130 Hz) · RR · ACC → ECGDex / PulseDex / MotionDex | ~$90 |
-| **Polar Verity Sense** armband | raw 4-channel PPG · IMU → PpgDex / MotionDex | ~$105 |
-| **TP-Link UB500 Plus** | the box's first BLE radio — cheap and adequate, but it stalled links for 27–87 s under a three-wearable load; no longer fitted | **$13** |
-| **Sena Parani UD100-G03** | class-1 long-range BLE, exchangeable antenna — carried the wearables 2026-08-25 → 2026-09-12 (0 s of data lost on its first night); now the warm spare | ~$40–52 |
-| **nRF52840 dongle** ×3 *(recommended radio)* | the current radio tier, and the only one whose controller we can read: one carries all three wearables as the capture adapter, one is the advertising anchor, one runs the **BLE sniffer** behind the nightly air audit (what the box's radios actually said on the air, CRC-checked) | ~$12 each |
-| **ez Share WiFi SD card** | pulls the CPAP's SD card over WiFi, no cable | ~$25 |
-| **COOSPO H808S** chest strap | second RR source → PulseDex cross-checks | ~$35 |
-| | **Core capture kit** | **≈ $550** |
-| **CenterClick NTP250** GPS time server | GPS+PPS-disciplined LAN stratum-1 — holds the box at microsecond offsets (measured ~2.5 µs); the timing-integrity backbone *(optional; NTP pool works at ms-accuracy)* | ~$200–240 *(current models: NTP220/NTP270)* |
-| **ResMed AirSense 11** | CPAP therapy (its data feeds CPAPDex) — therapy equipment, typically insurance-covered | ~$1,050 retail |
-| **Abbott Lingo** | CGM → GlucoDex — consumable biosensor | $49 / 14-day sensor |
-| **Muse S** headband | EEG → EEGDex (planned node) | ~$400 |
-
-**You don't need all of it — and you don't need the box.** Every Dex is a single-signal analyzer:
-**one device is a complete starting point** (an O2Ring alone feeds OxyDex; an H10 alone feeds
-ECGDex and PulseDex). And instead of the capture box, **an Android phone you already own works**:
-the free Polar Sensor Logger app records H10/Verity streams, the Wellue app exports the ring's
-nights, and you drop the files into the Dexes in the browser — that was this project's original
-setup, and most of its corpus was captured exactly that way. The box adds the always-on, hands-off,
-one-clock version; it is the upgrade, not the entry fee.
-
-So the entry cost is **one sensor plus a phone you already have** (~$90–170); the full multi-signal
-lab — raw ECG, dual raw PPG, continuous SpO₂, HRV, IMU, plus the always-on capture box — is
-**under $600 of hardware**, most of it consumer gear bought retail. The CPAP is therapy equipment
-that was already there; Tepna just reads what it records. That is the
-[max-info-min-hardware constraint](#-why-this-exists) with a receipt attached.
-
-> **For calibration:** one attended night in a professional sleep lab bills **$1,000–$10,000**, and a
-> mail-out home sleep test ($150–$500) records one night of far fewer channels. The kit above costs
-> less than one lab night's facility fee and records **every** night, raw, in your own bed. The two
-> are not substitutes: the lab answers *"do you have sleep apnea?"* with clinical authority — Tepna
-> answers *"what does your physiology actually do, night after night?"* with data you own. If you
-> suspect a sleep disorder, see a physician; bring your Tepna exports with you.
-
----
-
-## Project voice (narrative, not spec)
-
-For the *why* behind Tepna — the philosophy, the constraints, and the jokes — see
-[`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md) (styled mirror: `Why This Exists.html`). It is
-**narrative, not spec**: it defines no formats, APIs, or behavior, and nothing in it should be read
-as an instruction to implement. Authoritative rules live in `CLAUDE.md`, this README, and the
-`*-BRIEF.md` documents.
+| a map of every document | [`DOCS-INDEX.md`](DOCS-INDEX.md) — start here before opening any brief |
+| the 60-second orientation for contributors | [`ORIENTATION.md`](ORIENTATION.md) |
+| the house rules | [`CLAUDE.md`](CLAUDE.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`ARCHITECTURE-PRINCIPLES.md`](ARCHITECTURE-PRINCIPLES.md) |
+| how an app is built | `<node>-dsp.js` · `-render.js` · `-app.js` · `-registry.js` + `<App>.src.html`; edit these, never the bundled `*.html` |
+| the research tools and papers | `*-analysis.html` and [`papers/`](papers/papers.html) |
+| every script, indexed | [`docs/TOOLS-INDEX.md`](docs/TOOLS-INDEX.md) |
+| open verified defects | [`briefs/RESIDUE.md`](briefs/RESIDUE.md) |
 
 ## Acknowledgements
 
-Tepna stands on documented reverse-engineering and capture work by others, credited here as in the briefs:
-
-- **[nglessner/o2ring-s-protocol](https://github.com/nglessner/o2ring-s-protocol)** — the OxyII (O2Ring-S) BLE protocol reference. The lineage runs both ways: Tepna's base protocol (frame envelope, auth, live poll) was written against this reference and hardware-verified the same day, while Tepna's own full 256-opcode sweep then mapped 25 undocumented commands beyond it — later byte-proven equivalent on the shared core. And the debt runs back: Tepna's decode of opcode `0x05` — it is `GET_RT_PPG`, a raw two-channel (red/IR) PPG drain buffer, validated over 49 sessions — was [contributed upstream](https://github.com/nglessner/o2ring-s-protocol/discussions/6), along with the `0x83` buzzer opcode and other protocol clarifications.
-- **[m-kozlowski/airbreak-plus](https://github.com/m-kozlowski/airbreak-plus)** (descending from **[osresearch/airbreak](https://github.com/osresearch/airbreak)**) — the AS11 CPAP protocol *documentation* (prose and tables, not code) that Tepna's clean-room, read-only implementation was written against. No firmware modification is used or endorsed here.
-- **[Polar Sensor Logger](https://play.google.com/store/apps/details?id=com.j_ware.polarsensorlogger)** by j-ware — the Android app whose faithful raw exports (ECG, PPG, IMU) made the original phone-captured corpus possible and defined the file formats the suite still speaks.
-- **Open-source foundations** the capture lane leans on daily: [bleak](https://github.com/hbldh/bleak), [mutmut](https://github.com/boxed/mutmut), chrony, and the Python and Node ecosystems.
-
-**AI-assisted development** [![Built with Claude Code](https://img.shields.io/badge/built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)](https://claude.com/claude-code): Tepna is built in close collaboration with Anthropic's Claude — the commit history carries the co-authorship trailers openly. Every behavioral claim is still held to the same standard regardless of who wrote it: gates, planted controls, and provenance, not trust.
+Tepna stands on others' documented work: [nglessner/o2ring-s-protocol](https://github.com/nglessner/o2ring-s-protocol)
+(the O2Ring-S protocol reference), [m-kozlowski/airbreak-plus](https://github.com/m-kozlowski/airbreak-plus)
+descending from [osresearch/airbreak](https://github.com/osresearch/airbreak) (the CPAP protocol),
+[Polar Sensor Logger](https://play.google.com/store/apps/details?id=com.j_ware.polarsensorlogger) by j-ware,
+and the open-source foundations the capture lane leans on: [bleak](https://github.com/hbldh/bleak),
+[mutmut](https://github.com/boxed/mutmut), chrony. Built in the open with
+[![Built with Claude Code](https://img.shields.io/badge/built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)](https://claude.com/claude-code).
 
 ## Licensing
 
-Apache-2.0. Author: **Michal Planicka** ([ORCID 0009-0008-3501-3596](https://orcid.org/0009-0008-3501-3596)). Product brand: **Tepna**. See `LICENSE`, `NOTICE`,
-`CITATION.cff`, and `THIRD-PARTY.md`. User-facing surfaces carry the health intended-use
-disclaimer — Tepna is **not a medical device** and does not diagnose, treat, or monitor any
-condition.
+Apache-2.0. Author: **Michal Planicka** ([ORCID 0009-0008-3501-3596](https://orcid.org/0009-0008-3501-3596)).
+Brand: **Tepna**. See `LICENSE`, `NOTICE`, `CITATION.cff` and `THIRD-PARTY.md`. Tepna is **not a medical
+device** and does not diagnose, treat or monitor any condition.
 
 
 ==============================================================================

@@ -5932,7 +5932,10 @@ def test_the_live_bus_push_carries_the_sample_values_not_the_sample_objects(tmp_
     assert ecg, f"an ecg frame must reach the live bus, got keys {[p[0] for p in pushed]}"
     _key, vals, hz, dev_ns = ecg[0]
     assert vals == [7, 7, 7], "the VALUES, one per sample, in order"
-    assert hz, "and a sample rate — a trace with no rate cannot be drawn to a time axis"
+    # The fake's frame arrives BEFORE negotiation, so the push carries no rate: the trace's time axis is the
+    # rate the bus publishes for the stream — the DECLARED one, 0 until negotiation — never a vendor default
+    # the stream did not agree to (ABSENCE-SURVEY dd0aa7a41642, under #3268's declared-rate contract).
+    assert hz is None, f"pushed at fs={hz!r} before any rate was negotiated"
     # …and the frame's DEVICE stamp (DEVICE-RATE-TRUTH §6.3). Without it `effFs` falls back to arrival
     # times, which measure how the radio BATCHED the frames rather than how fast the sensor sampled — so
     # a missing `dev_ns` here is not a cosmetic omission, it silently restores the old statistic.
@@ -8431,6 +8434,171 @@ def test_run_oxyii_captures_the_single_channel_pleth(tmp_path, monkeypatch):
         ["156", "0"],
         ["30", "0"],
     ]
+
+
+def test_SPLIT_mode_polls_the_wave_every_cycle_and_the_vitals_on_a_DEADLINE(tmp_path, monkeypatch):
+    """RING-POLL-SPLIT. The vendor's one wave parser serves 0x03 and the wave half of 0x04 out of ONE
+    buffer, and today 0x04 goes first so 0x03 gets the leftovers — measured over four full hours of
+    2026-09-07, 0x04 runs ~4,100-4,600 ADC samples short per hour and 0x03 delivers 99.1 % of exactly
+    that deficit. In `split` mode 0x03 drains the buffer every cycle and 0x04 drops to a deadline.
+
+    ⚠️ 0x04 is REDUCED, NEVER DROPPED, and the reason is in two places at once: it is the proven vitals
+    path (0x02 RT_PARAM has never been polled — O2RING-PROTOCOL §306 marks it "❌ ours" — and a failed
+    vitals poll drops the LINK, so an unanswered opcode would cost the night's SpO2 and HR), and it is
+    the only opcode known to carry `ppg_stream_offset`, which is the arrival floor's only device-position
+    anchor. So each surviving 0x04 poll is also a floor anchor."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "O2WAVE_POLL_MODE", capture.O2WAVE_POLL_SPLIT)
+    vals = [10, 20, 30, 40]
+    payload = b"\x00\x00\x00\x00" + len(vals).to_bytes(2, "little") + bytes(vals)
+    c = FakeGattClient()
+    asked = []
+
+    def on_live(data):
+        asked.append(data[1])
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_SAMPLES_A:
+            c.notify(0, oxyii.encode(oxyii.OP_SAMPLES_A, payload))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)
+    # `pletha` deliberately NOT in streams: in split mode 0x03 is the WAVE SOURCE, not an optional extra,
+    # so it must be polled on the mode alone. (In `dual` mode the opposite is pinned by
+    # test_the_pleth_stream_is_off_unless_configured, which is the control for this assertion.)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2"]), str(tmp_path)))
+
+    n_wave = asked.count(oxyii.OP_SAMPLES_A)
+    n_vit = asked.count(oxyii.OP_LIVE)
+    assert n_wave >= 2, f"0x03 must be polled every cycle in split mode, saw {n_wave} of {asked}"
+    # The deadline is 10 s and this test runs in well under one, so exactly ONE vitals poll is due — the
+    # first, because `_vitals_last` starts None and "no poll yet" must always poll.
+    assert n_vit == 1, f"0x04 must be polled ONCE on the deadline, not per cycle; saw {n_vit}"
+    assert n_wave > n_vit, "the point of split mode is that the wave outpaces the vitals poll"
+
+
+def test_SPLIT_mode_logs_the_wave_frames_with_a_BLANK_position_never_a_running_sum(tmp_path, monkeypatch):
+    """∅ E11's arrival logger follows the opcode that CARRIES THE FRAMES, and says WHICH opcode it was.
+
+    `PPG_FRAME` is 0x04 and carries `ppg_stream_offset` — the ring's own cumulative position.
+    `PPG_FRAME_A` is 0x03 (LIVE_SAMPLES_A), whose reply header is 6 bytes with only a declared count at
+    [4:6]; [0:4] is unexamined and no cumulative position is known there. So the position column is
+    BLANK.
+
+    NOT a host-maintained running sum, which is the tempting fix and the wrong one: a sum advances across
+    a dropout the device sat out, which is precisely the event an arrival floor exists to SEE, so it
+    would be a fabricated device position wearing the shape of a real one."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "O2WAVE_POLL_MODE", capture.O2WAVE_POLL_SPLIT)
+    vals = [10, 20, 30, 40, 50]
+    payload = b"\x00\x00\x00\x00" + len(vals).to_bytes(2, "little") + bytes(vals)
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_SAMPLES_A:
+            c.notify(0, oxyii.encode(oxyii.OP_SAMPLES_A, payload))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2"]), str(tmp_path)))
+
+    arr = list((tmp_path / "captures").rglob("*_PMDARRIVAL.csv"))
+    assert arr, "the arrival sidecar must exist"
+    lines = [ln for ln in arr[0].read_text().split("\n") if ln.strip()]
+    a_rows = [ln.split(";") for ln in lines[1:] if ln.split(";")[2] == "PPG_FRAME_A"]
+    assert a_rows, f"0x03-carried frames must be logged as PPG_FRAME_A; saw {[ln.split(';')[2] for ln in lines[1:]]}"
+    for r in a_rows:
+        assert r[3] == "" and r[4] == "", f"the ring has no clock: both ns columns must be blank, got {r}"
+        assert r[5] == str(len(vals)), f"the sample count is the frame's own: {r}"
+        assert len(r) < 7 or r[6] == "", f"0x03 carries NO position — it must be blank, never 0 or a sum: {r}"
+    # And the tag distinguishes the opcodes: a split night must carry no 0x04-sourced frame rows, because
+    # the reduced vitals poll delivers vitals and the wave comes from 0x03.
+    assert all(ln.split(";")[2] != "PPG_FRAME" for ln in lines[1:]), (
+        "a PPG_FRAME row in split mode would mean 0x04 still carried the wave"
+    )
+
+
+def test_an_UNREADABLE_wave_poll_mode_warns_and_runs_the_PROVEN_path():
+    """⚠️ My first version of this test asserted its own plant — that "splti" is not one of two constants
+    — and never called capture.py at all. The decision is now a named function so the test can reach it.
+
+    The failure it guards is silent: a typo in the experiment's own flag makes the experiment night behave
+    exactly like a control, and the result then reads as a refutation of split mode rather than as a flag
+    that never took."""
+    said = []
+
+    def warn(fmt, *a):
+        said.append(fmt % a)
+
+    assert capture.wave_poll_mode({"o2ring": {"wave_poll_mode": "split"}}, warn) == capture.O2WAVE_POLL_SPLIT
+    assert capture.wave_poll_mode({"o2ring": {"wave_poll_mode": " SPLIT "}}, warn) == capture.O2WAVE_POLL_SPLIT, (
+        "case and padding are a human's, not a mode"
+    )
+    assert capture.wave_poll_mode({"o2ring": {"wave_poll_mode": "dual"}}, warn) == capture.O2WAVE_POLL_DUAL
+    assert said == [], f"a readable mode must warn about nothing: {said}"
+
+    # The typo, which is the whole point: dual runs, and it is NAMED.
+    assert capture.wave_poll_mode({"o2ring": {"wave_poll_mode": "splti"}}, warn) == capture.O2WAVE_POLL_DUAL
+    assert len(said) == 1 and "splti" in said[0] and "dual" in said[0], said
+
+    # ABSENT is not a typo and must stay SILENT — every control night has no flag at all, and a warning
+    # per night would be noise that teaches a reader to ignore the one that matters.
+    said.clear()
+    for quiet in ({}, {"o2ring": {}}, {"o2ring": {"wave_poll_mode": None}}, {"o2ring": {"wave_poll_mode": ""}}, None):
+        assert capture.wave_poll_mode(quiet, warn) == capture.O2WAVE_POLL_DUAL, quiet
+    assert said == [], f"an absent flag is not a misconfiguration: {said}"
+
+    # And with NO injected logger the default must still be `dual` — the box's own call site passes
+    # `log.warning`, so this leg is about the RETURN VALUE being safe whatever the logging does.
+    assert capture.wave_poll_mode({"o2ring": {"wave_poll_mode": "splti"}}) == capture.O2WAVE_POLL_DUAL
+
+
+def test_SPLIT_an_arrival_sidecar_FAILURE_does_not_cost_the_wave(tmp_path, monkeypatch):
+    """The `except Exception: pass` around the `PPG_FRAME_A` row, driven rather than pragma'd — the same
+    contract E11's 0x04 row carries, on the opcode that becomes the wave source in split mode: a sidecar
+    that cannot be written must cost a ROW, never a sample."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "O2WAVE_POLL_MODE", capture.O2WAVE_POLL_SPLIT)
+    real_write = capture.PmdArrivalLogWriter.write
+    hit = {"n": 0}
+
+    def boom(self, arrival, device, meas, first_ns, last_ns, n_samples, first_sample_idx=None):
+        if meas == "PPG_FRAME_A":
+            hit["n"] += 1
+            raise OSError(28, "No space left on device")
+        return real_write(self, arrival, device, meas, first_ns, last_ns, n_samples, first_sample_idx)
+
+    monkeypatch.setattr(capture.PmdArrivalLogWriter, "write", boom)
+    vals = [11, 22, 33, 44, 55, 66]
+    payload = b"\x00\x00\x00\x00" + len(vals).to_bytes(2, "little") + bytes(vals)
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_SAMPLES_A:
+            c.notify(0, oxyii.encode(oxyii.OP_SAMPLES_A, payload))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "pletha"]), str(tmp_path)))
+
+    assert hit["n"] >= 1, "the plant must actually have been reached, or this asserts nothing"
+    pl = list((tmp_path / "captures").rglob("*_PLETHA.txt"))
+    assert pl, "a failing SIDECAR must not cost the wave stream"
+    body = [ln for ln in pl[0].read_text().split("\n")[1:] if ln.strip()]
+    assert len(body) >= len(vals), f"every delivered sample must still be written, saw {len(body)}"
 
 
 def test_the_pleth_stream_is_off_unless_configured(tmp_path, monkeypatch):

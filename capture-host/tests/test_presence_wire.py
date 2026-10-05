@@ -82,7 +82,10 @@ def _run_loop_from_state(scans, addresses, start_mono):
 
     async def _scan(_w):
         calls["n"] += 1
-        return scans[calls["n"] - 1]
+        r = scans[calls["n"] - 1]
+        if isinstance(r, Exception):
+            raise r
+        return r
 
     async def _sleep(_s):
         if calls["n"] >= len(scans):
@@ -107,6 +110,19 @@ def test_a_scan_failure_does_not_take_the_daemon_down_and_leaves_the_observation
         out = _run_loop([RuntimeError("adapter busy")])
     assert out[A].state is S.UNKNOWN, "a failed scan is not a sighting and is not an absence"
     assert "presence scan failed" in caplog.text
+
+
+def test_failed_scans_past_the_absence_window_leave_a_PRESENT_ring_PRESENT():
+    """PLANT (ABSENCE-SURVEY 7ddec5309f42): a scan that RAISED was folded as an empty window, so failed
+    windows spanning ABSENT_AFTER_S declared a present ring gone — the radio could not look, so nothing is
+    known. Same setup as the genuine departure below, with the empty scans replaced by failures."""
+    prev = capture.presence_fold({}, {A: 1.0}, [A], 1.0)
+    prev = capture.presence_fold(prev, {A: 2.0}, [A], 2.0)
+    capture._PRESENCE.clear()
+    capture._PRESENCE.update(prev)
+    _run_loop_from_state([RuntimeError("adapter busy")] * 3, addresses=(A,), start_mono=2.0 + P.ABSENT_AFTER_S)
+    assert capture._PRESENCE[A].state is S.PRESENT
+    assert capture._PRESENCE[A].sightings == prev[A].sightings, "a failed window is not a tick at all"
 
 
 def test_two_windows_of_sightings_reach_PRESENT():
