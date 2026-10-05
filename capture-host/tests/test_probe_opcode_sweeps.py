@@ -1011,3 +1011,15 @@ def test_a_ONE_frame_baseline_compares_against_that_frame():
 def test_the_baseline_returns_the_LAST_frame_seen():
     assert _run(oxs.learn_baseline(_Seq([b"\x01", b"\x01", None, b"\x02", b"\x02"]), n=2, gap=0)) == (b"\x02", [])
     assert _run(oxs.learn_baseline(_Seq([b"\x01", None, b"\x02"]), n=1, gap=0)) == (b"\x02", [])
+
+
+def test_pmd_an_UNANSWERED_final_status_read_is_unknown_never_nothing_running(monkeypatch):
+    """ABSENCE-SURVEY 31a3180e5235: a status read nobody answered parsed to {} and published
+    `left_running: []` — "nothing is running" on the step that promises the sweep leaves nothing
+    running. It is None with a reason, and no stop is sent blind."""
+    c = _PmdClient(replies={0x05: None}, default=0x01)
+    _patch_pmd(monkeypatch, c)
+    res = _run(pms.run("AA:BB", None, 0x0B, 0x0C, False, False))
+    assert res["left_running"] is None
+    assert "not answered" in res["left_running_reason"]
+    assert not any(w[:1] == bytes([0x03]) for w in c.writes), "no stop command may be sent blind"
