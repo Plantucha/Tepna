@@ -241,6 +241,11 @@ export const SEEDS = [
     at: 'capture-host/clockcfg.py:74',
     state: 'fixed',
     note: 'when `timedatectl show` fails, ntp_enabled / synchronized / contract.tz_set are None (not False) beside available: false, and both monitor pills read a grey "unknown" instead of NTP "off" / "check zone/sync". Plant: test_clockcfg (2 tests red on origin/main) (2026-10-05, Wren)'
+  },
+  {
+    at: 'capture-host/sealbox.py:342',
+    state: 'fixed',
+    note: 'an unreadable existing seal is an absent READING, not an absent seal: existing_header returns {_unreadable: why}, seal_or_reissue emits UNKNOWN (checked 0) and leaves the file exactly as it was (re-sealing is an operator action); a header missing revision or keyId is UNKNOWN, never revision 1 under keyId 0. Owner ruling 2026-10-04. Plants: test_sealbox unreadable-seal + missing-number tests (2026-10-05, Wren)'
   }
 ];
 
