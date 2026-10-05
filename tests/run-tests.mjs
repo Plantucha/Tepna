@@ -2710,6 +2710,13 @@ async function main() {
     fuseHrvResource: ctx.fuseHrvResource,
     fuseCvhrCorroboration: ctx.fuseCvhrCorroboration,
     oxyComputeFusion: ctx.oxyComputeFusion,
+    /* ABSENCE-SURVEY fusion group — two more of fusion's PUBLISHED surface, plus the one realm global
+       oxyEcgForNight reads (`window` IS the sandbox here). A setter, not the realm: a test cannot reach past it. */
+    oxyEcgFusionSection: ctx.oxyEcgFusionSection,
+    oxyEcgForNight: ctx.oxyEcgForNight,
+    setEcgByDate: function (m) {
+      ctx._ecgByDate = m;
+    },
     reconstructEventTMs: ctx.reconstructEventTMs,
     pearson: ctx.pearson,
     labelPositionalApnea: ctx.labelPositionalApnea,

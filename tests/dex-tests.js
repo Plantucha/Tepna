@@ -44950,6 +44950,82 @@
       }
     });
 
+    group('OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0', 'oxydex-fusion · absence', function (T) {
+      // fusion's PUBLISHED surface only (its window / stamp helpers are module-private): node reads env, browser globals
+      var W = typeof globalThis !== 'undefined' ? globalThis : {};
+      var names = ['oxyComputeFusion', 'oxyEcgFusionSection', 'oxyEcgForNight'];
+      var G = {};
+      names.forEach(function (k) {
+        G[k] = typeof env[k] === 'function' ? env[k] : W[k];
+      });
+      var setByDate =
+        typeof env.setEcgByDate === 'function'
+          ? env.setEcgByDate
+          : function (m) {
+              W._ecgByDate = m;
+            };
+      var miss = names.filter(function (k) {
+        return typeof G[k] !== 'function';
+      });
+      if (miss.length === names.length) {
+        T.skip('oxydex-fusion co-loaded', 'not in this lane');
+        return;
+      }
+      T.eq('fusion · every function this group calls is reachable', miss, []);
+      if (miss.length) return;
+      var t0 = Date.UTC(2026, 5, 12, 22, 0, 0); // 22:00
+      var ecg = function (rec, surges) {
+        return {
+          recording: rec,
+          ganglior_events: (surges || []).map(function (t) {
+            return { impulse: 'autonomic_surge', t: t };
+          }),
+          apnea: { cvhrEvents: 4 },
+          hrv: { time: {} },
+          cardiorespiratory: {}
+        };
+      };
+      var nightAt = function (events, stats) {
+        return { t0Ms: t0, stats: stats || {}, hrv: {}, desat: { events: events }, hb: { total: 100 } };
+      };
+      var ALLNIGHT = { startEpochMs: t0, durationMin: 600 };
+      // 02ff987f1a3b — an unreadable or out-of-range stamp places no surge (it used to land at midnight / roll a day)
+      var mid = nightAt([{ tMs: t0 + 2 * 3600000, depth: 6 }]); // a desat at 00:00 the next day
+      T.eq('fusion · a surge stamped "xx:yy" confirms nothing (it read as 00:00)', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['xx:yy'])).confirmed, 0);
+      var one = nightAt([{ tMs: t0 + 3 * 3600000, depth: 6 }]); // 01:00 the next day
+      T.eq('fusion · a surge stamped "25:00:00" confirms nothing (Date.UTC rolled it to 01:00)', G.oxyComputeFusion(one, ecg(ALLNIGHT, ['25:00:00'])).confirmed, 0);
+      T.eq('fusion · CONTROL · a surge stamped "00:00:00" confirms the 00:00 desat', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['00:00:00'])).confirmed, 1);
+      // 7fe93fab700e — an ECG with no recorded duration has no window: coverage unknown, not a 0-minute window
+      var desats = [];
+      for (var i = 0; i < 10; i++) desats.push({ tMs: t0 + (30 + i * 30) * 60000, depth: 6 });
+      var Z = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0 }));
+      T.eq('fusion · ECG start with no duration ⇒ coverage UNKNOWN (null), not 0 desats covered', Z.coveredDesats, null);
+      // 612257ff825b / d46c73b26764 — no ECG window ⇒ no confirmed %, no scoped burden
+      var U = G.oxyComputeFusion(nightAt(desats), ecg({ durationMin: 60 }));
+      T.eq('fusion · no ECG window ⇒ coveredDesats null, not all 10', U.coveredDesats, null);
+      T.eq('fusion · …so confPct is null, never a green 0 of 10', U.confPct, null);
+      T.eq('fusion · …and no burden is scoped to an unknown share', U.hbCov, null);
+      var noDes = G.oxyComputeFusion(nightAt([]), ecg({ startEpochMs: t0, durationMin: 60 }));
+      T.eq('fusion · no desats ⇒ the covered share is undefined ⇒ no whole-night burden per window event', JSON.stringify([noDes.hbCov, noDes.dosePerEv]), '[null,null]');
+      // 732f9bcf73c2 / 92559b915569 — an event with no depth leaves its stage's mean
+      var mixed = [{ tMs: t0 + 1800000, depth: 6 }, { tMs: t0 + 3600000, depth: 6 }, { tMs: t0 + 5400000 }];
+      var html = String(G.oxyEcgFusionSection(nightAt(mixed), ecg({ startEpochMs: t0, durationMin: 120 })));
+      var row = (html.match(/efz-stageval">[^<]*/) || [''])[0];
+      T.ok('fusion · two 6 % dips + one with no depth ⇒ a 6 % mean, not 4 %', /−6% mean/.test(row), row);
+      T.ok('fusion · …and the row says how many carried a depth', /3×\s*\(depth on 2\)/.test(row), row);
+      // 7fe93fab700e (pairing half) — the start-only ECG that coverage now refuses must still PAIR by its start
+      var startOnly = ecg({ startEpochMs: t0 + 3 * 3600000 }); // 01:00, keyed by its own (next) civil date
+      try {
+        setByDate({ '2026-06-13': startOnly, '2026-06-20': ecg({ startEpochMs: t0 + 8 * 86400000, durationMin: 60 }) });
+        T.ok(
+          'fusion · CONTROL · a start-only ECG inside the night still pairs (by its start, not its date)',
+          G.oxyEcgForNight({ t0Ms: t0, date: '2026-06-12', stats: { durationMin: 480 } }) === startOnly
+        );
+      } finally {
+        setByDate(undefined);
+      }
+    });
+
     group(
       'OxyDex fusion is COVERAGE-AWARE — confPct/dose scoped to the ECG window, no green 0 on non-overlap (DEEP-AUDIT-II §11.1–11.3)',
       'oxydex-fusion · coverage-aware · fabricated-absence',
