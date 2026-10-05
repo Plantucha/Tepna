@@ -236,6 +236,11 @@ export const SEEDS = [
     at: 'capture-host/bonding.py:79',
     state: 'fixed',
     note: '_btctl returns None when bluetoothctl does not answer; is_bonded / trusted_flags / scan read it as unknown (no forced re-pair, no "BlueZ reports no bond" on no evidence) and the adapter watchdog says BlueZ did not answer instead of reaching it through a TypeError. Plants: test_bonding unanswered-info + test_an_UNANSWERED_bluez_probe_is_said_as_such_not_reached_through_a_TypeError (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/clockcfg.py:74',
+    state: 'fixed',
+    note: 'when `timedatectl show` fails, ntp_enabled / synchronized / contract.tz_set are None (not False) beside available: false, and both monitor pills read a grey "unknown" instead of NTP "off" / "check zone/sync". Plant: test_clockcfg (2 tests red on origin/main) (2026-10-05, Wren)'
   }
 ];
 
