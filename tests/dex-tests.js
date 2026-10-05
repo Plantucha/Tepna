@@ -30145,6 +30145,9 @@
           .join(','),
         '0,null,null,3'
       );
+      // Through the Codex reader: the radix is 10, so a hex-looking cell is NOT read as hex (parseInt radix 0 would give 16)
+      var hexRows = OB.parseCSV('Time,Oxygen Level,Pulse Rate,Motion\n20:21:36 13/08/2026,96,52,0x10\n', { fname: 'x_SPO2.csv' });
+      T.eq('B1 · motion is parsed base 10: "0x10" reads 0, never 16', hexRows.length && hexRows[0].motion, 0);
       // 4fc9554e37da — with no wall-clock span the gap percentage rests on an ASSUMED 1 Hz, and says so
       var stamped = OB.computeDataGaps(rows);
       T.eq('B1 · a stamped night carries no span-source label (its output is unchanged)', 'gapSpanSource' in stamped, false);
@@ -30490,6 +30493,30 @@
       T.eq('B1 · an absent spike baseline is null, not a 0 bpm baseline', sp3 && sp3.baseline, null);
       T.eq('B1 · …a present peak survives', sp3 && sp3.peak, 91);
       T.eq('B1 · …and an unparseable time gives no minute, not minute 0', sp3 && sp3.mfm, null);
+      // Through the Codex reader (each input run against the original first):
+      var r4 = clone(REC);
+      delete r4.research;
+      delete r4.stats.n;
+      r4.stats.durationMin = null; // PRESENT and null: isFinite(null) is true, so the guard needs its `!= null`
+      var m4 = one(r4);
+      T.eq('B1 · a durationMin of null is no basis either', m4 && m4.tIdx && m4.tIdx[90] && m4.tIdx[90].secs, null);
+      var r5 = clone(REC);
+      delete r5.research;
+      delete r5.stats.n;
+      r5.stats.durationMin = 10;
+      r5.stats.t90pct = 50;
+      var m5 = one(r5);
+      T.eq('B1 · a duration basis is minutes x 60: 50 % of 10 min is 300 s, at key 90', m5 && m5.tIdx && m5.tIdx[90] && m5.tIdx[90].secs, 300);
+      var r6 = clone(REC);
+      delete r6.research;
+      r6.stats.n = 100;
+      r6.stats.t90pct = 50;
+      var m6 = one(r6);
+      T.eq('B1 · a sample-count basis: 50 % of 100 samples is 50 s', m6 && m6.tIdx && m6.tIdx[90] && JSON.stringify([m6.tIdx[90].pct, m6.tIdx[90].secs]), '[50,50]');
+      var r7 = clone(REC);
+      r7.hr_spikes = { events: [{ time: '00:01:00', peak: 90 }] };
+      var m7 = one(r7);
+      T.eq('B1 · a parseable spike time becomes its minute: 00:01:00 is minute 1', m7 && m7.spikes && m7.spikes[0].mfm, 1);
     });
 
     group('OxyDex sanity filter drops out-of-range rows, one axis at a time (mutate.mjs survivor)', 'oxydex-dsp · parse · known-answer', function (T) {
