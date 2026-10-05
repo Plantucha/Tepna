@@ -30,8 +30,15 @@ def _run(c):
 @pytest.fixture(autouse=True)
 def _no_baseline_wait(monkeypatch):
     """The ~1 s spacing between baseline samples matches the ring's 1 Hz frame cadence — a hardware fact,
-    not a test fact. The COUNT still applies, so the sampling logic is exercised for real."""
+    not a test fact. The COUNT still applies, so the sampling logic is exercised for real.
+
+    The reply timeouts and the PMD command spacing are shortened the same way. All four are read at
+    CALL time; a constant bound as a default is out of this fixture's reach, which is how the gap patch
+    above did nothing for as long as it existed (`test_the_baseline_gap_patch_REACHES_learn_baseline`)."""
     monkeypatch.setattr(oxs, "BASELINE_GAP_S", 0.0)
+    monkeypatch.setattr(oxs, "REPLY_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(pms, "SEND_SPACING_S", 0.0)
+    monkeypatch.setattr(pms, "REPLY_TIMEOUT_S", 0.01)
 
 
 # ══ Polar PMD sweep ══════════════════════════════════════════════════════════════════════════════════
@@ -804,3 +811,68 @@ def test_pmd_diff_reports_an_UNREAD_key_instead_of_matching_None_to_None():
     }
     assert pms.diff({"x": "01"}, {"x": None}) == {"x": {"before": "01", "after": None, "unread": True}}
     assert pms.diff({"x": "01"}, {"x": "01"}) == {}
+
+
+# ── the fixture's patches must REACH their targets ──────────────────────────────────────────────────
+def test_the_baseline_gap_patch_REACHES_learn_baseline(monkeypatch):
+    """`gap=BASELINE_GAP_S` bound as a default captured 1.0 at definition, so the autouse patch to 0.0
+    reached nothing and every baseline slept 5 x 1 s for real. The constant is now read at call time."""
+    monkeypatch.setattr(oxs, "BASELINE_GAP_S", 0.123)
+    slept = []
+
+    async def rec(s):
+        slept.append(s)
+
+    monkeypatch.setattr(oxs.asyncio, "sleep", rec)
+
+    class _R:
+        async def send(self, op, payload=b"", timeout=None):
+            return bytes(20)
+
+    _run(oxs.learn_baseline(_R(), n=2))
+    assert slept and set(slept) == {0.123}
+
+
+def test_the_reply_timeouts_and_spacing_are_read_at_CALL_time(monkeypatch):
+    seen = []
+    real_wait_for = asyncio.wait_for
+
+    async def rec_wait_for(aw, timeout):
+        seen.append(timeout)
+        return await real_wait_for(aw, timeout)
+
+    monkeypatch.setattr(oxs.asyncio, "wait_for", rec_wait_for)
+
+    class _C:
+        async def start_notify(self, *_a):
+            return None
+
+        async def write_gatt_char(self, *_a, **_k):
+            return None
+
+    monkeypatch.setattr(oxs, "REPLY_TIMEOUT_S", 0.002)
+    assert _run(oxs.Ring(_C()).send(0x04)) is None
+    monkeypatch.setattr(pms, "REPLY_TIMEOUT_S", 0.003)
+    assert _run(pms.Control(_C()).send(b"\x05")) is None
+    assert seen == [0.002, 0.003]
+
+
+def test_the_HARDWARE_values_behind_the_shortened_constants(monkeypatch):
+    """The fixture shortens them for speed; these are the values the probes run with on a real link."""
+    monkeypatch.undo()
+    assert (oxs.BASELINE_N, oxs.BASELINE_GAP_S, oxs.REPLY_TIMEOUT_S) == (5, 1.0, 2.5)
+    assert (pms.SEND_SPACING_S, pms.REPLY_TIMEOUT_S) == (0.25, 5.0)
+
+
+def test_a_baseline_under_the_fixture_takes_under_ONE_SECOND():
+    """The guard against the next default bound at definition: a constant the fixture cannot reach makes
+    this wait out the real 5 x 1 s spacing, and the wall clock says so even when no assertion looks."""
+    import time as _time
+
+    class _R:
+        async def send(self, op, payload=b"", timeout=None):
+            return bytes(20)
+
+    t0 = _time.monotonic()
+    _run(oxs.learn_baseline(_R()))
+    assert _time.monotonic() - t0 < 1.0
