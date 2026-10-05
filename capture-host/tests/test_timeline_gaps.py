@@ -667,3 +667,83 @@ def test_each_device_row_carries_the_five_fields_the_monitor_reads(tmp_path):
     assert sorted(dev) == ["address", "device_id", "name", "rssi", "streams"], sorted(dev)
     assert dev["name"] == "H10" and dev["device_id"] == "02849638"
     assert "ecg" in dev["streams"]
+
+
+def _clamped_night(tmp_path, host_only=False, seam_at=40):
+    """A night whose JUDGED session is clamped to a daemon restart that fell INSIDE the file still being
+    written. ⚠️ The shape is load-bearing in three ways, each measured: the seam must land inside the
+    substantive file's own span (40 s into a 111 s file), there must be a second file for the seam to
+    make a second session out of, and the substantive file must be the one `judged_session` picks — a
+    seam between two files clamps nothing, and a clamped session that is not the judged one is invisible.
+    `host_only` drops the device-clock column so the extent is known only from the host stamps."""
+    d = tmp_path / "2026-07-25"
+    d.mkdir(parents=True)
+    for hhmmss, n, off in (("220000", 112, 0), ("221000", 2, 600)):
+        if host_only:
+            rows = [f"2026-07-25T22:{(off + i) // 60:02d}:{(off + i) % 60:02d}.000;1;2;3" for i in range(n)]
+            hdr, st = "Phone timestamp;X [mg];Y [mg];Z [mg]", "ACC"
+        else:
+            rows = [f"2026-07-25T22:{(off + i) // 60:02d}:{(off + i) % 60:02d}.000;{i}000000000;1" for i in range(n)]
+            hdr, st = "Phone timestamp;sensor timestamp [ns];channel 0", "ECG"
+        (d / f"Polar_H10_02849638_20260725{hhmmss}_{st}.txt").write_text(hdr + "\n" + "\n".join(rows) + "\n")
+    (d / "STARTS.csv").write_text(
+        "Phone timestamp;pid;git;dirty;adapter\n"
+        f"2026-07-25T22:00:{seam_at:02d}.000;400443;2cd12712;no;F4:CE:36:2E:CD:98\n"
+    )
+    return d
+
+
+_CLAMP_DEV = [{"name": "H10", "device_id": "02849638", "model": "H10", "streams": ["ecg", "acc"]}]
+
+
+@pytest.mark.parametrize(
+    "host_only,clock",
+    [(False, "span_sec"), (True, "host_span_sec")],
+    ids=["device-clock", "host-stamps-only"],
+)
+def test_a_file_STILL_BEING_WRITTEN_at_a_daemon_restart_keeps_the_window_it_filled(tmp_path, host_only, clock):
+    """Kills the four mutants on `_ext = f.get("span_sec") or f.get("host_span_sec")` — `_ext = None`,
+    `or` → `and`, and either key replaced by `None`.
+
+    `merge_sessions` CLAMPS a session's end to a daemon restart that falls inside it (nightqc.py's own
+    rule: a start after the session opened means the session opened in an earlier run). A file still
+    being written when the daemon restarted therefore holds 111 s of rows inside a session the clamp
+    ends at 40 s — and `spans` collects file START stamps, so without this line the night's window stops
+    at the restart and reports a 40 s night that recorded 111 s. The coverage ratio is computed against
+    that window, so the error does not announce itself as a missing window; it announces itself as
+    coverage over 100 %, which is the 156.5 % and 466.7 % the line's own comment records.
+
+    Both clocks are asserted because each mutant needs a different one to be distinguished: with a
+    device clock `host_span_sec` is absent, so `and` and `f.get(None) or …` collapse to None; with
+    host stamps only `span_sec` is absent, so `… or f.get(None)` collapses instead. One file shape
+    cannot tell all four apart — measured, not assumed."""
+    d = _clamped_night(tmp_path, host_only=host_only)
+    data = [f for f in nightqc.scan_night(str(d)) if f["stream"] not in nightqc._SIDECAR_TAGS]
+    assert data[0].get(clock) == 111.0, f"the fixture must state the extent via {clock}: {data[0]}"
+
+    seams = sorted(nightqc.daemon_starts(str(d), offset_sec=None)["stamps"])
+    cur = nightqc.judged_session(nightqc.merge_sessions(data, starts=seams, offset_sec=None))
+    assert cur[1] - cur[0] == 40.0, (
+        f"the fixture is only distinguishing while the judged session is CLAMPED to the seam; "
+        f"got {cur[1] - cur[0]} s, so the window below would be right for the wrong reason"
+    )
+
+    out = timeline.build(str(d), _CLAMP_DEV)
+    assert out["t1"] - out["t0"] == 111.0, (
+        f"the window stopped at {out['t1'] - out['t0']} s — the file's own extent was not counted, so "
+        "the night reports a window shorter than the data it holds"
+    )
+
+
+def test_ZERO_buckets_reports_a_bucket_sec_of_ZERO_instead_of_dividing_by_it(tmp_path):
+    """Kills `if buckets else 0` → `if (buckets) or True` (a ZeroDivisionError) and `else 0` → `else 1`.
+
+    The guard is reachable: `buckets` is a caller argument, and a night with data takes the full return
+    rather than the empty-night early one, so `bucket_sec` is computed. `0` is the honest answer — there
+    is no bucket to state a width for — and `1` would name a width no bucket has (§∅: a width that was
+    never divided is absent, not one second). `test_bucket_sec_is_…_ONE_decimal` covers the arm where
+    `buckets` is truthy; nothing covered this one, because the only existing zero-bucket test takes the
+    empty-night early return and never reaches this dict."""
+    out = timeline.build(str(_night(tmp_path)), _DEV, buckets=0)
+    assert out["buckets"] == 0 and out["t1"] > out["t0"], out  # a real window, so the dict is reached
+    assert out["bucket_sec"] == 0, out["bucket_sec"]  # not 1, and not a ZeroDivisionError
