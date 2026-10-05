@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b0d103da1475" data-compute-hash="05fad5ffd50e"><head>
+<html lang="en" data-manifest-hash="be61a67fcef6" data-compute-hash="4005f06bb666"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-K6Ew7pkxxVb/RqSGtD1UEcHPe/FR49HrsZSaJkWaUeY=' 'sha256-ONhQxMbNveeyQ6BVEpavaVYJBnYDKDUBrbbimkOfeew=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fJnV5W2XQ9trfLmB6Z/j1/okJF0+geeCapmteSAVrf8=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-umD+gFYixHYWBZyYjWrEOICxf5fmzQ8OLMguoTUL1ZA=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AF4skfUuNsScfyJ078eR0vVYjN3Dhrw/IrSomd1uOGA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-K6Ew7pkxxVb/RqSGtD1UEcHPe/FR49HrsZSaJkWaUeY=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fJnV5W2XQ9trfLmB6Z/j1/okJF0+geeCapmteSAVrf8=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-umD+gFYixHYWBZyYjWrEOICxf5fmzQ8OLMguoTUL1ZA=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -7827,6 +7827,38 @@ function fitClockOffsetSegments(nightOffsets, opts) {
   return out;
 }
 
+/* The k-th smallest of `a`, in place, by Hoare partitioning — identical to `a.slice().sort()[k]` for
+   every input, because the k-th order statistic of a multiset is a property of the multiset and not of
+   the algorithm that finds it. Used where only a few order statistics of a list are read, so paying
+   O(n log n) to sort the whole thing is work thrown away. Deterministic: a MIDPOINT pivot, never a
+   random one, because a fit that reads a different number on a re-run is not a fit. */
+function _selectNth(a, k, n) {
+  var lo = 0,
+    hi = (n == null ? a.length : n) - 1;
+  if (k < 0) k = 0;
+  if (k > hi) k = hi;
+  while (lo < hi) {
+    var p = a[(lo + hi) >> 1],
+      i = lo,
+      j = hi;
+    while (i <= j) {
+      while (a[i] < p) i++;
+      while (a[j] > p) j--;
+      if (i <= j) {
+        var t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+        i++;
+        j--;
+      }
+    }
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else return a[k];
+  }
+  return a[lo];
+}
+
 function fitClockDrift(aTimes, bTimes, opts) {
   opts = opts || {};
   var blockMs = opts.blockMs != null ? opts.blockMs : 300000;
@@ -7854,40 +7886,90 @@ function fitClockDrift(aTimes, bTimes, opts) {
   /* Correspondence of one block at one offset: fraction of A-beats whose nearest B-beat sits within
      tolMs of the block's OWN median delta. Centring on the median rather than zero is what makes this
      measure agreement instead of the acceptance window's width. */
+  var _ptr = null, // per-beat neighbour index, live only for the duration of one block's offset sweep
+    _dl = null; // delta buffer, reused across the sweep instead of reallocated per offset
+
   function corrAt(bA, off) {
     if (bA.length < minBeats) return null;
-    var dl = [];
+    /* A PREALLOCATED BUFFER AND A MONOMORPHIC `bd`, which is where the time actually went. Measured by
+       --cpu-prof: 93.7 % of the fit was corrAt's OWN body, not its callees — so neither the binary
+       search nor the sort was the cost, and an op count that said otherwise was wrong by 5x. Two
+       shapes in this loop defeat the optimiser: `dl` grew by `push` 314 times per offset (~25k arrays
+       per block sweep), and `bd` held `null | number`, making every `bd == null` and `Math.abs(bd)`
+       polymorphic. The buffer is allocated once per sweep and reused; `bd` is a number with a separate
+       `found` flag. Values are unchanged — same deltas, same order, same count. */
+    if (_dl === null || _dl.length < bA.length) _dl = new Float64Array(bA.length);
+    var dl = _dl,
+      dn = 0;
     for (var i = 0; i < bA.length; i++) {
       var x = bA[i] + off,
-        bd = null;
-      var lo = 0,
-        hi = B.length - 1;
-      while (lo < hi) {
-        var mid = (lo + hi) >> 1;
-        if (B[mid] < x) lo = mid + 1;
-        else hi = mid;
+        bd = 0,
+        found = false;
+      /* THE NEIGHBOUR POINTER IS CARRIED ACROSS THE OFFSET SWEEP, not re-found per offset. `off` only
+         ever INCREASES within a block's sweep and `B` is sorted, so `x = bA[i] + off` increases too and
+         the first index with `B[lo] >= x` is monotone non-decreasing in `off`. The binary search ran
+         ~15 steps for every (beat, offset) pair — 301 times per beat per block — to recompute something
+         that advances about 7 places over the entire sweep (a 6 s window at ~900 ms between beats).
+         `_ptr` holds each beat's index; it is seeded by one binary search at the sweep's first offset
+         and advanced from there. The SET of indices examined, and therefore `bd`, is unchanged. */
+      var lo;
+      if (_ptr === null || _ptr[i] < 0) {
+        lo = 0;
+        var hi = B.length - 1;
+        while (lo < hi) {
+          var mid = (lo + hi) >> 1;
+          if (B[mid] < x) lo = mid + 1;
+          else hi = mid;
+        }
+      } else {
+        /* Advance, then retreat — the retreat costs nothing on an ascending sweep and keeps the
+           invariant exact for any call order, so a future caller that walks offsets DOWNWARD still
+           gets the same `lo` the binary search would have returned. */
+        lo = _ptr[i];
+        while (lo < B.length - 1 && B[lo] < x) lo++;
+        while (lo > 0 && B[lo - 1] >= x) lo--;
       }
-      for (var k = Math.max(0, lo - 2); k < Math.min(B.length, lo + 2); k++) {
-        var q = B[k] - x;
-        if (bd == null || Math.abs(q) < Math.abs(bd)) bd = q;
+      var kEnd = lo + 2 < B.length ? lo + 2 : B.length;
+      for (var k = lo - 2 > 0 ? lo - 2 : 0; k < kEnd; k++) {
+        var q = B[k] - x,
+          aq = q < 0 ? -q : q;
+        if (!found || aq < (bd < 0 ? -bd : bd)) {
+          bd = q;
+          found = true;
+        }
       }
-      if (bd != null) dl.push(bd);
+      if (found) dl[dn++] = bd;
+      if (_ptr !== null) _ptr[i] = lo;
     }
-    if (dl.length < minBeats) return null;
-    dl.sort(function (x2, y2) {
-      return x2 - y2;
-    });
-    var med = dl[Math.floor(dl.length / 2)];
+    if (dn < minBeats) return null;
+    /* ORDER STATISTICS, NOT A SORT. Only three elements of the sorted list are ever read — the median
+       and the two quartiles — so selecting them is O(n) where sorting is O(n log n), and the VALUE is
+       identical: the k-th order statistic of a multiset IS `sorted[k]`, whatever the algorithm. This
+       was 29 % of the fit's cost, paid 301 times per block to read three numbers. */
+    /* The buffer may be LONGER than the run just filled, so every order statistic and the hit count
+       are taken over the filled prefix `dn` — exactly the length the old `dl` array had. */
+    var med = _selectNth(dl, Math.floor(dn / 2), dn);
+    var q75 = _selectNth(dl, Math.floor(dn * 0.75), dn);
+    var q25 = _selectNth(dl, Math.floor(dn * 0.25), dn);
     var hit = 0;
-    for (var j = 0; j < dl.length; j++) if (Math.abs(dl[j] - med) <= tolMs) hit++;
-    return { frac: hit / bA.length, med: med, iqr: dl[Math.floor(dl.length * 0.75)] - dl[Math.floor(dl.length * 0.25)] };
+    for (var j = 0; j < dn; j++) {
+      var d0 = dl[j] - med;
+      if ((d0 < 0 ? -d0 : d0) <= tolMs) hit++;
+    }
+    return { frac: hit / bA.length, med: med, iqr: q75 - q25 };
   }
 
   function runBlocks(bias) {
     var rows = [];
+    /* A IS SORTED, so each block's beats are a CONTIGUOUS RUN and the scan never needs to restart. The
+       full `for (i = 0; i < A.length; i++)` test per block made collection O(|A| x blocks) — 84 passes
+       over 26k beats to pick out ~314 each time. `_from` carries the run's start forward, making the
+       whole collection O(|A| + blocks). The beats collected are identical, in the same order. */
+    var _from = 0;
     for (var s = A[0]; s + blockMs < A[A.length - 1]; s += blockMs) {
       var bA = [];
-      for (var i = 0; i < A.length; i++) if (A[i] >= s && A[i] < s + blockMs) bA.push(A[i]);
+      while (_from < A.length && A[_from] < s) _from++;
+      for (var i = _from; i < A.length && A[i] < s + blockMs; i++) bA.push(A[i]);
       /* SUPPORT CENTROID, not argmax. Correspondence is FLAT over a plateau roughly `tolMs` wide —
          every offset inside it keeps the same beats matched — so the argmax lands arbitrarily within
          it and a planted control shows the resulting bias (measured: ~330 ms on a 20 ms grid).
@@ -7897,6 +7979,16 @@ function fitClockDrift(aTimes, bTimes, opts) {
         acc = 0,
         accN = 0,
         pIqr = null;
+      /* ONE SWEEP, ONE POINTER SET. `null` makes the first `corrAt` of this block seed itself by binary
+         search; the array then carries each beat's neighbour index across the block's own ascending
+         offsets. It is cleared after the sweep so a later caller can never inherit indices measured
+         against a different block's beats — that would be a silent wrong answer rather than a crash. */
+      /* ONE SWEEP, ONE POINTER SET, seeded lazily per beat. `-1` means "not yet located", so the first
+         `corrAt` of this block pays one binary search per beat and every later offset advances from
+         there. Re-allocated per block so a pointer measured against one block's beats can never be
+         inherited by another's — that would be a silent wrong answer rather than a crash. */
+      _ptr = bA.length ? new Int32Array(bA.length).fill(-1) : null;
+      _dl = null;
       for (var o = bias - searchMs; o <= bias + searchMs; o += stepMs) {
         var r = corrAt(bA, o);
         if (!r) continue;
@@ -9951,6 +10043,12 @@ function hrStatMixed(stats) {
 
 /* expose to other page scripts (plain global scope, but be explicit) */
 window.IntegratorDSP = {
+  /* The order-statistic selector the clock fit reads its median and quartiles with — exported so the
+     suite can assert the property the speed-up rests on: that it returns `sorted[k]` for every k,
+     INCLUDING on heavy ties, where a selection that is merely "a median" would diverge. Without the
+     export that equivalence could only be inferred from the fit's output, and two different selections
+     can agree on one input by luck. */
+  selectNth: _selectNth,
   /* D3 — exported so the comparability decision is testable without a full three-node fusion. */
   hrStatMixed: hrStatMixed,
   HR_STAT_CLASS: HR_STAT_CLASS,

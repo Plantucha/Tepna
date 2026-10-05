@@ -53445,6 +53445,118 @@
        PLANTED recovery, because a correspondence number is meaningless without knowing the instrument
        can recover a known answer — and by its own chance control, because the block fit maximises the
        statistic it reports. */
+    group('fitClockDrift\u2019s search is set-preserving — the optimisation cannot change which beats match', 'integrator-dsp · clock · equivalence', function (T) {
+      var D = env.IntegratorDSP;
+      if (!D || typeof D.fitClockDrift !== 'function') {
+        T.skip('IntegratorDSP.fitClockDrift available', 'not loaded');
+        return;
+      }
+      /* \ud83d\udd34 THE MATCHED SET PER OFFSET, not just the final centroid. `corrAt` is a closure inside
+           `fitClockDrift`, so this does not reach into it: it encodes BOTH inner loops — the original
+           (one binary search per beat per offset) and the optimised (a monotone pointer carried across
+           the sweep) — and asserts they select the SAME neighbour index for every beat at every offset
+           of the real grid. That is the property the speed-up rests on, and it is stronger than output
+           equality: two different matched sets can still average to the same centroid by luck.
+
+           WHY THE SET AND NOT THE ARGMAX. The search takes the SUPPORT CENTROID over the plateau, which
+           is ~`tolMs` wide and over which every offset keeps the same beats matched
+           (WEARABLE-DRIFT-FIT-2026-08-01 \u00a73: argmax bias measured at ~330 ms, two of four planted cases
+           went from biased to exact once the centroid replaced it). The centroid therefore depends on
+           EVERY grid offset that shares the peak \u2014 so a search that visits the same optimum by a coarser
+           route still returns a different number, which is exactly why coarse-to-fine was rejected. */
+      var B = [];
+      for (var n = 0; n < 4000; n++) B.push(1785102000000 + n * 900 + 40 * Math.sin(n / 7));
+      var bA = [];
+      for (var m = 0; m < 320; m++) bA.push(B[m * 3] + 137);
+
+      function loFromSearch(x) {
+        var lo = 0,
+          hi = B.length - 1;
+        while (lo < hi) {
+          var mid = (lo + hi) >> 1;
+          if (B[mid] < x) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      }
+      var ptr = new Int32Array(bA.length).fill(-1);
+      var disagree = 0,
+        pairs = 0;
+      for (var off = -3000; off <= 3000; off += 20) {
+        for (var i = 0; i < bA.length; i++) {
+          var x = bA[i] + off;
+          var want = loFromSearch(x);
+          var got;
+          if (ptr[i] < 0) got = loFromSearch(x);
+          else {
+            got = ptr[i];
+            while (got < B.length - 1 && B[got] < x) got++;
+            while (got > 0 && B[got - 1] >= x) got--;
+          }
+          ptr[i] = got;
+          pairs++;
+          if (got !== want) disagree++;
+        }
+      }
+      T.eq('the pointer selects the SAME index as a fresh binary search, at every offset', disagree, 0, pairs + ' (beat, offset) pairs');
+      T.ok('and the grid really was swept', pairs === bA.length * 301, pairs + ' pairs');
+
+      /* ORDER STATISTICS: quickselect must return the element a full sort would, INCLUDING on ties \u2014
+           a uniform cadence puts exact duplicates in the delta list, and that is where a selection that
+           is merely "a median" rather than `sorted[k]` would diverge. */
+      function nth(a, k) {
+        return a.slice().sort(function (p2, q2) {
+          return p2 - q2;
+        })[k];
+      }
+      var tie = [];
+      for (var z = 0; z < 311; z++) tie.push(z % 7);
+      /* FAIL-CLOSED ON A MISSING SEAM. An earlier draft of this assertion `break`-ed out when the
+           export was absent and left `okSel` true — a pass that examined nothing, which is the shape
+           this suite exists to refuse. If the selector is not exported the assertion FAILS and says so. */
+      var ks = [0, 1, Math.floor(311 / 2), Math.floor(311 * 0.25), Math.floor(311 * 0.75), 310];
+      var okSel = typeof D.selectNth === 'function',
+        checked = 0;
+      if (okSel) {
+        for (var ki = 0; ki < ks.length; ki++) {
+          var buf = new Float64Array(tie.length);
+          for (var w = 0; w < tie.length; w++) buf[w] = tie[w];
+          if (D.selectNth(buf, ks[ki], tie.length) !== nth(tie, ks[ki])) okSel = false;
+          checked++;
+        }
+      }
+      T.ok(
+        'quickselect returns sorted[k] even with heavy ties',
+        okSel && checked === ks.length,
+        typeof D.selectNth === 'function' ? checked + '/' + ks.length + ' of {0,1,p25,median,p75,last} on 311 values, 7 distinct' : 'IntegratorDSP.selectNth is NOT exported — nothing was checked'
+      );
+
+      /* AND THE WHOLE FIT STILL ANSWERS THE PLANTED QUESTION \u2014 the control that would catch a
+           set-preserving change that nevertheless broke the arithmetic. */
+      var base = [],
+        t = 1785102000000,
+        j2 = 0;
+      while (t < 1785102000000 + 2 * 3600e3) {
+        base.push(t);
+        t += 900 + 180 * Math.sin(j2 / 40);
+        j2++;
+      }
+      function mk2(off2, ppm, drop) {
+        var o = [];
+        for (var k2 = 0; k2 < base.length; k2++) {
+          if (k2 % drop === 0) continue;
+          o.push(base[k2] + off2 + ((base[k2] - base[0]) * ppm) / 1e6);
+        }
+        return o;
+      }
+      var fit = D.fitClockDrift(mk2(0, 0, 17), mk2(250, -40, 13));
+      T.ok(
+        'a planted 250 ms / -40 ppm pair is still recovered',
+        fit && fit.offsetMs != null && Math.abs(fit.offsetMs - 250) < 60 && Math.abs(fit.driftPpm + 40) < 8,
+        fit ? 'offset ' + Math.round(fit.offsetMs) + ' ms · drift ' + (fit.driftPpm == null ? 'null' : fit.driftPpm.toFixed(1)) + ' ppm' : 'no fit'
+      );
+    });
+
     group('fitClockDrift recovers a planted offset AND drift', 'integrator-dsp · clock · planted-control', function (T) {
       var D = env.IntegratorDSP;
       if (!D || typeof D.fitClockDrift !== 'function') {
