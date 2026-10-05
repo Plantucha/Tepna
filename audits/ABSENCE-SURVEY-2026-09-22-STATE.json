@@ -20,8 +20,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 254,
-  "fixed": 34,
+  "open": 253,
+  "fixed": 35,
   "accepted-with-reason": 2
  },
  "entries": [
@@ -112,7 +112,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 168,
-   "state": "open"
+   "state": "fixed",
+   "note": "an unanswered verification snapshot marks the op effect UNVERIFIED and stops the sweep (aborted_at + abort_reason), never _changed()=[] read as no byte moved. Plant: test_oxyii_an_UNANSWERED_verification_snapshot_is_UNVERIFIED_and_stops_the_sweep (2026-10-05, Wren; survivors through the Codex reader)"
   },
   {
    "key": "afc88001716a",

@@ -50,6 +50,7 @@ import os
 import re
 import sys
 import tokenize
+from collections import Counter
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -878,6 +879,41 @@ def divergent_provenance(files: list[str], src: dict) -> tuple[list[dict], dict]
     return rows, {"files": len(files), "consumers_with_2plus_callers": consumers_2plus, "slots": slots}
 
 
+# ── ONE PASS PER TEXT, NOT ONE REGEX PER NAME ───────────────────────────────────────────────────────
+# Scans 2 and 4 counted every name with its own `re.findall(r"\b<name>\b", text)` over the whole corpus:
+# 2,269 full-text searches, 15 of the scan's ~21 s (cProfile, 2026-10-05), and the scan runs in eight
+# tests and in CI's structural gate. These count every word once and answer by lookup — EXACTLY the
+# old numbers, not an approximation:
+#   · uses `\b<name>\b` for a name made only of word characters is the number of maximal `\w+` runs
+#     equal to it — a boundary on both sides is precisely "the run is the name".
+#   · defs `<kw>\s+<name>\b` is counted with a ZERO-WIDTH lookahead at every position, so a definition
+#     that starts inside a previous match is still seen, as the per-name search saw it.
+# A name with a non-word character (JS allows `$`) is not a `\w+` run and keeps the per-name regex.
+# So does a name that ENDS WITH the keyword (`undef`): only then can two `<kw>\s+<name>` matches overlap
+# (the second's keyword must end where the first's name ends, since a name holds no whitespace), and the
+# per-name `findall`, being non-overlapping, counts one where the lookahead counts two. Found by the
+# random identity test, not by reading.
+# `tests/test_find_unwired.py` asserts both identities on random text and the real tree's equality.
+_WORD = re.compile(r"\w+")
+
+
+def word_counts(text: str) -> Counter:
+    return Counter(_WORD.findall(text))
+
+
+def def_counts(text: str, kw: str) -> Counter:
+    return Counter(m.group(1) for m in re.finditer(r"(?=%s\s+(\w+))" % re.escape(kw), text))
+
+
+def _uses_defs(name: str, text: str, kw: str, words: Counter, defs: Counter) -> tuple[int, int]:
+    if _WORD.fullmatch(name) and not name.endswith(kw):
+        return words[name], defs[name]
+    return (
+        len(re.findall(r"\b%s\b" % re.escape(name), text)),
+        len(re.findall(r"%s\s+%s\b" % (re.escape(kw), re.escape(name)), text)),
+    )
+
+
 def scan(root: "str | None" = None) -> dict:
     # `root=None` then `root or HERE`, NOT `root=HERE` as a default. A default argument binds at DEF
     # time, so `HERE` was frozen at import and `main()` could not be redirected at all — patching the
@@ -973,8 +1009,11 @@ def scan(root: "str | None" = None) -> dict:
         # reason on the Python side; this is that rule applied to the surface it was missing from.
         drawn = re.sub(r"<!--.*?-->|/\*.*?\*/", "", html, flags=re.S)
         drawn = re.sub(r"(?m)^\s*//.*$", "", drawn)
+        drawn_words = word_counts(drawn)
         for key in sorted(keys):
-            if re.search(r"\b%s\b" % re.escape(key), drawn):
+            # Same identity as `_uses_defs`: a word-only key occurs as `\bkey\b` iff it is one of the
+            # text's maximal `\w+` runs. Anything else keeps the per-key search.
+            if (drawn_words[key] > 0) if _WORD.fullmatch(key) else re.search(r"\b%s\b" % re.escape(key), drawn):
                 continue
             orphan_rendered.append({"key": key, "allowed": ALLOW_RENDERED.get(key)})
 
@@ -988,19 +1027,19 @@ def scan(root: "str | None" = None) -> dict:
     if os.path.exists(mon):
         html_js = open(mon, encoding="utf-8", errors="replace").read()
         pop_js = set(re.findall(r"function\s+([A-Za-z_$][\w$]*)\s*\(", html_js))
+        js_words, js_defs = word_counts(html_js), def_counts(html_js, "function")
         for fn in sorted(pop_js):
-            uses = len(re.findall(r"\b%s\b" % re.escape(fn), html_js))
-            defs = len(re.findall(r"function\s+%s\b" % re.escape(fn), html_js))
+            uses, defs = _uses_defs(fn, html_js, "function", js_words, js_defs)
             if uses - defs <= 0:
                 orphan_js.append({"func": fn, "allowed": ALLOW_JS.get(fn)})
 
     orphan_funcs = []
+    py_words, py_defs = word_counts(everything), def_counts(everything, "def")
     for f in files:
         for fn in sorted(public_functions(src[f])):
             # BARE NAME, not `fn(` — a callback reference like `to_thread(prune_old_nights, …)` has no
             # parenthesis, and matching one made retention and archiving read as dead.
-            uses = len(re.findall(r"\b%s\b" % re.escape(fn), everything))
-            defs = len(re.findall(r"def\s+%s\b" % re.escape(fn), everything))
+            uses, defs = _uses_defs(fn, everything, "def", py_words, py_defs)
             if uses - defs <= 0:
                 orphan_funcs.append({"module": f, "func": fn, "allowed": ALLOW_FUNCS.get(fn)})
     # ── SCAN 6 · A MODULE NOTHING IMPORTS ───────────────────────────────────────────────────────────
