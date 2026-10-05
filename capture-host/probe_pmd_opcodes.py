@@ -192,7 +192,17 @@ async def run(address, adapter, lo, hi, include_dangerous, dry_run) -> dict:
         out["state_after"] = after
         out["net_state_change"] = diff(base, after) or "none"
         # Never leave anything running.
-        st = pmd.parse_status_response(await cp.send(bytes([0x05])) or b"")
+        raw = await cp.send(bytes([0x05]))
+        if raw is None:
+            # ∅ ABSENCE-SURVEY 31a3180e5235: an unanswered status read parsed to {} and published
+            # `left_running: []` — "nothing is running" from a read nobody answered, on the step that
+            # promises the sweep leaves nothing running. Unknown, and said so; nothing is stopped blind.
+            out["left_running"] = None
+            out["left_running_reason"] = (
+                "the final status read was not answered — whether anything is still running is unknown"
+            )
+            return out
+        st = pmd.parse_status_response(raw)
         active = [m for m, s in st.items() if s != pmd.NO_MEASUREMENT]
         for m in active:
             await cp.send(pmd.stop_cmd(m))
