@@ -116,6 +116,36 @@ export function rowProblem(row) {
  *    is stored. A seed that matches no finding is a REFUSAL, not a silent no-op. ─────────────────── */
 export const SEEDS = [
   {
+    at: 'capture-host/cpap_live.py:67',
+    state: 'fixed',
+    note: 'a NEGATIVE detector age (host clock step between publish and serve) is None, not 0, so live_view reports unknown rather than fresh. Plant: test_cpap_live detector_age_s future-stamp assertion (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/oxyii.py:702',
+    state: 'fixed',
+    note: 'worn is True / False (0, observed lead-off) / None (2 unplugged, 3 fault); on None the link axis makes no IDLE_UNWORN flip and the card names the fault. Plant: test_a_FAULTED_probe_is_wear_UNKNOWN_and_journals_no_unworn_flip (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/o2ring.py:342',
+    state: 'fixed',
+    note: 'an undecryptable reply is withheld (payload None, raw kept, undecrypted=True); FILE_LIST/FILE_START raise and the pull closes the transfer and refuses instead of writing ciphertext into the file. Plant: test_pull_session_REFUSES_a_chunk_that_did_not_decrypt_rather_than_writing_ciphertext (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/o2ring.py:335',
+    state: 'open',
+    note: 'NOT changed: a keyed-session reply whose length is not AES-shaped may be genuine plaintext for some ops, which only hardware can show (Kestrel, 2026-10-04: hardware-only)'
+  },
+  {
+    at: 'capture-host/polar_psftp.py:736',
+    state: 'fixed',
+    note: 'fixed #2955 (0349d73e): manifest ok now also requires unenumerated == 0 (truncated + unreadable dirs), with the count published beside it. Re-read 2026-10-04 (Wren)'
+  },
+  {
+    at: 'capture-host/cpap_edf_writer.py:116',
+    state: 'fixed',
+    note: 'a batch carrying one channel is skipped for both (counted in unpaired_batches, logged), so flow and pressure stay aligned. Plant: test_a_batch_carrying_ONE_channel_is_skipped_for_BOTH_so_flow_and_pressure_stay_aligned (2026-10-04, Wren)'
+  },
+  {
     at: 'capture-host/capture.py:10173',
     state: 'fixed',
     note: 'a presence scan that RAISED was folded as an empty window, aging a present ring to ABSENT; the fold is now skipped and a never-observed ring is published UNKNOWN. Plant: test_failed_scans_past_the_absence_window_leave_a_PRESENT_ring_PRESENT (2026-10-04, Wren)'
@@ -128,8 +158,8 @@ export const SEEDS = [
   },
   {
     at: 'capture-host/capture.py:3356',
-    state: 'open',
-    note: 'NOT changed in the drain: test_every_pmd_push_declares_a_rate_and_ppi_declares_ZERO pins the pmd.SAMPLE_HZ fallback for an unnegotiated stream as a DELIBERATE display choice (the monitor time axis). Since #3268 a None push publishes the declared 0 rather than 1, so the docstring trade-off has moved — a decision for the test owner, not the drain (2026-10-04, Wren)'
+    state: 'fixed',
+    note: 'ruled 2026-10-04 (Kestrel, capture lane) under #3268 declared-rate contract: a frame pushed before negotiation carries None, so the bus publishes the declared 0, never pmd.SAMPLE_HZ. The two tests that pinned the vendor default are rewritten to that contract. Plants: test_a_push_before_negotiation_carries_NO_rate_and_the_bus_publishes_the_DECLARED_one, test_the_live_bus_push_carries_the_sample_values_not_the_sample_objects (Wren)'
   },
   {
     at: 'capture-host/capture.py:3388',
@@ -201,6 +231,11 @@ export const SEEDS = [
     at: 'capture-host/telemetry.py:874',
     state: 'fixed',
     note: 'push() broadcasts the DECLARED rate (frame fs, else the stream fs, 0 = irregular, else None) instead of `or 1`; the 1 survives only as ring sizing. snapshot() reports None for an undeclared stream. monitor.html reads `d.fs ?? …` in both SSE handlers. Plants: test_push_publishes_a_DECLARED_irregular_stream_as_rate_0_never_1, test_push_publishes_NO_rate_for_an_unmetered_stream_and_still_sizes_its_ring (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/bonding.py:79',
+    state: 'fixed',
+    note: '_btctl returns None when bluetoothctl does not answer; is_bonded / trusted_flags / scan read it as unknown (no forced re-pair, no "BlueZ reports no bond" on no evidence) and the adapter watchdog says BlueZ did not answer instead of reaching it through a TypeError. Plants: test_bonding unanswered-info + test_an_UNANSWERED_bluez_probe_is_said_as_such_not_reached_through_a_TypeError (2026-10-04, Wren)'
   }
 ];
 

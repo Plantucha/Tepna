@@ -345,7 +345,7 @@ class Cipher:
             return payload
         return aes_ecb_encrypt(self.key, payload)
 
-    def unwrap(self, op: int, payload: bytes) -> bytes:
+    def unwrap(self, op: int, payload: bytes) -> bytes | None:
         if self.key is None or op == OP_AUTH:
             return payload
         if not payload or len(payload) % 16:
@@ -353,12 +353,12 @@ class Cipher:
         try:
             return aes_ecb_decrypt(self.key, payload)
         except ValueError:
+            # ∅ None, not the ciphertext (ABSENCE-SURVEY c82b7dbaf55f): passing the raw bytes through handed
+            # every parser ciphertext AS plaintext, and pull_session appended it to the file as file bytes.
+            # The plaintext was not recovered. A caller that indexes the None fails LOUDLY, never quietly.
             self.errors += 1
-            print(
-                f"  !! op=0x{op:02x}: {len(payload)} B reply did not decrypt with the session "
-                "key — passing raw payload through"
-            )
-            return payload
+            print(f"  !! op=0x{op:02x}: {len(payload)} B reply did not decrypt with the session key — payload withheld")
+            return None
 
 
 SESSION = Cipher()
@@ -571,6 +571,8 @@ def pull_session(dev, session_id: str, max_bytes=8 * 1024 * 1024):
     st = file_start(dev, session_id)
     if not st:
         raise RuntimeError("FILE_START timed out (is the ring OFF-body / docked?)")
+    if st["payload"] is None:
+        raise RuntimeError("FILE_START reply did not decrypt with the session key — the file size is unknown")
     # FILE_START reply typically carries the file size (u32 LE) at payload[0:4].
     size = struct.unpack_from("<I", st["payload"], 0)[0] if len(st["payload"]) >= 4 else None
     print(f"  FILE_START reply: {st['payload'].hex(' ')}  size={size}")
@@ -578,6 +580,10 @@ def pull_session(dev, session_id: str, max_bytes=8 * 1024 * 1024):
     offset = 0
     while offset < (size or max_bytes) and offset < max_bytes:
         msg = file_data(dev, offset)
+        if msg and msg["payload"] is None:
+            # Never append ciphertext to the file as if it were file bytes: the pull stops, loudly.
+            file_end(dev)
+            raise RuntimeError(f"FILE_DATA at offset {offset} did not decrypt with the session key — pull refused")
         if not msg or not msg["payload"]:
             break
         chunk = msg["payload"]  # plaintext (read_reply already decrypted): offsets = file bytes

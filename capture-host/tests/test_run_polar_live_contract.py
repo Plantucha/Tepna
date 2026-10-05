@@ -272,39 +272,30 @@ def test_a_rejected_DEVICE_QUALIFIED_stream_unregisters_the_qualified_key(tmp_pa
     )
 
 
-def test_every_pmd_push_declares_a_rate_and_ppi_declares_ZERO(tmp_path, monkeypatch):
-    """The `fs` on a push is not the same number as the `fs` on a register, and it is used differently.
+def test_a_push_before_negotiation_carries_NO_rate_and_the_bus_publishes_the_DECLARED_one(tmp_path, monkeypatch):
+    """The `fs` on a push is the NEGOTIATED rate or None — never the vendor default (ABSENCE-SURVEY
+    dd0aa7a41642, ruled 2026-10-04 under #3268's declared-rate contract).
 
-    `stream_health` judges WEAK against the REGISTERED nominal (`m.fs`), so a wrong push rate does not
-    paint amber — I checked, having assumed otherwise. What it does drive is `msg["fs"]`, the rate the
-    live SSE frame declares and the monitor plots its time axis against, and the ring capacity
-    (`max(64, ring_seconds * rate)`). A `None` there collapses to `rate = 1` while the card is still at
-    the pre-negotiation `fs=0`, which is a one-sample-per-second axis under a 130 Hz trace.
-
-    THE FALLBACK BRANCH IS WHAT THIS EXERCISES, on purpose. `hz` is `stream_fs.get(meas) or
-    pmd.SAMPLE_HZ.get(meas)`, and here the fake delivers its frames at PMD_DATA subscribe time — before
-    the per-stream negotiation sets `stream_fs`. That is not only a fixture quirk: the code documents a
-    real device doing the same thing (an H10 stream still owned by a dead subscriber keeps notifying,
-    polar-ble-sdk#287), and the NO_ACK arm deliberately keeps such a stream without setting `stream_fs`.
-    So the vendor-default fallback is a live path, and it should be pinned rather than assumed absent."""
+    The fake delivers its frames at PMD_DATA subscribe time, before the per-stream negotiation sets
+    `stream_fs` — and a real device does the same (an H10 stream still owned by a dead subscriber keeps
+    notifying, polar-ble-sdk#287; the NO_ACK arm keeps a stream without ever setting `stream_fs`). Until
+    2026-10-04 that path pushed `pmd.SAMPLE_HZ`, a rate the stream never agreed to, and this test pinned it
+    because a None push then collapsed to `rate = 1` on the bus. #3268 changed the bus: a push with no rate
+    publishes the stream's DECLARED rate — the registration's 0, "unknown until negotiated" — and the monitor
+    reads it with `??`. So the push carries None, and the 0 the card was registered at is what is published.
+    """
     bus = _drive(monkeypatch, tmp_path, ALL6)
-    pushed = {c[0][0]: c[0] for c in bus.seen["push"]}
-    for stream, key in (
-        ("ecg", "ecg"),
-        ("acc", "acc_h10"),
-        ("ppg", "ppg_h10"),
-        ("gyro", "gyro_h10"),
-        ("mag", "mag_h10"),
-    ):
-        hz = pushed[key][2]
-        assert hz == pmd.SAMPLE_HZ[getattr(pmd, stream.upper())], (
-            f"{key} pushed at fs={hz!r}; with no negotiated rate yet the documented fallback is the "
-            f"vendor nominal {pmd.SAMPLE_HZ[getattr(pmd, stream.upper())]}"
+    pushes = [c[0] for c in bus.seen["push"]]
+    regs = [c[0] for c in bus.seen["register"]]
+    for key in ("ecg", "acc_h10", "ppg_h10", "gyro_h10", "mag_h10", "ppi_h10"):
+        mine = [p for p in pushes if p[0] == key]
+        assert mine, f"{key}: no frame reached the bus"
+        assert mine[0][2] is None, (
+            f"{key} pushed at fs={mine[0][2]!r} before any rate was negotiated — the vendor default is a rate the "
+            "stream never agreed to; the push carries None and the bus publishes the declared rate"
         )
-    assert pushed["ppi_h10"][2] == 0, (
-        f"PPI pushed at fs={pushed['ppi_h10'][2]!r} — it is per-beat by construction "
-        "(SAMPLE_HZ[PPI] = 0) and 0 is the 'no rate' marker; None would become rate=1"
-    )
+        first_reg = next(r for r in regs if r[0] == key)
+        assert first_reg[3] == 0, f"{key}: registered at fs={first_reg[3]!r}, not the declared 0 a None push publishes"
 
 
 # ══ the STATUS card: what an operator and every alert actually read ═════════════════════════════════

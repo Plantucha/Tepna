@@ -5932,7 +5932,10 @@ def test_the_live_bus_push_carries_the_sample_values_not_the_sample_objects(tmp_
     assert ecg, f"an ecg frame must reach the live bus, got keys {[p[0] for p in pushed]}"
     _key, vals, hz, dev_ns = ecg[0]
     assert vals == [7, 7, 7], "the VALUES, one per sample, in order"
-    assert hz, "and a sample rate — a trace with no rate cannot be drawn to a time axis"
+    # The fake's frame arrives BEFORE negotiation, so the push carries no rate: the trace's time axis is the
+    # rate the bus publishes for the stream — the DECLARED one, 0 until negotiation — never a vendor default
+    # the stream did not agree to (ABSENCE-SURVEY dd0aa7a41642, under #3268's declared-rate contract).
+    assert hz is None, f"pushed at fs={hz!r} before any rate was negotiated"
     # …and the frame's DEVICE stamp (DEVICE-RATE-TRUTH §6.3). Without it `effFs` falls back to arrival
     # times, which measure how the radio BATCHED the frames rather than how fast the sensor sampled — so
     # a missing `dev_ns` here is not a cosmetic omission, it silently restores the old statistic.
