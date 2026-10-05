@@ -266,6 +266,46 @@ export const SEEDS = [
     at: 'capture-host/acq_evidence_cpap.py:141',
     state: 'fixed',
     note: 'COMPLETE requires lost_coverage_missing present and empty and total_lost present, else UNKNOWN with provenance.unmeasured_loss naming the categories (ruled 2026-10-05 for the owner). Every live CPAP session now reads UNKNOWN: stalls / post_drop_tail have no writer (residue 2026-10-05-cpap-stall-and-post-drop-counters-have-no-writer). Plant: test_TODAYS_live_summary_shape_is_UNKNOWN_with_the_unmeasured_categories_named (2026-10-05, Wren)'
+  },
+  {
+    at: 'capture-host/probe_pmd_opcodes.py:105',
+    state: 'fixed',
+    note: 'diff reports a key unread on either side as unread: True instead of matching None to None, so net_state_change no longer says none over unread state and the abort gate trips on it. Plant: test_pmd_diff_reports_an_UNREAD_key_instead_of_matching_None_to_None (2026-10-05, Wren; survivors through the Codex reader)'
+  },
+  {
+    at: 'capture-host/probe_verity_survey.py:216',
+    state: 'fixed',
+    note: '_settings returns None for a query nobody answered, never {} (this mode has no settings). Plant: test_an_UNANSWERED_settings_query_is_None_not_an_empty_menu (2026-10-05, Wren; survivors through the Codex reader)'
+  },
+  {
+    at: 'capture-host/probe_pmd_surface.py:535',
+    state: 'fixed',
+    note: '_clock_conclusion with no BEFORE stamp is inconclusive, never sample clock unchanged. Plant: test_no_stamp_BEFORE_the_write_is_inconclusive_never_unchanged (2026-10-05, Wren; survivors through the Codex reader)'
+  },
+  {
+    at: 'capture-host/probe_polar_onboard.py:78',
+    state: 'fixed',
+    note: 'summarize_fs counts an entry with no size or the -1 of an unlistable directory as unsized_entries instead of 0 bytes; totals cover sized entries. Plant: test_an_UNSIZED_entry_is_counted_not_read_as_zero_bytes (2026-10-05, Wren; survivors through the Codex reader)'
+  },
+  {
+    at: 'capture-host/probe_oxyii_0x03.py:107',
+    state: 'fixed',
+    note: 'summarise counts a header-less reply (count None) as replies_truncated, apart from a declared zero, and verdict_object says malformed replies, not an empty ring. Plants: test_a_TRUNCATED_reply_is_counted_apart_from_a_declared_zero, test_an_all_TRUNCATED_run_says_malformed_not_an_empty_ring (2026-10-05, Wren; survivors through the Codex reader)'
+  },
+  {
+    at: 'capture-host/probe_verity_survey.py:335',
+    state: 'fixed',
+    note: 'fixed #3042 (13c2e96a): stopped_confirmed_by_device is None when the AFTER status read was not answered. Re-read 2026-10-05 (Wren)'
+  },
+  {
+    at: 'capture-host/probe_verity_survey.py:587',
+    state: 'fixed',
+    note: 'fixed #3042 (13c2e96a): was_active / still_active are None when the BEFORE status read was not answered. Re-read 2026-10-05 (Wren)'
+  },
+  {
+    at: 'capture-host/probe_verity_offline.py:187',
+    state: 'fixed',
+    note: 'fixed #3042 (13c2e96a): recording_confirmed_by_device is not published False from an unanswered read. Re-read 2026-10-05 (Wren)'
   }
 ];
 

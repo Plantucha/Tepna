@@ -4544,6 +4544,18 @@
       "probe": "a client WITH `services` never consults the default; a client WITHOUT it yields `[] or []` under the original and `None or []` under the mutant — both `[]`, so the loop body runs zero times and the probe refuses with the same SystemExit either way (test_a_client_without_a_services_attribute_is_refused_not_crashed covers the sibling mutant that drops the default entirely, which DOES differ: AttributeError instead of the refusal)",
       "why": "A PROOF over both reachable branches, not an unobserved value: `x or []` maps `[]` and `None` to the same `[]`, and the default is the only thing the mutation touches. The three other run() survivors after 2026-09-22 (mutants 18, 59, 60) are SystemExit message prose — string-only, which the diff gate excludes by rule and which is not equivalence, so no entry is filed for them.",
       "brief": "residue 2026-09-06-probe-mutation-survivors-are-fixture-limited (run() drained 63 → 4 on 2026-09-22)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- span = 0.0 | + span = None",
+      "probe": "read summarise: `span` is read only at the marker-rate lines, inside `if out[\"rate_all_hz\"] is not None`, and rate_all_hz is set only inside `if len(with_recs) >= 2`, which assigns span first.",
+      "why": "PROOF: the initialiser is dead on every path that reads span — the only read is guarded by a value set in the branch that overwrites it. 0.0, None and 1.0 alike are never observed. (Codex reader, verified by reading the guards.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- span = 0.0 | + span = 1.0",
+      "probe": "read summarise: `span` is read only at the marker-rate lines, inside `if out[\"rate_all_hz\"] is not None`, and rate_all_hz is set only inside `if len(with_recs) >= 2`, which assigns span first.",
+      "why": "PROOF: the initialiser is dead on every path that reads span — the only read is guarded by a value set in the branch that overwrites it. 0.0, None and 1.0 alike are never observed. (Codex reader, verified by reading the guards.)"
     }
   ],
   "probe_ring_adv.py": [
@@ -5615,6 +5627,28 @@
       "key": "- if size and offset >= size: | + if size and offset > size:",
       "probe": "224 scripted pulls through the ORIGINAL and the MUTATED module (each loaded from its own copy): FILE_START sizes None/0/1/3/4/6/8/48 x 7 chunk patterns (none, 1 byte, 3, 3+3, 10, five 1-byte, an empty chunk) x max_bytes 2/4/6/1 MiB, on a device that RAISES on a read past its script; return value, exception and unread replies compared — 0 differ (Wren, 2026-10-04). The same battery REFUTED the sibling `if (size) or True` claim (9 of 224 differ), which is now a test.",
       "why": "when offset == size the mutant skips the break, but the loop condition `offset < size` then ends the loop with no further read."
+    }
+  ],
+  "probe_pmd_opcodes.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if a.get(k) is None or b.get(k) is None or a.get(k) != b.get(k) | + if a.get(k) is None and b.get(k) is None or a.get(k) != b.get(k)",
+      "probe": "read the predicate for the three cases: both None, exactly one None, neither None.",
+      "why": "PROOF: with exactly one side None the two values differ, so `a != b` already includes the key under the mutant; with both None the `and` clause includes it; with neither None both reduce to `a != b`. Every key is included under exactly the same condition. (Codex reader, verified case by case.)"
+    }
+  ],
+  "probe_pmd_surface.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if str(obs.get(\"set_local_time_ack\", \"\")).startswith(\"REFUSED\"): | + if str(obs.get(\"set_local_time_ack\", None)).startswith(\"REFUSED\"):",
+      "probe": "read: `str(obs.get(\"set_local_time_ack\", <default>)).startswith(\"REFUSED\")`.",
+      "why": "PROOF: when the key is absent the original tests str(\"\") and the mutants str(None) == \"None\"; neither starts with \"REFUSED\", and when the key is present the default is unused. (Codex reader, verified.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if str(obs.get(\"set_local_time_ack\", \"\")).startswith(\"REFUSED\"): | + if str(obs.get(\"set_local_time_ack\", )).startswith(\"REFUSED\"):",
+      "probe": "read: `str(obs.get(\"set_local_time_ack\", <default>)).startswith(\"REFUSED\")`.",
+      "why": "PROOF: when the key is absent the original tests str(\"\") and the mutants str(None) == \"None\"; neither starts with \"REFUSED\", and when the key is present the default is unused. (Codex reader, verified.)"
     }
   ]
 }

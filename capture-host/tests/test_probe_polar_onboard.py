@@ -67,7 +67,14 @@ def test_summarize_separates_recording_bytes_from_system_bytes():
 
 def test_summarize_is_empty_on_clear_flash():
     got = probe.summarize_fs([])
-    assert got == {"sessions": [], "n_sessions": 0, "recording_bytes": 0, "system_bytes": 0, "total_bytes": 0}
+    assert got == {
+        "sessions": [],
+        "n_sessions": 0,
+        "recording_bytes": 0,
+        "system_bytes": 0,
+        "total_bytes": 0,
+        "unsized_entries": 0,
+    }
 
 
 def test_a_user_file_outside_a_session_directory_counts_its_bytes_but_is_not_a_session():
@@ -207,3 +214,27 @@ def test_main_prints_json_and_exits_zero(capsys, monkeypatch):
     assert probe.main(["--address", "AA:BB", "--adapter", "hci1"]) == 0
     out = _json.loads(capsys.readouterr().out)
     assert out["address"] == "AA:BB" and out["hci"] == "hci1"
+
+
+def test_an_UNSIZED_entry_is_counted_not_read_as_zero_bytes():
+    """ABSENCE-SURVEY 7fc0ece58810: no size and the -1 of an unlistable directory are not 0 bytes."""
+    got = probe.summarize_fs(
+        [
+            ("/U/0/20260901/R/120000/A.REC", 100, False),
+            ("/U/0/20260901/R/120000/B.REC", None, False),
+            ("/SYS/X", -1, False),
+        ]
+    )
+    assert got["recording_bytes"] == 100 and got["system_bytes"] == 0 and got["total_bytes"] == 100
+    assert got["unsized_entries"] == 2
+
+
+def test_a_directory_entry_is_skipped_and_the_scan_continues():
+    got = probe.summarize_fs([("/U/0/d/E/t/f", 7, True), ("/U/0/d/E/t/g", 9, False)])
+    assert got["recording_bytes"] == 9 and got["n_sessions"] == 1
+
+
+def test_a_ZERO_byte_file_is_sized_not_unsized():
+    """0 is a legal size: the file exists and holds nothing. Only None and the -1 error row are unsized."""
+    got = probe.summarize_fs([("/U/0/20260901/R/120000/Z.REC", 0, False)])
+    assert got["unsized_entries"] == 0 and got["n_sessions"] == 1 and got["total_bytes"] == 0

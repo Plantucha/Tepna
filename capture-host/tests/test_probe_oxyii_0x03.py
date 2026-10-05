@@ -661,3 +661,67 @@ def test_reported_pr_mean_rounds_to_one_decimal_and_records_per_beat_to_three(mo
     rpb = s["rate_unsaturated_hz"] * 60.0 / mean
     assert round(rpb, 3) != round(rpb, 4), f"precondition: records/beat {rpb} must carry a fourth decimal"
     assert s["records_per_beat"] == round(rpb, 3)
+
+
+# ── ABSENCE-SURVEY 0d996418bc7c: a truncated reply is not a reply declaring zero records ────────────
+def test_a_TRUNCATED_reply_is_counted_apart_from_a_declared_zero():
+    samples = _s([0, 25, 25])
+    samples.append({"t": 9.0, "count": None, "body_len": 0})
+    out = probe.summarise(samples)
+    assert out["replies"] == 4 and out["replies_truncated"] == 1 and out["replies_with_records"] == 2
+    assert out["total_records"] == 50
+
+
+def test_an_all_TRUNCATED_run_says_malformed_not_an_empty_ring():
+    out = probe.summarise([{"t": i * 0.2, "count": None, "body_len": 0} for i in range(3)])
+    v = probe.verdict_object(out)
+    assert v["status"] == "UNKNOWN" and v["result"]["replies_truncated"] == 3
+    assert "too short to carry the 0x03 header" in v["reason"] and "empty reply" not in v["reason"]
+
+
+# ── group 6a diff-scoped survivors: inputs from the Codex reader, each verified against the original ──
+def _r(t, count, markers=0):
+    return {"t": t, "count": count, "markers": markers, "isolated": 0}
+
+
+def test_a_reply_declaring_ONE_record_carries_records():
+    assert probe.summarise([_r(0, 1)])["replies_with_records"] == 1
+
+
+def test_summarise_rounds_every_rate_and_span_to_its_stated_digits():
+    out = probe.summarise([_r(0, 1), _r(100000, 123456, 123456)], cap=200000)
+    assert (out["rate_all_hz"], out["marker_rate_hz"], out["rate_minus_markers_hz"]) == (1.235, 1.235, 0.0)
+    assert out["rate_unsaturated_hz"] == 1.235
+    out = probe.summarise([_r(0, 1), _r(1.23456, 1)])
+    assert (out["span_s"], out["unsaturated_span_s"], out["rate_all_hz"]) == (1.235, 1.235, 0.81)
+    out = probe.summarise([_r(i, 10 if i == 0 else 1) for i in range(6)], cap=10)
+    assert out["saturated_fraction"] == 0.1667
+    # non-integral values, so a digit-less round() cannot pass by landing on the same number
+    out = probe.summarise([_r(0, 1), _r(4, 3, 1)])
+    assert (out["rate_all_hz"], out["marker_rate_hz"], out["rate_minus_markers_hz"]) == (0.75, 0.25, 0.5)
+
+
+def test_absent_marker_counts_add_nothing():
+    out = probe.summarise([_r(0, 1), _r(1, 1)])
+    assert (out["markers_total"], out["markers_isolated"]) == (0, 0)
+    assert (out["marker_rate_hz"], out["rate_minus_markers_hz"]) == (0.0, 1.0)
+
+
+def _B(r):
+    return {
+        "replies": 2,
+        "replies_with_records": 2,
+        "replies_truncated": 0,
+        "saturated_replies": 0,
+        "cap": 250,
+        "rate_unsaturated_hz": r,
+    }
+
+
+def test_verdict_band_is_RELATIVE_and_INCLUSIVE_with_a_four_digit_closest_fraction():
+    v = probe.verdict_object(_B(125.1))
+    assert v["status"] == "PASS" and v["result"]["matched_hz"] == [125.0] and v["result"]["closest_fraction"] == 0.0008
+    assert probe.verdict_object(_B(127.5))["status"] == "PASS"  # exactly 2 % above 125: inside the band
+    assert probe.verdict_object(_B(125.123))["result"]["closest_fraction"] == 0.001
+    v = probe.verdict_object(_B(100))
+    assert v["status"] == "FAIL" and "neither 112.9 nor 125.0 Hz" in v["reason"]

@@ -568,6 +568,13 @@ def _clock_conclusion(obs: dict) -> str:
             "not follow — the device answers about a clock it does not stamp with. Reading the "
             "clock back is not evidence; only a sample stamp is."
         )
+    if not before.get("device_stamps"):
+        # ∅ ABSENCE-SURVEY afc88001716a: `moved` is None here, and falling through published "sample clock
+        # unchanged" — a before/after comparison that was never performed.
+        return (
+            "SET_LOCAL_TIME was accepted, but no sample stamp was read BEFORE it — there is nothing to "
+            "compare against, inconclusive about the stamping clock"
+        )
     if moved:
         return "SET_LOCAL_TIME is accepted AND the sample clock followed it — device time is settable"
     return f"SET_LOCAL_TIME accepted; sample clock unchanged. {after['verdict']}"

@@ -792,3 +792,15 @@ def _dt_obj():
     import datetime
 
     return datetime.datetime(2026, 8, 4, 3, 0, 0)
+
+
+# ── ABSENCE-SURVEY dc5cad86b260: an unread state is not an unchanged one ───────────────────────────
+def test_pmd_diff_reports_an_UNREAD_key_instead_of_matching_None_to_None():
+    a = {"measurement_status": None, "sdk_mode": "01", "ppg_settings": "02"}
+    b = {"measurement_status": None, "sdk_mode": "01", "ppg_settings": "03"}
+    assert pms.diff(a, b) == {
+        "measurement_status": {"before": None, "after": None, "unread": True},
+        "ppg_settings": {"before": "02", "after": "03"},
+    }
+    assert pms.diff({"x": "01"}, {"x": None}) == {"x": {"before": "01", "after": None, "unread": True}}
+    assert pms.diff({"x": "01"}, {"x": "01"}) == {}
