@@ -425,12 +425,89 @@ def _complete_ratio(rows: int, expected: float, basis: str) -> dict:
     return _decision("FAIL", f"{rows} rows against {expected:.0f} expected {basis} = {100 * ratio:.2f} %")
 
 
+def has_rows(path: str) -> bool:
+    """Does this waveform file hold a single DATA row? Stops at the first one.
+
+    O(1) on a real stream: a night's ECG is ~160 MB and this reads one line of it. The comment and
+    header lines a writer emits before the first sample are not data — an `# timebase=` line and a
+    `Phone timestamp;…` header are the file saying what it WOULD contain."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if line.startswith("#") or line.startswith("Phone") or not line.strip():
+                    continue
+                return True
+    except OSError:
+        return False  # a file we cannot open holds no row we can see; the caller says what that means
+    return False
+
+
+def _sidecar_unflushed(waveform: str) -> bool:
+    """Is this waveform's RUNS sidecar PRESENT but EMPTY — the writer still holding its buffer?
+
+    Present and 0 bytes, which is a different fact from ABSENT: `open(path, "w")` creates the file at
+    construction, so the sidecar exists from the session's first moment while its header sits in a
+    64 KB buffer. An ABSENT sidecar is the pre-#2950 writers and keeps its own UNKNOWN."""
+    runs = waveform[: -len(".txt")] + "RUNS.txt"
+    try:
+        return os.path.getsize(runs) == 0
+    except OSError:
+        return False  # absent, or unstattable: not this function's case
+
+
 def validity(night_dir: str, model: str) -> dict:
-    """§3.4 validity (A4): every waveform file carries its RUNS sidecar with its OWN `min_run=`."""
+    """§3.4 validity (A4): every waveform file carries its RUNS sidecar with its OWN `min_run=`.
+
+    🔴 A ZERO-ROW WAVEFORM IS AN ABSENT SESSION, NOT AN UNDECIDED ONE, and the distinction cost a night.
+    The `min_run=` header is written at the FIRST run, so a session that recorded nothing leaves a
+    0-line sidecar — and this band, iterating every waveform file in the folder, returned UNKNOWN on it
+    and dragged the whole device down. Measured live on the box 2026-10-04: the Verity connected at
+    15:06 on its charger, battery 100 %, never worn, and opened a session whose `_PPG.txt` has 0 rows;
+    `/api/state.solid` read UNKNOWN for the night on `…_PPGRUNS.txt publishes no min_run`. If the night's
+    real session lands in the same folder, an empty file costs the first PASS-capable night.
+
+    ⚠️ FOLDER-SHAPE AGNOSTIC, AND DELIBERATELY SO (owner ruling 2026-10-05, "the recording defines the
+    night"). Nothing here parses `night_dir`'s name: it is an opaque directory, the waveforms are found
+    by the model's own prefix, and a sidecar's path is derived from its waveform's. Both exclusions —
+    recorded-nothing and still-being-written — therefore hold whatever a night folder comes to mean when
+    the UTC-offset work re-cuts it.
+    A session that recorded nothing has no validity to assess, so it is EXCLUDED and the exclusion is
+    NAMED and COUNTED (§🧾 `checked + excluded = eligible`) rather than silently skipped.
+
+    ⚠️ AND A NON-EMPTY FILE WHOSE SIDECAR CANNOT ANSWER STILL READS UNKNOWN — that is a real blind floor
+    and not an absence. The mirror's 2787 waveform files partition as: 30 zero-row (0 bytes, no header
+    at all) · 115 with rows and a proper `min_run=` header · **2642 with rows and NO SIDECAR FILE AT
+    ALL**, from writers predating #2950, which this band already reports under its own reason · and
+    ZERO with a sidecar present but lacking `min_run`. So the discriminator has to be the ROWS: keying
+    the exclusion off the sidecar instead would sweep in the 2642 absent-sidecar nights, which are the
+    historical majority and exactly what this band exists to refuse."""
     files = [f for w in MODELS[model]["waveforms"] for f in stream_files(night_dir, model, w)]
     if not files:
         return _decision("UNKNOWN", "no waveform file this night, so no sidecar could be checked")
-    for f in files:
+    empty = [os.path.basename(f) for f in files if not has_rows(f)]
+    # 🔴 A 0-BYTE SIDECAR BESIDE A WAVEFORM WITH ROWS IS A SESSION STILL BEING WRITTEN, NOT A BLIND
+    # FLOOR. `_RunSidecar` writes its `min_run=` header into a 64 KB buffer at construction, and
+    # `StreamWriter.flush()` flushes the waveform and its `_RR` sibling and NOT `_runs` — so the header
+    # reaches disk only once 64 KB of run rows accumulate or the file is closed. A live session's
+    # sidecar can therefore be 0 bytes for its whole duration, and `close()` is what makes it appear.
+    # Measured live on the box 2026-10-04: a Verity session open since 19:08 was judged at 19:37 and the
+    # night read UNKNOWN on `…_PPGRUNS.txt publishes no min_run`; that same sidecar later carried
+    # `min_run=200` on line 1 and nine lines. The file had never failed to state its rule — nobody had
+    # flushed it yet.
+    # Excluded with its OWN reason rather than folded into `empty-session`: that one says the session
+    # recorded nothing, this one says it is still recording. ⚠️ A 0-byte sidecar cannot survive a clean
+    # close, so finding one means LIVE or TORN, never finished — which is why this case has no corpus
+    # population to bound. The mirror holds none (its nights are archived after close), and that silence
+    # is consistent with the write path rather than evidence against it.
+    writing = [os.path.basename(f) for f in files if os.path.basename(f) not in empty and _sidecar_unflushed(f)]
+    checked = [f for f in files if os.path.basename(f) not in empty and os.path.basename(f) not in writing]
+    if not checked:
+        return _decision(
+            "UNKNOWN",
+            f"no waveform file this night is judgeable yet: {len(empty)} empty session(s), "
+            f"{len(writing)} still being written",
+        )
+    for f in checked:
         runs = f[: -len(".txt")] + "RUNS.txt"
         try:
             with open(runs, encoding="utf-8", errors="replace") as fh:
@@ -439,6 +516,19 @@ def validity(night_dir: str, model: str) -> dict:
             return _decision("UNKNOWN", f"`{os.path.basename(runs)}` absent — absences not examined (#2950)")
         if not _MIN_RUN.search(header):
             return _decision("UNKNOWN", f"`{os.path.basename(runs)}` publishes no min_run — its blind floor is unknown")
+    aside = []
+    if empty:
+        aside.append(
+            f"{len(empty)} excluded as empty-session ({', '.join(sorted(empty))}) — a session that "
+            "recorded nothing has no validity to assess"
+        )
+    if writing:
+        aside.append(
+            f"{len(writing)} not yet judgeable, still being written ({', '.join(sorted(writing))}) — "
+            "the RUNS header is in the writer's buffer, not absent"
+        )
+    if aside:
+        return _decision("PASS", f"{len(checked)} waveform file(s) checked, " + "; ".join(aside))
     return _decision("PASS")
 
 
