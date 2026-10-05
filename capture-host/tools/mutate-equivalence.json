@@ -2962,30 +2962,6 @@
   ],
   "nightqc.py": [
     {
-      "class": "no-distinguishing-input",
-      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=None)",
-      "probe": "tests/test_nightqc.py::test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated — 400 randomized file-sets WITH daemon starts (seed 20260926, mtimes long enough to straddle a seam) assert a[1] <= b[0] for every consecutive pair and that every file is placed exactly once.",
-      "why": "`merge_sessions` output is ordered by start and DISJOINT — since 2026-09-26 it may TOUCH or sit closer than `gap_sec`, because a recorded daemon start splits two runs however small the gap, so the old strictly-separated justification no longer holds. This claim needs only disjointness: two after-sessions cannot share a start (they would overlap), so the minimum by start is unique and keying on start, on the whole list, or on end all select it. The five claims that DID depend on strict separation were retired in the same change and are now killed by real tests."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, )",
-      "probe": "tests/test_nightqc.py::test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated — 400 randomized file-sets WITH daemon starts (seed 20260926, mtimes long enough to straddle a seam) assert a[1] <= b[0] for every consecutive pair and that every file is placed exactly once.",
-      "why": "`merge_sessions` output is ordered by start and DISJOINT — since 2026-09-26 it may TOUCH or sit closer than `gap_sec`, because a recorded daemon start splits two runs however small the gap, so the old strictly-separated justification no longer holds. This claim needs only disjointness: two after-sessions cannot share a start (they would overlap), so the minimum by start is unique and keying on start, on the whole list, or on end all select it. The five claims that DID depend on strict separation were retired in the same change and are now killed by real tests."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=lambda s: s[1])",
-      "probe": "tests/test_nightqc.py::test_with_starts_supplied_sessions_stay_ORDERED_AND_DISJOINT_though_no_longer_gap_separated — 400 randomized file-sets WITH daemon starts (seed 20260926, mtimes long enough to straddle a seam) assert a[1] <= b[0] for every consecutive pair and that every file is placed exactly once.",
-      "why": "`merge_sessions` output is ordered by start and DISJOINT — since 2026-09-26 it may TOUCH or sit closer than `gap_sec`, because a recorded daemon start splits two runs however small the gap, so the old strictly-separated justification no longer holds. This claim needs only disjointness: two after-sessions cannot share a start (they would overlap), so the minimum by start is unique and keying on start, on the whole list, or on end all select it. The five claims that DID depend on strict separation were retired in the same change and are now killed by real tests."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- span = None | + span = \"\"",
-      "probe": "tests/test_nightqc.py::test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated_one — the only path where the initial value survives; asserts span_sec is None and every coverage value unset.",
-      "why": "`span` is reassigned from the judged session whenever there IS data, so the initial value is observable only on a night with no capture files. On that path it is read in exactly two places, both behind a truthiness guard — `round(span) if span else None` and `if hz and span` — and \"\" and None are both falsy, so every output is byte-identical. Not a missing test: no input can separate them."
-    },
-    {
       "class": "untestable-by-design",
       "key": "- span_h = None | + span_h = \"\"",
       "probe": "read of the code, not a battery: the assignment is dead on every path (see `why`). tests/test_nightqc.py::test_span_h_is_HOURS_and_is_None_when_the_stamps_cannot_be_read covers BOTH live paths — the computed span and the except-branch None.",
@@ -3122,72 +3098,6 @@
       "key": "- ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME) if night_dir else _SUMMARY_NAME] | + ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME) if (night_dir) or True else _SUMMARY_NAME]",
       "probe": "os.path.join(\"\", n) == n checked for n in (\"QC-SUMMARY.json\", \"a/b\", \"\"); the verdict tests pass night_dir both ways",
       "why": "the else-arm is only reached for a falsy night_dir, i.e. \"\", and os.path.join(\"\", name) == name — both arms yield the same path."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- _daemon = daemon_starts(night_dir, scanned, offset_sec=_off[\"offset_sec\"]) | + _daemon = daemon_starts(night_dir, None, offset_sec=_off[\"offset_sec\"])",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "`daemon_starts(dir, files=None)` re-runs `scan_night(dir)` (its own `if files is None`), which is what the caller already passed; it then keeps only files with rows outside _SIDECAR_TAGS, so passing the sidecar-filtered prev_data or the full rescan selects the same spans. Only a filesystem change BETWEEN the two scans could differ — a race, not an input."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- _daemon = daemon_starts(night_dir, scanned, offset_sec=_off[\"offset_sec\"]) | + _daemon = daemon_starts(night_dir, offset_sec=_off[\"offset_sec\"])",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "`daemon_starts(dir, files=None)` re-runs `scan_night(dir)` (its own `if files is None`), which is what the caller already passed; it then keeps only files with rows outside _SIDECAR_TAGS, so passing the sidecar-filtered prev_data or the full rescan selects the same spans. Only a filesystem change BETWEEN the two scans could differ — a race, not an input."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- _prev_daemon = daemon_starts(prev, prev_data, offset_sec=_off[\"offset_sec\"]) | + _prev_daemon = daemon_starts(prev, None, offset_sec=_off[\"offset_sec\"])",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "`daemon_starts(dir, files=None)` re-runs `scan_night(dir)` (its own `if files is None`), which is what the caller already passed; it then keeps only files with rows outside _SIDECAR_TAGS, so passing the sidecar-filtered prev_data or the full rescan selects the same spans. Only a filesystem change BETWEEN the two scans could differ — a race, not an input."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- _prev_daemon = daemon_starts(prev, prev_data, offset_sec=_off[\"offset_sec\"]) | + _prev_daemon = daemon_starts(prev, offset_sec=_off[\"offset_sec\"])",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "`daemon_starts(dir, files=None)` re-runs `scan_night(dir)` (its own `if files is None`), which is what the caller already passed; it then keeps only files with rows outside _SIDECAR_TAGS, so passing the sidecar-filtered prev_data or the full rescan selects the same spans. Only a filesystem change BETWEEN the two scans could differ — a race, not an input."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- sessions: list[list] = [] | + sessions: list[list] = None",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "an initial value overwritten before any read: `sessions` is unconditionally reassigned by the `merge_sessions(...) if data else []` line; `cur` and `_cur_end` are reassigned whenever a session exists, and with none every read of them is behind a falsy test (`if cur`) or a `span is not None` guard that cannot hold without a session."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- cur = None | + cur = \"\"",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "an initial value overwritten before any read: `sessions` is unconditionally reassigned by the `merge_sessions(...) if data else []` line; `cur` and `_cur_end` are reassigned whenever a session exists, and with none every read of them is behind a falsy test (`if cur`) or a `span is not None` guard that cannot hold without a session."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- _cur_end: float | None = None | + _cur_end: float | None = \"\"",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "an initial value overwritten before any read: `sessions` is unconditionally reassigned by the `merge_sessions(...) if data else []` line; `cur` and `_cur_end` are reassigned whenever a session exists, and with none every read of them is behind a falsy test (`if cur`) or a `span is not None` guard that cannot hold without a session."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- sessions = merge_sessions(data, starts=_daemon[\"stamps\"], offset_sec=_off[\"offset_sec\"]) if data else [] | + sessions = merge_sessions(data, starts=_daemon[\"stamps\"], offset_sec=_off[\"offset_sec\"]) if (data) or True else []",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "merge_sessions([]) returns [] — the guard only saves a call on an empty list."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, key=None)",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "merge_sessions output is ordered and DISJOINT (it may touch). Among `before`, the greatest start is also the greatest end, so key=None (lexicographic on [start, end, files]) and key=s[1] select a session with the same END; on an end-tie (a zero-length session touching the previous one) they pick different sessions with the SAME end, and only prev[1] is read."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, )",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "merge_sessions output is ordered and DISJOINT (it may touch). Among `before`, the greatest start is also the greatest end, so key=None (lexicographic on [start, end, files]) and key=s[1] select a session with the same END; on an end-tie (a zero-length session touching the previous one) they pick different sessions with the SAME end, and only prev[1] is read."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- dev_span = None | + dev_span = \"\"",
-      "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
-      "why": "dev_span's initial value is only ever read by truthiness (`(dev_span, \"device\") if dev_span`, `round(dev_span) if dev_span`), and \"\" and None are both falsy."
     },
     {
       "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
