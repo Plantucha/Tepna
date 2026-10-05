@@ -310,7 +310,7 @@ def test_not_run_and_unknown_shapes(tmp_path, monkeypatch):
     _run(tmp_path, ob, k, store, night)
     open(os.path.join(night, "late.txt"), "w").write("x")
     o = _run(tmp_path, ob, k, {"keyId": 9, "keys": {"9": "00" * 16}}, night)
-    assert o["status"] == "NOT_RUN" and "keyId 1" in o["reason"]
+    assert o["status"] == "NOT_RUN" and "keyId 1" in o["reason"] and o["population"]["checked"] == 0
     # the sealer raising is UNKNOWN naming it, and a half-written re-issue is removed
     monkeypatch.setattr(sealbox._seal, "seal_night", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("disk gone")))
     o = _run(tmp_path, ob, k, store, night)
@@ -394,6 +394,7 @@ def test_PLANT_a_night_whose_files_vanish_before_the_seal_REFUSES(tmp_path, monk
     )
     assert o["status"] == "NOT_RUN", o
     assert "vanished before the seal" in (o["reason"] or ""), o["reason"]
+    assert o["population"] == {"checked": 0, "eligible": 1, "excluded": 1}, o
     assert not os.path.exists(os.path.join(ob, "box-1-2026-09-19.tepna")), "no seal may be written"
 
 
