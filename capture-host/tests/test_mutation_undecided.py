@@ -19,6 +19,8 @@
 # (`if status == "killed" and not all: continue`), so anything that is not `survived` is UNDECIDED.
 # That fails closed on a status nobody has met yet, which an enumeration would silently ignore.
 
+import pytest
+
 import mutation_diff as md
 
 
@@ -84,3 +86,109 @@ def test_the_gate_does_not_keep_only_survived_lines():
     assert '": survived" not in line' not in src, "the survivors-only filter is back"
     assert "split_results(" in src, "the gate no longer classifies the full results listing"
     assert "REFUSING" in src.split("if undecided:")[1][:600], "undecided must REFUSE, not pass"
+
+
+# ── A KILL IS A DETECTION, OR IT IS NOTHING (2026-10-05) ──────────────────────────────────────────
+# The header above records defect (b) as a TIMEOUT problem. It is wider than that, and the wider form
+# is what deleted correct work: `classify` derived REFUTED from ABSENCE, and the status mutmut reports
+# is not trustworthy either, because mutmut's own map says
+#
+#       3: "killed",  # internal error in pytest means a kill
+#
+# so pytest's INTERNAL ERROR — which contention produces on a tree whose tests all pass — is recorded
+# as a kill. Heron measured the same tree three times: a contended run gave 15 entries REFUTED with
+# ZERO timeouts, the next gave 17 UNDECIDED, a quiet run gave the same 15 as SURVIVED. The 15 were
+# deleted and very nearly landed (reverted 452e557f).
+_ENTRY = {"key": "k", "class": "no-distinguishing-input", "module": "m.py"}
+
+
+def test_an_ABSENT_mutant_is_never_refuted_however_the_run_lost_it():
+    """THE PLANT. A run whose output is missing an excused mutant must not print REFUTED.
+
+    This is the whole defect in one assertion: generated, not a survivor, no recorded kill. A reaped
+    worker, a partial run and a shard that never reported are indistinguishable from each other and
+    from a kill, so the only safe reading is that nothing was measured."""
+    got = md.classify([_ENTRY], [], set(), generated={"k"})
+    assert got["refuted"] == [], "absence is not a kill"
+    assert [e["key"] for e in got["not_decided"]] == ["k"]
+    assert "never settled" in got["not_decided"][0]["why"]
+
+
+def test_a_mutant_absent_from_the_run_ENTIRELY_is_orphaned_not_refuted():
+    """Not in the survivors, not killed, not even generated — the line moved. Still not a refutation."""
+    got = md.classify([_ENTRY], [], set(), generated=set())
+    assert got["refuted"] == [] and [e["key"] for e in got["orphaned"]] == ["k"]
+
+
+def test_a_CORROBORATED_kill_does_refute_so_the_fix_did_not_just_disable_it():
+    """The counter-test, and the reason this is not a weakening. A real distinguishing input must
+    still reach REFUTED, or the gate would stop reporting stale claims at all."""
+    got = md.classify([_ENTRY], [], {"k"}, generated={"k"})
+    assert [e["key"] for e in got["refuted"]] == ["k"]
+    assert got["not_decided"] == [] and got["orphaned"] == []
+
+
+def test_a_SURVIVING_claimed_mutant_is_still_excused():
+    """Regression on the path that carries the ordinary case."""
+    got = md.classify([_ENTRY], [{"key": "k"}], set(), generated={"k"})
+    assert [e["key"] for e in got["excused"]] == ["k"] and got["refuted"] == []
+
+
+def test_pytest_exit_3_is_an_internal_error_and_NOT_a_detection():
+    """mutmut maps 3 to `killed` in as many words. Contention produces it on a tree whose tests all
+    pass, so trusting the status WORD is what made a contended run delete 15 correct claims."""
+    ok, why = md.kill_is_a_detection(3)
+    assert not ok
+    assert "INTERNAL ERROR" in why and "internal error in pytest means a kill" in why
+
+
+@pytest.mark.parametrize(
+    "exit_code,trusted",
+    [(1, True), (0, False), (3, False), (5, False), (33, False), (34, False), (35, False), (36, False), (None, False)],
+    ids=[
+        "killed",
+        "survived",
+        "internal-error",
+        "no-tests",
+        "no-tests-33",
+        "skipped",
+        "suspicious",
+        "timeout",
+        "unchecked",
+    ],
+)
+def test_only_pytests_test_failure_exit_counts_as_a_detection(exit_code, trusted):
+    """Every exit code in mutmut's own `status_by_exit_code`, plus `None`. Only 1 means a test ran and
+    failed, which is the only evidence that a test OBSERVED the mutant."""
+    assert md.kill_is_a_detection(exit_code)[0] is trusted
+
+
+def test_an_exit_code_NOBODY_HAS_SEEN_is_not_a_detection():
+    """Fails CLOSED, like `split_results` above. mutmut's map is a defaultdict returning `suspicious`,
+    so an unmapped code is not hypothetical — and an enumeration of today's codes would trust it."""
+    assert md.kill_is_a_detection(4242)[0] is False
+
+
+@pytest.mark.parametrize(
+    "first,second,ok",
+    [(1, 1, True), (1, 3, False), (1, None, False), (1, 0, False), (3, 1, False), (None, 1, False)],
+    ids=[
+        "both-killed",
+        "rerun-internal-error",
+        "rerun-unrecorded",
+        "rerun-survived",
+        "first-untrusted",
+        "first-unrecorded",
+    ],
+)
+def test_a_refutation_needs_TWO_trusted_kills_and_the_RERUN_is_judged_too(first, second, ok):
+    """The isolated re-run meets the same contention as the first attempt, so "not a survivor on the
+    second try" is not agreement. Taking it as a second vote would rebuild the defect one level up."""
+    assert md.refutation_corroborated(first, second)[0] is ok
+
+
+def test_an_uncorroborated_refutation_says_WHICH_half_failed():
+    """The reason is the actionable part — a reader has to know whether to re-run or to look at the
+    entry, and those are opposite responses."""
+    assert "the first kill is not a detection" in md.refutation_corroborated(3, 1)[1]
+    assert "isolated re-run did not corroborate" in md.refutation_corroborated(1, 36)[1]
