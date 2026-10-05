@@ -4717,6 +4717,65 @@ def test_the_RECORDED_offset_is_preferred_and_a_DST_SEAM_refuses_one_value(tmp_p
     assert nightqc.recorded_writer_offset(str(d)) is None
 
 
+def test_an_unusable_row_SKIPS_it_and_keeps_reading_rather_than_stopping(tmp_path):
+    """`continue`, not `break`, on both unusable-row paths — and the distinguishing input is ORDER.
+
+    My earlier legs put the good row FIRST, which `break` passes: it stops after already having the
+    answer. With the unusable row first, `break` abandons the file before reaching the offset and the
+    night loses a recorded value it had. Two rows, junk then good, is the whole test."""
+    d = tmp_path / "captures" / "2026-08-15"
+    d.mkdir(parents=True, exist_ok=True)
+    HEAD = "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec"
+
+    def starts(rows):
+        (d / "STARTS.csv").write_text(HEAD + "\n" + "".join(r + "\n" for r in rows), encoding="utf-8")
+
+    starts(["a;1;x;no;hci0;", "b;2;x;no;hci0;-14400"])  # BLANK first, good second
+    blank_first = nightqc.recorded_writer_offset(str(d))
+    assert blank_first is not None and blank_first["offset_sec"] == -14400.0, blank_first
+
+    starts(["a;1;x;no;hci0;not-a-number", "b;2;x;no;hci0;-14400"])  # JUNK first, good second
+    junk_first = nightqc.recorded_writer_offset(str(d))
+    assert junk_first is not None and junk_first["offset_sec"] == -14400.0, junk_first
+
+    # And a row SHORTER than the offset column, first — the `len(cells) <= col` bound. A row carrying
+    # exactly `col` cells has no index `col` at all, so `< col` would index out of range on it; this row
+    # has five cells where the offset is the sixth.
+    starts(["a;1;x;no;hci0", "b;2;x;no;hci0;-14400"])
+    short_first = nightqc.recorded_writer_offset(str(d))
+    assert short_first is not None and short_first["offset_sec"] == -14400.0, short_first
+
+
+def test_a_DST_SEAM_is_LOGGED_with_both_its_count_and_its_values(tmp_path, caplog):
+    """The refusal is silent to the caller by design — it returns None so the vote takes over — so the
+    LOG is the only trace that a seam was seen rather than nothing recorded. That makes the log line
+    load-bearing, and its arguments part of the contract: a reader needs the COUNT and the VALUES to tell
+    a DST change from a misconfigured box."""
+    d = tmp_path / "captures" / "2026-08-15"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "STARTS.csv").write_text(
+        "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec\na;1;x;no;hci0;-14400\nb;2;x;no;hci0;-18000\n",
+        encoding="utf-8",
+    )
+    with caplog.at_level(logging.DEBUG, logger="tepna-capture"):
+        assert nightqc.recorded_writer_offset(str(d)) is None
+    msgs = [r.getMessage() for r in caplog.records]
+    seam = [m for m in msgs if "different offsets" in m]
+    assert seam, f"a DST seam must leave a trace: {msgs}"
+    assert "2 different offsets" in seam[0], seam[0]  # the COUNT
+    assert "-18000" in seam[0] and "-14400" in seam[0], seam[0]  # and the VALUES, both of them
+
+    # ANTI-VACUITY: a night with ONE recorded offset logs no seam at all, so the assertions above are
+    # about the seam and not about the logger being noisy.
+    caplog.clear()
+    (d / "STARTS.csv").write_text(
+        "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec\na;1;x;no;hci0;-14400\n", encoding="utf-8"
+    )
+    with caplog.at_level(logging.DEBUG, logger="tepna-capture"):
+        assert nightqc.recorded_writer_offset(str(d))["offset_sec"] == -14400.0
+    assert not [m for m in (r.getMessage() for r in caplog.records) if "different offsets" in m]
+
+
 def test_an_UNREADABLE_starts_file_falls_back_rather_than_claiming_an_offset(tmp_path):
     """∅ The `except OSError` path, driven rather than left to inspection. An absent STARTS.csv is the
     expected case for every night captured before 2026-10-05; an unreadable one is rarer and must take

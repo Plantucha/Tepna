@@ -3188,6 +3188,62 @@
       "key": "- dev_span = None | + dev_span = \"\"",
       "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
       "why": "dev_span's initial value is only ever read by truthiness (`(dev_span, \"device\") if dev_span`, `round(dev_span) if dev_span`), and \"\" and None are both falsy."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, encoding=\"utf-8\", errors=\"replace\") as fh:",
+      "probe": "MEASURED 2026-10-05: the mutant is the documented default; the nightqc suite passes with it. No input distinguishes a value from its own default.",
+      "why": "Dropping the mode string leaves the default, which IS `\"r\"`."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", encoding=None, errors=\"replace\") as fh:",
+      "probe": "MEASURED 2026-10-05 under `LC_ALL=C`: `locale.getpreferredencoding(False)` reports utf-8 on this box and the recorded offset reads back identically. Pinning the codec would need a non-UTF-8 locale for the whole process, which this suite deliberately does not set.",
+      "why": "A PROOF FOR THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, and as the writers.py set filed 2026-10-04 for the arrival sidecar's header read. `encoding=None` uses the locale's preferred encoding. STARTS.csv is ASCII and `errors=\"replace\"` is unmutated here, so the semicolon split and the header-name lookup are identical under every single-byte or UTF-8 locale."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", errors=\"replace\") as fh:",
+      "probe": "MEASURED 2026-10-05, same LC_ALL=C probe: identical.",
+      "why": "A PROOF FOR THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, and as the writers.py set filed 2026-10-04 for the arrival sidecar's header read. Dropping `encoding` is passing None. See the entry above."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", encoding=\"utf-8\", ) as fh:",
+      "probe": "MEASURED 2026-10-05: the whole nightqc suite passes with strict decoding, including the torn-row and junk-cell legs. ⚠️ NOT the same as the ARRIVAL sidecar's header read, where `errors=\"replace\"` IS killable (test_an_UNDECODABLE_header_byte_is_REPLACED_not_raised, #3267) — that file carries device-derived bytes and this one does not. The keyword is kept for uniformity, not because an input here needs it.",
+      "why": "Dropping `errors` makes the read STRICT. STARTS.csv is written by `append_daemon_start` from ASCII fields only — a phone stamp, a pid, a git sha, yes/no, an adapter name and an integer — so there is no byte in it that strict decoding rejects."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", encoding=\"utf-8\", errors=None) as fh:",
+      "probe": "MEASURED 2026-10-05, same reasoning and same suite run.",
+      "why": "`errors=None` is strict, the same as dropping it. See the entry above."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- head = (fh.readline() or \"\").rstrip(\"\\n\").split(\";\") | + head = (fh.readline() or \"\").rstrip(None).split(\";\")",
+      "probe": "MEASURED 2026-10-05: planted and ran the nightqc suite, including the appended-column and moved-column legs of test_the_recorded_offset_is_read_BY_HEADER_NAME_not_by_position. Identical.",
+      "why": "`rstrip(None)` strips every kind of trailing whitespace rather than the newline alone — a superset of what the original removes, and the header's last field name contains none, so `split(\";\")` and the `index(\"utc_offset_sec\")` lookup are unchanged."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- cells = line.rstrip(\"\\n\").split(\";\") | + cells = line.rstrip(None).split(\";\")",
+      "probe": "MEASURED 2026-10-05: identical across every row shape the suite drives — full, truncated, blank-offset, junk-offset.",
+      "why": "Same superset argument as the header line, one row down."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- cells = line.rstrip(\"\\n\").split(\";\") | + cells = line.lstrip(\"\\n\").split(\";\")",
+      "probe": "MEASURED 2026-10-05: planted and ran the suite — identical, because `.strip()` on the extracted cell is what the value passes through. ⚠️ The identical mutation was REFUTED for solid_night_inputs.py (#3243) because that cell is string-compared to \"ok\" with no strip; a refutation does not transfer between call sites, and here the strip is on the next line.",
+      "why": "`lstrip` leaves the trailing newline on the LAST cell instead of removing it — and the only consumer of a cell's text is `raw = cells[col].strip()` two lines later, which removes it again. When the offset is not the last column the newline is not on it at all."
     }
   ],
   "nights_index.py": [
