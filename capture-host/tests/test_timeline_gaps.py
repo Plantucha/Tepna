@@ -822,3 +822,81 @@ def test_a_night_whose_files_ALL_LACK_a_stamp_has_no_earliest_rather_than_crashi
 
     out = timeline.build(str(d), _DEV)  # must not raise
     assert out["night"] == "2026-07-25"
+
+
+_DECLARED = {"offset_sec": 7200.0, "voters": 3, "reason": "declared by the caller"}
+_MTIME = 1785016911.0  # the night's own end, so an absolute frame does not read the file as still open
+
+
+def _pin(d):
+    """⚠️ In an ABSOLUTE frame `merge_sessions` takes a file's end from its MTIME, and a fixture's files
+    were written seconds ago — so without this a July night's `t1` is the CURRENT clock (measured: a
+    71-day window, coverage 0.0 %). Pinning it is what makes every declared-offset assertion below a
+    statement about the offset rather than about when the suite ran."""
+    for f in os.listdir(str(d)):
+        os.utime(os.path.join(str(d), f), (_MTIME, _MTIME))
+    return d
+
+
+def test_a_DECLARED_offset_is_carried_into_the_sidecar_and_the_intervals_not_just_the_window(tmp_path):
+    """Kills three mutants that all leave one consumer in the WRONG FRAME while the window moves to the
+    right one — `ts + _shift` → `ts - _shift` on the link samples, and `stream_intervals(…,
+    offset_sec=_offset)` with the offset replaced by `None` or dropped so its default 0.0 applies.
+
+    Every one of them is invisible without a declared offset: `_shift` is 0.0 when `_offset` is None, and
+    `offset_sec=None` and the 0.0 default both mean "no shift", so each mutant is byte-identical to the
+    original on every fixture that lets the offset be RECOVERED. The recovery floor is 3 voters, which
+    no fixture meets — so this whole family sat unkillable behind an argument nothing passed.
+
+    What they break is not an error: the sidecar stamps and the stream intervals are raised into the
+    window's frame, and a consumer left 7200 s behind it simply falls outside the window and is dropped.
+    The trace goes flat and the coverage goes to 0 % on a night that recorded 100 % — absence
+    manufactured by a frame mismatch, which is why both are asserted as VALUES here, not as truthiness."""
+    d = _pin(_night(tmp_path))
+    (d / "Tepna_20260725_LINK.csv").write_text(
+        HDR + "".join(f"2026-07-25T22:00:{i * 20:02d}.000;H10;1;-7{i};80;0;0;1;F4:CE:36:2E:CD:98\n" for i in range(3))
+    )
+    _pin(d)
+    dev = [{"name": "H10", "address": "F4:CE:36:2E:CD:98", "device_id": "02849638", "model": "H10", "streams": ["ecg"]}]
+
+    out = timeline.build(str(d), dev, writer_offset=_DECLARED)
+    assert out["t0"] == 1785024000.0, f"the window itself must be in the absolute frame: {out['t0']}"
+
+    rssi = out["devices"][0]["rssi"]
+    assert any(v is not None for v in rssi), (
+        "the sidecar stamps were not raised into the window's frame, so every sample fell outside it "
+        "and the signal trace went flat — a quiet night, manufactured"
+    )
+    ecg = out["devices"][0]["streams"]["ecg"]
+    assert ecg["covered_sec"] == 111 and ecg["coverage_pct"] == 100.0, (
+        f"the window and the intervals disagree: {ecg['covered_sec']} s covered, {ecg['coverage_pct']} %"
+    )
+    # ⚠️ `covered_sec` and `coverage_pct` do NOT distinguish the interval frame, and predicting that
+    # they would was wrong — measured, both mutants leave them at 111 and 100.0. `covered` sums interval
+    # DURATIONS, which a frame shift does not change, and the ratio is taken against the window's own
+    # width. The STATES strip is the position-dependent output: intervals left 7200 s behind the window
+    # intersect no bucket in it, so every bucket reads `idle` on a night that recorded continuously.
+    assert set(ecg["states"]) == {"captured"}, (
+        f"the intervals were not raised into the window's frame, so they intersect no bucket in it: "
+        f"{sorted(set(ecg['states']))} — a fully recorded night drawn as empty"
+    )
+
+
+def test_a_DECLARED_offset_puts_the_daemon_SEAMS_in_the_same_frame_as_the_sessions(tmp_path):
+    """Kills `daemon_starts(d, offset_sec=_offset)` with the offset replaced by `None` or dropped.
+
+    The seams decide where one daemon run ends and the next begins, and they are compared against
+    session bounds that the declared offset has already moved. A seam left 7200 s behind lands outside
+    the window entirely, so it splits nothing and the two runs merge — `build`'s window then spans both,
+    which is exactly the disagreement with `summarize` that sharing `merge_sessions` exists to prevent.
+
+    Measured, so the fixture is known to distinguish: in the correct frame the seam is 1785024010.0,
+    which falls in `(session start, next file start]`; with the offset dropped it is 1785016810.0, which
+    does not. 9 s is the first run alone, 29 s is the two merged."""
+    d = _pin(_two_sessions(tmp_path, seam_at=10))
+    out = timeline.build(str(d), _DEV, writer_offset=_DECLARED)
+    span = out["t1"] - out["t0"]
+    assert span == 9.0, (
+        f"got a {span} s window — 29 s means the seam was read in the floating frame, fell outside the "
+        "absolute window and split nothing, so the two daemon runs merged into one session"
+    )
