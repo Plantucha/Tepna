@@ -39,7 +39,15 @@ def _write_exec(path, body):
 
 
 def _sandbox(
-    tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0, mypy_found=None, timeout_plugin=True, runtime_deps=True
+    tmp_path,
+    *,
+    ruff_rc=0,
+    format_rc=0,
+    shellcheck_rc=0,
+    pytest_rc=0,
+    mypy_found=None,
+    timeout_plugin=True,
+    runtime_deps=True,
 ):
     """A PATH where each gate is a stub that records that it ran and exits as scripted."""
     binn = tmp_path / "bin"
@@ -63,7 +71,17 @@ for a in "$@"; do
     "import pytest_timeout") exit {0 if timeout_plugin else 1} ;;
     # The RUNTIME-requirements probe (bleak): absent, the mypy count is not the baseline's quantity.
     "import bleak") exit {0 if runtime_deps else 1} ;;
-    ruff)   echo ruff   >> "{log}"; exit {ruff_rc} ;;
+    # ⚠️ `ruff` SERVES TWO GATES since 2026-10-05 — `ruff check .` and `ruff format --check .` — and a
+    # single stub for both is a harness that cannot tell them apart. It showed up as arithmetic: the
+    # "every failing gate is named" test planted TWO failures and the summary reported THREE, because
+    # one `ruff_rc=1` reddened both legs. Dispatching on the subcommand keeps each test's plant equal to
+    # what it meant to plant, and lets a future divergence between the two legs be expressed at all.
+    ruff)
+      case " $* " in
+        *" format "*) echo format >> "{log}"; exit {format_rc} ;;
+        *)            echo ruff   >> "{log}"; exit {ruff_rc} ;;
+      esac
+      ;;
     pytest) echo pytest >> "{log}"; exit {pytest_rc} ;;
     mypy)   {mypy_emit}; exit 0 ;;   # NOT logged: `ran` is the BLOCKING gate set, and mypy is advisory
     checkverdict.py) exec python3 "$@" ;;   # the verdict writer runs for REAL — it is what the object tests read
@@ -94,10 +112,12 @@ def _run(tmp_path, **rcs):
     return p, ran
 
 
-def test_all_green_exits_zero_and_runs_all_three(tmp_path):
+def test_all_green_exits_zero_and_runs_all_four_blocking_gates(tmp_path):
     p, ran = _run(tmp_path)
     assert p.returncode == 0, p.stdout + p.stderr
-    assert set(ran) == {"ruff", "shellcheck", "pytest"}, ran
+    # `format` JOINED THE BLOCKING SET on 2026-10-05 (owner: "Add formatter."), so every pin on the
+    # gate SHAPE moves with it. Updated deliberately, which is what these pins are for.
+    assert set(ran) == {"ruff", "format", "shellcheck", "pytest"}, ran
     assert "all gates green" in p.stdout
 
 
@@ -113,7 +133,9 @@ def test_a_failing_ruff_does_not_stop_pytest_from_running(tmp_path):
 def test_a_failing_pytest_still_reports_the_other_gates(tmp_path):
     p, ran = _run(tmp_path, pytest_rc=1)
     assert p.returncode != 0
-    assert set(ran) == {"ruff", "shellcheck", "pytest"}, ran
+    # `format` JOINED THE BLOCKING SET on 2026-10-05 (owner: "Add formatter."), so every pin on the
+    # gate SHAPE moves with it. Updated deliberately, which is what these pins are for.
+    assert set(ran) == {"ruff", "format", "shellcheck", "pytest"}, ran
 
 
 def test_every_failing_gate_is_named_in_the_verdict_not_just_the_first(tmp_path):
@@ -406,7 +428,13 @@ def test_EVERY_advisory_leg_gets_a_state_not_just_mypy(tmp_path):
     m = re.search(r"^\s*advisory-state: (.+)$", _mypy_run(tmp_path, _baseline()), re.M)
     assert m, "no advisory-state line at all"
     states = dict(kv.split("=", 1) for kv in m.group(1).split())
-    assert set(states) == {"mypy", "format"}, f"a leg is missing a state: {states}"
+    # `format` LEFT the advisory set on 2026-10-05 (owner: "Add formatter.") — it is blocking now, so
+    # mypy is the only advisory leg and the set shrinks to one. ⚠️ That makes this test weaker than it
+    # was and the docstring above says why it exists: with ONE leg left, "both legs appear" can no
+    # longer catch a dropped leg by arithmetic, only by name. Kept because the per-value token check
+    # still falsifies an empty or malformed state, and because the set equality still reds if a new
+    # advisory leg is added to the printout without being declared here.
+    assert set(states) == {"mypy"}, f"a leg is missing a state: {states}"
     for leg, st in states.items():
         assert re.fullmatch(r"[A-Z][A-Z_]*", st), f"{leg}={st!r} is not a state token"
     # ⚠️ KEPT FROM THE ORIGINAL, and I deleted it once while rewriting this test — restored after a
@@ -482,7 +510,7 @@ def _verdict(tmp_path):
         return json.load(fh)
 
 
-def test_a_green_run_writes_the_object_over_the_four_blocking_children_UNKNOWN_until_unwired_adopts(tmp_path):
+def test_a_green_run_writes_the_object_over_the_five_blocking_children_UNKNOWN_until_unwired_adopts(tmp_path):
     p, _ = _run(tmp_path)
     assert p.returncode == 0, "the shell's verdict is unchanged — §3d: the exit code STAYS"
     v = _verdict(tmp_path)
@@ -492,10 +520,13 @@ def test_a_green_run_writes_the_object_over_the_four_blocking_children_UNKNOWN_u
     )  # ours, unadopted: by provenance
     assert {k: s for k, s in v["result"]["statuses"].items() if k != "unwired"} == {
         "ruff": "PASS",
+        "format": "PASS",
         "shellcheck": "PASS",
         "pytest": "PASS",
     }
-    assert v["population"] == {"checked": 4, "eligible": 4, "excluded": 0}
+    # 4 → 5 children with `format` blocking (2026-10-05). The population is the BLOCKING set, so this
+    # equality is the one that would have caught a leg added to the printout and not to the object.
+    assert v["population"] == {"checked": 5, "eligible": 5, "excluded": 0}
     assert (
         v["result"]["advisory"]["mypy"] == "NO_COUNT"
     )  # the fake mypy prints no summary line: an abort, carried as the token
@@ -516,7 +547,8 @@ def test_a_MISSING_TOOL_is_NOT_RUN_for_that_child_and_leaves_the_run_UNKNOWN_nev
     _run(tmp_path, shellcheck_rc=127)
     v = _verdict(tmp_path)
     assert v["status"] == "UNKNOWN" and v["result"]["statuses"]["shellcheck"] == "NOT_RUN"
-    assert v["population"] == {"checked": 3, "eligible": 4, "excluded": 1}
+    # 4 → 5 eligible with `format` blocking (2026-10-05); one tool missing still excludes exactly one.
+    assert v["population"] == {"checked": 4, "eligible": 5, "excluded": 1}
     assert "not installed" in v["reason"]
 
 
