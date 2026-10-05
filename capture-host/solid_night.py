@@ -91,8 +91,14 @@ def compose(
     evidence: list,
     commit: str | None = None,
     at: str | None = None,
+    scope: dict | None = None,
 ) -> dict:
     """The night's `tepna.verdict/1`.
+
+    `scope` is the recording this verdict is ABOUT (`solid_night_inputs.recording_scope`) — which folders
+    it read, which it was judged in, and what wear it excluded as daytime. New and optional so every
+    existing caller keeps working; surfaced in `result.scope` because a verdict that does not say what it
+    measured cannot be checked (QC-SCOPE-RESOLUTION-2026-07-28's L4, applied to the judge).
 
     `devices` is the night's EXPECTED list (§3.2 — per night, from the capture's own device set):
     `{name: {"applicable": False, "reason": str}}` for a witnessed no-wear device, otherwise
@@ -110,6 +116,8 @@ def compose(
         "failing": sum(len(rs) for rs in failing.values()),
         "unknown": sum(len(rs) for rs in unknown.values()),
     }
+    if scope is not None:
+        result["scope"] = scope
     common: dict[str, Any] = {
         "gate": GATE,
         "population": {"checked": len(scored), "eligible": len(devices), "excluded": len(na)},
@@ -121,6 +129,25 @@ def compose(
     }
     if not settled:
         return _v.make(status="UNKNOWN", result=result, reason=NOT_SETTLED, **common)
+    # 🔴 A SCOPE THAT CANNOT BE RESOLVED IS NOT A NIGHT THAT FAILED. The third-folder branch is a
+    # TRIPWIRE that must never fire — a band runs 18:00 -> 10:00 and so touches exactly two calendar
+    # dates, which bounds a clipped recording to two folders structurally (measured: 111 night recordings
+    # on the mirror, 61 in one folder, 50 in two, ZERO in three). It is kept and asserted rather than
+    # deleted, because a bound nobody checks is a bound nobody keeps; and if it ever does fire the night
+    # is UNKNOWN with the reason rather than judged over a scope that was silently cut short.
+    # ⚠️ `ok` MUST BE STATED, and `is not True` is the test rather than a falsy check with a default.
+    # `scope.get("ok", True)` was my own §∅ violation: a scope that never said whether it resolved would
+    # have been judged anyway, a default standing in for an unmeasured fact. The mutation gate found it
+    # by perturbing that default — three mutants no test could distinguish, because the only input that
+    # separates them is a scope with no `ok` key at all, which is exactly the case the rule is about.
+    if scope is not None:
+        if scope.get("ok") is not True:
+            return _v.make(
+                status="UNKNOWN",
+                result=result,
+                reason=str(scope.get("reason") or "the recording scope did not state whether it resolved"),
+                **common,
+            )
     if not devices:
         return _v.make(
             status="UNKNOWN", result=result, reason="no expected device is declared for this night", **common
@@ -219,13 +246,18 @@ def night_verdict(night_dir: str, devices: list, *, commit: str | None = None, a
 
     Only ever called for a settled night: the caller runs on the loss audit's own trigger, which fires once
     night N+1 has begun (§2's settle trigger), so `settled` is True by construction here."""
+    scope = _inputs.recording_scope(night_dir)
     return compose(
         night=os.path.basename(night_dir.rstrip("/")),
         settled=True,
         devices=_inputs.score_devices(night_dir, devices),
-        evidence=[TOOL, "capture-host/solid_night_inputs.py", os.path.join(night_dir, _inputs.LOSS_AUDIT_NAME)],
+        # EVERY folder the scope read is cited, not just the judged one — the evidence list is the
+        # verdict's own account of what it opened.
+        evidence=[TOOL, "capture-host/solid_night_inputs.py"]
+        + [os.path.join(d, _inputs.LOSS_AUDIT_NAME) for d in (scope.get("dirs") or [night_dir])],
         commit=commit,
         at=at,
+        scope=scope,
     )
 
 
