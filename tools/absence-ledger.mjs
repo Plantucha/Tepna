@@ -116,6 +116,42 @@ export function rowProblem(row) {
  *    is stored. A seed that matches no finding is a REFUSAL, not a silent no-op. ─────────────────── */
 export const SEEDS = [
   {
+    at: 'capture-host/capture.py:10173',
+    state: 'fixed',
+    note: 'a presence scan that RAISED was folded as an empty window, aging a present ring to ABSENT; the fold is now skipped and a never-observed ring is published UNKNOWN. Plant: test_failed_scans_past_the_absence_window_leave_a_PRESENT_ring_PRESENT (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/capture.py:607',
+    state: 'accepted-with-reason',
+    reason:
+      '_RT_PPG_SPAN_S is the POLL PERIOD, not a device rate: the 0x05 reply covers the interval since the previous poll, which #3253 made a 1.000 s deadline. Its comment states the cost — a full buffer over-states the span it covers, visibly — and why that beats a fabricated per-sample rate.'
+  },
+  {
+    at: 'capture-host/capture.py:3356',
+    state: 'open',
+    note: 'NOT changed in the drain: test_every_pmd_push_declares_a_rate_and_ppi_declares_ZERO pins the pmd.SAMPLE_HZ fallback for an unnegotiated stream as a DELIBERATE display choice (the monitor time axis). Since #3268 a None push publishes the declared 0 rather than 1, so the docstring trade-off has moved — a decision for the test owner, not the drain (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/capture.py:3388',
+    state: 'fixed',
+    note: 'the HR writer is fed None, not 0: the SIG HR characteristic has no device clock and the seam sidecar opens on any non-None one. Plant: test_an_HR_session_opens_NO_seam_sidecar_because_HR_has_no_device_clock (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/capture.py:3662',
+    state: 'fixed',
+    note: 'a PMD rate menu not read publishes no key instead of [], which webmon copied over the menu it had seen. Plant: test_a_menu_NOT_READ_publishes_no_key_rather_than_an_empty_list (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/capture.py:9758',
+    state: 'fixed',
+    note: 'an auto-start record that exists and cannot be read reads as a manual stop, with a warning, instead of (None, 0); a missing record is unchanged. Plant: test_an_absent_record_is_no_decision_and_a_CORRUPT_one_reads_as_STOPPED (2026-10-04, Wren)'
+  },
+  {
+    at: 'capture-host/capture.py:10833',
+    state: 'fixed',
+    note: 'after a FAILED MTU acquire the log says the MTU is unknown instead of publishing BlueZ placeholder 23 as measured; the write step is unchanged. Plant: test_a_failed_mtu_acquire_leaves_the_placeholder_and_the_link_up (2026-10-04, Wren)'
+  },
+  {
     at: 'capture-host/allan.py:655',
     state: 'fixed',
     note: 'the [-2,+2] clamp is gone and the docstring now states why it was wrong; verified by reading the file 2026-09-29'
@@ -153,8 +189,8 @@ export const SEEDS = [
   },
   {
     at: 'capture-host/writers.py:1544',
-    state: 'open',
-    note: 'that `except OSError: pass` is gone from this site; the pattern lives elsewhere WITH a reason comment. Not the same site, so not a fix of this finding'
+    state: 'fixed',
+    note: 'the site was still live (re-read 2026-10-04, Wren): a resumed ECG file whose anchor read raised fell back to lazy init and restarted `timestamp [ms]` at 0.0 mid-file. Now `_rel_anchor_lost` leaves the column EMPTY for the rest of the file (ECGDex skips a non-finite [ms]; nightqc never reads it). Plant: test_a_resumed_ecg_whose_anchor_CANNOT_be_read_leaves_the_relative_column_EMPTY'
   },
   {
     at: 'capture-host/diskguard.py:42',

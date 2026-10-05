@@ -864,7 +864,21 @@ function ringDevColumn(sidecarText, nRows) {
     if (!isFinite(n) || !(n > 0) || !isFinite(i0) || !(i0 >= 0) || c[6] === '') continue;
     frames.push([i0, n]);
   }
-  if (!frames.length) return { ok: false, reason: 'no positioned `PPG_FRAME` rows in the ring sidecar — a pre-E11 capture carries arrival rows with no stream position' };
+  if (!frames.length) {
+    /* ∅ NAME WHICH ABSENCE THIS IS. Two different captures reach here and their remedies differ:
+       · a PRE-E11 sidecar has no `PPG_FRAME` rows at all — it carries only `OXYLIVE_DURATION_S` — and the
+         remedy is a night recorded after the box restarted on #3267;
+       · a SPLIT-MODE night (RING-POLL-SPLIT) has `PPG_FRAME_A` rows: the wave arrived on 0x03
+         LIVE_SAMPLES_A, whose 6-byte reply header carries only a declared count, so the frames ARE logged
+         and the POSITION is what is missing — by the opcode's nature, not by the capture's age.
+       Telling a reader "a pre-E11 capture" about a split night sends them to the wrong fix. */
+    return {
+      ok: false,
+      reason: /;PPG_FRAME_A;/.test(String(sidecarText))
+        ? 'the ring’s wave arrived on 0x03 (LIVE_SAMPLES_A) in split mode, which carries no cumulative stream position — the frames are logged, the device position is not, so the finger has no floor to anchor'
+        : 'no positioned `PPG_FRAME` rows in the ring sidecar — a pre-E11 capture carries arrival rows with no stream position'
+    };
+  }
   var total = 0;
   for (var k = 0; k < frames.length; k++) {
     if (k && frames[k][0] < frames[k - 1][0] + frames[k - 1][1])

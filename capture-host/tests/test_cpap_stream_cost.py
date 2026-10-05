@@ -251,7 +251,10 @@ def test_a_failed_mtu_acquire_leaves_the_placeholder_and_the_link_up(monkeypatch
         await disconnect()
 
     _run(go())
-    assert any("link MTU=23 (write step 20)" in r.getMessage() for r in caplog.records)
+    # The placeholder is NOT reported as the MTU (ABSENCE-SURVEY 0565efb3f0a7): after a failed acquire BlueZ
+    # still says 23, so the log says unknown — the write step is the same safe 20 either way.
+    assert any("link MTU=unknown (ATT default 23 assumed) (write step 20)" in r.getMessage() for r in caplog.records)
+    assert not any("link MTU=23 " in r.getMessage() for r in caplog.records)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
