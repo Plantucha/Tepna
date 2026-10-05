@@ -9,6 +9,7 @@ import os
 import datetime as dt
 import json
 
+import loss_audit as _la
 import solid_night_inputs as si
 
 H10 = {"name": "Polar H10 02849638", "model": "H10"}
@@ -3647,7 +3648,7 @@ def test_THE_WEAR_END_IS_TAKEN_FROM_THE_MORNINGS_AUDIT_when_it_is_later(tmp_path
                 "devices": {
                     dev: {
                         "wear": {"available": True, "worn_end": {"at": "2026-10-04T23:59:00", "reason": "doff"}},
-                        "gaps": [],
+                        "gaps": [{"at": "2026-10-04T23:00:00", "s": 12.0, "file": "evening.txt"}],
                         "file": "a",
                     }
                 },
@@ -3661,7 +3662,7 @@ def test_THE_WEAR_END_IS_TAKEN_FROM_THE_MORNINGS_AUDIT_when_it_is_later(tmp_path
                 "devices": {
                     dev: {
                         "wear": {"available": True, "worn_end": {"at": "2026-10-05T04:17:00", "reason": "doff"}},
-                        "gaps": [{"x": 1}],
+                        "gaps": [{"at": "2026-10-05T00:10:00", "s": 9.0, "file": "morning.txt"}],
                         "file": "b",
                     }
                 },
@@ -3671,8 +3672,19 @@ def test_THE_WEAR_END_IS_TAKEN_FROM_THE_MORNINGS_AUDIT_when_it_is_later(tmp_path
     pooled = si._pooled_audit(str(d4))
     assert pooled["devices"][dev]["wear"]["worn_end"]["at"] == "2026-10-05T04:17:00", "the later doff wins"
     assert pooled["devices"][dev]["wear_from"] == "2026-10-05", "and it says where it came from"
-    assert pooled["devices"][dev]["gaps"] == [], "gaps are NOT merged — they belong to one named file"
-    assert pooled["devices"][dev]["file"] == "a", "nor is the file they were measured against"
+    # 🔴 THIS ASSERTION CHANGED DELIBERATELY. #3297 left `gaps` UNMERGED and said so: the rows are
+    # measured against one named file, and concatenating two folders' would attribute one file's gaps to
+    # another's timeline. Its residue row
+    # (`2026-10-05-cross-folder-continuity-sees-only-the-judged-folders-gaps`) is what this unit closes:
+    # rows merge BY FILE IDENTITY — each already names its `file`, and a filename carries its own
+    # 14-digit session start — and the row from the morning folder is stamped with the folder it came
+    # from. `file`, the single name the gaps were summarised under, still does NOT cross.
+    merged = pooled["devices"][dev]["gaps"]
+    assert [r.get("file") for r in merged] == ["evening.txt", "morning.txt"], merged
+    assert merged[1]["folder"] == "2026-10-05", "a row from the next folder says which folder it is from"
+    assert "folder" not in merged[0], "and a row from the judged folder needs no stamp"
+    assert pooled["devices"][dev]["file"] == "a", "the summarised-under name does not cross"
+    assert pooled["devices"][dev]["seam_unassessed"], "and the seam itself is reported, not assumed clean"
 
 
 def test_A_ONE_FOLDER_RECORDING_READS_ITS_OWN_AUDIT_UNCHANGED(tmp_path):
@@ -4171,3 +4183,363 @@ def test_THE_PRIMARY_STREAMS_EXTENSION_IS_NOT_EVERY_STREAMS(tmp_path):
     wave = si.stream_files(str(nd), "O2Ring-S", "PPG")
     assert [os.path.basename(p) for p in prim] == [f"{pref}_SPO2.csv"], prim
     assert [os.path.basename(p) for p in wave] == [f"{pref}_PPG.txt"], wave
+
+
+# ── THE SEAM ACROSS FOLDERS (#3297 follow-on, briefs/RESIDUE.md 2026-10-05-cross-folder-continuity…) ──
+
+_SEAM_HDR = "Phone timestamp;sensor timestamp [ns];x"
+
+
+def _dual_stream(path, start, n, step_s=1.0, dev0_ns=0, dev_step_ns=None):
+    """A stream carrying BOTH clocks, which is what separates a seam DELAY from a seam LOSS (#3157).
+
+    `loss_audit.boundary_gap` reads the device counter across the boundary: a step under
+    `DELAY_PERIODS * period` is late delivery, anything more is real loss. A host-only stream cannot tell
+    them apart and every gap there stays a gap — the honest default, and not what this exercises."""
+    dev_step_ns = int(step_s * 1e9) if dev_step_ns is None else dev_step_ns
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(_SEAM_HDR + "\n")
+        for i in range(n):
+            t = start + dt.timedelta(seconds=i * step_s)
+            fh.write(f"{t.isoformat(timespec='milliseconds')};{dev0_ns + i * dev_step_ns};1\n")
+
+
+def _seam_pair(tmp_path, *, gap_s, dev_advance_ns):
+    """A cross-midnight recording in TWO folders with a planted seam, and both audits.
+
+    The evening fragment ends at 23:50 in folder D; the morning fragment opens `gap_s` later in D+1,
+    its counter advanced by `dev_advance_ns` from where the evening's left off. Neither audit can see
+    this boundary — each judges only among its own files — which is the whole defect."""
+    caps = tmp_path / "captures"
+    d4 = caps / "2026-09-20"
+    d5 = caps / "2026-09-21"
+    d4.mkdir(parents=True)
+    d5.mkdir(parents=True)
+    ev_start = dt.datetime(2026, 9, 20, 23, 40, 0)
+    n_ev = 600  # 23:40:00 -> 23:49:59 at 1 Hz
+    _dual_stream(str(d4 / "Polar_H10_0284_20260920234000_ECG.txt"), ev_start, n_ev)
+    (d4 / "Polar_H10_0284_20260920234000_HR.txt").write_text(
+        "Phone timestamp;HR [bpm]\n" + ev_start.isoformat() + ";62\n"
+    )
+    last_host = ev_start + dt.timedelta(seconds=n_ev - 1)
+    last_dev = (n_ev - 1) * int(1e9)
+    mo_start = last_host + dt.timedelta(seconds=gap_s)
+    _dual_stream(
+        str(d5 / "Polar_H10_0284_20260921000000_ECG.txt"),
+        mo_start,
+        600,
+        dev0_ns=last_dev + dev_advance_ns,
+    )
+    (d5 / "Polar_H10_0284_20260921000000_HR.txt").write_text(
+        "Phone timestamp;HR [bpm]\n" + mo_start.isoformat() + ";61\n"
+    )
+    dev = [{"name": "Polar H10 0284", "model": "H10"}]
+    a4 = _la.audit_night(str(d4), dev, journal=lambda *a, **k: [], clock_events=lambda *a, **k: [])
+    a5 = _la.audit_night(str(d5), dev, journal=lambda *a, **k: [], clock_events=lambda *a, **k: [])
+    return a4["devices"]["Polar H10 0284"], a5["devices"]["Polar H10 0284"]
+
+
+def test_THE_AUDIT_PUBLISHES_PER_FILE_ENDPOINTS_on_both_clocks(tmp_path):
+    """The additive half. These six fields are `boundary_gap`'s inputs and they existed only inside
+    `stream_scan`; without them on the far side of the JSON a cross-folder seam cannot be judged at all."""
+    ev, _mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    f = next(x for x in ev["files"] if x.get("first") is not None)
+    for k in ("first", "last", "first_dev", "last_dev", "period_ns", "cut"):
+        assert k in f, f"{k} missing from the published files[] entry"
+    assert f["first"] == "2026-09-20T23:40:00"
+    assert f["last"] == "2026-09-20T23:49:59"
+    assert f["last_dev"] > f["first_dev"] >= 0
+    assert f["period_ns"] and f["period_ns"] > 0
+    # ADDITIVE: the old keys are untouched, so every existing reader sees what it saw
+    assert {"file", "span_min", "gaps", "delays"} <= set(f)
+
+
+def test_A_PLANTED_SEAM_LOSS_IS_READ_AS_LOSS(tmp_path):
+    """🔴 ACCEPTANCE 1. A ten-minute hole at the folder boundary, with the device counter advancing right
+    across it — so the device really was recording elsewhere and the rows are gone. Neither folder's
+    audit sees this: `loss_audit.stream_scan` says a gap BETWEEN files "is exactly the loss that made the
+    night fragment", and across folders there is no single audit to notice it."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    assert ev["boundary_gaps"] == 0 and mo["boundary_gaps"] == 0, "neither audit saw it, which is the defect"
+    rows, reason = si.seam_gap(ev, mo)
+    assert reason is None, reason
+    assert len(rows) == 1, rows
+    assert rows[0]["seam"] is True
+    assert abs(rows[0]["s"] - 600.0) < 1.5, rows[0]["s"]
+    assert rows[0]["at"].startswith("2026-09-20T23:49:59")
+
+
+def test_A_PLANTED_SEAM_DELAY_IS_NOT_A_LOSS(tmp_path):
+    """🔴 ACCEPTANCE 2, and the control that makes acceptance 1 mean something (#3157). Same ten-minute
+    HOST gap, but the device counter advanced by less than one sample period — the rows were delivered
+    late, not lost. A merge that only summed host gaps would book this as ten minutes of loss."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(0.5e9))
+    rows, reason = si.seam_gap(ev, mo)
+    assert rows == [], f"a delay is not a loss: {rows}"
+    assert reason is None, "it WAS judged — the silence is a measurement, not an absence"
+
+
+def test_AN_OLDER_SHAPE_AUDIT_READS_NOT_ASSESSED_never_no_gaps(tmp_path):
+    """🔴 ACCEPTANCE 3, and it is not hypothetical: the box runs behind `main` until the owner deploys,
+    so tonight's audit may well be the older shape. A verdict must not read "no gaps at the seam" over an
+    audit that cannot say — that is absence as a value (§∅), and it would publish a clean seam for a
+    night nobody examined."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    old_ev = dict(ev, files=[{k: f[k] for k in ("file", "span_min", "gaps", "delays")} for f in ev["files"]])
+    old_mo = dict(mo, files=[{k: f[k] for k in ("file", "span_min", "gaps", "delays")} for f in mo["files"]])
+    rows, reason = si.seam_gap(old_ev, old_mo)
+    assert rows == []
+    assert reason is not None and si.SEAM_UNASSESSED in reason
+    assert "written before #3297" in reason, "and it names WHY it cannot say"
+    # the new-shape pair over the same data DOES read the loss — so the fallback is the audit's age, not the data
+    assert len(si.seam_gap(ev, mo)[0]) == 1
+
+
+def test_A_SEAM_WITH_NO_AUDIT_ON_ONE_SIDE_IS_NOT_ASSESSED(tmp_path):
+    """One folder settled and the other not yet audited is the ordinary morning state. It is not a clean
+    seam and it is not a loss; it is unexamined, with its own reason."""
+    ev, _mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    for other, why in ((None, "no audit entry"), ({}, "audited no file"), ({"files": []}, "audited no file")):
+        rows, reason = si.seam_gap(ev, other)
+        assert rows == [] and reason and si.SEAM_UNASSESSED in reason, (other, reason)
+        assert why in reason, reason
+
+
+def test_A_FILES_ENTRY_THAT_IS_NOT_AN_OBJECT_IS_SKIPPED(tmp_path):
+    """`files[]` carries `unreadable` entries too, and a hand-edited or truncated audit can put anything
+    there. One junk element must not decide the seam, nor raise while judging it."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    assert si._scan_shape("not-an-object") is None
+    assert si._scan_shape(None) is None
+    noisy = dict(ev, files=["junk", None, *ev["files"]])
+    rows, reason = si.seam_gap(noisy, mo)
+    assert reason is None and len(rows) == 1, (rows, reason)
+
+
+def test_AN_UNPARSEABLE_ENDPOINT_IS_NOT_A_TIME(tmp_path):
+    """The endpoint fields are ISO strings in the JSON, and a corrupt or hand-edited audit can carry
+    something that is not one. `fromisoformat` raising means the file cannot say when it started — which
+    is "not assessed", never a seam judged against a parsed-anyway default (§∅)."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    assert si._scan_shape({"first": "not-a-date", "last": "2026-09-20T23:49:59"}) is None
+    assert si._scan_shape({"first": "2026-09-20T23:40:00", "last": 12345}) is None
+    broken = dict(ev, files=[dict(f, last="23:49 on the dot") for f in ev["files"]])
+    rows, reason = si.seam_gap(broken, mo)
+    assert rows == []
+    assert reason and "publishes no per-file endpoints" in reason
+
+
+def test_A_MORNING_THAT_RESUMED_INSIDE_THE_CADENCE_HAS_NO_SEAM_GAP(tmp_path):
+    """`boundary_gap` returns None when the next file opens within the stream's own cadence cut — the
+    recording simply continued across the folder boundary. That is a JUDGED result and reports no row,
+    which is different from a seam nobody could judge: `reason` stays None, so `continuity` reads a
+    measurement rather than an absence."""
+    ev, mo = _seam_pair(tmp_path, gap_s=1.0, dev_advance_ns=int(1e9))
+    rows, reason = si.seam_gap(ev, mo)
+    assert rows == [], rows
+    assert reason is None, "judged and clean — not unassessed"
+
+
+def test_THE_SAME_FILENAME_IN_BOTH_FOLDERS_IS_NOT_COUNTED_TWICE(tmp_path):
+    """Identity is the FILENAME, and the merge dedupes on it. A filename carries its own 14-digit session
+    start so a collision should not happen — but the archive mirror and a resumed writer have both put
+    the same name in two places before, and double-counting a gap would inflate the loss."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    row = {"at": "2026-10-04T23:00:00", "s": 12.0, "file": "same.txt"}
+    (d4 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"journal": "ok", "devices": {"H10": {"gaps": [row]}}}))
+    (d5 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"devices": {"H10": {"gaps": [dict(row)]}}}))
+    merged = si._pooled_audit(str(d4))["devices"]["H10"]["gaps"]
+    assert len(merged) == 1, f"one file, one row: {merged}"
+    assert "folder" not in merged[0], "the kept row is the judged folder's own"
+
+
+def _audit_json(path, dev, files, gaps):
+    """A LOSS-AUDIT.json in the published shape, for driving `_pooled_audit` over two real folders."""
+    path.write_text(json.dumps({"journal": "ok", "devices": {dev: {"files": files, "gaps": gaps}}}))
+
+
+def test_THE_POOLED_AUDIT_CARRIES_THE_SEAM_ROW_INTO_THE_MERGED_GAPS(tmp_path):
+    """The call site, not just the function. `seam_gap` is tested directly above; this proves
+    `_pooled_audit` actually hands it BOTH audits — passing either side as None would quietly drop the
+    seam from a night that has one, and the merged list would look clean."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    dev = "H10"
+    ev_files = [
+        {
+            "file": "ev.txt",
+            "span_min": 10.0,
+            "gaps": 0,
+            "delays": 0,
+            "first": "2026-10-04T23:40:00",
+            "last": "2026-10-04T23:49:59",
+            "first_dev": 0,
+            "last_dev": 599_000_000_000,
+            "period_ns": 1_000_000_000,
+            "cut": 5.0,
+        }
+    ]
+    mo_files = [
+        {
+            "file": "mo.txt",
+            "span_min": 10.0,
+            "gaps": 0,
+            "delays": 0,
+            "first": "2026-10-05T00:00:00",
+            "last": "2026-10-05T00:09:59",
+            "first_dev": 1_199_000_000_000,
+            "last_dev": 1_798_000_000_000,
+            "period_ns": 1_000_000_000,
+            "cut": 5.0,
+        }
+    ]
+    _audit_json(d4 / si.LOSS_AUDIT_NAME, dev, ev_files, [])
+    _audit_json(d5 / si.LOSS_AUDIT_NAME, dev, mo_files, [])
+    bd = si._pooled_audit(str(d4))["devices"][dev]
+    seams = [r for r in bd["gaps"] if r.get("seam")]
+    assert len(seams) == 1, bd["gaps"]
+    assert abs(seams[0]["s"] - 601.0) < 2.0, seams[0]["s"]
+    assert bd["seam_unassessed"] is None, "it WAS assessed"
+
+
+def test_THE_MERGED_GAPS_ARE_ORDERED_BY_TIME_THEN_BY_SIZE(tmp_path):
+    """The sort key, both components. Rows arrive from two folders plus the seam, so the merged list has
+    no natural order — and a reader of `gaps` takes the first row as the night's first hole. Two rows at
+    the SAME stamp are what separate the size tiebreak from a constant: with `and 0.0` or a fixed `1.0`
+    every row's second key is equal and the tie falls back to insertion order, which is the folder the
+    row happened to come from."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    dev = "H10"
+    same = "2026-10-04T23:00:00"
+    # deliberately OUT of order on arrival, and two rows share a stamp
+    ev_gaps = [{"at": "2026-10-04T23:30:00", "s": 5.0, "file": "ev2.txt"}, {"at": same, "s": 30.0, "file": "ev1.txt"}]
+    mo_gaps = [{"at": same, "s": 7.0, "file": "mo1.txt"}]
+    _audit_json(d4 / si.LOSS_AUDIT_NAME, dev, [], ev_gaps)
+    _audit_json(d5 / si.LOSS_AUDIT_NAME, dev, [], mo_gaps)
+    rows = si._pooled_audit(str(d4))["devices"][dev]["gaps"]
+    assert [r["file"] for r in rows] == ["mo1.txt", "ev1.txt", "ev2.txt"], rows
+    assert [r["s"] for r in rows] == [7.0, 30.0, 5.0], "same stamp orders by SIZE, smallest first"
+    assert rows[0]["at"] == same and rows[-1]["at"] == "2026-10-04T23:30:00"
+
+
+def test_A_GAP_ROW_WITH_NO_SIZE_SORTS_BEFORE_ONE_THAT_HAS_ONE(tmp_path):
+    """`r.get("s") or 0.0` — the fallback is 0.0 so a row with no size, or a zero one, sorts first rather
+    than being handed an invented magnitude. `r.get(None)` would read no size at all and collapse the
+    tiebreak for every row.
+
+    ⚠️ THE SIZE HAS TO BE SUB-SECOND for the fallback's VALUE to be observable. With a 4.0 s gap the
+    sizeless row sorts first whether the fallback is 0.0 or 1.0, so the assertion holds either way and
+    says nothing; 0.5 s sits between them and the order flips. Sub-second gaps are ordinary in a real
+    audit, so this is the fixture being realistic rather than contrived."""
+    # TWO folders, because the merge and its sort only run when there is something to merge —
+    # `_pooled_audit` returns the judged folder's audit untouched when it stands alone, which is the
+    # right behaviour and also means a one-folder fixture never reaches this code at all.
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    dev = "H10"
+    same = "2026-10-04T23:00:00"
+    _audit_json(d4 / si.LOSS_AUDIT_NAME, dev, [], [{"at": same, "s": 0.5, "file": "a.txt"}])
+    _audit_json(d5 / si.LOSS_AUDIT_NAME, dev, [], [{"at": same, "file": "b.txt"}])
+    rows = si._pooled_audit(str(d4))["devices"][dev]["gaps"]
+    assert [r["file"] for r in rows] == ["b.txt", "a.txt"], rows
+    assert "s" not in rows[0], "the sizeless row keeps its absence — no invented magnitude (§∅)"
+    assert rows[1]["s"] == 0.5, "and the sub-second gap it sorts before keeps its own size"
+
+
+def _ep(file, first, last, first_dev, last_dev, period_ns=1_000_000_000, cut=5.0):
+    """One published `files[]` entry carrying endpoints, for driving `seam_gap` directly."""
+    return {
+        "file": file,
+        "span_min": 10.0,
+        "gaps": 0,
+        "delays": 0,
+        "first": first,
+        "last": last,
+        "first_dev": first_dev,
+        "last_dev": last_dev,
+        "period_ns": period_ns,
+        "cut": cut,
+    }
+
+
+def test_AN_ENTRY_MISSING_EITHER_ENDPOINT_CANNOT_SAY(tmp_path):
+    """`"first" not in entry OR "last" not in entry` — either one absent is enough. With `and`, a
+    half-written entry (one key present) would be read as an endpoint pair and the seam judged against a
+    `None` the code then treats as a time."""
+    full = _ep("f.txt", "2026-10-04T23:40:00", "2026-10-04T23:49:59", 0, 599_000_000_000)
+    assert si._scan_shape(full) is not None
+    assert si._scan_shape({k: v for k, v in full.items() if k != "last"}) is None, "no `last`"
+    assert si._scan_shape({k: v for k, v in full.items() if k != "first"}) is None, "no `first`"
+    assert si._scan_shape({k: v for k, v in full.items() if k not in ("first", "last")}) is None
+
+
+def test_AN_ENDPOINT_PUBLISHED_AS_NULL_IS_NOT_A_TIME(tmp_path):
+    """`_iso` writes `null` for a file that carried neither a stamp nor a counter, so the consumer must
+    read that as absence — the guard before `fromisoformat` is what keeps `None` from being parsed. The
+    entry still has both KEYS, so this is a different case from the one above: present and empty."""
+    sc = si._scan_shape(_ep("f.txt", None, None, None, None))
+    assert sc is not None, "the keys are there, so the entry is the new shape"
+    assert sc["first"] is None and sc["last"] is None, "and its endpoints stay absent"
+    # a side with no usable endpoint cannot anchor the seam
+    ev = {"files": [_ep("ev.txt", None, None, None, None)]}
+    mo = {"files": [_ep("mo.txt", "2026-10-05T00:00:00", "2026-10-05T00:09:59", 1_199_000_000_000, 1_798_000_000_000)]}
+    rows, reason = si.seam_gap(ev, mo)
+    assert rows == [] and reason and si.SEAM_UNASSESSED in reason
+
+
+def test_THE_SEAM_IS_ANCHORED_ON_THE_LATEST_EVENING_FILE_AND_THE_EARLIEST_MORNING_ONE(tmp_path):
+    """`max(pv, key=last)` and `min(nx, key=first)` — the files are NOT in order in `files[]`, and a
+    recording's own fragments overlap in name order. Picking the wrong end moves the boundary: anchoring
+    on an earlier evening file would invent a gap that spans a fragment that was recording."""
+    ev = {
+        "files": [
+            _ep("ev_late.txt", "2026-10-04T23:40:00", "2026-10-04T23:49:59", 0, 599_000_000_000),
+            _ep("ev_early.txt", "2026-10-04T22:00:00", "2026-10-04T22:09:59", 0, 599_000_000_000),
+        ]
+    }
+    mo = {
+        "files": [
+            _ep("mo_late.txt", "2026-10-05T03:00:00", "2026-10-05T03:09:59", 1_199_000_000_000, 1_798_000_000_000),
+            _ep("mo_early.txt", "2026-10-05T00:00:00", "2026-10-05T00:09:59", 1_199_000_000_000, 1_798_000_000_000),
+        ]
+    }
+    rows, reason = si.seam_gap(ev, mo)
+    assert reason is None
+    assert len(rows) == 1, rows
+    # 23:49:59 -> 00:00:00 is 601 s. Anchoring on ev_early (22:09:59) or mo_late (03:00) gives a very
+    # different number, which is what makes the two key functions observable at all.
+    assert abs(rows[0]["s"] - 601.0) < 2.0, rows[0]["s"]
+    assert rows[0]["at"].startswith("2026-10-04T23:49:59")
+
+
+def test_THE_CADENCE_CUT_IS_READ_FROM_THE_AUDIT_not_assumed(tmp_path):
+    """`entry.get("cut") or 0.0`. `boundary_gap` returns no gap when the next file resumed INSIDE the
+    previous one's cadence, and the cut is how wide that is — a per-stream fact the audit measured. A
+    fallback of 1.0, or reading no cut at all, would either invent a seam inside the cadence or swallow
+    one just outside it."""
+    base = dict(first="2026-10-04T23:49:59", last="2026-10-04T23:49:59")
+    # a 3 s seam: inside a 5 s cut (no gap), outside a 0 s one (a gap)
+    ev_wide = {"files": [_ep("ev.txt", base["first"], base["last"], 0, 0, cut=5.0)]}
+    ev_zero = {"files": [_ep("ev.txt", base["first"], base["last"], 0, 0, cut=0.0)]}
+    mo = {"files": [_ep("mo.txt", "2026-10-04T23:50:02", "2026-10-05T00:00:00", 10_000_000_000, 20_000_000_000)]}
+    assert si.seam_gap(ev_wide, mo) == ([], None), "3 s is inside a 5 s cadence: judged, no gap"
+    rows, reason = si.seam_gap(ev_zero, mo)
+    assert reason is None and len(rows) == 1, (rows, reason)
+    assert abs(rows[0]["s"] - 3.0) < 0.5, rows[0]["s"]
+    # AND AN ENTRY WITH NO CUT FALLS BACK TO 0.0, NOT TO A MADE-UP WIDTH — which only a SUB-SECOND seam
+    # can show. A 3 s gap clears both 0.0 and 1.0, so it holds under either and proves nothing; 0.5 s
+    # sits between them, so a fallback of 1.0 would swallow a real seam as "inside the cadence". Same
+    # shape as the sort tiebreak in this file: a fixture has to straddle the values it is distinguishing.
+    ev_none = {"files": [{k: v for k, v in _ep("ev.txt", base["first"], base["last"], 0, 0).items() if k != "cut"}]}
+    near = {"files": [_ep("mo.txt", "2026-10-04T23:50:00", "2026-10-05T00:00:00", 10_000_000_000, 20_000_000_000)]}
+    rows_near, reason_near = si.seam_gap(ev_none, near)
+    assert reason_near is None
+    assert len(rows_near) == 1, f"a 0.5 s seam with no stated cut is a seam: {rows_near}"
+    assert abs(rows_near[0]["s"] - 1.0) < 0.6, rows_near[0]["s"]
+    assert len(si.seam_gap(ev_none, mo)[0]) == 1, "and the 3 s seam too"
