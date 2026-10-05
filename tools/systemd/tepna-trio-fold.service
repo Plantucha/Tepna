@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — fold the box nights the corpus does not hold yet (E12,
+# briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md). Measured 2026-09-29: nothing folded a box night
+# automatically, the newest folded night was 2026-09-21, and the backlog was SEVEN nights —
+# `tepna-nightly-triage` runs only the mutation crawl. A backlog is not a neutral state: a night that is
+# not folded is a night whose QC, hat and trio numbers nobody can read.
+#
+# 🔴 NO NEW TOOL. `tools/trio-batch.mjs --skip-existing` IS the "fold only what is due" decider — its
+# `redoReason` is a pure function returning why a night must be recomputed (no stamp, `inputs changed`,
+# `code changed`) or null when skipping is provably safe, and the tool already emits ONE
+# tepna.verdict/1 and persists it as `uploads/trio/trio-batch-verdicts.json`. A second decider would be a
+# second definition of "due", free to drift from the one the fold uses. This unit is a SCHEDULE plus the
+# handoff below, and nothing else.
+#
+# 🔴 A FOLD IS GIT-VISIBLE, AND THIS UNIT WAS WRITTEN ONCE ON THE OPPOSITE PREMISE. `.gitignore` has
+# `uploads/*` at :16 and **`!uploads/trio/**` at :149** — trio folds are the one allowed addition under
+# `uploads/` (owner, 2026-09-24) — so `git check-ignore` matches NOTHING for a fold path and 658
+# `uploads/trio` files are tracked today. I read :16, concluded "a fold produces no file git can see",
+# and said so; measuring the negation is what corrected it. So the fold's output is a COMMIT someone
+# owes, not a byproduct.
+#
+# WHERE IT LANDS, AND WHY NOT THE PRIMARY CHECKOUT. `--out` is fixed to `uploads/trio` INSIDE this
+# timer's own working directory and is deliberately NOT an environment variable: there must be no way to
+# configure it into a checkout that sessions edit. A fold writes hundreds of megabytes across hundreds of
+# files, and dropping that into the primary tree would dirty a tree nobody agreed to share (CLAUDE.md
+# §2) and leave a session to discover it.
+#
+# IT COMMITS LOCALLY AND NEVER PUSHES. After a fold that changed something, the unit puts the result on a
+# dated branch in its own checkout — staged BY EXPLICIT PATH (`git add -- uploads/trio`, never a blanket
+# add) — so a session can relay it as a PR the next morning. Nothing leaves the machine: no push, no
+# remote write, no credential needed. A run that changed nothing commits nothing, because an empty commit
+# would be noise and a failed `git commit` would red the unit for doing its job.
+#
+# Only FOLD_SRC comes from the owner's EnvironmentFile: the captures root is the one path that must not
+# appear in the repo. N-of-1 results stay off GitHub until a human relays them.
+#
+# INSTALL — the corpus machine only, and NOT performed by the PR that adds this file:
+#   1. give the timer its OWN worktree at ~/wt-fold-timer (nobody edits there) and symlink
+#      ~/Tepna/node_modules into it;
+#   2. mkdir -p ~/.config/tepna and write fold.env with FOLD_SRC=<the captures root>;
+#   3. cp tools/systemd/tepna-trio-fold.{service,timer} ~/.config/systemd/user/
+#      systemctl --user daemon-reload && systemctl --user enable --now tepna-trio-fold.timer
+#      systemctl --user list-timers tepna-trio-fold.timer      # the one-line check
+# A separate checkout from the release and tchref timers' means no two timers race one detach, and
+# because nobody edits there, re-pointing it at origin/main before each tick is safe.
+[Unit]
+Description=Tepna — fold the box nights the corpus does not hold yet
+Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/trio-batch.mjs
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/wt-fold-timer
+EnvironmentFile=%h/.config/tepna/fold.env
+ExecStartPre=/usr/bin/git fetch -q origin main
+# Detach onto main before folding, so a fold branch left by the previous tick is never built upon: each
+# run's commit sits on origin/main alone and is reviewable as one diff.
+ExecStartPre=/usr/bin/git switch -q --detach origin/main
+# A missing tool is "not on main yet", exit 0 — NOT a green verdict: nothing is written, so the previous
+# verdict file keeps its own `at` stamp and reads as stale rather than as a pass. A missing or wrong
+# FOLD_SRC is exit 2, a refusal, because a fold pointed at the wrong root writes a corpus nobody reads.
+# ⚠️ NEVER add `--jobs`: forcing the fold's parallelism is a standing fleet rule. The tool sizes itself
+# against the box; a fixed count either starves peers' gates or overruns memory.
+ExecStart=/bin/sh -c '[ -f tools/trio-batch.mjs ] || { echo "trio-batch.mjs not on origin/main yet — nothing to run"; exit 0; }; [ -n "$FOLD_SRC" ] && [ -d "$FOLD_SRC" ] || { echo "fold.env: FOLD_SRC missing or not a directory ($FOLD_SRC)"; exit 2; }; node tools/trio-batch.mjs --src "$FOLD_SRC" --out uploads/trio --skip-existing --json'
+# The handoff. Separate from the fold so a fold that succeeded is never undone by a bookkeeping failure,
+# and guarded on there being a change at all.
+ExecStartPost=/bin/sh -c 'test -n "$(git status --porcelain -- uploads/trio)" || { echo "fold changed nothing under uploads/trio — no commit owed"; exit 0; }; b="fold/$(date +%%Y-%%m-%%d-%%H%%M)"; git switch -q -c "$b" && git add -- uploads/trio && git -c user.name="Tepna fold timer" -c user.email="fold-timer@localhost" commit -q -m "fold: nights folded $(date +%%Y-%%m-%%d) by tepna-trio-fold" -m "Unattended fold, LOCAL ONLY — this commit has never been pushed and the unit holds no credential. Relay it as a PR after reading the run verdict in uploads/trio/trio-batch-verdicts.json." -m "Fleet-Session: fold-timer" && echo "fold committed on $b — not pushed; relay it when a session reads the verdict"'

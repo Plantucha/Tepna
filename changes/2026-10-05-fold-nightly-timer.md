@@ -4,7 +4,7 @@ type: added
 brief: NIGHT-0928-ERRORS-2026-09-29-BRIEF.md
 ---
 
-E12's timer half: a `tepna-fold-nightly` unit pair that folds the box nights the corpus does not hold yet,
+E12's timer half: a `tepna-trio-fold` unit pair that folds the box nights the corpus does not hold yet,
 daily after the corpus pulls. Measured 2026-09-29, nothing folded a box night automatically — the newest
 folded night was 2026-09-21 and the backlog was seven nights, because `tepna-nightly-triage` runs only the
 mutation crawl.
@@ -15,10 +15,16 @@ changed) or null when skipping is provably safe, and the tool already emits one 
 persists it as `trio-batch-verdicts.json` beside the fold. A second decider would be a second definition
 of "due", free to drift from the one the fold uses. So this changeset adds a schedule, not a mechanism.
 
-**Nothing is pushed and nothing is committed, structurally rather than by promise:** every path the fold
-writes is under its `--out` root and the repo ignores `uploads/*`, so a fold produces no file git can see.
-There is no local branch to make and no push to withhold.
+**Nothing is pushed, and that is the only part of the original claim that survives:** the unit holds no
+credential and never contacts a remote.
 
-**Not installed, and not a ruling.** The brief records E12 as an OWNER DECISION between a timer and a
-manual step the owner keeps; this adds the artefacts for the timer arm and installs nothing. The units
-ship uninstalled with their install steps in the service file's header, and the decision stays open.
+**A fold IS git-visible, and this changeset was first written on the opposite premise.** `.gitignore` has
+`uploads/*` at :16 but **`!uploads/trio/**` at :149** — trio folds are the one allowed addition under
+`uploads/` (owner, 2026-09-24). Measured: `git check-ignore` matches nothing for a fold path and 658
+`uploads/trio` files are tracked. So the fold's output is a commit someone owes, and the unit now ends by
+committing it on a dated branch IN THE TIMER'S OWN worktree, staged by explicit path, with no push and no
+credential — a session relays it the next morning after reading the run verdict.
+
+**OWNER RULING 2026-10-05: install the timer.** 16:30, its own worktree, due-only via `--skip-existing`,
+never `--jobs`, never a push, a local dated branch for a morning relay, `Persistent=true`. The install
+itself stays the owner's hand after this merges; the commands are in the PR body and the service header.
