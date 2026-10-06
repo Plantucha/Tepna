@@ -122,7 +122,7 @@ against the trap (must throw) + one local fetch (must be allowed). <b>Python:</b
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const BUNDLES_FALLBACK = ['ECGDex.html','OxyDex.html','PulseDex.html','GlucoDex.html',
-                          'PpgDex.html','HRVDex.html','CPAPDex.html','Integrator.html'];
+                          'PpgDex.html','HRVDex.html','CPAPDex.html','Integrator.html','MotionDex.html'];
 const ORCHESTRATORS = ['Data Unifier.html','OverDex.html'];   // unbundled — loose <script src>, outside BUILD-MANIFEST
 // SECURITY N1 (PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13): the standalone analysis/research pages +
 // the landing page are same-origin surfaces that ingest recordings and persist checkpoints (dex-forget
@@ -137,7 +137,10 @@ const ANALYSIS_PAGES = ['cgm-hrv-coupling-analysis.html','hrv-confound-analysis.
   'PpgDex Fusion Prototype.html','index.html'];
 const PY_FILES = ['capture-host/capture.py','capture-host/polar_pmd.py','capture-host/writers.py',
   'capture-host/bonding.py','capture-host/telemetry.py','capture-host/webmon.py','capture-host/viatom.py',
-  'capture-host/oxyii.py','capture-host/requirements.txt'];
+  'capture-host/oxyii.py','capture-host/requirements.txt',
+  /* §3: widen the Python lens to tools/ and scripts/ — a network call without an explicit
+     short timeout is a fail; socket.setdefaulttimeout does not count. */
+  'tools/ble-jitter-probe.py'];
 
 /* ── URL origin classifier (shared by the static scanner and the runtime trap string) ── */
 function isRemoteURL(u){
@@ -209,9 +212,13 @@ const PY_OUTBOUND = /\b(requests\.(?:get|post|put|patch|delete|request|Session)|
 const PY_DEP_OUTBOUND = /^(requests|httpx|urllib3|boto3|google-cloud|azure-|paho-mqtt|websocket-client|websockets|pika|kafka-python)\b/i;
 const PY_SERVE = /\b(http\.server|socketserver|BaseHTTPRequestHandler|aiohttp\.web|aiohttp import web|Flask|FastAPI|uvicorn|gunicorn|app\.run)\b/;
 const PY_BLE   = /\b(bleak|BleakClient|bluetooth|pydbus|dbus)\b/;
+/* §3: a requests/urllib call without an explicit short timeout is a FAIL. socket.setdefaulttimeout
+   does not count — the timeout must be explicit on the call. Matches requests.get/post/... and
+   urllib.request.urlopen / urllib3 / httpx calls lacking timeout=. */
+const PY_NO_TIMEOUT = /\b(requests\.(?:get|post|put|patch|delete|head|options|request)\s*\([^)]*|urllib\.request\.urlopen\s*\([^)]*|urllib3\.[A-Za-z]+\s*\([^)]*|httpx\.(?:get|post|put|patch|delete|request)\s*\([^)]*)\b/;
 
 function scanPython(text, label){
-  const out = { egress:[], serve:[], ble:[], dep:[] };
+  const out = { egress:[], serve:[], ble:[], dep:[], noTimeout:[] };
   const lines = text.split(/\r?\n/);
   const isReq = /requirements\.txt$/.test(label);
   for(let i=0;i<lines.length;i++){
@@ -225,6 +232,9 @@ function scanPython(text, label){
     if(PY_OUTBOUND.test(line)) rec(out.egress, (line.match(PY_OUTBOUND)||[''])[0]);
     if(PY_SERVE.test(line))    rec(out.serve, (line.match(PY_SERVE)||[''])[0]);
     if(PY_BLE.test(line))      rec(out.ble, (line.match(PY_BLE)||[''])[0]);
+    /* §3: fail if a network call lacks an explicit timeout= — socket.setdefaulttimeout is not enough. */
+    const m = line.match(PY_NO_TIMEOUT);
+    if(m && !/timeout\s*=/.test(line)) rec(out.noTimeout, 'missing-timeout:'+(m[1]||m[0]).trim().slice(0,40));
   }
   return out;
 }
@@ -306,9 +316,23 @@ function localScriptSrcs(html){
 }
 
 (async function main(){
-  /* bundle list — authoritative from provenance/index.json (P3: the per-app ledger index), fallback to the known 8 */
+  /* bundle list — authoritative from provenance/index.json (P3: the per-app ledger index).
+     §3 FAIL-CLOSED: if the fetch throws or returns nothing, the gate FAILS — a gate that
+     cannot verify the authoritative list is a gate that fails, with the error attached.
+     The fallback is only for the JSON-parseable-but-empty case, never for a fetch failure. */
   let BUNDLES = BUNDLES_FALLBACK.slice();
-  try{ const t=await fetchText('provenance/index.json'); if(t){ const j=JSON.parse(t); if(j&&j.apps) BUNDLES=j.apps.map(a=>a+'.html'); } }catch(_){}
+  let bundleListError = null;
+  try{
+    const t = await fetchText('provenance/index.json');
+    if(t){
+      const j = JSON.parse(t);
+      if(j && j.apps) BUNDLES = j.apps.map(a=>a+'.html');
+    } else {
+      bundleListError = 'provenance/index.json fetch returned nothing — cannot verify authoritative bundle list';
+    }
+  }catch(e){
+    bundleListError = 'provenance/index.json fetch failed: ' + (e && e.message ? e.message : String(e));
+  }
   const PAGES = BUNDLES.map(b=>({name:b, kind:'bundle', selfContained:true}))
     .concat(ORCHESTRATORS.map(o=>({name:o, kind:'orchestrator', selfContained:false})));
   // N1: the analysis/landing pages are STATIC-scanned only (not runtime-booted — see ANALYSIS_PAGES note).
@@ -357,7 +381,7 @@ function localScriptSrcs(html){
     html+='</tbody></table>'; detailWrap.innerHTML=html;
   }
   const uniqueModules = Object.keys(moduleCache).length;
-  const staticOK = staticRemoteTotal===0 && staticScanned>0;
+  const staticOK = staticRemoteTotal===0 && staticScanned>0 && bundleListError===null;
   document.getElementById('staticSummary').innerHTML =
     (staticOK ? pill('ok','✓ no remote egress across '+staticScanned+' surface(s) + '+uniqueModules+' loose module(s)')
               : pill('bad','✗ '+staticRemoteTotal+' remote-egress hit(s)'))
@@ -397,7 +421,8 @@ function localScriptSrcs(html){
     if(txt==null){ pyMissing++; elRow(pyTb,['<td>'+esc(f)+'</td>','<td>'+pill('warn','not served — skipped')+'</td>','<td class="mut">—</td>']); continue; }
     pyScanned++;
     const s = scanPython(txt, f);
-    const egress = s.egress.concat(s.dep);
+    /* §3: missing-timeout is a FAIL — a network call without an explicit short timeout. */
+    const egress = s.egress.concat(s.dep, s.noTimeout);
     pyEgressTotal += egress.length;
     const localBits = s.serve.map(x=>'serve:'+x.token).concat(s.ble.map(x=>'ble:'+x.token));
     elRow(pyTb,[
@@ -490,7 +515,8 @@ function localScriptSrcs(html){
     ok: window.__noNetworkOK, static: staticOK, runtime: runtimeOK, python: pythonOK, canary: canaryOK,
     staticRemoteHits: staticRemoteTotal, runtimeRemoteHits: runtimeRemoteTotal, pythonEgressHits: pyEgressTotal,
     surfacesScanned: staticScanned, looseModules: uniqueModules, surfacesBooted: runtimeBooted, pyFiles: pyScanned, externalLinks: externalTotal,
-    note: 'no-network gate — ok requires: 0 remote egress (static, bundles+orchestrators+loose modules) + 0 cross-origin fired (runtime) + 0 outbound python client (static lens) + canary passed'
+    bundleListError: bundleListError,
+    note: 'no-network gate — ok requires: 0 remote egress (static, bundles+orchestrators+loose modules) + 0 cross-origin fired (runtime) + 0 outbound python client (static lens) + canary passed + bundle list verified (fail-closed on provenance fetch failure)'
   }; };
 
   const v = document.getElementById('verdict');

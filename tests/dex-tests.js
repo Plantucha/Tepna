@@ -755,6 +755,52 @@
       }
     });
 
+    /* §2e — the composites must refuse too. After a clock-seam refusal nulls rMSSD, the
+       composites computed from cRm=null FABRICATED: stressEst → 100 (the clamp eats the
+       1.2295*null term), hrvEst → 0 (1.494*null-13.37 clamps to 0), lnR(null) → −Infinity,
+       cohEst(null,null) → NaN. A seam-refused recording must export every composite null
+       with the reason named — never a number. */
+    group('∅ clock seam — the COMPOSITES refuse too (stress/hrv/energy/focus/coherence/lnRMSSD)', 'pulsedex-dsp · absence', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        var rr = [];
+        for (var i = 0; i < 120; i++) rr.push(900 + 40 * Math.sin(i / 5));
+        var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var stamps = function (seamMs) {
+          var ts = [],
+            acc = t0;
+          for (var k = 0; k < rr.length; k++) {
+            if (k === 60 && seamMs) acc += seamMs;
+            ts.push(acc);
+            acc += rr[k];
+          }
+          return ts;
+        };
+        var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+        /* NOTE: the composites are checked RAW, not through JSON — JSON.stringify masks NaN and
+           −Infinity as null, which is exactly the fabrication this test hunts. */
+        T.eq(
+          'a seam-refused recording exports every composite null (raw, not JSON-masked)',
+          [seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd]
+            .map(function (v) {
+              return v === null ? 'null' : typeof v;
+            })
+            .join(','),
+          'null,null,null,null,null,null'
+        );
+        T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.ok(
+          'never a fabricated number, −Infinity, or NaN',
+          ![seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd].some(function (v) {
+            return typeof v === 'number';
+          }),
+          JSON.stringify({ stress: seamed.stress, hrv: seamed.hrv, energy: seamed.energy, focus: seamed.focus, coherence: seamed.coherence, lnrmssd: seamed.lnrmssd })
+        );
+      }
+    });
+
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_odn && _odn._bare) || _odn;
@@ -13840,6 +13886,58 @@
           content
         );
       });
+    });
+
+    /* §3 — the no-network gate is fail-CLOSED. A gate that cannot verify is a gate that fails.
+       Two specific fail-opens from the 2026-10-05 review: (1) the provenance/index.json fetch
+       silently fell back on failure; (2) the Python lens did not check for missing timeouts. */
+    group('no-network gate fail-closed — provenance fetch + Python timeout lens (§3)', 'security · no-network · fail-closed', function (T) {
+      var fs = null;
+      try {
+        fs = require('fs');
+      } catch (_) {}
+      if (!fs) {
+        T.skip('fs available', 'Node-lane only');
+        return;
+      }
+      var html = '';
+      try {
+        html = fs.readFileSync('no-network.html', 'utf8');
+      } catch (e) {
+        T.skip('no-network.html readable', String((e && e.message) || e));
+        return;
+      }
+      /* (1) The provenance fetch must be fail-closed — a throw or empty response sets
+         bundleListError, and staticOK requires bundleListError===null. */
+      T.ok(
+        'provenance fetch failure sets bundleListError (fail-closed, not silent fallback)',
+        /bundleListError\s*=\s*['"]provenance\/index\.json fetch/.test(html) || /bundleListError\s*=\s*'provenance\/index\.json fetch failed/.test(html),
+        'no-network.html must attach the fetch error to bundleListError'
+      );
+      T.ok('staticOK requires bundleListError===null — a gate that cannot verify fails', /staticOK\s*=.*bundleListError\s*===\s*null/.test(html), 'staticOK must include the fail-closed condition');
+      T.ok('MotionDex.html is in BUNDLES_FALLBACK (review M1 — the fallback omitted it)', /BUNDLES_FALLBACK\s*=\s*\[[^\]]*MotionDex\.html/.test(html), 'fallback must include MotionDex.html');
+      /* (2) The Python lens: extract scanPython and verify a bare requests.get(url) fails. */
+      var m = html.match(/const PY_NO_TIMEOUT\s*=\s*(\/.*?\/);/s);
+      if (!m) {
+        T.ok('PY_NO_TIMEOUT regex present', false, 'no-network.html must define PY_NO_TIMEOUT');
+      } else {
+        var re = null;
+        try {
+          re = eval(m[1]);
+        } catch (e) {
+          re = null;
+        }
+        T.ok('PY_NO_TIMEOUT regex compiles', !!re, m[1].slice(0, 80));
+        if (re) {
+          T.ok('a bare requests.get(url) matches (missing timeout)', re.test('requests.get(url)') && !/timeout\s*=/.test('requests.get(url)'), 'bare requests.get must be flagged');
+          T.ok('requests.get(url, timeout=5) is not flagged (explicit timeout)', !(/timeout\s*=/.test('requests.get(url, timeout=5)') === false), 'explicit timeout must not be flagged');
+          T.ok(
+            'socket.setdefaulttimeout does NOT satisfy — the timeout must be on the call',
+            re.test('socket.setdefaulttimeout(10)\nrequests.get(url)') && !/requests\.get\([^)]*timeout\s*=/.test('socket.setdefaulttimeout(10)\nrequests.get(url)'),
+            'setdefaulttimeout is not an explicit per-call timeout'
+          );
+        }
+      }
     });
 
     /* ════ CAPTURE-FILENAME SUFFIX PARITY — the writer upper-cases the tag; every reader must agree ════
@@ -53347,6 +53445,118 @@
        PLANTED recovery, because a correspondence number is meaningless without knowing the instrument
        can recover a known answer — and by its own chance control, because the block fit maximises the
        statistic it reports. */
+    group('fitClockDrift\u2019s search is set-preserving — the optimisation cannot change which beats match', 'integrator-dsp · clock · equivalence', function (T) {
+      var D = env.IntegratorDSP;
+      if (!D || typeof D.fitClockDrift !== 'function') {
+        T.skip('IntegratorDSP.fitClockDrift available', 'not loaded');
+        return;
+      }
+      /* \ud83d\udd34 THE MATCHED SET PER OFFSET, not just the final centroid. `corrAt` is a closure inside
+           `fitClockDrift`, so this does not reach into it: it encodes BOTH inner loops — the original
+           (one binary search per beat per offset) and the optimised (a monotone pointer carried across
+           the sweep) — and asserts they select the SAME neighbour index for every beat at every offset
+           of the real grid. That is the property the speed-up rests on, and it is stronger than output
+           equality: two different matched sets can still average to the same centroid by luck.
+
+           WHY THE SET AND NOT THE ARGMAX. The search takes the SUPPORT CENTROID over the plateau, which
+           is ~`tolMs` wide and over which every offset keeps the same beats matched
+           (WEARABLE-DRIFT-FIT-2026-08-01 \u00a73: argmax bias measured at ~330 ms, two of four planted cases
+           went from biased to exact once the centroid replaced it). The centroid therefore depends on
+           EVERY grid offset that shares the peak \u2014 so a search that visits the same optimum by a coarser
+           route still returns a different number, which is exactly why coarse-to-fine was rejected. */
+      var B = [];
+      for (var n = 0; n < 4000; n++) B.push(1785102000000 + n * 900 + 40 * Math.sin(n / 7));
+      var bA = [];
+      for (var m = 0; m < 320; m++) bA.push(B[m * 3] + 137);
+
+      function loFromSearch(x) {
+        var lo = 0,
+          hi = B.length - 1;
+        while (lo < hi) {
+          var mid = (lo + hi) >> 1;
+          if (B[mid] < x) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      }
+      var ptr = new Int32Array(bA.length).fill(-1);
+      var disagree = 0,
+        pairs = 0;
+      for (var off = -3000; off <= 3000; off += 20) {
+        for (var i = 0; i < bA.length; i++) {
+          var x = bA[i] + off;
+          var want = loFromSearch(x);
+          var got;
+          if (ptr[i] < 0) got = loFromSearch(x);
+          else {
+            got = ptr[i];
+            while (got < B.length - 1 && B[got] < x) got++;
+            while (got > 0 && B[got - 1] >= x) got--;
+          }
+          ptr[i] = got;
+          pairs++;
+          if (got !== want) disagree++;
+        }
+      }
+      T.eq('the pointer selects the SAME index as a fresh binary search, at every offset', disagree, 0, pairs + ' (beat, offset) pairs');
+      T.ok('and the grid really was swept', pairs === bA.length * 301, pairs + ' pairs');
+
+      /* ORDER STATISTICS: quickselect must return the element a full sort would, INCLUDING on ties \u2014
+           a uniform cadence puts exact duplicates in the delta list, and that is where a selection that
+           is merely "a median" rather than `sorted[k]` would diverge. */
+      function nth(a, k) {
+        return a.slice().sort(function (p2, q2) {
+          return p2 - q2;
+        })[k];
+      }
+      var tie = [];
+      for (var z = 0; z < 311; z++) tie.push(z % 7);
+      /* FAIL-CLOSED ON A MISSING SEAM. An earlier draft of this assertion `break`-ed out when the
+           export was absent and left `okSel` true — a pass that examined nothing, which is the shape
+           this suite exists to refuse. If the selector is not exported the assertion FAILS and says so. */
+      var ks = [0, 1, Math.floor(311 / 2), Math.floor(311 * 0.25), Math.floor(311 * 0.75), 310];
+      var okSel = typeof D.selectNth === 'function',
+        checked = 0;
+      if (okSel) {
+        for (var ki = 0; ki < ks.length; ki++) {
+          var buf = new Float64Array(tie.length);
+          for (var w = 0; w < tie.length; w++) buf[w] = tie[w];
+          if (D.selectNth(buf, ks[ki], tie.length) !== nth(tie, ks[ki])) okSel = false;
+          checked++;
+        }
+      }
+      T.ok(
+        'quickselect returns sorted[k] even with heavy ties',
+        okSel && checked === ks.length,
+        typeof D.selectNth === 'function' ? checked + '/' + ks.length + ' of {0,1,p25,median,p75,last} on 311 values, 7 distinct' : 'IntegratorDSP.selectNth is NOT exported — nothing was checked'
+      );
+
+      /* AND THE WHOLE FIT STILL ANSWERS THE PLANTED QUESTION \u2014 the control that would catch a
+           set-preserving change that nevertheless broke the arithmetic. */
+      var base = [],
+        t = 1785102000000,
+        j2 = 0;
+      while (t < 1785102000000 + 2 * 3600e3) {
+        base.push(t);
+        t += 900 + 180 * Math.sin(j2 / 40);
+        j2++;
+      }
+      function mk2(off2, ppm, drop) {
+        var o = [];
+        for (var k2 = 0; k2 < base.length; k2++) {
+          if (k2 % drop === 0) continue;
+          o.push(base[k2] + off2 + ((base[k2] - base[0]) * ppm) / 1e6);
+        }
+        return o;
+      }
+      var fit = D.fitClockDrift(mk2(0, 0, 17), mk2(250, -40, 13));
+      T.ok(
+        'a planted 250 ms / -40 ppm pair is still recovered',
+        fit && fit.offsetMs != null && Math.abs(fit.offsetMs - 250) < 60 && Math.abs(fit.driftPpm + 40) < 8,
+        fit ? 'offset ' + Math.round(fit.offsetMs) + ' ms · drift ' + (fit.driftPpm == null ? 'null' : fit.driftPpm.toFixed(1)) + ' ppm' : 'no fit'
+      );
+    });
+
     group('fitClockDrift recovers a planted offset AND drift', 'integrator-dsp · clock · planted-control', function (T) {
       var D = env.IntegratorDSP;
       if (!D || typeof D.fitClockDrift !== 'function') {
@@ -57857,6 +58067,17 @@
         threw2 = true;
       }
       T.ok('expressing kg as bpm throws', threw2);
+
+      // ── §2b (2026-10-05 deep review): null propagates through add — null + 5 must be
+      // null, never 5 (JS `null + 5 === 5` silently preserves the non-null operand) ──
+      var nullKg = Q.Quantity(null, 'kg');
+      T.ok('a null Quantity stores null value', nullKg.value === null, 'value=' + JSON.stringify(nullKg.value));
+      var sumL = Q.Quantity(5, 'kg').add(nullKg);
+      T.ok('5 + null → null Quantity (null on the right)', sumL.value === null && sumL.unit === 'kg', 'value=' + JSON.stringify(sumL.value));
+      var sumR = nullKg.add(Q.Quantity(5, 'kg'));
+      T.ok('null + 5 → null Quantity (null on the left)', sumR.value === null && sumR.unit === 'kg', 'value=' + JSON.stringify(sumR.value));
+      var sumOk = Q.Quantity(5, 'kg').add(Q.Quantity(3, 'kg'));
+      T.ok('5 + 3 → 8 (measured values still add)', sumOk.value === 8 && sumOk.unit === 'kg', 'value=' + JSON.stringify(sumOk.value));
 
       // ── asSecondsRR: seconds pass through, ms band is converted + tagged ──
       var s = Q.asSecondsRR(0.8),
