@@ -4,6 +4,8 @@
 # The invariant under test is the one the journal violates: a count is never recorded without its
 # denominator, and "could not look" is never merged into "looked and found nothing".
 
+import json
+
 import ble_visibility as bv
 
 CPAP = "04:CD:15:3A:0B:BD"
@@ -301,3 +303,46 @@ def test_a_CLEAN_adapter_carries_NEITHER_exclusion_suffix():
     line = bv.format_visibility(stats, CPAP)
     assert "FAILED" not in line, f"no scan failed, so no exclusion may be claimed: {line}"
     assert "reported NO device count" not in line, f"every scan reported a count: {line}"
+
+
+def test_a_parseable_NON_OBJECT_history_line_is_skipped_AND_reported(tmp_path, capsys):
+    """🔴 `read_records`'s docstring promised to "skip unparseable lines rather than failing the whole
+    history on one bad write" — and a line that PARSES but is not an object slipped past it: `42` was
+    appended, and `visibility()` then raised `AttributeError: 'int' object has no attribute 'get'`.
+    Measured on main before the gate.
+
+    ⚠️ THE WORST PART WAS THE DIVISION OF LABOUR: the reader survived the bad line and the CONSUMER
+    died on it, so the function that could name the offending file and line number is not the one that
+    fails. The traceback pointed at `.get` on an int, two modules away from the line that caused it.
+
+    AND IT IS REPORTED, not dropped, because this module already decided that question for the
+    unparseable case: skipping quietly makes the history under-report by an unknown amount. A record
+    that is JSON but not an object is exactly as missing from the digest as one that would not parse."""
+    p = tmp_path / "h.jsonl"
+    p.write_text(
+        "42\n" + json.dumps({"adapter": "hci0", "scan_ok": True, "devices_seen": 3, "seen": []}) + "\n",
+        encoding="utf-8",
+    )
+    recs = bv.read_records(str(p))
+    assert [type(r).__name__ for r in recs] == ["dict"], f"the non-object was read: {recs}"
+    err = capsys.readouterr().err
+    assert "line 1" in err and "not an object" in err, f"the skip must name the line: {err!r}"
+    assert "(int)" in err, f"and the type it actually found, so the writer can be fixed: {err!r}"
+    # the consumer that used to die now runs
+    bv.visibility(recs, "Lumis")
+
+
+def test_the_records_AROUND_a_foreign_line_survive_it(tmp_path, capsys):
+    """The ordering half: a foreign line between two real records must not cost the records around it.
+    Losing the history to one bad write is the failure the docstring exists to prevent, and a type gate
+    must not reintroduce it from the other side."""
+    p = tmp_path / "h.jsonl"
+    rows = [
+        json.dumps({"adapter": "hci0", "scan_ok": True, "devices_seen": 1, "seen": []}),
+        '"a string record"',
+        json.dumps({"adapter": "hci1", "scan_ok": True, "devices_seen": 2, "seen": []}),
+    ]
+    p.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    recs = bv.read_records(str(p))
+    assert [r["adapter"] for r in recs] == ["hci0", "hci1"], recs
+    assert "(str)" in capsys.readouterr().err
