@@ -58270,6 +58270,18 @@
       } else {
         T.ok('env.PulseDex._bare.siCalc available', false, 'PulseDex node-local siCalc not wired — gate skipped');
       }
+
+      // ── §2c (2026-10-05 deep review): AMo unit guard — the docstring says PERCENT.
+      // A fraction input (0.4 for 40%) is a silent 100× error; refuse with a reason, never rescale. ──
+      var whyOk = {};
+      T.ok('amo50=40 (percent) computes, no reason set', Q.baevskySI(40, 0.8, 0.3, whyOk) != null && whyOk.reason == null, 'reason=' + whyOk.reason);
+      var whyFrac = {};
+      T.ok('amo50=0.4 (looks like a fraction) refuses with reason', Q.baevskySI(0.4, 0.8, 0.3, whyFrac) === null && whyFrac.reason != null, 'reason=' + whyFrac.reason);
+      var whyBig = {};
+      T.ok('amo50=150 (>100, impossible percent) refuses with reason', Q.baevskySI(150, 0.8, 0.3, whyBig) === null && whyBig.reason != null, 'reason=' + whyBig.reason);
+      var whyOne = {};
+      T.ok('amo50=1 (boundary, ambiguous) refuses with reason', Q.baevskySI(1, 0.8, 0.3, whyOne) === null && whyOne.reason != null, 'reason=' + whyOne.reason);
+      T.ok('refusal without the why param is still bare null (backwards-compatible)', Q.baevskySI(0.4, 0.8, 0.3) === null);
     });
 
     /* ════ 26 · DIFFERENTIAL TESTING — redundant RR/HRV nodes agree (brief Phase 5) ════
