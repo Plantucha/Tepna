@@ -6,6 +6,7 @@ own: a value it cannot prove is left absent, never guessed — an invented link 
 """
 
 import datetime
+import logging
 import os
 import sys
 
@@ -993,6 +994,47 @@ def test_a_session_opening_ONE_WHOLE_GAP_after_midnight_still_pools_the_previous
         "the window must start on the previous day, where the session actually opened"
     )
 
+
+
+def test_a_previous_day_folder_that_does_NOT_EXIST_is_never_pooled_or_reported_absent(tmp_path, caplog):
+    """Kills `if prev and os.path.isdir(prev)` → `or`, the one survivor the gate found on this branch.
+
+    `nightqc._prev_day_dir` returns a PATH, not a probe: for any night it hands back a truthy string
+    whether or not that folder was ever recorded. So `or` short-circuits on the truthy path and the
+    `isdir` check — the only thing establishing the folder EXISTS — never runs. The night then pools a
+    directory that is not there.
+
+    ⚠️ AND THE OBSERVABLE IS AN ABSENCE CLAIM, which is why this is a real gap and not cosmetic. The
+    pooled path reaches `read_link_samples`, which cannot list it, catches the `FileNotFoundError` and
+    says so: *"cannot be listed, so its link history is absent rather than empty"*. ABSENT means
+    unknown — a night is announcing that it could not determine the link history of a folder that was
+    never part of it, which is exactly the §∅ distinction the whole system is built on. The data and
+    the window are untouched (`scan_night` of a missing folder is `[]`), so output equality is NOT what
+    separates the two: the claim is.
+
+    Measured, so the branch is genuinely entered rather than skipped for an unrelated reason: tonight
+    opens 01:00:00 and midnight is 00:00:00, so `earliest - midnight` is exactly 3600.0 against a
+    3600.0 gap — INSIDE the inclusive bound this PR fixed. There is simply no 2026-07-24 folder."""
+    tonight = tmp_path / "2026-07-25"
+    tonight.mkdir(parents=True)
+    rows = [f"2026-07-25T01:00:{i:02d}.000;{i}000000000;1" for i in range(10)]
+    (tonight / "Polar_H10_02849638_20260725010000_ECG.txt").write_text(
+        "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(rows) + "\n"
+    )
+    _pin(tonight)
+    assert not (tmp_path / "2026-07-24").exists(), "the premise of this test is that the previous day was never recorded"
+
+    # ⚠️ `caplog`, NOT `capsys`. The message is `log.warning` on the "tepna-capture" logger, so stream
+    # capture never sees it — my first version of this test used capsys, PASSED under the mutant, and
+    # would have shipped as a kill that observed nothing.
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        timeline.build(str(tonight), _DEV)
+
+    assert "cannot be listed" not in caplog.text, (
+        "the night reported a MISSING previous-day folder's link history as ABSENT (unknown). It was "
+        "never pooled in the first place, so there is nothing to be absent — `prev` is a path string, "
+        "truthy for a folder that does not exist, and only `isdir` establishes otherwise"
+    )
 
 # ── E6 · the rate `bucket_stream` never used ──────────────────────────────────────────────────────
 def test_E6_bucket_stream_does_not_take_a_rate_it_cannot_use():
