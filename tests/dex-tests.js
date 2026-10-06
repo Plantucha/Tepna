@@ -64510,7 +64510,14 @@
       };
       // 38cab89355e6 — the review total covers the timed nights, and names them (reviewView is reachable)
       var rv = env.OxyDex && env.OxyDex.reviewView;
-      T.ok('R · OxyDex.reviewView reachable', typeof rv === 'function');
+      /* OxyDex.reviewView is a NODE-lane surface: run-tests.mjs executes oxydex-render.js headless, while the browser
+         lane loads it only as TEXT and renders inside iframe rigs (the same reason the render-harness known-answer group
+         SKIPs there). So it is ASSERTED where it must exist (losing it in Node reds) and SKIPPED by name where it cannot.
+         env.nodeFs is set by the Node runner only. The four extract-and-run sites below need no reviewView and run in
+         both lanes. */
+      if (env.nodeFs) T.ok('R · OxyDex.reviewView reachable (Node lane)', typeof rv === 'function');
+      else if (typeof rv !== 'function')
+        T.skip('R · OxyDex.reviewView header check', 'Node-lane only: the browser lane loads oxydex-render.js as text and renders in iframe rigs, so reviewView is not on its OxyDex');
       if (typeof rv === 'function') {
         var head = String(
           rv({ nights: [] }, [
