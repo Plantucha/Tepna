@@ -47,6 +47,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 const CHECK = process.argv.includes('--check');
+const SUITE_MAX_BUFFER = 64 * 1024 * 1024;
 const JSON_OUT = process.argv.includes('--json');
 /* ── tepna.verdict/1 (VERDICT-CONTRACT §1; wave-2 adopter) ───────────────────────────────────────
    `--json` prints ONE object on stdout and moves every human line to stderr. The decision this tool
@@ -167,6 +168,33 @@ const S31_LABEL = '§3.1 · every corpus-backed fixture carries a verifiedUnder'
    decision can be driven by `--selftest` over adversarial inputs instead of only by a >10-min corpus
    lap that reaches it once. Returns true ONLY when every failing assertion is §3.1 and every fixture
    it names is one this run would be minting a first stamp for. */
+/* ⚠️ AN OVERFLOWED CAPTURE IS NOT A RED SUITE, AND EQUATING THEM WAS THE DEFECT.
+   `execFileSync` throws `ENOBUFS` when the child's stdout passes `maxBuffer`. The catch below then
+   read a TRUNCATED `e.stdout`, found no `✕` lines in it, and announced "the suite is RED" — over a
+   suite that had just passed 11300 assertions. Measured 2026-10-06: the suite wrote 1,049,551 bytes
+   against Node's 1,048,576-byte default, so it refused on being 975 bytes too talkative, and nothing
+   in the message said so.
+   The two cases must never share a sentence: a red suite is a FAIL about the code, while an
+   overflowed capture is an UNKNOWN about this tool's own plumbing — the verdict was never read. */
+export function suiteFailureKind(err) {
+  if (!err) return 'red';
+  const code = err.code;
+  const msg = String(err.message || '');
+  if (code === 'ENOBUFS' || /maxBuffer|ENOBUFS/i.test(msg)) return 'buffer';
+  return 'red';
+}
+
+/* The refusal an overflowed capture gets. It names the BUFFER, the size, and the fact that the
+   suite's verdict is unknown — never "RED". */
+export function captureOverflowMessage(bytes, cap) {
+  return (
+    '✕ THE CAPTURE BUFFER OVERFLOWED — this is NOT a red suite. The suite\'s own verdict was never ' +
+    'read, so it is UNKNOWN: it may have passed. Captured ' + (bytes == null ? 'an unknown number of' : bytes) +
+    ' byte(s) against a ' + cap + '-byte maxBuffer. Nothing was stamped. Raise maxBuffer in ' +
+    'tools/verify-fixtures.mjs; do not go looking for a failing assertion.'
+  );
+}
+
 export function bootstrapExempt(failLines, firstStamp) {
   const only31 = failLines.length > 0 && failLines.every((l) => l.includes(S31_LABEL));
   const named = [];
@@ -203,7 +231,13 @@ if (process.argv.includes('--selftest')) {
     ['§3.1 emitted twice, as the real suite does → still ONE fixture', [L(NEW), '  ✕ [Fixture verification] ' + L(NEW).trim()], NEW, true]
   ];
   let bad = 0;
+  /* ⚠️ `ran`, not `cases.length`. The summary reported the TABLE's size, so the three assertions
+     below the loop were never counted and adding one more kept printing the old number — the same
+     under-report a hardcoded count gives (residue 2026-10-05-browser-lane-selftest-count-is-hardcoded).
+     A selftest that miscounts itself is the first thing that should not. */
+  let ran = 0;
   for (const [name, lines, fs2, want] of cases) {
+    ran++;
     const r = bootstrapExempt(lines, fs2);
     const got = r.exempt;
     if (got !== want) bad++;
@@ -213,9 +247,59 @@ if (process.argv.includes('--selftest')) {
      duplicates the assertion but checks only `exempt` passes on the buggy code. */
   const dup = bootstrapExempt([L(NEW), '  ✕ [Fixture verification] ' + L(NEW).trim()], NEW);
   const dupOk = dup.named.length === 1 && dup.named[0] === NEW[0];
+  ran++;
   if (!dupOk) bad++;
   console.log(`  ${dupOk ? '✓' : '✗'} the Excused list names it ONCE and the count reads ${dup.named.length} (want 1)`);
-  console.log(bad ? `selftest: ${cases.length - bad} ok, ${bad} failed` : `selftest: ${cases.length} ok, 0 failed`);
+  /* ⚠️ A REAL OVERFLOW, not a hand-made error object. The whole defect was that an ENOBUFS looked
+     like a red suite, so the case has to PRODUCE one: a child that writes past a deliberately tiny
+     maxBuffer, through the same `execFileSync` shape the tool uses (stdout piped, stderr inherited).
+     A fabricated `{ code: 'ENOBUFS' }` would pass against code that never classified anything. */
+  const TINY = 1024;
+  let overflowErr = null;
+  try {
+    execFileSync(process.execPath, ['-e', 'process.stdout.write("x".repeat(4096))'], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+      maxBuffer: TINY
+    });
+  } catch (e2) {
+    overflowErr = e2;
+  }
+  const kind = overflowErr && suiteFailureKind(overflowErr);
+  const okKind = kind === 'buffer';
+  ran++;
+  if (!okKind) bad++;
+  console.log(`  ${okKind ? '✓' : '✗'} a REAL over-buffer stdout classifies as 'buffer' (got ${kind})`);
+
+  /* And the refusal must NAME THE BUFFER and must NOT say the suite is red — the sentence is the
+     fix, not just the branch. */
+  const msg = captureOverflowMessage(overflowErr && overflowErr.stdout ? overflowErr.stdout.length : null, TINY);
+  const namesBuffer = /CAPTURE BUFFER OVERFLOWED/.test(msg) && /maxBuffer/.test(msg) && msg.includes(String(TINY));
+  const callsItRed = /the suite is RED/i.test(msg);
+  const saysUnknown = /UNKNOWN/.test(msg);
+  ran++;
+  if (!namesBuffer || callsItRed || !saysUnknown) bad++;
+  console.log(
+    `  ${namesBuffer && !callsItRed && saysUnknown ? '✓' : '✗'} the refusal names the BUFFER (and the size), says the verdict is UNKNOWN, and never says the suite is RED`
+  );
+
+  /* The mirror: an ordinary non-zero exit must still classify as a red suite, or the fix would
+     silence real failures — the opposite error, and the worse one. */
+  let plainErr = null;
+  try {
+    execFileSync(process.execPath, ['-e', 'process.stdout.write("  \u2715 [x] boom"); process.exit(1)'], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+      maxBuffer: 1024 * 1024
+    });
+  } catch (e3) {
+    plainErr = e3;
+  }
+  const plainKind = plainErr && suiteFailureKind(plainErr);
+  const okPlain = plainKind === 'red';
+  ran++;
+  if (!okPlain) bad++;
+  console.log(`  ${okPlain ? '✓' : '✗'} CONTROL · an ordinary failing run still classifies as 'red' (got ${plainKind})`);
+
+  console.log(bad ? `selftest: ${ran - bad} ok, ${bad} failed` : `selftest: ${ran} ok, 0 failed`);
   process.exit(bad ? 1 : 0);
 }
 
@@ -289,13 +373,21 @@ try {
        without; capturing both streams meant it printed one line and then went silent for the whole
        run, which is precisely the blind wait the progress line exists to end. Only stdout is piped,
        and that is where the `✕` lines the failure parse reads are written. */
-    stdio: ['ignore', 'pipe', 'inherit']
+    stdio: ['ignore', 'pipe', 'inherit'],
+    /* 64 MiB. The suite's stdout crossed Node's 1 MiB default in October 2026 and will keep growing;
+       a capture limit that the thing being captured outgrows is a timer, not a safeguard. */
+    maxBuffer: SUITE_MAX_BUFFER
   });
 } catch (e) {
   const out = String((e.stdout || '') + (e.stderr || ''));
   /* EVERY failing line, not a printed sample. The old code sliced to 8 for display and would have
      decided on that slice — the §4b family: a verdict read off a truncated view. Display is capped
      below; the DECISION reads all of them. */
+  if (suiteFailureKind(e) === 'buffer') {
+    console.error(paint(captureOverflowMessage(e.stdout ? e.stdout.length : null, SUITE_MAX_BUFFER), C.red));
+    emit('FAIL', 'the suite output exceeded the capture buffer — its verdict was never read');
+    process.exit(1);
+  }
   const failLines = out.split('\n').filter((l) => /^\s*✕/.test(l));
   /* The bootstrap exemption, derived. It applies ONLY when both hold:
        (a) every failing assertion is §3.1 itself, and
