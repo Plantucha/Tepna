@@ -117,6 +117,9 @@
   Quantity.prototype.add = function (other) {
     if (!(other instanceof Quantity)) throw new Error('add expects a Quantity');
     if (other.dim !== this.dim) throw new Error('dimension mismatch: cannot add ' + this.dim + ' + ' + other.dim);
+    // §∅: absence propagates — a null operand yields a null sum, never the surviving operand
+    // (JS `null + 5 === 5` would silently fabricate a measured value from an unmeasured one).
+    if (this.value == null || other.value == null) return new Quantity(null, this.unit);
     return new Quantity(this.value + other.value, this.unit);
   };
 

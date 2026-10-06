@@ -1,0 +1,7 @@
+---
+bump: patch
+type: fixed
+brief: none
+---
+
+The night timeline finds the ring's accelerometer again, and stops dropping the head of a session that began before midnight. A configured stream can legitimately be written under more than one file tag — `acc` arrives as `_ACC.` from the chest strap and `_ACCRAW.` from the ring — and the timeline compared the file tag against the stream name upper-cased, so a 10 MB `_ACCRAW.txt` matched nothing and that device's whole night was painted idle, which reads as a finding rather than a miss. The tag set now comes from `nightqc.stream_file_tags`, which already owned that mapping and its reasoning, rather than a second copy that could drift from it; a bare string is still accepted, so every existing caller is unchanged. Separately, the gate that decides whether to pool the previous day's folder was exclusive at its upper bound while `merge_sessions` — the authority on what one session is — measures the same question from the running coverage's end, which a session crossing midnight pushes past 00:00. A night opening exactly one session gap after midnight was therefore refused, and a measured 3669 s continuous session published as a 9 s window with no error and no refusal, reading as a short recording rather than a truncated one. The bound is now inclusive. That closes the boundary and not the class — a previous day running to 01:30 still merges with a 02:00 session this gate never looks for — so the remaining narrowness is recorded as an open residue row rather than described as fixed.

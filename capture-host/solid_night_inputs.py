@@ -85,6 +85,7 @@ MODELS: dict[str, dict[str, Any]] = {
         "prefix": "Polar_H10_",
         "primary": "ECG",
         "clock": "ECG",
+        "rtc": None,
         "ext": ".txt",
         "pmd": "ecg",
         "waveforms": ("ECG", "ACC"),
@@ -93,6 +94,7 @@ MODELS: dict[str, dict[str, Any]] = {
         "prefix": "Polar_VeritySense_",
         "primary": "PPG",
         "clock": "PPG",
+        "rtc": None,
         "ext": ".txt",
         "pmd": "ppg",
         "waveforms": ("PPG", "ACC"),
@@ -101,11 +103,53 @@ MODELS: dict[str, dict[str, Any]] = {
         "prefix": "Wellue_O2Ring-S_",
         "primary": "SPO2",
         "clock": None,
+        "rtc": "RTCLOG",
         "ext": ".csv",
         "pmd": None,
         "waveforms": ("PPG", "PPG2W", "ACCRAW"),
     },
 }
+# ── §3.4 `rtc` — the device's own RTC, judged against the host it is disciplined from ───────────────
+#
+# 🔴 EVERY BOUND HERE IS PRE-STATED FROM THE MIRROR, measured 2026-10-04 over 620 `*_RTCLOG.csv` in
+# `/srv/data/tepna-corpus/uploads/vigil-archive/captures` — 181 nights with >= 2 reads, 2883 reads —
+# BEFORE any night was judged. The derivation is quoted in SOLID-NIGHT-RTC-2026-10-04-BRIEF §2.
+#
+# ⚠️ THE OFFSET COLUMN IS TWO POPULATIONS, AND THAT IS THE WHOLE DESIGN. Binned by seconds since the
+# last push: 0-2 s gives |offset| p50 0.80, **2-5 s gives p50 5.90 / p95 9.60 / max 11.9 (n=166)**,
+# 60-300 s gives 0.70, and beyond an hour 0.40 with max 1.9. Clear of a push the clock is TIGHT —
+# p99 1.6, p99.9 3.1, **max 3.3 over 2184 reads**. So essentially every read above 6 s sits inside one
+# 2-5 s window after a push: a read landing mid-push-sequence reporting a half-applied time, NOT a
+# drifting RTC. A bound applied to every read would therefore fail nights on the band's own instrument.
+# The band judges reads taken CLEAR of a push and STATES how many it set aside (§🧾's
+# `checked + excluded = eligible`). The spike itself is a capture-side defect, not this band's business:
+# residue 2026-10-04-a-read-inside-the-push-sequence-reports-a-half-applied-time.
+RTC_PUSH_SETTLE_S = 60.0  # a read within this of a push measures the sequence, not the clock
+RTC_OFFSET_MAX_S = 8.0  # on the CLEAR reads THIS BAND ACTUALLY JUDGES — 2788 of them over 44 nights —
+# |offset| is p50 0.5, p95 1.5, p99 4.4, p99.9 6.1, max 6.3. The bound sits ~1.3x that maximum, so it
+# fires on nothing the mirror holds.
+# ⚠️ IT WAS 5.0 FOR AN HOUR, AND 5.0 WAS DERIVED OVER THE WRONG POPULATION. The first derivation measured
+# reads > 60 s after a push only where a push had ALREADY been seen, which silently dropped every read
+# before a log's first push — and those carry free-run from whenever the RTC was last set. Over the
+# narrower set the max was 3.3; over the set the band judges it is 6.3. Caught by running the band on the
+# mirror: 2026-08-30's worst clear read is 6.3 and 2026-08-29's is 5.1, so a 5.0 bound FAILED 2 of 44
+# nights. A bound measured on a narrower population than it is applied to is two populations wearing one
+# number, which is the error this file keeps paying for.
+# AND IT FAILS ONLY OUTSIDE EVERYTHING OBSERVED, which is A5's precedent applied here: the mirror holds no
+# night labelled bad, so a detector that convicted the two churn nights would be convicting on a
+# distribution's tail rather than on evidence. The band REPORTS the worst clear offset on every night —
+# 08-30's 6.3 s is visible in its PASS reason — and FAILs only above anything the corpus has shown.
+RTC_READ_GAP_MAX_S = 900.0  # cadence p50 600.4 / p99 606.4 / max 761.5 — a 10 min poll. A gap past this
+# is a window nobody read, and a window never read reports NULL rather than a number (§∅).
+RTC_OFFSET_QUANTUM_S = 0.1  # THE LOG'S OWN RESOLUTION, measured: 110 distinct values, min spacing 0.1.
+RTC_DRIFT_MAX_PPM = 100.0  # spans > 4 h: |ppm| p50 26.3, p95 78.3, max 98.3 — crystal-plausible.
+RTC_DRIFT_RESOLVE = 4.0  # ... and the span must resolve that bound this many times over, or the drift is
+# NULL. The floor is `QUANTUM / span`, so a short night's ppm figure is the log's resolution and not the
+# crystal: spans > 0.2 h measured p50 83.3 ppm against a floor of 166.7, i.e. the median was BELOW the
+# noise. Publishing a number there would be absence-as-value in reverse.
+NO_RTC_LOG = "this device keeps no RTC log — nothing here records a device-vs-host clock comparison to judge"
+
+
 NO_DEVICE_AXIS = (
     "this device stamps no waveform — its RTC disciplines the host, not the samples, so its exported "
     "streams carry no per-sample device time for a timebase to be measured on"
@@ -1379,6 +1423,139 @@ def unrecorded_shift(scan: dict, records: list[float], nominal_hz: float | None)
     }
 
 
+def rtc_events(night_dir: str, model: str) -> list[tuple[_dt.datetime, str, float | None]]:
+    """Every `push` / `read` / `reset` the night's RTC logs hold, sorted, as `(at, event, offset_s)`.
+
+    ALL of the night's logs, because the ring writes ONE PER CAPTURE SESSION: 2026-08-29 holds 290 of
+    them against a median night's 3, so a per-night figure taken from one file is not a per-night figure
+    at all. A `read` with no parseable offset measured nothing and is dropped rather than defaulted (§∅).
+    """
+    tag = MODELS[model]["rtc"]
+    out: list[tuple[_dt.datetime, str, float | None]] = []
+    if tag is None:
+        return out
+    prefix = MODELS[model]["prefix"]
+    for path in sorted(glob.glob(os.path.join(night_dir, f"{prefix}*_{tag}.csv"))):
+        try:
+            fh = open(path, encoding="utf-8", errors="replace")
+        except OSError:
+            continue  # a log we cannot open records nothing; the caller's count says how many we read
+        with fh:
+            for line in fh:
+                c = line.rstrip("\n").split(";")
+                if len(c) < 3 or c[1] not in ("push", "read", "reset"):
+                    continue
+                at = _ni.parse_host_stamp(c[0])
+                if at is None:
+                    continue  # an unplaceable row places no event
+                if c[1] == "read":
+                    try:
+                        out.append((at, "read", float(c[2])))
+                    except ValueError:
+                        continue  # a read with no offset measured nothing
+                else:
+                    out.append((at, c[1], None))
+    out.sort(key=lambda r: r[0])
+    return out
+
+
+def rtc_drift(clear: list, span_s: float) -> tuple:
+    """`(ppm, floor_ppm, resolved)` for a night's push-clear reads — the band's arithmetic, on its own.
+
+    EXTRACTED SO THE NUMBERS CAN BE PINNED. Inside `rtc_band` these three only ever reached a reader as
+    `f"{ppm:+.0f}"`, rounded to whole ppm — so a test could assert the rendered text and still not
+    distinguish an index substitution that moves the figure by less than half a ppm. 28 mutants of this
+    arithmetic survived a suite at 100 % line coverage for exactly that reason (#3324): the lines ran,
+    the values were unobserved. A pure function returning the floats is testable to the float.
+
+    `floor_ppm` is the log's own 0.1 s quantum over the span — the smallest drift the RECORD can express,
+    not the smallest the crystal can have. Below `RTC_DRIFT_RESOLVE` times the bound a published figure
+    would be the resolution rather than the clock, so `resolved` is False and the band says so instead
+    of quoting a number (§∅ — absence as a value, in reverse). Measured over the mirror: spans > 0.2 h
+    give |ppm| p50 83.3 against a floor of 166.7, so the median sits BELOW its own floor."""
+    if span_s <= 0:
+        return None, None, False
+    floor_ppm = RTC_OFFSET_QUANTUM_S / span_s * 1e6
+    ppm = (clear[-1][1] - clear[0][1]) / span_s * 1e6
+    return ppm, floor_ppm, floor_ppm * RTC_DRIFT_RESOLVE <= RTC_DRIFT_MAX_PPM
+
+
+def rtc_band(night_dir: str, model: str, start, end) -> dict:
+    """§3.4 `rtc`: the device's onboard RTC, judged against the host clock that disciplines it.
+
+    A device whose spec names no RTC log is NOT_APPLICABLE — examined, and the rule does not bind. A
+    device that keeps one, on a night that holds none, is UNKNOWN: the rule binds and the input is absent.
+
+    ⚠️ READS WITHIN `RTC_PUSH_SETTLE_S` OF A PUSH ARE SET ASIDE, and the count is stated. See the
+    constants above for the measurement: the whole offset tail lives in a 2-5 s window after a push, so
+    judging every read would convict the ring for the daemon's own read timing. `checked + excluded =
+    eligible` is the contract's own arithmetic (§🧾) and it is published here rather than implied."""
+    if MODELS[model]["rtc"] is None:
+        return _decision("NOT_APPLICABLE", NO_RTC_LOG)
+    ev = rtc_events(night_dir, model)
+    if not ev:
+        return _decision("UNKNOWN", f"no `{MODELS[model]['rtc']}` rows this night, so the RTC was never read")
+    if start is None:
+        return _decision("UNKNOWN", "no worn interval, so no stretch of the RTC's night could be judged")
+    resets = [t for t, k, _ in ev if k == "reset"]
+    if resets:
+        # A RESET MEANS THE DISCIPLINED TIME WAS LOST. ⚠️ The mirror holds ZERO resets in 620 logs, so
+        # this arm has never fired on real data and is a tripwire rather than a validated discriminator
+        # — said here so a FAIL never implies the detector has seen one before.
+        return _decision(
+            "FAIL",
+            f"the RTC was RESET {len(resets)} time(s) this night, first at {resets[0]:%H:%M:%S} — "
+            "the disciplined time was lost, so no offset after it describes the clock we set",
+        )
+    pushes = [t for t, k, _ in ev if k == "push"]
+    reads = [(t, v) for t, k, v in ev if k == "read" and v is not None and start <= t <= end]
+    clear = [(t, v) for t, v in reads if all(abs((t - p).total_seconds()) > RTC_PUSH_SETTLE_S for p in pushes)]
+    excluded = len(reads) - len(clear)
+    if not clear:
+        return _decision(
+            "UNKNOWN",
+            f"all {len(reads)} read(s) inside the worn interval sit within {RTC_PUSH_SETTLE_S:.0f} s of a "
+            f"push, so none of them measures the clock rather than the push sequence",
+        )
+    worst = max(clear, key=lambda r: abs(r[1]))
+    span_s = (clear[-1][0] - clear[0][0]).total_seconds()
+    # THE DRIFT IS NULL UNLESS THE SPAN CAN RESOLVE THE BOUND. The floor is the log's own quantum over
+    # the span; below `RTC_DRIFT_RESOLVE` times the bound the figure would be the resolution, not the
+    # crystal, and a number there is absence-as-value in reverse (§∅).
+    ppm, floor_ppm, resolved = rtc_drift(clear, span_s)
+    gaps = [(b[0] - a[0]).total_seconds() for a, b in zip(clear, clear[1:])]
+    worst_gap = max(gaps) if gaps else None
+    pop = f"{len(clear)} read(s) checked, {excluded} set aside within {RTC_PUSH_SETTLE_S:.0f} s of a push"
+    if abs(worst[1]) > RTC_OFFSET_MAX_S:
+        return _decision(
+            "FAIL",
+            f"the RTC was {worst[1]:+.1f} s off the host at {worst[0]:%H:%M:%S}, past the "
+            f"{RTC_OFFSET_MAX_S:.1f} s bound — {pop}",
+        )
+    if resolved and ppm is not None and abs(ppm) > RTC_DRIFT_MAX_PPM:
+        return _decision(
+            "FAIL",
+            f"the RTC drifted {ppm:+.0f} ppm over {span_s / 3600:.1f} h, past the "
+            f"{RTC_DRIFT_MAX_PPM:.0f} ppm bound — {pop}",
+        )
+    drift = (
+        f"{ppm:+.0f} ppm over {span_s / 3600:.1f} h"
+        if resolved and ppm is not None
+        else (
+            f"null (the {span_s / 3600:.1f} h span resolves only "
+            f"{floor_ppm:.0f} ppm, so a drift figure would be the log's 0.1 s resolution)"
+            if floor_ppm is not None
+            else "null (no span between clear reads)"
+        )
+    )
+    cov = (
+        f"longest unread stretch {worst_gap / 60:.0f} min"
+        if worst_gap is not None and worst_gap > RTC_READ_GAP_MAX_S
+        else "read throughout"
+    )
+    return _decision("PASS", f"RTC within {abs(worst[1]):.1f} s of the host, drift {drift}, {cov} — {pop}")
+
+
 def timebase(night_dir: str, device: str, clock_tag: str, clock_files: list[str], start, end) -> dict:
     """§3.4 timebase: the device axis is a CLOCK, it was disciplined by an independent host, its rate is
     plausible, and it carries no step. Judged on the largest primary file inside the worn interval.
@@ -1679,6 +1856,7 @@ def score_devices(night_dir: str, devices: list) -> dict:
         # names no clock-bearing stream is NOT_APPLICABLE: the band was examined and the rule does not
         # bind (§🧾), which is a different statement from "we could not tell" and the one an operator
         # needs — the ring is not a broken clock, it is a device that exports none.
+        bands["rtc"] = rtc_band(night_dir, model, start, end)
         clock_tag = MODELS[model]["clock"]
         if clock_tag is None:
             bands["timebase"] = _decision("NOT_APPLICABLE", NO_DEVICE_AXIS)

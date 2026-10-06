@@ -214,6 +214,40 @@ for (const N of [1, 2, 3, 4, 5, 6, 8, 12]) {
     bins.every((b) => b.length > 0),
     bins.map((b) => b.length + 'g').join(' · ')
   );
+
+  /* ── BALANCE IS JUDGED ON THE SHARDABLE REMAINDER, NOT ON EVERY SHARD ──────────────────────────
+     🔴 AND THE REASON IS ARITHMETIC, NOT CONVENIENCE. A bin-pack's makespan is bounded below by its
+     LARGEST SINGLE ITEM, and this suite has one group — `fitClockClosure — three clocks must close to
+     zero` — at ~243 s of a ~627 s total, 39 % in one indivisible unit. So `max shard <= 1.25 x mean`
+     over ALL shards is unreachable at any N: measured 2026-10-05, the floor is 1.735 at N=4, 2.603 at
+     N=6 and 3.471 at N=8. Asserting it would be asserting a number no plan can reach, and someone
+     would eventually "fix" the planner to chase it.
+     LPT already does the only right thing with such an item: it places it FIRST, alone, so it runs
+     beside the others rather than behind them. The suite's wall time is therefore
+     `max(heavy group, remainder / (N-1))` and the only lever on the first term is the ALGORITHM
+     (sized separately — the Integrator pays the same cost on every real night). What the planner
+     controls is the second term, and that is what this measures. */
+  const byIndex = new Map(inv.map((g) => [g.index, g.title]));
+  const heaviestShard = weights.indexOf(makespan);
+  const soloHeavy = bins[heaviestShard].length === 1 ? byIndex.get(bins[heaviestShard][0]) : null;
+  const remainder = weights.filter((_, k) => k !== heaviestShard);
+  const remMean = remainder.length ? remainder.reduce((a, b) => a + b, 0) / remainder.length : 0;
+  const remMax = remainder.length ? Math.max(...remainder) : 0;
+  const ratio = remMean ? remMax / remMean : 1;
+  ok(
+    `N=${CI_SHARDS}: the shardable remainder is balanced (max <= 1.25 x mean)`,
+    ratio <= 1.25,
+    `remainder max ${(remMax / 1000).toFixed(1)} s / mean ${(remMean / 1000).toFixed(1)} s = ${ratio.toFixed(3)}` +
+      (soloHeavy ? ` · shard ${heaviestShard + 1} runs "${soloHeavy.slice(0, 44)}" ALONE at ${(makespan / 1000).toFixed(1)} s` : '')
+  );
+  /* The heavy item must be ALONE on its shard, or LPT has mixed work in behind it and the wall time
+     is worse than the item's own cost for no reason. This is the property that makes excluding it
+     from the balance metric honest rather than a way of hiding it. */
+  ok(
+    `N=${CI_SHARDS}: the heaviest group runs alone, so nothing queues behind it`,
+    bins[heaviestShard].length === 1 || makespan <= remMean * 1.25,
+    bins[heaviestShard].length === 1 ? `shard ${heaviestShard + 1}: 1 group` : `shard ${heaviestShard + 1}: ${bins[heaviestShard].length} groups`
+  );
   // A HINT going stale must never red the gate — it costs speed, not coverage. So this is a warn.
   if (unknown.length)
     out(
