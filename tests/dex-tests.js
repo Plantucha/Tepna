@@ -44967,8 +44967,11 @@
       var miss = names.filter(function (k) {
         return typeof G[k] !== 'function';
       });
-      if (miss.length === names.length) {
-        T.skip('oxydex-fusion co-loaded', 'not in this lane');
+      /* A NODE-lane group: run-tests.mjs executes oxydex-fusion.js headless, while the browser lane loads it only as
+         TEXT (SOURCE_FILES). So reachability is ASSERTED under the Node runner (env.nodeFs) and SKIPPED BY NAME in the
+         browser, never vacuously green (the R1 lesson, #3341). */
+      if (!env.nodeFs && miss.length === names.length) {
+        T.skip('oxydex-fusion co-loaded', 'Node-lane only: the browser lane loads oxydex-fusion.js as text (SOURCE_FILES), so its published surface is not on window there');
         return;
       }
       T.eq('fusion · every function this group calls is reachable', miss, []);
