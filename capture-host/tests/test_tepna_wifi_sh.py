@@ -54,6 +54,19 @@ def _run(tmp_path, *args, stdin="", status_out=STATUS_OK, supplicant_rc=0):
     env = dict(
         os.environ,
         PATH=f"{bin_dir}:{os.environ['PATH']}",
+        # ⚠️ THE SCRIPT'S WAITS, ZEROED — they are for real radios and this harness has none.
+        # Measured 2026-10-05: this file was 46.17 s of a 421.40 s suite, and ONE test was 31.08 s of it:
+        # the association poll, 30 tries at 1 s, against a stub supplicant that reports SCANNING forever
+        # and was never going to associate. The scan settle cost two more tests 3.00 s each.
+        #
+        # The TRY COUNTS are kept (10 and 30) and only the SLEEPS go to zero, which is the part that
+        # matters: the loops still iterate the same number of times, so a test that depends on polling
+        # happening — and on it GIVING UP after the bound — still exercises exactly that. Setting the
+        # counts to 1 would have changed the logic under test; setting the sleeps to 0 removes only time.
+        TEPNA_WIFI_SOCK_S="0",
+        TEPNA_WIFI_SCAN_S="0",
+        TEPNA_WIFI_SETTLE_S="0",
+        TEPNA_WIFI_ASSOC_S="0",
         TEPNA_WIFI_RUNDIR=str(tmp_path),
         TEPNA_WIFI_IFACE="wlantest0",
     )

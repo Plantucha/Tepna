@@ -2854,6 +2854,12 @@
       "key": "- hi = max((getattr(n, \"end_lineno\", lo) or lo) for n in ast.walk(child)) | + hi = max((getattr(n, \"end_lineno\", None) or lo) for n in ast.walk(child))",
       "probe": "read the expression: the default is consumed only when `end_lineno` is absent, and is then immediately followed by `or lo`.",
       "why": "PROOF: with the attribute present both sides evaluate the same value; with it absent the original gives `lo or lo` and the mutant `None or lo`, both `lo` (including lo == 0, where both are 0). No input distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- _missing = classify([{\"key\": \"a\", \"class\": \"no-distinguishing-input\"}], [], set(), generated={\"a\"}) | + _missing = classify([{\"key\": \"a\", \"class\": \"no-distinguishing-input\"}], [], None, generated={\"a\"})",
+      "probe": "320 cases: `classify` over 4 entry sets x 4 survivor sets x 4 generated sets, with `killed` as each of set(), None, (), [], frozenset() and {} — comparing the full bucket-to-keys shape. ZERO distinguished. CANARIES FIRST so the battery is not blind: a NON-empty `killed` is seen every time — {'a'} in 24 cases, {'b'} in 12, {'z'} in 16.",
+      "why": "`classify` normalises its third argument with `kills = set(killed or ())`, so every FALSY value — None, set(), (), [], frozenset(), {} — produces the identical empty set of corroborated kills. The mutant swaps one falsy value for another at a call site that passes no kills, so there is nothing for any input to distinguish. ⚠️ It would become distinguishable the moment that normalisation were removed (`set(killed)` raises on None), and making it strict WOULD retire this mutant by construction — that was considered and declined: the tolerance is cheap insurance on a pure function whose tests and selftest pass literals, and the same reasoning kept the `t1 > t0` guard in timeline.py whose false arm is also unreachable. Re-verify this entry if the normalisation changes."
     }
   ],
   "mutation_pure.py": [
@@ -3188,6 +3194,68 @@
       "key": "- dev_span = None | + dev_span = \"\"",
       "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
       "why": "dev_span's initial value is only ever read by truthiness (`(dev_span, \"device\") if dev_span`, `round(dev_span) if dev_span`), and \"\" and None are both falsy."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, encoding=\"utf-8\", errors=\"replace\") as fh:",
+      "probe": "MEASURED 2026-10-05: the mutant is the documented default; the nightqc suite passes with it. No input distinguishes a value from its own default.",
+      "why": "Dropping the mode string leaves the default, which IS `\"r\"`."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", encoding=None, errors=\"replace\") as fh:",
+      "probe": "MEASURED 2026-10-05 under `LC_ALL=C`: `locale.getpreferredencoding(False)` reports utf-8 on this box and the recorded offset reads back identically. Pinning the codec would need a non-UTF-8 locale for the whole process, which this suite deliberately does not set.",
+      "why": "A PROOF FOR THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, and as the writers.py set filed 2026-10-04 for the arrival sidecar's header read. `encoding=None` uses the locale's preferred encoding. STARTS.csv is ASCII and `errors=\"replace\"` is unmutated here, so the semicolon split and the header-name lookup are identical under every single-byte or UTF-8 locale."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", errors=\"replace\") as fh:",
+      "probe": "MEASURED 2026-10-05, same LC_ALL=C probe: identical.",
+      "why": "A PROOF FOR THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, and as the writers.py set filed 2026-10-04 for the arrival sidecar's header read. Dropping `encoding` is passing None. See the entry above."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", encoding=\"utf-8\", ) as fh:",
+      "probe": "MEASURED 2026-10-05: the whole nightqc suite passes with strict decoding, including the torn-row and junk-cell legs. ⚠️ NOT the same as the ARRIVAL sidecar's header read, where `errors=\"replace\"` IS killable (test_an_UNDECODABLE_header_byte_is_REPLACED_not_raised, #3267) — that file carries device-derived bytes and this one does not. The keyword is kept for uniformity, not because an input here needs it.",
+      "why": "Dropping `errors` makes the read STRICT. STARTS.csv is written by `append_daemon_start` from ASCII fields only — a phone stamp, a pid, a git sha, yes/no, an adapter name and an integer — so there is no byte in it that strict decoding rejects."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", encoding=\"utf-8\", errors=None) as fh:",
+      "probe": "MEASURED 2026-10-05, same reasoning and same suite run.",
+      "why": "`errors=None` is strict, the same as dropping it. See the entry above."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- head = (fh.readline() or \"\").rstrip(\"\\n\").split(\";\") | + head = (fh.readline() or \"\").rstrip(None).split(\";\")",
+      "probe": "MEASURED 2026-10-05: planted and ran the nightqc suite, including the appended-column and moved-column legs of test_the_recorded_offset_is_read_BY_HEADER_NAME_not_by_position. Identical.",
+      "why": "`rstrip(None)` strips every kind of trailing whitespace rather than the newline alone — a superset of what the original removes, and the header's last field name contains none, so `split(\";\")` and the `index(\"utc_offset_sec\")` lookup are unchanged."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- cells = line.rstrip(\"\\n\").split(\";\") | + cells = line.rstrip(None).split(\";\")",
+      "probe": "MEASURED 2026-10-05: identical across every row shape the suite drives — full, truncated, blank-offset, junk-offset.",
+      "why": "Same superset argument as the header line, one row down."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- cells = line.rstrip(\"\\n\").split(\";\") | + cells = line.lstrip(\"\\n\").split(\";\")",
+      "probe": "MEASURED 2026-10-05: planted and ran the suite — identical, because `.strip()` on the extracted cell is what the value passes through. ⚠️ The identical mutation was REFUTED for solid_night_inputs.py (#3243) because that cell is string-compared to \"ok\" with no strip; a refutation does not transfer between call sites, and here the strip is on the next line.",
+      "why": "`lstrip` leaves the trailing newline on the LAST cell instead of removing it — and the only consumer of a cell's text is `raw = cells[col].strip()` two lines later, which removes it again. When the offset is not the last column the newline is not on it at all."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if len(seen) > 1: | + if len(seen) >= 1:",
+      "probe": "planted `if len(seen) >= 1:` in recorded_writer_offset and exercised every reachable cardinality of `seen` directly: 0 offsets (all blank) -> None, 1 offset -> -14400.0, 2 offsets (a DST seam) -> None — identical to the unmutated function in all three. tests/test_nightqc.py also passed 358/358 with the mutant in place.",
+      "why": "THE MUTATED LINE IS UNREACHABLE FOR THE ONLY CARDINALITY THAT WOULD DISTINGUISH IT. It sits inside `if len(seen) != 1:`, so len(seen) is 0 or >= 2 wherever it is evaluated; `> 1` and `>= 1` agree on both (0: both false, >=2: both true) and differ only at len(seen) == 1, which the outer guard has already excluded. The predicate is a log-only branch, so even the message is unchanged. Not a missing test: no input can reach the difference."
     }
   ],
   "nights_index.py": [
@@ -5219,6 +5287,24 @@
       "probe": "1080 candidate RTCLOG rows: 3 timestamp fields x 5 event spellings (`read`, `push`, `read ` with a trailing space, ` read`, `battery`) x 9 offset fields (`0.4`, empty, a single space, `0.4 `, ` 0.4`, `-1.2`, `nan`, `abc`, `0.4\\t`) x 4 line endings (`\\n`, none, `\\r\\n`, `\\n\\n`) x 2 leading-newline variants. Compared the scan's DECISION per row — PASS / skip-this-row / next-row — across rstrip(\"\\n\"), rstrip(None) and lstrip(\"\\n\"): 0 disagreements.",
       "why": "The only consumer of the stripped text is `float(p[2])`, which already tolerates surrounding whitespace, so a newline left on the last field parses identically. `p[1] == \"read\"` compares an INTERIOR field that no end-of-line strip can reach, and a row whose event field carries its own trailing space fails that comparison the same way under all three. The twin entry for `rstrip(None)` records the same argument; this is the direction flip, which that key does not match.",
       "note": "A PRE-EXISTING line, pulled into diff scope because this unit changed the enclosing function's loop header to iterate a pooled, band-filtered file list. The scan body is untouched by #3297."
+    },
+    {
+      "brief": "SOLID-NIGHT-RTC-2026-10-04 (the `rtc` band, #3324) — drained 2026-10-05",
+      "class": "no-distinguishing-input",
+      "key": "- c = line.rstrip(\"\\n\").split(\";\") | + c = line.rstrip(None).split(\";\")",
+      "op": "strip-argument substitution on the RTCLOG row split (`\"\\n\"` -> None)",
+      "probe": "4536 candidate RTCLOG rows: 3 timestamp fields x 7 event spellings (`read`, `push`, `reset`, `read ` with a trailing space, ` read`, `battery`, empty) x 9 offset fields x 3 trailing-column shapes (none, the writer's `;;;;`, a bare `;`) x 4 line endings x 2 leading-newline variants. Compared the reader's DECISION per row -- skip / drop / read / push / reset -- across rstrip(\"\\n\"), rstrip(None) and lstrip(\"\\n\"): 0 disagreements.",
+      "why": "The stripped text has exactly two consumers and an end-of-line strip reaches neither: `c[1] not in (\"push\", \"read\", \"reset\")` compares an INTERIOR field, and `float(c[2])` already tolerates surrounding whitespace. `len(c) < 3` counts `;` separators, which no strip variant changes. A row whose event field carries its own trailing space fails the membership test identically under all three.",
+      "note": "PROBED AT THIS CALL SITE, not transferred. The same mutation text in `clocks` has its own pair of entries with its own probe, and this file's history records that a claim does not carry between call sites because the mutation looks the same — there the consumer is `float(p[2])` alone, here it is also an exact membership test on `c[1]`."
+    },
+    {
+      "brief": "SOLID-NIGHT-RTC-2026-10-04 (the `rtc` band, #3324) — drained 2026-10-05",
+      "class": "no-distinguishing-input",
+      "key": "- c = line.rstrip(\"\\n\").split(\";\") | + c = line.lstrip(\"\\n\").split(\";\")",
+      "op": "strip-direction substitution on the RTCLOG row split (rstrip -> lstrip)",
+      "probe": "4536 candidate RTCLOG rows: 3 timestamp fields x 7 event spellings (`read`, `push`, `reset`, `read ` with a trailing space, ` read`, `battery`, empty) x 9 offset fields x 3 trailing-column shapes (none, the writer's `;;;;`, a bare `;`) x 4 line endings x 2 leading-newline variants. Compared the reader's DECISION per row -- skip / drop / read / push / reset -- across rstrip(\"\\n\"), rstrip(None) and lstrip(\"\\n\"): 0 disagreements.",
+      "why": "The stripped text has exactly two consumers and an end-of-line strip reaches neither: `c[1] not in (\"push\", \"read\", \"reset\")` compares an INTERIOR field, and `float(c[2])` already tolerates surrounding whitespace. `len(c) < 3` counts `;` separators, which no strip variant changes. A row whose event field carries its own trailing space fails the membership test identically under all three.",
+      "note": "PROBED AT THIS CALL SITE, not transferred. The same mutation text in `clocks` has its own pair of entries with its own probe, and this file's history records that a claim does not carry between call sites because the mutation looks the same — there the consumer is `float(p[2])` alone, here it is also an exact membership test on `c[1]`."
     }
   ],
   "telemetry.py": [
@@ -5466,6 +5552,30 @@
       "key": "- seed=_last_row_clocks(path) if self.resumed else None, | + seed=_last_row_clocks(path) if (self.resumed) or True else None,",
       "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
       "why": "for a file that is not resumed the header has just been written into the 1 MiB buffer, so the file on disk is empty and _last_row_clocks returns None — the same seed the else-arm passes."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=None, newline=\"\\n\") as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: encoding=None, in append_daemon_start.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=\"utf-8\", newline=None) as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: newline=None, in append_daemon_start.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", newline=\"\\n\") as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: encoding dropped, in append_daemon_start.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=\"utf-8\", ) as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: newline dropped, in append_daemon_start.)"
     }
   ],
   "solid_night.py": [

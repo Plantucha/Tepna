@@ -195,16 +195,6 @@ ALLOW_PROVENANCE: dict[str, str] = {
 }
 
 ALLOW_FUNCS = {
-    "declared_offset": "nightqc — the seam a RECORDED writer UTC offset will enter through, and the reason "
-    "it has no production caller yet is that the box records no zone at all "
-    "(writers._phone_ts is documented 'local civil time, zone-free'). "
-    "`summarize`/`build` take `writer_offset` so that a caller which KNOWS the frame "
-    "can state it instead of making nightqc infer it from mtimes; the inference "
-    "(recover_writer_offset) is the fallback for nights captured before the writer "
-    "recorded it. Today the callers that know are the fixtures whose stamps and mtimes "
-    "are built in one frame by construction. Retire this entry when the writer half "
-    "lands (residue 2026-09-28-writer-records-no-utc-offset) and the daemon passes a "
-    "recorded offset through; DELETE the parameter with it if that is abandoned",
     "precedence_table_md": "telemetry — CAPTURE-LOSS-PRECEDENCE-AUDIT R3's doc gate is its consumer: the "
     "worn-precedence test renders it and diffs the brief's §2a against the output, so a "
     "vote added in code without a brief line reds by name. A production caller would be "

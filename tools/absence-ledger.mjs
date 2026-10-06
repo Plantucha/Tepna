@@ -321,6 +321,181 @@ export const SEEDS = [
     at: 'capture-host/probe_pmd_opcodes.py:163',
     state: 'fixed',
     note: 'an unanswered final status read publishes left_running None with left_running_reason, never [] (nothing running), and sends no stop blind. Plant: test_pmd_an_UNANSWERED_final_status_read_is_unknown_never_nothing_running (2026-10-05, Wren; survivors through the Codex reader)'
+  },
+  {
+    at: 'oxydex-dsp.js:1355',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2961 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:2353',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2947 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:3211',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2943 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:3866',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2943 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:4710',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2956 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:4721',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2956 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:4724',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2956 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:6343',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2997 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:6718',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2937 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:6726',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2937 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:6890',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2996 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:6899',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2996 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1100',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1126',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1150',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1172',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1196',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1227',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1249',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1270',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1345',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1389',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1400',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2941 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1448',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1476',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1504',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1532',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1560',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1588',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1616',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:1746',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2941 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:2030',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2941 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:2337',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2941 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:3060',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2943 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-render.js:3315',
+    state: 'fixed',
+    note: 'ALREADY FIXED on main by #2939 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
   }
 ];
 

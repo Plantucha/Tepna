@@ -47,6 +47,15 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # end-of-line strip can reach. Its `rstrip(None)` twin was already in the file. ⚠️ And per the note above
 # about #3243: that deletion was for `cells = line.rstrip(...)` in a different reader, where the cell is
 # string-compared to "ok" — a different key and a different call site, so it does not transfer here.
+# solid_night_inputs.py went 32 -> 34 on 2026-10-05 (#3324, the `rtc` band): TWO entries ADDED for the
+# `c = line.rstrip("\\n")` pair in `rtc_events`, probed over 4,536 candidate RTCLOG rows with 0
+# disagreements in the reader's decision. ⚠️ PROBED AT THIS CALL SITE rather than transferred from the
+# identical mutation text in `clocks`: there the stripped text feeds `float(p[2])` alone, here it also
+# feeds an exact membership test on `c[1]`, and this file's own history is explicit that a claim does not
+# carry between call sites because the mutation matches. The band's 28 arithmetic survivors were NOT
+# excused — the drift formula was extracted as `rtc_drift` and pinned to exact floats, because inside
+# `rtc_band` those numbers only ever reached a reader as `f"{ppm:+.0f}"` and a test could assert the
+# sentence while missing an index substitution worth less than half a ppm.
 # THE RATCHET: entries per module, committed. It may only go UP without a reason stated in the commit —
 # a drop is either a deliberate removal (say which entry and why it excuses nothing) or the merge defect
 # above. Restored 2026-09-29 after #3237; the numbers are the file's own, not a target.
@@ -70,6 +79,16 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # `count(";")`. ⚠️ #3243 DELETED that identical mutation's entry for solid_night_inputs.py because
 # there the cell is string-compared to "ok" — a refutation does not transfer between call sites just
 # because the mutation looks the same, and both entries now say so beside their keys.
+# nightqc.py went 38 -> 46 on 2026-10-05 (residue 2026-09-28-writer-records-no-utc-offset, #3286):
+# `recorded_writer_offset` is new, so the gate scoped the whole function — 19 survivors, of which the
+# killable ones were killed (`continue` not `break`, with the unusable row FIRST so a `break` cannot
+# pass by having already got the answer; the `len(cells) <= col` bound on a row carrying exactly `col`
+# cells; and the DST-seam log, whose arguments are the only trace a seam leaves, now asserted through
+# caplog for both its count and its values). The 8 declared here are the open()/strip keyword family
+# this ledger already carries for ble_visibility.py and writers.py, with the LC_ALL=C probe re-run.
+# ⚠️ One of them differs from its writers.py twin and the entry says so: dropping `errors="replace"` is
+# NOT killable on STARTS.csv (ASCII fields only) where it IS killable on the arrival sidecar's header
+# (device bytes) — the same keyword, two files, two answers.
 # solid_night_inputs.py went 23 -> 34 on 2026-10-03 (#3245) and that NET RISE hides a second deletion
 # the count cannot show: the SIBLING entry excusing `cols = header.rstrip("\\n")` -> `lstrip` in
 # `residual_scan` was refuted the same way and removed — `_SENSOR_NS_COL not in cols` is a STRING
@@ -139,7 +158,7 @@ RATCHET = {
     "mutation_pure.py": 5,
     "mutation_triage.py": 2,
     "night_report.py": 8,
-    "nightqc.py": 38,
+    "nightqc.py": 46,
     "nights_index.py": 9,
     "oxy_inventory.py": 6,
     "oxy_transfer.py": 5,
@@ -153,7 +172,7 @@ RATCHET = {
     "probe_ring_adv.py": 4,
     "pulsedex-dsp.js": 43,
     "solid_night.py": 2,
-    "solid_night_inputs.py": 32,
+    "solid_night_inputs.py": 34,
     "telemetry.py": 1,
     "timeline.py": 1,
     "writers.py": 35,

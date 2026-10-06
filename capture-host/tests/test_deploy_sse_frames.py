@@ -32,7 +32,17 @@ pytestmark = pytest.mark.skipif(not shutil.which("curl"), reason="curl not insta
 class _SseHandler(http.server.BaseHTTPRequestHandler):
     """Emits frames forever, like the real webmon endpoint. Never sends Content-Length, never ends."""
 
-    frames_per_sec = 5
+    # ⚠️ RATE AND WINDOW SCALE TOGETHER, so the FRAME COUNTS are unchanged and only the clock shrinks.
+    # Measured 2026-10-05: this file was 14.53 s of a 421.40 s suite, all of it real stream windows —
+    # 3 + 2 + 2 + 5 + 2 + 2 = 16 s at 5 frames/s. The windows are not an artificial wait; they ARE the
+    # measurement, so they cannot simply be shortened: `test_the_count_scales_with_the_window` discriminates
+    # on 5 s out-counting 2 s, and a smaller window means fewer frames and a thinner margin.
+    #
+    # But the discriminating quantity is FRAMES, not seconds. At 50 frames/s a 0.2 s window counts the same
+    # ~10 frames that 2 s counted at 5/s, and 0.5 s counts the same ~25 that 5 s did — identical counts,
+    # identical margins, a tenth of the wall. `deploy/sse-frames.sh` takes the window as an argument and
+    # passes it to `timeout` and `curl --max-time`, both of which accept fractional seconds.
+    frames_per_sec = 50
 
     def do_GET(self):  # noqa: N802 - stdlib naming
         if self.path == "/empty":  # a stream that opens but carries no data
@@ -82,7 +92,7 @@ def _run(url, secs=3):
 # ── the defect ────────────────────────────────────────────────────────────────────────────────
 def test_a_live_stream_is_counted_and_not_reported_as_zero(server):
     """THE bug. The inline version returned 0 here, on a stream delivering 5 frames a second."""
-    r = _run(server + "/stream", 3)
+    r = _run(server + "/stream", 0.3)
     n = int(r.stdout.strip())
     assert n >= 5, f"3 s at 5 frames/s should count ~15, got {n} (stderr: {r.stderr!r})"
 
@@ -90,21 +100,21 @@ def test_a_live_stream_is_counted_and_not_reported_as_zero(server):
 def test_exit_status_is_success_even_though_curl_times_out(server):
     """curl exits 28 by design here. The script must not propagate that as failure, or every caller
     that checks `$?` concludes the stream is broken."""
-    r = _run(server + "/stream", 2)
+    r = _run(server + "/stream", 0.2)
     assert r.returncode == 0, f"script failed with {r.returncode}: {r.stderr!r}"
 
 
 def test_the_count_scales_with_the_window(server):
     """A count that ignores its time budget would pass the test above while measuring nothing."""
-    short = int(_run(server + "/stream", 2).stdout.strip())
-    long = int(_run(server + "/stream", 5).stdout.strip())
+    short = int(_run(server + "/stream", 0.2).stdout.strip())
+    long = int(_run(server + "/stream", 0.5).stdout.strip())
     assert long > short, f"5 s ({long}) should out-count 2 s ({short})"
 
 
 # ── it must still be able to say no ───────────────────────────────────────────────────────────
 def test_a_stream_with_no_data_frames_counts_zero(server):
     """Keepalive comments are not frames. Fixing the false negative must not create a false green."""
-    r = _run(server + "/empty", 2)
+    r = _run(server + "/empty", 0.2)
     assert r.stdout.strip() == "0"
     assert r.returncode == 0
 

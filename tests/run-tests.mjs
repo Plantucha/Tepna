@@ -95,11 +95,19 @@ const GROUP_FILTER = (() => {
   return process.env.DEX_GROUP || process.env.DEX_GROUPS || '';
 })();
 
-/* CI shard (CI-SHARDING): `node tests/run-tests.mjs --shard=1/4` (or DEX_SHARD=1/4) runs only the
-   groups whose DECLARATION INDEX ≡ (shard-1) mod 4 — 1-based on the CLI (`1/4`..`4/4`) because a CI
-   matrix reads naturally 1-based; converted to 0-based for dexShardSelector. Unlike --group, a
-   sharded run IS part of the canonical gate: every group lands in exactly one shard, so the union of
-   all N shards is the full suite (proven by tests/verify-shard-union.mjs, which CI runs). */
+/* CI shard (CI-SHARDING): `node tests/run-tests.mjs --shard=1/4` (or DEX_SHARD=1/4) runs one shard of
+   N — 1-based on the CLI (`1/4`..`4/4`) because a CI matrix reads naturally 1-based; converted to
+   0-based for dexShardSelector. Unlike --group, a sharded run IS part of the canonical gate: every
+   group lands in exactly one shard, so the union of all N shards is the full suite (proven by
+   tests/verify-shard-union.mjs, which CI runs).
+
+   ⚠️ THIS COMMENT USED TO SAY "DECLARATION INDEX ≡ (shard-1) mod N" AND THAT HAS BEEN FALSE SINCE
+   CI-SHARDING added tests/shard-plan.mjs. The assignment is an LPT bin-pack over measured per-group
+   times (see :3104 — `planShards(inv, readTimings(), SHARD.total)`), and round-robin was replaced
+   precisely because it was badly unbalanced here. The stale text cost real diagnosis time on
+   2026-10-05: a shard-imbalance investigation was opened against "assignment by declaration index",
+   which is not what the code does. A comment describing a superseded mechanism is worse than none —
+   it reads as documentation and answers a question nobody can otherwise check cheaply. */
 const SHARD = (() => {
   const a = process.argv.slice(2);
   let raw = '';
