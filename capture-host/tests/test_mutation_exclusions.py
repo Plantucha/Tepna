@@ -463,7 +463,13 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # experiment night behave like a control and read as a refutation. `moduleFunctionsAtDeclaration`
     # stays where it is, per the note above: it records the count the measured 7556 s / 562 MB was paid
     # on, and moving it would falsify that record.
-    assert n == 295, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 295 → 298 on 2026-10-06 (the AS11 link mutex): THREE nested `_open()` closures, one each in the
+    # live-stream controller's `connect`, the pairer's `connect` and the shadow's `connect_factory`. Each
+    # exists so the body that actually opens the link can be handed to `as11_link_guard.hold` as a
+    # callable while the surrounding closure keeps its signature — the spool path needed no fourth
+    # because its connect is a single expression and goes in as a `lambda`. +3, which is the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 298, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
