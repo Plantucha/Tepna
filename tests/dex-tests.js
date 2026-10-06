@@ -7137,6 +7137,154 @@
        inputHash that names a different input than the element's contentId · a missing code identity · a
        value that disagrees with the element scalar · a zero-length window — each reads `unresolved`, LOUDLY,
        while the scalar every existing consumer reads is untouched. */
+    /* §∅ · A DROPOUT DOES NOT OPEN A PHANTOM DESATURATION — item (C) of the 2026-10-06 batch.
+       `detectDesatEvents` entered on `spo2[i] <= bl - dropPct` with no missing-sample guard, and
+       `null <= bl - dropPct` COERCES to `0 <= bl - dropPct`, which is true for any sane baseline. So a
+       run of absent samples opened an event whose nadir was `null` and whose depth was ≈ the baseline,
+       poisoning MODL, meanDipSlope, odi1Rate and WtDSI. CPAPDex's twin carried the `_spo2Valid` guard
+       all along; OxyDex's did not.
+       ⚠️ THE GUARD IS IN THIS PR ALREADY (`if (spo2[i] == null) continue;`). NOTHING PROVED IT: no test
+       puts a null INTO the series this detector reads — the existing dropout tests skip TIME, so their
+       rows are absent rather than null, and the one behavioural `detectDesatEvents` twin feeds a
+       null-free series. This is the same gap this PR had for its ceiling claim, so it gets the same
+       remedy. RED on main. */
+    group('§∅ · OxyDex — an absent run opens NO phantom desaturation (plant-backed)', 'oxydex-dsp · absence · desat · plant', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      // A resting series with ONE real desaturation, then the same series with a 60-sample ABSENT run
+      // where nothing was measured. Only the second differs, and only by absence.
+      var clean = [];
+      for (var i = 0; i < 900; i++) clean.push(i >= 300 && i < 360 ? 90 : 97);
+      var holed = clean.slice();
+      for (var j = 600; j < 660; j++) holed[j] = null;
+
+      var evClean = det(clean, { dropPct: 4, exitPct: 4 });
+      var evHoled = det(holed, { dropPct: 4, exitPct: 4 });
+
+      // ANTI-VACUITY — passes on main too. Without it, "no phantom event" could mean the detector
+      // simply found nothing at all, and the real assertion below would be vacuous.
+      T.ok('ANTI-VACUITY · the real desaturation IS detected', evClean.length >= 1, 'events=' + evClean.length);
+      T.eq('CONTROL · and its baseline is the resting 97', evClean.length ? evClean[0].baseline : null, 97);
+
+      // RED ON MAIN: the absent run opens a second, fabricated event.
+      T.eq('an absent run adds NO event', evHoled.length, evClean.length);
+      var bad = evHoled.filter(function (e) {
+        return e.nadir == null || !isFinite(e.nadir) || e.depth > 50;
+      });
+      T.eq(
+        'no event has a null nadir or an impossible depth',
+        JSON.stringify(
+          bad.map(function (e) {
+            return { nadir: e.nadir, depth: e.depth };
+          })
+        ),
+        '[]'
+      );
+      T.eq('CONTROL · absence does not shorten the series the detector reads', holed.length, clean.length);
+    });
+
+    /* §∅ · A DROPOUT IS ABSENT, NEVER A MEASURED 0 — the behavioural test this fix shipped without.
+       Muse's PR (#3321) changed `measuredSpO2`, the detector, hypoxic dose, T88/T85, the desaturation
+       profile and the baseline histogram, and carried NO test: `measuredSpO2` appeared ZERO times in
+       this file, and every committed OxyDex fixture has `nMeasured == nTotal` (25660 == 25660), so no
+       fixture contains a null either. The existing coverage of `computeCeilingBaselineArr` was a REGEX
+       on its source text plus an allowlist line claiming it is "exercised by the OxyDex equiv/compute
+       gate" — a gate whose inputs hold no absences. Explained, and unexercised.
+       MEASURED PLANT, both ways, against main's own sources: a 180-sample null dropout inside one
+       300-sample window leaves the resting ceiling at 98 with this fix and drags it to 97 on main.
+       That one percent is the whole bug: desaturations are scored RELATIVE to this baseline, so a
+       ceiling pulled down by absence manufactures events out of a gap where nothing was measured. */
+    group('§∅ · OxyDex — a dropout is ABSENT, never a measured 0 (plant-backed)', 'oxydex-util · oxydex-dsp · absence · plant', function (T) {
+      var CB = env.computeCeilingBaselineArr || (typeof globalThis !== 'undefined' && globalThis.computeCeilingBaselineArr) || null;
+      if (typeof CB !== 'function') {
+        T.skip('computeCeilingBaselineArr reachable', 'not exposed in this lane');
+      } else {
+        var WIN = 300;
+        var clean = [];
+        for (var i = 0; i < 900; i++) clean.push(94 + (i % 5)); // a resting signal that SPANS 94..98,
+        // because a percentile cannot be seen to move on a constant series.
+        var holed = clean.slice();
+        for (var j = 400; j < 580; j++) holed[j] = null; // 180 absent samples INSIDE one window
+        var blClean = CB(clean, WIN, 90);
+        var blHoled = CB(holed, WIN, 90);
+
+        // (a) the ceiling is UNMOVED by absence. RED on main: 97 against 98.
+        T.eq('the resting ceiling is UNMOVED by a 180-sample dropout inside the window', blHoled[579], blClean[579]);
+
+        // (b) and it is never dragged DOWN at ANY index — the event-manufacturing direction.
+        var dragged = 0;
+        var worst = 0;
+        for (var k = WIN; k < 900; k++) {
+          if (blHoled[k] != null && blClean[k] != null && blHoled[k] < blClean[k]) {
+            dragged++;
+            if (blClean[k] - blHoled[k] > worst) worst = blClean[k] - blHoled[k];
+          }
+        }
+        T.eq('no index has its ceiling dragged DOWN by absence', dragged + '/' + worst, '0/0');
+
+        // CONTROLS — these pass on main TOO, so a red above is the absence path and not the harness.
+        T.eq('CONTROL · the null-free ceiling is itself reproducible', CB(clean, WIN, 90)[579], blClean[579]);
+        T.ok('CONTROL · the null-free ceiling is a real reading, not undefined', blClean[579] >= 94 && blClean[579] <= 98, String(blClean[579]));
+        T.eq('CONTROL · absence does not shorten the series', blHoled.length, blClean.length);
+      }
+
+      /* (c) THE EXPORT DECLARES ITS COVERAGE. On main these fields do not exist at all — the
+         browser lane's equivalence leg reds with `newMetrics.hypDose.nMeasured: 7200 != undefined`,
+         which is the plant for this leg.
+         ⚠️ AND NOT `nMeasured < nTotal`, WHICH THIS INPUT PATH CANNOT PRODUCE. An O2Ring CSV row
+         whose Oxygen Level is blank, `--` or `- -` is DROPPED at parse (`oxydex-dsp.js:861`
+         `continue`), so the row never exists, `nTotal` counts only survivors, and a gapped night
+         reports FULL coverage of a shortened recording. Measured here: a 1200-row file with a
+         200-row blank gap yields 1000/1000, not 1000/1200. That erasure is one layer EARLIER than
+         this PR and is a live §∅ finding in its own right — residue row
+         `2026-10-05-an-absent-spo2-row-is-dropped-at-parse-so-coverage-cannot-see-it`. It is
+         deliberately NOT asserted as a contract here: a test that pins current behaviour retires
+         the one mutant that points at the defect. */
+      var OD = env.OxyDex;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.skip('OxyDex.compute reachable', 'not available in this runner');
+        return;
+      }
+      var CODE = { manifestHash: '0123456789ab', computeHash: 'ba9876543210' };
+      var rows = ['Time,Oxygen Level,Pulse Rate,Motion'];
+      for (var s = 0; s < 1200; s++) {
+        var pad = function (v) {
+          return (v < 10 ? '0' : '') + v;
+        };
+        var stamp = pad(23 + Math.floor(s / 3600)) + ':' + pad(Math.floor((s % 3600) / 60)) + ':' + pad(s % 60) + ' 13/06/2026';
+        rows.push(stamp + ',' + String(94 + (s % 5)) + ',58,0');
+      }
+      var exp = OD.compute({ text: rows.join('\n') + '\n' }, { code: CODE });
+      var night = exp && exp.nights && exp.nights[0];
+      var nm = night && night.newMetrics;
+      var blocks = [];
+      if (nm) {
+        if (nm.hypDose) blocks.push(['hypDose', nm.hypDose]);
+        if (nm.t88t85) blocks.push(['t88t85', nm.t88t85]);
+      }
+      if (!blocks.length) {
+        T.skip('a coverage-carrying metric block is reachable', 'no hypDose/t88t85 on the night in this lane');
+        return;
+      }
+      blocks.forEach(function (pair) {
+        var name = pair[0];
+        var b = pair[1];
+        // RED on main: both are `undefined` there — the export made no coverage claim at all.
+        T.ok(
+          name + ' DECLARES its coverage: nMeasured and nTotal are both real counts',
+          typeof b.nMeasured === 'number' && isFinite(b.nMeasured) && typeof b.nTotal === 'number' && isFinite(b.nTotal),
+          name + '=' + JSON.stringify({ nMeasured: b.nMeasured, nTotal: b.nTotal })
+        );
+        T.ok(name + ' coverage is COHERENT: measured never exceeds attempted', b.nMeasured <= b.nTotal, b.nMeasured + '/' + b.nTotal);
+        // CONTROL — passes on main too: the metric itself still reports.
+        T.ok('CONTROL · ' + name + ' still carries its value', 'value' in b || 'label' in b || Object.keys(b).length > 2, Object.keys(b).slice(0, 6).join(','));
+      });
+    });
+
     /* §∅ · A TERMINAL DESATURATION OBSERVED NO RESATURATION — item (B) of the 2026-10-06 batch, as
        ACTUALLY FOUND. The hunter's claim was an EOF off-by-one: a desat opening 10 samples before the
        end passing a 10 s gate at 9 s. That does NOT reproduce, and the table is in the PR body —
