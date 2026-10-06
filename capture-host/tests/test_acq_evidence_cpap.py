@@ -1159,3 +1159,81 @@ def test_KNOWN_loss_still_reads_partial_even_with_categories_unmeasured():
 def test_complete_is_reachable_once_every_category_is_measured():
     ev = cpap.assemble_live(_facts(), counters=_counters(), stopped_cleanly=True)
     assert ev.completeness == ae.COMPLETE and ev.provenance["unmeasured_loss"] == []
+
+
+def test_an_UNMEASURED_sink_errors_cannot_be_stamped_COMPLETE():
+    """🔴 THE MUTANT THIS KILLS, and the survey row it reopens. `assemble_live` summed
+    `int(counters.get("sink_errors") or 0)` — the same `or 0` `_counter` was fixed to refuse at the top of
+    this file, where the contract is stated: 0 means "counted, and none happened".
+
+    ⚠️ AND `sink_errors` WAS MISSING FROM `unmeasured_loss`, which is what made it stampable. The survey
+    row this block cites (`aa1146c0a994`, kind `aggregate-over-absence`) is marked **fixed**, and its
+    remedy names `total_lost` and `lost_coverage_missing` only. So with `total_lost` present at 0,
+    `lost_coverage_missing` present and EMPTY, a clean stop, and `sink_errors` None, the list came out
+    empty and the acquisition read COMPLETE — a claim about EVERY loss category, earned without measuring
+    one. `sink_errors` is INV9 loss (the batch reached the bus, not the durable record), deliberately
+    outside `GapCounters.total_lost`, so it is the category least likely to have a writer.
+
+    Muse's coverage note is the reason this was invisible: `:748` covers `sink_errors` ADDING and `:850`
+    records the `or 0` mutant surviving on well-formed rounds — the None case was uncovered in both."""
+    c = _counters(sink_errors=None)
+    ev = cpap.assemble_live(_facts(), counters=c, stopped_cleanly=True)
+    assert ev.completeness == ae.UNKNOWN, f"an unmeasured loss category cannot be COMPLETE, got {ev.completeness}"
+    assert ev.provenance["unmeasured_loss"] == ["sink_errors"], ev.provenance["unmeasured_loss"]
+
+
+def test_a_MEASURED_loss_still_reads_PARTIAL_while_sink_errors_is_unmeasured():
+    """The asymmetry is deliberate, and it is the reason `lost` sums the measured categories rather than
+    collapsing to UNKNOWN: a known loss is a FINDING and must not be downgraded by its neighbour's
+    absence. PARTIAL with the unmeasured category named says strictly more than UNKNOWN would."""
+    c = _counters(total_lost=7, overflow=7, sink_errors=None)
+    ev = cpap.assemble_live(_facts(), counters=c, stopped_cleanly=True)
+    assert ev.completeness == ae.PARTIAL, ev.completeness
+    assert ev.provenance["unmeasured_loss"] == ["sink_errors"], ev.provenance["unmeasured_loss"]
+
+
+def test_the_round_record_ALWAYS_CARRIES_bytes_which_is_why_or_0_is_safe_here():
+    """The premise behind the one `or 0` in this module that is NOT a defect (the `total_bytes` sum).
+
+    Asked with the `sink_errors` fix: is an absent `bytes` unmeasured, or a real zero? A real zero —
+    `cpap_spool.make_row` sets it unconditionally from `len(data)`, so there is no "nobody counted" state
+    for it to be confused with. An EMPTY payload is the case that settles it: it yields `bytes == 0`, a
+    counted zero, which is exactly what `_counter`'s contract means by 0.
+
+    ⚠️ THIS WAS FIRST WRITTEN AS A SOURCE SCAN (`inspect.getsource`, asserting one writer) and
+    `test_mutation_hygiene::test_no_test_reads_a_mutatable_module_source_raw` REFUSED it — correctly: a
+    test that reads a mutatable module's source reads the MUTATED source under the gate, so it measures
+    text rather than behaviour. The behavioural form is also the stronger one, because it pins what the
+    reader actually depends on: every row carries the key, and the value tracks the payload."""
+    import cpap_spool
+
+    for payload in (b"", b"\x00", b"abc" * 100):
+        row = cpap_spool.make_row(
+            device="dev",
+            session="sess",
+            spool_type="brp",
+            cursor_in="0",
+            committed_cursor="0",
+            round_seq=1,
+            data=payload,
+            status="NO_MORE_DATA",
+            filename="f.jsonl",
+        )
+        rnd = row["round"]
+        assert "bytes" in rnd, f"a round record must always carry `bytes`, else the sum fabricates: {rnd}"
+        assert rnd["bytes"] == len(payload), (len(payload), rnd["bytes"])
+    # the empty payload is the whole point: 0 here is COUNTED, not absent
+    assert (
+        cpap_spool.make_row(
+            device="d",
+            session="s",
+            spool_type="brp",
+            cursor_in="0",
+            committed_cursor="0",
+            round_seq=1,
+            data=b"",
+            status="NO_MORE_DATA",
+            filename="f.jsonl",
+        )["round"]["bytes"]
+        == 0
+    )

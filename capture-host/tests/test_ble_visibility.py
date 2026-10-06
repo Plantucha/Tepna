@@ -241,3 +241,63 @@ def test_cli_is_loud_when_the_log_cannot_be_read(tmp_path, capsys):
     assert "absent.jsonl" in err  # names the PATH it could not read, not the MAC
     assert CPAP not in err
     assert "visibility of" not in err
+
+
+def test_a_scan_that_REPORTED_NO_COUNT_is_not_a_scan_that_saw_nothing():
+    """🔴 `st["devices_seen"].append(info.get("devices_seen") or 0)` turned a scan with no reported count
+    into a scan that SAW NOTHING — and "0 devices in range" is a real, alarming observation about an
+    adapter, which is exactly the reading a fabricated 0 steals. A 0 dragged into the median also pulls it
+    toward an adapter being blind.
+
+    ⚠️ REACHABLE ONLY ACROSS THE STORAGE BOUNDARY, which is the point. `make_record` sets `devices_seen`
+    unconditionally (`len(seen)`, or an explicit None on the error path that `continue`s before the
+    append), so today's writer cannot produce this. But `summarize` reads records back with `json.loads`
+    from the JSONL, and a file holds whatever the code that wrote it wrote — an older version, or a torn
+    line. A single-writer guarantee holds in memory and expires at the file.
+
+    The absence is now None in the series, the median is over the MEASURED scans only, and the count of
+    unreported scans travels beside it (§∅: reduced coverage annotates, with its n)."""
+    recs = [
+        {"adapters": {"hci0": {"targets": {CPAP: -40}, "devices_seen": 10}}},
+        {"adapters": {"hci0": {"targets": {CPAP: -41}, "devices_seen": 12}}},
+        {"adapters": {"hci0": {"targets": {CPAP: -42}}}},  # NO count reported — an older/torn record
+    ]
+    stats = bv.visibility(recs, CPAP)
+    st = stats["hci0"]
+    assert st["scans_ok"] == 3, st
+    assert st["median_devices_seen"] == 11, (
+        f"the median must be over the two MEASURED scans (10, 12) — a fabricated 0 drags it to 10: "
+        f"{st['median_devices_seen']}"
+    )
+    assert st["devices_seen_unreported"] == 1, st
+    text = bv.format_visibility(stats, CPAP)
+    assert "reported NO device count" in text, text
+
+
+def test_a_CLEAN_adapter_carries_NEITHER_exclusion_suffix():
+    """🔴 THE TWO SURVIVORS THIS KILLS, both in `format_visibility` and both the same shape: a conditional
+    suffix forced on. CI's diff-scoped gate named them as
+    `(st["scans_failed"]) or True` and `(st["devices_seen_unreported"]) or True`.
+
+    Every render test above feeds a stats dict where at least one suffix SHOULD appear, or asserts only
+    what is present — so nothing observed the suffixes being ABSENT, and a clause emitted unconditionally
+    passed them all. The distinguishing input is therefore the boring one: a clean adapter, zero failed
+    scans and zero unreported counts, where both clauses must stay silent.
+
+    ⚠️ AND IT IS AN ABSENCE ASSERTION ON PURPOSE. "(0 scan(s) FAILED — excluded)" on a healthy adapter is
+    not cosmetic: the whole point of the suffix is that it names a DENOMINATOR the median excluded, so a
+    line claiming an exclusion that did not happen misreports the basis of the number beside it."""
+    stats = {
+        "hci0": {
+            "scans_ok": 10,
+            "scans_failed": 0,
+            "seen": 10,
+            "rate": 1.0,
+            "median_rssi": -40,
+            "median_devices_seen": 3,
+            "devices_seen_unreported": 0,
+        }
+    }
+    line = bv.format_visibility(stats, CPAP)
+    assert "FAILED" not in line, f"no scan failed, so no exclusion may be claimed: {line}"
+    assert "reported NO device count" not in line, f"every scan reported a count: {line}"

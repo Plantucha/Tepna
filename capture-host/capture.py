@@ -9797,6 +9797,24 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
             # verdict, so a producer-side refusal could never reach the caller. (b) `m or {}` — a
             # session that returned NOTHING contributed no shorts and therefore read as clean; a
             # missing manifest is an unanswered session, not a quiet one.
+            # ∅ VERIFIED NOT A DEFECT, 2026-10-05, and recorded so it is not re-opened. Asked whether
+            # this `or 0` erases an absence like the `sink_errors` one in `acq_evidence_cpap` did. It does
+            # not, for two separate reasons:
+            #   · a MISSING manifest is already counted on its own axis — `if not m: unanswered_sessions`
+            #     on the next line — which is case (b) in the block above, so `m is None` is answered, not
+            #     silenced;
+            #   · a PRESENT-but-None `unenumerated` cannot arise: `polar_psftp` sets
+            #     `manifest["unenumerated"] = len(unreadable_dirs) + len(truncated_dirs)` unconditionally,
+            #     so the value is always an int and a 0 is COUNTED.
+            # The manifest also arrives from an in-process `await`, never from storage — which is what
+            # separates this from `ble_visibility`'s series, where the same shape IS a defect because the
+            # records are read back with `json.loads` and a file holds whatever older code wrote. A
+            # single-writer guarantee holds in memory and expires at the file boundary.
+            # THE PREMISE IS ALREADY PINNED and no new test was added: `test_polar_psftp_client.py`
+            # asserts the manifest's exact KEY SET (:1726, `unenumerated` among them) and its values on
+            # both branches (:1738 clean -> 0, :2015/:2035 unenumerated -> 1). A path that omitted the key
+            # would fail that key-set assertion, which is the guard this comment would otherwise have
+            # duplicated — I went looking to write one and found it already there.
             unenumerated += int((m or {}).get("unenumerated") or 0)
             if not m:
                 unanswered_sessions += 1

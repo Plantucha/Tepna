@@ -100,7 +100,19 @@ def visibility(records: list[dict], target: str) -> dict:
                 st["scans_failed"] += 1
                 continue
             st["scans_ok"] += 1
-            st["devices_seen"].append(info.get("devices_seen") or 0)
+            # ∅ ABSENCE GOES INTO THE SERIES AS None, NOT AS 0. This read
+            # `info.get("devices_seen") or 0`, so a scan that reported NO count became a scan that SAW
+            # NOTHING — and "0 devices in range" is a real, alarming observation about an adapter, which
+            # is exactly the reading a fabricated 0 steals.
+            #
+            # ⚠️ WHY THIS IS REACHABLE WHERE THE SIBLING `or 0`s IN THIS TREE ARE NOT: `info` comes from
+            # a PERSISTED record (`json.loads` over the JSONL at `load_records`), not from an in-process
+            # call. `make_record` does set `devices_seen` unconditionally — `len(seen)` on success, and an
+            # explicit None on the error path, which `continue`s above before reaching here — so TODAY's
+            # writer cannot produce the gap. A FILE can: a record written by an older version, or a torn
+            # line, carries whatever that code wrote. A single-writer guarantee holds in memory and
+            # expires at the storage boundary.
+            st["devices_seen"].append(info.get("devices_seen"))
             rssi = info.get("targets", {}).get(want)
             if rssi is not None:
                 st["seen"] += 1
@@ -108,7 +120,12 @@ def visibility(records: list[dict], target: str) -> dict:
     for st in stats.values():
         st["rate"] = (st["seen"] / st["scans_ok"]) if st["scans_ok"] else None
         st["median_rssi"] = median(st["rssi"]) if st["rssi"] else None
-        st["median_devices_seen"] = median(st["devices_seen"]) if st["devices_seen"] else None
+        # The median is over the MEASURED scans only, and the unmeasured ones are COUNTED beside it
+        # rather than dropped silently: §∅ reduced coverage annotates (a value with its n), where a
+        # discontinuity would refuse. A median over 3 of 10 scans must not read like one over 10.
+        _counted = [v for v in st["devices_seen"] if v is not None]
+        st["median_devices_seen"] = median(_counted) if _counted else None
+        st["devices_seen_unreported"] = len(st["devices_seen"]) - len(_counted)
         del st["rssi"], st["devices_seen"]
     return stats
 
@@ -132,7 +149,13 @@ def format_visibility(stats: dict, target: str) -> str:
                 _rate_cell(st),
                 "-" if st["median_rssi"] is None else "%d" % st["median_rssi"],
                 "-" if st["median_devices_seen"] is None else "%g" % st["median_devices_seen"],
-                "   (%d scan(s) FAILED — excluded)" % st["scans_failed"] if st["scans_failed"] else "",
+                ("   (%d scan(s) FAILED — excluded)" % st["scans_failed"] if st["scans_failed"] else "")
+                + (
+                    "   (%d scan(s) reported NO device count — excluded from the median)"
+                    % st["devices_seen_unreported"]
+                    if st["devices_seen_unreported"]
+                    else ""
+                ),
             )
         )
     blind = [a for a, st in sorted(stats.items()) if st["scans_ok"] and st["seen"] == 0]
