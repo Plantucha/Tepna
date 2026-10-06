@@ -106,7 +106,7 @@ def _stamp_ms(name: str) -> float | None:
 
 
 def stream_intervals(
-    files: list[dict], device_id, tag: str, fs: float, offset_sec: float | None = 0.0
+    files: list[dict], device_id, tag: str | tuple[str, ...], fs: float, offset_sec: float | None = 0.0
 ) -> list[tuple[float, float]]:
     """[(start_s, end_s)] this stream was writing, from session files alone.
 
@@ -122,11 +122,20 @@ def stream_intervals(
     cannot go stale.
 
     `device_id` may be one id or several — a device that had its id corrected still owns the
-    files written under the old one (writers.device_ids)."""
+    files written under the old one (writers.device_ids).
+
+    ⚠️ `tag` MAY BE SEVERAL TAGS, AND THE SET IS `nightqc.stream_file_tags`'s, NEVER A SECOND COPY.
+    One configured stream can legitimately be written under more than one file tag — `acc` arrives as
+    `_ACC.` from the H10 and `_ACCRAW.` from the ring — and this module used to compare against
+    `s.upper()` alone. Measured 2026-09-28: the ring's 10,137,042-byte `_ACCRAW.txt` matched nothing
+    and its whole night was painted `idle`, which is the one state that looks like a FINDING rather
+    than a miss. nightqc already owned the mapping and its reasoning (a UNION, because no device
+    writes both — verified 38 `_ACCRAW.` against 2 `_ACC.` on 2026-09-05, disjoint by device); two
+    copies of that rule is how the timeline and the QC would come to disagree about one night."""
     return sorted((t0, t0 + dur) for t0, dur in _placed(files, device_id, tag, fs, offset_sec) if dur)
 
 
-def unmeasurable_files(files: list[dict], device_id, tag: str, fs: float) -> int:
+def unmeasurable_files(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float) -> int:
     """How many of this stream's files carry rows that `stream_intervals` could place no duration on.
 
     The difference between "captured nothing" and "cannot say" is not visible in the interval list:

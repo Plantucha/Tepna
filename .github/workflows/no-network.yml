@@ -36,9 +36,24 @@ jobs:
         with:
           node-version: '20'
 
+      # CACHE THE BROWSER, NOT THE npm PACKAGE. `playwright install` downloads a ~170 MB chromium
+      # build on every run; the npm package itself is small and `--no-save` keeps it out of the
+      # lockfile. The key is the PLAYWRIGHT VERSION because the browser build is pinned to it — a
+      # version bump must miss the cache, or the run would test an old chromium against a new client
+      # and the mismatch would surface as a browser-gate failure nobody could reproduce locally.
+      # restore-keys is deliberately ABSENT for the same reason: a near-miss restore is exactly the
+      # mismatch this key exists to prevent, so a miss must be a clean download.
+      - name: Cache the Playwright chromium build
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-chromium-1.48.0-${{ runner.os }}
       - name: Install Playwright (chromium only)
         run: |
           npm install --no-save playwright@1.48.0
+          # --with-deps installs OS packages too, and those are NOT in the cached path, so it runs
+          # either way. On a cache hit the browser download is skipped and only the apt work remains.
           npx playwright install --with-deps chromium
 
       - name: Serve the repo

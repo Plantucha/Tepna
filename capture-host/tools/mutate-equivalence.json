@@ -2854,6 +2854,12 @@
       "key": "- hi = max((getattr(n, \"end_lineno\", lo) or lo) for n in ast.walk(child)) | + hi = max((getattr(n, \"end_lineno\", None) or lo) for n in ast.walk(child))",
       "probe": "read the expression: the default is consumed only when `end_lineno` is absent, and is then immediately followed by `or lo`.",
       "why": "PROOF: with the attribute present both sides evaluate the same value; with it absent the original gives `lo or lo` and the mutant `None or lo`, both `lo` (including lo == 0, where both are 0). No input distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- _missing = classify([{\"key\": \"a\", \"class\": \"no-distinguishing-input\"}], [], set(), generated={\"a\"}) | + _missing = classify([{\"key\": \"a\", \"class\": \"no-distinguishing-input\"}], [], None, generated={\"a\"})",
+      "probe": "320 cases: `classify` over 4 entry sets x 4 survivor sets x 4 generated sets, with `killed` as each of set(), None, (), [], frozenset() and {} — comparing the full bucket-to-keys shape. ZERO distinguished. CANARIES FIRST so the battery is not blind: a NON-empty `killed` is seen every time — {'a'} in 24 cases, {'b'} in 12, {'z'} in 16.",
+      "why": "`classify` normalises its third argument with `kills = set(killed or ())`, so every FALSY value — None, set(), (), [], frozenset(), {} — produces the identical empty set of corroborated kills. The mutant swaps one falsy value for another at a call site that passes no kills, so there is nothing for any input to distinguish. ⚠️ It would become distinguishable the moment that normalisation were removed (`set(killed)` raises on None), and making it strict WOULD retire this mutant by construction — that was considered and declined: the tolerance is cheap insurance on a pure function whose tests and selftest pass literals, and the same reasoning kept the `t1 > t0` guard in timeline.py whose false arm is also unreachable. Re-verify this entry if the normalisation changes."
     }
   ],
   "mutation_pure.py": [
@@ -5622,6 +5628,36 @@
       "key": "- if a.get(k) is None or b.get(k) is None or a.get(k) != b.get(k) | + if a.get(k) is None and b.get(k) is None or a.get(k) != b.get(k)",
       "probe": "read the predicate for the three cases: both None, exactly one None, neither None.",
       "why": "PROOF: with exactly one side None the two values differ, so `a != b` already includes the key under the mutant; with both None the `and` clause includes it; with neither None both reduce to `a != b`. Every key is included under exactly the same condition. (Codex reader, verified case by case.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- f\"{op:#04x}\": KNOWN.get(op, \"?\") + \" — persists across power cycles\" | + f\"{op:#04x}\": KNOWN.get(op, None) + \" — persists across power cycles\"",
+      "probe": "read the comprehension: it iterates only sorted(SKIP_BY_DEFAULT), i.e. {0x08, 0x09}, and both are keys of KNOWN (checked: set(SKIP_BY_DEFAULT) <= set(KNOWN) is True).",
+      "why": "PROOF: KNOWN.get(op, <default>) only ever sees an op that KNOWN holds, so the default is never returned; \"?\", None and no default give the same string. (Codex reader, verified by evaluating the subset.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- f\"{op:#04x}\": KNOWN.get(op, \"?\") + \" — persists across power cycles\" | + f\"{op:#04x}\": KNOWN.get(op, ) + \" — persists across power cycles\"",
+      "probe": "read the comprehension: it iterates only sorted(SKIP_BY_DEFAULT), i.e. {0x08, 0x09}, and both are keys of KNOWN (checked: set(SKIP_BY_DEFAULT) <= set(KNOWN) is True).",
+      "why": "PROOF: KNOWN.get(op, <default>) only ever sees an op that KNOWN holds, so the default is never returned; \"?\", None and no default give the same string. (Codex reader, verified by evaluating the subset.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[\"left_running\"] = [pmd.MEAS_NAME.get(m, hex(m)) for m in active] | + out[\"left_running\"] = [pmd.MEAS_NAME.get(m, None) for m in active]",
+      "probe": "read polar_pmd.parse_status_response: it adds a measurement id to its result only if meas in MEAS_NAME, and active comes from that result alone.",
+      "why": "PROOF: every m in active is a key of MEAS_NAME, so MEAS_NAME.get(m, <default>) never returns its default; hex(m), None and no default give the same name. (Codex reader, verified at the MEAS_NAME filter in polar_pmd.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[\"left_running\"] = [pmd.MEAS_NAME.get(m, hex(m)) for m in active] | + out[\"left_running\"] = [pmd.MEAS_NAME.get(m, ) for m in active]",
+      "probe": "read polar_pmd.parse_status_response: it adds a measurement id to its result only if meas in MEAS_NAME, and active comes from that result alone.",
+      "why": "PROOF: every m in active is a key of MEAS_NAME, so MEAS_NAME.get(m, <default>) never returns its default; hex(m), None and no default give the same name. (Codex reader, verified at the MEAS_NAME filter in polar_pmd.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- dev = None | + dev = \"\"",
+      "probe": "read the scan: `for _ in range(3): dev = await ...find_device_by_address(...)` assigns dev on every one of exactly three iterations before dev is first read; and the test that scans None three times passed under this mutant.",
+      "why": "PROOF: the initialiser is dead — range(3) is never empty, so dev is overwritten before any read, and None vs \"\" is never observed. The Codex reader claimed a distinguishing input (three None scans) and was WRONG: the loop reassigns dev each time."
     }
   ],
   "probe_pmd_surface.py": [
