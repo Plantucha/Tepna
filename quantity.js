@@ -189,15 +189,21 @@
 
   // Baevsky Stress Index from GUARDED (seconds) inputs — the canonical formula,
   // unit-safe. amo50 = AMo (% of RR in the modal bin). meanRRs in seconds.
-  function baevskySI(amo50, modeS, mxdmnS) {
-    if (
-      ![amo50, modeS, mxdmnS].every(function (v) {
-        return v != null && isFinite(v);
-      }) ||
-      modeS <= 0 ||
-      mxdmnS <= 0
-    )
+  // AMo is a PERCENT by contract (1 < amo50 <= 100). A value ≤ 1 is ambiguous —
+  // it may be a fraction (0.4 meaning 40%) or a true tiny percent — and a value
+  // > 100 is an impossible percent; both REFUSE with a reason rather than
+  // silently computing a 100×-wrong SI. `why` is an optional out-param; when
+  // provided and the result is null, why.reason names the refusal.
+  function baevskySI(amo50, modeS, mxdmnS, why) {
+    function refuse(reason) {
+      if (why) why.reason = reason;
       return null;
+    }
+    if (amo50 == null || modeS == null || mxdmnS == null) return refuse('missing-input');
+    if (!isFinite(amo50) || !isFinite(modeS) || !isFinite(mxdmnS)) return refuse('non-finite-input');
+    if (modeS <= 0 || mxdmnS <= 0) return refuse('non-positive-mode-or-mxdmn');
+    if (amo50 > 100) return refuse('amo50-gt-100-not-a-percent');
+    if (amo50 <= 1) return refuse('amo50-lte-1-ambiguous-fraction-or-percent');
     return amo50 / (2 * modeS * mxdmnS);
   }
 

@@ -6763,6 +6763,62 @@
       T.ok('the plant is not vacuous — positionally this row reads 0, not 365', positionalWouldGive !== box[0].ppi, positionalWouldGive + ' vs ' + box[0].ppi);
     });
 
+    group('ECGDex RMSSD absence — an unmeasured RMSSD is null, never 0 (§∅)', 'ecgdex-dsp · absence', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      T.ok('ECGDSP reachable', !!(E && E.analyze && E.validateRR), 'ecgdex-dsp.js did not load');
+      if (!E || !E.analyze || !E.validateRR) return;
+
+      /* ⚠️ READ VALUES WITH String(), NEVER JSON.stringify — and that is the defect, not a test detail.
+         JSON has no -Infinity, so `JSON.stringify(-Infinity)` is the string "null": a JSON export of a
+         broken record LOOKED like clean absence while the live object handed the renderer -Infinity.
+         Asserting through JSON would have passed on main and proven nothing. */
+      var nonFinite = function (o) {
+        var bad = [];
+        for (var k in o) if (typeof o[k] === 'number' && !isFinite(o[k])) bad.push(k + '=' + String(o[k]));
+        return bad;
+      };
+
+      // ── 1 · validateRR: a device record with ONE beat has no successive pair to measure ──
+      var vr = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }]);
+      T.ok('the plant is reachable — validateRR accepted a 1-beat device record', !!vr && vr.nDev === 1, 'nDev=' + (vr && vr.nDev));
+      T.ok('validateRR · devRMSSD is null, not 0 (no successive pair exists)', vr.devRMSSD === null, 'got ' + String(vr.devRMSSD));
+      T.ok('validateRR · devRawRMSSD is null, not 0', vr.devRawRMSSD === null, 'got ' + String(vr.devRawRMSSD));
+      /* The ratio REFUSES rather than dividing by an absent or zero reference. On main this read
+         Infinity — the same shape as the 65 797.8 dRMSSDPct recorded in ecgdex-dsp.js's own comment. */
+      T.ok('validateRR · dRMSSD refuses an absent reference (was Infinity)', vr.dRMSSD === null, 'got ' + String(vr.dRMSSD));
+      T.ok('validateRR · dSDNN refuses a zero reference (was Infinity)', vr.dSDNN === null, 'got ' + String(vr.dSDNN));
+      T.ok('validateRR · no non-finite number anywhere in the result', nonFinite(vr).length === 0, 'non-finite: ' + nonFinite(vr).join(', '));
+
+      // ── 2 · analyze(): a dropout between EVERY beat masks every pair, so NOTHING was measured ──
+      /* `{ idx, ms }` is the real gap shape (ecgdex-dsp.js, the rec.gaps fold) — an earlier draft of
+         this test used `{ fromMs, toMs }`, which the fold ignores, so it examined nothing and passed.
+         durSec 120 reproduces the identical defect 165x cheaper than the 3 h default (57 ms vs 9.4 s). */
+      var rec = E.genSynthetic({ durSec: 120 });
+      var gaps = [];
+      for (var i = 0; i < rec.int16.length; i += Math.floor(rec.fs * 0.4)) gaps.push({ idx: i, ms: 6000 });
+      rec.gaps = gaps;
+      T.ok('the plant is not vacuous — a gap sits between every beat', gaps.length > 200, 'only ' + gaps.length + ' gaps');
+      var a = E.analyze(rec);
+      T.ok('analyze · whole-record rmssd is null, not 0', a.rmssd === null, 'got ' + String(a.rmssd));
+      T.ok('analyze · dispRm is null, not 0', a.dispRm === null, 'got ' + String(a.dispRm));
+      /* THE SHIPPED SYMPTOM: Math.log(0) is -Infinity, so an unguarded sink exported -Infinity. */
+      T.ok('analyze · lnrmssd is null, not -Infinity', a.lnrmssd === null, 'got ' + String(a.lnrmssd));
+      T.ok('analyze · the absence carries a NAMED reason (§∅)', a.rmssdAbsentReason === 'no-successive-pairs', 'got ' + String(a.rmssdAbsentReason));
+      T.ok('analyze · no non-finite number anywhere in the export', nonFinite(a).length === 0, 'non-finite: ' + nonFinite(a).join(', '));
+
+      // ── 3 · THE CONTROL: a 0 is a LEGAL RMSSD, so the fix must not null a measured zero ──
+      /* This is why `!= 0` is never the fix (CLAUDE.md §∅): perfectly regular RR is a real 0. Absence
+         and a measured zero must be distinguishable, which is the whole point of returning null. */
+      var flat = E.validateRR([800, 800, 800, 800, 800, 800], [{ rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }]);
+      T.ok('a perfectly regular device record keeps a MEASURED rmssd of 0, not null', flat.devRMSSD === 0, 'got ' + String(flat.devRMSSD));
+      T.ok('…and that measured 0 carries no absence reason', !flat.rmssdAbsentReason, 'got ' + String(flat.rmssdAbsentReason));
+
+      // ── 4 · the clean path is untouched ──
+      var clean = E.analyze(E.genSynthetic({ durSec: 120 }));
+      T.ok('a clean record still reports a finite rmssd', typeof clean.rmssd === 'number' && isFinite(clean.rmssd) && clean.rmssd > 0, 'got ' + String(clean.rmssd));
+      T.ok('a clean record reports no absence reason', clean.rmssdAbsentReason === null, 'got ' + String(clean.rmssdAbsentReason));
+    });
+
     group('ECGDex accAnalyze — posture from the gravity vector, known-answer', 'ecgdex-dsp · posture', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       var acc = E && E.accAnalyze;
@@ -44951,6 +45007,147 @@
       }
     });
 
+    group('OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0', 'oxydex-fusion · absence', function (T) {
+      // fusion's PUBLISHED surface only (its window / stamp helpers are module-private): node reads env, browser globals
+      var W = typeof globalThis !== 'undefined' ? globalThis : {};
+      var names = ['oxyComputeFusion', 'oxyEcgFusionSection', 'oxyEcgForNight'];
+      var G = {};
+      names.forEach(function (k) {
+        G[k] = typeof env[k] === 'function' ? env[k] : W[k];
+      });
+      var setByDate =
+        typeof env.setEcgByDate === 'function'
+          ? env.setEcgByDate
+          : function (m) {
+              W._ecgByDate = m;
+            };
+      var miss = names.filter(function (k) {
+        return typeof G[k] !== 'function';
+      });
+      /* A NODE-lane group: run-tests.mjs executes oxydex-fusion.js headless, while the browser lane loads it only as
+         TEXT (SOURCE_FILES). So reachability is ASSERTED under the Node runner (env.nodeFs) and SKIPPED BY NAME in the
+         browser, never vacuously green (the R1 lesson, #3341). */
+      if (!env.nodeFs && miss.length === names.length) {
+        T.skip('oxydex-fusion co-loaded', 'Node-lane only: the browser lane loads oxydex-fusion.js as text (SOURCE_FILES), so its published surface is not on window there');
+        return;
+      }
+      T.eq('fusion · every function this group calls is reachable', miss, []);
+      if (miss.length) return;
+      var t0 = Date.UTC(2026, 5, 12, 22, 0, 0); // 22:00
+      var ecg = function (rec, surges) {
+        return {
+          recording: rec,
+          ganglior_events: (surges || []).map(function (t) {
+            return { impulse: 'autonomic_surge', t: t };
+          }),
+          apnea: { cvhrEvents: 4 },
+          hrv: { time: {} },
+          cardiorespiratory: {}
+        };
+      };
+      var nightAt = function (events, stats) {
+        return { t0Ms: t0, stats: stats || {}, hrv: {}, desat: { events: events }, hb: { total: 100 } };
+      };
+      var ALLNIGHT = { startEpochMs: t0, durationMin: 600 };
+      // 02ff987f1a3b — an unreadable or out-of-range stamp places no surge (it used to land at midnight / roll a day)
+      var mid = nightAt([{ tMs: t0 + 2 * 3600000, depth: 6 }]); // a desat at 00:00 the next day
+      T.eq('fusion · a surge stamped "xx:yy" confirms nothing (it read as 00:00)', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['xx:yy'])).confirmed, 0);
+      var one = nightAt([{ tMs: t0 + 3 * 3600000, depth: 6 }]); // 01:00 the next day
+      T.eq('fusion · a surge stamped "25:00:00" confirms nothing (Date.UTC rolled it to 01:00)', G.oxyComputeFusion(one, ecg(ALLNIGHT, ['25:00:00'])).confirmed, 0);
+      T.eq('fusion · CONTROL · a surge stamped "00:00:00" confirms the 00:00 desat', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['00:00:00'])).confirmed, 1);
+      // the range edges: 23 / 59 / 59 are legal, 60 is not (each bound on its own)
+      var edge = nightAt([{ tMs: t0 + 7199000, depth: 6 }]); // 23:59:59
+      T.eq('fusion · "23:59:59" is a legal stamp ⇒ confirms the 23:59:59 desat', G.oxyComputeFusion(edge, ecg(ALLNIGHT, ['23:59:59'])).confirmed, 1);
+      T.eq('fusion · "23:60:00" ⇒ null (minute 60), not rolled onto 00:00', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['23:60:00'])).confirmed, 0);
+      var m1 = nightAt([{ tMs: t0 + 3660000, depth: 6 }]); // 23:01:00
+      T.eq('fusion · "23:00:60" ⇒ null (second 60), not rolled onto 23:01', G.oxyComputeFusion(m1, ecg(ALLNIGHT, ['23:00:60'])).confirmed, 0);
+      // 7fe93fab700e — an ECG with no recorded duration has no window: coverage unknown, not a 0-minute window
+      var desats = [];
+      for (var i = 0; i < 10; i++) desats.push({ tMs: t0 + (30 + i * 30) * 60000, depth: 6 });
+      var Z = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0 }));
+      T.eq('fusion · ECG start with no duration ⇒ coverage UNKNOWN (null), not 0 desats covered', Z.coveredDesats, null);
+      // 612257ff825b / d46c73b26764 — no ECG window ⇒ no confirmed %, no scoped burden
+      var U = G.oxyComputeFusion(nightAt(desats), ecg({ durationMin: 60 }));
+      T.eq('fusion · no ECG window ⇒ coveredDesats null, not all 10', U.coveredDesats, null);
+      T.eq('fusion · …so confPct is null, never a green 0 of 10', U.confPct, null);
+      T.eq('fusion · …and no burden is scoped to an unknown share', U.hbCov, null);
+      var noDes = G.oxyComputeFusion(nightAt([]), ecg({ startEpochMs: t0, durationMin: 60 }));
+      // strict `=== null`: JSON.stringify(NaN) is "null", which let two NaN-producing mutants through a JSON compare
+      T.ok('fusion · no desats ⇒ the covered share is undefined ⇒ no whole-night burden per window event', noDes.hbCov === null && noDes.dosePerEv === null, String([noDes.hbCov, noDes.dosePerEv]));
+      T.ok('fusion · …and no coverage percentage (0 of 0 is not a %)', noDes.coveragePct === null, String(noDes.coveragePct));
+      var P = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0, durationMin: 100 }));
+      T.eq('fusion · CONTROL · 3 of 10 desats under a 100-min ECG ⇒ coveragePct 30', P.coveragePct, 30);
+      var S = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0, durationSec: 6000 }));
+      T.eq('fusion · a duration given only in seconds (6000 s) bounds the window ⇒ 3 covered', S.coveredDesats, 3);
+      var nonOv = String(G.oxyEcgFusionSection(nightAt(desats), ecg({ startEpochMs: t0 + 8 * 3600000, durationMin: 60 })));
+      T.ok('fusion · a known window that overlaps no desat ⇒ the explicit no-overlap tile', nonOv.indexOf('did not overlap any of the') >= 0);
+      // per-stage rows: REM (8) · Deep (no depth) · Unstaged (3, 6) — every row's text and width pinned
+      var staged = {
+        recording: { startEpochMs: t0, durationMin: 120 },
+        ganglior_events: [],
+        apnea: { cvhrEvents: 4 },
+        hrv: { time: {} },
+        cardiorespiratory: {},
+        timeseries: {
+          sleepStages: [
+            { tMin: 30, stage: 'REM' },
+            { tMin: 60, stage: 'Deep' }
+          ]
+        }
+      };
+      var sev = [{ tMs: t0 + 1800000, depth: 8 }, { tMs: t0 + 3600000 }, { tMs: t0 + 5 * 3600000, depth: 3 }, { tMs: t0 + 6 * 3600000, depth: 6 }];
+      var shtml = String(G.oxyEcgFusionSection(nightAt(sev), staged));
+      var rowOf = function (h, name) {
+        var r = h.split('efz-stagerow').filter(function (x) {
+          return x.indexOf('efz-stagename">' + name + '<') >= 0;
+        });
+        return r.length ? r[0].slice(0, 400) : '';
+      };
+      var rem = rowOf(shtml, 'REM'),
+        deep = rowOf(shtml, 'Deep'),
+        uns = rowOf(shtml, 'Unstaged');
+      T.ok('fusion · REM: the deepest bucket fills 100 % (the max over ALL stages, not the last)', /width:100%/.test(rem) && /−8% deepest · −8% mean · 1×/.test(rem), rem);
+      T.ok('fusion · REM is ECG-staged: no "no ECG coverage"', rem !== '' && rem.indexOf('no ECG coverage') < 0, rem);
+      T.ok('fusion · Deep: no depth recorded, and no "(depth on 0)"', /depth not recorded · 1×/.test(deep) && deep.indexOf('depth on') < 0, deep);
+      T.ok(
+        'fusion · Unstaged: deepest 6 (the max, not the first), mean 4.5, every event measured ⇒ no "(depth on")',
+        /−6% deepest · −4.5% mean · 2×/.test(uns) && uns.indexOf('depth on') < 0 && /width:75%/.test(uns) && uns.indexOf('no ECG coverage') >= 0,
+        uns
+      );
+      var zhtml = String(G.oxyEcgFusionSection(nightAt([{ tMs: t0 + 1800000, depth: 0 }]), ecg({ startEpochMs: t0, durationMin: 120 })));
+      T.ok(
+        'fusion · a 0 % deepest everywhere ⇒ the 6 % floor bar, never width NaN',
+        zhtml.indexOf('NaN') < 0 && /efz-stagefill" style="width:6%/.test(zhtml),
+        (zhtml.match(/efz-stagefill[^>]*/) || [''])[0]
+      );
+      // 732f9bcf73c2 / 92559b915569 — an event with no depth leaves its stage's mean
+      var mixed = [{ tMs: t0 + 1800000, depth: 6 }, { tMs: t0 + 3600000, depth: 6 }, { tMs: t0 + 5400000 }];
+      var html = String(G.oxyEcgFusionSection(nightAt(mixed), ecg({ startEpochMs: t0, durationMin: 120 })));
+      var row = (html.match(/efz-stageval">[^<]*/) || [''])[0];
+      T.ok('fusion · two 6 % dips + one with no depth ⇒ a 6 % mean, not 4 %', /−6% mean/.test(row), row);
+      T.ok('fusion · …and the row says how many carried a depth', /3×\s*\(depth on 2\)/.test(row), row);
+      // 7fe93fab700e (pairing half) — the start-only ECG that coverage now refuses must still PAIR by its start
+      // the start-only fallback must NOT replace a real window: a bigger overlap still wins over an earlier key
+      var A = ecg({ startEpochMs: t0 + 3600000, durationMin: 60 }),
+        Bb = ecg({ startEpochMs: t0 + 1800000, durationMin: 300 });
+      try {
+        setByDate({ '2026-06-12a': A, '2026-06-12b': Bb });
+        T.ok('fusion · the ECG with the larger true overlap is paired (windows, not start points)', G.oxyEcgForNight({ t0Ms: t0, date: '2026-06-12', stats: { durationMin: 480 } }) === Bb);
+      } finally {
+        setByDate(undefined);
+      }
+      var startOnly = ecg({ startEpochMs: t0 + 3 * 3600000 }); // 01:00, keyed by its own (next) civil date
+      try {
+        setByDate({ '2026-06-13': startOnly, '2026-06-20': ecg({ startEpochMs: t0 + 8 * 86400000, durationMin: 60 }) });
+        T.ok(
+          'fusion · CONTROL · a start-only ECG inside the night still pairs (by its start, not its date)',
+          G.oxyEcgForNight({ t0Ms: t0, date: '2026-06-12', stats: { durationMin: 480 } }) === startOnly
+        );
+      } finally {
+        setByDate(undefined);
+      }
+    });
+
     group(
       'OxyDex fusion is COVERAGE-AWARE — confPct/dose scoped to the ECG window, no green 0 on non-overlap (DEEP-AUDIT-II §11.1–11.3)',
       'oxydex-fusion · coverage-aware · fabricated-absence',
@@ -46081,6 +46278,68 @@
       // a source-tag whose text merely CONTAINS a dot mid-string (a version) is not filename-shaped
       var tagOnly = DX.scrubExport({ schema: {}, recording: { source: 'ResMed AirSense 11 (EDF set)' }, sessions: [{ source: 'firmware 2.1 build' }] });
       T.ok('§5 · tag-shaped source strings survive (no extension, no separator)', tagOnly.recording.source === 'ResMed AirSense 11 (EDF set)' && tagOnly.sessions[0].source === 'firmware 2.1 build');
+    });
+
+    /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════
+       `_scrubElement` scrubbed `el.provenance` and `el.recording` and never visited
+       `el.schema.provenance`, while `scrubExport` reduces `schema.provenance` at the TOP level only.
+       ECGDex/PulseDex `recordings[]` and PpgDex `sessions[]` do not carry a summary block — they carry
+       a FULL v2.0 envelope per element, `schema.provenance.inputs[]` included, each input holding
+       `{ name, bytes, lastModifiedMs, sha256 }`. So with scrub ON, every per-element input NAME and
+       SHA256 survived, against the acceptance stated at the top of dex-export.js: a scrubbed JSON
+       contains no device serial, filename or input sha256.
+       ⚠️ THE EXISTING §5 GROUP IS GREEN OVER THIS. Its planted `nights[]` element carries a bare
+       `provenance` and its `recordings[]`/`sessions[]` elements carry NEITHER `schema` NOR
+       `provenance` — so the one shape that leaks is the one shape never planted. That is why this is a
+       separate group with its own control rather than another assertion in that one. RED on main. */
+    group('SELF-INGEST §5 · a per-element ENVELOPE is scrubbed, not just a per-element provenance', 'dex-export · scrub · self-ingest · plant', function (T) {
+      var DX = env.DexExport || (typeof globalThis !== 'undefined' && globalThis.DexExport) || null;
+      if (!DX || typeof DX.scrubExport !== 'function') {
+        T.skip('env.DexExport.scrubExport available', 'not available in this runner');
+        return;
+      }
+      var SHA = 'b17e55c0ffee1234567890abcdef0123456789abcdef0123456789abcdef0123';
+      var NAME = 'Jane_Smith_H10_20260612230016_ECG.txt';
+      function envelope() {
+        return {
+          schema: {
+            name: 'ganglior.node-export',
+            version: '2.0',
+            provenance: { buildHash: 'abc123', generated: '2026-06-12T23:00:16Z', inputs: [{ name: NAME, bytes: 918273, lastModifiedMs: 1781308816000, sha256: SHA }] }
+          },
+          recording: { contentId: 'cid-1' }
+        };
+      }
+      var raw = {
+        schema: {
+          name: 'ganglior.node-export',
+          version: '2.0',
+          provenance: { buildHash: 'abc123', generated: '2026-06-12T23:00:16Z', inputs: [{ name: NAME, bytes: 918273, lastModifiedMs: 1781308816000, sha256: SHA }] }
+        },
+        recordings: [envelope()],
+        sessions: [envelope()],
+        nights: [envelope()]
+      };
+      var before = JSON.stringify(raw);
+      // CONTROL — passes on main too: without it a green test could mean the token was never there.
+      T.ok('control · the sha256 and the filename ARE present before the scrub', before.indexOf(SHA) >= 0 && before.indexOf(NAME) >= 0, 'planted');
+
+      var out = JSON.stringify(DX.scrubExport(raw));
+      // RED ON MAIN: the per-element envelopes keep both.
+      T.eq('§5 · no input sha256 survives anywhere in a scrubbed export', out.indexOf(SHA), -1);
+      T.eq('§5 · no input FILENAME survives anywhere in a scrubbed export', out.indexOf(NAME), -1);
+
+      var sc = DX.scrubExport(raw);
+      ['recordings', 'sessions', 'nights'].forEach(function (key) {
+        var el = sc[key] && sc[key][0];
+        var prov = el && el.schema && el.schema.provenance;
+        T.ok(key + '[0].schema.provenance is REDUCED, not deleted', !!prov && prov.scrubbed === true, JSON.stringify(prov && Object.keys(prov)));
+        T.eq(key + '[0] keeps the non-identifying byte count', prov && prov.inputs && prov.inputs[0] && prov.inputs[0].bytes, 918273);
+        T.eq(key + '[0] drops name/sha256/lastModifiedMs from the input', JSON.stringify(prov && prov.inputs && prov.inputs[0]), '{"bytes":918273}');
+        // CONTROL — passes on main: the coarse build stamp is integrity, not identity, and must SURVIVE.
+        T.eq('control · ' + key + '[0] keeps the coarse buildHash', prov && prov.buildHash, 'abc123');
+      });
+      T.eq('the TOP-level envelope is still scrubbed (no regression)', JSON.stringify(sc.schema.provenance.inputs[0]), '{"bytes":918273}');
     });
 
     /* ════ SELF-INGEST (CPAPDex) — cpapLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS-2026-07-03 · CPAPDex pass) ════
@@ -58327,6 +58586,18 @@
       } else {
         T.ok('env.PulseDex._bare.siCalc available', false, 'PulseDex node-local siCalc not wired — gate skipped');
       }
+
+      // ── §2c (2026-10-05 deep review): AMo unit guard — the docstring says PERCENT.
+      // A fraction input (0.4 for 40%) is a silent 100× error; refuse with a reason, never rescale. ──
+      var whyOk = {};
+      T.ok('amo50=40 (percent) computes, no reason set', Q.baevskySI(40, 0.8, 0.3, whyOk) != null && whyOk.reason == null, 'reason=' + whyOk.reason);
+      var whyFrac = {};
+      T.ok('amo50=0.4 (looks like a fraction) refuses with reason', Q.baevskySI(0.4, 0.8, 0.3, whyFrac) === null && whyFrac.reason != null, 'reason=' + whyFrac.reason);
+      var whyBig = {};
+      T.ok('amo50=150 (>100, impossible percent) refuses with reason', Q.baevskySI(150, 0.8, 0.3, whyBig) === null && whyBig.reason != null, 'reason=' + whyBig.reason);
+      var whyOne = {};
+      T.ok('amo50=1 (boundary, ambiguous) refuses with reason', Q.baevskySI(1, 0.8, 0.3, whyOne) === null && whyOne.reason != null, 'reason=' + whyOne.reason);
+      T.ok('refusal without the why param is still bare null (backwards-compatible)', Q.baevskySI(0.4, 0.8, 0.3) === null);
     });
 
     /* ════ 26 · DIFFERENTIAL TESTING — redundant RR/HRV nodes agree (brief Phase 5) ════
@@ -64545,6 +64816,108 @@
       T.eq('B3 · no duration / sample count ⇒ the stamp-less event is not placed at an assumed 1 Hz', desatOf(B.oxyBuildGangliorEvents(night({}))).length, 0);
       var placed = desatOf(B.oxyBuildGangliorEvents(night({ n: 1800, durationMin: 60 })));
       T.eq('B3 · CONTROL · a measured 2 s interval places it at index × 2 s', placed.length && placed[0].tMs - T0, 200000);
+    });
+
+    /* oxydex-render.js is TEXT in this lane apart from OxyDex.reviewView, so the per-night sites below are EXTRACTED and
+       RUN (the B2 pattern). Each extraction is its own assertion and must hold on BOTH the old and the new code, so a
+       red here is the behaviour, never a failed regex. */
+    group('OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict', 'oxydex-render · absence · extract-and-run', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      // the block that opens on the line containing `start`, up to the close at that line's own indentation
+      var block = function (start, close) {
+        var i = R.indexOf(start);
+        if (i < 0) return null;
+        var ls = R.lastIndexOf('\n', i) + 1;
+        var indent = R.slice(ls, i).match(/^\s*/)[0];
+        var j = R.indexOf('\n' + indent + close, i);
+        return j < 0 ? null : R.slice(ls, j + 1 + indent.length + close.length);
+      };
+      // 38cab89355e6 — the review total covers the timed nights, and names them (reviewView is reachable)
+      var rv = env.OxyDex && env.OxyDex.reviewView;
+      /* OxyDex.reviewView is a NODE-lane surface: run-tests.mjs executes oxydex-render.js headless, while the browser
+         lane loads it only as TEXT and renders inside iframe rigs (the same reason the render-harness known-answer group
+         SKIPs there). So it is ASSERTED where it must exist (losing it in Node reds) and SKIPPED by name where it cannot.
+         env.nodeFs is set by the Node runner only. The four extract-and-run sites below need no reviewView and run in
+         both lanes. */
+      if (env.nodeFs) T.ok('R · OxyDex.reviewView reachable (Node lane)', typeof rv === 'function');
+      else if (typeof rv !== 'function')
+        T.skip('R · OxyDex.reviewView header check', 'Node-lane only: the browser lane loads oxydex-render.js as text and renders in iframe rigs, so reviewView is not on its OxyDex');
+      if (typeof rv === 'function') {
+        var head = String(
+          rv({ nights: [] }, [
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: {} }
+          ])
+        ).match(/ocl-sub">[^<]*/);
+        T.ok('R · an untimed night is named, not summed in as 0 minutes', !!head && head[0].indexOf('7h00m total (1 of 2 nights timed)') >= 0, head && head[0]);
+        var head2 = String(
+          rv({ nights: [] }, [
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: { durationMin: 60 } }
+          ])
+        ).match(/ocl-sub">[^<]*/);
+        T.ok('R · CONTROL · every night timed ⇒ the plain total, no annotation', !!head2 && head2[0].indexOf('8h00m total ·') >= 0, head2 && head2[0]);
+        var hdr = function (nights) {
+          var m = String(rv({ nights: [] }, nights)).match(/ocl-sub">[^<]*/);
+          return m ? m[0] : '';
+        };
+        // an EXPLICIT null duration (not just a missing key, which isFinite(undefined) already rejects)
+        T.ok(
+          'R · durationMin: null is untimed too',
+          hdr([
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: { durationMin: null } }
+          ]).indexOf('(1 of 2 nights timed)') >= 0
+        );
+        T.ok('R · one night ⇒ no "total" (> 1 is strict)', hdr([{ date: '2026-01-02', stats: { durationMin: 420 } }]).indexOf('7h00m ·') >= 0);
+        T.ok('R · 10 minutes is two digits ⇒ 7h10m, not 7h010m', hdr([{ date: '2026-01-02', stats: { durationMin: 430 } }]).indexOf('7h10m ·') >= 0);
+      }
+      // c0a215f14576 — the 7-day PB mean averages the nights that were computed
+      var pb = block('var roll7pb = nights.map(', '});');
+      T.ok('R · the rolling PB-burden block extracted', !!pb);
+      if (pb) {
+        var roll = new Function('nights', pb + ' return roll7pb;');
+        T.eq('R · 10, not computed, 20 ⇒ [10, 10, 15], not [10, 5, 10]', JSON.stringify(roll([{ osc: { totalCrossings: 10 } }, {}, { osc: { totalCrossings: 20 } }])), '[10,10,15]');
+        T.eq('R · no night computed in the window ⇒ null, not 0', JSON.stringify(roll([{}, {}, {}])), '[null,null,null]');
+      }
+      // 1f2b2af07670 — an unmeasured AAI prints a dash and earns no colour
+      var aai = R.match(/metric\(\s*'AAI',[\s\S]*?'bad'\s*\)/);
+      T.ok('R · the AAI tile extracted', !!aai);
+      if (aai) {
+        var tile = new Function('cx', 'var metric = function (l, v, u, c) { return [v, c]; }; return ' + aai[0] + ';');
+        T.eq('R · AAI null ⇒ a dash and no class, not "null" coloured good', JSON.stringify(tile({ autoArousalIdx: null })), '["—",""]');
+        T.eq('R · CONTROL · AAI 1.5 ⇒ good', JSON.stringify(tile({ autoArousalIdx: 1.5 })), '[1.5,"good"]');
+        T.eq('R · AAI 2 ⇒ warn (< 2 is strict)', JSON.stringify(tile({ autoArousalIdx: 2 })), '[2,"warn"]');
+        T.eq('R · AAI 5 ⇒ bad (< 5 is strict)', JSON.stringify(tile({ autoArousalIdx: 5 })), '[5,"bad"]');
+      }
+      // e8e638a9f50d — an unmeasured threshold row reads "not measured", not a green 0 %
+      var tix = block('[95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {', '});');
+      var tic = block('function tiClass(pct, thr) {', '}');
+      T.ok('R · the T-index rows and tiClass extracted', !!(tix && tic));
+      if (tix && tic) {
+        var rowsOf = new Function('n', tic + ' var html = ""; ' + tix + ' return html;');
+        var none = rowsOf({ tIdx: {} });
+        T.eq('R · no tIdx entries ⇒ ten "not measured" rows', (none.match(/not measured/g) || []).length, 10);
+        T.ok('R · …and no 0 % row', none.indexOf('>0 %<') < 0, none.slice(0, 200));
+        var one = rowsOf({ tIdx: { 90: { pct: 2.5, secs: 900 } } });
+        T.ok('R · CONTROL · a measured T90 still renders its figure', one.indexOf('>2.5 %<') >= 0);
+        var nul = rowsOf({ tIdx: { 90: { pct: null, secs: null } } });
+        T.eq('R · an entry whose pct is null is not measured either (all ten rows)', (nul.match(/not measured/g) || []).length, 10);
+      }
+      // c05712440626 — "Clear" needs an oscillation search that ran and flagged nothing
+      var oi = R.indexOf('if (!n.osc ||');
+      var oe = R.indexOf("metric('Flagged Windows'", oi);
+      var oscSrc = oi >= 0 && oe > oi ? R.slice(oi, R.lastIndexOf('} else {', oe)) + '}' : null;
+      T.ok('R · the periodic-breathing verdict extracted', !!oscSrc);
+      if (oscSrc) {
+        var osc = new Function('n', 'var evBadge = function () { return ""; }; var html = ""; ' + oscSrc + ' return html;');
+        T.ok('R · no oscillation computed ⇒ not measured, never "Clear"', osc({}).indexOf('Clear') < 0 && osc({}).indexOf('not measured') >= 0, osc({}));
+        T.ok('R · CONTROL · a computed search with 0 flagged windows ⇒ Clear', osc({ osc: { episodeCount: 0 } }).indexOf('Clear') >= 0);
+      }
     });
 
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {

@@ -20,9 +20,9 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 191,
-  "fixed": 97,
-  "accepted-with-reason": 2
+  "open": 179,
+  "fixed": 108,
+  "accepted-with-reason": 3
  },
  "entries": [
   {
@@ -557,7 +557,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 71,
-   "state": "open"
+   "state": "fixed",
+   "note": "an ECG with no recorded duration has no COVERAGE window (null), never a 0-minute point that 'overlaps no desat'; pairing still matches it by its start, explicitly. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "612257ff825b",
@@ -566,7 +567,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 328,
-   "state": "open"
+   "state": "fixed",
+   "note": "with no usable ECG window the covered desat set is unknown: coveredDesats / coveragePct / confPct are null and the tile says coverage is unknown, never every desat of the night (a green 0 of N). Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "b52aeae19d7e",
@@ -1718,7 +1720,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 45,
-   "state": "open"
+   "state": "fixed",
+   "note": "_oxyHHMMSStoMs parses components by regex and range-checks them (Clock Contract §2.7): an unreadable stamp is null, never midnight, and 25:00:00 is null, never rolled to the next day. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "4ca8bf4e4e5a",
@@ -1727,7 +1730,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 65,
-   "state": "open"
+   "state": "accepted-with-reason",
+   "reason": "Ruled NOT A DEFECT (Kestrel, 2026-10-06, on this unit's plant evidence): the night window's durationMin 0 is a pairing anchor with one reader, ECG pairing, which treats a point at t0 as start-proximity; it is never published. Removing it routed an anchored, untimed night into the no-anchor lone-ECG fallback and paired an ECG recorded 26 h later (the unit's own first plant caught it). The reader that would misread a 0, coverage, now refuses on no ECG duration. Recorded at the field: 'pairing anchor; 0 = untimed night; never published'."
   },
   {
    "key": "732f9bcf73c2",
@@ -1736,7 +1740,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 281,
-   "state": "open"
+   "state": "fixed",
+   "note": "an event with no recorded depth carries null into desatDepth, never a 0 % dip. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "e294b096e810",
@@ -1754,7 +1759,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 230,
-   "state": "open"
+   "state": "fixed",
+   "note": "the review header's duration total sums only the timed nights and names the rest ('7h00m total (1 of 2 nights timed)'), never an untimed night as 0 minutes. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
   },
   {
    "key": "a430897619d7",
@@ -1823,7 +1829,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1420,
-   "state": "open"
+   "state": "fixed",
+   "note": "the 7-day periodic-breathing mean averages the nights whose oscillation was computed; a window with none is null, never 0. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
   },
   {
    "key": "ac0c5ded7d1e",
@@ -1882,7 +1889,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 2942,
-   "state": "open"
+   "state": "fixed",
+   "note": "an unmeasured AAI prints a dash with no class, never 'null' coloured good (null < 2 is true in JS). Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
   },
   {
    "key": "f8de8f68bbb2",
@@ -1901,7 +1909,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 3087,
-   "state": "open"
+   "state": "fixed",
+   "note": "a T-index threshold with no figure (no entry, or a null pct) reads 'not measured', never a green 0 % row. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
   },
   {
    "key": "c05712440626",
@@ -1910,7 +1919,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 3286,
-   "state": "open"
+   "state": "fixed",
+   "note": "'Clear' needs an oscillation search that ran and flagged no window; no search reads 'not measured' with no verdict colour. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
   },
   {
    "key": "1fe422a2edbe",
@@ -2571,7 +2581,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 375,
-   "state": "open"
+   "state": "fixed",
+   "note": "the covered share of the hypoxic burden exists only with desats AND a known window; otherwise no scoped burden and no dose per event, never the whole-night burden over a window-only count. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "92559b915569",
@@ -2580,7 +2591,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 394,
-   "state": "open"
+   "state": "fixed",
+   "note": "the per-stage depth mean divides by the events that carried a depth (measured), and the row names the shortfall '(depth on k)', never a depth-less event as 0. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "643c0167154c",

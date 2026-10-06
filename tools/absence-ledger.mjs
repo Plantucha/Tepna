@@ -626,6 +626,67 @@ export const SEEDS = [
     at: 'oxydex-dsp.js:7314',
     state: 'fixed',
     note: "oxyBuildGangliorEvents uses a MEASURED sample interval or none: a stamp-less event that cannot be placed is not emitted, never placed at an assumed 1 Hz. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-render.js:230',
+    state: 'fixed',
+    note: "the review header's duration total sums only the timed nights and names the rest ('7h00m total (1 of 2 nights timed)'), never an untimed night as 0 minutes. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
+  },
+  {
+    at: 'oxydex-render.js:1420',
+    state: 'fixed',
+    note: "the 7-day periodic-breathing mean averages the nights whose oscillation was computed; a window with none is null, never 0. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
+  },
+  {
+    at: 'oxydex-render.js:2942',
+    state: 'fixed',
+    note: "an unmeasured AAI prints a dash with no class, never 'null' coloured good (null < 2 is true in JS). Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
+  },
+  {
+    at: 'oxydex-render.js:3087',
+    state: 'fixed',
+    note: "a T-index threshold with no figure (no entry, or a null pct) reads 'not measured', never a green 0 % row. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
+  },
+  {
+    at: 'oxydex-render.js:3286',
+    state: 'fixed',
+    note: "'Clear' needs an oscillation search that ran and flagged no window; no search reads 'not measured' with no verdict colour. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
+  },
+  {
+    at: 'oxydex-fusion.js:45',
+    state: 'fixed',
+    note: "_oxyHHMMSStoMs parses components by regex and range-checks them (Clock Contract §2.7): an unreadable stamp is null, never midnight, and 25:00:00 is null, never rolled to the next day. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
+  },
+  {
+    at: 'oxydex-fusion.js:71',
+    state: 'fixed',
+    note: "an ECG with no recorded duration has no COVERAGE window (null), never a 0-minute point that 'overlaps no desat'; pairing still matches it by its start, explicitly. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
+  },
+  {
+    at: 'oxydex-fusion.js:328',
+    state: 'fixed',
+    note: "with no usable ECG window the covered desat set is unknown: coveredDesats / coveragePct / confPct are null and the tile says coverage is unknown, never every desat of the night (a green 0 of N). Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
+  },
+  {
+    at: 'oxydex-fusion.js:375',
+    state: 'fixed',
+    note: "the covered share of the hypoxic burden exists only with desats AND a known window; otherwise no scoped burden and no dose per event, never the whole-night burden over a window-only count. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
+  },
+  {
+    at: 'oxydex-fusion.js:281',
+    state: 'fixed',
+    note: "an event with no recorded depth carries null into desatDepth, never a 0 % dip. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
+  },
+  {
+    at: 'oxydex-fusion.js:394',
+    state: 'fixed',
+    note: "the per-stage depth mean divides by the events that carried a depth (measured), and the row names the shortfall '(depth on k)', never a depth-less event as 0. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
+  },
+  {
+    at: 'oxydex-fusion.js:65',
+    state: 'accepted-with-reason',
+    reason:
+      "Ruled NOT A DEFECT (Kestrel, 2026-10-06, on this unit's plant evidence): the night window's durationMin 0 is a pairing anchor with one reader, ECG pairing, which treats a point at t0 as start-proximity; it is never published. Removing it routed an anchored, untimed night into the no-anchor lone-ECG fallback and paired an ECG recorded 26 h later (the unit's own first plant caught it). The reader that would misread a 0, coverage, now refuses on no ECG duration. Recorded at the field: 'pairing anchor; 0 = untimed night; never published'."
   }
 ];
 

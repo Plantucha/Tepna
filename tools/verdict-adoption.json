@@ -229,6 +229,10 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_bluez_wedge.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
     "capture-host/tests/test_capture.py": {
       "bin": "test",
       "status": "exempt"

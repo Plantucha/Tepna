@@ -32,6 +32,8 @@ from __future__ import annotations
 __all__ = [
     "WEDGED",
     "ABSENT",
+    "KEY_REJECTED",
+    "KEY_REJECTED_FAULT",
     "WATCHING",
     "UNKNOWN",
     "wedge_verdict",
@@ -49,6 +51,19 @@ WEDGED = "wedged"  # seen recently, gone since, radio demonstrably fine ⇒ reco
 ABSENT = "absent"  # gone long enough that "the device is not here" is the better explanation
 WATCHING = "watching"  # not yet enough consecutive misses to mean anything
 UNKNOWN = "unknown"  # we cannot tell, and say so rather than guessing
+# 🔴 NOT A WEDGE AT ALL, AND THAT IS THE POINT. The device ANSWERED and refused our pairing key, so
+# every remedy this module owns is inapplicable: restarting bluetoothd drops healthy links to fix a
+# radio that was never broken, and the adapter ladder moves a working link to a second radio that will
+# be refused identically. Measured 2026-10-05: two BlueZ restarts and a ladder hand-off to hci1, all
+# against a key problem, because this verdict could not be expressed.
+KEY_REJECTED = "key-rejected"
+
+# The fault-kind string this module recognises. It MUST equal `as11_pull.KEY_REJECTED`, and
+# `test_key_rejected_constant_matches_as11_pull` pins the two together rather than trusting them to
+# stay equal — the same idiom as `test_psftp_mtu_char_literal_matches_polar_psftp`. Deliberately NOT an
+# import: this module is pure, standard-library-only and imported by the watchdog, and a protocol
+# module in its dependency list is a cycle waiting to be written.
+KEY_REJECTED_FAULT = "key-rejected"
 
 # A device must be missed this many consecutive rounds before absence is evidence of anything. The
 # watchdog polls at `interval_sec` (60 s by default), so 15 rounds ≈ 15 minutes. The deafness rung uses
@@ -66,13 +81,28 @@ MAX_RESTARTS_PER_DAY = 2
 
 
 def wedge_verdict(
-    absent_rounds, radio_healthy, last_seen_age_s, min_rounds=MIN_ABSENT_ROUNDS, max_age_s=MAX_LAST_SEEN_AGE_S
+    absent_rounds,
+    radio_healthy,
+    last_seen_age_s,
+    min_rounds=MIN_ABSENT_ROUNDS,
+    max_age_s=MAX_LAST_SEEN_AGE_S,
+    fault_kind=None,
 ):
     """`(verdict, reason)` — is bluez wedged against ONE device? PURE.
 
     `radio_healthy` must mean *demonstrably* healthy: another device is connected, or a scan returned
     advertisements. A radio that is merely `UP` does not qualify — that is the exact reading that was
-    true and useless on 2026-07-30."""
+    true and useless on 2026-07-30.
+
+    `fault_kind` is the KIND of the last failure (`as11_pull.fault_kind`), optional and last so every
+    existing caller keeps its behaviour. It is checked FIRST because it is decisive in a way the
+    counting rules are not: they infer a radio fault from SILENCE, and a named key rejection is proof
+    the device spoke. No count of answered-and-refused rounds can mean "bluez lost it"."""
+    if fault_kind == KEY_REJECTED_FAULT:
+        return KEY_REJECTED, (
+            "the device ANSWERED and refused our pairing key — no radio remedy applies "
+            "(a restart drops working links; the ladder re-offers the same key); re-pair at the machine"
+        )
     if not radio_healthy:
         # The whole-radio rung owns this. Claiming a per-device wedge while the receiver is deaf would
         # attribute a general failure to one device and restart on the wrong evidence.

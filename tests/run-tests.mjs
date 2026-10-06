@@ -2715,6 +2715,13 @@ async function main() {
     fuseHrvResource: ctx.fuseHrvResource,
     fuseCvhrCorroboration: ctx.fuseCvhrCorroboration,
     oxyComputeFusion: ctx.oxyComputeFusion,
+    /* ABSENCE-SURVEY fusion group — two more of fusion's PUBLISHED surface, plus the one realm global
+       oxyEcgForNight reads (`window` IS the sandbox here). A setter, not the realm: a test cannot reach past it. */
+    oxyEcgFusionSection: ctx.oxyEcgFusionSection,
+    oxyEcgForNight: ctx.oxyEcgForNight,
+    setEcgByDate: function (m) {
+      ctx._ecgByDate = m;
+    },
     reconstructEventTMs: ctx.reconstructEventTMs,
     pearson: ctx.pearson,
     labelPositionalApnea: ctx.labelPositionalApnea,
@@ -2889,7 +2896,14 @@ async function main() {
       try {
         const files = readdirSync(ROOT).filter((f) => /^[a-z0-9][a-z0-9-]*\.js$/.test(f));
         const suite = readFileSync(join(ROOT, 'Dex-Test-Suite.html'), 'utf8');
-        const j = suite.indexOf('SOURCE_FILES');
+        /* The DECLARATION, not the first mention. `indexOf('SOURCE_FILES')` matched any prose that
+           named the identifier, and a comment added ABOVE line 221 (2026-10-06, explaining that
+           dex-escape.js was listed but not loaded) made this slice a comment instead of the array —
+           `browser: []`, which is a POPULATION OF ZERO that would read as "no file is listed in the
+           browser lane". The anti-vacuity leg caught it (`> 20 entries`); without that leg every
+           visibility verdict would have been computed over an empty list. Matching the declaration
+           makes prose about the list harmless. */
+        const j = suite.indexOf('const SOURCE_FILES');
         const seg = j >= 0 ? suite.slice(j, suite.indexOf('];', j)) : '';
         const browser = [...seg.matchAll(/'([A-Za-z0-9_.\-]+\.(?:js|mjs|html|css))'/g)].map((m) => m[1]);
         return { files, browser };
