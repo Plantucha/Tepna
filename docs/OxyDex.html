@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5b6d5b7972b5" data-compute-hash="fae5ece3ded3">
+<html lang="en" data-manifest-hash="c475732dda3e" data-compute-hash="a605adb11ca2">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B8Nib+3whGreeCAiUl1L8T5q+BE2N1/ZMY5zaQXnfKc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZCcbHvV+fe2MBHNnUrW6Rs13VGAmi+Duz3edP562C8E=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fJnV5W2XQ9trfLmB6Z/j1/okJF0+geeCapmteSAVrf8=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-tyAgnfNFOTeVcNlJ02wwkhNdrboC2hjRoPCRq3h3xgk=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B8Nib+3whGreeCAiUl1L8T5q+BE2N1/ZMY5zaQXnfKc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-R/hQpsn/BiFLBDbXIIjbDeudq4RsbuH7eq2YrG8mc20=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZCcbHvV+fe2MBHNnUrW6Rs13VGAmi+Duz3edP562C8E=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pbScJyledywE2rh2YReB2yk280+xDFnRr7S/m8WihIM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-tyAgnfNFOTeVcNlJ02wwkhNdrboC2hjRoPCRq3h3xgk=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.17.0</title>
@@ -7526,12 +7526,20 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
   for (i = 0; i < n; i++) {
     if (i > 0) {
-      hist[bin(spo2[i - 1])]++;
-      cnt++;
+      // §∅: absences (null) are NOT measured 0 — they stay out of the histogram,
+      // otherwise a dropout drags the p90 ceiling toward 0 and manufactures events.
+      var prev = spo2[i - 1];
+      if (prev != null) {
+        hist[bin(prev)]++;
+        cnt++;
+      }
     }
     if (i > WIN) {
-      hist[bin(spo2[i - WIN - 1])]--;
-      cnt--;
+      var old = spo2[i - WIN - 1];
+      if (old != null) {
+        hist[bin(old)]--;
+        cnt--;
+      }
     }
     if (cnt > 0) {
       var target = Math.ceil((pct / 100) * cnt);
@@ -16235,6 +16243,17 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   //                 close at spo2 >= baseline − hystPct.
   //   opts.hystPct  hysteresis re-rise level (default K.ODI_HYST = 2); used only when exitPct
   //                 is not given.
+  // ── §∅ · THE MEASURED SpO₂ SERIES ──────────────────────────────────────────────
+  // One shared helper yielding the measured SpO₂ series with absences as null.
+  // Every consumer MUST skip null explicitly — null is "not measured", never 0.
+  // (JS `null < 88 === true`, `null + 5 === 5`, `94 - null === 94` make implicit
+  // handling a fabrication: a dropout reads as a desaturation to 0%.)
+  function measuredSpO2(rows) {
+    return rows.map(function (r) {
+      return r.spo2 == null ? null : r.spo2;
+    });
+  }
+
   //   opts.minSec   minimum event length (samples ≈ seconds @1Hz) to keep (default 10; ODI-1
   //                 passes 0 — it counts every qualifying dip).
   //   opts.WIN/opts.pct  ceiling window (300) / percentile (90); opts.blArr precomputed array.
@@ -16287,6 +16306,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     }
     for (var i = 0; i < n; i++) {
       var bl = blArr[i];
+      // §∅: an absent sample is not a desaturation to 0 — skip it entirely.
+      // (`null <= bl - dropPct` is TRUE; without this a dropout opens an event
+      // with depth ≈ baseline.)
+      if (spo2[i] == null) continue;
       if (!inEv) {
         // inclusive <= : a dip of EXACTLY dropPct% counts (ODI-4 = ≥4%)
         if (spo2[i] <= bl - dropPct) {
@@ -17060,30 +17083,41 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   // 1. DESATURATION PROFILE — 8 SpO2-derived metrics
   function computeDesaturationProfile(rows, tIdx, odi4, blArr) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
-    });
+    // §∅: the measured series — absences are null, and every aggregate below
+    // skips them explicitly (null is not 0).
+    var spo2 = measuredSpO2(rows);
     var n = spo2.length,
       WIN = 300;
 
     // Delta-index (SpO2 instability): mean |diff of consecutive 12s means|
+    // (12 s windows with no measured sample contribute no mean)
     var means12 = [];
     for (var i = 0; i + 12 <= n; i += 12) {
-      var s = 0;
-      for (var j = i; j < i + 12; j++) s += spo2[j];
-      means12.push(s / 12);
+      var s = 0,
+        c = 0;
+      for (var j = i; j < i + 12; j++) {
+        if (spo2[j] != null) {
+          s += spo2[j];
+          c++;
+        }
+      }
+      if (c > 0) means12.push(s / c);
     }
     var deltaIndex = 0;
     for (var i = 1; i < means12.length; i++) deltaIndex += Math.abs(means12[i] - means12[i - 1]);
     deltaIndex = means12.length > 1 ? +(deltaIndex / (means12.length - 1)).toFixed(3) : 0;
 
-    // SpO2 CoV (%)
+    // SpO2 CoV (%), over MEASURED samples only
     if (!n) return null;
+    var measured = spo2.filter(function (v) {
+      return v != null;
+    });
+    if (!measured.length) return null;
     var meanSpo2 =
-      spo2.reduce(function (a, b) {
+      measured.reduce(function (a, b) {
         return a + b;
-      }, 0) / n;
-    var spo2CoV = meanSpo2 > 0 ? +((stdDev(spo2) / meanSpo2) * 100).toFixed(2) : 0;
+      }, 0) / measured.length;
+    var spo2CoV = meanSpo2 > 0 ? +((stdDev(measured) / meanSpo2) * 100).toFixed(2) : 0;
 
     // T-Index AUC weighted: each threshold weighted by its clinical severity
     var weights = { 95: 1, 94: 2, 93: 3, 92: 4, 91: 5, 90: 6, 89: 8, 88: 10, 85: 15, 80: 25 };
@@ -17093,12 +17127,14 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     });
     tAucWeighted = isFinite(tAucWeighted) ? +tAucWeighted.toFixed(0) : 0;
 
-    // AUC-90 (hypoxic burden below 90%)
+    // AUC-90 (hypoxic burden below 90%) — absent seconds contribute nothing
+    // (`null < 90` is TRUE; `90 - null` is 90, so without the guard a dropout
+    // fabricates maximal burden)
     var auc90 = 0;
     for (var i = 0; i < n; i++) {
-      if (spo2[i] < 90) auc90 += 90 - spo2[i];
+      if (spo2[i] != null && spo2[i] < 90) auc90 += 90 - spo2[i];
     }
-    var durationHr = n / 3600;
+    var durationHr = measured.length / 3600;
     var auc90Total = +(auc90 / 60).toFixed(1);
     var auc90Rate = durationHr > 0 ? +(auc90Total / durationHr).toFixed(2) : 0;
 
@@ -17499,12 +17535,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   // 5. Extended SpO2 metrics (WtDSI, IQR, conditional mean, nadir histogram)
   function computeSpO2Advanced(rows, blArr) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
-    });
+    // §∅: measured series — absences are null, skipped explicitly below
+    var spo2 = measuredSpO2(rows);
     var n = spo2.length,
       WIN = 300;
     if (n < 60) return null;
+    var measured = spo2.filter(function (v) {
+      return v != null;
+    });
+    var m = measured.length;
+    if (m < 60) return null;
 
     // Nadir events from the ONE shared ODI-4 detector (ceiling baseline). §3 close-mode: ODI-4 entry +
     // anti-chatter HYSTERESIS close (no exitPct) — WtDSI is a SATELLITE stat, not the simple-close
@@ -17516,23 +17556,23 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       return { depth: e.depth, duration: e.durationSec, nadir: e.nadir };
     });
 
-    // WtDSI: Σ(depth² × duration) / totalTime
+    // WtDSI: Σ(depth² × duration) / measuredTime
     var wtdsi = 0;
     nadirEvents.forEach(function (e) {
       wtdsi += e.depth * e.depth * e.duration;
     });
-    wtdsi = n > 0 ? +(wtdsi / n).toFixed(3) : 0;
+    wtdsi = m > 0 ? +(wtdsi / m).toFixed(3) : 0;
 
-    // SpO2 IQR (p75 - p25)
-    var sorted = spo2.slice().sort(function (a, b) {
+    // SpO2 IQR (p75 - p25), over measured samples only
+    var sorted = measured.slice().sort(function (a, b) {
       return a - b;
     });
-    var p25 = sorted[Math.floor(n * 0.25)];
-    var p75 = sorted[Math.floor(n * 0.75)];
+    var p25 = sorted[Math.floor(m * 0.25)];
+    var p75 = sorted[Math.floor(m * 0.75)];
     var iqr = +(p75 - p25).toFixed(1);
 
-    // Conditional mean SpO2 below 94%
-    var belowSamples = spo2.filter(function (v) {
+    // Conditional mean SpO2 below 94% (measured samples only — `null < 94` is TRUE)
+    var belowSamples = measured.filter(function (v) {
       return v < 94;
     });
     var condMean =
@@ -18561,20 +18601,32 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var hd94 = 0,
       hd90 = 0,
       hd88 = 0,
-      auc = 0;
+      auc = 0,
+      nMeasured = 0;
     // O(n) sliding window for AUC baseline (rows[max(0,i-WIN)..i-1])
     var winSum = 0,
       winLen = 0;
     for (var i = 0; i < n; i++) {
       if (i > 0) {
-        winSum += rows[i - 1].spo2;
-        winLen++;
+        // §∅: absences stay out of the baseline window (null is not 0)
+        var prev = rows[i - 1].spo2;
+        if (prev != null) {
+          winSum += prev;
+          winLen++;
+        }
       }
       if (i > WIN) {
-        winSum -= rows[i - WIN - 1].spo2;
-        winLen--;
+        var old = rows[i - WIN - 1].spo2;
+        if (old != null) {
+          winSum -= old;
+          winLen--;
+        }
       }
       var v = rows[i].spo2;
+      // §∅: an absent second contributes nothing — `94 - null` is 94, the maximum,
+      // so without this a dropout fabricates the worst possible dose.
+      if (v == null) continue;
+      nMeasured++;
       if (v < 94) hd94 += 94 - v;
       if (v < 90) hd90 += 90 - v;
       if (v < 88) hd88 += 88 - v;
@@ -18583,14 +18635,17 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         if (v < base - 1) auc += base - v;
       }
     }
-    var durationHr = n / 3600;
+    var durationHr = nMeasured / 3600;
     return {
       hd94: +hd94.toFixed(0),
       hd90: +hd90.toFixed(0),
       hd88: +hd88.toFixed(0),
       hd94PerHr: durationHr > 0 ? +(hd94 / durationHr).toFixed(1) : 0,
       desatAUC: +auc.toFixed(0),
-      hd94Label: (durationHr > 0 ? hd94 / durationHr : 0) > 200 ? 'High (>200/hr)' : (durationHr > 0 ? hd94 / durationHr : 0) > 60 ? 'Moderate' : 'Low (<60/hr)'
+      hd94Label: (durationHr > 0 ? hd94 / durationHr : 0) > 200 ? 'High (>200/hr)' : (durationHr > 0 ? hd94 / durationHr : 0) > 60 ? 'Moderate' : 'Low (<60/hr)',
+      // §∅: coverage beside the value — the dose is over measured seconds only
+      nMeasured: nMeasured,
+      nTotal: n
     };
   }
 
@@ -18598,21 +18653,30 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   function computeT88T85(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var t88 = rows.filter(function (r) {
+    // §∅: count measured seconds below threshold only — `null < 88` is TRUE,
+    // so without the null guard a dropout reads as time in severe hypoxemia.
+    var measured = rows.filter(function (r) {
+      return r.spo2 != null;
+    });
+    var m = measured.length;
+    var t88 = measured.filter(function (r) {
       return r.spo2 < 88;
     }).length;
-    var t85 = rows.filter(function (r) {
+    var t85 = measured.filter(function (r) {
       return r.spo2 < 85;
     }).length;
-    var durationHr = n / 3600;
+    var durationHr = m / 3600;
     return {
       t88Sec: t88,
       t88Min: +(t88 / 60).toFixed(1),
-      t88Pct: +((t88 / n) * 100).toFixed(2),
+      t88Pct: m > 0 ? +((t88 / m) * 100).toFixed(2) : 0,
       t85Sec: t85,
       t85Min: +(t85 / 60).toFixed(1),
-      t85Pct: +((t85 / n) * 100).toFixed(2),
-      t88Label: (t88 / n) * 100 > 1 ? 'Severe hypoxemia (>1%)' : (t88 / n) * 100 > 0 ? 'Present' : 'None'
+      t85Pct: m > 0 ? +((t85 / m) * 100).toFixed(2) : 0,
+      t88Label: m > 0 && (t88 / m) * 100 > 1 ? 'Severe hypoxemia (>1%)' : m > 0 && (t88 / m) * 100 > 0 ? 'Present' : 'None',
+      // §∅: coverage beside the value
+      nMeasured: m,
+      nTotal: n
     };
   }
 

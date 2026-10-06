@@ -361,8 +361,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5b6d5b7972b5",
-          "computeHash": "fae5ece3ded3"
+          "manifestHash": "c475732dda3e",
+          "computeHash": "a605adb11ca2"
         },
         "evidence": {
           "envelopeRef": null,
@@ -390,8 +390,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5b6d5b7972b5",
-          "computeHash": "fae5ece3ded3"
+          "manifestHash": "c475732dda3e",
+          "computeHash": "a605adb11ca2"
         },
         "evidence": {
           "envelopeRef": null,
@@ -419,8 +419,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5b6d5b7972b5",
-          "computeHash": "fae5ece3ded3"
+          "manifestHash": "c475732dda3e",
+          "computeHash": "a605adb11ca2"
         },
         "evidence": {
           "envelopeRef": null,
@@ -448,8 +448,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5b6d5b7972b5",
-          "computeHash": "fae5ece3ded3"
+          "manifestHash": "c475732dda3e",
+          "computeHash": "a605adb11ca2"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1249,7 +1249,9 @@
         "hd88": 14,
         "hd94PerHr": 236.3,
         "desatAUC": 4003,
-        "hd94Label": "High (>200/hr)"
+        "hd94Label": "High (>200/hr)",
+        "nMeasured": 26145,
+        "nTotal": 26145
       },
       "t88t85": {
         "t88Sec": 10,
@@ -1258,7 +1260,9 @@
         "t85Sec": 0,
         "t85Min": 0,
         "t85Pct": 0,
-        "t88Label": "Present"
+        "t88Label": "Present",
+        "nMeasured": 26145,
+        "nTotal": 26145
       },
       "lcsp": {
         "lcspSec": 5246,

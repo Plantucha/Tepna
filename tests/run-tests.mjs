@@ -2710,6 +2710,9 @@ async function main() {
     fuseHrvResource: ctx.fuseHrvResource,
     fuseCvhrCorroboration: ctx.fuseCvhrCorroboration,
     oxyComputeFusion: ctx.oxyComputeFusion,
+    // §∅ behavioural handle: the ceiling baseline, so a DROPOUT can be tested for real and not
+    // merely regex-matched in the source. Additive — a new key, no existing one touched.
+    computeCeilingBaselineArr: ctx.computeCeilingBaselineArr,
     reconstructEventTMs: ctx.reconstructEventTMs,
     pearson: ctx.pearson,
     labelPositionalApnea: ctx.labelPositionalApnea,
