@@ -46082,6 +46082,68 @@
       T.ok('§5 · tag-shaped source strings survive (no extension, no separator)', tagOnly.recording.source === 'ResMed AirSense 11 (EDF set)' && tagOnly.sessions[0].source === 'firmware 2.1 build');
     });
 
+    /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════
+       `_scrubElement` scrubbed `el.provenance` and `el.recording` and never visited
+       `el.schema.provenance`, while `scrubExport` reduces `schema.provenance` at the TOP level only.
+       ECGDex/PulseDex `recordings[]` and PpgDex `sessions[]` do not carry a summary block — they carry
+       a FULL v2.0 envelope per element, `schema.provenance.inputs[]` included, each input holding
+       `{ name, bytes, lastModifiedMs, sha256 }`. So with scrub ON, every per-element input NAME and
+       SHA256 survived, against the acceptance stated at the top of dex-export.js: a scrubbed JSON
+       contains no device serial, filename or input sha256.
+       ⚠️ THE EXISTING §5 GROUP IS GREEN OVER THIS. Its planted `nights[]` element carries a bare
+       `provenance` and its `recordings[]`/`sessions[]` elements carry NEITHER `schema` NOR
+       `provenance` — so the one shape that leaks is the one shape never planted. That is why this is a
+       separate group with its own control rather than another assertion in that one. RED on main. */
+    group('SELF-INGEST §5 · a per-element ENVELOPE is scrubbed, not just a per-element provenance', 'dex-export · scrub · self-ingest · plant', function (T) {
+      var DX = env.DexExport || (typeof globalThis !== 'undefined' && globalThis.DexExport) || null;
+      if (!DX || typeof DX.scrubExport !== 'function') {
+        T.skip('env.DexExport.scrubExport available', 'not available in this runner');
+        return;
+      }
+      var SHA = 'b17e55c0ffee1234567890abcdef0123456789abcdef0123456789abcdef0123';
+      var NAME = 'Jane_Smith_H10_20260612230016_ECG.txt';
+      function envelope() {
+        return {
+          schema: {
+            name: 'ganglior.node-export',
+            version: '2.0',
+            provenance: { buildHash: 'abc123', generated: '2026-06-12T23:00:16Z', inputs: [{ name: NAME, bytes: 918273, lastModifiedMs: 1781308816000, sha256: SHA }] }
+          },
+          recording: { contentId: 'cid-1' }
+        };
+      }
+      var raw = {
+        schema: {
+          name: 'ganglior.node-export',
+          version: '2.0',
+          provenance: { buildHash: 'abc123', generated: '2026-06-12T23:00:16Z', inputs: [{ name: NAME, bytes: 918273, lastModifiedMs: 1781308816000, sha256: SHA }] }
+        },
+        recordings: [envelope()],
+        sessions: [envelope()],
+        nights: [envelope()]
+      };
+      var before = JSON.stringify(raw);
+      // CONTROL — passes on main too: without it a green test could mean the token was never there.
+      T.ok('control · the sha256 and the filename ARE present before the scrub', before.indexOf(SHA) >= 0 && before.indexOf(NAME) >= 0, 'planted');
+
+      var out = JSON.stringify(DX.scrubExport(raw));
+      // RED ON MAIN: the per-element envelopes keep both.
+      T.eq('§5 · no input sha256 survives anywhere in a scrubbed export', out.indexOf(SHA), -1);
+      T.eq('§5 · no input FILENAME survives anywhere in a scrubbed export', out.indexOf(NAME), -1);
+
+      var sc = DX.scrubExport(raw);
+      ['recordings', 'sessions', 'nights'].forEach(function (key) {
+        var el = sc[key] && sc[key][0];
+        var prov = el && el.schema && el.schema.provenance;
+        T.ok(key + '[0].schema.provenance is REDUCED, not deleted', !!prov && prov.scrubbed === true, JSON.stringify(prov && Object.keys(prov)));
+        T.eq(key + '[0] keeps the non-identifying byte count', prov && prov.inputs && prov.inputs[0] && prov.inputs[0].bytes, 918273);
+        T.eq(key + '[0] drops name/sha256/lastModifiedMs from the input', JSON.stringify(prov && prov.inputs && prov.inputs[0]), '{"bytes":918273}');
+        // CONTROL — passes on main: the coarse build stamp is integrity, not identity, and must SURVIVE.
+        T.eq('control · ' + key + '[0] keeps the coarse buildHash', prov && prov.buildHash, 'abc123');
+      });
+      T.eq('the TOP-level envelope is still scrubbed (no regression)', JSON.stringify(sc.schema.provenance.inputs[0]), '{"bytes":918273}');
+    });
+
     /* ════ SELF-INGEST (CPAPDex) — cpapLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS-2026-07-03 · CPAPDex pass) ════
      Mirror of the OxyDex §7 group for the CPAPDex port: reload CPAPDex's OWN v2.0 export back into
      CPAPDex as a FAITHFUL, review-mode clinical view — never recompute, re-grade, or re-stamp. Runs
