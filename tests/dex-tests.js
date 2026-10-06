@@ -7046,6 +7046,56 @@
        300-sample window leaves the resting ceiling at 98 with this fix and drags it to 97 on main.
        That one percent is the whole bug: desaturations are scored RELATIVE to this baseline, so a
        ceiling pulled down by absence manufactures events out of a gap where nothing was measured. */
+    /* §∅ · A DROPOUT DOES NOT OPEN A PHANTOM DESATURATION — item (C) of the 2026-10-06 batch.
+       `detectDesatEvents` entered on `spo2[i] <= bl - dropPct` with no missing-sample guard, and
+       `null <= bl - dropPct` COERCES to `0 <= bl - dropPct`, which is true for any sane baseline. So a
+       run of absent samples opened an event whose nadir was `null` and whose depth was ≈ the baseline,
+       poisoning MODL, meanDipSlope, odi1Rate and WtDSI. CPAPDex's twin carried the `_spo2Valid` guard
+       all along; OxyDex's did not.
+       ⚠️ THE GUARD IS IN THIS PR ALREADY (`if (spo2[i] == null) continue;`). NOTHING PROVED IT: no test
+       puts a null INTO the series this detector reads — the existing dropout tests skip TIME, so their
+       rows are absent rather than null, and the one behavioural `detectDesatEvents` twin feeds a
+       null-free series. This is the same gap this PR had for its ceiling claim, so it gets the same
+       remedy. RED on main. */
+    group('§∅ · OxyDex — an absent run opens NO phantom desaturation (plant-backed)', 'oxydex-dsp · absence · desat · plant', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      // A resting series with ONE real desaturation, then the same series with a 60-sample ABSENT run
+      // where nothing was measured. Only the second differs, and only by absence.
+      var clean = [];
+      for (var i = 0; i < 900; i++) clean.push(i >= 300 && i < 360 ? 90 : 97);
+      var holed = clean.slice();
+      for (var j = 600; j < 660; j++) holed[j] = null;
+
+      var evClean = det(clean, { dropPct: 4, exitPct: 4 });
+      var evHoled = det(holed, { dropPct: 4, exitPct: 4 });
+
+      // ANTI-VACUITY — passes on main too. Without it, "no phantom event" could mean the detector
+      // simply found nothing at all, and the real assertion below would be vacuous.
+      T.ok('ANTI-VACUITY · the real desaturation IS detected', evClean.length >= 1, 'events=' + evClean.length);
+      T.eq('CONTROL · and its baseline is the resting 97', evClean.length ? evClean[0].baseline : null, 97);
+
+      // RED ON MAIN: the absent run opens a second, fabricated event.
+      T.eq('an absent run adds NO event', evHoled.length, evClean.length);
+      var bad = evHoled.filter(function (e) {
+        return e.nadir == null || !isFinite(e.nadir) || e.depth > 50;
+      });
+      T.eq(
+        'no event has a null nadir or an impossible depth',
+        JSON.stringify(
+          bad.map(function (e) {
+            return { nadir: e.nadir, depth: e.depth };
+          })
+        ),
+        '[]'
+      );
+      T.eq('CONTROL · absence does not shorten the series the detector reads', holed.length, clean.length);
+    });
+
     group('§∅ · OxyDex — a dropout is ABSENT, never a measured 0 (plant-backed)', 'oxydex-util · oxydex-dsp · absence · plant', function (T) {
       var CB = env.computeCeilingBaselineArr || (typeof globalThis !== 'undefined' && globalThis.computeCeilingBaselineArr) || null;
       if (typeof CB !== 'function') {
