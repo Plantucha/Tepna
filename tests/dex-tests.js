@@ -7137,17 +7137,6 @@
        inputHash that names a different input than the element's contentId · a missing code identity · a
        value that disagrees with the element scalar · a zero-length window — each reads `unresolved`, LOUDLY,
        while the scalar every existing consumer reads is untouched. */
-    /* §∅ · A DROPOUT IS ABSENT, NEVER A MEASURED 0 — the behavioural test this fix shipped without.
-       Muse's PR (#3321) changed `measuredSpO2`, the detector, hypoxic dose, T88/T85, the desaturation
-       profile and the baseline histogram, and carried NO test: `measuredSpO2` appeared ZERO times in
-       this file, and every committed OxyDex fixture has `nMeasured == nTotal` (25660 == 25660), so no
-       fixture contains a null either. The existing coverage of `computeCeilingBaselineArr` was a REGEX
-       on its source text plus an allowlist line claiming it is "exercised by the OxyDex equiv/compute
-       gate" — a gate whose inputs hold no absences. Explained, and unexercised.
-       MEASURED PLANT, both ways, against main's own sources: a 180-sample null dropout inside one
-       300-sample window leaves the resting ceiling at 98 with this fix and drags it to 97 on main.
-       That one percent is the whole bug: desaturations are scored RELATIVE to this baseline, so a
-       ceiling pulled down by absence manufactures events out of a gap where nothing was measured. */
     /* §∅ · A DROPOUT DOES NOT OPEN A PHANTOM DESATURATION — item (C) of the 2026-10-06 batch.
        `detectDesatEvents` entered on `spo2[i] <= bl - dropPct` with no missing-sample guard, and
        `null <= bl - dropPct` COERCES to `0 <= bl - dropPct`, which is true for any sane baseline. So a
@@ -7198,6 +7187,17 @@
       T.eq('CONTROL · absence does not shorten the series the detector reads', holed.length, clean.length);
     });
 
+    /* §∅ · A DROPOUT IS ABSENT, NEVER A MEASURED 0 — the behavioural test this fix shipped without.
+       Muse's PR (#3321) changed `measuredSpO2`, the detector, hypoxic dose, T88/T85, the desaturation
+       profile and the baseline histogram, and carried NO test: `measuredSpO2` appeared ZERO times in
+       this file, and every committed OxyDex fixture has `nMeasured == nTotal` (25660 == 25660), so no
+       fixture contains a null either. The existing coverage of `computeCeilingBaselineArr` was a REGEX
+       on its source text plus an allowlist line claiming it is "exercised by the OxyDex equiv/compute
+       gate" — a gate whose inputs hold no absences. Explained, and unexercised.
+       MEASURED PLANT, both ways, against main's own sources: a 180-sample null dropout inside one
+       300-sample window leaves the resting ceiling at 98 with this fix and drags it to 97 on main.
+       That one percent is the whole bug: desaturations are scored RELATIVE to this baseline, so a
+       ceiling pulled down by absence manufactures events out of a gap where nothing was measured. */
     group('§∅ · OxyDex — a dropout is ABSENT, never a measured 0 (plant-backed)', 'oxydex-util · oxydex-dsp · absence · plant', function (T) {
       var CB = env.computeCeilingBaselineArr || (typeof globalThis !== 'undefined' && globalThis.computeCeilingBaselineArr) || null;
       if (typeof CB !== 'function') {
@@ -7283,6 +7283,95 @@
         // CONTROL — passes on main too: the metric itself still reports.
         T.ok('CONTROL · ' + name + ' still carries its value', 'value' in b || 'label' in b || Object.keys(b).length > 2, Object.keys(b).slice(0, 6).join(','));
       });
+    });
+
+    /* §∅ · A TERMINAL DESATURATION OBSERVED NO RESATURATION — item (B) of the 2026-10-06 batch, as
+       ACTUALLY FOUND. The hunter's claim was an EOF off-by-one: a desat opening 10 samples before the
+       end passing a 10 s gate at 9 s. That does NOT reproduce, and the table is in the PR body —
+       mid-series and terminal both report `dur: 10` for a 10-sample dip, and a 9-sample terminal dip
+       is correctly REJECTED, because `endIdxRaw` is one past the last event sample in BOTH paths.
+       What IS wrong sits one field over. `recEnd = Math.min(n - 1, endIdxRaw)` pulls a terminal
+       event's end back to the last IN-EVENT sample, where every in-loop close gets the re-rise
+       sample, so `recSlope` measured the dip against itself: a flat terminal desat published 0 — "a
+       recovery was measured and it was perfectly flat" — for a recording that simply ended. Measured
+       on main: the identical dip gives 0.7 mid-series and 0 terminal. And it is averaged into the
+       published `meanRecSlope`, so one terminal event drags a true 0.7 to 0.35 over two events. */
+    group('§∅ · OxyDex — a TERMINAL desaturation reports no resaturation, not a flat one (plant-backed)', 'oxydex-dsp · absence · desat · plant', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      function series(startAt, len, total) {
+        var a = [];
+        for (var i = 0; i < total; i++) a.push(i >= startAt && i < startAt + len ? 90 : 97);
+        return a;
+      }
+      var OPTS = { dropPct: 4, exitPct: 4, minSec: 10 };
+      var mid = det(series(300, 10, 900), OPTS);
+      var eof = det(series(890, 10, 900), OPTS);
+
+      // ANTI-VACUITY — passes on main: both shapes ARE events, so the comparison is about recSlope.
+      T.eq('ANTI-VACUITY · both the mid-series and the terminal dip are detected', mid.length + '/' + eof.length, '1/1');
+      // CONTROL — passes on main: the mid-series recovery is OBSERVED and keeps its value.
+      T.eq('CONTROL · the mid-series event still reports its observed resaturation', mid[0].recSlope, 0.7);
+      // RED ON MAIN: 0, as though a recovery had been watched and found flat.
+      T.eq('a TERMINAL event reports NO resaturation', eof[0].recSlope, null);
+      T.eq('…and names why', eof[0].recSlopeReason, 'record-ended');
+      T.eq('CONTROL · the mid-series event names no absence', mid[0].recSlopeReason, null);
+      // The duration convention is NOT the defect — pinned so the closed premise cannot re-open.
+      T.eq('the duration convention is identical in both paths (the premise that did NOT reproduce)', mid[0].durationSec + '/' + eof[0].durationSec, '10/10');
+      T.eq('CONTROL · a 9-sample terminal dip is still rejected by a 10 s gate', det(series(891, 9, 900), OPTS).length, 0);
+    });
+
+    group('§∅ · OxyDex — meanRecSlope averages the MEASURED recoveries and says how many (plant-backed)', 'oxydex-dsp · absence · desat · plant', function (T) {
+      var NS = env.OxyDex;
+      var slopes = NS && NS._bare && NS._bare.computeDesatSlopes;
+      if (typeof slopes !== 'function') {
+        T.skip('OxyDex._bare.computeDesatSlopes reachable', 'not wired in this lane');
+        return;
+      }
+      /* blArr is OMITTED on purpose: `computeDesatSlopes` threads it into `detectDesatEvents`, which
+         computes the ceiling itself when none is passed. The ceiling helper reaches `env` only via
+         #3321, and this PR must not depend on a sibling branch's harness line. */
+      /* `computeDesatSlopes(rows, blArr)` builds its OWN events with the hysteresis close and the
+         default minSec, so the series is shaped for that rather than for a hand-passed opts. */
+      function rowsFor(fn) {
+        var r = [];
+        for (var i = 0; i < 900; i++) r.push({ spo2: fn(i) });
+        return r;
+      }
+      // One mid-series dip (recovery observed) and one running to the LAST sample (never observed).
+      var mixed = rowsFor(function (i) {
+        return (i >= 300 && i < 320) || i >= 870 ? 90 : 97;
+      });
+      var pr = slopes(mixed);
+      if (!pr) {
+        T.skip('computeDesatSlopes returned a profile', 'series rejected (n < 60 or no events)');
+        return;
+      }
+      // ANTI-VACUITY — passes on main: without events the assertions below would be vacuous.
+      T.ok(
+        'ANTI-VACUITY · the series yields events, at least one of them terminal',
+        pr.meanRecSlopeN != null || pr.meanRecSlope != null,
+        JSON.stringify({ n: pr.meanRecSlopeN, mean: pr.meanRecSlope })
+      );
+      // RED ON MAIN: main folds the unobserved recovery in as a 0 and reports no n at all.
+      T.eq('meanRecSlope is the mean over the MEASURED recoveries ONLY — the unobserved one is not a 0', pr.meanRecSlope, 0.35);
+      T.ok('…and an n says how many recoveries it is over', typeof pr.meanRecSlopeN === 'number', String(pr.meanRecSlopeN));
+
+      // CONTROL — passes on main: two MID-SERIES dips, every recovery observed, n equals the events.
+      var allMid = rowsFor(function (i) {
+        return (i >= 300 && i < 320) || (i >= 600 && i < 620) ? 90 : 97;
+      });
+      var pr2 = slopes(allMid);
+      T.ok(
+        'CONTROL · with every recovery measured the mean is a real number',
+        pr2 && typeof pr2.meanRecSlope === 'number' && pr2.meanRecSlope > 0,
+        JSON.stringify({ mean: pr2 && pr2.meanRecSlope, n: pr2 && pr2.meanRecSlopeN })
+      );
+      T.eq('CONTROL · and its n equals the number of events it averaged', pr2 && pr2.meanRecSlopeN, 2);
     });
 
     group('Integrator consumes canonical measurement blocks — roadmap §8 (fail-closed, plant-backed)', 'integrator-dsp · measurement-block · provenance · roadmap-§8 · plant', function (T) {

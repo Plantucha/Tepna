@@ -1120,6 +1120,7 @@
         modl: null,
         meanDipSlope: null,
         meanRecSlope: null,
+        meanRecSlopeN: 0,
         clusteringIdx: null,
         firstHalfNadirs: 0,
         lastHalfNadirs: 0
@@ -1146,13 +1147,21 @@
           }, 0) / events.length
         ).toFixed(3)
       : 0;
-    var meanRecSlope = events.length
+    /* ⚠️ OVER THE MEASURED EVENTS, WITH ITS n BESIDE IT. A terminal event has no observed
+       resaturation (`recSlope: null`), and folding that in as 0 is the §∅ fabrication one layer up:
+       the mean would report a recovery nobody watched. Reduced COVERAGE annotates — the value stands
+       with `meanRecSlopeN` saying how many events it is over — while a mean of NOTHING refuses. */
+    var _recMeasured = events.filter(function (e) {
+      return e.recSlope != null;
+    });
+    var meanRecSlope = _recMeasured.length
       ? +(
-          events.reduce(function (a, e) {
+          _recMeasured.reduce(function (a, e) {
             return a + e.recSlope;
-          }, 0) / events.length
+          }, 0) / _recMeasured.length
         ).toFixed(3)
-      : 0;
+      : null;
+    var meanRecSlopeN = _recMeasured.length;
 
     // Clustering: first-half vs last-half of recording
     var midIdx = Math.floor(n / 2);
@@ -1165,7 +1174,7 @@
     var total = firstH + lastH;
     var clusteringIdx = total > 0 ? +(lastH / total).toFixed(2) : null; // >0.6 = REM-concentrated
 
-    return { modl: modl, meanDipSlope: meanDipSlope, meanRecSlope: meanRecSlope, clusteringIdx: clusteringIdx, firstHalfNadirs: firstH, lastHalfNadirs: lastH };
+    return { modl: modl, meanDipSlope: meanDipSlope, meanRecSlope: meanRecSlope, meanRecSlopeN: meanRecSlopeN, clusteringIdx: clusteringIdx, firstHalfNadirs: firstH, lastHalfNadirs: lastH };
   }
 
   // ── Periodic Breathing Characterisation ────────────────────────
@@ -3492,6 +3501,15 @@
     function pushEvent(endIdxRaw) {
       if (endIdxRaw - evStart < minSec) return; // ignore sub-minSec blips
       var recEnd = Math.min(n - 1, endIdxRaw);
+      /* ⚠️ §∅ · A TERMINAL EVENT OBSERVED NO RESATURATION, so `recSlope` is null and says why.
+         `endIdxRaw === n` only at the end-of-record flush, where the clamp above pulls `recEnd` back
+         to the LAST IN-EVENT sample instead of the re-rise sample every in-loop close gets. The
+         arithmetic then measured the dip against itself: a flat terminal desat published
+         `recSlope: 0`, which reads as "recovery was measured and it was perfectly flat" when the
+         recording simply ended. Measured on main — the identical dip mid-series gives 0.7, terminal
+         gives 0 — and it is averaged into the published `meanRecSlope`, so ONE terminal event drags
+         a true 0.7 to 0.35 over two events. Absence is null, never an in-range number. */
+      var terminal = endIdxRaw >= n;
       var dipDur = Math.max(1, evNadirIdx - evStart);
       var recDur = Math.max(1, recEnd - evNadirIdx);
       events.push({
@@ -3503,7 +3521,8 @@
         depth: +(evBaseline - evNadir).toFixed(1),
         durationSec: endIdxRaw - evStart,
         dipSlope: +((evNadir - evBaseline) / dipDur).toFixed(3),
-        recSlope: +((spo2[recEnd] - evNadir) / recDur).toFixed(3)
+        recSlope: terminal ? null : +((spo2[recEnd] - evNadir) / recDur).toFixed(3),
+        recSlopeReason: terminal ? 'record-ended' : null
       });
     }
     for (var i = 0; i < n; i++) {
