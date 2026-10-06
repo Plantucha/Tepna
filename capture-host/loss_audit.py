@@ -430,6 +430,15 @@ def witness_judges(witness, t0: _dt.datetime, g: float) -> tuple[str, float | No
     return ("delay" if advance >= g - RING_WITNESS_TOL_S else "silence", advance)
 
 
+def _iso(t) -> "str | None":
+    """A datetime as ISO-8601, or None — never a fabricated stamp for a file that carried none (§∅).
+
+    `stream_scan` returns `None` for a file with neither a readable stamp nor a counter, and that absence
+    has to survive into the JSON: a consumer that reads `""` or an epoch there would judge a boundary
+    against a time nobody measured."""
+    return t.isoformat() if t is not None else None
+
+
 def boundary_gap(prev: dict, nxt: dict) -> tuple | None:
     """The gap BETWEEN two consecutive fragments, judged the way an in-file gap is — or None if there is none.
 
@@ -1054,6 +1063,21 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal, cl
                     "span_min": round(sc["span"] / 60.0, 1),
                     "gaps": len(sc["gaps"]),
                     "delays": len(sc["delays"]),
+                    # 🔴 THE ENDPOINTS, PUBLISHED SO A BOUNDARY ACROSS FOLDERS CAN BE JUDGED AT ALL. They
+                    # were computed here and consumed only here, which was enough while a night WAS a
+                    # folder. It is not: a recording may span two folders (NIGHT-IS-THE-RECORDING, #3297),
+                    # each with its own audit, and the gap between the evening's last file and the
+                    # morning's first is seen by NEITHER — while `stream_scan`'s own docstring says that
+                    # gap "is exactly the loss that made the night fragment". `boundary_gap` already
+                    # knows how to judge it and already distinguishes a delay from a loss by the device
+                    # counter (#3157); it only ever lacked these six fields on the far side of the JSON.
+                    # ADDITIVE: every existing reader of `files[]` sees exactly what it saw before.
+                    "first": _iso(sc["first"]),
+                    "last": _iso(sc["last"]),
+                    "first_dev": sc["first_dev"],
+                    "last_dev": sc["last_dev"],
+                    "period_ns": sc["period_ns"],
+                    "cut": sc["cut"],
                 }
                 for n, sc in scans
             ]

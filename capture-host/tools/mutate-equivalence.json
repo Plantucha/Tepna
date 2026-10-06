@@ -32,7 +32,9 @@
     "               excluded from every count until re-verified, so a stale entry shrinks nothing.",
     "  · unclassified survivors are counted and named, so silence is never mistaken for equivalence.",
     "",
-    "Only `no-distinguishing-input` and `untestable-by-design` leave the denominator. `real-gap` does not."
+    "Only `no-distinguishing-input` and `untestable-by-design` leave the denominator. `real-gap` does not.",
+    "",
+    "EDITING THIS FILE: match its existing indent and trailing newline, and check the DIFF SIZE is proportional to the change. A json round-trip at the wrong indent rewrote all 5,653 lines on 2026-10-05 (#3297) — a wholesale reformat of a ledger four sessions append to, in which another session's entry would be invisible, and no gate inspects formatting. Re-reading it at indent=2 with a final newline turned the same edit into 9 insertions and 24 deletions."
   ],
   "acq_evidence_cpap.py": [
     {
@@ -5626,6 +5628,36 @@
       "key": "- if a.get(k) is None or b.get(k) is None or a.get(k) != b.get(k) | + if a.get(k) is None and b.get(k) is None or a.get(k) != b.get(k)",
       "probe": "read the predicate for the three cases: both None, exactly one None, neither None.",
       "why": "PROOF: with exactly one side None the two values differ, so `a != b` already includes the key under the mutant; with both None the `and` clause includes it; with neither None both reduce to `a != b`. Every key is included under exactly the same condition. (Codex reader, verified case by case.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- f\"{op:#04x}\": KNOWN.get(op, \"?\") + \" — persists across power cycles\" | + f\"{op:#04x}\": KNOWN.get(op, None) + \" — persists across power cycles\"",
+      "probe": "read the comprehension: it iterates only sorted(SKIP_BY_DEFAULT), i.e. {0x08, 0x09}, and both are keys of KNOWN (checked: set(SKIP_BY_DEFAULT) <= set(KNOWN) is True).",
+      "why": "PROOF: KNOWN.get(op, <default>) only ever sees an op that KNOWN holds, so the default is never returned; \"?\", None and no default give the same string. (Codex reader, verified by evaluating the subset.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- f\"{op:#04x}\": KNOWN.get(op, \"?\") + \" — persists across power cycles\" | + f\"{op:#04x}\": KNOWN.get(op, ) + \" — persists across power cycles\"",
+      "probe": "read the comprehension: it iterates only sorted(SKIP_BY_DEFAULT), i.e. {0x08, 0x09}, and both are keys of KNOWN (checked: set(SKIP_BY_DEFAULT) <= set(KNOWN) is True).",
+      "why": "PROOF: KNOWN.get(op, <default>) only ever sees an op that KNOWN holds, so the default is never returned; \"?\", None and no default give the same string. (Codex reader, verified by evaluating the subset.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[\"left_running\"] = [pmd.MEAS_NAME.get(m, hex(m)) for m in active] | + out[\"left_running\"] = [pmd.MEAS_NAME.get(m, None) for m in active]",
+      "probe": "read polar_pmd.parse_status_response: it adds a measurement id to its result only if meas in MEAS_NAME, and active comes from that result alone.",
+      "why": "PROOF: every m in active is a key of MEAS_NAME, so MEAS_NAME.get(m, <default>) never returns its default; hex(m), None and no default give the same name. (Codex reader, verified at the MEAS_NAME filter in polar_pmd.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- out[\"left_running\"] = [pmd.MEAS_NAME.get(m, hex(m)) for m in active] | + out[\"left_running\"] = [pmd.MEAS_NAME.get(m, ) for m in active]",
+      "probe": "read polar_pmd.parse_status_response: it adds a measurement id to its result only if meas in MEAS_NAME, and active comes from that result alone.",
+      "why": "PROOF: every m in active is a key of MEAS_NAME, so MEAS_NAME.get(m, <default>) never returns its default; hex(m), None and no default give the same name. (Codex reader, verified at the MEAS_NAME filter in polar_pmd.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- dev = None | + dev = \"\"",
+      "probe": "read the scan: `for _ in range(3): dev = await ...find_device_by_address(...)` assigns dev on every one of exactly three iterations before dev is first read; and the test that scans None three times passed under this mutant.",
+      "why": "PROOF: the initialiser is dead — range(3) is never empty, so dev is overwritten before any read, and None vs \"\" is never observed. The Codex reader claimed a distinguishing input (three None scans) and was WRONG: the loop reassigns dev each time."
     }
   ],
   "probe_pmd_surface.py": [

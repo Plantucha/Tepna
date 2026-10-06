@@ -311,6 +311,16 @@ export const SEEDS = [
     at: 'capture-host/probe_oxyii_0x03.py:303',
     state: 'fixed',
     note: 'run() publishes reported_pr_n beside reported_pr_mean, the n of polls that carried a PR (the mean and records_per_beat rest on it, not on beats_polled). Plant: test_the_pulse_rate_mean_publishes_the_n_it_rests_on (2026-10-05, Wren)'
+  },
+  {
+    at: 'capture-host/probe_oxyii_opcodes.py:168',
+    state: 'fixed',
+    note: 'an unanswered verification snapshot marks the op effect UNVERIFIED and stops the sweep (aborted_at + abort_reason), never _changed()=[] read as no byte moved. Plant: test_oxyii_an_UNANSWERED_verification_snapshot_is_UNVERIFIED_and_stops_the_sweep (2026-10-05, Wren; survivors through the Codex reader)'
+  },
+  {
+    at: 'capture-host/probe_pmd_opcodes.py:163',
+    state: 'fixed',
+    note: 'an unanswered final status read publishes left_running None with left_running_reason, never [] (nothing running), and sends no stop blind. Plant: test_pmd_an_UNANSWERED_final_status_read_is_unknown_never_nothing_running (2026-10-05, Wren; survivors through the Codex reader)'
   }
 ];
 
