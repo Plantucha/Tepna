@@ -124,9 +124,27 @@ def read_ledger(root: str) -> list[dict]:
             if not line:
                 continue
             try:
-                rows.append(json.loads(line))
+                obj = json.loads(line)
             except ValueError:
                 continue  # torn tail / garbage line — no authority
+            # 🔴 PARSEABLE IS NOT THE SAME AS A ROW, and `committed_rows`'s own docstring already states
+            # the contract this gate exists to keep: "A VALID-JSON foreign line (a hand-written marker,
+            # another tool's note) parses but carries no authority — it must never crash the restart path
+            # or masquerade as a committed round." Without this, both halves of that sentence failed:
+            #   * a bare `42` reaches `"committed_cursor" in r` and raises
+            #     `TypeError: argument of type 'int' is not iterable` — it CRASHES the restart path;
+            #   * a JSON STRING `"committed_cursor round_seq"` is worse, because `in` on a str is a
+            #     SUBSTRING test: it is ADMITTED as a committed row, and `rows[-1]["committed_cursor"]`
+            #     then fails on string indices. It MASQUERADES.
+            # Both measured on main before this gate was written.
+            #
+            # Skipped SILENTLY, matching the `except ValueError` above rather than the louder rule in
+            # `ble_visibility.read_records`: this module has no logger and no print by design, and the
+            # ledger's authority question is "which rows committed a round", to which a foreign line is
+            # a settled no rather than a gap in a population being counted.
+            if not isinstance(obj, dict):
+                continue
+            rows.append(obj)
     return rows
 
 

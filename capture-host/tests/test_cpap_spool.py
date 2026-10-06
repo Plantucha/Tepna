@@ -510,3 +510,61 @@ def test_promote_never_touches_the_process_cwd(tmp_path, monkeypatch):
     sp.promote(root, part, name, expected_sha=sha, expected_len=len(body))
     assert not (clean_cwd / sp.COMMITTED_DIR).exists()  # nothing leaked into the cwd
     assert os.path.exists(os.path.join(root, sp.COMMITTED_DIR, name))
+
+
+# ══ A PARSEABLE NON-OBJECT IS NOT A LEDGER ROW (2026-10-06) ════════════════════════════════════════
+# `committed_rows`'s docstring already stated the contract: "A VALID-JSON foreign line (a hand-written
+# marker, another tool's note) parses but carries no authority — it must never crash the restart path or
+# masquerade as a committed round." Both halves failed, measured on main before the gate was written.
+
+
+def test_a_bare_NUMBER_in_the_ledger_does_not_crash_the_restart_path(tmp_path):
+    """The CRASH half. A line of `42` parses, so `except ValueError` never sees it; it reaches
+    `"committed_cursor" in r` and raises `TypeError: argument of type 'int' is not iterable` — out of
+    `last_committed_cursor`, which is the restart authority. One foreign line would stall every
+    subsequent pull, and the traceback names a membership test rather than the ledger."""
+    root = str(tmp_path)
+    p = sp.ledger_path(root)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"round_seq": 1, "committed_cursor": "2026-10-01T00:00:00"}) + "\n")
+        fh.write("42\n")
+    assert [type(r).__name__ for r in sp.read_ledger(root)] == ["dict"], "the non-object must not be read"
+    assert sp.last_committed_cursor(root) == "2026-10-01T00:00:00"
+
+
+def test_a_JSON_STRING_containing_the_key_names_does_not_MASQUERADE_as_a_committed_row(tmp_path):
+    """🔴 THE WORSE HALF, and the one a type check is the only defence against. `"committed_cursor" in r`
+    on a **str** is a SUBSTRING test, so the line `"committed_cursor round_seq"` is ADMITTED by
+    `committed_rows` as a committed round. It then fails in `rows[-1]["committed_cursor"]` on string
+    indices — but a different string could have been admitted and then INDEXED successfully by accident,
+    which is a wrong cursor rather than an error.
+
+    ⚠️ This is why the gate is `isinstance`, not a `try/except` around the membership test: the failure
+    is not that the operation raises, it is that it SUCCEEDS on the wrong type."""
+    root = str(tmp_path)
+    p = sp.ledger_path(root)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"round_seq": 1, "committed_cursor": "2026-10-01T00:00:00"}) + "\n")
+        fh.write(json.dumps("committed_cursor round_seq") + "\n")
+    rows = sp.read_ledger(root)
+    assert [type(r).__name__ for r in rows] == ["dict"], f"a string was read as a row: {rows}"
+    assert sp.committed_rows(rows) == [{"round_seq": 1, "committed_cursor": "2026-10-01T00:00:00"}]
+    assert sp.last_committed_cursor(root) == "2026-10-01T00:00:00", "the real cursor must still win"
+
+
+def test_a_LIST_line_is_skipped_too_and_the_real_rows_survive(tmp_path):
+    """The third parseable shape, and the ordering half: a foreign line BETWEEN two real rows must not
+    cost the rows around it. Losing the tail to one bad line is the failure `read_ledger`'s own
+    docstring exists to prevent, and a type gate must not reintroduce it."""
+    root = str(tmp_path)
+    p = sp.ledger_path(root)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"round_seq": 1, "committed_cursor": "A"}) + "\n")
+        fh.write("[1, 2, 3]\n")
+        fh.write(json.dumps({"round_seq": 2, "committed_cursor": "B"}) + "\n")
+    rows = sp.read_ledger(root)
+    assert [r.get("round_seq") for r in rows] == [1, 2], rows
+    assert sp.last_committed_cursor(root) == "B", "the row AFTER the foreign line must still be read"
