@@ -67,6 +67,10 @@ SETTLE_SEC = 6.0
 # unpatchable, so every test of an UNANSWERED read paid 6 s per attempt × `_with_link`'s retries —
 # ~20 s each, in the suite that must stay runnable to gate this file's own silence handling.
 CP_REPLY_TIMEOUT_S = 6.0
+# The pause before every control-point command (capture.py never fires back-to-back). A module constant
+# read at CALL time, like the timeout above, so a test can shorten it; a literal is out of every
+# fixture's reach and each command in the suite waited it out.
+CP_PACE_S = 0.25
 
 DIS = {
     "manufacturer": "00002a29-0000-1000-8000-00805f9b34fb",
@@ -112,7 +116,7 @@ class Control:
 
     async def send(self, cmd: bytes, timeout: float | None = None) -> bytes | None:
         _check(cmd)
-        await asyncio.sleep(0.25)  # pace it; capture.py never fires back-to-back
+        await asyncio.sleep(CP_PACE_S)  # pace it; capture.py never fires back-to-back
         while not self.q.empty():
             self.q.get_nowait()
         try:
