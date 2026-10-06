@@ -95,6 +95,11 @@
 <script src="clock.js"></script>
 <script src="provenance-ledger.js"></script>
 <script src="metric-registry.js"></script>
+<!-- dex-escape.js was in SOURCE_FILES (readable as TEXT) but never LOADED here, so `window.escapeHTML`
+     did not exist in this lane and the §2 ATTRIBUTE-sink group's fail-closed first leg red. A leaf module
+     (no deps), loaded with the other dex-* utilities. Listing a file as a source and loading it as a
+     script are two different inventories — the §2 group needs both. -->
+<script src="dex-escape.js"></script>
 <script src="dex-forget.js"></script>
 <script src="dex-profile.js"></script>
 <script src="oxydex-registry.js"></script>
@@ -686,6 +691,13 @@ async function main(){
     PPGDSP: window.PPGDSP,
     PpgDex: window.PpgDex,
     parseTimestamp: window.parseTimestamp,
+    /* dex-escape.js's canonical escaper, in BOTH lanes. The Node lane got it with the §2 ATTRIBUTE-sink
+       group, whose first leg is fail-closed ("not reachable — the assertions below would prove nothing")
+       precisely so a lane that cannot reach the escaper FAILS instead of asserting over nothing. Listed
+       here in the same commit as the assertion rather than after `browser-gates` names it: the lane
+       asymmetry is a known recurrence (the SOURCE_FILES notes in this file), and the remedy is always to
+       LIST in the other lane, never to make the assertion lane-conditional. */
+    escapeHTML: window.escapeHTML || (window.DexEsc && window.DexEsc.escapeHTML),
     DexClock: window.DexClock,
     PulseDex: window.PulseDex,
     OxyDex: window.OxyDex,

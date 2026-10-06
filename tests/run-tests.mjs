@@ -2640,6 +2640,11 @@ async function main() {
     IntegratorLong: ctx.IntegratorLong,
     DexPatientGen: ctx.DexPatientGen,
     parseTimestamp: ctx.parseTimestamp,
+    // dex-escape.js's canonical escaper, surfaced so a test can CALL it rather than only read its
+    // source. It matters for ATTRIBUTE sinks specifically: escaping &<> stops a tag but not an
+    // attribute breakout, which needs the QUOTE — so "the fix delegates to the shared escaper" is
+    // only worth asserting if the shared escaper is known to close that hole.
+    escapeHTML: ctx.escapeHTML || (ctx.DexEsc && ctx.DexEsc.escapeHTML),
     DexClock: ctx.DexClock,
     PulseDex: ctx.PulseDex,
     OxyDex: ctx.OxyDex,
@@ -2891,7 +2896,14 @@ async function main() {
       try {
         const files = readdirSync(ROOT).filter((f) => /^[a-z0-9][a-z0-9-]*\.js$/.test(f));
         const suite = readFileSync(join(ROOT, 'Dex-Test-Suite.html'), 'utf8');
-        const j = suite.indexOf('SOURCE_FILES');
+        /* The DECLARATION, not the first mention. `indexOf('SOURCE_FILES')` matched any prose that
+           named the identifier, and a comment added ABOVE line 221 (2026-10-06, explaining that
+           dex-escape.js was listed but not loaded) made this slice a comment instead of the array —
+           `browser: []`, which is a POPULATION OF ZERO that would read as "no file is listed in the
+           browser lane". The anti-vacuity leg caught it (`> 20 entries`); without that leg every
+           visibility verdict would have been computed over an empty list. Matching the declaration
+           makes prose about the list harmless. */
+        const j = suite.indexOf('const SOURCE_FILES');
         const seg = j >= 0 ? suite.slice(j, suite.indexOf('];', j)) : '';
         const browser = [...seg.matchAll(/'([A-Za-z0-9_.\-]+\.(?:js|mjs|html|css))'/g)].map((m) => m[1]);
         return { files, browser };

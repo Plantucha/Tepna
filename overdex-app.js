@@ -75,10 +75,14 @@
     return /\.edf$/i.test((file && file.name) || '');
   }
 
+  /* Delegates to the ONE shared escaper in dex-escape.js (OverDex.html carries it — verified
+     `data-inline-src="dex-escape.js"`), mirroring OxyDex's escHTML. It used to replace /[&<>]/ only,
+     which is enough for an element body but NOT for an attribute: `:608` builds title="…" from a
+     folder name, so a bare " closed the attribute with no angle bracket involved. The canonical
+     escaper covers & < > " ' — keeping this a one-line alias means every call site in this file is
+     covered at once, and a future second escaper cannot drift from the first. */
   function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
-    });
+    return escapeHTML(s);
   }
   // Node-agnostic one-line summary of a computed node-export — delegates to the ONE
   // shared summarizer in signal-orchestrate.js (SIGNAL-ADAPTER-FOLLOWUPS-II §5 / -III §3),
