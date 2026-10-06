@@ -13842,6 +13842,58 @@
       });
     });
 
+    /* §3 — the no-network gate is fail-CLOSED. A gate that cannot verify is a gate that fails.
+       Two specific fail-opens from the 2026-10-05 review: (1) the provenance/index.json fetch
+       silently fell back on failure; (2) the Python lens did not check for missing timeouts. */
+    group('no-network gate fail-closed — provenance fetch + Python timeout lens (§3)', 'security · no-network · fail-closed', function (T) {
+      var fs = null;
+      try {
+        fs = require('fs');
+      } catch (_) {}
+      if (!fs) {
+        T.skip('fs available', 'Node-lane only');
+        return;
+      }
+      var html = '';
+      try {
+        html = fs.readFileSync('no-network.html', 'utf8');
+      } catch (e) {
+        T.skip('no-network.html readable', String((e && e.message) || e));
+        return;
+      }
+      /* (1) The provenance fetch must be fail-closed — a throw or empty response sets
+         bundleListError, and staticOK requires bundleListError===null. */
+      T.ok(
+        'provenance fetch failure sets bundleListError (fail-closed, not silent fallback)',
+        /bundleListError\s*=\s*['"]provenance\/index\.json fetch/.test(html) || /bundleListError\s*=\s*'provenance\/index\.json fetch failed/.test(html),
+        'no-network.html must attach the fetch error to bundleListError'
+      );
+      T.ok('staticOK requires bundleListError===null — a gate that cannot verify fails', /staticOK\s*=.*bundleListError\s*===\s*null/.test(html), 'staticOK must include the fail-closed condition');
+      T.ok('MotionDex.html is in BUNDLES_FALLBACK (review M1 — the fallback omitted it)', /BUNDLES_FALLBACK\s*=\s*\[[^\]]*MotionDex\.html/.test(html), 'fallback must include MotionDex.html');
+      /* (2) The Python lens: extract scanPython and verify a bare requests.get(url) fails. */
+      var m = html.match(/const PY_NO_TIMEOUT\s*=\s*(\/.*?\/);/s);
+      if (!m) {
+        T.ok('PY_NO_TIMEOUT regex present', false, 'no-network.html must define PY_NO_TIMEOUT');
+      } else {
+        var re = null;
+        try {
+          re = eval(m[1]);
+        } catch (e) {
+          re = null;
+        }
+        T.ok('PY_NO_TIMEOUT regex compiles', !!re, m[1].slice(0, 80));
+        if (re) {
+          T.ok('a bare requests.get(url) matches (missing timeout)', re.test('requests.get(url)') && !/timeout\s*=/.test('requests.get(url)'), 'bare requests.get must be flagged');
+          T.ok('requests.get(url, timeout=5) is not flagged (explicit timeout)', !(/timeout\s*=/.test('requests.get(url, timeout=5)') === false), 'explicit timeout must not be flagged');
+          T.ok(
+            'socket.setdefaulttimeout does NOT satisfy — the timeout must be on the call',
+            re.test('socket.setdefaulttimeout(10)\nrequests.get(url)') && !/requests\.get\([^)]*timeout\s*=/.test('socket.setdefaulttimeout(10)\nrequests.get(url)'),
+            'setdefaulttimeout is not an explicit per-call timeout'
+          );
+        }
+      }
+    });
+
     /* ════ CAPTURE-FILENAME SUFFIX PARITY — the writer upper-cases the tag; every reader must agree ════
        `writers.capture_filename` emits `<vendor>_<model>_<id>_<stamp>_<STREAM>.<ext>` with the stream
        tag UPPER-CASED (`writers.py:158`). Three readers were written from a brief's lowercase spelling
