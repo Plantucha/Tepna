@@ -1,3 +1,9 @@
+---
+bump: patch
+type: fixed
+brief: none
+---
+
 # 2026-10-05 — PulseDex clock-seam composite gating (§2e)
 
 ## What
@@ -27,4 +33,10 @@ Note: composites are asserted RAW, not through JSON — `JSON.stringify` masks N
 ## Verification
 - `npm run typecheck`: pass
 - `npm run lint`: no new errors (1 pre-existing formatting error at line 500, untouched)
-- PulseDex.html rebuilt; manifestHash moved (computeHash moved — corpus re-verification owed)
+- PulseDex.html rebuilt; `manifestHash` moved `518535c8718e` → `df40e5ab72f0`
+- **The owed corpus re-verification is PAID** (Osprey, 2026-10-05): `regen-pulsedex-goldens` reports
+  **0 fixtures moved** — all three PulseDex goldens reproduce byte-identically under the new code — and
+  the treatment-response yield pin was re-cut at PAPER SCALE over the real corpus (1800 patients × 8,
+  18291 seeds, target FILLED, 13m17s). The pin's measured numbers did not move: 233 tx / 239 flat with
+  667 / 661 skipped, exactly as pinned. Only the closure hash, the timestamp and the commit changed.
+- `docs/PulseDex.html` rebuilt — it was missing, which is what reddened `shard-union + build + provenance`

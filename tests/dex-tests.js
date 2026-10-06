@@ -783,9 +783,11 @@
            −Infinity as null, which is exactly the fabrication this test hunts. */
         T.eq(
           'a seam-refused recording exports every composite null (raw, not JSON-masked)',
-          [seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd].map(function (v) {
-            return v === null ? 'null' : typeof v;
-          }).join(','),
+          [seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd]
+            .map(function (v) {
+              return v === null ? 'null' : typeof v;
+            })
+            .join(','),
           'null,null,null,null,null,null'
         );
         T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');

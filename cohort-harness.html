@@ -11903,15 +11903,22 @@ const OxyDex = window.OxyDex;
     const cSd = longRec ? dispSd : sdnn,
       cRm = longRec ? dispRm : rm,
       cPn = longRec ? dispPn : pn;
-    const stress = stressEst(cSd, cRm),
-      hrv = hrvEst(cSd, cRm, cPn),
-      energy = energyEst(cSd, cRm),
-      focus = focusEst(cSd, cRm),
-      coh = cohEst(cRm, cSd);
+    /* §2e: the composites refuse on the SAME refusal. cRm/cSd are null exactly when the
+       variability metrics refused — the clock-seam path above nulls rm/sdnn (and dispRm/dispSd
+       follow them). Feeding null into the estimators fabricates: stressEst → 100 (the
+       1.2295*null term vanishes into the clamp), hrvEst → 0, energyEst → 1, focusEst → 0,
+       cohEst → NaN, lnR → −Infinity. The composite is null; the named hrvReason (exported
+       below) explains it. */
+    const _hrvRefused = cRm == null || cSd == null;
+    const stress = _hrvRefused ? null : stressEst(cSd, cRm),
+      hrv = _hrvRefused ? null : hrvEst(cSd, cRm, cPn),
+      energy = _hrvRefused ? null : energyEst(cSd, cRm),
+      focus = _hrvRefused ? null : focusEst(cSd, cRm),
+      coh = _hrvRefused ? null : cohEst(cRm, cSd);
     const sdsdv = sdsd(a); // §8: SD1/SD2 spread is SDSD (÷N−1), not rMSSD — unified with ECGDex/PpgDex
     const sd1v = +sd1(sdsdv).toFixed(2),
       sd2v = +sd2(sdnn, sdsdv).toFixed(2);
-    const lnrm = +lnR(cRm).toFixed(3);
+    const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
     const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
 
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS §1: deterministic, identity-free recording handle.
