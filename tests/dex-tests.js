@@ -58332,6 +58332,18 @@
       } else {
         T.ok('env.PulseDex._bare.siCalc available', false, 'PulseDex node-local siCalc not wired — gate skipped');
       }
+
+      // ── §2c (2026-10-05 deep review): AMo unit guard — the docstring says PERCENT.
+      // A fraction input (0.4 for 40%) is a silent 100× error; refuse with a reason, never rescale. ──
+      var whyOk = {};
+      T.ok('amo50=40 (percent) computes, no reason set', Q.baevskySI(40, 0.8, 0.3, whyOk) != null && whyOk.reason == null, 'reason=' + whyOk.reason);
+      var whyFrac = {};
+      T.ok('amo50=0.4 (looks like a fraction) refuses with reason', Q.baevskySI(0.4, 0.8, 0.3, whyFrac) === null && whyFrac.reason != null, 'reason=' + whyFrac.reason);
+      var whyBig = {};
+      T.ok('amo50=150 (>100, impossible percent) refuses with reason', Q.baevskySI(150, 0.8, 0.3, whyBig) === null && whyBig.reason != null, 'reason=' + whyBig.reason);
+      var whyOne = {};
+      T.ok('amo50=1 (boundary, ambiguous) refuses with reason', Q.baevskySI(1, 0.8, 0.3, whyOne) === null && whyOne.reason != null, 'reason=' + whyOne.reason);
+      T.ok('refusal without the why param is still bare null (backwards-compatible)', Q.baevskySI(0.4, 0.8, 0.3) === null);
     });
 
     /* ════ 26 · DIFFERENTIAL TESTING — redundant RR/HRV nodes agree (brief Phase 5) ════
@@ -64550,6 +64562,108 @@
       T.eq('B3 · no duration / sample count ⇒ the stamp-less event is not placed at an assumed 1 Hz', desatOf(B.oxyBuildGangliorEvents(night({}))).length, 0);
       var placed = desatOf(B.oxyBuildGangliorEvents(night({ n: 1800, durationMin: 60 })));
       T.eq('B3 · CONTROL · a measured 2 s interval places it at index × 2 s', placed.length && placed[0].tMs - T0, 200000);
+    });
+
+    /* oxydex-render.js is TEXT in this lane apart from OxyDex.reviewView, so the per-night sites below are EXTRACTED and
+       RUN (the B2 pattern). Each extraction is its own assertion and must hold on BOTH the old and the new code, so a
+       red here is the behaviour, never a failed regex. */
+    group('OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict', 'oxydex-render · absence · extract-and-run', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      // the block that opens on the line containing `start`, up to the close at that line's own indentation
+      var block = function (start, close) {
+        var i = R.indexOf(start);
+        if (i < 0) return null;
+        var ls = R.lastIndexOf('\n', i) + 1;
+        var indent = R.slice(ls, i).match(/^\s*/)[0];
+        var j = R.indexOf('\n' + indent + close, i);
+        return j < 0 ? null : R.slice(ls, j + 1 + indent.length + close.length);
+      };
+      // 38cab89355e6 — the review total covers the timed nights, and names them (reviewView is reachable)
+      var rv = env.OxyDex && env.OxyDex.reviewView;
+      /* OxyDex.reviewView is a NODE-lane surface: run-tests.mjs executes oxydex-render.js headless, while the browser
+         lane loads it only as TEXT and renders inside iframe rigs (the same reason the render-harness known-answer group
+         SKIPs there). So it is ASSERTED where it must exist (losing it in Node reds) and SKIPPED by name where it cannot.
+         env.nodeFs is set by the Node runner only. The four extract-and-run sites below need no reviewView and run in
+         both lanes. */
+      if (env.nodeFs) T.ok('R · OxyDex.reviewView reachable (Node lane)', typeof rv === 'function');
+      else if (typeof rv !== 'function')
+        T.skip('R · OxyDex.reviewView header check', 'Node-lane only: the browser lane loads oxydex-render.js as text and renders in iframe rigs, so reviewView is not on its OxyDex');
+      if (typeof rv === 'function') {
+        var head = String(
+          rv({ nights: [] }, [
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: {} }
+          ])
+        ).match(/ocl-sub">[^<]*/);
+        T.ok('R · an untimed night is named, not summed in as 0 minutes', !!head && head[0].indexOf('7h00m total (1 of 2 nights timed)') >= 0, head && head[0]);
+        var head2 = String(
+          rv({ nights: [] }, [
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: { durationMin: 60 } }
+          ])
+        ).match(/ocl-sub">[^<]*/);
+        T.ok('R · CONTROL · every night timed ⇒ the plain total, no annotation', !!head2 && head2[0].indexOf('8h00m total ·') >= 0, head2 && head2[0]);
+        var hdr = function (nights) {
+          var m = String(rv({ nights: [] }, nights)).match(/ocl-sub">[^<]*/);
+          return m ? m[0] : '';
+        };
+        // an EXPLICIT null duration (not just a missing key, which isFinite(undefined) already rejects)
+        T.ok(
+          'R · durationMin: null is untimed too',
+          hdr([
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: { durationMin: null } }
+          ]).indexOf('(1 of 2 nights timed)') >= 0
+        );
+        T.ok('R · one night ⇒ no "total" (> 1 is strict)', hdr([{ date: '2026-01-02', stats: { durationMin: 420 } }]).indexOf('7h00m ·') >= 0);
+        T.ok('R · 10 minutes is two digits ⇒ 7h10m, not 7h010m', hdr([{ date: '2026-01-02', stats: { durationMin: 430 } }]).indexOf('7h10m ·') >= 0);
+      }
+      // c0a215f14576 — the 7-day PB mean averages the nights that were computed
+      var pb = block('var roll7pb = nights.map(', '});');
+      T.ok('R · the rolling PB-burden block extracted', !!pb);
+      if (pb) {
+        var roll = new Function('nights', pb + ' return roll7pb;');
+        T.eq('R · 10, not computed, 20 ⇒ [10, 10, 15], not [10, 5, 10]', JSON.stringify(roll([{ osc: { totalCrossings: 10 } }, {}, { osc: { totalCrossings: 20 } }])), '[10,10,15]');
+        T.eq('R · no night computed in the window ⇒ null, not 0', JSON.stringify(roll([{}, {}, {}])), '[null,null,null]');
+      }
+      // 1f2b2af07670 — an unmeasured AAI prints a dash and earns no colour
+      var aai = R.match(/metric\(\s*'AAI',[\s\S]*?'bad'\s*\)/);
+      T.ok('R · the AAI tile extracted', !!aai);
+      if (aai) {
+        var tile = new Function('cx', 'var metric = function (l, v, u, c) { return [v, c]; }; return ' + aai[0] + ';');
+        T.eq('R · AAI null ⇒ a dash and no class, not "null" coloured good', JSON.stringify(tile({ autoArousalIdx: null })), '["—",""]');
+        T.eq('R · CONTROL · AAI 1.5 ⇒ good', JSON.stringify(tile({ autoArousalIdx: 1.5 })), '[1.5,"good"]');
+        T.eq('R · AAI 2 ⇒ warn (< 2 is strict)', JSON.stringify(tile({ autoArousalIdx: 2 })), '[2,"warn"]');
+        T.eq('R · AAI 5 ⇒ bad (< 5 is strict)', JSON.stringify(tile({ autoArousalIdx: 5 })), '[5,"bad"]');
+      }
+      // e8e638a9f50d — an unmeasured threshold row reads "not measured", not a green 0 %
+      var tix = block('[95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {', '});');
+      var tic = block('function tiClass(pct, thr) {', '}');
+      T.ok('R · the T-index rows and tiClass extracted', !!(tix && tic));
+      if (tix && tic) {
+        var rowsOf = new Function('n', tic + ' var html = ""; ' + tix + ' return html;');
+        var none = rowsOf({ tIdx: {} });
+        T.eq('R · no tIdx entries ⇒ ten "not measured" rows', (none.match(/not measured/g) || []).length, 10);
+        T.ok('R · …and no 0 % row', none.indexOf('>0 %<') < 0, none.slice(0, 200));
+        var one = rowsOf({ tIdx: { 90: { pct: 2.5, secs: 900 } } });
+        T.ok('R · CONTROL · a measured T90 still renders its figure', one.indexOf('>2.5 %<') >= 0);
+        var nul = rowsOf({ tIdx: { 90: { pct: null, secs: null } } });
+        T.eq('R · an entry whose pct is null is not measured either (all ten rows)', (nul.match(/not measured/g) || []).length, 10);
+      }
+      // c05712440626 — "Clear" needs an oscillation search that ran and flagged nothing
+      var oi = R.indexOf('if (!n.osc ||');
+      var oe = R.indexOf("metric('Flagged Windows'", oi);
+      var oscSrc = oi >= 0 && oe > oi ? R.slice(oi, R.lastIndexOf('} else {', oe)) + '}' : null;
+      T.ok('R · the periodic-breathing verdict extracted', !!oscSrc);
+      if (oscSrc) {
+        var osc = new Function('n', 'var evBadge = function () { return ""; }; var html = ""; ' + oscSrc + ' return html;');
+        T.ok('R · no oscillation computed ⇒ not measured, never "Clear"', osc({}).indexOf('Clear') < 0 && osc({}).indexOf('not measured') >= 0, osc({}));
+        T.ok('R · CONTROL · a computed search with 0 flagged windows ⇒ Clear', osc({ osc: { episodeCount: 0 } }).indexOf('Clear') >= 0);
+      }
     });
 
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
