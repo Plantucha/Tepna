@@ -301,6 +301,29 @@ def test_a_stale_reply_is_not_returned_as_the_next_commands_answer():
 # ── link handling ────────────────────────────────────────────────────────────────────────────────────
 
 
+def _settings_unanswered(monkeypatch):
+    """`Control.send` returns None IMMEDIATELY instead of after its 6.0 s timeout — the same outcome the
+    wait already produced, reached without the wait.
+
+    MEASURED 2026-10-05: three `sample_stamp` tests cost 6.00, 6.01 and 6.01 s of this file's 18.06 s, and
+    none of them was waiting on the frame. `sample_stamp` asks for settings first
+    (`cp.send(sweep_cmd(OP_GET_SETTINGS, meas))`, no explicit timeout → `Control.send`'s default 6.0), the
+    fake client queues no reply, and the call times out and returns None — after which
+    `pmd.build_start(meas, None-ish) or pmd.START.get(meas)` takes the fallback and the test proceeds.
+
+    ⚠️ THE PATH IS UNCHANGED, WHICH IS THE WHOLE POINT. `send` returned None before and returns None now,
+    so the settings-unavailable fallback is still the branch under test — this removes 18 s of waiting for
+    an answer the fixture was never going to give, and removes nothing else. `Control.send`'s own timeout
+    behaviour keeps its dedicated tests (`test_a_timeout_yields_none_rather_than_hanging` and siblings,
+    0.01 s each), which is where it belongs: a test about a sample stamp should not be paying to re-prove
+    a control timeout."""
+
+    async def send(_self, _cmd, timeout=0.0):
+        return None
+
+    monkeypatch.setattr(probe.Control, "send", send)
+
+
 def _patch_scan(monkeypatch, results):
     """results: a list consumed one per scan; an item of None means 'not seen this time'."""
     seq = list(results)
@@ -490,6 +513,7 @@ def test_a_sample_stamp_comes_from_the_device_clock_not_the_host(monkeypatch):
     ns = 835_228_200_000_000_000
     c = _FakeClient([bytes.fromhex("f001020000000134000101100002010800040103")])
     _patch_scan(monkeypatch, ["dev"])
+    _settings_unanswered(monkeypatch)
     monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: c)
 
     async def notify(char, cb):
@@ -525,6 +549,7 @@ def test_a_stream_that_never_delivers_yields_no_stamp_and_still_stops(monkeypatc
 def test_an_empty_frame_yields_no_stamp(monkeypatch):
     c = _FakeClient([bytes.fromhex("f001020000000134000101100002010800040103")])
     _patch_scan(monkeypatch, ["dev"])
+    _settings_unanswered(monkeypatch)
     monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: c)
 
     async def notify(char, cb):
@@ -873,6 +898,7 @@ def test_only_the_first_frame_is_kept_as_the_sample_stamp(monkeypatch):
     first, second = 835_228_200_000_000_000, 835_228_299_000_000_000
     c = _FakeClient([bytes.fromhex("f001020000000134000101100002010800040103")])
     _patch_scan(monkeypatch, ["dev"])
+    _settings_unanswered(monkeypatch)
     monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: c)
 
     async def notify(char, cb):

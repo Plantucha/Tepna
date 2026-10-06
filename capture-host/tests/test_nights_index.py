@@ -108,7 +108,10 @@ def test_a_full_trio_night_fills_every_column_from_its_own_files(tmp_path):
     assert e["GlucoDex"] is None and e["EEGDex"] is None, "no CGM, no Muse: absent, never 0"
     assert e["Integrator"]["loadable"] is False and e["ECGDex"]["loadable"] is True
     assert e["3 corner hat"] is True and e["PAT"] is True
-    assert set(e) == {"night", "arrival", *ni.COLUMNS}
+    # `recordings`/`recordings_unassigned` joined the entry on 2026-10-05: the folder is not the recording,
+    # so the index publishes the band grouping BESIDE the folder-wide view. Additive by design — every key
+    # below is unchanged — and named here because the key set is the API's contract.
+    assert set(e) == {"night", "arrival", "recordings", "recordings_unassigned", *ni.COLUMNS}
 
 
 def test_a_night_without_the_h10_loses_its_ecg_columns_and_the_derived_tools(tmp_path):
@@ -373,23 +376,36 @@ def test_parse_host_stamp_falls_back_to_the_other_layout_and_never_fabricates():
     assert ni.parse_host_stamp("2026-13-45T99:99:99.000") is None, "range-invalid, not rolled"
 
 
-def test_the_arrival_sidecars_of_both_polar_devices_are_listed_and_the_ring_s_is_not(tmp_path):
-    """PAT Feasibility's corrected lag is anchored on each Polar device's packet-arrival floor, so the index hands
-    the monitor both sidecars as their own per-night field (never inside a node's ingest list). The ring's sidecar
-    carries no PMD stream PAT uses. A night without sidecars lists none — an empty list, not a missing key."""
+def test_EVERY_device_s_arrival_sidecar_is_listed_including_a_device_added_later(tmp_path):
+    """PAT Feasibility re-times each leg on its own packet-arrival floor, so the index hands the monitor the
+    sidecars as their own per-night field (never inside a node's ingest list).
+
+    🔴 THIS TEST ASSERTED THE OPPOSITE UNTIL 2026-10-05 — "and the ring's is not" — on the premise that the
+    ring's sidecar carried no PMD stream PAT uses. That was true when written and E11 (#3267) ended it: the
+    ring now writes one `PPG_FRAME` row per frame. The list was not revisited, so the monitor handed over two
+    sidecars of three and the page printed "no arrival sidecar for the O2Ring" for a night that has one.
+
+    So the assertion is now about the SHAPE of the rule, not about today's device roster: a sidecar is
+    identified by the only name `PmdArrivalLogWriter` writes, and the UNKNOWN device below is the real
+    regression guard — under an allowlist keyed on device name it falls out silently, and the page explains
+    its absence with a reason that is false. A night without sidecars lists none — an empty list, not a
+    missing key."""
     root = str(tmp_path)
     d = _night(root)
-    for name in (
+    names = (
         "Polar_H10_02849638_20260919220000_PMDARRIVAL.csv",
         "Polar_VeritySense_0C301E3F_20260919220000_PMDARRIVAL.csv",
         "Wellue_O2Ring-S_S8AW2100_20260919220000_PMDARRIVAL.csv",
-    ):
+        # a device this repo has never seen: the thing an allowlist cannot admit
+        "Acme_FutureSensor_ABCD1234_20260919220000_PMDARRIVAL.csv",
+    )
+    for name in names:
         _w(os.path.join(d, name), "Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
     e = ni.night_entry(os.path.join(root, "captures"), d)
-    assert e["arrival"] == [
-        "2026-09-19/Polar_H10_02849638_20260919220000_PMDARRIVAL.csv",
-        "2026-09-19/Polar_VeritySense_0C301E3F_20260919220000_PMDARRIVAL.csv",
-    ]
+    assert e["arrival"] == sorted("2026-09-19/" + n for n in names), (
+        "every sidecar in the folder is handed over, the ring's and an unknown device's included"
+    )
+    assert any("O2Ring" in f for f in e["arrival"]), "the ring's sidecar is the one E11 made usable"
     assert not any("PMDARRIVAL" in f for c in ni.NODES if e[c] for f in e[c]["files"]), (
         "a sidecar leaked into an ingest list"
     )
@@ -802,3 +818,120 @@ def test_the_listing_defaults_to_SIXTY_nights_and_a_FIFTEEN_second_budget(tmp_pa
     rows = ni.index_nights(str(tmp_path))
     assert len(rows) == 60, "the newest sixty, which is what the page asks for when it asks for nothing"
     assert seen and all(d == 5015.0 for d in seen), "a fifteen-second budget, handed to every night"
+
+
+# ── the folder is not the recording (NIGHT-IS-THE-RECORDING-2026-10-05 §⑥) ───────────────────────────
+
+
+def test_a_folder_holding_TWO_NIGHTS_is_published_as_TWO_RECORDINGS(tmp_path):
+    """A calendar folder holds every session stamped that DATE, which is not one night's sleep. Measured on
+    2026-10-04: a 00:26 session (the night that began 10-03) and a 22:00 one, 18 files, handed to a page as
+    one set — and `pat-three-corner` re-grouped it wrong, taking the largest file per device independently
+    and computing a -14.94 h three-way overlap.
+
+    Grouping is `nightqc.night_band`, the SAME band the QC verdict is scoped by, so a monitor click and a
+    verdict cannot disagree about which sessions are one night. The folder-wide keys stay as they were —
+    this is an additive field, because an existing reader of `files` must not silently receive a subset."""
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-04")
+    os.makedirs(d, exist_ok=True)
+    # the night that BEGAN 10-03: a 00:26 session, before the 18:00 band edge
+    _w(os.path.join(d, "Polar_H10_02849638_20261004002801_ECG.txt"), ISO_ROWS)
+    _w(os.path.join(d, "Polar_H10_02849638_20261004002801_PMDARRIVAL.csv"), "Phone timestamp;device;meas\n")
+    # the night that BEGAN 10-04: a 22:00 session, after it
+    _w(os.path.join(d, "Polar_H10_02849638_20261004220206_ECG.txt"), ISO_ROWS)
+    _w(os.path.join(d, "Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"), "Phone timestamp;device;meas\n")
+
+    e = ni.night_entry(os.path.join(root, "captures"), d)
+    names = [r["recording"] for r in e["recordings"]]
+    assert names == ["2026-10-03", "2026-10-04"], (
+        "one folder, two recordings, named by the EVENING each band is anchored on and ordered as the "
+        f"nights happened: {names}"
+    )
+    first, second = e["recordings"]
+    assert first["files"]["ECGDex"] == ["2026-10-04/Polar_H10_02849638_20261004002801_ECG.txt"]
+    assert second["files"]["ECGDex"] == ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]
+    assert first["arrival"] == ["2026-10-04/Polar_H10_02849638_20261004002801_PMDARRIVAL.csv"]
+    assert second["arrival"] == ["2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"]
+    # ⚠️ CONSECUTIVE BANDS DO NOT ABUT, and the gap is the design, not a hole: a band is 16 h
+    # (18:00→10:00), so 10:00–18:00 belongs to NO night. That is the DAYTIME class — wear there is excluded
+    # from the night with its span named (NIGHT-IS-THE-RECORDING §scope) rather than folded into whichever
+    # night is nearer. I first asserted the bands abutted; they are 8 h apart and should be.
+    assert second["begin"] - first["end"] == 8 * 3600.0, (
+        f"the daytime window between two nights is 8 h and belongs to neither: {first['end']} → {second['begin']}"
+    )
+    assert first["end"] - first["begin"] == 16 * 3600.0
+    # ADDITIVE: the folder-wide view still holds everything, so an existing reader sees no subset
+    assert len(e["ECGDex"]["files"]) == 2 and len(e["arrival"]) == 2
+
+
+def test_a_file_with_NO_SESSION_STAMP_is_named_not_filed_under_a_guessed_band(tmp_path):
+    """∅ The CPAP trees are keyed by DATE and carry no session stamp. Assigning them to whichever band the
+    folder's name suggests would be a guess presented as grouping, and dropping them would make the
+    monitor's own handoff lossy — so they are returned separately and the caller says so."""
+    entry = {
+        "arrival": ["2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"],
+        "ECGDex": {"files": ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]},
+        "CPAPDex": {"files": ["2026-10-04/cpap/DATALOG/20261004/20261004_220000_BRP.edf"]},
+    }
+    recs, unassigned = ni.recordings_of(entry)
+    assert [r["recording"] for r in recs] == ["2026-10-04"]
+    assert recs[0]["files"] == {"ECGDex": ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]}, (
+        "the stamped file bands; the CPAP tree does not appear under it"
+    )
+    assert unassigned == ["2026-10-04/cpap/DATALOG/20261004/20261004_220000_BRP.edf"]
+    assert all("cpap" not in f for r in recs for v in r["files"].values() for f in v)
+
+
+def test_session_epoch_refuses_a_serial_and_an_impossible_instant(tmp_path):
+    """The stamp is anchored between separators for the reason `pat-feasibility.js` is: a loose 8-then-6
+    scan grabs the H10's device serial instead of the date, which is the zero-nights bug. And a stamp that
+    looks real but names no instant is None, never a rolled-over date."""
+    assert ni.session_epoch("Polar_H10_H10-01_ECG.txt") is None
+    assert ni.session_epoch("Polar_X_20261332999999_ECG.txt") is None, "month 13 is not a time"
+    assert ni.session_epoch("cpap/DATALOG/20261004/x_BRP.edf") is None
+    assert ni.session_epoch("Polar_H10_02849638_20261004220206_ECG.txt") is not None
+    assert ni.session_epoch("Polar_H10_02849638_20260919_220000_ECG.txt") is not None, "both layouts parse"
+
+
+def test_an_unstamped_file_does_not_STOP_the_grouping_and_first_is_the_EARLIEST_session(tmp_path):
+    """Two mutants of `recordings_of` that the tests above could not see, each needing its own shape.
+
+    `continue` → `break`: a file with no session stamp must be SKIPPED, not end the walk. One unstamped
+    file at the end of a list cannot show the difference — the loop was finishing anyway. So the list here
+    puts the CPAP tree FIRST, with stamped files after it: under `break` those never band and the recording
+    loses them silently, which is the §∅ failure (a dropped file reported as an absent night).
+
+    `r["first"] = min(...)` → `None`: a recording's `first` is the earliest session IN it, and a band holds
+    several. A single-session recording cannot see this — min(x, x) is x either way — so this band carries
+    three sessions and the assertion names the earliest, which is also what makes `first` usable as "when
+    did this night actually start" rather than "whichever session was walked last"."""
+    entry = {
+        "arrival": [],
+        "CPAPDex": {
+            "files": [
+                # FIRST in the list, and unstamped: the position is the point
+                "2026-10-04/cpap/DATALOG/20261004/20261004_220000_BRP.edf",
+            ]
+        },
+        "ECGDex": {
+            "files": [
+                "2026-10-04/cpap/DATALOG/20261004/nostamp_BRP.edf",
+                "2026-10-04/Polar_H10_02849638_20261004233000_ECG.txt",
+                "2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt",
+                "2026-10-04/Polar_H10_02849638_20261005010000_ECG.txt",
+            ]
+        },
+    }
+    recs, unassigned = ni.recordings_of(entry)
+    assert [r["recording"] for r in recs] == ["2026-10-04"], recs
+    got = recs[0]["files"]["ECGDex"]
+    assert len(got) == 3, f"an unstamped file must not end the walk — the three stamped files band: {got}"
+    assert len(unassigned) == 2
+
+    want = ni.session_epoch("Polar_H10_02849638_20261004220206_ECG.txt")
+    assert recs[0]["first"] == want, (
+        "`first` is the EARLIEST session in the recording (22:02), not the last one walked (01:00) "
+        f"and not None: {recs[0]['first']} != {want}"
+    )
+    assert recs[0]["begin"] <= recs[0]["first"] < recs[0]["end"]

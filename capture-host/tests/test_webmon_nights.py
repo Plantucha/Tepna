@@ -386,12 +386,52 @@ def test_a_night_click_opens_the_app_under_a_fresh_url():
 
 def test_the_pat_click_hands_over_the_arrival_sidecars():
     """PAT Feasibility's corrected lag has no anchor without the packet-arrival sidecars, and the monitor's click is
-    the only way the page receives files on the box. Pinned on the PAT branch of nightFilesFor."""
+    the only way the page receives files on the box. Pinned on the PAT branch of nightFilesFor.
+
+    The splice reads `ARR(n)` rather than `n.arrival` since 2026-10-05: when a RECORDING is chosen the
+    sidecars come from that recording, not from the whole folder. Both PAT branches must still splice
+    SOMETHING — a branch handing over no sidecar leaves the page on raw receive stamps, which is the
+    defect #3150 fixed and the one this assertion exists to keep fixed."""
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
-    start = html.index("if(node==='PAT')")
-    branch = html[start : html.index("\n  return", start)]
-    assert "n.arrival" in branch, branch
+    for marker in ("if(node==='PAT')", "if(node==='PAT fused')"):
+        start = html.index(marker)
+        branch = html[start : html.index("\n  return", start) if "\n  return" in html[start:] else start + 900]
+        assert "ARR(n)" in branch, f"{marker} no longer splices the arrival sidecars: {branch}"
+    # and ARR must resolve the RECORDING first, else a two-night folder is handed over whole again
+    arr = html[html.index("const ARR = ") :]
+    arr = arr[: arr.index("\n")]
+    assert "rec ?" in arr and "rec.arrival" in arr, arr
+
+
+def test_the_click_hands_over_ONE_RECORDING_and_names_a_multi_recording_folder():
+    """NIGHT-IS-THE-RECORDING §⑥. A calendar folder holds every session stamped that DATE — 2026-10-04 held
+    a 00:26 session and a 22:00 one — so handing the folder over made each page re-group it, and
+    `pat-three-corner` re-grouped it wrong (largest file per device, independently: a -14.94 h overlap).
+
+    Three properties, each of which failed differently before: the click resolves a recording; a folder
+    that holds more than one SAYS so instead of letting the page discover it; and a folder whose sessions
+    all belong to other nights REFUSES rather than picking one, because choosing the earliest or the
+    largest is the very independent-selection mistake being removed."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    assert "function pickRecording(n){" in html
+    pick = html[html.index("function pickRecording(n){") :]
+    pick = pick[: pick.index("\n}")]
+    assert "r.recording === n.night" in pick, "the folder's own night is the recording a click means"
+    assert "ambiguous: true" in pick, "a folder with no recording of its own must be refusable"
+    assert "rs.length < 2" in pick, "one recording needs no choosing"
+
+    on = html[html.index("async function openNight(") :]
+    on = on[: on.index("\nasync function ") if "\nasync function " in on[20:] else len(on)]
+    assert "pickRecording(n)" in on, "openNight resolves the recording before building the file list"
+    assert "pick.ambiguous" in on and "will not choose one for you" in on, (
+        "an ambiguous folder is refused by name, not resolved by a heuristic"
+    )
+    assert "this folder also holds " in on, "a multi-recording folder is NAMED in the toast"
+    assert "recordings_unassigned" in on and "carrying no session stamp" in on, (
+        "∅ a file with no session stamp is handed over and SAID, never dropped silently"
+    )
 
 
 def _extract_fn(html, name, until):
