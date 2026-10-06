@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="2225d18aedf6" data-compute-hash="6dedfc4936b5">
+<html lang="en" data-manifest-hash="2b7206fcba71" data-compute-hash="14b2aa0c440d">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5rY6AtiuWwZLD8V8Rwq650hh49m1pxgDxAy6VCihCq0=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5rY6AtiuWwZLD8V8Rwq650hh49m1pxgDxAy6VCihCq0=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-d9UtIIi+y0E5oHWC844x/6FDoZQ2bQxzQwB0n8BTRb8=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.17.0</title>
@@ -6251,24 +6251,39 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     rsaEfficiency: { label: 'RSA Efficiency', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Inspiratory:expiratory HR ratio — cardiorespiratory composite' },
 
     /* ── MEASURED — raw beat statistics / direct morphology & ectopy ───────── */
-    beatsNN: { label: 'Beats (NN)', unit: 'beats', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Accepted NN beats after SQI gate — direct count' },
+    /* ── ID↔EMISSION DRIFT FIXED 2026-10-06 (6 ids) ────────────────────────────────────────────
+       These ids were registered under names NOTHING emits, while the value itself is emitted under a
+       different name: beatsNN→nBeats · qrs→qrsDur · rAmp→Ramp · tAmp→Tamp · ventRuns→runsGE3 ·
+       bigeminy→bigeminyCycles. A cross-node lookup on the OLD name resolved to a tier for a quantity
+       that never arrives, which is how `badgeForLabel` fabricates a grade (same mechanism as
+       DEEP-AUDIT-V §2.8 F14 below). The label→id map VALUES moved with the ids; the alias KEYS did
+       not, because those are the labels consumers actually look up.
+       VERIFIED BEFORE RENAMING, per id: the OLD name appears in ZERO committed goldens, ZERO
+       provenance records and ZERO `*_DEFS` entries (control: `rmssd` appears in 435 corpus files and
+       2 `*_DEFS`, so the search was not blind), and the NEW name is not already registered.
+       ⚠️ NOT renamed, deliberately: `crCoupling` (DEEP-AUDIT-V §2.8 F14 already routed its label to
+       the separately-registered `crcPLV`, so this is a DUPLICATE to adjudicate, not a drift) and
+       CPAPDex's `cmpResidSD` (its value is emitted NESTED as `scale: { residSD }`, a path not a name).
+       Both are residue rows, not renames. A name sweep is also how #1455 produced a FALSE `dormant`
+       flag (see :68) — so no id here is being declared absent, only re-pointed at what IS emitted. */
+    nBeats: { label: 'Beats (NN)', unit: 'beats', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Accepted NN beats after SQI gate — direct count' },
     meanRR: { label: 'Mean RR', unit: 'ms', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Average NN interval — direct' },
     medianRR: { label: 'Median RR', unit: 'ms', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: '50th-percentile NN interval — direct' },
     minRR: { label: 'Min RR', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Shortest NN (post-clean) — direct' },
     maxRR: { label: 'Max RR', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Longest NN (post-clean) — direct' },
     nn50: { label: 'NN50', unit: 'count', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Pairs with |ΔNN| > 50 ms — direct count' },
     cv: { label: 'CV', unit: '%', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Coefficient of variation (SDNN/MeanRR) — direct ratio' },
-    qrs: { label: 'QRS duration', unit: 'ms', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Ventricular depolarisation width — direct from median beat' },
+    qrsDur: { label: 'QRS duration', unit: 'ms', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Ventricular depolarisation width — direct from median beat' },
     qt: { label: 'QT', unit: 'ms', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Q-onset → T-end (tangent) — direct from median beat' },
     pr: { label: 'PR interval', unit: 'ms', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'P-onset → QRS-onset — direct from median beat' },
     stLevel: { label: 'ST level', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'ST deviation at J+60 ms vs baseline — direct' },
-    rAmp: { label: 'R amplitude', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Median-beat R height — direct' },
-    tAmp: { label: 'T amplitude', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Median-beat T height — direct' },
+    Ramp: { label: 'R amplitude', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Median-beat R height — direct' },
+    Tamp: { label: 'T amplitude', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Median-beat T height — direct' },
     pvc: { label: 'PVCs (V)', unit: 'beats', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Ventricular ectopic count — direct beat classification' },
     pac: { label: 'PACs (S)', unit: 'beats', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Supraventricular ectopic count — direct beat classification' },
     couplets: { label: 'Couplets', unit: 'count', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'Consecutive PVC pairs — direct count' },
-    ventRuns: { label: 'Ventr. runs ≥3', unit: 'count', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: '≥3 consecutive PVCs (NSVT flag) — direct count' },
-    bigeminy: { label: 'Bigeminy', unit: 'cycles', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'N-V alternation cycles — direct count' },
+    runsGE3: { label: 'Ventr. runs ≥3', unit: 'count', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: '≥3 consecutive PVCs (NSVT flag) — direct count' },
+    bigeminyCycles: { label: 'Bigeminy', unit: 'cycles', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'N-V alternation cycles — direct count' },
     cvhrEvents: { label: 'CVHR events', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Autonomic-surge events emitted — direct count' },
 
     /* ── VALIDATED — established time/frequency/geometric HRV & repolarisation  */
@@ -6451,26 +6466,26 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     'cr coupling': 'crCoupling',
     'rsa efficiency': 'rsaEfficiency',
     'lf/hf': 'lfhf',
-    'beats (nn)': 'beatsNN',
-    beats: 'beatsNN',
+    'beats (nn)': 'nBeats',
+    beats: 'nBeats',
     'mean rr': 'meanRR',
     'median rr': 'medianRR',
     'min rr': 'minRR',
     'max rr': 'maxRR',
     nn50: 'nn50',
     cv: 'cv',
-    'qrs duration': 'qrs',
-    qrs: 'qrs',
+    'qrs duration': 'qrsDur',
+    qrs: 'qrsDur',
     qt: 'qt',
     'pr interval': 'pr',
     'st level': 'stLevel',
-    'r amplitude': 'rAmp',
-    't amplitude': 'tAmp',
+    'r amplitude': 'Ramp',
+    't amplitude': 'Tamp',
     'pvcs (v)': 'pvc',
     'pacs (s)': 'pac',
     couplets: 'couplets',
-    'ventr. runs ≥3': 'ventRuns',
-    bigeminy: 'bigeminy',
+    'ventr. runs ≥3': 'runsGE3',
+    bigeminy: 'bigeminyCycles',
     'cvhr events': 'cvhrEvents',
     pnn50: 'pnn50',
     'qtc (fridericia)': 'qtcFrid',

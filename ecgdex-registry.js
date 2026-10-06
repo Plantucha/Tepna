@@ -143,24 +143,39 @@
     rsaEfficiency: { label: 'RSA Efficiency', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Inspiratory:expiratory HR ratio — cardiorespiratory composite' },
 
     /* ── MEASURED — raw beat statistics / direct morphology & ectopy ───────── */
-    beatsNN: { label: 'Beats (NN)', unit: 'beats', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Accepted NN beats after SQI gate — direct count' },
+    /* ── ID↔EMISSION DRIFT FIXED 2026-10-06 (6 ids) ────────────────────────────────────────────
+       These ids were registered under names NOTHING emits, while the value itself is emitted under a
+       different name: beatsNN→nBeats · qrs→qrsDur · rAmp→Ramp · tAmp→Tamp · ventRuns→runsGE3 ·
+       bigeminy→bigeminyCycles. A cross-node lookup on the OLD name resolved to a tier for a quantity
+       that never arrives, which is how `badgeForLabel` fabricates a grade (same mechanism as
+       DEEP-AUDIT-V §2.8 F14 below). The label→id map VALUES moved with the ids; the alias KEYS did
+       not, because those are the labels consumers actually look up.
+       VERIFIED BEFORE RENAMING, per id: the OLD name appears in ZERO committed goldens, ZERO
+       provenance records and ZERO `*_DEFS` entries (control: `rmssd` appears in 435 corpus files and
+       2 `*_DEFS`, so the search was not blind), and the NEW name is not already registered.
+       ⚠️ NOT renamed, deliberately: `crCoupling` (DEEP-AUDIT-V §2.8 F14 already routed its label to
+       the separately-registered `crcPLV`, so this is a DUPLICATE to adjudicate, not a drift) and
+       CPAPDex's `cmpResidSD` (its value is emitted NESTED as `scale: { residSD }`, a path not a name).
+       Both are residue rows, not renames. A name sweep is also how #1455 produced a FALSE `dormant`
+       flag (see :68) — so no id here is being declared absent, only re-pointed at what IS emitted. */
+    nBeats: { label: 'Beats (NN)', unit: 'beats', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Accepted NN beats after SQI gate — direct count' },
     meanRR: { label: 'Mean RR', unit: 'ms', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Average NN interval — direct' },
     medianRR: { label: 'Median RR', unit: 'ms', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: '50th-percentile NN interval — direct' },
     minRR: { label: 'Min RR', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Shortest NN (post-clean) — direct' },
     maxRR: { label: 'Max RR', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Longest NN (post-clean) — direct' },
     nn50: { label: 'NN50', unit: 'count', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Pairs with |ΔNN| > 50 ms — direct count' },
     cv: { label: 'CV', unit: '%', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Coefficient of variation (SDNN/MeanRR) — direct ratio' },
-    qrs: { label: 'QRS duration', unit: 'ms', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Ventricular depolarisation width — direct from median beat' },
+    qrsDur: { label: 'QRS duration', unit: 'ms', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Ventricular depolarisation width — direct from median beat' },
     qt: { label: 'QT', unit: 'ms', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Q-onset → T-end (tangent) — direct from median beat' },
     pr: { label: 'PR interval', unit: 'ms', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'P-onset → QRS-onset — direct from median beat' },
     stLevel: { label: 'ST level', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'ST deviation at J+60 ms vs baseline — direct' },
-    rAmp: { label: 'R amplitude', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Median-beat R height — direct' },
-    tAmp: { label: 'T amplitude', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Median-beat T height — direct' },
+    Ramp: { label: 'R amplitude', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Median-beat R height — direct' },
+    Tamp: { label: 'T amplitude', unit: 'µV', goodDirection: 'up', depth: 'research', evidence: 'measured', cite: 'Median-beat T height — direct' },
     pvc: { label: 'PVCs (V)', unit: 'beats', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Ventricular ectopic count — direct beat classification' },
     pac: { label: 'PACs (S)', unit: 'beats', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Supraventricular ectopic count — direct beat classification' },
     couplets: { label: 'Couplets', unit: 'count', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'Consecutive PVC pairs — direct count' },
-    ventRuns: { label: 'Ventr. runs ≥3', unit: 'count', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: '≥3 consecutive PVCs (NSVT flag) — direct count' },
-    bigeminy: { label: 'Bigeminy', unit: 'cycles', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'N-V alternation cycles — direct count' },
+    runsGE3: { label: 'Ventr. runs ≥3', unit: 'count', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: '≥3 consecutive PVCs (NSVT flag) — direct count' },
+    bigeminyCycles: { label: 'Bigeminy', unit: 'cycles', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'N-V alternation cycles — direct count' },
     cvhrEvents: { label: 'CVHR events', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Autonomic-surge events emitted — direct count' },
 
     /* ── VALIDATED — established time/frequency/geometric HRV & repolarisation  */
@@ -343,26 +358,26 @@
     'cr coupling': 'crCoupling',
     'rsa efficiency': 'rsaEfficiency',
     'lf/hf': 'lfhf',
-    'beats (nn)': 'beatsNN',
-    beats: 'beatsNN',
+    'beats (nn)': 'nBeats',
+    beats: 'nBeats',
     'mean rr': 'meanRR',
     'median rr': 'medianRR',
     'min rr': 'minRR',
     'max rr': 'maxRR',
     nn50: 'nn50',
     cv: 'cv',
-    'qrs duration': 'qrs',
-    qrs: 'qrs',
+    'qrs duration': 'qrsDur',
+    qrs: 'qrsDur',
     qt: 'qt',
     'pr interval': 'pr',
     'st level': 'stLevel',
-    'r amplitude': 'rAmp',
-    't amplitude': 'tAmp',
+    'r amplitude': 'Ramp',
+    't amplitude': 'Tamp',
     'pvcs (v)': 'pvc',
     'pacs (s)': 'pac',
     couplets: 'couplets',
-    'ventr. runs ≥3': 'ventRuns',
-    bigeminy: 'bigeminy',
+    'ventr. runs ≥3': 'runsGE3',
+    bigeminy: 'bigeminyCycles',
     'cvhr events': 'cvhrEvents',
     pnn50: 'pnn50',
     'qtc (fridericia)': 'qtcFrid',
