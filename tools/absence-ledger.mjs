@@ -496,6 +496,136 @@ export const SEEDS = [
     at: 'oxydex-render.js:3315',
     state: 'fixed',
     note: 'ALREADY FIXED on main by #2939 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:6714',
+    state: 'fixed',
+    note: "an imported summary with no n / artifactHrCleaned / artifactSpikesRemoved keeps null, never 0. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6782',
+    state: 'fixed',
+    note: "the tIdx seconds basis is the recording span, else a FINITE durationMin x 60, else null; with no basis secs and tIdxBasis are null, never 0 s. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6741',
+    state: 'fixed',
+    note: "an imported spike's baseline / peak / duration / spo2 stay null when absent, and mfm is derived only from a real HH:MM:SS stamp (parseTimeStr returns 0 on an unparseable one). Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6754',
+    state: 'fixed',
+    note: "an export with no oscillations block imports osc: null (not computed), never a computed-looking episodeCount 0. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:841',
+    state: 'fixed',
+    note: "an unread or empty motion cell is null, and a non-numeric one is null rather than parseInt(...) || 0; a real 0 stays 0. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:5375',
+    state: 'fixed',
+    note: "the 1 Hz gap-span fallback is kept but NAMED: gapSpanSource: 'assumed-1Hz' rides only on the fallback, so an assumed span is distinguishable from a measured one. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:3814',
+    state: 'fixed',
+    note: "buildFlags emits OK only when t90pct, minSpo2 and maxHr were measured, else NOT_FULLY_ASSESSED (the #3283 shape); its plant also found minSpo2 <= 88 true for null, now guarded. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:2518',
+    state: 'fixed',
+    note: "computeSmartSummary overallScore is null with nothing scoreable, never 0 (the healthy end of the scale), and the render gives a null score no colour. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:3990',
+    state: 'fixed',
+    note: "the stability subscore s1 drops out when spo2Std is unmeasured, never a clamped perfect 100. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:4005',
+    state: 'fixed',
+    note: "the stability subscore s6 drops out when t95pct is unmeasured, never a clamped perfect 100. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6089',
+    state: 'fixed',
+    note: "computeSleepStageProxy classifies only windows whose motion was read; with none classifiable the proxy is null, never 0.0 % REM. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6330',
+    state: 'fixed',
+    note: "readiness rmssdScore is null with no RMSSD and leaves the renormalised basis, never 0 of 30. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6386',
+    state: 'fixed',
+    note: "readiness hrSlopeScore is null with no measured dip, never the half-credit 5. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6354',
+    state: 'fixed',
+    note: "with no rows and no hint the sleep duration is absent, never an assumed six hours. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6127',
+    state: 'fixed',
+    note: "computeVO2maxEstimate keeps the estimate but names an unentered age as ASSUMED (ageAssumed, the label, -15 confidence). Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6366',
+    state: 'fixed',
+    note: "no stage estimate means no neutral +5: the sleep component is duration and stage halves each scored only when measured, weighted by scores.sleepMax. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:2250',
+    state: 'fixed',
+    note: "computeVagalIndex returns null when pnn3, hrFloor or longestCleanRun is unmeasured, never hrFloor || 60 (nor pnn3 / cleanRun || 0). Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:2328',
+    state: 'fixed',
+    note: "computeOxyCrash returns null under 60 s (no crash search ran), never a count of 0. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:5654',
+    state: 'fixed',
+    note: "computeLCSP returns null when motion was read on no row, never a 0-min severely fragmented period. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:2092',
+    state: 'fixed',
+    note: "computeSympSurge scores each term only when measured (a spike search that found none is a measured 0; one that never ran is not) and renormalises over ssiBasis; all terms absent gives null. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:3232',
+    state: 'fixed',
+    note: "computeHRV keeps only still, artifact-free rows WITH a finite HR, so a null HR is not a sample (it sorted first as the floor and read as 0 in the SD). Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:4454',
+    state: 'fixed',
+    note: "computeMotionSleep wasoPct is null when no post-onset window exists, never 0 % awake. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:3189',
+    state: 'fixed',
+    note: "computeStats motionPct is over the rows whose motion was READ; none read gives null, never an understated share. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:1555',
+    state: 'fixed',
+    note: "computeRollingMetrics worst30minT95 stays null until a 30-min window is evaluated, never 0. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:7383',
+    state: 'fixed',
+    note: "oxyDesatConf returns null for an event with no recorded depth (the base term), never the 0.45 of a real shallow dip. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:7314',
+    state: 'fixed',
+    note: "oxyBuildGangliorEvents uses a MEASURED sample interval or none: a stamp-less event that cannot be placed is not emitted, never placed at an assumed 1 Hz. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
   }
 ];
 

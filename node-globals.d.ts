@@ -26,7 +26,7 @@ declare var HRVDex: any; // hrvdex-dsp.js — node namespace attach (`root.HRVDe
 declare var OxyDex: any; // oxydex-dsp.js — node namespace attach (`root.OxyDex`)
 declare var UP: any; // oxydex-render.js — render state/namespace
 declare var safeStyle: any; // oxydex-util.js — DOM style-safety helper (node's own util dependency)
-declare var safeSet: any; // oxydex-util.js — DOM text/attr-safety helper
+declare var setIfPresent: any; // oxydex-util.js — null-safe DOM property assignment (renamed from safeSet; it never escaped)
 declare var safeEl: any; // oxydex-util.js — element lookup helper
 declare var escHTML: any; // oxydex-util.js — HTML escape
 declare var computeCeilingBaselineArr: any; // oxydex-util.js — ceiling-baseline series helper

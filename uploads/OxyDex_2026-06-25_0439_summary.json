@@ -361,8 +361,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5b6d5b7972b5",
-          "computeHash": "fae5ece3ded3"
+          "manifestHash": "e2150e2ad71e",
+          "computeHash": "dfb8f8bf7b31"
         },
         "evidence": {
           "envelopeRef": null,
@@ -390,8 +390,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5b6d5b7972b5",
-          "computeHash": "fae5ece3ded3"
+          "manifestHash": "e2150e2ad71e",
+          "computeHash": "dfb8f8bf7b31"
         },
         "evidence": {
           "envelopeRef": null,
@@ -419,8 +419,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5b6d5b7972b5",
-          "computeHash": "fae5ece3ded3"
+          "manifestHash": "e2150e2ad71e",
+          "computeHash": "dfb8f8bf7b31"
         },
         "evidence": {
           "envelopeRef": null,
@@ -448,8 +448,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5b6d5b7972b5",
-          "computeHash": "fae5ece3ded3"
+          "manifestHash": "e2150e2ad71e",
+          "computeHash": "dfb8f8bf7b31"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1422,7 +1422,8 @@
       },
       "ssi": {
         "ssi": 0.192,
-        "ssiLabel": "Low"
+        "ssiLabel": "Low",
+        "ssiBasis": 1
       },
       "circHR": {
         "circAmplitude": 2.04,

@@ -489,9 +489,9 @@ function renderWTTable(r) {
   });
   document.getElementById('wtBody').innerHTML =
     `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">📊 PULSEDEX — this measurement${r.longRec ? ' (per-window medians)' : ''}</td></tr>` +
-    `<tr class="wt-row-raw">${rawCols.map((c) => `<td>${c}</td>`).join('')}</tr>` +
+    `<tr class="wt-row-raw">${rawCols.map((c) => `<td>${escapeHTML(c)}</td>`).join('')}</tr>` +
     `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">📱 WELLTORY export — same day, if matched</td></tr>` +
-    `<tr class="wt-row-wt">${wtCols.map((c) => `<td>${c}</td>`).join('')}</tr>`;
+    `<tr class="wt-row-wt">${wtCols.map((c) => `<td>${escapeHTML(c)}</td>`).join('')}</tr>`;
   document.getElementById('wtWrap').classList.add('show');
   document.getElementById('slWT').style.display = 'flex';
 }
@@ -504,11 +504,7 @@ function renderWTTable(r) {
 //  recompute, no re-stamp. Raw-only panels (RR tachogram, Poincaré) are greyed,
 //  never faked. CSS injected from THIS external module (never the shell).
 // ═══════════════════════════════════════════════════════════════════════════
-function _pesc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-  });
-}
+// NOTE: HTML escaping uses the canonical suite escaper (dex-escape.js) — no local copy.
 function _pulseFmtGen(g) {
   if (!g) return '';
   try {
@@ -574,12 +570,12 @@ function pulseReviewTimeline(events) {
         var when = e.t || (e.tMs != null && typeof fmtClock === 'function' ? fmtClock(e.tMs) : '—');
         return (
           '<div class="prv-tlrow"><span class="tl-t">' +
-          _pesc(when) +
+          escapeHTML(when) +
           '</span><span>' +
           (typeof evBadge === 'function' ? evBadge('rMSSD') : '') +
-          _pesc(name(e)) +
+          escapeHTML(name(e)) +
           '</span><span class="tl-conf">conf ' +
-          (e.conf != null ? e.conf : '—') +
+          (e.conf != null ? escapeHTML(e.conf) : '—') +
           '</span></div>'
         );
       })
@@ -606,8 +602,8 @@ function pulseReviewView(review) {
     (review.scrubbed ? ' · <strong>scrubbed for sharing</strong>' : '') +
     '</span>' +
     '<span class="prv-meta">' +
-    (bh ? 'built <code>' + _pesc(bh) + '</code>' : 'build unknown') +
-    (gen ? ' on <code>' + _pesc(gen) + '</code>' : '') +
+    (bh ? 'built <code>' + escapeHTML(bh) + '</code>' : 'build unknown') +
+    (gen ? ' on <code>' + escapeHTML(gen) + '</code>' : '') +
     '</span>' +
     '<span class="prv-spacer"></span>' +
     '<button class="prv-print" type="button" data-act="print">🖨 Save clinical PDF</button></div>';
@@ -615,20 +611,20 @@ function pulseReviewView(review) {
   h +=
     '<div class="prv-head"><span class="prv-title">PulseDex — HRV review</span>' +
     '<span class="prv-sub">' +
-    _pesc(rec.modeLabel || rec.mode || 'recording') +
+    escapeHTML(rec.modeLabel || rec.mode || 'recording') +
     (rec.durationMin != null ? ' · ' + Math.round(rec.durationMin) + ' min' : '') +
     (rec.beats != null ? ' · ' + rec.beats + ' beats' : '') +
     '</span></div>';
   h += '<div class="prv-sec">Impression</div>';
   h +=
     '<div class="prv-imp">rMSSD ' +
-    nv(t.rmssd) +
+    escapeHTML(nv(t.rmssd)) +
     ' ms · SDNN ' +
-    nv(t.sdnn) +
+    escapeHTML(nv(t.sdnn)) +
     ' ms · mean HR ' +
-    nv(t.hr) +
+    escapeHTML(nv(t.hr)) +
     ' bpm' +
-    (rec.coveragePct != null ? ' · coverage ' + rec.coveragePct + '%' : '') +
+    (rec.coveragePct != null ? ' · coverage ' + escapeHTML(rec.coveragePct) + '%' : '') +
     '. Rendered from the export\u2019s stored values — no waveform recomputation.</div>';
   var kpis = [
     ['rMSSD', nv(t.rmssd), 'ms'],
@@ -647,11 +643,11 @@ function pulseReviewView(review) {
         return (
           '<div class="prv-kpi"><div class="k-lab">' +
           (typeof evBadge === 'function' ? evBadge(k[0]) : '') +
-          _pesc(k[0]) +
+          escapeHTML(k[0]) +
           '</div><div class="k-val">' +
-          _pesc(k[1]) +
+          escapeHTML(k[1]) +
           '</div><div class="k-sub">' +
-          _pesc(k[2]) +
+          escapeHTML(k[2]) +
           '</div></div>'
         );
       })
@@ -663,7 +659,7 @@ function pulseReviewView(review) {
     '<div class="prv-greyed"><strong>RR tachogram &amp; Poincaré scatter not included</strong>Per-beat RR intervals are not carried in the export — review mode shows the derived HRV layer only. Re-run the original RR/IBI recording for the beat-by-beat charts.</div>';
   h +=
     '<div class="prv-disc">' +
-    (bh ? 'Provenance · build <code>' + _pesc(bh) + '</code>' + (gen ? ' · generated ' + _pesc(gen) : '') : 'Provenance · build unknown') +
+    (bh ? 'Provenance · build <code>' + escapeHTML(bh) + '</code>' + (gen ? ' · generated ' + escapeHTML(gen) : '') : 'Provenance · build unknown') +
     '<br><span class="dxl">Tepna · not a medical device.</span> Computes HRV patterns for personal self-quantification; does not diagnose, treat, or monitor any condition.' +
     '</div></div>';
   return h;

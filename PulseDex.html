@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="518535c8718e" data-compute-hash="9ce81aef775e"><head>
+<html lang="en" data-manifest-hash="43098f7ddc65" data-compute-hash="a084cd88992c"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3OFGZyAYmpNjgdIo8HIK3mH80DZJcnoVZHx/nLdDpa4=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZOZrXVPboAP+8At/P4MiABzCGh99952BRym6mgp2xpc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-n4iELeLN4xR2wiFU5lenc+GD6lzf0vrweipgHN0rplc=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3OFGZyAYmpNjgdIo8HIK3mH80DZJcnoVZHx/nLdDpa4=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W0PiiwhX8yxHZz3UssCWYddM963/YNW9PSws09nvzzY=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZOZrXVPboAP+8At/P4MiABzCGh99952BRym6mgp2xpc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.17.0</title>
@@ -8181,15 +8181,22 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     const cSd = longRec ? dispSd : sdnn,
       cRm = longRec ? dispRm : rm,
       cPn = longRec ? dispPn : pn;
-    const stress = stressEst(cSd, cRm),
-      hrv = hrvEst(cSd, cRm, cPn),
-      energy = energyEst(cSd, cRm),
-      focus = focusEst(cSd, cRm),
-      coh = cohEst(cRm, cSd);
+    /* §2e: the composites refuse on the SAME refusal. cRm/cSd are null exactly when the
+       variability metrics refused — the clock-seam path above nulls rm/sdnn (and dispRm/dispSd
+       follow them). Feeding null into the estimators fabricates: stressEst → 100 (the
+       1.2295*null term vanishes into the clamp), hrvEst → 0, energyEst → 1, focusEst → 0,
+       cohEst → NaN, lnR → −Infinity. The composite is null; the named hrvReason (exported
+       below) explains it. */
+    const _hrvRefused = cRm == null || cSd == null;
+    const stress = _hrvRefused ? null : stressEst(cSd, cRm),
+      hrv = _hrvRefused ? null : hrvEst(cSd, cRm, cPn),
+      energy = _hrvRefused ? null : energyEst(cSd, cRm),
+      focus = _hrvRefused ? null : focusEst(cSd, cRm),
+      coh = _hrvRefused ? null : cohEst(cRm, cSd);
     const sdsdv = sdsd(a); // §8: SD1/SD2 spread is SDSD (÷N−1), not rMSSD — unified with ECGDex/PpgDex
     const sd1v = +sd1(sdsdv).toFixed(2),
       sd2v = +sd2(sdnn, sdsdv).toFixed(2);
-    const lnrm = +lnR(cRm).toFixed(3);
+    const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
     const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
 
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS §1: deterministic, identity-free recording handle.
@@ -9049,9 +9056,9 @@ function renderWTTable(r) {
   });
   document.getElementById('wtBody').innerHTML =
     `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">📊 PULSEDEX — this measurement${r.longRec ? ' (per-window medians)' : ''}</td></tr>` +
-    `<tr class="wt-row-raw">${rawCols.map((c) => `<td>${c}</td>`).join('')}</tr>` +
+    `<tr class="wt-row-raw">${rawCols.map((c) => `<td>${escapeHTML(c)}</td>`).join('')}</tr>` +
     `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">📱 WELLTORY export — same day, if matched</td></tr>` +
-    `<tr class="wt-row-wt">${wtCols.map((c) => `<td>${c}</td>`).join('')}</tr>`;
+    `<tr class="wt-row-wt">${wtCols.map((c) => `<td>${escapeHTML(c)}</td>`).join('')}</tr>`;
   document.getElementById('wtWrap').classList.add('show');
   document.getElementById('slWT').style.display = 'flex';
 }
@@ -9064,11 +9071,7 @@ function renderWTTable(r) {
 //  recompute, no re-stamp. Raw-only panels (RR tachogram, Poincaré) are greyed,
 //  never faked. CSS injected from THIS external module (never the shell).
 // ═══════════════════════════════════════════════════════════════════════════
-function _pesc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-  });
-}
+// NOTE: HTML escaping uses the canonical suite escaper (dex-escape.js) — no local copy.
 function _pulseFmtGen(g) {
   if (!g) return '';
   try {
@@ -9134,12 +9137,12 @@ function pulseReviewTimeline(events) {
         var when = e.t || (e.tMs != null && typeof fmtClock === 'function' ? fmtClock(e.tMs) : '—');
         return (
           '<div class="prv-tlrow"><span class="tl-t">' +
-          _pesc(when) +
+          escapeHTML(when) +
           '</span><span>' +
           (typeof evBadge === 'function' ? evBadge('rMSSD') : '') +
-          _pesc(name(e)) +
+          escapeHTML(name(e)) +
           '</span><span class="tl-conf">conf ' +
-          (e.conf != null ? e.conf : '—') +
+          (e.conf != null ? escapeHTML(e.conf) : '—') +
           '</span></div>'
         );
       })
@@ -9166,8 +9169,8 @@ function pulseReviewView(review) {
     (review.scrubbed ? ' · <strong>scrubbed for sharing</strong>' : '') +
     '</span>' +
     '<span class="prv-meta">' +
-    (bh ? 'built <code>' + _pesc(bh) + '</code>' : 'build unknown') +
-    (gen ? ' on <code>' + _pesc(gen) + '</code>' : '') +
+    (bh ? 'built <code>' + escapeHTML(bh) + '</code>' : 'build unknown') +
+    (gen ? ' on <code>' + escapeHTML(gen) + '</code>' : '') +
     '</span>' +
     '<span class="prv-spacer"></span>' +
     '<button class="prv-print" type="button" data-act="print">🖨 Save clinical PDF</button></div>';
@@ -9175,20 +9178,20 @@ function pulseReviewView(review) {
   h +=
     '<div class="prv-head"><span class="prv-title">PulseDex — HRV review</span>' +
     '<span class="prv-sub">' +
-    _pesc(rec.modeLabel || rec.mode || 'recording') +
+    escapeHTML(rec.modeLabel || rec.mode || 'recording') +
     (rec.durationMin != null ? ' · ' + Math.round(rec.durationMin) + ' min' : '') +
     (rec.beats != null ? ' · ' + rec.beats + ' beats' : '') +
     '</span></div>';
   h += '<div class="prv-sec">Impression</div>';
   h +=
     '<div class="prv-imp">rMSSD ' +
-    nv(t.rmssd) +
+    escapeHTML(nv(t.rmssd)) +
     ' ms · SDNN ' +
-    nv(t.sdnn) +
+    escapeHTML(nv(t.sdnn)) +
     ' ms · mean HR ' +
-    nv(t.hr) +
+    escapeHTML(nv(t.hr)) +
     ' bpm' +
-    (rec.coveragePct != null ? ' · coverage ' + rec.coveragePct + '%' : '') +
+    (rec.coveragePct != null ? ' · coverage ' + escapeHTML(rec.coveragePct) + '%' : '') +
     '. Rendered from the export\u2019s stored values — no waveform recomputation.</div>';
   var kpis = [
     ['rMSSD', nv(t.rmssd), 'ms'],
@@ -9207,11 +9210,11 @@ function pulseReviewView(review) {
         return (
           '<div class="prv-kpi"><div class="k-lab">' +
           (typeof evBadge === 'function' ? evBadge(k[0]) : '') +
-          _pesc(k[0]) +
+          escapeHTML(k[0]) +
           '</div><div class="k-val">' +
-          _pesc(k[1]) +
+          escapeHTML(k[1]) +
           '</div><div class="k-sub">' +
-          _pesc(k[2]) +
+          escapeHTML(k[2]) +
           '</div></div>'
         );
       })
@@ -9223,7 +9226,7 @@ function pulseReviewView(review) {
     '<div class="prv-greyed"><strong>RR tachogram &amp; Poincaré scatter not included</strong>Per-beat RR intervals are not carried in the export — review mode shows the derived HRV layer only. Re-run the original RR/IBI recording for the beat-by-beat charts.</div>';
   h +=
     '<div class="prv-disc">' +
-    (bh ? 'Provenance · build <code>' + _pesc(bh) + '</code>' + (gen ? ' · generated ' + _pesc(gen) : '') : 'Provenance · build unknown') +
+    (bh ? 'Provenance · build <code>' + escapeHTML(bh) + '</code>' + (gen ? ' · generated ' + escapeHTML(gen) : '') : 'Provenance · build unknown') +
     '<br><span class="dxl">Tepna · not a medical device.</span> Computes HRV patterns for personal self-quantification; does not diagnose, treat, or monitor any condition.' +
     '</div></div>';
   return h;

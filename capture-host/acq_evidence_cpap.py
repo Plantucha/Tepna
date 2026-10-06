@@ -133,7 +133,17 @@ def assemble_live(
     # from the other direction. With no accounting and no clean-stop signal we say UNKNOWN. ──
     lost = 0
     if counters:
-        lost = int(counters.get("total_lost") or 0) + int(counters.get("sink_errors") or 0)
+        # ⚠️ SUM ONLY THE MEASURED CATEGORIES, and name the rest below. This read
+        # `int(counters.get("total_lost") or 0) + int(counters.get("sink_errors") or 0)` — the SAME `or 0`
+        # `_counter` was fixed to refuse at the top of this file, where the contract is stated plainly: 0
+        # means "counted, and none happened".
+        #
+        # An absent category contributes NOTHING here rather than a fabricated zero, and goes into
+        # `unmeasured_loss` instead — which is what keeps it out of COMPLETE. Note the asymmetry on
+        # purpose: a MEASURED loss still makes the acquisition PARTIAL even while another category is
+        # unmeasured, because known loss is a finding and should not be downgraded to UNKNOWN by its
+        # neighbour's absence. PARTIAL plus a named unmeasured category says more than UNKNOWN does.
+        lost = sum(int(v) for v in (counters.get("total_lost"), counters.get("sink_errors")) if v is not None)
     # ∅ COMPLETE IS A CLAIM ABOUT EVERY LOSS CATEGORY (ABSENCE-SURVEY aa1146c0a994; ruled 2026-10-05 for the
     # owner). `lost_coverage_missing` names the categories `total_lost` does not measure, and a category
     # nothing measures is absence — neither a discontinuity to refuse nor reduced coverage to annotate. So
@@ -144,6 +154,17 @@ def assemble_live(
     if counters:
         if counters.get("total_lost") is None:
             unmeasured_loss.append("total_lost")
+        # 🔴 `sink_errors` BELONGS IN THIS LIST AND WAS MISSING FROM IT. The survey row this block cites
+        # (ABSENCE-SURVEY `aa1146c0a994`, `kind: aggregate-over-absence`) is marked **fixed**, and its own
+        # remedy names `total_lost` and `lost_coverage_missing` — not `sink_errors`. So one of the three
+        # categories the completeness axis depends on kept fabricating: with `total_lost` present at 0,
+        # `lost_coverage_missing` present and EMPTY, a clean stop and `sink_errors` None, `unmeasured_loss`
+        # came out empty and the acquisition was stamped **COMPLETE** — a claim about every loss category,
+        # earned without measuring one. `sink_errors` counts batches that reached the bus but not the
+        # durable record (INV9 loss), which is the category least likely to have a writer and the most
+        # consequential to miss.
+        if counters.get("sink_errors") is None:
+            unmeasured_loss.append("sink_errors")
         missing_cov = counters.get("lost_coverage_missing")
         if isinstance(missing_cov, list):
             unmeasured_loss.extend(str(c) for c in missing_cov)
@@ -250,6 +271,21 @@ def assemble_spool(
         )
 
     last = rows[-1]
+    # ∅ THE `or 0` HERE IS CORRECT, AND THE REASON IS A PROPERTY OF THE WRITER, NOT A PREFERENCE.
+    # Asked alongside the `sink_errors` fix above (2026-10-05): is an absent `bytes` an unmeasured
+    # category, as `sink_errors` was, or a legitimate 0-contribution?
+    #
+    # It is a legitimate 0. `bytes` has exactly ONE writer — `cpap_spool.py:179` builds every round record
+    # as `{"from": …, "bytes": len(data), "sha256": …, "status": …}` — and it is set unconditionally from
+    # `len(data)`. So there is no "no detector" state for it to be confused with: a 0 means a round that
+    # carried no bytes, which is counted and real, and that is exactly the distinction `_counter`'s
+    # contract turns on. `sink_errors` differed because it CAN have no writer at all.
+    #
+    # ⚠️ WHAT WOULD CHANGE THIS ANSWER, so the next reader does not have to re-derive it: a second writer
+    # of the round record, or any path that omits `bytes`. Then an absent field would mean "nobody
+    # counted" and this sum would start fabricating, exactly as line 146 did.
+    # `test_the_round_record_ALWAYS_CARRIES_bytes_which_is_why_or_0_is_safe_here` pins that premise, so
+    # such a change fails a test instead of silently turning this into an absence-over-aggregate.
     total_bytes = sum(int((r.get("round") or {}).get("bytes") or 0) for r in rows)
 
     # ── completeness comes from the DEVICE's own end-of-data verdict, which is exactly what the spool

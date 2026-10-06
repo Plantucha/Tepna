@@ -1,4 +1,4 @@
 {
   "_README": "The ABSENCE-SURVEY drain ceiling: the open count, held EQUAL to audits/ABSENCE-SURVEY-2026-09-22-STATE.json counts.open by `npm run verify:absence` (tools/absence-ledger.mjs --ratchet). Lower it in the PR that closes findings; it never rises.",
-  "open": 217
+  "open": 191
 }

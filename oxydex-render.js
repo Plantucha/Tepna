@@ -1977,7 +1977,7 @@ function renderAll() {
     }
 
     safeStyle('uploadArea', 'display', 'none');
-    safeSet('results', 'innerHTML', html);
+    setIfPresent('results', 'innerHTML', html);
     safeStyle('results', 'display', 'block');
     try {
       document.dispatchEvent(new Event('renderComplete'));
@@ -2031,7 +2031,7 @@ function renderAll() {
       errEl.innerHTML =
         '<div class="results-error-block">' +
         '<strong>⚠ Render Error</strong><br><code class="error-code">' +
-        errDetail +
+        escHTML(errDetail) +
         '</code>' +
         '<br><br><button class="btn btn-outline" data-act="clearAll">Clear &amp; try again</button></div>';
       errEl.style.display = 'block';
@@ -2044,7 +2044,8 @@ function renderAll() {
 function renderSmartSummary(n) {
   if (!n.summary) return '';
   var s = n.summary;
-  var sc = s.overallScore < 3 ? 'ss-good' : s.overallScore < 6 ? 'ss-warn' : 'ss-bad';
+  // ∅ a null score is not a good one — `null < 3` is TRUE in JS, which coloured "nothing scoreable" green
+  var sc = s.overallScore == null ? 'ss-na' : s.overallScore < 3 ? 'ss-good' : s.overallScore < 6 ? 'ss-warn' : 'ss-bad';
   var st = n.stats,
     h = n.hrv,
     sa = n.sleepArch;
@@ -2742,12 +2743,17 @@ function nightDetail(n, idx) {
     var _kRows = [
       { label: 'HRV (RMSSD)', v: k.scores.rmssd, max: 30 },
       { label: 'SpO₂ / Hypoxia', v: k.scores.spo2, max: 25 },
-      { label: 'Sleep Arch.', v: k.scores.sleep, max: 20 },
+      { label: 'Sleep Arch.', v: k.scores.sleep, max: k.scores.sleepMax != null ? k.scores.sleepMax : 20 },
       { label: 'HR Floor', v: k.scores.hrFloor, max: 15 },
       { label: 'Nocturnal Dip', v: k.scores.hrSlope, max: 10 }
     ];
     _kRows.forEach(function (r) {
-      var pct = r.max ? Math.min(100, Math.max(0, (r.v / r.max) * 100)) : 0;
+      // ∅ an unmeasured component is shown as such — never a 0 % "bad" bar labelled "null / 30"
+      if (r.v == null || !r.max) {
+        html += '<div class="proj-factor pf-prog"><span>' + r.label + '</span><span class="pf-val">not measured</span></div>';
+        return;
+      }
+      var pct = Math.min(100, Math.max(0, (r.v / r.max) * 100));
       var cls = pct >= 70 ? 'ok' : pct >= 40 ? 'warn' : 'bad';
       html +=
         '<div class="proj-factor pf-prog">' +

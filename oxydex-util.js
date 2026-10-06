@@ -76,7 +76,7 @@ function escHTML(s) {
 function safeEl(id) {
   return document.getElementById(id);
 }
-function safeSet(id, prop, val) {
+function setIfPresent(id, prop, val) {
   var el = safeEl(id);
   if (el) el[prop] = val;
 }

@@ -600,10 +600,77 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
     gaps = audit_dev.get("gaps")
     if not isinstance(gaps, list):
         return _decision("UNKNOWN", "no per-gap times in the loss audit")
-    audited = audit_dev.get("file")
-    span = next((v for p, v in spans.items() if os.path.basename(p) == audited), None)
-    if span is None or span[0] is None or span[0] > start or span[1] < end:
-        return _decision("UNKNOWN", f"the loss audit examined `{audited}`, which does not cover the worn interval")
+    # 🔴 JUDGE OVER THE AUDITED SET, NOT OVER ONE FRAGMENT OF IT. This read `audit_dev["file"]` and
+    # required THAT file to span the whole worn interval — but the loss audit documents that key as "the
+    # LARGEST fragment, kept under its old name so a reader of an older ledger is not misled", and
+    # publishes the population it actually examined as `files`. So a worn interval delivered in two files
+    # could never be judged: neither covers it alone and the band returned UNKNOWN.
+    #
+    # Measured on 2026-10-05: the P1 ring stop at 20:23 split the ring's set into `…201856` (20:18–20:23)
+    # and `…203501` (20:35–04:24). One recording by the session rule (the 12-min break is far under
+    # `_SESSION_GAP_SEC`), two files, and the night went UNJUDGEABLE on the ring while `loss_audit`
+    # had already read both. A dropout inside a recording is a discontinuity to ANNOTATE, not a reason to
+    # refuse the night — and the annotation already exists: the audit's `gaps` list carries "the gaps
+    # BETWEEN fragments (`boundary: true`)", so the 20:23→20:35 break flows through the rules below as a
+    # gap row inside the interval, exactly like a gap found within a single file.
+    #
+    # ∅ TWO THINGS STILL REFUSE, because coverage is a claim about what was EXAMINED:
+    #   · an audited fragment that could not be read — the audit records it as `{file, reason}` with no
+    #     `span_min`, so its position is unknown and it may well have covered part of the interval;
+    #   · an interval that reaches beyond the outermost span, which is genuinely uncovered data.
+    # A hole BETWEEN fragments is neither: it is covered by the gap rows.
+    entries = audit_dev.get("files")
+    if not isinstance(entries, list) or not entries:
+        # an older ledger with no population published — fall back to the single fragment it does name
+        entries = [{"file": audit_dev.get("file")}]
+    # ⚠️ KEYED ON `reason`, THE MARKER THE AUDIT ACTUALLY WRITES — not on a missing `span_min`. My first
+    # version used the latter and 17 existing tests failed, correctly: a minimal fixture record is
+    # `{"file": name}` with no `span_min`, which is not the same thing as a fragment that could not be
+    # read. The audit writes `{"file": …, "reason": "unreadable: …"}` for that, and only for that.
+    unreadable = [str(e.get("file")) for e in entries if isinstance(e, dict) and e.get("reason")]
+    if unreadable:
+        return _decision(
+            "UNKNOWN",
+            f"the loss audit could not read {len(unreadable)} audited fragment(s) "
+            f"({', '.join(unreadable[:3])}) — their position in the worn interval is unknown",
+        )
+    names = [str(e.get("file")) for e in entries if isinstance(e, dict)]
+    found = [
+        v
+        for nm in names
+        for p, v in spans.items()
+        # NO INDEX, so there is no index to swap. `first_last` assigns `first` on the SAME iteration as
+        # `last` and clears neither, so both members are set or neither is — `(None, set)` and
+        # `(set, None)` are unreachable for every value `spans` can hold, since it is built only from
+        # `first_last`.
+        #
+        # ⚠️ THAT EQUIVALENCE SURVIVED TWO REWRITES BEFORE IT STOPPED MOVING. It was first
+        # `v[0] is not None and v[1] is not None`, where the gate named dropping a conjunct; dropping the
+        # redundant half left `v[0] is not None`, where the gate named SWAPPING the index to `v[1]` — the
+        # same unkillable claim, relocated. `None not in v` removes the subscript entirely, so neither
+        # mutant can be written, and the one mutation that IS available (`not in` → `in`) is killable: it
+        # admits only the unstamped fragments and `min` then compares against None.
+        if os.path.basename(p) == nm and None not in v
+    ]
+    # ⚠️ "does not cover the worn interval" IS THE PINNED PHRASE on every refusal below, and the
+    # single-fragment sentence is reproduced verbatim. Three existing tests assert that wording — a reason
+    # string is part of this module's contract ("the FAIL always names the BASIS it was judged against"),
+    # so widening the rule must not silently reword the refusals it still reaches. Only the genuinely new
+    # multi-fragment case gets new prose.
+    # ONE conditional, not four. My first version branched the message three separate ways to keep the
+    # single-fragment sentence verbatim, and CI's diff-scoped gate named four survivors on those branches
+    # (`(names) or True`, `(len(names) == 1) or True`, `len(found) != 1`, `len(found) == 2`). Naming the
+    # SUBJECT once and sharing one sentence removes the branches rather than testing them: the pinned
+    # wording still comes out exactly for one fragment, and a set names its members.
+    _subj = f"`{names[0]}`" if len(names) == 1 else f"{len(names)} fragments ({', '.join(names[:3])})"
+    _nocover = f"the loss audit examined {_subj}, which does not cover the worn interval"
+    if not found:
+        return _decision("UNKNOWN", _nocover)
+    covered_from, covered_to = min(v[0] for v in found), max(v[1] for v in found)
+    if covered_from > start or covered_to < end:
+        return _decision(
+            "UNKNOWN", f"{_nocover} {start:%H:%M}-{end:%H:%M} (spanning {covered_from:%H:%M}-{covered_to:%H:%M})"
+        )
     inside = []
     for g in gaps:
         at = _dt.datetime.fromisoformat(g["at"])
