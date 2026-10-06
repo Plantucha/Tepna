@@ -235,8 +235,30 @@ def test_connect_acquires_the_REAL_mtu_logs_it_and_sizes_the_write_step_by_it(mo
     assert any("link MTU=247 (write step 244)" in r.getMessage() for r in caplog.records)
 
 
-def test_a_failed_mtu_acquire_leaves_the_placeholder_and_the_link_up(monkeypatch, caplog):
+def test_a_failed_mtu_acquire_REFUSES_a_multi_write_frame_and_leaves_the_link_up(monkeypatch, caplog):
+    """🔴 THIS TEST'S CONTRACT CHANGED ON 2026-10-06, DELIBERATELY — it previously asserted that a failed
+    acquire "leaves the placeholder and the write step at 20", and that a 40-byte frame therefore went out
+    as 2 chunks. That is the behaviour the AirSense MTU unit removes, so the assertion had to move with it
+    rather than be relaxed.
+
+    WHY. `step` decides how many ATT writes ONE protocol frame becomes, and a `CheckSessionIntegrity`
+    frame is 163 bytes — one write at a negotiated 247, NINE at the fallback 20. On 2026-10-05 at 10:00:22
+    this path logged `MTU=unknown` on the first connect after a daemon restart (the only non-247 connect
+    since 09-20); the handshake that followed died in a transport error, and from 10:01:17 the AS11 refused
+    the stored key on every poll for a day. Writing in 20-byte pieces on a link whose MTU was never
+    measured is a guess about the wire, and the old comment here — "the write step is the same safe 20
+    either way" — was an assumption, never a measurement.
+
+    ⚠️ WHAT IS STILL ASSERTED FROM THE ORIGINAL, because it remains true and remains the point: the
+    PLACEHOLDER IS NOT REPORTED AS THE MTU (ABSENCE-SURVEY 0565efb3f0a7). After a failed acquire BlueZ
+    still says 23, truthy and indistinguishable from a negotiated 23, so the log must say unknown — and
+    `step` is now `None` rather than a manufactured 23, so nothing downstream can confuse them.
+
+    ⚠️ AND THE LINK STAYS UP, which is why the refusal is per-FRAME and not per-connect: refusing the
+    whole link would turn a bad guess into a dead CPAP, a worse failure than the one being fixed."""
+    import as11_pull
     import capture
+    import pytest as _p
 
     def acquire(client):
         raise RuntimeError("dbus went away")
@@ -246,15 +268,28 @@ def test_a_failed_mtu_acquire_leaves_the_placeholder_and_the_link_up(monkeypatch
     async def go():
         with caplog.at_level(logging.INFO, logger=capture.log.name):
             write, _recv, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci1")
-        await write(b"x" * 40)  # step 20 → 2 chunks
-        assert len(fb.instances[-1].written) == 2 and fb.instances[-1].connected
+        # 40 bytes would need 2 writes at the old fallback step — now refused, and NOTHING reaches the wire
+        with _p.raises(as11_pull.As11Error) as ei:
+            await write(b"x" * 40)
+        assert "never" in str(ei.value) and "measured" in str(ei.value), str(ei.value)
+        assert fb.instances[-1].written == [] and fb.instances[-1].connected, (
+            "the frame was refused but the LINK must stay up: " + repr(fb.instances[-1].written)
+        )
+        # a frame that needs no guess still goes out — the refusal is bounded
+        await write(b"y" * 20)
+        assert len(fb.instances[-1].written) == 1
         await disconnect()
 
     _run(go())
-    # The placeholder is NOT reported as the MTU (ABSENCE-SURVEY 0565efb3f0a7): after a failed acquire BlueZ
-    # still says 23, so the log says unknown — the write step is the same safe 20 either way.
-    assert any("link MTU=unknown (ATT default 23 assumed) (write step 20)" in r.getMessage() for r in caplog.records)
+    assert any("link MTU=unknown" in r.getMessage() for r in caplog.records)
+    assert any("REFUSED" in r.getMessage() for r in caplog.records), (
+        "the log must say what an unmeasured link now does, not quote a step it will not use"
+    )
+    # unchanged from the original, and still the reason this test exists
     assert not any("link MTU=23 " in r.getMessage() for r in caplog.records)
+    assert not any("ATT default 23 assumed" in r.getMessage() for r in caplog.records), (
+        "the fallback number is gone — the log may not imply a step that is no longer taken"
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
