@@ -152,6 +152,48 @@ export function keyFileFor(provider) {
    reads exactly like a weak model, which is why the finish reason is a REFUSAL and not a note. */
 export const REQ_MAX_OUTPUT_TOKENS = 65536;
 
+/**
+ * Prefixes that are VERIFIED to belong to one provider — a public format marker, never a secret.
+ * A provider absent here is a provider whose format I have not established.
+ */
+export const KNOWN_KEY_PREFIXES = {
+  groq: 'gsk_',
+  openrouter: 'sk-or-',
+  xai: 'xai-',
+  'github-models': 'github_pat_'
+};
+
+/**
+ * Refuses ONLY on a POSITIVELY IDENTIFIED cross-provider key — never on failing to match an expected
+ * shape.
+ *
+ * ⚠️ THIS IS THE #3310 RULE, ARRIVING AT A SECOND PLACE. A key that does not match what I expect is
+ * ABSENCE OF EVIDENCE: my expectation may simply be wrong. Measured 2026-10-05 — I guessed `^AIza` for
+ * Gemini and an alphanumeric run for Mistral, and both "mismatched" while the Gemini key was PROVEN
+ * valid by a 38/41 scored run an hour earlier. A checker whose reference values are invented reports
+ * confidently about something it never established, so this one cannot say "wrong key" from a
+ * non-match.
+ *
+ * What it CAN say is positive: a value carrying ANOTHER provider's verified prefix is that provider's
+ * key, in the wrong file. That is worth refusing loudly, because the consequence is not a failed
+ * request — it is SENDING ONE PROVIDER'S LIVE CREDENTIAL TO A DIFFERENT COMPANY. Caught for real:
+ * `xai.env` held a `gsk_`-prefixed value, i.e. a Groq key, which a request to api.x.ai would have
+ * handed to xAI. The owner re-placed it; this makes the next one impossible to send.
+ *
+ * Returns a reason string to refuse with, or null to proceed. NEVER returns or logs any part of the value.
+ */
+export function crossProviderKey(provider, value) {
+  const want = KNOWN_KEY_PREFIXES[provider];
+  for (const [other, pfx] of Object.entries(KNOWN_KEY_PREFIXES)) {
+    if (other === provider) continue;
+    if (!value.startsWith(pfx)) continue;
+    // A prefix that is ALSO this provider's own is no evidence of anything.
+    if (want && want.startsWith(pfx)) continue;
+    return `the key in this file carries the ${other} prefix "${pfx}", so it is a ${other} key in the ${provider} file. REFUSING: sending it would hand ${other}'s live credential to ${provider}. Re-place the key; the value is never printed.`;
+  }
+  return null;
+}
+
 /** Everything this tool prints goes through here. A leak is one interpolated error away. */
 export function scrub(text, secret) {
   const s = String(text ?? '');
@@ -472,6 +514,20 @@ function selftest() {
   ck('a one-id-per-line prompt is clean', groupedIdLines(' A1: x\n B2: y\n'), []);
   ck('a bare number line is not a group', groupedIdLines(' 13: s["count"] > 0\n'), []);
   ck('the output budget is the model class limit', REQ_MAX_OUTPUT_TOKENS, 65536);
+  // The cross-provider guard: a POSITIVE detection refuses; a non-match never does.
+  ck('a groq key in the xai file REFUSES', crossProviderKey('xai', 'gsk_x') !== null, true);
+  ck('an openrouter key in the xai file REFUSES', crossProviderKey('xai', 'sk-or-v1-x') !== null, true);
+  ck('a provider own prefix is not cross-provider', crossProviderKey('groq', 'gsk_x'), null);
+  ck('an UNVERIFIED shape is not a finding', crossProviderKey('gemini', 'zzz_i_never_verified_this'), null);
+  ck('mistral, whose format I never established, passes', crossProviderKey('mistral', 'anything'), null);
+  ck('the refusal reason never carries the value', crossProviderKey('xai', 'gsk_SECRET').includes('SECRET'), false);
+  // A ROTATED key must take effect on the next run: resolveKey may hold no module-level cache.
+  ck(
+    'the key is read per run, never cached across runs',
+    resolveKey({ keyVar: 'K', keyFile: '/x', env: { K: 'first' }, exists: () => false }).key === 'first' &&
+      resolveKey({ keyVar: 'K', keyFile: '/x', env: { K: 'second' }, exists: () => false }).key === 'second',
+    true
+  );
   console.log(bad ? `  selftest: ${bad} FAILED` : '  selftest: resolveKey + scrub + verifyExport + buildRequest + groupedIdLines OK');
   return bad ? 1 : 0;
 }
