@@ -272,3 +272,32 @@ def test_a_scan_that_REPORTED_NO_COUNT_is_not_a_scan_that_saw_nothing():
     assert st["devices_seen_unreported"] == 1, st
     text = bv.format_visibility(stats, CPAP)
     assert "reported NO device count" in text, text
+
+
+def test_a_CLEAN_adapter_carries_NEITHER_exclusion_suffix():
+    """🔴 THE TWO SURVIVORS THIS KILLS, both in `format_visibility` and both the same shape: a conditional
+    suffix forced on. CI's diff-scoped gate named them as
+    `(st["scans_failed"]) or True` and `(st["devices_seen_unreported"]) or True`.
+
+    Every render test above feeds a stats dict where at least one suffix SHOULD appear, or asserts only
+    what is present — so nothing observed the suffixes being ABSENT, and a clause emitted unconditionally
+    passed them all. The distinguishing input is therefore the boring one: a clean adapter, zero failed
+    scans and zero unreported counts, where both clauses must stay silent.
+
+    ⚠️ AND IT IS AN ABSENCE ASSERTION ON PURPOSE. "(0 scan(s) FAILED — excluded)" on a healthy adapter is
+    not cosmetic: the whole point of the suffix is that it names a DENOMINATOR the median excluded, so a
+    line claiming an exclusion that did not happen misreports the basis of the number beside it."""
+    stats = {
+        "hci0": {
+            "scans_ok": 10,
+            "scans_failed": 0,
+            "seen": 10,
+            "rate": 1.0,
+            "median_rssi": -40,
+            "median_devices_seen": 3,
+            "devices_seen_unreported": 0,
+        }
+    }
+    line = bv.format_visibility(stats, CPAP)
+    assert "FAILED" not in line, f"no scan failed, so no exclusion may be claimed: {line}"
+    assert "reported NO device count" not in line, f"every scan reported a count: {line}"
