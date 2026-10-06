@@ -199,6 +199,10 @@ body.light .section-title::after{background:rgba(0,0,0,.06);}
 .ov-stat .val{font-size:22px;font-weight:700;line-height:1;font-family:ui-monospace,monospace;letter-spacing:-.02em;}
 .ov-stat .val.val-addr{font-size:12px;letter-spacing:0;line-height:1.3;word-break:break-all;}   /* full BLE MAC must wrap inside the card, not overflow it */
 .ov-stat .sub{font-size:11px;color:var(--text3);margin-top:4px;}
+/* `.bad` here is ALWAYS parent-scoped (.batt.bad, .rssi.bad, .clk.bad, .nfr.bad) — there is no generic
+   rule, so `class="sub bad"` without this line renders in the ordinary grey and a warning that must be
+   acted on reads as one more detail. */
+.ov-stat .sub.bad{color:var(--red);}
 
 .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--sp-4);}
 .ov-card{background:var(--surface);border:var(--b);border-radius:var(--r-md);padding:16px 18px 14px;position:relative;
@@ -2069,6 +2073,21 @@ function cpapStatusLabel(c){
   };
   return map[c.state] || map.idle;
 }
+// THE ONE MAP for the live BLE side, beside the harvest map above and for the same reason: a fault the
+// operator must ACT on may not be spelled differently in two places. `fault_kind` is classified
+// SERVER-side (`as11_pull.fault_kind`); this maps the enum to the sentence and derives nothing.
+//
+// 🔴 WHY A SENTENCE AND NOT A STATUS WORD. A rejected pairing key is the one CPAP state that will not
+// change until a human walks to the machine, and on every passive channel it is identical to a CPAP
+// switched off — "therapy: unknown · as of 19h ago" is what a day of refused handshakes looks like
+// (2026-10-05), and what ELEVEN HOURS of it looked like on 2026-09-04 before anyone knew to ask.
+//
+// ⚠️ ONE LINE ON PURPOSE. `tests/test_monitor_rate_staleness.py` extracts shipped functions by
+// `^function NAME\(.*?\n` and runs them under node, so a multi-line body would be extracted
+// TRUNCATED and the test would evaluate a fragment. Kept on one line so the real shipped code is what
+// gets executed.
+function cpapFaultSentence(c){ const m = {'key-rejected': 'the machine answered but refused our pairing key — re-pair the AS11'}; return (c && m[c.fault_kind]) || ''; }
+
 // CPAP harvest card. Hidden entirely unless the poller is enabled — an always-visible "—" invites the
 // reading that the harvest ran and found nothing, which is the exact failure this card exists to expose.
 function renderCpap(c){
@@ -3415,10 +3434,13 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive){
     const lv = cpapLive;
     const cLive = lv ? `<div class="sub">therapy: ${esc(lv.state)}${
       lv.age_s == null ? ' · never read' : ' · as of ' + esc(agoSecs(lv.age_s))}</div>` : '';
+    // The ask, from the server's own classification in the verbatim `cpap` block — no derivation here.
+    const _fs = cpapFaultSentence(cpap);
+    const cFault = _fs ? `<div class="sub bad">⚠ ${esc(_fs)}</div>` : '';
     cards.push(`<div class="ov-stat"${colour?` style="border-left-color:${colour}"`:''}>
       <div class="lab">CPAP</div>
       <div class="val" style="font-size:15px">${esc(word)}</div>
-      <div class="sub">${esc(csub)}</div>${cLive}</div>`);
+      <div class="sub">${esc(csub)}</div>${cLive}${cFault}</div>`);
   }
   el.innerHTML = cards.join('');
   el.style.display = cards.length ? '' : 'none';
