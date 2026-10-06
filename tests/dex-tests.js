@@ -13482,6 +13482,63 @@
     });
 
     /* ════ 8b-ii · SECURITY — XSS sink remediation (2026-10-05 deep review §1) ════ */
+    group('Security — XSS sinks escape untrusted strings (2026-10-05 §2 — ATTRIBUTE sinks)', 'security · xss · attribute-sink', function (T) {
+      var src = env.sources || {};
+      var overApp = src['overdex-app.js'] || '';
+      var oxyRender = src['oxydex-render.js'] || '';
+      T.ok('sources carry overdex-app.js and oxydex-render.js', overApp.length > 0 && oxyRender.length > 0, 'a missing source would make every assertion below vacuous');
+
+      /* ── 0 · THE CONTROL: the canonical escaper closes an ATTRIBUTE, the local one did not ──
+         §1 covered innerHTML sinks, where escaping &<> is enough to stop a tag. An ATTRIBUTE sink
+         needs the QUOTE: `title="` + value + `"` breaks out on a bare " with no angle bracket in
+         sight. This asserts the tool the fix reaches for actually closes that hole, so the source
+         assertions below are checking a delegation that works rather than one that merely exists. */
+      var esc = env.escapeHTML || (env.DexEsc && env.DexEsc.escapeHTML);
+      T.ok('dex-escape.js escapeHTML is loaded', typeof esc === 'function', 'not reachable — the assertions below would prove nothing');
+      if (typeof esc === 'function') {
+        var breakout = '" onmouseover="alert(1)';
+        T.ok('escapeHTML escapes the double quote (the attribute breakout)', esc(breakout).indexOf('&quot;') === 0, 'got ' + JSON.stringify(esc(breakout).slice(0, 24)));
+        T.ok('escapeHTML escapes the single quote too', esc("'").indexOf('&#39;') === 0, 'single-quoted attributes break out on a bare apostrophe');
+        T.ok('…and a quoted payload survives as inert text', esc(breakout).indexOf('"') === -1, 'a raw " remains after escaping');
+      }
+
+      /* ── 1 · overdex-app.js: no quote-blind local escaper ──
+         The local `esc()` replaced /[&<>]/ only, and `:608` put its output inside title="…" where
+         `b.text` carries 'TAMPERED: ' + f.name — a folder name is user-controlled. A second escaper
+         that disagrees with the canonical one is the defect, not the call site. */
+      T.ok('overdex-app · no local escaper that omits the quote', !/function esc\s*\(s\)\s*\{[\s\S]{0,200}?replace\(\s*\/\[&<>\]\/g/.test(overApp), 'the quote-blind local esc() is still defined');
+      /* The fix is a DELEGATION, not a patched call site: `esc` became a one-line alias for the
+         canonical escaper, so every sink in overdex-app.js is covered at once and a second escaper
+         cannot drift from the first. This asserts the alias, which is the stronger property —
+         mirroring the OxyDex escHTML single-source lock in §1. */
+      T.ok(
+        'overdex-app · the local esc delegates to the shared escapeHTML (single source)',
+        /function esc\(s\)\s*\{\s*return escapeHTML\(s\);\s*\}/.test(overApp),
+        'esc does not delegate — a second escaper can drift from the canonical one'
+      );
+      T.ok(
+        'overdex-app · the seal title is built through esc (so it inherits the delegation)',
+        /title="'\s*\+\s*esc\(/.test(overApp) || /title="'\s*\+\s*escapeHTML\(/.test(overApp),
+        'the title attribute bypasses the escaper entirely'
+      );
+
+      /* ── 2 · oxydex-render.js: the two raw ATTRIBUTE sinks ──
+         Both carry values that arrive verbatim from user JSON in review mode. The night-row
+         aria-label two lines above ALREADY used escHTML on the same variable, which is what makes
+         this a slip rather than a policy. */
+      T.ok('oxydex-render · the night-detail aria-label escapes n.date', !/aria-label="Details for night '\s*\+\s*n\.date/.test(oxyRender), 'n.date still concatenated raw into an aria-label');
+      T.ok(
+        'oxydex-render · the flag pill escapes f.sev and f.code',
+        !/class="fpill '\s*\+\s*f\.sev\s*\+\s*'">'\s*\+\s*f\.code/.test(oxyRender),
+        'f.sev reaches a class attribute and f.code an element body, both raw'
+      );
+      T.ok(
+        'oxydex-render · every aria-label built from n.date escapes it',
+        (oxyRender.match(/aria-label="[^"]*'\s*\+\s*n\.date/g) || []).length === 0,
+        'at least one aria-label still takes n.date raw'
+      );
+    });
+
     group('Security — XSS sinks escape untrusted strings (2026-10-05 §1)', 'security · xss · sources', function (T) {
       var src = env.sources || {};
       var oxyDsp = src['oxydex-dsp.js'] || '';
@@ -30668,6 +30725,56 @@
       // nothing on this fixture", which would satisfy the first assertion for the wrong reason.
       var okRows = OB.parseCSV(HEAD + row(1, 96, 60), { fname: 'ok.csv' });
       T.eq('control: an ordinary in-range row parses', okRows.length, 1);
+    });
+
+    /* ════ rmssdArc DECLARES ITS UNIT, AND THE DECLARATION IS PROVED FROM THE DATA.
+       The registry said `ms/h`. The DSP takes the RMSSD of the PULSE-RATE series (`r.hr`, bpm) over
+       `WIN = 1800` rows of 1 Hz O2Ring CSV — 30-minute windows — and regresses it on the WINDOW INDEX.
+       So `ms/h` was wrong in the numerator AND the denominator: wrong in KIND, which no scale factor
+       repairs. Fixed in the REGISTRY, because the DSP's own labels gate on `slope < -0.2` / `> 0.2` in
+       these native units and rescaling would move every published number.
+
+       ⚠️ A DECLARED UNIT THAT IS WRONG IS WORSE THAN NO UNIT (same reasoning as the ECGDSP
+       analyze-contract group). So every leg here is a RELATION a unit error cannot satisfy: the planted
+       HR amplitude IS the window's RMSSD (fixing the numerator as bpm), and the slope is per WINDOW
+       INDEX, not per hour (fixing the denominator — the per-hour value would be exactly double). ════ */
+    group('OxyDex rmssdArc declares its unit — bpm per 30-min window, proved not trusted', 'oxydex-dsp · oxydex-registry · units', function (T) {
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var B = (_od && _od._bare) || _od || {};
+      var arc = B.computeRMSSDarc;
+      var REG = env.sources && env.sources['oxydex-registry.js'];
+      T.ok('computeRMSSDarc reachable on the BARE test surface', typeof arc === 'function', 'not exposed — the unit cannot be pinned by a known answer');
+      T.ok('oxydex-registry.js source available', !!REG, 'the declaration cannot be read');
+      if (typeof arc !== 'function' || !REG) return;
+
+      /* A window whose HR alternates base → base+d has successive differences of magnitude d only, so
+         its RMSSD is EXACTLY d. Four windows of 1800 rows plant RMSSD = 2, 4, 6, 8 bpm. */
+      var WIN = 1800;
+      var amps = [2, 4, 6, 8];
+      var rows = [];
+      for (var k = 0; k < amps.length; k++) for (var i = 0; i < WIN; i++) rows.push({ hr: 60 + (i % 2 ? amps[k] : 0), motion: 0, spo2: 96 });
+      var r = arc(rows);
+      T.ok('the plant is not vacuous — 7200 rows produced 4 windows', !!r && r.rmssdArcWindows && r.rmssdArcWindows.length === 4, 'got ' + (r && r.rmssdArcWindows && r.rmssdArcWindows.length));
+
+      // ── THE NUMERATOR IS bpm ── the window RMSSD equals the planted bpm amplitude, exactly.
+      T.ok(
+        'each window RMSSD equals the planted HR amplitude in bpm',
+        JSON.stringify(r.rmssdArcWindows) === JSON.stringify(amps),
+        'got ' + JSON.stringify(r.rmssdArcWindows) + ' want ' + JSON.stringify(amps)
+      );
+
+      // ── THE DENOMINATOR IS ONE WINDOW ── +2 bpm per window index. Per HOUR this would read 4.
+      T.ok('the slope is +2 per WINDOW INDEX (bpm/30min)', r.rmssdArcSlope === 2, 'got ' + String(r.rmssdArcSlope));
+      T.ok('…and it is NOT the per-hour value, which a `/h` unit would imply', r.rmssdArcSlope !== 4, 'slope reads as per-hour — the denominator moved');
+      T.ok('the fit is exact on a linear plant (r2 = 1), so the slope is not an artefact', r.rmssdArcR2 === 1, 'r2 ' + String(r.rmssdArcR2));
+
+      // ── ONE WINDOW IS 30 MIN ── 1800 rows of 1 Hz O2Ring CSV; the declaration must say so.
+      T.ok('one window is 1800 rows = 30 min at the O2Ring 1 Hz row rate', rows.length / r.rmssdArcWindows.length === 1800, 'rows per window ' + rows.length / r.rmssdArcWindows.length);
+      var decl = /rmssdArc:\s*\{[\s\S]{0,900}?unit:\s*'([^']*)'/.exec(REG);
+      T.ok('the registry declares a unit for rmssdArc', !!decl, 'no unit field found');
+      T.ok("the declared unit is 'bpm/30min' — what the code emits", decl && decl[1] === 'bpm/30min', 'declared ' + (decl && JSON.stringify(decl[1])));
+      T.ok('the declaration does not claim milliseconds (the series is a pulse RATE)', !!decl && decl[1].indexOf('ms') === -1, 'declared ' + (decl && JSON.stringify(decl[1])));
+      T.ok('the declaration does not claim a per-hour denominator', !!decl && !/\/h$|\/hr$/.test(decl[1]), 'declared ' + (decl && JSON.stringify(decl[1])));
     });
 
     group('OxyDex perfusion index from the OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4)', 'oxydex-dsp · oxydex-registry', function (T) {
