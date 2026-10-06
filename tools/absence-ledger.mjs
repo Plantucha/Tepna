@@ -687,6 +687,21 @@ export const SEEDS = [
     state: 'accepted-with-reason',
     reason:
       "Ruled NOT A DEFECT (Kestrel, 2026-10-06, on this unit's plant evidence): the night window's durationMin 0 is a pairing anchor with one reader, ECG pairing, which treats a point at t0 as start-proximity; it is never published. Removing it routed an anchored, untimed night into the no-anchor lone-ECG fallback and paired an ECG recorded 26 h later (the unit's own first plant caught it). The reader that would misread a 0, coverage, now refuses on no ECG duration. Recorded at the field: 'pairing anchor; 0 = untimed night; never published'."
+  },
+  {
+    at: 'oxydex-profile.js:118',
+    state: 'fixed',
+    note: "upFromDOM reads an empty elevation field as null (not entered), never 0 m; upLoad and upToDOM already kept it null. Plant: tests/dex-tests.js group 'OxyDex profile · an unentered setting or unmeasured term is not a number', red on the pre-fix oxydex-profile.js."
+  },
+  {
+    at: 'oxydex-profile.js:605',
+    state: 'fixed',
+    note: "recomputeFromProfile publishes rmssdAdj null with no RMSSD (never a measured-looking 0) and the VO2max estimate is the Uth-Sorensen base alone. Plant: tests/dex-tests.js group 'OxyDex profile · an unentered setting or unmeasured term is not a number', red on the pre-fix oxydex-profile.js."
+  },
+  {
+    at: 'oxydex-profile.js:311',
+    state: 'fixed',
+    note: "the Karvonen zones and the HRrest sublabel read ONE upRestingHR() decision (manual / data / estimate): estimated zones are marked with an approx sign, and a detected value outside 30-80 makes the sublabel say the zones use the age estimate, so the two can no longer disagree. Plant: tests/dex-tests.js group 'OxyDex profile · an unentered setting or unmeasured term is not a number', red on the pre-fix oxydex-profile.js."
   }
 ];
 
