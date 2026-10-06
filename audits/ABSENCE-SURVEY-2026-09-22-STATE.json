@@ -20,8 +20,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 179,
-  "fixed": 108,
+  "open": 176,
+  "fixed": 111,
   "accepted-with-reason": 3
  },
  "entries": [
@@ -1750,7 +1750,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 605,
-   "state": "open"
+   "state": "fixed",
+   "note": "recomputeFromProfile publishes rmssdAdj null with no RMSSD (never a measured-looking 0) and the VO2max estimate is the Uth-Sorensen base alone. Plant: tests/dex-tests.js group 'OxyDex profile · an unentered setting or unmeasured term is not a number', red on the pre-fix oxydex-profile.js."
   },
   {
    "key": "38cab89355e6",
@@ -2601,7 +2602,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 118,
-   "state": "open"
+   "state": "fixed",
+   "note": "upFromDOM reads an empty elevation field as null (not entered), never 0 m; upLoad and upToDOM already kept it null. Plant: tests/dex-tests.js group 'OxyDex profile · an unentered setting or unmeasured term is not a number', red on the pre-fix oxydex-profile.js."
   },
   {
    "key": "7e34d2b1ab62",
@@ -2610,7 +2612,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 311,
-   "state": "open"
+   "state": "fixed",
+   "note": "the Karvonen zones and the HRrest sublabel read ONE upRestingHR() decision (manual / data / estimate): estimated zones are marked with an approx sign, and a detected value outside 30-80 makes the sublabel say the zones use the age estimate, so the two can no longer disagree. Plant: tests/dex-tests.js group 'OxyDex profile · an unentered setting or unmeasured term is not a number', red on the pre-fix oxydex-profile.js."
   },
   {
    "key": "87637b1e2788",
