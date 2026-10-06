@@ -8,6 +8,7 @@ loss audit's `wear` + per-gap `gaps`. A 2 Hz primary stream keeps the completene
 import os
 import datetime as dt
 import json
+import pathlib as _pathlib
 
 import loss_audit as _la
 import solid_night_inputs as si
@@ -5251,3 +5252,107 @@ def test_an_UNREADABLE_audited_fragment_refuses_because_its_POSITION_is_unknown(
     assert "could not read 1 audited fragment(s)" in out["reason"], out
     assert "20260920233000" in out["reason"], ("the unreadable fragment must be NAMED", out)
     assert "position in the worn interval is unknown" in out["reason"], out
+
+
+def _set_night(d, files, *, worn_end="2026-09-21T00:16:00", gaps=()):
+    """A night whose audit publishes an arbitrary `files` population — for the set rule's own edges."""
+    _ecg(d, seconds=300, name=BASE)
+    _ecg(d, seconds=3600, name=BASE2, t0=T0 + dt.timedelta(minutes=17))
+    for nm in (BASE, BASE2):
+        _seams(d, name=nm)
+        _runs(d, "ECG", name=nm)
+        _runs(d, "ACC", name=nm)
+    dev = {
+        "file": f"{BASE2}_ECG.txt",
+        "files": list(files),
+        "gaps": [{"at": a, "s": s, "cause": c} for a, s, c in gaps],
+        "wear": {"available": True, "worn_end": {"at": worn_end, "reason": "doff", "file": f"{BASE2}_ECG.txt"}},
+    }
+    (d / "LOSS-AUDIT.json").write_text(json.dumps({"journal": "read", "devices": {H10["name"]: dev}}))
+    return _bands(d)[H10["name"]]["bands"]["continuity"]
+
+
+def test_an_EMPTY_files_list_falls_back_to_the_named_fragment():
+    """`not isinstance(entries, list) or not entries` → `and`, named by CI. An audit that publishes
+    `files: []` is not an audit that published a population: with `or` the rule falls back to the one
+    fragment the record still names, with `and` it carries on over an empty list and can conclude nothing.
+
+    A pure-function test, because the fallback is about the RECORD's shape, not the night's files."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        d = _pathlib.Path(td)
+        out = _set_night(d, [])
+        # the fallback judged over `file` — the same answer a pre-`files` ledger gets
+        assert out["status"] in {"PASS", "FAIL", "UNKNOWN"}, out
+        assert "fragments" not in (out.get("reason") or ""), ("an empty list must not read as a set", out)
+
+
+def test_the_UNREADABLE_list_is_TRUNCATED_at_three_and_the_count_is_exact(tmp_path):
+    """`unreadable[:3]` → `[:4]`, named by CI. Four unreadable fragments: the count says 4 and the names
+    list exactly THREE. A truncation whose bound nobody asserts is a bound nobody chose."""
+    out = _set_night(
+        tmp_path,
+        [{"file": f"frag{i}.txt", "reason": "unreadable: OSError(5)"} for i in range(4)],
+    )
+    assert out["status"] == "UNKNOWN", out
+    assert "could not read 4 audited fragment(s)" in out["reason"], out
+    # ⚠️ NOT `reason.count("frag")` — my first attempt, which counted 4 because the word "fragment(s)"
+    # in the message contains "frag" too. The bound is asserted on the NAMES themselves: the first three
+    # appear, the fourth does not.
+    for nm in ("frag0.txt", "frag1.txt", "frag2.txt"):
+        assert nm in out["reason"], (nm, out["reason"])
+    assert "frag3.txt" not in out["reason"], "the list is truncated at three: %r" % out["reason"]
+
+
+def test_a_fragment_whose_span_START_is_unparseable_is_not_counted_as_found(tmp_path):
+    """A fragment whose rows carry no parseable stamp must not join the union — `first_last` returns
+    `(None, None)` for it and the set must judge over what it could actually place.
+
+    ⚠️ THIS DOES NOT KILL THE MUTANT I WROTE IT FOR, and the docstring says so rather than implying
+    otherwise. CI named `v[0] is not None and v[1] is not None` → `v[1] … and v[1] …`; I planted it and
+    this test still passed, because `(None, set)` is UNREACHABLE: `first_last` assigns `first` on the same
+    iteration as `last`, so the two conjuncts always agree. The redundant conjunct is now gone from the
+    source, so the mutant no longer exists to kill. What remains worth pinning is the `(None, None)`
+    case below — a fragment that placed nowhere is not part of the covered union."""
+    d = tmp_path / "nostart"
+    d.mkdir()
+    _ecg(d, seconds=300, name=BASE)
+    # a second "fragment" with no parseable stamps at all
+    (d / f"{BASE2}_ECG.txt").write_text("Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n;;;\n")
+    for nm in (BASE, BASE2):
+        _seams(d, name=nm)
+        _runs(d, "ECG", name=nm)
+        _runs(d, "ACC", name=nm)
+    dev = {
+        "file": f"{BASE}_ECG.txt",
+        "files": [
+            {"file": f"{BASE}_ECG.txt", "span_min": 5.0, "gaps": 0, "delays": 0},
+            {"file": f"{BASE2}_ECG.txt", "span_min": 0.0, "gaps": 0, "delays": 0},
+        ],
+        "gaps": [],
+        "wear": {
+            "available": True,
+            "worn_end": {"at": "2026-09-21T00:16:00", "reason": "doff", "file": f"{BASE}_ECG.txt"},
+        },
+    }
+    (d / "LOSS-AUDIT.json").write_text(json.dumps({"journal": "read", "devices": {H10["name"]: dev}}))
+    out = _bands(d)[H10["name"]]["bands"]["continuity"]
+    assert out["status"] == "UNKNOWN" and "does not cover the worn interval" in out["reason"], out
+
+
+def test_a_TWO_FRAGMENT_set_that_covers_nothing_NAMES_the_set_not_one_file(tmp_path):
+    """The surviving half of the message conditional: with two names the refusal must say `2 fragments`,
+    with one it must say the single-fragment sentence verbatim. Both directions, one test."""
+    many = _set_night(
+        tmp_path,
+        [
+            {"file": "other_a_ECG.txt", "span_min": 1.0, "gaps": 0, "delays": 0},
+            {"file": "other_b_ECG.txt", "span_min": 1.0, "gaps": 0, "delays": 0},
+        ],
+    )
+    assert many["status"] == "UNKNOWN" and "2 fragments" in many["reason"], many
+    one = _cont(tmp_path / "solo" if (tmp_path / "solo").mkdir() is None else tmp_path, file="some_other_night_ECG.txt")
+    assert one["reason"] == (
+        "the loss audit examined `some_other_night_ECG.txt`, which does not cover the worn interval"
+    ), one

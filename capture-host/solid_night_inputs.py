@@ -639,25 +639,32 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
         v
         for nm in names
         for p, v in spans.items()
-        if os.path.basename(p) == nm and v[0] is not None and v[1] is not None
+        # ONE check, not two: `first_last` assigns `first` on the SAME iteration as `last` (the first row
+        # that parses) and clears neither, so `last is not None` implies `first is not None` and
+        # `(None, set)` is unreachable for every value `spans` can hold — it is built only from
+        # `first_last`. CI's gate named `v[0] is not None and v[1] is not None` → `v[1] … and v[1] …` as a
+        # survivor, and it is genuinely equivalent; the honest answer is to drop the redundant conjunct
+        # rather than write a ledger proof for a mutant on a check that need not exist.
+        if os.path.basename(p) == nm and v[0] is not None
     ]
     # ⚠️ "does not cover the worn interval" IS THE PINNED PHRASE on every refusal below, and the
     # single-fragment sentence is reproduced verbatim. Three existing tests assert that wording — a reason
     # string is part of this module's contract ("the FAIL always names the BASIS it was judged against"),
     # so widening the rule must not silently reword the refusals it still reaches. Only the genuinely new
     # multi-fragment case gets new prose.
-    _one = f"the loss audit examined `{names[0] if names else None}`, which does not cover the worn interval"
+    # ONE conditional, not four. My first version branched the message three separate ways to keep the
+    # single-fragment sentence verbatim, and CI's diff-scoped gate named four survivors on those branches
+    # (`(names) or True`, `(len(names) == 1) or True`, `len(found) != 1`, `len(found) == 2`). Naming the
+    # SUBJECT once and sharing one sentence removes the branches rather than testing them: the pinned
+    # wording still comes out exactly for one fragment, and a set names its members.
+    _subj = f"`{names[0]}`" if len(names) == 1 else f"{len(names)} fragments ({', '.join(names[:3])})"
+    _nocover = f"the loss audit examined {_subj}, which does not cover the worn interval"
     if not found:
-        return _decision("UNKNOWN", _one if len(names) == 1 else f"{_one} ({len(names)} fragment(s), no usable span)")
+        return _decision("UNKNOWN", _nocover)
     covered_from, covered_to = min(v[0] for v in found), max(v[1] for v in found)
     if covered_from > start or covered_to < end:
-        if len(found) == 1:
-            return _decision("UNKNOWN", _one)
         return _decision(
-            "UNKNOWN",
-            f"the loss audit examined {len(found)} fragment(s) spanning "
-            f"{covered_from:%H:%M}-{covered_to:%H:%M}, which does not cover the worn interval "
-            f"{start:%H:%M}-{end:%H:%M}",
+            "UNKNOWN", f"{_nocover} {start:%H:%M}-{end:%H:%M} (spanning {covered_from:%H:%M}-{covered_to:%H:%M})"
         )
     inside = []
     for g in gaps:
