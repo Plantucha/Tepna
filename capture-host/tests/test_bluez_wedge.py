@@ -195,3 +195,79 @@ def test_AN_UNUSABLE_FIRE_TIMESTAMP_IS_UNKNOWN_NOT_A_CRASH():
     for bad in (None, "not-a-time", object()):
         out, _ = W.recovery_outcome(bad, [(T0, True)])
         assert out == W.UNKNOWN
+
+
+# ══ A KEY REJECTION IS NOT A WEDGE (2026-10-05) ════════════════════════════════════════════════════
+# The AS11 refused the stored key from 10:01:17 and the watchdog answered with TWO BlueZ restarts and an
+# adapter hand-off to hci1 — remedies against a radio that was never broken. The verdict could not say
+# "the device answered and said no", so the counting rules, which infer a fault from SILENCE, decided a
+# case in which the device had spoken.
+
+
+def test_a_key_rejection_is_NOT_wedged_whatever_the_counts_say():
+    """The streak, the radio and the recency all point at WEDGED — and the verdict must still refuse,
+    because a named key rejection is proof the device answered. This is the case that cost two BlueZ
+    restarts and a ladder hand-off on 2026-10-05, so the inputs are that night's: a long streak, other
+    links healthy, the machine seen minutes ago."""
+    verdict, why = W.wedge_verdict(27, radio_healthy=True, last_seen_age_s=600.0, fault_kind=W.KEY_REJECTED_FAULT)
+    assert verdict == W.KEY_REJECTED, (verdict, why)
+    # The reason must say what to DO — a verdict a reader cannot act on sends them back to the journal.
+    assert "re-pair" in why, why
+    # ⚠️ AND IT MUST NOT CLAIM A WEDGE in any wording: `restart_allowed` is consulted on WEDGED alone,
+    # so a verdict string that merely reads differently while still being WEDGED would fire the radio.
+    assert verdict != W.WEDGED
+
+
+def test_the_same_counts_WITHOUT_a_named_fault_still_wedge():
+    """The control, and the reason this is not a weakening: with no fault kind the verdict is unchanged,
+    so the 2026-08-29 partial wedge this module exists for still fires. A fix that silenced the rung in
+    general would trade one invisible failure for another."""
+    verdict, _ = W.wedge_verdict(27, radio_healthy=True, last_seen_age_s=600.0)
+    assert verdict == W.WEDGED
+    assert W.wedge_verdict(27, True, 600.0, fault_kind=None)[0] == W.WEDGED
+    # An unrecognised kind is NOT key-rejected: the taxonomy returns None for the undiscriminated
+    # bucket, and only the named kind may change the remedy.
+    assert W.wedge_verdict(27, True, 600.0, fault_kind="something-else")[0] == W.WEDGED
+
+
+def test_key_rejected_constant_matches_as11_pull():
+    """TWO SPELLINGS OF ONE STRING, PINNED. `bluez_wedge` deliberately does not import `as11_pull`: it is
+    the pure watchdog policy, imported by the watchdog itself, and a protocol module in its dependency
+    list is a cycle waiting to be written. The cost of that choice is two literals that must agree, and
+    the repo's answer to that cost is a test, not trust
+    (`test_psftp_mtu_char_literal_matches_polar_psftp` is the same idiom). If one is renamed alone, the
+    wedge silently resumes restarting BlueZ against a key fault — the exact defect this unit fixes.
+
+    ⚠️ A THIRD SPELLING ARRIVES WITH THE CARD (`cpap_live`, the pure monitor view), and this assertion
+    must grow to three then. It is named here so the next unit cannot add a literal without the pin."""
+    import as11_pull
+
+    assert W.KEY_REJECTED_FAULT == as11_pull.KEY_REJECTED
+
+
+def test_the_reason_lines_CONVERT_the_age_correctly():
+    """CI's gate named FOUR survivors on the arithmetic inside these two reason strings
+    (`/3600.0` → `*3600.0`, `/3601.0`; `/60.0` → `*60.0`, `/61.0`) — every existing test here asserts a
+    VERDICT and at most a substring of the reason, so nothing ever read the NUMBER.
+
+    ⚠️ It is not cosmetic, and that is why it is worth a test rather than an excuse: both lines exist to
+    tell an operator HOW LONG the device has been gone, which is the single fact separating "bluez lost
+    it" from "it is not here" — the distinction this whole module is built to make. A reason that says
+    `0.0 h` for a seven-hour absence, or `36000 min` for ten minutes, inverts the judgement it is there
+    to support. Exact strings, because a rounded wrong number still reads as plausible.
+
+    🔴 THE INPUTS ARE CHOSEN TO SEPARATE THE DIVISORS, and my first attempt did not. With
+    `7.2 * 3600` the `/3601.0` mutant prints 7.198 → `"7.2"`, and with 600 s the `/61.0` mutant prints
+    9.84 → `"10"` — IDENTICAL after the format rounding, so two of the four survived a test written to
+    kill all four. An off-by-one divisor needs an age large enough for the error to clear the printed
+    precision: 200 h separates `.1f` (200.0 vs 199.9), and 1 h separates `.0f` (60 vs 59).
+    A test whose inputs cannot distinguish the mutation reports success about arithmetic it never
+    examined."""
+    # ABSENT: 200 h, far past the 6 h window. /3601 prints 199.9 — separated at `.1f`.
+    verdict, why = W.wedge_verdict(99, radio_healthy=True, last_seen_age_s=200.0 * 3600.0)
+    assert verdict == W.ABSENT, (verdict, why)
+    assert "last seen 200.0 h ago" in why, why
+    # WEDGED: seen 1 h ago, inside the window. /61 prints 59 — separated at `.0f`.
+    verdict, why = W.wedge_verdict(99, radio_healthy=True, last_seen_age_s=3600.0)
+    assert verdict == W.WEDGED, (verdict, why)
+    assert "seen 60 min ago" in why, why

@@ -7878,6 +7878,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                     wedge_day, wedge_restarts, cpap_handoffs = today, 0, 0
                 verdict, why = bluez_wedge.wedge_verdict(
                     int(cpap_st.get("unreachable_streak") or 0),
+                    # The KIND decides before any count does: a key rejection is proof the device
+                    # answered, and no number of refused handshakes makes that a radio fault.
+                    fault_kind=cpap_st.get("fault_kind"),
                     # `connected_any` IS the honest reading of "demonstrably healthy" here: if nothing
                     # is connected we are in the deafness rung's territory, and `wedge_verdict` returns
                     # UNKNOWN for that rather than claiming a per-device fault.
@@ -12228,6 +12231,10 @@ def _note_cpap_unreachable(exc):
     `last_unreachable_class` answers the question the CSV could not (Brief runner's F2): a
     `BleakDeviceNotFoundError` (the machine is off) and an `InProgress` (the radio is contended by our
     own captures) are byte-identical UNKNOWNs in the journal, and they need opposite responses."""
+    import as11_pull  # function-local, for the reason `_publish_therapy_state` states for cpap_supervisor:
+
+    # the AS11 modules are imported inside the shadow starter, so a module-level reference here would
+    # NameError on the first poll — on the failure path, where it would be least visible.
     st = STATUS.setdefault("cpap", {})
     st["reachable"] = False
     streak = int(st.get("unreachable_streak") or 0) + 1
@@ -12245,6 +12252,17 @@ def _note_cpap_unreachable(exc):
     # and discarded here.
     msg = str(exc).strip()
     st["last_unreachable_msg"] = msg[:200] or None
+    # THE KIND, not just the class — the discrimination `last_unreachable_class` cannot make, because
+    # every AS11 protocol failure is one `As11Error` (see `as11_pull.KEY_REJECTED`).
+    kind = as11_pull.fault_kind(exc)
+    st["fault_kind"] = kind
+    # ⚠️ `reachable` STAYS FALSE, DELIBERATELY, and this is the one judgement call in the fix. A key
+    # rejection means the device ANSWERED — so "unreachable" is the wrong word for it — but `reachable`
+    # is what the monitor and the harvest trigger read to mean "we have a usable session and can trust a
+    # therapy reading". Flipping it would publish a present tense we cannot source: we know the machine
+    # is there, and nothing about whether therapy is running. So the answer is a SECOND field for the
+    # second question, not a reused one for both — the same rule `_spool_st` follows one screen down.
+    st["device_answered"] = kind == as11_pull.KEY_REJECTED or None
     # RATE-LIMITED, because the poll is every 30 s and a persistent fault runs all night — 1320 polls
     # over those eleven hours, and a line per poll is not evidence, it is a reason to stop reading the
     # log. Logged on the FIRST failure, on any CHANGE of message (a fault becoming a different fault
@@ -12289,6 +12307,11 @@ def _publish_therapy_state(decision, _anchor):
         st["unreachable_streak"] = 0
         st["last_unreachable_class"] = None
         st["last_unreachable_msg"] = None
+        # Clear the KIND as well. A stale `fault_kind` would keep the card saying "re-pair needed"
+        # after a re-pair worked, and would keep the watchdog's remedies suppressed on a real wedge —
+        # the fault heals in one successful poll and the published state must heal with it.
+        st["fault_kind"] = None
+        st["device_answered"] = None
         # Clear the log memo too, or the NEXT fault is suppressed as a repeat of the one that just
         # healed: `streak` restarts at 1 so it would log anyway today, but that is an accident of the
         # streak rule rather than a property of the memo, and a later change to either would silently
