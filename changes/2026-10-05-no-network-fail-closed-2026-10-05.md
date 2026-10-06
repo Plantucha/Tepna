@@ -1,3 +1,9 @@
+---
+bump: patch
+type: security
+brief: none
+---
+
 # 2026-10-05 — No-network gate fail-closed (§3)
 
 ## What
