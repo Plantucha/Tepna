@@ -6,7 +6,7 @@
  *
  * Fuzzes OxyDex's processNight with random dropout patterns and asserts the
  * §∅ contract: STATISTICS ARE COMPUTED OVER MEASURED SAMPLES, NEVER OVER
- * ABSENT ONES (oxydex-dsp.js:3158–3176).
+ * ABSENT ONES (oxydex-dsp.js, the `§∅` block ahead of computeStats).
  *
  * Two properties:
  *   P1 (no fabrication): an all-null signal yields null metrics, never
@@ -16,6 +16,34 @@
  *       is the fuzzed night with null rows removed. A null must behave like
  *       a missing row, never like a 0 reading.
  *
+ * v3 — the bundle is GROUPED, not a flat list (2026-10-06, Kestrel, on the
+ * owner's "run without eating tokens"). v2 wrote one record per failing
+ * assertion: 21 seeds produced 5,600 records (840 KB) that said eight things.
+ * v3 keys every failure by (property, metric), keeps a bounded set of
+ * examples per group (--keep, default 3: the first, the widest gap, the
+ * fewest nulls), counts the rest, and tags each group KNOWN (already routed
+ * to a fix — see KNOWN below) or NOVEL. The reader's unit is the group.
+ *
+ *   --summary FILE   print the readable report for an existing bundle and
+ *                    exit — works on a LIVE bundle (writes are atomic), so a
+ *                    running soak can be read at any time in ~20 lines.
+ *                    Also folds a v2 flat bundle into groups on the fly.
+ *   --known a,b,c    override the KNOWN metric list (default: the routed set)
+ *   --keep N         examples kept per group (default 3)
+ *   --narrate        after the run (or with --summary), ask the LOCAL Ollama
+ *                    model (the same endpoint and model as tools/qwen-agent.mjs)
+ *                    for one plain-English paragraph per NOVEL group, appended
+ *                    to the report as an UNVERIFIED DRAFT. One request,
+ *                    localhost only, off by default — it evicts bge-m3 from
+ *                    the GPU for ~1 min (memory: ai-probe-evicts-bge-m3), so
+ *                    run it once, at the end. The model proposes, never decides
+ *                    (QWEN-ENGINEERING-PROGRAM brief, shelved but its §0 kept).
+ *
+ * Every run also writes <out>.md (the same report) beside the bundle and ends
+ * with ONE tepna.verdict/1 object (verdict.js; VERDICT-CONTRACT-2026-09-21).
+ * The verdict is FAIL while ANY group exists — known defects are still
+ * fabrication; the KNOWN/NOVEL split is for the reader, never for the gate.
+ *
  * Long-run operation (TOOL-BUILD-STANDARD §2):
  *   --seeds N        seeds to run from --seed-start (default 1)
  *   --seed-start N   first seed (default: random); seeds are independent units,
@@ -23,35 +51,36 @@
  *   --iters N        fuzzed nights per seed (default 50)
  *   --len N          samples per night (default 900)
  *   --out FILE       results bundle JSON (default null-fuzz-<start>.json).
- *                    Accumulates every failure; the bundle IS the checkpoint.
- *   --resume         resume from --out: completed seeds are skipped, failures
+ *                    The bundle IS the checkpoint.
+ *   --resume         resume from --out: completed seeds are skipped, groups
  *                    already recorded are kept. Kill -9 mid-run, then rerun
  *                    with --resume for 0 duplicates, 0 re-run seeds.
  *   --heartbeat SEC  progress line to stderr every SEC (default 30). Survives
  *                    redirection; a silent run is indistinguishable from hung.
- *   --quiet          failures go to the bundle only, not stdout (token-saving)
+ *   --quiet          per-failure lines are not printed (the bundle has them)
  *
  *   Example overnight soak, shardable:
  *     node tools/null-fuzz.mjs --seed-start 1 --seeds 200 --iters 50 --quiet \
  *       --out /tmp/fuzz-a.json &
- *     node tools/null-fuzz.mjs --seed-start 201 --seeds 200 --iters 50 --quiet \
- *       --out /tmp/fuzz-b.json &
+ *     node tools/null-fuzz.mjs --summary /tmp/fuzz-a.json      # any time
  *
  * Exit 0 = no fabrication in the seeds run. Exit 1 = fabrication found (see
- * bundle). Exit 2 = load/setup error.
+ * report). Exit 2 = load/setup error.
  *
  * §2.11 declarations: single process, no workers — SIGKILL terminates cleanly
  * and the checkpoint is always consistent (§2.3 trivially satisfied). No GPU:
- * the workload is serial processNight calls (~1.1 s each, pure JS, no dense
+ * the workload is serial processNight calls (~0.4–1.1 s each, pure JS, no dense
  * kernel); the parallel unit is the seed, sharded across processes/machines
- * (§2.6 — measured 2026-10-06, n=30 iters: 1.08 s/iter mean, 0.97–1.24 range).
- * Single-purpose: OxyDex only; the shape ports to other Dexes as separate work
- * (§2.9). §2.1 search 2026-10-06: no prior null-fuzz work in repo.
+ * (§2.6 — measured 2026-10-06, n=30 iters: 1.08 s/iter mean, 0.97–1.24 range;
+ * 0.36 s/iter niced on a quiet box the same day). Single-purpose: OxyDex only;
+ * the shape ports to other Dexes as separate work (§2.9). §2.1 search
+ * 2026-10-06: no prior null-fuzz work in repo; the grouped-report shape and the
+ * local-model draft follow tools/qwen-agent.mjs and VERDICT-CONTRACT.
  *
  * Zero npm dependencies. Loads the real DSP via node:vm, same as
  * tests/run-tests.mjs.
  */
-import { readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,70 +90,323 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const require = createRequire(import.meta.url);
 const DexBuild = require(join(ROOT, 'tools', 'build-core.js'));
+const Verdict = require(join(ROOT, 'verdict.js'));
+const OLLAMA = 'http://127.0.0.1:11434'; // as tools/qwen-agent.mjs
+const NARRATE_MODEL = 'qwen3-coder:30b'; // as tools/qwen-agent.mjs
 
 /* ── CLI ── */
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
-  const m = args.find((a) => a.startsWith('--' + name + '='));
+  const m = args.find((a) => a.startsWith(`--${name}=`));
   if (m) return m.split('=').slice(1).join('=');
-  const i = args.indexOf('--' + name);
+  const i = args.indexOf(`--${name}`);
   if (i >= 0 && args[i + 1] !== undefined && !args[i + 1].startsWith('--')) return args[i + 1];
   return dflt;
 };
-const has = (name) => args.includes('--' + name);
+const has = (name) => args.includes(`--${name}`);
+const SUMMARY_OF = opt('summary', null);
 const SEED_START = Number(opt('seed-start', opt('seed', (Math.random() * 0xffffffff) >>> 0)));
 const SEEDS = Number(opt('seeds', 1));
 const ITERS = Number(opt('iters', 50));
 const LEN = Number(opt('len', 900));
 const HEARTBEAT_SEC = Number(opt('heartbeat', 30));
-const QUIET = has('--quiet');
-const RESUME = has('--resume');
-const OUT = opt('out', `null-fuzz-${SEED_START}.json`);
+const KEEP = Math.max(1, Number(opt('keep', 3)));
+const QUIET = has('quiet');
+const RESUME = has('resume');
+const NARRATE = has('narrate');
+const OUT = SUMMARY_OF || opt('out', `null-fuzz-${SEED_START}.json`);
 const OUT_PATH = OUT.startsWith('/') ? OUT : join(process.cwd(), OUT);
+const REPORT_PATH = `${OUT_PATH.replace(/\.json$/, '')}.md`;
 
-/* ── checkpoint / bundle (§2.2: atomic, carries results, discard if corrupt) ── */
+/* KNOWN: metrics whose fabrication is already routed to a fix. A hit here is
+ * still a failure (the gate does not care); the tag only tells the READER what
+ * is new. Keep the route beside the name so the list is checkable, and prune a
+ * row when its fix merges — a stale KNOWN entry hides a regression. */
+const KNOWN_DEFAULT = {
+  auc90Total: 'oxydex-dsp.js auc90 null accumulation — #3321 (P-A guard) + the six-site sibling (Osprey)',
+  auc90Rate: 'derived from auc90Total — same route',
+  spo2IQR: 'oxydex-dsp.js IQR null-sort — six-site sibling (Osprey)',
+  condMeanBelow94: 'oxydex-dsp.js conditional mean admits nulls — six-site sibling (Osprey)',
+  condPctBelow94: 'oxydex-dsp.js conditional pct counts nulls — six-site sibling (Osprey)',
+  minSpo2: 'oxydex-dsp.js computeGatedNadir `spo2 < mn` with null (isFinite(null) is true) — routed to Muse 2026-10-06'
+};
+const KNOWN = (() => {
+  const o = opt('known', null);
+  if (o === null) return KNOWN_DEFAULT;
+  const out = {};
+  for (const k of o
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean))
+    out[k] = KNOWN_DEFAULT[k] || 'listed by --known';
+  return out;
+})();
+
+/* ── grouped bundle ───────────────────────────────────────────────────────────
+ * groups: { "<property>|<metric>": { property, metric, count, seeds: [..], nulls_min, nulls_max,
+ *           examples: [ {seed, iter, fuzzed, clean, note, why} ] } }
+ * `why` names which slot the example holds: first | widest | fewest-nulls. */
 function blankBundle() {
   return {
-    tool: 'null-fuzz.mjs', version: 2,
-    seed_start: SEED_START, seeds: SEEDS, iters: ITERS, len: LEN,
-    started_at: new Date().toISOString(), updated_at: null,
-    completed_seeds: [], failures: [],
+    tool: 'null-fuzz.mjs',
+    version: 3,
+    seed_start: SEED_START,
+    seeds: SEEDS,
+    iters: ITERS,
+    len: LEN,
+    keep: KEEP,
+    started_at: new Date().toISOString(),
+    updated_at: null,
+    completed_seeds: [],
+    groups: {},
+    failure_count: 0,
     stats: { iters_run: 0, ms_total: 0 },
     summary: null,
+    verdict: null
   };
 }
+const gap = (e) => {
+  if (typeof e.fuzzed === 'number' && typeof e.clean === 'number') return Math.abs(e.fuzzed - e.clean);
+  return e.fuzzed === null || e.clean === null ? Number.POSITIVE_INFINITY : 0;
+};
+const nullsOf = (e) => {
+  const m = /nulls=(\d+)\//.exec(e.note || '');
+  return m ? Number(m[1]) : null;
+};
+function addFailure(b, e) {
+  const key = `${e.property}|${e.metric}`;
+  let g = b.groups[key];
+  if (!g) {
+    g = { property: e.property, metric: e.metric, count: 0, seeds: [], nulls_min: null, nulls_max: null, examples: [] };
+    b.groups[key] = g;
+  }
+  g.count++;
+  b.failure_count++;
+  if (!g.seeds.includes(e.seed)) g.seeds.push(e.seed);
+  const nn = nullsOf(e);
+  if (nn !== null) {
+    g.nulls_min = g.nulls_min === null ? nn : Math.min(g.nulls_min, nn);
+    g.nulls_max = g.nulls_max === null ? nn : Math.max(g.nulls_max, nn);
+  }
+  // Bounded examples: slot `first` = first seen; then the widest gap and the fewest nulls (the
+  // cheapest reproduction). KEEP bounds the array; the count carries the rest.
+  const ex = { seed: e.seed, iter: e.iter, fuzzed: e.fuzzed, clean: e.clean, note: e.note || null, why: 'first' };
+  if (g.examples.length === 0) {
+    g.examples.push(ex);
+    return;
+  }
+  const widest = g.examples.find((x) => x.why === 'widest');
+  if (gap(ex) > gap(widest || g.examples[0])) {
+    if (widest) Object.assign(widest, ex, { why: 'widest' });
+    else if (g.examples.length < KEEP) g.examples.push({ ...ex, why: 'widest' });
+  }
+  const fewest = g.examples.find((x) => x.why === 'fewest-nulls');
+  const ref = nullsOf(fewest || g.examples[0]);
+  if (nn !== null && (ref === null || nn < ref)) {
+    if (fewest) Object.assign(fewest, ex, { why: 'fewest-nulls' });
+    else if (g.examples.length < KEEP) g.examples.push({ ...ex, why: 'fewest-nulls' });
+  }
+}
+/** A v2 bundle (flat `failures[]`) folds into v3 groups; a v3 bundle passes through. */
+function upgradeBundle(parsed) {
+  if (parsed.version >= 3 && parsed.groups) return parsed;
+  const b = { ...blankBundle(), ...parsed, version: 3, groups: {}, failure_count: 0, keep: KEEP };
+  for (const f of parsed.failures || []) addFailure(b, f);
+  delete b.failures;
+  return b;
+}
+
 let bundle = blankBundle();
-if (RESUME && existsSync(OUT_PATH)) {
+if ((RESUME || SUMMARY_OF) && existsSync(OUT_PATH)) {
   try {
-    const raw = readFileSync(OUT_PATH, 'utf8');
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(readFileSync(OUT_PATH, 'utf8'));
     if (parsed && parsed.tool === 'null-fuzz.mjs' && Array.isArray(parsed.completed_seeds)) {
-      bundle = parsed;
+      bundle = upgradeBundle(parsed);
       bundle.started_at = bundle.started_at || new Date().toISOString();
     } else {
-      console.error(`checkpoint unparseable or foreign — starting fresh (discarded ${OUT_PATH})`);
+      console.error(`checkpoint unparseable or foreign — ${SUMMARY_OF ? 'nothing to summarise' : `starting fresh (discarded ${OUT_PATH})`}`);
+      if (SUMMARY_OF) process.exit(2);
     }
   } catch {
-    console.error(`checkpoint unreadable — starting fresh (discarded ${OUT_PATH})`);
+    console.error(`checkpoint unreadable — ${SUMMARY_OF ? 'nothing to summarise' : `starting fresh (discarded ${OUT_PATH})`}`);
+    if (SUMMARY_OF) process.exit(2);
   }
+} else if (SUMMARY_OF) {
+  console.error(`--summary: no bundle at ${OUT_PATH}`);
+  process.exit(2);
 }
 function saveBundle() {
   bundle.updated_at = new Date().toISOString();
-  const tmp = OUT_PATH + '.tmp';
+  const tmp = `${OUT_PATH}.tmp`;
   writeFileSync(tmp, JSON.stringify(bundle, null, 1));
   renameSync(tmp, OUT_PATH); // atomic: readers never see a half-write
 }
+let seedFailures = [];
 const fail = (entry) => {
   seedFailures.push(entry); // buffered; merged into bundle only on seed completion (§2.2: no duplicates on resume)
-  if (!QUIET) console.log(`FAIL ${entry.property} seed=${entry.seed} iter=${entry.iter}: ${entry.metric} fuzzed=${JSON.stringify(entry.fuzzed)} clean=${JSON.stringify(entry.clean)}${entry.note ? ' ' + entry.note : ''}`);
+  if (!QUIET)
+    console.log(
+      `FAIL ${entry.property} seed=${entry.seed} iter=${entry.iter}: ${entry.metric} fuzzed=${JSON.stringify(entry.fuzzed)} clean=${JSON.stringify(entry.clean)}${entry.note ? ` ${entry.note}` : ''}`
+    );
 };
-let seedFailures = [];
+
+/* ── report + verdict (shared by the run and --summary) ── */
+const fmt = (v) => {
+  if (v === null || v === undefined) return 'null';
+  if (typeof v === 'number') return String(+v.toFixed(3));
+  return JSON.stringify(v);
+};
+const sortedGroups = (b) => Object.values(b.groups).sort((x, y) => y.count - x.count);
+function buildSummary(b) {
+  const groups = sortedGroups(b);
+  const novel = groups.filter((g) => !(g.metric in KNOWN));
+  const known = groups.filter((g) => g.metric in KNOWN);
+  const msPerIter = b.stats.iters_run ? b.stats.ms_total / b.stats.iters_run : 0;
+  let verdict = 'CLEAN';
+  if (b.failure_count > 0) verdict = novel.length ? 'FABRICATION-FOUND (novel)' : 'FABRICATION-FOUND (all known)';
+  return {
+    seeds_run: b.completed_seeds.length,
+    seeds_planned: b.seeds,
+    iters_run: b.stats.iters_run,
+    failures: b.failure_count,
+    groups: groups.length,
+    novel_groups: novel.map((g) => g.metric),
+    known_groups: known.map((g) => g.metric),
+    ms_per_iter: +msPerIter.toFixed(1),
+    verdict
+  };
+}
+function buildVerdict(b, s) {
+  const plannedIters = b.seeds * b.iters;
+  const complete = b.completed_seeds.length >= b.seeds;
+  let status = 'FAIL';
+  let reason = `${s.failures} failing assertions in ${s.groups} group(s): ${s.novel_groups.length} novel (${s.novel_groups.join(', ') || '—'}), ${s.known_groups.length} known/routed`;
+  if (b.stats.iters_run === 0) {
+    status = 'NOT_RUN';
+    reason = 'no iteration ran';
+  } else if (b.failure_count === 0) {
+    status = complete ? 'PASS' : 'UNDERPOWERED';
+    reason = complete ? null : `${b.completed_seeds.length} of ${b.seeds} seeds run — clean so far, not the planned population`;
+  }
+  const v = Verdict.make({
+    gate: 'null-fuzz-oxydex',
+    status,
+    population: { checked: b.stats.iters_run, eligible: plannedIters, excluded: Math.max(0, plannedIters - b.stats.iters_run) },
+    criterion: { name: 'fabrication_groups', threshold: 0, unit: 'groups', direction: 'eq' },
+    result: { groups: s.groups, novel: s.novel_groups.length, known: s.known_groups.length, failures: s.failures, seeds_run: s.seeds_run },
+    evidence: ['tools/null-fuzz.mjs', OUT_PATH.replace(/^.*\//, '')],
+    reason,
+    producedBy: { tool: 'tools/null-fuzz.mjs', commit: null, commitReason: 'the bundle is a scratch artefact; the commit is the checkout that ran it' }
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) {
+    console.error(`verdict object INVALID: ${chk.errors.join('; ')}`);
+    process.exit(2);
+  }
+  return v;
+}
+function renderReport(b, s, v, narrative) {
+  const L = [];
+  const live = b.completed_seeds.length < b.seeds;
+  L.push(`# null-fuzz — ${s.verdict}${live ? ' (RUNNING)' : ''}`);
+  L.push('');
+  L.push(`Seeds ${s.seeds_run}/${s.seeds_planned} · iters ${s.iters_run} · ${s.failures} failing assertions in ${s.groups} group(s) · ${s.ms_per_iter} ms/iter · bundle \`${OUT_PATH}\``);
+  L.push('');
+  const table = (title, gs) => {
+    L.push(`## ${title} (${gs.length})`);
+    L.push('');
+    if (!gs.length) {
+      L.push('_none_');
+      L.push('');
+      return;
+    }
+    L.push('| property | metric | failures | seeds | nulls/night | first example (fuzzed → clean) | widest gap | route |');
+    L.push('|---|---|---|---|---|---|---|---|');
+    for (const g of gs) {
+      const first = g.examples.find((x) => x.why === 'first') || g.examples[0];
+      const widest = g.examples.find((x) => x.why === 'widest');
+      const ex = (x) => (x ? `seed ${x.seed} it ${x.iter}: ${fmt(x.fuzzed)} → ${fmt(x.clean)}` : '—');
+      let nulls = '—';
+      if (g.nulls_min !== null) nulls = g.nulls_min === g.nulls_max ? `${g.nulls_min}` : `${g.nulls_min}–${g.nulls_max}`;
+      L.push(`| ${g.property} | \`${g.metric}\` | ${g.count} | ${g.seeds.length} | ${nulls} | ${ex(first)} | ${ex(widest)} | ${KNOWN[g.metric] || '**NOVEL — verify, then route**'} |`);
+    }
+    L.push('');
+  };
+  const groups = sortedGroups(b);
+  table(
+    'Novel groups',
+    groups.filter((g) => !(g.metric in KNOWN))
+  );
+  table(
+    'Known groups (already routed — a regression tripwire, not news)',
+    groups.filter((g) => g.metric in KNOWN)
+  );
+  L.push(
+    'How to read: P1 = an all-null night must give null (a number here is fabricated from nothing). P2 = metric(fuzzed) must equal metric(nulls removed) (a gap here means a null acted as a 0 or sorted as −∞). `first` is the cheapest reproduction: rerun with `--seed-start <seed> --seeds 1 --iters <iter+1>`.'
+  );
+  L.push('');
+  if (narrative) {
+    L.push(`## Draft narrative — local ${NARRATE_MODEL} via Ollama, UNVERIFIED`);
+    L.push('');
+    L.push('_A model wrote this from the table above, not from the code. Treat every sentence as a hypothesis to check at the named site._');
+    L.push('');
+    L.push(narrative.trim());
+    L.push('');
+  }
+  L.push('```json');
+  L.push(JSON.stringify(v));
+  L.push('```');
+  return `${L.join('\n')}\n`;
+}
+/** One request to the LOCAL model for a plain-English paragraph per NOVEL group. Localhost only. */
+async function narrate(b) {
+  const novel = sortedGroups(b).filter((g) => !(g.metric in KNOWN));
+  if (!novel.length) return null;
+  const facts = novel.map((g) => ({ property: g.property, metric: g.metric, failures: g.count, examples: g.examples }));
+  const prompt =
+    'You are summarising a null-injection fuzz result for a sleep-oximetry DSP. The contract: statistics are computed over measured samples, never over absent ones (a null must behave as a missing row, never as a 0). ' +
+    'For EACH group below write ONE short paragraph in plain English: what the number did when nulls were present versus removed, and the single most likely JavaScript coercion that explains it (null + x, null < x, null - x, a sort with null). ' +
+    `Do not invent line numbers or function names. Do not propose code. Under 120 words per group.\n\n${JSON.stringify(facts, null, 1)}`;
+  try {
+    const res = await fetch(`${OLLAMA}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: NARRATE_MODEL, messages: [{ role: 'user', content: prompt }], temperature: 0.2, max_tokens: 900 }),
+      signal: AbortSignal.timeout(180000)
+    });
+    if (!res.ok) return `(narration refused: HTTP ${res.status})`;
+    const j = await res.json();
+    return j.choices?.[0]?.message?.content || '(narration empty)';
+  } catch (e) {
+    return `(narration unavailable: ${String(e.message).slice(0, 120)})`;
+  }
+}
+async function finish(b) {
+  const s = buildSummary(b);
+  const v = buildVerdict(b, s);
+  b.summary = s;
+  b.verdict = v;
+  const narrative = NARRATE ? await narrate(b) : null;
+  const report = renderReport(b, s, v, narrative);
+  writeFileSync(REPORT_PATH, report);
+  process.stdout.write(report);
+  return { s, v };
+}
+
+/* ── --summary: read-only view of any bundle, then exit ── */
+if (SUMMARY_OF) {
+  const { v } = await finish(bundle);
+  process.exit(v.status === 'FAIL' ? 1 : 0);
+}
 
 /* ── seeded RNG ── */
 let _s = 0;
-function reseed(seed) { _s = seed >>> 0; }
+function reseed(seed) {
+  _s = seed >>> 0;
+}
 function rnd() {
-  _s |= 0; _s = (_s + 0x6d2b79f5) | 0;
+  _s |= 0;
+  _s = (_s + 0x6d2b79f5) | 0;
   let t = Math.imul(_s ^ (_s >>> 15), 1 | _s);
   t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -135,15 +417,23 @@ const rint = (lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
 function makeSandbox() {
   const noop = () => {};
   const sandbox = {};
-  sandbox.window = sandbox; sandbox.self = sandbox; sandbox.globalThis = sandbox;
+  sandbox.window = sandbox;
+  sandbox.self = sandbox;
+  sandbox.globalThis = sandbox;
   sandbox.console = console;
   sandbox.document = {
-    getElementById: () => null, createElement: () => ({ style: {} }),
-    querySelector: () => null, querySelectorAll: () => [],
-    head: {}, body: {}, documentElement: { outerHTML: '' }, addEventListener: noop
+    getElementById: () => null,
+    createElement: () => ({ style: {} }),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    head: {},
+    body: {},
+    documentElement: { outerHTML: '' },
+    addEventListener: noop
   };
   sandbox.localStorage = { getItem: () => null, setItem: noop, removeItem: noop, clear: noop };
-  sandbox.setTimeout = setTimeout; sandbox.clearTimeout = clearTimeout;
+  sandbox.setTimeout = setTimeout;
+  sandbox.clearTimeout = clearTimeout;
   return vm.createContext(sandbox);
 }
 const ctx = makeSandbox();
@@ -198,14 +488,20 @@ function getMetrics(out) {
   const desat = out.desat || {};
   const adv = out.spo2Adv || {};
   return {
-    meanSpo2: st.meanSpo2, minSpo2: st.minSpo2, maxSpo2: st.maxSpo2, spo2Std: st.spo2Std,
-    t95pct: st.t95pct, t90pct: st.t90pct,
-    auc90Total: desat.auc90Total, auc90Rate: desat.auc90Rate,
-    spo2IQR: adv.spo2IQR, condMeanBelow94: adv.condMeanBelow94, condPctBelow94: adv.condPctBelow94,
+    meanSpo2: st.meanSpo2,
+    minSpo2: st.minSpo2,
+    maxSpo2: st.maxSpo2,
+    spo2Std: st.spo2Std,
+    t95pct: st.t95pct,
+    t90pct: st.t90pct,
+    auc90Total: desat.auc90Total,
+    auc90Rate: desat.auc90Rate,
+    spo2IQR: adv.spo2IQR,
+    condMeanBelow94: adv.condMeanBelow94,
+    condPctBelow94: adv.condPctBelow94
   };
 }
-const isFabricated = (v) =>
-  v !== null && v !== undefined && (typeof v !== 'number' || Number.isNaN(v) || !Number.isFinite(v) || v !== 0);
+const isFabricated = (v) => v !== null && v !== undefined && (typeof v !== 'number' || Number.isNaN(v) || !Number.isFinite(v) || v !== 0);
 const same = (a, b) => {
   if (a === null && b === null) return true;
   if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-6;
@@ -224,17 +520,16 @@ function heartbeat(force) {
   const itersTotal = SEEDS * ITERS;
   const elapsed = (now - tRunStart) / 1000;
   const rate = itersDone / Math.max(elapsed, 0.001);
-  const eta = rate > 0 ? Math.max(0, (itersTotal - itersDone) / rate) : Infinity;
-  const etaStr = !isFinite(eta) ? '?' : eta < 90 ? `${eta.toFixed(0)}s` : `${(eta / 60).toFixed(1)}m`;
-  const failuresSoFar = bundle.failures.length + seedFailures.length;
-  // §2.4: real running values — seeds, iters, rate, ETA, failures so far. Never a placeholder.
-  console.error(
-    `null-fuzz: seeds ${seedsDone}/${SEEDS} iters ${itersDone}/${itersTotal} ` +
-    `${rate.toFixed(1)}/s ETA ${etaStr} failures ${failuresSoFar} → ${OUT_PATH}`
-  );
+  const eta = rate > 0 ? Math.max(0, (itersTotal - itersDone) / rate) : Number.POSITIVE_INFINITY;
+  let etaStr = '?';
+  if (Number.isFinite(eta)) etaStr = eta < 90 ? `${eta.toFixed(0)}s` : `${(eta / 60).toFixed(1)}m`;
+  const failuresSoFar = bundle.failure_count + seedFailures.length;
+  const groupsSoFar = Object.keys(bundle.groups).length;
+  // §2.4: real running values — seeds, iters, rate, ETA, failures and groups so far. Never a placeholder.
+  console.error(`null-fuzz: seeds ${seedsDone}/${SEEDS} iters ${itersDone}/${itersTotal} ${rate.toFixed(1)}/s ETA ${etaStr} failures ${failuresSoFar} in ${groupsSoFar} group(s) → ${OUT_PATH}`);
 }
 
-console.error(`null-fuzz v2: seeds ${SEED_START}..${SEED_START + SEEDS - 1} iters=${ITERS} len=${LEN} out=${OUT_PATH}${RESUME ? ' (resume)' : ''}${QUIET ? ' (quiet)' : ''}`);
+console.error(`null-fuzz v3: seeds ${SEED_START}..${SEED_START + SEEDS - 1} iters=${ITERS} len=${LEN} keep=${KEEP} out=${OUT_PATH}${RESUME ? ' (resume)' : ''}${QUIET ? ' (quiet)' : ''}`);
 
 for (let s = 0; s < SEEDS; s++) {
   const seed = SEED_START + s;
@@ -259,9 +554,13 @@ for (let s = 0; s < SEEDS; s++) {
   for (let it = 0; it < ITERS; it++) {
     const fuzzed = mkNight();
     const clean = cleanRows(fuzzed);
-    if (clean.length < 10) { it--; continue; }
+    if (clean.length < 10) {
+      it--;
+      continue;
+    }
     const t0 = Date.now();
-    let fz, cl;
+    let fz;
+    let cl;
     try {
       fz = getMetrics(OD.processNight(fuzzed, 'fz.csv'));
       cl = getMetrics(OD.processNight(clean, 'cl.csv'));
@@ -282,23 +581,17 @@ for (let s = 0; s < SEEDS; s++) {
   }
 
   bundle.completed_seeds.push(seed);
-  for (const f of seedFailures) bundle.failures.push(f); // merge only on completion
+  for (const f of seedFailures) addFailure(bundle, f); // merge only on completion
   seedFailures = [];
   saveBundle(); // §2.2: atomic checkpoint per completed unit
   heartbeat(true);
 }
 
-/* ── final bundle ── */
-const msPerIter = bundle.stats.iters_run ? bundle.stats.ms_total / bundle.stats.iters_run : 0;
-bundle.summary = {
-  seeds_run: bundle.completed_seeds.length,
-  iters_run: bundle.stats.iters_run,
-  failures: bundle.failures.length,
-  ms_per_iter: +msPerIter.toFixed(1),
-  verdict: bundle.failures.length === 0 ? 'CLEAN' : 'FABRICATION-FOUND',
-};
+/* ── final bundle, report, verdict ── */
+const { s: finalSummary, v: finalVerdict } = await finish(bundle);
 saveBundle();
-
 heartbeat(true);
-console.error(`null-fuzz done: ${bundle.summary.verdict} — ${bundle.failures.length} failures across ${bundle.summary.seeds_run} seeds, bundle at ${OUT_PATH}`);
-process.exit(bundle.failures.length === 0 ? 0 : 1);
+console.error(
+  `null-fuzz done: ${finalSummary.verdict} — ${finalSummary.failures} failing assertions in ${finalSummary.groups} group(s) (${finalSummary.novel_groups.length} novel) across ${finalSummary.seeds_run} seeds — report ${REPORT_PATH}`
+);
+process.exit(finalVerdict.status === 'PASS' ? 0 : 1);
