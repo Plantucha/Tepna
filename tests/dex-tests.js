@@ -755,6 +755,52 @@
       }
     });
 
+    /* §2e — the composites must refuse too. After a clock-seam refusal nulls rMSSD, the
+       composites computed from cRm=null FABRICATED: stressEst → 100 (the clamp eats the
+       1.2295*null term), hrvEst → 0 (1.494*null-13.37 clamps to 0), lnR(null) → −Infinity,
+       cohEst(null,null) → NaN. A seam-refused recording must export every composite null
+       with the reason named — never a number. */
+    group('∅ clock seam — the COMPOSITES refuse too (stress/hrv/energy/focus/coherence/lnRMSSD)', 'pulsedex-dsp · absence', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        var rr = [];
+        for (var i = 0; i < 120; i++) rr.push(900 + 40 * Math.sin(i / 5));
+        var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var stamps = function (seamMs) {
+          var ts = [],
+            acc = t0;
+          for (var k = 0; k < rr.length; k++) {
+            if (k === 60 && seamMs) acc += seamMs;
+            ts.push(acc);
+            acc += rr[k];
+          }
+          return ts;
+        };
+        var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+        /* NOTE: the composites are checked RAW, not through JSON — JSON.stringify masks NaN and
+           −Infinity as null, which is exactly the fabrication this test hunts. */
+        T.eq(
+          'a seam-refused recording exports every composite null (raw, not JSON-masked)',
+          [seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd]
+            .map(function (v) {
+              return v === null ? 'null' : typeof v;
+            })
+            .join(','),
+          'null,null,null,null,null,null'
+        );
+        T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.ok(
+          'never a fabricated number, −Infinity, or NaN',
+          ![seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd].some(function (v) {
+            return typeof v === 'number';
+          }),
+          JSON.stringify({ stress: seamed.stress, hrv: seamed.hrv, energy: seamed.energy, focus: seamed.focus, coherence: seamed.coherence, lnrmssd: seamed.lnrmssd })
+        );
+      }
+    });
+
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_odn && _odn._bare) || _odn;
@@ -30140,6 +30186,39 @@
       T.eq('…while a 7-night window of 97 with ONE absent night averaged 83.1, not 97', +((97 * 6) / 7).toFixed(1), 83.1);
     });
 
+    group('OxyDex B1 · an unread motion cell and a synthesised gap span are not readings', 'oxydex-dsp · parse · absence', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeDataGaps === 'function')) {
+        T.skip('OxyDex._bare.parseCSV / computeDataGaps exposed', 'not on the bare surface');
+        return;
+      }
+      // 1a3cd7699ce2 — `parseInt('') || 0` read an empty or unparseable cell as motion 0, i.e. "still"
+      var csv = 'Time,Oxygen Level,Pulse Rate,Motion\n' + '20:21:36 13/08/2026,96,52,0\n' + '20:21:37 13/08/2026,95,53,\n' + '20:21:38 13/08/2026,95,53,x\n' + '20:21:39 13/08/2026,94,54,3\n';
+      var rows = OB.parseCSV(csv, { fname: 'x_SPO2.csv' });
+      T.eq('B1 · four rows parsed', rows.length, 4);
+      T.eq(
+        'B1 · motion is 0 / null / null / 3 — a written 0 stays 0, an empty or unparseable cell is null',
+        rows
+          .map(function (r) {
+            return r.motion === null ? 'null' : String(r.motion);
+          })
+          .join(','),
+        '0,null,null,3'
+      );
+      // Through the Codex reader: the radix is 10, so a hex-looking cell is NOT read as hex (parseInt radix 0 would give 16)
+      var hexRows = OB.parseCSV('Time,Oxygen Level,Pulse Rate,Motion\n20:21:36 13/08/2026,96,52,0x10\n', { fname: 'x_SPO2.csv' });
+      T.eq('B1 · motion is parsed base 10: "0x10" reads 0, never 16', hexRows.length && hexRows[0].motion, 0);
+      // 4fc9554e37da — with no wall-clock span the gap percentage rests on an ASSUMED 1 Hz, and says so
+      var stamped = OB.computeDataGaps(rows);
+      T.eq('B1 · a stamped night carries no span-source label (its output is unchanged)', 'gapSpanSource' in stamped, false);
+      var unstamped = OB.computeDataGaps(
+        rows.map(function (r) {
+          return Object.assign({}, r, { t: null });
+        })
+      );
+      T.eq('B1 · a stampless night names its span as assumed', unstamped.gapSpanSource, 'assumed-1Hz');
+    });
+
     group('OxyDex parseJSONL round-trips every field, and tells ABSENT from ZERO', 'oxydex-dsp · parse · known-answer · mutation-pinned', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseJSONL === 'function')) {
@@ -30437,13 +30516,67 @@
       T.eq('…minHr too', mn && mn.stats.minHr, 44);
       T.eq('…and t0Ms still comes from stats.startTs', mn && mn.t0Ms, 1780356420000);
       T.eq('…spikes on a bare record is an empty list, not null', mn && mn.spikes && mn.spikes.length, 0);
-      /* osc does NOT default to null like hrv — it gets a zero-shaped object. Asserting the real
-         default rather than the one symmetry suggested; the difference is the point of checking. */
-      T.eq('…osc defaults to a ZERO-SHAPED object, unlike hrv', mn && mn.osc && mn.osc.episodeCount, 0);
-      T.eq('…with an empty windows list', mn && mn.osc && mn.osc.windows.length, 0);
+      /* osc is NULL when absent, like hrv and odi4 (ABSENCE-SURVEY e012278db97c). It used to default to a
+         zero-shaped object — "the detector ran and found 0 episodes" — from an export carrying no evidence
+         the detector ran at all; oxyBuildNightElement re-exported that as a clean night. The old expectation
+         here pinned that, the same way the odi4 one above did. Every reader guards with `n.osc`. */
+      T.eq('…osc is NULL when absent — a zero-filled block reads as a clean night', mn && mn.osc, null);
       T.eq('…hb is null', mn && mn.hb, null);
       T.eq('…comp is null', mn && mn.comp, null);
       T.eq('…and a spread newMetrics key is absent rather than 0', mn && mn.vo2est, null);
+
+      // ── ABSENCE-SURVEY group B1: what the importer and the CSV parser used to turn into 0 ──────────
+      var clone = function (o) {
+        return JSON.parse(JSON.stringify(o));
+      };
+      // 0e9b40d1425a — the stats block's three `|| 0` holdouts
+      var r1 = clone(REC);
+      delete r1.stats.n;
+      delete r1.stats.artifactHrCleaned;
+      delete r1.stats.artifactSpikesRemoved;
+      var m1 = one(r1);
+      T.eq('B1 · an absent sample count is null, not 0', m1 && m1.stats.n, null);
+      T.eq('B1 · absent artifact counts are null, not 0', m1 && [m1.stats.artifactHrCleaned, m1.stats.artifactSpikesRemoved].join(','), ',');
+      // 483e784c9219 — no sample count and no duration: no basis, never `secs: 0` labelled a wall duration
+      var r2 = clone(REC);
+      delete r2.research;
+      delete r2.stats.n;
+      delete r2.stats.durationMin;
+      var m2 = one(r2);
+      T.eq('B1 · T95 seconds are null when nothing gives a basis', m2 && m2.tIdx && m2.tIdx[95] && m2.tIdx[95].secs, null);
+      T.eq('B1 · …and no basis is named', m2 && m2.tIdx && m2.tIdx.tIdxBasis, null);
+      // 773f10412ae2 — a detail-less spike is skippable (null), and an unparseable time is not minute 0
+      var r3 = clone(REC);
+      r3.hr_spikes = { events: [{ time: 'not-a-time', peak: 91 }] };
+      var m3 = one(r3);
+      var sp3 = m3 && m3.spikes && m3.spikes[0];
+      T.eq('B1 · an absent spike baseline is null, not a 0 bpm baseline', sp3 && sp3.baseline, null);
+      T.eq('B1 · …a present peak survives', sp3 && sp3.peak, 91);
+      T.eq('B1 · …and an unparseable time gives no minute, not minute 0', sp3 && sp3.mfm, null);
+      // Through the Codex reader (each input run against the original first):
+      var r4 = clone(REC);
+      delete r4.research;
+      delete r4.stats.n;
+      r4.stats.durationMin = null; // PRESENT and null: isFinite(null) is true, so the guard needs its `!= null`
+      var m4 = one(r4);
+      T.eq('B1 · a durationMin of null is no basis either', m4 && m4.tIdx && m4.tIdx[90] && m4.tIdx[90].secs, null);
+      var r5 = clone(REC);
+      delete r5.research;
+      delete r5.stats.n;
+      r5.stats.durationMin = 10;
+      r5.stats.t90pct = 50;
+      var m5 = one(r5);
+      T.eq('B1 · a duration basis is minutes x 60: 50 % of 10 min is 300 s, at key 90', m5 && m5.tIdx && m5.tIdx[90] && m5.tIdx[90].secs, 300);
+      var r6 = clone(REC);
+      delete r6.research;
+      r6.stats.n = 100;
+      r6.stats.t90pct = 50;
+      var m6 = one(r6);
+      T.eq('B1 · a sample-count basis: 50 % of 100 samples is 50 s', m6 && m6.tIdx && m6.tIdx[90] && JSON.stringify([m6.tIdx[90].pct, m6.tIdx[90].secs]), '[50,50]');
+      var r7 = clone(REC);
+      r7.hr_spikes = { events: [{ time: '00:01:00', peak: 90 }] };
+      var m7 = one(r7);
+      T.eq('B1 · a parseable spike time becomes its minute: 00:01:00 is minute 1', m7 && m7.spikes && m7.spikes[0].mfm, 1);
     });
 
     group('OxyDex sanity filter drops out-of-range rows, one axis at a time (mutate.mjs survivor)', 'oxydex-dsp · parse · known-answer', function (T) {
@@ -53459,6 +53592,118 @@
        PLANTED recovery, because a correspondence number is meaningless without knowing the instrument
        can recover a known answer — and by its own chance control, because the block fit maximises the
        statistic it reports. */
+    group('fitClockDrift\u2019s search is set-preserving — the optimisation cannot change which beats match', 'integrator-dsp · clock · equivalence', function (T) {
+      var D = env.IntegratorDSP;
+      if (!D || typeof D.fitClockDrift !== 'function') {
+        T.skip('IntegratorDSP.fitClockDrift available', 'not loaded');
+        return;
+      }
+      /* \ud83d\udd34 THE MATCHED SET PER OFFSET, not just the final centroid. `corrAt` is a closure inside
+           `fitClockDrift`, so this does not reach into it: it encodes BOTH inner loops — the original
+           (one binary search per beat per offset) and the optimised (a monotone pointer carried across
+           the sweep) — and asserts they select the SAME neighbour index for every beat at every offset
+           of the real grid. That is the property the speed-up rests on, and it is stronger than output
+           equality: two different matched sets can still average to the same centroid by luck.
+
+           WHY THE SET AND NOT THE ARGMAX. The search takes the SUPPORT CENTROID over the plateau, which
+           is ~`tolMs` wide and over which every offset keeps the same beats matched
+           (WEARABLE-DRIFT-FIT-2026-08-01 \u00a73: argmax bias measured at ~330 ms, two of four planted cases
+           went from biased to exact once the centroid replaced it). The centroid therefore depends on
+           EVERY grid offset that shares the peak \u2014 so a search that visits the same optimum by a coarser
+           route still returns a different number, which is exactly why coarse-to-fine was rejected. */
+      var B = [];
+      for (var n = 0; n < 4000; n++) B.push(1785102000000 + n * 900 + 40 * Math.sin(n / 7));
+      var bA = [];
+      for (var m = 0; m < 320; m++) bA.push(B[m * 3] + 137);
+
+      function loFromSearch(x) {
+        var lo = 0,
+          hi = B.length - 1;
+        while (lo < hi) {
+          var mid = (lo + hi) >> 1;
+          if (B[mid] < x) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      }
+      var ptr = new Int32Array(bA.length).fill(-1);
+      var disagree = 0,
+        pairs = 0;
+      for (var off = -3000; off <= 3000; off += 20) {
+        for (var i = 0; i < bA.length; i++) {
+          var x = bA[i] + off;
+          var want = loFromSearch(x);
+          var got;
+          if (ptr[i] < 0) got = loFromSearch(x);
+          else {
+            got = ptr[i];
+            while (got < B.length - 1 && B[got] < x) got++;
+            while (got > 0 && B[got - 1] >= x) got--;
+          }
+          ptr[i] = got;
+          pairs++;
+          if (got !== want) disagree++;
+        }
+      }
+      T.eq('the pointer selects the SAME index as a fresh binary search, at every offset', disagree, 0, pairs + ' (beat, offset) pairs');
+      T.ok('and the grid really was swept', pairs === bA.length * 301, pairs + ' pairs');
+
+      /* ORDER STATISTICS: quickselect must return the element a full sort would, INCLUDING on ties \u2014
+           a uniform cadence puts exact duplicates in the delta list, and that is where a selection that
+           is merely "a median" rather than `sorted[k]` would diverge. */
+      function nth(a, k) {
+        return a.slice().sort(function (p2, q2) {
+          return p2 - q2;
+        })[k];
+      }
+      var tie = [];
+      for (var z = 0; z < 311; z++) tie.push(z % 7);
+      /* FAIL-CLOSED ON A MISSING SEAM. An earlier draft of this assertion `break`-ed out when the
+           export was absent and left `okSel` true — a pass that examined nothing, which is the shape
+           this suite exists to refuse. If the selector is not exported the assertion FAILS and says so. */
+      var ks = [0, 1, Math.floor(311 / 2), Math.floor(311 * 0.25), Math.floor(311 * 0.75), 310];
+      var okSel = typeof D.selectNth === 'function',
+        checked = 0;
+      if (okSel) {
+        for (var ki = 0; ki < ks.length; ki++) {
+          var buf = new Float64Array(tie.length);
+          for (var w = 0; w < tie.length; w++) buf[w] = tie[w];
+          if (D.selectNth(buf, ks[ki], tie.length) !== nth(tie, ks[ki])) okSel = false;
+          checked++;
+        }
+      }
+      T.ok(
+        'quickselect returns sorted[k] even with heavy ties',
+        okSel && checked === ks.length,
+        typeof D.selectNth === 'function' ? checked + '/' + ks.length + ' of {0,1,p25,median,p75,last} on 311 values, 7 distinct' : 'IntegratorDSP.selectNth is NOT exported — nothing was checked'
+      );
+
+      /* AND THE WHOLE FIT STILL ANSWERS THE PLANTED QUESTION \u2014 the control that would catch a
+           set-preserving change that nevertheless broke the arithmetic. */
+      var base = [],
+        t = 1785102000000,
+        j2 = 0;
+      while (t < 1785102000000 + 2 * 3600e3) {
+        base.push(t);
+        t += 900 + 180 * Math.sin(j2 / 40);
+        j2++;
+      }
+      function mk2(off2, ppm, drop) {
+        var o = [];
+        for (var k2 = 0; k2 < base.length; k2++) {
+          if (k2 % drop === 0) continue;
+          o.push(base[k2] + off2 + ((base[k2] - base[0]) * ppm) / 1e6);
+        }
+        return o;
+      }
+      var fit = D.fitClockDrift(mk2(0, 0, 17), mk2(250, -40, 13));
+      T.ok(
+        'a planted 250 ms / -40 ppm pair is still recovered',
+        fit && fit.offsetMs != null && Math.abs(fit.offsetMs - 250) < 60 && Math.abs(fit.driftPpm + 40) < 8,
+        fit ? 'offset ' + Math.round(fit.offsetMs) + ' ms · drift ' + (fit.driftPpm == null ? 'null' : fit.driftPpm.toFixed(1)) + ' ppm' : 'no fit'
+      );
+    });
+
     group('fitClockDrift recovers a planted offset AND drift', 'integrator-dsp · clock · planted-control', function (T) {
       var D = env.IntegratorDSP;
       if (!D || typeof D.fitClockDrift !== 'function') {
@@ -63997,6 +64242,165 @@
        The compound gates get one test per OPERAND, never a joint move: §2c's rule that "all-or-none
        in the DATA is not all-or-none in the GATE" — varying both halves together can never separate
        `&&` from `||`.                                                                              */
+    /* oxydex-render.js is loaded as TEXT in this lane (env.sources), so these EXTRACT the exact statements and RUN
+       them — a flipped operator changes the answer, which a regex over spelling cannot see. A failed extraction reds:
+       a refactor must move this test, never silently skip it. */
+    group('OxyDex B2 · render · an unmeasured score is shown as not measured (extract-and-run)', 'oxydex-render · absence · extract-and-run', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      var scLine = R.match(/var sc = s\.overallScore == null \?[^;]*;/);
+      T.ok('B2 · render · the summary colour statement extracted', !!scLine);
+      if (scLine) {
+        var colour = new Function('s', scLine[0] + ' return sc;');
+        T.eq('B2 · render · null ⇒ ss-na, never good', colour({ overallScore: null }), 'ss-na');
+        T.eq('B2 · render · 2.9 ⇒ good', colour({ overallScore: 2.9 }), 'ss-good');
+        T.eq('B2 · render · 3 ⇒ warn (< 3 is strict)', colour({ overallScore: 3 }), 'ss-warn');
+        T.eq('B2 · render · 6 ⇒ bad (< 6 is strict)', colour({ overallScore: 6 }), 'ss-bad');
+      }
+      var rowsLit = R.match(/var _kRows = \[[\s\S]*?\];/);
+      var guard = R.match(/if \(([^{]*)\) \{\s*html \+= '<div class="proj-factor pf-prog"><span>' \+ r\.label \+ '<\/span><span class="pf-val">not measured/);
+      var pctLine = R.match(/var pct = Math\.min\([^;]*;/);
+      T.ok('B2 · render · the readiness-bar statements extracted', !!(rowsLit && guard && pctLine));
+      if (rowsLit && guard && pctLine) {
+        var bars = new Function('k', rowsLit[0] + ' return _kRows.map(function (r) { if (' + guard[1] + ') return "na"; ' + pctLine[0] + ' return Math.round(pct); });');
+        T.eq(
+          'B2 · render · measured bars: 15/30 ⇒ 50 %, an old export without sleepMax keeps the 20 basis ⇒ 75 %',
+          JSON.stringify(bars({ scores: { rmssd: 15, spo2: 25, sleep: 15, hrFloor: 0, hrSlope: 10 } })),
+          '[50,100,75,0,100]'
+        );
+        T.eq(
+          'B2 · render · unmeasured components ⇒ "not measured", and a 10-point sleep basis',
+          JSON.stringify(bars({ scores: { rmssd: null, spo2: 25, sleep: 7, sleepMax: 10, hrFloor: null, hrSlope: null } })),
+          '["na",100,70,"na","na"]'
+        );
+        T.eq(
+          'B2 · render · a sleep basis of 0 is no basis ⇒ not measured',
+          JSON.stringify(bars({ scores: { rmssd: 30, spo2: 25, sleep: 0, sleepMax: 0, hrFloor: 15, hrSlope: 10 } })),
+          '[100,100,"na",100,100]'
+        );
+      }
+    });
+
+    group('OxyDex B2 · a score or a verdict over an unmeasured input is no score', 'oxydex-dsp · score · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B || typeof B.computeSleepStabilityScore !== 'function') {
+        T.skip('OxyDex._bare scoring functions exposed', 'not on the bare surface');
+        return;
+      }
+      // cba3361dfcfd / 131d841e27b4 — s1 and s6 over a null statistic were a PERFECT 100
+      var st = B.computeSleepStabilityScore({ spo2Std: null, t95pct: null, motionPct: 1 }, { hrFloor: 52 }, { episodeCount: 2 }, { rate: 3 });
+      T.eq('B2 · SpO2 variability unmeasured ⇒ its subscore is null, not 100', st && st.components && st.components.spo2Stab, null);
+      T.eq('B2 · time below 95 % unmeasured ⇒ its subscore is null, not 100', st && st.components && st.components.t95, null);
+      // 12fb862b4f54 — with no motion read in any window, there is no stage estimate (not 0.0 % REM)
+      var rowsNull = [];
+      for (var i = 0; i < 2000; i++) rowsNull.push({ t: new Date(Date.UTC(2026, 0, 1, 0, 0, i)), hr: 60 + (i % 3), spo2: 95, motion: null });
+      T.eq('B2 · no window with motion read ⇒ no stage estimate', B.computeSleepStageProxy(rowsNull), null);
+      var rows0 = rowsNull.map(function (r) {
+        return { t: r.t, hr: r.hr, spo2: r.spo2, motion: 0 };
+      });
+      T.ok('B2 · CONTROL · with motion read the estimate still exists', !!B.computeSleepStageProxy(rows0));
+      // d465645b6edd — an unentered age is ASSUMED, named, and costs confidence
+      var vA = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, undefined);
+      var vE = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, 49);
+      T.eq('B2 · no age entered ⇒ ageAssumed', vA && vA.ageAssumed, true);
+      T.eq('B2 · an entered 49 is not assumed', vE && vE.ageAssumed, false);
+      T.eq('B2 · …and the assumption costs exactly 15 confidence points', vA && vE && vE.vo2Conf - vA.vo2Conf, 15);
+      // c76326c67f23 — OK is a verdict and needs measured inputs (the shape #3283 fixed for CPAP COMPLETE)
+      // every other input present but empty, so only the core statistics decide
+      var flagArgs = function (stats) {
+        return [
+          stats,
+          [],
+          null, // period: no periodicity found
+          { episodeCount: 0 },
+          { rate: stats.t90pct == null ? null : 0 },
+          { rate: stats.t90pct == null ? null : 0 },
+          { hrFloor: null, hrSlope: null, pnn3: null },
+          { arousalIndex: null },
+          { score: null },
+          { bradyCount: 0, tachyCount: 0 },
+          { autoArousalIdx: null, divergePct: null },
+          { wtdsi: null },
+          { nsi: null },
+          { sbii: null, sbiiQ: null },
+          { pred3p: null, pred3pQ: null }
+        ];
+      };
+      var fl = B.buildFlags.apply(null, flagArgs({ t90pct: null, minSpo2: null, maxHr: null, t95pct: null }));
+      T.eq(
+        'B2 · nothing measured ⇒ NOT_FULLY_ASSESSED, never OK',
+        fl &&
+          fl
+            .map(function (f) {
+              return f.code;
+            })
+            .join(','),
+        'NOT_FULLY_ASSESSED'
+      );
+      var flOk = B.buildFlags.apply(null, flagArgs({ t90pct: 0, minSpo2: 94, maxHr: 80, t95pct: 0 }));
+      T.eq(
+        'B2 · CONTROL · a measured clean night is still OK',
+        flOk &&
+          flOk
+            .map(function (f) {
+              return f.code;
+            })
+            .join(','),
+        'OK'
+      );
+      // each core statistic is load-bearing ALONE: one measured among unmeasured is still not assessed
+      var codes = function (st) {
+        return B.buildFlags
+          .apply(null, flagArgs(st))
+          .map(function (f) {
+            return f.code;
+          })
+          .join(',');
+      };
+      T.eq('B2 · t90 measured, nadir and max HR not ⇒ still NOT_FULLY_ASSESSED', codes({ t90pct: 0, minSpo2: null, maxHr: null, t95pct: 0 }), 'NOT_FULLY_ASSESSED');
+      T.eq('B2 · max HR measured alone ⇒ still NOT_FULLY_ASSESSED', codes({ t90pct: null, minSpo2: null, maxHr: 80, t95pct: null }), 'NOT_FULLY_ASSESSED');
+      // the assumption fires at 0 too (`age > 0`, not `>= 0`), and assumes exactly the 49 an entered 49 gives
+      var v0 = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, 0);
+      T.eq('B2 · an age of 0 is not an age ⇒ assumed', v0 && v0.ageAssumed, true);
+      T.eq('B2 · the assumed age is 49: same estimate as an entered 49', vA && vE && vA.vo2est, vE && vE.vo2est);
+      // the label ladder at both sides of each rung (inputs found by search; vo2est asserted first so a drift reds here)
+      var vo2At = function (hr, rmssd) {
+        var rr = [];
+        for (var q = 0; q < 1800; q++) rr.push({ hr: hr, motion: 0, spo2: 95 });
+        var v = B.computeVO2maxEstimate(rr, { rmssd: rmssd, hrFloor: 52 }, null, null, 49);
+        return v ? v.vo2est + ' ' + v.label : 'null';
+      };
+      T.eq('B2 · VO2 42.0 ⇒ the top rung (>= is inclusive)', vo2At(62, 0.5), '42 Top-25% for age 49');
+      T.eq('B2 · VO2 41.9 ⇒ Above average', vo2At(62, 0.4), '41.9 Above average');
+      T.eq('B2 · VO2 35.0 ⇒ Above average', vo2At(74, 0.4), '35 Above average');
+      T.eq('B2 · VO2 34.9 ⇒ Average', vo2At(74, 0.31), '34.9 Average');
+      T.eq('B2 · VO2 30.0 ⇒ Average', vo2At(85, 0.2), '30 Average');
+      T.eq('B2 · VO2 29.9 ⇒ Below average', vo2At(86, 0.31), '29.9 Below average');
+      // durationMin: a 0 hint is no duration; rows win over a hint, at one row per second
+      var KZ = function (rows, hint) {
+        var r = B.computeKarvonenZones(rows, { rmssd: 2.3 }, { hrRest: 60 }, null, null, null, null, 49, hint);
+        return r && r.scores ? r.scores.sleep : 'no result';
+      };
+      T.eq('B2 · a hint of 0 minutes is no duration ⇒ sleep NOT SCORED', KZ(null, 0), null);
+      var rows100 = [];
+      for (var q2 = 0; q2 < 100; q2++) rows100.push({ hr: 60, motion: 0, spo2: 95 });
+      T.eq('B2 · 100 rows = 1.7 min beat a 420-min hint ⇒ the 1-point floor', KZ(rows100, 420), 1);
+      // d975e352ce7b — nothing scoreable ⇒ no overall score (0 is the HEALTHY end of the 0-10 scale)
+      T.ok(
+        'B2 · an UNMEASURED nadir raises no critical-dip flag (null <= 88 is true in JS)',
+        fl &&
+          fl.every(function (f) {
+            return f.code !== 'SPO2_CRITICAL_DIP';
+          }),
+        fl && JSON.stringify(fl)
+      );
+      var sm = B.computeSmartSummary({ stats: {} });
+      T.eq('B2 · nothing scoreable ⇒ overallScore null, not 0', sm && sm.overallScore, null);
+    });
+
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
       var O = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
       var K = O && O.computeKarvonenZones;
@@ -64019,7 +64423,11 @@
       T.eq('rmssd 1.19 ⇒ 10', sc({ rmssd: 1.19 }).rmssd, 10);
       T.eq('rmssd 0.70 ⇒ 10', sc({ rmssd: 0.7 }).rmssd, 10);
       T.eq('rmssd 0.69 ⇒ 4 (the floor, not 0)', sc({ rmssd: 0.69 }).rmssd, 4);
-      T.eq('rmssd null ⇒ 0, not the 4 floor — absent is not "worst"', sc({ rmssd: null }).rmssd, 0);
+      /* ⚠ RECONCILED (ABSENCE-SURVEY bf25e4f0f71c) — this pinned `0` as the answer for an absent rMSSD: not the
+         "worst" floor, but still a measured-looking 0 of 30 summed into readiness. Absent is now UNSCORED and leaves
+         the total like spo2 does; the ladder rungs above remain the controls. */
+      T.eq('rmssd null ⇒ the component is NOT SCORED (null), not 0 of 30', sc({ rmssd: null }).rmssd, null);
+      T.eq('hrSlope null ⇒ NOT SCORED either, not the half-credit 5 (c05e8f22a91b)', sc({ rmssd: 2.3, hrSlope: null }).hrSlope, null);
 
       /* ── SpO2 ladder: each rung is a COMPOUND gate, so each operand is moved ALONE ──────────── */
       T.eq('odi4 1 · hd94 29 ⇒ 25 (both inside the top rung)', sc(null, { rate: 1 }, { hd94PerHr: 29 }).spo2, 25);
@@ -64045,8 +64453,12 @@
       var full = function (hrv, odi4, hypDose, stageProxy, hint) {
         return K(null, hrv || { rmssd: 2.3 }, { hrRest: 60 }, odi4, hypDose, null, stageProxy, 49, hint) || {};
       };
-      var allPresent = full(null, { rate: 1 }, { hd94PerHr: 29 });
-      var spo2Absent = full(null, null, null);
+      /* EVERY component genuinely measured — rMSSD, the dip slope, a stage estimate and a duration. The old fixture
+         omitted three of them and the code fabricated them; under §∅ a fixture must supply what it calls present. */
+      var MEASURED = { rmssd: 2.3, hrSlope: -0.6 };
+      var STAGES = { remProxyMin: 45, nremDeepMin: 60 };
+      var allPresent = full(MEASURED, { rate: 1 }, { hd94PerHr: 29 }, STAGES, 420);
+      var spo2Absent = full(MEASURED, null, null, STAGES, 420);
       T.eq('with every component measured the basis is the whole 100 points', JSON.stringify(allPresent.readinessBasis.weightPresent), '100');
       T.eq(
         'CONTROL · and the total is then IDENTICAL to the plain sum it always was — renormalising by 100 is the identity',
@@ -64071,12 +64483,16 @@
       );
 
       /* ── Sleep ladder: duration rungs 420/360/300, plus stage bonuses ───────────────────────── */
-      T.eq('no stageProxy ⇒ neutral +5, and 420 min ⇒ 10 ⇒ 15', sc(null, null, null, null, 420).sleep, 15);
-      T.eq('419 min drops the duration rung ⇒ 7 + 5 = 12', sc(null, null, null, null, 419).sleep, 12);
-      T.eq('360 min ⇒ 7 + 5 = 12', sc(null, null, null, null, 360).sleep, 12);
-      T.eq('359 min ⇒ 4 + 5 = 9', sc(null, null, null, null, 359).sleep, 9);
-      T.eq('300 min ⇒ 4 + 5 = 9', sc(null, null, null, null, 300).sleep, 9);
-      T.eq('299 min ⇒ the 1-point floor + 5 = 6', sc(null, null, null, null, 299).sleep, 6);
+      /* ⚠ RECONCILED (ABSENCE-SURVEY f0210dc347e1) — these pinned a "neutral +5" for an ABSENT stage estimate, a
+         value inside the range a measured stage produces. With no stage the component is the DURATION half alone,
+         out of 10 (`sleepMax`), and readiness renormalises over it. */
+      T.eq('no stageProxy ⇒ the duration half alone: 420 min ⇒ 10', sc(null, null, null, null, 420).sleep, 10);
+      T.eq('…and the component is worth 10, not 20', sc(null, null, null, null, 420).sleepMax, 10);
+      T.eq('419 min drops the duration rung ⇒ 7', sc(null, null, null, null, 419).sleep, 7);
+      T.eq('360 min ⇒ 7', sc(null, null, null, null, 360).sleep, 7);
+      T.eq('359 min ⇒ 4', sc(null, null, null, null, 359).sleep, 4);
+      T.eq('300 min ⇒ 4', sc(null, null, null, null, 300).sleep, 4);
+      T.eq('299 min ⇒ the 1-point floor', sc(null, null, null, null, 299).sleep, 1);
       /* A PRESENT stageProxy replaces the neutral +5 with earned points — so a night with stage data
          and poor stages scores WORSE than one with none, which is the intended asymmetry. */
       T.eq('stageProxy present but both proxies 0 ⇒ 10 + 0 + 0 = 10, below the neutral 15', sc(null, null, null, { remProxyMin: 0, nremDeepMin: 0 }, 420).sleep, 10);
@@ -64088,8 +64504,15 @@
       T.eq('rem 45 alone ⇒ 10 + 5 = 15', sc(null, null, null, { remProxyMin: 45, nremDeepMin: 0 }, 420).sleep, 15);
       T.eq('deep 60 alone ⇒ 10 + 5 = 15', sc(null, null, null, { remProxyMin: 0, nremDeepMin: 60 }, 420).sleep, 15);
 
-      /* ── durationMinHint is a FALLBACK, not an override — n>0 wins, and absent ⇒ 360 ────────── */
-      T.eq('no rows and no hint ⇒ the 360 default ⇒ 7 + 5 = 12', sc(null, null, null, null, null).sleep, 12);
+      /* ── durationMinHint is a FALLBACK, not an override — n>0 wins, and absent is ABSENT ──────── */
+      /* ⚠ RECONCILED (ABSENCE-SURVEY 51755be2e2ca) — this pinned an assumed six-hour night (+7) for no rows and no hint. */
+      T.eq('no rows, no hint and no stages ⇒ the sleep component is NOT SCORED', sc(null, null, null, null, null).sleep, null);
+      T.eq('…and carries no weight', sc(null, null, null, null, null).sleepMax, 0);
+      T.eq(
+        'a stage estimate alone still scores its half: rem 45 + deep 60 ⇒ 10 of 10',
+        JSON.stringify([sc(null, null, null, STAGES, null).sleep, sc(null, null, null, STAGES, null).sleepMax]),
+        '[10,10]'
+      );
     });
 
     group('OxyDex refuses fabricated dates and inflated spans — §F2/§F1.4', 'oxydex-dsp · clock · guards', function (T) {
