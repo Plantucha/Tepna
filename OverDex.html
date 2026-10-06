@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5b4d2d1f338e" data-compute-hash="076fb557d12f"><head>
+<html lang="en" data-manifest-hash="464d35f7bfaf" data-compute-hash="a5d9f5913ba3"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AF4skfUuNsScfyJ078eR0vVYjN3Dhrw/IrSomd1uOGA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-K6Ew7pkxxVb/RqSGtD1UEcHPe/FR49HrsZSaJkWaUeY=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UI47b3pqBMKzoFz3iIgnNZ188z0pbRNC7ELh1uey7rU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-aPa4f/OWZPVsHLfVQgGI1dba7SCLegduZcbToyzeAVc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AF4skfUuNsScfyJ078eR0vVYjN3Dhrw/IrSomd1uOGA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-K6Ew7pkxxVb/RqSGtD1UEcHPe/FR49HrsZSaJkWaUeY=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UI47b3pqBMKzoFz3iIgnNZ188z0pbRNC7ELh1uey7rU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aPa4f/OWZPVsHLfVQgGI1dba7SCLegduZcbToyzeAVc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -609,18 +609,6 @@
     });
     if (typeof el.source === 'string' && _FILE_SHAPE_RE.test(el.source)) delete el.source;
     if (el.provenance && typeof el.provenance === 'object') el.provenance = _scrubProv(el.provenance);
-    /* ⚠️ AND `el.schema.provenance`, which this function did not visit until 2026-10-06. A multi-record
-       element is not a summary block — ECGDex/PulseDex `recordings[]` and PpgDex `sessions[]` carry a
-       FULL v2.0 envelope per element, `schema.provenance.inputs[]` included, with
-       `{ name, bytes, lastModifiedMs, sha256 }` per input. `scrubExport` scrubs `out.schema.provenance`
-       at the TOP level only, so with scrub ON every per-element input name and sha256 survived —
-       against the §5 acceptance stated at the top of this file: a scrubbed JSON contains no device
-       serial, filename or input sha256. The §F1 pass fixed the per-element `provenance` copy and left
-       its envelope twin, and the F13 tests planted elements with NO `schema`, so they were green over a
-       live leak. */
-    if (el.schema && typeof el.schema === 'object' && el.schema.provenance && typeof el.schema.provenance === 'object') {
-      el.schema.provenance = _scrubProv(el.schema.provenance);
-    }
     _scrubRecordingBlock(el.recording);
   }
   function scrubExport(envelope) {
@@ -34023,6 +34011,16 @@ __exports.PpgDex = window.PpgDex;
   /* `skip` (optional): `skip[i]` truthy ⇒ the pair (i-1, i) is not a successive difference — the two
      beats are separated by a dropout, so real time passed with no signal between them. Absent ⇒ every
      pair, which is the legacy behaviour and every contiguous recording. */
+  /* Round-or-null for the absence-bearing helpers: keeps `null` null instead of letting `+null` become
+     0 and re-manufacturing the very value §∅ forbids. Same shape as the pg.sd1/sd2 guards below. */
+  const _rmOrNull = (v, d) => (v == null ? null : +v.toFixed(d));
+  /* A percent difference against a device reference, refusing instead of manufacturing one. The
+     denominator is absent (null) or zero for a 1-beat device record — `rmssd` now returns null there
+     and `std` returns 0 — and `x / 0` is Infinity, which `.toFixed()` stringifies to "Infinity" and
+     `+` turns back into Infinity. That is how `validation.dRMSSDPct` came to read 65 797.8 (see the
+     oracle-ecg-firmware-rr note above). A ratio to an unmeasured or zero reference is not a large
+     difference, it is NO difference to report. */
+  const _pctDiff = (self, dev, d) => (self == null || dev == null || !(dev > 0) ? null : +((Math.abs(self - dev) / dev) * 100).toFixed(d));
   const rmssd = (a, skip) => {
     let s = 0,
       n = 0;
@@ -34032,7 +34030,13 @@ __exports.PpgDex = window.PpgDex;
       s += d * d;
       n++;
     }
-    return n ? Math.sqrt(s / n) : 0;
+    /* ∅ ABSENCE IS NULL. `n === 0` means NO successive pair was measured — fewer than two beats, or
+       every pair separated by a dropout (`skip`). It does NOT mean "the RMSSD is zero": a 0 is a LEGAL
+       RMSSD (perfectly regular RR), so a consumer handed 0 cannot tell a flat-but-measured record from
+       one that was never measured — CLAUDE.md §∅, "a consumer cannot null what it cannot distinguish".
+       Returning 0 here published `dispRm: 0` and, through Math.log(0), `lnrmssd: -Infinity`. Callers
+       guard with the file's `== null ? null : +x.toFixed(n)` idiom (as pg.sd1/sd2 already do). */
+    return n ? Math.sqrt(s / n) : null;
   };
 
   /* ════ CANONICAL CLOCK · CLOCK-UNIFY (duplicated locally per app — Clock Contract §2) ═══════════
@@ -35752,7 +35756,7 @@ __exports.PpgDex = window.PpgDex;
              `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
-          rmssd: +rmssd(seg, segSkip).toFixed(1),
+          rmssd: _rmOrNull(rmssd(seg, segSkip), 1),
           sdnn: +std(seg).toFixed(1),
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
@@ -36447,7 +36451,10 @@ __exports.PpgDex = window.PpgDex;
   // ════════════════════════════════════════════════════════════════════════
   function stageSleep(epochs, motionByTMin) {
     if (!epochs.length) return [];
-    const rmAll = epochs.map((e) => e.rmssd);
+    /* The night-relative RMSSD reference. `.filter` is safe HERE and nowhere else in this function:
+       rmAll feeds `median` only and is never indexed alongside `epochs`. An epoch whose pairs were all
+       gapped now reports `rmssd: null`, and letting it into the median would move the REM gate. */
+    const rmAll = epochs.map((e) => e.rmssd).filter((v) => v != null);
     const hrAll = epochs.map((e) => e.hr);
     const rmMed = median(rmAll),
       hrMed = median(hrAll),
@@ -36953,18 +36960,29 @@ __exports.PpgDex = window.PpgDex;
       repIdx = null;
     if (epochs.length >= 3) {
       const rmA = epochs.map((e) => e.rmssd),
-        rmMed = median(rmA);
+        rmMed = median(rmA.filter((v) => v != null));
+      /* ⚠️ `bi` indexes `epochs`, so rmA must NOT be filtered — a filtered array would re-point the
+         representative window at the wrong epoch. The unmeasured epochs are skipped IN the loop
+         instead, which keeps every index aligned. An epoch with no measured RMSSD cannot be the
+         HRV-representative window, and `found` keeps the existing whole-record default when none is. */
       let bi = 0,
-        bd = Infinity;
+        bd = Infinity,
+        found = false;
       for (let i = 0; i < rmA.length; i++) {
-        const d = Math.abs(rmA[i] - rmMed);
+        const v = rmA[i]; // bound to a local so the null guard narrows it (indexed access does not)
+        if (v == null) continue;
+        const d = Math.abs(v - rmMed);
         if (d < bd) {
           bd = d;
           bi = i;
+          found = true;
         }
       }
       // rebuild the representative segment beats from tt window
-      const w0 = epochs[bi].tMin * 60,
+      // `found` false ⇒ no epoch had a measured RMSSD, so there is no representative window to pick
+      // and the whole-record default (repSeg = nn) stands. Before, `bd = Infinity` guaranteed the
+      // first epoch was always adopted, which would now adopt an UNMEASURED one.
+      const w0 = (found ? epochs[bi] : epochs[0]).tMin * 60,
         w1 = w0 + 300,
         seg = [],
         segT = [];
@@ -36975,7 +36993,7 @@ __exports.PpgDex = window.PpgDex;
           segT.push(tt[i]);
         }
       }
-      if (seg.length >= 20) {
+      if (found && seg.length >= 20) {
         repSeg = seg;
         repT = segT;
         repTMin = epochs[bi].tMin;
@@ -36984,14 +37002,19 @@ __exports.PpgDex = window.PpgDex;
     }
 
     // aggregate display values (long rec → per-epoch medians)
-    let dispRm = +rm.toFixed(1),
+    let dispRm = _rmOrNull(rm, 1),
       dispSd = +sdnn.toFixed(1),
       dispHr = hr,
       dispPn = +pn.toFixed(1),
       sdann = null,
       sdnnIdx = null;
     if (longRec && epochs.length >= 3) {
-      dispRm = +median(epochs.map((e) => e.rmssd)).toFixed(1);
+      /* Absence does not VOTE. An epoch whose pairs were all gapped now reports `rmssd: null`, and
+         median() over an array holding nulls sorts them as neither high nor low — so the measured
+         epochs are selected first and the median is null only when NONE was measured. Before this,
+         such an epoch contributed 0 and dragged the night's median toward zero. */
+      const _epRm = epochs.map((e) => e.rmssd).filter((v) => v != null);
+      dispRm = _epRm.length ? +median(_epRm).toFixed(1) : null;
       dispSd = +median(epochs.map((e) => e.sdnn)).toFixed(1);
       dispHr = +median(epochs.map((e) => e.hr)).toFixed(1);
       dispPn = +median(epochs.map((e) => e.pnn)).toFixed(1);
@@ -37202,6 +37225,9 @@ __exports.PpgDex = window.PpgDex;
 
     /* ONE converted array, referenced by both `times` and `timesSec` — see ANALYZE_UNITS. */
     const timesArr = Array.from(times);
+    /* The RMSSD the ln is taken of: the epoch-median for a long record, the whole-record value
+       otherwise. Hoisted so the choice is evaluated ONCE and its nullability is narrowed once. */
+    const _lnSrc = longRec ? dispRm : rm;
     return {
       source: rec.source,
       fs,
@@ -37285,7 +37311,10 @@ __exports.PpgDex = window.PpgDex;
       hr,
       meanRR: +meanRR.toFixed(1),
       sdnn: +sdnn.toFixed(1),
-      rmssd: +rm.toFixed(1),
+      /* The rich `ganglior.node-export` already routed this through `nz()` (null-or-non-finite → null,
+         :6561), so the export shape was protected while `analyze`'s OWN return — what the renderer
+         reads — was not. This brings the direct consumer up to the standard the export path kept. */
+      rmssd: _rmOrNull(rm, 1),
       pnn50: +pn.toFixed(1),
       nn50: nn50c(nn),
       cv: +((sdnn / meanRR) * 100).toFixed(2),
@@ -37340,7 +37369,13 @@ __exports.PpgDex = window.PpgDex;
       pip: frag.pip,
       ials: frag.ials,
       pss: frag.pss,
-      lnrmssd: +Math.log(longRec ? dispRm : rm).toFixed(3),
+      /* Guarded exactly as HRVDex guards its own (`hrvdex-dsp.js`: `r._rmssd > 0 ? Math.log(...) : NaN`).
+         Math.log(0) is -Infinity and Math.log(null) is -Infinity too, and `JSON.stringify` renders
+         -Infinity as `null` — so an unguarded sink shipped a JSON export that LOOKED like clean absence
+         while the live object handed the renderer -Infinity. `<= 0` covers both absence and a legal 0. */
+      lnrmssd: _lnSrc == null || _lnSrc <= 0 ? null : +Math.log(_lnSrc).toFixed(3),
+      /* §∅: a null carries a NAMED reason, never a borrowed one. */
+      rmssdAbsentReason: rm == null ? 'no-successive-pairs' : null,
       // epochs + sleep + cvhr + events
       epochs,
       epochsRefused,
@@ -37422,16 +37457,16 @@ __exports.PpgDex = window.PpgDex;
       nSelf: selfNN.length,
       nDev: devVals.length,
       devEctopyCorrected: devC.nc,
-      devRawRMSSD: +rmssd(devRaw).toFixed(1),
-      selfRMSSD: +selfRMSSD.toFixed(1),
-      devRMSSD: +devRMSSD.toFixed(1),
-      dRMSSD: +((Math.abs(selfRMSSD - devRMSSD) / devRMSSD) * 100).toFixed(1),
+      devRawRMSSD: _rmOrNull(rmssd(devRaw), 1),
+      selfRMSSD: _rmOrNull(selfRMSSD, 1),
+      devRMSSD: _rmOrNull(devRMSSD, 1),
+      dRMSSD: _pctDiff(selfRMSSD, devRMSSD, 1),
       selfSDNN: +selfSDNN.toFixed(1),
       devSDNN: +devSDNN.toFixed(1),
-      dSDNN: +((Math.abs(selfSDNN - devSDNN) / devSDNN) * 100).toFixed(1),
+      dSDNN: _pctDiff(selfSDNN, devSDNN, 1),
       selfMean: +selfMean.toFixed(1),
       devMean: +devMean.toFixed(1),
-      dMean: +((Math.abs(selfMean - devMean) / devMean) * 100).toFixed(2),
+      dMean: _pctDiff(selfMean, devMean, 2),
       selfHR: +(60000 / selfMean).toFixed(1),
       devHR: +(60000 / devMean).toFixed(1)
     };

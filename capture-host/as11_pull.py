@@ -21,12 +21,51 @@ import asyncio
 
 import base64
 import json
+import re as _re
 
 import as11_link as L
 
 
 class As11Error(RuntimeError):
     """An AS11 RPC returned an error, or a spool round failed."""
+
+
+# ── FAULT TAXONOMY — because `As11Error` is ONE class for every protocol failure ───────────────────
+#
+# 🔴 THE DEFECT THIS EXISTS TO FIX, measured twice. A rejected pairing key, a timeout and a malformed
+# frame all raise `As11Error`, so `type(exc).__name__` cannot discriminate them and the watchdog
+# treated all three as "the machine is unreachable". On 2026-09-04 that cost ELEVEN HOURS, and on
+# 2026-10-05 it restarted BlueZ twice and fired the adapter ladder (hci1) against a KEY problem —
+# remedies that cannot work, because nothing about the radio was wrong.
+#
+# ⚠️ A KEY REJECTION IS A DEVICE THAT ANSWERED. `RequestSession` round-tripped, the device returned a
+# challenge, and it then refused our proof — so the link worked, the RPC worked, and the machine is
+# present and talking. That makes it the opposite of "unreachable", and it needs the opposite
+# response: not a radio remedy on a timer, but a human re-pairing at the machine.
+KEY_REJECTED = "key-rejected"
+
+# `code -11005 VerificationFailure` is the device's own wording (journal, 2026-10-05 10:01:17). Matched
+# on EITHER token: the numeric code is the protocol's identity and the name is the firmware's label, and
+# a firmware that renames the label must still be recognised. The code is bounded on both sides so
+# `-110050` or `x-11005` cannot match, which is the unanchored-substring error this repo keeps finding.
+_KEY_REJECTED_RE = _re.compile(r"(?<![\w-])-11005(?![\d])|VerificationFailure", _re.IGNORECASE)
+
+
+def fault_kind(exc) -> str | None:
+    """Which KIND of AS11 fault this exception is, or None when we cannot tell. PURE.
+
+    `None` is not "fine" — it is "this is the undiscriminated bucket", and a caller must keep treating
+    it as it did before. Naming the unknown rather than defaulting it is the same rule as §∅: a kind we
+    did not establish is not a kind we may invent."""
+    if exc is None:
+        return None
+    # `str()` ON A str IS IDENTITY, so the `isinstance` branch it replaced could not be distinguished by
+    # any input and CI's gate named it (`(isinstance(exc, str)) and False`). Removed rather than excused:
+    # the mutant cannot be written against a call that has no branch. (A str SUBCLASS overriding
+    # `__str__` would differ — no such input exists here, and inventing one to defend a redundant
+    # branch is how an equivalence entry gets written for a line that need not exist.)
+    msg = str(exc)
+    return KEY_REJECTED if _KEY_REJECTED_RE.search(msg) else None
 
 
 # P3 gap-accounting taxonomy — used ONLY to COUNT frames at the stream boundary (see stream()).

@@ -6763,6 +6763,62 @@
       T.ok('the plant is not vacuous — positionally this row reads 0, not 365', positionalWouldGive !== box[0].ppi, positionalWouldGive + ' vs ' + box[0].ppi);
     });
 
+    group('ECGDex RMSSD absence — an unmeasured RMSSD is null, never 0 (§∅)', 'ecgdex-dsp · absence', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      T.ok('ECGDSP reachable', !!(E && E.analyze && E.validateRR), 'ecgdex-dsp.js did not load');
+      if (!E || !E.analyze || !E.validateRR) return;
+
+      /* ⚠️ READ VALUES WITH String(), NEVER JSON.stringify — and that is the defect, not a test detail.
+         JSON has no -Infinity, so `JSON.stringify(-Infinity)` is the string "null": a JSON export of a
+         broken record LOOKED like clean absence while the live object handed the renderer -Infinity.
+         Asserting through JSON would have passed on main and proven nothing. */
+      var nonFinite = function (o) {
+        var bad = [];
+        for (var k in o) if (typeof o[k] === 'number' && !isFinite(o[k])) bad.push(k + '=' + String(o[k]));
+        return bad;
+      };
+
+      // ── 1 · validateRR: a device record with ONE beat has no successive pair to measure ──
+      var vr = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }]);
+      T.ok('the plant is reachable — validateRR accepted a 1-beat device record', !!vr && vr.nDev === 1, 'nDev=' + (vr && vr.nDev));
+      T.ok('validateRR · devRMSSD is null, not 0 (no successive pair exists)', vr.devRMSSD === null, 'got ' + String(vr.devRMSSD));
+      T.ok('validateRR · devRawRMSSD is null, not 0', vr.devRawRMSSD === null, 'got ' + String(vr.devRawRMSSD));
+      /* The ratio REFUSES rather than dividing by an absent or zero reference. On main this read
+         Infinity — the same shape as the 65 797.8 dRMSSDPct recorded in ecgdex-dsp.js's own comment. */
+      T.ok('validateRR · dRMSSD refuses an absent reference (was Infinity)', vr.dRMSSD === null, 'got ' + String(vr.dRMSSD));
+      T.ok('validateRR · dSDNN refuses a zero reference (was Infinity)', vr.dSDNN === null, 'got ' + String(vr.dSDNN));
+      T.ok('validateRR · no non-finite number anywhere in the result', nonFinite(vr).length === 0, 'non-finite: ' + nonFinite(vr).join(', '));
+
+      // ── 2 · analyze(): a dropout between EVERY beat masks every pair, so NOTHING was measured ──
+      /* `{ idx, ms }` is the real gap shape (ecgdex-dsp.js, the rec.gaps fold) — an earlier draft of
+         this test used `{ fromMs, toMs }`, which the fold ignores, so it examined nothing and passed.
+         durSec 120 reproduces the identical defect 165x cheaper than the 3 h default (57 ms vs 9.4 s). */
+      var rec = E.genSynthetic({ durSec: 120 });
+      var gaps = [];
+      for (var i = 0; i < rec.int16.length; i += Math.floor(rec.fs * 0.4)) gaps.push({ idx: i, ms: 6000 });
+      rec.gaps = gaps;
+      T.ok('the plant is not vacuous — a gap sits between every beat', gaps.length > 200, 'only ' + gaps.length + ' gaps');
+      var a = E.analyze(rec);
+      T.ok('analyze · whole-record rmssd is null, not 0', a.rmssd === null, 'got ' + String(a.rmssd));
+      T.ok('analyze · dispRm is null, not 0', a.dispRm === null, 'got ' + String(a.dispRm));
+      /* THE SHIPPED SYMPTOM: Math.log(0) is -Infinity, so an unguarded sink exported -Infinity. */
+      T.ok('analyze · lnrmssd is null, not -Infinity', a.lnrmssd === null, 'got ' + String(a.lnrmssd));
+      T.ok('analyze · the absence carries a NAMED reason (§∅)', a.rmssdAbsentReason === 'no-successive-pairs', 'got ' + String(a.rmssdAbsentReason));
+      T.ok('analyze · no non-finite number anywhere in the export', nonFinite(a).length === 0, 'non-finite: ' + nonFinite(a).join(', '));
+
+      // ── 3 · THE CONTROL: a 0 is a LEGAL RMSSD, so the fix must not null a measured zero ──
+      /* This is why `!= 0` is never the fix (CLAUDE.md §∅): perfectly regular RR is a real 0. Absence
+         and a measured zero must be distinguishable, which is the whole point of returning null. */
+      var flat = E.validateRR([800, 800, 800, 800, 800, 800], [{ rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }]);
+      T.ok('a perfectly regular device record keeps a MEASURED rmssd of 0, not null', flat.devRMSSD === 0, 'got ' + String(flat.devRMSSD));
+      T.ok('…and that measured 0 carries no absence reason', !flat.rmssdAbsentReason, 'got ' + String(flat.rmssdAbsentReason));
+
+      // ── 4 · the clean path is untouched ──
+      var clean = E.analyze(E.genSynthetic({ durSec: 120 }));
+      T.ok('a clean record still reports a finite rmssd', typeof clean.rmssd === 'number' && isFinite(clean.rmssd) && clean.rmssd > 0, 'got ' + String(clean.rmssd));
+      T.ok('a clean record reports no absence reason', clean.rmssdAbsentReason === null, 'got ' + String(clean.rmssdAbsentReason));
+    });
+
     group('ECGDex accAnalyze — posture from the gravity vector, known-answer', 'ecgdex-dsp · posture', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       var acc = E && E.accAnalyze;
