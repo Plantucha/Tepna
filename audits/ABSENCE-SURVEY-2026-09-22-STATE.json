@@ -20,9 +20,9 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 186,
-  "fixed": 102,
-  "accepted-with-reason": 2
+  "open": 179,
+  "fixed": 108,
+  "accepted-with-reason": 3
  },
  "entries": [
   {
@@ -557,7 +557,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 71,
-   "state": "open"
+   "state": "fixed",
+   "note": "an ECG with no recorded duration has no COVERAGE window (null), never a 0-minute point that 'overlaps no desat'; pairing still matches it by its start, explicitly. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "612257ff825b",
@@ -566,7 +567,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 328,
-   "state": "open"
+   "state": "fixed",
+   "note": "with no usable ECG window the covered desat set is unknown: coveredDesats / coveragePct / confPct are null and the tile says coverage is unknown, never every desat of the night (a green 0 of N). Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "b52aeae19d7e",
@@ -1718,7 +1720,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 45,
-   "state": "open"
+   "state": "fixed",
+   "note": "_oxyHHMMSStoMs parses components by regex and range-checks them (Clock Contract §2.7): an unreadable stamp is null, never midnight, and 25:00:00 is null, never rolled to the next day. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "4ca8bf4e4e5a",
@@ -1727,7 +1730,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 65,
-   "state": "open"
+   "state": "accepted-with-reason",
+   "reason": "Ruled NOT A DEFECT (Kestrel, 2026-10-06, on this unit's plant evidence): the night window's durationMin 0 is a pairing anchor with one reader, ECG pairing, which treats a point at t0 as start-proximity; it is never published. Removing it routed an anchored, untimed night into the no-anchor lone-ECG fallback and paired an ECG recorded 26 h later (the unit's own first plant caught it). The reader that would misread a 0, coverage, now refuses on no ECG duration. Recorded at the field: 'pairing anchor; 0 = untimed night; never published'."
   },
   {
    "key": "732f9bcf73c2",
@@ -1736,7 +1740,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 281,
-   "state": "open"
+   "state": "fixed",
+   "note": "an event with no recorded depth carries null into desatDepth, never a 0 % dip. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "e294b096e810",
@@ -2576,7 +2581,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 375,
-   "state": "open"
+   "state": "fixed",
+   "note": "the covered share of the hypoxic burden exists only with desats AND a known window; otherwise no scoped burden and no dose per event, never the whole-night burden over a window-only count. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "92559b915569",
@@ -2585,7 +2591,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 394,
-   "state": "open"
+   "state": "fixed",
+   "note": "the per-stage depth mean divides by the events that carried a depth (measured), and the row names the shortfall '(depth on k)', never a depth-less event as 0. Plant: tests/dex-tests.js group 'OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0' (fusion's published surface only), red on the pre-fix oxydex-fusion.js."
   },
   {
    "key": "643c0167154c",
