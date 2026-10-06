@@ -6801,7 +6801,7 @@ async def pull_oxyii_session(
                 if not STATUS.get("devices", {}).get(name, {}).get("connected"):
                     break
                 await asyncio.sleep(0.1)
-            await asyncio.sleep(0.8)  # let BlueZ fully tear the link down before re-scanning
+            await asyncio.sleep(_BLUEZ_SETTLE_S)  # let BlueZ fully tear the link down before re-scanning
             log.info("%s: pulling stored session (which=%s) — live capture paused", name, which)
 
             def _prog(off, size):
@@ -6904,6 +6904,14 @@ async def pull_oxyii_session(
 # the condition that wedges it. bleak's own timeouts did not bound it either — a wedged BlueZ can leave a
 # D-Bus call outstanding indefinitely. So the bound has to live here, at the point that holds the locks.
 _OFFLINE_OP_TIMEOUT_S = 300.0
+# The BlueZ link-teardown settle, named so a test can set it to 0 — the same reason
+# `_OFFLINE_OP_TIMEOUT_S` above is a constant rather than a literal. Production value UNCHANGED at 0.8 s:
+# BlueZ reports a disconnect before the link is actually gone, and re-scanning or re-connecting inside
+# that window fails in a way that looks like an absent device. ⚠️ MEASURED 2026-10-05: this one sleep was
+# 9.6 s of `test_offline_op_deadlock.py`'s 13.03 s — the test loops the real site 12 times and paid the
+# settle on every pass, while already patching the op timeout to 0.01 s. A wait that only exists for real
+# hardware must be nameable, or every test that drives this path buys it.
+_BLUEZ_SETTLE_S = 0.8
 # The doff-path drain's settle-and-retry on `org.bluez.Error.InProgress` ONLY. The collision is with
 # the predecessor's teardown in the same second, so the settle is seconds, and it is bounded: three
 # attempts, two settles, at most 6 s added to a path whose primary pull already landed.
@@ -7072,7 +7080,7 @@ async def polar_offline_op(address: str, op, timeout: float | None = None, prese
                 if not (name and STATUS["devices"].get(name, {}).get("connected")):
                     break
                 await asyncio.sleep(0.1)
-            await asyncio.sleep(0.8)  # let BlueZ fully tear the link down before re-connecting
+            await asyncio.sleep(_BLUEZ_SETTLE_S)  # let BlueZ fully tear the link down before re-connecting
             log.info("Polar %s: offline-recording op — live capture paused", address)
 
             # Hold _CONNECT_LOCK for the whole op: BlueZ serialises connection ESTABLISHMENT per adapter, so
