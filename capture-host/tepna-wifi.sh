@@ -86,18 +86,34 @@ ensure_supplicant() {
   wpa_supplicant -B -i "$IFACE" -c "$CONF" >/dev/null 2>&1
   # A non-zero exit is NOT a failed start — an already-running instance also exits non-zero, and the
   # status check below is what actually decides. Same trap cpap_harvest records for the ez-share path.
-  for _ in 1 2 3 4 5 6 7 8 9 10; do
+  for _ in $(seq 1 "$TEPNA_WIFI_SOCK_TRIES"); do
     wcli status >/dev/null 2>&1 && return 0
-    sleep 0.4
+    sleep "$TEPNA_WIFI_SOCK_S"
   done
   die "supplicant did not create a control socket on $IFACE" 3
 }
+
+# ── THE WAITS, NAMED SO A TEST CAN SET THEM TO 0 ─────────────────────────────────────────────────────
+# Every default below is EXACTLY the literal it replaces, so an operator run and the shipped unit behave
+# as before; only a caller that exports these sees anything different.
+#
+# ⚠️ MEASURED 2026-10-05: `tests/test_tepna_wifi_sh.py` was 46.17 s of the capture-host suite's 421.40 s,
+# and ONE test was 31.08 s of it — the association poll below, 30 tries at 1 s, run against a stub
+# supplicant that was never going to associate. The scan settle cost two more tests 3.00 s each. These are
+# real waits for real radios and they must stay real in production; what was missing is a way to say "not
+# here". `_BLUEZ_SETTLE_S` in capture.py is the same move for the same reason.
+: "${TEPNA_WIFI_SOCK_TRIES:=10}"   # supplicant control-socket poll: tries
+: "${TEPNA_WIFI_SOCK_S:=0.4}"      # ... and the gap between them
+: "${TEPNA_WIFI_SCAN_S:=3}"        # let the scan populate before reading results
+: "${TEPNA_WIFI_SETTLE_S:=1}"      # after `terminate`, before restarting onto the new config
+: "${TEPNA_WIFI_ASSOC_TRIES:=30}"  # association poll: tries
+: "${TEPNA_WIFI_ASSOC_S:=1}"       # ... and the gap between them
 
 case "${1:-}" in
   scan)
     ensure_supplicant
     wcli scan >/dev/null
-    sleep 3
+    sleep "$TEPNA_WIFI_SCAN_S"
     wcli scan_results
     ;;
   join)
@@ -118,11 +134,11 @@ case "${1:-}" in
     # Restart cleanly onto the new config rather than reconfiguring in place: a stale association to
     # a previous network is exactly the state a "connect" button must not leave behind.
     wcli terminate >/dev/null 2>&1
-    sleep 1
+    sleep "$TEPNA_WIFI_SETTLE_S"
     ensure_supplicant
-    for _ in $(seq 1 30); do
+    for _ in $(seq 1 "$TEPNA_WIFI_ASSOC_TRIES"); do
       wcli status 2>/dev/null | grep -q '^wpa_state=COMPLETED' && break
-      sleep 1
+      sleep "$TEPNA_WIFI_ASSOC_S"
     done
     wcli status 2>/dev/null | grep -q '^wpa_state=COMPLETED' || die "did not associate to $SSID" 6
     dhcpcd -n "$IFACE" >/dev/null 2>&1 || dhcpcd "$IFACE" >/dev/null 2>&1 || true
