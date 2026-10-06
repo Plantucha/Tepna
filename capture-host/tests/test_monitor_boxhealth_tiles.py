@@ -31,12 +31,15 @@ PAYLOAD = "<img src=x onerror=alert(1)>"
 
 
 def _extract():
-    """`esc`, `agoUtc`, `cpapStatusLabel`, `renderBoxHealth` as executable source from the shipped file."""
+    """`esc`, `agoUtc`, `cpapStatusLabel`, `cpapFaultSentence`, `renderBoxHealth` as executable source.
+
+    ⚠️ A function `renderBoxHealth` CALLS must be listed here or the render dies with a ReferenceError
+    rather than a wrong answer — which is how `cpapFaultSentence` announced itself when it was added."""
     src = open(MON, encoding="utf-8").read()
     m = re.search(r"^const esc = .*?;$", src, re.M)
     assert m, "esc() is gone from monitor.html — extraction is testing nothing"
     out = [m.group(0)]
-    for name in ("agoUtc", "cpapStatusLabel", "renderBoxHealth"):
+    for name in ("agoUtc", "agoSecs", "cpapStatusLabel", "cpapFaultSentence", "renderBoxHealth"):
         fn = re.search(r"^function %s\(.*?^\}" % re.escape(name), src, re.M | re.S)
         assert fn, f"{name}() not found in monitor.html — extraction is testing nothing"
         out.append(fn.group(0))
@@ -165,3 +168,67 @@ def test_ago_utc_clamps_a_future_stamp_to_zero_not_negative():
     """A stamp slightly ahead of the viewer's clock (NTP step between poll and render) must read 0s,
     never a negative age."""
     assert _eval("agoUtc('2026-07-26T01:07:19Z')", now_ms=1785028039000 - 3000) == "0s ago"
+
+
+# ══ THE RE-PAIR ASK (2026-10-06) ═══════════════════════════════════════════════════════════════════
+# On 2026-10-05 the AS11 refused our stored key from 10:01:17 and every 33 s poll after. The tile said
+# `therapy: unknown · as of 19h ago` — identical to a CPAP switched off, a CPAP out of range, and a
+# detector never enabled. On 2026-09-04 the same display covered ELEVEN HOURS of the same fault. The
+# state was correct and no reader could act on it.
+
+
+def test_a_key_rejected_state_RENDERS_the_re_pair_sentence_on_the_tile():
+    """The rendered strip, not the map in isolation: the sentence has to reach the HTML a reader sees.
+
+    `fault_kind` is classified SERVER-side (`as11_pull.fault_kind`) and arrives in the verbatim `cpap`
+    block, so the page maps a known enum to a sentence and derives nothing."""
+    html = _render(
+        "null, null, null, null, null, "
+        "{enabled:true, state:'ok', files:5, fault_kind:'key-rejected'}, "
+        "{state:'unknown', age_s:68400, fresh:false}"
+    )
+    assert "re-pair" in html, html
+    assert "refused our pairing key" in html, html
+    # 🔴 AND IT MUST BE STYLED AS A WARNING, WHICH TAKES **TWO** ASSERTIONS. `.bad` in monitor.html is
+    # ALWAYS parent-scoped (.batt.bad, .rssi.bad, .clk.bad, .nfr.bad) with no generic rule, so a
+    # `sub bad` div renders in the ordinary grey unless `.ov-stat .sub.bad` exists — a warning that must
+    # be acted on would read as one more detail.
+    #
+    # ⚠️ I FIRST ASSERTED ONLY THE CLASS AND CLAIMED IN THIS COMMENT THAT IT KEPT THE CSS RULE ALIVE.
+    # It does not: I deleted the rule and all 13 tests stayed green, because the class is in the HTML
+    # either way. The rendered markup and the stylesheet are two facts, and the rig executes JS without a
+    # CSS engine — so the rule is checked the only way it can be here, as text in the shipped file.
+    assert 'class="sub bad"' in html, html
+    assert ".ov-stat .sub.bad{" in open(MON, encoding="utf-8").read(), (
+        "the `.ov-stat .sub.bad` rule is gone — the ask still renders, in the ordinary grey, as one more "
+        "detail rather than a warning"
+    )
+
+
+def test_the_PAGE_KEY_matches_the_SERVER_constant():
+    """Two spellings of one string. `monitor.html` cannot import `as11_pull`, so the page carries the
+    literal — and if either side is renamed alone, the tile goes silent on the exact fault it exists to
+    surface with nothing failing. Pinned rather than trusted, the same idiom as `bluez_wedge`'s pin."""
+    import as11_pull
+
+    assert as11_pull.KEY_REJECTED in _extract(), (
+        "monitor.html's map no longer carries %r — the page and the classifier have drifted" % as11_pull.KEY_REJECTED
+    )
+
+
+def test_a_tile_with_no_fault_renders_NO_ask():
+    """The control, and the half that keeps the warning worth reading: an ask shown when it is not owed
+    becomes decoration an operator learns to skip.
+
+    All four non-states are checked, because each reaches the map by a different route: a healthy
+    machine, an UNDISCRIMINATED fault (`fault_kind: null` — what the classifier publishes when it cannot
+    tell), an unknown kind, and a block with no such key at all."""
+    for cpap in (
+        "{enabled:true, state:'ok', files:5}",
+        "{enabled:true, state:'ok', files:5, fault_kind:null}",
+        "{enabled:true, state:'ok', files:5, fault_kind:'something-else'}",
+        "{enabled:true, state:'error', detail:'harvest failed'}",
+    ):
+        html = _render("null, null, null, null, null, " + cpap + ", null")
+        assert "re-pair" not in html, cpap
+        assert 'class="sub bad"' not in html, cpap

@@ -7878,6 +7878,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                     wedge_day, wedge_restarts, cpap_handoffs = today, 0, 0
                 verdict, why = bluez_wedge.wedge_verdict(
                     int(cpap_st.get("unreachable_streak") or 0),
+                    # The KIND decides before any count does: a key rejection is proof the device
+                    # answered, and no number of refused handshakes makes that a radio fault.
+                    fault_kind=cpap_st.get("fault_kind"),
                     # `connected_any` IS the honest reading of "demonstrably healthy" here: if nothing
                     # is connected we are in the deafness rung's territory, and `wedge_verdict` returns
                     # UNKNOWN for that rather than claiming a per-device fault.
@@ -9797,6 +9800,24 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
             # verdict, so a producer-side refusal could never reach the caller. (b) `m or {}` — a
             # session that returned NOTHING contributed no shorts and therefore read as clean; a
             # missing manifest is an unanswered session, not a quiet one.
+            # ∅ VERIFIED NOT A DEFECT, 2026-10-05, and recorded so it is not re-opened. Asked whether
+            # this `or 0` erases an absence like the `sink_errors` one in `acq_evidence_cpap` did. It does
+            # not, for two separate reasons:
+            #   · a MISSING manifest is already counted on its own axis — `if not m: unanswered_sessions`
+            #     on the next line — which is case (b) in the block above, so `m is None` is answered, not
+            #     silenced;
+            #   · a PRESENT-but-None `unenumerated` cannot arise: `polar_psftp` sets
+            #     `manifest["unenumerated"] = len(unreadable_dirs) + len(truncated_dirs)` unconditionally,
+            #     so the value is always an int and a 0 is COUNTED.
+            # The manifest also arrives from an in-process `await`, never from storage — which is what
+            # separates this from `ble_visibility`'s series, where the same shape IS a defect because the
+            # records are read back with `json.loads` and a file holds whatever older code wrote. A
+            # single-writer guarantee holds in memory and expires at the file boundary.
+            # THE PREMISE IS ALREADY PINNED and no new test was added: `test_polar_psftp_client.py`
+            # asserts the manifest's exact KEY SET (:1726, `unenumerated` among them) and its values on
+            # both branches (:1738 clean -> 0, :2015/:2035 unenumerated -> 1). A path that omitted the key
+            # would fail that key-set assertion, which is the guard this comment would otherwise have
+            # duplicated — I went looking to write one and found it already there.
             unenumerated += int((m or {}).get("unenumerated") or 0)
             if not m:
                 unanswered_sessions += 1
@@ -11963,8 +11984,15 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     interactive_timeout = float(cbs.get("connect_timeout_sec", 8.0))
 
     async def connect():  # pragma: no cover — thin closure over the bleak I/O edge in _cpap_ble_connect
-        creds = _load_as11_creds(creds_path)
-        return await _cpap_ble_connect(creds["ble_addr"], hci, interactive_timeout)
+        import as11_link_guard
+
+        async def _open():
+            creds = _load_as11_creds(creds_path)
+            return await _cpap_ble_connect(creds["ble_addr"], hci, interactive_timeout)
+
+        # FAILS FAST like every other actor (the `offline_lock` rule): `LinkBusy` names the holder, so
+        # the caller can say "the shadow poll has it, try again" instead of spinning.
+        return await as11_link_guard.hold("live-stream", _open)
 
     # Optional on-disk EDF sink, enabled by setting cpap.ble_stream.edf_dir. Each live session then writes
     # a bit-accurate BRP.edf there — QUARANTINED under a PENDING subtree until the flow scale is pinned
@@ -12210,6 +12238,10 @@ def _note_cpap_unreachable(exc):
     `last_unreachable_class` answers the question the CSV could not (Brief runner's F2): a
     `BleakDeviceNotFoundError` (the machine is off) and an `InProgress` (the radio is contended by our
     own captures) are byte-identical UNKNOWNs in the journal, and they need opposite responses."""
+    import as11_pull  # function-local, for the reason `_publish_therapy_state` states for cpap_supervisor:
+
+    # the AS11 modules are imported inside the shadow starter, so a module-level reference here would
+    # NameError on the first poll — on the failure path, where it would be least visible.
     st = STATUS.setdefault("cpap", {})
     st["reachable"] = False
     streak = int(st.get("unreachable_streak") or 0) + 1
@@ -12227,6 +12259,17 @@ def _note_cpap_unreachable(exc):
     # and discarded here.
     msg = str(exc).strip()
     st["last_unreachable_msg"] = msg[:200] or None
+    # THE KIND, not just the class — the discrimination `last_unreachable_class` cannot make, because
+    # every AS11 protocol failure is one `As11Error` (see `as11_pull.KEY_REJECTED`).
+    kind = as11_pull.fault_kind(exc)
+    st["fault_kind"] = kind
+    # ⚠️ `reachable` STAYS FALSE, DELIBERATELY, and this is the one judgement call in the fix. A key
+    # rejection means the device ANSWERED — so "unreachable" is the wrong word for it — but `reachable`
+    # is what the monitor and the harvest trigger read to mean "we have a usable session and can trust a
+    # therapy reading". Flipping it would publish a present tense we cannot source: we know the machine
+    # is there, and nothing about whether therapy is running. So the answer is a SECOND field for the
+    # second question, not a reused one for both — the same rule `_spool_st` follows one screen down.
+    st["device_answered"] = kind == as11_pull.KEY_REJECTED or None
     # RATE-LIMITED, because the poll is every 30 s and a persistent fault runs all night — 1320 polls
     # over those eleven hours, and a line per poll is not evidence, it is a reason to stop reading the
     # log. Logged on the FIRST failure, on any CHANGE of message (a fault becoming a different fault
@@ -12271,6 +12314,11 @@ def _publish_therapy_state(decision, _anchor):
         st["unreachable_streak"] = 0
         st["last_unreachable_class"] = None
         st["last_unreachable_msg"] = None
+        # Clear the KIND as well. A stale `fault_kind` would keep the card saying "re-pair needed"
+        # after a re-pair worked, and would keep the watchdog's remedies suppressed on a real wedge —
+        # the fault heals in one successful poll and the published state must heal with it.
+        st["fault_kind"] = None
+        st["device_answered"] = None
         # Clear the log memo too, or the NEXT fault is suppressed as a repeat of the one that just
         # healed: `streak` restarts at 1 so it would log anyway today, but that is an accident of the
         # streak rule rather than a property of the memo, and a later change to either would silently
@@ -12329,12 +12377,20 @@ def _build_cpap_pairer(cfg: dict, config_path: str, cpap_ctl, *, connect=None, o
     if connect is None:  # pragma: no cover — the bleak I/O edge, mirrors _build_cpap_controller
 
         async def connect(ble_addr):
-            # Same discovery failover the shadow uses: a renumbered dongle must not read as "CPAP absent"
-            # to the person standing at the machine with its pairing screen open.
-            got, _adapter, _attempts = await _cpap_connect_any_adapter(
-                ble_addr, hci, interactive_timeout, reserved=ADAPTER
-            )
-            return got
+            import as11_link_guard
+
+            async def _open():
+                # Same discovery failover the shadow uses: a renumbered dongle must not read as "CPAP
+                # absent" to the person standing at the machine with its pairing screen open.
+                got, _adapter, _attempts = await _cpap_connect_any_adapter(
+                    ble_addr, hci, interactive_timeout, reserved=ADAPTER
+                )
+                return got
+
+            # FAILS FAST, and for the person at the machine that is the BETTER answer: `LinkBusy` names
+            # the holder immediately, so the pairing screen can say which actor is in the way rather than
+            # hanging on a queue whose outcome they cannot see.
+            return await as11_link_guard.hold("pairing", _open)
 
     def default_addr():
         return (_load_as11_creds(creds_path) or {}).get("ble_addr") or cbs.get("ble_addr")
@@ -12386,14 +12442,24 @@ def _maybe_start_as11_shadow(
     if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors _build_cpap_controller
 
         async def connect_factory():
-            # DISCOVERY FAILOVER: a sibling radio is the cheapest second opinion before an absence
-            # is written down. ⚠️ NOT the fix for the 2026-08-29 blackout — that was a bluez
-            # per-DEVICE state wedge shared by every adapter (hci0 saw 107 other devices throughout),
-            # and a sibling would have been blind too. See `ble_discovery`'s header.
-            # `reserved=ADAPTER` is the WEARABLES radio (top-level config `adapter:`), passed so the
-            # failover can SAY when it lands there. config.example.yaml reserves it explicitly.
-            got, _adapter, _attempts = await _cpap_connect_any_adapter(creds["ble_addr"], hci, reserved=ADAPTER)
-            return got
+            import as11_link_guard
+
+            async def _open():
+                # DISCOVERY FAILOVER: a sibling radio is the cheapest second opinion before an absence
+                # is written down. ⚠️ NOT the fix for the 2026-08-29 blackout — that was a bluez
+                # per-DEVICE state wedge shared by every adapter (hci0 saw 107 other devices throughout),
+                # and a sibling would have been blind too. See `ble_discovery`'s header.
+                # `reserved=ADAPTER` is the WEARABLES radio (top-level config `adapter:`), passed so the
+                # failover can SAY when it lands there. config.example.yaml reserves it explicitly.
+                got, _adapter, _attempts = await _cpap_connect_any_adapter(creds["ble_addr"], hci, reserved=ADAPTER)
+                return got
+
+            # 🔴 The actor that makes queueing unthinkable, and why NOBODY queues: it polls every 33 s,
+            # so a five-minute spool round would leave ~9 polls stacked to fire the instant it finished,
+            # each describing a moment that has passed. `LinkBusy` is neither `OSError` nor `As11Error`,
+            # so it surfaces through the shadow loop's broad `except Exception` — which exists for
+            # exactly this: journalled as an unreachable cycle, loop alive.
+            return await as11_link_guard.hold("shadow-poll", _open)
 
     interval = float(adcfg.get("poll_interval_sec", 30.0))
     # The sidecars are opened ONCE, here — a supervised restart re-enters the loop with a fresh
@@ -12951,7 +13017,11 @@ def _maybe_start_cpap_spool_pull(
     if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors the shadow runner
 
         async def connect_factory():
-            return await _cpap_ble_connect(creds["ble_addr"], hci)
+            import as11_link_guard
+
+            # FAILS FAST, and it costs the day nothing: `pull_blocked` already declines to consume the
+            # day on a deferral, so a pull refused this minute is retried the next.
+            return await as11_link_guard.hold("spool-pull", lambda: _cpap_ble_connect(creds["ble_addr"], hci))
 
     spool_root = resolve_spool_root(scfg.get("root"), root)
     epoch_start = scfg.get("epoch_start", cpap_spool_caller.SPOOL_EPOCH_START_DEFAULT)
@@ -13631,6 +13701,12 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
     answer when the CPAP is off or held by the myAir app arrives just as truthfully in 8 s as in 36.
     A scheduled pull has nobody waiting and should keep waiting."""
     import as11_link as _L
+
+    # For the unmeasured-MTU refusal in `write` below. Function-local like `_L`, and `As11Error`
+    # deliberately: the shadow loop already catches `(OSError, as11_pull.As11Error)`, so a refusal is
+    # recorded as an ordinary poll failure — counted, journalled, visible — and NOT as a key rejection,
+    # which it is not.
+    from as11_pull import As11Error
     from bleak import BleakClient as _BC
 
     hci = await _resolve_cpap_adapter(hci)  # MAC → current hciN, re-read every connect (see above)
@@ -13730,12 +13806,21 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         # Best-effort, reporting first: a failure leaves the placeholder and the write step at 20.
         _be = getattr(client, "_backend", None)
         # Only a FAILED acquire leaves the placeholder; a backend with no acquire step reports its own MTU.
+        #
+        # 🔴 RE-ACQUIRED ONCE, because of what the FAILURE now costs. This used to be a pure diagnostic:
+        # a failed acquire left the step at 20 and the only consequence was a vaguer log line. Since the
+        # refusal below, an unmeasured MTU costs the whole session — so a transient acquire failure must
+        # get a second chance before it does. One retry, not a loop: the bound exists so a link that
+        # cannot report its MTU is refused promptly rather than retried into the night.
         _mtu_placeholder = False
         if _be is not None and hasattr(_be, "_acquire_mtu"):
-            try:
-                await _be._acquire_mtu()
-            except Exception:  # noqa: BLE001 — a diagnostic must not cost the link
-                _mtu_placeholder = True
+            for _attempt in (1, 2):
+                try:
+                    await _be._acquire_mtu()
+                    _mtu_placeholder = False
+                    break
+                except Exception:  # noqa: BLE001 — a diagnostic must not cost the link
+                    _mtu_placeholder = True
     except BaseException as exc:
         # 🔴 READ THE EVIDENCE BEFORE DESTROYING IT — these two lines MUST precede the disconnect.
         # `client.disconnect()` nulls bleak's service collection (it ends with
@@ -13766,19 +13851,51 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
             return await _cpap_ble_connect(ble_addr, hci, timeout, retry_missing_char=False)
         raise
     # ∅ After a FAILED acquire BlueZ still reports its placeholder 23, truthy and indistinguishable from a
-    # negotiated 23 (ABSENCE-SURVEY 0565efb3f0a7). The write step is the same safe default either way; what
-    # changes is the log, which says the MTU is unknown rather than publishing the placeholder as measured.
+    # negotiated 23 (ABSENCE-SURVEY 0565efb3f0a7).
+    #
+    # 🔴 `mtu = _mtu_seen or 23` WAS AN ABSENCE TURNED INTO A NUMBER, and the old comment beside it —
+    # "the write step is the same safe default either way" — was an assumption, not a measurement. It is
+    # not the same: `step` decides how many ATT writes ONE protocol frame becomes, and a
+    # `CheckSessionIntegrity` frame is **163 bytes** — ONE write at a negotiated 247, **NINE** at the
+    # fallback 20. Measured, not estimated (`as11_link.fig_frame` + `check_session_integrity`).
+    #
+    # On 2026-10-05 at 10:00:22 this path logged `MTU=unknown` on the FIRST connect after a daemon
+    # restart — the only non-247 connect since 09-20 — and the handshake that followed ended in a
+    # transport error at 10:00:44. From 10:01:17 the AS11 refused the stored key on every poll for a day,
+    # and it took physical access to undo.
+    #
+    # ⚠️ WHAT THAT LOG LINE DOES AND DOES NOT ESTABLISH. `MTU=unknown` prints whenever `_mtu_seen` is
+    # falsy, which has TWO causes: `_acquire_mtu()` raised, or `client.mtu_size` was absent/None/0. Both
+    # mean the MTU was NOT MEASURED, which is what the refusal below keys on. It does NOT establish which
+    # cause fired on 10-05, and nothing here establishes that fragmentation caused the key rejection —
+    # the device's reassembly rule is not ours to know. The refusal is justified by what we DO know: on
+    # an unmeasured link, writing in 20-byte pieces is a guess about the wire, and the operation it was
+    # guessing about is the one whose failure cannot be retried away.
     _mtu_seen = None if _mtu_placeholder else getattr(client, "mtu_size", None)
-    mtu = _mtu_seen or 23
-    step = max(20, mtu - 3)
+    # Absence stays absence: no fallback number, so nothing downstream can mistake 23-the-placeholder for
+    # 23-the-negotiated-MTU. `step` exists only when the MTU was measured.
+    step = None if _mtu_seen is None else max(20, _mtu_seen - 3)
     log.info(
-        "CPAP %s: link MTU=%s (write step %d)",
+        "CPAP %s: link MTU=%s (write step %s)",
         ble_addr,
-        _mtu_seen or "unknown (ATT default 23 assumed)",
-        step,
+        _mtu_seen or "unknown (unmeasured — multi-write frames will be REFUSED)",
+        step if step is not None else "n/a",
     )
 
     async def write(frame):
+        # REFUSE RATHER THAN FRAGMENT. On a measured link, splitting at MTU-3 is exactly what the
+        # negotiated MTU licenses. On an unmeasured one it is a guess, and a single-write frame is the
+        # only size that needs no guess — so a frame that fits goes out and one that does not is refused
+        # by name, which keeps the small-frame paths working instead of failing the whole connect.
+        if step is None:
+            if len(frame) > 20:
+                raise As11Error(
+                    f"refusing to write a {len(frame)}-byte frame on a link whose MTU was never "
+                    f"measured: it would be split into {-(-len(frame) // 20)} ATT writes on a guess. "
+                    f"Re-acquire failed twice; the session is refused rather than risking the key"
+                )
+            await client.write_gatt_char(_L.GATT_TX, frame, response=True)
+            return
         for i in range(0, len(frame), step):
             await client.write_gatt_char(_L.GATT_TX, frame[i : i + step], response=True)
 

@@ -755,6 +755,52 @@
       }
     });
 
+    /* §2e — the composites must refuse too. After a clock-seam refusal nulls rMSSD, the
+       composites computed from cRm=null FABRICATED: stressEst → 100 (the clamp eats the
+       1.2295*null term), hrvEst → 0 (1.494*null-13.37 clamps to 0), lnR(null) → −Infinity,
+       cohEst(null,null) → NaN. A seam-refused recording must export every composite null
+       with the reason named — never a number. */
+    group('∅ clock seam — the COMPOSITES refuse too (stress/hrv/energy/focus/coherence/lnRMSSD)', 'pulsedex-dsp · absence', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        var rr = [];
+        for (var i = 0; i < 120; i++) rr.push(900 + 40 * Math.sin(i / 5));
+        var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var stamps = function (seamMs) {
+          var ts = [],
+            acc = t0;
+          for (var k = 0; k < rr.length; k++) {
+            if (k === 60 && seamMs) acc += seamMs;
+            ts.push(acc);
+            acc += rr[k];
+          }
+          return ts;
+        };
+        var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+        /* NOTE: the composites are checked RAW, not through JSON — JSON.stringify masks NaN and
+           −Infinity as null, which is exactly the fabrication this test hunts. */
+        T.eq(
+          'a seam-refused recording exports every composite null (raw, not JSON-masked)',
+          [seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd]
+            .map(function (v) {
+              return v === null ? 'null' : typeof v;
+            })
+            .join(','),
+          'null,null,null,null,null,null'
+        );
+        T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.ok(
+          'never a fabricated number, −Infinity, or NaN',
+          ![seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd].some(function (v) {
+            return typeof v === 'number';
+          }),
+          JSON.stringify({ stress: seamed.stress, hrv: seamed.hrv, energy: seamed.energy, focus: seamed.focus, coherence: seamed.coherence, lnrmssd: seamed.lnrmssd })
+        );
+      }
+    });
+
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_odn && _odn._bare) || _odn;
@@ -6715,6 +6761,62 @@
          would pass against the old parser too. Under position, p[1] is the ns column = 0. */
       var positionalWouldGive = 0;
       T.ok('the plant is not vacuous — positionally this row reads 0, not 365', positionalWouldGive !== box[0].ppi, positionalWouldGive + ' vs ' + box[0].ppi);
+    });
+
+    group('ECGDex RMSSD absence — an unmeasured RMSSD is null, never 0 (§∅)', 'ecgdex-dsp · absence', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      T.ok('ECGDSP reachable', !!(E && E.analyze && E.validateRR), 'ecgdex-dsp.js did not load');
+      if (!E || !E.analyze || !E.validateRR) return;
+
+      /* ⚠️ READ VALUES WITH String(), NEVER JSON.stringify — and that is the defect, not a test detail.
+         JSON has no -Infinity, so `JSON.stringify(-Infinity)` is the string "null": a JSON export of a
+         broken record LOOKED like clean absence while the live object handed the renderer -Infinity.
+         Asserting through JSON would have passed on main and proven nothing. */
+      var nonFinite = function (o) {
+        var bad = [];
+        for (var k in o) if (typeof o[k] === 'number' && !isFinite(o[k])) bad.push(k + '=' + String(o[k]));
+        return bad;
+      };
+
+      // ── 1 · validateRR: a device record with ONE beat has no successive pair to measure ──
+      var vr = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }]);
+      T.ok('the plant is reachable — validateRR accepted a 1-beat device record', !!vr && vr.nDev === 1, 'nDev=' + (vr && vr.nDev));
+      T.ok('validateRR · devRMSSD is null, not 0 (no successive pair exists)', vr.devRMSSD === null, 'got ' + String(vr.devRMSSD));
+      T.ok('validateRR · devRawRMSSD is null, not 0', vr.devRawRMSSD === null, 'got ' + String(vr.devRawRMSSD));
+      /* The ratio REFUSES rather than dividing by an absent or zero reference. On main this read
+         Infinity — the same shape as the 65 797.8 dRMSSDPct recorded in ecgdex-dsp.js's own comment. */
+      T.ok('validateRR · dRMSSD refuses an absent reference (was Infinity)', vr.dRMSSD === null, 'got ' + String(vr.dRMSSD));
+      T.ok('validateRR · dSDNN refuses a zero reference (was Infinity)', vr.dSDNN === null, 'got ' + String(vr.dSDNN));
+      T.ok('validateRR · no non-finite number anywhere in the result', nonFinite(vr).length === 0, 'non-finite: ' + nonFinite(vr).join(', '));
+
+      // ── 2 · analyze(): a dropout between EVERY beat masks every pair, so NOTHING was measured ──
+      /* `{ idx, ms }` is the real gap shape (ecgdex-dsp.js, the rec.gaps fold) — an earlier draft of
+         this test used `{ fromMs, toMs }`, which the fold ignores, so it examined nothing and passed.
+         durSec 120 reproduces the identical defect 165x cheaper than the 3 h default (57 ms vs 9.4 s). */
+      var rec = E.genSynthetic({ durSec: 120 });
+      var gaps = [];
+      for (var i = 0; i < rec.int16.length; i += Math.floor(rec.fs * 0.4)) gaps.push({ idx: i, ms: 6000 });
+      rec.gaps = gaps;
+      T.ok('the plant is not vacuous — a gap sits between every beat', gaps.length > 200, 'only ' + gaps.length + ' gaps');
+      var a = E.analyze(rec);
+      T.ok('analyze · whole-record rmssd is null, not 0', a.rmssd === null, 'got ' + String(a.rmssd));
+      T.ok('analyze · dispRm is null, not 0', a.dispRm === null, 'got ' + String(a.dispRm));
+      /* THE SHIPPED SYMPTOM: Math.log(0) is -Infinity, so an unguarded sink exported -Infinity. */
+      T.ok('analyze · lnrmssd is null, not -Infinity', a.lnrmssd === null, 'got ' + String(a.lnrmssd));
+      T.ok('analyze · the absence carries a NAMED reason (§∅)', a.rmssdAbsentReason === 'no-successive-pairs', 'got ' + String(a.rmssdAbsentReason));
+      T.ok('analyze · no non-finite number anywhere in the export', nonFinite(a).length === 0, 'non-finite: ' + nonFinite(a).join(', '));
+
+      // ── 3 · THE CONTROL: a 0 is a LEGAL RMSSD, so the fix must not null a measured zero ──
+      /* This is why `!= 0` is never the fix (CLAUDE.md §∅): perfectly regular RR is a real 0. Absence
+         and a measured zero must be distinguishable, which is the whole point of returning null. */
+      var flat = E.validateRR([800, 800, 800, 800, 800, 800], [{ rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }]);
+      T.ok('a perfectly regular device record keeps a MEASURED rmssd of 0, not null', flat.devRMSSD === 0, 'got ' + String(flat.devRMSSD));
+      T.ok('…and that measured 0 carries no absence reason', !flat.rmssdAbsentReason, 'got ' + String(flat.rmssdAbsentReason));
+
+      // ── 4 · the clean path is untouched ──
+      var clean = E.analyze(E.genSynthetic({ durSec: 120 }));
+      T.ok('a clean record still reports a finite rmssd', typeof clean.rmssd === 'number' && isFinite(clean.rmssd) && clean.rmssd > 0, 'got ' + String(clean.rmssd));
+      T.ok('a clean record reports no absence reason', clean.rmssdAbsentReason === null, 'got ' + String(clean.rmssdAbsentReason));
     });
 
     group('ECGDex accAnalyze — posture from the gravity vector, known-answer', 'ecgdex-dsp · posture', function (T) {
@@ -13525,6 +13627,123 @@
         /function\s+escHTML\(s\)\s*\{\s*return\s+escapeHTML\(s\)\s*;\s*\}/.test(oxyUtil),
         'escHTML is a per-app copy, not a delegate'
       );
+    });
+
+    /* ════ 8b-ii · SECURITY — XSS sink remediation (2026-10-05 deep review §1) ════ */
+    group('Security — XSS sinks escape untrusted strings (2026-10-05 §2 — ATTRIBUTE sinks)', 'security · xss · attribute-sink', function (T) {
+      var src = env.sources || {};
+      var overApp = src['overdex-app.js'] || '';
+      var oxyRender = src['oxydex-render.js'] || '';
+      T.ok('sources carry overdex-app.js and oxydex-render.js', overApp.length > 0 && oxyRender.length > 0, 'a missing source would make every assertion below vacuous');
+
+      /* ── 0 · THE CONTROL: the canonical escaper closes an ATTRIBUTE, the local one did not ──
+         §1 covered innerHTML sinks, where escaping &<> is enough to stop a tag. An ATTRIBUTE sink
+         needs the QUOTE: `title="` + value + `"` breaks out on a bare " with no angle bracket in
+         sight. This asserts the tool the fix reaches for actually closes that hole, so the source
+         assertions below are checking a delegation that works rather than one that merely exists. */
+      var esc = env.escapeHTML || (env.DexEsc && env.DexEsc.escapeHTML);
+      T.ok('dex-escape.js escapeHTML is loaded', typeof esc === 'function', 'not reachable — the assertions below would prove nothing');
+      if (typeof esc === 'function') {
+        var breakout = '" onmouseover="alert(1)';
+        T.ok('escapeHTML escapes the double quote (the attribute breakout)', esc(breakout).indexOf('&quot;') === 0, 'got ' + JSON.stringify(esc(breakout).slice(0, 24)));
+        T.ok('escapeHTML escapes the single quote too', esc("'").indexOf('&#39;') === 0, 'single-quoted attributes break out on a bare apostrophe');
+        T.ok('…and a quoted payload survives as inert text', esc(breakout).indexOf('"') === -1, 'a raw " remains after escaping');
+      }
+
+      /* ── 1 · overdex-app.js: no quote-blind local escaper ──
+         The local `esc()` replaced /[&<>]/ only, and `:608` put its output inside title="…" where
+         `b.text` carries 'TAMPERED: ' + f.name — a folder name is user-controlled. A second escaper
+         that disagrees with the canonical one is the defect, not the call site. */
+      T.ok('overdex-app · no local escaper that omits the quote', !/function esc\s*\(s\)\s*\{[\s\S]{0,200}?replace\(\s*\/\[&<>\]\/g/.test(overApp), 'the quote-blind local esc() is still defined');
+      /* The fix is a DELEGATION, not a patched call site: `esc` became a one-line alias for the
+         canonical escaper, so every sink in overdex-app.js is covered at once and a second escaper
+         cannot drift from the first. This asserts the alias, which is the stronger property —
+         mirroring the OxyDex escHTML single-source lock in §1. */
+      T.ok(
+        'overdex-app · the local esc delegates to the shared escapeHTML (single source)',
+        /function esc\(s\)\s*\{\s*return escapeHTML\(s\);\s*\}/.test(overApp),
+        'esc does not delegate — a second escaper can drift from the canonical one'
+      );
+      T.ok(
+        'overdex-app · the seal title is built through esc (so it inherits the delegation)',
+        /title="'\s*\+\s*esc\(/.test(overApp) || /title="'\s*\+\s*escapeHTML\(/.test(overApp),
+        'the title attribute bypasses the escaper entirely'
+      );
+
+      /* ── 2 · oxydex-render.js: the two raw ATTRIBUTE sinks ──
+         Both carry values that arrive verbatim from user JSON in review mode. The night-row
+         aria-label two lines above ALREADY used escHTML on the same variable, which is what makes
+         this a slip rather than a policy. */
+      T.ok('oxydex-render · the night-detail aria-label escapes n.date', !/aria-label="Details for night '\s*\+\s*n\.date/.test(oxyRender), 'n.date still concatenated raw into an aria-label');
+      T.ok(
+        'oxydex-render · the flag pill escapes f.sev and f.code',
+        !/class="fpill '\s*\+\s*f\.sev\s*\+\s*'">'\s*\+\s*f\.code/.test(oxyRender),
+        'f.sev reaches a class attribute and f.code an element body, both raw'
+      );
+      T.ok(
+        'oxydex-render · every aria-label built from n.date escapes it',
+        (oxyRender.match(/aria-label="[^"]*'\s*\+\s*n\.date/g) || []).length === 0,
+        'at least one aria-label still takes n.date raw'
+      );
+    });
+
+    group('Security — XSS sinks escape untrusted strings (2026-10-05 §1)', 'security · xss · sources', function (T) {
+      var src = env.sources || {};
+      var oxyDsp = src['oxydex-dsp.js'] || '';
+      var oxyApp = src['oxydex-app.js'] || '';
+      var oxyFusion = src['oxydex-fusion.js'] || '';
+      var oxyRender = src['oxydex-render.js'] || '';
+      var oxyUtil = src['oxydex-util.js'] || '';
+      var intLong = src['integrator-longitudinal.js'] || '';
+      var pulseRender = src['pulsedex-render.js'] || '';
+
+      // ── 1 · _csvParseErrors: every push escapes its untrusted parts at push time ──
+      // The array is a cross-function global consumed by two innerHTML sinks; its invariant
+      // is "always HTML-safe". A push without escHTML() is a future sink waiting to happen.
+      var pushes = oxyDsp.match(/_csvParseErrors\.push\([\s\S]*?\);/g) || [];
+      var rawPushes = pushes.filter(function (p) {
+        return p.indexOf('escHTML(') === -1;
+      });
+      T.ok('_csvParseErrors has push sites', pushes.length > 0, 'no pushes found');
+      T.ok(
+        'oxydex-dsp · every _csvParseErrors push escapes (no raw file.name / message)',
+        rawPushes.length === 0,
+        rawPushes.length + ' push(es) without escHTML: ' + rawPushes.slice(0, 2).join(' | ').slice(0, 160)
+      );
+      // The warning-banner consumer must not double-escape the now-safe entries.
+      T.ok(
+        'oxydex-dsp · warning banner does not re-escape pre-escaped entries',
+        !/\.map\(function\s*\(e\)\s*\{\s*return\s*'<div class="warning-line">'\+escHTML\(e\)/.test(oxyDsp),
+        'double-escaping the pre-escaped entries'
+      );
+
+      // ── 2 · oxydex-app waveform stem (filename-derived) ──
+      T.ok('oxydex-app · waveform stem escaped at the sink', /escHTML\(\s*stem\s*\)/.test(oxyApp), 'stem concatenated raw into innerHTML');
+
+      // ── 3 · oxydex-fusion < -sniff bypass is deleted ──
+      T.ok("oxydex-fusion · no content-sniffed HTML bypass (row.v.indexOf('<'))", oxyFusion.indexOf("row.v.indexOf('<')") === -1, 'the bypass is still present');
+      T.ok('oxydex-fusion · row.v always escaped', /escHTML\(String\(row\.v\)\)/.test(oxyFusion), 'row.v not routed through escHTML');
+
+      // ── 4 · oxydex-render crash handler ──
+      T.ok('oxydex-render · crash handler escapes errDetail', /escHTML\(\s*errDetail\s*\)/.test(oxyRender), 'e.message + stack written raw to innerHTML');
+
+      // ── 5 · integrator-longitudinal engineVersions ──
+      T.ok(
+        'integrator-longitudinal · engineVersions escaped (canonical escaper)',
+        /engineVersions\.map\(\s*escapeHTML\s*\)/.test(intLong) || /engineVersions\.map\(function[^{]*\{[^}]*escapeHTML/.test(intLong),
+        'envelope-supplied engineVersion joined raw into innerHTML'
+      );
+
+      // ── 6 · pulsedex-render: one escaper (canonical), review-mode sinks covered ──
+      T.ok('pulsedex-render · local _pesc deleted (routes to canonical escapeHTML)', pulseRender.indexOf('function _pesc') === -1, '_pesc still defined — a divergent escaper');
+      T.ok('pulsedex-render · review-mode impression values escaped', /escapeHTML\(\s*nv\(t\.rmssd\)\s*\)/.test(pulseRender), 'nv(t.rmssd) written raw (user JSON is not trusted numeric)');
+      T.ok('pulsedex-render · review-mode event conf escaped', /escapeHTML\(\s*e\.conf/.test(pulseRender) || /escapeHTML\(\(\s*e\.conf/.test(pulseRender), 'e.conf written raw');
+      T.ok('pulsedex-render · Welltory CSV cells escaped', /escapeHTML\(\s*c\s*\)/.test(pulseRender), 'CSV cells written raw into <td>');
+
+      // ── 7 · safeSet renamed (it never escaped; the name lied) ──
+      T.ok('oxydex-util · safeSet renamed to setIfPresent', oxyUtil.indexOf('function safeSet') === -1 && /function setIfPresent/.test(oxyUtil), 'safeSet still defined');
+      var allOxy = oxyDsp + oxyApp + oxyRender + oxyUtil;
+      T.ok('oxydex · no safeSet call sites remain', !/[^a-zA-Z_]safeSet\(/.test(allOxy), 'a safeSet( call site survived the rename');
     });
 
     /* ════ 8c · SECURITY — storage hygiene: erase-all + migrate cleanup (SECURITY-REMEDIATION C · F4/F5/F6) ════ */
@@ -29896,7 +30115,8 @@
       out = B.computeMotionProfile(0);
       T.eq('B.computeMotionProfile(0) → "0"', JSON.stringify(out.arousalIndex), '0');
       out = B.oxyDesatConf(null);
-      T.eq('B.oxyDesatConf(null) → "0.45"', JSON.stringify(out), '0.45');
+      // ⚠ RECONCILED (ABSENCE-SURVEY d488d9d484e2) — this pinned 0.45, the confidence of a real shallow dip, for no event at all
+      T.eq('B.oxyDesatConf(null) → null (no depth, no confidence)', JSON.stringify(out), 'null');
       out = B._oxyEnsureRows(null);
       T.eq('B._oxyEnsureRows(null) → "true"', JSON.stringify(out === null), 'true');
       out = B.computeODI1('');
@@ -30228,6 +30448,39 @@
       T.eq('…while a 7-night window of 97 with ONE absent night averaged 83.1, not 97', +((97 * 6) / 7).toFixed(1), 83.1);
     });
 
+    group('OxyDex B1 · an unread motion cell and a synthesised gap span are not readings', 'oxydex-dsp · parse · absence', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeDataGaps === 'function')) {
+        T.skip('OxyDex._bare.parseCSV / computeDataGaps exposed', 'not on the bare surface');
+        return;
+      }
+      // 1a3cd7699ce2 — `parseInt('') || 0` read an empty or unparseable cell as motion 0, i.e. "still"
+      var csv = 'Time,Oxygen Level,Pulse Rate,Motion\n' + '20:21:36 13/08/2026,96,52,0\n' + '20:21:37 13/08/2026,95,53,\n' + '20:21:38 13/08/2026,95,53,x\n' + '20:21:39 13/08/2026,94,54,3\n';
+      var rows = OB.parseCSV(csv, { fname: 'x_SPO2.csv' });
+      T.eq('B1 · four rows parsed', rows.length, 4);
+      T.eq(
+        'B1 · motion is 0 / null / null / 3 — a written 0 stays 0, an empty or unparseable cell is null',
+        rows
+          .map(function (r) {
+            return r.motion === null ? 'null' : String(r.motion);
+          })
+          .join(','),
+        '0,null,null,3'
+      );
+      // Through the Codex reader: the radix is 10, so a hex-looking cell is NOT read as hex (parseInt radix 0 would give 16)
+      var hexRows = OB.parseCSV('Time,Oxygen Level,Pulse Rate,Motion\n20:21:36 13/08/2026,96,52,0x10\n', { fname: 'x_SPO2.csv' });
+      T.eq('B1 · motion is parsed base 10: "0x10" reads 0, never 16', hexRows.length && hexRows[0].motion, 0);
+      // 4fc9554e37da — with no wall-clock span the gap percentage rests on an ASSUMED 1 Hz, and says so
+      var stamped = OB.computeDataGaps(rows);
+      T.eq('B1 · a stamped night carries no span-source label (its output is unchanged)', 'gapSpanSource' in stamped, false);
+      var unstamped = OB.computeDataGaps(
+        rows.map(function (r) {
+          return Object.assign({}, r, { t: null });
+        })
+      );
+      T.eq('B1 · a stampless night names its span as assumed', unstamped.gapSpanSource, 'assumed-1Hz');
+    });
+
     group('OxyDex parseJSONL round-trips every field, and tells ABSENT from ZERO', 'oxydex-dsp · parse · known-answer · mutation-pinned', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseJSONL === 'function')) {
@@ -30525,13 +30778,67 @@
       T.eq('…minHr too', mn && mn.stats.minHr, 44);
       T.eq('…and t0Ms still comes from stats.startTs', mn && mn.t0Ms, 1780356420000);
       T.eq('…spikes on a bare record is an empty list, not null', mn && mn.spikes && mn.spikes.length, 0);
-      /* osc does NOT default to null like hrv — it gets a zero-shaped object. Asserting the real
-         default rather than the one symmetry suggested; the difference is the point of checking. */
-      T.eq('…osc defaults to a ZERO-SHAPED object, unlike hrv', mn && mn.osc && mn.osc.episodeCount, 0);
-      T.eq('…with an empty windows list', mn && mn.osc && mn.osc.windows.length, 0);
+      /* osc is NULL when absent, like hrv and odi4 (ABSENCE-SURVEY e012278db97c). It used to default to a
+         zero-shaped object — "the detector ran and found 0 episodes" — from an export carrying no evidence
+         the detector ran at all; oxyBuildNightElement re-exported that as a clean night. The old expectation
+         here pinned that, the same way the odi4 one above did. Every reader guards with `n.osc`. */
+      T.eq('…osc is NULL when absent — a zero-filled block reads as a clean night', mn && mn.osc, null);
       T.eq('…hb is null', mn && mn.hb, null);
       T.eq('…comp is null', mn && mn.comp, null);
       T.eq('…and a spread newMetrics key is absent rather than 0', mn && mn.vo2est, null);
+
+      // ── ABSENCE-SURVEY group B1: what the importer and the CSV parser used to turn into 0 ──────────
+      var clone = function (o) {
+        return JSON.parse(JSON.stringify(o));
+      };
+      // 0e9b40d1425a — the stats block's three `|| 0` holdouts
+      var r1 = clone(REC);
+      delete r1.stats.n;
+      delete r1.stats.artifactHrCleaned;
+      delete r1.stats.artifactSpikesRemoved;
+      var m1 = one(r1);
+      T.eq('B1 · an absent sample count is null, not 0', m1 && m1.stats.n, null);
+      T.eq('B1 · absent artifact counts are null, not 0', m1 && [m1.stats.artifactHrCleaned, m1.stats.artifactSpikesRemoved].join(','), ',');
+      // 483e784c9219 — no sample count and no duration: no basis, never `secs: 0` labelled a wall duration
+      var r2 = clone(REC);
+      delete r2.research;
+      delete r2.stats.n;
+      delete r2.stats.durationMin;
+      var m2 = one(r2);
+      T.eq('B1 · T95 seconds are null when nothing gives a basis', m2 && m2.tIdx && m2.tIdx[95] && m2.tIdx[95].secs, null);
+      T.eq('B1 · …and no basis is named', m2 && m2.tIdx && m2.tIdx.tIdxBasis, null);
+      // 773f10412ae2 — a detail-less spike is skippable (null), and an unparseable time is not minute 0
+      var r3 = clone(REC);
+      r3.hr_spikes = { events: [{ time: 'not-a-time', peak: 91 }] };
+      var m3 = one(r3);
+      var sp3 = m3 && m3.spikes && m3.spikes[0];
+      T.eq('B1 · an absent spike baseline is null, not a 0 bpm baseline', sp3 && sp3.baseline, null);
+      T.eq('B1 · …a present peak survives', sp3 && sp3.peak, 91);
+      T.eq('B1 · …and an unparseable time gives no minute, not minute 0', sp3 && sp3.mfm, null);
+      // Through the Codex reader (each input run against the original first):
+      var r4 = clone(REC);
+      delete r4.research;
+      delete r4.stats.n;
+      r4.stats.durationMin = null; // PRESENT and null: isFinite(null) is true, so the guard needs its `!= null`
+      var m4 = one(r4);
+      T.eq('B1 · a durationMin of null is no basis either', m4 && m4.tIdx && m4.tIdx[90] && m4.tIdx[90].secs, null);
+      var r5 = clone(REC);
+      delete r5.research;
+      delete r5.stats.n;
+      r5.stats.durationMin = 10;
+      r5.stats.t90pct = 50;
+      var m5 = one(r5);
+      T.eq('B1 · a duration basis is minutes x 60: 50 % of 10 min is 300 s, at key 90', m5 && m5.tIdx && m5.tIdx[90] && m5.tIdx[90].secs, 300);
+      var r6 = clone(REC);
+      delete r6.research;
+      r6.stats.n = 100;
+      r6.stats.t90pct = 50;
+      var m6 = one(r6);
+      T.eq('B1 · a sample-count basis: 50 % of 100 samples is 50 s', m6 && m6.tIdx && m6.tIdx[90] && JSON.stringify([m6.tIdx[90].pct, m6.tIdx[90].secs]), '[50,50]');
+      var r7 = clone(REC);
+      r7.hr_spikes = { events: [{ time: '00:01:00', peak: 90 }] };
+      var m7 = one(r7);
+      T.eq('B1 · a parseable spike time becomes its minute: 00:01:00 is minute 1', m7 && m7.spikes && m7.spikes[0].mfm, 1);
     });
 
     group('OxyDex sanity filter drops out-of-range rows, one axis at a time (mutate.mjs survivor)', 'oxydex-dsp · parse · known-answer', function (T) {
@@ -30566,6 +30873,56 @@
       // nothing on this fixture", which would satisfy the first assertion for the wrong reason.
       var okRows = OB.parseCSV(HEAD + row(1, 96, 60), { fname: 'ok.csv' });
       T.eq('control: an ordinary in-range row parses', okRows.length, 1);
+    });
+
+    /* ════ rmssdArc DECLARES ITS UNIT, AND THE DECLARATION IS PROVED FROM THE DATA.
+       The registry said `ms/h`. The DSP takes the RMSSD of the PULSE-RATE series (`r.hr`, bpm) over
+       `WIN = 1800` rows of 1 Hz O2Ring CSV — 30-minute windows — and regresses it on the WINDOW INDEX.
+       So `ms/h` was wrong in the numerator AND the denominator: wrong in KIND, which no scale factor
+       repairs. Fixed in the REGISTRY, because the DSP's own labels gate on `slope < -0.2` / `> 0.2` in
+       these native units and rescaling would move every published number.
+
+       ⚠️ A DECLARED UNIT THAT IS WRONG IS WORSE THAN NO UNIT (same reasoning as the ECGDSP
+       analyze-contract group). So every leg here is a RELATION a unit error cannot satisfy: the planted
+       HR amplitude IS the window's RMSSD (fixing the numerator as bpm), and the slope is per WINDOW
+       INDEX, not per hour (fixing the denominator — the per-hour value would be exactly double). ════ */
+    group('OxyDex rmssdArc declares its unit — bpm per 30-min window, proved not trusted', 'oxydex-dsp · oxydex-registry · units', function (T) {
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var B = (_od && _od._bare) || _od || {};
+      var arc = B.computeRMSSDarc;
+      var REG = env.sources && env.sources['oxydex-registry.js'];
+      T.ok('computeRMSSDarc reachable on the BARE test surface', typeof arc === 'function', 'not exposed — the unit cannot be pinned by a known answer');
+      T.ok('oxydex-registry.js source available', !!REG, 'the declaration cannot be read');
+      if (typeof arc !== 'function' || !REG) return;
+
+      /* A window whose HR alternates base → base+d has successive differences of magnitude d only, so
+         its RMSSD is EXACTLY d. Four windows of 1800 rows plant RMSSD = 2, 4, 6, 8 bpm. */
+      var WIN = 1800;
+      var amps = [2, 4, 6, 8];
+      var rows = [];
+      for (var k = 0; k < amps.length; k++) for (var i = 0; i < WIN; i++) rows.push({ hr: 60 + (i % 2 ? amps[k] : 0), motion: 0, spo2: 96 });
+      var r = arc(rows);
+      T.ok('the plant is not vacuous — 7200 rows produced 4 windows', !!r && r.rmssdArcWindows && r.rmssdArcWindows.length === 4, 'got ' + (r && r.rmssdArcWindows && r.rmssdArcWindows.length));
+
+      // ── THE NUMERATOR IS bpm ── the window RMSSD equals the planted bpm amplitude, exactly.
+      T.ok(
+        'each window RMSSD equals the planted HR amplitude in bpm',
+        JSON.stringify(r.rmssdArcWindows) === JSON.stringify(amps),
+        'got ' + JSON.stringify(r.rmssdArcWindows) + ' want ' + JSON.stringify(amps)
+      );
+
+      // ── THE DENOMINATOR IS ONE WINDOW ── +2 bpm per window index. Per HOUR this would read 4.
+      T.ok('the slope is +2 per WINDOW INDEX (bpm/30min)', r.rmssdArcSlope === 2, 'got ' + String(r.rmssdArcSlope));
+      T.ok('…and it is NOT the per-hour value, which a `/h` unit would imply', r.rmssdArcSlope !== 4, 'slope reads as per-hour — the denominator moved');
+      T.ok('the fit is exact on a linear plant (r2 = 1), so the slope is not an artefact', r.rmssdArcR2 === 1, 'r2 ' + String(r.rmssdArcR2));
+
+      // ── ONE WINDOW IS 30 MIN ── 1800 rows of 1 Hz O2Ring CSV; the declaration must say so.
+      T.ok('one window is 1800 rows = 30 min at the O2Ring 1 Hz row rate', rows.length / r.rmssdArcWindows.length === 1800, 'rows per window ' + rows.length / r.rmssdArcWindows.length);
+      var decl = /rmssdArc:\s*\{[\s\S]{0,900}?unit:\s*'([^']*)'/.exec(REG);
+      T.ok('the registry declares a unit for rmssdArc', !!decl, 'no unit field found');
+      T.ok("the declared unit is 'bpm/30min' — what the code emits", decl && decl[1] === 'bpm/30min', 'declared ' + (decl && JSON.stringify(decl[1])));
+      T.ok('the declaration does not claim milliseconds (the series is a pulse RATE)', !!decl && decl[1].indexOf('ms') === -1, 'declared ' + (decl && JSON.stringify(decl[1])));
+      T.ok('the declaration does not claim a per-hour denominator', !!decl && !/\/h$|\/hr$/.test(decl[1]), 'declared ' + (decl && JSON.stringify(decl[1])));
     });
 
     group('OxyDex perfusion index from the OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4)', 'oxydex-dsp · oxydex-registry', function (T) {
@@ -44848,6 +45205,147 @@
       }
     });
 
+    group('OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0', 'oxydex-fusion · absence', function (T) {
+      // fusion's PUBLISHED surface only (its window / stamp helpers are module-private): node reads env, browser globals
+      var W = typeof globalThis !== 'undefined' ? globalThis : {};
+      var names = ['oxyComputeFusion', 'oxyEcgFusionSection', 'oxyEcgForNight'];
+      var G = {};
+      names.forEach(function (k) {
+        G[k] = typeof env[k] === 'function' ? env[k] : W[k];
+      });
+      var setByDate =
+        typeof env.setEcgByDate === 'function'
+          ? env.setEcgByDate
+          : function (m) {
+              W._ecgByDate = m;
+            };
+      var miss = names.filter(function (k) {
+        return typeof G[k] !== 'function';
+      });
+      /* A NODE-lane group: run-tests.mjs executes oxydex-fusion.js headless, while the browser lane loads it only as
+         TEXT (SOURCE_FILES). So reachability is ASSERTED under the Node runner (env.nodeFs) and SKIPPED BY NAME in the
+         browser, never vacuously green (the R1 lesson, #3341). */
+      if (!env.nodeFs && miss.length === names.length) {
+        T.skip('oxydex-fusion co-loaded', 'Node-lane only: the browser lane loads oxydex-fusion.js as text (SOURCE_FILES), so its published surface is not on window there');
+        return;
+      }
+      T.eq('fusion · every function this group calls is reachable', miss, []);
+      if (miss.length) return;
+      var t0 = Date.UTC(2026, 5, 12, 22, 0, 0); // 22:00
+      var ecg = function (rec, surges) {
+        return {
+          recording: rec,
+          ganglior_events: (surges || []).map(function (t) {
+            return { impulse: 'autonomic_surge', t: t };
+          }),
+          apnea: { cvhrEvents: 4 },
+          hrv: { time: {} },
+          cardiorespiratory: {}
+        };
+      };
+      var nightAt = function (events, stats) {
+        return { t0Ms: t0, stats: stats || {}, hrv: {}, desat: { events: events }, hb: { total: 100 } };
+      };
+      var ALLNIGHT = { startEpochMs: t0, durationMin: 600 };
+      // 02ff987f1a3b — an unreadable or out-of-range stamp places no surge (it used to land at midnight / roll a day)
+      var mid = nightAt([{ tMs: t0 + 2 * 3600000, depth: 6 }]); // a desat at 00:00 the next day
+      T.eq('fusion · a surge stamped "xx:yy" confirms nothing (it read as 00:00)', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['xx:yy'])).confirmed, 0);
+      var one = nightAt([{ tMs: t0 + 3 * 3600000, depth: 6 }]); // 01:00 the next day
+      T.eq('fusion · a surge stamped "25:00:00" confirms nothing (Date.UTC rolled it to 01:00)', G.oxyComputeFusion(one, ecg(ALLNIGHT, ['25:00:00'])).confirmed, 0);
+      T.eq('fusion · CONTROL · a surge stamped "00:00:00" confirms the 00:00 desat', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['00:00:00'])).confirmed, 1);
+      // the range edges: 23 / 59 / 59 are legal, 60 is not (each bound on its own)
+      var edge = nightAt([{ tMs: t0 + 7199000, depth: 6 }]); // 23:59:59
+      T.eq('fusion · "23:59:59" is a legal stamp ⇒ confirms the 23:59:59 desat', G.oxyComputeFusion(edge, ecg(ALLNIGHT, ['23:59:59'])).confirmed, 1);
+      T.eq('fusion · "23:60:00" ⇒ null (minute 60), not rolled onto 00:00', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['23:60:00'])).confirmed, 0);
+      var m1 = nightAt([{ tMs: t0 + 3660000, depth: 6 }]); // 23:01:00
+      T.eq('fusion · "23:00:60" ⇒ null (second 60), not rolled onto 23:01', G.oxyComputeFusion(m1, ecg(ALLNIGHT, ['23:00:60'])).confirmed, 0);
+      // 7fe93fab700e — an ECG with no recorded duration has no window: coverage unknown, not a 0-minute window
+      var desats = [];
+      for (var i = 0; i < 10; i++) desats.push({ tMs: t0 + (30 + i * 30) * 60000, depth: 6 });
+      var Z = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0 }));
+      T.eq('fusion · ECG start with no duration ⇒ coverage UNKNOWN (null), not 0 desats covered', Z.coveredDesats, null);
+      // 612257ff825b / d46c73b26764 — no ECG window ⇒ no confirmed %, no scoped burden
+      var U = G.oxyComputeFusion(nightAt(desats), ecg({ durationMin: 60 }));
+      T.eq('fusion · no ECG window ⇒ coveredDesats null, not all 10', U.coveredDesats, null);
+      T.eq('fusion · …so confPct is null, never a green 0 of 10', U.confPct, null);
+      T.eq('fusion · …and no burden is scoped to an unknown share', U.hbCov, null);
+      var noDes = G.oxyComputeFusion(nightAt([]), ecg({ startEpochMs: t0, durationMin: 60 }));
+      // strict `=== null`: JSON.stringify(NaN) is "null", which let two NaN-producing mutants through a JSON compare
+      T.ok('fusion · no desats ⇒ the covered share is undefined ⇒ no whole-night burden per window event', noDes.hbCov === null && noDes.dosePerEv === null, String([noDes.hbCov, noDes.dosePerEv]));
+      T.ok('fusion · …and no coverage percentage (0 of 0 is not a %)', noDes.coveragePct === null, String(noDes.coveragePct));
+      var P = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0, durationMin: 100 }));
+      T.eq('fusion · CONTROL · 3 of 10 desats under a 100-min ECG ⇒ coveragePct 30', P.coveragePct, 30);
+      var S = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0, durationSec: 6000 }));
+      T.eq('fusion · a duration given only in seconds (6000 s) bounds the window ⇒ 3 covered', S.coveredDesats, 3);
+      var nonOv = String(G.oxyEcgFusionSection(nightAt(desats), ecg({ startEpochMs: t0 + 8 * 3600000, durationMin: 60 })));
+      T.ok('fusion · a known window that overlaps no desat ⇒ the explicit no-overlap tile', nonOv.indexOf('did not overlap any of the') >= 0);
+      // per-stage rows: REM (8) · Deep (no depth) · Unstaged (3, 6) — every row's text and width pinned
+      var staged = {
+        recording: { startEpochMs: t0, durationMin: 120 },
+        ganglior_events: [],
+        apnea: { cvhrEvents: 4 },
+        hrv: { time: {} },
+        cardiorespiratory: {},
+        timeseries: {
+          sleepStages: [
+            { tMin: 30, stage: 'REM' },
+            { tMin: 60, stage: 'Deep' }
+          ]
+        }
+      };
+      var sev = [{ tMs: t0 + 1800000, depth: 8 }, { tMs: t0 + 3600000 }, { tMs: t0 + 5 * 3600000, depth: 3 }, { tMs: t0 + 6 * 3600000, depth: 6 }];
+      var shtml = String(G.oxyEcgFusionSection(nightAt(sev), staged));
+      var rowOf = function (h, name) {
+        var r = h.split('efz-stagerow').filter(function (x) {
+          return x.indexOf('efz-stagename">' + name + '<') >= 0;
+        });
+        return r.length ? r[0].slice(0, 400) : '';
+      };
+      var rem = rowOf(shtml, 'REM'),
+        deep = rowOf(shtml, 'Deep'),
+        uns = rowOf(shtml, 'Unstaged');
+      T.ok('fusion · REM: the deepest bucket fills 100 % (the max over ALL stages, not the last)', /width:100%/.test(rem) && /−8% deepest · −8% mean · 1×/.test(rem), rem);
+      T.ok('fusion · REM is ECG-staged: no "no ECG coverage"', rem !== '' && rem.indexOf('no ECG coverage') < 0, rem);
+      T.ok('fusion · Deep: no depth recorded, and no "(depth on 0)"', /depth not recorded · 1×/.test(deep) && deep.indexOf('depth on') < 0, deep);
+      T.ok(
+        'fusion · Unstaged: deepest 6 (the max, not the first), mean 4.5, every event measured ⇒ no "(depth on")',
+        /−6% deepest · −4.5% mean · 2×/.test(uns) && uns.indexOf('depth on') < 0 && /width:75%/.test(uns) && uns.indexOf('no ECG coverage') >= 0,
+        uns
+      );
+      var zhtml = String(G.oxyEcgFusionSection(nightAt([{ tMs: t0 + 1800000, depth: 0 }]), ecg({ startEpochMs: t0, durationMin: 120 })));
+      T.ok(
+        'fusion · a 0 % deepest everywhere ⇒ the 6 % floor bar, never width NaN',
+        zhtml.indexOf('NaN') < 0 && /efz-stagefill" style="width:6%/.test(zhtml),
+        (zhtml.match(/efz-stagefill[^>]*/) || [''])[0]
+      );
+      // 732f9bcf73c2 / 92559b915569 — an event with no depth leaves its stage's mean
+      var mixed = [{ tMs: t0 + 1800000, depth: 6 }, { tMs: t0 + 3600000, depth: 6 }, { tMs: t0 + 5400000 }];
+      var html = String(G.oxyEcgFusionSection(nightAt(mixed), ecg({ startEpochMs: t0, durationMin: 120 })));
+      var row = (html.match(/efz-stageval">[^<]*/) || [''])[0];
+      T.ok('fusion · two 6 % dips + one with no depth ⇒ a 6 % mean, not 4 %', /−6% mean/.test(row), row);
+      T.ok('fusion · …and the row says how many carried a depth', /3×\s*\(depth on 2\)/.test(row), row);
+      // 7fe93fab700e (pairing half) — the start-only ECG that coverage now refuses must still PAIR by its start
+      // the start-only fallback must NOT replace a real window: a bigger overlap still wins over an earlier key
+      var A = ecg({ startEpochMs: t0 + 3600000, durationMin: 60 }),
+        Bb = ecg({ startEpochMs: t0 + 1800000, durationMin: 300 });
+      try {
+        setByDate({ '2026-06-12a': A, '2026-06-12b': Bb });
+        T.ok('fusion · the ECG with the larger true overlap is paired (windows, not start points)', G.oxyEcgForNight({ t0Ms: t0, date: '2026-06-12', stats: { durationMin: 480 } }) === Bb);
+      } finally {
+        setByDate(undefined);
+      }
+      var startOnly = ecg({ startEpochMs: t0 + 3 * 3600000 }); // 01:00, keyed by its own (next) civil date
+      try {
+        setByDate({ '2026-06-13': startOnly, '2026-06-20': ecg({ startEpochMs: t0 + 8 * 86400000, durationMin: 60 }) });
+        T.ok(
+          'fusion · CONTROL · a start-only ECG inside the night still pairs (by its start, not its date)',
+          G.oxyEcgForNight({ t0Ms: t0, date: '2026-06-12', stats: { durationMin: 480 } }) === startOnly
+        );
+      } finally {
+        setByDate(undefined);
+      }
+    });
+
     group(
       'OxyDex fusion is COVERAGE-AWARE — confPct/dose scoped to the ECG window, no green 0 on non-overlap (DEEP-AUDIT-II §11.1–11.3)',
       'oxydex-fusion · coverage-aware · fabricated-absence',
@@ -45978,6 +46476,68 @@
       // a source-tag whose text merely CONTAINS a dot mid-string (a version) is not filename-shaped
       var tagOnly = DX.scrubExport({ schema: {}, recording: { source: 'ResMed AirSense 11 (EDF set)' }, sessions: [{ source: 'firmware 2.1 build' }] });
       T.ok('§5 · tag-shaped source strings survive (no extension, no separator)', tagOnly.recording.source === 'ResMed AirSense 11 (EDF set)' && tagOnly.sessions[0].source === 'firmware 2.1 build');
+    });
+
+    /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════
+       `_scrubElement` scrubbed `el.provenance` and `el.recording` and never visited
+       `el.schema.provenance`, while `scrubExport` reduces `schema.provenance` at the TOP level only.
+       ECGDex/PulseDex `recordings[]` and PpgDex `sessions[]` do not carry a summary block — they carry
+       a FULL v2.0 envelope per element, `schema.provenance.inputs[]` included, each input holding
+       `{ name, bytes, lastModifiedMs, sha256 }`. So with scrub ON, every per-element input NAME and
+       SHA256 survived, against the acceptance stated at the top of dex-export.js: a scrubbed JSON
+       contains no device serial, filename or input sha256.
+       ⚠️ THE EXISTING §5 GROUP IS GREEN OVER THIS. Its planted `nights[]` element carries a bare
+       `provenance` and its `recordings[]`/`sessions[]` elements carry NEITHER `schema` NOR
+       `provenance` — so the one shape that leaks is the one shape never planted. That is why this is a
+       separate group with its own control rather than another assertion in that one. RED on main. */
+    group('SELF-INGEST §5 · a per-element ENVELOPE is scrubbed, not just a per-element provenance', 'dex-export · scrub · self-ingest · plant', function (T) {
+      var DX = env.DexExport || (typeof globalThis !== 'undefined' && globalThis.DexExport) || null;
+      if (!DX || typeof DX.scrubExport !== 'function') {
+        T.skip('env.DexExport.scrubExport available', 'not available in this runner');
+        return;
+      }
+      var SHA = 'b17e55c0ffee1234567890abcdef0123456789abcdef0123456789abcdef0123';
+      var NAME = 'Jane_Smith_H10_20260612230016_ECG.txt';
+      function envelope() {
+        return {
+          schema: {
+            name: 'ganglior.node-export',
+            version: '2.0',
+            provenance: { buildHash: 'abc123', generated: '2026-06-12T23:00:16Z', inputs: [{ name: NAME, bytes: 918273, lastModifiedMs: 1781308816000, sha256: SHA }] }
+          },
+          recording: { contentId: 'cid-1' }
+        };
+      }
+      var raw = {
+        schema: {
+          name: 'ganglior.node-export',
+          version: '2.0',
+          provenance: { buildHash: 'abc123', generated: '2026-06-12T23:00:16Z', inputs: [{ name: NAME, bytes: 918273, lastModifiedMs: 1781308816000, sha256: SHA }] }
+        },
+        recordings: [envelope()],
+        sessions: [envelope()],
+        nights: [envelope()]
+      };
+      var before = JSON.stringify(raw);
+      // CONTROL — passes on main too: without it a green test could mean the token was never there.
+      T.ok('control · the sha256 and the filename ARE present before the scrub', before.indexOf(SHA) >= 0 && before.indexOf(NAME) >= 0, 'planted');
+
+      var out = JSON.stringify(DX.scrubExport(raw));
+      // RED ON MAIN: the per-element envelopes keep both.
+      T.eq('§5 · no input sha256 survives anywhere in a scrubbed export', out.indexOf(SHA), -1);
+      T.eq('§5 · no input FILENAME survives anywhere in a scrubbed export', out.indexOf(NAME), -1);
+
+      var sc = DX.scrubExport(raw);
+      ['recordings', 'sessions', 'nights'].forEach(function (key) {
+        var el = sc[key] && sc[key][0];
+        var prov = el && el.schema && el.schema.provenance;
+        T.ok(key + '[0].schema.provenance is REDUCED, not deleted', !!prov && prov.scrubbed === true, JSON.stringify(prov && Object.keys(prov)));
+        T.eq(key + '[0] keeps the non-identifying byte count', prov && prov.inputs && prov.inputs[0] && prov.inputs[0].bytes, 918273);
+        T.eq(key + '[0] drops name/sha256/lastModifiedMs from the input', JSON.stringify(prov && prov.inputs && prov.inputs[0]), '{"bytes":918273}');
+        // CONTROL — passes on main: the coarse build stamp is integrity, not identity, and must SURVIVE.
+        T.eq('control · ' + key + '[0] keeps the coarse buildHash', prov && prov.buildHash, 'abc123');
+      });
+      T.eq('the TOP-level envelope is still scrubbed (no regression)', JSON.stringify(sc.schema.provenance.inputs[0]), '{"bytes":918273}');
     });
 
     /* ════ SELF-INGEST (CPAPDex) — cpapLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS-2026-07-03 · CPAPDex pass) ════
@@ -53547,6 +54107,118 @@
        PLANTED recovery, because a correspondence number is meaningless without knowing the instrument
        can recover a known answer — and by its own chance control, because the block fit maximises the
        statistic it reports. */
+    group('fitClockDrift\u2019s search is set-preserving — the optimisation cannot change which beats match', 'integrator-dsp · clock · equivalence', function (T) {
+      var D = env.IntegratorDSP;
+      if (!D || typeof D.fitClockDrift !== 'function') {
+        T.skip('IntegratorDSP.fitClockDrift available', 'not loaded');
+        return;
+      }
+      /* \ud83d\udd34 THE MATCHED SET PER OFFSET, not just the final centroid. `corrAt` is a closure inside
+           `fitClockDrift`, so this does not reach into it: it encodes BOTH inner loops — the original
+           (one binary search per beat per offset) and the optimised (a monotone pointer carried across
+           the sweep) — and asserts they select the SAME neighbour index for every beat at every offset
+           of the real grid. That is the property the speed-up rests on, and it is stronger than output
+           equality: two different matched sets can still average to the same centroid by luck.
+
+           WHY THE SET AND NOT THE ARGMAX. The search takes the SUPPORT CENTROID over the plateau, which
+           is ~`tolMs` wide and over which every offset keeps the same beats matched
+           (WEARABLE-DRIFT-FIT-2026-08-01 \u00a73: argmax bias measured at ~330 ms, two of four planted cases
+           went from biased to exact once the centroid replaced it). The centroid therefore depends on
+           EVERY grid offset that shares the peak \u2014 so a search that visits the same optimum by a coarser
+           route still returns a different number, which is exactly why coarse-to-fine was rejected. */
+      var B = [];
+      for (var n = 0; n < 4000; n++) B.push(1785102000000 + n * 900 + 40 * Math.sin(n / 7));
+      var bA = [];
+      for (var m = 0; m < 320; m++) bA.push(B[m * 3] + 137);
+
+      function loFromSearch(x) {
+        var lo = 0,
+          hi = B.length - 1;
+        while (lo < hi) {
+          var mid = (lo + hi) >> 1;
+          if (B[mid] < x) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      }
+      var ptr = new Int32Array(bA.length).fill(-1);
+      var disagree = 0,
+        pairs = 0;
+      for (var off = -3000; off <= 3000; off += 20) {
+        for (var i = 0; i < bA.length; i++) {
+          var x = bA[i] + off;
+          var want = loFromSearch(x);
+          var got;
+          if (ptr[i] < 0) got = loFromSearch(x);
+          else {
+            got = ptr[i];
+            while (got < B.length - 1 && B[got] < x) got++;
+            while (got > 0 && B[got - 1] >= x) got--;
+          }
+          ptr[i] = got;
+          pairs++;
+          if (got !== want) disagree++;
+        }
+      }
+      T.eq('the pointer selects the SAME index as a fresh binary search, at every offset', disagree, 0, pairs + ' (beat, offset) pairs');
+      T.ok('and the grid really was swept', pairs === bA.length * 301, pairs + ' pairs');
+
+      /* ORDER STATISTICS: quickselect must return the element a full sort would, INCLUDING on ties \u2014
+           a uniform cadence puts exact duplicates in the delta list, and that is where a selection that
+           is merely "a median" rather than `sorted[k]` would diverge. */
+      function nth(a, k) {
+        return a.slice().sort(function (p2, q2) {
+          return p2 - q2;
+        })[k];
+      }
+      var tie = [];
+      for (var z = 0; z < 311; z++) tie.push(z % 7);
+      /* FAIL-CLOSED ON A MISSING SEAM. An earlier draft of this assertion `break`-ed out when the
+           export was absent and left `okSel` true — a pass that examined nothing, which is the shape
+           this suite exists to refuse. If the selector is not exported the assertion FAILS and says so. */
+      var ks = [0, 1, Math.floor(311 / 2), Math.floor(311 * 0.25), Math.floor(311 * 0.75), 310];
+      var okSel = typeof D.selectNth === 'function',
+        checked = 0;
+      if (okSel) {
+        for (var ki = 0; ki < ks.length; ki++) {
+          var buf = new Float64Array(tie.length);
+          for (var w = 0; w < tie.length; w++) buf[w] = tie[w];
+          if (D.selectNth(buf, ks[ki], tie.length) !== nth(tie, ks[ki])) okSel = false;
+          checked++;
+        }
+      }
+      T.ok(
+        'quickselect returns sorted[k] even with heavy ties',
+        okSel && checked === ks.length,
+        typeof D.selectNth === 'function' ? checked + '/' + ks.length + ' of {0,1,p25,median,p75,last} on 311 values, 7 distinct' : 'IntegratorDSP.selectNth is NOT exported — nothing was checked'
+      );
+
+      /* AND THE WHOLE FIT STILL ANSWERS THE PLANTED QUESTION \u2014 the control that would catch a
+           set-preserving change that nevertheless broke the arithmetic. */
+      var base = [],
+        t = 1785102000000,
+        j2 = 0;
+      while (t < 1785102000000 + 2 * 3600e3) {
+        base.push(t);
+        t += 900 + 180 * Math.sin(j2 / 40);
+        j2++;
+      }
+      function mk2(off2, ppm, drop) {
+        var o = [];
+        for (var k2 = 0; k2 < base.length; k2++) {
+          if (k2 % drop === 0) continue;
+          o.push(base[k2] + off2 + ((base[k2] - base[0]) * ppm) / 1e6);
+        }
+        return o;
+      }
+      var fit = D.fitClockDrift(mk2(0, 0, 17), mk2(250, -40, 13));
+      T.ok(
+        'a planted 250 ms / -40 ppm pair is still recovered',
+        fit && fit.offsetMs != null && Math.abs(fit.offsetMs - 250) < 60 && Math.abs(fit.driftPpm + 40) < 8,
+        fit ? 'offset ' + Math.round(fit.offsetMs) + ' ms · drift ' + (fit.driftPpm == null ? 'null' : fit.driftPpm.toFixed(1)) + ' ppm' : 'no fit'
+      );
+    });
+
     group('fitClockDrift recovers a planted offset AND drift', 'integrator-dsp · clock · planted-control', function (T) {
       var D = env.IntegratorDSP;
       if (!D || typeof D.fitClockDrift !== 'function') {
@@ -58112,6 +58784,18 @@
       } else {
         T.ok('env.PulseDex._bare.siCalc available', false, 'PulseDex node-local siCalc not wired — gate skipped');
       }
+
+      // ── §2c (2026-10-05 deep review): AMo unit guard — the docstring says PERCENT.
+      // A fraction input (0.4 for 40%) is a silent 100× error; refuse with a reason, never rescale. ──
+      var whyOk = {};
+      T.ok('amo50=40 (percent) computes, no reason set', Q.baevskySI(40, 0.8, 0.3, whyOk) != null && whyOk.reason == null, 'reason=' + whyOk.reason);
+      var whyFrac = {};
+      T.ok('amo50=0.4 (looks like a fraction) refuses with reason', Q.baevskySI(0.4, 0.8, 0.3, whyFrac) === null && whyFrac.reason != null, 'reason=' + whyFrac.reason);
+      var whyBig = {};
+      T.ok('amo50=150 (>100, impossible percent) refuses with reason', Q.baevskySI(150, 0.8, 0.3, whyBig) === null && whyBig.reason != null, 'reason=' + whyBig.reason);
+      var whyOne = {};
+      T.ok('amo50=1 (boundary, ambiguous) refuses with reason', Q.baevskySI(1, 0.8, 0.3, whyOne) === null && whyOne.reason != null, 'reason=' + whyOne.reason);
+      T.ok('refusal without the why param is still bare null (backwards-compatible)', Q.baevskySI(0.4, 0.8, 0.3) === null);
     });
 
     /* ════ 26 · DIFFERENTIAL TESTING — redundant RR/HRV nodes agree (brief Phase 5) ════
@@ -64085,6 +64769,454 @@
        The compound gates get one test per OPERAND, never a joint move: §2c's rule that "all-or-none
        in the DATA is not all-or-none in the GATE" — varying both halves together can never separate
        `&&` from `||`.                                                                              */
+    /* oxydex-render.js is loaded as TEXT in this lane (env.sources), so these EXTRACT the exact statements and RUN
+       them — a flipped operator changes the answer, which a regex over spelling cannot see. A failed extraction reds:
+       a refactor must move this test, never silently skip it. */
+    group('OxyDex B2 · render · an unmeasured score is shown as not measured (extract-and-run)', 'oxydex-render · absence · extract-and-run', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      var scLine = R.match(/var sc = s\.overallScore == null \?[^;]*;/);
+      T.ok('B2 · render · the summary colour statement extracted', !!scLine);
+      if (scLine) {
+        var colour = new Function('s', scLine[0] + ' return sc;');
+        T.eq('B2 · render · null ⇒ ss-na, never good', colour({ overallScore: null }), 'ss-na');
+        T.eq('B2 · render · 2.9 ⇒ good', colour({ overallScore: 2.9 }), 'ss-good');
+        T.eq('B2 · render · 3 ⇒ warn (< 3 is strict)', colour({ overallScore: 3 }), 'ss-warn');
+        T.eq('B2 · render · 6 ⇒ bad (< 6 is strict)', colour({ overallScore: 6 }), 'ss-bad');
+      }
+      var rowsLit = R.match(/var _kRows = \[[\s\S]*?\];/);
+      var guard = R.match(/if \(([^{]*)\) \{\s*html \+= '<div class="proj-factor pf-prog"><span>' \+ r\.label \+ '<\/span><span class="pf-val">not measured/);
+      var pctLine = R.match(/var pct = Math\.min\([^;]*;/);
+      T.ok('B2 · render · the readiness-bar statements extracted', !!(rowsLit && guard && pctLine));
+      if (rowsLit && guard && pctLine) {
+        var bars = new Function('k', rowsLit[0] + ' return _kRows.map(function (r) { if (' + guard[1] + ') return "na"; ' + pctLine[0] + ' return Math.round(pct); });');
+        T.eq(
+          'B2 · render · measured bars: 15/30 ⇒ 50 %, an old export without sleepMax keeps the 20 basis ⇒ 75 %',
+          JSON.stringify(bars({ scores: { rmssd: 15, spo2: 25, sleep: 15, hrFloor: 0, hrSlope: 10 } })),
+          '[50,100,75,0,100]'
+        );
+        T.eq(
+          'B2 · render · unmeasured components ⇒ "not measured", and a 10-point sleep basis',
+          JSON.stringify(bars({ scores: { rmssd: null, spo2: 25, sleep: 7, sleepMax: 10, hrFloor: null, hrSlope: null } })),
+          '["na",100,70,"na","na"]'
+        );
+        T.eq(
+          'B2 · render · a sleep basis of 0 is no basis ⇒ not measured',
+          JSON.stringify(bars({ scores: { rmssd: 30, spo2: 25, sleep: 0, sleepMax: 0, hrFloor: 15, hrSlope: 10 } })),
+          '[100,100,"na",100,100]'
+        );
+      }
+    });
+
+    group('OxyDex B2 · a score or a verdict over an unmeasured input is no score', 'oxydex-dsp · score · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B || typeof B.computeSleepStabilityScore !== 'function') {
+        T.skip('OxyDex._bare scoring functions exposed', 'not on the bare surface');
+        return;
+      }
+      // cba3361dfcfd / 131d841e27b4 — s1 and s6 over a null statistic were a PERFECT 100
+      var st = B.computeSleepStabilityScore({ spo2Std: null, t95pct: null, motionPct: 1 }, { hrFloor: 52 }, { episodeCount: 2 }, { rate: 3 });
+      T.eq('B2 · SpO2 variability unmeasured ⇒ its subscore is null, not 100', st && st.components && st.components.spo2Stab, null);
+      T.eq('B2 · time below 95 % unmeasured ⇒ its subscore is null, not 100', st && st.components && st.components.t95, null);
+      // 12fb862b4f54 — with no motion read in any window, there is no stage estimate (not 0.0 % REM)
+      var rowsNull = [];
+      for (var i = 0; i < 2000; i++) rowsNull.push({ t: new Date(Date.UTC(2026, 0, 1, 0, 0, i)), hr: 60 + (i % 3), spo2: 95, motion: null });
+      T.eq('B2 · no window with motion read ⇒ no stage estimate', B.computeSleepStageProxy(rowsNull), null);
+      var rows0 = rowsNull.map(function (r) {
+        return { t: r.t, hr: r.hr, spo2: r.spo2, motion: 0 };
+      });
+      T.ok('B2 · CONTROL · with motion read the estimate still exists', !!B.computeSleepStageProxy(rows0));
+      // d465645b6edd — an unentered age is ASSUMED, named, and costs confidence
+      var vA = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, undefined);
+      var vE = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, 49);
+      T.eq('B2 · no age entered ⇒ ageAssumed', vA && vA.ageAssumed, true);
+      T.eq('B2 · an entered 49 is not assumed', vE && vE.ageAssumed, false);
+      T.eq('B2 · …and the assumption costs exactly 15 confidence points', vA && vE && vE.vo2Conf - vA.vo2Conf, 15);
+      // c76326c67f23 — OK is a verdict and needs measured inputs (the shape #3283 fixed for CPAP COMPLETE)
+      // every other input present but empty, so only the core statistics decide
+      var flagArgs = function (stats) {
+        return [
+          stats,
+          [],
+          null, // period: no periodicity found
+          { episodeCount: 0 },
+          { rate: stats.t90pct == null ? null : 0 },
+          { rate: stats.t90pct == null ? null : 0 },
+          { hrFloor: null, hrSlope: null, pnn3: null },
+          { arousalIndex: null },
+          { score: null },
+          { bradyCount: 0, tachyCount: 0 },
+          { autoArousalIdx: null, divergePct: null },
+          { wtdsi: null },
+          { nsi: null },
+          { sbii: null, sbiiQ: null },
+          { pred3p: null, pred3pQ: null }
+        ];
+      };
+      var fl = B.buildFlags.apply(null, flagArgs({ t90pct: null, minSpo2: null, maxHr: null, t95pct: null }));
+      T.eq(
+        'B2 · nothing measured ⇒ NOT_FULLY_ASSESSED, never OK',
+        fl &&
+          fl
+            .map(function (f) {
+              return f.code;
+            })
+            .join(','),
+        'NOT_FULLY_ASSESSED'
+      );
+      var flOk = B.buildFlags.apply(null, flagArgs({ t90pct: 0, minSpo2: 94, maxHr: 80, t95pct: 0 }));
+      T.eq(
+        'B2 · CONTROL · a measured clean night is still OK',
+        flOk &&
+          flOk
+            .map(function (f) {
+              return f.code;
+            })
+            .join(','),
+        'OK'
+      );
+      // each core statistic is load-bearing ALONE: one measured among unmeasured is still not assessed
+      var codes = function (st) {
+        return B.buildFlags
+          .apply(null, flagArgs(st))
+          .map(function (f) {
+            return f.code;
+          })
+          .join(',');
+      };
+      T.eq('B2 · t90 measured, nadir and max HR not ⇒ still NOT_FULLY_ASSESSED', codes({ t90pct: 0, minSpo2: null, maxHr: null, t95pct: 0 }), 'NOT_FULLY_ASSESSED');
+      T.eq('B2 · max HR measured alone ⇒ still NOT_FULLY_ASSESSED', codes({ t90pct: null, minSpo2: null, maxHr: 80, t95pct: null }), 'NOT_FULLY_ASSESSED');
+      // the assumption fires at 0 too (`age > 0`, not `>= 0`), and assumes exactly the 49 an entered 49 gives
+      var v0 = B.computeVO2maxEstimate(rows0, { rmssd: 2, hrFloor: 52 }, null, null, 0);
+      T.eq('B2 · an age of 0 is not an age ⇒ assumed', v0 && v0.ageAssumed, true);
+      T.eq('B2 · the assumed age is 49: same estimate as an entered 49', vA && vE && vA.vo2est, vE && vE.vo2est);
+      // the label ladder at both sides of each rung (inputs found by search; vo2est asserted first so a drift reds here)
+      var vo2At = function (hr, rmssd) {
+        var rr = [];
+        for (var q = 0; q < 1800; q++) rr.push({ hr: hr, motion: 0, spo2: 95 });
+        var v = B.computeVO2maxEstimate(rr, { rmssd: rmssd, hrFloor: 52 }, null, null, 49);
+        return v ? v.vo2est + ' ' + v.label : 'null';
+      };
+      T.eq('B2 · VO2 42.0 ⇒ the top rung (>= is inclusive)', vo2At(62, 0.5), '42 Top-25% for age 49');
+      T.eq('B2 · VO2 41.9 ⇒ Above average', vo2At(62, 0.4), '41.9 Above average');
+      T.eq('B2 · VO2 35.0 ⇒ Above average', vo2At(74, 0.4), '35 Above average');
+      T.eq('B2 · VO2 34.9 ⇒ Average', vo2At(74, 0.31), '34.9 Average');
+      T.eq('B2 · VO2 30.0 ⇒ Average', vo2At(85, 0.2), '30 Average');
+      T.eq('B2 · VO2 29.9 ⇒ Below average', vo2At(86, 0.31), '29.9 Below average');
+      // durationMin: a 0 hint is no duration; rows win over a hint, at one row per second
+      var KZ = function (rows, hint) {
+        var r = B.computeKarvonenZones(rows, { rmssd: 2.3 }, { hrRest: 60 }, null, null, null, null, 49, hint);
+        return r && r.scores ? r.scores.sleep : 'no result';
+      };
+      T.eq('B2 · a hint of 0 minutes is no duration ⇒ sleep NOT SCORED', KZ(null, 0), null);
+      var rows100 = [];
+      for (var q2 = 0; q2 < 100; q2++) rows100.push({ hr: 60, motion: 0, spo2: 95 });
+      T.eq('B2 · 100 rows = 1.7 min beat a 420-min hint ⇒ the 1-point floor', KZ(rows100, 420), 1);
+      // d975e352ce7b — nothing scoreable ⇒ no overall score (0 is the HEALTHY end of the 0-10 scale)
+      T.ok(
+        'B2 · an UNMEASURED nadir raises no critical-dip flag (null <= 88 is true in JS)',
+        fl &&
+          fl.every(function (f) {
+            return f.code !== 'SPO2_CRITICAL_DIP';
+          }),
+        fl && JSON.stringify(fl)
+      );
+      var sm = B.computeSmartSummary({ stats: {} });
+      T.eq('B2 · nothing scoreable ⇒ overallScore null, not 0', sm && sm.overallScore, null);
+    });
+
+    group('OxyDex B3 · a derived metric over an unmeasured input is no metric', 'oxydex-dsp · derived · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B || typeof B.computeVagalIndex !== 'function') {
+        T.skip('OxyDex._bare derived-metric functions exposed', 'not on the bare surface');
+        return;
+      }
+      var T0 = Date.UTC(2026, 0, 1, 23, 0, 0);
+      var mkRows = function (n, f) {
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          var r = { t: new Date(T0 + i * 1000), tMs: T0 + i * 1000, spo2: 96, hr: i % 2 ? 62 : 60, motion: 0 };
+          if (f) f(r, i);
+          out.push(r);
+        }
+        return out;
+      };
+      // 791f528789a3 — an unmeasured HR floor is not 60 bpm
+      T.eq('B3 · vagal index with the HR floor unmeasured ⇒ null', B.computeVagalIndex({ pnn3: 10, hrFloor: null }, { longestCleanRun: 600 }), null);
+      T.ok('B3 · CONTROL · every factor measured ⇒ an index', !!B.computeVagalIndex({ pnn3: 10, hrFloor: 52 }, { longestCleanRun: 600 }));
+      // 93912aa2a698 — under a minute no crash search ran
+      T.eq('B3 · 30 s of data ⇒ no crash result, not a count of 0', B.computeOxyCrash(mkRows(30)), null);
+      var oc = B.computeOxyCrash(mkRows(600));
+      T.eq('B3 · CONTROL · a searched clean 10 min ⇒ a measured 0', oc && oc.oxyCrashCount, 0);
+      // 993523537baa — no motion channel ⇒ no consolidated-sleep period
+      T.eq(
+        'B3 · motion unread on every row ⇒ no LCSP',
+        B.computeLCSP(
+          mkRows(600, function (r) {
+            r.motion = null;
+          })
+        ),
+        null
+      );
+      var lc = B.computeLCSP(mkRows(600));
+      T.eq('B3 · CONTROL · 600 still rows ⇒ a 600 s period', lc && lc.lcspSec, 600);
+      // fda41414f3e8 — an unmeasured term leaves the surge index
+      T.eq('B3 · no term measured ⇒ no SSI, not 0 "Low"', B.computeSympSurge(null, null, null, null, 1), null);
+      var ssiP = B.computeSympSurge(null, [], { autoArousalIdx: 5 }, null, 1);
+      T.eq('B3 · spikes searched (none) + AAI 5, post-dip unmeasured ⇒ renormalised over 0.6', JSON.stringify(ssiP && [ssiP.ssi, ssiP.ssiBasis]), '[0.333,0.6]');
+      var ssiF = B.computeSympSurge(null, [{}, {}], { autoArousalIdx: 5 }, { postDipHrResponse: 5 }, 1);
+      T.eq('B3 · every term measured ⇒ the plain weighted sum it always was, and basis 1 published', JSON.stringify(ssiF && [ssiF.ssi, ssiF.ssiBasis]), '[1.2,1]');
+      // 186f04d40bcd — a still row with no HR is not a heart-rate sample
+      var hv = B.computeHRV(
+        mkRows(400, function (r, i) {
+          if (i % 4 === 0) r.hr = null;
+        })
+      );
+      var hvC = B.computeHRV(
+        mkRows(400).filter(function (r, i) {
+          return i % 4 !== 0;
+        })
+      );
+      T.eq('B3 · HR-less still rows leave the HRV proxies unchanged (floor, SD)', JSON.stringify(hv && [hv.hrFloor, hv.hrSdnn]), JSON.stringify(hvC && [hvC.hrFloor, hvC.hrSdnn]));
+      T.eq('B3 · …and the floor is a real HR, not the null a sort puts first', hv && hv.hrFloor, 60);
+      // 0db4b4bb5562 — under ~35 min there is no post-onset window
+      var ms = B.computeMotionSleep(mkRows(1900));
+      T.eq('B3 · 1900 s ⇒ WASO null, not 0 % awake', ms && ms.wasoPct, null);
+      var ms2 = B.computeMotionSleep(mkRows(3600));
+      T.eq('B3 · CONTROL · an hour of still rows ⇒ a measured 0 %', ms2 && ms2.wasoPct, 0);
+      // d568bdabd5a2 — unread motion rows leave the denominator
+      var st = B.computeStats(
+        mkRows(400, function (r, i) {
+          r.motion = i < 200 ? null : i < 300 ? 1 : 0;
+        })
+      );
+      T.eq('B3 · half the rows unread, half the read rows moving ⇒ 50 %, not 25 %', st && st.motionPct, 50);
+      // d3f94b21784e — no 30-min window ⇒ no worst window
+      var ro = B.computeRollingMetrics(mkRows(900), null, null, null);
+      T.eq('B3 · 15 min of data ⇒ worst30minT95 null, not 0', ro && ro.worst30minT95, null);
+      var ro2 = B.computeRollingMetrics(mkRows(2400), null, null, null);
+      T.eq('B3 · CONTROL · 40 min at 96 % ⇒ a measured 0', ro2 && ro2.worst30minT95, 0);
+      // d488d9d484e2 — no depth, no confidence
+      T.eq('B3 · an event with no recorded depth ⇒ conf null, not 0.45', B.oxyDesatConf({ duration: 30 }), null);
+      T.eq('B3 · CONTROL · depth 4 ⇒ 0.62', B.oxyDesatConf({ depth: 4 }), 0.62);
+      // d9b36b8a96ec — an unmeasured sample interval places no stamp-less event
+      var night = function (stats) {
+        return [{ t0Ms: T0, stats: stats, desat: { events: [{ nadirIdx: 100, depth: 4 }] } }];
+      };
+      var desatOf = function (ev) {
+        return (ev || []).filter(function (e) {
+          return e.impulse === 'desat_event';
+        });
+      };
+      T.eq('B3 · no duration / sample count ⇒ the stamp-less event is not placed at an assumed 1 Hz', desatOf(B.oxyBuildGangliorEvents(night({}))).length, 0);
+      var placed = desatOf(B.oxyBuildGangliorEvents(night({ n: 1800, durationMin: 60 })));
+      T.eq('B3 · CONTROL · a measured 2 s interval places it at index × 2 s', placed.length && placed[0].tMs - T0, 200000);
+    });
+
+    /* oxydex-render.js is TEXT in this lane apart from OxyDex.reviewView, so the per-night sites below are EXTRACTED and
+       RUN (the B2 pattern). Each extraction is its own assertion and must hold on BOTH the old and the new code, so a
+       red here is the behaviour, never a failed regex. */
+    group('OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict', 'oxydex-render · absence · extract-and-run', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      // the block that opens on the line containing `start`, up to the close at that line's own indentation
+      var block = function (start, close) {
+        var i = R.indexOf(start);
+        if (i < 0) return null;
+        var ls = R.lastIndexOf('\n', i) + 1;
+        var indent = R.slice(ls, i).match(/^\s*/)[0];
+        var j = R.indexOf('\n' + indent + close, i);
+        return j < 0 ? null : R.slice(ls, j + 1 + indent.length + close.length);
+      };
+      // 38cab89355e6 — the review total covers the timed nights, and names them (reviewView is reachable)
+      var rv = env.OxyDex && env.OxyDex.reviewView;
+      /* OxyDex.reviewView is a NODE-lane surface: run-tests.mjs executes oxydex-render.js headless, while the browser
+         lane loads it only as TEXT and renders inside iframe rigs (the same reason the render-harness known-answer group
+         SKIPs there). So it is ASSERTED where it must exist (losing it in Node reds) and SKIPPED by name where it cannot.
+         env.nodeFs is set by the Node runner only. The four extract-and-run sites below need no reviewView and run in
+         both lanes. */
+      if (env.nodeFs) T.ok('R · OxyDex.reviewView reachable (Node lane)', typeof rv === 'function');
+      else if (typeof rv !== 'function')
+        T.skip('R · OxyDex.reviewView header check', 'Node-lane only: the browser lane loads oxydex-render.js as text and renders in iframe rigs, so reviewView is not on its OxyDex');
+      if (typeof rv === 'function') {
+        var head = String(
+          rv({ nights: [] }, [
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: {} }
+          ])
+        ).match(/ocl-sub">[^<]*/);
+        T.ok('R · an untimed night is named, not summed in as 0 minutes', !!head && head[0].indexOf('7h00m total (1 of 2 nights timed)') >= 0, head && head[0]);
+        var head2 = String(
+          rv({ nights: [] }, [
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: { durationMin: 60 } }
+          ])
+        ).match(/ocl-sub">[^<]*/);
+        T.ok('R · CONTROL · every night timed ⇒ the plain total, no annotation', !!head2 && head2[0].indexOf('8h00m total ·') >= 0, head2 && head2[0]);
+        var hdr = function (nights) {
+          var m = String(rv({ nights: [] }, nights)).match(/ocl-sub">[^<]*/);
+          return m ? m[0] : '';
+        };
+        // an EXPLICIT null duration (not just a missing key, which isFinite(undefined) already rejects)
+        T.ok(
+          'R · durationMin: null is untimed too',
+          hdr([
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: { durationMin: null } }
+          ]).indexOf('(1 of 2 nights timed)') >= 0
+        );
+        T.ok('R · one night ⇒ no "total" (> 1 is strict)', hdr([{ date: '2026-01-02', stats: { durationMin: 420 } }]).indexOf('7h00m ·') >= 0);
+        T.ok('R · 10 minutes is two digits ⇒ 7h10m, not 7h010m', hdr([{ date: '2026-01-02', stats: { durationMin: 430 } }]).indexOf('7h10m ·') >= 0);
+      }
+      // c0a215f14576 — the 7-day PB mean averages the nights that were computed
+      var pb = block('var roll7pb = nights.map(', '});');
+      T.ok('R · the rolling PB-burden block extracted', !!pb);
+      if (pb) {
+        var roll = new Function('nights', pb + ' return roll7pb;');
+        T.eq('R · 10, not computed, 20 ⇒ [10, 10, 15], not [10, 5, 10]', JSON.stringify(roll([{ osc: { totalCrossings: 10 } }, {}, { osc: { totalCrossings: 20 } }])), '[10,10,15]');
+        T.eq('R · no night computed in the window ⇒ null, not 0', JSON.stringify(roll([{}, {}, {}])), '[null,null,null]');
+      }
+      // 1f2b2af07670 — an unmeasured AAI prints a dash and earns no colour
+      var aai = R.match(/metric\(\s*'AAI',[\s\S]*?'bad'\s*\)/);
+      T.ok('R · the AAI tile extracted', !!aai);
+      if (aai) {
+        var tile = new Function('cx', 'var metric = function (l, v, u, c) { return [v, c]; }; return ' + aai[0] + ';');
+        T.eq('R · AAI null ⇒ a dash and no class, not "null" coloured good', JSON.stringify(tile({ autoArousalIdx: null })), '["—",""]');
+        T.eq('R · CONTROL · AAI 1.5 ⇒ good', JSON.stringify(tile({ autoArousalIdx: 1.5 })), '[1.5,"good"]');
+        T.eq('R · AAI 2 ⇒ warn (< 2 is strict)', JSON.stringify(tile({ autoArousalIdx: 2 })), '[2,"warn"]');
+        T.eq('R · AAI 5 ⇒ bad (< 5 is strict)', JSON.stringify(tile({ autoArousalIdx: 5 })), '[5,"bad"]');
+      }
+      // e8e638a9f50d — an unmeasured threshold row reads "not measured", not a green 0 %
+      var tix = block('[95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {', '});');
+      var tic = block('function tiClass(pct, thr) {', '}');
+      T.ok('R · the T-index rows and tiClass extracted', !!(tix && tic));
+      if (tix && tic) {
+        var rowsOf = new Function('n', tic + ' var html = ""; ' + tix + ' return html;');
+        var none = rowsOf({ tIdx: {} });
+        T.eq('R · no tIdx entries ⇒ ten "not measured" rows', (none.match(/not measured/g) || []).length, 10);
+        T.ok('R · …and no 0 % row', none.indexOf('>0 %<') < 0, none.slice(0, 200));
+        var one = rowsOf({ tIdx: { 90: { pct: 2.5, secs: 900 } } });
+        T.ok('R · CONTROL · a measured T90 still renders its figure', one.indexOf('>2.5 %<') >= 0);
+        var nul = rowsOf({ tIdx: { 90: { pct: null, secs: null } } });
+        T.eq('R · an entry whose pct is null is not measured either (all ten rows)', (nul.match(/not measured/g) || []).length, 10);
+      }
+      // c05712440626 — "Clear" needs an oscillation search that ran and flagged nothing
+      var oi = R.indexOf('if (!n.osc ||');
+      var oe = R.indexOf("metric('Flagged Windows'", oi);
+      var oscSrc = oi >= 0 && oe > oi ? R.slice(oi, R.lastIndexOf('} else {', oe)) + '}' : null;
+      T.ok('R · the periodic-breathing verdict extracted', !!oscSrc);
+      if (oscSrc) {
+        var osc = new Function('n', 'var evBadge = function () { return ""; }; var html = ""; ' + oscSrc + ' return html;');
+        T.ok('R · no oscillation computed ⇒ not measured, never "Clear"', osc({}).indexOf('Clear') < 0 && osc({}).indexOf('not measured') >= 0, osc({}));
+        T.ok('R · CONTROL · a computed search with 0 flagged windows ⇒ Clear', osc({ osc: { episodeCount: 0 } }).indexOf('Clear') >= 0);
+      }
+    });
+
+    group('OxyDex profile · an unentered setting or unmeasured term is not a number', 'oxydex-profile · absence', function (T) {
+      var R = env.oxyProfileRealm;
+      /* A NODE-lane group: oxyProfileRealm and the Oxy* profile seams are run-tests.mjs env entries (a narrow get/set
+         over the realm globals UP / allNights / _upHRrest). The browser lane has no such seams, so the group is
+         ASSERTED under the Node runner (env.nodeFs) and SKIPPED BY NAME in the browser, never vacuously green (#3341). */
+      if (env.nodeFs) T.ok('profile · the realm accessor and the recompute seam are wired (Node lane)', !!R && typeof env.OxyRecomputeFromProfile === 'function');
+      if (!R || typeof env.OxyRecomputeFromProfile !== 'function') {
+        if (!env.nodeFs) T.skip('oxydex-profile co-loaded with its realm accessor', 'Node-lane only: the realm accessor is a run-tests.mjs seam that the browser lane does not provide');
+        return;
+      }
+      var saved = { UP: R.get('UP'), allNights: R.get('allNights'), _upHRrest: R.get('_upHRrest') };
+      try {
+        // 643c0167154c — an empty elevation field is not entered, never sea level (headless gv() returns '')
+        env.OxyUpFromDOM();
+        T.eq('profile · an empty elevation field ⇒ null, not 0 m', R.get('UP').elevation, null);
+        // e294b096e810 — no RMSSD ⇒ no adjustment term (null), and the estimate is the Uth–Sørensen base alone
+        R.set('UP', { age: 40 });
+        var night = { hrv: { hrFloor: 55 }, stats: {} };
+        R.set('allNights', { a: night });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · no RMSSD ⇒ rmssdAdj null, not a measured-looking 0', night.vo2est && night.vo2est.rmssdAdj, null);
+        T.eq('profile · …and vo2est is the base alone: 15.3 × 180 / 55 = 50.1', night.vo2est && night.vo2est.vo2est, 50.1);
+        var night0 = { hrv: { hrFloor: 55, rmssd: 1.4 }, stats: {} };
+        R.set('allNights', { a: night0 });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · CONTROL · RMSSD 1.4 ⇒ a MEASURED 0 adjustment', night0.vo2est && night0.vo2est.rmssdAdj, 0);
+        // the adjustment's own arithmetic, both signs and both ±3 clamps (a 0-adjustment control alone cannot see a literal → 0)
+        var adjAt = function (rmssd) {
+          var nn = { hrv: { hrFloor: 55, rmssd: rmssd }, stats: {} };
+          R.set('allNights', { a: nn });
+          env.OxyRecomputeFromProfile();
+          return nn.vo2est ? [nn.vo2est.rmssdAdj, nn.vo2est.vo2est] : null;
+        };
+        T.eq('profile · RMSSD 3.4 ⇒ +2.1, vo2est 52.2', JSON.stringify(adjAt(3.4)), '[2.1,52.2]');
+        T.eq('profile · RMSSD −0.6 ⇒ −2.1, vo2est 48', JSON.stringify(adjAt(-0.6)), '[-2.1,48]');
+        T.eq('profile · RMSSD 5.4 ⇒ clamped at +3', JSON.stringify(adjAt(5.4)), '[3,53.1]');
+        T.eq('profile · RMSSD −2.6 ⇒ clamped at −3', JSON.stringify(adjAt(-2.6)), '[-3,47.1]');
+        // 7e34d2b1ab62 — one resting-HR source decision; an estimate is marked on the chips
+        var RH = env.OxyRestingHR,
+          ZC = env.OxyZoneChipText;
+        var CV = env.OxyHRrestCaveat;
+        T.ok(
+          'profile · the resting-HR source, chip-text and caveat seams exist (none existed: the chips wrote straight to the DOM)',
+          typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function'
+        );
+        if (typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function') {
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83); // detected p5 + 8 above the zones' 80 bound
+          T.eq('profile · a detected 83 bpm is refused by the zones ⇒ source "estimate", 71 − 0.25 × 40 = 61', JSON.stringify(RH()), '{"hrRest":61,"source":"estimate"}');
+          R.set('_upHRrest', 62);
+          T.eq('profile · CONTROL · a detected 62 ⇒ source "data"', JSON.stringify(RH()), '{"hrRest":62,"source":"data"}');
+          R.set('UP', { age: 40, hrRestOverride: 58 });
+          T.eq('profile · CONTROL · a manual 58 wins ⇒ source "manual"', JSON.stringify(RH()), '{"hrRest":58,"source":"manual"}');
+          R.set('UP', { age: 40, hrRestOverride: 100 });
+          T.eq('profile · a manual 100 is out of range (< 100 is strict) ⇒ not manual', RH().source, 'data');
+          R.set('_upHRrest', 80);
+          T.eq('profile · a detected 80 is out of range (< 80 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('_upHRrest', 30);
+          T.eq('profile · a detected 30 is out of range (> 30 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('UP', { age: 40, hrRestOverride: 30 });
+          T.eq('profile · a manual 30 is out of range (> 30 is strict) ⇒ not manual', RH().source, 'estimate');
+          R.set('UP', { hrRestOverride: 0 });
+          R.set('_upHRrest', null);
+          T.eq('profile · no age ⇒ the 49 the rest of the file assumes ⇒ 71 − 12.25 = 59', RH().hrRest, 59);
+          R.set('UP', { age: 400 });
+          T.eq('profile · the estimate is clamped at 45', RH().hrRest, 45);
+          R.set('UP', { age: -100 });
+          T.eq('profile · …and at 80', RH().hrRest, 80);
+          T.eq('profile · an estimated zone is marked ≈', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'estimate'), '≈ 120–140 bpm');
+          T.eq('profile · CONTROL · a detected zone is not', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'data'), '120–140 bpm');
+          T.eq('profile · the top zone runs to HRmax+', ZC({ low: 160, high: 180 }, { lo: 0.9 }, 180, 'manual'), '160–180+ bpm');
+          T.ok('profile · the sublabel caveat names the fallback for an estimate', /zones use the age estimate/.test(CV({ source: 'estimate' })));
+          /* THE PROPERTY, not the symbol (Kestrel's note): with a DETECTED value outside 30–80 the chips and the sublabel
+             read the SAME decision, so both say "estimate". Before the fix the chips silently used the age estimate
+             while the sublabel quoted the detected figure. */
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83);
+          var same = RH();
+          T.ok(
+            'profile · detected 83 bpm ⇒ the chips are marked ≈ AND the sublabel names the age estimate (one source)',
+            /^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same.source)) && /zones use the age estimate/.test(CV(same)),
+            JSON.stringify(same)
+          );
+          R.set('_upHRrest', 62);
+          var same2 = RH();
+          T.ok(
+            'profile · CONTROL · detected 62 bpm ⇒ neither the chips nor the sublabel claim an estimate',
+            !/^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same2.source)) && CV(same2) === '',
+            JSON.stringify(same2)
+          );
+          T.eq('profile · CONTROL · no caveat for a detected value', CV({ source: 'data' }), '');
+        }
+      } finally {
+        R.set('UP', saved.UP);
+        R.set('allNights', saved.allNights);
+        R.set('_upHRrest', saved._upHRrest);
+      }
+    });
+
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
       var O = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
       var K = O && O.computeKarvonenZones;
@@ -64107,7 +65239,11 @@
       T.eq('rmssd 1.19 ⇒ 10', sc({ rmssd: 1.19 }).rmssd, 10);
       T.eq('rmssd 0.70 ⇒ 10', sc({ rmssd: 0.7 }).rmssd, 10);
       T.eq('rmssd 0.69 ⇒ 4 (the floor, not 0)', sc({ rmssd: 0.69 }).rmssd, 4);
-      T.eq('rmssd null ⇒ 0, not the 4 floor — absent is not "worst"', sc({ rmssd: null }).rmssd, 0);
+      /* ⚠ RECONCILED (ABSENCE-SURVEY bf25e4f0f71c) — this pinned `0` as the answer for an absent rMSSD: not the
+         "worst" floor, but still a measured-looking 0 of 30 summed into readiness. Absent is now UNSCORED and leaves
+         the total like spo2 does; the ladder rungs above remain the controls. */
+      T.eq('rmssd null ⇒ the component is NOT SCORED (null), not 0 of 30', sc({ rmssd: null }).rmssd, null);
+      T.eq('hrSlope null ⇒ NOT SCORED either, not the half-credit 5 (c05e8f22a91b)', sc({ rmssd: 2.3, hrSlope: null }).hrSlope, null);
 
       /* ── SpO2 ladder: each rung is a COMPOUND gate, so each operand is moved ALONE ──────────── */
       T.eq('odi4 1 · hd94 29 ⇒ 25 (both inside the top rung)', sc(null, { rate: 1 }, { hd94PerHr: 29 }).spo2, 25);
@@ -64133,8 +65269,12 @@
       var full = function (hrv, odi4, hypDose, stageProxy, hint) {
         return K(null, hrv || { rmssd: 2.3 }, { hrRest: 60 }, odi4, hypDose, null, stageProxy, 49, hint) || {};
       };
-      var allPresent = full(null, { rate: 1 }, { hd94PerHr: 29 });
-      var spo2Absent = full(null, null, null);
+      /* EVERY component genuinely measured — rMSSD, the dip slope, a stage estimate and a duration. The old fixture
+         omitted three of them and the code fabricated them; under §∅ a fixture must supply what it calls present. */
+      var MEASURED = { rmssd: 2.3, hrSlope: -0.6 };
+      var STAGES = { remProxyMin: 45, nremDeepMin: 60 };
+      var allPresent = full(MEASURED, { rate: 1 }, { hd94PerHr: 29 }, STAGES, 420);
+      var spo2Absent = full(MEASURED, null, null, STAGES, 420);
       T.eq('with every component measured the basis is the whole 100 points', JSON.stringify(allPresent.readinessBasis.weightPresent), '100');
       T.eq(
         'CONTROL · and the total is then IDENTICAL to the plain sum it always was — renormalising by 100 is the identity',
@@ -64159,12 +65299,16 @@
       );
 
       /* ── Sleep ladder: duration rungs 420/360/300, plus stage bonuses ───────────────────────── */
-      T.eq('no stageProxy ⇒ neutral +5, and 420 min ⇒ 10 ⇒ 15', sc(null, null, null, null, 420).sleep, 15);
-      T.eq('419 min drops the duration rung ⇒ 7 + 5 = 12', sc(null, null, null, null, 419).sleep, 12);
-      T.eq('360 min ⇒ 7 + 5 = 12', sc(null, null, null, null, 360).sleep, 12);
-      T.eq('359 min ⇒ 4 + 5 = 9', sc(null, null, null, null, 359).sleep, 9);
-      T.eq('300 min ⇒ 4 + 5 = 9', sc(null, null, null, null, 300).sleep, 9);
-      T.eq('299 min ⇒ the 1-point floor + 5 = 6', sc(null, null, null, null, 299).sleep, 6);
+      /* ⚠ RECONCILED (ABSENCE-SURVEY f0210dc347e1) — these pinned a "neutral +5" for an ABSENT stage estimate, a
+         value inside the range a measured stage produces. With no stage the component is the DURATION half alone,
+         out of 10 (`sleepMax`), and readiness renormalises over it. */
+      T.eq('no stageProxy ⇒ the duration half alone: 420 min ⇒ 10', sc(null, null, null, null, 420).sleep, 10);
+      T.eq('…and the component is worth 10, not 20', sc(null, null, null, null, 420).sleepMax, 10);
+      T.eq('419 min drops the duration rung ⇒ 7', sc(null, null, null, null, 419).sleep, 7);
+      T.eq('360 min ⇒ 7', sc(null, null, null, null, 360).sleep, 7);
+      T.eq('359 min ⇒ 4', sc(null, null, null, null, 359).sleep, 4);
+      T.eq('300 min ⇒ 4', sc(null, null, null, null, 300).sleep, 4);
+      T.eq('299 min ⇒ the 1-point floor', sc(null, null, null, null, 299).sleep, 1);
       /* A PRESENT stageProxy replaces the neutral +5 with earned points — so a night with stage data
          and poor stages scores WORSE than one with none, which is the intended asymmetry. */
       T.eq('stageProxy present but both proxies 0 ⇒ 10 + 0 + 0 = 10, below the neutral 15', sc(null, null, null, { remProxyMin: 0, nremDeepMin: 0 }, 420).sleep, 10);
@@ -64176,8 +65320,15 @@
       T.eq('rem 45 alone ⇒ 10 + 5 = 15', sc(null, null, null, { remProxyMin: 45, nremDeepMin: 0 }, 420).sleep, 15);
       T.eq('deep 60 alone ⇒ 10 + 5 = 15', sc(null, null, null, { remProxyMin: 0, nremDeepMin: 60 }, 420).sleep, 15);
 
-      /* ── durationMinHint is a FALLBACK, not an override — n>0 wins, and absent ⇒ 360 ────────── */
-      T.eq('no rows and no hint ⇒ the 360 default ⇒ 7 + 5 = 12', sc(null, null, null, null, null).sleep, 12);
+      /* ── durationMinHint is a FALLBACK, not an override — n>0 wins, and absent is ABSENT ──────── */
+      /* ⚠ RECONCILED (ABSENCE-SURVEY 51755be2e2ca) — this pinned an assumed six-hour night (+7) for no rows and no hint. */
+      T.eq('no rows, no hint and no stages ⇒ the sleep component is NOT SCORED', sc(null, null, null, null, null).sleep, null);
+      T.eq('…and carries no weight', sc(null, null, null, null, null).sleepMax, 0);
+      T.eq(
+        'a stage estimate alone still scores its half: rem 45 + deep 60 ⇒ 10 of 10',
+        JSON.stringify([sc(null, null, null, STAGES, null).sleep, sc(null, null, null, STAGES, null).sleepMax]),
+        '[10,10]'
+      );
     });
 
     group('OxyDex refuses fabricated dates and inflated spans — §F2/§F1.4', 'oxydex-dsp · clock · guards', function (T) {
@@ -66682,7 +67833,9 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed instead of being null due to incorrect logical operator usage. */
       {
         var out = NS._bare.computeVagalIndex(1, 1);
-        T.eq('OxyDex._bare.computeVagalIndex(1,1) → out.vagalIndex', JSON.stringify(out.vagalIndex), '0');
+        // ⚠ RECONCILED (ABSENCE-SURVEY 791f528789a3) — this recorded the 0 the `||` defaults built from inputs carrying
+        // no pNN3, floor or clean run; those defaults (and the mutants this draft guarded) are gone
+        T.eq('OxyDex._bare.computeVagalIndex(1,1) → null (no factor measured)', JSON.stringify(out), 'null');
       }
       /* mutant: cmp > → >=  @ if (nadirEvents > 0 && spikes.length > 0) {
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that ensures the sfi field is properly initialized to 0 instead of causing a runtime error when n */
@@ -66716,7 +67869,8 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should not include an oxyCrashRate field in its output when the condition n < 60 is met. */
       {
         var out = NS._bare.computeOxyCrash([]);
-        T.eq('OxyDex._bare.computeOxyCrash([]) → out.oxyCrashRate', JSON.stringify(out.oxyCrashRate), '@undef');
+        // ⚠ RECONCILED (ABSENCE-SURVEY 93912aa2a698) — an empty recording searched nothing: no result, not a count-only object
+        T.eq('OxyDex._bare.computeOxyCrash([]) → null (no search ran)', JSON.stringify(out), 'null');
       }
       /* mutant: bool || → &&  @ if (!rec || !rec.rows || rec.rows.length < 5000) {
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly reports whether the SpO2 waveform data is usable based on sample count thresholds, prev */
@@ -67323,7 +68477,8 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed as 0 instead of null when input is [1,1] */
         {
           var out = NS._bare.computeVagalIndex(1, 1);
-          T.eq('NS._bare.computeVagalIndex(1,1) → out.vagalIndex', JSON.stringify(out.vagalIndex), '0');
+          // ⚠ RECONCILED (ABSENCE-SURVEY 791f528789a3) — as above: the recorded 0 was built from absent factors
+          T.eq('NS._bare.computeVagalIndex(1,1) → null (no factor measured)', JSON.stringify(out), 'null');
         }
         /* mutant: cmp > → >=  @ if (nadirEvents > 0 && spikes.length > 0) {
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns a null couplingScore instead of throwing an error when processing empty input a */

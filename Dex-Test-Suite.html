@@ -95,6 +95,11 @@
 <script src="clock.js"></script>
 <script src="provenance-ledger.js"></script>
 <script src="metric-registry.js"></script>
+<!-- dex-escape.js was in SOURCE_FILES (readable as TEXT) but never LOADED here, so `window.escapeHTML`
+     did not exist in this lane and the §2 ATTRIBUTE-sink group's fail-closed first leg red. A leaf module
+     (no deps), loaded with the other dex-* utilities. Listing a file as a source and loading it as a
+     script are two different inventories — the §2 group needs both. -->
+<script src="dex-escape.js"></script>
 <script src="dex-forget.js"></script>
 <script src="dex-profile.js"></script>
 <script src="oxydex-registry.js"></script>
@@ -219,9 +224,20 @@ const ADAPTER_SOURCES = (function () {
   return m.slice();
 })();
 const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/verify-fixtures.mjs',
-      'tools/drift-report.js','clock.js','oxydex-util.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js','qrs-equiv-worker.js','qrs-yield-worker.js',
+      'tools/drift-report.js','clock.js','oxydex-util.js','integrator-longitudinal.js','oxydex-registry.js','ecgdex-registry.js','ppgdex-registry.js','pulsedex-registry.js','hrvdex-registry.js','glucodex-registry.js','motiondex-registry.js','cpapdex-registry.js','metric-registry.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js','qrs-equiv-worker.js','qrs-yield-worker.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
   'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','motiondex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','dex-coload.js','provenance-ledger.js','sensor-trio-worker.js',
+ /* THE WHOLE `*-registry.js` FAMILY, completed 2026-10-06. `oxydex-registry.js` arrived first (the day
+    rmssdArc's unit was pinned) and the gap was flagged then: this lane carried NO registry source while
+    the Node lane's `readSources` had them all, so any assertion reading a registry's DECLARED text — a
+    unit, a tier, a label — passed in Node and red here. `cohesion-badges` is exactly that shape. The
+    remaining eight are listed now because the id↔emission work reads registry text across every node.
+    Note for whoever hits the next instance: the Node lane's `readSources` has them — so any future assertion that reads a registry's DECLARED text
+    (a unit, a tier, a label) reds here and passes there. Only `oxydex-registry.js` is added, because
+    that is what the rmssdArc unit group reads; the rest of the family is left for the unit that needs
+    it, since an added source can change what a source-scanning gate sees. The group's assertion is
+    fail-closed ("the declaration cannot be read"), which is why this surfaced as a RED and not a
+    silent skip — the same way the two cases below surfaced. */
  /* The trio page's RENDERER, listed the day the independence-sensitivity row was written. The Node lane
     had it and this lane did not, and only the BROWSER lane could say so: the row's own assertion message
     reads "must be listed in BOTH lanes", and it was that assertion — not a reviewer — that failed here. */
@@ -686,6 +702,13 @@ async function main(){
     PPGDSP: window.PPGDSP,
     PpgDex: window.PpgDex,
     parseTimestamp: window.parseTimestamp,
+    /* dex-escape.js's canonical escaper, in BOTH lanes. The Node lane got it with the §2 ATTRIBUTE-sink
+       group, whose first leg is fail-closed ("not reachable — the assertions below would prove nothing")
+       precisely so a lane that cannot reach the escaper FAILS instead of asserting over nothing. Listed
+       here in the same commit as the assertion rather than after `browser-gates` names it: the lane
+       asymmetry is a known recurrence (the SOURCE_FILES notes in this file), and the remedy is always to
+       LIST in the other lane, never to make the assertion lane-conditional. */
+    escapeHTML: window.escapeHTML || (window.DexEsc && window.DexEsc.escapeHTML),
     DexClock: window.DexClock,
     PulseDex: window.PulseDex,
     OxyDex: window.OxyDex,

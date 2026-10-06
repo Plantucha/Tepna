@@ -3857,5 +3857,61 @@
    "why": "EQUIVALENT — the ecgdex twin of pulsedex:448's declared equivalent (same shared HRV-geometry helper): on a tie the assigned maxC is identical either way.",
    "brief": "MUTATION-COVERAGE-SELECTION-2026-08-14-BRIEF.md §4.4 — declared in code comments, harvested 2026-08-19"
   }
+ ],
+ "oxydex-dsp.js": [
+  {
+   "line": 865,
+   "op": "bool || → &&",
+   "before": "_mv = mStr == null || mStr === '' ? NaN : parseInt(mStr, 10),",
+   "after": "_mv = mStr == null && mStr === '' ? NaN : parseInt(mStr, 10),",
+   "class": "equivalent",
+   "why": "PROOF (the Codex reader, verified): mStr is only ever null or a .trim()med string (line 861). Under `&&` the condition is always false, so parseInt runs on every value; for the only two values the original sends to NaN directly, null and the empty string, parseInt of each with radix 10 is NaN too. Every input gives the same _mv, so the same motion.",
+   "probe": "evaluated parseInt(null, 10) and parseInt with an empty string, radix 10 (both NaN); read line 861's mStr assignment",
+   "brief": "ABSENCE-SURVEY-2026-09-22 group B1"
+  }
+ ],
+ "oxydex-fusion.js": [
+  {
+   "line": 296,
+   "op": "bool && → ||",
+   "before": "desatDepth.push(e.depth != null ? e.depth : e.baseline != null && e.nadir != null ? e.baseline - e.n",
+   "after": "desatDepth.push(e.depth != null ? e.depth : e.baseline != null || e.nadir != null ? e.baseline - e.n",
+   "class": "equivalent",
+   "why": "PROOF (self-derived; survivors NOT Codex-read: quota exhausted until 2026-11-03): the mutant differs only when exactly one of baseline / nadir is present, where it pushes `baseline - nadir` with one side undefined = NaN instead of null. desatDepth has exactly one reader (line 413, the per-stage loop), which admits a depth only if `dp != null && isFinite(dp)`, rejecting NaN and null alike. Every stage bucket, and so every output, is identical.",
+   "probe": "grep -n desatDepth oxydex-fusion.js: writes at 282/294, the only read at 413; read 413-419's admission test",
+   "brief": "ABSENCE-SURVEY-2026-09-22 oxydex-fusion unit"
+  },
+  {
+   "line": 420,
+   "op": "cmp > → >=",
+   "before": "if (stageAgg[key].deepest == null || dp > stageAgg[key].deepest) stageAgg[key].deepest = dp;",
+   "after": "if (stageAgg[key].deepest == null || dp >= stageAgg[key].deepest) stageAgg[key].deepest = dp;",
+   "class": "equivalent",
+   "why": "PROOF (self-derived; quota line as above): `>=` differs from `>` only when dp equals the current deepest, where it assigns deepest = dp, the value it already holds. No state changes, so no output can differ.",
+   "probe": "case analysis of the single assignment on line 418",
+   "brief": "ABSENCE-SURVEY-2026-09-22 oxydex-fusion unit"
+  },
+  {
+   "line": 650,
+   "op": "cmp > → >=",
+   "before": "if (stageAgg[k].deepest != null && stageAgg[k].deepest > maxDeep) maxDeep = stageAgg[k].deepest;",
+   "after": "if (stageAgg[k].deepest != null && stageAgg[k].deepest >= maxDeep) maxDeep = stageAgg[k].deepest;",
+   "class": "equivalent",
+   "why": "PROOF (self-derived; quota line as above): `>=` differs only when a bucket's deepest equals maxDeep, where it assigns maxDeep = deepest, the value it already holds. No state changes.",
+   "probe": "case analysis of the single assignment on line 648",
+   "brief": "ABSENCE-SURVEY-2026-09-22 oxydex-fusion unit"
+  }
+ ],
+ "oxydex-profile.js": [
+  {
+   "line": 119,
+   "op": "num → 0",
+   "before": "var _elv = parseInt(gv('profElevation'), 10);",
+   "after": "var _elv = parseInt(gv('profElevation'), 0);",
+   "class": "equivalent",
+   "why": "PROOF (self-derived; survivors NOT Codex-read: quota exhausted until 2026-11-03): no markup in the repo carries id=\"profElevation\" (grep of every .html/.src.html; the only hits are inlined copies of this JS), so gv('profElevation') always returns '' and parseInt('', 10) and parseInt('', 0) are both NaN, giving elv null either way. Should the input ever return, it would be a number input whose decimal value parses identically under radix 0 (ES5+, no implicit octal).",
+   "probe": "grep -rn profElevation --include=*.html --include=*.src.html; gv() in oxydex-util.js returns '' for a missing element",
+   "brief": "ABSENCE-SURVEY-2026-09-22 oxydex-profile unit"
+  }
  ]
 }

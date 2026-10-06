@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cfa1be24b8a2" data-compute-hash="688ea729ba58"><head>
+<html lang="en" data-manifest-hash="919967af6edb" data-compute-hash="95901061db05"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ODnkG6Le8Cqp/r9bOK9FrS3Denl+Kbxh6Auu8u0rZoE=' 'sha256-R/hQpsn/BiFLBDbXIIjbDeudq4RsbuH7eq2YrG8mc20=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-a0FHrjH1HB9zAHS4pZMfcD14uZu1pRb3iuZZPWTLtus=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pbScJyledywE2rh2YReB2yk280+xDFnRr7S/m8WihIM=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-umD+gFYixHYWBZyYjWrEOICxf5fmzQ8OLMguoTUL1ZA=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UI47b3pqBMKzoFz3iIgnNZ188z0pbRNC7ELh1uey7rU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-a0FHrjH1HB9zAHS4pZMfcD14uZu1pRb3iuZZPWTLtus=' 'sha256-aPa4f/OWZPVsHLfVQgGI1dba7SCLegduZcbToyzeAVc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -2636,15 +2636,21 @@
 
   // Baevsky Stress Index from GUARDED (seconds) inputs — the canonical formula,
   // unit-safe. amo50 = AMo (% of RR in the modal bin). meanRRs in seconds.
-  function baevskySI(amo50, modeS, mxdmnS) {
-    if (
-      ![amo50, modeS, mxdmnS].every(function (v) {
-        return v != null && isFinite(v);
-      }) ||
-      modeS <= 0 ||
-      mxdmnS <= 0
-    )
+  // AMo is a PERCENT by contract (1 < amo50 <= 100). A value ≤ 1 is ambiguous —
+  // it may be a fraction (0.4 meaning 40%) or a true tiny percent — and a value
+  // > 100 is an impossible percent; both REFUSE with a reason rather than
+  // silently computing a 100×-wrong SI. `why` is an optional out-param; when
+  // provided and the result is null, why.reason names the refusal.
+  function baevskySI(amo50, modeS, mxdmnS, why) {
+    function refuse(reason) {
+      if (why) why.reason = reason;
       return null;
+    }
+    if (amo50 == null || modeS == null || mxdmnS == null) return refuse('missing-input');
+    if (!isFinite(amo50) || !isFinite(modeS) || !isFinite(mxdmnS)) return refuse('non-finite-input');
+    if (modeS <= 0 || mxdmnS <= 0) return refuse('non-positive-mode-or-mxdmn');
+    if (amo50 > 100) return refuse('amo50-gt-100-not-a-percent');
+    if (amo50 <= 1) return refuse('amo50-lte-1-ambiguous-fraction-or-percent');
     return amo50 / (2 * modeS * mxdmnS);
   }
 
@@ -2747,7 +2753,7 @@ function escHTML(s) {
 function safeEl(id) {
   return document.getElementById(id);
 }
-function safeSet(id, prop, val) {
+function setIfPresent(id, prop, val) {
   var el = safeEl(id);
   if (el) el[prop] = val;
 }
@@ -2820,20 +2826,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
   for (i = 0; i < n; i++) {
     if (i > 0) {
-      // §∅: absences (null) are NOT measured 0 — they stay out of the histogram,
-      // otherwise a dropout drags the p90 ceiling toward 0 and manufactures events.
-      var prev = spo2[i - 1];
-      if (prev != null) {
-        hist[bin(prev)]++;
-        cnt++;
-      }
+      hist[bin(spo2[i - 1])]++;
+      cnt++;
     }
     if (i > WIN) {
-      var old = spo2[i - WIN - 1];
-      if (old != null) {
-        hist[bin(old)]--;
-        cnt--;
-      }
+      hist[bin(spo2[i - WIN - 1])]--;
+      cnt--;
     }
     if (cnt > 0) {
       var target = Math.ceil((pct / 100) * cnt);
@@ -4061,7 +4059,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
               });
               if (isDup) {
                 if (!window._csvParseErrors) window._csvParseErrors = [];
-                window._csvParseErrors.push('Skipped duplicate recording: ' + (night.fname || night.date) + ' — same start time as an already-loaded night.');
+                window._csvParseErrors.push('Skipped duplicate recording: ' + escHTML(night.fname || night.date) + ' — same start time as an already-loaded night.');
                 return; // skip
               }
             }
@@ -4096,7 +4094,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\n\nDebug info:\n' + window._csvParseErrors.join('\n') : '';
           var errMsg = 'No valid data found. Upload raw O2Ring CSV files (O2Ring S *.csv) or pre-processed .json/.jsonl summaries.' + dbg;
           _ui.showError(errMsg);
-          safeSet('results', 'innerHTML', '<div class="results-error"><strong>⚠️ Parse failed</strong><br>' + errMsg.replace(/\n/g, '<br>') + '</div>');
+          setIfPresent('results', 'innerHTML', '<div class="results-error"><strong>⚠️ Parse failed</strong><br>' + errMsg.replace(/\n/g, '<br>') + '</div>');
           safeStyle('results', 'display', 'block');
           window._csvParseErrors = [];
           return;
@@ -4148,7 +4146,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           } catch (_ew2) {
             /* a trend failure must never block night rendering */
           }
-          safeSet('fileInput', 'value', '');
+          setIfPresent('fileInput', 'value', '');
           // Surface any per-file parse warnings as a non-blocking banner
           if (window._csvParseErrors && window._csvParseErrors.length) {
             var warnEl = document.getElementById('results');
@@ -4157,7 +4155,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
               banner.className = 'parse-warning-banner';
               var _errLines = window._csvParseErrors
                 .map(function (e) {
-                  return '<div class="warning-line">' + escHTML(e) + '</div>';
+                  // entries are escaped at push time — do not re-escape here
+                  return '<div class="warning-line">' + e + '</div>';
                 })
                 .join('');
               banner.innerHTML =
@@ -4204,7 +4203,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             var _binRows = parseCSV(_binCsv, { fname: file.name, file: file });
             if (!_binRows || _binRows.length < 60) {
               if (!window._csvParseErrors) window._csvParseErrors = [];
-              window._csvParseErrors.push(file.name + ': binary decoded to ' + (_binRows ? _binRows.length : 0) + ' rows (need \u226560).');
+              window._csvParseErrors.push(escHTML(file.name) + ': binary decoded to ' + (_binRows ? _binRows.length : 0) + ' rows (need \u226560).');
             }
             var _binNight = _binRows && _binRows.length >= 60 ? processNight(_binRows, file.name) : null;
             // FINISHED-WORK-IMPROVEMENTS §A 2a — a .bin/.dat night's timebase is the RING RTC (via the
@@ -4263,7 +4262,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
                 var _r = oxyLoadOwnExport(_env);
                 if (!_r.ok) {
                   if (!window._csvParseErrors) window._csvParseErrors = [];
-                  window._csvParseErrors.push((file && file.name ? file.name + ': ' : '') + _r.message);
+                  window._csvParseErrors.push((file && file.name ? escHTML(file.name) + ': ' : '') + escHTML(_r.message));
                   resolve(null);
                   return;
                 }
@@ -4335,7 +4334,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           if (cleanText.indexOf('OxyDex Night Summary') === 0 || cleanText.indexOf('O2Ring Night Summary') === 0) {
             if (!window._csvParseErrors) window._csvParseErrors = [];
             window._csvParseErrors.push(
-              file.name + ': this is a human-readable summary CSV (export-only). ' + 'To reload a night, use its .json export. Raw O2Ring CSVs and .json/.jsonl still import normally.'
+              escHTML(file.name) + ': this is a human-readable summary CSV (export-only). ' + 'To reload a night, use its .json export. Raw O2Ring CSVs and .json/.jsonl still import normally.'
             );
             resolve(null);
             return;
@@ -4352,18 +4351,18 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             // Debug: store first lines for error reporting
             var preview = text.split(/\r?\n/).slice(0, 3).join(' | ');
             if (!window._csvParseErrors) window._csvParseErrors = [];
-            window._csvParseErrors.push(file.name + ': ' + rows.length + ' rows parsed. Preview: ' + preview.substring(0, 120));
+            window._csvParseErrors.push(escHTML(file.name) + ': ' + rows.length + ' rows parsed. Preview: ' + escHTML(preview.substring(0, 120)));
           }
           resolve(rows && rows.length >= 60 ? processNight(rows, file.name) : null);
         } catch (err) {
           if (!window._csvParseErrors) window._csvParseErrors = [];
-          window._csvParseErrors.push(file.name + ' ERROR: ' + (err && err.message ? err.message : String(err)));
+          window._csvParseErrors.push(escHTML(file.name) + ' ERROR: ' + escHTML(err && err.message ? err.message : String(err)));
           resolve(null);
         }
       };
       reader.onerror = function () {
         if (!window._csvParseErrors) window._csvParseErrors = [];
-        window._csvParseErrors.push(file.name + ': file could not be read (FileReader error)');
+        window._csvParseErrors.push(escHTML(file.name) + ': file could not be read (FileReader error)');
         resolve(null);
       };
       reader.readAsArrayBuffer(file);
@@ -4480,13 +4479,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
          trap: `>=` would have admitted it. Do not "simplify" those comparisons to `>=`.)
          The ABSENCE is then handled once, at the same seam `_motionColumnStuck` already uses — see
          `_motionAbsent` in processNight. Deliberately unchanged: a PRESENT column with an empty or
-         unparseable cell still reads 0, exactly as before; only a value that was never written at all
-         becomes null. */
+         unparseable cell is NOT a reading either (ABSENCE-SURVEY 1a3cd7699ce2): `parseInt('') || 0` turned it into
+         motion 0 — "still" — at the ~20 consumers that read `motion === 0` as stillness. It is null, which
+         satisfies neither `> 0` nor `=== 0`; only a genuinely written 0 reads 0. */
       var mStr = motionCol >= 0 && motionCol < p.length ? p[motionCol].trim() : null;
       if (!sStr || sStr === '- -' || sStr === '--' || sStr === '') continue;
       var spo2 = parseInt(sStr, 10),
         hr = parseInt(hStr, 10),
-        motion = mStr == null ? null : parseInt(mStr, 10) || 0;
+        _mv = mStr == null || mStr === '' ? NaN : parseInt(mStr, 10),
+        motion = isNaN(_mv) ? null : _mv;
       if (isNaN(spo2) || isNaN(hr)) continue;
       if (spo2 < 50 || spo2 > 100 || hr < 20 || hr > 250) continue; // sanity check
       // Perfusion index (§4 Phase 1): present only on the OXYFRAME sidecar. `pi_pct` = 0 is the ring's
@@ -5216,16 +5217,18 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     worst10 = isFinite(worst10) ? +worst10.toFixed(2) : 0;
 
     // Worst 30-min T95 window
-    var worstT95 = 0;
+    // ∅ null until a 30-min window is evaluated: at 10–30 min of data the loop never runs, and the old 0 published
+    // "no window had any time below 95 %" for a night no window examined
+    var worstT95 = null;
     for (var i = 0; i + W30 <= n; i += 60) {
       var seg = spo2.slice(i, i + W30);
       var cnt = seg.filter(function (v) {
         return v < 95;
       }).length;
       var pct = (cnt / seg.length) * 100;
-      if (pct > worstT95) worstT95 = pct;
+      if (worstT95 == null || pct > worstT95) worstT95 = pct;
     }
-    worstT95 = isFinite(worstT95) ? +worstT95.toFixed(1) : 0;
+    worstT95 = worstT95 != null && isFinite(worstT95) ? +worstT95.toFixed(1) : null;
 
     // SpO2 stable windows (5-min with SD < 1%)
     var stableWins = 0;
@@ -5753,16 +5756,35 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // Sympathetic Surge Index — combined arousal load per hour
   function computeSympSurge(rows, spikes, cross, rolling, durationHr) {
     if (!durationHr || durationHr < 0.5) return null;
-    var spikeRate = spikes && spikes.length ? spikes.length / durationHr : 0;
+    // ∅ each term is scored only when it was MEASURED; an absent one leaves the index and the rest renormalise
+    // over the weights that were (`ssiBasis`), as readiness does. A spike detector that ran and found none is a
+    // measured 0 (an empty array); one that never ran (null) is not.
+    var spikeRate = Array.isArray(spikes) ? spikes.length / durationHr : null;
     // postDipHrResponse is mean bpm arousal — normalize to [0-1] on 0-10 bpm scale
-    var postDipAct = rolling && rolling.postDipHrResponse !== null ? Math.max(0, Math.min(1, rolling.postDipHrResponse / 10)) : 0;
+    var postDipAct = rolling && rolling.postDipHrResponse != null ? Math.max(0, Math.min(1, rolling.postDipHrResponse / 10)) : null;
     /* ⚠️ `null / 5` is 0 in JS, so a bare `cross ? … : 0` would convert the absence above straight
        back into a number — the fabrication moved one line down rather than removed. The guard is on
        the VALUE, not on `cross` being present. */
-    var aaiLoad = cross && cross.autoArousalIdx != null ? cross.autoArousalIdx / 5 : 0; // normalise AAI 0-5 scale
-    var ssi = +(spikeRate * 0.4 + postDipAct * 0.4 + aaiLoad * 0.2).toFixed(3);
+    var aaiLoad = cross && cross.autoArousalIdx != null ? cross.autoArousalIdx / 5 : null; // normalise AAI 0-5 scale
+    var terms = [
+      [spikeRate, 0.4],
+      [postDipAct, 0.4],
+      [aaiLoad, 0.2]
+    ].filter(function (t) {
+      return t[0] != null && isFinite(t[0]);
+    });
+    if (!terms.length) return null;
+    var basis = terms.reduce(function (a, t) {
+      return a + /** @type {number} */ (t[1]);
+    }, 0);
+    // with every term measured the basis is 1.0 and this is the plain weighted sum it always was
+    var ssi = +(
+      terms.reduce(function (a, t) {
+        return a + /** @type {number} */ (t[0]) * /** @type {number} */ (t[1]);
+      }, 0) / basis
+    ).toFixed(3);
     var label = ssi < 0.5 ? 'Low' : ssi < 1.5 ? 'Moderate' : 'High';
-    return { ssi: ssi, ssiLabel: label };
+    return { ssi: ssi, ssiLabel: label, ssiBasis: +basis.toFixed(2) };
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -5910,9 +5932,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // Vagal Index — composite of HRV proxies weighted by oxygen stability
   function computeVagalIndex(hrv, extras) {
     if (!hrv || !extras) return null;
-    var pnn3 = hrv.pnn3 || 0;
-    var hrFloor = hrv.hrFloor || 60;
-    var cleanRun = extras.longestCleanRun || 0;
+    // ∅ an unmeasured HR floor is not a 60 bpm one, and an unmeasured pNN3 / clean run is not 0 — each was an
+    // in-band value that scored a night nothing measured. Every factor is required, so any absent one is no index.
+    if (hrv.pnn3 == null || hrv.hrFloor == null || extras.longestCleanRun == null) return null;
+    var pnn3 = hrv.pnn3;
+    var hrFloor = hrv.hrFloor;
+    var cleanRun = extras.longestCleanRun;
     // Higher pNN3, lower HR floor, longer clean run = better vagal tone
     var vi = +((pnn3 / Math.max(hrFloor, 1)) * Math.log1p(cleanRun)).toFixed(4);
     var label = vi < 0.01 ? 'Low' : vi < 0.05 ? 'Moderate' : 'High';
@@ -5989,7 +6014,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       return r.spo2;
     });
     var n = spo2.length;
-    if (n < 60) return { oxyCrashCount: 0 };
+    // ∅ under a minute no 30 s crash search runs — no search is no result, never a count of 0
+    if (n < 60) return null;
     var crashes = 0;
     var WIN = 30;
     var cooldown = 0;
@@ -6197,13 +6223,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       ranked: metrics,
       top5: top5,
       impression: impression,
+      // ∅ ABSENCE-SURVEY d975e352ce7b: with nothing scoreable this was 0, the HEALTHY end of the 0-10 scale; null,
+      // as buildImpression already says "insufficient" for the same condition (cf. #3283's COMPLETE).
       overallScore: top5.length
         ? Math.round(
             top5.reduce(function (a, m) {
               return a + m.score;
             }, 0) / top5.length
           )
-        : 0
+        : null
     };
   }
 
@@ -6883,16 +6911,22 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       // A NULL metric is honest absence — never coerced to 0, which would read as zero perfusion.
       meanPi: meanPi,
       piFrames: _piVals.length,
-      motionPct:
-        n > 0
+      // ∅ the denominator is the rows whose motion was READ: an unread row is neither still nor moving, and
+      // counting it in `n` understated the moving share. With none read there is no share at all.
+      motionPct: (function () {
+        var read = rows.filter(function (r) {
+          return r.motion != null && isFinite(r.motion);
+        });
+        return read.length
           ? +(
-              (rows.filter(function (r) {
+              (read.filter(function (r) {
                 return r.motion > 0;
               }).length /
-                n) *
+                read.length) *
               100
             ).toFixed(1)
-          : 0,
+          : null;
+      })(),
       n: n,
       startTs: rows.length ? rows[0].tMs : null
     };
@@ -6934,8 +6968,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // proxies only — valid for night-to-night relative comparison, not clinical HRV norms.
   function computeHRV(rows) {
     // Exclude motion and device-artifact samples for cleaner signal
+    // ∅ a still, artifact-free row with NO heart rate is not a heart-rate sample: computeStats already guards HR
+    // validity, and the SignalFrame / rows-array paths carry `hr: null` through, which stdDev and the sort read as 0
     var clean = rows.filter(function (r) {
-      return r.motion === 0 && !r.hrArtifact;
+      return r.motion === 0 && !r.hrArtifact && r.hr != null && isFinite(r.hr);
     });
     var n = clean.length;
     if (n < 120) return null;
@@ -7032,17 +7068,6 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   //                 close at spo2 >= baseline − hystPct.
   //   opts.hystPct  hysteresis re-rise level (default K.ODI_HYST = 2); used only when exitPct
   //                 is not given.
-  // ── §∅ · THE MEASURED SpO₂ SERIES ──────────────────────────────────────────────
-  // One shared helper yielding the measured SpO₂ series with absences as null.
-  // Every consumer MUST skip null explicitly — null is "not measured", never 0.
-  // (JS `null < 88 === true`, `null + 5 === 5`, `94 - null === 94` make implicit
-  // handling a fabrication: a dropout reads as a desaturation to 0%.)
-  function measuredSpO2(rows) {
-    return rows.map(function (r) {
-      return r.spo2 == null ? null : r.spo2;
-    });
-  }
-
   //   opts.minSec   minimum event length (samples ≈ seconds @1Hz) to keep (default 10; ODI-1
   //                 passes 0 — it counts every qualifying dip).
   //   opts.WIN/opts.pct  ceiling window (300) / percentile (90); opts.blArr precomputed array.
@@ -7095,10 +7120,6 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     }
     for (var i = 0; i < n; i++) {
       var bl = blArr[i];
-      // §∅: an absent sample is not a desaturation to 0 — skip it entirely.
-      // (`null <= bl - dropPct` is TRUE; without this a dropout opens an event
-      // with depth ≈ baseline.)
-      if (spo2[i] == null) continue;
       if (!inEv) {
         // inclusive <= : a dip of EXACTLY dropPct% counts (ODI-4 = ≥4%)
         if (spo2[i] <= bl - dropPct) {
@@ -7539,7 +7560,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var f = [];
     if (stats.t90pct > 1) f.push({ code: 'T90_ELEVATED', sev: 'bad' });
     if (stats.t95pct > 15) f.push({ code: 'T95_HIGH', sev: 'bad' });
-    if (stats.minSpo2 <= 88) f.push({ code: 'SPO2_CRITICAL_DIP', sev: 'bad' });
+    // ∅ `null <= 88` is TRUE in JS, so an UNMEASURED nadir raised a 'bad' critical-dip flag. Not in the survey; the
+    // c76326c67f23 plant found it (its sibling pNN3 / stability comparisons below were already guarded).
+    if (stats.minSpo2 != null && stats.minSpo2 <= 88) f.push({ code: 'SPO2_CRITICAL_DIP', sev: 'bad' });
     if (odi4.rate >= 5) f.push({ code: 'ODI4_ABNORMAL', sev: 'bad' });
     else if (odi4.rate >= 2) f.push({ code: 'ODI4_BORDERLINE', sev: 'warn' });
     if (odi3.rate >= 15) f.push({ code: 'ODI3_ELEVATED', sev: 'warn' });
@@ -7577,7 +7600,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     if (sbii && sbii.sbiiQ === 'Q4') f.push({ code: 'SBII_Q4(' + sbii.sbii + ')', sev: 'warn' });
     if (pred3p && pred3p.pred3pQ === 'Q5(high)') f.push({ code: 'PRED3P_Q5(' + pred3p.pred3p + '%)', sev: 'bad' });
     if (pred3p && pred3p.pred3pQ === 'Q4') f.push({ code: 'PRED3P_Q4(' + pred3p.pred3p + '%)', sev: 'warn' });
-    if (!f.length) f.push({ code: 'OK', sev: 'ok' });
+    /* ∅ ABSENCE-SURVEY c76326c67f23: every comparison against a NULL stat is false, so a night with nothing
+       measured fell through to OK, a positive verdict over unmeasured input (the shape #3283 fixed for the CPAP
+       acquisition's COMPLETE). OK now needs the core statistics measured; otherwise the night is named as not
+       fully assessed. */
+    if (!f.length) {
+      var coreMeasured = stats.t90pct != null && stats.minSpo2 != null && stats.maxHr != null;
+      f.push(coreMeasured ? { code: 'OK', sev: 'ok' } : { code: 'NOT_FULLY_ASSESSED', sev: 'info' });
+    }
     return f;
   }
 
@@ -7727,7 +7757,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // Sleep Stability Score: composite 0-100 (higher = better).
   // Weighted across 6 components. Single integrative index for quick trending.
   function computeSleepStabilityScore(stats, hrv, osc, hb) {
-    var s1 = Math.max(0, Math.min(100, Math.round(((2.0 - stats.spo2Std) / 1.5) * 100)));
+    // ∅ ABSENCE-SURVEY cba3361dfcfd: spo2Std is null below two measured samples, and `(2.0 - null) / 1.5`
+    // clamped to a PERFECT 100. Dropped and renormalised like s2 and s3.
+    var s1 = stats.spo2Std == null ? null : Math.max(0, Math.min(100, Math.round(((2.0 - stats.spo2Std) / 1.5) * 100)));
     // HR-floor subscore is null when HR is UNMEASURABLE (computeHRV → null on <120 motion-free,
     // non-artifact samples). Seeding a neutral 50 here (the old behavior) FABRICATED absence — it
     // fed a fixed 5-point contribution and exported as a real subscore, differing from a genuinely
@@ -7742,7 +7774,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var s3 = stats.motionPct == null ? null : Math.max(0, Math.min(100, Math.round(((2.0 - stats.motionPct) / 1.8) * 100)));
     var s4 = Math.max(0, Math.min(100, Math.round(((20 - osc.episodeCount) / 20) * 100)));
     var s5 = Math.max(0, Math.min(100, Math.round(((15 - hb.rate) / 15) * 100)));
-    var s6 = Math.max(0, Math.min(100, Math.round(((20 - stats.t95pct) / 20) * 100)));
+    // ∅ ABSENCE-SURVEY 131d841e27b4: t95pct is null with no measured SpO2, and `(20 - null) / 20` is a perfect 100.
+    var s6 = stats.t95pct == null ? null : Math.max(0, Math.min(100, Math.round(((20 - stats.t95pct) / 20) * 100)));
     /* Renormalize over the components actually MEASURED, generalizing the s2-only branch this
        replaces. Arithmetically identical where it applied — with nothing null the divisor is 1.0,
        with only s2 null it is 0.9 — so no existing export moves. */
@@ -7872,41 +7905,30 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
   // 1. DESATURATION PROFILE — 8 SpO2-derived metrics
   function computeDesaturationProfile(rows, tIdx, odi4, blArr) {
-    // §∅: the measured series — absences are null, and every aggregate below
-    // skips them explicitly (null is not 0).
-    var spo2 = measuredSpO2(rows);
+    var spo2 = rows.map(function (r) {
+      return r.spo2;
+    });
     var n = spo2.length,
       WIN = 300;
 
     // Delta-index (SpO2 instability): mean |diff of consecutive 12s means|
-    // (12 s windows with no measured sample contribute no mean)
     var means12 = [];
     for (var i = 0; i + 12 <= n; i += 12) {
-      var s = 0,
-        c = 0;
-      for (var j = i; j < i + 12; j++) {
-        if (spo2[j] != null) {
-          s += spo2[j];
-          c++;
-        }
-      }
-      if (c > 0) means12.push(s / c);
+      var s = 0;
+      for (var j = i; j < i + 12; j++) s += spo2[j];
+      means12.push(s / 12);
     }
     var deltaIndex = 0;
     for (var i = 1; i < means12.length; i++) deltaIndex += Math.abs(means12[i] - means12[i - 1]);
     deltaIndex = means12.length > 1 ? +(deltaIndex / (means12.length - 1)).toFixed(3) : 0;
 
-    // SpO2 CoV (%), over MEASURED samples only
+    // SpO2 CoV (%)
     if (!n) return null;
-    var measured = spo2.filter(function (v) {
-      return v != null;
-    });
-    if (!measured.length) return null;
     var meanSpo2 =
-      measured.reduce(function (a, b) {
+      spo2.reduce(function (a, b) {
         return a + b;
-      }, 0) / measured.length;
-    var spo2CoV = meanSpo2 > 0 ? +((stdDev(measured) / meanSpo2) * 100).toFixed(2) : 0;
+      }, 0) / n;
+    var spo2CoV = meanSpo2 > 0 ? +((stdDev(spo2) / meanSpo2) * 100).toFixed(2) : 0;
 
     // T-Index AUC weighted: each threshold weighted by its clinical severity
     var weights = { 95: 1, 94: 2, 93: 3, 92: 4, 91: 5, 90: 6, 89: 8, 88: 10, 85: 15, 80: 25 };
@@ -7916,14 +7938,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     });
     tAucWeighted = isFinite(tAucWeighted) ? +tAucWeighted.toFixed(0) : 0;
 
-    // AUC-90 (hypoxic burden below 90%) — absent seconds contribute nothing
-    // (`null < 90` is TRUE; `90 - null` is 90, so without the guard a dropout
-    // fabricates maximal burden)
+    // AUC-90 (hypoxic burden below 90%)
     var auc90 = 0;
     for (var i = 0; i < n; i++) {
-      if (spo2[i] != null && spo2[i] < 90) auc90 += 90 - spo2[i];
+      if (spo2[i] < 90) auc90 += 90 - spo2[i];
     }
-    var durationHr = measured.length / 3600;
+    var durationHr = n / 3600;
     var auc90Total = +(auc90 / 60).toFixed(1);
     var auc90Rate = durationHr > 0 ? +(auc90Total / durationHr).toFixed(2) : 0;
 
@@ -8227,7 +8247,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       if (mc / WIN5 > 0.05) wasoWindows++;
     }
     var totalPostOnset = Math.floor((n - 1800) / WIN5);
-    var wasoPct = totalPostOnset > 0 ? +((wasoWindows / totalPostOnset) * 100).toFixed(0) : 0;
+    // ∅ under ~35 min no post-onset window exists — a share of nothing is not 0 % awake (cf. autoArousalIdx)
+    var wasoPct = totalPostOnset > 0 ? +((wasoWindows / totalPostOnset) * 100).toFixed(0) : null;
 
     // Positional Shifts: motion bursts that last >60 consecutive seconds
     var posShifts = 0,
@@ -8324,16 +8345,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
   // 5. Extended SpO2 metrics (WtDSI, IQR, conditional mean, nadir histogram)
   function computeSpO2Advanced(rows, blArr) {
-    // §∅: measured series — absences are null, skipped explicitly below
-    var spo2 = measuredSpO2(rows);
+    var spo2 = rows.map(function (r) {
+      return r.spo2;
+    });
     var n = spo2.length,
       WIN = 300;
     if (n < 60) return null;
-    var measured = spo2.filter(function (v) {
-      return v != null;
-    });
-    var m = measured.length;
-    if (m < 60) return null;
 
     // Nadir events from the ONE shared ODI-4 detector (ceiling baseline). §3 close-mode: ODI-4 entry +
     // anti-chatter HYSTERESIS close (no exitPct) — WtDSI is a SATELLITE stat, not the simple-close
@@ -8345,23 +8362,23 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       return { depth: e.depth, duration: e.durationSec, nadir: e.nadir };
     });
 
-    // WtDSI: Σ(depth² × duration) / measuredTime
+    // WtDSI: Σ(depth² × duration) / totalTime
     var wtdsi = 0;
     nadirEvents.forEach(function (e) {
       wtdsi += e.depth * e.depth * e.duration;
     });
-    wtdsi = m > 0 ? +(wtdsi / m).toFixed(3) : 0;
+    wtdsi = n > 0 ? +(wtdsi / n).toFixed(3) : 0;
 
-    // SpO2 IQR (p75 - p25), over measured samples only
-    var sorted = measured.slice().sort(function (a, b) {
+    // SpO2 IQR (p75 - p25)
+    var sorted = spo2.slice().sort(function (a, b) {
       return a - b;
     });
-    var p25 = sorted[Math.floor(m * 0.25)];
-    var p75 = sorted[Math.floor(m * 0.75)];
+    var p25 = sorted[Math.floor(n * 0.25)];
+    var p75 = sorted[Math.floor(n * 0.75)];
     var iqr = +(p75 - p25).toFixed(1);
 
-    // Conditional mean SpO2 below 94% (measured samples only — `null < 94` is TRUE)
-    var belowSamples = measured.filter(function (v) {
+    // Conditional mean SpO2 below 94%
+    var belowSamples = spo2.filter(function (v) {
       return v < 94;
     });
     var condMean =
@@ -9177,13 +9194,19 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // — recorded time PLUS the gaps in it — so the value is a genuine percentage in [0,100].
     // It is rendered, via the generic auto-walk in oxydex-fusion.js.
     var _spanSec = rows[n - 1].t != null && rows[0].t != null ? (rows[n - 1].t - rows[0].t) / 1000 : 0;
-    if (!(_spanSec > 0)) _spanSec = n + totalGap; // stampless fallback: 1 Hz assumption, made explicit
-    return {
+    // ∅ ABSENCE-SURVEY 4fc9554e37da: with no wall-clock span the denominator is SYNTHESISED under an assumed
+    // 1 Hz (the O2Ring's documented cadence). That is reduced coverage, so it is annotated, not refused —
+    // `gapSpanSource` names it. Added only on the fallback, so a stamped night's output is byte-identical.
+    var _assumed = !(_spanSec > 0);
+    if (_assumed) _spanSec = n + totalGap;
+    var _out = {
       gapCount: gaps.length,
       maxGapSec: +maxGap.toFixed(0),
       gapPct: +Math.min(100, (totalGap / _spanSec) * 100).toFixed(1),
       gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Minor gaps' : 'Clean'
     };
+    if (_assumed) _out.gapSpanSource = 'assumed-1Hz';
+    return _out;
   }
 
   /* recording.coverage for an oximetry night — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
@@ -9390,32 +9413,20 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var hd94 = 0,
       hd90 = 0,
       hd88 = 0,
-      auc = 0,
-      nMeasured = 0;
+      auc = 0;
     // O(n) sliding window for AUC baseline (rows[max(0,i-WIN)..i-1])
     var winSum = 0,
       winLen = 0;
     for (var i = 0; i < n; i++) {
       if (i > 0) {
-        // §∅: absences stay out of the baseline window (null is not 0)
-        var prev = rows[i - 1].spo2;
-        if (prev != null) {
-          winSum += prev;
-          winLen++;
-        }
+        winSum += rows[i - 1].spo2;
+        winLen++;
       }
       if (i > WIN) {
-        var old = rows[i - WIN - 1].spo2;
-        if (old != null) {
-          winSum -= old;
-          winLen--;
-        }
+        winSum -= rows[i - WIN - 1].spo2;
+        winLen--;
       }
       var v = rows[i].spo2;
-      // §∅: an absent second contributes nothing — `94 - null` is 94, the maximum,
-      // so without this a dropout fabricates the worst possible dose.
-      if (v == null) continue;
-      nMeasured++;
       if (v < 94) hd94 += 94 - v;
       if (v < 90) hd90 += 90 - v;
       if (v < 88) hd88 += 88 - v;
@@ -9424,17 +9435,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         if (v < base - 1) auc += base - v;
       }
     }
-    var durationHr = nMeasured / 3600;
+    var durationHr = n / 3600;
     return {
       hd94: +hd94.toFixed(0),
       hd90: +hd90.toFixed(0),
       hd88: +hd88.toFixed(0),
       hd94PerHr: durationHr > 0 ? +(hd94 / durationHr).toFixed(1) : 0,
       desatAUC: +auc.toFixed(0),
-      hd94Label: (durationHr > 0 ? hd94 / durationHr : 0) > 200 ? 'High (>200/hr)' : (durationHr > 0 ? hd94 / durationHr : 0) > 60 ? 'Moderate' : 'Low (<60/hr)',
-      // §∅: coverage beside the value — the dose is over measured seconds only
-      nMeasured: nMeasured,
-      nTotal: n
+      hd94Label: (durationHr > 0 ? hd94 / durationHr : 0) > 200 ? 'High (>200/hr)' : (durationHr > 0 ? hd94 / durationHr : 0) > 60 ? 'Moderate' : 'Low (<60/hr)'
     };
   }
 
@@ -9442,30 +9450,21 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function computeT88T85(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    // §∅: count measured seconds below threshold only — `null < 88` is TRUE,
-    // so without the null guard a dropout reads as time in severe hypoxemia.
-    var measured = rows.filter(function (r) {
-      return r.spo2 != null;
-    });
-    var m = measured.length;
-    var t88 = measured.filter(function (r) {
+    var t88 = rows.filter(function (r) {
       return r.spo2 < 88;
     }).length;
-    var t85 = measured.filter(function (r) {
+    var t85 = rows.filter(function (r) {
       return r.spo2 < 85;
     }).length;
-    var durationHr = m / 3600;
+    var durationHr = n / 3600;
     return {
       t88Sec: t88,
       t88Min: +(t88 / 60).toFixed(1),
-      t88Pct: m > 0 ? +((t88 / m) * 100).toFixed(2) : 0,
+      t88Pct: +((t88 / n) * 100).toFixed(2),
       t85Sec: t85,
       t85Min: +(t85 / 60).toFixed(1),
-      t85Pct: m > 0 ? +((t85 / m) * 100).toFixed(2) : 0,
-      t88Label: m > 0 && (t88 / m) * 100 > 1 ? 'Severe hypoxemia (>1%)' : m > 0 && (t88 / m) * 100 > 0 ? 'Present' : 'None',
-      // §∅: coverage beside the value
-      nMeasured: m,
-      nTotal: n
+      t85Pct: +((t85 / n) * 100).toFixed(2),
+      t88Label: (t88 / n) * 100 > 1 ? 'Severe hypoxemia (>1%)' : (t88 / n) * 100 > 0 ? 'Present' : 'None'
     };
   }
 
@@ -9473,6 +9472,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function computeLCSP(rows) {
     var n = rows.length;
     if (n < 60) return null;
+    // ∅ the period is a run of rows READ as still (`motion === 0`); with no motion read on any row there is no run to
+    // measure, and a 0-minute "Severely fragmented" period would describe a channel that was never there
+    var anyMotion = false;
+    for (var m = 0; m < n && !anyMotion; m++) anyMotion = rows[m].motion != null && isFinite(rows[m].motion);
+    if (!anyMotion) return null;
     var maxRun = 0,
       run = 0,
       startMax = 0,
@@ -9885,9 +9889,20 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         return a + b;
       }, 0) / n;
     var remSec = 0,
-      nremDeepSec = 0;
+      nremDeepSec = 0,
+      classified = 0;
     for (var i = WIN; i < n - WIN; i += WIN) {
       var seg = rows.slice(i, i + WIN);
+      // ∅ ABSENCE-SURVEY 12fb862b4f54: a window with an UNREAD motion value is neither still nor moving — it
+      // cannot be classified. With none classifiable (no motion column at all), `remPct` was published as 0.0,
+      // "Low REM estimate", plausible: a stage estimate over windows nobody looked at.
+      if (
+        !seg.every(function (r) {
+          return r.motion != null && isFinite(r.motion);
+        })
+      )
+        continue;
+      classified++;
       var still = seg.every(function (r) {
         return r.motion === 0;
       });
@@ -9924,6 +9939,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        STANDALONE OxyDex user (the common case — every Dex runs alone) saw the bare number with nothing to
        disagree with it. */
     var REM_CEILING_PCT = 30; // adult REM ≈ 20–25 % of sleep; >30 % of the RECORDING is not physiological
+    if (classified === 0) return null;
     var remPct = +((remSec / n) * 100).toFixed(1);
     var deepPct = +((nremDeepSec / n) * 100).toFixed(1);
     var remPlausible = remPct <= REM_CEILING_PCT;
@@ -9962,7 +9978,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var n = rows.length;
     if (n < 1800) return null; // need ≥1hr recording
 
-    age = age || 49; // default to space profile age
+    // ∅ ABSENCE-SURVEY d465645b6edd: an unentered age is an ASSUMPTION, not a measurement. The estimate is kept
+    // (reduced coverage annotates) but names the assumed age, carries `ageAssumed`, and loses confidence.
+    var ageAssumed = !(age > 0);
+    if (ageAssumed) age = 49; // default to space profile age
 
     // ── Step 1: HRrest proxy = nocturnal HR floor ──────────────────
     // Use 5th percentile of motion-free HR as proxy (more robust than absolute min)
@@ -10045,6 +10064,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     if (stillHR.length > 3600) conf += 10; // long recording
     if (hrv.rmssd != null) conf += 10; // RMSSD available
     if (dfa && dfa.alpha1 != null) conf += 5; // DFA available
+    if (ageAssumed) conf -= 15; // the age that sets HRmax was not entered
     conf = Math.min(100, conf);
 
     // ── Step 8: SEE and range ─────────────────────────────────────
@@ -10071,7 +10091,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       rmssdAdj: rmssdAdj,
       rmssdNote: rmssdNote,
       formula: 'Uth-Sørensen 2004 (VO2max = 15.3 × HRmax/HRrest)',
-      label: vo2est >= 42 ? 'Top-25% for age ' + age : vo2est >= 35 ? 'Above average' : vo2est >= 30 ? 'Average' : 'Below average',
+      label: vo2est >= 42 ? 'Top-25% for age ' + age + (ageAssumed ? ' (assumed)' : '') : vo2est >= 35 ? 'Above average' : vo2est >= 30 ? 'Average' : 'Below average',
+      ageAssumed: ageAssumed,
       disclaimer: 'Surrogate estimate ±10.8 ml/kg/min SEE (general pop.) · ±5.4 for trained athletes. Trend tracking only.'
     };
   }
@@ -10165,7 +10186,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var scores = {};
 
     // 1. RMSSD component (30 pts)
-    var rmssdScore = 0;
+    // ∅ ABSENCE-SURVEY bf25e4f0f71c: no RMSSD is no score, not 0 of 30; dropped and renormalised like spo2.
+    var rmssdScore = null;
     if (hrv.rmssd != null) {
       // 1Hz proxy thresholds (bpm): at HR≈53, 1bpm≈21ms. 50ms→2.3, 35ms→1.6, 25ms→1.2, 15ms→0.7
       if (hrv.rmssd >= 2.3) rmssdScore = 30;
@@ -10198,22 +10220,29 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     scores.spo2 = spo2Score;
 
     // 3. Sleep architecture (20 pts): duration + REM + deep estimates
-    var sleepScore = 0;
-    var durationMin = n > 0 ? n / 60 : durationMinHint || 360;
-    if (durationMin >= 420)
-      sleepScore += 10; // ≥7h
-    else if (durationMin >= 360) sleepScore += 7;
-    else if (durationMin >= 300) sleepScore += 4;
-    else sleepScore += 1;
+    /* ∅ The sleep component is two halves, DURATION (10) and STAGE (10), and each scores only when measured.
+       ABSENCE-SURVEY 51755be2e2ca: with no rows and no hint the duration was an assumed six hours (+7).
+       ABSENCE-SURVEY f0210dc347e1: with no stage estimate a "neutral" +5 was added — a value inside the range a
+       measured stage produces, so the score could not be read as "stage absent". The component's weight is
+       the halves actually present (`scores.sleepMax`), so readiness renormalises over what was measured. */
+    var durationMin = n > 0 ? n / 60 : durationMinHint > 0 ? durationMinHint : null;
+    var sleepScore = null,
+      sleepMax = 0;
+    if (durationMin != null) {
+      sleepScore = durationMin >= 420 ? 10 : durationMin >= 360 ? 7 : durationMin >= 300 ? 4 : 1;
+      sleepMax += 10;
+    }
     if (stageProxy) {
-      if (stageProxy.remProxyMin >= 45) sleepScore += 5;
-      else if (stageProxy.remProxyMin >= 20) sleepScore += 3;
-      if (stageProxy.nremDeepMin >= 60) sleepScore += 5;
-      else if (stageProxy.nremDeepMin >= 30) sleepScore += 3;
-    } else {
-      sleepScore += 5; // neutral if no stage data
+      var stagePts = 0;
+      if (stageProxy.remProxyMin >= 45) stagePts += 5;
+      else if (stageProxy.remProxyMin >= 20) stagePts += 3;
+      if (stageProxy.nremDeepMin >= 60) stagePts += 5;
+      else if (stageProxy.nremDeepMin >= 30) stagePts += 3;
+      sleepScore = (sleepScore || 0) + stagePts;
+      sleepMax += 10;
     }
     scores.sleep = sleepScore;
+    scores.sleepMax = sleepMax;
 
     // 4. HR floor (15 pts): lower nocturnal floor = better recovery
     var hrFloorScore = 0;
@@ -10225,13 +10254,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     scores.hrFloor = hrFloorScore;
 
     // 5. HR slope / dipping (10 pts): negative slope = good nocturnal dip
-    var hrSlopeScore = 0;
+    // ∅ ABSENCE-SURVEY c05e8f22a91b: no measured dip is no score — not a half-credit 5 between the measured bands.
+    var hrSlopeScore = null;
     if (hrv.hrSlope != null) {
       if (hrv.hrSlope < -0.5) hrSlopeScore = 10;
       else if (hrv.hrSlope < 0) hrSlopeScore = 7;
       else if (hrv.hrSlope < 0.5) hrSlopeScore = 4;
       else hrSlopeScore = 1;
-    } else hrSlopeScore = 5;
+    }
     scores.hrSlope = hrSlopeScore;
 
     /* Sum only the components that were MEASURED, and rescale by the weight actually present.
@@ -10242,7 +10272,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var _rdParts = [
       { k: 'rmssd', v: rmssdScore, w: 30 },
       { k: 'spo2', v: spo2Score, w: 25 },
-      { k: 'sleep', v: sleepScore, w: 20 },
+      { k: 'sleep', v: sleepScore, w: sleepMax },
       { k: 'hrFloor', v: hrFloorScore, w: 15 },
       { k: 'hrSlope', v: hrSlopeScore, w: 10 }
     ];
@@ -10613,9 +10643,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             // §3 — same reasoning as meanPi directly above: `|| 0` would turn a faulted motion
             // column into a report of a perfectly still night, which is the opposite of the truth.
             motionPct: s.motionPct != null ? s.motionPct : null,
-            n: s.n || 0,
-            artifactHrCleaned: s.artifactHrCleaned || 0,
-            artifactSpikesRemoved: s.artifactSpikesRemoved || 0
+            // ∅ ABSENCE-SURVEY 0e9b40d1425a: the three `|| 0` holdouts of this block. An export without
+            // them did not count zero rows or zero artifacts; it did not say.
+            n: s.n != null ? s.n : null,
+            artifactHrCleaned: s.artifactHrCleaned != null ? s.artifactHrCleaned : null,
+            artifactSpikesRemoved: s.artifactSpikesRemoved != null ? s.artifactSpikesRemoved : null
           },
           /* §∅ — `|| { rate: 0, count: 0 }` DEFEATED guards that were already correct. Every
              consumer tests the block for presence (`if (n.odi4)` at oxydex-render.js and
@@ -10652,13 +10684,18 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             var evArr = obj.hr_spikes && Array.isArray(obj.hr_spikes.events) ? obj.hr_spikes.events : Array.isArray(obj.hr_spikes) ? obj.hr_spikes : [];
             if (evArr.length) {
               return evArr.map(function (sp) {
+                // ∅ ABSENCE-SURVEY 773f10412ae2: `|| 0` made a detail-less spike a 0 bpm baseline/peak spike,
+                // which the consumers' own `sp.baseline == null || sp.peak == null` guards could no longer
+                // skip. And `parseTimeStr` answers 0 for a string it cannot parse, so an unparseable time
+                // became minute 0; it is asked only of a string that carries an HH:MM:SS.
+                var _t = sp.time && /\d{2}:\d{2}:\d{2}/.test(sp.time) ? parseTimeStr(sp.time) : null;
                 return {
                   time: sp.time || '',
-                  baseline: sp.baseline || 0,
-                  peak: sp.peak || 0,
-                  duration: sp.duration || 0,
-                  spo2: sp.spo2 || 0,
-                  mfm: sp.mfm || (sp.time ? parseTimeStr(sp.time) / 60 : 0)
+                  baseline: sp.baseline != null ? sp.baseline : null,
+                  peak: sp.peak != null ? sp.peak : null,
+                  duration: sp.duration != null ? sp.duration : null,
+                  spo2: sp.spo2 != null ? sp.spo2 : null,
+                  mfm: sp.mfm != null ? sp.mfm : _t != null ? _t / 60 : null
                 };
               });
             }
@@ -10667,7 +10704,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             return cnt > 0 ? { length: cnt } : [];
           })(),
           // osc: import the full oscillations object (peakCrossings / first / last included)
-          osc: obj.oscillations ? Object.assign({ windows: [] }, obj.oscillations) : { episodeCount: 0, totalCrossings: 0, meanAmplitude: 0, peakCrossings: 0, windows: [] },
+          // ∅ ABSENCE-SURVEY e012278db97c: no `oscillations` block is no evidence the detector ran — null, as its
+          // siblings below use, never a zero-filled "clean night, 0 episodes". Every reader tests `n.osc`.
+          osc: obj.oscillations ? Object.assign({ windows: [] }, obj.oscillations) : null,
           period: obj.hr_spikes && obj.hr_spikes.periodicity && obj.hr_spikes.periodicity.pattern ? obj.hr_spikes.periodicity : null,
           tIdx: (function () {
             /* ── READ WHAT WAS EXPORTED. The exporter already publishes the honest answer ───────────
@@ -10695,10 +10734,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
                number that looks the same either way. */
             var idx = {};
             var recSec = s.n != null && isFinite(s.n) ? s.n : null; // rows actually recorded, 1 Hz
-            var basis = recSec != null ? recSec : (s.durationMin || 0) * 60;
-            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95pct / 100) * basis) };
-            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90pct / 100) * basis) };
-            if (Object.keys(idx).length) idx.tIdxBasis = recSec != null ? 'recorded-samples' : 'wall-duration';
+            // ∅ ABSENCE-SURVEY 483e784c9219: with neither `n` nor `durationMin` there is NO basis — `|| 0` gave
+            // `secs: 0` beside a real pct and labelled it a wall duration that does not exist.
+            var basis = recSec != null ? recSec : s.durationMin != null && isFinite(s.durationMin) ? s.durationMin * 60 : null;
+            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: basis != null ? Math.round((s.t95pct / 100) * basis) : null };
+            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: basis != null ? Math.round((s.t90pct / 100) * basis) : null };
+            if (Object.keys(idx).length) idx.tIdxBasis = recSec != null ? 'recorded-samples' : basis != null ? 'wall-duration' : null;
             return idx;
           })(),
           // ── v18–v20 fields: restore from the export's descriptive key names ──
@@ -11228,7 +11269,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       var stats = n.stats || {};
       var nSamp = stats.n || 0;
       var durMs = stats.durationMin != null ? stats.durationMin * 60000 : null;
-      var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz (mirrors the Integrator's idx→tMs)
+      // ∅ the sample interval is MEASURED (duration / samples) or unknown — never an assumed 1 Hz. Unknown places
+      // no stamp-less event: like a missing t0 above, an event that cannot be placed is not emitted.
+      var dt = durMs && nSamp ? durMs / nSamp : null;
       // 1) desat_event — from desatProfile.events (already artifact-gated, pulseValid≥floor)
       var dp = n.desat || null;
       var devs = dp && Array.isArray(dp.events) ? dp.events : [];
@@ -11239,7 +11282,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         // §8: prefer the event's OWN parsed row stamp. The index→time fallback is a uniform stretch that
         // is only correct on a gapless recording; on a lossy night it drifts by minutes (see the stamp
         // note in computeDesaturationProfile). Keep it ONLY for a legacy event with no stamp.
-        var tMs = d.tMs != null ? d.tMs : t0 + idx * dt;
+        var tMs = d.tMs != null ? d.tMs : dt != null ? t0 + idx * dt : null;
+        if (tMs == null) return;
         out.push({
           t: fmtTime(new Date(tMs)),
           tMs: tMs,
@@ -11276,7 +11320,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       var eps = Array.isArray(n.oscEpisodes) ? n.oscEpisodes : [];
       eps.forEach(function (ep) {
         if (!ep) return;
-        var tMs = ep.tMs != null ? ep.tMs : ep.startIdx != null ? t0 + ep.startIdx * dt : null;
+        var tMs = ep.tMs != null ? ep.tMs : ep.startIdx != null && dt != null ? t0 + ep.startIdx * dt : null;
         if (tMs == null) return;
         var W = ep.windowSec != null ? ep.windowSec : (typeof CFG !== 'undefined' && CFG.OSC_WINDOW_SEC) || 300;
         var cross = ep.cross != null ? ep.cross : null;
@@ -11297,7 +11341,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // here so it can never silently equal the tier. Clamped [0,1]. Base term mirrors the Integrator's
   // legacy synthesis (0.45 + min(depth,12)/24) so emitted confidences stay continuous with prior fusion.
   function oxyDesatConf(d) {
-    var depth = d && d.depth != null ? d.depth : 0;
+    // ∅ depth IS the confidence's base term: an event with no recorded depth has no confidence, never the 0.45 a
+    // genuinely shallow dip earns. The Integrator reads a null conf as no effective confidence (integrator-dsp.js).
+    // An absent duration / recovery only withholds its small BONUS, which understates, never fabricates.
+    if (!d || d.depth == null || !isFinite(d.depth)) return null;
+    var depth = d.depth;
     var dur = d && d.duration != null ? d.duration : 0;
     var rec = d && d.recovery != null ? d.recovery : 0;
     var base = 0.45 + Math.min(depth, 12) / 24; // depth 4→0.62 … ≥12→0.95 (dominant)
@@ -15328,15 +15376,22 @@ __exports.HRVDex = window.HRVDex;
     const cSd = longRec ? dispSd : sdnn,
       cRm = longRec ? dispRm : rm,
       cPn = longRec ? dispPn : pn;
-    const stress = stressEst(cSd, cRm),
-      hrv = hrvEst(cSd, cRm, cPn),
-      energy = energyEst(cSd, cRm),
-      focus = focusEst(cSd, cRm),
-      coh = cohEst(cRm, cSd);
+    /* §2e: the composites refuse on the SAME refusal. cRm/cSd are null exactly when the
+       variability metrics refused — the clock-seam path above nulls rm/sdnn (and dispRm/dispSd
+       follow them). Feeding null into the estimators fabricates: stressEst → 100 (the
+       1.2295*null term vanishes into the clamp), hrvEst → 0, energyEst → 1, focusEst → 0,
+       cohEst → NaN, lnR → −Infinity. The composite is null; the named hrvReason (exported
+       below) explains it. */
+    const _hrvRefused = cRm == null || cSd == null;
+    const stress = _hrvRefused ? null : stressEst(cSd, cRm),
+      hrv = _hrvRefused ? null : hrvEst(cSd, cRm, cPn),
+      energy = _hrvRefused ? null : energyEst(cSd, cRm),
+      focus = _hrvRefused ? null : focusEst(cSd, cRm),
+      coh = _hrvRefused ? null : cohEst(cRm, cSd);
     const sdsdv = sdsd(a); // §8: SD1/SD2 spread is SDSD (÷N−1), not rMSSD — unified with ECGDex/PpgDex
     const sd1v = +sd1(sdsdv).toFixed(2),
       sd2v = +sd2(sdnn, sdsdv).toFixed(2);
-    const lnrm = +lnR(cRm).toFixed(3);
+    const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
     const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
 
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS §1: deterministic, identity-free recording handle.
@@ -24905,6 +24960,16 @@ __exports.PpgDex = window.PpgDex;
   /* `skip` (optional): `skip[i]` truthy ⇒ the pair (i-1, i) is not a successive difference — the two
      beats are separated by a dropout, so real time passed with no signal between them. Absent ⇒ every
      pair, which is the legacy behaviour and every contiguous recording. */
+  /* Round-or-null for the absence-bearing helpers: keeps `null` null instead of letting `+null` become
+     0 and re-manufacturing the very value §∅ forbids. Same shape as the pg.sd1/sd2 guards below. */
+  const _rmOrNull = (v, d) => (v == null ? null : +v.toFixed(d));
+  /* A percent difference against a device reference, refusing instead of manufacturing one. The
+     denominator is absent (null) or zero for a 1-beat device record — `rmssd` now returns null there
+     and `std` returns 0 — and `x / 0` is Infinity, which `.toFixed()` stringifies to "Infinity" and
+     `+` turns back into Infinity. That is how `validation.dRMSSDPct` came to read 65 797.8 (see the
+     oracle-ecg-firmware-rr note above). A ratio to an unmeasured or zero reference is not a large
+     difference, it is NO difference to report. */
+  const _pctDiff = (self, dev, d) => (self == null || dev == null || !(dev > 0) ? null : +((Math.abs(self - dev) / dev) * 100).toFixed(d));
   const rmssd = (a, skip) => {
     let s = 0,
       n = 0;
@@ -24914,7 +24979,13 @@ __exports.PpgDex = window.PpgDex;
       s += d * d;
       n++;
     }
-    return n ? Math.sqrt(s / n) : 0;
+    /* ∅ ABSENCE IS NULL. `n === 0` means NO successive pair was measured — fewer than two beats, or
+       every pair separated by a dropout (`skip`). It does NOT mean "the RMSSD is zero": a 0 is a LEGAL
+       RMSSD (perfectly regular RR), so a consumer handed 0 cannot tell a flat-but-measured record from
+       one that was never measured — CLAUDE.md §∅, "a consumer cannot null what it cannot distinguish".
+       Returning 0 here published `dispRm: 0` and, through Math.log(0), `lnrmssd: -Infinity`. Callers
+       guard with the file's `== null ? null : +x.toFixed(n)` idiom (as pg.sd1/sd2 already do). */
+    return n ? Math.sqrt(s / n) : null;
   };
 
   /* ════ CANONICAL CLOCK · CLOCK-UNIFY (duplicated locally per app — Clock Contract §2) ═══════════
@@ -26634,7 +26705,7 @@ __exports.PpgDex = window.PpgDex;
              `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
-          rmssd: +rmssd(seg, segSkip).toFixed(1),
+          rmssd: _rmOrNull(rmssd(seg, segSkip), 1),
           sdnn: +std(seg).toFixed(1),
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
@@ -27329,7 +27400,10 @@ __exports.PpgDex = window.PpgDex;
   // ════════════════════════════════════════════════════════════════════════
   function stageSleep(epochs, motionByTMin) {
     if (!epochs.length) return [];
-    const rmAll = epochs.map((e) => e.rmssd);
+    /* The night-relative RMSSD reference. `.filter` is safe HERE and nowhere else in this function:
+       rmAll feeds `median` only and is never indexed alongside `epochs`. An epoch whose pairs were all
+       gapped now reports `rmssd: null`, and letting it into the median would move the REM gate. */
+    const rmAll = epochs.map((e) => e.rmssd).filter((v) => v != null);
     const hrAll = epochs.map((e) => e.hr);
     const rmMed = median(rmAll),
       hrMed = median(hrAll),
@@ -27835,18 +27909,29 @@ __exports.PpgDex = window.PpgDex;
       repIdx = null;
     if (epochs.length >= 3) {
       const rmA = epochs.map((e) => e.rmssd),
-        rmMed = median(rmA);
+        rmMed = median(rmA.filter((v) => v != null));
+      /* ⚠️ `bi` indexes `epochs`, so rmA must NOT be filtered — a filtered array would re-point the
+         representative window at the wrong epoch. The unmeasured epochs are skipped IN the loop
+         instead, which keeps every index aligned. An epoch with no measured RMSSD cannot be the
+         HRV-representative window, and `found` keeps the existing whole-record default when none is. */
       let bi = 0,
-        bd = Infinity;
+        bd = Infinity,
+        found = false;
       for (let i = 0; i < rmA.length; i++) {
-        const d = Math.abs(rmA[i] - rmMed);
+        const v = rmA[i]; // bound to a local so the null guard narrows it (indexed access does not)
+        if (v == null) continue;
+        const d = Math.abs(v - rmMed);
         if (d < bd) {
           bd = d;
           bi = i;
+          found = true;
         }
       }
       // rebuild the representative segment beats from tt window
-      const w0 = epochs[bi].tMin * 60,
+      // `found` false ⇒ no epoch had a measured RMSSD, so there is no representative window to pick
+      // and the whole-record default (repSeg = nn) stands. Before, `bd = Infinity` guaranteed the
+      // first epoch was always adopted, which would now adopt an UNMEASURED one.
+      const w0 = (found ? epochs[bi] : epochs[0]).tMin * 60,
         w1 = w0 + 300,
         seg = [],
         segT = [];
@@ -27857,7 +27942,7 @@ __exports.PpgDex = window.PpgDex;
           segT.push(tt[i]);
         }
       }
-      if (seg.length >= 20) {
+      if (found && seg.length >= 20) {
         repSeg = seg;
         repT = segT;
         repTMin = epochs[bi].tMin;
@@ -27866,14 +27951,19 @@ __exports.PpgDex = window.PpgDex;
     }
 
     // aggregate display values (long rec → per-epoch medians)
-    let dispRm = +rm.toFixed(1),
+    let dispRm = _rmOrNull(rm, 1),
       dispSd = +sdnn.toFixed(1),
       dispHr = hr,
       dispPn = +pn.toFixed(1),
       sdann = null,
       sdnnIdx = null;
     if (longRec && epochs.length >= 3) {
-      dispRm = +median(epochs.map((e) => e.rmssd)).toFixed(1);
+      /* Absence does not VOTE. An epoch whose pairs were all gapped now reports `rmssd: null`, and
+         median() over an array holding nulls sorts them as neither high nor low — so the measured
+         epochs are selected first and the median is null only when NONE was measured. Before this,
+         such an epoch contributed 0 and dragged the night's median toward zero. */
+      const _epRm = epochs.map((e) => e.rmssd).filter((v) => v != null);
+      dispRm = _epRm.length ? +median(_epRm).toFixed(1) : null;
       dispSd = +median(epochs.map((e) => e.sdnn)).toFixed(1);
       dispHr = +median(epochs.map((e) => e.hr)).toFixed(1);
       dispPn = +median(epochs.map((e) => e.pnn)).toFixed(1);
@@ -28084,6 +28174,9 @@ __exports.PpgDex = window.PpgDex;
 
     /* ONE converted array, referenced by both `times` and `timesSec` — see ANALYZE_UNITS. */
     const timesArr = Array.from(times);
+    /* The RMSSD the ln is taken of: the epoch-median for a long record, the whole-record value
+       otherwise. Hoisted so the choice is evaluated ONCE and its nullability is narrowed once. */
+    const _lnSrc = longRec ? dispRm : rm;
     return {
       source: rec.source,
       fs,
@@ -28167,7 +28260,10 @@ __exports.PpgDex = window.PpgDex;
       hr,
       meanRR: +meanRR.toFixed(1),
       sdnn: +sdnn.toFixed(1),
-      rmssd: +rm.toFixed(1),
+      /* The rich `ganglior.node-export` already routed this through `nz()` (null-or-non-finite → null,
+         :6561), so the export shape was protected while `analyze`'s OWN return — what the renderer
+         reads — was not. This brings the direct consumer up to the standard the export path kept. */
+      rmssd: _rmOrNull(rm, 1),
       pnn50: +pn.toFixed(1),
       nn50: nn50c(nn),
       cv: +((sdnn / meanRR) * 100).toFixed(2),
@@ -28222,7 +28318,13 @@ __exports.PpgDex = window.PpgDex;
       pip: frag.pip,
       ials: frag.ials,
       pss: frag.pss,
-      lnrmssd: +Math.log(longRec ? dispRm : rm).toFixed(3),
+      /* Guarded exactly as HRVDex guards its own (`hrvdex-dsp.js`: `r._rmssd > 0 ? Math.log(...) : NaN`).
+         Math.log(0) is -Infinity and Math.log(null) is -Infinity too, and `JSON.stringify` renders
+         -Infinity as `null` — so an unguarded sink shipped a JSON export that LOOKED like clean absence
+         while the live object handed the renderer -Infinity. `<= 0` covers both absence and a legal 0. */
+      lnrmssd: _lnSrc == null || _lnSrc <= 0 ? null : +Math.log(_lnSrc).toFixed(3),
+      /* §∅: a null carries a NAMED reason, never a borrowed one. */
+      rmssdAbsentReason: rm == null ? 'no-successive-pairs' : null,
       // epochs + sleep + cvhr + events
       epochs,
       epochsRefused,
@@ -28304,16 +28406,16 @@ __exports.PpgDex = window.PpgDex;
       nSelf: selfNN.length,
       nDev: devVals.length,
       devEctopyCorrected: devC.nc,
-      devRawRMSSD: +rmssd(devRaw).toFixed(1),
-      selfRMSSD: +selfRMSSD.toFixed(1),
-      devRMSSD: +devRMSSD.toFixed(1),
-      dRMSSD: +((Math.abs(selfRMSSD - devRMSSD) / devRMSSD) * 100).toFixed(1),
+      devRawRMSSD: _rmOrNull(rmssd(devRaw), 1),
+      selfRMSSD: _rmOrNull(selfRMSSD, 1),
+      devRMSSD: _rmOrNull(devRMSSD, 1),
+      dRMSSD: _pctDiff(selfRMSSD, devRMSSD, 1),
       selfSDNN: +selfSDNN.toFixed(1),
       devSDNN: +devSDNN.toFixed(1),
-      dSDNN: +((Math.abs(selfSDNN - devSDNN) / devSDNN) * 100).toFixed(1),
+      dSDNN: _pctDiff(selfSDNN, devSDNN, 1),
       selfMean: +selfMean.toFixed(1),
       devMean: +devMean.toFixed(1),
-      dMean: +((Math.abs(selfMean - devMean) / devMean) * 100).toFixed(2),
+      dMean: _pctDiff(selfMean, devMean, 2),
       selfHR: +(60000 / selfMean).toFixed(1),
       devHR: +(60000 / devMean).toFixed(1)
     };
