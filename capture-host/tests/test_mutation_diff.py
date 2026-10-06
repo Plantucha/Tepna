@@ -158,7 +158,11 @@ def test_the_selftest_RUNS_IN_THE_GATE_now_not_only_when_a_human_types_it():
 
 def test_selftest_FAILS_when_classify_buckets_wrongly(monkeypatch):
     monkeypatch.setattr(
-        M, "classify", lambda e, s, g: {k: [] for k in ("excused", "real_gap", "refuted", "orphaned", "unclassified")}
+        M,
+        "classify",
+        lambda e, s, k, generated=(): {
+            b: [] for b in ("excused", "real_gap", "refuted", "orphaned", "unclassified", "not_decided")
+        },
     )
     assert M.selftest() != 0
 
@@ -166,8 +170,8 @@ def test_selftest_FAILS_when_classify_buckets_wrongly(monkeypatch):
 def test_selftest_FAILS_when_a_killed_mutant_leaks_into_unclassified(monkeypatch):
     real = M.classify
 
-    def leaky(e, s, g):
-        out = real(e, s, g)
+    def leaky(e, s, k, generated=()):
+        out = real(e, s, k, generated=generated)
         out["unclassified"] = out["unclassified"] + [{"key": "d"}]
         return out
 
@@ -840,20 +844,20 @@ def test_float_boundary_needs_the_literal_on_BOTH_sides():
 
 def test_classify_routes_an_unproven_entry_out_of_excused():
     entries = [{"key": _K37, "class": "no-distinguishing-input", "probe": "ran 0.90/0.95"}]
-    out = M.classify(entries, [{"key": _K37}], [_K37])
+    out = M.classify(entries, [{"key": _K37}], set(), generated=[_K37])
     assert out["excused"] == [] and len(out["unproven"]) == 1
     assert "0.05" in out["unproven"][0]["why"]
 
 
 def test_classify_still_excuses_when_the_boundary_is_named():
     entries = [{"key": _K37, "class": "no-distinguishing-input", "probe": "constructed 0.05 exactly"}]
-    out = M.classify(entries, [{"key": _K37}], [_K37])
+    out = M.classify(entries, [{"key": _K37}], set(), generated=[_K37])
     assert len(out["excused"]) == 1 and out["unproven"] == []
 
 
 def test_classify_leaves_a_non_float_excuse_alone():
     k = "- if n < 5 | + if n <= 5"
-    out = M.classify([{"key": k, "class": "untestable-by-design"}], [{"key": k}], [k])
+    out = M.classify([{"key": k, "class": "untestable-by-design"}], [{"key": k}], set(), generated=[k])
     assert len(out["excused"]) == 1 and out["unproven"] == []
 
 
@@ -905,7 +909,7 @@ def test_an_unproven_entry_keeps_the_ORIGINAL_entry_not_just_the_reason():
     """`dict(e, why=...)` → `dict(why=...)` survived: asserting only `why` never noticed the entry's
     own key and class being dropped, which is what a reader needs to FIND the row."""
     entries = [{"key": _K37, "class": "no-distinguishing-input", "probe": "ran 0.90/0.95"}]
-    out = M.classify(entries, [{"key": _K37}], [_K37])
+    out = M.classify(entries, [{"key": _K37}], set(), generated=[_K37])
     e = out["unproven"][0]
     assert e["key"] == _K37 and e["class"] == "no-distinguishing-input"
 
@@ -1193,12 +1197,43 @@ _SELFTEST_FAULTS = [
     ("annotation_only", lambda a, b: (True, "nope"), "selftest FAIL annotation_only ["),
     (
         "classify",
-        lambda e, s, g: {k: [] for k in ("excused", "real_gap", "refuted", "orphaned", "unclassified")},
+        lambda e, s, k, generated=(): {
+            b: [] for b in ("excused", "real_gap", "refuted", "orphaned", "unclassified", "not_decided")
+        },
         "selftest FAIL excused:",
     ),
     ("string_only_verdict", lambda d: ("required", ""), "a no-op diff is not labelled EMPTY_DIFF"),
     ("string_only_verdict", lambda d: ("required", ""), "a log-prose mutation is no longer STRING_ONLY"),
     ("string_only_verdict", lambda d: ("required", ""), "a line outside the scan's competence was decided anyway"),
+    # ── the 2026-10-05 plants: absence must not refute, and exit 3 is not a detection ────────────
+    # These three `fail(...)` bodies are unreachable while the code is right, which is what makes
+    # them worth breaking on purpose — an unexercised plant is a plant nobody has seen fire.
+    (
+        "classify",
+        lambda e, s, k, generated=(): {
+            b: ([{"key": "a", "class": "no-distinguishing-input"}] if b == "refuted" else [])
+            for b in ("excused", "real_gap", "refuted", "orphaned", "unclassified", "not_decided", "unproven")
+        },
+        "an absent mutant was REFUTED",
+    ),
+    (
+        "classify",
+        lambda e, s, k, generated=(): {
+            b: [] for b in ("excused", "real_gap", "refuted", "orphaned", "unclassified", "not_decided", "unproven")
+        },
+        "an absent mutant must read not_decided",
+    ),
+    ("kill_is_a_detection", lambda ec: (True, ""), "pytest exit 3 was accepted as a detection"),
+    # ⚠️ The SECOND half of each plant: the REASON going silent. These two stubs leave the boolean
+    # correct and empty the reason, so exactly ONE side of each `or` is true — which is what makes the
+    # `or` → `and` mutants observable. With both sides true (the stub above) `and` fires too and the
+    # check cannot tell the operators apart.
+    ("kill_is_a_detection", lambda ec: (False, ""), "pytest exit 3 was accepted as a detection"),
+    (
+        "refutation_corroborated",
+        lambda first, second: (False, ""),
+        "an exit-3 re-run corroborated a refutation, or stopped naming why",
+    ),
 ]
 
 
@@ -1224,8 +1259,8 @@ def test_a_LEAKED_killed_mutant_is_named_and_is_found_by_its_KEY(monkeypatch, ca
     firing, and the run only stays red because an unrelated bucket comparison also fails."""
     real = M.classify
 
-    def leaky(e, s, g):
-        out = real(e, s, g)
+    def leaky(e, s, k, generated=()):
+        out = real(e, s, k, generated=generated)
         out["unclassified"] = out["unclassified"] + [{"key": "d"}]
         return out
 

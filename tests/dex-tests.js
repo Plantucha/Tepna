@@ -57910,6 +57910,17 @@
       }
       T.ok('expressing kg as bpm throws', threw2);
 
+      // ── §2b (2026-10-05 deep review): null propagates through add — null + 5 must be
+      // null, never 5 (JS `null + 5 === 5` silently preserves the non-null operand) ──
+      var nullKg = Q.Quantity(null, 'kg');
+      T.ok('a null Quantity stores null value', nullKg.value === null, 'value=' + JSON.stringify(nullKg.value));
+      var sumL = Q.Quantity(5, 'kg').add(nullKg);
+      T.ok('5 + null → null Quantity (null on the right)', sumL.value === null && sumL.unit === 'kg', 'value=' + JSON.stringify(sumL.value));
+      var sumR = nullKg.add(Q.Quantity(5, 'kg'));
+      T.ok('null + 5 → null Quantity (null on the left)', sumR.value === null && sumR.unit === 'kg', 'value=' + JSON.stringify(sumR.value));
+      var sumOk = Q.Quantity(5, 'kg').add(Q.Quantity(3, 'kg'));
+      T.ok('5 + 3 → 8 (measured values still add)', sumOk.value === 8 && sumOk.unit === 'kg', 'value=' + JSON.stringify(sumOk.value));
+
       // ── asSecondsRR: seconds pass through, ms band is converted + tagged ──
       var s = Q.asSecondsRR(0.8),
         ms = Q.asSecondsRR(800),
