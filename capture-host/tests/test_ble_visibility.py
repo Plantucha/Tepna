@@ -241,3 +241,34 @@ def test_cli_is_loud_when_the_log_cannot_be_read(tmp_path, capsys):
     assert "absent.jsonl" in err  # names the PATH it could not read, not the MAC
     assert CPAP not in err
     assert "visibility of" not in err
+
+
+def test_a_scan_that_REPORTED_NO_COUNT_is_not_a_scan_that_saw_nothing():
+    """🔴 `st["devices_seen"].append(info.get("devices_seen") or 0)` turned a scan with no reported count
+    into a scan that SAW NOTHING — and "0 devices in range" is a real, alarming observation about an
+    adapter, which is exactly the reading a fabricated 0 steals. A 0 dragged into the median also pulls it
+    toward an adapter being blind.
+
+    ⚠️ REACHABLE ONLY ACROSS THE STORAGE BOUNDARY, which is the point. `make_record` sets `devices_seen`
+    unconditionally (`len(seen)`, or an explicit None on the error path that `continue`s before the
+    append), so today's writer cannot produce this. But `summarize` reads records back with `json.loads`
+    from the JSONL, and a file holds whatever the code that wrote it wrote — an older version, or a torn
+    line. A single-writer guarantee holds in memory and expires at the file.
+
+    The absence is now None in the series, the median is over the MEASURED scans only, and the count of
+    unreported scans travels beside it (§∅: reduced coverage annotates, with its n)."""
+    recs = [
+        {"adapters": {"hci0": {"targets": {CPAP: -40}, "devices_seen": 10}}},
+        {"adapters": {"hci0": {"targets": {CPAP: -41}, "devices_seen": 12}}},
+        {"adapters": {"hci0": {"targets": {CPAP: -42}}}},  # NO count reported — an older/torn record
+    ]
+    stats = bv.visibility(recs, CPAP)
+    st = stats["hci0"]
+    assert st["scans_ok"] == 3, st
+    assert st["median_devices_seen"] == 11, (
+        f"the median must be over the two MEASURED scans (10, 12) — a fabricated 0 drags it to 10: "
+        f"{st['median_devices_seen']}"
+    )
+    assert st["devices_seen_unreported"] == 1, st
+    text = bv.format_visibility(stats, CPAP)
+    assert "reported NO device count" in text, text
