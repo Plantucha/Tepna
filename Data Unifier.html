@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="45109b09b892" data-compute-hash="78de7f5b2208"><head>
+<html lang="en" data-manifest-hash="919967af6edb" data-compute-hash="95901061db05"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-OB9kRmmHu3asPHM8IwnxF/1s+KTnZhkQOrvhk/yWk0Q=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-a0FHrjH1HB9zAHS4pZMfcD14uZu1pRb3iuZZPWTLtus=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-umD+gFYixHYWBZyYjWrEOICxf5fmzQ8OLMguoTUL1ZA=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UI47b3pqBMKzoFz3iIgnNZ188z0pbRNC7ELh1uey7rU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-a0FHrjH1HB9zAHS4pZMfcD14uZu1pRb3iuZZPWTLtus=' 'sha256-aPa4f/OWZPVsHLfVQgGI1dba7SCLegduZcbToyzeAVc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -2636,15 +2636,21 @@
 
   // Baevsky Stress Index from GUARDED (seconds) inputs — the canonical formula,
   // unit-safe. amo50 = AMo (% of RR in the modal bin). meanRRs in seconds.
-  function baevskySI(amo50, modeS, mxdmnS) {
-    if (
-      ![amo50, modeS, mxdmnS].every(function (v) {
-        return v != null && isFinite(v);
-      }) ||
-      modeS <= 0 ||
-      mxdmnS <= 0
-    )
+  // AMo is a PERCENT by contract (1 < amo50 <= 100). A value ≤ 1 is ambiguous —
+  // it may be a fraction (0.4 meaning 40%) or a true tiny percent — and a value
+  // > 100 is an impossible percent; both REFUSE with a reason rather than
+  // silently computing a 100×-wrong SI. `why` is an optional out-param; when
+  // provided and the result is null, why.reason names the refusal.
+  function baevskySI(amo50, modeS, mxdmnS, why) {
+    function refuse(reason) {
+      if (why) why.reason = reason;
       return null;
+    }
+    if (amo50 == null || modeS == null || mxdmnS == null) return refuse('missing-input');
+    if (!isFinite(amo50) || !isFinite(modeS) || !isFinite(mxdmnS)) return refuse('non-finite-input');
+    if (modeS <= 0 || mxdmnS <= 0) return refuse('non-positive-mode-or-mxdmn');
+    if (amo50 > 100) return refuse('amo50-gt-100-not-a-percent');
+    if (amo50 <= 1) return refuse('amo50-lte-1-ambiguous-fraction-or-percent');
     return amo50 / (2 * modeS * mxdmnS);
   }
 
@@ -2747,7 +2753,7 @@ function escHTML(s) {
 function safeEl(id) {
   return document.getElementById(id);
 }
-function safeSet(id, prop, val) {
+function setIfPresent(id, prop, val) {
   var el = safeEl(id);
   if (el) el[prop] = val;
 }
@@ -4053,7 +4059,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
               });
               if (isDup) {
                 if (!window._csvParseErrors) window._csvParseErrors = [];
-                window._csvParseErrors.push('Skipped duplicate recording: ' + (night.fname || night.date) + ' — same start time as an already-loaded night.');
+                window._csvParseErrors.push('Skipped duplicate recording: ' + escHTML(night.fname || night.date) + ' — same start time as an already-loaded night.');
                 return; // skip
               }
             }
@@ -4088,7 +4094,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\n\nDebug info:\n' + window._csvParseErrors.join('\n') : '';
           var errMsg = 'No valid data found. Upload raw O2Ring CSV files (O2Ring S *.csv) or pre-processed .json/.jsonl summaries.' + dbg;
           _ui.showError(errMsg);
-          safeSet('results', 'innerHTML', '<div class="results-error"><strong>⚠️ Parse failed</strong><br>' + errMsg.replace(/\n/g, '<br>') + '</div>');
+          setIfPresent('results', 'innerHTML', '<div class="results-error"><strong>⚠️ Parse failed</strong><br>' + errMsg.replace(/\n/g, '<br>') + '</div>');
           safeStyle('results', 'display', 'block');
           window._csvParseErrors = [];
           return;
@@ -4140,7 +4146,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           } catch (_ew2) {
             /* a trend failure must never block night rendering */
           }
-          safeSet('fileInput', 'value', '');
+          setIfPresent('fileInput', 'value', '');
           // Surface any per-file parse warnings as a non-blocking banner
           if (window._csvParseErrors && window._csvParseErrors.length) {
             var warnEl = document.getElementById('results');
@@ -4149,7 +4155,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
               banner.className = 'parse-warning-banner';
               var _errLines = window._csvParseErrors
                 .map(function (e) {
-                  return '<div class="warning-line">' + escHTML(e) + '</div>';
+                  // entries are escaped at push time — do not re-escape here
+                  return '<div class="warning-line">' + e + '</div>';
                 })
                 .join('');
               banner.innerHTML =
@@ -4196,7 +4203,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             var _binRows = parseCSV(_binCsv, { fname: file.name, file: file });
             if (!_binRows || _binRows.length < 60) {
               if (!window._csvParseErrors) window._csvParseErrors = [];
-              window._csvParseErrors.push(file.name + ': binary decoded to ' + (_binRows ? _binRows.length : 0) + ' rows (need \u226560).');
+              window._csvParseErrors.push(escHTML(file.name) + ': binary decoded to ' + (_binRows ? _binRows.length : 0) + ' rows (need \u226560).');
             }
             var _binNight = _binRows && _binRows.length >= 60 ? processNight(_binRows, file.name) : null;
             // FINISHED-WORK-IMPROVEMENTS §A 2a — a .bin/.dat night's timebase is the RING RTC (via the
@@ -4255,7 +4262,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
                 var _r = oxyLoadOwnExport(_env);
                 if (!_r.ok) {
                   if (!window._csvParseErrors) window._csvParseErrors = [];
-                  window._csvParseErrors.push((file && file.name ? file.name + ': ' : '') + _r.message);
+                  window._csvParseErrors.push((file && file.name ? escHTML(file.name) + ': ' : '') + escHTML(_r.message));
                   resolve(null);
                   return;
                 }
@@ -4327,7 +4334,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           if (cleanText.indexOf('OxyDex Night Summary') === 0 || cleanText.indexOf('O2Ring Night Summary') === 0) {
             if (!window._csvParseErrors) window._csvParseErrors = [];
             window._csvParseErrors.push(
-              file.name + ': this is a human-readable summary CSV (export-only). ' + 'To reload a night, use its .json export. Raw O2Ring CSVs and .json/.jsonl still import normally.'
+              escHTML(file.name) + ': this is a human-readable summary CSV (export-only). ' + 'To reload a night, use its .json export. Raw O2Ring CSVs and .json/.jsonl still import normally.'
             );
             resolve(null);
             return;
@@ -4344,18 +4351,18 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             // Debug: store first lines for error reporting
             var preview = text.split(/\r?\n/).slice(0, 3).join(' | ');
             if (!window._csvParseErrors) window._csvParseErrors = [];
-            window._csvParseErrors.push(file.name + ': ' + rows.length + ' rows parsed. Preview: ' + preview.substring(0, 120));
+            window._csvParseErrors.push(escHTML(file.name) + ': ' + rows.length + ' rows parsed. Preview: ' + escHTML(preview.substring(0, 120)));
           }
           resolve(rows && rows.length >= 60 ? processNight(rows, file.name) : null);
         } catch (err) {
           if (!window._csvParseErrors) window._csvParseErrors = [];
-          window._csvParseErrors.push(file.name + ' ERROR: ' + (err && err.message ? err.message : String(err)));
+          window._csvParseErrors.push(escHTML(file.name) + ' ERROR: ' + escHTML(err && err.message ? err.message : String(err)));
           resolve(null);
         }
       };
       reader.onerror = function () {
         if (!window._csvParseErrors) window._csvParseErrors = [];
-        window._csvParseErrors.push(file.name + ': file could not be read (FileReader error)');
+        window._csvParseErrors.push(escHTML(file.name) + ': file could not be read (FileReader error)');
         resolve(null);
       };
       reader.readAsArrayBuffer(file);
@@ -24953,6 +24960,16 @@ __exports.PpgDex = window.PpgDex;
   /* `skip` (optional): `skip[i]` truthy ⇒ the pair (i-1, i) is not a successive difference — the two
      beats are separated by a dropout, so real time passed with no signal between them. Absent ⇒ every
      pair, which is the legacy behaviour and every contiguous recording. */
+  /* Round-or-null for the absence-bearing helpers: keeps `null` null instead of letting `+null` become
+     0 and re-manufacturing the very value §∅ forbids. Same shape as the pg.sd1/sd2 guards below. */
+  const _rmOrNull = (v, d) => (v == null ? null : +v.toFixed(d));
+  /* A percent difference against a device reference, refusing instead of manufacturing one. The
+     denominator is absent (null) or zero for a 1-beat device record — `rmssd` now returns null there
+     and `std` returns 0 — and `x / 0` is Infinity, which `.toFixed()` stringifies to "Infinity" and
+     `+` turns back into Infinity. That is how `validation.dRMSSDPct` came to read 65 797.8 (see the
+     oracle-ecg-firmware-rr note above). A ratio to an unmeasured or zero reference is not a large
+     difference, it is NO difference to report. */
+  const _pctDiff = (self, dev, d) => (self == null || dev == null || !(dev > 0) ? null : +((Math.abs(self - dev) / dev) * 100).toFixed(d));
   const rmssd = (a, skip) => {
     let s = 0,
       n = 0;
@@ -24962,7 +24979,13 @@ __exports.PpgDex = window.PpgDex;
       s += d * d;
       n++;
     }
-    return n ? Math.sqrt(s / n) : 0;
+    /* ∅ ABSENCE IS NULL. `n === 0` means NO successive pair was measured — fewer than two beats, or
+       every pair separated by a dropout (`skip`). It does NOT mean "the RMSSD is zero": a 0 is a LEGAL
+       RMSSD (perfectly regular RR), so a consumer handed 0 cannot tell a flat-but-measured record from
+       one that was never measured — CLAUDE.md §∅, "a consumer cannot null what it cannot distinguish".
+       Returning 0 here published `dispRm: 0` and, through Math.log(0), `lnrmssd: -Infinity`. Callers
+       guard with the file's `== null ? null : +x.toFixed(n)` idiom (as pg.sd1/sd2 already do). */
+    return n ? Math.sqrt(s / n) : null;
   };
 
   /* ════ CANONICAL CLOCK · CLOCK-UNIFY (duplicated locally per app — Clock Contract §2) ═══════════
@@ -26682,7 +26705,7 @@ __exports.PpgDex = window.PpgDex;
              `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
-          rmssd: +rmssd(seg, segSkip).toFixed(1),
+          rmssd: _rmOrNull(rmssd(seg, segSkip), 1),
           sdnn: +std(seg).toFixed(1),
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
@@ -27377,7 +27400,10 @@ __exports.PpgDex = window.PpgDex;
   // ════════════════════════════════════════════════════════════════════════
   function stageSleep(epochs, motionByTMin) {
     if (!epochs.length) return [];
-    const rmAll = epochs.map((e) => e.rmssd);
+    /* The night-relative RMSSD reference. `.filter` is safe HERE and nowhere else in this function:
+       rmAll feeds `median` only and is never indexed alongside `epochs`. An epoch whose pairs were all
+       gapped now reports `rmssd: null`, and letting it into the median would move the REM gate. */
+    const rmAll = epochs.map((e) => e.rmssd).filter((v) => v != null);
     const hrAll = epochs.map((e) => e.hr);
     const rmMed = median(rmAll),
       hrMed = median(hrAll),
@@ -27883,18 +27909,29 @@ __exports.PpgDex = window.PpgDex;
       repIdx = null;
     if (epochs.length >= 3) {
       const rmA = epochs.map((e) => e.rmssd),
-        rmMed = median(rmA);
+        rmMed = median(rmA.filter((v) => v != null));
+      /* ⚠️ `bi` indexes `epochs`, so rmA must NOT be filtered — a filtered array would re-point the
+         representative window at the wrong epoch. The unmeasured epochs are skipped IN the loop
+         instead, which keeps every index aligned. An epoch with no measured RMSSD cannot be the
+         HRV-representative window, and `found` keeps the existing whole-record default when none is. */
       let bi = 0,
-        bd = Infinity;
+        bd = Infinity,
+        found = false;
       for (let i = 0; i < rmA.length; i++) {
-        const d = Math.abs(rmA[i] - rmMed);
+        const v = rmA[i]; // bound to a local so the null guard narrows it (indexed access does not)
+        if (v == null) continue;
+        const d = Math.abs(v - rmMed);
         if (d < bd) {
           bd = d;
           bi = i;
+          found = true;
         }
       }
       // rebuild the representative segment beats from tt window
-      const w0 = epochs[bi].tMin * 60,
+      // `found` false ⇒ no epoch had a measured RMSSD, so there is no representative window to pick
+      // and the whole-record default (repSeg = nn) stands. Before, `bd = Infinity` guaranteed the
+      // first epoch was always adopted, which would now adopt an UNMEASURED one.
+      const w0 = (found ? epochs[bi] : epochs[0]).tMin * 60,
         w1 = w0 + 300,
         seg = [],
         segT = [];
@@ -27905,7 +27942,7 @@ __exports.PpgDex = window.PpgDex;
           segT.push(tt[i]);
         }
       }
-      if (seg.length >= 20) {
+      if (found && seg.length >= 20) {
         repSeg = seg;
         repT = segT;
         repTMin = epochs[bi].tMin;
@@ -27914,14 +27951,19 @@ __exports.PpgDex = window.PpgDex;
     }
 
     // aggregate display values (long rec → per-epoch medians)
-    let dispRm = +rm.toFixed(1),
+    let dispRm = _rmOrNull(rm, 1),
       dispSd = +sdnn.toFixed(1),
       dispHr = hr,
       dispPn = +pn.toFixed(1),
       sdann = null,
       sdnnIdx = null;
     if (longRec && epochs.length >= 3) {
-      dispRm = +median(epochs.map((e) => e.rmssd)).toFixed(1);
+      /* Absence does not VOTE. An epoch whose pairs were all gapped now reports `rmssd: null`, and
+         median() over an array holding nulls sorts them as neither high nor low — so the measured
+         epochs are selected first and the median is null only when NONE was measured. Before this,
+         such an epoch contributed 0 and dragged the night's median toward zero. */
+      const _epRm = epochs.map((e) => e.rmssd).filter((v) => v != null);
+      dispRm = _epRm.length ? +median(_epRm).toFixed(1) : null;
       dispSd = +median(epochs.map((e) => e.sdnn)).toFixed(1);
       dispHr = +median(epochs.map((e) => e.hr)).toFixed(1);
       dispPn = +median(epochs.map((e) => e.pnn)).toFixed(1);
@@ -28132,6 +28174,9 @@ __exports.PpgDex = window.PpgDex;
 
     /* ONE converted array, referenced by both `times` and `timesSec` — see ANALYZE_UNITS. */
     const timesArr = Array.from(times);
+    /* The RMSSD the ln is taken of: the epoch-median for a long record, the whole-record value
+       otherwise. Hoisted so the choice is evaluated ONCE and its nullability is narrowed once. */
+    const _lnSrc = longRec ? dispRm : rm;
     return {
       source: rec.source,
       fs,
@@ -28215,7 +28260,10 @@ __exports.PpgDex = window.PpgDex;
       hr,
       meanRR: +meanRR.toFixed(1),
       sdnn: +sdnn.toFixed(1),
-      rmssd: +rm.toFixed(1),
+      /* The rich `ganglior.node-export` already routed this through `nz()` (null-or-non-finite → null,
+         :6561), so the export shape was protected while `analyze`'s OWN return — what the renderer
+         reads — was not. This brings the direct consumer up to the standard the export path kept. */
+      rmssd: _rmOrNull(rm, 1),
       pnn50: +pn.toFixed(1),
       nn50: nn50c(nn),
       cv: +((sdnn / meanRR) * 100).toFixed(2),
@@ -28270,7 +28318,13 @@ __exports.PpgDex = window.PpgDex;
       pip: frag.pip,
       ials: frag.ials,
       pss: frag.pss,
-      lnrmssd: +Math.log(longRec ? dispRm : rm).toFixed(3),
+      /* Guarded exactly as HRVDex guards its own (`hrvdex-dsp.js`: `r._rmssd > 0 ? Math.log(...) : NaN`).
+         Math.log(0) is -Infinity and Math.log(null) is -Infinity too, and `JSON.stringify` renders
+         -Infinity as `null` — so an unguarded sink shipped a JSON export that LOOKED like clean absence
+         while the live object handed the renderer -Infinity. `<= 0` covers both absence and a legal 0. */
+      lnrmssd: _lnSrc == null || _lnSrc <= 0 ? null : +Math.log(_lnSrc).toFixed(3),
+      /* §∅: a null carries a NAMED reason, never a borrowed one. */
+      rmssdAbsentReason: rm == null ? 'no-successive-pairs' : null,
       // epochs + sleep + cvhr + events
       epochs,
       epochsRefused,
@@ -28352,16 +28406,16 @@ __exports.PpgDex = window.PpgDex;
       nSelf: selfNN.length,
       nDev: devVals.length,
       devEctopyCorrected: devC.nc,
-      devRawRMSSD: +rmssd(devRaw).toFixed(1),
-      selfRMSSD: +selfRMSSD.toFixed(1),
-      devRMSSD: +devRMSSD.toFixed(1),
-      dRMSSD: +((Math.abs(selfRMSSD - devRMSSD) / devRMSSD) * 100).toFixed(1),
+      devRawRMSSD: _rmOrNull(rmssd(devRaw), 1),
+      selfRMSSD: _rmOrNull(selfRMSSD, 1),
+      devRMSSD: _rmOrNull(devRMSSD, 1),
+      dRMSSD: _pctDiff(selfRMSSD, devRMSSD, 1),
       selfSDNN: +selfSDNN.toFixed(1),
       devSDNN: +devSDNN.toFixed(1),
-      dSDNN: +((Math.abs(selfSDNN - devSDNN) / devSDNN) * 100).toFixed(1),
+      dSDNN: _pctDiff(selfSDNN, devSDNN, 1),
       selfMean: +selfMean.toFixed(1),
       devMean: +devMean.toFixed(1),
-      dMean: +((Math.abs(selfMean - devMean) / devMean) * 100).toFixed(2),
+      dMean: _pctDiff(selfMean, devMean, 2),
       selfHR: +(60000 / selfMean).toFixed(1),
       devHR: +(60000 / devMean).toFixed(1)
     };

@@ -36,6 +36,16 @@
   /* `skip` (optional): `skip[i]` truthy ⇒ the pair (i-1, i) is not a successive difference — the two
      beats are separated by a dropout, so real time passed with no signal between them. Absent ⇒ every
      pair, which is the legacy behaviour and every contiguous recording. */
+  /* Round-or-null for the absence-bearing helpers: keeps `null` null instead of letting `+null` become
+     0 and re-manufacturing the very value §∅ forbids. Same shape as the pg.sd1/sd2 guards below. */
+  const _rmOrNull = (v, d) => (v == null ? null : +v.toFixed(d));
+  /* A percent difference against a device reference, refusing instead of manufacturing one. The
+     denominator is absent (null) or zero for a 1-beat device record — `rmssd` now returns null there
+     and `std` returns 0 — and `x / 0` is Infinity, which `.toFixed()` stringifies to "Infinity" and
+     `+` turns back into Infinity. That is how `validation.dRMSSDPct` came to read 65 797.8 (see the
+     oracle-ecg-firmware-rr note above). A ratio to an unmeasured or zero reference is not a large
+     difference, it is NO difference to report. */
+  const _pctDiff = (self, dev, d) => (self == null || dev == null || !(dev > 0) ? null : +((Math.abs(self - dev) / dev) * 100).toFixed(d));
   const rmssd = (a, skip) => {
     let s = 0,
       n = 0;
@@ -45,7 +55,13 @@
       s += d * d;
       n++;
     }
-    return n ? Math.sqrt(s / n) : 0;
+    /* ∅ ABSENCE IS NULL. `n === 0` means NO successive pair was measured — fewer than two beats, or
+       every pair separated by a dropout (`skip`). It does NOT mean "the RMSSD is zero": a 0 is a LEGAL
+       RMSSD (perfectly regular RR), so a consumer handed 0 cannot tell a flat-but-measured record from
+       one that was never measured — CLAUDE.md §∅, "a consumer cannot null what it cannot distinguish".
+       Returning 0 here published `dispRm: 0` and, through Math.log(0), `lnrmssd: -Infinity`. Callers
+       guard with the file's `== null ? null : +x.toFixed(n)` idiom (as pg.sd1/sd2 already do). */
+    return n ? Math.sqrt(s / n) : null;
   };
 
   /* ════ CANONICAL CLOCK · CLOCK-UNIFY (duplicated locally per app — Clock Contract §2) ═══════════
@@ -1765,7 +1781,7 @@
              `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
-          rmssd: +rmssd(seg, segSkip).toFixed(1),
+          rmssd: _rmOrNull(rmssd(seg, segSkip), 1),
           sdnn: +std(seg).toFixed(1),
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
@@ -2460,7 +2476,10 @@
   // ════════════════════════════════════════════════════════════════════════
   function stageSleep(epochs, motionByTMin) {
     if (!epochs.length) return [];
-    const rmAll = epochs.map((e) => e.rmssd);
+    /* The night-relative RMSSD reference. `.filter` is safe HERE and nowhere else in this function:
+       rmAll feeds `median` only and is never indexed alongside `epochs`. An epoch whose pairs were all
+       gapped now reports `rmssd: null`, and letting it into the median would move the REM gate. */
+    const rmAll = epochs.map((e) => e.rmssd).filter((v) => v != null);
     const hrAll = epochs.map((e) => e.hr);
     const rmMed = median(rmAll),
       hrMed = median(hrAll),
@@ -2966,18 +2985,29 @@
       repIdx = null;
     if (epochs.length >= 3) {
       const rmA = epochs.map((e) => e.rmssd),
-        rmMed = median(rmA);
+        rmMed = median(rmA.filter((v) => v != null));
+      /* ⚠️ `bi` indexes `epochs`, so rmA must NOT be filtered — a filtered array would re-point the
+         representative window at the wrong epoch. The unmeasured epochs are skipped IN the loop
+         instead, which keeps every index aligned. An epoch with no measured RMSSD cannot be the
+         HRV-representative window, and `found` keeps the existing whole-record default when none is. */
       let bi = 0,
-        bd = Infinity;
+        bd = Infinity,
+        found = false;
       for (let i = 0; i < rmA.length; i++) {
-        const d = Math.abs(rmA[i] - rmMed);
+        const v = rmA[i]; // bound to a local so the null guard narrows it (indexed access does not)
+        if (v == null) continue;
+        const d = Math.abs(v - rmMed);
         if (d < bd) {
           bd = d;
           bi = i;
+          found = true;
         }
       }
       // rebuild the representative segment beats from tt window
-      const w0 = epochs[bi].tMin * 60,
+      // `found` false ⇒ no epoch had a measured RMSSD, so there is no representative window to pick
+      // and the whole-record default (repSeg = nn) stands. Before, `bd = Infinity` guaranteed the
+      // first epoch was always adopted, which would now adopt an UNMEASURED one.
+      const w0 = (found ? epochs[bi] : epochs[0]).tMin * 60,
         w1 = w0 + 300,
         seg = [],
         segT = [];
@@ -2988,7 +3018,7 @@
           segT.push(tt[i]);
         }
       }
-      if (seg.length >= 20) {
+      if (found && seg.length >= 20) {
         repSeg = seg;
         repT = segT;
         repTMin = epochs[bi].tMin;
@@ -2997,14 +3027,19 @@
     }
 
     // aggregate display values (long rec → per-epoch medians)
-    let dispRm = +rm.toFixed(1),
+    let dispRm = _rmOrNull(rm, 1),
       dispSd = +sdnn.toFixed(1),
       dispHr = hr,
       dispPn = +pn.toFixed(1),
       sdann = null,
       sdnnIdx = null;
     if (longRec && epochs.length >= 3) {
-      dispRm = +median(epochs.map((e) => e.rmssd)).toFixed(1);
+      /* Absence does not VOTE. An epoch whose pairs were all gapped now reports `rmssd: null`, and
+         median() over an array holding nulls sorts them as neither high nor low — so the measured
+         epochs are selected first and the median is null only when NONE was measured. Before this,
+         such an epoch contributed 0 and dragged the night's median toward zero. */
+      const _epRm = epochs.map((e) => e.rmssd).filter((v) => v != null);
+      dispRm = _epRm.length ? +median(_epRm).toFixed(1) : null;
       dispSd = +median(epochs.map((e) => e.sdnn)).toFixed(1);
       dispHr = +median(epochs.map((e) => e.hr)).toFixed(1);
       dispPn = +median(epochs.map((e) => e.pnn)).toFixed(1);
@@ -3215,6 +3250,9 @@
 
     /* ONE converted array, referenced by both `times` and `timesSec` — see ANALYZE_UNITS. */
     const timesArr = Array.from(times);
+    /* The RMSSD the ln is taken of: the epoch-median for a long record, the whole-record value
+       otherwise. Hoisted so the choice is evaluated ONCE and its nullability is narrowed once. */
+    const _lnSrc = longRec ? dispRm : rm;
     return {
       source: rec.source,
       fs,
@@ -3298,7 +3336,10 @@
       hr,
       meanRR: +meanRR.toFixed(1),
       sdnn: +sdnn.toFixed(1),
-      rmssd: +rm.toFixed(1),
+      /* The rich `ganglior.node-export` already routed this through `nz()` (null-or-non-finite → null,
+         :6561), so the export shape was protected while `analyze`'s OWN return — what the renderer
+         reads — was not. This brings the direct consumer up to the standard the export path kept. */
+      rmssd: _rmOrNull(rm, 1),
       pnn50: +pn.toFixed(1),
       nn50: nn50c(nn),
       cv: +((sdnn / meanRR) * 100).toFixed(2),
@@ -3353,7 +3394,13 @@
       pip: frag.pip,
       ials: frag.ials,
       pss: frag.pss,
-      lnrmssd: +Math.log(longRec ? dispRm : rm).toFixed(3),
+      /* Guarded exactly as HRVDex guards its own (`hrvdex-dsp.js`: `r._rmssd > 0 ? Math.log(...) : NaN`).
+         Math.log(0) is -Infinity and Math.log(null) is -Infinity too, and `JSON.stringify` renders
+         -Infinity as `null` — so an unguarded sink shipped a JSON export that LOOKED like clean absence
+         while the live object handed the renderer -Infinity. `<= 0` covers both absence and a legal 0. */
+      lnrmssd: _lnSrc == null || _lnSrc <= 0 ? null : +Math.log(_lnSrc).toFixed(3),
+      /* §∅: a null carries a NAMED reason, never a borrowed one. */
+      rmssdAbsentReason: rm == null ? 'no-successive-pairs' : null,
       // epochs + sleep + cvhr + events
       epochs,
       epochsRefused,
@@ -3435,16 +3482,16 @@
       nSelf: selfNN.length,
       nDev: devVals.length,
       devEctopyCorrected: devC.nc,
-      devRawRMSSD: +rmssd(devRaw).toFixed(1),
-      selfRMSSD: +selfRMSSD.toFixed(1),
-      devRMSSD: +devRMSSD.toFixed(1),
-      dRMSSD: +((Math.abs(selfRMSSD - devRMSSD) / devRMSSD) * 100).toFixed(1),
+      devRawRMSSD: _rmOrNull(rmssd(devRaw), 1),
+      selfRMSSD: _rmOrNull(selfRMSSD, 1),
+      devRMSSD: _rmOrNull(devRMSSD, 1),
+      dRMSSD: _pctDiff(selfRMSSD, devRMSSD, 1),
       selfSDNN: +selfSDNN.toFixed(1),
       devSDNN: +devSDNN.toFixed(1),
-      dSDNN: +((Math.abs(selfSDNN - devSDNN) / devSDNN) * 100).toFixed(1),
+      dSDNN: _pctDiff(selfSDNN, devSDNN, 1),
       selfMean: +selfMean.toFixed(1),
       devMean: +devMean.toFixed(1),
-      dMean: +((Math.abs(selfMean - devMean) / devMean) * 100).toFixed(2),
+      dMean: _pctDiff(selfMean, devMean, 2),
       selfHR: +(60000 / selfMean).toFixed(1),
       devHR: +(60000 / devMean).toFixed(1)
     };

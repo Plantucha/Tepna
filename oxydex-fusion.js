@@ -986,7 +986,7 @@ function buildFullMetricsTable(n) {
         escHTML(String(row.m)) +
         '</td>' +
         '<td class="fmt-v">' +
-        (typeof row.v === 'string' && row.v.indexOf('<') >= 0 ? row.v : escHTML(String(row.v))) +
+        escHTML(String(row.v)) +
         '</td>' +
         '<td>' +
         escHTML(String(row.u)) +

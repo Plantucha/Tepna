@@ -436,7 +436,7 @@
               });
               if (isDup) {
                 if (!window._csvParseErrors) window._csvParseErrors = [];
-                window._csvParseErrors.push('Skipped duplicate recording: ' + (night.fname || night.date) + ' — same start time as an already-loaded night.');
+                window._csvParseErrors.push('Skipped duplicate recording: ' + escHTML(night.fname || night.date) + ' — same start time as an already-loaded night.');
                 return; // skip
               }
             }
@@ -471,7 +471,7 @@
           var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\n\nDebug info:\n' + window._csvParseErrors.join('\n') : '';
           var errMsg = 'No valid data found. Upload raw O2Ring CSV files (O2Ring S *.csv) or pre-processed .json/.jsonl summaries.' + dbg;
           _ui.showError(errMsg);
-          safeSet('results', 'innerHTML', '<div class="results-error"><strong>⚠️ Parse failed</strong><br>' + errMsg.replace(/\n/g, '<br>') + '</div>');
+          setIfPresent('results', 'innerHTML', '<div class="results-error"><strong>⚠️ Parse failed</strong><br>' + errMsg.replace(/\n/g, '<br>') + '</div>');
           safeStyle('results', 'display', 'block');
           window._csvParseErrors = [];
           return;
@@ -523,7 +523,7 @@
           } catch (_ew2) {
             /* a trend failure must never block night rendering */
           }
-          safeSet('fileInput', 'value', '');
+          setIfPresent('fileInput', 'value', '');
           // Surface any per-file parse warnings as a non-blocking banner
           if (window._csvParseErrors && window._csvParseErrors.length) {
             var warnEl = document.getElementById('results');
@@ -532,7 +532,8 @@
               banner.className = 'parse-warning-banner';
               var _errLines = window._csvParseErrors
                 .map(function (e) {
-                  return '<div class="warning-line">' + escHTML(e) + '</div>';
+                  // entries are escaped at push time — do not re-escape here
+                  return '<div class="warning-line">' + e + '</div>';
                 })
                 .join('');
               banner.innerHTML =
@@ -579,7 +580,7 @@
             var _binRows = parseCSV(_binCsv, { fname: file.name, file: file });
             if (!_binRows || _binRows.length < 60) {
               if (!window._csvParseErrors) window._csvParseErrors = [];
-              window._csvParseErrors.push(file.name + ': binary decoded to ' + (_binRows ? _binRows.length : 0) + ' rows (need \u226560).');
+              window._csvParseErrors.push(escHTML(file.name) + ': binary decoded to ' + (_binRows ? _binRows.length : 0) + ' rows (need \u226560).');
             }
             var _binNight = _binRows && _binRows.length >= 60 ? processNight(_binRows, file.name) : null;
             // FINISHED-WORK-IMPROVEMENTS §A 2a — a .bin/.dat night's timebase is the RING RTC (via the
@@ -638,7 +639,7 @@
                 var _r = oxyLoadOwnExport(_env);
                 if (!_r.ok) {
                   if (!window._csvParseErrors) window._csvParseErrors = [];
-                  window._csvParseErrors.push((file && file.name ? file.name + ': ' : '') + _r.message);
+                  window._csvParseErrors.push((file && file.name ? escHTML(file.name) + ': ' : '') + escHTML(_r.message));
                   resolve(null);
                   return;
                 }
@@ -710,7 +711,7 @@
           if (cleanText.indexOf('OxyDex Night Summary') === 0 || cleanText.indexOf('O2Ring Night Summary') === 0) {
             if (!window._csvParseErrors) window._csvParseErrors = [];
             window._csvParseErrors.push(
-              file.name + ': this is a human-readable summary CSV (export-only). ' + 'To reload a night, use its .json export. Raw O2Ring CSVs and .json/.jsonl still import normally.'
+              escHTML(file.name) + ': this is a human-readable summary CSV (export-only). ' + 'To reload a night, use its .json export. Raw O2Ring CSVs and .json/.jsonl still import normally.'
             );
             resolve(null);
             return;
@@ -727,18 +728,18 @@
             // Debug: store first lines for error reporting
             var preview = text.split(/\r?\n/).slice(0, 3).join(' | ');
             if (!window._csvParseErrors) window._csvParseErrors = [];
-            window._csvParseErrors.push(file.name + ': ' + rows.length + ' rows parsed. Preview: ' + preview.substring(0, 120));
+            window._csvParseErrors.push(escHTML(file.name) + ': ' + rows.length + ' rows parsed. Preview: ' + escHTML(preview.substring(0, 120)));
           }
           resolve(rows && rows.length >= 60 ? processNight(rows, file.name) : null);
         } catch (err) {
           if (!window._csvParseErrors) window._csvParseErrors = [];
-          window._csvParseErrors.push(file.name + ' ERROR: ' + (err && err.message ? err.message : String(err)));
+          window._csvParseErrors.push(escHTML(file.name) + ' ERROR: ' + escHTML(err && err.message ? err.message : String(err)));
           resolve(null);
         }
       };
       reader.onerror = function () {
         if (!window._csvParseErrors) window._csvParseErrors = [];
-        window._csvParseErrors.push(file.name + ': file could not be read (FileReader error)');
+        window._csvParseErrors.push(escHTML(file.name) + ': file could not be read (FileReader error)');
         resolve(null);
       };
       reader.readAsArrayBuffer(file);
