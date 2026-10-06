@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="89febd4e6983" data-compute-hash="2adc494278a1">
+<html lang="en" data-manifest-hash="c6c185cbdaf0" data-compute-hash="f2f013d950c4">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5rY6AtiuWwZLD8V8Rwq650hh49m1pxgDxAy6VCihCq0=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1NjVgPcRTkBPQrlQfjhzm8x2la7DMgftMA1/hkg3K7E=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5rY6AtiuWwZLD8V8Rwq650hh49m1pxgDxAy6VCihCq0=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.17.0</title>
@@ -4175,6 +4175,18 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     });
     if (typeof el.source === 'string' && _FILE_SHAPE_RE.test(el.source)) delete el.source;
     if (el.provenance && typeof el.provenance === 'object') el.provenance = _scrubProv(el.provenance);
+    /* ⚠️ AND `el.schema.provenance`, which this function did not visit until 2026-10-06. A multi-record
+       element is not a summary block — ECGDex/PulseDex `recordings[]` and PpgDex `sessions[]` carry a
+       FULL v2.0 envelope per element, `schema.provenance.inputs[]` included, with
+       `{ name, bytes, lastModifiedMs, sha256 }` per input. `scrubExport` scrubs `out.schema.provenance`
+       at the TOP level only, so with scrub ON every per-element input name and sha256 survived —
+       against the §5 acceptance stated at the top of this file: a scrubbed JSON contains no device
+       serial, filename or input sha256. The §F1 pass fixed the per-element `provenance` copy and left
+       its envelope twin, and the F13 tests planted elements with NO `schema`, so they were green over a
+       live leak. */
+    if (el.schema && typeof el.schema === 'object' && el.schema.provenance && typeof el.schema.provenance === 'object') {
+      el.schema.provenance = _scrubProv(el.schema.provenance);
+    }
     _scrubRecordingBlock(el.recording);
   }
   function scrubExport(envelope) {

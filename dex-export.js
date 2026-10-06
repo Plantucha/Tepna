@@ -216,6 +216,18 @@
     });
     if (typeof el.source === 'string' && _FILE_SHAPE_RE.test(el.source)) delete el.source;
     if (el.provenance && typeof el.provenance === 'object') el.provenance = _scrubProv(el.provenance);
+    /* ⚠️ AND `el.schema.provenance`, which this function did not visit until 2026-10-06. A multi-record
+       element is not a summary block — ECGDex/PulseDex `recordings[]` and PpgDex `sessions[]` carry a
+       FULL v2.0 envelope per element, `schema.provenance.inputs[]` included, with
+       `{ name, bytes, lastModifiedMs, sha256 }` per input. `scrubExport` scrubs `out.schema.provenance`
+       at the TOP level only, so with scrub ON every per-element input name and sha256 survived —
+       against the §5 acceptance stated at the top of this file: a scrubbed JSON contains no device
+       serial, filename or input sha256. The §F1 pass fixed the per-element `provenance` copy and left
+       its envelope twin, and the F13 tests planted elements with NO `schema`, so they were green over a
+       live leak. */
+    if (el.schema && typeof el.schema === 'object' && el.schema.provenance && typeof el.schema.provenance === 'object') {
+      el.schema.provenance = _scrubProv(el.schema.provenance);
+    }
     _scrubRecordingBlock(el.recording);
   }
   function scrubExport(envelope) {
