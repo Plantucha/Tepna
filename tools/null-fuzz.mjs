@@ -30,6 +30,10 @@
  *                    Also folds a v2 flat bundle into groups on the fly.
  *   --known a,b,c    override the KNOWN metric list (default: the routed set)
  *   --keep N         examples kept per group (default 3)
+ *   --target NAME    oxydex (default) | pulsedex | glucodex | machinery. One target per run and per bundle;
+ *                    a bundle records its target, so --summary/--resume pick it up. Add a DSP in TARGETS.
+ *   --selftest       per target: a night with NO nulls must equal its own clean twin (the comparator is not
+ *                    noisy); machinery also plants the `null + x === x` bug and demands a red. Exit 1 on either.
  *   --narrate        after the run (or with --summary), ask the LOCAL Ollama
  *                    model (the same endpoint and model as tools/qwen-agent.mjs)
  *                    for one plain-English paragraph per NOVEL group, appended
@@ -122,7 +126,7 @@ const REPORT_PATH = `${OUT_PATH.replace(/\.json$/, '')}.md`;
  * still a failure (the gate does not care); the tag only tells the READER what
  * is new. Keep the route beside the name so the list is checkable, and prune a
  * row when its fix merges — a stale KNOWN entry hides a regression. */
-const KNOWN_DEFAULT = {
+const KNOWN_OXYDEX = {
   auc90Total: 'oxydex-dsp.js auc90 null accumulation — #3321 (P-A guard) + the six-site sibling (Osprey)',
   auc90Rate: 'derived from auc90Total — same route',
   spo2IQR: 'oxydex-dsp.js IQR null-sort — six-site sibling (Osprey)',
@@ -130,17 +134,24 @@ const KNOWN_DEFAULT = {
   condPctBelow94: 'oxydex-dsp.js conditional pct counts nulls — six-site sibling (Osprey)',
   minSpo2: 'oxydex-dsp.js computeGatedNadir `spo2 < mn` with null (isFinite(null) is true) — routed to Muse 2026-10-06'
 };
-const KNOWN = (() => {
+/* Routed defects per target; the other targets start empty, so everything they find is NOVEL until it is verified and routed. */
+const KNOWN_BY_TARGET = { oxydex: KNOWN_OXYDEX };
+let TARGET = opt('target', 'oxydex');
+let KNOWN = {};
+/** The routed set for the current target, or --known a,b,c to override it. */
+function resolveKnown() {
+  const base = KNOWN_BY_TARGET[TARGET] || {};
   const o = opt('known', null);
-  if (o === null) return KNOWN_DEFAULT;
+  if (o === null) return base;
   const out = {};
   for (const k of o
     .split(',')
-    .map((s) => s.trim())
+    .map((x) => x.trim())
     .filter(Boolean))
-    out[k] = KNOWN_DEFAULT[k] || 'listed by --known';
+    out[k] = base[k] || 'listed by --known';
   return out;
-})();
+}
+KNOWN = resolveKnown();
 
 /* ── grouped bundle ───────────────────────────────────────────────────────────
  * groups: { "<property>|<metric>": { property, metric, count, seeds: [..], nulls_min, nulls_max,
@@ -150,6 +161,7 @@ function blankBundle() {
   return {
     tool: 'null-fuzz.mjs',
     version: 3,
+    target: TARGET,
     seed_start: SEED_START,
     seeds: SEEDS,
     iters: ITERS,
@@ -235,6 +247,10 @@ if ((RESUME || SUMMARY_OF) && existsSync(OUT_PATH)) {
   console.error(`--summary: no bundle at ${OUT_PATH}`);
   process.exit(2);
 }
+if (bundle.target && bundle.target !== TARGET) {
+  TARGET = bundle.target; // a resumed or summarised bundle names its own target
+  KNOWN = resolveKnown();
+}
 function saveBundle() {
   bundle.updated_at = new Date().toISOString();
   const tmp = `${OUT_PATH}.tmp`;
@@ -289,7 +305,7 @@ function buildVerdict(b, s) {
     reason = complete ? null : `${b.completed_seeds.length} of ${b.seeds} seeds run — clean so far, not the planned population`;
   }
   const v = Verdict.make({
-    gate: 'null-fuzz-oxydex',
+    gate: `null-fuzz-${TARGET}`,
     status,
     population: { checked: b.stats.iters_run, eligible: plannedIters, excluded: Math.max(0, plannedIters - b.stats.iters_run) },
     criterion: { name: 'fabrication_groups', threshold: 0, unit: 'groups', direction: 'eq' },
@@ -308,7 +324,7 @@ function buildVerdict(b, s) {
 function renderReport(b, s, v, narrative) {
   const L = [];
   const live = b.completed_seeds.length < b.seeds;
-  L.push(`# null-fuzz — ${s.verdict}${live ? ' (RUNNING)' : ''}`);
+  L.push(`# null-fuzz [${TARGET}] — ${s.verdict}${live ? ' (RUNNING)' : ''}`);
   L.push('');
   L.push(`Seeds ${s.seeds_run}/${s.seeds_planned} · iters ${s.iters_run} · ${s.failures} failing assertions in ${s.groups} group(s) · ${s.ms_per_iter} ms/iter · bundle \`${OUT_PATH}\``);
   L.push('');
@@ -468,9 +484,19 @@ function rnd() {
 }
 const rint = (lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
 
-/* ── load DSP ── */
+/* ── sandbox + loader (one DSP spine per run; a target names its files) ── */
 function makeSandbox() {
   const noop = () => {};
+  const el = () => ({
+    style: {},
+    dataset: {},
+    classList: { toggle: noop, add: noop, remove: noop },
+    appendChild: noop,
+    setAttribute: noop,
+    addEventListener: noop,
+    children: [],
+    querySelectorAll: () => []
+  });
   const sandbox = {};
   sandbox.window = sandbox;
   sandbox.self = sandbox;
@@ -478,12 +504,12 @@ function makeSandbox() {
   sandbox.console = console;
   sandbox.document = {
     getElementById: () => null,
-    createElement: () => ({ style: {} }),
+    createElement: el,
     querySelector: () => null,
     querySelectorAll: () => [],
-    head: {},
-    body: {},
-    documentElement: { outerHTML: '' },
+    head: el(),
+    body: el(),
+    documentElement: { outerHTML: '', appendChild: noop },
     addEventListener: noop
   };
   sandbox.localStorage = { getItem: () => null, setItem: noop, removeItem: noop, clear: noop };
@@ -491,70 +517,27 @@ function makeSandbox() {
   sandbox.clearTimeout = clearTimeout;
   return vm.createContext(sandbox);
 }
-const ctx = makeSandbox();
-for (const f of ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-dsp.js']) {
-  vm.runInContext(DexBuild.classicify(readFileSync(join(ROOT, f), 'utf8')), ctx, { filename: f });
+function loadDsp(files) {
+  const ctx = makeSandbox();
+  for (const f of files) vm.runInContext(DexBuild.classicify(readFileSync(join(ROOT, f), 'utf8')), ctx, { filename: f });
+  return ctx;
 }
-const OD = (ctx.OxyDex && ctx.OxyDex._bare) || ctx.OxyDex;
-if (!OD || typeof OD.processNight !== 'function') {
-  console.error('FATAL: OxyDex.processNight not reachable');
-  process.exit(2);
-}
+const bare = (o) => (o && o._bare) || o;
 
-/* ── night generator ── */
+/* ── shared helpers ── */
 const T0 = Date.UTC(2026, 0, 1, 22, 0, 0);
-function mkNight() {
-  const rows = [];
-  for (let i = 0; i < LEN; i++) {
-    const dip = rnd() < 0.06 ? rint(3, 6) : 0;
-    const spo2 = Math.max(88, Math.min(100, 96 + rint(-2, 2) - dip));
-    const hr = Math.max(45, Math.min(100, 62 + rint(-6, 6)));
-    rows.push({ tMs: T0 + i * 1000, t: new Date(T0 + i * 1000), spo2, hr, motion: 0 });
-  }
+/** 1–3 random null blocks of 30–400 samples over [0, len); returns a boolean mask. */
+let NO_NULLS = false; // --selftest control: a night with NO nulls must equal its own clean twin, or the comparator is noisy
+function nullMask(len) {
+  const mask = new Array(len).fill(false);
+  if (NO_NULLS) return mask;
   const blocks = rint(1, 3);
   for (let b = 0; b < blocks; b++) {
-    const start = rint(0, LEN - 1);
-    const len = rint(30, Math.min(400, LEN - start));
-    for (let i = start; i < start + len && i < LEN; i++) {
-      // Coupled nulls: the whole row drops, so the clean night carries exactly
-      // the fuzzed night's measured multiset for both signals.
-      rows[i].spo2 = null;
-      rows[i].hr = null;
-    }
+    const start = rint(0, len - 1);
+    const n = rint(30, Math.min(400, len - start));
+    for (let i = start; i < start + n && i < len; i++) mask[i] = true;
   }
-  return rows;
-}
-function cleanRows(rows) {
-  const out = [];
-  for (const r of rows) {
-    if (r.spo2 != null) out.push({ tMs: T0 + out.length * 1000, t: new Date(T0 + out.length * 1000), spo2: r.spo2, hr: r.hr, motion: 0 });
-  }
-  return out;
-}
-function allNullRows() {
-  const rows = [];
-  for (let i = 0; i < LEN; i++) rows.push({ tMs: T0 + i * 1000, t: new Date(T0 + i * 1000), spo2: null, hr: null, motion: 0 });
-  return rows;
-}
-
-/* ── metric extractors (order-independent point statistics) ── */
-function getMetrics(out) {
-  const st = out.stats || {};
-  const desat = out.desat || {};
-  const adv = out.spo2Adv || {};
-  return {
-    meanSpo2: st.meanSpo2,
-    minSpo2: st.minSpo2,
-    maxSpo2: st.maxSpo2,
-    spo2Std: st.spo2Std,
-    t95pct: st.t95pct,
-    t90pct: st.t90pct,
-    auc90Total: desat.auc90Total,
-    auc90Rate: desat.auc90Rate,
-    spo2IQR: adv.spo2IQR,
-    condMeanBelow94: adv.condMeanBelow94,
-    condPctBelow94: adv.condPctBelow94
-  };
+  return mask;
 }
 const isFabricated = (v) => v !== null && v !== undefined && (typeof v !== 'number' || Number.isNaN(v) || !Number.isFinite(v) || v !== 0);
 const same = (a, b) => {
@@ -562,6 +545,284 @@ const same = (a, b) => {
   if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-6;
   return false;
 };
+/** Compare two metric maps; one failure per disagreeing key. */
+function compareMetrics(fz, cl, note) {
+  const out = [];
+  for (const k of Object.keys(fz)) if (!same(fz[k], cl[k])) out.push({ property: 'P2', metric: k, fuzzed: fz[k], clean: cl[k], note });
+  return out;
+}
+
+/* ── TARGETS ─────────────────────────────────────────────────────────────────
+ * A target = { files, known, setup(ctx) → { p1(), p2(it) } }. p1/p2 return an array of
+ * { property, metric, fuzzed, clean, note }; the runner adds seed/iter and groups them. `known` is the
+ * routed set for that target (see KNOWN above). To add a DSP: name its files, build a night, build the
+ * clean twin (null rows REMOVED), list the order-independent metrics, and say what an all-null night must give. */
+const TARGETS = {
+  oxydex: {
+    files: ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-dsp.js'],
+    known: KNOWN_BY_TARGET.oxydex,
+    setup(ctx) {
+      const OD = bare(ctx.OxyDex);
+      if (!OD || typeof OD.processNight !== 'function') throw new Error('OxyDex.processNight not reachable');
+      const mk = (spo2, hr, i) => ({ tMs: T0 + i * 1000, t: new Date(T0 + i * 1000), spo2, hr, motion: 0 });
+      const metrics = (out) => {
+        const st = out.stats || {};
+        const desat = out.desat || {};
+        const adv = out.spo2Adv || {};
+        return {
+          meanSpo2: st.meanSpo2,
+          minSpo2: st.minSpo2,
+          maxSpo2: st.maxSpo2,
+          spo2Std: st.spo2Std,
+          t95pct: st.t95pct,
+          t90pct: st.t90pct,
+          auc90Total: desat.auc90Total,
+          auc90Rate: desat.auc90Rate,
+          spo2IQR: adv.spo2IQR,
+          condMeanBelow94: adv.condMeanBelow94,
+          condPctBelow94: adv.condPctBelow94
+        };
+      };
+      return {
+        p1() {
+          const out = metrics(
+            OD.processNight(
+              Array.from({ length: LEN }, (_, i) => mk(null, null, i)),
+              'allnull.csv'
+            )
+          );
+          const f = [];
+          for (const k of ['meanSpo2', 'minSpo2', 'maxSpo2', 'spo2Std']) if (out[k] !== null) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, want null' });
+          for (const k of ['auc90Total', 'spo2IQR', 'condMeanBelow94', 'condPctBelow94'])
+            if (isFabricated(out[k])) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, fabricated' });
+          return f;
+        },
+        p2() {
+          for (;;) {
+            const rows = [];
+            for (let i = 0; i < LEN; i++) {
+              const dip = rnd() < 0.06 ? rint(3, 6) : 0;
+              rows.push(mk(Math.max(88, Math.min(100, 96 + rint(-2, 2) - dip)), Math.max(45, Math.min(100, 62 + rint(-6, 6))), i));
+            }
+            const mask = nullMask(LEN);
+            // Coupled nulls: the whole row drops, so the clean night carries exactly the fuzzed night's measured multiset.
+            mask.forEach((m, i) => {
+              if (m) {
+                rows[i].spo2 = null;
+                rows[i].hr = null;
+              }
+            });
+            const clean = rows.filter((r) => r.spo2 != null).map((r, j) => mk(r.spo2, r.hr, j));
+            if (clean.length < 10) continue;
+            const nulls = rows.length - clean.length;
+            return compareMetrics(metrics(OD.processNight(rows, 'fz.csv')), metrics(OD.processNight(clean, 'cl.csv')), `nulls=${nulls}/${LEN}`);
+          }
+        }
+      };
+    }
+  },
+
+  pulsedex: {
+    files: ['kernel-constants.js', 'metric-registry.js', 'clock.js', 'pulsedex-dsp.js'],
+    known: {},
+    setup(ctx) {
+      const PD = bare(ctx.PulseDex);
+      if (!PD || typeof PD.pdComputeResult !== 'function') throw new Error('PulseDex.pdComputeResult not reachable');
+      // Order-independent RR statistics only: meanRR / hr / sdnn / N. rMSSD and pNN50 read ADJACENT pairs, and removing a null
+      // joins the beats either side of the gap, so they are not equal by construction and are not asserted here.
+      const metrics = (r) => (r ? { N: r.N, meanRR: r.meanRR, hr: r.hr, sdnn: r.sdnn } : { N: null, meanRR: null, hr: null, sdnn: null });
+      const stamp = (vals) => {
+        let t = T0;
+        return vals.map((v) => {
+          t += v == null ? 900 : v;
+          return t;
+        });
+      };
+      return {
+        p1() {
+          const vals = new Array(LEN).fill(null);
+          let r;
+          try {
+            r = PD.pdComputeResult({ vals, tsMs: stamp(vals), t0Ms: T0 });
+          } catch (e) {
+            return [{ property: 'P1', metric: '(threw)', fuzzed: String(e.message).slice(0, 80), clean: null, note: 'all-null RR series threw' }];
+          }
+          return r === null || r === undefined ? [] : [{ property: 'P1', metric: '(result)', fuzzed: `object N=${r.N}`, clean: null, note: 'all-null RR series produced a result, want null' }];
+        },
+        p2() {
+          for (;;) {
+            const vals = [];
+            for (let i = 0; i < LEN; i++) vals.push(Math.round(900 + 40 * Math.sin(i / 9) + (rnd() - 0.5) * 60));
+            const ts = stamp(vals); // timestamps of the beats that DID happen stay real
+            const mask = nullMask(LEN);
+            const fv = vals.map((v, i) => (mask[i] ? null : v));
+            const cv = vals.filter((_, i) => !mask[i]);
+            const ct = stamp(cv); // the clean twin is a valid continuous RR series of the beats that were measured
+            if (cv.length < 10) continue;
+            const nulls = LEN - cv.length;
+            const fz = PD.pdComputeResult({ vals: fv, tsMs: ts, t0Ms: T0 });
+            const cl = PD.pdComputeResult({ vals: cv, tsMs: ct, t0Ms: T0 });
+            return compareMetrics(metrics(fz), metrics(cl), `nulls=${nulls}/${LEN}`);
+          }
+        }
+      };
+    }
+  },
+
+  glucodex: {
+    files: ['kernel-constants.js', 'metric-registry.js', 'clock.js', 'glucodex-dsp.js'],
+    known: {},
+    setup(ctx) {
+      const GD = bare(ctx.GlucoDex);
+      if (!GD || typeof GD.compute !== 'function') throw new Error('GlucoDex.compute not reachable');
+      // Sample-based statistics only (mean/SD/CV and the mean-derived GMI/eA1c, titr, LBGI/HBGI). Time-weighted or windowed
+      // metrics (MAGE, MODD, GVP, TIR by interval) legitimately change when a stretch of time is missing.
+      const metrics = (r) => {
+        const g = (r && r.glucose) || {};
+        return { mean: g.mean, sd: g.sd, cv: g.cv, gmi: g.gmi, ea1c: g.ea1c, titr: g.titr, lbgi: g.lbgi, hbgi: g.hbgi };
+      };
+      const tms = (n) => Array.from({ length: n }, (_, i) => T0 + i * 300000);
+      return {
+        p1() {
+          let r;
+          try {
+            r = GD.compute({ tMs: tms(LEN), vMgdl: new Array(LEN).fill(null) });
+          } catch {
+            return []; // an explicit refusal of an all-null series is acceptable
+          }
+          const m = metrics(r);
+          return ['mean', 'sd', 'cv', 'gmi', 'ea1c']
+            .filter((k) => m[k] !== null && m[k] !== undefined)
+            .map((k) => ({ property: 'P1', metric: k, fuzzed: m[k], clean: null, note: 'all-null CGM series, want null' }));
+        },
+        p2() {
+          for (;;) {
+            const v = [];
+            let x = rint(95, 125);
+            for (let i = 0; i < LEN; i++) {
+              x = Math.max(60, Math.min(190, x + rint(-4, 4) + Math.round(6 * Math.sin(i / 30))));
+              v.push(x);
+            }
+            const mask = nullMask(LEN);
+            const t = tms(LEN);
+            const fv = v.map((y, i) => (mask[i] ? null : y));
+            const cv = v.filter((_, i) => !mask[i]);
+            const ct = t.filter((_, i) => !mask[i]);
+            if (cv.length < 30) continue;
+            const nulls = LEN - cv.length;
+            return compareMetrics(metrics(GD.compute({ tMs: t, vMgdl: fv })), metrics(GD.compute({ tMs: ct, vMgdl: cv })), `nulls=${nulls}/${LEN}`);
+          }
+        }
+      };
+    }
+  },
+
+  /* Shared machinery: the absence contract at the smallest units every node leans on. No dropout geometry — each
+   * iteration draws random operands and asserts null in → null out. A tripwire: it stays green until someone breaks it. */
+  machinery: {
+    files: ['kernel-constants.js', 'clock.js', 'quantity.js'],
+    known: {},
+    setup(ctx) {
+      const Q = ctx.Quantity || (ctx.DexQuantity && ctx.DexQuantity.Quantity);
+      const CK = ctx.DexClock;
+      if (!Q || !CK || typeof CK.parseTimestamp !== 'function') throw new Error('Quantity / DexClock not reachable');
+      const junk = ['', ' ', 'null', 'undefined', 'abc', '--:--', '25:61:61', '2026-13-45 99:99', '99/99/9999 99:99:99', 'T', null, undefined];
+      const bad = [null, undefined, Number.NaN, 'x', Number.POSITIVE_INFINITY];
+      const units = ['kg', 'cm', 'mmol/L'];
+      return {
+        /** Selftest plant: the exact bug JS makes easy — an absent operand silently yields the surviving one. Returns the restore. */
+        plant() {
+          const orig = Q.prototype.add;
+          Q.prototype.add = function (o) {
+            return new Q(this.value != null ? this.value : o.value, this.unit);
+          };
+          return () => {
+            Q.prototype.add = orig;
+          };
+        },
+        p1() {
+          return [];
+        },
+        p2() {
+          const f = [];
+          const u = units[rint(0, units.length - 1)];
+          const val = +(rnd() * 100).toFixed(2);
+          const nullQ = Q(bad[rint(0, bad.length - 1)], u);
+          for (const [name, r] of [
+            ['Quantity.add(value, null)', () => Q(val, u).add(nullQ).value],
+            ['Quantity.add(null, value)', () => nullQ.add(Q(val, u)).value],
+            ['Quantity(null).as(unit)', () => nullQ.as(u)]
+          ]) {
+            let got;
+            try {
+              got = r();
+            } catch (e) {
+              got = `threw: ${String(e.message).slice(0, 60)}`;
+            }
+            if (got !== null) f.push({ property: 'M1', metric: name, fuzzed: got, clean: null, note: 'absent operand must give null' });
+          }
+          const j = junk[rint(0, junk.length - 1)];
+          let r;
+          try {
+            r = CK.parseTimestamp(j, {});
+          } catch (e) {
+            r = `threw: ${String(e.message).slice(0, 60)}`;
+          }
+          if (r !== null)
+            f.push({
+              property: 'M1',
+              metric: 'DexClock.parseTimestamp(junk)',
+              fuzzed: typeof r === 'object' ? JSON.stringify(r) : r,
+              clean: null,
+              note: `input ${JSON.stringify(j)} must give null, never now`
+            });
+          return f;
+        }
+      };
+    }
+  }
+};
+/* ── --selftest: prove the comparator is neither noisy nor vacuous, per target ─────────────────────────
+ * CONTROL: a night with no nulls must equal its own clean twin (0 failures) — otherwise every P2 finding below is suspect.
+ * PLANT (machinery only, where there is no dropout geometry): reinstate the classic `null + x === x` bug and demand a red. */
+if (has('selftest')) {
+  let bad = 0;
+  for (const [name, def] of Object.entries(TARGETS)) {
+    const r = def.setup(loadDsp(def.files));
+    NO_NULLS = true;
+    reseed(1);
+    let ctl = 0;
+    for (let i = 0; i < 3; i++) ctl += r.p2().length;
+    NO_NULLS = false;
+    let plantMsg = '';
+    if (typeof r.plant === 'function') {
+      const restore = r.plant();
+      reseed(1);
+      let hit = 0;
+      for (let i = 0; i < 20; i++) hit += r.p2().length;
+      restore();
+      plantMsg = ` · plant red ${hit}${hit > 0 ? '' : ' ✗ VACUOUS'}`;
+      if (hit === 0) bad++;
+    }
+    if (ctl !== 0) bad++;
+    console.log(`selftest ${name}: control (no nulls) ${ctl} failures${ctl === 0 ? ' ✓' : ' ✗ NOISY'}${plantMsg}`);
+  }
+  console.log(bad === 0 ? 'selftest PASS' : `selftest FAIL (${bad})`);
+  process.exit(bad === 0 ? 0 : 1);
+}
+
+const targetDef = TARGETS[TARGET];
+if (!targetDef) {
+  console.error(`unknown --target ${TARGET}; known: ${Object.keys(TARGETS).join(', ')}`);
+  process.exit(2);
+}
+let runner;
+try {
+  runner = targetDef.setup(loadDsp(targetDef.files));
+} catch (e) {
+  console.error(`FATAL: target ${TARGET} did not load: ${String(e.message).slice(0, 200)}`);
+  process.exit(2);
+}
 
 /* ── run ── */
 const tRunStart = Date.now();
@@ -581,60 +842,39 @@ function heartbeat(force) {
   const failuresSoFar = bundle.failure_count + seedFailures.length;
   const groupsSoFar = Object.keys(bundle.groups).length;
   // §2.4: real running values — seeds, iters, rate, ETA, failures and groups so far. Never a placeholder.
-  console.error(`null-fuzz: seeds ${seedsDone}/${SEEDS} iters ${itersDone}/${itersTotal} ${rate.toFixed(1)}/s ETA ${etaStr} failures ${failuresSoFar} in ${groupsSoFar} group(s) → ${OUT_PATH}`);
+  console.error(
+    `null-fuzz[${TARGET}]: seeds ${seedsDone}/${SEEDS} iters ${itersDone}/${itersTotal} ${rate.toFixed(1)}/s ETA ${etaStr} failures ${failuresSoFar} in ${groupsSoFar} group(s) → ${OUT_PATH}`
+  );
 }
 
-console.error(`null-fuzz v3: seeds ${SEED_START}..${SEED_START + SEEDS - 1} iters=${ITERS} len=${LEN} keep=${KEEP} out=${OUT_PATH}${RESUME ? ' (resume)' : ''}${QUIET ? ' (quiet)' : ''}`);
+console.error(
+  `null-fuzz v3.2 target=${TARGET}: seeds ${SEED_START}..${SEED_START + SEEDS - 1} iters=${ITERS} len=${LEN} keep=${KEEP} out=${OUT_PATH}${RESUME ? ' (resume)' : ''}${QUIET ? ' (quiet)' : ''}`
+);
 
 for (let s = 0; s < SEEDS; s++) {
   const seed = SEED_START + s;
   if (bundle.completed_seeds.includes(seed)) continue; // §2.2: skip completed units on resume
   reseed(seed);
   seedFailures = [];
-
-  // P1: all-null night → core stats must be null
-  {
-    const t0 = Date.now();
-    const out = getMetrics(OD.processNight(allNullRows(), 'allnull.csv'));
-    bundle.stats.ms_total += Date.now() - t0;
-    for (const k of ['meanSpo2', 'minSpo2', 'maxSpo2', 'spo2Std']) {
-      if (out[k] !== null) fail({ property: 'P1', seed, iter: -1, metric: k, fuzzed: out[k], clean: null, note: 'all-null night, want null' });
-    }
-    for (const k of ['auc90Total', 'spo2IQR', 'condMeanBelow94', 'condPctBelow94']) {
-      if (isFabricated(out[k])) fail({ property: 'P1', seed, iter: -1, metric: k, fuzzed: out[k], clean: null, note: 'all-null night, fabricated' });
-    }
+  const t0p1 = Date.now();
+  try {
+    for (const f of runner.p1()) fail({ ...f, seed, iter: -1 });
+  } catch (e) {
+    fail({ property: 'P1', seed, iter: -1, metric: '(threw)', fuzzed: String(e.message).slice(0, 80), clean: null, note: 'p1 threw' });
   }
-
-  // P2: fuzzed === clean for point statistics
+  bundle.stats.ms_total += Date.now() - t0p1;
   for (let it = 0; it < ITERS; it++) {
-    const fuzzed = mkNight();
-    const clean = cleanRows(fuzzed);
-    if (clean.length < 10) {
-      it--;
-      continue;
-    }
     const t0 = Date.now();
-    let fz;
-    let cl;
     try {
-      fz = getMetrics(OD.processNight(fuzzed, 'fz.csv'));
-      cl = getMetrics(OD.processNight(clean, 'cl.csv'));
+      for (const f of runner.p2()) fail({ ...f, seed, iter: it });
     } catch (e) {
-      fail({ property: 'P2', seed, iter: it, metric: '(threw)', fuzzed: String(e.message), clean: null, note: 'processNight threw' });
-      continue;
+      fail({ property: 'P2', seed, iter: it, metric: '(threw)', fuzzed: String(e.message).slice(0, 80), clean: null, note: 'target threw' });
     } finally {
       bundle.stats.ms_total += Date.now() - t0;
       bundle.stats.iters_run++;
     }
-    const nulls = fuzzed.filter((r) => r.spo2 == null).length;
-    for (const k of Object.keys(fz)) {
-      if (!same(fz[k], cl[k])) {
-        fail({ property: 'P2', seed, iter: it, metric: k, fuzzed: fz[k], clean: cl[k], note: `nulls=${nulls}/${LEN}` });
-      }
-    }
     heartbeat(false);
   }
-
   bundle.completed_seeds.push(seed);
   for (const f of seedFailures) addFailure(bundle, f); // merge only on completion
   seedFailures = [];
