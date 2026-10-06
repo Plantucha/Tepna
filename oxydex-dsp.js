@@ -855,13 +855,15 @@
          trap: `>=` would have admitted it. Do not "simplify" those comparisons to `>=`.)
          The ABSENCE is then handled once, at the same seam `_motionColumnStuck` already uses — see
          `_motionAbsent` in processNight. Deliberately unchanged: a PRESENT column with an empty or
-         unparseable cell still reads 0, exactly as before; only a value that was never written at all
-         becomes null. */
+         unparseable cell is NOT a reading either (ABSENCE-SURVEY 1a3cd7699ce2): `parseInt('') || 0` turned it into
+         motion 0 — "still" — at the ~20 consumers that read `motion === 0` as stillness. It is null, which
+         satisfies neither `> 0` nor `=== 0`; only a genuinely written 0 reads 0. */
       var mStr = motionCol >= 0 && motionCol < p.length ? p[motionCol].trim() : null;
       if (!sStr || sStr === '- -' || sStr === '--' || sStr === '') continue;
       var spo2 = parseInt(sStr, 10),
         hr = parseInt(hStr, 10),
-        motion = mStr == null ? null : parseInt(mStr, 10) || 0;
+        _mv = mStr == null || mStr === '' ? NaN : parseInt(mStr, 10),
+        motion = isNaN(_mv) ? null : _mv;
       if (isNaN(spo2) || isNaN(hr)) continue;
       if (spo2 < 50 || spo2 > 100 || hr < 20 || hr > 250) continue; // sanity check
       // Perfusion index (§4 Phase 1): present only on the OXYFRAME sidecar. `pi_pct` = 0 is the ring's
@@ -5520,13 +5522,19 @@
     // — recorded time PLUS the gaps in it — so the value is a genuine percentage in [0,100].
     // It is rendered, via the generic auto-walk in oxydex-fusion.js.
     var _spanSec = rows[n - 1].t != null && rows[0].t != null ? (rows[n - 1].t - rows[0].t) / 1000 : 0;
-    if (!(_spanSec > 0)) _spanSec = n + totalGap; // stampless fallback: 1 Hz assumption, made explicit
-    return {
+    // ∅ ABSENCE-SURVEY 4fc9554e37da: with no wall-clock span the denominator is SYNTHESISED under an assumed
+    // 1 Hz (the O2Ring's documented cadence). That is reduced coverage, so it is annotated, not refused —
+    // `gapSpanSource` names it. Added only on the fallback, so a stamped night's output is byte-identical.
+    var _assumed = !(_spanSec > 0);
+    if (_assumed) _spanSec = n + totalGap;
+    var _out = {
       gapCount: gaps.length,
       maxGapSec: +maxGap.toFixed(0),
       gapPct: +Math.min(100, (totalGap / _spanSec) * 100).toFixed(1),
       gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Minor gaps' : 'Clean'
     };
+    if (_assumed) _out.gapSpanSource = 'assumed-1Hz';
+    return _out;
   }
 
   /* recording.coverage for an oximetry night — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
@@ -6932,9 +6940,11 @@
             // §3 — same reasoning as meanPi directly above: `|| 0` would turn a faulted motion
             // column into a report of a perfectly still night, which is the opposite of the truth.
             motionPct: s.motionPct != null ? s.motionPct : null,
-            n: s.n || 0,
-            artifactHrCleaned: s.artifactHrCleaned || 0,
-            artifactSpikesRemoved: s.artifactSpikesRemoved || 0
+            // ∅ ABSENCE-SURVEY 0e9b40d1425a: the three `|| 0` holdouts of this block. An export without
+            // them did not count zero rows or zero artifacts; it did not say.
+            n: s.n != null ? s.n : null,
+            artifactHrCleaned: s.artifactHrCleaned != null ? s.artifactHrCleaned : null,
+            artifactSpikesRemoved: s.artifactSpikesRemoved != null ? s.artifactSpikesRemoved : null
           },
           /* §∅ — `|| { rate: 0, count: 0 }` DEFEATED guards that were already correct. Every
              consumer tests the block for presence (`if (n.odi4)` at oxydex-render.js and
@@ -6971,13 +6981,18 @@
             var evArr = obj.hr_spikes && Array.isArray(obj.hr_spikes.events) ? obj.hr_spikes.events : Array.isArray(obj.hr_spikes) ? obj.hr_spikes : [];
             if (evArr.length) {
               return evArr.map(function (sp) {
+                // ∅ ABSENCE-SURVEY 773f10412ae2: `|| 0` made a detail-less spike a 0 bpm baseline/peak spike,
+                // which the consumers' own `sp.baseline == null || sp.peak == null` guards could no longer
+                // skip. And `parseTimeStr` answers 0 for a string it cannot parse, so an unparseable time
+                // became minute 0; it is asked only of a string that carries an HH:MM:SS.
+                var _t = sp.time && /\d{2}:\d{2}:\d{2}/.test(sp.time) ? parseTimeStr(sp.time) : null;
                 return {
                   time: sp.time || '',
-                  baseline: sp.baseline || 0,
-                  peak: sp.peak || 0,
-                  duration: sp.duration || 0,
-                  spo2: sp.spo2 || 0,
-                  mfm: sp.mfm || (sp.time ? parseTimeStr(sp.time) / 60 : 0)
+                  baseline: sp.baseline != null ? sp.baseline : null,
+                  peak: sp.peak != null ? sp.peak : null,
+                  duration: sp.duration != null ? sp.duration : null,
+                  spo2: sp.spo2 != null ? sp.spo2 : null,
+                  mfm: sp.mfm != null ? sp.mfm : _t != null ? _t / 60 : null
                 };
               });
             }
@@ -6986,7 +7001,9 @@
             return cnt > 0 ? { length: cnt } : [];
           })(),
           // osc: import the full oscillations object (peakCrossings / first / last included)
-          osc: obj.oscillations ? Object.assign({ windows: [] }, obj.oscillations) : { episodeCount: 0, totalCrossings: 0, meanAmplitude: 0, peakCrossings: 0, windows: [] },
+          // ∅ ABSENCE-SURVEY e012278db97c: no `oscillations` block is no evidence the detector ran — null, as its
+          // siblings below use, never a zero-filled "clean night, 0 episodes". Every reader tests `n.osc`.
+          osc: obj.oscillations ? Object.assign({ windows: [] }, obj.oscillations) : null,
           period: obj.hr_spikes && obj.hr_spikes.periodicity && obj.hr_spikes.periodicity.pattern ? obj.hr_spikes.periodicity : null,
           tIdx: (function () {
             /* ── READ WHAT WAS EXPORTED. The exporter already publishes the honest answer ───────────
@@ -7014,10 +7031,12 @@
                number that looks the same either way. */
             var idx = {};
             var recSec = s.n != null && isFinite(s.n) ? s.n : null; // rows actually recorded, 1 Hz
-            var basis = recSec != null ? recSec : (s.durationMin || 0) * 60;
-            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95pct / 100) * basis) };
-            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90pct / 100) * basis) };
-            if (Object.keys(idx).length) idx.tIdxBasis = recSec != null ? 'recorded-samples' : 'wall-duration';
+            // ∅ ABSENCE-SURVEY 483e784c9219: with neither `n` nor `durationMin` there is NO basis — `|| 0` gave
+            // `secs: 0` beside a real pct and labelled it a wall duration that does not exist.
+            var basis = recSec != null ? recSec : s.durationMin != null && isFinite(s.durationMin) ? s.durationMin * 60 : null;
+            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: basis != null ? Math.round((s.t95pct / 100) * basis) : null };
+            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: basis != null ? Math.round((s.t90pct / 100) * basis) : null };
+            if (Object.keys(idx).length) idx.tIdxBasis = recSec != null ? 'recorded-samples' : basis != null ? 'wall-duration' : null;
             return idx;
           })(),
           // ── v18–v20 fields: restore from the export's descriptive key names ──

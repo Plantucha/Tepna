@@ -496,6 +496,36 @@ export const SEEDS = [
     at: 'oxydex-render.js:3315',
     state: 'fixed',
     note: 'ALREADY FIXED on main by #2939 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR.'
+  },
+  {
+    at: 'oxydex-dsp.js:6714',
+    state: 'fixed',
+    note: "an imported summary with no n / artifactHrCleaned / artifactSpikesRemoved keeps null, never 0. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6782',
+    state: 'fixed',
+    note: "the tIdx seconds basis is the recording span, else a FINITE durationMin x 60, else null; with no basis secs and tIdxBasis are null, never 0 s. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6741',
+    state: 'fixed',
+    note: "an imported spike's baseline / peak / duration / spo2 stay null when absent, and mfm is derived only from a real HH:MM:SS stamp (parseTimeStr returns 0 on an unparseable one). Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6754',
+    state: 'fixed',
+    note: "an export with no oscillations block imports osc: null (not computed), never a computed-looking episodeCount 0. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:841',
+    state: 'fixed',
+    note: "an unread or empty motion cell is null, and a non-numeric one is null rather than parseInt(...) || 0; a real 0 stays 0. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:5375',
+    state: 'fixed',
+    note: "the 1 Hz gap-span fallback is kept but NAMED: gapSpanSource: 'assumed-1Hz' rides only on the fallback, so an assumed span is distinguishable from a measured one. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
   }
 ];
 

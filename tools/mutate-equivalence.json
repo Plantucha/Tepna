@@ -3857,5 +3857,17 @@
    "why": "EQUIVALENT — the ecgdex twin of pulsedex:448's declared equivalent (same shared HRV-geometry helper): on a tie the assigned maxC is identical either way.",
    "brief": "MUTATION-COVERAGE-SELECTION-2026-08-14-BRIEF.md §4.4 — declared in code comments, harvested 2026-08-19"
   }
+ ],
+ "oxydex-dsp.js": [
+  {
+   "line": 865,
+   "op": "bool || → &&",
+   "before": "_mv = mStr == null || mStr === '' ? NaN : parseInt(mStr, 10),",
+   "after": "_mv = mStr == null && mStr === '' ? NaN : parseInt(mStr, 10),",
+   "class": "equivalent",
+   "why": "PROOF (the Codex reader, verified): mStr is only ever null or a .trim()med string (line 861). Under `&&` the condition is always false, so parseInt runs on every value; for the only two values the original sends to NaN directly, null and the empty string, parseInt of each with radix 10 is NaN too. Every input gives the same _mv, so the same motion.",
+   "probe": "evaluated parseInt(null, 10) and parseInt with an empty string, radix 10 (both NaN); read line 861's mStr assignment",
+   "brief": "ABSENCE-SURVEY-2026-09-22 group B1"
+  }
  ]
 }

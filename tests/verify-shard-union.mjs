@@ -243,10 +243,20 @@ for (const N of [1, 2, 3, 4, 5, 6, 8, 12]) {
   /* The heavy item must be ALONE on its shard, or LPT has mixed work in behind it and the wall time
      is worse than the item's own cost for no reason. This is the property that makes excluding it
      from the balance metric honest rather than a way of hiding it. */
+  /* TWO WAYS TO BE RIGHT, and the message must say WHICH. The property is "no shard is dominated by
+     one indivisible group": satisfied either because the heaviest group is ALONE on its shard (LPT's
+     answer when one item exceeds the balanced load) or because NO group is heavy enough to need that
+     (the plan is simply even). ⚠️ The second case arrived with the 2026-10-06 timings refresh, after
+     #3314 took the worst group from 243 s to 4.6 s — and the old wording then printed
+     "the heaviest group runs alone — shard 1: 296 groups", which is self-contradictory. A green that
+     reads false is the thing this suite exists to refuse, so the name now follows the arm taken. */
+  const soloDominant = bins[heaviestShard].length === 1;
   ok(
-    `N=${CI_SHARDS}: the heaviest group runs alone, so nothing queues behind it`,
-    bins[heaviestShard].length === 1 || makespan <= remMean * 1.25,
-    bins[heaviestShard].length === 1 ? `shard ${heaviestShard + 1}: 1 group` : `shard ${heaviestShard + 1}: ${bins[heaviestShard].length} groups`
+    `N=${CI_SHARDS}: no shard is dominated by one indivisible group`,
+    soloDominant || makespan <= remMean * 1.25,
+    soloDominant
+      ? `shard ${heaviestShard + 1} runs its single heavy group ALONE at ${(makespan / 1000).toFixed(1)} s, so nothing queues behind it`
+      : `no group needs a shard to itself — heaviest shard ${heaviestShard + 1} is ${(makespan / 1000).toFixed(1)} s over ${bins[heaviestShard].length} groups, within 1.25x the mean`
   );
   // A HINT going stale must never red the gate — it costs speed, not coverage. So this is a warn.
   if (unknown.length)
