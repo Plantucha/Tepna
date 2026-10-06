@@ -219,3 +219,134 @@ def test_therapy_end_factory_defaults_flow_eps_when_neither_key_is_set():
 
     f = capture._therapy_end_factory({"auto_stop": {"enabled": True}})
     assert f(asyncio.Event())._flow_eps == 0.5
+
+
+# ══ NEVER RUN A KEY HANDSHAKE ON AN UNMEASURED MTU (2026-10-05) ════════════════════════════════════
+# At 10:00:22, the first connect after a daemon restart, this path logged `MTU=unknown` — the only
+# non-247 connect since 09-20. The handshake that followed ended in a transport error at 10:00:44, and
+# from 10:01:17 the AS11 refused the stored key on every poll for a day. Undoing it took physical access.
+#
+# ⚠️ These tests do NOT assert that fragmentation caused the key rejection. The device's reassembly rule
+# is not ours to know, and `MTU=unknown` has two causes (`_acquire_mtu()` raised, or `mtu_size` was
+# absent/None/0) so it does not even establish WHICH fired. What is asserted is narrower and sufficient:
+# on an unmeasured link, a frame that would be split is refused rather than guessed at.
+
+
+def _fake_bleak(monkeypatch, *, mtu_size, acquire_raises=0):
+    """A `bleak` whose client reports `mtu_size` and whose `_acquire_mtu` fails `acquire_raises` times."""
+    import sys
+    import types
+
+    state = {"acquires": 0, "writes": []}
+
+    class _Backend:
+        async def _acquire_mtu(self):
+            state["acquires"] += 1
+            if state["acquires"] <= acquire_raises:
+                raise RuntimeError("acquire refused")
+
+    class _FakeClient:
+        def __init__(self, *a, **k):
+            self._backend = _Backend()
+            self.mtu_size = mtu_size
+
+        async def connect(self):
+            pass
+
+        async def start_notify(self, *a, **k):
+            pass
+
+        async def write_gatt_char(self, _ch, data, response=True):
+            state["writes"].append(bytes(data))
+
+        async def disconnect(self):
+            pass
+
+    fake = types.ModuleType("bleak")
+    fake.BleakClient = _FakeClient
+    monkeypatch.setitem(sys.modules, "bleak", fake)
+    return state
+
+
+def _frame_163():
+    """The real `CheckSessionIntegrity` frame — 163 bytes, built by the shipped builders rather than
+    typed, so the size this test reasons about is the size the wire carries."""
+    import as11_link as L
+
+    return L.fig_frame(L.VCID_PLAIN_TX, L.check_session_integrity((b"\xab" * 32).hex(), 11))
+
+
+def test_a_measured_link_sends_the_handshake_frame_in_ONE_write(monkeypatch):
+    """The control, and the baseline the 10-05 connect departed from: at a negotiated 247 the 163-byte
+    proof frame is a SINGLE ATT write, which is how every successful poll since 09-20 sent it."""
+    import asyncio as _a
+
+    import capture
+
+    state = _fake_bleak(monkeypatch, mtu_size=247)
+    write, _recv, _dc = _a.run(capture._cpap_ble_connect("AA:BB:CC:DD:EE:FF", "hci0"))
+    _a.run(write(_frame_163()))
+    assert len(state["writes"]) == 1, f"a measured 247 must not fragment: {len(state['writes'])} writes"
+
+
+def test_an_UNMEASURED_link_REFUSES_the_handshake_frame_instead_of_splitting_it_nine_ways(monkeypatch):
+    """🔴 THE UNIT. `_acquire_mtu` fails every time and `mtu_size` is absent, so the MTU was never
+    measured — and the 163-byte frame must be REFUSED, not split into nine writes on a guess.
+
+    The refusal carries the numbers so the journal says what was declined and why, and it is an
+    `As11Error`, which the shadow loop already catches — so this is recorded as an ordinary poll failure,
+    counted and journalled, and NOT as a key rejection, which it is not."""
+    import asyncio as _a
+
+    import as11_pull
+    import capture
+    import pytest as _p
+
+    state = _fake_bleak(monkeypatch, mtu_size=None, acquire_raises=99)
+    write, _recv, _dc = _a.run(capture._cpap_ble_connect("AA:BB:CC:DD:EE:FF", "hci0"))
+    with _p.raises(as11_pull.As11Error) as ei:
+        _a.run(write(_frame_163()))
+    msg = str(ei.value)
+    assert "never" in msg and "measured" in msg, msg
+    assert "163" in msg and "9 ATT writes" in msg, f"the refusal must name what it declined: {msg}"
+    assert state["writes"] == [], "nothing may reach the wire once the frame is refused"
+    # 🔴 AND THE RETRY BOUND IS PINNED HERE, not in the retry test — because that one lets the SECOND
+    # attempt succeed, so its `break` makes a bound of 2 and a bound of 3 indistinguishable. I planted
+    # `(1, 2, 3)` and it survived a suite that claimed to pin "one retry, not a loop". An always-failing
+    # acquire is the only input that can see the bound: exactly two attempts, then refuse.
+    assert state["acquires"] == 2, (
+        "the acquire must be attempted exactly twice before the link is refused — a link that cannot "
+        f"report its MTU must not be retried into the night; got {state['acquires']}"
+    )
+
+
+def test_an_unmeasured_link_still_passes_a_frame_that_needs_NO_guess(monkeypatch):
+    """The refusal is bounded on purpose. A frame that fits in one write needs no assumption about the
+    MTU, so it goes out — refusing the whole link would turn a bad guess into a dead CPAP, which is a
+    worse failure than the one being fixed."""
+    import asyncio as _a
+
+    import capture
+
+    state = _fake_bleak(monkeypatch, mtu_size=None, acquire_raises=99)
+    write, _recv, _dc = _a.run(capture._cpap_ble_connect("AA:BB:CC:DD:EE:FF", "hci0"))
+    _a.run(write(b"x" * 20))
+    assert state["writes"] == [b"x" * 20], state["writes"]
+
+
+def test_a_TRANSIENT_acquire_failure_is_RETRIED_and_the_link_is_not_refused(monkeypatch):
+    """Re-acquire once, because of what the failure now costs. Before the refusal, a failed acquire only
+    made the log vaguer; now it costs the session, so a first failure must get a second chance.
+
+    ⚠️ ONE retry, not a loop: a link that genuinely cannot report its MTU must be refused promptly
+    rather than retried into the night. The second attempt succeeding means the frame goes out in one
+    write — the fault healed and nothing downstream sees it."""
+    import asyncio as _a
+
+    import capture
+
+    state = _fake_bleak(monkeypatch, mtu_size=247, acquire_raises=1)
+    write, _recv, _dc = _a.run(capture._cpap_ble_connect("AA:BB:CC:DD:EE:FF", "hci0"))
+    _a.run(write(_frame_163()))
+    assert state["acquires"] == 2, f"the acquire must be retried exactly once: {state['acquires']}"
+    assert len(state["writes"]) == 1, "after a successful re-acquire the link is measured and sends one write"

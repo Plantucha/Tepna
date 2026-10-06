@@ -634,3 +634,36 @@ def test_a_StreamData_carrying_NO_data_is_MALFORMED_not_an_empty_batch():
     assert len(batches) == 1, "the empty frame must NOT have been yielded as a batch"
     assert batches[0]["channels"] == {"PatientFlow": [9.0]}
     assert c.malformed == 1 and c.frames_ok == 1
+
+
+# ══ THE FAULT TAXONOMY — `As11Error` is one class for every protocol failure ════════════════════════
+
+
+def test_the_device_code_and_the_firmware_LABEL_both_name_a_key_rejection():
+    """Either token is enough: the numeric code is the protocol's identity, the name is the firmware's
+    label, and a firmware that renames the label must still be recognised. The live wording is the
+    journal's own (2026-10-05 10:01:17)."""
+    assert P.fault_kind("RPC 10 failed: code -11005 VerificationFailure") == P.KEY_REJECTED
+    assert P.fault_kind("RPC 10 failed: VerificationFailure") == P.KEY_REJECTED
+    assert P.fault_kind("RPC 10 failed: code -11005 SomeFutureName") == P.KEY_REJECTED
+    assert P.fault_kind(P.As11Error("code -11005")) == P.KEY_REJECTED
+    # case-insensitive on the label, because firmware casing is not our contract
+    assert P.fault_kind("verificationfailure") == P.KEY_REJECTED
+
+
+def test_the_CODE_IS_BOUNDED_so_a_longer_number_or_a_glued_token_is_NOT_a_key_rejection():
+    """⚠️ MY OWN FIRST PATTERN FAILED THIS, and the comment beside it already claimed otherwise: with
+    `(?<![\\d-])` a lookbehind, `x-11005` matched, because a LETTER before the minus is neither a digit
+    nor a dash. The repo's recurring defect in one line — an unanchored match plus prose asserting it is
+    anchored. `(?<![\\w-])` is what the comment always claimed."""
+    for msg in ("code -110050 Other", "x-11005", "addr04-11005", "0x11005", "11005"):
+        assert P.fault_kind(msg) is None, msg
+
+
+def test_an_undiscriminated_fault_is_None_never_a_guess():
+    """`None` means "this is the bucket we could not discriminate", not "healthy" — the §∅ rule applied
+    to a taxonomy: a kind we did not establish is not a kind we may invent."""
+    assert P.fault_kind(TimeoutError("timed out")) is None
+    assert P.fault_kind(OSError(110, "Connection timed out")) is None
+    assert P.fault_kind("") is None
+    assert P.fault_kind(None) is None

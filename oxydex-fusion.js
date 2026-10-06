@@ -39,10 +39,16 @@ function _oxyEcgDate(startEpochMs) {
 var OXY_ROLL_SLACK_MS = 43200000; // 12 h
 function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
   if (startEpochMs == null || !hhmmss) return null;
-  var p = String(hhmmss).split(':');
-  if (p.length < 2) return null;
+  // ∅ components by regex and range-checked (Clock Contract §2.7): `+'xx' || 0` made an unreadable stamp a real
+  // midnight time, and Date.UTC silently rolls an out-of-range one onto a wrong instant. Unreadable ⇒ null.
+  var p = String(hhmmss).match(/^\s*(\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\s*$/);
+  if (!p) return null;
+  var hh = +p[1],
+    mm = +p[2],
+    ss = p[3] != null ? +p[3] : 0;
+  if (hh > 23 || mm > 59 || ss > 59) return null;
   var d = new Date(startEpochMs);
-  var base = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), +p[0] || 0, +p[1] || 0, +(p[2] || 0) || 0);
+  var base = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hh, mm, ss);
   // allow the first event to sit slightly before the anchor; otherwise roll forward
   while (base < startEpochMs - 3600000) base += 86400000;
   if (prevMs != null) {
@@ -62,13 +68,17 @@ function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
    day. ── */
 function _oxyNightWindow(n) {
   if (!n || n.t0Ms == null) return null;
+  // pairing anchor; 0 = untimed night; never published (ABSENCE-SURVEY 4ca8bf4e4e5a, ruled not-a-defect: a point at
+  // t0 IS start-proximity pairing, and coverage — the reader that would misread a 0 — refuses on no ECG duration)
   var dur = n.stats && n.stats.durationMin != null ? n.stats.durationMin : 0;
   return { a: n.t0Ms, b: n.t0Ms + dur * 60000 };
 }
 function _oxyEcgWindow(ecg) {
   var rec = ecg && ecg.recording;
   if (!rec || rec.startEpochMs == null) return null;
-  var durMin = rec.durationMin != null ? rec.durationMin : rec.durationSec != null ? rec.durationSec / 60 : 0;
+  // ∅ as for the night: no recorded duration ⇒ no window (never a 0-minute one)
+  var durMin = rec.durationMin != null ? rec.durationMin : rec.durationSec != null ? rec.durationSec / 60 : null;
+  if (durMin == null || !isFinite(durMin)) return null;
   return { a: rec.startEpochMs, b: rec.startEpochMs + durMin * 60000 };
 }
 function oxyEcgForNight(n) {
@@ -85,6 +95,9 @@ function oxyEcgForNight(n) {
     keys.forEach(function (k) {
       var ecg = window._ecgByDate[k],
         ew = _oxyEcgWindow(ecg);
+      // PAIRING needs only the start: an ECG with no recorded duration is matched by its start (a point), as it always
+      // was. COVERAGE (oxyComputeFusion) is where the unknown end must refuse, so _oxyEcgWindow itself returns null.
+      if (!ew && ecg && ecg.recording && ecg.recording.startEpochMs != null) ew = { a: ecg.recording.startEpochMs, b: ecg.recording.startEpochMs };
       if (!ew) {
         // ECG lacks a usable window → fall back to civil-date equality only
         if (k === n.date) {
@@ -279,7 +292,8 @@ function oxyComputeFusion(n, ecg) {
       var tMs = e.tMs != null ? e.tMs : idx != null ? n.t0Ms + idx * 1000 : null;
       if (tMs != null) {
         desatMs.push(tMs);
-        desatDepth.push(e.depth != null ? e.depth : e.baseline != null && e.nadir != null ? e.baseline - e.nadir : 0);
+        // ∅ an event with no recorded depth carries null — not a 0 % dip that drags its stage's mean toward "shallow"
+        desatDepth.push(e.depth != null ? e.depth : e.baseline != null && e.nadir != null ? e.baseline - e.nadir : null);
       }
     });
   }
@@ -319,6 +333,8 @@ function oxyComputeFusion(n, ecg) {
   // fabricated-absence render). A surge only exists inside the ECG window so confirmed ⊆
   // coveredDesats by construction; Math.max guards a boundary-rounding edge.
   var _cov = _oxyEcgWindow(ecg);
+  // ∅ with no usable ECG window the covered set is UNKNOWN — not every desat of the night (which divided the
+  // confirmations by the whole night, the very understatement §11.1 removed). Unknown ⇒ null, no percentages.
   var coveredDesats = _cov
     ? Math.max(
         confirmed,
@@ -326,9 +342,9 @@ function oxyComputeFusion(n, ecg) {
           return c + (m >= _cov.a && m <= _cov.b ? 1 : 0);
         }, 0)
       )
-    : desN;
-  var coveragePct = desN > 0 ? Math.round((coveredDesats / desN) * 100) : null;
-  var confPct = coveredDesats > 0 ? Math.round((confirmed / coveredDesats) * 100) : null;
+    : null;
+  var coveragePct = desN > 0 && coveredDesats != null ? Math.round((coveredDesats / desN) * 100) : null;
+  var confPct = coveredDesats != null && coveredDesats > 0 ? Math.round((confirmed / coveredDesats) * 100) : null;
   // ── null model (mirror of Integrator): expected confirmations by chance ──
   var _w0 = Math.min.apply(null, [].concat(surges, desatMs)),
     _w1 = Math.max.apply(null, [].concat(surges, desatMs));
@@ -373,8 +389,11 @@ function oxyComputeFusion(n, ecg) {
   // quarter-covered night). Scope the numerator to the covered fraction so both sides share
   // one time base. Hypoxic burden concentrates AT desats, so the desat-coverage fraction is
   // the apt proration; hbCov == hbTotal when the ECG spans the whole night.
-  var _covFrac = desN > 0 ? coveredDesats / desN : 1;
-  var hbCov = hbTotal != null ? +(hbTotal * _covFrac).toFixed(1) : null;
+  // ∅ the share of the burden under ECG coverage is known only when desats exist AND the window is known. With no
+  // desats (or no window) the old `: 1` scoped the WHOLE-night burden to a window-only event count — the inflation
+  // the note above exists to prevent. Unknown share ⇒ no scoped burden and no dose/event.
+  var _covFrac = desN > 0 && coveredDesats != null ? coveredDesats / desN : null;
+  var hbCov = hbTotal != null && _covFrac != null ? +(hbTotal * _covFrac).toFixed(1) : null;
   var dosePerEv = hbCov != null && doseDenom > 0 ? +(hbCov / doseDenom).toFixed(1) : null;
 
   // ── metric 4: SpO₂ nadir depth per ECG-staged sleep stage ──
@@ -391,11 +410,15 @@ function oxyComputeFusion(n, ecg) {
       stg = _oxyStageAt(ecg, (desatMs[di] - rec.startEpochMs) / 60000);
     }
     var key = stg || 'Unstaged';
-    if (!stageAgg[key]) stageAgg[key] = { sum: 0, count: 0, deepest: 0, unstaged: !stg };
-    var dp = desatDepth[di] || 0;
-    stageAgg[key].sum += dp;
+    // ∅ `count` is events; `measured` is events with a recorded depth, the only denominator for the depth mean
+    if (!stageAgg[key]) stageAgg[key] = { sum: 0, count: 0, measured: 0, deepest: null, unstaged: !stg };
+    var dp = desatDepth[di];
     stageAgg[key].count++;
-    if (dp > stageAgg[key].deepest) stageAgg[key].deepest = dp;
+    if (dp != null && isFinite(dp)) {
+      stageAgg[key].sum += dp;
+      stageAgg[key].measured++;
+      if (stageAgg[key].deepest == null || dp > stageAgg[key].deepest) stageAgg[key].deepest = dp;
+    }
   }
   // OxyDex's own (oximetry-derived) stage proxy — context only, not per-event
   var sp = n.stageProxy || null;
@@ -538,7 +561,10 @@ function oxyEcgFusionSection(n, ecg) {
   if (desN) {
     var gateTxt = '−' + GATE.leadMaxSec + 's…+' + GATE.trailMaxSec + 's';
     var covTxt = coveredDesats + ' of ' + desN + ' desats within ECG coverage';
-    if (coveredDesats === 0) {
+    if (coveredDesats == null) {
+      // ∅ no usable ECG window — what it covered is unknown, so no confirmed fraction is asserted
+      html += tile('—', 'blue', 'Confirmed apnea', 'the paired ECG has no usable recording window — its coverage of the ' + desN + ' scored desats is unknown, so no cross-confirmation is asserted');
+    } else if (coveredDesats === 0) {
       // §11.2 — the paired ECG (a device-offset/near-date pairing) did not overlap ANY of
       // the night's desats: report no coverage, NOT a green "0 confirmed" (fabricated absence).
       html += tile('—', 'blue', 'Confirmed apnea', 'the paired ECG did not overlap any of the ' + desN + ' scored desats — no cross-confirmation coverage this night');
@@ -621,13 +647,13 @@ function oxyEcgFusionSection(n, ecg) {
     });
     var maxDeep = 0;
     stageKeys.forEach(function (k) {
-      if (stageAgg[k].deepest > maxDeep) maxDeep = stageAgg[k].deepest;
+      if (stageAgg[k].deepest != null && stageAgg[k].deepest > maxDeep) maxDeep = stageAgg[k].deepest;
     });
     var bars = '';
     stageKeys.forEach(function (k) {
       var a = stageAgg[k],
-        mean = +(a.sum / a.count).toFixed(1),
-        w = maxDeep > 0 ? Math.round((a.deepest / maxDeep) * 100) : 0;
+        mean = a.measured ? +(a.sum / a.measured).toFixed(1) : null,
+        w = maxDeep > 0 && a.deepest != null ? Math.round((a.deepest / maxDeep) * 100) : 0;
       var un = a.unstaged ? ' efz-stage-un' : '';
       var nm = a.unstaged ? 'Unstaged' : escHTML(k);
       bars +=
@@ -639,13 +665,11 @@ function oxyEcgFusionSection(n, ecg) {
         '<span class="efz-stagebar"><span class="efz-stagefill" style="width:' +
         Math.max(w, 6) +
         '%"></span></span>' +
-        '<span class="efz-stageval">−' +
-        a.deepest.toFixed(0) +
-        '% deepest · −' +
-        mean +
-        '% mean · ' +
+        '<span class="efz-stageval">' +
+        (a.measured ? '−' + a.deepest.toFixed(0) + '% deepest · −' + mean + '% mean · ' : 'depth not recorded · ') +
         a.count +
         '×' +
+        (a.measured && a.measured < a.count ? ' (depth on ' + a.measured + ')' : '') +
         (a.unstaged ? ' · no ECG coverage' : '') +
         '</span></div>';
     });
