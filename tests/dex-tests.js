@@ -13426,6 +13426,63 @@
     });
 
     /* ════ 8b-ii · SECURITY — XSS sink remediation (2026-10-05 deep review §1) ════ */
+    group('Security — XSS sinks escape untrusted strings (2026-10-05 §2 — ATTRIBUTE sinks)', 'security · xss · attribute-sink', function (T) {
+      var src = env.sources || {};
+      var overApp = src['overdex-app.js'] || '';
+      var oxyRender = src['oxydex-render.js'] || '';
+      T.ok('sources carry overdex-app.js and oxydex-render.js', overApp.length > 0 && oxyRender.length > 0, 'a missing source would make every assertion below vacuous');
+
+      /* ── 0 · THE CONTROL: the canonical escaper closes an ATTRIBUTE, the local one did not ──
+         §1 covered innerHTML sinks, where escaping &<> is enough to stop a tag. An ATTRIBUTE sink
+         needs the QUOTE: `title="` + value + `"` breaks out on a bare " with no angle bracket in
+         sight. This asserts the tool the fix reaches for actually closes that hole, so the source
+         assertions below are checking a delegation that works rather than one that merely exists. */
+      var esc = env.escapeHTML || (env.DexEsc && env.DexEsc.escapeHTML);
+      T.ok('dex-escape.js escapeHTML is loaded', typeof esc === 'function', 'not reachable — the assertions below would prove nothing');
+      if (typeof esc === 'function') {
+        var breakout = '" onmouseover="alert(1)';
+        T.ok('escapeHTML escapes the double quote (the attribute breakout)', esc(breakout).indexOf('&quot;') === 0, 'got ' + JSON.stringify(esc(breakout).slice(0, 24)));
+        T.ok('escapeHTML escapes the single quote too', esc("'").indexOf('&#39;') === 0, 'single-quoted attributes break out on a bare apostrophe');
+        T.ok('…and a quoted payload survives as inert text', esc(breakout).indexOf('"') === -1, 'a raw " remains after escaping');
+      }
+
+      /* ── 1 · overdex-app.js: no quote-blind local escaper ──
+         The local `esc()` replaced /[&<>]/ only, and `:608` put its output inside title="…" where
+         `b.text` carries 'TAMPERED: ' + f.name — a folder name is user-controlled. A second escaper
+         that disagrees with the canonical one is the defect, not the call site. */
+      T.ok('overdex-app · no local escaper that omits the quote', !/function esc\s*\(s\)\s*\{[\s\S]{0,200}?replace\(\s*\/\[&<>\]\/g/.test(overApp), 'the quote-blind local esc() is still defined');
+      /* The fix is a DELEGATION, not a patched call site: `esc` became a one-line alias for the
+         canonical escaper, so every sink in overdex-app.js is covered at once and a second escaper
+         cannot drift from the first. This asserts the alias, which is the stronger property —
+         mirroring the OxyDex escHTML single-source lock in §1. */
+      T.ok(
+        'overdex-app · the local esc delegates to the shared escapeHTML (single source)',
+        /function esc\(s\)\s*\{\s*return escapeHTML\(s\);\s*\}/.test(overApp),
+        'esc does not delegate — a second escaper can drift from the canonical one'
+      );
+      T.ok(
+        'overdex-app · the seal title is built through esc (so it inherits the delegation)',
+        /title="'\s*\+\s*esc\(/.test(overApp) || /title="'\s*\+\s*escapeHTML\(/.test(overApp),
+        'the title attribute bypasses the escaper entirely'
+      );
+
+      /* ── 2 · oxydex-render.js: the two raw ATTRIBUTE sinks ──
+         Both carry values that arrive verbatim from user JSON in review mode. The night-row
+         aria-label two lines above ALREADY used escHTML on the same variable, which is what makes
+         this a slip rather than a policy. */
+      T.ok('oxydex-render · the night-detail aria-label escapes n.date', !/aria-label="Details for night '\s*\+\s*n\.date/.test(oxyRender), 'n.date still concatenated raw into an aria-label');
+      T.ok(
+        'oxydex-render · the flag pill escapes f.sev and f.code',
+        !/class="fpill '\s*\+\s*f\.sev\s*\+\s*'">'\s*\+\s*f\.code/.test(oxyRender),
+        'f.sev reaches a class attribute and f.code an element body, both raw'
+      );
+      T.ok(
+        'oxydex-render · every aria-label built from n.date escapes it',
+        (oxyRender.match(/aria-label="[^"]*'\s*\+\s*n\.date/g) || []).length === 0,
+        'at least one aria-label still takes n.date raw'
+      );
+    });
+
     group('Security — XSS sinks escape untrusted strings (2026-10-05 §1)', 'security · xss · sources', function (T) {
       var src = env.sources || {};
       var oxyDsp = src['oxydex-dsp.js'] || '';

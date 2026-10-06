@@ -2640,6 +2640,11 @@ async function main() {
     IntegratorLong: ctx.IntegratorLong,
     DexPatientGen: ctx.DexPatientGen,
     parseTimestamp: ctx.parseTimestamp,
+    // dex-escape.js's canonical escaper, surfaced so a test can CALL it rather than only read its
+    // source. It matters for ATTRIBUTE sinks specifically: escaping &<> stops a tag but not an
+    // attribute breakout, which needs the QUOTE — so "the fix delegates to the shared escaper" is
+    // only worth asserting if the shared escaper is known to close that hole.
+    escapeHTML: ctx.escapeHTML || (ctx.DexEsc && ctx.DexEsc.escapeHTML),
     DexClock: ctx.DexClock,
     PulseDex: ctx.PulseDex,
     OxyDex: ctx.OxyDex,

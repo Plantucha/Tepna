@@ -1925,7 +1925,9 @@ function renderAll() {
         html += '<div class="render-error-inline">⚠️ Row error (' + escHTML(n.date) + '): ' + escHTML(e.message) + '</div>';
       }
       html += '</div>';
-      html += '<div class="night-detail" id="det' + idx + '" role="region" aria-label="Details for night ' + n.date + '">';
+      // n.date is escaped here exactly as the night-row aria-label and the error inline above do —
+      // it arrives verbatim from user JSON in review mode and this attribute was the one site missing it.
+      html += '<div class="night-detail" id="det' + idx + '" role="region" aria-label="Details for night ' + escHTML(n.date) + '">';
       try {
         html += nightDetail(n, idx);
       } catch (e) {
@@ -3429,7 +3431,9 @@ function nightDetail(n, idx) {
     '<div class="flags-wrap">' +
     (n.flags || [])
       .map(function (f) {
-        return '<span class="fpill ' + f.sev + '">' + f.code + '</span>';
+        // Both are carried verbatim from user JSON in review mode: f.sev reaches a class ATTRIBUTE
+        // (a quote closes it) and f.code an element body (an angle bracket opens a tag).
+        return '<span class="fpill ' + escHTML(f.sev) + '">' + escHTML(f.code) + '</span>';
       })
       .join('') +
     '</div>';
