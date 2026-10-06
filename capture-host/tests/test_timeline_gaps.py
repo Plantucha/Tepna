@@ -995,7 +995,6 @@ def test_a_session_opening_ONE_WHOLE_GAP_after_midnight_still_pools_the_previous
     )
 
 
-
 def test_a_previous_day_folder_that_does_NOT_EXIST_is_never_pooled_or_reported_absent(tmp_path, caplog):
     """Kills `if prev and os.path.isdir(prev)` → `or`, the one survivor the gate found on this branch.
 
@@ -1022,7 +1021,9 @@ def test_a_previous_day_folder_that_does_NOT_EXIST_is_never_pooled_or_reported_a
         "Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(rows) + "\n"
     )
     _pin(tonight)
-    assert not (tmp_path / "2026-07-24").exists(), "the premise of this test is that the previous day was never recorded"
+    assert not (tmp_path / "2026-07-24").exists(), (
+        "the premise of this test is that the previous day was never recorded"
+    )
 
     # ⚠️ `caplog`, NOT `capsys`. The message is `log.warning` on the "tepna-capture" logger, so stream
     # capture never sees it — my first version of this test used capsys, PASSED under the mutant, and
@@ -1035,6 +1036,7 @@ def test_a_previous_day_folder_that_does_NOT_EXIST_is_never_pooled_or_reported_a
         "never pooled in the first place, so there is nothing to be absent — `prev` is a path string, "
         "truthy for a folder that does not exist, and only `isdir` establishes otherwise"
     )
+
 
 # ── E6 · the rate `bucket_stream` never used ──────────────────────────────────────────────────────
 def test_E6_bucket_stream_does_not_take_a_rate_it_cannot_use():
