@@ -6763,6 +6763,62 @@
       T.ok('the plant is not vacuous — positionally this row reads 0, not 365', positionalWouldGive !== box[0].ppi, positionalWouldGive + ' vs ' + box[0].ppi);
     });
 
+    group('ECGDex RMSSD absence — an unmeasured RMSSD is null, never 0 (§∅)', 'ecgdex-dsp · absence', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      T.ok('ECGDSP reachable', !!(E && E.analyze && E.validateRR), 'ecgdex-dsp.js did not load');
+      if (!E || !E.analyze || !E.validateRR) return;
+
+      /* ⚠️ READ VALUES WITH String(), NEVER JSON.stringify — and that is the defect, not a test detail.
+         JSON has no -Infinity, so `JSON.stringify(-Infinity)` is the string "null": a JSON export of a
+         broken record LOOKED like clean absence while the live object handed the renderer -Infinity.
+         Asserting through JSON would have passed on main and proven nothing. */
+      var nonFinite = function (o) {
+        var bad = [];
+        for (var k in o) if (typeof o[k] === 'number' && !isFinite(o[k])) bad.push(k + '=' + String(o[k]));
+        return bad;
+      };
+
+      // ── 1 · validateRR: a device record with ONE beat has no successive pair to measure ──
+      var vr = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }]);
+      T.ok('the plant is reachable — validateRR accepted a 1-beat device record', !!vr && vr.nDev === 1, 'nDev=' + (vr && vr.nDev));
+      T.ok('validateRR · devRMSSD is null, not 0 (no successive pair exists)', vr.devRMSSD === null, 'got ' + String(vr.devRMSSD));
+      T.ok('validateRR · devRawRMSSD is null, not 0', vr.devRawRMSSD === null, 'got ' + String(vr.devRawRMSSD));
+      /* The ratio REFUSES rather than dividing by an absent or zero reference. On main this read
+         Infinity — the same shape as the 65 797.8 dRMSSDPct recorded in ecgdex-dsp.js's own comment. */
+      T.ok('validateRR · dRMSSD refuses an absent reference (was Infinity)', vr.dRMSSD === null, 'got ' + String(vr.dRMSSD));
+      T.ok('validateRR · dSDNN refuses a zero reference (was Infinity)', vr.dSDNN === null, 'got ' + String(vr.dSDNN));
+      T.ok('validateRR · no non-finite number anywhere in the result', nonFinite(vr).length === 0, 'non-finite: ' + nonFinite(vr).join(', '));
+
+      // ── 2 · analyze(): a dropout between EVERY beat masks every pair, so NOTHING was measured ──
+      /* `{ idx, ms }` is the real gap shape (ecgdex-dsp.js, the rec.gaps fold) — an earlier draft of
+         this test used `{ fromMs, toMs }`, which the fold ignores, so it examined nothing and passed.
+         durSec 120 reproduces the identical defect 165x cheaper than the 3 h default (57 ms vs 9.4 s). */
+      var rec = E.genSynthetic({ durSec: 120 });
+      var gaps = [];
+      for (var i = 0; i < rec.int16.length; i += Math.floor(rec.fs * 0.4)) gaps.push({ idx: i, ms: 6000 });
+      rec.gaps = gaps;
+      T.ok('the plant is not vacuous — a gap sits between every beat', gaps.length > 200, 'only ' + gaps.length + ' gaps');
+      var a = E.analyze(rec);
+      T.ok('analyze · whole-record rmssd is null, not 0', a.rmssd === null, 'got ' + String(a.rmssd));
+      T.ok('analyze · dispRm is null, not 0', a.dispRm === null, 'got ' + String(a.dispRm));
+      /* THE SHIPPED SYMPTOM: Math.log(0) is -Infinity, so an unguarded sink exported -Infinity. */
+      T.ok('analyze · lnrmssd is null, not -Infinity', a.lnrmssd === null, 'got ' + String(a.lnrmssd));
+      T.ok('analyze · the absence carries a NAMED reason (§∅)', a.rmssdAbsentReason === 'no-successive-pairs', 'got ' + String(a.rmssdAbsentReason));
+      T.ok('analyze · no non-finite number anywhere in the export', nonFinite(a).length === 0, 'non-finite: ' + nonFinite(a).join(', '));
+
+      // ── 3 · THE CONTROL: a 0 is a LEGAL RMSSD, so the fix must not null a measured zero ──
+      /* This is why `!= 0` is never the fix (CLAUDE.md §∅): perfectly regular RR is a real 0. Absence
+         and a measured zero must be distinguishable, which is the whole point of returning null. */
+      var flat = E.validateRR([800, 800, 800, 800, 800, 800], [{ rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }, { rr: 800 }]);
+      T.ok('a perfectly regular device record keeps a MEASURED rmssd of 0, not null', flat.devRMSSD === 0, 'got ' + String(flat.devRMSSD));
+      T.ok('…and that measured 0 carries no absence reason', !flat.rmssdAbsentReason, 'got ' + String(flat.rmssdAbsentReason));
+
+      // ── 4 · the clean path is untouched ──
+      var clean = E.analyze(E.genSynthetic({ durSec: 120 }));
+      T.ok('a clean record still reports a finite rmssd', typeof clean.rmssd === 'number' && isFinite(clean.rmssd) && clean.rmssd > 0, 'got ' + String(clean.rmssd));
+      T.ok('a clean record reports no absence reason', clean.rmssdAbsentReason === null, 'got ' + String(clean.rmssdAbsentReason));
+    });
+
     group('ECGDex accAnalyze — posture from the gravity vector, known-answer', 'ecgdex-dsp · posture', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       var acc = E && E.accAnalyze;
@@ -64500,6 +64556,108 @@
       T.eq('B3 · no duration / sample count ⇒ the stamp-less event is not placed at an assumed 1 Hz', desatOf(B.oxyBuildGangliorEvents(night({}))).length, 0);
       var placed = desatOf(B.oxyBuildGangliorEvents(night({ n: 1800, durationMin: 60 })));
       T.eq('B3 · CONTROL · a measured 2 s interval places it at index × 2 s', placed.length && placed[0].tMs - T0, 200000);
+    });
+
+    /* oxydex-render.js is TEXT in this lane apart from OxyDex.reviewView, so the per-night sites below are EXTRACTED and
+       RUN (the B2 pattern). Each extraction is its own assertion and must hold on BOTH the old and the new code, so a
+       red here is the behaviour, never a failed regex. */
+    group('OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict', 'oxydex-render · absence · extract-and-run', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      // the block that opens on the line containing `start`, up to the close at that line's own indentation
+      var block = function (start, close) {
+        var i = R.indexOf(start);
+        if (i < 0) return null;
+        var ls = R.lastIndexOf('\n', i) + 1;
+        var indent = R.slice(ls, i).match(/^\s*/)[0];
+        var j = R.indexOf('\n' + indent + close, i);
+        return j < 0 ? null : R.slice(ls, j + 1 + indent.length + close.length);
+      };
+      // 38cab89355e6 — the review total covers the timed nights, and names them (reviewView is reachable)
+      var rv = env.OxyDex && env.OxyDex.reviewView;
+      /* OxyDex.reviewView is a NODE-lane surface: run-tests.mjs executes oxydex-render.js headless, while the browser
+         lane loads it only as TEXT and renders inside iframe rigs (the same reason the render-harness known-answer group
+         SKIPs there). So it is ASSERTED where it must exist (losing it in Node reds) and SKIPPED by name where it cannot.
+         env.nodeFs is set by the Node runner only. The four extract-and-run sites below need no reviewView and run in
+         both lanes. */
+      if (env.nodeFs) T.ok('R · OxyDex.reviewView reachable (Node lane)', typeof rv === 'function');
+      else if (typeof rv !== 'function')
+        T.skip('R · OxyDex.reviewView header check', 'Node-lane only: the browser lane loads oxydex-render.js as text and renders in iframe rigs, so reviewView is not on its OxyDex');
+      if (typeof rv === 'function') {
+        var head = String(
+          rv({ nights: [] }, [
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: {} }
+          ])
+        ).match(/ocl-sub">[^<]*/);
+        T.ok('R · an untimed night is named, not summed in as 0 minutes', !!head && head[0].indexOf('7h00m total (1 of 2 nights timed)') >= 0, head && head[0]);
+        var head2 = String(
+          rv({ nights: [] }, [
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: { durationMin: 60 } }
+          ])
+        ).match(/ocl-sub">[^<]*/);
+        T.ok('R · CONTROL · every night timed ⇒ the plain total, no annotation', !!head2 && head2[0].indexOf('8h00m total ·') >= 0, head2 && head2[0]);
+        var hdr = function (nights) {
+          var m = String(rv({ nights: [] }, nights)).match(/ocl-sub">[^<]*/);
+          return m ? m[0] : '';
+        };
+        // an EXPLICIT null duration (not just a missing key, which isFinite(undefined) already rejects)
+        T.ok(
+          'R · durationMin: null is untimed too',
+          hdr([
+            { date: '2026-01-02', stats: { durationMin: 420 } },
+            { date: '2026-01-01', stats: { durationMin: null } }
+          ]).indexOf('(1 of 2 nights timed)') >= 0
+        );
+        T.ok('R · one night ⇒ no "total" (> 1 is strict)', hdr([{ date: '2026-01-02', stats: { durationMin: 420 } }]).indexOf('7h00m ·') >= 0);
+        T.ok('R · 10 minutes is two digits ⇒ 7h10m, not 7h010m', hdr([{ date: '2026-01-02', stats: { durationMin: 430 } }]).indexOf('7h10m ·') >= 0);
+      }
+      // c0a215f14576 — the 7-day PB mean averages the nights that were computed
+      var pb = block('var roll7pb = nights.map(', '});');
+      T.ok('R · the rolling PB-burden block extracted', !!pb);
+      if (pb) {
+        var roll = new Function('nights', pb + ' return roll7pb;');
+        T.eq('R · 10, not computed, 20 ⇒ [10, 10, 15], not [10, 5, 10]', JSON.stringify(roll([{ osc: { totalCrossings: 10 } }, {}, { osc: { totalCrossings: 20 } }])), '[10,10,15]');
+        T.eq('R · no night computed in the window ⇒ null, not 0', JSON.stringify(roll([{}, {}, {}])), '[null,null,null]');
+      }
+      // 1f2b2af07670 — an unmeasured AAI prints a dash and earns no colour
+      var aai = R.match(/metric\(\s*'AAI',[\s\S]*?'bad'\s*\)/);
+      T.ok('R · the AAI tile extracted', !!aai);
+      if (aai) {
+        var tile = new Function('cx', 'var metric = function (l, v, u, c) { return [v, c]; }; return ' + aai[0] + ';');
+        T.eq('R · AAI null ⇒ a dash and no class, not "null" coloured good', JSON.stringify(tile({ autoArousalIdx: null })), '["—",""]');
+        T.eq('R · CONTROL · AAI 1.5 ⇒ good', JSON.stringify(tile({ autoArousalIdx: 1.5 })), '[1.5,"good"]');
+        T.eq('R · AAI 2 ⇒ warn (< 2 is strict)', JSON.stringify(tile({ autoArousalIdx: 2 })), '[2,"warn"]');
+        T.eq('R · AAI 5 ⇒ bad (< 5 is strict)', JSON.stringify(tile({ autoArousalIdx: 5 })), '[5,"bad"]');
+      }
+      // e8e638a9f50d — an unmeasured threshold row reads "not measured", not a green 0 %
+      var tix = block('[95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {', '});');
+      var tic = block('function tiClass(pct, thr) {', '}');
+      T.ok('R · the T-index rows and tiClass extracted', !!(tix && tic));
+      if (tix && tic) {
+        var rowsOf = new Function('n', tic + ' var html = ""; ' + tix + ' return html;');
+        var none = rowsOf({ tIdx: {} });
+        T.eq('R · no tIdx entries ⇒ ten "not measured" rows', (none.match(/not measured/g) || []).length, 10);
+        T.ok('R · …and no 0 % row', none.indexOf('>0 %<') < 0, none.slice(0, 200));
+        var one = rowsOf({ tIdx: { 90: { pct: 2.5, secs: 900 } } });
+        T.ok('R · CONTROL · a measured T90 still renders its figure', one.indexOf('>2.5 %<') >= 0);
+        var nul = rowsOf({ tIdx: { 90: { pct: null, secs: null } } });
+        T.eq('R · an entry whose pct is null is not measured either (all ten rows)', (nul.match(/not measured/g) || []).length, 10);
+      }
+      // c05712440626 — "Clear" needs an oscillation search that ran and flagged nothing
+      var oi = R.indexOf('if (!n.osc ||');
+      var oe = R.indexOf("metric('Flagged Windows'", oi);
+      var oscSrc = oi >= 0 && oe > oi ? R.slice(oi, R.lastIndexOf('} else {', oe)) + '}' : null;
+      T.ok('R · the periodic-breathing verdict extracted', !!oscSrc);
+      if (oscSrc) {
+        var osc = new Function('n', 'var evBadge = function () { return ""; }; var html = ""; ' + oscSrc + ' return html;');
+        T.ok('R · no oscillation computed ⇒ not measured, never "Clear"', osc({}).indexOf('Clear') < 0 && osc({}).indexOf('not measured') >= 0, osc({}));
+        T.ok('R · CONTROL · a computed search with 0 flagged windows ⇒ Clear', osc({ osc: { episodeCount: 0 } }).indexOf('Clear') >= 0);
+      }
     });
 
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
