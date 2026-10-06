@@ -568,3 +568,33 @@ def test_a_LIST_line_is_skipped_too_and_the_real_rows_survive(tmp_path):
     rows = sp.read_ledger(root)
     assert [r.get("round_seq") for r in rows] == [1, 2], rows
     assert sp.last_committed_cursor(root) == "B", "the row AFTER the foreign line must still be read"
+
+
+def test_committed_rows_is_PUBLIC_so_it_gates_at_its_OWN_boundary():
+    """🔴 THE HOLE IN MY FIRST VERSION OF THIS UNIT, found by Muse's Hypothesis properties.
+
+    I gated `read_ledger` and argued in the PR that `committed_rows` was deliberately NOT double-gated —
+    "the gate is at the reader, where the type enters the system" — on the grounds that a redundant check
+    invites an unkillable mutant. That reasoning was wrong, and the reason is specific:
+    **`committed_rows` is PUBLIC and its docstring makes the promise itself** ("it must never crash the
+    restart path or masquerade as a committed round"). A function that states a contract owns enforcing
+    it at its own boundary; the check is not redundant with the reader's, it is the contract's.
+
+    Muse's third property calls it DIRECTLY with a mixed list and it raised
+    `TypeError: argument of type 'int' is not iterable` — the reader gate cannot help a caller that does
+    not go through the reader, and `last_committed_cursor` is not the only caller it can ever have.
+
+    ⚠️ And the str case is still the dangerous one at this boundary: `"committed_cursor" in r` on a str
+    is a SUBSTRING test, so `'x committed_cursor y round_seq z'` was ADMITTED as a committed round."""
+    mixed = [
+        42,
+        "x committed_cursor y round_seq z",
+        {"round_seq": 1, "committed_cursor": "A"},
+        None,
+        [1, 2],
+        3.5,
+    ]
+    assert sp.committed_rows(mixed) == [{"round_seq": 1, "committed_cursor": "A"}]
+    # every non-dict shape, alone, must be a no-op rather than a raise
+    for one in (42, "x committed_cursor y round_seq z", None, [1, 2], 3.5, True):
+        assert sp.committed_rows([one]) == [], one
