@@ -14,6 +14,11 @@
       },
       "note": "the adapter-hci night verdict (residue 2026-09-11-dead-adapter-goes-unnoticed, REPORT half): the watchdog probes every enumerated radio each poll (capture._adapter_responds, the HCI round trip) and appends a row per radio to <root>/ADAPTERHCI.csv; nightqc writes ADAPTERHCI-VERDICT.json beside the other two from the rows in the night's session window — pre-stated rule: longest run of unanswered polls >= 2 FAIL · an isolated miss SHORTFALL · every determinable probe answered PASS · all undeterminable UNKNOWN · no rows NOT_RUN; population = radios, all-None radios excluded; nothing here resets a radio"
     },
+    "capture-host/as11_link_guard.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "two occurrences, both prose in the module header: \"FAIL FAST, NEVER QUEUE\" (the offline_lock design rule this mirrors) and \"CONSISTENT with an overlap\" (what the 2026-10-05 journal does and does not establish). The module decides nothing and prints no status - it claims a BLE link and raises LinkBusy."
+    },
     "capture-host/ble_sniff.py": {
       "bin": "decides",
       "status": "adopted",
@@ -214,6 +219,10 @@
       "status": "exempt"
     },
     "capture-host/tests/test_adapter_hci.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_as11_link_guard.py": {
       "bin": "test",
       "status": "exempt"
     },
