@@ -202,7 +202,7 @@ def _placed(files: list[dict], device_id, tag: str | tuple[str, ...], fs: float,
         yield (t0, dur or None)
 
 
-def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int, fs: float) -> list[str]:
+def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n: int) -> list[str]:
     """Bucket the covered intervals into `n` states across [t0, t1].
 
     A bucket is `captured` when the intervals cover enough of it, `degraded` when they cover some but
@@ -216,11 +216,19 @@ def bucket_stream(intervals: list[tuple[float, float]], t0: float, t1: float, n:
     for i in range(n):
         b0, b1 = t0 + i * width, t0 + (i + 1) * width
         covered = 0.0
+        # ⚠️ `continue`, NOT `break`. The early exit assumed the intervals arrive sorted by start —
+        # true of the one production caller (`stream_intervals` returns `sorted(...)`) and stated
+        # nowhere, so the signature accepted input it answered wrongly. Measured: the same data as
+        # [(5,10), (0,5)] over [0,10) in 2 buckets gave ['idle', 'captured'] unsorted against
+        # ['captured', 'captured'] sorted — a bucket the intervals DO cover reported as `idle`, which
+        # is the one state that reads as a FINDING rather than a miss, and the same failure mode as
+        # the ring's ACCRAW. An unsorted list is now answered correctly instead of quickly; the early
+        # exit was never measured to matter, and a wrong answer is not worth an unmeasured optimisation.
         for s, e in intervals:
             if e <= b0:
                 continue
             if s >= b1:
-                break
+                continue
             covered += min(e, b1) - max(s, b0)
         frac = covered / width if width else 0.0
         out.append("captured" if frac >= DEGRADED_BELOW else ("degraded" if frac > 0.02 else "idle"))
@@ -502,9 +510,18 @@ def build(
         midnight = nightqc._midnight_of(night_dir)
         # Both floating, so the zone cancels; None is skipped rather than defaulted (an unstamped file has
         # no floating start to be the earliest of).
+        # ⚠️ `<=`, INCLUSIVE, and the bound is still narrower than the rule it guards. This asks whether
+        # the previous day might hold the HEAD of this folder's earliest session, measured midnight →
+        # session START; `merge_sessions` decides the same question from the running coverage's END, which
+        # a previous-day session that crossed midnight pushes past 00:00. A session opening at exactly one
+        # gap was therefore refused while `merge_sessions`, given both folders, returns ONE session:
+        # measured, a 3669 s session published as a 9 s window. Inclusive closes that boundary. It does NOT
+        # close the class — a previous day running to 01:30 still merges with a 02:00 session this gate
+        # never looks for — and the remedy is to stop re-implementing the rule here at all. Residue row
+        # `2026-10-05-midnight-pooling-gate-is-narrower-than-the-session-gap-rule-it-guards` is OPEN for it.
         _stamped = [f["session"] for f in data if f["session"] is not None]
         earliest = min(_stamped) if _stamped else None
-        if midnight is not None and earliest is not None and 0 <= earliest - midnight < nightqc._SESSION_GAP_SEC:
+        if midnight is not None and earliest is not None and 0 <= earliest - midnight <= nightqc._SESSION_GAP_SEC:
             prev = nightqc._prev_day_dir(night_dir)
             if prev and os.path.isdir(prev):
                 data = [f for f in nightqc.scan_night(prev) if f["stream"] not in nightqc._SIDECAR_TAGS] + data
@@ -576,8 +593,8 @@ def build(
         for s in d.get("streams") or []:
             fs = nightqc._expected_hz(d, s) or 0
             ids = writers.device_ids(d)
-            iv = stream_intervals(data, ids, s.upper(), fs, offset_sec=_offset)
-            st = apply_link_states(bucket_stream(iv, t0, t1, buckets, fs), conn, wedged)
+            iv = stream_intervals(data, ids, nightqc.stream_file_tags(s), fs, offset_sec=_offset)
+            st = apply_link_states(bucket_stream(iv, t0, t1, buckets), conn, wedged)
             covered = covered_seconds(iv)
             # ∅ — A PERCENTAGE OF NOTHING IS NOT ZERO PERCENT. `_expected_hz` returns None for a stream
             # with no reference rate, documenting that there is "no coverage claim" for it, and the ring's
@@ -587,7 +604,7 @@ def build(
             # which is a measurement of zero standing in for an absent denominator. Now: a percentage
             # where something could be measured, with the unmeasured file count beside it, and an
             # explicit refusal with a reason where nothing could.
-            unmeasured = unmeasurable_files(data, ids, s.upper(), fs)
+            unmeasured = unmeasurable_files(data, ids, nightqc.stream_file_tags(s), fs)
             streams[s] = {
                 "states": st,
                 "covered_sec": round(covered),

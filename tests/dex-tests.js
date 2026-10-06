@@ -755,6 +755,52 @@
       }
     });
 
+    /* §2e — the composites must refuse too. After a clock-seam refusal nulls rMSSD, the
+       composites computed from cRm=null FABRICATED: stressEst → 100 (the clamp eats the
+       1.2295*null term), hrvEst → 0 (1.494*null-13.37 clamps to 0), lnR(null) → −Infinity,
+       cohEst(null,null) → NaN. A seam-refused recording must export every composite null
+       with the reason named — never a number. */
+    group('∅ clock seam — the COMPOSITES refuse too (stress/hrv/energy/focus/coherence/lnRMSSD)', 'pulsedex-dsp · absence', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        var rr = [];
+        for (var i = 0; i < 120; i++) rr.push(900 + 40 * Math.sin(i / 5));
+        var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var stamps = function (seamMs) {
+          var ts = [],
+            acc = t0;
+          for (var k = 0; k < rr.length; k++) {
+            if (k === 60 && seamMs) acc += seamMs;
+            ts.push(acc);
+            acc += rr[k];
+          }
+          return ts;
+        };
+        var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+        /* NOTE: the composites are checked RAW, not through JSON — JSON.stringify masks NaN and
+           −Infinity as null, which is exactly the fabrication this test hunts. */
+        T.eq(
+          'a seam-refused recording exports every composite null (raw, not JSON-masked)',
+          [seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd]
+            .map(function (v) {
+              return v === null ? 'null' : typeof v;
+            })
+            .join(','),
+          'null,null,null,null,null,null'
+        );
+        T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.ok(
+          'never a fabricated number, −Infinity, or NaN',
+          ![seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd].some(function (v) {
+            return typeof v === 'number';
+          }),
+          JSON.stringify({ stress: seamed.stress, hrv: seamed.hrv, energy: seamed.energy, focus: seamed.focus, coherence: seamed.coherence, lnrmssd: seamed.lnrmssd })
+        );
+      }
+    });
+
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_odn && _odn._bare) || _odn;
@@ -13840,6 +13886,58 @@
           content
         );
       });
+    });
+
+    /* §3 — the no-network gate is fail-CLOSED. A gate that cannot verify is a gate that fails.
+       Two specific fail-opens from the 2026-10-05 review: (1) the provenance/index.json fetch
+       silently fell back on failure; (2) the Python lens did not check for missing timeouts. */
+    group('no-network gate fail-closed — provenance fetch + Python timeout lens (§3)', 'security · no-network · fail-closed', function (T) {
+      var fs = null;
+      try {
+        fs = require('fs');
+      } catch (_) {}
+      if (!fs) {
+        T.skip('fs available', 'Node-lane only');
+        return;
+      }
+      var html = '';
+      try {
+        html = fs.readFileSync('no-network.html', 'utf8');
+      } catch (e) {
+        T.skip('no-network.html readable', String((e && e.message) || e));
+        return;
+      }
+      /* (1) The provenance fetch must be fail-closed — a throw or empty response sets
+         bundleListError, and staticOK requires bundleListError===null. */
+      T.ok(
+        'provenance fetch failure sets bundleListError (fail-closed, not silent fallback)',
+        /bundleListError\s*=\s*['"]provenance\/index\.json fetch/.test(html) || /bundleListError\s*=\s*'provenance\/index\.json fetch failed/.test(html),
+        'no-network.html must attach the fetch error to bundleListError'
+      );
+      T.ok('staticOK requires bundleListError===null — a gate that cannot verify fails', /staticOK\s*=.*bundleListError\s*===\s*null/.test(html), 'staticOK must include the fail-closed condition');
+      T.ok('MotionDex.html is in BUNDLES_FALLBACK (review M1 — the fallback omitted it)', /BUNDLES_FALLBACK\s*=\s*\[[^\]]*MotionDex\.html/.test(html), 'fallback must include MotionDex.html');
+      /* (2) The Python lens: extract scanPython and verify a bare requests.get(url) fails. */
+      var m = html.match(/const PY_NO_TIMEOUT\s*=\s*(\/.*?\/);/s);
+      if (!m) {
+        T.ok('PY_NO_TIMEOUT regex present', false, 'no-network.html must define PY_NO_TIMEOUT');
+      } else {
+        var re = null;
+        try {
+          re = eval(m[1]);
+        } catch (e) {
+          re = null;
+        }
+        T.ok('PY_NO_TIMEOUT regex compiles', !!re, m[1].slice(0, 80));
+        if (re) {
+          T.ok('a bare requests.get(url) matches (missing timeout)', re.test('requests.get(url)') && !/timeout\s*=/.test('requests.get(url)'), 'bare requests.get must be flagged');
+          T.ok('requests.get(url, timeout=5) is not flagged (explicit timeout)', !(/timeout\s*=/.test('requests.get(url, timeout=5)') === false), 'explicit timeout must not be flagged');
+          T.ok(
+            'socket.setdefaulttimeout does NOT satisfy — the timeout must be on the call',
+            re.test('socket.setdefaulttimeout(10)\nrequests.get(url)') && !/requests\.get\([^)]*timeout\s*=/.test('socket.setdefaulttimeout(10)\nrequests.get(url)'),
+            'setdefaulttimeout is not an explicit per-call timeout'
+          );
+        }
+      }
     });
 
     /* ════ CAPTURE-FILENAME SUFFIX PARITY — the writer upper-cases the tag; every reader must agree ════
@@ -30028,6 +30126,39 @@
       T.eq('…while a 7-night window of 97 with ONE absent night averaged 83.1, not 97', +((97 * 6) / 7).toFixed(1), 83.1);
     });
 
+    group('OxyDex B1 · an unread motion cell and a synthesised gap span are not readings', 'oxydex-dsp · parse · absence', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeDataGaps === 'function')) {
+        T.skip('OxyDex._bare.parseCSV / computeDataGaps exposed', 'not on the bare surface');
+        return;
+      }
+      // 1a3cd7699ce2 — `parseInt('') || 0` read an empty or unparseable cell as motion 0, i.e. "still"
+      var csv = 'Time,Oxygen Level,Pulse Rate,Motion\n' + '20:21:36 13/08/2026,96,52,0\n' + '20:21:37 13/08/2026,95,53,\n' + '20:21:38 13/08/2026,95,53,x\n' + '20:21:39 13/08/2026,94,54,3\n';
+      var rows = OB.parseCSV(csv, { fname: 'x_SPO2.csv' });
+      T.eq('B1 · four rows parsed', rows.length, 4);
+      T.eq(
+        'B1 · motion is 0 / null / null / 3 — a written 0 stays 0, an empty or unparseable cell is null',
+        rows
+          .map(function (r) {
+            return r.motion === null ? 'null' : String(r.motion);
+          })
+          .join(','),
+        '0,null,null,3'
+      );
+      // Through the Codex reader: the radix is 10, so a hex-looking cell is NOT read as hex (parseInt radix 0 would give 16)
+      var hexRows = OB.parseCSV('Time,Oxygen Level,Pulse Rate,Motion\n20:21:36 13/08/2026,96,52,0x10\n', { fname: 'x_SPO2.csv' });
+      T.eq('B1 · motion is parsed base 10: "0x10" reads 0, never 16', hexRows.length && hexRows[0].motion, 0);
+      // 4fc9554e37da — with no wall-clock span the gap percentage rests on an ASSUMED 1 Hz, and says so
+      var stamped = OB.computeDataGaps(rows);
+      T.eq('B1 · a stamped night carries no span-source label (its output is unchanged)', 'gapSpanSource' in stamped, false);
+      var unstamped = OB.computeDataGaps(
+        rows.map(function (r) {
+          return Object.assign({}, r, { t: null });
+        })
+      );
+      T.eq('B1 · a stampless night names its span as assumed', unstamped.gapSpanSource, 'assumed-1Hz');
+    });
+
     group('OxyDex parseJSONL round-trips every field, and tells ABSENT from ZERO', 'oxydex-dsp · parse · known-answer · mutation-pinned', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseJSONL === 'function')) {
@@ -30325,13 +30456,67 @@
       T.eq('…minHr too', mn && mn.stats.minHr, 44);
       T.eq('…and t0Ms still comes from stats.startTs', mn && mn.t0Ms, 1780356420000);
       T.eq('…spikes on a bare record is an empty list, not null', mn && mn.spikes && mn.spikes.length, 0);
-      /* osc does NOT default to null like hrv — it gets a zero-shaped object. Asserting the real
-         default rather than the one symmetry suggested; the difference is the point of checking. */
-      T.eq('…osc defaults to a ZERO-SHAPED object, unlike hrv', mn && mn.osc && mn.osc.episodeCount, 0);
-      T.eq('…with an empty windows list', mn && mn.osc && mn.osc.windows.length, 0);
+      /* osc is NULL when absent, like hrv and odi4 (ABSENCE-SURVEY e012278db97c). It used to default to a
+         zero-shaped object — "the detector ran and found 0 episodes" — from an export carrying no evidence
+         the detector ran at all; oxyBuildNightElement re-exported that as a clean night. The old expectation
+         here pinned that, the same way the odi4 one above did. Every reader guards with `n.osc`. */
+      T.eq('…osc is NULL when absent — a zero-filled block reads as a clean night', mn && mn.osc, null);
       T.eq('…hb is null', mn && mn.hb, null);
       T.eq('…comp is null', mn && mn.comp, null);
       T.eq('…and a spread newMetrics key is absent rather than 0', mn && mn.vo2est, null);
+
+      // ── ABSENCE-SURVEY group B1: what the importer and the CSV parser used to turn into 0 ──────────
+      var clone = function (o) {
+        return JSON.parse(JSON.stringify(o));
+      };
+      // 0e9b40d1425a — the stats block's three `|| 0` holdouts
+      var r1 = clone(REC);
+      delete r1.stats.n;
+      delete r1.stats.artifactHrCleaned;
+      delete r1.stats.artifactSpikesRemoved;
+      var m1 = one(r1);
+      T.eq('B1 · an absent sample count is null, not 0', m1 && m1.stats.n, null);
+      T.eq('B1 · absent artifact counts are null, not 0', m1 && [m1.stats.artifactHrCleaned, m1.stats.artifactSpikesRemoved].join(','), ',');
+      // 483e784c9219 — no sample count and no duration: no basis, never `secs: 0` labelled a wall duration
+      var r2 = clone(REC);
+      delete r2.research;
+      delete r2.stats.n;
+      delete r2.stats.durationMin;
+      var m2 = one(r2);
+      T.eq('B1 · T95 seconds are null when nothing gives a basis', m2 && m2.tIdx && m2.tIdx[95] && m2.tIdx[95].secs, null);
+      T.eq('B1 · …and no basis is named', m2 && m2.tIdx && m2.tIdx.tIdxBasis, null);
+      // 773f10412ae2 — a detail-less spike is skippable (null), and an unparseable time is not minute 0
+      var r3 = clone(REC);
+      r3.hr_spikes = { events: [{ time: 'not-a-time', peak: 91 }] };
+      var m3 = one(r3);
+      var sp3 = m3 && m3.spikes && m3.spikes[0];
+      T.eq('B1 · an absent spike baseline is null, not a 0 bpm baseline', sp3 && sp3.baseline, null);
+      T.eq('B1 · …a present peak survives', sp3 && sp3.peak, 91);
+      T.eq('B1 · …and an unparseable time gives no minute, not minute 0', sp3 && sp3.mfm, null);
+      // Through the Codex reader (each input run against the original first):
+      var r4 = clone(REC);
+      delete r4.research;
+      delete r4.stats.n;
+      r4.stats.durationMin = null; // PRESENT and null: isFinite(null) is true, so the guard needs its `!= null`
+      var m4 = one(r4);
+      T.eq('B1 · a durationMin of null is no basis either', m4 && m4.tIdx && m4.tIdx[90] && m4.tIdx[90].secs, null);
+      var r5 = clone(REC);
+      delete r5.research;
+      delete r5.stats.n;
+      r5.stats.durationMin = 10;
+      r5.stats.t90pct = 50;
+      var m5 = one(r5);
+      T.eq('B1 · a duration basis is minutes x 60: 50 % of 10 min is 300 s, at key 90', m5 && m5.tIdx && m5.tIdx[90] && m5.tIdx[90].secs, 300);
+      var r6 = clone(REC);
+      delete r6.research;
+      r6.stats.n = 100;
+      r6.stats.t90pct = 50;
+      var m6 = one(r6);
+      T.eq('B1 · a sample-count basis: 50 % of 100 samples is 50 s', m6 && m6.tIdx && m6.tIdx[90] && JSON.stringify([m6.tIdx[90].pct, m6.tIdx[90].secs]), '[50,50]');
+      var r7 = clone(REC);
+      r7.hr_spikes = { events: [{ time: '00:01:00', peak: 90 }] };
+      var m7 = one(r7);
+      T.eq('B1 · a parseable spike time becomes its minute: 00:01:00 is minute 1', m7 && m7.spikes && m7.spikes[0].mfm, 1);
     });
 
     group('OxyDex sanity filter drops out-of-range rows, one axis at a time (mutate.mjs survivor)', 'oxydex-dsp · parse · known-answer', function (T) {
@@ -53347,6 +53532,118 @@
        PLANTED recovery, because a correspondence number is meaningless without knowing the instrument
        can recover a known answer — and by its own chance control, because the block fit maximises the
        statistic it reports. */
+    group('fitClockDrift\u2019s search is set-preserving — the optimisation cannot change which beats match', 'integrator-dsp · clock · equivalence', function (T) {
+      var D = env.IntegratorDSP;
+      if (!D || typeof D.fitClockDrift !== 'function') {
+        T.skip('IntegratorDSP.fitClockDrift available', 'not loaded');
+        return;
+      }
+      /* \ud83d\udd34 THE MATCHED SET PER OFFSET, not just the final centroid. `corrAt` is a closure inside
+           `fitClockDrift`, so this does not reach into it: it encodes BOTH inner loops — the original
+           (one binary search per beat per offset) and the optimised (a monotone pointer carried across
+           the sweep) — and asserts they select the SAME neighbour index for every beat at every offset
+           of the real grid. That is the property the speed-up rests on, and it is stronger than output
+           equality: two different matched sets can still average to the same centroid by luck.
+
+           WHY THE SET AND NOT THE ARGMAX. The search takes the SUPPORT CENTROID over the plateau, which
+           is ~`tolMs` wide and over which every offset keeps the same beats matched
+           (WEARABLE-DRIFT-FIT-2026-08-01 \u00a73: argmax bias measured at ~330 ms, two of four planted cases
+           went from biased to exact once the centroid replaced it). The centroid therefore depends on
+           EVERY grid offset that shares the peak \u2014 so a search that visits the same optimum by a coarser
+           route still returns a different number, which is exactly why coarse-to-fine was rejected. */
+      var B = [];
+      for (var n = 0; n < 4000; n++) B.push(1785102000000 + n * 900 + 40 * Math.sin(n / 7));
+      var bA = [];
+      for (var m = 0; m < 320; m++) bA.push(B[m * 3] + 137);
+
+      function loFromSearch(x) {
+        var lo = 0,
+          hi = B.length - 1;
+        while (lo < hi) {
+          var mid = (lo + hi) >> 1;
+          if (B[mid] < x) lo = mid + 1;
+          else hi = mid;
+        }
+        return lo;
+      }
+      var ptr = new Int32Array(bA.length).fill(-1);
+      var disagree = 0,
+        pairs = 0;
+      for (var off = -3000; off <= 3000; off += 20) {
+        for (var i = 0; i < bA.length; i++) {
+          var x = bA[i] + off;
+          var want = loFromSearch(x);
+          var got;
+          if (ptr[i] < 0) got = loFromSearch(x);
+          else {
+            got = ptr[i];
+            while (got < B.length - 1 && B[got] < x) got++;
+            while (got > 0 && B[got - 1] >= x) got--;
+          }
+          ptr[i] = got;
+          pairs++;
+          if (got !== want) disagree++;
+        }
+      }
+      T.eq('the pointer selects the SAME index as a fresh binary search, at every offset', disagree, 0, pairs + ' (beat, offset) pairs');
+      T.ok('and the grid really was swept', pairs === bA.length * 301, pairs + ' pairs');
+
+      /* ORDER STATISTICS: quickselect must return the element a full sort would, INCLUDING on ties \u2014
+           a uniform cadence puts exact duplicates in the delta list, and that is where a selection that
+           is merely "a median" rather than `sorted[k]` would diverge. */
+      function nth(a, k) {
+        return a.slice().sort(function (p2, q2) {
+          return p2 - q2;
+        })[k];
+      }
+      var tie = [];
+      for (var z = 0; z < 311; z++) tie.push(z % 7);
+      /* FAIL-CLOSED ON A MISSING SEAM. An earlier draft of this assertion `break`-ed out when the
+           export was absent and left `okSel` true — a pass that examined nothing, which is the shape
+           this suite exists to refuse. If the selector is not exported the assertion FAILS and says so. */
+      var ks = [0, 1, Math.floor(311 / 2), Math.floor(311 * 0.25), Math.floor(311 * 0.75), 310];
+      var okSel = typeof D.selectNth === 'function',
+        checked = 0;
+      if (okSel) {
+        for (var ki = 0; ki < ks.length; ki++) {
+          var buf = new Float64Array(tie.length);
+          for (var w = 0; w < tie.length; w++) buf[w] = tie[w];
+          if (D.selectNth(buf, ks[ki], tie.length) !== nth(tie, ks[ki])) okSel = false;
+          checked++;
+        }
+      }
+      T.ok(
+        'quickselect returns sorted[k] even with heavy ties',
+        okSel && checked === ks.length,
+        typeof D.selectNth === 'function' ? checked + '/' + ks.length + ' of {0,1,p25,median,p75,last} on 311 values, 7 distinct' : 'IntegratorDSP.selectNth is NOT exported — nothing was checked'
+      );
+
+      /* AND THE WHOLE FIT STILL ANSWERS THE PLANTED QUESTION \u2014 the control that would catch a
+           set-preserving change that nevertheless broke the arithmetic. */
+      var base = [],
+        t = 1785102000000,
+        j2 = 0;
+      while (t < 1785102000000 + 2 * 3600e3) {
+        base.push(t);
+        t += 900 + 180 * Math.sin(j2 / 40);
+        j2++;
+      }
+      function mk2(off2, ppm, drop) {
+        var o = [];
+        for (var k2 = 0; k2 < base.length; k2++) {
+          if (k2 % drop === 0) continue;
+          o.push(base[k2] + off2 + ((base[k2] - base[0]) * ppm) / 1e6);
+        }
+        return o;
+      }
+      var fit = D.fitClockDrift(mk2(0, 0, 17), mk2(250, -40, 13));
+      T.ok(
+        'a planted 250 ms / -40 ppm pair is still recovered',
+        fit && fit.offsetMs != null && Math.abs(fit.offsetMs - 250) < 60 && Math.abs(fit.driftPpm + 40) < 8,
+        fit ? 'offset ' + Math.round(fit.offsetMs) + ' ms · drift ' + (fit.driftPpm == null ? 'null' : fit.driftPpm.toFixed(1)) + ' ppm' : 'no fit'
+      );
+    });
+
     group('fitClockDrift recovers a planted offset AND drift', 'integrator-dsp · clock · planted-control', function (T) {
       var D = env.IntegratorDSP;
       if (!D || typeof D.fitClockDrift !== 'function') {
@@ -57857,6 +58154,17 @@
         threw2 = true;
       }
       T.ok('expressing kg as bpm throws', threw2);
+
+      // ── §2b (2026-10-05 deep review): null propagates through add — null + 5 must be
+      // null, never 5 (JS `null + 5 === 5` silently preserves the non-null operand) ──
+      var nullKg = Q.Quantity(null, 'kg');
+      T.ok('a null Quantity stores null value', nullKg.value === null, 'value=' + JSON.stringify(nullKg.value));
+      var sumL = Q.Quantity(5, 'kg').add(nullKg);
+      T.ok('5 + null → null Quantity (null on the right)', sumL.value === null && sumL.unit === 'kg', 'value=' + JSON.stringify(sumL.value));
+      var sumR = nullKg.add(Q.Quantity(5, 'kg'));
+      T.ok('null + 5 → null Quantity (null on the left)', sumR.value === null && sumR.unit === 'kg', 'value=' + JSON.stringify(sumR.value));
+      var sumOk = Q.Quantity(5, 'kg').add(Q.Quantity(3, 'kg'));
+      T.ok('5 + 3 → 8 (measured values still add)', sumOk.value === 8 && sumOk.unit === 'kg', 'value=' + JSON.stringify(sumOk.value));
 
       // ── asSecondsRR: seconds pass through, ms band is converted + tagged ──
       var s = Q.asSecondsRR(0.8),

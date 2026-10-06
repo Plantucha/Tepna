@@ -1153,6 +1153,63 @@ def declared_offset(offset_sec: float) -> dict:
     }
 
 
+def recorded_writer_offset(night_dir: str) -> dict | None:
+    """The offset the WRITER recorded in `STARTS.csv`, or None when it recorded none.
+
+    This is the preferred path that `recover_writer_offset`'s docstring was written in anticipation of:
+    from 2026-10-05 `writers.append_start` records the host's UTC offset at session open, where it is
+    known exactly, instead of leaving every reader to infer it from `mtime` against a last row.
+
+    ⚠️ ADDRESSED BY HEADER NAME, never by position. The column was APPENDED to a five-column file, and
+    this repo has already paid for a positional read of a grown row: appending `alarm_raw` to OXYFRAME
+    silently moved three writer tests onto different columns, one asserting `flag_raw` and getting `199`
+    from `ppg_offset`. A night captured before 2026-10-05 has five columns and no such header, and must
+    read as "nothing recorded" rather than as a parse error.
+
+    ∅ THREE OUTCOMES, AND DISAGREEMENT IS NOT ONE VALUE:
+      · every row that recorded an offset agrees  → a `declared_offset` for that value;
+      · no row recorded one (an older night, or a blank where the zone could not be determined) → None,
+        and the caller's vote-based inference remains the fallback it was built to be;
+      · rows DISAGREE → None with the values named. A night whose sessions opened at different offsets
+        spans a DST change, and a single `offset_sec` would be wrong for half of it. CLAUDE.md §∅: a
+        DISCONTINUITY refuses rather than publishing one side of itself as the whole.
+    A blank is never read as 0: 0 is a real offset, reported by a box running UTC."""
+    path = os.path.join(night_dir, "STARTS.csv")
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            head = (fh.readline() or "").rstrip("\n").split(";")
+            if "utc_offset_sec" not in head:
+                return None  # a pre-2026-10-05 layout: nothing was recorded, which is not a failure
+            col = head.index("utc_offset_sec")
+            seen: set[int] = set()
+            for line in fh:
+                cells = line.rstrip("\n").split(";")
+                if len(cells) <= col:
+                    continue
+                raw = cells[col].strip()
+                if not raw:
+                    continue  # blank: the writer could not determine the zone (never 0)
+                try:
+                    seen.add(int(float(raw)))
+                except ValueError:
+                    continue  # a non-numeric cell contributes NO vote: it is neither an offset nor a zero
+    except OSError:
+        # NOTHING IS HIDDEN HERE, and that is why this swallow is silent rather than logged. An absent or
+        # unreadable `STARTS.csv` is the EXPECTED case for every night captured before 2026-10-05, and
+        # `None` is exactly the contract for it: the caller falls through to the mtime-vs-last-row vote
+        # that served every night until now. Logging it would print once per old night and teach a
+        # reader to ignore the line. A night whose STARTS.csv exists and is unreadable gets the same
+        # fallback, which is the safe direction — an inferred offset, never a guessed recorded one.
+        return None
+    if len(seen) != 1:
+        if len(seen) > 1:
+            log.debug(
+                "STARTS.csv records %d different offsets %s — a DST seam, refusing one value", len(seen), sorted(seen)
+            )
+        return None
+    return declared_offset(float(next(iter(seen))))
+
+
 def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:
     """The WRITER's UTC offset for this night, recovered by vote — or a named refusal.
 
@@ -3151,7 +3208,17 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
     # the adjacent calendar day of the same box, and the session being judged lives here — so this
     # folder is the right basis even on the one night a year DST steps between the two, where the
     # neighbour's files legitimately carry the other offset.
-    _off = writer_offset if writer_offset is not None else recover_writer_offset(night_dir, data)
+    # PRECEDENCE, and it is the point of the residue row this closes
+    # (2026-09-28-writer-records-no-utc-offset): a caller that KNOWS the frame wins, then the offset the
+    # WRITER RECORDED at session open, then — only for nights captured before the writer recorded it —
+    # the mtime-vs-last-row vote. An explicit `is not None` rather than `or`, because a dict is the
+    # success value here and a falsy-dict test would be a trap waiting for an empty one.
+    _recorded = recorded_writer_offset(night_dir)
+    _off = (
+        writer_offset
+        if writer_offset is not None
+        else (_recorded if _recorded is not None else recover_writer_offset(night_dir, data))
+    )
     # THE SESSION BOUNDARY EVIDENCE, read once and used twice: `merge_sessions` needs it to keep two
     # daemon runs apart, and the summary reports it below. ∅ `starts: None` is "the sidecar did not
     # say", never "it did not restart" — so `session_basis` distinguishes a night segmented on recorded

@@ -2399,7 +2399,39 @@ STARTS_NAME = "STARTS.csv"
 #   Phone timestamp · pid · git · dirty · adapter
 # `dirty` is the TRISTATE build_id.probe returns — blank when git could not tell us, which is not the
 # same as a clean tree (§∅). `pid` is what separates two starts inside one second.
-_STARTS_HEADER = "Phone timestamp;pid;git;dirty;adapter\n"
+# ⚠️ `utc_offset_sec` APPENDED AT THE TAIL, 2026-10-05 — residue
+# `2026-09-28-writer-records-no-utc-offset`. Appended and never inserted, for the reason OXYFRAME_COLUMNS
+# states: a positional reader of the older layout must keep working, and columns are addressed by header
+# NAME. A resumed file keeps whatever shape it already has (see `fresh` below): the header is written once.
+_STARTS_HEADER = "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec\n"
+
+
+def _utc_offset_sec(when: _dt.datetime) -> int | None:
+    """The host's UTC offset AT `when`, in seconds east of UTC — or None, never 0.
+
+    THIS IS THE ONE THING THE BOX RECORDED NOWHERE. `_phone_ts` is documented "local civil time,
+    zone-free", the filename stamp carries bare components, and `mtime` is a night's only absolute
+    instant — so relating a connection-open stamp to a last-write instant forced every reader to INFER
+    the writer's zone (`nightqc.recover_writer_offset`, a bounded vote that refuses a night which
+    captured almost nothing: measured on 2026-09-14, and on 2026-08-08 where two killed sessions split
+    the vote three ways). Recorded here at session open, where it is known exactly.
+
+    ⚠️ AT `when`, NOT NOW, and that is the whole reason this takes an argument: the offset is a function
+    of the INSTANT, not of the machine. A session opening at 01:30 on a DST-change night has a different
+    offset from one opening at 03:30 the same night, and a `now()`-based reading would stamp both with
+    whichever the process happened to see. `astimezone()` on a naive local datetime attaches the offset
+    for that instant, which is the Clock Contract's `tzOffset(instantMs)` in Python.
+
+    ∅ NONE, NEVER 0. `0` is a REAL offset — it is what a box running UTC reports — so a failure to
+    determine the zone must not be written as one. The column is blank in that case, and a reader that
+    sees a blank knows the writer could not say rather than believing it said UTC."""
+    try:
+        off = when.astimezone().utcoffset()
+    except (ValueError, OSError, OverflowError):
+        return None
+    return None if off is None else int(off.total_seconds())
+
+
 PMDNEG_NAME = "PMDNEG.csv"
 # WHAT THE DEVICE AGREED TO, in the night it agreed to it. Columns, in order:
 #   Phone timestamp · device · address · stream · requested_hz · offered_hz · chosen_hz · ack · how
@@ -2605,6 +2637,8 @@ def append_daemon_start(
                         str(git or ""),
                         "" if dirty is None else ("yes" if dirty else "no"),
                         str(adapter or ""),
+                        # ∅ blank when the zone could not be determined — never 0, which is UTC.
+                        "" if (_off := _utc_offset_sec(when)) is None else str(_off),
                     )
                 )
                 + "\n"
