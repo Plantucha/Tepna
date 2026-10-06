@@ -79,6 +79,16 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # `count(";")`. ⚠️ #3243 DELETED that identical mutation's entry for solid_night_inputs.py because
 # there the cell is string-compared to "ok" — a refutation does not transfer between call sites just
 # because the mutation looks the same, and both entries now say so beside their keys.
+# nightqc.py went 38 -> 46 on 2026-10-05 (residue 2026-09-28-writer-records-no-utc-offset, #3286):
+# `recorded_writer_offset` is new, so the gate scoped the whole function — 19 survivors, of which the
+# killable ones were killed (`continue` not `break`, with the unusable row FIRST so a `break` cannot
+# pass by having already got the answer; the `len(cells) <= col` bound on a row carrying exactly `col`
+# cells; and the DST-seam log, whose arguments are the only trace a seam leaves, now asserted through
+# caplog for both its count and its values). The 8 declared here are the open()/strip keyword family
+# this ledger already carries for ble_visibility.py and writers.py, with the LC_ALL=C probe re-run.
+# ⚠️ One of them differs from its writers.py twin and the entry says so: dropping `errors="replace"` is
+# NOT killable on STARTS.csv (ASCII fields only) where it IS killable on the arrival sidecar's header
+# (device bytes) — the same keyword, two files, two answers.
 # solid_night_inputs.py went 23 -> 34 on 2026-10-03 (#3245) and that NET RISE hides a second deletion
 # the count cannot show: the SIBLING entry excusing `cols = header.rstrip("\\n")` -> `lstrip` in
 # `residual_scan` was refuted the same way and removed — `_SENSOR_NS_COL not in cols` is a STRING
@@ -148,7 +158,7 @@ RATCHET = {
     "mutation_pure.py": 5,
     "mutation_triage.py": 2,
     "night_report.py": 8,
-    "nightqc.py": 38,
+    "nightqc.py": 46,
     "nights_index.py": 9,
     "oxy_inventory.py": 6,
     "oxy_transfer.py": 5,

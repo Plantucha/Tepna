@@ -39,8 +39,26 @@ import pytest  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _fast_settle(monkeypatch):
-    """The real 6 s inter-attempt settle is a hardware fact, not a test fact."""
+    """The real 6 s inter-attempt settle is a hardware fact, not a test fact — and so are the 6 s reply
+    timeout and the 0.25 s pacing. The fixture shortened only the settle, so every op a fake left
+    unanswered waited the full 6 s (three tests at ~7.7 s each). All three are read at call time; the
+    hardware values are pinned with the fixture undone (`test_the_HARDWARE_timing_values`)."""
     monkeypatch.setattr(psv, "SETTLE_SEC", 0.001)
+    monkeypatch.setattr(psv, "CP_REPLY_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(psv, "CP_PACE_S", 0.0)
+    # NO TEST MAY WAIT WITHOUT A BOUND (the same guard as test_probe_opcode_sweeps.py). Every real wait passes a
+    # number; a `None` timeout can only come from a defect or a mutant that drops it, and against a fake that
+    # never answers it waits FOREVER — recorded by the mutation gate as UNDECIDED, never as a kill.
+    _real_wait_for = asyncio.wait_for
+
+    async def _bounded_wait_for(aw, timeout):
+        if timeout is None:
+            if hasattr(aw, "close"):
+                aw.close()
+            raise AssertionError("an unbounded wait: wait_for(..., timeout=None)")
+        return await _real_wait_for(aw, timeout)
+
+    monkeypatch.setattr(psv.asyncio, "wait_for", _bounded_wait_for)
 
 
 # ── a Verity that keeps state ───────────────────────────────────────────────────────────────────────
@@ -937,3 +955,71 @@ def test_an_UNANSWERED_settings_query_is_None_not_an_empty_menu():
 
 def test_an_UNNAMED_setting_id_is_named_by_its_hex_code():
     assert psv._settings(b"\xf0\x01\x01\x00\x00\x03\x01\x07\x00") == {"setting_0x03": [7]}
+
+
+def test_the_HARDWARE_timing_values(monkeypatch):
+    """The fixture shortens them for speed; these are what the probe uses on a real link."""
+    monkeypatch.undo()
+    assert (psv.SETTLE_SEC, psv.CP_REPLY_TIMEOUT_S, psv.CP_PACE_S) == (6.0, 6.0, 0.25)
+
+
+def test_the_pacing_is_read_at_CALL_time(monkeypatch):
+    slept = []
+
+    async def rec(s):
+        slept.append(s)
+
+    class _C:
+        async def write_gatt_char(self, *_a, **_k):
+            return None
+
+    monkeypatch.setattr(psv, "CP_PACE_S", 0.007)
+    monkeypatch.setattr(psv.asyncio, "sleep", rec)
+    cp = psv.Control(_C())
+    assert _run(cp.send(psv.pmd.status_cmd(), timeout=0.001)) is None
+    assert slept == [0.007]
+
+
+# ── Control.send: survivors through the Codex reader, each verified against the original ───────────
+class _StrictCP:
+    """Records every write; answers ONLY a write to the PMD control point with response=True, as the real
+    characteristic does, and can refuse or answer late."""
+
+    def __init__(self, q, reply=b"\xf0\x05", refuse=None, delay=0.0):
+        self.q, self.reply, self.refuse, self.delay, self.writes = q, reply, refuse, delay, []
+
+    async def write_gatt_char(self, uuid, data, response=False):
+        self.writes.append((uuid, bytes(data), response))
+        if self.refuse:
+            raise self.refuse
+        if uuid == psv.pmd.PMD_CONTROL and response is True:
+            if self.delay:
+                asyncio.get_running_loop().call_later(self.delay, self.q.put_nowait, self.reply)
+            else:
+                self.q.put_nowait(self.reply)
+
+
+def _cp(**kw):
+    cp = psv.Control(None)
+    cp.client = _StrictCP(cp.q, **kw)
+    return cp
+
+
+def test_send_writes_the_CONTROL_POINT_with_a_confirmed_write_and_logs_the_reply():
+    cp = _cp()
+    assert _run(cp.send(b"\x05")) == b"\xf0\x05"
+    assert cp.client.writes == [(psv.pmd.PMD_CONTROL, b"\x05", True)]
+    assert cp.log == [{"sent": "05", "reply": "f005"}]
+
+
+def test_a_refused_write_is_logged_with_the_exception_name_and_re_raised():
+    cp = _cp(refuse=ValueError("denied"))
+    with pytest.raises(ValueError):
+        _run(cp.send(b"\x05"))
+    assert cp.log == [{"sent": "05", "refused": "ValueError: denied"}]
+
+
+def test_an_EXPLICIT_timeout_overrides_the_default_one():
+    """The fixture sets the default reply timeout to 10 ms; a reply 20 ms late arrives inside an explicit 50."""
+    cp = _cp(delay=0.02)
+    assert _run(cp.send(b"\x05", timeout=0.05)) == b"\xf0\x05"

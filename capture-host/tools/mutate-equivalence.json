@@ -3194,6 +3194,68 @@
       "key": "- dev_span = None | + dev_span = \"\"",
       "probe": "an 8-night battery run through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off) with summarize(..., writer_offset=declared_offset(off)) and json.dumps(sort_keys) compared: touching daemon seams at offset 0 and at +5 h; a pooled previous folder with its own seam at +5 h; an unpooled 01:30 start at +5 h; two EARLIER sessions sharing an END (the max-key tie) before a longer judged one; an empty folder; a missing folder; an unreadable file — identical on all 8 (Wren, 2026-10-04, #3266)",
       "why": "dev_span's initial value is only ever read by truthiness (`(dev_span, \"device\") if dev_span`, `round(dev_span) if dev_span`), and \"\" and None are both falsy."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, encoding=\"utf-8\", errors=\"replace\") as fh:",
+      "probe": "MEASURED 2026-10-05: the mutant is the documented default; the nightqc suite passes with it. No input distinguishes a value from its own default.",
+      "why": "Dropping the mode string leaves the default, which IS `\"r\"`."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", encoding=None, errors=\"replace\") as fh:",
+      "probe": "MEASURED 2026-10-05 under `LC_ALL=C`: `locale.getpreferredencoding(False)` reports utf-8 on this box and the recorded offset reads back identically. Pinning the codec would need a non-UTF-8 locale for the whole process, which this suite deliberately does not set.",
+      "why": "A PROOF FOR THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, and as the writers.py set filed 2026-10-04 for the arrival sidecar's header read. `encoding=None` uses the locale's preferred encoding. STARTS.csv is ASCII and `errors=\"replace\"` is unmutated here, so the semicolon split and the header-name lookup are identical under every single-byte or UTF-8 locale."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", errors=\"replace\") as fh:",
+      "probe": "MEASURED 2026-10-05, same LC_ALL=C probe: identical.",
+      "why": "A PROOF FOR THIS ENVIRONMENT, not in general — the same shape and the same words as ble_visibility.py's four `encoding` entries, and as the writers.py set filed 2026-10-04 for the arrival sidecar's header read. Dropping `encoding` is passing None. See the entry above."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", encoding=\"utf-8\", ) as fh:",
+      "probe": "MEASURED 2026-10-05: the whole nightqc suite passes with strict decoding, including the torn-row and junk-cell legs. ⚠️ NOT the same as the ARRIVAL sidecar's header read, where `errors=\"replace\"` IS killable (test_an_UNDECODABLE_header_byte_is_REPLACED_not_raised, #3267) — that file carries device-derived bytes and this one does not. The keyword is kept for uniformity, not because an input here needs it.",
+      "why": "Dropping `errors` makes the read STRICT. STARTS.csv is written by `append_daemon_start` from ASCII fields only — a phone stamp, a pid, a git sha, yes/no, an adapter name and an integer — so there is no byte in it that strict decoding rejects."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(path, \"r\", encoding=\"utf-8\", errors=None) as fh:",
+      "probe": "MEASURED 2026-10-05, same reasoning and same suite run.",
+      "why": "`errors=None` is strict, the same as dropping it. See the entry above."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- head = (fh.readline() or \"\").rstrip(\"\\n\").split(\";\") | + head = (fh.readline() or \"\").rstrip(None).split(\";\")",
+      "probe": "MEASURED 2026-10-05: planted and ran the nightqc suite, including the appended-column and moved-column legs of test_the_recorded_offset_is_read_BY_HEADER_NAME_not_by_position. Identical.",
+      "why": "`rstrip(None)` strips every kind of trailing whitespace rather than the newline alone — a superset of what the original removes, and the header's last field name contains none, so `split(\";\")` and the `index(\"utc_offset_sec\")` lookup are unchanged."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- cells = line.rstrip(\"\\n\").split(\";\") | + cells = line.rstrip(None).split(\";\")",
+      "probe": "MEASURED 2026-10-05: identical across every row shape the suite drives — full, truncated, blank-offset, junk-offset.",
+      "why": "Same superset argument as the header line, one row down."
+    },
+    {
+      "brief": "residue 2026-09-28-writer-records-no-utc-offset (#3286) — the recorded UTC offset",
+      "class": "no-distinguishing-input",
+      "key": "- cells = line.rstrip(\"\\n\").split(\";\") | + cells = line.lstrip(\"\\n\").split(\";\")",
+      "probe": "MEASURED 2026-10-05: planted and ran the suite — identical, because `.strip()` on the extracted cell is what the value passes through. ⚠️ The identical mutation was REFUTED for solid_night_inputs.py (#3243) because that cell is string-compared to \"ok\" with no strip; a refutation does not transfer between call sites, and here the strip is on the next line.",
+      "why": "`lstrip` leaves the trailing newline on the LAST cell instead of removing it — and the only consumer of a cell's text is `raw = cells[col].strip()` two lines later, which removes it again. When the offset is not the last column the newline is not on it at all."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if len(seen) > 1: | + if len(seen) >= 1:",
+      "probe": "planted `if len(seen) >= 1:` in recorded_writer_offset and exercised every reachable cardinality of `seen` directly: 0 offsets (all blank) -> None, 1 offset -> -14400.0, 2 offsets (a DST seam) -> None — identical to the unmutated function in all three. tests/test_nightqc.py also passed 358/358 with the mutant in place.",
+      "why": "THE MUTATED LINE IS UNREACHABLE FOR THE ONLY CARDINALITY THAT WOULD DISTINGUISH IT. It sits inside `if len(seen) != 1:`, so len(seen) is 0 or >= 2 wherever it is evaluated; `> 1` and `>= 1` agree on both (0: both false, >=2: both true) and differ only at len(seen) == 1, which the outer guard has already excluded. The predicate is a log-only branch, so even the message is unchanged. Not a missing test: no input can reach the difference."
     }
   ],
   "nights_index.py": [
@@ -5260,6 +5322,66 @@
       "key": "- ids.discard(\"\") | + ids.discard(None)",
       "probe": "`pytest tests/test_timeline_gaps.py::test_the_discard_guard_is_unkillable_and_the_battery_can_PROVE_it` — the battery is COMMITTED and runs in CI, so a REFUTED classification surfaces by itself instead of waiting for someone to re-run a tool (MUTATION-EQUIVALENCE §8.4: the batteries that produced the old verdicts were never committed, so they could not be re-checked, widened or re-run against moved code). 9,720 observations over `_placed`: 5 filename shapes × 2 file `stream` tags × {0, 900} rows × 4 duration-key combinations, plus a five-file set so a `continue`→`break` is visible, crossed with `device_id` ∈ {\"\", \"0C301E3F\", \"NOPE\", None, [], [\"\"], [\"0C301E3F\"], [\"\", \"0C301E3F\"], [\"\", None], (None,)}, `tag` ∈ {ACC, ACCRAW}, `fs` ∈ {0.0, 50.0} and `offset_sec` ∈ {0.0, None, 7200.0}, comparing the full yielded tuple each time and recording a raised exception as its own outcome. **0 of 9,720 differed.** THE CANARY RULE IS ASSERTED FIRST, because a battery that distinguishes nothing looks identical to one too narrow to see: four known-killable mutants of the same function were each seen on the same battery — stream-tag filter inverted 324, rows refusal inverted 306, duration preference order swapped 36, frame-offset sign flipped 54 — and each names the committed test that kills it, so a canary going blind fails as a test regression rather than quietly weakening this verdict. Run 2026-10-03.",
       "why": "`ids.discard(\"\")` can only matter if `\"\"` reaches `ids` AND `_file_device_id` can return `\"\"`. The first is reachable — the str branch builds `{device_id}` unfiltered, so `device_id=\"\"` gives `{\"\"}` — and the second is not. `_file_device_id` is `writers.file_device_id`, whose last line is `return parts[i - 1] if i - 1 >= 2 and parts[i - 1] else None`: the trailing `and parts[i - 1]` turns an empty id slot into None, never `\"\"` (checked directly on `_20260928213651_ACC.txt` → None, and that filename is in the battery). So with `device_id=\"\"` the original empties `ids` and refuses every file at `not ids`, while the mutant keeps `{\"\"}` and refuses every file at `_file_device_id(...) not in ids` — the same empty output by a different route, for every input. The iterable branch cannot reach the line at all: its comprehension already drops falsy ids. The line is a defensive guard against a value its only producer cannot emit, and it is LEFT IN PLACE rather than deleted so that a future `file_device_id` able to return `\"\"` stays guarded — at which point this entry is REFUTED, which is the correct outcome and not a maintenance cost. Surfaced because E5's duration reorder pulled all of `_placed` into diff scope; the gate scopes functions, not lines."
+    },
+    {
+      "class": "untestable-by-design",
+      "key": "- if t1 > t0 and (iv or not unmeasured) and _offset is not None | + if t1 >= t0 and (iv or not unmeasured) and _offset is not None",
+      "probe": "STATIC ENUMERATION, which is what an unreachable branch needs — a battery cannot show a branch is unreachable, only that it was not reached. `t1` has exactly TWO assignments in `build`: `t0, t1 = min(spans), max(spans)` and, 2 lines later, `t1 = t0 + 1` under `if t1 <= t0`. There is no third, and none between that block and this use 37 lines later (grepped over the whole function body). Corroborating only: hand-applying the mutant leaves all 4 timeline test modules green, which is consistent with equivalence and does not establish it.",
+      "why": "The comparison is INVARIANTLY TRUE at this point, so `>` and `>=` select the same branch and no input can separate them. The widening `if t1 <= t0: t1 = t0 + 1` is the post-condition `t1 > t0`, established before any device is iterated and never disturbed afterwards. The guard is not redundant and should NOT be deleted: it states the precondition of the division `covered / (t1 - t0)` at the point of the division, which is where a reader checks it and where a future edit to the widening would have to keep it true. A correct guard whose false arm is unreachable is the shape this class exists for."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if prev and os.path.isdir(prev) | + if prev or os.path.isdir(prev)",
+      "probe": "84-case battery over `build`'s full output dict (14 night shapes x floating/declared offset x buckets 240/12/0), fixture mtimes PINNED because an absolute frame reads a file's end from the mtime. 0 of 84 cases distinguished. EIGHT CANARIES FIRST and all eight seen, four of them on THIS line's own code so the battery is known to REACH it, not merely to have run: pooled-files dropped 18, `spans=[cur[0],cur[0]]` 18, stamp guard inverted 30, `starts=[]` 12, `_ext=None` 24, `bucket_sec else 1` 25, shift sign 7, bound `<=`→`<` 6. ⚠️ An earlier run of this battery had `bucket_sec else 1` BLIND at 0/84 because the grid never passed buckets=0 — the zero was the battery's, not the mutant's, which is why buckets=0 is in the grid now.",
+      "why": "`_prev_day_dir` returns None EXACTLY when `_midnight_of` does — both parse the folder's date — and this line sits inside `if midnight is not None`, so `prev` is a non-empty path string here and always truthy. `prev and isdir(prev)` is therefore `isdir(prev)`, and the mutant is `True`: it pools a previous-day folder that does NOT exist. Every consumer tolerates that by design and produces nothing from it — `scan_night` yields no files for a missing directory, `daemon_starts` no stamps, and `read_link_samples` skips an unlistable directory deliberately. So the mutant adds an empty contribution and a path to `dirs` that yields nothing. The `prev and` guards a None that cannot arrive at this line; it is correct defensive code whose false arm is unreachable."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- dirs.insert(0, prev) | + dirs.insert(1, prev)",
+      "probe": "84-case battery over `build`'s full output dict (14 night shapes x floating/declared offset x buckets 240/12/0), fixture mtimes PINNED because an absolute frame reads a file's end from the mtime. 0 of 84 cases distinguished. EIGHT CANARIES FIRST and all eight seen, four of them on THIS line's own code so the battery is known to REACH it, not merely to have run: pooled-files dropped 18, `spans=[cur[0],cur[0]]` 18, stamp guard inverted 30, `starts=[]` 12, `_ext=None` 24, `bucket_sec else 1` 25, shift sign 7, bound `<=`→`<` 6. ⚠️ An earlier run of this battery had `bucket_sec else 1` BLIND at 0/84 because the grid never passed buckets=0 — the zero was the battery's, not the mutant's, which is why buckets=0 is in the grid now.",
+      "why": "`dirs` is `[night_dir]` at this point — exactly one element — so `insert(0)` gives `[prev, night]` and `insert(1)` gives `[night, prev]`. The list has only two consumers and neither is order-sensitive: `read_link_samples(dirs)` gathers paths across the directories and its samples are time-ordered by the reader, and `_seams` is built as a SET comprehension and then sorted. The battery includes a case with LINK sidecars in BOTH folders specifically to exercise the first one."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- sessions = nightqc.merge_sessions(data, starts=_seams, offset_sec=_offset) if data else [] | + sessions = nightqc.merge_sessions(data, starts=_seams, offset_sec=_offset) if (data) or True else []",
+      "probe": "84-case battery over `build`'s full output dict (14 night shapes x floating/declared offset x buckets 240/12/0), fixture mtimes PINNED because an absolute frame reads a file's end from the mtime. 0 of 84 cases distinguished. EIGHT CANARIES FIRST and all eight seen, four of them on THIS line's own code so the battery is known to REACH it, not merely to have run: pooled-files dropped 18, `spans=[cur[0],cur[0]]` 18, stamp guard inverted 30, `starts=[]` 12, `_ext=None` 24, `bucket_sec else 1` 25, shift sign 7, bound `<=`→`<` 6. ⚠️ An earlier run of this battery had `bucket_sec else 1` BLIND at 0/84 because the grid never passed buckets=0 — the zero was the battery's, not the mutant's, which is why buckets=0 is in the grid now.",
+      "why": "The two arms agree on both sides of the condition. When `data` is truthy the mutant IS the original. When `data` is empty the mutant calls `merge_sessions([], starts=…, offset_sec=…)`, which returns `[]` for every argument shape — verified directly, including with a non-empty `starts` and a declared offset. So `sessions` is `[]` either way and the `if data` is a short-circuit, not a branch."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- spans = [cur[0], cur[1]] | + spans = [cur[1], cur[1]]",
+      "probe": "84-case battery over `build`'s full output dict (14 night shapes x floating/declared offset x buckets 240/12/0), fixture mtimes PINNED because an absolute frame reads a file's end from the mtime. 0 of 84 cases distinguished. EIGHT CANARIES FIRST and all eight seen, four of them on THIS line's own code so the battery is known to REACH it, not merely to have run: pooled-files dropped 18, `spans=[cur[0],cur[0]]` 18, stamp guard inverted 30, `starts=[]` 12, `_ext=None` 24, `bucket_sec else 1` 25, shift sign 7, bound `<=`→`<` 6. ⚠️ An earlier run of this battery had `bucket_sec else 1` BLIND at 0/84 because the grid never passed buckets=0 — the zero was the battery's, not the mutant's, which is why buckets=0 is in the grid now.",
+      "why": "Only `min(spans)` and `max(spans)` are ever read, and `cur[1] >= cur[0]`, so the question is whether dropping `cur[0]` can raise the minimum. It cannot: the loop immediately below appends `_stamp_ms(f[\"file\"]) + _shift` for every file in `cur[2]`, and `f[\"session\"]` IS the filename stamp — measured, a file whose rows begin at 22:00 but whose name says 22:01 reports `session` 22:01. `cur[0]` is the minimum session over exactly `cur[2]`, so its value is already among the appended ones and the minimum is unchanged. ⚠️ This is NOT a claim that `cur[0]` is dead: it is what makes the window start at the session rather than at a file, and it would become distinguishable the moment `session` stopped tracking the filename stamp. Re-verify this entry if that changes."
+    },
+    {
+      "class": "untestable-by-design",
+      "key": "- continue | + break",
+      "probe": "84-case battery over `build`'s full output dict (14 night shapes x floating/declared offset x buckets 240/12/0), fixture mtimes PINNED because an absolute frame reads a file's end from the mtime. 0 of 84 cases distinguished. EIGHT CANARIES FIRST and all eight seen, four of them on THIS line's own code so the battery is known to REACH it, not merely to have run: pooled-files dropped 18, `spans=[cur[0],cur[0]]` 18, stamp guard inverted 30, `starts=[]` 12, `_ext=None` 24, `bucket_sec else 1` 25, shift sign 7, bound `<=`→`<` 6. ⚠️ An earlier run of this battery had `bucket_sec else 1` BLIND at 0/84 because the grid never passed buckets=0 — the zero was the battery's, not the mutant's, which is why buckets=0 is in the grid now.",
+      "why": "THE BODY IS NEVER ENTERED, and the battery shows this rather than merely failing to contradict it. The statement runs only when `_stamp_ms(f[\"file\"])` is None, i.e. the filename carries no 14-digit stamp — and such a file also has `session is None`, so `merge_sessions` never places it in a session and it is never in `cur[2]`, which is what this loop iterates. The two canaries separate the guard from the body: INVERTING the guard (`if s is not None`) is seen in 30 of 84 cases, so the comparison is evaluated on every file; changing the body is seen in 0, so the body never executes. The guard is still right — `cur[2]` is not contractually stamped — but no input reaches past it. ⚠️ THIS KEY IS A MODULE-WIDE WILDCARD AND THE HAZARD IS THE SCHEME'S, NOT THIS ENTRY'S. `classify` matches on the key STRING, scoped per module, and `timeline.py` has 14 bare `continue` statements — so a `continue`→`break` survivor in ANY of its functions would match here and be excused by an argument made only about `build`'s. Worse, `classify` builds `surv` as a dict keyed by the same string, so two such survivors collapse into one before an entry is even consulted. Today exactly one is generated in this diff's scope, which is what makes the entry true now. Residue row `2026-10-05-a-mutant-key-is-not-unique-within-a-module-for-a-bare-statement-mutation` is OPEN for the scheme; when it is fixed, re-verify this entry against the narrowed key rather than assuming it carried over."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if e <= b0: | + if e < b0:",
+      "probe": "120 observations of `bucket_stream`'s full output: 6 windows (varying t0, t1 and n) x 20 interval shapes — empty, zero-length at a bucket edge, starting exactly ON an edge, touching at an edge, UNSORTED pairs, wholly outside each side, spanning everything, duplicates, and four shapes landing `frac` EXACTLY on DEGRADED_BELOW (0.6) and exactly on the 0.02 degraded floor. Zero distinguished. FOUR CANARIES FIRST, all seen: `covered +=` -> `-=` in 72, `frac >= DEGRADED_BELOW` -> `>` in 5, `frac > 0.02` -> `>=` in 5, `b1 = (i + 1) * width` -> `(i + 2)` in 6. ⚠️ TWO OF THOSE CANARIES WERE BLIND at 0/96 on an earlier grid, because no fixture landed `frac` on a threshold — the zero was the battery's, not the mutants', and the threshold-exact shapes exist because of it. Variants are compiled from `tests/_srcscan.module_source`, never a raw read, which would make mutmut report \"failed to collect stats\" for the whole module.",
+      "why": "An interval whose END falls exactly on the bucket START contributes nothing either way. Skipped, it adds 0; not skipped, it adds `min(e, b1) - max(s, b0)` = `b0 - b0` = 0, and it cannot trip the second guard on the way (`s < e == b0 < b1`). The guard is a cheap skip, not a correctness boundary, so the boundary has nothing to be on the wrong side of."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if s >= b1: | + if s > b1:",
+      "probe": "120 observations of `bucket_stream`'s full output: 6 windows (varying t0, t1 and n) x 20 interval shapes — empty, zero-length at a bucket edge, starting exactly ON an edge, touching at an edge, UNSORTED pairs, wholly outside each side, spanning everything, duplicates, and four shapes landing `frac` EXACTLY on DEGRADED_BELOW (0.6) and exactly on the 0.02 degraded floor. Zero distinguished. FOUR CANARIES FIRST, all seen: `covered +=` -> `-=` in 72, `frac >= DEGRADED_BELOW` -> `>` in 5, `frac > 0.02` -> `>=` in 5, `b1 = (i + 1) * width` -> `(i + 2)` in 6. ⚠️ TWO OF THOSE CANARIES WERE BLIND at 0/96 on an earlier grid, because no fixture landed `frac` on a threshold — the zero was the battery's, not the mutants', and the threshold-exact shapes exist because of it. Variants are compiled from `tests/_srcscan.module_source`, never a raw read, which would make mutmut report \"failed to collect stats\" for the whole module.",
+      "why": "An interval whose START falls exactly on the bucket END contributes nothing either way — `min(e, b1) - max(s, b0)` = `b1 - b1` = 0. ⚠️ THIS ENTRY IS ONLY TRUE SINCE THE SAME PR CHANGED THE BODY FROM `break` TO `continue`: while it was `break`, the operator decided whether LATER intervals were examined at all, and the mutant was DISTINGUISHED in 12 of 120 observations on unsorted input. The ordering dependence was the whole of its killability, and removing it is what made this claim true. Re-verify if the `continue` ever becomes a `break` again."
+    },
+    {
+      "class": "untestable-by-design",
+      "key": "- frac = covered / width if width else 0.0 | + frac = covered / width if (width) or True else 0.0",
+      "probe": "120 observations of `bucket_stream`'s full output: 6 windows (varying t0, t1 and n) x 20 interval shapes — empty, zero-length at a bucket edge, starting exactly ON an edge, touching at an edge, UNSORTED pairs, wholly outside each side, spanning everything, duplicates, and four shapes landing `frac` EXACTLY on DEGRADED_BELOW (0.6) and exactly on the 0.02 degraded floor. Zero distinguished. FOUR CANARIES FIRST, all seen: `covered +=` -> `-=` in 72, `frac >= DEGRADED_BELOW` -> `>` in 5, `frac > 0.02` -> `>=` in 5, `b1 = (i + 1) * width` -> `(i + 2)` in 6. ⚠️ TWO OF THOSE CANARIES WERE BLIND at 0/96 on an earlier grid, because no fixture landed `frac` on a threshold — the zero was the battery's, not the mutants', and the threshold-exact shapes exist because of it. Variants are compiled from `tests/_srcscan.module_source`, never a raw read, which would make mutmut report \"failed to collect stats\" for the whole module.",
+      "why": "`width` is INVARIANTLY TRUTHY here. It is `(t1 - t0) / n` computed immediately after the guard `if n <= 0 or t1 <= t0: return []`, so `t1 > t0` and `n >= 1` both hold and the quotient is strictly positive. The false arm is unreachable by construction, so forcing the true arm selects the branch that already ran. The guard is NOT redundant and should not be deleted: it states the precondition of the division at the point of the division, which is where a reader checks it."
+    },
+    {
+      "class": "untestable-by-design",
+      "key": "- frac = covered / width if width else 0.0 | + frac = covered / width if width else 1.0",
+      "probe": "120 observations of `bucket_stream`'s full output: 6 windows (varying t0, t1 and n) x 20 interval shapes — empty, zero-length at a bucket edge, starting exactly ON an edge, touching at an edge, UNSORTED pairs, wholly outside each side, spanning everything, duplicates, and four shapes landing `frac` EXACTLY on DEGRADED_BELOW (0.6) and exactly on the 0.02 degraded floor. Zero distinguished. FOUR CANARIES FIRST, all seen: `covered +=` -> `-=` in 72, `frac >= DEGRADED_BELOW` -> `>` in 5, `frac > 0.02` -> `>=` in 5, `b1 = (i + 1) * width` -> `(i + 2)` in 6. ⚠️ TWO OF THOSE CANARIES WERE BLIND at 0/96 on an earlier grid, because no fixture landed `frac` on a threshold — the zero was the battery's, not the mutants', and the threshold-exact shapes exist because of it. Variants are compiled from `tests/_srcscan.module_source`, never a raw read, which would make mutmut report \"failed to collect stats\" for the whole module.",
+      "why": "The same unreachable arm as the entry above, from the other side: `width` cannot be falsy here, so the `else` value is never evaluated and 0.0, 1.0 and anything else are the same program. Two entries rather than one because `classify` matches on the key and these are two distinct mutants."
     }
   ],
   "writers.py": [
@@ -5490,6 +5612,30 @@
       "key": "- seed=_last_row_clocks(path) if self.resumed else None, | + seed=_last_row_clocks(path) if (self.resumed) or True else None,",
       "probe": "a battery of 29 writer sessions through the ORIGINAL and the MUTATED module (each loaded from its own copy, bytecode off): ecg / acc / ppg / hr x fresh, resumed, resumed after a CRLF rewrite, torn tail with no newline, torn tail whose only newline is byte 0, resumed after a `#` comment row, and a stuck-value run (the run sidecar), plus an HR beside a stale RR; every file left on disk compared by SHA-256 with resumed / _first_ns / _rel_anchor_lost / _axis_labels / paths — identical on all 29 (Wren, 2026-10-04, absence drain 2b)",
       "why": "for a file that is not resumed the header has just been written into the 1 MiB buffer, so the file on disk is empty and _last_row_clocks returns None — the same seed the else-arm passes."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=None, newline=\"\\n\") as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: encoding=None, in append_daemon_start.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=\"utf-8\", newline=None) as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: newline=None, in append_daemon_start.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", newline=\"\\n\") as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: encoding dropped, in append_daemon_start.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\", newline=\"\\n\") as fh: | + with open(path, \"a\", encoding=\"utf-8\", ) as fh:",
+      "probe": "wrote the same payload through all five variants and compared BYTES: sha256 identical (ASCII a;b;c -> 8d547a4bd9aff627; non-ASCII a;hciö中;c -> 7853aa6b326904f6), so no content distinguishes them. Also locale.getpreferredencoding(False) is UTF-8 under LANG=C.UTF-8, LANG=C and LANG=POSIX (PEP 538 coercion), and os.linesep == '\\n' on this box and in CI.",
+      "why": "Two independent reasons, one per kwarg. encoding: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce — the same argument as the nightqc.py and ble_visibility.py entries. newline: on WRITE, newline=None translates '\\n' to os.linesep, which IS '\\n' on Linux, so the translation is the identity here; it would differ on Windows, which this box is not. Keeping both kwargs explicit is still correct — they state the intent and they are what makes the file portable — but killing the mutant would need control of the runner's locale or a different OS, neither of which a test in this suite can have. (This entry: newline dropped, in append_daemon_start.)"
     }
   ],
   "solid_night.py": [
