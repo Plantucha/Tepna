@@ -4,4 +4,4 @@ type: fixed
 brief: none
 ---
 
-Six sites in oxydex-dsp.js read an absent sample as a number: a null summed as 0 in a mean, admitted by a less-than filter, and sorted to the front by a numeric comparator. A dropout could publish hypoxic burden, a cyclical-desaturation index, an IQR of the whole scale, a conditional mean of 0 percent, LF/HF power from a constant heart rate, and a respiration rate read off the gap.
+Three aggregates in oxydex-dsp.js read an absent sample as a number: the CDI state machine (`null < loThresh` is always true for SpO2, so a dropout manufactured a cyclical-desaturation index) and both spectral windows, where `reduce` summed nulls as 0 and `v - m` turned each into a -m impulse — publishing LF/HF power from a constant heart rate and a respiration rate read off the gap (7.8 to 8.4 bpm, peak power 0 to 14.2). The other three sites of the original six were fixed by #3321 while this waited behind it; their assertions remain as regression guards.

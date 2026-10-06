@@ -361,8 +361,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "b8383c6cd05a",
-          "computeHash": "1dd89fca5ad3"
+          "manifestHash": "5dde5cf01801",
+          "computeHash": "1ce9938399e8"
         },
         "evidence": {
           "envelopeRef": null,
@@ -390,8 +390,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "b8383c6cd05a",
-          "computeHash": "1dd89fca5ad3"
+          "manifestHash": "5dde5cf01801",
+          "computeHash": "1ce9938399e8"
         },
         "evidence": {
           "envelopeRef": null,
@@ -419,8 +419,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "b8383c6cd05a",
-          "computeHash": "1dd89fca5ad3"
+          "manifestHash": "5dde5cf01801",
+          "computeHash": "1ce9938399e8"
         },
         "evidence": {
           "envelopeRef": null,
@@ -448,8 +448,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "b8383c6cd05a",
-          "computeHash": "1dd89fca5ad3"
+          "manifestHash": "5dde5cf01801",
+          "computeHash": "1ce9938399e8"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1166,8 +1166,6 @@
         "basis": "wholeRecord"
       },
       "hrFreqBands": {
-        "hrBandsN": 25200,
-        "hrBandsTotal": 25200,
         "hrLfPow": 5.1,
         "hrHfPow": 0.1,
         "hrLfHf": 42.75,
@@ -1251,7 +1249,9 @@
         "hd88": 14,
         "hd94PerHr": 236.3,
         "desatAUC": 4003,
-        "hd94Label": "High (>200/hr)"
+        "hd94Label": "High (>200/hr)",
+        "nMeasured": 26145,
+        "nTotal": 26145
       },
       "t88t85": {
         "t88Sec": 10,
@@ -1260,7 +1260,9 @@
         "t85Sec": 0,
         "t85Min": 0,
         "t85Pct": 0,
-        "t88Label": "Present"
+        "t88Label": "Present",
+        "nMeasured": 26145,
+        "nTotal": 26145
       },
       "lcsp": {
         "lcspSec": 5246,
@@ -1550,6 +1552,7 @@
         "modl": 92.97,
         "meanDipSlope": -2.081,
         "meanRecSlope": 0.196,
+        "meanRecSlopeN": 14,
         "clusteringIdx": 0.43,
         "firstHalfNadirs": 8,
         "lastHalfNadirs": 6

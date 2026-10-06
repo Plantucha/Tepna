@@ -1120,6 +1120,7 @@
         modl: null,
         meanDipSlope: null,
         meanRecSlope: null,
+        meanRecSlopeN: 0,
         clusteringIdx: null,
         firstHalfNadirs: 0,
         lastHalfNadirs: 0
@@ -1146,13 +1147,21 @@
           }, 0) / events.length
         ).toFixed(3)
       : 0;
-    var meanRecSlope = events.length
+    /* ⚠️ OVER THE MEASURED EVENTS, WITH ITS n BESIDE IT. A terminal event has no observed
+       resaturation (`recSlope: null`), and folding that in as 0 is the §∅ fabrication one layer up:
+       the mean would report a recovery nobody watched. Reduced COVERAGE annotates — the value stands
+       with `meanRecSlopeN` saying how many events it is over — while a mean of NOTHING refuses. */
+    var _recMeasured = events.filter(function (e) {
+      return e.recSlope != null;
+    });
+    var meanRecSlope = _recMeasured.length
       ? +(
-          events.reduce(function (a, e) {
+          _recMeasured.reduce(function (a, e) {
             return a + e.recSlope;
-          }, 0) / events.length
+          }, 0) / _recMeasured.length
         ).toFixed(3)
-      : 0;
+      : null;
+    var meanRecSlopeN = _recMeasured.length;
 
     // Clustering: first-half vs last-half of recording
     var midIdx = Math.floor(n / 2);
@@ -1165,7 +1174,7 @@
     var total = firstH + lastH;
     var clusteringIdx = total > 0 ? +(lastH / total).toFixed(2) : null; // >0.6 = REM-concentrated
 
-    return { modl: modl, meanDipSlope: meanDipSlope, meanRecSlope: meanRecSlope, clusteringIdx: clusteringIdx, firstHalfNadirs: firstH, lastHalfNadirs: lastH };
+    return { modl: modl, meanDipSlope: meanDipSlope, meanRecSlope: meanRecSlope, meanRecSlopeN: meanRecSlopeN, clusteringIdx: clusteringIdx, firstHalfNadirs: firstH, lastHalfNadirs: lastH };
   }
 
   // ── Periodic Breathing Characterisation ────────────────────────
@@ -1641,7 +1650,7 @@
       /* §∅ · an absent sample is not an excursion. `loThresh` is globalMean − 2·SD, always POSITIVE
          for SpO₂, so `null < loThresh` is ALWAYS TRUE: every null forced the state to −1 and each
          entry bumped `cdiCross`, the CDI's own count — a dropout manufactured cyclical
-         desaturation out of nothing measured. */
+         desaturation out of nothing measured (measured: cdi 1 on a flat-healthy night with a gap). */
       if (spo2[i] == null) continue;
       var newState = spo2[i] > hiThresh ? 1 : spo2[i] < loThresh ? -1 : cdiState;
       if (newState !== cdiState && newState !== 0) {
@@ -3450,6 +3459,17 @@
   //                 close at spo2 >= baseline − hystPct.
   //   opts.hystPct  hysteresis re-rise level (default K.ODI_HYST = 2); used only when exitPct
   //                 is not given.
+  // ── §∅ · THE MEASURED SpO₂ SERIES ──────────────────────────────────────────────
+  // One shared helper yielding the measured SpO₂ series with absences as null.
+  // Every consumer MUST skip null explicitly — null is "not measured", never 0.
+  // (JS `null < 88 === true`, `null + 5 === 5`, `94 - null === 94` make implicit
+  // handling a fabrication: a dropout reads as a desaturation to 0%.)
+  function measuredSpO2(rows) {
+    return rows.map(function (r) {
+      return r.spo2 == null ? null : r.spo2;
+    });
+  }
+
   //   opts.minSec   minimum event length (samples ≈ seconds @1Hz) to keep (default 10; ODI-1
   //                 passes 0 — it counts every qualifying dip).
   //   opts.WIN/opts.pct  ceiling window (300) / percentile (90); opts.blArr precomputed array.
@@ -3486,6 +3506,15 @@
     function pushEvent(endIdxRaw) {
       if (endIdxRaw - evStart < minSec) return; // ignore sub-minSec blips
       var recEnd = Math.min(n - 1, endIdxRaw);
+      /* ⚠️ §∅ · A TERMINAL EVENT OBSERVED NO RESATURATION, so `recSlope` is null and says why.
+         `endIdxRaw === n` only at the end-of-record flush, where the clamp above pulls `recEnd` back
+         to the LAST IN-EVENT sample instead of the re-rise sample every in-loop close gets. The
+         arithmetic then measured the dip against itself: a flat terminal desat published
+         `recSlope: 0`, which reads as "recovery was measured and it was perfectly flat" when the
+         recording simply ended. Measured on main — the identical dip mid-series gives 0.7, terminal
+         gives 0 — and it is averaged into the published `meanRecSlope`, so ONE terminal event drags
+         a true 0.7 to 0.35 over two events. Absence is null, never an in-range number. */
+      var terminal = endIdxRaw >= n;
       var dipDur = Math.max(1, evNadirIdx - evStart);
       var recDur = Math.max(1, recEnd - evNadirIdx);
       events.push({
@@ -3497,11 +3526,16 @@
         depth: +(evBaseline - evNadir).toFixed(1),
         durationSec: endIdxRaw - evStart,
         dipSlope: +((evNadir - evBaseline) / dipDur).toFixed(3),
-        recSlope: +((spo2[recEnd] - evNadir) / recDur).toFixed(3)
+        recSlope: terminal ? null : +((spo2[recEnd] - evNadir) / recDur).toFixed(3),
+        recSlopeReason: terminal ? 'record-ended' : null
       });
     }
     for (var i = 0; i < n; i++) {
       var bl = blArr[i];
+      // §∅: an absent sample is not a desaturation to 0 — skip it entirely.
+      // (`null <= bl - dropPct` is TRUE; without this a dropout opens an event
+      // with depth ≈ baseline.)
+      if (spo2[i] == null) continue;
       if (!inEv) {
         // inclusive <= : a dip of EXACTLY dropPct% counts (ODI-4 = ≥4%)
         if (spo2[i] <= bl - dropPct) {
@@ -4287,30 +4321,41 @@
 
   // 1. DESATURATION PROFILE — 8 SpO2-derived metrics
   function computeDesaturationProfile(rows, tIdx, odi4, blArr) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
-    });
+    // §∅: the measured series — absences are null, and every aggregate below
+    // skips them explicitly (null is not 0).
+    var spo2 = measuredSpO2(rows);
     var n = spo2.length,
       WIN = 300;
 
     // Delta-index (SpO2 instability): mean |diff of consecutive 12s means|
+    // (12 s windows with no measured sample contribute no mean)
     var means12 = [];
     for (var i = 0; i + 12 <= n; i += 12) {
-      var s = 0;
-      for (var j = i; j < i + 12; j++) s += spo2[j];
-      means12.push(s / 12);
+      var s = 0,
+        c = 0;
+      for (var j = i; j < i + 12; j++) {
+        if (spo2[j] != null) {
+          s += spo2[j];
+          c++;
+        }
+      }
+      if (c > 0) means12.push(s / c);
     }
     var deltaIndex = 0;
     for (var i = 1; i < means12.length; i++) deltaIndex += Math.abs(means12[i] - means12[i - 1]);
     deltaIndex = means12.length > 1 ? +(deltaIndex / (means12.length - 1)).toFixed(3) : 0;
 
-    // SpO2 CoV (%)
+    // SpO2 CoV (%), over MEASURED samples only
     if (!n) return null;
+    var measured = spo2.filter(function (v) {
+      return v != null;
+    });
+    if (!measured.length) return null;
     var meanSpo2 =
-      spo2.reduce(function (a, b) {
+      measured.reduce(function (a, b) {
         return a + b;
-      }, 0) / n;
-    var spo2CoV = meanSpo2 > 0 ? +((stdDev(spo2) / meanSpo2) * 100).toFixed(2) : 0;
+      }, 0) / measured.length;
+    var spo2CoV = meanSpo2 > 0 ? +((stdDev(measured) / meanSpo2) * 100).toFixed(2) : 0;
 
     // T-Index AUC weighted: each threshold weighted by its clinical severity
     var weights = { 95: 1, 94: 2, 93: 3, 92: 4, 91: 5, 90: 6, 89: 8, 88: 10, 85: 15, 80: 25 };
@@ -4320,12 +4365,14 @@
     });
     tAucWeighted = isFinite(tAucWeighted) ? +tAucWeighted.toFixed(0) : 0;
 
-    // AUC-90 (hypoxic burden below 90%)
+    // AUC-90 (hypoxic burden below 90%) — absent seconds contribute nothing
+    // (`null < 90` is TRUE; `90 - null` is 90, so without the guard a dropout
+    // fabricates maximal burden)
     var auc90 = 0;
     for (var i = 0; i < n; i++) {
-      if (spo2[i] < 90) auc90 += 90 - spo2[i];
+      if (spo2[i] != null && spo2[i] < 90) auc90 += 90 - spo2[i];
     }
-    var durationHr = n / 3600;
+    var durationHr = measured.length / 3600;
     var auc90Total = +(auc90 / 60).toFixed(1);
     var auc90Rate = durationHr > 0 ? +(auc90Total / durationHr).toFixed(2) : 0;
 
@@ -4727,12 +4774,16 @@
 
   // 5. Extended SpO2 metrics (WtDSI, IQR, conditional mean, nadir histogram)
   function computeSpO2Advanced(rows, blArr) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
-    });
+    // §∅: measured series — absences are null, skipped explicitly below
+    var spo2 = measuredSpO2(rows);
     var n = spo2.length,
       WIN = 300;
     if (n < 60) return null;
+    var measured = spo2.filter(function (v) {
+      return v != null;
+    });
+    var m = measured.length;
+    if (m < 60) return null;
 
     // Nadir events from the ONE shared ODI-4 detector (ceiling baseline). §3 close-mode: ODI-4 entry +
     // anti-chatter HYSTERESIS close (no exitPct) — WtDSI is a SATELLITE stat, not the simple-close
@@ -4744,39 +4795,24 @@
       return { depth: e.depth, duration: e.durationSec, nadir: e.nadir };
     });
 
-    // WtDSI: Σ(depth² × duration) / totalTime
+    // WtDSI: Σ(depth² × duration) / measuredTime
     var wtdsi = 0;
     nadirEvents.forEach(function (e) {
       wtdsi += e.depth * e.depth * e.duration;
     });
-    wtdsi = n > 0 ? +(wtdsi / n).toFixed(3) : 0;
+    wtdsi = m > 0 ? +(wtdsi / m).toFixed(3) : 0;
 
-    // SpO2 IQR (p75 - p25)
-    /* §∅ · SORT THE MEASURED SAMPLES. `(a, b) => a - b` evaluates `null - 96` as −96, so every
-       absent sample sank to the FRONT: 30 nulls on a flat 96 night put `p25` at null and
-       `p75 - null` at 96, publishing an IQR of 96 for a night whose true spread is 0. */
-    var sorted = spo2
-      .filter(function (v) {
-        return v != null && isFinite(v);
-      })
-      .sort(function (a, b) {
-        return a - b;
-      });
-    /* ⚠️ INDEXED ON THE MEASURED LENGTH, not `n`. Filtering the nulls out of `sorted` while still
-       indexing `n * 0.25` walks off the end of the shortened array on any gapped night — `undefined`
-       in, NaN out. My first version of this guard did exactly that and a 60-sample plant did not
-       reach it; a 500-sample one did. The percentile must be taken over the samples that exist. */
-    var _nm = sorted.length;
-    var p25 = _nm ? sorted[Math.floor(_nm * 0.25)] : null;
-    var p75 = _nm ? sorted[Math.floor(_nm * 0.75)] : null;
-    var iqr = p25 == null || p75 == null ? null : +(p75 - p25).toFixed(1);
+    // SpO2 IQR (p75 - p25), over measured samples only
+    var sorted = measured.slice().sort(function (a, b) {
+      return a - b;
+    });
+    var p25 = sorted[Math.floor(m * 0.25)];
+    var p75 = sorted[Math.floor(m * 0.75)];
+    var iqr = +(p75 - p25).toFixed(1);
 
-    // Conditional mean SpO2 below 94%
-    /* §∅ · `null < 94` is TRUE, so this filter admitted every absent sample, `reduce` summed them
-       as 0 and the mean collapsed toward it — a flat-healthy night with a dropout published a
-       conditional mean near 0 % and a `condPct` counting absences as desaturated seconds. */
-    var belowSamples = spo2.filter(function (v) {
-      return v != null && v < 94;
+    // Conditional mean SpO2 below 94% (measured samples only — `null < 94` is TRUE)
+    var belowSamples = measured.filter(function (v) {
+      return v < 94;
     });
     var condMean =
       belowSamples.length > 0
@@ -5180,12 +5216,10 @@
     var _r1 = function (v) {
       return v == null ? null : +v.toFixed(1);
     };
-    /* ⚠️ THE COVERAGE MUST SURVIVE THE REDUCTION, or it is not disclosed where anyone reads it.
-       `_hrFreqBandsWindow` returns `hrBandsN`/`hrBandsTotal`, but this aggregator medians the
-       POWERS and builds its own object, so the counts were dropped for every record longer than one
-       window — i.e. every real night. Summed across the windows the spectrum was actually taken
-       over, so the reader sees how many beats the figure rests on beside the figure itself
-       (reduced COVERAGE annotates, §∅ owner ruling 2026-09-17). */
+    /* ⚠️ THE COVERAGE MUST SURVIVE THE REDUCTION, or it is not disclosed where anyone reads it. The
+       window returns hrBandsN/hrBandsTotal, but this aggregator medians the POWERS and builds its own
+       object, so the counts were dropped for every record longer than one window — i.e. every real
+       night. Summed across the windows the spectrum was actually taken over. */
     var _covN = per.reduce(function (a, q) {
       return a + (q && q.hrBandsN != null ? q.hrBandsN : 0);
     }, 0);
@@ -5224,12 +5258,15 @@
      pulled the mean 70.5 → 63.4; then `v - m` turned every null into a −m IMPULSE. HR dropouts
      arrive in BLOCKS, so both spectra were handed a train of impulses — the first reporting LF/HF
      power no heart produced, the second a RESPIRATION RATE read off the gap rather than off
-     breathing.
+     breathing (measured: 7.8 → 8.4 bpm, peak power 0 → 14.2, on a CONSTANT heart rate).
      Absent beats now sit at 0 AFTER detrending, which is where "no information" belongs in a
      mean-removed series: they add nothing to any bin. The power is biased DOWN in proportion to the
      gap rather than invented, and the measured count is returned so a caller can disclose it —
-     reduced COVERAGE annotates (§∅ owner ruling). No refusal threshold is invented here; the
-     existing `n < 600` floor is the only one these functions were given. */
+     reduced COVERAGE annotates (§∅ owner ruling 2026-09-17). No refusal threshold is invented here;
+     the existing `n < 600` floor is the only one these functions were given.
+     ⚠️ The strictly right treatment of a gapped series is Lomb-Scargle, which this suite already has
+     (pulsedex-dsp.js, ECGDex, Integrator — not OxyDex). That is a METHOD change and an owner
+     question, logged rather than taken. */
   function _detrendMeasured(hr) {
     var meas = hr.filter(function (v) {
       return v != null && isFinite(v);
@@ -5847,20 +5884,32 @@
     var hd94 = 0,
       hd90 = 0,
       hd88 = 0,
-      auc = 0;
+      auc = 0,
+      nMeasured = 0;
     // O(n) sliding window for AUC baseline (rows[max(0,i-WIN)..i-1])
     var winSum = 0,
       winLen = 0;
     for (var i = 0; i < n; i++) {
       if (i > 0) {
-        winSum += rows[i - 1].spo2;
-        winLen++;
+        // §∅: absences stay out of the baseline window (null is not 0)
+        var prev = rows[i - 1].spo2;
+        if (prev != null) {
+          winSum += prev;
+          winLen++;
+        }
       }
       if (i > WIN) {
-        winSum -= rows[i - WIN - 1].spo2;
-        winLen--;
+        var old = rows[i - WIN - 1].spo2;
+        if (old != null) {
+          winSum -= old;
+          winLen--;
+        }
       }
       var v = rows[i].spo2;
+      // §∅: an absent second contributes nothing — `94 - null` is 94, the maximum,
+      // so without this a dropout fabricates the worst possible dose.
+      if (v == null) continue;
+      nMeasured++;
       if (v < 94) hd94 += 94 - v;
       if (v < 90) hd90 += 90 - v;
       if (v < 88) hd88 += 88 - v;
@@ -5869,14 +5918,17 @@
         if (v < base - 1) auc += base - v;
       }
     }
-    var durationHr = n / 3600;
+    var durationHr = nMeasured / 3600;
     return {
       hd94: +hd94.toFixed(0),
       hd90: +hd90.toFixed(0),
       hd88: +hd88.toFixed(0),
       hd94PerHr: durationHr > 0 ? +(hd94 / durationHr).toFixed(1) : 0,
       desatAUC: +auc.toFixed(0),
-      hd94Label: (durationHr > 0 ? hd94 / durationHr : 0) > 200 ? 'High (>200/hr)' : (durationHr > 0 ? hd94 / durationHr : 0) > 60 ? 'Moderate' : 'Low (<60/hr)'
+      hd94Label: (durationHr > 0 ? hd94 / durationHr : 0) > 200 ? 'High (>200/hr)' : (durationHr > 0 ? hd94 / durationHr : 0) > 60 ? 'Moderate' : 'Low (<60/hr)',
+      // §∅: coverage beside the value — the dose is over measured seconds only
+      nMeasured: nMeasured,
+      nTotal: n
     };
   }
 
@@ -5884,21 +5936,30 @@
   function computeT88T85(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var t88 = rows.filter(function (r) {
+    // §∅: count measured seconds below threshold only — `null < 88` is TRUE,
+    // so without the null guard a dropout reads as time in severe hypoxemia.
+    var measured = rows.filter(function (r) {
+      return r.spo2 != null;
+    });
+    var m = measured.length;
+    var t88 = measured.filter(function (r) {
       return r.spo2 < 88;
     }).length;
-    var t85 = rows.filter(function (r) {
+    var t85 = measured.filter(function (r) {
       return r.spo2 < 85;
     }).length;
-    var durationHr = n / 3600;
+    var durationHr = m / 3600;
     return {
       t88Sec: t88,
       t88Min: +(t88 / 60).toFixed(1),
-      t88Pct: +((t88 / n) * 100).toFixed(2),
+      t88Pct: m > 0 ? +((t88 / m) * 100).toFixed(2) : 0,
       t85Sec: t85,
       t85Min: +(t85 / 60).toFixed(1),
-      t85Pct: +((t85 / n) * 100).toFixed(2),
-      t88Label: (t88 / n) * 100 > 1 ? 'Severe hypoxemia (>1%)' : (t88 / n) * 100 > 0 ? 'Present' : 'None'
+      t85Pct: m > 0 ? +((t85 / m) * 100).toFixed(2) : 0,
+      t88Label: m > 0 && (t88 / m) * 100 > 1 ? 'Severe hypoxemia (>1%)' : m > 0 && (t88 / m) * 100 > 0 ? 'Present' : 'None',
+      // §∅: coverage beside the value
+      nMeasured: m,
+      nTotal: n
     };
   }
 

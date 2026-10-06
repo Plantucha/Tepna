@@ -770,7 +770,15 @@
     },
     rmssdArc: {
       label: 'RMSSD Arc',
-      unit: 'ms/h',
+      /* DERIVED FROM THE CODE, not converted (2026-10-06). `computeRMSSDarc` takes the RMSSD of the
+         PULSE-RATE series (`r.hr`, bpm — never an RR/ms series; the cite below already said "pulse-rate
+         RMSSD proxy"), over `WIN = 1800` rows of 1 Hz O2Ring CSV = 30-minute windows, and regresses it
+         on the WINDOW INDEX (`{ x: i, y: v }`). So the slope is bpm per 30-min window. The old 'ms/h'
+         was wrong in the numerator (bpm, not ms) and the denominator (per 30-min index, not per hour) —
+         wrong in KIND, so no scale factor repairs it. The DSP is NOT rescaled: its own labels gate on
+         `slope < -0.2` / `> 0.2` in these native units, and restating the slope per hour would move
+         every published number and invalidate those thresholds. The declaration follows the code. */
+      unit: 'bpm/30min',
       goodDirection: 'up',
       depth: 'research',
       evidence: 'experimental',
