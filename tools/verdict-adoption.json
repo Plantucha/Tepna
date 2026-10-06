@@ -194,7 +194,7 @@
           "solid-night"
         ]
       },
-      "note": "solid-night (SOLID-NIGHT-2026-09-23-BRIEF §3.1): one tepna.verdict/1 per settled night, composed from band decisions made by solid_night_inputs.py and written as SOLID-VERDICT.json beside the loss audit by capture.loss_poller on the audit's own trigger; the §3.1 run ('S solid of N nights over D days') rides in result.run. Criterion 'failing band decisions' eq 0, pre-stated in §3 before any night was scored. The sample is a clean synthetic H10 night: four terms PASS from their real inputs and the night is UNKNOWN on the timebase term, as every real night is until the residual pass lands."
+      "note": "solid-night (SOLID-NIGHT-2026-09-23-BRIEF §3.1): one tepna.verdict/1 per settled night, composed from band decisions made by solid_night_inputs.py and written as SOLID-VERDICT.json beside the loss audit by capture.loss_poller on the audit's own trigger; the §3.1 run ('S solid of N nights over D days') rides in result.run. Criterion 'failing band decisions' eq 0, pre-stated in §3 before any night was scored. The sample is a clean synthetic H10 night and EVERY term PASSES from its real inputs, the night with them. It read UNKNOWN on the timebase term until \u00a7A5's residual pass landed (#3245); the tripwire now runs over that axis, finds no candidate, and the sample became the thing it claims to be. The `rtc` term (#3265) is NOT_APPLICABLE there, because an H10 keeps no RTC log."
     },
     "capture-host/solid_night_inputs.py": {
       "bin": "word-only",
@@ -893,6 +893,18 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "a MEASUREMENT sweep for an owner ruling (GAP_S, measure-before-ruling): it reports where the CVHR index moves and decides nothing — no bands by design; its only verdict word is the selftest printer's FAIL"
+    },
+    "tools/gemini-review.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/gemini-review.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the interim second mutation reader (owner ruling 2026-10-05, Gemini adopted at the 38/41 class while Codex's free tier is gone; Codex primary again from 2026-11-03). Sibling of codex-export.mjs, which builds the source-only export this tool is only ever allowed to read from. It decides ONE thing and says so in its criterion: whether a COMPLETE answer came back (truncated_replies <= 0). It does NOT judge the answer's content — the bird verifies every claim against the original before writing a test, and a tool that scored the reader would be deciding what it fetched. MAX_TOKENS is UNKNOWN and never PASS: thinking tokens count against the output budget, so a starved 654-token reply reads like a weak model and settled nothing. Sampled with --verdict-sample, which needs no key and makes no request."
     },
     "tools/geometry-scan.mjs": {
       "bin": "word-only",

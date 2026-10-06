@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 
 import pytest
 import nightqc
+import writers
 import datetime as _wrapdt
 
 
@@ -4650,6 +4651,166 @@ def _zone_night(
     return str(d), span
 
 
+def test_the_RECORDED_offset_is_preferred_and_a_DST_SEAM_refuses_one_value(tmp_path):
+    """Residue `2026-09-28-writer-records-no-utc-offset`. The box recorded its zone NOWHERE, so every
+    reader inferred it from `mtime` against a last row — a bounded vote that refuses a night which
+    captured almost nothing (measured on 2026-09-14, and on 2026-08-08 where two killed sessions split
+    the vote three ways). From 2026-10-05 `writers.append_start` records it at session open, and this is
+    the read side `recover_writer_offset`'s docstring was written in anticipation of.
+
+    Six outcomes, because the interesting ones are the absences:
+      · one row, or several AGREEING → `declared`, with every recovery field None (a declared value has
+        no voters, and "no voters" must not read as "zero agreed");
+      · rows DISAGREEING → None. A night whose sessions opened at different offsets spans a DST change,
+        and one `offset_sec` would be wrong for half of it — §∅, a discontinuity refuses rather than
+        publishing one side of itself as the whole;
+      · a BLANK → None, never 0, because 0 is a real offset reported by a box running UTC;
+      · a UTC box's recorded 0 → 0.0, which is the leg that proves the blank is not read as a value;
+      · a PRE-2026-10-05 five-column file → None, "nothing recorded", not a parse error;
+      · no file at all → None.
+    """
+    d = tmp_path / "captures" / "2026-08-15"
+    d.mkdir(parents=True, exist_ok=True)
+    HEAD = "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec"
+
+    def starts(rows, header=HEAD):
+        (d / "STARTS.csv").write_text(header + "\n" + "".join(r + "\n" for r in rows), encoding="utf-8")
+
+    starts(["2026-08-15T15:49:45.000;1;abc;no;hci0;-14400"])
+    one = nightqc.recorded_writer_offset(str(d))
+    assert one is not None and one["offset_sec"] == -14400.0, one
+    assert one["basis"] == "declared", one
+    # the recovery fields are None, not 0 and not empty tallies — `declared_offset`'s own contract
+    assert one["voters"] is None and one["modal_share"] is None and one["unanimous"] is None, one
+
+    starts(["a;1;x;no;hci0;-14400", "b;2;x;no;hci0;-14400"])
+    agree = nightqc.recorded_writer_offset(str(d))
+    assert agree is not None and agree["offset_sec"] == -14400.0, agree
+
+    starts(["a;1;x;no;hci0;-14400", "b;2;x;no;hci0;-18000"])
+    assert nightqc.recorded_writer_offset(str(d)) is None, "a DST seam must refuse, not pick a side"
+
+    starts(["a;1;x;no;hci0;"])
+    assert nightqc.recorded_writer_offset(str(d)) is None, "a blank is not 0"
+
+    starts(["a;1;x;no;hci0;0"])
+    utc = nightqc.recorded_writer_offset(str(d))
+    assert utc is not None and utc["offset_sec"] == 0.0, "a box running UTC records a REAL 0"
+
+    starts(["a;1;x;no;hci0"], header="Phone timestamp;pid;git;dirty;adapter")
+    assert nightqc.recorded_writer_offset(str(d)) is None, "a pre-2026-10-05 layout recorded nothing"
+
+    (d / "STARTS.csv").unlink()
+    assert nightqc.recorded_writer_offset(str(d)) is None
+
+    # ── the rows that contribute NO vote, each for its own reason ────────────────────────────────────
+    # A TRUNCATED row (fewer cells than the column) is not a zero offset and not an error: a killed
+    # write can leave one, and the remaining rows still carry the night's answer.
+    starts(["a;1;x;no;hci0;-14400", "b;2;x"])
+    short = nightqc.recorded_writer_offset(str(d))
+    assert short is not None and short["offset_sec"] == -14400.0, short
+    # A NON-NUMERIC cell likewise — neither an offset nor a zero.
+    starts(["a;1;x;no;hci0;-14400", "b;2;x;no;hci0;not-a-number"])
+    junk = nightqc.recorded_writer_offset(str(d))
+    assert junk is not None and junk["offset_sec"] == -14400.0, junk
+    # …and when the ONLY row is unusable, nothing was recorded — not 0.
+    starts(["b;2;x;no;hci0;not-a-number"])
+    assert nightqc.recorded_writer_offset(str(d)) is None
+
+
+def test_an_unusable_row_SKIPS_it_and_keeps_reading_rather_than_stopping(tmp_path):
+    """`continue`, not `break`, on both unusable-row paths — and the distinguishing input is ORDER.
+
+    My earlier legs put the good row FIRST, which `break` passes: it stops after already having the
+    answer. With the unusable row first, `break` abandons the file before reaching the offset and the
+    night loses a recorded value it had. Two rows, junk then good, is the whole test."""
+    d = tmp_path / "captures" / "2026-08-15"
+    d.mkdir(parents=True, exist_ok=True)
+    HEAD = "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec"
+
+    def starts(rows):
+        (d / "STARTS.csv").write_text(HEAD + "\n" + "".join(r + "\n" for r in rows), encoding="utf-8")
+
+    starts(["a;1;x;no;hci0;", "b;2;x;no;hci0;-14400"])  # BLANK first, good second
+    blank_first = nightqc.recorded_writer_offset(str(d))
+    assert blank_first is not None and blank_first["offset_sec"] == -14400.0, blank_first
+
+    starts(["a;1;x;no;hci0;not-a-number", "b;2;x;no;hci0;-14400"])  # JUNK first, good second
+    junk_first = nightqc.recorded_writer_offset(str(d))
+    assert junk_first is not None and junk_first["offset_sec"] == -14400.0, junk_first
+
+    # And a row SHORTER than the offset column, first — the `len(cells) <= col` bound. A row carrying
+    # exactly `col` cells has no index `col` at all, so `< col` would index out of range on it; this row
+    # has five cells where the offset is the sixth.
+    starts(["a;1;x;no;hci0", "b;2;x;no;hci0;-14400"])
+    short_first = nightqc.recorded_writer_offset(str(d))
+    assert short_first is not None and short_first["offset_sec"] == -14400.0, short_first
+
+
+def test_a_DST_SEAM_is_LOGGED_with_both_its_count_and_its_values(tmp_path, caplog):
+    """The refusal is silent to the caller by design — it returns None so the vote takes over — so the
+    LOG is the only trace that a seam was seen rather than nothing recorded. That makes the log line
+    load-bearing, and its arguments part of the contract: a reader needs the COUNT and the VALUES to tell
+    a DST change from a misconfigured box."""
+    d = tmp_path / "captures" / "2026-08-15"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "STARTS.csv").write_text(
+        "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec\na;1;x;no;hci0;-14400\nb;2;x;no;hci0;-18000\n",
+        encoding="utf-8",
+    )
+    with caplog.at_level(logging.DEBUG, logger="tepna-capture"):
+        assert nightqc.recorded_writer_offset(str(d)) is None
+    msgs = [r.getMessage() for r in caplog.records]
+    seam = [m for m in msgs if "different offsets" in m]
+    assert seam, f"a DST seam must leave a trace: {msgs}"
+    assert "2 different offsets" in seam[0], seam[0]  # the COUNT
+    assert "-18000" in seam[0] and "-14400" in seam[0], seam[0]  # and the VALUES, both of them
+
+    # ANTI-VACUITY: a night with ONE recorded offset logs no seam at all, so the assertions above are
+    # about the seam and not about the logger being noisy.
+    caplog.clear()
+    (d / "STARTS.csv").write_text(
+        "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec\na;1;x;no;hci0;-14400\n", encoding="utf-8"
+    )
+    with caplog.at_level(logging.DEBUG, logger="tepna-capture"):
+        assert nightqc.recorded_writer_offset(str(d))["offset_sec"] == -14400.0
+    assert not [m for m in (r.getMessage() for r in caplog.records) if "different offsets" in m]
+
+
+def test_an_UNREADABLE_starts_file_falls_back_rather_than_claiming_an_offset(tmp_path):
+    """∅ The `except OSError` path, driven rather than left to inspection. An absent STARTS.csv is the
+    expected case for every night captured before 2026-10-05; an unreadable one is rarer and must take
+    the SAME branch, because the safe direction is an inferred offset and never a guessed recorded one."""
+    d = tmp_path / "captures" / "2026-08-15"
+    d.mkdir(parents=True, exist_ok=True)
+    # a DIRECTORY where the file should be: `open` raises IsADirectoryError, an OSError
+    (d / "STARTS.csv").mkdir()
+    assert nightqc.recorded_writer_offset(str(d)) is None
+
+
+def test_the_recorded_offset_is_read_BY_HEADER_NAME_not_by_position(tmp_path):
+    """The column was APPENDED to a five-column file, and this repo has already paid for a positional
+    read of a grown row: appending `alarm_raw` to OXYFRAME silently moved three writer tests onto
+    different columns, one asserting `flag_raw` and getting `199` from `ppg_offset`.
+
+    So a row with a FURTHER column appended after `utc_offset_sec` must still read the offset correctly —
+    which a `cells[-1]` or `cells[5]` implementation would not."""
+    d = tmp_path / "captures" / "2026-08-15"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "STARTS.csv").write_text(
+        "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec;a_future_column\n" + "a;1;x;no;hci0;-14400;whatever\n",
+        encoding="utf-8",
+    )
+    got = nightqc.recorded_writer_offset(str(d))
+    assert got is not None and got["offset_sec"] == -14400.0, got
+    # …and when the offset moves to a different INDEX, the name still finds it
+    (d / "STARTS.csv").write_text(
+        "Phone timestamp;utc_offset_sec;pid;git;dirty;adapter\n" + "a;-18000;1;x;no;hci0\n", encoding="utf-8"
+    )
+    moved = nightqc.recorded_writer_offset(str(d))
+    assert moved is not None and moved["offset_sec"] == -18000.0, moved
+
+
 def _recovered(night):
     files = nightqc.scan_night(night)
     data = [f for f in files if f["stream"] not in nightqc._SIDECAR_TAGS]
@@ -5990,3 +6151,34 @@ def test_a_zero_length_session_TOUCHING_the_judged_one_is_reported_once_on_its_o
         s = _summarize_floating(night, _DEV_HR)
         assert len(s["sessions"]) == 2, s["sessions"]
         assert len(s["gaps"]) == 1 and own_side in s["gaps"][0], (judged_first, s["gaps"])
+
+
+def test_summarize_PREFERS_THE_RECORDED_OFFSET_over_the_one_it_could_infer(tmp_path):
+    """The drain for #3286: nothing drove `summarize` over a night that records an offset, so the two
+    lines that give the recorded value precedence were unobserved — delete either and the suite stayed
+    green while every night silently went back to inference.
+
+    ⚠️ THE TWO OFFSETS MUST DIFFER, which is the whole construction. A night whose recorded offset
+    equals its inferable one passes with the preference removed: both paths return the same number and
+    the test reports success about a mechanism it never exercised. So the files here vote -18000 (EST)
+    by the mtime-vs-last-row route while `STARTS.csv` records -14400 (EDT), and the assertion is that
+    the RECORDED value wins AND that it is labelled `declared` rather than `recovered` — the basis is
+    the part a reader acts on, since a declared offset is a premise and a recovered one is a
+    measurement with voters behind it."""
+    night = _night_of_votes(tmp_path, [-18000.0] * 3)
+    inferred, _data = _recovered(night)
+    assert inferred["offset_sec"] == -18000.0 and inferred["basis"] == "recovered", (
+        "the CONTROL: without STARTS.csv this night must infer EST, else the test proves nothing — " + repr(inferred)
+    )
+
+    with open(os.path.join(night, "STARTS.csv"), "w", encoding="utf-8") as fh:
+        fh.write(writers._STARTS_HEADER)
+        fh.write("09:41:02 09/09/2026;4242;b89c192;no;hci0;-14400\n")
+
+    s = nightqc.summarize(night, _devices())
+    got = s["writer_offset"]
+    assert got["offset_sec"] == -14400.0, (
+        "the RECORDED offset must win over the inferable one, not merely be read: " + repr(got)
+    )
+    assert got["basis"] == "declared", f"a recorded offset is a premise, never a measurement: {got!r}"
+    assert got["frame"] == "absolute", got

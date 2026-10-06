@@ -33,6 +33,22 @@ import capture
 # watchdogs could not help: all three skip while _POLAR_PAUSED is non-empty.
 
 
+@pytest.fixture(autouse=True)
+def _no_bluez_settle(monkeypatch):
+    """Every test here drives the real `polar_offline_op` site, and every pass paid an 0.8 s BlueZ
+    link-teardown wait for hardware none of them has.
+
+    MEASURED 2026-10-05: 9.6 s of this file's 13.03 s was this one sleep — the repeating-hung-op test loops
+    the real site 12 times, and the four others pay one settle each. The op timeout was ALREADY patched to
+    0.01 s in that test, so the settle was the only wait left and nobody had named it.
+
+    ⚠️ AUTOUSE, AND NOTHING IS ASSERTED ABOUT IT. No test in this file measures the settle — they assert on
+    pause release, error/warning counts and the per-call timeout — so zeroing it removes waiting and no
+    coverage. A test that ever needs the real value overrides this fixture rather than deleting it; the
+    production default stays 0.8 s in `capture._BLUEZ_SETTLE_S`, which is where it belongs."""
+    monkeypatch.setattr(capture, "_BLUEZ_SETTLE_S", 0.0)
+
+
 def _run_async(coro):
     return _aio.run(coro)
 

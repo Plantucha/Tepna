@@ -9,6 +9,7 @@ import os
 import datetime as dt
 import json
 
+import loss_audit as _la
 import solid_night_inputs as si
 
 H10 = {"name": "Polar H10 02849638", "model": "H10"}
@@ -143,6 +144,10 @@ def test_a_clean_h10_now_passes_EVERY_term_including_the_timebase(tmp_path):
         "validity": "PASS",
         "clocks": "PASS",
         "timebase": "PASS",
+        # `rtc` joins the set on 2026-10-04 and is NOT_APPLICABLE for a Polar: the H10 keeps no RTC log,
+        # so the band was examined and the rule does not bind. An EQUALITY here is why a new band cannot
+        # arrive unannounced — which is the point of pinning the set rather than a floor.
+        "rtc": "NOT_APPLICABLE",
     }
     # A5 HAS NOW RUN, and this is the assertion that changes: a clean axis with the record set readable
     # and no candidate PASSES. Until the tripwire was built every night read UNKNOWN here by
@@ -3647,7 +3652,7 @@ def test_THE_WEAR_END_IS_TAKEN_FROM_THE_MORNINGS_AUDIT_when_it_is_later(tmp_path
                 "devices": {
                     dev: {
                         "wear": {"available": True, "worn_end": {"at": "2026-10-04T23:59:00", "reason": "doff"}},
-                        "gaps": [],
+                        "gaps": [{"at": "2026-10-04T23:00:00", "s": 12.0, "file": "evening.txt"}],
                         "file": "a",
                     }
                 },
@@ -3661,7 +3666,7 @@ def test_THE_WEAR_END_IS_TAKEN_FROM_THE_MORNINGS_AUDIT_when_it_is_later(tmp_path
                 "devices": {
                     dev: {
                         "wear": {"available": True, "worn_end": {"at": "2026-10-05T04:17:00", "reason": "doff"}},
-                        "gaps": [{"x": 1}],
+                        "gaps": [{"at": "2026-10-05T00:10:00", "s": 9.0, "file": "morning.txt"}],
                         "file": "b",
                     }
                 },
@@ -3671,8 +3676,19 @@ def test_THE_WEAR_END_IS_TAKEN_FROM_THE_MORNINGS_AUDIT_when_it_is_later(tmp_path
     pooled = si._pooled_audit(str(d4))
     assert pooled["devices"][dev]["wear"]["worn_end"]["at"] == "2026-10-05T04:17:00", "the later doff wins"
     assert pooled["devices"][dev]["wear_from"] == "2026-10-05", "and it says where it came from"
-    assert pooled["devices"][dev]["gaps"] == [], "gaps are NOT merged — they belong to one named file"
-    assert pooled["devices"][dev]["file"] == "a", "nor is the file they were measured against"
+    # 🔴 THIS ASSERTION CHANGED DELIBERATELY. #3297 left `gaps` UNMERGED and said so: the rows are
+    # measured against one named file, and concatenating two folders' would attribute one file's gaps to
+    # another's timeline. Its residue row
+    # (`2026-10-05-cross-folder-continuity-sees-only-the-judged-folders-gaps`) is what this unit closes:
+    # rows merge BY FILE IDENTITY — each already names its `file`, and a filename carries its own
+    # 14-digit session start — and the row from the morning folder is stamped with the folder it came
+    # from. `file`, the single name the gaps were summarised under, still does NOT cross.
+    merged = pooled["devices"][dev]["gaps"]
+    assert [r.get("file") for r in merged] == ["evening.txt", "morning.txt"], merged
+    assert merged[1]["folder"] == "2026-10-05", "a row from the next folder says which folder it is from"
+    assert "folder" not in merged[0], "and a row from the judged folder needs no stamp"
+    assert pooled["devices"][dev]["file"] == "a", "the summarised-under name does not cross"
+    assert pooled["devices"][dev]["seam_unassessed"], "and the seam itself is reported, not assumed clean"
 
 
 def test_A_ONE_FOLDER_RECORDING_READS_ITS_OWN_AUDIT_UNCHANGED(tmp_path):
@@ -4171,3 +4187,940 @@ def test_THE_PRIMARY_STREAMS_EXTENSION_IS_NOT_EVERY_STREAMS(tmp_path):
     wave = si.stream_files(str(nd), "O2Ring-S", "PPG")
     assert [os.path.basename(p) for p in prim] == [f"{pref}_SPO2.csv"], prim
     assert [os.path.basename(p) for p in wave] == [f"{pref}_PPG.txt"], wave
+
+
+# ── THE SEAM ACROSS FOLDERS (#3297 follow-on, briefs/RESIDUE.md 2026-10-05-cross-folder-continuity…) ──
+
+_SEAM_HDR = "Phone timestamp;sensor timestamp [ns];x"
+
+
+def _dual_stream(path, start, n, step_s=1.0, dev0_ns=0, dev_step_ns=None):
+    """A stream carrying BOTH clocks, which is what separates a seam DELAY from a seam LOSS (#3157).
+
+    `loss_audit.boundary_gap` reads the device counter across the boundary: a step under
+    `DELAY_PERIODS * period` is late delivery, anything more is real loss. A host-only stream cannot tell
+    them apart and every gap there stays a gap — the honest default, and not what this exercises."""
+    dev_step_ns = int(step_s * 1e9) if dev_step_ns is None else dev_step_ns
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(_SEAM_HDR + "\n")
+        for i in range(n):
+            t = start + dt.timedelta(seconds=i * step_s)
+            fh.write(f"{t.isoformat(timespec='milliseconds')};{dev0_ns + i * dev_step_ns};1\n")
+
+
+def _seam_pair(tmp_path, *, gap_s, dev_advance_ns):
+    """A cross-midnight recording in TWO folders with a planted seam, and both audits.
+
+    The evening fragment ends at 23:50 in folder D; the morning fragment opens `gap_s` later in D+1,
+    its counter advanced by `dev_advance_ns` from where the evening's left off. Neither audit can see
+    this boundary — each judges only among its own files — which is the whole defect."""
+    caps = tmp_path / "captures"
+    d4 = caps / "2026-09-20"
+    d5 = caps / "2026-09-21"
+    d4.mkdir(parents=True)
+    d5.mkdir(parents=True)
+    ev_start = dt.datetime(2026, 9, 20, 23, 40, 0)
+    n_ev = 600  # 23:40:00 -> 23:49:59 at 1 Hz
+    _dual_stream(str(d4 / "Polar_H10_0284_20260920234000_ECG.txt"), ev_start, n_ev)
+    (d4 / "Polar_H10_0284_20260920234000_HR.txt").write_text(
+        "Phone timestamp;HR [bpm]\n" + ev_start.isoformat() + ";62\n"
+    )
+    last_host = ev_start + dt.timedelta(seconds=n_ev - 1)
+    last_dev = (n_ev - 1) * int(1e9)
+    mo_start = last_host + dt.timedelta(seconds=gap_s)
+    _dual_stream(
+        str(d5 / "Polar_H10_0284_20260921000000_ECG.txt"),
+        mo_start,
+        600,
+        dev0_ns=last_dev + dev_advance_ns,
+    )
+    (d5 / "Polar_H10_0284_20260921000000_HR.txt").write_text(
+        "Phone timestamp;HR [bpm]\n" + mo_start.isoformat() + ";61\n"
+    )
+    dev = [{"name": "Polar H10 0284", "model": "H10"}]
+    a4 = _la.audit_night(str(d4), dev, journal=lambda *a, **k: [], clock_events=lambda *a, **k: [])
+    a5 = _la.audit_night(str(d5), dev, journal=lambda *a, **k: [], clock_events=lambda *a, **k: [])
+    return a4["devices"]["Polar H10 0284"], a5["devices"]["Polar H10 0284"]
+
+
+def test_THE_AUDIT_PUBLISHES_PER_FILE_ENDPOINTS_on_both_clocks(tmp_path):
+    """The additive half. These six fields are `boundary_gap`'s inputs and they existed only inside
+    `stream_scan`; without them on the far side of the JSON a cross-folder seam cannot be judged at all."""
+    ev, _mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    f = next(x for x in ev["files"] if x.get("first") is not None)
+    for k in ("first", "last", "first_dev", "last_dev", "period_ns", "cut"):
+        assert k in f, f"{k} missing from the published files[] entry"
+    assert f["first"] == "2026-09-20T23:40:00"
+    assert f["last"] == "2026-09-20T23:49:59"
+    assert f["last_dev"] > f["first_dev"] >= 0
+    assert f["period_ns"] and f["period_ns"] > 0
+    # ADDITIVE: the old keys are untouched, so every existing reader sees what it saw
+    assert {"file", "span_min", "gaps", "delays"} <= set(f)
+
+
+def test_A_PLANTED_SEAM_LOSS_IS_READ_AS_LOSS(tmp_path):
+    """🔴 ACCEPTANCE 1. A ten-minute hole at the folder boundary, with the device counter advancing right
+    across it — so the device really was recording elsewhere and the rows are gone. Neither folder's
+    audit sees this: `loss_audit.stream_scan` says a gap BETWEEN files "is exactly the loss that made the
+    night fragment", and across folders there is no single audit to notice it."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    assert ev["boundary_gaps"] == 0 and mo["boundary_gaps"] == 0, "neither audit saw it, which is the defect"
+    rows, reason = si.seam_gap(ev, mo)
+    assert reason is None, reason
+    assert len(rows) == 1, rows
+    assert rows[0]["seam"] is True
+    assert abs(rows[0]["s"] - 600.0) < 1.5, rows[0]["s"]
+    assert rows[0]["at"].startswith("2026-09-20T23:49:59")
+
+
+def test_A_PLANTED_SEAM_DELAY_IS_NOT_A_LOSS(tmp_path):
+    """🔴 ACCEPTANCE 2, and the control that makes acceptance 1 mean something (#3157). Same ten-minute
+    HOST gap, but the device counter advanced by less than one sample period — the rows were delivered
+    late, not lost. A merge that only summed host gaps would book this as ten minutes of loss."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(0.5e9))
+    rows, reason = si.seam_gap(ev, mo)
+    assert rows == [], f"a delay is not a loss: {rows}"
+    assert reason is None, "it WAS judged — the silence is a measurement, not an absence"
+
+
+def test_AN_OLDER_SHAPE_AUDIT_READS_NOT_ASSESSED_never_no_gaps(tmp_path):
+    """🔴 ACCEPTANCE 3, and it is not hypothetical: the box runs behind `main` until the owner deploys,
+    so tonight's audit may well be the older shape. A verdict must not read "no gaps at the seam" over an
+    audit that cannot say — that is absence as a value (§∅), and it would publish a clean seam for a
+    night nobody examined."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    old_ev = dict(ev, files=[{k: f[k] for k in ("file", "span_min", "gaps", "delays")} for f in ev["files"]])
+    old_mo = dict(mo, files=[{k: f[k] for k in ("file", "span_min", "gaps", "delays")} for f in mo["files"]])
+    rows, reason = si.seam_gap(old_ev, old_mo)
+    assert rows == []
+    assert reason is not None and si.SEAM_UNASSESSED in reason
+    assert "written before #3297" in reason, "and it names WHY it cannot say"
+    # the new-shape pair over the same data DOES read the loss — so the fallback is the audit's age, not the data
+    assert len(si.seam_gap(ev, mo)[0]) == 1
+
+
+def test_A_SEAM_WITH_NO_AUDIT_ON_ONE_SIDE_IS_NOT_ASSESSED(tmp_path):
+    """One folder settled and the other not yet audited is the ordinary morning state. It is not a clean
+    seam and it is not a loss; it is unexamined, with its own reason."""
+    ev, _mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    for other, why in ((None, "no audit entry"), ({}, "audited no file"), ({"files": []}, "audited no file")):
+        rows, reason = si.seam_gap(ev, other)
+        assert rows == [] and reason and si.SEAM_UNASSESSED in reason, (other, reason)
+        assert why in reason, reason
+
+
+def test_A_FILES_ENTRY_THAT_IS_NOT_AN_OBJECT_IS_SKIPPED(tmp_path):
+    """`files[]` carries `unreadable` entries too, and a hand-edited or truncated audit can put anything
+    there. One junk element must not decide the seam, nor raise while judging it."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    assert si._scan_shape("not-an-object") is None
+    assert si._scan_shape(None) is None
+    noisy = dict(ev, files=["junk", None, *ev["files"]])
+    rows, reason = si.seam_gap(noisy, mo)
+    assert reason is None and len(rows) == 1, (rows, reason)
+
+
+def test_AN_UNPARSEABLE_ENDPOINT_IS_NOT_A_TIME(tmp_path):
+    """The endpoint fields are ISO strings in the JSON, and a corrupt or hand-edited audit can carry
+    something that is not one. `fromisoformat` raising means the file cannot say when it started — which
+    is "not assessed", never a seam judged against a parsed-anyway default (§∅)."""
+    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    assert si._scan_shape({"first": "not-a-date", "last": "2026-09-20T23:49:59"}) is None
+    assert si._scan_shape({"first": "2026-09-20T23:40:00", "last": 12345}) is None
+    broken = dict(ev, files=[dict(f, last="23:49 on the dot") for f in ev["files"]])
+    rows, reason = si.seam_gap(broken, mo)
+    assert rows == []
+    assert reason and "publishes no per-file endpoints" in reason
+
+
+def test_A_MORNING_THAT_RESUMED_INSIDE_THE_CADENCE_HAS_NO_SEAM_GAP(tmp_path):
+    """`boundary_gap` returns None when the next file opens within the stream's own cadence cut — the
+    recording simply continued across the folder boundary. That is a JUDGED result and reports no row,
+    which is different from a seam nobody could judge: `reason` stays None, so `continuity` reads a
+    measurement rather than an absence."""
+    ev, mo = _seam_pair(tmp_path, gap_s=1.0, dev_advance_ns=int(1e9))
+    rows, reason = si.seam_gap(ev, mo)
+    assert rows == [], rows
+    assert reason is None, "judged and clean — not unassessed"
+
+
+def test_THE_SAME_FILENAME_IN_BOTH_FOLDERS_IS_NOT_COUNTED_TWICE(tmp_path):
+    """Identity is the FILENAME, and the merge dedupes on it. A filename carries its own 14-digit session
+    start so a collision should not happen — but the archive mirror and a resumed writer have both put
+    the same name in two places before, and double-counting a gap would inflate the loss."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    row = {"at": "2026-10-04T23:00:00", "s": 12.0, "file": "same.txt"}
+    (d4 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"journal": "ok", "devices": {"H10": {"gaps": [row]}}}))
+    (d5 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"devices": {"H10": {"gaps": [dict(row)]}}}))
+    merged = si._pooled_audit(str(d4))["devices"]["H10"]["gaps"]
+    assert len(merged) == 1, f"one file, one row: {merged}"
+    assert "folder" not in merged[0], "the kept row is the judged folder's own"
+
+
+def _audit_json(path, dev, files, gaps):
+    """A LOSS-AUDIT.json in the published shape, for driving `_pooled_audit` over two real folders."""
+    path.write_text(json.dumps({"journal": "ok", "devices": {dev: {"files": files, "gaps": gaps}}}))
+
+
+def test_THE_POOLED_AUDIT_CARRIES_THE_SEAM_ROW_INTO_THE_MERGED_GAPS(tmp_path):
+    """The call site, not just the function. `seam_gap` is tested directly above; this proves
+    `_pooled_audit` actually hands it BOTH audits — passing either side as None would quietly drop the
+    seam from a night that has one, and the merged list would look clean."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    dev = "H10"
+    ev_files = [
+        {
+            "file": "ev.txt",
+            "span_min": 10.0,
+            "gaps": 0,
+            "delays": 0,
+            "first": "2026-10-04T23:40:00",
+            "last": "2026-10-04T23:49:59",
+            "first_dev": 0,
+            "last_dev": 599_000_000_000,
+            "period_ns": 1_000_000_000,
+            "cut": 5.0,
+        }
+    ]
+    mo_files = [
+        {
+            "file": "mo.txt",
+            "span_min": 10.0,
+            "gaps": 0,
+            "delays": 0,
+            "first": "2026-10-05T00:00:00",
+            "last": "2026-10-05T00:09:59",
+            "first_dev": 1_199_000_000_000,
+            "last_dev": 1_798_000_000_000,
+            "period_ns": 1_000_000_000,
+            "cut": 5.0,
+        }
+    ]
+    _audit_json(d4 / si.LOSS_AUDIT_NAME, dev, ev_files, [])
+    _audit_json(d5 / si.LOSS_AUDIT_NAME, dev, mo_files, [])
+    bd = si._pooled_audit(str(d4))["devices"][dev]
+    seams = [r for r in bd["gaps"] if r.get("seam")]
+    assert len(seams) == 1, bd["gaps"]
+    assert abs(seams[0]["s"] - 601.0) < 2.0, seams[0]["s"]
+    assert bd["seam_unassessed"] is None, "it WAS assessed"
+
+
+def test_THE_MERGED_GAPS_ARE_ORDERED_BY_TIME_THEN_BY_SIZE(tmp_path):
+    """The sort key, both components. Rows arrive from two folders plus the seam, so the merged list has
+    no natural order — and a reader of `gaps` takes the first row as the night's first hole. Two rows at
+    the SAME stamp are what separate the size tiebreak from a constant: with `and 0.0` or a fixed `1.0`
+    every row's second key is equal and the tie falls back to insertion order, which is the folder the
+    row happened to come from."""
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    dev = "H10"
+    same = "2026-10-04T23:00:00"
+    # deliberately OUT of order on arrival, and two rows share a stamp
+    ev_gaps = [{"at": "2026-10-04T23:30:00", "s": 5.0, "file": "ev2.txt"}, {"at": same, "s": 30.0, "file": "ev1.txt"}]
+    mo_gaps = [{"at": same, "s": 7.0, "file": "mo1.txt"}]
+    _audit_json(d4 / si.LOSS_AUDIT_NAME, dev, [], ev_gaps)
+    _audit_json(d5 / si.LOSS_AUDIT_NAME, dev, [], mo_gaps)
+    rows = si._pooled_audit(str(d4))["devices"][dev]["gaps"]
+    assert [r["file"] for r in rows] == ["mo1.txt", "ev1.txt", "ev2.txt"], rows
+    assert [r["s"] for r in rows] == [7.0, 30.0, 5.0], "same stamp orders by SIZE, smallest first"
+    assert rows[0]["at"] == same and rows[-1]["at"] == "2026-10-04T23:30:00"
+
+
+def test_A_GAP_ROW_WITH_NO_SIZE_SORTS_BEFORE_ONE_THAT_HAS_ONE(tmp_path):
+    """`r.get("s") or 0.0` — the fallback is 0.0 so a row with no size, or a zero one, sorts first rather
+    than being handed an invented magnitude. `r.get(None)` would read no size at all and collapse the
+    tiebreak for every row.
+
+    ⚠️ THE SIZE HAS TO BE SUB-SECOND for the fallback's VALUE to be observable. With a 4.0 s gap the
+    sizeless row sorts first whether the fallback is 0.0 or 1.0, so the assertion holds either way and
+    says nothing; 0.5 s sits between them and the order flips. Sub-second gaps are ordinary in a real
+    audit, so this is the fixture being realistic rather than contrived."""
+    # TWO folders, because the merge and its sort only run when there is something to merge —
+    # `_pooled_audit` returns the judged folder's audit untouched when it stands alone, which is the
+    # right behaviour and also means a one-folder fixture never reaches this code at all.
+    d4, d5 = tmp_path / "2026-10-04", tmp_path / "2026-10-05"
+    d4.mkdir()
+    d5.mkdir()
+    dev = "H10"
+    same = "2026-10-04T23:00:00"
+    _audit_json(d4 / si.LOSS_AUDIT_NAME, dev, [], [{"at": same, "s": 0.5, "file": "a.txt"}])
+    _audit_json(d5 / si.LOSS_AUDIT_NAME, dev, [], [{"at": same, "file": "b.txt"}])
+    rows = si._pooled_audit(str(d4))["devices"][dev]["gaps"]
+    assert [r["file"] for r in rows] == ["b.txt", "a.txt"], rows
+    assert "s" not in rows[0], "the sizeless row keeps its absence — no invented magnitude (§∅)"
+    assert rows[1]["s"] == 0.5, "and the sub-second gap it sorts before keeps its own size"
+
+
+def _ep(file, first, last, first_dev, last_dev, period_ns=1_000_000_000, cut=5.0):
+    """One published `files[]` entry carrying endpoints, for driving `seam_gap` directly."""
+    return {
+        "file": file,
+        "span_min": 10.0,
+        "gaps": 0,
+        "delays": 0,
+        "first": first,
+        "last": last,
+        "first_dev": first_dev,
+        "last_dev": last_dev,
+        "period_ns": period_ns,
+        "cut": cut,
+    }
+
+
+def test_AN_ENTRY_MISSING_EITHER_ENDPOINT_CANNOT_SAY(tmp_path):
+    """`"first" not in entry OR "last" not in entry` — either one absent is enough. With `and`, a
+    half-written entry (one key present) would be read as an endpoint pair and the seam judged against a
+    `None` the code then treats as a time."""
+    full = _ep("f.txt", "2026-10-04T23:40:00", "2026-10-04T23:49:59", 0, 599_000_000_000)
+    assert si._scan_shape(full) is not None
+    assert si._scan_shape({k: v for k, v in full.items() if k != "last"}) is None, "no `last`"
+    assert si._scan_shape({k: v for k, v in full.items() if k != "first"}) is None, "no `first`"
+    assert si._scan_shape({k: v for k, v in full.items() if k not in ("first", "last")}) is None
+
+
+def test_AN_ENDPOINT_PUBLISHED_AS_NULL_IS_NOT_A_TIME(tmp_path):
+    """`_iso` writes `null` for a file that carried neither a stamp nor a counter, so the consumer must
+    read that as absence — the guard before `fromisoformat` is what keeps `None` from being parsed. The
+    entry still has both KEYS, so this is a different case from the one above: present and empty."""
+    sc = si._scan_shape(_ep("f.txt", None, None, None, None))
+    assert sc is not None, "the keys are there, so the entry is the new shape"
+    assert sc["first"] is None and sc["last"] is None, "and its endpoints stay absent"
+    # a side with no usable endpoint cannot anchor the seam
+    ev = {"files": [_ep("ev.txt", None, None, None, None)]}
+    mo = {"files": [_ep("mo.txt", "2026-10-05T00:00:00", "2026-10-05T00:09:59", 1_199_000_000_000, 1_798_000_000_000)]}
+    rows, reason = si.seam_gap(ev, mo)
+    assert rows == [] and reason and si.SEAM_UNASSESSED in reason
+
+
+def test_THE_SEAM_IS_ANCHORED_ON_THE_LATEST_EVENING_FILE_AND_THE_EARLIEST_MORNING_ONE(tmp_path):
+    """`max(pv, key=last)` and `min(nx, key=first)` — the files are NOT in order in `files[]`, and a
+    recording's own fragments overlap in name order. Picking the wrong end moves the boundary: anchoring
+    on an earlier evening file would invent a gap that spans a fragment that was recording."""
+    ev = {
+        "files": [
+            _ep("ev_late.txt", "2026-10-04T23:40:00", "2026-10-04T23:49:59", 0, 599_000_000_000),
+            _ep("ev_early.txt", "2026-10-04T22:00:00", "2026-10-04T22:09:59", 0, 599_000_000_000),
+        ]
+    }
+    mo = {
+        "files": [
+            _ep("mo_late.txt", "2026-10-05T03:00:00", "2026-10-05T03:09:59", 1_199_000_000_000, 1_798_000_000_000),
+            _ep("mo_early.txt", "2026-10-05T00:00:00", "2026-10-05T00:09:59", 1_199_000_000_000, 1_798_000_000_000),
+        ]
+    }
+    rows, reason = si.seam_gap(ev, mo)
+    assert reason is None
+    assert len(rows) == 1, rows
+    # 23:49:59 -> 00:00:00 is 601 s. Anchoring on ev_early (22:09:59) or mo_late (03:00) gives a very
+    # different number, which is what makes the two key functions observable at all.
+    assert abs(rows[0]["s"] - 601.0) < 2.0, rows[0]["s"]
+    assert rows[0]["at"].startswith("2026-10-04T23:49:59")
+
+
+def test_THE_CADENCE_CUT_IS_READ_FROM_THE_AUDIT_not_assumed(tmp_path):
+    """`entry.get("cut") or 0.0`. `boundary_gap` returns no gap when the next file resumed INSIDE the
+    previous one's cadence, and the cut is how wide that is — a per-stream fact the audit measured. A
+    fallback of 1.0, or reading no cut at all, would either invent a seam inside the cadence or swallow
+    one just outside it."""
+    base = dict(first="2026-10-04T23:49:59", last="2026-10-04T23:49:59")
+    # a 3 s seam: inside a 5 s cut (no gap), outside a 0 s one (a gap)
+    ev_wide = {"files": [_ep("ev.txt", base["first"], base["last"], 0, 0, cut=5.0)]}
+    ev_zero = {"files": [_ep("ev.txt", base["first"], base["last"], 0, 0, cut=0.0)]}
+    mo = {"files": [_ep("mo.txt", "2026-10-04T23:50:02", "2026-10-05T00:00:00", 10_000_000_000, 20_000_000_000)]}
+    assert si.seam_gap(ev_wide, mo) == ([], None), "3 s is inside a 5 s cadence: judged, no gap"
+    rows, reason = si.seam_gap(ev_zero, mo)
+    assert reason is None and len(rows) == 1, (rows, reason)
+    assert abs(rows[0]["s"] - 3.0) < 0.5, rows[0]["s"]
+    # AND AN ENTRY WITH NO CUT FALLS BACK TO 0.0, NOT TO A MADE-UP WIDTH — which only a SUB-SECOND seam
+    # can show. A 3 s gap clears both 0.0 and 1.0, so it holds under either and proves nothing; 0.5 s
+    # sits between them, so a fallback of 1.0 would swallow a real seam as "inside the cadence". Same
+    # shape as the sort tiebreak in this file: a fixture has to straddle the values it is distinguishing.
+    ev_none = {"files": [{k: v for k, v in _ep("ev.txt", base["first"], base["last"], 0, 0).items() if k != "cut"}]}
+    near = {"files": [_ep("mo.txt", "2026-10-04T23:50:00", "2026-10-05T00:00:00", 10_000_000_000, 20_000_000_000)]}
+    rows_near, reason_near = si.seam_gap(ev_none, near)
+    assert reason_near is None
+    assert len(rows_near) == 1, f"a 0.5 s seam with no stated cut is a seam: {rows_near}"
+    assert abs(rows_near[0]["s"] - 1.0) < 0.6, rows_near[0]["s"]
+    assert len(si.seam_gap(ev_none, mo)[0]) == 1, "and the 3 s seam too"
+
+
+# ── §3.4 `rtc` — the ring's own RTC, judged against the host that disciplines it ────────────────────
+#
+# Every bound these tests exercise is PRE-STATED from the mirror (620 logs, 181 nights, 2883 reads,
+# measured 2026-10-04 before any night was judged) and quoted beside the constants in the module. The
+# plant is 2026-10-04's own log shape; the controls are synthetic, because the mirror holds no night
+# labelled bad and a reset has never happened in it.
+
+
+def _rtclog(d, rows, name=RING_BASE):
+    """An RTC log in the writer's own layout: `Phone timestamp;event;rtc_offset_s;battery_*`.
+
+    `rows` is [(seconds_from_T0, event, offset_or_None)]. The ring writes ONE LOG PER CAPTURE SESSION,
+    so a night can hold hundreds — `rtc_events` reads them all and this helper can be called repeatedly
+    with different `name`s to build that shape."""
+    out = ["Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3"]
+    for sec, ev, off in rows:
+        t = T0 + dt.timedelta(seconds=sec)
+        o = "" if off is None else f"{off:.1f}"
+        out.append(f"{t.isoformat(timespec='milliseconds')};{ev};{o};;;;")
+    (d / f"{name}_RTCLOG.csv").write_text("\n".join(out) + "\n")
+
+
+def _rtc(d, rows, **kw):
+    _rtclog(d, rows, **kw)
+    return si.rtc_band(str(d), "O2Ring-S", T0, T0 + dt.timedelta(hours=8))
+
+
+def test_the_RTC_BAND_is_NOT_APPLICABLE_for_a_device_that_keeps_no_RTC_LOG(tmp_path):
+    """A Polar is disciplined nowhere and logs nothing, so the band was examined and the rule does not
+    bind — NOT_APPLICABLE with its reason, never UNKNOWN. UNKNOWN would say "we could not tell" about a
+    device that has nothing to tell."""
+    out = si.rtc_band(str(tmp_path), "H10", T0, T0 + dt.timedelta(hours=8))
+    assert out == {"status": "NOT_APPLICABLE", "reason": si.NO_RTC_LOG}
+
+
+def test_a_RING_NIGHT_WITH_NO_RTC_LOG_is_UNKNOWN_not_inapplicable(tmp_path):
+    """§∅ and the distinction the two words carry: the ring's spec NAMES an RTC log, so on a night that
+    holds none the rule binds and the input is absent. Collapsing this into NOT_APPLICABLE would
+    publish "does not apply" about a clock we simply failed to record."""
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(hours=8))
+    assert out["status"] == "UNKNOWN", out
+    assert "never read" in out["reason"], out["reason"]
+
+
+def test_THE_10_04_PLANT_a_disciplined_ring_night_PASSES_and_states_its_population(tmp_path):
+    """🔴 2026-10-04's own shape: 4 pushes, 43 reads, −1.1 → −0.6 s, 0 resets, a 10 min poll. It PASSES,
+    and the reason STATES what was checked and what was set aside — the population is part of the
+    verdict, not a footnote (§🧾 `checked + excluded = eligible`)."""
+    rows = [(0.0, "push", None)]
+    for i in range(43):
+        # the 10 min poll the mirror measured (p50 600.4 s), drifting −1.1 → −0.6 across the night
+        rows.append((120.0 + i * 600.0, "read", -1.1 + 0.5 * i / 42))
+    for k in range(1, 4):
+        rows.append((k * 7000.0, "push", None))
+    out = _rtc(tmp_path, rows)
+    assert out["status"] == "PASS", out
+    assert "read(s) checked" in out["reason"], out["reason"]
+    assert "set aside within 60 s of a push" in out["reason"]
+    assert "drift" in out["reason"]
+
+
+def test_a_RESET_FAILS_the_band_and_names_what_it_cost(tmp_path):
+    """A reset means the disciplined time was LOST, so no offset after it describes the clock we set.
+    ⚠️ SYNTHETIC BY NECESSITY: the mirror holds ZERO resets in 620 logs, so this arm has never fired on
+    real data. The band says so in its own comment rather than let a FAIL imply otherwise."""
+    rows = [(0.0, "push", None), (120.0, "read", -0.5), (3000.0, "reset", None), (3600.0, "read", -0.4)]
+    out = _rtc(tmp_path, rows)
+    assert out["status"] == "FAIL", out
+    assert "RESET 1 time(s)" in out["reason"], out["reason"]
+    assert "disciplined time was lost" in out["reason"]
+
+
+def test_an_OFFSET_PAST_THE_BOUND_fails_and_the_bound_is_the_CLEAR_read_population(tmp_path):
+    """The bound is 8.0 s, measured over the 2788 CLEAR reads the band actually judges (p99.9 6.1, max
+    6.3) and set above all of them — so a FAIL means something the mirror has never shown. A5's
+    precedent: a detector with no validated positive reports, it does not convict on a tail.
+
+    ⚠️ 2026-08-30's worst clear read is 6.3 s and 2026-08-29's is 5.1, so an earlier 5.0 bound failed
+    2 of 44 real nights. Those numbers stay VISIBLE in the PASS reason instead."""
+    rows = [(0.0, "push", None), (600.0, "read", -0.5), (1200.0, "read", -9.4), (1800.0, "read", -0.6)]
+    out = _rtc(tmp_path, rows)
+    assert out["status"] == "FAIL", out
+    assert "-9.4 s off the host" in out["reason"], out["reason"]
+    assert "past the 8.0 s bound" in out["reason"]
+
+
+def test_the_SAME_OFFSET_INSIDE_THE_PUSH_WINDOW_is_SET_ASIDE_not_failed(tmp_path):
+    """🔴 THE MEASUREMENT THAT DEFINES THIS BAND. The identical −9.4 s read, moved to 3 s after a push,
+    must NOT fail the night: binned by seconds since the last push the mirror gives 2–5 s a |offset| p50
+    of 5.90 and a max of 11.9 against 0.40 and 1.9 beyond an hour, so a read there is measuring the push
+    sequence — a half-applied time — and not the clock. Judging it would convict the ring for the
+    daemon's own read timing, and the count set aside is stated rather than hidden."""
+    rows = [(0.0, "push", None), (3.0, "read", -9.4), (600.0, "read", -0.5), (1200.0, "read", -0.6)]
+    out = _rtc(tmp_path, rows)
+    assert out["status"] == "PASS", out
+    assert "1 set aside within 60 s of a push" in out["reason"], out["reason"]
+    assert "2 read(s) checked" in out["reason"]
+
+
+def test_a_SHORT_SPAN_reports_DRIFT_AS_NULL_and_says_what_it_could_not_resolve(tmp_path):
+    """§∅ against a RESOLUTION rather than a coverage gap. The log records `rtc_offset_s` to 0.1 s, so
+    the drift floor is `0.1 / span`: over 20 min that is 83 ppm against a 100 ppm bound, and a figure
+    there would be the log's resolution rather than the crystal. The band says null AND names the floor,
+    so a reader can see why — a number would be absence-as-value in reverse."""
+    rows = [(0.0, "push", None), (600.0, "read", -0.5), (1800.0, "read", -0.6)]
+    out = _rtc(tmp_path, rows)
+    assert out["status"] == "PASS", out
+    assert "drift null" in out["reason"], out["reason"]
+    assert "resolves only" in out["reason"]
+    assert "0.1 s resolution" in out["reason"]
+
+
+def test_a_LONG_SPAN_reports_A_DRIFT_FIGURE_because_the_span_resolves_it(tmp_path):
+    """The other side: over 8 h the floor is 3.5 ppm, which resolves the 100 ppm bound 28 times over, so
+    the figure is the crystal and is published. The mirror's spans > 4 h measured p50 26.3 ppm."""
+    rows = [(0.0, "push", None), (600.0, "read", -1.1)]
+    rows += [(600.0 + i * 600.0, "read", -1.1 + 0.4 * i / 47) for i in range(1, 48)]
+    out = _rtc(tmp_path, rows)
+    assert out["status"] == "PASS", out
+    assert "ppm over" in out["reason"], out["reason"]
+    assert "null" not in out["reason"]
+
+
+def test_A_READ_GAP_OVER_THE_WORN_INTERVAL_is_NAMED_in_the_coverage(tmp_path):
+    """A window nobody read is reported, not glossed: the mirror's cadence is a 10 min poll (p99 606 s,
+    max 761), so a stretch past `RTC_READ_GAP_MAX_S` is a window the band cannot speak for. It does not
+    fail the night — the reads it HAS are still inside the bound — and saying so is the half of §∅ that
+    annotates."""
+    rows = [(0.0, "push", None), (600.0, "read", -0.5), (9000.0, "read", -0.6), (9600.0, "read", -0.6)]
+    out = _rtc(tmp_path, rows)
+    assert out["status"] == "PASS", out
+    assert "longest unread stretch" in out["reason"], out["reason"]
+    assert "140 min" in out["reason"], out["reason"]
+
+
+def test_EVERY_SESSION_LOG_IS_READ_because_the_ring_writes_one_per_session(tmp_path):
+    """2026-08-29 holds 290 RTC logs against a median night's 3 — one per capture session — so a band
+    reading a single file is not reading the night. The reset below sits in the SECOND log: a reader that
+    stopped at the first would pass the night."""
+    _rtclog(tmp_path, [(0.0, "push", None), (600.0, "read", -0.5)], name=RING_BASE)
+    _rtclog(tmp_path, [(3000.0, "reset", None)], name="Wellue_O2Ring-S_S8AW2100_20260920234000")
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(hours=8))
+    assert out["status"] == "FAIL", out
+    assert "RESET" in out["reason"]
+    assert len(si.rtc_events(str(tmp_path), "O2Ring-S")) == 3, "both logs were read"
+
+
+def test_RTC_EVENTS_FOR_A_DEVICE_THAT_LOGS_NONE_IS_EMPTY_not_a_crash(tmp_path):
+    """`MODELS[model]["rtc"] is None` — a Polar keeps no RTC log, and asking for its events must return
+    an empty list rather than globbing for a tag that does not exist. `rtc_band` short-circuits to
+    NOT_APPLICABLE before reaching here, so this is the direct call: the function is exported and a
+    caller may reasonably ask the question of any model."""
+    assert si.MODELS["H10"]["rtc"] is None
+    assert si.rtc_events(str(tmp_path), "H10") == []
+
+
+def test_AN_UNOPENABLE_RTC_LOG_IS_SKIPPED_and_the_rest_are_read(tmp_path):
+    """A log we cannot open records nothing, and it must not take the night's other logs with it. A
+    directory where a file should be is the shape that reproduces without permissions games."""
+    good = f"{RING_BASE}_RTCLOG.csv"
+    (tmp_path / good).write_text("Phone timestamp;event;rtc_offset_s\n2026-09-20T23:00:01;read;0.4\n")
+    (tmp_path / "Wellue_O2Ring-S_S8AW2100_20260920233000_RTCLOG.csv").mkdir()  # a dir, not a file
+    ev = si.rtc_events(str(tmp_path), "O2Ring-S")
+    assert len(ev) == 1 and ev[0][1] == "read", ev
+
+
+def test_AN_RTC_ROW_WITH_NO_PLACEABLE_STAMP_PLACES_NO_EVENT(tmp_path):
+    """An unplaceable stamp cannot be ordered against the worn interval, so the row is dropped rather
+    than given a default time (§∅ — a fabricated stamp is worse than a missing row)."""
+    (tmp_path / f"{RING_BASE}_RTCLOG.csv").write_text(
+        "Phone timestamp;event;rtc_offset_s\nnot-a-stamp;read;0.4\n;read;0.5\n2026-09-20T23:00:01;read;0.6\n"
+    )
+    ev = si.rtc_events(str(tmp_path), "O2Ring-S")
+    assert len(ev) == 1, ev
+    assert ev[0][2] == 0.6
+
+
+def test_AN_RTC_READ_WITH_NO_OFFSET_MEASURED_NOTHING(tmp_path):
+    """A `read` row whose offset field will not parse measured nothing and is dropped, never defaulted
+    to 0.0 — a zero offset is the claim "the RTC agreed exactly", which is the opposite of silence."""
+    (tmp_path / f"{RING_BASE}_RTCLOG.csv").write_text(
+        "Phone timestamp;event;rtc_offset_s\n"
+        "2026-09-20T23:00:01;read;\n"
+        "2026-09-20T23:00:02;read;not-a-number\n"
+        "2026-09-20T23:00:03;read;0.7\n"
+        "2026-09-20T23:00:04;push;\n"
+    )
+    ev = si.rtc_events(str(tmp_path), "O2Ring-S")
+    kinds = [k for _t, k, _v in ev]
+    assert kinds == ["read", "push"], ev
+    assert ev[0][2] == 0.7, "only the parseable read survives"
+    assert ev[1][2] is None, "a push carries no offset, and None is not 0.0"
+
+
+def test_THE_RTC_BAND_WITH_NO_WORN_INTERVAL_IS_UNKNOWN(tmp_path):
+    """`start is None` — with no worn interval there is no stretch of the night to judge the RTC over,
+    so the band reports the absence with its own reason instead of judging every read ever logged."""
+    _rtclog(tmp_path, [(1, "read", 0.4)])  # the helper takes SECONDS from T0 and a numeric offset
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", None, None)
+    assert out["status"] == "UNKNOWN"
+    assert "no worn interval" in out["reason"], out["reason"]
+
+
+def test_EVERY_READ_SITTING_NEXT_TO_A_PUSH_IS_UNKNOWN_not_a_pass(tmp_path):
+    """🔴 THE 2–5 s POST-PUSH ARTEFACT, which is why this branch exists. Measured over the mirror
+    (620 logs, 2883 reads): binned by seconds since the last push, 0–2 s gives p50 0.80 s and 2–5 s
+    gives p50 5.90 s with a max of 11.9 s, while >60 s clear of a push gives p99 1.6 s and a max of
+    3.3 s over 2184 reads. So a read taken mid-push sequence reports a half-applied time and is NOT
+    evidence about the clock. If every read this night sits inside the settle window the band has
+    nothing clear to judge — UNKNOWN with the excluded count, never a PASS on the artefact."""
+    rows = [(0, "push", None)] + [(i, "read", 5.9) for i in range(1, 5)]
+    out = _rtc(tmp_path, rows)
+    assert out["status"] == "UNKNOWN", out
+    assert f"{si.RTC_PUSH_SETTLE_S:.0f} s" in out["reason"], out["reason"]
+    assert "4 read" in out["reason"], "the excluded population is STATED, not implied"
+
+
+def test_A_DRIFT_PAST_THE_CRYSTAL_BOUND_FAILS_and_quotes_the_span(tmp_path):
+    """The drift FAIL arm. The bound is `RTC_DRIFT_MAX_PPM` and it is only applied when the span RESOLVES
+    it — the log records `rtc_offset_s` to 0.1 s, so a ppm figure over a short span is the log's own
+    resolution and not the crystal (measured: spans > 0.2 h give |ppm| p50 83.3 against a floor of
+    166.7, so the median is BELOW the floor). A FAIL here must quote the span it was measured over."""
+    # nine hourly reads walking 1.2 s per hour ~= 333 ppm, well past RTC_DRIFT_MAX_PPM, over a span
+    # long enough to RESOLVE it against the log's own 0.1 s quantum
+    # ⚠️ SYMMETRIC ABOUT ZERO, and it has to be: walking 0.5 → +10.1 s trips the 8.0 s OFFSET bound
+    # first and the band never reaches the drift arm (measured — the reason read "past the 8.0 s
+    # bound"). Here |offset| peaks at 3.2 s, well inside the bound, while the SPAN is 6.4 s over 8 h
+    # = ~222 ppm, past RTC_DRIFT_MAX_PPM. Two bounds in one function, and a fixture must clear the
+    # first to exercise the second.
+    rows = [(h * 3600, "read", -3.2 + h * 0.8) for h in range(9)]
+    _rtclog(tmp_path, rows)
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(hours=9))
+    assert out["status"] == "FAIL", out
+    assert "ppm" in out["reason"] and "h" in out["reason"], out["reason"]
+
+
+def test_THE_DRIFT_ARITHMETIC_IS_PINNED_TO_EXACT_PPM(tmp_path):
+    """🔴 THE VALUES, NOT THE RENDERED TEXT. `rtc_band` only ever exposed these as `f"{ppm:+.0f}"`, so a
+    test could assert the sentence and still miss an index substitution worth less than half a ppm — 28
+    mutants of this arithmetic survived a suite at 100 % line coverage for that reason. Every number here
+    is computed from the PRE-STATED constants (`RTC_OFFSET_QUANTUM_S` = 0.1 s, `RTC_DRIFT_MAX_PPM` = 100,
+    `RTC_DRIFT_RESOLVE` = 4) and the mirror's own 600 s read cadence, not read back from the code."""
+    t0 = dt.datetime(2026, 9, 20, 22, 0, 0)
+    # 8 h at the mirror's 600 s cadence = 49 reads; offsets walk -3.2 → +3.2 s
+    span_s = 8 * 3600.0
+    clear = [(t0 + dt.timedelta(seconds=i * 600), -3.2 + i * (6.4 / 48)) for i in range(49)]
+    ppm, floor_ppm, resolved = si.rtc_drift(clear, span_s)
+    # ppm = (last - first) / span * 1e6 = 6.4 s / 28800 s = 222.222… ppm, EXACTLY
+    assert abs(ppm - (6.4 / span_s * 1e6)) < 1e-9, ppm
+    assert abs(ppm - 222.2222222222222) < 1e-9, ppm
+    # floor = the log's 0.1 s quantum over the same span = 3.4722… ppm
+    assert abs(floor_ppm - (0.1 / span_s * 1e6)) < 1e-9, floor_ppm
+    assert abs(floor_ppm - 3.4722222222222223) < 1e-9, floor_ppm
+    # resolved when floor x RESOLVE <= MAX: 3.47 x 4 = 13.9 <= 100
+    assert resolved is True
+    assert floor_ppm * si.RTC_DRIFT_RESOLVE <= si.RTC_DRIFT_MAX_PPM
+
+    # THE FIRST AND LAST READ ARE THE ENDPOINTS — not the second, not the penultimate. Each index
+    # substitution the gate tried moves ppm by exactly one step of the walk, 6.4/48 s over the span.
+    one_step = (6.4 / 48) / span_s * 1e6
+    assert abs(one_step - 4.6296296296296298) < 1e-9, one_step
+    assert abs(si.rtc_drift(clear[:-1], span_s)[0] - (ppm - one_step)) < 1e-9, "dropping the LAST read"
+    assert abs(si.rtc_drift(clear[1:], span_s)[0] - (ppm - one_step)) < 1e-9, "dropping the FIRST read"
+
+
+def test_A_SPAN_TOO_SHORT_TO_RESOLVE_PUBLISHES_NO_DRIFT(tmp_path):
+    """The floor is the point of the band's drift term: below `RTC_DRIFT_RESOLVE` x the bound the figure
+    would be the log's resolution and not the crystal, so `resolved` is False and the band quotes no
+    number. Measured over the mirror: spans > 0.2 h give |ppm| p50 83.3 against a floor of 166.7 — the
+    median below its own floor, which is why a number there is absence-as-value in reverse."""
+    t0 = dt.datetime(2026, 9, 20, 22, 0, 0)
+    # the mirror's measured case: 0.2 h span → floor 0.1/720*1e6 = 138.9 ppm, x4 = 555 > 100
+    span_s = 0.2 * 3600.0
+    clear = [(t0, 0.4), (t0 + dt.timedelta(seconds=span_s), 0.5)]
+    ppm, floor_ppm, resolved = si.rtc_drift(clear, span_s)
+    assert abs(floor_ppm - 138.88888888888889) < 1e-9, floor_ppm
+    assert resolved is False, "138.9 x 4 = 555.6 ppm, far past the 100 ppm bound"
+    assert ppm is not None, "the figure is COMPUTED; `resolved` is what decides whether it is published"
+    # and the boundary of resolvability itself: floor x RESOLVE == MAX exactly
+    exact = si.RTC_OFFSET_QUANTUM_S / (si.RTC_DRIFT_MAX_PPM / si.RTC_DRIFT_RESOLVE / 1e6)
+    assert (
+        abs(
+            si.rtc_drift([(t0, 0.0), (t0 + dt.timedelta(seconds=exact), 0.0)], exact)[1] * si.RTC_DRIFT_RESOLVE
+            - si.RTC_DRIFT_MAX_PPM
+        )
+        < 1e-6
+    )
+    assert si.rtc_drift([(t0, 0.0), (t0 + dt.timedelta(seconds=exact), 0.0)], exact)[2] is True, "<= is inclusive"
+
+
+def test_A_ZERO_LENGTH_SPAN_HAS_NO_DRIFT_AT_ALL(tmp_path):
+    """`span_s <= 0` — one read, or every read at the same instant, divides by zero. The answer is three
+    absences, never a zero drift: "the clock did not drift" is a claim and this is silence."""
+    t0 = dt.datetime(2026, 9, 20, 22, 0, 0)
+    assert si.rtc_drift([(t0, 0.4)], 0.0) == (None, None, False)
+    assert si.rtc_drift([(t0, 0.4), (t0, 0.9)], 0.0) == (None, None, False)
+    assert si.rtc_drift([], -1.0) == (None, None, False)
+
+
+def test_THE_READ_WINDOW_AND_THE_PUSH_SETTLE_BOUNDS_ARE_INCLUSIVE_EXACTLY(tmp_path):
+    """The two boundary tests in `rtc_band`, pinned by POPULATION COUNTS rather than by prose: a read
+    exactly ON the worn interval's edge is IN (`start <= t <= end`), and a read exactly
+    `RTC_PUSH_SETTLE_S` after a push is SET ASIDE (`> RTC_PUSH_SETTLE_S` is strict, so equality is not
+    clear). The counts are integers and exact, so an off-by-one in either bound moves them by one."""
+    settle = int(si.RTC_PUSH_SETTLE_S)
+    # a push at T0, then reads at exactly +settle (NOT clear) and +settle+1 (clear); plus reads exactly
+    # on the interval's start and end
+    rows = [(0, "push", None), (settle, "read", 0.4), (settle + 1, "read", 0.5), (8 * 3600, "read", 0.6)]
+    _rtclog(tmp_path, rows)
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(hours=8))
+    # THREE reads are inside [start, end] inclusive (the last sits exactly ON `end`), ONE of them is
+    # within the settle window, so `checked` is the CLEAR population: 2 checked + 1 excluded = 3
+    # eligible, which is §🧾's `checked + excluded = eligible` on this band. ⚠️ I first asserted
+    # "3 read(s) checked" here — my own assumption about the wording rather than the contract; the
+    # number that moves with the window bound is `eligible`, and it is `checked` + `set aside`.
+    assert "2 read(s) checked" in out["reason"], out["reason"]
+    assert "1 set aside" in out["reason"], out["reason"]
+    # move the last read one second PAST the end and it leaves the population entirely
+    _rtclog(
+        tmp_path, [(0, "push", None), (settle, "read", 0.4), (settle + 1, "read", 0.5), (8 * 3600 + 1, "read", 0.6)]
+    )
+    out2 = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(hours=8))
+    # two reads remain in window, one still set aside ⇒ ONE checked: the window bound moved the
+    # eligible population by exactly one, which is what an off-by-one there would also do
+    assert "1 read(s) checked" in out2["reason"], out2["reason"]
+    assert "1 set aside" in out2["reason"], out2["reason"]
+
+
+def test_THE_RTC_LOG_READER_DECLARES_ITS_ENCODING_AND_REPLACES_A_BAD_BYTE(tmp_path):
+    """The RTC log is device bytes. `encoding="utf-8"` asserted on the CALL under
+    `-X warn_default_encoding -W error::EncodingWarning`, so the same log reads identically on a
+    C-locale box; and `errors="replace"` asserted IN PROCESS with a byte no UTF-8 decoder accepts,
+    because the default is STRICT and a `UnicodeDecodeError` is not an `OSError` — it would escape this
+    reader and take the night's whole verdict rather than skipping one row.
+
+    The in-process call comes first deliberately: mutmut selects a mutant's tests from COVERAGE, and a
+    subprocess is invisible to the tracer."""
+    import subprocess
+    import sys
+
+    path = tmp_path / f"{RING_BASE}_RTCLOG.csv"
+    with open(path, "wb") as fh:
+        fh.write(b"Phone timestamp;event;rtc_offset_s\n")
+        fh.write(b"2026-09-20T23:00:01;read;\xff\xfe\n")
+        fh.write(b"2026-09-20T23:00:02;read;0.4\n")
+    ev = si.rtc_events(str(tmp_path), "O2Ring-S")
+    assert len(ev) == 1 and ev[0][2] == 0.4, ev
+    src = f"import solid_night_inputs as si\nassert len(si.rtc_events({str(tmp_path)!r}, 'O2Ring-S')) == 1\n"
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", src],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.abspath(si.__file__)),
+    )
+    assert r.returncode == 0, r.stderr
+
+
+def test_A_SHORT_RTC_ROW_IS_SKIPPED_BEFORE_ITS_OFFSET_IS_READ(tmp_path):
+    """`len(c) < 3 OR c[1] not in (...)` — OR, not AND. A two-field row naming a real event
+    (`stamp;read`) has no offset column at all: with `and` the guard passes and `c[2]` raises
+    IndexError, taking the night's verdict with it. The writer truncates a row on a torn write, so this
+    is a real shape and not a hypothetical."""
+    (tmp_path / f"{RING_BASE}_RTCLOG.csv").write_text(
+        "Phone timestamp;event;rtc_offset_s\n"
+        "2026-09-20T23:00:01;read\n"  # TWO fields, and the event IS valid
+        "2026-09-20T23:00:02;read;0.4\n"
+    )
+    ev = si.rtc_events(str(tmp_path), "O2Ring-S")
+    assert len(ev) == 1 and ev[0][2] == 0.4, ev
+
+
+def test_RTC_EVENTS_ARE_ORDERED_BY_TIME_and_ties_keep_their_file_order(tmp_path):
+    """`key=lambda r: r[0]` — by TIME, and the key matters on a tie. Without it Python compares the whole
+    tuple, so two events at the same instant order by their EVENT NAME instead of by the order the ring
+    wrote them (`push` before `read` alphabetically, whatever the log says). The ring pushes and reads
+    within the same second routinely, and `rtc_band` reads the push/read sequence to decide which reads
+    sit inside the settle window — so a reordered tie changes which reads are set aside."""
+    (tmp_path / f"{RING_BASE}_RTCLOG.csv").write_text(
+        "Phone timestamp;event;rtc_offset_s\n"
+        "2026-09-20T23:00:05;read;0.4\n"  # LATER, written first
+        "2026-09-20T23:00:01;reset;\n"
+        "2026-09-20T23:00:01;push;\n"  # a tie with the reset, and `push` > `reset` alphabetically
+    )
+    ev = si.rtc_events(str(tmp_path), "O2Ring-S")
+    assert [k for _t, k, _v in ev] == ["reset", "push", "read"], ev
+    assert ev[0][0] == ev[1][0], "the first two really are a tie"
+
+
+def test_SCORE_DEVICES_HANDS_THE_RTC_BAND_THE_WORN_INTERVAL(tmp_path):
+    """The call site, not just the band. `rtc_band(night_dir, model, start, end)` — BOTH ends. With
+    `start` replaced by None the band reports "no worn interval" and the night's `rtc` term goes UNKNOWN
+    on a night whose RTC was in fact read; with `end` replaced by None the window comparison
+    `start <= t <= end` compares a datetime against None and raises, taking the whole night's verdict.
+    So this asserts the band ANSWERED from the interval rather than about its absence."""
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    _ecg(night)
+    _seams(night)
+    _runs(night, "ECG")
+    _runs(night, "ACC")
+    ring = {"name": "Wellue O2Ring-S", "model": "O2Ring-S"}
+    # A HEADER IS NOT A STREAM: `worn_interval` takes its start from the primary's own first readable
+    # ROW stamp, so a header-only file gives "the primary stream carries no readable row stamp" and the
+    # band answers about an absence instead of judging the reads. `_spo2` writes the rows and the
+    # acquisition evidence the ring's writer lays beside them.
+    spo2 = f"{RING_BASE}_SPO2.csv"
+    _spo2(night, 600)
+    # THE RING NEEDS ITS OWN AUDIT ENTRY, written inline rather than by widening `_audit` — that helper
+    # hardcodes the H10 and a dozen other tests depend on its exact shape. Without a wear end for the
+    # ring, `worn_interval` has nothing to hand `rtc_band` and the band correctly answers "no worn
+    # interval" — which would make this test pass for the wrong reason.
+    (night / "LOSS-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "journal": "read",
+                "clock_events": [],
+                "devices": {
+                    H10["name"]: {
+                        "file": f"{BASE}_ECG.txt",
+                        "gaps": [],
+                        "wear": {
+                            "available": True,
+                            "worn_end": {"at": "2026-09-20T23:03:00", "reason": "doff", "file": f"{BASE}_ECG.txt"},
+                        },
+                    },
+                    ring["name"]: {
+                        "file": spo2,
+                        "gaps": [],
+                        "wear": {
+                            "available": True,
+                            "worn_end": {"at": "2026-09-21T06:00:00", "reason": "doff", "file": spo2},
+                        },
+                    },
+                },
+            }
+        )
+    )
+    _rtclog(night, [(i * 600, "read", 0.4 + 0.02 * i) for i in range(1, 10)])
+    band = si.score_devices(str(night), [H10, ring])[ring["name"]]["bands"]["rtc"]
+    assert "no worn interval" not in (band["reason"] or ""), band
+    assert band["status"] in ("PASS", "FAIL", "UNKNOWN"), band
+    assert "read(s)" in (band["reason"] or ""), "the band judged the reads it was handed"
+
+
+def test_THE_SPAN_IS_RENDERED_IN_HOURS_at_a_boundary_that_shows_the_divisor(tmp_path):
+    """`span_s / 3600` — the divisor is seconds-per-hour, and the rendering is `.1f`. ⚠️ A SPAN CHOSEN AT
+    A ROUNDING BOUNDARY IS WHAT MAKES THE DIVISOR OBSERVABLE: at 8.00 h both 3600 and 3601 render
+    "8.0 h" and the assertion proves nothing. 8.05 h = 28,980 s renders "8.1 h" under /3600 and "8.0 h"
+    under /3601, because 28980/3601 = 8.0478. Same lesson as the sub-second gap in the seam tests —
+    a fixture must straddle the values it distinguishes, not merely exceed them."""
+    span_s = 8.05 * 3600  # 28,980 s
+    rows = [(0, "read", -3.2), (span_s, "read", 3.2)]  # 6.4 s over 8.05 h ≈ 221 ppm, past the bound
+    _rtclog(tmp_path, rows)
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=span_s))
+    assert out["status"] == "FAIL", out
+    assert "8.1 h" in out["reason"], out["reason"]
+    assert "8.0 h" not in out["reason"], "at /3601 it would render 8.0 — the divisor must be 3600"
+
+
+def test_A_READ_GAP_EXACTLY_AT_THE_BOUND_IS_NOT_A_GAP(tmp_path):
+    """`worst_gap > RTC_READ_GAP_MAX_S` is STRICT, so a stretch exactly at the bound is still covered.
+    The bound is 900 s against a measured 600 s poll cadence (p95 601.0 s, p99 606.4 s), so 900 s is
+    already half again the worst routine gap — a run exactly there is the longest acceptable silence,
+    not the first unacceptable one."""
+    gap = int(si.RTC_READ_GAP_MAX_S)
+    rows = [(0, "read", 0.4), (gap, "read", 0.5), (2 * gap, "read", 0.6)]
+    _rtclog(tmp_path, rows)
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=2 * gap))
+    assert out["status"] == "PASS", out
+    # "read throughout" IS the discriminator: with `>=` a stretch exactly at the bound would be flagged
+    # and this sentence would name a longest-unread-stretch instead. I first asserted that phrasing —
+    # a guess at the wording rather than the behaviour, and the band was right.
+    assert "read throughout" in out["reason"], out["reason"]
+    assert "longest unread stretch" not in out["reason"]
+    # and one second past it is a gap
+    _rtclog(tmp_path, [(0, "read", 0.4), (gap + 1, "read", 0.5), (2 * gap + 2, "read", 0.6)])
+    out2 = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=2 * gap + 2))
+    # ⚠️ STILL A PASS, and that is the band's design rather than a leak: a read gap is reduced COVERAGE,
+    # which ANNOTATES (CLAUDE.md §∅ — "a DISCONTINUITY refuses; reduced COVERAGE annotates"). The bound
+    # decides the SENTENCE, not the status, so the kill is the wording. I asserted UNKNOWN here first,
+    # which was my assumption about severity, not the rule.
+    assert out2["status"] == "PASS", out2
+    assert "longest unread stretch 15 min" in out2["reason"], out2["reason"]
+    assert "read throughout" not in out2["reason"]
+
+
+def test_THE_OFFSET_AND_DRIFT_BOUNDS_ARE_STRICT_at_exactly_the_bound(tmp_path):
+    """Both `>` comparisons, exercised AT the bound. A read exactly at `RTC_OFFSET_MAX_S` passes and one
+    a hair past it fails; likewise a drift exactly at `RTC_DRIFT_MAX_PPM`. The bounds were pre-stated
+    from the mirror — 8.0 s sits above everything observed clear of a push (p99 1.6 s, max 3.3 s over
+    2184 reads) and A5's precedent is that a bound sits above the observed maximum, so a value AT it is
+    the last acceptable one rather than the first refused."""
+    span = 8 * 3600.0
+    # |offset| exactly 8.0 s — the last acceptable read
+    _rtclog(tmp_path, [(0, "read", 8.0), (span, "read", 8.0)])
+    at_bound = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=span))
+    assert at_bound["status"] == "PASS", at_bound
+    _rtclog(tmp_path, [(0, "read", 8.1), (span, "read", 8.1)])
+    past = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=span))
+    assert past["status"] == "FAIL" and "8.0 s bound" in past["reason"], past
+
+    # DRIFT EXACTLY AT 100 ppm, and the span is chosen so the float lands EXACTLY on the bound:
+    # 1.0 s of walk over 10,000 s is 100.0 ppm with no representation error. ⚠️ My first attempt used
+    # 8 h and 2.88 s of walk, which computes to 99.99999999999999 — under the bound either way, so `>`
+    # and `>=` agreed and the mutant survived. A boundary test needs a value that IS the boundary in
+    # floating point, not one that should be.
+    span10 = 10000.0
+    _rtclog(tmp_path, [(0, "read", -0.5), (span10, "read", 0.5)])
+    at_drift = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=span10))
+    assert at_drift["status"] == "PASS", at_drift  # 100.0 is not > 100.0
+    _rtclog(tmp_path, [(0, "read", -0.6), (span10, "read", 0.6)])
+    past_drift = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=span10))
+    assert past_drift["status"] == "FAIL" and "ppm bound" in past_drift["reason"], past_drift
+
+
+def test_THE_UNRESOLVED_SENTENCE_RENDERS_ITS_SPAN_IN_HOURS(tmp_path):
+    """The other `span_s / 3600`, on the drift-is-null branch. Same boundary trick: a span of 0.25 h
+    renders "0.2 h" under /3600 (0.2500 → banker-free `.1f` gives 0.2) and would read differently under
+    a changed divisor, while `* 3600` renders an absurd figure. The sentence has to carry the span
+    because the whole claim is "this span cannot resolve the bound" — a reader must see which span."""
+    span = 0.25 * 3600  # 900 s → floor 111.1 ppm, x4 = 444 > 100, so UNRESOLVED
+    _rtclog(tmp_path, [(0, "read", 0.4), (span, "read", 0.5)])
+    out = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=span))
+    assert out["status"] == "PASS", out
+    assert "drift null" in out["reason"], out["reason"]
+    assert "0.2 h span resolves only" in out["reason"], out["reason"]
+    assert "900.0 h" not in out["reason"] and "810000.0 h" not in out["reason"]
+
+
+def test_A_ONE_SECOND_SPAN_STILL_HAS_A_DRIFT_FIGURE(tmp_path):
+    """`span_s <= 0`, not `<= 1`. A one-second span is a real span: the figure it yields is enormous and
+    its floor is enormous too, so `resolved` is False and nothing is published — but that is the FLOOR
+    refusing, which states a reason, not the guard silently returning three absences. The distinction
+    matters because `(None, None, False)` reads as "no span at all"."""
+    t0 = dt.datetime(2026, 9, 20, 22, 0, 0)
+    ppm, floor_ppm, resolved = si.rtc_drift([(t0, 0.4), (t0 + dt.timedelta(seconds=1), 0.5)], 1.0)
+    assert ppm is not None and abs(ppm - 100000.0) < 1e-6, ppm
+    assert floor_ppm is not None and abs(floor_ppm - 100000.0) < 1e-6, floor_ppm
+    assert resolved is False, "its own floor is 100,000 ppm — the record cannot resolve the bound"
+    # and zero really is the guard
+    assert si.rtc_drift([(t0, 0.4)], 0.0) == (None, None, False)
+
+
+def test_ONE_UNOPENABLE_LOG_DOES_NOT_STOP_THE_REST(tmp_path):
+    """`continue`, not `break`. The ring writes ONE LOG PER CAPTURE SESSION and a night can hold
+    hundreds, so abandoning the scan at the first unreadable file would drop every log after it — and
+    the logs are read in sorted name order, which is session order, so the ones lost would be the LATER
+    half of the night. The unopenable one must be alphabetically FIRST for the difference to show."""
+    (tmp_path / "Wellue_O2Ring-S_S8AW2100_20260920220000_RTCLOG.csv").mkdir()  # sorts FIRST, unopenable
+    _rtclog(tmp_path, [(0, "read", 0.4)], name="Wellue_O2Ring-S_S8AW2100_20260920230000")
+    _rtclog(tmp_path, [(600, "read", 0.5)], name="Wellue_O2Ring-S_S8AW2100_20260920234000")
+    ev = si.rtc_events(str(tmp_path), "O2Ring-S")
+    assert len(ev) == 2, f"both readable logs AFTER the bad one were read: {ev}"
+    assert [v for _t, _k, v in ev] == [0.4, 0.5], ev
+
+
+def test_BOTH_HOUR_RENDERINGS_CARRY_THE_DIVISOR(tmp_path):
+    """The two remaining `span_s / 3600` sites — the resolved-drift sentence and the drift-null one.
+    ⚠️ BOTH SPANS ARE CHOSEN SO /3600 AND /3601 RENDER DIFFERENTLY AT `.1f`, which most spans do not:
+    8.00 h renders "8.0" either way, and 2.05 h renders "2.0" either way because 2.05 is slightly under
+    in binary. Searched rather than guessed — 4,860 s renders 1.4 h against 1.3 h and resolves its
+    bound; 3,780 s renders 1.1 h against 1.0 h and does not."""
+    # 1 · RESOLVED: 4,860 s, floor 20.6 ppm x 4 = 82 <= 100, so a drift figure IS published
+    _rtclog(tmp_path, [(0, "read", 0.4), (4860, "read", 0.5)])
+    resolved = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=4860))
+    assert resolved["status"] == "PASS", resolved
+    assert "1.4 h" in resolved["reason"], resolved["reason"]
+    assert "1.3 h" not in resolved["reason"], "at /3601 it would render 1.3"
+
+    # 2 · UNRESOLVED: 3,780 s, floor 26.5 ppm x 4 = 105.8 > 100, so the null sentence renders instead
+    _rtclog(tmp_path, [(0, "read", 0.4), (3780, "read", 0.5)])
+    unresolved = si.rtc_band(str(tmp_path), "O2Ring-S", T0, T0 + dt.timedelta(seconds=3780))
+    assert "drift null" in unresolved["reason"], unresolved["reason"]
+    assert "1.1 h span resolves only" in unresolved["reason"], unresolved["reason"]
+    assert "1.0 h span" not in unresolved["reason"], "at /3601 it would render 1.0"

@@ -17,7 +17,30 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
+import re  # noqa: E402
+
+import pytest  # noqa: E402
 import find_unwired  # noqa: E402
+
+
+@pytest.fixture(scope="session")
+def tree_scan():
+    """ONE `find_unwired.scan()` of the unmodified tree, shared by every test that asks the real tree a
+    question about itself.
+
+    MEASURED 2026-10-05: this file was 35.81 s of a 421.40 s suite — 8 of its 70 tests cost 3.9-8.1 s each
+    and the rest are sub-second, because `scan()` walks and AST-parses the whole package at ~2.7 s a call
+    and several tests call it again. ⚠️ MY FIRST READING WAS WRONG AND THE MEASUREMENT CORRECTED IT: timing
+    one test alone gave 0.74 s and 0.71 s, which looked like "no per-test scan" until the per-test
+    distribution showed those two were the CHEAP tests and an expensive one alone is 4.95 s against 38.31 s
+    for the file.
+
+    Session-scoped is sound because `scan()` is a pure function of the source tree and these tests do not
+    change it — they ask what the CURRENT tree contains. A test that writes a module and then scans must
+    NOT use this fixture: it needs a scan taken after its own write, and two of this file's tests do
+    exactly that. Nothing is memoised inside `find_unwired` itself for the same reason — a cache there
+    would silently stale those tests, and the tool's own one-shot CLI gains nothing from one."""
+    return find_unwired.scan()
 
 
 def test_status_keys_come_from_the_AST_not_a_regex_over_source():
@@ -40,12 +63,12 @@ def test_status_keys_include_literal_keys_inside_a_splat():
     assert {"rate_unmet", "pmd_options"} <= keys
 
 
-def test_a_CALLBACK_REFERENCE_counts_as_wired():
+def test_a_CALLBACK_REFERENCE_counts_as_wired(tree_scan):
     """⚠️ THE SECOND WRONG DRAFT, and the more dangerous one. Matching `name(` misses a function passed
     WITHOUT parentheses — `to_thread(diskguard.prune_old_nights, …)` — which made retention and
     night-archiving both read as dead code when both are wired into the daemon. Reporting live safety
     machinery as unused is how a scanner gets switched off."""
-    res = find_unwired.scan()
+    res = tree_scan
     dead = {r["func"] for r in res["orphan_functions"]}
     assert "prune_old_nights" not in dead, "passed to asyncio.to_thread — wired, no parentheses"
     assert "unarchived_nights" not in dead, "same, in the disk-guard loop"
@@ -65,10 +88,10 @@ def test_allowlisted_entries_are_REPORTED_as_allowed_not_dropped():
     assert all(find_unwired.ALLOW_KEYS.values())
 
 
-def test_it_finds_the_class_it_was_written_for():
+def test_it_finds_the_class_it_was_written_for(tree_scan):
     """Non-vacuity. A scanner that reports nothing on a codebase known to contain instances is broken,
     and would pass every assertion above."""
-    res = find_unwired.scan()
+    res = tree_scan
     assert res["orphan_functions"], "the scan found nothing at all — it is not looking"
 
 
@@ -125,7 +148,7 @@ def test_an_ALLOWLISTED_function_is_reported_as_allowed_not_hidden(tmp_path, mon
     assert "0 unexplained, 1 allowed" in out
 
 
-def test_the_scanner_does_NOT_count_its_own_allowlist_as_usage():
+def test_the_scanner_does_NOT_count_its_own_allowlist_as_usage(tree_scan):
     """⚠️ THE DETECTOR COMMITTING ITS OWN DEFECT CLASS, found 2026-08-14 by using it.
 
     The allowlist NAMES the functions it excuses. `os.walk` reads `tools/` into the corpus, so each
@@ -134,7 +157,7 @@ def test_the_scanner_does_NOT_count_its_own_allowlist_as_usage():
     next real finding hides behind a stale entry.* Adding three entries silently removed three rows.
 
     A scanner must not read its own suppression file as evidence the code is wired."""
-    res = find_unwired.scan()
+    res = tree_scan
     allowed = {r["func"] for r in res["orphan_functions"] if r["allowed"]}
     assert "predict_step_split" in allowed, (
         "an allowlisted function must still be REPORTED, with its reason — not silently absent"
@@ -491,12 +514,12 @@ def test_AN_ENTRY_POINT_IS_REACHABLE_BY_BEING_RUN():
         assert "script" not in mods
 
 
-def test_THE_KNOWN_SUBJECTS_ARE_EXPLAINED_NOT_SILENT():
+def test_THE_KNOWN_SUBJECTS_ARE_EXPLAINED_NOT_SILENT(tree_scan):
     """Every real subject must appear in the report — as allowed, never absent.
 
     `status_union` was invisible before this scan; the fix is that it is now VISIBLE with a reason
     naming the consumer it waits on. An exemption you cannot see is the mask one level up."""
-    rows = {r["module"]: r for r in find_unwired.scan()["orphan_modules"]}
+    rows = {r["module"]: r for r in tree_scan["orphan_modules"]}
     for mod in ("status_union", "adapter_pool", "adapter_ab"):
         assert mod in rows, f"{mod} vanished from the report"
         assert rows[mod]["allowed"], f"{mod} is unexplained"
@@ -1028,3 +1051,53 @@ def test_main_passes_the_REAL_version_to_the_floor_check(monkeypatch):
     monkeypatch.setattr(find_unwired, "interpreter_floor_reason", record)
     assert find_unwired.main([]) == 2
     assert seen == [tuple(sys.version_info[:2])]
+
+
+# ── the one-pass counters must give EXACTLY the per-name regex counts they replaced ─────────────────
+def _old_uses(name, text):
+    return len(re.findall(r"\b%s\b" % re.escape(name), text))
+
+
+def _old_defs(name, text, kw):
+    return len(re.findall(r"%s\s+%s\b" % (re.escape(kw), re.escape(name)), text))
+
+
+def test_the_one_pass_counts_EQUAL_the_per_name_regex_counts_on_random_text():
+    import random
+
+    rng = random.Random(20261005)
+    alphabet = "abcdef_xyz019 \t\n().,:$=def"
+    names = ["foo", "foo_bar", "_x", "x1", "def", "undef", "abcdef", "a"]
+    for _ in range(400):
+        text = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 120)))
+        text += " ".join(rng.choice(names) for _ in range(rng.randint(0, 6)))
+        words, defs = find_unwired.word_counts(text), find_unwired.def_counts(text, "def")
+        for n in names:
+            # through the path the scan uses, so the fallback for a name ending in the keyword is exercised
+            got = find_unwired._uses_defs(n, text, "def", words, defs)
+            assert got == (_old_uses(n, text), _old_defs(n, text, "def")), (n, text)
+
+
+def test_a_name_ENDING_IN_the_keyword_falls_back_because_its_matches_can_overlap():
+    """`abcdef def def`: the per-name search for `def` is non-overlapping and counts 1; a lookahead
+    counts 2. Found by the random test above — the fallback is what keeps the counts identical."""
+    text = "abcdef def def _x"
+    words, defs = find_unwired.word_counts(text), find_unwired.def_counts(text, "def")
+    assert defs["def"] == 2 and _old_defs("def", text, "def") == 1
+    assert find_unwired._uses_defs("def", text, "def", words, defs)[1] == 1
+
+
+def test_a_definition_that_starts_INSIDE_a_previous_match_is_still_counted():
+    r"""`def abcdef foo`: a non-overlapping scan for `def\s+\w+` consumes `def abcdef` and never sees the
+    `def foo` that starts inside it; the per-name search did. The lookahead counter must match it."""
+    text = "def abcdef foo"
+    assert find_unwired.def_counts(text, "def")["foo"] == _old_defs("foo", text, "def") == 1
+
+
+def test_a_name_with_a_NON_WORD_character_keeps_the_per_name_search():
+    text = "function $go() {} $go(); $go;"
+    words, defs = find_unwired.word_counts(text), find_unwired.def_counts(text, "function")
+    assert find_unwired._uses_defs("$go", text, "function", words, defs) == (
+        _old_uses("$go", text),
+        _old_defs("$go", text, "function"),
+    )
