@@ -64972,8 +64972,12 @@
 
     group('OxyDex profile · an unentered setting or unmeasured term is not a number', 'oxydex-profile · absence', function (T) {
       var R = env.oxyProfileRealm;
+      /* A NODE-lane group: oxyProfileRealm and the Oxy* profile seams are run-tests.mjs env entries (a narrow get/set
+         over the realm globals UP / allNights / _upHRrest). The browser lane has no such seams, so the group is
+         ASSERTED under the Node runner (env.nodeFs) and SKIPPED BY NAME in the browser, never vacuously green (#3341). */
+      if (env.nodeFs) T.ok('profile · the realm accessor and the recompute seam are wired (Node lane)', !!R && typeof env.OxyRecomputeFromProfile === 'function');
       if (!R || typeof env.OxyRecomputeFromProfile !== 'function') {
-        T.skip('oxydex-profile co-loaded with its realm accessor', 'not in this lane');
+        if (!env.nodeFs) T.skip('oxydex-profile co-loaded with its realm accessor', 'Node-lane only: the realm accessor is a run-tests.mjs seam that the browser lane does not provide');
         return;
       }
       var saved = { UP: R.get('UP'), allNights: R.get('allNights'), _upHRrest: R.get('_upHRrest') };
@@ -65038,6 +65042,24 @@
           T.eq('profile · CONTROL · a detected zone is not', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'data'), '120–140 bpm');
           T.eq('profile · the top zone runs to HRmax+', ZC({ low: 160, high: 180 }, { lo: 0.9 }, 180, 'manual'), '160–180+ bpm');
           T.ok('profile · the sublabel caveat names the fallback for an estimate', /zones use the age estimate/.test(CV({ source: 'estimate' })));
+          /* THE PROPERTY, not the symbol (Kestrel's note): with a DETECTED value outside 30–80 the chips and the sublabel
+             read the SAME decision, so both say "estimate". Before the fix the chips silently used the age estimate
+             while the sublabel quoted the detected figure. */
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83);
+          var same = RH();
+          T.ok(
+            'profile · detected 83 bpm ⇒ the chips are marked ≈ AND the sublabel names the age estimate (one source)',
+            /^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same.source)) && /zones use the age estimate/.test(CV(same)),
+            JSON.stringify(same)
+          );
+          R.set('_upHRrest', 62);
+          var same2 = RH();
+          T.ok(
+            'profile · CONTROL · detected 62 bpm ⇒ neither the chips nor the sublabel claim an estimate',
+            !/^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same2.source)) && CV(same2) === '',
+            JSON.stringify(same2)
+          );
           T.eq('profile · CONTROL · no caveat for a detected value', CV({ source: 'data' }), '');
         }
       } finally {
