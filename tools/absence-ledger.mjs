@@ -626,6 +626,31 @@ export const SEEDS = [
     at: 'oxydex-dsp.js:7314',
     state: 'fixed',
     note: "oxyBuildGangliorEvents uses a MEASURED sample interval or none: a stamp-less event that cannot be placed is not emitted, never placed at an assumed 1 Hz. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-render.js:230',
+    state: 'fixed',
+    note: "the review header's duration total sums only the timed nights and names the rest ('7h00m total (1 of 2 nights timed)'), never an untimed night as 0 minutes. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
+  },
+  {
+    at: 'oxydex-render.js:1420',
+    state: 'fixed',
+    note: "the 7-day periodic-breathing mean averages the nights whose oscillation was computed; a window with none is null, never 0. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
+  },
+  {
+    at: 'oxydex-render.js:2942',
+    state: 'fixed',
+    note: "an unmeasured AAI prints a dash with no class, never 'null' coloured good (null < 2 is true in JS). Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
+  },
+  {
+    at: 'oxydex-render.js:3087',
+    state: 'fixed',
+    note: "a T-index threshold with no figure (no entry, or a null pct) reads 'not measured', never a green 0 % row. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
+  },
+  {
+    at: 'oxydex-render.js:3286',
+    state: 'fixed',
+    note: "'Clear' needs an oscillation search that ran and flagged no window; no search reads 'not measured' with no verdict colour. Plant: tests/dex-tests.js group 'OxyDex R · render · an unmeasured night is not drawn as a 0 or a verdict' (OxyDex.reviewView called; the other sites extracted and run), red on the pre-fix oxydex-render.js."
   }
 ];
 

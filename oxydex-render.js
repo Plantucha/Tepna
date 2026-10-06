@@ -226,10 +226,26 @@ function oxyClinicalSummary(review, nights) {
   var first = asc[0],
     last = asc[asc.length - 1];
   var dateRange = first ? (first.date === (last && last.date) ? first.date : first.date + ' → ' + (last && last.date)) : '—';
-  var totMin = nights.reduce(function (a, n) {
-    return a + ((n.stats && n.stats.durationMin) || 0);
+  // ∅ a night with no measured duration is not a 0-minute night: the total covers the timed nights and names them
+  var timed = nights
+    .map(function (n) {
+      return n.stats ? n.stats.durationMin : null;
+    })
+    .filter(function (v) {
+      return v != null && isFinite(v);
+    });
+  var totMin = timed.reduce(function (a, v) {
+    return a + v;
   }, 0);
-  var durTxt = totMin ? Math.floor(totMin / 60) + 'h' + (Math.round(totMin % 60) < 10 ? '0' : '') + Math.round(totMin % 60) + 'm' + (nights.length > 1 ? ' total' : '') : '';
+  var durTxt = timed.length
+    ? Math.floor(totMin / 60) +
+      'h' +
+      (Math.round(totMin % 60) < 10 ? '0' : '') +
+      Math.round(totMin % 60) +
+      'm' +
+      (nights.length > 1 ? ' total' : '') +
+      (timed.length < nights.length ? ' (' + timed.length + ' of ' + nights.length + ' nights timed)' : '')
+    : '';
   var recent = nights[0] || {}; // newest night for the headline KPIs
 
   var h = '<section class="oxy-clinical" aria-label="Clinical summary (from export · review mode)">';
@@ -1430,10 +1446,19 @@ function renderAll() {
       if (nights.length >= 3) {
         var roll7pb = nights.map(function (n, i) {
           var w = nights.slice(Math.max(0, i - 6), i + 1);
+          // ∅ a night with no oscillation computation is not a night with 0 crossings — it leaves the mean (cf. 7d SpO₂)
+          var vals = w
+            .map(function (x) {
+              return x.osc ? x.osc.totalCrossings : null;
+            })
+            .filter(function (v) {
+              return v != null && isFinite(v);
+            });
+          if (!vals.length) return null;
           return Math.round(
-            w.reduce(function (s, x) {
-              return s + (x.osc ? x.osc.totalCrossings || 0 : 0);
-            }, 0) / w.length
+            vals.reduce(function (s, v) {
+              return s + v;
+            }, 0) / vals.length
           );
         });
         html += '<div class="chart-wrap">';
@@ -2984,7 +3009,12 @@ function nightDetail(n, idx) {
     html += '<div class="sec-label">Cross-Signal</div>';
     html +=
       '<div class="grid">' +
-      metric('AAI', cx.autoArousalIdx, '/hr (spikes+ODI4)', cx.autoArousalIdx < 2 ? 'good' : cx.autoArousalIdx < 5 ? 'warn' : 'bad') +
+      metric(
+        'AAI',
+        cx.autoArousalIdx != null ? cx.autoArousalIdx : '—',
+        '/hr (spikes+ODI4)',
+        cx.autoArousalIdx == null ? '' : cx.autoArousalIdx < 2 ? 'good' : cx.autoArousalIdx < 5 ? 'warn' : 'bad'
+      ) +
       metric('CRC Index', cx.crcIdx != null ? cx.crcIdx : '—', 'SpO₂-HR coupling', cx.crcIdx != null ? (Math.abs(cx.crcIdx) > 0.4 ? 'warn' : 'good') : '') +
       metric('PB Diverge', cx.divergeCount, 'episodes no HR', cx.divergeCount === 0 ? 'good' : cx.divergeCount < 3 ? 'warn' : 'bad') +
       metric('Diverge %', cx.divergePct != null ? cx.divergePct + '%' : '—', 'blunted arousal', cx.divergePct != null ? (cx.divergePct < 30 ? 'good' : cx.divergePct < 75 ? 'warn' : 'bad') : '') +
@@ -3134,7 +3164,12 @@ function nightDetail(n, idx) {
   html += '<div class="proj-range">Lower = better · &lt;1% T90 typical for healthy adults</div>';
   html += '<div class="proj-waterfall">';
   [95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {
-    var ti = (n.tIdx && (n.tIdx[t] || n.tIdx['t' + t])) || { pct: 0, secs: 0 };
+    var ti = (n.tIdx && (n.tIdx[t] || n.tIdx['t' + t])) || null;
+    // ∅ no time-below figure for this threshold is not 0 % of the night below it
+    if (!ti || ti.pct == null || !isFinite(ti.pct)) {
+      html += '<div class="proj-factor pf-prog"><span>T' + t + ' &lt; ' + t + '%</span><span class="pf-val">not measured</span></div>';
+      return;
+    }
     var c = tiClass(ti.pct, t);
     // Adaptive width per threshold so the inline fill is visually informative
     var tScale = t >= 93 ? 5 : t >= 90 ? 20 : t >= 88 ? 40 : 100;
@@ -3333,7 +3368,10 @@ function nightDetail(n, idx) {
 
   // Oscillations — core (always visible)
   html += '<div class="sec-label">Periodic Breathing</div>';
-  if (!n.osc || !n.osc.episodeCount) {
+  if (!n.osc || n.osc.episodeCount == null) {
+    // ∅ no oscillation computation is not a clear night — say it was not measured, with no verdict colour
+    html += '<div class="metric"><div class="m-label">' + evBadge('SpO₂ oscillation index') + 'SpO₂ oscillation index</div><div class="m-val">—</div><div class="m-unit">not measured</div></div>';
+  } else if (!n.osc.episodeCount) {
     html +=
       '<div class="metric good"><div class="m-label">' +
       evBadge('SpO₂ oscillation index') +
