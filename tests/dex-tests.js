@@ -755,6 +755,52 @@
       }
     });
 
+    /* §2e — the composites must refuse too. After a clock-seam refusal nulls rMSSD, the
+       composites computed from cRm=null FABRICATED: stressEst → 100 (the clamp eats the
+       1.2295*null term), hrvEst → 0 (1.494*null-13.37 clamps to 0), lnR(null) → −Infinity,
+       cohEst(null,null) → NaN. A seam-refused recording must export every composite null
+       with the reason named — never a number. */
+    group('∅ clock seam — the COMPOSITES refuse too (stress/hrv/energy/focus/coherence/lnRMSSD)', 'pulsedex-dsp · absence', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        var rr = [];
+        for (var i = 0; i < 120; i++) rr.push(900 + 40 * Math.sin(i / 5));
+        var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+        var stamps = function (seamMs) {
+          var ts = [],
+            acc = t0;
+          for (var k = 0; k < rr.length; k++) {
+            if (k === 60 && seamMs) acc += seamMs;
+            ts.push(acc);
+            acc += rr[k];
+          }
+          return ts;
+        };
+        var seamed = P.pdComputeResult({ vals: rr, tsMs: stamps(7 * 365 * 24 * 3600e3), t0Ms: t0 });
+        /* NOTE: the composites are checked RAW, not through JSON — JSON.stringify masks NaN and
+           −Infinity as null, which is exactly the fabrication this test hunts. */
+        T.eq(
+          'a seam-refused recording exports every composite null (raw, not JSON-masked)',
+          [seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd]
+            .map(function (v) {
+              return v === null ? 'null' : typeof v;
+            })
+            .join(','),
+          'null,null,null,null,null,null'
+        );
+        T.eq('…with the reason NAMED — an absent figure a reader cannot explain is half a refusal', seamed.hrvReason, 'clock-seam');
+        T.ok(
+          'never a fabricated number, −Infinity, or NaN',
+          ![seamed.stress, seamed.hrv, seamed.energy, seamed.focus, seamed.coherence, seamed.lnrmssd].some(function (v) {
+            return typeof v === 'number';
+          }),
+          JSON.stringify({ stress: seamed.stress, hrv: seamed.hrv, energy: seamed.energy, focus: seamed.focus, coherence: seamed.coherence, lnrmssd: seamed.lnrmssd })
+        );
+      }
+    });
+
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_odn && _odn._bare) || _odn;
