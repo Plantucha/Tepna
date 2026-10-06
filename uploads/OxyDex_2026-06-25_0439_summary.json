@@ -361,8 +361,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5dde5cf01801",
-          "computeHash": "1ce9938399e8"
+          "manifestHash": "99b5160a3716",
+          "computeHash": "2d03b164ace2"
         },
         "evidence": {
           "envelopeRef": null,
@@ -390,8 +390,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5dde5cf01801",
-          "computeHash": "1ce9938399e8"
+          "manifestHash": "99b5160a3716",
+          "computeHash": "2d03b164ace2"
         },
         "evidence": {
           "envelopeRef": null,
@@ -419,8 +419,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5dde5cf01801",
-          "computeHash": "1ce9938399e8"
+          "manifestHash": "99b5160a3716",
+          "computeHash": "2d03b164ace2"
         },
         "evidence": {
           "envelopeRef": null,
@@ -448,8 +448,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5dde5cf01801",
-          "computeHash": "1ce9938399e8"
+          "manifestHash": "99b5160a3716",
+          "computeHash": "2d03b164ace2"
         },
         "evidence": {
           "envelopeRef": null,
@@ -954,6 +954,8 @@
         "basis": "wholeRecord"
       },
       "hrFreqBands": {
+        "hrBandsN": 21600,
+        "hrBandsTotal": 21600,
         "hrLfPow": 4.5,
         "hrHfPow": 0.1,
         "hrLfHf": 39,
