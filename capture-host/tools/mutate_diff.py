@@ -85,6 +85,8 @@ from mutation_diff import (  # noqa: E402
     clean_run_failures,
     classify,
     diff_key,
+    kill_is_a_detection,
+    refutation_corroborated,
     mutant_changed_lines,
     in_glob_scope,
     source_function_of_glob,
@@ -469,6 +471,13 @@ def main(argv=None) -> int:
     # `mutmut show` per mutant, paid ONLY for modules the equivalence file actually claims.
     _equiv_pre = load_equivalence()
     generated_keys: set = set()
+    # RAW pytest exit codes per key, and the mutant NAME per key so a would-be refutation can be
+    # re-run in isolation. mutmut's status WORD is not enough: it calls pytest's exit 3 a kill in
+    # as many words (`3: "killed"  # internal error in pytest means a kill`), and contention
+    # produces exit 3 on a tree whose tests all pass. See mutation_diff.kill_is_a_detection.
+    _exit_by_key: dict = {}
+    _mutant_of_key: dict = {}
+    _work_of_key: dict = {}
     # The preflight proves mutmut IMPORTS; these prove it actually ran. Measured on this repo's own
     # venv, importable-but-unusable is a real state, not a hypothetical — so an import check alone
     # would still fail open. If every invocation errored, no mutant was ever tested.
@@ -817,6 +826,20 @@ def main(argv=None) -> int:
             if module in _equiv_pre:
                 mfile = work / "mutants" / Path(module).name
                 stem_re = re.compile(r"^def (" + re.escape(g.split(".", 1)[1].rstrip("*")) + r"\d+)\(", re.M)
+                # The RAW exit codes live beside the mutants file as plain JSON, so no mutmut import
+                # is needed: `mutants/<module>.meta` holds `exit_code_by_key`, keyed by the same
+                # `<stem>.<mutant>` name built below. A mutant mutmut never settled is recorded `None`
+                # ("not checked"), which is how absence becomes visible instead of looking like a kill.
+                _ecbk: dict = {}
+                try:
+                    _ecbk = (
+                        json.loads((work / "mutants" / (Path(module).name + ".meta")).read_text(encoding="utf-8")).get(
+                            "exit_code_by_key"
+                        )
+                        or {}
+                    )
+                except (OSError, ValueError, AttributeError):
+                    _ecbk = {}  # unreadable ⇒ every kill is UNTRUSTED, which fails closed
                 try:
                     for gname in stem_re.findall(mfile.read_text(encoding="utf-8")):
                         full = f"{stem_mod}.{gname}"
@@ -826,6 +849,9 @@ def main(argv=None) -> int:
                         k = diff_key(gshow.stdout)
                         if k:
                             generated_keys.add(k)
+                            _exit_by_key[k] = _ecbk.get(full)
+                            _mutant_of_key[k] = full
+                            _work_of_key[k] = (module, work, _tests, _clean)
                 except OSError:
                     pass  # no mutants file ⇒ nothing to enumerate, stay silent
             # EVERY line mutmut prints here is a mutant it did NOT kill (results() skips `killed`).
@@ -1061,7 +1087,46 @@ def main(argv=None) -> int:
     # never reach this branch's verdict.
     equiv = load_equivalence()
     entries = [dict(e, module=m) for m, lst in equiv.items() for e in (lst or []) if m in verdict["modules"]]
-    cls = classify(entries, verdict["survivors"], generated_keys)
+    # ── A REFUTATION IS CORROBORATED OR IT IS NOT A REFUTATION ────────────────────────────────────
+    # REFUTED instructs a reader to DELETE a recorded claim, so it is the one verdict here that
+    # destroys work. It used to be derived from ABSENCE — generated and not a survivor — which is what
+    # a reaped worker, a partial run and an unreported shard all look like. Worse, mutmut calls
+    # pytest's exit 3 a kill ("internal error in pytest means a kill"), and contention produces exit 3
+    # on a tree whose tests all pass: Heron measured 15 entries REFUTED with ZERO timeouts on a
+    # contended run and the same 15 SURVIVING on a quiet one, deleted them, and nearly landed it.
+    # So a kill must be a DETECTION (raw exit 1, never the status word) and must survive an isolated
+    # re-run — and the re-run is judged for load too, because it meets the same contention.
+    _trusted = {k for k, ec in _exit_by_key.items() if kill_is_a_detection(ec)[0]}
+    _claimed_keys = {e.get("key", "") for e in entries}
+    _corroborated: set = set()
+    _uncorroborated: list = []
+    for _k in sorted(_trusted & _claimed_keys):
+        _mod, _wk, _tst, _cln = _work_of_key.get(_k, (None, None, None, None))
+        _name = _mutant_of_key.get(_k)
+        if not _name or _wk is None:
+            _uncorroborated.append((_k, "the mutant could not be located for an isolated re-run"))
+            continue
+        print(f"  ↻ a recorded claim would be REFUTED — re-running {_name} alone to corroborate", flush=True)
+        _second = None
+        try:
+            mut.run_one(_mod, only=_name, tests_override=_tst, clean=_cln, reuse=True)
+            _second = (
+                json.loads((_wk / "mutants" / (Path(_mod).name + ".meta")).read_text(encoding="utf-8"))
+                .get("exit_code_by_key", {})
+                .get(_name)
+            )
+        except (OSError, ValueError, AttributeError, KeyError, subprocess.SubprocessError):
+            _second = None  # a re-run that cannot be read corroborates NOTHING, so fail closed
+        _ok, _why = refutation_corroborated(_exit_by_key.get(_k), _second)
+        if _ok:
+            _corroborated.add(_k)
+            print("    ✓ corroborated: killed again in isolation, so a distinguishing input exists", flush=True)
+        else:
+            _uncorroborated.append((_k, _why))
+            print(f"    ⊘ NOT refuted — {_why}", flush=True)
+    cls = classify(entries, verdict["survivors"], _corroborated, generated=generated_keys)
+    if _uncorroborated:
+        verdict["uncorroborated_refutations"] = [{"key": k, "why": w} for k, w in _uncorroborated]
     verdict["classification"] = {
         k: [{kk: vv for kk, vv in x.items() if kk != "work"} for x in v] for k, v in cls.items()
     }
@@ -1133,6 +1198,38 @@ def main(argv=None) -> int:
         print(f"  ⚠ UNPROVEN ({e['class']}): {e['key'][:80]}")
         print(f"     {e.get('why', '')}")
         print("     Construct that boundary and put it in the entry's `probe`, or the claim stands unshown.")
+
+    # ── A CLAIM THE RUN NEVER SETTLED IS UNKNOWN, NEVER FAIL (§🧾) ────────────────────────────────
+    # Two shapes reach here, and neither is evidence against the entry:
+    #   · `not_decided` — the mutant was generated and never settled. A reaped worker, a partial run
+    #     and a shard that never reported all look like this, and all three used to read REFUTED.
+    #   · an UNCORROBORATED kill — killed once, and the isolated re-run did not agree. The re-run
+    #     meets the same contention, so "not a survivor on the second try" is not a second vote.
+    # Reported BEFORE the refuted block on purpose: a run that could not settle one claimed mutant has
+    # not earned the right to call another claim wrong.
+    if cls["not_decided"] or _uncorroborated:
+        _n = len(cls["not_decided"]) + len(_uncorroborated)
+        print(
+            f"\nmutate-diff: REFUSING to judge {_n} recorded claim(s) — this run never settled the "
+            f"mutant(s) they name:\n"
+        )
+        for e in cls["not_decided"]:
+            print(f"  ⊘ {e['module']}  {e['key'][:104]}")
+            print(f"     {e.get('why', '')}")
+        for _k, _w in _uncorroborated:
+            print(f"  ⊘ {_k[:104]}")
+            print(f"     {_w}")
+        print(
+            "\n  NOT a refutation and NOT an excuse: nothing was measured about these, so the entries\n"
+            "  stand and no deletion is owed. Re-run on a quiet box; a contended run cannot settle them.\n"
+            "  ⚠️ Deleting an entry on this output would be deleting a claim nobody tested."
+        )
+        _ran_box[0] = _ran
+        return emit(
+            "UNKNOWN",
+            f"{_n} recorded equivalence claim(s) name a mutant this run never settled — unmeasured, not refuted",
+            0 if a.report_only else 2,
+        )
 
     # REFUTED is an ERROR, not a note: it is the one way a stale file could hide a real gap.
     if cls["refuted"]:

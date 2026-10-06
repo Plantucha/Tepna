@@ -1397,10 +1397,30 @@ function nightFilesFor(n, node){ return nightFiles(n, node).files; }
    projection: the same discipline as `ppmContribution`/`effectivePpm`. A reason is returned only when it
    is TRUE of the input — an empty night with a correct node record gets openNight's own
    "nothing to load", never a borrowed shape complaint (CLAUDE.md §∅: a named reason, not a borrowed one). */
-function nodeFileList(n, key){
+function nodeFileList(n, key, rec){
+  /* THE RECORDING WINS WHEN ONE IS CHOSEN. A calendar folder holds every session stamped that DATE, which
+     is not one night: 2026-10-04 held a 00:26 session (the night that began 10-03) and a 22:00 one. Handing
+     the whole folder over made each page re-group it, and `pat-three-corner` re-grouped it WRONG — largest
+     file per device, independently, giving an ECG from one recording and a ring from another and a -14.94 h
+     overlap. `nights_index.recordings_of` groups by `nightqc.night_band`, the same band the QC verdict is
+     scoped by, so a click and a verdict cannot disagree about which sessions are one night. */
+  if(rec && rec.files && Array.isArray(rec.files[key])) return rec.files[key].filter(x => typeof x === 'string');
+  if(rec && rec.files) return [];   // this recording simply has no files for that node — not a fallback case
   const v = n && n[key];
   const f = v && v.files;
   return Array.isArray(f) ? f.filter(x => typeof x === 'string') : [];
+}
+/* Which recording a click on a FOLDER means, and what else that folder holds.
+   Prefer the recording the folder is NAMED for — clicking `2026-10-04` means the night that BEGAN on
+   10-04, not the one that ended that morning. ⚠️ IT NEVER GUESSES BETWEEN TWO UNNAMED ONES: a folder whose
+   recordings are all other nights' returns none and the caller refuses by name, because picking the
+   earliest or the largest is exactly the independent-selection mistake this change exists to remove. */
+function pickRecording(n){
+  const rs = Array.isArray(n && n.recordings) ? n.recordings.filter(r => r && typeof r.recording === 'string') : [];
+  if(rs.length < 2) return { rec: rs[0] || null, others: [], ambiguous: false };
+  const named = rs.find(r => r.recording === n.night);
+  if(named) return { rec: named, others: rs.filter(r => r !== named).map(r => r.recording), ambiguous: false };
+  return { rec: null, others: rs.map(r => r.recording), ambiguous: true };
 }
 function nightShape(v){
   if(v === undefined) return 'absent';
@@ -1409,19 +1429,20 @@ function nightShape(v){
   if(typeof v !== 'object') return 'a '+typeof v+' ('+String(v)+')';
   return 'an object with keys ['+Object.keys(v).join(', ')+']';
 }
-function nightFiles(n, node){
-  if(node==='3 corner hat') return { files: [...nodeFileList(n,'ECGDex'), ...nodeFileList(n,'PPGDex'), ...nodeFileList(n,'OxyDex')], reason: null };
-  if(node==='PAT') return { files: [...nodeFileList(n,'ECGDex').filter(f=>f.endsWith('_ECG.txt')), ...nodeFileList(n,'PPGDex').filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)),
-    ...nodeFileList(n,'MotionDex').filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)),
-    ...(Array.isArray(n && n.arrival) ? n.arrival : [])], reason: null };
+function nightFiles(n, node, rec){
+  const ARR = n2 => (rec ? (Array.isArray(rec.arrival) ? rec.arrival : []) : (Array.isArray(n2 && n2.arrival) ? n2.arrival : []));
+  if(node==='3 corner hat') return { files: [...nodeFileList(n,'ECGDex',rec), ...nodeFileList(n,'PPGDex',rec), ...nodeFileList(n,'OxyDex',rec)], reason: null };
+  if(node==='PAT') return { files: [...nodeFileList(n,'ECGDex',rec).filter(f=>f.endsWith('_ECG.txt')), ...nodeFileList(n,'PPGDex',rec).filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)),
+    ...nodeFileList(n,'MotionDex',rec).filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)),
+    ...ARR(n)], reason: null };
   /* 'PAT fused' gets the SAME optional inputs as 'PAT' — the two devices' ACC and packet-arrival sidecars.
      It used to get only the three waveforms, so its worker could never build the arrival-floor axis and the
      page showed the RAW chest→ankle lag (499 ms on 2026-09-26) beside PAT Feasibility's corrected 342 ms for
      the same night: 156 ms of Verity-vs-H10 link buffering presented as pulse arrival time. */
-  if(node==='PAT fused') return { files: [...nodeFileList(n,'ECGDex').filter(f=>f.endsWith('_ECG.txt')),
-    ...nodeFileList(n,'PPGDex').filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)),
-    ...nodeFileList(n,'MotionDex').filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)),
-    ...(Array.isArray(n && n.arrival) ? n.arrival.filter(f => typeof f === 'string') : [])], reason: null };
+  if(node==='PAT fused') return { files: [...nodeFileList(n,'ECGDex',rec).filter(f=>f.endsWith('_ECG.txt')),
+    ...nodeFileList(n,'PPGDex',rec).filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)),
+    ...nodeFileList(n,'MotionDex',rec).filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)),
+    ...ARR(n).filter(f => typeof f === 'string')], reason: null };
   const v = n && n[node];
   if(Array.isArray(v && v.files)){
     /* A LIST THAT HOLDS SOMETHING THAT IS NOT A PATH IS A WRONG SHAPE, NOT AN EMPTY NIGHT. Filtering
@@ -1442,15 +1463,35 @@ function nightFiles(n, node){
 
 async function openNight(night, node){
   const n = NIGHTS.find(x=>x.night===night); if(!n) return;
-  const got = nightFiles(n, node); const rels = got.files;
+  /* HAND OVER ONE RECORDING, NOT THE FOLDER (NIGHT-IS-THE-RECORDING-2026-10-05 §⑥). */
+  const pick = pickRecording(n);
+  if(pick.ambiguous){
+    nToast(night+' holds no recording of its own — its sessions belong to '+pick.others.join(' and ')+
+           '. Open that night instead; the monitor will not choose one for you.', true);
+    return;
+  }
+  const rec = pick.rec;
+  const got = nightFiles(n, node, rec); const rels = got.files;
   if(!rels.length){ nToast(got.reason || ('nothing to load for '+node+' on '+night), true); return; }
+  /* ∅ A file with no session stamp belongs to no band — the CPAP trees are keyed by DATE. They are handed
+     over with the recording (they are this FOLDER's) and SAID, rather than dropped silently or filed under
+     a band they were never stamped for. */
+  const noStamp = rec && Array.isArray(n.recordings_unassigned)
+    ? n.recordings_unassigned.filter(f => typeof f === 'string' && rels.indexOf(f) < 0) : [];
+  if(noStamp.length) rels.push(...noStamp);
   // A per-click query so the browser can never hand back a CACHED app from before a deploy (2026-09-26: both
   // derived pages rendered their pre-#3117 copies after the box was serving the new ones, and the old PAT page
   // then filed the ring's _PPG.txt as the ankle). No app reads its query string. A timestamp, not the daemon's
   // /api/version sha: the updater syncs the app files while the daemon restart can be deferred.
   const w = window.open('/'+NIGHT_APP[node]+'?v='+Date.now(), '_blank');
   if(!w){ nToast('the browser blocked the analyzer window — allow pop-ups for this site', true); return; }
-  nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+night+' …');
+  /* THE MULTI-RECORDING FOLDER IS NAMED. Before this the toast said "18 files from 2026-10-04" for a
+     folder holding two nights, and the page re-grouped them — silently, and once demonstrably wrong. */
+  const extra = (pick.others.length ? ' — this folder also holds '+pick.others.join(', ')+
+                 (pick.others.length>1?' (separate recordings)':' (a separate recording)') : '')
+              + (noStamp.length ? ', plus '+noStamp.length+' file'+(noStamp.length>1?'s':'')+' carrying no session stamp' : '');
+  nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+
+         (rec ? 'recording '+rec.recording : night)+extra+' …');
   let files;
   try{
     files = await Promise.all(rels.map(async rel=>{ const r=await fetch('/captures/'+rel.split('/').map(encodeURIComponent).join('/')); if(!r.ok) throw new Error(r.status+' '+rel);

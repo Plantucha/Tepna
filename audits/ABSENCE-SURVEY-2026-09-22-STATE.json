@@ -20,8 +20,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 252,
-  "fixed": 36,
+  "open": 217,
+  "fixed": 71,
   "accepted-with-reason": 2
  },
  "entries": [
@@ -468,7 +468,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1355,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2961 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "10223f479abd",
@@ -477,7 +478,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 2353,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2947 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "6e5548a8b6d7",
@@ -486,7 +488,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 3211,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2943 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "19200c666fc3",
@@ -495,7 +498,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 3866,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2943 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "5ecb53a22281",
@@ -513,7 +517,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 4724,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2956 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "3138986628fa",
@@ -522,7 +527,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 6718,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2937 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "1a0a5e520931",
@@ -531,7 +537,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 6726,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2937 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "ad7f9843500e",
@@ -540,7 +547,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 6899,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2996 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "7fe93fab700e",
@@ -567,7 +575,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1100,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "90fc63dc1bf5",
@@ -576,7 +585,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1249,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "6bd8afe77853",
@@ -585,7 +595,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1270,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "2f4a7b0dbb8e",
@@ -594,7 +605,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1389,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "d23ee06e6cef",
@@ -603,7 +615,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1400,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2941 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "941fd61ca771",
@@ -612,7 +625,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1476,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "44f3b6b1d340",
@@ -621,7 +635,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1560,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "ba87ceaa44b4",
@@ -630,7 +645,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1588,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "b3a5c9f58688",
@@ -639,7 +655,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 1746,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2941 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "bc642ffa515f",
@@ -648,7 +665,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 2030,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2941 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "ea389b79a31f",
@@ -657,7 +675,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 3315,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2939 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "f0de0f611bc2",
@@ -1551,7 +1570,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 4710,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2956 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "04cbccd9998f",
@@ -1560,7 +1580,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 4721,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2956 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "993523537baa",
@@ -1605,7 +1626,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 6343,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2997 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "f0210dc347e1",
@@ -1668,7 +1690,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 6890,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2996 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "02ff987f1a3b",
@@ -1722,7 +1745,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1126,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "cdc74066079f",
@@ -1731,7 +1755,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1150,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "bd1d1c6d2f32",
@@ -1740,7 +1765,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1172,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "d1c13de4c049",
@@ -1749,7 +1775,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1196,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "1dc447d4e8da",
@@ -1758,7 +1785,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1227,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "65e38063c0f5",
@@ -1767,7 +1795,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1345,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "c0a215f14576",
@@ -1785,7 +1814,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1448,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "570a8a4f9d2e",
@@ -1794,7 +1824,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1504,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "b2d2d2ca91d5",
@@ -1803,7 +1834,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1532,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "76dc78a759b1",
@@ -1812,7 +1844,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1616,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2925 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "eacaee001f16",
@@ -1821,7 +1854,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 2337,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2941 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "1f2b2af07670",
@@ -1839,7 +1873,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 3060,
-   "state": "open"
+   "state": "fixed",
+   "note": "ALREADY FIXED on main by #2943 before the drain reached it (the survey snippet is gone, and the fix was read at the code, not inferred from the missing snippet: a changed snippet is not a fixed finding). Bookkeeping only; no code in this PR."
   },
   {
    "key": "e8e638a9f50d",
