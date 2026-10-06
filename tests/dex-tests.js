@@ -7137,6 +7137,176 @@
        inputHash that names a different input than the element's contentId · a missing code identity · a
        value that disagrees with the element scalar · a zero-length window — each reads `unresolved`, LOUDLY,
        while the scalar every existing consumer reads is untouched. */
+    /* §∅ · A NULL COERCED TO A NUMBER INSIDE AN AGGREGATE — six sites, one theme, three operators.
+       JavaScript makes absence arithmetic: `null + x` is `x`, `null - x` is `-x`, `null < x` is TRUE
+       for any positive x, and `(a,b) => a-b` therefore sorts nulls to the FRONT. Each site below read
+       a dropout as a measurement and published the result.
+       Five were reported by Muse's hunters; the SIXTH (`computeRespRateProxy`) was found because a
+       patch asserted its anchor was unique, got 2, and refused — the twin carried the prologue byte
+       for byte. ⚠️ Each assertion pairs a GAPPED series with its ungapped twin, and each carries an
+       ANTI-VACUITY control, because "the gap changed nothing" is also what a function that computed
+       nothing would say. */
+    group('§∅ · OxyDex — a null is never a number inside an aggregate (six sites, plant-backed)', 'oxydex-dsp · absence · plant', function (T) {
+      var B = (env.OxyDex && env.OxyDex._bare) || null;
+      if (!B) {
+        T.skip('OxyDex._bare reachable', 'not wired in this lane');
+        return;
+      }
+      var MISSING = ['computeDesaturationProfile', 'computeRollingMetrics', 'buildFlags', 'computeSpO2Advanced', 'computeHRFreqBands', 'computeRespRateProxy'].filter(function (k) {
+        return typeof B[k] !== 'function';
+      });
+      // NAMED, never silent: a site that cannot be reached is a hole in this plant, not an absence of defect.
+      T.eq('every one of the six entry points is reachable', MISSING.join(',') || 'none', 'none');
+
+      function rows(fn) {
+        var r = [];
+        for (var i = 0; i < 1800; i++) r.push(fn(i));
+        return r;
+      }
+      // A FLAT-HEALTHY night: SpO2 96 throughout, HR 70 throughout. Nothing here is a desaturation,
+      // nothing is an excursion, the spread is zero and no sample is below 94.
+      var flat = rows(function () {
+        return { spo2: 96, hr: 70 };
+      });
+      // The SAME night with 60 samples absent — not low, ABSENT.
+      var holed = rows(function (i) {
+        return i >= 900 && i < 960 ? { spo2: null, hr: null } : { spo2: 96, hr: 70 };
+      });
+      var sp = flat.map(function (r) {
+        return r.spo2;
+      });
+      var spH = holed.map(function (r) {
+        return r.spo2;
+      });
+
+      // ── 1 · P-A · auc90: `null < 90` is true and `90 - null` is 90, so each absent second added a
+      // FULL 90 to the hypoxic burden. (Guard already on #3321; this is its missing proof.)
+      if (typeof B.computeDesaturationProfile === 'function') {
+        var dpF = B.computeDesaturationProfile(flat, 0, 0, null);
+        var dpH = B.computeDesaturationProfile(holed, 0, 0, null);
+        if (dpF && dpH) {
+          T.eq('P-A · a flat-healthy night has NO hypoxic burden', dpF.auc90Total != null ? dpF.auc90Total : 0, 0);
+          /* ⚠️ RED UNTIL #3321 IS IN. P-A's guard (`spo2[i] != null && spo2[i] < 90`) lives on that
+             branch; this PR carries only its PROOF, per the agreed order — the sibling lands behind
+             it. On a main without #3321 this reads non-zero, which is the defect, not a flaky test. */
+          T.eq('P-A · and 60 ABSENT seconds add none of it', dpH.auc90Total != null ? dpH.auc90Total : 0, 0);
+        } else {
+          T.skip('P-A · computeDesaturationProfile returned a profile', 'series rejected by the profile');
+        }
+      }
+
+      // ── 2 · P-B · the CDI state machine: loThresh is positive, so `null < loThresh` was ALWAYS
+      // true — every null forced state −1 and bumped the crossing count.
+      if (typeof B.computeRollingMetrics === 'function') {
+        var rmF = B.computeRollingMetrics(flat);
+        var rmH = B.computeRollingMetrics(holed);
+        if (rmF && rmH && 'cdi' in rmF) {
+          T.eq('ANTI-VACUITY · the flat night has a CDI figure at all', typeof rmF.cdi, 'number');
+          T.eq('P-B · 60 absent seconds create NO cyclical-desaturation index', rmH.cdi, rmF.cdi);
+        } else {
+          T.skip(
+            'P-B · computeRollingMetrics exposes cdi',
+            'not present in this build: ' +
+              Object.keys(rmF || {})
+                .slice(0, 8)
+                .join(',')
+          );
+        }
+      }
+
+      // ── 3 · IQR: `(a,b) => a-b` sorts nulls to the FRONT, so p25 could BE null and `p75 - null`
+      // was p75 — an IQR of 96 for a night whose true spread is 0.
+      if (typeof B.computeSpO2Advanced === 'function') {
+        var advF = B.computeSpO2Advanced(flat);
+        var advH = B.computeSpO2Advanced(holed);
+        /* ⚠️ A HEAVIER GAP, and the reason is the whole point of a plant. A 60-sample dropout does
+           NOT reach this defect: `p25` is `sorted[floor(n*0.25)]`, so nulls sunk to the front only
+           reach it once they exceed a QUARTER of the night. With 60 in 1800 the index lands at 450,
+           still inside the measured region, and the assertion passes on main — I wrote that version
+           first and it went green against the live bug. 500 absent samples (27.8 %, an ordinary bad
+           night) put `p25` itself at null, and `p75 - null` publishes the whole scale as spread. */
+        var gappy = rows(function (i) {
+          return i >= 400 && i < 900 ? { spo2: null, hr: null } : { spo2: 96, hr: 70 };
+        });
+        var advG = B.computeSpO2Advanced(gappy);
+        if (advF && advH && 'spo2IQR' in advF) {
+          T.eq('ANTI-VACUITY · the flat night reports a real IQR figure', typeof advF.spo2IQR, 'number');
+          T.eq('IQR · a flat night has zero spread', advF.spo2IQR, 0);
+          T.eq('IQR · a light gap leaves it at zero', advH.spo2IQR, 0);
+          T.eq('IQR · and a gap past the 25th percentile does NOT become the whole scale', advG && advG.spo2IQR, 0);
+        } else {
+          T.skip('IQR · computeSpO2Advanced exposes spo2IQR', 'not present in this build: ' + Object.keys(advF || {}).join(','));
+        }
+      }
+
+      // ── 4 · the conditional mean: `null < 94` admitted every absence, summed as 0.
+      // The conditional mean lives in computeSpO2Advanced too, beside the IQR.
+      if (typeof B.computeSpO2Advanced === 'function') {
+        var fgF = B.computeSpO2Advanced(flat);
+        var fgH = B.computeSpO2Advanced(holed);
+        if (fgF && fgH && 'condPctBelow94' in fgF) {
+          T.eq('cond-mean · a flat-healthy night has no samples below 94', fgF.condPctBelow94, 0);
+          T.eq('cond-mean · and 60 ABSENT samples are not 60 desaturated ones', fgH.condPctBelow94, 0);
+          T.eq('cond-mean · the conditional mean over nothing is null, not 0 %', fgH.condMeanBelow94, null);
+        } else {
+          T.skip('cond-mean · computeSpO2Advanced exposes condPctBelow94', 'not present in this build: ' + Object.keys(fgF || {}).join(','));
+        }
+      }
+
+      /* ── 5 & 6 · the two spectra. A CONSTANT HR series is flat: detrended it is zero everywhere, so
+         every band must read ~0. On main each null became a −m IMPULSE and a BLOCK of them an impulse
+         train, so the DFT reported power — and the proxy read a RESPIRATION RATE off it.
+         🔴 THE 60 IS LOAD-BEARING, AND THESE ASSERTIONS DO NOT COVER A SHORTER GAP.
+         `cleanArtifactHR` (oxydex-dsp.js:999) runs at :2772, "then clean HR before any analysis",
+         with `MAX_RUN = CFG.HR_ARTIFACT_MAX_RUN_SEC = 60` (:129). Its branch is
+         `if (j - i >= MAX_RUN)` → bail and leave the samples alone, ELSE
+         `rows[k].hr = baseline; rows[k].hrArtifact = true` — an absent run SHORTER than 60 is FILLED
+         with the previous HR before `_detrendMeasured` ever sees it. So a 59-beat gap reaches both
+         spectra as FABRICATED NUMBERS today, and nothing in this group would notice: a green here is
+         evidence about runs of 60 or more, and about nothing shorter.
+         ⚠️ I did not choose 60 for that reason — I chose it as a round minute, and it sits exactly on
+         the boundary by luck. Had I written 50 the plant would have seen filled constants instead of
+         nulls, both spectra would have matched, and the group would have passed over the live defect —
+         the same way the 3.3 % IQR plant did before it was re-sized. Stated so the next reader does
+         not shrink the gap for tidiness.
+         The fill itself is Muse's finding and is ROUTED, not fixed here: `cleanArtifactHR` has no null
+         guard, and interpolating absence into a spectrum is a §∅ question of its own. */
+      if (typeof B.computeHRFreqBands === 'function') {
+        var bF = B.computeHRFreqBands(flat);
+        var bH = B.computeHRFreqBands(holed);
+        if (bF && bH && 'hrLfPow' in bF) {
+          T.ok('ANTI-VACUITY · the bands function returns figures for both nights', bF.hrLfPow != null && bH.hrLfPow != null, JSON.stringify({ flat: bF.hrLfPow, holed: bH.hrLfPow }));
+          T.ok('DFT · a CONSTANT heart rate has no LF power (flat night)', Math.abs(bF.hrLfPow) < 0.5, String(bF.hrLfPow));
+          T.ok('DFT · and a 60-beat GAP does not manufacture any', Math.abs(bH.hrLfPow) < 0.5, String(bH.hrLfPow));
+          T.ok('DFT · nor HF power', Math.abs(bH.hrHfPow) < 0.5, String(bH.hrHfPow));
+          /* ⚠️ THE COVERAGE MUST REACH THE AGGREGATE, not just the window. `computeHRFreqBands`
+             medians the powers and builds its own object, so a count returned only by
+             `_hrFreqBandsWindow` is dropped for every record longer than one window — i.e. every
+             real night — and "the count is disclosed" would have been a claim about a field no
+             reader ever sees. */
+          T.eq('DFT · the aggregate DISCLOSES how many beats the spectrum is over', typeof bH.hrBandsN, 'number');
+          T.ok('DFT · and the gapped night reports FEWER measured beats than total', bH.hrBandsN < bH.hrBandsTotal, JSON.stringify({ n: bH.hrBandsN, total: bH.hrBandsTotal }));
+          T.eq('CONTROL · the flat night measured every beat it attempted', bF.hrBandsN, bF.hrBandsTotal);
+        } else {
+          T.skip('DFT · computeHRFreqBands exposes hrLfPow', 'not present in this build');
+        }
+      }
+      if (typeof B.computeRespRateProxy === 'function') {
+        var rF = B.computeRespRateProxy(flat);
+        var rH = B.computeRespRateProxy(holed);
+        T.ok('ANTI-VACUITY · the resp proxy answers for both nights', rF !== undefined && rH !== undefined, JSON.stringify({ flat: rF, holed: rH }));
+        /* The sixth site, and the strongest assertion available: a 60-beat gap must leave the whole
+           proxy UNCHANGED. On main the gap became an impulse train and the sweep read a peak off it,
+           so a respiration rate was published from missing heartbeats. */
+        if (rF && rH) {
+          T.eq('RESP · a 60-beat gap leaves the respiration proxy completely unchanged', JSON.stringify(rH), JSON.stringify(rF));
+          T.eq('ANTI-VACUITY · and the proxy did report a rate, so the comparison is not of two nulls', typeof rF.respRateBpm, 'number');
+        } else {
+          T.skip('RESP · the proxy returned a result for both nights', 'flat=' + JSON.stringify(rF) + ' holed=' + JSON.stringify(rH));
+        }
+      }
+    });
+
     group('Integrator consumes canonical measurement blocks — roadmap §8 (fail-closed, plant-backed)', 'integrator-dsp · measurement-block · provenance · roadmap-§8 · plant', function (T) {
       var OD = env.OxyDex;
       var NF = env.normalizeFile;

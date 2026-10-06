@@ -3838,6 +3838,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var cdiCross = 0,
       cdiState = 0;
     for (var i = 0; i < n; i++) {
+      /* §∅ · an absent sample is not an excursion. `loThresh` is globalMean − 2·SD, always POSITIVE
+         for SpO₂, so `null < loThresh` is ALWAYS TRUE: every null forced the state to −1 and each
+         entry bumped `cdiCross`, the CDI's own count — a dropout manufactured cyclical
+         desaturation out of nothing measured. */
+      if (spo2[i] == null) continue;
       var newState = spo2[i] > hiThresh ? 1 : spo2[i] < loThresh ? -1 : cdiState;
       if (newState !== cdiState && newState !== 0) {
         cdiCross++;
@@ -6947,16 +6952,31 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     wtdsi = n > 0 ? +(wtdsi / n).toFixed(3) : 0;
 
     // SpO2 IQR (p75 - p25)
-    var sorted = spo2.slice().sort(function (a, b) {
-      return a - b;
-    });
-    var p25 = sorted[Math.floor(n * 0.25)];
-    var p75 = sorted[Math.floor(n * 0.75)];
-    var iqr = +(p75 - p25).toFixed(1);
+    /* §∅ · SORT THE MEASURED SAMPLES. `(a, b) => a - b` evaluates `null - 96` as −96, so every
+       absent sample sank to the FRONT: 30 nulls on a flat 96 night put `p25` at null and
+       `p75 - null` at 96, publishing an IQR of 96 for a night whose true spread is 0. */
+    var sorted = spo2
+      .filter(function (v) {
+        return v != null && isFinite(v);
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
+    /* ⚠️ INDEXED ON THE MEASURED LENGTH, not `n`. Filtering the nulls out of `sorted` while still
+       indexing `n * 0.25` walks off the end of the shortened array on any gapped night — `undefined`
+       in, NaN out. My first version of this guard did exactly that and a 60-sample plant did not
+       reach it; a 500-sample one did. The percentile must be taken over the samples that exist. */
+    var _nm = sorted.length;
+    var p25 = _nm ? sorted[Math.floor(_nm * 0.25)] : null;
+    var p75 = _nm ? sorted[Math.floor(_nm * 0.75)] : null;
+    var iqr = p25 == null || p75 == null ? null : +(p75 - p25).toFixed(1);
 
     // Conditional mean SpO2 below 94%
+    /* §∅ · `null < 94` is TRUE, so this filter admitted every absent sample, `reduce` summed them
+       as 0 and the mean collapsed toward it — a flat-healthy night with a dropout published a
+       conditional mean near 0 % and a `condPct` counting absences as desaturated seconds. */
     var belowSamples = spo2.filter(function (v) {
-      return v < 94;
+      return v != null && v < 94;
     });
     var condMean =
       belowSamples.length > 0
@@ -7360,7 +7380,21 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var _r1 = function (v) {
       return v == null ? null : +v.toFixed(1);
     };
+    /* ⚠️ THE COVERAGE MUST SURVIVE THE REDUCTION, or it is not disclosed where anyone reads it.
+       `_hrFreqBandsWindow` returns `hrBandsN`/`hrBandsTotal`, but this aggregator medians the
+       POWERS and builds its own object, so the counts were dropped for every record longer than one
+       window — i.e. every real night. Summed across the windows the spectrum was actually taken
+       over, so the reader sees how many beats the figure rests on beside the figure itself
+       (reduced COVERAGE annotates, §∅ owner ruling 2026-09-17). */
+    var _covN = per.reduce(function (a, q) {
+      return a + (q && q.hrBandsN != null ? q.hrBandsN : 0);
+    }, 0);
+    var _covT = per.reduce(function (a, q) {
+      return a + (q && q.hrBandsTotal != null ? q.hrBandsTotal : 0);
+    }, 0);
     return {
+      hrBandsN: _covN,
+      hrBandsTotal: _covT,
       hrLfPow: _r1(
         _medianOf(
           per.map(function (p) {
@@ -7381,6 +7415,37 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       windowsUsed: per.length
     };
   }
+  /* §∅ · MEAN OVER THE MEASURED BEATS, AND AN ABSENT BEAT CONTRIBUTES NO DEVIATION.
+     Shared by `_hrFreqBandsWindow` and `_respRateProxyWindow`, which carried this prologue
+     BYTE-IDENTICALLY — the second site was found only because a unique-anchor assertion refused to
+     patch an ambiguous match, and a one-site fix would have left its twin publishing the same
+     fabrication.
+     The defect: `reduce` added each null as 0 and divided by USE regardless, so one null in 1800
+     pulled the mean 70.5 → 63.4; then `v - m` turned every null into a −m IMPULSE. HR dropouts
+     arrive in BLOCKS, so both spectra were handed a train of impulses — the first reporting LF/HF
+     power no heart produced, the second a RESPIRATION RATE read off the gap rather than off
+     breathing.
+     Absent beats now sit at 0 AFTER detrending, which is where "no information" belongs in a
+     mean-removed series: they add nothing to any bin. The power is biased DOWN in proportion to the
+     gap rather than invented, and the measured count is returned so a caller can disclose it —
+     reduced COVERAGE annotates (§∅ owner ruling). No refusal threshold is invented here; the
+     existing `n < 600` floor is the only one these functions were given. */
+  function _detrendMeasured(hr) {
+    var meas = hr.filter(function (v) {
+      return v != null && isFinite(v);
+    });
+    if (!meas.length) return null;
+    var m =
+      meas.reduce(function (a, b) {
+        return a + b;
+      }, 0) / meas.length;
+    return {
+      series: hr.map(function (v) {
+        return v == null || !isFinite(v) ? 0 : v - m;
+      }),
+      n: meas.length
+    };
+  }
   function _hrFreqBandsWindow(rows) {
     var n = rows.length;
     if (n < 600) return null;
@@ -7388,13 +7453,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var hr = rows.slice(-USE).map(function (r) {
       return r.hr;
     });
-    var m =
-      hr.reduce(function (a, b) {
-        return a + b;
-      }, 0) / USE;
-    hr = hr.map(function (v) {
-      return v - m;
-    });
+    var _dt = _detrendMeasured(hr);
+    if (!_dt) return null;
+    hr = _dt.series;
     function bandPow(lo, hi, nBins) {
       var power = 0;
       for (var b = 0; b < nBins; b++) {
@@ -7413,7 +7474,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var lfPow = bandPow(0.04, 0.15, 5);
     var hfPow = bandPow(0.15, 0.4, 6);
     var lfhf = hfPow > 0 ? +(lfPow / hfPow).toFixed(2) : null;
-    return { hrLfPow: lfPow, hrHfPow: hfPow, hrLfHf: lfhf, hrLfHfLabel: lfhf === null ? 'N/A' : lfhf > 4 ? 'SNS dominant' : lfhf > 2 ? 'SNS-leaning' : 'Balanced' };
+    return { hrLfPow: lfPow, hrHfPow: hfPow, hrLfHf: lfhf, hrBandsN: _dt.n, hrBandsTotal: USE, hrLfHfLabel: lfhf === null ? 'N/A' : lfhf > 4 ? 'SNS dominant' : lfhf > 2 ? 'SNS-leaning' : 'Balanced' };
   }
 
   // ── F. Respiratory Rate Proxy ─────────────────────────────────────
@@ -7462,13 +7523,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var hr = rows.slice(-USE).map(function (r) {
       return r.hr;
     });
-    var m =
-      hr.reduce(function (a, b) {
-        return a + b;
-      }, 0) / USE;
-    hr = hr.map(function (v) {
-      return v - m;
-    });
+    var _dt = _detrendMeasured(hr);
+    if (!_dt) return null;
+    hr = _dt.series;
     var bestPow = -1,
       bestFreq = 0.2;
     for (var k = 0; k < 20; k++) {
