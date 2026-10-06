@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**230 tools** · 228 with a purpose line · **2 without**
+**231 tools** · 229 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -80,6 +80,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`gap-s-sweep.mjs`](../tools/gap-s-sweep.mjs) | ECG-SATURATION-ABSENCE §"GAP_S": the cut that turns an inter-beat interval into an ABSENCE (`spansGap`, excluded, never median-filled) is `GAP_S = 10 s` in ecgdex-dsp.js and… |
 | [`gate-subject.mjs`](../tools/gate-subject.mjs) | print WHAT the gate is about to examine, before it examines it. |
 | [`gate-tightness.mjs`](../tools/gate-tightness.mjs) | A SOURCE-SCAN ASSERTION THAT A RENAME CAN SATISFY Reported by a peer session, with one confirmed instance. |
+| [`gemini-review.mjs`](../tools/gemini-review.mjs) | THE SECOND READER, ON EXACTLY THE FORM CODEX WAS GIVEN. Owner ruling 2026-10-05: Codex's free tier is exhausted until 2026-11-03, so try Gemini's. |
 | [`gen-comparator-twin.mjs`](../tools/gen-comparator-twin.mjs) | **⚠ NO PURPOSE LINE — add one to the header** |
 | [`gen-maskoff-twin.mjs`](../tools/gen-maskoff-twin.mjs) | `detectBreaths().breathRate` divided breaths by the WHOLE RECORDING (`durSec = recordsRead × recDur`) while every sibling ventilation figure computed beside it is `_filterBy(..., maskOn)`. |
 | [`geometry-passthrough.mjs`](../tools/geometry-passthrough.mjs) | DOES THE ALIGNMENT CHAIN INTRODUCE GEOMETRY THAT WAS NOT IN ITS INPUT? |
