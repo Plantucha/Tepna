@@ -91,7 +91,7 @@ const ROOT = join(__dirname, '..');
 const require = createRequire(import.meta.url);
 const DexBuild = require(join(ROOT, 'tools', 'build-core.js'));
 const Verdict = require(join(ROOT, 'verdict.js'));
-const OLLAMA = 'http://127.0.0.1:11434'; // as tools/qwen-agent.mjs
+const OLLAMA = process.env.NULL_FUZZ_OLLAMA || 'http://127.0.0.1:11434'; // as tools/qwen-agent.mjs; the env var exists so the failure paths can be tested
 const NARRATE_MODEL = 'qwen3-coder:30b'; // as tools/qwen-agent.mjs
 
 /* ── CLI ── */
@@ -358,28 +358,83 @@ function renderReport(b, s, v, narrative) {
   L.push('```');
   return `${L.join('\n')}\n`;
 }
-/** One request to the LOCAL model for a plain-English paragraph per NOVEL group. Localhost only. */
-async function narrate(b) {
-  const novel = sortedGroups(b).filter((g) => !(g.metric in KNOWN));
-  if (!novel.length) return null;
-  const facts = novel.map((g) => ({ property: g.property, metric: g.metric, failures: g.count, examples: g.examples }));
+/* ── narration: one request PER NOVEL GROUP, persisted after each one ─────────────────────────
+ * The local model can stop early (max_tokens hit, context full, Ollama restarted, GPU evicted). A single
+ * all-groups request loses everything when it does; v3.1 asks per group and writes a sidecar
+ * (<out>.narration.json, atomic) after EACH answer, so the most a failure costs is the group in flight.
+ * An `ok` answer is reused on every rerun while its group's first example is unchanged; a `truncated`
+ * answer (finish_reason "length") keeps its partial text, flagged, and is re-asked next time; an error
+ * keeps whatever was there before and never overwrites it. Two consecutive failures stop the loop —
+ * the model is down, and hammering it helps nobody. The report always renders from the sidecar. */
+const NARR_PATH = `${OUT_PATH.replace(/\.json$/, '')}.narration.json`;
+function loadNarration() {
+  try {
+    const j = JSON.parse(readFileSync(NARR_PATH, 'utf8'));
+    if (j && j.tool === 'null-fuzz.mjs' && j.entries && typeof j.entries === 'object') return j;
+  } catch {
+    /* absent or unreadable — start empty; a corrupt sidecar is discarded, never trusted */
+  }
+  return { tool: 'null-fuzz.mjs', model: NARRATE_MODEL, entries: {} };
+}
+function saveNarration(n) {
+  const tmp = `${NARR_PATH}.tmp`;
+  writeFileSync(tmp, JSON.stringify(n, null, 1));
+  renameSync(tmp, NARR_PATH);
+}
+const fingerprint = (g) => JSON.stringify([g.property, g.metric, g.examples[0] && [g.examples[0].seed, g.examples[0].iter, g.examples[0].fuzzed, g.examples[0].clean]]);
+async function askOne(g) {
+  const facts = { property: g.property, metric: g.metric, failures: g.count, examples: g.examples };
   const prompt =
-    'You are summarising a null-injection fuzz result for a sleep-oximetry DSP. The contract: statistics are computed over measured samples, never over absent ones (a null must behave as a missing row, never as a 0). ' +
-    'For EACH group below write ONE short paragraph in plain English: what the number did when nulls were present versus removed, and the single most likely JavaScript coercion that explains it (null + x, null < x, null - x, a sort with null). ' +
-    `Do not invent line numbers or function names. Do not propose code. Under 120 words per group.\n\n${JSON.stringify(facts, null, 1)}`;
+    'You are summarising one null-injection fuzz result for a sleep-oximetry DSP. The contract: statistics are computed over measured samples, never over absent ones (a null must behave as a missing row, never as a 0). ' +
+    'Write ONE short paragraph in plain English: what the number did when nulls were present versus removed, and the single most likely JavaScript coercion that explains it (null + x, null < x, null - x, a sort with null). ' +
+    `Do not invent line numbers or function names. Do not propose code. Under 120 words.\n\n${JSON.stringify(facts, null, 1)}`;
   try {
     const res = await fetch(`${OLLAMA}/v1/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: NARRATE_MODEL, messages: [{ role: 'user', content: prompt }], temperature: 0.2, max_tokens: 900 }),
-      signal: AbortSignal.timeout(180000)
+      body: JSON.stringify({ model: NARRATE_MODEL, messages: [{ role: 'user', content: prompt }], temperature: 0.2, max_tokens: Number(process.env.NULL_FUZZ_MAXTOK) || 400 }),
+      signal: AbortSignal.timeout(120000)
     });
-    if (!res.ok) return `(narration refused: HTTP ${res.status})`;
+    if (!res.ok) return { status: 'error', text: null, why: `HTTP ${res.status}` };
     const j = await res.json();
-    return j.choices?.[0]?.message?.content || '(narration empty)';
+    const c = j.choices?.[0];
+    const text = (c?.message?.content || '').trim();
+    if (!text) return { status: 'error', text: null, why: 'empty answer' };
+    return { status: c.finish_reason === 'length' ? 'truncated' : 'ok', text, why: c.finish_reason || null };
   } catch (e) {
-    return `(narration unavailable: ${String(e.message).slice(0, 120)})`;
+    return { status: 'error', text: null, why: String(e.message).slice(0, 120) };
   }
+}
+/** Returns the narrative markdown (from the sidecar) or null when there is nothing novel. Localhost only. */
+async function narrate(b) {
+  const novel = sortedGroups(b).filter((g) => !(g.metric in KNOWN));
+  if (!novel.length) return null;
+  const n = loadNarration();
+  n.model = NARRATE_MODEL;
+  let strikes = 0;
+  for (const g of novel) {
+    const key = `${g.property}|${g.metric}`;
+    const have = n.entries[key];
+    if (have && have.status === 'ok' && have.fp === fingerprint(g)) continue; // preserved — never re-asked
+    if (strikes >= 2) break; // model is down; keep what we have
+    const r = await askOne(g);
+    if (r.status === 'error') {
+      strikes++;
+      n.entries[key] = { ...(have || {}), status: have ? have.status : 'error', last_error: r.why, fp: have ? have.fp : fingerprint(g) };
+    } else {
+      strikes = r.status === 'ok' ? 0 : strikes;
+      n.entries[key] = { status: r.status, text: r.text, fp: fingerprint(g), failures: g.count, at: new Date().toISOString() };
+    }
+    saveNarration(n); // after EACH group
+  }
+  const out = [];
+  for (const g of novel) {
+    const e = n.entries[`${g.property}|${g.metric}`];
+    if (e && e.text) out.push(`**${g.property} \`${g.metric}\`**${e.status === 'ok' ? '' : ` _(${e.status} — partial, will be re-asked on the next --narrate)_`}: ${e.text}`);
+    else
+      out.push(`**${g.property} \`${g.metric}\`**: _(no answer yet${e?.last_error ? `: ${e.last_error}` : ''} — rerun --narrate; answered groups are kept in \`${NARR_PATH.replace(/^.*\//, '')}\`)_`);
+  }
+  return out.join('\n\n');
 }
 async function finish(b) {
   const s = buildSummary(b);
