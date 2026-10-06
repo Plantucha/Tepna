@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — fold the unfolded box nights, daily after the corpus pulls
+
+[Timer]
+# 16:30 local, and the hour is chosen against the other timers rather than picked: tepna-archive-pull
+# brings the night onto the rig at 13:30, tepna-corpus-tier moves it to the corpus disk at 14:30, and
+# tepna-tchref-nightly scores nights at 15:30 (~5 min each). 16:30 is after all three, so a tick sees a
+# COMPLETE night and does not contend with a run that is already heavy — contention does not corrupt a
+# fold, but it does turn a peer's gate into a timeout.
+#
+# Persistent, because a tick missed while the rig was off is exactly the case this unit exists for: the
+# measured backlog was seven nights, and a timer that only fires when the machine happens to be awake
+# would have produced the same backlog more slowly.
+OnCalendar=*-*-* 16:30:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target
