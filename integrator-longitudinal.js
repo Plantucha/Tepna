@@ -636,9 +636,9 @@
     if (sb) {
       var engNote =
         full.engineVersions.length > 1
-          ? ' · <span class="long-warn">⚠ mixed engineVersion ' + full.engineVersions.join(', ') + ' — trends from different engines are not directly comparable</span>'
+          ? ' · <span class="long-warn">⚠ mixed engineVersion ' + full.engineVersions.map(escapeHTML).join(', ') + ' — trends from different engines are not directly comparable</span>'
           : full.engineVersions[0]
-            ? ' · engine ' + full.engineVersions[0]
+            ? ' · engine ' + escapeHTML(full.engineVersions[0])
             : '';
       var synNote = nSyn ? ' · <b>' + nSyn + '</b> synthetic' + (inc ? '' : ' <span class="long-warn">hidden</span>') : '';
       var synCtl = nSyn

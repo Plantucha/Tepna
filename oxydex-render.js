@@ -1977,7 +1977,7 @@ function renderAll() {
     }
 
     safeStyle('uploadArea', 'display', 'none');
-    safeSet('results', 'innerHTML', html);
+    setIfPresent('results', 'innerHTML', html);
     safeStyle('results', 'display', 'block');
     try {
       document.dispatchEvent(new Event('renderComplete'));
@@ -2031,7 +2031,7 @@ function renderAll() {
       errEl.innerHTML =
         '<div class="results-error-block">' +
         '<strong>⚠ Render Error</strong><br><code class="error-code">' +
-        errDetail +
+        escHTML(errDetail) +
         '</code>' +
         '<br><br><button class="btn btn-outline" data-act="clearAll">Clear &amp; try again</button></div>';
       errEl.style.display = 'block';

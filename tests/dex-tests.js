@@ -13425,6 +13425,66 @@
       );
     });
 
+    /* ════ 8b-ii · SECURITY — XSS sink remediation (2026-10-05 deep review §1) ════ */
+    group('Security — XSS sinks escape untrusted strings (2026-10-05 §1)', 'security · xss · sources', function (T) {
+      var src = env.sources || {};
+      var oxyDsp = src['oxydex-dsp.js'] || '';
+      var oxyApp = src['oxydex-app.js'] || '';
+      var oxyFusion = src['oxydex-fusion.js'] || '';
+      var oxyRender = src['oxydex-render.js'] || '';
+      var oxyUtil = src['oxydex-util.js'] || '';
+      var intLong = src['integrator-longitudinal.js'] || '';
+      var pulseRender = src['pulsedex-render.js'] || '';
+
+      // ── 1 · _csvParseErrors: every push escapes its untrusted parts at push time ──
+      // The array is a cross-function global consumed by two innerHTML sinks; its invariant
+      // is "always HTML-safe". A push without escHTML() is a future sink waiting to happen.
+      var pushes = oxyDsp.match(/_csvParseErrors\.push\([\s\S]*?\);/g) || [];
+      var rawPushes = pushes.filter(function (p) {
+        return p.indexOf('escHTML(') === -1;
+      });
+      T.ok('_csvParseErrors has push sites', pushes.length > 0, 'no pushes found');
+      T.ok(
+        'oxydex-dsp · every _csvParseErrors push escapes (no raw file.name / message)',
+        rawPushes.length === 0,
+        rawPushes.length + ' push(es) without escHTML: ' + rawPushes.slice(0, 2).join(' | ').slice(0, 160)
+      );
+      // The warning-banner consumer must not double-escape the now-safe entries.
+      T.ok(
+        'oxydex-dsp · warning banner does not re-escape pre-escaped entries',
+        !/\.map\(function\s*\(e\)\s*\{\s*return\s*'<div class="warning-line">'\+escHTML\(e\)/.test(oxyDsp),
+        'double-escaping the pre-escaped entries'
+      );
+
+      // ── 2 · oxydex-app waveform stem (filename-derived) ──
+      T.ok('oxydex-app · waveform stem escaped at the sink', /escHTML\(\s*stem\s*\)/.test(oxyApp), 'stem concatenated raw into innerHTML');
+
+      // ── 3 · oxydex-fusion < -sniff bypass is deleted ──
+      T.ok("oxydex-fusion · no content-sniffed HTML bypass (row.v.indexOf('<'))", oxyFusion.indexOf("row.v.indexOf('<')") === -1, 'the bypass is still present');
+      T.ok('oxydex-fusion · row.v always escaped', /escHTML\(String\(row\.v\)\)/.test(oxyFusion), 'row.v not routed through escHTML');
+
+      // ── 4 · oxydex-render crash handler ──
+      T.ok('oxydex-render · crash handler escapes errDetail', /escHTML\(\s*errDetail\s*\)/.test(oxyRender), 'e.message + stack written raw to innerHTML');
+
+      // ── 5 · integrator-longitudinal engineVersions ──
+      T.ok(
+        'integrator-longitudinal · engineVersions escaped (canonical escaper)',
+        /engineVersions\.map\(\s*escapeHTML\s*\)/.test(intLong) || /engineVersions\.map\(function[^{]*\{[^}]*escapeHTML/.test(intLong),
+        'envelope-supplied engineVersion joined raw into innerHTML'
+      );
+
+      // ── 6 · pulsedex-render: one escaper (canonical), review-mode sinks covered ──
+      T.ok('pulsedex-render · local _pesc deleted (routes to canonical escapeHTML)', pulseRender.indexOf('function _pesc') === -1, '_pesc still defined — a divergent escaper');
+      T.ok('pulsedex-render · review-mode impression values escaped', /escapeHTML\(\s*nv\(t\.rmssd\)\s*\)/.test(pulseRender), 'nv(t.rmssd) written raw (user JSON is not trusted numeric)');
+      T.ok('pulsedex-render · review-mode event conf escaped', /escapeHTML\(\s*e\.conf/.test(pulseRender) || /escapeHTML\(\(\s*e\.conf/.test(pulseRender), 'e.conf written raw');
+      T.ok('pulsedex-render · Welltory CSV cells escaped', /escapeHTML\(\s*c\s*\)/.test(pulseRender), 'CSV cells written raw into <td>');
+
+      // ── 7 · safeSet renamed (it never escaped; the name lied) ──
+      T.ok('oxydex-util · safeSet renamed to setIfPresent', oxyUtil.indexOf('function safeSet') === -1 && /function setIfPresent/.test(oxyUtil), 'safeSet still defined');
+      var allOxy = oxyDsp + oxyApp + oxyRender + oxyUtil;
+      T.ok('oxydex · no safeSet call sites remain', !/[^a-zA-Z_]safeSet\(/.test(allOxy), 'a safeSet( call site survived the rename');
+    });
+
     /* ════ 8c · SECURITY — storage hygiene: erase-all + migrate cleanup (SECURITY-REMEDIATION C · F4/F5/F6) ════ */
     group('Storage hygiene — erase-all + migrate cleanup (F4/F5/F6)', 'security · storage · sources', function (T) {
       var src = env.sources || {};
