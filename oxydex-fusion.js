@@ -68,6 +68,8 @@ function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
    day. ── */
 function _oxyNightWindow(n) {
   if (!n || n.t0Ms == null) return null;
+  // pairing anchor; 0 = untimed night; never published (ABSENCE-SURVEY 4ca8bf4e4e5a, ruled not-a-defect: a point at
+  // t0 IS start-proximity pairing, and coverage — the reader that would misread a 0 — refuses on no ECG duration)
   var dur = n.stats && n.stats.durationMin != null ? n.stats.durationMin : 0;
   return { a: n.t0Ms, b: n.t0Ms + dur * 60000 };
 }
