@@ -20,7 +20,7 @@ T0 = dt.datetime(2026, 9, 20, 23, 0, 0)
 BATCH = 4  # rows per synthetic BLE batch: the residual is constant inside one, so anchors = batches
 
 
-def _ecg(d, seconds=200, rate=2.0, name=BASE, skip=(), dev_jit=True, host_jit=True, dev_ppm=0.0):
+def _ecg(d, seconds=200, rate=2.0, name=BASE, skip=(), dev_jit=True, host_jit=True, dev_ppm=0.0, t0=None):
     """A synthetic ECG stream with a REALISTIC device axis, which is a requirement and not a nicety.
 
     `clock.js` (CK_AXIS_DRAWN_SHARE) says a uniform synthetic device column is by construction
@@ -44,7 +44,7 @@ def _ecg(d, seconds=200, rate=2.0, name=BASE, skip=(), dev_jit=True, host_jit=Tr
         # row landing exactly on a second pulls it into the previous bucket and changes a completeness
         # count. Rows here sit at .000/.500, so +1..+5 ms cannot cross a boundary in either direction.
         jit = 0 if (not host_jit or i < BATCH or i >= n - BATCH) else (1 + (i // BATCH) % 5)
-        t = T0 + dt.timedelta(seconds=i / rate, milliseconds=jit)
+        t = (t0 or T0) + dt.timedelta(seconds=i / rate, milliseconds=jit)
         rows.append(f"{t.isoformat(timespec='milliseconds')};{ns};{i};100")
     (d / f"{name}_ECG.txt").write_text("\n".join(rows) + "\n")
 
@@ -5124,3 +5124,130 @@ def test_BOTH_HOUR_RENDERINGS_CARRY_THE_DIVISOR(tmp_path):
     assert "drift null" in unresolved["reason"], unresolved["reason"]
     assert "1.1 h span resolves only" in unresolved["reason"], unresolved["reason"]
     assert "1.0 h span" not in unresolved["reason"], "at /3601 it would render 1.0"
+
+
+# ── the worn interval delivered in TWO files (SOLID-NIGHT inputs; "the recording defines the night", #3297)
+
+
+BASE2 = "Polar_H10_02849638_20260920231700"
+
+
+def _two_fragment_night(d, *, boundary_cause=si.DECLARED_PAUSE):
+    """A worn interval held in TWO files with a 12-minute break — the shape of 2026-10-05's ring.
+
+    Measured that night: the P1 stop at 20:23 split the ring's set into `…201856` (20:18–20:23) and
+    `…203501` (20:35–04:24). ONE recording by the session rule (12 min is far under `_SESSION_GAP_SEC`),
+    two files — and `continuity()` read `audit_dev["file"]`, the loss audit's LARGEST FRAGMENT, requiring
+    that one file to span the whole interval. Neither does, so the band returned UNKNOWN and the night was
+    unjudgeable on the ring while `loss_audit` had already read both.
+
+    The break is a gap row here, not a hole in the evidence: the audit publishes "the gaps BETWEEN
+    fragments (`boundary: true`)", so it flows through §3.4's rules like any gap found inside one file."""
+    _ecg(d, seconds=300, name=BASE)  # 23:00:00 → 23:05:00
+    _ecg(d, seconds=3600, name=BASE2, t0=T0 + dt.timedelta(minutes=17))  # 23:17:00 → 00:17:00
+    for nm in (BASE, BASE2):
+        _seams(d, name=nm)
+        _runs(d, "ECG", name=nm)
+        _runs(d, "ACC", name=nm)
+    worn_end = "2026-09-21T00:16:00"
+    dev = {
+        "file": f"{BASE2}_ECG.txt",  # the LARGEST fragment — what the old rule judged over
+        "files": [
+            {"file": f"{BASE}_ECG.txt", "span_min": 5.0, "gaps": 0, "delays": 0},
+            {"file": f"{BASE2}_ECG.txt", "span_min": 60.0, "gaps": 0, "delays": 0},
+        ],
+        "gaps": [{"at": "2026-09-20T23:05:00", "s": 720.0, "cause": boundary_cause, "boundary": True}],
+        "wear": {
+            "available": True,
+            "worn_end": {"at": worn_end, "reason": "doff", "file": f"{BASE2}_ECG.txt"},
+        },
+    }
+    (d / "LOSS-AUDIT.json").write_text(json.dumps({"journal": "read", "devices": {H10["name"]: dev}}))
+    return _bands(d)[H10["name"]]["bands"]["continuity"]
+
+
+def test_a_worn_interval_in_TWO_FILES_is_JUDGED_with_the_split_annotated(tmp_path):
+    """🔴 RED ON MAIN: UNKNOWN, "the loss audit examined `…231700_ECG.txt`, which does not cover the worn
+    interval". Here the band decides over the AUDITED SET and the 12-minute split is annotated.
+
+    A dropout inside one recording is a discontinuity to ANNOTATE, not a reason to refuse the night —
+    §∅'s own split: a clock seam refuses, reduced coverage annotates."""
+    out = _two_fragment_night(tmp_path)
+    assert out["status"] == "PASS", out
+    assert "explained discontinuity" in out["reason"] and "720 s" in out["reason"], out
+
+
+def test_the_SPLIT_still_goes_through_the_rules_rather_than_around_them(tmp_path):
+    """The annotation is not an exemption. Re-shape the same break as UNATTRIBUTED and the band FAILS on
+    §3.4's bar — 720 s is over `UNATTRIBUTED_MAX_S`. If widening the coverage rule had also softened the
+    gap rules, this would come back PASS."""
+    out = _two_fragment_night(tmp_path, boundary_cause=si.UNATTRIBUTED)
+    assert out["status"] == "FAIL" and "unattributed" in out["reason"], out
+
+
+def test_an_interval_reaching_PAST_the_outermost_fragment_is_still_UNKNOWN(tmp_path):
+    """∅ The control for the widening: a genuinely uncovered interval must still refuse. Only the hole
+    BETWEEN fragments is covered by the gap rows; data that was never recorded is not."""
+    d = tmp_path / "past"
+    d.mkdir()
+    _ecg(d, seconds=300, name=BASE)
+    _ecg(d, seconds=600, name=BASE2, t0=T0 + dt.timedelta(minutes=17))
+    for nm in (BASE, BASE2):
+        _seams(d, name=nm)
+        _runs(d, "ECG", name=nm)
+        _runs(d, "ACC", name=nm)
+    dev = {
+        "file": f"{BASE2}_ECG.txt",
+        "files": [
+            {"file": f"{BASE}_ECG.txt", "span_min": 5.0, "gaps": 0, "delays": 0},
+            {"file": f"{BASE2}_ECG.txt", "span_min": 10.0, "gaps": 0, "delays": 0},
+        ],
+        "gaps": [],
+        # worn well past the last row of either fragment
+        "wear": {
+            "available": True,
+            "worn_end": {"at": "2026-09-21T06:00:00", "reason": "doff", "file": f"{BASE2}_ECG.txt"},
+        },
+    }
+    (d / "LOSS-AUDIT.json").write_text(json.dumps({"journal": "read", "devices": {H10["name"]: dev}}))
+    out = _bands(d)[H10["name"]]["bands"]["continuity"]
+    assert out["status"] == "UNKNOWN" and "does not cover the worn interval" in out["reason"], out
+
+
+def test_an_UNREADABLE_audited_fragment_refuses_because_its_POSITION_is_unknown(tmp_path):
+    """∅ The refusal the coverage floor caught me not testing. Widening the rule to a SET adds a way for
+    the set to be incomplete: the loss audit records a fragment it could not open as
+    `{"file": …, "reason": "unreadable: …"}` — with no span, so nobody can say where it sat.
+
+    It may well have covered part of the worn interval, so the union of the readable spans is not a
+    coverage claim about the interval; it is a coverage claim about the fragments that opened. That is
+    UNKNOWN, not PASS — and NOT the same as the hole BETWEEN two readable fragments, which the gap rows
+    do account for. I added this branch and shipped it untested until `--cov-fail-under=100` named line
+    632, which is the floor doing precisely its job."""
+    d = tmp_path / "unreadable"
+    d.mkdir()
+    _ecg(d, seconds=300, name=BASE)
+    _ecg(d, seconds=3600, name=BASE2, t0=T0 + dt.timedelta(minutes=17))
+    for nm in (BASE, BASE2):
+        _seams(d, name=nm)
+        _runs(d, "ECG", name=nm)
+        _runs(d, "ACC", name=nm)
+    dev = {
+        "file": f"{BASE2}_ECG.txt",
+        "files": [
+            {"file": f"{BASE}_ECG.txt", "span_min": 5.0, "gaps": 0, "delays": 0},
+            {"file": f"{BASE2}_ECG.txt", "span_min": 60.0, "gaps": 0, "delays": 0},
+            {"file": "Polar_H10_02849638_20260920233000_ECG.txt", "reason": "unreadable: OSError(5)"},
+        ],
+        "gaps": [],
+        "wear": {
+            "available": True,
+            "worn_end": {"at": "2026-09-21T00:16:00", "reason": "doff", "file": f"{BASE2}_ECG.txt"},
+        },
+    }
+    (d / "LOSS-AUDIT.json").write_text(json.dumps({"journal": "read", "devices": {H10["name"]: dev}}))
+    out = _bands(d)[H10["name"]]["bands"]["continuity"]
+    assert out["status"] == "UNKNOWN", out
+    assert "could not read 1 audited fragment(s)" in out["reason"], out
+    assert "20260920233000" in out["reason"], ("the unreadable fragment must be NAMED", out)
+    assert "position in the worn interval is unknown" in out["reason"], out
