@@ -5356,3 +5356,22 @@ def test_a_TWO_FRAGMENT_set_that_covers_nothing_NAMES_the_set_not_one_file(tmp_p
     assert one["reason"] == (
         "the loss audit examined `some_other_night_ECG.txt`, which does not cover the worn interval"
     ), one
+
+
+def test_the_SET_message_names_THREE_fragments_and_counts_ALL_of_them(tmp_path):
+    """`names[:3]` → `[:4]` inside `_subj`, named by CI on `a510a213`. The same truncation-bound class as
+    the `unreadable[:3]` test above, on the OTHER list — and the two-fragment test cannot see it, because
+    with two names both slices give the same string. Four fragments separate them.
+
+    The count and the sample are asserted apart on purpose: the COUNT must be all of them (a reader sizing
+    the problem), the SAMPLE must be bounded (a reason line that stays readable). A bound nobody asserts
+    is a bound nobody chose — stated twice now, because the gate found it twice."""
+    out = _set_night(
+        tmp_path,
+        [{"file": f"other_{i}_ECG.txt", "span_min": 1.0, "gaps": 0, "delays": 0} for i in range(4)],
+    )
+    assert out["status"] == "UNKNOWN", out
+    assert "4 fragments" in out["reason"], ("the count is all four", out["reason"])
+    for i in (0, 1, 2):
+        assert f"other_{i}_ECG.txt" in out["reason"], (i, out["reason"])
+    assert "other_3_ECG.txt" not in out["reason"], "the sample is truncated at three: %r" % out["reason"]

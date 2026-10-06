@@ -639,13 +639,18 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
         v
         for nm in names
         for p, v in spans.items()
-        # ONE check, not two: `first_last` assigns `first` on the SAME iteration as `last` (the first row
-        # that parses) and clears neither, so `last is not None` implies `first is not None` and
-        # `(None, set)` is unreachable for every value `spans` can hold — it is built only from
-        # `first_last`. CI's gate named `v[0] is not None and v[1] is not None` → `v[1] … and v[1] …` as a
-        # survivor, and it is genuinely equivalent; the honest answer is to drop the redundant conjunct
-        # rather than write a ledger proof for a mutant on a check that need not exist.
-        if os.path.basename(p) == nm and v[0] is not None
+        # NO INDEX, so there is no index to swap. `first_last` assigns `first` on the SAME iteration as
+        # `last` and clears neither, so both members are set or neither is — `(None, set)` and
+        # `(set, None)` are unreachable for every value `spans` can hold, since it is built only from
+        # `first_last`.
+        #
+        # ⚠️ THAT EQUIVALENCE SURVIVED TWO REWRITES BEFORE IT STOPPED MOVING. It was first
+        # `v[0] is not None and v[1] is not None`, where the gate named dropping a conjunct; dropping the
+        # redundant half left `v[0] is not None`, where the gate named SWAPPING the index to `v[1]` — the
+        # same unkillable claim, relocated. `None not in v` removes the subscript entirely, so neither
+        # mutant can be written, and the one mutation that IS available (`not in` → `in`) is killable: it
+        # admits only the unstamped fragments and `min` then compares against None.
+        if os.path.basename(p) == nm and None not in v
     ]
     # ⚠️ "does not cover the worn interval" IS THE PINNED PHRASE on every refusal below, and the
     # single-fragment sentence is reproduced verbatim. Three existing tests assert that wording — a reason
