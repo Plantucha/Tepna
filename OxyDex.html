@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d1d82e6748e0" data-compute-hash="7b9bd926e025">
+<html lang="en" data-manifest-hash="58fe2c5adac7" data-compute-hash="a2e759217f5a">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BDXpVu40dm3ZQAk3Qhw3J21J0ps0oILdmwl57Y/PQ9I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Miow8kYMNPTKzHHJ2R+vuxGatvCSLAOVyxnQpSQSL70=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UI47b3pqBMKzoFz3iIgnNZ188z0pbRNC7ELh1uey7rU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hyHUnl79y3EK1oU6Dk49G1rar+c/nBJRNj3bNerVQrY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc=' 'sha256-yEyNSSOfShC8dmlz9DgMQADX8qbMV6mmBAL50tOefYE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DH1o/DCVLuenKmO0nXIpIgX/vUJ4YX6TGXhpe5Klizw=' 'sha256-EzbmpFAalNFZ0uGkU1UdFTZ68KkrArtyJHUgQqfiM3o=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UI47b3pqBMKzoFz3iIgnNZ188z0pbRNC7ELh1uey7rU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-aPa4f/OWZPVsHLfVQgGI1dba7SCLegduZcbToyzeAVc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hyHUnl79y3EK1oU6Dk49G1rar+c/nBJRNj3bNerVQrY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.17.0</title>
@@ -7346,6 +7346,18 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     });
     if (typeof el.source === 'string' && _FILE_SHAPE_RE.test(el.source)) delete el.source;
     if (el.provenance && typeof el.provenance === 'object') el.provenance = _scrubProv(el.provenance);
+    /* ⚠️ AND `el.schema.provenance`, which this function did not visit until 2026-10-06. A multi-record
+       element is not a summary block — ECGDex/PulseDex `recordings[]` and PpgDex `sessions[]` carry a
+       FULL v2.0 envelope per element, `schema.provenance.inputs[]` included, with
+       `{ name, bytes, lastModifiedMs, sha256 }` per input. `scrubExport` scrubs `out.schema.provenance`
+       at the TOP level only, so with scrub ON every per-element input name and sha256 survived —
+       against the §5 acceptance stated at the top of this file: a scrubbed JSON contains no device
+       serial, filename or input sha256. The §F1 pass fixed the per-element `provenance` copy and left
+       its envelope twin, and the F13 tests planted elements with NO `schema`, so they were green over a
+       live leak. */
+    if (el.schema && typeof el.schema === 'object' && el.schema.provenance && typeof el.schema.provenance === 'object') {
+      el.schema.provenance = _scrubProv(el.schema.provenance);
+    }
     _scrubRecordingBlock(el.recording);
   }
   function scrubExport(envelope) {
@@ -10501,7 +10513,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     },
     rmssdArc: {
       label: 'RMSSD Arc',
-      unit: 'ms/h',
+      /* DERIVED FROM THE CODE, not converted (2026-10-06). `computeRMSSDarc` takes the RMSSD of the
+         PULSE-RATE series (`r.hr`, bpm — never an RR/ms series; the cite below already said "pulse-rate
+         RMSSD proxy"), over `WIN = 1800` rows of 1 Hz O2Ring CSV = 30-minute windows, and regresses it
+         on the WINDOW INDEX (`{ x: i, y: v }`). So the slope is bpm per 30-min window. The old 'ms/h'
+         was wrong in the numerator (bpm, not ms) and the denominator (per 30-min index, not per hour) —
+         wrong in KIND, so no scale factor repairs it. The DSP is NOT rescaled: its own labels gate on
+         `slope < -0.2` / `> 0.2` in these native units, and restating the slope per hour would move
+         every published number and invalidate those thresholds. The declaration follows the code. */
+      unit: 'bpm/30min',
       goodDirection: 'up',
       depth: 'research',
       evidence: 'experimental',
@@ -12234,7 +12254,9 @@ function upFromDOM() {
   var vo2 = parseFloat(gv('profVO2')) || 0;
   var hrm = parseInt(gv('profHRmax'), 10) || 0;
   var hrr = parseInt(gv('profHRrest'), 10) || 0;
-  var elv = parseInt(gv('profElevation'), 10) || 0;
+  // ∅ an empty elevation is NOT ENTERED (null), never sea level — upLoad and upToDOM already keep it null
+  var _elv = parseInt(gv('profElevation'), 10);
+  var elv = isFinite(_elv) ? _elv : null;
   var cpap = gv('profCPAP') || 'no';
   UP = { age: age, sex: sex, weight: wt, height: ht, sbp: sbp, dbp: dbp, vo2GT: vo2, hrmaxOverride: hrm, hrRestOverride: hrr, elevation: elv, cpap: cpap };
 }
@@ -12392,6 +12414,23 @@ function upKarvonenZone(lo, hi, hrRest, hrMax) {
   return { low: Math.round(hrr * lo + hrRest), high: Math.round(hrr * hi + hrRest) };
 }
 
+/* ∅ The resting HR the Karvonen zones use, and WHERE it came from: a manual entry, the nocturnal p5 + 8 from loaded
+   nights, or the age regression. One decision, read by the zone chips AND the HRrest sublabel, so a detected value
+   outside 30–80 can no longer feed the chips the estimate while the sublabel quotes the detected figure. */
+function upRestingHR() {
+  if (UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverride < 100) return { hrRest: UP.hrRestOverride, source: 'manual' };
+  if (window._upHRrest && window._upHRrest > 30 && window._upHRrest < 80) return { hrRest: window._upHRrest, source: 'data' };
+  return { hrRest: Math.round(Math.max(45, Math.min(80, 71 - 0.25 * (UP.age || 49)))), source: 'estimate' }; // literature: ~71-0.25×age
+}
+// a zone chip's text, given the resting HR's SOURCE: an estimate is marked ≈ so the bpm range never reads as measured
+function upZoneChipText(zn, z, hrm, source) {
+  return (source === 'estimate' ? '≈ ' : '') + zn.low + '–' + (z.lo === 0.9 ? hrm + '+' : zn.high) + ' bpm';
+}
+// the caveat the data-driven HRrest sublabel carries when the zones could not use the detected value
+function upHRrestCaveat(rest) {
+  return rest && rest.source === 'estimate' ? ' · outside 30–80 bpm, so the zones use the age estimate' : '';
+}
+
 function profileDerivedUpdate() {
   var hrm = upHRmax();
   var bmi = upBMI();
@@ -12427,9 +12466,8 @@ function profileDerivedUpdate() {
 
   // Karvonen zones — use UP.hrRest if auto-detected, else estimate
   // HRrest priority: 1) manual entry, 2) derived from user's nocturnal data, 3) age-adjusted population estimate
-  var hrRestFallback = Math.round(Math.max(45, Math.min(80, 71 - 0.25 * (UP.age || 49)))); // literature: ~71-0.25×age
-  var hrRest =
-    UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverride < 100 ? UP.hrRestOverride : window._upHRrest && window._upHRrest > 30 && window._upHRrest < 80 ? window._upHRrest : hrRestFallback;
+  var _rest = upRestingHR();
+  var hrRest = _rest.hrRest;
   var zones = [
     { id: 'pz1', lo: 0.5, hi: 0.6, label: 'Z1' },
     { id: 'pz2', lo: 0.6, hi: 0.7, label: 'Z2' },
@@ -12440,7 +12478,10 @@ function profileDerivedUpdate() {
   zones.forEach(function (z) {
     var zn = upKarvonenZone(z.lo, z.hi, hrRest, hrm);
     var el = document.getElementById(z.id);
-    if (el) el.textContent = zn.low + '–' + (z.lo === 0.9 ? hrm + '+' : zn.high) + ' bpm';
+    if (el) {
+      el.textContent = upZoneChipText(zn, z, hrm, _rest.source);
+      el.title = upHRrestCaveat(_rest) ? 'Resting HR estimated from age (71 − 0.25 × age) — enter it, or load nights, for measured zones' : '';
+    }
   });
 
   // Weight/height hint
@@ -12666,6 +12707,8 @@ function profileAutoDetectUpdate(allNights) {
         txt += ' · last ' + lastNightVals.hrRest + ' (p5 ' + lastNightVals.hrFloor + ' + 8)';
       }
       txt += ' · trained athletes typically 12–15 bpm lower';
+      // ∅ the zones refuse a detected value outside 30–80 and use the age estimate — say so beside the figure
+      txt += upHRrestCaveat(upRestingHR());
       hrSub.textContent = txt;
     }
   }
@@ -12721,9 +12764,10 @@ function recomputeFromProfile() {
       var hrMax = UP.hrmaxOverride && UP.hrmaxOverride > 100 ? UP.hrmaxOverride : Math.round(208 - 0.7 * (UP.age || 49));
       var hrRest = UP.hrRestOverride && UP.hrRestOverride > 30 && UP.hrRestOverride < 100 ? UP.hrRestOverride : n.vo2est ? n.vo2est.hrRest : n.hrv ? n.hrv.hrFloor : null;
       if (hrRest && hrRest > 30 && hrRest < 80 && hrMax > 100) {
-        var _rmssdAdj = n.hrv && n.hrv.rmssd != null ? +Math.max(-3, Math.min(3, (n.hrv.rmssd - 1.4) * 1.05)).toFixed(1) : 0;
+        // ∅ no RMSSD ⇒ no adjustment term (null), distinguishable from a measured 0.0; the estimate is the base alone
+        var _rmssdAdj = n.hrv && n.hrv.rmssd != null ? +Math.max(-3, Math.min(3, (n.hrv.rmssd - 1.4) * 1.05)).toFixed(1) : null;
         var _newBase = +(15.3 * (hrMax / hrRest)).toFixed(1);
-        var _newVo2 = +(_newBase + _rmssdAdj).toFixed(1);
+        var _newVo2 = _rmssdAdj != null ? +(_newBase + _rmssdAdj).toFixed(1) : _newBase;
         if (!n.vo2est) n.vo2est = {};
         n.vo2est.hrRest = hrRest;
         n.vo2est.hrMax = hrMax;
@@ -13948,7 +13992,6 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         modl: null,
         meanDipSlope: null,
         meanRecSlope: null,
-        meanRecSlopeN: 0,
         clusteringIdx: null,
         firstHalfNadirs: 0,
         lastHalfNadirs: 0
@@ -13975,21 +14018,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           }, 0) / events.length
         ).toFixed(3)
       : 0;
-    /* ⚠️ OVER THE MEASURED EVENTS, WITH ITS n BESIDE IT. A terminal event has no observed
-       resaturation (`recSlope: null`), and folding that in as 0 is the §∅ fabrication one layer up:
-       the mean would report a recovery nobody watched. Reduced COVERAGE annotates — the value stands
-       with `meanRecSlopeN` saying how many events it is over — while a mean of NOTHING refuses. */
-    var _recMeasured = events.filter(function (e) {
-      return e.recSlope != null;
-    });
-    var meanRecSlope = _recMeasured.length
+    var meanRecSlope = events.length
       ? +(
-          _recMeasured.reduce(function (a, e) {
+          events.reduce(function (a, e) {
             return a + e.recSlope;
-          }, 0) / _recMeasured.length
+          }, 0) / events.length
         ).toFixed(3)
-      : null;
-    var meanRecSlopeN = _recMeasured.length;
+      : 0;
 
     // Clustering: first-half vs last-half of recording
     var midIdx = Math.floor(n / 2);
@@ -14002,7 +14037,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var total = firstH + lastH;
     var clusteringIdx = total > 0 ? +(lastH / total).toFixed(2) : null; // >0.6 = REM-concentrated
 
-    return { modl: modl, meanDipSlope: meanDipSlope, meanRecSlope: meanRecSlope, meanRecSlopeN: meanRecSlopeN, clusteringIdx: clusteringIdx, firstHalfNadirs: firstH, lastHalfNadirs: lastH };
+    return { modl: modl, meanDipSlope: meanDipSlope, meanRecSlope: meanRecSlope, clusteringIdx: clusteringIdx, firstHalfNadirs: firstH, lastHalfNadirs: lastH };
   }
 
   // ── Periodic Breathing Characterisation ────────────────────────
@@ -16318,15 +16353,6 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     function pushEvent(endIdxRaw) {
       if (endIdxRaw - evStart < minSec) return; // ignore sub-minSec blips
       var recEnd = Math.min(n - 1, endIdxRaw);
-      /* ⚠️ §∅ · A TERMINAL EVENT OBSERVED NO RESATURATION, so `recSlope` is null and says why.
-         `endIdxRaw === n` only at the end-of-record flush, where the clamp above pulls `recEnd` back
-         to the LAST IN-EVENT sample instead of the re-rise sample every in-loop close gets. The
-         arithmetic then measured the dip against itself: a flat terminal desat published
-         `recSlope: 0`, which reads as "recovery was measured and it was perfectly flat" when the
-         recording simply ended. Measured on main — the identical dip mid-series gives 0.7, terminal
-         gives 0 — and it is averaged into the published `meanRecSlope`, so ONE terminal event drags
-         a true 0.7 to 0.35 over two events. Absence is null, never an in-range number. */
-      var terminal = endIdxRaw >= n;
       var dipDur = Math.max(1, evNadirIdx - evStart);
       var recDur = Math.max(1, recEnd - evNadirIdx);
       events.push({
@@ -16338,8 +16364,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         depth: +(evBaseline - evNadir).toFixed(1),
         durationSec: endIdxRaw - evStart,
         dipSlope: +((evNadir - evBaseline) / dipDur).toFixed(3),
-        recSlope: terminal ? null : +((spo2[recEnd] - evNadir) / recDur).toFixed(3),
-        recSlopeReason: terminal ? 'record-ended' : null
+        recSlope: +((spo2[recEnd] - evNadir) / recDur).toFixed(3)
       });
     }
     for (var i = 0; i < n; i++) {
@@ -23646,7 +23671,9 @@ function renderAll() {
         html += '<div class="render-error-inline">⚠️ Row error (' + escHTML(n.date) + '): ' + escHTML(e.message) + '</div>';
       }
       html += '</div>';
-      html += '<div class="night-detail" id="det' + idx + '" role="region" aria-label="Details for night ' + n.date + '">';
+      // n.date is escaped here exactly as the night-row aria-label and the error inline above do —
+      // it arrives verbatim from user JSON in review mode and this attribute was the one site missing it.
+      html += '<div class="night-detail" id="det' + idx + '" role="region" aria-label="Details for night ' + escHTML(n.date) + '">';
       try {
         html += nightDetail(n, idx);
       } catch (e) {
@@ -25163,7 +25190,9 @@ function nightDetail(n, idx) {
     '<div class="flags-wrap">' +
     (n.flags || [])
       .map(function (f) {
-        return '<span class="fpill ' + f.sev + '">' + f.code + '</span>';
+        // Both are carried verbatim from user JSON in review mode: f.sev reaches a class ATTRIBUTE
+        // (a quote closes it) and f.code an element body (an angle bracket opens a tag).
+        return '<span class="fpill ' + escHTML(f.sev) + '">' + escHTML(f.code) + '</span>';
       })
       .join('') +
     '</div>';
@@ -25400,10 +25429,16 @@ function _oxyEcgDate(startEpochMs) {
 var OXY_ROLL_SLACK_MS = 43200000; // 12 h
 function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
   if (startEpochMs == null || !hhmmss) return null;
-  var p = String(hhmmss).split(':');
-  if (p.length < 2) return null;
+  // ∅ components by regex and range-checked (Clock Contract §2.7): `+'xx' || 0` made an unreadable stamp a real
+  // midnight time, and Date.UTC silently rolls an out-of-range one onto a wrong instant. Unreadable ⇒ null.
+  var p = String(hhmmss).match(/^\s*(\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\s*$/);
+  if (!p) return null;
+  var hh = +p[1],
+    mm = +p[2],
+    ss = p[3] != null ? +p[3] : 0;
+  if (hh > 23 || mm > 59 || ss > 59) return null;
   var d = new Date(startEpochMs);
-  var base = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), +p[0] || 0, +p[1] || 0, +(p[2] || 0) || 0);
+  var base = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hh, mm, ss);
   // allow the first event to sit slightly before the anchor; otherwise roll forward
   while (base < startEpochMs - 3600000) base += 86400000;
   if (prevMs != null) {
@@ -25423,13 +25458,17 @@ function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
    day. ── */
 function _oxyNightWindow(n) {
   if (!n || n.t0Ms == null) return null;
+  // pairing anchor; 0 = untimed night; never published (ABSENCE-SURVEY 4ca8bf4e4e5a, ruled not-a-defect: a point at
+  // t0 IS start-proximity pairing, and coverage — the reader that would misread a 0 — refuses on no ECG duration)
   var dur = n.stats && n.stats.durationMin != null ? n.stats.durationMin : 0;
   return { a: n.t0Ms, b: n.t0Ms + dur * 60000 };
 }
 function _oxyEcgWindow(ecg) {
   var rec = ecg && ecg.recording;
   if (!rec || rec.startEpochMs == null) return null;
-  var durMin = rec.durationMin != null ? rec.durationMin : rec.durationSec != null ? rec.durationSec / 60 : 0;
+  // ∅ as for the night: no recorded duration ⇒ no window (never a 0-minute one)
+  var durMin = rec.durationMin != null ? rec.durationMin : rec.durationSec != null ? rec.durationSec / 60 : null;
+  if (durMin == null || !isFinite(durMin)) return null;
   return { a: rec.startEpochMs, b: rec.startEpochMs + durMin * 60000 };
 }
 function oxyEcgForNight(n) {
@@ -25446,6 +25485,9 @@ function oxyEcgForNight(n) {
     keys.forEach(function (k) {
       var ecg = window._ecgByDate[k],
         ew = _oxyEcgWindow(ecg);
+      // PAIRING needs only the start: an ECG with no recorded duration is matched by its start (a point), as it always
+      // was. COVERAGE (oxyComputeFusion) is where the unknown end must refuse, so _oxyEcgWindow itself returns null.
+      if (!ew && ecg && ecg.recording && ecg.recording.startEpochMs != null) ew = { a: ecg.recording.startEpochMs, b: ecg.recording.startEpochMs };
       if (!ew) {
         // ECG lacks a usable window → fall back to civil-date equality only
         if (k === n.date) {
@@ -25640,7 +25682,8 @@ function oxyComputeFusion(n, ecg) {
       var tMs = e.tMs != null ? e.tMs : idx != null ? n.t0Ms + idx * 1000 : null;
       if (tMs != null) {
         desatMs.push(tMs);
-        desatDepth.push(e.depth != null ? e.depth : e.baseline != null && e.nadir != null ? e.baseline - e.nadir : 0);
+        // ∅ an event with no recorded depth carries null — not a 0 % dip that drags its stage's mean toward "shallow"
+        desatDepth.push(e.depth != null ? e.depth : e.baseline != null && e.nadir != null ? e.baseline - e.nadir : null);
       }
     });
   }
@@ -25680,6 +25723,8 @@ function oxyComputeFusion(n, ecg) {
   // fabricated-absence render). A surge only exists inside the ECG window so confirmed ⊆
   // coveredDesats by construction; Math.max guards a boundary-rounding edge.
   var _cov = _oxyEcgWindow(ecg);
+  // ∅ with no usable ECG window the covered set is UNKNOWN — not every desat of the night (which divided the
+  // confirmations by the whole night, the very understatement §11.1 removed). Unknown ⇒ null, no percentages.
   var coveredDesats = _cov
     ? Math.max(
         confirmed,
@@ -25687,9 +25732,9 @@ function oxyComputeFusion(n, ecg) {
           return c + (m >= _cov.a && m <= _cov.b ? 1 : 0);
         }, 0)
       )
-    : desN;
-  var coveragePct = desN > 0 ? Math.round((coveredDesats / desN) * 100) : null;
-  var confPct = coveredDesats > 0 ? Math.round((confirmed / coveredDesats) * 100) : null;
+    : null;
+  var coveragePct = desN > 0 && coveredDesats != null ? Math.round((coveredDesats / desN) * 100) : null;
+  var confPct = coveredDesats != null && coveredDesats > 0 ? Math.round((confirmed / coveredDesats) * 100) : null;
   // ── null model (mirror of Integrator): expected confirmations by chance ──
   var _w0 = Math.min.apply(null, [].concat(surges, desatMs)),
     _w1 = Math.max.apply(null, [].concat(surges, desatMs));
@@ -25734,8 +25779,11 @@ function oxyComputeFusion(n, ecg) {
   // quarter-covered night). Scope the numerator to the covered fraction so both sides share
   // one time base. Hypoxic burden concentrates AT desats, so the desat-coverage fraction is
   // the apt proration; hbCov == hbTotal when the ECG spans the whole night.
-  var _covFrac = desN > 0 ? coveredDesats / desN : 1;
-  var hbCov = hbTotal != null ? +(hbTotal * _covFrac).toFixed(1) : null;
+  // ∅ the share of the burden under ECG coverage is known only when desats exist AND the window is known. With no
+  // desats (or no window) the old `: 1` scoped the WHOLE-night burden to a window-only event count — the inflation
+  // the note above exists to prevent. Unknown share ⇒ no scoped burden and no dose/event.
+  var _covFrac = desN > 0 && coveredDesats != null ? coveredDesats / desN : null;
+  var hbCov = hbTotal != null && _covFrac != null ? +(hbTotal * _covFrac).toFixed(1) : null;
   var dosePerEv = hbCov != null && doseDenom > 0 ? +(hbCov / doseDenom).toFixed(1) : null;
 
   // ── metric 4: SpO₂ nadir depth per ECG-staged sleep stage ──
@@ -25752,11 +25800,15 @@ function oxyComputeFusion(n, ecg) {
       stg = _oxyStageAt(ecg, (desatMs[di] - rec.startEpochMs) / 60000);
     }
     var key = stg || 'Unstaged';
-    if (!stageAgg[key]) stageAgg[key] = { sum: 0, count: 0, deepest: 0, unstaged: !stg };
-    var dp = desatDepth[di] || 0;
-    stageAgg[key].sum += dp;
+    // ∅ `count` is events; `measured` is events with a recorded depth, the only denominator for the depth mean
+    if (!stageAgg[key]) stageAgg[key] = { sum: 0, count: 0, measured: 0, deepest: null, unstaged: !stg };
+    var dp = desatDepth[di];
     stageAgg[key].count++;
-    if (dp > stageAgg[key].deepest) stageAgg[key].deepest = dp;
+    if (dp != null && isFinite(dp)) {
+      stageAgg[key].sum += dp;
+      stageAgg[key].measured++;
+      if (stageAgg[key].deepest == null || dp > stageAgg[key].deepest) stageAgg[key].deepest = dp;
+    }
   }
   // OxyDex's own (oximetry-derived) stage proxy — context only, not per-event
   var sp = n.stageProxy || null;
@@ -25899,7 +25951,10 @@ function oxyEcgFusionSection(n, ecg) {
   if (desN) {
     var gateTxt = '−' + GATE.leadMaxSec + 's…+' + GATE.trailMaxSec + 's';
     var covTxt = coveredDesats + ' of ' + desN + ' desats within ECG coverage';
-    if (coveredDesats === 0) {
+    if (coveredDesats == null) {
+      // ∅ no usable ECG window — what it covered is unknown, so no confirmed fraction is asserted
+      html += tile('—', 'blue', 'Confirmed apnea', 'the paired ECG has no usable recording window — its coverage of the ' + desN + ' scored desats is unknown, so no cross-confirmation is asserted');
+    } else if (coveredDesats === 0) {
       // §11.2 — the paired ECG (a device-offset/near-date pairing) did not overlap ANY of
       // the night's desats: report no coverage, NOT a green "0 confirmed" (fabricated absence).
       html += tile('—', 'blue', 'Confirmed apnea', 'the paired ECG did not overlap any of the ' + desN + ' scored desats — no cross-confirmation coverage this night');
@@ -25982,13 +26037,13 @@ function oxyEcgFusionSection(n, ecg) {
     });
     var maxDeep = 0;
     stageKeys.forEach(function (k) {
-      if (stageAgg[k].deepest > maxDeep) maxDeep = stageAgg[k].deepest;
+      if (stageAgg[k].deepest != null && stageAgg[k].deepest > maxDeep) maxDeep = stageAgg[k].deepest;
     });
     var bars = '';
     stageKeys.forEach(function (k) {
       var a = stageAgg[k],
-        mean = +(a.sum / a.count).toFixed(1),
-        w = maxDeep > 0 ? Math.round((a.deepest / maxDeep) * 100) : 0;
+        mean = a.measured ? +(a.sum / a.measured).toFixed(1) : null,
+        w = maxDeep > 0 && a.deepest != null ? Math.round((a.deepest / maxDeep) * 100) : 0;
       var un = a.unstaged ? ' efz-stage-un' : '';
       var nm = a.unstaged ? 'Unstaged' : escHTML(k);
       bars +=
@@ -26000,13 +26055,11 @@ function oxyEcgFusionSection(n, ecg) {
         '<span class="efz-stagebar"><span class="efz-stagefill" style="width:' +
         Math.max(w, 6) +
         '%"></span></span>' +
-        '<span class="efz-stageval">−' +
-        a.deepest.toFixed(0) +
-        '% deepest · −' +
-        mean +
-        '% mean · ' +
+        '<span class="efz-stageval">' +
+        (a.measured ? '−' + a.deepest.toFixed(0) + '% deepest · −' + mean + '% mean · ' : 'depth not recorded · ') +
         a.count +
         '×' +
+        (a.measured && a.measured < a.count ? ' (depth on ' + a.measured + ')' : '') +
         (a.unstaged ? ' · no ECG coverage' : '') +
         '</span></div>';
     });

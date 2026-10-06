@@ -351,8 +351,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "d1d82e6748e0",
-        "computeHash": "7b9bd926e025"
+        "manifestHash": "58fe2c5adac7",
+        "computeHash": "a2e759217f5a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -380,8 +380,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "d1d82e6748e0",
-        "computeHash": "7b9bd926e025"
+        "manifestHash": "58fe2c5adac7",
+        "computeHash": "a2e759217f5a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -409,8 +409,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "d1d82e6748e0",
-        "computeHash": "7b9bd926e025"
+        "manifestHash": "58fe2c5adac7",
+        "computeHash": "a2e759217f5a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -438,8 +438,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "d1d82e6748e0",
-        "computeHash": "7b9bd926e025"
+        "manifestHash": "58fe2c5adac7",
+        "computeHash": "a2e759217f5a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -1128,7 +1128,6 @@
       "modl": 90.23,
       "meanDipSlope": -0.76,
       "meanRecSlope": 0.28,
-      "meanRecSlopeN": 4,
       "clusteringIdx": 0.5,
       "firstHalfNadirs": 2,
       "lastHalfNadirs": 2

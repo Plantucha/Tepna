@@ -13571,6 +13571,63 @@
     });
 
     /* ════ 8b-ii · SECURITY — XSS sink remediation (2026-10-05 deep review §1) ════ */
+    group('Security — XSS sinks escape untrusted strings (2026-10-05 §2 — ATTRIBUTE sinks)', 'security · xss · attribute-sink', function (T) {
+      var src = env.sources || {};
+      var overApp = src['overdex-app.js'] || '';
+      var oxyRender = src['oxydex-render.js'] || '';
+      T.ok('sources carry overdex-app.js and oxydex-render.js', overApp.length > 0 && oxyRender.length > 0, 'a missing source would make every assertion below vacuous');
+
+      /* ── 0 · THE CONTROL: the canonical escaper closes an ATTRIBUTE, the local one did not ──
+         §1 covered innerHTML sinks, where escaping &<> is enough to stop a tag. An ATTRIBUTE sink
+         needs the QUOTE: `title="` + value + `"` breaks out on a bare " with no angle bracket in
+         sight. This asserts the tool the fix reaches for actually closes that hole, so the source
+         assertions below are checking a delegation that works rather than one that merely exists. */
+      var esc = env.escapeHTML || (env.DexEsc && env.DexEsc.escapeHTML);
+      T.ok('dex-escape.js escapeHTML is loaded', typeof esc === 'function', 'not reachable — the assertions below would prove nothing');
+      if (typeof esc === 'function') {
+        var breakout = '" onmouseover="alert(1)';
+        T.ok('escapeHTML escapes the double quote (the attribute breakout)', esc(breakout).indexOf('&quot;') === 0, 'got ' + JSON.stringify(esc(breakout).slice(0, 24)));
+        T.ok('escapeHTML escapes the single quote too', esc("'").indexOf('&#39;') === 0, 'single-quoted attributes break out on a bare apostrophe');
+        T.ok('…and a quoted payload survives as inert text', esc(breakout).indexOf('"') === -1, 'a raw " remains after escaping');
+      }
+
+      /* ── 1 · overdex-app.js: no quote-blind local escaper ──
+         The local `esc()` replaced /[&<>]/ only, and `:608` put its output inside title="…" where
+         `b.text` carries 'TAMPERED: ' + f.name — a folder name is user-controlled. A second escaper
+         that disagrees with the canonical one is the defect, not the call site. */
+      T.ok('overdex-app · no local escaper that omits the quote', !/function esc\s*\(s\)\s*\{[\s\S]{0,200}?replace\(\s*\/\[&<>\]\/g/.test(overApp), 'the quote-blind local esc() is still defined');
+      /* The fix is a DELEGATION, not a patched call site: `esc` became a one-line alias for the
+         canonical escaper, so every sink in overdex-app.js is covered at once and a second escaper
+         cannot drift from the first. This asserts the alias, which is the stronger property —
+         mirroring the OxyDex escHTML single-source lock in §1. */
+      T.ok(
+        'overdex-app · the local esc delegates to the shared escapeHTML (single source)',
+        /function esc\(s\)\s*\{\s*return escapeHTML\(s\);\s*\}/.test(overApp),
+        'esc does not delegate — a second escaper can drift from the canonical one'
+      );
+      T.ok(
+        'overdex-app · the seal title is built through esc (so it inherits the delegation)',
+        /title="'\s*\+\s*esc\(/.test(overApp) || /title="'\s*\+\s*escapeHTML\(/.test(overApp),
+        'the title attribute bypasses the escaper entirely'
+      );
+
+      /* ── 2 · oxydex-render.js: the two raw ATTRIBUTE sinks ──
+         Both carry values that arrive verbatim from user JSON in review mode. The night-row
+         aria-label two lines above ALREADY used escHTML on the same variable, which is what makes
+         this a slip rather than a policy. */
+      T.ok('oxydex-render · the night-detail aria-label escapes n.date', !/aria-label="Details for night '\s*\+\s*n\.date/.test(oxyRender), 'n.date still concatenated raw into an aria-label');
+      T.ok(
+        'oxydex-render · the flag pill escapes f.sev and f.code',
+        !/class="fpill '\s*\+\s*f\.sev\s*\+\s*'">'\s*\+\s*f\.code/.test(oxyRender),
+        'f.sev reaches a class attribute and f.code an element body, both raw'
+      );
+      T.ok(
+        'oxydex-render · every aria-label built from n.date escapes it',
+        (oxyRender.match(/aria-label="[^"]*'\s*\+\s*n\.date/g) || []).length === 0,
+        'at least one aria-label still takes n.date raw'
+      );
+    });
+
     group('Security — XSS sinks escape untrusted strings (2026-10-05 §1)', 'security · xss · sources', function (T) {
       var src = env.sources || {};
       var oxyDsp = src['oxydex-dsp.js'] || '';
@@ -30759,6 +30816,56 @@
       T.eq('control: an ordinary in-range row parses', okRows.length, 1);
     });
 
+    /* ════ rmssdArc DECLARES ITS UNIT, AND THE DECLARATION IS PROVED FROM THE DATA.
+       The registry said `ms/h`. The DSP takes the RMSSD of the PULSE-RATE series (`r.hr`, bpm) over
+       `WIN = 1800` rows of 1 Hz O2Ring CSV — 30-minute windows — and regresses it on the WINDOW INDEX.
+       So `ms/h` was wrong in the numerator AND the denominator: wrong in KIND, which no scale factor
+       repairs. Fixed in the REGISTRY, because the DSP's own labels gate on `slope < -0.2` / `> 0.2` in
+       these native units and rescaling would move every published number.
+
+       ⚠️ A DECLARED UNIT THAT IS WRONG IS WORSE THAN NO UNIT (same reasoning as the ECGDSP
+       analyze-contract group). So every leg here is a RELATION a unit error cannot satisfy: the planted
+       HR amplitude IS the window's RMSSD (fixing the numerator as bpm), and the slope is per WINDOW
+       INDEX, not per hour (fixing the denominator — the per-hour value would be exactly double). ════ */
+    group('OxyDex rmssdArc declares its unit — bpm per 30-min window, proved not trusted', 'oxydex-dsp · oxydex-registry · units', function (T) {
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var B = (_od && _od._bare) || _od || {};
+      var arc = B.computeRMSSDarc;
+      var REG = env.sources && env.sources['oxydex-registry.js'];
+      T.ok('computeRMSSDarc reachable on the BARE test surface', typeof arc === 'function', 'not exposed — the unit cannot be pinned by a known answer');
+      T.ok('oxydex-registry.js source available', !!REG, 'the declaration cannot be read');
+      if (typeof arc !== 'function' || !REG) return;
+
+      /* A window whose HR alternates base → base+d has successive differences of magnitude d only, so
+         its RMSSD is EXACTLY d. Four windows of 1800 rows plant RMSSD = 2, 4, 6, 8 bpm. */
+      var WIN = 1800;
+      var amps = [2, 4, 6, 8];
+      var rows = [];
+      for (var k = 0; k < amps.length; k++) for (var i = 0; i < WIN; i++) rows.push({ hr: 60 + (i % 2 ? amps[k] : 0), motion: 0, spo2: 96 });
+      var r = arc(rows);
+      T.ok('the plant is not vacuous — 7200 rows produced 4 windows', !!r && r.rmssdArcWindows && r.rmssdArcWindows.length === 4, 'got ' + (r && r.rmssdArcWindows && r.rmssdArcWindows.length));
+
+      // ── THE NUMERATOR IS bpm ── the window RMSSD equals the planted bpm amplitude, exactly.
+      T.ok(
+        'each window RMSSD equals the planted HR amplitude in bpm',
+        JSON.stringify(r.rmssdArcWindows) === JSON.stringify(amps),
+        'got ' + JSON.stringify(r.rmssdArcWindows) + ' want ' + JSON.stringify(amps)
+      );
+
+      // ── THE DENOMINATOR IS ONE WINDOW ── +2 bpm per window index. Per HOUR this would read 4.
+      T.ok('the slope is +2 per WINDOW INDEX (bpm/30min)', r.rmssdArcSlope === 2, 'got ' + String(r.rmssdArcSlope));
+      T.ok('…and it is NOT the per-hour value, which a `/h` unit would imply', r.rmssdArcSlope !== 4, 'slope reads as per-hour — the denominator moved');
+      T.ok('the fit is exact on a linear plant (r2 = 1), so the slope is not an artefact', r.rmssdArcR2 === 1, 'r2 ' + String(r.rmssdArcR2));
+
+      // ── ONE WINDOW IS 30 MIN ── 1800 rows of 1 Hz O2Ring CSV; the declaration must say so.
+      T.ok('one window is 1800 rows = 30 min at the O2Ring 1 Hz row rate', rows.length / r.rmssdArcWindows.length === 1800, 'rows per window ' + rows.length / r.rmssdArcWindows.length);
+      var decl = /rmssdArc:\s*\{[\s\S]{0,900}?unit:\s*'([^']*)'/.exec(REG);
+      T.ok('the registry declares a unit for rmssdArc', !!decl, 'no unit field found');
+      T.ok("the declared unit is 'bpm/30min' — what the code emits", decl && decl[1] === 'bpm/30min', 'declared ' + (decl && JSON.stringify(decl[1])));
+      T.ok('the declaration does not claim milliseconds (the series is a pulse RATE)', !!decl && decl[1].indexOf('ms') === -1, 'declared ' + (decl && JSON.stringify(decl[1])));
+      T.ok('the declaration does not claim a per-hour denominator', !!decl && !/\/h$|\/hr$/.test(decl[1]), 'declared ' + (decl && JSON.stringify(decl[1])));
+    });
+
     group('OxyDex perfusion index from the OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4)', 'oxydex-dsp · oxydex-registry', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeStats === 'function')) {
@@ -45039,6 +45146,147 @@
       }
     });
 
+    group('OxyDex fusion · an unmeasured window, depth or stamp is not a measured 0', 'oxydex-fusion · absence', function (T) {
+      // fusion's PUBLISHED surface only (its window / stamp helpers are module-private): node reads env, browser globals
+      var W = typeof globalThis !== 'undefined' ? globalThis : {};
+      var names = ['oxyComputeFusion', 'oxyEcgFusionSection', 'oxyEcgForNight'];
+      var G = {};
+      names.forEach(function (k) {
+        G[k] = typeof env[k] === 'function' ? env[k] : W[k];
+      });
+      var setByDate =
+        typeof env.setEcgByDate === 'function'
+          ? env.setEcgByDate
+          : function (m) {
+              W._ecgByDate = m;
+            };
+      var miss = names.filter(function (k) {
+        return typeof G[k] !== 'function';
+      });
+      /* A NODE-lane group: run-tests.mjs executes oxydex-fusion.js headless, while the browser lane loads it only as
+         TEXT (SOURCE_FILES). So reachability is ASSERTED under the Node runner (env.nodeFs) and SKIPPED BY NAME in the
+         browser, never vacuously green (the R1 lesson, #3341). */
+      if (!env.nodeFs && miss.length === names.length) {
+        T.skip('oxydex-fusion co-loaded', 'Node-lane only: the browser lane loads oxydex-fusion.js as text (SOURCE_FILES), so its published surface is not on window there');
+        return;
+      }
+      T.eq('fusion · every function this group calls is reachable', miss, []);
+      if (miss.length) return;
+      var t0 = Date.UTC(2026, 5, 12, 22, 0, 0); // 22:00
+      var ecg = function (rec, surges) {
+        return {
+          recording: rec,
+          ganglior_events: (surges || []).map(function (t) {
+            return { impulse: 'autonomic_surge', t: t };
+          }),
+          apnea: { cvhrEvents: 4 },
+          hrv: { time: {} },
+          cardiorespiratory: {}
+        };
+      };
+      var nightAt = function (events, stats) {
+        return { t0Ms: t0, stats: stats || {}, hrv: {}, desat: { events: events }, hb: { total: 100 } };
+      };
+      var ALLNIGHT = { startEpochMs: t0, durationMin: 600 };
+      // 02ff987f1a3b — an unreadable or out-of-range stamp places no surge (it used to land at midnight / roll a day)
+      var mid = nightAt([{ tMs: t0 + 2 * 3600000, depth: 6 }]); // a desat at 00:00 the next day
+      T.eq('fusion · a surge stamped "xx:yy" confirms nothing (it read as 00:00)', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['xx:yy'])).confirmed, 0);
+      var one = nightAt([{ tMs: t0 + 3 * 3600000, depth: 6 }]); // 01:00 the next day
+      T.eq('fusion · a surge stamped "25:00:00" confirms nothing (Date.UTC rolled it to 01:00)', G.oxyComputeFusion(one, ecg(ALLNIGHT, ['25:00:00'])).confirmed, 0);
+      T.eq('fusion · CONTROL · a surge stamped "00:00:00" confirms the 00:00 desat', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['00:00:00'])).confirmed, 1);
+      // the range edges: 23 / 59 / 59 are legal, 60 is not (each bound on its own)
+      var edge = nightAt([{ tMs: t0 + 7199000, depth: 6 }]); // 23:59:59
+      T.eq('fusion · "23:59:59" is a legal stamp ⇒ confirms the 23:59:59 desat', G.oxyComputeFusion(edge, ecg(ALLNIGHT, ['23:59:59'])).confirmed, 1);
+      T.eq('fusion · "23:60:00" ⇒ null (minute 60), not rolled onto 00:00', G.oxyComputeFusion(mid, ecg(ALLNIGHT, ['23:60:00'])).confirmed, 0);
+      var m1 = nightAt([{ tMs: t0 + 3660000, depth: 6 }]); // 23:01:00
+      T.eq('fusion · "23:00:60" ⇒ null (second 60), not rolled onto 23:01', G.oxyComputeFusion(m1, ecg(ALLNIGHT, ['23:00:60'])).confirmed, 0);
+      // 7fe93fab700e — an ECG with no recorded duration has no window: coverage unknown, not a 0-minute window
+      var desats = [];
+      for (var i = 0; i < 10; i++) desats.push({ tMs: t0 + (30 + i * 30) * 60000, depth: 6 });
+      var Z = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0 }));
+      T.eq('fusion · ECG start with no duration ⇒ coverage UNKNOWN (null), not 0 desats covered', Z.coveredDesats, null);
+      // 612257ff825b / d46c73b26764 — no ECG window ⇒ no confirmed %, no scoped burden
+      var U = G.oxyComputeFusion(nightAt(desats), ecg({ durationMin: 60 }));
+      T.eq('fusion · no ECG window ⇒ coveredDesats null, not all 10', U.coveredDesats, null);
+      T.eq('fusion · …so confPct is null, never a green 0 of 10', U.confPct, null);
+      T.eq('fusion · …and no burden is scoped to an unknown share', U.hbCov, null);
+      var noDes = G.oxyComputeFusion(nightAt([]), ecg({ startEpochMs: t0, durationMin: 60 }));
+      // strict `=== null`: JSON.stringify(NaN) is "null", which let two NaN-producing mutants through a JSON compare
+      T.ok('fusion · no desats ⇒ the covered share is undefined ⇒ no whole-night burden per window event', noDes.hbCov === null && noDes.dosePerEv === null, String([noDes.hbCov, noDes.dosePerEv]));
+      T.ok('fusion · …and no coverage percentage (0 of 0 is not a %)', noDes.coveragePct === null, String(noDes.coveragePct));
+      var P = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0, durationMin: 100 }));
+      T.eq('fusion · CONTROL · 3 of 10 desats under a 100-min ECG ⇒ coveragePct 30', P.coveragePct, 30);
+      var S = G.oxyComputeFusion(nightAt(desats), ecg({ startEpochMs: t0, durationSec: 6000 }));
+      T.eq('fusion · a duration given only in seconds (6000 s) bounds the window ⇒ 3 covered', S.coveredDesats, 3);
+      var nonOv = String(G.oxyEcgFusionSection(nightAt(desats), ecg({ startEpochMs: t0 + 8 * 3600000, durationMin: 60 })));
+      T.ok('fusion · a known window that overlaps no desat ⇒ the explicit no-overlap tile', nonOv.indexOf('did not overlap any of the') >= 0);
+      // per-stage rows: REM (8) · Deep (no depth) · Unstaged (3, 6) — every row's text and width pinned
+      var staged = {
+        recording: { startEpochMs: t0, durationMin: 120 },
+        ganglior_events: [],
+        apnea: { cvhrEvents: 4 },
+        hrv: { time: {} },
+        cardiorespiratory: {},
+        timeseries: {
+          sleepStages: [
+            { tMin: 30, stage: 'REM' },
+            { tMin: 60, stage: 'Deep' }
+          ]
+        }
+      };
+      var sev = [{ tMs: t0 + 1800000, depth: 8 }, { tMs: t0 + 3600000 }, { tMs: t0 + 5 * 3600000, depth: 3 }, { tMs: t0 + 6 * 3600000, depth: 6 }];
+      var shtml = String(G.oxyEcgFusionSection(nightAt(sev), staged));
+      var rowOf = function (h, name) {
+        var r = h.split('efz-stagerow').filter(function (x) {
+          return x.indexOf('efz-stagename">' + name + '<') >= 0;
+        });
+        return r.length ? r[0].slice(0, 400) : '';
+      };
+      var rem = rowOf(shtml, 'REM'),
+        deep = rowOf(shtml, 'Deep'),
+        uns = rowOf(shtml, 'Unstaged');
+      T.ok('fusion · REM: the deepest bucket fills 100 % (the max over ALL stages, not the last)', /width:100%/.test(rem) && /−8% deepest · −8% mean · 1×/.test(rem), rem);
+      T.ok('fusion · REM is ECG-staged: no "no ECG coverage"', rem !== '' && rem.indexOf('no ECG coverage') < 0, rem);
+      T.ok('fusion · Deep: no depth recorded, and no "(depth on 0)"', /depth not recorded · 1×/.test(deep) && deep.indexOf('depth on') < 0, deep);
+      T.ok(
+        'fusion · Unstaged: deepest 6 (the max, not the first), mean 4.5, every event measured ⇒ no "(depth on")',
+        /−6% deepest · −4.5% mean · 2×/.test(uns) && uns.indexOf('depth on') < 0 && /width:75%/.test(uns) && uns.indexOf('no ECG coverage') >= 0,
+        uns
+      );
+      var zhtml = String(G.oxyEcgFusionSection(nightAt([{ tMs: t0 + 1800000, depth: 0 }]), ecg({ startEpochMs: t0, durationMin: 120 })));
+      T.ok(
+        'fusion · a 0 % deepest everywhere ⇒ the 6 % floor bar, never width NaN',
+        zhtml.indexOf('NaN') < 0 && /efz-stagefill" style="width:6%/.test(zhtml),
+        (zhtml.match(/efz-stagefill[^>]*/) || [''])[0]
+      );
+      // 732f9bcf73c2 / 92559b915569 — an event with no depth leaves its stage's mean
+      var mixed = [{ tMs: t0 + 1800000, depth: 6 }, { tMs: t0 + 3600000, depth: 6 }, { tMs: t0 + 5400000 }];
+      var html = String(G.oxyEcgFusionSection(nightAt(mixed), ecg({ startEpochMs: t0, durationMin: 120 })));
+      var row = (html.match(/efz-stageval">[^<]*/) || [''])[0];
+      T.ok('fusion · two 6 % dips + one with no depth ⇒ a 6 % mean, not 4 %', /−6% mean/.test(row), row);
+      T.ok('fusion · …and the row says how many carried a depth', /3×\s*\(depth on 2\)/.test(row), row);
+      // 7fe93fab700e (pairing half) — the start-only ECG that coverage now refuses must still PAIR by its start
+      // the start-only fallback must NOT replace a real window: a bigger overlap still wins over an earlier key
+      var A = ecg({ startEpochMs: t0 + 3600000, durationMin: 60 }),
+        Bb = ecg({ startEpochMs: t0 + 1800000, durationMin: 300 });
+      try {
+        setByDate({ '2026-06-12a': A, '2026-06-12b': Bb });
+        T.ok('fusion · the ECG with the larger true overlap is paired (windows, not start points)', G.oxyEcgForNight({ t0Ms: t0, date: '2026-06-12', stats: { durationMin: 480 } }) === Bb);
+      } finally {
+        setByDate(undefined);
+      }
+      var startOnly = ecg({ startEpochMs: t0 + 3 * 3600000 }); // 01:00, keyed by its own (next) civil date
+      try {
+        setByDate({ '2026-06-13': startOnly, '2026-06-20': ecg({ startEpochMs: t0 + 8 * 86400000, durationMin: 60 }) });
+        T.ok(
+          'fusion · CONTROL · a start-only ECG inside the night still pairs (by its start, not its date)',
+          G.oxyEcgForNight({ t0Ms: t0, date: '2026-06-12', stats: { durationMin: 480 } }) === startOnly
+        );
+      } finally {
+        setByDate(undefined);
+      }
+    });
+
     group(
       'OxyDex fusion is COVERAGE-AWARE — confPct/dose scoped to the ECG window, no green 0 on non-overlap (DEEP-AUDIT-II §11.1–11.3)',
       'oxydex-fusion · coverage-aware · fabricated-absence',
@@ -46169,6 +46417,68 @@
       // a source-tag whose text merely CONTAINS a dot mid-string (a version) is not filename-shaped
       var tagOnly = DX.scrubExport({ schema: {}, recording: { source: 'ResMed AirSense 11 (EDF set)' }, sessions: [{ source: 'firmware 2.1 build' }] });
       T.ok('§5 · tag-shaped source strings survive (no extension, no separator)', tagOnly.recording.source === 'ResMed AirSense 11 (EDF set)' && tagOnly.sessions[0].source === 'firmware 2.1 build');
+    });
+
+    /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════
+       `_scrubElement` scrubbed `el.provenance` and `el.recording` and never visited
+       `el.schema.provenance`, while `scrubExport` reduces `schema.provenance` at the TOP level only.
+       ECGDex/PulseDex `recordings[]` and PpgDex `sessions[]` do not carry a summary block — they carry
+       a FULL v2.0 envelope per element, `schema.provenance.inputs[]` included, each input holding
+       `{ name, bytes, lastModifiedMs, sha256 }`. So with scrub ON, every per-element input NAME and
+       SHA256 survived, against the acceptance stated at the top of dex-export.js: a scrubbed JSON
+       contains no device serial, filename or input sha256.
+       ⚠️ THE EXISTING §5 GROUP IS GREEN OVER THIS. Its planted `nights[]` element carries a bare
+       `provenance` and its `recordings[]`/`sessions[]` elements carry NEITHER `schema` NOR
+       `provenance` — so the one shape that leaks is the one shape never planted. That is why this is a
+       separate group with its own control rather than another assertion in that one. RED on main. */
+    group('SELF-INGEST §5 · a per-element ENVELOPE is scrubbed, not just a per-element provenance', 'dex-export · scrub · self-ingest · plant', function (T) {
+      var DX = env.DexExport || (typeof globalThis !== 'undefined' && globalThis.DexExport) || null;
+      if (!DX || typeof DX.scrubExport !== 'function') {
+        T.skip('env.DexExport.scrubExport available', 'not available in this runner');
+        return;
+      }
+      var SHA = 'b17e55c0ffee1234567890abcdef0123456789abcdef0123456789abcdef0123';
+      var NAME = 'Jane_Smith_H10_20260612230016_ECG.txt';
+      function envelope() {
+        return {
+          schema: {
+            name: 'ganglior.node-export',
+            version: '2.0',
+            provenance: { buildHash: 'abc123', generated: '2026-06-12T23:00:16Z', inputs: [{ name: NAME, bytes: 918273, lastModifiedMs: 1781308816000, sha256: SHA }] }
+          },
+          recording: { contentId: 'cid-1' }
+        };
+      }
+      var raw = {
+        schema: {
+          name: 'ganglior.node-export',
+          version: '2.0',
+          provenance: { buildHash: 'abc123', generated: '2026-06-12T23:00:16Z', inputs: [{ name: NAME, bytes: 918273, lastModifiedMs: 1781308816000, sha256: SHA }] }
+        },
+        recordings: [envelope()],
+        sessions: [envelope()],
+        nights: [envelope()]
+      };
+      var before = JSON.stringify(raw);
+      // CONTROL — passes on main too: without it a green test could mean the token was never there.
+      T.ok('control · the sha256 and the filename ARE present before the scrub', before.indexOf(SHA) >= 0 && before.indexOf(NAME) >= 0, 'planted');
+
+      var out = JSON.stringify(DX.scrubExport(raw));
+      // RED ON MAIN: the per-element envelopes keep both.
+      T.eq('§5 · no input sha256 survives anywhere in a scrubbed export', out.indexOf(SHA), -1);
+      T.eq('§5 · no input FILENAME survives anywhere in a scrubbed export', out.indexOf(NAME), -1);
+
+      var sc = DX.scrubExport(raw);
+      ['recordings', 'sessions', 'nights'].forEach(function (key) {
+        var el = sc[key] && sc[key][0];
+        var prov = el && el.schema && el.schema.provenance;
+        T.ok(key + '[0].schema.provenance is REDUCED, not deleted', !!prov && prov.scrubbed === true, JSON.stringify(prov && Object.keys(prov)));
+        T.eq(key + '[0] keeps the non-identifying byte count', prov && prov.inputs && prov.inputs[0] && prov.inputs[0].bytes, 918273);
+        T.eq(key + '[0] drops name/sha256/lastModifiedMs from the input', JSON.stringify(prov && prov.inputs && prov.inputs[0]), '{"bytes":918273}');
+        // CONTROL — passes on main: the coarse build stamp is integrity, not identity, and must SURVIVE.
+        T.eq('control · ' + key + '[0] keeps the coarse buildHash', prov && prov.buildHash, 'abc123');
+      });
+      T.eq('the TOP-level envelope is still scrubbed (no regression)', JSON.stringify(sc.schema.provenance.inputs[0]), '{"bytes":918273}');
     });
 
     /* ════ SELF-INGEST (CPAPDex) — cpapLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS-2026-07-03 · CPAPDex pass) ════
@@ -64746,6 +65056,105 @@
         var osc = new Function('n', 'var evBadge = function () { return ""; }; var html = ""; ' + oscSrc + ' return html;');
         T.ok('R · no oscillation computed ⇒ not measured, never "Clear"', osc({}).indexOf('Clear') < 0 && osc({}).indexOf('not measured') >= 0, osc({}));
         T.ok('R · CONTROL · a computed search with 0 flagged windows ⇒ Clear', osc({ osc: { episodeCount: 0 } }).indexOf('Clear') >= 0);
+      }
+    });
+
+    group('OxyDex profile · an unentered setting or unmeasured term is not a number', 'oxydex-profile · absence', function (T) {
+      var R = env.oxyProfileRealm;
+      /* A NODE-lane group: oxyProfileRealm and the Oxy* profile seams are run-tests.mjs env entries (a narrow get/set
+         over the realm globals UP / allNights / _upHRrest). The browser lane has no such seams, so the group is
+         ASSERTED under the Node runner (env.nodeFs) and SKIPPED BY NAME in the browser, never vacuously green (#3341). */
+      if (env.nodeFs) T.ok('profile · the realm accessor and the recompute seam are wired (Node lane)', !!R && typeof env.OxyRecomputeFromProfile === 'function');
+      if (!R || typeof env.OxyRecomputeFromProfile !== 'function') {
+        if (!env.nodeFs) T.skip('oxydex-profile co-loaded with its realm accessor', 'Node-lane only: the realm accessor is a run-tests.mjs seam that the browser lane does not provide');
+        return;
+      }
+      var saved = { UP: R.get('UP'), allNights: R.get('allNights'), _upHRrest: R.get('_upHRrest') };
+      try {
+        // 643c0167154c — an empty elevation field is not entered, never sea level (headless gv() returns '')
+        env.OxyUpFromDOM();
+        T.eq('profile · an empty elevation field ⇒ null, not 0 m', R.get('UP').elevation, null);
+        // e294b096e810 — no RMSSD ⇒ no adjustment term (null), and the estimate is the Uth–Sørensen base alone
+        R.set('UP', { age: 40 });
+        var night = { hrv: { hrFloor: 55 }, stats: {} };
+        R.set('allNights', { a: night });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · no RMSSD ⇒ rmssdAdj null, not a measured-looking 0', night.vo2est && night.vo2est.rmssdAdj, null);
+        T.eq('profile · …and vo2est is the base alone: 15.3 × 180 / 55 = 50.1', night.vo2est && night.vo2est.vo2est, 50.1);
+        var night0 = { hrv: { hrFloor: 55, rmssd: 1.4 }, stats: {} };
+        R.set('allNights', { a: night0 });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · CONTROL · RMSSD 1.4 ⇒ a MEASURED 0 adjustment', night0.vo2est && night0.vo2est.rmssdAdj, 0);
+        // the adjustment's own arithmetic, both signs and both ±3 clamps (a 0-adjustment control alone cannot see a literal → 0)
+        var adjAt = function (rmssd) {
+          var nn = { hrv: { hrFloor: 55, rmssd: rmssd }, stats: {} };
+          R.set('allNights', { a: nn });
+          env.OxyRecomputeFromProfile();
+          return nn.vo2est ? [nn.vo2est.rmssdAdj, nn.vo2est.vo2est] : null;
+        };
+        T.eq('profile · RMSSD 3.4 ⇒ +2.1, vo2est 52.2', JSON.stringify(adjAt(3.4)), '[2.1,52.2]');
+        T.eq('profile · RMSSD −0.6 ⇒ −2.1, vo2est 48', JSON.stringify(adjAt(-0.6)), '[-2.1,48]');
+        T.eq('profile · RMSSD 5.4 ⇒ clamped at +3', JSON.stringify(adjAt(5.4)), '[3,53.1]');
+        T.eq('profile · RMSSD −2.6 ⇒ clamped at −3', JSON.stringify(adjAt(-2.6)), '[-3,47.1]');
+        // 7e34d2b1ab62 — one resting-HR source decision; an estimate is marked on the chips
+        var RH = env.OxyRestingHR,
+          ZC = env.OxyZoneChipText;
+        var CV = env.OxyHRrestCaveat;
+        T.ok(
+          'profile · the resting-HR source, chip-text and caveat seams exist (none existed: the chips wrote straight to the DOM)',
+          typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function'
+        );
+        if (typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function') {
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83); // detected p5 + 8 above the zones' 80 bound
+          T.eq('profile · a detected 83 bpm is refused by the zones ⇒ source "estimate", 71 − 0.25 × 40 = 61', JSON.stringify(RH()), '{"hrRest":61,"source":"estimate"}');
+          R.set('_upHRrest', 62);
+          T.eq('profile · CONTROL · a detected 62 ⇒ source "data"', JSON.stringify(RH()), '{"hrRest":62,"source":"data"}');
+          R.set('UP', { age: 40, hrRestOverride: 58 });
+          T.eq('profile · CONTROL · a manual 58 wins ⇒ source "manual"', JSON.stringify(RH()), '{"hrRest":58,"source":"manual"}');
+          R.set('UP', { age: 40, hrRestOverride: 100 });
+          T.eq('profile · a manual 100 is out of range (< 100 is strict) ⇒ not manual', RH().source, 'data');
+          R.set('_upHRrest', 80);
+          T.eq('profile · a detected 80 is out of range (< 80 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('_upHRrest', 30);
+          T.eq('profile · a detected 30 is out of range (> 30 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('UP', { age: 40, hrRestOverride: 30 });
+          T.eq('profile · a manual 30 is out of range (> 30 is strict) ⇒ not manual', RH().source, 'estimate');
+          R.set('UP', { hrRestOverride: 0 });
+          R.set('_upHRrest', null);
+          T.eq('profile · no age ⇒ the 49 the rest of the file assumes ⇒ 71 − 12.25 = 59', RH().hrRest, 59);
+          R.set('UP', { age: 400 });
+          T.eq('profile · the estimate is clamped at 45', RH().hrRest, 45);
+          R.set('UP', { age: -100 });
+          T.eq('profile · …and at 80', RH().hrRest, 80);
+          T.eq('profile · an estimated zone is marked ≈', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'estimate'), '≈ 120–140 bpm');
+          T.eq('profile · CONTROL · a detected zone is not', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'data'), '120–140 bpm');
+          T.eq('profile · the top zone runs to HRmax+', ZC({ low: 160, high: 180 }, { lo: 0.9 }, 180, 'manual'), '160–180+ bpm');
+          T.ok('profile · the sublabel caveat names the fallback for an estimate', /zones use the age estimate/.test(CV({ source: 'estimate' })));
+          /* THE PROPERTY, not the symbol (Kestrel's note): with a DETECTED value outside 30–80 the chips and the sublabel
+             read the SAME decision, so both say "estimate". Before the fix the chips silently used the age estimate
+             while the sublabel quoted the detected figure. */
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83);
+          var same = RH();
+          T.ok(
+            'profile · detected 83 bpm ⇒ the chips are marked ≈ AND the sublabel names the age estimate (one source)',
+            /^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same.source)) && /zones use the age estimate/.test(CV(same)),
+            JSON.stringify(same)
+          );
+          R.set('_upHRrest', 62);
+          var same2 = RH();
+          T.ok(
+            'profile · CONTROL · detected 62 bpm ⇒ neither the chips nor the sublabel claim an estimate',
+            !/^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same2.source)) && CV(same2) === '',
+            JSON.stringify(same2)
+          );
+          T.eq('profile · CONTROL · no caveat for a detected value', CV({ source: 'data' }), '');
+        }
+      } finally {
+        R.set('UP', saved.UP);
+        R.set('allNights', saved.allNights);
+        R.set('_upHRrest', saved._upHRrest);
       }
     });
 
