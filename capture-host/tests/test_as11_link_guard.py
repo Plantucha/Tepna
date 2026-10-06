@@ -162,6 +162,33 @@ def test_the_release_survives_a_disconnect_that_RAISES():
     asyncio.run(scenario())
 
 
+def test_the_JOURNAL_LINE_is_actually_emitted_and_names_the_holder(caplog):
+    """🔴 THE JOURNAL LINE IS THE DELIVERABLE, so it is asserted where it lands — in the LOG.
+
+    CI's diff-scoped gate named two survivors here and both were on this one statement:
+    `log.info(declined_line(_holder))` → `log.info(None)`, and → `log.info(declined_line(None))`. Every
+    test above reads the EXCEPTION's message, which is built separately by `LinkBusy.__init__`, so the
+    logged line was unobserved and could have been emitting `None` on every decline.
+
+    ⚠️ That is not a cosmetic gap. The brief's requirement was a line naming who holds the link, and a
+    contended night is reconstructed from the journal afterwards — "the link is held by None" is exactly
+    the un-actionable sentence this line exists to replace."""
+    import logging
+
+    opened: list[str] = []
+
+    async def scenario():
+        _w, _r, _d = await G.hold("spool-pull", _triple(opened, "spool"))
+        with caplog.at_level(logging.INFO, logger="tepna.cpap"), pytest.raises(G.LinkBusy):
+            await G.hold("shadow-poll", _triple(opened, "shadow"))
+
+    asyncio.run(scenario())
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("held by spool-pull" in m for m in msgs), "the emitted line must name the holder; got %r" % msgs
+    assert not any(m.strip() in {"None", ""} for m in msgs), f"an empty or None journal line: {msgs}"
+    assert not any("held by None" in m for m in msgs), f"the holder was dropped before logging: {msgs}"
+
+
 def test_the_declined_line_NAMES_the_holder():
     """ "The link was busy" is not actionable: the question asked afterwards is which actor was in the
     way. The holder is in the sentence and on the exception, so a caller can render it."""
