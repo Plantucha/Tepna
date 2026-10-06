@@ -1013,3 +1013,31 @@ def test_a_device_clock_stream_carries_the_new_fields_QUIET(tmp_path):
     acc = out["devices"][0]["streams"]["acc"]
     assert acc["coverage_pct"] == 100.0, acc
     assert acc["coverage_unmeasured"] == 0 and acc["coverage_reason"] is None, acc
+
+
+def test_build_PREFERS_THE_RECORDED_OFFSET_over_the_one_it_could_infer(tmp_path):
+    """🔴 THE TWO SURVIVORS THIS KILLS, named by CI's diff-scoped gate on #3296:
+    `_recorded = nightqc.recorded_writer_offset(night_dir)` → `None`, and
+    `(_recorded if _recorded is not None else …)` → `… and False`. Both make the timeline fall back to the
+    mtime-vs-last-row vote while a recorded offset sits on disk, and nothing observed the preference.
+
+    ⚠️ THE TWO OFFSETS MUST DIFFER, which is the whole construction — the same trap as the nightqc twin
+    (#3286): a night whose recorded offset equals its inferable one passes with the preference deleted,
+    because both paths return the same number and the test reports success about a mechanism it never
+    exercised. So `STARTS.csv` records EDT (-14400) while the files' own stamps are what inference reads,
+    and the assertion is that the RECORDED value wins AND is labelled `declared` — the basis is the part a
+    reader acts on, since a declared offset is a premise and a recovered one is a measurement."""
+    import writers
+
+    _link_csv(tmp_path, ["2026-07-26T22:00:00.000;Polar H10;1;-55;80;;;2\n"])
+    with open(tmp_path / writers.STARTS_NAME, "w", encoding="utf-8") as fh:
+        fh.write(writers._STARTS_HEADER)
+        fh.write("22:00:01 26/07/2026;4242;b89c192;no;hci0;-14400\n")
+    out = timeline.build(
+        str(tmp_path),
+        [{"name": "Polar H10", "device_id": "02849638", "address": "AA:BB", "streams": ["ecg"]}],
+    )
+    wo = out["writer_offset"]
+    assert wo["offset_sec"] == -14400.0, f"the RECORDED offset must win over anything inference would produce: {wo}"
+    assert wo["basis"] == "declared", f"a recorded offset is a premise, never a measurement: {wo}"
+    assert wo["frame"] == "absolute", wo
