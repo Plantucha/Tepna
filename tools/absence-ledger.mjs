@@ -526,6 +526,56 @@ export const SEEDS = [
     at: 'oxydex-dsp.js:5375',
     state: 'fixed',
     note: "the 1 Hz gap-span fallback is kept but NAMED: gapSpanSource: 'assumed-1Hz' rides only on the fallback, so an assumed span is distinguishable from a measured one. Plant: the B1 assertions in tests/dex-tests.js (the parseJSONL group and 'OxyDex B1 · an unread motion cell and a synthesised gap span are not readings'), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:3814',
+    state: 'fixed',
+    note: "buildFlags emits OK only when t90pct, minSpo2 and maxHr were measured, else NOT_FULLY_ASSESSED (the #3283 shape); its plant also found minSpo2 <= 88 true for null, now guarded. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:2518',
+    state: 'fixed',
+    note: "computeSmartSummary overallScore is null with nothing scoreable, never 0 (the healthy end of the scale), and the render gives a null score no colour. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:3990',
+    state: 'fixed',
+    note: "the stability subscore s1 drops out when spo2Std is unmeasured, never a clamped perfect 100. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:4005',
+    state: 'fixed',
+    note: "the stability subscore s6 drops out when t95pct is unmeasured, never a clamped perfect 100. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6089',
+    state: 'fixed',
+    note: "computeSleepStageProxy classifies only windows whose motion was read; with none classifiable the proxy is null, never 0.0 % REM. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6330',
+    state: 'fixed',
+    note: "readiness rmssdScore is null with no RMSSD and leaves the renormalised basis, never 0 of 30. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6386',
+    state: 'fixed',
+    note: "readiness hrSlopeScore is null with no measured dip, never the half-credit 5. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6354',
+    state: 'fixed',
+    note: "with no rows and no hint the sleep duration is absent, never an assumed six hours. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6127',
+    state: 'fixed',
+    note: "computeVO2maxEstimate keeps the estimate but names an unentered age as ASSUMED (ageAssumed, the label, -15 confidence). Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:6366',
+    state: 'fixed',
+    note: "no stage estimate means no neutral +5: the sleep component is duration and stage halves each scored only when measured, weighted by scores.sleepMax. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
   }
 ];
 
