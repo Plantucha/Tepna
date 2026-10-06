@@ -64,10 +64,29 @@ def test_hold(tmp_path):
     sentinel = tmp_path / "sentinel"
     sentinel.write_text(os.environ["RACE_TAG"])
     basetemp = tmp_path.parent            # <TMPDIR>/pytest-of-<user>/pytest-N — NOT .parent.parent,
-    time.sleep(float(os.environ["HOLD_SEC"]))   # which is the ROOT and reads as one shared dir.
+                                          # which is the ROOT and reads as one shared dir.
+    # A BARRIER, NOT A SLEEP. The overlap is the whole experiment: every session must still be HOLDING
+    # its dir while the others hold theirs, or the cleanup never has a live dir to take and the cell
+    # passes having tested nothing. A fixed `HOLD_SEC` only makes that LIKELY — a session that starts
+    # later than the hold misses the window entirely and nothing says so.
+    barrier = "no-barrier"
+    ready_dir = os.environ.get("RACE_READY")
+    if ready_dir:
+        Path(ready_dir, os.environ["RACE_TAG"]).write_text("ready")
+        peers = int(os.environ["RACE_PEERS"])
+        deadline = time.monotonic() + float(os.environ.get("RACE_BARRIER_MAX_S", "30"))
+        barrier = "timeout"
+        while time.monotonic() < deadline:
+            if len(os.listdir(ready_dir)) >= peers:
+                barrier = "all-ready"
+                break
+            time.sleep(0.01)
+    else:
+        time.sleep(float(os.environ["HOLD_SEC"]))
     Path(os.environ["RACE_OUT"]).write_text(json.dumps({
         "basetemp": str(basetemp),
         "sentinel_survived": sentinel.exists(),
+        "barrier": barrier,
     }))
     assert sentinel.exists(), "MY OWN tmp_path was removed while I was using it"
     if os.environ.get("SESSION_VERDICT") == "fail":
@@ -109,12 +128,22 @@ def _usable_cpus() -> int:
 JOBS_HIGH = min(8, max(2, _usable_cpus() // _WORKERS))
 
 
-def _run_session(session_file, out, tag, verdict, tmpdir, policy, basetemp, sink):
+def _run_session(session_file, out, tag, verdict, tmpdir, policy, basetemp, sink, hold=HOLD, ready=None, peers=0):
+    """`hold` is the session's own, because only a CONCURRENT cell needs one.
+
+    ⚠️ IT WAS GLOBAL, AND THE COMMENT IN `test_the_keep3_cleanup...` IS THE EVIDENCE THAT NOBODY MEANT IT
+    TO BE: "Four quick sequential sessions cost ~0.4 s and pin it." Measured 2026-10-05, those four cost
+    about EIGHT seconds — 4 x (1.5 s `HOLD` + interpreter start) — because they inherited the hold a
+    concurrent cell needs. They run one after another in a `for` loop, so they cannot overlap by
+    construction and the hold buys them nothing. What they discriminate on is how many numbered dirs
+    EXIST (`len(numbered) > 3`), not how long any of them lived.
+    """
     env = dict(
         os.environ,
         RACE_OUT=str(out),
         RACE_TAG=tag,
-        HOLD_SEC=HOLD,
+        HOLD_SEC=hold,
+        **({"RACE_READY": str(ready), "RACE_PEERS": str(peers)} if ready else {}),
         SESSION_VERDICT=verdict,
         TMPDIR=str(tmpdir),
         PYTEST_ADDOPTS=f"-o tmp_path_retention_policy={policy}",
@@ -131,6 +160,8 @@ def _run_session(session_file, out, tag, verdict, tmpdir, policy, basetemp, sink
             "exit": r.returncode,
             "reached_body": bool(rec),
             "basetemp": rec.get("basetemp"),
+            # Which mechanism held the dir, so a cell can ASSERT the overlap rather than hope for it.
+            "barrier": rec.get("barrier"),
             # Carried through explicitly. Dropping it is what made the 2x2's own reaped-check vacuous:
             # `reached_body and not basetemp` can never be true, because a session that reaches its body
             # always records a basetemp. See the `none` cells below, which are what exposed it.
@@ -142,7 +173,7 @@ def _run_session(session_file, out, tag, verdict, tmpdir, policy, basetemp, sink
     )
 
 
-def _cell(tmp_path, jobs, policy, shared_basetemp=None):
+def _cell(tmp_path, jobs, policy, shared_basetemp=None, barrier=True):
     """`jobs` sessions launched together; the SURVIVOR goes first, which is the ordering a cascade
     would need to fire early."""
     sf = tmp_path / "test_race_session.py"
@@ -151,9 +182,22 @@ def _cell(tmp_path, jobs, policy, shared_basetemp=None):
     tmpdir.mkdir(exist_ok=True)
     sink: list[dict] = []
     plan = [("s0", "pass")] + [(f"k{i}", "fail") for i in range(1, jobs)]
+    # The barrier's rendezvous. Its own directory per cell, so two cells can never see each other's
+    # readiness files and conclude they are peers.
+    # ⚠️ `barrier=False` IS FOR A CELL WHOSE PREMISE IS INTERFERENCE, NOT COEXISTENCE. The barrier waits
+    # for every peer to signal, which is right when the question is "do concurrent sessions leave each
+    # other alone" — and wrong when the question is "do they destroy each other", because there a session
+    # that never finishes is an EXPECTED outcome (`test_a_shared_basetemp_IS_a_hazard`: "either they
+    # collide on it, or one never finished"). Such a cell keeps the fixed hold: nothing can wait for a
+    # peer that may never arrive. Found by the overlap assertion below failing on its first run.
+    ready = tmp_path / f"ready-{policy}-{jobs}-{'shared' if shared_basetemp else 'own'}" if barrier else None
+    if ready:
+        ready.mkdir(exist_ok=True)
     threads = [
         threading.Thread(
-            target=_run_session, args=(sf, tmp_path / f"rec-{t}.json", t, v, tmpdir, policy, shared_basetemp, sink)
+            target=_run_session,
+            args=(sf, tmp_path / f"rec-{t}.json", t, v, tmpdir, policy, shared_basetemp, sink),
+            kwargs={"ready": ready, "peers": jobs},
         )
         for t, v in plan
     ]
@@ -161,6 +205,17 @@ def _cell(tmp_path, jobs, policy, shared_basetemp=None):
         t.start()
     for t in threads:
         t.join()
+    # 🔴 THE OVERLAP IS NOW ASSERTED, NOT HOPED FOR. Every session that reached its body must have seen all
+    # of its peers ready — i.e. they were all holding their dirs at the same instant, which is the only
+    # condition under which the cleanup below had a live dir it could have taken. Under the fixed
+    # `HOLD_SEC` this was merely LIKELY: a session that started later than the hold missed the window,
+    # the cell passed, and nothing recorded that the experiment had not happened. That is the same
+    # vacuous-pass shape this file's own comments warn about twice elsewhere.
+    missed = [r["tag"] for r in sink if barrier and r.get("reached_body") and r.get("barrier") != "all-ready"]
+    assert not missed, (
+        f"the sessions never overlapped — {missed} did not see {jobs} peers ready, so the cleanup was "
+        "never offered a live dir and this cell measured nothing"
+    )
     return sink, tmpdir
 
 
@@ -190,7 +245,8 @@ def test_a_shared_basetemp_IS_a_hazard(tmp_path):
     test starts FAILING, pytest changed its clearing behaviour and the 2x2's premise needs re-reading
     — it is not a licence to pass `--basetemp`."""
     shared = tmp_path / "shared-basetemp"
-    sink, _ = _cell(tmp_path, 2, "all", shared_basetemp=shared)
+    # barrier=False: this cell's premise is that one session may never finish — see `_cell`.
+    sink, _ = _cell(tmp_path, 2, "all", shared_basetemp=shared, barrier=False)
     reported = {r["basetemp"] for r in sink if r["basetemp"]}
     # Both sessions were handed ONE directory: either they collide on it, or one never finished.
     assert len(reported) <= 1, f"expected one shared basetemp, saw {reported}"
@@ -213,7 +269,9 @@ def test_the_keep3_cleanup_leaves_live_dirs_alone_BECAUSE_the_lock_is_fresh(tmp_
     seed_dir.mkdir(exist_ok=True)
     seed_sink: list[dict] = []
     for i in range(4):
-        _run_session(sf, tmp_path / f"rec-seed{i}.json", f"seed{i}", "pass", seed_dir, "all", None, seed_sink)
+        # hold="0": a sequential seed cannot overlap anything, so it waits for nothing. This is what the
+        # comment above already claimed these four cost.
+        _run_session(sf, tmp_path / f"rec-seed{i}.json", f"seed{i}", "pass", seed_dir, "all", None, seed_sink, hold="0")
     sink, tmpdir = _cell(tmp_path, JOBS_HIGH, "all")
     assert len([r for r in sink if r["reached_body"]]) == JOBS_HIGH
     root = tmpdir / f"pytest-of-{os.environ.get('USER', '')}"
