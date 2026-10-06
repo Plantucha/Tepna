@@ -576,6 +576,56 @@ export const SEEDS = [
     at: 'oxydex-dsp.js:6366',
     state: 'fixed',
     note: "no stage estimate means no neutral +5: the sleep component is duration and stage halves each scored only when measured, weighted by scores.sleepMax. Plant: tests/dex-tests.js groups 'OxyDex B2 · a score or a verdict over an unmeasured input is no score' and 'OxyDex readiness composite' (expectations RECONCILED), red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:2250',
+    state: 'fixed',
+    note: "computeVagalIndex returns null when pnn3, hrFloor or longestCleanRun is unmeasured, never hrFloor || 60 (nor pnn3 / cleanRun || 0). Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:2328',
+    state: 'fixed',
+    note: "computeOxyCrash returns null under 60 s (no crash search ran), never a count of 0. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:5654',
+    state: 'fixed',
+    note: "computeLCSP returns null when motion was read on no row, never a 0-min severely fragmented period. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:2092',
+    state: 'fixed',
+    note: "computeSympSurge scores each term only when measured (a spike search that found none is a measured 0; one that never ran is not) and renormalises over ssiBasis; all terms absent gives null. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:3232',
+    state: 'fixed',
+    note: "computeHRV keeps only still, artifact-free rows WITH a finite HR, so a null HR is not a sample (it sorted first as the floor and read as 0 in the SD). Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:4454',
+    state: 'fixed',
+    note: "computeMotionSleep wasoPct is null when no post-onset window exists, never 0 % awake. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:3189',
+    state: 'fixed',
+    note: "computeStats motionPct is over the rows whose motion was READ; none read gives null, never an understated share. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:1555',
+    state: 'fixed',
+    note: "computeRollingMetrics worst30minT95 stays null until a 30-min window is evaluated, never 0. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:7383',
+    state: 'fixed',
+    note: "oxyDesatConf returns null for an event with no recorded depth (the base term), never the 0.45 of a real shallow dip. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
+  },
+  {
+    at: 'oxydex-dsp.js:7314',
+    state: 'fixed',
+    note: "oxyBuildGangliorEvents uses a MEASURED sample interval or none: a stamp-less event that cannot be placed is not emitted, never placed at an assumed 1 Hz. Plant: tests/dex-tests.js group 'OxyDex B3 · a derived metric over an unmeasured input is no metric', red on the pre-fix oxydex-dsp.js."
   }
 ];
 
