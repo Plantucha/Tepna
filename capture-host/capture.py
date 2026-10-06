@@ -11984,8 +11984,15 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     interactive_timeout = float(cbs.get("connect_timeout_sec", 8.0))
 
     async def connect():  # pragma: no cover — thin closure over the bleak I/O edge in _cpap_ble_connect
-        creds = _load_as11_creds(creds_path)
-        return await _cpap_ble_connect(creds["ble_addr"], hci, interactive_timeout)
+        import as11_link_guard
+
+        async def _open():
+            creds = _load_as11_creds(creds_path)
+            return await _cpap_ble_connect(creds["ble_addr"], hci, interactive_timeout)
+
+        # FAILS FAST like every other actor (the `offline_lock` rule): `LinkBusy` names the holder, so
+        # the caller can say "the shadow poll has it, try again" instead of spinning.
+        return await as11_link_guard.hold("live-stream", _open)
 
     # Optional on-disk EDF sink, enabled by setting cpap.ble_stream.edf_dir. Each live session then writes
     # a bit-accurate BRP.edf there — QUARANTINED under a PENDING subtree until the flow scale is pinned
@@ -12370,12 +12377,20 @@ def _build_cpap_pairer(cfg: dict, config_path: str, cpap_ctl, *, connect=None, o
     if connect is None:  # pragma: no cover — the bleak I/O edge, mirrors _build_cpap_controller
 
         async def connect(ble_addr):
-            # Same discovery failover the shadow uses: a renumbered dongle must not read as "CPAP absent"
-            # to the person standing at the machine with its pairing screen open.
-            got, _adapter, _attempts = await _cpap_connect_any_adapter(
-                ble_addr, hci, interactive_timeout, reserved=ADAPTER
-            )
-            return got
+            import as11_link_guard
+
+            async def _open():
+                # Same discovery failover the shadow uses: a renumbered dongle must not read as "CPAP
+                # absent" to the person standing at the machine with its pairing screen open.
+                got, _adapter, _attempts = await _cpap_connect_any_adapter(
+                    ble_addr, hci, interactive_timeout, reserved=ADAPTER
+                )
+                return got
+
+            # FAILS FAST, and for the person at the machine that is the BETTER answer: `LinkBusy` names
+            # the holder immediately, so the pairing screen can say which actor is in the way rather than
+            # hanging on a queue whose outcome they cannot see.
+            return await as11_link_guard.hold("pairing", _open)
 
     def default_addr():
         return (_load_as11_creds(creds_path) or {}).get("ble_addr") or cbs.get("ble_addr")
@@ -12427,14 +12442,24 @@ def _maybe_start_as11_shadow(
     if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors _build_cpap_controller
 
         async def connect_factory():
-            # DISCOVERY FAILOVER: a sibling radio is the cheapest second opinion before an absence
-            # is written down. ⚠️ NOT the fix for the 2026-08-29 blackout — that was a bluez
-            # per-DEVICE state wedge shared by every adapter (hci0 saw 107 other devices throughout),
-            # and a sibling would have been blind too. See `ble_discovery`'s header.
-            # `reserved=ADAPTER` is the WEARABLES radio (top-level config `adapter:`), passed so the
-            # failover can SAY when it lands there. config.example.yaml reserves it explicitly.
-            got, _adapter, _attempts = await _cpap_connect_any_adapter(creds["ble_addr"], hci, reserved=ADAPTER)
-            return got
+            import as11_link_guard
+
+            async def _open():
+                # DISCOVERY FAILOVER: a sibling radio is the cheapest second opinion before an absence
+                # is written down. ⚠️ NOT the fix for the 2026-08-29 blackout — that was a bluez
+                # per-DEVICE state wedge shared by every adapter (hci0 saw 107 other devices throughout),
+                # and a sibling would have been blind too. See `ble_discovery`'s header.
+                # `reserved=ADAPTER` is the WEARABLES radio (top-level config `adapter:`), passed so the
+                # failover can SAY when it lands there. config.example.yaml reserves it explicitly.
+                got, _adapter, _attempts = await _cpap_connect_any_adapter(creds["ble_addr"], hci, reserved=ADAPTER)
+                return got
+
+            # 🔴 The actor that makes queueing unthinkable, and why NOBODY queues: it polls every 33 s,
+            # so a five-minute spool round would leave ~9 polls stacked to fire the instant it finished,
+            # each describing a moment that has passed. `LinkBusy` is neither `OSError` nor `As11Error`,
+            # so it surfaces through the shadow loop's broad `except Exception` — which exists for
+            # exactly this: journalled as an unreachable cycle, loop alive.
+            return await as11_link_guard.hold("shadow-poll", _open)
 
     interval = float(adcfg.get("poll_interval_sec", 30.0))
     # The sidecars are opened ONCE, here — a supervised restart re-enters the loop with a fresh
@@ -12992,7 +13017,11 @@ def _maybe_start_cpap_spool_pull(
     if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors the shadow runner
 
         async def connect_factory():
-            return await _cpap_ble_connect(creds["ble_addr"], hci)
+            import as11_link_guard
+
+            # FAILS FAST, and it costs the day nothing: `pull_blocked` already declines to consume the
+            # day on a deferral, so a pull refused this minute is retried the next.
+            return await as11_link_guard.hold("spool-pull", lambda: _cpap_ble_connect(creds["ble_addr"], hci))
 
     spool_root = resolve_spool_root(scfg.get("root"), root)
     epoch_start = scfg.get("epoch_start", cpap_spool_caller.SPOOL_EPOCH_START_DEFAULT)

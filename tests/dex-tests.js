@@ -64970,6 +64970,105 @@
       }
     });
 
+    group('OxyDex profile · an unentered setting or unmeasured term is not a number', 'oxydex-profile · absence', function (T) {
+      var R = env.oxyProfileRealm;
+      /* A NODE-lane group: oxyProfileRealm and the Oxy* profile seams are run-tests.mjs env entries (a narrow get/set
+         over the realm globals UP / allNights / _upHRrest). The browser lane has no such seams, so the group is
+         ASSERTED under the Node runner (env.nodeFs) and SKIPPED BY NAME in the browser, never vacuously green (#3341). */
+      if (env.nodeFs) T.ok('profile · the realm accessor and the recompute seam are wired (Node lane)', !!R && typeof env.OxyRecomputeFromProfile === 'function');
+      if (!R || typeof env.OxyRecomputeFromProfile !== 'function') {
+        if (!env.nodeFs) T.skip('oxydex-profile co-loaded with its realm accessor', 'Node-lane only: the realm accessor is a run-tests.mjs seam that the browser lane does not provide');
+        return;
+      }
+      var saved = { UP: R.get('UP'), allNights: R.get('allNights'), _upHRrest: R.get('_upHRrest') };
+      try {
+        // 643c0167154c — an empty elevation field is not entered, never sea level (headless gv() returns '')
+        env.OxyUpFromDOM();
+        T.eq('profile · an empty elevation field ⇒ null, not 0 m', R.get('UP').elevation, null);
+        // e294b096e810 — no RMSSD ⇒ no adjustment term (null), and the estimate is the Uth–Sørensen base alone
+        R.set('UP', { age: 40 });
+        var night = { hrv: { hrFloor: 55 }, stats: {} };
+        R.set('allNights', { a: night });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · no RMSSD ⇒ rmssdAdj null, not a measured-looking 0', night.vo2est && night.vo2est.rmssdAdj, null);
+        T.eq('profile · …and vo2est is the base alone: 15.3 × 180 / 55 = 50.1', night.vo2est && night.vo2est.vo2est, 50.1);
+        var night0 = { hrv: { hrFloor: 55, rmssd: 1.4 }, stats: {} };
+        R.set('allNights', { a: night0 });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · CONTROL · RMSSD 1.4 ⇒ a MEASURED 0 adjustment', night0.vo2est && night0.vo2est.rmssdAdj, 0);
+        // the adjustment's own arithmetic, both signs and both ±3 clamps (a 0-adjustment control alone cannot see a literal → 0)
+        var adjAt = function (rmssd) {
+          var nn = { hrv: { hrFloor: 55, rmssd: rmssd }, stats: {} };
+          R.set('allNights', { a: nn });
+          env.OxyRecomputeFromProfile();
+          return nn.vo2est ? [nn.vo2est.rmssdAdj, nn.vo2est.vo2est] : null;
+        };
+        T.eq('profile · RMSSD 3.4 ⇒ +2.1, vo2est 52.2', JSON.stringify(adjAt(3.4)), '[2.1,52.2]');
+        T.eq('profile · RMSSD −0.6 ⇒ −2.1, vo2est 48', JSON.stringify(adjAt(-0.6)), '[-2.1,48]');
+        T.eq('profile · RMSSD 5.4 ⇒ clamped at +3', JSON.stringify(adjAt(5.4)), '[3,53.1]');
+        T.eq('profile · RMSSD −2.6 ⇒ clamped at −3', JSON.stringify(adjAt(-2.6)), '[-3,47.1]');
+        // 7e34d2b1ab62 — one resting-HR source decision; an estimate is marked on the chips
+        var RH = env.OxyRestingHR,
+          ZC = env.OxyZoneChipText;
+        var CV = env.OxyHRrestCaveat;
+        T.ok(
+          'profile · the resting-HR source, chip-text and caveat seams exist (none existed: the chips wrote straight to the DOM)',
+          typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function'
+        );
+        if (typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function') {
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83); // detected p5 + 8 above the zones' 80 bound
+          T.eq('profile · a detected 83 bpm is refused by the zones ⇒ source "estimate", 71 − 0.25 × 40 = 61', JSON.stringify(RH()), '{"hrRest":61,"source":"estimate"}');
+          R.set('_upHRrest', 62);
+          T.eq('profile · CONTROL · a detected 62 ⇒ source "data"', JSON.stringify(RH()), '{"hrRest":62,"source":"data"}');
+          R.set('UP', { age: 40, hrRestOverride: 58 });
+          T.eq('profile · CONTROL · a manual 58 wins ⇒ source "manual"', JSON.stringify(RH()), '{"hrRest":58,"source":"manual"}');
+          R.set('UP', { age: 40, hrRestOverride: 100 });
+          T.eq('profile · a manual 100 is out of range (< 100 is strict) ⇒ not manual', RH().source, 'data');
+          R.set('_upHRrest', 80);
+          T.eq('profile · a detected 80 is out of range (< 80 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('_upHRrest', 30);
+          T.eq('profile · a detected 30 is out of range (> 30 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('UP', { age: 40, hrRestOverride: 30 });
+          T.eq('profile · a manual 30 is out of range (> 30 is strict) ⇒ not manual', RH().source, 'estimate');
+          R.set('UP', { hrRestOverride: 0 });
+          R.set('_upHRrest', null);
+          T.eq('profile · no age ⇒ the 49 the rest of the file assumes ⇒ 71 − 12.25 = 59', RH().hrRest, 59);
+          R.set('UP', { age: 400 });
+          T.eq('profile · the estimate is clamped at 45', RH().hrRest, 45);
+          R.set('UP', { age: -100 });
+          T.eq('profile · …and at 80', RH().hrRest, 80);
+          T.eq('profile · an estimated zone is marked ≈', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'estimate'), '≈ 120–140 bpm');
+          T.eq('profile · CONTROL · a detected zone is not', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'data'), '120–140 bpm');
+          T.eq('profile · the top zone runs to HRmax+', ZC({ low: 160, high: 180 }, { lo: 0.9 }, 180, 'manual'), '160–180+ bpm');
+          T.ok('profile · the sublabel caveat names the fallback for an estimate', /zones use the age estimate/.test(CV({ source: 'estimate' })));
+          /* THE PROPERTY, not the symbol (Kestrel's note): with a DETECTED value outside 30–80 the chips and the sublabel
+             read the SAME decision, so both say "estimate". Before the fix the chips silently used the age estimate
+             while the sublabel quoted the detected figure. */
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83);
+          var same = RH();
+          T.ok(
+            'profile · detected 83 bpm ⇒ the chips are marked ≈ AND the sublabel names the age estimate (one source)',
+            /^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same.source)) && /zones use the age estimate/.test(CV(same)),
+            JSON.stringify(same)
+          );
+          R.set('_upHRrest', 62);
+          var same2 = RH();
+          T.ok(
+            'profile · CONTROL · detected 62 bpm ⇒ neither the chips nor the sublabel claim an estimate',
+            !/^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same2.source)) && CV(same2) === '',
+            JSON.stringify(same2)
+          );
+          T.eq('profile · CONTROL · no caveat for a detected value', CV({ source: 'data' }), '');
+        }
+      } finally {
+        R.set('UP', saved.UP);
+        R.set('allNights', saved.allNights);
+        R.set('_upHRrest', saved._upHRrest);
+      }
+    });
+
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
       var O = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
       var K = O && O.computeKarvonenZones;
