@@ -457,7 +457,9 @@ async function main(argv) {
 
 function selftest() {
   let bad = 0;
+  let ran = 0;
   const ck = (name, got, want) => {
+    ran++;
     const ok = JSON.stringify(got) === JSON.stringify(want);
     if (!ok) {
       console.log(`  selftest FAIL ${name}: ${JSON.stringify(got)} != ${JSON.stringify(want)}`);
@@ -528,7 +530,14 @@ function selftest() {
       resolveKey({ keyVar: 'K', keyFile: '/x', env: { K: 'second' }, exists: () => false }).key === 'second',
     true
   );
-  console.log(bad ? `  selftest: ${bad} FAILED` : '  selftest: resolveKey + scrub + verifyExport + buildRequest + groupedIdLines OK');
+  /* ⚠️ THE RUNNER PARSES THIS LINE. `tools/test-tools.mjs` reads an assertion count out of every
+     tool's selftest, and a tool that is GREEN but prints no parseable count fails the lane unless it
+     is listed in UNPARSEABLE_RATCHET — which is how this file reddened `test:tools` on main the moment
+     #3326 merged, stopping every bird's `npm run check` at step 9 of 22. A green tool that reports
+     nothing countable is the examined-nothing shape at the level of the gate itself.
+     `ran` is counted by `ck`, never hardcoded: a selftest whose count is a literal keeps reporting the
+     old number after someone adds an assertion, which is the same lie one layer up. */
+  console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   return bad ? 1 : 0;
 }
 
