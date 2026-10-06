@@ -29854,7 +29854,8 @@
       out = B.computeMotionProfile(0);
       T.eq('B.computeMotionProfile(0) → "0"', JSON.stringify(out.arousalIndex), '0');
       out = B.oxyDesatConf(null);
-      T.eq('B.oxyDesatConf(null) → "0.45"', JSON.stringify(out), '0.45');
+      // ⚠ RECONCILED (ABSENCE-SURVEY d488d9d484e2) — this pinned 0.45, the confidence of a real shallow dip, for no event at all
+      T.eq('B.oxyDesatConf(null) → null (no depth, no confidence)', JSON.stringify(out), 'null');
       out = B._oxyEnsureRows(null);
       T.eq('B._oxyEnsureRows(null) → "true"', JSON.stringify(out === null), 'true');
       out = B.computeODI1('');
@@ -64401,6 +64402,94 @@
       T.eq('B2 · nothing scoreable ⇒ overallScore null, not 0', sm && sm.overallScore, null);
     });
 
+    group('OxyDex B3 · a derived metric over an unmeasured input is no metric', 'oxydex-dsp · derived · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B || typeof B.computeVagalIndex !== 'function') {
+        T.skip('OxyDex._bare derived-metric functions exposed', 'not on the bare surface');
+        return;
+      }
+      var T0 = Date.UTC(2026, 0, 1, 23, 0, 0);
+      var mkRows = function (n, f) {
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          var r = { t: new Date(T0 + i * 1000), tMs: T0 + i * 1000, spo2: 96, hr: i % 2 ? 62 : 60, motion: 0 };
+          if (f) f(r, i);
+          out.push(r);
+        }
+        return out;
+      };
+      // 791f528789a3 — an unmeasured HR floor is not 60 bpm
+      T.eq('B3 · vagal index with the HR floor unmeasured ⇒ null', B.computeVagalIndex({ pnn3: 10, hrFloor: null }, { longestCleanRun: 600 }), null);
+      T.ok('B3 · CONTROL · every factor measured ⇒ an index', !!B.computeVagalIndex({ pnn3: 10, hrFloor: 52 }, { longestCleanRun: 600 }));
+      // 93912aa2a698 — under a minute no crash search ran
+      T.eq('B3 · 30 s of data ⇒ no crash result, not a count of 0', B.computeOxyCrash(mkRows(30)), null);
+      var oc = B.computeOxyCrash(mkRows(600));
+      T.eq('B3 · CONTROL · a searched clean 10 min ⇒ a measured 0', oc && oc.oxyCrashCount, 0);
+      // 993523537baa — no motion channel ⇒ no consolidated-sleep period
+      T.eq(
+        'B3 · motion unread on every row ⇒ no LCSP',
+        B.computeLCSP(
+          mkRows(600, function (r) {
+            r.motion = null;
+          })
+        ),
+        null
+      );
+      var lc = B.computeLCSP(mkRows(600));
+      T.eq('B3 · CONTROL · 600 still rows ⇒ a 600 s period', lc && lc.lcspSec, 600);
+      // fda41414f3e8 — an unmeasured term leaves the surge index
+      T.eq('B3 · no term measured ⇒ no SSI, not 0 "Low"', B.computeSympSurge(null, null, null, null, 1), null);
+      var ssiP = B.computeSympSurge(null, [], { autoArousalIdx: 5 }, null, 1);
+      T.eq('B3 · spikes searched (none) + AAI 5, post-dip unmeasured ⇒ renormalised over 0.6', JSON.stringify(ssiP && [ssiP.ssi, ssiP.ssiBasis]), '[0.333,0.6]');
+      var ssiF = B.computeSympSurge(null, [{}, {}], { autoArousalIdx: 5 }, { postDipHrResponse: 5 }, 1);
+      T.eq('B3 · every term measured ⇒ the plain weighted sum it always was, and basis 1 published', JSON.stringify(ssiF && [ssiF.ssi, ssiF.ssiBasis]), '[1.2,1]');
+      // 186f04d40bcd — a still row with no HR is not a heart-rate sample
+      var hv = B.computeHRV(
+        mkRows(400, function (r, i) {
+          if (i % 4 === 0) r.hr = null;
+        })
+      );
+      var hvC = B.computeHRV(
+        mkRows(400).filter(function (r, i) {
+          return i % 4 !== 0;
+        })
+      );
+      T.eq('B3 · HR-less still rows leave the HRV proxies unchanged (floor, SD)', JSON.stringify(hv && [hv.hrFloor, hv.hrSdnn]), JSON.stringify(hvC && [hvC.hrFloor, hvC.hrSdnn]));
+      T.eq('B3 · …and the floor is a real HR, not the null a sort puts first', hv && hv.hrFloor, 60);
+      // 0db4b4bb5562 — under ~35 min there is no post-onset window
+      var ms = B.computeMotionSleep(mkRows(1900));
+      T.eq('B3 · 1900 s ⇒ WASO null, not 0 % awake', ms && ms.wasoPct, null);
+      var ms2 = B.computeMotionSleep(mkRows(3600));
+      T.eq('B3 · CONTROL · an hour of still rows ⇒ a measured 0 %', ms2 && ms2.wasoPct, 0);
+      // d568bdabd5a2 — unread motion rows leave the denominator
+      var st = B.computeStats(
+        mkRows(400, function (r, i) {
+          r.motion = i < 200 ? null : i < 300 ? 1 : 0;
+        })
+      );
+      T.eq('B3 · half the rows unread, half the read rows moving ⇒ 50 %, not 25 %', st && st.motionPct, 50);
+      // d3f94b21784e — no 30-min window ⇒ no worst window
+      var ro = B.computeRollingMetrics(mkRows(900), null, null, null);
+      T.eq('B3 · 15 min of data ⇒ worst30minT95 null, not 0', ro && ro.worst30minT95, null);
+      var ro2 = B.computeRollingMetrics(mkRows(2400), null, null, null);
+      T.eq('B3 · CONTROL · 40 min at 96 % ⇒ a measured 0', ro2 && ro2.worst30minT95, 0);
+      // d488d9d484e2 — no depth, no confidence
+      T.eq('B3 · an event with no recorded depth ⇒ conf null, not 0.45', B.oxyDesatConf({ duration: 30 }), null);
+      T.eq('B3 · CONTROL · depth 4 ⇒ 0.62', B.oxyDesatConf({ depth: 4 }), 0.62);
+      // d9b36b8a96ec — an unmeasured sample interval places no stamp-less event
+      var night = function (stats) {
+        return [{ t0Ms: T0, stats: stats, desat: { events: [{ nadirIdx: 100, depth: 4 }] } }];
+      };
+      var desatOf = function (ev) {
+        return (ev || []).filter(function (e) {
+          return e.impulse === 'desat_event';
+        });
+      };
+      T.eq('B3 · no duration / sample count ⇒ the stamp-less event is not placed at an assumed 1 Hz', desatOf(B.oxyBuildGangliorEvents(night({}))).length, 0);
+      var placed = desatOf(B.oxyBuildGangliorEvents(night({ n: 1800, durationMin: 60 })));
+      T.eq('B3 · CONTROL · a measured 2 s interval places it at index × 2 s', placed.length && placed[0].tMs - T0, 200000);
+    });
+
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
       var O = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
       var K = O && O.computeKarvonenZones;
@@ -67017,7 +67106,9 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed instead of being null due to incorrect logical operator usage. */
       {
         var out = NS._bare.computeVagalIndex(1, 1);
-        T.eq('OxyDex._bare.computeVagalIndex(1,1) → out.vagalIndex', JSON.stringify(out.vagalIndex), '0');
+        // ⚠ RECONCILED (ABSENCE-SURVEY 791f528789a3) — this recorded the 0 the `||` defaults built from inputs carrying
+        // no pNN3, floor or clean run; those defaults (and the mutants this draft guarded) are gone
+        T.eq('OxyDex._bare.computeVagalIndex(1,1) → null (no factor measured)', JSON.stringify(out), 'null');
       }
       /* mutant: cmp > → >=  @ if (nadirEvents > 0 && spikes.length > 0) {
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that ensures the sfi field is properly initialized to 0 instead of causing a runtime error when n */
@@ -67051,7 +67142,8 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should not include an oxyCrashRate field in its output when the condition n < 60 is met. */
       {
         var out = NS._bare.computeOxyCrash([]);
-        T.eq('OxyDex._bare.computeOxyCrash([]) → out.oxyCrashRate', JSON.stringify(out.oxyCrashRate), '@undef');
+        // ⚠ RECONCILED (ABSENCE-SURVEY 93912aa2a698) — an empty recording searched nothing: no result, not a count-only object
+        T.eq('OxyDex._bare.computeOxyCrash([]) → null (no search ran)', JSON.stringify(out), 'null');
       }
       /* mutant: bool || → &&  @ if (!rec || !rec.rows || rec.rows.length < 5000) {
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly reports whether the SpO2 waveform data is usable based on sample count thresholds, prev */
@@ -67658,7 +67750,8 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed as 0 instead of null when input is [1,1] */
         {
           var out = NS._bare.computeVagalIndex(1, 1);
-          T.eq('NS._bare.computeVagalIndex(1,1) → out.vagalIndex', JSON.stringify(out.vagalIndex), '0');
+          // ⚠ RECONCILED (ABSENCE-SURVEY 791f528789a3) — as above: the recorded 0 was built from absent factors
+          T.eq('NS._bare.computeVagalIndex(1,1) → null (no factor measured)', JSON.stringify(out), 'null');
         }
         /* mutant: cmp > → >=  @ if (nadirEvents > 0 && spikes.length > 0) {
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns a null couplingScore instead of throwing an error when processing empty input a */

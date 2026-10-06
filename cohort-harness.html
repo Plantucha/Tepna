@@ -3349,16 +3349,18 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     worst10 = isFinite(worst10) ? +worst10.toFixed(2) : 0;
 
     // Worst 30-min T95 window
-    var worstT95 = 0;
+    // ∅ null until a 30-min window is evaluated: at 10–30 min of data the loop never runs, and the old 0 published
+    // "no window had any time below 95 %" for a night no window examined
+    var worstT95 = null;
     for (var i = 0; i + W30 <= n; i += 60) {
       var seg = spo2.slice(i, i + W30);
       var cnt = seg.filter(function (v) {
         return v < 95;
       }).length;
       var pct = (cnt / seg.length) * 100;
-      if (pct > worstT95) worstT95 = pct;
+      if (worstT95 == null || pct > worstT95) worstT95 = pct;
     }
-    worstT95 = isFinite(worstT95) ? +worstT95.toFixed(1) : 0;
+    worstT95 = worstT95 != null && isFinite(worstT95) ? +worstT95.toFixed(1) : null;
 
     // SpO2 stable windows (5-min with SD < 1%)
     var stableWins = 0;
@@ -3886,16 +3888,35 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Sympathetic Surge Index — combined arousal load per hour
   function computeSympSurge(rows, spikes, cross, rolling, durationHr) {
     if (!durationHr || durationHr < 0.5) return null;
-    var spikeRate = spikes && spikes.length ? spikes.length / durationHr : 0;
+    // ∅ each term is scored only when it was MEASURED; an absent one leaves the index and the rest renormalise
+    // over the weights that were (`ssiBasis`), as readiness does. A spike detector that ran and found none is a
+    // measured 0 (an empty array); one that never ran (null) is not.
+    var spikeRate = Array.isArray(spikes) ? spikes.length / durationHr : null;
     // postDipHrResponse is mean bpm arousal — normalize to [0-1] on 0-10 bpm scale
-    var postDipAct = rolling && rolling.postDipHrResponse !== null ? Math.max(0, Math.min(1, rolling.postDipHrResponse / 10)) : 0;
+    var postDipAct = rolling && rolling.postDipHrResponse != null ? Math.max(0, Math.min(1, rolling.postDipHrResponse / 10)) : null;
     /* ⚠️ `null / 5` is 0 in JS, so a bare `cross ? … : 0` would convert the absence above straight
        back into a number — the fabrication moved one line down rather than removed. The guard is on
        the VALUE, not on `cross` being present. */
-    var aaiLoad = cross && cross.autoArousalIdx != null ? cross.autoArousalIdx / 5 : 0; // normalise AAI 0-5 scale
-    var ssi = +(spikeRate * 0.4 + postDipAct * 0.4 + aaiLoad * 0.2).toFixed(3);
+    var aaiLoad = cross && cross.autoArousalIdx != null ? cross.autoArousalIdx / 5 : null; // normalise AAI 0-5 scale
+    var terms = [
+      [spikeRate, 0.4],
+      [postDipAct, 0.4],
+      [aaiLoad, 0.2]
+    ].filter(function (t) {
+      return t[0] != null && isFinite(t[0]);
+    });
+    if (!terms.length) return null;
+    var basis = terms.reduce(function (a, t) {
+      return a + /** @type {number} */ (t[1]);
+    }, 0);
+    // with every term measured the basis is 1.0 and this is the plain weighted sum it always was
+    var ssi = +(
+      terms.reduce(function (a, t) {
+        return a + /** @type {number} */ (t[0]) * /** @type {number} */ (t[1]);
+      }, 0) / basis
+    ).toFixed(3);
     var label = ssi < 0.5 ? 'Low' : ssi < 1.5 ? 'Moderate' : 'High';
-    return { ssi: ssi, ssiLabel: label };
+    return { ssi: ssi, ssiLabel: label, ssiBasis: +basis.toFixed(2) };
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -4043,9 +4064,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Vagal Index — composite of HRV proxies weighted by oxygen stability
   function computeVagalIndex(hrv, extras) {
     if (!hrv || !extras) return null;
-    var pnn3 = hrv.pnn3 || 0;
-    var hrFloor = hrv.hrFloor || 60;
-    var cleanRun = extras.longestCleanRun || 0;
+    // ∅ an unmeasured HR floor is not a 60 bpm one, and an unmeasured pNN3 / clean run is not 0 — each was an
+    // in-band value that scored a night nothing measured. Every factor is required, so any absent one is no index.
+    if (hrv.pnn3 == null || hrv.hrFloor == null || extras.longestCleanRun == null) return null;
+    var pnn3 = hrv.pnn3;
+    var hrFloor = hrv.hrFloor;
+    var cleanRun = extras.longestCleanRun;
     // Higher pNN3, lower HR floor, longer clean run = better vagal tone
     var vi = +((pnn3 / Math.max(hrFloor, 1)) * Math.log1p(cleanRun)).toFixed(4);
     var label = vi < 0.01 ? 'Low' : vi < 0.05 ? 'Moderate' : 'High';
@@ -4122,7 +4146,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       return r.spo2;
     });
     var n = spo2.length;
-    if (n < 60) return { oxyCrashCount: 0 };
+    // ∅ under a minute no 30 s crash search runs — no search is no result, never a count of 0
+    if (n < 60) return null;
     var crashes = 0;
     var WIN = 30;
     var cooldown = 0;
@@ -5018,16 +5043,22 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // A NULL metric is honest absence — never coerced to 0, which would read as zero perfusion.
       meanPi: meanPi,
       piFrames: _piVals.length,
-      motionPct:
-        n > 0
+      // ∅ the denominator is the rows whose motion was READ: an unread row is neither still nor moving, and
+      // counting it in `n` understated the moving share. With none read there is no share at all.
+      motionPct: (function () {
+        var read = rows.filter(function (r) {
+          return r.motion != null && isFinite(r.motion);
+        });
+        return read.length
           ? +(
-              (rows.filter(function (r) {
+              (read.filter(function (r) {
                 return r.motion > 0;
               }).length /
-                n) *
+                read.length) *
               100
             ).toFixed(1)
-          : 0,
+          : null;
+      })(),
       n: n,
       startTs: rows.length ? rows[0].tMs : null
     };
@@ -5069,8 +5100,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // proxies only — valid for night-to-night relative comparison, not clinical HRV norms.
   function computeHRV(rows) {
     // Exclude motion and device-artifact samples for cleaner signal
+    // ∅ a still, artifact-free row with NO heart rate is not a heart-rate sample: computeStats already guards HR
+    // validity, and the SignalFrame / rows-array paths carry `hr: null` through, which stdDev and the sort read as 0
     var clean = rows.filter(function (r) {
-      return r.motion === 0 && !r.hrArtifact;
+      return r.motion === 0 && !r.hrArtifact && r.hr != null && isFinite(r.hr);
     });
     var n = clean.length;
     if (n < 120) return null;
@@ -6346,7 +6379,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       if (mc / WIN5 > 0.05) wasoWindows++;
     }
     var totalPostOnset = Math.floor((n - 1800) / WIN5);
-    var wasoPct = totalPostOnset > 0 ? +((wasoWindows / totalPostOnset) * 100).toFixed(0) : 0;
+    // ∅ under ~35 min no post-onset window exists — a share of nothing is not 0 % awake (cf. autoArousalIdx)
+    var wasoPct = totalPostOnset > 0 ? +((wasoWindows / totalPostOnset) * 100).toFixed(0) : null;
 
     // Positional Shifts: motion bursts that last >60 consecutive seconds
     var posShifts = 0,
@@ -7570,6 +7604,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   function computeLCSP(rows) {
     var n = rows.length;
     if (n < 60) return null;
+    // ∅ the period is a run of rows READ as still (`motion === 0`); with no motion read on any row there is no run to
+    // measure, and a 0-minute "Severely fragmented" period would describe a channel that was never there
+    var anyMotion = false;
+    for (var m = 0; m < n && !anyMotion; m++) anyMotion = rows[m].motion != null && isFinite(rows[m].motion);
+    if (!anyMotion) return null;
     var maxRun = 0,
       run = 0,
       startMax = 0,
@@ -9362,7 +9401,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       var stats = n.stats || {};
       var nSamp = stats.n || 0;
       var durMs = stats.durationMin != null ? stats.durationMin * 60000 : null;
-      var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz (mirrors the Integrator's idx→tMs)
+      // ∅ the sample interval is MEASURED (duration / samples) or unknown — never an assumed 1 Hz. Unknown places
+      // no stamp-less event: like a missing t0 above, an event that cannot be placed is not emitted.
+      var dt = durMs && nSamp ? durMs / nSamp : null;
       // 1) desat_event — from desatProfile.events (already artifact-gated, pulseValid≥floor)
       var dp = n.desat || null;
       var devs = dp && Array.isArray(dp.events) ? dp.events : [];
@@ -9373,7 +9414,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         // §8: prefer the event's OWN parsed row stamp. The index→time fallback is a uniform stretch that
         // is only correct on a gapless recording; on a lossy night it drifts by minutes (see the stamp
         // note in computeDesaturationProfile). Keep it ONLY for a legacy event with no stamp.
-        var tMs = d.tMs != null ? d.tMs : t0 + idx * dt;
+        var tMs = d.tMs != null ? d.tMs : dt != null ? t0 + idx * dt : null;
+        if (tMs == null) return;
         out.push({
           t: fmtTime(new Date(tMs)),
           tMs: tMs,
@@ -9410,7 +9452,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       var eps = Array.isArray(n.oscEpisodes) ? n.oscEpisodes : [];
       eps.forEach(function (ep) {
         if (!ep) return;
-        var tMs = ep.tMs != null ? ep.tMs : ep.startIdx != null ? t0 + ep.startIdx * dt : null;
+        var tMs = ep.tMs != null ? ep.tMs : ep.startIdx != null && dt != null ? t0 + ep.startIdx * dt : null;
         if (tMs == null) return;
         var W = ep.windowSec != null ? ep.windowSec : (typeof CFG !== 'undefined' && CFG.OSC_WINDOW_SEC) || 300;
         var cross = ep.cross != null ? ep.cross : null;
@@ -9431,7 +9473,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // here so it can never silently equal the tier. Clamped [0,1]. Base term mirrors the Integrator's
   // legacy synthesis (0.45 + min(depth,12)/24) so emitted confidences stay continuous with prior fusion.
   function oxyDesatConf(d) {
-    var depth = d && d.depth != null ? d.depth : 0;
+    // ∅ depth IS the confidence's base term: an event with no recorded depth has no confidence, never the 0.45 a
+    // genuinely shallow dip earns. The Integrator reads a null conf as no effective confidence (integrator-dsp.js).
+    // An absent duration / recovery only withholds its small BONUS, which understates, never fabricates.
+    if (!d || d.depth == null || !isFinite(d.depth)) return null;
+    var depth = d.depth;
     var dur = d && d.duration != null ? d.duration : 0;
     var rec = d && d.recovery != null ? d.recovery : 0;
     var base = 0.45 + Math.min(depth, 12) / 24; // depth 4→0.62 … ≥12→0.95 (dominant)
