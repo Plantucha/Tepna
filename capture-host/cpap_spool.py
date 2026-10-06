@@ -152,7 +152,10 @@ def committed_rows(rows: list[dict]) -> list[dict]:
     """Only rows that carry the commit contract's keys. A VALID-JSON foreign line (a hand-written
     marker, another tool's note) parses but carries no authority — it must never crash the restart
     path or masquerade as a committed round."""
-    return [r for r in rows if "committed_cursor" in r and "round_seq" in r]
+    # The type test is repeated HERE, not only in `read_ledger`: this is a public function whose own docstring makes
+    # the promise, and a caller that builds `rows` from anything but `read_ledger` (a test, a future reader) would
+    # otherwise reach `in` on an int (TypeError) or on a str (a SUBSTRING test that ADMITS the row).
+    return [r for r in rows if isinstance(r, dict) and "committed_cursor" in r and "round_seq" in r]
 
 
 def last_committed_cursor(root: str) -> str | None:

@@ -9,14 +9,13 @@
 # (tools/null-fuzz.mjs). Run in a loop: `pytest tests/test_null_absence.py --hypothesis-seed=0`
 # with different seeds, or crank max_examples via HYPOTHESIS_PROFILE.
 #
-# xfail markers: properties marked xfail document CONFIRMED bugs (routed to Kestrel) that the
-# current code violates. Remove the marker when the fix lands — the test then guards it.
+# History: three properties were xfail while the trust-gap bugs they pinned were open; the fixes landed and the
+# markers are gone, so every property below is an enforced guard.
 
 import json
 import os
 import tempfile
 
-import pytest
 from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
@@ -107,15 +106,13 @@ def test_read_ledger_never_crashes_and_yields_dicts_only(values):
         rows = cpap_spool.read_ledger(root)
     finally:
         import shutil
+
         shutil.rmtree(root, ignore_errors=True)
     assert isinstance(rows, list)
-    # After the isinstance fix: every row is a dict. Currently xfail (bug routed).
-    assert all(isinstance(r, dict) for r in rows), f"non-dict rows leaked: {[r for r in rows if not isinstance(r, dict)][:3]}"
-
-
-test_read_ledger_never_crashes_and_yields_dicts_only = pytest.mark.xfail(
-    strict=False, reason="routed: read_ledger admits non-dict JSON rows (cpap_spool.py:127)"
-)(test_read_ledger_never_crashes_and_yields_dicts_only)
+    # Every row is a dict: the reader gates non-dict JSON at read (cpap_spool.read_ledger).
+    assert all(isinstance(r, dict) for r in rows), (
+        f"non-dict rows leaked: {[r for r in rows if not isinstance(r, dict)][:3]}"
+    )
 
 
 @_SETTINGS
@@ -130,11 +127,6 @@ def test_committed_rows_never_crashes_on_foreign_rows(values):
     assert all(isinstance(r, dict) for r in rows)
     for r in rows:
         assert "committed_cursor" in r and "round_seq" in r
-
-
-test_committed_rows_never_crashes_on_foreign_rows = pytest.mark.xfail(
-    strict=False, reason="routed: committed_rows crashes/substring-matches on non-dict rows (cpap_spool.py:137)"
-)(test_committed_rows_never_crashes_on_foreign_rows)
 
 
 # ── ble_visibility.read_records ───────────────────────────────────────────────
@@ -159,14 +151,12 @@ def test_read_records_skips_non_dict_lines(values):
         recs = ble_visibility.read_records(p)
     finally:
         import shutil
+
         shutil.rmtree(d, ignore_errors=True)
     assert isinstance(recs, list)
-    assert all(isinstance(r, dict) for r in recs), f"non-dict records leaked: {[r for r in recs if not isinstance(r, dict)][:3]}"
-
-
-test_read_records_skips_non_dict_lines = pytest.mark.xfail(
-    strict=False, reason="routed: read_records admits non-dict JSON rows (ble_visibility.py:78)"
-)(test_read_records_skips_non_dict_lines)
+    assert all(isinstance(r, dict) for r in recs), (
+        f"non-dict records leaked: {[r for r in recs if not isinstance(r, dict)][:3]}"
+    )
 
 
 @_SETTINGS
