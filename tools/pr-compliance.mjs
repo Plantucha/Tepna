@@ -64,12 +64,20 @@ function main() {
     }
 
     // 3. computeHash movers need the corpus sentence
+    // Look for actual changes to the computeHash implementation (function definition
+    // or body), not mere mentions in strings/comments/changesets. A new tool that
+    // references the corpus sentence is not a move.
     let computeHashMoved = false;
     for (const f of files) {
       if (!CODE_RE.test(f) || BUNDLE_RE.test(f)) continue;
+      // The gate scripts themselves reference computeHash by design; they never move it.
+      if (f === 'tools/pr-compliance.mjs') continue;
       try {
         const diff = sh(`git diff ${base}..${head} -- ${f}`);
-        if (/computeHash/.test(diff)) {
+        const changedLines = diff.split('\n').filter((l) => l.startsWith('+') || l.startsWith('-'));
+        // A "move" changes the implementation: the function definition or a line
+        // inside its body. A bare mention in a string/comment is not a move.
+        if (changedLines.some((l) => /function\s+computeHash|computeHash\s*=\s*(async\s*)?\(|computeHash\s*\(.*\)\s*{/.test(l))) {
           computeHashMoved = true;
           break;
         }
