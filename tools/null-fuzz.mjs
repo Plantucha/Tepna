@@ -126,14 +126,10 @@ const REPORT_PATH = `${OUT_PATH.replace(/\.json$/, '')}.md`;
  * still a failure (the gate does not care); the tag only tells the READER what
  * is new. Keep the route beside the name so the list is checkable, and prune a
  * row when its fix merges — a stale KNOWN entry hides a regression. */
-const KNOWN_OXYDEX = {
-  auc90Total: 'oxydex-dsp.js auc90 null accumulation — #3321 (P-A guard) + the six-site sibling (Osprey)',
-  auc90Rate: 'derived from auc90Total — same route',
-  spo2IQR: 'oxydex-dsp.js IQR null-sort — six-site sibling (Osprey)',
-  condMeanBelow94: 'oxydex-dsp.js conditional mean admits nulls — six-site sibling (Osprey)',
-  condPctBelow94: 'oxydex-dsp.js conditional pct counts nulls — six-site sibling (Osprey)',
-  minSpo2: 'oxydex-dsp.js computeGatedNadir `spo2 < mn` with null (isFinite(null) is true) — routed to Muse 2026-10-06'
-};
+/* Every OxyDex group this tool found was routed and FIXED (#3321, #3359, #3362; the soak on main dbabfa39 is CLEAN,
+ * 30 seeds x 20 iters, 0 failures). The routed set is therefore EMPTY on purpose: a stale KNOWN entry would tag a
+ * regression as "already routed" and hide it. Any hit on OxyDex from here is NOVEL. */
+const KNOWN_OXYDEX = {};
 /* Routed defects per target; the other targets start empty, so everything they find is NOVEL until it is verified and routed. */
 const KNOWN_BY_TARGET = { oxydex: KNOWN_OXYDEX };
 let TARGET = opt('target', 'oxydex');
