@@ -4563,9 +4563,15 @@
     var mn = Infinity;
     for (i = 0; i < n; i++) {
       if (masked[i]) continue;
+      /* §∅ · AN ABSENT SAMPLE IS NOT A LOW. `null < Infinity` is TRUE, so one absence made `mn` null
+         — and the guard below did not catch it because the GLOBAL `isFinite(null)` is TRUE (it
+         coerces null to 0; `Number.isFinite(null)` is false). The night then published
+         `minSpo2: null` over a real nadir of 88, measured by the fuzz harness. */
+      if (rows[i].spo2 == null) continue;
       if (rows[i].spo2 < mn) mn = rows[i].spo2;
     }
-    if (!isFinite(mn)) return { min: rawMin, excluded: 0 }; // never mask the whole night
+    // `Number.isFinite`, not the global: the global coerces, which is how null passed this guard.
+    if (!Number.isFinite(mn)) return { min: rawMin, excluded: 0 }; // never mask the whole night
     return { min: mn, excluded: ex };
   }
 
@@ -4822,7 +4828,14 @@
             }, 0) / belowSamples.length
           ).toFixed(2)
         : null;
-    var condPct = n > 0 ? +((belowSamples.length / n) * 100).toFixed(1) : 0;
+    /* §∅ · THE DENOMINATOR IS THE MEASURED COUNT, not the sample count. The numerator was fixed to
+       read `measured` and this line was left on `n`, so every absent second inflated the denominator
+       and the percentage UNDER-reported: measured by the fuzz harness at 3.3 % against a true 5.4 %
+       on a night with ~350 absences. A ratio is only honest when both halves count the same
+       population — fixing one half of a fraction is not fixing the fraction. `m` is
+       `measured.length`; `condPctN` discloses it, so reduced COVERAGE annotates. */
+    var condPct = m > 0 ? +((belowSamples.length / m) * 100).toFixed(1) : null;
+    var condPctN = m;
 
     // Nadir histogram — binned on the ABSOLUTE SpO₂ floor each event reached, which is what the key
     // names (above91 / b90_91 / b88_89 / b85_87 / below85) assert. It previously binned on `depth`
@@ -4841,7 +4854,7 @@
       else bins.below85++;
     });
 
-    return { wtdsi: wtdsi, spo2IQR: iqr, condMeanBelow94: condMean, condPctBelow94: condPct, nadirBins: bins };
+    return { wtdsi: wtdsi, spo2IQR: iqr, condMeanBelow94: condMean, condPctBelow94: condPct, condPctN: condPctN, nadirBins: bins };
   }
 
   // 6. Extended HR metrics (RMSSD proxy, IQR, PB contrast)
