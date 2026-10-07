@@ -309,7 +309,7 @@ function buildVerdict(b, s) {
     status,
     population: { checked: b.stats.iters_run, eligible: plannedIters, excluded: Math.max(0, plannedIters - b.stats.iters_run) },
     criterion: { name: 'fabrication_groups', threshold: 0, unit: 'groups', direction: 'eq' },
-    result: { groups: s.groups, novel: s.novel_groups.length, known: s.known_groups.length, failures: s.failures, seeds_run: s.seeds_run },
+    result: { groups: s.groups, novel: s.novel_groups.length, known: s.known_groups.length, failures: s.failures, seeds_run: s.seeds_run, skipped: b.stats.skipped || {} },
     evidence: ['tools/null-fuzz.mjs', OUT_PATH.replace(/^.*\//, '')],
     reason,
     producedBy: { tool: 'tools/null-fuzz.mjs', commit: null, commitReason: 'the bundle is a scratch artefact; the commit is the checkout that ran it' }
@@ -326,7 +326,13 @@ function renderReport(b, s, v, narrative) {
   const live = b.completed_seeds.length < b.seeds;
   L.push(`# null-fuzz [${TARGET}] — ${s.verdict}${live ? ' (RUNNING)' : ''}`);
   L.push('');
+  const sk = b.stats.skipped
+    ? Object.entries(b.stats.skipped)
+        .map(([k, n]) => `${k} ×${n}`)
+        .join(', ')
+    : '';
   L.push(`Seeds ${s.seeds_run}/${s.seeds_planned} · iters ${s.iters_run} · ${s.failures} failing assertions in ${s.groups} group(s) · ${s.ms_per_iter} ms/iter · bundle \`${OUT_PATH}\``);
+  if (sk) L.push(`Skipped, NOT examined (index-dependent metric above ${INDEX_DEP_MAX_NULL_FRAC * 100} % nulls — the comparison premise does not hold): ${sk}`);
   L.push('');
   const table = (title, gs) => {
     L.push(`## ${title} (${gs.length})`);
@@ -545,10 +551,26 @@ const same = (a, b) => {
   if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-6;
   return false;
 };
-/** Compare two metric maps; one failure per disagreeing key. */
-function compareMetrics(fz, cl, note) {
+/* INDEX-DEPENDENT metrics: a few DSPs mask or window by array POSITION (OxyDex's gated nadir walks the first
+ * NADIR_RAMP_MAX_SEC *indices*), so a night with its nulls removed is a different recording once most of the
+ * night is gone — removing 705 of 900 samples slides a 120-position window across 195. P2's premise (fuzzed ==
+ * nulls removed) cannot hold there, and the disagreement is not a coercion. Such a metric is compared only up to
+ * INDEX_DEP_MAX_NULL_FRAC nulls; above it the comparison is SKIPPED AND COUNTED (bundle.stats.skipped), so the
+ * report says what it did not examine rather than reading as a pass. The refusal-above-a-floor alternative is the
+ * owner's coverage question and is not decided here. Residue row: 2026-10-06 index-keyed ramp (Osprey, #3364). */
+const INDEX_DEP_MAX_NULL_FRAC = 0.5;
+/** Compare two metric maps; one failure per disagreeing key. `opts.indexDependent` = keys to skip when `opts.sparse`. */
+function compareMetrics(fz, cl, note, opts = {}) {
   const out = [];
-  for (const k of Object.keys(fz)) if (!same(fz[k], cl[k])) out.push({ property: 'P2', metric: k, fuzzed: fz[k], clean: cl[k], note });
+  const idx = new Set(opts.indexDependent || []);
+  for (const k of Object.keys(fz)) {
+    if (opts.sparse && idx.has(k)) {
+      bundle.stats.skipped = bundle.stats.skipped || {};
+      bundle.stats.skipped[k] = (bundle.stats.skipped[k] || 0) + 1;
+      continue;
+    }
+    if (!same(fz[k], cl[k])) out.push({ property: 'P2', metric: k, fuzzed: fz[k], clean: cl[k], note });
+  }
   return out;
 }
 
@@ -615,7 +637,10 @@ const TARGETS = {
             const clean = rows.filter((r) => r.spo2 != null).map((r, j) => mk(r.spo2, r.hr, j));
             if (clean.length < 10) continue;
             const nulls = rows.length - clean.length;
-            return compareMetrics(metrics(OD.processNight(rows, 'fz.csv')), metrics(OD.processNight(clean, 'cl.csv')), `nulls=${nulls}/${LEN}`);
+            return compareMetrics(metrics(OD.processNight(rows, 'fz.csv')), metrics(OD.processNight(clean, 'cl.csv')), `nulls=${nulls}/${LEN}`, {
+              indexDependent: ['minSpo2'],
+              sparse: nulls / LEN > INDEX_DEP_MAX_NULL_FRAC
+            });
           }
         }
       };
