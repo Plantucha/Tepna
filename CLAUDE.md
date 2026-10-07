@@ -520,7 +520,8 @@ consume `correctionAt()`.
   curve (`capture-host/allan.py`, `ALLAN-DEVIATION-2026-08-12-BRIEF`), never an SD or a two-half fit.
 - **First ask whether there IS a second clock — read `independent` (`spreadMs > 2 ms`), never a ~0
   ppm.** A phone capture's host column is the device time rounded: no second clock. A stream whose
-  inter-sample deltas are ≥99 % one value was DRAWN (`quality.timingSource`) and is never a clock.
+  inter-sample deltas are ≥67 % one value was DRAWN (`quality.timingSource`; `CK_AXIS_DRAWN_SHARE` in
+  `clock.js`) and is never a clock.
 - **One device clock per axis:** a resync is a change of clock. Build the axis from anchors at or after
   the LAST resync; earlier rows get the first post-seam anchor's flat correction; count the dropped
   (`hostAxis.anchorsDroppedPreResync`) and surface `clockResyncs[].hostOffsetMs` (ECGDex does; any node
