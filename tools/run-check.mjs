@@ -72,6 +72,10 @@ export const STEPS = [
   'verify:analysis',
   'verify:docs',
   'verify:tools-index',
+  'verify:absence-regression',
+  'verify:xss-sink',
+  'verify:docs-constants',
+  'verify:pr-compliance',
   'verify:verdict-adoption',
   'verify:manifest',
   'test:hooks'
