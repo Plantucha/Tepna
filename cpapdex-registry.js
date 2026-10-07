@@ -285,7 +285,8 @@
       evidence: 'measured',
       cite: 'SD of the live-vs-SD regression residual — the sample-by-sample disagreement the scale does not explain. Lower = tighter reproduction.',
       dormant: true,
-      dormantReason: 'Value IS computed but emitted NESTED as scale: { residSD } (2026-10-07) — registry IDs address top-level fields only, not paths. Adjudicated; needs nested-path support or a top-level alias, not deletion.'
+      dormantReason:
+        'Value IS computed but emitted NESTED as scale: { residSD } (2026-10-07) — registry IDs address top-level fields only, not paths. Adjudicated; needs nested-path support or a top-level alias, not deletion.'
     },
     cmpBias: {
       label: 'Live−SD Bias',

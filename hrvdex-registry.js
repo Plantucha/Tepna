@@ -70,7 +70,16 @@
     energy: { label: 'Energy', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'HRV-derived energy score — composite' },
     coherence: { label: 'Coherence', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'HRV coherence — internal composite' },
     ansLoad: { label: 'ANS Load', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'heuristic', cite: 'Composite autonomic burden — internal' },
-    recovIndex: { label: 'Recov Index', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Autonomic recovery index vs baseline — composite', dormant: true, dormantReason: 'No compute site in hrvdex-dsp.js (2026-10-07). Registered but never emitted. Adjudicated, not deleted.' },
+    recovIndex: {
+      label: 'Recov Index',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Autonomic recovery index vs baseline — composite',
+      dormant: true,
+      dormantReason: 'No compute site in hrvdex-dsp.js (2026-10-07). Registered but never emitted. Adjudicated, not deleted.'
+    },
     recovDebt: { label: 'Recov Debt', unit: 'd', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Days with ARI<0.9 over 14 d — composite' },
     efc: { label: 'EFC Index', unit: '', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Energy-fatigue-capacity readiness — composite' },
     abs: { label: 'ABS', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Autonomic Balance Score — composite' },
