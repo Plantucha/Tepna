@@ -126,6 +126,18 @@ jobs:
         run: node tests/build-core-tests.mjs
       - name: Owned bundles ≡ build(source) (deterministic build drift guard)
         run: node tools/build.mjs --check
+      - name: Absence regression — no new fabrication patterns introduced
+        run: node tools/absence-regression.mjs --base origin/main
+      - name: XSS sink gate — no unescaped innerHTML sinks added
+        run: node tools/xss-sink-gate.mjs --base origin/main
+      - name: Docs constants — documented numbers match code
+        run: node tools/docs-constants.mjs
+      - name: PR body + changeset compliance
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tools/pr-compliance.mjs
       - name: Self-contained analysis tools ≡ bundle(source) (file://-safe drift guard)
         run: node tools/build-analysis.mjs --check
       # The FIFTH generated tree, and the one that had no guard here until 2026-09-13. `npm run check`
