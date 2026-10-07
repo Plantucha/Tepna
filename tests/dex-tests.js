@@ -7694,6 +7694,73 @@
       }
     });
 
+    /* §∅ · THE DENOMINATOR AND THE NADIR — the two sites Muse's null-fuzz harness still reds on main.
+       ⚠️ BOTH PLANTS ARE SIZED FROM THE CONSTANTS THAT GATE THEM, not from what a plausible night
+       looks like — the lesson of 2026-10-06, where a 3.3 % dropout went GREEN over a live IQR bug and
+       27.8 % turned it red.
+       · condPct is gated by the literal 94 and by WHICH population divides: 1800 slots, 200 ABSENT,
+         100 samples at 90. Measured population 1600, so the honest figure is 100/1600 = 6.3 %; over
+         the full 1800 it is 5.6 %. Both exact, and they differ by more than rounding.
+       · the gated nadir is gated by NADIR_RAMP_START_MAX 88 / NADIR_RAMP_RECOVER 90 /
+         NADIR_RAMP_MAX_SEC 120, so the night STARTS at 96 (not ≤ 88, or the opening-ramp branch would
+         mask the very dip being measured) and puts its 88 well past index 120. Without that sizing the
+         assertion would pass on main for the wrong reason.
+       The defects: `condPct` divided the MEASURED numerator by the FULL sample count — fixing one half
+       of a fraction is not fixing the fraction. And `computeGatedNadir` compared `rows[i].spo2 < mn`
+       with `mn = Infinity`, where `null < Infinity` is TRUE, so one absence made the nadir `null` —
+       and the guard missed it because the GLOBAL `isFinite(null)` is TRUE. The raw `Math.min.apply`
+       feeding its fallback had the mirror bug, returning 0. */
+    group('§∅ · OxyDex — a denominator counts the measured, and an absence is not a nadir (plant-backed)', 'oxydex-dsp · absence · plant', function (T) {
+      var B = (env.OxyDex && env.OxyDex._bare) || null;
+      if (!B || typeof B.computeSpO2Advanced !== 'function' || typeof B.computeStats !== 'function') {
+        T.skip('OxyDex._bare.computeSpO2Advanced + computeStats reachable', 'not wired in this lane');
+        return;
+      }
+      // 1800 slots · 200 ABSENT · 100 at 90 (below the 94 threshold) · the rest 96. Starts at 96 so
+      // the opening-ramp branch cannot fire, and the low sits past NADIR_RAMP_MAX_SEC.
+      var rows = [];
+      for (var i = 0; i < 1800; i++) {
+        var v = i >= 400 && i < 600 ? null : i >= 800 && i < 900 ? 90 : 96;
+        rows.push({ spo2: v, hr: 70, motion: 0, t: new Date(Date.UTC(2026, 5, 13, 22, 0, 0) + i * 1000), tMs: Date.UTC(2026, 5, 13, 22, 0, 0) + i * 1000 });
+      }
+      var adv = B.computeSpO2Advanced(rows);
+      if (!adv || !('condPctBelow94' in adv)) {
+        T.skip('computeSpO2Advanced exposes condPctBelow94', 'not present: ' + Object.keys(adv || {}).join(','));
+      } else {
+        // ANTI-VACUITY — passes on main: the night really does have samples below 94.
+        T.ok('ANTI-VACUITY · the night has a conditional mean, so samples below 94 were found', typeof adv.condMeanBelow94 === 'number', String(adv.condMeanBelow94));
+        T.eq('CONTROL · and that mean is the measured 90, unaffected by the absences', adv.condMeanBelow94, 90);
+        // RED ON MAIN: 5.6 — the measured numerator over the FULL sample count.
+        T.eq('condPct divides the measured numerator by the MEASURED population', adv.condPctBelow94, 6.3);
+        T.eq('…and discloses that population', adv.condPctN, 1600);
+      }
+
+      // The nadir: 88 planted once, past the ramp window, with absences elsewhere.
+      var nrows = [];
+      for (var j = 0; j < 1800; j++) {
+        var w = j >= 400 && j < 600 ? null : j === 1000 ? 88 : 96;
+        nrows.push({ spo2: w, hr: 70, motion: 0, t: new Date(Date.UTC(2026, 5, 13, 22, 0, 0) + j * 1000), tMs: Date.UTC(2026, 5, 13, 22, 0, 0) + j * 1000 });
+      }
+      var st = B.computeStats(nrows);
+      if (!st || !('minSpo2' in st)) {
+        T.skip('computeStats exposes minSpo2', 'not present');
+      } else {
+        /* ⚠️ GREEN ON MAIN — a REGRESSION GUARD, not a plant, and the distinction is the point.
+           `Math.min.apply(null, [96, null])` IS 0, so this line looked broken; but `computeStats`
+           filters at the source (`if (_sv != null && isFinite(_sv)) spo2.push(_sv)`), so the array it
+           reduces holds no nulls and the raw minimum was never wrong. I had written a "fix" for it and
+           reverted that on measuring this assertion pass against unfixed main. Kept, because the
+           filtering is 70 lines from the reduce and nothing else pins the relationship. */
+        T.eq('CONTROL · the RAW minimum is the measured low (already true on main)', st.minSpo2, 88);
+      }
+      if (typeof B.computeGatedNadir === 'function') {
+        var g = B.computeGatedNadir(nrows, null, st && st.minSpo2);
+        // RED ON MAIN: null, because `null < Infinity` is true and `isFinite(null)` is true.
+        T.eq('the GATED nadir is the measured low, not an absence', g && g.min, 88);
+        T.ok('CONTROL · and it is a real number, which `isFinite` alone would not have told us', Number.isFinite(g && g.min), String(g && g.min));
+      }
+    });
+
     group('Integrator consumes canonical measurement blocks — roadmap §8 (fail-closed, plant-backed)', 'integrator-dsp · measurement-block · provenance · roadmap-§8 · plant', function (T) {
       var OD = env.OxyDex;
       var NF = env.normalizeFile;

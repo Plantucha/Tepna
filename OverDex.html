@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0672436c9f23" data-compute-hash="be9811bda877"><head>
+<html lang="en" data-manifest-hash="dfdd0d432149" data-compute-hash="dfb45d2681e3"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AF4skfUuNsScfyJ078eR0vVYjN3Dhrw/IrSomd1uOGA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HH5FwSXNLBdSkDNrEcyg65q+C2Nv18twPHB0MDQhSH0=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pBV6b3ohXotlRfxCbUq2VH+bqVZem83Anf2bGfRhlho=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-qohQ1Zh5MOTt5AEvTGsXIJizmJcSO5Qv2qaw5zAPlqc=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AF4skfUuNsScfyJ078eR0vVYjN3Dhrw/IrSomd1uOGA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HH5FwSXNLBdSkDNrEcyg65q+C2Nv18twPHB0MDQhSH0=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-WddnkhsGTj5dJzB+xY4aMjLfk+gBs6bX2i4wSHwxnE8=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qV8WGiH4CPbI3vI7uanS+SrP7uYPWqsLjIsC3gYMiwM=' 'sha256-qohQ1Zh5MOTt5AEvTGsXIJizmJcSO5Qv2qaw5zAPlqc=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -17257,9 +17257,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var mn = Infinity;
     for (i = 0; i < n; i++) {
       if (masked[i]) continue;
+      /* §∅ · AN ABSENT SAMPLE IS NOT A LOW. `null < Infinity` is TRUE, so one absence made `mn` null
+         — and the guard below did not catch it because the GLOBAL `isFinite(null)` is TRUE (it
+         coerces null to 0; `Number.isFinite(null)` is false). The night then published
+         `minSpo2: null` over a real nadir of 88, measured by the fuzz harness. */
+      if (rows[i].spo2 == null) continue;
       if (rows[i].spo2 < mn) mn = rows[i].spo2;
     }
-    if (!isFinite(mn)) return { min: rawMin, excluded: 0 }; // never mask the whole night
+    // `Number.isFinite`, not the global: the global coerces, which is how null passed this guard.
+    if (!Number.isFinite(mn)) return { min: rawMin, excluded: 0 }; // never mask the whole night
     return { min: mn, excluded: ex };
   }
 
@@ -17516,7 +17522,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             }, 0) / belowSamples.length
           ).toFixed(2)
         : null;
-    var condPct = n > 0 ? +((belowSamples.length / n) * 100).toFixed(1) : 0;
+    /* §∅ · THE DENOMINATOR IS THE MEASURED COUNT, not the sample count. The numerator was fixed to
+       read `measured` and this line was left on `n`, so every absent second inflated the denominator
+       and the percentage UNDER-reported: measured by the fuzz harness at 3.3 % against a true 5.4 %
+       on a night with ~350 absences. A ratio is only honest when both halves count the same
+       population — fixing one half of a fraction is not fixing the fraction. `m` is
+       `measured.length`; `condPctN` discloses it, so reduced COVERAGE annotates. */
+    var condPct = m > 0 ? +((belowSamples.length / m) * 100).toFixed(1) : null;
+    var condPctN = m;
 
     // Nadir histogram — binned on the ABSOLUTE SpO₂ floor each event reached, which is what the key
     // names (above91 / b90_91 / b88_89 / b85_87 / below85) assert. It previously binned on `depth`
@@ -17535,7 +17548,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       else bins.below85++;
     });
 
-    return { wtdsi: wtdsi, spo2IQR: iqr, condMeanBelow94: condMean, condPctBelow94: condPct, nadirBins: bins };
+    return { wtdsi: wtdsi, spo2IQR: iqr, condMeanBelow94: condMean, condPctBelow94: condPct, condPctN: condPctN, nadirBins: bins };
   }
 
   // 6. Extended HR metrics (RMSSD proxy, IQR, PB contrast)
