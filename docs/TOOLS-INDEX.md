@@ -10,11 +10,12 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**231 tools** · 229 with a purpose line · **2 without**
+**235 tools** · 233 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
 | [`absence-ledger.mjs`](../tools/absence-ledger.mjs) | A STATE PER FINDING FOR `audits/ABSENCE-SURVEY-2026-09-22.json`, written by this tool and never by hand. |
+| [`absence-regression.mjs`](../tools/absence-regression.mjs) | The §∅ drain removed "absent reads as 0/1970" patterns. This gate fails if a PR *adds* new instances of those patterns (diff-based, so main's baseline doesn't need to be zero first). |
 | [`acc-acc-control.mjs`](../tools/acc-acc-control.mjs) | the CALIBRATION CONTROL for wide-range clock alignment. Backs CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF §2c. |
 | [`acc-select-compare.mjs`](../tools/acc-select-compare.mjs) | EXTERNAL-METHODS-SURVEY-FOLLOWUPS §2. Two tools pick a night's ACC fragments by different rules and disagree about which nights are alignable: |
 | [`acc-shared-movement.mjs`](../tools/acc-shared-movement.mjs) | EXTERNAL-METHODS-SURVEY §3's question, in our own units. §3: Brønd et al. |
@@ -62,6 +63,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
 | [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | `tools/doc-search.mjs` appends `<ISO>\\t<query>` to `<git-common-dir>/tepna-mutation/ doc-search-sessions/<session_id>` on every search that ran. |
 | [`doc-search.mjs`](../tools/doc-search.mjs) | "HAS THIS ALREADY BEEN DECIDED?" OVER 460+ DOCUMENTS CLAUDE.md records this failure repeatedly and by name: four sessions independently proposing a fix the repo had already measured… |
+| [`docs-constants.mjs`](../tools/docs-constants.mjs) | CLAUDE.md states numeric claims about the code. When the code changes and the doc doesn't (or vice versa), they drift — the §🔒.7 "99% vs 67%" incident (#3367). |
 | [`dsp-review-qwen.mjs`](../tools/dsp-review-qwen.mjs) | IDLE-TIME DSP REVIEW — the local model loops through DSP files proposing improvements: inefficiencies, logical problems, signal-flow violations, and concrete refactors. |
 | [`dual-clock-rate.mjs`](../tools/dual-clock-rate.mjs) | DIRECT device-vs-host rate, from the two clocks already in every raw file. |
 | [`ecg-apnea-correlate.mjs`](../tools/ecg-apnea-correlate.mjs) | Correlates every candidate in ECGDex's `apnea` block against the CPAP's OWN device-scored `residualAHI`, across the nights where both exist. |
@@ -169,6 +171,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`ppg2w-spo2-fit.mjs`](../tools/ppg2w-spo2-fit.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ DOES THE 0x05 TWO-CHANNEL RATIO TRACK THE DEVICE'S OWN SpO₂? |
 | [`ppi-jitter-vs-ecg.mjs`](../tools/ppi-jitter-vs-ecg.mjs) | O2RING-FINGER-HRV-VALIDATION §3, the PRIMARY endpoint PPI-jitter sd for the O2Ring FINGER pleth against paired H10 chest ECG, reported as median + IQR across nights so it is directly… |
 | [`ppi-match.mjs`](../tools/ppi-match.mjs) | PPG-beat ↔ ECG-beat alignment and jitter, shared by the §3 apparatus |
+| [`pr-compliance.mjs`](../tools/pr-compliance.mjs) | Enforces the standing PR rules from the fleet workflow: 1. Body starts with a "Rule 0:" line (the git-grep evidence line). |
 | [`probe-clock-equivalence.mjs`](../tools/probe-clock-equivalence.mjs) | A survivor is not automatically a gap: `if (lo < 0) lo = 0` mutated to `<=` still assigns 0 when lo IS 0, and no input will ever separate them. |
 | [`probe-coverage.mjs`](../tools/probe-coverage.mjs) | `probe-equivalence` scores each family against the mutants in its `fn`'s LINE RANGE. |
 | [`probe-equivalence.mjs`](../tools/probe-equivalence.mjs) | A survivor is not automatically a gap: `if (lo < 0) lo = 0` mutated to `<=` still assigns 0 when lo IS 0, and no input will ever separate them. |
@@ -245,3 +248,4 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`withdraw-fragment-verdict.mjs`](../tools/withdraw-fragment-verdict.mjs) | WITHDRAW A VERDICT THAT JUDGED A FRAGMENT, WITH ITS REASON RECORDED |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |
+| [`xss-sink-gate.mjs`](../tools/xss-sink-gate.mjs) | #3318/#3343 fixed XSS sinks by routing all untrusted strings through the canonical escaper (dex-escape.js: escapeHTML). |
