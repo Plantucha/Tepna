@@ -6763,6 +6763,148 @@
       T.ok('the plant is not vacuous — positionally this row reads 0, not 365', positionalWouldGive !== box[0].ppi, positionalWouldGive + ' vs ' + box[0].ppi);
     });
 
+    /* ════ EVERY REGISTRY ID NEEDS A DECLARED BINDING — the id-to-emission gate (2026-10-06) ═════════
+       A registry id carries a TIER. If nothing produces the quantity, a lookup on that id resolves to a
+       grade for a number that never arrives — badgeForLabel fabricates it silently, which is how
+       DEEP-AUDIT-V section 2.8 F14 and the six renames in #3356 happened.
+
+       THREE ROUTES COUNT AS A DECLARED BINDING, and the list is deliberately short:
+         1 the id is EMITTED by name in one of the node's own sources;
+         2 the id has a *_DEFS entry (object key, or an id: '...' array entry), which carries the get:
+           accessor naming the real key — so id and emitted key may legitimately differ;
+         3 the entry says dormant: true, which DECLARES that no compute site exists.
+
+       THE REGISTRY'S OWN label-to-id ALIAS MAP IS DELIBERATELY NOT A ROUTE. Adding it collapses this
+       set from 163 to 29 — and that is wrong, because an aliased id with no value behind it is exactly
+       HOW the tier gets fabricated. Counting the fabrication mechanism as a defence would make the gate
+       green on the defect it exists to catch. Measured both ways before choosing.
+
+       THE BASELINE IS "NOT YET ADJUDICATED", NOT "KNOWN GOOD". rraccRate is in it and is LIVE —
+       computed as rracc, surfaced by _accCardRR — because that binding exists only in render code and is
+       declared nowhere. That is the structural finding: for some ids no mechanical relation can decide
+       whether a value exists, which is precisely why #1455's name sweep produced a FALSE dormant flag
+       (ecgdex-registry.js:68). So this gate NEVER says an id is absent. It says only "no NEW id may join
+       the undeclared set", and the set ratchets DOWN as ids are adjudicated. ════ */
+    group('Every registry id has a DECLARED binding — emitted, in *_DEFS, or dormant', 'registry · id-emission · ratchet', function (T) {
+      var src = env.sources || {};
+      var UNDECLARED = {
+        cpapdex: 'cmpResidSD',
+        ecgdex: 'accPosture analyzable correction cpcHfc crCoupling deepMin edrDisagree edrResp meanSqi remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
+        glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability timeAbove timeBelow',
+        hrvdex: 'ansLoad cai camq crs csi cvi dfaAlpha1 efc focusEff hfnu lfhf momentum ortho otr pnsEff pti recovDebt recovIndex sd1sd2 sdnnZ si spectralEnt vei vo2roll welfare',
+        motiondex: 'activityCounts effortAmp effortPresent respRate sqiConf',
+        oxydex:
+          'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 ct90 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
+        ppgdex:
+          'accHz agingIdx agreement analyzable beatLatency beatLatencyMad beatPpiDelta cleanPulses correction detectorStability dicrotic gyroHz ledAgreement meanAbsDev meanPPI meanSqi motionIdx notchTime pulseWidth reflectionIdx',
+        pulsedex: 'accelCap ansPsns ansSns artifacts decelCap htn maxRR medianRR minRR modeRR mxdmn nBeats recovIndex recovery rsaProxy sdnnZ vagalEff'
+      };
+      var NODES = Object.keys(UNDECLARED);
+      var strip = function (t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .split('\n')
+          .map(function (l) {
+            return l.replace(/\/\/.*$/, '');
+          })
+          .join('\n');
+      };
+      /* ANTI-VACUITY FIRST, and it must NAME the missing file. A registry absent from this lane's
+         inventory would make its ids look perfectly bound (zero parsed, zero undeclared) — the
+         population-of-zero failure SOURCE_FILES has already produced twice. #3356 listed all nine. */
+      var missing = NODES.filter(function (n) {
+        return !src[n + '-registry.js'];
+      });
+      T.ok('every registry source is readable in this lane', missing.length === 0, 'missing: ' + missing.join(', '));
+      if (missing.length) return;
+      /* AND the node BODIES this gate scans, named per node — fail closed. A body file present in one
+         lane and absent in the other makes its ids look UNBOUND in the thin lane, so the defect reports
+         as a phantom id rather than as a missing source: measured 2026-10-06, `hrvdex-profile.js` is
+         listed in both inventories yet absent from the browser lane's `env.sources` (the suite's loader
+         drops a file whose fetch returns null, silently), and the gate blamed `hrRest`. Naming the file
+         is the difference between a lane bug and a false phantom. */
+      var BODIES = {
+        cpapdex: ['cpapdex-dsp.js', 'cpapdex-cross.js'],
+        ecgdex: ['ecgdex-dsp.js', 'ecgdex-cross.js', 'ecgdex-app.js'],
+        glucodex: ['glucodex-dsp.js'],
+        hrvdex: ['hrvdex-dsp.js', 'hrvdex-app.js', 'hrvdex-profile.js'],
+        motiondex: ['motiondex-dsp.js'],
+        oxydex: ['oxydex-dsp.js', 'oxydex-cross.js'],
+        ppgdex: ['ppgdex-dsp.js', 'ppgdex-cross.js'],
+        pulsedex: ['pulsedex-dsp.js', 'pulsedex-cross.js']
+      };
+      var missingBodies = [];
+      for (var b = 0; b < NODES.length; b++) {
+        var need = BODIES[NODES[b]] || [];
+        for (var c = 0; c < need.length; c++) if (!src[need[c]]) missingBodies.push(need[c]);
+      }
+      T.ok(
+        'every node BODY this gate scans is readable in this lane',
+        missingBodies.length === 0,
+        'missing: ' + missingBodies.join(', ') + ' — list it in BOTH inventories; an absent body reads as an unbound id'
+      );
+      if (missingBodies.length) return;
+      var totalIds = 0;
+      var drift = [];
+      for (var i = 0; i < NODES.length; i++) {
+        var node = NODES[i];
+        var reg = src[node + '-registry.js'] || '';
+        var regS = strip(reg);
+        var defs = strip(src[node + '-cross.js'] || '');
+        var own = Object.keys(src).filter(function (f) {
+          return f.indexOf(node + '-') === 0 && f !== node + '-registry.js' && /\.js$/.test(f);
+        });
+        var body = strip(
+          own
+            .map(function (f) {
+              return src[f];
+            })
+            .join('\n')
+        );
+        var ids = [];
+        var re = /(^|[^A-Za-z0-9_$.'"])([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{\s*label\s*:/g;
+        var m;
+        while ((m = re.exec(regS)) !== null) if (ids.indexOf(m[2]) === -1) ids.push(m[2]);
+        totalIds += ids.length;
+        var undeclared = ids.filter(function (id) {
+          var emitted = new RegExp('(^|[^A-Za-z0-9_$])' + id + '\\s*:|\\.' + id + '\\b|[\'"`]' + id + '[\'"`]').test(body);
+          var inDefs = new RegExp('(^|[^A-Za-z0-9_$.\'"])' + id + "\\s*:\\s*\\{|id:\\s*'" + id + "'").test(defs);
+          var isDormant = (function () {
+            var e = new RegExp(id + '\\s*:\\s*\\{[\\s\\S]{0,600}?\\}').exec(reg);
+            return !!e && /dormant\s*:\s*true/.test(e[0]);
+          })();
+          return !(emitted || inDefs || isDormant);
+        });
+        var want = UNDECLARED[node].split(' ').filter(Boolean).sort().join(' ');
+        var got = undeclared.slice().sort().join(' ');
+        T.ok(node + ' · ids parsed (anti-vacuity — a parse of 0 would pass every id)', ids.length > 0, 'parsed ' + ids.length);
+        /* An EQUALITY, never a count: a swap keeps the number and changes the members, and a floor is
+           satisfied by the wrong ones (measured on the shells gate's INVISIBLE_CAP). */
+        T.ok(
+          node + ' · the undeclared SET equals the published baseline',
+          got === want,
+          'NEW: [' +
+            got
+              .split(' ')
+              .filter(function (x) {
+                return x && want.indexOf(x) === -1;
+              })
+              .join(' ') +
+            '] · FIXED (lower the baseline): [' +
+            want
+              .split(' ')
+              .filter(function (x) {
+                return x && got.indexOf(x) === -1;
+              })
+              .join(' ') +
+            ']'
+        );
+        if (got !== want) drift.push(node);
+      }
+      T.ok('the whole registry population was examined, not a slice', totalIds > 400, 'only ' + totalIds + ' ids across ' + NODES.length + ' registries');
+      T.ok('no node drifted from its baseline', drift.length === 0, 'drifted: ' + drift.join(', '));
+    });
+
     group('ECGDex RMSSD absence — an unmeasured RMSSD is null, never 0 (§∅)', 'ecgdex-dsp · absence', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       T.ok('ECGDSP reachable', !!(E && E.analyze && E.validateRR), 'ecgdex-dsp.js did not load');
