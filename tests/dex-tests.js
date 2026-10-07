@@ -4563,6 +4563,39 @@
       T.eq('a non-overlapping source contributes no comparisons', far.compared, 0);
     });
 
+    group('Integrator findings — unknown time is null, never 1970 (2026-10-05 §2a)', 'integrator-dsp · absence', function (T) {
+      var src = (env.sources || {})['integrator-dsp.js'] || '';
+      // ── source-mirror: the two finding builders must not fabricate tMs: 0 ──
+      var bad = (src.match(/tMs:\s*startMs\s*\|\|\s*0/g) || []).length;
+      T.ok('no `tMs: startMs || 0` fabrication sites', bad === 0, bad + ' site(s) stamp 1970 on timeless findings');
+      var good = (src.match(/tMs:\s*startMs\s*\?\?\s*null/g) || []).length;
+      T.ok('timeless findings use `tMs: startMs ?? null`', good >= 2, 'found ' + good + ', want ≥2');
+      // ── the unmatched export mapping must tolerate null tMs too ──
+      T.ok('unmatched export guards null tMs', /time:\s*e\.tMs\s*!=\s*null\s*\?\s*fmtDateTime\(e\.tMs\)\s*:\s*null/.test(src), 'fmtDateTime(e.tMs) unguarded — null renders as 1970');
+      // ── functional: a null-tMs finding exports tMs:null and time:null ──
+      var I = env.IntegratorDSP;
+      if (!I || typeof I.buildFusionExport !== 'function') {
+        T.ok('IntegratorDSP.buildFusionExport is exported', false, 'not loaded');
+        return;
+      }
+      var fusion = {
+        generated: '2026-10-05T00:00:00Z',
+        kernelAudit: null,
+        clockSkew: null,
+        window: { startMs: null, endMs: null },
+        findings: [{ tMs: null, type: 'glucose_autonomic_correlation', conf: 0.6, nodes: ['ECGDex', 'GlucoDex'], sources: [], meta: {}, note: 'x' }],
+        unmatched: { desat: [], surge: [] },
+        handshakes: {}
+      };
+      var out = I.buildFusionExport([], fusion);
+      var f = (out.findings || [])[0] || {};
+      T.ok('exported finding keeps tMs null', f.tMs === null, 'tMs=' + JSON.stringify(f.tMs));
+      T.ok('exported finding time is null (not 1970)', f.time === null, 'time=' + JSON.stringify(f.time));
+      // ── render contract: the findings table shows — for null tMs (source-mirror) ──
+      var rsrc = (env.sources || {})['integrator-render.js'] || '';
+      T.ok('findings table renders — for null tMs', /f\.tMs\s*!=\s*null\s*\?\s*D\.fmtDateTime\(f\.tMs\)\s*:\s*'—'/.test(rsrc), 'table would render 1970 for a timeless finding');
+    });
+
     group('Integrator window — sparse-event collapse (#2/#3)', 'integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode,
         RW = env.recWindow,
