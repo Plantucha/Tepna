@@ -34940,6 +34940,80 @@
       T.ok('a non-3-source history is rejected outright rather than silently ignored', threw);
     });
 
+    /* ── commit-shape #2: the SPACED-PATH TRAP, agent-neutral ────────────────────────────────────
+       An unquoted path with a space splits, so `> Data Unifier.html` or `git add Data Unifier.html`
+       leaves a 0-byte `Data` at the repo root beside the modified bundle. It happened three times
+       (d0e67d0c, 6a2bf810, 69f52309) and the owner ruled: add a commit check, do not rename the bundle.
+       `docs-ledger` check9 pins the root as an equality over named CLASSES and does red on a tracked
+       `Data` — but a 0-byte `Unifier.html` satisfies the allowed `*.html` class, which is why one sat on
+       origin/main from 2026-09-24 until #3360 deleted it. SIZE is the property check9 lacks.
+       This drives the pure core, so no git, no network, no clock. */
+    group('Commit-shape #2 — a 0-byte file added at the repo root is the spaced-path trap', 'tools · commit-shape · root-zero-byte', function (T) {
+      var c = env.commitShapeRootAdd;
+      if (typeof c !== 'function') {
+        T.skip('commit-shape root-add core is wired into this lane', 'browser lane cannot import tools/commit-shape.mjs');
+        return;
+      }
+      var A = function (path, size) {
+        return { status: 'A', path: path, size: size };
+      };
+      var M = function (path) {
+        return { status: 'M', path: path, size: null };
+      };
+
+      // THE PLANT — the real shape, in miniature: the split leaves `Data` beside the bundle it broke off.
+      var planted = c({ subject: 'chore(provenance): re-cut the pin', files: [A('Data', 0), M('Data Unifier.html')] });
+      T.eq('a 0-byte root add is FLAGGED', planted.verdict, 'FLAGGED');
+      T.eq('…and the reason names the file, so the fix is routing not hunting', planted.emptyRootAdds.join(','), 'Data');
+
+      /* CONTROL 1 — a NON-EMPTY root add is ordinary. Without this the detector could refuse every
+         root add and still look right on the plant. */
+      T.eq('a non-empty root add is clean', c({ subject: 'docs: add a root entry doc', files: [A('ORIENTATION.md', 4096)] }).verdict, 'clean');
+
+      /* CONTROL 2 — a 0-byte file inside a DIRECTORY is legitimate (an __init__.py-style placeholder).
+         The guard is about the ROOT; convicting here would make the gate unusable. */
+      T.eq('a 0-byte file in a subdirectory is not-applicable', c({ subject: 'feat: package marker', files: [A('capture-host/pkg/__init__.py', 0)] }).verdict, 'not-applicable');
+
+      // …and the legitimate placeholder must not MASK a root offender in the same commit.
+      var mixed = c({ subject: 'chore: sync', files: [A('capture-host/pkg/__init__.py', 0), A('Data', 0)] });
+      T.eq('a subdirectory 0-byte does not mask a root one', mixed.verdict, 'FLAGGED');
+      T.eq('…and only the ROOT file is named', mixed.emptyRootAdds.join(','), 'Data');
+
+      // Declared provenance downgrades, exactly as the first detector's does — not a shape exemption.
+      T.eq('declared provenance is exempt', c({ subject: 'Revert "chore: sync"', files: [A('Data', 0)] }).verdict, 'exempt');
+
+      /* §∅ — AN UNREADABLE SIZE IS NOT A CONVICTION. `size: null` means the blob could not be measured;
+         treating it as 0 would convict on absence, which is the bug class this repo refuses. */
+      var unknown = c({ subject: 'chore: whatever', files: [A('Mystery', null)] });
+      T.eq('an unreadable size does not convict', unknown.verdict, 'clean');
+      T.ok('…and the unreadable path is named', /unreadable/.test(unknown.reason), unknown.reason);
+
+      /* THE POPULATION IS STATED, so a green over nothing cannot pass. The baseline is keyed by COMMIT:
+         a path-keyed list would let an OLD `Data` entry excuse a NEW `Data`, which is the whole point of
+         keying on the sha. The tool itself refuses (exit 2) if its root-add scan matches 0 commits. */
+      var base = env.commitShapeBaseline || {};
+      var keys = Object.keys(base);
+      /* TWO, not three: 6a2bf810 was dropped because #3359 landed as a SQUASH, so that sha is not an
+         ancestor of main and a fresh clone cannot even resolve it — it made this tool red in CI and
+         green locally. An EQUALITY so the count cannot drift upward unnoticed: a new entry is a
+         deliberate act of owing debt, and the list may only shrink. */
+      T.ok('the declared historical baseline holds exactly the 2 main-reachable instances', keys.length === 2, keys.length + ' entries');
+      T.ok(
+        'every baseline key is a full 40-char sha, never a path',
+        keys.every(function (k) {
+          return /^[0-9a-f]{40}$/.test(k);
+        }),
+        keys.join(' ')
+      );
+      T.ok(
+        'every baseline entry states WHAT was added',
+        keys.every(function (k) {
+          return typeof base[k] === 'string' && base[k].length > 8;
+        }),
+        'a bare sha with no reason is an unexplained exemption'
+      );
+    });
+
     /* ── commit-shape: the AGENT-NEUTRAL half of the shared-tree guards ──────────────────────
        CLAUDE.md calls the shared-tree rules "hook-enforced". Measured 2026-08-15, that holds for
        ONE client: the guards are PreToolUse hooks under $CLAUDE_PROJECT_DIR, .git/hooks/ is empty
