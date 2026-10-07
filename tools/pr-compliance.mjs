@@ -69,16 +69,21 @@ function main() {
       if (!CODE_RE.test(f) || BUNDLE_RE.test(f)) continue;
       try {
         const diff = sh(`git diff ${base}..${head} -- ${f}`);
-        if (/computeHash/.test(diff)) { computeHashMoved = true; break; }
-      } catch { /* ignore per-file errors */ }
+        if (/computeHash/.test(diff)) {
+          computeHashMoved = true;
+          break;
+        }
+      } catch {
+        /* ignore per-file errors */
+      }
     }
     if (computeHashMoved && !body.includes(CORPUS_SENTENCE)) {
       failures.push('computeHash moved but body lacks the verbatim corpus re-verification sentence');
     }
 
     // 4. code changes need a changeset
-    const codeChanged = files.some(f => CODE_RE.test(f) && !BUNDLE_RE.test(f) && !f.startsWith('changes/'));
-    const changesetAdded = files.some(f => f.startsWith('changes/') && f.endsWith('.md'));
+    const codeChanged = files.some((f) => CODE_RE.test(f) && !BUNDLE_RE.test(f) && !f.startsWith('changes/'));
+    const changesetAdded = files.some((f) => f.startsWith('changes/') && f.endsWith('.md'));
     if (codeChanged && !changesetAdded) {
       failures.push('code files changed but no changes/ changeset was added');
     }

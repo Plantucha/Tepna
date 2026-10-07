@@ -25,8 +25,8 @@ const CHECKS = [
     codeRegex: /CK_AXIS_DRAWN_SHARE\s*=\s*([\d.]+)/,
     // doc is percent, code is fraction
     compare: (docPct, codeFrac) => Math.abs(parseFloat(docPct) - parseFloat(codeFrac) * 100) < 0.5,
-    why: 'CLAUDE.md §🔒.7 must match clock.js CK_AXIS_DRAWN_SHARE (#3367)',
-  },
+    why: 'CLAUDE.md §🔒.7 must match clock.js CK_AXIS_DRAWN_SHARE (#3367)'
+  }
 ];
 
 let failed = false;
@@ -36,12 +36,16 @@ for (const c of CHECKS) {
     const doc = readFileSync(c.docFile, 'utf-8');
     const dm = doc.match(c.docRegex);
     docVal = dm ? dm[1] : null;
-  } catch { docVal = null; }
+  } catch {
+    docVal = null;
+  }
   try {
     const code = readFileSync(c.codeFile, 'utf-8');
     const cm = code.match(c.codeRegex);
     codeVal = cm ? cm[1] : null;
-  } catch { codeVal = null; }
+  } catch {
+    codeVal = null;
+  }
 
   if (docVal === null) {
     console.error(`✕ ${c.name}: doc pattern not found in ${c.docFile}`);

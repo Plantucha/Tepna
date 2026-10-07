@@ -24,8 +24,8 @@ const PATTERNS = [
     name: 'tms-fabrication',
     // tMs: <expr> || 0  — but not tMs: <expr> ?? null, and not in tests/
     regex: /tMs:\s*[^,;]*\|\|\s*0/,
-    why: 'tMs: x || 0 stamps 1970 on timeless findings — use ?? null (§2a #3366)',
-  },
+    why: 'tMs: x || 0 stamps 1970 on timeless findings — use ?? null (§2a #3366)'
+  }
 ];
 
 function sh(cmd) {
@@ -44,13 +44,13 @@ function main() {
 
   // Get added lines in the diff
   const diff = sh(`git diff ${base}..${head} -U0 -- '*.js' ':!tests/'`);
-  const addedLines = diff.split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++'));
+  const addedLines = diff.split('\n').filter((l) => l.startsWith('+') && !l.startsWith('+++'));
 
   let failed = false;
   for (const p of PATTERNS) {
-    const hits = addedLines.filter(l => p.regex.test(l));
+    const hits = addedLines.filter((l) => p.regex.test(l));
     // Exclude lines that already use ?? null (the fix pattern)
-    const realHits = hits.filter(l => !l.includes('?? null'));
+    const realHits = hits.filter((l) => !l.includes('?? null'));
     if (realHits.length) {
       failed = true;
       console.error(`✕ ${p.name}: ${realHits.length} new instance(s) — ${p.why}`);
