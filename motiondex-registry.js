@@ -33,7 +33,9 @@
       goodDirection: 'down',
       depth: 'advanced',
       evidence: 'measured',
-      cite: 'Σ de-gravitated acceleration over the night — direct actigraphic statistic'
+      cite: 'Σ de-gravitated acceleration over the night — direct actigraphic statistic',
+      dormant: true,
+      dormantReason: 'No compute site in motiondex-dsp.js (2026-10-07). Registered but never emitted; movementIndex covers the per-epoch mean. Adjudicated, not deleted.'
     },
     movementIndex: { label: 'Movement index', unit: '', goodDirection: 'down', depth: 'basic', evidence: 'measured', cite: 'Mean per-epoch activity count — direct (lower = more restful)' },
     immobileFrac: { label: 'Immobile time', unit: '%', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Fraction of 30 s epochs below the movement threshold — direct' },
@@ -43,7 +45,9 @@
       goodDirection: 'up',
       depth: 'advanced',
       evidence: 'measured',
-      cite: 'Motion SQI (clip / flatline / sensor-off) → Ganglior conf — direct quality statistic'
+      cite: 'Motion SQI (clip / flatline / sensor-off) → Ganglior conf — direct quality statistic',
+      dormant: true,
+      dormantReason: 'No compute site in motiondex-dsp.js (2026-10-07). Registered but never emitted. Adjudicated, not deleted.'
     },
 
     /* ── EXPERIMENTAL — frame-dependent (uncalibrated) or surrogate ────────── */

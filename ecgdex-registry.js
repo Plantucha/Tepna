@@ -36,8 +36,8 @@
     steps: { label: 'Total steps', unit: '', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Accelerometer step count — direct' },
     analyzable: { label: '% Analyzable', unit: '%', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Fraction of the recording that is analyzable — direct coverage' },
     coverage: { label: 'Coverage', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'On-body recording coverage — direct' },
-    correction: { label: 'Correction', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Beats corrected during cleaning — direct quality statistic' },
-    meanSqi: { label: 'Mean SQI', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean signal-quality index — direct per-beat quality' },
+    correctionRate: { label: 'Correction', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Beats corrected during cleaning — direct quality statistic' },
+    meanSQI: { label: 'Mean SQI', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean signal-quality index — direct per-beat quality' },
     ectopy: { label: 'Ectopy', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Detected ectopic-beat count (PVC + PAC) — direct classification' },
 
     /* ── EMERGING — published, less standardized / device-dependent ─────────── */
@@ -61,7 +61,7 @@
       evidence: 'emerging',
       cite: 'Poincaré ellipse area S = π·SD1·SD2 (Brennan 2001) — derived nonlinear HRV descriptor; less standardized than the SD1/SD2 axes, device-dependent'
     },
-    crCoupling: { label: 'CR Coupling', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Cardiorespiratory phase-locking value (PLV) — coupling strength' },
+    crCoupling: { label: 'CR Coupling', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Cardiorespiratory phase-locking value (PLV) — coupling strength', dormant: true, dormantReason: 'DUPLICATE of crcPLV — same PLV metric registered twice; crcPLV is canonical. Adjudicated 2026-10-07, not a drift.' },
     lfhf: { label: 'LF/HF', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'LF:HF power ratio — sympatho-vagal balance proxy' },
 
     /* ── EMERGING — companion-accelerometer cross-checks (ACC sub-cards) ─────── */
@@ -441,9 +441,10 @@
     analyzable: 'analyzable',
     coverage: 'coverage',
     'beat coverage': 'coverage',
-    correction: 'correction',
-    'correction rate': 'correction',
-    'mean sqi': 'meanSqi',
+    correctionRate: 'correctionRate',
+    'correction rate': 'correctionRate',
+    'correction': 'correctionRate',
+    'mean sqi': 'meanSQI',
     ectopy: 'ectopy',
     // ACC companion cross-checks — both the section-card titles and their dense sub-stats
     'acc respiratory rate (rracc)': 'rraccRate',
