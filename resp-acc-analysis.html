@@ -8364,7 +8364,7 @@ function runFusion(recs, opts) {
   var findings = apnea ? apnea.findings.slice() : [];
   if (autoGly && autoGly.glucoseAutonomicCorrelation != null) {
     findings.push({
-      tMs: startMs || 0,
+      tMs: startMs ?? null,
       type: 'glucose_autonomic_correlation',
       conf: 0.6,
       nodes: ['ECGDex', 'GlucoDex'],
@@ -8377,7 +8377,7 @@ function runFusion(recs, opts) {
   if (staging && staging.blocks) {
     staging.blocks.forEach(function (b) {
       if (!b.disagreement) return;
-      findings.push({ tMs: startMs || 0, type: 'staging_disagreement', conf: null, nodes: b.nodes, sources: [], meta: { remGapPct: b.remGapPct, remByNode: b.remByNode }, note: b.note });
+      findings.push({ tMs: startMs ?? null, type: 'staging_disagreement', conf: null, nodes: b.nodes, sources: [], meta: { remGapPct: b.remGapPct, remByNode: b.remByNode }, note: b.note });
     });
   }
   // §2: surface CORROBORATED periodic-breathing windows (≥2 independent signals) as findings
@@ -8569,10 +8569,10 @@ function buildFusionExport(recs, fusion) {
     }),
     unmatched: {
       desat: fusion.unmatched.desat.map(function (e) {
-        return { tMs: e.tMs, time: fmtDateTime(e.tMs), conf: e.conf, meta: e.meta };
+        return { tMs: e.tMs, time: e.tMs != null ? fmtDateTime(e.tMs) : null, conf: e.conf, meta: e.meta };
       }),
       surge: fusion.unmatched.surge.map(function (e) {
-        return { tMs: e.tMs, time: fmtDateTime(e.tMs), conf: e.conf };
+        return { tMs: e.tMs, time: e.tMs != null ? fmtDateTime(e.tMs) : null, conf: e.conf };
       })
     },
     // §6 closed handshakes written back so nodes can ingest
