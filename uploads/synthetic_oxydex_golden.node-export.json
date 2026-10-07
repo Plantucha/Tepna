@@ -351,8 +351,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "1e300dce28dc",
-        "computeHash": "fb8272491933"
+        "manifestHash": "99b5160a3716",
+        "computeHash": "2d03b164ace2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -380,8 +380,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "1e300dce28dc",
-        "computeHash": "fb8272491933"
+        "manifestHash": "99b5160a3716",
+        "computeHash": "2d03b164ace2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -409,8 +409,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "1e300dce28dc",
-        "computeHash": "fb8272491933"
+        "manifestHash": "99b5160a3716",
+        "computeHash": "2d03b164ace2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -438,8 +438,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "1e300dce28dc",
-        "computeHash": "fb8272491933"
+        "manifestHash": "99b5160a3716",
+        "computeHash": "2d03b164ace2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -763,6 +763,8 @@
       "basis": "wholeRecord"
     },
     "hrFreqBands": {
+      "hrBandsN": 7200,
+      "hrBandsTotal": 7200,
       "hrLfPow": 0.2,
       "hrHfPow": 0,
       "hrLfHf": null,
@@ -846,7 +848,9 @@
       "hd88": 0,
       "hd94PerHr": 274,
       "desatAUC": 901,
-      "hd94Label": "High (>200/hr)"
+      "hd94Label": "High (>200/hr)",
+      "nMeasured": 7200,
+      "nTotal": 7200
     },
     "t88t85": {
       "t88Sec": 0,
@@ -855,7 +859,9 @@
       "t85Sec": 0,
       "t85Min": 0,
       "t85Pct": 0,
-      "t88Label": "None"
+      "t88Label": "None",
+      "nMeasured": 7200,
+      "nTotal": 7200
     },
     "lcsp": {
       "lcspSec": 899,
@@ -1128,6 +1134,7 @@
       "modl": 90.23,
       "meanDipSlope": -0.76,
       "meanRecSlope": 0.28,
+      "meanRecSlopeN": 4,
       "clusteringIdx": 0.5,
       "firstHalfNadirs": 2,
       "lastHalfNadirs": 2

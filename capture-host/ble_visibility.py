@@ -75,7 +75,7 @@ def read_records(path: str) -> list[dict]:
             if not line:
                 continue
             try:
-                out.append(json.loads(line))
+                obj = json.loads(line)
             except ValueError:
                 # SAY WHAT WAS HIDDEN. Skipping quietly would make the history under-report by an
                 # unknown amount, which is the same defect as a count with no denominator: the
@@ -84,6 +84,25 @@ def read_records(path: str) -> list[dict]:
                     "ble_visibility: %s line %d is not JSON — SKIPPED, the digest below is missing it" % (path, lineno),
                     file=sys.stderr,
                 )
+                continue
+            # 🔴 "SKIP UNPARSEABLE LINES" DID NOT COVER A PARSEABLE NON-OBJECT, which is the gap this
+            # docstring promised against: a history line of `42` parses, is appended, and then
+            # `visibility()` raises `AttributeError: 'int' object has no attribute 'get'` — measured on
+            # main. The read survived the bad line and the CONSUMER died on it, which is the worst
+            # division of labour: the function that could name the offending line is not the one that
+            # fails.
+            #
+            # Reported, not dropped, for the reason the branch above gives: skipping quietly makes the
+            # history under-report by an unknown amount. A record that is JSON but not an OBJECT is
+            # exactly as missing from the digest as one that would not parse, so it earns the same line.
+            if not isinstance(obj, dict):
+                print(
+                    "ble_visibility: %s line %d is JSON but not an object (%s) — SKIPPED, the digest "
+                    "below is missing it" % (path, lineno, type(obj).__name__),
+                    file=sys.stderr,
+                )
+                continue
+            out.append(obj)
     return out
 
 

@@ -2610,6 +2610,21 @@ async function main() {
     HrvCalcVo2Cat: ctx.calcVo2Cat,
     HrvGetAgeBand: ctx.getAgeBand,
     OxyKarvonenZone: ctx.upKarvonenZone,
+    /* ABSENCE-SURVEY profile group — the resting-HR source decision, the chip text, the two recompute paths, and a
+       NARROW accessor for the three realm globals they read (UP, allNights, _upHRrest) so a test can set and restore them. */
+    OxyRestingHR: ctx.upRestingHR,
+    OxyZoneChipText: ctx.upZoneChipText,
+    OxyHRrestCaveat: ctx.upHRrestCaveat,
+    OxyUpFromDOM: ctx.upFromDOM,
+    OxyRecomputeFromProfile: ctx.recomputeFromProfile,
+    oxyProfileRealm: {
+      get: function (k) {
+        return ['UP', 'allNights', '_upHRrest'].indexOf(k) >= 0 ? ctx[k] : undefined;
+      },
+      set: function (k, v) {
+        if (['UP', 'allNights', '_upHRrest'].indexOf(k) >= 0) ctx[k] = v;
+      }
+    },
     OxyBMILabel: ctx.upBMILabel,
     OxyVO2abs: ctx.upVO2abs,
     OxyUP: ctx.UP,
@@ -2722,6 +2737,9 @@ async function main() {
     setEcgByDate: function (m) {
       ctx._ecgByDate = m;
     },
+    // §∅ behavioural handle: the ceiling baseline, so a DROPOUT can be tested for real and not
+    // merely regex-matched in the source. Additive — a new key, no existing one touched.
+    computeCeilingBaselineArr: ctx.computeCeilingBaselineArr,
     reconstructEventTMs: ctx.reconstructEventTMs,
     pearson: ctx.pearson,
     labelPositionalApnea: ctx.labelPositionalApnea,

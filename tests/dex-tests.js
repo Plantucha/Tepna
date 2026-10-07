@@ -7279,6 +7279,421 @@
        inputHash that names a different input than the element's contentId · a missing code identity · a
        value that disagrees with the element scalar · a zero-length window — each reads `unresolved`, LOUDLY,
        while the scalar every existing consumer reads is untouched. */
+    /* §∅ · A DROPOUT DOES NOT OPEN A PHANTOM DESATURATION — item (C) of the 2026-10-06 batch.
+       `detectDesatEvents` entered on `spo2[i] <= bl - dropPct` with no missing-sample guard, and
+       `null <= bl - dropPct` COERCES to `0 <= bl - dropPct`, which is true for any sane baseline. So a
+       run of absent samples opened an event whose nadir was `null` and whose depth was ≈ the baseline,
+       poisoning MODL, meanDipSlope, odi1Rate and WtDSI. CPAPDex's twin carried the `_spo2Valid` guard
+       all along; OxyDex's did not.
+       ⚠️ THE GUARD IS IN THIS PR ALREADY (`if (spo2[i] == null) continue;`). NOTHING PROVED IT: no test
+       puts a null INTO the series this detector reads — the existing dropout tests skip TIME, so their
+       rows are absent rather than null, and the one behavioural `detectDesatEvents` twin feeds a
+       null-free series. This is the same gap this PR had for its ceiling claim, so it gets the same
+       remedy. RED on main. */
+    group('§∅ · OxyDex — an absent run opens NO phantom desaturation (plant-backed)', 'oxydex-dsp · absence · desat · plant', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      // A resting series with ONE real desaturation, then the same series with a 60-sample ABSENT run
+      // where nothing was measured. Only the second differs, and only by absence.
+      var clean = [];
+      for (var i = 0; i < 900; i++) clean.push(i >= 300 && i < 360 ? 90 : 97);
+      var holed = clean.slice();
+      for (var j = 600; j < 660; j++) holed[j] = null;
+
+      var evClean = det(clean, { dropPct: 4, exitPct: 4 });
+      var evHoled = det(holed, { dropPct: 4, exitPct: 4 });
+
+      // ANTI-VACUITY — passes on main too. Without it, "no phantom event" could mean the detector
+      // simply found nothing at all, and the real assertion below would be vacuous.
+      T.ok('ANTI-VACUITY · the real desaturation IS detected', evClean.length >= 1, 'events=' + evClean.length);
+      T.eq('CONTROL · and its baseline is the resting 97', evClean.length ? evClean[0].baseline : null, 97);
+
+      // RED ON MAIN: the absent run opens a second, fabricated event.
+      T.eq('an absent run adds NO event', evHoled.length, evClean.length);
+      var bad = evHoled.filter(function (e) {
+        return e.nadir == null || !isFinite(e.nadir) || e.depth > 50;
+      });
+      T.eq(
+        'no event has a null nadir or an impossible depth',
+        JSON.stringify(
+          bad.map(function (e) {
+            return { nadir: e.nadir, depth: e.depth };
+          })
+        ),
+        '[]'
+      );
+      T.eq('CONTROL · absence does not shorten the series the detector reads', holed.length, clean.length);
+    });
+
+    /* §∅ · A DROPOUT IS ABSENT, NEVER A MEASURED 0 — the behavioural test this fix shipped without.
+       Muse's PR (#3321) changed `measuredSpO2`, the detector, hypoxic dose, T88/T85, the desaturation
+       profile and the baseline histogram, and carried NO test: `measuredSpO2` appeared ZERO times in
+       this file, and every committed OxyDex fixture has `nMeasured == nTotal` (25660 == 25660), so no
+       fixture contains a null either. The existing coverage of `computeCeilingBaselineArr` was a REGEX
+       on its source text plus an allowlist line claiming it is "exercised by the OxyDex equiv/compute
+       gate" — a gate whose inputs hold no absences. Explained, and unexercised.
+       MEASURED PLANT, both ways, against main's own sources: a 180-sample null dropout inside one
+       300-sample window leaves the resting ceiling at 98 with this fix and drags it to 97 on main.
+       That one percent is the whole bug: desaturations are scored RELATIVE to this baseline, so a
+       ceiling pulled down by absence manufactures events out of a gap where nothing was measured. */
+    group('§∅ · OxyDex — a dropout is ABSENT, never a measured 0 (plant-backed)', 'oxydex-util · oxydex-dsp · absence · plant', function (T) {
+      var CB = env.computeCeilingBaselineArr || (typeof globalThis !== 'undefined' && globalThis.computeCeilingBaselineArr) || null;
+      if (typeof CB !== 'function') {
+        T.skip('computeCeilingBaselineArr reachable', 'not exposed in this lane');
+      } else {
+        var WIN = 300;
+        var clean = [];
+        for (var i = 0; i < 900; i++) clean.push(94 + (i % 5)); // a resting signal that SPANS 94..98,
+        // because a percentile cannot be seen to move on a constant series.
+        var holed = clean.slice();
+        for (var j = 400; j < 580; j++) holed[j] = null; // 180 absent samples INSIDE one window
+        var blClean = CB(clean, WIN, 90);
+        var blHoled = CB(holed, WIN, 90);
+
+        // (a) the ceiling is UNMOVED by absence. RED on main: 97 against 98.
+        T.eq('the resting ceiling is UNMOVED by a 180-sample dropout inside the window', blHoled[579], blClean[579]);
+
+        // (b) and it is never dragged DOWN at ANY index — the event-manufacturing direction.
+        var dragged = 0;
+        var worst = 0;
+        for (var k = WIN; k < 900; k++) {
+          if (blHoled[k] != null && blClean[k] != null && blHoled[k] < blClean[k]) {
+            dragged++;
+            if (blClean[k] - blHoled[k] > worst) worst = blClean[k] - blHoled[k];
+          }
+        }
+        T.eq('no index has its ceiling dragged DOWN by absence', dragged + '/' + worst, '0/0');
+
+        // CONTROLS — these pass on main TOO, so a red above is the absence path and not the harness.
+        T.eq('CONTROL · the null-free ceiling is itself reproducible', CB(clean, WIN, 90)[579], blClean[579]);
+        T.ok('CONTROL · the null-free ceiling is a real reading, not undefined', blClean[579] >= 94 && blClean[579] <= 98, String(blClean[579]));
+        T.eq('CONTROL · absence does not shorten the series', blHoled.length, blClean.length);
+      }
+
+      /* (c) THE EXPORT DECLARES ITS COVERAGE. On main these fields do not exist at all — the
+         browser lane's equivalence leg reds with `newMetrics.hypDose.nMeasured: 7200 != undefined`,
+         which is the plant for this leg.
+         ⚠️ AND NOT `nMeasured < nTotal`, WHICH THIS INPUT PATH CANNOT PRODUCE. An O2Ring CSV row
+         whose Oxygen Level is blank, `--` or `- -` is DROPPED at parse (`oxydex-dsp.js:861`
+         `continue`), so the row never exists, `nTotal` counts only survivors, and a gapped night
+         reports FULL coverage of a shortened recording. Measured here: a 1200-row file with a
+         200-row blank gap yields 1000/1000, not 1000/1200. That erasure is one layer EARLIER than
+         this PR and is a live §∅ finding in its own right — residue row
+         `2026-10-05-an-absent-spo2-row-is-dropped-at-parse-so-coverage-cannot-see-it`. It is
+         deliberately NOT asserted as a contract here: a test that pins current behaviour retires
+         the one mutant that points at the defect. */
+      var OD = env.OxyDex;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.skip('OxyDex.compute reachable', 'not available in this runner');
+        return;
+      }
+      var CODE = { manifestHash: '0123456789ab', computeHash: 'ba9876543210' };
+      var rows = ['Time,Oxygen Level,Pulse Rate,Motion'];
+      for (var s = 0; s < 1200; s++) {
+        var pad = function (v) {
+          return (v < 10 ? '0' : '') + v;
+        };
+        var stamp = pad(23 + Math.floor(s / 3600)) + ':' + pad(Math.floor((s % 3600) / 60)) + ':' + pad(s % 60) + ' 13/06/2026';
+        rows.push(stamp + ',' + String(94 + (s % 5)) + ',58,0');
+      }
+      var exp = OD.compute({ text: rows.join('\n') + '\n' }, { code: CODE });
+      var night = exp && exp.nights && exp.nights[0];
+      var nm = night && night.newMetrics;
+      var blocks = [];
+      if (nm) {
+        if (nm.hypDose) blocks.push(['hypDose', nm.hypDose]);
+        if (nm.t88t85) blocks.push(['t88t85', nm.t88t85]);
+      }
+      if (!blocks.length) {
+        T.skip('a coverage-carrying metric block is reachable', 'no hypDose/t88t85 on the night in this lane');
+        return;
+      }
+      blocks.forEach(function (pair) {
+        var name = pair[0];
+        var b = pair[1];
+        // RED on main: both are `undefined` there — the export made no coverage claim at all.
+        T.ok(
+          name + ' DECLARES its coverage: nMeasured and nTotal are both real counts',
+          typeof b.nMeasured === 'number' && isFinite(b.nMeasured) && typeof b.nTotal === 'number' && isFinite(b.nTotal),
+          name + '=' + JSON.stringify({ nMeasured: b.nMeasured, nTotal: b.nTotal })
+        );
+        T.ok(name + ' coverage is COHERENT: measured never exceeds attempted', b.nMeasured <= b.nTotal, b.nMeasured + '/' + b.nTotal);
+        // CONTROL — passes on main too: the metric itself still reports.
+        T.ok('CONTROL · ' + name + ' still carries its value', 'value' in b || 'label' in b || Object.keys(b).length > 2, Object.keys(b).slice(0, 6).join(','));
+      });
+    });
+
+    /* §∅ · A TERMINAL DESATURATION OBSERVED NO RESATURATION — item (B) of the 2026-10-06 batch, as
+       ACTUALLY FOUND. The hunter's claim was an EOF off-by-one: a desat opening 10 samples before the
+       end passing a 10 s gate at 9 s. That does NOT reproduce, and the table is in the PR body —
+       mid-series and terminal both report `dur: 10` for a 10-sample dip, and a 9-sample terminal dip
+       is correctly REJECTED, because `endIdxRaw` is one past the last event sample in BOTH paths.
+       What IS wrong sits one field over. `recEnd = Math.min(n - 1, endIdxRaw)` pulls a terminal
+       event's end back to the last IN-EVENT sample, where every in-loop close gets the re-rise
+       sample, so `recSlope` measured the dip against itself: a flat terminal desat published 0 — "a
+       recovery was measured and it was perfectly flat" — for a recording that simply ended. Measured
+       on main: the identical dip gives 0.7 mid-series and 0 terminal. And it is averaged into the
+       published `meanRecSlope`, so one terminal event drags a true 0.7 to 0.35 over two events. */
+    group('§∅ · OxyDex — a TERMINAL desaturation reports no resaturation, not a flat one (plant-backed)', 'oxydex-dsp · absence · desat · plant', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      function series(startAt, len, total) {
+        var a = [];
+        for (var i = 0; i < total; i++) a.push(i >= startAt && i < startAt + len ? 90 : 97);
+        return a;
+      }
+      var OPTS = { dropPct: 4, exitPct: 4, minSec: 10 };
+      var mid = det(series(300, 10, 900), OPTS);
+      var eof = det(series(890, 10, 900), OPTS);
+
+      // ANTI-VACUITY — passes on main: both shapes ARE events, so the comparison is about recSlope.
+      T.eq('ANTI-VACUITY · both the mid-series and the terminal dip are detected', mid.length + '/' + eof.length, '1/1');
+      // CONTROL — passes on main: the mid-series recovery is OBSERVED and keeps its value.
+      T.eq('CONTROL · the mid-series event still reports its observed resaturation', mid[0].recSlope, 0.7);
+      // RED ON MAIN: 0, as though a recovery had been watched and found flat.
+      T.eq('a TERMINAL event reports NO resaturation', eof[0].recSlope, null);
+      T.eq('…and names why', eof[0].recSlopeReason, 'record-ended');
+      T.eq('CONTROL · the mid-series event names no absence', mid[0].recSlopeReason, null);
+      // The duration convention is NOT the defect — pinned so the closed premise cannot re-open.
+      T.eq('the duration convention is identical in both paths (the premise that did NOT reproduce)', mid[0].durationSec + '/' + eof[0].durationSec, '10/10');
+      T.eq('CONTROL · a 9-sample terminal dip is still rejected by a 10 s gate', det(series(891, 9, 900), OPTS).length, 0);
+    });
+
+    group('§∅ · OxyDex — meanRecSlope averages the MEASURED recoveries and says how many (plant-backed)', 'oxydex-dsp · absence · desat · plant', function (T) {
+      var NS = env.OxyDex;
+      var slopes = NS && NS._bare && NS._bare.computeDesatSlopes;
+      if (typeof slopes !== 'function') {
+        T.skip('OxyDex._bare.computeDesatSlopes reachable', 'not wired in this lane');
+        return;
+      }
+      /* blArr is OMITTED on purpose: `computeDesatSlopes` threads it into `detectDesatEvents`, which
+         computes the ceiling itself when none is passed. The ceiling helper reaches `env` only via
+         #3321, and this PR must not depend on a sibling branch's harness line. */
+      /* `computeDesatSlopes(rows, blArr)` builds its OWN events with the hysteresis close and the
+         default minSec, so the series is shaped for that rather than for a hand-passed opts. */
+      function rowsFor(fn) {
+        var r = [];
+        for (var i = 0; i < 900; i++) r.push({ spo2: fn(i) });
+        return r;
+      }
+      // One mid-series dip (recovery observed) and one running to the LAST sample (never observed).
+      var mixed = rowsFor(function (i) {
+        return (i >= 300 && i < 320) || i >= 870 ? 90 : 97;
+      });
+      var pr = slopes(mixed);
+      if (!pr) {
+        T.skip('computeDesatSlopes returned a profile', 'series rejected (n < 60 or no events)');
+        return;
+      }
+      // ANTI-VACUITY — passes on main: without events the assertions below would be vacuous.
+      T.ok(
+        'ANTI-VACUITY · the series yields events, at least one of them terminal',
+        pr.meanRecSlopeN != null || pr.meanRecSlope != null,
+        JSON.stringify({ n: pr.meanRecSlopeN, mean: pr.meanRecSlope })
+      );
+      // RED ON MAIN: main folds the unobserved recovery in as a 0 and reports no n at all.
+      T.eq('meanRecSlope is the mean over the MEASURED recoveries ONLY — the unobserved one is not a 0', pr.meanRecSlope, 0.35);
+      T.ok('…and an n says how many recoveries it is over', typeof pr.meanRecSlopeN === 'number', String(pr.meanRecSlopeN));
+
+      // CONTROL — passes on main: two MID-SERIES dips, every recovery observed, n equals the events.
+      var allMid = rowsFor(function (i) {
+        return (i >= 300 && i < 320) || (i >= 600 && i < 620) ? 90 : 97;
+      });
+      var pr2 = slopes(allMid);
+      T.ok(
+        'CONTROL · with every recovery measured the mean is a real number',
+        pr2 && typeof pr2.meanRecSlope === 'number' && pr2.meanRecSlope > 0,
+        JSON.stringify({ mean: pr2 && pr2.meanRecSlope, n: pr2 && pr2.meanRecSlopeN })
+      );
+      T.eq('CONTROL · and its n equals the number of events it averaged', pr2 && pr2.meanRecSlopeN, 2);
+    });
+
+    /* §∅ · A NULL COERCED TO A NUMBER INSIDE AN AGGREGATE — six sites, one theme, three operators.
+       JavaScript makes absence arithmetic: `null + x` is `x`, `null - x` is `-x`, `null < x` is TRUE
+       for any positive x, and `(a,b) => a-b` therefore sorts nulls to the FRONT. Each site below read
+       a dropout as a measurement and published the result.
+       Five were reported by Muse's hunters; the SIXTH (`computeRespRateProxy`) was found because a
+       patch asserted its anchor was unique, got 2, and refused — the twin carried the prologue byte
+       for byte.
+       ⚠️ THREE OF THE SIX WERE ALREADY FIXED BY #3321 WHILE THIS PR WAS WAITING BEHIND IT: `auc90`
+       (P-A), the IQR percentile and the conditional mean all read `measured` on main now, and main's
+       IQR even indexes `measured.length` — the correct form, and the one my own first guard got wrong
+       by indexing the full `n`. Their assertions below therefore PASS on main: they are REGRESSION
+       GUARDS, not plants, and this group does not claim credit for them.
+       The three this PR fixes, each RED on main with a number: the CDI state machine (`cdi` 1 on a
+       flat-healthy night with a gap), `_hrFreqBandsWindow` (LF power 38.9 from a CONSTANT heart rate)
+       and `_respRateProxyWindow` (respRateBpm 7.8 → 8.4, peak power 0 → 14.2). ⚠️ Each assertion pairs a GAPPED series with its ungapped twin, and each carries an
+       ANTI-VACUITY control, because "the gap changed nothing" is also what a function that computed
+       nothing would say. */
+    group('§∅ · OxyDex — a null is never a number inside an aggregate (three sites fixed here, three guarded)', 'oxydex-dsp · absence · plant', function (T) {
+      var B = (env.OxyDex && env.OxyDex._bare) || null;
+      if (!B) {
+        T.skip('OxyDex._bare reachable', 'not wired in this lane');
+        return;
+      }
+      var MISSING = ['computeDesaturationProfile', 'computeRollingMetrics', 'buildFlags', 'computeSpO2Advanced', 'computeHRFreqBands', 'computeRespRateProxy'].filter(function (k) {
+        return typeof B[k] !== 'function';
+      });
+      // NAMED, never silent: a site that cannot be reached is a hole in this plant, not an absence of defect.
+      T.eq('every one of the six entry points is reachable', MISSING.join(',') || 'none', 'none');
+
+      function rows(fn) {
+        var r = [];
+        for (var i = 0; i < 1800; i++) r.push(fn(i));
+        return r;
+      }
+      // A FLAT-HEALTHY night: SpO2 96 throughout, HR 70 throughout. Nothing here is a desaturation,
+      // nothing is an excursion, the spread is zero and no sample is below 94.
+      var flat = rows(function () {
+        return { spo2: 96, hr: 70 };
+      });
+      // The SAME night with 60 samples absent — not low, ABSENT.
+      var holed = rows(function (i) {
+        return i >= 900 && i < 960 ? { spo2: null, hr: null } : { spo2: 96, hr: 70 };
+      });
+      var sp = flat.map(function (r) {
+        return r.spo2;
+      });
+      var spH = holed.map(function (r) {
+        return r.spo2;
+      });
+
+      // ── 1 · P-A · auc90: `null < 90` is true and `90 - null` is 90, so each absent second added a
+      // FULL 90 to the hypoxic burden. (Guard already on #3321; this is its missing proof.)
+      if (typeof B.computeDesaturationProfile === 'function') {
+        var dpF = B.computeDesaturationProfile(flat, 0, 0, null);
+        var dpH = B.computeDesaturationProfile(holed, 0, 0, null);
+        if (dpF && dpH) {
+          T.eq('P-A · a flat-healthy night has NO hypoxic burden', dpF.auc90Total != null ? dpF.auc90Total : 0, 0);
+          /* ⚠️ RED UNTIL #3321 IS IN. P-A's guard (`spo2[i] != null && spo2[i] < 90`) lives on that
+             branch; this PR carries only its PROOF, per the agreed order — the sibling lands behind
+             it. On a main without #3321 this reads non-zero, which is the defect, not a flaky test. */
+          T.eq('P-A · and 60 ABSENT seconds add none of it', dpH.auc90Total != null ? dpH.auc90Total : 0, 0);
+        } else {
+          T.skip('P-A · computeDesaturationProfile returned a profile', 'series rejected by the profile');
+        }
+      }
+
+      // ── 2 · P-B · the CDI state machine: loThresh is positive, so `null < loThresh` was ALWAYS
+      // true — every null forced state −1 and bumped the crossing count.
+      if (typeof B.computeRollingMetrics === 'function') {
+        var rmF = B.computeRollingMetrics(flat);
+        var rmH = B.computeRollingMetrics(holed);
+        if (rmF && rmH && 'cdi' in rmF) {
+          T.eq('ANTI-VACUITY · the flat night has a CDI figure at all', typeof rmF.cdi, 'number');
+          T.eq('P-B · 60 absent seconds create NO cyclical-desaturation index', rmH.cdi, rmF.cdi);
+        } else {
+          T.skip(
+            'P-B · computeRollingMetrics exposes cdi',
+            'not present in this build: ' +
+              Object.keys(rmF || {})
+                .slice(0, 8)
+                .join(',')
+          );
+        }
+      }
+
+      // ── 3 · IQR: `(a,b) => a-b` sorts nulls to the FRONT, so p25 could BE null and `p75 - null`
+      // was p75 — an IQR of 96 for a night whose true spread is 0.
+      if (typeof B.computeSpO2Advanced === 'function') {
+        var advF = B.computeSpO2Advanced(flat);
+        var advH = B.computeSpO2Advanced(holed);
+        /* ⚠️ A HEAVIER GAP, and the reason is the whole point of a plant. A 60-sample dropout does
+           NOT reach this defect: `p25` is `sorted[floor(n*0.25)]`, so nulls sunk to the front only
+           reach it once they exceed a QUARTER of the night. With 60 in 1800 the index lands at 450,
+           still inside the measured region, and the assertion passes on main — I wrote that version
+           first and it went green against the live bug. 500 absent samples (27.8 %, an ordinary bad
+           night) put `p25` itself at null, and `p75 - null` publishes the whole scale as spread. */
+        var gappy = rows(function (i) {
+          return i >= 400 && i < 900 ? { spo2: null, hr: null } : { spo2: 96, hr: 70 };
+        });
+        var advG = B.computeSpO2Advanced(gappy);
+        if (advF && advH && 'spo2IQR' in advF) {
+          T.eq('ANTI-VACUITY · the flat night reports a real IQR figure', typeof advF.spo2IQR, 'number');
+          T.eq('IQR · a flat night has zero spread', advF.spo2IQR, 0);
+          T.eq('IQR · a light gap leaves it at zero', advH.spo2IQR, 0);
+          T.eq('IQR · and a gap past the 25th percentile does NOT become the whole scale', advG && advG.spo2IQR, 0);
+        } else {
+          T.skip('IQR · computeSpO2Advanced exposes spo2IQR', 'not present in this build: ' + Object.keys(advF || {}).join(','));
+        }
+      }
+
+      // ── 4 · the conditional mean: `null < 94` admitted every absence, summed as 0.
+      // The conditional mean lives in computeSpO2Advanced too, beside the IQR.
+      if (typeof B.computeSpO2Advanced === 'function') {
+        var fgF = B.computeSpO2Advanced(flat);
+        var fgH = B.computeSpO2Advanced(holed);
+        if (fgF && fgH && 'condPctBelow94' in fgF) {
+          T.eq('cond-mean · a flat-healthy night has no samples below 94', fgF.condPctBelow94, 0);
+          T.eq('cond-mean · and 60 ABSENT samples are not 60 desaturated ones', fgH.condPctBelow94, 0);
+          T.eq('cond-mean · the conditional mean over nothing is null, not 0 %', fgH.condMeanBelow94, null);
+        } else {
+          T.skip('cond-mean · computeSpO2Advanced exposes condPctBelow94', 'not present in this build: ' + Object.keys(fgF || {}).join(','));
+        }
+      }
+
+      /* ── 5 & 6 · the two spectra. A CONSTANT HR series is flat: detrended it is zero everywhere, so
+         every band must read ~0. On main each null became a −m IMPULSE and a BLOCK of them an impulse
+         train, so the DFT reported power — and the proxy read a RESPIRATION RATE off it.
+         🔴 THE 60 IS LOAD-BEARING, AND THESE ASSERTIONS DO NOT COVER A SHORTER GAP.
+         `cleanArtifactHR` (oxydex-dsp.js:999) runs at :2772, "then clean HR before any analysis",
+         with `MAX_RUN = CFG.HR_ARTIFACT_MAX_RUN_SEC = 60` (:129). Its branch is
+         `if (j - i >= MAX_RUN)` → bail and leave the samples alone, ELSE
+         `rows[k].hr = baseline; rows[k].hrArtifact = true` — an absent run SHORTER than 60 is FILLED
+         with the previous HR before `_detrendMeasured` ever sees it. So a 59-beat gap reaches both
+         spectra as FABRICATED NUMBERS today, and nothing in this group would notice: a green here is
+         evidence about runs of 60 or more, and about nothing shorter.
+         ⚠️ I did not choose 60 for that reason — I chose it as a round minute, and it sits exactly on
+         the boundary by luck. Had I written 50 the plant would have seen filled constants instead of
+         nulls, both spectra would have matched, and the group would have passed over the live defect —
+         the same way the 3.3 % IQR plant did before it was re-sized. Stated so the next reader does
+         not shrink the gap for tidiness.
+         The fill itself is Muse's finding and is ROUTED, not fixed here: `cleanArtifactHR` has no null
+         guard, and interpolating absence into a spectrum is a §∅ question of its own. */
+      if (typeof B.computeHRFreqBands === 'function') {
+        var bF = B.computeHRFreqBands(flat);
+        var bH = B.computeHRFreqBands(holed);
+        if (bF && bH && 'hrLfPow' in bF) {
+          T.ok('ANTI-VACUITY · the bands function returns figures for both nights', bF.hrLfPow != null && bH.hrLfPow != null, JSON.stringify({ flat: bF.hrLfPow, holed: bH.hrLfPow }));
+          T.ok('DFT · a CONSTANT heart rate has no LF power (flat night)', Math.abs(bF.hrLfPow) < 0.5, String(bF.hrLfPow));
+          T.ok('DFT · and a 60-beat GAP does not manufacture any', Math.abs(bH.hrLfPow) < 0.5, String(bH.hrLfPow));
+          T.ok('DFT · nor HF power', Math.abs(bH.hrHfPow) < 0.5, String(bH.hrHfPow));
+          /* ⚠️ THE COVERAGE MUST REACH THE AGGREGATE, not just the window. `computeHRFreqBands`
+             medians the powers and builds its own object, so a count returned only by
+             `_hrFreqBandsWindow` is dropped for every record longer than one window — i.e. every
+             real night — and "the count is disclosed" would have been a claim about a field no
+             reader ever sees. */
+          T.eq('DFT · the aggregate DISCLOSES how many beats the spectrum is over', typeof bH.hrBandsN, 'number');
+          T.ok('DFT · and the gapped night reports FEWER measured beats than total', bH.hrBandsN < bH.hrBandsTotal, JSON.stringify({ n: bH.hrBandsN, total: bH.hrBandsTotal }));
+          T.eq('CONTROL · the flat night measured every beat it attempted', bF.hrBandsN, bF.hrBandsTotal);
+        } else {
+          T.skip('DFT · computeHRFreqBands exposes hrLfPow', 'not present in this build');
+        }
+      }
+      if (typeof B.computeRespRateProxy === 'function') {
+        var rF = B.computeRespRateProxy(flat);
+        var rH = B.computeRespRateProxy(holed);
+        T.ok('ANTI-VACUITY · the resp proxy answers for both nights', rF !== undefined && rH !== undefined, JSON.stringify({ flat: rF, holed: rH }));
+        /* The sixth site, and the strongest assertion available: a 60-beat gap must leave the whole
+           proxy UNCHANGED. On main the gap became an impulse train and the sweep read a peak off it,
+           so a respiration rate was published from missing heartbeats. */
+        if (rF && rH) {
+          T.eq('RESP · a 60-beat gap leaves the respiration proxy completely unchanged', JSON.stringify(rH), JSON.stringify(rF));
+          T.eq('ANTI-VACUITY · and the proxy did report a rate, so the comparison is not of two nulls', typeof rF.respRateBpm, 'number');
+        } else {
+          T.skip('RESP · the proxy returned a result for both nights', 'flat=' + JSON.stringify(rF) + ' holed=' + JSON.stringify(rH));
+        }
+      }
+    });
+
     group('Integrator consumes canonical measurement blocks — roadmap §8 (fail-closed, plant-backed)', 'integrator-dsp · measurement-block · provenance · roadmap-§8 · plant', function (T) {
       var OD = env.OxyDex;
       var NF = env.normalizeFile;
@@ -65109,6 +65524,105 @@
         var osc = new Function('n', 'var evBadge = function () { return ""; }; var html = ""; ' + oscSrc + ' return html;');
         T.ok('R · no oscillation computed ⇒ not measured, never "Clear"', osc({}).indexOf('Clear') < 0 && osc({}).indexOf('not measured') >= 0, osc({}));
         T.ok('R · CONTROL · a computed search with 0 flagged windows ⇒ Clear', osc({ osc: { episodeCount: 0 } }).indexOf('Clear') >= 0);
+      }
+    });
+
+    group('OxyDex profile · an unentered setting or unmeasured term is not a number', 'oxydex-profile · absence', function (T) {
+      var R = env.oxyProfileRealm;
+      /* A NODE-lane group: oxyProfileRealm and the Oxy* profile seams are run-tests.mjs env entries (a narrow get/set
+         over the realm globals UP / allNights / _upHRrest). The browser lane has no such seams, so the group is
+         ASSERTED under the Node runner (env.nodeFs) and SKIPPED BY NAME in the browser, never vacuously green (#3341). */
+      if (env.nodeFs) T.ok('profile · the realm accessor and the recompute seam are wired (Node lane)', !!R && typeof env.OxyRecomputeFromProfile === 'function');
+      if (!R || typeof env.OxyRecomputeFromProfile !== 'function') {
+        if (!env.nodeFs) T.skip('oxydex-profile co-loaded with its realm accessor', 'Node-lane only: the realm accessor is a run-tests.mjs seam that the browser lane does not provide');
+        return;
+      }
+      var saved = { UP: R.get('UP'), allNights: R.get('allNights'), _upHRrest: R.get('_upHRrest') };
+      try {
+        // 643c0167154c — an empty elevation field is not entered, never sea level (headless gv() returns '')
+        env.OxyUpFromDOM();
+        T.eq('profile · an empty elevation field ⇒ null, not 0 m', R.get('UP').elevation, null);
+        // e294b096e810 — no RMSSD ⇒ no adjustment term (null), and the estimate is the Uth–Sørensen base alone
+        R.set('UP', { age: 40 });
+        var night = { hrv: { hrFloor: 55 }, stats: {} };
+        R.set('allNights', { a: night });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · no RMSSD ⇒ rmssdAdj null, not a measured-looking 0', night.vo2est && night.vo2est.rmssdAdj, null);
+        T.eq('profile · …and vo2est is the base alone: 15.3 × 180 / 55 = 50.1', night.vo2est && night.vo2est.vo2est, 50.1);
+        var night0 = { hrv: { hrFloor: 55, rmssd: 1.4 }, stats: {} };
+        R.set('allNights', { a: night0 });
+        env.OxyRecomputeFromProfile();
+        T.eq('profile · CONTROL · RMSSD 1.4 ⇒ a MEASURED 0 adjustment', night0.vo2est && night0.vo2est.rmssdAdj, 0);
+        // the adjustment's own arithmetic, both signs and both ±3 clamps (a 0-adjustment control alone cannot see a literal → 0)
+        var adjAt = function (rmssd) {
+          var nn = { hrv: { hrFloor: 55, rmssd: rmssd }, stats: {} };
+          R.set('allNights', { a: nn });
+          env.OxyRecomputeFromProfile();
+          return nn.vo2est ? [nn.vo2est.rmssdAdj, nn.vo2est.vo2est] : null;
+        };
+        T.eq('profile · RMSSD 3.4 ⇒ +2.1, vo2est 52.2', JSON.stringify(adjAt(3.4)), '[2.1,52.2]');
+        T.eq('profile · RMSSD −0.6 ⇒ −2.1, vo2est 48', JSON.stringify(adjAt(-0.6)), '[-2.1,48]');
+        T.eq('profile · RMSSD 5.4 ⇒ clamped at +3', JSON.stringify(adjAt(5.4)), '[3,53.1]');
+        T.eq('profile · RMSSD −2.6 ⇒ clamped at −3', JSON.stringify(adjAt(-2.6)), '[-3,47.1]');
+        // 7e34d2b1ab62 — one resting-HR source decision; an estimate is marked on the chips
+        var RH = env.OxyRestingHR,
+          ZC = env.OxyZoneChipText;
+        var CV = env.OxyHRrestCaveat;
+        T.ok(
+          'profile · the resting-HR source, chip-text and caveat seams exist (none existed: the chips wrote straight to the DOM)',
+          typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function'
+        );
+        if (typeof RH === 'function' && typeof ZC === 'function' && typeof CV === 'function') {
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83); // detected p5 + 8 above the zones' 80 bound
+          T.eq('profile · a detected 83 bpm is refused by the zones ⇒ source "estimate", 71 − 0.25 × 40 = 61', JSON.stringify(RH()), '{"hrRest":61,"source":"estimate"}');
+          R.set('_upHRrest', 62);
+          T.eq('profile · CONTROL · a detected 62 ⇒ source "data"', JSON.stringify(RH()), '{"hrRest":62,"source":"data"}');
+          R.set('UP', { age: 40, hrRestOverride: 58 });
+          T.eq('profile · CONTROL · a manual 58 wins ⇒ source "manual"', JSON.stringify(RH()), '{"hrRest":58,"source":"manual"}');
+          R.set('UP', { age: 40, hrRestOverride: 100 });
+          T.eq('profile · a manual 100 is out of range (< 100 is strict) ⇒ not manual', RH().source, 'data');
+          R.set('_upHRrest', 80);
+          T.eq('profile · a detected 80 is out of range (< 80 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('_upHRrest', 30);
+          T.eq('profile · a detected 30 is out of range (> 30 is strict) ⇒ the estimate', RH().source, 'estimate');
+          R.set('UP', { age: 40, hrRestOverride: 30 });
+          T.eq('profile · a manual 30 is out of range (> 30 is strict) ⇒ not manual', RH().source, 'estimate');
+          R.set('UP', { hrRestOverride: 0 });
+          R.set('_upHRrest', null);
+          T.eq('profile · no age ⇒ the 49 the rest of the file assumes ⇒ 71 − 12.25 = 59', RH().hrRest, 59);
+          R.set('UP', { age: 400 });
+          T.eq('profile · the estimate is clamped at 45', RH().hrRest, 45);
+          R.set('UP', { age: -100 });
+          T.eq('profile · …and at 80', RH().hrRest, 80);
+          T.eq('profile · an estimated zone is marked ≈', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'estimate'), '≈ 120–140 bpm');
+          T.eq('profile · CONTROL · a detected zone is not', ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, 'data'), '120–140 bpm');
+          T.eq('profile · the top zone runs to HRmax+', ZC({ low: 160, high: 180 }, { lo: 0.9 }, 180, 'manual'), '160–180+ bpm');
+          T.ok('profile · the sublabel caveat names the fallback for an estimate', /zones use the age estimate/.test(CV({ source: 'estimate' })));
+          /* THE PROPERTY, not the symbol (Kestrel's note): with a DETECTED value outside 30–80 the chips and the sublabel
+             read the SAME decision, so both say "estimate". Before the fix the chips silently used the age estimate
+             while the sublabel quoted the detected figure. */
+          R.set('UP', { age: 40 });
+          R.set('_upHRrest', 83);
+          var same = RH();
+          T.ok(
+            'profile · detected 83 bpm ⇒ the chips are marked ≈ AND the sublabel names the age estimate (one source)',
+            /^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same.source)) && /zones use the age estimate/.test(CV(same)),
+            JSON.stringify(same)
+          );
+          R.set('_upHRrest', 62);
+          var same2 = RH();
+          T.ok(
+            'profile · CONTROL · detected 62 bpm ⇒ neither the chips nor the sublabel claim an estimate',
+            !/^≈ /.test(ZC({ low: 120, high: 140 }, { lo: 0.6 }, 180, same2.source)) && CV(same2) === '',
+            JSON.stringify(same2)
+          );
+          T.eq('profile · CONTROL · no caveat for a detected value', CV({ source: 'data' }), '');
+        }
+      } finally {
+        R.set('UP', saved.UP);
+        R.set('allNights', saved.allNights);
+        R.set('_upHRrest', saved._upHRrest);
       }
     });
 
