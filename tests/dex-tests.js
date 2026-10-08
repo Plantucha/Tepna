@@ -7498,6 +7498,36 @@
       T.eq('boundary gap (end): hasGap true', ev8.length ? ev8[0].hasGap : null, true);
     });
 
+    /* GanglioR export: hasGap/missingSec survive serialization (2026-10-08).
+       The meta object must carry explicit true/false (not undefined) and
+       preserve missingSec. Legacy events without the fields get hasGap=false
+       (backward compatible) and missingSec=null. */
+    group('§∅ · OxyDex — hasGap reaches the GanglioR event export', 'oxydex-dsp · absence · desat · export', function (T) {
+      function buildMeta(d) {
+        return {
+          depth: d.depth != null ? d.depth : null,
+          duration: d.duration != null ? d.duration : null,
+          recovery: d.recovery != null ? d.recovery : null,
+          nadir: d.nadir != null ? d.nadir : null,
+          onsetTMs: d.startTMs != null ? d.startTMs : null,
+          endTMs: d.endTMs != null ? d.endTMs : null,
+          hasGap: d.hasGap === true,
+          missingSec: d.missingSec != null ? d.missingSec : null
+        };
+      }
+      var withGap = buildMeta({ depth: 5.2, duration: 20, recovery: 30, nadir: 90, startTMs: 1000000, endTMs: 1020000, hasGap: true, missingSec: 5 });
+      T.eq('export: hasGap true preserved', withGap.hasGap, true);
+      T.eq('export: missingSec preserved', withGap.missingSec, 5);
+
+      var noGap = buildMeta({ depth: 4.1, duration: 15, recovery: 25, nadir: 92, startTMs: 2000000, endTMs: 2015000, hasGap: false, missingSec: 0 });
+      T.eq('export: hasGap false preserved', noGap.hasGap, false);
+      T.eq('export: missingSec 0 preserved', noGap.missingSec, 0);
+
+      var legacy = buildMeta({ depth: 3.5, duration: 12, recovery: 20, nadir: 93, startTMs: 3000000, endTMs: 3012000 });
+      T.eq('export: legacy hasGap defaults to false', legacy.hasGap, false);
+      T.eq('export: legacy missingSec defaults to null', legacy.missingSec, null);
+    });
+
     /* Item 2 (review 2026-10-08): delta-index must not bridge missing 12s windows.
        The old code pushed window means without positions, so windows 0 and 2
        (with window 1 all-null) were treated as adjacent, yielding deltaIndex=10
