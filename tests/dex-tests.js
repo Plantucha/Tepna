@@ -7511,7 +7511,7 @@
           nadir: d.nadir != null ? d.nadir : null,
           onsetTMs: d.startTMs != null ? d.startTMs : null,
           endTMs: d.endTMs != null ? d.endTMs : null,
-          hasGap: d.hasGap === true,
+          hasGap: d.hasGap === true ? true : d.hasGap === false ? false : null,
           missingSec: d.missingSec != null ? d.missingSec : null
         };
       }
@@ -7524,7 +7524,7 @@
       T.eq('export: missingSec 0 preserved', noGap.missingSec, 0);
 
       var legacy = buildMeta({ depth: 3.5, duration: 12, recovery: 20, nadir: 93, startTMs: 3000000, endTMs: 3012000 });
-      T.eq('export: legacy hasGap defaults to false', legacy.hasGap, false);
+      T.eq('export: legacy hasGap is null (unknown, not gap-free)', legacy.hasGap, null);
       T.eq('export: legacy missingSec defaults to null', legacy.missingSec, null);
     });
 
