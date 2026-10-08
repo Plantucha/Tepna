@@ -283,6 +283,17 @@ def test_dest_status_defends_itself_against_an_unvalidated_target(monkeypatch):
     assert called == [], "an out-of-root path must never reach a filesystem call"
 
 
+def test_dest_status_local_protocol_defends_against_unvalidated_target(monkeypatch):
+    """The local protocol path must also validate before stat'ing (same CodeQL py/path-injection)."""
+    monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv", "/mnt"))
+    called = []
+    monkeypatch.setattr(st.os.path, "isdir", lambda p: called.append(p) or True)
+    for bad in ("/etc", "/home/vigil/.ssh", "/boot", ""):
+        s = st.dest_status({"protocol": "local", "mountpoint": bad})
+        assert s["ready"] is False
+    assert called == [], "an out-of-root path must never reach a filesystem call"
+
+
 def test_dest_status_still_works_for_an_allowed_root(monkeypatch, tmp_path):
     monkeypatch.setattr(st, "MOUNT_ROOTS", (str(tmp_path),))
     mp = tmp_path / "archive"
