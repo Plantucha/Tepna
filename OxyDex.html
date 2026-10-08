@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="774f6f497d9c" data-compute-hash="155e44752933">
+<html lang="en" data-manifest-hash="9b0857d42e26" data-compute-hash="16715babf58a">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DH1o/DCVLuenKmO0nXIpIgX/vUJ4YX6TGXhpe5Klizw=' 'sha256-EzbmpFAalNFZ0uGkU1UdFTZ68KkrArtyJHUgQqfiM3o=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HH5FwSXNLBdSkDNrEcyg65q+C2Nv18twPHB0MDQhSH0=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WddnkhsGTj5dJzB+xY4aMjLfk+gBs6bX2i4wSHwxnE8=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hyHUnl79y3EK1oU6Dk49G1rar+c/nBJRNj3bNerVQrY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DH1o/DCVLuenKmO0nXIpIgX/vUJ4YX6TGXhpe5Klizw=' 'sha256-DwPbCEgkJbLLXlc5Q6WwD2+AhTuOCiowyJKvafGn+RE=' 'sha256-EzbmpFAalNFZ0uGkU1UdFTZ68KkrArtyJHUgQqfiM3o=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HH5FwSXNLBdSkDNrEcyg65q+C2Nv18twPHB0MDQhSH0=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hyHUnl79y3EK1oU6Dk49G1rar+c/nBJRNj3bNerVQrY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.17.0</title>
@@ -16381,7 +16381,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       evStart = 0,
       evNadir = 100,
       evNadirIdx = 0,
-      evBaseline = 100;
+      evBaseline = 100,
+      evMissing = 0;
     // Push a completed event (shared by the in-loop close and the end-of-record flush).
     function pushEvent(endIdxRaw) {
       if (endIdxRaw - evStart < minSec) return; // ignore sub-minSec blips
@@ -16404,7 +16405,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         baseline: isFinite(evBaseline) ? +evBaseline.toFixed(1) : 0,
         nadir: evNadir,
         depth: +(evBaseline - evNadir).toFixed(1),
-        durationSec: endIdxRaw - evStart,
+        durationSec: endIdxRaw - evStart - evMissing,
+        missingSec: evMissing,
         dipSlope: +((evNadir - evBaseline) / dipDur).toFixed(3),
         recSlope: terminal ? null : +((spo2[recEnd] - evNadir) / recDur).toFixed(3),
         recSlopeReason: terminal ? 'record-ended' : null
@@ -16415,7 +16417,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // §∅: an absent sample is not a desaturation to 0 — skip it entirely.
       // (`null <= bl - dropPct` is TRUE; without this a dropout opens an event
       // with depth ≈ baseline.)
-      if (spo2[i] == null) continue;
+      // Item 1: if the event is open, count the missing sample so it does not
+      // silently inflate durationSec — the gap is published as missingSec.
+      if (spo2[i] == null) {
+        if (inEv) evMissing++;
+        continue;
+      }
       if (!inEv) {
         // inclusive <= : a dip of EXACTLY dropPct% counts (ODI-4 = ≥4%)
         if (spo2[i] <= bl - dropPct) {
@@ -16424,6 +16431,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           evNadir = spo2[i];
           evNadirIdx = i;
           evBaseline = bl;
+          evMissing = 0;
         }
       } else {
         if (spo2[i] < evNadir) {
@@ -17210,6 +17218,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Delta-index (SpO2 instability): mean |diff of consecutive 12s means|
     // (12 s windows with no measured sample contribute no mean)
     var means12 = [];
+    var winIdx = [];
     for (var i = 0; i + 12 <= n; i += 12) {
       var s = 0,
         c = 0;
@@ -17219,11 +17228,24 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           c++;
         }
       }
-      if (c > 0) means12.push(s / c);
+      if (c > 0) {
+        means12.push(s / c);
+        winIdx.push(i / 12);
+      }
     }
-    var deltaIndex = 0;
-    for (var i = 1; i < means12.length; i++) deltaIndex += Math.abs(means12[i] - means12[i - 1]);
-    deltaIndex = means12.length > 1 ? +(deltaIndex / (means12.length - 1)).toFixed(3) : 0;
+    // Item 2: only ADJACENT windows (positions differ by exactly 1) form a valid pair.
+    // A missing 12s window breaks adjacency — its neighbors are not bridged.
+    var deltaIndex = null;
+    var pairCount = 0;
+    var deltaSum = 0;
+    for (var i = 1; i < means12.length; i++) {
+      if (winIdx[i] - winIdx[i - 1] === 1) {
+        deltaSum += Math.abs(means12[i] - means12[i - 1]);
+        pairCount++;
+      }
+    }
+    // Unmeasured when too few valid adjacent pairs exist (need at least 1 pair).
+    if (pairCount > 0) deltaIndex = +(deltaSum / pairCount).toFixed(3);
 
     // SpO2 CoV (%), over MEASURED samples only
     if (!n) return null;

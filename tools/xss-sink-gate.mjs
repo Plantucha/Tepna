@@ -8,14 +8,13 @@
  * canonical escaper (dex-escape.js: escapeHTML). This gate fails if a PR adds
  * a new innerHTML sink without an accompanying escape call.
  *
- * Heuristic (diff-based): an added line containing `innerHTML` must either
- *   - call escapeHTML/esc() on the same line, or
- *   - be in a file that the PR also modifies to add an escape import/call.
+ * Heuristic (diff-based): an added line containing `innerHTML` must call
+ * escapeHTML/esc() on the SAME line. A nearby unrelated escaping call (e.g.
+ * escaping a different variable) does NOT satisfy the gate — Item 5 proved
+ * the hunk-wide check could be bypassed by an unrelated escapeHTML() call.
  *
- * This is intentionally strict — an escape added on a different line in the
- * same hunk is fine; a bare `el.innerHTML = userInput` is not.
- * False positives: add the line to ALLOW with a comment explaining why the
- * input is trusted (e.g. static template, already-escaped).
+ * This is intentionally strict. If the input is statically trusted, document
+ * why and add the line to ALLOW with a comment.
  *
  * Usage: node tools/xss-sink-gate.mjs --base <sha>
  */
@@ -50,11 +49,10 @@ function main() {
       currentFile = m ? m[1] : '';
     }
     if (l.startsWith('+') && !l.startsWith('+++') && SINK_RE.test(l)) {
-      // Check the hunk for an escape call (3 lines context already included)
-      const hunkStart = Math.max(0, i - 6);
-      const hunkEnd = Math.min(lines.length, i + 7);
-      const hunk = lines.slice(hunkStart, hunkEnd).join('\n');
-      if (!ESCAPE_RE.test(hunk)) {
+      // Item 5: the escape must be on the SAME line as the sink.
+      // A hunk-wide check allowed an unrelated escapeHTML() call on a nearby
+      // line to mask an unsafe `el.innerHTML = userInput`.
+      if (!ESCAPE_RE.test(l)) {
         violations.push(`${currentFile}: ${l.trim().slice(0, 100)}`);
       }
     }

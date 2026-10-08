@@ -10,7 +10,14 @@
  *
  * Patterns (each cites its fixing PR):
  *   - `tMs: ... || 0` — stamps 1970 on timeless findings (§2a #3366)
- *   - `|| 0` on a metric accumulator in *-dsp.js — fabricates 0 for null (#3359)
+ *
+ * NOTE (Item 3): The second pattern class originally documented here
+ * (`|| 0` on a metric accumulator, citing #3359) was incorrect. #3359 fixed
+ * implicit null coercion in aggregates (`null + x` → x, `null - x` → -x),
+ * not `|| 0` defaults. The `|| 0` instances in *-dsp.js are legitimate
+ * default values (e.g. `fs || 0.5`), not absence fabrication. This gate
+ * intentionally covers only the tMs pattern; the null-arithmetic class is
+ * covered by the DSP unit tests, not by diff-scanning.
  *
  * Usage: node tools/absence-regression.mjs --base <sha>
  * In CI, the workflow passes PR_BASE_SHA. Without --base, checks the worktree

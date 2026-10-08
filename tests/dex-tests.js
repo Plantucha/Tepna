@@ -7362,6 +7362,93 @@
       T.eq('CONTROL · absence does not shorten the series the detector reads', holed.length, clean.length);
     });
 
+    /* Item 1 (review 2026-10-08): missing SpO2 during an OPEN desaturation event.
+       The old code skipped nulls with `continue` but kept the event open, and
+       `durationSec: endIdx - evStart` was index-based — the 5 missing positions
+       silently inflated the duration from 20 to 25. The fix tracks evMissing
+       and subtracts it; the gap is published as missingSec, not silent. */
+    group('§∅ · OxyDex — missing samples during an open desat do not inflate duration', 'oxydex-dsp · absence · desat · duration', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      // 10 healthy, 10 desat, 5 MISSING, 10 desat, 10 healthy
+      var spo2 = [];
+      for (var i = 0; i < 10; i++) spo2.push(97);
+      for (var j = 0; j < 10; j++) spo2.push(90);
+      for (var k = 0; k < 5; k++) spo2.push(null);
+      for (var m = 0; m < 10; m++) spo2.push(90);
+      for (var n = 0; n < 10; n++) spo2.push(97);
+
+      var ev = det(spo2, { dropPct: 4, exitPct: 1, minSec: 5 });
+      T.eq('one event spans the gap', ev.length, 1);
+      T.eq('durationSec excludes the 5 missing samples', ev.length ? ev[0].durationSec : null, 20);
+      T.eq('missingSec publishes the gap (not silent)', ev.length ? ev[0].missingSec : null, 5);
+    });
+
+    /* Item 2 (review 2026-10-08): delta-index must not bridge missing 12s windows.
+       The old code pushed window means without positions, so windows 0 and 2
+       (with window 1 all-null) were treated as adjacent, yielding deltaIndex=10
+       across a 12s gap. The fix tracks winIdx and only pairs adjacent windows;
+       with zero valid pairs the result is null (unmeasured), not 0. */
+    group('§∅ · OxyDex — delta-index does not bridge a missing 12s window', 'oxydex-dsp · absence · delta-index', function (T) {
+      // Item 2: the delta-index window-pairing logic, tested directly.
+      // The old code pushed means without positions; windows 0 and 2 (window 1
+      // all-null) were treated as adjacent. The fix tracks winIdx.
+      function deltaIndexFor(spo2) {
+        var means12 = [];
+        var winIdx = [];
+        var n = spo2.length;
+        for (var i = 0; i + 12 <= n; i += 12) {
+          var s = 0,
+            c = 0;
+          for (var j = i; j < i + 12; j++) {
+            if (spo2[j] != null) {
+              s += spo2[j];
+              c++;
+            }
+          }
+          if (c > 0) {
+            means12.push(s / c);
+            winIdx.push(i / 12);
+          }
+        }
+        var deltaIndex = null;
+        var pairCount = 0;
+        var deltaSum = 0;
+        for (var k = 1; k < means12.length; k++) {
+          if (winIdx[k] - winIdx[k - 1] === 1) {
+            deltaSum += Math.abs(means12[k] - means12[k - 1]);
+            pairCount++;
+          }
+        }
+        if (pairCount > 0) deltaIndex = +(deltaSum / pairCount).toFixed(3);
+        return deltaIndex;
+      }
+      // 12s @95, 12s missing, 12s @85 — the gap breaks adjacency
+      var gapped = [].concat(Array(12).fill(95), Array(12).fill(null), Array(12).fill(85));
+      T.eq('gapped windows yield null (unmeasured), not a bridged value', deltaIndexFor(gapped), null);
+
+      // CONTROL: adjacent windows still produce a value
+      var adjacent = [].concat(Array(12).fill(95), Array(12).fill(85));
+      T.eq('adjacent windows yield the mean absolute difference', deltaIndexFor(adjacent), 10);
+
+      // Verify the source implements the winIdx tracking (not just the test twin)
+      // Skip in browser: require('fs') is Node-only
+      if (typeof require !== 'undefined') {
+        var src = '';
+        try {
+          src = require('fs').readFileSync('oxydex-dsp.js', 'utf8');
+        } catch (e) {}
+        T.ok('source tracks window positions (winIdx)', /winIdx\.push\(i \/ 12\)/.test(src));
+        T.ok('source checks adjacency (position diff === 1)', /winIdx\[i\] - winIdx\[i - 1\] === 1/.test(src));
+      } else {
+        T.skip('source assertions', 'Node-only (require(fs))');
+      }
+    });
+
     /* §∅ · A DROPOUT IS ABSENT, NEVER A MEASURED 0 — the behavioural test this fix shipped without.
        Muse's PR (#3321) changed `measuredSpO2`, the detector, hypoxic dose, T88/T85, the desaturation
        profile and the baseline histogram, and carried NO test: `measuredSpO2` appeared ZERO times in
