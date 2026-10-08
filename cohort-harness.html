@@ -5288,7 +5288,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       evStart = 0,
       evNadir = 100,
       evNadirIdx = 0,
-      evBaseline = 100;
+      evBaseline = 100,
+      evMissing = 0;
     // Push a completed event (shared by the in-loop close and the end-of-record flush).
     function pushEvent(endIdxRaw) {
       if (endIdxRaw - evStart < minSec) return; // ignore sub-minSec blips
@@ -5311,7 +5312,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         baseline: isFinite(evBaseline) ? +evBaseline.toFixed(1) : 0,
         nadir: evNadir,
         depth: +(evBaseline - evNadir).toFixed(1),
-        durationSec: endIdxRaw - evStart,
+        durationSec: endIdxRaw - evStart - evMissing,
+        missingSec: evMissing,
         dipSlope: +((evNadir - evBaseline) / dipDur).toFixed(3),
         recSlope: terminal ? null : +((spo2[recEnd] - evNadir) / recDur).toFixed(3),
         recSlopeReason: terminal ? 'record-ended' : null
@@ -5322,7 +5324,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // §∅: an absent sample is not a desaturation to 0 — skip it entirely.
       // (`null <= bl - dropPct` is TRUE; without this a dropout opens an event
       // with depth ≈ baseline.)
-      if (spo2[i] == null) continue;
+      // Item 1: if the event is open, count the missing sample so it does not
+      // silently inflate durationSec — the gap is published as missingSec.
+      if (spo2[i] == null) {
+        if (inEv) evMissing++;
+        continue;
+      }
       if (!inEv) {
         // inclusive <= : a dip of EXACTLY dropPct% counts (ODI-4 = ≥4%)
         if (spo2[i] <= bl - dropPct) {
@@ -5331,6 +5338,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           evNadir = spo2[i];
           evNadirIdx = i;
           evBaseline = bl;
+          evMissing = 0;
         }
       } else {
         if (spo2[i] < evNadir) {
@@ -6117,6 +6125,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Delta-index (SpO2 instability): mean |diff of consecutive 12s means|
     // (12 s windows with no measured sample contribute no mean)
     var means12 = [];
+    var winIdx = [];
     for (var i = 0; i + 12 <= n; i += 12) {
       var s = 0,
         c = 0;
@@ -6126,11 +6135,24 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           c++;
         }
       }
-      if (c > 0) means12.push(s / c);
+      if (c > 0) {
+        means12.push(s / c);
+        winIdx.push(i / 12);
+      }
     }
-    var deltaIndex = 0;
-    for (var i = 1; i < means12.length; i++) deltaIndex += Math.abs(means12[i] - means12[i - 1]);
-    deltaIndex = means12.length > 1 ? +(deltaIndex / (means12.length - 1)).toFixed(3) : 0;
+    // Item 2: only ADJACENT windows (positions differ by exactly 1) form a valid pair.
+    // A missing 12s window breaks adjacency — its neighbors are not bridged.
+    var deltaIndex = null;
+    var pairCount = 0;
+    var deltaSum = 0;
+    for (var i = 1; i < means12.length; i++) {
+      if (winIdx[i] - winIdx[i - 1] === 1) {
+        deltaSum += Math.abs(means12[i] - means12[i - 1]);
+        pairCount++;
+      }
+    }
+    // Unmeasured when too few valid adjacent pairs exist (need at least 1 pair).
+    if (pairCount > 0) deltaIndex = +(deltaSum / pairCount).toFixed(3);
 
     // SpO2 CoV (%), over MEASURED samples only
     if (!n) return null;
