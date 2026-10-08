@@ -7483,6 +7483,19 @@
       var ev6 = run(seq([97, 10], [90, 5], [null, 2], [90, 5], [97, 10]), 10);
       T.eq('threshold gap: event accepted (10s measured ≥ 10s minSec)', ev6.length, 1);
       T.eq('threshold gap: hasGap true', ev6.length ? ev6[0].hasGap : null, true);
+
+      // Boundary: gap at event start (first 3 samples missing, then 9 measured)
+      // The event starts at the first MEASURED sample; leading nulls are outside.
+      var ev7 = run(seq([97, 10], [null, 3], [90, 9], [97, 10]));
+      T.eq('boundary gap (start): one event', ev7.length, 1);
+      T.eq('boundary gap (start): hasGap false (gap before evStart)', ev7.length ? ev7[0].hasGap : null, false);
+      T.eq('boundary gap (start): durationSec is 9 measured', ev7.length ? ev7[0].durationSec : null, 9);
+
+      // Boundary: gap at event end (9 measured, then 3 missing before recovery)
+      // The trailing nulls ARE inside the event (event hasn't closed yet).
+      var ev8 = run(seq([97, 10], [90, 9], [null, 3], [97, 10]));
+      T.eq('boundary gap (end): one event', ev8.length, 1);
+      T.eq('boundary gap (end): hasGap true', ev8.length ? ev8[0].hasGap : null, true);
     });
 
     /* Item 2 (review 2026-10-08): delta-index must not bridge missing 12s windows.

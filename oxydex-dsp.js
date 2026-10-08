@@ -7848,7 +7848,12 @@
             recovery: d.recovery != null ? d.recovery : null,
             nadir: d.nadir != null ? d.nadir : null,
             onsetTMs: d.startTMs != null ? d.startTMs : null,
-            endTMs: d.endTMs != null ? d.endTMs : null
+            endTMs: d.endTMs != null ? d.endTMs : null,
+            // Gap uncertainty: true when the event spans unobserved samples.
+            // Backward-compatible (new field); consumers must not assume
+            // continuity from onsetTMs/endTMs alone when hasGap is true.
+            hasGap: d.hasGap === true,
+            missingSec: d.missingSec != null ? d.missingSec : null
           }
         });
       });
