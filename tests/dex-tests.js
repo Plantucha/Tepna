@@ -22173,7 +22173,7 @@
 
       /* ── THE FALLBACK. A file with NO usable counter must keep the legacy index axis + fold, byte for
          byte — that is what keeps every committed fixture and every phone-captured file inert. */
-      var r3 = [HDR.replace(';sensor timestamp [ns]', ';sensor timestamp [ns]')],
+      var r3 = [HDR],
         t3 = 0;
       for (var k = 0; k < 3000; k++) {
         r3.push('2026-06-17T01:06:17.723;0;' + Math.round(t3) + ';' + (100 + (k % 40)));
