@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="9e46359f84cc" data-compute-hash="ba7700afc731">
+<html lang="en" data-manifest-hash="8ed9b03f1759" data-compute-hash="8fa818a18ce6">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G5BXtAjRQy79thFFcZUkRa5Q3kI1Y9PylDq46Ww852s=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kGluXhMMED3/sb/+KZzRAXqvpFEspSf0YGykZ+VEd5g=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A5IOHO4TVAjxMeWYBbqHuYMVdTRsVI1H8TBxvzdcv4w=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G5BXtAjRQy79thFFcZUkRa5Q3kI1Y9PylDq46Ww852s=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-QEzEx9Ca0xcQ45sC3/oCziqTofTt2qySQMnrAXAZbJk=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.17.0</title>
@@ -4294,7 +4294,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       goodDirection: 'down',
       depth: 'advanced',
       evidence: 'measured',
-      cite: 'Σ de-gravitated acceleration over the night — direct actigraphic statistic',
+      cite: 'Σ de-gravitated acceleration over the night — direct actigraphic statistic'
     },
     movementIndex: { label: 'Movement index', unit: '', goodDirection: 'down', depth: 'basic', evidence: 'measured', cite: 'Mean per-epoch activity count — direct (lower = more restful)' },
     immobileFrac: { label: 'Immobile time', unit: '%', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Fraction of 30 s epochs below the movement threshold — direct' },
@@ -4304,7 +4304,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       goodDirection: 'up',
       depth: 'advanced',
       evidence: 'measured',
-      cite: 'Motion SQI (clip / flatline / sensor-off) → Ganglior conf — direct quality statistic',
+      cite: 'Motion SQI (clip / flatline / sensor-off) → Ganglior conf — direct quality statistic'
     },
 
     /* ── EXPERIMENTAL — frame-dependent (uncalibrated) or surrogate ────────── */
