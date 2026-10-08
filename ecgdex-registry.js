@@ -61,16 +61,7 @@
       evidence: 'emerging',
       cite: 'Poincaré ellipse area S = π·SD1·SD2 (Brennan 2001) — derived nonlinear HRV descriptor; less standardized than the SD1/SD2 axes, device-dependent'
     },
-    crCoupling: {
-      label: 'CR Coupling',
-      unit: '',
-      goodDirection: 'up',
-      depth: 'research',
-      evidence: 'emerging',
-      cite: 'Cardiorespiratory phase-locking value (PLV) — coupling strength',
-      dormant: true,
-      dormantReason: 'DUPLICATE of crcPLV — same PLV metric registered twice; crcPLV is canonical. Adjudicated 2026-10-07, not a drift.'
-    },
+    crCoupling: { label: 'CR Coupling', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Cardiorespiratory phase-locking value (PLV) — coupling strength' },
     lfhf: { label: 'LF/HF', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'LF:HF power ratio — sympatho-vagal balance proxy' },
 
     /* ── EMERGING — companion-accelerometer cross-checks (ACC sub-cards) ─────── */

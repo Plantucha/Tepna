@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5882e4af9b48" data-compute-hash="852344c52ce8">
+<html lang="en" data-manifest-hash="7b2b696b49af" data-compute-hash="fd964f6c4208">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-107H13skiohHFcThshJI3URfXc4f0qsxSO3DWHvIhdQ=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5rY6AtiuWwZLD8V8Rwq650hh49m1pxgDxAy6VCihCq0=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5rY6AtiuWwZLD8V8Rwq650hh49m1pxgDxAy6VCihCq0=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dWFuLzRzozZsN4XR9ZGidbwxo5cl3+HblB5QT4QVbT0=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.17.0</title>
@@ -6169,16 +6169,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       evidence: 'emerging',
       cite: 'Poincaré ellipse area S = π·SD1·SD2 (Brennan 2001) — derived nonlinear HRV descriptor; less standardized than the SD1/SD2 axes, device-dependent'
     },
-    crCoupling: {
-      label: 'CR Coupling',
-      unit: '',
-      goodDirection: 'up',
-      depth: 'research',
-      evidence: 'emerging',
-      cite: 'Cardiorespiratory phase-locking value (PLV) — coupling strength',
-      dormant: true,
-      dormantReason: 'DUPLICATE of crcPLV — same PLV metric registered twice; crcPLV is canonical. Adjudicated 2026-10-07, not a drift.'
-    },
+    crCoupling: { label: 'CR Coupling', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Cardiorespiratory phase-locking value (PLV) — coupling strength' },
     lfhf: { label: 'LF/HF', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'LF:HF power ratio — sympatho-vagal balance proxy' },
 
     /* ── EMERGING — companion-accelerometer cross-checks (ACC sub-cards) ─────── */
