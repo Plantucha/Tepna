@@ -6822,7 +6822,7 @@
       var src = env.sources || {};
       var UNDECLARED = {
         cpapdex: 'cmpResidSD',
-        ecgdex: 'accPosture analyzable correction cpcHfc crCoupling deepMin edrDisagree edrResp meanSqi remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
+        ecgdex: 'accPosture analyzable cpcHfc crCoupling deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
         glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability timeAbove timeBelow',
         hrvdex: 'ansLoad cai camq crs csi cvi dfaAlpha1 efc focusEff hfnu lfhf momentum ortho otr pnsEff pti recovDebt recovIndex sd1sd2 sdnnZ si spectralEnt vei vo2roll welfare',
         motiondex: 'activityCounts effortAmp effortPresent respRate sqiConf',

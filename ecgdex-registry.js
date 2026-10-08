@@ -36,8 +36,8 @@
     steps: { label: 'Total steps', unit: '', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Accelerometer step count — direct' },
     analyzable: { label: '% Analyzable', unit: '%', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Fraction of the recording that is analyzable — direct coverage' },
     coverage: { label: 'Coverage', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'On-body recording coverage — direct' },
-    correction: { label: 'Correction', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Beats corrected during cleaning — direct quality statistic' },
-    meanSqi: { label: 'Mean SQI', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean signal-quality index — direct per-beat quality' },
+    correctionRate: { label: 'Correction', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Beats corrected during cleaning — direct quality statistic' },
+    meanSQI: { label: 'Mean SQI', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean signal-quality index — direct per-beat quality' },
     ectopy: { label: 'Ectopy', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Detected ectopic-beat count (PVC + PAC) — direct classification' },
 
     /* ── EMERGING — published, less standardized / device-dependent ─────────── */
@@ -441,9 +441,10 @@
     analyzable: 'analyzable',
     coverage: 'coverage',
     'beat coverage': 'coverage',
-    correction: 'correction',
-    'correction rate': 'correction',
-    'mean sqi': 'meanSqi',
+    correctionRate: 'correctionRate',
+    'correction rate': 'correctionRate',
+    correction: 'correctionRate',
+    'mean sqi': 'meanSQI',
     ectopy: 'ectopy',
     // ACC companion cross-checks — both the section-card titles and their dense sub-stats
     'acc respiratory rate (rracc)': 'rraccRate',
