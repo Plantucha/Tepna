@@ -7436,12 +7436,17 @@
       T.eq('adjacent windows yield the mean absolute difference', deltaIndexFor(adjacent), 10);
 
       // Verify the source implements the winIdx tracking (not just the test twin)
-      var src = '';
-      try {
-        src = require('fs').readFileSync('oxydex-dsp.js', 'utf8');
-      } catch (e) {}
-      T.ok('source tracks window positions (winIdx)', /winIdx\.push\(i \/ 12\)/.test(src));
-      T.ok('source checks adjacency (position diff === 1)', /winIdx\[i\] - winIdx\[i - 1\] === 1/.test(src));
+      // Skip in browser: require('fs') is Node-only
+      if (typeof require !== 'undefined') {
+        var src = '';
+        try {
+          src = require('fs').readFileSync('oxydex-dsp.js', 'utf8');
+        } catch (e) {}
+        T.ok('source tracks window positions (winIdx)', /winIdx\.push\(i \/ 12\)/.test(src));
+        T.ok('source checks adjacency (position diff === 1)', /winIdx\[i\] - winIdx\[i - 1\] === 1/.test(src));
+      } else {
+        T.skip('source assertions', 'Node-only (require(fs))');
+      }
     });
 
     /* §∅ · A DROPOUT IS ABSENT, NEVER A MEASURED 0 — the behavioural test this fix shipped without.
