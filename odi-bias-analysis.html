@@ -5761,6 +5761,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         depth: +(evBaseline - evNadir).toFixed(1),
         durationSec: endIdxRaw - evStart - evMissing,
         missingSec: evMissing,
+        // Explicit gap indicator: true when the event spans unobserved samples.
+        // Backward-compatible (new field); consumers must not assume continuity
+        // from startIdx/endIdx alone when hasGap is true.
+        hasGap: evMissing > 0,
         dipSlope: +((evNadir - evBaseline) / dipDur).toFixed(3),
         recSlope: terminal ? null : +((spo2[recEnd] - evNadir) / recDur).toFixed(3),
         recSlopeReason: terminal ? 'record-ended' : null

@@ -8,18 +8,19 @@
  * canonical escaper (dex-escape.js: escapeHTML). This gate fails if a PR adds
  * a new innerHTML sink without an accompanying escape call.
  *
- * Heuristic (diff-based): an added line containing `innerHTML` must call
- * escapeHTML/esc() on the SAME line. A nearby unrelated escaping call (e.g.
- * escaping a different variable) does NOT satisfy the gate — Item 5 proved
- * the hunk-wide check could be bypassed by an unrelated escapeHTML() call.
+ * Heuristic (diff-based): an added line containing `innerHTML` has its RHS
+ * analyzed. All `escapeHTML()`/`esc()` calls are stripped (their arguments
+ * are safe), string literals are stripped (static), and any remaining
+ * identifiers are flagged as potentially unescaped. A line like
+ * `el.innerHTML = userInput + escapeHTML(safeVar)` FAILS because `userInput`
+ * survives the stripping.
  *
- * LIMITS (follow-up 2026-10-08): This gate is regex-based and does NOT
- * validate that the assigned value is actually escaped. A line like
- * `el.innerHTML = userInput + escapeHTML(safeVar)` PASSES because escapeHTML
- * appears on the line, even though userInput is unescaped. The gate catches
- * the common case (bare `el.innerHTML = userInput`) but is not a proof of
- * safety. Do not describe it as validating the assigned value's safety.
- * Human review is required for complex expressions.
+ * LIMITS: This is still heuristic, not AST-based. It cannot track data flow
+ * across lines, through function returns, or via aliased escapers. Template
+ * literals with interpolation are conservatively flagged (the `${...}` parts
+ * are not parsed). Where safety cannot be established, the gate fails
+ * conservatively. Human review is required for complex cases. Do not describe
+ * it as comprehensive XSS detection.
  *
  * This is intentionally strict. If the input is statically trusted, document
  * why and add the line to ALLOW with a comment.
@@ -29,8 +30,15 @@
 
 import { execSync } from 'node:child_process';
 
-const ESCAPE_RE = /\bescapeHTML\s*\(|\besc\s*\(|dex-escape/;
 const SINK_RE = /\.innerHTML\s*(\+=|=)/;
+// Matches escapeHTML(...) or esc(...) calls, including nested parens (one level).
+const ESCAPE_CALL_RE = /\b(?:escapeHTML|esc)\s*\((?:[^()]*|\([^()]*\))*\)/g;
+// String literals (single, double, backtick without interpolation).
+const STRING_RE = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\$]|\\.)*`/g;
+// Identifiers that could be unescaped variables.
+const IDENT_RE = /\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g;
+// Known-safe identifiers (not user data).
+const SAFE_IDENTS = new Set(['true', 'false', 'null', 'undefined', 'this']);
 
 function sh(cmd) {
   try {
@@ -57,11 +65,22 @@ function main() {
       currentFile = m ? m[1] : '';
     }
     if (l.startsWith('+') && !l.startsWith('+++') && SINK_RE.test(l)) {
-      // Item 5: the escape must be on the SAME line as the sink.
-      // A hunk-wide check allowed an unrelated escapeHTML() call on a nearby
-      // line to mask an unsafe `el.innerHTML = userInput`.
-      if (!ESCAPE_RE.test(l)) {
-        violations.push(`${currentFile}: ${l.trim().slice(0, 100)}`);
+      // Extract the RHS of the assignment.
+      var m = l.match(/\.innerHTML\s*(?:\+=|=)\s*(.+?);?\s*$/);
+      var rhs = m ? m[1] : '';
+      // Remove escapeHTML()/esc() calls — their arguments are safe.
+      var stripped = rhs.replace(ESCAPE_CALL_RE, '""');
+      // Remove string literals — they are static, not user data.
+      stripped = stripped.replace(STRING_RE, '""');
+      // Any remaining identifiers are potentially unescaped user data.
+      var unsafe = [];
+      var im;
+      IDENT_RE.lastIndex = 0;
+      while ((im = IDENT_RE.exec(stripped)) !== null) {
+        if (!SAFE_IDENTS.has(im[0])) unsafe.push(im[0]);
+      }
+      if (unsafe.length > 0) {
+        violations.push(currentFile + ': ' + l.trim().slice(0, 100) + ' [unescaped: ' + unsafe.join(', ') + ']');
       }
     }
   }

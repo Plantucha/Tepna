@@ -7429,6 +7429,60 @@
       T.eq('one event spans the gap (retained, not split)', ev.length, 1);
       T.eq('durationSec is measured only (16, not 21)', ev.length ? ev[0].durationSec : null, 16);
       T.eq('missingSec explicitly quantifies the unobserved gap', ev.length ? ev[0].missingSec : null, 5);
+      T.eq('hasGap is true when event spans missing samples', ev.length ? ev[0].hasGap : null, true);
+    });
+
+    /* Gap semantics matrix (2026-10-08): complete, internal, leading, trailing,
+       boundary, and threshold-changing gaps. */
+    group('§∅ · OxyDex — gap semantics matrix', 'oxydex-dsp · absence · desat · gap-matrix', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      function run(spo2, minSec) {
+        return det(spo2, { dropPct: 4, exitPct: 1, minSec: minSec == null ? 5 : minSec });
+      }
+      function seq() {
+        var a = [];
+        for (var i = 0; i < arguments.length; i++) {
+          var spec = arguments[i];
+          for (var j = 0; j < spec[1]; j++) a.push(spec[0]);
+        }
+        return a;
+      }
+
+      // Complete observation: no gaps → hasGap false, missingSec 0
+      var ev1 = run(seq([97, 10], [90, 12], [97, 10]));
+      T.eq('complete: one event', ev1.length, 1);
+      T.eq('complete: hasGap false', ev1.length ? ev1[0].hasGap : null, false);
+      T.eq('complete: missingSec 0', ev1.length ? ev1[0].missingSec : null, 0);
+
+      // Internal gap: retained with explicit indicator
+      var ev2 = run(seq([97, 10], [90, 6], [null, 4], [90, 6], [97, 10]));
+      T.eq('internal gap: one event (retained)', ev2.length, 1);
+      T.eq('internal gap: hasGap true', ev2.length ? ev2[0].hasGap : null, true);
+      T.eq('internal gap: durationSec excludes gap', ev2.length ? ev2[0].durationSec : null, 12);
+
+      // Leading gap: nulls before event start do not create hasGap
+      var ev3 = run(seq([null, 5], [97, 10], [90, 12], [97, 10]));
+      T.eq('leading gap: one event', ev3.length, 1);
+      T.eq('leading gap: hasGap false (gap outside event)', ev3.length ? ev3[0].hasGap : null, false);
+
+      // Trailing gap: nulls after event end do not create hasGap
+      var ev4 = run(seq([97, 10], [90, 12], [97, 10], [null, 5]));
+      T.eq('trailing gap: one event', ev4.length, 1);
+      T.eq('trailing gap: hasGap false (gap outside event)', ev4.length ? ev4[0].hasGap : null, false);
+
+      // Threshold: 12s span, 5 missing → 7s measured < 10s minSec → rejected
+      var ev5 = run(seq([97, 10], [90, 4], [null, 5], [90, 3], [97, 10]), 10);
+      T.eq('threshold gap: event rejected (7s measured < 10s minSec)', ev5.length, 0);
+
+      // Threshold: 12s span, 2 missing → 10s measured ≥ 10s minSec → accepted with gap
+      var ev6 = run(seq([97, 10], [90, 5], [null, 2], [90, 5], [97, 10]), 10);
+      T.eq('threshold gap: event accepted (10s measured ≥ 10s minSec)', ev6.length, 1);
+      T.eq('threshold gap: hasGap true', ev6.length ? ev6[0].hasGap : null, true);
     });
 
     /* Item 2 (review 2026-10-08): delta-index must not bridge missing 12s windows.
