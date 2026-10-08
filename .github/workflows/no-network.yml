@@ -2,8 +2,10 @@ name: no-network
 
 # Privacy invariant gate — the analogue of verify-provenance. Asserts NO remote egress across the
 # shipped web-app surfaces (8 bundles + Data Unifier / OverDex + their loose modules) and the
-# capture-host Python lens, by booting the self-verifying no-network.html headless and reading its
-# own verdict (window.__noNetworkOK). Fast (no render-coverage) → runs on every push.
+# enumerated capture-host Python files (see PY_FILES in no-network.html — the browser cannot
+# recursively list directories, so the list is explicit), by booting the self-verifying
+# no-network.html headless and reading its own verdict (window.__noNetworkOK). Fast
+# (no render-coverage) → runs on every push.
 # Requires the canonical-<link> scanner fix in no-network.html (else the SEO metadata false-positives).
 
 on:

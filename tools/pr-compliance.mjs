@@ -25,7 +25,8 @@ const RULE0_RE = /^Rule 0:/m;
 const TRAILER_RE = /^Fleet-Session:\s*.+/m;
 const CORPUS_SENTENCE = 'computeHash moved — re-verification on the corpus owed before merge (tools/verify-fixtures.mjs on the rig)';
 // Code files: sources, not bundles, not docs. Bundles are verified by build.mjs --check.
-const CODE_RE = /\.(mjs|js|py|sh)$/;
+// .src.html files are sources (they generate the bundles); *.html bundles are not.
+const CODE_RE = /\.(mjs|js|py|sh|src\.html)$/;
 const BUNDLE_RE = /(^|\/)[A-Z][A-Za-z]*\.html$/;
 
 function sh(cmd) {
@@ -67,19 +68,73 @@ function main() {
     // Look for actual changes to the computeHash implementation (function definition
     // or body), not mere mentions in strings/comments/changesets. A new tool that
     // references the corpus sentence is not a move.
+    // Item 4: body-only changes must also trigger — track the function body range.
     let computeHashMoved = false;
     for (const f of files) {
       if (!CODE_RE.test(f) || BUNDLE_RE.test(f)) continue;
       // The gate scripts themselves reference computeHash by design; they never move it.
       if (f === 'tools/pr-compliance.mjs') continue;
       try {
-        const diff = sh(`git diff ${base}..${head} -- ${f}`);
-        const changedLines = diff.split('\n').filter((l) => l.startsWith('+') || l.startsWith('-'));
-        // A "move" changes the implementation: the function definition or a line
-        // inside its body. A bare mention in a string/comment is not a move.
-        if (changedLines.some((l) => /function\s+computeHash|computeHash\s*=\s*(async\s*)?\(|computeHash\s*\(.*\)\s*{/.test(l))) {
-          computeHashMoved = true;
-          break;
+        const diff = sh(`git diff ${base}..${head} -U0 -- ${f}`);
+        // Parse diff hunks to get changed line numbers in the NEW file
+        const hunks = [];
+        let newLine = 0;
+        for (const line of diff.split('\n')) {
+          const hm = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+          if (hm) {
+            newLine = parseInt(hm[1], 10);
+            continue;
+          }
+          if (line.startsWith('+') && !line.startsWith('+++')) {
+            hunks.push(newLine);
+            newLine++;
+          } else if (line.startsWith('-') && !line.startsWith('---')) {
+            // Deletion doesn't advance newLine
+          } else if (!line.startsWith('\\')) {
+            newLine++;
+          }
+        }
+        if (!hunks.length) continue;
+
+        // Find computeHash function body range in the NEW file
+        const content = sh(`git show ${head}:${f}`);
+        const lines = content.split('\n');
+        let funcStart = -1,
+          funcEnd = -1,
+          braceDepth = 0,
+          inFunc = false;
+        for (let i = 0; i < lines.length; i++) {
+          const l = lines[i];
+          if (!inFunc && /function\s+computeHash[\s(]|computeHash\s*=\s*(async\s*)?\(/.test(l)) {
+            inFunc = true;
+            funcStart = i + 1; // 1-based
+            braceDepth = (l.match(/{/g) || []).length - (l.match(/}/g) || []).length;
+            if (braceDepth === 0 && l.includes('{')) {
+              // Single-line function or brace on next line — keep scanning
+            }
+            continue;
+          }
+          if (inFunc) {
+            braceDepth += (l.match(/{/g) || []).length - (l.match(/}/g) || []).length;
+            if (braceDepth <= 0 && l.includes('}')) {
+              funcEnd = i + 1;
+              break;
+            }
+          }
+        }
+        // If we found the function, check if any changed line is inside it
+        if (funcStart > 0 && funcEnd > 0) {
+          if (hunks.some((ln) => ln >= funcStart && ln <= funcEnd)) {
+            computeHashMoved = true;
+            break;
+          }
+        } else {
+          // Fallback: old regex for definition-line changes (function might be deleted)
+          const changedLines = diff.split('\n').filter((l) => l.startsWith('+') || l.startsWith('-'));
+          if (changedLines.some((l) => /function\s+computeHash|computeHash\s*=\s*(async\s*)?\(|computeHash\s*\(.*\)\s*{/.test(l))) {
+            computeHashMoved = true;
+            break;
+          }
         }
       } catch {
         /* ignore per-file errors */
