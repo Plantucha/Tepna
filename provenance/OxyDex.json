@@ -62,7 +62,7 @@
       "inputHashes": {
         "synthetic_oxydex_o2ring.csv": "da85cd313b67f666"
       },
-      "outputHash": "d9569ec8d37b4582",
+      "outputHash": "1a3bc617e1f49182",
       "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF \u00a7P9, resolving \u00a7M5) \u2014 a COMMITTED, content-addressed equivalence input for OxyDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate \u2014 the GATE-C surface that catches a code change which moved a fixture's OUTPUT \u2014 therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is \u2014 closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
     },
     "OxyDex_2026-09-19_2245_stored_summary.json": {
