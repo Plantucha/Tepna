@@ -40,7 +40,7 @@
       "inputHashes": {
         "synthetic_ecgdex_h10.txt": "59acb4e481f070b5"
       },
-      "outputHash": "c8be0398bc177cf7",
+      "outputHash": "4f28b4f98ef45d13",
       "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for ECGDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
     },
     "synthetic_ecgdex_gapped_golden.node-export.json": {
@@ -51,7 +51,7 @@
       "inputs": [
         "synthetic_ecgdex_h10_gapped.txt"
       ],
-      "outputHash": "359151d1764e02a6",
+      "outputHash": "832bab7babf34075",
       "inputHashes": {
         "synthetic_ecgdex_h10_gapped.txt": "89e723c69d352f0a"
       }
@@ -64,7 +64,7 @@
       "inputs": [
         "synthetic_ecgdex_h10.txt"
       ],
-      "outputHash": "1242c6a0ac73f250",
+      "outputHash": "48f3a0fcee0b6308",
       "inputHashes": {
         "synthetic_ecgdex_h10.txt": "59acb4e481f070b5"
       }
