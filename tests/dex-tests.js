@@ -7388,6 +7388,49 @@
       T.eq('missingSec publishes the gap (not silent)', ev.length ? ev[0].missingSec : null, 5);
     });
 
+    /* Follow-up 2026-10-08 Item 1: eligibility uses MEASURED duration.
+       Elapsed span 12s meets minSec=10, but 5 missing → measured 7s.
+       The event must NOT be accepted. */
+    group('§∅ · OxyDex — sub-minSec measured duration rejects the event', 'oxydex-dsp · absence · desat · minsec', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      var spo2 = [];
+      for (var i = 0; i < 4; i++) spo2.push(90);
+      for (var j = 0; j < 5; j++) spo2.push(null);
+      for (var k = 0; k < 3; k++) spo2.push(90);
+      for (var m = 0; m < 10; m++) spo2.push(97);
+      var ev = det(spo2, { dropPct: 4, exitPct: 1, minSec: 10 });
+      T.eq('event with 7s measured (12s span) is rejected when minSec=10', ev.length, 0);
+    });
+
+    /* Follow-up 2026-10-08 Item 2: gap-crossing policy is EXPLICIT.
+       Two desat segments separated by missing samples: the event is RETAINED
+       as ONE event (not split, not rejected), with the gap published via
+       missingSec. The continuity is not silent — missingSec quantifies exactly
+       how much of the span was unobserved. */
+    group('§∅ · OxyDex — event crossing a gap is retained with explicit missingSec', 'oxydex-dsp · absence · desat · gap-policy', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      var spo2 = [];
+      for (var i = 0; i < 10; i++) spo2.push(97);
+      for (var j = 0; j < 8; j++) spo2.push(90);
+      for (var k = 0; k < 5; k++) spo2.push(null);
+      for (var m = 0; m < 8; m++) spo2.push(90);
+      for (var n = 0; n < 10; n++) spo2.push(97);
+      var ev = det(spo2, { dropPct: 4, exitPct: 1, minSec: 5 });
+      T.eq('one event spans the gap (retained, not split)', ev.length, 1);
+      T.eq('durationSec is measured only (16, not 21)', ev.length ? ev[0].durationSec : null, 16);
+      T.eq('missingSec explicitly quantifies the unobserved gap', ev.length ? ev[0].missingSec : null, 5);
+    });
+
     /* Item 2 (review 2026-10-08): delta-index must not bridge missing 12s windows.
        The old code pushed window means without positions, so windows 0 and 2
        (with window 1 all-null) were treated as adjacent, yielding deltaIndex=10

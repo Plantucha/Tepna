@@ -5292,7 +5292,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       evMissing = 0;
     // Push a completed event (shared by the in-loop close and the end-of-record flush).
     function pushEvent(endIdxRaw) {
-      if (endIdxRaw - evStart < minSec) return; // ignore sub-minSec blips
+      // Follow-up 2026-10-08: eligibility uses MEASURED duration, not elapsed span.
+      var measuredDur = endIdxRaw - evStart - evMissing;
+      if (measuredDur < minSec) return; // ignore sub-minSec blips (measured, not span)
       var recEnd = Math.min(n - 1, endIdxRaw);
       /* ⚠️ §∅ · A TERMINAL EVENT OBSERVED NO RESATURATION, so `recSlope` is null and says why.
          `endIdxRaw === n` only at the end-of-record flush, where the clamp above pulls `recEnd` back

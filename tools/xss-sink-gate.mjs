@@ -13,6 +13,14 @@
  * escaping a different variable) does NOT satisfy the gate — Item 5 proved
  * the hunk-wide check could be bypassed by an unrelated escapeHTML() call.
  *
+ * LIMITS (follow-up 2026-10-08): This gate is regex-based and does NOT
+ * validate that the assigned value is actually escaped. A line like
+ * `el.innerHTML = userInput + escapeHTML(safeVar)` PASSES because escapeHTML
+ * appears on the line, even though userInput is unescaped. The gate catches
+ * the common case (bare `el.innerHTML = userInput`) but is not a proof of
+ * safety. Do not describe it as validating the assigned value's safety.
+ * Human review is required for complex expressions.
+ *
  * This is intentionally strict. If the input is statically trusted, document
  * why and add the line to ALLOW with a comment.
  *
