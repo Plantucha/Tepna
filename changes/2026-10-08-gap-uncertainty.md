@@ -25,3 +25,14 @@ Gap uncertainty and safeguard quality (2026-10-08):
    - Raw-span eligibility restored → event incorrectly accepted (caught)
    - evMissing++ removed → duration inflated 16→21 (caught)
    - Old XSS regex restored → false pass on mixed assignment (caught)
+
+5. Mutation gate (diff-scoped) on the capture-host change: the 7 surviving
+   mutants in `storage_targets.dest_status` are now accounted for — 4 killed
+   by new assertions (explicit kind wins over protocol default; unknown
+   protocol falls back to the transfer kind; the local-branch not-exists
+   reason names the actual path), 3 recorded as equivalent in
+   `tools/mutate-equivalence.json` with empirical probes (two
+   `target.get("protocol", …)` default variants indistinguishable because
+   neither "" nor None is a PROTOCOLS key; the `'(unset)'` literal is
+   unreachable by construction). Gate verdict: PASS (98 generated, 98
+   decided, 0 unclassified survivors).
