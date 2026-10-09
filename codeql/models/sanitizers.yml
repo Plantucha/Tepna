@@ -1,0 +1,15 @@
+# CodeQL Model-as-Data: custom sanitizers for Tepna capture-host.
+#
+# `_under_allowed_root(p)` in `capture-host/storage_targets.py` validates that a
+# path resolves inside one of `MOUNT_ROOTS` via `os.path.realpath` +
+# `os.path.commonpath`. When it returns True, `p` is safe for filesystem use.
+# CodeQL's py/path-injection cannot see through this custom validator, producing
+# false positives. This model teaches CodeQL that a True return sanitizes the
+# argument.
+
+extensions:
+  - addsTo:
+      pack: codeql/python-all
+      extensible: sanitizer
+    data:
+      - ["storage_targets", "_under_allowed_root", "return", "sanitizer"]
