@@ -294,6 +294,41 @@ def test_dest_status_local_protocol_defends_against_unvalidated_target(monkeypat
     assert called == [], "an out-of-root path must never reach a filesystem call"
 
 
+def test_dest_status_local_protocol_accepts_allowed_root(monkeypatch, tmp_path):
+    """The local protocol path must accept a valid in-root directory (positive case)."""
+    monkeypatch.setattr(st, "MOUNT_ROOTS", (str(tmp_path),))
+    mp = tmp_path / "archive"
+    mp.mkdir()
+    s = st.dest_status({"protocol": "local", "mountpoint": str(mp)})
+    assert s["ready"] is True
+    assert s["path"] == str(mp)
+
+
+def test_dest_status_honors_an_explicit_kind_over_the_protocol_default(tmp_path):
+    """An explicit "kind" wins over the protocol's default kind: nfs maps to the mount kind, but a
+    target that declares kind=transfer must take the transfer path — ready, with no filesystem
+    probe at all."""
+    s = st.dest_status({"kind": "transfer", "protocol": "nfs", "mountpoint": str(tmp_path / "archive")})
+    assert s == {"ready": True, "path": None, "reason": None}
+
+
+def test_dest_status_unknown_protocol_falls_back_to_transfer_kind():
+    """The ("transfer",) default is the documented fallback for an unrecognized protocol: the kind
+    resolves to transfer and the target is ready without a filesystem probe — never a crash."""
+    s = st.dest_status({"protocol": "bogus"})
+    assert s == {"ready": True, "path": None, "reason": None}
+
+
+def test_dest_status_local_protocol_reason_names_the_missing_path(tmp_path):
+    """When the local directory does not exist, the reason must name the actual path — the operator
+    needs to know WHICH directory to create, not read '(unset)'."""
+    mp = str(tmp_path / "no-such-dir")
+    s = st.dest_status({"protocol": "local", "mountpoint": mp})
+    assert s["ready"] is False
+    assert s["path"] == mp
+    assert s["reason"] == f"{mp} does not exist"
+
+
 def test_dest_status_still_works_for_an_allowed_root(monkeypatch, tmp_path):
     monkeypatch.setattr(st, "MOUNT_ROOTS", (str(tmp_path),))
     mp = tmp_path / "archive"
