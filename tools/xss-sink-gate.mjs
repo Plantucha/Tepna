@@ -32,7 +32,9 @@ import { execSync } from 'node:child_process';
 
 const SINK_RE = /\.innerHTML\s*(\+=|=)/;
 // Matches escapeHTML(...) or esc(...) calls, including nested parens (one level).
-const ESCAPE_CALL_RE = /\b(?:escapeHTML|esc)\s*\((?:[^()]*|\([^()]*\))*\)/g;
+// ReDoS-safe: the inner alternation uses single-char [^()] (not [^()]*), so the
+// two branches are disjoint at every position — no ambiguous backtracking.
+const ESCAPE_CALL_RE = /\b(?:escapeHTML|esc)\s*\((?:[^()]|\([^()]*\))*\)/g;
 // String literals (single, double, backtick without interpolation).
 const STRING_RE = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\$]|\\.)*`/g;
 // Identifiers that could be unescaped variables.
