@@ -345,8 +345,12 @@ def dest_status(target: dict) -> dict:
             }
         if target.get("protocol") == "local":
             # Same self-defense as mount: validate before filesystem access.
-            ok = bool(mp) and _under_allowed_root(mp) and os.path.isdir(mp)
-            return {"ready": ok, "path": mp, "reason": None if ok else f"{mp or '(unset)'} does not exist"}
+            # Explicit early-return (not a boolean chain) so the validator is
+            # visible to static analysis as a sanitizer.
+            if not (mp and _under_allowed_root(mp)):
+                return {"ready": False, "path": mp, "reason": f"{mp or '(unset)'} does not exist"}
+            ok = os.path.isdir(mp)
+            return {"ready": ok, "path": mp, "reason": None if ok else f"{mp} does not exist"}
         exists = bool(mp) and os.path.isdir(mp)
         mounted = bool(mp) and os.path.ismount(mp)
         if mounted:
