@@ -48,6 +48,7 @@ import signal
 import subprocess
 import threading
 import time
+from typing import Final, TypedDict
 
 __all__ = [
     "GATE_BUDGET_SEC",
@@ -2755,9 +2756,18 @@ def stage_root_reads(tree, work, names) -> int:
 # INVERTED rather than enumerated, deliberately. Listing the statuses we know would silently ignore
 # the next one mutmut adds; asking "is this line a survivor, and if not it is UNDECIDED" fails closed
 # on a status nobody has met. UNDECIDED is never `killed` and never refutes an equivalence entry.
-UNDECIDED = "undecided"
-SURVIVED = "survived"
-KILLED = "killed"
+UNDECIDED: Final = "undecided"
+SURVIVED: Final = "survived"
+KILLED: Final = "killed"
+
+
+class _SplitResults(TypedDict):
+    """The shape `split_results` returns, per its docstring: survivors and killed are bare
+    names; undecided keeps `(name, status)` pairs so a report can say WHICH kind of undecided."""
+
+    survived: list[str]
+    undecided: list[tuple[str, str]]
+    killed: list[str]
 
 
 def clean_run_failures(text: str) -> list[str]:
@@ -2882,12 +2892,12 @@ def in_glob_scope(mutant: str, glob: str) -> bool:
     return fnmatch.fnmatchcase(str(mutant), str(glob))
 
 
-def split_results(results_text: str):
+def split_results(results_text: str) -> _SplitResults:
     """`{"survived": [...], "undecided": [(name, status), ...]}` over a whole `mutmut results` blob.
 
     A caller must treat `undecided` as NOT KILLED: it is the set the run could not settle, so a gate
     that reports green while it is non-empty is reporting about mutants it never saw."""
-    out: dict[str, list[str]] = {SURVIVED: [], UNDECIDED: [], KILLED: []}
+    out: _SplitResults = {SURVIVED: [], UNDECIDED: [], KILLED: []}
     for line in (results_text or "").splitlines():
         got = classify_results_line(line)
         if got is None:

@@ -18,6 +18,7 @@
 
 import urllib.error
 import urllib.request
+from typing import Any, cast
 
 import pytest
 
@@ -120,7 +121,9 @@ def test_a_response_without_a_status_attribute_is_treated_as_answering(urlopen_s
     "exc",
     [
         urllib.error.URLError("no route"),
-        urllib.error.HTTPError("u", 500, "boom", {}, None),
+        # `{}` is not a real Message — the test only needs the exception to carry a code;
+        # the cast keeps the deliberate test-only shape without pretending otherwise.
+        urllib.error.HTTPError("u", 500, "boom", cast(Any, {}), None),
         TimeoutError("slow"),
         OSError("down"),
     ],
