@@ -32,20 +32,27 @@ def _edf(path, records=120, dur_s=30.0):
 
 
 def _night(root, night="2026-09-19", *, h10=True, verity=True, ring=True, cpap=True):
+    """⚠️ THE SESSION STAMP NOW FOLLOWS THE FOLDER, and before 2026-10-10 it did not: every file was
+    written with a hard-coded `20260919220000` whatever `night` said. Under folder-keyed row identity
+    that was invisible — the row came from the folder's NAME. Under `(night band, recording start)` the
+    STAMP decides, so three folders all claiming 2026-09-19 22:00 collapsed into one row and three
+    listing tests failed. Real captures cannot be in this state: `writers.night_dir()` files a session's
+    files under its own start date, which is the property this fixture now reproduces."""
     d = os.path.join(root, "captures", night)
     os.makedirs(d, exist_ok=True)
+    stamp = f"{night.replace('-', '')}220000"
     if h10:
         for s in ("ECG", "ACC", "HR", "RR"):
-            _w(os.path.join(d, f"Polar_H10_02849638_20260919220000_{s}.txt"), ISO_ROWS)
+            _w(os.path.join(d, f"Polar_H10_02849638_{stamp}_{s}.txt"), ISO_ROWS)
     if verity:
         for s in ("PPG", "PPI", "ACC"):
-            _w(os.path.join(d, f"Polar_VeritySense_0C301E3F_20260919220000_{s}.txt"), ISO_ROWS)
+            _w(os.path.join(d, f"Polar_VeritySense_0C301E3F_{stamp}_{s}.txt"), ISO_ROWS)
     if ring:
         _w(
-            os.path.join(d, "Wellue_O2Ring-S_S8AW2100_20260919220000_SPO2.csv"),
+            os.path.join(d, f"Wellue_O2Ring-S_S8AW2100_{stamp}_SPO2.csv"),
             "Time,Oxygen Level,Pulse Rate,Motion\n22:45:27 19/09/2026,91,65,0\n05:45:27 20/09/2026,97,58,0\n",
         )
-        _w(os.path.join(d, "Wellue_O2Ring-S_S8AW2100_20260919220000_PPG.txt"), ISO_ROWS)
+        _w(os.path.join(d, f"Wellue_O2Ring-S_S8AW2100_{stamp}_PPG.txt"), ISO_ROWS)
     if cpap:
         _edf(os.path.join(root, "captures", "cpap-ble", "DATALOG", night.replace("-", ""), "20260919_220000_BRP.edf"))
     return d
@@ -765,7 +772,11 @@ def test_ONE_bad_night_does_not_take_the_other_eighty_nine_down(tmp_path, monkey
     _night(tmp_path, "2026-09-20")
     real = ni.night_entry
 
-    def boom(captures, night_dir, deadline):
+    # ⚠️ THE DOUBLE MIRRORS THE REAL SIGNATURE, and it gained `stamps` on 2026-10-10: `_night_row` now
+    # tells `night_entry` WHICH recording the row is for, because one band can carry two. A 3-argument
+    # stub raised `TypeError: … 4 were given` and the test read as a listing failure — a double that has
+    # drifted from the function it stands in for reports on nothing.
+    def boom(captures, night_dir, deadline, stamps=None):
         if night_dir.endswith("2026-09-19"):
             raise KeyError("gaps_s")
         return real(captures, night_dir, deadline)
@@ -806,10 +817,17 @@ def test_the_listing_defaults_to_SIXTY_nights_and_a_FIFTEEN_second_budget(tmp_pa
     reading test cannot see them: mutmut applies a mutated default at CALL time while leaving the visible
     `def` alone (`ext:memory/a-signature-reading-test-cannot-see-a-mutated-default`). So they are observed
     through behaviour — how many nights come back, and what deadline the per-night call is handed."""
-    monkeypatch.setattr(ni, "list_nights", lambda root: [f"2026-07-{d:02d}" for d in range(1, 10)] * 7)
+    # 🔴 THE SEAM MOVED, DELIBERATELY. This stubbed `list_nights`, which `index_nights` NO LONGER CALLS:
+    # row identity is `(night band, recording start)` (owner ruling 2026-10-10), so the listing enumerates
+    # BANDS over the union of folders via `_recordings`. A stub on the old seam intercepted nothing and
+    # the test saw 0 rows — the "a double that no longer doubles anything" failure, which is worse than a
+    # break because a differently-shaped suite could have gone green on it.
+    monkeypatch.setattr(
+        ni, "_recordings", lambda captures: [(f"2026-07-{d:02d}", frozenset({float(d)})) for d in range(1, 10)] * 7
+    )
     seen: list = []
 
-    def rec(captures, night_dir, deadline):
+    def rec(captures, night_dir, deadline, stamps=None):
         seen.append(deadline)
         return {"night": os.path.basename(night_dir)}
 
@@ -842,27 +860,37 @@ def test_a_folder_holding_TWO_NIGHTS_is_published_as_TWO_RECORDINGS(tmp_path):
     _w(os.path.join(d, "Polar_H10_02849638_20261004220206_ECG.txt"), ISO_ROWS)
     _w(os.path.join(d, "Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"), "Phone timestamp;device;meas\n")
 
-    e = ni.night_entry(os.path.join(root, "captures"), d)
-    names = [r["recording"] for r in e["recordings"]]
+    # 🔴 THE CONTRACT CHANGED ON PURPOSE (owner ruling 2026-10-10). Row identity is
+    # `(night band, recording start)`, so one folder holding two nights is TWO ROWS of the listing — not
+    # two entries inside one folder's row. The folder is no longer the unit, which is the whole point:
+    # the 00:26 session BELONGS to the night that began 10-03 and is now listed there, under a band whose
+    # own folder was never created (ADOPTION). Before this ruling it was filed under 2026-10-04 because
+    # that is the folder its bytes landed in, and the page showed one night as two.
+    rows = ni.index_nights(root, budget_s=None)
+    names = [r["night"] for r in rows]
     assert names == ["2026-10-03", "2026-10-04"], (
-        "one folder, two recordings, named by the EVENING each band is anchored on and ordered as the "
-        f"nights happened: {names}"
+        "one folder, two recordings, each listed under the EVENING its band is anchored on and ordered "
+        f"as the nights happened: {names}"
     )
-    first, second = e["recordings"]
-    assert first["files"]["ECGDex"] == ["2026-10-04/Polar_H10_02849638_20261004002801_ECG.txt"]
-    assert second["files"]["ECGDex"] == ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]
+    first, second = rows
+    # ⚠️ AND 2026-10-03 HAS NO FOLDER AT ALL — the row exists because the BAND does. Enumerating folders
+    # is exactly what dropped this session from the listing.
+    assert not os.path.isdir(os.path.join(root, "captures", "2026-10-03"))
+    assert first["ECGDex"]["files"] == ["2026-10-04/Polar_H10_02849638_20261004002801_ECG.txt"]
+    assert second["ECGDex"]["files"] == ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]
     assert first["arrival"] == ["2026-10-04/Polar_H10_02849638_20261004002801_PMDARRIVAL.csv"]
     assert second["arrival"] == ["2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"]
+    # the recording start is the second half of the identity, so two rows are distinguishable
+    assert first["recording_start"] == "2026-10-04 00:28" and second["recording_start"] == "2026-10-04 22:02"
     # ⚠️ CONSECUTIVE BANDS DO NOT ABUT, and the gap is the design, not a hole: a band is 16 h
-    # (18:00→10:00), so 10:00–18:00 belongs to NO night. That is the DAYTIME class — wear there is excluded
-    # from the night with its span named (NIGHT-IS-THE-RECORDING §scope) rather than folded into whichever
-    # night is nearer. I first asserted the bands abutted; they are 8 h apart and should be.
-    assert second["begin"] - first["end"] == 8 * 3600.0, (
-        f"the daytime window between two nights is 8 h and belongs to neither: {first['end']} → {second['begin']}"
+    # (18:00→10:00), so 10:00–18:00 belongs to NO night. That is the DAYTIME class — wear there is
+    # excluded from the night with its span named (NIGHT-IS-THE-RECORDING §scope) rather than folded into
+    # whichever night is nearer. I first asserted the bands abutted; they are 8 h apart and should be.
+    b1, b2 = first["recordings"][0], second["recordings"][0]
+    assert b2["begin"] - b1["end"] == 8 * 3600.0, (
+        f"the daytime window between two nights is 8 h and belongs to neither: {b1['end']} → {b2['begin']}"
     )
-    assert first["end"] - first["begin"] == 16 * 3600.0
-    # ADDITIVE: the folder-wide view still holds everything, so an existing reader sees no subset
-    assert len(e["ECGDex"]["files"]) == 2 and len(e["arrival"]) == 2
+    assert b1["end"] - b1["begin"] == 16 * 3600.0
 
 
 def test_a_file_with_NO_SESSION_STAMP_is_named_not_filed_under_a_guessed_band(tmp_path):
@@ -935,3 +963,210 @@ def test_an_unstamped_file_does_not_STOP_the_grouping_and_first_is_the_EARLIEST_
         f"and not None: {recs[0]['first']} != {want}"
     )
     assert recs[0]["begin"] <= recs[0]["first"] < recs[0]["end"]
+
+
+# ══ ONE NIGHT IS ONE ROW, EVEN WHEN THE POLAR STREAMS START AFTER MIDNIGHT (owner report 2026-10-09→10) ══
+# The night of 10-09→10-10 is ONE recording: ring at 21:25 in folder 2026-10-09, Verity at 01:47 and H10
+# at 01:50 in folder 2026-10-10. The page showed it as TWO nights — 10-09 (OxyDex) and 10-10 (the Polar
+# nodes plus an OxyDex "0 kB / ?" cell). Nothing was wrong with the capture; the listing grouped by folder.
+
+
+def _last_night(root):
+    """Last night's real shape, from the box reading: one recording across two folders, plus the morning
+    daytime ring session whose stream files are 0-byte buffered headers (brief §④′)."""
+    d9, d10 = os.path.join(root, "2026-10-09"), os.path.join(root, "2026-10-10")
+    for d in (d9, d10):
+        os.makedirs(d, exist_ok=True)
+    open(os.path.join(d9, "Wellue_O2Ring-S_ABC_20261009212546_SPO2.csv"), "w").write("x" * 587000)
+    for suf, sz in (("ECG", 5000), ("ACC", 1000)):
+        open(os.path.join(d10, f"Polar_H10_02849638_20261010015024_{suf}.txt"), "w").write("x" * sz)
+    for suf, sz in (("PPG", 4000), ("ACC", 1000)):
+        open(os.path.join(d10, f"Polar_VeritySense_0C301E3F_20261010014748_{suf}.txt"), "w").write("x" * sz)
+    for suf in ("PPG", "PLETHA", "PPG2W", "ACCRAW"):
+        open(os.path.join(d10, f"Wellue_O2Ring-S_ABC_20261010091801_{suf}.txt"), "w").close()
+    open(os.path.join(d10, "Wellue_O2Ring-S_ABC_20261010091801_SPO2.csv"), "w").close()
+    return d9, d10
+
+
+def _nodes(entry):
+    return sorted(k for k, v in entry.items() if isinstance(v, dict) and v.get("files"))
+
+
+def test_a_night_whose_polar_streams_start_after_midnight_is_ONE_row(tmp_path):
+    """🔴 THE PLANT, red on main. The evening folder's row must carry every device of the recording,
+    including the sets whose BYTES live under the next date — membership by session START, which is what
+    `solid_night_inputs.in_band` decides and what makes the two-folder bound structural.
+
+    On main this row holds OxyDex alone and the five Polar columns appear under 2026-10-10."""
+    d9, _d10 = _last_night(str(tmp_path))
+    got = _nodes(ni.night_entry(str(tmp_path), d9))
+    for node in ("OxyDex", "ECGDex", "PPGDex", "MotionDex"):
+        assert node in got, f"{node} missing from the evening row: {got}"
+
+
+def test_the_MORNING_folder_no_longer_carries_a_phantom_night(tmp_path):
+    """The other half of the split, and the "0 kB / ?" cell the owner actually saw: folder 2026-10-10
+    held only sessions belonging to 10-09's band, so it must contribute NO row of its own — rather than a
+    second night whose OxyDex cell is a 0-byte buffered header read as a night with no data."""
+    _d9, d10 = _last_night(str(tmp_path))
+    entry = ni.night_entry(str(tmp_path), d10)
+    assert _nodes(entry) == [], f"the morning folder still claims a night: {_nodes(entry)}"
+    zero = [k for k, v in entry.items() if isinstance(v, dict) and v.get("bytes") == 0]
+    assert zero == [], f"a 0-byte cell is still published as a night's data: {zero}"
+
+
+def test_TWO_GENUINELY_SEPARATE_NIGHTS_STAY_TWO_ROWS(tmp_path):
+    """THE CONTROL that keeps this from being a merge-everything change. Two evenings, each with its own
+    first donning after 18:00, must remain two rows — if band membership were widened to "any file under
+    either folder" this is what would fail, and the fix would read as working on the plant alone."""
+    root = str(tmp_path)
+    for day, stamp in (("2026-10-01", "20261001213000"), ("2026-10-02", "20261002220000")):
+        d = os.path.join(root, day)
+        os.makedirs(d, exist_ok=True)
+        open(os.path.join(d, f"Wellue_O2Ring-S_ABC_{stamp}_SPO2.csv"), "w").write("x" * 1000)
+        open(os.path.join(d, f"Polar_H10_02849638_{stamp}_ECG.txt"), "w").write("x" * 1000)
+    for day in ("2026-10-01", "2026-10-02"):
+        got = _nodes(ni.night_entry(root, os.path.join(root, day)))
+        assert "OxyDex" in got and "ECGDex" in got, (day, got)
+    # and neither night swallowed the other's files
+    e1 = ni.night_entry(root, os.path.join(root, "2026-10-01"))
+    assert all("2026-10-02" not in f for f in e1["OxyDex"]["files"]), e1["OxyDex"]["files"]
+
+
+def test_a_DATE_KEYED_tree_is_not_expanded_across_folders(tmp_path):
+    """⚠️ THE CPAP TREES ARE ROOT-RELATIVE AND CARRY NO SESSION STAMP, so they are deliberately left on
+    the old path. `session_epoch` returns None for them (its docstring says why), meaning there is no
+    start to judge membership by — globbing them across a second date would file one day's tree under
+    another night on the strength of a guess, which is the fabrication this change exists to remove."""
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "2026-10-09"), exist_ok=True)
+    for ymd in ("20261009", "20261010"):
+        d = os.path.join(root, "cpap", "DATALOG", ymd)
+        os.makedirs(d, exist_ok=True)
+        open(os.path.join(d, f"{ymd}_000000_BRP.edf"), "w").write("x" * 100)
+    cell = ni.night_entry(root, os.path.join(root, "2026-10-09")).get("CPAPDex")
+    assert cell and all("20261009" in f for f in cell["files"]), cell
+
+
+# ══ THE RECORDING ENUMERATION'S OWN EDGES (2026-10-10) ═════════════════════════════════════════════
+
+
+def test_ONE_BAND_CARRIES_TWO_ROWS_when_a_doff_gap_splits_it(tmp_path):
+    """🔴 LAST NIGHT, AND THE CASE THE OWNER REPORTED. Row identity is `(night band, recording start)`, so
+    the ring at 21:25 and the Polar sets at 01:47/01:50 — which land in DIFFERENT folders — are ONE row,
+    while the 09:18 morning session is a SECOND row in the same band.
+
+    ⚠️ AND THE CHAIN IS MEASURED END-TO-START, which my first version got wrong. The ring begins 21:25
+    and the H10 01:50 — 4 h 22 m apart by START, so a start-to-start gap split the night in two. The
+    Polar sessions begin INSIDE the ring's 5.8 h recording, so the wear never stopped; what separates
+    09:18 is that it begins 6 h after the chain's furthest END."""
+    import time as _t
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    ep = lambda s: _t.mktime(_t.strptime(s, "%Y%m%d%H%M%S"))  # noqa: E731
+
+    def put(day, name, size, end):
+        d = os.path.join(c, day)
+        os.makedirs(d, exist_ok=True)
+        p = os.path.join(d, name)
+        open(p, "w").write("x" * size)
+        os.utime(p, (end, end))
+
+    put("2026-10-09", "Wellue_O2Ring-S_A_20261009212546_SPO2.csv", 587000, ep("20261010031500"))
+    put("2026-10-10", "Polar_H10_02849638_20261010015024_ECG.txt", 5000, ep("20261010064500"))
+    put("2026-10-10", "Wellue_O2Ring-S_A_20261010091801_SPO2.csv", 100, ep("20261010101500"))
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-10-09", "2026-10-09"], [r["night"] for r in rows]
+    starts = [r["recording_start"] for r in rows]
+    assert starts == ["2026-10-09 21:25", "2026-10-10 09:18"], starts
+    night, morning = rows
+    # the night carries BOTH devices despite their bytes living under two dates — the reported defect
+    assert night["OxyDex"] and night["ECGDex"], night
+    # and the morning session is its own row, not merged into the night and not a "0 kB / ?" cell on a
+    # phantom 2026-10-10 night
+    assert morning["OxyDex"] and morning.get("ECGDex") is None, morning
+
+
+def test_a_DATE_KEYED_night_with_no_session_stamp_anywhere_still_gets_a_row(tmp_path):
+    """🔴 THE LOSS I ALMOST SHIPPED. The CPAP trees are date-keyed and carry no session stamp, so a night
+    whose only data is CPAP produces NO recording — and enumerating recordings alone gave ZERO rows for a
+    night that is on disk. That is `_night_row`'s own trap one level up: "an omitted night reads as a
+    night that was never captured"."""
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "captures", "2026-10-07"), exist_ok=True)
+    _edf(os.path.join(root, "captures", "cpap", "DATALOG", "20261007", "20261007_000000_BRP.edf"))
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-10-07"], rows
+    assert rows[0]["CPAPDex"], rows[0]
+    # it has no recording, so it carries no recording_start — the identity's second half is absent, not 0
+    assert "recording_start" not in rows[0]
+
+
+def test_an_EMPTY_date_folder_claims_no_night_and_a_stampless_file_is_not_a_session(tmp_path):
+    """Two absences that must NOT become rows. A folder whose files all band to the previous evening must
+    stay rowless — otherwise the phantom second row the owner reported comes straight back — and a file
+    with no session stamp contributes no session start to chain on."""
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-11")
+    os.makedirs(d, exist_ok=True)
+    open(os.path.join(d, "notes.txt"), "w").write("no session stamp here")
+    assert ni.index_nights(root, budget_s=None) == []
+
+
+def test_a_file_that_vanishes_between_the_glob_and_the_stat_is_skipped(tmp_path, monkeypatch):
+    """The capture tree is written while it is read. A file listed by the glob and gone by the `stat`
+    must drop out of the span map rather than taking the whole listing down — `index_nights` is the
+    endpoint the Nights page calls, and one racing unlink must not empty it."""
+    root = str(tmp_path)
+    _night(root, "2026-09-19", cpap=False)
+    real = ni.os.path.getmtime
+
+    def vanishing(p):
+        if p.endswith("_ECG.txt"):
+            raise OSError(2, "No such file or directory")
+        return real(p)
+
+    monkeypatch.setattr(ni.os.path, "getmtime", vanishing)
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-09-19"], rows
+
+
+def test_an_EMPTY_date_keyed_tree_is_not_a_night(tmp_path):
+    """The other side of the date-keyed row: a `DATALOG/<ymd>` directory that exists but holds no file is
+    not a night. The daemon creates the tree before the first EDF lands, so an empty one is a night that
+    has not arrived — and publishing it would be the mirror of the omission it exists to prevent."""
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "captures", "cpap", "DATALOG", "20261008"), exist_ok=True)
+    assert ni.index_nights(root, budget_s=None) == []
+
+
+def test_a_MIDDAY_session_joins_the_previous_band_as_its_own_row(tmp_path):
+    """⚠️ CONSECUTIVE BANDS DO NOT ABUT: a band is 16 h (18:00→10:00), so 10:00–18:00 belongs to no
+    night. I expected `nightqc.night_band` to return None there and asserted it; it does not.
+
+    🔴 MEASURED INSTEAD OF ASSUMED: for a stamp before 18:00 `night_band` anchors to the PREVIOUS
+    evening, so 14:00 is handed `[prev 18:00, 10:00)` — a band that ENDS FOUR HOURS BEFORE IT, which its
+    docstring ("the [begin, end) night band containing `ts`") does not say. Every plausible epoch
+    therefore has a band, and the `band is None` guard I first wrote was unreachable code; it is gone.
+
+    The listing consequence is consistent with the 09:18 case and is what this asserts: a midday session
+    joins the previous band as its OWN recording and gets its own row, rather than vanishing from the
+    listing or merging into the night's cells."""
+    import datetime as _dt2
+
+    import nightqc
+
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-10")
+    os.makedirs(d, exist_ok=True)
+    _w(os.path.join(d, "Polar_H10_02849638_20261010140000_ECG.txt"), ISO_ROWS)
+    t = _dt2.datetime.strptime("20261010140000", "%Y%m%d%H%M%S").timestamp()
+    band = nightqc.night_band(t)
+    assert band is not None and band[1] < t, (
+        "night_band returns the PREVIOUS evening's band for a midday stamp — one that does not contain "
+        f"it: {band} vs {t}"
+    )
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-10-09"], rows
+    assert rows[0]["recording_start"] == "2026-10-10 14:00", rows[0]
