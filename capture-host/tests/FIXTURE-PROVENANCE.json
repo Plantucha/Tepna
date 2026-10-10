@@ -294,7 +294,7 @@
     "test_host_clock_chrony_sources.py": {
       "class": "captured",
       "kind": "chronyc transcripts",
-      "source": "verbatim `chronyc -n sources` / `sourcestats` / `tracking` from vigil, 2026-10-10 21:30 UTC, thirty minutes after its own PPS became the selected source (VIGIL-GPS-STRATUM1-2026-10-10); LAN time servers 192.168.0.75 and 192.168.0.123, NIST 129.6.15.28/29, plus one constructed peer row (10.0.0.9) for the peer/combined glyphs",
+      "source": "verbatim `chronyc -n sources` / `sourcestats` / `tracking` from vigil, 2026-10-10 21:30 UTC, thirty minutes after its own PPS became the selected source (VIGIL-GPS-STRATUM1-2026-10-10); the two LAN stratum-1 servers' addresses anonymised to RFC 5737 (192.0.2.x), columns and values untouched; NIST 129.6.15.28/29 as printed; plus one constructed peer row (10.0.0.9) for the peer/combined glyphs",
       "sha256": null
     },
     "test_jitterfloor.py": {

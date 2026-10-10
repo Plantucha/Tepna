@@ -14,7 +14,9 @@
 #   /etc/chrony/conf.d/tepna-gps-pps.conf     refclock PPS prefer · allow LAN · local orphan (as digipi)
 # Test seams (tests/test_gps_stratum1_sh.py): TEPNA_ETC_SYSTEMD, TEPNA_ETC_CHRONY, TEPNA_ETC_DEFAULT, TEPNA_LIB_DIR
 # and TEPNA_DEV_ROOT redirect every path the script touches; with any seam set the root check is skipped, because
-# the only thing root is needed for is the real /etc. Stub apt-get/systemctl/chronyc/journalctl on PATH.
+# the only thing root is needed for is the real /etc. Stub apt-get/systemctl/chronyc/journalctl/ip on PATH.
+# TEPNA_LAN_CIDR sets the subnet the chrony drop-in serves; unset, it is the subnet of the default-route
+# interface, so the repo never carries the network layout (the shipped conf holds @LAN_CIDR@).
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="$(cd "$HERE/.." && pwd)"                 # capture-host/
@@ -23,12 +25,21 @@ CHRONY_DIR="${TEPNA_ETC_CHRONY:-/etc/chrony/conf.d}"
 DEFAULT_DIR="${TEPNA_ETC_DEFAULT:-/etc/default}"
 DST="${TEPNA_LIB_DIR:-/usr/local/lib/tepna}"  # helper_path.SYSTEM_DIRS[0]; root-owned, never user-writable
 DEVROOT="${TEPNA_DEV_ROOT:-}"                 # prefix for /dev and /sys in tests
+LAN_CIDR="${TEPNA_LAN_CIDR:-}"                # the subnet chrony serves; derived from the default route when unset
 CHECK=0
 [ "${1:-}" = "--check" ] && CHECK=1
 SEAMED=0
 [ -n "${TEPNA_ETC_SYSTEMD:-}${TEPNA_ETC_CHRONY:-}${TEPNA_ETC_DEFAULT:-}${TEPNA_LIB_DIR:-}${TEPNA_DEV_ROOT:-}" ] && SEAMED=1
 if [ "$CHECK" = 0 ] && [ "$SEAMED" = 0 ] && [ "$(id -u)" != 0 ]; then echo "run with sudo: sudo bash $0"; exit 1; fi
 say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
+lan_cidr() {  # the default-route interface's subnet as a network: a.b.c.d/24 → a.b.c.0/24
+  local dev addr
+  dev=$(ip -4 route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev") {print $(i+1); exit}}')
+  [ -n "$dev" ] || return 1
+  addr=$(ip -4 -o addr show dev "$dev" 2>/dev/null | awk '{print $4; exit}')
+  [ -n "$addr" ] || return 1
+  python3 -c 'import ipaddress,sys; print(ipaddress.ip_interface(sys.argv[1]).network)' "$addr"
+}
 
 say "0/6  preconditions (read-only)"
 if [ ! -e "$DEVROOT/dev/ttyS0" ]; then
@@ -80,7 +91,14 @@ mkdir -p "$CHRONY_DIR"
 if [ -f "$CHRONY_DIR/gps-pps.conf" ]; then
   mv "$CHRONY_DIR/gps-pps.conf" "$CHRONY_DIR/gps-pps.conf.bak-lockgps"; echo "  retired gps-pps.conf (lock GPS) → .bak-lockgps"
 fi
-install -m 0644 "$SRC/systemd/tepna-gps-pps.chrony.conf" "$CHRONY_DIR/tepna-gps-pps.conf"
+if [ -z "$LAN_CIDR" ]; then
+  if ! LAN_CIDR=$(lan_cidr) || [ -z "$LAN_CIDR" ]; then
+    echo "  ✗ cannot derive the LAN subnet (no default route?) — set TEPNA_LAN_CIDR=<cidr> and re-run"; exit 1
+  fi
+fi
+sed "s|@LAN_CIDR@|$LAN_CIDR|" "$SRC/systemd/tepna-gps-pps.chrony.conf" > "$CHRONY_DIR/tepna-gps-pps.conf"
+chmod 0644 "$CHRONY_DIR/tepna-gps-pps.conf"
+echo "  allow $LAN_CIDR"
 if systemctl restart chrony; then echo "  ✓ chrony restarted"; else echo "  ✗ chrony did not restart"; fi
 
 say "5/6  verify (30 s for the first PPS samples)"
@@ -92,7 +110,7 @@ say "6/6  what to expect"
 cat <<'EOF'
   · within ~10 min: `#* PPS` selected, Stratum 1, System time within a few µs, then sub-µs.
   · the monitor's Clock & NTP card lists every source minus this box; the sidebar pill adds "vs <server>".
-  · LAN clients may now add this box beside .123 and .75 (`server <this-ip> iburst`).
+  · LAN clients may now add this box beside the other stratum-1 servers (`server <this-ip> iburst`).
   · optional latency trim: `cpupower frequency-set -g performance`; GRUB `intel_idle.max_cstate=1`;
     measure `chronyc sourcestats` PPS std-dev a day before and a day after.
 EOF

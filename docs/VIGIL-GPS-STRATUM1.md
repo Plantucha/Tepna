@@ -7,7 +7,7 @@
 
 # Vigil as a stratum-1 clock — u-blox M10 1PPS into the ThinkCentre M900 Tiny
 
-The Clock Contract (`CLAUDE.md` §🔒) makes the capture box's wall clock the source of every capture stamp. Until 2026-10-10 that clock was a stratum-2 client of the NTP250 (`192.168.0.123`). It is now a **stratum-1 server disciplined by its own GPS pulse**, in the same shape as digipi (`.75`), and the LAN has three independent GPS-disciplined clocks.
+The Clock Contract (`CLAUDE.md` §🔒) makes the capture box's wall clock the source of every capture stamp. Until 2026-10-10 that clock was a stratum-2 client of the NTP250. It is now a **stratum-1 server disciplined by its own GPS pulse**, in the same shape as the digipi, and the LAN has three independent GPS-disciplined clocks.
 
 ## 1 · What was built (and what the first-night script got wrong)
 
@@ -51,26 +51,28 @@ It installs `pps-tools gpsd gpsd-clients`; `tepna-pps-ldattach.service` (`ldatta
 
 ```
 refclock PPS /dev/pps0 refid PPS precision 1e-7 prefer
-allow 192.168.0.0/24
+allow @LAN_CIDR@
 ratelimit interval 3 burst 8
 local stratum 10 orphan
 ```
 
-**Why no `lock GPS` and no `refclock SHM`.** gpsd's u-blox SHM export was measured on digipi to stall within minutes while the fix stayed solid; `refclock PPS … lock GPS` then chained the pulse to that dead feed and the box fell back to stratum 2 without a word. Without `lock`, chrony takes the *edge* from the hardware pulse and resolves *which second* from the network sources (`.123`, `.75`, within microseconds). gpsd still runs for position and monitoring only; the clock does not depend on it. The first-night script used `lock GPS` + SHM; the installer retires that drop-in to `.bak-lockgps`.
+`@LAN_CIDR@` is rendered at install time from `TEPNA_LAN_CIDR` or, unset, from the subnet of the box's default-route interface; the repository never carries the network layout.
+
+**Why no `lock GPS` and no `refclock SHM`.** gpsd's u-blox SHM export was measured on digipi to stall within minutes while the fix stayed solid; `refclock PPS … lock GPS` then chained the pulse to that dead feed and the box fell back to stratum 2 without a word. Without `lock`, chrony takes the *edge* from the hardware pulse and resolves *which second* from the network sources (the NTP250 and the digipi, within microseconds). gpsd still runs for position and monitoring only; the clock does not depend on it. The first-night script used `lock GPS` + SHM; the installer retires that drop-in to `.bak-lockgps`.
 
 ## 4 · Measured (2026-10-10, EDT)
 
-| when | selected | PPS std-dev | box vs NTP250 (.123) | notes |
+| when | selected | PPS std-dev | box vs NTP250 | notes |
 |---|---|---|---|---|
-| 17:00 bring-up | `^* .123` | — | −1.9 µs | PPS and GPS rows appear (`#?`), 2 samples |
+| 17:00 bring-up | `^*` NTP250 | — | −1.9 µs | PPS and GPS rows appear (`#?`), 2 samples |
 | 17:04 | **`#* PPS`**, stratum 1 | 2.35 µs | +365 ns ± 5.9 µs | reference ID `PPS`; RMS offset 77 µs (settling) |
-| 21:30 | `#* PPS` | **0.151 µs** | −151 µs (`.123` now `^?`: polled, not selected) | system time 1.45 µs fast; skew 0.161 ppm; root dispersion 37 µs |
+| 21:30 | `#* PPS` | **0.151 µs** | −151 µs (the NTP250 now `^?`: polled, not selected) | system time 1.45 µs fast; skew 0.161 ppm; root dispersion 37 µs |
 
-The NMEA/SHM source reads ~130–140 ms late (serial + gpsd latency); with no `lock` that number is cosmetic. NTP250's own clock jitter is 0.75 µs; vigil's PPS at 0.15 µs std-dev is now the tightest clock on the LAN by chrony's own measure. The C-state/governor trim (`cpupower frequency-set -g performance`, GRUB `intel_idle.max_cstate=1`) was **not** applied; compare `chronyc sourcestats` PPS std-dev a day before and after if it is ever tried.
+The NMEA/SHM source reads ~130–140 ms late (serial + gpsd latency); with no `lock` that number is cosmetic. NTP250's own clock jitter is 750 ns; vigil's PPS at 0.15 µs std-dev is now the tightest clock on the LAN by chrony's own measure. The C-state/governor trim (`cpupower frequency-set -g performance`, GRUB `intel_idle.max_cstate=1`) was **not** applied; compare `chronyc sourcestats` PPS std-dev a day before and after if it is ever tried.
 
 ## 5 · How it is served and read
 
-- **Serving:** `allow 192.168.0.0/24` with `ratelimit`; `local stratum 10 orphan` keeps serving if every source dies (same as digipi; two orphans at stratum 10 elect by reference ID, which is what orphan mode is for). LAN clients add `server 192.168.0.41 iburst` beside `.123` and `.75`.
+- **Serving:** `allow <LAN subnet>` (rendered at install time) with `ratelimit`; `local stratum 10 orphan` keeps serving if every source dies (same as digipi; two orphans at stratum 10 elect by reference ID, which is what orphan mode is for). LAN clients add `server <this box> iburst` beside the NTP250 and the digipi.
 - **The monitor (Clock & NTP card):** `GET /api/clock` now carries `chrony: {available, tracking: {reference, host_stratum, system_offset_s, rms_offset_us, root_dispersion_ms, skew_ppm}, sources: [{name, mode, state, stratum, poll, reach, last_rx, offset_s, adjusted_offset_s, error_s, stddev_s, span}]}` — `host_clock.read_sources()`, read-only, every quantity normalised to seconds. The card renders **Ref / Box−ref / Rate** and a table of every source *minus this box* (state spelled out, reach in octal as chrony prints it, error and std-dev). The sidebar's host-clock pill adds `vs <server> ±…` for each network server, so a box on its own PPS that disagrees with the NTP250 by milliseconds is visible without opening the card.
 - **Reading the table:** a locally attached PPS should sit within a few µs of the box; LAN servers within a few hundred µs; `x falseticker` on a server means chrony thinks that server is wrong, not this box — check it against the third clock before believing either.
 

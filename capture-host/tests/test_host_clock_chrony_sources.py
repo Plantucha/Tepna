@@ -2,7 +2,7 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 #
 # The chrony "this box against every clock it can see" readers (VIGIL-GPS-STRATUM1-2026-10-10).
-# Fixtures are verbatim `chronyc -n` output from vigil on 2026-10-10 21:30 UTC, thirty minutes after its
+# Fixtures are verbatim (LAN hosts anonymised to RFC 5737 documentation addresses; columns and values untouched) `chronyc -n` output from vigil on 2026-10-10 21:30 UTC, thirty minutes after its
 # own PPS became the selected source — a refclock row, a falseticker, unreachable servers, ns/us/ms cells.
 import asyncio
 import pytest
@@ -12,8 +12,8 @@ SOURCES = """MS Name/IP address         Stratum Poll Reach LastRx Last sample
 ===============================================================================
 #? GPS                           0   4   377    22   +136ms[ +136ms] +/-  200ms
 #* PPS                           0   4   377    23  +3645ns[+4655ns] +/- 5981ns
-^x 192.168.0.75                  1   7   377    20   -172us[ -171us] +/-  327us
-^? 192.168.0.123                 1   8   377   218   -151us[ -152us] +/- 1260us
+^x 192.0.2.75                    1   7   377    20   -172us[ -171us] +/-  327us
+^? 192.0.2.123                   1   8   377   218   -151us[ -152us] +/- 1260us
 ^? 129.6.15.28                   1   8   377   215   +200us[ +199us] +/-   19ms
 =+ 10.0.0.9                      2   6   177   23m   -1.5ms[ -1.4ms] +/-   12ms
 """
@@ -21,8 +21,8 @@ SOURCESTATS = """Name/IP Address            NP  NR  Span  Frequency  Freq Skew  
 ==============================================================================
 GPS                        27  13   414     +4.078     19.520   +139ms  3395us
 PPS                        14   9   205     +0.002      0.151    +24ns  7697ns
-192.168.0.75               21  16   23m     +0.018      0.021   -259us  9901ns
-192.168.0.123              24  15   27m     +0.032      0.014   -191us  9241ns
+192.0.2.75                 21  16   23m     +0.018      0.021   -259us  9901ns
+192.0.2.123                24  15   27m     +0.032      0.014   -191us  9241ns
 """
 TRACKING = """Reference ID    : 50505300 (PPS)
 Stratum         : 1
@@ -61,7 +61,7 @@ def test_qty_refuses_what_is_not_a_quantity(text):
 
 def test_sources_parse_every_row_and_skip_the_header():
     rows = hc.parse_chrony_sources(SOURCES)
-    assert [r["name"] for r in rows] == ["GPS", "PPS", "192.168.0.75", "192.168.0.123", "129.6.15.28", "10.0.0.9"]
+    assert [r["name"] for r in rows] == ["GPS", "PPS", "192.0.2.75", "192.0.2.123", "129.6.15.28", "10.0.0.9"]
     pps = rows[1]
     assert pps["mode"] == "refclock" and pps["state"] == "selected" and pps["stratum"] == 0
     assert pps["poll"] == 4 and pps["reach"] == 0o377 and pps["last_rx"] == "23"
@@ -72,7 +72,7 @@ def test_sources_parse_every_row_and_skip_the_header():
 def test_sources_spell_out_every_mode_and_state_glyph():
     rows = {r["name"]: r for r in hc.parse_chrony_sources(SOURCES)}
     assert rows["GPS"]["state"] == "unreachable" and rows["GPS"]["mode"] == "refclock"
-    assert rows["192.168.0.75"]["state"] == "falseticker" and rows["192.168.0.75"]["mode"] == "server"
+    assert rows["192.0.2.75"]["state"] == "falseticker" and rows["192.0.2.75"]["mode"] == "server"
     assert rows["10.0.0.9"]["mode"] == "peer" and rows["10.0.0.9"]["state"] == "combined"
     assert rows["10.0.0.9"]["last_rx"] == "23m" and rows["10.0.0.9"]["offset_s"] == pytest.approx(-1.5e-3)
 
@@ -89,7 +89,7 @@ def test_sources_is_empty_for_junk():
 
 def test_sourcestats_parse_by_name():
     st = hc.parse_chrony_sourcestats(SOURCESTATS)
-    assert set(st) == {"GPS", "PPS", "192.168.0.75", "192.168.0.123"}
+    assert set(st) == {"GPS", "PPS", "192.0.2.75", "192.0.2.123"}
     assert st["PPS"] == {
         "np": 14,
         "nr": 9,
@@ -99,7 +99,7 @@ def test_sourcestats_parse_by_name():
         "offset_s": pytest.approx(24e-9),
         "stddev_s": pytest.approx(7.697e-6),
     }
-    assert st["192.168.0.75"]["span"] == "23m" and st["GPS"]["stddev_s"] == pytest.approx(3.395e-3)
+    assert st["192.0.2.75"]["span"] == "23m" and st["GPS"]["stddev_s"] == pytest.approx(3.395e-3)
 
 
 def test_sourcestats_is_empty_for_junk():

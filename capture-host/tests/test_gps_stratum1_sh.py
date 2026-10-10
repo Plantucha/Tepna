@@ -31,6 +31,13 @@ def _env(tmp_path, *, with_pps=True, with_usb=True):
     calls = tmp_path / "calls.log"
     for name in ("apt-get", "systemctl", "journalctl", "chronyc"):
         _stub(bin_dir, name, f'echo "{name} $*" >> "{calls}"\n')
+    # `ip` is read-only and answers with documentation addresses (RFC 5737): the subnet the drop-in
+    # serves is DERIVED at install time, so the repo never carries the real one
+    _stub(
+        bin_dir,
+        "ip",
+        'case "$*" in *route*) echo "default via 192.0.2.1 dev eno1 proto dhcp" ;; *addr*) echo "2: eno1    inet 192.0.2.41/24 brd 192.0.2.255 scope global eno1" ;; esac\n',
+    )
     _stub(bin_dir, "sleep", "exit 0\n")  # the 30 s settle is real on a box and pointless here
     dev = tmp_path / "devroot"
     (dev / "dev").mkdir(parents=True)
@@ -103,7 +110,8 @@ def test_it_installs_the_digipi_shape_and_nothing_else(tmp_path):
     chrony = (tmp_path / "chrony/tepna-gps-pps.conf").read_text()
     directives = [ln for ln in chrony.splitlines() if ln and not ln.startswith("#")]
     assert "refclock PPS /dev/pps0 refid PPS precision 1e-7 prefer" in directives
-    assert "allow 192.168.0.0/24" in directives and "local stratum 10 orphan" in directives
+    assert "allow 192.0.2.0/24" in directives and "local stratum 10 orphan" in directives  # derived from `ip`
+    assert "@LAN_CIDR@" not in chrony and "allow 192.0.2.0/24" in r.stdout
     joined = " ".join(directives)  # the comments SAY "no lock GPS"; the directives must not DO it
     assert not re.search(r"\block\b", joined) and "SHM" not in joined  # "refclock" is not "lock"
     log = calls.read_text()
@@ -178,3 +186,20 @@ def test_tune_gives_up_after_three_model_attempts(tmp_path):
     env, calls = _tune_env(tmp_path, 'echo "$*" >> "CALLS"\nexit 1\n')
     r = subprocess.run(["sh", TUNE], capture_output=True, text=True, env=env)
     assert r.returncode == 0 and calls.read_text().count("DYNMODEL") == 3
+
+
+def test_the_served_subnet_comes_from_the_seam_when_set(tmp_path):
+    env, _ = _env(tmp_path)
+    env["TEPNA_LAN_CIDR"] = "198.51.100.0/24"
+    r = _run(env)
+    assert r.returncode == 0
+    chrony = (tmp_path / "chrony/tepna-gps-pps.conf").read_text()
+    assert "allow 198.51.100.0/24" in chrony.splitlines() and "192.0.2" not in chrony
+
+
+def test_it_refuses_rather_than_serve_nobody_when_no_subnet_can_be_derived(tmp_path):
+    env, _ = _env(tmp_path)
+    _stub(tmp_path / "bin", "ip", "exit 0\n")  # no default route, nothing printed
+    r = _run(env)
+    assert r.returncode == 1 and "set TEPNA_LAN_CIDR" in r.stdout
+    assert not (tmp_path / "chrony/tepna-gps-pps.conf").exists()

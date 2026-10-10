@@ -1063,7 +1063,10 @@ function hostClockChip(hc){
     // a falseticker is chrony's verdict on THAT server, not on this box — tooltip only, never the pill
     if(s.state!=='falseticker' && (!worst || Math.abs(s.offset_s) > Math.abs(worst.offset_s))) worst = s;
   }
-  const vs = worst ? ' · vs '+esc(worst.name.replace(/^192\.168\.0\./,'.'))+' '+fmtS(worst.offset_s) : '';
+  // Pill text stays short: when every server shares one /24, an address shrinks to its last octet.
+  const srvs = ((_clkChrony&&_clkChrony.sources)||[]).filter(s => s.mode==='server');
+  const shortName = n => { const m = /^(\d+\.\d+\.\d+)\.(\d+)$/.exec(n); return (m && srvs.every(s => s.name.startsWith(m[1]+'.'))) ? '.'+m[2] : n; };
+  const vs = worst ? ' · vs '+esc(shortName(worst.name))+' '+fmtS(worst.offset_s) : '';
   return `<span class="clk ${cls}" title="${esc(bits.filter(Boolean).join(' · '))}">🛰 ${txt}${vs}</span>`;
 }
 // A stream's pill must describe DATA, not the BLE link. It used to read `active` alone — but `active`
