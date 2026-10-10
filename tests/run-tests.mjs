@@ -2827,6 +2827,46 @@ async function main() {
     qdPick: qdPick,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
+    /* A RESOLVER FOR DECLARED NESTED BINDINGS (`emittedAt` in a registry). The resolvability gate must
+       be able to prove a declared path is REAL, or `emittedAt` becomes a second excuse list beside the
+       baseline it exists to shrink. Lazily parses the committed node exports (31 files, 1.2 MB) on the
+       first call and walks the dotted path, returning WHERE it resolved so a failure names a file
+       rather than a boolean. Node lane only; the browser lane has no fs and the gate skips there. */
+    exportPathExists: (() => {
+      let cache = null;
+      return (dotted) => {
+        if (!cache) {
+          cache = [];
+          try {
+            const dir = join(ROOT, 'uploads');
+            for (const f of readdirSync(dir)) {
+              if (!/\.json$/.test(f)) continue;
+              try {
+                cache.push([f, JSON.parse(readFileSync(join(dir, f), 'utf8'))]);
+              } catch {
+                /* an unparseable fixture is not this resolver's business */
+              }
+            }
+          } catch {
+            cache = [];
+          }
+        }
+        const parts = String(dotted || '').split('.');
+        for (const [name, doc] of cache) {
+          let cur = doc;
+          let ok = true;
+          for (const k of parts) {
+            if (cur && typeof cur === 'object' && k in cur) cur = cur[k];
+            else {
+              ok = false;
+              break;
+            }
+          }
+          if (ok && cur !== undefined) return { ok: true, where: name, value: cur };
+        }
+        return { ok: false, where: null, value: undefined, scanned: cache.length };
+      };
+    })(),
     commitShape: commitShape,
     /* The SECOND pure core (the 0-byte-root-add detector) and its declared historical baseline, wired
        the same way: the suite drives the pure function, so no git, no network, no clock. */

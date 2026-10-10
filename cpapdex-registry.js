@@ -277,7 +277,13 @@
       evidence: 'measured',
       cite: 'Regression slope of SD-card flow on BLE-live flow over the aligned overlap (OLS, no Pearson r). 1.00 = amplitude identity; a systematic gain difference reads directly.'
     },
+    /* 🔗 EMITTED AT A NESTED PATH — NOT dormant. `cpapdex-cross.js:727` emits
+       `scale: { a, b, residSD }`, so the value exists and ships; only the flat name does not. Verified
+       2026-10-10 by walking `scale.residSD` on a committed export (`cpapdex_comparator_golden.json`
+       → 0.00086746…), and the resolvability gate asserts that walk. A flat rename to `residSD` would
+       still match no top-level key, which is why the PATH is declared instead of a name. */
     cmpResidSD: {
+      emittedAt: 'scale.residSD',
       label: 'Scale Residual SD',
       unit: 'L/s',
       goodDirection: 'down',
