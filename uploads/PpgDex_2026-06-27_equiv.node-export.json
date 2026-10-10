@@ -8,7 +8,7 @@
     "bus": "ganglior",
     "generated": "2026-06-27T00:00:00.000Z",
     "provenance": null,
-    "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated."
+    "doc": "PpgDex PPG-derived events \u2192 Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated."
   },
   "recording": {
     "source": "ppg",
@@ -38,12 +38,12 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "168f0e426991",
-        "computeHash": "48db6a7e394c"
+        "manifestHash": "f7cbae068454",
+        "computeHash": "81d7b328fd4b"
       },
       "evidence": {
         "envelopeRef": null,
-        "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
+        "envelopeReason": "no acquisition envelope joins the PPG path \u2014 the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
         "inputHash": "ef671ee2e838"
       },
       "basis": "derived",
@@ -54,7 +54,7 @@
         "coveragePct": 97
       },
       "uncertainty": null,
-      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)"
+      "uncertaintyReason": "not estimated \u2014 this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)"
     },
     "rmssd": {
       "metricId": "rmssd",
@@ -68,12 +68,12 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "168f0e426991",
-        "computeHash": "48db6a7e394c"
+        "manifestHash": "f7cbae068454",
+        "computeHash": "81d7b328fd4b"
       },
       "evidence": {
         "envelopeRef": null,
-        "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
+        "envelopeReason": "no acquisition envelope joins the PPG path \u2014 the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
         "inputHash": "ef671ee2e838"
       },
       "basis": "derived",
@@ -84,7 +84,7 @@
         "coveragePct": 97
       },
       "uncertainty": null,
-      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)"
+      "uncertaintyReason": "not estimated \u2014 this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)"
     }
   },
   "validation": {
