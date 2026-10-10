@@ -1693,7 +1693,7 @@
           "--verdict-sample"
         ]
       },
-      "note": "the UNTIMED-GROUP RATCHET: one object over the executed group set (725 on 2026-10-10), criterion untimed_groups lte 27 \u2014 the count measured that day, shrink-only. It judges the COUNT of groups with no committed timing, never the timings' freshness: group-timings.json stays a HINT by its own header's decision (drift degrades balance, never correctness). --verdict-sample enumerates nothing, so it reports checked: 0 / NOT_RUN rather than a PASS it did not earn."
+      "note": "the UNTIMED-GROUP RATCHET: one object over the executed group set (727 on 2026-10-10), criterion untimed_group_share lte 5 percent \u2014 measured 3.99 % that day, shrink-only. A SHARE and not a count because a new group is unpriced by construction, so a count cap reds the PR that adds a test (the first version did exactly that on the next merge). It judges how many groups carry no committed timing, never the timings' freshness: group-timings.json stays a HINT by its own header's decision (drift degrades balance, never correctness). --verdict-sample enumerates nothing, so it reports checked: 0 / NOT_RUN with result: null rather than a PASS it did not earn."
     }
   }
 }

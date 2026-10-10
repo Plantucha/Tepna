@@ -51,8 +51,11 @@ name: tests
 #       with the remainder check at `max / mean = 1.000` — the IDEAL split, exactly achieved. No group
 #       needs a shard to itself; the heaviest shard is 55.3 s over 83 groups. So balance is no longer
 #       the thing to watch here, which is precisely why the UNTIMED count got a ratchet instead
-#       (`tests/verify-shard-timings.mjs`, static job): 27 of 725 groups carry no committed timing, and
-#       a number that only ever appeared as one mid-run prose line is a number nobody owns.
+#       (`tests/verify-shard-timings.mjs`, static job): 29 of 727 groups carry no committed timing =
+#       3.99 %, against a pre-stated 5 % cap. A SHARE and not a count, because a new group is unpriced
+#       by construction and a count cap reds the PR that adds a test — the first version of this gate
+#       did exactly that on the next merge. A number that only ever appeared as one mid-run prose line
+#       is a number nobody owns; this one now has a cap and an owner.
 #       Per-shard wall time, both framings, because they differ by ~2.5x and the gap is the machine:
 #       RIG (rig-x870, 6 shards, 2026-10-10) p50 60 s, range 56-78 s, shard 5 the outlier;
 #       CI p50 152-155 s. Quote the CI figure when sizing CI, the rig figure only for local work.

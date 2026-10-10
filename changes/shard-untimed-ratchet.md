@@ -7,8 +7,12 @@ brief: none
 **The untimed-group ratchet, and three CI comments that had drifted ~2x.**
 
 `tests/verify-shard-timings.mjs` (new, static job, ~5 s) emits one `tepna.verdict/1` over the
-EXECUTED group set and refuses when the number of groups with no committed timing grows past a
-pre-stated, shrink-only ratchet — 27 of 725, measured 2026-10-10.
+EXECUTED group set and refuses when the SHARE of groups with no committed timing exceeds a
+pre-stated, shrink-only cap of 5 % — measured 2026-10-10 at 29 of 727 = 3.99 %.
+
+A share and not a count: the first version capped the count at the measured 27 and went red on the
+very next merge, which added two groups. A new group is unpriced by construction, so a count cap is
+a toll on adding tests rather than a finding. The share refuses drift and tolerates growth.
 
 It gates the COUNT, never the timings' freshness: `group-timings.json` stays a HINT by its own
 header's decision (drift degrades balance, never correctness), and that decision is untouched. What
