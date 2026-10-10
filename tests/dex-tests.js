@@ -39227,6 +39227,14 @@
         var allKept = true;
         for (var m = 0; m < r.ppiKeptIdx.length; m++) if (r.ppiFlags[r.ppiKeptIdx[m]] !== 0) allKept = false;
         T.ok('export · every ppiKeptIdx entry lands on an unflagged input interval', allKept);
+        var hasInternalPpiGap = r.ppiKeptIdx.some(function (idx, k, kept) {
+          return k > 0 && idx !== kept[k - 1] + 1;
+        });
+        T.ok('ANTI-VACUITY · E2E fixture contains an internal retained-index gap', hasInternalPpiGap);
+        if (hasInternalPpiGap) {
+          T.eq('export · DFA alpha-1 is suppressed across an internal gap', r.dfa1, null);
+          T.eq('export · sample entropy is suppressed across an internal gap', r.sampen, null);
+        }
       }
     });
 
@@ -53368,6 +53376,56 @@
        the PPG sibling of the ECG DFA gate (PR #177). Every PPG spectral/DFA gate is SOURCE-REGEX, so a box
        range truncation (s<=16 → s<=11) silently re-slopes α1 and shipped green. Pin dfaAlpha1 on a FIXED
        deterministic RR series (seeded LCG) — the truncation moves it 0.65 → 0.75 (verified). */
+    group('PpgDex correctRR edge-only rejection preserves adjacency', 'ppgdex-dsp · nonlinear · regression', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.correctRR !== 'function') {
+        T.skip('correctRR edge-only adjacency contract', 'not exposed');
+        return;
+      }
+
+      var rr = [];
+      for (var i = 0; i < 40; i++) rr.push(800 + (i % 5) * 5);
+      rr[0] = 250;
+      rr[39] = 2200;
+
+      var tt = [];
+      var acc = 0;
+      for (var j = 0; j < rr.length; j++) {
+        acc += rr[j] / 1000;
+        tt.push(acc);
+      }
+
+      var r = P.correctRR(rr, tt);
+      var internalGap = r.keptIdx.some(function (idx, j, kept) {
+        return j > 0 && idx !== kept[j - 1] + 1;
+      });
+
+      T.ok('both edge intervals were rejected', r.flags[0] === 1 && r.flags[39] === 1);
+      T.eq('edge-only rejection creates no internal retained-index gap', internalGap, false);
+    });
+
+    /* Structural regression for correctRR internal gaps: sequence metrics must refuse
+       non-adjacent retained intervals, but edge-only rejection must not trigger the guard. */
+    group('PpgDex nonlinear metrics refuse internal correctRR gaps', 'ppgdex-dsp · nonlinear · regression', function (T) {
+      var Pp = env.sources && env.sources['ppgdex-dsp.js'];
+      T.ok('PpgDex DSP source is available', typeof Pp === 'string' && Pp.length > 5000);
+      if (typeof Pp !== 'string') return;
+
+      var pc = Pp;
+      T.ok(
+        'gap detection ignores the first retained interval and detects later breaks',
+        /const hasSequenceGap\s*=\s*adj\.some\(\(isAdjacent,\s*j\)\s*=>\s*j\s*>\s*0\s*&&\s*!isAdjacent\);/.test(pc)
+      );
+      T.ok(
+        'DFA alpha-1 is null when an internal sequence gap exists',
+        /const dfa1\s*=\s*hasSequenceGap\s*\?\s*null\s*:\s*dfaAlpha1\(nn\);/.test(pc)
+      );
+      T.ok(
+        'sample entropy is null when an internal sequence gap exists',
+        /const se\s*=\s*hasSequenceGap\s*\?\s*null\s*:\s*sampEn\(nn\);/.test(pc)
+      );
+    });
+
     group('PpgDex DFA-α1 box range — known-answer (§EP-rest)', 'ppgdex-dsp · nonlinear · known-answer', function (T) {
       var D = env.PPGDSP;
       if (!D || typeof D.dfaAlpha1 !== 'function') {

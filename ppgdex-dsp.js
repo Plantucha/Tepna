@@ -5167,8 +5167,9 @@
       }
     }
     const freq = lombScargle(_fqT, _fqV);
-    const dfa1 = dfaAlpha1(nn);
-    const se = sampEn(nn);
+    const hasSequenceGap = adj.some((isAdjacent, j) => j > 0 && !isAdjacent);
+    const dfa1 = hasSequenceGap ? null : dfaAlpha1(nn);
+    const se = hasSequenceGap ? null : sampEn(nn);
 
     // perfusion index over windows (AC/DC) for epochs/morph hand-off
     const dc = mean(Array.from(raw).map(Math.abs));
