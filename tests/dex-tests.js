@@ -6897,7 +6897,7 @@
         var ids = [];
         var re = /(^|[^A-Za-z0-9_$.'"])([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{\s*label\s*:/g;
         var m;
-        while ((m = re.exec(regS)) !== null) if (ids.indexOf(m[2]) === -1) ids.push(m[2]);
+        for (const m of regS.matchAll(re)) if (ids.indexOf(m[2]) === -1) ids.push(m[2]);
         totalIds += ids.length;
         var undeclared = ids.filter(function (id) {
           var emitted = new RegExp('(^|[^A-Za-z0-9_$])' + id + '\\s*:|\\.' + id + '\\b|[\'"`]' + id + '[\'"`]').test(body);
@@ -9272,7 +9272,8 @@
           posted = [];
         var doc = {
           getElementById: function (id) {
-            return els[id] || (els[id] = mk());
+            if (!els[id]) els[id] = mk();
+            return els[id];
           },
           querySelector: function () {
             return mk();
@@ -10666,7 +10667,7 @@
       var claim = null;
       var reIndep = /independent\s*\u2713/g,
         _m;
-      while ((_m = reIndep.exec(page)) !== null) {
+      for (const _m of page.matchAll(reIndep)) {
         var before = page.slice(Math.max(0, _m.index - 40), _m.index);
         if (!/\b(No|no|never|not|none|NOT)\b/.test(before)) claim = page.slice(Math.max(0, _m.index - 40), _m.index + 30);
       }
@@ -13792,7 +13793,7 @@
         var t = docs[names[i]];
         var re = /<div class="mc"([^>]*)>/g,
           m;
-        while ((m = re.exec(t))) {
+        for (const m of t.matchAll(re)) {
           cards++;
           var attrs = m[1];
           var tm = /data-tier="([^"]+)"/.exec(attrs);
@@ -13849,7 +13850,7 @@
         var re = /([^{}]+)\{([^{}]*)\}/g,
           m,
           props = {};
-        while ((m = re.exec(clean))) {
+        for (const m of clean.matchAll(re)) {
           var sels = m[1].split(',').map(function (s) {
             return s.trim();
           });
@@ -14462,7 +14463,7 @@
           var body = src[n];
           if (!body) return;
           KEY_RE.lastIndex = 0;
-          while ((mm = KEY_RE.exec(body))) {
+          for (const mm of body.matchAll(KEY_RE)) {
             if (DexForget.LOCAL_KEYS.indexOf(mm[1]) < 0 && (DexForget.ANALYSIS_KEYS || []).indexOf(mm[1]) < 0) missing[mm[1]] = n;
           }
         });
@@ -14963,20 +14964,20 @@
       var emitted = {};
       var m;
       var reCall = /capture_filename\([^)]*?,\s*"([a-z0-9]+)"\s*,\s*"([a-z]+)"\s*\)/g;
-      while ((m = reCall.exec(cap))) emitted[m[1].toUpperCase() + '.' + m[2]] = 'capture_filename call site';
+      for (const m of cap.matchAll(reCall)) emitted[m[1].toUpperCase() + '.' + m[2]] = 'capture_filename call site';
       var reW = /\bw\("([a-z0-9]+)"(?:,\s*"([a-z]+)")?\)/g;
-      while ((m = reW.exec(cap))) emitted[m[1].toUpperCase() + '.' + (m[2] || 'txt')] = 'w() call site';
+      for (const m of cap.matchAll(reW)) emitted[m[1].toUpperCase() + '.' + (m[2] || 'txt')] = 'w() call site';
       var measOf = /meas_of = \{([^}]*)\}/.exec(cap);
       T.ok('capture.py still declares the generic `meas_of` stream map', !!measOf, 'the generic Polar streams are opened through it — if it moved, the emitted set lost them');
       var reKey = /"([a-z0-9]+)":/g;
-      if (measOf) while ((m = reKey.exec(measOf[1]))) emitted[m[1].toUpperCase() + '.txt'] = 'meas_of';
+      if (measOf) for (const m of measOf[1].matchAll(reKey)) emitted[m[1].toUpperCase() + '.txt'] = 'meas_of';
       var headers = /HEADERS = \{([\s\S]*?)\n {4}\}/.exec(wr);
       T.ok('writers.py still declares `StreamWriter.HEADERS`', !!headers, 'the tags a StreamWriter can be opened on — if it moved, the emitted set lost them');
       var reHdr = /^\s*"([a-z0-9]+)":/gm;
-      if (headers) while ((m = reHdr.exec(headers[1]))) emitted[m[1].toUpperCase() + '.txt'] = 'StreamWriter.HEADERS';
+      if (headers) for (const m of headers[1].matchAll(reHdr)) emitted[m[1].toUpperCase() + '.txt'] = 'StreamWriter.HEADERS';
       var reF = /_([A-Z0-9]+)\.(csv|txt|dat)"/g;
       [cap, pull].forEach(function (t) {
-        while ((m = reF.exec(t))) emitted[m[1] + '.' + m[2]] = 'f-string sidecar';
+        for (const m of t.matchAll(reF)) emitted[m[1] + '.' + m[2]] = 'f-string sidecar';
       });
       /* ── THE SIDECAR FAMILY IS DERIVED BY RULE, SO THE EMITTED SET MUST BE TOO ─────────────────
          `writers.py` builds a validity/seam sidecar's name from the stream file's own name — the
@@ -15026,7 +15027,7 @@
               if (!CMP.test(line)) return;
               var t;
               reTag.lastIndex = 0;
-              while ((t = reTag.exec(line))) {
+              for (const t of line.matchAll(reTag)) {
                 var tag = t[1],
                   key = tag.toUpperCase() + '.' + t[2],
                   where = f + ':' + (i + 1) + ' `' + t[0] + '`';
@@ -15553,7 +15554,7 @@
         Object.keys(S).forEach(function (f) {
           var re = /(?:new\s+Worker|__mkWorker|mkWorker)\s*\(\s*['"`]([^'"`]+)/g,
             m;
-          while ((m = re.exec(S[f] || ''))) if (Object.prototype.hasOwnProperty.call(S, m[1])) found[m[1]] = true;
+          for (const m of S[f] || ''.matchAll(re)) if (Object.prototype.hasOwnProperty.call(S, m[1])) found[m[1]] = true;
         });
         return Object.keys(found).sort();
       };
@@ -15626,11 +15627,12 @@
           m;
         var add = function (k, ty) {
           if (!k || k === 'type' || !ty) return;
-          (map[k] = map[k] || {})[ty] = true;
+          if (!map[k]) map[k] = {};
+          map[k][ty] = true;
         };
         /* inline postMessage({ type:'T', … }) */
         var POST = /postMessage\s*\(\s*\{/g;
-        while ((m = POST.exec(prodText))) {
+        for (const m of prodText.matchAll(POST)) {
           var b = prodText.indexOf('{', m.index),
             ty = typeOfPayload(prodText, b),
             kk = {};
@@ -15641,7 +15643,7 @@
         }
         /* a named `var out = { … }`: its own `type:`, else the type of the post site that nests it */
         var LIT = /\bvar\s+out\s*=\s*\{/g;
-        while ((m = LIT.exec(prodText))) {
+        for (const m of prodText.matchAll(LIT)) {
           var lb = prodText.indexOf('{', m.index),
             own = typeOfPayload(prodText, lb),
             kk2 = {};
@@ -15651,7 +15653,7 @@
           if (!ty2) {
             var P2 = /postMessage\s*\(\s*\{/g,
               pm;
-            while ((pm = P2.exec(prodText))) {
+            for (const pm of prodText.matchAll(P2)) {
               var pb = prodText.indexOf('{', pm.index),
                 pty = typeOfPayload(prodText, pb);
               if (pty && /\w+\s*:\s*res\b/.test(prodText.slice(pb, pb + 200))) ty2 = pty;
@@ -15664,7 +15666,7 @@
         /* `out.X =` assignments join whichever named payload this producer has */
         var ASSIGN2 = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
         var anyTy = Object.keys(map).length ? Object.keys(map[Object.keys(map)[0]])[0] : null;
-        while ((m = ASSIGN2.exec(prodText))) add(m[1], anyTy);
+        for (const m of prodText.matchAll(ASSIGN2)) add(m[1], anyTy);
         return map;
       };
       /* A consumer's `onmessage` bodies, split into the regions each message type guards. Both idioms:
@@ -15675,7 +15677,7 @@
           outside = text,
           m;
         var H = /onmessage\s*=\s*(?:function\s*)?\([^)]*\)\s*(?:=>\s*)?\{/g;
-        while ((m = H.exec(text))) {
+        for (const m of text.matchAll(H)) {
           var b = text.indexOf('{', m.index),
             e = _braceEnd(text, b);
           if (e < 0) continue;
@@ -15683,12 +15685,18 @@
           outside = outside.split(body).join('');
           var g;
           var GUARD_NE = /\bm\.type\s*!==\s*'(\w+)'\s*\)\s*return\s*;/g;
-          while ((g = GUARD_NE.exec(body))) (R[g[1]] = R[g[1]] || []).push(body.slice(g.index));
+          for (const g of body.matchAll(GUARD_NE)) {
+            if (!R[g[1]]) R[g[1]] = [];
+            R[g[1]].push(body.slice(g.index));
+          }
           var GUARD_EQ = /\bm\.type\s*===\s*'(\w+)'\s*\)\s*\{/g;
-          while ((g = GUARD_EQ.exec(body))) {
+          for (const g of body.matchAll(GUARD_EQ)) {
             var gb = body.indexOf('{', g.index),
               ge = _braceEnd(body, gb);
-            if (ge > 0) (R[g[1]] = R[g[1]] || []).push(body.slice(gb, ge));
+            if (ge > 0) {
+              if (!R[g[1]]) R[g[1]] = [];
+              R[g[1]].push(body.slice(gb, ge));
+            }
           }
         }
         return { regions: R, outside: outside };
@@ -15702,11 +15710,11 @@
            Depth-1 only, and only on a `postMessage(` call, which is what keeps this from admitting every
            object literal in the file (the breadth failure mode the derived-consumer work turned on). */
         var POST = /postMessage\s*\(\s*\{/g;
-        while ((m = POST.exec(prodText))) litKeysAt(prodText, prodText.indexOf('{', m.index), found);
+        for (const m of prodText.matchAll(POST)) litKeysAt(prodText, prodText.indexOf('{', m.index), found);
         var ASSIGN = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
-        while ((m = ASSIGN.exec(prodText))) found[m[1]] = true;
+        for (const m of prodText.matchAll(ASSIGN)) found[m[1]] = true;
         var LIT = /\bvar\s+out\s*=\s*\{/g;
-        while ((m = LIT.exec(prodText))) {
+        for (const m of prodText.matchAll(LIT)) {
           var i = prodText.indexOf('{', m.index),
             depth = 0,
             end = -1;
@@ -16110,13 +16118,13 @@
         var ids = {};
         var idRe = /id="([^"]+)"/g,
           im;
-        while ((im = idRe.exec(html))) ids[im[1]] = true;
+        for (const im of html.matchAll(idRe)) ids[im[1]] = true;
         var dead = [];
         files.forEach(function (f) {
           (js[f] || '').split('\n').forEach(function (line, i) {
             var re = /['"](lbl_[A-Za-z0-9_]+)['"]/g,
               m;
-            while ((m = re.exec(line))) if (!ids[m[1]]) dead.push(f + ':' + (i + 1) + ' ' + m[1]);
+            for (const m of line.matchAll(re)) if (!ids[m[1]]) dead.push(f + ':' + (i + 1) + ' ' + m[1]);
           });
         });
         T.ok(
@@ -16151,7 +16159,7 @@
         var extSrc = [];
         var tagRe = /<script\b([^>]*)>/gi,
           m;
-        while ((m = tagRe.exec(html))) {
+        for (const m of html.matchAll(tagRe)) {
           var attrs = m[1];
           if (/\bdata-inline-src=/i.test(attrs)) continue; // inline block, fine
           var sm = attrs.match(/\bsrc="([^"]+)"/i);
@@ -19332,7 +19340,8 @@
       var by = {};
       for (var i2 = 0; i2 < eps.length; i2++) {
         var pst = planted(eps[i2].tMin * 60 + 150);
-        (by[pst] = by[pst] || []).push(eps[i2].respCv);
+        if (!by[pst]) by[pst] = [];
+        by[pst].push(eps[i2].respCv);
       }
       function medOf(a) {
         var v = a
@@ -19783,7 +19792,7 @@
       var cols = [],
         objRe = /\{\s*key:\s*'([^']*)'\s*,\s*label:\s*'((?:[^'\\]|\\.)*)'/g,
         mm;
-      while ((mm = objRe.exec(block))) cols.push({ key: mm[1], label: mm[2] });
+      for (const mm of block.matchAll(objRe)) cols.push({ key: mm[1], label: mm[2] });
       T.ok('TABLE_COLS parsed from source (≥ 40 columns)', cols.length >= 40, cols.length + ' columns');
 
       // (J) the six removed cuffless-BP producers must have NO surviving TABLE_COLS entry.
@@ -21160,7 +21169,7 @@
       var haz = [];
       var kfRe = /@keyframes\s+([\w-]+)\s*\{/g,
         m;
-      while ((m = kfRe.exec(css))) {
+      for (const m of css.matchAll(kfRe)) {
         var name = m[1],
           i = m.index + m[0].length,
           depth = 1,
@@ -21179,7 +21188,7 @@
       var need = [];
       var ruleRe = /([^{}]+)\{([^{}]*)\}/g,
         r;
-      while ((r = ruleRe.exec(css))) {
+      for (const r of css.matchAll(ruleRe)) {
         var sel = r[1].trim(),
           body = r[2];
         var am = /animation\s*:\s*([^;]+)/.exec(body);
@@ -21230,7 +21239,7 @@
       var guarded = {};
       var gRe = /([^{}]+)\{[^{}]*\}/g,
         gm;
-      while ((gm = gRe.exec(joined))) {
+      for (const gm of joined.matchAll(gRe)) {
         gm[1].split(',').forEach(function (one) {
           var t = one.trim();
           if (t) guarded[t] = true;
@@ -21392,7 +21401,7 @@
       var starts = [],
         reStart = /^ {4}(\w+)\s*:\s*\{/gm,
         sm;
-      while ((sm = reStart.exec(feBlock))) starts.push({ name: sm[1], at: sm.index });
+      for (const sm of feBlock.matchAll(reStart)) starts.push({ name: sm[1], at: sm.index });
       starts.forEach(function (s, i) {
         var body = feBlock.slice(s.at, i + 1 < starts.length ? starts[i + 1].at : feBlock.length);
         var ev = /evidence:\s*'(\w+)'/.exec(body);
@@ -34847,7 +34856,7 @@
         // 'uploads/' concat prefix has an empty capture and is correctly skipped ([^'"]+ needs ≥1 char).
         var reLit = /['"]uploads\/([^'"]+)['"]/g,
           m;
-        while ((m = reLit.exec(text))) {
+        for (const m of text.matchAll(reLit)) {
           if (m[1]) refs['uploads/' + m[1]] = true;
         }
         // Pattern 2 — prefix-concat demo (CPAPDex): ARRAY.forEach(function(name){ … fetch('uploads/'+name) }).
@@ -34855,7 +34864,7 @@
         var reConcat = /([A-Za-z_$][\w$]*)\.forEach\(\s*function\s*\(\s*(\w+)\s*\)\s*\{[\s\S]*?fetch\(\s*['"]uploads\/['"]\s*\+\s*\2\b/g,
           mc,
           concatSeen = 0;
-        while ((mc = reConcat.exec(text))) {
+        for (const mc of text.matchAll(reConcat)) {
           concatSeen++;
           var arrName = mc[1];
           var am = new RegExp('\\b' + arrName + '\\s*=\\s*\\[([\\s\\S]*?)\\]').exec(text);
@@ -34979,7 +34988,7 @@
         informational = [];
       var sre = /-\s*name:\s*([^\n]+)\n\s*run:\s*(node\s+(?:tools|tests)\/[\w.-]+\.mjs(?:\s+--[\w-]+)?)/g,
         sm;
-      while ((sm = sre.exec(job))) {
+      for (const sm of job.matchAll(sre)) {
         var cmd = sm[2].replace(/\s+/g, ' ').trim();
         if (/informational/i.test(sm[1])) informational.push(cmd);
         else steps.push(cmd);
@@ -36424,7 +36433,7 @@
       Object.keys(DL.briefs).forEach(function (src) {
         var re = /ROUTED[^\n]{0,120}?`([A-Za-z0-9][A-Za-z0-9._-]+\.md)`([^\n]{0,40})/g;
         var m;
-        while ((m = re.exec(DL.briefs[src]))) {
+        for (const m of DL.briefs[src].matchAll(re)) {
           var tgt = m[1],
             tail = m[2] || '';
           if (!DL.briefs[tgt]) {
@@ -36502,7 +36511,7 @@
           Object.keys(briefs).forEach(function (src) {
             var re = /ROUTED[^\n]{0,120}?`([A-Za-z0-9][A-Za-z0-9._-]+\.md)`([^\n]{0,40})/g,
               m;
-            while ((m = re.exec(briefs[src]))) {
+            for (const m of briefs[src].matchAll(re)) {
               var tgt = m[1],
                 tail = m[2] || '';
               if (!briefs[tgt]) {
@@ -36581,13 +36590,13 @@
           mm2,
           ss;
         var orRe = /Still open:/gi;
-        while ((mm2 = orRe.exec(t)) !== null) {
+        for (const mm2 of t.matchAll(orRe)) {
           var seg = _openSeg(t, mm2.index + mm2[0].length);
           var inn = /§\s*(\d+[a-z]?(?:\.\d+)*)/g;
-          while ((ss = inn.exec(seg)) !== null) if (!_partial.test(seg.slice(Math.max(0, ss.index - 30), ss.index + ss[0].length + 30))) o[ss[1]] = true;
+          for (const ss of seg.matchAll(inn)) if (!_partial.test(seg.slice(Math.max(0, ss.index - 30), ss.index + ss[0].length + 30))) o[ss[1]] = true;
         }
         var crRe = /§\s*(\d+[a-z]?(?:\.\d+)*)\s*(?:[^\n§]{0,40}?)\b(CLOSED|DONE|ANSWERED|EXECUTED)\b/g;
-        while ((mm2 = crRe.exec(t)) !== null) {
+        for (const mm2 of t.matchAll(crRe)) {
           if (_partial.test(t.slice(Math.max(0, mm2.index - 40), mm2.index + mm2[0].length + 40))) continue;
           c[mm2[1]] = true;
         }
@@ -36625,7 +36634,7 @@
       var linkRe = /\]\((briefs\/[^)]+)\)/g,
         mm,
         deadLinks = [];
-      while ((mm = linkRe.exec(indexText)) !== null) {
+      for (const mm of indexText.matchAll(linkRe)) {
         var dec = decodeURIComponent(mm[1].split('#')[0]).replace(/^briefs\//, '');
         if (!briefSet[dec]) deadLinks.push(mm[1]);
       }
@@ -36639,7 +36648,7 @@
         var re = /\]\(([^)]+)\)/g,
           m,
           out = [];
-        while ((m = re.exec(text)) !== null) {
+        for (const m of text.matchAll(re)) {
           var raw = m[1];
           if (!raw || raw.charAt(0) === '#') continue; // same-page anchor
           if (/^[a-zA-Z][a-zA-Z0-9+.\-]*:/.test(raw) || raw.slice(0, 2) === '//') continue; // scheme / protocol-relative → external
@@ -37177,7 +37186,7 @@
             var refs = [];
             var REF_RE = /(changes\/)?\b(\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*)\b(\.md)?/g;
             var mm;
-            while ((mm = REF_RE.exec(body)) !== null) {
+            for (const mm of body.matchAll(REF_RE)) {
               if (mm[1] || mm[3]) continue; // a changeset FILE citation, not a row→row reference
               refs.push(mm[2]);
             }
@@ -37876,7 +37885,7 @@
       C.surfaces.forEach(function (s) {
         var m;
         DOI_RE.lastIndex = 0;
-        while ((m = DOI_RE.exec(s.text))) {
+        for (const m of s.text.matchAll(DOI_RE)) {
           var doi = m[0].replace(/[.,;:]+$/, '');
           /* A DOI may contain balanced parens (10.1016/S1388-2457(03)00355-5); a TRAILING unbalanced
              ')' belongs to the sentence, not the DOI. Strip only the excess. */
@@ -38298,7 +38307,7 @@
         var re = /class="[^"]*\b(?:m-val|k-val|kpi-val|rs-val|q-val)\b[^"]*"/g,
           m,
           n = 0;
-        while ((m = re.exec(text)) !== null) {
+        for (const m of text.matchAll(re)) {
           // window widened (was -260/+40) after the BIOME-FORMATTER whole-tree reflow (P4): the reflow
           // spaces out a tile's construction, so a badge leading OR trailing the value tile now sits
           // farther from the value class — still the same construction. Heuristic bound, not a theorem.
@@ -39656,9 +39665,9 @@
       var universe = {};
       var fRe = /^ {0,3}function\s+([A-Za-z_$][\w$]*)\s*\(/gm,
         m;
-      while ((m = fRe.exec(src))) universe[m[1]] = 'function';
+      for (const m of src.matchAll(fRe)) universe[m[1]] = 'function';
       var cRe = /^ {0,3}(?:const|let|var)\s+([A-Z_][A-Z0-9_]*)\s*=/gm;
-      while ((m = cRe.exec(src))) universe[m[1]] = 'const';
+      for (const m of src.matchAll(cRe)) universe[m[1]] = 'const';
 
       // pull each shipped function's own source (balanced braces from its declaration)
       function bodyOf(name) {
@@ -39684,7 +39693,7 @@
         var body = bodyOf(dep);
         var idRe = /\b([A-Za-z_$][\w$]*)\b/g,
           im;
-        while ((im = idRe.exec(body))) {
+        for (const im of body.matchAll(idRe)) {
           var id = im[1];
           if (id === dep || shipped[id] || !universe[id]) continue;
           if (missing.indexOf(id + ' (' + universe[id] + ', referenced by ' + dep + ')') < 0) missing.push(id + ' (' + universe[id] + ', referenced by ' + dep + ')');
@@ -39934,9 +39943,9 @@
         var o = new Set(),
           re = /\bfunction\s+([A-Za-z_$][\w$]*)/g,
           m;
-        while ((m = re.exec(text)) !== null) o.add(m[1]);
+        for (const m of text.matchAll(re)) o.add(m[1]);
         re = /^\s*(?:var|let|const)\s+([A-Za-z_$][\w$]*)/gm;
-        while ((m = re.exec(text)) !== null) o.add(m[1]);
+        for (const m of text.matchAll(re)) o.add(m[1]);
         return o;
       }
       var UTIL = src['oxydex-util.js'] ? topLevelDefs(scrub(src['oxydex-util.js'])) : new Set();
@@ -39954,13 +39963,13 @@
           re;
         var defined = new Set();
         re = /\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/g;
-        while ((m = re.exec(s)) !== null) defined.add(m[1]);
+        for (const m of s.matchAll(re)) defined.add(m[1]);
         re = /([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/g;
-        while ((m = re.exec(s)) !== null) {
+        for (const m of s.matchAll(re)) {
           if (!KEYWORDS.has(m[1])) defined.add(m[1]);
         }
         re = /([A-Za-z_$][\w$]*)/g;
-        while ((m = re.exec(s)) !== null) {
+        for (const m of s.matchAll(re)) {
           var nm = m[1],
             i = m.index;
           if (i > 0 && s[i - 1] === '.') continue;
@@ -39969,7 +39978,7 @@
         }
         var called = new Set();
         re = /([A-Za-z_$][\w$]*)\s*\(/g;
-        while ((m = re.exec(s)) !== null) {
+        for (const m of s.matchAll(re)) {
           var nm2 = m[1],
             j = m.index,
             pv = j > 0 ? s[j - 1] : '';
@@ -40039,7 +40048,7 @@
         var out = {},
           re = /<loc>([^<]+)<\/loc>/g,
           m;
-        while ((m = re.exec(xml)) !== null) {
+        for (const m of xml.matchAll(re)) {
           var p = m[1].replace(/^https?:\/\/[^/]+\/?/, '');
           try {
             p = decodeURIComponent(p);
@@ -42477,13 +42486,13 @@
       var read = {};
       var rd = /\bnn?\.([a-zA-Z_][a-zA-Z0-9_]*)/g,
         mm;
-      while ((mm = rd.exec(body))) read[mm[1]] = true;
+      for (const mm of body.matchAll(rd)) read[mm[1]] = true;
 
       // Keys the OxyDex export builder emits, as `key:` at the night level.
       var emitted = {};
       var em = /^\s{4,8}([a-zA-Z_][a-zA-Z0-9_]*):/gm,
         me;
-      while ((me = em.exec(oxy))) emitted[me[1]] = true;
+      for (const me of oxy.matchAll(em)) emitted[me[1]] = true;
 
       /* Envelope/derived names that are not night-level export keys — reading them is correct.
          `desat` is here because it is the documented legacy FALLBACK in `n.desatProfile || n.desat`. */
@@ -42514,7 +42523,7 @@
         var r = {},
           g = /\bnn?\.([a-zA-Z_][a-zA-Z0-9_]*)/g,
           z;
-        while ((z = g.exec(fakeBody))) r[z[1]] = true;
+        for (const z of fakeBody.matchAll(g)) r[z[1]] = true;
         var miss = Object.keys(r).filter(function (k) {
           return !ENVELOPE[k] && !emitted[k];
         });
@@ -43411,7 +43420,7 @@
         srcList.forEach(function (pair) {
           var re = /timingSource[^;\n]{0,40}?'([a-z][a-z+-]*)'/g,
             m;
-          while ((m = re.exec(pair[1])) !== null) found[m[1]] = (found[m[1]] || []).concat(pair[0]);
+          for (const m of pair[1].matchAll(re)) found[m[1]] = (found[m[1]] || []).concat(pair[0]);
         });
         var emitted = Object.keys(found);
         T.ok('the scan actually found emitted values (a zero-find scan is not agreement)', emitted.length >= 3, emitted.join(','));
@@ -50302,7 +50311,7 @@
             m,
             re = /(\w+)\s*:/g,
             body = src.slice(open + 1, end);
-          while ((m = re.exec(body))) keys[m[1]] = 1; // top-level + nested keys; non-emittable extras are canEmit-filtered below
+          for (const m of body.matchAll(re)) keys[m[1]] = 1; // top-level + nested keys; non-emittable extras are canEmit-filtered below
           return { keys: Object.keys(keys), balanced: true };
         };
         var _parsed = _emittableSrcKeys(_src); // null if source absent; { keys, balanced } otherwise
@@ -50681,7 +50690,7 @@
         var html = SRC[name] || '';
         var re = /<script\s+[^>]*\bsrc=["']([a-z0-9_-]+-(?:cross|coimport)\.js)["']/gi,
           m;
-        while ((m = re.exec(html))) bundled[m[1]] = true;
+        for (const m of html.matchAll(re)) bundled[m[1]] = true;
       });
       var bundledSet = Object.keys(bundled).sort();
       T.ok('found bundled cross/coimport modules to check', bundledSet.length > 0, bundledSet.join(', '));
@@ -50864,7 +50873,7 @@
         var html = SRC[name] || '';
         var re = /<script\s+[^>]*\bsrc=["']([^"']+\.js)["']/gi,
           m;
-        while ((m = re.exec(html))) {
+        for (const m of html.matchAll(re)) {
           var s = m[1];
           if (/^https?:|^\/\//.test(s)) continue;
           bundled[s.replace(/^.*\//, '')] = true;
@@ -51773,7 +51782,7 @@
           // every expression that grades a desSev value against a numeric edge
           var re = /desSev(?:\.desSev)?\s*<\s*(\d+(?:\.\d+)?)/g,
             m;
-          while ((m = re.exec(s))) _dsBands.push({ file: f, edge: +m[1] });
+          for (const m of s.matchAll(re)) _dsBands.push({ file: f, edge: +m[1] });
         });
         // Anti-vacuity: if the scan finds nothing it must FAIL, not pass by silence.
         T.ok('DA-II §2.2 · the DesSev grading sites are visible to this scan (≥3 expected)', _dsBands.length >= 3, _dsBands.length + ' found: ' + JSON.stringify(_dsBands));
@@ -51885,14 +51894,14 @@
         var re = /<div class="m-val ([a-z]*)">/g,
           m,
           o = [];
-        while ((m = re.exec(html))) o.push(m[1] || 'neutral');
+        for (const m of html.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       var mVal = function (html) {
         var re = /<div class="m-val [a-z]*">([^<]*)/g,
           m,
           o = [];
-        while ((m = re.exec(html))) o.push(m[1]);
+        for (const m of html.matchAll(re)) o.push(m[1]);
         return o;
       };
       var night = function (metrics, extra) {
@@ -51971,7 +51980,7 @@
         var re = /<div class="kpi-val ([a-z]*)">/g,
           m,
           o = [];
-        while ((m = re.exec(html))) o.push(m[1] || 'neutral');
+        for (const m of html.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       var k = kSev(CR.renderKPIs({ metrics: { residualAHI: 3, largeLeakPct: 1, periodicBreathingPct: 1 }, therapyHours: 6, nSessions: 1 }));
@@ -52014,7 +52023,7 @@
         var re = /<div class="k-val ([a-z]*)">([^<]*)/g,
           m,
           o = [];
-        while ((m = re.exec(html))) o.push({ sev: m[1] || 'neutral', val: m[2] });
+        for (const m of html.matchAll(re)) o.push({ sev: m[1] || 'neutral', val: m[2] });
         return o;
       };
       var summary = function (metrics, hours, extra) {
@@ -52099,7 +52108,7 @@
         var re = /<div class="kpi-val ([a-z]*)">/g,
           m,
           o = [];
-        while ((m = re.exec(h))) o.push(m[1] || 'neutral');
+        for (const m of h.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       // renderKPIs · hero AHI (5,15). Wave 1 pinned 3→ok and 20→bad; both survive warn=0.
@@ -52548,7 +52557,7 @@
         var re = /<div class="m-val ([a-z]*)">/g,
           m,
           o = [];
-        while ((m = re.exec(html))) o.push(m[1] || 'neutral');
+        for (const m of html.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       T.ok(
@@ -52801,7 +52810,7 @@
         var re = /<div class="k-val ([a-z]*)">/g,
           m,
           o = [];
-        while ((m = re.exec(h))) o.push(m[1] || 'neutral');
+        for (const m of h.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       T.eq('clinicalSummary · AHI exactly 5 is ok — the lower-better ok edge is inclusive (v <= good)', kvals(summ({ residualAHI: 5 }))[0], 'ok');
@@ -60500,7 +60509,7 @@
         var helpers = { flag: 'boolean', opt: 'valued', optAll: 'valued' };
         var hre = /(?:const|let|var)\s+(\w+)\s*=\s*\([^)]*\)\s*=>/g,
           hm;
-        while ((hm = hre.exec(src)) !== null) {
+        for (const hm of src.matchAll(hre)) {
           /* Bound the body at the next declaration: a fixed-width window ran on into the helper below
              and `flag` inherited `opt`'s `indexOf`, reporting every boolean as valued. */
           var rest = src.slice(hm.index + 1);
@@ -60513,7 +60522,7 @@
         Object.keys(helpers).forEach(function (h) {
           var cre = new RegExp('\\b' + h + "\\(\\s*'(--[a-z0-9-]+)'", 'g'),
             cm;
-          while ((cm = cre.exec(src)) !== null) {
+          for (const cm of src.matchAll(cre)) {
             var bucket = reads[helpers[h]];
             if (bucket.indexOf(cm[1]) < 0) bucket.push(cm[1]);
           }
@@ -60567,7 +60576,7 @@
         var m,
           defs = [],
           re = new RegExp(rootRe.source, 'g');
-        while ((m = re.exec(TS[n])) !== null) defs.push(m[1]);
+        for (const m of TS[n].matchAll(re)) defs.push(m[1]);
         if (!defs.length) return false; // resolves inline (e.g. require('./build-core.js')) — fine
         /* Follow ONE level of indirection. The idiomatic form here is
              const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -60585,7 +60594,7 @@
           dm,
           assigns = [],
           are = /\b(?:const|let|var)\s+(\w+)\s*=\s*([^;\n]+)/g;
-        while ((dm = are.exec(TS[n])) !== null) assigns.push({ id: dm[1], rhs: dm[2] });
+        for (const dm of TS[n].matchAll(are)) assigns.push({ id: dm[1], rhs: dm[2] });
         assigns.forEach(function (a) {
           if (/import\.meta\.url/.test(a.rhs)) derivedIds.push(a.id);
         });
@@ -61056,7 +61065,7 @@
         var rows = [];
         var re = /\[\s*(-?[0-9.]+)\s*,\s*'([^']+)'/g,
           r;
-        while ((r = re.exec(m[1]))) rows.push([parseFloat(r[1]), r[2]]);
+        for (const r of m[1].matchAll(re)) rows.push([parseFloat(r[1]), r[2]]);
         return rows;
       }
       function tablePy(src) {
@@ -61065,7 +61074,7 @@
         var rows = [];
         var re = /\(\s*(-?[0-9.]+)\s*,\s*"([^"]+)"/g,
           r;
-        while ((r = re.exec(m[1]))) rows.push([parseFloat(r[1]), r[2]]);
+        for (const r of m[1].matchAll(re)) rows.push([parseFloat(r[1]), r[2]]);
         return rows;
       }
       var A = tableJs(js, 'CK_ALLAN_NOISE'),
@@ -61968,7 +61977,7 @@
           var body = strip(UI[n.pre][f]);
           var re = /evBadge\s*\(\s*(['"`])([^'"`\n]{1,80})\1/g,
             m;
-          while ((m = re.exec(body))) toks[m[2]] = f;
+          for (const m of body.matchAll(re)) toks[m[2]] = f;
         }
         for (var tok in toks) {
           totalSites++;
@@ -62073,7 +62082,7 @@
           var body = strip(UI[n.pre][f]),
             m2;
           HELPER_RE.lastIndex = 0;
-          while ((m2 = HELPER_RE.exec(body))) {
+          for (const m2 of body.matchAll(HELPER_RE)) {
             var lbl = m2[3];
             if (seen[lbl]) continue;
             seen[lbl] = 1;
@@ -62141,18 +62150,18 @@
           dupHere = {};
         var re = /\bid\s*=\s*["']([^"']+)["']/g,
           m;
-        while ((m = re.exec(t))) {
+        for (const m of t.matchAll(re)) {
           if (ids[m[1]]) dupHere[m[1]] = 1;
           ids[m[1]] = 1;
           nId++;
         }
         // `name=` still anchors in every browser and some guides use it on older markup.
         var rn = /\bname\s*=\s*["']([^"']+)["']/g;
-        while ((m = rn.exec(t))) ids[m[1]] = 1;
+        for (const m of t.matchAll(rn)) ids[m[1]] = 1;
         for (var k in dupHere) dup.push(g + ' #' + k);
         var seen = {};
         var ra = /href\s*=\s*["']#([^"']+)["']/g;
-        while ((m = ra.exec(t))) {
+        for (const m of t.matchAll(ra)) {
           var a = m[1];
           if (!a || a === 'top' || seen[a]) continue; // '#top' is the browser's own document top
           seen[a] = 1;
@@ -63180,7 +63189,7 @@
         var t = strip(src[f] || '');
         var re = /sampEn\(\s*[A-Za-z_$][\w$]*\s*,\s*([0-9.]+)\s*,\s*([^)]*)\)/g;
         var m;
-        while ((m = re.exec(t))) {
+        for (const m of t.matchAll(re)) {
           if (m[1] !== '2' || !/0\.2/.test(m[2])) bad.push(f + ': m=' + m[1] + ' r=' + m[2].trim().slice(0, 30));
         }
       });
@@ -67030,7 +67039,8 @@
         var st = stageAtSec(e.tMin * 60 + 150); // epoch centre
         var m = mot.get(e.tMin.toFixed(1));
         if (st == null || m == null) return;
-        (byStage[st] = byStage[st] || []).push(m);
+        if (!byStage[st]) byStage[st] = [];
+        byStage[st].push(m);
       });
       var med = function (a) {
         var v = a.slice().sort(function (x, y) {
@@ -67069,7 +67079,8 @@
       var byStage2 = {};
       eps.forEach(function (e) {
         var st = stageAtSec(e.tMin * 60 + 150);
-        if (st != null && isFin(e.lfhf)) (byStage2[st] = byStage2[st] || []).push(e.lfhf);
+        if (!byStage2[st]) byStage2[st] = [];
+        byStage2[st].push(e.lfhf);
       });
       var remR = lfhfOf('REM'),
         deepR = lfhfOf('N3');
