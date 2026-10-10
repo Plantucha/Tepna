@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**235 tools** · 233 with a purpose line · **2 without**
+**236 tools** · 234 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -101,6 +101,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
 | [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §3's done-when asks for "a written walk-through tracing ODI-4 → window → channel → envelope → raw.dat" that is CHECKABLE. |
 | [`motion-rho-vs-minrho.mjs`](../tools/motion-rho-vs-minrho.mjs) | is the shipped correlation proxy in the right range, on the right nights? |
+| [`mutate-recover.mjs`](../tools/mutate-recover.mjs) | ONE DEFINITION OF THE RECOVERY, imported by `mutate.mjs` AND `mutation-crawl.mjs`. |
 | [`mutate-triage.mjs`](../tools/mutate-triage.mjs) | `tools/mutate.mjs` answers "what fraction of mutants does the suite kill?". |
 | [`mutate.mjs`](../tools/mutate.mjs) | This repo's central anxiety is the hollow gate: an assertion that passes, is quoted as evidence, and could never have failed. |
 | [`mutation-adoption-delta.mjs`](../tools/mutation-adoption-delta.mjs) | // // mutation-adoption-delta.mjs — did adopting those drafts actually KILL anything? |
