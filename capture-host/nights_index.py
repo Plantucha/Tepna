@@ -484,14 +484,20 @@ def _expand(root: str, night_dir: str, pattern: str, scope: dict | None = None) 
     # hit. Checked before writing it rather than discovered from a traceback.
     import solid_night_inputs as _si
 
-    dirs = (scope or {}).get("dirs") or [night_dir.rstrip("/")]
-    band = (scope or {}).get("band") if scope else _si.band_of(night_dir)
-    out = [
-        p
-        for d in dirs
-        for p in glob.glob(os.path.join(d, pattern.format(ymd=ymd)))
-        if os.path.isfile(p) and _si.in_band(p, band)
-    ]
+    # 🔴 NO BAND FALLBACK, NO `rstrip`, NO `.format` ON THIS BRANCH — and all three were mutant sites the
+    # gate named as survivors because each duplicated something another part already guarantees:
+    #   · `band = … if scope else _si.band_of(night_dir)` recomputed what the scope already carries, so
+    #     DROPPING the scope changed nothing observable and `(scope) or True` / `and False` could not be
+    #     killed. `in_band(p, None)` returns True by its own contract, so a scopeless call degrades to the
+    #     folder view exactly as documented — with no second definition of the band.
+    #   · `night_dir.rstrip("/")` → `rstrip(None)` is unkillable because `glob` treats `/a/b/` and `/a/b`
+    #     alike; the strip was never needed.
+    #   · `pattern.format(ymd=ymd)` → `format(ymd=None)` is unkillable here because a FOLDER-relative
+    #     pattern never contains `{ymd}` — that placeholder belongs to the root-relative CPAP trees, which
+    #     return above. Formatting a pattern with no field is a no-op dressed as one.
+    dirs = (scope or {}).get("dirs") or [night_dir]
+    band = (scope or {}).get("band")
+    out = [p for d in dirs for p in glob.glob(os.path.join(d, pattern)) if os.path.isfile(p) and _si.in_band(p, band)]
     return sorted(out)
 
 
@@ -509,6 +515,26 @@ def _expand_alt(
         if got:
             return got, i
     return [], None
+
+
+def _recording_files(
+    root: str, night_dir: str, pattern: str, scope: dict | None, stamps: frozenset[float] | None
+) -> list[str]:
+    """The recording's files for one pattern — the scope's folders, admitted by band and by chain.
+
+    🔴 MODULE-LEVEL, AND IT WAS A NESTED CLOSURE UNTIL THE GATE CRASHED ON IT. The diff-scoped mutation
+    gate names every `FunctionDef` a diff touches and asks mutmut for that function's mutants; mutmut
+    does not generate them for a nested def, so the filter
+    `nights_index.x__recording_files__mutmut_*` matched nothing and the run died with
+    `AssertionError: Filtered for specific mutants, but nothing matches` — a crash, not a verdict, and
+    not the gate's own glitch. A helper inside a function is unmeasurable by construction here."""
+    got = _expand(root, night_dir, pattern, scope)
+    if stamps is not None:
+        # A STAMPLESS FILE STAYS: it has no start to judge, and `recordings_of` reports it as unassigned
+        # rather than filing it under a band. Dropping it here would make the cell lossy to fix a
+        # grouping question it is not part of.
+        got = [f for f in got if (t := session_epoch(f)) is None or t in stamps]
+    return got
 
 
 def night_entry(
@@ -540,7 +566,7 @@ def night_entry(
     _sc = _si.recording_scope(night_dir)
     scope: dict | None = _sc if _sc.get("ok") else None
 
-    # PASS 1 — gather what the band admits, per node, WITHOUT computing anything expensive. The daytime
+    # STEP 1 — gather what the band admits, per node, WITHOUT computing anything expensive. The daytime
     # chain has to be removed BEFORE `span_hours`/`cached_stats` run, or the night's cells would carry a
     # recording the night does not contain.
     cand: dict[str, tuple[list[str], int | None]] = {}
@@ -556,9 +582,6 @@ def night_entry(
     for node, (patterns, primary) in NODES.items():
         files, tree = cand[node]
         if stamps is not None:
-            # A STAMPLESS FILE STAYS, deliberately: it has no start to judge, and `recordings_of` already
-            # reports it as unassigned rather than filing it under a band. Dropping it here would make the
-            # cell lossy to fix a grouping question it is not part of.
             files = [f for f in files if (t := session_epoch(f)) is None or t in stamps]
         if not files:
             out[node] = None
@@ -598,15 +621,11 @@ def night_entry(
     # the adopted row's `arrival` EMPTY (it globbed a band folder that does not exist) and `DERIVED`
     # judging the wrong recording. A test caught it. One enumeration rule, applied at every site that
     # enumerates, or the row is assembled from two different definitions of "this night".
-    def _recording_files(pattern: str) -> list[str]:
-        got = _expand(root, night_dir, pattern, scope)
-        if stamps is not None:
-            got = [f for f in got if (t := session_epoch(f)) is None or t in stamps]
-        return got
-
     for tool, required in DERIVED.items():
-        out[tool] = all(_recording_files(p) for p in required)
-    out["arrival"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _recording_files(p))
+        out[tool] = all(_recording_files(root, night_dir, p, scope, stamps) for p in required)
+    out["arrival"] = sorted(
+        os.path.relpath(f, root) for p in ARRIVAL for f in _recording_files(root, night_dir, p, scope, stamps)
+    )
     # the RECORDINGS beside the folder view — see `recordings_of`. Additive: every key above is unchanged.
     out["recordings"], out["recordings_unassigned"] = recordings_of(out)
     return out
@@ -737,7 +756,9 @@ def _recordings(root: str) -> list[tuple[str, frozenset[float]]]:
         for d in glob.glob(os.path.join(captures, pat)):
             ymd = os.path.basename(d)
             if os.path.isdir(d) and any(os.path.isfile(f) for f in glob.glob(os.path.join(d, "*"))):
-                stampless.add(f"{ymd[0:4]}-{ymd[4:6]}-{ymd[6:8]}")
+                # `ymd[6:]`, not `[6:8]`: the glob is `????????` so the two are identical and `[6:9]`
+                # survived the gate. An end index that cannot differ is a mutant site for nothing.
+                stampless.add(f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}")
     for t in sorted(spans):
         # NO `if band is None` GUARD — `nightqc.night_band` has no such return. Measured: for a stamp
         # before 18:00 it anchors to the PREVIOUS evening, so every plausible epoch gets a band and the
@@ -753,12 +774,12 @@ def _recordings(root: str) -> list[tuple[str, frozenset[float]]]:
         key = _dt.datetime.fromtimestamp(band[0]).strftime("%Y-%m-%d")
         by_band.setdefault(key, []).append(t)
     out: list[tuple[str, frozenset[float]]] = []
-    for key in stampless:
-        by_band.setdefault(key, [])
+    # `stampless - by_band.keys()` rather than `setdefault(key, [])`: the sentinel `[]` was a mutant site
+    # whose mutations (`None`, or the argument dropped) reached the SAME branch below, so none could be
+    # killed. A date-keyed night is now named by its own loop and carries no placeholder list at all.
+    for key in sorted(stampless - by_band.keys()):
+        out.append((key, frozenset()))
     for key, starts in by_band.items():
-        if not starts:
-            out.append((key, frozenset()))  # a date-keyed night: no recording to chain, but it is a night
-            continue
         chain: list[float] = []
         reach = None  # the chain's furthest END so far — a gap is measured from here, not from the start
         for t in starts:

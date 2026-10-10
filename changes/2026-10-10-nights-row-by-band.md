@@ -1,7 +1,7 @@
 ---
 bump: minor
-type: fix
-brief: briefs/NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md
+type: fixed
+brief: NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md
 ---
 
 The Nights page groups a row by the NIGHT BAND the recording begins in, not by the calendar folder its
