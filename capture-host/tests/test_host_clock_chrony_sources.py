@@ -166,3 +166,25 @@ def test_read_sources_survives_missing_stats_and_tracking(monkeypatch):
     r = _go(hc.read_sources())
     assert r["available"] is True and len(r["sources"]) == 6
     assert all(s["stddev_s"] is None for s in r["sources"]) and r["tracking"] == {}
+
+
+def test_a_failed_sourcestats_contributes_nothing_even_if_it_printed_rows(monkeypatch):
+    """rc is the verdict. chronyc can print a partial table and still exit non-zero (daemon went away
+    mid-read); rows beside a failure are not data, so no std-dev or span is attached to any source.
+    Kills host_clock.x_read_sources__mutmut_38 (`rc2 == 0` → always parse), which the empty-blob case
+    could not: an empty blob parses to the same nothing."""
+    import asyncio
+    import host_clock as mod
+
+    async def fake_run(*args, timeout=4.0):
+        sub = args[2]
+        if sub == "sources":
+            return 0, SOURCES
+        if sub == "sourcestats":
+            return 1, SOURCESTATS  # printed rows, failed exit
+        return 0, TRACKING
+
+    monkeypatch.setattr(mod, "_run", fake_run)
+    out = asyncio.run(mod.read_sources())
+    assert out["available"] is True and len(out["sources"]) >= 4
+    assert all(r["stddev_s"] is None and r["span"] is None for r in out["sources"])
