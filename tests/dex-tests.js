@@ -53493,7 +53493,30 @@
       var cB = PPG.correctRR(rrB, ttB);
       T.ok('the 2000 ms bradycardic baseline is within-range accepted (the ceiling must not over-reject)', cB.flags[10] === 0, 'flag10=' + cB.flags[10]);
       T.ok('impossible brady PPI (2500 ms / 24 bpm) is Malik-rejected by the 2000 ms ceiling, not the ectopy rule', cB.flags[20] === 1, 'flag20=' + cB.flags[20]);
-      T.approx('the range-rejected brady PPI is replaced by the local median (~2000), not kept at 2500', cB.nn[20], 2000, 10, 'nn20=' + cB.nn[20]);
+      /* 🔴 THE ASSERTION THAT USED TO SIT HERE READ `nn[20] ~= 2000` AND CALLED IT "replaced by the
+         local median, not kept at 2500". That label is FALSE about this code, and the fixture could
+         not tell: `correctRR` EXCLUDES a rejected interval (measured 2026-10-10 — nn is 39 long for
+         40 inputs, keptIdx.indexOf(20) === -1), so index 20 holds the interval that was rr[21], and
+         because every neighbour here is 2000, ANY index lands on 2000. It would have passed
+         identically whether the code replaced, excluded, or dropped three intervals. Muse caught it
+         (the edit stranded on rescue/2026-10-10-root-wip); these are its assertions, plus the
+         discriminating fixture the uniform one could not provide. */
+      T.eq('the rejected interval is EXCLUDED, not replaced — nn is one shorter than the input', cB.nn.length, rrB.length - 1);
+      T.ok('rejected input index 20 is absent from the kept-index mapping', cB.keptIdx.indexOf(20) === -1, 'keptIdx.indexOf(20)=' + cB.keptIdx.indexOf(20));
+      T.eq('flags stay INPUT-aligned — one entry per interval handed in, so flags[20] still names the rejected one', cB.flags.length, rrB.length);
+
+      /* ANTI-VACUITY — the same fixture with ONE neighbour broken, which is what makes the exclusion
+         observable at all. With rr[21] = 1900, reading THROUGH the mapping gives the real interval
+         and reading by raw index gives the shifted neighbour; on the uniform fixture above both
+         read 2000 and the difference is invisible. Values measured, not predicted. */
+      var rrS = rrB.slice();
+      var ttS = ttB.slice();
+      rrS[21] = 1900; // still in range, still inside the ectopy band of a 2000 ms baseline
+      var cS = PPG.correctRR(rrS, ttS);
+      T.eq('the ceiling still rejects 2500 when the next interval differs', cS.flags[20], 1);
+      T.eq('…and the differing neighbour is KEPT, not swept up with it', cS.flags[21], 0);
+      T.eq('through the mapping, the kept interval reads its OWN value', cS.nn[cS.keptIdx.indexOf(21)], 1900);
+      T.eq('…while the raw index reads the shifted neighbour — the off-by-one the old assertion could not see', cS.nn[21], 2000);
     });
 
     /* ════ PpgDex DFA-α1 box range — direct known-answer (deep-scout §EP-rest) ════
