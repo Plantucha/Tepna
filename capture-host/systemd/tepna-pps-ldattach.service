@@ -1,0 +1,22 @@
+# tepna-pps-ldattach.service — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# THE BOX'S OWN SECOND (VIGIL-GPS-STRATUM1-2026-10-10). A u-blox M10's 1PPS reaches the ThinkCentre's
+# native 16550 UART on DCD (DB9 pin 1, through 220 Ω); attaching the PPS line discipline turns each
+# DCD assert into a kernel-timestamped /dev/pps0 event, which chrony reads as `refclock PPS`.
+# Before gpsd and chrony so both find /dev/pps0 at boot. Nothing here talks to the network.
+[Unit]
+Description=Attach the PPS line discipline to ttyS0 (u-blox M10 1PPS on DCD) -> /dev/pps0
+Before=gpsd.service chrony.service
+After=dev-ttyS0.device
+ConditionPathExists=/dev/ttyS0
+
+[Service]
+Type=forking
+ExecStartPre=/sbin/modprobe pps_ldisc
+ExecStart=/usr/bin/ldattach PPS /dev/ttyS0
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

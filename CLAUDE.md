@@ -221,6 +221,12 @@ line after any SPDX comment:
   standing rule; hook `guard-doc-search.sh`). Read the top hits first. **Primary development computer
   only** — a local bge-m3 index that ships with nothing; elsewhere fall back to `git grep`, and no gate
   or CI may read its output.
+- 🔍 **And the SEARCH GOES IN THE PR BODY: a `Rule 0: <query> → <top hits>` line, by convention the
+  FIRST line** (repo rule since #3368; gate `tools/pr-compliance.mjs`, a REQUIRED context on
+  `pull_request`). Its floor is that the line is PRESENT — the first-line placement is the fleet's
+  habit, not something the gate enforces. The same gate requires the `Fleet-Session:` trailer and a
+  `changes/` changeset when code moved. **A body edit alone does not re-run it** (it reads the trigger
+  payload), so push an empty commit after fixing one.
 - 🔴 **Before editing a brief, check it was not already answered** (overwrites produce no conflict):
   ```sh
   git fetch origin main
