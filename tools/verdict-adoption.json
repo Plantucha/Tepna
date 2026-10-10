@@ -1657,6 +1657,31 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded — a wave-2 candidate, listed here by reason not by omission"
+    },
+    "tools/xerj-bench.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/xerj-bench.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "XERJ-HYBRID-SEARCH: --json prints ONE tepna.verdict/1 over real past Rule-0 queries. PASS only if the pre-stated acceptance holds (hybrid hit@5 >= bge AND fewer bytes to answer); a worse score is SHORTFALL, a measurement rather than a failure, and NOT_RUN over an empty query set. The SAMPLE command is --verdict-sample because a real run scores 52 queries and bge alone is ~3 s each, which would make this check time out."
+    },
+    "tools/xerj-load.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/xerj-load.mjs",
+          "--dry-run",
+          "--json"
+        ]
+      },
+      "note": "XERJ-HYBRID-SEARCH: --json prints ONE tepna.verdict/1 (PASS = every eligible cached file loaded with its OWN vectors; FAIL on a load of 0 documents, the examined-nothing shape, with the skip histogram as evidence; NOT_RUN when no doc-search cache exists). --dry-run in the sample so the check writes nothing to the index."
     }
   }
 }

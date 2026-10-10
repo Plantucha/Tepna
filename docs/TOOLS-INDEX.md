@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**235 tools** · 233 with a purpose line · **2 without**
+**238 tools** · 236 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -248,4 +248,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`withdraw-fragment-verdict.mjs`](../tools/withdraw-fragment-verdict.mjs) | WITHDRAW A VERDICT THAT JUDGED A FRAGMENT, WITH ITS REASON RECORDED |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |
+| [`xerj-bench.mjs`](../tools/xerj-bench.mjs) | node tools/xerj-bench.mjs --harvest # rebuild the query set from merged PR bodies node tools/xerj-bench.mjs # score (uses the committed query set) node tools/xerj-bench.mjs --json # one… |
+| [`xerj-load.mjs`](../tools/xerj-load.mjs) | node tools/xerj-load.mjs # load every eligible file (idempotent) node tools/xerj-load.mjs --limit 50 # a slice, for a probe node tools/xerj-load.mjs --dry-run # count and classify, write… |
+| [`xerj-query.mjs`](../tools/xerj-query.mjs) | node tools/doc-search.mjs --hybrid "<question>" # the intended entry point node tools/xerj-query.mjs "<question>" # the same, standalone node tools/xerj-query.mjs --selftest |
 | [`xss-sink-gate.mjs`](../tools/xss-sink-gate.mjs) | #3318/#3343 fixed XSS sinks by routing all untrusted strings through the canonical escaper (dex-escape.js: escapeHTML). |
