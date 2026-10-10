@@ -1041,7 +1041,9 @@ class TelemetryBus:
             return
         multi = isinstance(values[0], (list, tuple))
         rows = [tuple(float(x) for x in row) for row in values] if multi else [float(v) for v in values]
-        nch = len(rows[0]) if multi else 1
+        # rows[0] is a tuple exactly when `multi` — the branches above build one shape
+        # each — but mypy cannot narrow through the flag. Stated, not re-derived.
+        nch = len(rows[0]) if multi else 1  # type: ignore[arg-type]
         m = self._meta.get(stream)
         # ∅ THE PUBLISHED RATE IS THE DECLARED ONE (ABSENCE-SURVEY, telemetry.py `rate = fs or … or 1`).
         # `or 1` broadcast every irregular stream (declared fs 0 — StreamMeta's own encoding for "per-event,

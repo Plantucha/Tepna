@@ -3522,7 +3522,9 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # Everything is the CURRENT SESSION (the `current` set, unified across midnight) — so a stream
             # is `missing` only if it produced nothing THIS session, and its row count + coverage reflect
             # the session, never an earlier daytime or previous-night one.
-            _mine = [f for f in current if writers.file_device_id(f["file"]) in dids and f["stream"] in tags]
+            # `_mine` carries two shapes in this function — file rows above, mtimes below —
+            # so it is annotated at the wide join, not inferred from the first assignment.
+            _mine: list[Any] = [f for f in current if writers.file_device_id(f["file"]) in dids and f["stream"] in tags]
             # ∅ A STREAM WITH AN UNREADABLE FILE HAS NO ROW COUNT. It is neither `missing` (the device may
             # have delivered everything) nor covered (the rows cannot be counted), so it gets its own
             # list, `ok` is False, and no coverage is computed over a numerator nobody measured.

@@ -36,6 +36,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent.parent
 
@@ -68,7 +69,9 @@ def battery(pmd):
 
 def observe(pmd) -> list:
     """Every output byte a caller can see: the stamps, the phone clock, and the values."""
-    out = []
+    # Rows are heterogeneous by construction: `[label, "EXC:..."]` on decode failure,
+    # `[label, [[sensor_ns, iso, values], ...]]` on success.
+    out: list[list[Any]] = []
     for nm, meas, ft, pay, fs, dprev in battery(pmd):
         last = 10_000_000_000
         prev = None if dprev is None else last - dprev

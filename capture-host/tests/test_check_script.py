@@ -354,7 +354,12 @@ def test_the_mypy_VERDICT_is_emitted_as_a_status_in_every_direction(tmp_path):
     prose problem again: a reader cannot distinguish "not risen" from "the line moved"."""
     base = _baseline()
     # a fresh dir per run: `_sandbox` mkdirs `bin/`, so three runs cannot share one tmp_path
-    for delta, want in ((+1, "RISEN"), (0, "AT_BASELINE"), (-1, "BELOW")):
+    # BELOW needs base > 0 — at baseline 0 there is no valid count below it (count=-1 is
+    # not a mypy result), so that direction is untestable by construction, not untested.
+    cases = [(+1, "RISEN"), (0, "AT_BASELINE")]
+    if base > 0:
+        cases.append((-1, "BELOW"))
+    for delta, want in cases:
         d = tmp_path / f"run{delta}"
         d.mkdir()
         assert _state_of(_mypy_run(d, base + delta), "mypy") == want
@@ -368,7 +373,12 @@ def test_a_count_WITHOUT_the_runtime_requirements_is_NOT_COMPARABLE_in_every_dir
     the baseline's — in EVERY direction, because a RISEN or AT_BASELINE read without the types is
     just as accidental as the BELOW one."""
     base = _baseline()
-    for delta in (+1, 0, -1):
+    # Deltas must yield valid non-negative counts: at baseline 0, delta=-1 would
+    # fake a "-1 errors" mypy output that check.sh cannot parse (NO_COUNT, not
+    # NOT_COMPARABLE). The direction under test here is the missing-deps one;
+    # the count just needs to be a valid mypy result.
+    deltas = (+1, 0) if base == 0 else (+1, 0, -1)
+    for delta in deltas:
         d = tmp_path / f"nodeps{delta}"
         d.mkdir()
         out = _mypy_run(d, base + delta, runtime_deps=False)
@@ -376,9 +386,11 @@ def test_a_count_WITHOUT_the_runtime_requirements_is_NOT_COMPARABLE_in_every_dir
         assert "NOT COMPARABLE" in out and "import bleak" in out and "requirements.txt" in out
         assert "RISEN" not in out and "BELOW" not in out  # never the direction, never the alarm
     # the positive control: the SAME below-baseline count with the requirements present still banks
-    deps = tmp_path / "deps"
-    deps.mkdir()
-    assert _state_of(_mypy_run(deps, base - 1), "mypy") == "BELOW"
+    # (only when a below-baseline count exists — at baseline 0 there is none by construction)
+    if base > 0:
+        deps = tmp_path / "deps"
+        deps.mkdir()
+        assert _state_of(_mypy_run(deps, base - 1), "mypy") == "BELOW"
 
 
 def test_the_at_baseline_state_does_NOT_contain_the_word_RISEN(tmp_path):

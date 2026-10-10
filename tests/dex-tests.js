@@ -7429,123 +7429,6 @@
       T.eq('one event spans the gap (retained, not split)', ev.length, 1);
       T.eq('durationSec is measured only (16, not 21)', ev.length ? ev[0].durationSec : null, 16);
       T.eq('missingSec explicitly quantifies the unobserved gap', ev.length ? ev[0].missingSec : null, 5);
-      T.eq('hasGap is true when event spans missing samples', ev.length ? ev[0].hasGap : null, true);
-    });
-
-    /* Gap semantics matrix (2026-10-08): complete, internal, leading, trailing,
-       boundary, and threshold-changing gaps. */
-    group('§∅ · OxyDex — gap semantics matrix', 'oxydex-dsp · absence · desat · gap-matrix', function (T) {
-      var NS = env.OxyDex;
-      var det = NS && NS._bare && NS._bare.detectDesatEvents;
-      if (typeof det !== 'function') {
-        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
-        return;
-      }
-      function run(spo2, minSec) {
-        return det(spo2, { dropPct: 4, exitPct: 1, minSec: minSec == null ? 5 : minSec });
-      }
-      function seq() {
-        var a = [];
-        for (var i = 0; i < arguments.length; i++) {
-          var spec = arguments[i];
-          for (var j = 0; j < spec[1]; j++) a.push(spec[0]);
-        }
-        return a;
-      }
-
-      // Complete observation: no gaps → hasGap false, missingSec 0
-      var ev1 = run(seq([97, 10], [90, 12], [97, 10]));
-      T.eq('complete: one event', ev1.length, 1);
-      T.eq('complete: hasGap false', ev1.length ? ev1[0].hasGap : null, false);
-      T.eq('complete: missingSec 0', ev1.length ? ev1[0].missingSec : null, 0);
-
-      // Internal gap: retained with explicit indicator
-      var ev2 = run(seq([97, 10], [90, 6], [null, 4], [90, 6], [97, 10]));
-      T.eq('internal gap: one event (retained)', ev2.length, 1);
-      T.eq('internal gap: hasGap true', ev2.length ? ev2[0].hasGap : null, true);
-      T.eq('internal gap: durationSec excludes gap', ev2.length ? ev2[0].durationSec : null, 12);
-
-      // Leading gap: nulls before event start do not create hasGap
-      var ev3 = run(seq([null, 5], [97, 10], [90, 12], [97, 10]));
-      T.eq('leading gap: one event', ev3.length, 1);
-      T.eq('leading gap: hasGap false (gap outside event)', ev3.length ? ev3[0].hasGap : null, false);
-
-      // Trailing gap: nulls after event end do not create hasGap
-      var ev4 = run(seq([97, 10], [90, 12], [97, 10], [null, 5]));
-      T.eq('trailing gap: one event', ev4.length, 1);
-      T.eq('trailing gap: hasGap false (gap outside event)', ev4.length ? ev4[0].hasGap : null, false);
-
-      // Threshold: 12s span, 5 missing → 7s measured < 10s minSec → rejected
-      var ev5 = run(seq([97, 10], [90, 4], [null, 5], [90, 3], [97, 10]), 10);
-      T.eq('threshold gap: event rejected (7s measured < 10s minSec)', ev5.length, 0);
-
-      // Threshold: 12s span, 2 missing → 10s measured ≥ 10s minSec → accepted with gap
-      var ev6 = run(seq([97, 10], [90, 5], [null, 2], [90, 5], [97, 10]), 10);
-      T.eq('threshold gap: event accepted (10s measured ≥ 10s minSec)', ev6.length, 1);
-      T.eq('threshold gap: hasGap true', ev6.length ? ev6[0].hasGap : null, true);
-
-      // Boundary: gap at event start (first 3 samples missing, then 9 measured)
-      // The event starts at the first MEASURED sample; leading nulls are outside.
-      var ev7 = run(seq([97, 10], [null, 3], [90, 9], [97, 10]));
-      T.eq('boundary gap (start): one event', ev7.length, 1);
-      T.eq('boundary gap (start): hasGap false (gap before evStart)', ev7.length ? ev7[0].hasGap : null, false);
-      T.eq('boundary gap (start): durationSec is 9 measured', ev7.length ? ev7[0].durationSec : null, 9);
-
-      // Boundary: gap at event end (9 measured, then 3 missing before recovery)
-      // The trailing nulls ARE inside the event (event hasn't closed yet).
-      var ev8 = run(seq([97, 10], [90, 9], [null, 3], [97, 10]));
-      T.eq('boundary gap (end): one event', ev8.length, 1);
-      T.eq('boundary gap (end): hasGap true', ev8.length ? ev8[0].hasGap : null, true);
-    });
-
-    /* GanglioR export: hasGap/missingSec survive serialization (2026-10-08).
-       The meta object must carry explicit true/false (not undefined) and
-       preserve missingSec. Legacy events without the fields get hasGap=false
-       (backward compatible) and missingSec=null. */
-    group('§∅ · OxyDex — hasGap reaches the GanglioR event export', 'oxydex-dsp · absence · desat · export', function (T) {
-      var OD = env.OxyDex || env.OxyDSP || env.OXYDSP;
-      if (!OD || typeof OD.buildGangliorEvents !== 'function') {
-        T.skip('OxyDex.buildGangliorEvents', 'not exposed');
-        return;
-      }
-      function runExport(desatEvent) {
-        var night = {
-          t0Ms: 1000000,
-          stats: { n: 3600, durationMin: 60 },
-          desat: { events: [desatEvent] }
-        };
-        var out = OD.buildGangliorEvents([night]);
-        var ev = out.filter(function (e) {
-          return e.impulse === 'desat_event';
-        })[0];
-        return ev ? ev.meta : null;
-      }
-      function mkEvent(hasGap, missingSec) {
-        var d = {
-          nadirIdx: 100,
-          tMs: 1100000,
-          depth: 5.2,
-          duration: 20,
-          recovery: 30,
-          nadir: 90,
-          startTMs: 1000000,
-          endTMs: 1020000
-        };
-        if (hasGap !== undefined) d.hasGap = hasGap;
-        if (missingSec !== undefined) d.missingSec = missingSec;
-        return d;
-      }
-      var withGap = runExport(mkEvent(true, 5));
-      T.eq('export: hasGap true preserved', withGap && withGap.hasGap, true);
-      T.eq('export: missingSec preserved', withGap && withGap.missingSec, 5);
-
-      var noGap = runExport(mkEvent(false, 0));
-      T.eq('export: hasGap false preserved', noGap && noGap.hasGap, false);
-      T.eq('export: missingSec 0 preserved', noGap && noGap.missingSec, 0);
-
-      var legacy = runExport(mkEvent());
-      T.eq('export: legacy hasGap is null (unknown, not gap-free)', legacy && legacy.hasGap, null);
-      T.eq('export: legacy missingSec defaults to null', legacy && legacy.missingSec, null);
     });
 
     /* Item 2 (review 2026-10-08): delta-index must not bridge missing 12s windows.
@@ -8039,6 +7922,122 @@
         T.eq('the GATED nadir is the measured low, not an absence', g && g.min, 88);
         T.ok('CONTROL · and it is a real number, which `isFinite` alone would not have told us', Number.isFinite(g && g.min), String(g && g.min));
       }
+    });
+
+    /* Gap semantics matrix (2026-10-08): complete, internal, leading, trailing,
+       boundary, and threshold-changing gaps. */
+    group('§∅ · OxyDex — gap semantics matrix', 'oxydex-dsp · absence · desat · gap-matrix', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      function run(spo2, minSec) {
+        return det(spo2, { dropPct: 4, exitPct: 1, minSec: minSec == null ? 5 : minSec });
+      }
+      function seq() {
+        var a = [];
+        for (var i = 0; i < arguments.length; i++) {
+          var spec = arguments[i];
+          for (var j = 0; j < spec[1]; j++) a.push(spec[0]);
+        }
+        return a;
+      }
+
+      // Complete observation: no gaps → hasGap false, missingSec 0
+      var ev1 = run(seq([97, 10], [90, 12], [97, 10]));
+      T.eq('complete: one event', ev1.length, 1);
+      T.eq('complete: hasGap false', ev1.length ? ev1[0].hasGap : null, false);
+      T.eq('complete: missingSec 0', ev1.length ? ev1[0].missingSec : null, 0);
+
+      // Internal gap: retained with explicit indicator
+      var ev2 = run(seq([97, 10], [90, 6], [null, 4], [90, 6], [97, 10]));
+      T.eq('internal gap: one event (retained)', ev2.length, 1);
+      T.eq('internal gap: hasGap true', ev2.length ? ev2[0].hasGap : null, true);
+      T.eq('internal gap: durationSec excludes gap', ev2.length ? ev2[0].durationSec : null, 12);
+
+      // Leading gap: nulls before event start do not create hasGap
+      var ev3 = run(seq([null, 5], [97, 10], [90, 12], [97, 10]));
+      T.eq('leading gap: one event', ev3.length, 1);
+      T.eq('leading gap: hasGap false (gap outside event)', ev3.length ? ev3[0].hasGap : null, false);
+
+      // Trailing gap: nulls after event end do not create hasGap
+      var ev4 = run(seq([97, 10], [90, 12], [97, 10], [null, 5]));
+      T.eq('trailing gap: one event', ev4.length, 1);
+      T.eq('trailing gap: hasGap false (gap outside event)', ev4.length ? ev4[0].hasGap : null, false);
+
+      // Threshold: 12s span, 5 missing → 7s measured < 10s minSec → rejected
+      var ev5 = run(seq([97, 10], [90, 4], [null, 5], [90, 3], [97, 10]), 10);
+      T.eq('threshold gap: event rejected (7s measured < 10s minSec)', ev5.length, 0);
+
+      // Threshold: 12s span, 2 missing → 10s measured ≥ 10s minSec → accepted with gap
+      var ev6 = run(seq([97, 10], [90, 5], [null, 2], [90, 5], [97, 10]), 10);
+      T.eq('threshold gap: event accepted (10s measured ≥ 10s minSec)', ev6.length, 1);
+      T.eq('threshold gap: hasGap true', ev6.length ? ev6[0].hasGap : null, true);
+
+      // Boundary: gap at event start (first 3 samples missing, then 9 measured)
+      // The event starts at the first MEASURED sample; leading nulls are outside.
+      var ev7 = run(seq([97, 10], [null, 3], [90, 9], [97, 10]));
+      T.eq('boundary gap (start): one event', ev7.length, 1);
+      T.eq('boundary gap (start): hasGap false (gap before evStart)', ev7.length ? ev7[0].hasGap : null, false);
+      T.eq('boundary gap (start): durationSec is 9 measured', ev7.length ? ev7[0].durationSec : null, 9);
+
+      // Boundary: gap at event end (9 measured, then 3 missing before recovery)
+      // The trailing nulls ARE inside the event (event hasn't closed yet).
+      var ev8 = run(seq([97, 10], [90, 9], [null, 3], [97, 10]));
+      T.eq('boundary gap (end): one event', ev8.length, 1);
+      T.eq('boundary gap (end): hasGap true', ev8.length ? ev8[0].hasGap : null, true);
+    });
+
+    /* GanglioR export: hasGap/missingSec survive serialization (2026-10-08).
+       The meta object must carry explicit true/false (not undefined) and
+       preserve missingSec. Legacy events without the fields get hasGap=false
+       (backward compatible) and missingSec=null. */
+    group('§∅ · OxyDex — hasGap reaches the GanglioR event export', 'oxydex-dsp · absence · desat · export', function (T) {
+      var OD = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      if (!OD || typeof OD.buildGangliorEvents !== 'function') {
+        T.skip('OxyDex.buildGangliorEvents', 'not exposed');
+        return;
+      }
+      function runExport(desatEvent) {
+        var night = {
+          t0Ms: 1000000,
+          stats: { n: 3600, durationMin: 60 },
+          desat: { events: [desatEvent] }
+        };
+        var out = OD.buildGangliorEvents([night]);
+        var ev = out.filter(function (e) {
+          return e.impulse === 'desat_event';
+        })[0];
+        return ev ? ev.meta : null;
+      }
+      function mkEvent(hasGap, missingSec) {
+        var d = {
+          nadirIdx: 100,
+          tMs: 1100000,
+          depth: 5.2,
+          duration: 20,
+          recovery: 30,
+          nadir: 90,
+          startTMs: 1000000,
+          endTMs: 1020000
+        };
+        if (hasGap !== undefined) d.hasGap = hasGap;
+        if (missingSec !== undefined) d.missingSec = missingSec;
+        return d;
+      }
+      var withGap = runExport(mkEvent(true, 5));
+      T.eq('export: hasGap true preserved', withGap && withGap.hasGap, true);
+      T.eq('export: missingSec preserved', withGap && withGap.missingSec, 5);
+
+      var noGap = runExport(mkEvent(false, 0));
+      T.eq('export: hasGap false preserved', noGap && noGap.hasGap, false);
+      T.eq('export: missingSec 0 preserved', noGap && noGap.missingSec, 0);
+
+      var legacy = runExport(mkEvent());
+      T.eq('export: legacy hasGap is null (unknown, not gap-free)', legacy && legacy.hasGap, null);
+      T.eq('export: legacy missingSec defaults to null', legacy && legacy.missingSec, null);
     });
 
     group('Integrator consumes canonical measurement blocks — roadmap §8 (fail-closed, plant-backed)', 'integrator-dsp · measurement-block · provenance · roadmap-§8 · plant', function (T) {
@@ -22245,7 +22244,7 @@
 
       /* ── THE FALLBACK. A file with NO usable counter must keep the legacy index axis + fold, byte for
          byte — that is what keeps every committed fixture and every phone-captured file inert. */
-      var r3 = [HDR],
+      var r3 = [HDR.replace(';sensor timestamp [ns]', ';sensor timestamp [ns]')],
         t3 = 0;
       for (var k = 0; k < 3000; k++) {
         r3.push('2026-06-17T01:06:17.723;0;' + Math.round(t3) + ';' + (100 + (k % 40)));
@@ -39353,6 +39352,14 @@
         var allKept = true;
         for (var m = 0; m < r.ppiKeptIdx.length; m++) if (r.ppiFlags[r.ppiKeptIdx[m]] !== 0) allKept = false;
         T.ok('export · every ppiKeptIdx entry lands on an unflagged input interval', allKept);
+        var hasInternalPpiGap = r.ppiKeptIdx.some(function (idx, k, kept) {
+          return k > 0 && idx !== kept[k - 1] + 1;
+        });
+        T.ok('ANTI-VACUITY · E2E fixture contains an internal retained-index gap', hasInternalPpiGap);
+        if (hasInternalPpiGap) {
+          T.eq('export · DFA alpha-1 is suppressed across an internal gap', r.dfa1, null);
+          T.eq('export · sample entropy is suppressed across an internal gap', r.sampen, null);
+        }
       }
     });
 
@@ -53494,6 +53501,47 @@
        the PPG sibling of the ECG DFA gate (PR #177). Every PPG spectral/DFA gate is SOURCE-REGEX, so a box
        range truncation (s<=16 → s<=11) silently re-slopes α1 and shipped green. Pin dfaAlpha1 on a FIXED
        deterministic RR series (seeded LCG) — the truncation moves it 0.65 → 0.75 (verified). */
+    group('PpgDex correctRR edge-only rejection preserves adjacency', 'ppgdex-dsp · nonlinear · regression', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.correctRR !== 'function') {
+        T.skip('correctRR edge-only adjacency contract', 'not exposed');
+        return;
+      }
+
+      var rr = [];
+      for (var i = 0; i < 40; i++) rr.push(800 + (i % 5) * 5);
+      rr[0] = 250;
+      rr[39] = 2200;
+
+      var tt = [];
+      var acc = 0;
+      for (var j = 0; j < rr.length; j++) {
+        acc += rr[j] / 1000;
+        tt.push(acc);
+      }
+
+      var r = P.correctRR(rr, tt);
+      var internalGap = r.keptIdx.some(function (idx, j, kept) {
+        return j > 0 && idx !== kept[j - 1] + 1;
+      });
+
+      T.ok('both edge intervals were rejected', r.flags[0] === 1 && r.flags[39] === 1);
+      T.eq('edge-only rejection creates no internal retained-index gap', internalGap, false);
+    });
+
+    /* Structural regression for correctRR internal gaps: sequence metrics must refuse
+       non-adjacent retained intervals, but edge-only rejection must not trigger the guard. */
+    group('PpgDex nonlinear metrics refuse internal correctRR gaps', 'ppgdex-dsp · nonlinear · regression', function (T) {
+      var Pp = env.sources && env.sources['ppgdex-dsp.js'];
+      T.ok('PpgDex DSP source is available', typeof Pp === 'string' && Pp.length > 5000);
+      if (typeof Pp !== 'string') return;
+
+      var pc = Pp;
+      T.ok('gap detection ignores the first retained interval and detects later breaks', /const hasSequenceGap\s*=\s*adj\.some\(\(isAdjacent,\s*j\)\s*=>\s*j\s*>\s*0\s*&&\s*!isAdjacent\);/.test(pc));
+      T.ok('DFA alpha-1 is null when an internal sequence gap exists', /const dfa1\s*=\s*hasSequenceGap\s*\?\s*null\s*:\s*dfaAlpha1\(nn\);/.test(pc));
+      T.ok('sample entropy is null when an internal sequence gap exists', /const se\s*=\s*hasSequenceGap\s*\?\s*null\s*:\s*sampEn\(nn\);/.test(pc));
+    });
+
     group('PpgDex DFA-α1 box range — known-answer (§EP-rest)', 'ppgdex-dsp · nonlinear · known-answer', function (T) {
       var D = env.PPGDSP;
       if (!D || typeof D.dfaAlpha1 !== 'function') {
@@ -67138,10 +67186,8 @@
       var byStage2 = {};
       eps.forEach(function (e) {
         var st = stageAtSec(e.tMin * 60 + 150);
-        if (st != null && isFin(e.lfhf)) {
-          if (!byStage2[st]) byStage2[st] = [];
-          byStage2[st].push(e.lfhf);
-        }
+        if (!byStage2[st]) byStage2[st] = [];
+        byStage2[st].push(e.lfhf);
       });
       var remR = lfhfOf('REM'),
         deepR = lfhfOf('N3');

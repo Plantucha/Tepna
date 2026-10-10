@@ -822,7 +822,9 @@ async def pull_recording(
         **_session_meta(session),
         **{k: manifest[k] for k in ("session", "total_bytes")},
         "device": address,
-        "n_files": len(manifest["files"]),
+        # manifest is a heterogeneous dict; mypy infers dict[str, object] and
+        # len(object) is an error. The value is always a list here (built above).
+        "n_files": len(manifest["files"]),  # type: ignore[arg-type]
     }
     with open(os.path.join(out_dir, "recording.meta.json"), "w") as fh:
         json.dump(meta, fh, indent=2)
