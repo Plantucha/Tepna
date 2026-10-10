@@ -56,6 +56,8 @@ COVERED = {
     "systemd/tepna-btattach.sh": "test_btattach_unit.py",
     # asserted below, in this module, against their source — see the docstrings for why each cannot run
     "deploy/enable-clock-control.sh": "test_shell_surface.py",
+    "deploy/enable-gps-stratum1.sh": "test_gps_stratum1_sh.py",
+    "tepna-m10-tune.sh": "test_gps_stratum1_sh.py",
     "deploy/enable-restart-control.sh": "test_shell_surface.py",
     "deploy/fix-clock-write.sh": "test_shell_surface.py",
     "deploy/fix-web-origin.sh": "test_shell_surface.py",
