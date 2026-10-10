@@ -50,11 +50,13 @@
  * If either hash has moved, the cache and the journal are refused and the sweep runs cold, saying
  * which input changed. The per-file ceiling is whatever remains of `--max-hours`, not a constant.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, realpathSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
+import { recoverStale, pendingBackups } from './mutate-recover.mjs';
 import vm from 'node:vm';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -1158,6 +1160,63 @@ function selftest() {
     console.log((ok ? '  ✓ ' : '  ✕ ') + n + (ok ? '' : '  got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want)));
     if (!ok) fail++;
   };
+  /* ── THE PLANT: A PROCESS KILLED MID-MUTANT LEAVES A TREE THE NEXT START CLEANS ────────────────
+     The property is about process LIFECYCLE, so the case kills a real process rather than simulating
+     one. `kill -9` runs no handler — not the exit hook above, not mutate.mjs's SIGTERM restore — so
+     if the artifact survives the next start, nothing in the system would ever have removed it. This
+     is the exact 2026-10-10 shape: a mutant plus its `.mutate-backup` sitting in a tree for hours.
+     Scratch directory, never the repo: this tool must not mutate anything to test that it unmutates. */
+  console.log('restore-on-exit — a tree mutated by a SIGKILLed process is clean at the next start');
+  {
+    const scratch = mkdtempSync(join(tmpdir(), 'crawl-restore-'));
+    const target = join(scratch, 'victim.js');
+    const ORIGINAL = 'export const n = 1;\n';
+    writeFileSync(target, ORIGINAL);
+    /* A real process that mutates, writes the backup, then SIGKILLs ITSELF — the one exit no handler
+       can observe. `execFileSync` throws on the signal death; that throw IS the setup succeeding. */
+    try {
+      execFileSync(
+        'node',
+        [
+          '-e',
+          'const fs=require("node:fs");const t=process.argv[1];' +
+            'fs.writeFileSync(t+".mutate-backup",fs.readFileSync(t,"utf8"));' +
+            'fs.writeFileSync(t,"export const n = 2;\\n");' +
+            'process.kill(process.pid,"SIGKILL");',
+          target
+        ],
+        { stdio: 'ignore' }
+      );
+    } catch {}
+    ck('the killed process left a MUTANT', readFileSync(target, 'utf8'), 'export const n = 2;\n');
+    ck('…and its backup beside it', existsSync(target + '.mutate-backup'), true);
+    ck('ANTI-VACUITY · the backup holds the ORIGINAL, so a restore has something true to write', readFileSync(target + '.mutate-backup', 'utf8'), ORIGINAL);
+    // The next start: the same recovery the crawl now calls before any work.
+    recoverStale(scratch);
+    ck('the next start RESTORED the source', readFileSync(target, 'utf8'), ORIGINAL);
+    ck('…and removed the backup', existsSync(target + '.mutate-backup'), false);
+    ck('pendingBackups then reports nothing to refuse over', pendingBackups(scratch), []);
+    rmSync(scratch, { recursive: true, force: true });
+  }
+
+  /* THE WIRING, not just the property. The plant above proves the recovery works; this proves the
+     CRAWL reaches it before it can mutate anything — which is the whole defect, since `mutate.mjs`
+     already had a working recovery and the leftover still sat in the root for 2 h. A source check is
+     the honest instrument for an ORDER claim: there is no way to observe "before any work" from
+     outside without doing the work. */
+  {
+    const self = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    /* ⚠️ THE NEEDLES ARE BUILT BY CONCATENATION so they do not exist verbatim in this file. Written
+       as plain literals, this check SELF-MATCHED: the selftest sits above `main()`, so `indexOf`
+       found the assertion's own text first and the order read as false. §4's self-match — a pattern
+       that matches the thing doing the matching — arriving in a source scan rather than a pgrep. */
+    const guard = self.indexOf('refuseUnless' + 'Crawlable();');
+    const firstWork = self.indexOf('mkdirSync(OUT, { rec' + 'ursive: true });');
+    ck('the startup guard is wired into main()', guard > 0, true);
+    ck('…and runs BEFORE the first write of the run', guard > 0 && firstWork > 0 && guard < firstWork, true);
+    ck('the exit hook is registered at module scope, not inside main()', self.indexOf("process.on('ex" + "it'") < self.indexOf('async function ma' + 'in()'), true);
+  }
+
   console.log('otherSweepPids — a wait loop that waits on itself never exits');
   const ps = ['  111 node tools/mutate.mjs --file a.js', '  222 node tools/mutation-crawl.mjs', '  333 node tools/mutate.mjs --file b.js', '  444 vim tools/mutate.mjs', '  555 grep mutate.mjs'].join(
     '\n'
@@ -1416,11 +1475,97 @@ const INVOKED_DIRECTLY = (() => {
 })();
 if (INVOKED_DIRECTLY) await main();
 
+/* ── THE TWO STATES THAT MAKE A CRAWL MEANINGLESS, REFUSED BEFORE ANY WORK ───────────────────────
+   Both were measured on 2026-10-10, in the same run.
+
+   (b) A LEFTOVER MUTANT. `mutate.mjs` recovers at ITS startup, which is one layer too deep: the
+   SCHEDULED entry point is this file, so after a crawl exits leaving `<file>.mutate-backup` beside a
+   mutated source, the tree stays dirty until something happens to invoke mutate.mjs again — a day,
+   or until a human notices. Measured: `pulsedex-dsp.js` held `for (let i2 = 0; i2 <= N; i2++)` for
+   ~2 h while `tepna-sync-main.timer` correctly SKIPped the dirty root. It is also the ONLY answer to
+   `kill -9`, which runs no handler at all. Recover first, then REFUSE if anything survived the
+   recovery, because a mutant this tool cannot undo is one it must not add to.
+
+   (1) A ROOT BEHIND `origin/main`. This is why that run's verdict was RED and the finding is worth
+   more than the leftover: the crawl mutates the SHARED ROOT in place, its own leftover dirt made
+   `sync-main` SKIP, and it then spent 5 h mutating source 75 commits stale — so four files were
+   "skipped as stale against the current source" and their canaries fired over ZERO proven-killable
+   inputs. A crawl of stale source does not produce a wrong number; it produces a number about code
+   nobody has. The count goes in the reason, because "behind" without it reads as a rounding error. */
+/* ── (a) RESTORE ON EVERY CATCHABLE EXIT ─────────────────────────────────────────────────────────
+   `process.on('exit')` runs for a normal return, an explicit `process.exit()`, and after an uncaught
+   exception — the whole catchable set — and `recoverStale` is a no-op when there is nothing to
+   restore, so this costs one `readdir` on a clean exit. It is registered at module scope, before any
+   work, because a hook installed later cannot cover a failure that happens earlier.
+
+   ⚠️ DELIBERATELY NOT A SIGNAL HANDLER. SIGTERM to this process is already load-bearing: the budget
+   path sends SIGTERM to the CHILD'S PROCESS GROUP so `mutate.mjs` restores its own backup, with
+   SIGKILL only after a grace (see runMutateBounded, and the comment above it earned by a 5 h budget
+   becoming an 8 h run). Installing a crawl-level SIGTERM handler would pre-empt Node's default
+   termination and orphan that group — fixing the small leak by breaking the mechanism that prevents
+   the large one. Signals keep the existing design; this hook covers what the design cannot see.
+   And `kill -9` runs NO hook, by definition — the startup guard below is the only answer to it. */
+process.on('exit', () => {
+  try {
+    recoverStale(ROOT);
+  } catch {}
+});
+
+function refuseUnlessCrawlable() {
+  const pending = pendingBackups(ROOT);
+  if (pending.length) {
+    recoverStale(ROOT);
+    const left = pendingBackups(ROOT);
+    if (left.length) {
+      process.stderr.write(
+        '⛔ REFUSING TO START — ' +
+          left.length +
+          ' leftover mutant(s) could not be restored: ' +
+          left.join(', ') +
+          '\n' +
+          '   A mutant this tool cannot undo is one it must not add to. Restore by hand and re-run.\n'
+      );
+      process.exit(2);
+    }
+    log('recovered ' + pending.length + ' leftover mutant(s) from a previous exit before starting: ' + pending.join(', '));
+  }
+  let behind = null;
+  try {
+    /* The LOCAL `origin/main` ref — no fetch. Fetching inside a guard would write to a tree this
+       tool promised never to touch, and a stale ref errs toward letting the run proceed. */
+    behind = +execFileSync('git', ['rev-list', '--count', 'HEAD..origin/main'], { cwd: ROOT, encoding: 'utf8' }).trim();
+  } catch {
+    behind = null; // not a git tree, or no origin/main: not this guard's business to invent a reason
+  }
+  if (behind != null && behind > 0) {
+    process.stderr.write(
+      '⛔ REFUSING TO START — the tree is ' +
+        behind +
+        ' commit(s) behind origin/main.\n' +
+        '   A crawl of stale source reports numbers about code nobody has: on 2026-10-10 a root left\n' +
+        '   75 commits behind for 3 days produced 4 files skipped as stale and canaries over 0 inputs.\n' +
+        '   Fast-forward the tree (or pass --allow-behind if you mean to crawl this exact revision).\n'
+    );
+    process.exit(2);
+  }
+}
+
 async function main() {
   if (has('--selftest')) process.exit(await selftest());
   if (has('--status')) {
     statusReport();
     process.exit(0);
+  }
+
+  if (!has('--allow-behind')) refuseUnlessCrawlable();
+  else {
+    /* The escape hatch still RECOVERS — only the behind-main refusal is waived, and it says so. */
+    const pend = pendingBackups(ROOT);
+    if (pend.length) {
+      recoverStale(ROOT);
+      log('recovered ' + pend.length + ' leftover mutant(s): ' + pend.join(', '));
+    }
+    log('⚠ --allow-behind: crawling this exact revision even if it is behind origin/main.');
   }
 
   mkdirSync(OUT, { recursive: true });
