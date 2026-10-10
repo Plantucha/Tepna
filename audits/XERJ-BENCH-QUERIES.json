@@ -1,0 +1,603 @@
+[
+ {
+  "pr": 3337,
+  "query": "solid_night_inputs continuity requires one file spanning the worn interval, two-file device set, union of spans",
+  "truth": [
+   "capture-host/solid_night_inputs.py",
+   "capture-host/tests/test_solid_night_inputs.py"
+  ]
+ },
+ {
+  "pr": 3335,
+  "query": "acq_evidence_cpap counter or-0 unmeasured category UNKNOWN completeness axis, ABSENCE-SURVEY aa1146c0a994",
+  "truth": [
+   "capture-host/acq_evidence_cpap.py",
+   "capture-host/ble_visibility.py",
+   "capture-host/capture.py",
+   "capture-host/tests/test_acq_evidence_cpap.py",
+   "capture-host/tests/test_ble_visibility.py"
+  ]
+ },
+ {
+  "pr": 3326,
+  "query": "second reader for mutation survivors: Codex scorecard, Qwen OpenCode trial failure, distinguishing input versus equivalence argument",
+  "truth": [
+   "DOCS-INDEX.md",
+   "briefs/GEMINI-SECOND-READER-2026-10-05-BRIEF.md",
+   "tools/gemini-review.mjs",
+   "tools/verdict-adoption.json"
+  ]
+ },
+ {
+  "pr": 3325,
+  "query": "E12 fold timer after the archive pull, verdict and local branch, never an unattended push",
+  "truth": [
+   "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md",
+   "tools/systemd/tepna-trio-fold.service",
+   "tools/systemd/tepna-trio-fold.timer"
+  ]
+ },
+ {
+  "pr": 3315,
+  "query": "probe_verity_survey tests CP_REPLY_TIMEOUT settle fixture pacing sleep Control.send wait_for None",
+  "truth": [
+   "capture-host/probe_verity_survey.py",
+   "capture-host/tests/test_probe_verity_survey.py"
+  ]
+ },
+ {
+  "pr": 3312,
+  "query": "probe_pmd_opcodes run final status read unanswered left_running stop blind",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/probe_pmd_opcodes.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_probe_opcode_sweeps.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3310,
+  "query": "mutation equivalence REFUTED classify survivors absent undecided timeout mutmut per-mutant result",
+  "truth": [
+   "capture-host/mutation_diff.py",
+   "capture-host/tests/test_mutation_diff.py",
+   "capture-host/tests/test_mutation_undecided.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "capture-host/tools/mutate_diff.py"
+  ]
+ },
+ {
+  "pr": 3309,
+  "query": "cpap poller tests 5 s wait reachable probe to_thread urlopen stub spy",
+  "truth": [
+   "capture-host/tests/test_cpap_poller.py"
+  ]
+ },
+ {
+  "pr": 3306,
+  "query": "find_unwired scan per-name regex findall whole corpus test durations CI pytest",
+  "truth": [
+   "capture-host/tests/test_find_unwired.py",
+   "capture-host/tools/find_unwired.py"
+  ]
+ },
+ {
+  "pr": 3304,
+  "query": "probe_oxyii_opcodes run verification snapshot unanswered live frame effect unverified sweep abort _changed",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/probe_oxyii_opcodes.py",
+   "capture-host/tests/test_probe_opcode_sweeps.py",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3302,
+  "query": "probe_oxyii_0x03 run reported_pr_n PR sample count published verdict absence",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/probe_oxyii_0x03.py",
+   "capture-host/tests/test_probe_oxyii_0x03.py",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3301,
+  "query": "opcode sweep tests real waits baseline gap fixture patch bound at definition send timeout learn_baseline",
+  "truth": [
+   "capture-host/probe_oxyii_opcodes.py",
+   "capture-host/probe_pmd_opcodes.py",
+   "capture-host/tests/test_probe_opcode_sweeps.py"
+  ]
+ },
+ {
+  "pr": 3300,
+  "query": "mutation diff-scoped gate budget refusal splitting a PR by glob count per-function cost",
+  "truth": [
+   "capture-host/tests/test_timeline_gaps.py",
+   "capture-host/timeline.py"
+  ]
+ },
+ {
+  "pr": 3298,
+  "query": "absence survey dev probes pmd_opcodes diff unread key verity_survey settings unanswered pmd_surface clock conclusion before stamp polar_onboard summarize_fs unsized oxyii_0x03 replies truncated",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/probe_oxyii_0x03.py",
+   "capture-host/probe_pmd_opcodes.py",
+   "capture-host/probe_pmd_surface.py",
+   "capture-host/probe_polar_onboard.py",
+   "capture-host/probe_verity_survey.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_probe_opcode_sweeps.py",
+   "capture-host/tests/test_probe_oxyii_0x03.py",
+   "capture-host/tests/test_probe_pmd_surface.py",
+   "capture-host/tests/test_probe_polar_onboard.py",
+   "capture-host/tests/test_probe_verity_survey.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "tools/absence-ledger.mjs",
+   "tools/codex-export.mjs"
+  ]
+ },
+ {
+  "pr": 3287,
+  "query": "RunSidecar header written at first run min_run timing night eligibility newest data mtime daemon fixed names",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "capture-host/solid_night_inputs.py",
+   "capture-host/tests/test_solid_night_inputs.py"
+  ]
+ },
+ {
+  "pr": 3283,
+  "query": "absence drain mmeta generated_count unreadable mutation_diff functions_covering SyntaxError acq_evidence_cpap COMPLETE lost_coverage_missing codex-export selftest refusal",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "briefs/RESIDUE.md",
+   "capture-host/acq_evidence_cpap.py",
+   "capture-host/mmeta.py",
+   "capture-host/mutation_diff.py",
+   "capture-host/tests/test_acq_evidence_cpap.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_mmeta.py",
+   "capture-host/tests/test_mutation_diff.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "capture-host/tools/mutate_diff.py",
+   "tools/absence-ledger.mjs",
+   "tools/codex-export.mjs"
+  ]
+ },
+ {
+  "pr": 3281,
+  "query": "absence drain sealbox existing_header unreadable seal UNKNOWN operator re-seal missing files count -1",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/sealbox.py",
+   "capture-host/tests/test_sealbox.py",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3280,
+  "query": "absence survey drain clockcfg timedatectl show fails ntp_enabled synchronized tz_set False unknown monitor pills",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/clockcfg.py",
+   "capture-host/tests/FIXTURE-PROVENANCE.json",
+   "capture-host/tests/test_clockcfg.py",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3279,
+  "query": "absence survey drain bonding bluetoothctl empty answer forced re-pair rebond_due no evidence adapter watchdog",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/bonding.py",
+   "capture-host/capture.py",
+   "capture-host/tests/test_bluez_wedge_wire.py",
+   "capture-host/tests/test_bonding.py",
+   "capture-host/tests/test_capture_predicates.py",
+   "capture-host/tests/test_coverage_small_modules.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3278,
+  "query": "absence survey drain oxyii worn contact byte fault o2ring unwrap undecryptable pull_session cpap_live negative age cpap edf one-channel batch live bus push rate",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "briefs/RESIDUE.md",
+   "capture-host/capture.py",
+   "capture-host/cpap_edf_writer.py",
+   "capture-host/cpap_live.py",
+   "capture-host/o2ring.py",
+   "capture-host/oxyii.py",
+   "capture-host/tests/FIXTURE-PROVENANCE.json",
+   "capture-host/tests/test_absence_drain_g4.py",
+   "capture-host/tests/test_capture_runners.py",
+   "capture-host/tests/test_cpap_edf_writer.py",
+   "capture-host/tests/test_cpap_live.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_o2ring.py",
+   "capture-host/tests/test_oxyii.py",
+   "capture-host/tests/test_run_polar_live_contract.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3276,
+  "query": "absence survey drain capture.py presence scan raised folded absent ring write_hr 0 PMD rate menu auto-start record MTU 23",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/capture.py",
+   "capture-host/tests/test_absence_drain_g3.py",
+   "capture-host/tests/test_cpap_autostart_wire.py",
+   "capture-host/tests/test_cpap_stream_cost.py",
+   "capture-host/tests/test_presence_wire.py",
+   "capture-host/writers.py",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3275,
+  "query": "README simplify update entry document orientation what the project is how to open a bundle",
+  "truth": [
+   "README.md"
+  ]
+ },
+ {
+  "pr": 3272,
+  "query": "fixture provenance captured bytes authored synthetic marker FIXTURE-PROVENANCE test fixture real night embedded codex pre-flight",
+  "truth": [
+   "capture-host/tests/FIXTURE-PROVENANCE.json",
+   "capture-host/tests/test_fixture_provenance.py",
+   "tools/codex-export.mjs",
+   "tools/verdict-adoption.json"
+  ]
+ },
+ {
+  "pr": 3271,
+  "query": "absence survey drain writers StreamWriter resume anchor timestamp ms restart 0.0 lazy init",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/tests/test_capture_coverage_100.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_writers_resume_edges.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "capture-host/writers.py",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3269,
+  "query": "WFDB wfdb-python gqrs ecgpuwave independent QRS detector oracle sample entropy ECGSYN synthetic ECG fixture EDR reference",
+  "truth": [
+   "DOCS-INDEX.md",
+   "briefs/PHYSIONET-SOFTWARE-ORACLES-2026-10-04-BRIEF.md"
+  ]
+ },
+ {
+  "pr": 3268,
+  "query": "absence survey drain diskguard free_pct telemetry rate fallback 1 Hz irregular undeclared stream",
+  "truth": [
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "capture-host/diskguard.py",
+   "capture-host/telemetry.py",
+   "capture-host/tests/test_diskguard.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_telemetry.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "tools/absence-ledger.mjs"
+  ]
+ },
+ {
+  "pr": 3266,
+  "query": "absence survey drain findings triage state sidecar ratchet open count consumer",
+  "truth": [
+   "DOCS-INDEX.md",
+   "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+   "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+   "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+   "briefs/RESIDUE.md",
+   "capture-host/nightqc.py",
+   "capture-host/tests/test_nightqc.py",
+   "capture-host/tests/test_nightqc_verdicts.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "package.json",
+   "tools/absence-ledger.mjs",
+   "tools/run-check.mjs",
+   "tools/verdict-adoption.json"
+  ]
+ },
+ {
+  "pr": 3264,
+  "query": "ring SPO2 drawn host stamps device clock lives in PPG timebase primary stream per model",
+  "truth": [
+   "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md",
+   "briefs/RESIDUE.md",
+   "capture-host/solid_night_inputs.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_solid_night.py",
+   "capture-host/tests/test_solid_night_inputs.py",
+   "capture-host/tools/mutate-equivalence.json"
+  ]
+ },
+ {
+  "pr": 3263,
+  "query": "O2Ring 156 beat marker row PpgDex beat detection cross-check device annotation",
+  "truth": [
+   "briefs/O2RING-PROTOCOL-2026-07-17-BRIEF.md",
+   "ppgdex-app.js",
+   "ppgdex-dsp.js",
+   "ppgdex-registry.js",
+   "tests/dex-tests.js",
+   "tools/oracle-ppg-device-beats.mjs",
+   "tools/verdict-adoption.json"
+  ]
+ },
+ {
+  "pr": 3262,
+  "query": "mypy baseline ratchet error set delta blind_spots AST attribute; sizing a mutation drain for timeline build",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "capture-host/blind_spots.py",
+   "capture-host/capture.py",
+   "capture-host/ppg_grid_check.py",
+   "capture-host/tests/test_blind_spots.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_ppg_grid_check.py",
+   "capture-host/tests/test_run_polar_live_contract.py",
+   "capture-host/tools/mutate-equivalence.json",
+   "capture-host/tools/mutate_diff.py",
+   "tools/verdict-adoption.json"
+  ]
+ },
+ {
+  "pr": 3261,
+  "query": "H10 continuity band declared daemon pause pull paused live explained discontinuity",
+  "truth": [
+   "briefs/SOLID-NIGHT-2026-09-23-BRIEF.md",
+   "capture-host/solid_night_inputs.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_solid_night_inputs.py",
+   "capture-host/tools/mutate-equivalence.json"
+  ]
+ },
+ {
+  "pr": 3260,
+  "query": "module level mutation exclusion declared not applicable at selection before the budget",
+  "truth": [
+   "DOCS-INDEX.md",
+   "briefs/MUTATION-DECLARED-EXCLUSION-2026-10-03-BRIEF.md",
+   "capture-host/mutation_diff.py",
+   "capture-host/tests/test_mutation_exclusions.py",
+   "capture-host/tools/mutate-exclusions.json",
+   "capture-host/tools/mutate_diff.py"
+  ]
+ },
+ {
+  "pr": 3259,
+  "query": "summarize survivor drain mutation initialiser argument drop boundary min max selector",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "capture-host/tests/test_nightqc.py",
+   "capture-host/tools/mutation-sizes.json",
+   "mutation-survivors.json",
+   "package.json"
+  ]
+ },
+ {
+  "pr": 3258,
+  "query": "mutation gate exclusion for functions that cannot be measured within the budget, unmeasured ledger",
+  "truth": [
+   "DOCS-INDEX.md",
+   "briefs/MUTATION-DECLARED-EXCLUSION-2026-10-03-BRIEF.md",
+   "briefs/RESIDUE.md",
+   "capture-host/mutation_diff.py",
+   "capture-host/tests/test_mutation_exclusions.py",
+   "capture-host/tools/mutate-exclusions.json",
+   "capture-host/tools/mutate-unmeasured.json",
+   "capture-host/tools/mutate_diff.py",
+   "tools/verdict-adoption.json"
+  ]
+ },
+ {
+  "pr": 3257,
+  "query": "corpus-tier memory peak lazy-load 8 GB rule tiering run",
+  "truth": [
+   "briefs/RESIDUE.md"
+  ]
+ },
+ {
+  "pr": 3256,
+  "query": "A5 unrecorded clock step tripwire mutation survivors solid_night_inputs",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "capture-host/mutation_diff.py",
+   "capture-host/tests/test_mutation_scratch_reuse.py"
+  ]
+ },
+ {
+  "pr": 3255,
+  "query": "66-night ring host-axis re-fold trio-batch control stepless night",
+  "truth": [
+   "analysis/published-numbers/tch-pooled-hat-2026-10-03.json",
+   "briefs/RESIDUE.md",
+   "briefs/SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md"
+  ]
+ },
+ {
+  "pr": 3254,
+  "query": "timeline placed duration host_span_sec rows over fs preference order",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_timeline_gaps.py",
+   "capture-host/timeline.py",
+   "capture-host/tools/mutate-equivalence.json"
+  ]
+ },
+ {
+  "pr": 3253,
+  "query": "O2Ring vitals poll cadence sleep after work monotonic deadline 1 Hz OXYFRAME frame interval",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "capture-host/capture.py",
+   "capture-host/tests/test_capture_runners.py",
+   "capture-host/tests/test_mutation_exclusions.py"
+  ]
+ },
+ {
+  "pr": 3252,
+  "query": "night settles when its data goes quiet active_nights poller rewrites keep the folder active",
+  "truth": [
+   "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md",
+   "briefs/RESIDUE.md",
+   "capture-host/capture.py",
+   "capture-host/nightqc.py",
+   "capture-host/tests/test_loss_poller.py",
+   "capture-host/tests/test_mutation_exclusions.py",
+   "capture-host/tests/test_nightqc.py",
+   "capture-host/tests/test_reconnect_backoff_cap.py"
+  ]
+ },
+ {
+  "pr": 3251,
+  "query": "a per-file cache entry written by an older build lacks a key the current reader needs — schema versioning or eviction on unrecognised shape",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "capture-host/nights_index.py",
+   "capture-host/tests/test_nights_index.py"
+  ]
+ },
+ {
+  "pr": 3247,
+  "query": "persisting the journal's clock-event lines beside the night so a later verdict can ask whether a clock event was recorded",
+  "truth": [
+   "capture-host/loss_audit.py",
+   "capture-host/tests/test_loss_audit.py",
+   "capture-host/tools/mutate-equivalence.json"
+  ]
+ },
+ {
+  "pr": 3246,
+  "query": "worn but not recorded fraction loss audit night verdict bar",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_mutation_scratch_reuse.py",
+   "capture-host/tools/mutate-equivalence.json"
+  ]
+ },
+ {
+  "pr": 3245,
+  "query": "A5 unrecorded clock step tripwire mutation survivors solid_night_inputs",
+  "truth": [
+   "briefs/SOLID-NIGHT-2026-09-23-BRIEF.md",
+   "capture-host/solid_night.py",
+   "capture-host/solid_night_inputs.py",
+   "capture-host/tests/test_equivalence_ledger.py",
+   "capture-host/tests/test_night_verdicts_cli.py",
+   "capture-host/tests/test_solid_night.py",
+   "capture-host/tests/test_solid_night_inputs.py",
+   "capture-host/tools/mutate-equivalence.json"
+  ]
+ },
+ {
+  "pr": 3244,
+  "query": "worn but not recorded fraction loss audit night verdict bar",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "capture-host/loss_audit.py",
+   "capture-host/tests/test_loss_audit.py",
+   "capture-host/tests/test_night_verdicts_cli.py"
+  ]
+ },
+ {
+  "pr": 3235,
+  "query": "mutation crawl killed by its unit timeout leaves a live mutant in the shared root — SIGTERM restore, mutate-backup, recoverStale",
+  "truth": [
+   "briefs/RESIDUE.md"
+  ]
+ },
+ {
+  "pr": 3234,
+  "query": "mutation crawl killed by its unit timeout leaves a live mutant in the shared root — SIGTERM restore, mutate-backup, recoverStale",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "tools/mutate.mjs",
+   "tools/mutation-crawl.mjs"
+  ]
+ },
+ {
+  "pr": 3232,
+  "query": "piecewise flat correction per link segment, offset step re-anchor, per-segment ppm diagnostic, buffered replay on reconnect",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "ppgdex-dsp.js",
+   "tests/dex-tests.js"
+  ]
+ },
+ {
+  "pr": 3229,
+  "query": "ppgdex device counter reset backward step clockResyncs seam detection host axis anchors after the last resync",
+  "truth": [
+   "ppgdex-dsp.js",
+   "tests/dex-tests.js"
+  ]
+ },
+ {
+  "pr": 3225,
+  "query": "night read errors brief: timeline tag resolver, interval end, settle clock lifecycle sidecar, counter reset resume same file, trio fold timer, corpus-tier stdin",
+  "truth": [
+   "DOCS-INDEX.md",
+   "briefs/NIGHT-0928-ERRORS-2026-09-29-BRIEF.md"
+  ]
+ },
+ {
+  "pr": 3224,
+  "query": "O2Ring host axis correction first minute anchors hostAxis ppm refusal ring timebase host-disciplined",
+  "truth": [
+   "briefs/RESIDUE.md",
+   "pat-feasibility-worker.js",
+   "tests/dex-tests.js"
+  ]
+ },
+ {
+  "pr": 3223,
+  "query": "night quality report SOLID-NIGHT verdict fragmentation trio fold trio-stamp",
+  "truth": [
+   "briefs/SOLID-NIGHT-2026-09-23-BRIEF.md"
+  ]
+ }
+]

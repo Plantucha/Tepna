@@ -173,6 +173,7 @@ RATCHET = {
     "pulsedex-dsp.js": 43,
     "solid_night.py": 2,
     "solid_night_inputs.py": 34,
+    "storage_targets.py": 3,
     "telemetry.py": 1,
     "timeline.py": 1,
     "writers.py": 35,
