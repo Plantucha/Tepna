@@ -1053,8 +1053,17 @@ function hostClockChip(hc){
   // "vs network": the box's clock against the LAN's other time servers, from the clock card's last read.
   // A box on its own PPS that also agrees with the NTP250 within a few hundred µs is a healthy stratum-1;
   // one that disagrees by ms has either a bad PPS edge or a bad server, and the pill should say so.
-  for(const s of ((_clkChrony&&_clkChrony.sources)||[])){ if(s.mode==='server' && s.offset_s!=null) bits.push('vs '+s.name+' '+fmtS(s.offset_s)); }
-  return `<span class="clk ${cls}" title="${esc(bits.filter(Boolean).join(' · '))}">🛰 ${txt}</span>`;
+  // Every server goes in the tooltip; the ONE that disagrees most goes in the pill text itself, so a
+  // box drifting from the NTP250 is visible from any tab without opening the card.
+  let worst = null;
+  for(const s of ((_clkChrony&&_clkChrony.sources)||[])){
+    if(s.mode!=='server' || s.offset_s==null) continue;
+    bits.push('vs '+s.name+' '+fmtS(s.offset_s));
+    // a falseticker is chrony's verdict on THAT server, not on this box — tooltip only, never the pill
+    if(s.state!=='falseticker' && (!worst || Math.abs(s.offset_s) > Math.abs(worst.offset_s))) worst = s;
+  }
+  const vs = worst ? ' · vs '+esc(worst.name.replace(/^192\.168\.0\./,'.'))+' '+fmtS(worst.offset_s) : '';
+  return `<span class="clk ${cls}" title="${esc(bits.filter(Boolean).join(' · '))}">🛰 ${txt}${vs}</span>`;
 }
 // A stream's pill must describe DATA, not the BLE link. It used to read `active` alone — but `active`
 // means "declared and started", not "delivering". So a sensor sitting on its charger, or a ring off the
