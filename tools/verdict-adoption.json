@@ -572,6 +572,18 @@
       },
       "note": "GATE A + GATE B as ONE object (VERDICT-CONTRACT §3d, Magpie 2026-09-22): population = the bundles GATE A hashes + the page-wiring guard + the fixtures GATE B audits; a matching bundle / reproducible fixture is PASS, drift is FAIL, an absent fixture input (uploads/ gitignored — the header's declared skip class) is NOT_APPLICABLE, checked and never green evidence; --bundle= is a declared exclusion ⇒ filtered; a setup error (exit 2) is NOT_RUN with the reason. Measured on this tree: PASS over 48/48 (9 bundles, 24 fixtures reproducible, 14 absent ⇒ NOT_APPLICABLE); --bundle=oxydex ⇒ PASS over {6, 14, 8} filtered. --json; the exit code stays."
     },
+    "tests/verify-shard-timings.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tests/verify-shard-timings.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the UNTIMED-GROUP RATCHET: one object over the executed group set (727 on 2026-10-10), criterion untimed_group_share lte 5 percent — measured 3.99 % that day, shrink-only. A SHARE and not a count because a new group is unpriced by construction, so a count cap reds the PR that adds a test (the first version did exactly that on the next merge). It judges how many groups carry no committed timing, never the timings' freshness: group-timings.json stays a HINT by its own header's decision (drift degrades balance, never correctness). --verdict-sample enumerates nothing, so it reports checked: 0 / NOT_RUN with result: null rather than a PASS it did not earn."
+    },
     "tests/verify-shard-union.mjs": {
       "bin": "decides",
       "status": "adopted",
