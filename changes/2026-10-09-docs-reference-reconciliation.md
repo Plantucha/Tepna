@@ -1,6 +1,6 @@
 ---
 bump: patch
-type: docs
+type: fixed
 ---
 Reference-doc reconciliation: align three documented values with their code definitions.
 
