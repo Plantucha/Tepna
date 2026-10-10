@@ -7503,29 +7503,42 @@
        preserve missingSec. Legacy events without the fields get hasGap=false
        (backward compatible) and missingSec=null. */
     group('§∅ · OxyDex — hasGap reaches the GanglioR event export', 'oxydex-dsp · absence · desat · export', function (T) {
-      function buildMeta(d) {
-        return {
-          depth: d.depth != null ? d.depth : null,
-          duration: d.duration != null ? d.duration : null,
-          recovery: d.recovery != null ? d.recovery : null,
-          nadir: d.nadir != null ? d.nadir : null,
-          onsetTMs: d.startTMs != null ? d.startTMs : null,
-          endTMs: d.endTMs != null ? d.endTMs : null,
-          hasGap: d.hasGap === true ? true : d.hasGap === false ? false : null,
-          missingSec: d.missingSec != null ? d.missingSec : null
-        };
+      var OD = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      if (!OD || typeof OD.buildGangliorEvents !== 'function') {
+        T.skip('OxyDex.buildGangliorEvents', 'not exposed');
+        return;
       }
-      var withGap = buildMeta({ depth: 5.2, duration: 20, recovery: 30, nadir: 90, startTMs: 1000000, endTMs: 1020000, hasGap: true, missingSec: 5 });
-      T.eq('export: hasGap true preserved', withGap.hasGap, true);
-      T.eq('export: missingSec preserved', withGap.missingSec, 5);
+      function runExport(desatEvent) {
+        var night = {
+          t0Ms: 1000000,
+          stats: { n: 3600, durationMin: 60 },
+          desat: { events: [desatEvent] }
+        };
+        var out = OD.buildGangliorEvents([night]);
+        var ev = out.filter(function (e) { return e.impulse === 'desat_event'; })[0];
+        return ev ? ev.meta : null;
+      }
+      function mkEvent(hasGap, missingSec) {
+        var d = {
+          nadirIdx: 100, tMs: 1100000,
+          depth: 5.2, duration: 20, recovery: 30, nadir: 90,
+          startTMs: 1000000, endTMs: 1020000
+        };
+        if (hasGap !== undefined) d.hasGap = hasGap;
+        if (missingSec !== undefined) d.missingSec = missingSec;
+        return d;
+      }
+      var withGap = runExport(mkEvent(true, 5));
+      T.eq('export: hasGap true preserved', withGap && withGap.hasGap, true);
+      T.eq('export: missingSec preserved', withGap && withGap.missingSec, 5);
 
-      var noGap = buildMeta({ depth: 4.1, duration: 15, recovery: 25, nadir: 92, startTMs: 2000000, endTMs: 2015000, hasGap: false, missingSec: 0 });
-      T.eq('export: hasGap false preserved', noGap.hasGap, false);
-      T.eq('export: missingSec 0 preserved', noGap.missingSec, 0);
+      var noGap = runExport(mkEvent(false, 0));
+      T.eq('export: hasGap false preserved', noGap && noGap.hasGap, false);
+      T.eq('export: missingSec 0 preserved', noGap && noGap.missingSec, 0);
 
-      var legacy = buildMeta({ depth: 3.5, duration: 12, recovery: 20, nadir: 93, startTMs: 3000000, endTMs: 3012000 });
-      T.eq('export: legacy hasGap is null (unknown, not gap-free)', legacy.hasGap, null);
-      T.eq('export: legacy missingSec defaults to null', legacy.missingSec, null);
+      var legacy = runExport(mkEvent());
+      T.eq('export: legacy hasGap is null (unknown, not gap-free)', legacy && legacy.hasGap, null);
+      T.eq('export: legacy missingSec defaults to null', legacy && legacy.missingSec, null);
     });
 
     /* Item 2 (review 2026-10-08): delta-index must not bridge missing 12s windows.
