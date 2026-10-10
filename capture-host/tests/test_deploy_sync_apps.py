@@ -681,6 +681,19 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #   • it writes NO file: no install, no systemctl, no udevadm, no mount, no ip; the only state it
     #     touches is an HCI controller's address, and only one found under the redirected tree;
     #   • it NEVER self-elevates: it is the unit's ExecStart, not a sudo caller.
+    # deploy/enable-gps-stratum1.sh + tepna-m10-tune.sh added 2026-10-10 (test_gps_stratum1_sh.py) — the
+    # stratum-1 installer is the first deploy script here that calls apt-get and systemctl directly, so
+    # the confirmation is spelled out in full:
+    #   • every path it writes (systemd units, chrony conf.d, /etc/default, /usr/local/lib/tepna) and
+    #     every path it reads under /dev and /sys is behind a TEPNA_* seam, and the tests' `_env()` sets
+    #     ALL five unconditionally into tmp_path — no default destination is reachable from a seamed run;
+    #   • its entire mutating command surface — apt-get, systemctl, journalctl, chronyc — is stubbed
+    #     onto PATH by `_env()`; `install`, `mkdir`, `mv` and `cat >` only ever receive seamed paths;
+    #   • the ONE unseamed, unstubbed test proves the root check: it asserts the script exits 1 with
+    #     "run with sudo" before touching anything, and is skipped outright when euid == 0 so it can
+    #     never reach apt-get or a real /etc even in a root container;
+    #   • tepna-m10-tune.sh writes no file at all; its only command, ubxtool, is reached through the
+    #     TEPNA_UBXTOOL seam which every test sets — to a stub, or to a name that resolves to nothing.
     assert executed <= {
         "check-system-files.sh",
         "sync-apps.sh",
@@ -699,6 +712,8 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
         "tepna-sniff.sh",
         "tepna-report.sh",
         "tepna-btattach.sh",
+        "enable-gps-stratum1.sh",
+        "tepna-m10-tune.sh",
     }, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here"
