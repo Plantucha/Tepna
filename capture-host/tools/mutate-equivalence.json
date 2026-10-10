@@ -5837,5 +5837,28 @@
       "probe": "read: `str(obs.get(\"set_local_time_ack\", <default>)).startswith(\"REFUSED\")`.",
       "why": "PROOF: when the key is absent the original tests str(\"\") and the mutants str(None) == \"None\"; neither starts with \"REFUSED\", and when the key is present the default is unused. (Codex reader, verified.)"
     }
+  ],
+  "storage_targets.py": [
+    {
+      "brief": "dest_status kind resolution: target.get(\"protocol\", \"\") default \"\" -> None (mutmut_11)",
+      "class": "no-distinguishing-input",
+      "key": "- kind = target.get(\"kind\") or PROTOCOLS.get(target.get(\"protocol\", \"\"), (\"transfer\",))[0] | + kind = target.get(\"kind\") or PROTOCOLS.get(target.get(\"protocol\", None), (\"transfer\",))[0]",
+      "probe": "Ran the original and the mutant kind expressions over 60 target combinations (protocol in {absent, '', None, 'bogus', all 8 known} x kind in {absent, None, '', 'mount', 'transfer'}): 0 of 60 differed. Run empirically 2026-10-08 on this VM.",
+      "why": "The two defaults differ only when the \"protocol\" key is absent. Then it is PROTOCOLS.get(\"\", d) vs PROTOCOLS.get(None, d), and neither \"\" nor None is a PROTOCOLS key (8 keys: rsync, nfs, smb, iscsi, nvmeof, webdav, ftp, local), so both yield the (\"transfer\",) default and kind is identical on the whole input domain."
+    },
+    {
+      "brief": "dest_status kind resolution: target.get(\"protocol\", \"\") default dropped (mutmut_13)",
+      "class": "no-distinguishing-input",
+      "key": "- kind = target.get(\"kind\") or PROTOCOLS.get(target.get(\"protocol\", \"\"), (\"transfer\",))[0] | + kind = target.get(\"kind\") or PROTOCOLS.get(target.get(\"protocol\", ), (\"transfer\",))[0]",
+      "probe": "Same 60-combination battery as mutmut_11 (dict.get with no default is None on a missing key): 0 of 60 differed. Run empirically 2026-10-08 on this VM.",
+      "why": "dict.get(\"protocol\") with no default returns None on a missing key, so this mutant is input-identical to mutmut_11, which is equivalent by the PROTOCOLS-key argument above: neither \"\" nor None is a key, both hit the (\"transfer\",) default."
+    },
+    {
+      "brief": "dest_status local-branch reason: the '(unset)' literal is unreachable (mutmut_67)",
+      "class": "untestable-by-design",
+      "key": "- return {\"ready\": ok, \"path\": mp, \"reason\": None if ok else f\"{mp or '(unset)'} does not exist\"} | + return {\"ready\": ok, \"path\": mp, \"reason\": None if ok else f\"{mp or '(UNSET)'} does not exist\"}",
+      "probe": "Ran dest_status over 72 targets (protocol x mountpoint x kind battery: absent/empty/existent/nonexistent/out-of-root paths): the '(unset)' literal rendered 0 times. Run empirically 2026-10-08 on this VM.",
+      "why": "About the CODE, not the suite: `mp = target.get(\"mountpoint\") or \"\"` is falsy exactly when the mountpoint is absent/empty, and a falsy mp takes the early return (\"no mountpoint configured\") two lines above — the f-string line is reached only with truthy mp, where `mp or '(unset)'` short-circuits to mp and the literal never evaluates. No input can render it, so no test can observe its spelling."
+    }
   ]
 }

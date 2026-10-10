@@ -9,6 +9,7 @@
 /* ════════════════════════════════════════════════════════════════════════
    tests/gen-group-timings.mjs — refresh tests/group-timings.json
    ────────────────────────────────────────────────────────────────────────
+       npm run timings:refresh      # ← the same pipeline, one name
        node tests/run-tests.mjs --json | node tests/gen-group-timings.mjs
 
    Feeds the CI shard planner (tests/shard-plan.mjs) measured per-group wall
@@ -21,6 +22,16 @@
    shard balance visibly skews (run-tests --timings shows you the truth), not on
    every commit. Absolute ms are machine-specific; only their RATIO matters to the
    planner, so a table recorded on any one machine balances fine on the runner.
+
+   THAT DECISION IS UNCHANGED by the ratchet added beside it on 2026-10-10.
+   `tests/verify-shard-timings.mjs` gates the SHARE of groups that have no entry
+   here (29 of 727 = 3.99 % that day, cap 5 %, shrink-only) — never this file's
+   freshness. A share, not a count, because a new group is unpriced by
+   construction and must not red the PR that adds it. The
+   timings stay a hint; what the ratchet refuses is the untimed set growing
+   SILENTLY, which is what happened while the only report was one prose line
+   printed mid-run. Pricing the stragglers with `npm run timings:refresh` and
+   lowering the ratchet in the same commit is the way it shrinks.
    ════════════════════════════════════════════════════════════════════════ */
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

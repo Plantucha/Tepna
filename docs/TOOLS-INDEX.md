@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**235 tools** · 233 with a purpose line · **2 without**
+**239 tools** · 237 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -63,7 +63,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
 | [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | `tools/doc-search.mjs` appends `<ISO>\\t<query>` to `<git-common-dir>/tepna-mutation/ doc-search-sessions/<session_id>` on every search that ran. |
 | [`doc-search.mjs`](../tools/doc-search.mjs) | "HAS THIS ALREADY BEEN DECIDED?" OVER 460+ DOCUMENTS CLAUDE.md records this failure repeatedly and by name: four sessions independently proposing a fix the repo had already measured… |
-| [`docs-constants.mjs`](../tools/docs-constants.mjs) | CLAUDE.md states numeric claims about the code. When the code changes and the doc doesn't (or vice versa), they drift — the §🔒.7 "99% vs 67%" incident (#3367). |
+| [`docs-constants.mjs`](../tools/docs-constants.mjs) | CLAUDE.md states numeric claims about the code. When the code changes and the doc doesn't (or vice versa), they drift — the §🔒.7 "99 % vs 67 %" incident (#3367). |
 | [`dsp-review-qwen.mjs`](../tools/dsp-review-qwen.mjs) | IDLE-TIME DSP REVIEW — the local model loops through DSP files proposing improvements: inefficiencies, logical problems, signal-flow violations, and concrete refactors. |
 | [`dual-clock-rate.mjs`](../tools/dual-clock-rate.mjs) | DIRECT device-vs-host rate, from the two clocks already in every raw file. |
 | [`ecg-apnea-correlate.mjs`](../tools/ecg-apnea-correlate.mjs) | Correlates every candidate in ECGDex's `apnea` block against the CPAP's OWN device-scored `residualAHI`, across the nights where both exist. |
@@ -101,6 +101,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
 | [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §3's done-when asks for "a written walk-through tracing ODI-4 → window → channel → envelope → raw.dat" that is CHECKABLE. |
 | [`motion-rho-vs-minrho.mjs`](../tools/motion-rho-vs-minrho.mjs) | is the shipped correlation proxy in the right range, on the right nights? |
+| [`mutate-recover.mjs`](../tools/mutate-recover.mjs) | ONE DEFINITION OF THE RECOVERY, imported by `mutate.mjs` AND `mutation-crawl.mjs`. |
 | [`mutate-triage.mjs`](../tools/mutate-triage.mjs) | `tools/mutate.mjs` answers "what fraction of mutants does the suite kill?". |
 | [`mutate.mjs`](../tools/mutate.mjs) | This repo's central anxiety is the hollow gate: an assertion that passes, is quoted as evidence, and could never have failed. |
 | [`mutation-adoption-delta.mjs`](../tools/mutation-adoption-delta.mjs) | // // mutation-adoption-delta.mjs — did adopting those drafts actually KILL anything? |
@@ -248,4 +249,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`withdraw-fragment-verdict.mjs`](../tools/withdraw-fragment-verdict.mjs) | WITHDRAW A VERDICT THAT JUDGED A FRAGMENT, WITH ITS REASON RECORDED |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |
+| [`xerj-bench.mjs`](../tools/xerj-bench.mjs) | node tools/xerj-bench.mjs --harvest # rebuild the query set from merged PR bodies node tools/xerj-bench.mjs # score (uses the committed query set) node tools/xerj-bench.mjs --json # one… |
+| [`xerj-load.mjs`](../tools/xerj-load.mjs) | node tools/xerj-load.mjs # load every eligible file (idempotent) node tools/xerj-load.mjs --limit 50 # a slice, for a probe node tools/xerj-load.mjs --dry-run # count and classify, write… |
+| [`xerj-query.mjs`](../tools/xerj-query.mjs) | node tools/doc-search.mjs --hybrid "<question>" # the intended entry point node tools/xerj-query.mjs "<question>" # the same, standalone node tools/xerj-query.mjs --selftest |
 | [`xss-sink-gate.mjs`](../tools/xss-sink-gate.mjs) | #3318/#3343 fixed XSS sinks by routing all untrusted strings through the canonical escaper (dex-escape.js: escapeHTML). |

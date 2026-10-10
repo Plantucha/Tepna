@@ -7924,6 +7924,122 @@
       }
     });
 
+    /* Gap semantics matrix (2026-10-08): complete, internal, leading, trailing,
+       boundary, and threshold-changing gaps. */
+    group('§∅ · OxyDex — gap semantics matrix', 'oxydex-dsp · absence · desat · gap-matrix', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      function run(spo2, minSec) {
+        return det(spo2, { dropPct: 4, exitPct: 1, minSec: minSec == null ? 5 : minSec });
+      }
+      function seq() {
+        var a = [];
+        for (var i = 0; i < arguments.length; i++) {
+          var spec = arguments[i];
+          for (var j = 0; j < spec[1]; j++) a.push(spec[0]);
+        }
+        return a;
+      }
+
+      // Complete observation: no gaps → hasGap false, missingSec 0
+      var ev1 = run(seq([97, 10], [90, 12], [97, 10]));
+      T.eq('complete: one event', ev1.length, 1);
+      T.eq('complete: hasGap false', ev1.length ? ev1[0].hasGap : null, false);
+      T.eq('complete: missingSec 0', ev1.length ? ev1[0].missingSec : null, 0);
+
+      // Internal gap: retained with explicit indicator
+      var ev2 = run(seq([97, 10], [90, 6], [null, 4], [90, 6], [97, 10]));
+      T.eq('internal gap: one event (retained)', ev2.length, 1);
+      T.eq('internal gap: hasGap true', ev2.length ? ev2[0].hasGap : null, true);
+      T.eq('internal gap: durationSec excludes gap', ev2.length ? ev2[0].durationSec : null, 12);
+
+      // Leading gap: nulls before event start do not create hasGap
+      var ev3 = run(seq([null, 5], [97, 10], [90, 12], [97, 10]));
+      T.eq('leading gap: one event', ev3.length, 1);
+      T.eq('leading gap: hasGap false (gap outside event)', ev3.length ? ev3[0].hasGap : null, false);
+
+      // Trailing gap: nulls after event end do not create hasGap
+      var ev4 = run(seq([97, 10], [90, 12], [97, 10], [null, 5]));
+      T.eq('trailing gap: one event', ev4.length, 1);
+      T.eq('trailing gap: hasGap false (gap outside event)', ev4.length ? ev4[0].hasGap : null, false);
+
+      // Threshold: 12s span, 5 missing → 7s measured < 10s minSec → rejected
+      var ev5 = run(seq([97, 10], [90, 4], [null, 5], [90, 3], [97, 10]), 10);
+      T.eq('threshold gap: event rejected (7s measured < 10s minSec)', ev5.length, 0);
+
+      // Threshold: 12s span, 2 missing → 10s measured ≥ 10s minSec → accepted with gap
+      var ev6 = run(seq([97, 10], [90, 5], [null, 2], [90, 5], [97, 10]), 10);
+      T.eq('threshold gap: event accepted (10s measured ≥ 10s minSec)', ev6.length, 1);
+      T.eq('threshold gap: hasGap true', ev6.length ? ev6[0].hasGap : null, true);
+
+      // Boundary: gap at event start (first 3 samples missing, then 9 measured)
+      // The event starts at the first MEASURED sample; leading nulls are outside.
+      var ev7 = run(seq([97, 10], [null, 3], [90, 9], [97, 10]));
+      T.eq('boundary gap (start): one event', ev7.length, 1);
+      T.eq('boundary gap (start): hasGap false (gap before evStart)', ev7.length ? ev7[0].hasGap : null, false);
+      T.eq('boundary gap (start): durationSec is 9 measured', ev7.length ? ev7[0].durationSec : null, 9);
+
+      // Boundary: gap at event end (9 measured, then 3 missing before recovery)
+      // The trailing nulls ARE inside the event (event hasn't closed yet).
+      var ev8 = run(seq([97, 10], [90, 9], [null, 3], [97, 10]));
+      T.eq('boundary gap (end): one event', ev8.length, 1);
+      T.eq('boundary gap (end): hasGap true', ev8.length ? ev8[0].hasGap : null, true);
+    });
+
+    /* GanglioR export: hasGap/missingSec survive serialization (2026-10-08).
+       The meta object must carry explicit true/false (not undefined) and
+       preserve missingSec. Legacy events without the fields get hasGap=false
+       (backward compatible) and missingSec=null. */
+    group('§∅ · OxyDex — hasGap reaches the GanglioR event export', 'oxydex-dsp · absence · desat · export', function (T) {
+      var OD = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      if (!OD || typeof OD.buildGangliorEvents !== 'function') {
+        T.skip('OxyDex.buildGangliorEvents', 'not exposed');
+        return;
+      }
+      function runExport(desatEvent) {
+        var night = {
+          t0Ms: 1000000,
+          stats: { n: 3600, durationMin: 60 },
+          desat: { events: [desatEvent] }
+        };
+        var out = OD.buildGangliorEvents([night]);
+        var ev = out.filter(function (e) {
+          return e.impulse === 'desat_event';
+        })[0];
+        return ev ? ev.meta : null;
+      }
+      function mkEvent(hasGap, missingSec) {
+        var d = {
+          nadirIdx: 100,
+          tMs: 1100000,
+          depth: 5.2,
+          duration: 20,
+          recovery: 30,
+          nadir: 90,
+          startTMs: 1000000,
+          endTMs: 1020000
+        };
+        if (hasGap !== undefined) d.hasGap = hasGap;
+        if (missingSec !== undefined) d.missingSec = missingSec;
+        return d;
+      }
+      var withGap = runExport(mkEvent(true, 5));
+      T.eq('export: hasGap true preserved', withGap && withGap.hasGap, true);
+      T.eq('export: missingSec preserved', withGap && withGap.missingSec, 5);
+
+      var noGap = runExport(mkEvent(false, 0));
+      T.eq('export: hasGap false preserved', noGap && noGap.hasGap, false);
+      T.eq('export: missingSec 0 preserved', noGap && noGap.missingSec, 0);
+
+      var legacy = runExport(mkEvent());
+      T.eq('export: legacy hasGap is null (unknown, not gap-free)', legacy && legacy.hasGap, null);
+      T.eq('export: legacy missingSec defaults to null', legacy && legacy.missingSec, null);
+    });
+
     group('Integrator consumes canonical measurement blocks — roadmap §8 (fail-closed, plant-backed)', 'integrator-dsp · measurement-block · provenance · roadmap-§8 · plant', function (T) {
       var OD = env.OxyDex;
       var NF = env.normalizeFile;
@@ -53377,7 +53493,30 @@
       var cB = PPG.correctRR(rrB, ttB);
       T.ok('the 2000 ms bradycardic baseline is within-range accepted (the ceiling must not over-reject)', cB.flags[10] === 0, 'flag10=' + cB.flags[10]);
       T.ok('impossible brady PPI (2500 ms / 24 bpm) is Malik-rejected by the 2000 ms ceiling, not the ectopy rule', cB.flags[20] === 1, 'flag20=' + cB.flags[20]);
-      T.approx('the range-rejected brady PPI is replaced by the local median (~2000), not kept at 2500', cB.nn[20], 2000, 10, 'nn20=' + cB.nn[20]);
+      /* 🔴 THE ASSERTION THAT USED TO SIT HERE READ `nn[20] ~= 2000` AND CALLED IT "replaced by the
+         local median, not kept at 2500". That label is FALSE about this code, and the fixture could
+         not tell: `correctRR` EXCLUDES a rejected interval (measured 2026-10-10 — nn is 39 long for
+         40 inputs, keptIdx.indexOf(20) === -1), so index 20 holds the interval that was rr[21], and
+         because every neighbour here is 2000, ANY index lands on 2000. It would have passed
+         identically whether the code replaced, excluded, or dropped three intervals. Muse caught it
+         (the edit stranded on rescue/2026-10-10-root-wip); these are its assertions, plus the
+         discriminating fixture the uniform one could not provide. */
+      T.eq('the rejected interval is EXCLUDED, not replaced — nn is one shorter than the input', cB.nn.length, rrB.length - 1);
+      T.ok('rejected input index 20 is absent from the kept-index mapping', cB.keptIdx.indexOf(20) === -1, 'keptIdx.indexOf(20)=' + cB.keptIdx.indexOf(20));
+      T.eq('flags stay INPUT-aligned — one entry per interval handed in, so flags[20] still names the rejected one', cB.flags.length, rrB.length);
+
+      /* ANTI-VACUITY — the same fixture with ONE neighbour broken, which is what makes the exclusion
+         observable at all. With rr[21] = 1900, reading THROUGH the mapping gives the real interval
+         and reading by raw index gives the shifted neighbour; on the uniform fixture above both
+         read 2000 and the difference is invisible. Values measured, not predicted. */
+      var rrS = rrB.slice();
+      var ttS = ttB.slice();
+      rrS[21] = 1900; // still in range, still inside the ectopy band of a 2000 ms baseline
+      var cS = PPG.correctRR(rrS, ttS);
+      T.eq('the ceiling still rejects 2500 when the next interval differs', cS.flags[20], 1);
+      T.eq('…and the differing neighbour is KEPT, not swept up with it', cS.flags[21], 0);
+      T.eq('through the mapping, the kept interval reads its OWN value', cS.nn[cS.keptIdx.indexOf(21)], 1900);
+      T.eq('…while the raw index reads the shifted neighbour — the off-by-one the old assertion could not see', cS.nn[21], 2000);
     });
 
     /* ════ PpgDex DFA-α1 box range — direct known-answer (deep-scout §EP-rest) ════

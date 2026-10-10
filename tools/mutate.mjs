@@ -105,6 +105,7 @@ import { execFileSync, execSync, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
+import { recoverStale } from './mutate-recover.mjs';
 import { createHash } from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -2407,59 +2408,9 @@ process.on('uncaughtException', (e) => {
   throw e;
 });
 
-/* RECOVER FIRST, ALWAYS. A previous run killed mid-mutation leaves `<file>.mutate-backup` beside a
-   mutated source. Restore it before doing anything, so the damage window closes on the next
-   invocation instead of waiting to be noticed in a diff — or worse, committed. */
-function recoverStale() {
-  let out = [];
-  const scan = (dir) => {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      if (e.isDirectory()) continue;
-      if (!e.name.endsWith('.mutate-backup')) continue;
-      const bak = join(dir, e.name),
-        target = bak.replace(/\.mutate-backup$/, '');
-      try {
-        writeFileSync(target, readFileSync(bak, 'utf8'));
-        rmSync(bak, { force: true });
-        out.push(target.replace(ROOT + '/', ''));
-      } catch {}
-    }
-  };
-  scan(ROOT);
-  /* Orphaned worker worktrees from a killed sweep. `dropPool()` cannot run when the process is
-     SIGKILLed or reaped by `timeout`, and each tree is a FULL checkout — 34 of them survived one
-     killed run here, ~2.4 GB. Reap any that no live process owns before starting. */
-  try {
-    for (const e of readdirSync(join(ROOT, '..'), { withFileTypes: true })) {
-      const m = e.name.match(/^\.mutate-w\d+-(\d+)$/);
-      if (!m) continue;
-      let alive = false;
-      try {
-        process.kill(+m[1], 0);
-        alive = true;
-      } catch {}
-      if (alive) continue;
-      const dir = join(ROOT, '..', e.name);
-      /* rmSync alone — workers are hard links now, so there is no worktree registration to remove
-         and removing a link cannot touch the repo's copy. `git worktree remove` is deliberately NOT
-         attempted first: it is the call that went D-state here, and reaching for it during RECOVERY
-         would wedge the very run trying to clean up after the last wedge.
-         A leftover from an OLD run predating this change is still a registered worktree; `git
-         worktree prune` below reaps that registration once the directory is gone. */
-      try {
-        rmSync(dir, { recursive: true, force: true });
-      } catch {}
-      out.push(e.name + ' (orphaned worker tree)');
-    }
-    /* Cheap, touches no working tree, and clears registrations left by pre-2026-08-13 runs. */
-    execFileSync('git', ['worktree', 'prune'], { cwd: ROOT, stdio: 'ignore' });
-  } catch {}
-  try {
-    scan(join(ROOT, 'tools'));
-  } catch {}
-  if (out.length) console.error('  ⚠ recovered ' + out.length + ' file(s) from a killed run: ' + out.join(', '));
-}
-recoverStale();
+/* The recovery lives in `tools/mutate-recover.mjs` so the CRAWL can call the same code at its own
+   startup. See that file for why a second copy was the wrong fix. */
+recoverStale(ROOT);
 
 if (has('--selftest')) process.exit(selftest());
 if (has('--verdict-sample')) {
