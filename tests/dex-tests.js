@@ -192,7 +192,7 @@
     var _bail = (function () {
       try {
         return typeof process !== 'undefined' && !!process.env && process.env.DEX_BAIL === '1';
-      } catch (e) {
+      } catch (_e) {
         return false;
       }
     })();
@@ -1322,7 +1322,7 @@
       var got = null;
       try {
         got = P.parsePPG(w2rows(600, true), {});
-      } catch (e) {
+      } catch (_e) {
         got = null;
       }
       T.ok('a dual-wavelength file parses at all (it used to throw)', !!got);
@@ -1335,7 +1335,7 @@
       var noComment = null;
       try {
         noComment = P.parsePPG(w2rows(600, false), {});
-      } catch (e) {
+      } catch (_e) {
         noComment = null;
       }
       T.ok('the 160 files WITHOUT a leading `#` comment parse identically to the 906 with one', !!noComment && !!got && noComment.ch[0].length === got.ch[0].length);
@@ -1357,14 +1357,14 @@
       var shifted = null;
       try {
         shifted = P.parsePPG(twoColRows('Phone timestamp;sensor timestamp [ns];channel 0;channel 1', ''), {});
-      } catch (e) {
+      } catch (_e) {
         shifted = null;
       }
       T.ok('a 2-column file with NO motion column is still REFUSED (a truncated 3-LED file must not vote with itself)', shifted === null);
       var truncVerity = null;
       try {
         truncVerity = P.parsePPG(twoColRows('Phone timestamp;sensor timestamp [ns];channel 0;channel 1;ambient', ';7'), {});
-      } catch (e) {
+      } catch (_e) {
         truncVerity = null;
       }
       T.ok('a 2-column file WITH ambient is still REFUSED (that is a truncated Verity, not a ring)', truncVerity === null);
@@ -6896,8 +6896,8 @@
         );
         var ids = [];
         var re = /(^|[^A-Za-z0-9_$.'"])([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{\s*label\s*:/g;
-        var m;
-        while ((m = re.exec(regS)) !== null) if (ids.indexOf(m[2]) === -1) ids.push(m[2]);
+        var _m;
+        for (const m of regS.matchAll(re)) if (ids.indexOf(m[2]) === -1) ids.push(m[2]);
         totalIds += ids.length;
         var undeclared = ids.filter(function (id) {
           var emitted = new RegExp('(^|[^A-Za-z0-9_$])' + id + '\\s*:|\\.' + id + '\\b|[\'"`]' + id + '[\'"`]').test(body);
@@ -7515,14 +7515,21 @@
           desat: { events: [desatEvent] }
         };
         var out = OD.buildGangliorEvents([night]);
-        var ev = out.filter(function (e) { return e.impulse === 'desat_event'; })[0];
+        var ev = out.filter(function (e) {
+          return e.impulse === 'desat_event';
+        })[0];
         return ev ? ev.meta : null;
       }
       function mkEvent(hasGap, missingSec) {
         var d = {
-          nadirIdx: 100, tMs: 1100000,
-          depth: 5.2, duration: 20, recovery: 30, nadir: 90,
-          startTMs: 1000000, endTMs: 1020000
+          nadirIdx: 100,
+          tMs: 1100000,
+          depth: 5.2,
+          duration: 20,
+          recovery: 30,
+          nadir: 90,
+          startTMs: 1000000,
+          endTMs: 1020000
         };
         if (hasGap !== undefined) d.hasGap = hasGap;
         if (missingSec !== undefined) d.missingSec = missingSec;
@@ -7594,7 +7601,7 @@
         var src = '';
         try {
           src = require('fs').readFileSync('oxydex-dsp.js', 'utf8');
-        } catch (e) {}
+        } catch (_e) {}
         T.ok('source tracks window positions (winIdx)', /winIdx\.push\(i \/ 12\)/.test(src));
         T.ok('source checks adjacency (position diff === 1)', /winIdx\[i\] - winIdx\[i - 1\] === 1/.test(src));
       } else {
@@ -7832,10 +7839,10 @@
       var holed = rows(function (i) {
         return i >= 900 && i < 960 ? { spo2: null, hr: null } : { spo2: 96, hr: 70 };
       });
-      var sp = flat.map(function (r) {
+      var _sp = flat.map(function (r) {
         return r.spo2;
       });
-      var spH = holed.map(function (r) {
+      var _spH = holed.map(function (r) {
         return r.spo2;
       });
 
@@ -9382,7 +9389,8 @@
           posted = [];
         var doc = {
           getElementById: function (id) {
-            return els[id] || (els[id] = mk());
+            if (!els[id]) els[id] = mk();
+            return els[id];
           },
           querySelector: function () {
             return mk();
@@ -10776,7 +10784,7 @@
       var claim = null;
       var reIndep = /independent\s*\u2713/g,
         _m;
-      while ((_m = reIndep.exec(page)) !== null) {
+      for (const _m of page.matchAll(reIndep)) {
         var before = page.slice(Math.max(0, _m.index - 40), _m.index);
         if (!/\b(No|no|never|not|none|NOT)\b/.test(before)) claim = page.slice(Math.max(0, _m.index - 40), _m.index + 30);
       }
@@ -12230,7 +12238,7 @@
     });
 
     group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
-      var E = env.ECGDex,
+      var _E = env.ECGDex,
         P = env.PpgDex;
       var eqP = env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input;
       var checked = 0;
@@ -13901,8 +13909,8 @@
       for (var i = 0; i < names.length; i++) {
         var t = docs[names[i]];
         var re = /<div class="mc"([^>]*)>/g,
-          m;
-        while ((m = re.exec(t))) {
+          _m;
+        for (const m of t.matchAll(re)) {
           cards++;
           var attrs = m[1];
           var tm = /data-tier="([^"]+)"/.exec(attrs);
@@ -13957,9 +13965,9 @@
         var want = { '.ev': 1, '.ev-corner': 1 };
         want['.ev-' + tier] = 1;
         var re = /([^{}]+)\{([^{}]*)\}/g,
-          m,
+          _m,
           props = {};
-        while ((m = re.exec(clean))) {
+        for (const m of clean.matchAll(re)) {
           var sels = m[1].split(',').map(function (s) {
             return s.trim();
           });
@@ -14318,7 +14326,7 @@
           var m = { exports: {} };
           new Function('module', src['dex-escape.js'])(m);
           esc = m.exports.escapeHTML;
-        } catch (e) {
+        } catch (_e) {
           /* esc stays null → reds below */
         }
       }
@@ -14505,7 +14513,7 @@
           var mf = { exports: {} };
           new Function('module', src['dex-forget.js'])(mf);
           DexForget = mf.exports;
-        } catch (e) {
+        } catch (_e) {
           /* stays null → reds below */
         }
       }
@@ -14567,12 +14575,12 @@
         // (c) INVENTORY DRIFT-GUARD — every localStorage key the app sources touch is in the erase set.
         var KEY_RE = /\.(?:get|set|remove)Item\(\s*['"]([a-z0-9_]+)['"]/gi,
           missing = {},
-          mm;
+          _mm;
         Object.keys(src).forEach(function (n) {
           var body = src[n];
           if (!body) return;
           KEY_RE.lastIndex = 0;
-          while ((mm = KEY_RE.exec(body))) {
+          for (const mm of body.matchAll(KEY_RE)) {
             if (DexForget.LOCAL_KEYS.indexOf(mm[1]) < 0 && (DexForget.ANALYSIS_KEYS || []).indexOf(mm[1]) < 0) missing[mm[1]] = n;
           }
         });
@@ -14619,7 +14627,7 @@
         } finally {
           try {
             P._setStore();
-          } catch (e) {}
+          } catch (_e) {}
         }
       }
       // (e) SOURCE-MIRROR — the fixes are present, not silently reverted.
@@ -14994,7 +15002,7 @@
         var re = null;
         try {
           re = eval(m[1]);
-        } catch (e) {
+        } catch (_e) {
           re = null;
         }
         T.ok('PY_NO_TIMEOUT regex compiles', !!re, m[1].slice(0, 80));
@@ -15071,22 +15079,22 @@
 
       /* ── the emitted set, read off the writer ── */
       var emitted = {};
-      var m;
+      var _m;
       var reCall = /capture_filename\([^)]*?,\s*"([a-z0-9]+)"\s*,\s*"([a-z]+)"\s*\)/g;
-      while ((m = reCall.exec(cap))) emitted[m[1].toUpperCase() + '.' + m[2]] = 'capture_filename call site';
+      for (const m of cap.matchAll(reCall)) emitted[m[1].toUpperCase() + '.' + m[2]] = 'capture_filename call site';
       var reW = /\bw\("([a-z0-9]+)"(?:,\s*"([a-z]+)")?\)/g;
-      while ((m = reW.exec(cap))) emitted[m[1].toUpperCase() + '.' + (m[2] || 'txt')] = 'w() call site';
+      for (const m of cap.matchAll(reW)) emitted[m[1].toUpperCase() + '.' + (m[2] || 'txt')] = 'w() call site';
       var measOf = /meas_of = \{([^}]*)\}/.exec(cap);
       T.ok('capture.py still declares the generic `meas_of` stream map', !!measOf, 'the generic Polar streams are opened through it — if it moved, the emitted set lost them');
       var reKey = /"([a-z0-9]+)":/g;
-      if (measOf) while ((m = reKey.exec(measOf[1]))) emitted[m[1].toUpperCase() + '.txt'] = 'meas_of';
+      if (measOf) for (const m of measOf[1].matchAll(reKey)) emitted[m[1].toUpperCase() + '.txt'] = 'meas_of';
       var headers = /HEADERS = \{([\s\S]*?)\n {4}\}/.exec(wr);
       T.ok('writers.py still declares `StreamWriter.HEADERS`', !!headers, 'the tags a StreamWriter can be opened on — if it moved, the emitted set lost them');
       var reHdr = /^\s*"([a-z0-9]+)":/gm;
-      if (headers) while ((m = reHdr.exec(headers[1]))) emitted[m[1].toUpperCase() + '.txt'] = 'StreamWriter.HEADERS';
+      if (headers) for (const m of headers[1].matchAll(reHdr)) emitted[m[1].toUpperCase() + '.txt'] = 'StreamWriter.HEADERS';
       var reF = /_([A-Z0-9]+)\.(csv|txt|dat)"/g;
       [cap, pull].forEach(function (t) {
-        while ((m = reF.exec(t))) emitted[m[1] + '.' + m[2]] = 'f-string sidecar';
+        for (const m of t.matchAll(reF)) emitted[m[1] + '.' + m[2]] = 'f-string sidecar';
       });
       /* ── THE SIDECAR FAMILY IS DERIVED BY RULE, SO THE EMITTED SET MUST BE TOO ─────────────────
          `writers.py` builds a validity/seam sidecar's name from the stream file's own name — the
@@ -15134,9 +15142,9 @@
             .split('\n')
             .forEach(function (line, i) {
               if (!CMP.test(line)) return;
-              var t;
+              var _t;
               reTag.lastIndex = 0;
-              while ((t = reTag.exec(line))) {
+              for (const t of line.matchAll(reTag)) {
                 var tag = t[1],
                   key = tag.toUpperCase() + '.' + t[2],
                   where = f + ':' + (i + 1) + ' `' + t[0] + '`';
@@ -15336,7 +15344,7 @@
       var fired = false;
       try {
         new Function(planted);
-      } catch (e) {
+      } catch (_e) {
         fired = true;
       }
       T.ok(
@@ -15662,8 +15670,8 @@
         var found = {};
         Object.keys(S).forEach(function (f) {
           var re = /(?:new\s+Worker|__mkWorker|mkWorker)\s*\(\s*['"`]([^'"`]+)/g,
-            m;
-          while ((m = re.exec(S[f] || ''))) if (Object.prototype.hasOwnProperty.call(S, m[1])) found[m[1]] = true;
+            _m;
+          for (const m of (S[f] || '').matchAll(re)) if (Object.prototype.hasOwnProperty.call(S, m[1])) found[m[1]] = true;
         });
         return Object.keys(found).sort();
       };
@@ -15733,14 +15741,15 @@
       };
       var payloadKeyTypes = function (prodText) {
         var map = {},
-          m;
+          _m;
         var add = function (k, ty) {
           if (!k || k === 'type' || !ty) return;
-          (map[k] = map[k] || {})[ty] = true;
+          if (!map[k]) map[k] = {};
+          map[k][ty] = true;
         };
         /* inline postMessage({ type:'T', … }) */
         var POST = /postMessage\s*\(\s*\{/g;
-        while ((m = POST.exec(prodText))) {
+        for (const m of prodText.matchAll(POST)) {
           var b = prodText.indexOf('{', m.index),
             ty = typeOfPayload(prodText, b),
             kk = {};
@@ -15751,7 +15760,7 @@
         }
         /* a named `var out = { … }`: its own `type:`, else the type of the post site that nests it */
         var LIT = /\bvar\s+out\s*=\s*\{/g;
-        while ((m = LIT.exec(prodText))) {
+        for (const m of prodText.matchAll(LIT)) {
           var lb = prodText.indexOf('{', m.index),
             own = typeOfPayload(prodText, lb),
             kk2 = {};
@@ -15760,8 +15769,8 @@
           var ty2 = own;
           if (!ty2) {
             var P2 = /postMessage\s*\(\s*\{/g,
-              pm;
-            while ((pm = P2.exec(prodText))) {
+              _pm;
+            for (const pm of prodText.matchAll(P2)) {
               var pb = prodText.indexOf('{', pm.index),
                 pty = typeOfPayload(prodText, pb);
               if (pty && /\w+\s*:\s*res\b/.test(prodText.slice(pb, pb + 200))) ty2 = pty;
@@ -15774,7 +15783,7 @@
         /* `out.X =` assignments join whichever named payload this producer has */
         var ASSIGN2 = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
         var anyTy = Object.keys(map).length ? Object.keys(map[Object.keys(map)[0]])[0] : null;
-        while ((m = ASSIGN2.exec(prodText))) add(m[1], anyTy);
+        for (const m of prodText.matchAll(ASSIGN2)) add(m[1], anyTy);
         return map;
       };
       /* A consumer's `onmessage` bodies, split into the regions each message type guards. Both idioms:
@@ -15783,40 +15792,46 @@
       var handlerRegions = function (text) {
         var R = {},
           outside = text,
-          m;
+          _m;
         var H = /onmessage\s*=\s*(?:function\s*)?\([^)]*\)\s*(?:=>\s*)?\{/g;
-        while ((m = H.exec(text))) {
+        for (const m of text.matchAll(H)) {
           var b = text.indexOf('{', m.index),
             e = _braceEnd(text, b);
           if (e < 0) continue;
           var body = text.slice(b + 1, e);
           outside = outside.split(body).join('');
-          var g;
+          var _g;
           var GUARD_NE = /\bm\.type\s*!==\s*'(\w+)'\s*\)\s*return\s*;/g;
-          while ((g = GUARD_NE.exec(body))) (R[g[1]] = R[g[1]] || []).push(body.slice(g.index));
+          for (const g of body.matchAll(GUARD_NE)) {
+            if (!R[g[1]]) R[g[1]] = [];
+            R[g[1]].push(body.slice(g.index));
+          }
           var GUARD_EQ = /\bm\.type\s*===\s*'(\w+)'\s*\)\s*\{/g;
-          while ((g = GUARD_EQ.exec(body))) {
+          for (const g of body.matchAll(GUARD_EQ)) {
             var gb = body.indexOf('{', g.index),
               ge = _braceEnd(body, gb);
-            if (ge > 0) (R[g[1]] = R[g[1]] || []).push(body.slice(gb, ge));
+            if (ge > 0) {
+              if (!R[g[1]]) R[g[1]] = [];
+              R[g[1]].push(body.slice(gb, ge));
+            }
           }
         }
         return { regions: R, outside: outside };
       };
       var payloadKeys = function (prodText) {
         var found = {},
-          m;
+          _m;
         /* THIRD IDIOM (2026-09-27): an inline `postMessage({ … })` literal. Two producers build no named
            payload object at all — `qrs-equiv-worker.js` and `qrs-yield-worker.js` post their results
            directly — so before this they could not be declared and were carried as EXCLUDED with a reason.
            Depth-1 only, and only on a `postMessage(` call, which is what keeps this from admitting every
            object literal in the file (the breadth failure mode the derived-consumer work turned on). */
         var POST = /postMessage\s*\(\s*\{/g;
-        while ((m = POST.exec(prodText))) litKeysAt(prodText, prodText.indexOf('{', m.index), found);
+        for (const m of prodText.matchAll(POST)) litKeysAt(prodText, prodText.indexOf('{', m.index), found);
         var ASSIGN = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
-        while ((m = ASSIGN.exec(prodText))) found[m[1]] = true;
+        for (const m of prodText.matchAll(ASSIGN)) found[m[1]] = true;
         var LIT = /\bvar\s+out\s*=\s*\{/g;
-        while ((m = LIT.exec(prodText))) {
+        for (const m of prodText.matchAll(LIT)) {
           var i = prodText.indexOf('{', m.index),
             depth = 0,
             end = -1;
@@ -16219,14 +16234,14 @@
         T.ok(node + ' · inlined sources were actually read', files.length > 0 && html.length > 0, files.length + ' js file(s), ' + html.length + ' bytes of surface');
         var ids = {};
         var idRe = /id="([^"]+)"/g,
-          im;
-        while ((im = idRe.exec(html))) ids[im[1]] = true;
+          _im;
+        for (const im of html.matchAll(idRe)) ids[im[1]] = true;
         var dead = [];
         files.forEach(function (f) {
           (js[f] || '').split('\n').forEach(function (line, i) {
             var re = /['"](lbl_[A-Za-z0-9_]+)['"]/g,
-              m;
-            while ((m = re.exec(line))) if (!ids[m[1]]) dead.push(f + ':' + (i + 1) + ' ' + m[1]);
+              _m;
+            for (const m of line.matchAll(re)) if (!ids[m[1]]) dead.push(f + ':' + (i + 1) + ' ' + m[1]);
           });
         });
         T.ok(
@@ -16260,8 +16275,8 @@
         //     `data-inline-src="…"` is never mistaken for a real external src.
         var extSrc = [];
         var tagRe = /<script\b([^>]*)>/gi,
-          m;
-        while ((m = tagRe.exec(html))) {
+          _m;
+        for (const m of html.matchAll(tagRe)) {
           var attrs = m[1];
           if (/\bdata-inline-src=/i.test(attrs)) continue; // inline block, fine
           var sm = attrs.match(/\bsrc="([^"]+)"/i);
@@ -19070,8 +19085,8 @@
       /* ── the CAP half: a record with no outlier must be UNCHANGED. `min` guarantees it exactly, so
             this is an equality, not a tolerance — and it is what makes the fix safe to ship without
             re-recording every clean fixture. */
-      var ref = 0;
-      for (var k2 = 0; k2 < cleanPeaks.length; k2++) ref += cleanPeaks[k2];
+      var _ref = 0;
+      for (var k2 = 0; k2 < cleanPeaks.length; k2++) _ref += cleanPeaks[k2];
       var spikedNear = spikedPeaks.filter(function (i3) {
         return Math.abs(i3 - artefactAt) > FS;
       });
@@ -19442,7 +19457,8 @@
       var by = {};
       for (var i2 = 0; i2 < eps.length; i2++) {
         var pst = planted(eps[i2].tMin * 60 + 150);
-        (by[pst] = by[pst] || []).push(eps[i2].respCv);
+        if (!by[pst]) by[pst] = [];
+        by[pst].push(eps[i2].respCv);
       }
       function medOf(a) {
         var v = a
@@ -19892,8 +19908,8 @@
       var block = rnd.slice(rnd.indexOf('const TABLE_COLS = ['), rnd.indexOf('\n];', rnd.indexOf('const TABLE_COLS = [')));
       var cols = [],
         objRe = /\{\s*key:\s*'([^']*)'\s*,\s*label:\s*'((?:[^'\\]|\\.)*)'/g,
-        mm;
-      while ((mm = objRe.exec(block))) cols.push({ key: mm[1], label: mm[2] });
+        _mm;
+      for (const mm of block.matchAll(objRe)) cols.push({ key: mm[1], label: mm[2] });
       T.ok('TABLE_COLS parsed from source (≥ 40 columns)', cols.length >= 40, cols.length + ' columns');
 
       // (J) the six removed cuffless-BP producers must have NO surviving TABLE_COLS entry.
@@ -21269,8 +21285,8 @@
       // ── derive: which keyframes start from opacity:0? ──
       var haz = [];
       var kfRe = /@keyframes\s+([\w-]+)\s*\{/g,
-        m;
-      while ((m = kfRe.exec(css))) {
+        _m;
+      for (const m of css.matchAll(kfRe)) {
         var name = m[1],
           i = m.index + m[0].length,
           depth = 1,
@@ -21288,8 +21304,8 @@
       // ── derive: which selectors consume them? ──
       var need = [];
       var ruleRe = /([^{}]+)\{([^{}]*)\}/g,
-        r;
-      while ((r = ruleRe.exec(css))) {
+        _r;
+      for (const r of css.matchAll(ruleRe)) {
         var sel = r[1].trim(),
           body = r[2];
         var am = /animation\s*:\s*([^;]+)/.exec(body);
@@ -21339,8 +21355,8 @@
         .join('');
       var guarded = {};
       var gRe = /([^{}]+)\{[^{}]*\}/g,
-        gm;
-      while ((gm = gRe.exec(joined))) {
+        _gm;
+      for (const gm of joined.matchAll(gRe)) {
         gm[1].split(',').forEach(function (one) {
           var t = one.trim();
           if (t) guarded[t] = true;
@@ -21501,8 +21517,8 @@
       var graded = {};
       var starts = [],
         reStart = /^ {4}(\w+)\s*:\s*\{/gm,
-        sm;
-      while ((sm = reStart.exec(feBlock))) starts.push({ name: sm[1], at: sm.index });
+        _sm;
+      for (const sm of feBlock.matchAll(reStart)) starts.push({ name: sm[1], at: sm.index });
       starts.forEach(function (s, i) {
         var body = feBlock.slice(s.at, i + 1 < starts.length ? starts[i + 1].at : feBlock.length);
         var ev = /evidence:\s*'(\w+)'/.exec(body);
@@ -23005,7 +23021,7 @@
         var gotP = null;
         try {
           gotP = legs.ppg(eqGap.input);
-        } catch (e) {
+        } catch (_e) {
           gotP = null;
         }
         T.ok('ANTI-VACUITY · the PPG leg finds feet at all', !!(gotP && gotP.n > 20), 'n=' + (gotP && gotP.n));
@@ -23410,7 +23426,7 @@
       try {
         // Reconstructed the way the Worker gets it: the function TEXT, evaluated with nothing else.
         standalone = new Function('return (' + scanText + ')')();
-      } catch (e) {
+      } catch (_e) {
         standalone = null;
       }
       T.ok('the scan text evaluates and runs on its own (this is what the Worker does)', typeof standalone === 'function' && !!standalone(), standalone ? 'ok' : 'threw');
@@ -27099,7 +27115,7 @@
         var _threw = false;
         try {
           out = H.persistHRVRows();
-        } catch (e) {
+        } catch (_e) {
           _threw = true;
         }
         T.eq('H.persistHRVRows() with allRows null → {ok:true}, no throw (the || short-circuit; && evaluates .length on null)', JSON.stringify(!_threw && out && out.ok === true), 'true');
@@ -28672,7 +28688,7 @@
         threw = '';
       try {
         rc = D.analyze({ int16: clean, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: clean.length / fs }, function () {});
-      } catch (e) {
+      } catch (_e) {
         rc = null;
       }
       try {
@@ -28733,12 +28749,12 @@
         rd = null;
       try {
         rc = D.analyze({ int16: clean, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: clean.length / fs }, function () {});
-      } catch (e) {
+      } catch (_e) {
         rc = null;
       }
       try {
         rd = D.analyze({ int16: dirty, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: dirty.length / fs }, function () {});
-      } catch (e) {
+      } catch (_e) {
         rd = null;
       }
       T.ok('clean overnight analyzes (baseline)', !!rc && rc.nn.length > 100, rc ? rc.nn.length + ' beats' : 'threw');
@@ -28801,7 +28817,7 @@
       var rc = null;
       try {
         rc = D.analyze({ int16: clean, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: clean.length / fs }, function () {});
-      } catch (e) {
+      } catch (_e) {
         rc = null;
       }
       T.ok('clean 120 s clip analyzes (baseline)', !!rc && rc.nn.length > 100, rc ? rc.nn.length + ' beats' : 'threw');
@@ -28840,7 +28856,7 @@
       var rm = null;
       try {
         rm = D.analyze({ int16: mid, fs: fs, gaps: [], t0Ms: syn.t0Ms, durSec: mid.length / fs }, function () {});
-      } catch (e) {
+      } catch (_e) {
         rm = null;
       }
       if (rc && rm) {
@@ -29566,7 +29582,7 @@
             var _csEval = function (cs) {
               try {
                 return !!new Function('cs', 'return (' + _csGuard[1] + ');')(cs);
-              } catch (e) {
+              } catch (_e) {
                 return null;
               }
             };
@@ -29694,8 +29710,8 @@
     // fusion recs directly, plus a source check that the adapters populate the three fields it reads.
     group('Integrator pulse cross-check: finger waveform vs the ring 1 Hz field (OXYDEX-PULSE-RESOURCING §Phase 2)', 'integrator-dsp · oxydex · ppgdex', function (T) {
       var F = env.fusePulseCrossCheck,
-        BFE = env.buildFusionExport,
-        RF = env.runFusion;
+        _BFE = env.buildFusionExport,
+        _RF = env.runFusion;
       if (typeof F !== 'function') {
         T.ok('fusePulseCrossCheck exposed', false, 'export it from integrator-dsp.js + wire into both runners');
         return;
@@ -33539,7 +33555,7 @@
           SF = env.SignalFrame,
           ORCH = env.SignalOrchestrate,
           ECD = env.ECGDSP,
-          PG = env.PpgDex,
+          _PG = env.PpgDex,
           SY = env.SYNTH;
         if (!(SA && SF && ORCH && typeof ORCH.pairCompanions === 'function')) {
           T.ok('SignalAdapters + SignalFrame + SignalOrchestrate.pairCompanions co-loaded', false, 'load signal-orchestrate.js into both runners');
@@ -33979,7 +33995,7 @@
       if (m) {
         try {
           fnameStampMs = new Function('return (' + m[0] + ');')();
-        } catch (e) {
+        } catch (_e) {
           /* stays null → reds below */
         }
       }
@@ -34827,7 +34843,7 @@
             return !/^[0-9a-f]{12}$/.test((b.bundles[k] || {}).manifestHash || '');
           });
           T.ok('every BUILD-MANIFEST bundle has a 12-hex manifestHash', bad.length === 0, bad.join(', '));
-        } catch (e) {}
+        } catch (_e) {}
       }
       if (M['FIXTURE-PROVENANCE.json']) {
         try {
@@ -34857,7 +34873,7 @@
             return k.charAt(0) !== '_' && fxs[k] && fxs[k].buildHash != null;
           });
           T.ok('no FIXTURE-PROVENANCE record carries a (retired) buildHash field', withBuild.length === 0, withBuild.join(', '));
-        } catch (e) {}
+        } catch (_e) {}
       }
 
       /* GATE-LIVE-RUNNABILITY §3 (+ FOLLOWUPS §4) — gate-back verify-provenance.html's parse-failure
@@ -34914,7 +34930,7 @@
         nodes = Object.keys(bm.bundles || {}).map(function (k) {
           return k.replace(/\.html$/, '');
         });
-      } catch (e) {}
+      } catch (_e) {}
       T.ok('derived the shipped fleet from BUILD-MANIFEST.json', nodes.length >= 7, nodes.join(', '));
       var missing = nodes.filter(function (n) {
         return orient.indexOf(n) < 0;
@@ -34956,16 +34972,16 @@
         // Pattern 1 — a full 'uploads/<path>' string literal (Integrator bindSamples). The bare
         // 'uploads/' concat prefix has an empty capture and is correctly skipped ([^'"]+ needs ≥1 char).
         var reLit = /['"]uploads\/([^'"]+)['"]/g,
-          m;
-        while ((m = reLit.exec(text))) {
+          _m;
+        for (const m of text.matchAll(reLit)) {
           if (m[1]) refs['uploads/' + m[1]] = true;
         }
         // Pattern 2 — prefix-concat demo (CPAPDex): ARRAY.forEach(function(name){ … fetch('uploads/'+name) }).
         // Resolve the array identifier via its forEach param, then each string element is uploads/<el>.
         var reConcat = /([A-Za-z_$][\w$]*)\.forEach\(\s*function\s*\(\s*(\w+)\s*\)\s*\{[\s\S]*?fetch\(\s*['"]uploads\/['"]\s*\+\s*\2\b/g,
-          mc,
+          _mc,
           concatSeen = 0;
-        while ((mc = reConcat.exec(text))) {
+        for (const mc of text.matchAll(reConcat)) {
           concatSeen++;
           var arrName = mc[1];
           var am = new RegExp('\\b' + arrName + '\\s*=\\s*\\[([\\s\\S]*?)\\]').exec(text);
@@ -35088,8 +35104,8 @@
       var steps = [],
         informational = [];
       var sre = /-\s*name:\s*([^\n]+)\n\s*run:\s*(node\s+(?:tools|tests)\/[\w.-]+\.mjs(?:\s+--[\w-]+)?)/g,
-        sm;
-      while ((sm = sre.exec(job))) {
+        _sm;
+      for (const sm of job.matchAll(sre)) {
         var cmd = sm[2].replace(/\s+/g, ' ').trim();
         if (/informational/i.test(sm[1])) informational.push(cmd);
         else steps.push(cmd);
@@ -35416,7 +35432,7 @@
       var threw = false;
       try {
         CR.tabulate(['1000']);
-      } catch (e) {
+      } catch (_e) {
         threw = true;
       }
       T.ok('a non-3-source history is rejected outright rather than silently ignored', threw);
@@ -36533,8 +36549,8 @@
       var routedOrphans = [];
       Object.keys(DL.briefs).forEach(function (src) {
         var re = /ROUTED[^\n]{0,120}?`([A-Za-z0-9][A-Za-z0-9._-]+\.md)`([^\n]{0,40})/g;
-        var m;
-        while ((m = re.exec(DL.briefs[src]))) {
+        var _m;
+        for (const m of DL.briefs[src].matchAll(re)) {
           var tgt = m[1],
             tail = m[2] || '';
           if (!DL.briefs[tgt]) {
@@ -36611,8 +36627,8 @@
           var out = [];
           Object.keys(briefs).forEach(function (src) {
             var re = /ROUTED[^\n]{0,120}?`([A-Za-z0-9][A-Za-z0-9._-]+\.md)`([^\n]{0,40})/g,
-              m;
-            while ((m = re.exec(briefs[src]))) {
+              _m;
+            for (const m of briefs[src].matchAll(re)) {
               var tgt = m[1],
                 tail = m[2] || '';
               if (!briefs[tgt]) {
@@ -36688,16 +36704,16 @@
       var _scan = function (t) {
         var o = {},
           c = {},
-          mm2,
-          ss;
+          _mm2,
+          _ss;
         var orRe = /Still open:/gi;
-        while ((mm2 = orRe.exec(t)) !== null) {
+        for (const mm2 of t.matchAll(orRe)) {
           var seg = _openSeg(t, mm2.index + mm2[0].length);
           var inn = /§\s*(\d+[a-z]?(?:\.\d+)*)/g;
-          while ((ss = inn.exec(seg)) !== null) if (!_partial.test(seg.slice(Math.max(0, ss.index - 30), ss.index + ss[0].length + 30))) o[ss[1]] = true;
+          for (const ss of seg.matchAll(inn)) if (!_partial.test(seg.slice(Math.max(0, ss.index - 30), ss.index + ss[0].length + 30))) o[ss[1]] = true;
         }
         var crRe = /§\s*(\d+[a-z]?(?:\.\d+)*)\s*(?:[^\n§]{0,40}?)\b(CLOSED|DONE|ANSWERED|EXECUTED)\b/g;
-        while ((mm2 = crRe.exec(t)) !== null) {
+        for (const mm2 of t.matchAll(crRe)) {
           if (_partial.test(t.slice(Math.max(0, mm2.index - 40), mm2.index + mm2[0].length + 40))) continue;
           c[mm2[1]] = true;
         }
@@ -36733,9 +36749,9 @@
       // ── CHECK 4a · briefs-link integrity (the 2026-07-03 repoint guard) — resolve ](briefs/…) against the
       //    AUTHORITATIVE brief set (never the staleable path inventory), so this sharp guard stands alone. ──
       var linkRe = /\]\((briefs\/[^)]+)\)/g,
-        mm,
+        _mm,
         deadLinks = [];
-      while ((mm = linkRe.exec(indexText)) !== null) {
+      for (const mm of indexText.matchAll(linkRe)) {
         var dec = decodeURIComponent(mm[1].split('#')[0]).replace(/^briefs\//, '');
         if (!briefSet[dec]) deadLinks.push(mm[1]);
       }
@@ -36747,9 +36763,9 @@
       //    are ignored; %20 &c. decoded before lookup. ──
       function relLinkTargets(text) {
         var re = /\]\(([^)]+)\)/g,
-          m,
+          _m,
           out = [];
-        while ((m = re.exec(text)) !== null) {
+        for (const m of text.matchAll(re)) {
           var raw = m[1];
           if (!raw || raw.charAt(0) === '#') continue; // same-page anchor
           if (/^[a-zA-Z][a-zA-Z0-9+.\-]*:/.test(raw) || raw.slice(0, 2) === '//') continue; // scheme / protocol-relative → external
@@ -36757,7 +36773,7 @@
           var t = raw.split('#')[0].split('?')[0];
           try {
             t = decodeURIComponent(t);
-          } catch (e) {}
+          } catch (_e) {}
           t = t.replace(/^\.\//, '').replace(/\/+$/, '');
           if (t.charAt(0) === '/') t = t.slice(1);
           if (t !== '') out.push(t);
@@ -37286,8 +37302,8 @@
                above: a ROW reference appears bare, a FILE citation carries `changes/` or `.md`. */
             var refs = [];
             var REF_RE = /(changes\/)?\b(\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*)\b(\.md)?/g;
-            var mm;
-            while ((mm = REF_RE.exec(body)) !== null) {
+            var _mm;
+            for (const mm of body.matchAll(REF_RE)) {
               if (mm[1] || mm[3]) continue; // a changeset FILE citation, not a row→row reference
               refs.push(mm[2]);
             }
@@ -37984,9 +38000,9 @@
         checked = 0,
         unknown = [];
       C.surfaces.forEach(function (s) {
-        var m;
+        var _m;
         DOI_RE.lastIndex = 0;
-        while ((m = DOI_RE.exec(s.text))) {
+        for (const m of s.text.matchAll(DOI_RE)) {
           var doi = m[0].replace(/[.,;:]+$/, '');
           /* A DOI may contain balanced parens (10.1016/S1388-2457(03)00355-5); a TRAILING unbalanced
              ')' belongs to the sentence, not the DOI. Strip only the excess. */
@@ -38106,7 +38122,7 @@
       function parse(txt) {
         try {
           return JSON.parse(txt);
-        } catch (e) {
+        } catch (_e) {
           return null;
         }
       }
@@ -38294,7 +38310,7 @@
       var fp = {};
       try {
         fp = JSON.parse((env.manifests || {})['FIXTURE-PROVENANCE.json'] || '{}').fixtures || {};
-      } catch (e) {}
+      } catch (_e) {}
       function stripComments(s) {
         return String(s)
           .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -38406,9 +38422,9 @@
       var BADGED = /\bev\s+ev-|evBadge\s*\(|metricValue\s*\(|MetricRegistry\.badge\s*\(/;
       function bareValueTiles(text) {
         var re = /class="[^"]*\b(?:m-val|k-val|kpi-val|rs-val|q-val)\b[^"]*"/g,
-          m,
+          _m,
           n = 0;
-        while ((m = re.exec(text)) !== null) {
+        for (const m of text.matchAll(re)) {
           // window widened (was -260/+40) after the BIOME-FORMATTER whole-tree reflow (P4): the reflow
           // spaces out a tile's construction, so a badge leading OR trailing the value tile now sits
           // farther from the value class — still the same construction. Heuristic bound, not a theorem.
@@ -39757,10 +39773,10 @@
       // like `const WIN`/`let T` and false-flag them as unshipped module consts.
       var universe = {};
       var fRe = /^ {0,3}function\s+([A-Za-z_$][\w$]*)\s*\(/gm,
-        m;
-      while ((m = fRe.exec(src))) universe[m[1]] = 'function';
+        _m;
+      for (const m of src.matchAll(fRe)) universe[m[1]] = 'function';
       var cRe = /^ {0,3}(?:const|let|var)\s+([A-Z_][A-Z0-9_]*)\s*=/gm;
-      while ((m = cRe.exec(src))) universe[m[1]] = 'const';
+      for (const m of src.matchAll(cRe)) universe[m[1]] = 'const';
 
       // pull each shipped function's own source (balanced braces from its declaration)
       function bodyOf(name) {
@@ -39785,8 +39801,8 @@
         if (universe[dep] !== 'function') return; // consts have no body to scan
         var body = bodyOf(dep);
         var idRe = /\b([A-Za-z_$][\w$]*)\b/g,
-          im;
-        while ((im = idRe.exec(body))) {
+          _im;
+        for (const im of body.matchAll(idRe)) {
           var id = im[1];
           if (id === dep || shipped[id] || !universe[id]) continue;
           if (missing.indexOf(id + ' (' + universe[id] + ', referenced by ' + dep + ')') < 0) missing.push(id + ' (' + universe[id] + ', referenced by ' + dep + ')');
@@ -40035,10 +40051,10 @@
       function topLevelDefs(text) {
         var o = new Set(),
           re = /\bfunction\s+([A-Za-z_$][\w$]*)/g,
-          m;
-        while ((m = re.exec(text)) !== null) o.add(m[1]);
+          _m;
+        for (const m of text.matchAll(re)) o.add(m[1]);
         re = /^\s*(?:var|let|const)\s+([A-Za-z_$][\w$]*)/gm;
-        while ((m = re.exec(text)) !== null) o.add(m[1]);
+        for (const m of text.matchAll(re)) o.add(m[1]);
         return o;
       }
       var UTIL = src['oxydex-util.js'] ? topLevelDefs(scrub(src['oxydex-util.js'])) : new Set();
@@ -40052,17 +40068,17 @@
       };
       function analyze(f, raw) {
         var s = scrub(raw),
-          m,
+          _m,
           re;
         var defined = new Set();
         re = /\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/g;
-        while ((m = re.exec(s)) !== null) defined.add(m[1]);
+        for (const m of s.matchAll(re)) defined.add(m[1]);
         re = /([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/g;
-        while ((m = re.exec(s)) !== null) {
+        for (const m of s.matchAll(re)) {
           if (!KEYWORDS.has(m[1])) defined.add(m[1]);
         }
         re = /([A-Za-z_$][\w$]*)/g;
-        while ((m = re.exec(s)) !== null) {
+        for (const m of s.matchAll(re)) {
           var nm = m[1],
             i = m.index;
           if (i > 0 && s[i - 1] === '.') continue;
@@ -40071,7 +40087,7 @@
         }
         var called = new Set();
         re = /([A-Za-z_$][\w$]*)\s*\(/g;
-        while ((m = re.exec(s)) !== null) {
+        for (const m of s.matchAll(re)) {
           var nm2 = m[1],
             j = m.index,
             pv = j > 0 ? s[j - 1] : '';
@@ -40140,12 +40156,12 @@
       function sitemapPaths(xml) {
         var out = {},
           re = /<loc>([^<]+)<\/loc>/g,
-          m;
-        while ((m = re.exec(xml)) !== null) {
+          _m;
+        for (const m of xml.matchAll(re)) {
           var p = m[1].replace(/^https?:\/\/[^/]+\/?/, '');
           try {
             p = decodeURIComponent(p);
-          } catch (e) {}
+          } catch (_e) {}
           out[p] = 1;
         }
         return out;
@@ -42311,7 +42327,7 @@
 
       var last = rec.int16.length - 1;
       var naive = (last / rec.fs) * 1000;
-      var corrected = rec.tMsAt(last) - rec.t0Ms;
+      var _corrected = rec.tMsAt(last) - rec.t0Ms;
       var spanMs = last * step;
       var expected = spanMs * (PPM / 1e6); // the host is BEHIND the device by this much at the end
       T.ok('ANTI-VACUITY · the planted divergence is large enough to see', expected > 5, 'planted ' + expected.toFixed(1) + ' ms over ' + (spanMs / 1000).toFixed(0) + ' s');
@@ -42578,14 +42594,14 @@
          are envelope-level and covered by the recording-duration gate below. */
       var read = {};
       var rd = /\bnn?\.([a-zA-Z_][a-zA-Z0-9_]*)/g,
-        mm;
-      while ((mm = rd.exec(body))) read[mm[1]] = true;
+        _mm;
+      for (const mm of body.matchAll(rd)) read[mm[1]] = true;
 
       // Keys the OxyDex export builder emits, as `key:` at the night level.
       var emitted = {};
       var em = /^\s{4,8}([a-zA-Z_][a-zA-Z0-9_]*):/gm,
-        me;
-      while ((me = em.exec(oxy))) emitted[me[1]] = true;
+        _me;
+      for (const me of oxy.matchAll(em)) emitted[me[1]] = true;
 
       /* Envelope/derived names that are not night-level export keys — reading them is correct.
          `desat` is here because it is the documented legacy FALLBACK in `n.desatProfile || n.desat`. */
@@ -42615,8 +42631,8 @@
         var fakeBody = 'function adaptOxyDex(){ var x = n.totallyMadeUpKey; }';
         var r = {},
           g = /\bnn?\.([a-zA-Z_][a-zA-Z0-9_]*)/g,
-          z;
-        while ((z = g.exec(fakeBody))) r[z[1]] = true;
+          _z;
+        for (const z of fakeBody.matchAll(g)) r[z[1]] = true;
         var miss = Object.keys(r).filter(function (k) {
           return !ENVELOPE[k] && !emitted[k];
         });
@@ -43512,8 +43528,8 @@
         var found = {};
         srcList.forEach(function (pair) {
           var re = /timingSource[^;\n]{0,40}?'([a-z][a-z+-]*)'/g,
-            m;
-          while ((m = re.exec(pair[1])) !== null) found[m[1]] = (found[m[1]] || []).concat(pair[0]);
+            _m;
+          for (const m of pair[1].matchAll(re)) found[m[1]] = (found[m[1]] || []).concat(pair[0]);
         });
         var emitted = Object.keys(found);
         T.ok('the scan actually found emitted values (a zero-find scan is not agreement)', emitted.length >= 3, emitted.join(','));
@@ -47000,7 +47016,7 @@
        4 tier preserved (no upgrade)   5 review-mode not faked   6 foreign-node guard   7 scrub. */
     group('Self-ingest — loadOwnExport clinical reload', 'oxydex-dsp · self-ingest', function (T) {
       var OD = env.OxyDex,
-        src = env.sources || {};
+        _src = env.sources || {};
       if (!(OD && typeof OD.compute === 'function' && typeof OD.loadOwnExport === 'function')) {
         T.ok('env.OxyDex.compute + loadOwnExport available', false, 'namespace not wired — gate skipped');
         return;
@@ -47376,7 +47392,7 @@
         CF = env.CpapFusion,
         DSP = env.CpapDsp,
         DX = env.DexExport,
-        src = env.sources || {};
+        _src = env.sources || {};
       if (
         !(CD && typeof CD.compute === 'function' && CF && typeof CF.cpapLoadOwnExport === 'function' && DSP && typeof DSP._synthEdfSet === 'function' && DX && typeof DX.scrubExport === 'function')
       ) {
@@ -47515,7 +47531,7 @@
     group('Self-ingest (PulseDex) — pulseLoadOwnExport clinical reload', 'pulsedex-dsp · dex-export · self-ingest', function (T) {
       var PD = env.PulseDex,
         DX = env.DexExport,
-        src = env.sources || {};
+        _src = env.sources || {};
       if (!(PD && typeof PD.compute === 'function' && typeof PD.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
         T.ok('env.PulseDex.compute + PulseDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
         return;
@@ -47655,7 +47671,7 @@
     group('Self-ingest (GlucoDex) — glucoLoadOwnExport clinical reload', 'glucodex-dsp · dex-export · self-ingest', function (T) {
       var GD = env.GlucoDex,
         DX = env.DexExport,
-        src = env.sources || {};
+        _src = env.sources || {};
       if (!(GD && typeof GD.compute === 'function' && typeof GD.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
         T.ok('env.GlucoDex.compute + GlucoDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
         return;
@@ -47780,7 +47796,7 @@
     group('Self-ingest (ECGDex) — ecgLoadOwnExport clinical reload', 'ecgdex-dsp · dex-export · self-ingest', function (T) {
       var ED = env.ECGDex,
         DX = env.DexExport,
-        src = env.sources || {};
+        _src = env.sources || {};
       if (!(ED && typeof ED.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
         T.ok('env.ECGDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
         return;
@@ -47919,7 +47935,7 @@
         try {
           var syn = ED.genSynthetic();
           real = syn ? ED.compute(syn, { rich: true }) : null;
-        } catch (e) {
+        } catch (_e) {
           real = null;
         }
         if (real && real.schema && real.schema.node === 'ECGDex') {
@@ -47943,7 +47959,7 @@
     group('Self-ingest (HRVDex) — hrvLoadOwnExport clinical reload', 'hrvdex-dsp · dex-export · self-ingest', function (T) {
       var HD = env.HRVDex,
         DX = env.DexExport,
-        src = env.sources || {};
+        _src = env.sources || {};
       if (!(HD && typeof HD.compute === 'function' && typeof HD.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
         T.ok('env.HRVDex.compute + HRVDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
         return;
@@ -48083,7 +48099,7 @@
     group('Self-ingest (PpgDex) — ppgLoadOwnExport clinical reload', 'ppgdex-dsp · dex-export · self-ingest', function (T) {
       var PG = env.PpgDex,
         DX = env.DexExport,
-        src = env.sources || {};
+        _src = env.sources || {};
       if (!(PG && typeof PG.loadOwnExport === 'function' && DX && typeof DX.scrubExport === 'function')) {
         T.ok('env.PpgDex.loadOwnExport + DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
         return;
@@ -49459,7 +49475,7 @@
           CFUSm = env.CpapFusion,
           CXm = env.CPAPCross,
           CNEm = env.CrossNightEnvelope,
-          DKm = env.DexKernel,
+          _DKm = env.DexKernel,
           mFix = EQ.cpapdex_multinight_golden && EQ.cpapdex_multinight_golden.fixture;
         var wiredM = !!(
           CDSPm &&
@@ -50401,10 +50417,10 @@
           }
           if (end <= open) return { keys: null, balanced: false };
           var keys = {},
-            m,
+            _m,
             re = /(\w+)\s*:/g,
             body = src.slice(open + 1, end);
-          while ((m = re.exec(body))) keys[m[1]] = 1; // top-level + nested keys; non-emittable extras are canEmit-filtered below
+          for (const m of body.matchAll(re)) keys[m[1]] = 1; // top-level + nested keys; non-emittable extras are canEmit-filtered below
           return { keys: Object.keys(keys), balanced: true };
         };
         var _parsed = _emittableSrcKeys(_src); // null if source absent; { keys, balanced } otherwise
@@ -50782,8 +50798,8 @@
       srcNames.forEach(function (name) {
         var html = SRC[name] || '';
         var re = /<script\s+[^>]*\bsrc=["']([a-z0-9_-]+-(?:cross|coimport)\.js)["']/gi,
-          m;
-        while ((m = re.exec(html))) bundled[m[1]] = true;
+          _m;
+        for (const m of html.matchAll(re)) bundled[m[1]] = true;
       });
       var bundledSet = Object.keys(bundled).sort();
       T.ok('found bundled cross/coimport modules to check', bundledSet.length > 0, bundledSet.join(', '));
@@ -50965,8 +50981,8 @@
       srcNames.forEach(function (name) {
         var html = SRC[name] || '';
         var re = /<script\s+[^>]*\bsrc=["']([^"']+\.js)["']/gi,
-          m;
-        while ((m = re.exec(html))) {
+          _m;
+        for (const m of html.matchAll(re)) {
           var s = m[1];
           if (/^https?:|^\/\//.test(s)) continue;
           bundled[s.replace(/^.*\//, '')] = true;
@@ -51874,8 +51890,8 @@
           if (s == null) return;
           // every expression that grades a desSev value against a numeric edge
           var re = /desSev(?:\.desSev)?\s*<\s*(\d+(?:\.\d+)?)/g,
-            m;
-          while ((m = re.exec(s))) _dsBands.push({ file: f, edge: +m[1] });
+            _m;
+          for (const m of s.matchAll(re)) _dsBands.push({ file: f, edge: +m[1] });
         });
         // Anti-vacuity: if the scan finds nothing it must FAIL, not pass by silence.
         T.ok('DA-II §2.2 · the DesSev grading sites are visible to this scan (≥3 expected)', _dsBands.length >= 3, _dsBands.length + ' found: ' + JSON.stringify(_dsBands));
@@ -51913,7 +51929,7 @@
             if (!m) return null;
             try {
               return new Function('return ' + m[1])();
-            } catch (e) {
+            } catch (_e) {
               return null;
             }
           };
@@ -51985,16 +52001,16 @@
       // metricTile emits `<div class="m-val SEV">VALUE`; a neutral tile emits an empty class.
       var mSev = function (html) {
         var re = /<div class="m-val ([a-z]*)">/g,
-          m,
+          _m,
           o = [];
-        while ((m = re.exec(html))) o.push(m[1] || 'neutral');
+        for (const m of html.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       var mVal = function (html) {
         var re = /<div class="m-val [a-z]*">([^<]*)/g,
-          m,
+          _m,
           o = [];
-        while ((m = re.exec(html))) o.push(m[1]);
+        for (const m of html.matchAll(re)) o.push(m[1]);
         return o;
       };
       var night = function (metrics, extra) {
@@ -52071,9 +52087,9 @@
          · largeLeakPct · odi · periodicBreathingPct. */
       var kSev = function (html) {
         var re = /<div class="kpi-val ([a-z]*)">/g,
-          m,
+          _m,
           o = [];
-        while ((m = re.exec(html))) o.push(m[1] || 'neutral');
+        for (const m of html.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       var k = kSev(CR.renderKPIs({ metrics: { residualAHI: 3, largeLeakPct: 1, periodicBreathingPct: 1 }, therapyHours: 6, nSessions: 1 }));
@@ -52094,7 +52110,7 @@
       T.ok('renderKPIs · 1 session is singular', /1 session</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 })));
       T.ok('renderKPIs · 2 sessions is plural', /2 sessions</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 2 })));
       // no oximeter ⇒ an HONEST n/a tile, never a 0.0 ODI graded ok
-      var noOxi = CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 });
+      var _noOxi = CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 });
       T.ok(
         'renderKPIs · with no oximeter the ODI tile reads "n/a · no oximeter" — not a fabricated 0.0/hr',
         /n\/a<\/div>/.test(noOxi) && /no oximeter/.test(noOxi),
@@ -52114,9 +52130,9 @@
          asserted independently. */
       var kVal = function (html) {
         var re = /<div class="k-val ([a-z]*)">([^<]*)/g,
-          m,
+          _m,
           o = [];
-        while ((m = re.exec(html))) o.push({ sev: m[1] || 'neutral', val: m[2] });
+        for (const m of html.matchAll(re)) o.push({ sev: m[1] || 'neutral', val: m[2] });
         return o;
       };
       var summary = function (metrics, hours, extra) {
@@ -52199,9 +52215,9 @@
          every `<`→`<=` alive). */
       var kSev4 = function (h) {
         var re = /<div class="kpi-val ([a-z]*)">/g,
-          m,
+          _m,
           o = [];
-        while ((m = re.exec(h))) o.push(m[1] || 'neutral');
+        for (const m of h.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       // renderKPIs · hero AHI (5,15). Wave 1 pinned 3→ok and 20→bad; both survive warn=0.
@@ -52648,9 +52664,9 @@
       };
       var mSev2 = function (html) {
         var re = /<div class="m-val ([a-z]*)">/g,
-          m,
+          _m,
           o = [];
-        while ((m = re.exec(html))) o.push(m[1] || 'neutral');
+        for (const m of html.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       T.ok(
@@ -52772,7 +52788,7 @@
         T.skip('CpapRender.renderHistory wired', 'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs');
         return;
       }
-      var DAY = 86400000;
+      var _DAY = 86400000;
       // nights are handed in OLDEST-first here; the table must invert them.
       var mkNight = function (dayIdx, hours, ahi, leak, nSess, spo2) {
         return {
@@ -52901,9 +52917,9 @@
          the edge value, so each is asserted exactly there. */
       var kvals = function (h) {
         var re = /<div class="k-val ([a-z]*)">/g,
-          m,
+          _m,
           o = [];
-        while ((m = re.exec(h))) o.push(m[1] || 'neutral');
+        for (const m of h.matchAll(re)) o.push(m[1] || 'neutral');
         return o;
       };
       T.eq('clinicalSummary · AHI exactly 5 is ok — the lower-better ok edge is inclusive (v <= good)', kvals(summ({ residualAHI: 5 }))[0], 'ok');
@@ -59541,14 +59557,14 @@
       var threw = false;
       try {
         Q.Quantity(120, 'mmHg').add(Q.Quantity(60, 'bpm'));
-      } catch (e) {
+      } catch (_e) {
         threw = true;
       }
       T.ok('adding mmHg + bpm throws (dimension mismatch)', threw);
       var threw2 = false;
       try {
         Q.Quantity(70, 'kg').as('bpm');
-      } catch (e) {
+      } catch (_e) {
         threw2 = true;
       }
       T.ok('expressing kg as bpm throws', threw2);
@@ -60551,8 +60567,8 @@
         var src = TSg[name];
         var helpers = { flag: 'boolean', opt: 'valued', optAll: 'valued' };
         var hre = /(?:const|let|var)\s+(\w+)\s*=\s*\([^)]*\)\s*=>/g,
-          hm;
-        while ((hm = hre.exec(src)) !== null) {
+          _hm;
+        for (const hm of src.matchAll(hre)) {
           /* Bound the body at the next declaration: a fixed-width window ran on into the helper below
              and `flag` inherited `opt`'s `indexOf`, reporting every boolean as valued. */
           var rest = src.slice(hm.index + 1);
@@ -60564,8 +60580,8 @@
         var reads = { valued: [], boolean: [] };
         Object.keys(helpers).forEach(function (h) {
           var cre = new RegExp('\\b' + h + "\\(\\s*'(--[a-z0-9-]+)'", 'g'),
-            cm;
-          while ((cm = cre.exec(src)) !== null) {
+            _cm;
+          for (const cm of src.matchAll(cre)) {
             var bucket = reads[helpers[h]];
             if (bucket.indexOf(cm[1]) < 0) bucket.push(cm[1]);
           }
@@ -60616,10 +60632,10 @@
          assertion stayed green. A root must be derived on the line that DEFINES it. */
       var rootRe = /\b(?:const|let|var)\s+(?:ROOT|REPO|SELF_REPO)\s*=\s*([^;\n]+)/g;
       var notDerived = loaders.filter(function (n) {
-        var m,
+        var _m,
           defs = [],
           re = new RegExp(rootRe.source, 'g');
-        while ((m = re.exec(TS[n])) !== null) defs.push(m[1]);
+        for (const m of TS[n].matchAll(re)) defs.push(m[1]);
         if (!defs.length) return false; // resolves inline (e.g. require('./build-core.js')) — fine
         /* Follow ONE level of indirection. The idiomatic form here is
              const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -60634,10 +60650,10 @@
            and a one-hop rule flagged it. Seed with identifiers assigned directly from the URL, then
            keep adding any identifier assigned from an already-derived one until nothing new appears. */
         var derivedIds = [],
-          dm,
+          _dm,
           assigns = [],
           are = /\b(?:const|let|var)\s+(\w+)\s*=\s*([^;\n]+)/g;
-        while ((dm = are.exec(TS[n])) !== null) assigns.push({ id: dm[1], rhs: dm[2] });
+        for (const dm of TS[n].matchAll(are)) assigns.push({ id: dm[1], rhs: dm[2] });
         assigns.forEach(function (a) {
           if (/import\.meta\.url/.test(a.rhs)) derivedIds.push(a.id);
         });
@@ -61107,8 +61123,8 @@
         if (!m) return null;
         var rows = [];
         var re = /\[\s*(-?[0-9.]+)\s*,\s*'([^']+)'/g,
-          r;
-        while ((r = re.exec(m[1]))) rows.push([parseFloat(r[1]), r[2]]);
+          _r;
+        for (const r of m[1].matchAll(re)) rows.push([parseFloat(r[1]), r[2]]);
         return rows;
       }
       function tablePy(src) {
@@ -61116,8 +61132,8 @@
         if (!m) return null;
         var rows = [];
         var re = /\(\s*(-?[0-9.]+)\s*,\s*"([^"]+)"/g,
-          r;
-        while ((r = re.exec(m[1]))) rows.push([parseFloat(r[1]), r[2]]);
+          _r;
+        for (const r of m[1].matchAll(re)) rows.push([parseFloat(r[1]), r[2]]);
         return rows;
       }
       var A = tableJs(js, 'CK_ALLAN_NOISE'),
@@ -62019,8 +62035,8 @@
         for (var f in UI[n.pre]) {
           var body = strip(UI[n.pre][f]);
           var re = /evBadge\s*\(\s*(['"`])([^'"`\n]{1,80})\1/g,
-            m;
-          while ((m = re.exec(body))) toks[m[2]] = f;
+            _m;
+          for (const m of body.matchAll(re)) toks[m[2]] = f;
         }
         for (var tok in toks) {
           totalSites++;
@@ -62123,9 +62139,9 @@
         var seen = {};
         for (var f in UI[n.pre]) {
           var body = strip(UI[n.pre][f]),
-            m2;
+            _m2;
           HELPER_RE.lastIndex = 0;
-          while ((m2 = HELPER_RE.exec(body))) {
+          for (const m2 of body.matchAll(HELPER_RE)) {
             var lbl = m2[3];
             if (seen[lbl]) continue;
             seen[lbl] = 1;
@@ -62192,19 +62208,19 @@
         var ids = {},
           dupHere = {};
         var re = /\bid\s*=\s*["']([^"']+)["']/g,
-          m;
-        while ((m = re.exec(t))) {
+          _m;
+        for (const m of t.matchAll(re)) {
           if (ids[m[1]]) dupHere[m[1]] = 1;
           ids[m[1]] = 1;
           nId++;
         }
         // `name=` still anchors in every browser and some guides use it on older markup.
         var rn = /\bname\s*=\s*["']([^"']+)["']/g;
-        while ((m = rn.exec(t))) ids[m[1]] = 1;
+        for (const m of t.matchAll(rn)) ids[m[1]] = 1;
         for (var k in dupHere) dup.push(g + ' #' + k);
         var seen = {};
         var ra = /href\s*=\s*["']#([^"']+)["']/g;
-        while ((m = ra.exec(t))) {
+        for (const m of t.matchAll(ra)) {
           var a = m[1];
           if (!a || a === 'top' || seen[a]) continue; // '#top' is the browser's own document top
           seen[a] = 1;
@@ -63231,8 +63247,8 @@
       names.forEach(function (f) {
         var t = strip(src[f] || '');
         var re = /sampEn\(\s*[A-Za-z_$][\w$]*\s*,\s*([0-9.]+)\s*,\s*([^)]*)\)/g;
-        var m;
-        while ((m = re.exec(t))) {
+        var _m;
+        for (const m of t.matchAll(re)) {
           if (m[1] !== '2' || !/0\.2/.test(m[2])) bad.push(f + ': m=' + m[1] + ' r=' + m[2].trim().slice(0, 30));
         }
       });
@@ -63293,7 +63309,7 @@
       var ex = null;
       try {
         ex = accTxt && typeof MD.compute === 'function' ? MD.buildNodeExport(MD.compute({ acc: accTxt, chestAcc: accTxt })) : null;
-      } catch (e) {
+      } catch (_e) {
         ex = null;
       }
       if (!ex || !ex.schema) {
@@ -67082,7 +67098,8 @@
         var st = stageAtSec(e.tMin * 60 + 150); // epoch centre
         var m = mot.get(e.tMin.toFixed(1));
         if (st == null || m == null) return;
-        (byStage[st] = byStage[st] || []).push(m);
+        if (!byStage[st]) byStage[st] = [];
+        byStage[st].push(m);
       });
       var med = function (a) {
         var v = a.slice().sort(function (x, y) {
@@ -67121,7 +67138,10 @@
       var byStage2 = {};
       eps.forEach(function (e) {
         var st = stageAtSec(e.tMin * 60 + 150);
-        if (st != null && isFin(e.lfhf)) (byStage2[st] = byStage2[st] || []).push(e.lfhf);
+        if (st != null && isFin(e.lfhf)) {
+          if (!byStage2[st]) byStage2[st] = [];
+          byStage2[st].push(e.lfhf);
+        }
       });
       var remR = lfhfOf('REM'),
         deepR = lfhfOf('N3');
@@ -67250,7 +67270,7 @@
       // ── §2.1 · every _meanRR consumer is unit-invariant
       var H = env.HRVDex;
       if (H && typeof H.derive === 'function') {
-        var base = { _sdnn: 55, _rmssd: 42, _pnn50: 18, _amo50: 40 };
+        var _base = { _sdnn: 55, _rmssd: 42, _pnn50: 18, _amo50: 40 };
         var msRow = H.derive([{ _sdnn: 55, _rmssd: 42, _pnn50: 18, _amo50: 40, _meanRR: 900, _mode: 900, _mxdmn: 300 }])[0];
         var sRow = H.derive([{ _sdnn: 0.055, _rmssd: 0.042, _pnn50: 18, _amo50: 40, _meanRR: 0.9, _mode: 0.9, _mxdmn: 0.3 }])[0];
         ['d_cvi', 'd_nn50', 'd_csi', 'd_si', 'd_mxdmn_meanrr'].forEach(function (k) {

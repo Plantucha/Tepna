@@ -76,9 +76,7 @@ function main() {
       stripped = stripped.replace(STRING_RE, '""');
       // Any remaining identifiers are potentially unescaped user data.
       var unsafe = [];
-      var im;
-      IDENT_RE.lastIndex = 0;
-      while ((im = IDENT_RE.exec(stripped)) !== null) {
+      for (const im of stripped.matchAll(IDENT_RE)) {
         if (!SAFE_IDENTS.has(im[0])) unsafe.push(im[0]);
       }
       if (unsafe.length > 0) {

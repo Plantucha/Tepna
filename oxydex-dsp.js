@@ -699,12 +699,14 @@
              construction, so there is no proximity heuristic here to get wrong (contrast the
              `_SPO2.csv` pairing below, which needs one because the two files are separate exports). */
           if (/_PPG2WRUNS\.txt$/i.test(file.name)) {
-            (window._oxyW2R = window._oxyW2R || {})[file.name.replace(/_PPG2WRUNS\.txt$/i, '')] = text;
+            if (!window._oxyW2R) window._oxyW2R = {};
+            window._oxyW2R[file.name.replace(/_PPG2WRUNS\.txt$/i, '')] = text;
             resolve(null);
             return;
           }
           if (/_PPG2W\.txt$/i.test(file.name)) {
-            (window._oxyW2 = window._oxyW2 || {})[file.name.replace(/_PPG2W\.txt$/i, '')] = text;
+            if (!window._oxyW2) window._oxyW2 = {};
+            window._oxyW2[file.name.replace(/_PPG2W\.txt$/i, '')] = text;
             resolve(null);
             return;
           }
@@ -722,7 +724,8 @@
           // The _SPO2.csv half of a waveform pair: keep the parsed rows for spo2WaveformTrend (the
           // night itself still loads normally below — the trend is an EXTRA card, never a replacement).
           if (/_SPO2\.csv$/i.test(file.name) && rows && rows.length) {
-            (window._oxyW2S = window._oxyW2S || {})[file.name.replace(/_SPO2\.csv$/i, '')] = rows;
+            if (!window._oxyW2S) window._oxyW2S = {};
+            window._oxyW2S[file.name.replace(/_SPO2\.csv$/i, '')] = rows;
           }
           if (!rows || rows.length < 60) {
             // Debug: store first lines for error reporting
@@ -1207,14 +1210,14 @@
           return a + b;
         }, 0) / seg.length;
       if (segMean >= THRESH) continue; // not an oscillating window
-      var lastCross = -1,
+      var _lastCross = -1,
         lastDir = 0,
         localCross = [];
       for (var i = 1; i < seg.length; i++) {
         var dir = seg[i] > THRESH ? 1 : seg[i] < THRESH ? -1 : 0;
         if (dir !== lastDir && dir !== 0) {
           localCross.push(w + i);
-          lastCross = w + i;
+          _lastCross = w + i;
           lastDir = dir;
         }
       }
@@ -2191,27 +2194,27 @@
     });
     // Fit y = A*cos(2π*t/T + φ) + C where T = n (full night)
     // Use least-squares for A*cos + B*sin + C
-    var sumC = 0,
-      sumS = 0,
-      sumCC = 0,
-      sumSS = 0,
-      sumCS = 0,
+    var _sumC = 0,
+      _sumS = 0,
+      _sumCC = 0,
+      _sumSS = 0,
+      _sumCS = 0,
       sumYC = 0,
       sumYS = 0,
-      sumY = 0;
+      _sumY = 0;
     for (var i = 0; i < n; i++) {
       var ang = (2 * Math.PI * i) / n;
       var c = Math.cos(ang),
         s = Math.sin(ang),
         y = hr[i];
-      sumC += c;
-      sumS += s;
-      sumCC += c * c;
-      sumSS += s * s;
-      sumCS += c * s;
+      _sumC += c;
+      _sumS += s;
+      _sumCC += c * c;
+      _sumSS += s * s;
+      _sumCS += c * s;
       sumYC += y * c;
       sumYS += y * s;
-      sumY += y;
+      _sumY += y;
     }
     // Simplified: A ≈ 2/n * ΣY*cos(ωt), B ≈ 2/n * ΣY*sin(ωt)
     var A = (2 / n) * sumYC,
@@ -4339,7 +4342,7 @@
     // skips them explicitly (null is not 0).
     var spo2 = measuredSpO2(rows);
     var n = spo2.length,
-      WIN = 300;
+      _WIN = 300;
 
     // Delta-index (SpO2 instability): mean |diff of consecutive 12s means|
     // (12 s windows with no measured sample contribute no mean)
@@ -4811,7 +4814,7 @@
     // §∅: measured series — absences are null, skipped explicitly below
     var spo2 = measuredSpO2(rows);
     var n = spo2.length,
-      WIN = 300;
+      _WIN = 300;
     if (n < 60) return null;
     var measured = spo2.filter(function (v) {
       return v != null;
@@ -4959,8 +4962,8 @@
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
-    var n = rows.length;
-    var WIN = 300;
+    var _n = rows.length;
+    var _WIN = 300;
 
     // Oxygen Desat Arousal Coupling Score: % of ODI-4 nadirs followed by HR rise ≥8bpm within 60s
     var nadirEvents = desat ? desat.nadir.count : 0;
@@ -5989,7 +5992,7 @@
     var t85 = measured.filter(function (r) {
       return r.spo2 < 85;
     }).length;
-    var durationHr = m / 3600;
+    var _durationHr = m / 3600;
     return {
       t88Sec: t88,
       t88Min: +(t88 / 60).toFixed(1),
@@ -6944,7 +6947,7 @@
       return r.spo2;
     });
     var n = spo2.length,
-      WIN = 300;
+      _WIN = 300;
     /* REFUSE (Clock Contract §2.6). `sbii` is `emerging` with goodDirection `down`, so 0 is the BEST
        value on the scale — and `Q1(low)` names the lowest-risk SHHS quintile explicitly. Returning
        those from insufficient data does not merely fabricate a number, it fabricates a CLINICAL
@@ -7122,7 +7125,7 @@
               return JSON.stringify(o);
             })
             .join('\n');
-      } catch (e) {
+      } catch (_e) {
         /* fall through to line-by-line */
       }
     }
@@ -7384,7 +7387,7 @@
               var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : null;
               var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise.ct90s : null;
               return computeMOS(o4r, ct90s);
-            } catch (e) {
+            } catch (_e) {
               return null;
             }
           })(),
@@ -7397,7 +7400,7 @@
               var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev : null;
               var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : null;
               return computeAHIestimates(o4r, o3r, dsev, t95);
-            } catch (e) {
+            } catch (_e) {
               return null;
             }
           })(),
@@ -7406,7 +7409,7 @@
         // Generate Smart Summary for JSONL imports too (tabs were missing).
         try {
           night.summary = /** @type {any} */ (computeSmartSummary(night));
-        } catch (e) {
+        } catch (_e) {
           night.summary = null;
         }
         results.push(night);
