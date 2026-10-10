@@ -65,6 +65,7 @@ export const STEPS = [
   'lint',
   'test:par',
   'verify:shard-union',
+  'verify:shard-timings',
   'test:build-core',
   'test:trio-anchor',
   'test:fold-provenance',
