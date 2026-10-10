@@ -602,7 +602,7 @@
     const steps = [];
     for (let k = 1; k < vals.length; k++) steps.push(vals[k] - vals[k - 1]);
     steps.sort((a, b) => a - b);
-    const quantum = steps.length ? steps[steps.length >> 1] || 1 : 1;
+    const _quantum = steps.length ? steps[steps.length >> 1] || 1 : 1;
     const railAt = (end) => {
       const at = (k) => (end === 'lo' ? vals[k] : vals[vals.length - 1 - k]);
       const cnt = (k) => freq.get(at(k)) || 0;
@@ -1078,7 +1078,7 @@
         prevNsB = b;
         relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
         prevRelNs = relNs;
-      } catch (e) {
+      } catch (_e) {
         relNs = NaN;
       }
       prevPhoneRaw = p[0];
@@ -2321,7 +2321,7 @@
     }
     return y;
   }
-  function localMax(a, i0, i1) {
+  function _localMax(a, i0, i1) {
     let m = -Infinity;
     for (let i = i0; i < i1; i++) if (a[i] > m) m = a[i];
     return m;
@@ -3149,7 +3149,7 @@
         }
       }
     }
-    let total = vlf + lf + hf;
+    let _total = vlf + lf + hf;
     // Parseval calibration — ∫PSD = signal variance, so band powers land in ms²
     // and are comparable to ECGDex/PulseDex (external-review WP-C). Ratios
     // (lfhf/lfnu/hfnu) are scale-invariant, so they are unchanged by this.
@@ -3160,7 +3160,7 @@
     vlf *= scF;
     lf *= scF;
     hf *= scF;
-    total *= scF;
+    _total *= scF;
     const lfhf = hf > 0 ? lf / hf : null;
     const lfnu = lf + hf > 0 ? (100 * lf) / (lf + hf) : null,
       hfnu = lf + hf > 0 ? (100 * hf) / (lf + hf) : null;
@@ -3423,7 +3423,7 @@
         prevNsB = b;
         relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
         prevRelNs = relNs;
-      } catch (e) {}
+      } catch (_e) {}
       if (ts && ts.tMs != null) {
         if (firstRowTMs === null) firstRowTMs = ts.tMs;
         prevRowTMs = ts.tMs;
@@ -3689,7 +3689,7 @@
     //    null when no ACC (gyro-only sessions).
     let postureAtSec = null,
       postureDetailAtSec = null,
-      gAxis = null;
+      _gAxis = null;
     // ── MAGNETOMETER (optional, additive) — Polar Sense 3-axis mag, Gauss, ~10 Hz, ±50 G
     //    range, ~0.0015 G (0.15 µT) LSB. EARTH-FIELD-SCALE ONLY: heading + left/right-lateral
     //    disambiguation + a calibration-free interference flag. NEVER biomagnetic HR — the
@@ -3743,7 +3743,7 @@
       const gy = movavg(Float32Array.from(accRows.map((r) => r.y)), w);
       const gz = movavg(Float32Array.from(accRows.map((r) => r.z)), w);
       const ss = accRows.map(relSecOf);
-      gAxis = { gx, gy, gz, ss };
+      _gAxis = { gx, gy, gz, ss };
       const gStride = Math.max(1, Math.floor(ss.length / 5000));
       function gravMed(s0, s1) {
         const ex = [],
@@ -3873,7 +3873,7 @@
   // ECGDex's _posture/_normPosition (duplicated locally — these nodes don't share modules).
   function _posturePPG(gx, gy, gz) {
     const g = Math.hypot(gx, gy, gz) || 1,
-      ux = gx / g,
+      _ux = gx / g,
       uy = gy / g,
       uz = gz / g;
     if (Math.abs(uz) >= 0.7) return uz > 0 ? 'supine' : 'prone';
@@ -4961,7 +4961,7 @@
       _mPeak = median(_corrPeak.nn);
     const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak) / Math.max(_mFoot, _mPeak) : 0;
     const ppiSpine = footSpineOK ? 'foot' : 'peak';
-    const { rr, tt } = footSpineOK ? _ppiFoot : _ppiPeak;
+    const { rr } = footSpineOK ? _ppiFoot : _ppiPeak;
     const corr = footSpineOK ? _corrFoot : _corrPeak;
     const nn = corr.nn;
     /* PER-BEAT FUSED-HAT CONFIDENCE for the emitted spine (TRIO-ARTIFACT-GATE — the `ms;hr;c` corpus).
@@ -5117,8 +5117,8 @@
     }
     // …projected onto the kept series: cleanMask[j] / spansGap[j] describe nn[j], not input interval j.
     const kIdx = corr.keptIdx;
-    const spansGap = kIdx.map((i) => spansGapIn[i]);
-    const spansPin = kIdx.map((i) => spansPinIn[i]);
+    const _spansGap = kIdx.map((i) => spansGapIn[i]);
+    const _spansPin = kIdx.map((i) => spansPinIn[i]);
     /* ⚠️ BOTH CONSUMERS, because `timeDomain` excludes through TWO separate channels and they feed
        different metrics: `omit` filters the base that SDNN/meanRR/HR are computed over, while
        `cleanMask` gates the successive-difference loop behind rMSSD/pNN50. Adding the pinned term to
@@ -5432,7 +5432,7 @@
     if (global.PPGMorph) {
       try {
         morph = global.PPGMorph.analyze(bp, raw, det, rec.fs, sqi);
-      } catch (e) {
+      } catch (_e) {
         morph = null;
       }
     }
@@ -5725,7 +5725,7 @@
 
   function buildEvents(ctx) {
     const ev = [];
-    const { epochs, t0Ms, motion, det, sqi, peakSec, nn, tt } = ctx;
+    const { epochs, t0Ms, motion, det, sqi, peakSec } = ctx;
     const node = 'PpgDex';
     // local PPG signal quality near a time (mean SQI of beats within ±5 s)
     function sqiAt(relSec) {
@@ -5924,7 +5924,7 @@
       'self.postMessage({idx:d.idx,peaks:r.peaks,feet:r.feet,sign:r.sign,T:r.T,bp:r.bp.buffer},[r.bp.buffer]);};';
     try {
       _ppgWorkerURL = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-    } catch (e) {
+    } catch (_e) {
       _ppgWorkerURL = null;
     }
     return _ppgWorkerURL;
@@ -5953,7 +5953,7 @@
         workers.forEach(function (w) {
           try {
             w.terminate();
-          } catch (e) {}
+          } catch (_e) {}
         });
         resolve(_detectSerial(rec));
       }
@@ -5980,7 +5980,7 @@
             w.postMessage({ idx: ci, buf: buf, fs: rec.fs }, [buf]);
           })(c);
         }
-      } catch (e) {
+      } catch (_e) {
         serialFallback();
       }
       setTimeout(function () {
