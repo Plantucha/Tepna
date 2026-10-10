@@ -699,14 +699,14 @@
              construction, so there is no proximity heuristic here to get wrong (contrast the
              `_SPO2.csv` pairing below, which needs one because the two files are separate exports). */
           if (/_PPG2WRUNS\.txt$/i.test(file.name)) {
-            if (!window._oxyW2R) window._oxyW2R = {};
-            window._oxyW2R[file.name.replace(/_PPG2WRUNS\.txt$/i, '')] = text;
+            // biome-ignore lint/suspicious/noAssignInExpressions: source-pinned pattern (SAMPLE-VALIDITY-ENVELOPE test)
+            (window._oxyW2R = window._oxyW2R || {})[file.name.replace(/_PPG2WRUNS\.txt$/i, '')] = text;
             resolve(null);
             return;
           }
           if (/_PPG2W\.txt$/i.test(file.name)) {
-            if (!window._oxyW2) window._oxyW2 = {};
-            window._oxyW2[file.name.replace(/_PPG2W\.txt$/i, '')] = text;
+            // biome-ignore lint/suspicious/noAssignInExpressions: source-pinned pattern
+            (window._oxyW2 = window._oxyW2 || {})[file.name.replace(/_PPG2W\.txt$/i, '')] = text;
             resolve(null);
             return;
           }
@@ -724,8 +724,8 @@
           // The _SPO2.csv half of a waveform pair: keep the parsed rows for spo2WaveformTrend (the
           // night itself still loads normally below — the trend is an EXTRA card, never a replacement).
           if (/_SPO2\.csv$/i.test(file.name) && rows && rows.length) {
-            if (!window._oxyW2S) window._oxyW2S = {};
-            window._oxyW2S[file.name.replace(/_SPO2\.csv$/i, '')] = rows;
+            // biome-ignore lint/suspicious/noAssignInExpressions: source-pinned pattern
+            (window._oxyW2S = window._oxyW2S || {})[file.name.replace(/_SPO2\.csv$/i, '')] = rows;
           }
           if (!rows || rows.length < 60) {
             // Debug: store first lines for error reporting

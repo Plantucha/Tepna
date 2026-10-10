@@ -52113,8 +52113,8 @@
       var _noOxi = CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 });
       T.ok(
         'renderKPIs · with no oximeter the ODI tile reads "n/a · no oximeter" — not a fabricated 0.0/hr',
-        /n\/a<\/div>/.test(noOxi) && /no oximeter/.test(noOxi),
-        (/(n\/a|0\.0)/.exec(noOxi) || [''])[0]
+        /n\/a<\/div>/.test(_noOxi) && /no oximeter/.test(_noOxi),
+        (/(n\/a|0\.0)/.exec(_noOxi) || [''])[0]
       );
       // the mode string reaches a tile sub — and goes through esc()
       T.ok(
