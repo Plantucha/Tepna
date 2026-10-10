@@ -15554,7 +15554,7 @@
         Object.keys(S).forEach(function (f) {
           var re = /(?:new\s+Worker|__mkWorker|mkWorker)\s*\(\s*['"`]([^'"`]+)/g,
             _m;
-          for (const m of S[f] || ''.matchAll(re)) if (Object.prototype.hasOwnProperty.call(S, m[1])) found[m[1]] = true;
+          for (const m of (S[f] || '').matchAll(re)) if (Object.prototype.hasOwnProperty.call(S, m[1])) found[m[1]] = true;
         });
         return Object.keys(found).sort();
       };
@@ -52004,8 +52004,8 @@
       var _noOxi = CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 });
       T.ok(
         'renderKPIs · with no oximeter the ODI tile reads "n/a · no oximeter" — not a fabricated 0.0/hr',
-        /n\/a<\/div>/.test(noOxi) && /no oximeter/.test(noOxi),
-        (/(n\/a|0\.0)/.exec(noOxi) || [''])[0]
+        /n\/a<\/div>/.test(_noOxi) && /no oximeter/.test(_noOxi),
+        (/(n\/a|0\.0)/.exec(_noOxi) || [''])[0]
       );
       // the mode string reaches a tile sub — and goes through esc()
       T.ok(
