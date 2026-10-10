@@ -344,8 +344,11 @@ def dest_status(target: dict) -> dict:
                 ),
             }
         if target.get("protocol") == "local":
-            ok = bool(mp) and os.path.isdir(mp)
-            return {"ready": ok, "path": mp, "reason": None if ok else f"{mp or '(unset)'} does not exist"}
+            # `mp` was already validated by the mount-branch guard above (line 337):
+            # we are inside `if kind == "mount"` and past the early return, so
+            # `mp` is truthy and under an allowed root. No re-validation needed.
+            ok = os.path.isdir(mp)
+            return {"ready": ok, "path": mp, "reason": None if ok else f"{mp} does not exist"}
         exists = bool(mp) and os.path.isdir(mp)
         mounted = bool(mp) and os.path.ismount(mp)
         if mounted:

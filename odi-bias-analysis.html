@@ -5761,6 +5761,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         depth: +(evBaseline - evNadir).toFixed(1),
         durationSec: endIdxRaw - evStart - evMissing,
         missingSec: evMissing,
+        // Explicit gap indicator: true when the event spans unobserved samples.
+        // Backward-compatible (new field); consumers must not assume continuity
+        // from startIdx/endIdx alone when hasGap is true.
+        hasGap: evMissing > 0,
         dipSlope: +((evNadir - evBaseline) / dipDur).toFixed(3),
         recSlope: terminal ? null : +((spo2[recEnd] - evNadir) / recDur).toFixed(3),
         recSlopeReason: terminal ? 'record-ended' : null
@@ -10076,7 +10080,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             recovery: d.recovery != null ? d.recovery : null,
             nadir: d.nadir != null ? d.nadir : null,
             onsetTMs: d.startTMs != null ? d.startTMs : null,
-            endTMs: d.endTMs != null ? d.endTMs : null
+            endTMs: d.endTMs != null ? d.endTMs : null,
+            // Gap uncertainty: true/false when known, null when the event
+            // predates gap tracking. Null means "unknown", not "gap-free" —
+            // we must not fabricate a continuity claim for legacy events.
+            hasGap: d.hasGap === true ? true : d.hasGap === false ? false : null,
+            missingSec: d.missingSec != null ? d.missingSec : null
           }
         });
       });

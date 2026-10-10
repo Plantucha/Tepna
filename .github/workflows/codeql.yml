@@ -66,6 +66,8 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           # paths-ignore applies to the interpreted languages (JS/TS, Python) — exactly our case.
+          # packs: ./codeql supplies custom sanitizer models (e.g. _under_allowed_root
+          # as a py/path-injection sanitizer); without it CodeQL flags validated paths.
           config: |
             paths-ignore:
               - '**/*.html'
@@ -73,6 +75,8 @@ jobs:
               - 'docs-archive/**'
               - 'uploads/**'
               - 'node_modules/**'
+            packs:
+              - ./codeql
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
