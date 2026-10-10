@@ -138,6 +138,42 @@ const PROVIDERS = {
       thinking: d?.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
       answerTokens: d?.usage?.completion_tokens ?? 0
     })
+  },
+  anthropic: {
+    keyVar: 'ANTHROPIC_API_KEY',
+    /* The Messages API, not an OpenAI-compatible shim: `x-api-key` rather than a Bearer token, a
+       REQUIRED `anthropic-version` header, `max_tokens` required in the body, and a reply whose text
+       arrives as an array of content BLOCKS rather than one string. Default is Sonnet 5.5 because a
+       second reader is only worth having if it is strong enough to disagree usefully;
+       claude-haiku-4-5-20251001 is the cheap option for a re-run over the same set. */
+    defaultModel: 'claude-sonnet-5-5',
+    cheapModel: 'claude-haiku-4-5-20251001',
+    url: () => 'https://api.anthropic.com/v1/messages',
+    metaUrl: null, // the Messages API carries no per-model metadata endpoint
+    headers: (key) => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }),
+    body: (prompt, model, maxTokens) => ({
+      model,
+      /* REQUIRED by this API — a missing max_tokens is a 400, not a default. */
+      max_tokens: maxTokens,
+      temperature: 0,
+      messages: [{ role: 'user', content: prompt }]
+    }),
+    /* `end_turn` is the completed value. `max_tokens` therefore lands in the generic
+       `finish !== P.stop` refusal below, which is the behaviour the brief asked for: a starved answer
+       is a REFUSAL and never a score. */
+    stop: 'end_turn',
+    read: (d) => ({
+      /* Content is an ARRAY of blocks; only the text ones carry an answer, and a thinking block
+         carries none. Joining just the text blocks is what keeps a thinking reply from reading as
+         empty — and `?? 0` is never used for a token count that was absent, see below. */
+      text: (Array.isArray(d?.content) ? d.content : [])
+        .filter((b) => b?.type === 'text')
+        .map((b) => b.text || '')
+        .join(''),
+      finish: d?.stop_reason,
+      thinking: d?.usage?.thinking_tokens ?? 0,
+      answerTokens: d?.usage?.output_tokens ?? 0
+    })
   }
 };
 
@@ -250,7 +286,7 @@ export function groupedIdLines(promptText) {
  *  the original before a test, and a tool that scored the reader would be deciding what it fetched.
  *  `MAX_TOKENS` is therefore UNKNOWN and never PASS: a truncated reply examined the prompt and settled
  *  nothing, which is exactly the shape §∅ and §🧾 refuse to let read green. */
-export function reviewVerdict({ status, reason, model, version, ids = 0, answerBytes = 0, finish = null, at }) {
+export function reviewVerdict({ status, reason, model, version, ids = 0, answerBytes = 0, finish = null, stop = null, at }) {
   const examined = status === 'PASS' || status === 'UNKNOWN' ? 1 : 0;
   return makeVerdict({
     gate: 'gemini-review',
@@ -261,7 +297,20 @@ export function reviewVerdict({ status, reason, model, version, ids = 0, answerB
        "STOP" is a label, not a bound, and a criterion you cannot compare is not pre-stated. The
        comparable quantity is how many replies came back truncated, and the bound is zero. */
     criterion: { name: 'truncated_replies', threshold: 0, unit: 'replies', direction: 'lte' },
-    result: { model, version, ids, answerBytes, finishReason: finish, truncated: finish && finish !== 'STOP' ? 1 : 0 },
+    /* 🔴 THE COMPLETED VALUE IS PER-PROVIDER, and this read Gemini's literal 'STOP' for every one of
+       them. Three of the four rows that existed when this was written complete with lowercase 'stop'
+       and Anthropic's is 'end_turn', so `finish !== 'STOP'` scored every healthy non-Gemini reply as
+       TRUNCATED — against this verdict's own `truncated_replies lte 0` criterion. The caller passes
+       its provider's `stop`; with none passed, an UNKNOWN finish cannot be classified, so §∅ applies
+       and `truncated` is null rather than a guessed 0 or 1. */
+    result: {
+      model,
+      version,
+      ids,
+      answerBytes,
+      finishReason: finish,
+      truncated: finish === null || finish === undefined ? 0 : stop === null ? null : finish === stop ? 0 : 1
+    },
     evidence: ['tools/gemini-review.mjs'],
     reason: reason ?? null,
     at
@@ -306,6 +355,7 @@ async function main(argv) {
           ids: 41,
           answerBytes: 13229,
           finish: 'STOP',
+          stop: PROVIDERS.gemini.stop,
           at: '2026-10-05T22:00:00Z'
         }),
         null,
@@ -442,7 +492,8 @@ async function main(argv) {
             version,
             ids: groupedIdLines(promptText).length ? 0 : (promptText.match(/^\s*[A-F][0-9_a-z]*:/gm) || []).length,
             answerBytes: text.length,
-            finish: fin
+            finish: fin,
+            stop: P.stop
           }),
           null,
           2
@@ -512,6 +563,65 @@ function selftest() {
     ck(`${name}: reads an empty response without throwing`, typeof P.read({}).text, 'string');
   }
   ck('an unknown provider is not silently defaulted', PROVIDERS['nope'] === undefined, true);
+
+  /* ── the anthropic row: the three ways the Messages API differs from the OpenAI-shaped rows ── */
+  const A = PROVIDERS.anthropic;
+  const aH = A.headers('SEKRIT');
+  ck('anthropic: authenticates with x-api-key, not a Bearer token', aH['x-api-key'] === 'SEKRIT' && aH.Authorization === undefined, true);
+  ck('anthropic: sends the REQUIRED anthropic-version header', typeof aH['anthropic-version'] === 'string' && aH['anthropic-version'].length > 0, true);
+  ck('anthropic: max_tokens is in the body — this API 400s without it', A.body('Q?', A.defaultModel, 77).max_tokens, 77);
+  ck('anthropic: the cheap option is named, so a re-run need not guess one', typeof A.cheapModel === 'string' && A.cheapModel.length > 0, true);
+  /* The reply is an ARRAY OF BLOCKS. A row that read `content` as a string would score every answer
+     as empty, which reads exactly like a weak model — the failure mode this whole file exists to
+     avoid (see the thinking-token note on REQ_MAX_OUTPUT_TOKENS). */
+  ck(
+    'anthropic: text blocks are joined and non-text blocks ignored',
+    A.read({
+      content: [
+        { type: 'thinking', thinking: 'hm' },
+        { type: 'text', text: 'a' },
+        { type: 'text', text: 'b' }
+      ]
+    }).text,
+    'ab'
+  );
+  ck('anthropic: a reply with no text block reads as empty, never as undefined', A.read({ content: [{ type: 'thinking', thinking: 'hm' }] }).text, '');
+  ck('anthropic: a non-array content does not throw', A.read({ content: 'oops' }).text, '');
+  ck('anthropic: output_tokens is where the answer size lives', A.read({ usage: { output_tokens: 12 } }).answerTokens, 12);
+  /* THE BRIEF'S RULE, satisfied by the GENERIC refusal rather than a second code path: stop_reason
+     `max_tokens` is not the completed value, so `finish !== P.stop` refuses before anything is scored. */
+  ck('anthropic: end_turn is the completed value', A.read({ stop_reason: 'end_turn' }).finish === A.stop, true);
+  ck('anthropic: a max_tokens stop_reason is NOT the completed value, so it refuses', A.read({ stop_reason: 'max_tokens' }).finish === A.stop, false);
+
+  /* THE REFUSAL PATHS FOR THIS ROW specifically — the generic ones are pinned above, but a new
+     provider's key var and file must be shown to reach them, and no refusal may carry the secret. */
+  const aFile = keyFileFor('anthropic');
+  const aMissing = resolveKey({ keyVar: A.keyVar, keyFile: aFile, env: {}, exists: () => false });
+  ck('anthropic: an absent key refuses, naming its own variable and file', /ANTHROPIC_API_KEY/.test(aMissing.reason) && aMissing.reason.includes(aFile), true);
+  ck('…and it hands back no key at all', aMissing.key, undefined);
+  const aLoose = resolveKey({ keyVar: A.keyVar, keyFile: aFile, env: {}, exists: () => true, mode: () => 0o640 });
+  ck('anthropic: a group-readable key file refuses as not-a-secret', /group- or world-readable/.test(aLoose.reason), true);
+  const aEmpty = resolveKey({ keyVar: A.keyVar, keyFile: aFile, env: {}, exists: () => true, mode: () => 0o600, read: () => 'ANTHROPIC_API_KEY=\n' });
+  ck('anthropic: an EMPTY value refuses rather than sending a blank key', /EMPTY/.test(aEmpty.reason), true);
+  /* ⚠️ THE ONE THING A REFUSAL MUST NEVER DO. Every reason above is checked for the value it was
+     handed, because a refusal is the text most likely to be pasted into a PR body or a log. */
+  const SECRET = 'sk-ant-DO-NOT-LEAK-ME';
+  const aWithKey = resolveKey({ keyVar: A.keyVar, keyFile: aFile, env: {}, exists: () => true, mode: () => 0o640, read: () => `ANTHROPIC_API_KEY=${SECRET}\n` });
+  ck('anthropic: a refusal over a readable file NEVER echoes the key', (aWithKey.reason || '').includes(SECRET), false);
+  ck('…and the same holds for the empty-value refusal', (aEmpty.reason || '').includes('ANTHROPIC_API_KEY='), false);
+
+  /* ── the per-provider completed value in the verdict (was Gemini's literal for everyone) ── */
+  const vClean = reviewVerdict({ status: 'PASS', model: 'm', version: 'v', finish: 'end_turn', stop: 'end_turn', at: '2026-10-10T22:00:00Z' });
+  ck('a provider whose completed value is end_turn is NOT truncated', vClean.result.truncated, 0);
+  const vLower = reviewVerdict({ status: 'PASS', model: 'm', version: 'v', finish: 'stop', stop: 'stop', at: '2026-10-10T22:00:00Z' });
+  ck("…and neither is a lowercase 'stop' provider — the old code scored both as truncated", vLower.result.truncated, 0);
+  const vCut = reviewVerdict({ status: 'PASS', model: 'm', version: 'v', finish: 'max_tokens', stop: 'end_turn', at: '2026-10-10T22:00:00Z' });
+  ck('a starved reply IS truncated', vCut.result.truncated, 1);
+  /* §∅: with no completed value to compare against, truncation is UNKNOWABLE — not a comfortable 0. */
+  const vBlind = reviewVerdict({ status: 'PASS', model: 'm', version: 'v', finish: 'whatever', stop: null, at: '2026-10-10T22:00:00Z' });
+  ck('an unclassifiable finish reason is null, never a guessed 0', vBlind.result.truncated, null);
+  const vNone = reviewVerdict({ status: 'PASS', model: 'm', version: 'v', finish: null, stop: null, at: '2026-10-10T22:00:00Z' });
+  ck('no finish reason at all means nothing was truncated', vNone.result.truncated, 0);
   ck('a grouped id line is detected', groupedIdLines(' 36/70/85: a round digit count\n A1: x\n'), ['36/70/85: a round digit count']);
   ck('a one-id-per-line prompt is clean', groupedIdLines(' A1: x\n B2: y\n'), []);
   ck('a bare number line is not a group', groupedIdLines(' 13: s["count"] > 0\n'), []);

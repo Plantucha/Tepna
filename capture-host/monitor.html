@@ -336,6 +336,13 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .clk-field input:focus,.clk-field select:focus{border-color:rgba(61,224,208,.4);outline:none;}
 .clk-field input::placeholder{color:var(--text4);}
 .clk-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;}
+table.clksrc{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0 10px;}
+table.clksrc th,table.clksrc td{text-align:left;padding:5px 10px;border-bottom:1px solid var(--border);}
+table.clksrc th{color:var(--text4);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+table.clksrc td.v{font-family:ui-monospace,monospace;white-space:nowrap;}
+#clkSources .clk-val{white-space:normal;overflow:visible;text-overflow:clip;}  /* the stats carry their units; wrap, never ellipsize */
+table.clksrc tr.sel td{color:var(--text);} table.clksrc tr.sel td.v:first-of-type{font-weight:700;}
+table.clksrc tr.ref td{color:var(--teal, #3de0d0);}
 #clkCard code{font-family:ui-monospace,monospace;font-size:11px;background:var(--surface2);border:var(--b);padding:1px 6px;border-radius:5px;color:var(--text2);}
 
 /* ── Evidence discs (byte-faithful to dex-badges.css) ──────────────────── */
@@ -753,6 +760,10 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
       <div class="card" id="clockCard">
         <h3>Clock &amp; NTP <span style="font-weight:400;color:var(--text3);font-size:11px">· the Clock Contract stamps every capture with this box's wall clock</span></h3>
         <div class="clk-status" id="clkStatus"><span class="spin">reading clock…</span></div>
+        <!-- This box against every clock it can see (VIGIL-GPS-STRATUM1). Rendered only on a chrony box;
+             each row is chrony's own measurement of "that source minus this box", in seconds, so the
+             reader sees the house PPS and the LAN's other stratum-1 servers side by side. -->
+        <div id="clkSources"></div>
         <div class="clk-grid">
           <label class="clk-field">NTP server(s)
             <input id="ntpServers" type="text" spellcheck="false" autocomplete="off" placeholder="192.168.0.123 or pool.ntp.org">
@@ -1040,7 +1051,23 @@ function hostClockChip(hc){
   if(hc.server) bits.push('server '+hc.server);
   if(hc.jitter_us!=null) bits.push('jitter '+hc.jitter_us+' us');
   if(hc.root_dispersion_ms!=null) bits.push('root dispersion '+hc.root_dispersion_ms+' ms');
-  return `<span class="clk ${cls}" title="${esc(bits.filter(Boolean).join(' · '))}">🛰 ${txt}</span>`;
+  // "vs network": the box's clock against the LAN's other time servers, from the clock card's last read.
+  // A box on its own PPS that also agrees with the NTP250 within a few hundred µs is a healthy stratum-1;
+  // one that disagrees by ms has either a bad PPS edge or a bad server, and the pill should say so.
+  // Every server goes in the tooltip; the ONE that disagrees most goes in the pill text itself, so a
+  // box drifting from the NTP250 is visible from any tab without opening the card.
+  let worst = null;
+  for(const s of ((_clkChrony&&_clkChrony.sources)||[])){
+    if(s.mode!=='server' || s.offset_s==null) continue;
+    bits.push('vs '+s.name+' '+fmtS(s.offset_s));
+    // a falseticker is chrony's verdict on THAT server, not on this box — tooltip only, never the pill
+    if(s.state!=='falseticker' && (!worst || Math.abs(s.offset_s) > Math.abs(worst.offset_s))) worst = s;
+  }
+  // Pill text stays short: when every server shares one /24, an address shrinks to its last octet.
+  const srvs = ((_clkChrony&&_clkChrony.sources)||[]).filter(s => s.mode==='server');
+  const shortName = n => { const m = /^(\d+\.\d+\.\d+)\.(\d+)$/.exec(n); return (m && srvs.every(s => s.name.startsWith(m[1]+'.'))) ? '.'+m[2] : n; };
+  const vs = worst ? ' · vs '+esc(shortName(worst.name))+' '+fmtS(worst.offset_s) : '';
+  return `<span class="clk ${cls}" title="${esc(bits.filter(Boolean).join(' · '))}">🛰 ${txt}${vs}</span>`;
 }
 // A stream's pill must describe DATA, not the BLE link. It used to read `active` alone — but `active`
 // means "declared and started", not "delivering". So a sensor sitting on its charger, or a ring off the
@@ -3109,10 +3136,33 @@ async function loadClock(){
     ['Zone', esc(c.timezone||'—') + ' <span style="color:var(--text4)">'+fmtOffset(c.offset_min)+'</span>'],
     ['Stamps', (k.stamp_format||'local-civil') + (c.available===false?' <span class="pill pill-gray">unknown</span>':k.synced&&k.tz_set?' <span class="pill pill-green">contract ✓</span>':' <span class="pill pill-amber">check zone/sync</span>')],
   ].map(([l,v])=>`<div class="clk-row"><span class="clk-lab">${l}</span><span class="clk-val">${v}</span></div>`).join('');
+  renderClockSources(c.chrony);
   if(document.activeElement!==$('#ntpServers') && (c.servers||[]).length) $('#ntpServers').value = c.servers.join(' ');
   if(document.activeElement!==$('#tzInput') && c.timezone) $('#tzInput').value = c.timezone;
   if(c.poll_max_sec){ const sel=$('#ntpInterval'), o=[...sel.options].find(o=>+o.value===c.poll_max_sec); if(o) sel.value=o.value; }
   $('#clkPrivNote').style.display = c.can_write ? 'none' : 'block';
+}
+// Seconds → the unit a human reads at a glance. Sign kept: chrony's offsets are "source minus this box".
+function fmtS(x){ if(x==null) return '—'; const a=Math.abs(x); const [m,u]=a<1e-6?[1e9,'ns']:a<1e-3?[1e6,'µs']:a<1?[1e3,'ms']:[1,'s']; return (x<0?'−':'+')+(a*m).toFixed(a*m<10?2:a*m<100?1:0)+' '+u; }
+function fmtSabs(x){ return x==null?'—':fmtS(x).replace(/^[+−]/,''); }
+let _clkChrony = null;   // the last /api/clock chrony block, read by the sidebar chip for its "vs network" bits
+function renderClockSources(ch){
+  _clkChrony = ch || null;
+  const el = $('#clkSources'); if(!el) return;
+  if(!ch || !ch.available || !(ch.sources||[]).length){ el.innerHTML=''; return; }
+  const t = ch.tracking || {};
+  const head = `<div class="clk-status" style="margin:8px 0 2px">
+    <div class="clk-row"><span class="clk-lab">Ref</span><span class="clk-val">${esc(t.reference||'—')}${t.host_stratum!=null?' <span style="color:var(--text4)">stratum '+t.host_stratum+'</span>':''}</span></div>
+    <div class="clk-row"><span class="clk-lab">Box−ref</span><span class="clk-val">${fmtS(t.system_offset_s)}${t.rms_offset_us!=null?' <span style="color:var(--text4)">rms '+t.rms_offset_us+' µs</span>':''}</span></div>
+    <div class="clk-row"><span class="clk-lab">Rate</span><span class="clk-val">${t.skew_ppm!=null?('±'+t.skew_ppm+' ppm'):'—'}${t.root_dispersion_ms!=null?' <span style="color:var(--text4)">root disp '+t.root_dispersion_ms+' ms</span>':''}</span></div>
+  </div>`;
+  const rows = ch.sources.map(s=>{
+    const cls = (s.state==='selected'?'sel ':'') + (s.mode==='refclock'?'ref':'');
+    const st = {selected:'● selected', combined:'◐ combined', excluded:'○ excluded', unreachable:'? unreachable', falseticker:'✗ falseticker', unstable:'~ unstable'}[s.state]||s.state;
+    return `<tr class="${cls}"><td class="v">${esc(s.name)}</td><td>${esc(s.mode)}</td><td>${st}</td><td class="v">${s.stratum}</td><td class="v">${s.reach.toString(8).padStart(3,'0')}</td><td class="v">${fmtS(s.offset_s)}</td><td class="v">± ${fmtSabs(s.error_s)}</td><td class="v">${fmtSabs(s.stddev_s)}</td></tr>`;
+  }).join('');
+  el.innerHTML = head + `<table class="clksrc"><thead><tr><th>source</th><th>kind</th><th>state</th><th>S</th><th>reach</th><th>minus this box</th><th>error</th><th>std-dev</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="hint" style="margin:0 0 6px">“minus this box” is chrony's own measurement of each source against this clock; a locally attached PPS (refclock) should sit within a few µs, LAN servers within a few hundred µs. Reach 377 = all of the last eight polls answered.</p>`;
 }
 async function clockPost(path, body){
   $('#clkMsg').textContent = '…';

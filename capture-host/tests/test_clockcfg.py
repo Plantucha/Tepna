@@ -274,6 +274,13 @@ def _status_with(monkeypatch, show, sync, gmtoff=7200):
 
     monkeypatch.setattr(clockcfg, "_run", fake_run)
     monkeypatch.setattr(clockcfg._time, "localtime", lambda *a: _Lt())
+    # the chrony comparison is host_clock's: stub it so these tests never shell out to a real chronyc
+    import host_clock
+
+    async def _no_chrony():
+        return {"available": False, "sources": [], "tracking": {}}
+
+    monkeypatch.setattr(host_clock, "read_sources", _no_chrony)
     return _go(clockcfg.status())
 
 
@@ -294,6 +301,7 @@ def test_status_reports_EVERY_field_from_a_full_transcript(monkeypatch):
         "poll_max_sec": 2048,
         "poll_now_sec": 2048,
         "contract": {"synced": True, "tz_set": True, "stamp_format": "local-civil, zone-free"},
+        "chrony": {"available": False, "sources": [], "tracking": {}},
     }
 
 
@@ -313,3 +321,27 @@ def test_a_FAILED_command_contributes_nothing_even_if_it_printed_key_value_lines
 def test_offset_min_floors_a_non_whole_minute_offset_and_passes_an_unknown_one_through(monkeypatch):
     assert _status_with(monkeypatch, (0, _SHOW), (0, _SYNC), gmtoff=-12345)["offset_min"] == -206
     assert _status_with(monkeypatch, (0, _SHOW), (0, _SYNC), gmtoff=None)["offset_min"] is None
+
+
+# ── the chrony comparison rides on status() (VIGIL-GPS-STRATUM1-2026-10-10) ────────────────────────
+def test_status_carries_the_chrony_comparison_and_never_blocks_on_it(monkeypatch):
+    """`status()` must stay a read-only, unprivileged call: the chrony block is whatever host_clock
+    reports, including `available: False` on a timesyncd box, and is never a reason to fail."""
+    import host_clock
+
+    async def fake_run(*args, timeout=20):
+        return 0, "NTP=yes\nNTPSynchronized=yes\nTimezone=UTC\nTimeUSec=now\n"
+
+    async def fake_sources():
+        return {
+            "available": True,
+            "sources": [{"name": "PPS", "mode": "refclock", "state": "selected", "offset_s": 3.6e-6}],
+            "tracking": {"reference": "PPS"},
+        }
+
+    monkeypatch.setattr(clockcfg, "_run", fake_run)
+    monkeypatch.setattr(host_clock, "read_sources", fake_sources)
+    st = _go(clockcfg.status())
+    assert st["chrony"]["available"] is True and st["chrony"]["sources"][0]["name"] == "PPS"
+    assert st["chrony"]["tracking"]["reference"] == "PPS"
+    assert st["synchronized"] is True  # the pre-existing fields are untouched
