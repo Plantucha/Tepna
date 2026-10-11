@@ -2,9 +2,9 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (SHORTFALL on the pre-stated criterion — recall@50 on the held-out half is
-**0.167** against a floor of 0.5; the detector is built and measured, and §4 shows the criterion is
-unreachable for a 147,696-pair space, so what it owes next is a criterion, not a better model) ·
+**Status:** DONE — 2026-10-11 (v2 PASSES the re-stated criterion: recall within the top 1 % of the pair
+space is **0.833** on the held-out half against a floor of 0.5. v1's SHORTFALL at recall@50 = 0.167 is
+kept in §4 because the reason it failed — a k chosen without the pair count — is the finding) ·
 **Created:** 2026-10-11 ·
 **Extends:** `DONE-WHEN-CROSS-BRIEF-2026-09-23-BRIEF.md` (the negative result this is the fourth shape of)
 
@@ -95,3 +95,38 @@ the entire signal; the threshold is a formality.** A fifth shape should pool ove
 - [x] The detector exists, streams the index under the memory rule, and plants both directions.
 - [x] The benchmark is pre-stated, held out, and reported on both halves.
 - [x] No automatic closure or supersession write exists in the tool.
+
+## 7 · v2 — the criterion re-stated as a SHARE, and the pooling changed
+
+**Owner ruling 2026-10-11**, after v1's SHORTFALL: state the criterion as a share of the pair space,
+and pool the decision text rather than whole-file means.
+
+**Criterion (pre-stated, ahead of the run):** recall within the **top 1 %** of the ranking ≥ 0.5. The
+share is computed *from* the space — 1,488 pairs of 148,785 — which is exactly what v1's fixed k = 50
+was not. **No threshold is fitted:** with the criterion expressed as a share, the threshold only has to
+avoid truncating the top 1 %, and it plays no part in the verdict.
+
+**Pooling:** the mean of the **three strongest chunk-pair similarities** between two briefs
+(`chunk-top3`), chosen on the fit half and reported on the held-out half.
+
+| pooling | held-out recall within top 1 % |
+|---|---|
+| mean of a brief's chunks (v1) | 0.444 |
+| strongest chunk pair | 0.833 |
+| **mean of the top 3 chunk pairs (v2)** | **0.833** |
+
+**Result: PASS — 15 of 18 held-out pairs inside the top 1 %** (fit 15/18, all 30/36). For reference at
+v1's fixed k, the same ranking gives recall@50 = 0.444 and recall@100 = 0.5 — the ranking improved and
+the *criterion* was the larger of the two defects.
+
+⚠️ **The owner's decision-text pooling could not be built, and the obstacle is the index, not effort.**
+The cached index records `{ file, h, vecs }` and nothing else — **no chunk text and no offsets** — so
+there is no way to say which chunk holds the status line or a ruling section, and embedding an
+extracted passage would require a model call. Chunk-level pooling is the one option available from
+cached data. Unblocking the asked-for shape needs an index that records chunk offsets.
+
+Cost of a full run: **1 m 50 s wall, 368 MB peak RSS** (the chunk-pair comparison is quadratic in
+chunks as well as briefs). The reading list is the top 1 %, not every pair above a threshold.
+
+§7.4 of the negative result still stands: the honest fix for the class is social. This remains a
+reading aid that writes nothing.
