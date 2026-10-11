@@ -424,8 +424,16 @@ def test_a_MODULE_key_must_be_ONE_THE_OWNER_NAMED():
     So the limit is the NAMES (`MODULE_KEYS_AUTHORIZED`). A module key for anything unnamed refuses even
     as the ONLY entry in the file, which a count could never express."""
     # a THIRD module key
-    with pytest.raises(ValueError, match="no owner ruling names"):
+    with pytest.raises(ValueError, match="no owner ruling names") as caught:
         M.parse_exclusions(_doc({"capture.py": _MOD(), "webmon.py": _MOD(), "timeline.py": _MOD()}))
+    # 🔴 THE MESSAGE MUST NAME THE FENCE, which is contract and not decoration: the whole reason this
+    # rule is an allowlist rather than a count is that the authorized modules are NAMED, so a refusal
+    # that will not say which two they are sends the reader to the source to find out what they may do
+    # — and `_named = None` (the mutant that survived the gate here) renders "the authorized set is
+    # None", which is a refusal that teaches nothing.
+    msg = str(caught.value)
+    for named in ("capture.py", "2026-10-03", "webmon.py", "2026-10-11"):
+        assert named in msg, f"the refusal must name {named!r} and its ruling date: {msg}"
     # and an unnamed one ALONE — the case a count of two would have waved through
     with pytest.raises(ValueError, match="no owner ruling names"):
         M.parse_exclusions(_doc({"timeline.py": _MOD()}))
