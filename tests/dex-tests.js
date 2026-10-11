@@ -14210,17 +14210,63 @@
       };
       // ── 1 · detectOscillations: a hole must not manufacture crossings ──
       if (typeof B.detectOscillations === 'function') {
+        /* THE INPUT IS BUILT TO THE DETECTOR'S OWN ACCEPTANCE CONDITIONS, read from the source rather
+           than assumed. #3427's leg used a HALF-sine that only dipped below the baseline, so
+           `pbCrossingIndices` found almost no sign flips, `detectSpO2Periodicity` returned ZERO
+           episodes, and the leg compared 0 to 0 — it passed against main and proved nothing. The four
+           conditions a trace must meet (oxydex-dsp.js):
+             · a sign flip of (spo2 − rolling median over PB_BASELINE_WIN_SEC = 181 s), and the
+               excursion it closes must reach PB_MIN_AMP / 2 = 1 %;
+             · each cycle (two consecutive half-gaps) within PB_CYCLE_MIN_SEC..MAX = 40..130 s;
+             · at least PB_MIN_CYCLES = 4 consecutive in-window cycles;
+             · those lengths regular — CV < PB_MAX_CYCLE_CV = 0.13.
+           A SYMMETRIC sine meets all four: it crosses its own median twice per cycle. Period 60 s,
+           ±3 % about 95 %, rounded to integers as a real oximeter reports them. */
+        var periodic = [];
+        for (var i = 0; i < 960; i++) periodic.push(Math.round(95 + 3 * Math.sin((2 * Math.PI * i) / 60)));
+        var oscClean = B.detectOscillations(mk(periodic)) || {};
+        /* THE LEG IS WORTHLESS UNLESS THE DETECTOR FIRES — assert the population before comparing it.
+           This is the assertion #3427 lacked, and it is why that leg was vacuous. */
+        T.ok(
+          'the periodic input is ACCEPTED as periodic breathing (the leg is non-vacuous)',
+          oscClean.episodeCount > 0,
+          'episodeCount = ' + JSON.stringify(oscClean.episodeCount) + ' — 0 or undefined makes every comparison below examine nothing'
+        );
+        /* Now the hole. Thirty absent seconds placed at a baseline CROSSING, where `null >= 90` being
+           false used to read as a descent below threshold and a crossing back. */
+        var holed = periodic.slice();
+        for (var h = 450; h < 480; h++) holed[h] = null;
+        var oscHoled = B.detectOscillations(mk(holed)) || {};
+        T.ok(
+          'a dropout adds no baseline CROSSINGS',
+          (oscHoled.totalCrossings || 0) <= (oscClean.totalCrossings || 0),
+          'holed = ' + JSON.stringify(oscHoled.totalCrossings) + ' vs clean = ' + JSON.stringify(oscClean.totalCrossings)
+        );
+        /* ⚠️ THE EPISODE COUNT GOES UP, AND THAT IS THE CORRECT BEHAVIOUR — 1 becomes 2. The dropout
+           SPLITS the oscillating stretch; the halves either side each still carry four regular cycles,
+           so each is reported on its own. Asserting `count <= clean` would have been asserting that a
+           discontinuity may be bridged, which is the opposite of the owner's 2026-09-17 ruling.
+           The invariant that actually matters is that no REPORTED episode spans a hole — a detector
+           that merged these two would be claiming periodic breathing through seconds it never saw. */
+        var eps = oscHoled.episodes || [];
+        var spansHole = 0;
+        for (var ei = 0; ei < eps.length; ei++) {
+          var st = eps[ei].startIdx,
+            en = st + (eps[ei].windowSec || 0);
+          for (var qi = st; qi <= en && qi < holed.length; qi++) if (holed[qi] == null) spansHole++;
+        }
+        T.eq('no REPORTED episode spans the dropout', spansHole, 0);
+        T.ok(
+          'the stretch is SPLIT, not merged — the halves are reported separately',
+          (oscHoled.episodeCount || 0) >= (oscClean.episodeCount || 0),
+          'holed = ' + JSON.stringify(oscHoled.episodeCount) + ' vs clean = ' + JSON.stringify(oscClean.episodeCount)
+        );
+        /* And a FLAT trace with a hole must still yield nothing — the §∅ case stated directly: absence
+           is not an oscillation, however regular the dropouts are. */
         var flat = [];
-        for (var i = 0; i < 400; i++) flat.push(96);
-        var holed = flat.slice();
-        for (var h = 150; h < 180; h++) holed[h] = null;
-        var ep = [{ startIdx: 0, endIdx: 399 }];
-        var osc = B.detectOscillations(mk(holed), ep) || [];
-        var oscClean = B.detectOscillations(mk(flat), ep) || [];
-        /* A 30 s dropout in a flat 96 % trace used to read as a descent below the threshold and a
-           crossing back — fabricated oscillation, in the detector whose output IS the
-           periodic-breathing finding. */
-        T.eq('a dropout in a FLAT trace manufactures no oscillation episode', osc.length, oscClean.length);
+        for (var f = 0; f < 960; f++) flat.push(96);
+        for (var g = 0; g < 960; g += 60) for (var q = g; q < g + 30 && q < 960; q++) flat[q] = null;
+        T.eq('REGULARLY SPACED DROPOUTS in a flat trace are not periodic breathing', (B.detectOscillations(mk(flat)) || {}).episodeCount, 0);
       }
       // ── 2 · computeODI2: a hole must not count as a desaturation ──
       if (typeof B.computeODI2 === 'function') {
