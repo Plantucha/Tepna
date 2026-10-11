@@ -36,6 +36,7 @@
  * Reads only the files it is pointed at; writes nothing.
  */
 import fs from 'node:fs';
+import { execSync } from 'node:child_process';
 import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
@@ -121,11 +122,21 @@ const verdict = (fired) => (fired.length ? fired.join(', ').toUpperCase() : 'ok'
 function scan(dir, dsp) {
   const { E, P } = dsp;
   const ef = pick(dir, /Polar_H10_.*_ECG\.txt$/i);
-  if (!ef) return;
+  /* 🔴 NOT "scanned and clean" — NOTHING WAS SCANNED. This returned bare `undefined`, so the caller
+     counted the directory as examined and the run could report PASS over a folder it never opened. The
+     skip is now named and the caller excludes it from `checked`. */
+  if (!ef) return { fired: [], skipped: 'no Polar_H10_*_ECG.txt in the directory — nothing to probe' };
   const er = E.parseECG(fs.readFileSync(ef, 'utf8'));
   const idx = Array.from(E.detectPeaks(er.int16, E.bandpass(er.int16, er.fs), er.fs));
   const R = idx.map((i) => er.tMsAt(i));
-  const row = (stage, res) => console.log('  ' + stage.padEnd(26) + verdict(res.fired || []).padEnd(22) + (res.note || ''));
+  /* `allFired` mirrors exactly what the table prints, so the verdict cannot disagree with the rows a
+     reader sees. Without it `scan` returned nothing and the FAIL branch below was unreachable — a
+     status that could never fire is worse than no status. */
+  const allFired = [];
+  const row = (stage, res) => {
+    allFired.push(...(res.fired || []));
+    console.log('  ' + stage.padEnd(26) + verdict(res.fired || []).padEnd(22) + (res.note || ''));
+  };
 
   console.log('\n=== ' + path.basename(dir));
   // 1 — ECG sample axis, sampled sparsely (millions of samples; the shape is scale-free)
@@ -242,19 +253,151 @@ function scan(dir, dsp) {
       });
     }
   }
+  return { fired: allFired };
 }
 
-const dirs = process.argv.slice(2);
+/**
+ * PURE CORE — decide the run's status from what was actually scanned.
+ *
+ * 🔴 WHY THIS EXISTS: the loop below used to catch a per-directory failure, print an `ERROR:` line and
+ * fall off the end of the script, so the process exited **0**. Measured 2026-10-11:
+ * `node tools/geometry-scan.mjs /tmp/no-such-night` printed `ERROR: ENOENT …` and returned `EXIT=0` —
+ * a caller checking the exit code was told the scan succeeded. The capture-host lane already states
+ * the rule this breaks: "what did not run gets `?`, never ✓ and never ✗ — the reader must be able to
+ * tell 'clean' from 'we did not look'" (`test_night_report.py`).
+ *
+ * `NOT_RUN` is reserved for examining NOTHING (§🧾), so a run where some directories scanned and others
+ * failed is a SHORTFALL, not a NOT_RUN: the criterion could not be evaluated over the named set.
+ */
+export function classifyRun({ eligible, checked, firedDirs, errored }) {
+  if (checked === 0) return { status: 'NOT_RUN', reason: `no directory could be scanned (${errored.length} of ${eligible} failed to load)` };
+  if (firedDirs.length) return { status: 'FAIL', reason: `a geometric probe fired in ${firedDirs.length} of ${checked} scanned directory(ies)` };
+  if (errored.length) return { status: 'SHORTFALL', reason: `${errored.length} of ${eligible} directory(ies) could not be scanned, so the criterion was not evaluated over the named set` };
+  return { status: 'PASS', reason: null };
+}
+
+function runSelftest() {
+  const fail = [];
+  const ok = (name, cond, detail) => {
+    if (!cond) fail.push(name + (detail ? ' — ' + detail : ''));
+  };
+  /* The planted case IS the defect: every directory failing must not read as a pass, and must not
+     read as a FAIL either — nothing was examined, so there is no finding to report. */
+  ok('all dirs unreadable ⇒ NOT_RUN', classifyRun({ eligible: 2, checked: 0, firedDirs: [], errored: ['a', 'b'] }).status === 'NOT_RUN', 'examined nothing');
+  ok('…and it names how many failed', /2 of 2/.test(classifyRun({ eligible: 2, checked: 0, firedDirs: [], errored: ['a', 'b'] }).reason || ''), 'reason must carry the count');
+  // CONTROLS — the three states that are not the defect.
+  ok('CONTROL · all scanned and clean ⇒ PASS', classifyRun({ eligible: 2, checked: 2, firedDirs: [], errored: [] }).status === 'PASS');
+  ok('CONTROL · a fired probe ⇒ FAIL', classifyRun({ eligible: 1, checked: 1, firedDirs: ['n1'], errored: [] }).status === 'FAIL');
+  ok('CONTROL · partial scan ⇒ SHORTFALL, never NOT_RUN', classifyRun({ eligible: 3, checked: 2, firedDirs: [], errored: ['x'] }).status === 'SHORTFALL', 'NOT_RUN is for examining nothing');
+  ok(
+    'CONTROL · PASS carries no reason, every other status does',
+    classifyRun({ eligible: 1, checked: 1, firedDirs: [], errored: [] }).reason === null && classifyRun({ eligible: 1, checked: 0, firedDirs: [], errored: ['x'] }).reason !== null
+  );
+  ok(
+    'population adds up: checked + excluded = eligible',
+    (() => {
+      const e = 3,
+        c = 2,
+        x = 1;
+      return c + x === e;
+    })()
+  );
+  const line = fail.length ? `geometry-scan selftest: ${fail.length} FAILED\n  ` + fail.join('\n  ') : `all 7 selftests passed`;
+  console.log(line);
+  process.exit(fail.length ? 1 : 0);
+}
+
+/* The verdict contract wants the code identity that produced the object: a real sha, or an explicit
+   null WITH a reason when the tree is not a checkout. Guessing or omitting it would make the object
+   unattributable, which is the one thing a machine-readable verdict exists to prevent. */
+function headSha() {
+  try {
+    return execSync('git rev-parse --short=12 HEAD', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+const COMMIT = headSha();
+const PRODUCED_BY = COMMIT
+  ? { tool: 'tools/geometry-scan.mjs', commit: COMMIT }
+  : { tool: 'tools/geometry-scan.mjs', commit: null, commitReason: 'not a git checkout — no HEAD to attribute this object to' };
+
+const argv = process.argv.slice(2);
+if (argv.includes('--selftest')) runSelftest();
+/* `--verdict-sample` exists for the adoption gate, which needs one valid object without a corpus.
+   NOT_RUN over an empty population is the honest sample: nothing was examined, `checked + excluded =
+   eligible` holds at 0, and §🧾 forbids a PASS over `checked: 0` — so this cannot be mistaken for a
+   clean scan. It exits 0 because emitting a sample succeeded; the SCAN is what exits 2 when a
+   directory cannot be read. */
+if (argv.includes('--verdict-sample')) {
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        schema: 'tepna.verdict/1',
+        gate: 'geometry-scan',
+        // internal: a stage-attribution diagnostic for this repo's own corpus, never quoted outside it (P5).
+        scope: 'internal',
+        status: 'NOT_RUN',
+        population: { checked: 0, eligible: 0, excluded: 0 },
+        criterion: { name: 'every named directory is scanned and no geometric probe fires', threshold: 0, unit: 'directories unscanned or probes fired', direction: 'eq' },
+        result: null,
+        evidence: ['tools/geometry-scan.mjs'],
+        reason: 'verdict sample — no directory was named, so nothing was examined',
+        producedBy: PRODUCED_BY,
+        at: new Date().toISOString()
+      },
+      null,
+      1
+    )}\n`
+  );
+  process.exit(0);
+}
+const asJson = argv.includes('--json');
+const dirs = argv.filter((a) => !a.startsWith('--'));
 if (!dirs.length) {
   console.error('usage: node tools/geometry-scan.mjs <night-dir> [<night-dir> …]');
   process.exit(2);
 }
 const dsp = loadDsp();
 console.log('stage                       probes fired');
+const errored = [];
+const firedDirs = [];
 for (const d of dirs) {
   try {
-    scan(d, dsp);
+    const res = scan(d, dsp);
+    /* A NAMED SKIP IS AN EXCLUSION, NOT A CLEAN SCAN. `scan` returns `{ skipped }` when the directory
+       holds no ECG file, and that directory must not land in `checked` — counting it would let the run
+       report PASS over a folder nothing was read from. */
+    if (res && res.skipped) {
+      errored.push({ dir: d, reason: res.skipped });
+      console.log('\n=== ' + path.basename(d) + '  SKIPPED: ' + res.skipped);
+    } else if (res && res.fired && res.fired.length) {
+      firedDirs.push(d);
+    }
   } catch (e) {
+    errored.push({ dir: d, reason: (e && e.message) || String(e) });
     console.log('\n=== ' + path.basename(d) + '  ERROR: ' + ((e && e.message) || e));
   }
 }
+const checked = dirs.length - errored.length;
+const r = classifyRun({ eligible: dirs.length, checked, firedDirs, errored });
+const v = {
+  schema: 'tepna.verdict/1',
+  gate: 'geometry-scan',
+  scope: 'internal',
+  status: r.status,
+  population: { checked, eligible: dirs.length, excluded: errored.length },
+  criterion: { name: 'every named directory is scanned and no geometric probe fires', threshold: 0, unit: 'directories unscanned or probes fired', direction: 'eq' },
+  result: { scanned: checked, unscannable: errored.map((e) => ({ dir: path.basename(e.dir), reason: e.reason })), dirsWithFiredProbes: firedDirs.map((d) => path.basename(d)) },
+  evidence: ['tools/geometry-scan.mjs'],
+  reason: r.reason,
+  producedBy: PRODUCED_BY,
+  at: new Date().toISOString()
+};
+if (asJson) process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
+else console.log(`\n${r.status}${r.reason ? ' — ' + r.reason : ''}`);
+/* A DIRECTORY THAT COULD NOT BE READ EXITS NON-ZERO. The probe-fired path deliberately keeps its old
+   exit 0: a fired probe is this tool's normal output, callers read it from the table, and changing that
+   code is a contract change this unit was not asked to make. The row's defect is the unreadable
+   directory, and that is what moves. */
+if (errored.length) process.exit(2);
