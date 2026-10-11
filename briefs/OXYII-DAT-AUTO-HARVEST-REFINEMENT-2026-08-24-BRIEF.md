@@ -789,6 +789,85 @@ maximum is not a bound**, and at 50 s the distance between "usually fits" and "c
 the whole invariant lives.
 
 
+## §R results — 2026-10-10 (Wren, box-local, read-only)
+
+**Question (§3):** does the not-worn pull fire while the ring is still awake? The reference
+implementation measured a sibling model: take-off → countdown → END for ~2 min → vibrate → power off,
+with the last advert ~274 s after take-off when nothing is connected, and any GATT connection resets
+the power-off timer.
+
+**Method:** passive and read-only on vigil. Nothing was connected, configured or restarted.
+- **Doff:** each night's ring doff is the loss audit's `wear.ends[].doff_at`, measured from the ring's
+  own SpO₂/PPG tail (`captures/<night>/LOSS-AUDIT.json`), not a log line.
+- **Events:** `journalctl -u tepna-capture` was read from doff − 120 s to doff + 75 min, and every
+  ring event is placed in seconds after doff.
+- **Landing:** each `.dat` landing is read from `captures/stored/` (the file and its mtime), not from
+  the ambiguous "n new file(s)" line.
+- **Advert stop:** bounded, not observed. The lower bound is the last moment the ring answered (a
+  link up, or an advert seen); the upper bound is the first `O2Ring not advertising` failure.
+
+**Per night** (seconds after doff):
+
+| night (doff) | first not-worn pull | outcome | `.dat` landed | advert alive ≥ | advert gone ≤ | daemon restart |
+|---|---|---|---|---|---|---|
+| 10-04 07:03:59 | +50 | 1 new file | +81 (`…20261004002851_STORED.dat`) | +317 | +450 | +223 (owed deploy, "box is idle") |
+| 10-05 04:15:13 | +52 | 1 new file | +99 (`…20261004220042_STORED.dat`) | +339 | +472 | +245 (same) |
+| 10-06 04:20:20 | +51 | 1 new file | +63 (`…20261005221831_STORED.dat`) | +273 | +406 | +179 (same) |
+| 10-07 05:03:39 | +52 | 1 new file | +80 (`…20261006212119_STORED.dat`) | +249 | +3566¹ | — |
+| 10-08 04:25:44 | +50 | 1 new file | +87 (`…20261007192803_STORED.dat`) | +252 | +3541¹ | — |
+| 10-09 04:40:23 | +51 | 1 new file | +73 (`…20261008215938_STORED.dat`) | +115 | +3721¹ | — |
+| 10-10 07:37:55 | +49 | **failed** (`BleakDBusError`, 8 ms) | **none** | +211 | +269 | — |
+
+¹ No reconnect failure was logged between the last link and the hourly poller, so the only upper bound
+is the poller's "ring never appeared".
+
+**What the numbers say**
+1. **The first not-worn pull fires at +49…+52 s on every night**, over the still-held link. That is
+   at least 64 s before the last moment the ring was seen answering (10-09: +51 vs +115), and 160 s
+   or more on every other night. It is also well inside the reference implementation's ~274 s. On 6 of 7 nights it landed the night's `.dat` by +63…+99 s. The ≥210 s
+   doff settle (§3) is not what fires it; §8's held-link trigger is.
+2. **The one miss (10-10) was not the ring sleeping.** The pull fired 9 s after a fresh reconnect
+   (+40 s) and BlueZ refused it in 8 ms (`BleakDBusError`). The ring was still answering at +83 s and
+   +211 s. Nothing retried inside the awake window, and the next attempt was the poller at +476 s,
+   after the adverts stopped (≤ +269 s). **That night's `.dat` is still on the ring.**
+3. **The recovery path cannot recover.** The hourly poller fires at a wall-clock phase unrelated to
+   doff (+476 … +3856 s here). Every one of its post-doff attempts this week landed after power-off:
+   61 "ring never appeared" lines from 10-04 to 10-10. A sleeping ring is not there for a wall-clock
+   timer.
+4. **A second, failing not-worn pull on 10-04, 10-05 and 10-06 is a restart artefact.** In each case
+   `tepna-update` took an owed deploy restart because the box went idle at doff (+179…+245 s). The
+   new process re-armed the doff trigger and pulled again at +274…+340 s. Those pulls failed as the
+   ring powered off, and they are the "failed" lines in the log. Nothing was lost: the night's `.dat`
+   had already landed.
+5. **The tail under a held link, n=2 (10-07, 10-08):** the link held from +121/+126 s ended at
+   +249/+252 s, near the reference's ~274 s with no connection. On those two nights the held link did
+   **not** visibly extend the awake tail. On the restart nights a fresh connection at +183…+249 s kept
+   the ring answering to +273…+339 s. That is consistent with the reference's "a connection resets the
+   timer", but n=3 and confounded by the restart. **Unmeasured:** how long a held link can extend the
+   tail.
+
+**Not run:** a live passive advert-stop measurement. The next doff is tomorrow morning, and the
+journal bounds above already decide the gate. The live run stays queued for the next worn night.
+
+```json
+{ "schema": "tepna.verdict/1", "gate": "ring-notworn-pull-in-awake-tail", "status": "PASS",
+  "population": { "checked": 7, "eligible": 7, "excluded": 0 },
+  "criterion": { "name": "pull_attempt_s_after_doff <= advert_stop_s_after_doff", "threshold": 0, "unit": "s", "direction": "lte",
+                 "note": "advert stop taken at its LOWER bound (last moment the ring answered), so the inequality holds for any true stop time" },
+  "result": { "pull_attempt_s": [50, 52, 51, 52, 50, 51, 49], "advert_alive_lower_bound_s": [317, 339, 273, 249, 252, 115, 211],
+              "min_margin_s": 64, "dat_landed": 6, "dat_missed": 1, "missed_cause": "BlueZ refused the pull (BleakDBusError) with the ring awake; no in-window retry" },
+  "evidence": ["captures/2026-10-0{4..9}/LOSS-AUDIT.json wear.ends[].doff_at", "captures/stored/*_STORED.dat mtimes",
+               "journalctl -u tepna-capture doff-120 s … doff+75 min, 2026-10-04 … 2026-10-10"],
+  "reason": null, "producedBy": { "tool": "journal + file reads on vigil (Wren)", "commit": "148abe0a" }, "at": "2026-10-11T01:20:00Z" }
+```
+
+**Sizing the build unit:** the trigger's timing is right. What fails is one-shot firing and a recovery
+that runs on the wrong clock, so the unit is:
+- **retry inside the awake window:** keyed on the ring's contact byte and link state, not a wall-clock
+  poller;
+- **no doff re-pull after a restart** when the night's `.dat` is already on disk;
+- **hold back the owed-deploy restart for ~5 min after a ring doff.**
+
 ## APPENDIX — owner's full program spec (§1–27, verbatim)
 
     TEPNA — O2RING .DAT AUTO-HARVEST REFINEMENT

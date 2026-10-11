@@ -215,8 +215,23 @@ jobs:
             fi
           done
           echo "--- $found tool selftest(s), $failed failed"
-          # A tool quietly LOSING its --selftest must not read as success.
-          [ "$found" -ge 10 ] || { echo "expected >=10 selftests, found $found"; exit 1; }
+          # A tool quietly LOSING its --selftest must not read as success — which is what the old
+          # `-ge 10` could not do: it found 156 and asserted 10, so FIFTEEN TIMES the floor could
+          # vanish and the step still passed. Measured 2026-10-11. A floor that far below the
+          # population answers a question nobody asked.
+          # GROW-ONLY RATCHET instead: the count may rise and must never fall. Raise EXPECTED in the
+          # same PR that adds a selftest; a drop names a tool that lost its flag or became
+          # undiscoverable. Never lower it to make a run pass — lowering it records that a known
+          # harness stopped running.
+          EXPECTED=156
+          if [ "$found" -lt "$EXPECTED" ]; then
+            echo "selftest count DROPPED: found $found, expected at least $EXPECTED"
+            echo "a tool lost its --selftest, was deleted, or became undiscoverable to the lister"
+            exit 1
+          fi
+          if [ "$found" -gt "$EXPECTED" ]; then
+            echo "NOTE: $found > EXPECTED=$EXPECTED — raise EXPECTED in tests.yml; a ratchet nobody tightens stops being one"
+          fi
           [ "$failed" -eq 0 ] || exit 1
 
   # ── one aggregated status ──────────────────────────────────────────────────────────

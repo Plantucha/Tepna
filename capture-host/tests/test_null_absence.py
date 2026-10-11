@@ -168,3 +168,9 @@ def test_visibility_never_crashes_on_foreign_records(values, target):
     # This documents the crash; after the reader fix, pass the raw values.
     result = ble_visibility.visibility(dicts_only, target)
     assert isinstance(result, dict)
+
+
+def test_visibility_treats_adapters_null_as_an_empty_map():
+    """`{"adapters": None}` is a record whose key exists with no value; `.get(k, {})` hands back the None.
+    Hypothesis found it on 2026-10-10; an absent map is an empty one, never a crash."""
+    assert ble_visibility.visibility([{"adapters": None}, {"adapters": {}}], "0") == {}

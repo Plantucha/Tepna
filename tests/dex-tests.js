@@ -4565,11 +4565,28 @@
 
     group('Integrator findings — unknown time is null, never 1970 (2026-10-05 §2a)', 'integrator-dsp · absence', function (T) {
       var src = (env.sources || {})['integrator-dsp.js'] || '';
-      // ── source-mirror: the two finding builders must not fabricate tMs: 0 ──
-      var bad = (src.match(/tMs:\s*startMs\s*\|\|\s*0/g) || []).length;
-      T.ok('no `tMs: startMs || 0` fabrication sites', bad === 0, bad + ' site(s) stamp 1970 on timeless findings');
-      var good = (src.match(/tMs:\s*startMs\s*\?\?\s*null/g) || []).length;
-      T.ok('timeless findings use `tMs: startMs ?? null`', good >= 2, 'found ' + good + ', want ≥2');
+      /* ── source-mirror ─────────────────────────────────────────────────────────────────────────────
+         🔴 THIS PATTERN USED TO REQUIRE `tMs:` IMMEDIATELY BEFORE `startMs || 0`, AND THAT IS HOW A
+         THIRD SITE SURVIVED THE SWEEP THAT ADDED THIS GROUP. The repo held 3 occurrences before #3366;
+         that PR fixed 2, re-grepped for the shape it had just eliminated (`tMs: startMs || 0` → 0 hits,
+         true by construction) and reported the sweep complete. The survivor was
+         `tMs: b.t0Ms != null ? b.t0Ms : startMs || 0` — `startMs || 0` sits after a ternary, not after
+         `tMs:`, so neither the body's grep nor this assertion could see it. Found 5 days later by a
+         whole-tree run of the absence gate (#3392).
+         The pattern is now anchored on the FABRICATION (`startMs || 0`) wherever it appears, never on
+         the syntax that happened to surround the instances already fixed. */
+      var bad = (src.match(/\bstartMs\s*\|\|\s*0/g) || []).length;
+      T.ok('no `startMs || 0` fabrication anywhere in a tMs expression', bad === 0, bad + ' site(s) stamp 1970 when startMs is absent — a `b.t0Ms != null ?` guard protects b.t0Ms, NOT the fallback');
+      /* ⚠️ AN EQUALITY, NOT A FLOOR. `good >= 2` was satisfied by the two sites #3366 fixed while the
+         third was unexamined — a floor met by the right members is the exact failure this file keeps
+         re-learning. The count is the declared population of timeless-finding builders; if a builder is
+         added or removed, this number moves deliberately. */
+      var good = (src.match(/startMs\s*\?\?\s*null/g) || []).length;
+      T.ok(
+        'every timeless-finding builder uses `startMs ?? null`',
+        good === 3,
+        'found ' + good + ', declared population is 3 (glucose_autonomic_correlation, staging_disagreement, periodic_breathing)'
+      );
       // ── the unmatched export mapping must tolerate null tMs too ──
       T.ok('unmatched export guards null tMs', /time:\s*e\.tMs\s*!=\s*null\s*\?\s*fmtDateTime\(e\.tMs\)\s*:\s*null/.test(src), 'fmtDateTime(e.tMs) unguarded — null renders as 1970');
       // ── functional: a null-tMs finding exports tMs:null and time:null ──
@@ -6821,11 +6838,11 @@
     group('Every registry id has a DECLARED binding — emitted, in *_DEFS, or dormant', 'registry · id-emission · ratchet', function (T) {
       var src = env.sources || {};
       var UNDECLARED = {
-        cpapdex: 'cmpResidSD',
-        ecgdex: 'accPosture analyzable cpcHfc crCoupling deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
+        cpapdex: '',
+        ecgdex: 'accPosture analyzable cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
         glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability timeAbove timeBelow',
-        hrvdex: 'ansLoad cai camq crs csi cvi dfaAlpha1 efc focusEff hfnu lfhf momentum ortho otr pnsEff pti recovDebt recovIndex sd1sd2 sdnnZ si spectralEnt vei vo2roll welfare',
-        motiondex: 'activityCounts effortAmp effortPresent respRate sqiConf',
+        hrvdex: 'camq ortho',
+        motiondex: 'activityCounts effortAmp effortPresent respRate',
         oxydex:
           'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 ct90 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
         ppgdex:
@@ -6895,22 +6912,88 @@
             .join('\n')
         );
         var ids = [];
-        var re = /(^|[^A-Za-z0-9_$.'"])([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{\s*label\s*:/g;
-        var _m;
+        /* ⚠️ FIELD-ORDER-INDEPENDENT, and this is a bug fix with two scars.
+           It used to require `label` IMMEDIATELY after the brace (`id: { label:`), so ANY entry that
+           put another field first was invisible to this gate. Measured 2026-10-10: that was
+           **24 of 522 ids** — 21 in ppgdex alone (`dicroticFinger`, `aiFinger`, …, each with
+           `dormant: true` written first), plus 2 in motiondex and 1 in cpapdex. The population leg
+           below asserts `> 400` and passed comfortably at 498 while those 24 were dark: a floor met
+           by the wrong members, in the gate carrying that very warning. The tell was a count that
+           moved 500 → 498 when `emittedAt:` was added as a first field and `cmpResidSD` read as
+           FIXED — "resolved" because the gate had stopped SEEING it.
+           Now `[^{}]` keeps the window inside ONE entry (it cannot run past a closing brace into a
+           neighbour's `label`) while allowing any fields before it. First attempt at this fix
+           required a closing brace at 4-space indent, which single-line entries do not have, and the
+           population collapsed to 181 — caught by the same anti-vacuity floor. */
+        var re = /(^|[^A-Za-z0-9_$.'"])([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{[^{}]{0,400}?\blabel\s*:/g;
         for (const m of regS.matchAll(re)) if (ids.indexOf(m[2]) === -1) ids.push(m[2]);
         totalIds += ids.length;
         var undeclared = ids.filter(function (id) {
           var emitted = new RegExp('(^|[^A-Za-z0-9_$])' + id + '\\s*:|\\.' + id + '\\b|[\'"`]' + id + '[\'"`]').test(body);
           var inDefs = new RegExp('(^|[^A-Za-z0-9_$.\'"])' + id + "\\s*:\\s*\\{|id:\\s*'" + id + "'").test(defs);
-          var isDormant = (function () {
-            var e = new RegExp(id + '\\s*:\\s*\\{[\\s\\S]{0,600}?\\}').exec(reg);
-            return !!e && /dormant\s*:\s*true/.test(e[0]);
-          })();
-          return !(emitted || inDefs || isDormant);
+          /* The ENTRY text, read from the UNSTRIPPED registry so a `dormant` written in prose beside
+             the flag is not what satisfies this — the flag itself must be there. */
+          /* `[^{}]` KEEPS THIS INSIDE ONE ENTRY. The previous form looked for a closing brace at
+             4-space indent, which SINGLE-LINE entries do not have — so for every such entry it ran on
+             until the next multi-line one and could have read a NEIGHBOUR's `dormant: true` as this
+             id's. Measured on `recovIndex`: 865 characters captured instead of 185. The answers
+             happened to agree today, which is exactly what makes it worth fixing before they do not. */
+          var entry = new RegExp(id + '\\s*:\\s*\\{[^{}]{0,900}?\\}').exec(reg);
+          var isDormant = !!entry && /dormant\s*:\s*true/.test(entry[0]);
+          /* FOURTH ROUTE — a DECLARED NESTED BINDING. Some values ship under a PATH rather than a flat
+             key (`motion.sqi`, `scale.residSD`), so the id can be neither renamed nor called dormant:
+             a compute site exists and its value reaches the export. `emittedAt` declares that path,
+             which completes this gate's criterion (every id has a DECLARED binding) rather than
+             loosening it — and it counts as a binding only because the leg below WALKS the path on a
+             committed export. Undemonstrated, it would be a second excuse list. */
+          var declaredPath = !!entry && /emittedAt\s*:\s*'[^']+'/.test(entry[0]);
+          /* ── FIFTH ROUTE — THE `d_` RENDER-KEY CONVENTION ────────────────────────────────────────
+             HRVDex's dashboard rows are keyed `d_<id>`, usually snake_cased: `d_lnrmssd`, `d_ans_load`,
+             `d_focus_eff`. The `emitted` regex above cannot see any of them, because it requires a
+             non-identifier character before the id and `_` is excluded from its class — so `d_lnrmssd`
+             never bound `lnrmssd`. **That single blind spot is why hrvdex held the second-largest share
+             of the baseline**: 17 of its 25 ids are rendered and were reading as unbound.
+             Measured 2026-10-11: 12 ids match `d_<id>` exactly, 5 more only after snake_casing
+             (`ansLoad`→`d_ans_load`, `focusEff`, `pnsEff`, `sdnnZ`, `spectralEnt`). Both forms, and no
+             third guess — a looser match would start binding ids to keys that merely look related. */
+          var snake = id.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+          var renderKey = new RegExp('[\'"`]d_(' + id + '|' + snake + ')[\'"`]').test(body);
+          /* ── SIXTH ROUTE — A DECLARED RENDER KEY, for the ones no rule derives ───────────────────
+             Six ids are rendered under a key the convention does not produce: `recovDebt`→
+             `d_recovery_debt`, `sd1sd2`→`d_sd1_sd2`, `vo2roll`→`d_vo2_roll7`, `momentum`→
+             `d_hrv_momentum`, `dfaAlpha1`→`d_dfa_proxy`, and `recovIndex`→**`d_ari`**, which shares no
+             substring with its id at all. Each is declared `rendersAs:` in the registry entry and
+             counts ONLY because the key must exist in the node's own render source — an undemonstrated
+             declaration would be a second excuse list, which is the objection `emittedAt` already had
+             to answer.
+             🔴 EVERY ONE OF THE SIX WAS CONFIRMED BY ITS LABEL, NOT BY ITS NAME. Registry label ≡
+             render label: `sd1sd2`/`d_sd1_sd2` both "SD1/SD2"; `recovIndex`/`d_ari` both "Recov Index".
+             The same check REFUTED a seventh I had guessed — `ortho`→`d_sai` reads "Orthostatic Load"
+             against "Spec.Asym", two different quantities — so `ortho` stays in the baseline. Name
+             similarity proposes a binding; the label is what confirms one. */
+          var declaredKey = null;
+          if (entry) {
+            var dk = /rendersAs\s*:\s*'(d_[a-z0-9_]+)'/.exec(entry[0]);
+            if (dk) declaredKey = new RegExp('[\'"`]' + dk[1] + '[\'"`]').test(body) ? dk[1] : null;
+          }
+          return !(emitted || inDefs || isDormant || declaredPath || renderKey || declaredKey);
         });
         var want = UNDECLARED[node].split(' ').filter(Boolean).sort().join(' ');
         var got = undeclared.slice().sort().join(' ');
         T.ok(node + ' · ids parsed (anti-vacuity — a parse of 0 would pass every id)', ids.length > 0, 'parsed ' + ids.length);
+        /* ── CONTROLS FOR THE TWO NEW ROUTES ───────────────────────────────────────────────────────
+           A route that binds an id is a route that can EXCUSE one, so each is planted against a case
+           it must refuse. Without these the `d_` route is an unfalsifiable widening: it would read as
+           working precisely because it stopped reporting. */
+        var synthetic = "x = { key: 'd_realkey', label: 'R' }; y = d_barekey; z = 'prefixed_d_other';";
+        var probe = function (id) {
+          var sn = id.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+          return new RegExp('[\'"`]d_(' + id + '|' + sn + ')[\'"`]').test(synthetic);
+        };
+        T.ok(node + ' · route control · a quoted d_<id> binds', probe('realkey'), 'the positive case must still match');
+        T.ok(node + ' · route control · an UNQUOTED d_<id> does not bind', !probe('barekey'), 'd_barekey as a bare identifier is not a render key — a looser regex would bind it');
+        T.ok(node + ' · route control · d_<id> inside a longer token does not bind', !probe('other'), 'prefixed_d_other must not satisfy d_other');
+        T.ok(node + ' · route control · an id that exists nowhere stays undeclared', !probe('zzzNeverRendered'), 'a fabricated id must bind through no route');
         /* An EQUALITY, never a count: a swap keeps the number and changes the members, and a floor is
            satisfied by the wrong ones (measured on the shells gate's INVISIBLE_CAP). */
         T.ok(
@@ -6933,6 +7016,38 @@
             ']'
         );
         if (got !== want) drift.push(node);
+      }
+      /* ⚠️ EVERY `emittedAt` PATH MUST RESOLVE ON A REAL EXPORT, or this field is a second excuse list
+         beside the baseline it exists to shrink. The walk is not ceremony: `sqi.conf` was the obvious
+         path for the motion SQI and it is WRONG — that is the internal summary shape, and the `conf:`
+         at motiondex-dsp.js:1551 belongs to a ganglior EVENT, not a metric. The export surfaces the
+         already-unwrapped float at `motion.sqi`. Walking it caught that before it shipped. */
+      var resolver = env.exportPathExists;
+      if (typeof resolver !== 'function') {
+        T.skip('emittedAt paths resolve on a committed export', 'Node lane only — the browser lane has no fs');
+      } else {
+        var declaredPaths = [];
+        for (var d2 = 0; d2 < NODES.length; d2++) {
+          var rtext = src[NODES[d2] + '-registry.js'] || '';
+          var re2 = /([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{[^{}]{0,900}?emittedAt:\s*'([^']+)'/g;
+          for (const mm of rtext.matchAll(re2)) declaredPaths.push({ node: NODES[d2], id: mm[1], path: mm[2] });
+        }
+        /* ANTI-VACUITY: zero declared paths would pass every leg below trivially, so the absence of
+           bindings must itself be visible rather than silently green. */
+        T.ok('at least one emittedAt binding is declared (0 would pass the walks trivially)', declaredPaths.length > 0, declaredPaths.length + ' declared');
+        for (const dd of declaredPaths) {
+          var r2 = resolver(dd.path);
+          T.ok(
+            dd.node + ' · emittedAt "' + dd.path + '" (' + dd.id + ') resolves on a committed export',
+            r2.ok === true,
+            r2.ok
+              ? 'found in ' + r2.where + ' = ' + JSON.stringify(r2.value).slice(0, 40)
+              : 'NOT FOUND in any of ' + r2.scanned + ' committed exports — declare the path the export actually carries, or the id is not bound'
+          );
+        }
+        /* AND THE WALK MUST BE ABLE TO FAIL. A resolver that returns ok for anything would make every
+           leg above meaningless — the same reason the plants exist elsewhere in this suite. */
+        T.ok('the resolver REFUSES a path that does not exist (the walk can fail)', resolver('definitely.not.a.real.export.path').ok === false, 'a resolver that accepts anything proves nothing');
       }
       T.ok('the whole registry population was examined, not a slice', totalIds > 400, 'only ' + totalIds + ' ids across ' + NODES.length + ' registries');
       T.ok('no node drifted from its baseline', drift.length === 0, 'drifted: ' + drift.join(', '));
@@ -13946,6 +14061,245 @@
         }).length,
         0
       );
+    });
+
+    group('Evidence tier vocabulary — every registry grade is one of the five (§🎫)', 'registry · cohesion-badges · vocabulary', function (T) {
+      var src = env.sources || {};
+      /* 🔴 THE RULE'S REAL POSITION. §🎫 forbids the retired vocabulary, and `CLAUDE-MD-RATIONALE.md`
+         says what that vocabulary IS: a TIER mapping — `proxy`→heuristic, `composite`→experimental,
+         "provisionally validated"→emerging. So the rule binds on the `evidence:` FIELD, and nothing
+         asserted it there: measured 2026-10-11, `grep -nE "evidence.*(TIERS|indexOf|canonical)"` over
+         this file returned ZERO. The two existing TIERS lists cover other populations — Integrator
+         FINDING TYPES (one group) and per-tier CSS disc properties (cohesion-badges) — so a typo or a
+         retired word in any of the 523 node-registry grades would have shipped.
+         ⚠️ AND THE RULE DOES NOT BIND ON IDENTIFIER NAMES. `rsaProxy`, `deepProxy`, `rmssdProxy` and
+         `d_dfa_proxy` use "proxy" descriptively — a surrogate FOR something — not as a tier claim. A
+         gate over names would fire on correct code and demand a metric-identity MAJOR rename (§📦) for
+         no benefit, which is why this gate reads the grade and not the key. */
+      var TIERS = ['measured', 'validated', 'emerging', 'experimental', 'heuristic'];
+      /* `metric-registry.js` is EXCLUDED deliberately and by name: it is the engine, and its four
+         `evidence:` occurrences are fallback logic (`EVIDENCE[r.evidence] ? r.evidence : 'experimental'`)
+         plus the CSS class `'ev-experimental'` — none of them a metric's declared grade. Excluding it
+         by name rather than by a pattern keeps the exclusion auditable. */
+      var NODES = ['cpapdex', 'ecgdex', 'glucodex', 'hrvdex', 'motiondex', 'oxydex', 'ppgdex', 'pulsedex'];
+      var total = 0;
+      var missing = [];
+      NODES.forEach(function (n) {
+        var f = n + '-registry.js';
+        var text = src[f];
+        if (text == null) {
+          missing.push(f);
+          return;
+        }
+        var hits = String(text).match(/\bevidence\s*:\s*'([^']*)'/g) || [];
+        /* PER-FILE COVERAGE, not a global total. A single count would either churn on every new metric
+           or be met by the wrong members; requiring each named node to contribute at least one grade
+           catches the case this gate exists to catch — a file dropping out of the inventory and taking
+           its grades with it. */
+        T.ok(n + ' · contributes grades to the population', hits.length > 0, f + ' parsed 0 `evidence:` fields — unreadable or renamed');
+        total += hits.length;
+        hits.forEach(function (h) {
+          var tier = (h.match(/'([^']*)'/) || [])[1];
+          T.ok(
+            n + ' · grade "' + tier + '" is canonical',
+            TIERS.indexOf(tier) >= 0,
+            'not one of the five — retired vocabulary (proxy→heuristic, composite→experimental, "provisionally validated"→emerging) is forbidden (§🎫)'
+          );
+        });
+      });
+      T.ok('every named node registry was readable', missing.length === 0, 'absent from env.sources: ' + missing.join(', '));
+      /* ANTI-VACUITY WITH A PUBLISHED DENOMINATOR: a parse of zero would pass every assertion above by
+         examining nothing, so the count is asserted and printed. 523 grades across the 8 node
+         registries, measured 2026-10-11. The floor is deliberately far below that number because this
+         leg exists to catch a COLLAPSE (a broken regex, an empty inventory), not to track growth — the
+         per-file legs above are what catch a single file vanishing. */
+      T.ok('the population is non-vacuous', total >= 400, 'parsed ' + total + ' grade(s) across ' + NODES.length + ' node registries (523 at 2026-10-11)');
+    });
+
+    group('§∅ · OxyDex CT counters — an absent second is not time below a threshold', 'oxydex-dsp · absence', function (T) {
+      var raw = env.equiv && env.equiv.oxydex_odibasis && env.equiv.oxydex_odibasis.input;
+      var OD = env.OxyDex;
+      if (!raw || !OD || typeof OD.compute !== 'function') {
+        T.skip('the committed gapped twin and OxyDex.compute are reachable', 'env.equiv.oxydex_odibasis.input or compute absent');
+        return;
+      }
+      /* 🔴 THE REGRESSION THIS GROUP EXISTS FOR, and it was mine. `computeCTprecise` and `computeCT94`
+         compared `v < 90` / `spo2 < 94` with no null guard, and **`null < 90` is TRUE in JS**. The
+         defect was LATENT while `parseCSV` deleted the device's `'- -'` rows; #3408 carried them, and
+         every absent second became time below every threshold. Measured on the extracted function:
+         100 seconds at a healthy 97 % plus 50 absent reported ct90s = ct89s = ct80s = **50**.
+         ⚠️ AND THE FIXTURES COULD NOT SEE IT: every committed OxyDex golden input has
+         `nMeasured == nTotal`, and this gapped twin is paired with `null` — no committed output — so
+         the one input that expresses absence had no golden to move. That is why `npm run check` was
+         green through the regression, and why this group drives `compute` end to end on that twin. */
+      var r = OD.compute({ text: raw, filename: 'synthetic_oxydex_o2ring_gap.csv' });
+      var n = r && r.nights && r.nights[0];
+      if (!n || !n.stats) {
+        T.ok('the gapped twin computes a night', false, 'no night');
+        return;
+      }
+      var absent = n.stats.n - n.stats.nSpo2;
+      T.ok('the twin really carries absent seconds (else this group proves nothing)', absent > 0, 'rows ' + n.stats.n + ' measured ' + n.stats.nSpo2 + ' absent ' + absent);
+      /* The twin is a healthy trace with a finger-off hole: the hole must contribute to NO threshold.
+         A counter at or above the absent count is the signature of the defect. */
+      /* The night object carries the precise block at `ctPrec` and the 94 % block at `ct94` — read the
+         real paths, because a group that looks up a key the object does not have passes by examining
+         nothing. */
+      var ct = n.ctPrecise || {};
+      /* The EXPORT shape renames the blocks: `night_obj.ctPrec`/`ct94`/`hrAdv` reach a consumer as
+         `ctPrecise`/`spo2Advanced.ct94`/`hrAdvanced`. Reading the export names is the point — this group
+         drives `compute`, which is what every consumer sees. */
+      var c94 = (n.research && n.research.ct94) || n.ct94 || {};
+      T.ok('the ctPrec block is present (else this group examines nothing)', Object.keys(ct).length > 0, JSON.stringify(Object.keys(n)));
+      ['ct90s', 'ct89s', 'ct88s', 'ct85s', 'ct80s'].forEach(function (k) {
+        T.ok(k + ' excludes the absent seconds', typeof ct[k] === 'number' && ct[k] < absent, k + ' = ' + ct[k] + ' against ' + absent + ' absent');
+      });
+      T.ok('ct94Sec excludes the absent seconds', typeof c94.ct94Sec === 'number' && c94.ct94Sec < absent, 'ct94Sec = ' + c94.ct94Sec + ' against ' + absent + ' absent');
+      /* The percentage divides by MEASURED seconds, so on a healthy twin it stays small; dividing by
+         `rows.length` would have under-reported it instead, which is the denominator half of the same
+         accident ODI relied on. */
+      T.ok(
+        'ct94Pct is a percentage of MEASURED seconds, or null',
+        c94.ct94Pct === null || (typeof c94.ct94Pct === 'number' && c94.ct94Pct >= 0 && c94.ct94Pct <= 100),
+        'ct94Pct = ' + JSON.stringify(c94.ct94Pct)
+      );
+      /* 🔴 THE SECOND FABRICATION: ten consecutive absent seconds manufactured a BRADYCARDIA EVENT,
+         because `null < 40` is true and an absence EXTENDED the run. The twin's hole is far longer than
+         ten seconds, so a count above zero here is that defect. */
+      T.eq('no bradycardia event is manufactured from the dropout', (n.hrAdvanced && n.hrAdvanced.bradyCount) != null ? n.hrAdvanced.bradyCount : 0, 0);
+      /* CONTROL · a genuinely low measured trace must still count, or the guard has traded a
+         fabrication for a blindness — the way an absence fix usually fails. */
+      /* CONTROL, ON THE SAME INPUT — and it is stronger than a second fixture would be. The twin has
+         81 seconds of REAL desaturation below 90 % alongside its 1800 absent seconds, so one input
+         carries both halves: a count of 0 would mean the guard blanked real data, and a count at or
+         above 1800 would mean the nulls were counted. Before this fix it was 1800+; it is 81.
+         My first attempt built a 120-row CSV inline and it did not parse, so `ct90s` read `undefined`
+         — which would have looked like "the guard blanked real data" when the truth was "the input
+         never became rows". A committed input cannot fail that way. */
+      T.ok(
+        "CONTROL · the twin's REAL desaturation is still counted (not blanked by the guard)",
+        typeof ct.ct90s === 'number' && ct.ct90s > 0,
+        'ct90s = ' + ct.ct90s + ' — 0 would mean the guard swallowed measured desaturation'
+      );
+    });
+
+    group('§∅ · OxyDex parse — an absent SpO₂ row is kept as null, never deleted', 'oxydex-dsp · absence', function (T) {
+      var raw = env.equiv && env.equiv.oxydex_odibasis && env.equiv.oxydex_odibasis.input;
+      var parse = env.OxyDex && env.OxyDex.parseCSV;
+      if (!raw) {
+        T.skip('the committed gap input is reachable', 'env.equiv.oxydex_o2ring_gap.input absent');
+        return;
+      }
+      if (typeof parse !== 'function') {
+        T.skip('parseCSV is reachable', 'no parseCSV on the OxyDex surface');
+        return;
+      }
+      /* 🔴 THE PARSER USED TO DELETE THE ROW, so nothing downstream could report the absence: a gapped
+         night reported FULL coverage of a SHORTENED recording. The committed fixture is a real instance
+         — 7200 data rows, 1800 of them with a blank or dash Oxygen Level cell — so on main parseCSV
+         returned 5400 rows and `nMeasured/nTotal` could only ever be 5400/5400. §∅ one layer earlier
+         than the #3321 accounting: a consumer cannot null what the parser already erased.
+         The row is now carried with `spo2: null`, which is the same treatment the MOTION column in this
+         very loop already receives ("an absent reading is neither moving nor still"). */
+      var rows = parse(raw);
+      var nulls = rows.filter(function (r) {
+        return r.spo2 == null;
+      }).length;
+      T.eq('every data row survives parsing', rows.length, 7200);
+      T.eq('…and the absent ones are present as spo2 null', nulls, 1800);
+      T.eq('…so the measured count is the difference, not the total', rows.length - nulls, 5400);
+      /* A kept row is still a row on the timeline: it must carry a real timestamp, or the gap would be
+         a run of rows nothing can place. */
+      var firstNull = null;
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].spo2 == null) {
+          firstNull = rows[i];
+          break;
+        }
+      }
+      T.ok('an absent-SpO₂ row still carries a parsed tMs', !!firstNull && typeof firstNull.tMs === 'number' && isFinite(firstNull.tMs), 'tMs=' + JSON.stringify(firstNull && firstNull.tMs));
+      T.ok('…and its pulse rate is kept when the file has one', !!firstNull && (firstNull.hr == null || typeof firstNull.hr === 'number'), 'hr=' + JSON.stringify(firstNull && firstNull.hr));
+      /* CONTROLS — the gap-free twin and the drop rules this unit did NOT change. An absence fix that
+         also stopped rejecting bad data would be a worse defect than the one it repairs. */
+      var clean = env.equiv && env.equiv.oxydex_o2ring && env.equiv.oxydex_o2ring.input;
+      if (clean) {
+        var cRows = parse(clean);
+        T.ok(
+          'CONTROL · a gap-free file parses with no null SpO₂ rows',
+          cRows.filter(function (r) {
+            return r.spo2 == null;
+          }).length === 0,
+          'the twin must be untouched'
+        );
+        T.ok('CONTROL · and still yields rows', cRows.length > 0, 'parsed ' + cRows.length);
+      }
+      var hdr = '\ufeffTime,Oxygen Level,Pulse Rate,Motion\n';
+      T.eq('CONTROL · an OUT-OF-RANGE SpO₂ is still dropped, not nulled', parse(hdr + '23:00:16 12/06/2026,20,58,3\n').length, 0);
+      T.eq('CONTROL · an unparseable PULSE still drops the row', parse(hdr + '23:00:16 12/06/2026,97,zz,3\n').length, 0);
+      T.eq('CONTROL · a well-formed row is still kept', parse(hdr + '23:00:16 12/06/2026,97,58,3\n').length, 1);
+      /* 🔴 THE PARSER NOW EXPOSES EDGE ABSENCES TO THE DETECTORS THAT LOOK FOR THEM — measured on two
+         REAL nights, not a synthetic. The sensor-cool-down trimmer exists to drop a non-signal block at
+         a recording's edge, and it could not see one made of `'- -'` rows because parseCSV deleted them
+         first. Both committed summaries gained `sensorCooldownTrimmed: 10` when the rows were carried.
+         This is the control for the whole unit: the point of keeping an absence is that something
+         downstream can act on it, and here something did. */
+      [
+        ['oxydex (2026-06-13)', env.equiv && env.equiv.oxydex && env.equiv.oxydex.fixture],
+        ['oxydex_0439 (2026-06-25)', env.equiv && env.equiv.oxydex_0439 && env.equiv.oxydex_0439.fixture]
+      ].forEach(function (pair2) {
+        var name = pair2[0],
+          doc = pair2[1];
+        if (!doc) {
+          T.skip(name + ' reachable for the cool-down control', 'env.equiv entry absent (older runner)');
+          return;
+        }
+        var st = doc && doc[0] && doc[0].stats;
+        T.eq(name + ' · the carried edge absences are TRIMMED as cool-down', st && st.sensorCooldownTrimmed, 10);
+      });
+    });
+
+    group('§∅ · OxyDex CSV — an absent number is an EMPTY FIELD, and no rise is invented', 'oxydex-app · absence', function (file_unused) {
+      var T = file_unused;
+      var app = (env.sources || {})['oxydex-app.js'] || '';
+      var util = (env.sources || {})['oxydex-util.js'] || '';
+      /* SOURCE-MIRROR, and the reason is worth stating: `exportCSV()` reads the module-level
+         `allNights` rather than taking an argument, and `csvNum`/`csvSafe` are bare functions in the
+         util file that the `_bare` surface does not re-export — so neither is reachable from the Node
+         lane. The properties below are therefore asserted against the source text, which is the same
+         idiom this suite already uses for app-layer code, with the SEMANTICS pinned by the unit legs
+         on the helper's own text. */
+      T.ok('oxydex-app.js is readable', app.length > 0, 'env.sources entry missing');
+      T.ok('oxydex-util.js is readable', util.length > 0, 'env.sources entry missing');
+      // ── 1 · the helper exists and encodes absence as the empty field ──
+      T.ok('csvNum exists in the util file', /function csvNum\(/.test(util), 'no csvNum — the convention has no single source');
+      T.ok(
+        '…and returns the EMPTY STRING for an absent value',
+        /return v == null \|\| typeof v !== 'number' \|\| !isFinite\(v\) \? '' :/.test(util),
+        "csvNum must map null/undefined/NaN/Infinity to ''"
+      );
+      /* A real 0 is a measurement and must print as 0 — the whole point of §∅ is that absence and zero
+         are different, so a fix that blanked zeros would be the same defect wearing the other mask. */
+      T.ok('…and is NOT written so that a real 0 would blank', !/v == null \|\| !v \?/.test(util) && !/!v \? '' :/.test(util), 'a falsy test would blank a measured 0');
+      // ── 2 · the fabricated rise is gone ──
+      T.ok('the raw `sp.peak - sp.baseline` concatenation is gone', !/\+ \(sp\.peak - sp\.baseline\) \+/.test(app), 'null - null === 0 in JS, so this published a 0 bpm rise from two absences');
+      T.ok(
+        '…replaced by a rise computed only when BOTH operands are present',
+        /_rise =[\s\S]{0,200}isFinite\(sp\.peak\)[\s\S]{0,120}isFinite\(sp\.baseline\)[\s\S]{0,40}\? sp\.peak - sp\.baseline : null/.test(app),
+        'the guard must name both operands'
+      );
+      T.ok('…and the rise cell goes through csvNum', /csvNum\(_rise\)/.test(app), 'an absent rise must be an empty field, not the text null');
+      // ── 3 · the fields the row named, and the siblings beside them ──
+      ['sp.baseline', 'sp.peak', 'sp.duration', 'sp.spo2'].forEach(function (f) {
+        T.ok('spike cell ' + f + ' is routed through csvNum', app.indexOf('csvNum(' + f + ')') >= 0, 'still concatenated raw ⇒ prints the text null');
+      });
+      ['worst10minSpo2', 'worst30minT95', 'spo2StableWindows', 'cdi', 'hrDecelRuns', 'spo2HrDecouplingPct'].forEach(function (f) {
+        T.ok('rolling field ' + f + ' is routed through csvNum', app.indexOf('csvNum(ro.' + f + ')') >= 0, 'still concatenated raw ⇒ prints the text null');
+      });
+      /* CONTROL · the two fields that ALREADY guarded must keep their guard — this unit extended a
+         convention that existed in the file, and breaking the instances that demonstrated it would be
+         an odd way to adopt it. */
+      T.ok('CONTROL · Motion (%) still guards its absence', /'Motion \(%\),' \+ \(s\.motionPct != null \? s\.motionPct : ''\)/.test(app), 'the original instance of the convention');
+      T.ok('CONTROL · Post-Dip HR Response still guards its absence', /ro\.postDipHrResponse !== null \? ro\.postDipHrResponse : ''/.test(app), "the rolling block's original instance");
     });
 
     group('Cohesion single-source — evidence badges', 'cohesion-badges · cpapdex-registry · glucodex-registry · hrvdex-registry', function (T) {
@@ -24191,6 +24545,49 @@
        nearly the same level, the offsets come out [1, 0, -1], and at that size an operand swap, a
        dropped `Math.round` and a broken subtraction all look alike. At 90/110/130 the offsets are
        [+20, 0, -20] — signed, exact, and each one a different number from its negation. */
+    group('GlucoDex cadence — unmeasurable is null with a reason, never 5 (§∅)', 'glucodex-dsp · absence', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function') {
+        T.ok('GLUDSP.analyze is available', false, 'not loaded');
+        return;
+      }
+      /* THE REACHABLE CASE IS A DAILY OR SPOT EXPORT. `dts` keeps only deltas in (0,240) min, so a
+         file sampled once a day contributes NONE and the cadence was never measured. Before this fix
+         the fallback published `cadence: 5` and, from it, `activeMin: 50` — fifty minutes of "active"
+         data over a 12,960-minute span, a number with no input behind it that reads exactly like a
+         measured one. */
+      var day = 86400000,
+        t0 = Date.UTC(2026, 5, 1, 8, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      for (var i = 0; i < 10; i++) {
+        tMs.push(t0 + i * day);
+        vMgdl.push(100 + i);
+      }
+      var r = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      T.ok('an unmeasurable cadence is null, not 5', r.cadence === null, 'cadence=' + JSON.stringify(r.cadence));
+      T.ok('…and the null carries a NAMED reason (§∅: never a bare null)', typeof r.cadenceReason === 'string' && /unmeasurable/.test(r.cadenceReason), 'reason=' + JSON.stringify(r.cadenceReason));
+      T.ok('…and the step the grid used is published as an ASSUMPTION, separately', r.cadenceAssumed === 5, 'assumed=' + JSON.stringify(r.cadenceAssumed));
+      T.ok('cells × cadence is null, never an assumed-rate minute total', r.activeMin === null, 'activeMin=' + JSON.stringify(r.activeMin) + ' (was 50)');
+      T.ok('the true span is still reported — absence of a RATE is not absence of a SPAN', r.spanMin === 12960, 'spanMin=' + r.spanMin);
+      /* CONTROLS — the fix must not null a cadence that WAS measured, which is the way an absence fix
+         usually goes wrong: refusing more than it was asked to. */
+      var t5 = [],
+        v5 = [];
+      for (var k = 0; k < 200; k++) {
+        t5.push(t0 + k * 5 * 60000);
+        v5.push(100 + (k % 40));
+      }
+      var q = G.analyze({ tMs: t5, vMgdl: v5, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      T.ok('CONTROL · a real 5-min export still measures 5', q.cadence === 5, 'cadence=' + JSON.stringify(q.cadence));
+      T.ok(
+        'CONTROL · a measured cadence carries NO reason and NO assumption',
+        q.cadenceReason == null && q.cadenceAssumed == null,
+        'reason=' + JSON.stringify(q.cadenceReason) + ' assumed=' + JSON.stringify(q.cadenceAssumed)
+      );
+      T.ok('CONTROL · its minute totals are numbers, not null', typeof q.activeMin === 'number' && q.activeMin > 0, 'activeMin=' + JSON.stringify(q.activeMin));
+    });
+
     group('GlucoDex applySessionCorrections — levelling and de-drift, signed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
@@ -24769,6 +25166,42 @@
        signal's own name ends `.2s` and a 2-second period IS 0.5 Hz, and the two agree. A draft whose
        only support is "the code currently returns this" was not adopted, however green: that is the
        shape that pins a bug as intended behaviour. */
+    group("CPAPDex detectDesats — a terminal event's endIdx is a real sample, and says it is terminal", 'cpapdex-dsp · absence', function (T) {
+      var D = env.CpapDsp;
+      if (!D || typeof D.detectDesats !== 'function') {
+        T.ok('CpapDsp.detectDesats is available', false, 'not loaded');
+        return;
+      }
+      /* `close(n)` is the unconditional EOF flush, so a desat still open at end-of-record published
+         `endIdx === n` — one past the last sample. Measured on main: a 230-sample series ending inside
+         a desat gave `endIdx: 230`, `spo2[230] === undefined`, `undefined - 1 === NaN`. The mid-series
+         path was always fine because its `end` is the re-rise sample, which is a real index — that is
+         what kept the asymmetry invisible. */
+      var spo2 = [];
+      for (var i = 0; i < 200; i++) spo2.push(95);
+      for (var j = 0; j < 30; j++) spo2.push(90); // never re-rises: the record simply ends
+      var evs = D.detectDesats(spo2, 3);
+      T.ok('a terminal desat is detected at all', evs.length === 1, 'events=' + evs.length);
+      var e = evs[0] || {};
+      T.ok('endIdx is an INDEX THAT EXISTS', e.endIdx === spo2.length - 1, 'endIdx=' + e.endIdx + ' n=' + spo2.length);
+      T.ok('…so a consumer reading spo2[endIdx] gets a sample, not undefined', typeof spo2[e.endIdx] === 'number', 'spo2[endIdx]=' + JSON.stringify(spo2[e.endIdx]));
+      T.ok('…and no arithmetic on it is NaN', isFinite(spo2[e.endIdx] - 1), 'spo2[endIdx]-1=' + (spo2[e.endIdx] - 1));
+      /* THE CLAMP ALONE WOULD HAVE DESTROYED INFORMATION: after it, "ran past the end" and "ended on
+         the last sample" both read endIdx === n-1. `terminal` is what keeps them apart. */
+      T.ok('terminal is declared, so a clamped end is not mistaken for an observed resaturation', e.terminal === true, 'terminal=' + JSON.stringify(e.terminal));
+      T.ok('duration keeps the UNCLAMPED span — it is a count, not an index', e.duration === 30, 'duration=' + e.duration);
+      /* CONTROLS — the mid-series path must be byte-identical to before. An index fix that shifts the
+         common case by one would be a worse defect than the one it fixes. */
+      var s2 = [];
+      for (var k = 0; k < 200; k++) s2.push(95);
+      for (var m = 0; m < 30; m++) s2.push(90);
+      for (var q = 0; q < 50; q++) s2.push(95); // re-rises, so `end` is a real sample already
+      var e2 = D.detectDesats(s2, 3)[0] || {};
+      T.ok('CONTROL · a mid-series event still ends on its re-rise sample', e2.endIdx === 230, 'endIdx=' + e2.endIdx);
+      T.ok('CONTROL · and is NOT terminal', e2.terminal === false, 'terminal=' + JSON.stringify(e2.terminal));
+      T.ok('CONTROL · its duration is unchanged', e2.duration === 30, 'duration=' + e2.duration);
+    });
+
     group('CPAPDex EDF geometry — ∅ an unreadable header field REFUSES, it never becomes a number', 'cpapdex-edf · absence', function (T) {
       var E = env.CpapEdf;
       if (!E || typeof E._buildSyntheticEDF !== 'function' || typeof E.readEDF !== 'function') {
@@ -32310,9 +32743,14 @@
       T.eq('detectODI without pulseSeries (the ODI-4 call) is unchanged / ungated', odi3Ungated.count, N_REAL + N_ART);
       // processNight WIRING lock: the odi3 call passes pulseSeries, the odi4 call does not.
       var dspSrc = (env.sources && env.sources['oxydex-dsp.js']) || '';
+      /* ⚠️ THE DENOMINATOR IS DELIBERATELY NOT PINNED HERE. This leg is about pulse GATING — that
+         `pulseSeries` reaches the ODI-3 call and not the ODI-4 one — and it hardcoded `rows.length` as
+         the third argument, so changing the denominator (2026-10-11, to the measured count) reddened a
+         test that has nothing to say about it. The third argument now matches any identifier: the
+         property under test survives, and the number it divides by is asserted in §5 where it belongs. */
       T.ok(
         'processNight passes pulseSeries ONLY to the ODI-3 detectODI call',
-        /detectODI\(spo2s, 3, rows\.length, blArr, pulseSeries\)/.test(dspSrc) && /detectODI\(spo2s, DexKernel\.K\.ODI_DROP, rows\.length, blArr\)/.test(dspSrc),
+        /detectODI\(spo2s, 3, [A-Za-z_$][A-Za-z0-9_$.]*, blArr, pulseSeries\)/.test(dspSrc) && /detectODI\(spo2s, DexKernel\.K\.ODI_DROP, [A-Za-z_$][A-Za-z0-9_$.]*, blArr\)/.test(dspSrc),
         'odi3/odi4 detectODI calls not wired as expected'
       );
 
@@ -45843,7 +46281,16 @@
         var bus = (cL.ganglior_events || []).filter(function (e) {
           return e.impulse === 'desat_event';
         });
-        T.ok('§8 · rows really were dropped (the input expresses the shape)', rows.length < 7200, 7200 - rows.length + ' row(s) dropped');
+        /* 🔴 THIS CONTROL'S PREMISE WAS THE DEFECT, so it becomes the fix's assertion. It read
+           `rows.length < 7200` — "the input expresses the shape" — and the shape it expressed was
+           parseCSV DELETING the device's `'- -'` rows. Since 2026-10-11 those rows are carried as null
+           with their own tMs (§∅), so the input expresses a BETTER shape: every second is present and
+           1800 of them declare that nothing was measured. */
+        var _absentRows = rows.filter(function (r) {
+          return r.spo2 == null;
+        }).length;
+        T.eq('§8 · every row is CARRIED (none deleted)', rows.length, 7200);
+        T.eq('§8 · …and the absent ones say so, as null', _absentRows, 1200);
         T.ok('§8 · desat events reach the bus', bus.length > 0, bus.length + ' event(s)');
         var worst = 0,
           idxWorst = 0,
@@ -45858,7 +46305,14 @@
         });
         T.ok("§8 · every exported tMs == its own row's timestamp", worst <= 1, 'max drift ' + worst.toFixed(1) + ' s (the coincidence gate is LEAD 15 s / TRAIL 60 s)');
         // the control: the OLD index→time mapping must be demonstrably wrong here, or the input is toothless.
-        T.ok('§8 · (control) the index→time mapping really IS wrong on this input', idxWorst > 60, 'it would be off by ' + idxWorst.toFixed(0) + ' s — far outside the 60 s gate');
+        /* AND THE CONTROL INVERTS WITH IT. A row index was not a second-offset only BECAUSE rows were
+           deleted; with every row carried, `t0 + idx·dt` is correct BY CONSTRUCTION. The assertion
+           therefore flips from "the old mapping is demonstrably wrong here" to "it now agrees" — the
+           defect this control existed to demonstrate is gone, and saying so is the honest form rather
+           than deleting the leg. ⚠️ The real guarantee is the one above it (`every exported tMs == its
+           own row's timestamp`), which does NOT depend on the index arithmetic and is what keeps the
+           export honest if rows are ever dropped again. */
+        T.ok('§8 · the index→time mapping now AGREES, because no row is deleted', idxWorst <= 1, 'off by ' + idxWorst.toFixed(1) + ' s (was > 60 s while absent rows were erased)');
       }
 
       /* ── §9 · a FULL-LENGTH night: a window metric must describe the night, not just its head ─────── */
@@ -45998,15 +46452,20 @@
       var o = n && n.odi4;
       T.ok('the gap twin computes an ODI-4 with a count + rate', !!(o && o.count != null && o.rate != null), o ? JSON.stringify(o) : 'no odi4');
       if (!(o && o.count != null && o.rate != null)) return;
-      var sampleHr = n.stats.n / 3600,
+      /* 🔴 THE SAMPLE BASIS IS `nSpo2`, NOT `n`. This read `n.stats.n`, and that was the valid count
+         only while parseCSV DELETED absent rows — the test was leaning on the very defect that
+         `2026-10-05-an-absent-spo2-row-is-dropped-at-parse` describes. `stats.n` is documented as the
+         ROW count for duration and coverage; `stats.nSpo2` is the measured count the rate divides by,
+         and carrying absences is what made the two differ and therefore nameable. */
+      var sampleHr = n.stats.nSpo2 / 3600,
         spanHr = n.stats.durationMin / 60;
       var sampleRate = +(o.count / sampleHr).toFixed(1),
         spanRate = +(o.count / spanHr).toFixed(1);
       // non-vacuous: this twin genuinely puts a gap between the two bases (else the assertion proves nothing)
       T.ok(
-        'control · the twin diverges the two bases (a real gap: rows.length < span)',
+        'control · the twin diverges the two bases (a real gap: measured < span)',
         sampleRate !== spanRate,
-        'sample ' + sampleRate + '/h vs span ' + spanRate + '/h (validN=' + n.stats.n + ' spanMin=' + n.stats.durationMin + ')'
+        'sample ' + sampleRate + '/h vs span ' + spanRate + '/h (nSpo2=' + n.stats.nSpo2 + ' rows=' + n.stats.n + ' spanMin=' + n.stats.durationMin + ')'
       );
       T.eq('§5 · ODI-4/hr uses the SAMPLE basis (count / analyzable-hours), not the elapsed span', o.rate, sampleRate);
       T.ok('§5 · …and is NOT the span-basis rate (the retired denominator)', o.rate !== spanRate, 'rate ' + o.rate + ' vs span ' + spanRate);
@@ -46379,7 +46838,8 @@
           var truth = rows[e.nadirIdx].tMs;
           idxWorst = Math.max(idxWorst, Math.abs(night.t0Ms + e.nadirIdx * dt - truth) / 1000);
         });
-      T.ok('§8 · (control) the OLD index→time mapping really is wrong on this night', idxWorst > 60, 'old mapping would be off by ' + idxWorst.toFixed(0) + ' s — far outside the 60 s gate');
+      // Same inversion as the §8 leg above: carried rows make the index a second-offset again.
+      T.ok('§8 · the OLD index→time mapping now agrees on this night too', idxWorst <= 1, 'off by ' + idxWorst.toFixed(1) + ' s (was > 60 s while absent rows were erased)');
 
       /* ── §9 · the surfaced cycle length describes the WHOLE night, not its first hour ───────────────
          BEHAVIOURAL, not a source-text grep: build a night whose FIRST HOUR oscillates fast (20 s period)
@@ -53493,7 +53953,30 @@
       var cB = PPG.correctRR(rrB, ttB);
       T.ok('the 2000 ms bradycardic baseline is within-range accepted (the ceiling must not over-reject)', cB.flags[10] === 0, 'flag10=' + cB.flags[10]);
       T.ok('impossible brady PPI (2500 ms / 24 bpm) is Malik-rejected by the 2000 ms ceiling, not the ectopy rule', cB.flags[20] === 1, 'flag20=' + cB.flags[20]);
-      T.approx('the range-rejected brady PPI is replaced by the local median (~2000), not kept at 2500', cB.nn[20], 2000, 10, 'nn20=' + cB.nn[20]);
+      /* 🔴 THE ASSERTION THAT USED TO SIT HERE READ `nn[20] ~= 2000` AND CALLED IT "replaced by the
+         local median, not kept at 2500". That label is FALSE about this code, and the fixture could
+         not tell: `correctRR` EXCLUDES a rejected interval (measured 2026-10-10 — nn is 39 long for
+         40 inputs, keptIdx.indexOf(20) === -1), so index 20 holds the interval that was rr[21], and
+         because every neighbour here is 2000, ANY index lands on 2000. It would have passed
+         identically whether the code replaced, excluded, or dropped three intervals. Muse caught it
+         (the edit stranded on rescue/2026-10-10-root-wip); these are its assertions, plus the
+         discriminating fixture the uniform one could not provide. */
+      T.eq('the rejected interval is EXCLUDED, not replaced — nn is one shorter than the input', cB.nn.length, rrB.length - 1);
+      T.ok('rejected input index 20 is absent from the kept-index mapping', cB.keptIdx.indexOf(20) === -1, 'keptIdx.indexOf(20)=' + cB.keptIdx.indexOf(20));
+      T.eq('flags stay INPUT-aligned — one entry per interval handed in, so flags[20] still names the rejected one', cB.flags.length, rrB.length);
+
+      /* ANTI-VACUITY — the same fixture with ONE neighbour broken, which is what makes the exclusion
+         observable at all. With rr[21] = 1900, reading THROUGH the mapping gives the real interval
+         and reading by raw index gives the shifted neighbour; on the uniform fixture above both
+         read 2000 and the difference is invisible. Values measured, not predicted. */
+      var rrS = rrB.slice();
+      var ttS = ttB.slice();
+      rrS[21] = 1900; // still in range, still inside the ectopy band of a 2000 ms baseline
+      var cS = PPG.correctRR(rrS, ttS);
+      T.eq('the ceiling still rejects 2500 when the next interval differs', cS.flags[20], 1);
+      T.eq('…and the differing neighbour is KEPT, not swept up with it', cS.flags[21], 0);
+      T.eq('through the mapping, the kept interval reads its OWN value', cS.nn[cS.keptIdx.indexOf(21)], 1900);
+      T.eq('…while the raw index reads the shifted neighbour — the off-by-one the old assertion could not see', cS.nn[21], 2000);
     });
 
     /* ════ PpgDex DFA-α1 box range — direct known-answer (deep-scout §EP-rest) ════

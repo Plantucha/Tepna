@@ -13,10 +13,16 @@ ROWS = "Phone timestamp;x\n2026-09-19T22:00:00.000;1\n2026-09-19T23:00:00.000;1\
 
 
 def _night(tmp_path, night="2026-09-19"):
+    """⚠️ THE STAMP FOLLOWS THE FOLDER (2026-10-10). It was hard-coded `20260919220000` whatever `night`
+    said — invisible under folder-keyed row identity, fatal under `(night band, recording start)`, where
+    the STAMP decides the row: three folders all claiming one session collapsed into one row. The same
+    latent bug was in `test_nights_index._night`; real captures cannot be in this state, because
+    `writers.night_dir()` files a session under its own start date."""
     d = tmp_path / "captures" / night
+    stamp = f"{night.replace('-', '')}220000"
     d.mkdir(parents=True)
     for s in ("ECG", "ACC"):
-        (d / f"Polar_H10_02849638_20260919220000_{s}.txt").write_text(ROWS)
+        (d / f"Polar_H10_02849638_{stamp}_{s}.txt").write_text(ROWS)
     (d / "Polar_VeritySense_0C301E3F_20260919220000_PPG.txt").write_text(ROWS)
     return d
 

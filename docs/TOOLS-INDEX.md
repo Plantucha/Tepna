@@ -63,7 +63,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
 | [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | `tools/doc-search.mjs` appends `<ISO>\\t<query>` to `<git-common-dir>/tepna-mutation/ doc-search-sessions/<session_id>` on every search that ran. |
 | [`doc-search.mjs`](../tools/doc-search.mjs) | "HAS THIS ALREADY BEEN DECIDED?" OVER 460+ DOCUMENTS CLAUDE.md records this failure repeatedly and by name: four sessions independently proposing a fix the repo had already measured… |
-| [`docs-constants.mjs`](../tools/docs-constants.mjs) | CLAUDE.md states numeric claims about the code. When the code changes and the doc doesn't (or vice versa), they drift — the §🔒.7 "99% vs 67%" incident (#3367). |
+| [`docs-constants.mjs`](../tools/docs-constants.mjs) | CLAUDE.md states numeric claims about the code. When the code changes and the doc doesn't (or vice versa), they drift — the §🔒.7 "99 % vs 67 %" incident (#3367). |
 | [`dsp-review-qwen.mjs`](../tools/dsp-review-qwen.mjs) | IDLE-TIME DSP REVIEW — the local model loops through DSP files proposing improvements: inefficiencies, logical problems, signal-flow violations, and concrete refactors. |
 | [`dual-clock-rate.mjs`](../tools/dual-clock-rate.mjs) | DIRECT device-vs-host rate, from the two clocks already in every raw file. |
 | [`ecg-apnea-correlate.mjs`](../tools/ecg-apnea-correlate.mjs) | Correlates every candidate in ECGDex's `apnea` block against the CPAP's OWN device-scored `residualAHI`, across the nights where both exist. |

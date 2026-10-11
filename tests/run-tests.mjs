@@ -1151,6 +1151,12 @@ function readEquiv() {
   // carry no personal data, and are therefore COMMITTED — so the diff runs everywhere.
   // They ADD to the real legs (which still exercise genuine vendor quirks locally), never replace them.
   pair('oxydex_synth', 'synthetic_oxydex_o2ring.csv', 'synthetic_oxydex_golden.node-export.json');
+  /* The gapped twin now has a COMMITTED OUTPUT, so it gets a dynamic leg like any other golden: the
+     equivalence gate re-runs `compute` on the input and compares. Until 2026-10-11 this input was
+     paired with `null` — no output — which is why no fixture exercised a night carrying absent
+     seconds, and why #3408's `null < 90` regression in the CT counters passed every gate. The
+     `oxydex_odibasis` pairing stays as it was: other groups reference it by that key. */
+  pair('oxydex_gap', 'synthetic_oxydex_o2ring_gap.csv', 'synthetic_oxydex_gap_golden.node-export.json');
   /* ADVERSARIAL twins (DEEP-AUDIT-2026-07-11 §1/§8/§9) — input only, NO golden. The point is not to pin
      bytes but to assert INVARIANTS the clean inputs cannot express: an MDY file must compute IDENTICALLY
      to its DMY twin; a dropped-row night must place every event on its OWN parsed stamp; a long night's
@@ -2827,6 +2833,46 @@ async function main() {
     qdPick: qdPick,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
+    /* A RESOLVER FOR DECLARED NESTED BINDINGS (`emittedAt` in a registry). The resolvability gate must
+       be able to prove a declared path is REAL, or `emittedAt` becomes a second excuse list beside the
+       baseline it exists to shrink. Lazily parses the committed node exports (31 files, 1.2 MB) on the
+       first call and walks the dotted path, returning WHERE it resolved so a failure names a file
+       rather than a boolean. Node lane only; the browser lane has no fs and the gate skips there. */
+    exportPathExists: (() => {
+      let cache = null;
+      return (dotted) => {
+        if (!cache) {
+          cache = [];
+          try {
+            const dir = join(ROOT, 'uploads');
+            for (const f of readdirSync(dir)) {
+              if (!/\.json$/.test(f)) continue;
+              try {
+                cache.push([f, JSON.parse(readFileSync(join(dir, f), 'utf8'))]);
+              } catch {
+                /* an unparseable fixture is not this resolver's business */
+              }
+            }
+          } catch {
+            cache = [];
+          }
+        }
+        const parts = String(dotted || '').split('.');
+        for (const [name, doc] of cache) {
+          let cur = doc;
+          let ok = true;
+          for (const k of parts) {
+            if (cur && typeof cur === 'object' && k in cur) cur = cur[k];
+            else {
+              ok = false;
+              break;
+            }
+          }
+          if (ok && cur !== undefined) return { ok: true, where: name, value: cur };
+        }
+        return { ok: false, where: null, value: undefined, scanned: cache.length };
+      };
+    })(),
     commitShape: commitShape,
     /* The SECOND pure core (the 0-byte-root-add detector) and its declared historical baseline, wired
        the same way: the suite drives the pure function, so no git, no network, no clock. */

@@ -184,6 +184,23 @@ const FIXTURES = [
   { name: 'OxyDex_2026-06-13_1056_summary.json', real: true, build: () => fromCSV('O2Ring S 2100_20260612230016.csv', true) },
   { name: 'OxyDex_2026-06-25_0439_summary.json', real: true, build: () => fromCSV('O2Ring S 2100_20260624222730.csv', true) },
   { name: 'synthetic_oxydex_golden.node-export.json', build: () => fromCSV('synthetic_oxydex_o2ring.csv', false) },
+  /* 🔴 THE FIRST OXYDEX GOLDEN WHOSE INPUT CARRIES ABSENT SECONDS, and that absence is the whole point.
+     Every other committed OxyDex fixture has `nMeasured == nTotal`, and the gapped twin
+     (`synthetic_oxydex_o2ring_gap.csv`, 7200 rows of which 1800 are the device's `'- -'` no-reading)
+     had NO committed output — so no fixture exercised a null-bearing night. That is why #3408's
+     regression was invisible to `npm run check`: carrying absent rows made `null < 90` reachable in the
+     CT counters and in the bradycardia run, and on main this input reported **1829 seconds below 80 %
+     SpO₂** where the truth is ~29. A golden over this input makes the whole class visible to every
+     future PR instead of to whoever happens to look. */
+  {
+    name: 'synthetic_oxydex_gap_golden.node-export.json',
+    build: () => fromCSV('synthetic_oxydex_o2ring_gap.csv', false),
+    newRecord: {
+      added: '2026-10-11',
+      inputs: ['synthetic_oxydex_o2ring_gap.csv'],
+      note: "The first OxyDex golden over an input with ABSENT seconds (1800 of 7200 carry the device's no-reading marker). Minted with the fix for the #3408 regression it would have caught: unguarded `v < 90` / `hr < 40` counted every absent second as time below the threshold and as bradycardia. Pins the absence path — coverage, the CT counters, the ODI denominator and the measured-vs-row counts — on a committed input."
+    }
+  },
   {
     name: 'OxyDex_2026-09-19_2245_stored_summary.json',
     real: true,

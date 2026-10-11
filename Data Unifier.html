@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="43bfd7f16090" data-compute-hash="3f9919b4bcfa"><head>
+<html lang="en" data-manifest-hash="39e17a4ef937" data-compute-hash="9dfd1c916fd5"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HH5FwSXNLBdSkDNrEcyg65q+C2Nv18twPHB0MDQhSH0=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-a0FHrjH1HB9zAHS4pZMfcD14uZu1pRb3iuZZPWTLtus=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-e8j3LRjA6HkUkH/sRDCf6rxzCYi1dWuPxVNm9eXFsd8=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j6cQKZ+pO2jEtsJTv7AnKR0NQLc+TgayeSSCB4yBUJs=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q3fbsCiRxMsOlzzG0cHHJmvqgXroNQL71oi7nOTW0uA=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8=' 'sha256-xsp63O3KsGRyNwA0HiyNZ9rfZ/CjJ8/+KFtXEXV2zTc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Ie0Ub0BIFqrbPVNa0XM93J1IBal5+7vmZPhmunAbAdw=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-a0FHrjH1HB9zAHS4pZMfcD14uZu1pRb3iuZZPWTLtus=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-e8j3LRjA6HkUkH/sRDCf6rxzCYi1dWuPxVNm9eXFsd8=' 'sha256-eWsh+QRtO5wrmZ/hzAyVzRMqbH1dOIcbO18q6HTO9mE=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j/Sci6OKS0mEvMXOjGicK42hYZYO2CL7vYBp02vyU9c=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-xM37O2ksmgpAMlydXgW253GVrq/WfFdxaO2sbf4KQR8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -2699,6 +2699,18 @@ function csvSafe(v) {
   }
   return s;
 }
+// ── csvNum: §∅ — an absent NUMBER is an EMPTY FIELD, never the text "null" ──
+/* A CSV cell has no `null`, so absence is the empty field — the convention `exportCSV` already used for
+   `Motion (%)` and `Post-Dip HR Response` while three quarters of its fields concatenated the value
+   raw. Raw concatenation printed the literal text `null` for every honestly-absent metric, which reads
+   as data to a spreadsheet and to anyone who opens one.
+   ⚠️ NOT `csvSafe`, deliberately: that function exists to defuse Excel formula injection and prefixes
+   anything starting with `-` with a TAB, so a legitimately negative metric would arrive as "\t-3.2".
+   This one is for numbers: absent ⇒ '', otherwise the number unchanged. A real 0 is a number and
+   prints as 0 — only an unmeasured value is blank. */
+function csvNum(v) {
+  return v == null || typeof v !== 'number' || !isFinite(v) ? '' : v;
+}
 // ── sanitizeFname: strip HTML-dangerous chars from filenames ──
 function sanitizeFname(s) {
   if (!s) return '';
@@ -4494,13 +4506,44 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
          motion 0 — "still" — at the ~20 consumers that read `motion === 0` as stillness. It is null, which
          satisfies neither `> 0` nor `=== 0`; only a genuinely written 0 reads 0. */
       var mStr = motionCol >= 0 && motionCol < p.length ? p[motionCol].trim() : null;
-      if (!sStr || sStr === '- -' || sStr === '--' || sStr === '') continue;
-      var spo2 = parseInt(sStr, 10),
-        hr = parseInt(hStr, 10),
+      /* 🔴 §∅ — AN ABSENT SpO₂ CELL NULLS THE READING; IT DOES NOT DELETE THE ROW. This used to
+         `continue`, so the row never existed: `nTotal` counted only survivors and a gapped night
+         reported FULL coverage of a SHORTENED recording. Measured on the committed fixture
+         `synthetic_oxydex_o2ring_gap.csv` — 7200 data rows, 1800 with a blank or dash Oxygen Level —
+         parseCSV returned 5400 and `nMeasured/nTotal` could only ever be 5400/5400. The #3321
+         accounting was honest only for absences that SURVIVE parsing; a consumer cannot null what the
+         parser already erased.
+         This is the treatment the MOTION column in this same loop already gets, for the same reason
+         ("an absent reading is neither moving nor still"): the cell's absence travels as `null`, and
+         the timestamp, pulse and motion the row DOES carry are kept.
+         ⚠️ THE DROP RULES BELOW ARE UNCHANGED, and the conditions are split rather than relaxed: an
+         unparseable or out-of-range SpO₂ is still rejected, and so is a bad pulse. A row whose SpO₂ is
+         absent is not a row whose SpO₂ is wrong, and widening this fix into the sanity checks would
+         start admitting bad data in the name of absence. */
+      /* ⚠️ THE PULSE COLUMN NEEDS THE SAME SPLIT, and measurement is why. The device writes `- -` in
+         BOTH columns during a gap: all 1800 gap rows of `synthetic_oxydex_o2ring_gap.csv` carry
+         `'- -','- -'`. So nulling SpO₂ alone changed NOTHING — `isNaN(hr)` deleted the identical rows
+         one line later, and parseCSV still returned 5400 of 7200. An absence fix that stops one line
+         short of the data's actual shape is not a partial fix; it is no fix, and it would have shipped
+         looking like one. */
+      var _absent = function (v) {
+        return !v || v === '- -' || v === '--' || v === '';
+      };
+      var _spo2Absent = _absent(sStr),
+        _hrAbsent = _absent(hStr);
+      var _sv = _spo2Absent ? null : parseInt(sStr, 10),
+        _hv = _hrAbsent ? null : parseInt(hStr, 10),
         _mv = mStr == null || mStr === '' ? NaN : parseInt(mStr, 10),
         motion = isNaN(_mv) ? null : _mv;
-      if (isNaN(spo2) || isNaN(hr)) continue;
-      if (spo2 < 50 || spo2 > 100 || hr < 20 || hr > 250) continue; // sanity check
+      /* UNPARSEABLE AND OUT-OF-RANGE STILL DROP THE ROW. `'zz'` is not an absence — it is a reading
+         the file claims to have and we cannot read, and admitting it as `null` would let bad data in
+         through the door absence opened. The conditions are split, never relaxed. */
+      if (!_spo2Absent && !Number.isFinite(_sv)) continue;
+      if (!_hrAbsent && !Number.isFinite(_hv)) continue;
+      if (_sv != null && (_sv < 50 || _sv > 100)) continue; // sanity check
+      if (_hv != null && (_hv < 20 || _hv > 250)) continue; // sanity check
+      var spo2 = _sv,
+        hr = _hv;
       // Perfusion index (§4 Phase 1): present only on the OXYFRAME sidecar. `pi_pct` = 0 is the ring's
       // "no perfusion reading" sentinel, NOT a real 0 % — treat it as ABSENT (null), never as a value
       // (mirrors the SpO₂ '- -' handling above). A comma file has no pi column ⇒ piCol < 0 ⇒ null.
@@ -4543,7 +4586,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
   // OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2 (2026-07-03): trim a device warm-up / cool-down PLACEHOLDER
   // block from the edges BEFORE any metric reads the rows. Runs first in processNight — same class of
-  // action as parseCSV already dropping the device's '- -' no-reading rows (a non-signal edge block,
+  // action as parseCSV NULLING the device's '- -' no-reading rows (a non-signal edge block,
   // not real data). The O2Ring holds a byte-frozen (SpO2,HR) placeholder (observed 84/100, motion 0)
   // until the optical perfusion lock, then the true signal starts with an abrupt lock-on step. Left in,
   // that block (a) pins cleanArtifactHR's baseline to the bogus 100 → runaway clamp, and (b) donates a
@@ -4557,7 +4600,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   //   BOUNDED      — never past WARMUP_MAX_SEC, never below a 60-row floor.
   // Returns {head, tail} counts and mutates `rows` in place so every downstream reader — cleanArtifactHR,
   // computeStats, t0Ms — sees the true signal start. Symmetric tail guard is belt-and-suspenders (this
-  // night's cool-down is '- -' rows already dropped by parseCSV); it fires only on a frozen low block
+  // night's cool-down is '- -' rows now carried as null by parseCSV); it fires only on a frozen low block
   // entered via an abrupt step DOWN, so genuine stable-sleep flat tails are kept.
   function trimSensorWarmup(rows) {
     var n = rows.length;
@@ -4727,11 +4770,20 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function computeCT94(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var ct94s = 0;
+    var ct94s = 0,
+      measured = 0;
     for (var i = 0; i < n; i++) {
+      // §∅ — same defect as `computeCTprecise` above: `null < 94` is TRUE, so every absent second
+      // counted as time below 94 %. Latent until #3408 carried the absent rows; see that comment.
+      if (rows[i].spo2 == null || !isFinite(rows[i].spo2)) continue;
+      measured++;
       if (rows[i].spo2 < 94) ct94s++;
     }
-    return { ct94Sec: ct94s, ct94Pct: +((ct94s / n) * 100).toFixed(2) };
+    /* THE DENOMINATOR IS MEASURED SECONDS, not rows. `n` is `rows.length`, which equalled the measured
+       count only while absences were deleted — the same accident ODI's denominator relied on (#3408).
+       With absences carried, dividing by `n` under-reports the percentage by the dropout fraction.
+       Null when nothing was measured: a percentage of no measurements is not 0 %. */
+    return { ct94Sec: ct94s, ct94Pct: measured > 0 ? +((ct94s / measured) * 100).toFixed(2) : null };
   }
 
   // SpO2 dip and recovery slopes + MODL + desaturation clustering
@@ -6458,8 +6510,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var pulseSeries = rows.map(function (r) {
       return r.hr;
     });
-    var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, rows.length, blArr);
-    var odi3 = detectODI(spo2s, 3, rows.length, blArr, pulseSeries);
+    /* 🔴 ANALYZABLE HOURS ARE MEASURED HOURS. This passed `rows.length`, which agreed with the
+       convention ("every rate divides by the measured count", `computeStats`) only BY ACCIDENT while
+       parseCSV deleted absences — the published ODI-4 figures were measured-basis without anything
+       saying so. Carrying absences made the accident visible, so the denominator is now explicit.
+       `_measuredN` counts rows with a finite SpO₂ reading; the row count stays available as
+       `stats.n` for duration and coverage. */
+    var _measuredN = 0;
+    for (var _mi = 0; _mi < rows.length; _mi++) if (rows[_mi].spo2 != null && isFinite(rows[_mi].spo2)) _measuredN++;
+    var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, _measuredN, blArr);
+    var odi3 = detectODI(spo2s, 3, _measuredN, blArr, pulseSeries);
     var hb = computeHypoxicBurden(rows);
     /* NO MOTION READING ANYWHERE ⇒ THE MOTION FAMILY IS ABSENT, NOT ZERO (DA-V §2.3 F15).
        The parse boundary now yields `null` for a device that wrote no Motion column at all. That is
@@ -6489,7 +6549,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       // clinically honest "per hour of analyzable recording" denominator, and the one every other ODI-family
       // site already uses. Inert on the current corpus (the O2Ring drops ~0 samples); a real finger-off or a
       // sparse-cadence oximeter would surface it. Gated by a committed gap+artifact synthetic twin.
-      odi4.rate = +(odi4.count / Math.max(rows.length / 3600, 0.01)).toFixed(1);
+      odi4.rate = +(odi4.count / Math.max(_measuredN / 3600, 0.01)).toFixed(1);
       odi4.artifactExcluded = desat.artifactCount;
     }
     // OXYDEX-NADIR-HONESTY (RUNAWAY-FIX-FOLLOWUPS §1/§2): route the HEADLINE nadir through the artifact
@@ -6837,7 +6897,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        summed it as 0 and divided by ALL rows (a night with 20 % dropouts under-read its mean SpO2 by
        20 %); `v < 95` is TRUE for null, so every absent second counted as a desaturated one and T95/T90
        were inflated by the dropout fraction; and `Math.min/max.apply` read it as 0. `parseCSV` drops
-       invalid rows, so the O2Ring CSV path never carried a null here — the NSRR adapter (`to1Hz` →
+       invalid rows — but since 2026-10-11 it CARRIES the device's `'- -'` no-reading rows as null, so the
+       O2Ring CSV path reaches this block with nulls too; the NSRR adapter (`to1Hz` →
        null), the self-ingest path and any SignalFrame do, and the SHHS lane's published T90 came
        through this block. Residue 2026-09-13-oxydex-stats-block-absence-to-number, primary-builder half.
        `spo2`/`hr` are now the MEASURED samples; `n` stays the row count for the duration/coverage
@@ -6953,6 +7014,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           : null;
       })(),
       n: n,
+      /* NEW FIELD, not a changed one (back-compatible per §🧪): `n` remains the ROW count for the
+         duration and coverage arithmetic, and `nSpo2` is the MEASURED count — the denominator this
+         file's own convention already names ("every rate below divides by the measured count").
+         Before 2026-10-11 the two were equal on the O2Ring CSV path BY ACCIDENT, because parseCSV
+         deleted every absent row; carrying absences made the difference real and therefore nameable. */
+      nSpo2: spo2.length,
       startTs: rows.length ? rows[0].tMs : null
     };
   }
@@ -8134,7 +8201,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var dip3Rate = durationHr > 0 ? +(dip3Count / durationHr).toFixed(1) : 0;
 
     /* CLOCK: stamp each event with the REAL wall-clock time of its own row (DEEP-AUDIT-2026-07-11 §8).
-       parseCSV DROPS rows (the device's '- -' no-reading, out-of-band values, unparsable stamps), so a row
+       parseCSV DROPS rows (out-of-band values, unparsable stamps — the device's '- -' no-reading is
+       NO LONGER dropped: since 2026-10-11 it is carried with `spo2`/`hr` null, §∅), so a row
        INDEX is not a second-offset — yet both consumers rebuilt event time from the index and disagreed
        with each other AND with the row's own parsed stamp: oxydex-dsp's bus export used t0 + idx·dt (a
        uniform stretch that smears a dropout evenly across the night) and oxydex-fusion used t0 + idx·1000
@@ -8304,6 +8372,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var bradyCount = 0,
       bradyRun = 0;
     clean.forEach(function (r) {
+      /* 🔴 §∅ — `null < 40` IS TRUE, so ten consecutive ABSENT seconds manufactured a bradycardia
+         event. Latent until #3408 carried the device's `'- -'` rows; live from the moment it merged.
+         An absence BREAKS the run rather than being skipped: the event is defined as ≥10 CONSECUTIVE
+         low samples, and a gap means the run was not observed to continue — the owner's ruling that a
+         discontinuity refuses while reduced coverage annotates. Skipping would silently join two
+         separate runs across a dropout and invent a longer one. */
+      if (r.hr == null || !isFinite(r.hr)) {
+        bradyRun = 0;
+        return;
+      }
       if (r.hr < 40) {
         bradyRun++;
         if (bradyRun === 10) bradyCount++;
@@ -8314,6 +8392,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var tachyCount = 0,
       tachyRun = 0;
     clean.forEach(function (r) {
+      /* The tachycardia counter was NOT fabricating — `null > 100` is false, so an absence already
+         reset the run — but it reset it by ACCIDENT of the coercion direction. Stated explicitly so
+         the two counters read the same way and neither depends on which side of the comparison the
+         coercion happens to fall. */
+      if (r.hr == null || !isFinite(r.hr)) {
+        tachyRun = 0;
+        return;
+      }
       if (r.hr > 100) {
         tachyRun++;
         if (tachyRun === 10) tachyCount++;
@@ -9377,9 +9463,34 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var segs = [],
       segStart = null,
       prev = null;
+    /* 🔴 AN ABSENT READING BREAKS A SEGMENT, exactly as a missing row's time hole used to. This loop
+       segmented on TIME only, which worked because parseCSV DELETED absent rows: a finger-off hole
+       arrived as a gap between stamps. Since those rows are carried (2026-10-11, §∅) the timeline is
+       contiguous, one segment is found, and `segs.length < 2` returned null — so the fix that made
+       absence visible in the parser would have made it INVISIBLE here, silently removing the
+       `recording.coverage` declaration the Integrator's apnea denominator rests on.
+       Breaking on the reading is also the more honest measure: coverage now describes seconds that
+       carry a VALUE, not rows that exist. Verified on the committed gappy twin — 2 segments, ~5398 s
+       recorded inside a ~7199 s envelope, which is what §2.2 already asserted. */
     for (var i = 0; i < rows.length; i++) {
       var t = rows[i] && rows[i].t;
       if (t == null || !isFinite(t)) continue;
+      /* ⚠️ AN ABSENT READING IS NOT A MISSING KEY, and the difference is a published contract. This
+         function is called with bare stamp rows (`{ t }`) as well as with real recording rows, and
+         treating a missing `spo2` property as an absence made EVERY such row break a segment — the
+         40-minute/20-minute-hole unit test went from 2 segments to null. So the break fires only when
+         the row CARRIES an spo2 that is not a number: an explicit `null` from a `'- -'` cell is an
+         absence, while no property at all is a caller that is not declaring SpO₂ coverage. */
+      var _hasSpo2 = Object.prototype.hasOwnProperty.call(rows[i], 'spo2');
+      var _sv = rows[i].spo2;
+      if (_hasSpo2 && (_sv == null || !isFinite(_sv))) {
+        if (segStart !== null && prev !== null) {
+          segs.push([segStart, prev]);
+          segStart = null;
+          prev = null;
+        }
+        continue;
+      }
       if (segStart === null) segStart = t;
       else if ((t - prev) / 1000 > GAP_STEP_SEC) {
         segs.push([segStart, prev]);
@@ -10720,6 +10831,18 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       ct80 = 0;
     for (var i = 0; i < n; i++) {
       var v = spo2[i];
+      /* 🔴 §∅ — `null < 90` IS TRUE IN JS, so an absent second counted as time below EVERY threshold.
+         Latent until 2026-10-11: `parseCSV` deleted the device's `'- -'` rows, so no null ever reached
+         this loop. #3408 carries them, which made the defect live — measured on the extracted function,
+         150 rows of which 100 were a healthy 97 % and 50 absent reported ct90s/ct89s/**ct80s all 50**:
+         a night with no desaturation publishing fifty seconds below 80 %.
+         The guard is the presence test, not falsiness — a real 0 is impossible here (SpO₂ is range-
+         checked to 50–100 at parse) but the same shape elsewhere must not blank a measured zero, and
+         the siblings in this file already carry it: `computeHypoxicBurden` does `if (v == null)
+         continue` and the t88/t85 block filters `r.spo2 != null` under a comment saying "without the
+         null guard a dropout reads as time in severe hypoxemia". This loop and `computeCT94` were the
+         two the file had missed. */
+      if (v == null || !isFinite(v)) continue;
       if (v < 90) ct90++;
       if (v < 89) ct89++;
       if (v < 88) ct88++;
@@ -16381,12 +16504,28 @@ __exports.PulseDex = window.PulseDex;
       if (d > 0 && d < 240) dts.push(d);
     }
     dts.sort((a, b) => a - b);
-    const cadence = dts.length ? +quantile(dts, 0.5).toFixed(2) : 5;
-    const gapThresh = Math.max(cadence * 2.5, cadence + 3); // minutes
+    /* 🔴 §∅ — A CADENCE THAT WAS NEVER MEASURABLE IS `null`, NOT 5. `dts` collects only deltas in
+       (0, 240) min, so a daily or spot export contributes NONE and the old `: 5` published a sample
+       rate nothing in the file supports. Measured 2026-10-11 on a 10-reading daily export spanning 9
+       days: `cadence: 5` and **`activeMin: 50`** — fifty minutes of "active" data claimed over 12,960,
+       a figure derived entirely from the invented rate and indistinguishable from a real one.
+       `cadenceAssumed` is the grid's step, named as an assumption because the uniform timeline that
+       AGP/MODD/CONGA are defined on needs SOME step to exist; `cadence` is the measurement and reports
+       the absence. Every quantity that is `cells × cadence` is null when the cadence is null, because
+       minutes computed from an assumed rate describe nothing. */
+    const cadenceMeasured = dts.length ? +quantile(dts, 0.5).toFixed(2) : null;
+    const cadenceReason = cadenceMeasured == null ? 'cadence-unmeasurable: no inter-sample delta in (0,240) min' : null;
+    const cadence = cadenceMeasured;
+    /* `step` is ALWAYS a number — the grid cannot be built on a null — while `cadence` above is the
+       measurement and may be null. Keeping them as two names is what stops an assumed rate from being
+       read back as a measured one; the typechecker proves `step` non-null because the literal is here. */
+    const step = cadenceMeasured == null ? 5 : cadenceMeasured;
+    const cadenceAssumed = cadenceMeasured == null ? step : null;
+    const gapThresh = Math.max(step * 2.5, step + 3); // minutes
 
     // Build a uniform timeline at `cadence` so AGP/MODD/CONGA are well-defined.
     // We resample onto a regular grid by nearest-with-interpolation; flag interpolated cells.
-    const stepMs = cadence * 60000;
+    const stepMs = step * 60000;
     const spanMs = tMs[n - 1] - tMs[0];
     /* DEEP-AUDIT-II §5.1 — the CAP is a memory ceiling; the SILENCE was the defect.
        `Math.min(200000, …)` truncates the uniform grid, and the pointer walk below then fills only N
@@ -16419,7 +16558,7 @@ __exports.PulseDex = window.PulseDex;
         vR = vMgdl[k];
       const gapL = (t - tL) / 60000,
         gapR = (tR - t) / 60000;
-      if (Math.min(gapL, gapR) <= cadence * 0.75) {
+      if (Math.min(gapL, gapR) <= step * 0.75) {
         gV[i] = gapL <= gapR ? vL : vR; // snap to the real reading
         gF[i] = FLAG.OK;
       } else if (tR > tL && gapL < gapThresh && gapR < gapThresh) {
@@ -16438,7 +16577,7 @@ __exports.PulseDex = window.PulseDex;
     // warm-up suppression: first ~60 min reads low/erratic on a fresh sensor.
     // Heuristic — only suppress if the opening hour is physiologically implausible
     // (very low mean or steep monotonic climb out of the weeds).
-    const warmCells = Math.min(N, Math.round(60 / cadence));
+    const warmCells = Math.min(N, Math.round(60 / step));
     let warmMean = 0,
       wc = 0;
     for (let i = 0; i < warmCells; i++) {
@@ -16476,8 +16615,8 @@ __exports.PulseDex = window.PulseDex;
         : 100;
       const dipCeil = Math.min(80, baseline * 0.78); // a dip must fall below this
       const shoulderFloor = Math.max(72, baseline * 0.86); // shoulders must sit near/above baseline
-      const minRun = Math.max(3, Math.round(25 / cadence)); // ≥~25 min sustained
-      const ctxW = Math.max(4, Math.round(120 / cadence)); // 2-h context shoulders
+      const minRun = Math.max(3, Math.round(25 / step)); // ≥~25 min sustained
+      const ctxW = Math.max(4, Math.round(120 / step)); // 2-h context shoulders
       const isNight = (ms) => {
         const h = new Date(ms).getUTCHours();
         return h >= 23 || h < 8;
@@ -16504,7 +16643,7 @@ __exports.PulseDex = window.PulseDex;
             j++;
           }
           const runLen = j - i,
-            runMin = runLen * cadence;
+            runMin = runLen * step;
           if (runLen >= minRun && runMin <= 150) {
             const before = medOf(i - ctxW, i),
               after = medOf(j, j + ctxW);
@@ -16550,6 +16689,9 @@ __exports.PulseDex = window.PulseDex;
       unit,
       t0Ms,
       cadence,
+      // null unless the cadence was unmeasurable; then the step the grid used, named as an assumption.
+      cadenceAssumed,
+      cadenceReason,
       stepMs,
       gT,
       gV,
@@ -16560,10 +16702,10 @@ __exports.PulseDex = window.PulseDex;
       truncated,
       spanMin: Math.round(spanMs / 60000),
       spanSec: spanMs / 1000,
-      activeMin: Math.round(activeCells * cadence),
-      gapMin: Math.round(gapCells * cadence),
-      warmupMin: Math.round(warmupCells * cadence),
-      compMin: Math.round(compCells * cadence),
+      activeMin: cadence == null ? null : Math.round(activeCells * cadence),
+      gapMin: cadence == null ? null : Math.round(gapCells * cadence),
+      warmupMin: cadence == null ? null : Math.round(warmupCells * cadence),
+      compMin: cadence == null ? null : Math.round(compCells * cadence),
       nGaps,
       pctActive,
       nRaw: n,
@@ -17461,7 +17603,8 @@ __exports.PulseDex = window.PulseDex;
     progress && progress(84, 'AGP aggregation…');
     const hourly = agp(c);
     const daily = perDay(c);
-    const activeDays = c.activeMin / 1440;
+    // §∅ — a rate we never measured yields no day count either; NaN would read as a number downstream.
+    const activeDays = c.activeMin == null ? null : c.activeMin / 1440;
     const t = tierOf(activeDays, c.pctActive);
 
     const r = {
@@ -17469,9 +17612,17 @@ __exports.PulseDex = window.PulseDex;
       unit: c.unit,
       t0Ms: c.t0Ms,
       cadence: c.cadence,
+      /* §∅ requires a null to arrive WITH its reason, so both ride out of `analyze` and not only
+         out of `clean` — a consumer that sees `cadence: null` and no reason cannot tell an
+         unmeasurable rate from a field this version does not populate. */
+      cadenceAssumed: c.cadenceAssumed,
+      cadenceReason: c.cadenceReason,
       durSec: c.spanSec,
       durMin: c.spanMin,
-      durDays: +activeDays.toFixed(2),
+      // §∅ — null, not 0 and not NaN: the day count is `activeMin / 1440` and that minute total is
+      // itself null when the cadence was never measured. `+null.toFixed()` is a THROW, which is how
+      // the typechecker found this line before the runtime did.
+      durDays: activeDays == null ? null : +activeDays.toFixed(2),
       spanMin: c.spanMin,
       activeMin: c.activeMin,
       gapMin: c.gapMin,
@@ -17484,7 +17635,9 @@ __exports.PulseDex = window.PulseDex;
       tier: t.tier,
       tierLabel: t.label,
       tierMsg: t.msg,
-      longRec: activeDays >= 1,
+      // A record whose active duration is unknown is not "long" and is not "short" — it is unknown.
+      // `null >= 1` is FALSE, which would have published a confident "not long" for an unmeasured span.
+      longRec: activeDays == null ? null : activeDays >= 1,
       // series (cleaned, mg/dL) for render
       // §5.1 — `truncated` rides along: this subset is hand-picked, so a field added to the grid is
       // invisible to every consumer until it is named here. That is precisely how the truncation
@@ -33380,8 +33533,33 @@ __exports.ECGDex = window.ECGDex;
       nad = 100,
       nadIdx = 0,
       base = 95;
+    /* 🔴 `endIdx` IS A SAMPLE INDEX, so it is clamped; `duration` is a COUNT, so it is not.
+       `close(n)` is the unconditional end-of-record flush, and it used to publish `endIdx: end` with
+       `end === n` — one past the last sample. Measured on main 2026-10-11 with a desat running to the
+       end of a 230-sample series: `endIdx: 230`, `spo2[230]` is `undefined`, and `undefined - 1` is
+       `NaN`. A mid-series event is unaffected because its `end` is the re-rise sample, a real index —
+       which is precisely what made the asymmetry invisible: the common path always looked right.
+       ⚠️ CLAMPING ALONE WOULD DESTROY INFORMATION, which is why `terminal` ships with it. After the
+       clamp, an event that ran past the end and an event that genuinely ended on the last sample both
+       read `endIdx === n - 1`, and nothing distinguishes "no resaturation was observed" from "it
+       resaturated at the last sample". `terminal` is that distinction, and it is the same field
+       OxyDex's twin publishes for the same reason (`oxydex-dsp.js:3523`).
+       `duration` keeps the UNCLAMPED span (`end - st`): the event really did last that many samples,
+       and shortening it by one to match a clamped index would corrupt a correct number to tidy a
+       different field. CPAPDex has no recovery-slope term, so unlike OxyDex there is nothing here that
+       measures a dip against itself. */
     function close(end) {
-      if (inEv && end - st >= OXI.MIN_DUR) events.push({ startIdx: st, onset: st, nadirIdx: nadIdx, endIdx: end, depth: +(base - nad).toFixed(1), duration: end - st, nadir: nad });
+      if (inEv && end - st >= OXI.MIN_DUR)
+        events.push({
+          startIdx: st,
+          onset: st,
+          nadirIdx: nadIdx,
+          endIdx: Math.min(n - 1, end),
+          terminal: end >= n,
+          depth: +(base - nad).toFixed(1),
+          duration: end - st,
+          nadir: nad
+        });
       inEv = false;
     }
     for (var i = 0; i < n; i++) {

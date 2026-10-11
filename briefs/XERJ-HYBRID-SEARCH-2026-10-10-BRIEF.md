@@ -156,3 +156,12 @@ returned so the answer is readable without a second read. The measured case agai
 second artefact that must be reloaded when the cache moves (77 s, idempotent), and `hit@5` here is
 scored against a proxy that favours file-level answers. Nothing is routed through it until the owner
 says so.
+
+**Owner ruling 2026-10-11 (answered in Kestrel's session): ADOPT — hybrid is the Rule-0 default, with
+the semantic lane as the fallback, and the index runs as the §6 user units.** Landed as
+`doc-search.mjs`'s `searchLane()`: no flag → hybrid, falling back to the semantic lane when the index
+does not answer within 10 s (measured 27.6 s on the first query after a unit restart, 75 ms warm);
+`--hybrid`/`--code` keep the strict form; `--semantic` names the old lane. Both lanes leave the session
+stamp. `tepna-hybrid-index.service` + `tepna-hybrid-index-reload.timer` were linked and enabled on the
+primary development computer the same morning (the hand-started server retired; its 2.0 GB data
+directory moved to the unit's path, 64 indices / 105,388 docs intact).

@@ -1,0 +1,70 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — the local hybrid-search index server (BM25 + cached bge-m3 kNN over the repo source).
+#
+# WHY THIS UNIT EXISTS. Measured 2026-10-10: the server backing `doc-search.mjs --hybrid` was a bare
+# process started by hand from a terminal on 10-09 — no unit, no restart, no boot. A reboot or a closed
+# terminal ends the hybrid lane silently, and the only symptom is `doc-search --hybrid` failing with a
+# connection error while the default (semantic) path keeps working. That is a dev-tool outage nobody is
+# paged for, so it persists until someone notices the flag is broken.
+#
+# 🔴 LOOPBACK ONLY, AND THAT IS WHAT MAKES `--insecure` ACCEPTABLE. The flag disables TLS; it is
+# tolerable here *solely* because the listener is bound to 127.0.0.1, so nothing off this machine can
+# reach it. If the bind address ever changes, `--insecure` must go with it in the same edit — the two are
+# one decision, not two settings. `IPAddressAllow`/`IPAddressDeny` below enforce the same thing at the
+# kernel rather than trusting the argument.
+#
+# 🔴 IT INDEXES SOURCE ONLY, AND NOTHING CAPTURED. The documents come from `tools/xerj-load.mjs`, whose
+# population is doc-search's own corpus — a non-recursive list of named directories, chosen so a glob
+# cannot reach `uploads/` — and which additionally REFUSES any path matching `uploads/`, `.edf`,
+# `captures/` or `.dat|.bin|.wav`. Nothing recorded ever enters this index. The project's hard line is
+# that nothing captured leaves the box; this server does not even hold it.
+#
+# NO MODEL IS EVER DOWNLOADED. `--embed-mode lexical` is deliberate: the engine's own embedder is not the
+# one we use, and its proxy mode will not attest a remote provider's assets. The 1024-dim vectors are
+# OURS, computed by doc-search against the loopback inference server and written in by the loader. A
+# `neural` mode here would fetch a model at start-up — never do that.
+#
+# DATA DIR under `%h/.local/share/tepna/`, the established per-machine state root (it already holds
+# `nrf52840-firmware`). The previous location was a `xerj-tepna-test/` scratch directory, which is the
+# right place for a trial and the wrong place for something a timer reloads hourly.
+#
+# INSTALL — primary development machine only, and NOT performed by the PR that adds this file.
+# The owner enables it; a session must not:
+#   1. mkdir -p %h/.local/share/tepna/hybrid-index
+#   2. cp tools/systemd/tepna-hybrid-index.service        ~/.config/systemd/user/
+#      cp tools/systemd/tepna-hybrid-index-reload.service ~/.config/systemd/user/
+#      cp tools/systemd/tepna-hybrid-index-reload.timer   ~/.config/systemd/user/
+#   3. systemctl --user daemon-reload
+#      systemctl --user enable --now tepna-hybrid-index.service
+#      systemctl --user enable --now tepna-hybrid-index-reload.timer
+#   4. node tools/xerj-load.mjs            # the first fill; idempotent, ~77 s for 58k documents
+#   5. node tools/doc-search.mjs --hybrid "a question"      # the one-line check
+# If the binary is absent the service fails loudly rather than degrading: a hybrid lane that silently
+# serves nothing is worse than one that is plainly down.
+[Unit]
+Description=Tepna — local hybrid-search index server (loopback only)
+Documentation=https://github.com/Plantucha/Tepna/blob/main/briefs/XERJ-HYBRID-SEARCH-2026-10-10-BRIEF.md
+
+[Service]
+Type=simple
+# The real executable path is mechanics, not a description — the process has to be started.
+ExecStart=%h/.local/bin/xerj --data-dir %h/.local/share/tepna/hybrid-index --embed-mode lexical --insecure
+Restart=on-failure
+RestartSec=5
+# A dev tool must never outrank a session's gate or another timer's run.
+Nice=10
+IOSchedulingClass=idle
+# Defence in depth for the loopback claim above: enforced by the kernel, not by the argument list.
+IPAddressAllow=localhost
+IPAddressDeny=any
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# The one path it must write. ProtectHome=read-only above makes everything else in $HOME read-only.
+ReadWritePaths=%h/.local/share/tepna/hybrid-index
+
+[Install]
+WantedBy=default.target
