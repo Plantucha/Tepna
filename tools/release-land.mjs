@@ -174,16 +174,46 @@ export function commitMessage(version, session) {
 }
 
 /* 1–2 lines, per the house rule for internal tooling PRs. The changelog is the long form. */
-export function prBody(version, level, n, session) {
-  return `Fold of ${n} changeset(s) → v${version} (${level}). Cut by tools/release-land.mjs.\n\nFleet-Session: ${session}`;
+/**
+ * The release PR body. Opens with a `Rule 0:` line because `tools/pr-compliance.mjs` has been a REQUIRED
+ * context since #3368 and reds any PR without one — so **every release PR reded**, and v2.18.0 (#3423)
+ * had the line prepended by hand before it could land. A generated body that cannot satisfy a required
+ * gate makes the one unattended command in the repo attended.
+ *
+ * 🔴 THE LINE NAMES WHAT THE RELEASE ACTUALLY READ, and says plainly that it is not a doc-search.
+ * A release is a mechanical fold of pending changesets; it investigates nothing, so there is no prior
+ * work to find and no query to quote. Writing a plausible `doc-search` invocation here to satisfy the
+ * gate would be a fabricated evidence line in the one place nobody re-reads — the same class the gate
+ * exists to prevent, wearing the gate's own clothes. Naming `changes/*.md` is true and checkable: the
+ * changesets it folds are listed underneath.
+ */
+export function prBody(version, level, n, session, changesets) {
+  const names = Array.isArray(changesets) ? changesets.filter(Boolean) : [];
+  const listed = names.length ? `\n\n${names.map((c) => `- \`${c}\``).join('\n')}` : '';
+  return [
+    `Rule 0: the release reads \`changes/*.md\` — the ${n} pending changeset(s) folded here, listed below. A release is a mechanical fold and performs no investigative search, so no doc-search query is quoted (tools/release-land.mjs).`,
+    '',
+    `Fold of ${n} changeset(s) → v${version} (${level}). Cut by tools/release-land.mjs.${listed}`,
+    '',
+    `Fleet-Session: ${session}`
+  ].join('\n');
 }
 
 export function parsePlan(dryRunStdout) {
   const m = /DRY RUN: (\d+\.\d+\.\d+) → (\d+\.\d+\.\d+) \((major|minor|patch)\)/.exec(dryRunStdout || '');
   if (!m) return null;
   const consume = /Would consume: (.*)/.exec(dryRunStdout || '');
-  const n = consume ? consume[1].split(',').filter((s) => s.trim()).length : 0;
-  return { from: m[1], to: m[2], level: m[3], n };
+  /* The NAMES, not just the count. `parsePlan` already split this line to count it and threw the names
+     away, so the PR body could say "40 changeset(s)" and nothing about which — and the Rule 0 line
+     added above claims the release read `changes/*.md`, which is only checkable if the body says what
+     it found there. */
+  const names = consume
+    ? consume[1]
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+    : [];
+  return { from: m[1], to: m[2], level: m[3], n: names.length, names };
 }
 
 /* Merge polling verdict from `gh pr view --json state,mergeCommit,mergeStateStatus`. */
@@ -316,7 +346,7 @@ const RUN = {
       log(st, `PR #${st.pr} already exists (${existing[0].state})`);
       return;
     }
-    const url = must('gh', ['pr', 'create', '--title', `release: v${st.to}`, '--body', prBody(st.to, st.level, st.n, st.session)], { cwd: st.worktree }).trim();
+    const url = must('gh', ['pr', 'create', '--title', `release: v${st.to}`, '--body', prBody(st.to, st.level, st.n, st.session, st.names)], { cwd: st.worktree }).trim();
     st.pr = +(/\/pull\/(\d+)/.exec(url) || [])[1];
     if (!st.pr) throw new Error('gh pr create returned no PR number: ' + url);
     log(st, `opened PR #${st.pr}`);
@@ -544,7 +574,25 @@ if (process.argv.includes('--selftest')) {
   ok(tagArgs('2.11.0', '').join(' ') === 'tag -a v2.11.0 -m v2.11.0', 'no signing key → annotated');
   ok(tagArgs('2.11.0', 'ABC').join(' ') === 'tag -s v2.11.0 -m v2.11.0', 'signing key → signed');
   ok(/^release: v2\.11\.0\n\nFleet-Session: Kestrel$/.test(commitMessage('2.11.0', 'Kestrel')), 'commit message carries the trailer');
-  ok(prBody('2.11.0', 'minor', 40, 'Kestrel').split('\n')[0].length < 120, 'PR body first line is one short line');
+  /* 🔴 THE FIRST LINE IS NOW THE `Rule 0:` LINE, by design — `pr-compliance.mjs` has been a required
+     context since #3368 and reded EVERY release PR until this change; v2.18.0 (#3423) had the line
+     prepended by hand. The old assertion checked that the first line was short, which was about the
+     SUMMARY line; it is re-aimed at the summary rather than deleted, so both properties stay pinned. */
+  const _pb = prBody('2.11.0', 'minor', 2, 'Kestrel', ['a.md', 'b.md']);
+  const _pbLines = _pb.split('\n');
+  ok(/^Rule 0:/.test(_pbLines[0]), 'the release PR body OPENS with a Rule 0 line — the gate reds without one');
+  ok(/^Rule 0:/m.test(_pb), "…and it matches the gate's own anchored pattern, not merely contains the words");
+  ok(_pbLines[2].length < 120, 'the SUMMARY line is still one short line (the old assertion, re-aimed)');
+  ok(/Fold of 2 changeset\(s\) → v2\.11\.0 \(minor\)/.test(_pb), 'the summary still names the fold, the version and the level');
+  ok(/- `a\.md`/.test(_pb) && /- `b\.md`/.test(_pb), 'the changesets it folded are LISTED, so the Rule 0 claim is checkable');
+  /* HONESTY PIN: the line must not invent a doc-search invocation to satisfy the gate. A release
+     investigates nothing, and a plausible query nobody ran would be a fabricated evidence line in the
+     one place nobody re-reads — the defect the gate exists to prevent, wearing the gate's clothes. */
+  ok(!/doc-search\.mjs ['"]/.test(_pb), 'the Rule 0 line quotes NO doc-search query, because the release ran none');
+  ok(/performs no investigative search/.test(_pb), '…and says so in words rather than leaving the omission unexplained');
+  ok(/Fleet-Session: Kestrel/.test(_pb), 'the Fleet-Session trailer survives — also required by the same gate');
+  ok(prBody('2.11.0', 'minor', 0, 'Kestrel', []).split('\n')[0].startsWith('Rule 0:'), 'CONTROL · a zero-changeset body still opens with the line');
+  ok(parsePlan('DRY RUN: 2.10.0 → 2.11.0 (minor)\n\nWould consume: a.md, b.md\n').names.length === 2, 'parsePlan keeps the changeset NAMES, not just the count');
   // plan parse
   const plan = parsePlan('DRY RUN: 2.10.0 → 2.11.0 (minor)\n\n## [2.11.0]\n\nWould consume: a.md, b.md, c.md\n');
   ok(plan && plan.to === '2.11.0' && plan.level === 'minor' && plan.n === 3, 'plan parsed from release.mjs --dry-run');
