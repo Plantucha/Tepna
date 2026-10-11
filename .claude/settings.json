@@ -26,6 +26,12 @@
           },
           {
             "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-trailer.sh\"",
+            "timeout": 10,
+            "statusMessage": "checking the commit carries a Fleet-Session trailer"
+          },
+          {
+            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-ruff.sh\"",
             "timeout": 15,
             "statusMessage": "checking staged capture-host Python is ruff-clean"
