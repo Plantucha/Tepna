@@ -354,8 +354,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "ddaedc9ee57e",
-        "computeHash": "52a08a4f1419"
+        "manifestHash": "1362774fcc67",
+        "computeHash": "9692187fd66a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -383,8 +383,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "ddaedc9ee57e",
-        "computeHash": "52a08a4f1419"
+        "manifestHash": "1362774fcc67",
+        "computeHash": "9692187fd66a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -412,8 +412,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "ddaedc9ee57e",
-        "computeHash": "52a08a4f1419"
+        "manifestHash": "1362774fcc67",
+        "computeHash": "9692187fd66a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -441,8 +441,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "ddaedc9ee57e",
-        "computeHash": "52a08a4f1419"
+        "manifestHash": "1362774fcc67",
+        "computeHash": "9692187fd66a"
       },
       "evidence": {
         "envelopeRef": null,
@@ -741,8 +741,8 @@
       "driftLabel": "Declining (hypovent)"
     },
     "odi2": {
-      "odi2Count": 5,
-      "odi2Rate": 2.5
+      "odi2Count": 4,
+      "odi2Rate": 2
     },
     "spo2Overshoot": {
       "overshootMean": 2.29,
@@ -766,9 +766,9 @@
     },
     "respRate": null,
     "hrAsymmetry": {
-      "hrAccelAsym": 0.997,
-      "meanUpBpm": 1.5,
-      "meanDownBpm": 1.5,
+      "hrAccelAsym": 1,
+      "meanUpBpm": 1,
+      "meanDownBpm": 1,
       "hrAsymLabel": "Symmetric"
     },
     "hrQuartiles": {

@@ -986,9 +986,16 @@
     var head = 0,
       hlen = frozenRunLen(0, +1);
     if (hlen >= MIN && hlen <= MAX && hlen < n) {
-      var dS = rows[hlen].spo2 - rows[hlen - 1].spo2; // SpO2 step up = perfusion lock
-      var dH = Math.abs(rows[hlen].hr - rows[hlen - 1].hr);
-      if (dS >= SPO2_STEP || dH >= HR_STEP) head = hlen;
+      /* A STEP NEEDS BOTH SAMPLES. `null - 95` is -95 and `95 - null` is 95 — either invents a step
+         far past the threshold and would trim a head that was never shown to lock on. No step is
+         detectable across a hole, so none is claimed. */
+      var _a = rows[hlen],
+        _b = rows[hlen - 1];
+      if (_has(_a.spo2) && _has(_b.spo2) && _has(_a.hr) && _has(_b.hr)) {
+        var dS = _a.spo2 - _b.spo2; // SpO2 step up = perfusion lock
+        var dH = Math.abs(_a.hr - _b.hr);
+        if (dS >= SPO2_STEP || dH >= HR_STEP) head = hlen;
+      }
     }
 
     // ── TAIL: frozen run ending at the last row, ENTERED via an abrupt step down ──
@@ -997,8 +1004,10 @@
     if (tlen >= MIN && tlen <= MAX && tlen < n - head) {
       var pre = rows[n - 1 - tlen],
         first = rows[n - tlen];
-      var dS2 = pre.spo2 - first.spo2; // step DOWN into placeholder
-      var dH2 = Math.abs(pre.hr - first.hr);
+      // Same rule as the head: a step into the placeholder run is only a step if both ends were read.
+      var _tailOk = _has(pre.spo2) && _has(first.spo2) && _has(pre.hr) && _has(first.hr);
+      var dS2 = _tailOk ? pre.spo2 - first.spo2 : 0; // step DOWN into placeholder
+      var dH2 = _tailOk ? Math.abs(pre.hr - first.hr) : 0;
       if (dS2 >= SPO2_STEP || dH2 >= HR_STEP) tail = tlen;
     }
 
@@ -1039,6 +1048,13 @@
     var MAX_RUN = CFG.HR_ARTIFACT_MAX_RUN_SEC; // O2Ring is ~1 Hz, so this doubles as a sample count
     var i = 1;
     while (i < n) {
+      /* An artifact is a STEP in HR. Across a hole the subtraction invents one the size of the present
+         sample, which would flag a clean night as artifactual and then scan forward for a recovery
+         that never happened. The pair is skipped; the next pair is judged on its own. */
+      if (!_has(rows[i].hr) || !_has(rows[i - 1].hr)) {
+        i++;
+        continue;
+      }
       var rise = rows[i].hr - rows[i - 1].hr;
       var isHard = Math.abs(rise) >= HARD; // catch both sudden rises AND drops
       var isSoft = false;
@@ -1124,6 +1140,26 @@
   // ── SpO2 Pattern ───────────────────────────────────────────────
 
   // CT<94: cumulative seconds and % below 94% SpO2
+  /* ── §∅ · THE PRESENCE TEST THE 13 GUARDS SHARE ────────────────────────────────────────────────
+     Since 2026-10-11 a row carries `spo2`/`hr` as `null` when the device wrote its `'- -'` no-reading
+     (#3408), so every comparison and delta over a row value needs one. `OXYDEX-SPO2-SERIES` states the
+     contract these consumers must honour: "a second the device never reported is `null` — not `0`,
+     which reads as the most severe desaturation physically possible, and not the previous value, which
+     reads as stable oxygen."
+     🔴 THE COERCION DIRECTION DECIDES THE SEVERITY, and it is worth stating once rather than at each
+     site: `null` becomes 0, so `null < threshold` is TRUE and FABRICATES a low reading, while
+     `null > threshold` is FALSE and merely UNDER-COUNTS. Both are guarded below; the first class is
+     why this unit exists.
+     Two REMEDIES, chosen per site and never interchangeably:
+       · a DELTA across a hole is not a delta — skip the pair (`frozenRunLen`'s step, `cleanArtifactHR`,
+         `computeHRAsymmetry`). A subtraction with one absent operand invents a step the size of the
+         present value.
+       · a RUN across a hole is not a run — BREAK it (`detectOscillations`, `computeSpO2Ceiling`,
+         `detectSpikes`' sustain, the spike recovery walks). Skipping would silently join two runs
+         either side of a dropout and report one longer event, which is the owner's 2026-09-17 ruling:
+         a discontinuity refuses, reduced coverage annotates. */
+  const _has = (v) => v != null && isFinite(v);
+
   function computeCT94(rows) {
     var n = rows.length;
     if (n < 60) return null;
@@ -3675,17 +3711,17 @@
       bl /= Math.max(cnt, 1);
       // Detection trigger: 12-sample lookahead to fire early in the ramp
       var localMax12 = rows[i].hr;
-      for (var j = i; j < Math.min(i + 12, n); j++) if (rows[j].hr > localMax12) localMax12 = rows[j].hr;
+      for (var j = i; j < Math.min(i + 12, n); j++) if (_has(rows[j].hr) && rows[j].hr > localMax12) localMax12 = rows[j].hr;
       var peakRise12 = localMax12 - bl;
       if (localMax12 < CFG.HR_SPIKE_MIN_PEAK || peakRise12 < 20) continue;
       var sustain = 0;
-      for (var j = i; j < Math.min(i + 18, n); j++) if (rows[j].hr >= Math.max(CFG.HR_SPIKE_MIN_PEAK, bl + 12)) sustain++;
+      for (var j = i; j < Math.min(i + 18, n); j++) if (_has(rows[j].hr) && rows[j].hr >= Math.max(CFG.HR_SPIKE_MIN_PEAK, bl + 12)) sustain++;
       if (sustain < 5) continue;
       // Peak reporting: wider 40-sample window so fast-rising spikes aren't under-reported
       var localMax40 = localMax12;
-      for (var j = i + 12; j < Math.min(i + 40, n); j++) if (rows[j].hr > localMax40) localMax40 = rows[j].hr;
+      for (var j = i + 12; j < Math.min(i + 40, n); j++) if (_has(rows[j].hr) && rows[j].hr > localMax40) localMax40 = rows[j].hr;
       var dur = 0;
-      for (var j = i; j < Math.min(i + 30, n); j++) if (rows[j].hr >= CFG.HR_SPIKE_MIN_PEAK) dur++;
+      for (var j = i; j < Math.min(i + 30, n); j++) if (_has(rows[j].hr) && rows[j].hr >= CFG.HR_SPIKE_MIN_PEAK) dur++;
       var mfm = rows[i].t.getUTCHours() * 60 + rows[i].t.getUTCMinutes() + rows[i].t.getUTCSeconds() / 60;
       /* ── FIRMWARE ARTIFACT REJECTION (O2RING-HOURLY-HR-ARTIFACT-2026-08-02) ──────────────────
          A heart cannot accelerate 20 BPM in one second. The vendor (Wellue, 2026-05-14) confirmed a
@@ -3717,7 +3753,7 @@
          published beside the raw one. */
       var onsetRise = 0;
       for (var j = Math.max(1, i - 2); j < Math.min(i + 14, n); j++) {
-        var stepUp = rows[j].hr - rows[j - 1].hr;
+        var stepUp = _has(rows[j].hr) && _has(rows[j - 1].hr) ? rows[j].hr - rows[j - 1].hr : 0;
         if (stepUp > onsetRise) onsetRise = stepUp;
       }
       var secPastHour = rows[i].t.getUTCMinutes() * 60 + rows[i].t.getUTCSeconds();
@@ -3957,8 +3993,13 @@
         motion = 0,
         span = Math.max(ep.endIdx - ep.startIdx, 1);
       for (var j = ep.startIdx + 1; j <= ep.endIdx && j < n; j++) {
-        if (rows[j - 1].spo2 >= CFG.SPO2_OSC_THRESHOLD !== rows[j].spo2 >= CFG.SPO2_OSC_THRESHOLD) cross++;
-        if (rows[j].spo2 < CFG.SPO2_OSC_THRESHOLD) below++;
+        /* 🔴 A HOLE USED TO MANUFACTURE TWO CROSSINGS. `null >= 90` is false, so a dropout read as
+           "below" on the way in and the recovery read as a crossing on the way out — fabricated
+           oscillation, in the detector whose output IS the periodic-breathing finding. Both samples
+           must be present for a crossing to be counted, and an absent second is not time below the
+           threshold. */
+        if (_has(rows[j - 1].spo2) && _has(rows[j].spo2) && rows[j - 1].spo2 >= CFG.SPO2_OSC_THRESHOLD !== rows[j].spo2 >= CFG.SPO2_OSC_THRESHOLD) cross++;
+        if (_has(rows[j].spo2) && rows[j].spo2 < CFG.SPO2_OSC_THRESHOLD) below++;
         if (rows[j].motion > 0) motion++;
       }
       // Motion artifact can manufacture a regular-looking trace; reject the episode, not the night.
@@ -4629,10 +4670,15 @@
       }
     }
     // (b) opening perfusion-settling ramp
-    if (rows[0].spo2 <= CFG.NADIR_RAMP_START_MAX) {
+    /* 🔴 `null <= 88` IS TRUE, so a night whose first second was not read used to TRIGGER the
+       perfusion-settling ramp, and the walk below (`spo2 < 94`) then stepped through every subsequent
+       hole and masked them all. A ramp is a measured climb; an unread first second is not one. */
+    if (_has(rows[0].spo2) && rows[0].spo2 <= CFG.NADIR_RAMP_START_MAX) {
       var lim = Math.min(n, CFG.NADIR_RAMP_MAX_SEC),
         k = 0;
-      while (k < lim && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;
+      // The walk STOPS at a hole rather than stepping through it: the ramp is the stretch observed to
+      // be climbing, and an unread second is not evidence that it had not recovered yet.
+      while (k < lim && _has(rows[k].spo2) && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;
       if (k > 0 && k < lim) {
         // reached a normal plateau within the window
         var openMin = rows[0].spo2; // require the region to START at (near) its own min
@@ -5181,7 +5227,10 @@
       }
       if (winLen <= 0) continue;
       var baseline = winSum / winLen;
-      if (rows[i].spo2 <= baseline - 2 && rows[i - 1].spo2 > baseline - 2) count++;
+      /* 🔴 AN INDEX, SO THE FABRICATION IS PUBLISHED. `null <= baseline - 2` is true, so every hole
+         that followed a present second counted as an ODI-2 event. Both samples must be read for a
+         crossing into desaturation to have been observed. */
+      if (_has(rows[i].spo2) && _has(rows[i - 1].spo2) && rows[i].spo2 <= baseline - 2 && rows[i - 1].spo2 > baseline - 2) count++;
     }
     var durationHr = n / 3600;
     return { odi2Count: count, odi2Rate: durationHr > 0 ? +(count / durationHr).toFixed(2) : 0 };
@@ -5514,6 +5563,9 @@
     var ups = [],
       downs = [];
     for (var i = 1; i < n; i++) {
+      // A hole makes a delta the size of the present sample and pushes it into `ups` or `downs`,
+      // tilting the asymmetry by an amount that is pure coercion. Skip the pair.
+      if (!_has(rows[i].hr) || !_has(rows[i - 1].hr)) continue;
       var d = rows[i].hr - rows[i - 1].hr;
       if (d > 0) ups.push(d);
       else if (d < 0) downs.push(-d);
@@ -5667,7 +5719,9 @@
       var s0 = Math.max(0, apxIdx - 300),
         s1 = Math.min(rows.length, apxIdx + 300);
       for (var i = s0; i < s1; i++) {
-        if (rows[i].hr >= sp.peak - 2 && rows[i].hr >= threshold) {
+        // `>=` under-counts rather than fabricating (a hole is never the peak), but it is guarded so the
+        // safety is a decision rather than a coercion that happened to fall the right way.
+        if (_has(rows[i].hr) && rows[i].hr >= sp.peak - 2 && rows[i].hr >= threshold) {
           peakIdx = i;
           break;
         }
@@ -5710,7 +5764,9 @@
       if (peakIdx < 0) return;
       var recIdx = peakIdx;
       for (var j = peakIdx + 1; j < Math.min(rows.length, peakIdx + 200); j++) {
-        if (rows[j].hr <= sp.baseline + 1) {
+        /* 🔴 `null <= baseline + 1` IS TRUE, so the first hole after a spike read as the RECOVERY and
+           the decay time was measured to a second nobody recorded. The walk must see a real sample. */
+        if (_has(rows[j].hr) && rows[j].hr <= sp.baseline + 1) {
           recIdx = j;
           break;
         }
@@ -5898,7 +5954,9 @@
       totalCeilSec = 0,
       run = 0;
     for (var i = 0; i < n; i++) {
-      if (rows[i].spo2 >= 99) {
+      /* A ceiling RUN. `null >= 99` is false, so a hole already broke it — by coercion, not by
+         intent. Stated explicitly: a second that was not read is not a second at the ceiling. */
+      if (_has(rows[i].spo2) && rows[i].spo2 >= 99) {
         run++;
       } else {
         if (run >= 5) {
@@ -6499,7 +6557,9 @@
       }
       if (peakIdx < 0) return;
       for (var j = peakIdx + 1; j < Math.min(rows.length, peakIdx + 180); j++) {
-        if (rows[j].hr <= halfTarget) {
+        /* 🔴 `null <= halfTarget` IS TRUE, so the first hole after a spike read as 50 % recovery and
+           the recovery time was measured to an unrecorded second. */
+        if (_has(rows[j].hr) && rows[j].hr <= halfTarget) {
           times.push(j - peakIdx);
           break;
         }
@@ -6625,7 +6685,9 @@
     // Use 5th percentile of motion-free HR as proxy (more robust than absolute min)
     var stillHR = rows
       .filter(function (r) {
-        return r.motion === 0 && r.hr > 30 && r.hr < 120;
+        // `null > 30` is false, so an absent HR is already excluded from the still-HR pool — guarded
+        // explicitly so the exclusion is a decision, not a side effect of the comparison direction.
+        return r.motion === 0 && _has(r.hr) && r.hr > 30 && r.hr < 120;
       })
       .map(function (r) {
         return r.hr;
@@ -6772,7 +6834,9 @@
       if (!rows || rows.length < 60) return null;
       var stillHR = rows
         .filter(function (r) {
-          return r.motion === 0 && r.hr > 30 && r.hr < 120;
+          // `null > 30` is false, so an absent HR is already excluded from the still-HR pool — guarded
+          // explicitly so the exclusion is a decision, not a side effect of the comparison direction.
+          return r.motion === 0 && _has(r.hr) && r.hr > 30 && r.hr < 120;
         })
         .map(function (r) {
           return r.hr;
