@@ -14116,6 +14116,81 @@
       T.ok('the population is non-vacuous', total >= 400, 'parsed ' + total + ' grade(s) across ' + NODES.length + ' node registries (523 at 2026-10-11)');
     });
 
+    group('§∅ · OxyDex parse — an absent SpO₂ row is kept as null, never deleted', 'oxydex-dsp · absence', function (T) {
+      var raw = env.equiv && env.equiv.oxydex_odibasis && env.equiv.oxydex_odibasis.input;
+      var parse = env.OxyDex && env.OxyDex.parseCSV;
+      if (!raw) {
+        T.skip('the committed gap input is reachable', 'env.equiv.oxydex_o2ring_gap.input absent');
+        return;
+      }
+      if (typeof parse !== 'function') {
+        T.skip('parseCSV is reachable', 'no parseCSV on the OxyDex surface');
+        return;
+      }
+      /* 🔴 THE PARSER USED TO DELETE THE ROW, so nothing downstream could report the absence: a gapped
+         night reported FULL coverage of a SHORTENED recording. The committed fixture is a real instance
+         — 7200 data rows, 1800 of them with a blank or dash Oxygen Level cell — so on main parseCSV
+         returned 5400 rows and `nMeasured/nTotal` could only ever be 5400/5400. §∅ one layer earlier
+         than the #3321 accounting: a consumer cannot null what the parser already erased.
+         The row is now carried with `spo2: null`, which is the same treatment the MOTION column in this
+         very loop already receives ("an absent reading is neither moving nor still"). */
+      var rows = parse(raw);
+      var nulls = rows.filter(function (r) {
+        return r.spo2 == null;
+      }).length;
+      T.eq('every data row survives parsing', rows.length, 7200);
+      T.eq('…and the absent ones are present as spo2 null', nulls, 1800);
+      T.eq('…so the measured count is the difference, not the total', rows.length - nulls, 5400);
+      /* A kept row is still a row on the timeline: it must carry a real timestamp, or the gap would be
+         a run of rows nothing can place. */
+      var firstNull = null;
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].spo2 == null) {
+          firstNull = rows[i];
+          break;
+        }
+      }
+      T.ok('an absent-SpO₂ row still carries a parsed tMs', !!firstNull && typeof firstNull.tMs === 'number' && isFinite(firstNull.tMs), 'tMs=' + JSON.stringify(firstNull && firstNull.tMs));
+      T.ok('…and its pulse rate is kept when the file has one', !!firstNull && (firstNull.hr == null || typeof firstNull.hr === 'number'), 'hr=' + JSON.stringify(firstNull && firstNull.hr));
+      /* CONTROLS — the gap-free twin and the drop rules this unit did NOT change. An absence fix that
+         also stopped rejecting bad data would be a worse defect than the one it repairs. */
+      var clean = env.equiv && env.equiv.oxydex_o2ring && env.equiv.oxydex_o2ring.input;
+      if (clean) {
+        var cRows = parse(clean);
+        T.ok(
+          'CONTROL · a gap-free file parses with no null SpO₂ rows',
+          cRows.filter(function (r) {
+            return r.spo2 == null;
+          }).length === 0,
+          'the twin must be untouched'
+        );
+        T.ok('CONTROL · and still yields rows', cRows.length > 0, 'parsed ' + cRows.length);
+      }
+      var hdr = '\ufeffTime,Oxygen Level,Pulse Rate,Motion\n';
+      T.eq('CONTROL · an OUT-OF-RANGE SpO₂ is still dropped, not nulled', parse(hdr + '23:00:16 12/06/2026,20,58,3\n').length, 0);
+      T.eq('CONTROL · an unparseable PULSE still drops the row', parse(hdr + '23:00:16 12/06/2026,97,zz,3\n').length, 0);
+      T.eq('CONTROL · a well-formed row is still kept', parse(hdr + '23:00:16 12/06/2026,97,58,3\n').length, 1);
+      /* 🔴 THE PARSER NOW EXPOSES EDGE ABSENCES TO THE DETECTORS THAT LOOK FOR THEM — measured on two
+         REAL nights, not a synthetic. The sensor-cool-down trimmer exists to drop a non-signal block at
+         a recording's edge, and it could not see one made of `'- -'` rows because parseCSV deleted them
+         first. Both committed summaries gained `sensorCooldownTrimmed: 10` when the rows were carried.
+         This is the control for the whole unit: the point of keeping an absence is that something
+         downstream can act on it, and here something did. */
+      [
+        ['oxydex (2026-06-13)', env.equiv && env.equiv.oxydex && env.equiv.oxydex.fixture],
+        ['oxydex_0439 (2026-06-25)', env.equiv && env.equiv.oxydex_0439 && env.equiv.oxydex_0439.fixture]
+      ].forEach(function (pair2) {
+        var name = pair2[0],
+          doc = pair2[1];
+        if (!doc) {
+          T.skip(name + ' reachable for the cool-down control', 'env.equiv entry absent (older runner)');
+          return;
+        }
+        var st = doc && doc[0] && doc[0].stats;
+        T.eq(name + ' · the carried edge absences are TRIMMED as cool-down', st && st.sensorCooldownTrimmed, 10);
+      });
+    });
+
     group('Cohesion single-source — evidence badges', 'cohesion-badges · cpapdex-registry · glucodex-registry · hrvdex-registry', function (T) {
       var M = env.MetricRegistry,
         docs = env.docs || {};
@@ -32557,9 +32632,14 @@
       T.eq('detectODI without pulseSeries (the ODI-4 call) is unchanged / ungated', odi3Ungated.count, N_REAL + N_ART);
       // processNight WIRING lock: the odi3 call passes pulseSeries, the odi4 call does not.
       var dspSrc = (env.sources && env.sources['oxydex-dsp.js']) || '';
+      /* ⚠️ THE DENOMINATOR IS DELIBERATELY NOT PINNED HERE. This leg is about pulse GATING — that
+         `pulseSeries` reaches the ODI-3 call and not the ODI-4 one — and it hardcoded `rows.length` as
+         the third argument, so changing the denominator (2026-10-11, to the measured count) reddened a
+         test that has nothing to say about it. The third argument now matches any identifier: the
+         property under test survives, and the number it divides by is asserted in §5 where it belongs. */
       T.ok(
         'processNight passes pulseSeries ONLY to the ODI-3 detectODI call',
-        /detectODI\(spo2s, 3, rows\.length, blArr, pulseSeries\)/.test(dspSrc) && /detectODI\(spo2s, DexKernel\.K\.ODI_DROP, rows\.length, blArr\)/.test(dspSrc),
+        /detectODI\(spo2s, 3, [A-Za-z_$][A-Za-z0-9_$.]*, blArr, pulseSeries\)/.test(dspSrc) && /detectODI\(spo2s, DexKernel\.K\.ODI_DROP, [A-Za-z_$][A-Za-z0-9_$.]*, blArr\)/.test(dspSrc),
         'odi3/odi4 detectODI calls not wired as expected'
       );
 
@@ -46090,7 +46170,16 @@
         var bus = (cL.ganglior_events || []).filter(function (e) {
           return e.impulse === 'desat_event';
         });
-        T.ok('§8 · rows really were dropped (the input expresses the shape)', rows.length < 7200, 7200 - rows.length + ' row(s) dropped');
+        /* 🔴 THIS CONTROL'S PREMISE WAS THE DEFECT, so it becomes the fix's assertion. It read
+           `rows.length < 7200` — "the input expresses the shape" — and the shape it expressed was
+           parseCSV DELETING the device's `'- -'` rows. Since 2026-10-11 those rows are carried as null
+           with their own tMs (§∅), so the input expresses a BETTER shape: every second is present and
+           1800 of them declare that nothing was measured. */
+        var _absentRows = rows.filter(function (r) {
+          return r.spo2 == null;
+        }).length;
+        T.eq('§8 · every row is CARRIED (none deleted)', rows.length, 7200);
+        T.eq('§8 · …and the absent ones say so, as null', _absentRows, 1200);
         T.ok('§8 · desat events reach the bus', bus.length > 0, bus.length + ' event(s)');
         var worst = 0,
           idxWorst = 0,
@@ -46105,7 +46194,14 @@
         });
         T.ok("§8 · every exported tMs == its own row's timestamp", worst <= 1, 'max drift ' + worst.toFixed(1) + ' s (the coincidence gate is LEAD 15 s / TRAIL 60 s)');
         // the control: the OLD index→time mapping must be demonstrably wrong here, or the input is toothless.
-        T.ok('§8 · (control) the index→time mapping really IS wrong on this input', idxWorst > 60, 'it would be off by ' + idxWorst.toFixed(0) + ' s — far outside the 60 s gate');
+        /* AND THE CONTROL INVERTS WITH IT. A row index was not a second-offset only BECAUSE rows were
+           deleted; with every row carried, `t0 + idx·dt` is correct BY CONSTRUCTION. The assertion
+           therefore flips from "the old mapping is demonstrably wrong here" to "it now agrees" — the
+           defect this control existed to demonstrate is gone, and saying so is the honest form rather
+           than deleting the leg. ⚠️ The real guarantee is the one above it (`every exported tMs == its
+           own row's timestamp`), which does NOT depend on the index arithmetic and is what keeps the
+           export honest if rows are ever dropped again. */
+        T.ok('§8 · the index→time mapping now AGREES, because no row is deleted', idxWorst <= 1, 'off by ' + idxWorst.toFixed(1) + ' s (was > 60 s while absent rows were erased)');
       }
 
       /* ── §9 · a FULL-LENGTH night: a window metric must describe the night, not just its head ─────── */
@@ -46245,15 +46341,20 @@
       var o = n && n.odi4;
       T.ok('the gap twin computes an ODI-4 with a count + rate', !!(o && o.count != null && o.rate != null), o ? JSON.stringify(o) : 'no odi4');
       if (!(o && o.count != null && o.rate != null)) return;
-      var sampleHr = n.stats.n / 3600,
+      /* 🔴 THE SAMPLE BASIS IS `nSpo2`, NOT `n`. This read `n.stats.n`, and that was the valid count
+         only while parseCSV DELETED absent rows — the test was leaning on the very defect that
+         `2026-10-05-an-absent-spo2-row-is-dropped-at-parse` describes. `stats.n` is documented as the
+         ROW count for duration and coverage; `stats.nSpo2` is the measured count the rate divides by,
+         and carrying absences is what made the two differ and therefore nameable. */
+      var sampleHr = n.stats.nSpo2 / 3600,
         spanHr = n.stats.durationMin / 60;
       var sampleRate = +(o.count / sampleHr).toFixed(1),
         spanRate = +(o.count / spanHr).toFixed(1);
       // non-vacuous: this twin genuinely puts a gap between the two bases (else the assertion proves nothing)
       T.ok(
-        'control · the twin diverges the two bases (a real gap: rows.length < span)',
+        'control · the twin diverges the two bases (a real gap: measured < span)',
         sampleRate !== spanRate,
-        'sample ' + sampleRate + '/h vs span ' + spanRate + '/h (validN=' + n.stats.n + ' spanMin=' + n.stats.durationMin + ')'
+        'sample ' + sampleRate + '/h vs span ' + spanRate + '/h (nSpo2=' + n.stats.nSpo2 + ' rows=' + n.stats.n + ' spanMin=' + n.stats.durationMin + ')'
       );
       T.eq('§5 · ODI-4/hr uses the SAMPLE basis (count / analyzable-hours), not the elapsed span', o.rate, sampleRate);
       T.ok('§5 · …and is NOT the span-basis rate (the retired denominator)', o.rate !== spanRate, 'rate ' + o.rate + ' vs span ' + spanRate);
@@ -46626,7 +46727,8 @@
           var truth = rows[e.nadirIdx].tMs;
           idxWorst = Math.max(idxWorst, Math.abs(night.t0Ms + e.nadirIdx * dt - truth) / 1000);
         });
-      T.ok('§8 · (control) the OLD index→time mapping really is wrong on this night', idxWorst > 60, 'old mapping would be off by ' + idxWorst.toFixed(0) + ' s — far outside the 60 s gate');
+      // Same inversion as the §8 leg above: carried rows make the index a second-offset again.
+      T.ok('§8 · the OLD index→time mapping now agrees on this night too', idxWorst <= 1, 'off by ' + idxWorst.toFixed(1) + ' s (was > 60 s while absent rows were erased)');
 
       /* ── §9 · the surfaced cycle length describes the WHOLE night, not its first hour ───────────────
          BEHAVIOURAL, not a source-text grep: build a night whose FIRST HOUR oscillates fast (20 s period)
