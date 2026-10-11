@@ -25,6 +25,7 @@
  */
 
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,13 +33,18 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 
-function verdictOf({ status, scanned, hits, base }) {
+function verdictOf({ status, scanned, hits, base, fullTree, baseline }) {
   const v = Verdict.make({
     gate: 'absence-regression',
     status,
     population: { checked: scanned, eligible: scanned, excluded: 0 },
-    criterion: { name: 'no-added-line-fabricates-an-absent-value', threshold: 0, unit: 'added lines matching a fixed pattern', direction: 'eq' },
-    result: status === 'NOT_RUN' ? null : { scanned, violations: hits.map((h) => ({ pattern: h.name, line: h.line })) },
+    criterion: fullTree
+      ? { name: 'the-whole-tree-backlog-of-absence-fabrications-may-only-fall', threshold: baseline ? baseline.count : 0, unit: 'lines fabricating an absent value', direction: 'lte' }
+      : { name: 'no-added-line-fabricates-an-absent-value', threshold: 0, unit: 'added lines matching a fixed pattern', direction: 'eq' },
+    result:
+      status === 'NOT_RUN' && !fullTree
+        ? null
+        : { scanned, violations: hits.map((h) => ({ pattern: h.name, line: h.line })), ...(fullTree ? { mode: 'full-tree', baseline: baseline ? baseline.count : null } : {}) },
     evidence: ['tools/absence-regression.mjs'],
     reason: status === 'PASS' ? null : status === 'NOT_RUN' ? `0 added lines in ${base}..HEAD — nothing was examined` : `${hits.length} added line(s) fabricate an absent value`,
     producedBy: {
@@ -109,17 +115,55 @@ export function selftest() {
   /* A `+++` header can itself contain a path that matches; it is not code. */
   ok(classifyAdded(['+++ b/tMs: x || 0']).scanned === 0, 'CONTROL: the +++ file header is not scanned as code');
 
+  /* ── THE SHRINK-ONLY RATCHET ──────────────────────────────────────────────────────────────────────
+     Four states, and the one that matters most is the THIRD: a count that FELL must not quietly pass,
+     or the baseline stays at its seeded value forever and the ratchet stops being one. */
+  ok(ratchet(5, null).status === 'NOT_RUN', 'no baseline yet ⇒ NOT_RUN, never a pass over an unrecorded number');
+  ok(ratchet(6, { count: 5 }).status === 'FAIL', 'a count ABOVE the baseline fails — something was merged unexamined');
+  ok(ratchet(4, { count: 5 }).status === 'SHORTFALL', 'a count BELOW the baseline is a SHORTFALL asking for the baseline to be lowered');
+  ok(ratchet(5, { count: 5 }).status === 'PASS', 'an unchanged count passes');
+  ok(/lower the baseline/.test(ratchet(4, { count: 5 }).reason || ''), '…and says what to do about it');
+  ok(ratchet(0, { count: 0 }).status === 'PASS', 'a cleared backlog passes at zero');
+
   const line = fail.length ? `absence-regression selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
 
+/* THE EMPTY TREE — `git diff <empty>..HEAD` presents every tracked file as added, so this diff-scoped
+   scanner becomes a whole-tree one with the SAME classifier. Code merged before a diff gate existed is
+   otherwise never examined by it: the backlog is invisible by construction, not by neglect. */
+export const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+export const BACKLOG_LEDGER = 'audits/FULL-TREE-BACKLOG.json';
+
+/* ⚠️ maxBuffer EXPLICITLY. Node's 1 MiB default killed the first full-tree run of the sibling gate with
+   `spawnSync ENOBUFS` on a 5.9 MiB diff — the same defect that made `verify-fixtures` report a passing
+   suite as RED this morning. A refused capture is not a clean scan. */
 function sh(cmd) {
   try {
-    return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024 }).trim();
   } catch (e) {
     if (e.status === 1) return ''; // no matches
     throw e;
   }
+}
+
+export function readBacklog(file, gate, readFn) {
+  try {
+    const d = JSON.parse(readFn(file));
+    const e = d && d.gates && d.gates[gate];
+    return e && typeof e.count === 'number' ? e : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Judge a full-tree count against the shrink-only ledger. Pure, so the selftest can plant each case. */
+export function ratchet(count, baseline) {
+  if (baseline == null) return { status: 'NOT_RUN', reason: `no baseline recorded for this gate yet — seed ${BACKLOG_LEDGER} with the measured count (${count}) and the paths` };
+  if (count > baseline.count) return { status: 'FAIL', reason: `full-tree backlog ROSE: ${count} > baseline ${baseline.count}` };
+  if (count < baseline.count)
+    return { status: 'SHORTFALL', reason: `backlog FELL to ${count} from ${baseline.count} — lower the baseline in ${BACKLOG_LEDGER}; a ratchet that is not tightened stops being one` };
+  return { status: 'PASS', reason: null };
 }
 
 function main() {
@@ -131,12 +175,29 @@ function main() {
     process.exit(r.ok ? 0 : 1);
   }
   const asJson = argv.includes('--json');
+  /* ⚠️ NEVER A PR GATE. A whole-tree scan on a PR reports the INHERITED backlog as that PR's findings,
+     blocking work on code the author never touched — which is how a measurement becomes something people
+     route around. Nightly/release only; the PR gate stays diff-scoped and unchanged. */
+  const fullTree = argv.includes('--full-tree');
   const baseIdx = process.argv.indexOf('--base');
-  const base = baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
+  const base = fullTree ? EMPTY_TREE : baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
   const head = 'HEAD';
 
   const diff = sh(`git diff ${base}..${head} -U0 -- '*.js' ':!tests/'`);
   const { hits, scanned } = classifyAdded(diff.split('\n'));
+
+  if (fullTree) {
+    const baseline = readBacklog(join(ROOT, BACKLOG_LEDGER), 'absence-regression', (f) => readFileSync(f, 'utf-8'));
+    const r = ratchet(hits.length, baseline);
+    if (asJson) {
+      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, scanned, hits, base, fullTree: true, baseline }), null, 1)}\n`);
+    } else {
+      process.stdout.write(`absence-regression --full-tree · ${scanned} line(s) scanned · ${hits.length} fabrication(s)\n`);
+      for (const h of hits) process.stdout.write(`    ${h.name}: ${h.line.slice(0, 110)}\n`);
+      process.stdout.write(`  baseline: ${baseline ? baseline.count : '(none yet)'} → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`);
+    }
+    process.exit(r.status === 'FAIL' ? 1 : 0);
+  }
 
   /* NOT_RUN vs PASS. `--base HEAD` (the pre-push default) diffs nothing, so a green there is a pass
      over an EMPTY population — the examined-nothing shape. It is reported as NOT_RUN rather than
