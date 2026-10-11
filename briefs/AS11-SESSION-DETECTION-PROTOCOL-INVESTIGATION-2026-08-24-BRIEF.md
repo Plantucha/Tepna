@@ -57,7 +57,7 @@ but has no `as11_pull` wrapper/caller — an FGState poller needs only a thin wr
 discards non-`StreamData` notifications — no event dispatch exists yet.
 
 **§2/§4 SubscribeEvent + explicit state (clean-room, verify-don't-infer):** docs (airbreak-plus lineage;
-SomnoTrace GPL = credit only, NEVER code) document `SubscribeEvent` (0x3a) → `EventNotification` with 15
+a GPL reference implementation = credit only, NEVER code) document `SubscribeEvent` (0x3a) → `EventNotification` with 15
 selector families; therapy-relevant: **`UsageEvents-TherapyStatusEvents`** (mask on/off, therapy
 start/stop, power transitions — the direct signal) and **`SystemActivityEvents-FrequentActivityEvents`**
 (PowerUp/TherapyStarted/StandbyStarted/Warmup/Cooldown/RampDown/blower — independent lifecycle). Subs

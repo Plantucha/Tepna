@@ -103,7 +103,7 @@ The only characteristic handle in 14 days of journal is `00002a05@0x0002` (Servi
 this logging fires **only on failure snapshots**, which are near-empty by construction. An instrument
 that observes only broken trees cannot report what a healthy one contains, so the absence of `0x2B2A`
 here is **not** evidence the devices lack it. Answer it from a successful-tree dump or from the two
-external references already indexed (`ext:SomnoTrace/main/as11_ble.c` captures AS11 handles;
+external references already indexed (the reference implementation's BLE source, in the external doc-search roots, captures AS11 handles;
 `ext:polar-ble-sdk` enumerates the Polar tables) — **not** by connecting to a device mid-capture.
 
 **Consequence for this brief:** §2's *"address by handle"* is struck; the unit becomes *discover once,

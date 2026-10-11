@@ -17,8 +17,10 @@ each for a stated consumer:
                                       so genuinely independent of the trigger. Its rising edge is a
                                       tighter "data begins here" than MaskOn; its falling edge the end.
 
-Credit: the selectors and the boundary semantics are as SomnoTrace (Ilya Kruchinin, Apache-2.0)
-documents them from its own AS11 work; the parsing here is Tepna's, from the wire shape observed.
+Credit: the selectors and the boundary semantics are as an independent Apache-2.0 reference
+implementation documents them from its own AS11 work; the parsing here is Tepna's, from the wire
+shape observed. No code was taken, so no licence attribution is owed (THIRD-PARTY.md carries no
+entry); the debt is for published documentation and is stated here rather than credited by name.
 
 CONTRACT
 - READ-ONLY on the device: SubscribeEvent asks for notifications; nothing is set. The subscription is

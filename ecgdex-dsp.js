@@ -1952,7 +1952,7 @@
 
      🔴 WHY IT GREW A SECOND RETURN. This used to return a bare `Float64Array`, so an interpolated
      cell was INDISTINGUISHABLE from a measured one — §∅ fabrication at per-sample granularity, and
-     the same defect SomnoTrace's `session_writer.c` carries in its short-gap hold. Two ways it bit:
+     the same defect the reference implementation's session writer carries in its short-gap hold. Two ways it bit:
      `tt` is the gap-ACCUMULATED beat-time axis (see `cardiorespCoupling`'s span guard), so a
      multi-minute dropout was interpolated straight through; and `Math.max(0, Math.min(1, f))` CLAMPS
      outside the data range, which is a literal HOLD of the endpoint value. Both fed four series into

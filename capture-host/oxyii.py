@@ -516,7 +516,7 @@ def parse_ack(req_op: int, reply: "Frame | None") -> AckResult:
 # unit; what matters here is that a comparison against `"firmware"` is a comparison against the branch
 # code, so do not write one expecting `1.13.1.0`.
 #
-# MEASURED, from a SomnoTrace run on a branch-2D010001 ring by a third party (discussion #180, comment
+# MEASURED, from a reference-implementation run on a branch-2D010001 ring by a third party (discussion #180, comment
 # 18250284; application-level logs only, no raw bytes of the exchange):
 #   * the SAME ring answered OP_AUTH with >= 20 bytes on the pairing connect, and with 16 bytes on two
 #     later connects in the same session;
@@ -553,7 +553,7 @@ def classify_auth_reply(payload: bytes | None) -> tuple[str, bytes | None, str]:
 
     The blob is obfuscated with the same protocol salt as the auth payload: cyclic XOR with
     md5("lepucloud"). That derivation is from the vendor SDK and is corroborated by an independent
-    implementation (SomnoTrace 5e4bd0b) that has been exercised against a real branch-2D010001 ring; it
+    implementation (an independent one, at its commit 5e4bd0b) that has been exercised against a real branch-2D010001 ring; it
     has never been executed by THIS code against a ring, because no ring here answers OP_AUTH.
     """
     if not payload:

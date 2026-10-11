@@ -116,6 +116,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
+| [`no-third-party-names.mjs`](../tools/no-third-party-names.mjs) | ════════════════════════════════════════════════════════════════════════ tools/no-third-party-names.mjs — the name gate |
 | [`nsrr-aai-validate.mjs`](../tools/nsrr-aai-validate.mjs) | `aai` is user-visible and graded `heuristic`, and its own registry citation says why: "internal. |
 | [`nsrr-ahiest-validate.mjs`](../tools/nsrr-ahiest-validate.mjs) | `computeAHIestimates` (oxydex-dsp.js) produces TWO estimates of the same quantity: |
 | [`nsrr-coupling-bout-fpr.mjs`](../tools/nsrr-coupling-bout-fpr.mjs) | Measures, on SHHS1, the false-positive rate of `event-coupling.js`'s circular-shift null when two INDEPENDENT streams share a real OSA night's bout-scale rate profile — as a curve in the… |

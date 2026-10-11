@@ -534,7 +534,8 @@ outside, it came from one of two places, and they are not interchangeable:
   it calls `0x05` "history?" and `0x10` "purpose unknown", and it reads the trailer epoch's high bytes as
   a mystery counter (§9a). Take its observations; check its interpretations.
 - **The Discussion #180 logs, PRESERVED LOCALLY** at
-  `/srv/data/tepna-corpus/uploads/somnotrace-discussion-180/` (five attachments + a README, saved
+  the `…-discussion-180/` attachment folder under the corpus `uploads/` root (the directory keeps
+its on-disk name, which still carries the project's; renaming it is the owner's call) (five attachments + a README, saved
   2026-09-03 because the thread is closed and GitHub user-attachments is not a durable store). These are
   the only hardware evidence anyone has for branch `2D010001`, and they are third-party and public.
   ⚠️ **They contain NO raw `0xFF` exchange and no key blob** — checked, not assumed: they are ESP-IDF
