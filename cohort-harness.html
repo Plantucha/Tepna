@@ -1450,9 +1450,9 @@ function profileDerivedUpdate() {
   if (wh)
     wh.innerHTML =
       '📊 Pop avg (' +
-      UP.sex +
+      escapeHTML(UP.sex) +
       ', entered age ' +
-      UP.age +
+      escapeHTML(UP.age) +
       '): ' +
       pop.wt +
       ' kg / ' +
