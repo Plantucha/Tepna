@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="3831e65a9982" data-compute-hash="6f4c6fc66f18">
+<html lang="en" data-manifest-hash="81027371e537" data-compute-hash="b58a3789ef37">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7xQ3yWR2EpiBDMPUDFxtl1NKMYlxsxc9AVgtJkApTU8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-P+WBHl2NZMnspXKVsRndFmJ2S3rONWAPda5O6KP93tk=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eWsh+QRtO5wrmZ/hzAyVzRMqbH1dOIcbO18q6HTO9mE=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-h95qlGwJbswZZeH6T7TC0i9UaSf9RL2QgJdu2YYk8jA=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7xQ3yWR2EpiBDMPUDFxtl1NKMYlxsxc9AVgtJkApTU8=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-P+WBHl2NZMnspXKVsRndFmJ2S3rONWAPda5O6KP93tk=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eWsh+QRtO5wrmZ/hzAyVzRMqbH1dOIcbO18q6HTO9mE=' 'sha256-h95qlGwJbswZZeH6T7TC0i9UaSf9RL2QgJdu2YYk8jA=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.17.0</title>
@@ -5898,7 +5898,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           } else {
             var auto = r.origin !== 'you' && (!f.identity || f.k === 'age');
             var dispV = f.k === _fk ? _live : UNITS[f.k] ? toDisp(f.k, r.v) : r.v;
-            html += '<div class="dxp-iw"><input inputmode="decimal" class="prof-input' + (auto ? ' auto' : '') + '" data-k="' + f.k + '" value="' + escapeHTML(dispV != null ? dispV : '') + '">';
+            html += '<div class="dxp-iw"><input inputmode="decimal" class="prof-input' + (auto ? ' auto' : '') + '" data-k="' + f.k + '" value="' + (dispV != null ? dispV : '') + '">';
             if (!f.identity) html += '<button class="dxp-revert' + (r.origin === 'you' ? ' show' : '') + '" data-rev="' + f.k + '" title="revert to auto">↺</button>';
             html += '</div>';
           }
