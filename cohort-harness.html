@@ -2650,13 +2650,44 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
          motion 0 — "still" — at the ~20 consumers that read `motion === 0` as stillness. It is null, which
          satisfies neither `> 0` nor `=== 0`; only a genuinely written 0 reads 0. */
       var mStr = motionCol >= 0 && motionCol < p.length ? p[motionCol].trim() : null;
-      if (!sStr || sStr === '- -' || sStr === '--' || sStr === '') continue;
-      var spo2 = parseInt(sStr, 10),
-        hr = parseInt(hStr, 10),
+      /* 🔴 §∅ — AN ABSENT SpO₂ CELL NULLS THE READING; IT DOES NOT DELETE THE ROW. This used to
+         `continue`, so the row never existed: `nTotal` counted only survivors and a gapped night
+         reported FULL coverage of a SHORTENED recording. Measured on the committed fixture
+         `synthetic_oxydex_o2ring_gap.csv` — 7200 data rows, 1800 with a blank or dash Oxygen Level —
+         parseCSV returned 5400 and `nMeasured/nTotal` could only ever be 5400/5400. The #3321
+         accounting was honest only for absences that SURVIVE parsing; a consumer cannot null what the
+         parser already erased.
+         This is the treatment the MOTION column in this same loop already gets, for the same reason
+         ("an absent reading is neither moving nor still"): the cell's absence travels as `null`, and
+         the timestamp, pulse and motion the row DOES carry are kept.
+         ⚠️ THE DROP RULES BELOW ARE UNCHANGED, and the conditions are split rather than relaxed: an
+         unparseable or out-of-range SpO₂ is still rejected, and so is a bad pulse. A row whose SpO₂ is
+         absent is not a row whose SpO₂ is wrong, and widening this fix into the sanity checks would
+         start admitting bad data in the name of absence. */
+      /* ⚠️ THE PULSE COLUMN NEEDS THE SAME SPLIT, and measurement is why. The device writes `- -` in
+         BOTH columns during a gap: all 1800 gap rows of `synthetic_oxydex_o2ring_gap.csv` carry
+         `'- -','- -'`. So nulling SpO₂ alone changed NOTHING — `isNaN(hr)` deleted the identical rows
+         one line later, and parseCSV still returned 5400 of 7200. An absence fix that stops one line
+         short of the data's actual shape is not a partial fix; it is no fix, and it would have shipped
+         looking like one. */
+      var _absent = function (v) {
+        return !v || v === '- -' || v === '--' || v === '';
+      };
+      var _spo2Absent = _absent(sStr),
+        _hrAbsent = _absent(hStr);
+      var _sv = _spo2Absent ? null : parseInt(sStr, 10),
+        _hv = _hrAbsent ? null : parseInt(hStr, 10),
         _mv = mStr == null || mStr === '' ? NaN : parseInt(mStr, 10),
         motion = isNaN(_mv) ? null : _mv;
-      if (isNaN(spo2) || isNaN(hr)) continue;
-      if (spo2 < 50 || spo2 > 100 || hr < 20 || hr > 250) continue; // sanity check
+      /* UNPARSEABLE AND OUT-OF-RANGE STILL DROP THE ROW. `'zz'` is not an absence — it is a reading
+         the file claims to have and we cannot read, and admitting it as `null` would let bad data in
+         through the door absence opened. The conditions are split, never relaxed. */
+      if (!_spo2Absent && !Number.isFinite(_sv)) continue;
+      if (!_hrAbsent && !Number.isFinite(_hv)) continue;
+      if (_sv != null && (_sv < 50 || _sv > 100)) continue; // sanity check
+      if (_hv != null && (_hv < 20 || _hv > 250)) continue; // sanity check
+      var spo2 = _sv,
+        hr = _hv;
       // Perfusion index (§4 Phase 1): present only on the OXYFRAME sidecar. `pi_pct` = 0 is the ring's
       // "no perfusion reading" sentinel, NOT a real 0 % — treat it as ABSENT (null), never as a value
       // (mirrors the SpO₂ '- -' handling above). A comma file has no pi column ⇒ piCol < 0 ⇒ null.
@@ -2699,7 +2730,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   // OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2 (2026-07-03): trim a device warm-up / cool-down PLACEHOLDER
   // block from the edges BEFORE any metric reads the rows. Runs first in processNight — same class of
-  // action as parseCSV already dropping the device's '- -' no-reading rows (a non-signal edge block,
+  // action as parseCSV NULLING the device's '- -' no-reading rows (a non-signal edge block,
   // not real data). The O2Ring holds a byte-frozen (SpO2,HR) placeholder (observed 84/100, motion 0)
   // until the optical perfusion lock, then the true signal starts with an abrupt lock-on step. Left in,
   // that block (a) pins cleanArtifactHR's baseline to the bogus 100 → runaway clamp, and (b) donates a
@@ -2713,7 +2744,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   //   BOUNDED      — never past WARMUP_MAX_SEC, never below a 60-row floor.
   // Returns {head, tail} counts and mutates `rows` in place so every downstream reader — cleanArtifactHR,
   // computeStats, t0Ms — sees the true signal start. Symmetric tail guard is belt-and-suspenders (this
-  // night's cool-down is '- -' rows already dropped by parseCSV); it fires only on a frozen low block
+  // night's cool-down is '- -' rows now carried as null by parseCSV); it fires only on a frozen low block
   // entered via an abrupt step DOWN, so genuine stable-sleep flat tails are kept.
   function trimSensorWarmup(rows) {
     var n = rows.length;
@@ -4614,8 +4645,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var pulseSeries = rows.map(function (r) {
       return r.hr;
     });
-    var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, rows.length, blArr);
-    var odi3 = detectODI(spo2s, 3, rows.length, blArr, pulseSeries);
+    /* 🔴 ANALYZABLE HOURS ARE MEASURED HOURS. This passed `rows.length`, which agreed with the
+       convention ("every rate divides by the measured count", `computeStats`) only BY ACCIDENT while
+       parseCSV deleted absences — the published ODI-4 figures were measured-basis without anything
+       saying so. Carrying absences made the accident visible, so the denominator is now explicit.
+       `_measuredN` counts rows with a finite SpO₂ reading; the row count stays available as
+       `stats.n` for duration and coverage. */
+    var _measuredN = 0;
+    for (var _mi = 0; _mi < rows.length; _mi++) if (rows[_mi].spo2 != null && isFinite(rows[_mi].spo2)) _measuredN++;
+    var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, _measuredN, blArr);
+    var odi3 = detectODI(spo2s, 3, _measuredN, blArr, pulseSeries);
     var hb = computeHypoxicBurden(rows);
     /* NO MOTION READING ANYWHERE ⇒ THE MOTION FAMILY IS ABSENT, NOT ZERO (DA-V §2.3 F15).
        The parse boundary now yields `null` for a device that wrote no Motion column at all. That is
@@ -4645,7 +4684,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // clinically honest "per hour of analyzable recording" denominator, and the one every other ODI-family
       // site already uses. Inert on the current corpus (the O2Ring drops ~0 samples); a real finger-off or a
       // sparse-cadence oximeter would surface it. Gated by a committed gap+artifact synthetic twin.
-      odi4.rate = +(odi4.count / Math.max(rows.length / 3600, 0.01)).toFixed(1);
+      odi4.rate = +(odi4.count / Math.max(_measuredN / 3600, 0.01)).toFixed(1);
       odi4.artifactExcluded = desat.artifactCount;
     }
     // OXYDEX-NADIR-HONESTY (RUNAWAY-FIX-FOLLOWUPS §1/§2): route the HEADLINE nadir through the artifact
@@ -4993,7 +5032,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        summed it as 0 and divided by ALL rows (a night with 20 % dropouts under-read its mean SpO2 by
        20 %); `v < 95` is TRUE for null, so every absent second counted as a desaturated one and T95/T90
        were inflated by the dropout fraction; and `Math.min/max.apply` read it as 0. `parseCSV` drops
-       invalid rows, so the O2Ring CSV path never carried a null here — the NSRR adapter (`to1Hz` →
+       invalid rows — but since 2026-10-11 it CARRIES the device's `'- -'` no-reading rows as null, so the
+       O2Ring CSV path reaches this block with nulls too; the NSRR adapter (`to1Hz` →
        null), the self-ingest path and any SignalFrame do, and the SHHS lane's published T90 came
        through this block. Residue 2026-09-13-oxydex-stats-block-absence-to-number, primary-builder half.
        `spo2`/`hr` are now the MEASURED samples; `n` stays the row count for the duration/coverage
@@ -5109,6 +5149,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           : null;
       })(),
       n: n,
+      /* NEW FIELD, not a changed one (back-compatible per §🧪): `n` remains the ROW count for the
+         duration and coverage arithmetic, and `nSpo2` is the MEASURED count — the denominator this
+         file's own convention already names ("every rate below divides by the measured count").
+         Before 2026-10-11 the two were equal on the O2Ring CSV path BY ACCIDENT, because parseCSV
+         deleted every absent row; carrying absences made the difference real and therefore nameable. */
+      nSpo2: spo2.length,
       startTs: rows.length ? rows[0].tMs : null
     };
   }
@@ -6290,7 +6336,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var dip3Rate = durationHr > 0 ? +(dip3Count / durationHr).toFixed(1) : 0;
 
     /* CLOCK: stamp each event with the REAL wall-clock time of its own row (DEEP-AUDIT-2026-07-11 §8).
-       parseCSV DROPS rows (the device's '- -' no-reading, out-of-band values, unparsable stamps), so a row
+       parseCSV DROPS rows (out-of-band values, unparsable stamps — the device's '- -' no-reading is
+       NO LONGER dropped: since 2026-10-11 it is carried with `spo2`/`hr` null, §∅), so a row
        INDEX is not a second-offset — yet both consumers rebuilt event time from the index and disagreed
        with each other AND with the row's own parsed stamp: oxydex-dsp's bus export used t0 + idx·dt (a
        uniform stretch that smears a dropout evenly across the night) and oxydex-fusion used t0 + idx·1000
@@ -7533,9 +7580,34 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var segs = [],
       segStart = null,
       prev = null;
+    /* 🔴 AN ABSENT READING BREAKS A SEGMENT, exactly as a missing row's time hole used to. This loop
+       segmented on TIME only, which worked because parseCSV DELETED absent rows: a finger-off hole
+       arrived as a gap between stamps. Since those rows are carried (2026-10-11, §∅) the timeline is
+       contiguous, one segment is found, and `segs.length < 2` returned null — so the fix that made
+       absence visible in the parser would have made it INVISIBLE here, silently removing the
+       `recording.coverage` declaration the Integrator's apnea denominator rests on.
+       Breaking on the reading is also the more honest measure: coverage now describes seconds that
+       carry a VALUE, not rows that exist. Verified on the committed gappy twin — 2 segments, ~5398 s
+       recorded inside a ~7199 s envelope, which is what §2.2 already asserted. */
     for (var i = 0; i < rows.length; i++) {
       var t = rows[i] && rows[i].t;
       if (t == null || !isFinite(t)) continue;
+      /* ⚠️ AN ABSENT READING IS NOT A MISSING KEY, and the difference is a published contract. This
+         function is called with bare stamp rows (`{ t }`) as well as with real recording rows, and
+         treating a missing `spo2` property as an absence made EVERY such row break a segment — the
+         40-minute/20-minute-hole unit test went from 2 segments to null. So the break fires only when
+         the row CARRIES an spo2 that is not a number: an explicit `null` from a `'- -'` cell is an
+         absence, while no property at all is a caller that is not declaring SpO₂ coverage. */
+      var _hasSpo2 = Object.prototype.hasOwnProperty.call(rows[i], 'spo2');
+      var _sv = rows[i].spo2;
+      if (_hasSpo2 && (_sv == null || !isFinite(_sv))) {
+        if (segStart !== null && prev !== null) {
+          segs.push([segStart, prev]);
+          segStart = null;
+          prev = null;
+        }
+        continue;
+      }
       if (segStart === null) segStart = t;
       else if ((t - prev) / 1000 > GAP_STEP_SEC) {
         segs.push([segStart, prev]);

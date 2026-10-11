@@ -23,8 +23,10 @@
       "piFrames": 0,
       "motionPct": 0.9,
       "n": 26145,
+      "nSpo2": 26145,
       "startTs": 1781305216000,
       "artifactHrCleaned": 0,
+      "sensorCooldownTrimmed": 10,
       "artifactSpikesRemoved": 0
     },
     "summary": {
@@ -361,8 +363,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "2baf167b510d",
-          "computeHash": "c661c8faa093"
+          "manifestHash": "1ee864c97280",
+          "computeHash": "7cfa2add33f5"
         },
         "evidence": {
           "envelopeRef": null,
@@ -390,8 +392,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "2baf167b510d",
-          "computeHash": "c661c8faa093"
+          "manifestHash": "1ee864c97280",
+          "computeHash": "7cfa2add33f5"
         },
         "evidence": {
           "envelopeRef": null,
@@ -419,8 +421,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "2baf167b510d",
-          "computeHash": "c661c8faa093"
+          "manifestHash": "1ee864c97280",
+          "computeHash": "7cfa2add33f5"
         },
         "evidence": {
           "envelopeRef": null,
@@ -448,8 +450,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "2baf167b510d",
-          "computeHash": "c661c8faa093"
+          "manifestHash": "1ee864c97280",
+          "computeHash": "7cfa2add33f5"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1143,6 +1145,7 @@
     },
     "flags": [
       "SPO2_CRITICAL_DIP",
+      "SENSOR_COOLDOWN_TRIMMED(10)",
       "SBII_Q5(47.787)"
     ],
     "newMetrics": {
