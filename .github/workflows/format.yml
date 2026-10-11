@@ -37,6 +37,8 @@ concurrency:
 
 jobs:
   biome:
+    # measured 2026-10-11 over 30 job run(s): p95 0.9 min, max 1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
