@@ -14063,6 +14063,59 @@
       );
     });
 
+    group('Evidence tier vocabulary — every registry grade is one of the five (§🎫)', 'registry · cohesion-badges · vocabulary', function (T) {
+      var src = env.sources || {};
+      /* 🔴 THE RULE'S REAL POSITION. §🎫 forbids the retired vocabulary, and `CLAUDE-MD-RATIONALE.md`
+         says what that vocabulary IS: a TIER mapping — `proxy`→heuristic, `composite`→experimental,
+         "provisionally validated"→emerging. So the rule binds on the `evidence:` FIELD, and nothing
+         asserted it there: measured 2026-10-11, `grep -nE "evidence.*(TIERS|indexOf|canonical)"` over
+         this file returned ZERO. The two existing TIERS lists cover other populations — Integrator
+         FINDING TYPES (one group) and per-tier CSS disc properties (cohesion-badges) — so a typo or a
+         retired word in any of the 523 node-registry grades would have shipped.
+         ⚠️ AND THE RULE DOES NOT BIND ON IDENTIFIER NAMES. `rsaProxy`, `deepProxy`, `rmssdProxy` and
+         `d_dfa_proxy` use "proxy" descriptively — a surrogate FOR something — not as a tier claim. A
+         gate over names would fire on correct code and demand a metric-identity MAJOR rename (§📦) for
+         no benefit, which is why this gate reads the grade and not the key. */
+      var TIERS = ['measured', 'validated', 'emerging', 'experimental', 'heuristic'];
+      /* `metric-registry.js` is EXCLUDED deliberately and by name: it is the engine, and its four
+         `evidence:` occurrences are fallback logic (`EVIDENCE[r.evidence] ? r.evidence : 'experimental'`)
+         plus the CSS class `'ev-experimental'` — none of them a metric's declared grade. Excluding it
+         by name rather than by a pattern keeps the exclusion auditable. */
+      var NODES = ['cpapdex', 'ecgdex', 'glucodex', 'hrvdex', 'motiondex', 'oxydex', 'ppgdex', 'pulsedex'];
+      var total = 0;
+      var missing = [];
+      NODES.forEach(function (n) {
+        var f = n + '-registry.js';
+        var text = src[f];
+        if (text == null) {
+          missing.push(f);
+          return;
+        }
+        var hits = String(text).match(/\bevidence\s*:\s*'([^']*)'/g) || [];
+        /* PER-FILE COVERAGE, not a global total. A single count would either churn on every new metric
+           or be met by the wrong members; requiring each named node to contribute at least one grade
+           catches the case this gate exists to catch — a file dropping out of the inventory and taking
+           its grades with it. */
+        T.ok(n + ' · contributes grades to the population', hits.length > 0, f + ' parsed 0 `evidence:` fields — unreadable or renamed');
+        total += hits.length;
+        hits.forEach(function (h) {
+          var tier = (h.match(/'([^']*)'/) || [])[1];
+          T.ok(
+            n + ' · grade "' + tier + '" is canonical',
+            TIERS.indexOf(tier) >= 0,
+            'not one of the five — retired vocabulary (proxy→heuristic, composite→experimental, "provisionally validated"→emerging) is forbidden (§🎫)'
+          );
+        });
+      });
+      T.ok('every named node registry was readable', missing.length === 0, 'absent from env.sources: ' + missing.join(', '));
+      /* ANTI-VACUITY WITH A PUBLISHED DENOMINATOR: a parse of zero would pass every assertion above by
+         examining nothing, so the count is asserted and printed. 523 grades across the 8 node
+         registries, measured 2026-10-11. The floor is deliberately far below that number because this
+         leg exists to catch a COLLAPSE (a broken regex, an empty inventory), not to track growth — the
+         per-file legs above are what catch a single file vanishing. */
+      T.ok('the population is non-vacuous', total >= 400, 'parsed ' + total + ' grade(s) across ' + NODES.length + ' node registries (523 at 2026-10-11)');
+    });
+
     group('Cohesion single-source — evidence badges', 'cohesion-badges · cpapdex-registry · glucodex-registry · hrvdex-registry', function (T) {
       var M = env.MetricRegistry,
         docs = env.docs || {};
