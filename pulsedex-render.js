@@ -65,7 +65,7 @@ function renderContext(r) {
     .map((n) => `<div class="ctx-note">${n}</div>`)
     .join('');
   el.innerHTML = `<div class="ctx-main">
-      <div><div class="ctx-mode">${r.modeLabel}</div><div class="ctx-why">${r.modeWhy}${r.overridden ? ' · <span style="color:var(--blue);font-weight:700">manual override</span>' : ''}</div></div>
+      <div><div class="ctx-mode">${escapeHTML(r.modeLabel)}</div><div class="ctx-why">${escapeHTML(r.modeWhy)}${r.overridden ? ' · <span style="color:var(--blue);font-weight:700">manual override</span>' : ''}</div></div>
       <div class="ctx-conf">${r.overridden ? 'OVERRIDE' : 'auto · ' + r.modeConf + '%'}</div>
     </div>${notes}`;
   el.style.display = 'block';

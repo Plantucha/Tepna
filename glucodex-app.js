@@ -2058,7 +2058,7 @@ import './glucodex-profile.js';
     MEALS.sort((a, b) => a.minOfDay - b.minOfDay);
     el.innerHTML = MEALS.map(
       (m, i) =>
-        `<div class="meal-row"><span class="mr-time">${fmtMin(m.minOfDay)}</span><span class="mr-cat ${m.category}">${m.category}</span><span class="mr-label">${m.label || '(meal)'}</span><button class="mr-del" data-i="${i}" title="remove">✕</button></div>`
+        `<div class="meal-row"><span class="mr-time">${fmtMin(m.minOfDay)}</span><span class="mr-cat ${escapeHTML(m.category)}">${escapeHTML(m.category)}</span><span class="mr-label">${escapeHTML(m.label || '(meal)')}</span><button class="mr-del" data-i="${i}" title="remove">✕</button></div>`
     ).join('');
     el.querySelectorAll('.mr-del').forEach((b) =>
       b.addEventListener('click', () => {

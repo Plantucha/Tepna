@@ -205,9 +205,9 @@ function renderHeroPx(r) {
 
   wrap.classList.add('show');
   wrap.innerHTML =
-    `<div class="readiness-hero" style="--readiness-color:${cssColor}">` +
+    `<div class="readiness-hero" style="--readiness-color:${escapeHTML(cssColor)}">` +
     `<div class="readiness-hero-label">ANS Readiness</div>` +
-    (dateStr ? `<div class="readiness-date-badge">${dateStr} · ${r.modeLabel || ''}</div>` : '') +
+    (dateStr ? `<div class="readiness-date-badge">${escapeHTML(dateStr)} · ${escapeHTML(r.modeLabel || '')}</div>` : '') +
     `<div class="readiness-score" style="color:${cssColor}">${score != null ? score.toFixed(0) : '—'}</div>` +
     `<div class="readiness-tier">${tier}</div>` +
     (subsHtml ? `<div class="readiness-scores-grid">${subsHtml}</div>` : '') +
