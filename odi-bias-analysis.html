@@ -4722,7 +4722,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // renormalized bursts-only proxy) is the honest tri-state here.
     if (sleepArch.wasoMin == null || sleepArch.solMin == null) return null;
     var waso = sleepArch.wasoMin;
-    var bursts = extras.motionBursts || 0;
+    /* ⚠️ `|| 0` WOULD TURN THE WITHHELD BURSTS BACK INTO A ZERO. Today this line is unreachable for
+       an unusable-motion night — `sleepArch.wasoMin` is nulled on the same condition a few lines on
+       and the gate above returns null first — so the fabricated count never reached a published
+       pressure score, and the review's predicted consequence does NOT hold on main. It is guarded
+       anyway because it is the line that would resurrect the fabrication the moment that upstream
+       gate moved, and this function's own comment already rules on the remedy: a bursts-only SPI is
+       not a meaningful sleep pressure, so the honest value is null, never a reseeded zero. */
+    if (extras.motionBursts == null) return null;
+    var bursts = extras.motionBursts;
     var sol = sleepArch.solMin;
     var spi = +(waso * 0.4 + bursts * 0.15 + sol * 0.25).toFixed(2);
     var label = spi < 5 ? 'Low' : spi < 15 ? 'Moderate' : 'High';
@@ -5331,6 +5339,17 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var flags = buildFlags(stats, spikes, period, osc, odi4, odi3, hrv, motion, stab, hrProf, cross, spo2Adv, comp, sbii, pred3p);
     // v20.3: 20 new metrics
     var extras = computeNightExtras(rows, stats, desat, odi1, odi4, hb);
+    /* 🔴 §∅ (independent review 2026-10-11): `motionBursts` counts runs of `motion > 0`, and
+       `null > 0` is FALSE — so a night whose export carries no accelerometer column at all walked the
+       whole series, found no motion and published **0 bursts**. Zero bursts is not a blank: it reads
+       as a still, undisturbed night, which is a clinical claim about a sensor the device did not have.
+       WHY THIS ONE FIELD WAS LEFT BEHIND while `motSleep` and `motionPct` were handled: the
+       `_motionUnusable` branch above runs BEFORE `computeNightExtras`, so `extras` did not exist yet
+       and the branch had nothing to null. The fault flag is already set there
+       (`motionColumnAbsent` / `motionColumnStuck`), so the reason travels with the null and a reader
+       can still tell "this oximeter has no accelerometer" from "the writer emitted a stuck column".
+       Conditional assignment, like its siblings: a healthy night's export stays byte-identical. */
+    if (_motionUnusable && extras) extras.motionBursts = /** @type {any} */ (null);
     var rolling = computeRollingMetrics(rows, desat, comp, blArr);
     var patScore = computePatternScores(pbMet, osc, cross, flags, odi4, comp);
     // v20.4: 14 new metrics
