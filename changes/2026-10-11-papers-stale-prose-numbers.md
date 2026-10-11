@@ -1,7 +1,7 @@
 ---
 bump: patch
 type: fixed
-brief: PAPERS-AUDIT.md
+brief: COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md
 ---
 
 Four preprints asserted numbers in prose, captions and abstracts that the SAME file's correction or
