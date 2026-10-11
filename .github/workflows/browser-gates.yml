@@ -49,6 +49,8 @@ jobs:
   # EVERY changed file is under briefs/ audits/ changes/. Forgetting a path here therefore runs the
   # gate unnecessarily; it can never silently disable it (CLAUDE.md §🔒's fail-closed rule).
   changes:
+    # measured 2026-10-11 over 29 job run(s): p95 0.7 min, max 1.1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    timeout-minutes: 3
     name: relevance (browser-gates)
     runs-on: ubuntu-latest
     outputs:

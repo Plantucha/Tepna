@@ -110,6 +110,7 @@ function realm() {
     'oxydex-util.js',
     'crossnight-envelope.js',
     'metric-registry.js',
+    'dex-escape.js',
     'dex-profile.js',
     'oxydex-registry.js',
     'oxydex-cross.js',

@@ -1172,7 +1172,9 @@
       var src = null;
       for (var q = 0; q < done.length; q++) if (done[q].name === cn.name) src = done[q];
       row(tn, [
-        cn.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''),
+        /* A THIRD uploaded-filename path into row()'s markup-bearing cells. The CodeQL control
+           caught it: #3432 escaped the other two and alert #188 stayed OPEN. */
+        escapeHTML(cn.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '')),
         src ? fmt(src.hours, 1) : '—',
         a2.n,
         fmt(a2.mae),
