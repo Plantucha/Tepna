@@ -3259,7 +3259,7 @@ function renderClockSources(ch){
   </div>`;
   const rows = ch.sources.map(s=>{
     const cls = (s.state==='selected'?'sel ':'') + (s.mode==='refclock'?'ref':'');
-    const st = {selected:'● selected', combined:'◐ combined', excluded:'○ excluded', unreachable:'? unreachable', falseticker:'✗ falseticker', unstable:'~ unstable'}[s.state]||s.state;
+    const st = {selected:'● selected', combined:'◐ combined', excluded:'○ excluded', unreachable:'? unreachable', 'not selected':'○ not selected', falseticker:'✗ falseticker', unstable:'~ unstable'}[s.state]||s.state;
     return `<tr class="${cls}"><td class="v">${esc(s.name)}</td><td>${esc(s.mode)}</td><td>${st}</td><td class="v">${s.stratum}</td><td class="v">${s.reach.toString(8).padStart(3,'0')}</td><td class="v">${fmtS(s.offset_s)}</td><td class="v">± ${fmtSabs(s.error_s)}</td><td class="v">${fmtSabs(s.stddev_s)}</td></tr>`;
   }).join('');
   el.innerHTML = head + `<table class="clksrc"><thead><tr><th>source</th><th>kind</th><th>state</th><th>S</th><th>reach</th><th>minus this box</th><th>error</th><th>std-dev</th></tr></thead><tbody>${rows}</tbody></table>
