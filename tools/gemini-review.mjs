@@ -151,11 +151,16 @@ const PROVIDERS = {
     url: () => 'https://api.anthropic.com/v1/messages',
     metaUrl: null, // the Messages API carries no per-model metadata endpoint
     headers: (key) => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }),
+    /* ⚠️ MEASURED 2026-10-11, on the first real call: this model REJECTS `temperature` outright —
+       HTTP 400 `temperature is deprecated for this model`. The row selftested green and would have
+       400'd on every request, which is why a scored run on known answers is worth more than an
+       adapter that merely parses. Determinism is the API's own default here, so the row DECLARES that
+       it cannot pin it rather than silently omitting a field the other rows all carry. */
+    noTemperature: 'the Messages API rejects `temperature` for this model class (HTTP 400, measured 2026-10-11)',
     body: (prompt, model, maxTokens) => ({
       model,
       /* REQUIRED by this API — a missing max_tokens is a 400, not a default. */
       max_tokens: maxTokens,
-      temperature: 0,
       messages: [{ role: 'user', content: prompt }]
     }),
     /* `end_turn` is the completed value. `max_tokens` therefore lands in the generic
@@ -492,7 +497,11 @@ async function main(argv) {
             version,
             ids: groupedIdLines(promptText).length ? 0 : (promptText.match(/^\s*[A-F][0-9_a-z]*:/gm) || []).length,
             answerBytes: text.length,
-            finish: fin,
+            /* `fin` was never defined — on main too, where it is the file's ONLY occurrence. So
+               `--json` has always thrown a ReferenceError AFTER printing the answer, for every
+               provider: the machine-readable verdict §🧾 calls the API was unreachable, and the
+               human-readable text above it hid that. Found by the first real scored run. */
+            finish,
             stop: P.stop
           }),
           null,
@@ -555,7 +564,9 @@ function selftest() {
      and a default model — the four things the rules depend on and the one place they could be forgotten. */
   for (const [name, P] of Object.entries(PROVIDERS)) {
     const b = P.body('Q?', P.defaultModel, 123);
-    ck(`${name}: temperature pinned to 0`, JSON.stringify(b).includes('"temperature":0'), true);
+    /* Determinism must be PINNED or its absence DECLARED — never left to a default silently. */
+    ck(`${name}: temperature pinned to 0, or the row says why it cannot be`, JSON.stringify(b).includes('"temperature":0') || typeof P.noTemperature === 'string', true);
+    if (P.noTemperature) ck(`${name}: …and then it sends no temperature at all`, JSON.stringify(b).includes('temperature'), false);
     ck(`${name}: the budget reaches the body`, JSON.stringify(b).includes('123'), true);
     ck(`${name}: names its stop word`, typeof P.stop === 'string' && P.stop.length > 0, true);
     ck(`${name}: names its key variable`, /^[A-Z][A-Z0-9_]+$/.test(P.keyVar), true);
