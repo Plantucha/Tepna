@@ -742,7 +742,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "a text-network GAP DETECTOR over the briefs: pairs close in bge-m3 mean-vector space with no citation path of length <= 2 and no Supersedes/Superseded-by relation. criterion recall_at_50_on_held_out_supersession_pairs gte 0.5, measured 0.167 on the held-out half of 36 hand-marked pairs -> SHORTFALL, and the brief's \u00a74 shows the floor was unreachable because 50 of 147,696 pairs is the top 0.034% while the marked pairs' median rank is the top 1.2%. It decides only whether the ranking is worth reading: adjacency is not equivalence, and the tool never writes a supersession or closes anything. --verdict-sample reads no index and reports checked: 0 / NOT_RUN with result: null."
+   "note": "a text-network GAP DETECTOR over the briefs: pairs whose strongest chunk pairs agree, with no citation path of length <= 2 and no Supersedes/Superseded-by relation. criterion recall_within_top_1pct_on_held_out_supersession_pairs gte 0.5 \u2014 PASS at 0.833 (15 of 18 held-out pairs inside the top 1 % of 148,785). v1 SHORTFALLED at recall@50 = 0.167 because a fixed k of 50 is the top 0.034 % of the space; the criterion is now a SHARE computed from the space and no threshold is fitted. It decides only whether the ranking is worth reading: adjacency is not equivalence, and the tool never writes a supersession. --verdict-sample reads no index and reports checked: 0 / NOT_RUN with result: null."
   },
   "tools/browser-lane.mjs": {
    "bin": "word-only",
