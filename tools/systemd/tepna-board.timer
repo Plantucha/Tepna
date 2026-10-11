@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — regenerate the fleet board every 10 minutes
+
+[Timer]
+# Every 10 minutes. The board reads `gh` (two calls), `git`, `systemctl` and a journal tail, so a tick
+# costs seconds; the cadence is set by how stale an answer may be, not by cost. Ten minutes means the
+# seven-hour silence that prompted this board becomes a ten-minute one.
+OnBootSec=2min
+OnUnitActiveSec=10min
+AccuracySec=30s
+# A missed tick needs no catch-up: the board is a snapshot of NOW, and a queued burst at boot would
+# regenerate the same page several times. The opposite of the fold timer, where each tick was a night.
+Persistent=false
+
+[Install]
+WantedBy=timers.target
