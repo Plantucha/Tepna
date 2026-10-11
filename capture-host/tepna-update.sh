@@ -108,6 +108,30 @@ DEFER_WARN_HOURS="${TEPNA_DEFER_WARN_HOURS:-24}"
 # A recording that has not been heard from in this long means the DAEMON is gone, not that the box is
 # idle — see the fail-safe in `recording_state`.
 MAX_STATUS_AGE="${TEPNA_MAX_STATUS_AGE:-60}"
+# ── A HELD BLE LINK IS NOT AN IDLE BOX (2026-10-11) ────────────────────────────────────────────────
+# `recording_state` asks the DAEMON whether any device is recording. Measured on vigil 2026-10-11: at
+# 12:00:45 hci2 held 2 LE central links (one AUTH ENCRYPT) while the daemon reported idle; at 12:01:06
+# this updater logged "box is idle — restarting the daemon" and restarted it; at 12:01:45 one link
+# remained and the daemon had a new pid. A restart drops every link, so a wearer's night is split into
+# two file-sets across the seam — which is exactly the loss the night-is-the-recording work exists to
+# stitch, newly manufactured by the updater.
+#
+# The two states are genuinely different and neither implies the other: a link can be up before a
+# stream starts, through a reconnect, or for a shadow poll, and `recording` can be true with the link
+# momentarily down. So this is a SECOND, INDEPENDENT interlock, read from the KERNEL rather than from
+# any daemon's self-report — a daemon that is wrong about its own state is the case the first interlock
+# cannot cover.
+#
+# sysfs names a radio `hciN` and each live connection `hciN:HANDLE`, so the link count is the number of
+# entries carrying a colon. Kernel state only: no hcitool, no D-Bus, no bluetoothd — the interlock must
+# not depend on the stack it is protecting.
+BLE_SYSFS="${TEPNA_BLE_SYSFS:-/sys/class/bluetooth}"
+# QUIET WINDOW, not an instantaneous read. A reconnect between two samples would otherwise look like an
+# idle radio for the one second the updater happened to look. Pre-stated at 180 s: longer than the
+# wearables' observed reconnect gap and far shorter than the deferral warning, so a genuinely empty
+# radio still allows a restart within one timer tick.
+BLE_QUIET_S="${TEPNA_BLE_QUIET_S:-180}"
+BLE_SEEN_MARK="${TEPNA_BLE_SEEN_MARK:-/srv/tepna/.tepna-ble-last-link}"
 BRANCH="${TEPNA_BRANCH:-main}"
 # The privilege seam, named so a test can substitute it. `sudo -n` NEVER prompts: an unattended timer
 # that blocks on a password is the 2026-07-30 failure wearing a different hat, so a missing grant must
@@ -306,6 +330,36 @@ fi
 # being wrong is a destroyed night against the benefit of waiting one hour. `capture.py` rewrites this
 # file every 10 s unconditionally (not on the alert interval, which is optional), so `stale` really does
 # mean the daemon is not running — and a daemon that is not running is one whose state we cannot see.
+ble_link_count() {
+  # Entries like `hci2:3585` are connections; `hci2` alone is the radio. Counted across EVERY radio,
+  # because the wearables are not guaranteed to land on one. An unreadable sysfs prints no number and
+  # the caller treats that as unknown — never as zero, which would read as "no links" and restart.
+  [ -d "$BLE_SYSFS" ] || return 1
+  local n
+  n=$(find "$BLE_SYSFS" -maxdepth 1 -name 'hci*:*' 2>/dev/null | wc -l) || return 1
+  printf '%s\n' "$n"
+}
+
+ble_quiet_state() {
+  # Prints: quiet | links:N | unknown:<why>. The mark file carries the last time links were SEEN, so a
+  # link that drops seconds before the timer fires still blocks the restart for the quiet window.
+  local n now seen
+  n="$(ble_link_count)" || { echo "unknown:cannot read $BLE_SYSFS"; return; }
+  now=$(date +%s)
+  if [ "$n" -gt 0 ]; then
+    printf '%s\n' "$now" > "$BLE_SEEN_MARK" 2>/dev/null || true
+    echo "links:$n"
+    return
+  fi
+  seen=$(cat "$BLE_SEEN_MARK" 2>/dev/null || echo 0)
+  case "$seen" in '' | *[!0-9]*) seen=0 ;; esac
+  if [ "$seen" -gt 0 ] && [ $((now - seen)) -lt "$BLE_QUIET_S" ]; then
+    echo "links:0 within ${BLE_QUIET_S}s of the last link ($((now - seen))s ago)"
+    return
+  fi
+  echo quiet
+}
+
 recording_state() {
   [ -r "$STATUS_JSON" ] || { echo "unknown:no status.json at $STATUS_JSON"; return; }
   TEPNA_MAX_STATUS_AGE="$MAX_STATUS_AGE" python3 - "$STATUS_JSON" <<'PY' 2>/dev/null || echo "unknown:status.json unreadable or malformed"
@@ -629,6 +683,19 @@ elif [ "$MODE" = "--no-restart" ]; then
   say "RESTART-OWED — new code is on disk and the daemon is still running the old build"
 else
   state="$(recording_state)"
+  # THE SECOND INTERLOCK, and it can only ever REFUSE. It never turns a recording box idle; it only
+  # takes an idle verdict away, so adding it cannot widen when a restart happens.
+  #
+  # ⚠️ `unknown:` DEFERS, like an unreadable status.json does. An unreadable sysfs is the absence of
+  # evidence about the links, not evidence that there are none (§∅) — and the cost of being wrong is
+  # asymmetric: deferring loses a timer tick, restarting over a live link splits a wearer's night.
+  if [ "$state" = idle ]; then
+    ble="$(ble_quiet_state)"
+    case "$ble" in
+      quiet) ;;
+      *) state="ble:$ble" ;;
+    esac
+  fi
   forced=0
   if [ "$MODE" = "--force-restart" ] && [ "$state" != idle ]; then
     # Say what is being overridden rather than silently calling the box idle. A forced restart during a
@@ -656,6 +723,13 @@ else
       printf '%s\n' "$after" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
       say "daemon restarted on ${after:0:12}"
       _defer_clear
+      ;;
+    ble:*)
+      # NAMED, never a bare "not idle": the log is the only witness on a box nobody logs into, and
+      # "deferred" without the reason is indistinguishable from the daemon-state deferral above.
+      say "deferring the restart — ${state#ble:} (a held BLE link is not an idle box; restarting would "\
+        "split the wearer's night across the seam)"
+      _defer_note "$state"
       ;;
     recording)
       # NOT an error, and must never be reported as one: deferring is this script working. The code is

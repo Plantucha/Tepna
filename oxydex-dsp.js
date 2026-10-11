@@ -3834,6 +3834,10 @@
   //   4. those cycle lengths REGULAR (CV < PB_MAX_CYCLE_CV) — §2.3 measured that criteria 1-3 alone
   //      fire on 40/40 red-noise seeds, because a red series crosses its own baseline at intervals
   //      set by its correlation time. A run-length test is not a periodicity test.
+  /* 🔴 §∅: THE MEDIAN IS OVER PRESENT VALUES ONLY. `Array.prototype.sort` with `a - b` coerces `null`
+     to 0, so a window holding dropouts used to sort them to the FRONT and drag the median down —
+     a baseline pulled toward 0 by absence, against which real samples then read as huge positive
+     excursions. A window with nothing present has no baseline: `null`, never a number. */
   function pbRollingMedianBaseline(x, win) {
     var half = win >> 1,
       n = x.length,
@@ -3841,7 +3845,13 @@
     for (var i = 0; i < n; i++) {
       var lo = i - half < 0 ? 0 : i - half,
         hi = i + half > n - 1 ? n - 1 : i + half;
-      var seg = x.slice(lo, hi + 1).sort(function (a, b) {
+      var seg = [];
+      for (var k = lo; k <= hi; k++) if (_has(x[k])) seg.push(x[k]);
+      if (!seg.length) {
+        out[i] = null;
+        continue;
+      }
+      seg.sort(function (a, b) {
         return a - b;
       });
       out[i] = seg[seg.length >> 1];
@@ -3856,6 +3866,13 @@
       lastSign = 0,
       extreme = 0;
     for (var i = 0; i < spo2.length; i++) {
+      /* 🔴 §∅: an absent sample is NOT a deviation. `null - base` is `-base`, so every dropout used to
+         read as the deepest excursion the trace could hold, closing one half-cycle and opening the
+         next — regularly spaced dropouts in a FLAT trace manufactured a periodic-breathing episode
+         (measured: 1 episode on a 960 s flat trace with a 30 s hole each minute). A hole also closes
+         no excursion: `lastSign`/`extreme` are left untouched, so the crossing on the far side is
+         judged against the last REAL sample, and no crossing is ever claimed at a gap boundary. */
+      if (!_has(spo2[i]) || !_has(base[i])) continue;
       var d = spo2[i] - base[i];
       var s = d > 0 ? 1 : d < 0 ? -1 : 0;
       if (s === 0) continue;
@@ -3958,8 +3975,22 @@
       runStart = -1;
       curLens = [];
     }
+    /* 🔴 §∅ + the owner's 2026-09-17 ruling (a DISCONTINUITY refuses; reduced COVERAGE annotates):
+       a cycle whose span contains absent samples does not describe ONE continuous stretch of signal,
+       so it cannot be counted toward the regularity of an episode. Guarding the crossings alone is not
+       enough — with no crossing inside a gap, the two real crossings either side merge into one long
+       half-cycle that can still land inside the 40..130 s window, so a dropout would quietly JOIN two
+       oscillating stretches into one longer "episode". The run breaks instead, exactly as an
+       out-of-window cycle breaks it; the stretches either side stand or fall on their own cycles. */
+    var spanHasGap = function (a, b) {
+      var lo = cross[2 * a],
+        hi = cross[2 * b + 2];
+      if (lo == null || hi == null) return true;
+      for (var q = lo; q <= hi && q < spo2.length; q++) if (!_has(spo2[q])) return true;
+      return false;
+    };
     for (var e = 0; e < cycles.length; e++) {
-      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC) {
+      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC && !spanHasGap(e, e)) {
         if (runStart < 0) runStart = e;
         curLens.push(cycles[e]);
       } else closeRun(e - 1);
