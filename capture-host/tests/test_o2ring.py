@@ -767,7 +767,7 @@ def test_differential_get_info(capsys):
 
 
 def test_encrypted_ring_breaks_a_plaintext_only_client():
-    """The bug: a client that ignores the key reply parses ciphertext (SomnoTrace #180 symptom)."""
+    """The bug: a client that ignores the key reply parses ciphertext (third-party discussion #180 symptom)."""
     ring = FakeRing(encrypted=True)
     o2ring.send(ring, o2ring.build_auth())  # raw AUTH, reply ignored
     o2ring.SESSION.reset()  # client never installs the key

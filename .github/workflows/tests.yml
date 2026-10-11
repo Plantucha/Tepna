@@ -147,6 +147,8 @@ jobs:
         run: node tools/xss-sink-gate.mjs --base origin/main
       - name: Docs constants — documented numbers match code
         run: node tools/docs-constants.mjs
+      - name: No third-party project names (owner ruling 2026-10-10; baseline 0)
+        run: node tools/no-third-party-names.mjs
       - name: PR body + changeset compliance
         env:
           PR_BODY: ${{ github.event.pull_request.body }}

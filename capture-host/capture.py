@@ -6255,7 +6255,7 @@ async def run_oxyii(dev: dict, root: str):
                 await _gatt_record_rail(client, addr, name)
                 await _bounded_setup(client.write_gatt_char(wch, oxyii.auth_frame(), response=False))  # 0xFF
                 await asyncio.sleep(0.6)  # the reply's settle window — it arrives on `nch`, not here
-                # ── THE ENCRYPTION DECISION, PRIMARY (SomnoTrace-class item (c)) ──────────────────
+                # ── THE ENCRYPTION DECISION, PRIMARY (reference-implementation-class item (c)) ──────────────────
                 # `classify_auth_reply` shipped unwired: the reply it exists to read was never read.
                 # It is now the FIRST-CLASS answer, and the two older signals are what they always
                 # said they were — `frame_looks_like_ciphertext` calls itself "probabilistic,

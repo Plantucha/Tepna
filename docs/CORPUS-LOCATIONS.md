@@ -91,7 +91,7 @@ exists."*
 **A FOURTH CONSUMED TIER LANDED ON THE TrueNAS 2026-09-26 — `/mnt/nas/nsrr/open-datasets/` (84 GB).**
 Five public sleep datasets under attribution-only / public-domain licences (ODC-By 1.0, CC BY 4.0),
 fetched by the rig-side scripts named in its `README.md`, which also carries every required citation
-and a SomnoStage note (its published *source list* prompted the shortlist; nothing from that model is
+and a third-party model's note (its published *source list* prompted the shortlist; nothing from that model is
 present or may be used with this data). Unlike `nsrr-shhs1/` there is **no data-use gate**: derived
 results may be published with attribution. Read `.fetch.done` before trusting a set — it is the
 per-dataset verification verdict, and on 2026-09-27 two of five had NOT passed:
