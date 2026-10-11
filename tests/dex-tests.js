@@ -14116,6 +14116,73 @@
       T.ok('the population is non-vacuous', total >= 400, 'parsed ' + total + ' grade(s) across ' + NODES.length + ' node registries (523 at 2026-10-11)');
     });
 
+    group('§∅ · OxyDex CT counters — an absent second is not time below a threshold', 'oxydex-dsp · absence', function (T) {
+      var raw = env.equiv && env.equiv.oxydex_odibasis && env.equiv.oxydex_odibasis.input;
+      var OD = env.OxyDex;
+      if (!raw || !OD || typeof OD.compute !== 'function') {
+        T.skip('the committed gapped twin and OxyDex.compute are reachable', 'env.equiv.oxydex_odibasis.input or compute absent');
+        return;
+      }
+      /* 🔴 THE REGRESSION THIS GROUP EXISTS FOR, and it was mine. `computeCTprecise` and `computeCT94`
+         compared `v < 90` / `spo2 < 94` with no null guard, and **`null < 90` is TRUE in JS**. The
+         defect was LATENT while `parseCSV` deleted the device's `'- -'` rows; #3408 carried them, and
+         every absent second became time below every threshold. Measured on the extracted function:
+         100 seconds at a healthy 97 % plus 50 absent reported ct90s = ct89s = ct80s = **50**.
+         ⚠️ AND THE FIXTURES COULD NOT SEE IT: every committed OxyDex golden input has
+         `nMeasured == nTotal`, and this gapped twin is paired with `null` — no committed output — so
+         the one input that expresses absence had no golden to move. That is why `npm run check` was
+         green through the regression, and why this group drives `compute` end to end on that twin. */
+      var r = OD.compute({ text: raw, filename: 'synthetic_oxydex_o2ring_gap.csv' });
+      var n = r && r.nights && r.nights[0];
+      if (!n || !n.stats) {
+        T.ok('the gapped twin computes a night', false, 'no night');
+        return;
+      }
+      var absent = n.stats.n - n.stats.nSpo2;
+      T.ok('the twin really carries absent seconds (else this group proves nothing)', absent > 0, 'rows ' + n.stats.n + ' measured ' + n.stats.nSpo2 + ' absent ' + absent);
+      /* The twin is a healthy trace with a finger-off hole: the hole must contribute to NO threshold.
+         A counter at or above the absent count is the signature of the defect. */
+      /* The night object carries the precise block at `ctPrec` and the 94 % block at `ct94` — read the
+         real paths, because a group that looks up a key the object does not have passes by examining
+         nothing. */
+      var ct = n.ctPrecise || {};
+      /* The EXPORT shape renames the blocks: `night_obj.ctPrec`/`ct94`/`hrAdv` reach a consumer as
+         `ctPrecise`/`spo2Advanced.ct94`/`hrAdvanced`. Reading the export names is the point — this group
+         drives `compute`, which is what every consumer sees. */
+      var c94 = (n.research && n.research.ct94) || n.ct94 || {};
+      T.ok('the ctPrec block is present (else this group examines nothing)', Object.keys(ct).length > 0, JSON.stringify(Object.keys(n)));
+      ['ct90s', 'ct89s', 'ct88s', 'ct85s', 'ct80s'].forEach(function (k) {
+        T.ok(k + ' excludes the absent seconds', typeof ct[k] === 'number' && ct[k] < absent, k + ' = ' + ct[k] + ' against ' + absent + ' absent');
+      });
+      T.ok('ct94Sec excludes the absent seconds', typeof c94.ct94Sec === 'number' && c94.ct94Sec < absent, 'ct94Sec = ' + c94.ct94Sec + ' against ' + absent + ' absent');
+      /* The percentage divides by MEASURED seconds, so on a healthy twin it stays small; dividing by
+         `rows.length` would have under-reported it instead, which is the denominator half of the same
+         accident ODI relied on. */
+      T.ok(
+        'ct94Pct is a percentage of MEASURED seconds, or null',
+        c94.ct94Pct === null || (typeof c94.ct94Pct === 'number' && c94.ct94Pct >= 0 && c94.ct94Pct <= 100),
+        'ct94Pct = ' + JSON.stringify(c94.ct94Pct)
+      );
+      /* 🔴 THE SECOND FABRICATION: ten consecutive absent seconds manufactured a BRADYCARDIA EVENT,
+         because `null < 40` is true and an absence EXTENDED the run. The twin's hole is far longer than
+         ten seconds, so a count above zero here is that defect. */
+      T.eq('no bradycardia event is manufactured from the dropout', (n.hrAdvanced && n.hrAdvanced.bradyCount) != null ? n.hrAdvanced.bradyCount : 0, 0);
+      /* CONTROL · a genuinely low measured trace must still count, or the guard has traded a
+         fabrication for a blindness — the way an absence fix usually fails. */
+      /* CONTROL, ON THE SAME INPUT — and it is stronger than a second fixture would be. The twin has
+         81 seconds of REAL desaturation below 90 % alongside its 1800 absent seconds, so one input
+         carries both halves: a count of 0 would mean the guard blanked real data, and a count at or
+         above 1800 would mean the nulls were counted. Before this fix it was 1800+; it is 81.
+         My first attempt built a 120-row CSV inline and it did not parse, so `ct90s` read `undefined`
+         — which would have looked like "the guard blanked real data" when the truth was "the input
+         never became rows". A committed input cannot fail that way. */
+      T.ok(
+        "CONTROL · the twin's REAL desaturation is still counted (not blanked by the guard)",
+        typeof ct.ct90s === 'number' && ct.ct90s > 0,
+        'ct90s = ' + ct.ct90s + ' — 0 would mean the guard swallowed measured desaturation'
+      );
+    });
+
     group('§∅ · OxyDex parse — an absent SpO₂ row is kept as null, never deleted', 'oxydex-dsp · absence', function (T) {
       var raw = env.equiv && env.equiv.oxydex_odibasis && env.equiv.oxydex_odibasis.input;
       var parse = env.OxyDex && env.OxyDex.parseCSV;
