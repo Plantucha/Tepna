@@ -196,6 +196,10 @@ mypy_advisory() {
   # carries `note:` lines too, and a line count would drift from the number the baseline describes.
   local n
   n=$(sed -n 's/^Found \([0-9]\+\) error.*/\1/p' "$MYPY_OUT" | tail -1)
+  # A CLEAN run prints no "Found" line at all: mypy's summary is then "Success: no issues found in N
+  # source files", and since MYPY_BASELINE reached 0 (#3373) that is the line every green run ends
+  # with. Read it as the count 0 it is. Only these two shapes count; anything else stays NO COUNT.
+  [ -z "$n" ] && n=$(sed -n 's/^Success: no issues found in [0-9]\+ source files\?$/0/p' "$MYPY_OUT" | tail -1)
   if [ -z "$n" ]; then
     # No summary line means mypy did not complete a run — an ABORT, not a clean tree. Reporting
     # "0 errors" here would be the loudest possible lie, so say what actually happened.
