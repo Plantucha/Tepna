@@ -353,48 +353,83 @@ table.clksrc tr.ref td{color:var(--teal, #3de0d0);}
 .ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}
 .ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}
 
-/* ── Nights (Ledger + Capture) ─────────────────────────────────────────────
-   Two views over ONE index (/api/nights): the LEDGER is the dense per-analyzer table, the CAPTURE
-   view is the same rows with device-grouped columns and a coverage bar per cell. A figure is a click
-   that opens the analyzer with that night's files already loaded — see openNight(). Figures are
-   monospace + tabular so columns of "MB / h" line up; an amber size is a stream that covered under
-   60 % of the night's longest stream (a strap that died, a late start) — shape and hue, never hue alone. */
-.nights-wrap{overflow-x:auto;margin:0 calc(-1*var(--sp-5));padding:0 var(--sp-5);}
-table.nights{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;}
-table.nights th,table.nights td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle;}
-table.nights th{color:var(--text4);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0;background:var(--surface);z-index:1;}
-table.nights th.grp{color:var(--text3);letter-spacing:.12em;border-bottom:1px solid var(--border2);text-align:center;font-size:10px;}
-table.nights th.grp.polar{box-shadow:inset 0 -2px 0 var(--blue);}table.nights th.grp.wellue{box-shadow:inset 0 -2px 0 var(--teal);}
-table.nights th.grp.resmed{box-shadow:inset 0 -2px 0 var(--amber);}table.nights th.grp.fused{box-shadow:inset 0 -2px 0 var(--text4);}
-table.nights tr:hover td{background:rgba(61,224,208,.035);}
-body.light table.nights tr:hover td{background:rgba(61,224,208,.07);}
-table.nights td.date{font-family:ui-monospace,monospace;color:var(--text);font-weight:600;}
-table.nights td.date small{display:block;color:var(--text4);font-weight:400;font-size:10.5px;}
-.nfig{display:inline-flex;align-items:baseline;gap:5px;font-family:ui-monospace,monospace;color:var(--text);background:transparent;
-  border:1px solid transparent;border-radius:8px;padding:3px 7px;cursor:pointer;text-decoration:none;line-height:1.2;font:inherit;font-family:ui-monospace,monospace;}
-.nfig .mb{font-weight:700;}.nfig .h{color:var(--text3);font-size:11.5px;}
-.nfr{font-size:10.5px;color:var(--text3);white-space:nowrap;}.nfr.bad{color:var(--amber);}
-.nfig:hover,.nfig:focus-visible{border-color:rgba(61,224,208,.35);background:rgba(61,224,208,.06);color:var(--teal);outline:none;}
-.nfig:hover .h{color:var(--teal);}
-.nfig.partial .mb{color:var(--amber);}
-.nfig.static{cursor:default;color:var(--text2);}.nfig.static:hover{border-color:transparent;background:transparent;color:var(--text2);}
-.nfig.static:hover .h{color:var(--text3);}
-.nnone{color:var(--text4);font-family:ui-monospace,monospace;padding:3px 7px;display:inline-block;}
-.pill.click{cursor:pointer;}.pill.click:hover{filter:brightness(1.15);}
-.ncov{display:flex;flex-direction:column;gap:3px;min-width:78px;}
-.ncov .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden;}
-body.light .ncov .bar{background:rgba(0,0,0,.07);}
-.ncov .bar i{display:block;height:100%;background:var(--teal);border-radius:2px;}
-.ncov.polar .bar i{background:var(--blue);}.ncov.resmed .bar i{background:var(--amber);}.ncov .bar i.short{background:var(--amber);}
-tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
-.ndrawer-in{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;padding:14px 12px;}
-.nan{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:10px 12px;}
-.nan h4{margin:0 0 4px;font-size:12px;display:flex;justify-content:space-between;align-items:center;}
-.nan .files{font-family:ui-monospace,monospace;font-size:10.5px;color:var(--text3);line-height:1.5;word-break:break-all;}
-.nan .open{font:inherit;font-size:11px;font-weight:700;color:var(--teal);background:rgba(61,224,208,.12);border:1px solid rgba(61,224,208,.2);border-radius:999px;padding:2px 9px;cursor:pointer;}
-.nan.off{opacity:.55;}.nan.off .open{display:none;}
-.nlegend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-top:10px;}
-.nlegend i{display:inline-block;width:10px;height:4px;border-radius:2px;margin-right:5px;vertical-align:middle;}
+/* ── Nights ────────────────────────────────────────────────────────────────
+   One index (/api/nights), two tabs: DEVICES and FUSED & DERIVED. Above each table, the last 31
+   nights at a glance — one square per row per night, the box's SOLID-NIGHT verdict first. Below,
+   the last 31 nights open and older months folded into one line each (owner, 2026-10-11: "it's
+   basically done … wire it up"). Every cell is one button into openNight().
+   THE TOKEN BLOCK IS THE PILOT of the suite-wide design-token brief: palette, status shapes, bar and
+   type live here and nowhere else in this view, so the brief can lift them as written.
+   STATUS IS HUE AND GLYPH, NEVER HUE ALONE: ✓ full · ◐ partial · ✕ short · ● recorded, coverage not
+   measured · ? not measured yet · – not recorded. */
+#view-nights{
+  --n-ok:var(--green); --n-part:var(--amber); --n-low:var(--red); --n-rec:var(--teal); --n-unk:var(--text3);
+  --n-track:rgba(255,255,255,.07); --n-hatch:rgba(255,255,255,.10); --n-hover:rgba(61,224,208,.06);
+  --n-bar:8px; --n-cell-r:8px; --n-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+body.light #view-nights{ --n-track:rgba(0,0,0,.08); --n-hatch:rgba(0,0,0,.10); --n-hover:rgba(14,158,145,.08); }
+.ntabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--sp-4);}
+.ntabs button{font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:8px 14px;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--text2);}
+.ntabs button[aria-selected="true"]{background:var(--teal);border-color:var(--teal);color:var(--bg);}
+.ntabs button:focus-visible,.nsq:focus-visible,.ncell:focus-visible,.nchip:focus-visible,.nmg:focus-visible,.ndate:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+.nwhy{margin:0 0 var(--sp-3);color:var(--text3);font-size:12.5px;max-width:80ch;}
+.nlegend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--text2);margin-top:var(--sp-3);}
+.nlegend span{display:inline-flex;align-items:center;gap:6px;}
+.ng{display:inline-grid;place-items:center;width:18px;height:18px;flex:none;border-radius:5px;font:700 11px/1 var(--n-mono);}
+.ng.ok{background:color-mix(in srgb,var(--n-ok) 18%,transparent);color:var(--n-ok);}
+.ng.part{background:color-mix(in srgb,var(--n-part) 22%,transparent);color:var(--n-part);}
+.ng.low{background:color-mix(in srgb,var(--n-low) 22%,transparent);color:var(--n-low);}
+.ng.rec{background:color-mix(in srgb,var(--n-rec) 16%,transparent);color:var(--n-rec);}
+.ng.unk{border:1px dashed var(--n-unk);color:var(--n-unk);}
+.ng.none{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 3px,transparent 3px 6px);color:var(--text4);}
+.nov{overflow-x:auto;}
+.novg{display:grid;grid-template-columns:86px repeat(var(--n-days,31),minmax(9px,1fr));gap:3px;align-items:center;min-width:380px;}
+.novg .lab{font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.novg .lab b{color:var(--text);}
+.novg .sep{grid-column:1/-1;height:4px;}
+.novg .day{font:10px/1 var(--n-mono);color:var(--text4);text-align:center;white-space:nowrap;}
+.nsq{all:unset;cursor:pointer;aspect-ratio:1;border-radius:3px;min-height:9px;}
+.nsq.ok{background:var(--n-ok);opacity:.55;}.nsq.part{background:var(--n-part);}.nsq.low{background:var(--n-low);}
+.nsq.rec{background:var(--n-rec);opacity:.4;}.nsq.unk{box-shadow:inset 0 0 0 1px var(--n-unk);}
+.nsq.none{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 2px,transparent 2px 4px);}
+.nights-wrap{overflow-x:auto;margin:0 -6px;}
+table.nights{width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;}
+table.nights th{font-weight:700;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text4);text-align:left;padding:6px;border-bottom:1px solid var(--border);white-space:nowrap;}
+table.nights th small{display:block;font-weight:500;letter-spacing:0;text-transform:none;font-size:10.5px;}
+table.nights td{padding:6px 4px;vertical-align:middle;}
+table.nights tr.nz td{background:color-mix(in srgb,var(--surface2) 55%,transparent);}
+.ndate{font:600 13px/1.2 var(--n-mono);color:var(--text);white-space:nowrap;padding:4px 2px;background:none;border:0;cursor:pointer;text-align:left;}
+.ndate small{display:block;font-weight:400;font-size:11px;line-height:1.3;font-family:inherit;color:var(--text4);}
+.ncell{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:104px;width:100%;padding:6px;border-radius:var(--n-cell-r);border:1px solid transparent;}
+.ncell:hover{border-color:color-mix(in srgb,var(--teal) 45%,transparent);background:var(--n-hover);}
+.ncell.off{cursor:default;}.ncell.off:hover{border-color:transparent;background:none;}
+.ncell .top{display:flex;align-items:center;gap:7px;font:12.5px/1 var(--n-mono);color:var(--text);}
+.ncell .sub{font:11px/1.2 var(--n-mono);color:var(--text3);white-space:nowrap;}
+.ncell .sub.part{color:var(--n-part);}.ncell .sub.low{color:var(--n-low);}
+.nbar{height:var(--n-bar);border-radius:calc(var(--n-bar)/2);background:var(--n-track);overflow:hidden;}
+.nbar i{display:block;height:100%;border-radius:calc(var(--n-bar)/2);}
+.nbar i.ok{background:var(--n-ok);opacity:.6;}.nbar i.part{background:var(--n-part);}.nbar i.low{background:var(--n-low);}
+.nbar i.rec{background:var(--n-rec);opacity:.45;}.nbar i.unk{background:var(--n-unk);opacity:.35;}
+.ncell.none .nbar{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 3px,transparent 3px 6px);}
+tr.ndrawer td{padding:0 4px 12px;}
+.ndr{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;background:var(--surface2);border-radius:10px;padding:10px;}
+.ndr > div{font-size:12px;color:var(--text2);line-height:1.5;min-width:0;}
+.ndr b{color:var(--text);font-size:12.5px;}
+.ndr .nsb{grid-column:1/-1;border-bottom:1px solid var(--border);padding-bottom:8px;}
+.ndr .nsbd{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px 14px;margin-top:4px;}
+.ndr ul{margin:3px 0 0;padding-left:18px;color:var(--text3);word-break:break-word;}
+.nchips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
+.nchip{font-family:inherit;font-weight:600;font-size:11px;line-height:1;cursor:pointer;color:var(--teal);background:transparent;border:1px solid color-mix(in srgb,var(--teal) 40%,transparent);border-radius:999px;padding:5px 9px;}
+.nchip:hover{background:var(--n-hover);}
+.nchip.static{cursor:default;color:var(--text3);border-style:dashed;}
+.nchip small{font:400 10.5px var(--n-mono);color:var(--text3);margin-left:4px;}
+.nmg{all:unset;box-sizing:border-box;cursor:pointer;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;width:100%;padding:11px 8px;border-top:1px solid var(--border);font-size:13px;}
+.nmg b{font-weight:650;color:var(--text);}.nmg span{color:var(--text3);font-size:12px;}
+.nmg i{display:inline-block;transition:transform .15s;margin-right:6px;color:var(--text4);font-style:normal;}
+.nmg[aria-expanded="true"] i{transform:rotate(90deg);}
+tr.nflash td{animation:nflash 1.4s ease-out;}
+@keyframes nflash{from{background:color-mix(in srgb,var(--teal) 22%,transparent);}}
+@media (prefers-reduced-motion:reduce){tr.nflash td{animation:none;}.nmg i{transition:none;}}
 .ntoast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface3);color:var(--text);border:1px solid rgba(61,224,208,.35);
   border-radius:12px;padding:10px 14px;font-size:12.5px;max-width:min(680px,92vw);box-shadow:0 8px 24px rgba(0,0,0,.24);display:none;font-family:ui-monospace,monospace;line-height:1.45;word-break:break-all;z-index:50;}
 .ntoast.on{display:block;}.ntoast.err{border-color:var(--red);}
@@ -877,14 +912,23 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
       </div>
     </section>
 
-    <!-- NIGHTS · LEDGER — the per-analyzer table: one row per night on the box, one figure per tool. -->
+    <!-- NIGHTS — one index, two tabs: the last 31 nights at a glance, then every night as one row. -->
     <section class="view" id="view-nights">
-      <div class="ov-strip" id="nightsStrip"></div>
-      <div class="section-title">Nights on disk</div>
+      <div class="ntabs" role="tablist" aria-label="Nights views">
+        <button type="button" role="tab" id="ntab-dev" data-ntab="dev" aria-selected="true">Devices</button>
+        <button type="button" role="tab" id="ntab-fus" data-ntab="fus" aria-selected="false">Fused &amp; derived</button>
+      </div>
       <div class="card">
+        <div class="section-title">Last 31 nights at a glance</div>
+        <p class="nwhy" id="nightsOvWhy"></p>
+        <div class="nov"><div class="novg" id="nightsOverview"></div></div>
+        <div class="nlegend" id="nightsLegend"></div>
+      </div>
+      <div class="card">
+        <div class="section-title" id="nightsTitle">Every night</div>
+        <p class="nwhy" id="nightsWhy"></p>
         <div class="nights-wrap"><table class="nights" id="nightsTable"></table></div>
-        <div class="hint">Each figure is that analyzer's input on disk for the night — size / hours spanned by its primary stream, then how many contiguous <b>fragments</b> that stream holds and the <b>coverage</b> — the share of the span it actually recorded (a link that drops and reconnects leaves the span intact and the coverage low: 2026-09-20 read 6.1 h and held 41 %). The bar is the coverage; amber = under 60 %. Click a figure to open the analyzer with those files loaded and processed; click the date for every file the night holds. ✓ = the fused tool's inputs are on disk — it opens, loads them and runs. Integrator figures are the raw input a fold would take — folds run on rig, not in the browser; HRVDex figures are the raw Polar input that reaches it through an ECGDex export. "…" = still counting fragments for that stream (the page keeps asking).</div>
-        <div class="nlegend"><span><i style="background:var(--blue)"></i>Polar</span><span><i style="background:var(--teal)"></i>Wellue</span><span><i style="background:var(--amber)"></i>ResMed</span><span><i style="background:var(--amber)"></i>&lt; 60 % coverage</span></div>
+        <div class="hint" id="nightsHint">Each device cell is that device's main stream on disk for the night: the hours it spans, how many contiguous <b>fragments</b> it holds, and the share of the span lost to holes (a link that drops and reconnects keeps its span and loses coverage). The bar is the coverage. Click a cell to open its analyzer with every file that analyzer reads for the night, loaded and processed (PPGDex gets the Verity and the O2Ring PPG together); click the date for each device's solid-night result and every analyzer that reads it. "…" = still counting fragments for that stream (the page keeps asking). Integrator: folds run on rig, not in the browser, so it does not open here yet.</div>
       </div>
     </section>
 
@@ -1347,67 +1391,194 @@ const nBase = f => f.split('/').pop();
 function nSpan(n){ return Math.max(0.1, ...NIGHT_COLS.map(c=>n[c]&&n[c].hours||0)); }
 function nToast(msg, err){ const t=$('#nightsToast'); t.textContent=msg; t.classList.toggle('err', !!err); t.classList.add('on');
   clearTimeout(nToast._t); nToast._t=setTimeout(()=>t.classList.remove('on'), err?9000:5000); }
-function nFig(n, c){
-  const v=n[c]; if(v===undefined||v===null) return '<span class="nnone">—</span>';
-  // coverage = the share of the span the primary stream actually recorded (server: nights_index.stream_stats);
-  // it is the bar and the amber, because the span cannot see a torn night. Falls back to span-vs-longest
-  // only for streams that have no row stamps (EDF).
-  const s=nSpan(n);
-  const cov = v.coverage!=null ? v.coverage : (v.hours!=null && s>=1 ? Math.min(1, v.hours/s) : null);
-  const part = cov!=null && cov < 0.6;
-  const cls = 'nfig'+(part?' partial':'')+(v.loadable?'':' static');
-  const attrs = v.loadable ? ` data-night="${n.night}" data-node="${c}" title="open ${c} with this night loaded"` : ` title="${NIGHT_WHY_NOT[c]||'shown, not offered'}"`;
-  /* A COUNT CARRIES ITS BOUND AND ITS MAGNITUDE, or it reads as damage it is not.
-     `fragments` counts row-to-row holes wider than `gap_s` IN ONE FILE. QC's `gaps_in_night` is a
-     different question over the judged session, and on 2026-09-28 the two disagreed in the way that
-     matters: QC read `gaps_in_night: []` while ECGDex read `2 fragments`, and nothing on either surface
-     said they measure different things. The percentage did not help — `coverage` is `1 - gaps/span`
-     rounded to 3 dp, so the night's real 2.8 s hole in 24,367 s rounded to `1.0` and printed as 100 %.
-     A reader saw "2 fragments · 100 %" and could only conclude one half was lying. Neither was.
-     So the chip now states the threshold it counted above and the seconds it actually lost, both from
-     `stream_stats` (`gap_s`, `gaps_s`) — `2 fragments · gaps > 2.0 s · 2.8 s of 6.8 h` reads as the
-     0.01 % non-finding it is. The percentage stays for the case where it says something: when the loss
-     is large enough to survive the rounding. Residue 2026-09-29-two-gap-measures-one-surface. */
-  const nSecs = (x) => x==null ? null : (x < 90 ? `${+x.toFixed(1)} s` : `${+(x/60).toFixed(1)} min`);
-  const fragWhy = v.gap_s!=null ? ` · gaps > ${+v.gap_s.toFixed(1)} s` : '';
-  const fragLost = v.gaps_s!=null && v.gaps_s > 0
-    ? ` · ${nSecs(v.gaps_s)}${v.span_s!=null && v.span_s > 0 ? ` of ${nHrs(v.span_s/3600)}` : ''}`
-    : v.gaps_s===0 ? ' · none lost' : (v.coverage!=null ? ` · ${Math.round(100*v.coverage)} %` : '');
-  const frag = v.pending ? '<span class="nfr">…</span>'
-             : v.fragments!=null ? `<span class="nfr${part?' bad':''}">${v.fragments} fragment${v.fragments===1?'':'s'}${fragWhy}${fragLost}</span>`
-             : '';
-  const pct = cov==null ? 0 : Math.round(100*cov);
-  return `<button type="button" class="${cls}"${attrs}><span class="ncov ${NIGHT_GROUP[c]}"><span><span class="mb">${nMB(v.bytes)}</span> <span class="h">/ ${nHrs(v.hours)}</span></span>${frag}<span class="bar"><i class="${part?'short':''}" style="width:${pct}%"></i></span></span></button>`;
+/* ── THE NIGHTS VIEW (owner, 2026-10-11) ────────────────────────────────────────────────────────
+   Rows are NIGHTS, newest first; the last 31 open, older months folded. Two tabs over the same rows.
+   A device cell is the device's MAIN analyzer record (ECGDex for the H10, PPGDex for the Verity, …) and
+   a click hands openNight() that analyzer's whole file list — so the Verity cell opens PPGDex with the
+   O2Ring's PPG beside it, because the index already lists both under PPGDex. Nothing here chooses
+   files: openNight and nightFiles do, exactly as before. */
+const NIGHT_DEVICES = [
+  {k:'h10',    name:'H10',      sub:'chest ECG',     node:'ECGDex',   match:/Polar_H10_/},
+  {k:'verity', name:'Verity',   sub:'arm PPG',       node:'PPGDex',   match:/Polar_VeritySense_/},
+  {k:'ring',   name:'O2Ring',   sub:'finger SpO₂',   node:'OxyDex',   match:/Wellue_O2Ring/},
+  {k:'cpap',   name:'AirSense', sub:'CPAP',          node:'CPAPDex',  match:/(^|\/)cpap\/|\.edf$/i},
+  {k:'muse',   name:'Muse',     sub:'EEG headband',  node:'EEGDex',   match:/Muse/i},
+  {k:'cgm',    name:'CGM',      sub:'glucose',       node:'GlucoDex', match:/CGM|Libre|Dexcom/i},
+];
+// The fused tab. `node` is the openNight key; 3-hat fused and PAT fused open the same page today.
+const NIGHT_FUSED = [
+  {name:'Integrator',   sub:'every stream, one timeline', node:'Integrator', off:'folds run on rig — opens here once the box makes the fold'},
+  {name:'3-corner hat', sub:'H10 · Verity · O2Ring',      node:'3 corner hat', needs:['h10','verity','ring']},
+  {name:'3-hat fused',  sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg']},
+  {name:'PAT',          sub:'ECG → pulse arrival',        node:'PAT', needs:['h10','verity']},
+  {name:'PAT fused',    sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg']},
+];
+const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–'};
+let NIGHTS_TAB = 'dev';
+const NIGHTS_OPEN_MONTHS = new Set();
+const nWd = d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T00:00:00Z').getUTCDay()];
+const nMonth = m => ['January','February','March','April','May','June','July','August','September','October','November','December'][+m.slice(5)-1]+' '+m.slice(0,4);
+// Does this night hold any file of device `d`? Read from every analyzer's list, so a device the main
+// analyzer does not carry (the ring's PPG under PPGDex) still counts as recorded.
+function nDevFiles(n, d){
+  const out = [];
+  for(const c of NIGHT_COLS){ const v=n[c]; if(v && Array.isArray(v.files)) for(const f of v.files) if(typeof f==='string' && d.match.test(f)) out.push(f); }
+  return out;
 }
-// ✓ = every input the tool needs is on disk tonight, AND a click: since 2026-09-20 both tools' classifiers read the
-// capture-host names as well as the phone-app ones (RESIDUE 2026-09-20-tool-classifiers-phone-names, closed), so the
-// night the Ledger opens is the night the tool indexes. Gated by capture-host test_the_tool_classifiers_accept_box_filenames.
-function nDerived(n, k){ return n[k] ? `<span class="pill pill-green click" data-night="${n.night}" data-node="${k}" title="open ${k} with this night's inputs loaded">✓ open</span>` : '<span class="pill pill-gray" title="an input this tool needs is missing tonight">✗</span>'; }
-function nStrip(rows){
-  const tot=rows.reduce((a,n)=>a+NIGHT_COLS.reduce((b,c)=>b+(n[c]?n[c].bytes:0),0),0);
-  const trio=rows.filter(n=>n['3 corner hat']).length;
-  return `<div class="ov-stat"><div class="lab">Nights</div><div class="val">${rows.length}</div><div class="sub">${rows[rows.length-1].night} → ${rows[0].night}</div></div>`+
-         `<div class="ov-stat"><div class="lab">On disk</div><div class="val">${nMB(tot)}</div><div class="sub">all analyzer inputs</div></div>`+
-         `<div class="ov-stat"><div class="lab">Trio nights</div><div class="val">${trio}</div><div class="sub">ECG + PPG + ring — 3-corner-hat eligible</div></div>`;
+function nHas(n, k){
+  if(k==='ringppg') return !!(n.PPGDex && Array.isArray(n.PPGDex.files) && n.PPGDex.files.some(f=>/Wellue_O2Ring.*_PPG\.txt$/.test(f)));
+  const d = NIGHT_DEVICES.find(x=>x.k===k); return !!d && nDevFiles(n, d).length > 0;
+}
+/* The device's state, from its main analyzer record. `v.coverage` is the share of the span the stream
+   recorded (nights_index.stream_stats); a stream with no row stamps (the CPAP's EDF) has none, and it
+   reads RECORDED — never a coverage it was not measured to have. `v.pending` = still counting. */
+function nCls(n, d){
+  const v = n[d.node];
+  if(!v || !nHas(n, d.k)) return 'none';
+  if(v.pending) return 'unk';
+  if(v.coverage==null) return v.hours ? 'rec' : 'unk';
+  return v.coverage>=0.95 ? 'ok' : v.coverage>=0.6 ? 'part' : 'low';
+}
+function nLost(v){
+  if(v.gaps_s==null || !v.span_s) return '';
+  const p = 100*v.gaps_s/v.span_s;
+  return p===0 ? '0 % lost' : p<0.1 ? '<0.1 % lost' : p.toFixed(1)+' % lost';
+}
+function nDevCell(n, d){
+  const c = nCls(n, d), v = n[d.node];
+  if(c==='none') return `<td><div class="ncell none off" title="${esc(d.name)} recorded nothing this night"><div class="top"><i class="ng none">–</i>—</div><div class="sub">not recorded</div><div class="nbar"></div></div></td>`;
+  const w = v.coverage!=null ? Math.round(100*v.coverage) : Math.round(100*Math.min(1,(v.hours||0)/nSpan(n)));
+  const sub = v.pending ? 'counting…' : v.fragments!=null ? `${v.fragments} frag · ${nLost(v)}` : (c==='rec' ? 'recorded' : 'not measured yet');
+  const tag = v.loadable ? `data-night="${esc(n.night)}" data-node="${esc(d.node)}" title="open ${esc(d.node)} with this night loaded"` : `title="${esc(NIGHT_WHY_NOT[d.node]||'shown, not offered')}"`;
+  return `<td><button type="button" class="ncell${v.loadable?'':' off'}" ${tag}><span class="top"><i class="ng ${c}">${NIGHT_GLYPH[c]}</i>${esc(nHrs(v.hours))}</span><span class="sub ${c==='part'||c==='low'?c:''}">${esc(sub)}</span><span class="nbar"><i class="${c}" style="width:${w}%"></i></span></button></td>`;
+}
+function nFusCell(n, f){
+  const v = n[f.node];
+  if(f.off){
+    const sub = v && v.bytes ? `${(v.files||[]).length} files · ${nMB(v.bytes)}` : 'no inputs this night';
+    return `<td><div class="ncell off" title="${esc(f.off)}"><span class="top"><i class="ng ${v?'rec':'none'}">${v?'●':'–'}</i>${v?'inputs on disk':'—'}</span><span class="sub">${esc(sub)}</span><span class="nbar"><i class="rec" style="width:${v?100:0}%"></i></span></div></td>`;
+  }
+  if(v===true) return `<td><button type="button" class="ncell" data-night="${esc(n.night)}" data-node="${esc(f.node)}" title="open ${esc(f.name)} with this night's inputs loaded and run"><span class="top"><i class="ng ok">✓</i>open</span><span class="sub">inputs on disk</span><span class="nbar"><i class="ok" style="width:100%"></i></span></button></td>`;
+  const miss = (f.needs||[]).filter(k=>!nHas(n,k)).map(k=>k==='ringppg'?'O2Ring PPG':NIGHT_DEVICES.find(d=>d.k===k).name);
+  return `<td><div class="ncell none off" title="an input this tool needs is missing this night"><span class="top"><i class="ng none">–</i>—</span><span class="sub">${esc(miss.length?'no '+miss.join(', '):'input missing')}</span><span class="nbar"></span></div></td>`;
+}
+/* ── SOLID NIGHT: the box's own verdict, read from the night's folder over the same origin. A 404 is
+   "not judged"; a folder this page cannot reach at all (the monitor opened on :8760, not through Caddy)
+   is "unavailable here" — the two are never collapsed (§∅). */
+const NIGHT_SOLID = {}; let NIGHTS_CAPTURES = null;   // null = not probed yet
+const N_SOLID_CLS = {PASS:'ok', FAIL:'low', UNKNOWN:'unk'};
+const N_SOLID_TXT = {PASS:'solid', FAIL:'not solid', UNKNOWN:'unknown'};
+async function nProbeCaptures(rows){
+  if(NIGHTS_CAPTURES!==null) return NIGHTS_CAPTURES;
+  const any = rows.map(n=>NIGHT_COLS.map(c=>n[c]&&Array.isArray(n[c].files)?n[c].files[0]:null).find(Boolean)).find(Boolean);
+  if(!any){ NIGHTS_CAPTURES = false; return false; }
+  try{ const r = await fetch('/captures/'+any.split('/').map(encodeURIComponent).join('/'), {method:'HEAD'}); NIGHTS_CAPTURES = r.ok; }
+  catch(_){ NIGHTS_CAPTURES = false; }
+  return NIGHTS_CAPTURES;
+}
+async function nLoadSolid(nights){
+  const want = nights.filter(d=>!(d in NIGHT_SOLID));
+  if(!want.length) return;
+  want.forEach(d=>{ NIGHT_SOLID[d] = {state:'loading'}; });
+  if(!(await nProbeCaptures(NIGHTS||[]))){ want.forEach(d=>{ NIGHT_SOLID[d] = {state:'unreachable'}; }); renderNights(); return; }
+  await Promise.all(want.map(async d=>{
+    try{
+      const r = await fetch('/captures/'+encodeURIComponent(d)+'/SOLID-VERDICT.json', {cache:'no-store'});
+      if(r.status===404){ NIGHT_SOLID[d] = {state:'none'}; return; }
+      if(!r.ok) throw new Error(String(r.status));
+      const j = await r.json();
+      NIGHT_SOLID[d] = (j && typeof j.status==='string') ? {state:'ok', v:j} : {state:'bad'};
+    }catch(e){ NIGHT_SOLID[d] = {state:'bad', why:String(e && e.message || e)}; }
+  }));
+  renderNights();
+}
+function nSolidCls(d){ const s=NIGHT_SOLID[d]; return !s || s.state==='loading' ? 'unk' : s.state==='ok' ? (N_SOLID_CLS[s.v.status]||'unk') : s.state==='none' ? 'none' : 'unk'; }
+function nSolidTxt(d){
+  const s = NIGHT_SOLID[d];
+  if(!s || s.state==='loading') return ['…', 'reading the verdict'];
+  if(s.state==='none') return ['—', 'not judged'];
+  if(s.state==='unreachable') return ['?', 'unavailable here'];
+  if(s.state==='bad') return ['?', 'verdict unreadable'];
+  const v = s.v, devs = (v.result && v.result.devices) || {};
+  const failed = Object.entries(devs).filter(([,x])=>x && x.status==='FAIL').map(([k])=>k.replace(/\s+[0-9A-F]{6,}$/i,''));
+  return [N_SOLID_TXT[v.status]||v.status, v.status==='PASS' ? 'every device passed' : v.status==='FAIL' ? (failed.length?failed.join(', ')+' failed':'failed') : 'a check could not run'];
+}
+function nSolidCell(n){
+  const c = nSolidCls(n.night), [t, sub] = nSolidTxt(n.night);
+  return `<td><button type="button" class="ncell" data-drawer="${esc(n.night)}" title="each device's solid-night result"><span class="top"><i class="ng ${c}">${NIGHT_GLYPH[c]}</i>${esc(t)}</span><span class="sub ${c==='low'?'low':''}">${esc(sub)}</span></button></td>`;
+}
+function nSolidBlock(n){
+  const s = NIGHT_SOLID[n.night];
+  if(!s || s.state!=='ok') return `<div class="nsb"><b>Solid night: ${esc(nSolidTxt(n.night)[1])}</b>${s && s.state==='unreachable' ? ' — open the monitor through vigil.local to read night folders.' : ''}</div>`;
+  const devs = Object.entries((s.v.result && s.v.result.devices) || {}).map(([k,x])=>{
+    const c = N_SOLID_CLS[x && x.status] || 'unk', why = Array.isArray(x && x.reasons) ? x.reasons.slice(0,6) : [];
+    return `<div><i class="ng ${c}">${NIGHT_GLYPH[c]}</i> <b>${esc(k)}</b> ${esc(N_SOLID_TXT[x && x.status] || (x && x.status) || '')}${why.length?'<ul>'+why.map(w=>'<li>'+esc(w)+'</li>').join('')+'</ul>':''}</div>`;
+  }).join('');
+  return `<div class="nsb"><b>Solid night: ${esc(N_SOLID_TXT[s.v.status]||s.v.status)}</b><div class="nsbd">${devs}</div></div>`;
+}
+// The drawer: the solid result, then per device its facts and one chip per analyzer that reads it.
+function nDrawer(n){
+  if(NIGHTS_TAB==='fus') return nSolidBlock(n) + NIGHT_FUSED.map(f=>{
+    const v = n[f.node];
+    if(f.off) return `<div><b>${esc(f.name)}</b><br>${esc(f.off)}${v&&v.files?'<br>'+v.files.length+' input files on disk':''}</div>`;
+    if(v!==true) return `<div><b>${esc(f.name)}</b><br>an input is missing this night</div>`;
+    return `<div><b>${esc(f.name)}</b><div class="nchips"><button type="button" class="nchip" data-night="${esc(n.night)}" data-node="${esc(f.node)}">Open ${esc(f.name)}</button></div></div>`;
+  }).join('');
+  return nSolidBlock(n) + NIGHT_DEVICES.map(d=>{
+    const files = nDevFiles(n, d), v = n[d.node];
+    if(!files.length) return `<div><b>${esc(d.name)}</b><br>not recorded this night</div>`;
+    const facts = v && nHas(n, d.k) ? `${nMB(v.bytes||0)} · ${v.coverage!=null?Math.round(100*v.coverage)+' % covered':'coverage not measured'}`
+      + (v.fragments!=null ? `<br>${v.fragments} fragment${v.fragments===1?'':'s'}${v.gaps_s!=null?' · '+esc(nLost(v)):''}` : '') : '';
+    const chips = NIGHT_COLS.filter(c=>c!=='Integrator' && n[c] && Array.isArray(n[c].files) && n[c].files.some(f=>typeof f==='string' && d.match.test(f))).map(c=>{
+      const suf = [...new Set(n[c].files.filter(f=>typeof f==='string' && d.match.test(f)).map(f=>(nBase(f).match(/_([A-Z0-9]+)\.(txt|csv)$/)||[,'EDF'])[1]))].join(' ');
+      return n[c].loadable
+        ? `<button type="button" class="nchip" data-night="${esc(n.night)}" data-node="${esc(c)}">${esc(c)}<small>${esc(suf)}</small></button>`
+        : `<span class="nchip static" title="${esc(NIGHT_WHY_NOT[c]||'shown, not offered')}">${esc(c)}<small>${esc(suf)}</small></span>`;
+    }).join('');
+    return `<div><b>${esc(d.name)}${v&&nHas(n,d.k)?' · '+esc(nHrs(v.hours)):''}</b><br>${facts}<div class="nchips">${chips}</div></div>`;
+  }).join('');
 }
 function renderNights(){
-  if(!NIGHTS || !NIGHTS.length){ $('#nightsTable').innerHTML='<tbody><tr><td class="nnone">no nights on disk</td></tr></tbody>'; return; }
-  const rows=[...NIGHTS].reverse();
+  if(!NIGHTS || !NIGHTS.length){ $('#nightsTable').innerHTML='<tbody><tr><td class="nwhy">no nights on disk</td></tr></tbody>'; $('#nightsOverview').innerHTML=''; return; }
+  const rows=[...NIGHTS].reverse(), recent=rows.slice(0,31), older=rows.slice(31);
   $('#navNightsN').style.display=''; $('#navNightsN').textContent=rows.length;
-  $('#nightsStrip').innerHTML = nStrip(rows);
-  const open = new Set([...document.querySelectorAll('.ndrawer:not([hidden])')].map(e=>e.id));   // keep drawers open across refreshes
-  let h='<thead><tr><th></th><th class="grp polar" colspan="5">Polar H10 · Verity</th><th class="grp wellue">Wellue O2Ring</th><th class="grp resmed">ResMed AS11</th><th class="grp fused" colspan="3">fused · absent</th><th class="grp fused" colspan="2">derived</th></tr>';
-  h+='<tr><th>Night</th>'+NIGHT_CAPTURE_ORDER.map(c=>`<th>${c}</th>`).join('')+NIGHT_DERIVED.map(d=>{const L=NIGHT_DERIVED_LABEL[d]; return L?`<th title="${L[1]}">${L[0]}</th>`:`<th>${d}</th>`;}).join('')+'</tr></thead><tbody>';
-  for(const n of rows){
-    const wd=new Date(n.night+'T00:00:00Z').toLocaleDateString('en-GB',{weekday:'short',timeZone:'UTC'});
-    h+=`<tr><td class="date"><button type="button" class="nfig" data-drawer="${n.night}" title="every file this night holds">${n.night}</button><small>${wd} · longest ${nHrs(nSpan(n))}</small></td>`+NIGHT_CAPTURE_ORDER.map(c=>`<td>${nFig(n,c)}</td>`).join('')+NIGHT_DERIVED.map(k=>`<td>${nDerived(n,k)}</td>`).join('')+'</tr>';
-    h+=`<tr class="ndrawer" id="ndr-${n.night}"${open.has('ndr-'+n.night)?'':' hidden'}><td colspan="${NIGHT_CAPTURE_ORDER.length+3}"><div class="ndrawer-in">`+[...NIGHT_CAPTURE_ORDER,...NIGHT_DERIVED].map(c=>{
-      const v=n[c]; const isTool=NIGHT_DERIVED.includes(c); const ok = isTool ? v===true : !!(v && v.loadable);
-      const files = v&&v.files ? v.files.map(nBase).join('<br>') : (isTool ? (v?'every input it needs is on disk':'an input is missing this night') : 'nothing captured');
-      const openBtn = ok ? `<button type="button" class="open" data-night="${n.night}" data-node="${c}">Open ▸</button>` : '';
-      return `<div class="nan${ok?'':' off'}"><h4>${c}${openBtn}</h4><div class="files">${files}</div></div>`; }).join('')+'</div></td></tr>';
+  document.querySelectorAll('[data-ntab]').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.ntab===NIGHTS_TAB)));
+  const dev = NIGHTS_TAB==='dev', cols = dev ? NIGHT_DEVICES : NIGHT_FUSED;
+  const sqCls = (n, c) => dev ? nCls(n, c) : (c.off ? (n[c.node] ? 'rec' : 'none') : (n[c.node]===true ? 'ok' : 'none'));
+  // overview strip: oldest → newest, left to right; the solid-night row first
+  const strip = [...recent].reverse();
+  let o = `<div class="lab"><b>Solid night</b></div>` + strip.map(n=>`<button type="button" class="nsq ${nSolidCls(n.night)}" data-go="${esc(n.night)}" aria-label="${esc(n.night)} solid night: ${esc(nSolidTxt(n.night)[0])}" title="${esc(n.night)} · solid night: ${esc(nSolidTxt(n.night)[0])}"></button>`).join('') + '<div class="sep"></div>';
+  for(const c of cols) o += `<div class="lab" title="${esc(c.name)}">${esc(c.name)}</div>` + strip.map(n=>`<button type="button" class="nsq ${sqCls(n,c)}" data-go="${esc(n.night)}" aria-label="${esc(n.night)} ${esc(c.name)}" title="${esc(n.night)} · ${esc(c.name)}"></button>`).join('');
+  o += '<div></div>' + strip.map((n,i)=>`<div class="day">${(i===0||i===strip.length-1||nWd(n.night)==='Mon')?+n.night.slice(8):''}</div>`).join('');
+  const ov = $('#nightsOverview'); ov.style.setProperty('--n-days', strip.length); ov.innerHTML = o;
+  $('#nightsOvWhy').textContent = dev
+    ? 'One square per device per night, coloured by how much of the night that device covered; the first row is the box\'s solid-night verdict. Click a square to jump to its row.'
+    : 'One square per tool per night: green when every input it needs was recorded. Click a square to jump to its row.';
+  $('#nightsLegend').innerHTML = '<span><b>Solid night:</b></span><span><i class="ng ok">✓</i>solid</span><span><i class="ng low">✕</i>not solid</span><span><i class="ng unk">?</i>unknown</span><span><i class="ng none">–</i>not judged</span><span style="flex-basis:100%;height:0"></span>'
+    + (dev ? '<span><i class="ng ok">✓</i>≥ 95 % covered</span><span><i class="ng part">◐</i>60–95 %</span><span><i class="ng low">✕</i>&lt; 60 %</span><span><i class="ng rec">●</i>recorded, coverage not measured</span><span><i class="ng unk">?</i>not measured yet</span><span><i class="ng none">–</i>not recorded</span>'
+           : '<span><i class="ng ok">✓</i>every input on disk</span><span><i class="ng rec">●</i>inputs on disk, opens on rig</span><span><i class="ng none">–</i>an input is missing</span>');
+  $('#nightsTitle').textContent = dev ? 'Every night, by device' : 'Every night, fused and derived';
+  $('#nightsWhy').textContent = dev
+    ? 'Solid is the box\'s own verdict; click it or the date for each device\'s result and reason. Each device cell opens its analyzer with the night loaded.'
+    : 'The tools that need more than one device. ✓ opens the tool with the night\'s inputs loaded and run; a dash names what was missing.';
+  const open = new Set([...document.querySelectorAll('tr.ndrawer:not([hidden])')].map(e=>e.id));
+  const span = cols.length + 2;
+  const row = (n, i) => `<tr class="${i%2?'nz':''}" id="nrow-${esc(n.night)}"><td><button type="button" class="ndate" data-drawer="${esc(n.night)}" aria-expanded="${open.has('ndr-'+n.night)}">${esc(n.night)}<small>${nWd(n.night)}${dev?' · longest '+esc(nHrs(nSpan(n))):''}</small></button></td>${nSolidCell(n)}${cols.map(c=>dev?nDevCell(n,c):nFusCell(n,c)).join('')}</tr>`
+    + `<tr class="ndrawer" id="ndr-${esc(n.night)}"${open.has('ndr-'+n.night)?'':' hidden'}><td colspan="${span}"><div class="ndr">${nDrawer(n)}</div></td></tr>`;
+  let h = `<thead><tr><th>Night</th><th>Solid<small>the box's verdict</small></th>${cols.map(c=>`<th>${esc(c.name)}<small>${esc(c.sub)}</small></th>`).join('')}</tr></thead><tbody>${recent.map(row).join('')}</tbody>`;
+  const months = new Map();
+  for(const n of older){ const m=n.night.slice(0,7); if(!months.has(m)) months.set(m,[]); months.get(m).push(n); }
+  for(const [m, ns] of months){
+    const isOpen = NIGHTS_OPEN_MONTHS.has(m);
+    const solid = ns.filter(n=>{const s=NIGHT_SOLID[n.night]; return s&&s.state==='ok'&&s.v.status==='PASS';}).length;
+    const notSolid = ns.filter(n=>{const s=NIGHT_SOLID[n.night]; return s&&s.state==='ok'&&s.v.status==='FAIL';}).length;
+    const extra = dev ? `${ns.filter(n=>NIGHT_DEVICES.some(d=>['part','low'].includes(nCls(n,d)))).length} with a short device`
+                      : `${ns.filter(n=>n['3 corner hat']===true).length} 3-hat · ${ns.filter(n=>n.PAT===true).length} PAT`;
+    h += `<tbody><tr><td colspan="${span}" style="padding:0"><button type="button" class="nmg" data-nmg="${esc(m)}" aria-expanded="${isOpen}"><b><i>▸</i>${esc(nMonth(m))}</b><span>${ns.length} nights · ${extra}${(solid||notSolid)?` · ${solid} solid · ${notSolid} not solid`:''}</span></button></td></tr></tbody>`
+       + `<tbody${isOpen?'':' hidden'}>${isOpen?ns.map(row).join(''):''}</tbody>`;
   }
-  h+='</tbody>'; $('#nightsTable').innerHTML=h;
+  $('#nightsTable').innerHTML = h;
+  nLoadSolid(rows.map(n=>n.night));   // every night's verdict: the folded months count them too
 }
 let nightsPoll=null;
 async function loadNights(){
@@ -1569,14 +1740,21 @@ async function openNight(night, node){
   nToast(loaded+' — Process pressed, running in the new tab');
 }
 function nightsClick(e){
-  const dr=e.target.closest('[data-drawer]'); if(dr){ const r=document.getElementById('ndr-'+dr.dataset.drawer); if(r) r.hidden=!r.hidden; return; }
+  const tab=e.target.closest('[data-ntab]'); if(tab){ NIGHTS_TAB=tab.dataset.ntab; renderNights(); return; }
+  const mg=e.target.closest('[data-nmg]'); if(mg){ const m=mg.dataset.nmg; NIGHTS_OPEN_MONTHS.has(m)?NIGHTS_OPEN_MONTHS.delete(m):NIGHTS_OPEN_MONTHS.add(m); renderNights(); return; }
+  const go=e.target.closest('[data-go]'); if(go){ const r=document.getElementById('nrow-'+go.dataset.go); if(!r) return;
+    r.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth', block:'center'});
+    r.classList.remove('nflash'); void r.offsetWidth; r.classList.add('nflash'); return; }
+  const dr=e.target.closest('[data-drawer]'); if(dr){ const r=document.getElementById('ndr-'+dr.dataset.drawer); if(r){ r.hidden=!r.hidden;
+    document.querySelectorAll('.ndate[data-drawer="'+CSS.escape(dr.dataset.drawer)+'"]').forEach(b=>b.setAttribute('aria-expanded', String(!r.hidden))); } return; }
   // NO PATH THROUGH openNight MAY FAIL WITHOUT A VISIBLE MESSAGE. openNight is async and every one of its
   // own failure arms toasts, but a THROW bypassed all of them: called bare, the rejection went nowhere and the
   // click looked dead (the 'PAT fused' TypeError above). The catch is the §∅ rule at the UI — a click that
   // examined nothing has to say so — and it is not a substitute for the arms, which still name their cause.
   const f=e.target.closest('[data-node]'); if(f){ Promise.resolve(openNight(f.dataset.night, f.dataset.node)).catch(err=>nToast('opening '+f.dataset.node+' failed: '+((err&&err.message)||err), true)); }
 }
-$('#nightsTable').addEventListener('click', nightsClick);
+// One listener for the whole view: the tabs and the overview strip sit outside the table.
+$('#view-nights').addEventListener('click', nightsClick);
 
 async function loadStorage(){
   STORAGE = await api('/api/storage');
