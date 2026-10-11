@@ -656,8 +656,33 @@
       nad = 100,
       nadIdx = 0,
       base = 95;
+    /* 🔴 `endIdx` IS A SAMPLE INDEX, so it is clamped; `duration` is a COUNT, so it is not.
+       `close(n)` is the unconditional end-of-record flush, and it used to publish `endIdx: end` with
+       `end === n` — one past the last sample. Measured on main 2026-10-11 with a desat running to the
+       end of a 230-sample series: `endIdx: 230`, `spo2[230]` is `undefined`, and `undefined - 1` is
+       `NaN`. A mid-series event is unaffected because its `end` is the re-rise sample, a real index —
+       which is precisely what made the asymmetry invisible: the common path always looked right.
+       ⚠️ CLAMPING ALONE WOULD DESTROY INFORMATION, which is why `terminal` ships with it. After the
+       clamp, an event that ran past the end and an event that genuinely ended on the last sample both
+       read `endIdx === n - 1`, and nothing distinguishes "no resaturation was observed" from "it
+       resaturated at the last sample". `terminal` is that distinction, and it is the same field
+       OxyDex's twin publishes for the same reason (`oxydex-dsp.js:3523`).
+       `duration` keeps the UNCLAMPED span (`end - st`): the event really did last that many samples,
+       and shortening it by one to match a clamped index would corrupt a correct number to tidy a
+       different field. CPAPDex has no recovery-slope term, so unlike OxyDex there is nothing here that
+       measures a dip against itself. */
     function close(end) {
-      if (inEv && end - st >= OXI.MIN_DUR) events.push({ startIdx: st, onset: st, nadirIdx: nadIdx, endIdx: end, depth: +(base - nad).toFixed(1), duration: end - st, nadir: nad });
+      if (inEv && end - st >= OXI.MIN_DUR)
+        events.push({
+          startIdx: st,
+          onset: st,
+          nadirIdx: nadIdx,
+          endIdx: Math.min(n - 1, end),
+          terminal: end >= n,
+          depth: +(base - nad).toFixed(1),
+          duration: end - st,
+          nadir: nad
+        });
       inEv = false;
     }
     for (var i = 0; i < n; i++) {
