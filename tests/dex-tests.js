@@ -24306,6 +24306,49 @@
        nearly the same level, the offsets come out [1, 0, -1], and at that size an operand swap, a
        dropped `Math.round` and a broken subtraction all look alike. At 90/110/130 the offsets are
        [+20, 0, -20] — signed, exact, and each one a different number from its negation. */
+    group('GlucoDex cadence — unmeasurable is null with a reason, never 5 (§∅)', 'glucodex-dsp · absence', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function') {
+        T.ok('GLUDSP.analyze is available', false, 'not loaded');
+        return;
+      }
+      /* THE REACHABLE CASE IS A DAILY OR SPOT EXPORT. `dts` keeps only deltas in (0,240) min, so a
+         file sampled once a day contributes NONE and the cadence was never measured. Before this fix
+         the fallback published `cadence: 5` and, from it, `activeMin: 50` — fifty minutes of "active"
+         data over a 12,960-minute span, a number with no input behind it that reads exactly like a
+         measured one. */
+      var day = 86400000,
+        t0 = Date.UTC(2026, 5, 1, 8, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      for (var i = 0; i < 10; i++) {
+        tMs.push(t0 + i * day);
+        vMgdl.push(100 + i);
+      }
+      var r = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      T.ok('an unmeasurable cadence is null, not 5', r.cadence === null, 'cadence=' + JSON.stringify(r.cadence));
+      T.ok('…and the null carries a NAMED reason (§∅: never a bare null)', typeof r.cadenceReason === 'string' && /unmeasurable/.test(r.cadenceReason), 'reason=' + JSON.stringify(r.cadenceReason));
+      T.ok('…and the step the grid used is published as an ASSUMPTION, separately', r.cadenceAssumed === 5, 'assumed=' + JSON.stringify(r.cadenceAssumed));
+      T.ok('cells × cadence is null, never an assumed-rate minute total', r.activeMin === null, 'activeMin=' + JSON.stringify(r.activeMin) + ' (was 50)');
+      T.ok('the true span is still reported — absence of a RATE is not absence of a SPAN', r.spanMin === 12960, 'spanMin=' + r.spanMin);
+      /* CONTROLS — the fix must not null a cadence that WAS measured, which is the way an absence fix
+         usually goes wrong: refusing more than it was asked to. */
+      var t5 = [],
+        v5 = [];
+      for (var k = 0; k < 200; k++) {
+        t5.push(t0 + k * 5 * 60000);
+        v5.push(100 + (k % 40));
+      }
+      var q = G.analyze({ tMs: t5, vMgdl: v5, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      T.ok('CONTROL · a real 5-min export still measures 5', q.cadence === 5, 'cadence=' + JSON.stringify(q.cadence));
+      T.ok(
+        'CONTROL · a measured cadence carries NO reason and NO assumption',
+        q.cadenceReason == null && q.cadenceAssumed == null,
+        'reason=' + JSON.stringify(q.cadenceReason) + ' assumed=' + JSON.stringify(q.cadenceAssumed)
+      );
+      T.ok('CONTROL · its minute totals are numbers, not null', typeof q.activeMin === 'number' && q.activeMin > 0, 'activeMin=' + JSON.stringify(q.activeMin));
+    });
+
     group('GlucoDex applySessionCorrections — levelling and de-drift, signed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
