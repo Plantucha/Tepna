@@ -436,6 +436,10 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_webmon_nights.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
     "capture-host/tests/test_webmon_state_contract.py": {
       "bin": "test",
       "status": "exempt"
