@@ -107,6 +107,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { resolveStatePath, sharedStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
@@ -1069,6 +1070,29 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   /* The stamp the edit guard reads (see SESSION STAMP above). After the hits, so a refused or
      crashed search leaves nothing — a stamp is evidence a search RAN, never that one was attempted. */
   stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, query);
+  /* THE BOARD'S THREE LINES, after the hits and after the stamp. Rule 0 runs before every unit, so
+     this is the one place every session passes through several times a day — which is exactly why the
+     board's red banner belongs here rather than on a page somebody has to remember to open. The owner's
+     case for the board was a seven-hour silence; a banner nobody loads is the same silence.
+     ⚠️ READ-ONLY AND FAIL-SILENT. It reads `board.json` that the timer wrote; it never generates the
+     board (a search must not spawn `gh` calls) and never fails a search. No file, stale file, bad JSON
+     or missing summariser ⇒ nothing printed, because a Rule 0 search that dies on its own footer would
+     be a far worse defect than a missing footer. */
+  try {
+    const bj = join(homedir(), '.local', 'share', 'tepna', 'board', 'board.json');
+    if (existsSync(bj)) {
+      const b = JSON.parse(readFileSync(bj, 'utf-8'));
+      const { summarize } = await import('./board.mjs');
+      const ageMin = (Date.now() - Date.parse(b.generatedAt)) / 6e4;
+      console.log('');
+      for (const line of summarize(b)) console.log(`  ${line}`);
+      /* An old board is said to be old. The timer runs every 10 min, so past 30 the page is not
+         describing now and the reader must know that before trusting the banner. */
+      if (isFinite(ageMin) && ageMin > 30) console.log(`  ⚠ board is ${Math.round(ageMin)} min old — tepna-board.timer may not be running`);
+    }
+  } catch {
+    /* intentionally silent — see above */
+  }
 }
 
 /* ⚠️ A THIRD BRANCH THAT CANNOT BE REACHED BY ACCIDENT. If this file is the entry point and neither

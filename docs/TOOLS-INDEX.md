@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**242 tools** · 240 with a purpose line · **2 without**
+**243 tools** · 241 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -32,6 +32,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`beat-error-recovery.mjs`](../tools/beat-error-recovery.mjs) | beat-error-recovery — target 6 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE: inject beat-detection errors of KNOWN type and rate into a real beat train, run the shipped HRV path, and measure the… |
 | [`beat-injection-recovery.mjs`](../tools/beat-injection-recovery.mjs) | beat-injection-recovery — the artificial-star test for a beat detector. |
 | [`beat-leg-closure.mjs`](../tools/beat-leg-closure.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ THREE-SOURCE DRIFT CLOSURE for H10 ↔ Verity ↔ capture host (WEARABLE-DRIFT-DIRECT §7.3/§7.4). |
+| [`board.mjs`](../tools/board.mjs) | THE FLEET BOARD — one static page that answers "what is happening and what is wrong". |
 | [`box-sample.mjs`](../tools/box-sample.mjs) | // // box-sample.mjs — periodic resource sampler for a remote capture host. |
 | [`brief-gaps.mjs`](../tools/brief-gaps.mjs) | ════════════════════════════════════════════════════════════════════════ tools/brief-gaps.mjs — a text-network gap detector over the briefs |
 | [`brief-verified-index.mjs`](../tools/brief-verified-index.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ WHEN WAS EACH OPEN BRIEF LAST *VERIFIED* — not last edited, and not how open it looks. |

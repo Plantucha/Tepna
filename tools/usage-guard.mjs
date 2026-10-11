@@ -403,6 +403,12 @@ export function evaluate(collected, budgets, { sinceMs, nowMs = Date.now() } = {
       output: s.output,
       thinking: s.thinking,
       messages: s.messages,
+      /* THE MODEL SPLIT, emitted at last. `models` has been counted per session since this tool was
+         written (one entry per message, keyed by `message.model`) and simply never left the function —
+         so a consumer wanting it had to re-parse the transcripts and would have become a second source
+         of truth for the same number. Raw message counts, not percentages: a reader can divide, and a
+         percentage would flatter a session with three messages. */
+      models: s.models,
       messagesWithoutUsage: s.messagesWithoutUsage,
       lastContextTokens: s.lastContext,
       lastContextAt: s.lastContextAt ? new Date(s.lastContextAt).toISOString() : null,
