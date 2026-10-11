@@ -160,8 +160,17 @@ def test_selftest_FAILS_when_classify_buckets_wrongly(monkeypatch):
     monkeypatch.setattr(
         M,
         "classify",
-        lambda e, s, k, generated=(): {
-            b: [] for b in ("excused", "real_gap", "refuted", "orphaned", "unclassified", "not_decided")
+        lambda e, s, k, generated=(), not_required=(), unchecked=(): {
+            b: []
+            for b in (
+                "excused",
+                "real_gap",
+                "refuted",
+                "orphaned",
+                "unclassified",
+                "not_decided",
+                "claimed_not_required",
+            )
         },
     )
     assert M.selftest() != 0
@@ -1197,8 +1206,17 @@ _SELFTEST_FAULTS = [
     ("annotation_only", lambda a, b: (True, "nope"), "selftest FAIL annotation_only ["),
     (
         "classify",
-        lambda e, s, k, generated=(): {
-            b: [] for b in ("excused", "real_gap", "refuted", "orphaned", "unclassified", "not_decided")
+        lambda e, s, k, generated=(), not_required=(), unchecked=(): {
+            b: []
+            for b in (
+                "excused",
+                "real_gap",
+                "refuted",
+                "orphaned",
+                "unclassified",
+                "not_decided",
+                "claimed_not_required",
+            )
         },
         "selftest FAIL excused:",
     ),
@@ -1210,16 +1228,35 @@ _SELFTEST_FAULTS = [
     # them worth breaking on purpose — an unexercised plant is a plant nobody has seen fire.
     (
         "classify",
-        lambda e, s, k, generated=(): {
+        lambda e, s, k, generated=(), not_required=(), unchecked=(): {
             b: ([{"key": "a", "class": "no-distinguishing-input"}] if b == "refuted" else [])
-            for b in ("excused", "real_gap", "refuted", "orphaned", "unclassified", "not_decided", "unproven")
+            for b in (
+                "excused",
+                "real_gap",
+                "refuted",
+                "orphaned",
+                "unclassified",
+                "not_decided",
+                "claimed_not_required",
+                "unproven",
+            )
         },
         "an absent mutant was REFUTED",
     ),
     (
         "classify",
-        lambda e, s, k, generated=(): {
-            b: [] for b in ("excused", "real_gap", "refuted", "orphaned", "unclassified", "not_decided", "unproven")
+        lambda e, s, k, generated=(), not_required=(), unchecked=(): {
+            b: []
+            for b in (
+                "excused",
+                "real_gap",
+                "refuted",
+                "orphaned",
+                "unclassified",
+                "not_decided",
+                "claimed_not_required",
+                "unproven",
+            )
         },
         "an absent mutant must read not_decided",
     ),
@@ -3604,3 +3641,68 @@ def test_the_restore_hands_back_SIG_DFL_for_a_signal_that_was_never_recorded(mon
         f"an unrecorded previous handler must restore to SIG_DFL, never None (which `signal.signal` "
         f"rejects with TypeError); got {restores}"
     )
+
+
+def test_a_claim_over_a_mutant_WE_DO_NOT_REQUIRE_is_counted_not_refused():
+    """🔴 THE DEFECT THIS BUCKET EXISTS FOR, and it refused real PRs. A survivor whose diff is
+    string-only is dropped from `survivors` deliberately — it is EXCLUDED, not unmeasured — but a
+    registered claim naming it then matched neither `surv` nor `kills`, fell through to `not_decided`,
+    and took the whole run to exit 2 with verdict UNKNOWN. The gate refused over its own exclusion.
+
+    Measured 2026-10-11 on #3395 (`loss_audit._has_worn_evidence`): of four claims, the two the scan
+    calls `string-only` (`"utf-8"` -> `"UTF-8"` and `rstrip("\\n")` -> `rstrip("XX\\nXX")`) were exactly
+    the two refused; the other two came back `required`, reached `surv`, and were excused normally.
+    Nothing was unmeasured — mutmut had settled all 67 of that function's mutants and reported all four
+    as `survived` — so "re-run on a quiet box" could never clear it, and a quiet run reproduced it."""
+    key = '- a = "utf-8" | + a = "UTF-8"'
+    entry = [{"key": key, "class": "no-distinguishing-input", "probe": "planted"}]
+    # BEFORE: the key is generated, nothing says it was excluded ⇒ refusal
+    before = M.classify(entry, [], set(), generated={key})
+    assert len(before["not_decided"]) == 1, "this is the shipped behaviour the bucket replaces"
+    # AFTER: the harvest reports that it excluded the key ⇒ counted, and nothing refuses
+    after = M.classify(entry, [], set(), generated={key}, not_required={key})
+    assert after["not_decided"] == [], "an excluded mutant is not an unmeasured one"
+    assert len(after["claimed_not_required"]) == 1
+    assert "excused nothing" in after["claimed_not_required"][0]["why"]
+
+
+def test_the_new_bucket_does_not_swallow_a_kill_a_survivor_or_an_orphan():
+    """The bucket is a fall-through for ONE state, and the three it sits beside must be unmoved — an
+    exclusion that quietly outranked a kill would turn positive evidence into a counted nothing."""
+    key = '- a = "utf-8" | + a = "UTF-8"'
+    entry = [{"key": key, "class": "no-distinguishing-input", "probe": "p"}]
+    # a CORROBORATED KILL still refutes, even though the mutant is in the excluded set: a kill is a
+    # positive observation and the claim is wrong regardless of whether we would have required it
+    killed = M.classify(entry, [], {key}, generated={key}, not_required={key})
+    assert len(killed["refuted"]) == 1, "a kill must outrank an exclusion"
+    assert killed["claimed_not_required"] == []
+    # a real survivor with an excusing class is still excused
+    surv = M.classify(entry, [{"key": key}], set(), generated={key}, not_required={key})
+    assert len(surv["excused"]) == 1, "membership in `surv` is checked first and stays first"
+    # a key no generated mutant matches is still an orphan, not "not required"
+    orph = M.classify(entry, [], set(), generated=set(), not_required=set())
+    assert len(orph["orphaned"]) == 1
+
+
+def test_a_CLAIMED_UNCHECKED_mutant_is_counted_never_refused_and_never_passed():
+    """The state the owner named: generated, and still without a result after one isolated run. It is a
+    measurement about the GATE — the claim is neither shown nor refuted — so it is counted and named.
+
+    Never a refusal, because nothing is wrong; never a PASS, because nothing was demonstrated. The
+    distinction from `claimed_not_required` is the reason both exist: that one was EXCLUDED on purpose
+    (string-only or empty diff), this one was ASKED and did not answer."""
+    key = "- a | + b"
+    entry = [{"key": key, "class": "no-distinguishing-input", "probe": "p"}]
+    out = M.classify(entry, [], set(), generated={key}, unchecked={key})
+    assert len(out["claimed_unchecked"]) == 1
+    assert out["not_decided"] == [], "an asked-and-unanswered claim is not the refusal state"
+    assert out["refuted"] == [] and out["excused"] == []
+    assert "says nothing about the claim" in out["claimed_unchecked"][0]["why"]
+    # the three states are DISJOINT and each keeps its own routing
+    assert len(M.classify(entry, [], set(), generated={key}, not_required={key})["claimed_not_required"]) == 1
+    assert len(M.classify(entry, [], set(), generated={key})["not_decided"]) == 1, (
+        "a claim neither excluded nor asked is still the refusal state — that path is not removed"
+    )
+    # and positive evidence still outranks every one of them
+    assert len(M.classify(entry, [], {key}, generated={key}, unchecked={key})["refuted"]) == 1
+    assert len(M.classify(entry, [{"key": key}], set(), generated={key}, unchecked={key})["excused"]) == 1
