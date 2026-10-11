@@ -6841,7 +6841,7 @@
         cpapdex: '',
         ecgdex: 'accPosture analyzable cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
         glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability timeAbove timeBelow',
-        hrvdex: 'ansLoad cai camq crs csi cvi dfaAlpha1 efc focusEff hfnu lfhf momentum ortho otr pnsEff pti recovDebt recovIndex sd1sd2 sdnnZ si spectralEnt vei vo2roll welfare',
+        hrvdex: 'camq ortho',
         motiondex: 'activityCounts effortAmp effortPresent respRate',
         oxydex:
           'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 ct90 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
@@ -6947,11 +6947,53 @@
              loosening it — and it counts as a binding only because the leg below WALKS the path on a
              committed export. Undemonstrated, it would be a second excuse list. */
           var declaredPath = !!entry && /emittedAt\s*:\s*'[^']+'/.test(entry[0]);
-          return !(emitted || inDefs || isDormant || declaredPath);
+          /* ── FIFTH ROUTE — THE `d_` RENDER-KEY CONVENTION ────────────────────────────────────────
+             HRVDex's dashboard rows are keyed `d_<id>`, usually snake_cased: `d_lnrmssd`, `d_ans_load`,
+             `d_focus_eff`. The `emitted` regex above cannot see any of them, because it requires a
+             non-identifier character before the id and `_` is excluded from its class — so `d_lnrmssd`
+             never bound `lnrmssd`. **That single blind spot is why hrvdex held the second-largest share
+             of the baseline**: 17 of its 25 ids are rendered and were reading as unbound.
+             Measured 2026-10-11: 12 ids match `d_<id>` exactly, 5 more only after snake_casing
+             (`ansLoad`→`d_ans_load`, `focusEff`, `pnsEff`, `sdnnZ`, `spectralEnt`). Both forms, and no
+             third guess — a looser match would start binding ids to keys that merely look related. */
+          var snake = id.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+          var renderKey = new RegExp('[\'"`]d_(' + id + '|' + snake + ')[\'"`]').test(body);
+          /* ── SIXTH ROUTE — A DECLARED RENDER KEY, for the ones no rule derives ───────────────────
+             Six ids are rendered under a key the convention does not produce: `recovDebt`→
+             `d_recovery_debt`, `sd1sd2`→`d_sd1_sd2`, `vo2roll`→`d_vo2_roll7`, `momentum`→
+             `d_hrv_momentum`, `dfaAlpha1`→`d_dfa_proxy`, and `recovIndex`→**`d_ari`**, which shares no
+             substring with its id at all. Each is declared `rendersAs:` in the registry entry and
+             counts ONLY because the key must exist in the node's own render source — an undemonstrated
+             declaration would be a second excuse list, which is the objection `emittedAt` already had
+             to answer.
+             🔴 EVERY ONE OF THE SIX WAS CONFIRMED BY ITS LABEL, NOT BY ITS NAME. Registry label ≡
+             render label: `sd1sd2`/`d_sd1_sd2` both "SD1/SD2"; `recovIndex`/`d_ari` both "Recov Index".
+             The same check REFUTED a seventh I had guessed — `ortho`→`d_sai` reads "Orthostatic Load"
+             against "Spec.Asym", two different quantities — so `ortho` stays in the baseline. Name
+             similarity proposes a binding; the label is what confirms one. */
+          var declaredKey = null;
+          if (entry) {
+            var dk = /rendersAs\s*:\s*'(d_[a-z0-9_]+)'/.exec(entry[0]);
+            if (dk) declaredKey = new RegExp('[\'"`]' + dk[1] + '[\'"`]').test(body) ? dk[1] : null;
+          }
+          return !(emitted || inDefs || isDormant || declaredPath || renderKey || declaredKey);
         });
         var want = UNDECLARED[node].split(' ').filter(Boolean).sort().join(' ');
         var got = undeclared.slice().sort().join(' ');
         T.ok(node + ' · ids parsed (anti-vacuity — a parse of 0 would pass every id)', ids.length > 0, 'parsed ' + ids.length);
+        /* ── CONTROLS FOR THE TWO NEW ROUTES ───────────────────────────────────────────────────────
+           A route that binds an id is a route that can EXCUSE one, so each is planted against a case
+           it must refuse. Without these the `d_` route is an unfalsifiable widening: it would read as
+           working precisely because it stopped reporting. */
+        var synthetic = "x = { key: 'd_realkey', label: 'R' }; y = d_barekey; z = 'prefixed_d_other';";
+        var probe = function (id) {
+          var sn = id.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+          return new RegExp('[\'"`]d_(' + id + '|' + sn + ')[\'"`]').test(synthetic);
+        };
+        T.ok(node + ' · route control · a quoted d_<id> binds', probe('realkey'), 'the positive case must still match');
+        T.ok(node + ' · route control · an UNQUOTED d_<id> does not bind', !probe('barekey'), 'd_barekey as a bare identifier is not a render key — a looser regex would bind it');
+        T.ok(node + ' · route control · d_<id> inside a longer token does not bind', !probe('other'), 'prefixed_d_other must not satisfy d_other');
+        T.ok(node + ' · route control · an id that exists nowhere stays undeclared', !probe('zzzNeverRendered'), 'a fabricated id must bind through no route');
         /* An EQUALITY, never a count: a swap keeps the number and changes the members, and a floor is
            satisfied by the wrong ones (measured on the shells gate's INVISIBLE_CAP). */
         T.ok(
