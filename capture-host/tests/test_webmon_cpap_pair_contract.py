@@ -33,12 +33,14 @@ def _post(tmp_path, body, cpap_pair):
 def _recorder(result=None, exc=None):
     calls = []
 
-    async def pair(action, *, passkey=None, ble_addr=""):
+    async def pair(action, *, passkey=None, ble_addr="", adapter=None):
         calls.append((action, passkey, ble_addr))
+        pair.adapters.append(adapter)
         if exc is not None:
             raise exc
         return result if result is not None else {"ok": True, "verified": True, "stored": True}
 
+    pair.adapters = []
     return pair, calls
 
 
@@ -114,10 +116,10 @@ def test_an_unwired_daemon_answers_501_not_200(tmp_path):
 
 def test_a_pairing_op_that_raises_is_500_not_a_crash(tmp_path):
     pair, calls = _recorder(exc=RuntimeError("device not in pairing mode"))
-    status, body = _post(tmp_path, {"action": "start", "ble_addr": "AA"}, pair)
+    status, body = _post(tmp_path, {"action": "start", "ble_addr": "AA:BB:CC:DD:EE:FF"}, pair)
     assert status == 500 and body["ok"] is False
     assert "RuntimeError" in body["error"] and "device not in pairing mode" in body["error"]
-    assert calls == [("start", None, "AA")]
+    assert calls == [("start", None, "AA:BB:CC:DD:EE:FF")]
 
 
 def test_a_pairing_op_that_reports_failure_is_passed_through(tmp_path):
@@ -158,3 +160,125 @@ def test_the_rejection_message_lists_forget_so_the_whitelist_cannot_drift_silent
     pair, _calls = _recorder()
     _status, out = _post(tmp_path, {"action": "nope"}, pair)
     assert "forget" in out["error"], "an action the endpoint accepts must appear in the error that lists them"
+
+
+# ── documented pairing sequence (2026-10-10): radio choice, scan, and one log line per step ───────────────────
+def test_a_chosen_radio_reaches_the_session_on_start_and_scan(tmp_path):
+    pair, calls = _recorder(result={"ok": True, "found": []})
+    _post(tmp_path, {"action": "scan", "adapter": "AA:BB:CC:10:00:01"}, pair)
+    _post(tmp_path, {"action": "start", "adapter": "hci1", "ble_addr": "AA:BB:CC:00:00:01"}, pair)
+    _post(tmp_path, {"action": "radios"}, pair)
+    assert [c[0] for c in calls] == ["scan", "start", "radios"]
+    assert pair.adapters == ["AA:BB:CC:10:00:01", "hci1", None]
+
+
+@pytest.mark.parametrize("field,bad", [("adapter", "hci1; rm"), ("adapter", "radio"), ("ble_addr", "AA:BB:CC:00:00")])
+def test_a_malformed_radio_or_address_is_refused_before_any_ble_work(tmp_path, field, bad):
+    pair, calls = _recorder()
+    status, body = _post(tmp_path, {"action": "start", field: bad}, pair)
+    assert status == 400 and body["ok"] is False and calls == []
+
+
+def test_each_step_logs_one_line_without_the_passkey_and_status_polls_log_nothing(tmp_path, caplog):
+    import logging
+
+    pair, _ = _recorder(result={"ok": False, "verified": False, "error": "As11Error: RPC 2 failed", "clientId": "c"})
+    with caplog.at_level(logging.INFO, logger="tepna.webmon"):
+        _post(tmp_path, {"action": "passkey", "passkey": "4867"}, pair)
+        _post(tmp_path, {"action": "status"}, pair)
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("cpap pair")]
+    assert lines == ["cpap pair passkey: ok=False verified=False error=As11Error: RPC 2 failed"]
+    assert "4867" not in caplog.text and "clientId" not in caplog.text
+
+
+def test_a_scan_logs_its_hits_or_none(tmp_path, caplog):
+    import logging
+
+    hits, _ = _recorder(result={"ok": True, "adapter": "hci1", "found": [{"addr": "AA:BB:CC:00:00:01"}, "junk"]})
+    none, _ = _recorder(result={"ok": True, "found": []})
+    radios, _ = _recorder(result={"ok": True, "radios": [{}, {}]})
+    with caplog.at_level(logging.INFO, logger="tepna.webmon"):
+        _post(tmp_path, {"action": "scan"}, hits)
+        _post(tmp_path, {"action": "scan"}, none)
+        _post(tmp_path, {"action": "radios"}, radios)
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("cpap pair")]
+    assert lines == [
+        "cpap pair scan: ok=True adapter=hci1 found=AA:BB:CC:00:00:01",
+        "cpap pair scan: ok=True found=none",
+        "cpap pair radios: ok=True radios=2",
+    ]
+
+
+def test_a_raising_pair_op_is_logged(tmp_path, caplog):
+    import logging
+
+    pair, _ = _recorder(exc=RuntimeError("boom"))
+    with caplog.at_level(logging.WARNING, logger="tepna.webmon"):
+        status, _ = _post(tmp_path, {"action": "start"}, pair)
+    assert status == 500 and "cpap pair start: raised RuntimeError: boom" in caplog.text
+
+
+def test_pair_summary_of_a_non_dict_is_its_repr():
+    import webmon
+
+    assert webmon._pair_summary(None) == "None"
+
+
+# ── /api/scan {adapter} and /api/unbond ─────────────────────────────────────────────────────────────
+def _with_bonding(monkeypatch, tmp_path, *, calls):
+    import bonding
+
+    async def scan(adapter):
+        calls.append(("scan", adapter))
+        return [bonding.Found(address="AA:BB:CC:00:00:01", name="ResMed 000001", kind="cpap", label="maker 0x038d")]
+
+    async def forget(address, adapter):
+        calls.append(("forget", address, adapter))
+        return {"ok": True, "address": address}
+
+    monkeypatch.setattr(bonding, "scan", scan)
+    monkeypatch.setattr(bonding, "forget", forget)
+    app, *_ = _mk(tmp_path)
+    return app
+
+
+def test_scan_runs_on_the_chosen_radio_or_the_wearables_one(tmp_path, monkeypatch):
+    calls = []
+    app = _with_bonding(monkeypatch, tmp_path, calls=calls)
+
+    async def go(c):
+        r1 = await c.post("/api/scan", json={"adapter": "AA:BB:CC:10:00:02"})
+        r2 = await c.post("/api/scan")
+        r3 = await c.post("/api/scan", json={"adapter": "hci1"})
+        return r1.status, await r1.json(), r2.status, r3.status
+
+    s1, body, s2, s3 = _serve(app, go)
+    assert s1 == 200 and body[0]["kind"] == "cpap" and body[0]["label"] == "maker 0x038d"
+    assert s2 == 200 and s3 == 400
+    assert calls[0] == ("scan", "AA:BB:CC:10:00:02") and calls[1][0] == "scan" and len(calls) == 2
+
+
+def test_unbond_removes_the_bond_and_leaves_config_alone(tmp_path, monkeypatch):
+    calls = []
+    app = _with_bonding(monkeypatch, tmp_path, calls=calls)
+
+    async def go(c):
+        ok = await c.post("/api/unbond", json={"address": "AA:BB:CC:00:00:01"})
+        bad = await c.post("/api/unbond", json={"address": "nope"})
+        junk = await c.post("/api/unbond", data="{", headers={"content-type": "application/json"})
+        return ok.status, await ok.json(), bad.status, junk.status
+
+    s, body, sbad, sjunk = _serve(app, go)
+    assert s == 200 and body == {"ok": True, "address": "AA:BB:CC:00:00:01"}
+    assert sbad == 400 and sjunk == 400 and [c[0] for c in calls] == ["forget"]
+
+
+def test_a_malformed_scan_body_is_refused(tmp_path, monkeypatch):
+    calls = []
+    app = _with_bonding(monkeypatch, tmp_path, calls=calls)
+
+    async def go(c):
+        r = await c.post("/api/scan", data="{", headers={"content-type": "application/json"})
+        return r.status
+
+    assert _serve(app, go) == 400 and calls == []

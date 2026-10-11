@@ -666,6 +666,10 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
         <h3>Devices</h3>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 4px">
           <button class="btn btn-primary" id="scanBtn">Scan</button>
+          <!-- Which radio listens. The wearables radio is the default; the CPAP's radio hears devices the
+               other one may not. Filled from the daemon's radio list (hciconfig), never guessed. -->
+          <label style="font-size:12px;color:var(--text3)">on
+            <select id="scanRadio" aria-label="Radio to scan with"><option value="">wearables radio</option></select></label>
           <!-- The handler for this shipped in dace8cba ("the PAT precondition") and the endpoint has
                been registered ever since; the button was never added, so the one control that puts the
                host and EVERY sensor on one timebase in a single press was unreachable from the page.
@@ -703,6 +707,13 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
              orchestration did not exist. -->
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
           <span style="font-size:12px;color:var(--text3)">Pair over BLE:</span>
+          <!-- The device's documented pairing order (owner 2026-10-10): pick ONE radio, find the CPAP on it, then pair. The
+               radio list and the scan come from the daemon; the page offers nothing it was not told. -->
+          <label style="font-size:12px;color:var(--text3)">Radio
+            <select id="cpapPairRadio" aria-label="Radio to pair on"><option value="">configured radio</option></select></label>
+          <button class="btn" id="cpapPairScanBtn">Find CPAP</button>
+          <input id="cpapPairAddr" type="text" size="19" maxlength="17" spellcheck="false" autocomplete="off"
+                 placeholder="CPAP address" aria-label="CPAP Bluetooth address">
           <button class="btn" id="cpapPairStartBtn">Start pairing</button>
           <input id="cpapPin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" size="12"
                  spellcheck="false" autocomplete="off" placeholder="code on CPAP screen" disabled>
@@ -714,7 +725,7 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
         <!-- Which radio, and is a key stored: both were invisible, so "what adapter am I pairing to?"
              could not be answered from this panel and a stale key could not be removed at all. -->
         <p class="hint" id="cpapPairWho" style="margin-top:6px"></p>
-        <p class="hint">Put the CPAP in Bluetooth pairing mode (its menu → Bluetooth), press <b>Start pairing</b>, then type the code its screen shows and press <b>Confirm</b>. Re-pair the same way when the machine starts refusing the stored key. Credentials stay on the box; the live stream must be stopped first.</p>
+        <p class="hint">On the CPAP choose <b>More → MyAir App → OK, downloaded → Connect</b>, and close the myAir phone app (or turn the phone's Bluetooth off — the CPAP holds one connection). Then press <b>Find CPAP</b>, <b>Start pairing</b>, type the 4-digit code its screen shows and press <b>Confirm</b>; the box then reconnects once to prove the new key opens a session. Re-pair the same way when the machine starts refusing the stored key. Credentials stay on the box; the live stream must be stopped first.</p>
         <p class="hint"><b>Unpair</b> deletes the stored key from this box — it does not touch the CPAP, which keeps its own pairing entry until you clear it from the machine's Bluetooth menu. Use it when the machine starts refusing the key, so the next attempt starts clean instead of re-pairing over a credential that is already wrong. It refuses while the live stream is running.</p>
         <p class="hint">⚠️ This is the ResMed <b>application</b> key (SRP-6a → <code>as11_creds.json</code>), which is <b>not</b> the same as a BlueZ bond. A device can hold one and not the other, and this panel only manages the first. Some radios cannot be paired against at all — a Zephyr/nRF52840 dongle reports an all-zero BD address and refuses a host-side public pin (<code>0x0c Not Supported</code>), so a key stored against it would never reconnect; the line above says so when the pinned adapter is one of those.</p>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
@@ -2225,6 +2236,7 @@ async function cpapPair(body){
 function cpapPairArm(pending){
   $('#cpapPin').disabled = !pending; $('#cpapPairBtn').disabled = !pending;
   $('#cpapPairStartBtn').disabled = pending;
+  for(const id of ['#cpapPairScanBtn','#cpapPairRadio','#cpapPairAddr']){ const e = $(id); if(e) e.disabled = pending; }
   $('#cpapPairCancelBtn').style.display = pending ? '' : 'none';
   if(pending) $('#cpapPin').focus();
 }
@@ -2247,7 +2259,62 @@ function cpapPairWho(j){
   // teaches the operator to distrust it.
   const fb = $('#cpapForgetBtn');
   if(fb) fb.style.display = j.paired ? '' : 'none';
+  // Prefill the address the daemon knows (the stored key's, or the one an Unpair or a single-hit scan
+  // left behind) — never over something the operator typed.
+  const ad = $('#cpapPairAddr'), known = j.creds_addr || j.last_addr;
+  if(ad && !ad.value && known) ad.value = String(known);
 }
+
+// The radios, from the daemon (hciconfig): the configured one preselected, the wearables radio labelled,
+// and a radio with no public address disabled — pairing on it cannot work.
+async function cpapPairRadios(){
+  const sel = $('#cpapPairRadio'); if(!sel) return;
+  try{
+    const [status, j] = await cpapPair({action:'radios'});
+    if(status!==200 || !j.ok) return;
+    const scanSel = $('#scanRadio');
+    if(scanSel){
+      scanSel.innerHTML = '';
+      for(const r of j.radios){
+        const o = document.createElement('option');
+        o.value = r.mac || '';
+        o.textContent = `${r.hci || '?'} · ${r.mac || 'no address'}` + (r.reserved ? ' · wearables radio' : '')
+                      + (r.configured ? ' · CPAP radio' : '') + (r.up ? '' : ' · down');
+        o.disabled = !r.mac || !r.up;
+        if(r.reserved) o.selected = true;
+        scanSel.appendChild(o);
+      }
+    }
+    sel.innerHTML = '';
+    for(const r of j.radios){
+      const o = document.createElement('option');
+      o.value = r.mac || r.hci || '';
+      o.textContent = `${r.hci || '?'} · ${r.mac || 'no address'}` + (r.configured ? ' · configured' : '')
+                    + (r.reserved ? ' · wearables radio' : '') + (r.up ? '' : ' · down');
+      o.disabled = !r.usable || !r.up;
+      if(r.configured) o.selected = true;
+      sel.appendChild(o);
+    }
+  }catch(err){}
+}
+$('#cpapPairScanBtn')?.addEventListener('click', async () => {
+  const st = $('#cpapPairState'), btn = $('#cpapPairScanBtn');
+  btn.disabled = true; st.textContent = 'scanning ~6 s for an AirSense 11 in Connect mode…';
+  try{
+    const [status, j] = await cpapPair({action:'scan', adapter: $('#cpapPairRadio').value || undefined});
+    if(status===501)   st.textContent = '✗ pairing not supported by this daemon build';
+    else if(!j.ok)     st.textContent = '✗ ' + (j.error || 'scan failed');
+    else if(!j.found.length) st.textContent = '✗ ' + (j.detail || 'no CPAP found');
+    else {
+      const best = j.found[0];
+      $('#cpapPairAddr').value = best.addr;
+      st.textContent = `✓ found ${j.found.length}: ` + j.found.map(h => `${h.name || 'unnamed'} ${h.addr}`
+                     + (h.rssi == null ? '' : ` (${h.rssi} dBm)`)).join(', ')
+                     + (j.found.length > 1 ? ' — the strongest is filled in; check it is yours' : '');
+    }
+  }catch(err){ st.textContent = '✗ ' + err; }
+  btn.disabled = false;
+});
 
 $('#cpapForgetBtn')?.addEventListener('click', async () => {
   const st = $('#cpapPairState'), btn = $('#cpapForgetBtn');
@@ -2267,7 +2334,8 @@ $('#cpapPairStartBtn')?.addEventListener('click', async () => {
   const st = $('#cpapPairState'), btn = $('#cpapPairStartBtn');
   btn.disabled = true; st.textContent = 'connecting… (CPAP must be in Bluetooth pairing mode)';
   try{
-    const [status, j] = await cpapPair({action:'start'});
+    const [status, j] = await cpapPair({action:'start', ble_addr: $('#cpapPairAddr').value.trim() || undefined,
+                                        adapter: $('#cpapPairRadio').value || undefined});
     if(status===501)       { st.textContent = '✗ pairing not supported by this daemon build'; btn.disabled = false; }
     else if(!j.ok)         { st.textContent = '✗ ' + (j.error || 'could not start pairing'); btn.disabled = false; }
     else { cpapPairArm(true); st.textContent = '→ read the code on the CPAP screen and confirm it'
@@ -2289,7 +2357,9 @@ $('#cpapPairBtn')?.addEventListener('click', async () => {
     } else {
       $('#cpapPin').value = ''; cpapPairArm(false);
       st.textContent = '✓ paired · stored' + (j.restart_required ? ' — restart the daemon to use the new key everywhere'
-                                                                 : ' · live');
+                                                                 : ' · live')
+                     + (j.session_ok === true ? ' · session check ✓'
+                        : j.session_ok === false ? ` · ⚠ session check failed: ${j.session_error}` : '');
     }
   }catch(err){ st.textContent = '✗ ' + err; btn.disabled = false; }
   loadState();
@@ -2301,6 +2371,7 @@ $('#cpapPairCancelBtn')?.addEventListener('click', async () => {
 // A page opened mid-exchange (or reloaded) picks the pending state back up instead of showing a dead form.
 (async () => {
   if(!$('#cpapPairStartBtn')) return;
+  await cpapPairRadios();
   try{ const [status, j] = await cpapPair({action:'status'});
        if(status===200){
          // Radio + stored-key line on every load, not only when an exchange is open: the questions
@@ -2493,7 +2564,7 @@ function renderDiscovered(list){
   const el = $('#discovered');
   // A CONFIGURED DEVICE IS ALWAYS SHOWN, whatever it advertises. Hiding one because this scan
   // happened to catch it mid-standby is how a device we capture every night reads as absent.
-  const shown = (list||[]).filter(d=>knownDevice(d.address) || d.health
+  const shown = (list||[]).filter(d=>knownDevice(d.address) || d.health || d.kind || d.label
                                      || (d.name||'').match(/[a-z]/i) && !/^[0-9A-F-]+$/.test(d.name||''));
   if(!shown.length){ el.innerHTML=''; return; }
   el.innerHTML = '<div class="section-title">Discovered</div>' + shown.map(d=>{
@@ -2501,15 +2572,22 @@ function renderDiscovered(list){
     // The CONFIGURED name wins over the advertised one — that is the name the rest of the UI, the
     // capture files and the QC rows all use, so showing the advertisement here would invent a second
     // identity for one device.
-    const label = k ? (k.name || d.name || d.address) : (d.name || d.address);
+    // An advertised name that is only the address restated says nothing; BlueZ's service description or
+    // maker id (`d.label`, from the daemon) is the next-best identity, and the address the last.
+    const named = d.name && !/^[0-9A-F]{2}([-:][0-9A-F]{2}){5}$/i.test(d.name) ? d.name : null;
+    const label = k ? (k.name || named || d.address) : (named || d.label || d.address);
+    const isCpap = d.kind === 'cpap';
     return `
     <div class="dev">
       <div class="meta">
-        <div class="name">${esc(label)} ${k?'<span class="dbadge on">configured</span>':''} ${d.bonded?'<span class="dbadge on">bonded</span>':''} ${d.health?'<span class="dbadge">sensor</span>':''}</div>
-        <div class="sub">${esc(d.address)}${d.rssi!=null?(' · '+d.rssi+' dBm'):''}${k?(' · '+esc((k.streams||[]).join(', '))):''}</div>
+        <div class="name">${esc(label)} ${isCpap?'<span class="dbadge on">CPAP</span>':''} ${k?'<span class="dbadge on">configured</span>':''} ${d.bonded?'<span class="dbadge on">bonded</span>':''} ${d.health?'<span class="dbadge">sensor</span>':''}</div>
+        <div class="sub">${esc(d.address)}${d.rssi!=null?(' · '+d.rssi+' dBm'):''}${(d.label && d.label!==label)?(' · '+esc(d.label)):''}${k?(' · '+esc((k.streams||[]).join(', '))):''}</div>
       </div>
-      ${d.bonded?'':`<button class="btn" onclick='bond(${esc(JSON.stringify(d.address))}, this)'>Bond</button>`}
-      ${k?'':`<button class="btn" onclick='remember(${esc(JSON.stringify(d))}, this)'>Remember</button>`}
+      ${isCpap?`<button class="btn btn-primary" onclick='cpapPairFromScan(${esc(JSON.stringify(d.address))})' title="Pair this CPAP: put it on More → MyAir App → OK, downloaded → Connect first">Pair</button>`:''}
+      ${(!isCpap && !d.bonded)?`<button class="btn" onclick='bond(${esc(JSON.stringify(d.address))}, this)'>Bond</button>`:''}
+      ${d.bonded?`<button class="btn" onclick='unbond(${esc(JSON.stringify(d.address))}, this)' title="Remove this radio's Bluetooth bond with the device; it stays in config">Unbond</button>`:''}
+      ${(k||isCpap)?'':`<button class="btn" onclick='remember(${esc(JSON.stringify(d))}, this)'>Remember</button>`}
+      ${k?`<button class="btn btn-destructive" onclick='forgetFromScan(${esc(JSON.stringify(d.address))}, this)' title="Remove the device from config and drop its bond">Forget</button>`:''}
     </div>`;}).join('');
 }
 
@@ -2993,10 +3071,33 @@ async function saveSettings(btn){
 
 async function scan(){
   $('#scanBtn').disabled = true; $('#scanState').textContent = 'scanning…';
-  try { renderDiscovered(await api('/api/scan',{method:'POST'})); }
+  const radio = $('#scanRadio')?.value || '';
+  try { renderDiscovered(await api('/api/scan',{method:'POST', headers:{'content-type':'application/json'},
+                                                body: JSON.stringify(radio ? {adapter: radio} : {})})); }
   finally { $('#scanBtn').disabled = false; $('#scanState').textContent=''; }
 }
 $('#scanBtn').addEventListener('click', scan);
+
+// The Discovered list's Pair: the same two-step exchange as the pairing row, started for THIS address.
+async function cpapPairFromScan(address){
+  const ad = $('#cpapPairAddr'), start = $('#cpapPairStartBtn');
+  if(!ad || !start) return;
+  ad.value = address;
+  start.scrollIntoView({behavior:'smooth', block:'center'});
+  start.click();
+}
+async function unbond(address, btn){
+  if(!confirm(`Remove this box's Bluetooth bond with ${address}?\n\nThe device stays in config; bond it again from this list if it needs one.`)) return;
+  btn.disabled = true; btn.textContent = 'unbonding…';
+  try{ const r = await api('/api/unbond',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address})});
+       btn.textContent = r && r.ok ? 'unbonded' : 'not removed'; }
+  catch(err){ btn.textContent = '✗ ' + err; btn.disabled = false; }
+}
+async function forgetFromScan(address, btn){
+  if(!confirm(`Forget ${address}?\n\nIt is removed from config.yaml, its capture stops, and its bond is dropped.`)) return;
+  btn.disabled = true;
+  await forget(address);
+}
 
 async function bond(address, btn){
   btn.disabled = true; btn.textContent = 'bonding…';
