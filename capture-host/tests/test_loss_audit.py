@@ -2622,3 +2622,40 @@ def test_a_night_dir_with_a_TRAILING_SLASH_is_normalised(tmp_path):
     assert loss_audit._recording_glob(d9 + "/", "Polar_H10_*_HR.txt") == loss_audit._recording_glob(
         d9, "Polar_H10_*_HR.txt"
     )
+
+
+def test_a_FOLDER_THAT_IS_NOT_A_DATE_anchors_the_window_at_MIDNIGHT(tmp_path, monkeypatch):
+    """🔴 `now().replace(hour=0, minute=0, second=0, microsecond=0)` → the mutant drops `minute=0`, and
+    no test observed that the fallback anchor sits on the minute boundary. With `hour=0` still applied
+    the anchor becomes 00:MM, so the whole [−6 h, +30 h] window slides by however many minutes past the
+    hour the audit happened to run — a night's journal and clock-event window that depends on the clock
+    when the audit ran rather than on the night.
+
+    It is only reachable for a folder whose name is NOT a date (a real night folder parses), and the
+    window is observable because `clock_events` is injected: the spy records the two bounds."""
+    nodate = tmp_path / "captures" / "not-a-night"
+    nodate.mkdir(parents=True)
+
+    class _At1437(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            # a deliberately awkward wall clock: every component the `replace` zeroes is non-zero
+            return dt.datetime(2026, 10, 11, 14, 37, 42, 123456)
+
+    monkeypatch.setattr(loss_audit._dt, "datetime", _At1437)
+    seen = {}
+
+    def _spy(since, until):
+        seen["since"], seen["until"] = since, until
+        return []
+
+    loss_audit.audit_night(str(nodate), [], journal=lambda *a, **k: [], clock_events=_spy)
+    assert seen, "clock_events must be called with the window"
+    since, until = seen["since"], seen["until"]
+    # the anchor is midnight, so −6 h lands at 18:00 the previous day and +30 h at 06:00 the next
+    assert (since.minute, since.second, since.microsecond) == (0, 0, 0), (
+        f"the day anchor must sit on midnight, not on the minute the audit ran: since={since}"
+    )
+    assert (until.minute, until.second, until.microsecond) == (0, 0, 0), f"until={until}"
+    assert since == dt.datetime(2026, 10, 10, 18, 0, 0), since
+    assert until == dt.datetime(2026, 10, 12, 6, 0, 0), until
