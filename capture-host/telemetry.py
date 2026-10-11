@@ -551,6 +551,56 @@ def hr_beats(bpm: int | None, rr_n: int) -> bool | None:
     return bool(rr_n) or (bpm is not None and 30 <= bpm <= 220)
 
 
+RING_DOCKED_BATT_STATES = frozenset({1, 2})
+# The O2Ring's own `batt_state` byte (oxyii.parse_live): 0 normal · 1 charging · 2 full · 3 LOW (<10 %).
+# Only 1 and 2 mean the ring is on its dock. `bool(batt_state)` read 3 as charging too, so a low ring on a
+# finger at 4 am showed 'charging' — and would have stopped recording behind a gate that trusted it.
+
+
+class RingRecordGate:
+    """PURE: should THIS O2Ring frame reach disk? The owner's rule (2026-10-11): a device on its charger,
+    off the body or idle records nothing.
+
+    Measured before it was written, over the ring's last 10 nights of `*_OXYFRAME.txt` (459,342 rows):
+    every row whose `batt_state` said charging or full had `contact=0` and no SpO2 (164,109 rows, 36 % of
+    all ring rows on disk), while `contact=1` carried SpO2 on 264,835 of 265,092 rows. `contact=0` off the
+    charger was 2,141 rows, all short in-night finger slips, so it gets a grace before it stops anything.
+
+    - `charging` (the device's own `batt_state`, non-zero on the dock) stops recording AT ONCE: a dock is
+      a physical fact about where the ring is, not a reading of what it sees.
+    - `worn` False off the charger stops recording only after `grace_s` of CONTINUOUS not-worn: the same
+      180 s the H10's not-worn drop waits, so a slipped finger never costs a night its data.
+    - `worn` True records at once and clears the not-worn clock.
+    - `worn` None (probe fault: wear unknown) RECORDS. An unknown is never a reason to stop (§∅).
+    - `grace_s` <= 0 turns the off-finger stop off; the charger stop stays.
+
+    `recording` is None before the first frame — nothing observed, so nothing is claimed — and the writes
+    gated on it treat None as "write". `observe` returns the decision and, on the frame where it CHANGES,
+    a one-line reason for the log; otherwise None, so a ring on its dock all day logs once."""
+
+    def __init__(self, grace_s: float = 180.0):
+        self.grace_s = grace_s
+        self.recording: bool | None = None
+        self._unworn_since: float | None = None
+
+    def observe(self, worn: bool | None, charging: bool, now: float) -> tuple[bool, str | None]:
+        if charging:
+            self._unworn_since = None
+            record, why = False, "on its charger — not recording"
+        elif worn is False:
+            if self._unworn_since is None:
+                self._unworn_since = now
+            off_for = now - self._unworn_since
+            record = not (self.grace_s > 0 and off_for >= self.grace_s)
+            why = f"no finger contact for {off_for:.0f} s — not recording" if not record else "no finger contact"
+        else:
+            self._unworn_since = None
+            record, why = True, ("worn — recording" if worn else "wear unknown (probe fault) — recording")
+        changed = record != self.recording
+        self.recording = record
+        return record, (why if changed else None)
+
+
 def worn_verdict(
     *,
     ppi_flags=None,

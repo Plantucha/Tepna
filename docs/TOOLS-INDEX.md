@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**244 tools** · 242 with a purpose line · **2 without**
+**246 tools** · 244 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -253,8 +253,10 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`wearable-sync.mjs`](../tools/wearable-sync.mjs) | wearable-sync — ARE THE WEARABLES ON THE SAME TIMELINE? Two accelerometers strapped to one body see the same turn at the same instant — physics, no physiology in between — so ACC-vs-ACC is… |
 | [`withdraw-fragment-verdict.mjs`](../tools/withdraw-fragment-verdict.mjs) | WITHDRAW A VERDICT THAT JUDGED A FRAGMENT, WITH ITS REASON RECORDED |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
+| [`workflow-timeout-guard.mjs`](../tools/workflow-timeout-guard.mjs) | EVERY WORKFLOW JOB DECLARES `timeout-minutes`. Without one a job inherits GitHub's 360-minute default, so a hung step burns six hours of the concurrency pool before anything notices. |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |
 | [`xerj-bench.mjs`](../tools/xerj-bench.mjs) | node tools/xerj-bench.mjs --harvest # rebuild the query set from merged PR bodies node tools/xerj-bench.mjs # score (uses the committed query set) node tools/xerj-bench.mjs --json # one… |
 | [`xerj-load.mjs`](../tools/xerj-load.mjs) | node tools/xerj-load.mjs # load every eligible file (idempotent) node tools/xerj-load.mjs --limit 50 # a slice, for a probe node tools/xerj-load.mjs --dry-run # count and classify, write… |
 | [`xerj-query.mjs`](../tools/xerj-query.mjs) | node tools/doc-search.mjs --hybrid "<question>" # the intended entry point node tools/xerj-query.mjs "<question>" # the same, standalone node tools/xerj-query.mjs --selftest |
 | [`xss-sink-gate.mjs`](../tools/xss-sink-gate.mjs) | #3318/#3343 fixed XSS sinks by routing all untrusted strings through the canonical escaper (dex-escape.js: escapeHTML). |
+| [`zotero-fill.mjs`](../tools/zotero-fill.mjs) | ZOTERO FILL — the citation ledger, pushed into the owner's reference library as first-class records. |

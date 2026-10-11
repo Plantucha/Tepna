@@ -75,6 +75,7 @@ export const STEPS = [
   'verify:analysis',
   'verify:docs',
   'verify:tools-index',
+  'verify:workflow-timeouts',
   'verify:absence-regression',
   'verify:xss-sink',
   'verify:docs-constants',

@@ -23,13 +23,15 @@ def test_the_ring_reports_its_own_charge_state():
 
 
 def test_ring_charge_flag_is_read_from_batt_state_not_inferred():
+    # Pinned to the DOCKED states since 2026-10-11: `bool(batt_state)` also read 3 (LOW, <10 %) as
+    # charging, so a low ring on a finger showed `charging` on the monitor.
     src = module_source("capture.py")
-    assert 'charging=bool(live.get("batt_state"))' in src, (
-        "the O2Ring must take charging from its own batt_state, not from a battery trend"
-    )
-    assert src.count('charging=bool(live.get("batt_state"))') == 2, (
+    pinned = 'charging=live.get("batt_state") in RING_DOCKED_BATT_STATES'
+    assert pinned in src, "the O2Ring must take charging from its own batt_state, not from a battery trend"
+    assert src.count(pinned) == 2, (
         "both the worn and the NOT-worn path must report charge state — the ring keeps its link on the dock"
     )
+    assert 'charging=bool(live.get("batt_state"))' not in src, "bool() reads LOW (3) as charging"
 
 
 def test_polar_charge_is_inferred_from_a_RISING_battery():

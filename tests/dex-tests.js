@@ -14188,6 +14188,62 @@
       T.eq('NO row-value comparison or delta is left unguarded', unguarded + (names.length ? ' @ ' + names.join(',') : ''), 0 + '');
     });
 
+    group('§∅ · OxyDex — an absent motion column is not a still night', 'oxydex-dsp · absence', function (T) {
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var _OD = (_od && _od._bare) || _od;
+      var P = _OD && _OD.processNight;
+      if (typeof P !== 'function') {
+        T.ok('OxyDex.processNight is reachable', false, 'not loaded — this group must not read as a pass');
+        return;
+      }
+      /* FOUND BY INDEPENDENT REVIEW 2026-10-11. Many O2Ring exports carry no accelerometer column at
+         all, so every row's `motion` is null — and `rows[i].motion > 0` is FALSE for a null, so the
+         burst counter walked the whole night, found no motion, and published `motionBursts: 0`.
+         ⚠️ ZERO BURSTS IS A CLINICAL CLAIM: it reads as a still, undisturbed night. It is the §∅
+         fabrication in its purest form — not a crash, not a blank, but a confident measurement of
+         something the device never had a sensor for. The `_motionUnusable` branch beside it already
+         nulls `motSleep` and `motionPct` and names the fault; `motionBursts` was simply missed. */
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var rows = [];
+      for (var i = 0; i < 1200; i++) {
+        rows.push({ tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: 96, hr: 58, motion: null, pi: null });
+      }
+      var n = P(rows.slice());
+      var st = (n && n.stats) || {};
+      /* ⚠️ `motionBursts` is on `extras`, NOT `stats` — the independent review's line numbers were
+         right and its field path was not, and the difference is the structural cause: `extras` is
+         built by `computeNightExtras` at ~3057, AFTER the `_motionUnusable` branch at ~2984 has
+         already nulled `motSleep` and `motionPct`. The branch could not have nulled a field that did
+         not exist yet, which is exactly how this one field was left behind while its siblings were
+         handled. Reading `stats.motionBursts` returns undefined and would have let this group pass
+         while examining nothing. */
+      var ex = (n && n.extras) || {};
+      T.ok('the absent column is DETECTED', st.motionColumnAbsent === true, 'motionColumnAbsent = ' + JSON.stringify(st.motionColumnAbsent));
+      T.eq('motionPct is null (the field that was already right)', st.motionPct, null);
+      T.eq('motionBursts is NULL, not a confident zero', ex.motionBursts, null);
+      /* The SPI consequence the review predicted does NOT hold on main, and saying so is part of the
+         finding: `sleepArch.wasoMin` is nulled on the same `_motionUnusable` condition a few lines
+         later, and `computeSleepPressure` returns null when `wasoMin` is null — so the fabricated
+         bursts never reached a published pressure score. The `|| 0` at the bursts read is still wrong
+         and still guarded here, because it is the line that would turn this null back into a zero the
+         moment that upstream gate changed, and the function's own comment already rules on it:
+         "A bursts-only SPI would not be a meaningful 'sleep pressure', so null (not a renormalized
+         bursts-only proxy) is the honest tri-state here." */
+      T.eq('the sleep-pressure index is withheld, not scored from a fabricated zero', n && n.sleepP, null);
+      /* CONTROL · a night WITH a motion column must still be measured, or the guard has merely
+         disabled the counter. Three bursts of 5 s each, separated by stillness. */
+      var rows2 = [];
+      for (var j = 0; j < 1200; j++) {
+        var inBurst = (j > 100 && j < 106) || (j > 300 && j < 306) || (j > 500 && j < 506);
+        rows2.push({ tMs: t0 + j * 1000, t: new Date(t0 + j * 1000), spo2: 96, hr: 58, motion: inBurst ? 3 : 0, pi: null });
+      }
+      var n2 = P(rows2.slice());
+      var st2 = (n2 && n2.stats) || {};
+      var ex2 = (n2 && n2.extras) || {};
+      T.ok('CONTROL · a real motion column still yields a burst count', typeof ex2.motionBursts === 'number' && ex2.motionBursts > 0, 'motionBursts = ' + JSON.stringify(ex2.motionBursts));
+      T.ok('CONTROL · and a measured all-still night is still a zero, not a null', st2.motionColumnAbsent === undefined, 'motionColumnAbsent = ' + JSON.stringify(st2.motionColumnAbsent));
+    });
+
     group('§∅ · OxyDex — a hole is not a reading, in all thirteen consumers', 'oxydex-dsp · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B) {
@@ -14210,17 +14266,63 @@
       };
       // ── 1 · detectOscillations: a hole must not manufacture crossings ──
       if (typeof B.detectOscillations === 'function') {
+        /* THE INPUT IS BUILT TO THE DETECTOR'S OWN ACCEPTANCE CONDITIONS, read from the source rather
+           than assumed. #3427's leg used a HALF-sine that only dipped below the baseline, so
+           `pbCrossingIndices` found almost no sign flips, `detectSpO2Periodicity` returned ZERO
+           episodes, and the leg compared 0 to 0 — it passed against main and proved nothing. The four
+           conditions a trace must meet (oxydex-dsp.js):
+             · a sign flip of (spo2 − rolling median over PB_BASELINE_WIN_SEC = 181 s), and the
+               excursion it closes must reach PB_MIN_AMP / 2 = 1 %;
+             · each cycle (two consecutive half-gaps) within PB_CYCLE_MIN_SEC..MAX = 40..130 s;
+             · at least PB_MIN_CYCLES = 4 consecutive in-window cycles;
+             · those lengths regular — CV < PB_MAX_CYCLE_CV = 0.13.
+           A SYMMETRIC sine meets all four: it crosses its own median twice per cycle. Period 60 s,
+           ±3 % about 95 %, rounded to integers as a real oximeter reports them. */
+        var periodic = [];
+        for (var i = 0; i < 960; i++) periodic.push(Math.round(95 + 3 * Math.sin((2 * Math.PI * i) / 60)));
+        var oscClean = B.detectOscillations(mk(periodic)) || {};
+        /* THE LEG IS WORTHLESS UNLESS THE DETECTOR FIRES — assert the population before comparing it.
+           This is the assertion #3427 lacked, and it is why that leg was vacuous. */
+        T.ok(
+          'the periodic input is ACCEPTED as periodic breathing (the leg is non-vacuous)',
+          oscClean.episodeCount > 0,
+          'episodeCount = ' + JSON.stringify(oscClean.episodeCount) + ' — 0 or undefined makes every comparison below examine nothing'
+        );
+        /* Now the hole. Thirty absent seconds placed at a baseline CROSSING, where `null >= 90` being
+           false used to read as a descent below threshold and a crossing back. */
+        var holed = periodic.slice();
+        for (var h = 450; h < 480; h++) holed[h] = null;
+        var oscHoled = B.detectOscillations(mk(holed)) || {};
+        T.ok(
+          'a dropout adds no baseline CROSSINGS',
+          (oscHoled.totalCrossings || 0) <= (oscClean.totalCrossings || 0),
+          'holed = ' + JSON.stringify(oscHoled.totalCrossings) + ' vs clean = ' + JSON.stringify(oscClean.totalCrossings)
+        );
+        /* ⚠️ THE EPISODE COUNT GOES UP, AND THAT IS THE CORRECT BEHAVIOUR — 1 becomes 2. The dropout
+           SPLITS the oscillating stretch; the halves either side each still carry four regular cycles,
+           so each is reported on its own. Asserting `count <= clean` would have been asserting that a
+           discontinuity may be bridged, which is the opposite of the owner's 2026-09-17 ruling.
+           The invariant that actually matters is that no REPORTED episode spans a hole — a detector
+           that merged these two would be claiming periodic breathing through seconds it never saw. */
+        var eps = oscHoled.episodes || [];
+        var spansHole = 0;
+        for (var ei = 0; ei < eps.length; ei++) {
+          var st = eps[ei].startIdx,
+            en = st + (eps[ei].windowSec || 0);
+          for (var qi = st; qi <= en && qi < holed.length; qi++) if (holed[qi] == null) spansHole++;
+        }
+        T.eq('no REPORTED episode spans the dropout', spansHole, 0);
+        T.ok(
+          'the stretch is SPLIT, not merged — the halves are reported separately',
+          (oscHoled.episodeCount || 0) >= (oscClean.episodeCount || 0),
+          'holed = ' + JSON.stringify(oscHoled.episodeCount) + ' vs clean = ' + JSON.stringify(oscClean.episodeCount)
+        );
+        /* And a FLAT trace with a hole must still yield nothing — the §∅ case stated directly: absence
+           is not an oscillation, however regular the dropouts are. */
         var flat = [];
-        for (var i = 0; i < 400; i++) flat.push(96);
-        var holed = flat.slice();
-        for (var h = 150; h < 180; h++) holed[h] = null;
-        var ep = [{ startIdx: 0, endIdx: 399 }];
-        var osc = B.detectOscillations(mk(holed), ep) || [];
-        var oscClean = B.detectOscillations(mk(flat), ep) || [];
-        /* A 30 s dropout in a flat 96 % trace used to read as a descent below the threshold and a
-           crossing back — fabricated oscillation, in the detector whose output IS the
-           periodic-breathing finding. */
-        T.eq('a dropout in a FLAT trace manufactures no oscillation episode', osc.length, oscClean.length);
+        for (var f = 0; f < 960; f++) flat.push(96);
+        for (var g = 0; g < 960; g += 60) for (var q = g; q < g + 30 && q < 960; q++) flat[q] = null;
+        T.eq('REGULARLY SPACED DROPOUTS in a flat trace are not periodic breathing', (B.detectOscillations(mk(flat)) || {}).episodeCount, 0);
       }
       // ── 2 · computeODI2: a hole must not count as a desaturation ──
       if (typeof B.computeODI2 === 'function') {

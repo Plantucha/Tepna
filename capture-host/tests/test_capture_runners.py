@@ -9574,3 +9574,158 @@ def test_a_pmd_in_charger_answer_records_the_capability(tmp_path, monkeypatch):
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     assert capture.devcaps.get(_pdev()["address"], "can_charge") is True
     assert capture.devcaps.source(_pdev()["address"], "can_charge") == "pmd-in-charger"
+
+
+# ── the ring gate through the production loop (owner, 2026-10-11) ─────────────────────────────────────────
+_SYN_RING = "AA:BB:CC:00:00:03"
+
+
+def _ring_files(tmp_path, pattern):
+    return sorted((tmp_path / "captures").rglob(pattern))
+
+
+def _oxyframe_rows(tmp_path):
+    rows = []
+    for p in _ring_files(tmp_path, "*_OXYFRAME.txt"):
+        lines = p.read_text().splitlines()
+        hdr = lines[0].split(";")
+        rows += [dict(zip(hdr, ln.split(";"))) for ln in lines[1:]]
+    return rows
+
+
+def test_run_oxyii_a_ring_on_its_charger_records_nothing_and_leaves_no_files(tmp_path, monkeypatch, caplog):
+    """Measured 2026-10-11: a docked ring wrote 15,754 one-second rows by 13:08, every one `contact=0` with
+    no SpO2. Docked frames reach no file now — the frame row, the arrival row and every other opcode the
+    ring sends — and the session leaves no header-only file behind. The link and STATUS keep running."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    replies = [_o2ring_live_reply(spo2=0, worn=False, batt_state=1, duration=0) for _ in range(3)]
+    # a sample-carrying opcode that is not the live frame, and one that WOULD write: a valid two-wavelength
+    # buffer with `ppg2w` enabled — so the gate, not the stream list, is what keeps it off disk
+    recs = [(1000 + i, 2000 + i, i) for i in range(4)]
+    body = b"".join(a.to_bytes(4, "little") + b.to_bytes(4, "little") + bytes([m]) for a, b, m in recs)
+    other = oxyii.encode(oxyii.OP_RT_PPG, len(recs).to_bytes(2, "little") + body + b"\xff\xff")
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE and replies:
+            c.notify(0, replies.pop(0))
+            c.notify(0, other)
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)  # auth + setup + RTC, then three docked polls
+    with caplog.at_level(logging.INFO, logger=capture.log.name):
+        _run(capture.run_oxyii(_o2dev(address=_SYN_RING, streams=["spo2", "ppg", "ppg2w"]), str(tmp_path)))
+    for pattern in ("*_OXYFRAME.txt", "*_PMDARRIVAL.csv", "*_SPO2.csv", "*_PPG.txt", "*_PPG2W.txt"):
+        assert not _ring_files(tmp_path, pattern), f"a docked session left {pattern} behind"
+    said = [r.getMessage() for r in caplog.records if "not recording" in r.getMessage()]
+    assert said == ["Ring: on its charger — not recording"], said
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["charging"] is True and st["worn"] is False
+
+
+def test_run_oxyii_a_LOW_battery_on_the_finger_is_not_a_dock_and_keeps_recording(tmp_path, monkeypatch):
+    """`batt_state` 3 is LOW, not charging. `bool(batt_state)` read it as docked."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    replies = [_o2ring_live_reply(worn=True, batt_state=3, duration=900 + i) for i in range(2)]
+    c = FakeGattClient()
+    c.on_live = lambda data: c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 5)
+    _run(capture.run_oxyii(_o2dev(address=_SYN_RING), str(tmp_path)))
+    assert [r["batt_state"] for r in _oxyframe_rows(tmp_path)] == ["3", "3"]
+    assert capture.STATUS["devices"]["Ring"]["charging"] is False
+
+
+def test_run_oxyii_off_the_finger_past_the_grace_stops_writing_and_resumes_on_contact(tmp_path, monkeypatch):
+    """A finger off for less than the grace is still recorded; past it, nothing is written until the
+    first frame with contact, which is written at once. The grace is shrunk so the test needs no clock."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "_DROP_NOT_WORN_SEC", 1e-9)
+    replies = [_o2ring_live_reply(spo2=0, worn=False, duration=900 + i) for i in range(3)]
+    replies.append(_o2ring_live_reply(worn=True, duration=903))
+    c = FakeGattClient()
+    c.on_live = lambda data: c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 7)
+    _run(capture.run_oxyii(_o2dev(address=_SYN_RING), str(tmp_path)))
+    got = [(r["duration_s"], r["contact"]) for r in _oxyframe_rows(tmp_path)]
+    assert got == [("900", "0"), ("903", "1")], got
+    arrival = [p for p in _ring_files(tmp_path, "*_PMDARRIVAL.csv")]
+    assert len(arrival) == 1, "a session that recorded keeps its arrival file"
+    assert len(arrival[0].read_text().splitlines()) == 1 + 2, "one arrival row per RECORDED frame"
+
+
+def test_run_oxyii_keeps_a_RESUMED_arrival_file_even_when_this_episode_wrote_nothing(tmp_path, monkeypatch):
+    """A resumed sidecar holds earlier episodes' rows `rows` cannot see; zero rows this episode is not
+    an empty file. Planted: the first session records, the second (inside the resume window) is docked."""
+    for batt_state, worn in ((0, True), (1, False)):
+        capture._OXYII_PAUSE.clear()
+        capture._RECOVER.clear()
+        capture._OXYII_RTC_AT.clear()
+        capture._STOP.clear()
+        replies = [_o2ring_live_reply(spo2=0 if not worn else 96, worn=worn, batt_state=batt_state)]
+        c = FakeGattClient()
+        c.on_live = lambda data, c=c, replies=replies: (
+            c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None
+        )
+        _inject_connect_scan(monkeypatch, c)
+        _stop_after(monkeypatch, 4)
+        _run(capture.run_oxyii(_o2dev(address=_SYN_RING), str(tmp_path)))
+    arrival = _ring_files(tmp_path, "*_PMDARRIVAL.csv")
+    assert len(arrival) == 1 and len(arrival[0].read_text().splitlines()) == 1 + 1, arrival
+
+
+def test_a_docked_polar_writes_ONE_negotiation_row_per_charging_episode_not_one_a_minute(tmp_path, monkeypatch):
+    """Measured 2026-10-11: a Verity left on its dock appended an `in_charger` row to PMDNEG.csv every
+    minute all day. The minute retry still asks (asserted: several STARTs over the one link); the night's
+    sidecar records the refusal once."""
+    _polar_common(monkeypatch)
+    capture._CHARGING.clear()
+    c = FakePolarClient(start_status=0x0D)
+    _inject_connect(monkeypatch, c)
+    _stop_after_slept(monkeypatch, capture.CHARGE_RETRY_S * 3.5)
+    _run(capture.run_polar(_pdev(address=_SYN_RING), str(tmp_path)))
+    starts = [w for w in c.writes if w and w[0] == 0x02]
+    assert len(starts) >= 3, f"the charging retry must keep asking; saw {len(starts)} STARTs"
+    neg = sorted((tmp_path / "captures").rglob("PMDNEG.csv"))
+    rows = [ln.split(";") for p in neg for ln in p.read_text().splitlines()[1:]]
+    assert [(r[3], r[7]) for r in rows] == [("ecg", "in_charger")], rows
+
+
+def test_run_oxyii_off_the_finger_writes_no_PPG_and_books_no_sample_as_lost(tmp_path, monkeypatch, caplog):
+    """The PPG half of the gate. A frame not recorded is neither decoded nor COUNTED: counting its declared
+    samples against zero delivered would report every skipped sample as one the ring lost."""
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "_DROP_NOT_WORN_SEC", 1e-9)
+    N = 126
+    body = N.to_bytes(2, "little") + bytes(i % 256 for i in range(N))
+    frames = [(900, False), (901, False), (902, False), (903, True)]
+
+    def reply(d, worn):
+        hdr = bytearray(24)
+        hdr[5] = 0x01 if worn else 0x00
+        hdr[6] = 96 if worn else 0
+        hdr[8] = 55
+        hdr[10] = 1
+        hdr[13] = 90
+        hdr[0:4] = d.to_bytes(4, "little")
+        return oxyii.encode(oxyii.OP_LIVE, bytes(hdr) + body)
+
+    c = FakeGattClient()
+    c.on_live = lambda data: c.notify(0, reply(*frames.pop(0))) if data[1] == oxyii.OP_LIVE and frames else None
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 7)
+    caplog.set_level(logging.INFO)
+    _run(capture.run_oxyii(_o2dev(address=_SYN_RING, streams=["spo2", "ppg"]), str(tmp_path)))
+    ppg_rows = sum(len(p.read_text().splitlines()) - 1 for p in _ring_files(tmp_path, "*_PPG.txt"))
+    assert ppg_rows == 2 * N, f"the first (inside the grace) and the worn frame only: {ppg_rows}"
+    assert f"declared {2 * N} sample(s), delivered {2 * N} (0 truncated)" in caplog.text
