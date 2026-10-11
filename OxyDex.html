@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1ee864c97280" data-compute-hash="7cfa2add33f5">
+<html lang="en" data-manifest-hash="58f4e92cb1cf" data-compute-hash="a7d4a8f585b0">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-41uR4Oh6bCq9uDYfDeI4QiF+ijtxtgBgAok+9Q0l5fU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DH1o/DCVLuenKmO0nXIpIgX/vUJ4YX6TGXhpe5Klizw=' 'sha256-EzbmpFAalNFZ0uGkU1UdFTZ68KkrArtyJHUgQqfiM3o=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HH5FwSXNLBdSkDNrEcyg65q+C2Nv18twPHB0MDQhSH0=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hyHUnl79y3EK1oU6Dk49G1rar+c/nBJRNj3bNerVQrY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-41uR4Oh6bCq9uDYfDeI4QiF+ijtxtgBgAok+9Q0l5fU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DH1o/DCVLuenKmO0nXIpIgX/vUJ4YX6TGXhpe5Klizw=' 'sha256-EzbmpFAalNFZ0uGkU1UdFTZ68KkrArtyJHUgQqfiM3o=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.17.0</title>
@@ -7410,6 +7410,18 @@ function csvSafe(v) {
     s = '"' + s.replace(/"/g, '""') + '"';
   }
   return s;
+}
+// ── csvNum: §∅ — an absent NUMBER is an EMPTY FIELD, never the text "null" ──
+/* A CSV cell has no `null`, so absence is the empty field — the convention `exportCSV` already used for
+   `Motion (%)` and `Post-Dip HR Response` while three quarters of its fields concatenated the value
+   raw. Raw concatenation printed the literal text `null` for every honestly-absent metric, which reads
+   as data to a spreadsheet and to anyone who opens one.
+   ⚠️ NOT `csvSafe`, deliberately: that function exists to defuse Excel formula injection and prefixes
+   anything starting with `-` with a TAB, so a legitimately negative metric would arrive as "\t-3.2".
+   This one is for numbers: absent ⇒ '', otherwise the number unchanged. A real 0 is a number and
+   prints as 0 — only an unmeasured value is blank. */
+function csvNum(v) {
+  return v == null || typeof v !== 'number' || !isFinite(v) ? '' : v;
 }
 // ── sanitizeFname: strip HTML-dangerous chars from filenames ──
 function sanitizeFname(s) {
@@ -28367,7 +28379,13 @@ function exportCSV() {
     lines.push('', 'DEEP ANALYSIS', 'HR Spikes,' + n.spikes.length);
     if (n.spikes.length) lines.push('Spike #,Time,Baseline (bpm),Peak (bpm),Rise (bpm),Duration (s),SpO2 (%)');
     (Array.isArray(n.spikes) ? n.spikes : []).forEach(function (sp, i) {
-      lines.push('Spike ' + (i + 1) + ',' + sp.time + ',' + sp.baseline + ',' + sp.peak + ',' + (sp.peak - sp.baseline) + ',' + sp.duration + ',' + sp.spo2);
+      /* 🔴 §∅ — `null - null === 0` IN JS, so a detail-less spike published a 0 bpm RISE that reads
+         exactly like a measured one: baseline and peak were already honest nulls (#3332, an imported
+         spike with no detail) and the subtraction manufactured a number from two absences. The rise
+         is now computed ONLY when both operands are present, and every numeric cell goes through
+         `csvNum`, so an absent value is an empty field instead of the literal text `null`. */
+      var _rise = typeof sp.peak === 'number' && isFinite(sp.peak) && typeof sp.baseline === 'number' && isFinite(sp.baseline) ? sp.peak - sp.baseline : null;
+      lines.push('Spike ' + (i + 1) + ',' + csvSafe(sp.time) + ',' + csvNum(sp.baseline) + ',' + csvNum(sp.peak) + ',' + csvNum(_rise) + ',' + csvNum(sp.duration) + ',' + csvNum(sp.spo2));
     });
     if (n.period) lines.push('HR Periodicity,' + n.period.pattern + ' avg ' + n.period.avg + 'min');
     if (n.osc) lines.push('Oscillation Windows (5min),' + n.osc.episodeCount);
@@ -28563,13 +28581,13 @@ function exportCSV() {
       lines.push(
         '',
         'ROLLING WINDOW METRICS',
-        '  Worst 10-min SpO2 (%),' + ro.worst10minSpo2,
-        '  Worst 30-min T95 (%),' + ro.worst30minT95,
-        '  SpO2 Stable Windows (5min),' + ro.spo2StableWindows,
-        '  CDI (/hr),' + ro.cdi,
+        '  Worst 10-min SpO2 (%),' + csvNum(ro.worst10minSpo2),
+        '  Worst 30-min T95 (%),' + csvNum(ro.worst30minT95),
+        '  SpO2 Stable Windows (5min),' + csvNum(ro.spo2StableWindows),
+        '  CDI (/hr),' + csvNum(ro.cdi),
         '  Post-Dip HR Response (bpm),' + (ro.postDipHrResponse !== null ? ro.postDipHrResponse : ''),
-        '  HR Decel Runs,' + ro.hrDecelRuns,
-        '  SpO2-HR Decoupling (%),' + ro.spo2HrDecouplingPct,
+        '  HR Decel Runs,' + csvNum(ro.hrDecelRuns),
+        '  SpO2-HR Decoupling (%),' + csvNum(ro.spo2HrDecouplingPct),
         '  Intra-Night NSI (E/M/L),' + (ro.intraNightNSI ? ro.intraNightNSI.join('/') : '')
       );
     }

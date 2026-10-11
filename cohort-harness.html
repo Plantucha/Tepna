@@ -888,6 +888,18 @@ function csvSafe(v) {
   }
   return s;
 }
+// ── csvNum: §∅ — an absent NUMBER is an EMPTY FIELD, never the text "null" ──
+/* A CSV cell has no `null`, so absence is the empty field — the convention `exportCSV` already used for
+   `Motion (%)` and `Post-Dip HR Response` while three quarters of its fields concatenated the value
+   raw. Raw concatenation printed the literal text `null` for every honestly-absent metric, which reads
+   as data to a spreadsheet and to anyone who opens one.
+   ⚠️ NOT `csvSafe`, deliberately: that function exists to defuse Excel formula injection and prefixes
+   anything starting with `-` with a TAB, so a legitimately negative metric would arrive as "\t-3.2".
+   This one is for numbers: absent ⇒ '', otherwise the number unchanged. A real 0 is a number and
+   prints as 0 — only an unmeasured value is blank. */
+function csvNum(v) {
+  return v == null || typeof v !== 'number' || !isFinite(v) ? '' : v;
+}
 // ── sanitizeFname: strip HTML-dangerous chars from filenames ──
 function sanitizeFname(s) {
   if (!s) return '';
