@@ -29,6 +29,7 @@
  */
 
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,19 +74,37 @@ export function classifySinkLine(line) {
  */
 export function scanDiff(lines) {
   const violations = [];
+  const rows = lines || [];
   let file = '';
   let sinksAdded = 0;
-  for (const l of lines || []) {
+  for (let i = 0; i < rows.length; i++) {
+    const l = rows[i];
     if (l.startsWith('diff --git')) {
       const m = l.match(/b\/(.+)$/);
       file = m ? m[1] : '';
       continue;
     }
     if (!l.startsWith('+') || l.startsWith('+++')) continue;
-    const r = classifySinkLine(l);
-    if (!r.sink) continue;
+    if (!SINK_RE.test(l)) continue;
     sinksAdded += 1;
-    if (r.unsafe.length) violations.push({ file, line: l.trim().slice(0, 100), unsafe: r.unsafe });
+    /* ⚠️ A MULTI-LINE ASSIGNMENT USED TO READ AS SAFE, SILENTLY. `el.innerHTML =` at the end of one
+       line with its right-hand side on the next matched the sink, produced an EMPTY rhs, found no
+       identifier in it and was recorded clean — a false negative that also counted toward
+       `sinksAdded`, so the gate reported examining it. Measured 2026-10-10: `pulsedex-app.js:988` is
+       exactly this shape, and it is one of the 7 open `js/xss-through-dom` CodeQL alerts — the control
+       that exposed it. The statement is now assembled across up to 4 following added lines, stopping
+       at the `;`, before classification. */
+    let stmt = l;
+    if (!/\.innerHTML\s*(?:\+=|=)\s*\S/.test(l)) {
+      for (let k = 1; k <= 4 && i + k < rows.length; k++) {
+        const nxt = rows[i + k];
+        if (!nxt.startsWith('+') || nxt.startsWith('+++')) break;
+        stmt += ` ${nxt.slice(1).trim()}`;
+        if (/;\s*$/.test(nxt)) break;
+      }
+    }
+    const r = classifySinkLine(stmt);
+    if (r.unsafe.length) violations.push({ file, line: stmt.trim().slice(0, 100), unsafe: r.unsafe });
   }
   return { violations, sinksAdded };
 }
@@ -114,23 +133,52 @@ export function selftest() {
     'CONTROL: a REMOVED sink is not an addition — the scan is diff-directional'
   );
 
+  /* THE MULTI-LINE SINK — the shape that read as safe until the CodeQL control named the file it hid
+     in. The assignment's RHS is on the following line; without assembly the rhs is empty and the line
+     is recorded clean while still counting as a sink examined. */
+  const split = scanDiff(['diff --git a/x.js b/x.js', '+  el.innerHTML =', "+    userInput + '<br>' + n + ';'"]);
+  ok(split.violations.length === 1 && split.violations[0].unsafe.includes('userInput'), 'a sink whose RHS is on the NEXT line is caught');
+  ok(split.sinksAdded === 1, '…and counted once, not once per assembled line');
+  const splitSafe = scanDiff(['diff --git a/x.js b/x.js', '+  el.innerHTML =', '+    escapeHTML(x);']);
+  ok(splitSafe.violations.length === 0, 'CONTROL: a multi-line sink that IS escaped stays clean');
+  ok(scanDiff(['+  el.innerHTML =', '-  removed line']).violations.length === 0, 'CONTROL: assembly stops at a non-added line rather than reading across the hunk');
+
   // The walk attributes a violation to the right FILE, which is what makes the failure routable.
   const walked = scanDiff(['diff --git a/oxydex-render.js b/oxydex-render.js', '+  el.innerHTML = n.date;']);
   ok(walked.violations.length === 1 && walked.violations[0].file === 'oxydex-render.js', 'the violation names the file it is in');
   ok(walked.sinksAdded === 1, 'the population counts sinks ADDED, so a pass over zero sinks is distinguishable');
   ok(scanDiff(['+++ b/x.js', '+  el.innerHTML = userInput;']).violations.length === 1, 'the +++ header is skipped but the following line is not');
 
+  /* ── THE SHRINK-ONLY RATCHET ──────────────────────────────────────────────────────────────────────
+     Four states, and the one that matters most is the THIRD: a count that FELL must not quietly pass,
+     or the baseline stays at its seeded value forever and the ratchet stops being one. */
+  ok(ratchet(5, null).status === 'NOT_RUN', 'no baseline yet ⇒ NOT_RUN, never a pass over an unrecorded number');
+  ok(ratchet(6, { count: 5 }).status === 'FAIL', 'a count ABOVE the baseline fails — something was merged unexamined');
+  ok(ratchet(4, { count: 5 }).status === 'SHORTFALL', 'a count BELOW the baseline is a SHORTFALL asking for the baseline to be lowered');
+  ok(ratchet(5, { count: 5 }).status === 'PASS', 'an unchanged count passes');
+  ok(/lower the baseline/.test(ratchet(4, { count: 5 }).reason || ''), '…and says what to do about it');
+  ok(ratchet(0, { count: 0 }).status === 'PASS', 'a cleared backlog passes at zero');
+
   const line = fail.length ? `xss-sink-gate selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
 
-function verdictOf({ status, sinksAdded, violations, base }) {
+function verdictOf({ status, sinksAdded, violations, base, fullTree, files, baseline }) {
   const v = Verdict.make({
     gate: 'xss-sink-gate',
     status,
     population: { checked: sinksAdded, eligible: sinksAdded, excluded: 0 },
-    criterion: { name: 'no-added-innerhtml-sink-carries-an-unescaped-identifier', threshold: 0, unit: 'added sinks with an unescaped identifier', direction: 'eq' },
-    result: status === 'NOT_RUN' ? null : { sinksAdded, violations: violations.map((v2) => ({ file: v2.file, unsafe: v2.unsafe })) },
+    criterion: fullTree
+      ? { name: 'the-whole-tree-backlog-of-unescaped-innerhtml-sinks-may-only-fall', threshold: baseline ? baseline.count : 0, unit: 'files with an unescaped sink', direction: 'lte' }
+      : { name: 'no-added-innerhtml-sink-carries-an-unescaped-identifier', threshold: 0, unit: 'added sinks with an unescaped identifier', direction: 'eq' },
+    result:
+      status === 'NOT_RUN' && !fullTree
+        ? null
+        : {
+            sinksAdded,
+            violations: violations.map((v2) => ({ file: v2.file, unsafe: v2.unsafe })),
+            ...(fullTree ? { mode: 'full-tree', files, fileCount: files.length, baseline: baseline ? baseline.count : null } : {})
+          },
     evidence: ['tools/xss-sink-gate.mjs', 'dex-escape.js'],
     reason:
       status === 'PASS' ? null : status === 'NOT_RUN' ? `no innerHTML sink was added in ${base}..HEAD — nothing was examined` : `${violations.length} added sink(s) carry an unescaped identifier`,
@@ -151,13 +199,51 @@ function verdictOf({ status, sinksAdded, violations, base }) {
   return v;
 }
 
+/* THE EMPTY TREE. `git diff <empty>..HEAD` presents every tracked file as added, which turns this
+   diff-scoped scanner into a whole-tree one WITHOUT touching its core — the same classifier, a larger
+   population. That matters because code merged before a diff gate existed is never examined by it, so
+   the backlog is invisible by construction rather than by neglect. */
+export const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+/* ⚠️ maxBuffer EXPLICITLY, and 1 MiB is why. Node's default killed the first full-tree run with
+   `spawnSync ENOBUFS` on a 5.9 MiB diff — the same defect that made `verify-fixtures` report a PASSING
+   suite as RED this morning. A truncated or refused capture is never a clean scan, so the buffer is
+   sized for the whole tree and a genuine overflow still throws rather than returning a short read. */
 function sh(cmd) {
   try {
-    return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024 }).trim();
   } catch (e) {
     if (e.status === 1) return '';
     throw e;
   }
+}
+
+/* THE SHRINK-ONLY BACKLOG LEDGER, shared with absence-regression. Seeded from the first measured run;
+   a count ABOVE it fails, a count below it asks to be lowered. It is debt, not approval, and it may
+   only fall — the same ratchet as the resolvability baseline and the untimed-group share. */
+export const BACKLOG_LEDGER = 'audits/FULL-TREE-BACKLOG.json';
+
+export function readBacklog(file, gate, readFn) {
+  try {
+    const d = JSON.parse(readFn(file));
+    const e = d && d.gates && d.gates[gate];
+    return e && typeof e.count === 'number' ? e : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * PURE CORE — judge a full-tree count against the ledger. Separated so the selftest can plant a rise,
+ * a fall and a first run with no ledger at all.
+ * @returns {{status: string, reason: (string|null)}}
+ */
+export function ratchet(count, baseline) {
+  if (baseline == null) return { status: 'NOT_RUN', reason: `no baseline recorded for this gate yet — seed ${BACKLOG_LEDGER} with the measured count (${count}) and the paths` };
+  if (count > baseline.count) return { status: 'FAIL', reason: `full-tree backlog ROSE: ${count} > baseline ${baseline.count} — new findings were merged, not inherited` };
+  if (count < baseline.count)
+    return { status: 'SHORTFALL', reason: `backlog FELL to ${count} from ${baseline.count} — lower the baseline in ${BACKLOG_LEDGER}; a ratchet that is not tightened stops being one` };
+  return { status: 'PASS', reason: null };
 }
 
 function main() {
@@ -169,11 +255,30 @@ function main() {
     process.exit(r.ok ? 0 : 1);
   }
   const asJson = argv.includes('--json');
+  /* ⚠️ --full-tree IS NEVER A PR GATE. It scans the whole repo, so on any PR it would report the
+     INHERITED backlog as that PR's findings — blocking work on code the author never touched, which is
+     how a useful measurement becomes a thing people route around. It is a nightly/release reading of a
+     number that may only fall. The PR gate stays diff-scoped and unchanged. */
+  const fullTree = argv.includes('--full-tree');
   const baseIdx = process.argv.indexOf('--base');
-  const base = baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
+  const base = fullTree ? EMPTY_TREE : baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
 
   const diff = sh(`git diff ${base}..HEAD -U3 -- '*.js' ':!tests/' ':!tools/'`);
   const { violations, sinksAdded } = scanDiff(diff.split('\n'));
+
+  if (fullTree) {
+    const files = [...new Set(violations.map((v) => v.file))].sort();
+    const baseline = readBacklog(join(ROOT, BACKLOG_LEDGER), 'xss-sink-gate', (f) => readFileSync(f, 'utf-8'));
+    const r = ratchet(files.length, baseline);
+    if (asJson) {
+      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, sinksAdded, violations, base, fullTree: true, files, baseline }), null, 1)}\n`);
+    } else {
+      process.stdout.write(`xss-sink-gate --full-tree · ${sinksAdded} innerHTML sink(s) in the tree · ${violations.length} with an unescaped identifier, in ${files.length} file(s)\n`);
+      for (const f of files) process.stdout.write(`    ${f}\n`);
+      process.stdout.write(`  baseline: ${baseline ? baseline.count : '(none yet)'} → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`);
+    }
+    process.exit(r.status === 'FAIL' ? 1 : 0);
+  }
 
   /* NOT_RUN WHEN NO SINK WAS ADDED. A diff that adds no innerHTML sink gives this gate nothing to
      judge, and "every added sink is escaped" over zero sinks is not evidence of anything — it is the

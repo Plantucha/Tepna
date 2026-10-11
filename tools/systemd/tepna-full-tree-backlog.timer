@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — nightly whole-tree backlog reading for the diff-scoped gates
+
+[Timer]
+# 03:40, in the quiet hours and away from the other timers: the archive pull is 13:30, the corpus tier
+# 14:30, tchref 15:30, the fold 16:30, and the hourly index reload is at :20. A whole-tree scan reads
+# every tracked .js and costs seconds, but it has no reason to compete with anything.
+OnCalendar=*-*-* 03:40:00
+# A missed night is worth catching up: the number is a backlog, and the point of reading it is to notice
+# a RISE soon after the merge that caused it rather than whenever the machine next happens to be awake.
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target
