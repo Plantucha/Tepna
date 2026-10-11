@@ -89,7 +89,9 @@ export function proseLines(src) {
     if (/^\s{4,}\S/.test(raw)) continue; // indented code
     if (/^\s*\|/.test(raw)) continue; // table row
     if (/^\s*>/.test(raw)) continue; // quoted text — someone else's words
-    if (/^\s*(#|<!--|-->|\[\^)/.test(raw)) continue; // heading, comment, footnote
+    /* `--!>` also closes an HTML comment, and matching only `-->` left the line after one
+       unskipped. CodeQL flagged it (high) and it was right: an incomplete end-tag match. */
+    if (/^\s*(?:#|<!--|--!?>|\[\^)/.test(raw)) continue; // heading, comment, footnote
     if (/\bdoi:|https?:\/\/\S+\s*$/i.test(raw) && raw.trim().split(/\s+/).length < 14) continue; // a citation line
     let text = raw
       .replace(/`[^`]*`/g, 'CODE')
@@ -273,6 +275,10 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('a quoted log line is skipped', rules('> ' + long).length, 0);
   ck('an indented code block is skipped', rules('    ' + long).length, 0);
   ck('a heading is skipped', rules('# ' + long).length, 0);
+  /* 🔴 CodeQL (high) caught this one: `--!>` also closes an HTML comment, and matching only `-->`
+     left the line after such a comment unskipped. Planted in both forms. */
+  ck('an HTML comment closed with --> is skipped', rules('--> ' + long).length, 0);
+  ck('…and one closed with --!> is skipped too', rules('--!> ' + long).length, 0);
   ck('a long URL is not a long sentence', rules('See URL at https://example.com/' + 'x'.repeat(300) + ' now.').includes('long-sentence'), false);
   ck('inline code does not pad the count', rules('The `' + 'x '.repeat(40) + '` is fine.').includes('long-sentence'), false);
   ck('a paragraph over six sentences is reported', rules('A one. B two. C three. D four. E five. F six. G seven.').includes('long-paragraph'), true);
