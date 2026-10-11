@@ -65,12 +65,10 @@
       ]
     },
     "absence-regression": {
-      "count": 1,
+      "count": 0,
       "unit": "lines fabricating an absent value",
-      "note": "Seeded 2026-10-10 over 122,261 scanned lines. The single hit is integrator-dsp.js:7325 \u2014 `tMs: b.t0Ms != null ? b.t0Ms : startMs || 0` \u2014 which guards b.t0Ms properly and then falls back to `startMs || 0`, so a missing startMs stamps 1970 (\u00a7\u2205). Recorded rather than fixed here: this PR adds the measurement, and changing a DSP export belongs to its own unit with its own fixture regeneration.",
-      "files": [
-        "integrator-dsp.js"
-      ]
+      "note": "Seeded 2026-10-10 over 122,261 scanned lines. The single hit is integrator-dsp.js:7325 \u2014 `tMs: b.t0Ms != null ? b.t0Ms : startMs || 0` \u2014 which guards b.t0Ms properly and then falls back to `startMs || 0`, so a missing startMs stamps 1970 (\u00a7\u2205). Recorded rather than fixed here: this PR adds the measurement, and changing a DSP export belongs to its own unit with its own fixture regeneration. LOWERED 1 -> 0 on 2026-10-11: the site was fixed in #3393 (integrator-dsp.js:7325), so the whole-tree count is now 0 over 122,261 scanned lines. The ratchet asked for this in words - \"backlog FELL to 0 from 1 - lower the baseline\" - which is the SHORTFALL state doing its job.",
+      "files": []
     }
   }
 }
