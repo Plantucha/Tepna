@@ -81,7 +81,15 @@ export function contentTypeFor(abs, types = TYPES) {
 
 if (process.argv.slice(2).includes('--selftest')) {
   const fails = [];
+  /* 🔴 THE COUNT IS INCREMENTED BY THE HELPER, so it cannot drift from what ran. The printed total used
+     to be the literal `13`, which `tools/test-tools.mjs` parses as this tool's assertion count — so the
+     lane total was only as true as a number somebody typed. It happens to be right today (measured
+     2026-10-11: 13 `ok()` calls, literal 13), and that is the whole hazard: adding a 14th assertion
+     would have kept reporting 13 and nothing would have gone red. Same remedy as `gemini-review.mjs`
+     in #3331. */
+  let ran = 0;
   const ok = (c, m) => {
+    ran += 1;
     if (!c) fails.push(m);
   };
   const R = '/repo';
@@ -100,7 +108,7 @@ if (process.argv.slice(2).includes('--selftest')) {
   ok(contentTypeFor('/x/a.html') === 'text/html; charset=utf-8', 'html type');
   ok(contentTypeFor('/x/a.MJS') === 'text/javascript; charset=utf-8', 'extension match is case-insensitive');
   ok(contentTypeFor('/x/a.unknown') === 'application/octet-stream', 'an unknown extension falls back to octet-stream rather than guessing text');
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'all 13 selftests passed');
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length} of ${ran})\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
   process.exit(fails.length ? 1 : 0);
 }
 
