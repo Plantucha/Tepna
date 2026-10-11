@@ -714,7 +714,7 @@ def parse_live(payload: bytes) -> dict | None:
         # re-capture; interpreting them is not attempted here.
         "flag_raw": payload[10],
         "batt": payload[13],
-        "batt_state": payload[12],  # 0 = not charging
+        "batt_state": payload[12],  # 0 normal · 1 charging · 2 full · 3 low — only 1/2 are the dock
         "run_status": payload[4],
         "contact": contact,  # 0 lead-off · 1 normal · 2 probe unplugged · 3 fault
         # ∅ THREE-VALUED (ABSENCE-SURVEY cff33c90fd16): 1 is a finger, 0 (lead-off) is an OBSERVED absence of

@@ -3105,6 +3105,10 @@ class PmdArrivalLogWriter:
                 self._cols = 6  # unreadable header: assume the older, narrower shape and never widen it
         else:
             self._fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples;first_sample_idx\n")
+        # EXPOSED for the teardown that removes a header-only file: a resumed sidecar holds earlier
+        # episodes' rows this writer's `rows` cannot see, so it is never removed (the rule the stream
+        # writers have kept since 2026-09-12).
+        self.resumed = _resume
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync

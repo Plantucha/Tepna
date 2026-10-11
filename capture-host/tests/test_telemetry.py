@@ -595,3 +595,75 @@ def test_a_shape_breach_is_logged_naming_the_stream_and_the_mismatch(caplog):
         bus.push("acc_h10", [[1, 2]])
     msgs = [r.getMessage() for r in caplog.records if "SHAPE BREACH" in r.getMessage()]
     assert len(msgs) == 1 and "'acc_h10'" in msgs[0] and "declared 3 channel(s), frame carried 2" in msgs[0], msgs
+
+
+# ── RingRecordGate: on the charger, off the body or idle, the ring records nothing (owner, 2026-10-11) ────
+# Exact values throughout: each assertion is the contract, so a mutant that moves a boundary, flips a
+# comparison or rewords a log line has something here that disagrees with it.
+
+
+def test_ring_gate_claims_nothing_before_the_first_frame():
+    g = telemetry.RingRecordGate()
+    assert g.recording is None and g.grace_s == 180.0
+
+
+def test_ring_gate_a_docked_ring_stops_at_once_and_says_so_once():
+    g = telemetry.RingRecordGate(180.0)
+    assert g.observe(False, True, 0.0) == (False, "on its charger — not recording")
+    assert g.observe(False, True, 1.0) == (False, None), "a ring on its dock all day logs ONE line"
+    assert g.observe(True, True, 2.0) == (False, None), "the dock wins over a contact byte"
+    assert g.recording is False
+
+
+def test_ring_gate_a_worn_ring_records_at_once():
+    g = telemetry.RingRecordGate(180.0)
+    assert g.observe(True, False, 0.0) == (True, "worn — recording")
+    assert g.observe(True, False, 1.0) == (True, None)
+
+
+def test_ring_gate_an_unknown_wear_records_because_an_unknown_never_stops_anything():
+    g = telemetry.RingRecordGate(180.0)
+    assert g.observe(None, False, 0.0) == (True, "wear unknown (probe fault) — recording")
+
+
+def test_ring_gate_off_the_finger_records_through_the_grace_and_stops_exactly_at_it():
+    g = telemetry.RingRecordGate(180.0)
+    assert g.observe(False, False, 1000.0) == (True, "no finger contact")
+    assert g.observe(False, False, 1179.0) == (True, None), "179 s off is a slipped finger, still recorded"
+    assert g.observe(False, False, 1180.0) == (False, "no finger contact for 180 s — not recording")
+    assert g.observe(False, False, 1500.0) == (False, None)
+    assert g.observe(True, False, 1501.0) == (True, "worn — recording"), "contact resumes at once"
+
+
+def test_ring_gate_a_contact_or_a_dock_restarts_the_off_finger_clock():
+    g = telemetry.RingRecordGate(180.0)
+    g.observe(False, False, 0.0)
+    g.observe(True, False, 170.0)
+    assert g.observe(False, False, 200.0) == (True, None)
+    assert g.observe(False, False, 379.0) == (True, None), "the clock started again at 200, not at 0"
+    assert g.observe(False, False, 380.0)[0] is False
+    h = telemetry.RingRecordGate(180.0)
+    h.observe(False, False, 0.0)
+    h.observe(False, True, 100.0)
+    assert h.observe(False, False, 150.0) == (True, "no finger contact")
+    assert h.observe(False, False, 329.0) == (True, None), "off the dock at 150: the clock starts there"
+    u = telemetry.RingRecordGate(180.0)
+    u.observe(False, False, 0.0)
+    u.observe(None, False, 170.0)
+    assert u.observe(False, False, 349.0) == (True, None), "an unknown frame restarts it too"
+
+
+def test_ring_gate_a_zero_grace_turns_the_off_finger_stop_off_but_never_the_dock():
+    g = telemetry.RingRecordGate(0.0)
+    assert g.observe(False, False, 0.0) == (True, "no finger contact")
+    assert g.observe(False, False, 10_000.0) == (True, None)
+    assert g.observe(False, True, 10_001.0) == (False, "on its charger — not recording")
+    n = telemetry.RingRecordGate(-1.0)
+    n.observe(False, False, 0.0)
+    assert n.observe(False, False, 10_000.0) == (True, None)
+
+
+def test_ring_docked_states_are_charging_and_full_never_low():
+    """`batt_state` 3 is LOW (<10 %). A low ring on a finger must keep recording."""
+    assert telemetry.RING_DOCKED_BATT_STATES == frozenset({1, 2})
+    assert 3 not in telemetry.RING_DOCKED_BATT_STATES and 0 not in telemetry.RING_DOCKED_BATT_STATES
