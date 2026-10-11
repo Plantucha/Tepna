@@ -1808,6 +1808,18 @@
         ]
       },
       "note": "wave-3 adopter (#3368 gates): NOT BINNED AT ALL before this \u2014 an omission rather than an exemption, which is the gap the adoption gate's population equality exists to catch. --json prints ONE tepna.verdict/1: PASS/FAIL over the innerHTML sinks ADDED in the diff, and NOT_RUN when the diff adds no sink, since \"every added sink is escaped\" over zero sinks is not evidence. The heuristic itself is unchanged and is still documented as heuristic, not AST-based."
+    },
+    "tools/zotero-fill.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/zotero-fill.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger’s DOIs, criterion ledger_dois_present_in_library eq the ledger count — PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
     }
   }
 }
