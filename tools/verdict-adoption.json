@@ -226,6 +226,10 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_as11_pair.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_ax210_postinstall.py": {
    "bin": "test",
    "status": "exempt"

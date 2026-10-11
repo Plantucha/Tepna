@@ -848,3 +848,56 @@ def test_scan_ranks_an_RSSI_of_0_dBm_as_the_STRONGEST_not_as_absent(monkeypatch)
     out += f"[CHG] Device {A1} RSSI: 0xffffffba (-70)\n[CHG] Device {A2} RSSI: 0x00000000 (0)\n"
     found, _ = _scan_with(monkeypatch, out, {A1: "Bonded: no\n", A2: "Bonded: no\n"})
     assert [(f.address, f.rssi) for f in found] == [(A2, 0), (A1, -70)]
+
+
+# ── 2026-10-10: "TxPower is nil" was a NAME, and a nameless device had no identity at all ────────────
+def test_a_cleared_property_line_is_not_a_name():
+    for line in ("RSSI is nil", "TxPower is nil", "ManufacturerData is nil", "rssi  is  nil"):
+        assert bonding.is_property_line(line) is True, line
+    # a real name that merely contains the words is still a name
+    assert bonding.is_property_line("Nil Sensor") is False and bonding.is_property_line("RSSI meter") is False
+
+
+def test_scan_drops_nil_lines_and_takes_the_cached_name_and_kind(monkeypatch):
+    _stub(
+        monkeypatch,
+        delayed=(
+            "[CHG] Device AA:BB:CC:00:00:01 TxPower is nil\n"
+            "[CHG] Device AA:BB:CC:00:00:01 RSSI: 0xffffffe6 (-26)\n"
+            "Device AA:BB:CC:00:00:01 AA-BB-CC-00-00-01\n"
+        ),
+        info_by_addr={
+            "AA:BB:CC:00:00:01": (
+                "\tName: ResMed 000001\n"
+                "\tUUID: Unknown                   (0000fd56-0000-1000-8000-00805f9b34fb)\n"
+                "\tManufacturerData.Key: 0x038d (909)\n"
+            )
+        },
+    )
+    f = _run(bonding.scan(seconds=0))[0]
+    assert (f.name, f.kind, f.label, f.rssi) == ("ResMed 000001", "cpap", "maker 0x038d", -26)
+
+
+def test_describe_info_prefers_a_specific_service_then_the_maker_then_nothing():
+    tile = "\tAlias: AA-BB-CC-00-00-02\n\tUUID: Tile, Inc.                (0000feed-0000-1000-8000-00805f9b34fb)\n"
+    assert bonding.describe_info(tile) == {"label": "Tile, Inc.", "kind": None}
+    generic = (
+        "\tUUID: Device Information        (0000180a-0000-1000-8000-00805f9b34fb)\n"
+        "\tUUID: Vendor specific           (4553867f-f809-49f4-aefc-e190a1f459f3)\n"
+        "\tManufacturerData Key: 0x4c\n"
+    )
+    assert bonding.describe_info(generic) == {"label": "maker 0x004c", "kind": None}
+    assert bonding.describe_info("\tAlias: AA-BB-CC-00-00-03\n") == {"label": None, "kind": None}
+
+
+def test_scan_counts_a_paired_but_not_bonded_device_as_bonded_in_the_list(monkeypatch):
+    """The LIST shows `Paired: yes` alone as bonded (an LE pairing in flight is still a pairing to offer
+    Unbond for); `is_bonded` — the reconnect gate — stays strict on `Bonded: yes`. Exact case: BlueZ
+    prints `Paired: yes`, and nothing else."""
+    _stub(
+        monkeypatch,
+        delayed="[NEW] Device AA:BB:CC:00:00:01 ResMed 000001\n[NEW] Device AA:BB:CC:00:00:02 Other\n",
+        info_by_addr={"AA:BB:CC:00:00:01": "\tPaired: yes\n\tBonded: no\n", "AA:BB:CC:00:00:02": "\tpaired: yes\n"},
+    )
+    by = {f.address: f for f in _run(bonding.scan(seconds=0))}
+    assert by["AA:BB:CC:00:00:01"].bonded is True and by["AA:BB:CC:00:00:02"].bonded is False

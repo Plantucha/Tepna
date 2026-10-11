@@ -212,6 +212,11 @@ def test_build_pairer_refuses_to_start_while_the_live_stream_is_busy(tmp_path, m
     _isolate_registry(monkeypatch)
     ctl = SimpleNamespace(_busy=lambda: True)
     s = capture._build_cpap_pairer(_cfg(ble_addr="AA"), str(tmp_path / "config.yaml"), ctl, connect=_noop_connect)
+
+    async def _nosleep(_s):  # a mutant that lets the start through must fail fast, not nap 4 s per retry
+        return None
+
+    s._sleep = _nosleep
     res = asyncio.run(s.op("start"))
     assert res["ok"] is False and "live CPAP stream holds the link" in res["error"]
 
@@ -250,3 +255,191 @@ def test_a_pinned_radio_with_no_public_address_is_reported_UNUSABLE_through_the_
         _cfg(adapter="00:00:00:00:00:00"), str(tmp_path / "config.yaml"), ctl, connect=_noop_connect, on_paired=None
     )
     assert s.status()["adapter_usable"] is False
+
+
+# ── documented sequence: scan match, radio list, the builder hands both to the session ───────────────
+def _adv(name=None, uuids=(), rssi=None):
+    return SimpleNamespace(local_name=name, service_uuids=list(uuids), rssi=rssi)
+
+
+def _dev(addr, name=None):
+    return SimpleNamespace(address=addr, name=name)
+
+
+def test_scan_hits_match_a_resmed_name_or_the_fd56_service_strongest_first():
+    seen = [
+        (_dev("AA:00:00:00:00:01"), _adv("Polar H10 02849638", rssi=-40)),  # not a CPAP
+        (_dev("AA:BB:CC:00:00:01"), _adv("ResMed 000001", rssi=-70)),  # by name
+        (_dev("AA:BB:CC:00:00:02"), _adv(None, ["0000FD56-0000-1000-8000-00805F9B34FB"], rssi=-50)),  # by service
+        (_dev("AA:BB:CC:00:00:03", "ResMed 1"), _adv(None, rssi=None)),  # name only on the device object
+    ]
+    assert capture._as11_scan_hits(seen) == [
+        {"addr": "AA:BB:CC:00:00:02", "name": None, "rssi": -50},
+        {"addr": "AA:BB:CC:00:00:01", "name": "ResMed 000001", "rssi": -70},
+        {"addr": "AA:BB:CC:00:00:03", "name": "ResMed 1", "rssi": None},  # ∅ unknown RSSI sorts last
+    ]
+
+
+def test_scan_hits_tolerate_an_advert_with_no_service_list():
+    assert capture._as11_scan_hits([(_dev("A"), SimpleNamespace(local_name="x", service_uuids=None))]) == []
+
+
+def test_pair_radios_mark_the_configured_and_the_wearables_radio():
+    adapters = [
+        {"hci": "hci0", "mac": "AA:BB:CC:10:00:03", "up": True},
+        {"hci": "hci1", "mac": "AA:BB:CC:10:00:01", "up": True},
+        {"hci": "hci2", "mac": None, "up": False},
+    ]
+    r = capture._pair_radios(adapters, "AA:BB:CC:10:00:01", "AA:BB:CC:10:00:03")
+    assert [(x["hci"], x["configured"], x["reserved"], x["up"]) for x in r] == [
+        ("hci0", False, True, True),
+        ("hci1", True, False, True),
+        ("hci2", False, False, False),
+    ]
+    # an hciN pin matches by name; no reserved radio configured marks none
+    r = capture._pair_radios(adapters, "hci0", None)
+    assert [x["configured"] for x in r] == [True, False, False] and not any(x["reserved"] for x in r)
+
+
+def test_build_pairer_hands_the_session_its_scanner_and_radio_list(tmp_path, monkeypatch):
+    _isolate_registry(monkeypatch)
+
+    async def scan(adapter):
+        return []
+
+    async def radios():
+        return []
+
+    s = capture._build_cpap_pairer(
+        _cfg(),
+        str(tmp_path / "config.yaml"),
+        SimpleNamespace(_busy=lambda: False),
+        connect=_noop_connect,
+        scan=scan,
+        radios=radios,
+    )
+    assert s._scan is scan and s._radios is radios
+
+
+def test_the_pairing_connect_timeout_is_the_documented_30_s():
+    assert capture.PAIR_CONNECT_TIMEOUT_S == 30.0 and capture.PAIR_SCAN_S == 6.0
+
+
+# ── the pairer's DEFAULT edges: one radio, absent radio refused, the documented bounds, pairing reads on ──
+def _default_pairer(tmp_path, monkeypatch, *, adapter="AA:BB:CC:10:00:01", resolved="hci1", **ble):
+    _isolate_registry(monkeypatch)
+    seen = {}
+
+    async def resolve(spec):
+        seen.setdefault("resolved", []).append(spec)
+        return resolved
+
+    async def ble_connect(addr, hci, timeout=20.0, **kw):
+        seen["connect"] = (addr, hci, timeout, kw)
+
+        async def disconnect():
+            seen["disconnected"] = True
+
+        return (None, None, disconnect)
+
+    monkeypatch.setattr(capture, "_resolve_cpap_adapter", resolve)
+    monkeypatch.setattr(capture, "_cpap_ble_connect", ble_connect)
+    s = capture._build_cpap_pairer(
+        _cfg(adapter=adapter, **ble), str(tmp_path / "config.yaml"), SimpleNamespace(_busy=lambda: False)
+    )
+    return s, seen
+
+
+def test_the_default_connect_uses_the_configured_radio_with_the_documented_bounds(tmp_path, monkeypatch):
+    import asyncio
+
+    s, seen = _default_pairer(tmp_path, monkeypatch)
+
+    async def go():
+        _w, _r, disconnect = await s._connect("AA:BB:CC:00:00:01")
+        await disconnect()
+
+    asyncio.run(go())
+    assert seen["resolved"] == ["AA:BB:CC:10:00:01"]
+    assert seen["connect"] == (
+        "AA:BB:CC:00:00:01",
+        "hci1",
+        30.0,
+        {"recv_timeout": as11_pair.START_REPLY_TIMEOUT_S, "pairing_reads": True},
+    )
+    assert seen["disconnected"] is True
+
+
+def test_the_default_connect_honours_a_chosen_radio_and_an_override(tmp_path, monkeypatch):
+    import asyncio
+
+    s, seen = _default_pairer(tmp_path, monkeypatch, pair_connect_timeout_sec=45)
+
+    async def go():
+        *_, disconnect = await s._connect("AA:BB:CC:00:00:01", "AA:BB:CC:10:00:02")
+        await disconnect()  # releases the process-wide AS11 link guard for the next test
+
+    asyncio.run(go())
+    assert seen["resolved"] == ["AA:BB:CC:10:00:02"] and seen["connect"][2] == 45.0
+
+
+def test_an_absent_radio_is_REFUSED_not_swapped_for_the_bluez_default(tmp_path, monkeypatch):
+    import asyncio
+
+    import pytest
+
+    s, seen = _default_pairer(tmp_path, monkeypatch, resolved=None)
+    with pytest.raises(OSError, match="radio AA:BB:CC:10:00:01 is not present on this box"):
+        asyncio.run(s._connect("AA:BB:CC:00:00:01"))
+    assert "connect" not in seen
+
+
+def test_the_default_scan_runs_on_the_chosen_radio_for_six_seconds_and_filters(tmp_path, monkeypatch):
+    import asyncio
+
+    import bleak
+
+    s, seen = _default_pairer(tmp_path, monkeypatch)
+    calls = []
+
+    async def discover(**kw):
+        calls.append(kw)
+        return {
+            "x": (_dev("AA:BB:CC:00:00:01"), _adv("ResMed 000001", rssi=-60)),
+            "y": (_dev("AA:BB:CC:00:00:09"), _adv("Polar H10", rssi=-30)),
+        }
+
+    monkeypatch.setattr(bleak.BleakScanner, "discover", staticmethod(discover))
+    hits = asyncio.run(s._scan("AA:BB:CC:10:00:02"))
+    assert calls == [{"timeout": 6.0, "return_adv": True, "bluez": {"adapter": "hci1"}}]
+    assert seen["resolved"] == ["AA:BB:CC:10:00:02"]
+    assert hits == [{"addr": "AA:BB:CC:00:00:01", "name": "ResMed 000001", "rssi": -60}]
+    asyncio.run(s._scan(None))  # no choice → the configured radio
+    assert seen["resolved"][-1] == "AA:BB:CC:10:00:01"
+
+
+def test_the_default_scan_refuses_an_absent_radio(tmp_path, monkeypatch):
+    import asyncio
+
+    import pytest
+
+    s, _ = _default_pairer(tmp_path, monkeypatch, resolved=None)
+    with pytest.raises(OSError, match="is not present on this box"):
+        asyncio.run(s._scan(None))
+
+
+def test_the_default_radio_list_marks_the_configured_and_the_wearables_radio(tmp_path, monkeypatch):
+    import asyncio
+
+    s, _ = _default_pairer(tmp_path, monkeypatch)
+
+    async def adapters():
+        return [
+            {"hci": "hci0", "mac": "AA:BB:CC:10:00:03", "up": True},
+            {"hci": "hci1", "mac": "AA:BB:CC:10:00:01", "up": True},
+        ]
+
+    monkeypatch.setattr(capture, "list_adapters", adapters)
+    monkeypatch.setattr(capture, "ADAPTER", "AA:BB:CC:10:00:03")
+    r = asyncio.run(s._radios())
+    assert [(x["hci"], x["configured"], x["reserved"]) for x in r] == [("hci0", False, True), ("hci1", True, False)]

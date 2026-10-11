@@ -64,6 +64,39 @@ def _valid_mac(a) -> bool:
     return isinstance(a, str) and bool(_MAC_RE.fullmatch(a))
 
 
+_HCI_RE = re.compile(r"^hci[0-9]{1,2}$")
+_PAIR_ACTIONS = ("start", "passkey", "cancel", "status", "forget", "radios", "scan")
+#: The members of a pairing reply that say what HAPPENED — and none that carry a secret.
+_PAIR_LOG_KEYS = (
+    "ok",
+    "awaiting",
+    "already",
+    "unreachable",
+    "verified",
+    "stored",
+    "session_ok",
+    "forgotten",
+    "cancelled",
+    "ble_addr",
+    "adapter",
+    "error",
+    "session_error",
+)
+
+
+def _pair_summary(res) -> str:
+    """A pairing reply as one log phrase: its outcome members, and a scan as a count with addresses."""
+    if not isinstance(res, dict):
+        return repr(res)[:200]
+    bits = [f"{k}={res[k]}" for k in _PAIR_LOG_KEYS if k in res]
+    if isinstance(res.get("found"), list):
+        addrs = [str(h.get("addr")) for h in res["found"] if isinstance(h, dict)]
+        bits.append("found=" + (",".join(addrs) or "none"))
+    if isinstance(res.get("radios"), list):
+        bits.append(f"radios={len(res['radios'])}")
+    return " ".join(bits)
+
+
 # Every stream name the box can actually write. The floor under the per-device firmware check in
 # settings_post: that check is skipped when the device has never connected since boot, and an
 # allowlist that exists only while a sensor is up is not an allowlist (CAPTURE-HOST-DEEP-AUDIT §D4).
@@ -662,6 +695,9 @@ def make_app(
             {action:"passkey", passkey}   prove the code (M1), VERIFY the device's M2, store as11_creds.json
             {action:"cancel"}             drop a pending exchange;  {action:"status"} what is pending
             {action:"forget"}             DELETE the stored key — the machine must be re-paired
+            {action:"radios"}             the box's radios, marked configured / wearables / usable
+            {action:"scan", adapter?}     ~6 s scan on ONE radio for advertising AirSense 11s
+            `adapter` (a MAC or hciN) on start/scan pins the radio; absent → the configured one
             {passkey}                     (no action) is the passkey step — the pre-2026-09-05 single-shot shape
 
         ⚠️ `cancel` and `forget` are not the same and were not both available: cancel drops an exchange
@@ -681,9 +717,17 @@ def make_app(
         if body is BAD_BODY:
             return _bad_body_response()
         action = str(body.get("action") or ("passkey" if "passkey" in body else "")).strip()
-        if action not in ("start", "passkey", "cancel", "status", "forget"):
+        if action not in _PAIR_ACTIONS:
             return web.json_response(
-                {"ok": False, "error": "action must be 'start', 'passkey', 'cancel', 'status' or 'forget'"}, status=400
+                {"ok": False, "error": "action must be one of " + ", ".join(repr(a) for a in _PAIR_ACTIONS)}, status=400
+            )
+        adapter = str(body.get("adapter") or "").strip()
+        if adapter and not (_valid_mac(adapter) or _HCI_RE.fullmatch(adapter)):
+            return web.json_response({"ok": False, "error": "adapter must be a radio MAC or an hciN name"}, status=400)
+        ble_addr = str(body.get("ble_addr") or "").strip()
+        if ble_addr and not _valid_mac(ble_addr):
+            return web.json_response(
+                {"ok": False, "error": "ble_addr must be a BLE MAC (AA:BB:CC:DD:EE:FF)"}, status=400
             )
         passkey = str(body.get("passkey", "")).strip()
         if action == "passkey" and not (passkey.isascii() and passkey.isdigit() and 4 <= len(passkey) <= 10):
@@ -691,9 +735,15 @@ def make_app(
                 {"ok": False, "error": "passkey must be the 4–10 digit code shown on the CPAP screen"}, status=400
             )
         try:
-            res = await cpap_pair(action, passkey=passkey or None, ble_addr=str(body.get("ble_addr") or ""))
+            res = await cpap_pair(action, passkey=passkey or None, ble_addr=ble_addr, adapter=adapter or None)
         except Exception as e:  # noqa: BLE001 — a pairing attempt must never 500 the monitor
+            _log.warning("cpap pair %s: raised %s: %s", action, type(e).__name__, e)
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        if action != "status":
+            # ONE LINE PER STEP, because the body was the only record: on 2026-10-06 a start and a step
+            # answered 200 and the access log said only "442 B / 280 B" — where the flow stopped could not
+            # be recovered. Never the passkey, never the key; status polls are not steps.
+            _log.info("cpap pair %s: %s", action, _pair_summary(res))
         return web.json_response(res)
 
     async def cpap_stream_h(req):
@@ -721,8 +771,17 @@ def make_app(
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
         return web.json_response(res)
 
-    async def scan(_req):
-        found = await bonding.scan(adapter_mac)
+    async def scan(req):
+        """POST /api/scan {adapter?} — discover on the wearables radio, or on the radio the operator picked.
+        The box has several and the list could only ever show what ONE of them heard; a device in range of
+        another radio (the CPAP's, say) looked absent. A MAC only: bonding pins radios by address."""
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        radio = str(body.get("adapter") or "").strip()
+        if radio and not _valid_mac(radio):
+            return web.json_response({"ok": False, "error": "adapter must be a radio MAC"}, status=400)
+        found = await bonding.scan(radio or adapter_mac)
         return web.json_response([f.__dict__ for f in found])
 
     async def bond(req):
@@ -746,6 +805,17 @@ def make_app(
         if forget_device:  # stop the runner too — else it reconnects a dropped device
             forget_device(body["address"])
         return web.json_response(res)
+
+    async def unbond(req):
+        """POST /api/unbond {address} — remove BlueZ's bond for a device and KEEP it in config. The
+        Devices list offered Bond but no way back short of Forget, which also deletes the device from
+        config.yaml; a bond that has gone stale (the device was reset) needs only the first half."""
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        if not _valid_mac(body.get("address")):
+            return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
+        return web.json_response(await bonding.forget(body["address"], adapter_mac))
 
     async def ring_buzz_h(req):
         """POST /api/ring/buzz {address} — fire ONE commanded vibration on the ring's next poll.
@@ -1940,6 +2010,7 @@ def make_app(
             web.post("/api/wifi/disconnect", wifi_disconnect_h),
             web.post("/api/wifi/forget", wifi_forget_h),
             web.post("/api/scan", scan),
+            web.post("/api/unbond", unbond),
             web.post("/api/cpap/pull", cpap_pull),
             web.post("/api/cpap/pair", cpap_pair_h),
             web.post("/api/cpap/stream", cpap_stream_h),
