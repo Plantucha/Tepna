@@ -431,39 +431,181 @@ def cached_stats(captures: str, path: str, deadline: float | None) -> tuple[dict
     return stats, False
 
 
-def _expand(root: str, night_dir: str, pattern: str) -> list[str]:
+# ── ONE NIGHT IS ONE RECORDING, AND A RECORDING CROSSES MIDNIGHT ────────────────────────────────────
+#
+# 🔴 THE DEFECT (owner report 2026-10-09→10): the Nights page split ONE night across TWO rows whenever
+# the Polar streams started after midnight. The night of 10-09→10-10 is one recording — ring at 21:25 in
+# folder 2026-10-09, Verity at 01:47 and H10 at 01:50 in folder 2026-10-10 — and the page showed
+# 10-09 (OxyDex + CPAPDex) and 10-10 (the five Polar nodes, plus an OxyDex "0 kB / ?" cell) as two
+# nights. Nothing was wrong with the capture; the LISTING grouped by folder.
+#
+# THE RULE IS THE JUDGE'S, NOT A SECOND DEFINITION OF IT. `solid_night_inputs` already carries the
+# owner's ruling (its header, #3297): "A RECORDING is the maximal chain of sessions separated by less
+# than `nightqc._SESSION_GAP_SEC`, CLIPPED TO THE NIGHT BAND it begins in", where MEMBERSHIP (is the
+# session's START inside the band?) decides the folder set and TRUNCATION bounds the span. So this module
+# asks `recording_scope` which folders a night spans and `in_band` which files belong, rather than
+# restating either — the one thing `NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF` §④(b) asks for.
+#
+# ⚠️ AND THE FOLDER BOUNDARY DOES NOT MOVE. `writers.py:766` records why a session's files must stay in
+# their start-date folder (`resumable_set` already searches the previous folder for exactly this), so
+# `night_dir()`, the folder names and the filenames are untouched. Only the LISTING's grouping changes.
+#
+# ⚠️ WHAT THIS DOES NOT DO, AND WHY IT IS NOT AN OVERSIGHT: it does not separate a MORNING DAYTIME
+# session from the night it shares a band with. Measured: `night_band` for 10-09 is
+# `[10-09 18:00, 10-10 10:00)`, so the ring's 09:18 daytime session on 10-10 falls INSIDE 10-09's band —
+# the brief's claim (§④) that a 09:52 session "falls in no band" does not hold against the
+# implementation, and §⑤ lists the daytime session as one of "two cases the ruling does not yet cover",
+# asking "Where does it go, and is it judged at all?".
+#
+# Separating it needs a rule nobody has given yet, and the obvious one is wrong. A first attempt chained
+# sessions by START with `nightqc._SESSION_GAP_SEC` and classified later chains as daytime — which
+# CLASSIFIED THE NIGHT'S OWN POLAR SETS AS DAYTIME, because the ring started 21:25 and the H10 at 01:50,
+# 4 h 22 m later, while the Polar sessions begin INSIDE the ring's 5.8 h recording. A wear gap is
+# END-to-START, and this module has no session end: `session_epoch` reads the start from the NAME, and an
+# end would need each file's last row stamp (`span_hours`, I/O per file against this function's deadline)
+# or its mtime, which `in_band`'s own docstring warns is the last write and may fall in the next band.
+# So the morning session's bytes still merge into the night's cells here, visibly — its files are named in
+# the cell's `files` list, and the primary pick is `max(..., key=getsize)`, so the night's own file still
+# drives `hours` and the stats. That is a narrower wrong than either guessing a rule or shipping one
+# measured to mis-split the night.
+
+
+def _expand_recording(dirs: list[str], band, pattern: str) -> list[str]:
+    """A FOLDER-RELATIVE capture pattern over the recording's folder set, admitted by band.
+
+    🔴 IT TAKES NO `root`, AND THAT IS THE POINT. `root` is read only on the root-relative branch, so
+    every caller that can only ever pass a folder-relative pattern was handing over a parameter it could
+    not use — and the gate named four `root → None` survivors that NO INPUT could distinguish for exactly
+    that reason (`_recording_files`, both `night_entry` sites, and `_expand_alt`'s plain-string branch).
+    Measured before splitting: `ARRIVAL` and all three `DERIVED` pattern sets are entirely
+    folder-relative — not one contains `/` — and the CPAP trees reach `_expand` only through the
+    tuple/`pick` branches, never as a plain string. A parameter a call site cannot reach is a mutant site
+    for nothing."""
+    import solid_night_inputs as _si  # cycle named in `_expand`
+
+    return sorted(
+        p for d in dirs for p in glob.glob(os.path.join(d, pattern)) if os.path.isfile(p) and _si.in_band(p, band)
+    )
+
+
+def _scope_parts(night_dir: str, scope: dict | None) -> tuple[list[str], object]:
+    """`(dirs, band)` — the ONE place a scope (or its absence) becomes an enumeration.
+
+    🔴 IT EXISTS BECAUSE `night_dir` WAS A FALLBACK, AND A FALLBACK IS A MUTANT NOBODY CAN KILL. With
+    `dirs = (scope or {}).get("dirs") or [night_dir]` inlined at the call sites, `night_dir → None`
+    survived three times over: whenever a scope carries dirs — which is every call `night_entry` makes
+    for a real night — the parameter is never read. Resolved once here, the enumeration takes only what
+    it uses, and the degrade for a folder that names no band (`scope is None` ⇒ this folder alone, no
+    band filter, exactly as documented) is stated in one place instead of three."""
+    # 🔴 `scope.get("ok")` IS THE LOAD-BEARING HALF, and it is not cosmetic: a REFUSED scope still
+    # carries a `band` (the two-folder tripwire computes one before refusing), so trusting it would
+    # filter this folder's files by a band the judgement declined to use — admitting a band filter on the
+    # strength of a scope that said "do not judge me". A refusal degrades to this folder, unfiltered.
+    if scope and scope.get("ok"):
+        return (scope.get("dirs") or [night_dir]), scope.get("band")
+    return [night_dir], None
+
+
+def _expand(root: str, night_dir: str, pattern: str, scope: dict | None = None) -> list[str]:
     ymd = os.path.basename(night_dir).replace("-", "")
-    base = root if "/" in pattern else night_dir
-    return sorted(p for p in glob.glob(os.path.join(base, pattern.format(ymd=ymd))) if os.path.isfile(p))
+    if "/" in pattern:
+        # A ROOT-RELATIVE, DATE-KEYED TREE (the CPAP trees) — left exactly as it was. These carry no
+        # session stamp at all (`session_epoch` returns None for them and says why), so there is no start
+        # to judge membership by, and globbing them across a second date would file one day's tree under
+        # another night on the strength of a guess.
+        return sorted(p for p in glob.glob(os.path.join(root, pattern.format(ymd=ymd))) if os.path.isfile(p))
+    dirs, band = _scope_parts(night_dir, scope)
+    return _expand_recording(dirs, band, pattern)
 
 
-def _expand_alt(root: str, night_dir: str, pat: Pattern, pick: int | None = None) -> tuple[list[str], int | None]:
+def _expand_alt(
+    root: str, night_dir: str, pat: Pattern, pick: int | None = None, scope: dict | None = None
+) -> tuple[list[str], int | None]:
     """A plain glob expands as is (index None). Alternatives expand to the FIRST one with files and its
     index — or, with `pick`, to exactly that alternative, so a primary reads from the tree the files came from."""
     if isinstance(pat, str):
-        return _expand(root, night_dir, pat), None
+        # A PLAIN-STRING PATTERN IS ALWAYS FOLDER-RELATIVE here (the date-keyed CPAP trees arrive as a
+        # TUPLE of alternatives and take the branches below), so this one needs no `root` — which is why
+        # `_expand(None, ...)` survived the gate on this line.
+        dirs, band = _scope_parts(night_dir, scope)
+        return _expand_recording(dirs, band, pat), None
     if pick is not None:
-        return _expand(root, night_dir, pat[pick]), pick
+        return _expand(root, night_dir, pat[pick], scope), pick
     for i, p in enumerate(pat):
-        got = _expand(root, night_dir, p)
+        got = _expand(root, night_dir, p, scope)
         if got:
             return got, i
     return [], None
 
 
-def night_entry(root: str, night_dir: str, deadline: float | None = None) -> dict:
+def _recording_files(night_dir: str, pattern: str, scope: dict | None, stamps: frozenset[float] | None) -> list[str]:
+    """The recording's files for one pattern — the scope's folders, admitted by band and by chain.
+
+    🔴 MODULE-LEVEL, AND IT WAS A NESTED CLOSURE UNTIL THE GATE CRASHED ON IT. The diff-scoped mutation
+    gate names every `FunctionDef` a diff touches and asks mutmut for that function's mutants; mutmut
+    does not generate them for a nested def, so the filter
+    `nights_index.x__recording_files__mutmut_*` matched nothing and the run died with
+    `AssertionError: Filtered for specific mutants, but nothing matches` — a crash, not a verdict, and
+    not the gate's own glitch. A helper inside a function is unmeasurable by construction here."""
+    dirs, band = _scope_parts(night_dir, scope)
+    got = _expand_recording(dirs, band, pattern)
+    if stamps is not None:
+        # A STAMPLESS FILE STAYS: it has no start to judge, and `recordings_of` reports it as unassigned
+        # rather than filing it under a band. Dropping it here would make the cell lossy to fix a
+        # grouping question it is not part of.
+        got = [f for f in got if (t := session_epoch(f)) is None or t in stamps]
+    return got
+
+
+def night_entry(
+    root: str, night_dir: str, deadline: float | None = None, stamps: frozenset[float] | None = None
+) -> dict:
     """One night, every column. A node with no input is `None`; a derived tool is True/False. A node's
     `fragments`/`coverage` come from its primary stream (None for EDF primaries, which have no row
-    stamps; `pending: True` when the deadline left no time to compute them yet)."""
+    stamps; `pending: True` when the deadline left no time to compute them yet).
+
+    `stamps` narrows the row to ONE RECORDING — the session starts that chain together. New, optional and
+    last, so every existing caller keeps the old meaning: without it the row is the band's FULL
+    membership, which is what a caller asking "what is in this night folder's band" wants. `index_nights`
+    passes it, because one band can carry two rows when a doff gap splits it (owner ruling 2026-10-10:
+    row identity is `(night band, recording start)`)."""
+    import solid_night_inputs as _si  # the cycle is named in `_expand`
+
     out: dict = {"night": os.path.basename(night_dir)}
+    if stamps:
+        # THE SECOND HALF OF THE ROW IDENTITY. `night` is the band; this is the recording's own start, and
+        # without it two rows in one band are indistinguishable to every consumer — the page, a cache key,
+        # a test. Published as wall-clock because that is what a reader compares against the device's own
+        # screen; the epoch is `min(stamps)` and stays internal.
+        out["recording_start"] = _dt.datetime.fromtimestamp(min(stamps)).strftime("%Y-%m-%d %H:%M")
+    # THE RECORDING'S FOLDER SET, ASKED OF THE JUDGE ONCE PER NIGHT. Once, because `recording_scope`
+    # counts files per folder and `_expand` is called per node per pattern — asking it there would pay
+    # that walk dozens of times against a deadline this function is explicitly budgeted by.
+    # A scope that is not `ok` (the folder is not a date, or the two-folder tripwire fired) falls back to
+    # this folder alone: the listing degrades to the pre-#3297 folder view rather than guessing a scope.
+    # The `ok` check lives in `_scope_parts`, NOT here. As a ternary it was a mutant site
+    # (`(_sc.get("ok")) or True`) whose two sides both degraded to this folder with no band filter —
+    # because a not-ok scope carries no `dirs` — so it read as unkillable while being a real branch.
+    # Asking once, where the answer is load-bearing, removes the site and keeps the behaviour.
+    scope = _si.recording_scope(night_dir)
+
+    # STEP 1 — gather what the band admits, per node, WITHOUT computing anything expensive. The daytime
+    # chain has to be removed BEFORE `span_hours`/`cached_stats` run, or the night's cells would carry a
+    # recording the night does not contain.
+    cand: dict[str, tuple[list[str], int | None]] = {}
     for node, (patterns, primary) in NODES.items():
         files: list[str] = []
         tree: int | None = None
         for p in patterns:
-            got, i = _expand_alt(root, night_dir, p)
+            got, i = _expand_alt(root, night_dir, p, scope=scope)
             files += got
             tree = i if tree is None else tree
-        files = sorted(set(files))
+        cand[node] = (sorted(set(files)), tree)
+
+    for node, (patterns, primary) in NODES.items():
+        files, tree = cand[node]
+        if stamps is not None:
+            files = [f for f in files if (t := session_epoch(f)) is None or t in stamps]
         if not files:
             out[node] = None
             continue
@@ -497,9 +639,16 @@ def night_entry(root: str, night_dir: str, deadline: float | None = None) -> dic
             "files": [os.path.relpath(f, root) for f in files],
             "loadable": node not in NOT_LOADABLE,
         }
+
+    # ⚠️ THESE TWO TAKE THE SCOPE AND THE FILTER TOO, and I first wired only the node cells — which left
+    # the adopted row's `arrival` EMPTY (it globbed a band folder that does not exist) and `DERIVED`
+    # judging the wrong recording. A test caught it. One enumeration rule, applied at every site that
+    # enumerates, or the row is assembled from two different definitions of "this night".
     for tool, required in DERIVED.items():
-        out[tool] = all(_expand(root, night_dir, p) for p in required)
-    out["arrival"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(root, night_dir, p))
+        out[tool] = all(_recording_files(night_dir, p, scope, stamps) for p in required)
+    out["arrival"] = sorted(
+        os.path.relpath(f, root) for p in ARRIVAL for f in _recording_files(night_dir, p, scope, stamps)
+    )
     # the RECORDINGS beside the folder view — see `recordings_of`. Additive: every key above is unchanged.
     out["recordings"], out["recordings_unassigned"] = recordings_of(out)
     return out
@@ -567,20 +716,146 @@ def list_nights(root: str) -> list[str]:
     )
 
 
+def _session_spans(root: str) -> dict[float, float]:
+    """`{session_start_epoch: session_end_epoch}` over EVERY date folder, as one pass.
+
+    🔴 THE END IS WHY THIS EXISTS, and getting it from the START was my first version's defect. A
+    recording is "the maximal chain of sessions separated by less than `nightqc._SESSION_GAP_SEC`"
+    (`solid_night_inputs`' header, the owner's ruling) — and a WEAR gap is END-to-START. Chaining on
+    starts alone split last night in two: the ring began 21:25 and the H10 01:50, 4 h 22 m later, while
+    the Polar sessions begin INSIDE the ring's 5.8 h recording. Measured before this was rewritten.
+
+    ⚠️ THE END IS THE LAST WRITE (max mtime over the session's files), and that is a choice with a
+    stated cost. `in_band`'s docstring warns mtime off MEMBERSHIP — which band a session belongs to must
+    come from the stamp in the NAME, and still does. But the session's END is exactly what "last write"
+    means for a finished capture, and the alternative (each file's last row stamp) is `span_hours` per
+    file, which is I/O per file against the budget `index_nights` is explicitly bounded by. A session
+    still being written reads as ending now, which merges it with the night in progress — the right
+    answer for a live row."""
+    spans: dict[float, float] = {}
+    # `list_nights`, NOT a raw `????-??-??` glob: it already filters by the night regex AND `isdir`, so a
+    # stray `status.json`, the `stored/` tree and a name like `2026-09-99` are excluded by the one
+    # enumeration this module already vetted. My first version globbed, which orphaned this function and
+    # would have admitted an impossible date as a night.
+    for d in list_nights(root):
+        # SORTED, so the scan order is FIXED. `glob` returns filesystem order, which made a
+        # `continue` → `break` mutant on the skip below survive: a test can only see that mutant if the
+        # skipped file is guaranteed to come BEFORE a file that must still be scanned, and an unsorted
+        # walk cannot guarantee it. Determinism is also the cheaper property to reason about.
+        for f in sorted(glob.glob(os.path.join(d, "*"))):
+            t = session_epoch(f)
+            if t is None or not os.path.isfile(f):
+                continue
+            try:
+                end = os.path.getmtime(f)
+            except OSError:
+                continue  # vanished between glob and stat — it carries no span to add
+            spans[t] = max(spans.get(t, end), end, t)
+    return spans
+
+
+def _recordings(root: str) -> list[tuple[str, frozenset[float]]]:
+    """`[(band_evening_date, stamps)]` — one entry per RECORDING, newest first. PURE given the tree.
+
+    ROW IDENTITY IS `(night band, recording start)` (owner ruling 2026-10-10), so this enumerates BANDS
+    OVER THE UNION OF FOLDERS rather than folders themselves. Two consequences, both deliberate:
+      · ONE BAND CAN CARRY TWO ROWS. A morning session after a doff gap is a second recording in the same
+        band — which is what the 09:18 ring session on 2026-10-10 is, and it gets its own row instead of
+        merging into the night or needing a "daytime" rule §⑤ left open.
+      · A SESSION WHOSE BAND-DATE FOLDER DOES NOT EXIST IS ADOPTED. The row is keyed by the band, and
+        `night_entry` reaches the files through `recording_scope`'s folder set, so a 00:26 session sitting
+        alone in folder D+1 is listed under band D even though no folder D was ever created. Enumerating
+        folders is what dropped it."""
+    captures = os.path.join(root, "captures")
+    spans = _session_spans(root)
+    by_band: dict[str, list[float]] = {}
+    # 🔴 A NIGHT WITH NO SESSION STAMP ANYWHERE STILL GETS A ROW, and leaving this out LOST one. The CPAP
+    # trees are DATE-KEYED and carry no stamp (`session_epoch` returns None and says why), so a night
+    # whose only data is CPAP produces no recording — and enumerating recordings alone dropped it from
+    # the listing entirely. Measured on a CPAP-only fixture: 0 rows for a night that is on disk. That is
+    # the exact trap `_night_row`'s docstring names one layer down — "an omitted night reads as a night
+    # that was never captured".
+    #
+    # ⚠️ ONLY where the date-keyed tree EXISTS, never for every folder: a folder whose files all band to
+    # the PREVIOUS evening must stay rowless, or the phantom second row the owner reported comes back.
+    stampless: set[str] = set()
+    for pat in ("cpap/DATALOG/????????", "cpap-ble/DATALOG/????????"):
+        for d in glob.glob(os.path.join(captures, pat)):
+            ymd = os.path.basename(d)
+            if os.path.isdir(d) and any(os.path.isfile(f) for f in glob.glob(os.path.join(d, "*"))):
+                # `ymd[6:]`, not `[6:8]`: the glob is `????????` so the two are identical and `[6:9]`
+                # survived the gate. An end index that cannot differ is a mutant site for nothing.
+                stampless.add(f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}")
+    for t in sorted(spans):
+        # NO `if band is None` GUARD — `nightqc.night_band` has no such return. Measured: for a stamp
+        # before 18:00 it anchors to the PREVIOUS evening, so every plausible epoch gets a band and the
+        # guard I first wrote was unreachable.
+        #
+        # ⚠️ AND IT RETURNS A BAND THAT NEED NOT CONTAIN THE STAMP, which its docstring ("the [begin,
+        # end) night band containing `ts`") does not say: 14:00 sits in the 8 h daytime gap, and
+        # `night_band` hands back the previous evening's `[18:00, 10:00)`, which ends four hours before
+        # it. The consequence here is deliberate and consistent with the 09:18 case — a midday session
+        # joins the previous band as its OWN recording, so it gets its own row rather than vanishing or
+        # merging into the night. The mismatch is `nightqc`'s to fix; this records that it was measured.
+        band = nightqc.night_band(t)
+        key = _dt.datetime.fromtimestamp(band[0]).strftime("%Y-%m-%d")
+        by_band.setdefault(key, []).append(t)
+    out: list[tuple[str, frozenset[float]]] = []
+    # `stampless - by_band.keys()` rather than `setdefault(key, [])`: the sentinel `[]` was a mutant site
+    # whose mutations (`None`, or the argument dropped) reached the SAME branch below, so none could be
+    # killed. A date-keyed night is now named by its own loop and carries no placeholder list at all.
+    for key in sorted(stampless - by_band.keys()):
+        out.append((key, frozenset()))
+    for key, starts in by_band.items():
+        # `-inf`, NOT `None`: the sentinel only existed to be `or`-ed away, and `reach = ""` survived the
+        # gate because `"" or spans[t]` and `None or spans[t]` are the same thing. With `-inf` the first
+        # element needs no special case, the `reach is not None` conjunct disappears, and a mutated
+        # sentinel (`+inf`) WOULD be observable: it never breaks a chain, so a two-recording band
+        # collapses to one row.
+        # NO SENTINEL. `reach = None` was mutable to `""` and `float("-inf")` to `float("-INF")` —
+        # Python parses those identically — and both survived because a sentinel's only job is to be
+        # replaced on the first element. Taking the first start explicitly removes the sentinel, the
+        # `chain and …` guard, and both unkillable mutants with it.
+        it = iter(starts)
+        first = next(it)
+        chain, reach = [first], spans[first]
+        for t in it:
+            if t - reach >= nightqc._SESSION_GAP_SEC:
+                out.append((key, frozenset(chain)))
+                chain, reach = [t], spans[t]
+                continue
+            chain.append(t)
+            reach = max(reach, spans[t])
+        # NOT `if chain:` — UNREACHABLE. `starts` is non-empty here (the empty case returned above) and
+        # the loop appends every element, so the final chain always holds at least one start. A guard no
+        # input can falsify is a branch the mutation gate can neither kill nor excuse, which is the
+        # reasoning `solid_night_inputs` already records for its own `max_dirs` tripwire.
+        out.append((key, frozenset(chain)))
+    # newest first: by band date, then by the recording's own start — the row identity, in order
+    # `sorted(stamps)[:1]` — a LIST, not a number with a default. `min(..., default=0.0)` needed a
+    # numeric sentinel for the date-keyed nights (no recording start), and the gate named `default=1.0`
+    # as a survivor because no real session epoch is anywhere near either value. A one-element slice is
+    # `[]` for a date-keyed night and `[start]` otherwise, and `[] < [start]` without a sentinel at all.
+    # The FULL sorted list, not `[:1]`: a slice bound is a mutant site (`[:2]` survived — two recordings
+    # in one band always differ at their FIRST start, so a wider slice cannot change the order), and the
+    # whole list orders identically while leaving nothing to mutate. `[]` for a date-keyed night.
+    out.sort(key=lambda kv: (kv[0], sorted(kv[1])), reverse=True)
+    return out
+
+
 def index_nights(root: str, limit: int = 60, budget_s: float | None = 15.0) -> list[dict]:
     """The newest `limit` nights, oldest first. `root` is the box root (`config.root`); its `captures/`
     holds the night directories and the CPAP trees the CPAPDex globs reach into. `budget_s` bounds the
     fragment/coverage passes this call may run (newest nights first, so the ones being looked at fill
     first); nodes left uncomputed carry `pending: True` and a later call finishes them from the cache."""
-    nights = list_nights(root)
     captures = os.path.join(root, "captures")
     deadline = None if budget_s is None else time.monotonic() + budget_s
-    picked = nights[-max(1, limit) :]
-    rows = [_night_row(captures, d, deadline) for d in reversed(picked)]
+    recs = _recordings(root)[: max(1, limit)]
+    rows = [_night_row(captures, os.path.join(captures, band), deadline, stamps) for band, stamps in recs]
     return list(reversed(rows))
 
 
-def _night_row(captures: str, night_dir: str, deadline: float | None) -> dict:
+def _night_row(captures: str, night_dir: str, deadline: float | None, stamps: frozenset[float] | None = None) -> dict:
     """One night's row, or a row naming why that night could not be indexed.
 
     ONE BAD NIGHT IS NOT NINETY. `index_nights` used to be a bare comprehension, so the first night that
@@ -594,7 +869,7 @@ def _night_row(captures: str, night_dir: str, deadline: float | None) -> dict:
     downstream can mistake it for a night with no data: `pending_count` skips non-dict values, and a
     consumer looking for a node finds the key missing rather than null."""
     try:
-        return night_entry(captures, night_dir, deadline)
+        return night_entry(captures, night_dir, deadline, stamps)
     except Exception as exc:  # noqa: BLE001 — one night's defect must not hide the other eighty-nine
         return {"night": os.path.basename(night_dir), "error": f"{type(exc).__name__}: {exc}"}
 

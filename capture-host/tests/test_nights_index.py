@@ -32,20 +32,27 @@ def _edf(path, records=120, dur_s=30.0):
 
 
 def _night(root, night="2026-09-19", *, h10=True, verity=True, ring=True, cpap=True):
+    """⚠️ THE SESSION STAMP NOW FOLLOWS THE FOLDER, and before 2026-10-10 it did not: every file was
+    written with a hard-coded `20260919220000` whatever `night` said. Under folder-keyed row identity
+    that was invisible — the row came from the folder's NAME. Under `(night band, recording start)` the
+    STAMP decides, so three folders all claiming 2026-09-19 22:00 collapsed into one row and three
+    listing tests failed. Real captures cannot be in this state: `writers.night_dir()` files a session's
+    files under its own start date, which is the property this fixture now reproduces."""
     d = os.path.join(root, "captures", night)
     os.makedirs(d, exist_ok=True)
+    stamp = f"{night.replace('-', '')}220000"
     if h10:
         for s in ("ECG", "ACC", "HR", "RR"):
-            _w(os.path.join(d, f"Polar_H10_02849638_20260919220000_{s}.txt"), ISO_ROWS)
+            _w(os.path.join(d, f"Polar_H10_02849638_{stamp}_{s}.txt"), ISO_ROWS)
     if verity:
         for s in ("PPG", "PPI", "ACC"):
-            _w(os.path.join(d, f"Polar_VeritySense_0C301E3F_20260919220000_{s}.txt"), ISO_ROWS)
+            _w(os.path.join(d, f"Polar_VeritySense_0C301E3F_{stamp}_{s}.txt"), ISO_ROWS)
     if ring:
         _w(
-            os.path.join(d, "Wellue_O2Ring-S_S8AW2100_20260919220000_SPO2.csv"),
+            os.path.join(d, f"Wellue_O2Ring-S_S8AW2100_{stamp}_SPO2.csv"),
             "Time,Oxygen Level,Pulse Rate,Motion\n22:45:27 19/09/2026,91,65,0\n05:45:27 20/09/2026,97,58,0\n",
         )
-        _w(os.path.join(d, "Wellue_O2Ring-S_S8AW2100_20260919220000_PPG.txt"), ISO_ROWS)
+        _w(os.path.join(d, f"Wellue_O2Ring-S_S8AW2100_{stamp}_PPG.txt"), ISO_ROWS)
     if cpap:
         _edf(os.path.join(root, "captures", "cpap-ble", "DATALOG", night.replace("-", ""), "20260919_220000_BRP.edf"))
     return d
@@ -765,7 +772,11 @@ def test_ONE_bad_night_does_not_take_the_other_eighty_nine_down(tmp_path, monkey
     _night(tmp_path, "2026-09-20")
     real = ni.night_entry
 
-    def boom(captures, night_dir, deadline):
+    # ⚠️ THE DOUBLE MIRRORS THE REAL SIGNATURE, and it gained `stamps` on 2026-10-10: `_night_row` now
+    # tells `night_entry` WHICH recording the row is for, because one band can carry two. A 3-argument
+    # stub raised `TypeError: … 4 were given` and the test read as a listing failure — a double that has
+    # drifted from the function it stands in for reports on nothing.
+    def boom(captures, night_dir, deadline, stamps=None):
         if night_dir.endswith("2026-09-19"):
             raise KeyError("gaps_s")
         return real(captures, night_dir, deadline)
@@ -806,10 +817,17 @@ def test_the_listing_defaults_to_SIXTY_nights_and_a_FIFTEEN_second_budget(tmp_pa
     reading test cannot see them: mutmut applies a mutated default at CALL time while leaving the visible
     `def` alone (`ext:memory/a-signature-reading-test-cannot-see-a-mutated-default`). So they are observed
     through behaviour — how many nights come back, and what deadline the per-night call is handed."""
-    monkeypatch.setattr(ni, "list_nights", lambda root: [f"2026-07-{d:02d}" for d in range(1, 10)] * 7)
+    # 🔴 THE SEAM MOVED, DELIBERATELY. This stubbed `list_nights`, which `index_nights` NO LONGER CALLS:
+    # row identity is `(night band, recording start)` (owner ruling 2026-10-10), so the listing enumerates
+    # BANDS over the union of folders via `_recordings`. A stub on the old seam intercepted nothing and
+    # the test saw 0 rows — the "a double that no longer doubles anything" failure, which is worse than a
+    # break because a differently-shaped suite could have gone green on it.
+    monkeypatch.setattr(
+        ni, "_recordings", lambda captures: [(f"2026-07-{d:02d}", frozenset({float(d)})) for d in range(1, 10)] * 7
+    )
     seen: list = []
 
-    def rec(captures, night_dir, deadline):
+    def rec(captures, night_dir, deadline, stamps=None):
         seen.append(deadline)
         return {"night": os.path.basename(night_dir)}
 
@@ -842,27 +860,37 @@ def test_a_folder_holding_TWO_NIGHTS_is_published_as_TWO_RECORDINGS(tmp_path):
     _w(os.path.join(d, "Polar_H10_02849638_20261004220206_ECG.txt"), ISO_ROWS)
     _w(os.path.join(d, "Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"), "Phone timestamp;device;meas\n")
 
-    e = ni.night_entry(os.path.join(root, "captures"), d)
-    names = [r["recording"] for r in e["recordings"]]
+    # 🔴 THE CONTRACT CHANGED ON PURPOSE (owner ruling 2026-10-10). Row identity is
+    # `(night band, recording start)`, so one folder holding two nights is TWO ROWS of the listing — not
+    # two entries inside one folder's row. The folder is no longer the unit, which is the whole point:
+    # the 00:26 session BELONGS to the night that began 10-03 and is now listed there, under a band whose
+    # own folder was never created (ADOPTION). Before this ruling it was filed under 2026-10-04 because
+    # that is the folder its bytes landed in, and the page showed one night as two.
+    rows = ni.index_nights(root, budget_s=None)
+    names = [r["night"] for r in rows]
     assert names == ["2026-10-03", "2026-10-04"], (
-        "one folder, two recordings, named by the EVENING each band is anchored on and ordered as the "
-        f"nights happened: {names}"
+        "one folder, two recordings, each listed under the EVENING its band is anchored on and ordered "
+        f"as the nights happened: {names}"
     )
-    first, second = e["recordings"]
-    assert first["files"]["ECGDex"] == ["2026-10-04/Polar_H10_02849638_20261004002801_ECG.txt"]
-    assert second["files"]["ECGDex"] == ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]
+    first, second = rows
+    # ⚠️ AND 2026-10-03 HAS NO FOLDER AT ALL — the row exists because the BAND does. Enumerating folders
+    # is exactly what dropped this session from the listing.
+    assert not os.path.isdir(os.path.join(root, "captures", "2026-10-03"))
+    assert first["ECGDex"]["files"] == ["2026-10-04/Polar_H10_02849638_20261004002801_ECG.txt"]
+    assert second["ECGDex"]["files"] == ["2026-10-04/Polar_H10_02849638_20261004220206_ECG.txt"]
     assert first["arrival"] == ["2026-10-04/Polar_H10_02849638_20261004002801_PMDARRIVAL.csv"]
     assert second["arrival"] == ["2026-10-04/Polar_H10_02849638_20261004220206_PMDARRIVAL.csv"]
+    # the recording start is the second half of the identity, so two rows are distinguishable
+    assert first["recording_start"] == "2026-10-04 00:28" and second["recording_start"] == "2026-10-04 22:02"
     # ⚠️ CONSECUTIVE BANDS DO NOT ABUT, and the gap is the design, not a hole: a band is 16 h
-    # (18:00→10:00), so 10:00–18:00 belongs to NO night. That is the DAYTIME class — wear there is excluded
-    # from the night with its span named (NIGHT-IS-THE-RECORDING §scope) rather than folded into whichever
-    # night is nearer. I first asserted the bands abutted; they are 8 h apart and should be.
-    assert second["begin"] - first["end"] == 8 * 3600.0, (
-        f"the daytime window between two nights is 8 h and belongs to neither: {first['end']} → {second['begin']}"
+    # (18:00→10:00), so 10:00–18:00 belongs to NO night. That is the DAYTIME class — wear there is
+    # excluded from the night with its span named (NIGHT-IS-THE-RECORDING §scope) rather than folded into
+    # whichever night is nearer. I first asserted the bands abutted; they are 8 h apart and should be.
+    b1, b2 = first["recordings"][0], second["recordings"][0]
+    assert b2["begin"] - b1["end"] == 8 * 3600.0, (
+        f"the daytime window between two nights is 8 h and belongs to neither: {b1['end']} → {b2['begin']}"
     )
-    assert first["end"] - first["begin"] == 16 * 3600.0
-    # ADDITIVE: the folder-wide view still holds everything, so an existing reader sees no subset
-    assert len(e["ECGDex"]["files"]) == 2 and len(e["arrival"]) == 2
+    assert b1["end"] - b1["begin"] == 16 * 3600.0
 
 
 def test_a_file_with_NO_SESSION_STAMP_is_named_not_filed_under_a_guessed_band(tmp_path):
@@ -935,3 +963,563 @@ def test_an_unstamped_file_does_not_STOP_the_grouping_and_first_is_the_EARLIEST_
         f"and not None: {recs[0]['first']} != {want}"
     )
     assert recs[0]["begin"] <= recs[0]["first"] < recs[0]["end"]
+
+
+# ══ ONE NIGHT IS ONE ROW, EVEN WHEN THE POLAR STREAMS START AFTER MIDNIGHT (owner report 2026-10-09→10) ══
+# The night of 10-09→10-10 is ONE recording: ring at 21:25 in folder 2026-10-09, Verity at 01:47 and H10
+# at 01:50 in folder 2026-10-10. The page showed it as TWO nights — 10-09 (OxyDex) and 10-10 (the Polar
+# nodes plus an OxyDex "0 kB / ?" cell). Nothing was wrong with the capture; the listing grouped by folder.
+
+
+def _last_night(root):
+    """Last night's real shape, from the box reading: one recording across two folders, plus the morning
+    daytime ring session whose stream files are 0-byte buffered headers (brief §④′)."""
+    d9, d10 = os.path.join(root, "2026-10-09"), os.path.join(root, "2026-10-10")
+    for d in (d9, d10):
+        os.makedirs(d, exist_ok=True)
+    open(os.path.join(d9, "Wellue_O2Ring-S_ABC_20261009212546_SPO2.csv"), "w").write("x" * 587000)
+    for suf, sz in (("ECG", 5000), ("ACC", 1000)):
+        open(os.path.join(d10, f"Polar_H10_02849638_20261010015024_{suf}.txt"), "w").write("x" * sz)
+    for suf, sz in (("PPG", 4000), ("ACC", 1000)):
+        open(os.path.join(d10, f"Polar_VeritySense_0C301E3F_20261010014748_{suf}.txt"), "w").write("x" * sz)
+    for suf in ("PPG", "PLETHA", "PPG2W", "ACCRAW"):
+        open(os.path.join(d10, f"Wellue_O2Ring-S_ABC_20261010091801_{suf}.txt"), "w").close()
+    open(os.path.join(d10, "Wellue_O2Ring-S_ABC_20261010091801_SPO2.csv"), "w").close()
+    return d9, d10
+
+
+def _nodes(entry):
+    return sorted(k for k, v in entry.items() if isinstance(v, dict) and v.get("files"))
+
+
+def test_a_night_whose_polar_streams_start_after_midnight_is_ONE_row(tmp_path):
+    """🔴 THE PLANT, red on main. The evening folder's row must carry every device of the recording,
+    including the sets whose BYTES live under the next date — membership by session START, which is what
+    `solid_night_inputs.in_band` decides and what makes the two-folder bound structural.
+
+    On main this row holds OxyDex alone and the five Polar columns appear under 2026-10-10."""
+    d9, _d10 = _last_night(str(tmp_path))
+    got = _nodes(ni.night_entry(str(tmp_path), d9))
+    for node in ("OxyDex", "ECGDex", "PPGDex", "MotionDex"):
+        assert node in got, f"{node} missing from the evening row: {got}"
+
+
+def test_the_MORNING_folder_no_longer_carries_a_phantom_night(tmp_path):
+    """The other half of the split, and the "0 kB / ?" cell the owner actually saw: folder 2026-10-10
+    held only sessions belonging to 10-09's band, so it must contribute NO row of its own — rather than a
+    second night whose OxyDex cell is a 0-byte buffered header read as a night with no data."""
+    _d9, d10 = _last_night(str(tmp_path))
+    entry = ni.night_entry(str(tmp_path), d10)
+    assert _nodes(entry) == [], f"the morning folder still claims a night: {_nodes(entry)}"
+    zero = [k for k, v in entry.items() if isinstance(v, dict) and v.get("bytes") == 0]
+    assert zero == [], f"a 0-byte cell is still published as a night's data: {zero}"
+
+
+def test_TWO_GENUINELY_SEPARATE_NIGHTS_STAY_TWO_ROWS(tmp_path):
+    """THE CONTROL that keeps this from being a merge-everything change. Two evenings, each with its own
+    first donning after 18:00, must remain two rows — if band membership were widened to "any file under
+    either folder" this is what would fail, and the fix would read as working on the plant alone."""
+    root = str(tmp_path)
+    for day, stamp in (("2026-10-01", "20261001213000"), ("2026-10-02", "20261002220000")):
+        d = os.path.join(root, day)
+        os.makedirs(d, exist_ok=True)
+        open(os.path.join(d, f"Wellue_O2Ring-S_ABC_{stamp}_SPO2.csv"), "w").write("x" * 1000)
+        open(os.path.join(d, f"Polar_H10_02849638_{stamp}_ECG.txt"), "w").write("x" * 1000)
+    for day in ("2026-10-01", "2026-10-02"):
+        got = _nodes(ni.night_entry(root, os.path.join(root, day)))
+        assert "OxyDex" in got and "ECGDex" in got, (day, got)
+    # and neither night swallowed the other's files
+    e1 = ni.night_entry(root, os.path.join(root, "2026-10-01"))
+    assert all("2026-10-02" not in f for f in e1["OxyDex"]["files"]), e1["OxyDex"]["files"]
+
+
+def test_a_DATE_KEYED_tree_is_not_expanded_across_folders(tmp_path):
+    """⚠️ THE CPAP TREES ARE ROOT-RELATIVE AND CARRY NO SESSION STAMP, so they are deliberately left on
+    the old path. `session_epoch` returns None for them (its docstring says why), meaning there is no
+    start to judge membership by — globbing them across a second date would file one day's tree under
+    another night on the strength of a guess, which is the fabrication this change exists to remove."""
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "2026-10-09"), exist_ok=True)
+    for ymd in ("20261009", "20261010"):
+        d = os.path.join(root, "cpap", "DATALOG", ymd)
+        os.makedirs(d, exist_ok=True)
+        open(os.path.join(d, f"{ymd}_000000_BRP.edf"), "w").write("x" * 100)
+    cell = ni.night_entry(root, os.path.join(root, "2026-10-09")).get("CPAPDex")
+    assert cell and all("20261009" in f for f in cell["files"]), cell
+
+
+# ══ THE RECORDING ENUMERATION'S OWN EDGES (2026-10-10) ═════════════════════════════════════════════
+
+
+def test_ONE_BAND_CARRIES_TWO_ROWS_when_a_doff_gap_splits_it(tmp_path):
+    """🔴 LAST NIGHT, AND THE CASE THE OWNER REPORTED. Row identity is `(night band, recording start)`, so
+    the ring at 21:25 and the Polar sets at 01:47/01:50 — which land in DIFFERENT folders — are ONE row,
+    while the 09:18 morning session is a SECOND row in the same band.
+
+    ⚠️ AND THE CHAIN IS MEASURED END-TO-START, which my first version got wrong. The ring begins 21:25
+    and the H10 01:50 — 4 h 22 m apart by START, so a start-to-start gap split the night in two. The
+    Polar sessions begin INSIDE the ring's 5.8 h recording, so the wear never stopped; what separates
+    09:18 is that it begins 6 h after the chain's furthest END."""
+    import time as _t
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    ep = lambda s: _t.mktime(_t.strptime(s, "%Y%m%d%H%M%S"))  # noqa: E731
+
+    def put(day, name, size, end):
+        d = os.path.join(c, day)
+        os.makedirs(d, exist_ok=True)
+        p = os.path.join(d, name)
+        open(p, "w").write("x" * size)
+        os.utime(p, (end, end))
+
+    put("2026-10-09", "Wellue_O2Ring-S_A_20261009212546_SPO2.csv", 587000, ep("20261010031500"))
+    put("2026-10-10", "Polar_H10_02849638_20261010015024_ECG.txt", 5000, ep("20261010064500"))
+    put("2026-10-10", "Wellue_O2Ring-S_A_20261010091801_SPO2.csv", 100, ep("20261010101500"))
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-10-09", "2026-10-09"], [r["night"] for r in rows]
+    starts = [r["recording_start"] for r in rows]
+    assert starts == ["2026-10-09 21:25", "2026-10-10 09:18"], starts
+    night, morning = rows
+    # the night carries BOTH devices despite their bytes living under two dates — the reported defect
+    assert night["OxyDex"] and night["ECGDex"], night
+    # and the morning session is its own row, not merged into the night and not a "0 kB / ?" cell on a
+    # phantom 2026-10-10 night
+    assert morning["OxyDex"] and morning.get("ECGDex") is None, morning
+
+
+def test_a_DATE_KEYED_night_with_no_session_stamp_anywhere_still_gets_a_row(tmp_path):
+    """🔴 THE LOSS I ALMOST SHIPPED. The CPAP trees are date-keyed and carry no session stamp, so a night
+    whose only data is CPAP produces NO recording — and enumerating recordings alone gave ZERO rows for a
+    night that is on disk. That is `_night_row`'s own trap one level up: "an omitted night reads as a
+    night that was never captured"."""
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "captures", "2026-10-07"), exist_ok=True)
+    _edf(os.path.join(root, "captures", "cpap", "DATALOG", "20261007", "20261007_000000_BRP.edf"))
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-10-07"], rows
+    assert rows[0]["CPAPDex"], rows[0]
+    # it has no recording, so it carries no recording_start — the identity's second half is absent, not 0
+    assert "recording_start" not in rows[0]
+
+
+def test_an_EMPTY_date_folder_claims_no_night_and_a_stampless_file_is_not_a_session(tmp_path):
+    """Two absences that must NOT become rows. A folder whose files all band to the previous evening must
+    stay rowless — otherwise the phantom second row the owner reported comes straight back — and a file
+    with no session stamp contributes no session start to chain on."""
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-11")
+    os.makedirs(d, exist_ok=True)
+    open(os.path.join(d, "notes.txt"), "w").write("no session stamp here")
+    assert ni.index_nights(root, budget_s=None) == []
+
+
+def test_a_file_that_vanishes_between_the_glob_and_the_stat_is_skipped(tmp_path, monkeypatch):
+    """The capture tree is written while it is read. A file listed by the glob and gone by the `stat`
+    must drop out of the span map rather than taking the whole listing down — `index_nights` is the
+    endpoint the Nights page calls, and one racing unlink must not empty it."""
+    root = str(tmp_path)
+    _night(root, "2026-09-19", cpap=False)
+    real = ni.os.path.getmtime
+
+    def vanishing(p):
+        if p.endswith("_ECG.txt"):
+            raise OSError(2, "No such file or directory")
+        return real(p)
+
+    monkeypatch.setattr(ni.os.path, "getmtime", vanishing)
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-09-19"], rows
+
+
+def test_an_EMPTY_date_keyed_tree_is_not_a_night(tmp_path):
+    """The other side of the date-keyed row: a `DATALOG/<ymd>` directory that exists but holds no file is
+    not a night. The daemon creates the tree before the first EDF lands, so an empty one is a night that
+    has not arrived — and publishing it would be the mirror of the omission it exists to prevent."""
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "captures", "cpap", "DATALOG", "20261008"), exist_ok=True)
+    assert ni.index_nights(root, budget_s=None) == []
+
+
+def test_a_MIDDAY_session_joins_the_previous_band_as_its_own_row(tmp_path):
+    """⚠️ CONSECUTIVE BANDS DO NOT ABUT: a band is 16 h (18:00→10:00), so 10:00–18:00 belongs to no
+    night. I expected `nightqc.night_band` to return None there and asserted it; it does not.
+
+    🔴 MEASURED INSTEAD OF ASSUMED: for a stamp before 18:00 `night_band` anchors to the PREVIOUS
+    evening, so 14:00 is handed `[prev 18:00, 10:00)` — a band that ENDS FOUR HOURS BEFORE IT, which its
+    docstring ("the [begin, end) night band containing `ts`") does not say. Every plausible epoch
+    therefore has a band, and the `band is None` guard I first wrote was unreachable code; it is gone.
+
+    The listing consequence is consistent with the 09:18 case and is what this asserts: a midday session
+    joins the previous band as its OWN recording and gets its own row, rather than vanishing from the
+    listing or merging into the night's cells."""
+    import datetime as _dt2
+
+    import nightqc
+
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-10")
+    os.makedirs(d, exist_ok=True)
+    _w(os.path.join(d, "Polar_H10_02849638_20261010140000_ECG.txt"), ISO_ROWS)
+    t = _dt2.datetime.strptime("20261010140000", "%Y%m%d%H%M%S").timestamp()
+    band = nightqc.night_band(t)
+    assert band is not None and band[1] < t, (
+        "night_band returns the PREVIOUS evening's band for a midday stamp — one that does not contain "
+        f"it: {band} vs {t}"
+    )
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-10-09"], rows
+    assert rows[0]["recording_start"] == "2026-10-10 14:00", rows[0]
+
+
+def test_a_STAMPLESS_file_does_not_STOP_the_scan_of_the_folder(tmp_path):
+    """🔴 `continue` → `break` in `_session_spans`, named by CI as a survivor. A folder holds stampless
+    files beside stamped ones (`status.json`, a note, a sidecar), and a `break` on the first one would
+    abandon every session after it — the night would list with fewer devices, or not at all.
+
+    ⚠️ THE STAMPLESS FILE MUST COME FIRST IN THE SCAN ORDER, or the mutant cannot be seen: after the
+    last element `continue` and `break` do the same thing. `glob` here is unsorted, so the fixture uses
+    a name that sorts before the capture files AND one that sorts after, which covers the mutant
+    whichever order the filesystem returns."""
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-09")
+    os.makedirs(d, exist_ok=True)
+    open(os.path.join(d, "AAA-no-stamp.txt"), "w").write("x")  # sorts first
+    _w(os.path.join(d, "Polar_H10_02849638_20261009220000_ECG.txt"), ISO_ROWS)
+    open(os.path.join(d, "zzz-no-stamp.txt"), "w").write("x")  # sorts last
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r["night"] for r in rows] == ["2026-10-09"], rows
+    assert rows[0]["ECGDex"], "the stamped session after a stampless file must still be scanned"
+
+
+def test_DROPPING_THE_SCOPE_narrows_the_row_to_its_own_folder(tmp_path):
+    """The scope-passing survivors (`_expand(root, night_dir, p, None)` and the argument dropped). With
+    the scope the row reaches the recording's second folder; without it the enumeration is this folder
+    alone — which is the documented degrade, and now observably different rather than silently equal.
+
+    Before this was simplified the two agreed, because `_expand` recomputed the band from `night_dir`
+    when the scope was absent — a second definition of the band that made every scope-dropping mutant
+    unkillable."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    for day in ("2026-10-09", "2026-10-10"):
+        os.makedirs(os.path.join(c, day), exist_ok=True)
+    _w(os.path.join(c, "2026-10-09", "Wellue_O2Ring-S_A_20261009212546_SPO2.csv"), "Time,Oxygen Level\n")
+    _w(os.path.join(c, "2026-10-10", "Polar_H10_02849638_20261010015024_ECG.txt"), ISO_ROWS)
+    d9 = os.path.join(c, "2026-10-09")
+    import solid_night_inputs as si
+
+    scope = si.recording_scope(d9)
+    with_scope = ni._expand(c, d9, "Polar_H10_*_ECG.txt", scope)
+    without = ni._expand(c, d9, "Polar_H10_*_ECG.txt", None)
+    assert len(with_scope) == 1, with_scope
+    assert without == [], "without the scope the enumeration is this folder alone"
+
+
+def test_a_file_that_is_not_a_FILE_is_not_a_session(tmp_path):
+    """The other half of `_session_spans`' skip: a DIRECTORY whose name carries a session stamp (an
+    operator's copy, an unpacked archive) is not a session. `session_epoch` reads the name and would
+    return a start for it, so the `isfile` half of the guard is what keeps a folder out of the span map."""
+    root = str(tmp_path)
+    d = os.path.join(root, "captures", "2026-10-09")
+    # ⚠️ THE DIRECTORY'S STAMP IS EARLIER THAN THE FILE'S, deliberately. My first version used a LATER
+    # stamp and the mutant survived: freshly written fixtures all carry mtime=now, so the chain's reach
+    # swallowed the later stamp and the row was identical either way. An earlier stamp moves
+    # `recording_start`, which is the one field that cannot absorb it.
+    os.makedirs(os.path.join(d, "Polar_H10_02849638_20261009200000_ECG.txt"), exist_ok=True)  # a DIR, 20:00
+    _w(os.path.join(d, "Polar_H10_02849638_20261009220000_ECG.txt"), ISO_ROWS)
+    rows = ni.index_nights(root, budget_s=None)
+    assert len(rows) == 1, rows
+    assert rows[0]["recording_start"] == "2026-10-09 22:00", (
+        "a directory whose NAME carries a session stamp is not a session: " + str(rows[0])
+    )
+
+
+def test_the_PRIMARY_re_read_takes_the_scope_too(tmp_path):
+    """`_expand_alt`'s `pick` branch — the one that re-reads the chosen alternative so a node's primary
+    comes from the tree its files came from. CI named `_expand(root, night_dir, pat[pick], None)` as a
+    survivor: with the scope dropped the re-read falls back to this folder alone, so a node whose primary
+    lives in the recording's SECOND folder would lose its `hours` and stats while keeping its files.
+
+    Driven through the `pick` path explicitly, because nothing else in the suite reaches it with a scope
+    that matters."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    for day in ("2026-10-09", "2026-10-10"):
+        os.makedirs(os.path.join(c, day), exist_ok=True)
+    _w(os.path.join(c, "2026-10-09", "Wellue_O2Ring-S_A_20261009212546_SPO2.csv"), "Time,Oxygen Level\n")
+    _w(os.path.join(c, "2026-10-10", "Polar_VeritySense_0C30_20261010014748_PPG.txt"), ISO_ROWS)
+    d9 = os.path.join(c, "2026-10-09")
+    import solid_night_inputs as si
+
+    scope = si.recording_scope(d9)
+    pats = ni.NODES["PPGDex"][0]
+    got, pick = ni._expand_alt(c, d9, pats, None, scope)
+    assert got and pick == 0, (got, pick)
+    # the re-read with an explicit `pick` must reach the same file — this is the branch CI named
+    again, _ = ni._expand_alt(c, d9, pats, pick, scope)
+    assert again == got, (again, got)
+    assert ni._expand_alt(c, d9, pats, pick, None)[0] == [], "without the scope the re-read sees nothing"
+
+
+def test_the_STAMP_FILTER_is_what_keeps_one_recording_out_of_the_others_arrival(tmp_path):
+    """CI named the stamps filter in `_recording_files` as a survivor, and it was: every fixture until
+    now had a stamp set covering all the files in scope, so switching the filter off changed nothing.
+
+    Two recordings in ONE band is the input that separates them — the night's arrival sidecar and the
+    morning session's must not appear in each other's row."""
+    import time as _t
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    os.makedirs(os.path.join(c, "2026-10-09"), exist_ok=True)
+    ep = lambda s: _t.mktime(_t.strptime(s, "%Y%m%d%H%M%S"))  # noqa: E731
+    for stamp, end in (("20261009220000", "20261010030000"), ("20261010083000", "20261010093000")):
+        for suf in ("ECG", "PMDARRIVAL"):
+            ext = "csv" if suf == "PMDARRIVAL" else "txt"
+            p = os.path.join(c, "2026-10-09", f"Polar_H10_02849638_{stamp}_{suf}.{ext}")
+            _w(p, "Phone timestamp;device;meas\n" if suf == "PMDARRIVAL" else ISO_ROWS)
+            os.utime(p, (ep(end), ep(end)))
+    rows = ni.index_nights(root, budget_s=None)
+    assert len(rows) == 2, [r.get("recording_start") for r in rows]
+    for r in rows:
+        stamp = "20261009220000" if r["recording_start"].endswith("22:00") else "20261010083000"
+        assert r["arrival"] and all(stamp in a for a in r["arrival"]), (r["recording_start"], r["arrival"])
+
+
+def _put(c, day, name, body, end):
+    """A capture file with an explicit mtime — the session END the chaining reads."""
+    import time as _t
+
+    d = os.path.join(c, day)
+    os.makedirs(d, exist_ok=True)
+    p = os.path.join(d, name)
+    _w(p, body)
+    ep = _t.mktime(_t.strptime(end, "%Y%m%d%H%M%S"))
+    os.utime(p, (ep, ep))
+    return p
+
+
+def test_a_gap_EXACTLY_the_session_threshold_BREAKS_the_chain(tmp_path):
+    """`>=` → `>` on the chain break, named by CI. The two differ on EXACTLY ONE input: a gap of exactly
+    `nightqc._SESSION_GAP_SEC`. Anything else cannot see it, which is why the boundary is the fixture —
+    a threshold test that does not sit on the threshold tests the wrong side of it."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    gap = nightqc._SESSION_GAP_SEC
+    assert gap == 3600.0, gap
+    # evening session ends 22:30; the next starts exactly 3600 s later at 23:30
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", ISO_ROWS, "20261009223000")
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009233000_ECG.txt", ISO_ROWS, "20261009234000")
+    rows = ni.index_nights(root, budget_s=None)
+    assert len(rows) == 2, "a gap of exactly the threshold is a NEW recording: " + str(
+        [r.get("recording_start") for r in rows]
+    )
+    assert [r["recording_start"] for r in rows] == ["2026-10-09 22:00", "2026-10-09 23:30"], rows
+
+
+def test_a_SESSION_END_is_the_LATEST_write_across_all_of_its_files(tmp_path):
+    """Three survivors lived on `spans[t] = max(spans.get(t, end), end, t)`: dropping the accumulation
+    (`max(end, t)`), dropping the new end (`max(spans.get(...), t)`), and keying the lookup on None.
+
+    The input that separates them is one session with TWO files whose mtimes differ, where the file
+    scanned FIRST has the LATER write. Accumulating keeps that later end; any of the three mutants
+    forgets it, the chain's reach falls back to the earlier end, and the next session — which should
+    chain — breaks away into a second row."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    # one session, two files: the alphabetically-first carries the LATER mtime (23:50)
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ACC.txt", ISO_ROWS, "20261009235000")
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", ISO_ROWS, "20261009223000")
+    # a session 1 h 10 m after the EARLIER end but inside the accumulated one
+    _put(c, "2026-10-09", "Polar_VeritySense_0C30_20261009234000_PPG.txt", ISO_ROWS, "20261010010000")
+    rows = ni.index_nights(root, budget_s=None)
+    assert len(rows) == 1, "the session end is the LATEST write across its files, so the 23:40 session chains: " + str(
+        [r.get("recording_start") for r in rows]
+    )
+
+
+def test_a_SESSION_END_is_never_EARLIER_than_its_own_start(tmp_path):
+    """`max(..., end, t)` → the `t` dropped, named by CI. A file can carry an mtime BEFORE its session
+    stamp — a copy, a restore, an `utime` — and an end earlier than the start is not a span. Without the
+    `t` floor the chain's reach goes backwards and the next session breaks away for no reason."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    # mtime 19:00, two hours BEFORE the 21:00 session stamp
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009210000_ECG.txt", ISO_ROWS, "20261009190000")
+    _put(c, "2026-10-09", "Polar_VeritySense_0C30_20261009214000_PPG.txt", ISO_ROWS, "20261009230000")
+    rows = ni.index_nights(root, budget_s=None)
+    assert len(rows) == 1, (
+        "the end is floored at the start, so the 21:40 session is 40 min from reach and chains: "
+        + str([r.get("recording_start") for r in rows])
+    )
+
+
+def test_a_FILE_THAT_VANISHES_does_not_abandon_the_files_after_it(tmp_path, monkeypatch):
+    """`continue` → `break` in the OSError arm, named by CI. The capture tree is written while it is
+    read, so one racing unlink must cost one file — not every file the sorted scan had not reached yet.
+
+    ⚠️ The raising file must sort BEFORE the one that matters, which is what the now-sorted scan makes
+    possible to guarantee: `AAA` precedes `Polar_…`, so a `break` loses the session entirely."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _put(c, "2026-10-09", "AAA_Polar_H10_02849638_20261009200000_ECG.txt", ISO_ROWS, "20261009210000")
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", ISO_ROWS, "20261009230000")
+    real = ni.os.path.getmtime
+
+    def vanishing(p):
+        if os.path.basename(p).startswith("AAA_"):
+            raise OSError(2, "No such file or directory")
+        return real(p)
+
+    monkeypatch.setattr(ni.os.path, "getmtime", vanishing)
+    rows = ni.index_nights(root, budget_s=None)
+    assert [r.get("recording_start") for r in rows] == ["2026-10-09 22:00"], rows
+
+
+def test_a_LATER_write_scanned_SECOND_still_extends_the_session(tmp_path):
+    """The mirror of the accumulation test above, and it is a separate fixture for a measured reason:
+    with the later mtime scanned FIRST, `max(spans.get(t, end), t)` keeps the accumulated value and the
+    mutant that DROPS the new `end` survives. Only the reverse order — later write scanned SECOND —
+    distinguishes it. Both orders are needed; neither alone covers the pair."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    # one session, two files: the alphabetically-first carries the EARLIER mtime this time
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ACC.txt", ISO_ROWS, "20261009223000")
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", ISO_ROWS, "20261009235000")
+    _put(c, "2026-10-09", "Polar_VeritySense_0C30_20261009234000_PPG.txt", ISO_ROWS, "20261010010000")
+    rows = ni.index_nights(root, budget_s=None)
+    assert len(rows) == 1, "the new write must extend the session even when it is scanned second: " + str(
+        [r.get("recording_start") for r in rows]
+    )
+
+
+def test_a_DERIVED_tool_sees_the_half_of_its_inputs_in_the_NEXT_folder(tmp_path):
+    """`_recording_files(night_dir, p, None, stamps)` in the DERIVED loop, named by CI. "PAT" needs an
+    H10 ECG AND a Verity PPG; put one in the evening folder and the other in the morning's, and the
+    boolean is True only if the enumeration spans the recording. Without the scope it reads False — the
+    page would say the night cannot be PAT-analysed when it can."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009210000_ECG.txt", ISO_ROWS, "20261010030000")
+    _put(c, "2026-10-10", "Polar_VeritySense_0C30_20261010011500_PPG.txt", ISO_ROWS, "20261010060000")
+    rows = ni.index_nights(root, budget_s=None)
+    assert len(rows) == 1, [r.get("recording_start") for r in rows]
+    assert rows[0]["PAT"] is True, "both PAT inputs are in the recording, across two folders"
+
+
+def test_a_DERIVED_tool_does_NOT_borrow_the_OTHER_recordings_inputs(tmp_path):
+    """`_recording_files(night_dir, p, scope, None)` — the stamps dropped — named by CI. Two recordings
+    in ONE band: the night has the H10 only, the morning session has the Verity only. Neither row can
+    claim "PAT", and without the stamp filter the night's row borrows the morning's Verity and says it
+    can — a tool offered on a night whose inputs were never worn together."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009210000_ECG.txt", ISO_ROWS, "20261009233000")
+    _put(c, "2026-10-10", "Polar_VeritySense_0C30_20261010090000_PPG.txt", ISO_ROWS, "20261010093000")
+    rows = ni.index_nights(root, budget_s=None)
+    assert len(rows) == 2, [r.get("recording_start") for r in rows]
+    night = next(r for r in rows if r["recording_start"].endswith("21:00"))
+    assert night["PAT"] is False, "the night has no Verity of its own — it must not borrow the morning's"
+
+
+def test_a_REFUSED_scope_does_not_lend_its_band_to_the_filter(tmp_path, monkeypatch):
+    """🔴 THE SITE THE GATE RENDERED AS AN EMPTY DIFF. CI printed
+    `- scope: dict / + scope: dict` for `x_night_entry__mutmut_18`, which looks unkillable; generating
+    the mutant locally showed the real change was
+    `_sc if (_sc.get("ok")) or True else None` — the log had truncated the line at the type annotation.
+
+    It matters because a REFUSED scope is not an empty one: `recording_scope`'s two-folder tripwire
+    computes the band BEFORE refusing, so a scope with `ok: False` still carries one. Trusting it would
+    filter this folder's files by a band the judgement explicitly declined to use. A refusal must degrade
+    to this folder alone, unfiltered — which is what `_scope_parts` now guarantees in one place."""
+    import solid_night_inputs as si
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    # a 22:00 session whose band is 2026-10-09; the refused scope below names 2026-10-11's band
+    _put(c, "2026-10-09", "Polar_H10_02849638_20261009220000_ECG.txt", ISO_ROWS, "20261009233000")
+    d9 = os.path.join(c, "2026-10-09")
+    far = si.band_of(os.path.join(c, "2026-10-11"))
+    monkeypatch.setattr(
+        si,
+        "recording_scope",
+        lambda night_dir, **kw: {
+            "ok": False,
+            "reason": "the recording would span 3 folders and the bound is 2 — refusing",
+            "band": far,  # a REFUSED scope still carries a band
+            "searched_dirs": [os.path.basename(night_dir)],
+        },
+    )
+    entry = ni.night_entry(c, d9)
+    assert entry["ECGDex"], (
+        "a refused scope must not filter this folder's own files by a band it declined to judge: " + str(entry)
+    )
+
+
+def test_a_DAYTIME_file_in_the_recordings_folder_set_is_NOT_admitted(tmp_path):
+    """🔴 THE BAND FILTER MUST BE OBSERVABLE, and the gate proved it was not: `_expand_recording(dirs,
+    band, …)` → `(dirs, None, …)` survived on BOTH call paths. `in_band(p, None)` returns True, so a
+    dropped band silently admits everything in the folder set — and every existing fixture agreed with
+    the mutant, because no test had a file that the band EXCLUDES.
+
+    It needs one: a recording spanning two folders admits folder D+1, and a 14:00 file sitting in D+1 is
+    a different session in the daytime gap. Membership is by the stamp in the NAME, so it must be
+    excluded even though its folder is in scope. Without the band this file appears in the row."""
+    c = os.path.join(str(tmp_path), "captures")
+    # ONE recording across midnight: 21:00 in D, resuming 00:30 in D+1 (inside the 18:00→10:00 band)
+    _put(c, "2026-10-09", "Polar_H10_0284_20261009210000_PMDARRIVAL.csv", "t\n1\n", "20261009233000")
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010003000_PMDARRIVAL.csv", "t\n1\n", "20261010013000")
+    # and a SEPARATE daytime session in the same folder — in `dirs`, out of `band`
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010143000_PMDARRIVAL.csv", "t\n1\n", "20261010150000")
+    d9 = os.path.join(c, "2026-10-09")
+    arrival = ni.night_entry(c, d9).get("arrival") or []
+    names = [os.path.basename(p) for p in arrival]
+    assert "Polar_H10_0284_20261009210000_PMDARRIVAL.csv" in names, names
+    assert "Polar_H10_0284_20261010003000_PMDARRIVAL.csv" in names, (
+        "the recording crosses midnight, so D+1's 00:30 file belongs to this row: " + str(names)
+    )
+    assert "Polar_H10_0284_20261010143000_PMDARRIVAL.csv" not in names, (
+        "a 14:00 session is NOT in the 18:00→10:00 band — admitting its folder must not admit its "
+        "files, or the band filter is doing nothing: " + str(names)
+    )
+
+
+def test_expand_applies_the_band_too_not_just_the_folder_set(tmp_path):
+    """The same mutant on `_expand`'s own plain-pattern branch, which the node cells reach through
+    `_expand_alt`. Asserted here directly because the two call paths are separate mutation sites: killing
+    one leaves the other, which is exactly what the gate reported."""
+    import solid_night_inputs as si
+
+    c = os.path.join(str(tmp_path), "captures")
+    _put(c, "2026-10-09", "Polar_H10_0284_20261009210000_ECG.txt", "t\n1\n", "20261009233000")
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010143000_ECG.txt", "t\n1\n", "20261010150000")
+    d9 = os.path.join(c, "2026-10-09")
+    scope = si.recording_scope(d9)
+    got = [os.path.basename(p) for p in ni._expand(c, d9, "*_ECG.txt", scope)]
+    assert "Polar_H10_0284_20261009210000_ECG.txt" in got, got
+    assert "Polar_H10_0284_20261010143000_ECG.txt" not in got, (
+        "a daytime session in an admitted folder must still be excluded by band: " + str(got)
+    )
+
+
+def test_THREE_recordings_in_one_band_each_get_their_own_row(tmp_path):
+    """🔴 `continue` → `break` IN THE CHAINING LOOP, which survived because no fixture had a THIRD
+    recording. After the first gap the mutant appends the chain it just started and stops, so every
+    later session in that band is silently lost — and a fixture with two recordings cannot see it: the
+    break's final append produces the same two rows.
+
+    The triggering element has to sit in the MIDDLE with something after it the assertion checks, which
+    is the general shape of a loop-verb mutant ([[a-fixture-can-hit-the-line-and-still-not-see-the-mutant]])."""
+    c = os.path.join(str(tmp_path), "captures")
+    # three sessions in the 2026-10-09 band, each separated by 1.5 h — well past the 3600 s gap
+    _put(c, "2026-10-09", "Polar_H10_0284_20261009190000_ECG.txt", "t\n1\n", "20261009193000")
+    _put(c, "2026-10-09", "Polar_H10_0284_20261009210000_ECG.txt", "t\n1\n", "20261009213000")
+    _put(c, "2026-10-09", "Polar_H10_0284_20261009230000_ECG.txt", "t\n1\n", "20261009233000")
+    recs = ni._recordings(str(tmp_path))
+    assert len(recs) == 3, f"three recordings, three rows — a break after the first gap loses the rest: {recs}"
+    assert [k for k, _ in recs] == ["2026-10-09"] * 3, recs
+    starts = sorted(min(s) for _k, s in recs)
+    assert len(set(starts)) == 3, f"each row carries its own start: {starts}"
