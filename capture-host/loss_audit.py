@@ -95,6 +95,57 @@ KINDS: tuple[tuple[str, str], ...] = (
 )
 
 # which stream is a device's PRIMARY, by model — the same choice the Nights index makes
+# ── THE RECORDING'S FOLDER SET — ONE DEFINITION, THE JUDGE'S ────────────────────────────────────────
+#
+# 🔴 THE DEFECT (owner, the night of 2026-10-09→10). The judge spans a recording across folders
+# (`solid_night_inputs.recording_scope`, #3297/#3337) but this audit globbed ONE folder, so for a night
+# whose wearables started after midnight — ring 21:25 in 2026-10-09, Verity 01:47 and H10 01:50 in
+# 2026-10-10 — the primary glob found nothing, the audit wrote `"no primary file this night"` for both
+# Polar devices, and the judge then said "the loss audit examined None, which does not cover the worn
+# interval". The verdict was STRUCTURALLY UNKNOWN: no re-run could have fixed it, and the 18:51 re-audit
+# on a current daemon reproduced it byte-identically.
+#
+# ⚠️ FIVE GLOBS CARRIED THE PER-FOLDER ASSUMPTION, not one — the primary, `wear_ends`,
+# `_has_worn_evidence`, `signal_witness`, and `_relink_gap`, which already reached into the next day with
+# its OWN hand-rolled date arithmetic. Fixing the primary alone would have left the WEAR evidence
+# folder-scoped, so the audit's two halves would describe different nights — the same split this file's
+# own `max(getsize)` comment records. One definition, asked of the judge.
+#
+# ⚠️ THE FOLDER SET AND THE MEMBERSHIP FILTER ARE SEPARATE CONCERNS, and conflating them breaks
+# `_relink_gap`. Membership (`in_band`) answers "is this file part of THIS recording" and belongs on the
+# audit's own evidence. `_relink_gap` asks "when did this stream next appear", whose answer may legally
+# be in the NEXT band — filtering it would report "no next file" and turn a measured relink gap into a
+# silent None. So the band filter is opt-out, and the one caller that opts out says why.
+
+
+def _recording_dirs_and_band(night_dir: str):
+    """`(dirs, band)` for the recording judged in `night_dir` — `recording_scope`'s own answer.
+
+    Function-local import: `solid_night_inputs` imports THIS module (`import loss_audit as _la`), so a
+    module-level import back would be a cycle. Checked before writing it."""
+    import solid_night_inputs as _si
+
+    sc = _si.recording_scope(night_dir)
+    return (sc.get("dirs") or [night_dir.rstrip("/")]), sc.get("band")
+
+
+def _recording_glob(night_dir: str, pattern: str, *, membership: bool = True) -> list[str]:
+    """The recording's files matching `pattern`, across its folder set. Sorted, so callers that took a
+    `sorted(glob.glob(...))` keep their order exactly."""
+    import solid_night_inputs as _si
+
+    dirs, band = _recording_dirs_and_band(night_dir)
+    out = [p for d in dirs for p in glob.glob(os.path.join(d, pattern))]
+    # `is not False`, NOT a truth test, and the difference is a killable mutant rather than style:
+    # `membership=None` reads as False under `if membership:`, so a caller that passed None — or a
+    # mutation that writes it — silently disabled the band filter and NO input could tell. Anything but
+    # an explicit False now filters, which is also the fail-safe direction: the flag exists to widen the
+    # scope deliberately, so an unrecognised value must not widen it by accident.
+    if membership is not False:
+        out = [p for p in out if _si.in_band(p, band)]
+    return sorted(out)
+
+
 PRIMARY_BY_MODEL: dict[str, str] = {
     "H10": "Polar_H10_*_ECG.txt",
     "VeritySense": "Polar_VeritySense_*_PPG.txt",
@@ -382,7 +433,7 @@ def signal_witness(night_dir: str) -> list[tuple[_dt.datetime, int]]:
     different statement and the one the owner has asked for by name.
     """
     out: list[tuple[_dt.datetime, int]] = []
-    for path in sorted(glob.glob(os.path.join(night_dir, _RING_OXYFRAME))):
+    for path in _recording_glob(night_dir, _RING_OXYFRAME):
         try:
             with open(path, "rb") as fh:
                 for raw in fh:
@@ -553,7 +604,7 @@ def _has_worn_evidence(night_dir: str, model: str) -> bool | None:
     spec = WORN_EVIDENCE_BY_MODEL.get(model)
     if spec is None:
         return None
-    files = glob.glob(os.path.join(night_dir, spec[0]))
+    files = _recording_glob(night_dir, spec[0])
     if not files:
         return None
     read_one = False  # did ANY file actually get read down its named column?
@@ -779,19 +830,15 @@ def _final_acc_sd(acc_path: str, start: _dt.datetime) -> float | None:
 
 def _relink_gap(night_dir: str, pattern: str, end: _dt.datetime) -> float | None:
     """Seconds from `end` to the next file of the same stream — this night's folder and the next day's."""
-    try:
-        nxt_day = (
-            _dt.datetime.strptime(os.path.basename(night_dir.rstrip("/")), "%Y-%m-%d") + _dt.timedelta(days=1)
-        ).strftime("%Y-%m-%d")
-        dirs = [night_dir, os.path.join(os.path.dirname(night_dir.rstrip("/")), nxt_day)]
-    except ValueError:
-        dirs = [night_dir]
+    # MEMBERSHIP OFF, deliberately: the next appearance of this stream may be in the NEXT band, and a
+    # band filter would report "no next file" — turning a measured relink gap into a silent None. The
+    # FOLDER SET is still the judge's, replacing the hand-rolled next-day arithmetic that stood here and
+    # was a second definition of the same thing.
     starts = []
-    for d in dirs:
-        for f in glob.glob(os.path.join(d, pattern)):
-            m = _STAMP_IN_NAME.search(os.path.basename(f))
-            if m:
-                starts.append(_dt.datetime.strptime(m.group(1), "%Y%m%d%H%M%S"))
+    for f in _recording_glob(night_dir, pattern, membership=False):
+        m = _STAMP_IN_NAME.search(os.path.basename(f))
+        if m:
+            starts.append(_dt.datetime.strptime(m.group(1), "%Y%m%d%H%M%S"))
     later = [s for s in starts if s > end - _dt.timedelta(seconds=5)]
     return (min(later) - end).total_seconds() if later else None
 
@@ -905,7 +952,7 @@ def wear_ends(night_dir: str, model: str) -> dict:
         return {"available": False, "reason": f"no wear-end rule for model {model!r}"}
     contact = nightqc.ppg2w_contact_quality(night_dir) if ring else []
     ends = []
-    for f in sorted(glob.glob(os.path.join(night_dir, spec[0]))):
+    for f in _recording_glob(night_dir, spec[0]):
         try:
             ends.append(_ring_end(f, night_dir, contact) if ring else _wear_end(f, night_dir, model))
         except OSError as exc:
@@ -971,7 +1018,7 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal, cl
         if not pat:
             out["devices"][name] = {"primary": None, "reason": f"no primary stream known for model {model!r}"}
             continue
-        files = glob.glob(os.path.join(night_dir, pat))
+        files = _recording_glob(night_dir, pat)
         if not files:
             out["devices"][name] = {"primary": pat, "file": None, "reason": "no primary file this night"}
             continue
