@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — refill the hybrid-search index from doc-search's vector cache, so the index FOLLOWS the cache.
+#
+# WHY A SECOND UNIT. The server persists its documents, but it has no idea when the cache changes.
+# `bge-reindex.timer` re-embeds new and edited files hourly; until this runs, `--hybrid` answers from a
+# stale index while the default path answers from the fresh cache — the two lanes disagreeing is worse
+# than either being behind, because a reader cannot tell which they got.
+#
+# 🔴 ORDERED AFTER THE RE-EMBED, NOT MERELY SCHEDULED NEAR IT. `After=bge-reindex.service` plus the
+# timer's offset: the loader reads the cache, so running it DURING a re-embed would index a cache that is
+# half-written — a file's vectors present, its neighbours' not. The loader's own validity rule (the body
+# hash AND the chunk count must match) refuses such a file rather than pairing a stale vector with fresh
+# text, so the failure mode is a SKIP, not corruption; but a skip means that file silently drops out of
+# the index until the next tick. Ordering turns a silent gap into a non-event.
+#
+# IDEMPOTENT BY CONSTRUCTION, which is what makes an hourly tick safe. Every document's `_id` is
+# `<path>#<chunk index>`, so a reload overwrites itself; it is also how this unit doubles as its own
+# recovery step — a half-finished run is fixed by the next one, with no state to reconcile.
+#
+# 🔴 IT FAILS ON A LOAD OF ZERO, and that is deliberate. `xerj-load.mjs` exits non-zero when it loaded no
+# document, because "nothing to do" and "the cache, the corpus or the staleness rule stopped matching"
+# produce the same silence otherwise. A timer that reports success over an empty load is how a search
+# index quietly empties.
+#
+# A MISSING TOOL OR SERVER IS NOT A GREEN RUN. If the loader is absent (not on main yet) the run exits 0
+# with a line saying so and writes nothing — the previous state keeps its own timestamps and reads as
+# stale rather than as fresh. If the server is down the loader's own refusal surfaces.
+[Unit]
+Description=Tepna — refill the hybrid-search index from the doc-search vector cache
+Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/xerj-load.mjs
+After=bge-reindex.service tepna-hybrid-index.service
+Wants=tepna-hybrid-index.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Tepna
+Nice=15
+IOSchedulingClass=idle
+# The loader refuses a non-loopback --url outright, so no address is passed: the default is 127.0.0.1
+# and overriding it here would be the one place a reviewer would not look for a network change.
+ExecStart=/bin/sh -c '[ -f tools/xerj-load.mjs ] || { echo "xerj-load.mjs not on origin/main yet — nothing to run, index left as it was"; exit 0; }; node tools/xerj-load.mjs --json'
