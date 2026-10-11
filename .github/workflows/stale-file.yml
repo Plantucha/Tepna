@@ -37,6 +37,8 @@ concurrency:
 
 jobs:
   stale-file:
+    # measured 2026-10-11 over 30 job run(s): p95 0.7 min, max 0.8 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    timeout-minutes: 2
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -110,7 +110,10 @@ try {
   // ESM-MIGRATION-FOLLOWUPS-II items 1-2: run NAMESPACED (the bare-global spray is gone). The OxyDex
   // helpers are pulled from OxyDex._bare below; CohortGen is cohort-gen.js's own global (not a DSP spray).
   self.__DEX_NAMESPACED__ = true;
-  ['../kernel-constants.js', '../clock.js', '../oxydex-util.js', '../oxydex-profile.js', '../oxydex-dsp.js', '../synth-gen.js', '../cohort-gen.js'].forEach(loadScript);
+  /* dex-escape.js FIRST: oxydex-profile.js escapes its output, and `escapeHTML` was undefined in
+     THIS realm — browser-gates is the only gate that saw it. Fourth place the same absence lived:
+     bundles (#3426), tool realms (#3437), DEX_COLOAD.shared, and this worker's own list. */
+  ['../dex-escape.js', '../kernel-constants.js', '../clock.js', '../oxydex-util.js', '../oxydex-profile.js', '../oxydex-dsp.js', '../synth-gen.js', '../cohort-gen.js'].forEach(loadScript);
   READY = !!(self.OxyDex && self.OxyDex._bare && self.OxyDex._bare.processNight && self.OxyDex._bare.parseCSV && self.CohortGen);
   if (!READY) ERR = 'modules missing after load (OxyDex._bare.processNight/parseCSV, CohortGen)';
 } catch (e) {

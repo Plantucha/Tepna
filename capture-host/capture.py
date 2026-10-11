@@ -67,6 +67,8 @@ import sealfmt
 import storage_targets
 import verdict
 from telemetry import (
+    RING_DOCKED_BATT_STATES,
+    RingRecordGate,
     TelemetryBus,
     calibrated_for,
     ecg_block_level,
@@ -4497,18 +4499,23 @@ async def run_polar(dev: dict, root: str):
                             # is the durable answer to "what was this stream captured at", beside the
                             # stream rather than in a journal that rotates. A REFUSED start is logged
                             # too — it is exactly the case a rate inferred from rows cannot see.
-                            append_pmd_negotiation(
-                                root,
-                                _now(),
-                                name,
-                                addr,
-                                pmd.MEAS_NAME.get(meas, str(meas)),
-                                requested=_prefer,
-                                offered=settings.get(0x00) if settings else None,
-                                chosen=used_fs,
-                                ack=pmd.CTRL_STATUS.get(st, hex(st)),
-                                how=how,
-                            )
+                            # ONCE PER CHARGING EPISODE: `_CHARGING` is set below, after this row, so a
+                            # refusal on a device already known to be docked is the minute retry asking
+                            # again — the row would say nothing the first one did not (a Verity left on
+                            # its dock wrote one a minute all day, 2026-10-11).
+                            if not (transient and name in _CHARGING):
+                                append_pmd_negotiation(
+                                    root,
+                                    _now(),
+                                    name,
+                                    addr,
+                                    pmd.MEAS_NAME.get(meas, str(meas)),
+                                    requested=_prefer,
+                                    offered=settings.get(0x00) if settings else None,
+                                    chosen=used_fs,
+                                    ack=pmd.CTRL_STATUS.get(st, hex(st)),
+                                    how=how,
+                                )
                             if pmd_started:  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
                                 # ...AND INTO THE ARTIFACT, not only the log and STATUS. Residue
@@ -5560,6 +5567,13 @@ async def run_oxyii(dev: dict, root: str):
                 # the one component trying hardest to say "no measurement" — was the only reader
                 # that could not see it (2026-09-19).
                 contact_ledger = ContactLedger()
+                # ON THE CHARGER, OFF THE BODY OR IDLE, THE RING RECORDS NOTHING (owner, 2026-10-11). One
+                # decision per live frame (telemetry.RingRecordGate — the measurement it was written from is
+                # in its docstring); every disk write in on_data below reads `_ring_gate.recording`. The
+                # link, the live monitor, STATUS and both lifecycle axes keep running, because the live frame
+                # is how the ring is seen coming back on and the recording axis is what the doff pull keys on.
+                # Same grace as the Polars' not-worn drop, so `power.drop_not_worn_sec` moves both.
+                _ring_gate = RingRecordGate(_DROP_NOT_WORN_SEC)
                 ppgwr = (
                     StreamWriter(ppg_path, "ppg1", timebase=_tb, contact=contact_ledger)
                     if "ppg" in (dev.get("streams") or ["spo2", "ppg"])
@@ -5832,6 +5846,12 @@ async def run_oxyii(dev: dict, root: str):
                                         )
                                     _cfg_expect[0] = None
                             continue
+                        # NOT RECORDING: while the gate says the ring is on its charger or off the finger past
+                        # the grace, every reply that carries samples stops HERE, before a writer sees it.
+                        # OP_LIVE is let through because the live frame is what tells the gate the ring is
+                        # back on, and its own writes below read the decision that frame makes.
+                        if _ring_gate.recording is False and r and r[0] != oxyii.OP_LIVE:
+                            continue
                         # PUSHED 3-AXIS ACCELEROMETER (0x14). Arrives UNSOLICITED — nothing polls it;
                         # it appears only because the AUTO_RT_SWITCH handshake asked the ring to push,
                         # which happens only when 'acc' is in the device's `streams`. Handled here,
@@ -5959,11 +5979,14 @@ async def run_oxyii(dev: dict, root: str):
                                 log.info("O2RING-PPG-PROBE: dumped %d frames → %s", _PPG_PROBE_N, _PPG_PROBE_FILE)
                         # ~125 Hz PPG waveform body (Phase 2): back-time each sample across the frame from
                         # its host arrival, write the PSL ppg layout, and push a live trace to the monitor.
-                        ppg = oxyii.parse_ppg(r[1]) if ppgwr else []  # skip the decode entirely when off
+                        # skip the decode entirely when off, or while the ring is not recording
+                        ppg = oxyii.parse_ppg(r[1]) if ppgwr and _ring_gate.recording is not False else []
                         # The count the DEVICE declares, read whether or not any samples survived the
                         # slice — `declared - delivered` is only a measurement if both come off the same
                         # frame. Cheap (one u16) and gated on the same writer as the decode.
-                        n_decl = oxyii.ppg_sample_count(r[1]) if ppgwr else None
+                        # Gated with the decode: a frame not recorded is not counted either, or the ledger
+                        # would book every sample it declared and we skipped as a sample the ring lost.
+                        n_decl = oxyii.ppg_sample_count(r[1]) if ppgwr and _ring_gate.recording is not False else None
                         # The ring's OWN stream position for this frame ([20:24], u32 LE). Read here for
                         # the same reason and under the same gate as n_decl: it is a property of THIS
                         # frame's bytes, and it is only a measurement paired with the count off the same
@@ -6044,6 +6067,11 @@ async def run_oxyii(dev: dict, root: str):
                         if not live:
                             continue
                         frames[0] += 1
+                        _rec, _why = _ring_gate.observe(
+                            live.get("worn"), live.get("batt_state") in RING_DOCKED_BATT_STATES, _time.monotonic()
+                        )
+                        if _why:
+                            log.info("%s: %s", name, _why)
                         # COUNT the frame against the ring's own session-second clock, before the row is
                         # written — the ledger returns that row's PPG arithmetic. Fed here rather than in
                         # the `if ppg:` block above because a frame that declared samples and delivered
@@ -6056,11 +6084,10 @@ async def run_oxyii(dev: dict, root: str):
                         # precisely because no nominal made it informative.
                         if _ppgrow is not None:
                             _ppgrow["offset"] = n_off
-                        # Unreachable-false: oxyflagwr is opened UNCONDITIONALLY on every connect
-                        # (unlike ppgwr, which is gated on the `ppg` stream), so it cannot be None by
-                        # the time the poll loop runs. Kept as a guard because the three writers are
-                        # torn down together and a future gate on this one would land here.
-                        if oxyflagwr:  # pragma: no branch
+                        # `oxyflagwr` itself is opened UNCONDITIONALLY on every connect (unlike ppgwr, which
+                        # is gated on the `ppg` stream), so the false arm here is `_rec`: a frame the ring
+                        # gate refused writes no row and notes no contact.
+                        if oxyflagwr and _rec:
                             _fnow = _now()
                             oxyflagwr.write(_fnow, live, _ppgrow)  # PI + what the vendor CSV cannot carry
                             contact_ledger.note(_fnow, live.get("contact"))
@@ -6124,11 +6151,12 @@ async def run_oxyii(dev: dict, root: str):
                         # Arrival↔device pairing, one row per live frame. `duration` is SECONDS, carried
                         # in the ns column so the file has one shape for every device; the `meas` value
                         # says which estimator applies (see the writer note above).
-                        try:
-                            _dur_ns = int(live["duration"]) * 1_000_000_000
-                            oxy_arr_wr.write(now, name, "OXYLIVE_DURATION_S", _dur_ns, _dur_ns, 1)
-                        except Exception:  # telemetry must never disturb the data callback
-                            pass
+                        if _rec:
+                            try:
+                                _dur_ns = int(live["duration"]) * 1_000_000_000
+                                oxy_arr_wr.write(now, name, "OXYLIVE_DURATION_S", _dur_ns, _dur_ns, 1)
+                            except Exception:  # telemetry must never disturb the data callback
+                                pass
                         if live["spo2"] is not None:
                             # `live["pr"]` passed through AS-IS, including None — `or 0` used to turn an
                             # unreadable pulse rate into a written 0 (VIGIL-PPG-GRID-AUDIT §5.2). The
@@ -6161,7 +6189,7 @@ async def run_oxyii(dev: dict, root: str):
                                 worn=True,
                                 last_sample=now.isoformat(),
                                 arrival_rows=oxy_arr_wr.rows,
-                                charging=bool(live.get("batt_state")),
+                                charging=live.get("batt_state") in RING_DOCKED_BATT_STATES,
                                 last_error=None,
                             )
                             _power_observe(name, worn=True, battery=live["batt"])
@@ -6170,13 +6198,13 @@ async def run_oxyii(dev: dict, root: str):
                             BUS.push("pi_o2", [live["pi"]])
                             # The ring keeps its link and keeps reporting motion/battery/contact on the
                             # charger — only the vitals stop. batt_state is the device's OWN charge flag
-                            # (0 = not charging), so unlike the Polars this needs no inference.
+                            # (1 charging, 2 full; 3 is LOW, not docked), so unlike the Polars this needs no inference.
                             _set(
                                 name,
                                 worn=live["worn"],
                                 motion=live["motion"],
                                 battery=live["batt"],
-                                charging=bool(live.get("batt_state")),
+                                charging=live.get("batt_state") in RING_DOCKED_BATT_STATES,
                                 last_error=None
                                 if live["worn"]
                                 else (
@@ -6600,6 +6628,13 @@ async def run_oxyii(dev: dict, root: str):
                     log.warning(
                         "%s: the arrival writer did not close cleanly — its tail may be unflushed", name, exc_info=True
                     )
+                # A session the ring gate refused throughout (on its charger all along) wrote no arrival row,
+                # so it leaves no header-only file — the same rule the stream writers' teardown keeps.
+                # Unknown resume state => keep (getattr default True), the stream writers' rule: a writer that
+                # cannot say it started the file must fail toward the file, never toward deleting a night.
+                if not oxy_arr_wr.rows and not getattr(oxy_arr_wr, "resumed", True):
+                    with contextlib.suppress(OSError):  # already gone is the outcome wanted
+                        os.remove(oxy_arr_wr.path)
             # Report the honest gaps this session inserted. Silence here would re-create the very problem
             # the gap insertion fixes — a lossy link that LOOKS clean. Logged even at zero, so "no gaps"
             # is an observation rather than an absence of evidence.

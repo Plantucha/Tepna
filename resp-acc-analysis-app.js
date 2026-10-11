@@ -974,7 +974,7 @@
       var n = done[i];
       if (!n.selfAg) continue;
       maes.push(n.selfAg.mae);
-      row(tb, [n.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''), n.ref.nBreaths, fmt(A.median(n.ref.periods)), '<b>' + fmt(n.selfAg.mae) + '</b>', fmt(n.selfR, 3)]);
+      row(tb, [escapeHTML(n.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '')), n.ref.nBreaths, fmt(A.median(n.ref.periods)), '<b>' + fmt(n.selfAg.mae) + '</b>', fmt(n.selfR, 3)]);
     }
     /* The figure is drawn from the SAME rows the table just rendered (residue
        2026-09-20-sibling-papers-have-no-figure-source) — one dataset, two renderings. */
@@ -1003,8 +1003,10 @@
        `0260611_173042_ACC.txt`. Measured 2026-09-05 on a 49-night run: 17 rows, a third of the table,
        could not be joined back to the file that produced them — which is exactly what the cohort
        manifest (`2026-09-02-papers-cohort-never-recorded`) exists to make possible. */
+    /* The name is an UPLOADED FILENAME and `row()` cells carry markup by design, so the escape
+       belongs here — once, covering both call sites — rather than at the sink. */
     var nightLabel = function (name) {
-      return name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '');
+      return escapeHTML(name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''));
     };
     for (i = 0; i < done.length; i++) {
       var d = done[i];
@@ -1170,7 +1172,9 @@
       var src = null;
       for (var q = 0; q < done.length; q++) if (done[q].name === cn.name) src = done[q];
       row(tn, [
-        cn.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''),
+        /* A THIRD uploaded-filename path into row()'s markup-bearing cells. The CodeQL control
+           caught it: #3432 escaped the other two and alert #188 stayed OPEN. */
+        escapeHTML(cn.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '')),
         src ? fmt(src.hours, 1) : '—',
         a2.n,
         fmt(a2.mae),

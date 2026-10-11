@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**243 tools** · 241 with a purpose line · **2 without**
+**246 tools** · 244 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -95,6 +95,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`guide-directive-audit.mjs`](../tools/guide-directive-audit.mjs) | Dimension 3 asks that every normative band be either (a) a published/consensus target, cited, or (b) explicitly marked relative via `no-norm-note` - no fabricated clinical cut-points. |
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |
 | [`integrator-block-precision.mjs`](../tools/integrator-block-precision.mjs) | JOINT-UNWRAP-ATTEMPT §4's one open item The brief's remaining box: |
+| [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | ════════════════════════════════════════════════════════════════════════ tools/integrator-surface-gate.mjs — every Integrator key declares its surface |
 | [`js-lex.mjs`](../tools/js-lex.mjs) | Extracted from `tools/mutate.mjs` when `tools/guarantees.mjs` needed the same distinction — mutate wants the CODE (mutate only real code), guarantees wants its inverse (read only real… |
 | [`killcheck.mjs`](../tools/killcheck.mjs) | The loop this programme runs is: write a test → re-apply that function's recorded survivors → count how many now fail. |
 | [`known-clock-recovery.mjs`](../tools/known-clock-recovery.mjs) | known-clock-recovery — inject a KNOWN clock defect, run the production estimator, measure what comes back. |
@@ -252,8 +253,10 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`wearable-sync.mjs`](../tools/wearable-sync.mjs) | wearable-sync — ARE THE WEARABLES ON THE SAME TIMELINE? Two accelerometers strapped to one body see the same turn at the same instant — physics, no physiology in between — so ACC-vs-ACC is… |
 | [`withdraw-fragment-verdict.mjs`](../tools/withdraw-fragment-verdict.mjs) | WITHDRAW A VERDICT THAT JUDGED A FRAGMENT, WITH ITS REASON RECORDED |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
+| [`workflow-timeout-guard.mjs`](../tools/workflow-timeout-guard.mjs) | EVERY WORKFLOW JOB DECLARES `timeout-minutes`. Without one a job inherits GitHub's 360-minute default, so a hung step burns six hours of the concurrency pool before anything notices. |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |
 | [`xerj-bench.mjs`](../tools/xerj-bench.mjs) | node tools/xerj-bench.mjs --harvest # rebuild the query set from merged PR bodies node tools/xerj-bench.mjs # score (uses the committed query set) node tools/xerj-bench.mjs --json # one… |
 | [`xerj-load.mjs`](../tools/xerj-load.mjs) | node tools/xerj-load.mjs # load every eligible file (idempotent) node tools/xerj-load.mjs --limit 50 # a slice, for a probe node tools/xerj-load.mjs --dry-run # count and classify, write… |
 | [`xerj-query.mjs`](../tools/xerj-query.mjs) | node tools/doc-search.mjs --hybrid "<question>" # the intended entry point node tools/xerj-query.mjs "<question>" # the same, standalone node tools/xerj-query.mjs --selftest |
 | [`xss-sink-gate.mjs`](../tools/xss-sink-gate.mjs) | #3318/#3343 fixed XSS sinks by routing all untrusted strings through the canonical escaper (dex-escape.js: escapeHTML). |
+| [`zotero-fill.mjs`](../tools/zotero-fill.mjs) | ZOTERO FILL — the citation ledger, pushed into the owner's reference library as first-class records. |

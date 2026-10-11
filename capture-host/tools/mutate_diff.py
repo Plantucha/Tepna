@@ -471,6 +471,10 @@ def main(argv=None) -> int:
     # `mutmut show` per mutant, paid ONLY for modules the equivalence file actually claims.
     _equiv_pre = load_equivalence()
     generated_keys: set = set()
+    # The keys this run EXCLUDED from the required set rather than failed to measure — see
+    # `mutation_diff.classify`'s `not_required`. Collected where the exclusion is decided, so the two
+    # can never disagree about which mutants were dropped.
+    not_required_keys: set = set()
     # RAW pytest exit codes per key, and the mutant NAME per key so a would-be refutation can be
     # re-run in isolation. mutmut's status WORD is not enough: it calls pytest's exit 3 a kill in
     # as many words (`3: "killed"  # internal error in pytest means a kill`), and contention
@@ -886,6 +890,11 @@ def main(argv=None) -> int:
                 )
                 sverdict, sdetail = string_only_verdict(show.stdout)
                 if sverdict == STRING_ONLY:
+                    # Recorded, not merely skipped: an equivalence entry may NAME this mutant, and a
+                    # claim over a mutant we chose not to require is a counted outcome, not a missing
+                    # measurement. Dropping it silently is what made the gate refuse over its own
+                    # exclusion (exit 2, verdict UNKNOWN, on #3395).
+                    not_required_keys.add(diff_key(show.stdout))
                     continue  # log/prose mutation — deliberately not required
                 if sverdict == EMPTY_DIFF:
                     # EXCLUDED, BUT NOT AS "string-only". A mutant that changes nothing is equivalent
@@ -893,6 +902,7 @@ def main(argv=None) -> int:
                     # string-only bucket — an exclusion the reader could not distinguish from a
                     # log-wording one. Recorded so the count is auditable rather than invisible.
                     verdict.setdefault("empty_diff", []).append({"mutant": name, "module": module})
+                    not_required_keys.add(diff_key(show.stdout))
                     continue
                 if sverdict == UNDECIDABLE:
                     # REFUSE LOUDLY. The literal scan is outside its documented competence, so any
@@ -1097,6 +1107,7 @@ def main(argv=None) -> int:
     # So a kill must be a DETECTION (raw exit 1, never the status word) and must survive an isolated
     # re-run — and the re-run is judged for load too, because it meets the same contention.
     _trusted = {k for k, ec in _exit_by_key.items() if kill_is_a_detection(ec)[0]}
+    verdict_survivor_keys = {sv.get("key") for sv in verdict["survivors"]}
     _claimed_keys = {e.get("key", "") for e in entries}
     _corroborated: set = set()
     _uncorroborated: list = []
@@ -1124,7 +1135,58 @@ def main(argv=None) -> int:
         else:
             _uncorroborated.append((_k, _why))
             print(f"    ⊘ NOT refuted — {_why}", flush=True)
-    cls = classify(entries, verdict["survivors"], _corroborated, generated=generated_keys)
+    # ── A CLAIMED MUTANT WITH NO RESULT GETS ONE RUN ALONE BEFORE ANYTHING IS CONCLUDED ───────────
+    # The sweep can leave a claimed key with no exit code: a reaped worker, a partial run, a shard that
+    # never reported. That state is indistinguishable from "we never asked", so ASK — one mutant, in the
+    # work tree it was generated in, the same `run_one(reuse=True)` path the kill-corroboration above
+    # uses. Only a key still unresolved AFTER that is deterministic, and only then is it bucketed.
+    #
+    # It is cheap because it is rare and narrow: it runs for claimed keys only, never for the thousands
+    # of unclaimed mutants, and a claim with no result is already the exceptional case.
+    _settled_late: dict = {}
+    _unchecked_after_isolation: list = []
+    for _k in sorted(_claimed_keys & generated_keys):
+        if _k in verdict_survivor_keys or _k in _corroborated or _exit_by_key.get(_k) is not None:
+            continue
+        if _k in not_required_keys:
+            continue  # excluded on purpose — a different state, handled by `claimed_not_required`
+        _mod, _wk, _tst, _cln = _work_of_key.get(_k, (None, None, None, None))
+        _name = _mutant_of_key.get(_k)
+        if not _name or _wk is None:
+            _unchecked_after_isolation.append((_k, "the mutant could not be located for an isolated run"))
+            continue
+        print(f"  ↻ a recorded claim has no result — running {_name} alone to settle it", flush=True)
+        try:
+            mut.run_one(_mod, only=_name, tests_override=_tst, clean=_cln, reuse=True)
+            _ec = (
+                json.loads((_wk / "mutants" / (Path(_mod).name + ".meta")).read_text(encoding="utf-8"))
+                .get("exit_code_by_key", {})
+                .get(_name)
+            )
+        except (OSError, ValueError, AttributeError, KeyError, subprocess.SubprocessError):
+            _ec = None  # an unreadable isolated run settles NOTHING, so fail closed into the bucket
+        if _ec is None:
+            _unchecked_after_isolation.append(
+                (_k, "generated, and still no result after one isolated run — deterministically unchecked")
+            )
+        else:
+            _settled_late[_k] = _ec
+            _exit_by_key[_k] = _ec
+            print(f"    ✓ settled in isolation: exit {_ec}", flush=True)
+    if _settled_late:
+        # A late survivor must JOIN the survivors, or settling it would have hidden it.
+        for _k, _ec in _settled_late.items():
+            if _ec == 0:
+                verdict["survivors"].append({"key": _k, "module": _work_of_key.get(_k, (None,))[0]})
+
+    cls = classify(
+        entries,
+        verdict["survivors"],
+        _corroborated,
+        generated=generated_keys,
+        not_required=not_required_keys,
+        unchecked={_k for _k, _ in _unchecked_after_isolation},
+    )
     if _uncorroborated:
         verdict["uncorroborated_refutations"] = [{"key": k, "why": w} for k, w in _uncorroborated]
     verdict["classification"] = {
@@ -1199,6 +1261,23 @@ def main(argv=None) -> int:
         print(f"     {e.get('why', '')}")
         print("     Construct that boundary and put it in the entry's `probe`, or the claim stands unshown.")
 
+    # ── A CLAIM OVER A MUTANT WE CHOSE NOT TO REQUIRE IS COUNTED, NOT REFUSED ─────────────────────
+    # Printed before the refusal block because it used to BE the refusal block: these claims reached
+    # `not_decided` and took the whole run to exit 2 over mutants this gate had already excluded. It is
+    # not a failure (nothing is unmeasured), not a pass (the claim demonstrated nothing here), and not
+    # silence (a reader must be able to see that an entry did no work).
+    if cls.get("claimed_not_required"):
+        print(
+            f"\n  {len(cls['claimed_not_required'])} recorded claim(s) name a mutant this run does not "
+            "require (string-only or empty diff) — counted, and excusing nothing here:"
+        )
+        for e in cls["claimed_not_required"]:
+            print(f"    · {e['key'][:96]}")
+        print(
+            "    These are NOT unmeasured: the mutant was dropped from the required set before any "
+            "equivalence question arose. The entries stand and no deletion is owed by this run."
+        )
+
     # ── A CLAIM THE RUN NEVER SETTLED IS UNKNOWN, NEVER FAIL (§🧾) ────────────────────────────────
     # Two shapes reach here, and neither is evidence against the entry:
     #   · `not_decided` — the mutant was generated and never settled. A reaped worker, a partial run
@@ -1207,6 +1286,19 @@ def main(argv=None) -> int:
     #     meets the same contention, so "not a survivor on the second try" is not a second vote.
     # Reported BEFORE the refuted block on purpose: a run that could not settle one claimed mutant has
     # not earned the right to call another claim wrong.
+    if cls.get("claimed_unchecked"):
+        print(
+            f"\n  {len(cls['claimed_unchecked'])} recorded claim(s) are CLAIMED-UNCHECKED — generated, and "
+            "still no result after one isolated run each:"
+        )
+        for e in cls["claimed_unchecked"]:
+            print(f"    ⊘ {e['key'][:96]}")
+        print(
+            "    Counted, never a refusal and never a PASS. This is a measurement about the GATE, not\n"
+            "    about the entry: the claim is neither shown nor refuted, and no deletion is owed.\n"
+            "    The same claim coming back unchecked across runs is a gate defect to file."
+        )
+
     if cls["not_decided"] or _uncorroborated:
         _n = len(cls["not_decided"]) + len(_uncorroborated)
         print(
@@ -1221,7 +1313,17 @@ def main(argv=None) -> int:
             print(f"     {_w}")
         print(
             "\n  NOT a refutation and NOT an excuse: nothing was measured about these, so the entries\n"
-            "  stand and no deletion is owed. Re-run on a quiet box; a contended run cannot settle them.\n"
+            "  stand and no deletion is owed.\n"
+            # 🔴 THIS USED TO SAY "Re-run on a quiet box; a contended run cannot settle them", and that
+            # was REFUTED by measurement (2026-10-11, #3395): a quiet local run under the rig lock
+            # reproduced the identical verdict over the identical two claims. Those two turned out to be
+            # a different state entirely — mutants this gate excludes as string-only — and they now go
+            # to `claimed_not_required` above. What is left here is genuinely undecided, so the advice
+            # names what the tool does rather than a remedy it cannot promise.
+            "  A genuinely undecided mutant is one the run generated and no result came back for: a\n"
+            "  reaped worker, a partial run, an unreported shard. Re-running MAY settle it; if the same\n"
+            "  claim comes back undecided twice, that is a gate defect to file, not a flake to retry —\n"
+            "  and it is never grounds to touch the entry.\n"
             "  ⚠️ Deleting an entry on this output would be deleting a claim nobody tested."
         )
         _ran_box[0] = _ran

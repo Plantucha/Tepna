@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1362774fcc67" data-compute-hash="9692187fd66a">
+<html lang="en" data-manifest-hash="43d691e21ada" data-compute-hash="7cdc06b05b9e">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9ASxZE0+tBTF94v2FmYC9cLqTVMJPz4YmlklSU0H+mU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DH1o/DCVLuenKmO0nXIpIgX/vUJ4YX6TGXhpe5Klizw=' 'sha256-EzbmpFAalNFZ0uGkU1UdFTZ68KkrArtyJHUgQqfiM3o=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6an4O2rXP4HYy/AfxWffkf6/KQVs3cq/G6b5ik9p5yY=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EzbmpFAalNFZ0uGkU1UdFTZ68KkrArtyJHUgQqfiM3o=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>OxyDex — Nocturnal Oximetry Analyzer · v2.17.0</title>
+<title>OxyDex — Nocturnal Oximetry Analyzer · v2.18.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -6127,7 +6127,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
     <div>
       <div class="logo-title">OxyDex</div>
-      <div class="logo-sub">v2.17.0 · Tepna</div>
+      <div class="logo-sub">v2.18.0 · Tepna</div>
     </div>
   </div>
   <hr class="sidebar-logo-rule">
@@ -6167,7 +6167,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">OxyDex <span class="version-badge">v2.17.0</span></div>
+    <div class="topbar-title">OxyDex <span class="version-badge">v2.18.0</span></div>
     <div class="topbar-sub" id="topbarSub">Nocturnal oximetry · SpO₂ · HR · HRV · 75+ metrics · Tepna</div>
   </div>
   <div class="topbar-actions">
@@ -9604,7 +9604,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           } else {
             var auto = r.origin !== 'you' && (!f.identity || f.k === 'age');
             var dispV = f.k === _fk ? _live : UNITS[f.k] ? toDisp(f.k, r.v) : r.v;
-            html += '<div class="dxp-iw"><input inputmode="decimal" class="prof-input' + (auto ? ' auto' : '') + '" data-k="' + f.k + '" value="' + (dispV != null ? dispV : '') + '">';
+            html += '<div class="dxp-iw"><input inputmode="decimal" class="prof-input' + (auto ? ' auto' : '') + '" data-k="' + f.k + '" value="' + escapeHTML(dispV != null ? dispV : '') + '">';
             if (!f.identity) html += '<button class="dxp-revert' + (r.origin === 'you' ? ' show' : '') + '" data-rev="' + f.k + '" title="revert to auto">↺</button>';
             html += '</div>';
           }
@@ -12511,9 +12511,9 @@ function profileDerivedUpdate() {
   if (wh)
     wh.innerHTML =
       '📊 Pop avg (' +
-      UP.sex +
+      escapeHTML(UP.sex) +
       ', entered age ' +
-      UP.age +
+      escapeHTML(UP.age) +
       '): ' +
       pop.wt +
       ' kg / ' +
@@ -13961,7 +13961,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         // For rises: recover when HR returns within RECOV of baseline
         // For drops: recover when HR returns within RECOV of baseline (above baseline-RECOV)
         var isRise = rise > 0;
-        while (j < n && j - i < MAX_RUN && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) {
+        /* 🔴 MISSED BY #3427 AND IT FABRICATES — found by re-counting the sites on main after that PR
+           merged, not by reading the diff. The DROP branch tests `rows[j].hr < baseline - RECOV`, and
+           `null < baseline - RECOV` is TRUE, so the recovery walk stepped THROUGH every hole and
+           extended the artifact run — cleaning real heart rate either side of a dropout as though it
+           were one long artifact. The walk now stops at a hole: the run is as long as it was observed
+           to be, which is the same rule the head/tail step guards follow. */
+        while (j < n && j - i < MAX_RUN && _has(rows[j].hr) && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) {
           j++;
         }
         if (j - i >= MAX_RUN) {
@@ -15332,7 +15338,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // renormalized bursts-only proxy) is the honest tri-state here.
     if (sleepArch.wasoMin == null || sleepArch.solMin == null) return null;
     var waso = sleepArch.wasoMin;
-    var bursts = extras.motionBursts || 0;
+    /* ⚠️ `|| 0` WOULD TURN THE WITHHELD BURSTS BACK INTO A ZERO. Today this line is unreachable for
+       an unusable-motion night — `sleepArch.wasoMin` is nulled on the same condition a few lines on
+       and the gate above returns null first — so the fabricated count never reached a published
+       pressure score, and the review's predicted consequence does NOT hold on main. It is guarded
+       anyway because it is the line that would resurrect the fabrication the moment that upstream
+       gate moved, and this function's own comment already rules on the remedy: a bursts-only SPI is
+       not a meaningful sleep pressure, so the honest value is null, never a reseeded zero. */
+    if (extras.motionBursts == null) return null;
+    var bursts = extras.motionBursts;
     var sol = sleepArch.solMin;
     var spi = +(waso * 0.4 + bursts * 0.15 + sol * 0.25).toFixed(2);
     var label = spi < 5 ? 'Low' : spi < 15 ? 'Moderate' : 'High';
@@ -15941,6 +15955,17 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var flags = buildFlags(stats, spikes, period, osc, odi4, odi3, hrv, motion, stab, hrProf, cross, spo2Adv, comp, sbii, pred3p);
     // v20.3: 20 new metrics
     var extras = computeNightExtras(rows, stats, desat, odi1, odi4, hb);
+    /* 🔴 §∅ (independent review 2026-10-11): `motionBursts` counts runs of `motion > 0`, and
+       `null > 0` is FALSE — so a night whose export carries no accelerometer column at all walked the
+       whole series, found no motion and published **0 bursts**. Zero bursts is not a blank: it reads
+       as a still, undisturbed night, which is a clinical claim about a sensor the device did not have.
+       WHY THIS ONE FIELD WAS LEFT BEHIND while `motSleep` and `motionPct` were handled: the
+       `_motionUnusable` branch above runs BEFORE `computeNightExtras`, so `extras` did not exist yet
+       and the branch had nothing to null. The fault flag is already set there
+       (`motionColumnAbsent` / `motionColumnStuck`), so the reason travels with the null and a reader
+       can still tell "this oximeter has no accelerometer" from "the writer emitted a stuck column".
+       Conditional assignment, like its siblings: a healthy night's export stays byte-identical. */
+    if (_motionUnusable && extras) extras.motionBursts = /** @type {any} */ (null);
     var rolling = computeRollingMetrics(rows, desat, comp, blArr);
     var patScore = computePatternScores(pbMet, osc, cross, flags, odi4, comp);
     // v20.4: 14 new metrics
@@ -16720,6 +16745,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   //   4. those cycle lengths REGULAR (CV < PB_MAX_CYCLE_CV) — §2.3 measured that criteria 1-3 alone
   //      fire on 40/40 red-noise seeds, because a red series crosses its own baseline at intervals
   //      set by its correlation time. A run-length test is not a periodicity test.
+  /* 🔴 §∅: THE MEDIAN IS OVER PRESENT VALUES ONLY. `Array.prototype.sort` with `a - b` coerces `null`
+     to 0, so a window holding dropouts used to sort them to the FRONT and drag the median down —
+     a baseline pulled toward 0 by absence, against which real samples then read as huge positive
+     excursions. A window with nothing present has no baseline: `null`, never a number. */
   function pbRollingMedianBaseline(x, win) {
     var half = win >> 1,
       n = x.length,
@@ -16727,7 +16756,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     for (var i = 0; i < n; i++) {
       var lo = i - half < 0 ? 0 : i - half,
         hi = i + half > n - 1 ? n - 1 : i + half;
-      var seg = x.slice(lo, hi + 1).sort(function (a, b) {
+      var seg = [];
+      for (var k = lo; k <= hi; k++) if (_has(x[k])) seg.push(x[k]);
+      if (!seg.length) {
+        out[i] = null;
+        continue;
+      }
+      seg.sort(function (a, b) {
         return a - b;
       });
       out[i] = seg[seg.length >> 1];
@@ -16742,6 +16777,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       lastSign = 0,
       extreme = 0;
     for (var i = 0; i < spo2.length; i++) {
+      /* 🔴 §∅: an absent sample is NOT a deviation. `null - base` is `-base`, so every dropout used to
+         read as the deepest excursion the trace could hold, closing one half-cycle and opening the
+         next — regularly spaced dropouts in a FLAT trace manufactured a periodic-breathing episode
+         (measured: 1 episode on a 960 s flat trace with a 30 s hole each minute). A hole also closes
+         no excursion: `lastSign`/`extreme` are left untouched, so the crossing on the far side is
+         judged against the last REAL sample, and no crossing is ever claimed at a gap boundary. */
+      if (!_has(spo2[i]) || !_has(base[i])) continue;
       var d = spo2[i] - base[i];
       var s = d > 0 ? 1 : d < 0 ? -1 : 0;
       if (s === 0) continue;
@@ -16844,8 +16886,22 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       runStart = -1;
       curLens = [];
     }
+    /* 🔴 §∅ + the owner's 2026-09-17 ruling (a DISCONTINUITY refuses; reduced COVERAGE annotates):
+       a cycle whose span contains absent samples does not describe ONE continuous stretch of signal,
+       so it cannot be counted toward the regularity of an episode. Guarding the crossings alone is not
+       enough — with no crossing inside a gap, the two real crossings either side merge into one long
+       half-cycle that can still land inside the 40..130 s window, so a dropout would quietly JOIN two
+       oscillating stretches into one longer "episode". The run breaks instead, exactly as an
+       out-of-window cycle breaks it; the stretches either side stand or fall on their own cycles. */
+    var spanHasGap = function (a, b) {
+      var lo = cross[2 * a],
+        hi = cross[2 * b + 2];
+      if (lo == null || hi == null) return true;
+      for (var q = lo; q <= hi && q < spo2.length; q++) if (!_has(spo2[q])) return true;
+      return false;
+    };
     for (var e = 0; e < cycles.length; e++) {
-      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC) {
+      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC && !spanHasGap(e, e)) {
         if (runStart < 0) runStart = e;
         curLens.push(cycles[e]);
       } else closeRun(e - 1);
@@ -19442,7 +19498,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       var searchStart = Math.max(0, approxIdx - 300);
       var searchEnd = Math.min(rows.length, approxIdx + 300);
       for (var i = searchStart; i < searchEnd; i++) {
-        if (rows[i].hr >= sp.peak - 2) {
+        // Also missed by #3427. `>=` under-counts rather than fabricating (a hole is never the peak),
+        // but guarded so the safety is a decision and not the coercion happening to fall the right way.
+        if (_has(rows[i].hr) && rows[i].hr >= sp.peak - 2) {
           peakIdx = i;
           break;
         }

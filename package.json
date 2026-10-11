@@ -30,7 +30,7 @@
     "mutation:reach": "node tools/mutation-reach.mjs --cov .mutation-sweeps/cov/coverage-final.json",
     "verify:manifest": "node tests/verify-manifest.mjs",
     "gate:subject": "node tools/gate-subject.mjs",
-    "test:hooks": "bash .claude/hooks/guard-shared-tree.test.sh && bash .claude/hooks/guard-stale-brief.test.sh && bash .claude/hooks/guard-format.test.sh && bash .claude/hooks/guard-ruff.test.sh && bash .claude/hooks/guard-doc-search.test.sh && bash .claude/hooks/guard-memory-stale.test.sh && bash .claude/hooks/session-tailnet.test.sh && bash tools/sync-main.test.sh",
+    "test:hooks": "bash .claude/hooks/guard-shared-tree.test.sh && bash .claude/hooks/guard-stale-brief.test.sh && bash .claude/hooks/guard-format.test.sh && bash .claude/hooks/guard-trailer.test.sh && bash .claude/hooks/guard-ruff.test.sh && bash .claude/hooks/guard-doc-search.test.sh && bash .claude/hooks/guard-memory-stale.test.sh && bash .claude/hooks/session-tailnet.test.sh && bash tools/sync-main.test.sh",
     "check:dex": "node tests/check-dex.mjs",
     "reconcile": "node tests/reconcile-provenance.mjs",
     "gates:browser": "node tests/browser-gates.mjs",
@@ -44,6 +44,7 @@
     "verify:analysis": "node tools/build-analysis.mjs --check",
     "verify:docs": "node tools/build-docs.mjs --check",
     "verify:tools-index": "node tools/tools-index.mjs --check",
+    "verify:workflow-timeouts": "node tools/workflow-timeout-guard.mjs",
     "verify:verdict-adoption": "node tools/verdict-adoption.mjs --check",
     "verify:absence-regression": "node tools/absence-regression.mjs --base origin/main",
     "verify:xss-sink": "node tools/xss-sink-gate.mjs --base origin/main",
@@ -51,7 +52,7 @@
     "verify:pr-compliance": "node tools/pr-compliance.mjs",
     "tools-index": "node tools/tools-index.mjs",
     "sync:docs-index": "node tools/sync-docs-index.mjs",
-    "test:guards": "bash .claude/hooks/guard-shared-tree.test.sh && bash .claude/hooks/guard-stale-brief.test.sh",
+    "test:guards": "bash .claude/hooks/guard-shared-tree.test.sh && bash .claude/hooks/guard-stale-brief.test.sh && bash .claude/hooks/guard-trailer.test.sh",
     "test:tools": "node tools/selftest-all.mjs",
     "pseudo:check": "node tools/extreme-mutate.mjs --baseline --file",
     "pseudo:baseline": "node tools/extreme-mutate.mjs --write-baseline --file",
@@ -62,7 +63,8 @@
     "verify:absence": "node tools/absence-ledger.mjs --ratchet",
     "verify:shard-timings": "node tests/verify-shard-timings.mjs",
     "timings:refresh": "node tests/run-tests.mjs --json | node tests/gen-group-timings.mjs",
-    "verify:no-names": "node tools/no-third-party-names.mjs"
+    "verify:no-names": "node tools/no-third-party-names.mjs",
+    "verify:integrator-surface": "node tools/integrator-surface-gate.mjs"
   },
   "engines": {
     "node": ">=18"

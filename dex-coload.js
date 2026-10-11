@@ -30,7 +30,12 @@
 
   var DEX_COLOAD = {
     // shared pre-DSP modules (load FIRST — delegating DSPs alias DexClock at load; A5 2026-07-03).
-    shared: ['clock.js'],
+    /* dex-escape.js joins the SHARED pre-DSP list 2026-10-11: a render/profile module that escapes
+       its output is co-loaded into WORKER realms too, and `escapeHTML` was undefined there —
+       browser-gates caught it as "real OxyDex stack loaded + ran in worker — escapeHTML is not
+       defined". Bundles (#3426) and tool realms (#3437) were the first two places the same
+       absence lived; the worker is the third. It depends on nothing, so it loads first. */
+    shared: ['dex-escape.js', 'clock.js'],
     // vendor adapters (self-register on load; order = registration order, drift-bait).
     // Load AFTER signal-adapters.js; the parser they wrap is resolved lazily in parse(),
     // so they may load before the DSP (mirrors the existing host ordering).

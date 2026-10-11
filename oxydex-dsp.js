@@ -1069,7 +1069,13 @@
         // For rises: recover when HR returns within RECOV of baseline
         // For drops: recover when HR returns within RECOV of baseline (above baseline-RECOV)
         var isRise = rise > 0;
-        while (j < n && j - i < MAX_RUN && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) {
+        /* 🔴 MISSED BY #3427 AND IT FABRICATES — found by re-counting the sites on main after that PR
+           merged, not by reading the diff. The DROP branch tests `rows[j].hr < baseline - RECOV`, and
+           `null < baseline - RECOV` is TRUE, so the recovery walk stepped THROUGH every hole and
+           extended the artifact run — cleaning real heart rate either side of a dropout as though it
+           were one long artifact. The walk now stops at a hole: the run is as long as it was observed
+           to be, which is the same rule the head/tail step guards follow. */
+        while (j < n && j - i < MAX_RUN && _has(rows[j].hr) && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) {
           j++;
         }
         if (j - i >= MAX_RUN) {
@@ -2440,7 +2446,15 @@
     // renormalized bursts-only proxy) is the honest tri-state here.
     if (sleepArch.wasoMin == null || sleepArch.solMin == null) return null;
     var waso = sleepArch.wasoMin;
-    var bursts = extras.motionBursts || 0;
+    /* ⚠️ `|| 0` WOULD TURN THE WITHHELD BURSTS BACK INTO A ZERO. Today this line is unreachable for
+       an unusable-motion night — `sleepArch.wasoMin` is nulled on the same condition a few lines on
+       and the gate above returns null first — so the fabricated count never reached a published
+       pressure score, and the review's predicted consequence does NOT hold on main. It is guarded
+       anyway because it is the line that would resurrect the fabrication the moment that upstream
+       gate moved, and this function's own comment already rules on the remedy: a bursts-only SPI is
+       not a meaningful sleep pressure, so the honest value is null, never a reseeded zero. */
+    if (extras.motionBursts == null) return null;
+    var bursts = extras.motionBursts;
     var sol = sleepArch.solMin;
     var spi = +(waso * 0.4 + bursts * 0.15 + sol * 0.25).toFixed(2);
     var label = spi < 5 ? 'Low' : spi < 15 ? 'Moderate' : 'High';
@@ -3049,6 +3063,17 @@
     var flags = buildFlags(stats, spikes, period, osc, odi4, odi3, hrv, motion, stab, hrProf, cross, spo2Adv, comp, sbii, pred3p);
     // v20.3: 20 new metrics
     var extras = computeNightExtras(rows, stats, desat, odi1, odi4, hb);
+    /* 🔴 §∅ (independent review 2026-10-11): `motionBursts` counts runs of `motion > 0`, and
+       `null > 0` is FALSE — so a night whose export carries no accelerometer column at all walked the
+       whole series, found no motion and published **0 bursts**. Zero bursts is not a blank: it reads
+       as a still, undisturbed night, which is a clinical claim about a sensor the device did not have.
+       WHY THIS ONE FIELD WAS LEFT BEHIND while `motSleep` and `motionPct` were handled: the
+       `_motionUnusable` branch above runs BEFORE `computeNightExtras`, so `extras` did not exist yet
+       and the branch had nothing to null. The fault flag is already set there
+       (`motionColumnAbsent` / `motionColumnStuck`), so the reason travels with the null and a reader
+       can still tell "this oximeter has no accelerometer" from "the writer emitted a stuck column".
+       Conditional assignment, like its siblings: a healthy night's export stays byte-identical. */
+    if (_motionUnusable && extras) extras.motionBursts = /** @type {any} */ (null);
     var rolling = computeRollingMetrics(rows, desat, comp, blArr);
     var patScore = computePatternScores(pbMet, osc, cross, flags, odi4, comp);
     // v20.4: 14 new metrics
@@ -3828,6 +3853,10 @@
   //   4. those cycle lengths REGULAR (CV < PB_MAX_CYCLE_CV) — §2.3 measured that criteria 1-3 alone
   //      fire on 40/40 red-noise seeds, because a red series crosses its own baseline at intervals
   //      set by its correlation time. A run-length test is not a periodicity test.
+  /* 🔴 §∅: THE MEDIAN IS OVER PRESENT VALUES ONLY. `Array.prototype.sort` with `a - b` coerces `null`
+     to 0, so a window holding dropouts used to sort them to the FRONT and drag the median down —
+     a baseline pulled toward 0 by absence, against which real samples then read as huge positive
+     excursions. A window with nothing present has no baseline: `null`, never a number. */
   function pbRollingMedianBaseline(x, win) {
     var half = win >> 1,
       n = x.length,
@@ -3835,7 +3864,13 @@
     for (var i = 0; i < n; i++) {
       var lo = i - half < 0 ? 0 : i - half,
         hi = i + half > n - 1 ? n - 1 : i + half;
-      var seg = x.slice(lo, hi + 1).sort(function (a, b) {
+      var seg = [];
+      for (var k = lo; k <= hi; k++) if (_has(x[k])) seg.push(x[k]);
+      if (!seg.length) {
+        out[i] = null;
+        continue;
+      }
+      seg.sort(function (a, b) {
         return a - b;
       });
       out[i] = seg[seg.length >> 1];
@@ -3850,6 +3885,13 @@
       lastSign = 0,
       extreme = 0;
     for (var i = 0; i < spo2.length; i++) {
+      /* 🔴 §∅: an absent sample is NOT a deviation. `null - base` is `-base`, so every dropout used to
+         read as the deepest excursion the trace could hold, closing one half-cycle and opening the
+         next — regularly spaced dropouts in a FLAT trace manufactured a periodic-breathing episode
+         (measured: 1 episode on a 960 s flat trace with a 30 s hole each minute). A hole also closes
+         no excursion: `lastSign`/`extreme` are left untouched, so the crossing on the far side is
+         judged against the last REAL sample, and no crossing is ever claimed at a gap boundary. */
+      if (!_has(spo2[i]) || !_has(base[i])) continue;
       var d = spo2[i] - base[i];
       var s = d > 0 ? 1 : d < 0 ? -1 : 0;
       if (s === 0) continue;
@@ -3952,8 +3994,22 @@
       runStart = -1;
       curLens = [];
     }
+    /* 🔴 §∅ + the owner's 2026-09-17 ruling (a DISCONTINUITY refuses; reduced COVERAGE annotates):
+       a cycle whose span contains absent samples does not describe ONE continuous stretch of signal,
+       so it cannot be counted toward the regularity of an episode. Guarding the crossings alone is not
+       enough — with no crossing inside a gap, the two real crossings either side merge into one long
+       half-cycle that can still land inside the 40..130 s window, so a dropout would quietly JOIN two
+       oscillating stretches into one longer "episode". The run breaks instead, exactly as an
+       out-of-window cycle breaks it; the stretches either side stand or fall on their own cycles. */
+    var spanHasGap = function (a, b) {
+      var lo = cross[2 * a],
+        hi = cross[2 * b + 2];
+      if (lo == null || hi == null) return true;
+      for (var q = lo; q <= hi && q < spo2.length; q++) if (!_has(spo2[q])) return true;
+      return false;
+    };
     for (var e = 0; e < cycles.length; e++) {
-      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC) {
+      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC && !spanHasGap(e, e)) {
         if (runStart < 0) runStart = e;
         curLens.push(cycles[e]);
       } else closeRun(e - 1);
@@ -6550,7 +6606,9 @@
       var searchStart = Math.max(0, approxIdx - 300);
       var searchEnd = Math.min(rows.length, approxIdx + 300);
       for (var i = searchStart; i < searchEnd; i++) {
-        if (rows[i].hr >= sp.peak - 2) {
+        // Also missed by #3427. `>=` under-counts rather than fabricating (a hole is never the peak),
+        // but guarded so the safety is a decision and not the coercion happening to fall the right way.
+        if (_has(rows[i].hr) && rows[i].hr >= sp.peak - 2) {
           peakIdx = i;
           break;
         }
