@@ -73,6 +73,7 @@ first — this index maps the ~60 *markdown* docs; the block below surfaces the 
 | [`WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md) | The *why* — philosophy, constraints, jokes (styled mirror: `Why This Exists.html`) | Narrative |
 | [`MUTATION-INVENTORY.md`](docs/MUTATION-INVENTORY.md) | The public mutant list — every surviving mutant per DSP with per-file kill rates and a `complete`/`in flight`/`unknown` state. **Generated**, never hand-edited (`node tools/mutation-suite.mjs --inventory`); self-locating — it names the driver and every command to reproduce it | Reference *(living)* |
 | [`TOOLS-INDEX.md`](docs/TOOLS-INDEX.md) | **(GENERATED — `node tools/tools-index.mjs`)** One line per tool in `tools/`, so a capability can be found without already knowing its filename. Read it before building anything: seven times in two weeks a session proposed building what already existed under another name. Drift-checked by `verify:tools-index`. |
+| [`GLOSSARY.md`](docs/GLOSSARY.md) | **REFERENCE** (living, last-verified 2026-10-11) — one approved term for each thing, plus the retired synonyms and the technical names. The writing rules come from ASD-STE100 Issue 8 (2021); **ASD copyrights its dictionary and this file copies none of it** — every approved term comes from this repository and names the form it already uses most, by count. `tools/ste-lint.mjs` reads it. | *(REFERENCE — living)* |
 | [`HANDOFF.md`](briefs/HANDOFF.md) | "Get current in one read" remediation handoff (dated — check the timestamp) | Reference *(DONE 2026-08-03)* |
 
 ---
