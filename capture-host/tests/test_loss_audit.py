@@ -2405,3 +2405,92 @@ def test_a_CRASHED_audit_still_names_the_file_it_was_reaching_for(tmp_path, monk
     o = loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=lambda *a: [])
     assert o["status"] == "UNKNOWN" and "RuntimeError: disk gone" in o["reason"]
     assert o["evidence"][:2] == [loss_audit.TOOL, os.path.join(d, loss_audit.AUDIT_NAME)]
+
+
+# ══ THE AUDIT FOLLOWS THE RECORDING, NOT THE FOLDER (owner report 2026-10-09→10) ═══════════════════
+
+
+def _cross_folder_night(tmp_path):
+    """Last night's real layout: the ring opens the night in folder D, the Polar wearables start after
+    midnight and land in D+1. ONE recording, two folders."""
+    c = tmp_path / "captures"
+    d9, d10 = c / "2026-10-09", c / "2026-10-10"
+    d9.mkdir(parents=True)
+    d10.mkdir(parents=True)
+    _stream(str(d9 / "Wellue_O2Ring-S_ABC_20261009212546_SPO2.csv"), ())
+    _stream(str(d10 / "Polar_H10_0284_20261010015024_ECG.txt"), ())
+    _stream(str(d10 / "Polar_VeritySense_0C30_20261010014748_PPG.txt"), ())
+    return str(d9)
+
+
+def test_the_audit_EXAMINES_the_wearables_that_started_after_midnight(tmp_path):
+    """🔴 THE PLANT, and on main it is the owner's bug verbatim. The judge spans a recording across
+    folders (`recording_scope`, #3297/#3337) but this audit globbed ONE folder — so for the night of
+    2026-10-09, whose Verity started 01:47 and H10 01:50 in the NEXT day's folder, the primary glob found
+    nothing and the audit wrote `"no primary file this night"` for both. The judge then said "the loss
+    audit examined None, which does not cover the worn interval" and the verdict was STRUCTURALLY
+    UNKNOWN: no re-run could fix it, and the 18:51 re-audit on a current daemon reproduced it
+    byte-identically.
+
+    What is asserted is the audit's own population — that it EXAMINED the files — not the downstream
+    verdict, which is the judge's to compute."""
+    d9 = _cross_folder_night(tmp_path)
+    devs = [
+        {"name": "Polar H10 0284", "model": "H10"},
+        {"name": "Polar Verity 0C30", "model": "VeritySense"},
+        {"name": "O2Ring ABC", "model": "O2Ring-S"},
+    ]
+    audit = loss_audit.audit_night(d9, devs)
+    for name in ("Polar H10 0284", "Polar Verity 0C30"):
+        dev = audit["devices"][name]
+        assert dev.get("reason") != "no primary file this night", (name, dev)
+        assert dev.get("file"), (name, dev)
+    # and the ring that opened the night in THIS folder is still examined
+    assert audit["devices"]["O2Ring ABC"].get("file")
+
+
+def test_a_SINGLE_FOLDER_night_is_audited_exactly_as_before(tmp_path):
+    """THE CONTROL, and the one that keeps this from being a widening. A night whose sessions all live in
+    its own folder must be judged over exactly the same file set as before — the scope reaches into D+1,
+    but `in_band` admits nothing from there unless a session STARTED in this band."""
+    d = _night(tmp_path)
+    audit = loss_audit.audit_night(d, DEV)
+    dev = audit["devices"]["Polar H10 0284"]
+    assert dev["file"].endswith("Polar_H10_0284_20260920220000_ECG.txt"), dev
+    assert len(dev.get("files") or [{}]) == 1, dev
+
+
+def test_a_NEXT_DAY_session_of_its_OWN_band_is_not_adopted_into_this_night(tmp_path):
+    """The other half of membership: a session that STARTS in the next evening's band belongs to that
+    night, not this one. The scope reaches the folder; `in_band` decides, which is what stops this change
+    from merging two nights into one audit."""
+    c = tmp_path / "captures"
+    d9, d10 = c / "2026-10-09", c / "2026-10-10"
+    d9.mkdir(parents=True)
+    d10.mkdir(parents=True)
+    _stream(str(d9 / "Polar_H10_0284_20261009220000_ECG.txt"), ())
+    _stream(str(d10 / "Polar_H10_0284_20261010220000_ECG.txt"), ())  # the NEXT night, 22:00 on 10-10
+    audit = loss_audit.audit_night(str(d9), DEV)
+    files = audit["devices"]["Polar H10 0284"].get("files") or []
+    names = [f.get("file") for f in files if isinstance(f, dict)]
+    assert names == ["Polar_H10_0284_20261009220000_ECG.txt"], names
+
+
+def test_the_WEAR_half_of_the_audit_follows_the_recording_too(tmp_path):
+    """🔴 THE PLANT THAT SURVIVED MY FIRST TEST SET, which is why this exists. Five globs carried the
+    per-folder assumption, and fixing only the PRIMARY left `wear_ends` folder-scoped — all 125 tests
+    stayed green, so nothing would have caught it.
+
+    It is not cosmetic: `wear_ends` publishes `worn_end`, which is the judge's own worn interval. Scoped
+    to one folder, a cross-folder night's H10 contributes NO wear end at all (`ends: []`,
+    `worn_end: None`), so the audit's two halves describe different nights — the same split this file's
+    `max(getsize)` comment already records one layer down, and exactly what makes a verdict compare
+    coverage against the wrong interval."""
+    d9 = _cross_folder_night(tmp_path)
+    devs = [{"name": "Polar H10 0284", "model": "H10"}]
+    wear = loss_audit.audit_night(d9, devs)["devices"]["Polar H10 0284"]["wear"]
+    assert wear["available"] is True, wear
+    named = [e.get("file") for e in wear["ends"]]
+    assert named == ["Polar_H10_0284_20261010015024_ECG.txt"], (
+        f"the wear half must examine the session that started after midnight in the NEXT day's folder: {named}"
+    )

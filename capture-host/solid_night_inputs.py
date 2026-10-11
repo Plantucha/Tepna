@@ -1821,11 +1821,36 @@ def _truncate_to_band(night_dir: str, start, end):
     return new_start, new_end, (new_start != start or new_end != end)
 
 
-def _adopt_later_wear(base: dict, other: dict, nxt: str) -> None:
+def _audit_spans(audit_dev: dict, judged_date) -> bool:
+    """Did ONE audit already examine a session that started OUTSIDE the judged folder's date? PURE.
+
+    That is the whole question behind `seam_source`: if the judged folder's own audit reached into the
+    next day — which it does now that the loss audit enumerates the recording's folder set — then the
+    boundary between the evening's last file and the morning's first is an ORDINARY between-files gap
+    that audit has already counted, and there is nothing left to stitch.
+
+    ⚠️ THE DATE COMES FROM `writers.file_stamp`, NOT A REGEX HERE, for the reason that function's own
+    docstring records (audit F5): an unanchored 14-digit search takes the FIRST 14-digit run in the name,
+    which on `Polar_H10_20250101000000_20260725225058_ECG.txt` is the device SERIAL — and it strptime's
+    cleanly, so the file would be keyed to a session eighteen months away. Two callers already had that
+    bug; this is not going to be the third."""
+    if judged_date is None:
+        return False
+    for e in audit_dev.get("files") or []:
+        if not isinstance(e, dict):
+            continue  # a non-object entry is not a file record — `continuity` reports those separately
+        stamp = _wr.file_stamp(os.path.basename(str(e.get("file") or "")))
+        if stamp and _dt.datetime.strptime(stamp, "%Y%m%d%H%M%S").date() != judged_date:
+            return True
+    return False
+
+
+def _adopt_later_wear(base: dict, other: dict, nxt: str, night_dir: str) -> None:
     """Take `other`'s wear ends into `base` where they are LATER, recording which folder they came from.
 
     Only `wear` crosses. A device the judged folder never listed is adopted outright: it was worn, in
     this band, and the morning audit is the only record of it."""
+    judged = _folder_date(night_dir) if night_dir else None
     for name, od in (other.get("devices") or {}).items():
         if not isinstance(od, dict):
             continue  # one unusable entry must not drop the devices listed after it
@@ -1845,11 +1870,28 @@ def _adopt_later_wear(base: dict, other: dict, nxt: str) -> None:
         for r in od.get("gaps") or []:
             if isinstance(r, dict) and r.get("file") not in seen:
                 merged.append(dict(r, folder=os.path.basename(nxt)))
-        rows, why = seam_gap(bd, od)
+        # 🔴 WHO JUDGED THE SEAM IS NOW RECORDED, because one audit can span both halves. Since the loss
+        # audit enumerates the RECORDING's folder set (#3297's scope, applied to `loss_audit` in this
+        # PR), the judged folder's own audit may already contain the morning session's files — and then
+        # the boundary between them is an ORDINARY between-files gap it has already counted. Calling
+        # `seam_gap` in that state asked a stitcher to stitch one piece: it answered "one side audited no
+        # file for this device", and the judge stored that as `seam_unassessed` — publishing
+        # "not assessed" about a seam that WAS assessed, on every cross-folder night.
+        #
+        # ⚠️ THE ABSENCE OF A SEAM ROW NOW CARRIES ITS REASON, which is the §∅ half: `single-audit` (one
+        # audit covered both sides, so the boundary is already in `gaps` — measured, counted ONCE),
+        # `stitched` (two audits, seam judged across them), `unassessed` (nobody could judge it).
+        # `continuity` reads the field, never the silence. #3157's two-audit stitching is SUPERSEDED, not
+        # deleted: `stitched` is still reached by every night whose audits predate this change, and the
+        # committed fixtures still exercise it.
+        spanned = _audit_spans(bd, judged)
+        if spanned:
+            rows, why = [], None
+        else:
+            rows, why = seam_gap(bd, od)
         merged.extend(rows)
         bd["gaps"] = sorted(merged, key=lambda r: (str(r.get("at")), r.get("s") or 0.0))
-        # NAMED, NEVER SILENT: a seam nobody could judge says so, so `continuity` cannot read the absence
-        # of a seam row as the absence of a seam gap (§∅).
+        bd["seam_source"] = "single-audit" if spanned else ("unassessed" if why else "stitched")
         bd["seam_unassessed"] = why
 
 
@@ -1877,7 +1919,7 @@ def _pooled_audit(night_dir: str) -> dict | None:
     for nxt in dirs[1:]:
         other = read_json(os.path.join(nxt, LOSS_AUDIT_NAME))
         if isinstance(other, dict):
-            _adopt_later_wear(base, other, nxt)
+            _adopt_later_wear(base, other, nxt, night_dir)
     return base
 
 
