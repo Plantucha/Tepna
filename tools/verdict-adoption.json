@@ -199,7 +199,7 @@
           "solid-night"
         ]
       },
-      "note": "solid-night (SOLID-NIGHT-2026-09-23-BRIEF §3.1): one tepna.verdict/1 per settled night, composed from band decisions made by solid_night_inputs.py and written as SOLID-VERDICT.json beside the loss audit by capture.loss_poller on the audit's own trigger; the §3.1 run ('S solid of N nights over D days') rides in result.run. Criterion 'failing band decisions' eq 0, pre-stated in §3 before any night was scored. The sample is a clean synthetic H10 night and EVERY term PASSES from its real inputs, the night with them. It read UNKNOWN on the timebase term until \u00a7A5's residual pass landed (#3245); the tripwire now runs over that axis, finds no candidate, and the sample became the thing it claims to be. The `rtc` term (#3265) is NOT_APPLICABLE there, because an H10 keeps no RTC log."
+      "note": "solid-night (SOLID-NIGHT-2026-09-23-BRIEF §3.1): one tepna.verdict/1 per settled night, composed from band decisions made by solid_night_inputs.py and written as SOLID-VERDICT.json beside the loss audit by capture.loss_poller on the audit's own trigger; the §3.1 run ('S solid of N nights over D days') rides in result.run. Criterion 'failing band decisions' eq 0, pre-stated in §3 before any night was scored. The sample is a clean synthetic H10 night and EVERY term PASSES from its real inputs, the night with them. It read UNKNOWN on the timebase term until §A5's residual pass landed (#3245); the tripwire now runs over that axis, finds no candidate, and the sample became the thing it claims to be. The `rtc` term (#3265) is NOT_APPLICABLE there, because an H10 keeps no RTC log."
     },
     "capture-host/solid_night_inputs.py": {
       "bin": "word-only",
@@ -572,6 +572,18 @@
       },
       "note": "GATE A + GATE B as ONE object (VERDICT-CONTRACT §3d, Magpie 2026-09-22): population = the bundles GATE A hashes + the page-wiring guard + the fixtures GATE B audits; a matching bundle / reproducible fixture is PASS, drift is FAIL, an absent fixture input (uploads/ gitignored — the header's declared skip class) is NOT_APPLICABLE, checked and never green evidence; --bundle= is a declared exclusion ⇒ filtered; a setup error (exit 2) is NOT_RUN with the reason. Measured on this tree: PASS over 48/48 (9 bundles, 24 fixtures reproducible, 14 absent ⇒ NOT_APPLICABLE); --bundle=oxydex ⇒ PASS over {6, 14, 8} filtered. --json; the exit code stays."
     },
+    "tests/verify-shard-timings.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tests/verify-shard-timings.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the UNTIMED-GROUP RATCHET: one object over the executed group set (727 on 2026-10-10), criterion untimed_group_share lte 5 percent — measured 3.99 % that day, shrink-only. A SHARE and not a count because a new group is unpriced by construction, so a count cap reds the PR that adds a test (the first version did exactly that on the next merge). It judges how many groups carry no committed timing, never the timings' freshness: group-timings.json stays a HINT by its own header's decision (drift degrades balance, never correctness). --verdict-sample enumerates nothing, so it reports checked: 0 / NOT_RUN with result: null rather than a PASS it did not earn."
+    },
     "tests/verify-shard-union.mjs": {
       "bin": "decides",
       "status": "adopted",
@@ -598,9 +610,16 @@
       "note": "the ABSENCE-SURVEY drain ratchet (owner-commissioned 2026-10-04) — the open-finding count held EQUAL to a committed ceiling, plus the state file byte-identical to its rebuild; FAIL on a rise, an un-lowered fall or a hand-edited state"
     },
     "tools/absence-regression.mjs": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "CI gate — the machine-readable result is the exit code (0 clean, 1 new fabrication patterns); the FAIL word is human-readable status, not a verdict about data"
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/absence-regression.mjs",
+          "--json"
+        ]
+      },
+      "note": "wave-3 adopter (#3368 gates): --json prints ONE tepna.verdict/1. Was binned word-only/exempt on the grounds that \"the machine-readable result is the exit code\" — which the VERDICT-CONTRACT rejects as a reason: an exit code carries no population, no criterion and no reason, so it cannot say what was examined. PASS/FAIL over the ADDED lines of its diff base, and NOT_RUN when the diff adds no line at all — a green over zero added lines is the examined-nothing shape, not a clean bill."
     },
     "tools/acc-acc-control.mjs": {
       "bin": "decides",
@@ -855,9 +874,16 @@
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
     "tools/docs-constants.mjs": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "CI gate — the machine-readable result is the exit code (0 constants match, 1 drift); the FAIL word is human-readable status, not a verdict about data"
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/docs-constants.mjs",
+          "--json"
+        ]
+      },
+      "note": "wave-3 adopter (#3368 gates): --json prints ONE tepna.verdict/1. Was binned word-only/exempt on the grounds that \"the machine-readable result is the exit code\" — which the VERDICT-CONTRACT rejects as a reason: an exit code carries no population, no criterion and no reason, so it cannot say what was examined. PASS/FAIL over the declared CHECKS list. A doc sentence reworded or a constant renamed is a FAILURE (doc-pattern-missing / code-pattern-missing), never a skip: a gate that cannot compare must not report agreement."
     },
     "tools/ecg-apnea-correlate.mjs": {
       "bin": "word-only",
@@ -1180,11 +1206,6 @@
       "status": "exempt",
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
-    "tools/pr-compliance.mjs": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "CI gate — the machine-readable result is the exit code (0 compliant, 1 violations); the FAIL word is human-readable status, not a verdict about data"
-    },
     "tools/pat-fiducial-jitter.mjs": {
       "bin": "decides",
       "status": "adopted",
@@ -1333,6 +1354,18 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pr-compliance.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pr-compliance.mjs",
+          "--json"
+        ]
+      },
+      "note": "wave-3 adopter (#3368 gates): --json prints ONE tepna.verdict/1. Was binned word-only/exempt on the grounds that \"the machine-readable result is the exit code\" — which the VERDICT-CONTRACT rejects as a reason: an exit code carries no population, no criterion and no reason, so it cannot say what was examined. PASS/FAIL over the four body-and-changeset checks, and NOT_RUN outside a pull_request event (the PR-only skip, preserved) — population.checked names how many of the four were actually evaluated, so a body-only run cannot read as having passed the diff checks."
     },
     "tools/probe-clock-equivalence.mjs": {
       "bin": "decides",
@@ -1657,6 +1690,43 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded — a wave-2 candidate, listed here by reason not by omission"
+    },
+    "tools/xerj-bench.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/xerj-bench.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "XERJ-HYBRID-SEARCH: --json prints ONE tepna.verdict/1 over real past Rule-0 queries. PASS only if the pre-stated acceptance holds (hybrid hit@5 >= bge AND fewer bytes to answer); a worse score is SHORTFALL, a measurement rather than a failure, and NOT_RUN over an empty query set. The SAMPLE command is --verdict-sample because a real run scores 52 queries and bge alone is ~3 s each, which would make this check time out."
+    },
+    "tools/xerj-load.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/xerj-load.mjs",
+          "--dry-run",
+          "--json"
+        ]
+      },
+      "note": "XERJ-HYBRID-SEARCH: --json prints ONE tepna.verdict/1 (PASS = every eligible cached file loaded with its OWN vectors; FAIL on a load of 0 documents, the examined-nothing shape, with the skip histogram as evidence; NOT_RUN when no doc-search cache exists). --dry-run in the sample so the check writes nothing to the index."
+    },
+    "tools/xss-sink-gate.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/xss-sink-gate.mjs",
+          "--json"
+        ]
+      },
+      "note": "wave-3 adopter (#3368 gates): NOT BINNED AT ALL before this — an omission rather than an exemption, which is the gap the adoption gate's population equality exists to catch. --json prints ONE tepna.verdict/1: PASS/FAIL over the innerHTML sinks ADDED in the diff, and NOT_RUN when the diff adds no sink, since \"every added sink is escaped\" over zero sinks is not evidence. The heuristic itself is unchanged and is still documented as heuristic, not AST-based."
     }
   }
 }

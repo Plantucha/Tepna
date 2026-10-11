@@ -2486,11 +2486,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
              construction, so there is no proximity heuristic here to get wrong (contrast the
              `_SPO2.csv` pairing below, which needs one because the two files are separate exports). */
           if (/_PPG2WRUNS\.txt$/i.test(file.name)) {
+            // biome-ignore lint/suspicious/noAssignInExpressions: source-pinned pattern (SAMPLE-VALIDITY-ENVELOPE test)
             (window._oxyW2R = window._oxyW2R || {})[file.name.replace(/_PPG2WRUNS\.txt$/i, '')] = text;
             resolve(null);
             return;
           }
           if (/_PPG2W\.txt$/i.test(file.name)) {
+            // biome-ignore lint/suspicious/noAssignInExpressions: source-pinned pattern
             (window._oxyW2 = window._oxyW2 || {})[file.name.replace(/_PPG2W\.txt$/i, '')] = text;
             resolve(null);
             return;
@@ -2509,6 +2511,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           // The _SPO2.csv half of a waveform pair: keep the parsed rows for spo2WaveformTrend (the
           // night itself still loads normally below — the trend is an EXTRA card, never a replacement).
           if (/_SPO2\.csv$/i.test(file.name) && rows && rows.length) {
+            // biome-ignore lint/suspicious/noAssignInExpressions: source-pinned pattern
             (window._oxyW2S = window._oxyW2S || {})[file.name.replace(/_SPO2\.csv$/i, '')] = rows;
           }
           if (!rows || rows.length < 60) {
@@ -2994,14 +2997,14 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           return a + b;
         }, 0) / seg.length;
       if (segMean >= THRESH) continue; // not an oscillating window
-      var lastCross = -1,
+      var _lastCross = -1,
         lastDir = 0,
         localCross = [];
       for (var i = 1; i < seg.length; i++) {
         var dir = seg[i] > THRESH ? 1 : seg[i] < THRESH ? -1 : 0;
         if (dir !== lastDir && dir !== 0) {
           localCross.push(w + i);
-          lastCross = w + i;
+          _lastCross = w + i;
           lastDir = dir;
         }
       }
@@ -3978,27 +3981,27 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     });
     // Fit y = A*cos(2π*t/T + φ) + C where T = n (full night)
     // Use least-squares for A*cos + B*sin + C
-    var sumC = 0,
-      sumS = 0,
-      sumCC = 0,
-      sumSS = 0,
-      sumCS = 0,
+    var _sumC = 0,
+      _sumS = 0,
+      _sumCC = 0,
+      _sumSS = 0,
+      _sumCS = 0,
       sumYC = 0,
       sumYS = 0,
-      sumY = 0;
+      _sumY = 0;
     for (var i = 0; i < n; i++) {
       var ang = (2 * Math.PI * i) / n;
       var c = Math.cos(ang),
         s = Math.sin(ang),
         y = hr[i];
-      sumC += c;
-      sumS += s;
-      sumCC += c * c;
-      sumSS += s * s;
-      sumCS += c * s;
+      _sumC += c;
+      _sumS += s;
+      _sumCC += c * c;
+      _sumSS += s * s;
+      _sumCS += c * s;
       sumYC += y * c;
       sumYS += y * s;
-      sumY += y;
+      _sumY += y;
     }
     // Simplified: A ≈ 2/n * ΣY*cos(ωt), B ≈ 2/n * ΣY*sin(ωt)
     var A = (2 / n) * sumYC,
@@ -5316,6 +5319,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         depth: +(evBaseline - evNadir).toFixed(1),
         durationSec: endIdxRaw - evStart - evMissing,
         missingSec: evMissing,
+        // Explicit gap indicator: true when the event spans unobserved samples.
+        // Backward-compatible (new field); consumers must not assume continuity
+        // from startIdx/endIdx alone when hasGap is true.
+        hasGap: evMissing > 0,
         dipSlope: +((evNadir - evBaseline) / dipDur).toFixed(3),
         recSlope: terminal ? null : +((spo2[recEnd] - evNadir) / recDur).toFixed(3),
         recSlopeReason: terminal ? 'record-ended' : null
@@ -6122,7 +6129,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // skips them explicitly (null is not 0).
     var spo2 = measuredSpO2(rows);
     var n = spo2.length,
-      WIN = 300;
+      _WIN = 300;
 
     // Delta-index (SpO2 instability): mean |diff of consecutive 12s means|
     // (12 s windows with no measured sample contribute no mean)
@@ -6594,7 +6601,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // §∅: measured series — absences are null, skipped explicitly below
     var spo2 = measuredSpO2(rows);
     var n = spo2.length,
-      WIN = 300;
+      _WIN = 300;
     if (n < 60) return null;
     var measured = spo2.filter(function (v) {
       return v != null;
@@ -6742,8 +6749,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
-    var n = rows.length;
-    var WIN = 300;
+    var _n = rows.length;
+    var _WIN = 300;
 
     // Oxygen Desat Arousal Coupling Score: % of ODI-4 nadirs followed by HR rise ≥8bpm within 60s
     var nadirEvents = desat ? desat.nadir.count : 0;
@@ -7772,7 +7779,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var t85 = measured.filter(function (r) {
       return r.spo2 < 85;
     }).length;
-    var durationHr = m / 3600;
+    var _durationHr = m / 3600;
     return {
       t88Sec: t88,
       t88Min: +(t88 / 60).toFixed(1),
@@ -8727,7 +8734,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       return r.spo2;
     });
     var n = spo2.length,
-      WIN = 300;
+      _WIN = 300;
     /* REFUSE (Clock Contract §2.6). `sbii` is `emerging` with goodDirection `down`, so 0 is the BEST
        value on the scale — and `Q1(low)` names the lowest-risk SHHS quintile explicitly. Returning
        those from insufficient data does not merely fabricate a number, it fabricates a CLINICAL
@@ -8905,7 +8912,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
               return JSON.stringify(o);
             })
             .join('\n');
-      } catch (e) {
+      } catch (_e) {
         /* fall through to line-by-line */
       }
     }
@@ -9167,7 +9174,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
               var o4r = obj.odi4 && obj.odi4.rate != null ? obj.odi4.rate : null;
               var ct90s = obj.ctPrecise && obj.ctPrecise.ct90s != null ? obj.ctPrecise.ct90s : null;
               return computeMOS(o4r, ct90s);
-            } catch (e) {
+            } catch (_e) {
               return null;
             }
           })(),
@@ -9180,7 +9187,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
               var dsev = obj.desSev && obj.desSev.desSev != null ? obj.desSev.desSev : null;
               var t95 = obj.stats && obj.stats.t95pct != null ? obj.stats.t95pct : null;
               return computeAHIestimates(o4r, o3r, dsev, t95);
-            } catch (e) {
+            } catch (_e) {
               return null;
             }
           })(),
@@ -9189,7 +9196,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         // Generate Smart Summary for JSONL imports too (tabs were missing).
         try {
           night.summary = /** @type {any} */ (computeSmartSummary(night));
-        } catch (e) {
+        } catch (_e) {
           night.summary = null;
         }
         results.push(night);
@@ -9631,7 +9638,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             recovery: d.recovery != null ? d.recovery : null,
             nadir: d.nadir != null ? d.nadir : null,
             onsetTMs: d.startTMs != null ? d.startTMs : null,
-            endTMs: d.endTMs != null ? d.endTMs : null
+            endTMs: d.endTMs != null ? d.endTMs : null,
+            // Gap uncertainty: true/false when known, null when the event
+            // predates gap tracking. Null means "unknown", not "gap-free" —
+            // we must not fabricate a continuity claim for legacy events.
+            hasGap: d.hasGap === true ? true : d.hasGap === false ? false : null,
+            missingSec: d.missingSec != null ? d.missingSec : null
           }
         });
       });
@@ -13026,12 +13038,28 @@ const PulseDex = window.PulseDex;
       if (d > 0 && d < 240) dts.push(d);
     }
     dts.sort((a, b) => a - b);
-    const cadence = dts.length ? +quantile(dts, 0.5).toFixed(2) : 5;
-    const gapThresh = Math.max(cadence * 2.5, cadence + 3); // minutes
+    /* 🔴 §∅ — A CADENCE THAT WAS NEVER MEASURABLE IS `null`, NOT 5. `dts` collects only deltas in
+       (0, 240) min, so a daily or spot export contributes NONE and the old `: 5` published a sample
+       rate nothing in the file supports. Measured 2026-10-11 on a 10-reading daily export spanning 9
+       days: `cadence: 5` and **`activeMin: 50`** — fifty minutes of "active" data claimed over 12,960,
+       a figure derived entirely from the invented rate and indistinguishable from a real one.
+       `cadenceAssumed` is the grid's step, named as an assumption because the uniform timeline that
+       AGP/MODD/CONGA are defined on needs SOME step to exist; `cadence` is the measurement and reports
+       the absence. Every quantity that is `cells × cadence` is null when the cadence is null, because
+       minutes computed from an assumed rate describe nothing. */
+    const cadenceMeasured = dts.length ? +quantile(dts, 0.5).toFixed(2) : null;
+    const cadenceReason = cadenceMeasured == null ? 'cadence-unmeasurable: no inter-sample delta in (0,240) min' : null;
+    const cadence = cadenceMeasured;
+    /* `step` is ALWAYS a number — the grid cannot be built on a null — while `cadence` above is the
+       measurement and may be null. Keeping them as two names is what stops an assumed rate from being
+       read back as a measured one; the typechecker proves `step` non-null because the literal is here. */
+    const step = cadenceMeasured == null ? 5 : cadenceMeasured;
+    const cadenceAssumed = cadenceMeasured == null ? step : null;
+    const gapThresh = Math.max(step * 2.5, step + 3); // minutes
 
     // Build a uniform timeline at `cadence` so AGP/MODD/CONGA are well-defined.
     // We resample onto a regular grid by nearest-with-interpolation; flag interpolated cells.
-    const stepMs = cadence * 60000;
+    const stepMs = step * 60000;
     const spanMs = tMs[n - 1] - tMs[0];
     /* DEEP-AUDIT-II §5.1 — the CAP is a memory ceiling; the SILENCE was the defect.
        `Math.min(200000, …)` truncates the uniform grid, and the pointer walk below then fills only N
@@ -13064,7 +13092,7 @@ const PulseDex = window.PulseDex;
         vR = vMgdl[k];
       const gapL = (t - tL) / 60000,
         gapR = (tR - t) / 60000;
-      if (Math.min(gapL, gapR) <= cadence * 0.75) {
+      if (Math.min(gapL, gapR) <= step * 0.75) {
         gV[i] = gapL <= gapR ? vL : vR; // snap to the real reading
         gF[i] = FLAG.OK;
       } else if (tR > tL && gapL < gapThresh && gapR < gapThresh) {
@@ -13083,7 +13111,7 @@ const PulseDex = window.PulseDex;
     // warm-up suppression: first ~60 min reads low/erratic on a fresh sensor.
     // Heuristic — only suppress if the opening hour is physiologically implausible
     // (very low mean or steep monotonic climb out of the weeds).
-    const warmCells = Math.min(N, Math.round(60 / cadence));
+    const warmCells = Math.min(N, Math.round(60 / step));
     let warmMean = 0,
       wc = 0;
     for (let i = 0; i < warmCells; i++) {
@@ -13121,8 +13149,8 @@ const PulseDex = window.PulseDex;
         : 100;
       const dipCeil = Math.min(80, baseline * 0.78); // a dip must fall below this
       const shoulderFloor = Math.max(72, baseline * 0.86); // shoulders must sit near/above baseline
-      const minRun = Math.max(3, Math.round(25 / cadence)); // ≥~25 min sustained
-      const ctxW = Math.max(4, Math.round(120 / cadence)); // 2-h context shoulders
+      const minRun = Math.max(3, Math.round(25 / step)); // ≥~25 min sustained
+      const ctxW = Math.max(4, Math.round(120 / step)); // 2-h context shoulders
       const isNight = (ms) => {
         const h = new Date(ms).getUTCHours();
         return h >= 23 || h < 8;
@@ -13149,7 +13177,7 @@ const PulseDex = window.PulseDex;
             j++;
           }
           const runLen = j - i,
-            runMin = runLen * cadence;
+            runMin = runLen * step;
           if (runLen >= minRun && runMin <= 150) {
             const before = medOf(i - ctxW, i),
               after = medOf(j, j + ctxW);
@@ -13195,6 +13223,9 @@ const PulseDex = window.PulseDex;
       unit,
       t0Ms,
       cadence,
+      // null unless the cadence was unmeasurable; then the step the grid used, named as an assumption.
+      cadenceAssumed,
+      cadenceReason,
       stepMs,
       gT,
       gV,
@@ -13205,10 +13236,10 @@ const PulseDex = window.PulseDex;
       truncated,
       spanMin: Math.round(spanMs / 60000),
       spanSec: spanMs / 1000,
-      activeMin: Math.round(activeCells * cadence),
-      gapMin: Math.round(gapCells * cadence),
-      warmupMin: Math.round(warmupCells * cadence),
-      compMin: Math.round(compCells * cadence),
+      activeMin: cadence == null ? null : Math.round(activeCells * cadence),
+      gapMin: cadence == null ? null : Math.round(gapCells * cadence),
+      warmupMin: cadence == null ? null : Math.round(warmupCells * cadence),
+      compMin: cadence == null ? null : Math.round(compCells * cadence),
       nGaps,
       pctActive,
       nRaw: n,
@@ -14106,7 +14137,8 @@ const PulseDex = window.PulseDex;
     progress && progress(84, 'AGP aggregation…');
     const hourly = agp(c);
     const daily = perDay(c);
-    const activeDays = c.activeMin / 1440;
+    // §∅ — a rate we never measured yields no day count either; NaN would read as a number downstream.
+    const activeDays = c.activeMin == null ? null : c.activeMin / 1440;
     const t = tierOf(activeDays, c.pctActive);
 
     const r = {
@@ -14114,9 +14146,17 @@ const PulseDex = window.PulseDex;
       unit: c.unit,
       t0Ms: c.t0Ms,
       cadence: c.cadence,
+      /* §∅ requires a null to arrive WITH its reason, so both ride out of `analyze` and not only
+         out of `clean` — a consumer that sees `cadence: null` and no reason cannot tell an
+         unmeasurable rate from a field this version does not populate. */
+      cadenceAssumed: c.cadenceAssumed,
+      cadenceReason: c.cadenceReason,
       durSec: c.spanSec,
       durMin: c.spanMin,
-      durDays: +activeDays.toFixed(2),
+      // §∅ — null, not 0 and not NaN: the day count is `activeMin / 1440` and that minute total is
+      // itself null when the cadence was never measured. `+null.toFixed()` is a THROW, which is how
+      // the typechecker found this line before the runtime did.
+      durDays: activeDays == null ? null : +activeDays.toFixed(2),
       spanMin: c.spanMin,
       activeMin: c.activeMin,
       gapMin: c.gapMin,
@@ -14129,7 +14169,9 @@ const PulseDex = window.PulseDex;
       tier: t.tier,
       tierLabel: t.label,
       tierMsg: t.msg,
-      longRec: activeDays >= 1,
+      // A record whose active duration is unknown is not "long" and is not "short" — it is unknown.
+      // `null >= 1` is FALSE, which would have published a confident "not long" for an unmeasured span.
+      longRec: activeDays == null ? null : activeDays >= 1,
       // series (cleaned, mg/dL) for render
       // §5.1 — `truncated` rides along: this subset is hand-picked, so a field added to the grid is
       // invisible to every consumer until it is named here. That is precisely how the truncation

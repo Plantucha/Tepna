@@ -215,7 +215,7 @@ export function readChunk(text, cap = READ_CHARS) {
 
 /* The CLI flags this tool understands, stripped from the query words. Exported so the selftest can
    pin that a flag never leaks into the embedded query (it did once as a token-fallback term). */
-export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read']);
+export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code']);
 export function stripFlags(argv) {
   return (argv || []).filter((a) => !CLI_FLAGS.has(a));
 }
@@ -931,6 +931,28 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
 }
 
 if (IS_MAIN && !process.argv.includes('--selftest')) {
+  /* ── --hybrid / --code: ask the xerj index (BM25 + cached bge-m3 kNN in ONE request) ──────────────
+     An EARLY branch, before anything else runs, and the implementation is imported DYNAMICALLY — so
+     the default Rule-0 path below gains no new cost, no new import and no new failure mode. A missing
+     or broken xerj server can only affect a caller who asked for it by name. XERJ-HYBRID-SEARCH
+     brief; adoption is the owner's call, so this is additive and nothing routes through it yet. */
+  if (process.argv.includes('--hybrid') || process.argv.includes('--code')) {
+    const q = stripFlags(process.argv.slice(2)).join(' ').trim();
+    if (!q) {
+      console.error('usage: node tools/doc-search.mjs --hybrid "<what you are trying to find>"');
+      process.exit(2);
+    }
+    const xq = await import('./xerj-query.mjs');
+    try {
+      const out = await xq.hybridSearch({ query: q });
+      process.stdout.write(`${xq.render(out, q)}\n`);
+      process.exit(0);
+    } catch (e) {
+      console.error(`doc-search --hybrid: ${e.message}`);
+      console.error('  The default (semantic) path is unaffected: re-run without --hybrid.');
+      process.exit(2);
+    }
+  }
   const scope = process.argv.includes('--ext-only') ? 'ext' : process.argv.includes('--no-ext') ? 'repo' : 'all';
   const pullExt = process.argv.includes('--pull-ext');
   const readMode = process.argv.includes('--read');

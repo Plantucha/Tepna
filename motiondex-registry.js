@@ -27,6 +27,14 @@
 
   var MOTION_REGISTRY = {
     /* ── MEASURED — frame-invariant direct statistics / coverage / quality ─── */
+    /* ⚠️ NOT DORMANT — I MARKED IT DORMANT AND THE HONESTY GATE REFUTED ME (2026-10-10).
+       `motiondex-render.js:175` renders `row('Activity counts', num(act.totalCounts, 1), 'Σ dynamic g')`
+       — the exact Σ this cite claims, computed and SURFACED, bound to `totalCounts`. I had searched for
+       a night-level sum, found only the MEAN (`movementIndex`), and concluded absence: #1455's error
+       reproduced by me, in the file that carries the warning. The `dormant` flag was removed again.
+       The binding is a NAME mismatch (`activityCounts` ↔ `totalCounts`) and `totalCounts` reaches no
+       committed export, so `emittedAt` cannot be validated against one either — see the brief; the id
+       stays in the resolvability baseline with THIS reason rather than a flag that is false. */
     activityCounts: {
       label: 'Activity counts',
       unit: '',
@@ -37,12 +45,22 @@
     },
     movementIndex: { label: 'Movement index', unit: '', goodDirection: 'down', depth: 'basic', evidence: 'measured', cite: 'Mean per-epoch activity count — direct (lower = more restful)' },
     immobileFrac: { label: 'Immobile time', unit: '%', goodDirection: 'up', depth: 'basic', evidence: 'measured', cite: 'Fraction of 30 s epochs below the movement threshold — direct' },
+    /* 🔗 EMITTED AT A NESTED PATH, not under this id's name — so it is NOT dormant: a compute site
+       exists and its value reaches the export. `motionSQI()` computes it (motiondex-dsp.js:1314,
+       `clamp(1 − clipFrac·5 − flatFrac − offFrac·2, 0, 1)`) and the node export surfaces it at
+       `motion.sqi`. Verified 2026-10-10 by WALKING the path on a committed export
+       (`synthetic_motiondex_golden.node-export.json` → 0.97); the resolvability gate asserts that walk,
+       so this binding cannot become a second excuse list.
+       ⚠️ `sqi.conf` was the obvious guess and was WRONG: that is the internal summary shape, and the
+       `conf:` at :1551 belongs to a ganglior EVENT, not to a metric. In the export `sqi` is already the
+       unwrapped float. The path is declared here because walking it is checkable and a name is not. */
     sqiConf: {
       label: 'Signal quality',
       unit: '×',
       goodDirection: 'up',
       depth: 'advanced',
       evidence: 'measured',
+      emittedAt: 'motion.sqi',
       cite: 'Motion SQI (clip / flatline / sensor-off) → Ganglior conf — direct quality statistic'
     },
 

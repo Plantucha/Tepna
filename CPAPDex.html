@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f2f5be051976" data-compute-hash="fc8bff8cf8ac">
+<html lang="en" data-manifest-hash="03e331ec0e34" data-compute-hash="51bdd2e003d1">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-pT7FsTMPu5EMXzqU5CVVjqWnmeeHyIcT/zPxw7NhuHs='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Bb0EtTN0ZQs5elsWn/gEtTxlDHg4/Pvvkn2RTNrWinQ=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-iweKQiCQRqa79GmhFKUzxf5GkbsdpwB3zlNkygO8X6c=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.17.0</title>
@@ -4798,7 +4798,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       evidence: 'measured',
       cite: 'Regression slope of SD-card flow on BLE-live flow over the aligned overlap (OLS, no Pearson r). 1.00 = amplitude identity; a systematic gain difference reads directly.'
     },
+    /* 🔗 EMITTED AT A NESTED PATH — NOT dormant. `cpapdex-cross.js:727` emits
+       `scale: { a, b, residSD }`, so the value exists and ships; only the flat name does not. Verified
+       2026-10-10 by walking `scale.residSD` on a committed export (`cpapdex_comparator_golden.json`
+       → 0.00086746…), and the resolvability gate asserts that walk. A flat rename to `residSD` would
+       still match no top-level key, which is why the PATH is declared instead of a name. */
     cmpResidSD: {
+      emittedAt: 'scale.residSD',
       label: 'Scale Residual SD',
       unit: 'L/s',
       goodDirection: 'down',
@@ -6353,8 +6359,33 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       nad = 100,
       nadIdx = 0,
       base = 95;
+    /* 🔴 `endIdx` IS A SAMPLE INDEX, so it is clamped; `duration` is a COUNT, so it is not.
+       `close(n)` is the unconditional end-of-record flush, and it used to publish `endIdx: end` with
+       `end === n` — one past the last sample. Measured on main 2026-10-11 with a desat running to the
+       end of a 230-sample series: `endIdx: 230`, `spo2[230]` is `undefined`, and `undefined - 1` is
+       `NaN`. A mid-series event is unaffected because its `end` is the re-rise sample, a real index —
+       which is precisely what made the asymmetry invisible: the common path always looked right.
+       ⚠️ CLAMPING ALONE WOULD DESTROY INFORMATION, which is why `terminal` ships with it. After the
+       clamp, an event that ran past the end and an event that genuinely ended on the last sample both
+       read `endIdx === n - 1`, and nothing distinguishes "no resaturation was observed" from "it
+       resaturated at the last sample". `terminal` is that distinction, and it is the same field
+       OxyDex's twin publishes for the same reason (`oxydex-dsp.js:3523`).
+       `duration` keeps the UNCLAMPED span (`end - st`): the event really did last that many samples,
+       and shortening it by one to match a clamped index would corrupt a correct number to tidy a
+       different field. CPAPDex has no recovery-slope term, so unlike OxyDex there is nothing here that
+       measures a dip against itself. */
     function close(end) {
-      if (inEv && end - st >= OXI.MIN_DUR) events.push({ startIdx: st, onset: st, nadirIdx: nadIdx, endIdx: end, depth: +(base - nad).toFixed(1), duration: end - st, nadir: nad });
+      if (inEv && end - st >= OXI.MIN_DUR)
+        events.push({
+          startIdx: st,
+          onset: st,
+          nadirIdx: nadIdx,
+          endIdx: Math.min(n - 1, end),
+          terminal: end >= n,
+          depth: +(base - nad).toFixed(1),
+          duration: end - st,
+          nadir: nad
+        });
       inEv = false;
     }
     for (var i = 0; i < n; i++) {

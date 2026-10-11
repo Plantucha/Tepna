@@ -1,0 +1,290 @@
+{
+  "schema": "tepna.literature-formula-parity/1",
+  "_README": [
+    "DIMENSION 3: CODE vs THE PAPER'S OWN TEXT. Two dimensions were already covered and neither is this one:",
+    "DEX-CITATION-FORMULA-AUDIT (DONE 2026-08-05) resolved citations against Crossref and checked formulas by",
+    "web search, never against the papers' text; tools/formula-constant-audit.mjs checks guide formula == CODE",
+    "formula. Both can pass while the code and the paper disagree, because neither ever opened the paper.",
+    "",
+    "A verdict here is about ONE code site, not about a paper. The same DOI can be MATCH at one site and",
+    "unverifiable at another, and two sites repeating one claim are two items (3 and 4, 13 and 14).",
+    "",
+    "UNVERIFIABLE-LOCALLY IS A FINDING, NOT A SKIP: it names, by DOI, the full texts the suite still needs to",
+    "close this dimension. All 7 are pre-2000 paywalled methods papers or a 1974 proceedings.",
+    "",
+    "Reading only. Nothing in this ledger changes code; divergences are residue rows."
+  ],
+  "producedBy": {
+    "session": "Magpie",
+    "commit": "1a9cf0c5",
+    "method": "local literature corpus (~/tepna-literature), per-paper streaming, exact-string and phrase search for the CLAIMED value"
+  },
+  "at": "2026-10-11T01:33:29Z",
+  "corpus": {
+    "papers": 172,
+    "withFullText": 52,
+    "abstractOnly": 104,
+    "bytes": "13 MB",
+    "note": "Corpus-wide counts. This ledger's population is the 14 distinct DOIs cited from root *.js, of which 6 have a full text, 3 an abstract and 5 metadata only."
+  },
+  "population": {
+    "items": 18,
+    "distinctDois": 14,
+    "files": 8,
+    "checked": 11,
+    "excluded": 7,
+    "matches": 11,
+    "mismatches": 0
+  },
+  "missingFullTexts": [
+    {
+      "doi": "10.1109/PROC.1966.4634",
+      "cite": "Allan 1966, Proc IEEE",
+      "wantedFor": "the two-sample Allan variance relation at tau = one window"
+    },
+    {
+      "doi": "10.1109/FREQ.1974.200027",
+      "cite": "Gray & Allan 1974",
+      "wantedFor": "the N-cornered-hat solve on first differences"
+    },
+    {
+      "doi": "10.1109/TASSP.1976.1162830",
+      "cite": "Knapp & Carter 1976",
+      "wantedFor": "correlation-based TDOA and the PHAT weighting named as the next refinement"
+    },
+    {
+      "doi": "10.1080/01621459.1968.10480934",
+      "cite": "Sen 1968, JASA",
+      "wantedFor": "the Theil-Sen slope and the Kendall-S interval constant"
+    },
+    {
+      "doi": "10.1007/BF00142586",
+      "cite": "Mann & Lees 1996, Climatic Change",
+      "wantedFor": "the AR(1) background and height-not-location rule that gate whether a PB cycle is emitted at all",
+      "priority": "highest - the only one whose method decides an emission"
+    }
+  ],
+  "items": [
+    {
+      "n": 1,
+      "site": "eegdex-dsp.js:35",
+      "doi": "10.1093/sleep/zsaa097",
+      "citedAs": "Arnal et al. 2020, SLEEP 43(11)",
+      "codeClaim": "device 83.5 ± 6.4 % accuracy (F1 83.8 ± 6.3); five human experts 86.4 ± 8.0 % (F1 86.3 ± 7.4); 25 subjects",
+      "localText": "fulltext",
+      "verdict": "MATCH",
+      "paperSays": "\"83.5 ± 6.4% (F1 score: 83.8 ± 6.3) ... 86.4 ± 8.0% (F1 score: 86.3 ± 7.4) for the 5 sleep experts\"",
+      "note": "Every figure exact, in the paper's own unit, with the 25-subject population confirmed (\"A total of 25 subjects\"). ⚠️ THE PAPER DISAGREES WITH ITSELF on the expert SD: the abstract says 86.4 ± 8.0 %, the Table 4 narrative says \"the overall accuracy of the five scorers is of 86.4 ± 7.4%\". Our code took the abstract's. Not our defect; recorded so nobody 'corrects' the code to the other figure without deciding which the paper means."
+    },
+    {
+      "n": 2,
+      "site": "eegdex-dsp.js:45",
+      "doi": "10.5664/jcsm.2350",
+      "citedAs": "Rosenberg & Van Hout 2013, J Clin Sleep Med 9(1)",
+      "codeClaim": "cited for the benchmark's IDENTITY only; the code states its agreement figures are deliberately NOT quoted",
+      "localText": "abstract",
+      "verdict": "MATCH",
+      "note": "Nothing numeric is claimed, so nothing can diverge. The comment says in words why: the figures \"were not verifiable at author time, and a number nobody checked is exactly what the paragraph above refuses\". A correctly scoped citation is the shape this audit wants to find, not an omission."
+    },
+    {
+      "n": 3,
+      "site": "ecgdex-dsp.js:6663",
+      "doi": "10.1088/1361-6501/ae6a09",
+      "citedAs": "Abdessalem K. 2026, Meas Sci Technol",
+      "codeClaim": "\"synchronises independently-clocked sensors to 0.2-0.4 ms from IBI SEQUENCES ALONE\"",
+      "localText": "abstract",
+      "verdict": "MATCH",
+      "paperSays": "\"Clock-only error ... was reduced to approximately 0.40 ms and 0.21 ms\"",
+      "note": "Value and scope both correct, and \"using IBI sequences alone\" is the abstract's own phrase. ⚠️ BUT the figure is the CLOCK-ONLY residual; total IBI RMSE after correction was 3.254–3.263 ms and 4.215–4.219 ms. The code does not say \"clock-only\", so a reader can take 0.2–0.4 ms as end-to-end accuracy, an order of magnitude better than the paper's total. Residue row 2026-10-11-clock-only-residual-quoted-as-sync-accuracy. METHOD NOTE: searching for the CLAIMED value found it; reading the prominent numbers first had me one step from filing a mismatch that was not there."
+    },
+    {
+      "n": 4,
+      "site": "ppgdex-dsp.js:6658",
+      "doi": "10.1088/1361-6501/ae6a09",
+      "citedAs": "Abdessalem K. 2026, Meas Sci Technol",
+      "codeClaim": "same claim as item 3, duplicated verbatim",
+      "localText": "abstract",
+      "verdict": "MATCH",
+      "note": "Same quote, same caveat; both sites are named in the one residue row."
+    },
+    {
+      "n": 5,
+      "site": "integrator-dsp.js:4764",
+      "doi": "10.3390/s21144777",
+      "citedAs": "Brønd JC et al. 2021, Sensors 21(14):4777",
+      "codeClaim": "windowed cross-correlation of accelerometer NORMS; offset AND drift modelled as linear in time",
+      "localText": "fulltext",
+      "verdict": "MATCH",
+      "paperSays": "\"the offset and drift were estimated by ... linear regression of the observed lag ... with time\"",
+      "note": "The method claim is the paper's stage II verbatim in substance; cross-correlation is its mechanism (Matlab xcorr, max lag 1000 samples = 33.3 s) and drift is the paper's central subject (95 mentions, ±20 ppm RTC, ±12 s over 7 days)."
+    },
+    {
+      "n": 6,
+      "site": "integrator-dsp.js:4772",
+      "doi": "10.3390/jimaging8050120",
+      "citedAs": "Xiao R, Ding C, Hu X 2022, J Imaging 8(5):120",
+      "codeClaim": "align on a COMMON signal type shared by both devices, agnostic to which signal it is",
+      "localText": "fulltext",
+      "verdict": "MATCH",
+      "paperSays": "\"a niche time alignment problem when a common signal type is available across different devices\"",
+      "note": "The paper's own title and abstract carry the claim."
+    },
+    {
+      "n": 7,
+      "site": "integrator-dsp.js:4776",
+      "doi": "10.1109/TASSP.1976.1162830",
+      "citedAs": "Knapp CH, Carter GC 1976, IEEE Trans ASSP 24(4):320-327",
+      "codeClaim": "reference treatment of correlation-based TDOA; PHAT weighting named as the next refinement",
+      "localText": "metadata-only",
+      "verdict": "UNVERIFIABLE-LOCALLY",
+      "note": "Citation IDENTITY verified from metadata (title \"The generalized correlation method for estimation of time delay\"); the method claim is not checkable without the full text. Paywalled 1976 IEEE."
+    },
+    {
+      "n": 8,
+      "site": "integrator-dsp.js:4854",
+      "doi": "10.1080/01621459.1968.10480934",
+      "citedAs": "Sen PK 1968, J Am Stat Assoc 63(324):1379-1389",
+      "codeClaim": "Theil–Sen robust line fit = the median of all pairwise slopes",
+      "localText": "metadata-only",
+      "verdict": "UNVERIFIABLE-LOCALLY",
+      "note": "Identity verified from metadata (title \"Estimates of the Regression Coefficient Based on Kendall's Tau\"). The definition is textbook-standard and independently correct, but this audit's question is code-vs-paper and the paper's text is absent."
+    },
+    {
+      "n": 9,
+      "site": "integrator-dsp.js:4885",
+      "doi": "10.1080/01621459.1968.10480934",
+      "citedAs": "Sen PK 1968, J Am Stat Assoc 63:1379",
+      "codeClaim": "C = z·sqrt(n(n−1)(2n+5)/18), the Kendall-S standard deviation; z = 1.96 → 95 %",
+      "localText": "metadata-only",
+      "verdict": "UNVERIFIABLE-LOCALLY",
+      "note": "n(n−1)(2n+5)/18 is the standard Var(S) for Kendall's S under the null, so the formula is independently right; the interval is additionally attributed to Hollander & Wolfe §9.4, a BOOK with no DOI and outside both this ledger and the citation-ledger gate. Needs the full text to confirm the paper states it in this form."
+    },
+    {
+      "n": 10,
+      "site": "integrator-dsp.js:4983",
+      "doi": "10.3389/fncom.2010.00127",
+      "citedAs": "Louis S, Borgelt C, Grün S 2010, Front Comput Neurosci 4:127",
+      "codeClaim": "surrogate practice for the permutation null follows this paper",
+      "localText": "fulltext",
+      "verdict": "MATCH",
+      "paperSays": "\"Surrogate Spike Train Generation Through Dithering in Operational Time\"",
+      "note": "✔ AND THE CITATION IS CORRECTLY SCOPED: the 1/(nullIters+1) p-floor beside it is attributed to \"the same 1/(N+1) floor the pooled fit publishes\" — the suite's own practice — NOT to this paper. A permutation floor is arithmetic; borrowing a paper's authority for it would have been the §📚 defect this audit looks for, and the code does not."
+    },
+    {
+      "n": 11,
+      "site": "analysis-stats.js:689",
+      "doi": "10.1109/PROC.1966.4634",
+      "citedAs": "Allan DW 1966, Proc IEEE",
+      "codeClaim": "½·Var(x_{k+1} − x_k) is the Allan variance at τ = one window",
+      "localText": "metadata-only",
+      "verdict": "UNVERIFIABLE-LOCALLY",
+      "note": "Identity verified from metadata (title \"Statistics of atomic frequency standards\"). The relation is the textbook definition of the two-sample Allan variance, but the paper's text is absent. Paywalled 1966 IEEE."
+    },
+    {
+      "n": 12,
+      "site": "analysis-stats.js:690",
+      "doi": "10.1109/FREQ.1974.200027",
+      "citedAs": "Gray & Allan 1974, 28th Annual Symposium on Frequency Control",
+      "codeClaim": "the N-cornered-hat solve on first differences is Gray & Allan 1974",
+      "localText": "metadata-only",
+      "verdict": "UNVERIFIABLE-LOCALLY",
+      "note": "Identity verified from metadata (title \"A Method for Estimating the Frequency Stability of an Individual...\"), which is consistent with the use. Conference proceedings, 1974, not open."
+    },
+    {
+      "n": 13,
+      "site": "oxydex-dsp.js:1943",
+      "doi": "10.1007/BF00142586",
+      "citedAs": "Mann ME & Lees JM 1996, Climatic Change 33:409-445",
+      "codeClaim": "test peak HEIGHT against a fitted red (AR(1)) background, never peak LOCATION; S(f) ~ (1−ρ²)/(1 − 2ρcos(2πf/fs) + ρ²)",
+      "localText": "metadata-only",
+      "verdict": "UNVERIFIABLE-LOCALLY",
+      "note": "Identity verified from metadata: title \"Robust estimation of background noise and signal detection in climatic time series\", 1996 — matching the code's journal/volume/pages. The method and the spectrum formula need the full text. This is the HIGHEST-VALUE missing text in the set: it is the only metadata-only citation whose method decides whether a metric is emitted at all (a null vs a fabricated cycle on ~42 % of featureless nights)."
+    },
+    {
+      "n": 14,
+      "site": "oxydex-registry.js:129",
+      "doi": "10.1007/BF00142586",
+      "citedAs": "Mann & Lees 1996, Climatic Change 33:409-445",
+      "codeClaim": "registry `cite` string repeating the AR(1)-background condition",
+      "localText": "metadata-only",
+      "verdict": "UNVERIFIABLE-LOCALLY",
+      "note": "Same paper as item 13; the registry string and the DSP comment agree with each other, which is dimension 2 (already gated) rather than dimension 3."
+    },
+    {
+      "n": 15,
+      "site": "sensor-trio-night.js:35",
+      "doi": "10.2196/67110",
+      "citedAs": "Schweizer & Gilgen-Ammann 2025, JMIR Cardio",
+      "codeClaim": "H10 (chest ECG) is the criterion device",
+      "localText": "fulltext",
+      "verdict": "MATCH",
+      "paperSays": "\"The Verity Sense, worn on the upper arm, demonstrated excellent accuracy\"",
+      "note": "The study's 16 participants wore the Verity Sense against a chest reference; H10 appears throughout as the comparison anchor. The code's wider phrasing (\"in essentially every wearable-HR study\") is a hedged claim about the FIELD, not about this paper, and is not treated here as a checkable value."
+    },
+    {
+      "n": 16,
+      "site": "sensor-trio-night.js:36",
+      "doi": "10.3390/s22010180",
+      "citedAs": "Budig M et al. 2021, Sensors",
+      "codeClaim": "H10 (chest ECG) is the criterion device",
+      "localText": "fulltext",
+      "verdict": "MATCH",
+      "paperSays": "\"The chest strap Polar H10 ... was used to determine the criter[ion]\"",
+      "note": "Explicit in the paper's methods."
+    },
+    {
+      "n": 17,
+      "site": "sensor-trio-night.js:41",
+      "doi": "10.1007/s11325-024-03232-9",
+      "citedAs": "Tisyakorn et al. 2024, Sleep Breath",
+      "codeClaim": "O2Ring validated for ODI/OSA screening, AUC 0.91",
+      "localText": "abstract",
+      "verdict": "MATCH",
+      "paperSays": "\"area under the ROC curve for identifying moderate to severe OSA was 0.91\"",
+      "note": "✔ CHECKED, NOT EXCLUDED: the cited figure is stated in the abstract, so the absence of a full text did not prevent verification. Abstract-only is a limit on WHICH claims are checkable, not a blanket exclusion."
+    },
+    {
+      "n": 18,
+      "site": "sensor-trio-night.js:76",
+      "doi": "10.2196/67110",
+      "citedAs": "Schweizer & Gilgen-Ammann 2025, JMIR Cardio",
+      "codeClaim": "Verity Sense MAE 1.43 bpm, bias −0.05 bpm; code computes sigma = 1.43 · sqrt(π/2) ≈ 1.79",
+      "localText": "fulltext",
+      "verdict": "MATCH",
+      "paperSays": "\"a systematic bias of −0.05 bpm, MAE of 1.43 bpm\"",
+      "note": "Both numbers verbatim AND attributed to the right device and wear location (\"The Verity Sense, worn on the upper arm\"), which was the population check this item could have failed. sqrt(π/2) ≈ 1.2533 is the zero-mean-Gaussian MAE→σ identity, and the code labels it an order-of-magnitude and RANKING check rather than an identity."
+    }
+  ],
+  "verdict": {
+    "schema": "tepna.verdict/1",
+    "gate": "literature-formula-parity",
+    "status": "PASS",
+    "population": {
+      "checked": 11,
+      "eligible": 18,
+      "excluded": 7
+    },
+    "criterion": {
+      "name": "every code constant equals the paper's stated value in the paper's unit",
+      "threshold": 0,
+      "unit": "mismatching items",
+      "direction": "eq",
+      "preStated": "stated in the assignment before any paper was opened"
+    },
+    "result": {
+      "mismatches": 0,
+      "matches": 11,
+      "excludedReason": "no local full text and the claim is not in the abstract (7 items, 5 DOIs)"
+    },
+    "evidence": [
+      "audits/LITERATURE-FORMULA-PARITY-2026-10-11.json",
+      "briefs/LITERATURE-FORMULA-PARITY-2026-10-11-BRIEF.md"
+    ],
+    "reason": null,
+    "producedBy": {
+      "tool": "manual read, ledger-recorded",
+      "commit": "1a9cf0c5"
+    },
+    "at": "2026-10-11T01:33:29Z"
+  }
+}

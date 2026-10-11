@@ -4565,11 +4565,28 @@
 
     group('Integrator findings — unknown time is null, never 1970 (2026-10-05 §2a)', 'integrator-dsp · absence', function (T) {
       var src = (env.sources || {})['integrator-dsp.js'] || '';
-      // ── source-mirror: the two finding builders must not fabricate tMs: 0 ──
-      var bad = (src.match(/tMs:\s*startMs\s*\|\|\s*0/g) || []).length;
-      T.ok('no `tMs: startMs || 0` fabrication sites', bad === 0, bad + ' site(s) stamp 1970 on timeless findings');
-      var good = (src.match(/tMs:\s*startMs\s*\?\?\s*null/g) || []).length;
-      T.ok('timeless findings use `tMs: startMs ?? null`', good >= 2, 'found ' + good + ', want ≥2');
+      /* ── source-mirror ─────────────────────────────────────────────────────────────────────────────
+         🔴 THIS PATTERN USED TO REQUIRE `tMs:` IMMEDIATELY BEFORE `startMs || 0`, AND THAT IS HOW A
+         THIRD SITE SURVIVED THE SWEEP THAT ADDED THIS GROUP. The repo held 3 occurrences before #3366;
+         that PR fixed 2, re-grepped for the shape it had just eliminated (`tMs: startMs || 0` → 0 hits,
+         true by construction) and reported the sweep complete. The survivor was
+         `tMs: b.t0Ms != null ? b.t0Ms : startMs || 0` — `startMs || 0` sits after a ternary, not after
+         `tMs:`, so neither the body's grep nor this assertion could see it. Found 5 days later by a
+         whole-tree run of the absence gate (#3392).
+         The pattern is now anchored on the FABRICATION (`startMs || 0`) wherever it appears, never on
+         the syntax that happened to surround the instances already fixed. */
+      var bad = (src.match(/\bstartMs\s*\|\|\s*0/g) || []).length;
+      T.ok('no `startMs || 0` fabrication anywhere in a tMs expression', bad === 0, bad + ' site(s) stamp 1970 when startMs is absent — a `b.t0Ms != null ?` guard protects b.t0Ms, NOT the fallback');
+      /* ⚠️ AN EQUALITY, NOT A FLOOR. `good >= 2` was satisfied by the two sites #3366 fixed while the
+         third was unexamined — a floor met by the right members is the exact failure this file keeps
+         re-learning. The count is the declared population of timeless-finding builders; if a builder is
+         added or removed, this number moves deliberately. */
+      var good = (src.match(/startMs\s*\?\?\s*null/g) || []).length;
+      T.ok(
+        'every timeless-finding builder uses `startMs ?? null`',
+        good === 3,
+        'found ' + good + ', declared population is 3 (glucose_autonomic_correlation, staging_disagreement, periodic_breathing)'
+      );
       // ── the unmatched export mapping must tolerate null tMs too ──
       T.ok('unmatched export guards null tMs', /time:\s*e\.tMs\s*!=\s*null\s*\?\s*fmtDateTime\(e\.tMs\)\s*:\s*null/.test(src), 'fmtDateTime(e.tMs) unguarded — null renders as 1970');
       // ── functional: a null-tMs finding exports tMs:null and time:null ──
@@ -6821,11 +6838,11 @@
     group('Every registry id has a DECLARED binding — emitted, in *_DEFS, or dormant', 'registry · id-emission · ratchet', function (T) {
       var src = env.sources || {};
       var UNDECLARED = {
-        cpapdex: 'cmpResidSD',
-        ecgdex: 'accPosture analyzable cpcHfc crCoupling deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
+        cpapdex: '',
+        ecgdex: 'accPosture analyzable cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
         glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability timeAbove timeBelow',
-        hrvdex: 'ansLoad cai camq crs csi cvi dfaAlpha1 efc focusEff hfnu lfhf momentum ortho otr pnsEff pti recovDebt recovIndex sd1sd2 sdnnZ si spectralEnt vei vo2roll welfare',
-        motiondex: 'activityCounts effortAmp effortPresent respRate sqiConf',
+        hrvdex: 'camq ortho',
+        motiondex: 'activityCounts effortAmp effortPresent respRate',
         oxydex:
           'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 ct90 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
         ppgdex:
@@ -6895,22 +6912,88 @@
             .join('\n')
         );
         var ids = [];
-        var re = /(^|[^A-Za-z0-9_$.'"])([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{\s*label\s*:/g;
-        var _m;
+        /* ⚠️ FIELD-ORDER-INDEPENDENT, and this is a bug fix with two scars.
+           It used to require `label` IMMEDIATELY after the brace (`id: { label:`), so ANY entry that
+           put another field first was invisible to this gate. Measured 2026-10-10: that was
+           **24 of 522 ids** — 21 in ppgdex alone (`dicroticFinger`, `aiFinger`, …, each with
+           `dormant: true` written first), plus 2 in motiondex and 1 in cpapdex. The population leg
+           below asserts `> 400` and passed comfortably at 498 while those 24 were dark: a floor met
+           by the wrong members, in the gate carrying that very warning. The tell was a count that
+           moved 500 → 498 when `emittedAt:` was added as a first field and `cmpResidSD` read as
+           FIXED — "resolved" because the gate had stopped SEEING it.
+           Now `[^{}]` keeps the window inside ONE entry (it cannot run past a closing brace into a
+           neighbour's `label`) while allowing any fields before it. First attempt at this fix
+           required a closing brace at 4-space indent, which single-line entries do not have, and the
+           population collapsed to 181 — caught by the same anti-vacuity floor. */
+        var re = /(^|[^A-Za-z0-9_$.'"])([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{[^{}]{0,400}?\blabel\s*:/g;
         for (const m of regS.matchAll(re)) if (ids.indexOf(m[2]) === -1) ids.push(m[2]);
         totalIds += ids.length;
         var undeclared = ids.filter(function (id) {
           var emitted = new RegExp('(^|[^A-Za-z0-9_$])' + id + '\\s*:|\\.' + id + '\\b|[\'"`]' + id + '[\'"`]').test(body);
           var inDefs = new RegExp('(^|[^A-Za-z0-9_$.\'"])' + id + "\\s*:\\s*\\{|id:\\s*'" + id + "'").test(defs);
-          var isDormant = (function () {
-            var e = new RegExp(id + '\\s*:\\s*\\{[\\s\\S]{0,600}?\\}').exec(reg);
-            return !!e && /dormant\s*:\s*true/.test(e[0]);
-          })();
-          return !(emitted || inDefs || isDormant);
+          /* The ENTRY text, read from the UNSTRIPPED registry so a `dormant` written in prose beside
+             the flag is not what satisfies this — the flag itself must be there. */
+          /* `[^{}]` KEEPS THIS INSIDE ONE ENTRY. The previous form looked for a closing brace at
+             4-space indent, which SINGLE-LINE entries do not have — so for every such entry it ran on
+             until the next multi-line one and could have read a NEIGHBOUR's `dormant: true` as this
+             id's. Measured on `recovIndex`: 865 characters captured instead of 185. The answers
+             happened to agree today, which is exactly what makes it worth fixing before they do not. */
+          var entry = new RegExp(id + '\\s*:\\s*\\{[^{}]{0,900}?\\}').exec(reg);
+          var isDormant = !!entry && /dormant\s*:\s*true/.test(entry[0]);
+          /* FOURTH ROUTE — a DECLARED NESTED BINDING. Some values ship under a PATH rather than a flat
+             key (`motion.sqi`, `scale.residSD`), so the id can be neither renamed nor called dormant:
+             a compute site exists and its value reaches the export. `emittedAt` declares that path,
+             which completes this gate's criterion (every id has a DECLARED binding) rather than
+             loosening it — and it counts as a binding only because the leg below WALKS the path on a
+             committed export. Undemonstrated, it would be a second excuse list. */
+          var declaredPath = !!entry && /emittedAt\s*:\s*'[^']+'/.test(entry[0]);
+          /* ── FIFTH ROUTE — THE `d_` RENDER-KEY CONVENTION ────────────────────────────────────────
+             HRVDex's dashboard rows are keyed `d_<id>`, usually snake_cased: `d_lnrmssd`, `d_ans_load`,
+             `d_focus_eff`. The `emitted` regex above cannot see any of them, because it requires a
+             non-identifier character before the id and `_` is excluded from its class — so `d_lnrmssd`
+             never bound `lnrmssd`. **That single blind spot is why hrvdex held the second-largest share
+             of the baseline**: 17 of its 25 ids are rendered and were reading as unbound.
+             Measured 2026-10-11: 12 ids match `d_<id>` exactly, 5 more only after snake_casing
+             (`ansLoad`→`d_ans_load`, `focusEff`, `pnsEff`, `sdnnZ`, `spectralEnt`). Both forms, and no
+             third guess — a looser match would start binding ids to keys that merely look related. */
+          var snake = id.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+          var renderKey = new RegExp('[\'"`]d_(' + id + '|' + snake + ')[\'"`]').test(body);
+          /* ── SIXTH ROUTE — A DECLARED RENDER KEY, for the ones no rule derives ───────────────────
+             Six ids are rendered under a key the convention does not produce: `recovDebt`→
+             `d_recovery_debt`, `sd1sd2`→`d_sd1_sd2`, `vo2roll`→`d_vo2_roll7`, `momentum`→
+             `d_hrv_momentum`, `dfaAlpha1`→`d_dfa_proxy`, and `recovIndex`→**`d_ari`**, which shares no
+             substring with its id at all. Each is declared `rendersAs:` in the registry entry and
+             counts ONLY because the key must exist in the node's own render source — an undemonstrated
+             declaration would be a second excuse list, which is the objection `emittedAt` already had
+             to answer.
+             🔴 EVERY ONE OF THE SIX WAS CONFIRMED BY ITS LABEL, NOT BY ITS NAME. Registry label ≡
+             render label: `sd1sd2`/`d_sd1_sd2` both "SD1/SD2"; `recovIndex`/`d_ari` both "Recov Index".
+             The same check REFUTED a seventh I had guessed — `ortho`→`d_sai` reads "Orthostatic Load"
+             against "Spec.Asym", two different quantities — so `ortho` stays in the baseline. Name
+             similarity proposes a binding; the label is what confirms one. */
+          var declaredKey = null;
+          if (entry) {
+            var dk = /rendersAs\s*:\s*'(d_[a-z0-9_]+)'/.exec(entry[0]);
+            if (dk) declaredKey = new RegExp('[\'"`]' + dk[1] + '[\'"`]').test(body) ? dk[1] : null;
+          }
+          return !(emitted || inDefs || isDormant || declaredPath || renderKey || declaredKey);
         });
         var want = UNDECLARED[node].split(' ').filter(Boolean).sort().join(' ');
         var got = undeclared.slice().sort().join(' ');
         T.ok(node + ' · ids parsed (anti-vacuity — a parse of 0 would pass every id)', ids.length > 0, 'parsed ' + ids.length);
+        /* ── CONTROLS FOR THE TWO NEW ROUTES ───────────────────────────────────────────────────────
+           A route that binds an id is a route that can EXCUSE one, so each is planted against a case
+           it must refuse. Without these the `d_` route is an unfalsifiable widening: it would read as
+           working precisely because it stopped reporting. */
+        var synthetic = "x = { key: 'd_realkey', label: 'R' }; y = d_barekey; z = 'prefixed_d_other';";
+        var probe = function (id) {
+          var sn = id.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+          return new RegExp('[\'"`]d_(' + id + '|' + sn + ')[\'"`]').test(synthetic);
+        };
+        T.ok(node + ' · route control · a quoted d_<id> binds', probe('realkey'), 'the positive case must still match');
+        T.ok(node + ' · route control · an UNQUOTED d_<id> does not bind', !probe('barekey'), 'd_barekey as a bare identifier is not a render key — a looser regex would bind it');
+        T.ok(node + ' · route control · d_<id> inside a longer token does not bind', !probe('other'), 'prefixed_d_other must not satisfy d_other');
+        T.ok(node + ' · route control · an id that exists nowhere stays undeclared', !probe('zzzNeverRendered'), 'a fabricated id must bind through no route');
         /* An EQUALITY, never a count: a swap keeps the number and changes the members, and a floor is
            satisfied by the wrong ones (measured on the shells gate's INVISIBLE_CAP). */
         T.ok(
@@ -6933,6 +7016,38 @@
             ']'
         );
         if (got !== want) drift.push(node);
+      }
+      /* ⚠️ EVERY `emittedAt` PATH MUST RESOLVE ON A REAL EXPORT, or this field is a second excuse list
+         beside the baseline it exists to shrink. The walk is not ceremony: `sqi.conf` was the obvious
+         path for the motion SQI and it is WRONG — that is the internal summary shape, and the `conf:`
+         at motiondex-dsp.js:1551 belongs to a ganglior EVENT, not a metric. The export surfaces the
+         already-unwrapped float at `motion.sqi`. Walking it caught that before it shipped. */
+      var resolver = env.exportPathExists;
+      if (typeof resolver !== 'function') {
+        T.skip('emittedAt paths resolve on a committed export', 'Node lane only — the browser lane has no fs');
+      } else {
+        var declaredPaths = [];
+        for (var d2 = 0; d2 < NODES.length; d2++) {
+          var rtext = src[NODES[d2] + '-registry.js'] || '';
+          var re2 = /([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{[^{}]{0,900}?emittedAt:\s*'([^']+)'/g;
+          for (const mm of rtext.matchAll(re2)) declaredPaths.push({ node: NODES[d2], id: mm[1], path: mm[2] });
+        }
+        /* ANTI-VACUITY: zero declared paths would pass every leg below trivially, so the absence of
+           bindings must itself be visible rather than silently green. */
+        T.ok('at least one emittedAt binding is declared (0 would pass the walks trivially)', declaredPaths.length > 0, declaredPaths.length + ' declared');
+        for (const dd of declaredPaths) {
+          var r2 = resolver(dd.path);
+          T.ok(
+            dd.node + ' · emittedAt "' + dd.path + '" (' + dd.id + ') resolves on a committed export',
+            r2.ok === true,
+            r2.ok
+              ? 'found in ' + r2.where + ' = ' + JSON.stringify(r2.value).slice(0, 40)
+              : 'NOT FOUND in any of ' + r2.scanned + ' committed exports — declare the path the export actually carries, or the id is not bound'
+          );
+        }
+        /* AND THE WALK MUST BE ABLE TO FAIL. A resolver that returns ok for anything would make every
+           leg above meaningless — the same reason the plants exist elsewhere in this suite. */
+        T.ok('the resolver REFUSES a path that does not exist (the walk can fail)', resolver('definitely.not.a.real.export.path').ok === false, 'a resolver that accepts anything proves nothing');
       }
       T.ok('the whole registry population was examined, not a slice', totalIds > 400, 'only ' + totalIds + ' ids across ' + NODES.length + ' registries');
       T.ok('no node drifted from its baseline', drift.length === 0, 'drifted: ' + drift.join(', '));
@@ -7922,6 +8037,122 @@
         T.eq('the GATED nadir is the measured low, not an absence', g && g.min, 88);
         T.ok('CONTROL · and it is a real number, which `isFinite` alone would not have told us', Number.isFinite(g && g.min), String(g && g.min));
       }
+    });
+
+    /* Gap semantics matrix (2026-10-08): complete, internal, leading, trailing,
+       boundary, and threshold-changing gaps. */
+    group('§∅ · OxyDex — gap semantics matrix', 'oxydex-dsp · absence · desat · gap-matrix', function (T) {
+      var NS = env.OxyDex;
+      var det = NS && NS._bare && NS._bare.detectDesatEvents;
+      if (typeof det !== 'function') {
+        T.skip('OxyDex._bare.detectDesatEvents reachable', 'not wired in this lane');
+        return;
+      }
+      function run(spo2, minSec) {
+        return det(spo2, { dropPct: 4, exitPct: 1, minSec: minSec == null ? 5 : minSec });
+      }
+      function seq() {
+        var a = [];
+        for (var i = 0; i < arguments.length; i++) {
+          var spec = arguments[i];
+          for (var j = 0; j < spec[1]; j++) a.push(spec[0]);
+        }
+        return a;
+      }
+
+      // Complete observation: no gaps → hasGap false, missingSec 0
+      var ev1 = run(seq([97, 10], [90, 12], [97, 10]));
+      T.eq('complete: one event', ev1.length, 1);
+      T.eq('complete: hasGap false', ev1.length ? ev1[0].hasGap : null, false);
+      T.eq('complete: missingSec 0', ev1.length ? ev1[0].missingSec : null, 0);
+
+      // Internal gap: retained with explicit indicator
+      var ev2 = run(seq([97, 10], [90, 6], [null, 4], [90, 6], [97, 10]));
+      T.eq('internal gap: one event (retained)', ev2.length, 1);
+      T.eq('internal gap: hasGap true', ev2.length ? ev2[0].hasGap : null, true);
+      T.eq('internal gap: durationSec excludes gap', ev2.length ? ev2[0].durationSec : null, 12);
+
+      // Leading gap: nulls before event start do not create hasGap
+      var ev3 = run(seq([null, 5], [97, 10], [90, 12], [97, 10]));
+      T.eq('leading gap: one event', ev3.length, 1);
+      T.eq('leading gap: hasGap false (gap outside event)', ev3.length ? ev3[0].hasGap : null, false);
+
+      // Trailing gap: nulls after event end do not create hasGap
+      var ev4 = run(seq([97, 10], [90, 12], [97, 10], [null, 5]));
+      T.eq('trailing gap: one event', ev4.length, 1);
+      T.eq('trailing gap: hasGap false (gap outside event)', ev4.length ? ev4[0].hasGap : null, false);
+
+      // Threshold: 12s span, 5 missing → 7s measured < 10s minSec → rejected
+      var ev5 = run(seq([97, 10], [90, 4], [null, 5], [90, 3], [97, 10]), 10);
+      T.eq('threshold gap: event rejected (7s measured < 10s minSec)', ev5.length, 0);
+
+      // Threshold: 12s span, 2 missing → 10s measured ≥ 10s minSec → accepted with gap
+      var ev6 = run(seq([97, 10], [90, 5], [null, 2], [90, 5], [97, 10]), 10);
+      T.eq('threshold gap: event accepted (10s measured ≥ 10s minSec)', ev6.length, 1);
+      T.eq('threshold gap: hasGap true', ev6.length ? ev6[0].hasGap : null, true);
+
+      // Boundary: gap at event start (first 3 samples missing, then 9 measured)
+      // The event starts at the first MEASURED sample; leading nulls are outside.
+      var ev7 = run(seq([97, 10], [null, 3], [90, 9], [97, 10]));
+      T.eq('boundary gap (start): one event', ev7.length, 1);
+      T.eq('boundary gap (start): hasGap false (gap before evStart)', ev7.length ? ev7[0].hasGap : null, false);
+      T.eq('boundary gap (start): durationSec is 9 measured', ev7.length ? ev7[0].durationSec : null, 9);
+
+      // Boundary: gap at event end (9 measured, then 3 missing before recovery)
+      // The trailing nulls ARE inside the event (event hasn't closed yet).
+      var ev8 = run(seq([97, 10], [90, 9], [null, 3], [97, 10]));
+      T.eq('boundary gap (end): one event', ev8.length, 1);
+      T.eq('boundary gap (end): hasGap true', ev8.length ? ev8[0].hasGap : null, true);
+    });
+
+    /* GanglioR export: hasGap/missingSec survive serialization (2026-10-08).
+       The meta object must carry explicit true/false (not undefined) and
+       preserve missingSec. Legacy events without the fields get hasGap=false
+       (backward compatible) and missingSec=null. */
+    group('§∅ · OxyDex — hasGap reaches the GanglioR event export', 'oxydex-dsp · absence · desat · export', function (T) {
+      var OD = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      if (!OD || typeof OD.buildGangliorEvents !== 'function') {
+        T.skip('OxyDex.buildGangliorEvents', 'not exposed');
+        return;
+      }
+      function runExport(desatEvent) {
+        var night = {
+          t0Ms: 1000000,
+          stats: { n: 3600, durationMin: 60 },
+          desat: { events: [desatEvent] }
+        };
+        var out = OD.buildGangliorEvents([night]);
+        var ev = out.filter(function (e) {
+          return e.impulse === 'desat_event';
+        })[0];
+        return ev ? ev.meta : null;
+      }
+      function mkEvent(hasGap, missingSec) {
+        var d = {
+          nadirIdx: 100,
+          tMs: 1100000,
+          depth: 5.2,
+          duration: 20,
+          recovery: 30,
+          nadir: 90,
+          startTMs: 1000000,
+          endTMs: 1020000
+        };
+        if (hasGap !== undefined) d.hasGap = hasGap;
+        if (missingSec !== undefined) d.missingSec = missingSec;
+        return d;
+      }
+      var withGap = runExport(mkEvent(true, 5));
+      T.eq('export: hasGap true preserved', withGap && withGap.hasGap, true);
+      T.eq('export: missingSec preserved', withGap && withGap.missingSec, 5);
+
+      var noGap = runExport(mkEvent(false, 0));
+      T.eq('export: hasGap false preserved', noGap && noGap.hasGap, false);
+      T.eq('export: missingSec 0 preserved', noGap && noGap.missingSec, 0);
+
+      var legacy = runExport(mkEvent());
+      T.eq('export: legacy hasGap is null (unknown, not gap-free)', legacy && legacy.hasGap, null);
+      T.eq('export: legacy missingSec defaults to null', legacy && legacy.missingSec, null);
     });
 
     group('Integrator consumes canonical measurement blocks — roadmap §8 (fail-closed, plant-backed)', 'integrator-dsp · measurement-block · provenance · roadmap-§8 · plant', function (T) {
@@ -24075,6 +24306,49 @@
        nearly the same level, the offsets come out [1, 0, -1], and at that size an operand swap, a
        dropped `Math.round` and a broken subtraction all look alike. At 90/110/130 the offsets are
        [+20, 0, -20] — signed, exact, and each one a different number from its negation. */
+    group('GlucoDex cadence — unmeasurable is null with a reason, never 5 (§∅)', 'glucodex-dsp · absence', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function') {
+        T.ok('GLUDSP.analyze is available', false, 'not loaded');
+        return;
+      }
+      /* THE REACHABLE CASE IS A DAILY OR SPOT EXPORT. `dts` keeps only deltas in (0,240) min, so a
+         file sampled once a day contributes NONE and the cadence was never measured. Before this fix
+         the fallback published `cadence: 5` and, from it, `activeMin: 50` — fifty minutes of "active"
+         data over a 12,960-minute span, a number with no input behind it that reads exactly like a
+         measured one. */
+      var day = 86400000,
+        t0 = Date.UTC(2026, 5, 1, 8, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      for (var i = 0; i < 10; i++) {
+        tMs.push(t0 + i * day);
+        vMgdl.push(100 + i);
+      }
+      var r = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      T.ok('an unmeasurable cadence is null, not 5', r.cadence === null, 'cadence=' + JSON.stringify(r.cadence));
+      T.ok('…and the null carries a NAMED reason (§∅: never a bare null)', typeof r.cadenceReason === 'string' && /unmeasurable/.test(r.cadenceReason), 'reason=' + JSON.stringify(r.cadenceReason));
+      T.ok('…and the step the grid used is published as an ASSUMPTION, separately', r.cadenceAssumed === 5, 'assumed=' + JSON.stringify(r.cadenceAssumed));
+      T.ok('cells × cadence is null, never an assumed-rate minute total', r.activeMin === null, 'activeMin=' + JSON.stringify(r.activeMin) + ' (was 50)');
+      T.ok('the true span is still reported — absence of a RATE is not absence of a SPAN', r.spanMin === 12960, 'spanMin=' + r.spanMin);
+      /* CONTROLS — the fix must not null a cadence that WAS measured, which is the way an absence fix
+         usually goes wrong: refusing more than it was asked to. */
+      var t5 = [],
+        v5 = [];
+      for (var k = 0; k < 200; k++) {
+        t5.push(t0 + k * 5 * 60000);
+        v5.push(100 + (k % 40));
+      }
+      var q = G.analyze({ tMs: t5, vMgdl: v5, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      T.ok('CONTROL · a real 5-min export still measures 5', q.cadence === 5, 'cadence=' + JSON.stringify(q.cadence));
+      T.ok(
+        'CONTROL · a measured cadence carries NO reason and NO assumption',
+        q.cadenceReason == null && q.cadenceAssumed == null,
+        'reason=' + JSON.stringify(q.cadenceReason) + ' assumed=' + JSON.stringify(q.cadenceAssumed)
+      );
+      T.ok('CONTROL · its minute totals are numbers, not null', typeof q.activeMin === 'number' && q.activeMin > 0, 'activeMin=' + JSON.stringify(q.activeMin));
+    });
+
     group('GlucoDex applySessionCorrections — levelling and de-drift, signed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
@@ -24653,6 +24927,42 @@
        signal's own name ends `.2s` and a 2-second period IS 0.5 Hz, and the two agree. A draft whose
        only support is "the code currently returns this" was not adopted, however green: that is the
        shape that pins a bug as intended behaviour. */
+    group("CPAPDex detectDesats — a terminal event's endIdx is a real sample, and says it is terminal", 'cpapdex-dsp · absence', function (T) {
+      var D = env.CpapDsp;
+      if (!D || typeof D.detectDesats !== 'function') {
+        T.ok('CpapDsp.detectDesats is available', false, 'not loaded');
+        return;
+      }
+      /* `close(n)` is the unconditional EOF flush, so a desat still open at end-of-record published
+         `endIdx === n` — one past the last sample. Measured on main: a 230-sample series ending inside
+         a desat gave `endIdx: 230`, `spo2[230] === undefined`, `undefined - 1 === NaN`. The mid-series
+         path was always fine because its `end` is the re-rise sample, which is a real index — that is
+         what kept the asymmetry invisible. */
+      var spo2 = [];
+      for (var i = 0; i < 200; i++) spo2.push(95);
+      for (var j = 0; j < 30; j++) spo2.push(90); // never re-rises: the record simply ends
+      var evs = D.detectDesats(spo2, 3);
+      T.ok('a terminal desat is detected at all', evs.length === 1, 'events=' + evs.length);
+      var e = evs[0] || {};
+      T.ok('endIdx is an INDEX THAT EXISTS', e.endIdx === spo2.length - 1, 'endIdx=' + e.endIdx + ' n=' + spo2.length);
+      T.ok('…so a consumer reading spo2[endIdx] gets a sample, not undefined', typeof spo2[e.endIdx] === 'number', 'spo2[endIdx]=' + JSON.stringify(spo2[e.endIdx]));
+      T.ok('…and no arithmetic on it is NaN', isFinite(spo2[e.endIdx] - 1), 'spo2[endIdx]-1=' + (spo2[e.endIdx] - 1));
+      /* THE CLAMP ALONE WOULD HAVE DESTROYED INFORMATION: after it, "ran past the end" and "ended on
+         the last sample" both read endIdx === n-1. `terminal` is what keeps them apart. */
+      T.ok('terminal is declared, so a clamped end is not mistaken for an observed resaturation', e.terminal === true, 'terminal=' + JSON.stringify(e.terminal));
+      T.ok('duration keeps the UNCLAMPED span — it is a count, not an index', e.duration === 30, 'duration=' + e.duration);
+      /* CONTROLS — the mid-series path must be byte-identical to before. An index fix that shifts the
+         common case by one would be a worse defect than the one it fixes. */
+      var s2 = [];
+      for (var k = 0; k < 200; k++) s2.push(95);
+      for (var m = 0; m < 30; m++) s2.push(90);
+      for (var q = 0; q < 50; q++) s2.push(95); // re-rises, so `end` is a real sample already
+      var e2 = D.detectDesats(s2, 3)[0] || {};
+      T.ok('CONTROL · a mid-series event still ends on its re-rise sample', e2.endIdx === 230, 'endIdx=' + e2.endIdx);
+      T.ok('CONTROL · and is NOT terminal', e2.terminal === false, 'terminal=' + JSON.stringify(e2.terminal));
+      T.ok('CONTROL · its duration is unchanged', e2.duration === 30, 'duration=' + e2.duration);
+    });
+
     group('CPAPDex EDF geometry — ∅ an unreadable header field REFUSES, it never becomes a number', 'cpapdex-edf · absence', function (T) {
       var E = env.CpapEdf;
       if (!E || typeof E._buildSyntheticEDF !== 'function' || typeof E.readEDF !== 'function') {
@@ -53377,7 +53687,30 @@
       var cB = PPG.correctRR(rrB, ttB);
       T.ok('the 2000 ms bradycardic baseline is within-range accepted (the ceiling must not over-reject)', cB.flags[10] === 0, 'flag10=' + cB.flags[10]);
       T.ok('impossible brady PPI (2500 ms / 24 bpm) is Malik-rejected by the 2000 ms ceiling, not the ectopy rule', cB.flags[20] === 1, 'flag20=' + cB.flags[20]);
-      T.approx('the range-rejected brady PPI is replaced by the local median (~2000), not kept at 2500', cB.nn[20], 2000, 10, 'nn20=' + cB.nn[20]);
+      /* 🔴 THE ASSERTION THAT USED TO SIT HERE READ `nn[20] ~= 2000` AND CALLED IT "replaced by the
+         local median, not kept at 2500". That label is FALSE about this code, and the fixture could
+         not tell: `correctRR` EXCLUDES a rejected interval (measured 2026-10-10 — nn is 39 long for
+         40 inputs, keptIdx.indexOf(20) === -1), so index 20 holds the interval that was rr[21], and
+         because every neighbour here is 2000, ANY index lands on 2000. It would have passed
+         identically whether the code replaced, excluded, or dropped three intervals. Muse caught it
+         (the edit stranded on rescue/2026-10-10-root-wip); these are its assertions, plus the
+         discriminating fixture the uniform one could not provide. */
+      T.eq('the rejected interval is EXCLUDED, not replaced — nn is one shorter than the input', cB.nn.length, rrB.length - 1);
+      T.ok('rejected input index 20 is absent from the kept-index mapping', cB.keptIdx.indexOf(20) === -1, 'keptIdx.indexOf(20)=' + cB.keptIdx.indexOf(20));
+      T.eq('flags stay INPUT-aligned — one entry per interval handed in, so flags[20] still names the rejected one', cB.flags.length, rrB.length);
+
+      /* ANTI-VACUITY — the same fixture with ONE neighbour broken, which is what makes the exclusion
+         observable at all. With rr[21] = 1900, reading THROUGH the mapping gives the real interval
+         and reading by raw index gives the shifted neighbour; on the uniform fixture above both
+         read 2000 and the difference is invisible. Values measured, not predicted. */
+      var rrS = rrB.slice();
+      var ttS = ttB.slice();
+      rrS[21] = 1900; // still in range, still inside the ectopy band of a 2000 ms baseline
+      var cS = PPG.correctRR(rrS, ttS);
+      T.eq('the ceiling still rejects 2500 when the next interval differs', cS.flags[20], 1);
+      T.eq('…and the differing neighbour is KEPT, not swept up with it', cS.flags[21], 0);
+      T.eq('through the mapping, the kept interval reads its OWN value', cS.nn[cS.keptIdx.indexOf(21)], 1900);
+      T.eq('…while the raw index reads the shifted neighbour — the off-by-one the old assertion could not see', cS.nn[21], 2000);
     });
 
     /* ════ PpgDex DFA-α1 box range — direct known-answer (deep-scout §EP-rest) ════
