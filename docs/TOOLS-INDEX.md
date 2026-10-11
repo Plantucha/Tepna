@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**239 tools** · 237 with a purpose line · **2 without**
+**240 tools** · 238 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -237,6 +237,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`trio-anchor.mjs`](../tools/trio-anchor.mjs) | import { closeSync, openSync, readSync, statSync } from 'node:fs'; |
 | [`trio-batch.mjs`](../tools/trio-batch.mjs) | TRIO BATCH — raw Polar Sensor Logger + O2Ring capture folder → per-night trio node-exports, in the exact shape `tools/tch-multinight.mjs --dir` ingests (one subdir per night, three… |
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
+| [`usage-guard.mjs`](../tools/usage-guard.mjs) | USAGE GUARD — what the fleet has SPENT, measured, and what nobody can measure, said so. |
 | [`validate-exports.mjs`](../tools/validate-exports.mjs) | run the SHIPPED `validateNodeExport()` over every committed node export. |
 | [`verdict-adoption.mjs`](../tools/verdict-adoption.mjs) | The brief's first adopter list was a recency sample (eleven tools); enumerated, the population is ~150 files across both lanes. |
 | [`verdict-emit.mjs`](../tools/verdict-emit.mjs) | import { makeVerdict } from './verdict-emit.mjs'; const v = makeVerdict({ gate, status, population, criterion, result, evidence, reason, tool, commit?, at? |

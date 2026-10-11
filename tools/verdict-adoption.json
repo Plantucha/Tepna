@@ -1632,6 +1632,18 @@
    },
    "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): FAIL iff any ganglior.node-export fails validateNodeExport (the count --strict keys its exit on; warnings never fail, they ride in the result) \u00b7 NOT_RUN when the dir is absent or holds no node export. Population = node-export files scanned. The cmd is the REAL run over the tracked uploads/ exports (0.7 s, corpus-free \u2014 a fresh clone carries them); --verdict-sample is the 2026-08-03 sweep from the header."
   },
+  "tools/usage-guard.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/usage-guard.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "USAGE GUARD (owner 2026-10-11): one object over the sessions found in this checkout’s transcript directory, criterion remaining_share_of_configured_budget gte 0.10 — PASS/FAIL only when a --budget is configured, NOT_APPLICABLE (result null) when none is, NOT_RUN when the transcript directory is unreadable. The measurement (tokens per session, API reader usage, the UNKNOWN plan allowance with its manual check) travels beside it as tepna.usage/1, never inside a NOT_APPLICABLE result. --verdict-sample reads no transcript and configures no budget, so it reports NOT_RUN / checked 0."
+  },
   "tools/verdict-adoption.mjs": {
    "bin": "word-only",
    "status": "exempt",
