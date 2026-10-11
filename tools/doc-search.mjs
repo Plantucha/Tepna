@@ -215,9 +215,50 @@ export function readChunk(text, cap = READ_CHARS) {
 
 /* The CLI flags this tool understands, stripped from the query words. Exported so the selftest can
    pin that a flag never leaks into the embedded query (it did once as a token-fallback term). */
-export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code']);
+export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic']);
 export function stripFlags(argv) {
   return (argv || []).filter((a) => !CLI_FLAGS.has(a));
+}
+
+/* ── WHICH LANE ANSWERS (owner ruling 2026-10-11: hybrid is the Rule-0 default) ──────────────────
+   Measured on 52 real Rule-0 queries (XERJ-HYBRID-SEARCH brief §5): hybrid 49/52 against the semantic
+   lane's 43/52, in ~18 ms against ~4 s, returning the passage rather than a path. Three lanes:
+     'hybrid'         the default — try the local index, FALL BACK to the semantic lane if it does not
+                      answer (server down, index unloaded, or cold: measured 27.6 s on the first query
+                      after a unit restart, 75 ms warm) — so the old behaviour is the floor, never lost;
+     'hybrid-strict'  `--hybrid` / `--code` — hybrid or exit 2, for a caller who wants to KNOW the index
+                      answered (the loader's own check, a benchmark);
+     'semantic'       `--semantic` — the pre-ruling path, by name, for comparing the two lanes.
+   Pure, so the selftest pins the table rather than the flag soup. */
+export const HYBRID_TIMEOUT_MS = 10_000;
+export function searchLane(argv) {
+  const a = argv || [];
+  if (a.includes('--hybrid') || a.includes('--code')) return 'hybrid-strict';
+  if (a.includes('--semantic')) return 'semantic';
+  return 'hybrid';
+}
+/* A bound on how long the default lane may hold the caller before the fallback runs. The timer is
+   cleared on settle so a fast answer leaves no dangling handle; the label names what did not answer. */
+export function withTimeout(promise, ms, label) {
+  let t = null;
+  const bound = new Promise((_, reject) => {
+    t = setTimeout(() => reject(new Error(`${label} did not answer within ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, bound]).finally(() => clearTimeout(t));
+}
+/* The warning both lanes print after their hits — one text, so the two lanes cannot drift apart in
+   what they tell a reader a result IS. */
+export function readWarningLines() {
+  return [
+    '',
+    '  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,',
+    '    and ADJACENCY IS NOT EQUIVALENCE — the two nearest results may answer DIFFERENT',
+    '    questions with the same words. Read the one you opened, not the one beside it.',
+    '    A FLAT FIELD IS NOT ABSENCE: similar scores mean shared vocabulary, not no match.',
+    '    Read all five before concluding a thing was never decided.',
+    '    because a plausible summary of a brief nobody opens is the failure it exists to prevent.',
+    ''
+  ];
 }
 
 export function rank(queryVec, entries, query, topN = 8) {
@@ -926,31 +967,61 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     })()
   );
   ok('readChunk cuts hard when no sentence boundary is near the cap', readChunk('c'.repeat(2000), 1500).includes('[cut at 1500 of 2000 chars'));
+  /* The lane table (owner ruling 2026-10-11): hybrid by default, strict by name, semantic by name. */
+  ok('no lane flag ⇒ the hybrid lane (the default)', searchLane(['node', 'x', 'what', 'moved']) === 'hybrid');
+  ok('--hybrid and --code ⇒ the strict form', searchLane(['--hybrid', 'q']) === 'hybrid-strict' && searchLane(['--code', 'q']) === 'hybrid-strict');
+  ok('--semantic ⇒ the pre-ruling lane by name', searchLane(['--semantic', 'q']) === 'semantic');
+  ok('strict wins over --semantic when both are given (a caller who asked for the index gets an answer about the index)', searchLane(['--semantic', '--hybrid']) === 'hybrid-strict');
+  ok('--semantic is a flag, never a query word', !stripFlags(['--semantic', 'q']).includes('--semantic'));
+  await (async () => {
+    const fast = await withTimeout(Promise.resolve('hit'), 1000, 'x');
+    ok('withTimeout passes a prompt answer through', fast === 'hit');
+    let msg = null;
+    try {
+      await withTimeout(new Promise(() => {}), 5, 'hybrid index');
+    } catch (e) {
+      msg = e.message;
+    }
+    ok('withTimeout rejects a silent answer and names what did not answer', msg === 'hybrid index did not answer within 5 ms');
+  })();
+  ok(
+    'both lanes print ONE read-warning text (it cannot drift between them)',
+    readWarningLines().some((l) => l.includes('PATHS TO READ')) && readWarningLines().some((l) => l.includes('ADJACENCY IS NOT EQUIVALENCE'))
+  );
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }
 
 if (IS_MAIN && !process.argv.includes('--selftest')) {
-  /* ── --hybrid / --code: ask the xerj index (BM25 + cached bge-m3 kNN in ONE request) ──────────────
-     An EARLY branch, before anything else runs, and the implementation is imported DYNAMICALLY — so
-     the default Rule-0 path below gains no new cost, no new import and no new failure mode. A missing
-     or broken xerj server can only affect a caller who asked for it by name. XERJ-HYBRID-SEARCH
-     brief; adoption is the owner's call, so this is additive and nothing routes through it yet. */
-  if (process.argv.includes('--hybrid') || process.argv.includes('--code')) {
+  /* ── THE HYBRID LANE FIRST (owner ruling 2026-10-11; see searchLane) ─────────────────────────────
+     An EARLY branch, before the semantic index is touched, and the implementation is imported
+     DYNAMICALLY — so the semantic lane below keeps its cost, its imports and its failure modes exactly
+     as they were. The default lane is hybrid WITH A FALLBACK: a server that is down, an index that is
+     not loaded, or a cold start past HYBRID_TIMEOUT_MS all drop the caller onto the semantic lane with
+     one line saying so — the old behaviour is the floor. `--hybrid` / `--code` keep the strict form
+     (answer or exit 2) for callers who need to know the index itself answered. Both lanes leave the
+     session stamp the edit guard reads, because the rule is "a search ran", not "which lane ran". */
+  const lane = searchLane(process.argv);
+  if (lane !== 'semantic') {
     const q = stripFlags(process.argv.slice(2)).join(' ').trim();
     if (!q) {
-      console.error('usage: node tools/doc-search.mjs --hybrid "<what you are trying to find>"');
+      console.error('usage: node tools/doc-search.mjs [--hybrid|--semantic] [--read] "<what you are trying to find>"');
       process.exit(2);
     }
     const xq = await import('./xerj-query.mjs');
     try {
-      const out = await xq.hybridSearch({ query: q });
+      const out = await withTimeout(xq.hybridSearch({ query: q }), HYBRID_TIMEOUT_MS, 'hybrid index');
       process.stdout.write(`${xq.render(out, q)}\n`);
+      for (const line of readWarningLines()) console.log(line);
+      stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, q);
       process.exit(0);
     } catch (e) {
-      console.error(`doc-search --hybrid: ${e.message}`);
-      console.error('  The default (semantic) path is unaffected: re-run without --hybrid.');
-      process.exit(2);
+      if (lane === 'hybrid-strict') {
+        console.error(`doc-search --hybrid: ${e.message}`);
+        console.error('  The semantic lane is unaffected: re-run without --hybrid.');
+        process.exit(2);
+      }
+      console.error(`▸ hybrid lane did not answer (${e.message}) — falling back to the semantic lane\n`);
     }
   }
   const scope = process.argv.includes('--ext-only') ? 'ext' : process.argv.includes('--no-ext') ? 'repo' : 'all';
@@ -994,12 +1065,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
       console.log(readChunk(h.text, READ_CHARS));
     }
   }
-  console.log('\n  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,');
-  console.log('    and ADJACENCY IS NOT EQUIVALENCE — the two nearest results may answer DIFFERENT');
-  console.log('    questions with the same words. Read the one you opened, not the one beside it.');
-  console.log('    A FLAT FIELD IS NOT ABSENCE: similar scores mean shared vocabulary, not no match.');
-  console.log('    Read all five before concluding a thing was never decided.');
-  console.log('    because a plausible summary of a brief nobody opens is the failure it exists to prevent.\n');
+  for (const line of readWarningLines()) console.log(line);
   /* The stamp the edit guard reads (see SESSION STAMP above). After the hits, so a refused or
      crashed search leaves nothing — a stamp is evidence a search RAN, never that one was attempted. */
   stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, query);
