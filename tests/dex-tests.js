@@ -24927,6 +24927,42 @@
        signal's own name ends `.2s` and a 2-second period IS 0.5 Hz, and the two agree. A draft whose
        only support is "the code currently returns this" was not adopted, however green: that is the
        shape that pins a bug as intended behaviour. */
+    group("CPAPDex detectDesats — a terminal event's endIdx is a real sample, and says it is terminal", 'cpapdex-dsp · absence', function (T) {
+      var D = env.CpapDsp;
+      if (!D || typeof D.detectDesats !== 'function') {
+        T.ok('CpapDsp.detectDesats is available', false, 'not loaded');
+        return;
+      }
+      /* `close(n)` is the unconditional EOF flush, so a desat still open at end-of-record published
+         `endIdx === n` — one past the last sample. Measured on main: a 230-sample series ending inside
+         a desat gave `endIdx: 230`, `spo2[230] === undefined`, `undefined - 1 === NaN`. The mid-series
+         path was always fine because its `end` is the re-rise sample, which is a real index — that is
+         what kept the asymmetry invisible. */
+      var spo2 = [];
+      for (var i = 0; i < 200; i++) spo2.push(95);
+      for (var j = 0; j < 30; j++) spo2.push(90); // never re-rises: the record simply ends
+      var evs = D.detectDesats(spo2, 3);
+      T.ok('a terminal desat is detected at all', evs.length === 1, 'events=' + evs.length);
+      var e = evs[0] || {};
+      T.ok('endIdx is an INDEX THAT EXISTS', e.endIdx === spo2.length - 1, 'endIdx=' + e.endIdx + ' n=' + spo2.length);
+      T.ok('…so a consumer reading spo2[endIdx] gets a sample, not undefined', typeof spo2[e.endIdx] === 'number', 'spo2[endIdx]=' + JSON.stringify(spo2[e.endIdx]));
+      T.ok('…and no arithmetic on it is NaN', isFinite(spo2[e.endIdx] - 1), 'spo2[endIdx]-1=' + (spo2[e.endIdx] - 1));
+      /* THE CLAMP ALONE WOULD HAVE DESTROYED INFORMATION: after it, "ran past the end" and "ended on
+         the last sample" both read endIdx === n-1. `terminal` is what keeps them apart. */
+      T.ok('terminal is declared, so a clamped end is not mistaken for an observed resaturation', e.terminal === true, 'terminal=' + JSON.stringify(e.terminal));
+      T.ok('duration keeps the UNCLAMPED span — it is a count, not an index', e.duration === 30, 'duration=' + e.duration);
+      /* CONTROLS — the mid-series path must be byte-identical to before. An index fix that shifts the
+         common case by one would be a worse defect than the one it fixes. */
+      var s2 = [];
+      for (var k = 0; k < 200; k++) s2.push(95);
+      for (var m = 0; m < 30; m++) s2.push(90);
+      for (var q = 0; q < 50; q++) s2.push(95); // re-rises, so `end` is a real sample already
+      var e2 = D.detectDesats(s2, 3)[0] || {};
+      T.ok('CONTROL · a mid-series event still ends on its re-rise sample', e2.endIdx === 230, 'endIdx=' + e2.endIdx);
+      T.ok('CONTROL · and is NOT terminal', e2.terminal === false, 'terminal=' + JSON.stringify(e2.terminal));
+      T.ok('CONTROL · its duration is unchanged', e2.duration === 30, 'duration=' + e2.duration);
+    });
+
     group('CPAPDex EDF geometry — ∅ an unreadable header field REFUSES, it never becomes a number', 'cpapdex-edf · absence', function (T) {
       var E = env.CpapEdf;
       if (!E || typeof E._buildSyntheticEDF !== 'function' || typeof E.readEDF !== 'function') {
