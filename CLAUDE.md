@@ -34,6 +34,10 @@ Identities are stable; role and machine are metadata — update the row, never t
 
 - **`Fleet-Session: <Name>` in every commit message and PR body** (forward-only from 2026-08-31).
 - **The trailer is a convention, not a mechanism** — self-declared, unverified; never infer "X did it".
+  `.claude/hooks/guard-trailer.sh` denies a trailer-less `git commit` in a Claude Code session whose
+  checkout has pulled it; both halves above still hold — it checks PRESENCE, never that the name is
+  yours, and a terminal commit, the web UI, another agent and an un-pulled tree inherit nothing. The
+  agent-neutral check stays `tools/pr-compliance.mjs` on the PR. Hatch `CLAUDE_ALLOW_NO_TRAILER=1`.
 - **Triage stamps the brief** in the same session: `PROPOSED (core BUILT, remainder X-blocked — verified
   YYYY-MM-DD: …)`. An untouched header throws the triage away.
 
