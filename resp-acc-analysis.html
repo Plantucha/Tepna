@@ -8384,7 +8384,7 @@ function runFusion(recs, opts) {
   if (periodicBreathing && periodicBreathing.blocks) {
     periodicBreathing.blocks.forEach(function (b) {
       findings.push({
-        tMs: b.t0Ms != null ? b.t0Ms : startMs || 0,
+        tMs: b.t0Ms != null ? b.t0Ms : (startMs ?? null),
         type: 'periodic_breathing',
         conf: b.conf,
         nodes: b.observerNodes,

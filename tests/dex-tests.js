@@ -4565,11 +4565,28 @@
 
     group('Integrator findings — unknown time is null, never 1970 (2026-10-05 §2a)', 'integrator-dsp · absence', function (T) {
       var src = (env.sources || {})['integrator-dsp.js'] || '';
-      // ── source-mirror: the two finding builders must not fabricate tMs: 0 ──
-      var bad = (src.match(/tMs:\s*startMs\s*\|\|\s*0/g) || []).length;
-      T.ok('no `tMs: startMs || 0` fabrication sites', bad === 0, bad + ' site(s) stamp 1970 on timeless findings');
-      var good = (src.match(/tMs:\s*startMs\s*\?\?\s*null/g) || []).length;
-      T.ok('timeless findings use `tMs: startMs ?? null`', good >= 2, 'found ' + good + ', want ≥2');
+      /* ── source-mirror ─────────────────────────────────────────────────────────────────────────────
+         🔴 THIS PATTERN USED TO REQUIRE `tMs:` IMMEDIATELY BEFORE `startMs || 0`, AND THAT IS HOW A
+         THIRD SITE SURVIVED THE SWEEP THAT ADDED THIS GROUP. The repo held 3 occurrences before #3366;
+         that PR fixed 2, re-grepped for the shape it had just eliminated (`tMs: startMs || 0` → 0 hits,
+         true by construction) and reported the sweep complete. The survivor was
+         `tMs: b.t0Ms != null ? b.t0Ms : startMs || 0` — `startMs || 0` sits after a ternary, not after
+         `tMs:`, so neither the body's grep nor this assertion could see it. Found 5 days later by a
+         whole-tree run of the absence gate (#3392).
+         The pattern is now anchored on the FABRICATION (`startMs || 0`) wherever it appears, never on
+         the syntax that happened to surround the instances already fixed. */
+      var bad = (src.match(/\bstartMs\s*\|\|\s*0/g) || []).length;
+      T.ok('no `startMs || 0` fabrication anywhere in a tMs expression', bad === 0, bad + ' site(s) stamp 1970 when startMs is absent — a `b.t0Ms != null ?` guard protects b.t0Ms, NOT the fallback');
+      /* ⚠️ AN EQUALITY, NOT A FLOOR. `good >= 2` was satisfied by the two sites #3366 fixed while the
+         third was unexamined — a floor met by the right members is the exact failure this file keeps
+         re-learning. The count is the declared population of timeless-finding builders; if a builder is
+         added or removed, this number moves deliberately. */
+      var good = (src.match(/startMs\s*\?\?\s*null/g) || []).length;
+      T.ok(
+        'every timeless-finding builder uses `startMs ?? null`',
+        good === 3,
+        'found ' + good + ', declared population is 3 (glucose_autonomic_correlation, staging_disagreement, periodic_breathing)'
+      );
       // ── the unmatched export mapping must tolerate null tMs too ──
       T.ok('unmatched export guards null tMs', /time:\s*e\.tMs\s*!=\s*null\s*\?\s*fmtDateTime\(e\.tMs\)\s*:\s*null/.test(src), 'fmtDateTime(e.tMs) unguarded — null renders as 1970');
       // ── functional: a null-tMs finding exports tMs:null and time:null ──
