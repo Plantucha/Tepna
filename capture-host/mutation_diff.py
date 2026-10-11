@@ -768,7 +768,7 @@ def refutation_corroborated(first_exit, second_exit) -> tuple[bool, str]:
     return True, ""
 
 
-def classify(entries, survivors, killed, generated=()):
+def classify(entries, survivors, killed, generated=(), not_required=(), unchecked=()):
     """Split survivors against the recorded classification.
 
     PURE, so `--selftest` can pin it without running a sweep. `survivors` are dicts carrying `key`;
@@ -790,6 +790,20 @@ def classify(entries, survivors, killed, generated=()):
     # residue `2026-09-29-survivor-printer-splits-a-key-on-its-own-separator`, met here by writing a
     # line that walks into it. A line whose survivors cannot be read is a line nobody can drain.
     gen = set(generated)
+    # 🔴 THE KEYS THIS RUN DECIDED NOT TO REQUIRE, which is a THIRD state and was being read as a
+    # missing measurement. A survivor whose diff is string-only (or empty) is dropped from `survivors`
+    # on purpose — it is excluded, not unmeasured — but a registered claim naming it then matched
+    # neither `surv` nor `kills`, fell through to `not_decided`, and REFUSED the whole run: exit 2 over
+    # a mutant the gate itself had chosen not to require. Measured 2026-10-11 on #3395: of four claims
+    # on `loss_audit._has_worn_evidence`, the two the scan calls `string-only` (`"utf-8"` -> `"UTF-8"`,
+    # `rstrip("\n")` -> `rstrip("XX\nXX")`) were exactly the two refused, while the other two came back
+    # `required`, reached `surv` and were excused normally. mutmut had settled all 67 of that function's
+    # mutants and `mutmut results` reported all four as `survived`, so nothing was unmeasured at all.
+    not_req = set(not_required)
+    # Keys still without a result AFTER one isolated run. Deterministically unchecked, which is a
+    # measurement about the GATE and not about the entry — so it is counted and named, never a refusal
+    # (nothing is wrong) and never a PASS (nothing was shown).
+    unchk = set(unchecked)
     out = {
         "excused": [],
         "real_gap": [],
@@ -798,6 +812,8 @@ def classify(entries, survivors, killed, generated=()):
         "unclassified": [],
         "unproven": [],
         "not_decided": [],
+        "claimed_not_required": [],
+        "claimed_unchecked": [],
     }
     claimed = set()
     for e in entries or []:
@@ -814,6 +830,23 @@ def classify(entries, survivors, killed, generated=()):
                 out["real_gap"].append(e)  # recorded debt, still fails
         elif k in kills:
             out["refuted"].append(e)  # a CORROBORATED kill: a distinguishing input does exist
+        elif k in unchk:
+            out["claimed_unchecked"].append(
+                dict(
+                    e,
+                    why="generated, and still no result after one isolated run — the gate could not check it, which says nothing about the claim",
+                )
+            )
+        elif k in not_req:
+            # COUNTED AND NAMED, never a refusal and never a silent pass. The claim is not evidence of
+            # anything here and needs none: the mutant was excluded from the required set before any
+            # equivalence question arose, so there is nothing for the entry to excuse.
+            out["claimed_not_required"].append(
+                dict(
+                    e,
+                    why="the mutant is excluded from the required set (string-only or empty diff), so this claim excused nothing in this run",
+                )
+            )
         elif k in gen:
             out["not_decided"].append(
                 dict(e, why="mutant not decided in this run — generated, never settled, so it is unmeasured")

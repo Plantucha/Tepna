@@ -985,7 +985,7 @@ function calculate() {
   document.getElementById('exportBar').classList.add('show');
   document.getElementById('sidebarDataCard').style.display = 'block';
   document.getElementById('sidebarDataInfo').innerHTML =
-    lastResult.modeLabel + '<br>' + N + ' beats · ' + hr + ' bpm · ' + (durSec >= 3600 ? (durSec / 3600).toFixed(1) + ' h' : Math.round(durSec / 60) + ' min');
+    escapeHTML(lastResult.modeLabel) + '<br>' + N + ' beats · ' + hr + ' bpm · ' + (durSec >= 3600 ? (durSec / 3600).toFixed(1) + ' h' : Math.round(durSec / 60) + ' min');
   showOK('Analyzed ' + N + ' beats · ' + lastResult.modeLabel + (clean.nArt ? ' · ' + clean.nArt + ' artifacts corrected (' + clean.pct + '%)' : ' · clean signal'));
   progress(100, 'Done');
   setTimeout(() => {
