@@ -732,6 +732,18 @@
    },
    "note": "a peak read off a memory trace is a claim about that trace's WINDOW, and the tool now decides which: PASS the span reaches saturation (the peak is the cap) \u00b7 SHORTFALL past the onset only (a lower bound) \u00b7 UNDERPOWERED short of the 665 s at which this tool's own 2026-09-15 traces first saw the startup step \u00b7 UNKNOWN a restart inside the trace or no elapsed_s. Residue 2026-09-22-startup-transient-refutation-underpowered: a ten-minute trace was read as \"no startup transient\" and that window ends before the step. `--verdict-sample` emits that exact trace, corpus-free; the selftest validates it against verdict.js."
   },
+  "tools/brief-gaps.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/brief-gaps.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "a text-network GAP DETECTOR over the briefs: pairs close in bge-m3 mean-vector space with no citation path of length <= 2 and no Supersedes/Superseded-by relation. criterion recall_at_50_on_held_out_supersession_pairs gte 0.5, measured 0.167 on the held-out half of 36 hand-marked pairs -> SHORTFALL, and the brief's \u00a74 shows the floor was unreachable because 50 of 147,696 pairs is the top 0.034% while the marked pairs' median rank is the top 1.2%. It decides only whether the ranking is worth reading: adjacency is not equivalence, and the tool never writes a supersession or closes anything. --verdict-sample reads no index and reports checked: 0 / NOT_RUN with result: null."
+  },
   "tools/browser-lane.mjs": {
    "bin": "word-only",
    "status": "exempt",

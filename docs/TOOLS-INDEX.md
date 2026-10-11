@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**241 tools** · 239 with a purpose line · **2 without**
+**242 tools** · 240 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -33,6 +33,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`beat-injection-recovery.mjs`](../tools/beat-injection-recovery.mjs) | beat-injection-recovery — the artificial-star test for a beat detector. |
 | [`beat-leg-closure.mjs`](../tools/beat-leg-closure.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ THREE-SOURCE DRIFT CLOSURE for H10 ↔ Verity ↔ capture host (WEARABLE-DRIFT-DIRECT §7.3/§7.4). |
 | [`box-sample.mjs`](../tools/box-sample.mjs) | // // box-sample.mjs — periodic resource sampler for a remote capture host. |
+| [`brief-gaps.mjs`](../tools/brief-gaps.mjs) | ════════════════════════════════════════════════════════════════════════ tools/brief-gaps.mjs — a text-network gap detector over the briefs |
 | [`brief-verified-index.mjs`](../tools/brief-verified-index.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ WHEN WAS EACH OPEN BRIEF LAST *VERIFIED* — not last edited, and not how open it looks. |
 | [`browser-lane.mjs`](../tools/browser-lane.mjs) | ONE COMMAND for the local browser lane: `npm run gates:browser:local`. |
 | [`build-analysis.mjs`](../tools/build-analysis.mjs) | Make the science/analysis tools SELF-CONTAINED single-file HTML, so they run when a user downloads ONE.html to disk and opens it over file:// — the way the bundled apps already do. |
