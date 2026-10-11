@@ -88,6 +88,8 @@ jobs:
   # what the Python suite executes — the sole other input is this workflow file (the matrix, the pins,
   # the coverage floor), which is why it is listed.
   changes:
+    # measured 2026-10-11 over 28 job run(s): p95 0.7 min, max 1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    timeout-minutes: 3
     name: relevance (capture-host)   # distinct from browser-gates' own `changes` job
     runs-on: ubuntu-latest
     defaults:
@@ -127,6 +129,9 @@ jobs:
           echo "decision: run=$run"
 
   test:
+    # measured 2026-10-11 over 50 job run(s): p95 6.9 min, max 7 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    # max over both py3.12/py3.13 legs
+    timeout-minutes: 14
     needs: changes
     # ⚠️ NO JOB-LEVEL `if:` HERE — the guard is on the STEPS below, and the difference deadlocks the repo.
     # The note above says "a job skipped by a condition reports as skipped and satisfies the requirement".
@@ -344,6 +349,8 @@ jobs:
   # is a second thing to forget. If it cannot be parsed the job REFUSES rather than assuming a value —
   # an unreadable baseline is not a permissive one.
   mypy:
+    # measured 2026-10-11 over 25 job run(s): p95 0.7 min, max 0.8 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    timeout-minutes: 2
     needs: changes
     runs-on: ubuntu-latest
     name: mypy (advisory ratchet)
@@ -507,6 +514,8 @@ jobs:
   # two produce the same silence and mean opposite things, and this repo has spent a lot of the last
   # week on exactly that distinction.
   supply-chain:
+    # measured 2026-10-11 over 25 job run(s): p95 2.7 min, max 2.7 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    timeout-minutes: 6
     needs: changes
     runs-on: ubuntu-latest
     name: supply-chain (advisory)

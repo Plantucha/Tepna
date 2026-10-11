@@ -44,6 +44,7 @@
     "verify:analysis": "node tools/build-analysis.mjs --check",
     "verify:docs": "node tools/build-docs.mjs --check",
     "verify:tools-index": "node tools/tools-index.mjs --check",
+    "verify:workflow-timeouts": "node tools/workflow-timeout-guard.mjs",
     "verify:verdict-adoption": "node tools/verdict-adoption.mjs --check",
     "verify:absence-regression": "node tools/absence-regression.mjs --base origin/main",
     "verify:xss-sink": "node tools/xss-sink-gate.mjs --base origin/main",
