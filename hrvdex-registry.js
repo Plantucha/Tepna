@@ -70,6 +70,16 @@
     energy: { label: 'Energy', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'HRV-derived energy score — composite' },
     coherence: { label: 'Coherence', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'HRV coherence — internal composite' },
     ansLoad: { label: 'ANS Load', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'heuristic', cite: 'Composite autonomic burden — internal' },
+    /* ⚠️ NOT DORMANT — I MARKED IT DORMANT AND THE HONESTY GATE REFUTED ME (2026-10-10).
+       `hrvdex-render.js:1382` renders `{ key: 'd_ari', label: 'Recov Index', … }`, so the quantity is
+       computed and SURFACED — bound to `d_ari`. My grep for `recovIndex`/`recovDebt` found nothing and
+       I read that as absence: #1455's error, mine this time, caught by the DEEP-AUDIT-VI F4 gate that
+       checks a dormant flag instead of trusting it.
+       ⚠️ AND IT EXPOSED A CONVENTION THIS REGISTRY RELIES ON: hrvdex render keys are `d_<id>`
+       (`d_lnrmssd`, `d_lfhf`, `d_si`, `d_cvi`, `d_csi`), so most hrvdex ids are bound by a PREFIX the
+       resolvability gate does not know — which is why hrvdex holds the second-largest share of its
+       baseline. `recovIndex` ↔ `d_ari` additionally breaks that convention (ari ≠ recovIndex). Both
+       are recorded in the brief; the id stays in the baseline with this reason, not a false flag. */
     recovIndex: { label: 'Recov Index', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Autonomic recovery index vs baseline — composite' },
     recovDebt: { label: 'Recov Debt', unit: 'd', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Days with ARI<0.9 over 14 d — composite' },
     efc: { label: 'EFC Index', unit: '', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Energy-fatigue-capacity readiness — composite' },
