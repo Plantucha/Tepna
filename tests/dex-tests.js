@@ -6821,11 +6821,11 @@
     group('Every registry id has a DECLARED binding — emitted, in *_DEFS, or dormant', 'registry · id-emission · ratchet', function (T) {
       var src = env.sources || {};
       var UNDECLARED = {
-        cpapdex: 'cmpResidSD',
-        ecgdex: 'accPosture analyzable cpcHfc crCoupling deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
+        cpapdex: '',
+        ecgdex: 'accPosture analyzable cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
         glucodex: 'dataConf duration gmiVsLab hypoQtc lnrmssdSlope nocHypo sensorBias sessionDrift sessionSpread stability timeAbove timeBelow',
         hrvdex: 'ansLoad cai camq crs csi cvi dfaAlpha1 efc focusEff hfnu lfhf momentum ortho otr pnsEff pti recovDebt recovIndex sd1sd2 sdnnZ si spectralEnt vei vo2roll welfare',
-        motiondex: 'activityCounts effortAmp effortPresent respRate sqiConf',
+        motiondex: 'activityCounts effortAmp effortPresent respRate',
         oxydex:
           'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 ct90 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
         ppgdex:
@@ -6895,18 +6895,42 @@
             .join('\n')
         );
         var ids = [];
-        var re = /(^|[^A-Za-z0-9_$.'"])([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{\s*label\s*:/g;
-        var _m;
+        /* ⚠️ FIELD-ORDER-INDEPENDENT, and this is a bug fix with two scars.
+           It used to require `label` IMMEDIATELY after the brace (`id: { label:`), so ANY entry that
+           put another field first was invisible to this gate. Measured 2026-10-10: that was
+           **24 of 522 ids** — 21 in ppgdex alone (`dicroticFinger`, `aiFinger`, …, each with
+           `dormant: true` written first), plus 2 in motiondex and 1 in cpapdex. The population leg
+           below asserts `> 400` and passed comfortably at 498 while those 24 were dark: a floor met
+           by the wrong members, in the gate carrying that very warning. The tell was a count that
+           moved 500 → 498 when `emittedAt:` was added as a first field and `cmpResidSD` read as
+           FIXED — "resolved" because the gate had stopped SEEING it.
+           Now `[^{}]` keeps the window inside ONE entry (it cannot run past a closing brace into a
+           neighbour's `label`) while allowing any fields before it. First attempt at this fix
+           required a closing brace at 4-space indent, which single-line entries do not have, and the
+           population collapsed to 181 — caught by the same anti-vacuity floor. */
+        var re = /(^|[^A-Za-z0-9_$.'"])([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{[^{}]{0,400}?\blabel\s*:/g;
         for (const m of regS.matchAll(re)) if (ids.indexOf(m[2]) === -1) ids.push(m[2]);
         totalIds += ids.length;
         var undeclared = ids.filter(function (id) {
           var emitted = new RegExp('(^|[^A-Za-z0-9_$])' + id + '\\s*:|\\.' + id + '\\b|[\'"`]' + id + '[\'"`]').test(body);
           var inDefs = new RegExp('(^|[^A-Za-z0-9_$.\'"])' + id + "\\s*:\\s*\\{|id:\\s*'" + id + "'").test(defs);
-          var isDormant = (function () {
-            var e = new RegExp(id + '\\s*:\\s*\\{[\\s\\S]{0,600}?\\}').exec(reg);
-            return !!e && /dormant\s*:\s*true/.test(e[0]);
-          })();
-          return !(emitted || inDefs || isDormant);
+          /* The ENTRY text, read from the UNSTRIPPED registry so a `dormant` written in prose beside
+             the flag is not what satisfies this — the flag itself must be there. */
+          /* `[^{}]` KEEPS THIS INSIDE ONE ENTRY. The previous form looked for a closing brace at
+             4-space indent, which SINGLE-LINE entries do not have — so for every such entry it ran on
+             until the next multi-line one and could have read a NEIGHBOUR's `dormant: true` as this
+             id's. Measured on `recovIndex`: 865 characters captured instead of 185. The answers
+             happened to agree today, which is exactly what makes it worth fixing before they do not. */
+          var entry = new RegExp(id + '\\s*:\\s*\\{[^{}]{0,900}?\\}').exec(reg);
+          var isDormant = !!entry && /dormant\s*:\s*true/.test(entry[0]);
+          /* FOURTH ROUTE — a DECLARED NESTED BINDING. Some values ship under a PATH rather than a flat
+             key (`motion.sqi`, `scale.residSD`), so the id can be neither renamed nor called dormant:
+             a compute site exists and its value reaches the export. `emittedAt` declares that path,
+             which completes this gate's criterion (every id has a DECLARED binding) rather than
+             loosening it — and it counts as a binding only because the leg below WALKS the path on a
+             committed export. Undemonstrated, it would be a second excuse list. */
+          var declaredPath = !!entry && /emittedAt\s*:\s*'[^']+'/.test(entry[0]);
+          return !(emitted || inDefs || isDormant || declaredPath);
         });
         var want = UNDECLARED[node].split(' ').filter(Boolean).sort().join(' ');
         var got = undeclared.slice().sort().join(' ');
@@ -6933,6 +6957,38 @@
             ']'
         );
         if (got !== want) drift.push(node);
+      }
+      /* ⚠️ EVERY `emittedAt` PATH MUST RESOLVE ON A REAL EXPORT, or this field is a second excuse list
+         beside the baseline it exists to shrink. The walk is not ceremony: `sqi.conf` was the obvious
+         path for the motion SQI and it is WRONG — that is the internal summary shape, and the `conf:`
+         at motiondex-dsp.js:1551 belongs to a ganglior EVENT, not a metric. The export surfaces the
+         already-unwrapped float at `motion.sqi`. Walking it caught that before it shipped. */
+      var resolver = env.exportPathExists;
+      if (typeof resolver !== 'function') {
+        T.skip('emittedAt paths resolve on a committed export', 'Node lane only — the browser lane has no fs');
+      } else {
+        var declaredPaths = [];
+        for (var d2 = 0; d2 < NODES.length; d2++) {
+          var rtext = src[NODES[d2] + '-registry.js'] || '';
+          var re2 = /([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*\{[^{}]{0,900}?emittedAt:\s*'([^']+)'/g;
+          for (const mm of rtext.matchAll(re2)) declaredPaths.push({ node: NODES[d2], id: mm[1], path: mm[2] });
+        }
+        /* ANTI-VACUITY: zero declared paths would pass every leg below trivially, so the absence of
+           bindings must itself be visible rather than silently green. */
+        T.ok('at least one emittedAt binding is declared (0 would pass the walks trivially)', declaredPaths.length > 0, declaredPaths.length + ' declared');
+        for (const dd of declaredPaths) {
+          var r2 = resolver(dd.path);
+          T.ok(
+            dd.node + ' · emittedAt "' + dd.path + '" (' + dd.id + ') resolves on a committed export',
+            r2.ok === true,
+            r2.ok
+              ? 'found in ' + r2.where + ' = ' + JSON.stringify(r2.value).slice(0, 40)
+              : 'NOT FOUND in any of ' + r2.scanned + ' committed exports — declare the path the export actually carries, or the id is not bound'
+          );
+        }
+        /* AND THE WALK MUST BE ABLE TO FAIL. A resolver that returns ok for anything would make every
+           leg above meaningless — the same reason the plants exist elsewhere in this suite. */
+        T.ok('the resolver REFUSES a path that does not exist (the walk can fail)', resolver('definitely.not.a.real.export.path').ok === false, 'a resolver that accepts anything proves nothing');
       }
       T.ok('the whole registry population was examined, not a slice', totalIds > 400, 'only ' + totalIds + ' ids across ' + NODES.length + ' registries');
       T.ok('no node drifted from its baseline', drift.length === 0, 'drifted: ' + drift.join(', '));

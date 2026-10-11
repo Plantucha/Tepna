@@ -61,7 +61,13 @@
       evidence: 'emerging',
       cite: 'Poincaré ellipse area S = π·SD1·SD2 (Brennan 2001) — derived nonlinear HRV descriptor; less standardized than the SD1/SD2 axes, device-dependent'
     },
-    crCoupling: { label: 'CR Coupling', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Cardiorespiratory phase-locking value (PLV) — coupling strength' },
+    /* `crCoupling` REMOVED 2026-10-10 — a DUPLICATE id, not a dormant metric. The quantity it named
+       is computed and shipped as `crcPLV` (ecgdex-dsp.js, 4 sites) and rendered as 'CR Coupling' from
+       `r.crc.crcPLV`; `crcPLV` carries its own entry at the same `emerging` tier. `dormant: true`
+       would have been FALSE here — it asserts no compute site exists, and one does. With the alias
+       above re-pointed, nothing referenced this id, so the honest act is removal rather than a flag.
+       #3369 had instead recorded it as "dormant" in the resolvability gate's NOT-YET-ADJUDICATED
+       baseline, which is where this whole class was found. */
     lfhf: { label: 'LF/HF', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'LF:HF power ratio — sympatho-vagal balance proxy' },
 
     /* ── EMERGING — companion-accelerometer cross-checks (ACC sub-cards) ─────── */
@@ -355,7 +361,13 @@
     sd2: 'sd2',
     'sd1/sd2': 'sd1sd2',
     'ellipse area': 'ellArea',
-    'cr coupling': 'crCoupling',
+    /* RE-POINTED 2026-10-10, by DEEP-AUDIT-V §2.8 F14's own method: verified against the value the
+       render site actually passes. `ecgdex-app.js:651` renders the label 'CR Coupling' with
+       `r.crc.crcPLV` — so the label resolved to `crCoupling` while the NUMBER shown came from
+       `crcPLV`. Both were `emerging`, so nothing was visibly mis-graded; the binding was still wrong
+       and would have mis-graded the moment either tier moved. F14 fixed exactly this for the sibling
+       label 'plv surge vs base' and left this alias behind. */
+    'cr coupling': 'crcPLV',
     'rsa efficiency': 'rsaEfficiency',
     'lf/hf': 'lfhf',
     'beats (nn)': 'nBeats',
