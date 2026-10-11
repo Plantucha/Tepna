@@ -4,12 +4,10 @@ type: security
 brief: none
 ---
 
-**The last three open `js/xss-through-dom` alerts.**
+**Two of the last three open `js/xss-through-dom` alerts, plus six tool realms that lacked the escaper.**
 
-- `oxydex-profile.js` — the entered `sex` and `age`. Deferred from #3432 because the
-  **treatment-response yield pin** holds the file in its `detector.oxy` closure. Re-cut here from a
-  real paper-scale run: **the yield is unchanged at 233 tx / 239 flat** and only the closure hash,
-  timestamp and commit moved (3 lines).
+- `dex-profile.js` and `resp-acc-analysis-app.js` are fixed here. **`oxydex-profile.js` is still
+  deferred** — see below.
 - `dex-profile.js` — a stored profile value interpolated into a `value="…"` **attribute**. Deferred
   because `measurement-walk` holds it in its closure.
 - `resp-acc-analysis-app.js` — a **third** uploaded-filename path into `row()`'s markup-bearing cells,
@@ -25,3 +23,13 @@ The baseline counts **files**; the work closes **sinks**, about five per file. S
 list only when its last sink is escaped, which makes a file-count baseline insensitive to exactly the
 work that closes real alerts. Clearing 210 sinks is a programme, not a PR — and the backlog's "42
 files" is the wrong unit to size it by.
+
+⚠️ **`oxydex-profile.js` (alert #164) is still deferred, and the reason is a RACE, not a blocker.** Its
+escape moves the treatment-response yield pin's closure, so the pin must be re-cut from a paper-scale
+run. I did re-cut it — **yield unchanged at 233 tx / 239 flat** — and then main moved `oxydex-dsp.js`,
+which is *also* in that closure, making my fresh pin stale again. A second re-cut then contended with
+another session's paper-scale run already holding Chrome.
+
+So a pin whose closure contains a hot DSP goes stale on **every** merge that touches it, and a PR
+carrying a re-cut races every other PR. That is a serialisation question, not something to force: the
+escape and the re-cut belong in one quiet-window PR.
