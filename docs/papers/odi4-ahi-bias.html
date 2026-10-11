@@ -302,8 +302,12 @@
 
   <p><b>And the synthetic prediction transfers, which is the part worth stating plainly.</b> &sect;3.1 credits the
     ceiling-baseline fix with lifting the ODI-4&harr;AHI slope to &asymp;0.69 on the synthetic cohort. Real PSG,
-    same detector, reference matched to the quantity the detector computes: <b>0.672</b>. A synthetic result that
-    survives contact with 5136 clinical recordings to within 0.02 is doing the job a synthetic result is for.
+    same detector, reference matched to the quantity the detector computes: <b>CLAIM shhsSlopeDesat = 0.536 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/olsSlopeVsDesat</b>.
+    <b>The &ldquo;transfers to within 0.02&rdquo; reading of this is WITHDRAWN by the 2026-09-22 correction below</b>
+    &mdash; it was written against the pre-correction 0.672, and the re-cut slope sits about 0.15 below the synthetic
+    &asymp;0.69, not 0.02. What survives is the DIRECTION: the synthetic cohort still understates the real
+    under-count, by slightly more than it did (see the correction box). A closeness claim does not survive a change
+    of that size and is not restated here.
     ⚠️ It survives only under the MATCHED reference; against scored AHI the same detector reads 0.134, and a
     reader given that number alone would conclude the opposite. The reference, not the detector, is what moved.</p>
 
@@ -339,8 +343,12 @@
 
   <p class="note"><b>&sect;&empty; &mdash; coverage is reported because absence is not zero.</b> A rate computed over a
     night that was partly unmeasured is not the same claim as one over a complete night, so every record carries its
-    SpO&#8322; coverage: <b>median 98.45&nbsp;%</b>, 5th percentile 83.36&nbsp;%, minimum 52.29&nbsp;%, and
-    <b>1581 records (30.8&nbsp;%) below 95&nbsp;%</b>. Dropouts are emitted as <code>null</code> and never carried
+    SpO&#8322; coverage: <b>median CLAIM shhsCovMed = 95.29 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageMedianPct&nbsp;%</b>,
+    5th percentile CLAIM shhsCovP5 = 80.32 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageP5Pct&nbsp;%,
+    minimum CLAIM shhsCovMin = 48.36 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageMinPct&nbsp;%, and
+    <b>CLAIM shhsCovBelow95 = 2462 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageBelow95 records
+    (CLAIM shhsCovBelow95Pct = 47.9 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageBelow95Pct&nbsp;%)
+    below 95&nbsp;%</b> (was 98.45 / 83.36 / 52.29 / 1581 (30.8&nbsp;%) before the correction below). Dropouts are emitted as <code>null</code> and never carried
     forward, so they are excluded from both numerator and denominator rather than counted as normal saturation.</p>
 
   <h3 class="sub">3.1 The bias is severity-proportional across a synthetic cohort — and the ceiling baseline flattens it</h3>
@@ -361,9 +369,9 @@
   <h2 class="sec">4. How many paired nights are needed?</h2>
   <p>Because the bias is estimated as the slope of a linear calibration, the question “how many paired oximetry + PSG nights does a validation need?” has a closed-form answer. For ordinary least squares, the slope’s relative 95% confidence half-width depends only on the correlation and the sample size — the units and the spread of AHI cancel:</p>
   <div class="eqn">relative 95%-CI half-width(n) = 1.96 · √((1 − R²) / (n − 2)) / √R²</div>
-  <p>Requiring the slope to be pinned to within ±10% of its value gives the sample sizes in Table 3. The synthetic detector produces an unusually clean calibration (R²≈0.93), for which only <b>≈31 nights</b> suffice — a floor, not a realistic target. Real polysomnography is noisier; at a literature-plausible R²≈0.70 the requirement rises to <b>≈167 nights</b>. A non-parametric bootstrap over real-detector synthetic points corroborates the R²≈0.93 floor.</p>
+  <p>Requiring the slope to be pinned to within ±10% of its value gives the sample sizes in Table 7. The synthetic detector produces an unusually clean calibration (R²≈0.93), for which only <b>≈31 nights</b> suffice — a floor, not a realistic target. Real polysomnography is noisier; at a literature-plausible R²≈0.70 the requirement rises to <b>≈167 nights</b>. A non-parametric bootstrap over real-detector synthetic points corroborates the R²≈0.93 floor.</p>
   <table class="data">
-    <caption class="tbl-cap"><b>Table 3.</b> Paired nights needed to pin the calibration slope, by assumed agreement (R²) and target precision.</caption>
+    <caption class="tbl-cap"><b>Table 7.</b> Paired nights needed to pin the calibration slope, by assumed agreement (R²) and target precision.</caption>
     <thead><tr><th>Assumed R²</th><th>Nights for ±10% CI</th><th>Nights for ±15% CI</th></tr></thead>
     <tbody>
       <tr><td>0.93 (synthetic floor)</td><td>31</td><td>15</td></tr>
