@@ -1,5 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "env": {
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "20"
+  },
   "hooks": {
     "PreToolUse": [
       {
