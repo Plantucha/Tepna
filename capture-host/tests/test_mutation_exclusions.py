@@ -60,15 +60,18 @@ def _doc(exclusions=None, **over):
 # The ratchet is the committed census. It may only go UP in a commit that says why, exactly like
 # `tests/test_equivalence_ledger.py`'s — and unlike that one, the bound lives in the source
 # (`EXCLUSION_BOUND`), so the two must agree or the bound is decoration.
-RATCHET_DECLARED = 1
+RATCHET_DECLARED = 2  # 2026-10-11: webmon.py, owner-authorized (see the census test)
 RATCHET_UNMEASURED_ROWS = 4
 
 
 def test_the_declared_set_is_exactly_the_committed_census():
     got = sorted(M.parse_exclusions(EXCLUSIONS.read_text(encoding="utf-8")))
-    assert got == ["capture.py"], (
-        f"the declared exclusions changed: {got}. Owner ruling 2026-10-03 is ONE module-level "
-        "declaration; adding anything is a deliberate edit — say why in the commit."
+    assert got == ["capture.py", "webmon.py"], (
+        f"the declared exclusions changed: {got}. TWO module-level declarations are authorized and both "
+        "are named — capture.py (owner 2026-10-03, bound by the traced stats pass) and webmon.py (owner "
+        "2026-10-11, bound by mutant generation not finishing: `make_app` is one 1,791-line factory with "
+        "57 nested handlers). A third is a policy change, not an entry; adding anything here is a "
+        "deliberate edit — say why in the commit."
     )
     assert len(got) == RATCHET_DECLARED
 
@@ -410,11 +413,49 @@ def test_parse_returns_the_ENTRY_not_merely_the_key():
 
 
 # ── THE MODULE-LEVEL DECLARATION (owner ruling 2026-10-03) ──────────────────────────────────────────
-def test_only_ONE_module_key_may_exist():
-    """ "One module-level declaration" is the ruling. Without a count limit it quietly becomes "modules
-    are declarable", which is a different policy than the one that was ruled."""
-    with pytest.raises(ValueError, match="more than one MODULE key"):
-        M.parse_exclusions(_doc({"capture.py": _MOD(), "timeline.py": _MOD()}))
+def test_a_MODULE_key_must_be_ONE_THE_OWNER_NAMED():
+    """🔴 REWRITTEN 2026-10-11 WITH THE RULING IT ENCODES, and the old name is gone because it named a
+    count. This was `test_only_ONE_module_key_may_exist`, matching "more than one MODULE key", which was
+    the right fence while exactly one module-level declaration existed (`capture.py`, owner 2026-10-03).
+    The owner authorized a SECOND on 2026-10-11 (`webmon.py`), and the fence is NOT "now two": a bound of
+    two says *two modules are declarable* and hands the second slot to whichever module asks first —
+    the general permission neither ruling gave, arriving by arithmetic instead of by decision.
+
+    So the limit is the NAMES (`MODULE_KEYS_AUTHORIZED`). A module key for anything unnamed refuses even
+    as the ONLY entry in the file, which a count could never express."""
+    # a THIRD module key
+    with pytest.raises(ValueError, match="no owner ruling names"):
+        M.parse_exclusions(_doc({"capture.py": _MOD(), "webmon.py": _MOD(), "timeline.py": _MOD()}))
+    # and an unnamed one ALONE — the case a count of two would have waved through
+    with pytest.raises(ValueError, match="no owner ruling names"):
+        M.parse_exclusions(_doc({"timeline.py": _MOD()}))
+    # both named ones together are fine, and that is the authorized set, not a coincidence
+    both = M.parse_exclusions(_doc({"capture.py": _MOD(), "webmon.py": _MOD()}))
+    assert sorted(both) == ["capture.py", "webmon.py"]
+    assert sorted(M.MODULE_KEYS_AUTHORIZED) == ["capture.py", "webmon.py"], (
+        "the allowlist IS the policy — a module added here without an owner ruling is the drift this "
+        "test exists to catch: " + str(sorted(M.MODULE_KEYS_AUTHORIZED))
+    )
+
+
+def test_a_module_key_must_say_WHICH_PHASE_its_time_number_measures():
+    """`statsPassSec` was the only accepted time field because `capture.py` is bound by the traced stats
+    pass — generation finishes in under a second there. `webmon.py` fails EARLIER: mutant generation does
+    not finish, so it has no stats pass at all and never will until generation completes once.
+
+    ⚠️ FILING THE GENERATION CAP AS `statsPassSec` WOULD BE ONE PHASE'S MEASUREMENT UNDER ANOTHER'S
+    NAME — real number, false field, which §∅ counts as absence (a value not measured, and "not
+    measured" includes "measured about something else"). Either phase satisfies the rule; neither being
+    present does not, because a cost with no time in it is an assertion."""
+    gen = _MOD()
+    gen["cost"] = dict(gen["cost"])
+    gen["cost"].pop("statsPassSec", None)
+    gen["cost"]["generationCapSec"] = 3496
+    assert "webmon.py" in M.parse_exclusions(_doc({"webmon.py": gen}))
+    none_at_all = _MOD()
+    none_at_all["cost"] = {k: v for k, v in none_at_all["cost"].items() if k != "statsPassSec"}
+    with pytest.raises(ValueError, match="has to be the measured one"):
+        M.parse_exclusions(_doc({"webmon.py": none_at_all}))
 
 
 def test_a_module_key_matches_the_module_and_a_function_key_never_does():
