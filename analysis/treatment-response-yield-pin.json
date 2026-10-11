@@ -20,7 +20,7 @@
       "cohort-gen.js": "b9cf56d095c9",
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "6c46d9671f95",
-      "oxydex-util.js": "1c7e45c125cd",
+      "oxydex-util.js": "4f6d78abcaab",
       "oxydex-profile.js": "20b63a150e16",
       "oxydex-dsp.js": "78e4e4f0a393"
     },
@@ -52,9 +52,9 @@
       "source": "#2825 analysis/published-numbers/treatment-response-2026-09-22.json"
     }
   ],
-  "measuredAt": "2026-10-11T05:43:13.400Z",
+  "measuredAt": "2026-10-11T07:29:59.367Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "8cb94db4"
+    "commit": "d522c1b4"
   }
 }

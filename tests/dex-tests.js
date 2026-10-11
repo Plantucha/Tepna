@@ -14191,6 +14191,50 @@
       });
     });
 
+    group('§∅ · OxyDex CSV — an absent number is an EMPTY FIELD, and no rise is invented', 'oxydex-app · absence', function (file_unused) {
+      var T = file_unused;
+      var app = (env.sources || {})['oxydex-app.js'] || '';
+      var util = (env.sources || {})['oxydex-util.js'] || '';
+      /* SOURCE-MIRROR, and the reason is worth stating: `exportCSV()` reads the module-level
+         `allNights` rather than taking an argument, and `csvNum`/`csvSafe` are bare functions in the
+         util file that the `_bare` surface does not re-export — so neither is reachable from the Node
+         lane. The properties below are therefore asserted against the source text, which is the same
+         idiom this suite already uses for app-layer code, with the SEMANTICS pinned by the unit legs
+         on the helper's own text. */
+      T.ok('oxydex-app.js is readable', app.length > 0, 'env.sources entry missing');
+      T.ok('oxydex-util.js is readable', util.length > 0, 'env.sources entry missing');
+      // ── 1 · the helper exists and encodes absence as the empty field ──
+      T.ok('csvNum exists in the util file', /function csvNum\(/.test(util), 'no csvNum — the convention has no single source');
+      T.ok(
+        '…and returns the EMPTY STRING for an absent value',
+        /return v == null \|\| typeof v !== 'number' \|\| !isFinite\(v\) \? '' :/.test(util),
+        "csvNum must map null/undefined/NaN/Infinity to ''"
+      );
+      /* A real 0 is a measurement and must print as 0 — the whole point of §∅ is that absence and zero
+         are different, so a fix that blanked zeros would be the same defect wearing the other mask. */
+      T.ok('…and is NOT written so that a real 0 would blank', !/v == null \|\| !v \?/.test(util) && !/!v \? '' :/.test(util), 'a falsy test would blank a measured 0');
+      // ── 2 · the fabricated rise is gone ──
+      T.ok('the raw `sp.peak - sp.baseline` concatenation is gone', !/\+ \(sp\.peak - sp\.baseline\) \+/.test(app), 'null - null === 0 in JS, so this published a 0 bpm rise from two absences');
+      T.ok(
+        '…replaced by a rise computed only when BOTH operands are present',
+        /_rise =[\s\S]{0,200}isFinite\(sp\.peak\)[\s\S]{0,120}isFinite\(sp\.baseline\)[\s\S]{0,40}\? sp\.peak - sp\.baseline : null/.test(app),
+        'the guard must name both operands'
+      );
+      T.ok('…and the rise cell goes through csvNum', /csvNum\(_rise\)/.test(app), 'an absent rise must be an empty field, not the text null');
+      // ── 3 · the fields the row named, and the siblings beside them ──
+      ['sp.baseline', 'sp.peak', 'sp.duration', 'sp.spo2'].forEach(function (f) {
+        T.ok('spike cell ' + f + ' is routed through csvNum', app.indexOf('csvNum(' + f + ')') >= 0, 'still concatenated raw ⇒ prints the text null');
+      });
+      ['worst10minSpo2', 'worst30minT95', 'spo2StableWindows', 'cdi', 'hrDecelRuns', 'spo2HrDecouplingPct'].forEach(function (f) {
+        T.ok('rolling field ' + f + ' is routed through csvNum', app.indexOf('csvNum(ro.' + f + ')') >= 0, 'still concatenated raw ⇒ prints the text null');
+      });
+      /* CONTROL · the two fields that ALREADY guarded must keep their guard — this unit extended a
+         convention that existed in the file, and breaking the instances that demonstrated it would be
+         an odd way to adopt it. */
+      T.ok('CONTROL · Motion (%) still guards its absence', /'Motion \(%\),' \+ \(s\.motionPct != null \? s\.motionPct : ''\)/.test(app), 'the original instance of the convention');
+      T.ok('CONTROL · Post-Dip HR Response still guards its absence', /ro\.postDipHrResponse !== null \? ro\.postDipHrResponse : ''/.test(app), "the rolling block's original instance");
+    });
+
     group('Cohesion single-source — evidence badges', 'cohesion-badges · cpapdex-registry · glucodex-registry · hrvdex-registry', function (T) {
       var M = env.MetricRegistry,
         docs = env.docs || {};
