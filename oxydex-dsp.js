@@ -1069,7 +1069,13 @@
         // For rises: recover when HR returns within RECOV of baseline
         // For drops: recover when HR returns within RECOV of baseline (above baseline-RECOV)
         var isRise = rise > 0;
-        while (j < n && j - i < MAX_RUN && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) {
+        /* 🔴 MISSED BY #3427 AND IT FABRICATES — found by re-counting the sites on main after that PR
+           merged, not by reading the diff. The DROP branch tests `rows[j].hr < baseline - RECOV`, and
+           `null < baseline - RECOV` is TRUE, so the recovery walk stepped THROUGH every hole and
+           extended the artifact run — cleaning real heart rate either side of a dropout as though it
+           were one long artifact. The walk now stops at a hole: the run is as long as it was observed
+           to be, which is the same rule the head/tail step guards follow. */
+        while (j < n && j - i < MAX_RUN && _has(rows[j].hr) && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) {
           j++;
         }
         if (j - i >= MAX_RUN) {
@@ -6550,7 +6556,9 @@
       var searchStart = Math.max(0, approxIdx - 300);
       var searchEnd = Math.min(rows.length, approxIdx + 300);
       for (var i = searchStart; i < searchEnd; i++) {
-        if (rows[i].hr >= sp.peak - 2) {
+        // Also missed by #3427. `>=` under-counts rather than fabricating (a hole is never the peak),
+        // but guarded so the safety is a decision and not the coercion happening to fall the right way.
+        if (_has(rows[i].hr) && rows[i].hr >= sp.peak - 2) {
           peakIdx = i;
           break;
         }
