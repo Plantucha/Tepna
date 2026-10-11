@@ -91,6 +91,9 @@ concurrency:
 jobs:
   # ── the assertion suite, split 6 ways ──────────────────────────────────────────────
   suite:
+    # measured 2026-10-11 over 175 job run(s): p95 2.7 min, max 2.9 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    # max over the six shards
+    timeout-minutes: 6
     name: suite (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     strategy:
@@ -107,6 +110,8 @@ jobs:
 
   # ── the shard gate's own gate, + the static/provenance checks (~15 s, in parallel) ──
   static:
+    # measured 2026-10-11 over 29 job run(s): p95 3.3 min, max 3.4 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    timeout-minutes: 7
     name: shard-union + build + provenance
     runs-on: ubuntu-latest
     steps:
@@ -133,6 +138,12 @@ jobs:
       # passed 56/56 because that tree could not see R7–R10. Same shallow-clone refusal as above.
       - name: Residue ids — no collision with main's ledger, and no row edited or removed
         run: node tools/residue-ids.mjs --base origin/main
+      # A job with no `timeout-minutes` inherits GitHub's 360-minute default, so a hung step burns
+      # six hours of the concurrency pool while the fleet correctly reads the queue as serialising
+      # (CLAUDE.md §👥.5) — the reading that is right almost always and therefore hides a real hang.
+      # Presence only: the number is sized from each job's own measured p95/max and written beside it.
+      - name: Workflow timeouts — every job declares a cap
+        run: node tools/workflow-timeout-guard.mjs
       - name: Shard-union — the shards partition the suite (no group goes unrun)
         run: node tests/verify-shard-union.mjs
       - name: The untimed-group ratchet (shrink-only; the timings stay a hint)
@@ -244,6 +255,8 @@ jobs:
   # `if: always()` + explicit result compare so a SKIPPED or CANCELLED shard reds the gate;
   # a bare `needs:` would let those through as "not failed".
   test:
+    # measured 2026-10-11 over 29 job run(s): p95 0.1 min, max 0.1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    timeout-minutes: 1
     name: test
     if: always()
     needs: [suite, static]

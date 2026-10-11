@@ -30,6 +30,9 @@ permissions:
 
 jobs:
   typecheck:
+    # measured 2026-10-11 over 30 job run(s): p95 0.5 min, max 1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
+    # p95x2 would be 1 min, BELOW the 62 s a real run took
+    timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
