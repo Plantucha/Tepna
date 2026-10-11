@@ -14116,6 +14116,78 @@
       T.ok('the population is non-vacuous', total >= 400, 'parsed ' + total + ' grade(s) across ' + NODES.length + ' node registries (523 at 2026-10-11)');
     });
 
+    group('§∅ · OxyDex — the two sites #3427 missed', 'oxydex-dsp · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B || typeof B.cleanArtifactHR !== 'function') {
+        T.ok('OxyDex._bare.cleanArtifactHR is reachable', false, 'not loaded — this group must not read as a pass');
+        return;
+      }
+      /* FOUND BY RE-COUNTING THE SITES ON MAIN AFTER #3427 MERGED, not by reading its diff. #3427 said
+         "thirteen consumers" and guarded thirteen FUNCTIONS, but two comparisons inside them were left
+         unguarded — and the artifact-recovery walk FABRICATES.
+         ⚠️ Neither moved a committed fixture, so the corpus could not have caught this: the real nights
+         have no artifact run adjacent to a dropout. A plant is the only instrument that reaches it. */
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var mk = function (hrs) {
+        return hrs.map(function (h, i) {
+          return { tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: 97, hr: h, motion: 0, pi: null };
+        });
+      };
+      /* A DROP artifact: 60 bpm, one impossible −35 step (HR_ARTIFACT_JUMP is 20), a depressed stretch,
+         then holes, then 60 again. The walk's drop branch continues while `hr < baseline - RECOV`, and
+         `null < 50` is TRUE — so on main it stepped through the holes and kept cleaning, treating real
+         heart rate on the far side of a dropout as part of one long artifact. */
+      var hrs = [];
+      for (var i = 0; i < 40; i++) hrs.push(60);
+      for (var j = 0; j < 8; j++) hrs.push(25);
+      var withHoles = hrs.slice();
+      for (var h = 0; h < 12; h++) withHoles.push(null);
+      for (var k = 0; k < 40; k++) withHoles.push(60);
+      var noHoles = hrs.slice();
+      for (var k2 = 0; k2 < 52; k2++) noHoles.push(60);
+      var rowsH = mk(withHoles);
+      var cleanedH = B.cleanArtifactHR(rowsH);
+      var rowsC = mk(noHoles);
+      var cleanedC = B.cleanArtifactHR(rowsC);
+      T.eq('the artifact run STOPS at the hole — a dropout does not extend it', cleanedH, cleanedC);
+      /* And the proof it stopped rather than merely counting less: no row PAST the holes was touched.
+         A walk that ran through them would have rewritten the 60 bpm on the far side. */
+      var pastUntouched = true;
+      for (var q = 60; q < rowsH.length; q++) if (rowsH[q].hr !== 60 && rowsH[q].hr != null) pastUntouched = false;
+      T.ok(
+        'no real sample PAST the dropout was rewritten as artifact',
+        pastUntouched,
+        JSON.stringify(
+          rowsH.slice(58, 64).map(function (r) {
+            return r.hr;
+          })
+        )
+      );
+      // CONTROL · the genuine artifact is still cleaned, or the guard has merely disabled the detector.
+      T.ok('CONTROL · the genuine 8-sample artifact is still cleaned', cleanedC > 0, 'cleaned = ' + cleanedC);
+      /* The population, measured over CODE with comments stripped — #3427's body said ~30 "sites",
+         which counted LINES CONTAINING an operation, not the operations themselves. The honest figure
+         is higher and the assertion is now zero-unguarded rather than a count. */
+      var src0 = (env.sources || {})['oxydex-dsp.js'] || '';
+      var code = src0.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+      var lines = code.split('\n');
+      var OPR = /(?:rows\[[^\]]+\]|\br\b|\brow\b)\.(?:spo2|hr)\s*(?:[<>]=?|[-+*/])/;
+      var total = 0,
+        unguarded = 0,
+        names = [];
+      for (var li = 0; li < lines.length; li++) {
+        if (!OPR.test(lines[li])) continue;
+        total++;
+        var ctx = lines.slice(Math.max(0, li - 8), li + 1).join('\n');
+        if (!/_has\(|isFinite\(|!= null|== null|\.filter\([^)]*null/.test(ctx)) {
+          unguarded++;
+          names.push(li + 1);
+        }
+      }
+      T.ok('the site population is non-vacuous', total > 20, 'matched ' + total + ' line(s) carrying a row-value operation');
+      T.eq('NO row-value comparison or delta is left unguarded', unguarded + (names.length ? ' @ ' + names.join(',') : ''), 0 + '');
+    });
+
     group('§∅ · OxyDex — a hole is not a reading, in all thirteen consumers', 'oxydex-dsp · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B) {
