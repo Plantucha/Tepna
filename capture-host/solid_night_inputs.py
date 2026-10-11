@@ -1850,7 +1850,11 @@ def _adopt_later_wear(base: dict, other: dict, nxt: str, night_dir: str) -> None
 
     Only `wear` crosses. A device the judged folder never listed is adopted outright: it was worn, in
     this band, and the morning audit is the only record of it."""
-    judged = _folder_date(night_dir) if night_dir else None
+    # NO `if night_dir` GUARD. It is now a required parameter and `_pooled_audit` is the only caller,
+    # so the falsy branch was unreachable — and an unreachable branch is a mutant site the gate can
+    # neither kill nor excuse (`(night_dir) or True` survived here for exactly that reason).
+    # `_folder_date` already returns None for a folder that does not name a date, which is the real case.
+    judged = _folder_date(night_dir)
     for name, od in (other.get("devices") or {}).items():
         if not isinstance(od, dict):
             continue  # one unusable entry must not drop the devices listed after it

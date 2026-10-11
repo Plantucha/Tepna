@@ -5490,3 +5490,47 @@ def test_audit_spans_judges_only_what_a_FILENAME_can_tell_it():
     # a stampless name says nothing — and a missing `files` key is not a span either
     assert si._audit_spans({"files": [{"file": "notes.txt"}]}, d9) is False
     assert si._audit_spans({}, d9) is False
+
+
+def test_SEAM_SOURCE_names_all_THREE_outcomes_not_just_the_new_one(tmp_path, monkeypatch):
+    """🔴 THREE MUTANTS LIVED ON THE ONE LINE `seam_source` IS DECIDED ON, because the test I wrote for
+    it asserted only the `single-audit` case. `(spanned) or True` forces single-audit, `(why) and False`
+    forces stitched, and `(why) or True` forces unassessed — and a fixture that only ever produces
+    single-audit agrees with all three.
+
+    The branch is only worth having if each outcome is reachable AND distinguishable, so each is
+    asserted here against the same helper, varying only what the audits look like."""
+    import solid_night_inputs as si
+
+    other = {"devices": {"H10": {"files": [{"file": "Polar_H10_0284_20261010013000_ECG.txt"}], "gaps": []}}}
+    nxt = os.path.join(str(tmp_path), "captures", "2026-10-10")
+
+    # ① SINGLE-AUDIT — the judged folder's own audit already spans the next day
+    b1 = {"devices": {"H10": {"files": [{"file": "Polar_H10_0284_20261010013000_ECG.txt"}], "gaps": []}}}
+    si._adopt_later_wear(b1, other, nxt, os.path.join(str(tmp_path), "captures", "2026-10-09"))
+    assert b1["devices"]["H10"]["seam_source"] == "single-audit"
+    assert b1["devices"]["H10"]["seam_unassessed"] is None
+
+    # ② UNASSESSED — two audits, and `seam_gap` cannot judge the seam (no per-file endpoints here)
+    b2 = {"devices": {"H10": {"files": [{"file": "Polar_H10_0284_20261009220000_ECG.txt"}], "gaps": []}}}
+    si._adopt_later_wear(b2, other, nxt, os.path.join(str(tmp_path), "captures", "2026-10-09"))
+    assert b2["devices"]["H10"]["seam_source"] == "unassessed", b2["devices"]["H10"]
+    assert b2["devices"]["H10"]["seam_unassessed"], "an unassessed seam must carry its reason"
+
+    # ③ STITCHED — two audits and the seam IS judged, so no reason is recorded
+    monkeypatch.setattr(si, "seam_gap", lambda prev, nxt_: ([], None))
+    b3 = {"devices": {"H10": {"files": [{"file": "Polar_H10_0284_20261009220000_ECG.txt"}], "gaps": []}}}
+    si._adopt_later_wear(b3, other, nxt, os.path.join(str(tmp_path), "captures", "2026-10-09"))
+    assert b3["devices"]["H10"]["seam_source"] == "stitched", b3["devices"]["H10"]
+    assert b3["devices"]["H10"]["seam_unassessed"] is None
+    # the three are distinct, which is the whole point of the field
+    assert (
+        len(
+            {
+                b1["devices"]["H10"]["seam_source"],
+                b2["devices"]["H10"]["seam_source"],
+                b3["devices"]["H10"]["seam_source"],
+            }
+        )
+        == 3
+    )

@@ -2494,3 +2494,131 @@ def test_the_WEAR_half_of_the_audit_follows_the_recording_too(tmp_path):
     assert named == ["Polar_H10_0284_20261010015024_ECG.txt"], (
         f"the wear half must examine the session that started after midnight in the NEXT day's folder: {named}"
     )
+
+
+def _hr(night_dir, stamp, body):
+    """One H10 wear-evidence file at an explicit session stamp, so a test can control SORT ORDER."""
+    p = os.path.join(night_dir, f"Polar_H10_0284_{stamp}_HR.txt")
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(body)
+    return p
+
+
+def test_a_file_that_cannot_vouch_does_not_STOP_the_wear_scan(tmp_path):
+    """🔴 FOUR `continue` → `break` MUTANTS SURVIVED THE GATE HERE, and the reason is the fixture, not
+    the code: every existing wear test writes ONE file, and with one element `continue` and `break` end
+    the loop identically. The loop's whole promise is in its comments — "the next file may" — so the
+    fixture has to have a next file.
+
+    Each case puts the file that cannot vouch FIRST in sort order and a file that CAN vouch after it.
+    Under `break` the scan stops at the first and reports None (nothing read); under `continue` it reads
+    on and reports the wear it found."""
+    d = os.path.join(str(tmp_path), "captures", "2026-09-20")
+    os.makedirs(d, exist_ok=True)
+    good = "Phone timestamp;HR [bpm]\n2026-09-20T23:00:00;62\n"
+    # ① an EMPTY file first
+    _hr(d, "20260920220000", "")
+    _hr(d, "20260920230000", good)
+    assert loss_audit._has_worn_evidence(d, "H10") is True, (
+        "an empty first file must not end the scan — the second file carries the wear evidence"
+    )
+    # ② a header that names no such column, first
+    _hr(d, "20260920220000", "nosuchcolumn\n1;2\n")
+    assert loss_audit._has_worn_evidence(d, "H10") is True, "a useless header must not end the scan"
+    # ③ a file that cannot be OPENED, first
+    bad = _hr(d, "20260920220000", good)
+    os.chmod(bad, 0)
+    try:
+        assert loss_audit._has_worn_evidence(d, "H10") is True, "an unreadable file must not end the scan"
+    finally:
+        os.chmod(bad, 0o644)
+
+
+def test_relink_gap_looks_OUTSIDE_the_band_and_only_relink_does(tmp_path):
+    """`_relink_gap` is the one caller that passes `membership=False`: a re-link is judged against the
+    neighbouring session whether or not that session belongs to this band, which is the point of the
+    parameter. Three mutants lived on that one argument — dropped (defaulting True), written `True`, and
+    written `None` (which aliased False under a truth test until `is not False`) — and all three were
+    invisible because no fixture had a file the band EXCLUDES.
+
+    So this asserts the asymmetry directly: the same tree, the same pattern, one call that must see the
+    out-of-band file and one that must not."""
+    c = os.path.join(str(tmp_path), "captures")
+    d9 = os.path.join(c, "2026-09-20")
+    os.makedirs(d9, exist_ok=True)
+    _hr(d9, "20260920220000", "Phone timestamp;HR [bpm]\n2026-09-20T22:00:00;60\n")
+    # a 14:00 session in the same FOLDER: its own band is the previous evening's, so membership excludes it
+    _hr(d9, "20260920140000", "Phone timestamp;HR [bpm]\n2026-09-20T14:00:00;61\n")
+    # 🔴 AND THE KILL HAS TO GO THROUGH `_relink_gap`, not through the helper. Three mutants live on
+    # ITS call line, so asserting `_recording_glob`'s own behaviour leaves every one of them alive — I
+    # made exactly that mistake first and the plants all survived. A relink gap whose next appearance is
+    # out of band is the case the parameter exists for: with membership ON it reads as "no next file",
+    # which turns a measured gap into a silent None.
+    end = dt.datetime(2026, 9, 20, 13, 0, 0)
+    gap = loss_audit._relink_gap(d9, "Polar_H10_*_HR.txt", end)
+    assert gap == 3600.0, (
+        "the 14:00 session is the next appearance of this stream and sits OUTSIDE this night's band; "
+        f"membership must be off here or the gap vanishes: {gap}"
+    )
+    with_band = loss_audit._recording_glob(d9, "Polar_H10_*_HR.txt")
+    without = loss_audit._recording_glob(d9, "Polar_H10_*_HR.txt", membership=False)
+    assert len(without) == 2, f"membership=False must see both sessions: {without}"
+    assert len(with_band) == 1, f"the default must exclude the 14:00 session: {with_band}"
+    assert "20260920220000" in with_band[0]
+    # and None must NOT quietly behave like False — anything but an explicit False filters
+    assert loss_audit._recording_glob(d9, "Polar_H10_*_HR.txt", membership=None) == with_band, (
+        "membership=None aliased False under a truth test; it must filter like the default"
+    )
+
+
+def test_an_unreadable_frame_file_does_not_STOP_the_witness(tmp_path):
+    """The same `continue` → `break` family in `signal_witness`, and the same fixture gap: its comment
+    says "one unreadable frame file is not the absence of a witness", which needs a SECOND frame file to
+    be observable at all. Under `break` the scan stops at the unreadable first file and returns an empty
+    witness; under `continue` it reads on and returns the second session's frames."""
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    _oxyframe(d, dt.datetime(2026, 9, 20, 22, 0, 0), 5, dur0=0)
+    _oxyframe(d, dt.datetime(2026, 9, 20, 23, 0, 0), 5, dur0=100)
+    first = sorted(d.glob("Wellue_O2Ring-S_*_OXYFRAME.txt"))[0]
+    os.chmod(first, 0)
+    try:
+        got = loss_audit.signal_witness(str(d))
+        assert got, "an unreadable FIRST frame file must not empty the witness"
+        assert all(dur >= 100 for _t, dur in got), (
+            "the surviving rows must be the second session's, read after the skip: " + str(got[:3])
+        )
+    finally:
+        os.chmod(first, 0o644)
+
+
+def test_a_night_dir_with_a_TRAILING_SLASH_is_normalised(tmp_path):
+    """`night_dir.rstrip("/")` → `rstrip(None)` survived because no fixture ever passed a trailing
+    slash: with none present the two strip nothing and agree exactly. `rstrip(None)` strips WHITESPACE,
+    so the slash would be carried into the folder set and `os.path.basename` of it is the empty string —
+    which is how a path that merely ends in `/` stops naming a night at all."""
+    c = os.path.join(str(tmp_path), "captures")
+    d9 = os.path.join(c, "2026-09-20")
+    os.makedirs(d9, exist_ok=True)
+    _hr(d9, "20260920220000", "Phone timestamp;HR [bpm]\n2026-09-20T22:00:00;60\n")
+    # 🔴 AND IT HAS TO REACH THE FALLBACK. The `rstrip` is inside `sc.get("dirs") or [night_dir...]`,
+    # so a folder with a real recording scope never executes it — my first fixture had one and the
+    # mutant survived untouched. A folder that does not name a date gets a REFUSED scope, which carries
+    # no `dirs`, and only then is the fallback (and its normalisation) the thing under test.
+    nodate = os.path.join(c, "not-a-date")
+    os.makedirs(nodate, exist_ok=True)
+    fb_plain = loss_audit._recording_dirs_and_band(nodate)
+    fb_slashed = loss_audit._recording_dirs_and_band(nodate + "/")
+    assert fb_plain[0] == [nodate], fb_plain
+    assert fb_slashed == fb_plain, (
+        "the fallback must normalise a trailing slash — `rstrip(None)` strips whitespace, not the "
+        f"slash, and a path ending in / has an empty basename: {fb_slashed} vs {fb_plain}"
+    )
+    plain = loss_audit._recording_dirs_and_band(d9)
+    slashed = loss_audit._recording_dirs_and_band(d9 + "/")
+    assert slashed == plain, f"a trailing slash must not change the scope: {slashed} vs {plain}"
+    assert all(not p.endswith("/") for p in slashed[0]), slashed[0]
+    # and the files found are the same either way
+    assert loss_audit._recording_glob(d9 + "/", "Polar_H10_*_HR.txt") == loss_audit._recording_glob(
+        d9, "Polar_H10_*_HR.txt"
+    )

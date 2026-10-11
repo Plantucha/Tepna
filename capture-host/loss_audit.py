@@ -136,7 +136,12 @@ def _recording_glob(night_dir: str, pattern: str, *, membership: bool = True) ->
 
     dirs, band = _recording_dirs_and_band(night_dir)
     out = [p for d in dirs for p in glob.glob(os.path.join(d, pattern))]
-    if membership:
+    # `is not False`, NOT a truth test, and the difference is a killable mutant rather than style:
+    # `membership=None` reads as False under `if membership:`, so a caller that passed None — or a
+    # mutation that writes it — silently disabled the band filter and NO input could tell. Anything but
+    # an explicit False now filters, which is also the fail-safe direction: the flag exists to widen the
+    # scope deliberately, so an unrecognised value must not widen it by accident.
+    if membership is not False:
         out = [p for p in out if _si.in_band(p, band)]
     return sorted(out)
 
