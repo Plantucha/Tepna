@@ -2926,11 +2926,20 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   function computeCT94(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var ct94s = 0;
+    var ct94s = 0,
+      measured = 0;
     for (var i = 0; i < n; i++) {
+      // §∅ — same defect as `computeCTprecise` above: `null < 94` is TRUE, so every absent second
+      // counted as time below 94 %. Latent until #3408 carried the absent rows; see that comment.
+      if (rows[i].spo2 == null || !isFinite(rows[i].spo2)) continue;
+      measured++;
       if (rows[i].spo2 < 94) ct94s++;
     }
-    return { ct94Sec: ct94s, ct94Pct: +((ct94s / n) * 100).toFixed(2) };
+    /* THE DENOMINATOR IS MEASURED SECONDS, not rows. `n` is `rows.length`, which equalled the measured
+       count only while absences were deleted — the same accident ODI's denominator relied on (#3408).
+       With absences carried, dividing by `n` under-reports the percentage by the dropout fraction.
+       Null when nothing was measured: a percentage of no measurements is not 0 %. */
+    return { ct94Sec: ct94s, ct94Pct: measured > 0 ? +((ct94s / measured) * 100).toFixed(2) : null };
   }
 
   // SpO2 dip and recovery slopes + MODL + desaturation clustering
@@ -6519,6 +6528,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var bradyCount = 0,
       bradyRun = 0;
     clean.forEach(function (r) {
+      /* 🔴 §∅ — `null < 40` IS TRUE, so ten consecutive ABSENT seconds manufactured a bradycardia
+         event. Latent until #3408 carried the device's `'- -'` rows; live from the moment it merged.
+         An absence BREAKS the run rather than being skipped: the event is defined as ≥10 CONSECUTIVE
+         low samples, and a gap means the run was not observed to continue — the owner's ruling that a
+         discontinuity refuses while reduced coverage annotates. Skipping would silently join two
+         separate runs across a dropout and invent a longer one. */
+      if (r.hr == null || !isFinite(r.hr)) {
+        bradyRun = 0;
+        return;
+      }
       if (r.hr < 40) {
         bradyRun++;
         if (bradyRun === 10) bradyCount++;
@@ -6529,6 +6548,14 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var tachyCount = 0,
       tachyRun = 0;
     clean.forEach(function (r) {
+      /* The tachycardia counter was NOT fabricating — `null > 100` is false, so an absence already
+         reset the run — but it reset it by ACCIDENT of the coercion direction. Stated explicitly so
+         the two counters read the same way and neither depends on which side of the comparison the
+         coercion happens to fall. */
+      if (r.hr == null || !isFinite(r.hr)) {
+        tachyRun = 0;
+        return;
+      }
       if (r.hr > 100) {
         tachyRun++;
         if (tachyRun === 10) tachyCount++;
@@ -8960,6 +8987,18 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       ct80 = 0;
     for (var i = 0; i < n; i++) {
       var v = spo2[i];
+      /* 🔴 §∅ — `null < 90` IS TRUE IN JS, so an absent second counted as time below EVERY threshold.
+         Latent until 2026-10-11: `parseCSV` deleted the device's `'- -'` rows, so no null ever reached
+         this loop. #3408 carries them, which made the defect live — measured on the extracted function,
+         150 rows of which 100 were a healthy 97 % and 50 absent reported ct90s/ct89s/**ct80s all 50**:
+         a night with no desaturation publishing fifty seconds below 80 %.
+         The guard is the presence test, not falsiness — a real 0 is impossible here (SpO₂ is range-
+         checked to 50–100 at parse) but the same shape elsewhere must not blank a measured zero, and
+         the siblings in this file already carry it: `computeHypoxicBurden` does `if (v == null)
+         continue` and the t88/t85 block filters `r.spo2 != null` under a comment saying "without the
+         null guard a dropout reads as time in severe hypoxemia". This loop and `computeCT94` were the
+         two the file had missed. */
+      if (v == null || !isFinite(v)) continue;
       if (v < 90) ct90++;
       if (v < 89) ct89++;
       if (v < 88) ct88++;

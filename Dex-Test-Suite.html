@@ -417,6 +417,12 @@ async function main(){
   // asserts nothing there. These twins carry no personal data, ship in git, and run everywhere.
   for (const [k, inF, fxF] of [
     ['oxydex_synth', 'synthetic_oxydex_o2ring.csv', 'synthetic_oxydex_golden.node-export.json'],
+    /* THE BROWSER LANE HAS ITS OWN EQUIV INVENTORY, and a pair added to `tests/run-tests.mjs` alone is
+       invisible here — the two-inventory distinction again. The `_gap` suffix convention derives an
+       `oxydex_gap` equivalence case automatically, so without this line the derived leg has no fixture
+       to fetch and FAILS rather than skipping. Added with the first OxyDex golden over an input that
+       carries absent seconds (2026-10-11). */
+    ['oxydex_gap', 'synthetic_oxydex_o2ring_gap.csv', 'synthetic_oxydex_gap_golden.node-export.json'],
     ['pulsedex_synth', 'synthetic_pulsedex_rr.txt', 'synthetic_pulsedex_golden.node-export.json'],
     ['hrvdex_synth', 'synthetic_hrvdex_welltory.csv', 'synthetic_hrvdex_golden.node-export.json'],
     ['glucodex_synth', 'synthetic_glucodex_lingo.csv', 'synthetic_glucodex_golden.node-export.json'],

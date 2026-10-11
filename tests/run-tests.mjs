@@ -1151,6 +1151,12 @@ function readEquiv() {
   // carry no personal data, and are therefore COMMITTED — so the diff runs everywhere.
   // They ADD to the real legs (which still exercise genuine vendor quirks locally), never replace them.
   pair('oxydex_synth', 'synthetic_oxydex_o2ring.csv', 'synthetic_oxydex_golden.node-export.json');
+  /* The gapped twin now has a COMMITTED OUTPUT, so it gets a dynamic leg like any other golden: the
+     equivalence gate re-runs `compute` on the input and compares. Until 2026-10-11 this input was
+     paired with `null` — no output — which is why no fixture exercised a night carrying absent
+     seconds, and why #3408's `null < 90` regression in the CT counters passed every gate. The
+     `oxydex_odibasis` pairing stays as it was: other groups reference it by that key. */
+  pair('oxydex_gap', 'synthetic_oxydex_o2ring_gap.csv', 'synthetic_oxydex_gap_golden.node-export.json');
   /* ADVERSARIAL twins (DEEP-AUDIT-2026-07-11 §1/§8/§9) — input only, NO golden. The point is not to pin
      bytes but to assert INVARIANTS the clean inputs cannot express: an MDY file must compute IDENTICALLY
      to its DMY twin; a dropped-row night must place every event on its OWN parsed stamp; a long night's
