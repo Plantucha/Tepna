@@ -1166,7 +1166,7 @@
           } else {
             var auto = r.origin !== 'you' && (!f.identity || f.k === 'age');
             var dispV = f.k === _fk ? _live : UNITS[f.k] ? toDisp(f.k, r.v) : r.v;
-            html += '<div class="dxp-iw"><input inputmode="decimal" class="prof-input' + (auto ? ' auto' : '') + '" data-k="' + f.k + '" value="' + (dispV != null ? dispV : '') + '">';
+            html += '<div class="dxp-iw"><input inputmode="decimal" class="prof-input' + (auto ? ' auto' : '') + '" data-k="' + f.k + '" value="' + escapeHTML(dispV != null ? dispV : '') + '">';
             if (!f.identity) html += '<button class="dxp-revert' + (r.origin === 'you' ? ' show' : '') + '" data-rev="' + f.k + '" title="revert to auto">↺</button>';
             html += '</div>';
           }
