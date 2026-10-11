@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — read the whole-tree backlog of the diff-scoped gates, nightly.
+#
+# WHY. Of the CI steps, 14 are whole-tree and 4 are diff-scoped (`xss-sink-gate`,
+# `absence-regression`, `residue-ids`, `pr-compliance`). A diff-scoped gate examines only what a PR
+# touches, so **code merged before that gate existed is never examined by it** — the backlog is
+# invisible by construction rather than by neglect, and no amount of green CI reveals it.
+#
+# 🔴 THIS IS NOT A PR GATE AND MUST NEVER BECOME ONE. `--full-tree` scans the whole repo, so on a PR it
+# would report the INHERITED backlog as that PR's findings and block work on code the author never
+# touched. That is how a useful measurement becomes something people route around. The PR gates stay
+# diff-scoped and unchanged; this unit reads a number that may only fall.
+#
+# WHAT A FAILURE HERE MEANS. The unit exits non-zero only when a backlog ROSE above its recorded
+# baseline (`audits/FULL-TREE-BACKLOG.json`) — i.e. something was merged unexamined. A backlog that FELL
+# exits 0 and prints SHORTFALL, asking for the baseline to be lowered: a ratchet nobody tightens stops
+# being one. Both numbers are in the verdicts, so neither state is a silent pass.
+#
+# NEVER RAISE A COUNT TO MAKE THIS GREEN. Raising it records that something was merged unexamined.
+#
+# INSTALL — primary development machine only, NOT performed by the PR that adds this file:
+#   cp tools/systemd/tepna-full-tree-backlog.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tepna-full-tree-backlog.timer
+#   systemctl --user start tepna-full-tree-backlog.service   # read it once now
+#   journalctl --user -u tepna-full-tree-backlog -n 60       # the two figures and their paths
+[Unit]
+Description=Tepna — whole-tree backlog of the diff-scoped gates (reading only, never a PR gate)
+Documentation=https://github.com/Plantucha/Tepna/blob/main/audits/FULL-TREE-BACKLOG.json
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Tepna
+Nice=15
+IOSchedulingClass=idle
+# Each gate prints its own verdict and exits non-zero only on a RISE. `;` not `&&`, deliberately: the
+# second reading must happen even when the first one failed, or one rise hides the other's number.
+ExecStart=/bin/sh -c 'rc=0; node tools/xss-sink-gate.mjs --full-tree || rc=$?; node tools/absence-regression.mjs --full-tree || rc=$?; exit $rc'

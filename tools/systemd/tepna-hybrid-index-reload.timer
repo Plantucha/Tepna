@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — follow the vector cache into the hybrid-search index, hourly after the re-embed
+
+[Timer]
+# Hourly at :20. The offset is chosen, not picked: `bge-reindex.timer` is `OnCalendar=hourly` with
+# `RandomizedDelaySec=300`, so a re-embed starts somewhere in :00–:05 and the measured full re-embed of
+# 18,397 new chunks took minutes, not seconds. :20 clears it with margin while still following it within
+# the same hour. `After=` in the service covers the case where both are awake at once; this offset is
+# what keeps them from contending in the first place.
+OnCalendar=*-*-* *:20:00
+RandomizedDelaySec=120
+# A tick missed while the machine was off does not need catching up: the next run reads the CURRENT
+# cache and is idempotent, so a backlog of reloads collapses into one. Persistent=true would queue a
+# burst at boot for no gain — the opposite of the fold timer, where each missed tick was a missed night.
+Persistent=false
+
+[Install]
+WantedBy=timers.target
