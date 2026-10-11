@@ -66,6 +66,10 @@ def box(tmp_path):
         "fails": tmp_path / "update-fails",
         "defers": tmp_path / "update-defers",
         "lock": tmp_path / "update.lock",
+        # An EMPTY sysfs stand-in: a radio with no connections, which is what the interlock must allow.
+        # Tests that need links create `hciN:HANDLE` entries in it.
+        "ble": _mkdir(tmp_path / "ble-sysfs"),
+        "ble_seen": tmp_path / "ble-last-link",
     }
 
 
@@ -82,6 +86,11 @@ def _write_status(path, devices, top=None, publish=True, age=0.0):
     if age:
         t = time.time() - age
         os.utime(path, (t, t))
+
+
+def _mkdir(p):
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
 
 def _run(box, *mode, **env):
@@ -102,6 +111,13 @@ def _run(box, *mode, **env):
         # The single-run lock, isolated per test for the same reason as the two markers above — the
         # default path is a live operational file on the box, and a test must not take the box's lock.
         "TEPNA_LOCK_FILE": str(box["lock"]),
+        # ⚠️ THE BLE INTERLOCK IS ISOLATED PER TEST OR THE SUITE READS THE REAL RADIO. Without these
+        # two, every "restarts when idle" case below would consult the HOST's /sys/class/bluetooth: on
+        # a developer box with a wearable connected it defers and the test fails, and in CI there is no
+        # /sys/class/bluetooth at all, which the interlock reads as `unknown` — also a deferral. Both
+        # would present as this updater being broken. An EMPTY directory is the "no links" case.
+        "TEPNA_BLE_SYSFS": str(box["ble"]),
+        "TEPNA_BLE_SEEN_MARK": str(box["ble_seen"]),
         **env,
     }
     return subprocess.run(["bash", UPD, *mode], capture_output=True, text=True, env=e)
@@ -1434,3 +1450,71 @@ def test_a_current_served_tree_is_not_re_synced(box, tmp_path):
     _advance(box)
     _run(box)  # even a fast-forward does not sync a tree that already matches
     assert not marker.exists()
+
+
+def test_a_HELD_BLE_LINK_DEFERS_THE_RESTART_and_says_so(box):
+    """🔴 MEASURED DEFECT, vigil 2026-10-11. At 12:00:45 hci2 held 2 LE central links (one AUTH ENCRYPT)
+    while the daemon reported idle; at 12:01:06 this updater logged "box is idle — restarting the
+    daemon" and restarted it; at 12:01:45 one link remained and the daemon had a new pid. A restart
+    drops every link, so a wearer's night is split into two file-sets across that seam — the loss the
+    night-is-the-recording work exists to stitch, newly manufactured by the updater.
+
+    `recording_state` cannot see this: it asks the DAEMON whether a device is recording, and a link can
+    be up before a stream starts, through a reconnect, or for a shadow poll. So the interlock reads the
+    KERNEL (sysfs `hciN:HANDLE` entries) — it must not depend on the stack it is protecting."""
+    _advance(box)
+    (box["ble"] / "hci2").mkdir()  # the radio itself is not a link
+    (box["ble"] / "hci2:3585").mkdir()  # ...these two are
+    (box["ble"] / "hci2:3586").mkdir()
+    r = _run(box)
+    assert r.returncode == 0, r.stderr
+    out = r.stdout + r.stderr
+    assert "restarting the daemon" not in out, "a held BLE link must not be read as an idle box:\n" + out
+    assert not box["called"].exists(), "the restart helper must not have been invoked"
+    # NAMED, not a bare "not idle" — the log is the only witness on a box nobody logs into
+    assert "links:2" in out, out
+    assert "a held BLE link is not an idle box" in out, out
+
+
+def test_the_RADIO_alone_is_not_a_LINK_so_an_empty_radio_still_restarts(box):
+    """The control that makes the test above mean something. `hci2` is the radio; only `hci2:HANDLE` is
+    a connection. If the counter matched the radio directory the interlock would defer forever on any
+    box that HAS Bluetooth, which is every box — a permanent refusal reading as caution."""
+    _advance(box)
+    (box["ble"] / "hci0").mkdir()
+    (box["ble"] / "hci2").mkdir()
+    r = _run(box)
+    assert r.returncode == 0, r.stderr
+    assert "box is idle — restarting the daemon" in (r.stdout + r.stderr), r.stdout + r.stderr
+    assert box["called"].exists(), "two radios with no connections is an idle box"
+
+
+def test_a_link_that_JUST_DROPPED_still_defers_for_the_quiet_window(box):
+    """An instantaneous read would let a reconnect between two samples look like an idle radio for the
+    one second the updater happened to look. The mark file carries when links were last SEEN, so the
+    window is measured from that rather than from this invocation."""
+    _advance(box)
+    box["ble_seen"].write_text(str(int(time.time()) - 5))  # links seen 5 s ago, none now
+    r = _run(box)
+    assert "restarting the daemon" not in (r.stdout + r.stderr), r.stdout
+    assert "within 180s of the last link" in (r.stdout + r.stderr), r.stdout
+    # ...and once the window has passed, the same empty radio restarts. A SECOND `_advance` is needed
+    # because the deferred run still fast-forwarded the checkout: only the restart was withheld, so
+    # without new pending code the next invocation correctly reports "nothing to do" — which would make
+    # this assertion pass or fail for the wrong reason.
+    _advance(box, "capture-host/writers.py")
+    box["ble_seen"].write_text(str(int(time.time()) - 600))
+    r2 = _run(box)
+    assert "box is idle — restarting the daemon" in (r2.stdout + r2.stderr), r2.stdout
+    assert box["called"].exists(), "an empty radio past the quiet window is an idle box"
+
+
+def test_an_UNREADABLE_sysfs_defers_rather_than_reading_as_no_links(box):
+    """§∅ — the absence of evidence about the links is not evidence that there are none, and the costs
+    are asymmetric: deferring loses one timer tick, restarting over a live link splits a night. So an
+    unreadable sysfs is `unknown` and defers, exactly as an unreadable status.json does."""
+    _advance(box)
+    r = _run(box, TEPNA_BLE_SYSFS=str(box["ble"] / "does-not-exist"))
+    assert "restarting the daemon" not in (r.stdout + r.stderr), r.stdout
+    assert "cannot read" in (r.stdout + r.stderr), r.stdout
+    assert not box["called"].exists()
