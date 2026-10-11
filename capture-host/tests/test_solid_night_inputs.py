@@ -4213,8 +4213,16 @@ def _seam_pair(tmp_path, *, gap_s, dev_advance_ns):
     """A cross-midnight recording in TWO folders with a planted seam, and both audits.
 
     The evening fragment ends at 23:50 in folder D; the morning fragment opens `gap_s` later in D+1,
-    its counter advanced by `dev_advance_ns` from where the evening's left off. Neither audit can see
-    this boundary — each judges only among its own files — which is the whole defect."""
+    its counter advanced by `dev_advance_ns` from where the evening's left off.
+
+    🔴 THE PREMISE CHANGED ON 2026-10-10, DELIBERATELY. This said "neither audit can see this boundary —
+    each judges only among its own files — which is the whole defect", and that WAS the defect: the loss
+    audit globbed ONE folder. It now enumerates the RECORDING's folder set (#3297's scope, applied to
+    `loss_audit`), so the EVENING audit returned here spans both folders and sees the boundary itself, as
+    an ordinary between-files gap judged by the same `loss_audit.boundary_gap` the stitcher used — so the
+    delay-versus-loss discrimination is unchanged, which was the risk worth checking before relying on it.
+    #3157's two-audit stitching is SUPERSEDED, NOT DELETED: `_legacy_seam_pair` below reproduces the
+    pre-change shape that committed audits on disk still carry, and `seam_gap` still judges it."""
     caps = tmp_path / "captures"
     d4 = caps / "2026-09-20"
     d5 = caps / "2026-09-21"
@@ -4244,6 +4252,26 @@ def _seam_pair(tmp_path, *, gap_s, dev_advance_ns):
     return a4["devices"]["Polar H10 0284"], a5["devices"]["Polar H10 0284"]
 
 
+def _legacy_seam_pair(tmp_path, *, gap_s, dev_advance_ns):
+    """The PRE-#3297-scope shape: two folder-scoped audits, each holding only its own folder's files.
+
+    ⚠️ IT IS BUILT BY SPLITTING, NOT BY RUNNING, and that is the honest construction. A morning folder
+    audited by today's code finds NOTHING for this device — correctly, because the 00:00 session belongs
+    to the previous evening's band — so the two-audit shape cannot be produced by the current enumeration
+    at all. What it CAN be produced from is the file records themselves, split by the session date in
+    each name, which is exactly what an older audit wrote and what committed `LOSS-AUDIT.json` files on
+    disk still hold. `seam_gap` must keep judging that input for as long as those files exist."""
+    ev, mo = _seam_pair(tmp_path, gap_s=gap_s, dev_advance_ns=dev_advance_ns)
+    files = [f for f in (ev.get("files") or []) if isinstance(f, dict)]
+    evening = [f for f in files if "_20260920" in str(f.get("file"))]
+    morning = [f for f in files if "_20260921" in str(f.get("file"))]
+    assert evening and morning, (
+        "the spanning audit must hold BOTH folders' files, or this fixture is reproducing nothing: "
+        + str([f.get("file") for f in files])
+    )
+    return dict(ev, files=evening, boundary_gaps=0), dict(mo, files=morning, boundary_gaps=0)
+
+
 def test_THE_AUDIT_PUBLISHES_PER_FILE_ENDPOINTS_on_both_clocks(tmp_path):
     """The additive half. These six fields are `boundary_gap`'s inputs and they existed only inside
     `stream_scan`; without them on the far side of the JSON a cross-folder seam cannot be judged at all."""
@@ -4264,22 +4292,43 @@ def test_A_PLANTED_SEAM_LOSS_IS_READ_AS_LOSS(tmp_path):
     across it — so the device really was recording elsewhere and the rows are gone. Neither folder's
     audit sees this: `loss_audit.stream_scan` says a gap BETWEEN files "is exactly the loss that made the
     night fragment", and across folders there is no single audit to notice it."""
-    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
-    assert ev["boundary_gaps"] == 0 and mo["boundary_gaps"] == 0, "neither audit saw it, which is the defect"
-    rows, reason = si.seam_gap(ev, mo)
+    ev, _mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    # THE PROMISE IS UNCHANGED — a planted seam loss is READ AS LOSS. What changed is WHO reads it: the
+    # spanning audit, as an ordinary between-files gap, and exactly ONCE.
+    assert ev["boundary_gaps"] == 1, "the audit spans the recording now, so it sees the boundary itself: " + str(
+        ev.get("boundary_gaps")
+    )
+    boundary = [r for r in (ev.get("gaps") or []) if isinstance(r, dict) and r.get("boundary")]
+    assert len(boundary) == 1, f"counted ONCE, not once per audit: {boundary}"
+    assert abs(boundary[0]["s"] - 600.0) < 1.5, boundary[0]["s"]
+    assert str(boundary[0]["at"]).startswith("2026-09-20T23:49:59")
+    # AND NOT TWICE: the stitcher must add nothing on top of what the single audit already counted.
+    total = sum(r.get("s") or 0.0 for r in (ev.get("gaps") or []) if isinstance(r, dict))
+    assert abs(total - 600.0) < 1.5, f"one 600 s hole, counted once: {total}"
+    # the legacy two-audit input still reads the SAME loss through the stitcher
+    # its OWN tree: `_seam_pair` creates the folders, so a second build in the same tmp_path collides
+    old_ev, old_mo = _legacy_seam_pair(tmp_path / "legacy", gap_s=600.0, dev_advance_ns=int(600e9))
+    rows, reason = si.seam_gap(old_ev, old_mo)
     assert reason is None, reason
-    assert len(rows) == 1, rows
-    assert rows[0]["seam"] is True
+    assert len(rows) == 1 and rows[0]["seam"] is True, rows
     assert abs(rows[0]["s"] - 600.0) < 1.5, rows[0]["s"]
-    assert rows[0]["at"].startswith("2026-09-20T23:49:59")
 
 
 def test_A_PLANTED_SEAM_DELAY_IS_NOT_A_LOSS(tmp_path):
     """🔴 ACCEPTANCE 2, and the control that makes acceptance 1 mean something (#3157). Same ten-minute
     HOST gap, but the device counter advanced by less than one sample period — the rows were delivered
     late, not lost. A merge that only summed host gaps would book this as ten minutes of loss."""
-    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(0.5e9))
-    rows, reason = si.seam_gap(ev, mo)
+    ev, _mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(0.5e9))
+    # THE CONTROL THAT MAKES ACCEPTANCE 1 MEAN SOMETHING (#3157), and it holds through the move: the
+    # spanning audit judges its own between-files boundary with the SAME `loss_audit.boundary_gap`, so a
+    # host gap whose device counter barely advanced is still a DELAY and not loss. That equivalence was
+    # verified before relying on it — had the audit summed host gaps, this ten-minute delay would have
+    # been booked as ten minutes of loss.
+    assert ev["boundary_gaps"] == 0, f"a delay is not a loss: {ev.get('gaps')}"
+    assert not [r for r in (ev.get("gaps") or []) if isinstance(r, dict) and r.get("boundary")]
+    # and through the stitcher on the legacy shape
+    old_ev, old_mo = _legacy_seam_pair(tmp_path / "legacy", gap_s=600.0, dev_advance_ns=int(0.5e9))
+    rows, reason = si.seam_gap(old_ev, old_mo)
     assert rows == [], f"a delay is not a loss: {rows}"
     assert reason is None, "it WAS judged — the silence is a measurement, not an absence"
 
@@ -4289,7 +4338,7 @@ def test_AN_OLDER_SHAPE_AUDIT_READS_NOT_ASSESSED_never_no_gaps(tmp_path):
     so tonight's audit may well be the older shape. A verdict must not read "no gaps at the seam" over an
     audit that cannot say — that is absence as a value (§∅), and it would publish a clean seam for a
     night nobody examined."""
-    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    ev, mo = _legacy_seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
     old_ev = dict(ev, files=[{k: f[k] for k in ("file", "span_min", "gaps", "delays")} for f in ev["files"]])
     old_mo = dict(mo, files=[{k: f[k] for k in ("file", "span_min", "gaps", "delays")} for f in mo["files"]])
     rows, reason = si.seam_gap(old_ev, old_mo)
@@ -4313,7 +4362,7 @@ def test_A_SEAM_WITH_NO_AUDIT_ON_ONE_SIDE_IS_NOT_ASSESSED(tmp_path):
 def test_A_FILES_ENTRY_THAT_IS_NOT_AN_OBJECT_IS_SKIPPED(tmp_path):
     """`files[]` carries `unreadable` entries too, and a hand-edited or truncated audit can put anything
     there. One junk element must not decide the seam, nor raise while judging it."""
-    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    ev, mo = _legacy_seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
     assert si._scan_shape("not-an-object") is None
     assert si._scan_shape(None) is None
     noisy = dict(ev, files=["junk", None, *ev["files"]])
@@ -4325,7 +4374,7 @@ def test_AN_UNPARSEABLE_ENDPOINT_IS_NOT_A_TIME(tmp_path):
     """The endpoint fields are ISO strings in the JSON, and a corrupt or hand-edited audit can carry
     something that is not one. `fromisoformat` raising means the file cannot say when it started — which
     is "not assessed", never a seam judged against a parsed-anyway default (§∅)."""
-    ev, mo = _seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
+    ev, mo = _legacy_seam_pair(tmp_path, gap_s=600.0, dev_advance_ns=int(600e9))
     assert si._scan_shape({"first": "not-a-date", "last": "2026-09-20T23:49:59"}) is None
     assert si._scan_shape({"first": "2026-09-20T23:40:00", "last": 12345}) is None
     broken = dict(ev, files=[dict(f, last="23:49 on the dot") for f in ev["files"]])
@@ -4339,7 +4388,7 @@ def test_A_MORNING_THAT_RESUMED_INSIDE_THE_CADENCE_HAS_NO_SEAM_GAP(tmp_path):
     recording simply continued across the folder boundary. That is a JUDGED result and reports no row,
     which is different from a seam nobody could judge: `reason` stays None, so `continuity` reads a
     measurement rather than an absence."""
-    ev, mo = _seam_pair(tmp_path, gap_s=1.0, dev_advance_ns=int(1e9))
+    ev, mo = _legacy_seam_pair(tmp_path, gap_s=1.0, dev_advance_ns=int(1e9))
     rows, reason = si.seam_gap(ev, mo)
     assert rows == [], rows
     assert reason is None, "judged and clean — not unassessed"
@@ -5375,3 +5424,113 @@ def test_the_SET_message_names_THREE_fragments_and_counts_ALL_of_them(tmp_path):
     for i in (0, 1, 2):
         assert f"other_{i}_ECG.txt" in out["reason"], (i, out["reason"])
     assert "other_3_ECG.txt" not in out["reason"], "the sample is truncated at three: %r" % out["reason"]
+
+
+def test_the_SEAM_SOURCE_names_WHO_judged_the_boundary(tmp_path):
+    """🔴 THE §∅ HALF OF THIS CHANGE, and the defect it fixes was live on every cross-folder night. With
+    the audit spanning the recording, `seam_gap` was handed one real audit and one empty side, answered
+    "one side audited no file for this device", and the judge stored that as `seam_unassessed` —
+    publishing "the seam was not assessed" about a seam that HAD been assessed, by the spanning audit,
+    and counted once.
+
+    An absent seam row now carries its reason instead of being read ambiguously:
+      · `single-audit` — one audit covered both sides; the boundary is already in `gaps`.
+      · `stitched` — two audits, seam judged across them (#3157's path, superseded but reachable).
+      · `unassessed` — nobody could judge it. Still reachable, and still the honest answer there."""
+    import loss_audit as la
+
+    caps = tmp_path / "captures"
+    d9, d10 = caps / "2026-10-09", caps / "2026-10-10"
+    d9.mkdir(parents=True)
+    d10.mkdir(parents=True)
+    # the ring opens the night in D; the H10 starts after midnight and lands in D+1 — ONE recording.
+    # `_dual_stream` (this file's own helper, not `test_loss_audit._stream`) because the H10 side needs
+    # BOTH clocks for `boundary_gap` to tell a delay from a loss.
+    (d9 / "Wellue_O2Ring-S_ABC_20261009212546_SPO2.csv").write_text(
+        "Time,Oxygen Level,Pulse Rate,Motion\n21:25:46 09/10/2026,96,58,0\n23:00:00 09/10/2026,95,57,0\n"
+    )
+    _dual_stream(str(d10 / "Polar_H10_0284_20261010015024_ECG.txt"), dt.datetime(2026, 10, 10, 1, 50, 24), 600)
+    dev = [{"name": "Polar H10 0284", "model": "H10"}]
+    for d in (d9, d10):
+        la.write_night(str(d), dev, journal=lambda *a, **k: [], clock_events=lambda *a, **k: [])
+    pooled = si._pooled_audit(str(d9))
+    entry = (pooled or {}).get("devices", {}).get("Polar H10 0284") or {}
+    assert entry.get("seam_source") == "single-audit", (
+        "one audit spanned the recording, so the boundary needed no stitching — and the record must say "
+        "which, never leave an absent seam row to be guessed at: " + str(entry.get("seam_source"))
+    )
+    assert entry.get("seam_unassessed") is None, "a seam that WAS assessed must not be published as unassessed: " + str(
+        entry.get("seam_unassessed")
+    )
+
+
+def test_audit_spans_judges_only_what_a_FILENAME_can_tell_it():
+    """`_audit_spans` decides `seam_source`, so its own edges are worth pinning directly — it is pure and
+    its two guards are not reachable from `_pooled_audit` (a non-date folder returns before the merge).
+
+    ⚠️ A NON-OBJECT `files` ENTRY IS SKIPPED, NOT TRUSTED: a committed audit can hold one (that is the
+    exact defect `test_A_FILES_ENTRY_THAT_IS_NOT_AN_OBJECT_IS_SKIPPED` covers one layer up), and reading
+    `.get` on it would crash the judge on a night whose audit is merely old.
+
+    ⚠️ AND A FILE WHOSE NAME CARRIES NO STAMP CANNOT MOVE THE ANSWER. `writers.file_stamp` returns None
+    for it, and `None` means "this name says nothing about which session it belongs to" — not "the same
+    date as the folder". Treating it as same-date would be absence read as a value."""
+    import datetime as _d
+
+    d9 = _d.date(2026, 10, 9)
+    # no judged date ⇒ nothing to compare against, so it cannot claim a span
+    assert si._audit_spans({"files": [{"file": "Polar_H10_0284_20261010015024_ECG.txt"}]}, None) is False
+    # a next-day session ⇒ one audit reached across the boundary
+    assert si._audit_spans({"files": [{"file": "Polar_H10_0284_20261010015024_ECG.txt"}]}, d9) is True
+    # this folder's own session only ⇒ no span
+    assert si._audit_spans({"files": [{"file": "Polar_H10_0284_20261009220000_ECG.txt"}]}, d9) is False
+    # a non-object entry is skipped and must not hide the real one beside it
+    assert si._audit_spans({"files": ["not-an-object", {"file": "Polar_H10_0284_20261010015024_ECG.txt"}]}, d9) is True
+    assert si._audit_spans({"files": ["not-an-object"]}, d9) is False
+    # a stampless name says nothing — and a missing `files` key is not a span either
+    assert si._audit_spans({"files": [{"file": "notes.txt"}]}, d9) is False
+    assert si._audit_spans({}, d9) is False
+
+
+def test_SEAM_SOURCE_names_all_THREE_outcomes_not_just_the_new_one(tmp_path, monkeypatch):
+    """🔴 THREE MUTANTS LIVED ON THE ONE LINE `seam_source` IS DECIDED ON, because the test I wrote for
+    it asserted only the `single-audit` case. `(spanned) or True` forces single-audit, `(why) and False`
+    forces stitched, and `(why) or True` forces unassessed — and a fixture that only ever produces
+    single-audit agrees with all three.
+
+    The branch is only worth having if each outcome is reachable AND distinguishable, so each is
+    asserted here against the same helper, varying only what the audits look like."""
+    import solid_night_inputs as si
+
+    other = {"devices": {"H10": {"files": [{"file": "Polar_H10_0284_20261010013000_ECG.txt"}], "gaps": []}}}
+    nxt = os.path.join(str(tmp_path), "captures", "2026-10-10")
+
+    # ① SINGLE-AUDIT — the judged folder's own audit already spans the next day
+    b1 = {"devices": {"H10": {"files": [{"file": "Polar_H10_0284_20261010013000_ECG.txt"}], "gaps": []}}}
+    si._adopt_later_wear(b1, other, nxt, os.path.join(str(tmp_path), "captures", "2026-10-09"))
+    assert b1["devices"]["H10"]["seam_source"] == "single-audit"
+    assert b1["devices"]["H10"]["seam_unassessed"] is None
+
+    # ② UNASSESSED — two audits, and `seam_gap` cannot judge the seam (no per-file endpoints here)
+    b2 = {"devices": {"H10": {"files": [{"file": "Polar_H10_0284_20261009220000_ECG.txt"}], "gaps": []}}}
+    si._adopt_later_wear(b2, other, nxt, os.path.join(str(tmp_path), "captures", "2026-10-09"))
+    assert b2["devices"]["H10"]["seam_source"] == "unassessed", b2["devices"]["H10"]
+    assert b2["devices"]["H10"]["seam_unassessed"], "an unassessed seam must carry its reason"
+
+    # ③ STITCHED — two audits and the seam IS judged, so no reason is recorded
+    monkeypatch.setattr(si, "seam_gap", lambda prev, nxt_: ([], None))
+    b3 = {"devices": {"H10": {"files": [{"file": "Polar_H10_0284_20261009220000_ECG.txt"}], "gaps": []}}}
+    si._adopt_later_wear(b3, other, nxt, os.path.join(str(tmp_path), "captures", "2026-10-09"))
+    assert b3["devices"]["H10"]["seam_source"] == "stitched", b3["devices"]["H10"]
+    assert b3["devices"]["H10"]["seam_unassessed"] is None
+    # the three are distinct, which is the whole point of the field
+    assert (
+        len(
+            {
+                b1["devices"]["H10"]["seam_source"],
+                b2["devices"]["H10"]["seam_source"],
+                b3["devices"]["H10"]["seam_source"],
+            }
+        )
+        == 3
+    )
