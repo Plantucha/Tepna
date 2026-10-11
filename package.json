@@ -61,7 +61,8 @@
     "verify:survivor-ratchet": "node tools/mutation-survivors.mjs ratchet --expect 30",
     "verify:absence": "node tools/absence-ledger.mjs --ratchet",
     "verify:shard-timings": "node tests/verify-shard-timings.mjs",
-    "timings:refresh": "node tests/run-tests.mjs --json | node tests/gen-group-timings.mjs"
+    "timings:refresh": "node tests/run-tests.mjs --json | node tests/gen-group-timings.mjs",
+    "verify:no-names": "node tools/no-third-party-names.mjs"
   },
   "engines": {
     "node": ">=18"

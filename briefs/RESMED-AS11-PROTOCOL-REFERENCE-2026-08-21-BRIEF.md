@@ -14,8 +14,8 @@ next person does not re-derive any of this, and so every claim carries its sourc
   Trammell Hudson). These are prose/table **specifications**, not code.
 - **Tepna's implementation is clean-room, Apache-2.0.** `capture-host/as11_link.py` (when landed) is
   written FROM the published spec, not derived from any GPL code. This matters:
-  **SomnoTrace (`ilyakruchinin/SomnoTrace`) is GPL-3.0**; a GPL-derived module could not enter this
-  Apache-2.0 tree (CLAUDE.md §📜). SomnoTrace was the original *pointer* to the protocol and is credited
+  **the reference implementation is GPL-3.0**; a GPL-derived module could not enter this
+  Apache-2.0 tree (CLAUDE.md §📜). It was the original *pointer* to the protocol and is credited
   in early exploration only; nothing GPL is incorporated.
 - **No firmware modification** is performed or implied anywhere. Tepna reads; it does not patch the device.
 

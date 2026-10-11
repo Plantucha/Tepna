@@ -17,7 +17,7 @@ data with its own clock and records the device's measured drift alongside.
   which includes the encrypted BLE channel `0x0396/0x0397`. Reading therapy data over BLE is allowed.
 - **Pairing is proven** on the real device (SRP-6a M2 verified), and the credentials reconnect
   passwordlessly (`RequestSession` → `CheckSessionIntegrity`).
-- **The clock is better here.** SomnoTrace stamps with plain NTP on an ESP32; the box is stratum-1 and
+- **The clock is better here.** The reference implementation stamps with plain NTP on an ESP32; the box is stratum-1 and
   runs the fusion pipeline. Same job, better clock, no extra hardware.
 - **It closes the drift problem at the source.** A night captured this way never carries the drifted RTC
   in its timestamps — the box's clock is the timeline, and `GetDateTime` records the offset for the record.
@@ -30,7 +30,7 @@ So the split is deliberate:
 1. **`capture-host/as11_link.py` — the link layer (PURE, no BLE, no crypto dependency).** FIG framing,
    SRP-6a pairing math, session-key/proof derivation, and the RPC request builders. Uses only the standard
    library (hashlib/hmac/struct/zlib). Written FROM the published spec (protocol reference), clean-room,
-   Apache-2.0 — **not** derived from the GPL SomnoTrace. Fully pytest-covered.
+   Apache-2.0 — **not** derived from the GPL reference implementation. Fully pytest-covered.
 2. **`capture-host/as11_pull.py` — the pull orchestration (PURE, injected transport AND injected cipher).**
    `establish` (the four-step reconnect handshake, plaintext) and `pull_spool` (StartSpool →
    PullSpoolFragments loop, fragment reassembly by `seq`, Base64 decode, continuation via

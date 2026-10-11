@@ -8,7 +8,7 @@ while the numbers are invented.
 
 ON FIXTURE PROVENANCE, stated because it decides what these tests may claim: the key blob used here is
 SDK-DERIVED, not captured. The only run of this protocol on real newer-firmware hardware we can point
-to (SomnoTrace discussion #180, comment 18250284) produced application-level logs, not raw bytes — it
+to (third-party discussion #180, comment 18250284) produced application-level logs, not raw bytes — it
 records that the handshake succeeded, the reply lengths seen, and that a plaintext session worked on
 the short-reply connects, but it does not contain the blob. So `_key_blob()` builds a blob to the
 vendor SDK's documented shape. It is not presented as a capture, and no test here asserts that a real

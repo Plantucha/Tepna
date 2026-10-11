@@ -25476,7 +25476,7 @@
     /* §∅ AT PER-CELL GRANULARITY — the coupling grid says which cells were MEASURED.
        `_interpGrid` used to return a bare Float64Array, so a cell drawn across a dropout was
        indistinguishable from one backed by beats, and `cardiorespCoupling` published seven metrics
-       with `nGrid` (the denominator) and no count of what was drawn. That is SomnoTrace's short-gap
+       with `nGrid` (the denominator) and no count of what was drawn. That is the reference implementation's short-gap
        hold, one layer in. The contract here is GlucoDex's, not a new one. */
     group('ECGDex coupling grid — a cell drawn across a gap is counted, and a clean night counts zero', 'ecgdex-dsp · absence-is-null · gap-coverage', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
