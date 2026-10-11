@@ -207,9 +207,16 @@ def test_every_clickable_night_routes_to_an_input_the_app_actually_has():
     clickable = [c for c, (globs, _p) in ni.NODES.items() if globs and c not in ni.NOT_LOADABLE] + list(ni.DERIVED)
     assert set(routes) == set(clickable), (sorted(set(clickable) - set(routes)), sorted(set(routes) - set(clickable)))
     # the derived tools are a click again (their classifiers read box filenames since 2026-09-20 —
-    # test_the_tool_classifiers_accept_box_filenames), so the ✓ pill carries the same data-night/data-node
-    # the node figures do, and their routes are in the equality above like any other clickable column
-    assert 'data-node="${k}"' in html.split("function nDerived")[1].split("\n")[0]
+    # test_the_tool_classifiers_accept_box_filenames), so the ✓ cell carries the same data-night/data-node
+    # the device cells do, and their routes are in the equality above like any other clickable column.
+    # Since the Nights view (2026-10-11) the ✓ is a cell of the "Fused & derived" tab, built by nFusCell.
+    fus = html.split("function nFusCell")[1].split("\nfunction ")[0]
+    assert 'data-node="${esc(f.node)}"' in fus and "v===true" in fus
+    # …and EVERY derived tool has a column on that tab: a tool the index publishes and the page never draws
+    # would be a click nobody can make
+    fused = html.split("const NIGHT_FUSED = [")[1].split("];")[0]
+    drawn = set(re.findall(r"node:'([^']+)'", fused))
+    assert set(ni.DERIVED) <= drawn, sorted(set(ni.DERIVED) - drawn)
     # the positional fallback is gone: a missing route or selector refuses instead of guessing
     assert "doc.querySelector('input[type=file]:not([webkitdirectory])')" not in html
     assert "has no input route for it" in html and "input is missing" in html
@@ -769,3 +776,31 @@ def test_the_shape_guard_changed_no_answer_for_a_well_formed_night(tmp_path):
             )
             continue
         assert new_out[k] == old_out[k], (k, new_out[k], old_out[k])
+
+
+def test_the_nights_view_is_the_owner_approved_design():
+    """The owner approved the Nights view as mocked (2026-10-11: "it's basically done … wire it up"). What
+    made it the design is pinned here so a later edit has to change this test on purpose:
+    two tabs; an overview strip whose FIRST row is the box's solid-night verdict; one column per device,
+    Muse and CGM included; the Verity cell opening PPGDex (whose list carries the O2Ring PPG too); status
+    as hue AND glyph; and a verdict that could not be read never shown as a verdict."""
+    import re
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    assert 'data-ntab="dev"' in html and 'data-ntab="fus"' in html and 'id="nightsOverview"' in html
+    devices = html.split("const NIGHT_DEVICES = [")[1].split("];")[0]
+    names = re.findall(r"name:'([^']+)'", devices)
+    assert names == ["H10", "Verity", "O2Ring", "AirSense", "Muse", "CGM"], names
+    assert "name:'Verity'" in devices and "node:'PPGDex'" in devices.split("name:'Verity'")[1].split("\n")[0]
+    # the solid row leads the strip, read from the night's own folder
+    render = html.split("function renderNights(){")[1].split("\n}\n")[0]
+    assert render.index("Solid night") < render.index("for(const c of cols)")
+    assert "'/SOLID-VERDICT.json'" in html
+    # every status class has a glyph, and no two classes share one: hue is never the only signal
+    glyphs = dict(re.findall(r"(\w+):'([^']+)'", html.split("const NIGHT_GLYPH = {")[1].split("};")[0]))
+    assert set(glyphs) == {"ok", "part", "low", "rec", "unk", "none"} and len(set(glyphs.values())) == 6, glyphs
+    # a 404 is "not judged"; a folder this page cannot reach is "unavailable here" — never collapsed
+    assert "r.status===404" in html and "'unavailable here'" in html and "'not judged'" in html
+    # the CPAP's EDF carries no coverage: it reads RECORDED, never a coverage it was not measured to have
+    assert "v.coverage==null) return v.hours ? 'rec' : 'unk'" in html
