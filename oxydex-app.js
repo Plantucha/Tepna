@@ -304,7 +304,13 @@ function exportCSV() {
     lines.push('', 'DEEP ANALYSIS', 'HR Spikes,' + n.spikes.length);
     if (n.spikes.length) lines.push('Spike #,Time,Baseline (bpm),Peak (bpm),Rise (bpm),Duration (s),SpO2 (%)');
     (Array.isArray(n.spikes) ? n.spikes : []).forEach(function (sp, i) {
-      lines.push('Spike ' + (i + 1) + ',' + sp.time + ',' + sp.baseline + ',' + sp.peak + ',' + (sp.peak - sp.baseline) + ',' + sp.duration + ',' + sp.spo2);
+      /* 🔴 §∅ — `null - null === 0` IN JS, so a detail-less spike published a 0 bpm RISE that reads
+         exactly like a measured one: baseline and peak were already honest nulls (#3332, an imported
+         spike with no detail) and the subtraction manufactured a number from two absences. The rise
+         is now computed ONLY when both operands are present, and every numeric cell goes through
+         `csvNum`, so an absent value is an empty field instead of the literal text `null`. */
+      var _rise = typeof sp.peak === 'number' && isFinite(sp.peak) && typeof sp.baseline === 'number' && isFinite(sp.baseline) ? sp.peak - sp.baseline : null;
+      lines.push('Spike ' + (i + 1) + ',' + csvSafe(sp.time) + ',' + csvNum(sp.baseline) + ',' + csvNum(sp.peak) + ',' + csvNum(_rise) + ',' + csvNum(sp.duration) + ',' + csvNum(sp.spo2));
     });
     if (n.period) lines.push('HR Periodicity,' + n.period.pattern + ' avg ' + n.period.avg + 'min');
     if (n.osc) lines.push('Oscillation Windows (5min),' + n.osc.episodeCount);
@@ -500,13 +506,13 @@ function exportCSV() {
       lines.push(
         '',
         'ROLLING WINDOW METRICS',
-        '  Worst 10-min SpO2 (%),' + ro.worst10minSpo2,
-        '  Worst 30-min T95 (%),' + ro.worst30minT95,
-        '  SpO2 Stable Windows (5min),' + ro.spo2StableWindows,
-        '  CDI (/hr),' + ro.cdi,
+        '  Worst 10-min SpO2 (%),' + csvNum(ro.worst10minSpo2),
+        '  Worst 30-min T95 (%),' + csvNum(ro.worst30minT95),
+        '  SpO2 Stable Windows (5min),' + csvNum(ro.spo2StableWindows),
+        '  CDI (/hr),' + csvNum(ro.cdi),
         '  Post-Dip HR Response (bpm),' + (ro.postDipHrResponse !== null ? ro.postDipHrResponse : ''),
-        '  HR Decel Runs,' + ro.hrDecelRuns,
-        '  SpO2-HR Decoupling (%),' + ro.spo2HrDecouplingPct,
+        '  HR Decel Runs,' + csvNum(ro.hrDecelRuns),
+        '  SpO2-HR Decoupling (%),' + csvNum(ro.spo2HrDecouplingPct),
         '  Intra-Night NSI (E/M/L),' + (ro.intraNightNSI ? ro.intraNightNSI.join('/') : '')
       );
     }

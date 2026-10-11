@@ -235,6 +235,38 @@
   <p class="dxl-note">Tepna is not a medical device and is not intended to diagnose, treat, cure or prevent any disease. Research and personal-analysis use only.</p>
 </div>
 
+<script data-inline-src="dex-escape.js">
+/* ════ Tepna · shared HTML escaper (dex-escape.js) ─────────────────────────
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0. See the LICENSE and NOTICE
+ * files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ────────────────────────────────────────────────────────────────────────
+ * THE one canonical escaper for every untrusted-string → innerHTML sink in the
+ * suite (SECURITY-REMEDIATION F1/F2/F3). Escapes & < > " ' → entities; null/
+ * number-safe. Loaded FIRST in each app shell so any later module can call it
+ * (OxyDex's oxydex-util `escHTML` delegates here — one implementation, no per-app
+ * copies). A crafted capture filename (e.g. `<img src=x onerror=…>.csv`) must
+ * render as inert TEXT, never execute, in the origin that holds the user's
+ * profile + cached recording.
+ * ════════════════════════════════════════════════════════════════════════ */
+(function (root) {
+  'use strict';
+  function escapeHTML(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  root.escapeHTML = escapeHTML;
+  root.DexEsc = { escapeHTML: escapeHTML };
+  if (typeof module !== 'undefined' && module.exports) module.exports = { escapeHTML: escapeHTML };
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+
+</script>
 <script data-inline-src="clock.js">
 /*
  * clock.js — Tepna
@@ -8384,7 +8416,7 @@ function runFusion(recs, opts) {
   if (periodicBreathing && periodicBreathing.blocks) {
     periodicBreathing.blocks.forEach(function (b) {
       findings.push({
-        tMs: b.t0Ms != null ? b.t0Ms : startMs || 0,
+        tMs: b.t0Ms != null ? b.t0Ms : (startMs ?? null),
         type: 'periodic_breathing',
         conf: b.conf,
         nodes: b.observerNodes,
@@ -12374,7 +12406,7 @@ const MotionDex = window.MotionDex;
       var n = done[i];
       if (!n.selfAg) continue;
       maes.push(n.selfAg.mae);
-      row(tb, [n.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''), n.ref.nBreaths, fmt(A.median(n.ref.periods)), '<b>' + fmt(n.selfAg.mae) + '</b>', fmt(n.selfR, 3)]);
+      row(tb, [escapeHTML(n.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '')), n.ref.nBreaths, fmt(A.median(n.ref.periods)), '<b>' + fmt(n.selfAg.mae) + '</b>', fmt(n.selfR, 3)]);
     }
     /* The figure is drawn from the SAME rows the table just rendered (residue
        2026-09-20-sibling-papers-have-no-figure-source) — one dataset, two renderings. */
@@ -12403,8 +12435,10 @@ const MotionDex = window.MotionDex;
        `0260611_173042_ACC.txt`. Measured 2026-09-05 on a 49-night run: 17 rows, a third of the table,
        could not be joined back to the file that produced them — which is exactly what the cohort
        manifest (`2026-09-02-papers-cohort-never-recorded`) exists to make possible. */
+    /* The name is an UPLOADED FILENAME and `row()` cells carry markup by design, so the escape
+       belongs here — once, covering both call sites — rather than at the sink. */
     var nightLabel = function (name) {
-      return name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '');
+      return escapeHTML(name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''));
     };
     for (i = 0; i < done.length; i++) {
       var d = done[i];

@@ -111,7 +111,9 @@ def visibility(records: list[dict], target: str) -> dict:
     want = target.upper()
     stats: dict[str, dict] = {}
     for rec in records:
-        for adapter, info in rec.get("adapters", {}).items():
+        # `adapters: null` is a record whose key EXISTS with no value — `.get(k, {})` returns the None, not the
+        # default. Hypothesis found it 2026-10-10 (VIGIL-GPS-STRATUM1 gate run); an absent map is an empty one.
+        for adapter, info in (rec.get("adapters") or {}).items():
             st = stats.setdefault(
                 adapter, {"scans_ok": 0, "scans_failed": 0, "seen": 0, "rssi": [], "devices_seen": []}
             )

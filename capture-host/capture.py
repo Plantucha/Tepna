@@ -6255,7 +6255,7 @@ async def run_oxyii(dev: dict, root: str):
                 await _gatt_record_rail(client, addr, name)
                 await _bounded_setup(client.write_gatt_char(wch, oxyii.auth_frame(), response=False))  # 0xFF
                 await asyncio.sleep(0.6)  # the reply's settle window — it arrives on `nch`, not here
-                # ── THE ENCRYPTION DECISION, PRIMARY (SomnoTrace-class item (c)) ──────────────────
+                # ── THE ENCRYPTION DECISION, PRIMARY (reference-implementation-class item (c)) ──────────────────
                 # `classify_auth_reply` shipped unwired: the reply it exists to read was never read.
                 # It is now the FIRST-CLASS answer, and the two older signals are what they always
                 # said they were — `frame_looks_like_ciphertext` calls itself "probabilistic,
@@ -12363,7 +12363,7 @@ def _either_busy(primary, also=None):
     return lambda: bool(primary()) or bool(also())
 
 
-def _build_cpap_pairer(cfg: dict, config_path: str, cpap_ctl, *, connect=None, on_paired=None):
+def _build_cpap_pairer(cfg: dict, config_path: str, cpap_ctl, *, connect=None, on_paired=None, scan=None, radios=None):
     """Assemble the AS11 pairing session from config — PURE wiring like _build_cpap_controller: the
     creds path, radio and interactive timeout are resolved here; the bleak connect is the only I/O edge.
     The session refuses while the live stream is busy (one link), defaults a re-pair to the address the
@@ -12373,24 +12373,55 @@ def _build_cpap_pairer(cfg: dict, config_path: str, cpap_ctl, *, connect=None, o
     cbs = (cfg.get("cpap", {}) or {}).get("ble_stream", {}) or {}
     creds_path = resolve_creds_path(cbs.get("creds_path"), config_path)
     hci = cbs.get("adapter", "hci1")
-    interactive_timeout = float(cbs.get("connect_timeout_sec", 8.0))
-    if connect is None:  # pragma: no cover — the bleak I/O edge, mirrors _build_cpap_controller
+    # The reference implementation's 30 s, not the 8 s this used to be. The person is standing at the machine with its
+    # Connect screen open, and BlueZ may first have to DISCOVER a device it has no object for (measured
+    # 2026-10-10: after an Unpair no adapter on vigil knew the AS11 at all) — 8 s was a fast "not found"
+    # for a device that was there. `pair_connect_timeout_sec` overrides; `connect_timeout_sec` is the
+    # stream's and is no longer borrowed for pairing.
+    pair_timeout = float(cbs.get("pair_connect_timeout_sec", PAIR_CONNECT_TIMEOUT_S))
+    if connect is None:  # the decisions live here (which radio, absent radio, timeouts); bleak is one call down
 
-        async def connect(ble_addr):
+        async def connect(ble_addr, adapter=None):
             import as11_link_guard
+            import as11_pair as _P
 
             async def _open():
-                # Same discovery failover the shadow uses: a renumbered dongle must not read as "CPAP
-                # absent" to the person standing at the machine with its pairing screen open.
-                got, _adapter, _attempts = await _cpap_connect_any_adapter(
-                    ble_addr, hci, interactive_timeout, reserved=ADAPTER
+                # ONE RADIO, as the reference implementation uses: the operator's choice, else the configured pin — never a
+                # failover onto a sibling mid-pairing, which is how a key could be made on a radio the
+                # panel did not name. A MAC is resolved to its current hciN; an absent one REFUSES here
+                # instead of falling back to BlueZ's default adapter.
+                radio = adapter or hci
+                h = await _resolve_cpap_adapter(radio)
+                if h is None:
+                    raise OSError(f"radio {radio} is not present on this box")
+                return await _cpap_ble_connect(
+                    ble_addr,
+                    h,
+                    pair_timeout,
+                    recv_timeout=_P.START_REPLY_TIMEOUT_S,
+                    pairing_reads=True,
                 )
-                return got
 
             # FAILS FAST, and for the person at the machine that is the BETTER answer: `LinkBusy` names
             # the holder immediately, so the pairing screen can say which actor is in the way rather than
             # hanging on a queue whose outcome they cannot see.
             return await as11_link_guard.hold("pairing", _open)
+
+    if scan is None:  # BleakScanner is the one I/O call; the radio choice and the filter are tested
+
+        async def scan(adapter):
+            from bleak import BleakScanner
+
+            h = await _resolve_cpap_adapter(adapter or hci)
+            if h is None:
+                raise OSError(f"radio {adapter or hci} is not present on this box")
+            seen = await BleakScanner.discover(timeout=PAIR_SCAN_S, return_adv=True, bluez={"adapter": h})
+            return _as11_scan_hits(seen.values())
+
+    if radios is None:  # hciconfig, the same listing the failover ladder reads (`list_adapters`)
+
+        async def radios():
+            return _pair_radios(await list_adapters(), hci, ADAPTER)
 
     def default_addr():
         return (_load_as11_creds(creds_path) or {}).get("ble_addr") or cbs.get("ble_addr")
@@ -12408,7 +12439,49 @@ def _build_cpap_pairer(cfg: dict, config_path: str, cpap_ctl, *, connect=None, o
         # said nothing, leaving "which adapter am I pairing to?"
         # unanswerable from the UI (owner, 2026-09-06).
         adapter=hci,
+        scan=scan,
+        radios=radios,
     )
+
+
+#: The reference implementation's scan: active, ~6 s; its connect then waits 30 s.
+PAIR_SCAN_S = 6.0
+PAIR_CONNECT_TIMEOUT_S = 30.0
+_AS11_SERVICE16 = "0000fd56-0000-1000-8000-00805f9b34fb"
+
+
+def _as11_scan_hits(seen) -> list[dict]:
+    """bleak's `(device, advertisement)` pairs → the AirSense 11s among them, strongest first. PURE.
+
+    The reference implementation's match: the local name starts "ResMed" OR the 16-bit service list carries FD56 — EITHER,
+    because the name arrives in the scan RESPONSE and a passive moment may hold only the advert."""
+    hits = []
+    for dev, adv in seen:
+        name = getattr(adv, "local_name", None) or getattr(dev, "name", None) or ""
+        uuids = [str(u).lower() for u in (getattr(adv, "service_uuids", None) or [])]
+        if name.startswith("ResMed") or _AS11_SERVICE16 in uuids:
+            hits.append({"addr": dev.address, "name": name or None, "rssi": getattr(adv, "rssi", None)})
+    # ∅ an unknown RSSI sorts LAST, never as a number it was not
+    return sorted(hits, key=lambda h: (h["rssi"] is None, -(h["rssi"] or 0)))
+
+
+def _pair_radios(adapters, configured, reserved) -> list[dict]:
+    """hciconfig's controllers, each marked as the CPAP's configured radio and/or the WEARABLES radio
+    (top-level `adapter:`), which pairing should not take. PURE. `configured` may be an hciN name or a
+    MAC, as the config allows both."""
+    out = []
+    for a in adapters:
+        mac = a.get("mac")
+        out.append(
+            {
+                "hci": a.get("hci"),
+                "mac": mac,
+                "up": bool(a.get("up")),
+                "configured": configured in (a.get("hci"), mac),
+                "reserved": bool(reserved) and mac == reserved,
+            }
+        )
+    return out
 
 
 def _maybe_start_as11_shadow(
@@ -13663,7 +13736,41 @@ async def _settle_gatt_chars(client, uuids) -> str:
     )
 
 
-async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.0, *, retry_missing_char: bool = True):
+#: The documented sequence's step 7 (behaviour only): before turning on RX notifications it READS Device Name,
+#: Appearance and three vendor characteristics, in this order, copied from a btmon trace of a working
+#: BlueZ pairing whose author noted the AS11 "appears to be sensitive to the sequence". BlueZ already does
+#: the rest of that trace itself (Client Supported Features, Service Changed CCCD); these reads it does not.
+AS11_PAIRING_READS = (
+    "00002a00-0000-1000-8000-00805f9b34fb",  # Device Name
+    "00002a01-0000-1000-8000-00805f9b34fb",  # Appearance
+    "3d5085ac-d8a2-4a56-8d2e-1dc7508e67bc",
+    "1681c44f-2798-4bfa-b11a-65e9f55c2082",
+    "e5e33ba4-c823-4a86-9b15-1bf2acb27a1c",
+)
+
+
+async def _as11_pairing_reads(client, uuids=AS11_PAIRING_READS) -> str:
+    """Read each characteristic once, in order; return one phrase for the log. BEST-EFFORT — a missing or
+    refused read is recorded, never raised: these exist to reproduce a sequence, not to gate the link."""
+    out = []
+    for u in uuids:
+        try:
+            v = await client.read_gatt_char(u)
+            out.append(f"{u[:8]}={len(v)}B")
+        except Exception as exc:  # noqa: BLE001 — bleak raises non-OSError subclasses
+            out.append(f"{u[:8]}:{type(exc).__name__}")
+    return " ".join(out)
+
+
+async def _cpap_ble_connect(
+    ble_addr: str,
+    hci: str | None,
+    timeout: float = 20.0,
+    *,
+    retry_missing_char: bool = True,
+    recv_timeout: float = 20.0,
+    pairing_reads: bool = False,
+):
     """Open the AS11 link on the FREE radio and return (write, recv_frame, disconnect) for as11_pull.
 
     `retry_missing_char` (keyword, LAST, default on — every caller keeps its signature): when bleak's
@@ -13798,6 +13905,8 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         recorded = await _gatt_record_table(client, ble_addr)
         if recorded:
             log.info("CPAP %s: GATT table recorded — %s", ble_addr, recorded)
+        if pairing_reads:
+            log.info("CPAP %s: pairing reads before notify — %s", ble_addr, await _as11_pairing_reads(client))
         await client.start_notify(_L.GATT_RX, _on_notify)
         # THE REAL ATT MTU, acquired the way pull_session does for the ring. On BlueZ bleak reports a
         # placeholder 23 until a characteristic is acquired, so this link's `mtu_size` read below was
@@ -13848,7 +13957,14 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
                 snapshot,
                 settle or "present in the first snapshot",
             )
-            return await _cpap_ble_connect(ble_addr, hci, timeout, retry_missing_char=False)
+            return await _cpap_ble_connect(
+                ble_addr,
+                hci,
+                timeout,
+                retry_missing_char=False,
+                recv_timeout=recv_timeout,
+                pairing_reads=pairing_reads,
+            )
         raise
     # ∅ After a FAILED acquire BlueZ still reports its placeholder 23, truthy and indistinguishable from a
     # negotiated 23 (ABSENCE-SURVEY 0565efb3f0a7).
@@ -13900,7 +14016,7 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
             await client.write_gatt_char(_L.GATT_TX, frame[i : i + step], response=True)
 
     async def recv_frame():
-        return await asyncio.wait_for(q.get(), 20)
+        return await asyncio.wait_for(q.get(), recv_timeout)
 
     async def disconnect():
         await client.disconnect()

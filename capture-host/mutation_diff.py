@@ -768,7 +768,7 @@ def refutation_corroborated(first_exit, second_exit) -> tuple[bool, str]:
     return True, ""
 
 
-def classify(entries, survivors, killed, generated=()):
+def classify(entries, survivors, killed, generated=(), not_required=(), unchecked=()):
     """Split survivors against the recorded classification.
 
     PURE, so `--selftest` can pin it without running a sweep. `survivors` are dicts carrying `key`;
@@ -790,6 +790,20 @@ def classify(entries, survivors, killed, generated=()):
     # residue `2026-09-29-survivor-printer-splits-a-key-on-its-own-separator`, met here by writing a
     # line that walks into it. A line whose survivors cannot be read is a line nobody can drain.
     gen = set(generated)
+    # 🔴 THE KEYS THIS RUN DECIDED NOT TO REQUIRE, which is a THIRD state and was being read as a
+    # missing measurement. A survivor whose diff is string-only (or empty) is dropped from `survivors`
+    # on purpose — it is excluded, not unmeasured — but a registered claim naming it then matched
+    # neither `surv` nor `kills`, fell through to `not_decided`, and REFUSED the whole run: exit 2 over
+    # a mutant the gate itself had chosen not to require. Measured 2026-10-11 on #3395: of four claims
+    # on `loss_audit._has_worn_evidence`, the two the scan calls `string-only` (`"utf-8"` -> `"UTF-8"`,
+    # `rstrip("\n")` -> `rstrip("XX\nXX")`) were exactly the two refused, while the other two came back
+    # `required`, reached `surv` and were excused normally. mutmut had settled all 67 of that function's
+    # mutants and `mutmut results` reported all four as `survived`, so nothing was unmeasured at all.
+    not_req = set(not_required)
+    # Keys still without a result AFTER one isolated run. Deterministically unchecked, which is a
+    # measurement about the GATE and not about the entry — so it is counted and named, never a refusal
+    # (nothing is wrong) and never a PASS (nothing was shown).
+    unchk = set(unchecked)
     out = {
         "excused": [],
         "real_gap": [],
@@ -798,6 +812,8 @@ def classify(entries, survivors, killed, generated=()):
         "unclassified": [],
         "unproven": [],
         "not_decided": [],
+        "claimed_not_required": [],
+        "claimed_unchecked": [],
     }
     claimed = set()
     for e in entries or []:
@@ -814,6 +830,23 @@ def classify(entries, survivors, killed, generated=()):
                 out["real_gap"].append(e)  # recorded debt, still fails
         elif k in kills:
             out["refuted"].append(e)  # a CORROBORATED kill: a distinguishing input does exist
+        elif k in unchk:
+            out["claimed_unchecked"].append(
+                dict(
+                    e,
+                    why="generated, and still no result after one isolated run — the gate could not check it, which says nothing about the claim",
+                )
+            )
+        elif k in not_req:
+            # COUNTED AND NAMED, never a refusal and never a silent pass. The claim is not evidence of
+            # anything here and needs none: the mutant was excluded from the required set before any
+            # equivalence question arose, so there is nothing for the entry to excuse.
+            out["claimed_not_required"].append(
+                dict(
+                    e,
+                    why="the mutant is excluded from the required set (string-only or empty diff), so this claim excused nothing in this run",
+                )
+            )
         elif k in gen:
             out["not_decided"].append(
                 dict(e, why="mutant not decided in this run — generated, never settled, so it is unmeasured")
@@ -1817,7 +1850,24 @@ EXCLUSIONS_SCHEMA = "tepna.mutation-exclusions/1"
 # that can never fire is the stale-key hazard `test_every_declared_key_names_a_function_that_EXISTS`
 # was written to catch. Their measurements are not lost — they are the module entry's evidence, both
 # cited in its `cost.source`, which is the honest place for them.
-EXCLUSION_BOUND = 1
+EXCLUSION_BOUND = 2
+
+# ── A MODULE KEY IS AN OWNER-NAMED ALLOWLIST, NEVER A COUNT ────────────────────────────────────────
+# The owner ruled ONE module-level declaration on 2026-10-03 (`capture.py`) and authorized a SECOND on
+# 2026-10-11 (`webmon.py`, whose `make_app` factory is one 1,791-line function carrying 57 nested
+# handlers, so every handler edit scopes the whole module and generation does not finish in CI).
+#
+# 🔴 THE LIMIT IS THE NAMES, NOT THE NUMBER, and the difference is the whole policy. A bound of two
+# says "two modules are declarable" and lets ANY module take the second slot — which is the general
+# permission the one-module rule was written to withhold, arriving by arithmetic instead of by ruling.
+# Naming them keeps the fence exactly as narrow as the two rulings: a third module key refuses, and so
+# does a module key for any module not named here, including as the FIRST entry in an empty file.
+# Each value is the date the owner authorized that module, so the entry and the ruling cannot drift
+# apart silently.
+MODULE_KEYS_AUTHORIZED = {
+    "capture.py": "2026-10-03",
+    "webmon.py": "2026-10-11",
+}
 
 # A cost is only a cost if you can get back to how it was obtained. `run` is a CI run/job, `local` a
 # named local measurement with its host, `sizes` a row of tools/mutation-sizes.json.
@@ -1849,7 +1899,6 @@ def parse_exclusions(text: str) -> dict[str, dict]:
     if not isinstance(raw, dict):
         raise ValueError("`exclusions` must be an object of key -> entry")
     out: dict[str, dict] = {}
-    modules_declared = 0
     for key, e in raw.items():
         if not isinstance(e, dict):
             raise ValueError(f"{key}: entry must be an object")
@@ -1885,26 +1934,43 @@ def parse_exclusions(text: str) -> dict[str, dict]:
                 raise ValueError(f"{key!r} is neither a `module.py::function` key nor a `module.py` module")
             if scope != "module":
                 raise ValueError(f"{key!r} is a module key but declares `cost.scope` {scope!r}")
-            for field in ("generatedBytes", "statsPassSec"):
-                if not cost.get(field):
-                    raise ValueError(
-                        f"{key}: a module key needs `cost.{field}` — the module-level claim is only as "
-                        "good as the two numbers behind it"
-                    )
-            modules_declared += 1
-            if modules_declared > 1:
+            if not cost.get("generatedBytes"):
                 raise ValueError(
-                    "more than one MODULE key declared — the owner ruled ONE module-level declaration "
-                    "(2026-10-03); a second one is a policy change, not an entry"
+                    f"{key}: a module key needs `cost.generatedBytes` — the module-level claim is only "
+                    "as good as the numbers behind it"
+                )
+            # ── THE TIME NUMBER NAMES *WHICH* PHASE RAN OUT, and the two are not interchangeable ────
+            # `statsPassSec` was the only accepted form because `capture.py` is bound by the traced
+            # stats pass: generation finishes in under a second there and the cost is all downstream.
+            # `webmon.py` fails EARLIER — mutant GENERATION does not finish, killed at its own cap — so
+            # it has no stats pass at all, and never will until generation completes once.
+            #
+            # 🔴 WRITING 3496 INTO `statsPassSec` WOULD BE A MEASUREMENT OF ONE PHASE FILED AS ANOTHER:
+            # the number is real, and the field would make it a lie (§∅ — a value that was not measured
+            # is absent, and "absent" includes "measured, but about something else"). So a module key
+            # satisfies the time requirement with EITHER phase's number, and must carry one: a cost
+            # with no time at all is an assertion.
+            if not (cost.get("statsPassSec") or cost.get("generationCapSec")):
+                raise ValueError(
+                    f"{key}: a module key needs `cost.statsPassSec` (bound by the traced stats pass) "
+                    "or `cost.generationCapSec` (bound by mutant generation) — one of the two phases "
+                    "has to be the measured one, and which it is belongs in the entry"
+                )
+            if key not in MODULE_KEYS_AUTHORIZED:
+                _named = ", ".join(f"{k} ({d})" for k, d in sorted(MODULE_KEYS_AUTHORIZED.items()))
+                raise ValueError(
+                    f"{key!r} is a MODULE key that no owner ruling names — the authorized set is "
+                    f"{_named}. A further module-level exclusion is a policy change, not an entry"
                 )
         for field in ("reason", "declaredAt"):
             if not e.get(field):
                 raise ValueError(f"{key}: missing `{field}` — an exclusion with no {field} is an excuse")
         out[key] = e
     # The bound is checked LAST, on purpose. With the bound at 1 it fired FIRST and masked the
-    # one-module-key rule: `test_only_ONE_module_key_may_exist` got a bound error, so the rule it meant
+    # module-key rule: `test_only_ONE_module_key_may_exist` got a bound error, so the rule it meant
     # to pin went unexercised. A rule verified only while another rule happens not to shadow it is not
-    # verified. Per-entry errors are also the more actionable diagnostic — "you added a second module
+    # verified. (The bound is now 2 and the module rule is an allowlist by NAME, so the two no longer
+    # overlap at all — but the ordering stays, because the masking was a property of the ordering.) Per-entry errors are also the more actionable diagnostic — "you added a second module
     # key" says what to do, where "you exceeded the bound" invites raising the bound.
     if len(out) > EXCLUSION_BOUND:
         raise ValueError(

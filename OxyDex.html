@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="2baf167b510d" data-compute-hash="c661c8faa093">
+<html lang="en" data-manifest-hash="b5f434f4af23" data-compute-hash="df33b5858d96">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DH1o/DCVLuenKmO0nXIpIgX/vUJ4YX6TGXhpe5Klizw=' 'sha256-EzbmpFAalNFZ0uGkU1UdFTZ68KkrArtyJHUgQqfiM3o=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HH5FwSXNLBdSkDNrEcyg65q+C2Nv18twPHB0MDQhSH0=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hyHUnl79y3EK1oU6Dk49G1rar+c/nBJRNj3bNerVQrY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-q3fbsCiRxMsOlzzG0cHHJmvqgXroNQL71oi7nOTW0uA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DH1o/DCVLuenKmO0nXIpIgX/vUJ4YX6TGXhpe5Klizw=' 'sha256-EzbmpFAalNFZ0uGkU1UdFTZ68KkrArtyJHUgQqfiM3o=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-lWdrdYsVuV4Js57L0x2dyuuYXDcbI0ZoTV6L+H5iCX4=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>OxyDex — Nocturnal Oximetry Analyzer · v2.17.0</title>
+<title>OxyDex — Nocturnal Oximetry Analyzer · v2.18.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -6127,7 +6127,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
     <div>
       <div class="logo-title">OxyDex</div>
-      <div class="logo-sub">v2.17.0 · Tepna</div>
+      <div class="logo-sub">v2.18.0 · Tepna</div>
     </div>
   </div>
   <hr class="sidebar-logo-rule">
@@ -6167,7 +6167,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">OxyDex <span class="version-badge">v2.17.0</span></div>
+    <div class="topbar-title">OxyDex <span class="version-badge">v2.18.0</span></div>
     <div class="topbar-sub" id="topbarSub">Nocturnal oximetry · SpO₂ · HR · HRV · 75+ metrics · Tepna</div>
   </div>
   <div class="topbar-actions">
@@ -7410,6 +7410,18 @@ function csvSafe(v) {
     s = '"' + s.replace(/"/g, '""') + '"';
   }
   return s;
+}
+// ── csvNum: §∅ — an absent NUMBER is an EMPTY FIELD, never the text "null" ──
+/* A CSV cell has no `null`, so absence is the empty field — the convention `exportCSV` already used for
+   `Motion (%)` and `Post-Dip HR Response` while three quarters of its fields concatenated the value
+   raw. Raw concatenation printed the literal text `null` for every honestly-absent metric, which reads
+   as data to a spreadsheet and to anyone who opens one.
+   ⚠️ NOT `csvSafe`, deliberately: that function exists to defuse Excel formula injection and prefixes
+   anything starting with `-` with a TAB, so a legitimately negative metric would arrive as "\t-3.2".
+   This one is for numbers: absent ⇒ '', otherwise the number unchanged. A real 0 is a number and
+   prints as 0 — only an unmeasured value is blank. */
+function csvNum(v) {
+  return v == null || typeof v !== 'number' || !isFinite(v) ? '' : v;
 }
 // ── sanitizeFname: strip HTML-dangerous chars from filenames ──
 function sanitizeFname(s) {
@@ -13743,13 +13755,44 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
          motion 0 — "still" — at the ~20 consumers that read `motion === 0` as stillness. It is null, which
          satisfies neither `> 0` nor `=== 0`; only a genuinely written 0 reads 0. */
       var mStr = motionCol >= 0 && motionCol < p.length ? p[motionCol].trim() : null;
-      if (!sStr || sStr === '- -' || sStr === '--' || sStr === '') continue;
-      var spo2 = parseInt(sStr, 10),
-        hr = parseInt(hStr, 10),
+      /* 🔴 §∅ — AN ABSENT SpO₂ CELL NULLS THE READING; IT DOES NOT DELETE THE ROW. This used to
+         `continue`, so the row never existed: `nTotal` counted only survivors and a gapped night
+         reported FULL coverage of a SHORTENED recording. Measured on the committed fixture
+         `synthetic_oxydex_o2ring_gap.csv` — 7200 data rows, 1800 with a blank or dash Oxygen Level —
+         parseCSV returned 5400 and `nMeasured/nTotal` could only ever be 5400/5400. The #3321
+         accounting was honest only for absences that SURVIVE parsing; a consumer cannot null what the
+         parser already erased.
+         This is the treatment the MOTION column in this same loop already gets, for the same reason
+         ("an absent reading is neither moving nor still"): the cell's absence travels as `null`, and
+         the timestamp, pulse and motion the row DOES carry are kept.
+         ⚠️ THE DROP RULES BELOW ARE UNCHANGED, and the conditions are split rather than relaxed: an
+         unparseable or out-of-range SpO₂ is still rejected, and so is a bad pulse. A row whose SpO₂ is
+         absent is not a row whose SpO₂ is wrong, and widening this fix into the sanity checks would
+         start admitting bad data in the name of absence. */
+      /* ⚠️ THE PULSE COLUMN NEEDS THE SAME SPLIT, and measurement is why. The device writes `- -` in
+         BOTH columns during a gap: all 1800 gap rows of `synthetic_oxydex_o2ring_gap.csv` carry
+         `'- -','- -'`. So nulling SpO₂ alone changed NOTHING — `isNaN(hr)` deleted the identical rows
+         one line later, and parseCSV still returned 5400 of 7200. An absence fix that stops one line
+         short of the data's actual shape is not a partial fix; it is no fix, and it would have shipped
+         looking like one. */
+      var _absent = function (v) {
+        return !v || v === '- -' || v === '--' || v === '';
+      };
+      var _spo2Absent = _absent(sStr),
+        _hrAbsent = _absent(hStr);
+      var _sv = _spo2Absent ? null : parseInt(sStr, 10),
+        _hv = _hrAbsent ? null : parseInt(hStr, 10),
         _mv = mStr == null || mStr === '' ? NaN : parseInt(mStr, 10),
         motion = isNaN(_mv) ? null : _mv;
-      if (isNaN(spo2) || isNaN(hr)) continue;
-      if (spo2 < 50 || spo2 > 100 || hr < 20 || hr > 250) continue; // sanity check
+      /* UNPARSEABLE AND OUT-OF-RANGE STILL DROP THE ROW. `'zz'` is not an absence — it is a reading
+         the file claims to have and we cannot read, and admitting it as `null` would let bad data in
+         through the door absence opened. The conditions are split, never relaxed. */
+      if (!_spo2Absent && !Number.isFinite(_sv)) continue;
+      if (!_hrAbsent && !Number.isFinite(_hv)) continue;
+      if (_sv != null && (_sv < 50 || _sv > 100)) continue; // sanity check
+      if (_hv != null && (_hv < 20 || _hv > 250)) continue; // sanity check
+      var spo2 = _sv,
+        hr = _hv;
       // Perfusion index (§4 Phase 1): present only on the OXYFRAME sidecar. `pi_pct` = 0 is the ring's
       // "no perfusion reading" sentinel, NOT a real 0 % — treat it as ABSENT (null), never as a value
       // (mirrors the SpO₂ '- -' handling above). A comma file has no pi column ⇒ piCol < 0 ⇒ null.
@@ -13792,7 +13835,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   // OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2 (2026-07-03): trim a device warm-up / cool-down PLACEHOLDER
   // block from the edges BEFORE any metric reads the rows. Runs first in processNight — same class of
-  // action as parseCSV already dropping the device's '- -' no-reading rows (a non-signal edge block,
+  // action as parseCSV NULLING the device's '- -' no-reading rows (a non-signal edge block,
   // not real data). The O2Ring holds a byte-frozen (SpO2,HR) placeholder (observed 84/100, motion 0)
   // until the optical perfusion lock, then the true signal starts with an abrupt lock-on step. Left in,
   // that block (a) pins cleanArtifactHR's baseline to the bogus 100 → runaway clamp, and (b) donates a
@@ -13806,7 +13849,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   //   BOUNDED      — never past WARMUP_MAX_SEC, never below a 60-row floor.
   // Returns {head, tail} counts and mutates `rows` in place so every downstream reader — cleanArtifactHR,
   // computeStats, t0Ms — sees the true signal start. Symmetric tail guard is belt-and-suspenders (this
-  // night's cool-down is '- -' rows already dropped by parseCSV); it fires only on a frozen low block
+  // night's cool-down is '- -' rows now carried as null by parseCSV); it fires only on a frozen low block
   // entered via an abrupt step DOWN, so genuine stable-sleep flat tails are kept.
   function trimSensorWarmup(rows) {
     var n = rows.length;
@@ -13835,9 +13878,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var head = 0,
       hlen = frozenRunLen(0, +1);
     if (hlen >= MIN && hlen <= MAX && hlen < n) {
-      var dS = rows[hlen].spo2 - rows[hlen - 1].spo2; // SpO2 step up = perfusion lock
-      var dH = Math.abs(rows[hlen].hr - rows[hlen - 1].hr);
-      if (dS >= SPO2_STEP || dH >= HR_STEP) head = hlen;
+      /* A STEP NEEDS BOTH SAMPLES. `null - 95` is -95 and `95 - null` is 95 — either invents a step
+         far past the threshold and would trim a head that was never shown to lock on. No step is
+         detectable across a hole, so none is claimed. */
+      var _a = rows[hlen],
+        _b = rows[hlen - 1];
+      if (_has(_a.spo2) && _has(_b.spo2) && _has(_a.hr) && _has(_b.hr)) {
+        var dS = _a.spo2 - _b.spo2; // SpO2 step up = perfusion lock
+        var dH = Math.abs(_a.hr - _b.hr);
+        if (dS >= SPO2_STEP || dH >= HR_STEP) head = hlen;
+      }
     }
 
     // ── TAIL: frozen run ending at the last row, ENTERED via an abrupt step down ──
@@ -13846,8 +13896,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (tlen >= MIN && tlen <= MAX && tlen < n - head) {
       var pre = rows[n - 1 - tlen],
         first = rows[n - tlen];
-      var dS2 = pre.spo2 - first.spo2; // step DOWN into placeholder
-      var dH2 = Math.abs(pre.hr - first.hr);
+      // Same rule as the head: a step into the placeholder run is only a step if both ends were read.
+      var _tailOk = _has(pre.spo2) && _has(first.spo2) && _has(pre.hr) && _has(first.hr);
+      var dS2 = _tailOk ? pre.spo2 - first.spo2 : 0; // step DOWN into placeholder
+      var dH2 = _tailOk ? Math.abs(pre.hr - first.hr) : 0;
       if (dS2 >= SPO2_STEP || dH2 >= HR_STEP) tail = tlen;
     }
 
@@ -13888,6 +13940,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var MAX_RUN = CFG.HR_ARTIFACT_MAX_RUN_SEC; // O2Ring is ~1 Hz, so this doubles as a sample count
     var i = 1;
     while (i < n) {
+      /* An artifact is a STEP in HR. Across a hole the subtraction invents one the size of the present
+         sample, which would flag a clean night as artifactual and then scan forward for a recovery
+         that never happened. The pair is skipped; the next pair is judged on its own. */
+      if (!_has(rows[i].hr) || !_has(rows[i - 1].hr)) {
+        i++;
+        continue;
+      }
       var rise = rows[i].hr - rows[i - 1].hr;
       var isHard = Math.abs(rise) >= HARD; // catch both sudden rises AND drops
       var isSoft = false;
@@ -13902,7 +13961,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         // For rises: recover when HR returns within RECOV of baseline
         // For drops: recover when HR returns within RECOV of baseline (above baseline-RECOV)
         var isRise = rise > 0;
-        while (j < n && j - i < MAX_RUN && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) {
+        /* 🔴 MISSED BY #3427 AND IT FABRICATES — found by re-counting the sites on main after that PR
+           merged, not by reading the diff. The DROP branch tests `rows[j].hr < baseline - RECOV`, and
+           `null < baseline - RECOV` is TRUE, so the recovery walk stepped THROUGH every hole and
+           extended the artifact run — cleaning real heart rate either side of a dropout as though it
+           were one long artifact. The walk now stops at a hole: the run is as long as it was observed
+           to be, which is the same rule the head/tail step guards follow. */
+        while (j < n && j - i < MAX_RUN && _has(rows[j].hr) && (isRise ? rows[j].hr > baseline + RECOV : rows[j].hr < baseline - RECOV)) {
           j++;
         }
         if (j - i >= MAX_RUN) {
@@ -13973,14 +14038,43 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // ── SpO2 Pattern ───────────────────────────────────────────────
 
   // CT<94: cumulative seconds and % below 94% SpO2
+  /* ── §∅ · THE PRESENCE TEST THE 13 GUARDS SHARE ────────────────────────────────────────────────
+     Since 2026-10-11 a row carries `spo2`/`hr` as `null` when the device wrote its `'- -'` no-reading
+     (#3408), so every comparison and delta over a row value needs one. `OXYDEX-SPO2-SERIES` states the
+     contract these consumers must honour: "a second the device never reported is `null` — not `0`,
+     which reads as the most severe desaturation physically possible, and not the previous value, which
+     reads as stable oxygen."
+     🔴 THE COERCION DIRECTION DECIDES THE SEVERITY, and it is worth stating once rather than at each
+     site: `null` becomes 0, so `null < threshold` is TRUE and FABRICATES a low reading, while
+     `null > threshold` is FALSE and merely UNDER-COUNTS. Both are guarded below; the first class is
+     why this unit exists.
+     Two REMEDIES, chosen per site and never interchangeably:
+       · a DELTA across a hole is not a delta — skip the pair (`frozenRunLen`'s step, `cleanArtifactHR`,
+         `computeHRAsymmetry`). A subtraction with one absent operand invents a step the size of the
+         present value.
+       · a RUN across a hole is not a run — BREAK it (`detectOscillations`, `computeSpO2Ceiling`,
+         `detectSpikes`' sustain, the spike recovery walks). Skipping would silently join two runs
+         either side of a dropout and report one longer event, which is the owner's 2026-09-17 ruling:
+         a discontinuity refuses, reduced coverage annotates. */
+  const _has = (v) => v != null && isFinite(v);
+
   function computeCT94(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var ct94s = 0;
+    var ct94s = 0,
+      measured = 0;
     for (var i = 0; i < n; i++) {
+      // §∅ — same defect as `computeCTprecise` above: `null < 94` is TRUE, so every absent second
+      // counted as time below 94 %. Latent until #3408 carried the absent rows; see that comment.
+      if (rows[i].spo2 == null || !isFinite(rows[i].spo2)) continue;
+      measured++;
       if (rows[i].spo2 < 94) ct94s++;
     }
-    return { ct94Sec: ct94s, ct94Pct: +((ct94s / n) * 100).toFixed(2) };
+    /* THE DENOMINATOR IS MEASURED SECONDS, not rows. `n` is `rows.length`, which equalled the measured
+       count only while absences were deleted — the same accident ODI's denominator relied on (#3408).
+       With absences carried, dividing by `n` under-reports the percentage by the dropout fraction.
+       Null when nothing was measured: a percentage of no measurements is not 0 %. */
+    return { ct94Sec: ct94s, ct94Pct: measured > 0 ? +((ct94s / measured) * 100).toFixed(2) : null };
   }
 
   // SpO2 dip and recovery slopes + MODL + desaturation clustering
@@ -15707,8 +15801,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var pulseSeries = rows.map(function (r) {
       return r.hr;
     });
-    var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, rows.length, blArr);
-    var odi3 = detectODI(spo2s, 3, rows.length, blArr, pulseSeries);
+    /* 🔴 ANALYZABLE HOURS ARE MEASURED HOURS. This passed `rows.length`, which agreed with the
+       convention ("every rate divides by the measured count", `computeStats`) only BY ACCIDENT while
+       parseCSV deleted absences — the published ODI-4 figures were measured-basis without anything
+       saying so. Carrying absences made the accident visible, so the denominator is now explicit.
+       `_measuredN` counts rows with a finite SpO₂ reading; the row count stays available as
+       `stats.n` for duration and coverage. */
+    var _measuredN = 0;
+    for (var _mi = 0; _mi < rows.length; _mi++) if (rows[_mi].spo2 != null && isFinite(rows[_mi].spo2)) _measuredN++;
+    var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, _measuredN, blArr);
+    var odi3 = detectODI(spo2s, 3, _measuredN, blArr, pulseSeries);
     var hb = computeHypoxicBurden(rows);
     /* NO MOTION READING ANYWHERE ⇒ THE MOTION FAMILY IS ABSENT, NOT ZERO (DA-V §2.3 F15).
        The parse boundary now yields `null` for a device that wrote no Motion column at all. That is
@@ -15738,7 +15840,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // clinically honest "per hour of analyzable recording" denominator, and the one every other ODI-family
       // site already uses. Inert on the current corpus (the O2Ring drops ~0 samples); a real finger-off or a
       // sparse-cadence oximeter would surface it. Gated by a committed gap+artifact synthetic twin.
-      odi4.rate = +(odi4.count / Math.max(rows.length / 3600, 0.01)).toFixed(1);
+      odi4.rate = +(odi4.count / Math.max(_measuredN / 3600, 0.01)).toFixed(1);
       odi4.artifactExcluded = desat.artifactCount;
     }
     // OXYDEX-NADIR-HONESTY (RUNAWAY-FIX-FOLLOWUPS §1/§2): route the HEADLINE nadir through the artifact
@@ -16086,7 +16188,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        summed it as 0 and divided by ALL rows (a night with 20 % dropouts under-read its mean SpO2 by
        20 %); `v < 95` is TRUE for null, so every absent second counted as a desaturated one and T95/T90
        were inflated by the dropout fraction; and `Math.min/max.apply` read it as 0. `parseCSV` drops
-       invalid rows, so the O2Ring CSV path never carried a null here — the NSRR adapter (`to1Hz` →
+       invalid rows — but since 2026-10-11 it CARRIES the device's `'- -'` no-reading rows as null, so the
+       O2Ring CSV path reaches this block with nulls too; the NSRR adapter (`to1Hz` →
        null), the self-ingest path and any SignalFrame do, and the SHHS lane's published T90 came
        through this block. Residue 2026-09-13-oxydex-stats-block-absence-to-number, primary-builder half.
        `spo2`/`hr` are now the MEASURED samples; `n` stays the row count for the duration/coverage
@@ -16202,6 +16305,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           : null;
       })(),
       n: n,
+      /* NEW FIELD, not a changed one (back-compatible per §🧪): `n` remains the ROW count for the
+         duration and coverage arithmetic, and `nSpo2` is the MEASURED count — the denominator this
+         file's own convention already names ("every rate below divides by the measured count").
+         Before 2026-10-11 the two were equal on the O2Ring CSV path BY ACCIDENT, because parseCSV
+         deleted every absent row; carrying absences made the difference real and therefore nameable. */
+      nSpo2: spo2.length,
       startTs: rows.length ? rows[0].tMs : null
     };
   }
@@ -16500,17 +16609,17 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       bl /= Math.max(cnt, 1);
       // Detection trigger: 12-sample lookahead to fire early in the ramp
       var localMax12 = rows[i].hr;
-      for (var j = i; j < Math.min(i + 12, n); j++) if (rows[j].hr > localMax12) localMax12 = rows[j].hr;
+      for (var j = i; j < Math.min(i + 12, n); j++) if (_has(rows[j].hr) && rows[j].hr > localMax12) localMax12 = rows[j].hr;
       var peakRise12 = localMax12 - bl;
       if (localMax12 < CFG.HR_SPIKE_MIN_PEAK || peakRise12 < 20) continue;
       var sustain = 0;
-      for (var j = i; j < Math.min(i + 18, n); j++) if (rows[j].hr >= Math.max(CFG.HR_SPIKE_MIN_PEAK, bl + 12)) sustain++;
+      for (var j = i; j < Math.min(i + 18, n); j++) if (_has(rows[j].hr) && rows[j].hr >= Math.max(CFG.HR_SPIKE_MIN_PEAK, bl + 12)) sustain++;
       if (sustain < 5) continue;
       // Peak reporting: wider 40-sample window so fast-rising spikes aren't under-reported
       var localMax40 = localMax12;
-      for (var j = i + 12; j < Math.min(i + 40, n); j++) if (rows[j].hr > localMax40) localMax40 = rows[j].hr;
+      for (var j = i + 12; j < Math.min(i + 40, n); j++) if (_has(rows[j].hr) && rows[j].hr > localMax40) localMax40 = rows[j].hr;
       var dur = 0;
-      for (var j = i; j < Math.min(i + 30, n); j++) if (rows[j].hr >= CFG.HR_SPIKE_MIN_PEAK) dur++;
+      for (var j = i; j < Math.min(i + 30, n); j++) if (_has(rows[j].hr) && rows[j].hr >= CFG.HR_SPIKE_MIN_PEAK) dur++;
       var mfm = rows[i].t.getUTCHours() * 60 + rows[i].t.getUTCMinutes() + rows[i].t.getUTCSeconds() / 60;
       /* ── FIRMWARE ARTIFACT REJECTION (O2RING-HOURLY-HR-ARTIFACT-2026-08-02) ──────────────────
          A heart cannot accelerate 20 BPM in one second. The vendor (Wellue, 2026-05-14) confirmed a
@@ -16542,7 +16651,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
          published beside the raw one. */
       var onsetRise = 0;
       for (var j = Math.max(1, i - 2); j < Math.min(i + 14, n); j++) {
-        var stepUp = rows[j].hr - rows[j - 1].hr;
+        var stepUp = _has(rows[j].hr) && _has(rows[j - 1].hr) ? rows[j].hr - rows[j - 1].hr : 0;
         if (stepUp > onsetRise) onsetRise = stepUp;
       }
       var secPastHour = rows[i].t.getUTCMinutes() * 60 + rows[i].t.getUTCSeconds();
@@ -16617,6 +16726,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   //   4. those cycle lengths REGULAR (CV < PB_MAX_CYCLE_CV) — §2.3 measured that criteria 1-3 alone
   //      fire on 40/40 red-noise seeds, because a red series crosses its own baseline at intervals
   //      set by its correlation time. A run-length test is not a periodicity test.
+  /* 🔴 §∅: THE MEDIAN IS OVER PRESENT VALUES ONLY. `Array.prototype.sort` with `a - b` coerces `null`
+     to 0, so a window holding dropouts used to sort them to the FRONT and drag the median down —
+     a baseline pulled toward 0 by absence, against which real samples then read as huge positive
+     excursions. A window with nothing present has no baseline: `null`, never a number. */
   function pbRollingMedianBaseline(x, win) {
     var half = win >> 1,
       n = x.length,
@@ -16624,7 +16737,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     for (var i = 0; i < n; i++) {
       var lo = i - half < 0 ? 0 : i - half,
         hi = i + half > n - 1 ? n - 1 : i + half;
-      var seg = x.slice(lo, hi + 1).sort(function (a, b) {
+      var seg = [];
+      for (var k = lo; k <= hi; k++) if (_has(x[k])) seg.push(x[k]);
+      if (!seg.length) {
+        out[i] = null;
+        continue;
+      }
+      seg.sort(function (a, b) {
         return a - b;
       });
       out[i] = seg[seg.length >> 1];
@@ -16639,6 +16758,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       lastSign = 0,
       extreme = 0;
     for (var i = 0; i < spo2.length; i++) {
+      /* 🔴 §∅: an absent sample is NOT a deviation. `null - base` is `-base`, so every dropout used to
+         read as the deepest excursion the trace could hold, closing one half-cycle and opening the
+         next — regularly spaced dropouts in a FLAT trace manufactured a periodic-breathing episode
+         (measured: 1 episode on a 960 s flat trace with a 30 s hole each minute). A hole also closes
+         no excursion: `lastSign`/`extreme` are left untouched, so the crossing on the far side is
+         judged against the last REAL sample, and no crossing is ever claimed at a gap boundary. */
+      if (!_has(spo2[i]) || !_has(base[i])) continue;
       var d = spo2[i] - base[i];
       var s = d > 0 ? 1 : d < 0 ? -1 : 0;
       if (s === 0) continue;
@@ -16741,8 +16867,22 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       runStart = -1;
       curLens = [];
     }
+    /* 🔴 §∅ + the owner's 2026-09-17 ruling (a DISCONTINUITY refuses; reduced COVERAGE annotates):
+       a cycle whose span contains absent samples does not describe ONE continuous stretch of signal,
+       so it cannot be counted toward the regularity of an episode. Guarding the crossings alone is not
+       enough — with no crossing inside a gap, the two real crossings either side merge into one long
+       half-cycle that can still land inside the 40..130 s window, so a dropout would quietly JOIN two
+       oscillating stretches into one longer "episode". The run breaks instead, exactly as an
+       out-of-window cycle breaks it; the stretches either side stand or fall on their own cycles. */
+    var spanHasGap = function (a, b) {
+      var lo = cross[2 * a],
+        hi = cross[2 * b + 2];
+      if (lo == null || hi == null) return true;
+      for (var q = lo; q <= hi && q < spo2.length; q++) if (!_has(spo2[q])) return true;
+      return false;
+    };
     for (var e = 0; e < cycles.length; e++) {
-      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC) {
+      if (cycles[e] >= cfg.PB_CYCLE_MIN_SEC && cycles[e] <= cfg.PB_CYCLE_MAX_SEC && !spanHasGap(e, e)) {
         if (runStart < 0) runStart = e;
         curLens.push(cycles[e]);
       } else closeRun(e - 1);
@@ -16782,8 +16922,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         motion = 0,
         span = Math.max(ep.endIdx - ep.startIdx, 1);
       for (var j = ep.startIdx + 1; j <= ep.endIdx && j < n; j++) {
-        if (rows[j - 1].spo2 >= CFG.SPO2_OSC_THRESHOLD !== rows[j].spo2 >= CFG.SPO2_OSC_THRESHOLD) cross++;
-        if (rows[j].spo2 < CFG.SPO2_OSC_THRESHOLD) below++;
+        /* 🔴 A HOLE USED TO MANUFACTURE TWO CROSSINGS. `null >= 90` is false, so a dropout read as
+           "below" on the way in and the recovery read as a crossing on the way out — fabricated
+           oscillation, in the detector whose output IS the periodic-breathing finding. Both samples
+           must be present for a crossing to be counted, and an absent second is not time below the
+           threshold. */
+        if (_has(rows[j - 1].spo2) && _has(rows[j].spo2) && rows[j - 1].spo2 >= CFG.SPO2_OSC_THRESHOLD !== rows[j].spo2 >= CFG.SPO2_OSC_THRESHOLD) cross++;
+        if (_has(rows[j].spo2) && rows[j].spo2 < CFG.SPO2_OSC_THRESHOLD) below++;
         if (rows[j].motion > 0) motion++;
       }
       // Motion artifact can manufacture a regular-looking trace; reject the episode, not the night.
@@ -17383,7 +17528,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var dip3Rate = durationHr > 0 ? +(dip3Count / durationHr).toFixed(1) : 0;
 
     /* CLOCK: stamp each event with the REAL wall-clock time of its own row (DEEP-AUDIT-2026-07-11 §8).
-       parseCSV DROPS rows (the device's '- -' no-reading, out-of-band values, unparsable stamps), so a row
+       parseCSV DROPS rows (out-of-band values, unparsable stamps — the device's '- -' no-reading is
+       NO LONGER dropped: since 2026-10-11 it is carried with `spo2`/`hr` null, §∅), so a row
        INDEX is not a second-offset — yet both consumers rebuilt event time from the index and disagreed
        with each other AND with the row's own parsed stamp: oxydex-dsp's bus export used t0 + idx·dt (a
        uniform stretch that smears a dropout evenly across the night) and oxydex-fusion used t0 + idx·1000
@@ -17453,10 +17599,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       }
     }
     // (b) opening perfusion-settling ramp
-    if (rows[0].spo2 <= CFG.NADIR_RAMP_START_MAX) {
+    /* 🔴 `null <= 88` IS TRUE, so a night whose first second was not read used to TRIGGER the
+       perfusion-settling ramp, and the walk below (`spo2 < 94`) then stepped through every subsequent
+       hole and masked them all. A ramp is a measured climb; an unread first second is not one. */
+    if (_has(rows[0].spo2) && rows[0].spo2 <= CFG.NADIR_RAMP_START_MAX) {
       var lim = Math.min(n, CFG.NADIR_RAMP_MAX_SEC),
         k = 0;
-      while (k < lim && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;
+      // The walk STOPS at a hole rather than stepping through it: the ramp is the stretch observed to
+      // be climbing, and an unread second is not evidence that it had not recovered yet.
+      while (k < lim && _has(rows[k].spo2) && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;
       if (k > 0 && k < lim) {
         // reached a normal plateau within the window
         var openMin = rows[0].spo2; // require the region to START at (near) its own min
@@ -17553,6 +17704,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var bradyCount = 0,
       bradyRun = 0;
     clean.forEach(function (r) {
+      /* 🔴 §∅ — `null < 40` IS TRUE, so ten consecutive ABSENT seconds manufactured a bradycardia
+         event. Latent until #3408 carried the device's `'- -'` rows; live from the moment it merged.
+         An absence BREAKS the run rather than being skipped: the event is defined as ≥10 CONSECUTIVE
+         low samples, and a gap means the run was not observed to continue — the owner's ruling that a
+         discontinuity refuses while reduced coverage annotates. Skipping would silently join two
+         separate runs across a dropout and invent a longer one. */
+      if (r.hr == null || !isFinite(r.hr)) {
+        bradyRun = 0;
+        return;
+      }
       if (r.hr < 40) {
         bradyRun++;
         if (bradyRun === 10) bradyCount++;
@@ -17563,6 +17724,14 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var tachyCount = 0,
       tachyRun = 0;
     clean.forEach(function (r) {
+      /* The tachycardia counter was NOT fabricating — `null > 100` is false, so an absence already
+         reset the run — but it reset it by ACCIDENT of the coercion direction. Stated explicitly so
+         the two counters read the same way and neither depends on which side of the comparison the
+         coercion happens to fall. */
+      if (r.hr == null || !isFinite(r.hr)) {
+        tachyRun = 0;
+        return;
+      }
       if (r.hr > 100) {
         tachyRun++;
         if (tachyRun === 10) tachyCount++;
@@ -17987,7 +18156,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       }
       if (winLen <= 0) continue;
       var baseline = winSum / winLen;
-      if (rows[i].spo2 <= baseline - 2 && rows[i - 1].spo2 > baseline - 2) count++;
+      /* 🔴 AN INDEX, SO THE FABRICATION IS PUBLISHED. `null <= baseline - 2` is true, so every hole
+         that followed a present second counted as an ODI-2 event. Both samples must be read for a
+         crossing into desaturation to have been observed. */
+      if (_has(rows[i].spo2) && _has(rows[i - 1].spo2) && rows[i].spo2 <= baseline - 2 && rows[i - 1].spo2 > baseline - 2) count++;
     }
     var durationHr = n / 3600;
     return { odi2Count: count, odi2Rate: durationHr > 0 ? +(count / durationHr).toFixed(2) : 0 };
@@ -18320,6 +18492,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var ups = [],
       downs = [];
     for (var i = 1; i < n; i++) {
+      // A hole makes a delta the size of the present sample and pushes it into `ups` or `downs`,
+      // tilting the asymmetry by an amount that is pure coercion. Skip the pair.
+      if (!_has(rows[i].hr) || !_has(rows[i - 1].hr)) continue;
       var d = rows[i].hr - rows[i - 1].hr;
       if (d > 0) ups.push(d);
       else if (d < 0) downs.push(-d);
@@ -18473,7 +18648,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       var s0 = Math.max(0, apxIdx - 300),
         s1 = Math.min(rows.length, apxIdx + 300);
       for (var i = s0; i < s1; i++) {
-        if (rows[i].hr >= sp.peak - 2 && rows[i].hr >= threshold) {
+        // `>=` under-counts rather than fabricating (a hole is never the peak), but it is guarded so the
+        // safety is a decision rather than a coercion that happened to fall the right way.
+        if (_has(rows[i].hr) && rows[i].hr >= sp.peak - 2 && rows[i].hr >= threshold) {
           peakIdx = i;
           break;
         }
@@ -18516,7 +18693,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       if (peakIdx < 0) return;
       var recIdx = peakIdx;
       for (var j = peakIdx + 1; j < Math.min(rows.length, peakIdx + 200); j++) {
-        if (rows[j].hr <= sp.baseline + 1) {
+        /* 🔴 `null <= baseline + 1` IS TRUE, so the first hole after a spike read as the RECOVERY and
+           the decay time was measured to a second nobody recorded. The walk must see a real sample. */
+        if (_has(rows[j].hr) && rows[j].hr <= sp.baseline + 1) {
           recIdx = j;
           break;
         }
@@ -18626,9 +18805,34 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var segs = [],
       segStart = null,
       prev = null;
+    /* 🔴 AN ABSENT READING BREAKS A SEGMENT, exactly as a missing row's time hole used to. This loop
+       segmented on TIME only, which worked because parseCSV DELETED absent rows: a finger-off hole
+       arrived as a gap between stamps. Since those rows are carried (2026-10-11, §∅) the timeline is
+       contiguous, one segment is found, and `segs.length < 2` returned null — so the fix that made
+       absence visible in the parser would have made it INVISIBLE here, silently removing the
+       `recording.coverage` declaration the Integrator's apnea denominator rests on.
+       Breaking on the reading is also the more honest measure: coverage now describes seconds that
+       carry a VALUE, not rows that exist. Verified on the committed gappy twin — 2 segments, ~5398 s
+       recorded inside a ~7199 s envelope, which is what §2.2 already asserted. */
     for (var i = 0; i < rows.length; i++) {
       var t = rows[i] && rows[i].t;
       if (t == null || !isFinite(t)) continue;
+      /* ⚠️ AN ABSENT READING IS NOT A MISSING KEY, and the difference is a published contract. This
+         function is called with bare stamp rows (`{ t }`) as well as with real recording rows, and
+         treating a missing `spo2` property as an absence made EVERY such row break a segment — the
+         40-minute/20-minute-hole unit test went from 2 segments to null. So the break fires only when
+         the row CARRIES an spo2 that is not a number: an explicit `null` from a `'- -'` cell is an
+         absence, while no property at all is a caller that is not declaring SpO₂ coverage. */
+      var _hasSpo2 = Object.prototype.hasOwnProperty.call(rows[i], 'spo2');
+      var _sv = rows[i].spo2;
+      if (_hasSpo2 && (_sv == null || !isFinite(_sv))) {
+        if (segStart !== null && prev !== null) {
+          segs.push([segStart, prev]);
+          segStart = null;
+          prev = null;
+        }
+        continue;
+      }
       if (segStart === null) segStart = t;
       else if ((t - prev) / 1000 > GAP_STEP_SEC) {
         segs.push([segStart, prev]);
@@ -18679,7 +18883,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       totalCeilSec = 0,
       run = 0;
     for (var i = 0; i < n; i++) {
-      if (rows[i].spo2 >= 99) {
+      /* A ceiling RUN. `null >= 99` is false, so a hole already broke it — by coercion, not by
+         intent. Stated explicitly: a second that was not read is not a second at the ceiling. */
+      if (_has(rows[i].spo2) && rows[i].spo2 >= 99) {
         run++;
       } else {
         if (run >= 5) {
@@ -19273,14 +19479,18 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       var searchStart = Math.max(0, approxIdx - 300);
       var searchEnd = Math.min(rows.length, approxIdx + 300);
       for (var i = searchStart; i < searchEnd; i++) {
-        if (rows[i].hr >= sp.peak - 2) {
+        // Also missed by #3427. `>=` under-counts rather than fabricating (a hole is never the peak),
+        // but guarded so the safety is a decision and not the coercion happening to fall the right way.
+        if (_has(rows[i].hr) && rows[i].hr >= sp.peak - 2) {
           peakIdx = i;
           break;
         }
       }
       if (peakIdx < 0) return;
       for (var j = peakIdx + 1; j < Math.min(rows.length, peakIdx + 180); j++) {
-        if (rows[j].hr <= halfTarget) {
+        /* 🔴 `null <= halfTarget` IS TRUE, so the first hole after a spike read as 50 % recovery and
+           the recovery time was measured to an unrecorded second. */
+        if (_has(rows[j].hr) && rows[j].hr <= halfTarget) {
           times.push(j - peakIdx);
           break;
         }
@@ -19406,7 +19616,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Use 5th percentile of motion-free HR as proxy (more robust than absolute min)
     var stillHR = rows
       .filter(function (r) {
-        return r.motion === 0 && r.hr > 30 && r.hr < 120;
+        // `null > 30` is false, so an absent HR is already excluded from the still-HR pool — guarded
+        // explicitly so the exclusion is a decision, not a side effect of the comparison direction.
+        return r.motion === 0 && _has(r.hr) && r.hr > 30 && r.hr < 120;
       })
       .map(function (r) {
         return r.hr;
@@ -19553,7 +19765,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       if (!rows || rows.length < 60) return null;
       var stillHR = rows
         .filter(function (r) {
-          return r.motion === 0 && r.hr > 30 && r.hr < 120;
+          // `null > 30` is false, so an absent HR is already excluded from the still-HR pool — guarded
+          // explicitly so the exclusion is a decision, not a side effect of the comparison direction.
+          return r.motion === 0 && _has(r.hr) && r.hr > 30 && r.hr < 120;
         })
         .map(function (r) {
           return r.hr;
@@ -19969,6 +20183,18 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       ct80 = 0;
     for (var i = 0; i < n; i++) {
       var v = spo2[i];
+      /* 🔴 §∅ — `null < 90` IS TRUE IN JS, so an absent second counted as time below EVERY threshold.
+         Latent until 2026-10-11: `parseCSV` deleted the device's `'- -'` rows, so no null ever reached
+         this loop. #3408 carries them, which made the defect live — measured on the extracted function,
+         150 rows of which 100 were a healthy 97 % and 50 absent reported ct90s/ct89s/**ct80s all 50**:
+         a night with no desaturation publishing fifty seconds below 80 %.
+         The guard is the presence test, not falsiness — a real 0 is impossible here (SpO₂ is range-
+         checked to 50–100 at parse) but the same shape elsewhere must not blank a measured zero, and
+         the siblings in this file already carry it: `computeHypoxicBurden` does `if (v == null)
+         continue` and the t88/t85 block filters `r.spo2 != null` under a comment saying "without the
+         null guard a dropout reads as time in severe hypoxemia". This loop and `computeCT94` were the
+         two the file had missed. */
+      if (v == null || !isFinite(v)) continue;
       if (v < 90) ct90++;
       if (v < 89) ct89++;
       if (v < 88) ct88++;
@@ -28295,7 +28521,13 @@ function exportCSV() {
     lines.push('', 'DEEP ANALYSIS', 'HR Spikes,' + n.spikes.length);
     if (n.spikes.length) lines.push('Spike #,Time,Baseline (bpm),Peak (bpm),Rise (bpm),Duration (s),SpO2 (%)');
     (Array.isArray(n.spikes) ? n.spikes : []).forEach(function (sp, i) {
-      lines.push('Spike ' + (i + 1) + ',' + sp.time + ',' + sp.baseline + ',' + sp.peak + ',' + (sp.peak - sp.baseline) + ',' + sp.duration + ',' + sp.spo2);
+      /* 🔴 §∅ — `null - null === 0` IN JS, so a detail-less spike published a 0 bpm RISE that reads
+         exactly like a measured one: baseline and peak were already honest nulls (#3332, an imported
+         spike with no detail) and the subtraction manufactured a number from two absences. The rise
+         is now computed ONLY when both operands are present, and every numeric cell goes through
+         `csvNum`, so an absent value is an empty field instead of the literal text `null`. */
+      var _rise = typeof sp.peak === 'number' && isFinite(sp.peak) && typeof sp.baseline === 'number' && isFinite(sp.baseline) ? sp.peak - sp.baseline : null;
+      lines.push('Spike ' + (i + 1) + ',' + csvSafe(sp.time) + ',' + csvNum(sp.baseline) + ',' + csvNum(sp.peak) + ',' + csvNum(_rise) + ',' + csvNum(sp.duration) + ',' + csvNum(sp.spo2));
     });
     if (n.period) lines.push('HR Periodicity,' + n.period.pattern + ' avg ' + n.period.avg + 'min');
     if (n.osc) lines.push('Oscillation Windows (5min),' + n.osc.episodeCount);
@@ -28491,13 +28723,13 @@ function exportCSV() {
       lines.push(
         '',
         'ROLLING WINDOW METRICS',
-        '  Worst 10-min SpO2 (%),' + ro.worst10minSpo2,
-        '  Worst 30-min T95 (%),' + ro.worst30minT95,
-        '  SpO2 Stable Windows (5min),' + ro.spo2StableWindows,
-        '  CDI (/hr),' + ro.cdi,
+        '  Worst 10-min SpO2 (%),' + csvNum(ro.worst10minSpo2),
+        '  Worst 30-min T95 (%),' + csvNum(ro.worst30minT95),
+        '  SpO2 Stable Windows (5min),' + csvNum(ro.spo2StableWindows),
+        '  CDI (/hr),' + csvNum(ro.cdi),
         '  Post-Dip HR Response (bpm),' + (ro.postDipHrResponse !== null ? ro.postDipHrResponse : ''),
-        '  HR Decel Runs,' + ro.hrDecelRuns,
-        '  SpO2-HR Decoupling (%),' + ro.spo2HrDecouplingPct,
+        '  HR Decel Runs,' + csvNum(ro.hrDecelRuns),
+        '  SpO2-HR Decoupling (%),' + csvNum(ro.spo2HrDecouplingPct),
         '  Intra-Night NSI (E/M/L),' + (ro.intraNightNSI ? ro.intraNightNSI.join('/') : '')
       );
     }

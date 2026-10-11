@@ -106,7 +106,8 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, unlinkSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { resolveStatePath, sharedStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
@@ -215,9 +216,50 @@ export function readChunk(text, cap = READ_CHARS) {
 
 /* The CLI flags this tool understands, stripped from the query words. Exported so the selftest can
    pin that a flag never leaks into the embedded query (it did once as a token-fallback term). */
-export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code']);
+export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic']);
 export function stripFlags(argv) {
   return (argv || []).filter((a) => !CLI_FLAGS.has(a));
+}
+
+/* ── WHICH LANE ANSWERS (owner ruling 2026-10-11: hybrid is the Rule-0 default) ──────────────────
+   Measured on 52 real Rule-0 queries (XERJ-HYBRID-SEARCH brief §5): hybrid 49/52 against the semantic
+   lane's 43/52, in ~18 ms against ~4 s, returning the passage rather than a path. Three lanes:
+     'hybrid'         the default — try the local index, FALL BACK to the semantic lane if it does not
+                      answer (server down, index unloaded, or cold: measured 27.6 s on the first query
+                      after a unit restart, 75 ms warm) — so the old behaviour is the floor, never lost;
+     'hybrid-strict'  `--hybrid` / `--code` — hybrid or exit 2, for a caller who wants to KNOW the index
+                      answered (the loader's own check, a benchmark);
+     'semantic'       `--semantic` — the pre-ruling path, by name, for comparing the two lanes.
+   Pure, so the selftest pins the table rather than the flag soup. */
+export const HYBRID_TIMEOUT_MS = 10_000;
+export function searchLane(argv) {
+  const a = argv || [];
+  if (a.includes('--hybrid') || a.includes('--code')) return 'hybrid-strict';
+  if (a.includes('--semantic')) return 'semantic';
+  return 'hybrid';
+}
+/* A bound on how long the default lane may hold the caller before the fallback runs. The timer is
+   cleared on settle so a fast answer leaves no dangling handle; the label names what did not answer. */
+export function withTimeout(promise, ms, label) {
+  let t = null;
+  const bound = new Promise((_, reject) => {
+    t = setTimeout(() => reject(new Error(`${label} did not answer within ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, bound]).finally(() => clearTimeout(t));
+}
+/* The warning both lanes print after their hits — one text, so the two lanes cannot drift apart in
+   what they tell a reader a result IS. */
+export function readWarningLines() {
+  return [
+    '',
+    '  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,',
+    '    and ADJACENCY IS NOT EQUIVALENCE — the two nearest results may answer DIFFERENT',
+    '    questions with the same words. Read the one you opened, not the one beside it.',
+    '    A FLAT FIELD IS NOT ABSENCE: similar scores mean shared vocabulary, not no match.',
+    '    Read all five before concluding a thing was never decided.',
+    '    because a plausible summary of a brief nobody opens is the failure it exists to prevent.',
+    ''
+  ];
 }
 
 export function rank(queryVec, entries, query, topN = 8) {
@@ -554,11 +596,25 @@ export function loadCache(path = CACHE, legacy = LEGACY_CACHE, linesFn = readLin
   return empty;
 }
 /* Returns null on success, else the reason as a string — the caller reports it, never swallows it. */
-export function saveCache(cache, path = CACHE, openFn = openSync, writeFn = writeSync, closeFn = closeSync, mkdirFn = mkdirSync) {
+export function saveCache(cache, path = CACHE, openFn = openSync, writeFn = writeSync, closeFn = closeSync, mkdirFn = mkdirSync, unlinkFn = unlinkSync) {
   let fd = null;
+  let tmpPath = null;
   try {
     mkdirFn(dirname(path), { recursive: true });
-    const tmp = path + '.tmp';
+    /* 🔴 A UNIQUE TEMP NAME PER WRITER. This was `path + '.tmp'` — ONE name shared by every process —
+       so two sessions searching at the same time both wrote `doc-search-index.jsonl.tmp`, the first
+       renamed it away, and the second's rename failed `ENOENT`. The loser then DISCARDED everything it
+       had embedded: measured 2026-10-11, 6,062 chunks re-embedded in a single search because the
+       previous run's cache never landed, and the fleet runs Rule 0 before every unit.
+       ⚠️ The failure was LOUD and still cost tokens — `saveCache` already reported the reason and
+       doc-search printed it ("index cache NOT written … every query will re-embed until this is
+       fixed"). Nobody acted on it because the message named a symptom nobody could tie to a cause, and
+       the next search worked fine unless it raced again. An intermittent loud failure is not safer
+       than a silent one; it is the same cost with a receipt.
+       pid AND a per-process counter: two sessions differ by pid, and two writes inside one process
+       (a `--hybrid` run loads then saves twice) differ by the counter. */
+    const tmp = `${path}.tmp.${process.pid}.${(saveCache._seq = (saveCache._seq || 0) + 1)}`;
+    tmpPath = tmp;
     fd = openFn(tmp, 'w');
     writeFn(fd, JSON.stringify({ model: cache.model }) + '\n');
     for (const [file, e] of Object.entries(cache.entries)) writeFn(fd, JSON.stringify({ file, h: e.h, vecs: e.vecs }) + '\n');
@@ -572,6 +628,13 @@ export function saveCache(cache, path = CACHE, openFn = openSync, writeFn = writ
         closeFn(fd);
       } catch {}
     }
+    /* A UNIQUE NAME MUST BE CLEANED UP, or the fix trades one defect for a slow leak: the old shared
+       name was at least overwritten by the next writer, while `…tmp.<pid>.<n>` from a killed run would
+       sit beside the 718 MB cache forever. Best-effort and silent — the write already failed and its
+       reason is what the caller reports. */
+    try {
+      if (typeof unlinkFn === 'function') unlinkFn(tmpPath);
+    } catch {}
     return String((e && e.message) || e);
   }
 }
@@ -784,8 +847,77 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     const err = saveCache(cacheIn, '/x/idx.jsonl', fakeFs.open, fakeFs.write, fakeFs.close, fakeFs.mkdir);
     void orig;
     ok('saveCache reports a rename it cannot perform rather than swallowing it', typeof err === 'string' && /ENOENT|no such/i.test(err));
-    const text = store['/x/idx.jsonl.tmp'];
+    /* THE TEMP KEY IS NO LONGER A CONSTANT — it carries the pid and a per-process counter, which is the
+       whole point of the fix — so the leg finds it by prefix instead of by a literal it would have to
+       keep in step. A test that hardcoded the name would red on the fix and tell you nothing. */
+    const tmpKeys = Object.keys(store).filter((k) => k.startsWith('/x/idx.jsonl.tmp.'));
+    ok('the temp file is written under a UNIQUE name, not a shared one', tmpKeys.length === 1 && /\.tmp\.\d+\.\d+$/.test(tmpKeys[0]), JSON.stringify(Object.keys(store)));
+    const text = store[tmpKeys[0]];
     ok('the cache is written one document per line, header first', text.split('\n')[0] === JSON.stringify({ model: EMBED_MODEL }) && text.split('\n').length === 4);
+    /* 🔴 THE CONCURRENT WRITE, PLANTED. Two writers against the same cache path must not share a temp
+       name: under the old `path + '.tmp'` the second writer's rename hit ENOENT after the first had
+       renamed the file away, and its embeddings were discarded — measured as 6,062 chunks re-embedded
+       in one search. Here both writes run against one store and the assertion is that they chose
+       DIFFERENT temp paths, which is the property that makes the race impossible rather than unlikely. */
+    const store2 = {};
+    const fdNames2 = {};
+    const opened2 = [];
+    let fdSeq2 = 0;
+    const fs2 = {
+      open: (f) => {
+        const fd = ++fdSeq2;
+        fdNames2[fd] = f;
+        opened2.push(f);
+        store2[f] = '';
+        return fd;
+      },
+      write: (fd, t) => {
+        store2[fdNames2[fd]] += t;
+      },
+      close: () => {},
+      mkdir: () => {},
+      unlink: (f) => {
+        delete store2[f];
+      }
+    };
+    const tiny = { model: EMBED_MODEL, entries: { 'a.md': { h: 'h', vecs: [[1]] } } };
+    saveCache(tiny, '/y/idx.jsonl', fs2.open, fs2.write, fs2.close, fs2.mkdir, fs2.unlink);
+    saveCache(tiny, '/y/idx.jsonl', fs2.open, fs2.write, fs2.close, fs2.mkdir, fs2.unlink);
+    /* The names are collected AT OPEN, not from the store afterwards: the rename fails in a fake fs and
+       the new cleanup then unlinks the temp file, so reading the store would show an empty object and
+       the assertion would pass by examining nothing. My first version did exactly that and reported
+       `[]` — the plant caught my own plant. */
+    const tmps2 = opened2.filter((f) => f.startsWith('/y/idx.jsonl.tmp.'));
+    ok('two concurrent writers choose DIFFERENT temp paths', new Set(tmps2).size === 2, JSON.stringify(tmps2));
+    ok('…and neither temp path is the bare shared name the race came from', !tmps2.includes('/y/idx.jsonl.tmp'), JSON.stringify(tmps2));
+    /* CONTROL · the failure path cleans up after itself. A unique name that is never removed trades the
+       race for a slow leak beside a 718 MB cache; the old shared name was at least overwritten. */
+    const store3 = {};
+    const fdN3 = {};
+    let seq3 = 0;
+    let unlinked3 = null;
+    const err3 = saveCache(
+      tiny,
+      '/z/idx.jsonl',
+      (f) => {
+        const fd = ++seq3;
+        fdN3[fd] = f;
+        store3[f] = '';
+        return fd;
+      },
+      (fd, t) => {
+        store3[fdN3[fd]] += t;
+      },
+      () => {
+        throw new Error('close failed');
+      },
+      () => {},
+      (f) => {
+        unlinked3 = f;
+      }
+    );
+    ok('a failed write reports its reason', typeof err3 === 'string' && /close failed/.test(err3), String(err3));
+    ok('…and unlinks the temp file it created', unlinked3 !== null && unlinked3.startsWith('/z/idx.jsonl.tmp.'), String(unlinked3));
     const back = loadCache(
       '/x/idx.jsonl',
       '/nope',
@@ -926,31 +1058,61 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     })()
   );
   ok('readChunk cuts hard when no sentence boundary is near the cap', readChunk('c'.repeat(2000), 1500).includes('[cut at 1500 of 2000 chars'));
+  /* The lane table (owner ruling 2026-10-11): hybrid by default, strict by name, semantic by name. */
+  ok('no lane flag ⇒ the hybrid lane (the default)', searchLane(['node', 'x', 'what', 'moved']) === 'hybrid');
+  ok('--hybrid and --code ⇒ the strict form', searchLane(['--hybrid', 'q']) === 'hybrid-strict' && searchLane(['--code', 'q']) === 'hybrid-strict');
+  ok('--semantic ⇒ the pre-ruling lane by name', searchLane(['--semantic', 'q']) === 'semantic');
+  ok('strict wins over --semantic when both are given (a caller who asked for the index gets an answer about the index)', searchLane(['--semantic', '--hybrid']) === 'hybrid-strict');
+  ok('--semantic is a flag, never a query word', !stripFlags(['--semantic', 'q']).includes('--semantic'));
+  await (async () => {
+    const fast = await withTimeout(Promise.resolve('hit'), 1000, 'x');
+    ok('withTimeout passes a prompt answer through', fast === 'hit');
+    let msg = null;
+    try {
+      await withTimeout(new Promise(() => {}), 5, 'hybrid index');
+    } catch (e) {
+      msg = e.message;
+    }
+    ok('withTimeout rejects a silent answer and names what did not answer', msg === 'hybrid index did not answer within 5 ms');
+  })();
+  ok(
+    'both lanes print ONE read-warning text (it cannot drift between them)',
+    readWarningLines().some((l) => l.includes('PATHS TO READ')) && readWarningLines().some((l) => l.includes('ADJACENCY IS NOT EQUIVALENCE'))
+  );
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }
 
 if (IS_MAIN && !process.argv.includes('--selftest')) {
-  /* ── --hybrid / --code: ask the xerj index (BM25 + cached bge-m3 kNN in ONE request) ──────────────
-     An EARLY branch, before anything else runs, and the implementation is imported DYNAMICALLY — so
-     the default Rule-0 path below gains no new cost, no new import and no new failure mode. A missing
-     or broken xerj server can only affect a caller who asked for it by name. XERJ-HYBRID-SEARCH
-     brief; adoption is the owner's call, so this is additive and nothing routes through it yet. */
-  if (process.argv.includes('--hybrid') || process.argv.includes('--code')) {
+  /* ── THE HYBRID LANE FIRST (owner ruling 2026-10-11; see searchLane) ─────────────────────────────
+     An EARLY branch, before the semantic index is touched, and the implementation is imported
+     DYNAMICALLY — so the semantic lane below keeps its cost, its imports and its failure modes exactly
+     as they were. The default lane is hybrid WITH A FALLBACK: a server that is down, an index that is
+     not loaded, or a cold start past HYBRID_TIMEOUT_MS all drop the caller onto the semantic lane with
+     one line saying so — the old behaviour is the floor. `--hybrid` / `--code` keep the strict form
+     (answer or exit 2) for callers who need to know the index itself answered. Both lanes leave the
+     session stamp the edit guard reads, because the rule is "a search ran", not "which lane ran". */
+  const lane = searchLane(process.argv);
+  if (lane !== 'semantic') {
     const q = stripFlags(process.argv.slice(2)).join(' ').trim();
     if (!q) {
-      console.error('usage: node tools/doc-search.mjs --hybrid "<what you are trying to find>"');
+      console.error('usage: node tools/doc-search.mjs [--hybrid|--semantic] [--read] "<what you are trying to find>"');
       process.exit(2);
     }
     const xq = await import('./xerj-query.mjs');
     try {
-      const out = await xq.hybridSearch({ query: q });
+      const out = await withTimeout(xq.hybridSearch({ query: q }), HYBRID_TIMEOUT_MS, 'hybrid index');
       process.stdout.write(`${xq.render(out, q)}\n`);
+      for (const line of readWarningLines()) console.log(line);
+      stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, q);
       process.exit(0);
     } catch (e) {
-      console.error(`doc-search --hybrid: ${e.message}`);
-      console.error('  The default (semantic) path is unaffected: re-run without --hybrid.');
-      process.exit(2);
+      if (lane === 'hybrid-strict') {
+        console.error(`doc-search --hybrid: ${e.message}`);
+        console.error('  The semantic lane is unaffected: re-run without --hybrid.');
+        process.exit(2);
+      }
+      console.error(`▸ hybrid lane did not answer (${e.message}) — falling back to the semantic lane\n`);
     }
   }
   const scope = process.argv.includes('--ext-only') ? 'ext' : process.argv.includes('--no-ext') ? 'repo' : 'all';
@@ -994,15 +1156,33 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
       console.log(readChunk(h.text, READ_CHARS));
     }
   }
-  console.log('\n  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,');
-  console.log('    and ADJACENCY IS NOT EQUIVALENCE — the two nearest results may answer DIFFERENT');
-  console.log('    questions with the same words. Read the one you opened, not the one beside it.');
-  console.log('    A FLAT FIELD IS NOT ABSENCE: similar scores mean shared vocabulary, not no match.');
-  console.log('    Read all five before concluding a thing was never decided.');
-  console.log('    because a plausible summary of a brief nobody opens is the failure it exists to prevent.\n');
+  for (const line of readWarningLines()) console.log(line);
   /* The stamp the edit guard reads (see SESSION STAMP above). After the hits, so a refused or
      crashed search leaves nothing — a stamp is evidence a search RAN, never that one was attempted. */
   stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, query);
+  /* THE BOARD'S THREE LINES, after the hits and after the stamp. Rule 0 runs before every unit, so
+     this is the one place every session passes through several times a day — which is exactly why the
+     board's red banner belongs here rather than on a page somebody has to remember to open. The owner's
+     case for the board was a seven-hour silence; a banner nobody loads is the same silence.
+     ⚠️ READ-ONLY AND FAIL-SILENT. It reads `board.json` that the timer wrote; it never generates the
+     board (a search must not spawn `gh` calls) and never fails a search. No file, stale file, bad JSON
+     or missing summariser ⇒ nothing printed, because a Rule 0 search that dies on its own footer would
+     be a far worse defect than a missing footer. */
+  try {
+    const bj = join(homedir(), '.local', 'share', 'tepna', 'board', 'board.json');
+    if (existsSync(bj)) {
+      const b = JSON.parse(readFileSync(bj, 'utf-8'));
+      const { summarize } = await import('./board.mjs');
+      const ageMin = (Date.now() - Date.parse(b.generatedAt)) / 6e4;
+      console.log('');
+      for (const line of summarize(b)) console.log(`  ${line}`);
+      /* An old board is said to be old. The timer runs every 10 min, so past 30 the page is not
+         describing now and the reader must know that before trusting the banner. */
+      if (isFinite(ageMin) && ageMin > 30) console.log(`  ⚠ board is ${Math.round(ageMin)} min old — tepna-board.timer may not be running`);
+    }
+  } catch {
+    /* intentionally silent — see above */
+  }
 }
 
 /* ⚠️ A THIRD BRANCH THAT CANNOT BE REACHED BY ACCIDENT. If this file is the entry point and neither

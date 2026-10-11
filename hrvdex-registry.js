@@ -34,16 +34,46 @@
     sdnn: { label: 'SDNN', unit: 'ms', goodDirection: 'up', depth: 'basic', evidence: 'validated', cite: 'SDNN — overall HRV (Task Force 1996)' },
     lfhf: { label: 'LF/HF', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'LF:HF — sympatho-vagal balance (Task Force 1996)' },
     hfnu: { label: 'HF n.u.', unit: '%', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'Normalised HF power — parasympathetic (Task Force 1996)' },
-    sd1sd2: { label: 'SD1/SD2', unit: '', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'Poincaré SD1/SD2 ratio — short/long balance' },
+    sd1sd2: {
+      /* RENDERED AS `d_sd1_sd2` — the `d_` convention does not derive this key from the id.
+         Confirmed by LABEL, not by name: registry 'SD1/SD2' ≡ render 'SD1/SD2'. */
+      rendersAs: 'd_sd1_sd2',
+      label: 'SD1/SD2',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'validated',
+      cite: 'Poincaré SD1/SD2 ratio — short/long balance'
+    },
     si: { label: 'Baevsky SI', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'validated', cite: 'Baevsky stress index — established autonomic-load index' },
     cvi: { label: 'Toichi CVI', unit: '', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'Cardiac vagal index (Toichi 1997)' },
     csi: { label: 'Toichi CSI', unit: '', goodDirection: 'down', depth: 'research', evidence: 'validated', cite: 'Cardiac sympathetic index (Toichi 1997)' },
 
     /* ── EMERGING — nonlinear / surrogate ──────────────────────────────────── */
-    dfaAlpha1: { label: 'DFA α1', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'DFA short-term scaling proxy — device/length-dependent' },
+    dfaAlpha1: {
+      /* RENDERED AS `d_dfa_proxy` — the `d_` convention does not derive this key from the id.
+         Confirmed by LABEL, not by name: registry 'DFA α1' ≡ render 'DFA α1~' (the `~` marks the approximation). */
+      rendersAs: 'd_dfa_proxy',
+      label: 'DFA α1',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'emerging',
+      cite: 'DFA short-term scaling proxy — device/length-dependent'
+    },
     spectralEnt: { label: 'Spectral Ent', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Spectral entropy — regulatory complexity' },
     sdnnZ: { label: 'SDNN Z-score', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'emerging', cite: 'SDNN z-score vs 7-day baseline' },
-    momentum: { label: 'HRV Momentum', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'emerging', cite: '14-day ln(rMSSD) slope — trend signal' },
+    momentum: {
+      /* RENDERED AS `d_hrv_momentum` — the `d_` convention does not derive this key from the id.
+         Confirmed by LABEL, not by name: registry 'HRV Momentum' ≡ render 'HRV Momentum'. */
+      rendersAs: 'd_hrv_momentum',
+      label: 'HRV Momentum',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'emerging',
+      cite: '14-day ln(rMSSD) slope — trend signal'
+    },
     vei: { label: 'VEI (rMSSD/HR)', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'emerging', cite: 'Vagal efficiency (rMSSD/HR) — coupling proxy' },
     cai: { label: 'CAI', unit: 'ms', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Cardiac autonomic index √(SD1×SD2)' },
 
@@ -70,8 +100,38 @@
     energy: { label: 'Energy', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'HRV-derived energy score — composite' },
     coherence: { label: 'Coherence', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'HRV coherence — internal composite' },
     ansLoad: { label: 'ANS Load', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'heuristic', cite: 'Composite autonomic burden — internal' },
-    recovIndex: { label: 'Recov Index', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Autonomic recovery index vs baseline — composite' },
-    recovDebt: { label: 'Recov Debt', unit: 'd', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'Days with ARI<0.9 over 14 d — composite' },
+    /* ⚠️ NOT DORMANT — I MARKED IT DORMANT AND THE HONESTY GATE REFUTED ME (2026-10-10).
+       `hrvdex-render.js:1382` renders `{ key: 'd_ari', label: 'Recov Index', … }`, so the quantity is
+       computed and SURFACED — bound to `d_ari`. My grep for `recovIndex`/`recovDebt` found nothing and
+       I read that as absence: #1455's error, mine this time, caught by the DEEP-AUDIT-VI F4 gate that
+       checks a dormant flag instead of trusting it.
+       ⚠️ AND IT EXPOSED A CONVENTION THIS REGISTRY RELIES ON: hrvdex render keys are `d_<id>`
+       (`d_lnrmssd`, `d_lfhf`, `d_si`, `d_cvi`, `d_csi`), so most hrvdex ids are bound by a PREFIX the
+       resolvability gate does not know — which is why hrvdex holds the second-largest share of its
+       baseline. `recovIndex` ↔ `d_ari` additionally breaks that convention (ari ≠ recovIndex). Both
+       are recorded in the brief; the id stays in the baseline with this reason, not a false flag. */
+    recovIndex: {
+      /* RENDERED AS `d_ari` — the `d_` convention does not derive this key from the id, and this one shares no substring with it at all.
+         Confirmed by LABEL, not by name: registry 'Recov Index' ≡ render 'Recov Index'. */
+      rendersAs: 'd_ari',
+      label: 'Recov Index',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Autonomic recovery index vs baseline — composite'
+    },
+    recovDebt: {
+      /* RENDERED AS `d_recovery_debt` — the `d_` convention does not derive this key from the id.
+         Confirmed by LABEL, not by name: registry 'Recov Debt' ≡ render 'Recov Debt 14d' (the render adds the window). */
+      rendersAs: 'd_recovery_debt',
+      label: 'Recov Debt',
+      unit: 'd',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Days with ARI<0.9 over 14 d — composite'
+    },
     efc: { label: 'EFC Index', unit: '', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Energy-fatigue-capacity readiness — composite' },
     abs: { label: 'ABS', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'Autonomic Balance Score — composite' },
     welfare: {
@@ -124,7 +184,17 @@
      and cuffless BP from HRV; neither survives its disclaimer. VO₂ retained at
      research depth. See DEX-METRIC-REMOVAL-AUDIT-BRIEF.md. */
     vo2: { label: 'VO2max Est', unit: 'ml/kg/min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'HRV-adjusted VO₂max estimate — population proxy, not CPET' },
-    vo2roll: { label: 'VO2 7d Avg', unit: 'ml/kg/min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Rolling 7-day VO₂max baseline — population proxy' }
+    vo2roll: {
+      /* RENDERED AS `d_vo2_roll7` — the `d_` convention does not derive this key from the id.
+         Confirmed by LABEL, not by name: registry 'VO2 7d Avg' ≡ render 'VO2 7d Avg'. */
+      rendersAs: 'd_vo2_roll7',
+      label: 'VO2 7d Avg',
+      unit: 'ml/kg/min',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Rolling 7-day VO₂max baseline — population proxy'
+    }
   };
 
   var HRV_LABEL_ALIAS = {

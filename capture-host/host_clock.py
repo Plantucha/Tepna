@@ -283,6 +283,132 @@ def timebase_decision(state: dict) -> dict:
     }
 
 
+# ── chrony SOURCES — "this box against every clock it can see" (VIGIL-GPS-STRATUM1-2026-10-10) ────
+# `chronyc tracking` says what disciplines the box; `chronyc sources` says how far the box's clock sits
+# from EACH source right now, including a locally attached PPS and the LAN's other stratum-1 servers.
+# That comparison is the whole point of the monitor's enhanced clock card: an owner reading "+3.6 µs
+# against our own PPS, −151 µs against the NTP250" learns in one glance that the box is the better clock.
+# All units are normalised to SECONDS — chrony prints ns/us/ms/s per cell and a reader that forwards
+# the strings would make the UI do unit arithmetic in four flavours.
+_UNIT_S = {"ns": 1e-9, "us": 1e-6, "ms": 1e-3, "s": 1.0}
+_QTY_RE = re.compile(r"^([+-]?\d+(?:\.\d+)?)(ns|us|ms|s)$")
+_SRC_RE = re.compile(
+    r"^([\^=#])([*+\-?x~])\s+(\S+)\s+(\d+)\s+(-?\d+)\s+(\d+)\s+(\S+)\s+"
+    r"([+-]?\d+(?:\.\d+)?(?:ns|us|ms|s))\[\s*([+-]?\d+(?:\.\d+)?(?:ns|us|ms|s))\]\s+\+/-\s+(\d+(?:\.\d+)?(?:ns|us|ms|s))\s*$"
+)
+_STATS_RE = re.compile(
+    r"^(\S+)\s+(\d+)\s+(\d+)\s+(\S+)\s+([+-]?\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+"
+    r"([+-]?\d+(?:\.\d+)?(?:ns|us|ms|s))\s+(\d+(?:\.\d+)?(?:ns|us|ms|s))\s*$"
+)
+_SYSTIME_RE = re.compile(r"^System time\s*:\s*(\d+(?:\.\d+)?) seconds (fast|slow) of NTP time")
+# chrony's one-character columns, spelled out so the UI never has to know the glyphs.
+_SRC_MODE = {"^": "server", "=": "peer", "#": "refclock"}
+_SRC_STATE = {
+    "*": "selected",
+    "+": "combined",
+    "-": "excluded",
+    "?": "unreachable",  # chrony's `?` also covers "polled fine, not selected" — resolved by reach below
+    "x": "falseticker",
+    "~": "unstable",
+}
+
+
+def _qty_s(text: str | None) -> float | None:
+    """'+3645ns' → 3.645e-06 seconds; None when the cell is not a chrony quantity (never a fabricated 0)."""
+    m = _QTY_RE.match((text or "").strip())
+    return float(m.group(1)) * _UNIT_S[m.group(2)] if m else None
+
+
+def parse_chrony_sources(blob: str) -> list[dict]:
+    """`chronyc -n sources` → one dict per source. Header/rule lines do not match and are skipped."""
+    out: list[dict] = []
+    for line in blob.splitlines():
+        m = _SRC_RE.match(line.strip())
+        if not m:
+            continue
+        mode, st, name, stratum, poll, reach, lastrx, off, adj, err = m.groups()
+        # chrony prints `?` both for a source it cannot reach AND for one that answered every poll but
+        # lost the selection (every network server does, while the preferred PPS wins). The reach
+        # register tells them apart: 0 = nothing answered; anything else = polled, not selected. The
+        # card showed six "unreachable" servers at reach 377 on 2026-10-11 — a true word for the wrong state.
+        reach_n = int(reach, 8)  # chrony prints the 8-poll shift register in OCTAL — parsed ONCE, used twice
+        state = _SRC_STATE[st]
+        if st == "?" and reach_n:
+            state = "not selected"
+        out.append(
+            {
+                "name": name,
+                "mode": _SRC_MODE[mode],
+                "state": state,
+                "stratum": int(stratum),
+                "poll": int(poll),
+                "reach": reach_n,
+                "last_rx": lastrx,  # as printed: seconds, or '23m' / '2h' past the minute
+                "offset_s": _qty_s(off),  # source minus this box, NTP sign convention
+                "adjusted_offset_s": _qty_s(adj),
+                "error_s": _qty_s(err),
+            }
+        )
+    return out
+
+
+def parse_chrony_sourcestats(blob: str) -> dict[str, dict]:
+    """`chronyc -n sourcestats` → {name: {np, nr, span, freq_ppm, freq_skew_ppm, offset_s, stddev_s}}."""
+    out: dict[str, dict] = {}
+    for line in blob.splitlines():
+        m = _STATS_RE.match(line.strip())
+        if not m:
+            continue
+        name, np_, nr, span, freq, skew, off, sd = m.groups()
+        out[name] = {
+            "np": int(np_),
+            "nr": int(nr),
+            "span": span,
+            "freq_ppm": float(freq),
+            "freq_skew_ppm": float(skew),
+            "offset_s": _qty_s(off),
+            "stddev_s": _qty_s(sd),
+        }
+    return out
+
+
+def parse_chrony_system_offset(blob: str) -> float | None:
+    """`chronyc tracking`'s 'System time : X seconds fast|slow of NTP time' → signed seconds (fast = +)."""
+    for line in blob.splitlines():
+        m = _SYSTIME_RE.match(line.strip())
+        if m:
+            v = float(m.group(1))
+            return v if m.group(2) == "fast" else -v
+    return None
+
+
+async def read_sources() -> dict:
+    """This box against every clock it can see, read-only. `available: False` when chronyc is absent."""
+    rc1, srcs = await _run("chronyc", "-n", "sources")
+    if rc1 != 0:
+        return {"available": False, "sources": [], "tracking": {}}
+    rc2, stats = await _run("chronyc", "-n", "sourcestats")
+    by_name = parse_chrony_sourcestats(stats) if rc2 == 0 else {}
+    rows = parse_chrony_sources(srcs)
+    for r in rows:
+        st = by_name.get(r["name"])
+        r["stddev_s"] = st["stddev_s"] if st else None
+        r["span"] = st["span"] if st else None
+    rc3, trk = await _run("chronyc", "-n", "tracking")
+    tracking: dict = {}
+    if rc3 == 0:
+        t = parse_chrony_tracking(trk)
+        tracking = {
+            "reference": t.get("reference"),
+            "host_stratum": t.get("host_stratum"),
+            "system_offset_s": parse_chrony_system_offset(trk),
+            "rms_offset_us": t.get("jitter_us"),
+            "root_dispersion_ms": t.get("root_dispersion_ms"),
+            "skew_ppm": t.get("skew_ppm"),
+        }
+    return {"available": True, "sources": rows, "tracking": tracking}
+
+
 async def _run(*args: str, timeout: float = 4.0) -> tuple[int, str]:
     try:
         p = await asyncio.create_subprocess_exec(

@@ -46,6 +46,7 @@ def _sandbox(
     shellcheck_rc=0,
     pytest_rc=0,
     mypy_found=None,
+    mypy_line=None,
     timeout_plugin=True,
     runtime_deps=True,
 ):
@@ -57,8 +58,14 @@ def _sandbox(
     # `mypy_found` scripts the SUMMARY LINE, not a line count: check.sh reads the count off mypy's
     # own "Found N errors" line, because the output also carries `note:` lines and counting those
     # would drift from the number the baseline describes.
+    # `mypy_line` plants a summary line VERBATIM — the clean-run shape ("Success: no issues found in N
+    # source files") and the shapes that must stay NO COUNT are only expressible as the exact bytes.
     mypy_emit = (
-        f'echo "Found {mypy_found} errors in 3 files (checked 300 source files)"' if mypy_found is not None else "true"
+        f"echo {mypy_line!r}"
+        if mypy_line is not None
+        else f'echo "Found {mypy_found} errors in 3 files (checked 300 source files)"'
+        if mypy_found is not None
+        else "true"
     )
     # One fake `python` dispatching on `-m <tool>`; check.sh invokes ruff and pytest through $PYTHON.
     _write_exec(
@@ -265,8 +272,8 @@ def test_shutil_which_finds_the_script_dir_independent(tmp_path):
 
 
 # ── the mypy baseline, which used to live only in a label string ──────────────────────────────────
-def _mypy_run(tmp_path, found, *, runtime_deps=True):
-    env, _log = _sandbox(tmp_path, mypy_found=found, runtime_deps=runtime_deps)
+def _mypy_run(tmp_path, found, *, runtime_deps=True, line=None):
+    env, _log = _sandbox(tmp_path, mypy_found=found, mypy_line=line, runtime_deps=runtime_deps)
     p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
     return p.stdout + p.stderr
 
@@ -324,6 +331,36 @@ def test_NO_SUMMARY_LINE_IS_AN_ABORT_NOT_A_CLEAN_TREE(tmp_path):
     tests/_srcscan.py and 'counts' 1, which is 101 short of the truth."""
     out = _mypy_run(tmp_path, None)
     assert "NO COUNT" in out and "aborted, not passed" in out
+
+
+def test_the_CLEAN_summary_line_is_the_count_ZERO_not_an_abort(tmp_path):
+    """Since MYPY_BASELINE reached 0 (#3373) a clean run prints no "Found" line at all — mypy says
+    "Success: no issues found in N source files" — and the parser reported every green run as
+    "NO COUNT — aborted", a false reading of a pass (measured on #3379's gate logs, 2026-10-10). The
+    clean line IS the count 0; both the singular and the plural wording are mypy's own."""
+    for line in ("Success: no issues found in 483 source files", "Success: no issues found in 1 source file"):
+        case = tmp_path / re.sub(r"\W", "_", line)[:40]  # one sandbox per planted line
+        case.mkdir()
+        out = _mypy_run(case, None, line=line)
+        assert "NO COUNT" not in out and "NO_COUNT" not in out, out
+        assert "mypy: 0 errors" in out
+        assert ("at the 0 baseline" in out) if _baseline() == 0 else ("BELOW" in out)
+
+
+def test_ANY_OTHER_LINE_is_still_NO_COUNT_the_honest_refusal(tmp_path):
+    """Only mypy's two summary shapes count. A line that merely resembles one — a stray "Success:"
+    from another tool, a "Found" with no number, a truncated clean line — is not a count, and
+    reading it as 0 would reopen the exact lie the clean-line fix closes."""
+    for line in (
+        "Success: everything is fine",
+        "Found errors in 3 files",
+        "Success: no issues found",
+        "no issues found in 4 source files",
+    ):
+        case = tmp_path / re.sub(r"\W", "_", line)[:40]  # one sandbox per planted line
+        case.mkdir()
+        out = _mypy_run(case, None, line=line)
+        assert "NO COUNT" in out and "aborted, not passed" in out, line
 
 
 def test_THE_ADVISORY_STILL_DOES_NOT_FAIL_THE_RUN(tmp_path):

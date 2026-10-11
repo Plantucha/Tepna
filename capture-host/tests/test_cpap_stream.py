@@ -2352,3 +2352,113 @@ def test_the_controller_opens_each_session_in_the_tracker_and_forwards_it_to_the
         await c.op("stop")
 
     _run(go())
+
+
+# ── the documented pairing sequence (owner, 2026-10-10) ─────────────────────────────────────────────
+class _ReadingBleak(_FakeBleak):
+    """Records every characteristic read and the order of reads vs notify. One read is refused, as a
+    characteristic absent from the snapshot would be — the reads are best-effort and must not cost the link."""
+
+    events: "list[str]" = []
+
+    async def read_gatt_char(self, uuid):
+        _ReadingBleak.events.append(f"read:{uuid[:8]}")
+        if uuid.startswith("1681c44f"):
+            raise BleakCharacteristicNotFoundError(uuid)
+        return b"ResMed 000001" if uuid.startswith("00002a00") else b"\x00\x01"
+
+    async def start_notify(self, uuid, cb):
+        _ReadingBleak.events.append("notify")
+        await super().start_notify(uuid, cb)
+
+
+def test_pairing_reads_run_in_the_documented_order_before_notify_and_tolerate_a_refusal(monkeypatch, caplog):
+    import capture
+    import bleak
+
+    _FakeBleak.instances.clear()
+    _ReadingBleak.events = []
+    monkeypatch.setattr(bleak, "BleakClient", _ReadingBleak)
+
+    async def go():
+        with caplog.at_level(logging.INFO, logger="tepna-capture"):
+            *_, disconnect = await capture._cpap_ble_connect("AA:BB:CC:00:00:01", "hci1", pairing_reads=True)
+        await disconnect()
+
+    _run(go())
+    assert _ReadingBleak.events == [
+        "read:00002a00",
+        "read:00002a01",
+        "read:3d5085ac",
+        "read:1681c44f",
+        "read:e5e33ba4",
+        "notify",
+    ]
+    msg = next(r.getMessage() for r in caplog.records if "pairing reads" in r.getMessage())
+    assert "00002a00=13B" in msg and "1681c44f:BleakCharacteristicNotFoundError" in msg
+
+
+def test_a_stream_connect_does_no_pairing_reads(monkeypatch):
+    import capture
+    import bleak
+
+    _FakeBleak.instances.clear()
+    _ReadingBleak.events = []
+    monkeypatch.setattr(bleak, "BleakClient", _ReadingBleak)
+
+    async def go():
+        *_, disconnect = await capture._cpap_ble_connect("AA:BB:CC:00:00:01", "hci1")
+        await disconnect()
+
+    _run(go())
+    assert _ReadingBleak.events == ["notify"]
+
+
+def test_recv_timeout_bounds_each_frame(monkeypatch):
+    import capture
+    import bleak
+
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+
+    async def go():
+        _w, recv_frame, disconnect = await capture._cpap_ble_connect("AA:BB:CC:00:00:01", "hci1", recv_timeout=0.01)
+        # The bound must be THE ONE PASSED, not some fixed default that also times out eventually: under
+        # an outer 2 s, a recv that ignores `recv_timeout` (20 s) is cut off by the OUTER wait instead.
+        t0 = asyncio.get_running_loop().time()
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(recv_frame(), 2)
+        assert asyncio.get_running_loop().time() - t0 < 1.0
+        await disconnect()
+
+    _run(go())
+
+
+class _MissingThenReadingBleak(_MissingCharBleak):
+    async def read_gatt_char(self, uuid):
+        _ReadingBleak.events.append(f"read:{uuid[:8]}")
+        return b""
+
+
+def test_the_missing_char_retry_keeps_the_pairing_options(monkeypatch):
+    """The #2170 one-retry reconnect must not silently drop back to stream behaviour mid-pairing."""
+    import capture
+    import bleak
+
+    _FakeBleak.instances.clear()
+    _ReadingBleak.events = []
+    _MissingCharBleak.fail_first = 1
+    monkeypatch.setattr(capture, "_GATT_SETTLE_STEP_S", 0)
+    monkeypatch.setattr(bleak, "BleakClient", _MissingThenReadingBleak)
+
+    async def go():
+        _w, recv_frame, disconnect = await capture._cpap_ble_connect(
+            "AA:BB:CC:00:00:01", "hci2", recv_timeout=0.01, pairing_reads=True
+        )
+        with pytest.raises(asyncio.TimeoutError):
+            await recv_frame()
+        await disconnect()
+
+    _run(go())
+    assert len(_FakeBleak.instances) == 2
+    assert _ReadingBleak.events.count("read:00002a00") == 2  # both connects did the reads

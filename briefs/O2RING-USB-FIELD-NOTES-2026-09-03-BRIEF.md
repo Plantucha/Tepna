@@ -128,7 +128,7 @@ type (`0x01` = AES), `r[1]` the key length (16), and the AES-128 key is `r[4:4+l
 after is AES-128-ECB with PKCS7; the `0xFF` command itself, and the envelope and CRC, stay plaintext.
 
 **[3P]** Confirmed working against a real branch-`2D010001` ring by an independent implementation
-(SomnoTrace `5e4bd0b`) — it paired, read serial and firmware, and logged a session. That confirms the
+(an independent implementation at `5e4bd0b`) — it paired, read serial and firmware, and logged a session. That confirms the
 **protocol**. It is not confirmation of ours: no ring we own answers `0xFF`, so our cipher path has
 never executed against hardware.
 

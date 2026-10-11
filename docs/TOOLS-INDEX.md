@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**239 tools** · 237 with a purpose line · **2 without**
+**244 tools** · 242 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -32,7 +32,9 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`beat-error-recovery.mjs`](../tools/beat-error-recovery.mjs) | beat-error-recovery — target 6 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE: inject beat-detection errors of KNOWN type and rate into a real beat train, run the shipped HRV path, and measure the… |
 | [`beat-injection-recovery.mjs`](../tools/beat-injection-recovery.mjs) | beat-injection-recovery — the artificial-star test for a beat detector. |
 | [`beat-leg-closure.mjs`](../tools/beat-leg-closure.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ THREE-SOURCE DRIFT CLOSURE for H10 ↔ Verity ↔ capture host (WEARABLE-DRIFT-DIRECT §7.3/§7.4). |
+| [`board.mjs`](../tools/board.mjs) | THE FLEET BOARD — one static page that answers "what is happening and what is wrong". |
 | [`box-sample.mjs`](../tools/box-sample.mjs) | // // box-sample.mjs — periodic resource sampler for a remote capture host. |
+| [`brief-gaps.mjs`](../tools/brief-gaps.mjs) | ════════════════════════════════════════════════════════════════════════ tools/brief-gaps.mjs — a text-network gap detector over the briefs |
 | [`brief-verified-index.mjs`](../tools/brief-verified-index.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ WHEN WAS EACH OPEN BRIEF LAST *VERIFIED* — not last edited, and not how open it looks. |
 | [`browser-lane.mjs`](../tools/browser-lane.mjs) | ONE COMMAND for the local browser lane: `npm run gates:browser:local`. |
 | [`build-analysis.mjs`](../tools/build-analysis.mjs) | Make the science/analysis tools SELF-CONTAINED single-file HTML, so they run when a user downloads ONE.html to disk and opens it over file:// — the way the bundled apps already do. |
@@ -63,7 +65,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
 | [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | `tools/doc-search.mjs` appends `<ISO>\\t<query>` to `<git-common-dir>/tepna-mutation/ doc-search-sessions/<session_id>` on every search that ran. |
 | [`doc-search.mjs`](../tools/doc-search.mjs) | "HAS THIS ALREADY BEEN DECIDED?" OVER 460+ DOCUMENTS CLAUDE.md records this failure repeatedly and by name: four sessions independently proposing a fix the repo had already measured… |
-| [`docs-constants.mjs`](../tools/docs-constants.mjs) | CLAUDE.md states numeric claims about the code. When the code changes and the doc doesn't (or vice versa), they drift — the §🔒.7 "99% vs 67%" incident (#3367). |
+| [`docs-constants.mjs`](../tools/docs-constants.mjs) | CLAUDE.md states numeric claims about the code. When the code changes and the doc doesn't (or vice versa), they drift — the §🔒.7 "99 % vs 67 %" incident (#3367). |
 | [`dsp-review-qwen.mjs`](../tools/dsp-review-qwen.mjs) | IDLE-TIME DSP REVIEW — the local model loops through DSP files proposing improvements: inefficiencies, logical problems, signal-flow violations, and concrete refactors. |
 | [`dual-clock-rate.mjs`](../tools/dual-clock-rate.mjs) | DIRECT device-vs-host rate, from the two clocks already in every raw file. |
 | [`ecg-apnea-correlate.mjs`](../tools/ecg-apnea-correlate.mjs) | Correlates every candidate in ECGDex's `apnea` block against the CPAP's OWN device-scored `residualAHI`, across the nights where both exist. |
@@ -93,6 +95,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`guide-directive-audit.mjs`](../tools/guide-directive-audit.mjs) | Dimension 3 asks that every normative band be either (a) a published/consensus target, cited, or (b) explicitly marked relative via `no-norm-note` - no fabricated clinical cut-points. |
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |
 | [`integrator-block-precision.mjs`](../tools/integrator-block-precision.mjs) | JOINT-UNWRAP-ATTEMPT §4's one open item The brief's remaining box: |
+| [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | ════════════════════════════════════════════════════════════════════════ tools/integrator-surface-gate.mjs — every Integrator key declares its surface |
 | [`js-lex.mjs`](../tools/js-lex.mjs) | Extracted from `tools/mutate.mjs` when `tools/guarantees.mjs` needed the same distinction — mutate wants the CODE (mutate only real code), guarantees wants its inverse (read only real… |
 | [`killcheck.mjs`](../tools/killcheck.mjs) | The loop this programme runs is: write a test → re-apply that function's recorded survivors → count how many now fail. |
 | [`known-clock-recovery.mjs`](../tools/known-clock-recovery.mjs) | known-clock-recovery — inject a KNOWN clock defect, run the production estimator, measure what comes back. |
@@ -115,6 +118,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
+| [`no-third-party-names.mjs`](../tools/no-third-party-names.mjs) | ════════════════════════════════════════════════════════════════════════ tools/no-third-party-names.mjs — the name gate |
 | [`nsrr-aai-validate.mjs`](../tools/nsrr-aai-validate.mjs) | `aai` is user-visible and graded `heuristic`, and its own registry citation says why: "internal. |
 | [`nsrr-ahiest-validate.mjs`](../tools/nsrr-ahiest-validate.mjs) | `computeAHIestimates` (oxydex-dsp.js) produces TWO estimates of the same quantity: |
 | [`nsrr-coupling-bout-fpr.mjs`](../tools/nsrr-coupling-bout-fpr.mjs) | Measures, on SHHS1, the false-positive rate of `event-coupling.js`'s circular-shift null when two INDEPENDENT streams share a real OSA night's bout-scale rate profile — as a curve in the… |
@@ -237,6 +241,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`trio-anchor.mjs`](../tools/trio-anchor.mjs) | import { closeSync, openSync, readSync, statSync } from 'node:fs'; |
 | [`trio-batch.mjs`](../tools/trio-batch.mjs) | TRIO BATCH — raw Polar Sensor Logger + O2Ring capture folder → per-night trio node-exports, in the exact shape `tools/tch-multinight.mjs --dir` ingests (one subdir per night, three… |
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
+| [`usage-guard.mjs`](../tools/usage-guard.mjs) | USAGE GUARD — what the fleet has SPENT, measured, and what nobody can measure, said so. |
 | [`validate-exports.mjs`](../tools/validate-exports.mjs) | run the SHIPPED `validateNodeExport()` over every committed node export. |
 | [`verdict-adoption.mjs`](../tools/verdict-adoption.mjs) | The brief's first adopter list was a recency sample (eleven tools); enumerated, the population is ~150 files across both lanes. |
 | [`verdict-emit.mjs`](../tools/verdict-emit.mjs) | import { makeVerdict } from './verdict-emit.mjs'; const v = makeVerdict({ gate, status, population, criterion, result, evidence, reason, tool, commit?, at? |

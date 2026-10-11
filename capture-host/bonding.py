@@ -31,9 +31,13 @@ _ADDR_RE = re.compile(r"Device ([0-9A-F:]{17}) (.+)")
 _PROP_RE = re.compile(
     r"^(RSSI|TxPower|ManufacturerData|ServiceData|UUIDs?|Connected|Paired|Bonded|"
     r"Trusted|Blocked|LegacyPairing|Appearance|Icon|Adapter|Alias|Class|Modalias|"
-    r"AdvertisingFlags|WakeAllowed|ServicesResolved|Battery Percentage)\b\s*:",
+    r"AdvertisingFlags|WakeAllowed|ServicesResolved|Battery Percentage)\b\s*(?::|is\s+nil\b)",
     re.I,
 )
+# ⚠️ THE SECOND FORM, `<Property> is nil`, is what bluetoothctl prints when a property is CLEARED, and the
+# colon-only pattern let it through as a NAME: measured on vigil 2026-10-10, the Devices list showed
+# "TxPower is nil" for the AirSense 11 (BlueZ had its real "ResMed …" name cached) and "RSSI is nil" for a
+# dozen neighbours — each a real device hidden behind a status message.
 # A name bluetoothctl synthesises from the address ("24-AC-AC-0C-30-1E") carries no vendor information;
 # a real one must be allowed to replace it when a later line supplies it.
 _ADDR_NAME_RE = re.compile(r"^[0-9A-F]{2}([-:][0-9A-F]{2}){5}$", re.I)
@@ -69,6 +73,41 @@ class Found:
     bonded: bool | None = False  # None: `info` did not answer, so the state was not read
     connected: bool | None = False
     health: bool = False  # matches a known sensor name pattern (UI can foreground these)
+    # From BlueZ's cached `info`, for a device that advertises no name: the most specific service BlueZ
+    # can name ("Tile, Inc."), else the manufacturer company id ("maker 0x038d"). ∅ None when neither.
+    label: str | None = None
+    # What the device IS, when its advertisement says so unambiguously: "cpap" for the ResMed service
+    # FD56, so the UI can offer pairing instead of a BlueZ bond the AirSense does not use.
+    kind: str | None = None
+
+
+#: 16-bit service UUIDs that identify a device class outright. FD56 is ResMed's (Bluetooth SIG member
+#: UUID); the AirSense 11 carries it in every advert.
+_KIND_BY_SERVICE = {"0000fd56-0000-1000-8000-00805f9b34fb": "cpap"}
+_INFO_UUID_RE = re.compile(r"^\s*UUID:\s*(.*?)\s*\(([0-9a-f-]{36})\)\s*$", re.I | re.M)
+_INFO_MAKER_RE = re.compile(r"^\s*ManufacturerData\.?\s*Key:\s*0x([0-9a-f]{1,4})\b", re.I | re.M)
+#: BlueZ's descriptions that name a PROFILE every device carries, not a maker or a product — useless as a label.
+_GENERIC_SERVICE = frozenset(
+    {"unknown", "vendor specific", "generic access profile", "generic attribute profile", "device information"}
+)
+
+
+def describe_info(info: str) -> dict:
+    """`bluetoothctl info` → {"label", "kind"} for a device that may advertise no name. PURE.
+
+    The label is the first service description BlueZ resolved that names something specific, else the
+    manufacturer company id; never a guess. Measured 2026-10-10 on vigil: an unnamed FE:C2:… tag carries
+    "Tile, Inc. (0000feed-…)", and the AirSense 11 carries FD56 + company 0x038d."""
+    label = kind = None
+    for desc, uuid in _INFO_UUID_RE.findall(info):
+        kind = kind or _KIND_BY_SERVICE.get(uuid.lower())
+        if label is None and desc.strip().lower() not in _GENERIC_SERVICE:
+            label = desc.strip()
+    if label is None:
+        m = _INFO_MAKER_RE.search(info)
+        if m:
+            label = f"maker 0x{int(m.group(1), 16):04x}"
+    return {"label": label, "kind": kind}
 
 
 async def _btctl(script: str, timeout: float = 20.0) -> str | None:
@@ -216,6 +255,8 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
         if nm and is_placeholder_name(f.name):
             f.name = nm.group(1).strip()
             f.health = bool(_HEALTH_HINT.search(f.name))
+        d = describe_info(info)
+        f.label, f.kind = d["label"], d["kind"]
     # Absence is the `is None` component; the third is the reading itself. `-(rssi or -999)` read a legal
     # 0 dBm as absent and ranked the strongest possible signal as the weakest.
     return sorted(seen.values(), key=lambda d: (not d.health, d.rssi is None, 0 if d.rssi is None else -d.rssi))
@@ -325,6 +366,8 @@ async def bond(address: str, adapter_mac: str | None = None) -> dict:
 
 
 async def forget(address: str, adapter_mac: str | None = None) -> dict:
+    """Remove BlueZ's record of `address` on this adapter — the bond and the cache. Config is the
+    caller's: `/api/forget` also drops the device from config.yaml, `/api/unbond` does not."""
     out = await _btctl(await select_line(adapter_mac) + f"remove {address}\nquit\n")
     if out is None:
         return {"ok": False, "address": address, "detail": "bluetoothctl did not answer"}

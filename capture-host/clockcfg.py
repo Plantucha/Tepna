@@ -12,6 +12,7 @@ import asyncio, os, re, time as _time
 import proc_util
 
 import helper_path
+import host_clock
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 # Prefer a ROOT-OWNED deployed copy — a NOPASSWD grant on a user-writable script is a privilege-
@@ -88,6 +89,8 @@ async def status() -> dict:
         "poll_max_sec": _dur_to_sec(b.get("PollIntervalMaxUSec")),
         "poll_now_sec": _dur_to_sec(b.get("PollIntervalUSec")),
         "can_write": os.access(_HELPER, os.X_OK),  # helper present; sudoers still required on the box
+        # This box against every clock it can see (chrony only; {"available": False} elsewhere). Read-only.
+        "chrony": await host_clock.read_sources(),
         # Clock-Contract health (the box side of CLAUDE.md §🔒):
         "contract": {
             "synced": synced,  # stamps trace to real time

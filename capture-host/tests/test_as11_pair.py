@@ -39,8 +39,11 @@ class SimDevice:
         tamper=None,
         error=None,
         heartbeats=0,
+        session_reject=False,
     ):
         self.passkey, self.salt, self.b, self.client_id = passkey, salt, b_priv, client_id
+        self.session_reject = session_reject  # refuse CheckSessionIntegrity (a key the device dropped)
+        self.connects = []  # (addr, adapter) per connect — adapter None when the session passed none
         self.tamper, self.error, self.heartbeats = tamper or {}, error, heartbeats
         self.sent = []  # every decoded request the client wrote
         self.queue = []  # frames waiting for recv_frame
@@ -84,7 +87,21 @@ class SimDevice:
             res = {"clientId": self.client_id, "serverConfirmation": m2.hex(), "nonce": "00" * 16}
             res.update(self.tamper.get("confirm", {}))
             self._reply({"jsonrpc": "2.0", "id": msg["id"], "result": res})
-        else:  # pragma: no cover — the orchestration sends exactly two methods; anything else is a test bug
+        elif msg["method"] == "RequestSession":  # the post-pair session check, on a FRESH link
+            assert msg["params"]["clientId"] == self.client_id
+            self.challenge = bytes(range(32, 64))
+            self._reply(
+                {"jsonrpc": "2.0", "id": msg["id"], "result": {"challenge": self.challenge.hex(), "nonce": "11" * 16}}
+            )
+        elif msg["method"] == "CheckSessionIntegrity":
+            good = msg["params"]["response"] == L.session_proof(self.K, self.challenge).hex()
+            if self.session_reject or not good:
+                self._reply(
+                    {"jsonrpc": "2.0", "id": msg["id"], "error": {"code": -11005, "message": "VerificationFailure"}}
+                )
+            else:
+                self._reply({"jsonrpc": "2.0", "id": msg["id"], "result": {"confirmation": True}})
+        else:  # pragma: no cover — the orchestration sends exactly these methods; anything else is a test bug
             raise AssertionError(msg["method"])
 
     async def recv_frame(self):
@@ -93,7 +110,8 @@ class SimDevice:
     async def disconnect(self):
         self.disconnected += 1
 
-    async def connect(self, _addr):
+    async def connect(self, addr, adapter=None):
+        self.connects.append((addr, adapter))
         return self.write, self.recv_frame, self.disconnect
 
 
@@ -248,6 +266,11 @@ class Clock:
             self.t += s
 
 
+async def _nosleep(_s):
+    """No real naps in this file: a mutant that adds a retry must FAIL fast, not time out — mutmut reads a
+    timeout as UNDECIDED and the diff gate refuses on it."""
+
+
 def _session(dev, tmp_path, clk=None, **kw):
     clk = clk or Clock()
     kw.setdefault("clock", clk)
@@ -283,8 +306,17 @@ def test_session_start_then_passkey_stores_verified_creds_and_drops_the_link(tmp
         "ble_addr": "AA:BB:CC:DD:EE:FF",
         "live": True,
         "restart_required": False,
+        "session_ok": True,
     }
-    assert dev.disconnected == 1 and ses.busy() is False
+    # The documented order: the pairing link is dropped, 0.5 s pass, and a FRESH link proves the key.
+    assert [m["method"] for m in dev.sent] == [
+        "StartKeyExchange",
+        "ConfirmKeyExchange",
+        "RequestSession",
+        "CheckSessionIntegrity",
+    ]
+    assert len(dev.connects) == 2 and dev.disconnected == 2 and ses.busy() is False
+    assert P.POST_PAIR_SETTLE_S in _clk.slept
     stored = capture._load_as11_creds(str(tmp_path / "as11_creds.json"))
     assert stored["masterPairKey"] == dev.K.hex() and stored["clientId"] == "cli-77"
     assert stored["ble_addr"] == "AA:BB:CC:DD:EE:FF" and stored["paired_at"].endswith("Z")
@@ -379,7 +411,7 @@ def test_session_concurrent_start_answers_already_in_progress_without_a_second_c
         dev = SimDevice()
         return dev.write, dev.recv_frame, dev.disconnect
 
-    ses = P.PairingSession(slow_connect, str(tmp_path / "c.json"))
+    ses = P.PairingSession(slow_connect, str(tmp_path / "c.json"), sleep=_nosleep)
 
     async def go():
         t1 = asyncio.ensure_future(ses.op("start", ble_addr="AA"))
@@ -412,7 +444,9 @@ def test_session_connect_not_found_is_unreachable_and_never_retried(tmp_path):
     clk = Clock()
     ses = P.PairingSession(connect, str(tmp_path / "c.json"), sleep=clk.sleep, clock=clk)
     r = _run(ses.op("start", ble_addr="AA"))
-    assert r["ok"] is False and r["unreachable"] is True and "pairing mode" in r["error"]
+    # The hint names the documented menu path, not the old "its menu → Bluetooth".
+    assert r["ok"] is False and r["unreachable"] is True and r["error"] == P.NOT_FOUND_HINT
+    assert "More → MyAir App → OK, downloaded → Connect" in r["error"] and "Bluetooth)" not in r["error"]
     assert attempts == [1] and clk.slept == []
 
 
@@ -525,7 +559,7 @@ def test_session_swallows_a_disconnect_that_fails(tmp_path):
     async def connect(_addr):
         return dev.write, dev.recv_frame, bad_disconnect
 
-    ses = P.PairingSession(connect, str(tmp_path / "c.json"))
+    ses = P.PairingSession(connect, str(tmp_path / "c.json"), sleep=_nosleep)
 
     async def go():
         await ses.op("start", ble_addr="AA")
@@ -598,8 +632,8 @@ def test_forget_reports_an_unlink_failure_rather_than_claiming_success(tmp_path,
 def test_status_names_the_radio_it_pairs_on(tmp_path):
     """`which adapter am I pairing to?` had no answer in the UI. The box has three radios and only one
     is pinned for the CPAP."""
-    ses, _ = _session(SimDevice(), tmp_path, adapter="28:0C:50:0C:18:FD")
-    assert ses.status()["adapter"] == "28:0C:50:0C:18:FD"
+    ses, _ = _session(SimDevice(), tmp_path, adapter="AA:BB:CC:10:00:01")
+    assert ses.status()["adapter"] == "AA:BB:CC:10:00:01"
     assert ses.status()["adapter_usable"] is True
 
 
@@ -648,3 +682,441 @@ def test_status_disclosure_rides_along_with_a_pending_exchange(tmp_path):
     assert asyncio.run(ses.op("start", ble_addr="AA"))["ok"] is True
     s = ses.status()
     assert s["pending"] is True and s["adapter"] == "hci1" and s["paired"] is False
+
+
+# ── the documented pairing sequence (owner, 2026-10-10) ──────────────────────────────────────────────────────────
+def test_a_start_reply_that_never_comes_ends_the_exchange_at_its_deadline_not_never():
+    """`_await_result` skips HeartBeats forever; the overall bound is what ends a silent device."""
+    sent = []
+
+    async def write(frame):
+        sent.append(frame)
+
+    async def recv_frame():
+        await asyncio.sleep(0.005)
+        return L.VCID_PLAIN_RX, json.dumps({"jsonrpc": "2.0", "method": "HeartBeat", "params": {}}).encode()
+
+    # OUTER bound: a mutant that drops the deadline must FAIL here (TimeoutError), not hang the suite.
+    with pytest.raises(As11Error, match="no StartKeyExchange reply within 0.05 s"):
+        _run(
+            asyncio.wait_for(
+                P.start_exchange(write, recv_frame, L.SrpClient(private_value=0x1234), reply_timeout_s=0.05), 2
+            )
+        )
+    assert len(sent) == 1
+
+
+def test_the_reply_bounds_are_the_documented_ones():
+    assert P.START_REPLY_TIMEOUT_S == 30.0 and P.CONFIRM_REPLY_TIMEOUT_S == 15.0 and P.POST_PAIR_SETTLE_S == 0.5
+
+
+def test_a_confirm_reply_that_never_comes_is_named():
+    dev = SimDevice()
+    srp = L.SrpClient(private_value=0x1234)
+
+    async def go():
+        pk, salt = await P.start_exchange(dev.write, dev.recv_frame, srp)
+
+        async def silent():
+            await asyncio.sleep(1)
+
+        return await P.confirm_exchange(dev.write, silent, srp, pk, salt, dev.passkey, reply_timeout_s=0.01)
+
+    with pytest.raises(As11Error, match="no ConfirmKeyExchange reply"):
+        _run(go())
+
+
+def _pair_through(ses, dev, **start):
+    async def go():
+        r1 = await ses.op("start", **start)
+        assert r1["ok"], r1
+        return await ses.op("passkey", passkey=dev.passkey)
+
+    return _run(go())
+
+
+def test_a_key_the_device_refuses_on_the_fresh_link_is_stored_but_reported_not_working(tmp_path):
+    dev = SimDevice(session_reject=True)
+    ses, _ = _session(dev, tmp_path)
+    r = _pair_through(ses, dev, ble_addr="AA")
+    assert r["verified"] is True and r["stored"] is True  # M2 proved K: the pairing itself stands
+    assert r["session_ok"] is False and "VerificationFailure" in r["session_error"]
+    assert capture._load_as11_creds(str(tmp_path / "as11_creds.json"))["clientId"] == "cli-77"
+    assert dev.disconnected == 2  # the check's link is closed even when it fails
+
+
+def test_a_session_check_that_cannot_reconnect_says_so(tmp_path):
+    dev = SimDevice()
+    calls = []
+
+    async def connect(addr):
+        calls.append(addr)
+        if len(calls) > 1:
+            raise OSError("adapter went away")
+        return dev.write, dev.recv_frame, dev.disconnect
+
+    clk = Clock()
+    ses = P.PairingSession(
+        connect,
+        str(tmp_path / "c.json"),
+        clock=clk,
+        sleep=clk.sleep,
+        srp_factory=lambda: L.SrpClient(private_value=0x1234),
+    )
+    r = _pair_through(ses, dev, ble_addr="AA")
+    assert r["stored"] is True and r["session_ok"] is False
+    assert r["session_error"] == "reconnect: OSError: adapter went away"
+
+
+def test_a_session_check_that_hangs_is_bounded(tmp_path, monkeypatch):
+    monkeypatch.setattr(P, "SESSION_CHECK_TIMEOUT_S", 0.01)
+    dev = SimDevice()
+    n = []
+
+    async def recv_frame():
+        if len(dev.sent) > 2:  # past the pairing exchange: the device goes silent
+            await asyncio.sleep(1)
+        return await dev.recv_frame()
+
+    async def connect(addr):
+        n.append(addr)
+        return dev.write, recv_frame, dev.disconnect
+
+    clk = Clock()
+    ses = P.PairingSession(
+        connect,
+        str(tmp_path / "c.json"),
+        clock=clk,
+        sleep=clk.sleep,
+        srp_factory=lambda: L.SrpClient(private_value=0x1234),
+    )
+    r = _pair_through(ses, dev, ble_addr="AA")
+    assert r["session_ok"] is False and r["session_error"].startswith("TimeoutError")
+    assert dev.disconnected == 2
+
+
+def test_a_chosen_radio_reaches_the_connect_and_is_recorded_with_the_key(tmp_path):
+    dev = SimDevice()
+    ses, _ = _session(dev, tmp_path)
+    r = _pair_through(ses, dev, ble_addr="AA", adapter="AA:BB:CC:10:00:01")
+    assert r["session_ok"] is True
+    assert dev.connects == [("AA", "AA:BB:CC:10:00:01")] * 2  # pairing AND the check, on the SAME radio
+    assert json.load(open(tmp_path / "as11_creds.json"))["adapter"] == "AA:BB:CC:10:00:01"
+
+
+def test_no_radio_chosen_keeps_the_one_argument_connect_and_records_no_adapter(tmp_path):
+    dev = SimDevice()
+    ses, _ = _session(dev, tmp_path)
+    _pair_through(ses, dev, ble_addr="AA")
+    assert dev.connects == [("AA", None)] * 2
+    assert "adapter" not in json.load(open(tmp_path / "as11_creds.json"))
+
+
+def test_unpair_remembers_the_address_so_the_next_start_needs_none(tmp_path):
+    """2026-10-10: Unpair deleted the only copy of the address and every later Start answered
+    'no CPAP BLE address'. The address now outlives the key."""
+    dev = SimDevice()
+    path = tmp_path / "as11_creds.json"
+    path.write_text(json.dumps({"masterPairKey": "aa", "clientId": "c", "ble_addr": "AA:BB:CC:00:00:01"}))
+    ses, _ = _session(dev, tmp_path)
+    f = _run(ses.op("forget"))
+    assert f["forgotten"] is True and f["last_addr"] == "AA:BB:CC:00:00:01" and f["paired"] is False
+    r = _pair_through(ses, dev)
+    assert r["ble_addr"] == "AA:BB:CC:00:00:01" and r["session_ok"] is True
+
+
+def test_with_no_address_anywhere_start_says_how_to_get_one(tmp_path):
+    ses, _ = _session(SimDevice(), tmp_path)
+    r = _run(ses.op("start"))
+    assert r["ok"] is False and "Find CPAP" in r["error"] and P.PAIRING_MODE_STEPS in r["error"]
+
+
+def test_status_names_the_pairing_mode_steps(tmp_path):
+    ses, _ = _session(SimDevice(), tmp_path)
+    st = ses.status()
+    assert st["pairing_mode"] == P.PAIRING_MODE_STEPS and st["last_addr"] is None and st["starting"] is False
+
+
+def _scanner(result=None, exc=None):
+    seen = []
+
+    async def scan(adapter):
+        seen.append(adapter)
+        if exc:
+            raise exc
+        return result
+
+    return scan, seen
+
+
+def test_scan_runs_on_the_chosen_radio_and_one_hit_becomes_the_default_address(tmp_path):
+    dev = SimDevice()
+    scan, seen = _scanner([{"addr": "AA:BB:CC:00:00:01", "name": "ResMed 000001", "rssi": -60}])
+    ses, _ = _session(dev, tmp_path, scan=scan, adapter="hci1")
+    r = _run(ses.op("scan", adapter="AA:BB:CC:10:00:02"))
+    assert r == {
+        "ok": True,
+        "adapter": "AA:BB:CC:10:00:02",
+        "found": [{"addr": "AA:BB:CC:00:00:01", "name": "ResMed 000001", "rssi": -60}],
+    }
+    assert seen == ["AA:BB:CC:10:00:02"] and ses.status()["last_addr"] == "AA:BB:CC:00:00:01"
+    assert _pair_through(ses, dev)["ble_addr"] == "AA:BB:CC:00:00:01"
+
+
+def test_scan_without_a_choice_uses_the_configured_radio_and_two_hits_choose_nothing(tmp_path):
+    scan, seen = _scanner([{"addr": "A1"}, {"addr": "A2"}])
+    ses, _ = _session(SimDevice(), tmp_path, scan=scan, adapter="hci1")
+    r = _run(ses.op("scan"))
+    assert seen == ["hci1"] and len(r["found"]) == 2 and ses.status()["last_addr"] is None
+
+
+def test_an_empty_scan_tells_the_person_what_to_do_at_the_machine(tmp_path):
+    scan, _ = _scanner([])
+    ses, _ = _session(SimDevice(), tmp_path, scan=scan)
+    r = _run(ses.op("scan"))
+    assert r["ok"] is True and r["found"] == [] and r["detail"] == P.NOT_FOUND_HINT
+
+
+def test_a_scan_that_raises_is_an_answer(tmp_path):
+    scan, _ = _scanner(exc=type("BleakError", (Exception,), {})("adapter busy"))
+    ses, _ = _session(SimDevice(), tmp_path, scan=scan, adapter="hci1")
+    assert _run(ses.op("scan")) == {"ok": False, "adapter": "hci1", "error": "BleakError: adapter busy"}
+
+
+def test_a_daemon_without_a_scanner_or_radio_list_says_so(tmp_path):
+    ses, _ = _session(SimDevice(), tmp_path)
+    assert _run(ses.op("scan")) == {"ok": False, "error": "this daemon cannot scan"}
+    assert _run(ses.op("radios")) == {"ok": False, "error": "this daemon cannot list its radios"}
+
+
+def test_scan_is_refused_while_an_exchange_holds_the_link(tmp_path):
+    dev = SimDevice()
+    scan, seen = _scanner([])
+    ses, _ = _session(dev, tmp_path, scan=scan)
+
+    async def go():
+        await ses.op("start", ble_addr="AA")
+        return await ses.op("scan")
+
+    r = _run(go())
+    assert r["ok"] is False and "in progress" in r["error"] and seen == []
+
+
+def test_radios_are_listed_with_an_unpairable_address_marked(tmp_path):
+    async def radios():
+        return [
+            {"hci": "hci0", "mac": "AA:BB:CC:10:00:01", "up": True},
+            {"hci": "hci3", "mac": "00:00:00:00:00:00", "up": True},
+            {"hci": "hci4", "mac": None, "up": False},
+        ]
+
+    ses, _ = _session(SimDevice(), tmp_path, radios=radios)
+    r = _run(ses.op("radios"))
+    assert r["ok"] is True and [x["usable"] for x in r["radios"]] == [True, False, False]
+
+
+def test_a_radio_listing_that_raises_is_an_answer(tmp_path):
+    async def radios():
+        raise OSError("hciconfig missing")
+
+    ses, _ = _session(SimDevice(), tmp_path, radios=radios)
+    assert _run(ses.op("radios")) == {"ok": False, "error": "OSError: hciconfig missing"}
+
+
+def test_unpairing_a_key_that_carried_no_address_remembers_nothing(tmp_path):
+    (tmp_path / "as11_creds.json").write_text(json.dumps({"masterPairKey": "aa", "clientId": "c"}))
+    ses, _ = _session(SimDevice(), tmp_path)
+    f = _run(ses.op("forget"))
+    assert f["forgotten"] is True and f["last_addr"] is None
+
+
+# ── the contract the panel and the operator read: exact defaults, ids and words ─────────────────────
+def test_the_default_rpc_ids_are_one_then_two():
+    dev = SimDevice()
+    srp = L.SrpClient(private_value=0x1234)
+
+    async def go():
+        pk, salt = await P.start_exchange(dev.write, dev.recv_frame, srp)
+        return await P.confirm_exchange(dev.write, dev.recv_frame, srp, pk, salt, dev.passkey)
+
+    _run(go())
+    assert [m["id"] for m in dev.sent] == [1, 2]
+
+
+@pytest.mark.parametrize("step,blank", [("start", "serverPk"), ("confirm", "serverConfirmation")])
+def test_each_required_member_is_checked_by_name(step, blank):
+    dev = SimDevice(tamper={step: {blank: ""}})
+
+    async def passkey():
+        return dev.passkey
+
+    with pytest.raises(As11Error, match=rf"pairing response missing \['{blank}'\]"):
+        _run(P.pair(dev.write, dev.recv_frame, passkey))
+
+
+def test_the_exchange_errors_are_worded_exactly():
+    with pytest.raises(ValueError) as e:
+        _run(P.confirm_exchange(None, None, L.SrpClient(), "00", "00", "12"))
+    assert str(e.value) == "passkey must be 4–10 digits"
+    dev = SimDevice(tamper={"confirm": {"serverConfirmation": "ab" * 32}})
+
+    async def passkey():
+        return dev.passkey
+
+    with pytest.raises(As11Error) as e:
+        _run(P.pair(dev.write, dev.recv_frame, passkey))
+    assert str(e.value) == "server confirmation (M2) mismatch — wrong passkey or wrong device; nothing stored"
+
+
+def test_a_failing_connect_is_tried_three_times_four_seconds_apart_by_default(tmp_path):
+    n = []
+
+    async def connect(addr):
+        n.append(addr)
+        raise OSError("busy")
+
+    clk = Clock()
+    ses = P.PairingSession(connect, str(tmp_path / "c.json"), clock=clk, sleep=clk.sleep)
+    r = _run(ses.op("start", ble_addr="AA"))
+    assert r == {"ok": False, "error": "OSError: busy"}
+    assert len(n) == 3 and clk.slept == [4.0, 4.0]
+
+
+def test_connect_attempts_of_one_means_exactly_one(tmp_path):
+    n = []
+
+    async def connect(addr):
+        n.append(addr)
+        raise OSError("busy")
+
+    ses = P.PairingSession(connect, str(tmp_path / "c.json"), connect_attempts=1, sleep=_nosleep)
+    _run(ses.op("start", ble_addr="AA"))
+    assert n == ["AA"]
+
+
+def test_a_not_found_carried_only_in_the_message_is_still_unreachable(tmp_path):
+    async def connect(addr):
+        raise RuntimeError("Device with address AA was Not Found")
+
+    ses = P.PairingSession(connect, str(tmp_path / "c.json"), sleep=_nosleep)
+    assert _run(ses.op("start", ble_addr="AA")) == {"ok": False, "unreachable": True, "error": P.NOT_FOUND_HINT}
+
+
+def test_starting_is_reported_during_a_start_and_cleared_after(tmp_path):
+    dev = SimDevice()
+    ses, _ = _session(dev, tmp_path)
+    r = _run(ses.op("start", ble_addr="AA"))
+    # The reply is built INSIDE the start, so it says so; once the start returns, the flag is cleared.
+    assert r["starting"] is True and ses.status()["starting"] is False
+
+
+def test_seconds_left_is_rounded_to_a_tenth_and_floored_at_zero(tmp_path):
+    dev = SimDevice()
+    clk = Clock()
+    ses, _ = _session(dev, tmp_path, clk=clk)
+    _run(ses.op("start", ble_addr="AA"))
+    clk.t += 0.06
+    assert ses.status()["seconds_left"] == 119.9
+    clk.t += 500  # past the deadline, before the watchdog has run
+    assert ses.status()["seconds_left"] == 0.0
+
+
+def test_a_lower_case_unpairable_address_is_still_unusable(tmp_path):
+    async def radios():
+        return [{"hci": "hci5", "mac": "ff:ff:ff:ff:ff:ff", "up": True}]
+
+    ses, _ = _session(SimDevice(), tmp_path, radios=radios)
+    assert _run(ses.op("radios"))["radios"][0]["usable"] is False
+
+
+def test_paired_at_is_utc_in_iso_form(tmp_path, monkeypatch):
+    import time as _t
+
+    fixed = _t.struct_time((2026, 10, 10, 23, 5, 9, 5, 283, 0))
+    monkeypatch.setattr(P.time, "gmtime", lambda *a: fixed)
+    dev = SimDevice()
+    ses, _ = _session(dev, tmp_path)
+    _pair_through(ses, dev, ble_addr="AA")
+    assert json.load(open(tmp_path / "as11_creds.json"))["paired_at"] == "2026-10-10T23:05:09Z"
+
+
+def test_a_device_refusal_names_its_exception_type(tmp_path):
+    dev = SimDevice(error=("StartKeyExchange", {"code": -1, "message": "NotInPairingMode"}))
+    ses, _ = _session(dev, tmp_path)
+    r = _run(ses.op("start", ble_addr="AA"))
+    assert r["ok"] is False and r["error"].startswith("As11Error: RPC 1 failed")
+    dev = SimDevice()
+    ses, _ = _session(dev, tmp_path)
+
+    async def go():
+        await ses.op("start", ble_addr="AA")
+        return await ses.op("passkey", passkey="0000")
+
+    r = _run(go())
+    assert r["verified"] is False and r["error"].startswith("As11Error: RPC 2 failed")
+
+
+def _busy_session(tmp_path):
+    return _session(SimDevice(), tmp_path, other_busy=lambda: True)[0]
+
+
+def test_every_refusal_and_detail_is_worded_exactly(tmp_path):
+    """The panel shows these strings verbatim to the person at the machine; they ARE the interface."""
+    # the live stream holds the link
+    ses = _busy_session(tmp_path)
+    assert (
+        _run(ses.op("start", ble_addr="AA"))["error"] == "the live CPAP stream holds the link — stop it before pairing"
+    )
+    (tmp_path / "as11_creds.json").write_text(json.dumps({"masterPairKey": "aa", "clientId": "c", "ble_addr": "AA"}))
+    assert _run(ses.op("forget"))["error"] == "the live CPAP stream holds the link — stop it before forgetting the key"
+    # forget: nothing stored, then something stored
+    (tmp_path / "as11_creds.json").unlink()
+    ses, _ = _session(SimDevice(), tmp_path)
+    assert _run(ses.op("forget"))["detail"] == "no stored key to forget"
+    (tmp_path / "as11_creds.json").write_text(json.dumps({"masterPairKey": "aa", "clientId": "c", "ble_addr": "AA"}))
+    assert _run(ses.op("forget"))["detail"] == "stored key removed — the CPAP must be re-paired before the next session"
+    # passkey with nothing open
+    assert _run(ses.op("passkey", passkey="1234"))["error"] == "no pairing exchange is open — press Start pairing first"
+
+
+def test_the_open_exchange_wordings_are_exact(tmp_path):
+    dev = SimDevice()
+    scan, _ = _scanner([])
+    ses, _ = _session(dev, tmp_path, scan=scan)
+
+    async def go():
+        r1 = await ses.op("start", ble_addr="AA")
+        again = await ses.op("start", ble_addr="AA")
+        scan_r = await ses.op("scan")
+        forget_r = await ses.op("forget")
+        bad = await ses.op("passkey", passkey="12")
+        return r1, again, scan_r, forget_r, bad
+
+    r1, again, scan_r, forget_r, bad = _run(go())
+    assert r1["detail"] == "read the 4-digit code on the CPAP screen and enter it"
+    assert again["detail"] == "an exchange is already open — type the code the CPAP shows"
+    assert scan_r == {"ok": False, "error": "a pairing exchange is in progress — finish or cancel it first"}
+    assert forget_r == {"ok": False, "error": "a pairing exchange is open — cancel it before forgetting the key"}
+    assert bad["error"] == "passkey must be the 4–10 digit code shown on the CPAP screen"
+
+
+def test_no_stream_controller_means_never_busy_and_an_idle_one_means_idle(tmp_path):
+    ses, _ = _session(SimDevice(), tmp_path)
+    assert ses._stream_busy() is False
+    ses, _ = _session(SimDevice(), tmp_path, other_busy=lambda: 0)
+    assert ses._stream_busy() is False
+
+
+def test_with_no_radio_chosen_the_connect_gets_ONE_argument(tmp_path):
+    """The back-compat promise of `_open`: a connect injected with the old one-argument shape is called
+    with exactly the address — never an `adapter=None` it cannot accept."""
+    dev = SimDevice()
+
+    async def connect(addr):  # strictly one argument
+        return dev.write, dev.recv_frame, dev.disconnect
+
+    ses = P.PairingSession(
+        connect, str(tmp_path / "c.json"), sleep=_nosleep, srp_factory=lambda: L.SrpClient(private_value=0x1234)
+    )
+    r = _run(ses.op("start", ble_addr="AA"))
+    assert r["ok"] is True and r["awaiting"] == "passkey"
