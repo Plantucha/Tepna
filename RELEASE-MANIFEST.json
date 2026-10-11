@@ -1462,6 +1462,40 @@
         "NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.18.0",
+      "date": "2026-10-11",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "36b2fc59f95e",
+        "OxyDex": "ddaedc9ee57e",
+        "PulseDex": "caf9c9c4298b",
+        "GlucoDex": "2e970f179356",
+        "PpgDex": "f7cbae068454",
+        "HRVDex": "e56153f956a3",
+        "CPAPDex": "03e331ec0e34",
+        "Integrator": "57b3c633f843",
+        "MotionDex": "b66edf5e8736"
+      },
+      "briefs": [
+        "SOLID-NIGHT-RTC-2026-10-04-BRIEF.md",
+        "ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+        "CLOCK-FIT-SEARCH-COST-2026-10-05-BRIEF.md",
+        "NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md",
+        "NIGHT-0928-ERRORS-2026-09-29-BRIEF.md",
+        "GEMINI-SECOND-READER-2026-10-05-BRIEF.md",
+        "SESSION-SPAN-WRITER-OFFSET-2026-09-28-BRIEF.md",
+        "DEEP-AUDIT-VI-2026-09-01-BRIEF.md",
+        "VIGIL-GPS-STRATUM1-2026-10-10-BRIEF.md",
+        "XERJ-HYBRID-SEARCH-2026-10-10-BRIEF.md",
+        "OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md",
+        "USAGE-GUARD-2026-10-11-BRIEF.md",
+        "MUTATION-SCOPED-GENERATION-2026-09-28-BRIEF.md",
+        "BRIEF-GAPS-2026-10-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
