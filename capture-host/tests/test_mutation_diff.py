@@ -3698,6 +3698,19 @@ def test_a_CLAIMED_UNCHECKED_mutant_is_counted_never_refused_and_never_passed():
     assert out["not_decided"] == [], "an asked-and-unanswered claim is not the refusal state"
     assert out["refuted"] == [] and out["excused"] == []
     assert "says nothing about the claim" in out["claimed_unchecked"][0]["why"]
+    # 🔴 THE BUCKETED ENTRY MUST STILL BE THE ENTRY. `dict(e, why=...)` losing its `e` leaves only the
+    # `why` — the count and the text both still read correct, which is why the gate found this as a
+    # survivor — and the report then cannot name WHICH claim it is talking about (it prints `e["key"]`).
+    # A bucket whose rows cannot be identified is a count nobody can act on.
+    for bucket, kwargs in (
+        ("claimed_unchecked", {"unchecked": {key}}),
+        ("claimed_not_required", {"not_required": {key}}),
+        ("not_decided", {}),
+    ):
+        row = M.classify(entry, [], set(), generated={key}, **kwargs)[bucket][0]
+        assert row["key"] == key, f"{bucket} lost the claim's key: {row}"
+        assert row["class"] == "no-distinguishing-input", f"{bucket} lost the claim's class: {row}"
+        assert row["probe"] == "p", f"{bucket} lost the claim's probe: {row}"
     # the three states are DISJOINT and each keeps its own routing
     assert len(M.classify(entry, [], set(), generated={key}, not_required={key})["claimed_not_required"]) == 1
     assert len(M.classify(entry, [], set(), generated={key})["not_decided"]) == 1, (
