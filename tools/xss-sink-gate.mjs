@@ -139,6 +139,38 @@ export function selftest() {
   const split = scanDiff(['diff --git a/x.js b/x.js', '+  el.innerHTML =', "+    userInput + '<br>' + n + ';'"]);
   ok(split.violations.length === 1 && split.violations[0].unsafe.includes('userInput'), 'a sink whose RHS is on the NEXT line is caught');
   ok(split.sinksAdded === 1, '…and counted once, not once per assembled line');
+
+  /* ── THE METRIC SWITCH, PLANTED ────────────────────────────────────────────────────────────────
+     The case the FILE count could not see: one file, five sinks, four of them escaped. The work is
+     four fifths done and the file is still listed, so a files-based baseline moves by ZERO and the
+     ratchet reports no progress on a real security fix. This is not hypothetical — #3437 escaped
+     sinks in two listed files and the file count stayed 42, which is why the metric changed. */
+  const fiveSinks = ['diff --git a/a.js b/a.js'];
+  for (let k = 0; k < 5; k++) fiveSinks.push(`+  el${k}.innerHTML = userInput${k};`);
+  const allBad = scanDiff(fiveSinks);
+  ok(allBad.violations.length === 5, 'five unescaped sinks in one file count as FIVE', `got ${allBad.violations.length}`);
+  ok([...new Set(allBad.violations.map((v) => v.file))].length === 1, '…and as ONE file');
+
+  const fourFixed = ['diff --git a/a.js b/a.js'];
+  for (let k = 0; k < 4; k++) fourFixed.push(`+  el${k}.innerHTML = escapeHTML(userInput${k});`);
+  fourFixed.push('+  el4.innerHTML = userInput4;');
+  const partly = scanDiff(fourFixed);
+  ok(partly.violations.length === 1, 'escaping four of the five leaves ONE unescaped sink', `got ${partly.violations.length}`);
+  ok([...new Set(partly.violations.map((v) => v.file))].length === 1, '…while the FILE count is unchanged at one — the blindness, in one assertion');
+  /* And the ratchet must now MOVE on that work, where before it could not. */
+  ok(ratchet(partly.violations.length, { count: 5 }).status === 'SHORTFALL', 'the sink ratchet asks to be LOWERED after the four fixes');
+  ok(ratchet(1, { count: 1 }).status === 'PASS', 'an unchanged sink count passes');
+  ok(ratchet(2, { count: 1 }).status === 'FAIL', 'a RISEN sink count fails');
+  const fileMetric = [...new Set(partly.violations.map((v) => v.file))].length;
+  ok(ratchet(fileMetric, { count: 1 }).status === 'PASS', 'CONTROL · the OLD file metric reports PASS over the same four fixes — it cannot see them');
+
+  /* The ledger entry this gate reads must carry the new unit, or the gate and its baseline disagree
+     about what the number means — which is how a ratchet silently measures the wrong thing. */
+  const led = readBacklog(join(ROOT, BACKLOG_LEDGER), 'xss-sink-gate', (f) => readFileSync(f, 'utf-8'));
+  ok(led != null, 'the backlog ledger still has an xss-sink-gate entry');
+  ok(led != null && /sink/i.test(led.unit || ''), 'the ledger UNIT names sinks, not files', JSON.stringify(led && led.unit));
+  ok(led != null && led.files != null, 'the ledger keeps files as a second, non-ratcheted column', JSON.stringify(led && led.files));
+
   const splitSafe = scanDiff(['diff --git a/x.js b/x.js', '+  el.innerHTML =', '+    escapeHTML(x);']);
   ok(splitSafe.violations.length === 0, 'CONTROL: a multi-line sink that IS escaped stays clean');
   ok(scanDiff(['+  el.innerHTML =', '-  removed line']).violations.length === 0, 'CONTROL: assembly stops at a non-added line rather than reading across the hunk');
@@ -169,7 +201,7 @@ function verdictOf({ status, sinksAdded, violations, base, fullTree, files, base
     status,
     population: { checked: sinksAdded, eligible: sinksAdded, excluded: 0 },
     criterion: fullTree
-      ? { name: 'the-whole-tree-backlog-of-unescaped-innerhtml-sinks-may-only-fall', threshold: baseline ? baseline.count : 0, unit: 'files with an unescaped sink', direction: 'lte' }
+      ? { name: 'the-whole-tree-backlog-of-unescaped-innerhtml-sinks-may-only-fall', threshold: baseline ? baseline.count : 0, unit: 'innerHTML sinks with an unescaped identifier', direction: 'lte' }
       : { name: 'no-added-innerhtml-sink-carries-an-unescaped-identifier', threshold: 0, unit: 'added sinks with an unescaped identifier', direction: 'eq' },
     result:
       status === 'NOT_RUN' && !fullTree
@@ -177,7 +209,7 @@ function verdictOf({ status, sinksAdded, violations, base, fullTree, files, base
         : {
             sinksAdded,
             violations: violations.map((v2) => ({ file: v2.file, unsafe: v2.unsafe })),
-            ...(fullTree ? { mode: 'full-tree', files, fileCount: files.length, baseline: baseline ? baseline.count : null } : {})
+            ...(fullTree ? { mode: 'full-tree', unescapedSinks: violations.length, sinksInTree: sinksAdded, files, fileCount: files.length, baseline: baseline ? baseline.count : null } : {})
           },
     evidence: ['tools/xss-sink-gate.mjs', 'dex-escape.js'],
     reason:
@@ -269,13 +301,23 @@ function main() {
   if (fullTree) {
     const files = [...new Set(violations.map((v) => v.file))].sort();
     const baseline = readBacklog(join(ROOT, BACKLOG_LEDGER), 'xss-sink-gate', (f) => readFileSync(f, 'utf-8'));
-    const r = ratchet(files.length, baseline);
+    /* 🔴 THE RATCHET COUNTS SINKS, NOT FILES — changed 2026-10-11 after measuring that it was blind to
+       the work it exists to track. A file carries ~5 sinks (314 across 42 files) and leaves the list
+       only when its LAST one is escaped, so escaping four of five moves the baseline by zero.
+       MEASURED, not argued: #3437 escaped sinks in `dex-profile.js` and `resp-acc-analysis-app.js`,
+       both of which REMAIN in the list because they hold others — and the file count stayed at 42. A
+       ratchet that cannot see a merged security fix is not a ratchet, it is a number that happens to
+       be true. `files` stays as a second column: it is the better unit for "how many modules still
+       need review", just not for progress. */
+    const r = ratchet(violations.length, baseline);
     if (asJson) {
       process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, sinksAdded, violations, base, fullTree: true, files, baseline }), null, 1)}\n`);
     } else {
       process.stdout.write(`xss-sink-gate --full-tree · ${sinksAdded} innerHTML sink(s) in the tree · ${violations.length} with an unescaped identifier, in ${files.length} file(s)\n`);
       for (const f of files) process.stdout.write(`    ${f}\n`);
-      process.stdout.write(`  baseline: ${baseline ? baseline.count : '(none yet)'} → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`);
+      process.stdout.write(
+        `  baseline: ${baseline ? `${baseline.count} unescaped sink(s)` : '(none yet)'}${baseline && baseline.files != null ? ` · ${baseline.files} file(s), not ratcheted` : ''} → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`
+      );
     }
     process.exit(r.status === 'FAIL' ? 1 : 0);
   }

@@ -2405,3 +2405,257 @@ def test_a_CRASHED_audit_still_names_the_file_it_was_reaching_for(tmp_path, monk
     o = loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=lambda *a: [])
     assert o["status"] == "UNKNOWN" and "RuntimeError: disk gone" in o["reason"]
     assert o["evidence"][:2] == [loss_audit.TOOL, os.path.join(d, loss_audit.AUDIT_NAME)]
+
+
+# ══ THE AUDIT FOLLOWS THE RECORDING, NOT THE FOLDER (owner report 2026-10-09→10) ═══════════════════
+
+
+def _cross_folder_night(tmp_path):
+    """Last night's real layout: the ring opens the night in folder D, the Polar wearables start after
+    midnight and land in D+1. ONE recording, two folders."""
+    c = tmp_path / "captures"
+    d9, d10 = c / "2026-10-09", c / "2026-10-10"
+    d9.mkdir(parents=True)
+    d10.mkdir(parents=True)
+    _stream(str(d9 / "Wellue_O2Ring-S_ABC_20261009212546_SPO2.csv"), ())
+    _stream(str(d10 / "Polar_H10_0284_20261010015024_ECG.txt"), ())
+    _stream(str(d10 / "Polar_VeritySense_0C30_20261010014748_PPG.txt"), ())
+    return str(d9)
+
+
+def test_the_audit_EXAMINES_the_wearables_that_started_after_midnight(tmp_path):
+    """🔴 THE PLANT, and on main it is the owner's bug verbatim. The judge spans a recording across
+    folders (`recording_scope`, #3297/#3337) but this audit globbed ONE folder — so for the night of
+    2026-10-09, whose Verity started 01:47 and H10 01:50 in the NEXT day's folder, the primary glob found
+    nothing and the audit wrote `"no primary file this night"` for both. The judge then said "the loss
+    audit examined None, which does not cover the worn interval" and the verdict was STRUCTURALLY
+    UNKNOWN: no re-run could fix it, and the 18:51 re-audit on a current daemon reproduced it
+    byte-identically.
+
+    What is asserted is the audit's own population — that it EXAMINED the files — not the downstream
+    verdict, which is the judge's to compute."""
+    d9 = _cross_folder_night(tmp_path)
+    devs = [
+        {"name": "Polar H10 0284", "model": "H10"},
+        {"name": "Polar Verity 0C30", "model": "VeritySense"},
+        {"name": "O2Ring ABC", "model": "O2Ring-S"},
+    ]
+    audit = loss_audit.audit_night(d9, devs)
+    for name in ("Polar H10 0284", "Polar Verity 0C30"):
+        dev = audit["devices"][name]
+        assert dev.get("reason") != "no primary file this night", (name, dev)
+        assert dev.get("file"), (name, dev)
+    # and the ring that opened the night in THIS folder is still examined
+    assert audit["devices"]["O2Ring ABC"].get("file")
+
+
+def test_a_SINGLE_FOLDER_night_is_audited_exactly_as_before(tmp_path):
+    """THE CONTROL, and the one that keeps this from being a widening. A night whose sessions all live in
+    its own folder must be judged over exactly the same file set as before — the scope reaches into D+1,
+    but `in_band` admits nothing from there unless a session STARTED in this band."""
+    d = _night(tmp_path)
+    audit = loss_audit.audit_night(d, DEV)
+    dev = audit["devices"]["Polar H10 0284"]
+    assert dev["file"].endswith("Polar_H10_0284_20260920220000_ECG.txt"), dev
+    assert len(dev.get("files") or [{}]) == 1, dev
+
+
+def test_a_NEXT_DAY_session_of_its_OWN_band_is_not_adopted_into_this_night(tmp_path):
+    """The other half of membership: a session that STARTS in the next evening's band belongs to that
+    night, not this one. The scope reaches the folder; `in_band` decides, which is what stops this change
+    from merging two nights into one audit."""
+    c = tmp_path / "captures"
+    d9, d10 = c / "2026-10-09", c / "2026-10-10"
+    d9.mkdir(parents=True)
+    d10.mkdir(parents=True)
+    _stream(str(d9 / "Polar_H10_0284_20261009220000_ECG.txt"), ())
+    _stream(str(d10 / "Polar_H10_0284_20261010220000_ECG.txt"), ())  # the NEXT night, 22:00 on 10-10
+    audit = loss_audit.audit_night(str(d9), DEV)
+    files = audit["devices"]["Polar H10 0284"].get("files") or []
+    names = [f.get("file") for f in files if isinstance(f, dict)]
+    assert names == ["Polar_H10_0284_20261009220000_ECG.txt"], names
+
+
+def test_the_WEAR_half_of_the_audit_follows_the_recording_too(tmp_path):
+    """🔴 THE PLANT THAT SURVIVED MY FIRST TEST SET, which is why this exists. Five globs carried the
+    per-folder assumption, and fixing only the PRIMARY left `wear_ends` folder-scoped — all 125 tests
+    stayed green, so nothing would have caught it.
+
+    It is not cosmetic: `wear_ends` publishes `worn_end`, which is the judge's own worn interval. Scoped
+    to one folder, a cross-folder night's H10 contributes NO wear end at all (`ends: []`,
+    `worn_end: None`), so the audit's two halves describe different nights — the same split this file's
+    `max(getsize)` comment already records one layer down, and exactly what makes a verdict compare
+    coverage against the wrong interval."""
+    d9 = _cross_folder_night(tmp_path)
+    devs = [{"name": "Polar H10 0284", "model": "H10"}]
+    wear = loss_audit.audit_night(d9, devs)["devices"]["Polar H10 0284"]["wear"]
+    assert wear["available"] is True, wear
+    named = [e.get("file") for e in wear["ends"]]
+    assert named == ["Polar_H10_0284_20261010015024_ECG.txt"], (
+        f"the wear half must examine the session that started after midnight in the NEXT day's folder: {named}"
+    )
+
+
+def _hr(night_dir, stamp, body):
+    """One H10 wear-evidence file at an explicit session stamp, so a test can control SORT ORDER."""
+    p = os.path.join(night_dir, f"Polar_H10_0284_{stamp}_HR.txt")
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(body)
+    return p
+
+
+def test_a_file_that_cannot_vouch_does_not_STOP_the_wear_scan(tmp_path):
+    """🔴 FOUR `continue` → `break` MUTANTS SURVIVED THE GATE HERE, and the reason is the fixture, not
+    the code: every existing wear test writes ONE file, and with one element `continue` and `break` end
+    the loop identically. The loop's whole promise is in its comments — "the next file may" — so the
+    fixture has to have a next file.
+
+    Each case puts the file that cannot vouch FIRST in sort order and a file that CAN vouch after it.
+    Under `break` the scan stops at the first and reports None (nothing read); under `continue` it reads
+    on and reports the wear it found."""
+    d = os.path.join(str(tmp_path), "captures", "2026-09-20")
+    os.makedirs(d, exist_ok=True)
+    good = "Phone timestamp;HR [bpm]\n2026-09-20T23:00:00;62\n"
+    # ① an EMPTY file first
+    _hr(d, "20260920220000", "")
+    _hr(d, "20260920230000", good)
+    assert loss_audit._has_worn_evidence(d, "H10") is True, (
+        "an empty first file must not end the scan — the second file carries the wear evidence"
+    )
+    # ② a header that names no such column, first
+    _hr(d, "20260920220000", "nosuchcolumn\n1;2\n")
+    assert loss_audit._has_worn_evidence(d, "H10") is True, "a useless header must not end the scan"
+    # ③ a file that cannot be OPENED, first
+    bad = _hr(d, "20260920220000", good)
+    os.chmod(bad, 0)
+    try:
+        assert loss_audit._has_worn_evidence(d, "H10") is True, "an unreadable file must not end the scan"
+    finally:
+        os.chmod(bad, 0o644)
+
+
+def test_relink_gap_looks_OUTSIDE_the_band_and_only_relink_does(tmp_path):
+    """`_relink_gap` is the one caller that passes `membership=False`: a re-link is judged against the
+    neighbouring session whether or not that session belongs to this band, which is the point of the
+    parameter. Three mutants lived on that one argument — dropped (defaulting True), written `True`, and
+    written `None` (which aliased False under a truth test until `is not False`) — and all three were
+    invisible because no fixture had a file the band EXCLUDES.
+
+    So this asserts the asymmetry directly: the same tree, the same pattern, one call that must see the
+    out-of-band file and one that must not."""
+    c = os.path.join(str(tmp_path), "captures")
+    d9 = os.path.join(c, "2026-09-20")
+    os.makedirs(d9, exist_ok=True)
+    _hr(d9, "20260920220000", "Phone timestamp;HR [bpm]\n2026-09-20T22:00:00;60\n")
+    # a 14:00 session in the same FOLDER: its own band is the previous evening's, so membership excludes it
+    _hr(d9, "20260920140000", "Phone timestamp;HR [bpm]\n2026-09-20T14:00:00;61\n")
+    # 🔴 AND THE KILL HAS TO GO THROUGH `_relink_gap`, not through the helper. Three mutants live on
+    # ITS call line, so asserting `_recording_glob`'s own behaviour leaves every one of them alive — I
+    # made exactly that mistake first and the plants all survived. A relink gap whose next appearance is
+    # out of band is the case the parameter exists for: with membership ON it reads as "no next file",
+    # which turns a measured gap into a silent None.
+    end = dt.datetime(2026, 9, 20, 13, 0, 0)
+    gap = loss_audit._relink_gap(d9, "Polar_H10_*_HR.txt", end)
+    assert gap == 3600.0, (
+        "the 14:00 session is the next appearance of this stream and sits OUTSIDE this night's band; "
+        f"membership must be off here or the gap vanishes: {gap}"
+    )
+    with_band = loss_audit._recording_glob(d9, "Polar_H10_*_HR.txt")
+    without = loss_audit._recording_glob(d9, "Polar_H10_*_HR.txt", membership=False)
+    assert len(without) == 2, f"membership=False must see both sessions: {without}"
+    assert len(with_band) == 1, f"the default must exclude the 14:00 session: {with_band}"
+    assert "20260920220000" in with_band[0]
+    # and None must NOT quietly behave like False — anything but an explicit False filters
+    assert loss_audit._recording_glob(d9, "Polar_H10_*_HR.txt", membership=None) == with_band, (
+        "membership=None aliased False under a truth test; it must filter like the default"
+    )
+
+
+def test_an_unreadable_frame_file_does_not_STOP_the_witness(tmp_path):
+    """The same `continue` → `break` family in `signal_witness`, and the same fixture gap: its comment
+    says "one unreadable frame file is not the absence of a witness", which needs a SECOND frame file to
+    be observable at all. Under `break` the scan stops at the unreadable first file and returns an empty
+    witness; under `continue` it reads on and returns the second session's frames."""
+    d = tmp_path / "captures" / "2026-09-20"
+    d.mkdir(parents=True)
+    _oxyframe(d, dt.datetime(2026, 9, 20, 22, 0, 0), 5, dur0=0)
+    _oxyframe(d, dt.datetime(2026, 9, 20, 23, 0, 0), 5, dur0=100)
+    first = sorted(d.glob("Wellue_O2Ring-S_*_OXYFRAME.txt"))[0]
+    os.chmod(first, 0)
+    try:
+        got = loss_audit.signal_witness(str(d))
+        assert got, "an unreadable FIRST frame file must not empty the witness"
+        assert all(dur >= 100 for _t, dur in got), (
+            "the surviving rows must be the second session's, read after the skip: " + str(got[:3])
+        )
+    finally:
+        os.chmod(first, 0o644)
+
+
+def test_a_night_dir_with_a_TRAILING_SLASH_is_normalised(tmp_path):
+    """`night_dir.rstrip("/")` → `rstrip(None)` survived because no fixture ever passed a trailing
+    slash: with none present the two strip nothing and agree exactly. `rstrip(None)` strips WHITESPACE,
+    so the slash would be carried into the folder set and `os.path.basename` of it is the empty string —
+    which is how a path that merely ends in `/` stops naming a night at all."""
+    c = os.path.join(str(tmp_path), "captures")
+    d9 = os.path.join(c, "2026-09-20")
+    os.makedirs(d9, exist_ok=True)
+    _hr(d9, "20260920220000", "Phone timestamp;HR [bpm]\n2026-09-20T22:00:00;60\n")
+    # 🔴 AND IT HAS TO REACH THE FALLBACK. The `rstrip` is inside `sc.get("dirs") or [night_dir...]`,
+    # so a folder with a real recording scope never executes it — my first fixture had one and the
+    # mutant survived untouched. A folder that does not name a date gets a REFUSED scope, which carries
+    # no `dirs`, and only then is the fallback (and its normalisation) the thing under test.
+    nodate = os.path.join(c, "not-a-date")
+    os.makedirs(nodate, exist_ok=True)
+    fb_plain = loss_audit._recording_dirs_and_band(nodate)
+    fb_slashed = loss_audit._recording_dirs_and_band(nodate + "/")
+    assert fb_plain[0] == [nodate], fb_plain
+    assert fb_slashed == fb_plain, (
+        "the fallback must normalise a trailing slash — `rstrip(None)` strips whitespace, not the "
+        f"slash, and a path ending in / has an empty basename: {fb_slashed} vs {fb_plain}"
+    )
+    plain = loss_audit._recording_dirs_and_band(d9)
+    slashed = loss_audit._recording_dirs_and_band(d9 + "/")
+    assert slashed == plain, f"a trailing slash must not change the scope: {slashed} vs {plain}"
+    assert all(not p.endswith("/") for p in slashed[0]), slashed[0]
+    # and the files found are the same either way
+    assert loss_audit._recording_glob(d9 + "/", "Polar_H10_*_HR.txt") == loss_audit._recording_glob(
+        d9, "Polar_H10_*_HR.txt"
+    )
+
+
+def test_a_FOLDER_THAT_IS_NOT_A_DATE_anchors_the_window_at_MIDNIGHT(tmp_path, monkeypatch):
+    """🔴 `now().replace(hour=0, minute=0, second=0, microsecond=0)` → the mutant drops `minute=0`, and
+    no test observed that the fallback anchor sits on the minute boundary. With `hour=0` still applied
+    the anchor becomes 00:MM, so the whole [−6 h, +30 h] window slides by however many minutes past the
+    hour the audit happened to run — a night's journal and clock-event window that depends on the clock
+    when the audit ran rather than on the night.
+
+    It is only reachable for a folder whose name is NOT a date (a real night folder parses), and the
+    window is observable because `clock_events` is injected: the spy records the two bounds."""
+    nodate = tmp_path / "captures" / "not-a-night"
+    nodate.mkdir(parents=True)
+
+    class _At1437(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            # a deliberately awkward wall clock: every component the `replace` zeroes is non-zero
+            return dt.datetime(2026, 10, 11, 14, 37, 42, 123456)
+
+    monkeypatch.setattr(loss_audit._dt, "datetime", _At1437)
+    seen = {}
+
+    def _spy(since, until):
+        seen["since"], seen["until"] = since, until
+        return []
+
+    loss_audit.audit_night(str(nodate), [], journal=lambda *a, **k: [], clock_events=_spy)
+    assert seen, "clock_events must be called with the window"
+    since, until = seen["since"], seen["until"]
+    # the anchor is midnight, so −6 h lands at 18:00 the previous day and +30 h at 06:00 the next
+    assert (since.minute, since.second, since.microsecond) == (0, 0, 0), (
+        f"the day anchor must sit on midnight, not on the minute the audit ran: since={since}"
+    )
+    assert (until.minute, until.second, until.microsecond) == (0, 0, 0), f"until={until}"
+    assert since == dt.datetime(2026, 10, 10, 18, 0, 0), since
+    assert until == dt.datetime(2026, 10, 12, 6, 0, 0), until
