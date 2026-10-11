@@ -54,7 +54,7 @@ the record cannot see; and the instrument that closes that gap on the first nigh
 - **The ATT MTU.** The AS11 connect never acquired it: `mtu_size` was bleak's placeholder on every night,
   so notifications-per-frame — the number that turns bytes into airtime — was unknown. (The O2Ring path
   acquires it and reads 247; the AS11 is a different peripheral and may negotiate differently.)
-- **Whether a 0.5 Hz id costs 1 value or 5 per report.** SomnoTrace's session writer reads `vals[n-1]`
+- **Whether a 0.5 Hz id costs 1 value or 5 per report.** The reference implementation's session writer reads `vals[n-1]`
   of every report for the PLD channels and decimates 10:1 — consistent with the device HOLDING a 2 s value
   across the 40 ms reports (5 values per report), which would make `_LKF` cost the same as a third
   waveform channel. Not confirmed on the air; measurable the first night it is requested.

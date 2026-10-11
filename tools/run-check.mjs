@@ -66,6 +66,8 @@ export const STEPS = [
   'test:par',
   'verify:shard-union',
   'verify:shard-timings',
+  'verify:no-names',
+  'verify:integrator-surface',
   'test:build-core',
   'test:trio-anchor',
   'test:fold-provenance',

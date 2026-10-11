@@ -307,7 +307,7 @@ _SRC_STATE = {
     "*": "selected",
     "+": "combined",
     "-": "excluded",
-    "?": "unreachable",
+    "?": "unreachable",  # chrony's `?` also covers "polled fine, not selected" — resolved by reach below
     "x": "falseticker",
     "~": "unstable",
 }
@@ -327,14 +327,22 @@ def parse_chrony_sources(blob: str) -> list[dict]:
         if not m:
             continue
         mode, st, name, stratum, poll, reach, lastrx, off, adj, err = m.groups()
+        # chrony prints `?` both for a source it cannot reach AND for one that answered every poll but
+        # lost the selection (every network server does, while the preferred PPS wins). The reach
+        # register tells them apart: 0 = nothing answered; anything else = polled, not selected. The
+        # card showed six "unreachable" servers at reach 377 on 2026-10-11 — a true word for the wrong state.
+        reach_n = int(reach, 8)  # chrony prints the 8-poll shift register in OCTAL — parsed ONCE, used twice
+        state = _SRC_STATE[st]
+        if st == "?" and reach_n:
+            state = "not selected"
         out.append(
             {
                 "name": name,
                 "mode": _SRC_MODE[mode],
-                "state": _SRC_STATE[st],
+                "state": state,
                 "stratum": int(stratum),
                 "poll": int(poll),
-                "reach": int(reach, 8),  # chrony prints the 8-poll shift register in OCTAL
+                "reach": reach_n,
                 "last_rx": lastrx,  # as printed: seconds, or '23m' / '2h' past the minute
                 "offset_s": _qty_s(off),  # source minus this box, NTP sign convention
                 "adjusted_offset_s": _qty_s(adj),

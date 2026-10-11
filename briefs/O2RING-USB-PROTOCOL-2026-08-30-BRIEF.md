@@ -101,7 +101,7 @@ wrong as a bit-shift `key[12+n] = (ts >> n) & 0xFF` for `n=0,1,2,3`:
 |---|---|
 | our `oxyii.py` (pre-fix) | `>> 0,1,2,3` ❌ |
 | nglessner/o2ring-s-protocol | `>> 0,1,2,3` ❌ |
-| ilyakruchinin/SomnoTrace (even comments it "not LE bytes") | `>> 0,1,2,3` ❌ |
+| the GPL reference implementation (even comments it "not LE bytes") | `>> 0,1,2,3` ❌ |
 | **our USB capture → the fix** | LE uint32 `>> 0,8,16,24` ✅ |
 
 The vendor-app USB capture is the **sole source** that settled it. The discriminator: over a short window
@@ -130,9 +130,9 @@ timestamp bytes, and the CRC.)
 **Source:** the official Lepu Android SDK `lepu-blepro-1.3.9.aar` (R8-obfuscated; from
 `viatom-develop/LepuDemo` `app/libs/`), disassembled 2026-08-30. This is **SDK-verified, not
 hardware-verified** — our ring (`2D010002`) is old firmware and still runs the §3 plaintext path. The
-trigger was SomnoTrace Discussion #180 (a user's newer O2Ring-S returning a "garbage serial" to the
-plaintext SomnoTrace client); the diagnosis is posted at
-<https://github.com/ilyakruchinin/SomnoTrace/discussions/180#discussioncomment-18247853>.
+trigger was a third-party discussion, #180 (a user's newer O2Ring-S returning a "garbage serial" to the
+plaintext third-party client); the diagnosis is posted at
+the reference implementation's public discussion #180, comment 18247853.
 
 **The handshake (VERIFIED in the SDK):**
 - The ring replies to the plaintext AUTH with a `0xFF` frame whose `flag` byte == `1`, payload ≥ 20 bytes.
@@ -275,7 +275,7 @@ The value here is the *sequence*, because three of its steps produced confident 
 6. **`.dat` decoder ported** from OxyDex's shipping `decodeO2RingBinToCSV` + `oxyii.parse_oxy_trailer`,
    with the trailer↔body self-consistency check as the regression (no golden needed).
 7. **Cross-validated against three public references** (nglessner protocol repo, ecostech viatom-ble,
-   ilyakruchinin/SomnoTrace) — all independently confirmed the frame envelope, CRC, auth construction,
+   and the GPL reference implementation) — all independently confirmed the frame envelope, CRC, auth construction,
    trailer and RTC, and **all three carried the same `>>0,1,2,3` timestamp bug**, which makes our capture-
    derived LE fix a genuine contribution back.
 
@@ -355,7 +355,7 @@ Deeper single-topic detail:
 - `O2RING-RTC-…` / `o2ring-rtc-is-readable` — the RTC read surface (§5).
 - Lepu SDK `lepu-blepro-1.3.9.aar` (`viatom-develop/LepuDemo` `app/libs/`) — the source for §3.3; the
   relevant classes after R8 are `doad/ifgj` (frame builder, encrypt-if-keyed) and `doaj/doaf` (AES helper).
-- SomnoTrace Discussion #180 — the field report that surfaced the AES session (§3.3, §9.1).
+- Third-party discussion #180 — the field report that surfaced the AES session (§3.3, §9.1).
 
 Code of record: `capture-host/oxyii.py` (BLE codec, `crc8`, `auth_payload`/`auth_frame`, `encode`,
 `decode`, `Reassembler`, `parse_live`, `parse_ppg`, `parse_get_info`, `parse_oxy_trailer`, file-frame
@@ -363,4 +363,4 @@ builders) · `capture-host/o2ring.py` (USB HID client) · `capture-host/parse_da
 
 <sub>Measured on O2Ring-S (VID `0x1915`/PID `0xF33C`, fw `2D010002`) via USBPcap of O2 Insight Pro V1.8.14;
 auth generator verified byte-for-byte against 6 timestamp-varied captured frames + the live command frames;
-CRC and codec cross-validated against nglessner/o2ring-s-protocol, ecostech/viatom-ble, ilyakruchinin/SomnoTrace.</sub>
+CRC and codec cross-validated against nglessner/o2ring-s-protocol, ecostech/viatom-ble, and the GPL reference implementation.</sub>

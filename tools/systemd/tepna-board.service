@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — regenerate the fleet board.
+#
+# WHY A TIMER. The board answers "what is wrong right now", and the owner's case for it was a silence:
+# a release chain FAILED at `stamp` at 05:09Z, the due-timer then refused seven consecutive runs with
+# "a release-land run is recorded unfinished", and nobody noticed for SEVEN HOURS. Nothing was broken
+# that a human watching would have missed — the problem is that nobody was watching, and a page that is
+# only generated when someone remembers to run it is the same silence with extra steps.
+#
+# 🔴 IT WRITES OUTSIDE EVERY CHECKOUT. `~/.local/share/tepna/board/` holds the page, its JSON, the
+# owner's plan reading and the evaluation file. Token counts, PR state and a plan percentage are facts
+# about this machine and this week; the repo carries the GENERATOR and these unit files and nothing else.
+# `ReadWritePaths` is that boundary made mechanical rather than remembered.
+#
+# IT CANNOT FAIL LOUDLY AND SHOULD NOT. Every section reports its own absence, so an unreachable `gh` or
+# a missing journal yields "not read — <reason>" on the page instead of an exit code. The unit therefore
+# succeeds whenever it produced a page; a non-zero exit means the GENERATOR broke, which is worth a
+# failed unit in `systemctl --user --failed`.
+#
+# INSTALL — primary development machine only, NOT performed by the PR that adds this file:
+#   cp tools/systemd/tepna-board.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tepna-board.timer
+#   systemctl --user start tepna-board.service        # generate once now
+#   xdg-open ~/.local/share/tepna/board/index.html
+[Unit]
+Description=Tepna — regenerate the fleet board (tokens, release watch, PRs, CI, decisions)
+Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/board.mjs
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Tepna
+Nice=15
+IOSchedulingClass=idle
+ProtectHome=read-only
+ReadWritePaths=%h/.local/share/tepna/board
+ExecStart=/bin/sh -c '[ -f tools/board.mjs ] || { echo "board.mjs not on origin/main yet — nothing to generate"; exit 0; }; node tools/board.mjs --quiet'

@@ -732,6 +732,18 @@
    },
    "note": "a peak read off a memory trace is a claim about that trace's WINDOW, and the tool now decides which: PASS the span reaches saturation (the peak is the cap) \u00b7 SHORTFALL past the onset only (a lower bound) \u00b7 UNDERPOWERED short of the 665 s at which this tool's own 2026-09-15 traces first saw the startup step \u00b7 UNKNOWN a restart inside the trace or no elapsed_s. Residue 2026-09-22-startup-transient-refutation-underpowered: a ten-minute trace was read as \"no startup transient\" and that window ends before the step. `--verdict-sample` emits that exact trace, corpus-free; the selftest validates it against verdict.js."
   },
+  "tools/brief-gaps.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/brief-gaps.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "a text-network GAP DETECTOR over the briefs: pairs close in bge-m3 mean-vector space with no citation path of length <= 2 and no Supersedes/Superseded-by relation. criterion recall_at_50_on_held_out_supersession_pairs gte 0.5, measured 0.167 on the held-out half of 36 hand-marked pairs -> SHORTFALL, and the brief's \u00a74 shows the floor was unreachable because 50 of 147,696 pairs is the top 0.034% while the marked pairs' median rank is the top 1.2%. It decides only whether the ranking is worth reading: adjacency is not equivalence, and the tool never writes a supersession or closes anything. --verdict-sample reads no index and reports checked: 0 / NOT_RUN with result: null."
+  },
   "tools/browser-lane.mjs": {
    "bin": "word-only",
    "status": "exempt",
@@ -993,6 +1005,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/integrator-surface-gate.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/integrator-surface-gate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "every key the Integrator's fusion emits declares a SURFACE (card | export-only) in tools/integrator-surface.json; criterion undeclared_or_unrendered_card_keys lte 0. Measured 2026-10-11: 25 keys, 14 card, 11 export-only, 0 undeclared. \u26a0\ufe0f The seed was derived from a render scan, so the first PASS is true by construction (the generator-compared-to-itself shape); what it detects is DRIFT \u2014 a new undeclared key, or a card key whose render mention is deleted \u2014 and both are planted in --selftest. It reads SOURCE, not uploads/, because a fixture scan finds one fixture in a worktree and in CI."
+  },
   "tools/known-clock-recovery.mjs": {
    "bin": "word-only",
    "status": "exempt",
@@ -1092,6 +1116,18 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/no-third-party-names.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/no-third-party-names.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the NAME GATE (owner ruling 2026-10-10): criterion third_party_name_hits lte 0 over every tracked file, no grandfathered set. Two constraints shape it \u2014 it holds its needles as base64 so it is not a hit on itself and so its own output can never reintroduce what it forbids (a failure names file and line, never the word), and it matches the FULL name on a word boundary, never a stem: the sweep began from a stem count of 73 files of which 40 were polysomnography, in two user-facing reference guides, a paper, and a public dataset's download paths."
   },
   "tools/nsrr-effort-typing.mjs": {
    "bin": "decides",
@@ -1642,7 +1678,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "USAGE GUARD (owner 2026-10-11): one object over the sessions found in this checkout’s transcript directory, criterion remaining_share_of_configured_budget gte 0.10 — PASS/FAIL only when a --budget is configured, NOT_APPLICABLE (result null) when none is, NOT_RUN when the transcript directory is unreadable. The measurement (tokens per session, API reader usage, the UNKNOWN plan allowance with its manual check) travels beside it as tepna.usage/1, never inside a NOT_APPLICABLE result. --verdict-sample reads no transcript and configures no budget, so it reports NOT_RUN / checked 0."
+   "note": "USAGE GUARD (owner 2026-10-11): one object over the sessions found in this checkout\u2019s transcript directory, criterion remaining_share_of_configured_budget gte 0.10 \u2014 PASS/FAIL only when a --budget is configured, NOT_APPLICABLE (result null) when none is, NOT_RUN when the transcript directory is unreadable. The measurement (tokens per session, API reader usage, the UNKNOWN plan allowance with its manual check) travels beside it as tepna.usage/1, never inside a NOT_APPLICABLE result. --verdict-sample reads no transcript and configures no budget, so it reports NOT_RUN / checked 0."
   },
   "tools/verdict-adoption.mjs": {
    "bin": "word-only",
@@ -1750,6 +1786,16 @@
     ]
    },
    "note": "wave-3 adopter (#3368 gates): NOT BINNED AT ALL before this \u2014 an omission rather than an exemption, which is the gap the adoption gate's population equality exists to catch. --json prints ONE tepna.verdict/1: PASS/FAIL over the innerHTML sinks ADDED in the diff, and NOT_RUN when the diff adds no sink, since \"every added sink is escaped\" over zero sinks is not evidence. The heuristic itself is unchanged and is still documented as heuristic, not AST-based."
+  },
+  "tools/board.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "concedes emission: the board PRINTS verdict words it did not produce. Its red banner quotes the release-due unit's own status (\"the release-due unit's last verdict is FAIL\") and the page shows per-PR check conclusions. It decides nothing and emits no tepna.verdict/1 - the one judgement it makes is which banner to raise, and those rules are pure functions with planted cases under --selftest (23). A board that emitted its own verdict would be claiming authority over numbers it only read."
+  },
+  "tools/doc-search.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "concedes emission: since 2026-10-11 doc-search prints the board's three-line summary after every search, so a verdict word can appear in its output - quoted from board.json, which quotes the release-due unit. doc-search decides nothing and emits no tepna.verdict/1; the footer is read-only and fail-silent."
   }
  }
 }

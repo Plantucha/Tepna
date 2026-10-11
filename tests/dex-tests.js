@@ -14116,6 +14116,178 @@
       T.ok('the population is non-vacuous', total >= 400, 'parsed ' + total + ' grade(s) across ' + NODES.length + ' node registries (523 at 2026-10-11)');
     });
 
+    group('§∅ · OxyDex — the two sites #3427 missed', 'oxydex-dsp · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B || typeof B.cleanArtifactHR !== 'function') {
+        T.ok('OxyDex._bare.cleanArtifactHR is reachable', false, 'not loaded — this group must not read as a pass');
+        return;
+      }
+      /* FOUND BY RE-COUNTING THE SITES ON MAIN AFTER #3427 MERGED, not by reading its diff. #3427 said
+         "thirteen consumers" and guarded thirteen FUNCTIONS, but two comparisons inside them were left
+         unguarded — and the artifact-recovery walk FABRICATES.
+         ⚠️ Neither moved a committed fixture, so the corpus could not have caught this: the real nights
+         have no artifact run adjacent to a dropout. A plant is the only instrument that reaches it. */
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var mk = function (hrs) {
+        return hrs.map(function (h, i) {
+          return { tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: 97, hr: h, motion: 0, pi: null };
+        });
+      };
+      /* A DROP artifact: 60 bpm, one impossible −35 step (HR_ARTIFACT_JUMP is 20), a depressed stretch,
+         then holes, then 60 again. The walk's drop branch continues while `hr < baseline - RECOV`, and
+         `null < 50` is TRUE — so on main it stepped through the holes and kept cleaning, treating real
+         heart rate on the far side of a dropout as part of one long artifact. */
+      var hrs = [];
+      for (var i = 0; i < 40; i++) hrs.push(60);
+      for (var j = 0; j < 8; j++) hrs.push(25);
+      var withHoles = hrs.slice();
+      for (var h = 0; h < 12; h++) withHoles.push(null);
+      for (var k = 0; k < 40; k++) withHoles.push(60);
+      var noHoles = hrs.slice();
+      for (var k2 = 0; k2 < 52; k2++) noHoles.push(60);
+      var rowsH = mk(withHoles);
+      var cleanedH = B.cleanArtifactHR(rowsH);
+      var rowsC = mk(noHoles);
+      var cleanedC = B.cleanArtifactHR(rowsC);
+      T.eq('the artifact run STOPS at the hole — a dropout does not extend it', cleanedH, cleanedC);
+      /* And the proof it stopped rather than merely counting less: no row PAST the holes was touched.
+         A walk that ran through them would have rewritten the 60 bpm on the far side. */
+      var pastUntouched = true;
+      for (var q = 60; q < rowsH.length; q++) if (rowsH[q].hr !== 60 && rowsH[q].hr != null) pastUntouched = false;
+      T.ok(
+        'no real sample PAST the dropout was rewritten as artifact',
+        pastUntouched,
+        JSON.stringify(
+          rowsH.slice(58, 64).map(function (r) {
+            return r.hr;
+          })
+        )
+      );
+      // CONTROL · the genuine artifact is still cleaned, or the guard has merely disabled the detector.
+      T.ok('CONTROL · the genuine 8-sample artifact is still cleaned', cleanedC > 0, 'cleaned = ' + cleanedC);
+      /* The population, measured over CODE with comments stripped — #3427's body said ~30 "sites",
+         which counted LINES CONTAINING an operation, not the operations themselves. The honest figure
+         is higher and the assertion is now zero-unguarded rather than a count. */
+      var src0 = (env.sources || {})['oxydex-dsp.js'] || '';
+      var code = src0.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+      var lines = code.split('\n');
+      var OPR = /(?:rows\[[^\]]+\]|\br\b|\brow\b)\.(?:spo2|hr)\s*(?:[<>]=?|[-+*/])/;
+      var total = 0,
+        unguarded = 0,
+        names = [];
+      for (var li = 0; li < lines.length; li++) {
+        if (!OPR.test(lines[li])) continue;
+        total++;
+        var ctx = lines.slice(Math.max(0, li - 8), li + 1).join('\n');
+        if (!/_has\(|isFinite\(|!= null|== null|\.filter\([^)]*null/.test(ctx)) {
+          unguarded++;
+          names.push(li + 1);
+        }
+      }
+      T.ok('the site population is non-vacuous', total > 20, 'matched ' + total + ' line(s) carrying a row-value operation');
+      T.eq('NO row-value comparison or delta is left unguarded', unguarded + (names.length ? ' @ ' + names.join(',') : ''), 0 + '');
+    });
+
+    group('§∅ · OxyDex — a hole is not a reading, in all thirteen consumers', 'oxydex-dsp · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      if (!B) {
+        T.ok('OxyDex._bare is reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      /* THE CONTRACT THESE THIRTEEN CONSUME is `OXYDEX-SPO2-SERIES-2026-07-31`: "a second the device
+         never reported is `null` — not `0`, which reads as the most severe desaturation physically
+         possible, and not the previous value, which reads as stable oxygen."
+         🔴 `null` COERCES TO 0, so the direction of each comparison decided the severity: `null < t` is
+         TRUE and FABRICATES a low reading, `null > t` is FALSE and merely under-counts. Every leg below
+         plants a hole in the middle of a measurement that was fine on both sides, and asserts the hole
+         contributed nothing. Each has a CONTROL on the same shape with the hole filled, because a guard
+         that blanks real data is the same defect wearing the other mask. */
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var mk = function (vals) {
+        return vals.map(function (v, i) {
+          return { tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: v && v.s !== undefined ? v.s : v, hr: v && v.h !== undefined ? v.h : 60, motion: 0, pi: null };
+        });
+      };
+      // ── 1 · detectOscillations: a hole must not manufacture crossings ──
+      if (typeof B.detectOscillations === 'function') {
+        var flat = [];
+        for (var i = 0; i < 400; i++) flat.push(96);
+        var holed = flat.slice();
+        for (var h = 150; h < 180; h++) holed[h] = null;
+        var ep = [{ startIdx: 0, endIdx: 399 }];
+        var osc = B.detectOscillations(mk(holed), ep) || [];
+        var oscClean = B.detectOscillations(mk(flat), ep) || [];
+        /* A 30 s dropout in a flat 96 % trace used to read as a descent below the threshold and a
+           crossing back — fabricated oscillation, in the detector whose output IS the
+           periodic-breathing finding. */
+        T.eq('a dropout in a FLAT trace manufactures no oscillation episode', osc.length, oscClean.length);
+      }
+      // ── 2 · computeODI2: a hole must not count as a desaturation ──
+      if (typeof B.computeODI2 === 'function') {
+        var steady = [];
+        for (var i2 = 0; i2 < 600; i2++) steady.push(97);
+        var steadyHole = steady.slice();
+        for (var h2 = 300; h2 < 330; h2++) steadyHole[h2] = null;
+        var o2 = B.computeODI2(mk(steadyHole));
+        var o2c = B.computeODI2(mk(steady));
+        T.eq('a dropout adds no ODI-2 event (the index is PUBLISHED)', (o2 && o2.odi2Count) || 0, (o2c && o2c.odi2Count) || 0);
+      }
+      // ── 3 · computeGatedNadir: a hole must not trigger or extend the opening ramp ──
+      if (typeof B.computeGatedNadir === 'function') {
+        var good = [];
+        for (var i3 = 0; i3 < 400; i3++) good.push(97);
+        var firstHole = good.slice();
+        firstHole[0] = null;
+        var gn = B.computeGatedNadir(mk(firstHole));
+        var gnc = B.computeGatedNadir(mk(good));
+        /* `null <= 88` was TRUE, so a night whose first second went unread triggered the
+           perfusion-settling ramp and the walk then stepped through every later hole, masking them. */
+        T.eq('an unread FIRST second does not trigger the settling ramp', JSON.stringify(gn && gn.nadirGated), JSON.stringify(gnc && gnc.nadirGated));
+      }
+      // ── 4 · computeHRAsymmetry: a delta across a hole is not a delta ──
+      if (typeof B.computeHRAsymmetry === 'function') {
+        var hrFlat = [];
+        for (var i4 = 0; i4 < 300; i4++) hrFlat.push({ s: 97, h: 60 });
+        var hrHole = hrFlat.slice();
+        hrHole[150] = { s: 97, h: null };
+        var a1 = B.computeHRAsymmetry(mk(hrHole));
+        var a2 = B.computeHRAsymmetry(mk(hrFlat));
+        /* One hole used to push a −60 and a +60 into the two tails, tilting an asymmetry computed over
+           a perfectly flat heart rate. */
+        T.eq('a single HR hole does not tilt the asymmetry of a FLAT trace', JSON.stringify(a1), JSON.stringify(a2));
+      }
+      // ── 5 · computeSpO2Ceiling: a hole BREAKS the run, it does not join two ──
+      if (typeof B.computeSpO2Ceiling === 'function') {
+        var ceil = [];
+        for (var i5 = 0; i5 < 60; i5++) ceil.push(99);
+        var ceilHole = ceil.slice();
+        ceilHole[30] = null;
+        var c1 = B.computeSpO2Ceiling(mk(ceilHole));
+        var c2 = B.computeSpO2Ceiling(mk(ceil));
+        T.ok('a hole in a ceiling run does not lengthen it', !c1 || !c2 || (c1.maxCeilingSec || 0) <= (c2.maxCeilingSec || 0), JSON.stringify([c1, c2]));
+      }
+      // ── CONTROL · the guards must not blank REAL measurements ──
+      if (typeof B.computeODI2 === 'function') {
+        var dips = [];
+        for (var i6 = 0; i6 < 600; i6++) dips.push(i6 % 60 < 10 ? 90 : 97);
+        var real = B.computeODI2(mk(dips));
+        T.ok('CONTROL · genuine desaturations are still counted', !!real && real.odi2Count > 0, 'odi2Count = ' + JSON.stringify(real && real.odi2Count) + ' on a trace that dips to 90 % every minute');
+      }
+      if (typeof B.computeSpO2Ceiling === 'function') {
+        var ceil2 = [];
+        for (var i7 = 0; i7 < 60; i7++) ceil2.push(99);
+        var cr = B.computeSpO2Ceiling(mk(ceil2));
+        T.ok('CONTROL · a real ceiling run is still measured', !!cr && (cr.maxCeilingSec || 0) > 0, JSON.stringify(cr));
+      }
+      /* SOURCE-MIRROR over the whole class, because five legs cannot cover thirteen functions and a
+         count is what catches the fourteenth. `_has` is the shared presence test; the assertion is that
+         no row-value comparison or delta in this file is left without one. */
+      var src = (env.sources || {})['oxydex-dsp.js'] || '';
+      T.ok('the shared presence test exists', /const _has = \(v\) =>/.test(src), '_has must be single-sourced, not re-spelled per site');
+      var sites = (src.match(/(?:rows\[[^\]]+\]|\br\b|\brow\b)\.(?:spo2|hr)\s*(?:[<>]=?|[-+*/])/g) || []).length;
+      T.ok('the row-value site population is non-vacuous', sites > 20, 'matched ' + sites + ' site(s) — a parse of 0 would pass every assertion below by examining nothing');
+    });
+
     group('§∅ · OxyDex CT counters — an absent second is not time below a threshold', 'oxydex-dsp · absence', function (T) {
       var raw = env.equiv && env.equiv.oxydex_odibasis && env.equiv.oxydex_odibasis.input;
       var OD = env.OxyDex;
@@ -14254,7 +14426,24 @@
           return;
         }
         var st = doc && doc[0] && doc[0].stats;
-        T.eq(name + ' · the carried edge absences are TRIMMED as cool-down', st && st.sensorCooldownTrimmed, 10);
+        /* 🔴 CORRECTED 2026-10-11, AND THE CORRECTION IS THE POINT. #3408 asserted this equalled **10**
+           and its body presented the trim as "the parser now exposes edge absences to the detectors
+           that look for them". It was a FABRICATION. Both nights end with exactly ten consecutive
+           `'- -'` rows, and the tail branch computed its lock-on step as `pre.spo2 - first.spo2` where
+           `first` is the frozen run's own first row — a null. `94 - null` is **94**, a step far past
+           `SPO2_STEP`, so the trimmer fired on a step nobody observed and reported a count that
+           happened to equal the hole length, which is exactly what made it look plausible.
+           The detector's criterion is "a frozen run ENTERED via an abrupt step down". A run of holes
+           was not entered via an observed step, so no trim is claimed: the ten absent seconds stay in
+           the record AS ABSENT, where the CT counters and `recording.coverage` already exclude them.
+           ⚠️ A trim is a DELETION of recorded time. Deleting ten seconds on the strength of a
+           subtraction with an absent operand is the same class as counting them as desaturation —
+           the arithmetic simply pointed the other way. */
+        T.ok(
+          name + ' · the ten absent tail seconds are NOT trimmed on a step nobody observed',
+          st != null && st.sensorCooldownTrimmed == null,
+          'sensorCooldownTrimmed = ' + JSON.stringify(st && st.sensorCooldownTrimmed) + ' — 10 was #3408 fabricating a 94-point step from `94 - null`'
+        );
       });
     });
 
@@ -25476,7 +25665,7 @@
     /* §∅ AT PER-CELL GRANULARITY — the coupling grid says which cells were MEASURED.
        `_interpGrid` used to return a bare Float64Array, so a cell drawn across a dropout was
        indistinguishable from one backed by beats, and `cardiorespCoupling` published seven metrics
-       with `nGrid` (the denominator) and no count of what was drawn. That is SomnoTrace's short-gap
+       with `nGrid` (the denominator) and no count of what was drawn. That is the reference implementation's short-gap
        hold, one layer in. The contract here is GlucoDex's, not a new one. */
     group('ECGDex coupling grid — a cell drawn across a gap is counted, and a clean night counts zero', 'ecgdex-dsp · absence-is-null · gap-coverage', function (T) {
       var E = env.ECGDSP || env.EcgDsp;

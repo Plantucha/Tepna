@@ -36,7 +36,7 @@ o2ring.py - Wellue O2Ring S USB (HID) client. Auth is fully solved & verified.
   16-byte block) and encrypts every reply payload the same way.  The 0xFF command itself
   stays plaintext.  The SDK waits 1000 ms for that reply; silence = plaintext ring (ours:
   2D010002 never answers 0xFF).  A client that ignores the reply parses ciphertext:
-  garbage serial/fw, unprintable file names, 0-byte pulls (SomnoTrace discussion #180).
+  garbage serial/fw, unprintable file names, 0-byte pulls (third-party discussion #180).
   Implemented below as SESSION (module-level cipher state) — see authenticate().
 
 Usage:
@@ -492,7 +492,7 @@ def file_list(dev):
     state machine had stalled read as a ring with nothing on it and the caller walked away
     satisfied — the worst shape a failure can take, because it looks like a successful answer.
 
-    The recovery is FILE_END. Measured on a branch-2D010001 ring (SomnoTrace discussion #180,
+    The recovery is FILE_END. Measured on a branch-2D010001 ring (third-party discussion #180,
     the 2026-09-03 overnight log): right after the recording closed, F1 stopped answering, an
     F4 cleared the state machine, and the retry got the list ~3 s later — the night's data was
     pulled intact. Their firmware does the same thing and logs it as "F1 timed out (rc=263) —

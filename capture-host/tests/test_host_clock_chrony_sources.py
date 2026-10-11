@@ -71,7 +71,7 @@ def test_sources_parse_every_row_and_skip_the_header():
 
 def test_sources_spell_out_every_mode_and_state_glyph():
     rows = {r["name"]: r for r in hc.parse_chrony_sources(SOURCES)}
-    assert rows["GPS"]["state"] == "unreachable" and rows["GPS"]["mode"] == "refclock"
+    assert rows["GPS"]["state"] == "not selected" and rows["GPS"]["mode"] == "refclock"  # `?` at reach 377
     assert rows["192.0.2.75"]["state"] == "falseticker" and rows["192.0.2.75"]["mode"] == "server"
     assert rows["10.0.0.9"]["mode"] == "peer" and rows["10.0.0.9"]["state"] == "combined"
     assert rows["10.0.0.9"]["last_rx"] == "23m" and rows["10.0.0.9"]["offset_s"] == pytest.approx(-1.5e-3)
@@ -188,3 +188,18 @@ def test_a_failed_sourcestats_contributes_nothing_even_if_it_printed_rows(monkey
     out = asyncio.run(mod.read_sources())
     assert out["available"] is True and len(out["sources"]) >= 4
     assert all(r["stddev_s"] is None and r["span"] is None for r in out["sources"])
+
+
+def test_a_question_mark_is_UNREACHABLE_only_when_nothing_answered():
+    """chrony's `?` covers two states; reach is what separates them. With the PPS preferred, every
+    network server sits at `?` with a full reach register — polled, answered, not selected — and the
+    card called them all "unreachable" (vigil, 2026-10-11). A source nobody has heard from has reach 0."""
+    blob = (
+        "^? 192.0.2.123                   1   8   377   218   -151us[ -152us] +/- 1260us\n"
+        "^? 192.0.2.99                    1   8     0    -1     +0ns[   +0ns] +/-    0ns\n"
+        "^? 192.0.2.98                    1   8     1    12   +200us[ +199us] +/-   19ms\n"
+    )
+    rows = {r["name"]: r for r in hc.parse_chrony_sources(blob)}
+    assert rows["192.0.2.123"]["state"] == "not selected" and rows["192.0.2.123"]["reach"] == 0o377
+    assert rows["192.0.2.99"]["state"] == "unreachable" and rows["192.0.2.99"]["reach"] == 0
+    assert rows["192.0.2.98"]["state"] == "not selected"  # one answer in eight is still an answer

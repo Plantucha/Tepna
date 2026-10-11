@@ -28,7 +28,7 @@ Protocol source throughout: `m-kozlowski/airbreak-plus docs/as11` (`rpc_protocol
 | daily pull arming | `cpap.spool_pull.enabled` · `at_hour: 10` · `window_h: 2` · `spool_type: Summary` (a scalar) · `epoch_start 2026-08-01` | `window_h` is a *scheduling* window (when the pull may run), not a device limit |
 | spool sizing | `as11_link.start_spool(max_spool_size=4096)` · `pull_spool_fragments(max_fragment_size=3000)` (firmware clamps >3576) · `as11_pull.pull_spool(max_rounds=64)` | the current defaults cap one pull at **256 KB** — a Tepna parameter, not a device one; `maxSpoolSize` is a positive int32 |
 | detector | `as11_detector` SHADOW; `POLL_ITEMS = FGState · MaskPressure · MachineMetrics` (`cpap_shadow_runner.py:37`) | polling, not events — WU4 |
-| **prior art (doc-search, 2026-09-07)** | (a) the reference tree ships an MIT `as11_spool.py` with `rc03_decode_block` and a CLI that already pulls `RespiratoryFlow6p25Hz` to CSV; (b) the SomnoTrace firmware (public, already cited in `CPAP-BLE-CAPTURE`) runs **ONE** `StartStream` at 40 ms carrying 16 short tags — BRP `_RFL _MKP` + all 12 PLD tags + SA2 — and `SubscribeEvent` on three selectors, in production; (c) SomnoTrace measured that **Summary spool timestamps are in synced UTC, NOT the device's internal clock** (verified against its own event log) | three of this brief's original "unknowns" were already answered before it was written (§9 marks which); the RC03 decoder has an oracle; and the archive's clock domain is a hypothesis to test, not the device RTC by assumption (§8.3) |
+| **prior art (doc-search, 2026-09-07)** | (a) the reference tree ships an MIT `as11_spool.py` with `rc03_decode_block` and a CLI that already pulls `RespiratoryFlow6p25Hz` to CSV; (b) the reference implementation's firmware (public, already cited in `CPAP-BLE-CAPTURE`) runs **ONE** `StartStream` at 40 ms carrying 16 short tags — BRP `_RFL _MKP` + all 12 PLD tags + SA2 — and `SubscribeEvent` on three selectors, in production; (c) the reference implementation measured that **Summary spool timestamps are in synced UTC, NOT the device's internal clock** (verified against its own event log) | three of this brief's original "unknowns" were already answered before it was written (§9 marks which); the RC03 decoder has an oracle; and the archive's clock domain is a hypothesis to test, not the device RTC by assumption (§8.3) |
 
 ⚠️ `config.example.yaml` says `Summary` is "the ONLY type the device is known to serve" and that a guessed
 name returns `-32602`. That refutes the *guessed string*, nothing more. The names in this brief are the
@@ -176,16 +176,16 @@ configured list; §8 adds the four RC03 types. **Done when:** a config with thre
 independent cursors in the ledger, a failure in type 2 leaves type 1 committed and type 3 attempted, and
 the daily pull still runs once per window.
 
-### WU3 — ONE live stream carrying BRP + PLD (the SomnoTrace shape)
+### WU3 — ONE live stream carrying BRP + PLD (the reference implementation's shape)
 `cpap_stream.BRP_CHANNELS` (`cpap_stream.py:29-32`) streams `PatientFlow` + `MaskPressure` at 40 ms.
-Widen that ONE `StartStream` to the 16 short tags SomnoTrace runs in production — `_RFL _MKP` (BRP),
+Widen that ONE `StartStream` to the 16 short tags the reference implementation runs in production — `_RFL _MKP` (BRP),
 `_MKF _MKI _MKE _LKF _RR2 _TD2 _MV2 _TGT _IE2 _SNI _FFL _INT` (PLD), `_HRT _SAO` (SA2 — parse the
 columns, expect `valid:false` or constants without an oximeter attached) — at `sampleIntervalMs: 40`,
 `reportIntervalMs: 200`. A slow source repeats its value at 40 ms (documented): **decimate the 2-s
 channels on write**, never store 25 copies. Honour `valid:false` per dataId (unsupported ids are refused
 per id, not per request) and record the refused set in the sidecar. ⚠️ **Ordering is a contract:**
 `GetDateTime`, `GetVersion` (WU6) and `SubscribeEvent` (WU4) go BEFORE `StartStream` — streaming
-congests the BLE ACL buffers and later request/reply RPCs fail (SomnoTrace, `as11_ble.c`); Tepna's
+congests the BLE ACL buffers and later request/reply RPCs fail (the reference implementation's BLE layer); Tepna's
 `pull_blocked` already keeps spool pulls off a streaming session for the same reason. Do NOT open a
 second concurrent stream to get PLD — there is no `StopStream`, and the one-stream shape is proven.
 **Done when:** a live night writes a PLD-shaped EDF whose 2-s channels match the SD `PLD.edf` at ≥ 99 %
@@ -205,7 +205,7 @@ interval, or the discrepancy is listed per night; acting-mode promotion remains 
 (verbatim host-stamped JSONL sidecar + `_ZLE` edges + trigger marks + signed deltas, None over a missing
 edge) · `LiveStreamController(events_factory=)` · `cpap.ble_stream.events.enabled: false`. Subscribed
 set differs from the text above by owner ruling: `UsageEvents-TherapyStatusEvents` + **`_ZLE`** (the
-device's own "data begins/ends", a different subsystem from therapy state — SomnoTrace, credit only);
+device's own "data begins/ends", a different subsystem from therapy state — the reference implementation, credit only, no code);
 `TherapyEvents-RespiratoryEvents` is NOT subscribed until a consumer is named (the per-id rule of the
 same ruling). The comparison the done-when asks for is what the recorder emits per session
 (`witness_start_delta_s` / `witness_stop_delta_s` on the gap line and in `provenance.events`); it needs
@@ -295,7 +295,7 @@ EDF+ annotations.
 
 **Timestamps — the clock DOMAIN of fields 2/3 is unknown and is measured, not assumed.** Two hypotheses,
 pre-stated: **(A)** device RTC — the same clock that stamps the SD EDF headers (−21.30 min vs box UTC on
-this machine, `AS11-CLOCK-DISCIPLINE`); **(B)** synced UTC — SomnoTrace found the *Summary* spool's
+this machine, `AS11-CLOCK-DISCIPLINE`); **(B)** synced UTC — the reference implementation found the *Summary* spool's
 timestamps are NTP-synced epoch ms, NOT the internal clock, and `GetDateTime.clock_drift_ms` does not
 apply to them; the archive family may share that domain. The discriminator is the SD comparator's lag
 (8.4 "alignment"): ≈ 0 ⇒ A; ≈ the AS11CLOCK offset ⇒ B; anything else is a finding. Either way the
@@ -338,14 +338,14 @@ brief.** Retiring it is an owner decision after the retention depth and a month 
 on the table; until then the card stays in and the two records are diffed nightly by the night report.
 
 ## 9 · Unknowns (each is a probe with a recorded answer, not an assumption)
-1. ~~Second concurrent `StartStream` accepted?~~ — **moot**: one stream carries everything (SomnoTrace,
+1. ~~Second concurrent `StartStream` accepted?~~ — **moot**: one stream carries everything (the reference implementation,
    in production). Not probed.
 2. ~~Short `_XXX` tags accepted in `dataIds`?~~ — **answered before this brief existed**: yes, all 16
    (doc-search, 2026-09-07). Tepna still records the `valid` flags per id on its own firmware line.
 3. RC03 selectors on firmware `17.8.6.0`: accepted, or `-32602` per selector? (WU8, first pull)
 4. RC03 retention depth (8.4). 5. RC03 bytes/night (8.2). 6. `_BYV` presence (P).
 7. Whether the device's 6.25 Hz is a mean or a pick of the 25 Hz stream (8.4).
-8. **Clock domain of RC03 fields 2/3** — device RTC or synced UTC (8.3/8.4; SomnoTrace's Summary finding
+8. **Clock domain of RC03 fields 2/3** — device RTC or synced UTC (8.3/8.4; the reference implementation's Summary finding
    makes B live, it does not decide it for the archive family).
 9. Whether the interlock clears soon enough after therapy end for the chain to run before the wearables'
    own morning (WU9 — the first three nights' `pull_blocked` durations answer it).
