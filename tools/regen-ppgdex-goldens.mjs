@@ -105,6 +105,7 @@ function realm() {
     'signal-frame.js',
     'dex-export.js',
     'metric-registry.js',
+    'dex-escape.js',
     'dex-profile.js',
     'crossnight-envelope.js',
     'ppgdex-registry.js',
