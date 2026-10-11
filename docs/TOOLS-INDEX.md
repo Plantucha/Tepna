@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**242 tools** · 240 with a purpose line · **2 without**
+**243 tools** · 241 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -94,6 +94,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`guide-directive-audit.mjs`](../tools/guide-directive-audit.mjs) | Dimension 3 asks that every normative band be either (a) a published/consensus target, cited, or (b) explicitly marked relative via `no-norm-note` - no fabricated clinical cut-points. |
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |
 | [`integrator-block-precision.mjs`](../tools/integrator-block-precision.mjs) | JOINT-UNWRAP-ATTEMPT §4's one open item The brief's remaining box: |
+| [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | ════════════════════════════════════════════════════════════════════════ tools/integrator-surface-gate.mjs — every Integrator key declares its surface |
 | [`js-lex.mjs`](../tools/js-lex.mjs) | Extracted from `tools/mutate.mjs` when `tools/guarantees.mjs` needed the same distinction — mutate wants the CODE (mutate only real code), guarantees wants its inverse (read only real… |
 | [`killcheck.mjs`](../tools/killcheck.mjs) | The loop this programme runs is: write a test → re-apply that function's recorded survivors → count how many now fail. |
 | [`known-clock-recovery.mjs`](../tools/known-clock-recovery.mjs) | known-clock-recovery — inject a KNOWN clock defect, run the production estimator, measure what comes back. |

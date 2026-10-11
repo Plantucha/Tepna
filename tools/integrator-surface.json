@@ -1,0 +1,32 @@
+{
+ "schema": "tepna.integrator-surface/1",
+ "enumeratedWith": "top-level keys of integrator-dsp.js's fusion return object, plus every `_exp.<key>` assignment \u2014 read from SOURCE, because uploads/ is absent in a worktree and in CI",
+ "seededFrom": "a render-mention scan of integrator-render.js on 2026-10-11; the SEED is derived, so the gate's first run proves nothing about today, only about drift from it",
+ "surfaces": {
+  "anyOverlap": "card",
+  "apnea": "card",
+  "apneaTyping": "export-only",
+  "autoGly": "card",
+  "bus": "card",
+  "clockSkew": "export-only",
+  "cvhrCorroboration": "export-only",
+  "findings": "card",
+  "generated": "export-only",
+  "hrSource": "export-only",
+  "hrv": "card",
+  "hrvMotionGate": "export-only",
+  "hrvResource": "export-only",
+  "kernelAudit": "export-only",
+  "kind": "export-only",
+  "matchWindow": "card",
+  "nodes": "card",
+  "pairs": "card",
+  "periodicBreathing": "card",
+  "positional": "card",
+  "pulseCrossCheck": "export-only",
+  "respiration": "export-only",
+  "staging": "card",
+  "unmatched": "card",
+  "window": "card"
+ }
+}

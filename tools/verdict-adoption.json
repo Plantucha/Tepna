@@ -1005,6 +1005,18 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/integrator-surface-gate.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/integrator-surface-gate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "every key the Integrator's fusion emits declares a SURFACE (card | export-only) in tools/integrator-surface.json; criterion undeclared_or_unrendered_card_keys lte 0. Measured 2026-10-11: 25 keys, 14 card, 11 export-only, 0 undeclared. \u26a0\ufe0f The seed was derived from a render scan, so the first PASS is true by construction (the generator-compared-to-itself shape); what it detects is DRIFT \u2014 a new undeclared key, or a card key whose render mention is deleted \u2014 and both are planted in --selftest. It reads SOURCE, not uploads/, because a fixture scan finds one fixture in a worktree and in CI."
+  },
   "tools/known-clock-recovery.mjs": {
    "bin": "word-only",
    "status": "exempt",
