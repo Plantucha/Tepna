@@ -50,6 +50,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-doc-search.sh\"",
             "timeout": 10,
             "statusMessage": "checking a doc-search ran this session before this commit"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/trim-output.sh\"",
+            "timeout": 10,
+            "statusMessage": "trimming a command's output before it enters context"
           }
         ]
       },
