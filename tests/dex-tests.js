@@ -44421,6 +44421,128 @@
       T.eq('a process outside the tree is not a user', (r2.users || []).length, 0);
     });
 
+    /* wt-done's `--landed` path, the PURE half. A worktree whose branch was REBUILT under another name
+       (rebased, re-cut, relayed) has no PR of its own, so every earlier proof-of-landing refused it and
+       the tree stayed registered for weeks — RESIDUE 2026-09-28-wt-done-cannot-retire-a-worktree-whose-
+       branch-was-rebuilt. The replacement proof is "every identifier this branch ADDED is present on
+       origin/main", and the two halves are split so the decision is testable with no repo at all: the
+       token filter, and the verdict over a presence predicate.
+       What is asserted here is the FLOOR and the TOKEN SHAPE, because both failures are §4b's success
+       reported about something never examined — in a tool that then DELETES a directory. Prose tokens
+       would make the check vacuous or unsatisfiable, and an empty identifier list must never read as
+       "all of them landed". */
+    group('wt-done — `--landed` proves it by identifiers, and refuses when it examined too few', 'tools · wt-done · landed', function (T) {
+      if (!env.wtDone || typeof env.wtDone.addedIdentifiers !== 'function') {
+        T.skip('needs tools/wt-done.mjs — not available in the browser lane');
+        return;
+      }
+      var addedIdentifiers = env.wtDone.addedIdentifiers,
+        landedByIdentifiers = env.wtDone.landedByIdentifiers;
+
+      /* ── the token filter ─────────────────────────────────────────────────────────────────────── */
+      var diff = [
+        'diff --git a/tools/x.mjs b/tools/x.mjs',
+        '--- a/tools/x.mjs',
+        '+++ b/tools/x.mjs',
+        '@@ -1,0 +1,6 @@',
+        '+const RING_WITNESS_TOL_S = 2;',
+        '+export function witness_judges(a) {',
+        '+  return hostAxisFor(a); // the running median, never a fit',
+        '+}',
+        '-const removedOnly_token = 1;',
+        ' const contextOnly_token = 2;'
+      ].join('\n');
+      var ids = addedIdentifiers(diff);
+      T.ok('an ALL-CAPS constant is an identifier', ids.indexOf('RING_WITNESS_TOL_S') >= 0, ids.join(' '));
+      T.ok('a snake_case name is an identifier', ids.indexOf('witness_judges') >= 0, ids.join(' '));
+      T.ok('a camelCase name is an identifier', ids.indexOf('hostAxisFor') >= 0, ids.join(' '));
+      T.eq('the `+++` file header is NOT read as an added line', ids.indexOf('tools'), -1);
+      T.eq('a REMOVED line contributes nothing', ids.indexOf('removedOnly_token'), -1);
+      T.eq('a CONTEXT line contributes nothing', ids.indexOf('contextOnly_token'), -1);
+      T.eq('prose in a comment is not an identifier — it would make the check unsatisfiable', ids.indexOf('median'), -1);
+      T.eq('a short token is below the length floor', addedIdentifiers('+var ab_c = 1;').length, 0);
+      T.eq('the list is sorted and deduped', JSON.stringify(addedIdentifiers('+a_token b_token a_token')), '["a_token","b_token"]');
+
+      /* ── the verdict over a presence predicate ────────────────────────────────────────────────── */
+      var all = ['a_one', 'b_two', 'c_three', 'd_four'];
+      var yes = function () {
+        return true;
+      };
+      var ok = landedByIdentifiers(all, yes);
+      T.ok('every identifier present on the base ⇒ landed', ok.ok === true, ok.why);
+      T.eq('and it says how many it examined', ok.checked, 4);
+
+      var one = landedByIdentifiers(all, function (id) {
+        return id !== 'c_three';
+      });
+      T.ok('one absent identifier ⇒ refuse', one.ok === false, one.why);
+      T.ok('and the refusal NAMES it', /c_three/.test(one.why), one.why);
+
+      var floor = landedByIdentifiers(['a_one', 'b_two'], yes);
+      T.ok('below the floor ⇒ refuse, however present the two are', floor.ok === false, floor.why);
+      T.ok('and the refusal says it examined too few, not that nothing landed', /too few/.test(floor.why), floor.why);
+      T.ok('an EMPTY list never reads as "all of them landed"', landedByIdentifiers([], yes).ok === false, 'empty must refuse');
+      T.ok('a missing diff refuses rather than passing vacuously', landedByIdentifiers(null, yes).ok === false, 'null must refuse');
+
+      var threw = landedByIdentifiers(all, function () {
+        throw new Error('fatal: bad revision');
+      });
+      T.ok('a failing search refuses — it is not evidence of absence', threw.ok === false, threw.why);
+      T.ok('and it names the search that failed', /cannot search/.test(threw.why), threw.why);
+
+      var many = landedByIdentifiers(['a_one', 'b_two', 'c_three', 'd_four', 'e_five', 'f_six'], function () {
+        return false;
+      });
+      T.ok('six absent identifiers are reported as 6 of 6', /6 of 6/.test(many.why), many.why);
+      T.ok('the names are capped and the cut is marked', / …$/.test(many.why), many.why);
+      T.eq('the absent set itself is complete, not truncated', (many.absent || []).length, 6);
+
+      var lifted = landedByIdentifiers(['a_one'], yes, { min: 1 });
+      T.ok('the floor is a parameter, so a caller can state its own', lifted.ok === true, lifted.why);
+      T.ok(
+        'and the base name travels into the message',
+        /NOT on refs\/heads\/x/.test(
+          landedByIdentifiers(
+            all,
+            function () {
+              return false;
+            },
+            { base: 'refs/heads/x' }
+          ).why
+        ),
+        'base must be named'
+      );
+
+      /* ── and the same proof answers the MERGED case, where a DATE was deciding ─────────────────
+         Row 2026-10-12-wt-done-tests-the-date-not-the-content: the post-merge scan counts commits
+         STAMPED after the merge, which refused four reclaimable trees — two over commits that change
+         zero files. The decision core is pure, so each state is asserted directly rather than against
+         a live PR. What must hold is that the flag answers the count WITHOUT weakening anything else. */
+      var V = env.wtDone.verdict;
+      var merged = { prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 3 } };
+      var proof = { ok: true, why: 'all 7 identifier(s) this branch added are present on origin/main' };
+      var asked = V(merged);
+      T.ok('merged + commits dated after it, no flag ⇒ refuse, unchanged', asked.ok === false, asked.why);
+      T.ok('and the refusal now OFFERS the flag that answers it', /--landed/.test(asked.why), asked.why);
+      var proven = V(Object.assign({}, merged, { landedElsewhere: proof }));
+      T.ok('merged + the content proved landed ⇒ remove', proven.ok === true, proven.why);
+      T.ok('and the message keeps the COUNT that prompted the question', /3 commit\(s\) dated after it/.test(proven.why), proven.why);
+      T.ok('and names the proof that answered it', /identifier\(s\)/.test(proven.why), proven.why);
+      var unproven = V(Object.assign({}, merged, { landedElsewhere: { ok: false, why: '2 of 7 identifier(s) this branch added are NOT on origin/main: a_one b_two' } }));
+      T.ok('merged + the content NOT on main ⇒ still refuse', unproven.ok === false, unproven.why);
+      T.ok('and the refusal names the absent identifiers, not the date', /a_one b_two/.test(unproven.why), unproven.why);
+      var busy = V(Object.assign({}, merged, { landedElsewhere: proof, inUse: { ok: true, users: [{ pid: 42, cmd: 'node peer' }] } }));
+      T.ok('the flag does not weaken the IN-USE check', busy.ok === false, busy.why);
+      var scanFailed = V(Object.assign({}, merged, { landedElsewhere: proof, inUse: { ok: false, why: '/proc unreadable' } }));
+      T.ok('nor the idle scan — unknown is not idle', scanFailed.ok === false, scanFailed.why);
+      var clean = V({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, landedElsewhere: proof });
+      T.ok('zero commits after the merge still reads as every commit landed', /every commit landed/.test(clean.why), clean.why);
+      var openPr = V({ prState: 'OPEN', dirtyCount: 0, isMain: false, landedElsewhere: proof });
+      T.ok("an OPEN PR's tree is never removed by the flag — its fixes may still be made here", openPr.ok === false, openPr.why);
+      var dirty = V({ prState: 'MERGED', dirtyCount: 2, isMain: false, unlanded: { ok: true, count: 3 }, landedElsewhere: proof });
+      T.ok("nor a dirty tree — it may be someone's only copy", dirty.ok === false, dirty.why);
+    });
+
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {
@@ -61563,6 +61685,30 @@
       var noArgs = probe('tools/tch-window-sensitivity.mjs', []);
       T.eq('an ABSENT default corpus refuses by name instead of throwing', noArgs.status, 2);
       T.ok('…and says how to build one', /trio-batch\.mjs --src/.test(String(noArgs.out)), String(noArgs.out).slice(0, 220));
+
+      /* ── the survey that MEASURES all this must be importable, and its bar must only shrink ─────
+         `tools/argv-survey.mjs` is the gate whose criterion this unit moved from 5 to 0. Until now no
+         group could read that criterion: the module's probing half was bare top-level statements ending
+         in `process.exit()`, so importing it swept 45 tools and then killed the importer (Magpie,
+         2026-10-12 — :68 and :342). The import therefore happens in a CHILD, where a regressed guard is
+         a timeout or a non-zero exit rather than this shard dying with no verdict. */
+      if (typeof env.importToolInChild === 'function') {
+        var imported = env.importToolInChild('tools/argv-survey.mjs', ['SWALLOW_BAR', 'TOKEN']);
+        T.eq('importing the survey exits 0 — it does not run, and does not exit the importer', imported.status, 0);
+        T.ok('and its exports are readable', imported.read !== null && imported.read.TOKEN === '--no-such-flag-9f3', JSON.stringify(imported.read));
+        T.ok('and NOTHING was probed on the way — no verdict row in the output', !/IGNORES|REFUSES|SWALLOWS-AS-POSITIONAL/.test(String(imported.out)), String(imported.out).slice(0, 200));
+        T.ok(
+          'the ratchet is shrink-only: a bar above 0 would re-admit a swallower by number',
+          imported.read !== null && imported.read.SWALLOW_BAR <= 0,
+          'SWALLOW_BAR=' + (imported.read && imported.read.SWALLOW_BAR)
+        );
+        var surveyFlag = probe('tools/argv-survey.mjs', ['--no-such-flag-9f3']);
+        T.eq('and the guard did not disable its OWN argv refusal when it is run', surveyFlag.status, 2);
+        T.ok('…naming the token', /--no-such-flag-9f3/.test(String(surveyFlag.out)), String(surveyFlag.out).slice(0, 200));
+        var sample = probe('tools/argv-survey.mjs', ['--verdict-sample']);
+        T.eq('…and a known flag still works, probing nothing', sample.status, 0);
+        T.ok('…printing a tepna.verdict/1 object', /tepna\.verdict\/1/.test(String(sample.out)), String(sample.out).slice(0, 160));
+      }
     });
 
     group('every tool resolves repo code from its OWN checkout (PR #686 class)', 'tools · source-scan · portability', function (T) {

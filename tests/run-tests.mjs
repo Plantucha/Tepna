@@ -31,7 +31,7 @@ import * as deviceStability from '../tools/device-stability.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
 import { suiteVerdict, unionVerdict } from '../tools/run-tests-verdict.mjs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { spawn, spawnSync, execSync } from 'node:child_process';
@@ -3047,6 +3047,26 @@ async function main() {
       } finally {
         rmSync(cwd, { recursive: true, force: true });
       }
+    },
+    /* IMPORT A TOOL IN A CHILD PROCESS and read exported values out of it — never in this process.
+       `tools/argv-survey.mjs` used to run its 45-tool sweep and then `process.exit()` at import, so an
+       `import` of it TERMINATED the importer; asserting its guard from inside the suite would therefore
+       kill the shard with no verdict (§4c) the moment the guard regressed. In a child, the same
+       regression is a timeout or a non-zero exit — an assertion that names the file. */
+    importToolInChild: (rel, names, { timeoutMs = 10000 } = {}) => {
+      const url = pathToFileURL(join(ROOT, rel)).href;
+      const src = `import * as m from ${JSON.stringify(url)};\nconsole.log('__READ__' + JSON.stringify(Object.fromEntries(${JSON.stringify(names)}.map((k) => [k, m[k] === undefined ? null : m[k]]))));`;
+      const t0 = Date.now();
+      const r = spawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8', timeout: timeoutMs });
+      const out = `${r.stdout || ''}${r.stderr || ''}`;
+      const line = out.split('\n').find((l) => l.startsWith('__READ__'));
+      let read = null;
+      try {
+        read = line ? JSON.parse(line.slice(8)) : null;
+      } catch {
+        read = null;
+      }
+      return { status: r.status, signal: r.signal, out, read, ms: Date.now() - t0 };
     },
     sources: readSources(),
     // Must come AFTER `sources:` — readSources() is what fills TOOL_TEXTS.
