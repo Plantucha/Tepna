@@ -11,6 +11,9 @@ The approved words are ours, in `docs/GLOSSARY.md`.
 `tools/ste-lint.mjs` checks every rule below and exits 1 on a finding. `tools/pr-compliance.mjs`
 runs it over every PR body (owner, 2026-10-12, "make it bite").
 
+Since #3510 the same gate also reads each Markdown file that a PR adds, whole. A changeset, a brief
+and a new skill are in that set. An edit to an old file is not, because the rules bind new text only.
+
 ## Structure rules
 
 1. One idea per sentence. A sentence has a verb.
@@ -32,7 +35,10 @@ node tools/ste-lint.mjs <file.md>; echo EXIT=$?     # the exit code is the verdi
 node tools/ste-lint.mjs - < body.md                 # a PR body on stdin
 node tools/ste-lint.mjs <file.md> --json            # the verdict object alone
 node tools/ste-lint.mjs <file.md> --advisory        # report only, for a backlog sweep
+for f in $(git diff --name-only --diff-filter=A origin/main -- '*.md'); do node tools/ste-lint.mjs "$f" >/dev/null || echo "RED $f"; done
 ```
+
+Run the last line before you push. It lints each Markdown file that the branch adds.
 
 Capture the exit code before any pipe (`CLAUDE.md` §4b). Fix every finding. Run it again.
 The linter skips fenced code, tables, quoted log lines, headings, inline code, URLs, citations, the
@@ -52,5 +58,9 @@ The linter skips fenced code, tables, quoted log lines, headings, inline code, U
   name flagged as an -ing noun is that defect, fixed in #3483.
 - Six of eight open PR bodies carried findings, from 5 to 21 each, on the day the gate turned strict.
   A body edit alone does not re-run the gate; push an empty commit after the fix.
+
+- A changeset is a new Markdown file. On the day #3510 merged, the changesets of four open PRs went
+  red (#3507, #3511, #3515, #3518). Each had a list item longer than 20 words, up to 46. Split the item into
+  sentences of 20 words or fewer.
 
 Memory: `ste-writing-rules-bite`, `query-state-never-memory`.
