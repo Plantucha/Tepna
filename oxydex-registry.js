@@ -368,6 +368,27 @@
     },
     ultradianCycles: { label: 'Ultradian Cycles', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'heuristic', cite: 'Count of detected ultradian cycles — the detector is ours' },
     ultradianValleys: { label: 'HR Valleys', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Valley count from the same detector' },
+    /* Sleep stages from the control net (oxydex-stager.js, unit 2b): the net is a user-loaded, un-shipped
+       artefact, so every tile is `experimental` — the number is the model's, graded by its own file's provenance. */
+    stagerWake: {
+      label: 'Wake',
+      unit: 'min',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Minutes staged Wake by the loaded control net (stage-lab seqnet; weights user-loaded, not shipped)'
+    },
+    stagerLight: { label: 'Light', unit: 'min', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Minutes staged Light (N1+N2) by the loaded control net' },
+    stagerDeep: { label: 'Deep', unit: 'min', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Minutes staged Deep (N3) by the loaded control net' },
+    stagerRem: { label: 'REM', unit: 'min', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Minutes staged REM by the loaded control net' },
+    stagerEpochs: {
+      label: 'Epochs',
+      unit: 'count',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Whole 30 s epochs the night offered the stager — a count, not a model output'
+    },
     crcIdx: { label: 'CRC Index', unit: '', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Cardio-respiratory coupling index, bespoke' },
     /* OXYDEX-FFT-CYCLE-NULL §6 — `computeSpO2FFT`'s two published fields. Both reach the user (the CSV
        carries "FFT Peak Freq (Hz)" / "FFT Cycle Length (s)") and neither had a registry row, so any

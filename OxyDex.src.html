@@ -3738,6 +3738,16 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   </div>
 </div>
 
+<!-- Sleep stager — a tepna-seqnet/1 weights file the user loads; the net is a CONTROL model, not a shipped artefact (oxydex-stager.js) -->
+<div id="stagerZone" class="ecg-xcheck">
+  <div class="ecg-xcheck-h">🛏 Sleep stages <span>optional · load a tepna-seqnet weights file to stage every loaded night from SpO₂ and pulse · control model — not shipped</span></div>
+  <div class="ecg-xcheck-row">
+    <label for="stagerWeightsInput" class="ecg-xcheck-btn">＋ Load stager weights</label>
+    <input type="file" id="stagerWeightsInput" accept=".json" style="display:none">
+    <span class="ecg-xcheck-status" id="stagerStatus">No weights loaded</span>
+  </div>
+</div>
+
 <div id="userProfilePanel" role="complementary" aria-label="User Profile configuration panel" class="hidden">
   <div id="profileHeader" data-act="toggleProfile">
     <h3>👤 User Profile &nbsp;<span class="inline-warn">— personalizes all formulas &amp; norms</span></h3>
@@ -3813,6 +3823,9 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 <script type="module" src="oxydex-fusion.js"></script>
 <script src="synth-gen.js"></script>
 <script src="dex-patient-gen.js"></script>
+<script type="module" src="tools/stage-lab-core.mjs"></script>
+<script type="module" src="tools/seqnet-infer.mjs"></script>
+<script type="module" src="oxydex-stager.js"></script>
 <script type="module" src="oxydex-app.js"></script>
 </div><!-- /.main-wrap -->
 </div><!-- /.app -->
