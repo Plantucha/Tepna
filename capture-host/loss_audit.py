@@ -523,6 +523,9 @@ def _cell_int(cols: list[str], parts: list[str], name: str) -> int | None:
 def oxyframe_samples(path: str) -> list[tuple[_dt.datetime, int | None, int | None]]:
     """`[(host stamp, duration_s, ppg_n)]` for one 0x04 frame file, in file order, by header name.
 
+    The stamp is read to the MILLISECOND the writer wrote, because the spans built from it are
+    published to three decimals.
+
     A row before any header line is skipped: without the header there is no column contract, and
     guessing one is how a positional reader of a grown layout reports a different field's number."""
     out: list[tuple[_dt.datetime, int | None, int | None]] = []
@@ -531,14 +534,21 @@ def oxyframe_samples(path: str) -> list[tuple[_dt.datetime, int | None, int | No
         for raw in fh:
             line = raw.decode("utf-8", "replace")
             if line.startswith("Phone timestamp"):
-                cols = [c.strip() for c in line.rstrip("\n").split(";")]
+                # No `rstrip` ahead of the split: every name is stripped here and every cell is stripped
+                # in `_cell_int`, so trimming the newline first only adds a line no input can distinguish.
+                cols = [c.strip() for c in line.split(";")]
                 continue
             if cols is None:
                 continue
-            stamp = _ni.parse_stamp(line)
+            # `parse_host_stamp`, not `parse_stamp`: `O2PpgGrid`'s writer stamps this file to the
+            # MILLISECOND (`writers.py`, `OXYFRAME` row: `%Y-%m-%dT%H:%M:%S.` + `microsecond // 1000`),
+            # and `host_span_s` below is published to three decimals. Reading with the second-precision
+            # sibling throws those digits away and makes the published precision empty — the two-readers
+            # rule `parse_host_stamp` states, applied to the reader that measures with them.
+            stamp = _ni.parse_host_stamp(line)
             if stamp is None:
                 continue
-            parts = line.rstrip("\n").split(";")
+            parts = line.split(";")
             out.append((stamp, _cell_int(cols, parts, _OXYFRAME_COUNTER), _cell_int(cols, parts, _OXYFRAME_SAMPLES)))
     return out
 
@@ -576,11 +586,16 @@ def _completeness_of_run(run: list[tuple[_dt.datetime, int | None, int | None]])
     delivered = sum(samples) if samples else None
     # `delivered == 0` is a MEASUREMENT (frames arrived and carried no PPG samples), so the test is
     # `is None` and never falsiness — the two differ exactly where the answer is most interesting.
-    # `not device_seconds` covers the whole absent case and no guard against a NEGATIVE one is written:
+    # ONE guard for both numbers, rather than a second one phrased through the first: `device_seconds`
+    # being truthy covers the absent case and the zero case together, and the pair is computed where
+    # that is already known. No guard against a NEGATIVE count is written:
     # a run's readable counters are non-decreasing by construction, because a backward step is what
     # `sample_completeness` splits a run on. A guard no input can reach is a survivor nobody can kill.
-    ratio = None if delivered is None or not device_seconds else delivered / device_seconds
-    shortfall = None if delivered is None or ratio is None else round(RING_NOMINAL_FS * device_seconds) - delivered
+    ratio: float | None = None
+    shortfall: int | None = None
+    if delivered is not None and device_seconds:
+        ratio = delivered / device_seconds
+        shortfall = round(RING_NOMINAL_FS * device_seconds) - delivered
     return {
         "first": _iso(first),
         "last": _iso(last),

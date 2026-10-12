@@ -2825,13 +2825,19 @@ def test_a_TORN_row_and_a_row_BEFORE_the_header_are_both_skipped_rather_than_gue
             fh.write(f"{t};{sec};25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
         fh.write((start + dt.timedelta(seconds=4)).isoformat(timespec="milliseconds") + ";4;25.5\n")
         fh.write("not a stamp at all;9;9\n")
+        fh.write(
+            (start + dt.timedelta(seconds=5)).isoformat(timespec="milliseconds")
+            + ";5;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n"
+        )
     rows = loss_audit.oxyframe_samples(str(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt"))
-    assert len(rows) == 4, "three whole rows and the torn one; the pre-header row is not among them"
-    assert [r[1] for r in rows] == [1, 2, 3, 4]
-    assert [r[2] for r in rows] == [126, 126, 126, None], "the torn row's sample cell is absent, not 0"
+    assert len(rows) == 5, "four whole rows and the torn one; the pre-header row is not among them"
+    assert [r[1] for r in rows] == [1, 2, 3, 4, 5]
+    assert [r[2] for r in rows] == [126, 126, 126, None, 126], "the torn row's sample cell is absent, not 0"
+    # The LAST row sits after the stamp-less one on purpose: a reader that STOPS at an unparseable row
+    # ends the file at the first torn write, and reports a short night that is nothing of the kind.
     r = loss_audit.sample_completeness(str(d))["runs"][0]
-    assert r["frames"] == 4 and r["frames_without_samples"] == 1
-    assert r["delivered"] == 3 * 126
+    assert r["frames"] == 5 and r["frames_without_samples"] == 1
+    assert r["delivered"] == 4 * 126
 
 
 def test_a_NON_NUMERIC_cell_is_absent_rather_than_a_zero(tmp_path):
@@ -2901,3 +2907,145 @@ def test_the_night_audit_CARRIES_the_sample_measure_beside_the_time_based_one(tm
     assert "ring_samples" in out, "the measure must reach the night object"
     assert out["ring_samples"]["runs"][0]["samples_per_device_second"] == 126.0
     assert out["ring_samples"]["nominal_fs"] == 125.000
+
+
+def test_a_TWO_frame_run_reads_its_span_to_the_MILLISECOND_the_writer_STAMPED(tmp_path):
+    """Every published decimal of this run is one the file carries, and each field states its own unit.
+
+    `O2PpgGrid` stamps the 0x04 rows to the millisecond, so the span is read with the sub-second
+    reader and `host_span_s`'s three decimals mean something. Two readable counters are the FEWEST
+    that bound an advance, and the inclusive device-second count is one more than that advance —
+    reading either as the other is a 50 % error at this length.
+    """
+    d = _oxy_night(tmp_path)
+    f = d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt"
+    with open(f, "w") as fh:
+        fh.write(_OXY_HDR)
+        fh.write("2026-09-22T22:00:00.000;10;25.5;0;97;58;1;80;0;0;500;1;0;0;0;2\n")
+        fh.write("2026-09-22T22:00:01.234;16;25.5;0;97;58;1;80;0;0;500;1;0;0;0;2\n")
+    r = loss_audit.sample_completeness(str(d))["runs"][0]
+    assert r["first"] == "2026-09-22T22:00:00"
+    assert r["last"] == "2026-09-22T22:00:01.234000", "the LAST frame's stamp, read to the millisecond"
+    assert r["host_span_s"] == 1.234, "1.234 s of host time, not 1 s and not 1.2340"
+    assert (r["device_advance_s"], r["device_seconds"]) == (6, 7), "two counters DO bound an advance"
+    assert r["host_minus_device_s"] == -4.766
+    assert r["delivered"] == 1000
+    assert r["samples_per_device_second"] == 142.857, "1000 over 7, to the published three decimals"
+    assert r["shortfall_at_nominal"] == round(125.0 * 7) - 1000 == -125
+    assert (r["frames"], r["frames_without_counter"], r["frames_without_samples"]) == (2, 0, 0)
+
+
+def test_a_frame_row_with_an_UNDECODABLE_BYTE_does_not_end_the_file(tmp_path):
+    """One torn byte is one damaged cell, never the end of the night.
+
+    The ring's frames arrive over BLE and land in a file the daemon appends to, so a half-written
+    multi-byte sequence is a real event. Decoding with a replacement keeps the row's other cells
+    readable; a strict decode raises and takes every later row with it.
+    """
+    d = _oxy_night(tmp_path)
+    f = d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt"
+    with open(f, "wb") as fh:
+        fh.write(_OXY_HDR.encode())
+        fh.write(b"2026-09-22T22:00:00.000;10;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+        fh.write(b"2026-09-22T22:00:01.000;11;2\xff.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+        fh.write(b"2026-09-22T22:00:02.000;12;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+    rows = loss_audit.oxyframe_samples(str(f))
+    assert [r[1] for r in rows] == [10, 11, 12], "the damaged cell is not the counter"
+    assert [r[2] for r in rows] == [126, 126, 126]
+
+
+def test_two_frames_at_the_SAME_second_sort_without_comparing_an_ABSENT_counter(tmp_path):
+    """Two frame files can both carry a row for one second, and one of those rows can be unreadable.
+
+    The sort key is the stamp alone for that reason: ordering whole rows asks Python to compare an
+    absent counter with a number as a tie-break, which raises rather than ordering anything.
+    """
+    d = _oxy_night(tmp_path)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        fh.write("2026-09-22T22:00:00.000;;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220001_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        fh.write("2026-09-22T22:00:00.000;10;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+    out = loss_audit.sample_completeness(str(d))
+    assert out["files"] == 2 and len(out["runs"]) == 1, out["runs"]
+    assert out["runs"][0]["frames"] == 2
+    assert out["runs"][0]["frames_without_counter"] == 1
+
+
+def test_a_FIRST_frame_with_no_counter_leaves_the_carried_value_ABSENT(tmp_path):
+    """The carried counter starts as absent, and absent is not a value a later row can be below.
+
+    The first row of a night is exactly where an unreadable cell is likely: the daemon opens the file
+    and the ring's first frame is the one that races the header write. A sentinel there is compared
+    against the next readable counter, and a comparison between a number and a sentinel raises.
+    """
+    d = _oxy_night(tmp_path)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        fh.write("2026-09-22T22:00:00.000;;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+        fh.write("2026-09-22T22:00:01.000;10;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+        fh.write("2026-09-22T22:00:02.000;11;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+    out = loss_audit.sample_completeness(str(d))
+    assert len(out["runs"]) == 1, out["runs"]
+    r = out["runs"][0]
+    assert (r["frames"], r["frames_without_counter"]) == (3, 1)
+    assert (r["device_seconds"], r["device_advance_s"]) == (2, 1)
+
+
+def test_a_REPEATED_counter_stays_in_ONE_run_because_only_a_BACKWARD_step_is_a_session(tmp_path):
+    """Two frames stamped a second apart can carry the same `duration_s`, and that is not a restart.
+
+    The counter is seconds of signal PRODUCED, so it stands still across a second the ring was
+    silent through. Only a step BACKWARD says the ring closed one session and opened another.
+    """
+    d = _oxy_night(tmp_path)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        for sec, dur in ((0, 10), (1, 10), (2, 11)):
+            fh.write(f"2026-09-22T22:00:0{sec}.000;{dur};25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+    out = loss_audit.sample_completeness(str(d))
+    assert len(out["runs"]) == 1, "a counter standing still is a silent second, never a new session"
+    assert out["runs"][0]["frames"] == 3
+    assert (out["runs"][0]["device_seconds"], out["runs"][0]["device_advance_s"]) == (2, 1)
+
+
+def test_the_carried_counter_follows_the_COUNTER_column_and_not_the_SAMPLE_column(tmp_path):
+    """A frame whose sample cell is unreadable still carries a counter, and that counter is what bounds
+    the next row.
+
+    The two columns are absent independently: `ppg_n` is blank on a night captured with the PPG
+    stream switched off, while `duration_s` keeps counting. Carrying the sample column's presence
+    instead splits the run at the NEXT rise, which reads as a session the ring never opened.
+    """
+    d = _oxy_night(tmp_path)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        fh.write("2026-09-22T22:00:00.000;100;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+        fh.write("2026-09-22T22:00:01.000;50;25.5;0;97;58;1;80;0;0;;1;0;0;0;2\n")
+        fh.write("2026-09-22T22:00:02.000;60;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+    out = loss_audit.sample_completeness(str(d))
+    assert len(out["runs"]) == 2, out["runs"]
+    assert [r["frames"] for r in out["runs"]] == [1, 2]
+    assert out["runs"][1]["device_advance_s"] == 10, "50 to 60 inside the second run"
+    assert out["runs"][1]["frames_without_samples"] == 1
+
+
+def test_a_header_NAME_padded_on_EITHER_side_still_finds_its_column(tmp_path):
+    """The columns are addressed by name, so the name has to match after the padding comes off BOTH
+    ends.
+
+    The daemon's own header is a fixed join with no padding, and the layout also reaches this reader
+    as a hand-written fixture and as the trimmed older layout a 2026-06 night carries. A reader that
+    trims one end finds the column on one kind of padding and silently reports an absent cell on the
+    other — and the last name on the line always carries the newline.
+    """
+    d = _oxy_night(tmp_path)
+    f = d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt"
+    with open(f, "w") as fh:
+        fh.write("Phone timestamp; duration_s ;ppg_n\n")
+        fh.write("2026-09-22T22:00:00.000;10;126\n")
+        fh.write("2026-09-22T22:00:01.000;11;126\n")
+    rows = loss_audit.oxyframe_samples(str(f))
+    assert [r[1] for r in rows] == [10, 11], "the padded counter name matched"
+    assert [r[2] for r in rows] == [126, 126], "the LAST name matched with its newline off"
