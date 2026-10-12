@@ -446,8 +446,8 @@ def code_closure() -> list[str]:
     """The judge's source files, as paths relative to the repo root, sorted."""
     seen: dict[str, types.ModuleType] = {}
     todo = [sys.modules[__name__]]
-    while todo:
-        mod = todo.pop()
+    # A FOR OVER THE GROWING LIST, NOT `while todo: todo.pop()`: a mutant of the pop never ends (CI run 38302543948).
+    for mod in todo:
         path = getattr(mod, "__file__", None)
         if not path or os.path.dirname(os.path.abspath(path)) != _HERE or path in seen:
             continue
