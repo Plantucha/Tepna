@@ -4,7 +4,7 @@ SPDX-License-Identifier: Apache-2.0
 -->
 **Status:** PROPOSED · **Created:** 2026-10-11 · **Owner ask:** 2026-10-11 ("spend tokens to save tokens", "do it now") · **Measured on:** the fleet's own transcripts, 2026-10-05 → 2026-10-11 · **Tool:** `tools/fleet-turns.mjs`
 
-# The token diet: five rules, each with a measure
+# The token diet: five rules, each with a measure — plus two the owner added on 2026-10-11 evening
 
 ## 1 · What the money goes to
 
@@ -43,6 +43,25 @@ Each rule names its owner, its state and its measure. The owner approves the CLA
 | 3 | Fewer turns. Batch independent tool calls in one turn. Act, do not narrate between calls. | every bird | proposed | `fleet-turns.mjs`: tools per turn up, narration share down |
 | 4 | Trim tool output through a hook. Head, tail and a count before it enters context. | Osprey | assigned 2026-10-11 evening, branch `claude/trim-output-osp` | hook tests; saving stated as measured, ≈0.2M/day fleet |
 | 5 | Skills for the recurring procedures, auto-invoked. | Magpie | 9 skills staged in `claude/fleet-skills-mg`, no PR yet | the 48 h slips they would have caught |
+| 6 | **Window cap.** A bird compacts or exits before its window passes 300k tokens. The fixed floor is 70–80k; everything above it is accumulated conversation. | owner (the compaction setting is a settings edit) + every bird (compact or exit at a unit boundary) | ordered 2026-10-11 22:50 ("add the window cap") | `fleet-turns.mjs`: ctx/turn median ≤ 300k, p90 ≤ 400k per bird |
+| 7 | **Tools per turn ≥ 2.0.** Every independent tool call goes in the same turn; a turn with one tool call and a sentence is the pattern to kill. | every bird | ordered 2026-10-11 22:50 ("add the tools-per-turn target") | `fleet-turns.mjs`: tools/turn ≥ 2.0 per bird; the tool prints the target and flags the miss |
+
+### 2b · Why these two, measured 2026-10-11 (04:00 → 22:30 EDT, every turn classified by its trigger)
+
+| bird | turns | owner msg | peer msg | loop tick | tool result | window median | window max | tokens read |
+|---|---|---|---|---|---|---|---|---|
+| Osprey | 603 | 12 | 13 | 0 | 577 | 635k | 869k | 357M |
+| Kestrel | 589 | 69 | 46 | 0 | 472 | 529k | 967k | 280M |
+| Magpie | 485 | 10 | 4 | 0 | 471 | 344k | 967k | 234M |
+| Heron | 401 | 13 | 14 | 0 | 356 | 358k | 578k | 135M |
+
+About 1.0 G tokens read in one day. 90 % of turns are tool-result turns: one tool call, one re-read of the window.
+Loop ticks were zero, peer messages about 4 %, the fixed floor about 16 % of the reads. The two levers that
+remain are the window (rule 6) and the number of turns per unit of work (rule 7). A window held near 200k against
+a 500k median halves the reads; two tools per turn against 1.0 halves the turns. The two multiply.
+
+Windows reached 967k before compaction today, so the compaction setting in force does not cap the window. The
+value that caps it near 300k is the owner's to set in the project settings; a bird does not edit settings.
 
 ## 3 · Proposed CLAUDE.md text (the owner edits CLAUDE.md, not a bird)
 
@@ -62,6 +81,10 @@ Add under §👥, after §5 · Landing:
   the prior work. The index is the memory; the note is what the index finds.
 - **Tool output is trimmed by a hook** (`trim-output.sh`): over 200 lines you see the head, the tail,
   a count and a path. Read the file when the tail is not the verdict (§4b).
+- **Window cap 300k.** Compact or exit at a unit boundary before the window passes 300k tokens. The floor
+  is 80k; the rest is conversation you carry. Write the handoff first.
+- **Two tools per turn.** `fleet-turns.mjs` prints tools/turn with its target (≥ 2.0) and the window
+  median with its cap. A row that misses either is the first thing to fix in your next unit.
 ```
 
 ## 4 · Handoff file contract
@@ -95,4 +118,5 @@ Heron's launcher reads this file. The bird writes it back before it exits. A han
 - [ ] `tools/unit-launch.sh` lands with one real launch shown to the owner (Heron)
 - [ ] `trim-output.sh` lands with its tests (Osprey)
 - [ ] the skills PR lands (Magpie)
-- [ ] `fleet-turns.mjs` run on the first full day under the rules shows narration below 20 % and tools per turn above 1.2 on every bird, or the brief records why not
+- [ ] `fleet-turns.mjs` run on the first full day under the rules shows narration below 20 %, tools per turn at or above 2.0 and a window median at or below 300k on every bird, or the brief records why not
+- [ ] the owner has set the compaction value that caps the window near 300k (today it reached 967k)
