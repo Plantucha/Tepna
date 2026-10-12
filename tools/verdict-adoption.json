@@ -1562,7 +1562,7 @@
           "--verdict-sample"
         ]
       },
-      "note": "the WRITING RULES checker (ASD-STE100 Issue 8, 2021 - rules adopted, dictionary NOT copied). Reports a long sentence (20 words in a procedure, 25 elsewhere; an imperative counts as a procedure), passive voice, a verb-noun in -ing, two imperatives in one sentence, a retired term from docs/GLOSSARY.md, and a paragraph over six sentences. ADVISORY by owner ruling: NOT_APPLICABLE with the count, never PASS over findings nor FAIL on a backlog nobody was asked to clear; --strict exits 1 and is for later. It skips fenced code, tables, quoted log lines, citations, URLs and inline code, because a checker that flags the wrong span teaches people to ignore it. Measured 2026-10-11: CLAUDE.md 32, ORIENTATION.md 5, docs/GLOSSARY.md 0."
+      "note": "the WRITING RULES checker (ASD-STE100 Issue 8, 2021 - rules adopted, dictionary NOT copied). Reports a long sentence (20 words in a procedure, 25 elsewhere; an imperative counts as a procedure), passive voice, a verb-noun in -ing, two imperatives in one sentence, a retired term from docs/GLOSSARY.md, and a paragraph over six sentences. ARMED by owner ruling 2026-10-12 (\"make it bite\"): a finding is FAIL and exit 1, none over prose is PASS, no prose line is NOT_RUN; --advisory keeps NOT_APPLICABLE with the count, never PASS over findings nor FAIL on a backlog nobody was asked to clear. tools/pr-compliance.mjs runs the strict form over every PR body. It skips fenced code, tables, quoted log lines, citations, URLs and inline code, because a checker that flags the wrong span teaches people to ignore it. Measured 2026-10-11: CLAUDE.md 32, ORIENTATION.md 5, docs/GLOSSARY.md 0."
     },
     "tools/stmt-delete.mjs": {
       "bin": "already-json",
