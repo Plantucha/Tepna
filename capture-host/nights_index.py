@@ -630,7 +630,15 @@ def night_entry(
         hours = None
         stats: dict | None = None
         pending = False
-        prims = _expand_alt(root, night_dir, primary, tree)[0] if primary else []
+        # 🔴 THE PRIMARY IS ENUMERATED BY THE SAME RULE AS THE FILES — scope AND chain — or a cell lists
+        # bytes it never measures. Without the scope this re-read saw the evening folder alone, so a
+        # recording whose Polar sets start after midnight (their bytes under the next date) carried its
+        # files and `hours: null` — 2026-10-09 on the box: H10 and Verity "not measured yet" beside a
+        # measured ring. Without the chain, `max(…, key=getsize)` could measure a second recording in the
+        # same band instead of this row's.
+        prims = _expand_alt(root, night_dir, primary, tree, scope)[0] if primary else []
+        if stamps is not None:
+            prims = [f for f in prims if (t := session_epoch(f)) is None or t in stamps]
         if prims:
             f = max(prims, key=os.path.getsize)
             if f.lower().endswith(".edf"):
