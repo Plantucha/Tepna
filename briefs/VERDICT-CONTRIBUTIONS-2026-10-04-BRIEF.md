@@ -4,11 +4,22 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-10-04 ·
+**Status:** IN-PROGRESS — 2026-10-12 · **Created:** 2026-10-04 ·
 
 # Attribution — every fused number says which input moved it (the `contributions` block; the "derivator", reading one)
 
-**SIZED, NOT BUILT.** Owner ruling 2026-10-04 ("we have unit integrator, should we build derivator?" → "both").
+**ACCEPTANCE ITEM 1 BUILT 2026-10-12** — `tepna.verdict/1` carries the optional `contributions`
+block, `verdict.js` validates every rule in §1, and `docs/VERDICT-CONTRACT.md` documents it.
+
+The §2 adopters are not built: the two capture-host ones go to the box session, and the three JS
+ones wait on an order proposed once this contract slice lands. The final acceptance item needs a
+recorded night.
+
+Two rules reach further than §1 spells out, both written down in the contract doc: a `share` holds
+the computed ratio rather than a display rounding, and one unknown `delta` nulls every share and
+`dominant` rather than normalise over the legs that did run (§∅).
+
+**SIZED, NOT BUILT (§2 onward).** Owner ruling 2026-10-04 ("we have unit integrator, should we build derivator?" → "both").
 This brief is the first reading: the inverse of fusion. The Integrator combines node exports into one
 conclusion; a conclusion that cannot say which input moved it has to be re-derived by hand every time it
 surprises someone. It was, three times in the week of 2026-09-29 → 10-04, each time by a bird reading code:

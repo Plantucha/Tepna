@@ -10,7 +10,8 @@
  *   3. If computeHash moved in the diff, the body carries the verbatim
  *      corpus re-verification sentence.
  *   4. If code files changed, a changes/ changeset was added.
- *   5. The body passes the writing rules (tools/ste-lint.mjs, strict) — owner, 2026-10-12.
+ *   5. The body passes the writing rules (tools/ste-lint.mjs, strict) — owner, 2026-10-12 — AND the
+ *      rules examined at least one line of it.
  *   6. No GitHub closing keyword in the body sits next to a PR number that is still OPEN.
  *
  * WHY 6 EXISTS, measured. `.kodiak.toml` sets `[merge.message] body = "pull_request_body"`, so the
@@ -33,7 +34,7 @@ import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findings as steFindings, readGlossary } from './ste-lint.mjs';
+import { findings as steFindings, readGlossary, scan as steScan } from './ste-lint.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -80,10 +81,10 @@ export function citedClosures(body = '') {
  * it requires reading the diff; everything else is a property of the body and the file list, so a
  * selftest can plant each violation and its control without a repository.
  *
- * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null, prStates: Record<string,string>|null, self: string|null}} ctx
+ * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null, steChecked: number|null, prStates: Record<string,string>|null, self: string|null}} ctx
  * @returns {{failures: string[], checked: string[]}}
  */
-export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, prStates = null, self = null }) {
+export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, steChecked = null, prStates = null, self = null }) {
   const failures = [];
   const checked = [];
 
@@ -110,6 +111,23 @@ export function checkCompliance({ body = '', files = null, computeHashMoved = fa
         .map((x) => `line ${x.line} ${x.rule}: ${x.detail}`)
         .join('; ');
       failures.push(`body fails the writing rules — ${ste.length} finding(s) from tools/ste-lint.mjs: ${named}${ste.length > 5 ? '; …' : ''}`);
+    }
+    /* …AND THE POPULATION, because an empty finding list has two causes and this check could not
+       tell them apart. The linter reads no table cell, no quote, no heading and no form line
+       (tools/ste-lint.mjs §scan), so a body that puts its prose in a table scores 0 findings over 0
+       lines and passed here as clean. The case is not hypothetical: #3480's body is 28 non-blank
+       lines, 24 of them excluded, and check 6 exists because the `fixed #3476` that closed an open
+       PR sat in one of those cells. `steChecked` is the examined count from the same scan, resolved
+       by the caller like `ste` itself; `null` means it was not measured, reported as not evaluated.
+       The refusal fires ONLY on a body that HAS lines and had none of them read — an empty body is
+       check 1's business, and a body of four prose lines is examined, however much else it holds. */
+    if (steChecked !== null) {
+      checked.push('ste-population');
+      if (steChecked === 0 && body.split('\n').some((l) => l.trim())) {
+        failures.push(
+          'the writing rules examined 0 lines of this body — prose in a table cell, a quote or a code fence is not read (tools/ste-lint.mjs §scan), so 0 findings here means nothing was checked. Move the prose out of the table.'
+        );
+      }
     }
   }
 
@@ -159,9 +177,9 @@ export function selftest() {
   const has = (r, frag) => r.failures.some((f) => f.includes(frag));
 
   // CONTROL — a compliant body with a compliant file list must pass, or the gate blocks everything.
-  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [], prStates: {} });
+  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [], steChecked: 1, prStates: {} });
   ok(clean.failures.length === 0, 'CONTROL: a compliant body and changeset pass');
-  ok(clean.checked.length === 6, 'CONTROL: all six checks were evaluated, so the pass is not a skip');
+  ok(clean.checked.length === 7, 'CONTROL: all seven checks were evaluated, so the pass is not a skip');
 
   // PLANTED VIOLATION 5 — the body fails the writing rules (owner, 2026-10-12: the linter bites).
   const passive = [{ line: 3, rule: 'passive', detail: '"was measured"' }];
@@ -169,6 +187,36 @@ export function selftest() {
   ok(has(checkCompliance({ body: good, files: null, ste: passive }), 'line 3 passive'), '…and the failure names the line and the rule');
   ok(!has(checkCompliance({ body: good, files: null, ste: [] }), 'writing rules'), 'CONTROL: no finding, no failure');
   ok(!checkCompliance({ body: good, files: null, ste: null }).checked.includes('ste-writing-rules'), 'lint not run ⇒ the check is reported as NOT evaluated, not as passed');
+
+  /* PLANTED VIOLATION 5b — THE BODY THE RULES NEVER READ. An empty finding list had two causes and
+     this check read both as clean. The planted body is #3480's shape: a Rule 0 line, a heading, a
+     table carrying the prose, and the trailer. Every one of those lines is skipped by form
+     (tools/ste-lint.mjs §scan), so the linter returns no finding from no line. The real #3480 body
+     measured `checked: 4, excluded: 24` — four prose lines out of twenty-eight — and this planted
+     one takes the limit case, where nothing at all is examined. */
+  const tabled = [
+    'Rule 0: `doc-search "x"` → a.md',
+    '',
+    '## 1 · What moved',
+    '',
+    '| key | why it closes |',
+    '|---|---|',
+    '| `2026-10-12-a-row` | The tag list is now single-sourced, and the sidecar is box-wide. |',
+    '',
+    'Fleet-Session: Magpie'
+  ].join('\n');
+  const tabledChecked = steScan(tabled).checked;
+  ok(tabledChecked === 0, 'the planted body really is unread — the linter examines 0 of its lines');
+  ok(steFindings(tabled, readGlossary()).length === 0, '…and it therefore reports 0 findings, which is the trap');
+  ok(has(checkCompliance({ body: tabled, files: null, ste: [], steChecked: tabledChecked }), 'examined 0 lines'), 'a body the rules never read is caught');
+  ok(has(checkCompliance({ body: tabled, files: null, ste: [], steChecked: 0 }), 'table cell'), '…and the failure names where the prose is hiding');
+  ok(!has(checkCompliance({ body: good, files: null, ste: [], steChecked: 1 }), 'examined 0 lines'), 'CONTROL: one examined line is enough — the check is about zero, not about coverage');
+  ok(!checkCompliance({ body: good, files: null, ste: [], steChecked: null }).checked.includes('ste-population'), 'population not measured ⇒ NOT evaluated, not passed');
+  ok(!has(checkCompliance({ body: '', files: null, ste: [], steChecked: 0 }), 'examined 0 lines'), "CONTROL: an EMPTY body is check 1's business, not this one");
+  ok(!has(checkCompliance({ body: '\n  \n', files: null, ste: [], steChecked: 0 }), 'examined 0 lines'), 'CONTROL: a whitespace-only body is not a hidden-prose body either');
+  /* The real #3480 body is 42 lines and is not pasted here. The shape above reproduces its defect;
+     the measured numbers for the merged body live in the changeset and in the residue row
+     `2026-10-12-ste-lint-skips-table-cells`. */
   // …and the import is LIVE: the real linter over a planted passive sentence, with the real glossary.
   const live = steFindings(`${good}\n\nThe value was measured by the tool.`, readGlossary());
   ok(
@@ -378,6 +426,7 @@ function main() {
   }
 
   const ste = body ? steFindings(body, readGlossary()) : null;
+  const steChecked = body ? steScan(body).checked : null;
 
   /* CHECK 6's POPULATION, resolved here because it needs the network. One `gh api` call per distinct
      cited number, and the numbers come from the body, so the usual count is nought to three. The
@@ -405,7 +454,7 @@ function main() {
     }
   }
 
-  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, prStates, self: process.env.PR_NUMBER || null });
+  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, steChecked, prStates, self: process.env.PR_NUMBER || null });
   if (diffError) failures.push(diffError);
   const status = failures.length ? 'FAIL' : 'PASS';
 
