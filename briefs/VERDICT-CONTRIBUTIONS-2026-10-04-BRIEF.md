@@ -11,9 +11,19 @@
 **ACCEPTANCE ITEM 1 BUILT 2026-10-12** — `tepna.verdict/1` carries the optional `contributions`
 block, `verdict.js` validates every rule in §1, and `docs/VERDICT-CONTRACT.md` documents it.
 
-The §2 adopters are not built: the two capture-host ones go to the box session, and the three JS
-ones wait on an order proposed once this contract slice lands. The final acceptance item needs a
-recorded night.
+**THE §2 GATE LEG IS BUILT 2026-10-12** — `verify:verdict-adoption` carries a `contributions` leg
+whose population is the §2 table below. It parses that table at every run and compares it with the
+rows in `tools/verdict-adoption.json` both ways, so a figure added here with no row reds by name and
+a row matching no figure reds by name.
+
+All five figures sit at `status: pending` with a `since` date. An `adopted` row must name `emits`,
+the gate reads that object, and `validate()` must report `contributions` among the fields it
+EXAMINED — a valid object whose validator never looked at the block is a pass over something never
+read.
+
+The five figures themselves are not built. The two capture-host ones go to the box session, and the
+three JS ones follow the accepted order: the hat, then the trio pooled hat after the re-fold lands,
+then the Integrator. The final acceptance item needs a recorded night.
 
 Two rules reach further than §1 spells out, both written down in the contract doc: a `share` holds
 the computed ratio rather than a display rounding, and one unknown `delta` nulls every share and
