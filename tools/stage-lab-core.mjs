@@ -20,9 +20,9 @@
  * registered with `implemented: false` so a caller asking for them gets a refusal, never zeros.
  */
 
-export const EPOCH_S = 30;
-export const STAGES = ['Wake', 'Light', 'Deep', 'REM']; // AASM collapse: N1+N2 = Light, N3(+N4) = Deep
-export const STAGE_INDEX = { W: 0, Wake: 0, N1: 1, N2: 1, N3: 2, N4: 2, R: 3, REM: 3 };
+const EPOCH_S = 30;
+const STAGES = ['Wake', 'Light', 'Deep', 'REM']; // AASM collapse: N1+N2 = Light, N3(+N4) = Deep
+const STAGE_INDEX = { W: 0, Wake: 0, N1: 1, N2: 1, N3: 2, N4: 2, R: 3, REM: 3 };
 
 /* ── small numeric helpers (NaN-aware: a NaN is a missing value, never a number) ─────────────────── */
 const finite = (a) => a.filter(Number.isFinite);
@@ -90,7 +90,7 @@ function bandPower(a, lo, hi) {
 /* ── FEATURE BLOCKS ──────────────────────────────────────────────────────────────────────────────
    extract(night) → { names, cols } where cols[j] is a Float64Array(nEpochs), or null if the input is absent. */
 const SCALES = [30, 60, 150, 300]; // half-windows (s): 1, 2, 5, 10 min
-export const MOTION_BIT_G = 0.02; // 1-bit motion threshold on the per-second |a| std (g); stated, not tuned
+const MOTION_BIT_G = 0.02; // 1-bit motion threshold on the per-second |a| std (g); stated, not tuned
 
 function windowAt(s, c, h) {
   return finite(Array.from(s.subarray(Math.max(0, c - h), Math.min(s.length, c + h))));
@@ -126,7 +126,7 @@ function multiScale(s, n, prefix, extra) {
   return { names, cols };
 }
 
-export const BLOCKS = {
+const BLOCKS = {
   spo2: {
     implemented: true,
     input: 'spo2',
@@ -243,7 +243,7 @@ export const BLOCKS = {
 /* ── CONTEXT: per-night robust normalisation + multi-scale temporal context, for ANY block ────────
    Night-relative because the literature and our own data agree the absolute levels vary by person
    (Schumann 2010: alpha1 depends on age). NaN stays NaN — normalisation never invents a value. */
-export const CONTEXT_EPOCHS = [2, 10, 30];
+const CONTEXT_EPOCHS = [2, 10, 30];
 
 function withContext(block, n) {
   const names = [],
@@ -773,7 +773,7 @@ function bootstrapKappa(perNight, B = 1000, seed = 1) {
    black box. Each SpO2 term enters as z (per-night normalised) and max(0, z) — a straight line with one bend
    at the night's median ("minor curve additions"). Time enters as the published shapes: Process-S decay
    exp(-t/0.25), REM propensity rising with t, and wake at the recording edges. */
-export const FORMULA_TERMS = [
+const FORMULA_TERMS = [
   ['spo2.sd@60s@±10ep', 'short-window SpO2 variability (irregular breathing: REM up, deep down)'],
   ['spo2.sd@600s@±10ep', 'long-window SpO2 variability'],
   ['spo2.desat3.count@10m@±10ep', 'desaturation density (REM-predominant in apnoea)'],
@@ -921,9 +921,9 @@ function harmonizeSpo2(d, avgS = 8) {
   return out;
 }
 
-/* One export list, not `export function`: the owned bundler (tools/build-core.js, ESM phase 1) rewrites
-   `export const` and `export { … }` into the module registry but leaves `export function` in place, which is a
-   syntax error inside the inlined module wrapper. Plain declarations + this list keep node, tests and the
+/* One export list, no `export function` and no `export const`: the owned bundler (tools/build-core.js, ESM
+   phase 1) leaves `export function` in place (a syntax error inside the module wrapper) and rewrites
+   `export const X =` into `__exports.X =`, which removes the local binding every later reference needs. Plain declarations + this list keep node, tests and the
    bundle on one file. */
 export {
   bandPower,
@@ -945,5 +945,12 @@ export {
   formulaBasis,
   fitSoftmax,
   softmaxProba,
-  harmonizeSpo2
+  harmonizeSpo2,
+  EPOCH_S,
+  STAGES,
+  STAGE_INDEX,
+  MOTION_BIT_G,
+  BLOCKS,
+  CONTEXT_EPOCHS,
+  FORMULA_TERMS
 };
