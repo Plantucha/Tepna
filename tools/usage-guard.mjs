@@ -12,6 +12,8 @@
  *     node tools/usage-guard.mjs --budget fleet=40000000 --budget kestrel=8000000
  *                                                      # CONFIGURED budgets; the 25 % / 10 % warnings bind on these only
  *     node tools/usage-guard.mjs --api-log <file.jsonl>…   # the API reader's records (gemini-review --out)
+ *     node tools/usage-guard.mjs --remote <host>…      # a second host's transcripts, folded ON that host over ssh
+ *     node tools/usage-guard.mjs --ma-log <dir>…       # Managed Agents run logs (*.jsonl, read recursively)
  *     node tools/usage-guard.mjs --status-line         # one line for Claude Code's statusLine (reads its stdin JSON)
  *     node tools/usage-guard.mjs --json                # the tepna.verdict/1 object alone
  *     node tools/usage-guard.mjs --selftest
@@ -33,6 +35,14 @@
  *   · API reader runs — `tools/gemini-review.mjs --out <jsonl>` records; the provider's own usage
  *     object inside each `response` body (Gemini `usageMetadata`, OpenAI-shaped `usage`, Anthropic
  *     `usage`) is read per request. A record without one is COUNTED as "no usage field", never as 0.
+ *   · Sessions on a second host (`--remote <host>`) — the same per-message fold, run ON that host by a
+ *     read-only Python script over `ssh -o BatchMode=yes`, so only one JSON summary crosses the link and
+ *     no transcript leaves the box. Names come from that host's own herder. An unreachable host is a
+ *     `remotes[]` entry with a reason, never a zero row.
+ *   · Managed Agents runs (`--ma-log <dir>`) — each run log records every API call; the LAST
+ *     `GET /v1/sessions/<id>` body carries the session's cumulative `usage`, including `list_cost`.
+ *     One row per model, summed over sessions whose last record falls in the window. `list_cost.amount`
+ *     is read as US cents: on 2026-10-11 nine batches summed 596 and the console showed $5.96.
  *   · Claude Code's statusLine stdin JSON (`--status-line`): `context_window` and `cost` when the
  *     running version sends them; the transcript is the fallback, labelled as such.
  *
@@ -49,9 +59,9 @@
  * hand off), NOT_APPLICABLE when no budget is configured (sessions were examined; the rule does not
  * bind), NOT_RUN when no transcript directory could be read. `--verdict-sample` enumerates nothing.
  */
-import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -283,6 +293,187 @@ export async function readTranscript(file, sinceMs, tailBytes = 0) {
   return sess;
 }
 
+/* ── IO: a second host's transcripts, folded ON that host (only the summary crosses the link) ─────
+   The fold mirrors foldLine field for field; the selftest runs this script against a planted
+   transcript and compares it with foldLine's sums, so the two cannot drift silently. */
+export const REMOTE_FOLD_PY = String.raw`import json, os, sys, glob, subprocess
+from datetime import datetime
+since = int(sys.argv[1]) / 1000.0
+root = sys.argv[2] if len(sys.argv) > 2 else os.path.expanduser('~/.claude/projects')
+def ts(s):
+    try:
+        return datetime.fromisoformat(str(s).replace('Z', '+00:00')).timestamp()
+    except Exception:
+        return None
+def n(v):
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+out = []
+for f in sorted(glob.glob(os.path.join(root, '*', '*.jsonl'))):
+    try:
+        if os.path.getmtime(f) < since:
+            continue
+        size = os.path.getsize(f)
+    except OSError:
+        continue
+    s = dict(id=os.path.basename(f)[:-6], input=0, cacheCreate=0, cacheRead=0, output=0, thinking=0,
+             messages=0, messagesWithoutUsage=0, first=None, last=None, models={}, lastContext=None,
+             lastContextAt=None, file=f, fileBytes=size)
+    with open(f, 'rb') as fh:
+        for line in fh:
+            if b'"type":"assistant"' not in line:
+                continue
+            try:
+                o = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(o, dict) or o.get('type') != 'assistant':
+                continue
+            t = ts(o.get('timestamp') or '')
+            if t is None or t < since:
+                continue
+            m = o.get('message') if isinstance(o.get('message'), dict) else {}
+            u = m.get('usage')
+            s['messages'] += 1
+            if not isinstance(u, dict):
+                s['messagesWithoutUsage'] += 1
+                continue
+            inp, cc, cr = n(u.get('input_tokens')), n(u.get('cache_creation_input_tokens')), n(u.get('cache_read_input_tokens'))
+            s['input'] += inp; s['cacheCreate'] += cc; s['cacheRead'] += cr
+            s['output'] += n(u.get('output_tokens'))
+            d = u.get('output_tokens_details')
+            s['thinking'] += n(d.get('thinking_tokens')) if isinstance(d, dict) else 0
+            model = m.get('model') or 'unknown'
+            s['models'][model] = s['models'].get(model, 0) + 1
+            tm = round(t * 1000)
+            if s['first'] is None or tm < s['first']:
+                s['first'] = tm
+            if s['last'] is None or tm >= s['last']:
+                s['last'] = tm; s['lastContext'] = inp + cc + cr; s['lastContextAt'] = tm
+    if s['messages'] > 0:
+        out.append(s)
+names = None
+try:
+    r = subprocess.run([os.path.expanduser('~/.local/bin/herdr'), '--session', 'birds', 'agent', 'list'],
+                       capture_output=True, text=True, timeout=5)
+    names = {}
+    for a in json.loads(r.stdout)['result']['agents']:
+        sid = (a.get('agent_session') or {}).get('value')
+        if sid and a.get('name'):
+            names[sid] = a['name']
+except Exception:
+    names = None
+print(json.dumps({'sessions': out, 'names': names}))
+`;
+export function parseRemoteFold(raw, host) {
+  const j = JSON.parse(raw);
+  const names = j && typeof j.names === 'object' && j.names !== null ? j.names : null;
+  const sessions = (Array.isArray(j?.sessions) ? j.sessions : []).map((s) => ({
+    ...emptySession(s.id),
+    ...s,
+    name: names?.[s.id] ?? null,
+    host,
+    file: `${host}:${s.file}`
+  }));
+  return { host, ok: true, sessions, herder: names ? "names from that host's herdr agent list" : "that host's herder not readable" };
+}
+export function remoteSessions(host, sinceMs, exec = execFileSync) {
+  try {
+    const raw = exec('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', host, 'python3', '-', String(Math.floor(sinceMs))], {
+      input: REMOTE_FOLD_PY,
+      encoding: 'utf8',
+      timeout: 90000,
+      maxBuffer: 16 * 1024 * 1024,
+      stdio: ['pipe', 'pipe', 'ignore']
+    });
+    return parseRemoteFold(raw, host);
+  } catch (e) {
+    return { host, ok: false, sessions: [], reason: `${host} not read (${e.code ?? e.status ?? 'error'})` };
+  }
+}
+
+/* ── pure: a Managed Agents run-log record → the session's latest cumulative usage ──────────────── */
+export const MA_SESSION_PATH = /^\/v1\/sessions\/([^/?]+)$/;
+export function foldMaRecord(acc, rec) {
+  if (!rec || rec.method !== 'GET' || typeof rec.path !== 'string') return acc;
+  const m = MA_SESSION_PATH.exec(rec.path);
+  const u = rec.body?.usage;
+  if (!m || !u || typeof u !== 'object') return acc;
+  const ts = Date.parse(rec.at ?? '');
+  if (!Number.isFinite(ts)) return acc;
+  const prev = acc[m[1]];
+  if (!prev || ts >= prev.at) acc[m[1]] = { at: ts, usage: u, model: rec.body?.agent?.model?.id ?? rec.body?.agent?.model ?? 'unknown' };
+  return acc;
+}
+/* One row per model over the sessions whose last record falls in the window. A session without a
+   list_cost counts in costWithout, never as $0. */
+export function maRows(acc, sinceMs) {
+  const n = (v) => (Number.isFinite(v) ? v : 0);
+  const rows = {};
+  for (const s of Object.values(acc)) {
+    if (s.at < sinceMs) continue;
+    const model = typeof s.model === 'string' ? s.model : 'unknown';
+    if (!rows[model]) rows[model] = { model, sessions: 0, input: 0, cacheCreate: 0, cacheRead: 0, output: 0, tokens: 0, listCostUsd: null, costWithout: 0, activeSeconds: 0, first: null, last: null };
+    const r = rows[model];
+    const u = s.usage;
+    const cc = u.cache_creation && typeof u.cache_creation === 'object' ? Object.values(u.cache_creation).reduce((a, v) => a + n(v), 0) : n(u.cache_creation_input_tokens);
+    r.sessions++;
+    r.input += n(u.input_tokens);
+    r.cacheCreate += cc;
+    r.cacheRead += n(u.cache_read_input_tokens);
+    r.output += n(u.output_tokens);
+    r.tokens = r.input + r.cacheCreate + r.output;
+    r.activeSeconds += n(u.active_seconds);
+    const amt = Number(u.list_cost?.amount);
+    if (u.list_cost?.currency === 'USD' && Number.isFinite(amt)) r.listCostUsd = Number(((r.listCostUsd ?? 0) + amt / 100).toFixed(2));
+    else r.costWithout++;
+    if (r.first === null || s.at < r.first) r.first = s.at;
+    if (r.last === null || s.at > r.last) r.last = s.at;
+  }
+  return Object.values(rows).map((r) => ({ ...r, first: r.first === null ? null : new Date(r.first).toISOString(), last: r.last === null ? null : new Date(r.last).toISOString() }));
+}
+function jsonlFiles(dir) {
+  const out = [];
+  let ents = [];
+  try {
+    ents = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of ents) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...jsonlFiles(p));
+    else if (e.name.endsWith('.jsonl')) out.push(p);
+  }
+  return out;
+}
+export async function collectMa(dirs, sinceMs) {
+  const acc = {};
+  const read = [];
+  let malformed = 0;
+  for (const d of dirs) {
+    if (!existsSync(d)) {
+      read.push({ dir: d, ok: false, reason: 'missing' });
+      continue;
+    }
+    let files = 0;
+    for (const f of jsonlFiles(d)) {
+      if (statSync(f).mtimeMs < sinceMs) continue;
+      files++;
+      const rl = createInterface({ input: createReadStream(f), crlfDelay: Infinity });
+      for await (const line of rl) {
+        if (line.indexOf('/v1/sessions/') < 0) continue;
+        try {
+          foldMaRecord(acc, JSON.parse(line));
+        } catch {
+          malformed++;
+        }
+      }
+    }
+    read.push({ dir: d, ok: true, files });
+  }
+  return { rows: maRows(acc, sinceMs), read, malformed };
+}
+
 /* ── IO: the herder's name ↔ session map, when it is running; absent otherwise (never guessed) ──── */
 export function herderNames(exec = execFileSync) {
   try {
@@ -299,7 +490,7 @@ export function herderNames(exec = execFileSync) {
   }
 }
 
-export async function collect({ cwd = ROOT, sinceMs, onlySession = null, apiLogs = [], tailBytes = 0, exec = execFileSync } = {}) {
+export async function collect({ cwd = ROOT, sinceMs, onlySession = null, apiLogs = [], remotes = [], maLogs = [], tailBytes = 0, exec = execFileSync } = {}) {
   const dir = transcriptDir(cwd);
   const names = herderNames(exec);
   const sessions = [];
@@ -346,7 +537,14 @@ export async function collect({ cwd = ROOT, sinceMs, onlySession = null, apiLogs
   }
   const malformed = api.__malformed ?? 0;
   delete api.__malformed;
-  return { dir, dirReadable, herder: names, sessions, api: Object.values(api), apiFiles, apiMalformed: malformed };
+  const remoteRead = [];
+  for (const host of remotes) {
+    const r = remoteSessions(host, sinceMs, exec);
+    for (const s of r.sessions) if (!onlySession || onlySession === s.id || onlySession.toLowerCase() === (s.name ?? '').toLowerCase()) sessions.push(s);
+    remoteRead.push({ host, ok: r.ok, sessions: r.sessions.length, ...(r.ok ? { herder: r.herder } : { reason: r.reason }) });
+  }
+  const ma = maLogs.length ? await collectMa(maLogs, sinceMs) : { rows: [], read: [], malformed: 0 };
+  return { dir, dirReadable, herder: names, sessions, api: Object.values(api), apiFiles, apiMalformed: malformed, remotes: remoteRead, managedAgents: ma };
 }
 
 /* ── the verdict over the CONFIGURED budgets ────────────────────────────────────────────────────── */
@@ -413,8 +611,11 @@ export function evaluate(collected, budgets, { sinceMs, nowMs = Date.now() } = {
       lastContextTokens: s.lastContext,
       lastContextAt: s.lastContextAt ? new Date(s.lastContextAt).toISOString() : null,
       tailOnly: !!s.tailOnly,
+      host: s.host ?? null,
       source: `transcript ${s.file}`
     })),
+    remotes: collected.remotes ?? [],
+    managedAgents: collected.managedAgents ?? { rows: [], read: [], malformed: 0 },
     api: collected.api,
     apiMalformedLines: collected.apiMalformed,
     budgets: budgetRows,
@@ -673,6 +874,77 @@ export function selftest() {
     'the table names the warning and the manual checks',
     /⚠ kestrel: 20\.0 % of the CONFIGURED budget remains/.test(table) && /PLAN ALLOWANCE: UNKNOWN/.test(table) && /\/status in the Codex session/.test(table)
   );
+
+  /* REMOTE FOLD PARITY: the Python fold that runs on a second host must give foldLine's sums on the
+     same lines, or the two hosts' rows mean different things. */
+  const rdir = mkdtempSync(join(tmpdir(), 'usage-remote-'));
+  try {
+    mkdirSync(join(rdir, 'proj'));
+    const lines = [
+      line('2026-10-11T01:00:00.000Z', { input_tokens: 5, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000, output_tokens: 30, output_tokens_details: { thinking_tokens: 7 } }),
+      line('2026-10-11T02:00:00.500Z', { input_tokens: 10, cache_read_input_tokens: 1200, output_tokens: 50 }, 'claude-opus-5-5'),
+      line('2026-10-10T23:00:00.000Z', { input_tokens: 999, output_tokens: 999 }),
+      JSON.stringify({ type: 'assistant', timestamp: '2026-10-11T03:00:00Z', message: { model: 'm' } }),
+      JSON.stringify({ type: 'user', timestamp: '2026-10-11T03:30:00Z', message: { usage: { input_tokens: 7 } } })
+    ];
+    writeFileSync(join(rdir, 'proj', 'sid-r.jsonl'), `${lines.join('\n')}\n`);
+    const js = emptySession('sid-r');
+    for (const l of lines) foldLine(js, l, t0);
+    let py = null;
+    try {
+      py = parseRemoteFold(execFileSync('python3', ['-', String(t0), rdir], { input: REMOTE_FOLD_PY, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }), 'box');
+    } catch (e) {
+      ok('the remote fold script runs under python3', false, e.message);
+    }
+    if (py) {
+      const r = py.sessions[0] ?? {};
+      const keys = ['input', 'cacheCreate', 'cacheRead', 'output', 'thinking', 'messages', 'messagesWithoutUsage', 'first', 'last', 'lastContext', 'lastContextAt'];
+      const diff = keys.filter((k) => r[k] !== js[k]);
+      ok(
+        'the remote fold equals foldLine on the same lines',
+        py.sessions.length === 1 && diff.length === 0 && JSON.stringify(r.models) === JSON.stringify(js.models),
+        `${diff.join(',')} ${JSON.stringify(r)}`
+      );
+      ok('a remote session carries its host and a host-qualified source', r.host === 'box' && r.file.startsWith('box:'));
+    }
+  } finally {
+    rmSync(rdir, { recursive: true, force: true });
+  }
+  const unreachable = remoteSessions('box', t0, () => {
+    throw Object.assign(new Error('x'), { status: 255 });
+  });
+  ok('an unreachable host is a reason, never a zero row', unreachable.ok === false && unreachable.sessions.length === 0 && /not read \(255\)/.test(unreachable.reason));
+
+  /* MANAGED AGENTS: the last session GET carries the cumulative usage; earlier GETs and events are not summed. */
+  const ma = {};
+  const get = (at, out, cost) => ({
+    method: 'GET',
+    path: '/v1/sessions/sesn_A',
+    at,
+    body: {
+      agent: { model: { id: 'claude-sonnet-5-5' } },
+      usage: {
+        input_tokens: 10,
+        cache_creation: { ephemeral_5m_input_tokens: 100 },
+        cache_read_input_tokens: 1000,
+        output_tokens: out,
+        ...(cost ? { list_cost: { amount: cost, currency: 'USD' } } : {})
+      }
+    }
+  });
+  foldMaRecord(ma, get('2026-10-11T01:00:00Z', 5, '10'));
+  foldMaRecord(ma, get('2026-10-11T01:05:00Z', 40, '83'));
+  foldMaRecord(ma, { method: 'GET', path: '/v1/sessions/sesn_A/events?limit=1000', at: '2026-10-11T01:06:00Z', body: { usage: { output_tokens: 9999 } } });
+  foldMaRecord(ma, { method: 'POST', path: '/v1/sessions/sesn_B', at: '2026-10-11T01:06:00Z', body: { usage: { output_tokens: 9999 } } });
+  foldMaRecord(ma, { method: 'GET', path: '/v1/sessions/sesn_C', at: '2026-10-11T02:00:00Z', body: { agent: { model: { id: 'claude-sonnet-5-5' } }, usage: { input_tokens: 1, output_tokens: 2 } } });
+  const [mr] = maRows(ma, t0);
+  ok(
+    'managed-agents keeps the LAST session GET and ignores events and posts',
+    mr?.sessions === 2 && mr.output === 42 && mr.input === 11 && mr.cacheCreate === 100 && mr.cacheRead === 1000,
+    JSON.stringify(mr)
+  );
+  ok('list_cost reads as cents, and a session without one is counted, never priced at $0', mr?.listCostUsd === 0.83 && mr.costWithout === 1, JSON.stringify(mr));
+  ok('a session whose last record precedes the window is out of it', maRows(ma, Date.parse('2026-10-11T03:00:00Z')).length === 0);
   return { pass, fail, ok: fail.length === 0, line: fail.length ? `✗ ${fail.length} failed, ${pass} passed` : `✓ all ${pass} selftests passed` };
 }
 
@@ -705,6 +977,8 @@ async function main() {
   const sinceMs = parseSince(flagValue(argv, '--since') ?? '24h', nowMs);
   const budgets = parseBudgets(argv);
   const apiLogs = flagValues(argv, '--api-log');
+  const remotes = flagValues(argv, '--remote');
+  const maLogs = flagValues(argv, '--ma-log');
   const onlySession = flagValue(argv, '--session') ?? null;
   if (argv.includes('--status-line')) {
     const input = await readStdinJson();
@@ -716,7 +990,7 @@ async function main() {
     process.stdout.write(`${statusLineFrom(input, sess, names)}\n`);
     return;
   }
-  const collected = await collect({ cwd: flagValue(argv, '--project') ?? primaryCheckout(), sinceMs, onlySession, apiLogs });
+  const collected = await collect({ cwd: flagValue(argv, '--project') ?? primaryCheckout(), sinceMs, onlySession, apiLogs, remotes, maLogs });
   const { verdict, usage } = evaluate(collected, budgets, { sinceMs, nowMs });
   if (argv.includes('--json')) {
     process.stdout.write(`${JSON.stringify({ verdict, usage })}\n`);
