@@ -36709,6 +36709,68 @@
       T.eq('an advisory red is not a red PR', att([advisoryRed]).failing.length, 0);
     });
 
+    /* ── queue-doctor: a red PR is an EVENT once, not a journal line every ten minutes (owner,
+       2026-10-12: "some auto system should warn you" — #3477 and #3481 sat red for an hour under a
+       running timer that printed the red on every run into a journal nobody read). ── */
+    group('Queue-doctor — the red ledger writes a line once per change, and a clear is named', 'tools · queue-doctor-ledger', function (T) {
+      var rl = env.qdRedLedger;
+      if (typeof rl !== 'function') {
+        T.skip('queue-doctor red ledger is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var fail = function (n, names) {
+        return {
+          k: 'failing',
+          pr: {
+            number: n,
+            title: 'pr ' + n,
+            checks: names.map(function (x) {
+              return { name: x, bucket: 'fail', link: 'https://x/' + n };
+            })
+          }
+        };
+      };
+      var REQ = ['test', 'mutation (diff-scoped)'];
+      var t1 = '2026-10-12T16:00:00.000Z',
+        t2 = '2026-10-12T16:10:00.000Z',
+        t3 = '2026-10-12T16:20:00.000Z';
+      var r1 = rl(null, [fail(3477, ['mutation (diff-scoped)']), fail(3481, ['mutation (diff-scoped)'])], t1, REQ);
+      T.eq('first run: both PRs enter the ledger', r1.ledger.red.length, 2);
+      T.eq('first run: one RED line per new red PR', r1.lines.length, 2);
+      T.ok(/RED   #3477  mutation \(diff-scoped\)  pr 3477  https:\/\/x\/3477/.test(r1.lines[0]), 'the line names the PR, the check, the title and the run link');
+      T.eq('firstSeen is the run that saw it', r1.ledger.red[0].firstSeen, t1);
+      var r2 = rl(r1.ledger, [fail(3477, ['mutation (diff-scoped)']), fail(3481, ['mutation (diff-scoped)'])], t2, REQ);
+      T.eq('an unchanged red appends NOTHING (the wallpaper test)', r2.lines.length, 0);
+      T.eq('…and keeps its firstSeen', r2.ledger.red[1].firstSeen, t1);
+      var r3 = rl(r2.ledger, [fail(3477, ['test'])], t3, REQ);
+      T.eq('a cleared PR and a PR whose failing check changed give one line each', r3.lines.length, 2);
+      T.ok(/RED   #3477  test /.test(r3.lines[0]), 'the changed check is a new RED');
+      T.eq('the cleared PR is named', r3.lines[1], t3 + '  CLEAR #3481');
+      T.eq('a changed check resets firstSeen', r3.ledger.red[0].firstSeen, t3);
+      var r4 = rl(null, [], t1, REQ);
+      T.eq('nothing red over nothing before: no line, no entry (non-vacuity)', r4.lines.length + r4.ledger.red.length, 0);
+      var adv = rl(
+        null,
+        [
+          {
+            k: 'failing',
+            pr: {
+              number: 9,
+              title: 't',
+              checks: [
+                { name: 'test', bucket: 'fail' },
+                { name: 'CodeQL', bucket: 'fail' }
+              ]
+            }
+          }
+        ],
+        t1,
+        REQ
+      );
+      T.eq('an advisory red check is not listed beside the required one', adv.ledger.red[0].checks, ['test']);
+      T.eq('the ledger carries its schema', r1.ledger.schema, 'tepna.red-ledger/1');
+    });
+
     /* ── land-pr: the PR-landing state machine (LAND-PR, 2026-08-09) ───────────────────────────
        `main` moves a median 7.2 min while CI takes ~10-12 over 7 required checks, and the ruleset
        sets strict=true, so every session hand-writes a polling loop and they keep being wrong in
