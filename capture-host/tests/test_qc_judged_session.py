@@ -204,9 +204,56 @@ def test_the_three_earlier_IN_NIGHT_sessions_JOIN_the_judgement(tmp_path):
     assert [g for g in r["gaps"] if "earlier session" in g] == [], "an in-night session is joined, not excluded"
     assert len(r["joined_gaps"]) == 3, r["joined_gaps"]
     assert "04:15->08:00 225min gap" in r["joined_gaps"][-1], r["joined_gaps"][-1]
+    # THE TOTAL, NOT THE LAST ONE. `night_gap_min` sums every hole inside the judged night —
+    # 00:20->02:00 (100 min) + 02:15->04:00 (105 min) + 04:15->08:00 (225 min). Asserting only the
+    # count and the text of one line leaves `_joined_gap_sec += …` indistinguishable from `=`, which
+    # publishes the LAST hole as the night's whole gap and shortens the span by the other two
+    # (mutant nightqc.x_summarize__mutmut_211).
+    assert r["night_gap_min"] == 430, (r["night_gap_min"], "100 + 105 + 225, every hole and not the last")
     assert r["gaps_in_night"] == [], "a joined session is no longer a hole left out of the night"
     later = [g for g in r["gaps"] if "later session" in g]
     assert len(later) == 1 and "[outside-band]" in later[0], later
+
+
+def _a_zero_length_session_opens_the_night(tmp_path):
+    """A stampless file two hours before the judged run, which is a session of ZERO length.
+
+    `file_interval` places a file carrying no start stamp at its own last write, so its session starts
+    and ends on the same instant (`test_an_UNSTAMPED_file_is_placed_at_its_mtime_…`). Two hours apart,
+    so `merge_sessions` keeps the two separate."""
+    d = str(tmp_path / "2026-08-15")
+    zero = _dt.strptime("20260815000000", "%Y%m%d%H%M%S").timestamp()
+    judged = _dt.strptime("20260815020000", "%Y%m%d%H%M%S").timestamp()
+    _rows(d, "Polar_H10_02849638_20260815020000_ECG.txt", 900, judged + 900)
+    _rows(d, "Polar_H10_02849638_ECG.txt", 30, zero)
+    return d
+
+
+def test_a_ZERO_LENGTH_session_inside_the_band_cannot_join_and_reads_outside_band(tmp_path):
+    """The measured boundary of the join, pinned because it is the join's one asymmetric edge.
+
+    `_gap_class` places a session by `_overlap(s0, s1, b0, b1) > 0`, and a zero-length interval scores
+    0 against any band — so the stampless 00:00 opener, which sits an hour and a half INSIDE the band
+    it is being tested against, is labelled `outside-band` and stays excluded. Both halves of that are
+    recorded here: the night keeps the exclusion (the conservative direction), and the label states a
+    placement the overlap never measured. Logged as residue
+    `2026-10-12-a-zero-length-session-inside-the-band-reads-outside-band`; the remedy is a band test
+    that treats containment and overlap as the same question, which moves what every night publishes
+    and is not this unit's to change.
+
+    It also settles the `excluded` set's own geometry: a session can only JOIN with a positive length,
+    so a joined session's end is strictly after `_judged_start` and its start strictly before
+    `_cur_end`. Neither the `before` nor the `after` test can ever hold for one — which is why the two
+    `excluded` identity mutants (251, 253) have no distinguishing input and are recorded in
+    `tools/mutate-equivalence.json` rather than killed here."""
+    r = _summarize(_a_zero_length_session_opens_the_night(tmp_path), _DEV)
+    assert r["sessions_judged"] == 1, (r["sessions_judged"], "a zero-length session cannot overlap a band")
+    assert r["joined_gaps"] == [] and r["night_gap_min"] == 0, r
+    earlier = [g for g in r["gaps"] if "earlier session" in g]
+    assert len(earlier) == 1, r["gaps"]
+    assert "00:00->02:00 120min gap" in earlier[0], earlier[0]
+    assert "[outside-band]" in earlier[0], (earlier[0], "the label the overlap test produces")
+    assert r["gaps_in_night"] == [], "and so it is not charged as a hole in the night"
 
 
 def test_the_later_gap_is_measured_to_the_NEAREST_later_session(tmp_path):

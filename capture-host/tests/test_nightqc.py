@@ -2601,6 +2601,10 @@ def test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated
     assert s["judged_session"] is None, "no session judged is None, never a zero-length one"
     assert s["night_window"] is None
     assert s["sessions"] == [] and s["data_files"] == 0
+    # The ONLY place `_sessions_judged`'s initial value is observable: the counter is reassigned from
+    # `len(_judged)` whenever a session exists, so with none it is published as it was initialised.
+    # Nought judged sessions is the honest answer here and `None` is not (mutants 148 and 149).
+    assert s["sessions_judged"] == 0, (s["sessions_judged"], "no session was judged, which is a count")
     # `span` is never reassigned on this path, so this is the ONLY place its initial value is
     # observable — and it is read solely behind falsy guards (`round(span) if span else None`,
     # `if hz and span`), which treat None and "" identically. Probe for the equivalence entry.
