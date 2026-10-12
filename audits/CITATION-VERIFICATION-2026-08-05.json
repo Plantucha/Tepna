@@ -2,7 +2,7 @@
   "_note": "Author-time verification of every DOI cited anywhere in this repo, resolved against api.crossref.org. NOT a runtime input and NEVER fetched by a bundle — the no-network rule governs shipped code; this file is the OFFLINE record of a network check, so a later reader can re-check a citation without repeating it. `year` is Crossref's issued year, which for online-first papers is up to one year before the print/issue year a citation normally quotes; treat a one-year gap as agreement.",
   "_verifiedOn": "2026-08-05",
   "_resolver": "https://api.crossref.org/works/{doi}",
-  "_count": 115,
+  "_count": 116,
   "dois": {
     "10.5664/jcsm.9814": {
       "firstAuthor": "Ni",
@@ -624,6 +624,11 @@
       "firstAuthor": "Rosenberg",
       "year": "2013",
       "container": "Journal of Clinical Sleep Medicine"
+    },
+    "10.1111/jsr.13441": {
+      "firstAuthor": "Karhu",
+      "year": "2021",
+      "container": "Journal of Sleep Research"
     }
   },
   "_aliasPolicy": "authorAliases: additional spellings that are CORRECT for this DOI. Needed because a Crossref surname can be a corporate name, a differently-spaced surname, or absent entirely; without them a correct citation reds and the noise buries a real finding (CITATION-ATTRIBUTION-FOLLOWUPS §3, constraint 1). EVERY entry carrying authorAliases MUST also carry aliasSource, because the two kinds are not the same evidential class: \"crossref-variant\" = the alias is a spelling or short form of the author Crossref actually recorded, so the check still rests on Crossref; \"from-paper\" = Crossref carries NO author for this record and the name was read off the paper itself, which is mildly circular (the citation being checked supplied the answer) and is therefore marked rather than hidden. Gate-enforced by tests/dex-tests.js group citation-ledger.",
