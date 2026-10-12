@@ -74,19 +74,25 @@ def test_not_worn_and_charging_are_amber_or_blue_never_red():
 
 # ── THE HOLE THE RISING RULE CANNOT REACH: a battery already at 100 % ───────────────────────────────
 # The tests above are source scans. This one EXECUTES, because the defect it covers is a wiring
-# question — does a `True` from the predicate actually reach the flag — and a scan cannot answer that.
+# question — does the predicate's result actually reach the flag — and a scan cannot answer that.
 
 
 @pytest.mark.sets_capture_events
-def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_path, monkeypatch):
+def test_a_FULL_flat_battery_publishes_charging_NULL_and_names_the_observation(tmp_path, monkeypatch):
     """A full cell has nowhere to rise to, so `lvl > prev` can never fire at 100 %. Measured
     2026-08-14: the Verity streamed 80 min at 176 Hz with `battery` pinned at 100 and `charging` False
     the whole time, so the contact bit's `worn: True` stood unopposed and the not-worn drop could never
     fire — an armband on a dock, indistinguishable from a wrist.
 
+    🔴 OWNER RULING 2026-10-12. Flatness no longer infers a charger. The same flatness also fits a
+    fresh coin cell, and that reading cost 140 drops on a worn H10 on 2026-09-22, so the daemon now
+    publishes `charging: None` and names the observation in `charging_why`. The 2026-08-14 docked
+    Verity is accepted as lost: a value nothing measured is null, never a value.
+
     The RULE (how long flat, at what level) is tested exhaustively and purely in
-    `test_worn_detectors.py`. What this asserts is the part a pure test cannot: that a `True` from it
-    reaches `charging`, on the second battery read, when the level has not moved."""
+    `test_worn_detectors.py`. What this asserts is the part a pure test cannot: that the predicate's
+    result reaches `charging` as a NULL with its reason, on the second battery read, when the level
+    has not moved."""
     import asyncio
     import sys as _sys
 
@@ -114,9 +120,59 @@ def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_pa
     asyncio.run(capture.run_polar(T._pdev(streams=["ppg"]), str(tmp_path)))
     st = capture.STATUS["devices"][T._pdev(streams=["ppg"])["name"]]
     assert st.get("battery") == 100, f"the fixture reads 100; the flat path needs prev == lvl: {st}"
-    assert st.get("charging") is True, (
-        f"a full, unmoving battery must set charging — this is the case `lvl > prev` cannot see: {st}"
+    assert st.get("charging") is None, (
+        f"a full, unmoving battery is a dock OR a fresh cell, so `charging` must be NULL: {st}"
     )
+    assert st.get("charging_why") == "flat-at-full", (
+        f"a null with no reason is an unexplained absence — the observation must still be named: {st}"
+    )
+
+
+@pytest.mark.sets_capture_events
+def test_flatness_never_nulls_a_MEASURED_charging_reason(tmp_path, monkeypatch):
+    """The guard the owner's ruling needs, and the one a null can destroy.
+
+    `charging` now goes NULL on flatness. A rise and the PMD's own IN_CHARGER answer are MEASUREMENTS
+    of where the device is, and a flat cell at 100 % is exactly what a device that finished charging
+    looks like — so the unguarded null would erase the measurement that put it there, every battery
+    read, for the rest of the session. That trades a false dock for a lost charge, which is the same
+    error pointing the other way.
+
+    The clock also resets on any level change, so the `charging: False` written beside a FALLING level
+    cannot be standing when this fires. `rising` is therefore the reachable case, and it is the one
+    asserted.
+
+    ⚠️ WHAT THE VALUE IS HERE IS NOT WHAT THIS TEST PINS. A successful PMD START writes
+    `charging: False` at `capture.py:4576` and does NOT clear `charging_why`, so by the second battery
+    read this device holds `False` under the reason `rising`. That incoherence is older than this test
+    and is filed as residue, not fixed here. What is asserted is the one thing the guard decides: the
+    flat read left a MEASURED value standing instead of replacing it with a null."""
+    import asyncio
+    import sys as _sys
+
+    _sys.path.insert(0, __import__("os").path.dirname(__file__))
+    import capture
+    import test_capture_runners as T
+
+    capture._STOP = asyncio.Event()
+    T._polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "note_flat_battery", lambda *_a, **_k: True)
+    capture.devcaps.reset()
+    addr = T._pdev()["address"]
+    capture.devcaps.record(addr, "can_charge", True, source="test: a unit observed to charge")
+    name = T._pdev(streams=["ppg"])["name"]
+    # what the daemon holds after a MEASURED rise earlier in the same session
+    capture.STATUS["devices"][name] = {"battery": 100, "charging": True, "charging_why": "rising"}
+    c = T.FlexPolarClient(data_frames=[T._ppg_frame()], batt_level=100)
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 130)  # past `secs % 120` → a SECOND battery read
+    asyncio.run(capture.run_polar(T._pdev(streams=["ppg"]), str(tmp_path)))
+    st = capture.STATUS["devices"][name]
+    assert st.get("charging") is not None, (
+        f"flatness must not replace a measured value with a null — remove the `charging_why` guard at "
+        f"capture.py and this reads None: {st}"
+    )
+    assert st.get("charging_why") == "rising", f"the measured reason must survive the flat read: {st}"
 
 
 @pytest.mark.sets_capture_events
