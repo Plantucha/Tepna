@@ -505,8 +505,13 @@ def test_the_POOLED_half_brings_its_own_seams_from_the_neighbouring_folder(tmp_p
     devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
     s = _summarize_floating(d22, devs)
     assert len(s["sessions"]) == 2, "the neighbour's recorded seam splits the pooled set"
-    assert s["span_sec"] == 1800, "the judged run is the pre-midnight one alone, not the 4200 s union"
-    assert s["devices"][0]["streams"]["hr"] == 1800, "and it carries only its own rows"
+    # ⚠️ UPDATED 2026-10-12: both runs are inside the night band, so both JOIN the judgement (owner
+    # ruling: count an in-night session in, annotate the hole). The span is the 4200 s envelope minus
+    # the 900 s hole between them — never the envelope itself, which is the union-span defect of #3131.
+    assert s["span_sec"] == 3300, "the envelope is 4200 s and the 900 s hole between the runs comes off"
+    assert s["devices"][0]["streams"]["hr"] == 3300, "and it carries the rows of both runs"
+    assert s["night_gap_min"] == 15, "the hole is published as minutes, not inferred from the span"
+    assert s["sessions_judged"] == 2
     assert s["session_basis"] == "daemon-starts", (
         "segmented on recorded starts — from the neighbour, which is still the evidence"
     )
@@ -634,23 +639,29 @@ def test_a_box_wide_outage_does_not_get_the_night_graded_green(tmp_path):
     devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
     s = nightqc.summarize(night, devs)
 
-    # The scoping itself is KEPT — that part was deliberate and is not the defect.
-    assert s["span_sec"] == 10800, "scoped to the judged session — now the BIGGER half, not the later one"
-    assert s["judged_session"]["rows"] == 10800, "the substantive half is judged"
-    assert s["devices"][0]["coverage"]["hr"] == 1.0
-    assert s["missing"] == [] and s["degraded"] == []
-    # THE GUARANTEE, unchanged: it cannot claim the night while half of it was discarded.
-    assert s["ok"] is False, "half the night was discarded and it still graded green"
+    # ⚠️ UPDATED 2026-10-12 — THE REMEDY CHANGED SIDES, THE GUARANTEE DID NOT. Owner ruling: an
+    # in-night session is COUNTED IN and its hole annotated, so the night is no longer judged on half
+    # of itself and no longer reds for having been. What this test guards now is that the night cannot
+    # go green SILENTLY: the hole has to be a published number, which is `night_gap_min`.
+    assert s["judged_session"]["rows"] == 10800, "the substantive half is still the anchor"
     assert [x["rows"] for x in s["sessions"]] == [10800, 7200], "both halves are reported"
-    # The discarded half is now AFTER the judged one, which one-sided detection could not see.
-    assert s["gaps"], "the outage must be named"
-    assert "7200 rows" in s["gaps"][0] and "later session" in s["gaps"][0]
-    # THE GUARD ON §D's RE-SCOPING. This half sits at 02:30-04:30, inside the judged night's band, so
-    # it must classify in-night and keep reding. If the placement rule ever admitted it, the regression
-    # this whole test exists for would be back with a green on top.
-    assert "[in-night]" in s["gaps"][0]
-    assert s["gaps_in_night"] == s["gaps"], "an in-night hole is exactly what `ok` must read"
-    assert s["prior_gap_sec"] is None, "nothing precedes the judged half; the hole is on the other side"
+    assert s["sessions_judged"] == 2, "and both are JUDGED, which is the ruling"
+    # The envelope is 22:00->04:30 (23 400 s) and the hole 01:00->02:30 (5 400 s) comes off it. The
+    # device recorded 18 000 s of the 18 000 s the box was up for, so coverage is 1.00 and not 0.77 —
+    # the union-span defect of #3131, measured at 0.46-0.52 on streams that lost nothing.
+    assert s["span_sec"] == 18000, "the envelope minus the hole, never the envelope"
+    assert s["devices"][0]["coverage"]["hr"] == 1.0, "the hole is published, not charged to the device"
+    assert s["devices"][0]["streams"]["hr"] == 18000, "both halves' rows are counted"
+    assert s["missing"] == [] and s["degraded"] == []
+    assert s["ok"] is True, "nothing was discarded, so there is nothing for `ok` to red on"
+    # THE GUARANTEE, RE-SITED: the hole is NAMED, with its minutes, in its own field.
+    assert s["night_gap_min"] == 90, "a 90 min box-wide outage reads as 90 min"
+    assert s["joined_gaps"], "the outage must be named"
+    assert "7200 rows joined into the night's coverage" in s["joined_gaps"][0]
+    assert "[in-night joined]" in s["joined_gaps"][0]
+    assert s["gaps_in_night"] == [], "nothing was excluded, so nothing bears on `ok` that way"
+    assert s["gaps"] == s["joined_gaps"], "`gaps` stays the complete list"
+    assert s["prior_gap_sec"] is None, "no EXCLUDED neighbour precedes the judged window"
 
 
 def test_an_uninterrupted_night_reports_no_gap_and_stays_green(tmp_path):
@@ -2287,7 +2298,7 @@ def test_gap_class_fails_closed_on_every_branch():
     assert nightqc._gap_class([[2100, 2500]], 1000.0, 1000.0) == "in-night", "a zero-width band is not a band"
 
 
-def test_an_in_night_hole_BEFORE_the_judged_half_also_reds(tmp_path):
+def test_an_in_night_session_BEFORE_the_judged_half_joins_it_too(tmp_path):
     """The mirror of the 2026-07-24 case, and it is not redundant with it.
 
     There the judged (bigger) half came FIRST and the hole sat after it. Here the bigger half comes
@@ -2306,12 +2317,20 @@ def test_an_in_night_hole_BEFORE_the_judged_half_also_reds(tmp_path):
     _utime(_cap(night, "Polar_H10_02849638_20260724010000_HR.txt", 10800), after + 10800)
     devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
     s = nightqc.summarize(night, devs)
-    assert s["judged_session"]["rows"] == 10800, "the substantive half is judged — the LATER one here"
+    # ⚠️ UPDATED 2026-10-12 with the owner's ruling. The earlier half is inside the band, so it is
+    # JOINED rather than excluded, and the side it sits on no longer changes the outcome: the join
+    # walks the sessions in time order, so one loop names both holes.
+    assert s["judged_session"]["rows"] == 10800, "the substantive half is the anchor — the LATER one here"
+    assert s["sessions_judged"] == 2, "the earlier half joins from the other side"
     assert s["gaps"], "the hole must be named"
-    assert "earlier session" in s["gaps"][0], "the exclusion is on the earlier side"
-    assert "[in-night]" in s["gaps"][0], "21:30 is inside the band; this is a hole, not a sitting"
-    assert s["gaps_in_night"] == s["gaps"], "an earlier in-night hole must reach `ok`, same as a later one"
-    assert s["ok"] is False, "half the night was discarded and it still graded green"
+    assert s["gaps"] == s["joined_gaps"], "it is a hole INSIDE the night, not an exclusion beside it"
+    assert "22:30->01:00" in s["gaps"][0], "the hole runs from the earlier half's end to the anchor's start"
+    assert "[in-night joined]" in s["gaps"][0], "21:30 is inside the band; it is taken in, not dropped"
+    assert s["night_gap_min"] == 150, "the 2.5 h hole is published as minutes"
+    assert s["gaps_in_night"] == [], "nothing was excluded"
+    assert s["span_sec"] == 14400, "the 23 400 s envelope minus the 9 000 s hole"
+    assert s["devices"][0]["streams"]["hr"] == 14400, "both halves' rows are counted"
+    assert s["ok"] is True, "nothing was discarded, so nothing reds"
 
 
 def test_pooling_boundary_exactly_at_midnight_pools(tmp_path):
@@ -2393,11 +2412,15 @@ def test_the_night_band_is_chosen_by_the_sessions_MIDPOINT(tmp_path):
     _utime(_cap(night, "Polar_H10_02849638_20260722140000_HR.txt", 21600), main + 21600)
     s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
     assert s["judged_session"]["rows"] == 21600, "the straddling session is the substantive one"
-    assert s["gaps"], "the 02:00 sitting is excluded and must be reported"
+    assert s["gaps"], "the 02:00 run must be reported either way"
     # 02:00 lies inside the MIDPOINT's band and outside the END's. The midpoint is correct: the session
-    # began at 14:00, so the night it belongs to is the one that opened at 18:00 YESTERDAY.
-    assert "[in-night]" in s["gaps"][0], "judged against the midpoint's band, 02:00 is a hole"
-    assert s["ok"] is False, "a hole in the judged night cannot grade green"
+    # began at 14:00, so the night it belongs to is the one that opened at 18:00 YESTERDAY. Since
+    # 2026-10-12 the band decides JOIN rather than red, which sharpens this test rather than blunting
+    # it: against the END's band the 02:00 run reads `[outside-band]` and stays out of the coverage.
+    assert "[in-night joined]" in s["gaps"][0], "judged against the midpoint's band, 02:00 is taken in"
+    assert s["sessions_judged"] == 2, "a band that placed it outside would judge one session, not two"
+    assert s["devices"][0]["streams"]["hr"] == 23400, "its 1800 rows are in the coverage"
+    assert s["ok"] is True, "a hole inside the judged night is annotated, not reded"
 
 
 # ── §3.1 of CAPTURE-FILESET-RESUME: a resumed set and its fragmented twin must score identically ─────
@@ -4200,7 +4223,7 @@ _CLOCKLESS_BY_DESIGN = {
     # UNDER the floor names why it cannot be judged. The shortness is produced by filename stamp +
     # mtime arithmetic alone and no device stamp is read for it, exactly as in the judgeable case.
     "test_span_reason_NAMES_the_minimum_when_the_span_is_too_short": "the SESSION span floor _MIN_SPAN_SEC, refusing arm",
-    "test_an_in_night_hole_BEFORE_the_judged_half_also_reds": "gap classification against the night band",
+    "test_an_in_night_session_BEFORE_the_judged_half_joins_it_too": "gap classification against the night band",
     "test_pooling_boundary_exactly_at_midnight_pools": "pooling boundary, lower",
     "test_pooling_boundary_exactly_at_the_gap_does_not_pool": "pooling boundary, upper",
     "test_the_night_band_is_chosen_by_the_sessions_MIDPOINT": "which band a gap is judged against",
@@ -5670,21 +5693,70 @@ def test_the_session_partition_is_DISJOINT_BUT_MAY_TOUCH(tmp_path):
         assert a1 == b0, (ss, "…and this fixture makes them TOUCH, which is what the boundary family needs")
 
 
+def _floating_at_local_hour(stamp, hour):
+    """The FLOATING second whose LOCAL rendering is `hour`:00 on `stamp`'s date.
+
+    `night_band` reads `datetime.fromtimestamp`, so a floating second lands at the READER's offset: a
+    fixture that must sit exactly ON a band edge computes the shift rather than writing one, or the
+    same filename names a different hour in every other zone. The band edges themselves are real
+    epochs of a local hour, which is what this returns, so `_overlap` compares like with like."""
+    probe = _stamp_epoch(stamp)
+    off = (_dtmod.datetime.fromtimestamp(probe) - _dtmod.datetime(1970, 1, 1)).total_seconds() - probe
+    return _stamp_epoch(stamp[:8] + f"{hour:02d}0000") - off
+
+
+def _touching_band_edge_night(tmp_path):
+    """The touching night again, with the judged run filling the night band EXACTLY.
+
+    ⚠️ THIS IS THE EXCLUSION PATH ON REAL INPUT, and it exists because the 2026-10-12 join took the
+    other path away. An in-night neighbour is now COUNTED IN, so the only neighbour still excluded is
+    one lying outside the band — and `_gap_class` needs no overlap at all, not merely a small one. A
+    run from `_NIGHT_BEGIN_H` to `_NIGHT_END_H` has the band as its own two edges, so a neighbour
+    touching either edge overlaps it by zero and is excluded on the evidence rather than by a patch.
+
+    Same seam construction as `_touching_night`: abutting sessions come from recorded daemon starts,
+    never from file gaps (`merge_sessions` would merge them)."""
+    import writers
+
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    seam1 = _floating_at_local_hour("20260924000000", nightqc._NIGHT_BEGIN_H)  # the band's opening edge
+    t0 = seam1 - 600  # the earlier run ENDS on that edge
+    seam2 = seam1 + 57600  # 10:00 next day — _NIGHT_END_H, the closing edge
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 600), seam1)
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(seam1) + "_HR.txt", 57600), seam2)
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(seam2) + "_HR.txt", 300), seam2 + 300)
+    with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write(_starts_stamp(seam1) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
+        fh.write(_starts_stamp(seam2) + ";400444;2cd12712;no;F4:CE:36:2E:CD:98\n")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    return night, devs, t0, seam1, seam2
+
+
 def test_PLANT_a_TOUCHING_neighbour_is_still_an_excluded_neighbour(tmp_path):
-    """`s[1] <= cur[0]` → `s[1] < cur[0]`, and its mirror `s[0] >= cur[1]` → `s[0] > cur[1]`.
+    """`s[1] <= _judged_start` → `<`, and its mirror `s[0] >= _cur_end` → `>`.
 
     A session that ends on the exact second the judged one begins is excluded from coverage just as much
     as one that ends an hour earlier — its rows are not counted, so the report has to name it. Under the
     strict comparison it disappears from `gaps` and the night grades as though nothing had been discarded:
-    the §A2 regression with a zero-length gap."""
-    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    the §A2 regression with a zero-length gap.
+
+    ⚠️ RE-SITED 2026-10-12 onto `_touching_band_edge_night`. The old fixture's neighbours sit inside the
+    band, and an in-night neighbour now JOINS, so they are no longer excluded at all (their own test is
+    `test_a_TOUCHING_in_night_neighbour_JOINS_and_its_seam_is_named`). The boundary this test plants is
+    unchanged; the neighbours are outside the band now, which is where exclusion still lives."""
+    night, devs, t0, seam1, seam2 = _touching_band_edge_night(tmp_path)
     s = _summarize_floating(night, devs)
-    assert s["judged_session"]["rows"] == 7200, (s["judged_session"], "the biggest run must be judged")
+    assert s["judged_session"]["rows"] == 57600, (s["judged_session"], "the biggest run must be judged")
+    assert s["sessions_judged"] == 1, "both neighbours are outside the band, so neither joins"
     joined = " | ".join(s["gaps"])
     assert "earlier session" in joined, f"the TOUCHING earlier session was dropped from the report: {s['gaps']}"
     assert "later session" in joined, f"the TOUCHING later session was dropped from the report: {s['gaps']}"
     assert "600 rows" in joined, f"the earlier run's rows must be named: {s['gaps']}"
     assert "300 rows" in joined, f"the later run's rows must be named: {s['gaps']}"
+    assert joined.count("[outside-band]") == 2, (joined, "zero overlap with the band is outside it")
+    assert s["gaps_in_night"] == [], "an outside-band neighbour is a sitting, not a hole in this night"
     assert s["prior_gap_sec"] == 0, (s["prior_gap_sec"], "a touching session is a ZERO gap, not no gap")
 
 
@@ -5693,7 +5765,7 @@ def test_the_gap_line_names_the_NEAR_edge_of_each_neighbour(tmp_path):
     `_hhmm(cur[1])->_hhmm(nxt[0])` mutated to `nxt[1]`. A gap runs from the end of what came before to the
     start of what comes next; naming the FAR edge reports the gap plus a whole session, which is the
     number a reader would act on."""
-    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    night, devs, t0, seam1, seam2 = _touching_band_edge_night(tmp_path)
     s = _summarize_floating(night, devs)
     hh = nightqc._hhmm
     earlier = [g for g in s["gaps"] if "earlier session" in g]
@@ -5707,6 +5779,184 @@ def test_the_gap_line_names_the_NEAR_edge_of_each_neighbour(tmp_path):
         later[0],
         "the later gap runs to the NEXT run's start, not to its end",
     )
+
+
+# ── the 2026-10-12 JOIN: an in-night session is counted in and its hole is published ─────────────────
+# The owner's ruling, measured on the box: "Both sessions join the night's coverage and the verdict
+# carries the gap minutes beside the number." These tests hold the two halves of it apart — the join
+# itself, and the care that keeps the hole off every denominator (#3131's union-span defect).
+
+
+def test_gap_sec_inside_counts_ONLY_the_overlap_with_the_window(tmp_path):
+    """`_gap_sec_inside` is what keeps a hole off a denominator, so its window has to clip.
+
+    A device's own extent is narrower than the night's envelope, and it may start after a hole or stop
+    before one. Summing the holes outright would charge a device for an outage it was not present for,
+    which is the same error as the union span with a different sign."""
+    holes = [(100.0, 200.0), (500.0, 900.0)]
+    assert nightqc._gap_sec_inside(0.0, 1000.0, holes) == 500.0, "both holes lie inside"
+    assert nightqc._gap_sec_inside(150.0, 1000.0, holes) == 450.0, "a window opening inside a hole clips it"
+    assert nightqc._gap_sec_inside(0.0, 700.0, holes) == 300.0, "a window closing inside a hole clips it"
+    assert nightqc._gap_sec_inside(250.0, 450.0, holes) == 0.0, "a window between the holes carries none"
+    assert nightqc._gap_sec_inside(0.0, 1000.0, []) == 0.0, "a single-session night has no hole"
+
+
+def test_a_TOUCHING_in_night_neighbour_JOINS_and_its_seam_is_named(tmp_path):
+    """The other side of `test_PLANT_a_TOUCHING_neighbour_is_still_an_excluded_neighbour`.
+
+    This fixture's later run abuts the judged one INSIDE the band, so the join takes it: its rows enter
+    coverage and the seam is published as a zero-minute hole rather than as an exclusion. The earlier
+    run sits before 18:00, outside the band, and stays excluded — one night, both outcomes, from one
+    real input."""
+    night, devs, t0, seam1, seam2 = _touching_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    assert s["sessions_judged"] == 2, (
+        s["sessions_judged"],
+        "the in-night neighbour joins, the outside-band one does not",
+    )
+    assert s["span_sec"] == 7500, (s["span_sec"], "the judged span runs to the joined run's end")
+    assert s["devices"][0]["streams"]["hr"] == 7500, (s["devices"][0], "the joined run's rows count")
+    assert s["night_gap_min"] == 0, (s["night_gap_min"], "a touching seam is a zero-minute hole")
+    assert len(s["joined_gaps"]) == 1, s["joined_gaps"]
+    assert "0min gap; 300 rows joined" in s["joined_gaps"][0], s["joined_gaps"][0]
+    assert "[in-night joined]" in s["joined_gaps"][0], s["joined_gaps"][0]
+    assert s["gaps_in_night"] == [], "a joined session is no longer a hole left out of the night"
+    excluded = [g for g in s["gaps"] if "excluded from coverage" in g]
+    assert len(excluded) == 1 and "[outside-band]" in excluded[0], excluded
+    assert s["prior_gap_sec"] == 0, (s["prior_gap_sec"], "the excluded earlier neighbour still names its zero gap")
+
+
+def _joined_hole_night(tmp_path, *, second_device=True, judged_first=False):
+    """Two in-night sessions separated by an 80 min hole — the shape the box recorded on 10-10.
+
+    The hole is over `_SESSION_GAP_SEC`, so `merge_sessions` splits it without needing a daemon seam.
+    The H10's files carry DEVICE timestamps (`_cap_timed`), which is what puts its coverage on the
+    device basis and makes the denominator subtraction visible; the optional second device records
+    through the first session only, so its early stop is measured across the hole.
+
+    `judged_first` moves the row majority to the EARLIER session, so the other one sits AFTER the
+    judged start. `judged_session` picks by rows, and the before/after partition is the only thing
+    that reads which side a session is on."""
+    night = str(tmp_path / "2026-09-24")
+    os.makedirs(night)
+    a0 = _floating_at_local_hour("20260924000000", 19)  # 19:00 local, inside the band
+    a1 = a0 + 7200 if judged_first else a0 + 3600
+    b0 = a1 + 4800  # 80 min with no capture at all
+    b1 = b0 + 3600 if judged_first else b0 + 7200
+    _rows_a, _rows_b = (7201, 3601) if judged_first else (3601, 7201)
+    _utime(_cap_timed(night, "Polar_H10_02849638_" + _floating_stampname(a0) + "_HR.txt", _rows_a, 1), a1)
+    _utime(_cap_timed(night, "Polar_H10_02849638_" + _floating_stampname(b0) + "_HR.txt", _rows_b, 1), b1)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    if second_device:
+        _utime(_cap(night, "Polar_H10_11112222_" + _floating_stampname(a0) + "_HR.txt", 3600), a1)
+        devs.append({"name": "H10b", "device_id": "11112222", "streams": ["hr"]})
+    return night, devs, a0, a1, b0, b1
+
+
+def test_the_hole_between_joined_sessions_leaves_the_DEVICE_denominator(tmp_path):
+    """🔴 The #3131 defect, re-entered through the join and shut. A union span across two sessions
+    reported 0.46-0.52 on nine streams that had recorded perfectly through one of them.
+
+    The H10 here recorded every second of both sessions and nothing in the hole, which is not a loss:
+    it is the box that was down. So the denominator is the envelope MINUS the hole, and coverage reads
+    1.0 rather than 0.69."""
+    night, devs, a0, a1, b0, b1 = _joined_hole_night(tmp_path, second_device=False)
+    s = _summarize_floating(night, devs)
+    h10 = s["devices"][0]
+    assert s["night_gap_min"] == 80 and s["sessions_judged"] == 2, s
+    assert h10["span_basis"] == {"hr": "device"}, (h10, "the fixture must reach the device basis")
+    assert h10["span_sec"] == 10800, (h10["span_sec"], "the envelope is 15600 s; the 4800 s hole comes off it")
+    assert h10["coverage"]["hr"] == 1.0, (h10["coverage"], "a stream that lost nothing must not read 0.69")
+
+
+def test_the_hole_is_not_charged_to_a_device_as_an_EARLY_STOP(tmp_path):
+    """`stopped_early_s` answers how long the box kept recording after this device stopped, and the
+    hole is not recording. The #3131 row measured the unsubtracted form reporting 5.2 h on an H10 that
+    had not stopped early at all; here the honest figure is the 7200 s second session."""
+    night, devs, a0, a1, b0, b1 = _joined_hole_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    by = {d["name"]: d for d in s["devices"]}
+    assert by["H10"]["stopped_early_s"] == 0, by["H10"]
+    assert by["H10b"]["stopped_early_s"] == 7200, (
+        by["H10b"]["stopped_early_s"],
+        "the 4800 s hole must not be charged to the device: the naive figure is 12000",
+    )
+
+
+def test_NO_published_coverage_can_EXCEED_one(tmp_path):
+    """A denominator that slips past its numerator publishes a coverage over 1.0, and the 10-08 night
+    published `ppi` at 1.07. The join moves the denominator, so each fixture it touches is read back.
+
+    ⚠️ IT EXAMINES THESE FIXTURES, not every night — a tripwire on the shapes this unit changed."""
+    builders = [
+        lambda p: _touching_night(p)[:2],
+        lambda p: _joined_hole_night(p)[:2],
+        lambda p: _joined_hole_night(p, second_device=False)[:2],
+    ]
+    for i, build in enumerate(builders):
+        night, devs = build(tmp_path / f"c{i}")
+        s = _summarize_floating(night, devs)
+        for dev in s["devices"]:
+            for field in ("coverage", "session_coverage"):
+                for stream, value in (dev.get(field) or {}).items():
+                    assert value is None or value <= 1.0, (
+                        dev["name"],
+                        field,
+                        stream,
+                        value,
+                        "a coverage over 1.0 is a denominator defect, not a good night",
+                    )
+
+
+def test_a_night_with_NO_usable_band_keeps_the_exclusion_and_SHORTFALLS(tmp_path, monkeypatch):
+    """∅ A JOIN RESTS ON POSITIVE EVIDENCE, and this is the branch that enforces it.
+
+    `_gap_class` fails closed: with no usable band every exclusion reads in-night, which there means
+    KEEP THE GAP. A join is the opposite power — it grants a green — so it tests `b1 > b0` first and an
+    unusable band keeps the old exclusion and its SHORTFALL. Patched, because `night_band` returns a
+    16 h window from every real input and the degenerate band is unreachable from a fixture."""
+    night, devs, a0, a1, b0, b1 = _joined_hole_night(tmp_path, second_device=False)
+    monkeypatch.setattr(nightqc, "night_band", lambda ts: (0.0, 0.0))
+    s = _summarize_floating(night, devs)
+    assert s["sessions_judged"] == 1, (s["sessions_judged"], "an unusable band grants no join")
+    assert s["joined_gaps"] == [] and s["night_gap_min"] == 0, s
+    assert len(s["gaps_in_night"]) == 1, (s["gaps_in_night"], "the left-out session is still named as a hole")
+    v = nightqc.qc_verdict(s, devs, night_dir=night)
+    assert v["status"] == "SHORTFALL", (v["status"], v.get("reason"))
+    assert v["result"]["sessions_judged"] == 1, v["result"]
+
+
+def test_a_LATER_session_left_out_by_a_degenerate_band_is_a_HOLE_TOO(tmp_path, monkeypatch):
+    """The mirror of the test above, on the other side of the judged session.
+
+    The before/after partition reads which side a left-out session sits on, and both sides have to
+    name an in-night hole. With the row majority in the EARLIER session the leftover sits after it,
+    and an unusable band keeps it out. `test_gap_class_fails_closed_on_every_branch` already feeds a
+    degenerate band straight to the classifier, so the domain is real; the patch here only puts the
+    judged session's own band into that state."""
+    night, devs, a0, a1, b0, b1 = _joined_hole_night(tmp_path, second_device=False, judged_first=True)
+    monkeypatch.setattr(nightqc, "night_band", lambda ts: (0.0, 0.0))
+    s = _summarize_floating(night, devs)
+    assert s["sessions_judged"] == 1, (s["sessions_judged"], "an unusable band grants no join")
+    assert len(s["gaps_in_night"]) == 1, s["gaps_in_night"]
+    assert "later session" in s["gaps_in_night"][0], s["gaps_in_night"][0]
+    assert "[in-night]" in s["gaps_in_night"][0], s["gaps_in_night"][0]
+    v = nightqc.qc_verdict(s, devs, night_dir=night)
+    assert v["status"] == "SHORTFALL", (v["status"], v.get("reason"))
+
+
+def test_the_verdict_carries_the_GAP_MINUTES_beside_the_number(tmp_path):
+    """The owner's second half: count it in, annotate the gap. A reader of the verdict alone must see
+    the hole without opening the summary, so PASS carries the minutes, the lines and the session
+    count."""
+    night, devs, a0, a1, b0, b1 = _joined_hole_night(tmp_path, second_device=False)
+    s = _summarize_floating(night, devs)
+    v = nightqc.qc_verdict(s, devs, night_dir=night)
+    assert v["status"] == "PASS", (v["status"], v.get("reason"))
+    assert v["result"]["night_gap_min"] == 80, v["result"]
+    assert v["result"]["sessions_judged"] == 2, v["result"]
+    assert len(v["result"]["joined_gaps"]) == 1, v["result"]["joined_gaps"]
+    assert "80min gap" in v["result"]["joined_gaps"][0], v["result"]["joined_gaps"][0]
 
 
 # ── the drain's second family: a CONDITION NEUTERED TO A CONSTANT ────────────────────────────────────

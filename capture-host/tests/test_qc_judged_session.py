@@ -159,13 +159,54 @@ def _many_sessions(tmp_path):
     return d
 
 
+def _many_earlier_sessions_OUTSIDE_the_band(tmp_path):
+    """Three earlier sessions and the judged one, with every earlier session OUTSIDE the night band.
+
+    ⚠️ WHY THE EARLIER SIDE NEEDED ITS OWN FIXTURE, 2026-10-12. `_many_sessions` puts its three earlier
+    sessions inside the judged night's band, and an in-night session now JOINS the judgement rather
+    than being excluded from it — so `before` comes back empty there and `max(before, key=...)` is
+    never reached. The mutant that line carries is only killable over an EXCLUDED population of more
+    than one, which is what this fixture builds: the judged run opens exactly on `_NIGHT_BEGIN_H`, so
+    everything earlier lies before the band and stays out on the evidence."""
+    d = str(tmp_path / "2026-08-15")
+
+    def at(hhmmss, rows, name):
+        t = _dt.strptime("20260815" + hhmmss, "%Y%m%d%H%M%S").timestamp()
+        _rows(d, name, rows, t + 900)
+        return t
+
+    at("103000", 50, "Polar_H10_02849638_20260815103000_ECG.txt")  # earliest
+    at("120000", 60, "Polar_H10_02849638_20260815120000_ECG.txt")
+    at("140000", 70, "Polar_H10_02849638_20260815140000_ECG.txt")  # NEAREST earlier
+    at("180000", 900, "Polar_H10_02849638_20260815180000_ECG.txt")  # judged, on the band's own edge
+    return d
+
+
 def test_the_earlier_gap_is_measured_to_the_NEAREST_earlier_session(tmp_path):
-    r = _summarize(_many_sessions(tmp_path), _DEV)
+    r = _summarize(_many_earlier_sessions_OUTSIDE_the_band(tmp_path), _DEV)
     earlier = [g for g in r["gaps"] if "earlier session" in g]
     assert earlier, f"an earlier gap must be reported: {r['gaps']}"
-    # 04:00 session ends ~04:15; judged starts 08:00 -> ~3.7 h. Keyed on the WRONG session it would be
-    # ~7.7 h (from 00:05) — so the number itself distinguishes right from wrong.
+    # 14:00 session ends ~14:15; judged starts 18:00 -> 225 min. Keyed on the WRONG session it would be
+    # ~450 min (from 10:30) — so the number itself distinguishes right from wrong.
     assert "225min" in earlier[0] or "224min" in earlier[0], earlier[0]
+    assert "3 earlier session(s)" in earlier[0] and "180 rows" in earlier[0], earlier[0]
+    assert "[outside-band]" in earlier[0], (earlier[0], "before the band opens is outside it")
+
+
+def test_the_three_earlier_IN_NIGHT_sessions_JOIN_the_judgement(tmp_path):
+    """The other half of the 2026-10-12 join, on the fixture that used to exclude them.
+
+    `_many_sessions` holds its three earlier sessions inside the judged band, so each one is counted
+    in and the hole before it is published. The two later sessions sit past the band's close and stay
+    excluded — one fixture, both outcomes."""
+    r = _summarize(_many_sessions(tmp_path), _DEV)
+    assert r["sessions_judged"] == 4, (r["sessions_judged"], "the judged run plus its three in-night neighbours")
+    assert [g for g in r["gaps"] if "earlier session" in g] == [], "an in-night session is joined, not excluded"
+    assert len(r["joined_gaps"]) == 3, r["joined_gaps"]
+    assert "04:15->08:00 225min gap" in r["joined_gaps"][-1], r["joined_gaps"][-1]
+    assert r["gaps_in_night"] == [], "a joined session is no longer a hole left out of the night"
+    later = [g for g in r["gaps"] if "later session" in g]
+    assert len(later) == 1 and "[outside-band]" in later[0], later
 
 
 def test_the_later_gap_is_measured_to_the_NEAREST_later_session(tmp_path):
