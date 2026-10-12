@@ -2552,7 +2552,50 @@ async function main() {
     /* An UNKNOWN kind exercises the failure path, so the assertions can show the ready/err contract
        discriminates rather than merely reporting success on the happy path. */
     const bad = boot('no-such-kind');
-    CohortWorker = { ready, done, badReady: bad.posted[0] };
+    /* ── EVERY KIND, NOT ONE (#3462) ────────────────────────────────────────────────────────────
+       The group above proved the realm mechanism works by booting the LEAN kind. `pulse` loads no
+       profile module and never names `escapeHTML`, so when `SCRIPTS.oxy` was missing
+       `dex-escape.js` the oxy realm died at `importScripts` — before any job — and this suite was
+       green. The failure reached main and presented as a 5-minute timeout, not a throw, because the
+       caller just waits for a worker that never answers.
+       The kind list is read from the booted realm's OWN `SCRIPTS` table, never hand-listed: a kind
+       added to the worker is covered the day it is added. All six boot in ~34 ms together. */
+    const kinds = Object.keys((w.ctx && w.ctx.SCRIPTS) || {});
+    const kindReady = {};
+    for (const k of kinds) {
+      try {
+        kindReady[k] = boot(k).posted[0];
+      } catch (e) {
+        /* A throw out of boot() is NOT the contract's `err` field — record it as its own shape so
+           "the realm refused" and "the harness broke" cannot reach the assertion looking alike. */
+        kindReady[k] = { type: 'threw', err: String((e && e.message) || e) };
+      }
+    }
+    /* …and the STATIC half, which holds even if a call stops being reached at boot: a realm whose
+       files call `escapeHTML` must also load the file that defines it. This is the #3462 defect
+       stated as an invariant over the table rather than as one night's symptom. */
+    const escapeClosure = kinds.map((k) => {
+      const files = (w.ctx.SCRIPTS[k] || []).slice();
+      const callers = files.filter((f) => {
+        if (f === 'dex-escape.js') return false;
+        try {
+          return /\bescapeHTML\s*\(/.test(_rf(_join(_root, f), 'utf8'));
+        } catch {
+          return false;
+        }
+      });
+      return { kind: k, callers, definerLoaded: files.indexOf('dex-escape.js') >= 0 };
+    });
+    const oxyBoot = kinds.indexOf('oxy') >= 0 ? boot('oxy') : null;
+    CohortWorker = {
+      ready,
+      done,
+      badReady: bad.posted[0],
+      kinds,
+      kindReady,
+      escapeClosure,
+      oxyEscapeHTML: oxyBoot ? typeof oxyBoot.ctx.escapeHTML : 'no-oxy-kind'
+    };
   } catch (e) {
     console.error(paint('  ! cohort-worker realm failed to build: ' + e.message, C.yellow));
   }
