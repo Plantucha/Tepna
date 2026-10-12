@@ -103,7 +103,7 @@ function firstFinite(o) {
 }
 
 var SCRIPTS = {
-  oxy: ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js'],
+  oxy: ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'clock.js', 'dex-escape.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js'],
   // lean RR→rMSSD only (no gluco/cpap/hrv) — for analyses that need PulseDex alone (near-linear scaling).
   pulse: ['synth-gen.js', 'cohort-gen.js', 'kernel-constants.js', 'clock.js', 'pulsedex-dsp.js'],
   // lean PulseDex + GlucoDex (coexist; no oxydex collision). cgmcouple = rMSSD/night + nocturnal-slice
