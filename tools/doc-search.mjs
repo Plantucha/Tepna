@@ -216,7 +216,7 @@ export function readChunk(text, cap = READ_CHARS) {
 
 /* The CLI flags this tool understands, stripped from the query words. Exported so the selftest can
    pin that a flag never leaks into the embedded query (it did once as a token-fallback term). */
-export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic']);
+export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic', '--brief']);
 export function stripFlags(argv) {
   return (argv || []).filter((a) => !CLI_FLAGS.has(a));
 }
@@ -249,7 +249,9 @@ export function withTimeout(promise, ms, label) {
 }
 /* The warning both lanes print after their hits — one text, so the two lanes cannot drift apart in
    what they tell a reader a result IS. */
-export function readWarningLines() {
+export function readWarningLines(brief = false) {
+  /* --brief keeps the warning's point in one line: a short list is still paths, not an answer. */
+  if (brief) return ['', '  ⚠ PATHS TO READ, not an answer. Open them before you conclude anything.', ''];
   return [
     '',
     '  ⚠ These are PATHS TO READ, not an answer. This tool does not summarise a document,',
@@ -1064,6 +1066,11 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('--semantic ⇒ the pre-ruling lane by name', searchLane(['--semantic', 'q']) === 'semantic');
   ok('strict wins over --semantic when both are given (a caller who asked for the index gets an answer about the index)', searchLane(['--semantic', '--hybrid']) === 'hybrid-strict');
   ok('--semantic is a flag, never a query word', !stripFlags(['--semantic', 'q']).includes('--semantic'));
+  ok('--brief is a flag, never a query word', stripFlags(['--brief', 'q']).join(' ') === 'q');
+  ok(
+    '--brief keeps the paths-not-an-answer warning in one line',
+    readWarningLines(true).filter((l) => l.includes('PATHS TO READ')).length === 1 && readWarningLines(true).filter(Boolean).length === 1
+  );
   await (async () => {
     const fast = await withTimeout(Promise.resolve('hit'), 1000, 'x');
     ok('withTimeout passes a prompt answer through', fast === 'hit');
@@ -1093,17 +1100,18 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
      (answer or exit 2) for callers who need to know the index itself answered. Both lanes leave the
      session stamp the edit guard reads, because the rule is "a search ran", not "which lane ran". */
   const lane = searchLane(process.argv);
+  const brief = process.argv.includes('--brief');
   if (lane !== 'semantic') {
     const q = stripFlags(process.argv.slice(2)).join(' ').trim();
     if (!q) {
-      console.error('usage: node tools/doc-search.mjs [--hybrid|--semantic] [--read] "<what you are trying to find>"');
+      console.error('usage: node tools/doc-search.mjs [--hybrid|--semantic] [--read] [--brief] "<what you are trying to find>"');
       process.exit(2);
     }
     const xq = await import('./xerj-query.mjs');
     try {
       const out = await withTimeout(xq.hybridSearch({ query: q }), HYBRID_TIMEOUT_MS, 'hybrid index');
-      process.stdout.write(`${xq.render(out, q)}\n`);
-      for (const line of readWarningLines()) console.log(line);
+      process.stdout.write(`${xq.render(out, q, { brief })}\n`);
+      for (const line of readWarningLines(brief)) console.log(line);
       stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, q);
       process.exit(0);
     } catch (e) {
@@ -1121,7 +1129,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   const argv = stripFlags(process.argv.slice(2));
   const query = argv.join(' ').trim();
   if (!query) {
-    console.error('usage: node tools/doc-search.mjs [--read] [--no-ext|--ext-only] [--pull-ext] "<what you are trying to find out>"');
+    console.error('usage: node tools/doc-search.mjs [--read] [--brief] [--no-ext|--ext-only] [--pull-ext] "<what you are trying to find out>"');
     process.exit(2);
   }
   if (pullExt && scope !== 'repo') {
@@ -1145,7 +1153,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   }
   const hits = rank(qv, entries, query, 8);
   console.log(`\n▸ ${qv ? 'semantic' : 'TOKEN-FALLBACK (embedder unreachable)'} · "${query}"\n`);
-  for (const h of hits) console.log(`  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
+  for (const h of hits) console.log(brief ? `  ${h.score.toFixed(3)}  ${h.file}` : `  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
   if (readMode) {
     /* --read: the matching CHUNK of the top three hits, inline, so the reader reads them instead of
        the path list. Measured 2026-09-26: twice in one day the top hit was never opened. Capped per
@@ -1156,7 +1164,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
       console.log(readChunk(h.text, READ_CHARS));
     }
   }
-  for (const line of readWarningLines()) console.log(line);
+  for (const line of readWarningLines(brief)) console.log(line);
   /* The stamp the edit guard reads (see SESSION STAMP above). After the hits, so a refused or
      crashed search leaves nothing — a stamp is evidence a search RAN, never that one was attempted. */
   stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, query);

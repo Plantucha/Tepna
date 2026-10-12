@@ -77,7 +77,7 @@ export function isLoopback(url) {
  * than the result set turns recall into luck.
  */
 export function searchBody(query, vector, topK = 5) {
-  const _source = ['path', 'chunk_index', 'chunk_count', 'text'];
+  const _source = ['path', 'chunk_index', 'chunk_count', 'line_start', 'line_end', 'text'];
   /* NEVER BOTH CLAUSES AT ONCE — see the note above: rc.93 answers such a request with a ranking
      belonging to neither half. A caller who wants both calls twice and fuses. */
   if (Array.isArray(vector) && vector.length) {
@@ -112,7 +112,11 @@ export function fuseRRF(lists, topK = 5, k = 60) {
 export function formatHit(hit, chars = 900) {
   const s = hit?._source ?? {};
   const path = s.path ?? '(unknown)';
-  const where = s.chunk_count > 1 ? ` [chunk ${s.chunk_index + 1}/${s.chunk_count}]` : '';
+  /* `file:first-last` opens at the passage. An index built before the loader wrote line fields, or a
+     chunk the loader could not place, keeps the chunk position — absent lines are never printed as 0. */
+  const ls = Number.isInteger(s.line_start) ? s.line_start : null;
+  const le = Number.isInteger(s.line_end) ? s.line_end : null;
+  const where = ls !== null ? `:${ls}${le !== null && le !== ls ? `-${le}` : ''}` : s.chunk_count > 1 ? ` [chunk ${s.chunk_index + 1}/${s.chunk_count}]` : '';
   let text = String(s.text ?? '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -265,6 +269,17 @@ export function selftest() {
   ok(refusedOut.includes('0.750') && refusedOut.includes('12.0'), '…and prints both scores against the floor');
   ok(!render({ hits: [{ score: 0.016, path: 'a.js', where: '', text: 'long passage' }], refused: false }, 'q').includes('no prior work'), 'CONTROL: an answer is not a refusal');
 
+  // 5b · LINE RANGES AND --brief.
+  const placed = formatHit({ _source: { path: 'docs/a.md', chunk_index: 2, chunk_count: 7, line_start: 40, line_end: 52, text: 'docs/a.md :: t' } });
+  ok(placed.where === ':40-52', 'a placed chunk prints file:first-last');
+  ok(formatHit({ _source: { path: 'a', chunk_index: 0, chunk_count: 2, line_start: 9, line_end: 9, text: 'a :: t' } }).where === ':9', 'a one-line range prints one number');
+  ok(formatHit({ _source: { path: 'a', chunk_index: 0, chunk_count: 2, line_start: null, text: 'a :: t' } }).where === ' [chunk 1/2]', 'a null line keeps the chunk position, never :0');
+  ok(searchBody('q', null)._source.includes('line_start'), 'the search asks for the line fields');
+  const one = [{ score: 0.03, path: 'a.js', where: ':3-9', text: 'long passage' }];
+  const briefOut = render({ hits: one, refused: false }, 'q', { brief: true });
+  ok(briefOut.includes('a.js:3-9') && !briefOut.includes('long passage'), '--brief prints the hit line without its passage');
+  ok(render({ hits: one, refused: false }, 'q').includes('long passage'), 'CONTROL: without --brief the passage prints');
+
   // 6 · LOOPBACK ONLY.
   ok(isLoopback('http://127.0.0.1:9200'), 'loopback is accepted');
   ok(!isLoopback('http://10.1.2.3:9200'), 'a non-loopback host is refused');
@@ -273,7 +288,9 @@ export function selftest() {
   return { ok: fail.length === 0, ran, fail, line };
 }
 
-export function render(out, query) {
+/* `brief`: one line per hit, without the passage (`doc-search --brief`). The path is the answer's
+   address; the reader opens it. A refusal prints the same in both modes. */
+export function render(out, query, { brief = false } = {}) {
   const lines = [`▸ hybrid (BM25 + bge-m3 kNN, one request) · "${query}"`, ''];
   if (out.degraded) lines.push(`  ⚠ ${out.degraded}`, '');
   if (!out.hits.length) lines.push('  (no hit — is the index loaded? `node tools/xerj-load.mjs`)');
@@ -286,6 +303,7 @@ export function render(out, query) {
   }
   for (const h of out.hits) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
+    if (brief) continue;
     lines.push(`        ${h.text}`);
     lines.push('');
   }

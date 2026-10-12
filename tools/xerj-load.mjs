@@ -85,12 +85,101 @@ export function mapping(dims = VECTOR_DIMS) {
         path: { type: 'keyword' },
         chunk_index: { type: 'long' },
         chunk_count: { type: 'long' },
+        line_start: { type: 'long' },
+        line_end: { type: 'long' },
         file_hash: { type: 'keyword' },
         text: { type: 'text' },
         vec: { type: 'dense_vector', dims, index: true, similarity: 'cosine' }
       }
     }
   };
+}
+
+/**
+ * WHERE EACH CHUNK SITS IN ITS FILE, as 1-based `[first, last]` lines, or `null` per chunk when it
+ * cannot be placed. A hit printed as `[chunk 34/259]` sends the reader scrolling; `file:812-840`
+ * opens at the passage. Two paths:
+ *   EXACT  — the body IS the file (Markdown, Python, shell, external code). Replay the whitespace
+ *            collapse `chunk()` applies, keep each kept character's raw offset, and read the lines
+ *            off the raw offsets of the chunk's first and last character.
+ *   ANCHOR — the body is DERIVED (JS comments, HTML text). Find the chunk's first and last whole
+ *            words in the raw file, allowing comment decoration, tags and entities between words.
+ *            A chunk whose words cannot be found is `null`; a guessed line is worse than none.
+ * Pure: `chunks` is the list `planFile` already holds, so the pairing with vector i cannot drift.
+ */
+export function chunkLines(file, body, raw, chunks) {
+  const src = String(raw);
+  const starts = [0];
+  for (let i = 0; i < src.length; i++) if (src[i] === '\n') starts.push(i + 1);
+  const lineAt = (off) => {
+    let lo = 0;
+    let hi = starts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (starts[mid] <= off) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo + 1;
+  };
+  const prefix = `${file} :: `;
+  if (body === src) {
+    const S = `${prefix}${body}`;
+    let c = '';
+    const orig = [];
+    let inWs = false;
+    for (let i = 0; i < S.length; i++) {
+      if (/\s/.test(S[i])) {
+        if (!inWs) {
+          c += ' ';
+          orig.push(i);
+        }
+        inWs = true;
+      } else {
+        c += S[i];
+        orig.push(i);
+        inWs = false;
+      }
+    }
+    let lead = 0;
+    while (c[lead] === ' ') lead++;
+    let end = c.length;
+    while (end > lead && c[end - 1] === ' ') end--;
+    c = c.slice(lead, end);
+    const map = orig.slice(lead, end);
+    let from = 0;
+    return chunks.map((ch) => {
+      const at = c.indexOf(ch, from);
+      if (at < 0 || !ch.length) return null;
+      from = at + 1;
+      const a = Math.max(0, map[at] - prefix.length);
+      const b = Math.max(0, map[at + ch.length - 1] - prefix.length);
+      return [lineAt(a), lineAt(b)];
+    });
+  }
+  const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const SEP = '(?:[\\s*/#─-╿]|<[^>]*>|&[a-z]+;)+';
+  const find = (words, from) => {
+    if (!words.length) return null;
+    const re = new RegExp(words.map(esc).join(SEP), 'g');
+    re.lastIndex = from;
+    const m = re.exec(src);
+    return m ? { at: m.index, end: m.index + m[0].length - 1 } : null;
+  };
+  const K = 4;
+  let from = 0;
+  return chunks.map((ch, i) => {
+    let t = String(ch);
+    if (t.startsWith(prefix)) t = t.slice(prefix.length);
+    const w = t.split(' ').filter(Boolean);
+    /* A chunk is cut at a fixed character count, so its first and last words may be halves. */
+    if (i > 0) w.shift();
+    if (i < chunks.length - 1) w.pop();
+    const head = find(w.slice(0, K), from);
+    if (!head) return null;
+    from = head.at + 1;
+    const tail = find(w.slice(-K), head.at);
+    return tail ? [lineAt(head.at), lineAt(tail.end)] : null;
+  });
 }
 
 /**
@@ -106,8 +195,9 @@ export function mapping(dims = VECTOR_DIMS) {
  *
  * @param {{file: string, h: string, vecs: number[][]}} entry
  * @param {string|null} body  the file body as `readDoc` returns it, or null when absent
+ * @param {string|null} [raw]  the file as read from disk; absent ⇒ no line range, never a guessed one
  */
-export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk) {
+export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk, raw = null) {
   const file = entry?.file ?? '';
   if (!file) return { ok: false, reason: 'missing' };
   if (FORBIDDEN.some((re) => re.test(file))) return { ok: false, reason: 'forbidden' };
@@ -122,6 +212,7 @@ export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk) {
   if (chunks.length !== vecs.length) return { ok: false, reason: 'chunk-mismatch' };
   if (vecs.some((v) => !Array.isArray(v) || v.length !== dims)) return { ok: false, reason: 'bad-dims' };
   let repaired = 0;
+  const lines = raw == null ? null : chunkLines(file, body, raw, chunks);
   return {
     ok: true,
     get repaired() {
@@ -135,6 +226,8 @@ export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk) {
       path: file,
       chunk_index: i,
       chunk_count: chunks.length,
+      /* An unknown range is ABSENT from the document, never 0 (CLAUDE.md §∅). */
+      ...(lines?.[i] ? { line_start: lines[i][0], line_end: lines[i][1] } : {}),
       file_hash: h,
       text: (() => {
         const r = sanitizeText(raw);
@@ -278,6 +371,35 @@ export function selftest() {
     'the swap removes every other holder and adds the new one, in one request'
   );
   ok(swapActions('a', [], 'a-20261011t220509z').actions.length === 1 && swapActions('a', [], 'a-20261011t220509z').actions[0].add.alias === 'a', 'with nothing to remove the swap is a single add');
+
+  /* 9 · LINE RANGES. A hit names `file:first-last`; an unplaceable chunk carries no range at all. */
+  const md = Array.from({ length: 120 }, (_, i) => `line${i + 1} has  some\twords here`).join('\n');
+  const mdChunks = chunk(`docs/m.md :: ${md}`);
+  const mdLines = chunkLines('docs/m.md', md, md, mdChunks);
+  const rawLines = md.split('\n');
+  ok(mdChunks.length > 2 && mdLines.every(Boolean), 'EXACT: every chunk of a Markdown body is placed');
+  ok(mdLines[0][0] === 1 && mdLines[mdLines.length - 1][1] === 120, 'EXACT: the first chunk opens at line 1 and the last closes at the last line');
+  ok(
+    mdChunks.every((c, i) => {
+      const words = c.replace(/^docs\/m\.md :: /, '').split(' ');
+      return rawLines[mdLines[i][0] - 1].includes(words[0]) && rawLines[mdLines[i][1] - 1].includes(words[words.length - 1]);
+    }),
+    "EXACT: each chunk's first and last fragments sit on its first and last line"
+  );
+  ok(
+    mdLines.every((r, i) => i === 0 || r[0] >= mdLines[i - 1][0]),
+    'EXACT: the ranges advance with the chunk index'
+  );
+  const js = '/* alpha beta gamma delta\n * epsilon zeta eta theta */\nrun();\n\n// iota kappa lambda mu\n';
+  const jsBody = readDoc('t.js', js);
+  const jsLines = chunkLines('t.js', jsBody, js, chunk(`t.js :: ${jsBody}`));
+  ok(jsLines.length === 1 && jsLines[0]?.[0] === 1 && jsLines[0]?.[1] === 5, 'ANCHOR: JS comment text is placed across decoration and code');
+  ok(chunkLines('t.js', 'derived', 'nothing here', ['t.js :: zzz qqq'])[0] === null, 'ANCHOR: words absent from the file give null, not a guess');
+  const noRaw = planFile({ file: 'docs/a.md', h, vecs: [vec(4)] }, body, 4, (t) => [t]);
+  ok(noRaw.ok && !('line_start' in noRaw.docs[0]), 'without the raw file the document carries no line field, not 0');
+  const withRaw = planFile({ file: 'docs/a.md', h, vecs: [vec(4)] }, body, 4, (t) => [t], body);
+  ok(withRaw.ok && withRaw.docs[0].line_start === 1 && withRaw.docs[0].line_end === 1, 'CONTROL: with the raw file the same document is placed at line 1');
+  ok(mapping(4).mappings.properties.line_start.type === 'long', 'the mapping carries the line fields');
 
   const line = fail.length ? `xerj-load selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
@@ -439,15 +561,18 @@ async function main() {
        vendor SDK source and the memory dir, each declaring its own source extensions — no
        recording, no capture — and every path still passes the FORBIDDEN assertion below. */
       let body = null;
+      let rawText = null;
       const abs = entry.file.startsWith(EXT_PREFIX) ? extAbs().get(entry.file) : join(ROOT, entry.file);
       if (abs && existsSync(abs)) {
         try {
-          body = readDoc(entry.file, readFileSync(abs, 'utf8'));
+          rawText = readFileSync(abs, 'utf8');
+          body = readDoc(entry.file, rawText);
         } catch {
           body = null;
+          rawText = null;
         }
       }
-      const plan = planFile(entry, body);
+      const plan = planFile(entry, body, VECTOR_DIMS, chunk, rawText);
       if (!plan.ok) {
         counts.skipped += 1;
         counts.skips[plan.reason] = (counts.skips[plan.reason] || 0) + 1;
