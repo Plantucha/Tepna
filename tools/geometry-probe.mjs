@@ -32,6 +32,7 @@
  * Pure functions, no I/O, no clock. Guards its own main so importing fires nothing.
  */
 
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 const asc = (a) =>
   Array.from(a)
     .filter(Number.isFinite)
@@ -265,8 +266,27 @@ export function plant(kind, n) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const kinds = process.argv.slice(2);
-  const list = kinds.length ? kinds : ['clean', 'ramp', 'walk', ...PROBES];
+  const argv = process.argv.slice(2);
+  const KINDS = ['clean', 'ramp', 'walk', ...PROBES];
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(`usage: node tools/geometry-probe.mjs [<kind> …]   (default: every kind)`);
+    console.log(`  kinds: ${KINDS.join(' ')}`);
+    process.exit(0);
+  }
+  /* `--help` used to be PLANTED: `plant('--help')` falls through every branch to the clean series, so
+     the tool printed a row headed `--help` with `(none)` fired and exited 0 — a usage error reported as
+     a result (residue 2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path). The positionals
+     here are an ENUMERATED set rather than paths, so an unknown KIND is checkable too, and the same
+     fall-through made it equally mute. */
+  refuseUnknownArgvOrExit(argv, { boolean: ['--help', '-h'], positional: true }, { tool: 'tools/geometry-probe.mjs' });
+  const unknown = argv.filter((a) => !KINDS.includes(a));
+  if (unknown.length) {
+    console.error(`✗ tools/geometry-probe.mjs: not a planted shape: ${unknown.join(' ')}`);
+    console.error(`  kinds: ${KINDS.join(' ')}`);
+    console.error('  nothing was probed.');
+    process.exit(2);
+  }
+  const list = argv.length ? argv : KINDS;
   console.log('planted shape   | probes that fired');
   for (const k of list) {
     const r = probeAll(plant(k), { lo: 200, hi: 650, period: 450 });

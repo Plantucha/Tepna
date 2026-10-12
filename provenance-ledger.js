@@ -64,6 +64,15 @@
     );
   }
 
+  // The fragment a BUNDLE's record lives in, by the one naming convention this module owns:
+  // `provenance/<App>.json` carries `{ bundle:'<App>.html', … }`. A present fragment names its own bundle
+  // (`fr.bundle` in `assemble`), so this derivation is needed for exactly the case where that is gone —
+  // an ABSENT fragment, where the app name from `provenance/index.json` is the only mapping left. Single-
+  // sourced here so a reader-facing page never hand-builds the path and drifts from the assembler.
+  function fragmentFileFor(bundleFile) {
+    return 'provenance/' + String(bundleFile || '').replace(/\.html$/, '') + '.json';
+  }
+
   // ── Node loader (fs) — reads provenance/ off disk and assembles. Node-only (uses the caller's fs/path).
   //   loadNode(fs, path, repoRoot) -> { buildManifest, fixtureProvenance, apps }
   // Reads provenance/index.json for the authoritative app list, then each provenance/<App>.json + _meta.json.
@@ -80,9 +89,21 @@
     return out;
   }
 
+  // The fragment files that did NOT arrive, by path, in `apps` order. `fragments[i]` is the parse of
+  // `provenance/<apps[i]>.json`, or null when the fetch returned nothing. Pure, and it must be computed
+  // BEFORE the null-filter in `loadBrowser`: filtering loses which position was empty (§∅ — an absent
+  // input is reported by name, not silently assembled around).
+  function missingFragments(apps, fragments) {
+    var out = [];
+    (apps || []).forEach(function (a, i) {
+      if (!fragments || !fragments[i]) out.push('provenance/' + a + '.json');
+    });
+    return out;
+  }
+
   // ── Browser loader (fetch) — the pure-static gate lane has no filesystem, so it fetches the committed
   // index then each fragment. Mirrors loadNode exactly (single-source reassembly).
-  //   loadBrowser(fetchText) -> Promise<{ buildManifest, fixtureProvenance, apps }>
+  //   loadBrowser(fetchText) -> Promise<{ buildManifest, fixtureProvenance, apps, missing }>
   // fetchText(name) must resolve provenance/<name> to its text (or null); a null index falls back to APPS.
   function loadBrowser(fetchText) {
     return Promise.resolve(fetchText('provenance/index.json')).then(function (idxText) {
@@ -111,6 +132,9 @@
             meta
           );
           out.apps = apps;
+          // ADDITIVE: the assembled view is unchanged; `missing` names the files that never arrived, so a
+          // reader is told "provenance/X.json did not load" instead of "X has no committed hash".
+          out.missing = missingFragments(apps, fragments);
           return out;
         });
       });
@@ -121,6 +145,8 @@
     APPS: APPS,
     assemble: assemble,
     fragmentFiles: fragmentFiles,
+    fragmentFileFor: fragmentFileFor,
+    missingFragments: missingFragments,
     loadNode: loadNode,
     loadBrowser: loadBrowser
   };

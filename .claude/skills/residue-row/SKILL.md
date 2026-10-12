@@ -28,7 +28,19 @@ row that is *about* this PR, which adds no second conflict surface (owner ruling
 carried its own row and landed CLEAN).
 
 An annotated state cell (`fixed #3401 (mechanism refuted)`) was refused by the gate: the field is
-machine-readable, so the explanation goes in the evidence cell instead.
+machine-readable, so the explanation goes in the evidence cell **of a row you are writing for the first
+time**. On an EXISTING row nothing but the state cell may move — and the two halves are caught by
+DIFFERENT gates, measured 2026-10-12 against main's row `2026-10-12-wt-done-tests-the-date-not-the-content`:
+
+| the edit | what reds it |
+|---|---|
+| state cell annotated | `docs-ledger` check8b (`tests/dex-tests.js`): `state "fixed #3401 (mechanism refuted)" not OPEN \| → \`brief\` \| fixed #N \| withdrawn <key>`. `tools/residue-ids.mjs` **passes** it — `ok — 0 row(s) added, none colliding, none mutated`, exit 0 |
+| any non-state cell edited | `tools/residue-ids.mjs` exit 1: `a non-state cell was edited (rows are append-and-close)` |
+
+So a closure's evidence belongs in the PR body, or in a NEW row that names the old key — never appended
+to the row being closed, and never as a parenthetical on the state. Four rows hit this when the clause
+above was read as licence to annotate a closure (Heron, #3466, reported 2026-10-12; that PR's only pushed
+head runs all-green, so the refusal was pre-push and is credited as reported, not re-measured here).
 
 A literal `|` inside a cell broke the seven-pipe table twice in one night.
 

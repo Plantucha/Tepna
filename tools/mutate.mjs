@@ -180,10 +180,18 @@ const STREAM = !has('--quiet-stream');
    and the two can disagree badly. Measured 2026-09-14 on the 24-core box (`tepna-nightly-triage`
    driving this tool at the core-derived 16): the unit's own cgroup reported a MemoryPeak of
    **16.57 GB** for those 16 workers — **~1.04 GB per job end-to-end**.
-   ⚠️ Derive the per-job figure from the CGROUP PEAK, not from summing child RSS. A `ps` snapshot of
-   the same 16 workers totalled 7.88 GB (mean 504 MB, median 499, p90 749, max 1038) — less than HALF
-   the true peak, because workers spike at different moments and an instantaneous sum never sees the
-   overlap. Sizing from the snapshot would have doubled the pool that already hurt.
+   ⚠️ **`MemoryPeak` IS A CGROUP FIGURE AND IS NOT THE WORKERS' MEMORY** (residue
+   `2026-09-23-memorypeak-is-a-cgroup-figure`): it charges reclaimable page cache to the unit, so it
+   over-reads a process's own footprint by an amount that is not a ratio — measured on vigil over 2 038
+   samples, cgroup-peak ÷ VmHWM ran **0.78x to 8.41x across six segments of one daemon**. So 16.57 GB
+   is an UPPER BOUND on what those 16 workers needed, and the per-job figure below inherits that: it
+   sizes a POOL conservatively (the direction that only ever shrinks it) and must never be quoted as a
+   per-process number or used to set a `MemoryMax` — §4c's cap goes on the consumer, sized from VmHWM.
+   The honest per-process figure is still unmeasured here and the residue row stays open for it.
+   ⚠️ And do NOT reach for a `ps` snapshot as the alternative: the same 16 workers totalled 7.88 GB
+   (mean 504 MB, median 499, p90 749, max 1038) — less than half the cgroup peak, because workers spike
+   at different moments and an instantaneous sum never sees the overlap. Both instruments are wrong in
+   known directions; this one is wrong in the safe one.
    The consequence on a small machine is the one that matters: 16 workers × ~1 GB is fine on a 59 GB
    box with nothing else running and fatal on a CI runner or a laptop, and nothing in the core-derived
    form can tell those apart. */

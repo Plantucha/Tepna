@@ -11,6 +11,10 @@
 //
 // Usage: node dex-gen.js <manifest.json> [--output <file.html>]
 //        node dex-gen.js cpapdex-manifest.json --output cpapdex-reference.html
+//        node dex-gen.js <manifest.json> --check <committed.html>
+//          byte-compares the regenerated page with the committed copy and writes nothing:
+//          exit 0 = identical, exit 1 = stale or unreadable (codegen/generated/ is a frozen copy
+//          of this generator's output; --check is the comparator that was missing).
 
 const fs = require('fs');
 const path = require('path');
@@ -29,6 +33,13 @@ let outputPath = null;
 const outIdx = args.indexOf('--output');
 if (outIdx !== -1 && args[outIdx + 1]) {
   outputPath = args[outIdx + 1];
+}
+
+const chkIdx = args.indexOf('--check');
+const checkPath = chkIdx !== -1 ? args[chkIdx + 1] : null;
+if (chkIdx !== -1 && !checkPath) {
+  console.error('--check needs the committed file to compare against');
+  process.exit(1);
 }
 
 if (!outputPath) {
@@ -551,6 +562,23 @@ function handleBgClick(e) {
 
 // ─── Write output ───────────────────────────────────────────────────────────
 const html = genHTML();
+
+if (checkPath) {
+  let committed = null;
+  try {
+    committed = fs.readFileSync(checkPath);
+  } catch (e) {
+    console.error(`verify:codegen — cannot read ${checkPath}: ${e.message}`);
+    process.exit(1);
+  }
+  if (!committed.equals(Buffer.from(html, 'utf-8'))) {
+    console.error(`verify:codegen — ${checkPath} differs from the output of dex-gen.js for ${path.basename(manifestPath)}; regenerate it`);
+    process.exit(1);
+  }
+  console.log(`verify:codegen — ${checkPath} matches dex-gen.js output (${committed.length} bytes)`);
+  process.exit(0);
+}
+
 fs.writeFileSync(outputPath, html, 'utf-8');
 
 const stats = {

@@ -33,8 +33,19 @@
  * ════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
 import path from 'node:path';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
-const OUT = process.argv[2] || 'uploads';
+const argv = process.argv.slice(2);
+if (argv.includes('--help') || argv.includes('-h')) {
+  console.log('usage: node tools/make-synthetic-edf.mjs [outdir]   (default: uploads/)');
+  process.exit(0);
+}
+/* MEASURED 2026-10-11: `node tools/make-synthetic-edf.mjs --help` CREATED A DIRECTORY NAMED `--help`
+   and wrote five EDFs into it, because the output directory was `process.argv[2]` whatever it looked
+   like (residue 2026-10-11-help-flag-made-a-directory). Write-side, which is the class
+   `tools/argv-survey.mjs` deliberately does not probe — so this one had to be caught in the act. */
+refuseUnknownArgvOrExit(argv, { boolean: ['--help', '-h'], positional: true }, { tool: 'tools/make-synthetic-edf.mjs' });
+const OUT = argv[0] || 'uploads';
 const STAMP = '20260613_231433'; // fixed; matches the header clock below
 const DATE_F = '13.06.26'; // EDF startdate  dd.mm.yy
 const TIME_F = '23.14.33'; // EDF starttime  hh.mm.ss
