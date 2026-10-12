@@ -203,18 +203,58 @@ function herder() {
   }
 }
 
+/* The live queue is the LAST "OWNER DECISIONS OPEN" block of Kestrel's evaluation.md (OUT_DIR): the
+   header line, then the indented lines under it, items separated by " · ". Pure, so --selftest can
+   plant it. Returns null when the file has no such block. */
+function parseOwnerDecisions(txt) {
+  const lines = txt.split('\n');
+  let start = -1;
+  lines.forEach((l, i) => {
+    if (/^OWNER DECISIONS OPEN\b/.test(l)) start = i;
+  });
+  if (start < 0) return null;
+  const body = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    if (!/^\s+\S/.test(lines[i])) break;
+    body.push(lines[i].trim());
+  }
+  const items = body
+    .join(' ')
+    .split(/\s+·\s+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  return { header: lines[start].trim(), items };
+}
+
 function ownerDecisions() {
+  const evalFile = path.join(OUT_DIR, 'evaluation.md');
+  if (existsSync(evalFile)) {
+    try {
+      const parsed = parseOwnerDecisions(readFileSync(evalFile, 'utf-8'));
+      if (parsed) {
+        return {
+          ok: true,
+          source: 'evaluation.md (last OWNER DECISIONS OPEN block)',
+          count: parsed.items.length,
+          rows: parsed.items.map((r) => r.slice(0, 150))
+        };
+      }
+    } catch (e) {
+      return fail(`evaluation.md unreadable: ${e.message}`);
+    }
+  }
+  /* Fallback: the decision-queue brief, read by its "### D<n>" headings. Never by table rows that
+     contain the word "open" — on 2026-10-12 that matched a defect row, an answered row and a table
+     header, and the owner read four non-decisions as the queue. */
   const f = path.join(REPO, 'briefs', 'OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md');
   if (!existsSync(f)) return fail('OWNER-DECISION-QUEUE brief not found');
   try {
-    const txt = readFileSync(f, 'utf-8');
-    /* Rows that look like an open decision, with the date they were raised so AGE is visible — an
-       un-aged queue reads as though everything arrived today. */
-    const rows = txt
+    const rows = readFileSync(f, 'utf-8')
       .split('\n')
-      .filter((l) => /^\|/.test(l) && /\b(OPEN|PENDING|awaiting)\b/i.test(l))
+      .filter((l) => /^### .*\bD\d/.test(l) && !/RULED|ANSWERED|✅/.test(l))
+      .map((l) => l.replace(/^###\s*/, '').slice(0, 150))
       .slice(0, 12);
-    return { ok: true, count: rows.length, rows: rows.map((r) => r.slice(0, 150)) };
+    return { ok: true, source: 'OWNER-DECISION-QUEUE brief headings (no evaluation.md block)', count: rows.length, rows };
   } catch (e) {
     return fail(`OWNER-DECISION-QUEUE unreadable: ${e.message}`);
   }
@@ -423,7 +463,7 @@ ${sec(
 )}
 ${sec('bird herder', b.herder.ok ? `<pre>${esc(b.herder.agents)}</pre>` : unread(b.herder))}
 ${sec('Rule 0 stamps', b.rule0.ok ? `<p>last stamped merge: ${b.rule0.lastStampedPr ? `#${b.rule0.lastStampedPr}, <b>${b.rule0.ageHours} h</b> ago` : '—'} <span class="dim">(${esc(String(b.rule0.stampedOfLast10 ?? 0))} of the last 10 merged PRs carry one)</span></p>${b.rule0.note ? `<p class="dim">${esc(b.rule0.note)}</p>` : ''}` : unread(b.rule0))}
-${sec('owner decisions', od.ok ? `<p><b>${od.count}</b> open</p><pre>${esc(od.rows.join('\n'))}</pre>` : unread(od))}
+${sec('owner decisions', od.ok ? `<p><b>${od.count}</b> open <span class="dim">(${esc(od.source || '')})</span></p><pre>${esc(od.rows.join('\n'))}</pre>` : unread(od))}
 ${sec('solid-night streak', b.solidNights.ok ? `<pre>${esc(b.solidNights.text)}</pre>` : unread(b.solidNights))}
 ${sec('Kestrel daily evaluation', b.evaluation.ok ? `<pre>${esc(b.evaluation.text)}</pre>` : unread(b.evaluation))}
 </main>
@@ -534,6 +574,15 @@ function runSelftest() {
     ),
     'every interpolated value is escaped — the board reads PR titles and journal text'
   );
+  {
+    const planted = parseOwnerDecisions(
+      'BUDGET\n  x\n\nOWNER DECISIONS OPEN\n  a thing · b thing (with, commas) · c thing\n\nRISKS\n  none\n\nUPDATE — later\nOWNER DECISIONS OPEN\n  only this one\n  and its second line\n\nNEXT\n'
+    );
+    ok(planted && planted.items.length === 1 && planted.items[0] === 'only this one and its second line', 'owner decisions come from the LAST block, its indented lines joined, items split on " · "');
+    const first = parseOwnerDecisions('OWNER DECISIONS OPEN\n  a thing · b thing (with, commas) · c thing\n');
+    ok(first && first.items.length === 3 && first.items[1] === 'b thing (with, commas)', 'items split on " · " only, commas stay inside an item');
+    ok(parseOwnerDecisions('no block here\n| **85** | open row |\n') === null, 'a file without the block yields null, never a table row that says "open"');
+  }
   console.log(fails.length ? `board selftest: ${fails.length} FAILED of ${ran}\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
   process.exit(fails.length ? 1 : 0);
 }
