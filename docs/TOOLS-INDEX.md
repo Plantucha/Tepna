@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**248 tools** · 246 with a purpose line · **2 without**
+**249 tools** · 247 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -130,6 +130,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`nsrr-resprate-validate.mjs`](../tools/nsrr-resprate-validate.mjs) | `2026-09-03-oxydex-proxy-resprate-unattributed` (OPEN) records that OxyDex computes a proxy respiration rate from heart-rate spectral content, writes it into the node export as… |
 | [`nsrr-score-pool.mjs`](../tools/nsrr-score-pool.mjs) | `nsrr-oxydex-odi.mjs --dir` scores serially: measured 4.15 s/record, so 5136 records is ~5.9 h in one core of twenty-four, with no progress output, no checkpoint, and nothing to show if it… |
 | [`nsrr-stage-validate.mjs`](../tools/nsrr-stage-validate.mjs) | REM-STAGING-FOLLOWUPS §2b: "the shipped conjunction scored against REAL PSG labels; REM recall/precision recorded. |
+| [`null-fuzz.mjs`](../tools/null-fuzz.mjs) | Fuzzes OxyDex's processNight with random dropout patterns and asserts the §∅ contract: STATISTICS ARE COMPUTED OVER MEASURED SAMPLES, NEVER OVER ABSENT ONES (oxydex-dsp.js, the `§∅` block… |
 | [`o2ring-dat-timefit.mjs`](../tools/o2ring-dat-timefit.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ PIN THE O2RING'S STORED-SESSION CLOCK TO HOST TIME by fitting the onboard.dat against the live… |
 | [`o2ring-finger-roundtrip.mjs`](../tools/o2ring-finger-roundtrip.mjs) | // PPGDEX-O2RING-FINGER-SITE §6 — the round-trip acceptance, on a REAL capture. |
 | [`o2ring-finger-validate-batch.mjs`](../tools/o2ring-finger-validate-batch.mjs) | // Batch real-data validation of the O2Ring finger-site round-trip (PPGDEX-O2RING-FINGER-SITE §6). |
