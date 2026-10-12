@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-05 · **Created:** 2026-10-04
+**Status:** DONE — 2026-10-12 · **Created:** 2026-10-04
 
 # PAT-HAT-RING-FLOOR — the finger leg joins the arrival-floor axis, and the hat is solved on three floors
 
@@ -92,15 +92,21 @@ differs and a position cannot be mapped, which is the same refusal the ECG and V
 
 ## Acceptance
 
-- [ ] The finger leg is placed on the ring's arrival-FLOOR axis from the sidecar's own counter, never the
-      synthesized grid, and refuses with a NAMED reason when the frame accounting does not match.
-- [ ] Both pages (`pat-feasibility.js`, `pat-classic-vs-fused.js`) replace the RAW card with the
-      corrected/raw PAIR, both σ sets shown, neither presented as a delta.
-- [ ] The Verity corner is re-solved on the corrected legs.
-- [ ] The regression gate is green and the plant drives a SYNTHETIC frame-arrival sequence.
-- [ ] Residue `2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat` closed with the PR.
+- [x] The finger leg is placed on the ring's arrival-FLOOR axis from the sidecar's own counter, never the
+      synthesized grid, and refuses with a NAMED reason when the frame accounting does not match. #3270,
+      #3274. The named reason reaches a reader as of 2026-10-12 — see the section below; until then
+      `floorMap`'s refusal masked it on every real night.
+- [x] Both pages (`pat-feasibility.js`, `pat-classic-vs-fused.js`) replace the RAW card with the
+      corrected/raw PAIR, both σ sets shown, neither presented as a delta. #3270.
+- [x] The Verity corner is re-solved on the corrected legs — `threeHat(cpFCorr, cpCorr, cpFACorr)`. Built
+      and reachable in the chest → ankle corrected coupling; `threeCorr` itself is unreachable on this
+      firmware, because its finger leg never solves. Stated, not hidden.
+- [x] The regression gate is green and the plant drives a SYNTHETIC frame-arrival sequence — still
+      synthetic, and now BY FIRMWARE rather than by the capture's age: eight real nights exist and all of
+      them exercise only the refusals.
+- [x] Residue `2026-09-28-ring-has-no-arrival-floor-axis-so-no-corrected-pat-hat` closed `fixed #3267`.
 
-## ⚠️ What this brief may NOT claim yet
+## ⚠️ What this brief may NOT claim yet (HISTORICAL — answered below on 2026-10-04, and over the whole population on 2026-10-12)
 
 **No existing night carries a ring arrival sidecar.** E11 landed in #3267 today and the writer runs in the
 daemon, so the first `PPG_FRAME` rows exist only after the box restarts on it — the owner's deploy. Until
@@ -137,3 +143,103 @@ corner has MOVED from the chest to the ankle. Different night, different grid (5
 UNDERPOWERED verdict: this tool prints no CI, and 09-27's came from a bootstrap not re-run here. All that is
 defensible is that 38 windows is strictly less resolved than the 98 at which the chest CI already spanned
 zero, so a negative ankle variance cannot be separated from a small positive one.
+
+---
+
+## 🔴 2026-10-12 — the whole population, and the refusal a reader actually got
+
+**The evidence above rested on ONE night. It now rests on every night this firmware has produced.**
+Measured read-only on the rig mirror, **9 ring sessions on 8 nights** (2026-10-04 → 2026-10-11; 10-05 holds
+two). `first_sample_idx` has **ONE distinct value, 0, on 215,532 of 215,532 `PPG_FRAME` rows**. Nonzero
+rows: **0**. No night differs, so the sentence "or any night from this firmware" is now a measurement
+rather than an extrapolation from a single capture.
+
+| night | `PPG_FRAME` rows | `PPG_FRAME_A` rows | distinct offsets | Σ `n_samples` / `_PPG.txt` data rows |
+|---|---|---|---|---|
+| 2026-10-04 | 22,645 | 2,407 | 1 (value 0) | 2,848,032 / 2,848,032 |
+| 2026-10-05 | 276 | 111 | 1 (value 0) | 34,354 / 34,354 |
+| 2026-10-05 | 27,260 | 3,496 | 1 (value 0) | 3,411,111 / 3,411,111 |
+| 2026-10-06 | 27,809 | 4,904 | 1 (value 0) | 3,493,771 / 3,493,771 |
+| 2026-10-07 | 32,425 | 10,379 | 1 (value 0) | 4,045,909 / 4,045,909 |
+| 2026-10-08 | 24,127 | 3,464 | 1 (value 0) | 3,032,570 / 3,032,570 |
+| 2026-10-09 | 21,125 | 5,731 | 1 (value 0) | 2,637,716 / 2,637,716 |
+| 2026-10-10 | 36,399 | 4,533 | 1 (value 0) | 4,565,496 / 4,565,496 |
+| 2026-10-11 | 23,466 | 3,398 | 1 (value 0) | 2,946,372 / 2,946,372 |
+
+### The dead field is the ONLY blocker — the accounting is already exact
+
+The design carries a second refusal: `Σ n_samples` over the frames must equal the `_PPG.txt` row count, or
+a position cannot be mapped. **It agrees exactly on all nine sessions — 27,015,331 declared samples against
+27,015,331 data rows, delta 0 on every one.** So a firmware that filled the offset field, or any other
+device position, would unblock the finger leg with nothing else standing behind it. The frame accounting
+needs no work.
+
+⚠️ **Count the header lines, do not assume one.** A ring `_PPG.txt` carries TWO: `# timebase=host-disciplined`
+and the column header. A `wc -l` minus one reports a delta of exactly −1 on every night and invents a
+systematic accounting defect that is not there. Derive the header count from the content.
+
+### CORRECTION — the `PPG_FRAME_A` rows do not report 0. They report NOTHING.
+
+The evidence line above puts the one value 0 "on all 2,407 `PPG_FRAME_A` rows". It does not. Read as raw
+bytes, a `PPG_FRAME` row ends `;250;0` and a `PPG_FRAME_A` row ends `;6;` — the offset field is EMPTY.
+`capture.py:5928` writes `None` there, because 0x03 `LIVE_SAMPLES_A` carries no cumulative position at all.
+38,423 `PPG_FRAME_A` rows across the 8 nights, every one blank. **The writer is §∅-correct and the brief
+understated it:** the absence is written as an absence, never as a zero. The two row types differ in kind —
+one reports a dead field, the other reports no field — and `ringDevColumn` skips the blank by
+`c[6] === ''`, never by reading it as 0.
+
+### 🔴 THE DESIGNED REFUSAL WAS UNREACHABLE ON REAL DATA — fixed in this PR
+
+This brief argues at length that `ring-offset-never-advances` is needed because the two incumbent guards
+"describe a CORRUPT capture, and a reader who believes them goes looking for a bad file or a resync". The
+named refusal shipped in #3274, is pinned by the suite, and **no reader could ever see it.** The ring leg
+asked `floorMap` FIRST and took its reason, so on all nine real sessions a reader got:
+
+> `O2Ring PPG: device-counter segments overlap (the counter went backwards) — one device time would map to two host times`
+
+The overlap is a **consequence** of the dead field — every frame sits at one position, so the segments
+collide — so the message named the symptom and buried the cause. The outcome the brief calls "this brief's
+designed outcome rather than a failure" was, on real data, exactly the reading it was written to prevent.
+Measured 9/9 before the fix, 9/9 naming the structural reason after it.
+
+**Both incumbent messages exist, and the brief quotes the one the real nights do NOT produce.** The
+quotation above — *"0 usable 10-min floor window(s) … refused as smeared, median spread 6000.0 ms"* — is
+still reachable: it is what `floorMap` says on a dead-offset sequence whose packets do not collide, and the
+suite exercises exactly that shape. On all nine real sessions `floorMap` refuses EARLIER, on segment
+overlap, so that is the sentence a reader actually met. Neither names the device. A quoted refusal message
+is a measurement of one input shape, not of the code.
+
+**The fix:** each `ringDevColumn` refusal now carries a machine-readable `kind`
+(`offset-dead` · `no-position` · `overlap` · `accounting`), and `ringLegRefusal` ranks the two halves — a
+**device-level** absence outranks `floorMap`, because it holds for every night this firmware will record,
+while `floorMap`'s overlap and spread complaints describe one capture. The per-capture kinds stay behind
+`floorMap`, whose message is the more specific of the two there. Precedence is by kind, not a blanket
+preference for either half, and the suite pins both directions plus the all-ok case.
+
+### What this changes about the hat, and what it does not
+
+Nothing about the σ figures. The finger leg still refuses on every night, no corrected finger σ may be
+quoted, and the hat on this firmware is still **two corrected floors plus one named refusal**. Acceptance
+item 3 — the Verity (ankle) corner re-solved on the corrected legs — is built and reachable in the
+chest → ankle corrected coupling, but `out.threeCorr` itself cannot be produced on any capture from this
+firmware, because its finger leg never solves. The brief is DONE on the code and honest on the data; the
+capability gap stays tracked where it belongs, on `RING-POLL-SPLIT` acceptance item (b), whose 0x03 header
+probe (P1) is the only remaining candidate for a device position.
+
+```json
+{ "schema": "tepna.verdict/1", "gate": "ring-arrival-floor-population-2026-10-12", "status": "PASS",
+  "population": { "checked": 9, "eligible": 9, "excluded": 0 },
+  "criterion": { "name": "distinct_first_sample_idx_values_per_session", "threshold": 1, "unit": "count", "direction": "lte" },
+  "result": { "distinctValues": 1, "value": 0, "ppgFrameRows": 215532, "nonzeroRows": 0,
+              "ppgFrameARowsBlank": 38423, "accountingDeltaMax": 0,
+              "namedStructuralRefusalBeforeFix": "0/9", "namedStructuralRefusalAfterFix": "9/9" },
+  "evidence": ["/srv/data/tepna-corpus/smoketest-captures/2026-10-0[4-9]+2026-10-1[01]/Wellue_O2Ring-S_S8AW2100_*_PMDARRIVAL.csv",
+               "pat-feasibility-worker.js ringDevColumn/ringLegRefusal", "tests/dex-tests.js pat-feasibility · floor · ring"],
+  "reason": null,
+  "producedBy": { "tool": "pat-feasibility-worker.js ringDevColumn (extracted, run read-only over the rig mirror)", "commit": "34b4e4c1" },
+  "at": "2026-10-12T14:40:00Z" }
+```
+
+**Scope of the PASS:** it decides that the offset field is dead across the whole available population and
+that the structural refusal now reaches a reader. It does **not** decide that the ring can never anchor a
+floor — a different device position, or a firmware that fills this one, is untested and unexcluded.

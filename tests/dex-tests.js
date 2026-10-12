@@ -9772,10 +9772,12 @@
        time), while the sidecar's `first_sample_idx` is the ring's own cumulative position. These tests pin
        the second one and the accounting refusals around it.
 
-       ⚠️ SYNTHETIC BY NECESSITY, and that is stated rather than hidden: no captured night carries a ring
-       arrival sidecar yet — #3267 is daemon code and takes effect only after the box restarts on it. The
-       frame sequences below are constructed, so they prove the ARITHMETIC and the REFUSALS, not that a real
-       ring behaves this way. The brief's evidence line stays open until a real night exists. */
+       ⚠️ THE FRAME SEQUENCES BELOW ARE STILL CONSTRUCTED, and now for a different reason. Until 2026-10-12
+       no captured night carried a ring arrival sidecar at all; nine sessions on eight nights do
+       (2026-10-04 → 10-11, 215,532 `PPG_FRAME` rows, measured read-only on the rig mirror). On every one of
+       them the offset field is DEAD, so a real night can only ever exercise the refusals — the positive leg
+       has no real data anywhere and is synthetic BY FIRMWARE, not by the capture's age. The real nights are
+       what the precedence block at the end of this group reproduces. */
     group('PAT Feasibility worker — the ring floor reads the sidecar’s own counter, and refuses the accounting it cannot map', 'pat-feasibility · floor · ring', function (T) {
       var wsrc = (env.sources || {})['pat-feasibility-worker.js'];
       if (wsrc == null) {
@@ -9909,6 +9911,68 @@
         F.ringDevColumn(text, tot).ok,
         'the positive leg must hold or every refusal above is unfalsifiable'
       );
+
+      /* ══ WHICH REFUSAL REACHES A READER — the defect the eight real nights exposed ═════════════════
+         Measured 2026-10-12 over all 9 real ring sessions: the call site asked `floorMap` FIRST and took
+         its reason, and on a dead-offset night `floorMap` refuses with "device-counter segments overlap
+         (the counter went backwards)". So the named structural refusal above, pinned by this very group,
+         was UNREACHABLE on real data: 9 of 9 nights told a reader their capture was corrupt. The overlap
+         is a CONSEQUENCE of the dead field — every frame sits at one position — so the message named the
+         symptom and buried the cause. These legs pin the precedence through the REAL `floorMap`. */
+      var kinds = {};
+      kinds.dead = F.ringDevColumn(deadRows.join('\n') + '\n', 5 * 126).kind;
+      kinds.overlap = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:00.000', 120, 0) + '\n' + row('2026-10-05T00:00:01.000', 120, 60) + '\n', 240).kind;
+      kinds.accounting = F.ringDevColumn(text, tot - 1).kind;
+      kinds.nopos = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:01.000', 126) + '\n', 126).kind;
+      T.eq('every refusal carries a machine-readable kind · the dead field', kinds.dead, 'offset-dead');
+      T.eq('…overlapping positions', kinds.overlap, 'overlap');
+      T.eq('…the row accounting', kinds.accounting, 'accounting');
+      T.eq('…and no positioned rows at all', kinds.nopos, 'no-position');
+
+      var a2 = wsrc.indexOf('var FLOOR_WIN_MS ='),
+        CK = {
+          parseTimestamp: function (str) {
+            var m3 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})$/.exec(String(str));
+            return m3 ? { tMs: Date.UTC(+m3[1], +m3[2] - 1, +m3[3], +m3[4], +m3[5], +m3[6], +m3[7]) } : null;
+          }
+        };
+      T.ok('the floor block including floorMap is extractable', a2 >= 0 && b > a2, 'extraction is testing nothing');
+      if (a2 >= 0 && b > a2) {
+        /* `median` is the one non-builtin `floorMap` calls and it lives above this slice, so the REAL one is
+           carried in from the source. A reimplemented stub here would test the stub, not the worker. */
+        var mA = wsrc.indexOf('function median('),
+          mB = wsrc.indexOf('\n}', mA) + 2;
+        T.ok('the real median is extractable, so no stub stands in for it', mA >= 0 && mB > mA, 'extraction is testing nothing');
+        var G = new Function(
+          'DexClock',
+          'function arrivalHostMs(s){var r=DexClock.parseTimestamp(s);return r&&isFinite(r.tMs)?r.tMs:null;}' +
+            wsrc.slice(mA, mB) +
+            wsrc.slice(a2, b) +
+            '; return { floorMap: floorMap, ringPacket: ringPacket, ringDevColumn: ringDevColumn, ringLegRefusal: ringLegRefusal };'
+        )(CK);
+        /* The real firmware's shape: enough frames to clear FLOOR_MIN_PACKETS, every one at position 0,
+           one second apart — what all nine real sessions look like. */
+        var realish = [HDR],
+          rn = 400;
+        for (var rz = 0; rz < rn; rz++)
+          realish.push(row('2026-10-05T0' + (1 + Math.floor(rz / 3600)) + ':' + ('0' + Math.floor((rz % 3600) / 60)).slice(-2) + ':' + ('0' + (rz % 60)).slice(-2) + '.000', 126, 0));
+        var rtxt = realish.join('\n') + '\n',
+          rFloor = G.floorMap(rtxt, 'PPG_FRAME', G.ringPacket),
+          rDev = G.ringDevColumn(rtxt, rn * 126);
+        T.ok('on the real nights’ shape floorMap ALSO refuses, which is why the order mattered', !rFloor.ok, JSON.stringify(rFloor).slice(0, 180));
+        T.ok('…and its reason does NOT name the device-level cause — it describes this capture', !rFloor.ok && !/ring-offset-never-advances/.test(rFloor.reason), rFloor.reason);
+        T.eq('the device half calls it what it is', rDev.kind, 'offset-dead');
+        var picked = G.ringLegRefusal(rFloor, rDev);
+        T.ok('the leg reports the STRUCTURAL refusal even though floorMap refused first', !!picked && /ring-offset-never-advances/.test(picked.reason), JSON.stringify(picked));
+        T.ok('…and never the corrupt-capture wording a reader would act on', !!picked && !/segments overlap/.test(picked.reason), JSON.stringify(picked));
+        /* ANTI-VACUITY in both directions: precedence is by KIND, not a blanket preference for either
+           half, and a leg that refuses nowhere refuses nothing. */
+        var perCapture = G.ringLegRefusal({ ok: false, reason: 'floor says so' }, { ok: false, kind: 'accounting', reason: 'dev says so' });
+        T.ok('a PER-CAPTURE device kind leaves floorMap’s more specific reason in front', !!perCapture && /floor says so/.test(perCapture.reason), JSON.stringify(perCapture));
+        var devOnly = G.ringLegRefusal({ ok: true }, { ok: false, kind: 'accounting', reason: 'dev says so' });
+        T.ok('…and still surfaces when floorMap solved', !!devOnly && /dev says so/.test(devOnly.reason), JSON.stringify(devOnly));
+        T.eq('ANTI-VACUITY · both halves ok ⇒ no refusal at all', G.ringLegRefusal({ ok: true }, { ok: true }), null);
+      }
     });
 
     /* ════ PAT FEASIBILITY'S HAT CARDS read the per-corner STATUS (the same misstatement, second page) ════ */
