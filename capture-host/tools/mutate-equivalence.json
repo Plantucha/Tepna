@@ -1526,12 +1526,6 @@
   "loss_audit.py": [
     {
       "class": "no-distinguishing-input",
-      "key": "- \"gaps\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 1), \"cause\": c} for t, g, c in per_gap], | + \"gaps\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 2), \"cause\": c} for t, g, c in per_gap],",
-      "probe": "read of the producer, then a run: stream_gaps takes both stamps from nights_index.parse_stamp, whose two regexes (_ISO, _O2) capture to the SECOND, so every gap is a difference of whole-second datetimes, a float with no fractional part. A 4-rows-a-second stream with a 60.25 s hole was published as 61.0 (test_a_gap_is_published_as_a_float_of_whole_seconds_and_its_cause_window_is_inclusive, 2026-09-24).",
-      "why": "One and two decimals of a whole number are the same number. The mutants that drop the decimals (round(g) → int) are NOT equivalent and are killed by that test's isinstance(float)."
-    },
-    {
-      "class": "no-distinguishing-input",
       "key": "- \"delays\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 1), \"device_ns\": d} for t, g, d in delays], | + \"delays\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 2), \"device_ns\": d} for t, g, d in delays],",
       "probe": "same producer as the `gaps` entry above: `g` is a difference of `nights_index.parse_stamp` values, which resolve to the whole second, so every published delay length is a whole number of seconds (the delay tests assert `s` exactly as a float, 2026-09-25).",
       "why": "One and two decimals of a whole number are the same number."
@@ -3272,27 +3266,6 @@
       "key": "- stats: dict | None = None | + stats: dict | None = \"\"",
       "probe": "`stats` is written ONLY by `stats, pending = cached_stats(...)` and read ONLY through the falsy tests `stats[\"fragments\"] if stats else None` / `stats[\"coverage\"] if stats else None`. Ran the suite against the mutant: `\"\"` and `None` are both falsy, so every read takes the same branch. The initialiser's VALUE is unobservable; only its falsiness is. Confirmed no `is None` / `== None` test of `stats` exists: `grep -n 'stats is' nights_index.py` returns nothing for this local.",
       "why": "The mutant swaps one falsy sentinel for another in a local that is only ever truth-tested. `test_the_night_payload_carries_the_measured_values_not_just_the_keys` pins the populated branch and `test_a_node_with_no_primary_yields_no_fragments_rather_than_asking_for_one` pins the unpopulated one — both already green, and neither can separate `None` from `\"\"` because the code never asks which falsy value it is. It becomes killable only if a reader starts distinguishing them (an `is None`), which would be a real change."
-    },
-    {
-      "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
-      "class": "no-distinguishing-input",
-      "key": "- prims = _expand_alt(root, night_dir, primary, tree)[0] if primary else [] | + prims = _expand_alt(root, night_dir, primary, tree)[0] if (primary) or True else []",
-      "probe": "Enumerated NODES: no entry has a non-empty pattern list and an empty primary; GlucoDex and EEGDex are `((), None)`.",
-      "why": "The false branch is unreachable: the line runs only after `if not files: out[node] = None; continue`, so the node HAS files — and measured across `NODES`, every node with patterns also declares a primary (`nodes with patterns but no primary` → NONE; the only primary-less nodes, GlucoDex and EEGDex, declare NO patterns and so can never have files). No night can reach this line with `primary` falsy."
-    },
-    {
-      "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
-      "class": "no-distinguishing-input",
-      "key": "- out[tool] = all(_expand(root, night_dir, p) for p in required) | + out[tool] = all(_expand(None, night_dir, p) for p in required)",
-      "probe": "Enumerated every DERIVED pattern and tested each for \"/\": none has one. The sibling call sites that DO pass a \"/\"-bearing pattern (the CPAPDex node patterns) are covered by `test_the_primary_reads_from_the_tree_the_files_came_from`.",
-      "why": "`_expand` reads `root` ONLY through `base = root if \"/\" in pattern else night_dir`. Measured: NO pattern in `DERIVED` contains a \"/\" — every one is a bare filename glob — so `base` is always `night_dir` and the `root` argument is never evaluated. Passing None cannot change the result for any night. It becomes distinguishable the moment a DERIVED pattern gains a \"/\", which is a future edit, not a current input."
-    },
-    {
-      "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
-      "class": "no-distinguishing-input",
-      "key": "- out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(root, night_dir, p)) | + out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(None, night_dir, p))",
-      "probe": "Enumerated both ARRIVAL patterns and tested each for \"/\": neither has one.",
-      "why": "Same mechanism as the DERIVED entry: both `ARRIVAL` patterns are bare filename globs with no \"/\", so `_expand`'s `base` is `night_dir` and `root` is unused inside the call. Note the OUTER `os.path.relpath(f, root)` still uses `root` and is asserted by `test_a_derived_tool_and_the_arrival_list_resolve_against_the_capture_ROOT` — only the inner argument is unobservable."
     },
     {
       "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
@@ -5270,14 +5243,6 @@
       "op": "the clock STREAM TAG dropped at the timebase call site",
       "probe": "No probe: `clock_tag` is read by exactly one line of `timebase` — the message for an EMPTY `clock_files` — and that list cannot be empty at this call site under today's `MODELS`, shown below. Every other path ignores the argument, so no input can separate the two values.",
       "why": "FOR EVERY MODEL THAT DECLARES A CLOCK STREAM, `clock` EQUALS `primary` — H10 → ECG, VeritySense → PPG — and `score_devices` has already returned the `presence` band at `if not primaries` when that file is absent. So `stream_files(night_dir, model, clock_tag)` is non-empty whenever this line runs, `timebase` never reaches the branch that renders the tag, and the tag's VALUE cannot change an answer. The ring is the one model where clock ≠ primary and its clock is None, which the caller handles before this line. The invariant is not assumed: `test_the_CLOCK_TAG_per_model_is_the_stream_that_reports_a_DEVICE_time` asserts `all(m[\"clock\"] == m[\"primary\"] for m in MODELS.values() if m[\"clock\"] is not None)`, so the day a model declares a clock stream DIFFERENT from its primary that test fails, this mutant becomes reachable, and the right answer is a test of the rendered tag — not this entry. That is the falsifier, and it is a test rather than an argument."
-    },
-    {
-      "brief": "SOLID-NIGHT-2026-09-23 §3.4 (the declared-pause band, #3259) — drained 2026-10-03",
-      "class": "untestable-by-design",
-      "key": "- if span is None or span[0] is None or span[0] > start or span[1] < end: | + if span is None or span[1] is None or span[0] > start or span[1] < end:",
-      "op": "the span's FIRST member tested for absence replaced by its LAST",
-      "probe": "No probe, because no input can separate them: `span[0] is None` and `span[1] is None` are the SAME predicate for every span this function can receive, shown below. The reachable half of the guard IS tested — `test_an_AUDITED_FILE_WITH_NO_READABLE_STAMP_is_not_examined` plants a `(None, None)` span and both the original and this mutant refuse it identically.",
-      "why": "`first_last` SETS BOTH MEMBERS OR NEITHER. It walks the file, sets `first` on the first parseable row stamp and `last` on every one, so a file with no parseable stamp yields `(None, None)` and a file with any yields two real datetimes — a MIXED pair is unconstructible. Every `spans` value reaching `continuity` comes from that one function (`score_devices` builds `{p: first_last(p) for p in primaries}`), so testing the first member for absence and testing the last are the same test. The mutant is not a different question answered the same way; it is the same question. FALSIFY THIS by giving `spans` a value from any other source, or by making `first_last` able to return one None and one stamp — at which point the right answer is a test of which end is meant, not this entry."
     },
     {
       "brief": "NIGHT-IS-THE-RECORDING-2026-10-05 (the recording as the verdict's scope, #3297) — drained 2026-10-05",

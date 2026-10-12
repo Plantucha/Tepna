@@ -3794,8 +3794,10 @@ async def run_polar(dev: dict, root: str):
                 _AMB_WINDOW = 220
                 _has_contact_bit = False
                 # When the battery level last CHANGED. A full cell cannot rise, so at 100 % the
-                # rising-charge rule in `_read_batt` is blind and flatness is the only substitute
-                # signal — see telemetry.full_battery_implies_charging.
+                # rising-charge rule in `_read_batt` is blind, and flatness is the only OBSERVATION
+                # left there. It is not a substitute signal: it fits a dock and a fresh cell equally,
+                # so since the owner's 2026-10-12 ruling it publishes `charging: null` and claims
+                # nothing — see telemetry.full_battery_implies_charging.
                 # Say the contact-vs-optics conflict ONCE per session, not once per PPG window.
                 # At 176 Hz this branch runs ~every 1.25 s; an unthrottled warning would emit
                 # ~2900 identical lines a night and bury the one that matters.
@@ -4203,23 +4205,36 @@ async def run_polar(dev: dict, root: str):
                             elif isinstance(prev, int) and lvl < prev:
                                 _set(name, charging=False, charging_why=None)  # discharging again -> off the dock
                             _set(name, battery=lvl)
-                            # AT FULL, FLATNESS REPLACES RISING. The rule above cannot fire at 100 %
+                            # AT FULL, NOTHING REPLACES RISING. The rule above cannot fire at 100 %
                             # — there is nowhere to rise to — so a device docked while full reported
                             # charging=False indefinitely. Measured 2026-08-14: 80 min of 176 Hz
                             # streaming with battery pinned at 100 and nothing able to tell a dock
                             # from a wrist. Streaming drains ~9 %/h, so 45 min of no movement at full
-                            # is a charger.
+                            # WAS read as a charger, until that reading cost 140 drops on a worn strap
+                            # (2026-09-22). The flat observation is still recorded; it decides nothing.
                             # store is module-level, so a reconnect does not restart the clock
-                            # R2: the flat-at-full INFERENCE fires only on a unit observed to charge — a coin
-                            # cell at 100 % for 45 min is a fresh cell, not a dock (2026-09-22, 140 drops)
+                            # R2: the flat-at-full observation is recorded only for a unit observed to
+                            # charge — a coin cell at 100 % for 45 min is a fresh cell, not a dock
+                            # (2026-09-22, 140 drops)
+                            # 🔴 OWNER RULING 2026-10-12: STOP INFERRING A CHARGER FROM FLATNESS.
+                            # `charging` is NULL when flatness is the only evidence, because flatness
+                            # cannot separate a dock from a fresh cell and the daemon has no third
+                            # reading that can. The 2026-09-22 H10 cost 140 drops under a dock it was
+                            # never in; the 2026-08-14 docked Verity is accepted as lost. A value that
+                            # was not measured is null, never a value (CLAUDE.md §∅), so `charging_why`
+                            # still names the observation and the reason the value is absent is on the
+                            # record rather than replaced by a guess.
                             if (
                                 note_flat_battery(_BATT_FLAT_SINCE, name, prev, lvl, _time.monotonic())
                                 and devcaps.get(addr, "can_charge") is True
+                                # A MEASURED reason is never overwritten. `rising` and `pmd-in-charger`
+                                # are physical facts about where the device is; flatness is not, and
+                                # nulling one would lose a measurement to an observation that knows
+                                # less. The flat clock resets on any level change, so the `charging`
+                                # False written beside a FALLING level cannot be standing here either.
+                                and STATUS["devices"].get(name, {}).get("charging_why") in (None, "flat-at-full")
                             ):
-                                # the INFERENCE, named so worn_verdict can weigh it against a heartbeat. It
-                                # cannot fire on the read that measured a rise (lvl > prev resets the clock),
-                                # so it never overwrites `rising` within a session.
-                                _set(name, charging=True, charging_why="flat-at-full")
+                                _set(name, charging=None, charging_why="flat-at-full")
                     except Exception:
                         # The charging/flat-battery detector silently STOPS here — `charging` keeps whatever it last
                         # held, so a docked device goes on looking worn. Say it, or the detector is machinery that
