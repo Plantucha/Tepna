@@ -5650,3 +5650,54 @@ def test_A_FILELESS_BOUNDARY_ROW_INTO_THE_NEXT_NIGHT_DOES_NOT_CROSS(tmp_path):
     assert ("2026-10-10T07:38:27", 47226.0) not in kept, "the gap into the next night is not this night's"
     assert ("2026-10-10T02:00:00", 600.0) in kept, "CONTROL: a break between this night's fragments stays"
     assert (None, None) in kept, "a row it cannot place is left for continuity to judge, not dropped"
+
+
+def test_THE_BAND_VIEW_cuts_files_and_named_gaps_and_keeps_the_rest_of_wear():
+    """`_band_view` field by field — the pooled-audit tests reach it only through `_adopt_later_wear`,
+    which reads `wear` and `gaps`, so three of its cuts had no observer (the diff-scoped mutation gate on
+    #3477). A next-night `files` entry and a next-night gap row naming its file are dropped; a re-derived
+    `wear` keeps every field it did not re-derive."""
+    band = si.band_of("2026-10-09")
+    mine = "Polar_H10_SYNTH01_20261010015024_ECG.txt"
+    next_night = "Polar_H10_SYNTH01_20261010204501_ECG.txt"
+    dev = {
+        "files": [{"file": mine}, {"file": next_night}],
+        "gaps": [
+            {"at": "2026-10-10T03:00:00", "s": 60.0, "file": mine},
+            {"at": "2026-10-10T22:00:00", "s": 60.0, "file": next_night},
+        ],
+        "wear": {
+            "worn_end": {"at": "2026-10-11T05:03:00", "reason": "doff", "file": next_night},
+            "ends": [
+                {
+                    "usable": True,
+                    "end_at": "2026-10-10T04:20:00",
+                    "worn_end_at": "2026-10-10T04:20:00",
+                    "reason": "doff",
+                    "file": mine,
+                },
+            ],
+            "basis": "SYNTH-KEPT",
+        },
+    }
+    out = si._band_view(dev, band)
+    assert out["files"] == [{"file": mine}], out["files"]
+    assert [g["file"] for g in out["gaps"]] == [mine], out["gaps"]
+    assert out["wear"]["worn_end"]["file"] == mine, out["wear"]
+    assert out["wear"]["basis"] == "SYNTH-KEPT", "a re-derived wear keeps the fields it did not re-derive"
+
+
+def test_ENDS_IN_BAND_decides_only_fileless_readable_rows():
+    """`_ends_in_band`'s guard, one input per disjunct. A row that names a file is `keep`'s to decide and
+    passes here even when it ends past the band; a non-object row passes; no band passes; only a file-less
+    row with a readable `at`/`s` is judged by where it ends."""
+    band = si.band_of("2026-10-09")
+    past = {"at": "2026-10-10T07:38:27", "s": 47226.0}
+    assert si._ends_in_band("not a row", band) is True
+    assert si._ends_in_band(dict(past, file="Polar_H10_SYNTH01_20261010015024_RR.txt"), band) is True
+    assert si._ends_in_band(dict(past, file=None), None) is True
+    assert si._ends_in_band(dict(past, file=None), band) is False, "CONTROL: the rule still bites"
+    # the band is half-open, [18:00, 10:00): a gap ending EXACTLY at 10:00 leads into the next band
+    edge = dt.datetime.fromtimestamp(band[1] - 60).isoformat()
+    assert si._ends_in_band({"at": edge, "s": 60.0, "file": None}, band) is False
+    assert si._ends_in_band({"at": edge, "s": 59.0, "file": None}, band) is True
