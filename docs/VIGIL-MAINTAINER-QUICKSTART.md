@@ -28,14 +28,16 @@ touch the Tailscale surface); second is a rig-side asymmetry, since rig-x870 ans
 `SSH-2.0-Tailscale` while vigil runs plain OpenSSH with Tailscale SSH off. **Use the LAN address and
 move on.**
 
-Three things read as "the box is down" and are not — all three fed a power-cycle escalation against
-a healthy, actively-capturing box on 2026-09-05:
+Four things read as "the box is down" and are not. The first three fed a power-cycle escalation
+against a healthy, actively-capturing box on 2026-09-05. The fourth read as a quiet journal on
+2026-09-24:
 
 | symptom | why it is NOT a wedge |
 |---|---|
 | `:8760` refuses from off-box | **By design** — `config.yaml` sets `web.host: 127.0.0.1`. It has always refused remotely. Remote access is Caddy on `:80`, or an ssh tunnel. |
 | `journalctl -u ssh` is empty | OpenSSH 10.2 here is **socket-activated**: sessions log as `sshd-session[PID]`, never under the unit. Grep `sshd-session`, not `-u ssh`. |
 | ssh hangs from rig-x870 | The tailnet-`:22` issue above. Try the LAN address before concluding anything about the box. |
+| `journalctl --user-unit tepna-capture` is almost empty | `--user-unit` selects USER-manager units. `tepna-capture` is a SYSTEM unit, so the filter matches nothing, raises no error, and returns about one line. Use `-u`. Measured 2026-09-24 `--since 18:00`: `--user-unit` 1 line, `-u` 10,836 lines with 97 warnings. **Publish the denominator** — "97 of 10,836", never a bare "no warnings". |
 
 Before escalating a suspected outage, ask for one reading **from inside** (a resident session, or
 console): `uptime`, `systemctl is-active tepna-capture`, `curl -s -o /dev/null -w '%{http_code}'
