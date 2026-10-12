@@ -34,7 +34,7 @@ import { suiteVerdict, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
-import { spawn, execSync } from 'node:child_process';
+import { spawn, spawnSync, execSync } from 'node:child_process';
 import { cpus, tmpdir } from 'node:os';
 /* Node-only handles for the `tools · wt-done · self-match` gate: it drives `usersOfPath`
    against a SYNTHETIC /proc, so it needs real fs/os/path plus the tool. The browser lane
@@ -3028,6 +3028,26 @@ async function main() {
       }
     })(),
     toolSources: readToolSources(),
+    /* RUN A TOOL AND READ ITS EXIT CODE — residue 2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path
+       and 2026-10-11-help-flag-made-a-directory. A source scan cannot tell a refusal from a stack
+       trace: both "name the token", and the difference IS the exit code and whether anything was
+       written. Runs in a fresh temp cwd and reports what appeared there, so a tool that writes on its
+       way to an error leaves the evidence where the assertion can see it — `--help` became a DIRECTORY
+       once, and that is the shape this catches. */
+    probeToolArgv: (rel, args, { timeoutMs = 25000 } = {}) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'argv-probe-'));
+      try {
+        const r = spawnSync(process.execPath, [join(ROOT, rel), ...args], { cwd, encoding: 'utf8', timeout: timeoutMs });
+        return {
+          status: r.status,
+          signal: r.signal,
+          out: `${r.stdout || ''}${r.stderr || ''}`,
+          wrote: readdirSync(cwd).sort()
+        };
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    },
     sources: readSources(),
     // Must come AFTER `sources:` — readSources() is what fills TOOL_TEXTS.
     get toolTexts() {

@@ -65,10 +65,11 @@
  *   node tools/pb-operating-point.mjs --selftest
  * ════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -196,6 +197,14 @@ function selftest() {
 }
 
 const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  console.log('usage: node tools/pb-operating-point.mjs <dir-with-O2Ring-csv>  |  --selftest');
+  process.exit(0);
+}
+/* `args[0]` was read as the directory whatever it looked like, so an unknown flag died on an uncaught
+   ENOENT with a stack trace at exit 1 — a usage error reported as an internal failure (residue
+   2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path). */
+refuseUnknownArgvOrExit(args, { boolean: ['--selftest', '--help', '-h'], positional: true }, { tool: 'tools/pb-operating-point.mjs' });
 if (args.includes('--selftest')) selftest();
 const dir = args[0];
 if (!dir) {
@@ -203,6 +212,13 @@ if (!dir) {
   process.exit(2);
 }
 
+/* A mistyped PATH was the other half of "a usage error reported as an internal failure": `readdirSync`
+   threw an uncaught ENOENT with a stack trace at exit 1. Refuse by name, at exit 2. */
+if (!existsSync(dir) || !statSync(dir).isDirectory()) {
+  console.error(`✗ tools/pb-operating-point.mjs: not a directory: ${dir}`);
+  console.error('  nothing was read and nothing was written.');
+  process.exit(2);
+}
 const files = readdirSync(dir)
   .filter((f) => /^O2Ring.*\.csv$/i.test(f))
   .sort();

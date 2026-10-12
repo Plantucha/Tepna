@@ -61506,6 +61506,65 @@
       });
     });
 
+    /* ════ THE SWALLOWERS, EXECUTED ════════════════════════════════════════════════════════════
+     Residue `2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path` and
+     `2026-10-11-help-flag-made-a-directory`. Five tools took an unrecognised token as a positional
+     INPUT PATH and one of them — write-side, outside the survey's probed population — CREATED A
+     DIRECTORY NAMED `--help` and wrote five EDFs into it. The row said none of the five could adopt
+     `tools/argv-guard.mjs` "because each legitimately takes positional paths and the guard's
+     `positional` mode would then accept ANY unknown token again". ⚠️ THAT PREMISE WAS WRONG about the
+     module as committed: `positional: true` skips only tokens that do NOT start with `-` (argv-guard
+     line "if (!tok.startsWith('-')) { if (positional) continue; }"), so a path passes and a flag is
+     still checked — which is exactly the fix shape the row asked for, unadopted by anything for two
+     weeks.
+
+     EXECUTED, not scanned, because the defect and the fix are indistinguishable in the source: both
+     name the token in their output. The difference is the EXIT CODE (2 = you typed it wrong, 1 = the
+     thing you asked about is broken, 0 = it became data) and whether anything was written. */
+    group('argv — the six swallowers refuse an unknown token by name, at exit 2, writing nothing', 'tools · argv · execution', function (T) {
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('env.probeToolArgv provided to the runner', 'Node-lane only (spawns a tool in a temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      var TOKEN = '--no-such-flag-9f3'; // tools/argv-survey.mjs TOKEN — the same probe the survey uses
+      var SWALLOWERS = ['geometry-probe', 'geometry-scan', 'pb-operating-point', 'synth-desat-kinetics', 'tch-window-sensitivity', 'make-synthetic-edf'];
+      SWALLOWERS.forEach(function (name) {
+        var rel = 'tools/' + name + '.mjs';
+        var bad = probe(rel, [TOKEN]);
+        T.eq('⚠ ' + name + ' · an unknown flag exits 2, not 0 and not 1', bad.status, 2);
+        T.ok('…and the refusal NAMES the token (' + name + ')', String(bad.out).indexOf(TOKEN) >= 0, String(bad.out).slice(0, 220));
+        T.ok('…and it is a refusal, not a stack trace (' + name + ')', !/\n\s+at\s|node:fs:\d/.test(String(bad.out)), String(bad.out).slice(0, 220));
+        T.eq('…and NOTHING was written (' + name + ')', bad.wrote, []);
+        /* THE MEASURED EVENT: `--help` was consumed as the output directory and the files are real. */
+        var help = probe(rel, ['--help']);
+        T.eq('--help prints usage and exits 0 (' + name + ')', help.status, 0);
+        T.ok('…usage names the tool itself (' + name + ')', /usage: node tools\/[a-z-]+\.mjs/.test(String(help.out)), String(help.out).slice(0, 220));
+        T.eq('…and --help created NO directory and NO file (' + name + ')', help.wrote, []);
+      });
+      /* ── CONTROLS · the documented invocations must still run, or this is a tool nobody can use ── */
+      var one = probe('tools/geometry-probe.mjs', ['sawtooth']);
+      T.eq('CONTROL · a named planted shape still runs', one.status, 0);
+      T.ok('…and still fires its own probe', /sawtooth\s*\|\s*sawtooth/.test(String(one.out)), String(one.out).slice(0, 220));
+      var kind = probe('tools/geometry-probe.mjs', ['clan']);
+      T.eq('an unknown KIND refuses too — the positionals here are an enumerated set, not paths', kind.status, 2);
+      T.ok('…and names the kinds', /kinds: clean ramp walk/.test(String(kind.out)), String(kind.out).slice(0, 220));
+      var scan = probe('tools/geometry-scan.mjs', ['--selftest']);
+      T.eq('CONTROL · geometry-scan --selftest still passes', scan.status, 0);
+      var pb = probe('tools/pb-operating-point.mjs', ['--selftest']);
+      T.eq('CONTROL · pb-operating-point --selftest still passes', pb.status, 0);
+      var sd = probe('tools/synth-desat-kinetics.mjs', ['--selftest']);
+      T.eq('CONTROL · synth-desat-kinetics --selftest still passes', sd.status, 0);
+      /* A mistyped PATH was the other half of the row: an uncaught ENOENT with a stack trace at exit 1,
+         which is a usage error reported as an internal failure. */
+      var badPath = probe('tools/pb-operating-point.mjs', ['/nope/nope-9f3']);
+      T.eq('a mistyped PATH refuses at exit 2 as well', badPath.status, 2);
+      T.ok('…by name, without a stack trace', /not a directory: \/nope\/nope-9f3/.test(String(badPath.out)) && !/node:fs:\d/.test(String(badPath.out)), String(badPath.out).slice(0, 220));
+      var noArgs = probe('tools/tch-window-sensitivity.mjs', []);
+      T.eq('an ABSENT default corpus refuses by name instead of throwing', noArgs.status, 2);
+      T.ok('…and says how to build one', /trio-batch\.mjs --src/.test(String(noArgs.out)), String(noArgs.out).slice(0, 220));
+    });
+
     group('every tool resolves repo code from its OWN checkout (PR #686 class)', 'tools · source-scan · portability', function (T) {
       var TS = env.toolSources;
       if (!TS) {
