@@ -79,8 +79,13 @@ def test_it_finds_the_class_it_was_written_for():
 # module exists and capture.py is always present.
 
 def _tree(tmp_path, files: dict):
+    """Write `files` under `tmp_path`. Creates parent directories, so a nested key works, and pins
+    the encoding — this is the UNION of two definitions that both used to live in this file, the
+    second silently shadowing the first for every caller above it."""
     for name, body in files.items():
-        (tmp_path / name).write_text(body, encoding="utf-8")
+        p = tmp_path / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(body, encoding="utf-8")
     return str(tmp_path)
 
 
@@ -370,14 +375,6 @@ def test_staleness_is_judged_ONLY_against_the_population_the_scan_ENUMERATED(tmp
 # but its own test file and appeared NOWHERE in this report. Two masks operated at once, which is why
 # neither the function scan nor a reader caught it: `merge()` calls its own helpers (so the leaves
 # had uses>defs), and `merge` is a generic word occurring in three unrelated modules (so did the root).
-def _tree(tmp_path, files: dict):
-    for name, text in files.items():
-        p = tmp_path / name
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(text)
-    return str(tmp_path)
-
-
 def test_A_MODULE_NOTHING_IMPORTS_IS_FLAGGED_HOWEVER_COHESIVE_IT_IS():
     """The exact shape that hid: internal calls make every leaf look used.
 

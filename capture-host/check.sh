@@ -106,8 +106,12 @@ MYPY_OUT=".mypy-latest.txt"
 #
 # Still ADVISORY: this reports the direction, it does not fail the run. §P3 is what flips mypy
 # blocking, and it flips at 0 — moving that decision here would pre-empt it.
-MYPY_BASELINE=103
-MYPY_BASELINE_DATE="2026-08-29"
+MYPY_BASELINE=96
+MYPY_BASELINE_DATE="2026-09-12"
+# 103 -> 96 on 2026-09-12. The ratchet had been BROKEN ON MAIN at 105 for two capture-host-ci runs;
+# it merged because this lane is advisory. The nine errors added since the 2026-08-29 baseline were
+# found by diffing the line-number-MASKED error SETS between 55311121 and main — not the counts,
+# which hid the shape completely: 9 added against 7 removed nets the +2 that was reported.
 mypy_advisory() {
   "$PY" -m mypy --ignore-missing-imports --explicit-package-bases . > "$MYPY_OUT" 2>&1
   local rc=$?

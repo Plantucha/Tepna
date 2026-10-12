@@ -19,6 +19,8 @@ shortcut: what is being tested is check.sh's own control flow, not pytest's.
 import os
 import shutil
 import stat
+import io
+import re
 import subprocess
 import sys
 
@@ -184,20 +186,31 @@ def test_A_RISEN_COUNT_IS_NAMED_AS_RISEN(tmp_path):
     """🔴 THE DEFECT THIS CLOSES. The baseline lived inside the advisory's note string, where nothing
     read it — so 'count may only go DOWN' was prose, and the count rose from 102 (2026-09-03) to 103
     three days later with every gate green throughout."""
-    out = _mypy_run(tmp_path, 104)
-    assert "RISEN" in out and "104" in out
+    n = _baseline() + 1
+    out = _mypy_run(tmp_path, n)
+    assert "RISEN" in out and str(n) in out
+
+
+def _baseline():
+    """READ the baseline, never hardcode it. The number is a RATCHET that may only go DOWN, so a test
+    that pins today's value fails the next time someone banks progress — punishing exactly the change
+    the ratchet exists to encourage. (It did: banking 103 -> 96 reddened this test and nothing else.)"""
+    m = re.search(r"^MYPY_BASELINE=(\d+)$", io.open(CHECK, encoding="utf-8").read(), re.M)
+    assert m, "check.sh no longer defines MYPY_BASELINE — the advisory cannot have a baseline to compare"
+    return int(m.group(1))
 
 
 def test_A_COUNT_AT_THE_BASELINE_SAYS_SO_WITHOUT_ALARM(tmp_path):
-    out = _mypy_run(tmp_path, 103)
-    assert "at the 103 baseline" in out
+    n = _baseline()
+    out = _mypy_run(tmp_path, n)
+    assert f"at the {n} baseline" in out
     assert "RISEN" not in out
 
 
 def test_AN_IMPROVEMENT_SAYS_TO_BANK_IT(tmp_path):
     """A count below the baseline is progress that can be silently spent again unless the baseline
     moves with it — the banked-progress half of any ratchet."""
-    out = _mypy_run(tmp_path, 90)
+    out = _mypy_run(tmp_path, _baseline() - 6)
     assert "BELOW" in out and "bank it" in out
 
 

@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+from typing import Any
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_stamp,
                      HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
@@ -4598,7 +4599,12 @@ async def run_oxyii(dev: dict, root: str):
                         # directly, so oxyii_rtc_due governed the pre-loop sync only (behaviour-neutral —
                         # a restart is always due; it keeps the decision in one place).
                         _why = oxyii_rtc_due(_OXYII_RTC_AT.get(addr), _now(), True, _OXYII_RTC_RESYNC_SEC)
-                        await _rtc_sync(_why)
+                        # `oxyii_rtc_due(..., session_restarted=True, ...)` ALWAYS yields a reason —
+                        # "first contact" or "new recording session" — so this narrows for the type
+                        # checker rather than guarding a reachable branch. If it ever were None,
+                        # skipping is the safe side: the RTC keeps its value and the next reconnect asks again.
+                        if _why is not None:
+                            await _rtc_sync(_why)
                     # BOUNDED: this write is the only thing that makes the ring emit a frame, and it is a
                     # D-Bus round-trip. Unbounded, a wedged stack parks run_oxyii here forever with its
                     # writers open and `connected: True` on the monitor — silent, all night.
@@ -8654,7 +8660,10 @@ async def _cpap_autostart_loop(*, root, op, is_running, retain_s, hold_s, max_at
         _CPAP_AUTOSTART["watch"] = watch
 
 
-_CPAP_AUTOSTART = {"watch": None, "root": None}
+# `watch` holds a `cpap_live.StartWatch` once the detector has folded a reading, `root` a path —
+# both start empty, so the literal alone infers `dict[str, None]` and every later assignment reads
+# as a type error.
+_CPAP_AUTOSTART: dict[str, Any] = {"watch": None, "root": None}
 
 
 def _cpap_autostart_wrap_op(op, root):

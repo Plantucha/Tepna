@@ -36,6 +36,7 @@ next reader does not treat a screen as a verdict.
 from __future__ import annotations
 
 import ast
+from typing import Any
 
 __all__ = ["EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
            "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
@@ -588,7 +589,10 @@ def split_results(results_text: str):
 
     A caller must treat `undecided` as NOT KILLED: it is the set the run could not settle, so a gate
     that reports green while it is non-empty is reporting about mutants it never saw."""
-    out = {SURVIVED: [], UNDECIDED: [], KILLED: []}
+    # HETEROGENEOUS BY KEY, deliberately: SURVIVED/KILLED hold names, UNDECIDED holds
+    # (name, status) pairs so a caller can say WHY a mutant could not be settled. The value
+    # type is therefore the union, not one element type.
+    out: dict[str, list[Any]] = {SURVIVED: [], UNDECIDED: [], KILLED: []}
     for line in (results_text or "").splitlines():
         got = classify_results_line(line)
         if got is None:
