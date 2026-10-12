@@ -142,7 +142,7 @@ charge does not; an UNATTRIBUTED charging flag is not an inference and keeps its
 |---|---|---|---|
 | 0 | `charging:rising` | measured | the battery ROSE — cells do not self-charge, so the device is on a charger |
 | 0 | `charging:pmd-in-charger` | measured | the device's own PMD answered IN_CHARGER to a stream START |
-| 0 | `charging:flat-at-full` | inferred | a battery flat at 100 % for 45 min — a dock, OR a fresh coin cell (2026-09-22: 140 drops) |
+| 0 | `charging:flat-at-full` | inferred | a battery flat at 100 % for 45 min — a dock OR a fresh coin cell, so it publishes `charging` NULL and casts no vote (owner ruling 2026-10-12) |
 | 1 | `hr-contact-bit` | measured | the HR characteristic's skin-contact bit — electrode CONTACT, not wear (§1a: it did not cause 09-20) |
 | 1 | `hr-beats` | measured | a plausible rate or any RR interval in the HR packet — a beat |
 | 1 | `ecg-level` | measured | the raw ECG's 2-min level above 320 µV — electrode noise; disqualifies hr-beats, never outranks the contact bit |

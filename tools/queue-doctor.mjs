@@ -42,6 +42,9 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 /* Minutes a PR must have been BEHIND-and-green before the doctor touches it. Not noise tolerance —
    it is the window in which the PR's OWNER might be mid-rebase locally. Acting sooner would race a
@@ -143,6 +146,37 @@ export function attention(classified) {
 }
 
 /**
+ * The red LEDGER: who is red, since when, and what is NEW this run.
+ *
+ * The journal names a red PR on every run, and that is the defect: a line repeated every ten minutes
+ * is wallpaper, and a journal is read by nobody. Measured 2026-10-12: #3477 and #3481 sat red for an
+ * hour under this timer, and the owner found them first ("some auto system should warn you"). A wake
+ * needs an EVENT — the first run on which a PR turned red, or turned green again — and a reader needs
+ * a FILE. Pure: the previous ledger, this run's failing set, the stamp and the required contexts give
+ * the next ledger and the fresh lines. A run with no change appends nothing, so a `tail -F` on the log
+ * wakes exactly once per change.
+ */
+export function redLedger(prev, failing, atIso, required) {
+  const before = new Map((prev && Array.isArray(prev.red) ? prev.red : []).map((r) => [r.number, r]));
+  const req = Array.isArray(required) ? new Set(required) : null;
+  const red = failing.map((c) => {
+    const fails = (c.pr.checks || []).filter((k) => k.bucket === 'fail' && (!req || req.has(k.name)));
+    const checks = fails.map((k) => k.name).sort();
+    const link = fails.map((k) => k.link).find(Boolean) || null;
+    const old = before.get(c.pr.number);
+    const same = old && old.checks.join(',') === checks.join(',');
+    return { number: c.pr.number, title: String(c.pr.title || '').slice(0, 52), checks, link, firstSeen: same ? old.firstSeen : atIso };
+  });
+  const lines = [];
+  for (const r of red) {
+    if (r.firstSeen === atIso) lines.push(`${atIso}  RED   #${r.number}  ${r.checks.join(',')}  ${r.title}${r.link ? `  ${r.link}` : ''}`);
+  }
+  const now = new Set(red.map((r) => r.number));
+  for (const n of before.keys()) if (!now.has(n)) lines.push(`${atIso}  CLEAR #${n}`);
+  return { ledger: { schema: 'tepna.red-ledger/1', at: atIso, red }, lines };
+}
+
+/**
  * Choose AT MOST ONE pr to update.
  * Returns { action:'update', pr } · { action:'wait', why } · { action:'none', why }.
  */
@@ -225,7 +259,7 @@ function snapshotAll() {
     let checks = [];
     let readable = true;
     try {
-      checks = JSON.parse(gh(['pr', 'checks', String(p.number), '--json', 'name,bucket']));
+      checks = JSON.parse(gh(['pr', 'checks', String(p.number), '--json', 'name,bucket,link']));
     } catch (e) {
       /* `gh pr checks` exits non-zero when a check is FAILING — a verdict, not an error. But a throw
          also covers the network dying, and those must not produce the same snapshot. Distinguish by
@@ -251,6 +285,32 @@ function snapshotAll() {
       readable
     };
   });
+}
+
+/* WHERE THE WAKE LIVES. `red-prs.json` is the current set for a reader (the board); `red-prs.log`
+   gains a line only when a PR turns red or clears, so a watcher on it wakes once per change. The
+   directory follows the timer's user, never the checkout: the timer runs from a copy. */
+export function redLedgerDir() {
+  return process.env.TEPNA_STATE_DIR || join(homedir(), '.local/state/tepna/queue-doctor');
+}
+
+function writeRedLedger(failing, required, now) {
+  const dir = redLedgerDir();
+  let prev = null;
+  try {
+    prev = JSON.parse(readFileSync(join(dir, 'red-prs.json'), 'utf8'));
+  } catch {
+    prev = null;
+  }
+  const { ledger, lines } = redLedger(prev, failing, new Date(now).toISOString(), required);
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'red-prs.json'), `${JSON.stringify(ledger, null, 1)}\n`);
+    if (lines.length) appendFileSync(join(dir, 'red-prs.log'), `${lines.join('\n')}\n`);
+  } catch (e) {
+    console.log(`    red ledger not written under ${dir}: ${String(e.message).split('\n')[0].slice(0, 80)}`);
+  }
+  return lines;
 }
 
 function main() {
@@ -291,6 +351,8 @@ function main() {
     console.log(`${stamp}  ✗ RED: ${failing.length} PR(s) with a failing REQUIRED check — updating cannot land them`);
     for (const c of failing) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
   }
+  const fresh = writeRedLedger(failing, required, now);
+  for (const l of fresh) console.log(`    ${l.includes('  RED ') ? 'NEW this run' : 'cleared'}: ${l.slice(22)}`);
   for (const p of unreadable) console.log(`    #${p.number}  checks unreadable — NOT counted either way`);
 
   const unarmed = stuck.filter((c) => c.k === 'stuck-unarmed');
