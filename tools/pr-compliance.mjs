@@ -11,9 +11,18 @@
  *      corpus re-verification sentence.
  *   4. If code files changed, a changes/ changeset was added.
  *   5. The body passes the writing rules (tools/ste-lint.mjs, strict) — owner, 2026-10-12.
+ *   6. No GitHub closing keyword in the body sits next to a PR number that is still OPEN.
+ *
+ * WHY 6 EXISTS, measured. `.kodiak.toml` sets `[merge.message] body = "pull_request_body"`, so the
+ * PR body BECOMES the squash commit message on main — and GitHub acts on closing keywords in a
+ * commit message pushed to the default branch. On 2026-10-12 #3480's body said `fixed #3476` inside
+ * backticks; #3480 merged at 16:18:16Z, and the timeline of #3476 records `closed by kodiakhq[bot]`
+ * at 16:18:22Z against the squash commit 0fca5c6e, six seconds later. The owner reopened it by hand
+ * at 17:11:49Z. Backticks do not protect: the squash message is plain text. The remedy is a wording
+ * one — "the #3476 closure" rather than "fixed #3476" — so this check quotes the line it refuses.
  *
  * In CI (pull_request event), the workflow passes:
- *   PR_BODY, PR_BASE_SHA, PR_HEAD_SHA via env.
+ *   PR_BODY, PR_BASE_SHA, PR_HEAD_SHA, PR_NUMBER via env, and GH_TOKEN for check 6's lookups.
  * On push/main or workflow_dispatch without a PR, exits 0 (nothing to check).
  *
  * Local use:
@@ -37,15 +46,44 @@ const CORPUS_SENTENCE = 'computeHash moved — re-verification on the corpus owe
 const CODE_RE = /\.(mjs|js|py|sh|src\.html)$/;
 const BUNDLE_RE = /(^|\/)[A-Z][A-Za-z]*\.html$/;
 
+/* GitHub's nine closing keywords, then optional colon, whitespace, and a reference: a bare `#N`, a
+   cross-repo `owner/repo#N`, or a full pull/issues URL. All three forms close on merge. The keyword
+   must be followed by WHITESPACE — `fixed` with a backtick or any other character between it and the
+   `#` does not trigger GitHub, and does not trigger this check either. */
+const CLOSING_CITATION_RE = /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s+(?:https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?:pull|issues)\/(\d+)|(?:[\w.-]+\/[\w.-]+)?#(\d+))/gi;
+
+/**
+ * Every closing-keyword citation in a body, with the line that carries it. PURE: it decides where a
+ * phrase sits, never whether the target is open — that needs the network and is resolved by the
+ * caller, like `computeHashMoved`.
+ *
+ * @param {string} body
+ * @returns {Array<{line: number, number: string, keyword: string, text: string}>}
+ */
+export function citedClosures(body = '') {
+  const out = [];
+  const lines = body.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    CLOSING_CITATION_RE.lastIndex = 0;
+    let m = CLOSING_CITATION_RE.exec(line);
+    while (m) {
+      out.push({ line: i + 1, number: m[2] || m[3], keyword: m[1], text: line.trim().slice(0, 160) });
+      m = CLOSING_CITATION_RE.exec(line);
+    }
+  }
+  return out;
+}
+
 /**
  * PURE CORE — every check that does not need git. `computeHashMoved` is passed IN, because deciding
  * it requires reading the diff; everything else is a property of the body and the file list, so a
  * selftest can plant each violation and its control without a repository.
  *
- * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null}} ctx
+ * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null, prStates: Record<string,string>|null, self: string|null}} ctx
  * @returns {{failures: string[], checked: string[]}}
  */
-export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null }) {
+export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, prStates = null, self = null }) {
   const failures = [];
   const checked = [];
 
@@ -75,6 +113,27 @@ export function checkCompliance({ body = '', files = null, computeHashMoved = fa
     }
   }
 
+  /* 6 · A CLOSING KEYWORD NEXT TO AN OPEN PR NUMBER. `prStates` maps each cited number to its state
+     and is resolved by the caller, so `null` means the lookup did not run and the check reports
+     itself as not evaluated rather than as passed. A number this PR cannot resolve is a FAILURE and
+     not a pass: the cheap remedy is to reword the phrase, and a citation of a number that resolves
+     to nothing is wrong on its own terms. A resolver that is wholly unavailable degrades to `null`,
+     because redding every PR in the repo over one network fault is the worse failure. */
+  if (prStates) {
+    checked.push('no-closing-keyword-on-an-open-pr');
+    for (const c of citedClosures(body)) {
+      /* A body closing ITSELF is exempt. Merging closes the PR anyway, and the residue-row rule
+         prescribes exactly that phrasing for a row whose whole life is this PR. */
+      if (self && c.number === String(self)) continue;
+      const st = prStates[c.number];
+      if (st === 'OPEN') {
+        failures.push(`line ${c.line} would close the still-open #${c.number} on merge — Kodiak squashes the body into the commit message. Reword as "the #${c.number} closure": "${c.text}"`);
+      } else if (!st || st === 'UNKNOWN') {
+        failures.push(`line ${c.line} cites #${c.number} after the closing keyword "${c.keyword}", and that number does not resolve — reword so no keyword sits next to it: "${c.text}"`);
+      }
+    }
+  }
+
   /* 3 and 4 need the file list. `files === null` means no diff was available, which is NOT the same
      as an empty diff — the two checks below are then not evaluated and say so, rather than passing. */
   if (files) {
@@ -100,9 +159,9 @@ export function selftest() {
   const has = (r, frag) => r.failures.some((f) => f.includes(frag));
 
   // CONTROL — a compliant body with a compliant file list must pass, or the gate blocks everything.
-  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [] });
+  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [], prStates: {} });
   ok(clean.failures.length === 0, 'CONTROL: a compliant body and changeset pass');
-  ok(clean.checked.length === 5, 'CONTROL: all five checks were evaluated, so the pass is not a skip');
+  ok(clean.checked.length === 6, 'CONTROL: all six checks were evaluated, so the pass is not a skip');
 
   // PLANTED VIOLATION 5 — the body fails the writing rules (owner, 2026-10-12: the linter bites).
   const passive = [{ line: 3, rule: 'passive', detail: '"was measured"' }];
@@ -117,6 +176,38 @@ export function selftest() {
     'the real linter reports the planted passive sentence'
   );
   ok(steFindings(good, readGlossary()).length === 0, 'CONTROL: the compliant body has no finding');
+
+  /* PLANTED VIOLATION 6 — a closing keyword next to an OPEN number. The planted body is the real
+     one: #3480 said `fixed #3476` in a table cell and the squash closed #3476 six seconds after it
+     merged. The backticks are kept in the fixture on purpose, because they did not help. */
+  const closer = `${good}\n\n| row | state |\n|---|---|\n| a-row | \`fixed #3476\` |`;
+  const openTarget = { 3476: 'OPEN' };
+  ok(has(checkCompliance({ body: closer, files: null, prStates: openTarget }), 'still-open #3476'), 'a closing keyword next to an open PR number is caught');
+  ok(has(checkCompliance({ body: closer, files: null, prStates: openTarget }), 'line 9'), '…and the failure names the line');
+  ok(has(checkCompliance({ body: closer, files: null, prStates: openTarget }), 'the #3476 closure'), '…and it gives the wording that fixes it');
+  // CONTROLS. A merged or closed target is harmless; so is the wording this gate asks for.
+  ok(!checkCompliance({ body: closer, files: null, prStates: { 3476: 'MERGED' } }).failures.length, 'CONTROL: a MERGED target passes');
+  ok(!checkCompliance({ body: closer, files: null, prStates: { 3476: 'CLOSED' } }).failures.length, 'CONTROL: an already-closed target passes');
+  ok(!checkCompliance({ body: `${good}\n\nthe #3476 closure landed`, files: null, prStates: openTarget }).failures.length, 'CONTROL: "the #N closure" is the accepted wording');
+  ok(!checkCompliance({ body: `${good}\n\nthis fixed the defect`, files: null, prStates: openTarget }).failures.length, 'CONTROL: a keyword with no number is not a citation');
+  ok(!checkCompliance({ body: `${good}\n\nsee #3476 for the rest`, files: null, prStates: openTarget }).failures.length, 'CONTROL: a number with no keyword is not a citation');
+  ok(!checkCompliance({ body: `${good}\n\nthe fixed-point of #3476`, files: null, prStates: openTarget }).failures.length, 'CONTROL: a hyphenated word is not the keyword');
+  // SELF-CITATION is exempt — merging closes the PR anyway, and the residue-row rule prescribes it.
+  ok(!checkCompliance({ body: closer, files: null, prStates: openTarget, self: '3476' }).failures.length, 'CONTROL: a body closing ITSELF is exempt');
+  ok(has(checkCompliance({ body: closer, files: null, prStates: openTarget, self: '3999' }), 'still-open'), '…and the exemption is for its own number only');
+  // AN UNRESOLVED number fails, because the remedy is a reword and the citation is wrong anyway.
+  ok(has(checkCompliance({ body: closer, files: null, prStates: { 9999: 'MERGED' } }), 'does not resolve'), 'a cited number that does not resolve is caught');
+  ok(has(checkCompliance({ body: closer, files: null, prStates: { 3476: 'UNKNOWN' } }), 'does not resolve'), 'an UNKNOWN state is caught, not read as a pass');
+  // NO RESOLVER ⇒ the check is reported as not evaluated. Fail-open on absence is deliberate: see
+  // the comment on the check. The verdict's population makes the skip visible.
+  ok(!checkCompliance({ body: closer, files: null }).checked.includes('no-closing-keyword-on-an-open-pr'), 'no resolver ⇒ the check is NOT evaluated, not passed');
+  ok(!checkCompliance({ body: closer, files: null }).failures.length, '…and it does not fail either');
+  // THE THREE REFERENCE FORMS GitHub acts on, all caught by the extractor.
+  ok(citedClosures('closes owner/repo#12').length === 1, 'the cross-repo form owner/repo#N is a citation');
+  ok(citedClosures('resolved https://github.com/Plantucha/Tepna/pull/12')[0].number === '12', 'the full URL form is a citation');
+  ok(citedClosures('Fixes: #12')[0].number === '12', 'a colon after the keyword is still a citation');
+  ok(citedClosures('fixed #1 and closes #2').length === 2, 'two citations on one line are both reported');
+  ok(citedClosures('').length === 0, 'CONTROL: an empty body cites nothing');
 
   // PLANTED VIOLATION 1 — no Rule 0 line at all (what #3377 went red on).
   ok(has(checkCompliance({ body: 'no evidence line\n\nFleet-Session: Magpie', files: null }), 'Rule 0'), 'a missing Rule 0 line is caught');
@@ -152,7 +243,7 @@ function verdictOf({ status, failures, checked, reason }) {
   const v = Verdict.make({
     gate: 'pr-compliance',
     status,
-    population: { checked: checked.length, eligible: 5, excluded: 5 - checked.length },
+    population: { checked: checked.length, eligible: 6, excluded: 6 - checked.length },
     criterion: { name: 'pr-body-and-changeset-satisfy-every-applicable-compliance-check', threshold: 0, unit: 'failed checks', direction: 'eq' },
     result: status === 'NOT_RUN' ? null : { checksEvaluated: checked, failures },
     evidence: ['tools/pr-compliance.mjs', 'CLAUDE.md'],
@@ -287,16 +378,45 @@ function main() {
   }
 
   const ste = body ? steFindings(body, readGlossary()) : null;
-  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste });
+
+  /* CHECK 6's POPULATION, resolved here because it needs the network. One `gh api` call per distinct
+     cited number, and the numbers come from the body, so the usual count is nought to three. The
+     issues endpoint answers for a PR as well as an issue, which is what this needs: `open` is the
+     only state that matters, and a merged PR reads `closed` there.
+       A 404 is the number's own problem and becomes UNKNOWN, which the core refuses. Anything else —
+     no `gh`, no token, a rate limit — means the RESOLVER is unavailable, so the whole map goes to
+     `null` and the core reports the check as not evaluated. One network fault must not red every PR
+     in the repo; the verdict's population shows the skip. */
+  const cited = citedClosures(body);
+  let prStates = {};
+  let resolverNote = null;
+  for (const n of [...new Set(cited.map((c) => c.number))]) {
+    try {
+      prStates[n] = sh(`gh api repos/{owner}/{repo}/issues/${n} --jq .state`).toUpperCase() === 'OPEN' ? 'OPEN' : 'CLOSED';
+    } catch (e) {
+      const msg = String(e?.stderr || e?.message || '').split('\n')[0];
+      if (/404|Not Found/i.test(msg)) {
+        prStates[n] = 'UNKNOWN';
+      } else {
+        prStates = null;
+        resolverNote = `check 6 not evaluated — cannot resolve cited PR numbers: ${msg.slice(0, 140)}`;
+        break;
+      }
+    }
+  }
+
+  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, prStates, self: process.env.PR_NUMBER || null });
   if (diffError) failures.push(diffError);
   const status = failures.length ? 'FAIL' : 'PASS';
 
   if (asJson) {
     process.stdout.write(`${JSON.stringify(verdictOf({ status, failures, checked }), null, 1)}\n`);
   } else if (failures.length) {
+    if (resolverNote) console.error(`pr-compliance: ${resolverNote}`);
     console.error('pr-compliance: FAIL');
     for (const f of failures) console.error(`  ✕ ${f}`);
   } else {
+    if (resolverNote) console.error(`pr-compliance: ${resolverNote}`);
     console.log(`pr-compliance: ✓ PASS — ${checked.length} check(s) evaluated: ${checked.join(', ')}`);
   }
   return status === 'FAIL' ? 1 : 0;

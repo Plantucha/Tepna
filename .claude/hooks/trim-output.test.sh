@@ -21,13 +21,52 @@ fail=0
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# ⚠ THE PAYLOAD IS FED BY REDIRECT, NOT BY A PIPE. `jq | hook` reports the PIPELINE's
+# code, and under this script's `pipefail` that is the writer's 141 whenever the hook
+# exits before draining stdin — a different question from what the hook decided
+# (CLAUDE.md §4b). guard-trailer.test.sh measured and documented this first; this file
+# read the pipeline's code until 2026-10-12 and carried an intermittent red because of
+# it. The hook's own stdin contract is asserted separately, by `writer_rc` below.
 hook() { # hook <json> — runs the hook, echoes WRAP, PASS or EXITn
   local out rc
-  out="$(printf '%s' "$1" | bash "$H" 2>/dev/null)"; rc=$?
+  printf '%s' "$1" > "$TMP/payload.json"
+  out="$(bash "$H" < "$TMP/payload.json" 2>/dev/null)"; rc=$?
   if [ "$rc" -ne 0 ]; then echo "EXIT$rc"; return; fi
   if [ -n "$out" ]; then echo WRAP; else echo PASS; fi
 }
+
+# writer_rc keeps the pipe ON PURPOSE, and reports the WRITER's fate rather than the
+# hook's verdict. It is the only way to observe whether the hook drained stdin: a hook
+# that exits first leaves the writer on a closed pipe, and the writer dies on SIGPIPE
+# once the payload no longer fits the 64 KB buffer. The harness is that writer in
+# production.
+# ⚠ IT REPEATS, BECAUSE THE DEFECT IS A RACE AND ONE TRIAL IS NOT A MEASUREMENT.
+# Whether the writer has already filled the 64 KB pipe buffer when the hook exits depends
+# on scheduling: against the pre-fix hook a 100 KB payload died 8 times out of 8 in a
+# tight loop but survived 1 run in 3 inside this script, and a bigger payload was no more
+# certain (300 KB: 6 of 8; 1 MB: 6 of 8). Five trials put a miss near 1 in 3000. The leg
+# stays honest about what it watches: the WRITER's fate, never the hook's verdict.
+# The hatch goes on the call inline, like every other leg here. Checked before relying on
+# it: bash does NOT keep `VAR=1 some_function` set after the function returns (POSIX
+# permits that persistence, and it would silently hatch every leg below), so the inline
+# form is safe in this file and no subshell is needed.
+writer_rc() { # writer_rc <payload-file> <trials> — the worst exit code of the processes WRITING to the hook
+  local i rc worst=0
+  for ((i = 0; i < $2; i++)); do
+    cat "$1" | bash "$H" >/dev/null 2>&1
+    rc="${PIPESTATUS[0]}"
+    [ "$rc" != 0 ] && worst="$rc"
+  done
+  printf '%s' "$worst"
+}
+
 payload() { jq -nc --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}'; }
+# payloadf takes a FILE, not the text: past one argv slot (MAX_ARG_STRLEN, 128 KB on
+# Linux) `jq --arg` dies with "Argument list too long" and leaves payload() empty — and a
+# leg fed an empty payload passes without examining anything. Measured: it survives 70 KB
+# and fails at 300 KB. --rawfile reads the file, so there is no argv to overflow and the
+# helper is safe at any size.
+payloadf() { jq -nc --rawfile c "$1" '{tool_name:"Bash",tool_input:{command:$c}}'; }
 expect() { # expect <want> <label> <command>
   local got; got="$(hook "$(payload "$3")")"
   if [ "$got" = "$1" ]; then printf '  ok    %-56s %s\n' "$2" "$got"
@@ -77,8 +116,37 @@ echo "── the hatch ───────────────────
 got="$(CLAUDE_ALLOW_UNTRIMMED=1 hook "$(payload 'seq 1 500')")"
 if [ "$got" = PASS ]; then echo "  ok    CLAUDE_ALLOW_UNTRIMMED=1 in the environment       PASS"
 else echo "  FAIL  the environment hatch did not release the hook: $got"; fail=$((fail+1)); fi
-expect PASS 'the hatch inline, anchored'                'CLAUDE_ALLOW_UNTRIMMED=1 seq 1 500'
-expect WRAP '…but naming it in prose must NOT release' 'echo "set CLAUDE_ALLOW_UNTRIMMED=1 to skip"; seq 1 500'
+
+# ⚠ THE HOOK MUST DRAIN STDIN BEFORE IT EXITS, AND THE HATCH IS THE PATH THAT DID NOT.
+# The hatch sat above the read, so it exited on a payload it had never consumed and left
+# the writer — the harness, in production — holding a closed pipe. At ~70 bytes the write
+# fits the 64 KB pipe buffer and completes, so the leg above passes either way; 70 KB does
+# not fit, so the writer blocks and takes SIGPIPE. Pre-fix this read 141 in 5 runs out of
+# 5; post-fix 0. The blob is never executed, only measured for size.
+head -c 70000 /dev/zero | tr '\0' x > "$TMP/big"
+[ "$(wc -c < "$TMP/big")" = 70000 ] || { echo "  FAIL  the 70 KB payload was not built"; fail=$((fail+1)); }
+payloadf "$TMP/big" > "$TMP/big.json"
+got="$(CLAUDE_ALLOW_UNTRIMMED=1 writer_rc "$TMP/big.json" 5)"
+if [ "$got" = 0 ]; then echo "  ok    the hatch drains 70 KB of stdin, 5 writers live    rc=0"
+else echo "  FAIL  the writer into the hatched hook exited $got (141 = SIGPIPE, the hook never read it)"; fail=$((fail+1)); fi
+# The pair: the fix must not have moved the stall onto the path that does the work. One
+# trial, not five — that path always reads to the end, so there is no race to repeat, and
+# it is the expensive one (see the cost note below).
+got="$(writer_rc "$TMP/big.json" 1)"
+if [ "$got" = 0 ]; then echo "  ok    …and so does the rewriting path                  rc=0"
+else echo "  FAIL  the writer into the rewriting hook exited $got"; fail=$((fail+1)); fi
+# The same payload by redirect asks the other question: what the hook DECIDED.
+got="$(CLAUDE_ALLOW_UNTRIMMED=1 hook "$(cat "$TMP/big.json")")"
+if [ "$got" = PASS ]; then echo "  ok    …and the hatch still releases it                PASS"
+else echo "  FAIL  the hatch over a 70 KB payload: $got, want PASS"; fail=$((fail+1)); fi
+
+# ⚠ NO LEG HERE FEEDS A COMMAND OF 300 KB, AND THAT IS A COST, NOT AN OVERSIGHT. The
+# rewriting path is superlinear in the length of the command: measured on this box,
+# 70 KB costs 871 ms, 100 KB 1.6 s and 300 KB 24.9 s, while the hatched path stays at
+# 4 ms whatever the size. A leg at 300 KB would make this 0.5 s self-test a 25 s one.
+# Over 128 KB (MAX_ARG_STRLEN) the final `jq --arg` cannot be reached at all and the hook
+# fails OPEN — untrimmed, undenied, exit 0 — which is the safe direction. Both are logged
+# as residue rather than pinned here.
 
 echo "── the other input fields ───────────────────────────────────────────────"
 expectj PASS 'a background flag on the input'  "$(jq -nc '{tool_name:"Bash",tool_input:{command:"seq 1 500",run_in_background:true}}')"

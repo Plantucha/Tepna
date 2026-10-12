@@ -60,10 +60,17 @@ TRIM_HEAD=60
 TRIM_TAIL=40
 TRIM_THRESHOLD=200
 
+# ⚠ STDIN IS DRAINED FIRST, BEFORE ANY EXIT. The harness writes the tool-call JSON into
+# this hook's stdin, so a hook that exits before reading it leaves the writer holding a
+# closed pipe: the writer takes SIGPIPE and, under `pipefail`, the whole pipeline reports
+# 141. The environment hatch used to sit above this line and did exactly that. A 300 KB
+# payload reproduced it 3 times out of 3; the self-test's own small payload loses the
+# race only sometimes, which is how it reached main as an intermittent red in a required
+# job. Every other pass-through below already sits after this read.
+payload="$(cat 2>/dev/null)" || exit 0
+
 # The hatch, from the environment. An `Edit` or a `Write` sees only the exported form.
 [ "${CLAUDE_ALLOW_UNTRIMMED:-}" = "1" ] && exit 0
-
-payload="$(cat 2>/dev/null)" || exit 0
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$cmd" ] && exit 0
 
