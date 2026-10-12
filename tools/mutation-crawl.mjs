@@ -72,8 +72,10 @@ const OUT = opt('--out', join(ROOT, '.mutation-crawl'));
    drift CLAUDE.md warns about for any two-copy threshold: `mutate.mjs` grew a memory-aware default
    and this file went on passing a core-derived 16 straight past it, because an explicit `--jobs`
    always wins. So the flag is forwarded ONLY when a caller actually gave one; otherwise the value is
-   `mutate.mjs`'s to choose. Measured cost of the old behaviour: 16 workers × ~1.04 GB = a 16.57 GB
-   MemoryPeak under `tepna-nightly-triage`. */
+   `mutate.mjs`'s to choose. Measured cost of the old behaviour: 16 workers under `tepna-nightly-triage`
+   drove the unit's **cgroup** MemoryPeak to 16.57 GB. That figure includes reclaimable page cache and
+   is therefore an upper bound rather than the workers' own memory (residue
+   `2026-09-23-memorypeak-is-a-cgroup-figure`); `mutate.mjs` carries the full reading. */
 const JOBS = has('--jobs') ? +opt('--jobs', '0') : null;
 const MAX_MS = +opt('--max-hours', 48) * 3600 * 1000;
 const T0 = Date.now();
