@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**249 tools** · 247 with a purpose line · **2 without**
+**251 tools** · 249 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -217,6 +217,8 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`run-tests-verdict.mjs`](../tools/run-tests-verdict.mjs) | THE TEST RUNNER'S tepna.verdict/1 OBJECT — VERDICT-CONTRACT §3d, the third and largest runner adopter, through the same `aggregateChildren` as run-check (#2827) and selftest-all (#2828). |
 | [`screen-draft-inputs.mjs`](../tools/screen-draft-inputs.mjs) | ADVISORY screen over drafted assertion INPUTS. WHY THIS EXISTS. |
 | [`selftest-all.mjs`](../tools/selftest-all.mjs) | ⚠️ THIS IS NOT THE GATE, and an earlier draft of this header wrongly said it was. |
+| [`seqnet-eval.mjs`](../tools/seqnet-eval.mjs) | run the JS port over REAL cached nights exactly as seqnet.py does (same fold hash, same column drop, same presence flags, same tensorise, same Viterbi) and score it: pooled/per-cohort κ,… |
+| [`seqnet-infer.mjs`](../tools/seqnet-infer.mjs) | The architecture: 1×1 stem → six residual dilated-conv blocks → bidirectional GRU → linear → softmax → HMM Viterbi (ARCHITECTURE-PRINCIPLES §0: browser-native, no install, no network). |
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
 | [`ste-lint.mjs`](../tools/ste-lint.mjs) | ════════════════════════════════════════════════════════════════════════ tools/ste-lint.mjs — the writing rules, checked |
