@@ -3506,7 +3506,7 @@ async def _exit_sdk_mode(ctrl, name: str) -> bool | None:
 
 # ⚠️ THE 45-MINUTE FLAT-BATTERY CLOCK MUST OUTLIVE THE CONNECTION, and it did not.
 #
-# `full_battery_implies_charging` needs 2700 s of a battery not moving at 100 %. That timer used to be a
+# `flat_window_closed` needs 2700 s of a battery not moving at 100 %. That timer used to be a
 # local inside `run_polar`'s `async with _connect(...)` block — i.e. INSIDE the reconnect loop — so every
 # dropped link reset it to None and restarted the count.
 #
@@ -3797,7 +3797,7 @@ async def run_polar(dev: dict, root: str):
                 # rising-charge rule in `_read_batt` is blind, and flatness is the only OBSERVATION
                 # left there. It is not a substitute signal: it fits a dock and a fresh cell equally,
                 # so since the owner's 2026-10-12 ruling it publishes `charging: null` and claims
-                # nothing — see telemetry.full_battery_implies_charging.
+                # nothing — see telemetry.flat_window_closed.
                 # Say the contact-vs-optics conflict ONCE per session, not once per PPG window.
                 # At 176 Hz this branch runs ~every 1.25 s; an unthrottled warning would emit
                 # ~2900 identical lines a night and bury the one that matters.
@@ -4576,7 +4576,13 @@ async def run_polar(dev: dict, root: str):
                                     )
                                 stream_scale[meas] = pmd.axis_scale(meas, settings)  # device-reported range/resolution
                                 _register(meas, used_fs)
-                                _set(name, charging=False)
+                                # `charging_why` TRAVELS WITH `charging`, ALWAYS. A START that cleared the
+                                # flag and left the reason behind published a record that contradicted
+                                # itself — `charging: False` beside `charging_why: "pmd-in-charger"` or
+                                # `"flat-at-full"` from the session before it — and a reader taking the
+                                # reason as the explanation of the flag read a dock the same record denied.
+                                # The three battery-block writers already pair them; this one did not.
+                                _set(name, charging=False, charging_why=None)
                                 _CHARGING.discard(name)
                             elif transient:
                                 # Do NOT tear the stream down: the settings are fine, the device simply
