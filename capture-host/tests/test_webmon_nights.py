@@ -804,3 +804,93 @@ def test_the_nights_view_is_the_owner_approved_design():
     assert "r.status===404" in html and "'unavailable here'" in html and "'not judged'" in html
     # the CPAP's EDF carries no coverage: it reads RECORDED, never a coverage it was not measured to have
     assert "v.coverage==null) return v.hours ? 'rec' : 'unk'" in html
+
+
+def test_THREE_ROWS_IN_ONE_BAND_get_three_keys_and_every_keyed_site_uses_them(tmp_path):
+    """🔴 ONE BAND CAN CARRY THREE ROWS AND THE PAGE KEYED THEM ALL BY THE BAND. Measured on the owner's
+    screenshot night: the 10-09 ring at 21:25 with the after-midnight Polar sessions, a 09:18 ring
+    session and a 13:00 one all band to `2026-10-09`, so `/api/nights` returns three rows with
+    `night: "2026-10-09"`. The page emitted three `id="nrow-2026-10-09"` and three identical
+    `data-night`, and `openNight` resolved every one of them with `NIGHTS.find(x=>x.night===night)` —
+    the FIRST row of the band. A click on the 09:18 row opened the night's files and named them in the
+    toast. The server has published the second half of the identity since #3385; only the page dropped it.
+
+    EXECUTED, not scanned, and then scanned for the population: running `nRowKey` proves the three keys
+    differ, while the scan proves no keyed site was left behind — a presence test for `nRowKey` would go
+    green with one call site converted and five still keyed by the band."""
+    import json
+    import re
+    import shutil
+    import subprocess
+    import time as _t
+
+    import pytest
+
+    import nights_index as ni
+
+    node = shutil.which("node")
+    if not node:  # pragma: no cover - ubuntu-latest always has node; a dev box might not
+        pytest.skip("node is not installed")
+
+    def put(day, name, body, end):
+        d = tmp_path / "captures" / day
+        d.mkdir(parents=True, exist_ok=True)
+        (d / name).write_text(body)
+        ep = _t.mktime(_t.strptime(end, "%Y%m%d%H%M%S"))
+        os.utime(d / name, (ep, ep))
+
+    put("2026-10-09", "Wellue_O2Ring-S_S8AW_20261009212500_SPO2.csv", "Time,SpO2,PR\n", "20261010031300")
+    put("2026-10-10", "Polar_VeritySense_A1B2_20261010014700_PPG.txt", ROWS, "20261010074700")
+    put("2026-10-10", "Polar_H10_0284_20261010015000_ECG.txt", ROWS, "20261010075000")
+    put("2026-10-10", "Wellue_O2Ring-S_S8AW_20261010091800_SPO2.csv", "Time,SpO2,PR\n", "20261010094800")
+    put("2026-10-10", "Polar_H10_0284_20261010130000_ECG.txt", ROWS, "20261010133000")
+    rows = ni.index_nights(str(tmp_path), budget_s=None)
+    assert len({r["night"] for r in rows}) == 1 and len(rows) == 3, [r["night"] for r in rows]
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    fn = _extract_fn(html, "nRowKey", "\nfunction nDevCell")
+    prog = fn + "\nconst rows = " + json.dumps(rows) + ";\nconsole.log(JSON.stringify(rows.map(nRowKey)));"
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    keys = json.loads(r.stdout.strip())
+    assert len(set(keys)) == 3, f"three rows, three keys — the band alone collides: {keys}"
+    assert sorted(k.split("@")[1] for k in keys) == ["09:18", "13:00", "21:25"], keys
+    assert all(k.startswith("2026-10-09@") for k in keys), keys
+
+    # A ROW WITH NO RECORDING START (the CPAP trees carry no session stamp) keys by the band alone —
+    # unique, because `_recordings` never emits a date-keyed row for a band that has recordings.
+    r2 = subprocess.run(
+        [node, "-e", fn + '\nconsole.log(nRowKey({night:"2026-10-09"}));'],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert r2.returncode == 0 and r2.stdout.strip() == "2026-10-09", (r2.stdout, r2.stderr)
+
+    # THE POPULATION: every site that identifies a ROW carries the key, not the band.
+    for attr in ("data-night", "data-go", "data-drawer"):
+        # NON-GREEDY TO THE CLOSING `)}`: `[^)]*` stops inside `nRowKey(n)` and captured `nRowKey(n`,
+        # so the assertion failed on its own regex rather than on the page.
+        sites = re.findall(attr + r'="\$\{esc\((.*?)\)\}', html)
+        assert sites, f"{attr} is gone from monitor.html — this assertion would read nothing"
+        assert all(s in ("nRowKey(n)", "k") for s in sites), (attr, sites)
+    assert re.findall(r'id="n(?:row|dr)-\$\{esc\(([^)]*)\)', html) == ["k", "k"], "both row ids key by the pair"
+    assert "NIGHTS.find(x=>nRowKey(x)===key)" in html, "openNight resolved the band's FIRST row"
+
+
+def test_a_DAYTIME_row_wears_no_verdict_and_says_why():
+    """∅ `SOLID-VERDICT.json` is the BAND's. A 13:00 sitting gets a row in the previous evening's band
+    (`night_band` has no other answer for it) whose every cell is `None`, so painting the night's PASS
+    on it would be a borrowed reason and showing it bare would publish our grouping as the capture's
+    absence. The row says which it is, and the gap's own hours are in the text a reader sees."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    cell = _extract_fn(html, "nSolidCell", "\nfunction nSolidBlock")
+    assert cell.index("if(n.daytime)") < cell.index("nSolidCls(n.night)"), (
+        "the daytime branch must come BEFORE the band's verdict is read, or the row wears it"
+    )
+    assert "daytime, not judged" in cell and "[10:00, 18:00)" in cell
+    block = _extract_fn(html, "nSolidBlock", "\n// The drawer")
+    assert "n.daytime" in block and "[10:00, 18:00)" in block, "the drawer says it too, not just the cell"
+    assert "' · daytime, outside the band'" in html, "and the row header names it"
