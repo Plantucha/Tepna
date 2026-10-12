@@ -731,6 +731,7 @@ CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS-2026-08-02-BRIEF.md`](briefs/CLOCK-AXIS-
 | Folder | What's inside |
 |---|---|
 | [`codegen/`](codegen/) | Manifest → scaffold toolchain (`dex-gen.js`, manifests). See `codegen/README.md`. |
+| [`handoffs/`](handoffs/) | One handoff file per work unit — the entry point `tools/unit-launch.sh` reads to start a session on it. See `handoffs/README.md` for the nine fields and the exit path. |
 | [`tests/`](tests/) | Shared assertions + Node runner behind `Dex-Test-Suite.html`. See `tests/README.md`. |
 | [`wiring/`](wiring/) | "How It's Wired" architecture reference set — start at *How It's Wired - the Dex Suite.html*. |
 | [`templates/`](templates/) | Design-system spec, theme + evidence-badge previews. |
