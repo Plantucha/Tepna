@@ -12,7 +12,7 @@ Rules: `CLAUDE.md` §📌. Shape and vocabulary are gate-checked (`tools/residue
 - Key: `YYYY-MM-DD-short-slug`, never a counter. Source is the real origin — a brief, a repo path, or
   `#NNNN` — not the nearest brief.
 - Rows are **appended and closed, never edited**. A correction is a new row that names the old key.
-- Closed state vocabulary is closed: `OPEN`, `fixed #NNNN` (bare), `→ \`<NAME>-BRIEF.md\``, or
+- The state vocabulary is a closed set: `OPEN`, `fixed #NNNN` (bare), `→ \`<NAME>-BRIEF.md\``, or
   `withdrawn <key-of-the-row-stating-the-withdrawal>`. Nothing else passes.
 - **A row whose whole life is this PR travels inside it** — logged and closed as
   `fixed #<that same PR>`, the number read back from `gh pr view`, never typed. Touching *other* rows
@@ -22,12 +22,12 @@ Rules: `CLAUDE.md` §📌. Shape and vocabulary are gate-checked (`tools/residue
 ## Measured
 
 Closing **other** rows in the same commit as a fix made the PR DIRTY and it got **zero workflow runs**
-while other rows kept landing (#3400, 2026-10-11): `RESIDUE.md` is appended at the end, so two PRs that
+while other rows kept landing (#3400, 2026-10-11): every PR appends to the end of `RESIDUE.md`, so two PRs that
 both touch it conflict. That cost is what splits other closures out — it is not an argument against the
 row that is *about* this PR, which adds no second conflict surface (owner ruling 2026-10-12; #3462
 carried its own row and landed CLEAN).
 
-An annotated state cell (`fixed #3401 (mechanism refuted)`) was refused by the gate: the field is
+An annotated state cell (`fixed #3401 (mechanism refuted)`) failed the gate: the field is
 machine-readable, so the explanation goes in the evidence cell **of a row you are writing for the first
 time**. On an EXISTING row nothing but the state cell may move — and the two halves are caught by
 DIFFERENT gates, measured 2026-10-12 against main's row `2026-10-12-wt-done-tests-the-date-not-the-content`:
@@ -38,9 +38,9 @@ DIFFERENT gates, measured 2026-10-12 against main's row `2026-10-12-wt-done-test
 | any non-state cell edited | `tools/residue-ids.mjs` exit 1: `a non-state cell was edited (rows are append-and-close)` |
 
 So a closure's evidence belongs in the PR body, or in a NEW row that names the old key — never appended
-to the row being closed, and never as a parenthetical on the state. Four rows hit this when the clause
+to the row that the PR closes, and never as a parenthetical on the state. Four rows hit this when the clause
 above was read as licence to annotate a closure (Heron, #3466, reported 2026-10-12; that PR's only pushed
-head runs all-green, so the refusal was pre-push and is credited as reported, not re-measured here).
+head runs all-green, so the refusal was pre-push; this file credits it as reported and did not re-measure it).
 
 A literal `|` inside a cell broke the seven-pipe table twice in one night.
 
