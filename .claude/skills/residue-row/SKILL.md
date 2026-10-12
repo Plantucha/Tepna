@@ -44,4 +44,22 @@ head runs all-green, so the refusal was pre-push; this file credits it as report
 
 A literal `|` inside a cell broke the seven-pipe table twice in one night.
 
-Memory: `the-tool-that-said-fixed-is-the-one-the-row-warns-about`.
+## Keep the closing keyword away from the number in prose
+
+A row's state cell reads `fixed #3505`, and that is also GitHub's closing-reference syntax. Write the
+prose around it: `the cell reads the #3505 closure`, never `fixed #3505` on a prose line. The table
+cell itself keeps the bare form the gate demands, and a body closing its OWN number is exempt.
+
+The mechanism is the squash, not the link. `.kodiak.toml` sets `body = "pull_request_body"`, so the
+body becomes the commit message on main, and GitHub acts on a closing keyword there. Backticks do
+not protect the phrase, because the squash message is plain text.
+
+Measured 2026-10-12: #3480's body said `fixed #3476` inside backticks. #3480 merged at 16:18:16Z and
+#3476 records `closed by kodiakhq[bot]` at 16:18:22Z against the squash commit 0fca5c6e, six seconds
+later. The owner reopened it by hand at 17:11:49Z. `tools/pr-compliance.mjs` check 6 now reds that
+phrase before it merges, and an unresolvable number reds too.
+
+One measurement that misleads, so do not repeat it: `closingIssuesReferences` reads `[]` on #3509,
+#3485 and #3466, which quote closures in their bodies. That field reports the PR-body LINK, which
+GitHub draws for issues only. It says nothing about the squash commit, which is where the closure
+happened.
