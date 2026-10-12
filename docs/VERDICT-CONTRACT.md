@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** REFERENCE (living — the schema is FROZEN at `tepna.verdict/1`; a field change is `tepna.verdict/2` with both readable, never an edit here) · **last-verified:** 2026-09-21 · **Authority:** `verdict.js` (`Verdict.validate(obj) → { ok, errors[], checked[] }`) · **Executes:** `VERDICT-CONTRACT-2026-09-21-BRIEF.md` §1–§2 · **Relates:** CLAUDE.md §🧾, `docs/EXPORT-SHAPES.md` (the sibling contract for a *number* — `measurement-block.js`)
+**Status:** REFERENCE (living — the schema is FROZEN at `tepna.verdict/1`: a changed field, or a new REQUIRED one, is `tepna.verdict/2`, both readable, never an edit here. A new OPTIONAL block stays on `/1`, since every object valid before it stays valid. `contributions` is the first, by the owner's 2026-10-04 ruling) · **last-verified:** 2026-10-12 · **Authority:** `verdict.js` (`Verdict.validate(obj) → { ok, errors[], checked[] }`) · **Executes:** `VERDICT-CONTRACT-2026-09-21-BRIEF.md` §1–§2, `VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md` §1 · **Relates:** CLAUDE.md §🧾, `docs/EXPORT-SHAPES.md` (the sibling contract for a *number* — `measurement-block.js`)
 
 # `tepna.verdict/1` — a gate answers in a fixed shape; prose is explanation, not the API
 
@@ -69,8 +69,70 @@ examined, the other says something was and the rule does not bind. The validator
   `null` **with `commitReason`** (∅: absence says why). **`at`** is a real UTC instant with `Z` —
   provenance of the *run*, not a floating recording time, so the Clock Contract's floating rule does
   not apply here and the validator rejects a stamp without `Z`.
+- **`contributions`** — OPTIONAL, and the only optional block: what a **fused** figure is made of. The
+  validator runs its leg, and so grows the `checked[]` denominator, **only for an object that carries
+  it**, so a producer that attributes nothing emits the bytes it emitted before. The rules are below.
 - **`checked[]`** on the validator's return publishes which legs ran; a leg that could not run is an
   error, never a silent skip.
+
+## The optional `contributions` block — a fused figure says which input moved it
+
+`VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md` §1. A **fused** figure is one computed from more than one
+node's export, or from more than one device's leg; two streams of one device whose axes are independent
+count as fused. A figure with one input carries no block, because it has nothing to attribute.
+
+```json
+"contributions": {
+  "of": "sigma.ankle",
+  "unit": "ms^2",
+  "method": "leave-one-out",
+  "inputs": [
+    { "key": "leg.chest-finger", "share": 0.7124754033844943, "delta": -1810.4 },
+    { "key": "leg.chest-ankle",  "share": 0.0869736324281779, "delta":   221.0 },
+    { "key": "leg.finger-ankle", "share": 0.2005509641873278, "delta":  -509.6 }
+  ],
+  "dominant": "leg.chest-finger"
+}
+```
+
+| field | rule |
+|---|---|
+| `of` | names the figure being attributed; non-empty |
+| `unit` | the figure's own unit, `""` for a dimensionless count, never omitted |
+| `method` | exactly one of `leave-one-out` · `analytic` · `decomposition`, pre-stated per figure |
+| `inputs[].key` | names the input; unique within the block; at least two inputs |
+| `inputs[].delta` | the figure with the input minus the figure without it, signed, in the figure's unit — or `null` **with a `reason`** |
+| `inputs[].share` | `\|delta\| / Σ\|delta\|`, computed, to within `1e-9` |
+| `dominant` | the key with the largest `\|delta\|` — what a render names first and a reader quotes |
+
+**`share` carries the computed number, not a display rounding.** Its invariant is that the listed
+shares sum to 1 ± 1e-9, and two-decimal shares satisfy that only by luck, so the brief's §1 example is
+rounded for its reader and a real block is not. A renderer rounds; the object does not.
+
+**The ∅ rule, and why it reaches further than the brief states it.** An input that was absent or refused
+is LISTED with `delta: null` and the refusal's reason — never omitted, never `0`. A leg that could not
+run is a contribution of *unknown*, not a contribution of nothing.
+
+A share, though, is a fraction of a total. One unknown term makes `Σ|delta|` unknown, so **every** share
+and `dominant` go `null` with it. The validator refuses a block that normalises over the legs that did
+run, which would manufacture a denominator (CLAUDE.md §∅).
+
+A `null` here is present, never omitted: an absent key reads as a field nobody wrote, and the point is
+that somebody wrote `unknown`. The validator refuses an omitted `share` and an omitted `dominant` under
+an unknown denominator for that reason.
+
+What the validator cannot see is the other half: a `delta` of `0` with re-normalised shares is
+well-formed, because `0` is a legal delta for an input that moved the figure by nothing. A consumer
+cannot null what it cannot distinguish, so the distinction lives in `delta: null` plus a `reason`, never
+in the number.
+
+The same holds when every `delta` is `0`: `0/0` is not `0`. The shares are `null` and no input is known
+to be the largest. This is the UNDERPOWERED hat corner the brief names, and the half a reader is most
+likely to get wrong.
+
+A share says how much of the figure an input **is** under the stated method. It is not causation, and it
+does not replace `reason`: `reason` says why a verdict is not `PASS`; `contributions` says what a figure
+is made of, `PASS` or not.
 
 ## What it does NOT do
 

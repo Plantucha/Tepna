@@ -59530,6 +59530,296 @@
       );
     });
 
+    /* ═══ VERDICT-CONTRIBUTIONS §1 — a FUSED figure says which input moved it ═══
+       Acceptance item 1 of `VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md`: `tepna.verdict/1` gains ONE
+       optional block, so the contract can say what a fused number is made of instead of a bird reading
+       code to re-derive it. Two things this group pins that the brief does not spell out:
+         · the leg is OPTIONAL in the denominator sense — a verdict with no block runs EIGHT legs, the
+           same eight as before, and `make()` does not even write the key, so no existing producer's
+           bytes move. An optional field whose validator is always on is a required field.
+         · the ∅ rule reaches the SHARES. One `delta: null` makes `Σ|delta|` unknown, so every share and
+           `dominant` go null with it; normalising over the legs that DID run manufactures a denominator,
+           which is CLAUDE.md §∅ at the contract layer. `0/0` is not `0` either.
+       `share` holds the computed ratio, never a display rounding: the sum-to-1 invariant at 1e-9 and a
+       two-decimal share are satisfiable together only by luck, so the brief's §1 example is rounded for
+       its reader and a real block is not. */
+    group('Verdict contributions — a fused figure names its inputs, and refuses a manufactured denominator', 'verdict · contributions · verdict-contract · absence · plant', function (T) {
+      var V = env.Verdict;
+      if (!V || typeof V.validate !== 'function') {
+        T.skip('Verdict.validate available', 'verdict.js not co-loaded in this runner');
+        return;
+      }
+      var ok = function () {
+        return {
+          schema: 'tepna.verdict/1',
+          gate: 'tch-pooled-hat',
+          status: 'PASS',
+          scope: 'internal',
+          population: { checked: 90, eligible: 90, excluded: 0 },
+          criterion: { name: 'sigma_ankle', threshold: 1, unit: 'ms^2', direction: 'lte' },
+          result: { sigmaAnkle: 2541 },
+          evidence: ['tools/trio-batch.mjs'],
+          reason: null,
+          producedBy: { tool: 'tools/trio-batch.mjs', commit: '3c0dbdec' },
+          at: '2026-10-04T18:40:12Z'
+        };
+      };
+      /* The brief's own §1 figures, with `share` at the precision the invariant needs. */
+      var SUM = 1810.4 + 221.0 + 509.6;
+      var hat = function () {
+        return {
+          of: 'sigma.ankle',
+          unit: 'ms^2',
+          method: 'leave-one-out',
+          inputs: [
+            { key: 'leg.chest-finger', share: 1810.4 / SUM, delta: -1810.4 },
+            { key: 'leg.chest-ankle', share: 221.0 / SUM, delta: 221.0 },
+            { key: 'leg.finger-ankle', share: 509.6 / SUM, delta: -509.6 }
+          ],
+          dominant: 'leg.chest-finger'
+        };
+      };
+      var withBlock = function (c) {
+        var b = ok();
+        b.contributions = c;
+        return b;
+      };
+      // ── ANTI-VACUITY, BOTH DIRECTIONS ───────────────────────────────────────────────────────
+      var good = V.validate(withBlock(hat()));
+      T.ok('the brief §1 block VALIDATES (a signed delta, a computed share, a named dominant)', good.ok, good.errors.join(' | '));
+      T.ok('…and the contributions leg RAN (the denominator grew by one)', good.checked.indexOf('contributions') >= 0, good.checked.join(','));
+      T.eq('the three methods are EXACTLY a closed set, as an equality', V.CONTRIBUTION_METHODS.slice().sort().join(','), ['leave-one-out', 'analytic', 'decomposition'].sort().join(','));
+      T.eq(
+        'the shares sum to 1 at the stated tolerance, not at a rounding',
+        Math.abs(
+          hat().inputs.reduce(function (a, i) {
+            return a + i.share;
+          }, 0) - 1
+        ) < V.SHARE_TOL,
+        true
+      );
+      var bare = V.validate(ok());
+      T.ok('a verdict with NO block still validates — the field is optional', bare.ok, bare.errors.join(' | '));
+      T.eq('…and runs the SAME EIGHT legs as before: an always-on leg would make it required', bare.checked.indexOf('contributions'), -1);
+      T.eq('make() omits the key entirely unless the producer gives one (no existing producer moves a byte)', Object.prototype.hasOwnProperty.call(V.make({ gate: 'g' }), 'contributions'), false);
+      T.eq('…and carries it through when it IS given', V.make({ gate: 'g', contributions: hat() }).contributions.dominant, 'leg.chest-finger');
+      var seen = 0;
+      var fires = function (name, mut, needle) {
+        seen++;
+        var c = hat();
+        var r = mut(c) || c;
+        var v = V.validate(withBlock(r));
+        T.ok(
+          name,
+          !v.ok &&
+            v.errors.some(function (e) {
+              return e.indexOf(needle) >= 0;
+            }),
+          v.ok ? 'ACCEPTED — the check never fired' : v.errors.join(' | ').slice(0, 170)
+        );
+      };
+      // ── THE PLANTS ──────────────────────────────────────────────────────────────────────────
+      fires(
+        'PLANT 1 · a method outside the closed set',
+        function (c) {
+          c.method = 'regression';
+        },
+        'a closed set, pre-stated per figure'
+      );
+      fires(
+        "PLANT 2 · the brief's own ROUNDED shares (0.71 against 0.7124…)",
+        function (c) {
+          c.inputs[0].share = 0.71;
+          c.inputs[1].share = 0.09;
+          c.inputs[2].share = 0.2;
+        },
+        'never asserted beside them'
+      );
+      fires(
+        'PLANT 3 · shares that do not sum to 1',
+        function (c) {
+          c.inputs[2].share = 0.1;
+        },
+        'never asserted beside them'
+      );
+      fires(
+        'PLANT 4 · a single input (nothing to attribute, so no block)',
+        function (c) {
+          c.inputs = [c.inputs[0]];
+        },
+        'has nothing to attribute and carries NO block'
+      );
+      fires(
+        'PLANT 5 · one key listed twice',
+        function (c) {
+          c.inputs[1].key = 'leg.chest-finger';
+        },
+        'is listed twice'
+      );
+      fires(
+        'PLANT 6 · dominant is not the largest |delta|',
+        function (c) {
+          c.dominant = 'leg.chest-ankle';
+        },
+        'must be the key with the largest'
+      );
+      fires(
+        'PLANT 7 · dominant absent',
+        function (c) {
+          delete c.dominant;
+        },
+        'must be the key with the largest'
+      );
+      fires(
+        'PLANT 8 · unit omitted (never, not even for a count)',
+        function (c) {
+          delete c.unit;
+        },
+        'never omit it'
+      );
+      fires(
+        'PLANT 9 · `of` does not name the figure',
+        function (c) {
+          c.of = '';
+        },
+        'must name the figure being attributed'
+      );
+      fires(
+        'PLANT 10 · a bare array where the block belongs',
+        function () {
+          return [1, 2];
+        },
+        'never a bare array'
+      );
+      fires(
+        'PLANT 11 · a delta that is not a number and not null',
+        function (c) {
+          c.inputs[0].delta = 'absent';
+        },
+        'or null with a reason'
+      );
+      // ── THE ∅ LEGS: an unknown term poisons the denominator, not just its own row ────────────
+      fires(
+        'PLANT 12 · a share left stale after its delta changed',
+        function (c) {
+          c.inputs[1].delta = 0;
+          c.inputs[1].share = 0;
+        },
+        'never asserted beside them'
+      );
+      /* And the limit of what a validator CAN see, stated rather than implied: a delta of 0 whose
+         shares are re-normalised is a WELL-FORMED block, because `0` is a legal delta — an input that
+         genuinely did not move the figure. CLAUDE.md §∅: a consumer cannot null what it cannot
+         distinguish, so the distinction does not live in the number. It lives in `delta: null` plus a
+         `reason`, which PLANT 13-16 make unskippable. */
+      var zeroLeg = hat();
+      zeroLeg.inputs[1].delta = 0;
+      var SUM0 = 1810.4 + 509.6;
+      zeroLeg.inputs[0].share = 1810.4 / SUM0;
+      zeroLeg.inputs[1].share = 0;
+      zeroLeg.inputs[2].share = 509.6 / SUM0;
+      T.ok(
+        'a delta of 0 with re-normalised shares is VALID — `0` means "moved it by nothing", and absence is null + reason',
+        V.validate(withBlock(zeroLeg)).ok,
+        V.validate(withBlock(zeroLeg)).errors.join(' | ')
+      );
+      fires(
+        'PLANT 13 · ∅ delta: null with no reason',
+        function (c) {
+          c.inputs[1].delta = null;
+          c.inputs[1].share = null;
+          c.dominant = null;
+          c.inputs[0].share = null;
+          c.inputs[2].share = null;
+        },
+        'says WHY it is unknown'
+      );
+      fires(
+        'PLANT 14 · ∅ delta: null carrying its own share',
+        function (c) {
+          c.inputs[1].delta = null;
+          c.inputs[1].reason = 'the ankle leg refused: 4 windows';
+          c.inputs[1].share = 0;
+          c.inputs[0].share = null;
+          c.inputs[2].share = null;
+          c.dominant = null;
+        },
+        'its own share is UNKNOWN and must be null'
+      );
+      fires(
+        'PLANT 15 · ∅ THE ONE THAT MATTERS — the other legs normalised over a denominator one term short',
+        function (c) {
+          c.inputs[1].delta = null;
+          c.inputs[1].reason = 'the ankle leg refused: 4 windows';
+          c.inputs[1].share = null;
+        },
+        'manufactures a denominator'
+      );
+      fires(
+        'PLANT 16b · ∅ a share OMITTED where the rule requires an explicit null',
+        function (c) {
+          c.inputs[1].delta = null;
+          c.inputs[1].reason = 'the ankle leg refused: 4 windows';
+          c.inputs[1].share = null;
+          delete c.inputs[0].share;
+          delete c.inputs[2].share;
+          c.dominant = null;
+        },
+        'present, not omitted'
+      );
+      fires(
+        'PLANT 16 · ∅ a dominant named while one delta is unknown',
+        function (c) {
+          c.inputs[1].delta = null;
+          c.inputs[1].reason = 'the ankle leg refused: 4 windows';
+          c.inputs[1].share = null;
+          c.inputs[0].share = null;
+          c.inputs[2].share = null;
+        },
+        'no input is known to be the largest'
+      );
+      fires(
+        'PLANT 17 · ∅ every delta 0, and a share asserted over 0/0',
+        function (c) {
+          c.inputs.forEach(function (i) {
+            i.delta = 0;
+            i.share = 1 / 3;
+          });
+        },
+        'a share would be 0/0'
+      );
+      T.eq('every plant was SEEN by the runner (anti-vacuity denominator)', seen, 18);
+      // ── AND THE HONEST ∅ FORMS PASS ─────────────────────────────────────────────────────────
+      var unknownLeg = hat();
+      unknownLeg.inputs[1].delta = null;
+      unknownLeg.inputs[1].reason = 'the ankle leg refused: 4 windows < the pre-stated 30';
+      unknownLeg.inputs.forEach(function (i) {
+        i.share = null;
+      });
+      unknownLeg.dominant = null;
+      var u = V.validate(withBlock(unknownLeg));
+      T.ok('∅ HONEST: one unknown leg, every share null, dominant null, the reason named — VALID', u.ok, u.errors.join(' | '));
+      var allZero = hat();
+      allZero.inputs.forEach(function (i) {
+        i.delta = 0;
+        i.share = null;
+      });
+      allZero.dominant = null;
+      T.ok('∅ HONEST: nothing moved the figure — shares null rather than an even split', V.validate(withBlock(allZero)).ok, V.validate(withBlock(allZero)).errors.join(' | '));
+      var decomp = {
+        of: 'worn_not_recorded_fraction',
+        unit: '',
+        method: 'decomposition',
+        inputs: [
+          { key: 'device.o2ring', share: 0.75, delta: 0.09 },
+          { key: 'device.h10', share: 0.25, delta: -0.03 }
+        ],
+        dominant: 'device.o2ring'
+      };
+      T.ok('a decomposition over two devices validates on the same rules (the LOSS case)', V.validate(withBlock(decomp)).ok, V.validate(withBlock(decomp)).errors.join(' | '));
+      T.ok('a negative delta is legal and keeps its sign — a share is |delta| / Σ|delta|', decomp.inputs[1].delta < 0 && decomp.inputs[1].share > 0);
+    });
+
     /* ═══ MEASUREMENT-PROVENANCE-ROADMAP §3 — OxyDex is the FIRST EMITTER of the measurement block ═══
        The reference path, executed 2026-09-21: every OxyDex night element carries `measurement.<id>`
        blocks for the four headline metrics, and this group is the roadmap's done-when made into a gate:
