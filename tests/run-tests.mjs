@@ -1966,6 +1966,27 @@ function readCaptureFilenameScan() {
   return out;
 }
 
+/* DRAWN-AXIS FLAG RATCHET (residue 2026-09-25-drawn-consumers-closure-unverified) — every authored JS
+   source that could consume `hostAxis`, as TEXT. The gate in dex-tests.js pins the set of files that
+   DECIDE on an `.independent` field while carrying no `deviceDrawn` site, so a new consumer written
+   against the column-comparison flag instead of the provenance flag reds. Population is derived, not
+   curated: root `*.js` (the bundled runtime sources) + `tools/*.{js,mjs}` (the fleet tooling that
+   reads the same axis). `experiments/**` is deliberately out — the probes there read the flag to
+   demonstrate its false positive. Node-lane only (fs read); the browser lane SKIPs. */
+function readDrawnFlagScan() {
+  const pick = (dir, re) => {
+    const d = join(ROOT, dir);
+    if (!existsSync(d)) return [];
+    return readdirSync(d)
+      .filter((f) => re.test(f))
+      .map((f) => (dir ? `${dir}/${f}` : f));
+  };
+  const files = [...pick('', /\.js$/), ...pick('tools', /\.m?js$/)];
+  const out = {};
+  for (const f of files) out[f] = readFileSync(join(ROOT, f), 'utf8');
+  return out;
+}
+
 // analysis-tools self-contained gate (LOCAL-DOWNLOAD / file:// fix): the 9 science tools are bundled to
 // self-contained single-file HTML by tools/build-analysis.mjs so they run when downloaded to disk. This
 // reads each committed tool HTML so the group can assert the file://-safe invariant (no external <script
@@ -3134,6 +3155,7 @@ async function main() {
     nodeSurfaces: readNodeSurfaces(),
     nonBundleCsp: readNonBundleCsp(),
     captureFilenameScan: readCaptureFilenameScan(),
+    drawnFlagScan: readDrawnFlagScan(),
     codegenManifests: readCodegenManifests(),
     docsMdTwins: readDocsMdTwins(),
     claudeMdClaims: readClaudeMdClaims(),

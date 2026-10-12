@@ -68539,6 +68539,141 @@
       );
     });
 
+    /* ── DRAWN-AXIS FLAG: A RATCHET ON THE CONSUMERS (residue 2026-09-25-drawn-consumers-closure-unverified)
+       `hostAxis.independent` compares the host column against the device column, so a counter
+       synthesised as `index x an assumed rate` reads MORE independent the coarser the fabrication —
+       the group above measures exactly that specimen: 99.3 % drawn, `independent:true`, a
+       textbook-plausible -22.83 ppm. `clock.js` publishes `deviceDrawn` ADDITIVELY and deliberately
+       does NOT gate `independent` with it (folding it in reds 11 assertions, because a synthetic
+       fixture's uniform axis is indistinguishable from a fabricated one and a fixture is not a
+       recording). So a consumer that still DECIDES on `independent` alone has no provenance test at
+       all, and the hole is invisible from the outside: such a site returns a number, never a refusal.
+
+       This gate does not audit the pinned files; it RATCHETS them. The set of files that GATE on an
+       `.independent` field while carrying no `deviceDrawn` site is pinned below, each with the
+       discriminator it uses INSTEAD — and that discriminator is asserted present, so a file that
+       loses its local guard reds here instead of being grandfathered. A new consumer written against
+       `independent` reds; a pinned file that migrates reds too (lower the allowlist in the same PR).
+
+       Read by IDENTIFIER PRESENCE per file over comment-stripped, whitespace-COLLAPSED source, never
+       a line window, so a reflow cannot red it. A GATE is a comparison against a boolean literal, a
+       negated read, or a ternary test — not a pass-through (`independent: r.hostAxis.independent`),
+       not a null-normalisation (`=== undefined ? null :`), not a printed label, none of which decide
+       anything; the classifier is put through both kinds before any verdict off it counts.
+       `experiments/**` is out of population: the probes there read the flag to DEMONSTRATE its false
+       positive, which is the opposite of consuming it.
+       Node-lane only — env.drawnFlagScan is fs-read; the browser lane SKIPs. */
+    group('a drawn axis is refused on provenance — no NEW consumer gates on hostAxis.independent', 'clock · drawn-axis · source-scan · ratchet', function (T) {
+      var FILES = env.drawnFlagScan;
+      if (!FILES) {
+        T.skip('env.drawnFlagScan provided to the runner', 'Node-lane only — wire env.drawnFlagScan (run-tests.mjs readDrawnFlagScan)');
+        return;
+      }
+      /* the discriminator each pinned file uses INSTEAD of `deviceDrawn`, asserted present below */
+      var ALLOW = {
+        // :131 refuses on `ax.timingSource === 'none'`; 'host' (drawn, but placed by REAL anchors) is
+        // deliberately admitted, because the two devices then do share a timebase. Refuted as a hole
+        // by residue 2026-09-12-drawn-consumers-already-migrated.
+        'pat-gate.js': /timingSource\s*===\s*'none'/,
+        // :1349 `axisSynthetic = axisDrawn || site === 'finger'` decides first at :1650, so the
+        // `independent` arm is reached only on an axis already known not to be drawn (residue
+        // 2026-09-05-drawn-remedy-is-relabel-not-refuse).
+        'ppgdex-dsp.js': /axisSynthetic\s*=\s*axisDrawn/,
+        // classifyStability tests its own `r.drawn` (DRAWN_MODAL_SHARE) BEFORE `r.independent`, so a
+        // drawn axis never reaches the independence branch.
+        'tools/device-stability.mjs': /DRAWN_MODAL_SHARE/,
+        // the reads are this tool's own self-test over its LOCAL analyzeArrival(), not a hostAxis
+        // result — it asserts that a host column drawn from the device stamp reads independent:false.
+        'tools/o2ring-frame-cadence.mjs': /function analyzeArrival\(/
+      };
+
+      function blank(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      function code(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, blank)
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1')
+          .replace(/\s+/g, ' ');
+      }
+      var GATE = [/\.independent\s*(?:===|!==|==|!=)\s*(?:true|false)\b/, /![A-Za-z_$][\w$.]*\.independent\b/, /\.independent\s*\?/];
+      function classify(src) {
+        var c = code(src);
+        return {
+          reads: /\.independent\b/.test(c),
+          gates: GATE.some(function (re) {
+            return re.test(c);
+          }),
+          drawn: /\bdeviceDrawn\b/.test(c)
+        };
+      }
+
+      /* ── the classifier must be shown to DISCRIMINATE, in both directions, before it judges ── */
+      [
+        ['a boolean gate', 'if (ax.independent === false) return null;', true, true, false],
+        ['the same gate after a reflow', 'if (\n  ax.independent ===\n  false\n) {\n  return null;\n}', true, true, false],
+        ['a negated read', 'if (!ax.independent) return null;', true, true, false],
+        ['a ternary test', "var s = ax.independent ? 'device+host' : 'device';", true, true, false],
+        ['a pass-through is NOT a gate', 'out.independent = r.hostAxis.independent;', true, false, false],
+        ['a null-normalisation is NOT a gate', 'q.independent = ax.independent === undefined ? null : ax.independent;', true, false, false],
+        ['a printed label is NOT a gate', 'console.log("independent=" + a.independent);', true, false, false],
+        ['a commented-out gate is not even a read', '/* if (ax.independent === false) return null; */\nvar x = 1;', false, false, false],
+        ['a migrated gate carries the provenance flag', 'if (ax.deviceDrawn === true) return null;\nif (ax.independent === false) return null;', true, true, true]
+      ].forEach(function (p) {
+        var got = classify(p[1]);
+        T.eq('classifier · ' + p[0] + ' · reads', got.reads, p[2]);
+        T.eq('classifier · ' + p[0] + ' · gates', got.gates, p[3]);
+        T.eq('classifier · ' + p[0] + ' · deviceDrawn', got.drawn, p[4]);
+      });
+
+      /* ── the scan over the real population ── */
+      var names = Object.keys(FILES).sort();
+      var reads = [],
+        gates = [],
+        drawn = [];
+      names.forEach(function (f) {
+        var c = classify(FILES[f]);
+        if (c.reads) reads.push(f);
+        if (c.gates) gates.push(f);
+        if (c.drawn) drawn.push(f);
+      });
+      T.ok('the scan has a denominator (' + names.length + ' authored sources)', names.length > 200, 'an empty scan reads exactly like a clean one');
+      T.ok('…and it read the PRODUCER — clock.js publishes deviceDrawn', drawn.indexOf('clock.js') >= 0, 'deviceDrawn sites: ' + drawn.join(' '));
+      T.ok('…and it SEES gates: ' + gates.join(' '), gates.length >= 5, 'the gate patterns match nothing — the verdict below would be vacuous');
+      T.ok('…and readers that are not gates exist, so the two are not the same test: ' + reads.length + ' read / ' + gates.length + ' gate', reads.length > gates.length);
+      ['ecgdex-dsp.js', 'integrator-dsp.js'].forEach(function (f) {
+        T.ok('the MIGRATED consumer ' + f + ' gates on the flag…', gates.indexOf(f) >= 0, 'gates: ' + gates.join(' '));
+        T.ok('…and carries deviceDrawn, which is what keeps it out of the pinned set', drawn.indexOf(f) >= 0, 'deviceDrawn: ' + drawn.join(' '));
+      });
+
+      var bare = gates
+        .filter(function (f) {
+          return drawn.indexOf(f) < 0;
+        })
+        .sort();
+      var pinned = Object.keys(ALLOW).sort();
+      var added = bare.filter(function (f) {
+        return !ALLOW[f];
+      });
+      var gone = pinned.filter(function (f) {
+        return bare.indexOf(f) < 0;
+      });
+      T.ok(
+        'no NEW consumer gates on `.independent` without a deviceDrawn site (' + (added.length ? added.join(' ') : 'none') + ')',
+        added.length === 0,
+        'read deviceDrawn (clock.js), or pin the file here with the discriminator it uses instead. bare: ' + bare.join(' ')
+      );
+      T.ok(
+        'no pinned file has migrated or left the population (' + (gone.length ? gone.join(' ') : 'none') + ')',
+        gone.length === 0,
+        'lower the allowlist in the same PR that migrates the file. bare: ' + bare.join(' ')
+      );
+      pinned.forEach(function (f) {
+        T.ok(f + ' is still in the scan population', names.indexOf(f) >= 0, 'a pinned file was renamed or removed — update the allowlist');
+        T.ok('…and still carries the discriminator it is pinned for ' + String(ALLOW[f]), ALLOW[f].test(code(FILES[f] || '')), 'the local guard moved — the pin is no longer justified');
+      });
+    });
+
     group('Integrator DSP floor — 22 drafts adopted: refusals, honest reasons, and the summary route (mutation-derived)', 'integrator-dsp · known-answer · mutation-pinned', function (T) {
       var I = env.IntegratorDSP || env.INTEGRATOR;
       if (!I || typeof I.normalizeFile !== 'function') {
