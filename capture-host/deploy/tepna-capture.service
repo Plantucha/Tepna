@@ -1,5 +1,10 @@
 [Unit]
 Description=Tepna capture daemon (BLE -> vendor-layout files)
+# ⚠️ READING THIS UNIT'S JOURNAL: this is a SYSTEM unit, so the scope is `journalctl -u tepna-capture`.
+# `--user-unit` selects USER-manager units, matches nothing here, raises no error, and returns ~1 line —
+# which reads as a quiet box (vigil 2026-09-24, --since 18:00: `--user-unit` 1 line, `-u` 10,836 lines
+# with 97 warnings). A "clean journal" claim must publish its DENOMINATOR ("97 of 10,836"), never a bare
+# "no warnings"; re-run the same query with no unit filter first, to see whether the journal has any lines.
 # Needs the Bluetooth stack and a synced clock (arrival stamps depend on the clock).
 After=bluetooth.target network-online.target time-sync.target
 Wants=bluetooth.target network-online.target

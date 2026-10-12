@@ -603,10 +603,17 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # as root reads. They are mentions, not reads: that test opens `tools/mutate-equivalence.json`
     # (already staged) and never any `*-dsp.js`. Kept as literals on purpose — the ratchet is a guard a
     # human has to be able to eyeball, and 413 entries were lost once because a count was not checked.
+    # 2026-10-12: ONE new MENTION, +0.057 MB (total staged 7.79 → 7.85 MB, measured by summing the
+    # entries, not extrapolated). Cause: `tests/test_settle_trigger_wording.py` reads the settle
+    # rule out of `briefs/SOLID-NIGHT-2026-09-23-BRIEF.md` and asserts it names both clocks and the
+    # line that reads them (`capture.py:9425`). That IS a real read, not a mention: the test opens
+    # the brief. Staging it keeps the mutation scratch able to run the test, which is the point of
+    # this population.
     assert got == [
         "Dex-Test-Suite.html",
         "README.md",
         "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md",
+        "briefs/SOLID-NIGHT-2026-09-23-BRIEF.md",
         "clock.js",
         "cpapdex-dsp.js",
         "dex-badges.css",

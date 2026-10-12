@@ -2800,11 +2800,34 @@ function renderDiscovered(list){
 // default (an H10 resets to 2019-01-01 whenever it leaves the strap), so a device clock is not cosmetic:
 // it is what makes `sensor timestamp [ns]` a real wall clock and puts sibling sensors on one origin.
 // The O2Ring re-syncs its RTC on every connect, so its button reports that instead of pretending.
+// A SYNC PAUSES THE RECORDING IT IS SYNCING, and until now the press never said so. Setting a Polar's
+// clock is an offline-recording op: the link drops, the device pauses, the stream resumes on a new
+// segment. Measured on the box 2026-09-24 from one press of "sync host + devices": Verity 44 s then
+// 13 s, H10 21 s then 11 s, and the H10 came back reading 2000-01-01 — a device-clock step that FAILed
+// that night's timebase. So the server refuses with 409 + a `worn` list + the measured `cost`, exactly
+// as the three self-killing daemon verbs do, and this names the price before re-firing with force.
+// NOT a refusal during a recording: the owner needed this button mid-night on 2026-09-24, when only a
+// sync could fix the H10's clock. The predicate is on-body from SERVER state, never `connected`.
+function timesyncWarning(r){
+  const c = r.cost || {}, g = c.gaps_sec || {};
+  const gaps = Object.keys(g).map(k => k + ' ' + (g[k]||[]).map(v=>v+'s').join(' + ')).join(', ');
+  return 'RECORDING ON-BODY: ' + (r.worn||[]).join(', ') +
+         '\n\nSetting a Polar clock PAUSES its recording.' +
+         (gaps ? '\nMeasured cost of one press (' + (c.measured||'') + '): ' + gaps + '.' : '') +
+         (c.device_clock_risk ? '\n' + c.device_clock_risk + '.' : '') +
+         '\n\nSync anyway?';
+}
+
 async function syncTime(address, btn){
   const t0 = btn.textContent; btn.disabled = true; btn.textContent = 'syncing…';
   try{
-    const r = await api('/api/timesync',{method:'POST',headers:{'content-type':'application/json'},
-                                         body:JSON.stringify({address})});
+    let r = await api('/api/timesync',{method:'POST',headers:{'content-type':'application/json'},
+                                       body:JSON.stringify({address})});
+    if(!r.ok && Array.isArray(r.worn) && r.worn.length){
+      if(!confirm(timesyncWarning(r))){ btn.textContent = 'cancelled'; return; }
+      r = await api('/api/timesync',{method:'POST',headers:{'content-type':'application/json'},
+                                     body:JSON.stringify({address, force:true})});
+    }
     if(r.busy)        btn.textContent = '⏳ '+r.busy+' is busy';
     else if(!r.ok)    btn.textContent = 'failed: '+(r.error||r.detail||'error');
     else if(r.skipped==='auto') btn.textContent = '✓ auto-syncs on connect';
@@ -2816,7 +2839,13 @@ async function syncTime(address, btn){
 async function syncAllTime(btn){
   const t0 = btn.textContent; btn.disabled = true; btn.textContent = 'syncing host + devices…';
   try{
-    const r = await api('/api/timesync/all',{method:'POST'});
+    let r = await api('/api/timesync/all',{method:'POST',headers:{'content-type':'application/json'},
+                                           body:JSON.stringify({})});
+    if(!r.ok && Array.isArray(r.worn) && r.worn.length){
+      if(!confirm(timesyncWarning(r))){ btn.textContent = 'cancelled'; return; }
+      r = await api('/api/timesync/all',{method:'POST',headers:{'content-type':'application/json'},
+                                         body:JSON.stringify({force:true})});
+    }
     const okd = (r.devices||[]).filter(d=>d.ok).length;
     btn.textContent = `✓ host ${r.host&&r.host.ok?'ok':'—'} · ${okd}/${(r.devices||[]).length} devices`;
   }catch(e){ btn.textContent = 'failed: '+e; }
