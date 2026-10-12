@@ -107,8 +107,16 @@ export function scan(src) {
   let excluded = 0;
   let fence = false;
   const lines = src.split('\n');
+  /* YAML FRONTMATTER at the top of a file is metadata, not prose: a changeset's `bump:` and a skill's
+     `name:` and `description:`. A skill's description is one long line by design, because the harness
+     matches a task against it; the first sweep of the skills read each one as a 40-word sentence. */
+  const front = lines[0] === '---' ? lines.indexOf('---', 1) : -1;
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
+    if (i <= front) {
+      if (raw.trim()) excluded += 1;
+      continue;
+    }
     if (/^\s*(```|~~~)/.test(raw)) {
       fence = !fence;
       excluded += 1;
@@ -178,7 +186,27 @@ const words = (s) =>
     .filter((w) => /[A-Za-z0-9]/.test(w));
 
 /* Passive: a form of "to be" plus a past participle. A heuristic, and it says so. */
-const PASSIVE = /\b(is|are|was|were|be|been|being)\s+(?:\w+ly\s+)?([a-z]+(?:ed|en))\b/;
+const PASSIVE = /\b(is|are|was|were|be|been|being)\s+(?:\w+ly\s+)?([a-z]+(?:ed|en))\b/g;
+/* Words the PASSIVE shape matches that are not participles. Measured on 2026-10-12 over the 767 tracked
+   Markdown files: "is green" 87, "is open" 41, "is then" 47, "is when" 7, "is often" 6 and "is even" 4
+   all read as passive, and none of them is a verb. */
+export const NOT_PARTICIPLE = new Set(['green', 'open', 'then', 'when', 'often', 'even', 'ten', 'seven', 'eleven', 'between', 'screen', 'token', 'oxygen', 'hyphen', 'sudden', 'golden']);
+/* `un-` plus a participle is a state, not an action: "the file is unchanged" names no actor because it
+   has none. Measured: unchanged 131, untouched 89, unaffected 68. A real verb that starts with `un-`
+   stays passive, and this list names those verbs. */
+const UN_VERB = /^un(?:block|lock|pack|load|mount|wrap|install|stage|do|set|pin|link|zip|register|subscribe|ify)/;
+function passiveMatch(s) {
+  for (const m of s.matchAll(PASSIVE)) {
+    const w = m[2];
+    if (NOT_PARTICIPLE.has(w)) continue;
+    if (w.startsWith('un') && !UN_VERB.test(w)) continue;
+    return m[0];
+  }
+  return null;
+}
+/* -ing words that are plain NOUNS, not a verb used as a noun. Measured on 2026-10-12: sibling 25,
+   ceiling 21, morning 11, and "meaning" in the first draft of the report that sized this backlog. */
+export const NOUN_ING = new Set(['sibling', 'ceiling', 'morning', 'evening', 'meaning', 'warning', 'nothing', 'something', 'anything', 'everything', 'thing', 'string', 'during']);
 const IMPERATIVE_HEAD = /^(?:Run|Read|Add|Use|Set|Check|Make|Write|Open|Close|Do|Keep|Put|Give|Take|Send|Build|Fix|Remove|Replace|Escape|Verify|Measure|Report|Stop|Start|Never|Always)\b/;
 /** A second instruction joined to the first. The verb list is the lowercase twin of the heads. */
 const JOINED_IMPERATIVE =
@@ -194,8 +222,8 @@ export function findings(src, glossary = { retired: new Map(), technical: new Se
       const w = words(s);
       const cap = procedure || IMPERATIVE_HEAD.test(s) ? MAX_WORDS_PROCEDURE : MAX_WORDS_PROSE;
       if (w.length > cap) add(n, 'long-sentence', `${w.length} words, limit ${cap}`);
-      const p = s.match(PASSIVE);
-      if (p) add(n, 'passive', `"${p[0]}"`);
+      const p = passiveMatch(s);
+      if (p) add(n, 'passive', `"${p}"`);
       /* More than one imperative in a sentence: one instruction per sentence. The SECOND one is
          lowercase and follows a joiner, so a case-sensitive scan of the leading form misses it —
          which is what the planted case caught. A bare case-insensitive scan would instead match the
@@ -203,11 +231,13 @@ export function findings(src, glossary = { retired: new Map(), technical: new Se
       if (IMPERATIVE_HEAD.test(s) && JOINED_IMPERATIVE.test(s)) add(n, 'two-imperatives', `"${s.match(JOINED_IMPERATIVE)[0].trim()}"`);
       for (const m of s.matchAll(/\b([a-z][a-z-]{3,}ing)\b/g)) {
         const t = m[1];
-        if (TECHNICAL_NAME.test(t) || glossary.technical.has(t)) continue;
-        /* A verb-noun only when it heads a noun phrase: "the <x>ing of", "a <x>ing". */
+        if (TECHNICAL_NAME.test(t) || glossary.technical.has(t) || NOUN_ING.has(t)) continue;
+        /* A verb-noun only when it heads a noun phrase: "the <x>ing of", "a <x>ing". The END OF A LINE is
+           not the end of a phrase: a hard-wrapped line that stops at "the existing" goes on with its
+           noun on the next line. Measured: existing 38, missing 15 and coupling 10 were mostly that. */
         /* The verb-noun shape is a DETERMINER, the -ing word, and then no noun: "the stamping of",
            "a reading." — not "the writing rules", where -ing modifies a following noun. */
-        if (new RegExp(`\\b(?:the|a|an|this|its|their)\\s+${t}(?=\\s+(?:of|is|was|has|had)\\b|[,.;:)]|$)`, 'i').test(s)) add(n, 'verb-noun', t);
+        if (new RegExp(`\\b(?:the|a|an|this|its|their)\\s+${t}(?=\\s+(?:of|is|was|has|had)\\b|[,.;:)])`, 'i').test(s)) add(n, 'verb-noun', t);
       }
       for (const [retired, approved] of glossary.retired) {
         if (new RegExp(`\\b${retired.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s)) add(n, 'retired-term', `"${retired}" → "${approved}"`);
@@ -220,7 +250,10 @@ export function findings(src, glossary = { retired: new Map(), technical: new Se
   const flush = () => {
     if (!para.length) return;
     const n = para[0].n;
-    const count = para.reduce((a, l) => a + sentences(l.text).length, 0);
+    /* The lines are JOINED before the count. Counted line by line, a hard-wrapped sentence counted once
+       per line, so a six-line paragraph of three sentences read as seven (write-in-ste skill, measured
+       2026-10-12). Joined, a sentence is a sentence wherever the line breaks. */
+    const count = sentences(para.map((l) => l.text).join(' ')).length;
     if (count > MAX_SENTENCES_PARAGRAPH) add(n, 'long-paragraph', `${count} sentences, limit ${MAX_SENTENCES_PARAGRAPH}`);
     para = [];
   };
@@ -355,7 +388,25 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('a verb-noun is reported', rules('The stamping of the fixture failed.').includes('verb-noun'), true);
   ck('a technical name ending in -ing is NOT a verb-noun', rules('The oxydex reading is null.', G).includes('verb-noun'), false);
   ck('a retired term is reported with its approved form', findings('It is a proxy for the truth.', G).find((x) => x.rule === 'retired-term').detail, '"proxy" → "measured value"');
+  /* 🔴 THE FALSE POSITIVES, measured over the 767 tracked Markdown files on 2026-10-12. Each word had
+     its own count; each has its own case, and a real passive and a real verb-noun stay reported. */
+  for (const w of ['green', 'open', 'then', 'often', 'even']) ck(`"is ${w}" is not passive`, rules(`The check is ${w} now.`).includes('passive'), false);
+  for (const w of ['unchanged', 'untouched', 'unaffected', 'unmeasured']) ck(`"is ${w}" is a state, not passive`, rules(`The file is ${w} here.`).includes('passive'), false);
+  ck('…but "is unblocked" is a real passive', rules('The queue is unblocked by the walker.').includes('passive'), true);
+  ck('…and a sentence with a state AND a passive still reports the passive', rules('The file is unchanged and the row was written.').includes('passive'), true);
+  for (const w of ['sibling', 'ceiling', 'morning', 'meaning', 'warning']) ck(`"the ${w}." is a noun, not a verb-noun`, rules(`It reads the ${w}.`).includes('verb-noun'), false);
+  ck('a line that ends on "the existing" is a hard wrap, not a verb-noun', rules('It anchors to the existing\nvalue in the table.').includes('verb-noun'), false);
+  ck('…and "the stamping." at a sentence end is still a verb-noun', rules('It failed at the stamping.').includes('verb-noun'), true);
+  ck(
+    'a hard-wrapped paragraph of three sentences is not long',
+    rules('The first sentence runs\nonto a second line here. The second\nsentence does too. The third\nsentence is\nshort\nand wraps.').includes('long-paragraph'),
+    false
+  );
+  ck('…and seven real sentences on seven lines still are', rules('One.\nTwo.\nThree.\nFour.\nFive.\nSix.\nSeven.').includes('long-paragraph'), true);
   /* 🔴 THE SKIPS. A checker that flags the wrong span teaches people to ignore it. */
+  ck('YAML frontmatter is skipped', rules('---\nname: x\ndescription: ' + long + '\n---\n\nShort body.').length, 0);
+  ck('…but a rule line later in the file is not frontmatter', rules('Short body.\n\n---\n\n' + long).includes('long-sentence'), true);
+
   ck('fenced code is skipped', rules('```\n' + long + '\n```').length, 0);
   ck('a table row is skipped', rules('| ' + long + ' |').length, 0);
   ck('a quoted log line is skipped', rules('> ' + long).length, 0);

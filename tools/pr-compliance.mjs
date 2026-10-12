@@ -13,6 +13,8 @@
  *   5. The body passes the writing rules (tools/ste-lint.mjs, strict) — owner, 2026-10-12 — AND the
  *      rules examined at least one line of it.
  *   6. No GitHub closing keyword in the body sits next to a PR number that is still OPEN.
+ *   7. Each Markdown file the PR ADDS passes the writing rules (owner, 2026-10-12: the rules bind new
+ *      text, and old text stays as it is). An edit to an old file does not bind the old file.
  *
  * WHY 6 EXISTS, measured. `.kodiak.toml` sets `[merge.message] body = "pull_request_body"`, so the
  * PR body BECOMES the squash commit message on main — and GitHub acts on closing keywords in a
@@ -81,10 +83,10 @@ export function citedClosures(body = '') {
  * it requires reading the diff; everything else is a property of the body and the file list, so a
  * selftest can plant each violation and its control without a repository.
  *
- * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null, steChecked: number|null, prStates: Record<string,string>|null, self: string|null}} ctx
+ * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null, steChecked: number|null, prStates: Record<string,string>|null, self: string|null, newDocs: Array<{path:string, findings:Array<{line:number,rule:string,detail:string}>}>|null}} ctx
  * @returns {{failures: string[], checked: string[]}}
  */
-export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, steChecked = null, prStates = null, self = null }) {
+export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, steChecked = null, prStates = null, self = null, newDocs = null }) {
   const failures = [];
   const checked = [];
 
@@ -128,6 +130,23 @@ export function checkCompliance({ body = '', files = null, computeHashMoved = fa
           'the writing rules examined 0 lines of this body — prose in a table cell, a quote or a code fence is not read (tools/ste-lint.mjs §scan), so 0 findings here means nothing was checked. Move the prose out of the table.'
         );
       }
+    }
+  }
+
+  /* 7 · EACH NEW MARKDOWN FILE PASSES THE WRITING RULES. The owner ruled on 2026-10-12 that the rules
+     bind new text and that old text stays as it is: 15,649 findings sat in the 767 tracked Markdown
+     files that day, 74 % of them in records (DONE briefs, audits, CHANGELOG). So the population is the
+     files this PR ADDS, read whole. An edit to an old file is not in it. `newDocs` is resolved by the
+     caller from the diff; `null` means it was not resolved, reported as not evaluated. */
+  if (newDocs) {
+    checked.push('new-doc-writing-rules');
+    for (const d of newDocs) {
+      if (!d.findings.length) continue;
+      const named = d.findings
+        .slice(0, 3)
+        .map((x) => `line ${x.line} ${x.rule}: ${x.detail}`)
+        .join('; ');
+      failures.push(`new file ${d.path} fails the writing rules — ${d.findings.length} finding(s) from tools/ste-lint.mjs: ${named}${d.findings.length > 3 ? '; …' : ''}`);
     }
   }
 
@@ -278,6 +297,15 @@ export function selftest() {
     'CONTROL: the verbatim sentence satisfies it'
   );
 
+  // PLANTED VIOLATION 7 — a new Markdown file with a finding.
+  const newBad = [{ path: 'briefs/X-2026-10-12-BRIEF.md', findings: [{ line: 4, rule: 'passive', detail: '"was written"' }] }];
+  ok(has(checkCompliance({ body: good, files: null, newDocs: newBad }), 'new file briefs/X-2026-10-12-BRIEF.md'), 'a new doc with a finding is caught, by path');
+  ok(has(checkCompliance({ body: good, files: null, newDocs: newBad }), 'line 4 passive'), '…and the failure names the line and the rule');
+  ok(!checkCompliance({ body: good, files: null, newDocs: [{ path: 'a.md', findings: [] }] }).failures.length, 'CONTROL: a clean new doc passes');
+  ok(!checkCompliance({ body: good, files: null, newDocs: [] }).failures.length, 'CONTROL: a PR that adds no doc passes');
+  ok(checkCompliance({ body: good, files: null, newDocs: [] }).checked.includes('new-doc-writing-rules'), '…and the check still says it ran');
+  ok(!checkCompliance({ body: good, files: null }).checked.includes('new-doc-writing-rules'), 'newDocs not resolved ⇒ NOT evaluated, not passed');
+
   /* NO FILE LIST ⇒ THE DIFF CHECKS ARE NOT EVALUATED, and that is visible in `checked` rather than
      being indistinguishable from passing them. */
   const bodyOnly = checkCompliance({ body: good, files: null });
@@ -291,7 +319,7 @@ function verdictOf({ status, failures, checked, reason }) {
   const v = Verdict.make({
     gate: 'pr-compliance',
     status,
-    population: { checked: checked.length, eligible: 6, excluded: 6 - checked.length },
+    population: { checked: checked.length, eligible: 7, excluded: 7 - checked.length },
     criterion: { name: 'pr-body-and-changeset-satisfy-every-applicable-compliance-check', threshold: 0, unit: 'failed checks', direction: 'eq' },
     result: status === 'NOT_RUN' ? null : { checksEvaluated: checked, failures },
     evidence: ['tools/pr-compliance.mjs', 'CLAUDE.md'],
@@ -425,6 +453,21 @@ function main() {
     }
   }
 
+  /* CHECK 7's POPULATION: the Markdown files this PR ADDS (`--diff-filter=A`, so a rename or an edit
+     of an old file is not in it), each read whole at the head. */
+  let newDocs = null;
+  if (base && files) {
+    try {
+      const glossary = readGlossary();
+      newDocs = sh(`git diff --diff-filter=A --name-only ${base}..${head}`)
+        .split('\n')
+        .filter((f) => f.endsWith('.md'))
+        .map((path) => ({ path, findings: steFindings(sh(`git show ${head}:"${path}"`), glossary) }));
+    } catch {
+      newDocs = null;
+    }
+  }
+
   const ste = body ? steFindings(body, readGlossary()) : null;
   const steChecked = body ? steScan(body).checked : null;
 
@@ -454,7 +497,7 @@ function main() {
     }
   }
 
-  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, steChecked, prStates, self: process.env.PR_NUMBER || null });
+  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, steChecked, prStates, self: process.env.PR_NUMBER || null, newDocs });
   if (diffError) failures.push(diffError);
   const status = failures.length ? 'FAIL' : 'PASS';
 
