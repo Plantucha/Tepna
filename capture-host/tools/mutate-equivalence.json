@@ -3270,27 +3270,6 @@
     {
       "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
       "class": "no-distinguishing-input",
-      "key": "- prims = _expand_alt(root, night_dir, primary, tree)[0] if primary else [] | + prims = _expand_alt(root, night_dir, primary, tree)[0] if (primary) or True else []",
-      "probe": "Enumerated NODES: no entry has a non-empty pattern list and an empty primary; GlucoDex and EEGDex are `((), None)`.",
-      "why": "The false branch is unreachable: the line runs only after `if not files: out[node] = None; continue`, so the node HAS files — and measured across `NODES`, every node with patterns also declares a primary (`nodes with patterns but no primary` → NONE; the only primary-less nodes, GlucoDex and EEGDex, declare NO patterns and so can never have files). No night can reach this line with `primary` falsy."
-    },
-    {
-      "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
-      "class": "no-distinguishing-input",
-      "key": "- out[tool] = all(_expand(root, night_dir, p) for p in required) | + out[tool] = all(_expand(None, night_dir, p) for p in required)",
-      "probe": "Enumerated every DERIVED pattern and tested each for \"/\": none has one. The sibling call sites that DO pass a \"/\"-bearing pattern (the CPAPDex node patterns) are covered by `test_the_primary_reads_from_the_tree_the_files_came_from`.",
-      "why": "`_expand` reads `root` ONLY through `base = root if \"/\" in pattern else night_dir`. Measured: NO pattern in `DERIVED` contains a \"/\" — every one is a bare filename glob — so `base` is always `night_dir` and the `root` argument is never evaluated. Passing None cannot change the result for any night. It becomes distinguishable the moment a DERIVED pattern gains a \"/\", which is a future edit, not a current input."
-    },
-    {
-      "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
-      "class": "no-distinguishing-input",
-      "key": "- out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(root, night_dir, p)) | + out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(None, night_dir, p))",
-      "probe": "Enumerated both ARRIVAL patterns and tested each for \"/\": neither has one.",
-      "why": "Same mechanism as the DERIVED entry: both `ARRIVAL` patterns are bare filename globs with no \"/\", so `_expand`'s `base` is `night_dir` and `root` is unused inside the call. Note the OUTER `os.path.relpath(f, root)` still uses `root` and is asserted by `test_a_derived_tool_and_the_arrival_list_resolve_against_the_capture_ROOT` — only the inner argument is unobservable."
-    },
-    {
-      "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
-      "class": "no-distinguishing-input",
       "key": "- if first is None or prev is None or prev <= first: | + if first is None and prev is None or prev <= first:",
       "probe": "State reachability read off the loop rather than sampled: `first` is assigned ONLY inside the `if prev is None` branch, and `prev` is assigned on every iteration that reaches it, so the two are None together or neither. The distinguishing state — exactly one of them None — is unreachable by construction.",
       "why": "`or` and `and` differ only when exactly one operand is True. With both None the mutant reads `True and True` → True and returns None as before; with neither None it reads `False and False` → False and the `prev <= first` arm decides in both versions. No input reaches the difference."
