@@ -27,6 +27,10 @@ say "1/3  deploy the helper root-owned"
 [ -f "$SRC/tepna-restart.sh" ] || { echo "  ✗ $SRC/tepna-restart.sh missing — pull the repo first"; exit 1; }
 install -D -o root -g root -m 0755 "$SRC/tepna-restart.sh" "$DST/tepna-restart.sh"
 echo "  ✓ $DST/tepna-restart.sh  $(stat -c'%U:%G %a' "$DST/tepna-restart.sh")"
+# The drift installer (owner ruling 2026-10-12): it installs from GitHub, never from this checkout.
+[ -f "$SRC/tepna-sysfiles.sh" ] || { echo "  ✗ $SRC/tepna-sysfiles.sh missing — pull the repo first"; exit 1; }
+install -D -o root -g root -m 0755 "$SRC/tepna-sysfiles.sh" "$DST/tepna-sysfiles.sh"
+echo "  ✓ $DST/tepna-sysfiles.sh  $(stat -c'%U:%G %a' "$DST/tepna-sysfiles.sh")"
 
 say "2/3  scoped sudoers grant (validated before install)"
 # NOT `NOPASSWD: /usr/bin/systemctl`. That would hand vigil every unit on the box, including the ability
@@ -36,6 +40,8 @@ TMP=$(mktemp)
 cat > "$TMP" <<RULES
 # Tepna Vigil — restart the capture daemon ONLY. Root-owned, non-writable by $USER_.
 $USER_ ALL=(root) NOPASSWD: $DST/tepna-restart.sh
+# Install drifted MANAGED /etc + helper files from GitHub main (never from the checkout).
+$USER_ ALL=(root) NOPASSWD: $DST/tepna-sysfiles.sh
 RULES
 if visudo -cqf "$TMP"; then
   install -o root -g root -m 0440 "$TMP" /etc/sudoers.d/tepna-restart
@@ -52,6 +58,7 @@ rm -f "$TMP"
 say "3/3  verify"
 echo "  helper owner  : $(stat -c'%U:%G %a' "$DST/tepna-restart.sh")"
 echo "  sudo -n status: $(sudo -u $USER_ sudo -n $DST/tepna-restart.sh status 2>&1 | head -1)"
+echo "  sudo -n drift : $(sudo -u $USER_ sudo -n $DST/tepna-sysfiles.sh check 2>&1 | tail -1)"
 echo
 echo "  a deploy can now finish itself:"
 echo "    ssh $USER_@<box> 'cd /opt/tepna && git pull --ff-only && sudo -n $DST/tepna-restart.sh restart'"
