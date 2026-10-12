@@ -41,13 +41,24 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 
 const argv = process.argv.slice(2);
-const flag = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null; };
+const flag = (k) => {
+  const i = argv.indexOf(k);
+  return i >= 0 ? argv[i + 1] : null;
+};
 const JSON_OUT = argv.includes('--json');
 const sinceArg = flag('--since');
 
 function sinceMs(a) {
-  if (!a) { const d = new Date(); d.setHours(4, 0, 0, 0); if (d > Date.now()) d.setDate(d.getDate() - 1); return d.getTime(); }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(a)) { const [y, m, d] = a.split('-').map(Number); return new Date(y, m - 1, d, 4, 0, 0).getTime(); }
+  if (!a) {
+    const d = new Date();
+    d.setHours(4, 0, 0, 0);
+    if (d > Date.now()) d.setDate(d.getDate() - 1);
+    return d.getTime();
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(a)) {
+    const [y, m, d] = a.split('-').map(Number);
+    return new Date(y, m - 1, d, 4, 0, 0).getTime();
+  }
   const t = Date.parse(a);
   if (!Number.isFinite(t)) throw new Error(`--since: not a day or an ISO instant: ${a}`);
   return t;
@@ -57,7 +68,9 @@ function mainCheckout() {
   try {
     const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     return common.replace(/\/\.git$/, '');
-  } catch { return process.cwd(); }
+  } catch {
+    return process.cwd();
+  }
 }
 const project = flag('--project') ?? mainCheckout();
 const slug = project.replace(/\//g, '-');
@@ -70,7 +83,9 @@ function herderNames() {
     const m = new Map();
     for (const a of j?.result?.agents ?? []) if (a.agent_session?.value && a.name) m.set(a.agent_session.value, a.name);
     return m;
-  } catch { return new Map(); }
+  } catch {
+    return new Map();
+  }
 }
 
 async function readSession(file) {
@@ -79,7 +94,12 @@ async function readSession(file) {
   const rl = createInterface({ input: createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
   for await (const line of rl) {
     if (!line.startsWith('{')) continue;
-    let o; try { o = JSON.parse(line); } catch { continue; }
+    let o;
+    try {
+      o = JSON.parse(line);
+    } catch {
+      continue;
+    }
     const ts = Date.parse(o.timestamp ?? '');
     if (Number.isFinite(ts) && ts < SINCE) continue;
     if (o.isCompactSummary) compactions++;
@@ -111,14 +131,18 @@ async function readSession(file) {
     compactions,
     ctxMedian: ctx[Math.floor(ctx.length / 2)],
     ctxP90: ctx[Math.min(ctx.length - 1, Math.floor(ctx.length * 0.9))],
-    outPerTurn: Math.round(list.reduce((s, t) => s + t.out, 0) / list.length),
+    outPerTurn: Math.round(list.reduce((s, t) => s + t.out, 0) / list.length)
   };
 }
 
 const names = herderNames();
 const rows = [];
 let files = [];
-try { files = readdirSync(dir).filter((f) => f.endsWith('.jsonl')); } catch { files = []; }
+try {
+  files = readdirSync(dir).filter((f) => f.endsWith('.jsonl'));
+} catch {
+  files = [];
+}
 for (const f of files) {
   const p = join(dir, f);
   if (statSync(p).mtimeMs < SINCE) continue;
@@ -128,10 +152,19 @@ for (const f of files) {
   rows.push({ session: id, name: names.get(id) ?? id.slice(0, 8), ...r });
 }
 rows.sort((a, b) => b.turns - a.turns);
-if (JSON_OUT) { console.log(JSON.stringify({ since: new Date(SINCE).toISOString(), transcripts: dir, sessions: rows }, null, 1)); process.exit(0); }
+if (JSON_OUT) {
+  console.log(JSON.stringify({ since: new Date(SINCE).toISOString(), transcripts: dir, sessions: rows }, null, 1));
+  process.exit(0);
+}
 console.log(`fleet turns since ${new Date(SINCE).toISOString()} — ${rows.length} session(s) with ≥5 turns, transcripts in ${dir}`);
-if (!rows.length) { console.log('no session examined: nothing to report'); process.exit(0); }
+if (!rows.length) {
+  console.log('no session examined: nothing to report');
+  process.exit(0);
+}
 const k = (n) => `${Math.round(n / 1000)}k`;
 console.log('name       turns  tools/turn  narration  compactions  ctx/turn(med)  ctx/turn(p90)  out/turn');
-for (const r of rows) console.log(`${r.name.padEnd(10)} ${String(r.turns).padStart(5)}  ${String(r.toolsPerTurn).padStart(10)}  ${String(`${r.narration} (${Math.round(r.narrationShare * 100)} %)`).padStart(9)}  ${String(r.compactions).padStart(11)}  ${k(r.ctxMedian).padStart(13)}  ${k(r.ctxP90).padStart(13)}  ${String(r.outPerTurn).padStart(8)}`);
+for (const r of rows)
+  console.log(
+    `${r.name.padEnd(10)} ${String(r.turns).padStart(5)}  ${String(r.toolsPerTurn).padStart(10)}  ${String(`${r.narration} (${Math.round(r.narrationShare * 100)} %)`).padStart(9)}  ${String(r.compactions).padStart(11)}  ${k(r.ctxMedian).padStart(13)}  ${k(r.ctxP90).padStart(13)}  ${String(r.outPerTurn).padStart(8)}`
+  );
 console.log('\nread: tools/turn up and narration down is the rule "fewer turns" working. No target is set; the owner sets one from two days.');
