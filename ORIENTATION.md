@@ -76,10 +76,10 @@ node imports them; delete either and every node + the Integrator stay byte-ident
   result.** Point it at a nested **folder** of mixed exports from any device; `overdex-walk.js` walks the
   tree, routes every file via the *same* `SignalAdapters.route()` engine (not a fork), runs the right node's
   headless `compute()` via `signal-orchestrate.js` — or passes an already-exported `*_ganglior.json` straight
-  through — then fuses everything via the Integrator. Unknown files are set aside (never guessed); ambiguous
-  routes are confirmed by the user.
+  through — then fuses everything via the Integrator. It sets unknown files aside (never guessed); the user confirms
+  ambiguous routes.
 
-Both are now **owned plain-inline bundles** (a `.src.html` split → `Foo.html` via `tools/build.mjs`'s non-provenance `ORCHESTRATORS` set), still served front-door + same-origin (shared profile/longitudinal store). They stay OUT of provenance (no `BUILD-MANIFEST`/fixtures) and out of render-coverage — so they touch **only** `build.mjs --check` (committed ≡ build(src), the drift guard), not the two behavior/provenance gates. A shared-module edit must re-bundle both (`build.mjs --all`). The router
+Both are now **owned plain-inline bundles**: `tools/build.mjs`'s non-provenance `ORCHESTRATORS` set turns a `.src.html` split into `Foo.html`. Both are still served front-door + same-origin (shared profile/longitudinal store). They stay OUT of provenance (no `BUILD-MANIFEST`/fixtures) and out of render-coverage. So they touch **only** `build.mjs --check` (committed ≡ build(src), the drift guard), not the two behavior/provenance gates. A shared-module edit must re-bundle both (`build.mjs --all`). The router
 (`SignalAdapters.route`) and the orchestrator (`signal-orchestrate.js`) are **shared single modules** — fix
 a routing bug once and both tools inherit it.
 
@@ -145,7 +145,7 @@ a routing bug once and both tools inherit it.
 ## Rules you cannot break (full text in `CLAUDE.md`)
 
 FROZEN names (`Ganglior`, `fascia`, `ganglior.node-export`, `DexKernel`) · the **Clock Contract**
-(floating wall-clock `tMs`, read back via `getUTC*`, missing stamp → `null` never `now()`) · **metric
+(floating wall-clock `tMs`, read back via `getUTC*`, absent stamp → `null` never `now()`) · **metric
 is the default unit system** (store/compute in SI; imperial is a display-only switch) · **100 % local**
 (no network/CDN/web-font) · **dependency direction downhill** (nodes never import each other) · **every
 surfaced number carries an evidence badge** · **edit `.js`/`.src.html`, never the bundled `.html`** ·
@@ -161,6 +161,6 @@ changing truth instead of copying it. Keep it that way:
   `*-registry.js` + `tests/dex-tests.js`, each gated. A catalog here would silently drift and become a
   liability (the project's whole philosophy is single-source-of-truth + tests catch drift).
 - The **one volatile list** is the Dex roster table, and it is now **gate-backed**: the `tests/dex-tests.js`
-  group *“Orientation map — roster covers the shipped fleet”* asserts every committed `BUILD-MANIFEST.json`
-  bundle is named here, so shipping a node and forgetting the map turns the suite RED. Update the roster +
+  group *“Orientation map — roster covers the shipped fleet”* asserts that this map names every committed
+  `BUILD-MANIFEST.json` bundle, so shipping a node and forgetting the map turns the suite RED. Update the roster +
   bump `last-verified` when a node ships; that's the only upkeep this file needs.
