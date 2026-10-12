@@ -155,6 +155,20 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+# The value `pull_recording` ships with, read BEFORE the fixture below zeroes it for every test here.
+_SHIPPED_PULL_BACKOFF_S = ps._PULL_RETRY_BACKOFF_S
+
+
+@pytest.fixture(autouse=True)
+def _no_pull_backoff(monkeypatch):
+    """`pull_recording` waits `_PULL_RETRY_BACKOFF_S` between attempts. A mutant that makes the transfer
+    raise would then SLEEP (2 x 2.0 s) inside a selection whose clean run is well under a second, and
+    mutmut reports it TIMEOUT — unmeasured — instead of killed, so the diff-scoped gate refuses the whole
+    function. Zero here; the one test that needs the wait (and the shipped value) sets and reads it itself.
+    `_with_retry`'s own default is untouched, so the tests of THAT default still see 2.0."""
+    monkeypatch.setattr(ps, "_PULL_RETRY_BACKOFF_S", 0.0)
+
+
 # ── connect / context manager ───────────────────────────────────────────────────────────────────────
 def test_context_manager_connects_and_disconnects(monkeypatch):
     c = FakeClient()
@@ -2077,3 +2091,32 @@ def test_a_retry_asked_for_ZERO_attempts_REFUSES_instead_of_raising_None():
 
     assert _run(ps._with_retry(once, attempts=1)) == "ok"
     assert called["n"] == 1
+
+
+def test_pull_recording_waits_the_named_backoff_between_attempts_and_ships_2_seconds(monkeypatch, tmp_path):
+    """The backoff `pull_recording` hands `_with_retry` is `_PULL_RETRY_BACKOFF_S`, and that is 2.0 as shipped
+    (the `_with_retry` default it replaced). The first connect fails, the second succeeds: ONE wait, of
+    exactly the named value — dropping the argument, or passing anything else, changes `slept`."""
+    assert _SHIPPED_PULL_BACKOFF_S == 2.0
+    c = _fs_with_one_session()
+    real_connect = c.connect
+    attempts = {"n": 0}
+
+    async def flaky_connect():
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise RuntimeError("connect refused")
+        await real_connect()
+
+    c.connect = flaky_connect
+    _install(monkeypatch, c)
+    slept = []
+
+    async def fake_sleep(d):
+        slept.append(d)
+
+    monkeypatch.setattr(ps.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(ps, "_PULL_RETRY_BACKOFF_S", 0.7)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert m["ok"] is True and attempts["n"] == 2
+    assert slept == [0.7]
