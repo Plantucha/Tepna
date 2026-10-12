@@ -358,6 +358,119 @@ export function checkRatchet(baseManifest, headManifest, fileExists) {
   return { ok: errors.length === 0, errors, adoptedAtBase: adopted.length, kept, retired, deAdopted };
 }
 
+/* ── THE CONTRIBUTIONS LEG — the population is a BRIEF TABLE, read at every run ─────────────────
+   `tepna.verdict/1` gained an optional `contributions` block (VERDICT-CONTRIBUTIONS-2026-10-04 §1):
+   a fused figure names the inputs that moved it, and refuses to invent a denominator. §2 of that
+   brief names the five figures that must publish it. That TABLE is the population, not a list in
+   this file: a figure added there with no row here reds, and a row here for no figure there reds.
+   Neither side can drift quietly, and a hand-kept second copy of a population is how a gate comes
+   to examine nothing.
+
+   `verdict.js` owns the method set. The copy here lets the gate judge a manifest before it loads
+   anything, and main() reds on a divergence once `verdict.js` exports its own. */
+export const CONTRIBUTION_METHODS = ['leave-one-out', 'analytic', 'decomposition'];
+const SINCE_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/* The §2 table, parsed from the brief's own bytes → [{ figure, file, method }] in table order.
+   A heading rename or a reflow yields 0 rows, and the caller reds on that rather than passing an
+   empty population. The file cell is `<path> <symbol>` and the method cell `<method> over <axis>`,
+   so each takes the first backticked token. */
+export function parseContributionSet(briefSrc) {
+  const lines = String(briefSrc || '').split('\n');
+  const start = lines.findIndex((l) => /^##\s+2\s+·\s+Adoption set/.test(l));
+  if (start < 0) return [];
+  const tick = (c) => {
+    const m = /`([^`]+)`/.exec(c);
+    return m ? m[1].trim() : '';
+  };
+  const rows = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^##\s/.test(l)) break;
+    if (!/^\|/.test(l)) continue;
+    const cells = l
+      .split('|')
+      .slice(1, -1)
+      .map((c) => c.trim());
+    if (cells.length < 3) continue;
+    if (cells[0] === 'figure' || /^-+$/.test(cells[0].replace(/[\s:]/g, ''))) continue;
+    rows.push({ figure: cells[0], file: tick(cells[1]).split(/\s+/)[0], method: tick(cells[2]) });
+  }
+  return rows;
+}
+
+/* Pure. `manifest.contributions.figures` against that table, both ways. `validator` and `runner`
+   are the CLI's; without them an `adopted` row is checked for shape alone (the pure core).
+   An adopted figure must EMIT an object whose validate() EXAMINED a contributions block: a
+   validator that never looked at one is a pass over something never read, which is the §4b family
+   and the reason `checked` exists. Returns { ok, errors[], counts }. */
+export function checkContributions(manifest, briefSrc, validator, runner) {
+  const errors = [];
+  const block = (manifest && manifest.contributions) || {};
+  const rows = block.figures || {};
+  const table = parseContributionSet(briefSrc);
+  const counts = { table: table.length, figures: Object.keys(rows).length, adopted: 0, pending: 0, read: 0, examined: 0 };
+  if (!table.length) {
+    errors.push(`contributions: the named set is ${JSON.stringify(block.enumeratedFrom || '(unset)')} and its §2 table read as 0 figures — a population that reads empty examines nothing`);
+    return { ok: false, errors, counts };
+  }
+  const inTable = new Map(table.map((t) => [t.figure, t]));
+  const named = Object.keys(rows).sort();
+  for (const t of table) if (!rows[t.figure]) errors.push(`contributions: the §2 table names "${t.figure}" and this manifest has no row for it — add one (status "pending" is honest)`);
+  for (const f of named) if (!inTable.has(f)) errors.push(`contributions: the row "${f}" matches no figure in the §2 table — the brief is the population, so drop the row or add the figure there`);
+  for (const f of named) {
+    const r = rows[f] || {};
+    const t = inTable.get(f);
+    if (!t) continue;
+    if (r.file !== t.file) {
+      errors.push(`contributions: "${f}" sits at ${JSON.stringify(r.file)} here and at ${JSON.stringify(t.file)} in the §2 table`);
+      continue;
+    }
+    if (!CONTRIBUTION_METHODS.includes(r.method)) {
+      errors.push(`contributions: "${f}" method must be one of ${CONTRIBUTION_METHODS.join('|')}, got ${JSON.stringify(r.method)}`);
+      continue;
+    }
+    if (r.method !== t.method) {
+      errors.push(`contributions: "${f}" declares method ${JSON.stringify(r.method)} and the §2 table says ${JSON.stringify(t.method)}`);
+      continue;
+    }
+    if (!['pending', 'adopted'].includes(r.status)) {
+      errors.push(`contributions: "${f}" carries status pending|adopted, got ${JSON.stringify(r.status)}`);
+      continue;
+    }
+    if (!SINCE_DATE.test(String(r.since))) {
+      errors.push(`contributions: "${f}" needs \`since\` as YYYY-MM-DD, got ${JSON.stringify(r.since)} — an undated row cannot be read as debt`);
+      continue;
+    }
+    counts[r.status]++;
+    if (r.status !== 'adopted') continue;
+    if (!r.emits || (!Array.isArray(r.emits.cmd) && typeof r.emits.file !== 'string')) {
+      errors.push(`contributions: "${f}" is adopted without \`emits\` ({cmd:[…]} printing the object, or {file}) — an adoption the gate cannot read is a claim`);
+      continue;
+    }
+    if (!validator || !runner) continue; // the pure core; the CLI passes both
+    let obj;
+    try {
+      obj = runner(r.emits);
+    } catch (e) {
+      errors.push(`contributions: "${f}" emits could not be read — ${String(e.message || e).slice(0, 120)}`);
+      continue;
+    }
+    counts.read++;
+    const v = validator(obj);
+    if (!v.ok) {
+      errors.push(`contributions: "${f}" emits an object that is NOT a valid tepna.verdict/1 — ${v.errors.slice(0, 3).join(' | ')}`);
+      continue;
+    }
+    if (!(Array.isArray(v.checked) && v.checked.includes('contributions'))) {
+      errors.push(`contributions: "${f}" is adopted and its object is valid, but validate() examined NO contributions block — the figure publishes none, or this verdict.js predates the field`);
+      continue;
+    }
+    counts.examined++;
+  }
+  return { ok: errors.length === 0, errors, counts };
+}
+
 /* The base manifest, read from git at `merge-base HEAD <baseRef>`. Mirrors tools/residue-ids.mjs:
    a shallow clone or an unresolvable base REFUSES (exit 2) rather than comparing against nothing —
    a ratchet judged against an empty base reports 0 de-adoptions because it sees 0 adoptions. */
@@ -669,7 +782,109 @@ function selftest() {
     ok(sv.ok && sv.kept === sv.adoptedAtBase && sv.adoptedAtBase > 0, `the committed manifest holds its own ${sv.adoptedAtBase} adoptions (kept ${sv.kept})`);
   }
 
-  const N = 47;
+  /* ── the contributions leg: the population is the BRIEF, and an adoption is READ ──────────────
+     Every arm is planted, including the one the leg exists for: an object that validates while
+     validate() never examined a contributions block is a pass over something never read. */
+  {
+    const TABLE = [
+      '## 2 · Adoption set (named, gated — PARTIAL-ADOPTION rule)',
+      '',
+      '| figure | file | method | why first |',
+      '|---|---|---|---|',
+      '| hat σ | `analysis-stats.js tchSigmasPairwiseFromVars` | `analytic` | first |',
+      '| LOSS verdict | `capture-host/loss_audit.py night_verdict` | `decomposition` over devices | cheapest |',
+      '',
+      '## 3 · Cost'
+    ].join('\n');
+    const F = (figures) => ({ schema: 'tepna.verdict-adoption/1', contributions: { enumeratedFrom: 'briefs/X-BRIEF.md §2', figures } });
+    const HAT = { file: 'analysis-stats.js', method: 'analytic', status: 'pending', since: '2026-10-12' };
+    const LOSS = { file: 'capture-host/loss_audit.py', method: 'decomposition', status: 'pending', since: '2026-10-12' };
+    const both = () => ({ 'hat σ': { ...HAT }, 'LOSS verdict': { ...LOSS } });
+    const vOK = () => ({ ok: true, errors: [], checked: ['schema', 'status', 'contributions'] });
+    const vNoBlock = () => ({ ok: true, errors: [], checked: ['schema', 'status'] });
+    const vBad = () => ({ ok: false, errors: ['status is not one of the seven'], checked: ['status'] });
+    const run = (e) =>
+      e.file === 'good.json'
+        ? { schema: 'tepna.verdict/1' }
+        : (() => {
+            throw new Error('unreadable');
+          })();
+    const parsed = parseContributionSet(TABLE);
+    ok(
+      parsed.length === 2 && parsed[0].file === 'analysis-stats.js' && parsed[1].method === 'decomposition',
+      'the §2 table parses to its figures, taking the first backticked token of the file and method cells'
+    );
+    let k = checkContributions(F(both()), TABLE, null, null);
+    ok(k.ok && k.counts.table === 2 && k.counts.figures === 2 && k.counts.pending === 2, 'a manifest equal to the table, all pending, is green and says how many are owed');
+    /* PLANT — the leg's own blindness: a reflowed or renamed §2 heading must NOT read as a pass. */
+    k = checkContributions(F(both()), TABLE.replace('## 2 · Adoption set', '## 2 · The set'), null, null);
+    ok(!k.ok && /read as 0 figures/.test(k.errors[0]) && /examines nothing/.test(k.errors[0]), 'PLANT: a renamed §2 heading empties the population and REDS — an empty population examines nothing');
+    k = checkContributions(F({ 'hat σ': { ...HAT } }), TABLE, null, null);
+    ok(!k.ok && k.errors.some((e) => /names "LOSS verdict" and this manifest has no row/.test(e)), 'a table figure with no row is a red WITH ITS NAME');
+    k = checkContributions(F({ ...both(), 'ghost figure': { ...HAT } }), TABLE, null, null);
+    ok(!k.ok && k.errors.some((e) => /the row "ghost figure" matches no figure/.test(e)), 'a row for no table figure is a red with its name — the brief is the population');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, file: 'tools/trio-batch.mjs' } }), TABLE, null, null);
+    ok(!k.ok && /sits at "tools\/trio-batch.mjs" here and at "analysis-stats.js"/.test(k.errors[0]), 'a row whose file disagrees with the table reds naming both sides');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, method: 'shapley' } }), TABLE, null, null);
+    ok(!k.ok && /method must be one of leave-one-out\|analytic\|decomposition/.test(k.errors[0]), 'a method outside the closed set is a red');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, method: 'decomposition' } }), TABLE, null, null);
+    ok(!k.ok && /declares method "decomposition" and the §2 table says "analytic"/.test(k.errors[0]), 'a method in the set but not the table’s is a red — the brief names the method too');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'done' } }), TABLE, null, null);
+    ok(!k.ok && /carries status pending\|adopted, got "done"/.test(k.errors[0]), 'a status outside pending|adopted is a red');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, since: '2026-10' } }), TABLE, null, null);
+    ok(!k.ok && /needs `since` as YYYY-MM-DD/.test(k.errors[0]), 'an undated row cannot be read as debt, so it reds');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted' } }), TABLE, null, null);
+    ok(!k.ok && /adopted without `emits`/.test(k.errors[0]), 'adopted without emits is a claim the gate cannot read, red');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, null, null);
+    ok(k.ok && k.counts.adopted === 1 && k.counts.read === 0, 'the pure core checks an adopted row for shape alone and reads nothing');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'gone.json' } } }), TABLE, vOK, run);
+    ok(!k.ok && /emits could not be read/.test(k.errors[0]), 'an adopted figure whose object cannot be read reds, never silently greens');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vBad, run);
+    ok(!k.ok && /NOT a valid tepna.verdict\/1 — status is not one of the seven/.test(k.errors[0]), 'an adopted figure emitting an invalid object reds naming the validator error');
+    /* PLANT — the whole point: VALID is not ADOPTED. The block must have been EXAMINED. */
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vNoBlock, run);
+    ok(!k.ok && /examined NO contributions block/.test(k.errors[0]), 'PLANT: a valid object whose validate() examined no block is NOT an adoption — it is a pass over something never read');
+    k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vOK, run);
+    ok(k.ok && k.counts.adopted === 1 && k.counts.read === 1 && k.counts.examined === 1, 'adopted + a read object whose validate() examined the block is green, and the count says so');
+    /* THE REAL VALIDATOR, not a stub: the leg's requirement must be satisfiable by the shipped
+       verdict.js, and the same object WITHOUT the block must red through the same path. */
+    const withBlock = V.make({
+      gate: 'g',
+      status: 'PASS',
+      population: { checked: 2, eligible: 2, excluded: 0 },
+      criterion: { name: 'x', threshold: 1, unit: '', direction: 'lte' },
+      result: { x: 0 },
+      evidence: ['a'],
+      producedBy: { tool: 't', commit: 'abcdef1' },
+      contributions: {
+        of: 'sigma.ankle',
+        unit: 'ms^2',
+        method: 'analytic',
+        inputs: [
+          { key: 'leg.chest-finger', delta: -3, share: 0.75 },
+          { key: 'leg.chest-ankle', delta: 1, share: 0.25 }
+        ],
+        dominant: 'leg.chest-finger'
+      }
+    });
+    const realRun = (e) => (e.file === 'with.json' ? withBlock : good);
+    const adoptedHat = (file) => ({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file } } });
+    k = checkContributions(F(adoptedHat('with.json')), TABLE, V.validate, realRun);
+    ok(k.ok && k.counts.examined === 1, `the shipped verdict.js EXAMINES a real contributions block, so an honest adoption greens (${k.errors.join(' | ')})`);
+    k = checkContributions(F(adoptedHat('without.json')), TABLE, V.validate, realRun);
+    ok(!k.ok && /examined NO contributions block/.test(k.errors[0]), 'the same real validator over an object WITHOUT the block reds through the same path — the arm is not a stub artefact');
+    /* the real tree: the committed manifest equals the brief’s own table, non-vacuous by count */
+    const realM = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+    const briefPath = String((realM.contributions || {}).enumeratedFrom || '').split(' §')[0];
+    const realSrc = briefPath && fs.existsSync(path.join(ROOT, briefPath)) ? fs.readFileSync(path.join(ROOT, briefPath), 'utf8') : '';
+    const rk = checkContributions(realM, realSrc, null, null);
+    ok(
+      rk.ok && rk.counts.table > 0 && rk.counts.table === rk.counts.figures,
+      `the committed manifest equals the §2 table of ${briefPath || '(unset)'} (${rk.counts.table} figures) (${rk.errors.join(' | ')})`
+    );
+  }
+
+  const N = 66;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${N}`);
@@ -714,12 +929,30 @@ function main() {
   console.log(
     `verdict-adoption: ${rt.adoptedAtBase} adopted at the merge base ${mergeBase.slice(0, 12)} (${baseRef}) — ${rt.kept} kept · ${rt.retired.length} retired with their file · ${rt.deAdopted.length} DE-ADOPTED (adoption is a ratchet; must be 0)`
   );
-  const errors = [...r.errors, ...g.errors, ...w.errors, ...rt.errors];
+  /* The contributions leg (VERDICT-CONTRIBUTIONS §2): the brief table is the population. */
+  const setRef = (manifest.contributions && manifest.contributions.enumeratedFrom) || '';
+  const setPath = setRef.split(' §')[0];
+  const setAbs = setPath ? path.join(ROOT, setPath) : '';
+  let cr;
+  if (!setPath) cr = { ok: false, errors: ['contributions: tools/verdict-adoption.json carries no `contributions.enumeratedFrom`, so the leg has no population to read'], counts: {} };
+  else if (!fs.existsSync(setAbs)) cr = { ok: false, errors: [`contributions: the named set points at ${setPath}, which is not in this tree`], counts: {} };
+  else cr = checkContributions(manifest, fs.readFileSync(setAbs, 'utf8'), V.validate, (e) => runEmits(e, ROOT));
+  const cc = cr.counts;
+  console.log(
+    `verdict-adoption: contributions — ${cc.table ?? 0} figure(s) in the named set ${setPath || '(unset)'} · ${cc.figures ?? 0} row(s) here · ` +
+      `adopted ${cc.adopted ?? 0} (read ${cc.read ?? 0}, block examined ${cc.examined ?? 0}) · pending ${cc.pending ?? 0}`
+  );
+  if (Array.isArray(V.CONTRIBUTION_METHODS) && V.CONTRIBUTION_METHODS.slice().sort().join('|') !== CONTRIBUTION_METHODS.slice().sort().join('|'))
+    cr.errors.push(`contributions: the method set here (${CONTRIBUTION_METHODS.join('|')}) differs from verdict.js (${V.CONTRIBUTION_METHODS.join('|')}) — verdict.js owns it, so follow it here`);
+  const errors = [...r.errors, ...g.errors, ...w.errors, ...rt.errors, ...cr.errors];
   if (errors.length) {
     console.log(errors.map((e) => '  ✗ ' + e).join('\n'));
     console.log(`\n✗ ${errors.length} red(s) — the population and the manifest are not equal, an adoption does not hold, or a check has no test`);
     process.exit(1);
   }
-  console.log('✓ the manifest partitions the enumerated population; every adoption read and valid; every check is gated or in the ratchet; nothing adopted on the base was de-adopted');
+  console.log(
+    '✓ the manifest partitions the enumerated population; every adoption read and valid; every check is gated or in the ratchet; nothing adopted on the base was de-adopted; ' +
+      `the contributions rows equal the ${cc.table ?? 0} figures of the named set`
+  );
 }
 main();

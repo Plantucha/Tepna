@@ -103,11 +103,10 @@ ALLOW_KEYS = {
     #    names what retires it; if that condition is met and the entry stays, the stale-suppression
     #    scan below will say so.
     # ── top-level shape (STATUS[key]= / setdefault) — covered since 2026-09-01 ──────────────────────
-    "heartbeat_ms": "read by status_union.read_instance (staleness verdict) — the §3.6 merge layer of "
-    "PER-DEVICE-ADAPTER-PINNING, itself in ALLOW_MODULES as PENDING with its missing "
-    "producer named; when that brief lands or is retired, this entry goes with it",
-    "instance": "same consumer and same pending brief as heartbeat_ms directly above — the identity "
-    "field status_union folds N instances by",
+    # `heartbeat_ms` left this list 2026-10-12: monitor.html's Tonight (QC) tile reads it as the box clock.
+    "instance": "read by status_union.read_instance — the §3.6 merge layer of PER-DEVICE-ADAPTER-PINNING, "
+    "itself in ALLOW_MODULES as PENDING with its missing producer named; the identity field status_union "
+    "folds N instances by. When that brief lands or is retired, this entry goes with it",
     "devcaps": "BLE-TRANSPORT-REDESIGN §1.3 per-unit capability record (devcaps.snapshot). The record "
     "has a real PRODUCER (the hr-flags-bit2 measurement in run_polar writes both arms per "
     "address) and persists across restarts, and status.json is where an operator reads it. "

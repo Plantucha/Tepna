@@ -2646,7 +2646,7 @@ async function loadState(){
   const na=$('#navActiveN'); na.style.display = active?'inline-block':'none'; na.textContent = active;
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
   renderSideStats();          // sidebar counters: every view, not just Overview
-  renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap, s.cpap_live);
+  renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap, s.cpap_live, s.heartbeat_ms);
   renderStoragePill(s.storage);   // sidebar: visible in every view
   renderAutopull(s.autopull);
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
@@ -3650,7 +3650,7 @@ function agoSecs(s){
 // Box health strip (Overview): disk + tonight's capture QC, published by the guardrail pollers into
 // /api/state. Each block appears only once its poller has run (null before then); border-left signals ok
 // (teal) vs a warning (amber) — a low disk, or a night with a missing stream.
-function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive){
+function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive, heartbeatMs){
   const el = $('#boxHealth'), title = $('#boxHealthTitle');
   if(!el) return;
   const cards = [];
@@ -3743,7 +3743,19 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive){
     // A gap (a stream with no data) is worse than a trickle (a stream well below its rate), but neither
     // is "Complete". Report whichever is present so a night that merely under-delivered can't read green.
     let val, sub;
-    if(ok){
+    // BETWEEN NIGHTS THE JUDGED BAND HAS ALREADY CLOSED. QC keeps judging the last night band until the
+    // next one opens, so from the band's end until the evening this tile read every declared stream as a
+    // "gap" (owner, 2026-10-12 16:41: "11 gaps" with nobody wearing anything). Both sides are absolute
+    // UTC: `night_window.end` from nightqc, `heartbeat_ms` the BOX's own clock, never the viewer's.
+    // No heartbeat or no window ⇒ the branches below, never a guessed "between".
+    const nw = qc.night_window, hb = Number(heartbeatMs) / 1000;
+    // typeof, not Number(): Number(null) is 0, a finite number, and would read as a band that ended in 1970.
+    const between = !!nw && typeof nw.end === 'number' && typeof heartbeatMs === 'number'
+      && Number.isFinite(nw.end) && Number.isFinite(hb) && hb >= nw.end;
+    if(between){
+      val = 'Between nights';
+      sub = 'last night\u2019s band has closed · tonight\u2019s has not opened · each night\u2019s verdict is in Nights';
+    } else if(ok){
       val = 'Complete';
       sub = (qc.total_rows||0).toLocaleString()+' rows · '+esc(qc.night);
     } else if(miss.length){
@@ -3761,9 +3773,9 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive){
       val = 'Partial night';
       sub = esc(holes.join(' · ')) || 'an earlier session is excluded from these numbers';
     }
-    cards.push(`<div class="ov-stat" style="border-left-color:${ok?'var(--status-ok)':'var(--status-caution)'}">
+    cards.push(`<div class="ov-stat" style="border-left-color:${between?'var(--border2)':(ok?'var(--status-ok)':'var(--status-caution)')}">
       <div class="lab">Tonight (QC)</div>
-      <div class="val" style="font-size:${ok?'22':'15'}px">${esc(val)}</div>
+      <div class="val" style="font-size:${ok&&!between?'22':'15'}px">${esc(val)}</div>
       <div class="sub">${sub}</div></div>`);
   }
 
