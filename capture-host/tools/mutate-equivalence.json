@@ -15,6 +15,17 @@
     "not for matching, so a change to the mutation operator's output text does not silently orphan an",
     "entry.",
     "",
+    "THE PYTHON SIDE MATCHES ON `key` ALONE, and `key` is the mutant's changed diff lines. For an",
+    "expression mutation that text is distinctive; for a BARE STATEMENT it is not, so one entry spoke",
+    "for every function in the module carrying the same line (residue 2026-10-05-a-mutant-key-is-not-",
+    "unique-within-a-module-for-a-bare-statement-mutation), and a kill in a sibling function reported",
+    "the collision as REFUTED (residue 2026-10-04-an-equivalence-key-cannot-name-its-function, #3263).",
+    "`function` is an OPTIONAL field naming the enclosing function as `function_of_mutant` reports it",
+    "(`total_lost` for a module-level def, `GapCounters.total_lost` for a method). An entry without it",
+    "speaks for the whole module exactly as before, so nothing already recorded has to be re-verified;",
+    "an entry WITH it is excused, and refuted, only in that function. Add it to any NEW entry whose",
+    "changed line is a bare statement.",
+    "",
     "THE CLASSES, and they are not interchangeable:",
     "  · no-distinguishing-input  — a battery of inputs was run against original and mutant and every",
     "                               one produced byte-identical output. STRONG EVIDENCE, NOT PROOF: a",
@@ -2866,6 +2877,20 @@
       "key": "- _missing = classify([{\"key\": \"a\", \"class\": \"no-distinguishing-input\"}], [], set(), generated={\"a\"}) | + _missing = classify([{\"key\": \"a\", \"class\": \"no-distinguishing-input\"}], [], None, generated={\"a\"})",
       "probe": "320 cases: `classify` over 4 entry sets x 4 survivor sets x 4 generated sets, with `killed` as each of set(), None, (), [], frozenset() and {} — comparing the full bucket-to-keys shape. ZERO distinguished. CANARIES FIRST so the battery is not blind: a NON-empty `killed` is seen every time — {'a'} in 24 cases, {'b'} in 12, {'z'} in 16.",
       "why": "`classify` normalises its third argument with `kills = set(killed or ())`, so every FALSY value — None, set(), (), [], frozenset(), {} — produces the identical empty set of corroborated kills. The mutant swaps one falsy value for another at a call site that passes no kills, so there is nothing for any input to distinguish. ⚠️ It would become distinguishable the moment that normalisation were removed (`set(killed)` raises on None), and making it strict WOULD retire this mutant by construction — that was considered and declined: the tolerance is cheap insurance on a pure function whose tests and selftest pass literals, and the same reasoning kept the `t1 > t0` guard in timeline.py whose false arm is also unreachable. Re-verify this entry if the normalisation changes."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "classify",
+      "key": "- _rows = [(i, sv, sv.get(\"function\") or function_of_mutant(sv.get(\"mutant\", \"\"))) for i, sv in enumerate(survivors)] | + _rows = [(i, sv, sv.get(\"function\") or function_of_mutant(sv.get(\"mutant\", None))) for i, sv in enumerate(survivors)]",
+      "probe": "planted each default in `classify` and ran `pytest tests/test_mutation_diff.py` (307 tests, 2026-10-12, #3511): 307 passed under both. The green run is the weaker half — the PROOF is that `sv.get(\"mutant\", X)` returns X only when the cell is absent, and `function_of_mutant` opens with `if not name: return \"\"`, so `\"\"` and `None` are the same argument. `test_function_of_mutant_reads_an_ABSENT_name_and_an_empty_one_identically` is the canary: narrowing that guard to `== \"\"` makes it red and retires these two entries the same day (verified by planting the narrowed guard, exactly one failure).",
+      "why": "The default is only reached by a survivor row carrying no `mutant` cell, and `function_of_mutant` maps every falsy argument to the empty string. So the mutated default changes which falsy value is passed and never the value returned, and no survivor set can distinguish the two."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "classify",
+      "key": "- _rows = [(i, sv, sv.get(\"function\") or function_of_mutant(sv.get(\"mutant\", \"\"))) for i, sv in enumerate(survivors)] | + _rows = [(i, sv, sv.get(\"function\") or function_of_mutant(sv.get(\"mutant\", ))) for i, sv in enumerate(survivors)]",
+      "probe": "planted each default in `classify` and ran `pytest tests/test_mutation_diff.py` (307 tests, 2026-10-12, #3511): 307 passed under both. The green run is the weaker half — the PROOF is that `sv.get(\"mutant\", X)` returns X only when the cell is absent, and `function_of_mutant` opens with `if not name: return \"\"`, so `\"\"` and `None` are the same argument. `test_function_of_mutant_reads_an_ABSENT_name_and_an_empty_one_identically` is the canary: narrowing that guard to `== \"\"` makes it red and retires these two entries the same day (verified by planting the narrowed guard, exactly one failure).",
+      "why": "The default is only reached by a survivor row carrying no `mutant` cell, and `function_of_mutant` maps every falsy argument to the empty string. So the mutated default changes which falsy value is passed and never the value returned, and no survivor set can distinguish the two."
     }
   ],
   "mutation_pure.py": [

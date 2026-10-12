@@ -10,6 +10,7 @@
  *   node tools/xerj-bench.mjs                  # score (uses the committed query set)
  *   node tools/xerj-bench.mjs --json           # one tepna.verdict/1
  *   node tools/xerj-bench.mjs --selftest
+ *   node tools/xerj-bench.mjs --refusal [--json]   # the refusal floor against answerable + off-topic sets
  *
  * 🔴 THE GROUND TRUTH IS NOT THE RECORDED HITS, AND THAT IS THE WHOLE METHOD.
  * Every merged PR since Rule 0 opens with `Rule 0: <query> → <hits>`, so the obvious ground truth is
@@ -41,6 +42,33 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 export const QUERY_SET = join(ROOT, 'audits', 'XERJ-BENCH-QUERIES.json');
+export const REFUSAL_SET = join(ROOT, 'audits', 'XERJ-REFUSAL-QUERIES.json');
+
+/**
+ * THE REFUSAL FLOOR, judged. Each row is `{ kind: 'pos'|'neg', i, refused, hit }`: `pos` is a real
+ * Rule-0 query (answerable), `neg` an off-topic one; `hit` is hybrid hit@5 for a `pos` row. The
+ * criterion is stated without the data: the floor must refuse NO answerable query that hybrid answers
+ * correctly (a refusal there loses a right answer), and must refuse MORE THAN HALF of the off-topic
+ * queries (else it is not a floor). A refused `pos` row with no hit loses nothing, and is counted
+ * apart. The hold-out (odd `i`) is reported separately, because the floor was fit on even `i`.
+ */
+export function scoreRefusal(rows) {
+  const part = (set) => {
+    const pos = set.filter((r) => r.kind === 'pos');
+    const neg = set.filter((r) => r.kind === 'neg');
+    return {
+      pos: pos.length,
+      posRefused: pos.filter((r) => r.refused).length,
+      posRefusedWithHit: pos.filter((r) => r.refused && r.hit).length,
+      neg: neg.length,
+      negRefused: neg.filter((r) => r.refused).length
+    };
+  };
+  const all = part(rows);
+  const holdOut = part(rows.filter((r) => r.i % 2 === 1));
+  const pass = all.pos > 0 && all.neg > 0 && all.posRefusedWithHit === 0 && all.negRefused * 2 > all.neg;
+  return { all, holdOut, pass };
+}
 
 /** Paths that are consequences of work rather than findable answers. */
 export const GENERATED = [/^provenance\//, /^uploads\//, /^docs\//, /^changes\//, /\.html$/, /^suite\.manifest\.json$/, /^CHANGELOG\.md$/, /^RELEASE-MANIFEST\.json$/];
@@ -110,6 +138,16 @@ export function selftest() {
   ok(pathOnly.open === 9000 && pathOnly.total === 9300, 'a snippet too short to answer still charges the file read');
   const missing = bytesToAnswer({ printed: 300, passages: [], truth: ['gone.js'], sizeOf });
   ok(missing.open === 0, 'an unmeasurable file charges 0 rather than a guess');
+
+  /* 4 · THE REFUSAL CRITERION. A refused answerable query that hybrid answered right is the one loss
+         that fails it; a refused answerable query with no hit loses nothing. */
+  const rr = (kind, i, refused, hit = null) => ({ kind, i, refused, hit });
+  const good = scoreRefusal([rr('pos', 0, false, true), rr('pos', 1, true, false), rr('neg', 0, true), rr('neg', 1, true), rr('neg', 2, false)]);
+  ok(good.pass && good.all.posRefused === 1 && good.all.posRefusedWithHit === 0, 'a refused query with no hit loses nothing, and the floor passes');
+  ok(!scoreRefusal([rr('pos', 0, true, true), rr('neg', 0, true)]).pass, 'refusing a query hybrid answered right fails the floor');
+  ok(!scoreRefusal([rr('pos', 0, false, true), rr('neg', 0, true), rr('neg', 1, false)]).pass, 'refusing exactly half the off-topic set is not a floor');
+  ok(good.holdOut.pos === 1 && good.holdOut.neg === 1, 'the hold-out is the odd-indexed rows only');
+  ok(!scoreRefusal([]).pass && !scoreRefusal([rr('pos', 0, false, true)]).pass, 'CONTROL: an empty or one-sided population never passes');
 
   const line = fail.length ? `xerj-bench selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
@@ -218,6 +256,58 @@ async function main() {
     });
     process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
     process.exit(0);
+  }
+  if (argv.includes('--refusal')) {
+    const xq = await import('./xerj-query.mjs');
+    const pos = JSON.parse(readFileSync(QUERY_SET, 'utf8'));
+    const neg = JSON.parse(readFileSync(REFUSAL_SET, 'utf8')).queries;
+    const rows = [];
+    let errors = 0;
+    for (const [kind, set] of [
+      ['pos', pos],
+      ['neg', neg]
+    ]) {
+      for (let i = 0; i < set.length; i += 1) {
+        const q = kind === 'pos' ? set[i].query : set[i];
+        try {
+          const out = await xq.hybridSearch({ query: q });
+          const hit =
+            kind === 'pos'
+              ? hitAt(
+                  out.hits.map((h) => h.path),
+                  set[i].truth,
+                  5
+                )
+              : null;
+          rows.push({ kind, i, refused: out.refused, hit, ...out.signals });
+        } catch {
+          errors += 1;
+        }
+      }
+    }
+    const r = scoreRefusal(rows);
+    const n = rows.length;
+    const status = errors ? 'UNKNOWN' : n === 0 ? 'NOT_RUN' : r.pass ? 'PASS' : 'FAIL';
+    if (argv.includes('--json')) {
+      const v = Verdict.make({
+        gate: 'xerj-refusal',
+        status,
+        population: { checked: n, eligible: n + errors, excluded: errors },
+        criterion: { name: 'refuses-no-correctly-answered-query-and-most-off-topic-queries', threshold: 0, unit: 'correct answers refused', direction: 'eq' },
+        result: { floor: { cos: xq.REFUSE_COS, bm25: xq.REFUSE_BM25 }, all: r.all, holdOut: r.holdOut },
+        evidence: ['tools/xerj-bench.mjs', 'tools/xerj-query.mjs', 'audits/XERJ-BENCH-QUERIES.json', 'audits/XERJ-REFUSAL-QUERIES.json'],
+        reason: status === 'PASS' ? null : errors ? `${errors} quer(ies) did not reach the index` : `floor failed: ${JSON.stringify(r.all)}`,
+        producedBy: { tool: 'tools/xerj-bench.mjs', commit: execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim() },
+        at: new Date().toISOString()
+      });
+      process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
+    } else {
+      const f = (p) => `answerable refused ${p.posRefused}/${p.pos} (with a correct hit: ${p.posRefusedWithHit}) · off-topic refused ${p.negRefused}/${p.neg}`;
+      process.stdout.write(
+        `xerj refusal floor · cosine < ${xq.REFUSE_COS} AND BM25 < ${xq.REFUSE_BM25}\n  all       ${f(r.all)}\n  hold-out  ${f(r.holdOut)}\n  ${status}${errors ? ` · ${errors} error(s)` : ''}\n`
+      );
+    }
+    process.exit(status === 'PASS' ? 0 : 1);
   }
   if (argv.includes('--harvest')) {
     const set = harvest();
