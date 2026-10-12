@@ -17838,6 +17838,213 @@
       }
     );
 
+    group(
+      'The hat says WHICH leg moved a corner — `contributions`, analytic (VERDICT-CONTRIBUTIONS-2026-10-04 §2)',
+      'analysis-stats · pat · hat · contributions · verdict · known-answer · plant',
+      function (T) {
+        var S = env.AnalysisStats;
+        if (!S) {
+          T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+          return;
+        }
+        if (typeof S.hatContributions !== 'function' || typeof S.patHatContributions !== 'function') {
+          T.ok('AnalysisStats contributions kernel present', false, 'hatContributions / patHatContributions not exported');
+          return;
+        }
+        var KEYS = { ab: 'leg.chest-finger', ac: 'leg.chest-ankle', bc: 'leg.finger-ankle' };
+        var CORNER = { a: 'chest', b: 'finger', c: 'ankle' };
+        function blk(vAB, vAC, vBC, corner, opts) {
+          var o = { corner: corner, of: 'sigma2.' + CORNER[corner], unit: 'ms^2', keys: KEYS };
+          for (var k in opts || {}) o[k] = opts[k];
+          return S.hatContributions(vAB, vAC, vBC, o);
+        }
+        function sum(b) {
+          return b.inputs.reduce(function (s, it) {
+            return s + it.delta;
+          }, 0);
+        }
+        /* ── A · THE IDENTITY. `analytic` claims the three terms ARE the corner: each is the leg's own
+           partial (±½) times the leg's own variance, so they sum to the figure. 300 random triples,
+           all three corners, against `threeCorneredHat` itself — never a second copy of the algebra. */
+        var s = 20261012 >>> 0;
+        function r() {
+          s = (Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9) >>> 0;
+          return (s & 0xffffff) / 0x1000000;
+        }
+        var worst = 0,
+          offIdentity = 0,
+          offShare = 0,
+          offDom = 0;
+        for (var i = 0; i < 300; i++) {
+          var v = [2000 * r(), 2000 * r(), 2000 * r()],
+            hat = S.threeCorneredHat(v[0], v[1], v[2]);
+          ['a', 'b', 'c'].forEach(function (c) {
+            var b = blk(v[0], v[1], v[2], c),
+              want = hat[c],
+              err = Math.abs(sum(b) - want) / Math.max(1, Math.abs(want));
+            if (err > worst) worst = err;
+            if (err > 1e-12) offIdentity++;
+            var tot = b.inputs.reduce(function (t, it) {
+                return t + Math.abs(it.delta);
+              }, 0),
+              ss = 0,
+              dom = null,
+              mx = -1;
+            b.inputs.forEach(function (it) {
+              ss += it.share;
+              if (Math.abs(it.share - Math.abs(it.delta) / tot) > 1e-12) offShare++;
+              if (Math.abs(it.delta) > mx) {
+                mx = Math.abs(it.delta);
+                dom = it.key;
+              }
+            });
+            if (Math.abs(ss - 1) > 1e-9) offShare++;
+            if (b.dominant !== dom) offDom++;
+          });
+        }
+        T.ok('the three deltas sum to the corner the hat solved, over 900 corners', offIdentity === 0, offIdentity + ' off; worst relative error ' + worst.toExponential(2));
+        T.ok('every share is |delta| / Σ|delta| and the shares sum to 1', offShare === 0, offShare + ' off');
+        T.ok('`dominant` is the key with the largest |delta|', offDom === 0, offDom + ' off');
+        /* ── B · THE NEGATIVE CORNER — the question the brief opens on. A variance is never negative, so
+           exactly one delta per corner is ≤ 0: the SUBTRACTED leg. When it dominates, the corner is
+           negative and the block names it. */
+        var neg = blk(100, 120, 900, 'a');
+        T.ok(
+          'a negative corner names the subtracted leg as dominant, and it is the only negative delta',
+          S.threeCorneredHat(100, 120, 900).a < 0 &&
+            neg.dominant === KEYS.bc &&
+            neg.inputs.filter(function (it) {
+              return it.delta < 0;
+            }).length === 1 &&
+            neg.inputs[2].delta === -450,
+          JSON.stringify(neg)
+        );
+        /* ── C · ∅ — a leg that did not run is UNKNOWN, never 0, and it takes the denominator with it. */
+        var absent = blk(400, null, 100, 'c', { reasons: { ac: 'chest→ankle: 0 windows passed rejection' } });
+        T.ok(
+          'an absent leg is listed with delta null and a reason, and every share and `dominant` go null with it',
+          absent.inputs[1].delta === null &&
+            /0 windows passed rejection/.test(absent.inputs[1].reason) &&
+            absent.inputs.every(function (it) {
+              return it.share === null;
+            }) &&
+            absent.dominant === null &&
+            absent.inputs.length === 3,
+          JSON.stringify(absent)
+        );
+        var zeros = blk(0, 0, 0, 'b');
+        T.ok(
+          'three zero variances make Σ|delta| zero, so no share is 0/0',
+          zeros.inputs.every(function (it) {
+            return it.delta === 0 && it.share === null;
+          }) && zeros.dominant === null,
+          JSON.stringify(zeros)
+        );
+        /* ── D · A LABEL IS NOT OPTIONAL. An unnamed or unit-less figure is a wrong-unit bug, so the
+           kernel refuses rather than defaulting (CLAUDE.md §📏, §🎫). */
+        var threw = 0;
+        [
+          { corner: 'd', of: 'x', unit: '' },
+          { corner: 'a', unit: 'ms^2' },
+          { corner: 'a', of: 'x' }
+        ].forEach(function (bad) {
+          try {
+            S.hatContributions(1, 2, 3, bad);
+          } catch (e) {
+            if (/opts\.(corner|of|unit)/.test(e.message)) threw++;
+          }
+        });
+        T.ok('an unknown corner, a missing `of` and a missing `unit` each throw, naming the option', threw === 3, threw + ' of 3');
+        /* ── E · THE REAL VALIDATOR. A block this kernel builds must pass `verdict.js` — and the
+           validator must have LOOKED at it (`checked` names it), not merely failed to object. */
+        var V = env.Verdict;
+        if (!V || typeof V.validate !== 'function') {
+          T.skip('every emitted block validates under verdict.js', 'env.Verdict not provided to the runner');
+        } else {
+          function wrap(b) {
+            return {
+              schema: 'tepna.verdict/1',
+              gate: 'pat-three-corner',
+              status: 'UNKNOWN',
+              scope: 'internal',
+              population: { checked: 1, eligible: 1, excluded: 0 },
+              criterion: { name: 'sigma2_chest', threshold: 0, unit: 'ms^2', direction: 'gte' },
+              result: { chest: -340 },
+              evidence: ['tests/dex-tests.js'],
+              reason: 'a per-site σ has no pre-stated band',
+              contributions: b,
+              producedBy: { tool: 'tests/dex-tests.js', commit: null, commitReason: 'the suite is not a producer' },
+              at: '2026-10-12T00:00:00Z'
+            };
+          }
+          var bad = 0,
+            unread = 0,
+            firstErr = '';
+          [blk(400, 900, 100, 'a'), neg, absent, zeros].forEach(function (b) {
+            var res = V.validate(wrap(b));
+            if (!res.ok) {
+              bad++;
+              if (!firstErr) firstErr = (res.errors || []).join(' · ');
+            }
+            if (!res.checked || res.checked.indexOf('contributions') < 0) unread++;
+          });
+          T.ok('all four blocks validate under the shipped verdict.js, and it examined the block each time', bad === 0 && unread === 0, bad + ' invalid, ' + unread + ' unexamined; ' + firstErr);
+        }
+        /* ── F · THE PAT WRAPPER attributes the variances the hat ACTUALLY SOLVED — `_patRobustVar`
+           through `patHatSolve`, on the brief's own leg keys. */
+        var LEG = [[], [], []];
+        for (var w = 0; w < 60; w++) {
+          LEG[0].push(400 + 40 * (r() - 0.5));
+          LEG[1].push(500 + 90 * (r() - 0.5));
+          LEG[2].push(100 + 12 * (r() - 0.5));
+        }
+        var pc = S.patHatContributions(LEG[0], LEG[1], LEG[2]),
+          solved = S.patHatSolve(LEG[0], LEG[1], LEG[2]),
+          offPat = 0;
+        ['chest', 'finger', 'ankle'].forEach(function (c) {
+          if (Math.abs(sum(pc[c]) - solved[c]) / Math.max(1, Math.abs(solved[c])) > 1e-12) offPat++;
+          if (pc[c].of !== 'sigma2.' + c || pc[c].unit !== 'ms^2' || pc[c].method !== 'analytic') offPat++;
+          if (
+            pc[c].inputs
+              .map(function (it) {
+                return it.key;
+              })
+              .join() !== 'leg.chest-finger,leg.chest-ankle,leg.finger-ankle'
+          )
+            offPat++;
+        });
+        T.ok(
+          'each corner block sums to that corner of patHatSolve, labelled ms² on the brief’s leg keys',
+          offPat === 0,
+          offPat +
+            ' off; ' +
+            JSON.stringify(
+              pc.chest.inputs.map(function (it) {
+                return it.key + ' ' + it.delta.toFixed(1);
+              })
+            )
+        );
+        var emptyLeg = S.patHatContributions([], LEG[1], LEG[2]);
+        T.ok(
+          'a leg with no window is ∅ — delta null with a reason, not a leg of zero',
+          emptyLeg.chest.inputs[0].delta === null && emptyLeg.chest.dominant === null && /absent/.test(emptyLeg.chest.inputs[0].reason),
+          JSON.stringify(emptyLeg.chest.inputs[0])
+        );
+        /* ── G · THE DRIFT-REMOVED HALF carries the same block over the DIFFERENCED variances, labelled
+           so no reader compares it to the classic σ; a refusal publishes no block at all. */
+        var WD = [];
+        for (var k2 = 0; k2 < 40; k2++) WD.push({ t: k2 * 300000, ab: 400 + 30 * (r() - 0.5), ac: 500 + 70 * (r() - 0.5), bc: 100 + 10 * (r() - 0.5) });
+        var df = S.patDifferencedHat(WD, 300000);
+        T.ok(
+          'the drift-removed hat publishes a `sigma2.drift-removed.*` block that sums to its own variance',
+          df.ok === true && df.contributions.ankle.of === 'sigma2.drift-removed.ankle' && Math.abs(sum(df.contributions.ankle) - df.variance.ankle) / Math.max(1, Math.abs(df.variance.ankle)) < 1e-12,
+          JSON.stringify({ of: df.contributions && df.contributions.ankle.of, sum: sum(df.contributions.ankle), variance: df.variance.ankle })
+        );
+        var refused = S.patDifferencedHat(WD.slice(0, 6), 300000);
+        T.ok('a refused drift-removed hat carries no block — there is no figure to attribute', refused.ok === false && refused.contributions === undefined, JSON.stringify(refused));
+      }
+    );
+
     group('Analysis-page statistics kernels — known-answer (TEST-COVERAGE-ANALYSIS)', 'analysis-stats · statistics · known-answer', function (T) {
       var S = env.AnalysisStats;
       if (!S) {

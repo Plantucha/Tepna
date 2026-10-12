@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-12 · **Created:** 2026-10-04 ·
+**Status:** IN-PROGRESS — 2026-10-12 · **Created:** 2026-10-04 · **Residue:** 2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form
 
 # Attribution — every fused number says which input moved it (the `contributions` block; the "derivator", reading one)
 
