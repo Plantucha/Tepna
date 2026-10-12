@@ -7,14 +7,14 @@ description: Use when a pull request is BEHIND, DIRTY or has a merge conflict in
 
 Rules: `CLAUDE.md` §2c and §2d.
 
-1. **First ask whether a rebase is needed at all**:
+1. **First ask whether the branch needs a rebase at all**:
    `git merge-base --is-ancestor origin/main origin/<branch>` — true means the branch already contains
    main (often Kodiak's base merge) and the only correct action is to wait.
 2. `node tools/rebase-safe.mjs` — auto-resolves generated conflicts, rebuilds, and **stops** on a
    source conflict instead of picking a side.
 3. If it stops: resolve each source file by hand. For `tests/dex-tests.js`, restore main's copy and
-   **re-run your insertion** — never keep one side wholesale. A regenerated artifact (a golden, a
-   bundle) is resolved by taking either side and **re-running its builder**, which is what makes the
+   **re-run your insertion** — never keep one side wholesale. For a regenerated artifact (a fixture
+   output, a bundle), take either side and **re-run its builder**, which is what makes the
    choice irrelevant.
 4. **Verify your change survived, every time**:
    `git show HEAD:<file> | grep -c <an identifier your change adds>`

@@ -20,7 +20,7 @@ Contract: `CLAUDE.md` §🧾 and `briefs/VERDICT-CONTRACT-2026-09-21-BRIEF.md`. 
 
 ## Measured
 
-A new gate was green locally and reded `npm run check` at step 28/30 purely for being unregistered
+A new gate was green locally and reded `npm run check` at step 28/30 only because no list registered it
 (2026-10-11). Then it reded again because the ordinary run prints the object *plus* a human line, which
 is right for a reader and unparseable for the checker — hence the separate sample flag.
 
