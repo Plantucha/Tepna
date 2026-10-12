@@ -20,7 +20,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, 
 import { createRequire } from 'node:module';
 import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, classifyStamps as rebaseClassifyStamps, duplicateLedgerKeys as rebaseDuplicateLedgerKeys } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
-import { classify as qdClassify, pick as qdPick, attention as qdAttention, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
+import { classify as qdClassify, pick as qdPick, attention as qdAttention, redLedger as qdRedLedger, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_ROOT_ZERO_BYTE as commitShapeBaseline } from '../tools/commit-shape.mjs';
 import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
@@ -2953,6 +2953,7 @@ async function main() {
     qdClassify: qdClassify,
     qdPick: qdPick,
     qdAttention: qdAttention,
+    qdRedLedger: qdRedLedger,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
     /* A RESOLVER FOR DECLARED NESTED BINDINGS (`emittedAt` in a registry). The resolvability gate must
