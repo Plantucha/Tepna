@@ -167,4 +167,11 @@ for (const r of rows)
   console.log(
     `${r.name.padEnd(10)} ${String(r.turns).padStart(5)}  ${String(r.toolsPerTurn).padStart(10)}  ${String(`${r.narration} (${Math.round(r.narrationShare * 100)} %)`).padStart(9)}  ${String(r.compactions).padStart(11)}  ${k(r.ctxMedian).padStart(13)}  ${k(r.ctxP90).padStart(13)}  ${String(r.outPerTurn).padStart(8)}`
   );
-console.log('\nread: tools/turn up and narration down is the rule "fewer turns" working. No target is set; the owner sets one from two days.');
+const TARGET_TOOLS_PER_TURN = 2.0; // owner, 2026-10-11 evening (TOKEN-DIET rule 7)
+const CAP_CTX_MEDIAN = 300_000; // owner, 2026-10-11 evening (TOKEN-DIET rule 6)
+const misses = rows.flatMap((r) => [
+  ...(r.toolsPerTurn < TARGET_TOOLS_PER_TURN ? [`${r.name}: tools/turn ${r.toolsPerTurn} < ${TARGET_TOOLS_PER_TURN}`] : []),
+  ...(r.ctxMedian > CAP_CTX_MEDIAN ? [`${r.name}: ctx/turn median ${k(r.ctxMedian)} > ${k(CAP_CTX_MEDIAN)}`] : [])
+]);
+console.log(`\ntargets (owner, 2026-10-11): tools/turn >= ${TARGET_TOOLS_PER_TURN}, ctx/turn median <= ${k(CAP_CTX_MEDIAN)}.`);
+console.log(misses.length ? `misses:\n  ${misses.join('\n  ')}` : 'misses: none');
