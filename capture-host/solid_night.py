@@ -444,14 +444,15 @@ _moved: dict[tuple[str, str], bool] = {}
 
 def code_closure() -> list[str]:
     """The judge's source files, as paths relative to the repo root, sorted."""
-    seen: dict[str, types.ModuleType] = {}
+    # A set, not a dict: only the paths are read, so a stored module value was a mutant no test could see.
+    seen: set[str] = set()
     todo = [sys.modules[__name__]]
     # A FOR OVER THE GROWING LIST, NOT `while todo: todo.pop()`: a mutant of the pop never ends (CI run 38302543948).
     for mod in todo:
         path = getattr(mod, "__file__", None)
         if not path or os.path.dirname(os.path.abspath(path)) != _HERE or path in seen:
             continue
-        seen[path] = mod
+        seen.add(path)
         todo.extend(v for v in vars(mod).values() if isinstance(v, types.ModuleType))
     return sorted(f"{_REPO_DIR}/{os.path.basename(p)}" for p in seen)
 

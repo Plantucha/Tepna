@@ -1133,6 +1133,24 @@ def test_CODE_MOVED_re_judges_only_when_git_names_a_judge_file_between_the_two_c
     assert len(calls) == 1, "and git runs once per (stored, running) pair, not once per night per poll"
 
 
+def test_CODE_MOVED_asks_git_in_the_repo_root_once_per_distinct_pair(tmp_path, monkeypatch):
+    """The cache key is the PAIR: a second stored commit under the same running commit is its own git
+    question, and git runs in the repo that holds capture-host/, which the closure's paths are relative to."""
+    monkeypatch.setattr(sn, "_moved", {})
+    old = _stored(tmp_path, "700811f5")
+    calls = []
+    assert sn.code_moved(old, "bdbe3741", run=_git_says("capture-host/solid_night.py\n", calls))
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(sn.__file__)))
+    assert calls[0][:3] == ["git", "-C", repo], calls[0]
+    newer = tmp_path / "other"
+    newer.mkdir()
+    (newer / sn.VERDICT_NAME).write_text(
+        open(os.path.join(old, sn.VERDICT_NAME)).read().replace("700811f5", "aa11bb22")
+    )
+    assert sn.code_moved(str(newer), "bdbe3741", run=_git_says("", calls)) is None, "a pair git cleared"
+    assert len(calls) == 2 and "aa11bb22" in calls[1], calls
+
+
 def test_CODE_MOVED_stands_down_when_the_judge_did_not_change_or_nothing_is_stored(tmp_path, monkeypatch):
     monkeypatch.setattr(sn, "_moved", {})
     night = _stored(tmp_path, "700811f5")
