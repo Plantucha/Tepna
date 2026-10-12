@@ -950,7 +950,8 @@ async function main() {
   for (const [, r0] of done) if (r0.v === 'KILL' && r0.hit) found.push(r0.hit);
   let tried = 0,
     noProposal = 0,
-    skipped = 0;
+    skipped = 0,
+    artefactSkips = 0;
 
   for (let i = 0; i < pick.length; i++) {
     const t = pick[i];
@@ -1026,7 +1027,15 @@ async function main() {
         const a = resultString(fnA, args, realm);
         const b = resultString(fnB, args, mutRealm);
         if (!verdictFor(a, b).kill) continue;
-        if (isRealmArtefact && isRealmArtefact(a, b, () => true) === true) continue;
+        // FIXED 2026-08-27 (design review G1): this line was INERT since birth — isRealmArtefact
+        // returns the missing IDENTIFIER or null, never boolean true, and the `() => true`
+        // predicate forced null on every call. Every mutant-side `X is not defined` for a module
+        // the realm lacks therefore counted as a KILL. Real call: the base realm is the identity
+        // oracle; any truthy return is an artifact of the probe's own realm, not evidence.
+        if (isRealmArtefact && isRealmArtefact(a, b, (id) => id in realm)) {
+          artefactSkips++;
+          continue;
+        }
         return { input: JSON.stringify(args), orig: a.slice(0, 2000), mutant: b.slice(0, 2000) };
       }
       return null;
@@ -1133,6 +1142,7 @@ async function main() {
         probed: pick.length,
         inputsRun: tried,
         noProposal,
+        artefactSkips,
         newlyKillable: found.length,
         findings: [{ fn: 'ai-probe', callPath: file, status: 'PROBED', battery: 'ai', mutants: found }]
       },
