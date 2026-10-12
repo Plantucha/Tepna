@@ -15,11 +15,13 @@
  * to the spec; nodes + the unifier read field names + units FROM the spec, not
  * from memory. Plain global, DOM-free, loadable in node:vm.
  *
- * The `dsp` resolvers reference page-scope globals and are LAZY (only invoked
- * when a consumer actually computes) — namespaced nodes return their object;
- * the bare-global nodes (PulseDex/OxyDex/HRVDex) return the function(s) they
- * expose, which is exactly why those must be co-loaded in isolation (a bare
- * global collides if two such DSPs share one page — see signal-adapters.js).
+ * The `dsp` resolvers are LAZY (only invoked when a consumer actually computes)
+ * and they resolve through the NODE'S OWN NAMESPACE: a node with a namespace
+ * object returns it, and a node whose entry point is a single function returns
+ * that function off the namespace (`PulseDex.parseRRInput`) or off the `_bare`
+ * helper object each migrated node also exposes. A page-scope global is the last
+ * resort, and it serves a classic single-node realm only — `nsFn` below says why
+ * a name two nodes share never falls back to one.
  * Per CLAUDE.md §Units, every unit here is metric/SI-canonical.
  * ──────────────────────────────────────────────────────────────────────── */
 (function (root) {
@@ -32,6 +34,34 @@
     }
   }
 
+  /* nsFn — resolve one function THROUGH the node that owns it.
+
+     Measured 2026-10-12 (SIGNAL-ADAPTER-FOLLOWUPS-II §8): a bare `root[name]` lookup returned
+     `undefined` for `rr` (both members), for `spo2`, and for the `parse` member of `hrv` in every
+     realm a consumer computes in. Each shipped host page and the Node suite set
+     `__DEX_NAMESPACED__` before co-loading PulseDex, OxyDex and HRVDex, which is exactly the flag
+     that stops those three from putting their helpers on the page, so the bare name they were
+     looked up by no longer exists. The node surface is what the orchestrator's own host shims read
+     (`root.PulseDex.parseRRInput`), so resolving there puts the spec and the shims on one function.
+
+     The bare step is OPT-IN (`allowBare`) rather than a default, because most of these names are
+     not unique to one node. `parseCSV` is OxyDex's SpO2 parser and also HRVDex's summary parser,
+     and five node DSPs each define a `compute`, so on a classic page carrying two of them a bare
+     lookup returns whichever loaded last. That is not a fallback but a coin toss, and handing a
+     consumer the wrong parser is worse than handing it a visible `undefined`. `allowBare` is set
+     only where the name belongs to exactly one node across every DSP in the repo: `parseRRInput`
+     and `_pdSeriesStats` are PulseDex's alone. */
+  function nsFn(nsName, fnName, allowBare) {
+    var o = g(nsName);
+    if (o) {
+      if (typeof o[fnName] === 'function') return o[fnName];
+      if (o._bare && typeof o._bare[fnName] === 'function') return o._bare[fnName];
+    }
+    if (!allowBare) return undefined;
+    var bare = g(fnName);
+    return typeof bare === 'function' ? bare : undefined;
+  }
+
   var SignalSpec = {
     // ── intervals (RR / PPI) ────────────────────────────────────────────────
     rr: {
@@ -39,9 +69,9 @@
       unit: 'ms',
       frameFields: ['intervals', 'tsMs', 't0Ms', 'offsetMin'],
       dsp: function () {
-        return { parse: g('parseRRInput'), stats: g('_pdSeriesStats') };
+        return { parse: nsFn('PulseDex', 'parseRRInput', true), stats: nsFn('PulseDex', '_pdSeriesStats', true) };
       }
-    }, // PulseDex: bare global
+    }, // PulseDex: parseRRInput is public, _pdSeriesStats rides `_bare`
     // ── sampled waveforms / traces ──────────────────────────────────────────
     ecg: {
       kind: 'samples',
@@ -82,9 +112,9 @@
       unit: '%',
       frameFields: ['samples', 't0Ms'],
       dsp: function () {
-        return { parse: g('parseCSV') };
+        return { parse: nsFn('OxyDex', 'parseCSV') };
       }
-    }, // OxyDex: bare global + DOM side-effects
+    }, // OxyDex: `parseCSV` is a name two nodes answer to — namespace only, never the bare global
     // ── pre-computed HRV SUMMARY (Welltory-style spot reads) — NOT a raw signal:
     //    each "sample" is an already-computed HRV measurement at an irregular time,
     //    so there is no fs; per-sample tsMs carries the timing (cgm-like). ──
@@ -93,10 +123,13 @@
       unit: 'ms',
       frameFields: ['samples', 'tsMs', 't0Ms'],
       dsp: function () {
-        var H = g('HRVDex');
-        return { parse: g('parseCSV'), rows: H && H.parseRows, compute: H && H.compute };
+        return {
+          parse: nsFn('HRVDex', 'parseCSV'),
+          rows: nsFn('HRVDex', 'parseRows'),
+          compute: nsFn('HRVDex', 'compute')
+        };
       }
-    }, // HRVDex: bare global + DOM/localStorage commit path
+    }, // HRVDex: parseRows/compute are public, parseCSV rides `_bare` under the shared name
     // ── NEW signal types: EEGDex / SpiroDex still need real new DSP; the
     //    adapter layer standardizes their INGEST, not the per-signal math. ──
     eeg: {
