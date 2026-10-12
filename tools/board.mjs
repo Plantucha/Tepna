@@ -110,6 +110,35 @@ function usage(sinceSpec) {
   }
 }
 
+/* The walker's queue, in order, from its persisted file. Pure parse on the text so --selftest can plant it. */
+export function parseWalkerQueue(txt) {
+  const seen = new Set();
+  const out = [];
+  for (const tok of String(txt).split(/\s+/)) {
+    if (!/^\d+$/.test(tok)) continue;
+    const n = Number(tok);
+    if (!seen.has(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  }
+  return out;
+}
+function walkerQueue() {
+  const f = process.env.TEPNA_WALKER_QUEUE || path.join(homedir(), '.local', 'state', 'tepna', 'walker', 'undraft-queue.txt');
+  if (!existsSync(f)) return [];
+  try {
+    return parseWalkerQueue(
+      readFileSync(f, 'utf-8')
+        .split('\n')
+        .filter((l) => !/^\s*#/.test(l))
+        .join(' ')
+    );
+  } catch {
+    return [];
+  }
+}
+
 function prs() {
   try {
     const raw = sh('gh', ['pr', 'list', '--state', 'open', '--limit', '40', '--json', 'number,title,isDraft,mergeStateStatus,statusCheckRollup,updatedAt'], { cwd: REPO });
@@ -121,13 +150,18 @@ function prs() {
       }
       return { number: p.number, title: p.title.slice(0, 92), draft: p.isDraft, state: p.mergeStateStatus, buckets, updatedAt: p.updatedAt };
     });
-    /* WALKER ORDER is the serial queue's own order: oldest non-draft first, which is the order Kodiak
-       takes them. Drafts are listed after, because a draft is held on purpose. */
-    const order = list
+    /* WALKER ORDER is the walker's own queue file when it exists (Kestrel's undraft walker reads it
+       by whitespace; numbers no longer open are skipped). Without the file it is Kodiak's order:
+       oldest non-draft first. The board printed "walker order: #3473" on 2026-10-12 while nine PRs
+       sat in the queue, because it read only the undrafted ones. */
+    const open = new Map(list.map((p) => [p.number, p]));
+    const queued = walkerQueue().filter((n) => open.has(n));
+    const nonDraft = list
       .filter((p) => !p.draft)
       .sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1))
       .map((p) => p.number);
-    return { ok: true, list, walkerOrder: order, openNonDraft: order.length };
+    const order = queued.length ? queued : nonDraft;
+    return { ok: true, list, walkerOrder: order, walkerSource: queued.length ? 'walker queue file' : 'Kodiak order of the non-drafts (no walker queue file)', openNonDraft: nonDraft.length };
   } catch (e) {
     return fail(`gh pr list failed: ${e.message}`);
   }
@@ -145,6 +179,17 @@ function mainCi() {
   } catch (e) {
     return fail(`gh run list failed: ${e.message}`);
   }
+}
+
+/* One systemctl list-timers row → "next HH:MM (in X) · last HH:MM (Y ago)". Pure; the raw row is kept
+   when the shape is not the one measured on 2026-10-12. */
+export function formatTimerRow(row) {
+  const r = String(row || '').trim();
+  if (!r) return '';
+  const m = r.match(/^\w+ (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}):\d{2} \w+\s+(.+?)\s+\w+ (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}):\d{2} \w+\s+(.+?)\s+\S+\.timer/);
+  if (!m) return r;
+  const left = /left$/.test(m[3]) ? m[3] : `${m[3]} left`;
+  return `next ${m[2]} (${left}) · last ${m[5]} (${m[6]})`;
 }
 
 function release() {
@@ -180,11 +225,16 @@ function release() {
     out.landStuckHours = upd && cur ? +((Date.now() - Date.parse(upd[1])) / 3.6e6).toFixed(1) : null;
   } catch (e) {
     out.land = null;
-    out.landNote = `release-land --status unreadable: ${String(e.message).split('\n')[0].slice(0, 90)}`;
+    /* --status exits 1 with "no release-land run recorded on this machine" when nothing has run here;
+       that is a reading, not a failure to read (the board printed "Command failed: node …" for it). */
+    const said = String(e.stdout || '')
+      .trim()
+      .split('\n')[0];
+    out.landNote = /no release-land run recorded/.test(said) ? said : `release-land --status unreadable: ${String(e.message).split('\n')[0].slice(0, 90)}`;
   }
   try {
     const t = sh('bash', ['-c', 'systemctl --user list-timers tepna-release-due.timer --all --no-pager 2>/dev/null | sed -n 2p']);
-    out.dueTimer = t || null;
+    out.dueTimer = formatTimerRow(t) || null;
     const j = sh('bash', ['-c', 'journalctl --user -u tepna-release-due -n 40 --no-pager 2>/dev/null | grep -oE "\\"status\\": *\\"[A-Z_]+\\"" | tail -1']);
     const m = j.match(/"([A-Z_]+)"/);
     out.lastVerdict = m ? m[1] : null;
@@ -349,6 +399,25 @@ function planPct() {
   if (!existsSync(f)) return { spentPct: null, reportedAt: null };
   try {
     const j = JSON.parse(readFileSync(f, 'utf-8'));
+    const pts = Array.isArray(j.usage) ? j.usage.filter((p) => p && typeof p.all === 'number' && p.at) : [];
+    /* THE LAST USAGE POINT WINS. Kestrel appends `usage[]` points from the owner's screenshots; the
+       top-level spentPct is the older single-number form and goes stale the moment a point is added
+       (measured 2026-10-12: the bar read 50 % from 10:35 while a 56 % point from 12:28 sat beside it). */
+    if (pts.length) {
+      const last = pts[pts.length - 1];
+      const prev = pts.length > 1 ? pts[pts.length - 2] : null;
+      const hours = prev ? (Date.parse(last.at) - Date.parse(prev.at)) / 3.6e6 : null;
+      const rate = (k) => (prev && hours > 0 && typeof prev[k] === 'number' && typeof last[k] === 'number' ? +((last[k] - prev[k]) / hours).toFixed(2) : null);
+      return {
+        spentPct: last.all,
+        spentPctRange: null,
+        reportedAt: last.at,
+        note: null,
+        point: { all: last.all, fable: typeof last.fable === 'number' ? last.fable : null, session: typeof last.session === 'number' ? last.session : null, at: last.at, resets: last.resets || null },
+        rate: { all: rate('all'), fable: rate('fable'), hours: hours == null ? null : +hours.toFixed(1) },
+        points: pts.slice(-4)
+      };
+    }
     return {
       spentPct: typeof j.spentPct === 'number' ? j.spentPct : null,
       spentPctRange: Array.isArray(j.spentPctRange) ? j.spentPctRange : null,
@@ -390,6 +459,9 @@ export function collect() {
     usage7d: u7,
     budget: budgetBar({ spentPct: plan.spentPct, spentPctRange: plan.spentPctRange, reportedAt: plan.reportedAt, nowMs: now }),
     planNote: plan.note || null,
+    planPoint: plan.point || null,
+    planRate: plan.rate || null,
+    planPoints: plan.points || null,
     prs: pr,
     mainCi: ci,
     release: rel,
@@ -449,17 +521,24 @@ function unread(s) {
 
 function renderUsage(u, label) {
   if (!u.ok) return unread(u);
-  const rows = u.sessions
+  const named = u.sessions.filter((s) => s.name);
+  const unnamed = u.sessions.filter((s) => !s.name);
+  const rows = named
     .sort((a, b) => b.tokens - a.tokens)
     .map((s) => {
+      /* MODEL, not a token dump: "opus-5 ×1,332" reads; "claude-opus-5 1,332" ran into the count.
+         Synthetic rows (the harness's own placeholders) carry no model and are left out of the column. */
       const models =
         Object.entries(s.models || {})
-          .map(([k, v]) => `${esc(k)}&nbsp;${num(v)}`)
+          .filter(([k]) => !/^<synthetic>$/.test(k))
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `${esc(k.replace(/^claude-/, ''))}&nbsp;<span class="dim">×${num(v)}</span>`)
           .join('<br>') || '—';
       return `<tr><td>${esc(s.name || '(unnamed)')}</td><td class="n">${m(s.tokens)}</td><td class="n dim">${m(s.cacheRead)}</td><td class="n">${m(s.output)}</td><td class="n dim">${num(s.messages)}</td><td class="n dim">${num(s.lastContextTokens)}</td><td class="mdl">${models}</td></tr>`;
     })
     .join('');
   return `<table><thead><tr><th>${esc(label)}</th><th>fresh</th><th>cache←</th><th>out</th><th>msgs</th><th>last ctx</th><th>model</th></tr></thead><tbody>${rows}
+    ${unnamed.length ? `<tr><td class="dim">+${unnamed.length} unnamed</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.tokens || 0), 0))}</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.cacheRead || 0), 0))}</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.output || 0), 0))}</td><td class="n dim">${num(unnamed.reduce((a, s) => a + (s.messages || 0), 0))}</td><td colspan="2" class="dim">sessions with no bird name, summed</td></tr>` : ''}
     <tr class="tot"><td>fleet</td><td class="n">${m(u.fleetTokens)}</td><td class="n dim">${m(u.fleetCacheRead)}</td><td colspan="4" class="dim">cache reads are shown beside, never summed into fresh</td></tr></tbody></table>`;
 }
 
@@ -467,7 +546,16 @@ export function renderHtml(b) {
   const banners = b.banners.map((x) => `<div class="banner ${x.level}">${x.level === 'red' ? '🔴' : '⚠️'} ${esc(x.why)}</div>`).join('');
   const prBody = !b.prs.ok
     ? unread(b.prs)
-    : `<p class="dim">walker order: ${b.prs.walkerOrder.length ? b.prs.walkerOrder.map((n) => `#${n}`).join(' → ') : '(empty)'}</p><table><thead><tr><th>PR</th><th>title</th><th>state</th><th>checks</th></tr></thead><tbody>${b.prs.list
+    : `<p class="dim">walker order: ${
+        b.prs.walkerOrder.length
+          ? b.prs.walkerOrder
+              .map((n) => {
+                const p = b.prs.list.find((x) => x.number === n);
+                return `#${n}${p && p.draft ? '' : '<b>·open</b>'}`;
+              })
+              .join(' → ')
+          : '(empty)'
+      } <span class="dim">(${esc(b.prs.walkerSource || '')}; ${b.prs.openNonDraft} undrafted)</span></p><table><thead><tr><th>PR</th><th>title</th><th>state</th><th>checks</th></tr></thead><tbody>${b.prs.list
         .map(
           (p) =>
             `<tr><td>#${p.number}${p.draft ? ' <span class="dim">draft</span>' : ''}</td><td>${esc(p.title)}</td><td>${esc(p.state)}</td><td class="dim">${esc(
@@ -492,7 +580,7 @@ export function renderHtml(b) {
   const bud = b.budget.ok
     ? `<div class="bar"><div style="margin-left:${Math.max(0, Math.min(100, b.budget.lo))}%;width:${Math.max(1, Math.min(100, b.budget.hi) - Math.max(0, b.budget.lo))}%"></div></div>
        <p><b>${esc(b.budget.label)}</b>${b.budget.range ? ' <span class="dim">(a band, as reported — not collapsed to a midpoint)</span>' : ''} of the weekly pool, as last reported by the owner${b.budget.ageHours != null ? ` <span class="${b.budget.stale ? 'red' : 'dim'}">(${b.budget.ageHours} h ago${b.budget.stale ? ' — STALE' : ''})</span>` : ''}</p>
-       ${b.planNote ? `<p class="dim">${esc(b.planNote)}</p>` : ''}`
+       ${b.planPoint ? `<p>All <b>${b.planPoint.all} %</b>${b.planPoint.fable != null ? ` · Fable <b>${b.planPoint.fable} %</b>` : ''}${b.planPoint.session != null ? ` · session ${b.planPoint.session} %` : ''} <span class="dim">at ${esc(String(b.planPoint.at).slice(11, 16))} local${b.planPoint.resets ? `, week resets ${esc(String(b.planPoint.resets).slice(0, 16).replace('T', ' '))}` : ''}</span></p>${b.planRate && b.planRate.all != null ? `<p class="dim">pace since the previous point (${b.planRate.hours} h): All ${b.planRate.all} %/h${b.planRate.fable != null ? ` · Fable ${b.planRate.fable} %/h` : ''}</p>` : ''}` : b.planNote ? `<p class="dim">${esc(b.planNote)}</p>` : ''}`
     : unread(b.budget);
   const od = b.ownerDecisions;
   return `<!doctype html>
@@ -678,6 +766,22 @@ function runSelftest() {
   {
     const rows = herderRows('{"id":"x","result":{"agents":[{"name":"kestrel","agent_status":"working","pane_id":"w1:p1"},{"name":"magpie","agent_status":"idle","pane_id":"w1:p6"}]}}', 'birds');
     ok(rows.length === 2 && /^kestrel\s+working\s+w1:p1\s+birds$/.test(rows[0]), 'herder rows are name · status · pane · session from the session JSON');
+    ok(
+      parseWalkerQueue('# queue\n3475\n3476\n3478 3479 3480 3481 3482 3483\n').join(',') === '3475,3476,3478,3479,3480,3481,3482,3483',
+      'the walker queue parses by whitespace across lines, in order'
+    );
+    ok(parseWalkerQueue('3478 3478 x 3479').join(',') === '3478,3479', 'a repeated or non-numeric queue token is dropped, never a throw');
+    ok(
+      formatTimerRow('Mon 2026-10-12 13:03:48 EDT 43min Mon 2026-10-12 12:02:43 EDT 17min ago tepna-release-due.timer tepna-release-due.service') ===
+        'next 13:03 (43min left) · last 12:02 (17min ago)',
+      'a list-timers row renders as next · last'
+    );
+    ok(
+      formatTimerRow('Mon 2026-10-12 13:03:48 EDT 1h 43min left Mon 2026-10-12 12:02:43 EDT 17min ago tepna-release-due.timer tepna-release-due.service') ===
+        'next 13:03 (1h 43min left) · last 12:02 (17min ago)',
+      'a two-token "left" survives'
+    );
+    ok(formatTimerRow('something else') === 'something else' && formatTimerRow('') === '', 'an unrecognised row is kept raw, an empty one stays empty');
     ok(herderRows('not json', 'birds').length === 0 && herderRows('{"result":{}}', 'birds').length === 0, 'unparseable or agent-less herder output yields no rows, never a throw');
   }
   console.log(fails.length ? `board selftest: ${fails.length} FAILED of ${ran}\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
