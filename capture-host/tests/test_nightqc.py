@@ -431,15 +431,21 @@ def test_a_daemon_restart_does_not_merge_two_sessions_into_one_union_span(tmp_pa
 
     night = str(tmp_path / "2026-09-24")
     os.makedirs(night)
-    s1 = _stamp_epoch("20260924113000")  # run 1 opens
+    # ⚠️ ANCHORED TO A LOCAL HOUR, NOT A LITERAL STAMP. `night_band` renders a floating second at the
+    # READER's offset, so a written stamp names a different civil hour in every zone and the band takes a
+    # different set of these runs. `20260924113000` put run 2 outside the band in EDT and UTC and INSIDE
+    # it in Sydney, where the 2026-10-12 join then counted run 2 in and the span read 34048. 05:00 local
+    # keeps run 1 inside the band and run 2 (10:00-14:50 local) outside it in every zone, which is the
+    # input this test needs: the seam has to be read off `STARTS.csv`, never off the join.
+    s1 = _floating_at_local_hour("20260924000000", 5)  # run 1 opens
     restart = s1 + 17990  # the daemon restarts 4 h 59 m in
     end2 = s1 + 35407  # run 2's last write (its file opens at s1 + 18000,
     #  10 s after the restart — see the stamp below)
 
     # run 1, COMPLETE: HR at 1 Hz for 16641 s, then this device is done for the night
-    _utime(_cap(night, "Polar_H10_02849638_20260924113000_HR.txt", 16641), s1 + 16641)
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(s1) + "_HR.txt", 16641), s1 + 16641)
     # run 2, PARTIAL: a different device trickles to the end of the folder
-    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260924163000_SPO2.csv", 3000), end2)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_" + _floating_stampname(s1 + 18000) + "_SPO2.csv", 3000), end2)
     with open(os.path.join(night, writers.STARTS_NAME), "w") as fh:
         fh.write("Phone timestamp;pid;git;dirty;adapter\n")
         fh.write(_starts_stamp(restart) + ";400443;2cd12712;no;F4:CE:36:2E:CD:98\n")
@@ -469,9 +475,9 @@ def test_without_a_STARTS_sidecar_the_session_basis_says_gap_only(tmp_path):
     from "no evidence of a restart" is the bug this pair exists to prevent."""
     night = str(tmp_path / "2026-09-24")
     os.makedirs(night)
-    s1 = _stamp_epoch("20260924113000")
-    _utime(_cap(night, "Polar_H10_02849638_20260924113000_HR.txt", 16641), s1 + 16641)
-    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260924163000_SPO2.csv", 3000), s1 + 35407)
+    s1 = _floating_at_local_hour("20260924000000", 5)  # the same local anchor as its sidecar-bearing twin
+    _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(s1) + "_HR.txt", 16641), s1 + 16641)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_" + _floating_stampname(s1 + 18000) + "_SPO2.csv", 3000), s1 + 35407)
     devs = [
         {"name": "H10", "device_id": "02849638", "streams": ["hr"]},
         {"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]},
@@ -482,7 +488,7 @@ def test_without_a_STARTS_sidecar_the_session_basis_says_gap_only(tmp_path):
     assert s["span_sec"] == 35407
 
 
-def test_the_POOLED_half_brings_its_own_seams_from_the_neighbouring_folder(tmp_path):
+def test_the_POOLED_half_brings_its_own_seams_from_the_neighbouring_folder(tmp_path, _utc):
     """A cross-midnight night is judged from files in TWO folders, and the pre-midnight half's restarts
     are recorded in the PREVIOUS folder's sidecar. Reading only this folder's would segment the pooled
     set on gap alone for exactly the half that was pooled in — a silent reversion — and the basis would
@@ -3870,6 +3876,34 @@ def _end_0923():
     return nightqc._session_of("X_20260923231318_PPG.txt") + _SPAN_0923
 
 
+@pytest.fixture
+def _utc():
+    """Run a test in UTC, declared rather than inherited.
+
+    ⚠️ FOR A FIXTURE WHOSE FILENAMES STRADDLE CIVIL MIDNIGHT, AND NOTHING ELSE. `night_band` builds its
+    edges with `datetime.fromtimestamp` and `.timestamp()`, so they are real epochs of a LOCAL hour,
+    while a filename stamp parses to a FLOATING second. UTC is the one zone where those two frames
+    coincide, so a cross-folder night whose two halves are named `…233000` and `…001500` means in the
+    reader what it means on disk. Anchoring such a fixture to a local hour instead moves its filename
+    date off its folder date, and the pre-midnight half then pools in nowhere.
+
+    That frame mix is the box's, not this test's: residue
+    `2026-10-12-the-night-band-mixes-a-floating-stamp-with-a-local-epoch`. A test that can state its
+    subject in any zone does not use this fixture — it anchors to a local hour with
+    `_floating_at_local_hour`, or it takes `_tz` and runs in three."""
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "UTC"
+    time.tzset()
+    try:
+        yield "UTC"
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
+
+
 @pytest.fixture(params=["UTC", "America/New_York", "Asia/Kolkata"])
 def _tz(request):
     """Run a test in a named zone. CI is UTC and the rig is EDT, and a span that depends on the reader's
@@ -5656,7 +5690,13 @@ def _touching_night(tmp_path):
 
     night = str(tmp_path / "2026-09-24")
     os.makedirs(night)
-    t0 = _stamp_epoch("20260924210000")
+    # ⚠️ ANCHORED TO A LOCAL HOUR, NOT A LITERAL STAMP. `night_band` renders a floating second through
+    # `datetime.fromtimestamp`, so a written stamp names a different civil hour in every zone, and the
+    # band then takes a different set of these three runs. A literal `20260924210000` here placed run 1
+    # before 18:00 in EDT and inside the band in UTC, which is how the CI runner disagreed with the box.
+    # 17:00 local puts run 1 outside the band and run 3 inside it in EVERY zone — the one night that
+    # carries both outcomes, which is what the exclusion and join tests below each need.
+    t0 = _floating_at_local_hour("20260924000000", 17)
     seam1 = t0 + 600  # run 1 ends / run 2 opens, on the same second
     seam2 = seam1 + 7200  # run 2 ends / run 3 opens, on the same second
     _utime(_cap(night, "Polar_H10_02849638_" + _floating_stampname(t0) + "_HR.txt", 600), seam1)
@@ -6389,11 +6429,19 @@ def test_pooling_asks_contiguity_in_ONE_frame_under_a_nonzero_offset(tmp_path):
 
 def test_a_zero_length_session_TOUCHING_the_judged_one_is_reported_once_on_its_own_side(tmp_path):
     """mutants 181 / 183: sessions may TOUCH at a daemon seam, and a zero-length one sharing the judged
-    session's edge satisfies BOTH mutated predicates — it would be reported as earlier AND later."""
+    session's edge satisfies BOTH mutated predicates — it would be reported as earlier AND later.
+
+    ⚠️ THE PAIR SITS IN THE DAYTIME ON PURPOSE, and anchored to a LOCAL hour rather than written as a
+    stamp. The 2026-10-12 join reports an IN-NIGHT neighbour as joined coverage, so the before/after
+    partition these two mutants live on only runs over neighbours the band EXCLUDES. A literal
+    `20260924210000` rendered as 17:00 in EDT and as 21:00 on the UTC runner, so the same file put the
+    pair outside the band on the box and inside it in CI. 12:00 local is outside the band in every zone,
+    and the assertion below reads `outside-band` back so the fixture cannot drift into the night again.
+    The in-night side is `test_a_TOUCHING_in_night_neighbour_JOINS_and_its_seam_is_named`."""
     for judged_first, own_side in ((True, "later session"), (False, "earlier session")):
         night = str(tmp_path / ("a" if judged_first else "b") / "2026-09-24")
         os.makedirs(night)
-        t0 = _stamp_epoch("20260924210000")
+        t0 = _floating_at_local_hour("20260924000000", 12)
         seam = t0 + 600
         _abs_cap(night, t0, 600 if judged_first else 1, seam, offset=0.0)
         _abs_cap(night, seam, 1 if judged_first else 600, seam, offset=0.0)  # zero length: opens AT its last write
@@ -6401,6 +6449,11 @@ def test_a_zero_length_session_TOUCHING_the_judged_one_is_reported_once_on_its_o
         s = _summarize_floating(night, _DEV_HR)
         assert len(s["sessions"]) == 2, s["sessions"]
         assert len(s["gaps"]) == 1 and own_side in s["gaps"][0], (judged_first, s["gaps"])
+        assert "outside-band" in s["gaps"][0], (
+            s["gaps"],
+            "the CONTROL: these two must stay outside the night band, or the join takes the neighbour "
+            "and the partition predicate under test never runs",
+        )
 
 
 def test_summarize_PREFERS_THE_RECORDED_OFFSET_over_the_one_it_could_infer(tmp_path):
