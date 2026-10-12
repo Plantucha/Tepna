@@ -1167,7 +1167,8 @@ def recorded_writer_offset(night_dir: str) -> dict | None:
     read as "nothing recorded" rather than as a parse error.
 
     ∅ THREE OUTCOMES, AND DISAGREEMENT IS NOT ONE VALUE:
-      · every row that recorded an offset agrees  → a `declared_offset` for that value;
+      · every row that recorded an offset agrees  → a `declared_offset` for that value, converted from the
+        writer's east-of-UTC convention into this module's raise convention (see the return);
       · no row recorded one (an older night, or a blank where the zone could not be determined) → None,
         and the caller's vote-based inference remains the fallback it was built to be;
       · rows DISAGREE → None with the values named. A night whose sessions opened at different offsets
@@ -1207,7 +1208,13 @@ def recorded_writer_offset(night_dir: str) -> dict | None:
                 "STARTS.csv records %d different offsets %s — a DST seam, refusing one value", len(seen), sorted(seen)
             )
         return None
-    return declared_offset(float(next(iter(seen))))
+    # ⚠️ THE SIGN FLIPS HERE, AND ONLY HERE. The writer records seconds EAST of UTC
+    # (`writers._utc_offset_sec`, EDT = -14400); `offset_sec` everywhere in this module is the number that
+    # RAISES a floating stamp into the `mtime` frame, which is MINUS that (`recover_writer_offset`:
+    # d = -offset_east + lag, so EDT = +14400). Passed through unflipped, every file was placed 2*|offset|
+    # early. Measured on vigil 2026-10-12: a 21:02 Verity start judged at 13:02, a 7.9 h night judged over
+    # 21 h, every stream "31 % below rate". Negated as an int, so a UTC box's 0 stays 0.0, never -0.0.
+    return declared_offset(float(-next(iter(seen))))
 
 
 def recover_writer_offset(night_dir: str, files: list[dict]) -> dict:

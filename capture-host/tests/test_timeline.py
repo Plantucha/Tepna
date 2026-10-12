@@ -1038,6 +1038,6 @@ def test_build_PREFERS_THE_RECORDED_OFFSET_over_the_one_it_could_infer(tmp_path)
         [{"name": "Polar H10", "device_id": "02849638", "address": "AA:BB", "streams": ["ecg"]}],
     )
     wo = out["writer_offset"]
-    assert wo["offset_sec"] == -14400.0, f"the RECORDED offset must win over anything inference would produce: {wo}"
+    assert wo["offset_sec"] == 14400.0, f"the RECORDED offset must win over anything inference would produce: {wo}"
     assert wo["basis"] == "declared", f"a recorded offset is a premise, never a measurement: {wo}"
     assert wo["frame"] == "absolute", wo
