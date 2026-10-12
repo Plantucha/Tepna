@@ -1136,7 +1136,12 @@ function streamState(s, dev){
   // emitting a plausible number (~58 bpm off a 6000 µV noise floor, measured 2026-07-19). The pill alone
   // was not enough — a glance at "♥ 58 bpm" on a moving trace reads as a real heartbeat.
   if(!s.active)                       return {cls:'',     txt:'idle',     trust:false, why:'Stream not started.'};
-  if(dev && dev.charging)             return {cls:'chg',  txt:'charging', trust:false, why:'On the charger — the sensor stops streaming while it charges. Resumes on its own once off the dock.'};
+  // `=== true`, NEVER TRUTHY. `charging` is a tri-state on the wire since 2026-10-12 and a null means
+  // the daemon makes no claim — flatness at full fits a dock and a fresh coin cell equally. A truthy
+  // test reads that null as 'not charging' and skips straight to the symptom, which is how the pill
+  // would claim a wrist for a device sitting in its dock. `worn === false` one line down has been
+  // written this way since the tri-state arrived there; the unknown is named by the chip instead.
+  if(dev && dev.charging === true)    return {cls:'chg',  txt:'charging', trust:false, why:'On the charger — the sensor stops streaming while it charges. Resumes on its own once off the dock.'};
   if(dev && dev.worn === false)       return {cls:'warn', txt:'not worn', trust:false, why:'Linked, but the sensor reports no skin/finger contact — whatever is streaming is not a reading of the wearer.'};
   if(s.health === 'stall')            return {cls:'warn', txt:'no data',  trust:false, why:'Linked, but no samples are arriving. The link is up and the stream is started — the sensor is simply not sending.'};
   if(s.health === 'weak')             return {cls:'warn', txt:'weak',     trust:true,  why:'Arriving well below the negotiated rate — samples are being dropped, but what arrives is real.'};
@@ -1180,9 +1185,23 @@ function retryChip(dev){
   return `<span class="clk idle" title="Attempt ${esc(r.attempt ?? '?')} — ${esc(why)}, ${Math.round(r.wait_s)} s wait. The link is down on purpose until then; a retry that fires early only lengthens the next wait.">↻ ${esc(why)} #${esc(r.attempt ?? '?')} · ${left}s</span>`;
 }
 
+// THREE ANSWERS, NOT TWO. `charging` arrives as true / false / null, and the null is the state the
+// owner's 2026-10-12 ruling created: a battery pinned at 100 % for 45 min has closed its observation
+// window and proved nothing about where the device is, because a fresh cell holds just as flat. The
+// daemon stopped claiming a dock there; drawing nothing in that case would hand the same silence back
+// as "not charging", so the unknown gets its own chip and says what was and was not observed.
 function chargeChip(dev){
-  if(!dev || !dev.charging) return '';
-  return `<span class="clk chg" title="On the charger. A Polar refuses new streams outright (PMD 0x0D) and resumes within ~${60}s of coming off the dock; a device already streaming when it went on charge simply goes quiet. Detected from the O2Ring's own battery-state flag, and on a Polar from a rising battery level.">⚡ charging</span>`;
+  const c = dev ? dev.charging : undefined;
+  if(c === true) return `<span class="clk chg" title="On the charger. A Polar refuses new streams outright (PMD 0x0D) and resumes within ~${60}s of coming off the dock; a device already streaming when it went on charge simply goes quiet. Detected from the O2Ring's own battery-state flag, and on a Polar from a rising battery level.">⚡ charging</span>`;
+  // Neutral, never amber: nothing is at fault and nothing is lost. An unknown that looked like a
+  // warning would be read as one, and the operator would go looking for a problem that is not there.
+  // GATED ON THE LINK. A device the daemon has never heard from also publishes a null, and its charger
+  // is unknown in the uninteresting sense — nothing is being observed at all. The chip is a statement
+  // about a measurement that was taken, so it needs a device that is answering.
+  // `dev &&` is load-bearing on THIS line and not on the one above it: a null `dev` makes `c`
+  // undefined, `undefined == null` is true, and the gate would dereference the thing it is guarding.
+  if(c == null && dev && dev.connected) return `<span class="clk idle" title="The charger is UNKNOWN for this device, which is not the same as off it. The battery has held full long enough that a streaming device would have drained — but a fresh cell reads identically, so the daemon claims nothing either way (owner ruling 2026-10-12, after a flat reading on a worn strap cost 140 link drops). Look at the strap if it matters; nothing here can tell you.">⚡? charger unknown</span>`;
+  return '';
 }
 
   // ── THE OPTICS DISAGREE WITH THE CONTACT BIT ────────────────────────────────────────────────────

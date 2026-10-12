@@ -24,6 +24,33 @@ export const DEFAULT_INDEX = 'tepna-hybrid';
 export const OLLAMA = process.env.DEX_OLLAMA || 'http://127.0.0.1:11434';
 export const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
 
+/**
+ * THE REFUSAL FLOOR. A ranker always returns a top 5, also for a question the corpus cannot answer, and
+ * a confident rank on an unrelated DSP file is how a wrong answer enters a unit. So the hybrid lane
+ * says "no prior work" when BOTH halves are weak: the best kNN cosine is below `REFUSE_COS` AND the
+ * best BM25 score is below `REFUSE_BM25`. One strong half is enough to answer.
+ *
+ * MEASURED 2026-10-12 (`node tools/xerj-bench.mjs --refusal`). Population: the 52 real Rule-0 queries
+ * of `audits/XERJ-BENCH-QUERIES.json` (answerable) and the 40 off-topic queries of
+ * `audits/XERJ-REFUSAL-QUERIES.json`, length-matched (median 14 words each). The floor was FIT on the
+ * even-indexed half of each set, under a rule stated before the fit: refuse no answerable query, and
+ * refuse the most off-topic ones; ties go to the lower floor. On the odd-indexed half, which the fit
+ * never saw, it refused 1 of 26 answerable queries and 18 of 20 off-topic ones. The one answerable
+ * query it refused had no ground-truth file in its hybrid top 5 either.
+ *
+ * Limits. The off-topic set is invented, not harvested, and it holds no near-domain question (a
+ * physiology topic that Tepna does not cover). The floor is a property of this index and this
+ * embedder: a re-load with another model moves the cosine scale, so re-run the bench after one.
+ */
+export const REFUSE_COS = 0.8075;
+export const REFUSE_BM25 = 27;
+
+/** Both halves weak ⇒ refuse. A missing half (no vector) cannot be judged, so it never refuses. */
+export function belowFloor({ cos, bm25 }) {
+  if (!Number.isFinite(cos) || !Number.isFinite(bm25)) return false;
+  return cos < REFUSE_COS && bm25 < REFUSE_BM25;
+}
+
 export function isLoopback(url) {
   try {
     const h = new URL(url).hostname;
@@ -154,9 +181,11 @@ export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_I
     );
   };
   const lex = await ask(null);
-  if (!vector) return { hits: lex.slice(0, topK), degraded, hybrid: false };
+  const bm25 = lex[0]?.score ?? null;
+  if (!vector) return { hits: lex.slice(0, topK), degraded, hybrid: false, signals: { cos: null, bm25 }, refused: false };
   const sem = await ask(vector);
-  return { hits: fuseRRF([lex, sem], topK), degraded, hybrid: true, lexTop: lex[0]?.path ?? null, semTop: sem[0]?.path ?? null };
+  const signals = { cos: sem[0]?.score ?? null, bm25 };
+  return { hits: fuseRRF([lex, sem], topK), degraded, hybrid: true, lexTop: lex[0]?.path ?? null, semTop: sem[0]?.path ?? null, signals, refused: belowFloor(signals) };
 }
 
 export function selftest() {
@@ -224,7 +253,19 @@ export function selftest() {
   ok(collapseByPath(many, 2).length === 2, 'topK still caps the collapsed list');
   ok(collapseByPath([], 5).length === 0, 'an empty result collapses to empty, not an error');
 
-  // 5 · LOOPBACK ONLY.
+  /* 5 · THE REFUSAL FLOOR needs BOTH halves weak, and a half that was not measured never refuses. */
+  ok(belowFloor({ cos: REFUSE_COS - 0.01, bm25: REFUSE_BM25 - 1 }), 'both halves below the floor ⇒ refuse');
+  ok(!belowFloor({ cos: REFUSE_COS + 0.01, bm25: REFUSE_BM25 - 1 }), 'a strong cosine alone answers');
+  ok(!belowFloor({ cos: REFUSE_COS - 0.01, bm25: REFUSE_BM25 + 1 }), 'a strong BM25 alone answers');
+  ok(!belowFloor({ cos: REFUSE_COS, bm25: REFUSE_BM25 }), 'a score AT the floor answers — the floor is strict');
+  ok(!belowFloor({ cos: null, bm25: 1 }) && !belowFloor({ cos: 0.1, bm25: null }), 'a missing half is not evidence of a weak half');
+  const refusedOut = render({ hits: [{ score: 0.016, path: 'a.js', where: '', text: 'long passage' }], refused: true, signals: { cos: 0.75, bm25: 12 } }, 'q');
+  ok(refusedOut.includes('no prior work'), 'a refusal prints "no prior work"');
+  ok(refusedOut.includes('a.js') && !refusedOut.includes('long passage'), '…lists the weak paths for reference, without their passages');
+  ok(refusedOut.includes('0.750') && refusedOut.includes('12.0'), '…and prints both scores against the floor');
+  ok(!render({ hits: [{ score: 0.016, path: 'a.js', where: '', text: 'long passage' }], refused: false }, 'q').includes('no prior work'), 'CONTROL: an answer is not a refusal');
+
+  // 6 · LOOPBACK ONLY.
   ok(isLoopback('http://127.0.0.1:9200'), 'loopback is accepted');
   ok(!isLoopback('http://10.1.2.3:9200'), 'a non-loopback host is refused');
 
@@ -236,6 +277,13 @@ export function render(out, query) {
   const lines = [`▸ hybrid (BM25 + bge-m3 kNN, one request) · "${query}"`, ''];
   if (out.degraded) lines.push(`  ⚠ ${out.degraded}`, '');
   if (!out.hits.length) lines.push('  (no hit — is the index loaded? `node tools/xerj-load.mjs`)');
+  if (out.refused) {
+    const { cos, bm25 } = out.signals;
+    lines.push(`  no prior work — both halves are below the refusal floor: cosine ${cos.toFixed(3)} < ${REFUSE_COS}, BM25 ${bm25.toFixed(1)} < ${REFUSE_BM25}.`);
+    lines.push('  The paths below are the weak best guesses, for reference only, not evidence:', '');
+    for (const h of out.hits) lines.push(`    ${h.path}${h.where}`);
+    return lines.join('\n');
+  }
   for (const h of out.hits) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
     lines.push(`        ${h.text}`);
