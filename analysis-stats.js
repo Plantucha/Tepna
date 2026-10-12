@@ -151,6 +151,70 @@
   function threeCorneredHat(vAB, vAC, vBC) {
     return { a: 0.5 * (vAB + vAC - vBC), b: 0.5 * (vAB + vBC - vAC), c: 0.5 * (vAC + vBC - vAB) };
   }
+  /* ── `contributions`: which leg moved this corner (VERDICT-CONTRIBUTIONS-2026-10-04 §1, `analytic`) ──
+     The classic hat is a closed form, so attribution needs no re-solve and no resampling:
+         σ²A = ½(V_AB + V_AC − V_BC)   ⇒   ∂σ²A/∂V_AB = +½, ∂σ²A/∂V_AC = +½, ∂σ²A/∂V_BC = −½
+     Each leg's term is its own partial times its own variance, so the three terms SUM TO THE CORNER
+     EXACTLY. That identity is the method's whole claim, and `dex-tests.js` asserts it.
+
+     A variance is never negative, so exactly one delta per corner is ≤ 0: the SUBTRACTED leg, the one
+     that drives a corner negative. That is the UNDERPOWERED corner the brief opens on, and the block
+     names it without a bird reading code. (The brief's §1 example prints two negative deltas and labels
+     a ms² figure `sigma.ankle`; it is illustrative arithmetic — no closed-form block over three
+     variances can produce two negatives, and what the deltas sum to is the VARIANCE, so `of` here is
+     `sigma2.<corner>`.)
+
+     ∅ — a leg that did not run arrives non-finite. It is LISTED with `delta: null` and a reason, and it
+     takes every other share and `dominant` with it: a share is a fraction of Σ|delta|, and one unknown
+     term makes that denominator unknown. Normalising over the legs that DID run would manufacture the
+     denominator, which `verdict.js _contributions` reds. Three zero variances are the same shape —
+     Σ|delta| = 0, and 0/0 is not 0.
+
+     `of`, `unit` and the leg keys belong to the CALLER: this kernel knows the algebra, not which site
+     sits at which corner. A missing `of` or `unit` throws rather than defaulting, because an unlabelled
+     or unit-less figure is a bug of wrong-unit severity (CLAUDE.md §📏, §🎫). */
+  var _HAT_PARTIALS = {
+    a: { ab: 0.5, ac: 0.5, bc: -0.5 },
+    b: { ab: 0.5, ac: -0.5, bc: 0.5 },
+    c: { ab: -0.5, ac: 0.5, bc: 0.5 }
+  };
+  function hatContributions(vAB, vAC, vBC, opts) {
+    var o = opts || {};
+    var p = _HAT_PARTIALS[o.corner];
+    if (!p) throw new TypeError('hatContributions: opts.corner must be "a", "b" or "c", got ' + JSON.stringify(o.corner));
+    if (typeof o.of !== 'string' || !o.of) throw new TypeError('hatContributions: opts.of must name the figure being attributed');
+    if (typeof o.unit !== 'string') throw new TypeError('hatContributions: opts.unit must be a string in the figure’s own unit, e.g. "ms^2"');
+    var keys = o.keys || {},
+      reasons = o.reasons || {};
+    var legs = [
+      { n: 'ab', key: keys.ab || 'leg.ab', v: vAB },
+      { n: 'ac', key: keys.ac || 'leg.ac', v: vAC },
+      { n: 'bc', key: keys.bc || 'leg.bc', v: vBC }
+    ];
+    var unknown = 0,
+      sumAbs = 0;
+    var inputs = legs.map(function (L) {
+      if (typeof L.v !== 'number' || !Number.isFinite(L.v)) {
+        unknown++;
+        return { key: L.key, share: null, delta: null, reason: reasons[L.n] || 'leg variance absent — this pair contributed no window' };
+      }
+      var d = p[L.n] * L.v;
+      sumAbs += Math.abs(d);
+      return { key: L.key, share: null, delta: d };
+    });
+    var block = { of: o.of, unit: o.unit, method: 'analytic', inputs: inputs, dominant: null };
+    /* ∅: the denominator is unknown, so every share and `dominant` stay null — present, never omitted. */
+    if (unknown > 0 || sumAbs === 0) return block;
+    var maxAbs = -1;
+    inputs.forEach(function (it) {
+      it.share = Math.abs(it.delta) / sumAbs;
+      if (Math.abs(it.delta) > maxAbs) {
+        maxAbs = Math.abs(it.delta);
+        block.dominant = it.key;
+      }
+    });
+    return block;
+  }
   /* ── PAIRWISE-ρ three-cornered hat (TCH-REFERENCE-VALIDATION R2) ──────────────────────────────────
      Classic TCH assumes the three corners' errors are MUTUALLY INDEPENDENT:
          Var(x_i − x_j) = σ²_i + σ²_j
@@ -684,6 +748,30 @@
     return out;
   }
 
+  /* THE PAT HAT'S THREE BLOCKS, on the brief's own leg keys (§2 row `hat per-site σ`, method `analytic`).
+     `ab`, `ac`, `bc` are the legs' per-window values — the same inputs `_patSolve` takes — so the
+     variances attributed here are the ones the hat actually solved: `_patRobustVar` (IQR/1.349)², never
+     a plain variance beside it. An empty or single-window leg makes its variance non-finite, which the
+     kernel lists as `delta: null` with a reason (∅), so a leg that never ran is never a leg of zero. */
+  var PAT_LEG_KEYS = { ab: 'leg.chest-finger', ac: 'leg.chest-ankle', bc: 'leg.finger-ankle' };
+  function patHatContributions(ab, ac, bc, opts) {
+    var o = opts || {},
+      pre = o.ofPrefix || 'sigma2',
+      vAB = _patRobustVar(ab),
+      vAC = _patRobustVar(ac),
+      vBC = _patRobustVar(bc),
+      out = {};
+    for (var k = 0; k < 3; k++) {
+      out[PAT_CORNERS[k]] = hatContributions(vAB, vAC, vBC, {
+        corner: 'abc'.charAt(k),
+        of: pre + '.' + PAT_CORNERS[k],
+        unit: 'ms^2',
+        keys: PAT_LEG_KEYS,
+        reasons: o.reasons
+      });
+    }
+    return out;
+  }
   /* THE DRIFT-REMOVED HAT — the same solve on FIRST DIFFERENCES of adjacent windows' medians, each halved:
      ½·Var(x_{k+1} − x_k) is the Allan variance at τ = one window (Allan 1966, Proc. IEEE,
      doi:10.1109/PROC.1966.4634), and the hat on it is Gray & Allan 1974 (28th Annual Symposium on Frequency
@@ -720,6 +808,7 @@
       sigma: sigma,
       ci: ci,
       corners: patHatCornerStatus(v, ci),
+      contributions: patHatContributions(dab, dac, dbc, { ofPrefix: 'sigma2.drift-removed' }),
       label: 'drift-removed σ at τ = ' + stepMs / 60000 + ' min — not comparable to the classic σ'
     };
   }
@@ -1227,6 +1316,7 @@
     minOccForReliability: minOccForReliability,
     // reference-free agreement
     threeCorneredHat: threeCorneredHat,
+    hatContributions: hatContributions,
     tchSigmas: tchSigmas,
     tchSigmasFused: tchSigmasFused,
     /* PAT classic-vs-fused (2026-09-26): the confidence-weighted statistics, exported so the planted
@@ -1242,6 +1332,7 @@
     patHatBootstrapCI: patHatBootstrapCI,
     patHatCornerStatus: patHatCornerStatus,
     patDifferencedHat: patDifferencedHat,
+    patHatContributions: patHatContributions,
     parseDerivedHr: parseDerivedHr,
     confidenceSeries: confidenceSeries,
     tchSigmasPairwise: tchSigmasPairwise,
