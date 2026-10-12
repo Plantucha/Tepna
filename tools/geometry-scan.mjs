@@ -41,6 +41,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { probeAll, saturation, sawtooth, censoring, drawnAxis, stepiness } from './geometry-probe.mjs';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const PHYS_LO = 200,
@@ -323,6 +324,16 @@ const PRODUCED_BY = COMMIT
   : { tool: 'tools/geometry-scan.mjs', commit: null, commitReason: 'not a git checkout — no HEAD to attribute this object to' };
 
 const argv = process.argv.slice(2);
+if (argv.includes('--help') || argv.includes('-h')) {
+  console.log('usage: node tools/geometry-scan.mjs <night-dir> [<night-dir> …] [--json]  |  --selftest  |  --verdict-sample');
+  process.exit(0);
+}
+/* The directory list was `argv.filter((a) => !a.startsWith('--'))`, so a mistyped `--jsonn` vanished
+   from both the flags and the paths, and a single-dash token became a DIRECTORY NAME and surfaced as
+   an ENOENT at exit 0 (residue 2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path). The
+   guard's `positional` mode is the fit the row thought did not exist: a bare token is a path, a
+   `-`-leading token must be declared. */
+refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--verdict-sample', '--json', '--help', '-h'], positional: true }, { tool: 'tools/geometry-scan.mjs' });
 if (argv.includes('--selftest')) runSelftest();
 /* `--verdict-sample` exists for the adoption gate, which needs one valid object without a corpus.
    NOT_RUN over an empty population is the honest sample: nothing was examined, `checked + excluded =

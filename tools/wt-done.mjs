@@ -160,7 +160,7 @@ function cmdlineOf(pid, procRoot = '/proc') {
   }
 }
 
-export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, landless }) {
+export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, landless, landedElsewhere }) {
   /* Pure decision core, so the refusals are testable without a repo. `inUse` is the result of
      `usersOfPath`: omitted entirely means the caller did not scan (older callers keep working);
      `{ok:false}` means the scan FAILED, which refuses — unknown is not idle. */
@@ -210,11 +210,32 @@ export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, 
       why: `no PR and nothing to land — 0 commits ahead of origin/main, tree clean, ${landless.remoteRef ? 'branch on origin' : 'no branch on origin'}` + (inUse ? ' + idle' : '')
     };
   }
+  /* ── THE WORK IS ON MAIN UNDER ANOTHER NAME (--landed) ───────────────────────────────────────
+     Opt-in, like --pushed, and for the same reason: trading a tree for a copy elsewhere is a
+     judgement. This clause is the PR-LESS case — `--pr` already covers a renamed branch whose new
+     name is a prefix of the old, and an OPEN PR's tree stays whatever the flag says, because its
+     fixes may still be made here. What is left is the case all three refuse: a branch rebuilt under
+     an unrelated name. The same proof is read once more further down, for a MERGED PR whose
+     post-merge commit count would otherwise refuse. */
+  if (prState === null && landedElsewhere) {
+    if (landedElsewhere.ok === false) return { ok: false, why: `no PR for this branch, and ${landedElsewhere.why}` };
+    if (landedElsewhere.ok === true) {
+      if (inUse && inUse.ok === false) return { ok: false, why: `cannot prove idle: ${inUse.why}` };
+      if (inUse && inUse.users && inUse.users.length) {
+        const who = inUse.users.map((u) => `PID ${u.pid} (${u.cmd})`).join('; ');
+        return { ok: false, why: `IN USE by ${who} — removing it would destroy that run` };
+      }
+      return { ok: true, why: `no PR for this branch; ${landedElsewhere.why} + tree clean` + (inUse ? ' + idle' : '') };
+    }
+  }
   if (prState === null) {
     /* NAME THE STATE THAT WAS MEASURED. "cannot prove the work landed" alone does not say what work, and
        the flag hint is only true for a branch that IS on origin. */
     const st = landless && typeof landless.commitsAhead === 'number' ? ` (${landless.commitsAhead} commit(s) ahead of origin/main; branch ${landless.remoteRef ? 'is' : 'is not'} on origin)` : '';
-    const hint = landless && landless.remoteRef ? ' — a pushed, PR-less branch: --pushed' : '';
+    /* OFFER A FLAG ONLY TO A TREE IT CAN HELP — the 2026-09-28 lesson, applied to the second flag:
+       `--landed` is useless for a branch with nothing of its own and is the only answer for one whose
+       commits exist nowhere on origin under this name. */
+    const hint = landless && landless.remoteRef ? ' — a pushed, PR-less branch: --pushed' : landless && landless.commitsAhead > 0 ? ' — work landed under another branch name: --landed' : '';
     return { ok: false, why: `no PR found for branch — cannot prove the work landed${st}${hint}` };
   }
   if (prState !== 'MERGED') return { ok: false, why: `PR is ${prState}, not MERGED` };
@@ -222,17 +243,32 @@ export function verdict({ prState, dirtyCount, isMain, inUse, unlanded, pushed, 
      and under squash nothing in the graph distinguishes them (row 2026-09-22-wt-done-merged-is-not-landed).
      `unlanded` supplies the missing question. Omitted ⇒ older callers unchanged. */
   if (unlanded && unlanded.ok === false) return { ok: false, why: `cannot prove every commit landed: ${unlanded.why}` };
-  if (unlanded && unlanded.count > 0)
-    return {
-      ok: false,
-      why: `${unlanded.count} commit(s) dated after the PR merged — work continued here and did not land; open a PR for them or move them to a branch before removing`
-    };
+  /* ── A DATE IS NOT THE CONTENT QUESTION (row 2026-10-12-wt-done-tests-the-date-not-the-content) ──
+     The scan above counts commits STAMPED after the merge, and that count refused four reclaimable
+     trees of mine on 2026-10-12 — two of them over commits that change zero files (`cd5df27e`,
+     `8956b879`, both CI re-triggers). No flag overrode it: `--pr` answers which PR to read and
+     `--pushed` answers a PR-less branch, so the only remaining move was removing the tree by hand.
+     `--landed` now answers it with the content, and it is a DIFFERENT instrument from the content
+     residual this file's own comment records as discarded: the residual asks whether the branch's
+     touched paths still differ from main, which a moving base makes non-empty 18 times in 20; the
+     identifier proof asks whether every identifier the branch ADDED is on main, and a moving base
+     cannot take an added identifier away. The count stays in the message — it is what prompted the
+     question — but it no longer decides, and without the flag nothing changes. */
+  if (unlanded && unlanded.count > 0) {
+    if (!landedElsewhere)
+      return {
+        ok: false,
+        why: `${unlanded.count} commit(s) dated after the PR merged — work continued here and did not land; open a PR for them or move them to a branch before removing — or prove the content landed: --landed`
+      };
+    if (landedElsewhere.ok !== true) return { ok: false, why: `${unlanded.count} commit(s) dated after the PR merged, and ${landedElsewhere.why}` };
+  }
   if (inUse && inUse.ok === false) return { ok: false, why: `cannot prove idle: ${inUse.why}` };
   if (inUse && inUse.users && inUse.users.length) {
     const who = inUse.users.map((u) => `PID ${u.pid} (${u.cmd})`).join('; ');
     return { ok: false, why: `IN USE by ${who} — removing it would destroy that run` };
   }
-  return { ok: true, why: (inUse ? 'PR merged + tree clean + idle' : 'PR merged + tree clean') + (unlanded ? ' + every commit landed' : '') };
+  const dated = unlanded && unlanded.count > 0 ? ` + ${unlanded.count} commit(s) dated after it, ${landedElsewhere.why}` : unlanded ? ' + every commit landed' : '';
+  return { ok: true, why: (inUse ? 'PR merged + tree clean + idle' : 'PR merged + tree clean') + dated };
 }
 
 /* A RETRIED BRANCH CARRIES ITS PREDECESSOR'S NAME AS A PREFIX, and that is what makes `--pr` PROOF
@@ -345,6 +381,89 @@ function pushedFor(wtPath, branch) {
   }
   return { ok: true, kind: 'contained', remote: `origin/${branch}`, remoteRef, commitsAhead };
 }
+/* ── A BRANCH NAME IS NOT THE WORK (row 2026-09-28-wt-done-cannot-retire-a-worktree-whose-branch-was-rebuilt)
+   Measured: `wt-ringwit-hrn` held `claude/ring-stall-witness-hrn`, abandoned before being pushed and
+   rebuilt as `claude/ring-stall-witness2-hrn`, which landed as #3168. The tool refused three ways and
+   every answer was RIGHT — "no PR found for branch", "the branch is not on origin", "#3168 merged as
+   '…witness2-hrn', which is not a rename of '…witness-hrn'". None of them can express "this work is on
+   main under another name", so the tree stayed on a volume at 89 % until someone removed it by hand.
+   ⚠️ BYTE-IDENTITY OF THE TOUCHED FILES IS TOO STRICT, measured on that very case: 2 of its 3 files
+   differ because what landed is a LATER revision of the same work (post-format, post-survivor-drain)
+   and only the changeset matched byte-for-byte. The checkable property is weaker and still sufficient:
+   every IDENTIFIER the branch's commits added is present on the base. */
+const MIN_LANDED_IDS = 3;
+/**
+ * Identifier-shaped tokens a unified diff ADDS. Not words: a token must be ≥6 chars and carry an
+ * underscore or an inner capital, which is what separates `witness_judges` and `RING_WITNESS_TOL_S`
+ * from the English in a comment. Prose tokens would make the check either vacuous (nothing to find) or
+ * unsatisfiable (a comment word absent from main), and both failures read as a verdict.
+ */
+export function addedIdentifiers(diffText) {
+  const ids = new Set();
+  for (const line of String(diffText || '').split('\n')) {
+    if (!line.startsWith('+') || line.startsWith('+++')) continue;
+    for (const m of line.slice(1).matchAll(/[A-Za-z_][A-Za-z0-9_]{5,}/g)) {
+      const tok = m[0];
+      if (!/_/.test(tok) && !/[a-z][A-Z]/.test(tok) && !/^[A-Z0-9_]+$/.test(tok)) continue;
+      ids.add(tok);
+    }
+  }
+  return [...ids].sort();
+}
+/**
+ * Pure decision over a presence predicate, so it is testable without a repo.
+ * ⚠️ A FLOOR, because "no identifiers added" must not read as "all of them landed" — that is §4b's
+ * success reported about something never examined, in a tool that then DELETES a directory.
+ */
+export function landedByIdentifiers(ids, isOnBase, { base = 'origin/main', min = MIN_LANDED_IDS } = {}) {
+  if (!Array.isArray(ids)) return { ok: false, why: 'no diff to read — cannot tell what this branch added' };
+  if (ids.length < min) return { ok: false, why: `only ${ids.length} identifier(s) added by this branch — too few to prove the work landed (floor ${min})`, checked: ids.length };
+  const absent = [];
+  for (const id of ids) {
+    let present;
+    try {
+      present = isOnBase(id) === true;
+    } catch (e) {
+      return { ok: false, why: `cannot search ${base} for ${id}: ${String((e && e.message) || e).split('\n')[0]}`, checked: ids.length };
+    }
+    if (!present) absent.push(id);
+  }
+  if (absent.length)
+    return {
+      ok: false,
+      why: `${absent.length} of ${ids.length} identifier(s) this branch added are NOT on ${base}: ${absent.slice(0, 4).join(' ')}${absent.length > 4 ? ' …' : ''}`,
+      checked: ids.length,
+      absent
+    };
+  return { ok: true, why: `all ${ids.length} identifier(s) this branch added are present on ${base}`, checked: ids.length, absent: [] };
+}
+/* The impure half: the diff against the base, then one `git grep` per identifier over the base TREE
+   (never the working tree, which is the thing being retired). */
+function landedElsewhereFor(wtPath, base = 'origin/main') {
+  try {
+    run('git', ['-C', wtPath, 'fetch', '-q', 'origin', 'main']);
+  } catch {
+    return { ok: false, why: `cannot reach ${base} — no base to compare this branch's work with` };
+  }
+  let diff;
+  try {
+    diff = run('git', ['-C', wtPath, 'diff', '-U0', `refs/remotes/origin/main...HEAD`]);
+  } catch (e) {
+    return { ok: false, why: `diff against ${base} failed (${String(e.message || e).split('\n')[0]})` };
+  }
+  return landedByIdentifiers(
+    addedIdentifiers(diff),
+    (id) => {
+      try {
+        run('git', ['-C', wtPath, 'grep', '-q', '-F', '-e', id, 'refs/remotes/origin/main']);
+        return true;
+      } catch {
+        return false; // git grep exits 1 for "no match" — absent, not an error
+      }
+    },
+    { base }
+  );
+}
 function dirtyCountFor(wtPath) {
   return run('git', ['-C', wtPath, 'status', '--porcelain']).split('\n').filter(Boolean).length;
 }
@@ -370,13 +489,14 @@ function main(argv) {
     return 2;
   }
   const pushedFlag = argv.includes('--pushed');
+  const landedFlag = argv.includes('--landed');
   const targets = argv.filter((a) => !a.startsWith('--') && a !== prArg);
   if (prArg && targets.length !== 1) {
     console.error(`✕ --pr names ONE PR, so it applies to ONE worktree (got ${targets.length})`);
     return 2;
   }
   if (!targets.length) {
-    console.error('usage: node tools/wt-done.mjs --list | [--pushed] [--pr <n>] <worktree-path> [...]');
+    console.error('usage: node tools/wt-done.mjs --list | [--pushed] [--landed] [--pr <n>] <worktree-path> [...]');
     return 2;
   }
   let fail = 0;
@@ -412,7 +532,10 @@ function main(argv) {
       /* ONE computation, two roles: `landless` decides the empty case with no flag, `pushed` carries the
          opt-in containment case. Same function, so the two can never disagree about what it measured. */
       pushed: pushedFlag ? land : undefined,
-      landless: land
+      landless: land,
+      /* Computed only when asked and only where it can apply, because it costs a fetch plus one
+         `git grep` per identifier against the base tree. */
+      landedElsewhere: landedFlag ? landedElsewhereFor(w.path) : undefined
     });
     if (!v.ok) {
       console.error(`✕ REFUSE ${t}: ${v.why}`);
