@@ -88,8 +88,12 @@ until a night passes.**
 One `tepna.verdict/1`, gate `solid-night`, over the night's **scored devices** (§3.2). Precedence,
 first match wins:
 
-1. **UNKNOWN, reason `not settled`** — until night N+1's first data write (§2's settle trigger). This
-   overrides everything below.
+1. **UNKNOWN, reason `not settled`** — until night N's own device data settles. The trigger is N's
+   newest DEVICE-data write plus the settle window, read on the next loss-poller tick
+   (`nightqc.data_settled`, wired at `capture.py:9425`). This overrides everything below.
+   SUPERSEDES §2's stated trigger, "the next night's first data write", which no code path
+   computes. N+1's start is never consulted. A device worn past N+1's first file holds N open
+   until its own last write settles.
 2. **FAIL** (not solid) — any scored device FAILs any criterion. A clear failure is not hidden behind
    another device's UNKNOWN.
 3. **UNKNOWN** — no FAIL, but some criterion on some scored device could not be decided.

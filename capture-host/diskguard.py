@@ -68,7 +68,12 @@ def active_nights(captures_dir: str, settle_sec: float, _now=time.time) -> set[s
     (retention) a night must treat an active night as untouchable and act only on settled ones.
 
     Returns a set — a cross-midnight reconnect that opened a fresh date dir can leave TWO active at once
-    (the pre- and post-midnight folders), and both must be protected. `_now` is injectable for tests."""
+    (the pre- and post-midnight folders), and both must be protected. `_now` is injectable for tests.
+
+    NOT THE SOLID-NIGHT SETTLE TRIGGER. A night's verdict is owed when night N's own newest DEVICE-data write
+    is `settle_sec` old (`nightqc.data_settled`), seen on the next loss-poller tick. Night N+1's first write
+    is not consulted, and any device still writing into N — worn past the next night's first file — holds N
+    open until its last write plus the settle window. This set answers a wider question (any file at all)."""
     now = _now()
     out: set[str] = set()
     for n in list_nights(captures_dir):
