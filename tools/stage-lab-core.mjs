@@ -10,7 +10,7 @@
  * PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with.
  *
  * THE SHAPE, and why it is this shape. Staging will grow signal by signal: SpO2 first (the owner's
- * target: beat SomnoStage's published figures on the oximeter alone), then pulse, ECG-HRV, motion and
+ * target: beat the published oximeter-only comparator's figures on the oximeter alone), then pulse, ECG-HRV, motion and
  * EEG. So a NIGHT is a 30 s epoch grid plus NAMED SIGNALS, and each signal family is one FEATURE
  * BLOCK in `BLOCKS`. Adding EEG is adding a block; nothing downstream changes. A block whose input a
  * night lacks returns NaN columns — ABSENCE IS NULL (CLAUDE.md §∅) — and the GBDT routes NaN down its

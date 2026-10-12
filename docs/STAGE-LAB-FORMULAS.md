@@ -64,7 +64,7 @@ Rule of this page: a formula is listed only if code uses it. "Pinned" means the 
 | PR + SpO₂ only, 17 303 PSGs, κ 0.73–0.78 four-class | Vaquerizo-Villar et al. 2025 (above) | the ceiling for OxyDex's two signals; justifies MESA/MrOS/CFS requests |
 | IHR only, whole-night CNN, κ 0.66 on SHHS/MESA | Sridhar et al. 2020 (above) | the sequence-model route (v14) |
 | Respiration-rate variability drives REM/wake on MESA | Krauss et al., Sleep 2025;48(9):zsaf091, doi:10.1093/sleep/zsaf091 | the 0.18–0.40 Hz PR band as a respiration proxy |
-| Published oximeter-only staging figures of a proprietary model (κ 0.367 live / 0.390 offline) | SomnoStage v4.2.3-dev, published figures only (LICENSE-MODEL §3g: its model and outputs are never used) | comparator, with credit |
+| Published oximeter-only staging figures of a proprietary model (κ 0.367 live / 0.390 offline) | a proprietary oximeter-only stager, published figures only (LICENSE-MODEL §3g: its model and outputs are never used) | comparator, with credit |
 
 ## 6 · Formulas considered and rejected by measurement
 
