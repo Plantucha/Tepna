@@ -1835,7 +1835,19 @@
           "--verdict-sample"
         ]
       },
-      "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger’s DOIs, criterion ledger_dois_present_in_library eq the ledger count — PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
+      "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger\u2019s DOIs, criterion ledger_dois_present_in_library eq the ledger count \u2014 PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
+    },
+    "tools/null-fuzz.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/null-fuzz.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the null-injection fuzzer for the \u00a7\u2205 absence contract (P1 no fabrication over an all-null night, P2 nulls are ignored not zeroed): one object per target per run, gate null-fuzz-<target>, population = fuzzed nights checked; FAIL on any failing assertion outside the KNOWN routed set. --verdict-sample is a fixed two-night run with the bundle in the OS temp dir. Adopted 2026-10-12 when the tool landed (it lived unlanded in a worktree from 2026-10-06)."
     }
   }
 }
