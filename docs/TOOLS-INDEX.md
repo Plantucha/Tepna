@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**251 tools** · 249 with a purpose line · **2 without**
+**252 tools** · 250 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -221,6 +221,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`seqnet-infer.mjs`](../tools/seqnet-infer.mjs) | The architecture: 1×1 stem → six residual dilated-conv blocks → bidirectional GRU → linear → softmax → HMM Viterbi (ARCHITECTURE-PRINCIPLES §0: browser-native, no install, no network). |
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
+| [`stage-lab-core.mjs`](../tools/stage-lab-core.mjs) | PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with. |
 | [`ste-lint.mjs`](../tools/ste-lint.mjs) | ════════════════════════════════════════════════════════════════════════ tools/ste-lint.mjs — the writing rules, checked |
 | [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | Level A (`tools/extreme-mutate.mjs`) empties a whole function body. |
 | [`strip-markup.mjs`](../tools/strip-markup.mjs) | import { fileURLToPath } from 'node:url'; import { resolve } from 'node:path'; |
