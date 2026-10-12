@@ -1523,3 +1523,52 @@ def test_THREE_recordings_in_one_band_each_get_their_own_row(tmp_path):
     assert [k for k, _ in recs] == ["2026-10-09"] * 3, recs
     starts = sorted(min(s) for _k, s in recs)
     assert len(set(starts)) == 3, f"each row carries its own start: {starts}"
+
+
+def _span_rows(start, minutes):
+    """Phone-stamped rows one minute apart from `start` (YYYY-MM-DDTHH:MM) — a stream with a real span."""
+    import datetime as _d
+
+    t0 = _d.datetime.fromisoformat(start)
+    rows = (f"{(t0 + _d.timedelta(minutes=m)).isoformat(timespec='milliseconds')};{m};{m}" for m in range(minutes + 1))
+    return "Phone timestamp;sensor timestamp [ns];v\n" + "\n".join(rows) + "\n"
+
+
+def test_an_AFTER_MIDNIGHT_device_s_cell_is_MEASURED_not_just_listed(tmp_path):
+    """🔴 2026-10-09 ON THE BOX: the row listed the H10 and Verity files from the 2026-10-10 folder, and
+    both cells read `hours: null` — "not measured yet" beside a measured ring. The file list took the
+    recording's scope; the primary re-read in `night_entry` did not, so it looked in the evening folder
+    alone and found nothing to measure. `test_a_night_whose_polar_streams_start_after_midnight_is_ONE_row`
+    asserts presence only, which is why it stayed green over a cell with no number in it."""
+    c = os.path.join(str(tmp_path), "captures")
+    _put(c, "2026-10-09", "Wellue_O2Ring-S_SYN_20261009212546_SPO2.csv", "Time,Oxygen Level\n", "20261010030000")
+    for dev, stamp, start, minutes, end in (
+        ("Polar_H10_SYNTH01", "20261010015024", "2026-10-10T01:50", 120, "20261010035024"),
+        ("Polar_VeritySense_SYNTH02", "20261010014748", "2026-10-10T01:47", 90, "20261010031748"),
+    ):
+        for suf in ("ECG", "RR") if "H10" in dev else ("PPG", "PPI"):
+            _put(c, "2026-10-10", f"{dev}_{stamp}_{suf}.txt", _span_rows(start, minutes), end)
+    rows = ni.index_nights(str(tmp_path), budget_s=None)
+    night = [r for r in rows if r["night"] == "2026-10-09"]
+    assert len(night) == 1, [(r["night"], r.get("recording_start")) for r in rows]
+    r = night[0]
+    assert r["ECGDex"]["hours"] == 2.0 and r["ECGDex"]["fragments"] == 1, r["ECGDex"]
+    assert r["PPGDex"]["hours"] == 1.5, r["PPGDex"]
+    assert r["PulseDex"]["hours"] == 1.5, r["PulseDex"]
+    assert r["HRVDex"]["hours"] == 2.0, r["HRVDex"]
+
+
+def test_the_PRIMARY_is_THIS_row_s_recording_when_a_band_holds_two(tmp_path):
+    """The chain half of the same rule. A morning session in the same band, in the same folder and with
+    the LARGER file, is a second row; the night row must measure its own ECG, never the morning's because
+    `max(…, key=getsize)` saw both."""
+    c = os.path.join(str(tmp_path), "captures")
+    for stamp, start, minutes, end in (
+        ("20261009220000", "2026-10-09T22:00", 60, "20261009230000"),
+        ("20261010083000", "2026-10-10T08:30", 90, "20261010100000"),
+    ):
+        _put(c, "2026-10-09", f"Polar_H10_SYNTH01_{stamp}_ECG.txt", _span_rows(start, minutes), end)
+    rows = ni.index_nights(str(tmp_path), budget_s=None)
+    assert len(rows) == 2, [r.get("recording_start") for r in rows]
+    by_start = {r["recording_start"][-5:]: r["ECGDex"]["hours"] for r in rows}
+    assert by_start == {"22:00": 1.0, "08:30": 1.5}, by_start
