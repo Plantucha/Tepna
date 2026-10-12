@@ -47,7 +47,11 @@ log = logging.getLogger("tepna-capture")
 # itself by the definition this set already states, exactly as `OXYFRAME` is, so it belongs here. No
 # observable behaviour changes today — no parseable OXYLIFE file exists — and that is the point: the
 # exclusion now holds BY RULE instead of by a filename that happens to lack an underscore.
-_SIDECAR_TAGS = {"LINK", "CLOCK", "OXYFRAME", "OXYLIFE"}
+# The list itself moved to `writers.BOX_WIDE_SIDECAR_TAGS` on 2026-10-12, because the night now
+# carries a note NAMING its box-wide sidecars and a note generated from a second copy of this set
+# would eventually describe a different night than the one this pass judges. Same six filter
+# sites, same semantics; the only change is that there is one list.
+_SIDECAR_TAGS = set(writers.BOX_WIDE_SIDECAR_TAGS)
 
 # ⚠️ A NAME-KEYED GUARD WAS ADDED HERE AND THE MUTATION GATE REFUTED IT. I wrote
 # `_DAEMON_FIXED_NAMES = {"OXYLIFE.csv"}` beside the tag above and claimed in the commit that "both
