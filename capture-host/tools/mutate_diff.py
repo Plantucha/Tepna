@@ -229,6 +229,25 @@ def refusal_reason(venv_exists: bool, probe_rc: int | None) -> str | None:
     return None
 
 
+def blind_modules(modules: dict, ran_by_module: dict) -> list[str]:
+    """Modules the verdict CLAIMS to cover but for which NOT ONE mutant was actually tested. PURE, so
+    `--selftest` pins it without running a sweep.
+
+    ⚠️ THE EXISTING REFUSAL IS ALL-OR-NOTHING and misses the case that matters. `if _attempted and
+    not _ran` fires only when EVERY invocation failed; when one module's globs all fail and a sibling
+    module's succeed, `_ran > 0`, nothing refuses, and the run prints success — while
+    `verdict["modules"]` still lists every function of the dead module as covered. Measured
+    2026-08-23: all seven `oxy_transfer` globs failed, `oxy_inventory` ran, and the gate reported
+    `every mutant on the changed functions was killed` with exit 0 and `survivors: []`.
+
+    A whole module silently leaving a required check is strictly worse than the per-glob resilience
+    that causes it — and that resilience is still right (one broken function must not hide the
+    others). What must not survive is an AGGREGATE verdict that is green while a listed module
+    contributed nothing. Causes are many and all indistinguishable from the outside: a corrupt
+    scratch, a missing mutants registry, an OOM, a bad `--only` glob."""
+    return sorted(m for m in modules if not ran_by_module.get(m))
+
+
 def _selftest() -> int:
     """The classifier's own known answers. A mechanism that decides what the gate ignores has to be
     the best-tested thing in the file, so each of the five outcomes is pinned here."""
@@ -253,6 +272,22 @@ def _selftest() -> int:
     if any(x.get("key") == "d" for x in got["unclassified"]):
         print("  selftest FAIL: a killed mutant leaked into unclassified")
         ok = False
+    # the zero-mutant-module guard: the sibling that DID run must not be flagged, and the dead one
+    # must be — a guard that fired on both would be as useless as one that fired on neither.
+    if blind_modules({"a.py": ["f"], "b.py": ["g"]}, {"a.py": 3}) != ["b.py"]:
+        print("  selftest FAIL: blind_modules missed a module that tested nothing")
+        ok = False
+    if blind_modules({"a.py": ["f"]}, {"a.py": 1}) != []:
+        print("  selftest FAIL: blind_modules flagged a module that ran")
+        ok = False
+    if blind_modules({"a.py": ["f"], "b.py": ["g"]}, {}) != ["a.py", "b.py"]:
+        print("  selftest FAIL: blind_modules missed the all-dead case")
+        ok = False
+    # a module explicitly recorded as having run ZERO is dead, not healthy
+    if blind_modules({"a.py": ["f"]}, {"a.py": 0}) != ["a.py"]:
+        print("  selftest FAIL: blind_modules trusted a zero count")
+        ok = False
+
     # diff_key ignores whitespace but not content, and drops the +++/--- headers
     if diff_key("--- a\n+++ b\n-  x = 1\n+  x  =  2\n") != "- x = 1 | + x = 2":
         print("  selftest FAIL: diff_key")
@@ -333,6 +368,7 @@ def main(argv=None) -> int:
     # venv, importable-but-unusable is a real state, not a hypothetical — so an import check alone
     # would still fail open. If every invocation errored, no mutant was ever tested.
     _attempted = _ran = 0
+    _ran_by_module: dict = {}
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     for module, lines in sorted(changed.items()):
         stems = functions_covering(HERE / module, lines)
@@ -351,6 +387,7 @@ def main(argv=None) -> int:
                 print(f"    ! {g}: {r['error']}")
                 continue
             _ran += 1
+            _ran_by_module[module] = _ran_by_module.get(module, 0) + 1
             work = Path(r["work"])
             # ── the GENERATED set, for REFUTED detection ────────────────────────────────────────
             # `mutmut results` lists survivors and not-checked ONLY — a KILLED mutant is absent from
@@ -398,6 +435,17 @@ def main(argv=None) -> int:
         print(f"\nmutate-diff: REFUSING — all {_attempted} mutmut invocation(s) failed, so no mutant "
               "was generated or tested. The per-glob errors are above.")
         print("  Deliberately not a pass: a gate that cannot see must not report green.")
+        return 2
+
+    # The same principle one level finer: not "did anything run" but "did every module we claim to
+    # have covered actually get tested". Without this, a module can drop out of a required check in
+    # silence while the coverage list still names its functions.
+    blind = blind_modules(verdict["modules"], _ran_by_module)
+    if blind:
+        print(f"\nmutate-diff: REFUSING — {len(blind)} module(s) produced NO tested mutant while "
+              f"being listed as covered: {', '.join(blind)}")
+        print("  The per-glob errors are above. A green verdict here would assert coverage that "
+              "does not exist.")
         return 2
 
     # ── the recorded classification ───────────────────────────────────────────────────────────
