@@ -171,6 +171,63 @@ def test_sync_on_chrony_bursts_and_conditionally_steps(tmp_path):
     )
 
 
+# ── the step the arm permits must be LOGGED (residue 2026-09-24-the-resync-permits-a-step-band-…) ───
+#
+# `makestep 0.1 3` permits a step over 0.1 s. Chrony's default `logchange 1.0` records only a step over
+# 1.0 s, so the 0.1-1.0 s band was permitted by this script and recorded by nothing — 71 arms on vigil
+# since 2026-08-07 and zero step-outcome lines. The fix installs `logchange 0.1`; what it must NEVER do
+# is claim the directive is in force, because chrony binds conf.d at startup and `sync` never restarts it.
+
+LOGCHANGE = ("etc", "chrony", "conf.d", "tepna-logchange.conf")
+
+
+def _logchange(etc):
+    return etc.joinpath(*LOGCHANGE)
+
+
+def test_sync_installs_the_step_log_threshold_that_makes_the_arm_readable(tmp_path):
+    r, etc, _ = _run(tmp_path, "sync", active="chrony")
+    assert r.returncode == 0, r.stderr
+    f = _logchange(etc)
+    assert f.is_file(), "the arm is permitted in a band chrony would not log without this file"
+    assert "logchange 0.1" in f.read_text().splitlines()
+    assert "logchange 0.1 written to" in r.stdout
+    assert "next chronyd start" in r.stdout, "conf.d binds at startup; the message must say so"
+
+
+def test_the_sync_message_never_claims_the_threshold_is_in_force(tmp_path):
+    """The one failure this script's header exists to warn about: claiming an effect we cannot read."""
+    r, _, _ = _run(tmp_path, "sync", active="chrony")
+    low = r.stdout.lower()
+    for claim in ("logchange 0.1 active", "logchange 0.1 enabled", "logchange is active", "now logging"):
+        assert claim not in low, claim
+
+
+def test_a_second_sync_reports_the_threshold_as_already_present_and_leaves_the_file_alone(tmp_path):
+    r1, etc, _ = _run(tmp_path, "sync", active="chrony")
+    assert r1.returncode == 0, r1.stderr
+    f = _logchange(etc)
+    before = f.read_bytes()
+    r2, _, _ = _run(tmp_path, "sync", active="chrony")
+    assert r2.returncode == 0, r2.stderr
+    assert "already in" in r2.stdout
+    assert "written to" not in r2.stdout
+    assert f.read_bytes() == before, "an idempotent install does not rewrite the file it found"
+
+
+def test_the_threshold_is_installed_even_when_the_arm_itself_fails(tmp_path):
+    """The threshold belongs to the NEXT arm as much as this one, so a dead chronyd does not skip it."""
+    r, etc, _ = _run(tmp_path, "sync", active="chrony", chronyc_rc=1)
+    assert r.returncode == 1
+    assert _logchange(etc).is_file()
+
+
+def test_a_timesyncd_box_gets_no_chrony_file(tmp_path):
+    r, etc, _ = _run(tmp_path, "sync", active="systemd-timesyncd")
+    assert r.returncode == 0, r.stderr
+    assert not _logchange(etc).exists(), "writing chrony config on a timesyncd box is the 2026-07-25 bug"
+
+
 def test_sync_reports_failure_when_chronyd_cannot_be_reached(tmp_path):
     r, _, _ = _run(tmp_path, "sync", active="chrony", chronyc_rc=1)
     assert r.returncode == 1

@@ -1845,6 +1845,50 @@ def _audit_spans(audit_dev: dict, judged_date) -> bool:
     return False
 
 
+def _ends_in_band(row, band) -> bool:
+    """Does a gap row with NO file lead to a fragment inside `band`? A between-fragments row
+    (`boundary: true`) names no file, so membership is read from where the gap ENDS — the next fragment's
+    first row. Measured on vigil 2026-10-12: the 10-10 audit carries the 47 226 s boundary from night
+    10-09's doff (07:38) to night 10-10's evening file, starting exactly at 10-09's worn end, so the
+    re-judged 10-09 counted a 13 h gap "inside the worn interval" and FAILED. A row that names a file is
+    decided by `keep` and passes here; a row without a readable `at`/`s` is kept for `continuity` to judge."""
+    if not isinstance(row, dict) or row.get("file") or band is None:
+        return True
+    try:
+        t = _dt.datetime.fromisoformat(str(row["at"])).timestamp() + float(row["s"])
+    except (KeyError, TypeError, ValueError):
+        return True
+    return t < band[1]
+
+
+def _band_view(dev: dict, band) -> dict:
+    """`dev` (one device's entry in ANOTHER folder's loss audit) cut to the files whose session STARTS in
+    `band` — its `files`, its gap rows and its wear ends — with a `worn_end` that names another night's file re-derived over what is left.
+
+    🔴 THE MORNING FOLDER'S AUDIT IS A DIFFERENT NIGHT'S AUDIT once that night has been audited. Folder
+    D+1 holds D's post-midnight tail AND night D+1's own evening, and its `LOSS-AUDIT.json` is rewritten
+    when night D+1 settles. Read after that, its `worn_end` is D+1's doff (measured on vigil 2026-10-12:
+    re-judging 2026-10-05 adopted 2026-10-07 05:03 from the 10-06 audit, the band clipped it to 10:00, and
+    the H10 and the Verity — both doffed at 04:20 — read "51.7 % complete" and FAILED). A verdict written
+    before D+1's evening happened to be right; one written after it is wrong, so a re-judge of any past
+    night was a false FAIL. Membership is the session START in the file's NAME (`in_band`), the same rule
+    that chose the night's files. A non-object entry is kept: `continuity` reports those itself."""
+
+    def keep(e) -> bool:
+        return not isinstance(e, dict) or in_band(str(e.get("file") or ""), band)
+
+    out = dict(dev, files=[e for e in dev.get("files") or [] if keep(e)])
+    out["gaps"] = [r for r in dev.get("gaps") or [] if keep(r) and _ends_in_band(r, band)]
+    # ONLY A FOREIGN END IS RE-DERIVED. The next night's ends are always the later ones, so a stated
+    # `worn_end` whose file is in band is this night's own and stands as written — including an older
+    # audit that states the end and publishes no `ends` to re-derive it from.
+    wear = dev.get("wear")
+    if isinstance(wear, dict) and isinstance(wear.get("worn_end"), dict) and not keep(wear["worn_end"]):
+        ends = [e for e in wear.get("ends") or [] if isinstance(e, dict) and keep(e)]
+        out["wear"] = dict(wear, ends=ends, worn_end=_la.worn_end_of(ends))
+    return out
+
+
 def _adopt_later_wear(base: dict, other: dict, nxt: str, night_dir: str) -> None:
     """Take `other`'s wear ends into `base` where they are LATER, recording which folder they came from.
 
@@ -1855,9 +1899,11 @@ def _adopt_later_wear(base: dict, other: dict, nxt: str, night_dir: str) -> None
     # neither kill nor excuse (`(night_dir) or True` survived here for exactly that reason).
     # `_folder_date` already returns None for a folder that does not name a date, which is the real case.
     judged = _folder_date(night_dir)
+    band = band_of(night_dir)
     for name, od in (other.get("devices") or {}).items():
         if not isinstance(od, dict):
             continue  # one unusable entry must not drop the devices listed after it
+        od = _band_view(od, band)  # only THIS night's files cross — never the next night's (see there)
         bd = (base.setdefault("devices", {})).setdefault(name, {})
         o_end = ((od.get("wear") or {}).get("worn_end") or {}).get("at")
         b_end = ((bd.get("wear") or {}).get("worn_end") or {}).get("at")

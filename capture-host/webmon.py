@@ -111,6 +111,30 @@ KNOWN_STREAMS = frozenset(StreamWriter.HEADERS) | {"spo2", "eeg"}
 BAD_BODY = object()
 
 
+# ── A TIME SYNC PAUSES LIVE CAPTURE, AND THE PRESS NEVER PRICED IT ──────────────────────────────────
+#
+# RESIDUE `2026-09-25-manual-time-sync-pauses-live-capture`. Setting a Polar's clock is an OFFLINE
+# RECORDING operation: the link is torn down, the device is paused, and the stream resumes on a new
+# segment. `/api/timesync/all` does it to every Polar in sequence, so one press pays the price several
+# times over. Measured on vigil 2026-09-24 from a single press at 22:00:54 — the Verity lost 44.0 s and
+# then 13.0 s, the H10 21.0 s and then 11.0 s, and the H10 came back reading 2000-01-01: a 2.44e8 s
+# device-clock step, logged by ECGSEAMS at 22:01:29.526, which FAILed that night's H10 timebase.
+#
+# The remedy is the ON-BODY GUARD this box already runs for the three self-killing daemon verbs: name
+# what is on a body, quote the price, and let an explicit `force` through. It is deliberately NOT a
+# refusal during a recording — the owner needed this button mid-night on 2026-09-24, with the H10
+# reading 2000-01-01 and only a sync able to fix it. A control that cannot be used when it is needed
+# is not a safer control.
+TIMESYNC_COST = {
+    "measured": "2026-09-24 22:00:54 on vigil, one press of sync host + devices",
+    "gaps_sec": {"Polar Verity Sense": [44.0, 13.0], "Polar H10": [21.0, 11.0]},
+    "device_clock_risk": (
+        "the H10 resumed across a 2.44e8 s device-clock step (it came back reading 2000-01-01), "
+        "which FAILed that night's H10 timebase"
+    ),
+}
+
+
 async def _body(req):
     """The request's JSON object, `{}` when there is no body, or `BAD_BODY`.
 
@@ -1803,6 +1827,29 @@ def make_app(
             del _tl_cache[min(_tl_cache, key=lambda k: _tl_cache[k][0])]
         return web.json_response(out)
 
+    def _timesync_refuse(worn, scope):
+        """409 + the names + the measured price. `force:true` is an explicit act, not a bypass."""
+        return web.json_response(
+            {
+                "ok": False,
+                "worn": worn,
+                "cost": TIMESYNC_COST,
+                "error": f"refusing to sync {scope} — a sensor is recording on-body: "
+                f"{', '.join(worn)}. Setting a Polar's clock pauses its recording. "
+                "Re-send with force:true if you mean it.",
+            },
+            status=409,
+        )
+
+    def _timesync_worn(only_name=None):
+        """On-body names, from SERVER state. The predicate is `telemetry.on_body` via
+        `cpap_harvest.blocking_devices`, never `connected` — a docked sensor is connected and idle, and
+        warning on that is the false positive that trains an operator to always force."""
+        import cpap_harvest
+
+        worn = cpap_harvest.blocking_devices(status.get("devices"))
+        return [n for n in worn if only_name is None or n == only_name]
+
     async def timesync(req):
         """Set ONE device's internal clock from the host. Polar only — the O2Ring already re-syncs its
         RTC on every connect (oxyii 0xC0), so there is nothing manual to do there and we say so rather
@@ -1825,6 +1872,10 @@ def make_app(
             )
         if not sync_time:
             return web.json_response({"ok": False, "error": "time sync unavailable"}, status=400)
+        if not body.get("force"):
+            worn = _timesync_worn(only_name=dev.get("name"))
+            if worn:
+                return _timesync_refuse(worn, "this device")
         try:
             return web.json_response(await sync_time(address))
         except offline_lock.OfflineBusy as e:
@@ -1832,9 +1883,19 @@ def make_app(
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
 
-    async def timesync_all(_req):
+    async def timesync_all(req):
         """Host clock first (so devices inherit a freshly disciplined time), then every capable device.
-        Serialised by offline_lock — one radio, one device at a time."""
+        Serialised by offline_lock — one radio, one device at a time.
+
+        Refuses with 409 + `worn` + `cost` while a sensor is on a body, unless `force:true`. See
+        `TIMESYNC_COST`: one press cost four separate stream gaps and reset the H10's clock."""
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        if not body.get("force"):
+            worn = _timesync_worn()
+            if worn:
+                return _timesync_refuse(worn, "host + devices")
         out = {"host": None, "devices": []}
         try:
             out["host"] = await clockcfg.sync_now(sudo=_clock_sudo)

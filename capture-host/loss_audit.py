@@ -957,10 +957,15 @@ def wear_ends(night_dir: str, model: str) -> dict:
             ends.append(_ring_end(f, night_dir, contact) if ring else _wear_end(f, night_dir, model))
         except OSError as exc:
             ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
+    return {"available": True, "ends": ends, "worn_end": worn_end_of(ends)}
+
+
+def worn_end_of(ends: list[dict]) -> dict | None:
+    """The device's worn-interval END from its file ends — the latest usable one — or None when none is
+    usable. ONE rule, shared with `solid_night_inputs`, which re-derives it over a band-filtered subset."""
     usable = [e for e in ends if e["usable"]]
     last = max(usable, key=lambda e: e["end_at"]) if usable else None
-    worn_end = {"at": last["worn_end_at"], "reason": last["reason"], "file": last["file"]} if last else None
-    return {"available": True, "ends": ends, "worn_end": worn_end}
+    return {"at": last["worn_end_at"], "reason": last["reason"], "file": last["file"]} if last else None
 
 
 def _device_keys(devices: list[dict]) -> list[str]:
