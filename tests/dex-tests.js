@@ -72190,6 +72190,11 @@
       T.eq('CONTROL · the measured-only SD is the real one', a.spo2SD, 0.28);
       T.eq('CONTROL · the clean series is Platykurtic, not an event-laden night', a.spo2KurtLabel, 'Platykurtic');
       T.eq('CONTROL · a fully measured series reports full coverage', a.nMeasured + '/' + a.nTotal, '1000/1000');
+      /* THE FLOOR COUNTS MEASURED SECONDS, NOT ROWS. The diff-scoped mutation gate (#3506) found
+         `m < 60` blind in both directions: `m < 0` never refuses, `m <= 60` refuses one second early.
+         59 measured seconds behind a hundred absent ones is under the floor however long the array is. */
+      T.eq('§∅ · 59 measured seconds is under the floor, so the shape refuses', f(_nbPad(_nbSeries(59), 100)), null);
+      T.ok('§∅ · 60 measured seconds clears it', f(_nbSeries(60)) !== null, 'the floor is `m < 60`, so exactly 60 is enough');
     });
 
     group('OxyDex §∅ — computeHRCV does not sum an absent second as 0 bpm', 'oxydex-dsp · absence-as-value · hrcv', function (T) {
@@ -72206,6 +72211,15 @@
       T.eq('CONTROL · the measured-only CV is the real one', a.hrCV, 1.68);
       T.eq('CONTROL · the clean series is low-variability, not an aroused night', a.hrCVlabel, 'Low (<6%)');
       T.eq('CONTROL · the measured-only mean HR is the real one', a.hrCVmean, 59.5);
+      // the same floor, same two blind directions — see the note in the shape group above
+      T.eq('§∅ · 59 measured seconds is under the floor, so the CV refuses', f(_nbPad(_nbSeries(59), 100)), null);
+      T.ok('§∅ · 60 measured seconds clears it', f(_nbSeries(60)) !== null, 'the floor is `m < 60`, so exactly 60 is enough');
+      /* `!mean || mean <= 0` guards the DENOMINATOR, and `isFinite` admits a negative reading, so the
+         second clause is the one that catches a mean no heart can have. Dropping it leaves a CV of -0. */
+      var _negHR = _nbSeries(200).map(function (r) {
+        return { tMs: r.tMs, spo2: r.spo2, hr: -10, motion: 0 };
+      });
+      T.eq('§∅ · a negative mean HR refuses, it does not report a coefficient over it', f(_negHR), null);
     });
 
     group('OxyDex §∅ — computePoincareSD does not read an absent beat as a 0 bpm excursion', 'oxydex-dsp · absence-as-value · poincare', function (T) {
