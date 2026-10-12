@@ -16336,8 +16336,11 @@
          the published debt. No text-level invariant has been named for either, so nothing here is gated for
          visibility's own sake, and no value-level assertion was rewritten as a source scan to make the
          listing look load-bearing. The one divergence measured inside provenance-ledger.js — `loadBrowser`
-         filters an absent fragment where `loadNode` throws — is residue
-         2026-09-27-loadbrowser-filters-an-absent-fragment-silently and changes no verdict today. */
+         filtered an absent fragment where `loadNode` throws — was residue
+         2026-09-27-loadbrowser-filters-an-absent-fragment-silently. It still moves no verdict (GATE A
+         already refuses by name on a bundle with no committed hash); what changed is that the absence now
+         carries its own reason: `loadBrowser` reports the paths that did not arrive and the banner names
+         them, gated by the `provenance · ledger · absent-fragment` groups. */
       var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-contracts.js', 'provenance-banner.js', 'support.js', 'xmt-fixture.js'];
       T.eq(
         'the invisible SET is exactly the published one (a swap cannot hide inside a stable count)',
@@ -44523,6 +44526,128 @@
       T.eq('a process outside the tree is not a user', (r2.users || []).length, 0);
     });
 
+    /* wt-done's `--landed` path, the PURE half. A worktree whose branch was REBUILT under another name
+       (rebased, re-cut, relayed) has no PR of its own, so every earlier proof-of-landing refused it and
+       the tree stayed registered for weeks — RESIDUE 2026-09-28-wt-done-cannot-retire-a-worktree-whose-
+       branch-was-rebuilt. The replacement proof is "every identifier this branch ADDED is present on
+       origin/main", and the two halves are split so the decision is testable with no repo at all: the
+       token filter, and the verdict over a presence predicate.
+       What is asserted here is the FLOOR and the TOKEN SHAPE, because both failures are §4b's success
+       reported about something never examined — in a tool that then DELETES a directory. Prose tokens
+       would make the check vacuous or unsatisfiable, and an empty identifier list must never read as
+       "all of them landed". */
+    group('wt-done — `--landed` proves it by identifiers, and refuses when it examined too few', 'tools · wt-done · landed', function (T) {
+      if (!env.wtDone || typeof env.wtDone.addedIdentifiers !== 'function') {
+        T.skip('needs tools/wt-done.mjs — not available in the browser lane');
+        return;
+      }
+      var addedIdentifiers = env.wtDone.addedIdentifiers,
+        landedByIdentifiers = env.wtDone.landedByIdentifiers;
+
+      /* ── the token filter ─────────────────────────────────────────────────────────────────────── */
+      var diff = [
+        'diff --git a/tools/x.mjs b/tools/x.mjs',
+        '--- a/tools/x.mjs',
+        '+++ b/tools/x.mjs',
+        '@@ -1,0 +1,6 @@',
+        '+const RING_WITNESS_TOL_S = 2;',
+        '+export function witness_judges(a) {',
+        '+  return hostAxisFor(a); // the running median, never a fit',
+        '+}',
+        '-const removedOnly_token = 1;',
+        ' const contextOnly_token = 2;'
+      ].join('\n');
+      var ids = addedIdentifiers(diff);
+      T.ok('an ALL-CAPS constant is an identifier', ids.indexOf('RING_WITNESS_TOL_S') >= 0, ids.join(' '));
+      T.ok('a snake_case name is an identifier', ids.indexOf('witness_judges') >= 0, ids.join(' '));
+      T.ok('a camelCase name is an identifier', ids.indexOf('hostAxisFor') >= 0, ids.join(' '));
+      T.eq('the `+++` file header is NOT read as an added line', ids.indexOf('tools'), -1);
+      T.eq('a REMOVED line contributes nothing', ids.indexOf('removedOnly_token'), -1);
+      T.eq('a CONTEXT line contributes nothing', ids.indexOf('contextOnly_token'), -1);
+      T.eq('prose in a comment is not an identifier — it would make the check unsatisfiable', ids.indexOf('median'), -1);
+      T.eq('a short token is below the length floor', addedIdentifiers('+var ab_c = 1;').length, 0);
+      T.eq('the list is sorted and deduped', JSON.stringify(addedIdentifiers('+a_token b_token a_token')), '["a_token","b_token"]');
+
+      /* ── the verdict over a presence predicate ────────────────────────────────────────────────── */
+      var all = ['a_one', 'b_two', 'c_three', 'd_four'];
+      var yes = function () {
+        return true;
+      };
+      var ok = landedByIdentifiers(all, yes);
+      T.ok('every identifier present on the base ⇒ landed', ok.ok === true, ok.why);
+      T.eq('and it says how many it examined', ok.checked, 4);
+
+      var one = landedByIdentifiers(all, function (id) {
+        return id !== 'c_three';
+      });
+      T.ok('one absent identifier ⇒ refuse', one.ok === false, one.why);
+      T.ok('and the refusal NAMES it', /c_three/.test(one.why), one.why);
+
+      var floor = landedByIdentifiers(['a_one', 'b_two'], yes);
+      T.ok('below the floor ⇒ refuse, however present the two are', floor.ok === false, floor.why);
+      T.ok('and the refusal says it examined too few, not that nothing landed', /too few/.test(floor.why), floor.why);
+      T.ok('an EMPTY list never reads as "all of them landed"', landedByIdentifiers([], yes).ok === false, 'empty must refuse');
+      T.ok('a missing diff refuses rather than passing vacuously', landedByIdentifiers(null, yes).ok === false, 'null must refuse');
+
+      var threw = landedByIdentifiers(all, function () {
+        throw new Error('fatal: bad revision');
+      });
+      T.ok('a failing search refuses — it is not evidence of absence', threw.ok === false, threw.why);
+      T.ok('and it names the search that failed', /cannot search/.test(threw.why), threw.why);
+
+      var many = landedByIdentifiers(['a_one', 'b_two', 'c_three', 'd_four', 'e_five', 'f_six'], function () {
+        return false;
+      });
+      T.ok('six absent identifiers are reported as 6 of 6', /6 of 6/.test(many.why), many.why);
+      T.ok('the names are capped and the cut is marked', / …$/.test(many.why), many.why);
+      T.eq('the absent set itself is complete, not truncated', (many.absent || []).length, 6);
+
+      var lifted = landedByIdentifiers(['a_one'], yes, { min: 1 });
+      T.ok('the floor is a parameter, so a caller can state its own', lifted.ok === true, lifted.why);
+      T.ok(
+        'and the base name travels into the message',
+        /NOT on refs\/heads\/x/.test(
+          landedByIdentifiers(
+            all,
+            function () {
+              return false;
+            },
+            { base: 'refs/heads/x' }
+          ).why
+        ),
+        'base must be named'
+      );
+
+      /* ── and the same proof answers the MERGED case, where a DATE was deciding ─────────────────
+         Row 2026-10-12-wt-done-tests-the-date-not-the-content: the post-merge scan counts commits
+         STAMPED after the merge, which refused four reclaimable trees — two over commits that change
+         zero files. The decision core is pure, so each state is asserted directly rather than against
+         a live PR. What must hold is that the flag answers the count WITHOUT weakening anything else. */
+      var V = env.wtDone.verdict;
+      var merged = { prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 3 } };
+      var proof = { ok: true, why: 'all 7 identifier(s) this branch added are present on origin/main' };
+      var asked = V(merged);
+      T.ok('merged + commits dated after it, no flag ⇒ refuse, unchanged', asked.ok === false, asked.why);
+      T.ok('and the refusal now OFFERS the flag that answers it', /--landed/.test(asked.why), asked.why);
+      var proven = V(Object.assign({}, merged, { landedElsewhere: proof }));
+      T.ok('merged + the content proved landed ⇒ remove', proven.ok === true, proven.why);
+      T.ok('and the message keeps the COUNT that prompted the question', /3 commit\(s\) dated after it/.test(proven.why), proven.why);
+      T.ok('and names the proof that answered it', /identifier\(s\)/.test(proven.why), proven.why);
+      var unproven = V(Object.assign({}, merged, { landedElsewhere: { ok: false, why: '2 of 7 identifier(s) this branch added are NOT on origin/main: a_one b_two' } }));
+      T.ok('merged + the content NOT on main ⇒ still refuse', unproven.ok === false, unproven.why);
+      T.ok('and the refusal names the absent identifiers, not the date', /a_one b_two/.test(unproven.why), unproven.why);
+      var busy = V(Object.assign({}, merged, { landedElsewhere: proof, inUse: { ok: true, users: [{ pid: 42, cmd: 'node peer' }] } }));
+      T.ok('the flag does not weaken the IN-USE check', busy.ok === false, busy.why);
+      var scanFailed = V(Object.assign({}, merged, { landedElsewhere: proof, inUse: { ok: false, why: '/proc unreadable' } }));
+      T.ok('nor the idle scan — unknown is not idle', scanFailed.ok === false, scanFailed.why);
+      var clean = V({ prState: 'MERGED', dirtyCount: 0, isMain: false, unlanded: { ok: true, count: 0 }, landedElsewhere: proof });
+      T.ok('zero commits after the merge still reads as every commit landed', /every commit landed/.test(clean.why), clean.why);
+      var openPr = V({ prState: 'OPEN', dirtyCount: 0, isMain: false, landedElsewhere: proof });
+      T.ok("an OPEN PR's tree is never removed by the flag — its fixes may still be made here", openPr.ok === false, openPr.why);
+      var dirty = V({ prState: 'MERGED', dirtyCount: 2, isMain: false, unlanded: { ok: true, count: 3 }, landedElsewhere: proof });
+      T.ok("nor a dirty tree — it may be someone's only copy", dirty.ok === false, dirty.why);
+    });
+
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {
@@ -61683,6 +61808,89 @@
       });
     });
 
+    /* ════ THE SWALLOWERS, EXECUTED ════════════════════════════════════════════════════════════
+     Residue `2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path` and
+     `2026-10-11-help-flag-made-a-directory`. Five tools took an unrecognised token as a positional
+     INPUT PATH and one of them — write-side, outside the survey's probed population — CREATED A
+     DIRECTORY NAMED `--help` and wrote five EDFs into it. The row said none of the five could adopt
+     `tools/argv-guard.mjs` "because each legitimately takes positional paths and the guard's
+     `positional` mode would then accept ANY unknown token again". ⚠️ THAT PREMISE WAS WRONG about the
+     module as committed: `positional: true` skips only tokens that do NOT start with `-` (argv-guard
+     line "if (!tok.startsWith('-')) { if (positional) continue; }"), so a path passes and a flag is
+     still checked — which is exactly the fix shape the row asked for, unadopted by anything for two
+     weeks.
+
+     EXECUTED, not scanned, because the defect and the fix are indistinguishable in the source: both
+     name the token in their output. The difference is the EXIT CODE (2 = you typed it wrong, 1 = the
+     thing you asked about is broken, 0 = it became data) and whether anything was written. */
+    group('argv — the six swallowers refuse an unknown token by name, at exit 2, writing nothing', 'tools · argv · execution', function (T) {
+      var probe = env.probeToolArgv;
+      if (!probe) {
+        T.skip('env.probeToolArgv provided to the runner', 'Node-lane only (spawns a tool in a temp cwd) — the browser lane cannot spawn');
+        return;
+      }
+      var TOKEN = '--no-such-flag-9f3'; // tools/argv-survey.mjs TOKEN — the same probe the survey uses
+      var SWALLOWERS = ['geometry-probe', 'geometry-scan', 'pb-operating-point', 'synth-desat-kinetics', 'tch-window-sensitivity', 'make-synthetic-edf'];
+      SWALLOWERS.forEach(function (name) {
+        var rel = 'tools/' + name + '.mjs';
+        var bad = probe(rel, [TOKEN]);
+        T.eq('⚠ ' + name + ' · an unknown flag exits 2, not 0 and not 1', bad.status, 2);
+        T.ok('…and the refusal NAMES the token (' + name + ')', String(bad.out).indexOf(TOKEN) >= 0, String(bad.out).slice(0, 220));
+        T.ok('…and it is a refusal, not a stack trace (' + name + ')', !/\n\s+at\s|node:fs:\d/.test(String(bad.out)), String(bad.out).slice(0, 220));
+        T.eq('…and NOTHING was written (' + name + ')', bad.wrote, []);
+        /* THE MEASURED EVENT: `--help` was consumed as the output directory and the files are real. */
+        var help = probe(rel, ['--help']);
+        T.eq('--help prints usage and exits 0 (' + name + ')', help.status, 0);
+        T.ok('…usage names the tool itself (' + name + ')', /usage: node tools\/[a-z-]+\.mjs/.test(String(help.out)), String(help.out).slice(0, 220));
+        T.eq('…and --help created NO directory and NO file (' + name + ')', help.wrote, []);
+      });
+      /* ── CONTROLS · the documented invocations must still run, or this is a tool nobody can use ── */
+      var one = probe('tools/geometry-probe.mjs', ['sawtooth']);
+      T.eq('CONTROL · a named planted shape still runs', one.status, 0);
+      T.ok('…and still fires its own probe', /sawtooth\s*\|\s*sawtooth/.test(String(one.out)), String(one.out).slice(0, 220));
+      var kind = probe('tools/geometry-probe.mjs', ['clan']);
+      T.eq('an unknown KIND refuses too — the positionals here are an enumerated set, not paths', kind.status, 2);
+      T.ok('…and names the kinds', /kinds: clean ramp walk/.test(String(kind.out)), String(kind.out).slice(0, 220));
+      var scan = probe('tools/geometry-scan.mjs', ['--selftest']);
+      T.eq('CONTROL · geometry-scan --selftest still passes', scan.status, 0);
+      var pb = probe('tools/pb-operating-point.mjs', ['--selftest']);
+      T.eq('CONTROL · pb-operating-point --selftest still passes', pb.status, 0);
+      var sd = probe('tools/synth-desat-kinetics.mjs', ['--selftest']);
+      T.eq('CONTROL · synth-desat-kinetics --selftest still passes', sd.status, 0);
+      /* A mistyped PATH was the other half of the row: an uncaught ENOENT with a stack trace at exit 1,
+         which is a usage error reported as an internal failure. */
+      var badPath = probe('tools/pb-operating-point.mjs', ['/nope/nope-9f3']);
+      T.eq('a mistyped PATH refuses at exit 2 as well', badPath.status, 2);
+      T.ok('…by name, without a stack trace', /not a directory: \/nope\/nope-9f3/.test(String(badPath.out)) && !/node:fs:\d/.test(String(badPath.out)), String(badPath.out).slice(0, 220));
+      var noArgs = probe('tools/tch-window-sensitivity.mjs', []);
+      T.eq('an ABSENT default corpus refuses by name instead of throwing', noArgs.status, 2);
+      T.ok('…and says how to build one', /trio-batch\.mjs --src/.test(String(noArgs.out)), String(noArgs.out).slice(0, 220));
+
+      /* ── the survey that MEASURES all this must be importable, and its bar must only shrink ─────
+         `tools/argv-survey.mjs` is the gate whose criterion this unit moved from 5 to 0. Until now no
+         group could read that criterion: the module's probing half was bare top-level statements ending
+         in `process.exit()`, so importing it swept 45 tools and then killed the importer (Magpie,
+         2026-10-12 — :68 and :342). The import therefore happens in a CHILD, where a regressed guard is
+         a timeout or a non-zero exit rather than this shard dying with no verdict. */
+      if (typeof env.importToolInChild === 'function') {
+        var imported = env.importToolInChild('tools/argv-survey.mjs', ['SWALLOW_BAR', 'TOKEN']);
+        T.eq('importing the survey exits 0 — it does not run, and does not exit the importer', imported.status, 0);
+        T.ok('and its exports are readable', imported.read !== null && imported.read.TOKEN === '--no-such-flag-9f3', JSON.stringify(imported.read));
+        T.ok('and NOTHING was probed on the way — no verdict row in the output', !/IGNORES|REFUSES|SWALLOWS-AS-POSITIONAL/.test(String(imported.out)), String(imported.out).slice(0, 200));
+        T.ok(
+          'the ratchet is shrink-only: a bar above 0 would re-admit a swallower by number',
+          imported.read !== null && imported.read.SWALLOW_BAR <= 0,
+          'SWALLOW_BAR=' + (imported.read && imported.read.SWALLOW_BAR)
+        );
+        var surveyFlag = probe('tools/argv-survey.mjs', ['--no-such-flag-9f3']);
+        T.eq('and the guard did not disable its OWN argv refusal when it is run', surveyFlag.status, 2);
+        T.ok('…naming the token', /--no-such-flag-9f3/.test(String(surveyFlag.out)), String(surveyFlag.out).slice(0, 200));
+        var sample = probe('tools/argv-survey.mjs', ['--verdict-sample']);
+        T.eq('…and a known flag still works, probing nothing', sample.status, 0);
+        T.ok('…printing a tepna.verdict/1 object', /tepna\.verdict\/1/.test(String(sample.out)), String(sample.out).slice(0, 160));
+      }
+    });
+
     group('every tool resolves repo code from its OWN checkout (PR #686 class)', 'tools · source-scan · portability', function (T) {
       var TS = env.toolSources;
       if (!TS) {
@@ -70955,6 +71163,107 @@
       }
       var disjoint = RF([recAt('OxyDex', desatsA, t0, t0 + 8 * H), recAt('CPAPDex', lateDesats, t0 + 9 * H, t0 + 18 * H), recAt('ECGDex', surges.concat(lateSurges), t0, t0 + 18 * H)], {}).apnea || {};
       T.ok('a non-redundant observer is still counted (no silent loss)', (disjoint.total && disjoint.total.desat) === 60, 'desat=' + (disjoint.total && disjoint.total.desat));
+    });
+
+    /* §∅ — AN ABSENT FILE IS NOT A MISSING RECORD. `ProvenanceLedger.loadNode` THROWS on an absent
+       `provenance/<App>.json`; `loadBrowser` filtered the null out and assembled the smaller view, so the
+       gate page reported that bundle as "no committed manifestHash" — the reason of a ledger that WAS read
+       and found incomplete, borrowed by a file nobody read, carrying the wrong remedy with it (residue
+       2026-09-27-loadbrowser-filters-an-absent-fragment-silently). GATE A already refuses BY NAME on that
+       bundle (`gateACompare` → `missing-committed`), so no verdict moves here: what is gated is that the
+       absence gets its OWN reason, additively, and that the two functions naming a fragment file
+       (`fragmentFiles`, `fragmentFileFor`) cannot drift apart. */
+    group('an absent provenance fragment is reported by name, not assembled around (§∅)', 'provenance · ledger · absent-fragment', function (T) {
+      var PL = env.ProvenanceLedger || (typeof ProvenanceLedger !== 'undefined' ? ProvenanceLedger : null);
+      if (!PL) {
+        T.skip('ProvenanceLedger reachable', 'neither env.ProvenanceLedger nor the global is wired in this lane');
+        return;
+      }
+      T.ok('the loader exposes a pure missingFragments(apps, fragments)', typeof PL.missingFragments === 'function');
+      T.ok('…and a pure fragmentFileFor(bundleFile)', typeof PL.fragmentFileFor === 'function');
+      if (typeof PL.missingFragments !== 'function' || typeof PL.fragmentFileFor !== 'function') return;
+
+      /* The POSITION is what the null-filter destroys, so the helper is computed over the UNFILTERED list. */
+      T.eq('every fragment present → nothing is named', PL.missingFragments(['A', 'B'], [{ bundle: 'A.html' }, { bundle: 'B.html' }]), []);
+      T.eq('a null at position 0 and 2 → those two paths, in apps order', PL.missingFragments(['A', 'B', 'C'], [null, { bundle: 'B.html' }, null]), ['provenance/A.json', 'provenance/C.json']);
+      T.eq('a fragment list that never arrived at all → every app is named', PL.missingFragments(['A', 'B'], null), ['provenance/A.json', 'provenance/B.json']);
+      T.eq('no app list → nothing to name (never a fabricated path)', PL.missingFragments(null, []), []);
+      T.eq('an empty-string fetch is an absence too (the loader parses it to null)', PL.missingFragments(['A'], [null]), ['provenance/A.json']);
+      /* A present fragment names its own bundle (`fr.bundle`), which is exactly what is gone for an absent
+         one — so the path has to be DERIVED, and the derivation is single-sourced. */
+      T.eq('fragmentFileFor derives the fragment of a bundle file', PL.fragmentFileFor('MotionDex.html'), 'provenance/MotionDex.json');
+      T.eq('…and of the fusion bundle', PL.fragmentFileFor('Integrator.html'), 'provenance/Integrator.json');
+      T.eq('…and is a no-op-safe on a bare app name', PL.fragmentFileFor('MotionDex'), 'provenance/MotionDex.json');
+      T.eq('…and never fabricates a path from nothing', PL.fragmentFileFor(null), 'provenance/.json');
+      /* THE DRIFT GUARD: the two functions that name fragment files must agree over the real app list. */
+      var viaFiles = PL.fragmentFiles(PL.APPS)
+        .slice(2)
+        .map(function (f) {
+          return 'provenance/' + f;
+        });
+      var viaFor = PL.APPS.map(function (a) {
+        return PL.fragmentFileFor(a + '.html');
+      });
+      T.eq('fragmentFileFor agrees with fragmentFiles for every one of the 9 apps', viaFor, viaFiles);
+
+      /* The REAL loader over the REAL committed fragments (Node lane; the browser lane has no probe). */
+      var P = env.ledgerBrowserProbe;
+      if (!P) {
+        T.skip('loadBrowser reports the absent app', 'no loadBrowser probe in this lane (Node-lane only)');
+        return;
+      }
+      T.ok('the probe ran', !P.error, P.error);
+      if (P.error) return;
+      T.eq('all fragments served → `missing` is an empty list, present and additive', P.wholeMissing, []);
+      T.eq('the whole view already carried apps + both assembled ledgers', P.wholeKeys, ['apps', 'buildManifest', 'fixtureProvenance', 'missing']);
+      T.eq('one fragment fetching null → that path is named', P.goneMissing, ['provenance/' + P.miss + '.json']);
+      T.ok('…and the assembled view is still the SMALLER one (additive: no verdict moves)', P.goneBundles === P.wholeBundles - 1, 'gone=' + P.goneBundles + ' whole=' + P.wholeBundles);
+      T.ok('…with that bundle genuinely absent from the manifest, not zero-filled (§∅)', P.goneHasBundle === false, 'hasOwnProperty=' + P.goneHasBundle);
+      T.eq('the result keys are the same set either way — `missing` is not conditional', P.goneKeys, P.wholeKeys);
+      /* A null index.json falls back to the hard-coded APPS; the fallback must not then report 9 absences. */
+      /* POSITION, not count: the probe's missing app is a MIDDLE one, so an implementation that counted
+         after the null-filter would name the LAST app instead and red here. Both ends are asserted. */
+      T.eq('the LAST app in index.json is named correctly too', P.lastMissing, ['provenance/' + P.lastApp + '.json']);
+      T.ok('…and that view is also one bundle smaller', P.lastBundles === P.wholeBundles - 1, 'last=' + P.lastBundles);
+      T.eq('index.json absent but every fragment served → nothing is named', P.noIndexMissing, []);
+    });
+
+    /* The banner is the ONE source of the page's GATE-A reason (provenance-banner.js), so the named reason
+       is asserted against the real strings the reader sees, never a mirror. */
+    group('the gate banner gives an absent fragment its own reason, not the incomplete-ledger one', 'provenance · banner · absent-fragment', function (T) {
+      var pick = env.pickProvenanceBanner;
+      if (typeof pick !== 'function') {
+        T.skip('pickProvenanceBanner wired', 'load provenance-banner.js + expose env.pickProvenanceBanner');
+        return;
+      }
+      var base = { MANIFEST: { bundles: {} }, gateAFail: 0, gateAMissing: 1, gateAChecked: 8, gateAComplete: false, bundlesLength: 9, gateBChecked: 3 };
+      var without = pick(base).gateA;
+      var withOne = pick(Object.assign({}, base, { missingFragments: ['provenance/MotionDex.json'] })).gateA;
+      T.ok('unchanged when no fragment is missing — the field is optional', without.indexOf('DID NOT LOAD') < 0 && without.indexOf('no committed manifestHash') > 0, without.slice(0, 90));
+      T.ok('the absent FILE is named, with its path', withOne.indexOf('provenance/MotionDex.json') > 0, withOne.slice(-220));
+      T.ok('…and told apart from a ledger that was read and found incomplete', withOne.indexOf('ABSENT FILE') > 0 && withOne.indexOf('not an incomplete ledger') > 0);
+      T.ok('…and the remedy is to restore the file, never to re-record the hash', withOne.indexOf('would commit the absence') > 0);
+      T.ok(
+        'the clause is APPENDED — the incomplete-ledger reason it fails under is still there',
+        withOne.indexOf('no committed manifestHash') > 0 && withOne.indexOf(without) === 0,
+        'prefix kept=' + (withOne.indexOf(without) === 0)
+      );
+      T.ok('GATE A still FAILS — the reason moved, the verdict did not', withOne.indexOf('GATE A FAIL') === 0 || withOne.indexOf('pill bad') > 0);
+      var drifted = pick({
+        MANIFEST: { bundles: {} },
+        gateAFail: 2,
+        gateAMissing: 1,
+        gateAChecked: 9,
+        gateAComplete: true,
+        bundlesLength: 9,
+        missingFragments: ['provenance/PpgDex.json', 'provenance/HRVDex.json']
+      }).gateA;
+      T.ok('a drift elsewhere in the same run keeps its own reason', drifted.indexOf('2 bundle(s) drifted') > 0);
+      T.ok(
+        '…and both absent files are still named beside it',
+        drifted.indexOf('provenance/PpgDex.json') > 0 && drifted.indexOf('provenance/HRVDex.json') > 0 && drifted.indexOf('2 provenance fragment(s) DID NOT LOAD') > 0
+      );
+      T.ok('a non-array field is ignored rather than rendered', pick(Object.assign({}, base, { missingFragments: 'MotionDex' })).gateA === without);
     });
 
     group('codegen — the committed generated guide is byte-compared with its generator', 'codegen · frozen-copy · verify-codegen', function (T) {

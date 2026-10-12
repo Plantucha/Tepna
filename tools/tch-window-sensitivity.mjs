@@ -47,10 +47,11 @@
  *   node tools/trio-batch.mjs --src <captures> --out <dir>     # build ms;hr;c corpus
  *   node tools/tch-window-sensitivity.mjs <dir>
  * ════════════════════════════════════════════════════════════════════════ */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const AS = createRequire(import.meta.url)(join(ROOT, 'analysis-stats.js'));
 
@@ -110,7 +111,22 @@ function grid(block, t0) {
   return pairs.length < 30 ? null : { hr: medMap(pairs), conf: new Map() };
 }
 
-const DIR = process.argv[2] || '/tmp/trio-box';
+const argv = process.argv.slice(2);
+if (argv.includes('--help') || argv.includes('-h')) {
+  console.log('usage: node tools/tch-window-sensitivity.mjs [<corpus-dir>]   (default: /tmp/trio-box)');
+  process.exit(0);
+}
+/* `process.argv[2]` was the corpus directory whatever it looked like, so an unknown flag died on an
+   uncaught ENOENT at exit 1 (residue 2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path). */
+refuseUnknownArgvOrExit(argv, { boolean: ['--help', '-h'], positional: true }, { tool: 'tools/tch-window-sensitivity.mjs' });
+const DIR = argv[0] || '/tmp/trio-box';
+/* The DEFAULT corpus dir is absent on any box that has not built it, so the no-argument run — the
+   documented one — died on an uncaught ENOENT with a stack trace. Refuse by name instead. */
+if (!existsSync(DIR) || !statSync(DIR).isDirectory()) {
+  console.error(`✗ tools/tch-window-sensitivity.mjs: no such corpus directory: ${DIR}`);
+  console.error('  build one with `node tools/trio-batch.mjs --src <captures> --out <dir>`, or name an existing dir.');
+  process.exit(2);
+}
 const nights = readdirSync(DIR)
   .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && statSync(join(DIR, d)).isDirectory())
   .sort();

@@ -98,7 +98,7 @@ const _bfilter = bundleFilterStr();
 const _bmatch = bundleMatch();
 const BUNDLES = _bfilter ? BUNDLES_ALL.filter(_bmatch) : BUNDLES_ALL;
 window.__filtered = _bfilter || null;
-let MANIFEST = null, FIXPROV = null, MANIFEST_ERR = null, FIXPROV_ERR = null;
+let MANIFEST = null, FIXPROV = null, MANIFEST_ERR = null, FIXPROV_ERR = null, MISSING_FRAGS = [];
 
 // Static executed-code fingerprint: fetch the bundle FILE, hand its text to the shared GATE-A core.
 async function manifestHashOf(file){
@@ -128,9 +128,16 @@ async function fileHash16(relPath){
   // fetches the index + each fragment + _meta and reassembles the SAME { bundles } / { fixtures }
   // shape the gate cores consume (single-sourced with the Node sibling's loadNode).
   const _fetchFrag = async (p) => { try{ const r = await fetch(p + '?_=' + Date.now(), { cache:'no-store' }); return r.ok ? await r.text() : null; }catch(_e){ return null; } };
-  try{ const led = await ProvenanceLedger.loadBrowser(_fetchFrag); MANIFEST = led.buildManifest; FIXPROV = led.fixtureProvenance; }
+  // §∅ — `led.missing` names the fragment files that did NOT arrive, computed before the loader's
+  // null-filter (filtering loses which position was empty). Without it an absent FILE reaches the
+  // reader wearing the reason of an incomplete LEDGER; GATE A's verdict is unchanged either way.
+  try{ const led = await ProvenanceLedger.loadBrowser(_fetchFrag); MANIFEST = led.buildManifest; FIXPROV = led.fixtureProvenance; MISSING_FRAGS = led.missing || []; }
   catch(e){ MANIFEST = null; FIXPROV = null; MANIFEST_ERR = e.message; FIXPROV_ERR = e.message; }
   const committed = (MANIFEST && MANIFEST.bundles) || null;
+  window.__missingFragments = MISSING_FRAGS;                 // programmatic: read this, never the banner text
+  // The fragment path is derived by the assembler's own convention — a present fragment names its own
+  // bundle (`fr.bundle`), which is exactly what is gone here, so the page must not hand-build the path.
+  const absentFragOf = (b) => { const f = ProvenanceLedger.fragmentFileFor(b); return MISSING_FRAGS.indexOf(f) >= 0 ? f : null; };
 
   // ── GATE A — recompute each bundle's static manifestHash, compare via the shared core ──
   const MH = {};
@@ -141,7 +148,7 @@ async function fileHash16(relPath){
   for (const b of BUNDLES){
     const st = statusOf[b] || {};
     const gate = st.status==='match' ? '<span class="pill ok">match ✓</span>'
-               : st.status==='missing-committed' ? '<span class="pill bad">no committed hash</span>'
+               : st.status==='missing-committed' ? (absentFragOf(b) ? '<span class="pill bad">'+absentFragOf(b)+' did not load</span>' : '<span class="pill bad">no committed hash</span>')
                : st.status==='missing-current' ? '<span class="pill bad">bundle missing / no __bundler/manifest (committed '+(st.committed||'—')+')</span>'
                : '<span class="pill bad">DRIFT — committed '+(st.committed||'—')+'</span>';
     const tr = document.createElement('tr');
@@ -191,7 +198,12 @@ async function fileHash16(relPath){
       const b = st.file;
       if (st.status === 'match') continue;                       // RECONCILED — nothing to do
       drifted++;
-      if (st.status === 'missing-committed'){ lines.push('• '+b+'   \u26a0 no committed manifestHash — add BUILD-MANIFEST.json bundles["'+b+'"] = { manifestHash: "'+(MH[b]||'?')+'" }'); lines.push(''); continue; }
+      if (st.status === 'missing-committed'){
+        const _af = absentFragOf(b);
+        lines.push(_af
+          ? '• '+b+'   \u26a0 '+_af+' did not load — the fragment file is ABSENT (deploy that missed it, rename, stale served copy). Restore the file; do NOT re-record the hash, which would commit the absence.'
+          : '• '+b+'   \u26a0 no committed manifestHash — add BUILD-MANIFEST.json bundles["'+b+'"] = { manifestHash: "'+(MH[b]||'?')+'" }');
+        lines.push(''); continue; }
       if (st.status === 'missing-current'){ lines.push('• '+b+'   \u26a0 bundle / __bundler manifest did not load — cannot reconcile (see GATE A)'); lines.push(''); continue; }
       // drift: current != committed, both present
       const fx = fixByBundle[b] || [];
@@ -224,7 +236,7 @@ async function fileHash16(relPath){
   // ── Banners (shared pickProvenanceBanner — one source for page + suite) ──
   const _pb = (typeof pickProvenanceBanner === 'function')
     ? pickProvenanceBanner({ MANIFEST, MANIFEST_ERR, gateAFail: gateA.fail, gateAMissing: gateA.missing, gateAChecked: gateA.checked, gateAComplete: gateA.complete, bundlesLength: BUNDLES.length,
-                             FIXPROV_ERR, gateBFail: gateB.fail, gateBChecked: gateB.checked, gateBAbsent: gateB.absent })
+                             FIXPROV_ERR, gateBFail: gateB.fail, gateBChecked: gateB.checked, gateBAbsent: gateB.absent, missingFragments: MISSING_FRAGS })
     : { gateA: '<span class="pill bad">provenance-banner.js failed to load</span>', gateB: '' };
   document.getElementById('gateA').innerHTML = (_bfilter ? '<span class="pill warn">⦷ FILTERED: '+_bfilter.replace(/[<>&]/g,'')+' — '+BUNDLES.length+' of '+BUNDLES_ALL.length+' bundles · NOT the full gate</span> ' : '') + _pb.gateA;
   document.getElementById('gateB').innerHTML = _pb.gateB;
@@ -240,7 +252,7 @@ async function fileHash16(relPath){
   // Dex-Test-Suite.html / verifier read it) and TRUE whenever the gate actually ran (both ledgers loaded).
   window.__sameOriginBlocked = false;
   window.__sameOriginOK = !!(MANIFEST && FIXPROV);
-  window.sameOriginStatus = function(){ return { ok: window.__sameOriginOK, blocked: false, gateA: window.__gateA_ok, gateB: window.__gateB_ok, gateBAbsent: gateB.absent, note: 'verify-provenance is a PURE-STATIC content-addressed gate (Phase 7) — no iframe reach-in, host-independent; ok = both ledgers loaded' }; };
+  window.sameOriginStatus = function(){ return { ok: window.__sameOriginOK, blocked: false, gateA: window.__gateA_ok, gateB: window.__gateB_ok, gateBAbsent: gateB.absent, missingFragments: MISSING_FRAGS, note: 'verify-provenance is a PURE-STATIC content-addressed gate (Phase 7) — no iframe reach-in, host-independent; ok = both ledgers loaded' }; };
 
   document.getElementById('ci').textContent =
 `# CI: "same input + same code → same output" — content-addressed (R1, Phase 7)
