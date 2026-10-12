@@ -120,6 +120,7 @@ def test_the_ring_has_a_fixed_capturable_set_because_it_has_no_bitmask(tmp_path,
         "the ring's set is fixed, and must not inherit a Polar bitmask"
 
 
+@pytest.mark.tree_scan
 def test_every_stream_the_RING_CAN_WRITE_is_offerable(tmp_path):
     """DERIVED from `capture.run_oxyii`, not a second hardcoded list — because a hardcoded list is what
     broke it.

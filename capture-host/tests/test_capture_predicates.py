@@ -205,6 +205,7 @@ def test_a_protocol_refusal_is_not_absence():
 
 
 # ── the retry log must name WHICH error it is retrying on (2026-08-09) ────────────────────────────────
+@pytest.mark.tree_scan
 def test_the_auto_sync_retry_line_logs_the_message_not_just_the_class():
     """A diagnostic gap that cost a wrong fix, so it is pinned rather than trusted.
 
@@ -225,6 +226,7 @@ def test_the_auto_sync_retry_line_logs_the_message_not_just_the_class():
     assert "[:160]" in body[:400] or "[:" in body[:400], "truncate: this runs up to 12x per ladder"
 
 
+@pytest.mark.tree_scan
 def test_the_deferred_line_names_the_reason_too():
     """Its sibling. An absence deferral that just said 'deferred' would rebuild the same blind spot."""
     import inspect

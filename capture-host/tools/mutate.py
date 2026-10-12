@@ -96,14 +96,42 @@ SOURCE_SCANNING_TESTS = {"tests/test_no_deprecated_apis.py"}
 # Modules whose value is the JSON they print rather than a contract anyone depends on.
 SKIP = {"probe_oxyii_ppg.py", "probe_polar_onboard.py", "ppg_grid_check.py", "adapter_ab.py"}
 
+# ── TREE-SCAN TESTS ARE DESELECTED UNDER MUTATION, IN BOTH PHASES ──────────────────────────────
+# A TREE-SCAN test — one whose subject is the tree (source TEXT or file PROPERTIES) rather than any
+# code behaviour — must be deselected under mutation. mutmut copies the tree to mutants/ and rewrites
+# each module to hold every mutant variant, so both readings measure a CORRECT MEASUREMENT OF THE
+# WRONG ARTIFACT: generated source, or a copied file whose permissions and neighbours differ.
+#
+# The two halves were found one after the other, and the second only became visible once the first
+# was fixed — which is why the marker covers the CAUSE rather than either symptom:
+#   · SOURCE TEXT — multiplication preserves PRESENCE and destroys COUNTS.
+#   · FILE PROPERTIES — note 3 above: a test that reads the filesystem relative to its own location
+#     "fails unconditionally, which would mark every mutant killed and report a beautiful,
+#     meaningless 100%".
+#
+# Measured 2026-08-26: `test_only_the_clock_sync_call_site_opts_in` does `inspect.getsource(capture)`
+# and counts lines containing `presence_check_s=`, asserting exactly 1. mutmut rewrites the module to
+# hold every mutant variant of every function, so the count came back **112**, the baseline aborted
+# (`failed to collect stats. runner returned 1`), and NO mutant was ever evaluated. capture.py — the
+# daemon's largest and most wiring-dense module — had therefore never been successfully diff-mutated.
+#
+# Deselected in BOTH phases on purpose, and the second is the one that matters more:
+#   · STATS COLLECTION — otherwise the baseline fails and the run reports nothing at all (loud).
+#   · THE MUTANT RUNS  — otherwise a source-scan test failing against rewritten source would FAKE-KILL
+#                        every mutant, inflating the kill rate with a false green (silent, worse).
+#
+# The marker, rather than making the assertions presence-based: a count catches what presence cannot —
+# the 112 case is precisely a count doing its job — so weakening every source scan to save the runner
+# would trade a real check for a convenience.
 CONFIG = """
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["tree_scan: inspects the TREE (source text or file properties), not behaviour"]
 
 [tool.mutmut]
 source_paths = [{source!r}]
 also_copy = [{also_copy}]
-pytest_add_cli_args_test_selection = [{tests}]
+pytest_add_cli_args_test_selection = [{tests}, "-m", "not tree_scan"]
 do_not_mutate = ["tests/*"]
 """
 
@@ -147,7 +175,8 @@ def clean_run_seconds(tests: list[str]) -> float:
     Borrowed from tools/mutate.mjs (#702), which reached the same conclusion on the JS side: measure
     the clean run, then derive the bound from it rather than guessing a flat number."""
     t0 = time.monotonic()
-    subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *tests],
+    subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                    "-m", "not tree_scan", *tests],
                    cwd=HERE, capture_output=True, text=True, timeout=3600)
     return time.monotonic() - t0
 

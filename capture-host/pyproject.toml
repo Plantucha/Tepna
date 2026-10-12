@@ -3,6 +3,13 @@
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  # A test whose subject is the TREE — its source TEXT (inspect.getsource) or its file PROPERTIES
+  # (permissions, shebangs, which files exist) — rather than any code behaviour. Deselected under
+  # mutation in both phases: mutmut copies the tree and rewrites each module, so neither reading
+  # describes the real thing. See tools/mutate.py.
+  "tree_scan: inspects the TREE (source text or file properties), not behaviour — deselected under mutation",
+]
 
 # Coverage config (CAPTURE-HOST-FOLLOWUPS-III test-coverage; taken to 100% statement+branch by
 # the 2026-07-27 coverage pass). Inert for a plain `pytest` run — it only takes effect when CI passes
