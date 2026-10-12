@@ -158,7 +158,7 @@ RATCHET = {
     "mutation_pure.py": 5,
     "mutation_triage.py": 2,
     "night_report.py": 8,
-    "nightqc.py": 46,
+    "nightqc.py": 52,
     "nights_index.py": 6,
     "oxy_inventory.py": 6,
     "oxy_transfer.py": 5,
