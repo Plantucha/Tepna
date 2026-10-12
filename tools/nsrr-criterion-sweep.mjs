@@ -796,9 +796,17 @@ function selftest() {
     A('truncation: garbage in the count fields refuses', edfExpectedBytes(Buffer.alloc(2048, 0x20)) === null);
   })();
 
-  /* The shipped ODI threshold is a FROZEN kernel constant with no injection point, so this tool
-     optimises the raw detector and cannot drive the shipped pipeline. Pinned so a future refactor that
-     unfreezes it, or adds an override, surfaces here rather than silently changing what is measured. */
+  /* THE SHIPPED PATH IS NOW SWEEPABLE — and these assertions had to change to say so.
+     `DexKernel.K.ODI_DROP` is still FROZEN (assignment throws), which is right for a clinical constant.
+     What changed on 2026-10-12 is that `processNight` takes an optional LAST `params` argument, so the
+     criterion can be ASKED FOR without editing source or unfreezing anything.
+     The previous version of this block pinned the ABSENCE of that injection point, and pinned it badly:
+     `typeof processNight === 'function'` was the whole assertion behind the label "takes no threshold
+     override", so adding the override would NOT have reddened it — the label would simply have become a
+     lie while the test stayed green. A pin on a negative needs to exercise the negative. So the
+     replacement exercises the POSITIVE, end to end on the real module: the default is byte-identical to
+     calling without the argument (that is what keeps the committed fixtures and this tool's own default
+     row meaningful), and an override actually moves the published index. */
   try {
     const ctxK = makeRealm();
     let froze = false;
@@ -807,10 +815,60 @@ function selftest() {
     } catch {
       froze = true;
     }
-    A('kernel: ODI_DROP is frozen, so the shipped path cannot be swept from here', froze || ctxK.DexKernel.K.ODI_DROP === 4, String(ctxK.DexKernel.K.ODI_DROP));
-    A('kernel: processNight exists but takes no threshold override', typeof ctxK.OxyDex._bare.processNight === 'function');
+    A('kernel: ODI_DROP is still frozen — the override is an argument, not an unfreezing', froze && ctxK.DexKernel.K.ODI_DROP === 4, String(ctxK.DexKernel.K.ODI_DROP));
+    const PN = ctxK.OxyDex._bare.processNight;
+    A('kernel: processNight is reachable', typeof PN === 'function');
+    /* A planted night of RAMPED dips: alternating nadirs 3 % and 5 % below a 97 % ceiling, each falling
+       over 6 s so `selfGateDesat` does not read it as non-physiologic kinetics (FALL_RATE_MAX 1.5 %/s —
+       square dips are all excluded as artifacts and both criteria then publish count 0, which would look
+       like agreement). At the 4 % default only the deep half opens; at 3 % both do. */
+    const t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+    const plant = () => {
+      const N = 7200,
+        rows = [];
+      for (let i = 0; i < N; i++) rows.push({ tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: 97, hr: 60, motion: 0 });
+      let k = 0;
+      for (let st = 300; st + 60 < N; st += 240) {
+        const nadir = k % 2 === 0 ? 94 : 92,
+          depth = 97 - nadir;
+        for (let j = 0; j < 6; j++) rows[st + j].spo2 = 97 - Math.round((depth * (j + 1)) / 6);
+        for (let i = st + 6; i < st + 21; i++) rows[i].spo2 = nadir;
+        for (let j = 0; j < 6; j++) rows[st + 21 + j].spo2 = nadir + Math.round((depth * (j + 1)) / 6);
+        k++;
+      }
+      return rows;
+    };
+    const strip = (o) => JSON.stringify(o, (k2, v) => (k2 === 't' ? undefined : v));
+    const base = PN(plant(), 'pin.csv');
+    A('kernel: the default call still publishes an ODI-4 on the planted night', base.odi4 && base.odi4.count === 14, JSON.stringify(base.odi4));
+    A(
+      'kernel: passing no override is byte-identical to {} and to {dropPct:null}',
+      strip(base) === strip(PN(plant(), 'pin.csv', {})) && strip(base) === strip(PN(plant(), 'pin.csv', { dropPct: null }))
+    );
+    const at3 = PN(plant(), 'pin.csv', { dropPct: 3 });
+    A('kernel: an override reaches the SHIPPED detector (3 % finds the shallow half too)', at3.odi4 && at3.odi4.count === 29, JSON.stringify(at3.odi4));
+    A(
+      'kernel: the overridden night records the criterion it was computed under',
+      at3.odiCriterion && at3.odiCriterion.dropPct === 3 && at3.odiCriterion.kernelDefault === 4,
+      JSON.stringify(at3.odiCriterion)
+    );
+    A('kernel: a default-criterion night carries NO odiCriterion field (export bytes unmoved)', !('odiCriterion' in base));
+    let refusedKey = false,
+      refusedVal = false;
+    try {
+      PN(plant(), 'pin.csv', { minSec: 20 });
+    } catch {
+      refusedKey = true;
+    }
+    try {
+      PN(plant(), 'pin.csv', { dropPct: 0 });
+    } catch {
+      refusedVal = true;
+    }
+    A('kernel: an unknown params key REFUSES rather than being silently ignored', refusedKey);
+    A('kernel: a non-positive dropPct REFUSES rather than falling back to the default', refusedVal);
   } catch (e) {
-    A('kernel freeze check runs', false, String((e && e.message) || e));
+    A('kernel injection-point check runs', false, String((e && e.message) || e));
   }
 
   const sp = splitRecords(['e', 'd', 'c', 'b', 'a']);
@@ -895,10 +953,13 @@ const paint = (s, c) => (process.stdout.isTTY || process.env.FORCE_COLOR ? c + s
    constant at 1.35 against this row's 4.51 and read as a 3.4 events/h improvement; it was measuring the
    missing pipeline, and the chosen `minSec` of 20–25 s was compensating for it.
 
-   ⚠️ AND THE SHIPPED PATH CANNOT BE SWEPT. `DexKernel.K.ODI_DROP` is FROZEN (assignment throws) and
-   `processNight` takes no threshold override, so there is no injection point. That is right for
-   shipping — a constant nobody can retune by accident — and it means criterion research needs either a
-   source change or this parallel path, knowingly. Tracked as residue. */
+   ⚠️ THE SHIPPED PATH IS SWEEPABLE SINCE 2026-10-12, AND THIS TOOL STILL DOES NOT SWEEP IT.
+   `DexKernel.K.ODI_DROP` remains FROZEN (assignment throws), but `processNight(rows, fname, params)`
+   now accepts `{ dropPct }` — the injection point that was missing, pinned in `--selftest` above. What
+   that changes for this tool is only its EXCUSE: the 3.4x gap above is still the gap between this
+   parallel path and the shipped index, so a sweep result here still must not be quoted as a shipped-ODI
+   result. Sweeping the shipped index now means calling `processNight` per candidate (whole-pipeline
+   cost, not detector cost) — a deliberate next unit, not something to graft onto a row of this table. */
 const DEFAULT = { dropPct: 4, minSec: 10, WIN: 300, pct: 90 };
 
 function main(argv) {
