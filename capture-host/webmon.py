@@ -446,7 +446,15 @@ def make_app(
                     # A battery-event RTC reset, flagged the moment a readback sees the jump — the
                     # stored .dat timebase is suspect from this instant until the next verified push.
                     "ring_rtc_reset_suspect": st.get("ring_rtc_reset_suspect"),
-                    "charging": bool(st.get("charging")),
+                    # ∅ TRI-STATE, FORWARDED RAW. This read `bool(st.get("charging"))` until
+                    # 2026-10-12, and the coercion was the last line of the flat-battery ruling that
+                    # nobody had followed: the daemon publishes `charging: null` when only flatness
+                    # says anything, and `bool(None)` turned that silence into the positive claim
+                    # "this device is NOT on a charger" for every HTTP consumer. False and null are
+                    # different facts here — false is a measured dock flag or a falling cell, null is
+                    # no claim at all — and `worn` two fields up has travelled as a raw tri-state for
+                    # the same reason since #1228.
+                    "charging": st.get("charging"),
                     # How many of this device's flushes have FAILED. Distinct from `last_error`,
                     # which is about the LINK: a write failure means the samples arrived and may
                     # not have reached the disk, so the card can read perfectly live while the

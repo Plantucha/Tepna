@@ -96,3 +96,15 @@ Pure annotation parsing: stage identity from the authoritative `|<code>` suffix 
 2 N2 · 3 N3 · 4 N3 · 5 REM · 6 Movement · 9 Unscored), TST summed over N1/N2/N3/REM block durations,
 event classes matched on `EventConcept` text. Records with no staged sleep are excluded rather than
 scored zero. No signal file is read, so this is reproducible on any machine holding the annotations.
+
+## Data acknowledgement (NSRR data-use agreement §16)
+
+This page reports measurements over data from the National Sleep Research Resource:
+**NSRR R24 HL114473: NHLBI National Sleep Research Resource**. We hold the Sleep Heart Health Study
+(SHHS) cohort through sleepdata.org under an approved data-use agreement. This page quotes no
+record-level data and redistributes none.
+
+- Quan SF, Howard BV, Iber C, et al. The Sleep Heart Health Study: design, rationale, and methods.
+  *Sleep.* 1997;20(12):1077–85. doi:10.1093/sleep/20.12.1077
+- Zhang GQ, Cui L, Mueller R, et al. The National Sleep Research Resource: towards a sleep data
+  commons. *J Am Med Inform Assoc.* 2018;25(10):1351–1358. doi:10.1093/jamia/ocy064

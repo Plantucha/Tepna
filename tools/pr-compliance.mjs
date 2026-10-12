@@ -15,6 +15,8 @@
  *   6. No GitHub closing keyword in the body sits next to a PR number that is still OPEN.
  *   7. Each Markdown file the PR ADDS passes the writing rules (owner, 2026-10-12: the rules bind new
  *      text, and old text stays as it is). An edit to an old file does not bind the old file.
+ *   8. A verdict object quoted in the body was produced on this PR's current code: no file the PR
+ *      changes moved between the verdict's `producedBy.commit` and the head.
  *
  * WHY 6 EXISTS, measured. `.kodiak.toml` sets `[merge.message] body = "pull_request_body"`, so the
  * PR body BECOMES the squash commit message on main — and GitHub acts on closing keywords in a
@@ -53,6 +55,10 @@ const BUNDLE_RE = /(^|\/)[A-Z][A-Za-z]*\.html$/;
    cross-repo `owner/repo#N`, or a full pull/issues URL. All three forms close on merge. The keyword
    must be followed by WHITESPACE — `fixed` with a backtick or any other character between it and the
    `#` does not trigger GitHub, and does not trigger this check either. */
+/* The number of named checks `checkCompliance` can evaluate. The verdict's population is read against
+   it, so a new check raises this or the verdict reads a negative `excluded` and refuses to validate. */
+export const ELIGIBLE_CHECKS = 9;
+
 const CLOSING_CITATION_RE = /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s+(?:https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?:pull|issues)\/(\d+)|(?:[\w.-]+\/[\w.-]+)?#(\d+))/gi;
 
 /**
@@ -79,14 +85,62 @@ export function citedClosures(body = '') {
 }
 
 /**
+ * Every `tepna.verdict/1` object quoted in a body, in order. A candidate is a balanced `{…}` span that
+ * parses as JSON and names the schema; a span that does not parse is skipped, because prose braces
+ * are not evidence. Nested objects inside a verdict are consumed with it. PURE.
+ *
+ * @param {string} body
+ * @returns {Array<{gate: string|null, commit: string|null}>}
+ */
+export function extractVerdicts(body = '') {
+  const out = [];
+  let i = body.indexOf('{');
+  while (i !== -1) {
+    let depth = 0;
+    let inStr = false;
+    let end = -1;
+    for (let j = i; j < body.length; j += 1) {
+      const c = body[j];
+      if (inStr) {
+        if (c === '\\') j += 1;
+        else if (c === '"') inStr = false;
+      } else if (c === '"') inStr = true;
+      else if (c === '{') depth += 1;
+      else if (c === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          end = j;
+          break;
+        }
+      }
+    }
+    if (end === -1) break;
+    let obj = null;
+    try {
+      obj = JSON.parse(body.slice(i, end + 1));
+    } catch {
+      obj = null;
+    }
+    if (obj && obj.schema === 'tepna.verdict/1') {
+      const commit = obj.producedBy && typeof obj.producedBy.commit === 'string' ? obj.producedBy.commit : null;
+      out.push({ gate: typeof obj.gate === 'string' ? obj.gate : null, commit });
+      i = body.indexOf('{', end + 1);
+    } else {
+      i = body.indexOf('{', i + 1);
+    }
+  }
+  return out;
+}
+
+/**
  * PURE CORE — every check that does not need git. `computeHashMoved` is passed IN, because deciding
  * it requires reading the diff; everything else is a property of the body and the file list, so a
  * selftest can plant each violation and its control without a repository.
  *
- * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null, steChecked: number|null, prStates: Record<string,string>|null, self: string|null, newDocs: Array<{path:string, findings:Array<{line:number,rule:string,detail:string}>}>|null}} ctx
+ * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null, steChecked: number|null, prStates: Record<string,string>|null, self: string|null, newDocs: Array<{path:string, findings:Array<{line:number,rule:string,detail:string}>}>|null, freshness: Array<{gate: string|null, commit: string|null, state: string, moved?: string[]}>|null}} ctx
  * @returns {{failures: string[], checked: string[]}}
  */
-export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, steChecked = null, prStates = null, self = null, newDocs = null }) {
+export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, steChecked = null, prStates = null, self = null, newDocs = null, freshness = null }) {
   const failures = [];
   const checked = [];
 
@@ -171,6 +225,32 @@ export function checkCompliance({ body = '', files = null, computeHashMoved = fa
     }
   }
 
+  /* 8 · A QUOTED VERDICT IS ABOUT THE CODE THAT MERGES. `freshness` holds one entry per verdict object
+     in the body, resolved by the caller against git; `null` means git was not consulted, and the
+     check reports itself as not evaluated. A body that quotes no verdict passes with nothing to
+     judge. The states:
+       fresh       — the verdict's commit is in this PR's history and no PR file moved since it.
+       stale       — a non-Markdown file this PR changes moved after the run, so the run did not
+                     see the code.
+       foreign     — the commit is not in this PR's history (a rebase or a squash dropped it).
+       unresolved  — the commit is not in the repository at all.
+       no-commit   — the object names no commit, so its age cannot be read.
+       base        — the commit is on the base branch: evidence about main, not a claim about
+                     this PR. It is excluded and passes.
+     WHY, measured 2026-10-12: CI re-runs every check on each push, but a local run quoted in the body
+     does not. #3506 quoted a local mutation verdict while its author still had commits to push. */
+  if (freshness) {
+    checked.push('quoted-verdict-is-fresh');
+    for (const f of freshness) {
+      const who = `${f.gate || 'a verdict'} at ${f.commit || '(no commit)'}`;
+      if (f.state === 'stale')
+        failures.push(`${who} is stale — ${f.moved.length} file(s) this PR changes moved after it ran: ${f.moved.slice(0, 5).join(', ')}. Re-run it on the head and quote the new object.`);
+      else if (f.state === 'foreign') failures.push(`${who} is not in this PR's history — a rebase or a squash dropped that commit. Re-run it on the head.`);
+      else if (f.state === 'unresolved') failures.push(`${who} does not resolve to a commit in this repository.`);
+      else if (f.state === 'no-commit') failures.push(`${who} names no producedBy.commit, so this gate cannot tell which code it examined.`);
+    }
+  }
+
   /* 3 and 4 need the file list. `files === null` means no diff was available, which is NOT the same
      as an empty diff — the two checks below are then not evaluated and say so, rather than passing. */
   if (files) {
@@ -196,9 +276,38 @@ export function selftest() {
   const has = (r, frag) => r.failures.some((f) => f.includes(frag));
 
   // CONTROL — a compliant body with a compliant file list must pass, or the gate blocks everything.
-  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [], steChecked: 1, prStates: {} });
+  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [], steChecked: 1, prStates: {}, newDocs: [], freshness: [] });
   ok(clean.failures.length === 0, 'CONTROL: a compliant body and changeset pass');
-  ok(clean.checked.length === 7, 'CONTROL: all seven checks were evaluated, so the pass is not a skip');
+  ok(clean.checked.length === ELIGIBLE_CHECKS, 'CONTROL: every check was evaluated, so the pass is not a skip');
+  /* THE POPULATION BOUND. Twice on 2026-10-12 the verdict's `eligible` stayed one below the checks that
+     ran (6 of 7, then 7 of 8 after #3510), so `--json` threw on every full PR context: excluded = -1 fails Verdict.validate. */
+  ok(verdictOf({ status: 'PASS', failures: [], checked: clean.checked }).population.excluded === 0, 'a full run validates as a verdict — excluded is 0, never negative');
+
+  /* PLANTED VIOLATION 8 — a quoted verdict older than the code. The plant is #3506's shape: a local
+     mutation verdict in the body, then a push that moves a file the PR changes. */
+  const vObj = (commit) => JSON.stringify({ schema: 'tepna.verdict/1', gate: 'mutate', status: 'FAIL', producedBy: { tool: 't', commit } });
+  const quoted = `${good}\n\n\`\`\`json\n${vObj('22e9f71f')}\n\`\`\``;
+  const ex = extractVerdicts(quoted);
+  ok(ex.length === 1 && ex[0].commit === '22e9f71f' && ex[0].gate === 'mutate', 'the extractor finds a fenced verdict and reads its commit');
+  ok(extractVerdicts(`a {not json} b ${vObj('abc1234')} c {"schema":"other/1"}`).length === 1, 'prose braces and other schemas are not verdicts');
+  ok(
+    extractVerdicts(JSON.stringify({ schema: 'tepna.verdict/1', gate: 'g', result: { note: 'a } in a string' }, producedBy: { commit: 'abc1234' } })).length === 1,
+    'a brace inside a string does not end the object'
+  );
+  ok(extractVerdicts(`${vObj('aaaaaaa')} and ${vObj('bbbbbbb')}`).length === 2, 'two verdicts are both read');
+  ok(extractVerdicts('').length === 0 && extractVerdicts('{ unclosed').length === 0, 'CONTROL: an empty or torn body yields nothing');
+  const stale = [{ gate: 'mutate', commit: '22e9f71f', state: 'stale', moved: ['oxydex-dsp.js'] }];
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: stale }), 'is stale'), 'a verdict older than a PR file is caught');
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: stale }), 'oxydex-dsp.js'), '…and the failure names the file that moved');
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: 'abc1234', state: 'foreign' }] }), 'not in this PR'), 'a verdict on a dropped commit is caught');
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: 'abc1234', state: 'unresolved' }] }), 'does not resolve'), 'a verdict on an unknown commit is caught');
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: null, state: 'no-commit' }] }), 'names no producedBy.commit'), 'a verdict with no commit is caught');
+  ok(!checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: 'abc1234', state: 'fresh', moved: [] }] }).failures.length, 'CONTROL: a fresh verdict passes');
+  ok(
+    !checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: 'abc1234', state: 'base' }] }).failures.length,
+    'CONTROL: a verdict about the base branch is evidence about main and passes'
+  );
+  ok(!checkCompliance({ body: quoted, files: null }).checked.includes('quoted-verdict-is-fresh'), 'git not consulted ⇒ the check is NOT evaluated, not passed');
 
   // PLANTED VIOLATION 5 — the body fails the writing rules (owner, 2026-10-12: the linter bites).
   const passive = [{ line: 3, rule: 'passive', detail: '"was measured"' }];
@@ -319,7 +428,7 @@ function verdictOf({ status, failures, checked, reason }) {
   const v = Verdict.make({
     gate: 'pr-compliance',
     status,
-    population: { checked: checked.length, eligible: 7, excluded: 7 - checked.length },
+    population: { checked: checked.length, eligible: ELIGIBLE_CHECKS, excluded: ELIGIBLE_CHECKS - checked.length },
     criterion: { name: 'pr-body-and-changeset-satisfy-every-applicable-compliance-check', threshold: 0, unit: 'failed checks', direction: 'eq' },
     result: status === 'NOT_RUN' ? null : { checksEvaluated: checked, failures },
     evidence: ['tools/pr-compliance.mjs', 'CLAUDE.md'],
@@ -497,7 +606,58 @@ function main() {
     }
   }
 
-  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, steChecked, prStates, self: process.env.PR_NUMBER || null, newDocs });
+  /* CHECK 8's POPULATION. Each quoted verdict's commit is placed against the base and the head, then
+     the files that moved after it are read and intersected with the PR's own file list. A merge from
+     main moves main's files, not the PR's, so Kodiak's base update does not stale a verdict. A
+     Markdown file is not code: a changeset or a brief written after the run does not stale it. Without
+     a diff there is no file list and the check is not evaluated. */
+  let freshness = null;
+  if (files && base) {
+    freshness = [];
+    const mine = new Set(files);
+    for (const v of extractVerdicts(body)) {
+      if (!v.commit) {
+        freshness.push({ ...v, state: 'no-commit' });
+        continue;
+      }
+      if (!/^[0-9a-f]{7,40}$/i.test(v.commit)) {
+        freshness.push({ ...v, state: 'unresolved' });
+        continue;
+      }
+      let full = null;
+      try {
+        full = sh(`git rev-parse --verify -q ${v.commit}^{commit}`);
+      } catch {
+        full = null;
+      }
+      if (!full) {
+        freshness.push({ ...v, state: 'unresolved' });
+        continue;
+      }
+      const isAnc = (a, b) => {
+        try {
+          execSync(`git merge-base --is-ancestor ${a} ${b}`, { stdio: 'ignore' });
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      if (isAnc(full, base)) {
+        freshness.push({ ...v, state: 'base' });
+        continue;
+      }
+      if (!isAnc(full, head)) {
+        freshness.push({ ...v, state: 'foreign' });
+        continue;
+      }
+      const moved = sh(`git diff --name-only ${full}..${head}`)
+        .split('\n')
+        .filter((f) => f && mine.has(f) && !f.endsWith('.md'));
+      freshness.push({ ...v, state: moved.length ? 'stale' : 'fresh', moved });
+    }
+  }
+
+  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, steChecked, prStates, self: process.env.PR_NUMBER || null, newDocs, freshness });
   if (diffError) failures.push(diffError);
   const status = failures.length ? 'FAIL' : 'PASS';
 
