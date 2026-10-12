@@ -195,34 +195,73 @@ function release() {
   return out;
 }
 
+/* One row per agent, from every RUNNING herdr session — the birds live in a named session
+   (`herdr --session birds`), and a bare `herdr agent list` under the board's timer reaches only the
+   default session, which is stopped: measured 2026-10-12, the board printed "(no agents listed)"
+   while four birds were working. Pure parse so --selftest can plant the JSON. */
+export function herderRows(json, session) {
+  let j;
+  try {
+    j = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  const agents = j?.result?.agents;
+  if (!Array.isArray(agents)) return [];
+  return agents.map((a) => `${String(a.name ?? '?').padEnd(10)} ${String(a.agent_status ?? '?').padEnd(8)} ${a.pane_id ?? ''}  ${session}`);
+}
+
 function herder() {
   try {
-    return { ok: true, agents: sh('bash', ['-c', 'herdr agent list 2>/dev/null | head -20']) || '(no agents listed)' };
+    const sessions = sh('bash', ['-c', 'herdr session list 2>/dev/null'])
+      .split('\n')
+      .map((l) => l.trim().split(/\s+/))
+      .filter((c) => c.length >= 2 && c[1] === 'running')
+      .map((c) => c[0]);
+    const rows = [];
+    for (const sname of sessions) {
+      const out = sh('bash', ['-c', `herdr --session ${sname} agent list 2>/dev/null`]);
+      rows.push(...herderRows(out, sname));
+    }
+    if (!rows.length && !sessions.length) {
+      const out = sh('bash', ['-c', 'herdr agent list 2>/dev/null']);
+      rows.push(...herderRows(out, 'default'));
+    }
+    return { ok: true, agents: rows.length ? rows.join('\n') : `(no agents listed — running sessions: ${sessions.join(', ') || 'none'})` };
   } catch (e) {
     return fail(`herdr agent list failed: ${e.message}`);
   }
 }
 
 /* The live queue is the LAST "OWNER DECISIONS OPEN" block of Kestrel's evaluation.md (OUT_DIR): the
-   header line, then the indented lines under it, items separated by " · ". Pure, so --selftest can
-   plant it. Returns null when the file has no such block. */
-function parseOwnerDecisions(txt) {
+   header line, then EITHER indented lines joined and split on " · " (the 2026-10-11 form) OR one
+   numbered / bulleted line per item (the 2026-10-12 form — the board read a live eight-item block as
+   "0 open" because the lines were not indented). The block ends at the first blank line. Pure, so
+   --selftest can plant it. Returns null when the file has no such block. */
+export function parseOwnerDecisions(txt) {
   const lines = txt.split('\n');
   let start = -1;
   lines.forEach((l, i) => {
     if (/^OWNER DECISIONS OPEN\b/.test(l)) start = i;
   });
   if (start < 0) return null;
-  const body = [];
+  const indented = [];
+  const listed = [];
   for (let i = start + 1; i < lines.length; i++) {
-    if (!/^\s+\S/.test(lines[i])) break;
-    body.push(lines[i].trim());
+    const l = lines[i];
+    if (!l.trim()) break;
+    const m = l.match(/^\s*(?:\d+[.)]|[-*•])\s+(.*)$/);
+    if (m) listed.push(m[1].trim());
+    else if (/^\s+\S/.test(l)) indented.push(l.trim());
+    else break;
   }
-  const items = body
-    .join(' ')
-    .split(/\s+·\s+/)
-    .map((x) => x.trim())
-    .filter(Boolean);
+  const items = listed.length
+    ? listed
+    : indented
+        .join(' ')
+        .split(/\s+·\s+/)
+        .map((x) => x.trim())
+        .filter(Boolean);
   return { header: lines[start].trim(), items };
 }
 
@@ -269,6 +308,40 @@ function fileSection(name, rel, note) {
   } catch (e) {
     return fail(`${rel} unreadable: ${e.message}`);
   }
+}
+
+/* Today's entries only (owner, 2026-10-12: "Kestrel daily evaluation should have only today data").
+   An entry starts at a `### ` heading or a `Kestrel daily evaluation — ` line; entries whose heading
+   carries `today` (YYYY-MM-DD) are kept in order. With none dated today the LATEST entry is shown
+   under a dated note, never silently. Pure; the file is append-only, so the slice is by heading. */
+export function todaysEntries(txt, today) {
+  const parts = txt.split(/^(?=### |Kestrel daily evaluation — )/m).filter((p) => p.trim());
+  const dateOf = (p) => (p.match(/^(?:### |Kestrel daily evaluation — )(\d{4}-\d{2}-\d{2})/) || [])[1] || null;
+  const mine = parts.filter((p) => dateOf(p) === today);
+  if (mine.length) return { text: mine.join('\n'), note: null };
+  const last = parts.length ? parts[parts.length - 1] : '';
+  const when = (last.split('\n')[0].match(/\d{4}-\d{2}-\d{2}/) || ['undated'])[0];
+  return { text: last, note: `(no entry dated ${today}; showing the latest, ${when})` };
+}
+
+function todaySection(name, rel, note) {
+  const f = path.join(OUT_DIR, rel);
+  if (!existsSync(f)) return { ok: false, reason: `${rel} not written yet — ${note}` };
+  try {
+    const txt = readFileSync(f, 'utf-8');
+    const today = new Date().toISOString().slice(0, 10);
+    const t = todaysEntries(txt, localYMD(new Date()));
+    const text = (t.note ? `${t.note}\n\n` : '') + t.text;
+    return { ok: true, text: text.slice(0, 8000), bytes: txt.length, today: today };
+  } catch (e) {
+    return fail(`${rel} unreadable: ${e.message}`);
+  }
+}
+
+/* The rig's local calendar date — the owner's "today", not UTC's (evaluation headings carry EDT). */
+function localYMD(d) {
+  const z = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
 
 function planPct() {
@@ -328,7 +401,7 @@ export function collect() {
        must say so with a date — a manual entry is a measurement of what a person copied, not of the
        night, and the board says which. Owner, 2026-10-11: "put placeholders in it". */
     solidNights: fileSection('solid-night', 'solid-night.md', 'the streak is computed on the capture box; until it publishes a summary, Kestrel hand-enters it here with a date'),
-    evaluation: fileSection('evaluation', 'evaluation.md', 'Kestrel writes this file; the board only reads it')
+    evaluation: todaySection('evaluation', 'evaluation.md', 'Kestrel writes this file; the board only reads it')
   };
   const banners = [];
   const cib = ciBanner(ci.ok ? ci.runs : null);
@@ -582,6 +655,30 @@ function runSelftest() {
     const first = parseOwnerDecisions('OWNER DECISIONS OPEN\n  a thing · b thing (with, commas) · c thing\n');
     ok(first && first.items.length === 3 && first.items[1] === 'b thing (with, commas)', 'items split on " · " only, commas stay inside an item');
     ok(parseOwnerDecisions('no block here\n| **85** | open row |\n') === null, 'a file without the block yields null, never a table row that says "open"');
+  }
+  {
+    const numbered = parseOwnerDecisions('### tick\n- note\n\nOWNER DECISIONS OPEN\n1. deploy main\n2. heap probe (box)\n3. reload skills\n\n### later\n');
+    ok(
+      numbered && numbered.items.length === 3 && numbered.items[1] === 'heap probe (box)',
+      'an unindented numbered list is one item per line, ended by the blank line (2026-10-12: a live 8-item block read as 0 open)'
+    );
+    const bulleted = parseOwnerDecisions('OWNER DECISIONS OPEN\n- a\n- b\n');
+    ok(bulleted && bulleted.items.length === 2, 'a bulleted list is one item per line');
+  }
+  {
+    const txt = '### 2026-10-11 09:00 EDT (the cadence starts 2026-10-12)\nold\n\nKestrel daily evaluation — 2026-10-12 07:41 EDT\nmorning\n\n### 2026-10-12 11:35 EDT — tick\nnoon\n';
+    const t = todaysEntries(txt, '2026-10-12');
+    ok(
+      t.note === null && !t.text.includes('old') && t.text.includes('morning') && t.text.includes('noon'),
+      'the evaluation section keeps every entry whose heading DATE is today and drops older ones, even one that mentions today in its text'
+    );
+    const none = todaysEntries(txt, '2026-10-13');
+    ok(none.note === '(no entry dated 2026-10-13; showing the latest, 2026-10-12)' && none.text.includes('noon'), 'with no entry dated today the latest entry is shown under a dated note');
+  }
+  {
+    const rows = herderRows('{"id":"x","result":{"agents":[{"name":"kestrel","agent_status":"working","pane_id":"w1:p1"},{"name":"magpie","agent_status":"idle","pane_id":"w1:p6"}]}}', 'birds');
+    ok(rows.length === 2 && /^kestrel\s+working\s+w1:p1\s+birds$/.test(rows[0]), 'herder rows are name · status · pane · session from the session JSON');
+    ok(herderRows('not json', 'birds').length === 0 && herderRows('{"result":{}}', 'birds').length === 0, 'unparseable or agent-less herder output yields no rows, never a throw');
   }
   console.log(fails.length ? `board selftest: ${fails.length} FAILED of ${ran}\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
   process.exit(fails.length ? 1 : 0);
