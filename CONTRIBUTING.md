@@ -82,8 +82,8 @@ Appearance → UI. Identical regardless of which signal the node measures → CO
 
 ## 3. How a node is built (and the golden build rule)
 
-Each app is assembled from external `*.js` files referenced by `<Node>.src.html`, then **bundled**
-into a standalone `<Node>.html`.
+`tools/build.mjs` assembles each app from the external `*.js` files that `<Node>.src.html` references,
+then **bundles** them into a standalone `<Node>.html`.
 
 > ### ⛔ Edit the `*.js` + `<Node>.src.html`. **Never** edit the bundled `<Node>.html`. Re-bundle after changes.
 > The bundle is generated output. Hand-editing it is lost on the next re-bundle and breaks provenance.
@@ -186,11 +186,11 @@ SKIP unless you point `DEX_UPLOADS=<path>` at a real corpus) — live in **`CLAU
    re-bundling any `Foo.html`: **GATE A** pins each bundle's `manifestHash` to `BUILD-MANIFEST.json`;
    **GATE B** audits each `FIXTURE-PROVENANCE.json` known-answer triple `hash(input) + manifestHash →
    hash(output)`. A code change that moves an export → **regenerate that fixture** (re-run + re-export, never
-   hand-edit). Confirm `window.__provenanceOK`. `buildHash` is retired — no gate reads it.
+   hand-edit). Confirm `window.__provenanceOK`. No gate reads `buildHash` any more.
 
 **Scoped runs** are a dev convenience, NEVER the gate: all three surfaces take the same
 `group=` / `--group` / `bundle=` / `--bundle` filter, and `node tests/check-dex.mjs <dex>` runs both scoped
-lanes for one node. A filtered run is marked LOUDLY (`⦷ FILTERED … not the full gate`); the canonical merge
+lanes for one node. A filtered run marks itself LOUDLY (`⦷ FILTERED … not the full gate`); the canonical merge
 gate is always the UNFILTERED run. The full scoping + read-only reconcile details are in `CLAUDE.md` §🧪/§🔏.
 
 **The shared assertions in `tests/dex-tests.js` ARE the public contract.** If you intentionally change
@@ -204,7 +204,7 @@ Both cost a real PR each (`MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS` §4), so they b
 in a brief.
 
 - **`--ours` on `provenance/*.json` during a rebase is a GATE-B trap.** Resolving a rebase conflict by
-  taking upstream is right for a *bundle* — that file is generated, so you re-run `build.mjs` afterwards
+  taking upstream is right for a *bundle* — a tool generates that file, so you re-run `build.mjs` afterwards
   and the bytes become correct by construction. It is **wrong for the ledger**: the fragment then records
   the *previous* PR's `outputHash` while the committed export holds yours. GATE B does catch it
   (`1513466c0031193c ≠ recorded a290a0461e828ad6`) — but only after you have stopped looking.
@@ -229,13 +229,12 @@ Two more from the same list, cheap to forget:
 ## 4.5 Dev commands — the `npm run` spine
 
 The root **`package.json`** is a **dev-tooling manifest only** — `private`, unpublished, declares
-**no runtime dependencies**, ships nothing, is fetched by nothing at runtime (the 100%-local /
+**no runtime dependencies**, ships nothing, nothing fetches it at runtime (the 100%-local /
 offline / single-file invariant is untouched, same contract as `tsconfig.json`). It is the single
 command surface that unifies the build tooling and the gate runners; the CI workflows call these same
-scripts, so a command lives in exactly one place. No `npm install` is needed for the pure-Node
-scripts, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinned devDependency is
+scripts, so a command lives in exactly one place. The pure-Node scripts need no `npm install`, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinned devDependency is
 **Biome** (`@biomejs/biome`, the formatter — see the §B2 on-touch rule below); it installs via
-`npm ci` from the committed lockfile. It ships nothing and is fetched by nothing at runtime — the
+`npm ci` from the committed lockfile. It ships nothing and nothing fetches it at runtime — the
 100%-local invariant is untouched, exactly as `tsc` is.
 
 | Command | Runs | When |
@@ -357,7 +356,7 @@ night pairing, byte-weighted parallel ETA) live in the brief.
 ## 6. Non-negotiables (skim, then internalize)
 
 - **Stage your commits by EXPLICIT PATH — never `git add -A` / `git add .` / `git commit -a`.**
-  This repo is routinely worked by **several agents/sessions at once**, so the working tree is *not*
+  **Several agents/sessions** routinely work this repo **at once**, so the working tree is *not*
   yours alone: a blanket add sweeps up whatever a concurrent session happens to have in flight and
   publishes it under **your** commit message. It has already happened — `cabd7f7`
   ("fix(ppgdex): arbitrate the PPI spine…") also carries an unrelated CPAP corpus brief, its
@@ -368,8 +367,8 @@ night pairing, byte-weighted parallel ETA) live in the brief.
   appear, **leave them** — they belong to someone else's work-unit.
   Corollary: never `git checkout .` / `git stash` / `git reset --hard` a dirty tree you didn't dirty.
 - **The Clock Contract** (`CLAUDE.md`). Store time as floating wall-clock `tMs = Date.UTC(...)` and
-  read it back **only** with `getUTC*`. Parse vendor stamps by **regex**, never `new Date(str)`. A
-  missing timestamp is **`null`, never `now()`** — and an out-of-range component is `null` too, because
+  read it back **only** with `getUTC*`. Parse vendor stamps by **regex**, never `new Date(str)`. An
+  absent timestamp is **`null`, never `now()`** — and an out-of-range component is `null` too, because
   `Date.UTC` silently *rolls* it onto a plausible wrong instant. `parseTimestamp` is **single-sourced in
   `clock.js`** (`DexClock`, inlined into every bundle) since A5; ppgdex/glucodex/cpapdex keep
   **deliberate** node-local variants. Don't force those onto `DexClock`, and don't reintroduce a mirror.
@@ -404,9 +403,9 @@ night pairing, byte-weighted parallel ETA) live in the brief.
   wrong (a bare `build.mjs` builds nothing; the Release object was never created, so "Latest" read the
   old version). The Release notes are the new `CHANGELOG.md` section, leak-scanned before publishing
   (generic patterns; project-specific strings go in an EXTERNAL file named by `TEPNA_RELEASE_DENYLIST`).
-- **100% local. No network, no CDN, ever.** Fonts are system stacks. Assets are inlined at bundle time.
+- **100% local. No network, no CDN, ever.** Fonts are system stacks. The bundler inlines assets.
 - **Frozen / do-not-touch:** the bus name **`Ganglior`** (the Integrator still reads a `fascia` input
-  alias for back-compat). Retired vocabulary (proxy→heuristic, composite→experimental) must not reappear.
+  alias for back-compat). Retired grade words (`CLAUDE.md` §🎫 lists them) must not reappear.
 - **Known non-issues** (see `CLAUDE.md` — don't "fix" these): no `*.woff2` / `@font-face` by design;
   the deliberate node-local `parseTimestamp` variants; the finished
   `docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`.
@@ -420,7 +419,7 @@ at all, and the volume behind that UUID is NTFS (`nvme0n1p3`) — not the exFAT 
 measured on the one NTFS volume currently mounted, `findmnt` reports **`ntfs3`** (the kernel driver,
 which is what the 2026-07-28 reading used) while `lsblk` reports **`ntfs`** (the on-disk format), and
 `/proc/filesystems` registers both. Only the exFAT label is wrong. A second checkout does still sit on an NTFS mount
-(`/run/media/michal/data/Tepna`), but its last commit is **2026-07-22**, so it is abandoned rather than
+(`/run/media/michal/data/Tepna`), but its last commit is **2026-07-22**, so nobody works it: it is not the
 primary. The section is kept because the symptoms are real for anyone whose checkout IS on such a mount
 — it is now a conditional warning, not a description of this repo's main working copy.
 
@@ -444,7 +443,7 @@ and branch config. If a git command hangs, suspect a stale `.git` lock before su
 ## 7. Where to go next
 
 - **Visual map:** [How It's Wired — Architecture](wiring/How%20It's%20Wired%20-%20Architecture.html) — the whole system on one page.
-- **Per-node wiring:** [the -Dex suite index](wiring/How%20It's%20Wired%20-%20the%20Dex%20Suite.html) — file stack, data flow, evidence ladder, limits, how-to for each node, the Integrator, SynthGen, the experiments, and the papers.
+- **Per-node wiring:** [the -Dex suite index](wiring/How%20It's%20Wired%20-%20the%20Dex%20Suite.html) — file stack, data flow, evidence ladder, limits and how-to for each node. It also covers the Integrator, SynthGen, the experiments and the papers.
 - **The constitution:** `CLAUDE.md` (rules) · `ARCHITECTURE-PRINCIPLES.md` (the why) · `docs/LEXICON.md` (naming).
 - **Deep dives (only when you need them):** `briefs/INTEGRATOR-BUILD-BRIEF.md`, `briefs/CPAPDEX-BUILD-BRIEF.md`,
   `briefs/SYSTEM-COHESION-BRIEF.md`, `briefs/CLOCK-UNIFY-BRIEF.md`, and the rest of the `*-BRIEF.md` set.
