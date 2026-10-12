@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 **D7 was not a choice between two estimators.** The owner ruled on 2026-09-17: *derive the mechanism
 first.* Adopting an estimator because it fails less often, without knowing why the other fails, is the
 kind of choice that ages badly in a paper — and the two intuitive explanations were both tested and
-refuted, so the remaining mechanism was never going to be guessed. This brief carries the derivation
+refuted, so no guess could have reached the remaining mechanism. This brief carries the derivation
 the ruling asked for, the one cheap run that discriminates it, and the options with what each changes.
 
 ## 1 · What is already measured and must not be re-measured
@@ -23,11 +23,11 @@ Same corpus, same epochs, same granularity, weighting the only factor that moved
 | unweighted (the same code path, weights disabled) | **0 / 64** |
 
 `node tools/tch-fused-corpus.mjs --dir uploads/trio`, 2026-09-16, 118 nights read / 64 solved. Each
-night is solved **twice through one estimator** — `tch-fused-corpus.mjs:202-203` calls
+the tool solves each night **twice through one estimator** — `tch-fused-corpus.mjs:202-203` calls
 `AS.tchSigmasFused(hh, vv, oo, cH, cV, cO)` and then the same function with `one, one, one` — so the
 comparison carries no second implementation and no second corpus.
 
-**Two hypotheses were tested and REFUTED.** Neither may be re-proposed without new evidence:
+**I tested two hypotheses and REFUTED both.** Neither one returns without new evidence:
 
 1. **Clock alignment.** Combined H10↔Verity `offsetMadMs` over 19 folded nights: 3hat-EXCLUDED median
    **206.2 ms** vs ESTIMATED **213.1 ms** — indistinguishable, and the excluded set is if anything
@@ -45,7 +45,7 @@ The classic hat is a half-sum identity over three pairwise difference variances
     σ²_H = ½(V_HV + V_HO − V_VO)        σ²_V = ½(V_HV + V_VO − V_HO)        σ²_O = ½(V_HO + V_VO − V_HV)
 
 A corner goes negative exactly when the triangle inequality fails on those three numbers. **The identity
-assumes all three variances are estimated over ONE sample.** The fused path does not satisfy that
+assumes one sample behind all three variances.** The fused path does not satisfy that
 assumption (`analysis-stats.js:926-959`):
 
     wHV = t·h·v        wHO = t·h·o        wVO = t·v·o
@@ -60,7 +60,7 @@ With the weights disabled all three collapse onto the
 identical sample, which is why `one, one, one` gives 0/64 — and that zero is a property of the common
 measure, **not** evidence that the unweighted estimator is better conditioned on real data.
 
-**The asymmetry is sharper than "different weights".** `cO` is pinned at 1 for the O2Ring — *"a smoothed
+**The asymmetry runs sharper than "different weights".** `tch-fused-corpus.mjs:198` pins `cO` at 1 for the O2Ring — *"a smoothed
 device integer, cannot over-detect ⇒ trust 1"* (`tools/tch-fused-corpus.mjs:198`). So in the corpus run
 above:
 
@@ -97,7 +97,7 @@ between them.
 
 Second non-comparability, recorded here so the next session need not re-discover it: `tch-multinight.mjs`'s 9/67 exclusions are
 the **epoch-granularity classic** hat; `tch-fused-corpus.mjs` pools ~16.5 k units/night. Different
-computations — the exclusion *rates* may be discussed side by side, the **σ magnitudes may not**.
+computations. A reader may compare the exclusion *rates* side by side, and never the **σ magnitudes**.
 
 ## 4 · The three measurements that decide it
 
@@ -105,7 +105,7 @@ All three run on the committed trio corpus, read-only, no DSP change. Costs are 
 (118 nights, both estimators, ~4 min wall).
 
 - **M1 · Which corner.** Report `negVar.{h10,verity,o2}` per excluded night. Pre-stated criterion: if
-  **≥ 9 of the 12** negatives sit on the O2Ring corner, §2's asymmetry prediction is supported; a spread
+  **≥ 9 of the 12** negatives sit on the O2Ring corner, that upholds §2's asymmetry prediction; a spread
   across corners refutes it as the *sole* mechanism. Cost ~4 min; the field already exists.
 - **M2 · One common weight.** Recompute with a single vector `w = t·h·v·o` applied to all three pairwise
   variances — one measure, confidence information retained. Pre-stated criterion: **0 negative nights**
@@ -135,10 +135,10 @@ choosing in the dark, and §2 makes C the only option that does not discard info
 
 1. M1, M2, M3 run with the §4 criteria unchanged from this brief, each emitting one `tepna.verdict/1`.
 2. The corner distribution of the 12 negatives is on record.
-3. §2's derivation is either supported or refuted **by name**, and a refutation is written back into this
+3. M1–M3 uphold or refute §2's derivation **by name**, and a refutation goes back into this
    brief rather than into a new one.
 4. The owner picks A, B or C on the evidence; the residue row closes to this brief's filename.
-5. No σ is quoted from a `hasConf: false` night, in this brief or anywhere downstream.
+5. Nobody quotes a σ from a `hasConf: false` night, in this brief or anywhere downstream.
 
 ## 7 · Out of scope
 

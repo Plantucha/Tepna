@@ -14,24 +14,28 @@ not *rank* nights better (r 0.4993 vs 0.5141) and looks better only on absolute 
 is bigger.
 
 The owner's instruction on 2026-10-12 was to **size a calibration on every corpus worth using
-before building anything.** This brief is that sizing. **Nothing here runs until §2's conflict is
-resolved.**
+before building anything.** This brief is that sizing. **§2 carries the owner's split ruling of
+12:50 EDT, and the sizing below rests on it.**
 
 ## 1 · Owner rulings, 2026-10-12
 
-Relayed by Kestrel at 12:14 EDT, and answered directly in-session at ~12:10 EDT. Recorded verbatim
-because two of the three channels agree and one does not:
+Kestrel relayed three rulings at 12:14 EDT; the owner answered the same three directly in-session at
+~12:10 EDT. Two channels agreed on two items and disagreed on the third, so this section records all of
+them verbatim. The owner then settled the disagreement at 12:50 EDT (§2).
 
 - **R1 · Definition — fit all four, report four.** *"One calibration per definition, each named by its
   definition. No pooled 'AHI'."* The direct answer was *"Fit all four, report all four"*. **Agreed; no
   conflict.**
-- **R2 · Visits — CONFLICT, see §2.** The relay: *"SHHS1 is the fit cohort, SHHS2 is the hold-out. No
-  subject in both roles."* The direct answer: *"Pool both visits."* These are mutually exclusive.
+- **R2 · Visits — SETTLED 12:50 EDT, see §2.** The two earlier channels excluded each other.
+  - 12:14 relay: *"SHHS1 is the fit cohort, SHHS2 is the hold-out. No subject in both roles."*
+  - ~12:10 direct: *"Pool both visits."*
+  - **12:50 EDT ruling, relayed by Kestrel:** *"Split: subject-disjoint. 2843 SHHS1 subjects fit. 2651
+    SHHS2 subjects hold out. No subject in both roles."* That names reading *(b)* of §2.
 - **R3 · Open datasets — in scope AFTER validation.** *"You write the derivation brief first; the refit
   does not wait for it, the open sets join when the brief is DONE."* The direct answer was *"In scope,
   derive the AHI first"*. **Agreed; no conflict.**
 
-## 2 · 🔴 The blocking conflict, with the number that makes it matter
+## 2 · The split, ruled — and the number that made the choice matter
 
 **Measured 2026-10-12** from `shhs-harmonized-dataset-0.21.0.csv` and the two EDF trees (roots in
 `docs/CORPUS-LOCATIONS.md`; the SHHS1 EDFs and the harmonized table are on **different** mounts):
@@ -43,8 +47,8 @@ because two of the three channels agree and one does not:
 | **in both EDF sets** | — | **2293** |
 | **visit-2-only subjects** | — | **358** |
 
-Every one of the 7787 available EDFs carries all four harmonized AHI labels, so labels are not the
-binding constraint — the subject overlap is. The two rulings therefore size differently by an order of
+Every one of the 7787 available EDFs carries all four harmonized AHI labels, so the labels do not bind
+— the subject overlap does. The two earlier rulings therefore sized the work differently by an order of
 magnitude:
 
 - **"Pool both visits"** ⇒ n = 7787 recordings over **5494 subjects**; 2293 subjects contribute twice.
@@ -57,9 +61,14 @@ magnitude:
   - *(b)* drop the 2293 overlapping subjects' visit-1 rows from the fit; fit = **2843**, hold-out =
     **2651**. Both sets usable, at the cost of 45 % of the fit cohort.
 
-**This is the only item that blocks the work**, and it cannot be resolved by assumption: the three
-readings give fit cohorts of 7787, 5136 and 2843 and hold-outs of 0, 358 and 2651. It goes to the owner
-as one question. Everything else in this brief is independent of the answer.
+🔴 **The owner ruled at 12:50 EDT, relayed by Kestrel: reading *(b)*.** Fit = the **2843** SHHS1
+subjects who never return for visit 2. Hold-out = all **2651** SHHS2 subjects.
+
+The ruling costs 45 % of the available visit-1 records. It buys a hold-out seven times the size of
+reading *(a)*'s. The three readings gave fit cohorts of 7787, 5136 and 2843 and hold-outs of 0, 358 and
+2651, so no assumption could have stood in for the answer.
+
+**Every count below now reads against fit = 2843, hold-out = 2651.**
 
 ## 3 · The reference AHI on record is a FIFTH definition, not one of the four
 
@@ -84,12 +93,12 @@ tool in the tree can read a harmonized column today.** The sink already exists, 
 ## 4 · Cost, measured
 
 `nsrr-oxydex-odi.mjs --dir` scores **4.15 s/record** serially (`tools/nsrr-score-pool.mjs:11`; the
-4 s figure is independently stated at `nsrr-ahiest-validate.mjs:51` and `nsrr-aai-validate.mjs:43`,
-which also records that an earlier "146 s/record" was fabricated).
+`nsrr-ahiest-validate.mjs:51` and `nsrr-aai-validate.mjs:43` state the same 4 s figure
+independently, and the second one also records that someone fabricated an earlier "146 s/record").
 
 **The scoring run is definition-independent.** One pass produces `odi3`, `odi4`, `desSev`, `t95`,
-`ahiODI4` and `ahiKulkas` per record; the four definitions differ only in the *reference column* the fit
-is taken against. So four calibrations cost **one** scoring run plus four fits:
+`ahiODI4` and `ahiKulkas` per record; the four definitions differ only in the *reference column* each
+fit reads. So four calibrations cost **one** scoring run plus four fits:
 
 | unit | records | serial cost | notes |
 |---|---|---|---|
@@ -98,9 +107,9 @@ is taken against. So four calibrations cost **one** scoring run plus four fits:
 | four fits | — | seconds | from one scored table |
 | **total, both visits** | 7787 | **≈ 9 h serial** | I/O-bound over NFS, not DSP-bound: the two trees are on two different mounts, one NFSv3 |
 
-Parallelism is available but **unmeasured on this corpus** and is capped by the 8 GB rule, not by cores
-— `nsrr-resprate-validate.mjs:49` records that parallelism there was *measured, not assumed*, and the
-same discipline applies before any `--jobs` figure is quoted here.
+Parallelism exists here but stays **unmeasured on this corpus**, and the 8 GB rule caps it rather than
+the core count. `nsrr-resprate-validate.mjs:49` records that someone *measured* the parallel speed-up
+there rather than assuming it, and the same discipline binds before anyone quotes a `--jobs` figure.
 
 ## 5 · The other corpora, measured 2026-10-12
 
@@ -120,30 +129,33 @@ same discipline applies before any `--jobs` figure is quoted here.
   not corpus.
 
 ⚠️ **Print the root with every count.** `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md` opens with this
-warning and it reproduced on 2026-10-12 while this brief was being written: the harmonized CSV was
-counted against the Synology root, returned **0**, and read exactly like "the labels are absent" — it
-is on the TrueNAS mount. `nsrr-score-pool.mjs:430-431` has the same hazard baked in, defaulting `--edfs`
-and `--xml` to **two different stores**.
+warning, and it reproduced on 2026-10-12 during this brief's own measurement.
+
+I counted the harmonized CSV against the Synology root, got **0**, and read it exactly like "the labels
+are absent". The table sits on the TrueNAS mount. `nsrr-score-pool.mjs:430-431` carries the same hazard,
+defaulting `--edfs` and `--xml` to **two different stores**.
 
 ## 6 · The band must be pre-stated, and this is where
 
 Four refits, four reported correlations, is exactly the shape `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md`
 exists to stop going band-less, and `2026-09-22-nsrr-pool-scorers-have-no-prestated-band` already names
 `nsrr-ahiest-validate.mjs` as one of the four pending producers. **A threshold written after these runs
-is a number, not a test** (`VERDICT-CONTRACT` §1). Draft criterion, to ratify or strike **before** any
-record is scored:
+is a number, not a test** (`VERDICT-CONTRACT` §1). Draft criterion, to ratify or strike **before** the
+first scoring run:
 
 > A refit **supersedes** the shipped coefficients for a given definition only if, on records held out of
 > its own fit, it improves **rank** correlation with that definition's scored AHI — Spearman ρ, not
 > absolute error — by a margin whose 95 % CI excludes 0 under a subject-clustered bootstrap.
 
 Rank, because the residue row's whole finding is that `ahiKulkas` wins on absolute error purely by being
-bigger, and a single fitted multiplier matches it out-of-sample. Subject-clustered, because §2 says
-subjects repeat whichever reading of R2 wins. **Not ratified** — this is a draft for the owner.
+bigger, and a single fitted multiplier matches it out-of-sample. Subject-clustered, because the
+harmonized table repeats 2293 subjects and a bootstrap over rows would understate the interval.
+**Not ratified** — this is a draft for the owner.
 
 ## 7 · Acceptance
 
-1. §2's conflict resolved by the owner, in writing, with the chosen reading named (pool / 358 / 2843).
+1. §2's split follows the owner's 12:50 EDT ruling: fit 2843, hold-out 2651, no subject in both roles.
+   ✅ **met 2026-10-12.**
 2. §6's criterion ratified or replaced **before** the first scoring run.
 3. A harmonized-column reader exists and every scored row carries `ahiVar` = the exact column name.
 4. One scoring run per visit in scope; four fits from it; four `tepna.verdict/1` objects, one per
@@ -151,8 +163,8 @@ subjects repeat whichever reading of R2 wins. **Not ratified** — this is a dra
 5. Any coefficient change to `computeAHIestimates` re-bundles OxyDex and re-verifies its fixtures —
    `oxydex-dsp.js` is in the trio fold's compute set, so a coefficient edit also stales every folded
    night. **Sequence it against the fold, never beside it.**
-6. The published R² 0.27 is cited only as the repo-local-definition control (§3), never as a baseline for
-   a harmonized refit.
+6. Every citation of the published R² 0.27 names it as the repo-local-definition control (§3), and none
+   treats it as a baseline for a harmonized refit.
 
 ## 8 · Out of scope
 
@@ -160,4 +172,4 @@ Deriving an AHI for the open datasets (R3's own brief). Any claim about `ahiKulk
 residue row explicitly refuses that, and the split-half folds disagreed in sign. Publishing any rate
 outside the repo (`STRATEGIC-PRIORITIES-2026-08-26` §P5 covers publication, not measurement).
 
-**Rule 0:** `node tools/doc-search.mjs "AHI calibration against SHHS harmonized AHI definitions, oximetry-only instrument refit"` → `papers/odi4-ahi-bias.html` (0.031), `odi-bias-analysis.html` (0.031), `docs/ODI-BIAS-README.md` (0.031), `CHANGELOG.md` (0.029), `odi-bias-analysis.js` (0.029) — read 2026-10-12; the apparatus exists and expects exactly this input, no prior brief sizes the four-definition refit.
+**Rule 0:** `node tools/doc-search.mjs "AHI calibration against SHHS harmonized AHI definitions, oximetry-only instrument refit"` → `papers/odi4-ahi-bias.html` · `odi-bias-analysis.html` · `docs/ODI-BIAS-README.md` · `CHANGELOG.md` · `odi-bias-analysis.js`. Read 2026-10-12. The apparatus exists and expects exactly this input. No prior brief sizes the four-definition refit.
