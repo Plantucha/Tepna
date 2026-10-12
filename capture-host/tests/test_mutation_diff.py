@@ -3837,3 +3837,52 @@ def test_entry_matches_function_and_kill_attributed_to_are_pinned_directly():
     assert M.kill_attributed_to({"function": "build"}, "k", {("k", "prune")}) is False
     assert M.kill_attributed_to({"function": "build"}, "k", {"k"}) is False
     assert M.kill_attributed_to({}, "k", None) is False
+
+
+# ── The two `.get` DEFAULTS in `classify` are one coupling, and only one input can see it ───────────
+# Four mutants of these two lines survived the diff-scoped gate on #3511. Two are killed below; two
+# are recorded in `tools/mutate-equivalence.json` with the proof, because the guard inside
+# `function_of_mutant` makes `""` and `None` the same argument.
+
+
+def test_a_survivor_with_no_key_cell_meets_a_KEYLESS_entry_on_the_empty_key():
+    """Both defaults are the SAME empty string, and that is the only place the two malformed shapes meet.
+
+    `classify` groups survivor rows under `sv.get("key", "")` and reads an entry's key as
+    `e.get("key", "")`. So a survivor whose key cell is absent is claimable by an entry carrying no
+    `key`, and by nothing else — change either default and the pair stops meeting. The ledger's own
+    schema test states the entry half of this ("it reads `.get("key", "")` and reports the entry
+    orphaned"), which holds for every REAL survivor, since a survivor is built from a diff key.
+    """
+    entry = {"class": "no-distinguishing-input", "probe": "the covering set, with the mutant planted"}
+    out = M.classify([entry], [{"mutant": "mod.x_f__mutmut_1"}], [])
+    assert len(out["excused"]) == 1, out
+    assert not out["unclassified"], out
+    assert not out["orphaned"], out
+
+
+def test_a_survivor_with_no_key_cell_is_NOT_excused_by_an_entry_that_carries_a_key():
+    """The half that matters in production: a keyed entry claims a keyed survivor and nothing else.
+
+    A survivor with no key is reported unclassified, so the gate fails on it rather than letting a
+    neighbouring entry absorb it."""
+    entry = {"key": "- a | + b", "class": "no-distinguishing-input", "probe": "ran it"}
+    out = M.classify([entry], [{"mutant": "mod.x_f__mutmut_1"}], [])
+    assert not out["excused"], out
+    assert len(out["unclassified"]) == 1, out
+    assert len(out["orphaned"]) == 1, out
+
+
+def test_function_of_mutant_reads_an_ABSENT_name_and_an_empty_one_identically():
+    """The canary under two recorded equivalence entries, so the claim cannot rot silently.
+
+    `classify` reads a survivor's mutant name as `sv.get("mutant", "")`. Mutating that default to
+    `None` is unobservable ONLY because `function_of_mutant` opens with `if not name: return ""` — both
+    arguments are falsy and both return the empty string. If that guard is ever narrowed to `== ""`,
+    this test goes red and the two ledger entries stop being true on the same day.
+    """
+    read = M.function_of_mutant
+    assert read("") == ""
+    assert read(None) == ""  # type: ignore[arg-type]
+    absent: dict = {}
+    assert read(absent.get("mutant", "")) == read(absent.get("mutant", None))  # type: ignore[arg-type]

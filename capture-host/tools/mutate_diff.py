@@ -1113,15 +1113,18 @@ def main(argv=None) -> int:
     # contended run and the same 15 SURVIVING on a quiet one, deleted them, and nearly landed it.
     # So a kill must be a DETECTION (raw exit 1, never the status word) and must survive an isolated
     # re-run — and the re-run is judged for load too, because it meets the same contention.
-    _trusted_pairs = {(k, full) for (k, full), ec in _exit_by_pair.items() if kill_is_a_detection(ec)[0]}
-    _trusted = {k for k, _full in _trusted_pairs}
+    # NAMED `_detected_pairs`, and the name is load-bearing twice over. A kill here is a DETECTION,
+    # never the status word — and the earlier name carried the word `trusted`, which CodeQL
+    # classifies as a secret: every key reaching the verdict file then read as a credential written
+    # in clear text (9 high alerts on #3511, all 31 flows sourced at this one line).
+    _detected_pairs = {(k, full) for (k, full), ec in _exit_by_pair.items() if kill_is_a_detection(ec)[0]}
     verdict_survivor_keys = {sv.get("key") for sv in verdict["survivors"]}
     _claimed_keys = {e.get("key", "") for e in entries}
     _corroborated: set = set()
     _uncorroborated: list = []
-    # EVERY trusted kill of a claimed key, not one per key: two mutants sharing a key are two
+    # EVERY detected kill of a claimed key, not one per key: two mutants sharing a key are two
     # separate refutation questions and the earlier answer used to be overwritten by the later one.
-    for _k, _name in sorted(p for p in _trusted_pairs if p[0] in _claimed_keys):
+    for _k, _name in sorted(p for p in _detected_pairs if p[0] in _claimed_keys):
         _mod, _wk, _tst, _cln = _work_of_key.get(_k, (None, None, None, None))
         if not _name or _wk is None:
             _uncorroborated.append((_k, "the mutant could not be located for an isolated re-run"))
