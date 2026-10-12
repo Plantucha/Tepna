@@ -12,6 +12,8 @@
 # buffers pinned at the cap), and the number it produced looked entirely reasonable.
 
 import itertools
+import json
+import re
 import asyncio
 
 import pytest
@@ -736,3 +738,219 @@ def test_the_pulse_rate_mean_publishes_the_n_it_rests_on(monkeypatch):
     assert s["beats_polled"] >= 2
     assert s["reported_pr_n"] == sum(1 for b in range(s["beats_polled"]) if b % 2 == 0)
     assert s["reported_pr_n"] < s["beats_polled"] and s["reported_pr_mean"] == 60.0
+
+
+# ── residue 2026-09-22-probe-survivors-outside-run-measured ─────────────────────────────────────────
+# The row's table of survivors per function came off a whole-module audit; a second audit reported by
+# the API lane (`0035e752`, mutmut 3.8.0, 821 mutants, 124 survivors, 120 outside `run()`) is quoted
+# here as ITS measurement, not re-run under the owner's standing stop on mutation sweeps. What the
+# tests below rest on needs no sweep: each one is written against a named survivor family and asserts
+# what a consumer READS — the emitted object, the printed line, the struct format — not that a line ran.
+def test_parse_counts_reads_a_header_only_reply_and_an_unsigned_count():
+    """A reply of EXACTLY the 6 header bytes carries a count (of zero body bytes); only a shorter one is
+    headerless. And the count is u16: 0xFFFF is 65535 records declared, not -1."""
+    assert probe.parse_counts(b"\x00\x00\x00\x00\x07\x00") == (7, 0)
+    assert probe.parse_counts(b"\x00\x00\x00\x00\xff\xff") == (65535, 0)
+    assert probe.parse_counts(b"\x00\x00\x00\x00\x07") == (None, 0)
+
+
+def test_marker_stats_judges_position_zero_on_the_neighbour_it_has_and_counts_every_isolated_marker():
+    """`i == 0` must mean position ZERO: a marker first in the body is judged against body[1] only, never
+    against body[-1] (the wrap-around neighbour). And the isolated count ACCUMULATES."""
+    assert probe.marker_stats(bytes([156, 1, 156])) == (2, 2)
+    assert probe.marker_stats(bytes([156, 1, 156, 2, 156])) == (3, 3)
+
+
+def _full(r=125.0):
+    return {
+        "replies": 9,
+        "replies_truncated": 1,
+        "replies_with_records": 7,
+        "saturated_replies": 2,
+        "saturated_fraction": 0.2857,
+        "cap": 250,
+        "total_records": 1234,
+        "rate_all_hz": 126.5,
+        "rate_unsaturated_hz": r,
+        "span_s": 11.5,
+        "unsaturated_span_s": 8.25,
+    }
+
+
+def test_verdict_object_result_carries_exactly_the_documented_keys_with_the_values_it_was_given():
+    v = probe.verdict_object(_full(125.0))
+    assert v["result"] == {**_full(125.0), "matched_hz": [125.0], "closest_fraction": 0.0}
+    assert v["evidence"] == ["capture-host/probe_oxyii_0x03.py"]
+    assert v["producedBy"]["tool"] == "capture-host/probe_oxyii_0x03.py"
+    assert v["population"] == {"checked": 7, "eligible": 9, "excluded": 2}
+
+
+def test_every_verdict_object_refusal_states_its_reason_in_full():
+    zero = {**_full(), "replies_with_records": 0, "replies_truncated": 0, "rate_unsaturated_hz": None}
+    v = probe.verdict_object(zero)
+    assert v["status"] == "UNKNOWN"
+    assert v["reason"] == (
+        "the ring returned no 0x03 records — an empty reply and a wrong request "
+        "argument are indistinguishable, so nothing was decided"
+    )
+    trunc = {**zero, "replies": 3, "replies_truncated": 3}
+    v = probe.verdict_object(trunc)
+    assert v["status"] == "UNKNOWN"
+    assert v["reason"] == (
+        "3 of 3 replies were too short to carry the 0x03 header — "
+        "malformed replies, not an empty ring, so nothing was decided"
+    )
+    v = probe.verdict_object({**_full(), "rate_unsaturated_hz": None})
+    assert v["status"] == "UNDERPOWERED"
+    assert v["reason"] == (
+        "0 unsaturated reply pairs, minimum 1: 2 of 7 replies pinned at the 250-record cap — "
+        "this run measured the polling, not the device"
+    )
+    v = probe.verdict_object(_full(100.0))
+    assert v["status"] == "FAIL"
+    assert v["reason"] == "100.0 Hz is within 2% of neither 112.9 nor 125.0 Hz — a third answer"
+
+
+def test_verdict_sample_is_fifty_one_unmarked_replies_of_25_records_at_5_hz(monkeypatch):
+    """The adoption gate reads this object, so its INPUT is the contract: 51 replies 0.2 s apart, 25
+    records each, no markers. Intercept the rows (the verdict does not surface the marker fields)."""
+    seen = []
+    real = probe.summarise
+    monkeypatch.setattr(probe, "summarise", lambda rows, *a, **k: (seen.append(rows), real(rows, *a, **k))[1])
+    v = probe.verdict_sample()
+    assert seen[0] == [{"t": i * 0.2, "count": 25, "markers": 0, "isolated": 0} for i in range(51)]
+    assert v["result"]["replies"] == 51 and v["result"]["total_records"] == 1275
+    assert (v["result"]["span_s"], v["result"]["unsaturated_span_s"]) == (10.0, 10.0)
+
+
+def _v(r, **kw):
+    return {
+        "replies_with_records": 5,
+        "saturated_replies": 0,
+        "saturated_fraction": 0.0,
+        "cap": 250,
+        "rate_unsaturated_hz": r,
+        "unsaturated_span_s": 4.5,
+        **kw,
+    }
+
+
+def test_verdict_prose_lines_are_exact_for_every_outcome():
+    assert probe.verdict(_v(None, replies_with_records=0)) == [
+        "VERDICT: the ring returned NO 0x03 records — worn? correct argument? See --arg.",
+        "  An empty reply and a wrong request argument are indistinguishable here.",
+    ]
+    assert probe.verdict(_v(None, saturated_replies=3, saturated_fraction=1.0)) == [
+        "VERDICT: no unsaturated interval — every usable pair had a reply at the cap.",
+        "  3/5 replies pinned at 250.  Poll faster (--hz) and re-run; this run measures the POLLING, not the device.",
+    ]
+    assert probe.verdict(_v(125.0)) == [
+        "VERDICT: unsaturated rate 125.0 Hz over 4.5 s",
+        "  → consistent with 125.000 Hz (within 2 %)",
+    ]
+    assert probe.verdict(_v(112.9, saturated_replies=1, saturated_fraction=0.2)) == [
+        "VERDICT: unsaturated rate 112.9 Hz over 4.5 s",
+        "  ⚠ 1/5 replies (20.0%) hit the 250-record cap — see the warning "
+        "in this file's header; a high fraction makes even the unsaturated rate suspect.",
+        "  → consistent with 112.9 Hz (within 2 %)",
+    ]
+    assert probe.verdict(_v(100.0)) == [
+        "VERDICT: unsaturated rate 100.0 Hz over 4.5 s",
+        "  → consistent with NEITHER candidate — a third answer, not a tie-break",
+    ]
+
+
+def test_verdict_candidate_bands_sit_on_112_9_and_125_not_a_unit_away():
+    """Probes placed just inside one candidate's 2 % band and OUTSIDE every shifted copy of it, so a
+    candidate nudged by a Hz, or a band widened past 2 %, changes the lines."""
+    inside_low = 112.9 * 0.981  # 1.9 % under 112.9; 2.8 % under 113.9
+    assert probe.verdict(_v(inside_low))[-1] == "  → consistent with 112.9 Hz (within 2 %)"
+    inside_high = 125.0 * 0.981  # 1.9 % under 125; 2.7 % under 126
+    assert probe.verdict(_v(inside_high))[-1] == "  → consistent with 125.000 Hz (within 2 %)"
+    for beyond in (113.9 * 1.019, 126.0 * 1.019):  # not within 2 % of EITHER real candidate
+        assert (
+            probe.verdict(_v(beyond))[-1] == "  → consistent with NEITHER candidate — a third answer, not a tie-break"
+        )
+
+
+def _capture_run(monkeypatch, summary=None):
+    seen = {}
+
+    async def fake_run(addr, seconds, hz, arg):
+        seen.update(addr=addr, seconds=seconds, hz=hz, arg=arg)
+        return {"summary": summary or probe.summarise(_s([25, 25, 25, 25])), "samples": [], "beats": []}
+
+    monkeypatch.setattr(probe, "run", fake_run)
+    return seen
+
+
+def test_main_defaults_and_argument_types_reach_run(monkeypatch):
+    seen = _capture_run(monkeypatch)
+    assert probe.main([]) == 0
+    assert seen == {"addr": "D1:98:62:7C:92:B3", "seconds": 600.0, "hz": 5.0, "arg": None}
+    assert isinstance(seen["seconds"], float) and isinstance(seen["hz"], float)
+    assert probe.main(["--address", "AA:BB", "--seconds", "3", "--hz", "8", "--arg", "0902"]) == 0
+    assert seen == {"addr": "AA:BB", "seconds": 3.0, "hz": 8.0, "arg": "0902"}
+    assert isinstance(seen["seconds"], float) and isinstance(seen["hz"], float)
+
+
+def test_main_help_documents_every_option(monkeypatch, capsys):
+    monkeypatch.setenv("COLUMNS", "400")
+    with pytest.raises(SystemExit) as e:
+        probe.main(["--help"])
+    assert e.value.code == 0
+    out = capsys.readouterr().out
+    # Anchored to the line: a "XX…XX"-wrapped string still CONTAINS the original, so `in` would pass it.
+    assert "\nMeasure the 0x03 LIVE_SAMPLES_A record rate (worn ring).\n" in out
+    for text in (
+        "≥600 recommended (§7.4)",
+        "poll rate; higher = less saturation risk",
+        "request-argument hex override, e.g. 0701",
+        "write the full per-reply log here",
+        "print one tepna.verdict/1 object over synthetic replies and exit (the adoption gate reads this)",
+    ):
+        assert re.search(r"  " + re.escape(text) + r"$", out, re.M), text
+
+
+def test_main_verdict_sample_prints_the_object_indented_by_one_and_never_touches_the_radio(monkeypatch, capsys):
+    fixed = {"gate": "g", "nested": {"a": 1}}
+    monkeypatch.setattr(probe, "verdict_sample", lambda: fixed)
+    seen = _capture_run(monkeypatch)
+    assert probe.main(["--verdict-sample"]) == 0
+    assert capsys.readouterr().out == json.dumps(fixed, indent=1) + "\n"
+    assert seen == {}, "--verdict-sample must return before run() is reached"
+
+
+def test_main_without_a_radio_stack_refuses_in_words(monkeypatch):
+    monkeypatch.setattr(probe, "BleakScanner", None)
+    with pytest.raises(SystemExit) as e:
+        probe.main([])
+    assert e.value.code == "probe_oxyii_0x03: bleak is not installed — this probe needs a radio stack"
+
+
+def test_main_prints_each_summary_row_the_verdict_object_and_where_the_log_went(monkeypatch, capsys, tmp_path):
+    summary = probe.summarise(_s([25, 25, 25, 25]))
+    _capture_run(monkeypatch, summary)
+    log = tmp_path / "log.json"
+    opened = []
+    real_open = open
+
+    def spy_open(*a, **k):
+        opened.append((a, k))
+        return real_open(*a, **k)
+
+    monkeypatch.setattr(probe, "open", spy_open, raising=False)
+    assert probe.main(["--json", str(log)]) == 0
+    lines = capsys.readouterr().out.split("\n")
+    for k, v in summary.items():
+        assert f"  {k:24} {v}" in lines
+    obj = json.loads(next(line for line in lines if line.startswith('{"schema"')))
+    assert (
+        obj["gate"] == probe.VERDICT_GATE and obj["status"] == "PASS" and obj["result"]["rate_unsaturated_hz"] == 125.0
+    )
+    assert f"per-reply log → {log}" in lines
+    assert lines[lines.index(f"per-reply log → {log}") - 1] == ""
+    assert [(a[:2], k) for a, k in opened] == [((str(log), "w"), {"encoding": "utf-8"})]
+    text = log.read_text(encoding="utf-8")
+    assert text == json.dumps(json.loads(text), indent=1)
+    assert json.loads(text)["verdict"] == obj

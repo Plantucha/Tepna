@@ -5534,3 +5534,37 @@ def test_SEAM_SOURCE_names_all_THREE_outcomes_not_just_the_new_one(tmp_path, mon
         )
         == 3
     )
+
+
+# ── a NON-FINITE seam step is unmeasured (§∅), never a number in a ranking and a sentence ───────────
+# `float("nan")` and `float("inf")` parse. A `nan` step lost every `max` comparison and rendered as
+# `largest +nan s`; the seam itself is real and still splits the axis (it keys on `host_ms`).
+
+
+def test_a_non_finite_seam_step_is_read_as_None_and_the_seam_is_kept(tmp_path):
+    for cell in ("nan", "inf", "-inf"):
+        lines = [
+            "phone_ts;idx;device_step_ms\n",
+            f"2026-09-20T23:05:00.000;1;{cell}\n",
+            "2026-09-20T23:06:00.000;2;123.000\n",
+        ]
+        (tmp_path / f"{BASE}_ECGSEAMS.txt").write_text("".join(lines))
+        got = si.recorded_seams(str(tmp_path / f"{BASE}_ECG.txt"), T0, T0 + dt.timedelta(hours=1))
+        assert [r["step_ms"] for r in got] == [None, 123.0], (cell, got)
+
+
+def test_a_nan_seam_step_never_renders_as_a_number_and_the_finite_one_is_the_largest(tmp_path):
+    tb = _split_night(
+        tmp_path, SEAM_HDR + [_seam_row(12 * 60_000, float("nan")), _seam_row(16 * 60_000, 244000000.0 * 1000.0)]
+    )
+    r = tb["reason"]
+    assert "nan" not in r.lower() and "inf" not in r.lower(), r
+    assert "2 recorded clock seam(s), largest +2.44e+08 s (1 with no finite step recorded)" in r, r
+    assert "the axis is judged in 3 segment(s), never across a step" in r, r
+
+
+def test_a_night_whose_every_seam_step_is_non_finite_names_the_absence(tmp_path):
+    tb = _split_night(tmp_path, SEAM_HDR + [_seam_row(12 * 60_000, float("nan"))])
+    r = tb["reason"]
+    assert "1 recorded clock seam(s), no finite step recorded; no cause recorded this night" in r, r
+    assert "nan" not in r.lower() and "largest" not in r, r

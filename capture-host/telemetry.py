@@ -137,11 +137,49 @@ def optical_worn(
 
     ⚠️ `None` IS NOT `False`, and the callers make that distinction load-bearing: `worn=False` drops the
     link for power and unblocks the CPAP harvest, while `None` means "no verdict" and changes nothing.
-    Returning False on a short or empty buffer would drop a sensor that had merely just connected."""
+    Returning False on a short or empty buffer would drop a sensor that had merely just connected.
+
+    🔴 DARK IS NOT A WORN VERDICT. This detector REFUTES wear; it does not confirm it. Bright
+    ambient measures that nothing covers the LED window. Dark ambient is skin OR a dark bedroom, and a
+    level cannot separate the two. Measured 2026-09-24 over the corpus: of the 47 removals at 55 Hz that
+    the loss audit classifies `doff`, this test called 27 of them WORN, and every one was a removal in
+    the dark (median |ambient| 136 .. 3 951 against the 5 000 threshold, where a worn band reads ~1e2).
+    So the dark side returns `None` and `ambient_level_undecidable` names why; only the bright side
+    votes. `None` changes nothing downstream, so the cut can never drop a live link, and what it gives
+    up is a worn assertion no measurement supported. The discriminator the residue row names, ambient
+    SPREAD against the file's own median or motion, is a SECOND detector and the owner's call, never a
+    widened threshold here. §∅ and the owner's 2026-10-12 ruling on a battery flat at 100 %: when only
+    the ambiguous signal speaks, publish null and name the observation (residue
+    2026-09-24-optical-worn-calls-a-removed-verity-worn-in-the-dark)."""
+    med = _ambient_level_median(ambient, min_samples=min_samples, fs=fs)
+    if med is None or med < threshold:
+        return None
+    return False
+
+
+def ambient_level_undecidable(
+    ambient, *, threshold: float = _WORN_AMBIENT_MAX, min_samples: int = _WORN_MIN_SAMPLES, fs: float | None = None
+) -> bool:
+    """Did the level test abstain because DARK IS AMBIGUOUS, rather than for want of domain or data?
+
+    PURE and separate from `optical_worn` for the reason `calibrated_for` is separate: the daemon
+    publishes WHY it has no verdict, and a bare `None` cannot say whether the detector was out of
+    domain, short of samples, or reading a value that skin and a dark room both produce. True names
+    only the third case. Takes the same arguments as the detector it explains."""
+    med = _ambient_level_median(ambient, min_samples=min_samples, fs=fs)
+    return med is not None and med < threshold
+
+
+def _ambient_level_median(ambient, *, min_samples: int, fs: float | None) -> float | None:
+    """The magnitude median the level test judges, or `None` when there is nothing judgeable.
+
+    ONE reader for the domain gate and the sample floor, so `optical_worn` and
+    `ambient_level_undecidable` cannot drift apart about what they are looking at.
+
+    REFUSE, don't guess. `None` already means "no verdict" everywhere downstream — the power drop and
+    the CPAP interlock both read `worn is False`, not `worn is not True` — so refusing costs a feature
+    and guessing costs a night's capture."""
     if not calibrated_for(fs):
-        # REFUSE, don't guess. `None` already means "no verdict" everywhere downstream — the power drop
-        # and the CPAP interlock both read `worn is False`, not `worn is not True` — so refusing costs
-        # a feature and guessing costs a night's capture.
         return None
     vals = [abs(v) for v in ambient if v is not None and v == v]  # drop None/NaN, keep magnitude
     if len(vals) < max(1, min_samples):
@@ -150,7 +188,7 @@ def optical_worn(
     # mutants that the whole suite could not see (mutate-diff, #1134) — every test fed it a flat buffer,
     # so `// 2` vs `// 3` and `- 1` vs `+ 1` all returned the same number. The even-length branch is the
     # part no fixture reached. Deleting the arithmetic is a better answer than fixturing around it.
-    return statistics.median(vals) < threshold
+    return statistics.median(vals)
 
 
 # ── DETECTOR B · AMBIENT *STABILITY*, FOR THE RATE WHERE THE LEVEL IS BLIND ─────────────────────────
@@ -481,7 +519,7 @@ WORN_VOTES: tuple[dict, ...] = (
         "vote": "ambient-level",
         "rank": 2,
         "source": "inferred",
-        "means": "ambient light dark enough to look like skin (55 Hz domain)",
+        "means": "ambient light too BRIGHT for skin (55 Hz domain) — not-worn only; dark reads alike on skin and in a dark room (2026-09-24: 27 of 47 removals)",
     },
     {
         "vote": "ambient-stability",
@@ -687,10 +725,16 @@ def worn_verdict(
     ppi = ppi_contact(ppi_flags)
     if ppi is not None:
         votes.append(("ppi-contact", ppi))
+    abstentions: list[str] = []
     if ambient is not None:
         level = optical_worn(ambient, fs=fs)
         if level is not None:
             votes.append(("ambient-level", level))
+        elif ambient_level_undecidable(ambient, fs=fs):
+            # SAY WHY THERE IS NO LEVEL VOTE. A dark reading is the one abstention a reader would
+            # otherwise take for "no detector was available": the detector ran, in domain, on enough
+            # samples, and found a value that skin and a dark bedroom both produce.
+            abstentions.append("ambient-level abstains: dark reads alike on skin and in a dark room")
         spread = ambient_stability_worn(ambient, fs=fs)
         if spread is not None:
             votes.append(("ambient-stability", spread))
@@ -713,7 +757,12 @@ def worn_verdict(
         if pulse is not None:
             votes = [(n2, v) for (n2, v) in votes if not n2.startswith("ambient-")]
             votes.append(("pulse-prominence", pulse))
+            abstentions.clear()  # a measured pulse displaces the proxies, and their abstentions with them
     if not votes:
+        if abstentions:
+            # NOT "no detector is available": one ran, in domain, and could not decide. The operator
+            # acts differently on the two, so the reason must not conflate them.
+            return None, "no verdict — " + "; ".join(abstentions)
         return None, (
             "no worn detector is available and in domain"
             + (f" at {fs:g} Hz" if fs is not None else " (PPG rate unknown)")
@@ -725,6 +774,7 @@ def worn_verdict(
     # single-detector case reads exactly as it did.
     srcs = independent_sources(named)
     qual = "" if len(srcs) == len(named) else f" ({len(srcs)} independent source(s): {', '.join(srcs)})"
+    qual += ("; " + "; ".join(abstentions)) if abstentions else ""
     if worn_by:
         return True, "worn per " + ", ".join(worn_by) + qual
     return False, "not worn per " + ", ".join(named) + qual

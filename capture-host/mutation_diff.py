@@ -2231,9 +2231,12 @@ def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -
       · `survived` == the length of the survivors LIST, and `undecided` likewise. Two fields of one
         verdict disagreeing about how many there are is what made a 26-entry list read as 12 in the
         `reason` string and 26 in `result.survived`, with nothing saying which was the count.
-      · `killed + survived + undecided <= decided <= generated`. Not equality: `excused` and
-        `empty_diff` mutants are decided and counted separately, and a mutant can be generated and
-        never decided (that is what `undecided` means).
+      · `killed + survived <= decided` and `decided + undecided <= generated`. `undecided` is OUTSIDE
+        `decided` — a mutant that was generated and never decided — so it is bounded by `generated`
+        together with `decided`, never summed into a total bounded by `decided` (that sum made every
+        run with one undecided mutant report its own counters as broken, and that complaint replaced the
+        real UNDECIDED refusal as the verdict's reason). Not equality: `excused` and `empty_diff`
+        mutants are decided and counted separately.
 
     Returns the FIRST failing invariant with its numbers, because a caller that prints one reason is
     better served by a specific one than by a list it has to parse.
@@ -2256,13 +2259,19 @@ def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -
                 "two fields of one verdict disagreeing about the count"
             )
     gen, dec = int(result["generated"]), int(result["decided"])
-    settled = int(result["killed"]) + int(result["survived"]) + int(result["undecided"])
+    und = int(result["undecided"])
+    settled = int(result["killed"]) + int(result["survived"])
     if dec > gen:
         return f"result.decided ({dec}) exceeds result.generated ({gen}) — more mutants decided than exist"
     if settled > dec:
         return (
-            f"result.killed + survived + undecided ({settled}) exceeds result.decided ({dec}) — "
+            f"result.killed + survived ({settled}) exceeds result.decided ({dec}) — "
             "outcomes recorded for mutants the run says it never settled"
+        )
+    if dec + und > gen:
+        return (
+            f"result.decided + undecided ({dec + und}) exceeds result.generated ({gen}) — "
+            "more mutants accounted for than the run generated"
         )
     return None
 

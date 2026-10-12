@@ -45,6 +45,7 @@ import bisect as _bisect
 import datetime as _dt
 import glob
 import json
+import math
 import os
 import re
 from typing import Any
@@ -1033,7 +1034,10 @@ def recorded_seams(primary: str, start, end) -> list[dict]:
                 # place, so it splits nothing rather than splitting at the wrong sample (§∅)
             if start is not None and (host < start or host > end):
                 continue  # a seam outside the worn interval does not split an axis nobody was wearing
-            seams.append({"host_ms": host.timestamp() * 1000.0, "step_ms": step_ms})
+            # `float()` accepts "nan" and "inf". The SEAM is real (it splits on `host_ms`), the STEP beside
+            # it was not measured, so it is `None` — never a float that loses every `max` comparison and
+            # renders as "+nan s" (§∅: absence is null, never a number).
+            seams.append({"host_ms": host.timestamp() * 1000.0, "step_ms": step_ms if math.isfinite(step_ms) else None})
     seams.sort(key=lambda r: r["host_ms"])
     return seams
 
@@ -1698,10 +1702,18 @@ def timebase(night_dir: str, device: str, clock_tag: str, clock_files: list[str]
     segs.append(cur)
     seam_note = ""
     if seams:
-        worst = max(seams, key=lambda r: abs(r["step_ms"]))
+        measured = [r for r in seams if r["step_ms"] is not None]
+        unmeasured = len(seams) - len(measured)
+        if measured:
+            worst = max(measured, key=lambda r: abs(r["step_ms"]))
+            largest = f"largest {worst['step_ms'] / 1000.0:+.3g} s"
+            if unmeasured:
+                largest += f" ({unmeasured} with no finite step recorded)"
+        else:
+            largest = "no finite step recorded"
         cause = _seam_cause(night_dir)
         seam_note = (
-            f" — {len(seams)} recorded clock seam(s), largest {worst['step_ms'] / 1000.0:+.3g} s"
+            f" — {len(seams)} recorded clock seam(s), {largest}"
             f"{'; ' + cause if cause else '; no cause recorded this night'}"
             f"; the axis is judged in {len(segs)} segment(s), never across a step"
         )

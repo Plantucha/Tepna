@@ -148,7 +148,7 @@ charge does not; an UNATTRIBUTED charging flag is not an inference and keeps its
 | 1 | `ecg-level` | measured | the raw ECG's 2-min level above 320 µV — electrode noise; disqualifies hr-beats, never outranks the contact bit |
 | 1 | `ppi-contact` | measured | the PPI frame's contact flag (absent in SDK mode) |
 | 2 | `pulse-prominence` | measured | a pulse in the PPG — perfused tissue |
-| 2 | `ambient-level` | inferred | ambient light dark enough to look like skin (55 Hz domain) |
+| 2 | `ambient-level` | inferred | ambient light too BRIGHT for skin (55 Hz domain) — not-worn only; dark reads alike on skin and in a dark room (2026-09-24: 27 of 47 removals) |
 | 2 | `ambient-stability` | inferred | ambient light steady enough to look like skin (176 Hz domain) |
 
 ## 3 · What the drop buys, measured against what it costs
