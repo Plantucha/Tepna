@@ -1607,3 +1607,35 @@ def test_the_daytime_flag_sits_on_nightqc_s_OWN_band_edges(tmp_path):
         )
     finally:
         nightqc._NIGHT_END_H, nightqc._NIGHT_BEGIN_H = end, begin
+
+
+def test_BOTH_DAYTIME_EDGES_ARE_INCLUSIVE_ONE_SIDE_ONLY(tmp_path):
+    """`<=` → `<` on the left edge and `<` → `<=` on the right, both named by CI as survivors of the
+    test above: 13:00 is strictly inside the gap, so it cannot see either. Each mutant differs from the
+    rule on EXACTLY ONE hour, and those two hours are the band's own edges.
+
+    The asymmetry is the band, not a style choice. `_NIGHT_END_H` 10 is where the previous evening's
+    band ENDS, so a session beginning at 10:00 belongs to no band and is daytime; `_NIGHT_BEGIN_H` 18 is
+    where the next band BEGINS, so a session beginning at 18:00 is that night's and is not. Read the
+    other way round, a 10:00 start would be charged to a band that had already closed and an 18:00 start
+    would be charged to nothing — both publishing "no night covers this" over a session a band does."""
+    for hhmmss, want, why in (
+        ("100000", True, "10:00 is where the previous band ENDS — the session belongs to no band"),
+        ("180000", False, "18:00 is where the next band BEGINS — the session is that night's"),
+    ):
+        root = str(tmp_path / hhmmss)
+        c = os.path.join(root, "captures")
+        _put(
+            c,
+            "2026-10-10",
+            f"Polar_H10_0284_20261010{hhmmss}_ECG.txt",
+            "t\n1\n",
+            "20261010" + ("103000" if hhmmss == "100000" else "183000"),
+        )
+        d = os.path.join(c, "2026-10-09")
+        os.makedirs(d, exist_ok=True)
+
+        recs = ni._recordings(root)
+        assert len(recs) == 1, recs
+        got = ni.night_entry(root, d, None, recs[0][1])["daytime"]
+        assert got is want, f"a start at {hhmmss[:2]}:00 read daytime={got}: {why}"
