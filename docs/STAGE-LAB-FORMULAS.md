@@ -66,6 +66,9 @@ Rule of this page: a formula is listed only if code uses it. "Pinned" means the 
 | Respiration-rate variability drives REM/wake on MESA | Krauss et al., Sleep 2025;48(9):zsaf091, doi:10.1093/sleep/zsaf091 | the 0.18–0.40 Hz PR band as a respiration proxy |
 | Published oximeter-only staging figures of a proprietary model (κ 0.367 live / 0.390 offline) | a proprietary oximeter-only stager, published figures only (LICENSE-MODEL §3g: its model and outputs are never used) | comparator, with credit |
 
+
+**Data acknowledgement.** Where an SHHS number is named on this page or in the lab's briefs: the Sleep Heart Health Study data were obtained through the National Sleep Research Resource (NSRR) under its data access and use agreement; cite the SHHS references listed on its NSRR page, and carry the line **NSRR R24 HL114473: NHLBI National Sleep Research Resource**. Results of the analysis may be published; no part or excerpt of the data appears anywhere.
+
 ## 6 · Formulas considered and rejected by measurement
 
 | formula | why rejected |
