@@ -1097,3 +1097,83 @@ def test_A_ONE_FOLDER_NIGHT_CITES_ONE_AUDIT(tmp_path):
     audits = [e for e in v["evidence"] if e.endswith(sn._inputs.LOSS_AUDIT_NAME)]
     assert len(audits) == 1 and sn.SAMPLE_NIGHT in audits[0]
     assert v["result"]["scope"]["searched_dirs"] == [sn.SAMPLE_NIGHT]
+
+
+def _stored(tmp_path, commit):
+    night = tmp_path / "2026-10-09"
+    night.mkdir()
+    pb = {"tool": sn.TOOL, "commit": commit}
+    (night / sn.VERDICT_NAME).write_text(json.dumps({"status": "FAIL", "reason": "r", "at": AT, "producedBy": pb}))
+    return str(night)
+
+
+def _git_says(out, calls):
+    """A `subprocess.run` stand-in for `build_id._git`: `out` is git's stdout, None a failing git."""
+
+    def run(argv, **_k):
+        calls.append(argv)
+        return collections.namedtuple("P", "returncode stdout")(1 if out is None else 0, out or "")
+
+    return run
+
+
+def test_CODE_MOVED_re_judges_only_when_git_names_a_judge_file_between_the_two_commits(tmp_path, monkeypatch):
+    """`code_moved`, one input per outcome. The 2026-10-09 FAIL was written by 700811f5 and replays PASS
+    under the running code: the stored commit is what makes it findable, and git decides whether the
+    judge's own files moved between that commit and the running one."""
+    monkeypatch.setattr(sn, "_moved", {})
+    night = _stored(tmp_path, "700811f5")
+    calls = []
+    why = sn.code_moved(night, "bdbe3741", run=_git_says("capture-host/solid_night_inputs.py\n", calls))
+    assert why == sn.CODE_MOVED.format(old="700811f5", new="bdbe3741"), why
+    argv = calls[0]
+    assert argv[argv.index("diff") :][:4] == ["diff", "--name-only", "700811f5", "bdbe3741"], argv
+    assert argv[argv.index("--") + 1 :] == sn.code_closure(), "git is asked about the judge's closure only"
+    assert sn.code_moved(night, "bdbe3741", run=_git_says("", calls)) == why, "the answer is cached per pair"
+    assert len(calls) == 1, "and git runs once per (stored, running) pair, not once per night per poll"
+
+
+def test_CODE_MOVED_stands_down_when_the_judge_did_not_change_or_nothing_is_stored(tmp_path, monkeypatch):
+    monkeypatch.setattr(sn, "_moved", {})
+    night = _stored(tmp_path, "700811f5")
+    calls = []
+    assert sn.code_moved(night, "bdbe3741", run=_git_says("", calls)) is None, "a deploy that missed the judge"
+    assert sn.code_moved(night, "700811f5", run=_git_says("x", calls)) is None, "written by the running code"
+    assert sn.code_moved(night, None, run=_git_says("x", calls)) is None, "no running commit: never loop"
+    empty = tmp_path / "2026-10-03"
+    empty.mkdir()
+    assert sn.code_moved(str(empty), "bdbe3741", run=_git_says("x", calls)) is None, "no verdict to replace"
+    assert len(calls) == 1, calls
+
+
+def test_CODE_MOVED_re_judges_a_verdict_whose_code_cannot_be_named(tmp_path, monkeypatch):
+    """Nothing vouches for an unresolvable or null stored commit, so the night is re-judged once; the new
+    verdict carries the running commit and the next poll stands down."""
+    monkeypatch.setattr(sn, "_moved", {})
+    calls = []
+    unknown = _stored(tmp_path, "deadbee1")
+    assert sn.code_moved(unknown, "bdbe3741", run=_git_says(None, calls)) is not None, "git cannot resolve it"
+    null = tmp_path / "2026-10-02"
+    null.mkdir()
+    (null / sn.VERDICT_NAME).write_text(json.dumps({"status": "FAIL", "producedBy": {"commit": None}}))
+    assert sn.code_moved(str(null), "bdbe3741", run=_git_says("", calls)) is not None, "a null commit"
+    assert len(calls) == 1, "a null commit is not handed to git"
+
+
+def test_the_code_closure_reaches_every_module_the_judge_reads():
+    """The closure is derived from module globals; this pins the modules it must reach, so a refactor
+    that hides one (a function-local import) reds here instead of silently narrowing the re-judge."""
+    got = sn.code_closure()
+    for name in ("solid_night", "solid_night_inputs", "loss_audit", "nights_index", "nightqc", "verdict"):
+        assert f"capture-host/{name}.py" in got, (name, got)
+    assert "capture-host/capture.py" not in got, "the daemon is not the judge; a deploy of it re-judges nothing"
+    assert got == sorted(set(got))
+
+
+def test_a_RE_JUDGE_WITHDRAWAL_SAYS_THE_CODE_MOVED(tmp_path):
+    night = tmp_path / "2026-10-06"
+    night.mkdir()
+    (night / sn.VERDICT_NAME).write_text(json.dumps({"status": "FAIL", "reason": "r", "at": AT}))
+    why = sn.CODE_MOVED.format(old="700811f5", new="bdbe3741")
+    entry = sn._withdraw(str(night), {"status": "PASS", "reason": None, "at": AT}, why)
+    assert entry is not None and entry["reason"] == why
