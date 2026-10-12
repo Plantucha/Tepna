@@ -266,6 +266,18 @@ def test_flat_clock_fires_once_the_window_passes():
     assert telemetry.note_flat_battery(store, "V", 100, 100, 1000.0 + _FLAT + 1) is True
 
 
+def test_the_WINDOW_LENGTH_the_CALLER_PASSES_is_the_one_that_decides():
+    """`note_flat_battery` forwards `min_flat_s`, so a caller may shorten the window.
+
+    The second line is the counterfactual. Drop the keyword and the 2700 s default stays in place, so
+    the same 20 s observation reads False. That plant survived the mutation gate on 2026-10-12, because
+    every other test on this clock takes the default."""
+    store = {"V": 1000.0}
+    assert telemetry.note_flat_battery(store, "V", 100, 100, 1020.0, min_flat_s=10.0) is True
+    assert telemetry.note_flat_battery(store, "V", 100, 100, 1020.0) is False
+    assert store["V"] == 1000.0, "neither call restarted the clock, so the two readings are comparable"
+
+
 def test_a_moving_battery_restarts_the_clock():
     store = {"V": 1000.0}
     assert telemetry.note_flat_battery(store, "V", 100, 99, 5000.0) is False
