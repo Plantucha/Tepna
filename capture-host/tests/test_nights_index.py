@@ -1572,3 +1572,22 @@ def test_the_PRIMARY_is_THIS_row_s_recording_when_a_band_holds_two(tmp_path):
     assert len(rows) == 2, [r.get("recording_start") for r in rows]
     by_start = {r["recording_start"][-5:]: r["ECGDex"]["hours"] for r in rows}
     assert by_start == {"22:00": 1.0, "08:30": 1.5}, by_start
+
+
+def test_a_node_with_files_and_NO_PRIMARY_lists_them_unmeasured(tmp_path, monkeypatch):
+    """`prims = … if primary else []`: a node may declare capture patterns without a primary to measure
+    (a stream the page lists but cannot time). Its cell lists the files with `hours: None` — it does not
+    crash the night row by expanding a `None` pattern. No node in today's `NODES` has that shape, so the
+    branch is driven with a patched table; the guard is what keeps a future one from emptying the page."""
+    c = os.path.join(str(tmp_path), "captures")
+    _put(
+        c,
+        "2026-10-09",
+        "Polar_H10_SYNTH01_20261009220000_ECG.txt",
+        _span_rows("2026-10-09T22:00", 60),
+        "20261009230000",
+    )
+    monkeypatch.setattr(ni, "NODES", {"ECGDex": (("Polar_H10_*_ECG.txt",), None)})
+    cell = ni.night_entry(c, os.path.join(c, "2026-10-09"))["ECGDex"]
+    assert cell["files"] == ["2026-10-09/Polar_H10_SYNTH01_20261009220000_ECG.txt"], cell
+    assert cell["hours"] is None and cell["fragments"] is None and cell["pending"] is False, cell
