@@ -9772,10 +9772,12 @@
        time), while the sidecar's `first_sample_idx` is the ring's own cumulative position. These tests pin
        the second one and the accounting refusals around it.
 
-       ⚠️ SYNTHETIC BY NECESSITY, and that is stated rather than hidden: no captured night carries a ring
-       arrival sidecar yet — #3267 is daemon code and takes effect only after the box restarts on it. The
-       frame sequences below are constructed, so they prove the ARITHMETIC and the REFUSALS, not that a real
-       ring behaves this way. The brief's evidence line stays open until a real night exists. */
+       ⚠️ THE FRAME SEQUENCES BELOW ARE STILL CONSTRUCTED, and now for a different reason. Until 2026-10-12
+       no captured night carried a ring arrival sidecar at all; nine sessions on eight nights do
+       (2026-10-04 → 10-11, 215,532 `PPG_FRAME` rows, measured read-only on the rig mirror). On every one of
+       them the offset field is DEAD, so a real night can only ever exercise the refusals — the positive leg
+       has no real data anywhere and is synthetic BY FIRMWARE, not by the capture's age. The real nights are
+       what the precedence block at the end of this group reproduces. */
     group('PAT Feasibility worker — the ring floor reads the sidecar’s own counter, and refuses the accounting it cannot map', 'pat-feasibility · floor · ring', function (T) {
       var wsrc = (env.sources || {})['pat-feasibility-worker.js'];
       if (wsrc == null) {
@@ -9909,6 +9911,68 @@
         F.ringDevColumn(text, tot).ok,
         'the positive leg must hold or every refusal above is unfalsifiable'
       );
+
+      /* ══ WHICH REFUSAL REACHES A READER — the defect the eight real nights exposed ═════════════════
+         Measured 2026-10-12 over all 9 real ring sessions: the call site asked `floorMap` FIRST and took
+         its reason, and on a dead-offset night `floorMap` refuses with "device-counter segments overlap
+         (the counter went backwards)". So the named structural refusal above, pinned by this very group,
+         was UNREACHABLE on real data: 9 of 9 nights told a reader their capture was corrupt. The overlap
+         is a CONSEQUENCE of the dead field — every frame sits at one position — so the message named the
+         symptom and buried the cause. These legs pin the precedence through the REAL `floorMap`. */
+      var kinds = {};
+      kinds.dead = F.ringDevColumn(deadRows.join('\n') + '\n', 5 * 126).kind;
+      kinds.overlap = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:00.000', 120, 0) + '\n' + row('2026-10-05T00:00:01.000', 120, 60) + '\n', 240).kind;
+      kinds.accounting = F.ringDevColumn(text, tot - 1).kind;
+      kinds.nopos = F.ringDevColumn(HDR + '\n' + row('2026-10-05T00:00:01.000', 126) + '\n', 126).kind;
+      T.eq('every refusal carries a machine-readable kind · the dead field', kinds.dead, 'offset-dead');
+      T.eq('…overlapping positions', kinds.overlap, 'overlap');
+      T.eq('…the row accounting', kinds.accounting, 'accounting');
+      T.eq('…and no positioned rows at all', kinds.nopos, 'no-position');
+
+      var a2 = wsrc.indexOf('var FLOOR_WIN_MS ='),
+        CK = {
+          parseTimestamp: function (str) {
+            var m3 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})$/.exec(String(str));
+            return m3 ? { tMs: Date.UTC(+m3[1], +m3[2] - 1, +m3[3], +m3[4], +m3[5], +m3[6], +m3[7]) } : null;
+          }
+        };
+      T.ok('the floor block including floorMap is extractable', a2 >= 0 && b > a2, 'extraction is testing nothing');
+      if (a2 >= 0 && b > a2) {
+        /* `median` is the one non-builtin `floorMap` calls and it lives above this slice, so the REAL one is
+           carried in from the source. A reimplemented stub here would test the stub, not the worker. */
+        var mA = wsrc.indexOf('function median('),
+          mB = wsrc.indexOf('\n}', mA) + 2;
+        T.ok('the real median is extractable, so no stub stands in for it', mA >= 0 && mB > mA, 'extraction is testing nothing');
+        var G = new Function(
+          'DexClock',
+          'function arrivalHostMs(s){var r=DexClock.parseTimestamp(s);return r&&isFinite(r.tMs)?r.tMs:null;}' +
+            wsrc.slice(mA, mB) +
+            wsrc.slice(a2, b) +
+            '; return { floorMap: floorMap, ringPacket: ringPacket, ringDevColumn: ringDevColumn, ringLegRefusal: ringLegRefusal };'
+        )(CK);
+        /* The real firmware's shape: enough frames to clear FLOOR_MIN_PACKETS, every one at position 0,
+           one second apart — what all nine real sessions look like. */
+        var realish = [HDR],
+          rn = 400;
+        for (var rz = 0; rz < rn; rz++)
+          realish.push(row('2026-10-05T0' + (1 + Math.floor(rz / 3600)) + ':' + ('0' + Math.floor((rz % 3600) / 60)).slice(-2) + ':' + ('0' + (rz % 60)).slice(-2) + '.000', 126, 0));
+        var rtxt = realish.join('\n') + '\n',
+          rFloor = G.floorMap(rtxt, 'PPG_FRAME', G.ringPacket),
+          rDev = G.ringDevColumn(rtxt, rn * 126);
+        T.ok('on the real nights’ shape floorMap ALSO refuses, which is why the order mattered', !rFloor.ok, JSON.stringify(rFloor).slice(0, 180));
+        T.ok('…and its reason does NOT name the device-level cause — it describes this capture', !rFloor.ok && !/ring-offset-never-advances/.test(rFloor.reason), rFloor.reason);
+        T.eq('the device half calls it what it is', rDev.kind, 'offset-dead');
+        var picked = G.ringLegRefusal(rFloor, rDev);
+        T.ok('the leg reports the STRUCTURAL refusal even though floorMap refused first', !!picked && /ring-offset-never-advances/.test(picked.reason), JSON.stringify(picked));
+        T.ok('…and never the corrupt-capture wording a reader would act on', !!picked && !/segments overlap/.test(picked.reason), JSON.stringify(picked));
+        /* ANTI-VACUITY in both directions: precedence is by KIND, not a blanket preference for either
+           half, and a leg that refuses nowhere refuses nothing. */
+        var perCapture = G.ringLegRefusal({ ok: false, reason: 'floor says so' }, { ok: false, kind: 'accounting', reason: 'dev says so' });
+        T.ok('a PER-CAPTURE device kind leaves floorMap’s more specific reason in front', !!perCapture && /floor says so/.test(perCapture.reason), JSON.stringify(perCapture));
+        var devOnly = G.ringLegRefusal({ ok: true }, { ok: false, kind: 'accounting', reason: 'dev says so' });
+        T.ok('…and still surfaces when floorMap solved', !!devOnly && /dev says so/.test(devOnly.reason), JSON.stringify(devOnly));
+        T.eq('ANTI-VACUITY · both halves ok ⇒ no refusal at all', G.ringLegRefusal({ ok: true }, { ok: true }), null);
+      }
     });
 
     /* ════ PAT FEASIBILITY'S HAT CARDS read the per-corner STATUS (the same misstatement, second page) ════ */
@@ -36604,6 +36668,44 @@
       T.eq('an UNARMED stuck PR is never updated (it needs a human to arm it)', pk([C('stuck-unarmed', 1, 99)]).action, 'none');
     });
 
+    /* ── queue-doctor: a RED PR is named, not read as an idle queue (residue
+       2026-09-23-queue-doctor-is-silent-on-a-red-abandoned-pr). classify() returned `failing` all
+       along; the report block and `--report`'s exit code looked at the stuck set alone. */
+    group('Queue-doctor — a PR with a red REQUIRED check is reported and trips --report', 'tools · queue-doctor-red', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention;
+      if (typeof cl !== 'function' || typeof att !== 'function') {
+        T.skip('queue-doctor attention set is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var NOW = 1755000000000;
+      var wrap = function (o, checks) {
+        var pr = { number: 1, title: 't', state: 'OPEN', isDraft: false, mergeState: 'BLOCKED', autoMerge: false, updatedAtMs: NOW - 90 * 60000, checks: checks };
+        for (var k in o) pr[k] = o[k];
+        var r = cl(pr, ['test'], NOW);
+        r.pr = pr;
+        return r;
+      };
+      var red = wrap({ number: 7 }, [{ name: 'test', bucket: 'fail' }]);
+      var green = wrap({ number: 8, mergeState: 'CLEAN', autoMerge: true }, [{ name: 'test', bucket: 'pass' }]);
+      var advisoryRed = wrap({ number: 9, mergeState: 'CLEAN', autoMerge: true }, [
+        { name: 'test', bucket: 'pass' },
+        { name: 'mutation', bucket: 'fail' }
+      ]);
+      T.eq('the red PR classifies as failing (precondition)', red.k, 'failing');
+      var a = att([red, green]);
+      T.eq(
+        'a red PR alone is in the attention set',
+        a.failing.map(function (c) {
+          return c.pr.number;
+        }),
+        [7]
+      );
+      T.eq('…and is not miscounted as green-and-stuck', a.stuck.length, 0);
+      T.eq('a healthy queue has nothing to name (non-vacuity)', att([green, advisoryRed]).failing.length, 0);
+      T.eq('an advisory red is not a red PR', att([advisoryRed]).failing.length, 0);
+    });
+
     /* ── land-pr: the PR-landing state machine (LAND-PR, 2026-08-09) ───────────────────────────
        `main` moves a median 7.2 min while CI takes ~10-12 over 7 required checks, and the ruleset
        sets strict=true, so every session hand-writes a polling loop and they keep being wrong in
@@ -56787,6 +56889,81 @@
          one. Trace the channel, not the message shape. */
     });
 
+    /* ── EVERY KIND OF THE WORKER REALM BOOTS (#3462) ────────────────────────────────
+       The group above boots the LEAN `pulse` kind, which proves the realm MECHANISM and could not
+       have caught the thing that broke: `pulse` loads no profile module and never names
+       `escapeHTML`, so when `SCRIPTS.oxy` was missing `dex-escape.js` the oxy realm died inside
+       `importScripts` — before any job — and this suite stayed green while the break reached main
+       (#3462). It presented as a five-minute TIMEOUT, not a throw, because the caller waits on a
+       worker that never answers; DEEP-AUDIT-V-FOLLOWUPS had closed its `cohort-worker.js` row on the
+       strength of the pulse boot.
+       Two halves, because either alone can be satisfied by the other's bug:
+         · DYNAMIC — every kind in the table boots with no `err`.
+         · STATIC — a kind whose files CALL `escapeHTML` also loads the file that DEFINES it, which
+           still holds if a future refactor makes that call lazy so the boot no longer reaches it.
+       The kind list is DERIVED from the booted realm's own `SCRIPTS` table (run-tests.mjs), so a kind
+       added to the worker is covered the day it is added, and a parse miss yields an empty list that
+       FAILS here rather than skipping.
+       NODE-ONLY: the realm is built with `node:vm` in run-tests.mjs, so the browser lane skips. */
+    group('Cohort worker — EVERY kind boots, and a realm that calls escapeHTML loads the escaper (#3462)', 'cohort · worker · realm · every kind', function (T) {
+      var CW = env.CohortWorker;
+      if (!CW) {
+        T.skip('CohortWorker not in env (browser lane — node:vm realm)');
+        return;
+      }
+      var kinds = CW.kinds || [];
+      /* ANTI-VACUITY FIRST. An empty or truncated kind list would let every assertion below pass
+         over nothing — success reported about something never examined (§4b). `oxy` by name because
+         it is the realm whose break reached main. */
+      T.ok("the kind list came from the worker's own SCRIPTS table, not a hand-copy", kinds.length > 1 && kinds.indexOf('oxy') >= 0, 'kinds=' + kinds.join(','));
+      var broke = [];
+      kinds.forEach(function (k) {
+        var r = CW.kindReady && CW.kindReady[k];
+        /* `ready` is posted WHETHER OR NOT the boot succeeded — the failure is an `err` FIELD on an
+           otherwise identical message — and a harness throw arrives as `type: 'threw'`, so the three
+           outcomes cannot reach this assertion wearing the same shape. */
+        if (!(r && r.type === 'ready' && !r.err)) broke.push(k + ': ' + ((r && r.err) || JSON.stringify(r)));
+      });
+      T.eq('every kind boots with no err — ' + (kinds.length - broke.length) + ' of ' + kinds.length + ' checked, 0 excluded', broke.length, 0, broke.join(' | '));
+      /* THE STATIC HALF. Derived per kind, so it follows the table: if a second kind gains a module
+         that calls the escaper, that kind is checked too without this assertion being edited. */
+      var closure = CW.escapeClosure || [];
+      T.ok('the escape-closure check examined every kind', closure.length === kinds.length && kinds.length > 0, closure.length + ' of ' + kinds.length);
+      var callers = closure.filter(function (c) {
+        return c.callers.length > 0;
+      });
+      /* ANTI-VACUITY: if NO kind calls `escapeHTML`, the rule below would be trivially true and the
+         group would report a pass about a population of zero. */
+      T.ok(
+        'at least one kind loads a module that calls escapeHTML',
+        callers.length > 0,
+        callers
+          .map(function (c) {
+            return c.kind + '[' + c.callers.join(',') + ']';
+          })
+          .join(' ')
+      );
+      var unclosed = callers.filter(function (c) {
+        return !c.definerLoaded;
+      });
+      T.eq(
+        '…and every kind that calls it also loads dex-escape.js — ' + callers.length + ' such kind(s)',
+        unclosed.length,
+        0,
+        unclosed
+          .map(function (c) {
+            return c.kind + ' calls from ' + c.callers.join(',') + ' with no dex-escape.js';
+          })
+          .join(' | ')
+      );
+      /* And the symbol is actually RESOLVABLE in the realm, not merely listed in the table — the
+         table could name a file that fails to define it. */
+      T.eq('the oxy realm resolves escapeHTML to a function', CW.oxyEscapeHTML, 'function');
+      /* NON-VACUITY for the whole group: the same boot() that produced the readys above must be able
+         to REPORT a failure, or every assertion here is describing a happy path nothing could fail. */
+      T.ok('the same harness reports err for an unknown KIND', !!(CW.badReady && CW.badReady.type === 'ready' && CW.badReady.err), JSON.stringify(CW.badReady));
+    });
+
     group('PAT half-amplitude fiducial — the foot index is FRACTIONAL (EXTERNAL-METHODS-SURVEY §1)', 'pat · fiducial · half-amplitude', function (T) {
       var PF = env.PatFiducial;
       if (!PF || !PF.halfAmplitudeIndex) {
@@ -68744,6 +68921,141 @@
       );
     });
 
+    /* ── DRAWN-AXIS FLAG: A RATCHET ON THE CONSUMERS (residue 2026-09-25-drawn-consumers-closure-unverified)
+       `hostAxis.independent` compares the host column against the device column, so a counter
+       synthesised as `index x an assumed rate` reads MORE independent the coarser the fabrication —
+       the group above measures exactly that specimen: 99.3 % drawn, `independent:true`, a
+       textbook-plausible -22.83 ppm. `clock.js` publishes `deviceDrawn` ADDITIVELY and deliberately
+       does NOT gate `independent` with it (folding it in reds 11 assertions, because a synthetic
+       fixture's uniform axis is indistinguishable from a fabricated one and a fixture is not a
+       recording). So a consumer that still DECIDES on `independent` alone has no provenance test at
+       all, and the hole is invisible from the outside: such a site returns a number, never a refusal.
+
+       This gate does not audit the pinned files; it RATCHETS them. The set of files that GATE on an
+       `.independent` field while carrying no `deviceDrawn` site is pinned below, each with the
+       discriminator it uses INSTEAD — and that discriminator is asserted present, so a file that
+       loses its local guard reds here instead of being grandfathered. A new consumer written against
+       `independent` reds; a pinned file that migrates reds too (lower the allowlist in the same PR).
+
+       Read by IDENTIFIER PRESENCE per file over comment-stripped, whitespace-COLLAPSED source, never
+       a line window, so a reflow cannot red it. A GATE is a comparison against a boolean literal, a
+       negated read, or a ternary test — not a pass-through (`independent: r.hostAxis.independent`),
+       not a null-normalisation (`=== undefined ? null :`), not a printed label, none of which decide
+       anything; the classifier is put through both kinds before any verdict off it counts.
+       `experiments/**` is out of population: the probes there read the flag to DEMONSTRATE its false
+       positive, which is the opposite of consuming it.
+       Node-lane only — env.drawnFlagScan is fs-read; the browser lane SKIPs. */
+    group('a drawn axis is refused on provenance — no NEW consumer gates on hostAxis.independent', 'clock · drawn-axis · source-scan · ratchet', function (T) {
+      var FILES = env.drawnFlagScan;
+      if (!FILES) {
+        T.skip('env.drawnFlagScan provided to the runner', 'Node-lane only — wire env.drawnFlagScan (run-tests.mjs readDrawnFlagScan)');
+        return;
+      }
+      /* the discriminator each pinned file uses INSTEAD of `deviceDrawn`, asserted present below */
+      var ALLOW = {
+        // :131 refuses on `ax.timingSource === 'none'`; 'host' (drawn, but placed by REAL anchors) is
+        // deliberately admitted, because the two devices then do share a timebase. Refuted as a hole
+        // by residue 2026-09-12-drawn-consumers-already-migrated.
+        'pat-gate.js': /timingSource\s*===\s*'none'/,
+        // :1349 `axisSynthetic = axisDrawn || site === 'finger'` decides first at :1650, so the
+        // `independent` arm is reached only on an axis already known not to be drawn (residue
+        // 2026-09-05-drawn-remedy-is-relabel-not-refuse).
+        'ppgdex-dsp.js': /axisSynthetic\s*=\s*axisDrawn/,
+        // classifyStability tests its own `r.drawn` (DRAWN_MODAL_SHARE) BEFORE `r.independent`, so a
+        // drawn axis never reaches the independence branch.
+        'tools/device-stability.mjs': /DRAWN_MODAL_SHARE/,
+        // the reads are this tool's own self-test over its LOCAL analyzeArrival(), not a hostAxis
+        // result — it asserts that a host column drawn from the device stamp reads independent:false.
+        'tools/o2ring-frame-cadence.mjs': /function analyzeArrival\(/
+      };
+
+      function blank(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      function code(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, blank)
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1')
+          .replace(/\s+/g, ' ');
+      }
+      var GATE = [/\.independent\s*(?:===|!==|==|!=)\s*(?:true|false)\b/, /![A-Za-z_$][\w$.]*\.independent\b/, /\.independent\s*\?/];
+      function classify(src) {
+        var c = code(src);
+        return {
+          reads: /\.independent\b/.test(c),
+          gates: GATE.some(function (re) {
+            return re.test(c);
+          }),
+          drawn: /\bdeviceDrawn\b/.test(c)
+        };
+      }
+
+      /* ── the classifier must be shown to DISCRIMINATE, in both directions, before it judges ── */
+      [
+        ['a boolean gate', 'if (ax.independent === false) return null;', true, true, false],
+        ['the same gate after a reflow', 'if (\n  ax.independent ===\n  false\n) {\n  return null;\n}', true, true, false],
+        ['a negated read', 'if (!ax.independent) return null;', true, true, false],
+        ['a ternary test', "var s = ax.independent ? 'device+host' : 'device';", true, true, false],
+        ['a pass-through is NOT a gate', 'out.independent = r.hostAxis.independent;', true, false, false],
+        ['a null-normalisation is NOT a gate', 'q.independent = ax.independent === undefined ? null : ax.independent;', true, false, false],
+        ['a printed label is NOT a gate', 'console.log("independent=" + a.independent);', true, false, false],
+        ['a commented-out gate is not even a read', '/* if (ax.independent === false) return null; */\nvar x = 1;', false, false, false],
+        ['a migrated gate carries the provenance flag', 'if (ax.deviceDrawn === true) return null;\nif (ax.independent === false) return null;', true, true, true]
+      ].forEach(function (p) {
+        var got = classify(p[1]);
+        T.eq('classifier · ' + p[0] + ' · reads', got.reads, p[2]);
+        T.eq('classifier · ' + p[0] + ' · gates', got.gates, p[3]);
+        T.eq('classifier · ' + p[0] + ' · deviceDrawn', got.drawn, p[4]);
+      });
+
+      /* ── the scan over the real population ── */
+      var names = Object.keys(FILES).sort();
+      var reads = [],
+        gates = [],
+        drawn = [];
+      names.forEach(function (f) {
+        var c = classify(FILES[f]);
+        if (c.reads) reads.push(f);
+        if (c.gates) gates.push(f);
+        if (c.drawn) drawn.push(f);
+      });
+      T.ok('the scan has a denominator (' + names.length + ' authored sources)', names.length > 200, 'an empty scan reads exactly like a clean one');
+      T.ok('…and it read the PRODUCER — clock.js publishes deviceDrawn', drawn.indexOf('clock.js') >= 0, 'deviceDrawn sites: ' + drawn.join(' '));
+      T.ok('…and it SEES gates: ' + gates.join(' '), gates.length >= 5, 'the gate patterns match nothing — the verdict below would be vacuous');
+      T.ok('…and readers that are not gates exist, so the two are not the same test: ' + reads.length + ' read / ' + gates.length + ' gate', reads.length > gates.length);
+      ['ecgdex-dsp.js', 'integrator-dsp.js'].forEach(function (f) {
+        T.ok('the MIGRATED consumer ' + f + ' gates on the flag…', gates.indexOf(f) >= 0, 'gates: ' + gates.join(' '));
+        T.ok('…and carries deviceDrawn, which is what keeps it out of the pinned set', drawn.indexOf(f) >= 0, 'deviceDrawn: ' + drawn.join(' '));
+      });
+
+      var bare = gates
+        .filter(function (f) {
+          return drawn.indexOf(f) < 0;
+        })
+        .sort();
+      var pinned = Object.keys(ALLOW).sort();
+      var added = bare.filter(function (f) {
+        return !ALLOW[f];
+      });
+      var gone = pinned.filter(function (f) {
+        return bare.indexOf(f) < 0;
+      });
+      T.ok(
+        'no NEW consumer gates on `.independent` without a deviceDrawn site (' + (added.length ? added.join(' ') : 'none') + ')',
+        added.length === 0,
+        'read deviceDrawn (clock.js), or pin the file here with the discriminator it uses instead. bare: ' + bare.join(' ')
+      );
+      T.ok(
+        'no pinned file has migrated or left the population (' + (gone.length ? gone.join(' ') : 'none') + ')',
+        gone.length === 0,
+        'lower the allowlist in the same PR that migrates the file. bare: ' + bare.join(' ')
+      );
+      pinned.forEach(function (f) {
+        T.ok(f + ' is still in the scan population', names.indexOf(f) >= 0, 'a pinned file was renamed or removed — update the allowlist');
+        T.ok('…and still carries the discriminator it is pinned for ' + String(ALLOW[f]), ALLOW[f].test(code(FILES[f] || '')), 'the local guard moved — the pin is no longer justified');
+      });
+    });
+
     group('Integrator DSP floor — 22 drafts adopted: refusals, honest reasons, and the summary route (mutation-derived)', 'integrator-dsp · known-answer · mutation-pinned', function (T) {
       var I = env.IntegratorDSP || env.INTEGRATOR;
       if (!I || typeof I.normalizeFile !== 'function') {
@@ -70848,6 +71160,24 @@
       }
       var disjoint = RF([recAt('OxyDex', desatsA, t0, t0 + 8 * H), recAt('CPAPDex', lateDesats, t0 + 9 * H, t0 + 18 * H), recAt('ECGDex', surges.concat(lateSurges), t0, t0 + 18 * H)], {}).apnea || {};
       T.ok('a non-redundant observer is still counted (no silent loss)', (disjoint.total && disjoint.total.desat) === 60, 'desat=' + (disjoint.total && disjoint.total.desat));
+    });
+
+    group('codegen — the committed generated guide is byte-compared with its generator', 'codegen · frozen-copy · verify-codegen', function (T) {
+      var CC = env.codegenCheck;
+      if (typeof CC !== 'function') {
+        T.skip('env.codegenCheck provided to the runner', 'Node-lane only — wire env.codegenCheck (run-tests.mjs)');
+        return;
+      }
+      var M = 'codegen/manifests/eegdex.manifest.json',
+        G = 'codegen/generated/eegdex-reference.html';
+      /* The committed copy equals what dex-gen.js emits today (status 0, and says so). */
+      var same = CC(M, G, false);
+      T.eq('committed eegdex-reference.html is byte-identical to the regenerated page', same.status, 0);
+      T.ok('the pass names the comparison, not a bare exit code', /matches dex-gen\.js output/.test(same.out), same.out.trim());
+      /* Negative control — without it a --check that always exits 0 would pass the line above. */
+      var drift = CC(M, G, true);
+      T.ok('a drifted copy is REFUSED with a non-zero exit', drift.status === 1, 'status=' + drift.status);
+      T.ok('the refusal names the stale file', /differs from the output of dex-gen\.js/.test(drift.out), drift.out.trim());
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that
