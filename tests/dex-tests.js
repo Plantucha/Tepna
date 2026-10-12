@@ -904,6 +904,164 @@
       T.ok('control · min/max SpO2 and HR are numbers on the measured night', real.minSpo2 === 96 && real.maxSpo2 === 96 && real.minHr === 60 && real.maxHr === 60);
     });
 
+    /* THE ODI CRITERION HAS AN INJECTION POINT (residue 2026-09-13-odi-threshold-has-no-injection-point).
+       `DexKernel.K.ODI_DROP` is a frozen clinical constant and stays frozen; what was missing was a way
+       to ASK `processNight` for another criterion, so no tool could measure the SHIPPED index — the one
+       published after gating, artifact handling and its own denominator — under an alternative threshold.
+       The previous state of the art was `tools/nsrr-criterion-sweep.mjs`, which sweeps the RAW detector:
+       median 9.12 events/h against the 2.70 processNight publishes on the same 99 SHHS1 records, a 3.38x
+       gap, so its criterion was never a criterion for the shipped index.
+       Three things are asserted here, and the first two are the ones that can quietly rot:
+       (1) ABSENT MEANS THE KERNEL CONSTANT, byte-identically — the committed provenance fixtures are
+           default-criterion nights, so a default path that drifted by one field would move them;
+       (2) AN OVERRIDE REACHES THE WHOLE ODI FAMILY, not just the headline count. An ODI computed at 3 %
+           beside a severity/slope/profile family still at 4 % is a night no reader can interpret, and it
+           would pass a test that only checked `odi4`;
+       (3) IT FAILS CLOSED — an unknown key or a non-positive threshold REFUSES, because a caller handed
+           the default under its own name would publish 4 % numbers labelled 3 %. */
+    group('OxyDex — the ODI criterion is injectable, reaches the whole family, and fails closed', 'oxydex-dsp · odi-criterion · injection-point', function (T) {
+      var _odc = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var ODC = (_odc && _odc._bare) || _odc;
+      if (!ODC || typeof ODC.processNight !== 'function') {
+        T.ok('OxyDex.processNight is reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      /* RAMPED dips, not square ones: `selfGateDesat` excludes a fall steeper than 1.5 %/s as
+         non-physiologic kinetics, and a square 97→92 step is 5 %/s. The first version of this plant used
+         square dips and BOTH criteria published count 0 (14 vs 29 artifactExcluded) — agreement by total
+         rejection, which reads as a pass for a threading bug. Nadirs alternate 3 % and 5 % below a 97 %
+         ceiling, so the 4 % default opens only the deep half and 3 % opens both. */
+      var _t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      var plant = function () {
+        var N = 7200,
+          rows = [];
+        /* HR WOBBLES on purpose. With a flat HR, `computeRollingMetrics`' only criterion-dependent
+           output (mean HR change 60 s after each nadir) is 0 for 14 nadirs and 0 for 29 — identical, so
+           the family read as "not threaded" when it was. A ±3 bpm smooth drift makes the post-dip deltas
+           differ per event, which is what lets that family be asserted at all. */
+        for (var i = 0; i < N; i++) rows.push({ tMs: _t0 + i * 1000, t: new Date(_t0 + i * 1000), spo2: 97, hr: 60 + Math.round(3 * Math.sin(i / 97)), motion: 0 });
+        var k = 0;
+        for (var st = 300; st + 60 < N; st += 240) {
+          var nadir = k % 2 === 0 ? 94 : 92,
+            depth = 97 - nadir;
+          for (var j = 0; j < 6; j++) rows[st + j].spo2 = 97 - Math.round((depth * (j + 1)) / 6);
+          for (var m = st + 6; m < st + 21; m++) rows[m].spo2 = nadir;
+          for (var j2 = 0; j2 < 6; j2++) rows[st + 21 + j2].spo2 = nadir + Math.round((depth * (j2 + 1)) / 6);
+          k++;
+        }
+        return rows;
+      };
+      var strip = function (o) {
+        return JSON.stringify(o, function (k3, v) {
+          return k3 === 't' ? undefined : v;
+        });
+      };
+      var dflt = ODC.processNight(plant(), 'odi-pin.csv');
+      T.ok('the planted night publishes an ODI-4 under the default criterion', !!(dflt.odi4 && dflt.odi4.count === 14), JSON.stringify(dflt.odi4));
+      // (1) absent === {} === {dropPct:null}, byte-identically
+      T.eq('no third argument is byte-identical to {}', strip(ODC.processNight(plant(), 'odi-pin.csv', {})), strip(dflt));
+      T.eq('an explicit {dropPct:null} is byte-identical too (null means "the kernel constant")', strip(ODC.processNight(plant(), 'odi-pin.csv', { dropPct: null })), strip(dflt));
+      T.eq('an explicit {dropPct:4} — the kernel value itself — is byte-identical', strip(ODC.processNight(plant(), 'odi-pin.csv', { dropPct: 4 })), strip(dflt));
+      T.ok('a default-criterion night carries NO odiCriterion field (so export bytes do not move)', !('odiCriterion' in dflt));
+      // (2) the override reaches the whole family, not just the headline
+      var at3 = ODC.processNight(plant(), 'odi-pin.csv', { dropPct: 3 });
+      T.ok('an override moves the headline ODI (3 % finds the shallow half too)', !!(at3.odi4 && at3.odi4.count === 29), JSON.stringify(at3.odi4));
+      T.ok('…and the desaturation profile moved with it', (at3.desat && at3.desat.events ? at3.desat.events.length : -1) === 29, String(at3.desat && at3.desat.events && at3.desat.events.length));
+      /* ONE FAMILY PER THREADED HELPER — `desat` ← computeDesaturationProfile, `spo2Adv`, `sbii`,
+         `desSev`, `slopes`, `rolling`, `breathI`, and `summary` which reads them. `stats` is absent from
+         this list by measurement, not oversight: it carries no criterion-dependent field, so it is
+         byte-identical at 3 % and asserting it would red. */
+      ['desat', 'spo2Adv', 'sbii', 'desSev', 'slopes', 'rolling', 'breathI', 'summary'].forEach(function (fam) {
+        T.ok(
+          '…and the ' + fam + ' family was computed under the SAME criterion (it moved)',
+          strip(at3[fam]) !== strip(dflt[fam]),
+          'unchanged at 3 % — this family is still reading the frozen constant'
+        );
+      });
+      T.ok(
+        'the overridden night records the criterion beside the numbers',
+        !!(at3.odiCriterion && at3.odiCriterion.dropPct === 3 && at3.odiCriterion.kernelDefault === 4),
+        JSON.stringify(at3.odiCriterion)
+      );
+      /* The explicitly-named ODI-3 is NOT this criterion — it is its own index with a literal 3, so an
+         override of 3 makes the two agree by arithmetic rather than by threading. Pinned so a later
+         refactor does not "tidy" it into the injectable family. */
+      T.ok(
+        'the separately-named odi3 keeps its own literal 3 % (not the injected criterion)',
+        !!(dflt.odi3 && at3.odi3 && dflt.odi3.count === at3.odi3.count),
+        JSON.stringify([dflt.odi3 && dflt.odi3.count, at3.odi3 && at3.odi3.count])
+      );
+      // (3) fails closed — in both directions
+      [
+        ['an unknown key', { minSec: 20 }],
+        ['a zero threshold', { dropPct: 0 }],
+        ['a negative threshold', { dropPct: -1 }],
+        ['a numeric STRING', { dropPct: '3' }],
+        ['NaN', { dropPct: NaN }],
+        ['Infinity', { dropPct: Infinity }]
+      ].forEach(function (c) {
+        var msg = null;
+        try {
+          ODC.processNight(plant(), 'odi-pin.csv', c[1]);
+        } catch (err) {
+          msg = String((err && err.message) || err);
+        }
+        // the message is asserted too: a refusal that does not name `processNight` and the offending
+        // key/value leaves the caller guessing which of its arguments the pipeline rejected.
+        T.ok(
+          'params · ' + c[0] + ' REFUSES rather than silently using the default',
+          msg != null && /processNight: /.test(msg),
+          msg === null ? "no throw — the default was used under the caller's label" : msg
+        );
+      });
+      T.eq('DexKernel.K.ODI_DROP is untouched — the override is an argument, not an unfreezing', env.DexKernel && env.DexKernel.K && env.DexKernel.K.ODI_DROP, 4);
+      // a helper called DIRECTLY keeps its old meaning: the argument is last and optional
+      if (typeof ODC.computeDesatSlopes === 'function' && typeof env.computeCeilingBaselineArr === 'function') {
+        var _rows = plant();
+        var _spo2 = _rows.map(function (r) {
+          return r.spo2;
+        });
+        var _bl = env.computeCeilingBaselineArr(_spo2, 300, 90);
+        T.eq('computeDesatSlopes(rows, blArr) === (rows, blArr, null) — the old call site is unchanged', strip(ODC.computeDesatSlopes(_rows, _bl)), strip(ODC.computeDesatSlopes(_rows, _bl, null)));
+        T.ok('…and (rows, blArr, 3) differs — the helper really reads the argument', strip(ODC.computeDesatSlopes(_rows, _bl, 3)) !== strip(ODC.computeDesatSlopes(_rows, _bl)));
+      }
+      /* WIRING LOCK. The assertions above drive the eight helpers processNight calls TODAY. A ninth
+         ODI-family helper added later and NOT threaded would publish a 4 % number inside a 3 % night and
+         every assertion above would still pass, so the call sites are also scanned in source. */
+      var _dsp = (env.sources || {})['oxydex-dsp.js'] || '';
+      if (!_dsp) {
+        T.ok('oxydex-dsp.js is wired into env.sources', false, 'missing — the wiring scan would read nothing');
+      } else {
+        var _s = _dsp.indexOf('function processNight(');
+        var _e = _dsp.indexOf('\n  function computeStats(');
+        T.ok('the processNight body is locatable for the scan', _s > 0 && _e > _s, JSON.stringify([_s, _e]));
+        var body = _dsp.slice(_s, _e);
+        [
+          ['detectODI', /detectODI\(spo2s,\s*odiDrop\b/],
+          ['computeDesaturationProfile', /computeDesaturationProfile\([^)]*\bodiDrop\b/],
+          ['computeSpO2Advanced', /computeSpO2Advanced\([^)]*\bodiDrop\b/],
+          ['computeSBII', /computeSBII\([^)]*\bodiDrop\b/],
+          ['computeDesSev', /computeDesSev\([^)]*\bodiDrop\b/],
+          ['computeDesatSlopes', /computeDesatSlopes\([^)]*\bodiDrop\b/],
+          ['computeRollingMetrics', /computeRollingMetrics\([^)]*\bodiDrop\b/],
+          ['computeBreathingIrregularity', /computeBreathingIrregularity\([^)]*\bodiDrop\b/]
+        ].forEach(function (pair) {
+          T.ok('wiring · processNight threads the criterion into ' + pair[0], pair[1].test(body), 'call site found without odiDrop — the family would split');
+        });
+        // anti-vacuity: the scan can see the body it claims to read
+        T.ok(
+          'anti-vacuity · the scanned body is the real processNight (it contains its own anchors)',
+          /trimSensorWarmup\(rows\)/.test(body) && /var odi3 = detectODI\(spo2s, 3,/.test(body),
+          String(body.length)
+        );
+        /* ONE RESOLUTION SITE. Counting every `DexKernel.K.ODI_DROP` occurrence would count the ones in
+           this function's own comments, so the pin is on the ASSIGNMENT, plus the absence of any direct
+           kernel read in a detector call inside this body — the shape that would split the family. */
+        T.eq('the criterion is resolved from the kernel in exactly one assignment', (body.match(/var odiDrop = DexKernel\.K\.ODI_DROP;/g) || []).length, 1);
+        T.ok('no detector call inside processNight reads the kernel constant directly', !/(?:detectODI|detectDesatEvents|compute[A-Za-z]*)\([^)]*DexKernel\.K\.ODI_DROP/.test(body));
+      }
+    });
+
     group('an impossible HR onset is rejected; a real arousal near a clock hour is NOT', 'oxydex · hr-artifact', function (T) {
       var OD = env.OxyDSP || env.OXYDSP || env.OxyDex;
       if (!OD || typeof OD.compute !== 'function') {
@@ -33178,10 +33336,16 @@
          `pulseSeries` reaches the ODI-3 call and not the ODI-4 one — and it hardcoded `rows.length` as
          the third argument, so changing the denominator (2026-10-11, to the measured count) reddened a
          test that has nothing to say about it. The third argument now matches any identifier: the
-         property under test survives, and the number it divides by is asserted in §5 where it belongs. */
+         property under test survives, and the number it divides by is asserted in §5 where it belongs.
+         ⚠️ AND THE CRITERION IS NOT PINNED HERE EITHER, for the same reason (2026-10-12). It used to
+         read `DexKernel.K.ODI_DROP` literally; `processNight` now resolves the criterion into a local
+         `odiDrop` so a caller can ask for another one, which reddened this leg although pulse gating
+         was untouched. The second argument therefore matches any identifier but NOT a bare `3` — which
+         is the whole discrimination this leg needs, since the ODI-3 call is the one with the literal.
+         The criterion's own behaviour is pinned in `oxydex-dsp · odi-criterion · injection-point`. */
       T.ok(
         'processNight passes pulseSeries ONLY to the ODI-3 detectODI call',
-        /detectODI\(spo2s, 3, [A-Za-z_$][A-Za-z0-9_$.]*, blArr, pulseSeries\)/.test(dspSrc) && /detectODI\(spo2s, DexKernel\.K\.ODI_DROP, [A-Za-z_$][A-Za-z0-9_$.]*, blArr\)/.test(dspSrc),
+        /detectODI\(spo2s, 3, [A-Za-z_$][A-Za-z0-9_$.]*, blArr, pulseSeries\)/.test(dspSrc) && /detectODI\(spo2s, (?!3[,)])[A-Za-z_$][A-Za-z0-9_$.]*, [A-Za-z_$][A-Za-z0-9_$.]*, blArr\)/.test(dspSrc),
         'odi3/odi4 detectODI calls not wired as expected'
       );
 
