@@ -100,9 +100,19 @@ def _dev(**kw):
 
 
 # ── run_muse (subprocess supervisor, no bleak) ──────────────────────────────────────────────────────
+# A pid no process can bear: one past the kernel's ceiling. `run_muse` now hands the recorder's pgid to
+# `proc_util.sweep_group`, which really signals, so a fake child's pid must be a value that cannot name
+# a live group EVEN IF every guard in `sweep_group` were mutated away. A fake carrying 0 would address
+# the test runner's own group — the failure measured on `mutation_diff.kill_process_group` in #3237,
+# where mutmut's counter stopped at mutant 7 of 30 and the rest came back unmeasured.
+with open("/proc/sys/kernel/pid_max") as _fh:
+    _IMPOSSIBLE_PGID = int(_fh.read().strip()) + 1
+
+
 class _FakeProc:
     def __init__(self, rc=0):
         self.returncode = rc
+        self.pid = _IMPOSSIBLE_PGID
 
     async def wait(self):
         return self.returncode
@@ -119,6 +129,7 @@ def _exec_writing(spawned, rc=0, nbytes=1):
 
     async def fake_exec(*cmd, **k):
         spawned["cmd"] = cmd
+        spawned["kw"] = k
         out = cmd[cmd.index("--filename") + 1] if "--filename" in cmd else cmd[cmd.index("--outfile") + 1]
         os.makedirs(os.path.dirname(out), exist_ok=True)
         with open(out, "wb") as fh:
@@ -142,6 +153,24 @@ def test_run_muse_spawns_muselsl_record_direct_by_address_with_a_night_long_dura
     assert "--filename" in cmd and cmd[cmd.index("--duration") + 1] == str(capture.MUSE_RECORD_DURATION_S)
     assert capture.MUSE_RECORD_DURATION_S == 24 * 3600
     assert "record" not in cmd[2:], "the LSL-consumer subcommand must not reappear"
+
+
+def test_run_muse_puts_the_recorder_in_its_OWN_session_and_sweeps_that_group(tmp_path, monkeypatch):
+    """`2026-09-29-proc-util-kill-is-parent-only`, the Muse half. The recorder forks helpers and
+    `proc.kill()` reaches the direct child alone, so the child is given a session of its own and its
+    group is swept once it is gone. Without `start_new_session=True` the child shares OUR process
+    group, where a group signal would reach the daemon and every sibling task's child.
+
+    The sweep runs on the CLEAN exit as well, which is what this test drives: a recorder that returns 0
+    orphans its helpers just as surely as one that is killed, and an orphan here holds the headset's
+    BLE link, so the next daemon start cannot connect."""
+    spawned, swept = {}, []
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", _exec_writing(spawned))
+    monkeypatch.setattr(capture.proc_util, "sweep_group", lambda pgid: swept.append(pgid))
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(vendor="Muse", model="S", name="Muse", muse_tool="muselsl"), str(tmp_path)))
+    assert spawned["kw"].get("start_new_session") is True, "without it the recorder is in the daemon's group"
+    assert swept == [_IMPOSSIBLE_PGID], "the group swept is the child's own, and a session leader's pgid IS its pid"
 
 
 def test_run_muse_spawns_OpenMuse_record_with_an_explicit_duration(tmp_path, monkeypatch):
@@ -1668,6 +1697,7 @@ def test_run_muse_terminates_a_running_child_on_stop(tmp_path, monkeypatch):
 
     class _Proc:
         returncode = None  # still running -> forces the terminate path
+        pid = _IMPOSSIBLE_PGID
 
         async def wait(self):
             raise asyncio.TimeoutError
@@ -5119,6 +5149,7 @@ def test_run_muse_kills_a_child_that_ignores_terminate(tmp_path, monkeypatch):
     class _Stubborn:
         def __init__(self):
             self.returncode = None
+            self.pid = _IMPOSSIBLE_PGID
 
         async def wait(self):
             await asyncio.sleep(0)
@@ -5160,6 +5191,7 @@ def test_run_muse_a_child_that_saves_on_SIGINT_is_never_terminated(tmp_path, mon
         def __init__(self, out):
             self.returncode = None
             self.out = out
+            self.pid = _IMPOSSIBLE_PGID
 
         async def wait(self):
             await asyncio.sleep(0)

@@ -2659,3 +2659,27 @@ def test_a_FOLDER_THAT_IS_NOT_A_DATE_anchors_the_window_at_MIDNIGHT(tmp_path, mo
     assert (until.minute, until.second, until.microsecond) == (0, 0, 0), f"until={until}"
     assert since == dt.datetime(2026, 10, 10, 18, 0, 0), since
     assert until == dt.datetime(2026, 10, 12, 6, 0, 0), until
+
+
+def test_a_REPLACED_loss_verdict_is_recorded_before_the_overwrite(tmp_path):
+    """`2026-10-05-the-loss-audit-replaces-its-own-verdict-with-no-withdrawal-record`. The poller
+    re-runs this audit whenever the night's data is newer than the verdict, so a night whose files keep
+    arriving had each prior claim replaced by `os.replace` — atomic and lossy. #3292 fixed this shape one
+    layer up in `solid_night` and did not widen into the audit, which has its own verdict and its own
+    re-run trigger. The mechanism is now `verdict.withdraw`, used by both."""
+    d = _night(tmp_path)
+    wpath = os.path.join(d, "LOSS-VERDICT-WITHDRAWN.jsonl")
+
+    first = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+    assert not os.path.exists(wpath), "a FIRST verdict withdraws nothing"
+
+    second = loss_audit.write_night(d, DEV, commit="def5678", journal=lambda *a: [], clock_events=lambda *a: [])
+    rows = [json.loads(ln) for ln in open(wpath, encoding="utf-8") if ln.strip()]
+    assert len(rows) == 1, rows
+    assert rows[0]["withdrawn"]["status"] == first["status"]
+    assert rows[0]["withdrawn"]["commit"] == "abc1234", "the claim that was published, not the one replacing it"
+    assert rows[0]["replaced_by"]["commit"] == "def5678" and rows[0]["replaced_by"]["status"] == second["status"]
+    # `recorded` is the RETURN value's report of whether the append succeeded, not part of the record
+    # on disk — the row on disk IS the withdrawal, so a flag there would be a claim about itself.
+    assert "re-audited" in rows[0]["reason"] and "recorded" not in rows[0]
+    assert json.load(open(os.path.join(d, "LOSS-VERDICT.json")))["producedBy"]["commit"] == "def5678"
