@@ -5825,5 +5825,14 @@
       "probe": "Ran dest_status over 72 targets (protocol x mountpoint x kind battery: absent/empty/existent/nonexistent/out-of-root paths): the '(unset)' literal rendered 0 times. Run empirically 2026-10-08 on this VM.",
       "why": "About the CODE, not the suite: `mp = target.get(\"mountpoint\") or \"\"` is falsy exactly when the mountpoint is absent/empty, and a falsy mp takes the early return (\"no mountpoint configured\") two lines above — the f-string line is reached only with truthy mp, where `mp or '(unset)'` short-circuits to mp and the literal never evaluates. No input can render it, so no test can observe its spelling."
     }
+  ],
+  "polar_psftp.py": [
+    {
+      "brief": "2026-09-27-pull-recording-mutants-time-out-not-survive (RESIDUE; drain batch 4)",
+      "class": "no-distinguishing-input",
+      "key": "- manifest = {\"session\": session, \"out_dir\": out_dir, \"files\": [], \"total_bytes\": 0} | + manifest = {\"session\": session, \"out_dir\": out_dir, \"files\": [], \"total_bytes\": 1}",
+      "probe": "Ran BOTH the original and the mutant over 14 scenarios — 7 trees (clean, no_trailing_slash, dir_row_only, short_file, big_unrelated_subtree, two_sessions_first, absent_session) x {one pull, a second pull into the same output directory} — comparing the FULL returned manifest and the sidecar's bytes each time. 0 of 14 raised and 0 of 14 differed. The whole capture-host suite under the mutant read 9892 passed, 3 skipped in 264.08s. Run empirically 2026-10-12, with the planted line asserted to be the file's only occurrence of that text — two literals of it exist, so an inexact plant probes a superset.",
+      "why": "`manifest[\"total_bytes\"]` is reassigned unconditionally at `polar_psftp.py:826` from `got[\"total_bytes\"]`, and the only `return` between the initialisation and that line belongs to the inner `_once`, which returns its own dict. So no observer of `pull_recording` can read the initial value. The KEY must stay: mutants 17-20 misspell an initial key and die against an exact-key-set assertion, which pins the shape while leaving this one value unobservable."
+    }
   ]
 }

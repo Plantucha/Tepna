@@ -32,6 +32,12 @@
   var DIRECTIONS = ['lte', 'gte', 'eq', 'within'];
   /* P5 rides in the object: only a `publishable` verdict may be quoted outside the repo. Two values, closed. */
   var SCOPES = ['internal', 'publishable'];
+  /* The closed method set for `contributions` (VERDICT-CONTRIBUTIONS-2026-10-04 §1), pre-stated per
+     figure: recompute without the input · a closed-form partial derivative · the figure is a sum or a
+     count and each input's term IS its contribution. */
+  var CONTRIBUTION_METHODS = ['leave-one-out', 'analytic', 'decomposition'];
+  /* Shares are a ratio of floats; the brief states the tolerance, so it lives here and not in a caller. */
+  var SHARE_TOL = 1e-9;
   var SHA_RE = /^[0-9a-f]{7,40}$/;
   var ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
@@ -43,6 +49,103 @@
   }
   function _nonEmpty(s) {
     return typeof s === 'string' && s.trim().length > 0;
+  }
+
+  /**
+   * _contributions(c, push) — the OPTIONAL attribution block (VERDICT-CONTRIBUTIONS-2026-10-04 §1).
+   *
+   * A fused figure — one computed from more than one node's export, or from more than one device's leg —
+   * publishes what it is made of: `{ of, unit, method, inputs: [{ key, share, delta }], dominant }`.
+   *
+   * THE ∅ RULE IS THE WHOLE POINT. An input that was absent or refused is LISTED with `delta: null`
+   * and the refusal's reason — never omitted and never 0, because a leg that could not run is a
+   * contribution of *unknown*, not a contribution of nothing. And a share is a fraction of a total:
+   * one unknown term makes the denominator `Σ|delta|` unknown, so EVERY share and `dominant` go null
+   * with it. Normalising over the legs that did run would manufacture a denominator, which is the
+   * §∅ shape this contract exists to refuse. The same holds when every delta is 0: `0/0` is not 0.
+   */
+  function _contributions(c, push) {
+    if (!_isObj(c)) {
+      push('contributions must be an object { of, unit, method, inputs[], dominant }, or absent — never a bare array or a number');
+      return;
+    }
+    if (!_nonEmpty(c.of)) push('contributions.of must name the figure being attributed (non-empty string)');
+    if (typeof c.unit !== 'string') push('contributions.unit must be a string (use "" for a dimensionless count, never omit it)');
+    if (CONTRIBUTION_METHODS.indexOf(c.method) < 0)
+      push('contributions.method must be one of ' + CONTRIBUTION_METHODS.join('|') + ', got ' + JSON.stringify(c.method) + ' — a closed set, pre-stated per figure');
+    if (!Array.isArray(c.inputs)) {
+      push('contributions.inputs must be an array of { key, share, delta }');
+      return;
+    }
+    if (c.inputs.length < 2) push('contributions.inputs lists ' + c.inputs.length + ' input(s) — a figure with one input has nothing to attribute and carries NO block, so a block needs at least 2');
+    var seen = {};
+    var unknown = 0;
+    var sumAbs = 0;
+    var sumShare = 0;
+    var maxAbs = -1;
+    var shareOk = true;
+    c.inputs.forEach(function (it, i) {
+      var at = 'contributions.inputs[' + i + ']';
+      if (!_isObj(it)) {
+        push(at + ' must be an object { key, share, delta }');
+        shareOk = false;
+        return;
+      }
+      if (!_nonEmpty(it.key)) push(at + '.key must name the input (non-empty string)');
+      else if (seen[it.key]) push(at + '.key "' + it.key + '" is listed twice — one share per input');
+      else seen[it.key] = 1;
+      if (it.delta === null) {
+        unknown++;
+        if (!_nonEmpty(it.reason)) push(at + ' carries delta: null with no reason — ∅: an absent or refused input says WHY it is unknown, and is never 0 and never omitted');
+        if (it.share !== null) push(at + ' carries delta: null, so its own share is UNKNOWN and must be null, got ' + JSON.stringify(it.share));
+      } else if (typeof it.delta !== 'number' || !Number.isFinite(it.delta)) {
+        push(at + ".delta must be a finite number in the figure's own unit, or null with a reason, got " + JSON.stringify(it.delta));
+        shareOk = false;
+      } else {
+        sumAbs += Math.abs(it.delta);
+        if (Math.abs(it.delta) > maxAbs) maxAbs = Math.abs(it.delta);
+      }
+    });
+    /* The denominator is unknown — one unknown term, or every delta 0. Refuse a number for any share. */
+    if (unknown > 0 || (shareOk && maxAbs >= 0 && sumAbs === 0)) {
+      var why = unknown > 0 ? unknown + ' input(s) carry delta: null, so Σ|delta| is UNKNOWN' : 'every delta is 0, so Σ|delta| is 0 and a share would be 0/0';
+      c.inputs.forEach(function (it, i) {
+        if (it && it.delta !== null && it.share !== null)
+          push('contributions.inputs[' + i + '].share must be null (present, not omitted) — ' + why + '; normalising over the legs that DID run manufactures a denominator (∅)');
+      });
+      if (c.dominant !== null) push('contributions.dominant must be null (present, not omitted) — ' + why + ', so no input is known to be the largest');
+      return;
+    }
+    if (!shareOk) return;
+    c.inputs.forEach(function (it, i) {
+      if (!_isObj(it) || it.delta === null) return;
+      var want = Math.abs(it.delta) / sumAbs;
+      if (typeof it.share !== 'number' || !Number.isFinite(it.share)) {
+        push('contributions.inputs[' + i + '].share must be a finite number, got ' + JSON.stringify(it.share));
+        return;
+      }
+      sumShare += it.share;
+      if (Math.abs(it.share - want) > SHARE_TOL)
+        push('contributions.inputs[' + i + '].share is ' + it.share + ' but |delta| / Σ|delta| is ' + want + ' — a share is computed from the deltas, never asserted beside them');
+    });
+    if (c.inputs.length && Math.abs(sumShare - 1) > SHARE_TOL)
+      push('contributions shares sum to ' + sumShare + ', not 1 ± ' + SHARE_TOL + ' — the listed inputs ARE the decomposition, so a sum below 1 hides an input and above 1 double-counts one');
+    var dom = null;
+    for (var k = 0; k < c.inputs.length; k++) {
+      var e = c.inputs[k];
+      if (_isObj(e) && e.delta !== null && Math.abs(e.delta) === maxAbs) {
+        dom = e.key;
+        if (c.dominant === e.key) return;
+      }
+    }
+    if (c.dominant !== dom)
+      push(
+        'contributions.dominant must be the key with the largest |delta| (' +
+          JSON.stringify(dom) +
+          '), got ' +
+          JSON.stringify(c.dominant) +
+          ' — it is what a render names first and what a reader quotes'
+      );
   }
 
   /**
@@ -132,6 +235,14 @@
       if (!reasonOk) push('UNKNOWN requires reason — what could not be decided, and why');
     }
 
+    // ── contributions: OPTIONAL. A fused figure says which input moved it ───────────────────
+    //    Absent from a verdict that attributes nothing, so no existing producer gains a leg: the
+    //    `checked[]` denominator grows only for an object that carries the block.
+    if (obj.contributions !== undefined && obj.contributions !== null) {
+      checked.push('contributions');
+      _contributions(obj.contributions, push);
+    }
+
     // ── evidence: what a reader opens to re-derive the verdict ───────────────────────────────
     checked.push('evidence');
     if (!Array.isArray(obj.evidence)) push('evidence must be an array of paths/globs/records a reader would open');
@@ -160,7 +271,7 @@
    */
   function make(f) {
     f = f || {};
-    return {
+    var v = {
       schema: SCHEMA,
       gate: f.gate,
       status: f.status,
@@ -173,9 +284,21 @@
       producedBy: f.producedBy,
       at: f.at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
     };
+    /* OPTIONAL and additive: a producer that attributes nothing emits exactly the bytes it did before. */
+    if (f.contributions !== undefined) v.contributions = f.contributions;
+    return v;
   }
 
-  var API = { SCHEMA: SCHEMA, STATUSES: STATUSES.slice(), SCOPES: SCOPES.slice(), DIRECTIONS: DIRECTIONS.slice(), validate: validate, make: make };
+  var API = {
+    SCHEMA: SCHEMA,
+    STATUSES: STATUSES.slice(),
+    SCOPES: SCOPES.slice(),
+    DIRECTIONS: DIRECTIONS.slice(),
+    CONTRIBUTION_METHODS: CONTRIBUTION_METHODS.slice(),
+    SHARE_TOL: SHARE_TOL,
+    validate: validate,
+    make: make
+  };
   root.Verdict = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
