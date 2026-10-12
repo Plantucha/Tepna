@@ -20,7 +20,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, 
 import { createRequire } from 'node:module';
 import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, classifyStamps as rebaseClassifyStamps, duplicateLedgerKeys as rebaseDuplicateLedgerKeys } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
-import { classify as qdClassify, pick as qdPick, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
+import { classify as qdClassify, pick as qdPick, attention as qdAttention, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_ROOT_ZERO_BYTE as commitShapeBaseline } from '../tools/commit-shape.mjs';
 import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
@@ -34,7 +34,7 @@ import { suiteVerdict, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
-import { spawn, execSync } from 'node:child_process';
+import { spawn, spawnSync, execSync } from 'node:child_process';
 import { cpus, tmpdir } from 'node:os';
 /* Node-only handles for the `tools · wt-done · self-match` gate: it drives `usersOfPath`
    against a SYNTHETIC /proc, so it needs real fs/os/path plus the tool. The browser lane
@@ -1952,6 +1952,24 @@ function readCodegenManifests() {
   return { dir: 'codegen/manifests', files };
 }
 
+/* codegen frozen-copy comparator — runs `dex-gen.js --check` (byte-compare, writes nothing) of a
+   manifest against a committed page, optionally against a copy with one byte appended. cwd is a scratch
+   dir so a generator that ignores --check still cannot litter the repo. */
+function codegenCheck(manifestRel, generatedRel, tamper) {
+  const scratch = mkdtempSync(join(tmpdir(), 'tepna-codegen-'));
+  try {
+    let target = join(ROOT, generatedRel);
+    if (tamper) {
+      target = join(scratch, 'tampered.html');
+      writeFileSync(target, Buffer.concat([readFileSync(join(ROOT, generatedRel)), Buffer.from('\n<!-- drift -->')]));
+    }
+    const r = spawnSync(process.execPath, [join(ROOT, 'codegen/dex-gen.js'), join(ROOT, manifestRel), '--check', target], { cwd: scratch, encoding: 'utf8' });
+    return { status: r.status, out: (r.stdout || '') + (r.stderr || '') };
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 function readCaptureFilenameScan() {
   const pick = (dir, re) => {
     const d = join(ROOT, dir);
@@ -2831,6 +2849,7 @@ async function main() {
     landDecide: landDecide,
     qdClassify: qdClassify,
     qdPick: qdPick,
+    qdAttention: qdAttention,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
     /* A RESOLVER FOR DECLARED NESTED BINDINGS (`emittedAt` in a registry). The resolvability gate must
@@ -3135,6 +3154,7 @@ async function main() {
     nonBundleCsp: readNonBundleCsp(),
     captureFilenameScan: readCaptureFilenameScan(),
     codegenManifests: readCodegenManifests(),
+    codegenCheck,
     docsMdTwins: readDocsMdTwins(),
     claudeMdClaims: readClaudeMdClaims(),
     tableProvenance: readTableProvenance(),

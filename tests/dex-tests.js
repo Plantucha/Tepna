@@ -36604,6 +36604,44 @@
       T.eq('an UNARMED stuck PR is never updated (it needs a human to arm it)', pk([C('stuck-unarmed', 1, 99)]).action, 'none');
     });
 
+    /* ── queue-doctor: a RED PR is named, not read as an idle queue (residue
+       2026-09-23-queue-doctor-is-silent-on-a-red-abandoned-pr). classify() returned `failing` all
+       along; the report block and `--report`'s exit code looked at the stuck set alone. */
+    group('Queue-doctor — a PR with a red REQUIRED check is reported and trips --report', 'tools · queue-doctor-red', function (T) {
+      var cl = env.qdClassify,
+        att = env.qdAttention;
+      if (typeof cl !== 'function' || typeof att !== 'function') {
+        T.skip('queue-doctor attention set is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        return;
+      }
+      var NOW = 1755000000000;
+      var wrap = function (o, checks) {
+        var pr = { number: 1, title: 't', state: 'OPEN', isDraft: false, mergeState: 'BLOCKED', autoMerge: false, updatedAtMs: NOW - 90 * 60000, checks: checks };
+        for (var k in o) pr[k] = o[k];
+        var r = cl(pr, ['test'], NOW);
+        r.pr = pr;
+        return r;
+      };
+      var red = wrap({ number: 7 }, [{ name: 'test', bucket: 'fail' }]);
+      var green = wrap({ number: 8, mergeState: 'CLEAN', autoMerge: true }, [{ name: 'test', bucket: 'pass' }]);
+      var advisoryRed = wrap({ number: 9, mergeState: 'CLEAN', autoMerge: true }, [
+        { name: 'test', bucket: 'pass' },
+        { name: 'mutation', bucket: 'fail' }
+      ]);
+      T.eq('the red PR classifies as failing (precondition)', red.k, 'failing');
+      var a = att([red, green]);
+      T.eq(
+        'a red PR alone is in the attention set',
+        a.failing.map(function (c) {
+          return c.pr.number;
+        }),
+        [7]
+      );
+      T.eq('…and is not miscounted as green-and-stuck', a.stuck.length, 0);
+      T.eq('a healthy queue has nothing to name (non-vacuity)', att([green, advisoryRed]).failing.length, 0);
+      T.eq('an advisory red is not a red PR', att([advisoryRed]).failing.length, 0);
+    });
+
     /* ── land-pr: the PR-landing state machine (LAND-PR, 2026-08-09) ───────────────────────────
        `main` moves a median 7.2 min while CI takes ~10-12 over 7 required checks, and the ruleset
        sets strict=true, so every session hand-writes a polling loop and they keep being wrong in
@@ -70643,6 +70681,24 @@
       }
       var disjoint = RF([recAt('OxyDex', desatsA, t0, t0 + 8 * H), recAt('CPAPDex', lateDesats, t0 + 9 * H, t0 + 18 * H), recAt('ECGDex', surges.concat(lateSurges), t0, t0 + 18 * H)], {}).apnea || {};
       T.ok('a non-redundant observer is still counted (no silent loss)', (disjoint.total && disjoint.total.desat) === 60, 'desat=' + (disjoint.total && disjoint.total.desat));
+    });
+
+    group('codegen — the committed generated guide is byte-compared with its generator', 'codegen · frozen-copy · verify-codegen', function (T) {
+      var CC = env.codegenCheck;
+      if (typeof CC !== 'function') {
+        T.skip('env.codegenCheck provided to the runner', 'Node-lane only — wire env.codegenCheck (run-tests.mjs)');
+        return;
+      }
+      var M = 'codegen/manifests/eegdex.manifest.json',
+        G = 'codegen/generated/eegdex-reference.html';
+      /* The committed copy equals what dex-gen.js emits today (status 0, and says so). */
+      var same = CC(M, G, false);
+      T.eq('committed eegdex-reference.html is byte-identical to the regenerated page', same.status, 0);
+      T.ok('the pass names the comparison, not a bare exit code', /matches dex-gen\.js output/.test(same.out), same.out.trim());
+      /* Negative control — without it a --check that always exits 0 would pass the line above. */
+      var drift = CC(M, G, true);
+      T.ok('a drifted copy is REFUSED with a non-zero exit', drift.status === 1, 'status=' + drift.status);
+      T.ok('the refusal names the stale file', /differs from the output of dex-gen\.js/.test(drift.out), drift.out.trim());
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that
