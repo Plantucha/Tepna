@@ -4678,14 +4678,14 @@ def test_the_RECORDED_offset_is_preferred_and_a_DST_SEAM_refuses_one_value(tmp_p
 
     starts(["2026-08-15T15:49:45.000;1;abc;no;hci0;-14400"])
     one = nightqc.recorded_writer_offset(str(d))
-    assert one is not None and one["offset_sec"] == -14400.0, one
+    assert one is not None and one["offset_sec"] == 14400.0, one
     assert one["basis"] == "declared", one
     # the recovery fields are None, not 0 and not empty tallies — `declared_offset`'s own contract
     assert one["voters"] is None and one["modal_share"] is None and one["unanimous"] is None, one
 
     starts(["a;1;x;no;hci0;-14400", "b;2;x;no;hci0;-14400"])
     agree = nightqc.recorded_writer_offset(str(d))
-    assert agree is not None and agree["offset_sec"] == -14400.0, agree
+    assert agree is not None and agree["offset_sec"] == 14400.0, agree
 
     starts(["a;1;x;no;hci0;-14400", "b;2;x;no;hci0;-18000"])
     assert nightqc.recorded_writer_offset(str(d)) is None, "a DST seam must refuse, not pick a side"
@@ -4708,11 +4708,11 @@ def test_the_RECORDED_offset_is_preferred_and_a_DST_SEAM_refuses_one_value(tmp_p
     # write can leave one, and the remaining rows still carry the night's answer.
     starts(["a;1;x;no;hci0;-14400", "b;2;x"])
     short = nightqc.recorded_writer_offset(str(d))
-    assert short is not None and short["offset_sec"] == -14400.0, short
+    assert short is not None and short["offset_sec"] == 14400.0, short
     # A NON-NUMERIC cell likewise — neither an offset nor a zero.
     starts(["a;1;x;no;hci0;-14400", "b;2;x;no;hci0;not-a-number"])
     junk = nightqc.recorded_writer_offset(str(d))
-    assert junk is not None and junk["offset_sec"] == -14400.0, junk
+    assert junk is not None and junk["offset_sec"] == 14400.0, junk
     # …and when the ONLY row is unusable, nothing was recorded — not 0.
     starts(["b;2;x;no;hci0;not-a-number"])
     assert nightqc.recorded_writer_offset(str(d)) is None
@@ -4733,18 +4733,18 @@ def test_an_unusable_row_SKIPS_it_and_keeps_reading_rather_than_stopping(tmp_pat
 
     starts(["a;1;x;no;hci0;", "b;2;x;no;hci0;-14400"])  # BLANK first, good second
     blank_first = nightqc.recorded_writer_offset(str(d))
-    assert blank_first is not None and blank_first["offset_sec"] == -14400.0, blank_first
+    assert blank_first is not None and blank_first["offset_sec"] == 14400.0, blank_first
 
     starts(["a;1;x;no;hci0;not-a-number", "b;2;x;no;hci0;-14400"])  # JUNK first, good second
     junk_first = nightqc.recorded_writer_offset(str(d))
-    assert junk_first is not None and junk_first["offset_sec"] == -14400.0, junk_first
+    assert junk_first is not None and junk_first["offset_sec"] == 14400.0, junk_first
 
     # And a row SHORTER than the offset column, first — the `len(cells) <= col` bound. A row carrying
     # exactly `col` cells has no index `col` at all, so `< col` would index out of range on it; this row
     # has five cells where the offset is the sixth.
     starts(["a;1;x;no;hci0", "b;2;x;no;hci0;-14400"])
     short_first = nightqc.recorded_writer_offset(str(d))
-    assert short_first is not None and short_first["offset_sec"] == -14400.0, short_first
+    assert short_first is not None and short_first["offset_sec"] == 14400.0, short_first
 
 
 def test_a_DST_SEAM_is_LOGGED_with_both_its_count_and_its_values(tmp_path, caplog):
@@ -4773,7 +4773,7 @@ def test_a_DST_SEAM_is_LOGGED_with_both_its_count_and_its_values(tmp_path, caplo
         "Phone timestamp;pid;git;dirty;adapter;utc_offset_sec\na;1;x;no;hci0;-14400\n", encoding="utf-8"
     )
     with caplog.at_level(logging.DEBUG, logger="tepna-capture"):
-        assert nightqc.recorded_writer_offset(str(d))["offset_sec"] == -14400.0
+        assert nightqc.recorded_writer_offset(str(d))["offset_sec"] == 14400.0
     assert not [m for m in (r.getMessage() for r in caplog.records) if "different offsets" in m]
 
 
@@ -4802,13 +4802,13 @@ def test_the_recorded_offset_is_read_BY_HEADER_NAME_not_by_position(tmp_path):
         encoding="utf-8",
     )
     got = nightqc.recorded_writer_offset(str(d))
-    assert got is not None and got["offset_sec"] == -14400.0, got
+    assert got is not None and got["offset_sec"] == 14400.0, got
     # …and when the offset moves to a different INDEX, the name still finds it
     (d / "STARTS.csv").write_text(
         "Phone timestamp;utc_offset_sec;pid;git;dirty;adapter\n" + "a;-18000;1;x;no;hci0\n", encoding="utf-8"
     )
     moved = nightqc.recorded_writer_offset(str(d))
-    assert moved is not None and moved["offset_sec"] == -18000.0, moved
+    assert moved is not None and moved["offset_sec"] == 18000.0, moved
 
 
 def _recovered(night):
@@ -6177,8 +6177,49 @@ def test_summarize_PREFERS_THE_RECORDED_OFFSET_over_the_one_it_could_infer(tmp_p
 
     s = nightqc.summarize(night, _devices())
     got = s["writer_offset"]
-    assert got["offset_sec"] == -14400.0, (
+    assert got["offset_sec"] == 14400.0, (
         "the RECORDED offset must win over the inferable one, not merely be read: " + repr(got)
     )
     assert got["basis"] == "declared", f"a recorded offset is a premise, never a measurement: {got!r}"
     assert got["frame"] == "absolute", got
+
+
+def test_the_RECORDED_and_the_RECOVERED_offset_AGREE_on_one_night_in_one_zone(tmp_path, monkeypatch):
+    """🔴 The 8-hour shift, measured on vigil 2026-10-12. The writer records seconds EAST of UTC
+    (`writers._utc_offset_sec`: EDT = -14400) and `recorded_writer_offset` handed that number through
+    unflipped, while every consumer reads `offset_sec` as the number that RAISES a floating stamp into the
+    `mtime` frame (EDT = +14400). Every file on every night from 2026-10-06 was placed 2 × 4 h early: a
+    21:02 Verity start judged at 13:02, a 7.9 h night judged over 21 h, nine streams "31 % below rate".
+
+    The test the pinned `-14400.0` asserts could not be: two routes to ONE quantity, on ONE night written in
+    ONE zone, must give ONE number. The recorded value comes from the real writer function running under
+    America/New_York in summer; the recovered value is the mtime-vs-last-row vote over files whose mtime
+    sits exactly where an EDT box would put it. The control asserts the vote on its own, so a broken vote
+    cannot pass this by agreeing with a broken reader."""
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    try:
+        east = writers._utc_offset_sec(_dtmod.datetime(2026, 9, 9, 22, 0, 0))
+        assert east == -14400, f"the CONTROL: an EDT writer records -14400 east of UTC, got {east!r}"
+        night = _night_of_votes(tmp_path, [14400.0] * 3)
+        recovered, _data = _recovered(night)
+        assert recovered["offset_sec"] == 14400.0 and recovered["basis"] == "recovered", (
+            "the CONTROL: an EDT night's files vote +14400 — the raise convention — " + repr(recovered)
+        )
+        with open(os.path.join(night, "STARTS.csv"), "w", encoding="utf-8") as fh:
+            fh.write(writers._STARTS_HEADER)
+            fh.write(f"2026-09-09T22:00:00.000;4242;b89c192;no;hci0;{east}\n")
+        recorded = nightqc.recorded_writer_offset(night)
+        assert recorded is not None and recorded["offset_sec"] == recovered["offset_sec"], (
+            f"recorded {recorded!r} and recovered {recovered!r} name the same night's offset in two "
+            "conventions; a sign slip here places every file 2*|offset| from where it was written"
+        )
+        # …and the session summarize judges sits where the files were WRITTEN, not 8 h earlier: the same
+        # night with and without STARTS.csv merges to the same session start.
+        with_recorded = nightqc.summarize(night, _devices())["judged_session"]
+        os.unlink(os.path.join(night, "STARTS.csv"))
+        inferred_only = nightqc.summarize(night, _devices())["judged_session"]
+        assert with_recorded["start"] == inferred_only["start"], (with_recorded, inferred_only)
+    finally:
+        monkeypatch.delenv("TZ", raising=False)
+        time.tzset()

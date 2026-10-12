@@ -56665,6 +56665,81 @@
          one. Trace the channel, not the message shape. */
     });
 
+    /* ── EVERY KIND OF THE WORKER REALM BOOTS (#3462) ────────────────────────────────
+       The group above boots the LEAN `pulse` kind, which proves the realm MECHANISM and could not
+       have caught the thing that broke: `pulse` loads no profile module and never names
+       `escapeHTML`, so when `SCRIPTS.oxy` was missing `dex-escape.js` the oxy realm died inside
+       `importScripts` — before any job — and this suite stayed green while the break reached main
+       (#3462). It presented as a five-minute TIMEOUT, not a throw, because the caller waits on a
+       worker that never answers; DEEP-AUDIT-V-FOLLOWUPS had closed its `cohort-worker.js` row on the
+       strength of the pulse boot.
+       Two halves, because either alone can be satisfied by the other's bug:
+         · DYNAMIC — every kind in the table boots with no `err`.
+         · STATIC — a kind whose files CALL `escapeHTML` also loads the file that DEFINES it, which
+           still holds if a future refactor makes that call lazy so the boot no longer reaches it.
+       The kind list is DERIVED from the booted realm's own `SCRIPTS` table (run-tests.mjs), so a kind
+       added to the worker is covered the day it is added, and a parse miss yields an empty list that
+       FAILS here rather than skipping.
+       NODE-ONLY: the realm is built with `node:vm` in run-tests.mjs, so the browser lane skips. */
+    group('Cohort worker — EVERY kind boots, and a realm that calls escapeHTML loads the escaper (#3462)', 'cohort · worker · realm · every kind', function (T) {
+      var CW = env.CohortWorker;
+      if (!CW) {
+        T.skip('CohortWorker not in env (browser lane — node:vm realm)');
+        return;
+      }
+      var kinds = CW.kinds || [];
+      /* ANTI-VACUITY FIRST. An empty or truncated kind list would let every assertion below pass
+         over nothing — success reported about something never examined (§4b). `oxy` by name because
+         it is the realm whose break reached main. */
+      T.ok("the kind list came from the worker's own SCRIPTS table, not a hand-copy", kinds.length > 1 && kinds.indexOf('oxy') >= 0, 'kinds=' + kinds.join(','));
+      var broke = [];
+      kinds.forEach(function (k) {
+        var r = CW.kindReady && CW.kindReady[k];
+        /* `ready` is posted WHETHER OR NOT the boot succeeded — the failure is an `err` FIELD on an
+           otherwise identical message — and a harness throw arrives as `type: 'threw'`, so the three
+           outcomes cannot reach this assertion wearing the same shape. */
+        if (!(r && r.type === 'ready' && !r.err)) broke.push(k + ': ' + ((r && r.err) || JSON.stringify(r)));
+      });
+      T.eq('every kind boots with no err — ' + (kinds.length - broke.length) + ' of ' + kinds.length + ' checked, 0 excluded', broke.length, 0, broke.join(' | '));
+      /* THE STATIC HALF. Derived per kind, so it follows the table: if a second kind gains a module
+         that calls the escaper, that kind is checked too without this assertion being edited. */
+      var closure = CW.escapeClosure || [];
+      T.ok('the escape-closure check examined every kind', closure.length === kinds.length && kinds.length > 0, closure.length + ' of ' + kinds.length);
+      var callers = closure.filter(function (c) {
+        return c.callers.length > 0;
+      });
+      /* ANTI-VACUITY: if NO kind calls `escapeHTML`, the rule below would be trivially true and the
+         group would report a pass about a population of zero. */
+      T.ok(
+        'at least one kind loads a module that calls escapeHTML',
+        callers.length > 0,
+        callers
+          .map(function (c) {
+            return c.kind + '[' + c.callers.join(',') + ']';
+          })
+          .join(' ')
+      );
+      var unclosed = callers.filter(function (c) {
+        return !c.definerLoaded;
+      });
+      T.eq(
+        '…and every kind that calls it also loads dex-escape.js — ' + callers.length + ' such kind(s)',
+        unclosed.length,
+        0,
+        unclosed
+          .map(function (c) {
+            return c.kind + ' calls from ' + c.callers.join(',') + ' with no dex-escape.js';
+          })
+          .join(' | ')
+      );
+      /* And the symbol is actually RESOLVABLE in the realm, not merely listed in the table — the
+         table could name a file that fails to define it. */
+      T.eq('the oxy realm resolves escapeHTML to a function', CW.oxyEscapeHTML, 'function');
+      /* NON-VACUITY for the whole group: the same boot() that produced the readys above must be able
+         to REPORT a failure, or every assertion here is describing a happy path nothing could fail. */
+      T.ok('the same harness reports err for an unknown KIND', !!(CW.badReady && CW.badReady.type === 'ready' && CW.badReady.err), JSON.stringify(CW.badReady));
+    });
+
     group('PAT half-amplitude fiducial — the foot index is FRACTIONAL (EXTERNAL-METHODS-SURVEY §1)', 'pat · fiducial · half-amplitude', function (T) {
       var PF = env.PatFiducial;
       if (!PF || !PF.halfAmplitudeIndex) {
