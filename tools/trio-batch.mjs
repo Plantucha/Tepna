@@ -74,7 +74,7 @@
  * memory is returned to the OS on exit, so nothing accumulates across the corpus, and no
  * --max-old-space-size is needed on the command line: the parent sizes each child's heap to the host.
  */
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync, fstatSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync, fstatSync, realpathSync } from 'node:fs';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
 import { anchoredRec, startOf } from './trio-anchor.mjs';
@@ -646,6 +646,57 @@ if (flag('--selftest')) {
       isPrefixOf: () => true
     });
     eq('a marker beside the LONGER copy is not consulted — it would claim a file was superseded by its own prefix', JSON.stringify([onBig.conflicts.length, onBig.excluded.length]), '[1,0]');
+    // ⑧ A marker that RECORDED its target is held to it: a re-pointed link or a different size is UNKNOWN
+    //    and named, never a fold; a marker with no target (every one written before 2026-10-05) is unchanged.
+    const KEEP = 'rig/Polar_VeritySense_x_20260815221142_PPG.txt';
+    const SMALL = 'nas/Polar_VeritySense_x_20260815221142_PPG.txt';
+    const withTarget = (extra) => marker(KEEP, 'mid-write NAS snapshot') + extra;
+    const tgt = (extra, resolvePath) => dedupeStream(pair(), { readMarker: onSmall(withTarget(extra)), isPrefixOf: () => true, resolvePath });
+    const same = tgt('target: /mnt/nas/x_PPG.txt\nbytes: 100\n', () => '/mnt/nas/x_PPG.txt');
+    eq('a marker whose recorded target and size still hold FOLDS exactly as before', JSON.stringify([same.conflicts.length, same.excluded.length]), '[0,1]');
+    const moved = tgt('target: /mnt/nas/x_PPG.txt\n', () => '/mnt/nas/other_PPG.txt');
+    eq(
+      'a re-pointed link is UNKNOWN, names both paths, and does not fold',
+      JSON.stringify([moved.conflicts.length, moved.excluded.length, /x_PPG\.txt.*other_PPG\.txt/.test(moved.conflicts[0].markerUnknown || '')]),
+      '[1,0,true]'
+    );
+    const resized = tgt('bytes: 99\n');
+    eq(
+      'a different size than the marker recorded is UNKNOWN and names both sizes',
+      JSON.stringify([resized.conflicts.length, resized.excluded.length, /99 B.*100 B/.test(resized.conflicts[0].markerUnknown || '')]),
+      '[1,0,true]'
+    );
+    const junkSize = tgt('bytes: lots\n');
+    eq('a `bytes` that is not a number is UNKNOWN, not silently ignored', JSON.stringify([junkSize.conflicts.length, junkSize.excluded.length]), '[1,0]');
+    const gone = tgt('target: /mnt/nas/x_PPG.txt\n', () => {
+      throw new Error('ENOENT: no such file');
+    });
+    eq('a recorded target that cannot be resolved now is UNKNOWN, not absent', /cannot be resolved now/.test(gone.conflicts[0].markerUnknown || ''), true);
+    eq(
+      '…and a marker with NO recorded target never consults the resolver (legacy markers unchanged)',
+      (() => {
+        const t = dedupeStream(pair(), {
+          readMarker: onSmall(marker(KEEP, 'legacy')),
+          isPrefixOf: () => true,
+          resolvePath: () => {
+            throw new Error('must not be called');
+          }
+        });
+        return JSON.stringify([t.conflicts.length, t.excluded.length]);
+      })(),
+      '[0,1]'
+    );
+    // THE DEFAULT RESOLVER IS THE REAL realpath: this very file stands in for the small copy.
+    const here = fileURLToPath(import.meta.url);
+    const realPair = () => [
+      { name: 'x_PPG.txt', full: here, bytes: 100 },
+      { name: 'x_PPG.txt', full: 'rig/x_PPG.txt', bytes: 300 }
+    ];
+    const realMarker = (t) => `date: 2026-10-05\nkept: rig/x_PPG.txt\nreason: snapshot\ntarget: ${t}\n`;
+    const realOk = dedupeStream(realPair(), { readMarker: () => realMarker(realpathSync(here)), isPrefixOf: () => true });
+    eq('with no injected resolver the marker’s target is checked against the real realpath — a match folds', realOk.excluded.length, 1);
+    const realBad = dedupeStream(realPair(), { readMarker: () => realMarker('/somewhere/else'), isPrefixOf: () => true });
+    eq('…and a real mismatch is UNKNOWN', JSON.stringify([realBad.excluded.length, /now resolves to/.test(realBad.conflicts[0].markerUnknown || '')]), '[0,true]');
 
     const distinct = dedupeStream([
       { name: 'Polar_H10_x_20260717213258_ECG.txt', full: 'a/Polar_H10_x_20260717213258_ECG.txt', bytes: 25 },
@@ -1010,8 +1061,14 @@ function parseMarker(text) {
   const kept = kv.get('kept') || kv.get('superseded_by') || null;
   const reason = kv.get('reason') || null;
   const dated = kv.get('date') || kv.get('dated') || null;
+  /* OPTIONAL, and absent from every marker written before 2026-10-05: the file this marker was written
+     AGAINST — its resolved path and its size then. A marker that carries them can be checked against the
+     file the walk now reaches; one that does not is read as it always was (no target is invented for it). */
+  const target = kv.get('target') || null;
+  const sizeRaw = kv.get('bytes');
+  const bytes = sizeRaw !== undefined && /^\d+$/.test(sizeRaw) ? Number(sizeRaw) : sizeRaw !== undefined ? NaN : null;
   if (!kept || !reason) return { ok: false, reason: `the marker names ${!kept ? 'no kept file' : 'no reason'} — it cannot resolve an ambiguity it does not explain` };
-  return { ok: true, kept, reason, dated };
+  return { ok: true, kept, reason, dated, target, bytes };
 }
 /* Does the SMALLER copy carry a marker that resolves this ambiguity? Returns one of three states and
    never guesses between them. `resolved` folds; `unknown` is a sentence that travels INTO the refusal so
@@ -1019,6 +1076,7 @@ function parseMarker(text) {
 function resolveSuperseded(small, big, opts = {}) {
   const readMarker = opts.readMarker || defaultReadMarker;
   const isPrefixOf = opts.isPrefixOf || defaultIsPrefixOf;
+  const resolvePath = opts.resolvePath || realpathSync;
   let raw = null;
   try {
     raw = readMarker(String(small.full) + '.superseded');
@@ -1036,6 +1094,31 @@ function resolveSuperseded(small, big, opts = {}) {
     return {
       resolved: false,
       unknown: `the marker beside ${small.full} names \`${m.kept}\` as the keeper, which is not the other copy in this pair (${big.full}) — UNKNOWN rather than a fold on an uncompared file`
+    };
+  /* THE MARKER IS KEYED TO THE PATH THE WALK REACHED, which a symlink re-point or another `--src` can
+     change without moving the marker. A marker that recorded what it was written against (`target`, the
+     resolved path; `bytes`, its size) is held to it: a mismatch is a NAMED finding — UNKNOWN — instead
+     of a fold on bytes nobody compared, or a refusal that never says a resolution existed. */
+  if (m.target !== null) {
+    let now;
+    try {
+      now = resolvePath(String(small.full));
+    } catch (e) {
+      return {
+        resolved: false,
+        unknown: `the marker beside ${small.full} records target \`${m.target}\`, but this path cannot be resolved now (${(e && e.message) || e}) — UNKNOWN, the marker may have been orphaned by a moved link`
+      };
+    }
+    if (now !== m.target)
+      return {
+        resolved: false,
+        unknown: `the marker beside ${small.full} was written against \`${m.target}\`, but that path now resolves to \`${now}\` — the link was re-pointed or the file moved; UNKNOWN rather than a fold on a file the marker was not about`
+      };
+  }
+  if (m.bytes !== null && m.bytes !== Number(small.bytes))
+    return {
+      resolved: false,
+      unknown: `the marker beside ${small.full} was written against a copy of ${m.bytes} B, but the copy in hand is ${small.bytes} B — UNKNOWN rather than a fold on a file the marker was not about`
     };
   let pref;
   try {
