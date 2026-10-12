@@ -30,7 +30,9 @@
    *   FIXPROV_ERR,     // parse/load error message for FIXTURE-PROVENANCE.json (or null/undefined)
    *   gateBFail,       // # fixtures that DRIFTED (code/input/output content hash) — Phase 7 GATE B
    *   gateBChecked,    // # fixtures content-addressed reproducible (pass)
-   *   gateBAbsent      // # fixtures skipped because their committed files aren't served (gitignored uploads/)
+   *   gateBAbsent,     // # fixtures skipped because their committed files aren't served (gitignored uploads/)
+   *   missingFragments // provenance/<App>.json paths that DID NOT LOAD (ProvenanceLedger.loadBrowser's
+   *                    // `missing`; [] or absent when every fragment arrived)
    * } → { gateA: <html>, gateB: <html> } */
   function pickProvenanceBanner(state) {
     state = state || {};
@@ -45,6 +47,7 @@
     var gateBFail = state.gateBFail | 0;
     var gateBChecked = state.gateBChecked | 0;
     var gateBAbsent = state.gateBAbsent | 0;
+    var missingFragments = Array.isArray(state.missingFragments) ? state.missingFragments : [];
 
     var gateA;
     // HARD-FAIL on a missing/blocked manifest — a real CI run must FAIL, never skip, when
@@ -70,6 +73,23 @@
         '<span class="pill ok">GATE A PASS — ' +
         gateAChecked +
         " bundle(s) match committed manifestHash</span>. manifestHash is the authoritative executed-code fingerprint (a UUID-independent projection of the bundle's __bundler/manifest).";
+    }
+
+    // §∅ — AN ABSENT FILE IS NOT A MISSING RECORD (residue 2026-09-27-loadbrowser-filters-an-absent-
+    // fragment-silently). `loadBrowser` assembles the view it could READ, so a `provenance/<App>.json`
+    // that never arrived reached the reader through the branch above as "no committed manifestHash":
+    // the reason of a ledger that WAS read and found incomplete, borrowed by a file that was never
+    // read at all — and with it the wrong remedy, since regenerating the ledger from a tree missing
+    // the fragment would commit the absence. The verdict does not move (GATE A already fails by name
+    // on that bundle, `gateACompare` → `missing-committed`); only the reason does. Appended, not
+    // substituted, so a drift elsewhere in the same run keeps its own reason too.
+    if (missingFragments.length) {
+      gateA +=
+        ' <span class="pill bad">' +
+        missingFragments.length +
+        ' provenance fragment(s) DID NOT LOAD</span> — ' +
+        missingFragments.join(', ') +
+        ': the record was never read, so this is an ABSENT FILE (a deploy that missed it, a rename, or a stale served copy), not an incomplete ledger. Restore the file(s) and reload — regenerating BUILD-MANIFEST.json from this tree would commit the absence.';
     }
 
     var gateB;
