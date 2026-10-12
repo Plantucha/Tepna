@@ -5351,6 +5351,21 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        Conditional assignment, like its siblings: a healthy night's export stays byte-identical. */
     if (_motionUnusable && extras) extras.motionBursts = /** @type {any} */ (null);
     var rolling = computeRollingMetrics(rows, desat, comp, blArr);
+    /* 🔴 §∅: `intraNightNSI` AVERAGES THREE COMPONENTS, one of them `min(1, segMot / 30)` over
+       `r.motion > 0` — and `null > 0` is FALSE, so a night with no accelerometer scored as a night
+       measured and found perfectly still. Measured on three nights identical but for the motion
+       column: absent → [21], still → [21], moving → [54]. **An absent sensor was indistinguishable
+       from a measured still night**, contributing a third of a published stability index.
+       ⚠️ This is not a `0` in a field a reader could notice — it is a SILENT REWEIGHTING inside a
+       composite, which is why no §∅ gate caught it: every field looked plausible.
+       WHY NULL AND NOT A TWO-COMPONENT RENORMALISATION (owner's framing via the coordinator,
+       2026-10-11): the owner's 2026-09-17 ruling lets reduced COVERAGE annotate, but that is fewer
+       SAMPLES of the same quantity — not fewer COMPONENTS of it. A two-component NSI sharing a name
+       with a three-component one is a silent identity change across nights, invisible to exactly the
+       reader who compares the series. `computeSleepPressure` already ruled the same way for the same
+       reason ("not a renormalized bursts-only proxy"). The reason travels in the flag the
+       `_motionUnusable` branch already set. Conditional, so a healthy night's export is unchanged. */
+    if (_motionUnusable && rolling) rolling.intraNightNSI = /** @type {any} */ (null);
     var patScore = computePatternScores(pbMet, osc, cross, flags, odi4, comp);
     // v20.4: 14 new metrics
     var dfa = computeDFA(rows);
