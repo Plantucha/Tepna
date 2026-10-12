@@ -10,6 +10,7 @@
  *   3. If computeHash moved in the diff, the body carries the verbatim
  *      corpus re-verification sentence.
  *   4. If code files changed, a changes/ changeset was added.
+ *   5. The body passes the writing rules (tools/ste-lint.mjs, strict) — owner, 2026-10-12.
  *
  * In CI (pull_request event), the workflow passes:
  *   PR_BODY, PR_BASE_SHA, PR_HEAD_SHA via env.
@@ -23,6 +24,7 @@ import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findings as steFindings, readGlossary } from './ste-lint.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -40,10 +42,10 @@ const BUNDLE_RE = /(^|\/)[A-Z][A-Za-z]*\.html$/;
  * it requires reading the diff; everything else is a property of the body and the file list, so a
  * selftest can plant each violation and its control without a repository.
  *
- * @param {{body: string, files: string[]|null, computeHashMoved: boolean}} ctx
+ * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null}} ctx
  * @returns {{failures: string[], checked: string[]}}
  */
-export function checkCompliance({ body = '', files = null, computeHashMoved = false }) {
+export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null }) {
   const failures = [];
   const checked = [];
 
@@ -57,6 +59,21 @@ export function checkCompliance({ body = '', files = null, computeHashMoved = fa
 
   checked.push('fleet-session-trailer');
   if (!TRAILER_RE.test(body)) failures.push('body is missing the "Fleet-Session:" trailer');
+
+  /* 5 · THE WRITING RULES (owner ruling 2026-10-12, "make it bite"). `ste` is the finding list from
+     tools/ste-lint.mjs over the body, computed by the caller so this core stays file-free; `null`
+     means the lint was not run, reported as not evaluated rather than passed. The message names the
+     first findings by line, so the author fixes the body instead of hunting. */
+  if (ste) {
+    checked.push('ste-writing-rules');
+    if (ste.length) {
+      const named = ste
+        .slice(0, 5)
+        .map((x) => `line ${x.line} ${x.rule}: ${x.detail}`)
+        .join('; ');
+      failures.push(`body fails the writing rules — ${ste.length} finding(s) from tools/ste-lint.mjs: ${named}${ste.length > 5 ? '; …' : ''}`);
+    }
+  }
 
   /* 3 and 4 need the file list. `files === null` means no diff was available, which is NOT the same
      as an empty diff — the two checks below are then not evaluated and say so, rather than passing. */
@@ -83,9 +100,23 @@ export function selftest() {
   const has = (r, frag) => r.failures.some((f) => f.includes(frag));
 
   // CONTROL — a compliant body with a compliant file list must pass, or the gate blocks everything.
-  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'] });
+  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [] });
   ok(clean.failures.length === 0, 'CONTROL: a compliant body and changeset pass');
-  ok(clean.checked.length === 4, 'CONTROL: all four checks were evaluated, so the pass is not a skip');
+  ok(clean.checked.length === 5, 'CONTROL: all five checks were evaluated, so the pass is not a skip');
+
+  // PLANTED VIOLATION 5 — the body fails the writing rules (owner, 2026-10-12: the linter bites).
+  const passive = [{ line: 3, rule: 'passive', detail: '"was measured"' }];
+  ok(has(checkCompliance({ body: good, files: null, ste: passive }), 'writing rules'), 'a writing-rules finding is caught');
+  ok(has(checkCompliance({ body: good, files: null, ste: passive }), 'line 3 passive'), '…and the failure names the line and the rule');
+  ok(!has(checkCompliance({ body: good, files: null, ste: [] }), 'writing rules'), 'CONTROL: no finding, no failure');
+  ok(!checkCompliance({ body: good, files: null, ste: null }).checked.includes('ste-writing-rules'), 'lint not run ⇒ the check is reported as NOT evaluated, not as passed');
+  // …and the import is LIVE: the real linter over a planted passive sentence, with the real glossary.
+  const live = steFindings(`${good}\n\nThe value was measured by the tool.`, readGlossary());
+  ok(
+    live.some((x) => x.rule === 'passive'),
+    'the real linter reports the planted passive sentence'
+  );
+  ok(steFindings(good, readGlossary()).length === 0, 'CONTROL: the compliant body has no finding');
 
   // PLANTED VIOLATION 1 — no Rule 0 line at all (what #3377 went red on).
   ok(has(checkCompliance({ body: 'no evidence line\n\nFleet-Session: Magpie', files: null }), 'Rule 0'), 'a missing Rule 0 line is caught');
@@ -121,7 +152,7 @@ function verdictOf({ status, failures, checked, reason }) {
   const v = Verdict.make({
     gate: 'pr-compliance',
     status,
-    population: { checked: checked.length, eligible: 4, excluded: 4 - checked.length },
+    population: { checked: checked.length, eligible: 5, excluded: 5 - checked.length },
     criterion: { name: 'pr-body-and-changeset-satisfy-every-applicable-compliance-check', threshold: 0, unit: 'failed checks', direction: 'eq' },
     result: status === 'NOT_RUN' ? null : { checksEvaluated: checked, failures },
     evidence: ['tools/pr-compliance.mjs', 'CLAUDE.md'],
@@ -255,7 +286,8 @@ function main() {
     }
   }
 
-  const { failures, checked } = checkCompliance({ body, files, computeHashMoved });
+  const ste = body ? steFindings(body, readGlossary()) : null;
+  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste });
   if (diffError) failures.push(diffError);
   const status = failures.length ? 'FAIL' : 'PASS';
 
