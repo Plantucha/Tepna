@@ -846,6 +846,33 @@ function selftest() {
     ok(!k.ok && /examined NO contributions block/.test(k.errors[0]), 'PLANT: a valid object whose validate() examined no block is NOT an adoption — it is a pass over something never read');
     k = checkContributions(F({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file: 'good.json' } } }), TABLE, vOK, run);
     ok(k.ok && k.counts.adopted === 1 && k.counts.read === 1 && k.counts.examined === 1, 'adopted + a read object whose validate() examined the block is green, and the count says so');
+    /* THE REAL VALIDATOR, not a stub: the leg's requirement must be satisfiable by the shipped
+       verdict.js, and the same object WITHOUT the block must red through the same path. */
+    const withBlock = V.make({
+      gate: 'g',
+      status: 'PASS',
+      population: { checked: 2, eligible: 2, excluded: 0 },
+      criterion: { name: 'x', threshold: 1, unit: '', direction: 'lte' },
+      result: { x: 0 },
+      evidence: ['a'],
+      producedBy: { tool: 't', commit: 'abcdef1' },
+      contributions: {
+        of: 'sigma.ankle',
+        unit: 'ms^2',
+        method: 'analytic',
+        inputs: [
+          { key: 'leg.chest-finger', delta: -3, share: 0.75 },
+          { key: 'leg.chest-ankle', delta: 1, share: 0.25 }
+        ],
+        dominant: 'leg.chest-finger'
+      }
+    });
+    const realRun = (e) => (e.file === 'with.json' ? withBlock : good);
+    const adoptedHat = (file) => ({ ...both(), 'hat σ': { ...HAT, status: 'adopted', emits: { file } } });
+    k = checkContributions(F(adoptedHat('with.json')), TABLE, V.validate, realRun);
+    ok(k.ok && k.counts.examined === 1, `the shipped verdict.js EXAMINES a real contributions block, so an honest adoption greens (${k.errors.join(' | ')})`);
+    k = checkContributions(F(adoptedHat('without.json')), TABLE, V.validate, realRun);
+    ok(!k.ok && /examined NO contributions block/.test(k.errors[0]), 'the same real validator over an object WITHOUT the block reds through the same path — the arm is not a stub artefact');
     /* the real tree: the committed manifest equals the brief’s own table, non-vacuous by count */
     const realM = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
     const briefPath = String((realM.contributions || {}).enumeratedFrom || '').split(' §')[0];
@@ -857,7 +884,7 @@ function selftest() {
     );
   }
 
-  const N = 64;
+  const N = 66;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${N}`);

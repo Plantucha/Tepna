@@ -20,5 +20,9 @@ be read as debt. All five land `pending`, which is the honest state today.
 
 An `adopted` row must name `emits`, the gate reads that object, and `validate()` must report
 `contributions` among the fields it EXAMINED. A valid object whose validator never looked at the
-block is not an adoption; it is a pass over something never read. Seventeen selftests plant each arm,
-two of them for the leg's own blindness: the renamed heading and the examined-nothing adoption.
+block is not an adoption; it is a pass over something never read.
+
+Nineteen selftests plant each arm, two of them for the leg's own blindness: the renamed heading and
+the examined-nothing adoption. Two more run the shipped `verdict.js` validator over a real block and
+over an object without one, so the requirement is satisfiable by the validator that ships rather
+than by a stub alone.
