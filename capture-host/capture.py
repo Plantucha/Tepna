@@ -9440,6 +9440,10 @@ async def loss_poller(cfg: dict, root: str):
                 if _m is not None and nightqc.data_settled(_m, settle, _t):
                     _settled[_n] = _m
             nights = [n for n in every if n in _settled]
+            # ONE re-judge per poll for a night whose verdict older judge code wrote (`solid_night.code_moved`):
+            # each costs a full audit and composition in this process (+311..+605 MB peak, measured on vigil
+            # 2026-10-12), so a deploy that touches the judge works through the window one night per tick.
+            rejudge = int(lcfg.get("rejudge_per_poll", 1))
             for night in nights[-int(lcfg.get("max_nights", 14)) :]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
@@ -9454,8 +9458,17 @@ async def loss_poller(cfg: dict, root: str):
                 # docstring above already promised "the night's PRIMARY files"; this is the code
                 # doing what it said.
                 newest = _settled[night]  # measured for the eligibility test above; a float by construction
-                # audit only when the night's DATA changed since the last audit (otherwise it stands)
-                if not (os.path.exists(vpath) and os.path.getmtime(vpath) >= newest):
+                # audit only when the night's DATA changed since the last audit (otherwise it stands) — or when
+                # the code that judged it has changed since, within this poll's re-judge budget
+                why = None
+                current = os.path.exists(vpath) and os.path.getmtime(vpath) >= newest
+                if current and rejudge > 0:
+                    why = await asyncio.to_thread(solid_night.code_moved, nd, commit)
+                    if why:
+                        rejudge -= 1
+                        current = False
+                        log.info("solid-night: %s — %s", night, why)
+                if not current:
                     obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
                     STATUS.setdefault("loss", {})[night] = {
                         "status": obj["status"],
@@ -9470,13 +9483,15 @@ async def loss_poller(cfg: dict, root: str):
                             dc,
                             obj.get("reason"),
                         )
-                await _solid_night(nd, night, cfg, every, active, commit)
+                await _solid_night(nd, night, cfg, every, active, commit, why)
             await _solid_pending(captures, every, active, cfg, settle, commit)
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("loss-audit: poll failed", exc_info=True)
 
 
-async def _solid_night(nd: str, night: str, cfg: dict, nights: list, active: set, commit) -> None:
+async def _solid_night(
+    nd: str, night: str, cfg: dict, nights: list, active: set, commit, why: str | None = None
+) -> None:
     """SOLID-NIGHT §2: the night's verdict, composed on the LOSS AUDIT'S OWN TRIGGER — it runs only for a
     settled night, after that night's audit, and again only when the audit is newer than the verdict (the
     audit re-runs when the night's data changes, and the verdict follows it). Its failure is its own: a
@@ -9490,10 +9505,22 @@ async def _solid_night(nd: str, night: str, cfg: dict, nights: list, active: set
         return  # composed since the audit last changed
     try:
         obj, run = await asyncio.to_thread(
-            solid_night.write_night, nd, cfg.get("devices", []), nights=nights, active=active, commit=commit
+            solid_night.write_night,
+            nd,
+            cfg.get("devices", []),
+            nights=nights,
+            active=active,
+            commit=commit,
+            reason=why,
         )
     except Exception:  # noqa: BLE001 — one night's verdict must not stop the poller
         log.warning("solid-night: %s — verdict not written", night, exc_info=True)
+        return
+    log.info("solid-night: %s %s — %s", night, obj["status"], run["statement"])
+    # A RE-JUDGED OLDER NIGHT IS WRITTEN BUT NOT PUBLISHED: the status card states the newest night, and
+    # `code_moved` now re-judges past nights routinely — the same never-backwards rule `_solid_pending` keeps.
+    shown = (STATUS.get("solid") or {}).get("night")
+    if shown is not None and night < shown:
         return
     STATUS["solid"] = {
         "night": night,
@@ -9503,7 +9530,6 @@ async def _solid_night(nd: str, night: str, cfg: dict, nights: list, active: set
         "solid": run["solid"],
         "exit": run["exit"],
     }
-    log.info("solid-night: %s %s — %s", night, obj["status"], run["statement"])
 
 
 async def _solid_pending(captures: str, every: list, active: set, cfg: dict, settle: float, commit) -> None:
