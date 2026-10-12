@@ -164,6 +164,7 @@ RATCHET = {
     "oxy_transfer.py": 5,
     "o2ring.py": 3,
     "oxyii.py": 3,
+    "polar_psftp.py": 1,
     "ppg_grid_check.py": 2,
     "ppgdex-dsp.js": 130,
     "probe_oxyii_0x03.py": 3,

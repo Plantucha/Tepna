@@ -1823,6 +1823,10 @@ def test_the_sidecar_is_written_into_the_output_directory_and_describes_the_pull
         "n_files": 2,
     }
     assert "\n" in sidecar.read_text(), "indented, because a human reads this one"
+    # Mutant 241 widens `indent=2` to `indent=3` and the line above cannot see it: a newline is there
+    # at every indent, so the check passed over the property it was written for. Pin the exact bytes
+    # the writer produces instead of a stand-in for them.
+    assert sidecar.read_text() == json.dumps(meta, indent=2), "two-space indent, as `json.dump` wrote it"
 
 
 def test_a_zero_byte_file_is_still_downloaded(monkeypatch, tmp_path):
