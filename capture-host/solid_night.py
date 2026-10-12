@@ -9,7 +9,9 @@ precedence, the population equality, the settle trigger and the consecutive coun
 sidecar, ADAPTERHCI) are wired in later units; keeping them out of here keeps this testable on its own.
 
 PRECEDENCE (§3.1), first match wins:
-  1. UNKNOWN `not settled`  — until night N+1's first data write; overrides everything.
+  1. UNKNOWN `not settled`  — until night N's OWN device data has been quiet for the settle window
+                              (`nightqc.data_settled`; N+1's first write is NOT the trigger, and a device
+                              worn past it holds N open); overrides everything.
   2. FAIL                   — any scored device FAILs any band. A clear failure is not hidden behind
                               another device's UNKNOWN.
   3. UNKNOWN                — no FAIL, but some band on some scored device could not be decided.
@@ -244,8 +246,9 @@ def consecutive(nights: list[tuple[str, str, str | None]]) -> dict:
 def night_verdict(night_dir: str, devices: list, *, commit: str | None = None, at: str | None = None) -> dict:
     """A SETTLED night's verdict, its band decisions supplied from the files beside it (`solid_night_inputs`).
 
-    Only ever called for a settled night: the caller runs on the loss audit's own trigger, which fires once
-    night N+1 has begun (§2's settle trigger), so `settled` is True by construction here."""
+    Only ever called for a settled night: the caller runs on the loss audit's own trigger — night N's newest
+    DEVICE-data write plus the settle window (`nightqc.data_settled`), seen on the next loss-poller tick
+    (`loss_audit.poll_sec`) — so `settled` is True by construction here."""
     scope = _inputs.recording_scope(night_dir)
     return compose(
         night=os.path.basename(night_dir.rstrip("/")),

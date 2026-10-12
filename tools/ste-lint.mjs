@@ -3,9 +3,10 @@
 /* ════════════════════════════════════════════════════════════════════════
    tools/ste-lint.mjs — the writing rules, checked
 
-       node tools/ste-lint.mjs <file.md>        # advisory report
+       node tools/ste-lint.mjs <file.md>        # exit 1 on any finding
        node tools/ste-lint.mjs - < body.md      # a PR body on stdin
        node tools/ste-lint.mjs <file> --json    # the verdict alone
+       node tools/ste-lint.mjs <file> --advisory # report only, exit 0 (a backlog sweep)
        node tools/ste-lint.mjs --selftest
        node tools/ste-lint.mjs --verdict-sample
 
@@ -16,9 +17,11 @@
    layer is OURS: `docs/GLOSSARY.md`, seeded from terms this repo already uses and
    picked by COUNT, not by taste.
 
-   Each finding names the line. The tool is ADVISORY (exit 0) by owner ruling;
-   `--strict` exits 1 and is for later, when the counts are low enough that a red
-   means a defect rather than a backlog.
+   Each finding names the line, and each finding is a defect: the tool exits 1 on
+   any finding (owner ruling 2026-10-12, "make it bite"; it was advisory from
+   2026-10-11). `--advisory` keeps the report and exits 0, for a sweep over a
+   backlog nobody has been asked to clear. `tools/pr-compliance.mjs` runs the
+   strict form over every PR body, so a red here is a red `test` context.
 
    WHAT IT SKIPS, AND WHY EACH SKIP IS LOAD-BEARING. A checker that flags the
    wrong spans teaches people to ignore it:
@@ -27,9 +30,12 @@
      · quoted log lines and command output — someone else's words, and we must
        not rewrite evidence;
      · URLs and inline code — a long identifier is not a long sentence;
-     · citations (author, year, DOI) — the form is fixed by the source.
+     · citations (author, year, DOI) — the form is fixed by the source;
+     · a PR body's `Rule 0:` evidence line and its `Fleet-Session:` trailer — a
+       query plus its hits is a list, not a sentence, and the gate reads both by form.
    ════════════════════════════════════════════════════════════════════════ */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -53,17 +59,24 @@ export function readGlossary(root = ROOT) {
   const out = { retired: new Map(), technical: new Set() };
   if (!existsSync(p)) return out;
   for (const line of readFileSync(p, 'utf8').split('\n')) {
-    /* `| approved | retired, retired | note |` and `| **name** | technical name | … |` */
-    const m = line.match(/^\|\s*`?([^`|]+?)`?\s*\|\s*([^|]*)\|/);
+    /* `| approved | retired, retired | note |` and `| \`name\`, \`name\` | technical name | … |`. The first
+       cell is read WHOLE and split on commas: the earlier reader stopped at the first backtick, so
+       every multi-name technical row (the nodes, the devices, the module globals) registered
+       nothing — measured 2026-10-12, when the set held two names out of twenty-seven. */
+    const m = line.match(/^\|\s*([^|]+?)\s*\|\s*([^|]*)\|/);
     if (!m) continue;
-    const approved = m[1].trim();
+    const names = m[1]
+      .split(',')
+      .map((x) => x.replace(/[`*]/g, '').trim())
+      .filter(Boolean);
+    const approved = names[0] || '';
     const second = m[2].trim();
     /* The table's own HEADER and separator are not entries. Without this the file that DEFINES the
        retired words reports them as uses — measured on the first run of this tool against its own
        glossary, which is the cheapest possible proof that a definition is not a use. */
     if (/^(approved|name|term)$/i.test(approved) || /^[-: ]+$/.test(approved) || /^(retired|kind)$/i.test(second)) continue;
     if (/technical name/i.test(second)) {
-      out.technical.add(approved.toLowerCase());
+      for (const n of names) out.technical.add(n.toLowerCase());
       continue;
     }
     for (const r of second.split(/[,;]/)) {
@@ -93,6 +106,7 @@ export function proseLines(src) {
        unskipped. CodeQL flagged it (high) and it was right: an incomplete end-tag match. */
     if (/^\s*(?:#|<!--|--!?>|\[\^)/.test(raw)) continue; // heading, comment, footnote
     if (/\bdoi:|https?:\/\/\S+\s*$/i.test(raw) && raw.trim().split(/\s+/).length < 14) continue; // a citation line
+    if (/^(?:Rule 0:|Fleet-Session:)/.test(raw)) continue; // a PR body's evidence line and trailer — read by form, not prose
     let text = raw
       .replace(/`[^`]*`/g, 'CODE')
       .replace(/https?:\/\/\S+/g, 'URL')
@@ -189,20 +203,38 @@ function gitCommit() {
   }
 }
 
-export function verdictFor(label, f, lineCount) {
+export function verdictFor(label, f, lineCount, { advisory = false } = {}) {
   const byRule = {};
   for (const x of f) byRule[x.rule] = (byRule[x.rule] || 0) + 1;
+  const summary = Object.keys(byRule)
+    .sort()
+    .map((k) => `${k} ${byRule[k]}`)
+    .join(', ');
+  /* The rule BINDS (owner, 2026-10-12): a finding is FAIL, none over prose is PASS. Two refusals
+     stay: `--advisory` is NOT_APPLICABLE with the count beside it — never PASS over findings, never
+     FAIL on a backlog nobody was asked to clear — and a target with no prose line is NOT_RUN,
+     because PASS over nothing examined is the §🧾 invalid object. */
+  let status = 'PASS';
+  let reason = null;
+  if (advisory) {
+    status = 'NOT_APPLICABLE';
+    reason = `advisory — ${f.length} finding(s); the rule is not armed on this run (--advisory)`;
+  } else if (lineCount === 0) {
+    status = 'NOT_RUN';
+    reason = 'no prose line examined';
+  } else if (f.length) {
+    status = 'FAIL';
+    reason = `${f.length} finding(s): ${summary}`;
+  }
   return Verdict.make({
     gate: 'ste-lint',
     scope: 'internal',
-    status: 'NOT_APPLICABLE',
+    status,
     population: { checked: lineCount, eligible: lineCount, excluded: 0 },
     criterion: { name: 'ste_findings', threshold: 0, unit: 'findings', direction: 'lte' },
     result: { target: label, findings: f.length, byRule },
     evidence: ['tools/ste-lint.mjs', 'docs/GLOSSARY.md'],
-    /* ADVISORY by owner ruling: the rule does not bind yet, so NOT_APPLICABLE with the count beside
-       it — never PASS over findings, and never FAIL on a backlog nobody has been asked to clear. */
-    reason: `advisory — ${f.length} finding(s); the rules are adopted, the threshold is not armed (use --strict)`,
+    reason,
     producedBy: { tool: 'tools/ste-lint.mjs', commit: gitCommit() }
   });
 }
@@ -211,14 +243,15 @@ function main() {
   const argv = process.argv.slice(2);
   const target = argv.find((a) => !a.startsWith('-')) || (argv.includes('-') ? '-' : null);
   if (!target) {
-    console.error('usage: node tools/ste-lint.mjs <file.md|-> [--json] [--strict]');
+    console.error('usage: node tools/ste-lint.mjs <file.md|-> [--json] [--advisory]');
     process.exit(2);
   }
   const src = target === '-' ? readFileSync(0, 'utf8') : readFileSync(target, 'utf8');
   const g = readGlossary();
   const f = findings(src, g);
   const lineCount = proseLines(src).length;
-  const v = verdictFor(target === '-' ? '<stdin>' : target, f, lineCount);
+  const advisory = argv.includes('--advisory');
+  const v = verdictFor(target === '-' ? '<stdin>' : target, f, lineCount, { advisory });
   console.log(JSON.stringify(v));
   if (!argv.includes('--json')) {
     console.log(`\n▸ ${target}: ${f.length} finding(s) over ${lineCount} prose line(s)`);
@@ -227,7 +260,8 @@ function main() {
     for (const x of f.slice(0, 25)) console.log(`   ${target}:${x.line}  ${x.rule} — ${x.detail}`);
     if (f.length > 25) console.log(`   … and ${f.length - 25} more`);
   }
-  process.exit(argv.includes('--strict') && f.length ? 1 : 0);
+  /* `--strict` is accepted and means nothing: strict is the default now. */
+  process.exit(!advisory && f.length ? 1 : 0);
 }
 
 const DIRECT = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
@@ -275,6 +309,9 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('a quoted log line is skipped', rules('> ' + long).length, 0);
   ck('an indented code block is skipped', rules('    ' + long).length, 0);
   ck('a heading is skipped', rules('# ' + long).length, 0);
+  ck('a Rule 0 evidence line is skipped', rules('Rule 0: ' + long).length, 0);
+  ck('…and a Fleet-Session trailer too', rules('Fleet-Session: Kestrel (relay: ' + long + ')').length, 0);
+  ck('…but a sentence that merely mentions Rule 0 is prose', rules('The ' + long.replace('This', 'Rule 0 line')).includes('long-sentence'), true);
   /* 🔴 CodeQL (high) caught this one: `--!>` also closes an HTML comment, and matching only `-->`
      left the line after such a comment unskipped. Planted in both forms. */
   ck('an HTML comment closed with --> is skipped', rules('--> ' + long).length, 0);
@@ -284,9 +321,22 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('a paragraph over six sentences is reported', rules('A one. B two. C three. D four. E five. F six. G seven.').includes('long-paragraph'), true);
   ck('six sentences are not', rules('A one. B two. C three. D four. E five. F six.').includes('long-paragraph'), false);
   /* §∅ and §🧾 on the verdict's own shape. */
-  ck('the verdict is NOT_APPLICABLE while advisory, never PASS over findings', verdictFor('x', [{ line: 1, rule: 'passive', detail: '' }], 3).status, 'NOT_APPLICABLE');
+  ck('a finding is FAIL — the rule binds (owner, 2026-10-12)', verdictFor('x', [{ line: 1, rule: 'passive', detail: '' }], 3).status, 'FAIL');
+  ck('…and the FAIL names the rule in its reason', verdictFor('x', [{ line: 1, rule: 'passive', detail: '' }], 3).reason, '1 finding(s): passive 1');
+  ck('no finding over prose is PASS', verdictFor('x', [], 3).status, 'PASS');
+  ck('no prose line examined is NOT_RUN, never PASS over nothing', verdictFor('x', [], 0).status, 'NOT_RUN');
+  ck('--advisory is NOT_APPLICABLE, never PASS over findings', verdictFor('x', [{ line: 1, rule: 'passive', detail: '' }], 3, { advisory: true }).status, 'NOT_APPLICABLE');
   ck('…and it carries the count', verdictFor('x', [{ line: 1, rule: 'passive', detail: '' }], 3).result.findings, 1);
   ck('the glossary reader survives an absent file', readGlossary('/nonexistent').retired.size, 0);
+  /* A multi-name technical row registers EVERY name — the defect measured 2026-10-12. */
+  {
+    const dir = mkdtempSync(join(tmpdir(), 'ste-gloss-'));
+    mkdirSync(join(dir, 'docs'));
+    writeFileSync(join(dir, 'docs/GLOSSARY.md'), '| approved | retired | note |\n|---|---|---|\n| `measured value` | proxy | x |\n| `OxyDex`, `H10` | technical name — two |\n');
+    const g2 = readGlossary(dir);
+    ck('a two-name technical row registers both names', [...g2.technical].sort(), ['h10', 'oxydex']);
+    ck('…and the retired row beside it still reads', g2.retired.get('proxy'), 'measured value');
+  }
   console.log(bad ? `  ✗ ${bad} of ${ran} selftests failed` : `  all ${ran} selftests passed`);
   process.exit(bad ? 1 : 0);
 }
