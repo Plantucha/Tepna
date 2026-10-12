@@ -2659,3 +2659,245 @@ def test_a_FOLDER_THAT_IS_NOT_A_DATE_anchors_the_window_at_MIDNIGHT(tmp_path, mo
     assert (until.minute, until.second, until.microsecond) == (0, 0, 0), f"until={until}"
     assert since == dt.datetime(2026, 10, 10, 18, 0, 0), since
     assert until == dt.datetime(2026, 10, 12, 6, 0, 0), until
+
+
+# ---------------------------------------------------------------------------------------------------
+# SAMPLES, NOT SECONDS — residue `2026-09-27-sample-shortfall-without-a-time-gap-is-unmeasured`.
+#
+# On 2026-09-07 the time-based witness read -1.2, -0.9, -1.0 and -0.5 s across hours 23-02 while about
+# 4,600 PPG samples an hour were absent. Both readings are right: no time passed without signal, AND
+# the seconds that carried signal carried fewer samples than the ring's own rate. One measure cannot
+# state the other, so `sample_completeness` publishes the pair and grades NOTHING — a shortfall is not
+# loss until something says those samples ever existed.
+# ---------------------------------------------------------------------------------------------------
+
+
+def _oxy_night(tmp_path, day="2026-09-22"):
+    d = tmp_path / "captures" / day
+    d.mkdir(parents=True)
+    return d
+
+
+def test_a_full_rate_run_reads_no_shortfall_and_a_ratio_at_the_nominal_rate(tmp_path):
+    """126 samples a second against a 125.000 nominal rate: the ratio is the measurement and the
+    shortfall is NEGATIVE, which is the honest reading of a ring that delivers slightly fast."""
+    d = _oxy_night(tmp_path)
+    _oxyframe(d, dt.datetime(2026, 9, 22, 22, 39, 24), 300)
+    out = loss_audit.sample_completeness(str(d))
+    assert out["nominal_fs"] == 125.000
+    assert out["files"] == 1 and out["unreadable"] == [] and out["reason"] is None
+    assert len(out["runs"]) == 1, out["runs"]
+    r = out["runs"][0]
+    # 300 frames stamped 0..299 carry duration_s 0..299: 300 device-seconds covered, 299 of advance.
+    assert (r["frames"], r["device_seconds"], r["device_advance_s"]) == (300, 300, 299)
+    assert r["delivered"] == 300 * 126
+    assert r["samples_per_device_second"] == 126.0
+    assert r["shortfall_at_nominal"] == round(125.0 * 300) - 300 * 126 == -300
+    assert r["host_minus_device_s"] == 0.0, "no time passed without signal"
+    assert (r["frames_without_counter"], r["frames_without_samples"]) == (0, 0)
+
+
+def test_a_SAMPLE_shortfall_is_reported_while_the_TIME_measure_reads_zero(tmp_path):
+    """🔴 THE ROW ITSELF. Every second of the run carried signal, so `host_minus_device_s` is 0.0 and
+    no gap exists to attribute — and 100 of the 125 samples in each of those seconds are absent."""
+    d = _oxy_night(tmp_path)
+    start = dt.datetime(2026, 9, 22, 23, 0, 0)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922230000_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        for sec in range(600):
+            t = (start + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};{sec};25.5;0;97;58;1;80;0;0;25;1;0;0;0;2\n")
+    r = loss_audit.sample_completeness(str(d))["runs"][0]
+    assert r["host_minus_device_s"] == 0.0, "the TIME measure sees nothing, which is why the row exists"
+    assert r["delivered"] == 600 * 25
+    assert r["samples_per_device_second"] == 25.0
+    assert r["shortfall_at_nominal"] == round(125.0 * 600) - 600 * 25 == 60000
+
+
+def test_a_BACKWARD_counter_step_starts_a_SECOND_run_and_neither_bounds_the_other(tmp_path):
+    """The ring closed one session and opened another, so nothing about the old counter bounds the new
+    one — the same rule `witness_judges` reads a step by. One run per session, never one fused run whose
+    device_seconds spans the reset."""
+    d = _oxy_night(tmp_path)
+    _oxyframe(d, dt.datetime(2026, 9, 22, 22, 0, 0), 120, dur0=1000)
+    _oxyframe(d, dt.datetime(2026, 9, 22, 23, 0, 0), 60, dur0=0)
+    out = loss_audit.sample_completeness(str(d))
+    assert out["files"] == 2
+    assert len(out["runs"]) == 2, out["runs"]
+    assert [r["frames"] for r in out["runs"]] == [120, 60]
+    assert [r["device_seconds"] for r in out["runs"]] == [120, 60]
+    assert out["runs"][0]["first"].startswith("2026-09-22T22:00:00")
+    assert out["runs"][1]["first"].startswith("2026-09-22T23:00:00")
+
+
+def test_a_run_of_ONE_frame_states_its_one_device_second_and_NO_advance(tmp_path):
+    """One frame covers one device-second and advances the counter by nothing. Reading the inclusive
+    span as the advance is a 50 % error here and a one-second error in an hour, which is why the two
+    are separate fields."""
+    d = _oxy_night(tmp_path)
+    _oxyframe(d, dt.datetime(2026, 9, 22, 22, 0, 0), 1)
+    r = loss_audit.sample_completeness(str(d))["runs"][0]
+    assert (r["frames"], r["device_seconds"], r["device_advance_s"]) == (1, 1, None)
+    assert r["host_minus_device_s"] is None, "no advance, so no time measure — never a 0 standing in"
+    assert r["samples_per_device_second"] == 126.0
+
+
+def test_a_BLANK_counter_cell_is_COUNTED_and_never_read_as_a_zero(tmp_path):
+    """§∅: `duration_s` reads 0 on a ring with no session open, so a blank cell cannot become one. The
+    frame is counted in `frames_without_counter` and the readable counters still bound the run."""
+    d = _oxy_night(tmp_path)
+    start = dt.datetime(2026, 9, 22, 22, 0, 0)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        for sec in range(10):
+            t = (start + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
+            dur = "" if sec in (4, 5) else str(100 + sec)
+            fh.write(f"{t};{dur};25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+    r = loss_audit.sample_completeness(str(d))["runs"][0]
+    assert r["frames"] == 10 and r["frames_without_counter"] == 2
+    # 100..109 with two cells unreadable: the ENDS are readable, so the span is unchanged
+    assert (r["device_seconds"], r["device_advance_s"]) == (10, 9)
+    assert r["delivered"] == 10 * 126, "a blank counter does not drop the frame's samples"
+
+
+def test_a_run_with_NO_readable_counter_reports_NO_ratio_rather_than_a_number(tmp_path):
+    """Samples arrived and nothing says across how many device-seconds. The delivered count is a
+    measurement and the ratio is not, so one is published and the other is `None` (§∅)."""
+    d = _oxy_night(tmp_path)
+    start = dt.datetime(2026, 9, 22, 22, 0, 0)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        for sec in range(5):
+            t = (start + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+    r = loss_audit.sample_completeness(str(d))["runs"][0]
+    assert r["frames_without_counter"] == 5
+    assert (r["device_seconds"], r["device_advance_s"], r["host_minus_device_s"]) == (None, None, None)
+    assert r["delivered"] == 5 * 126
+    assert r["samples_per_device_second"] is None and r["shortfall_at_nominal"] is None
+
+
+def test_frames_that_carried_NO_samples_read_delivered_ZERO_which_is_a_measurement(tmp_path):
+    """`delivered == 0` says the frames arrived and carried no PPG samples at all. That is the reading
+    the whole row is about, so the code tests `is None` and never falsiness: a zero here must survive
+    into the ratio and the shortfall."""
+    d = _oxy_night(tmp_path)
+    start = dt.datetime(2026, 9, 22, 22, 0, 0)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        for sec in range(60):
+            t = (start + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};{sec};25.5;0;97;58;1;80;0;0;0;1;0;0;0;2\n")
+    r = loss_audit.sample_completeness(str(d))["runs"][0]
+    assert r["delivered"] == 0 and r["frames_without_samples"] == 0
+    assert r["samples_per_device_second"] == 0.0, "a zero ratio, not an absent one"
+    assert r["shortfall_at_nominal"] == 7500
+
+
+def test_an_ABSENT_ppg_n_COLUMN_says_it_cannot_answer_rather_than_saying_nothing_arrived(tmp_path):
+    """An older layout with no `ppg_n` header reads `frames_without_samples == frames` and a `None`
+    delivered count. Addressing the column by NAME is what makes that distinguishable from a layout
+    that carries the column and reports zero."""
+    d = _oxy_night(tmp_path)
+    start = dt.datetime(2026, 9, 22, 22, 0, 0)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt", "w") as fh:
+        fh.write("Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct\n")
+        for sec in range(30):
+            t = (start + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};{sec};25.5;0;97;58;1;80\n")
+    r = loss_audit.sample_completeness(str(d))["runs"][0]
+    assert r["frames"] == 30 and r["frames_without_samples"] == 30
+    assert r["delivered"] is None
+    assert r["samples_per_device_second"] is None and r["shortfall_at_nominal"] is None
+    assert r["device_seconds"] == 30, "the counter still answers; only the sample column is absent"
+
+
+def test_a_TORN_row_and_a_row_BEFORE_the_header_are_both_skipped_rather_than_guessed(tmp_path):
+    """A row cut short mid-write has no cell at the sample index, and a row ahead of the header has no
+    column contract at all. Neither becomes a zero and neither is read positionally."""
+    d = _oxy_night(tmp_path)
+    start = dt.datetime(2026, 9, 22, 22, 0, 0)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt", "w") as fh:
+        fh.write(f"{start.isoformat(timespec='milliseconds')};0;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+        fh.write(_OXY_HDR)
+        for sec in range(1, 4):
+            t = (start + dt.timedelta(seconds=sec)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};{sec};25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n")
+        fh.write((start + dt.timedelta(seconds=4)).isoformat(timespec="milliseconds") + ";4;25.5\n")
+        fh.write("not a stamp at all;9;9\n")
+    rows = loss_audit.oxyframe_samples(str(d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt"))
+    assert len(rows) == 4, "three whole rows and the torn one; the pre-header row is not among them"
+    assert [r[1] for r in rows] == [1, 2, 3, 4]
+    assert [r[2] for r in rows] == [126, 126, 126, None], "the torn row's sample cell is absent, not 0"
+    r = loss_audit.sample_completeness(str(d))["runs"][0]
+    assert r["frames"] == 4 and r["frames_without_samples"] == 1
+    assert r["delivered"] == 3 * 126
+
+
+def test_a_NON_NUMERIC_cell_is_absent_rather_than_a_zero(tmp_path):
+    """`int()` raises on the cell and the reading is `None`. A `0` here would read as a frame that
+    delivered nothing, which is a different claim from a frame nobody can read."""
+    cols = ["Phone timestamp", "duration_s", "ppg_n"]
+    assert loss_audit._cell_int(cols, ["t", "7", "126"], "ppg_n") == 126
+    assert loss_audit._cell_int(cols, ["t", "7", "nan"], "ppg_n") is None
+    assert loss_audit._cell_int(cols, ["t", "7", " 126 "], "ppg_n") == 126
+    assert loss_audit._cell_int(cols, ["t", "7"], "ppg_n") is None, "torn: no cell at that index"
+    assert loss_audit._cell_int(cols, ["t", "7", "126"], "battery_pct") is None, "no such column"
+
+
+def test_a_night_with_NO_frame_file_states_its_REASON_and_no_runs(tmp_path):
+    """Nothing to measure is not a measurement of zero: `runs` is empty and `reason` names why."""
+    d = _oxy_night(tmp_path)
+    out = loss_audit.sample_completeness(str(d))
+    assert out == {
+        "nominal_fs": 125.000,
+        "files": 0,
+        "unreadable": [],
+        "runs": [],
+        "reason": "no readable 0x04 frame row this night",
+    }
+
+
+def test_a_frame_file_with_a_HEADER_and_no_rows_reads_as_no_runs(tmp_path):
+    """The file is readable and carries nothing. `files` counts it, `runs` stays empty, and the reason
+    says the rows are what is absent."""
+    d = _oxy_night(tmp_path)
+    (d / "Wellue_O2Ring-S_S8AW2100_20260922220000_OXYFRAME.txt").write_text(_OXY_HDR)
+    out = loss_audit.sample_completeness(str(d))
+    assert out["files"] == 1 and out["runs"] == []
+    assert out["reason"] == "no readable 0x04 frame row this night"
+
+
+def test_ONE_unreadable_frame_file_is_NAMED_and_the_others_are_still_measured(tmp_path, monkeypatch):
+    """A file the reader cannot open is reported in `unreadable` beside the runs it could read — the
+    same rule the rest of the audit follows one level down. A refusal would discard a whole night over
+    one file."""
+    d = _oxy_night(tmp_path)
+    _oxyframe(d, dt.datetime(2026, 9, 22, 22, 0, 0), 30)
+    _oxyframe(d, dt.datetime(2026, 9, 22, 23, 0, 0), 30, dur0=5000)
+    real = loss_audit.oxyframe_samples
+
+    def _one_fails(path):
+        if "20260922230000" in path:
+            raise OSError(5, "Input/output error")
+        return real(path)
+
+    monkeypatch.setattr(loss_audit, "oxyframe_samples", _one_fails)
+    out = loss_audit.sample_completeness(str(d))
+    assert out["files"] == 2
+    assert len(out["unreadable"]) == 1, out["unreadable"]
+    assert out["unreadable"][0]["file"].endswith("20260922230000_OXYFRAME.txt")
+    assert "Input/output error" in out["unreadable"][0]["reason"]
+    assert len(out["runs"]) == 1 and out["runs"][0]["frames"] == 30
+    assert out["reason"] is None
+
+
+def test_the_night_audit_CARRIES_the_sample_measure_beside_the_time_based_one(tmp_path):
+    """Wired, not merely written: `audit_night` publishes `ring_samples` and the grid is untouched by
+    it. A measure nothing surfaces is one nobody reads."""
+    d = _oxy_night(tmp_path)
+    _oxyframe(d, dt.datetime(2026, 9, 22, 22, 0, 0), 120)
+    out = loss_audit.audit_night(str(d), [], journal=lambda *a, **k: [], clock_events=lambda *a, **k: [])
+    assert "ring_samples" in out, "the measure must reach the night object"
+    assert out["ring_samples"]["runs"][0]["samples_per_device_second"] == 126.0
+    assert out["ring_samples"]["nominal_fs"] == 125.000
