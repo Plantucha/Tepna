@@ -41479,6 +41479,92 @@
       }
     });
 
+    /* ── SIGNAL-ADAPTER-FOLLOWUPS-II §8 · EVERY SignalSpec dsp resolver GETS A READER ───────────────
+       §8 asked for one assertion per migrated signal type that `SignalSpec[type].dsp` resolves to a
+       real function the node's DSP exposes, so that a rename on either side trips the gate. Only
+       `hrv` ever got one (two assertions, in the HRVDex group below), and the types with no reader
+       drifted exactly as §8 predicted: measured 2026-10-12, three of the seven emittable types
+       resolved to `undefined` in the realm every consumer computes in — `rr` lost both members,
+       `spo2` lost its parser, and `hrv`'s `parse` was undefined beside the two members that were
+       pinned. The resolvers looked those functions up by a bare page-scope name, and a bare name is
+       what `__DEX_NAMESPACED__` suppresses, which every shipped host page and this runner both set.
+       So the registry now resolves through the node namespace (`signal-spec.js nsFn`) and this table
+       is the reader §8 asked for: it pins each resolver to the SAME function identity the
+       orchestrator's own host shims read off that namespace, so the spec and the shims cannot drift
+       apart. The two population assertions in front of the table are what keep a shrunk or
+       renamed table from reading as a pass over nothing. ── */
+    group('SignalSpec dsp resolvers resolve to the node that owns them (SIGNAL-ADAPTER-FOLLOWUPS-II §8)', 'signal-spec · signal-orchestrate · resolvers · co-load', function (T) {
+      var SS = env.SignalSpec,
+        ORCH = env.SignalOrchestrate;
+      T.ok('SignalSpec + SignalOrchestrate.emittableTypes co-loaded (everything below needs both)', !!(SS && ORCH && typeof ORCH.emittableTypes === 'function'));
+      if (!(SS && ORCH && typeof ORCH.emittableTypes === 'function')) return;
+      var P = env.PulseDex,
+        O = env.OxyDex,
+        H = env.HRVDex;
+      /* The expectation table. A `members` entry names one function per resolver key; an `object`
+         entry means the resolver returns the node namespace itself. Each expected value is read off
+         the node the SHIM reads, never off the spec, or the assertion would compare the spec to
+         itself. `_bare` is the helper surface each migrated node exposes beside its public one. */
+      var WANT = {
+        rr: { members: { parse: P && P.parseRRInput, stats: P && P._bare && P._bare._pdSeriesStats } },
+        spo2: { members: { parse: O && O.parseCSV } },
+        hrv: { members: { parse: H && H._bare && H._bare.parseCSV, rows: H && H.parseRows, compute: H && H.compute } },
+        ecg: { object: env.ECGDex },
+        ppg: { object: env.PpgDex },
+        cgm: { object: env.GLUDSP },
+        cpap: { object: env.CPAPDex }
+      };
+      var types = ORCH.emittableTypes();
+      T.ok('emittableTypes() is non-empty (the per-type assertions would examine nothing otherwise)', types.length > 0, types.join(','));
+      var unspecified = types.filter(function (t) {
+        return !WANT[t];
+      });
+      T.ok(
+        'every emittable signal type has a resolver expectation here — a new emittable type cannot land unasserted',
+        unspecified.length === 0,
+        unspecified.length ? 'no expectation for: ' + unspecified.join(', ') : types.length + ' types, all covered'
+      );
+      var phantom = Object.keys(WANT).filter(function (t) {
+        return types.indexOf(t) < 0;
+      });
+      T.ok('…and the table names no type the orchestrator cannot emit (it would assert a dead path)', phantom.length === 0, phantom.length ? 'not emittable: ' + phantom.join(', ') : 'clean');
+      Object.keys(WANT).forEach(function (t) {
+        var spec = SS[t],
+          w = WANT[t];
+        T.ok('SignalSpec.' + t + '.dsp is a function', !!(spec && typeof spec.dsp === 'function'));
+        if (!(spec && typeof spec.dsp === 'function')) return;
+        var got = spec.dsp();
+        if (w.object !== undefined || !w.members) {
+          T.ok('the ' + t + ' node namespace is co-loaded in this lane (the identity below is vacuous otherwise)', !!w.object, w.object ? 'present' : 'add it to env in BOTH lanes');
+          T.ok('SignalSpec.' + t + '.dsp() === the node namespace itself (identity, rename-proof)', !!w.object && got === w.object, got ? typeof got : String(got));
+          return;
+        }
+        Object.keys(w.members).forEach(function (m) {
+          var want = w.members[m],
+            had = got && got[m];
+          T.ok('SignalSpec.' + t + '.dsp().' + m + ' is a function, not undefined (the §8 defect)', typeof had === 'function', had === undefined ? 'undefined' : typeof had);
+          T.ok(
+            'SignalSpec.' + t + '.dsp().' + m + ' === the function the node exposes (rename-proof)',
+            typeof want === 'function' && had === want,
+            typeof want !== 'function'
+              ? 'the node exposes no ' + m
+              : had === want
+                ? 'same function'
+                : had === undefined
+                  ? 'the resolver returned undefined'
+                  : 'a DIFFERENT function than the node exposes'
+          );
+        });
+      });
+      /* The aux + un-migrated types resolve to `undefined` because no node owns them yet, and that
+         is a measured fact rather than a convention: `hr` and `acc` are auxiliary channels with no
+         DSP of their own, and `eeg`/`flow` name DSPs that do not exist in the repo. A resolver here
+         that starts answering means a node landed, and the type then owes an emit path and a row in
+         the table above — so this is a tripwire on growth, not a prohibition. */
+      ['hr', 'acc', 'eeg', 'flow'].forEach(function (t) {
+        T.ok('SignalSpec.' + t + '.dsp() is undefined — no node owns it yet (tripwire: wire it above when one does)', SS[t] && SS[t].dsp() === undefined);
+      });
+    });
     /* ════ GLUCODEX CLAMP-SATURATION HONESTY FLAG (GLUCODEX-FOLLOWUPS §2). A clamped CGM (Abbott Lingo
      clips 55–200 mg/dL) under-counts below/above-range, so the nocturnal_hypo events fired off the clip
      FLOOR may be artifacts, not true hypos. glucoBuildNodeExport now surfaces the clamp fact on
