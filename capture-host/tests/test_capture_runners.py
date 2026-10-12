@@ -9550,7 +9550,9 @@ def test_the_capability_is_recorded_where_charging_is_MEASURED_and_gates_the_fla
     assert (
         capture.devcaps.get(addr, "can_charge") is True and capture.devcaps.source(addr, "can_charge") == "battery-rose"
     )
-    # (c) now the same flat-at-100 % session DOES infer a dock — the Verity's real case
+    # (c) now the same flat-at-100 % session RECORDS the observation and claims nothing from it —
+    # owner ruling 2026-10-12. The capability gate still decides whether the observation is recorded
+    # at all; what changed is that the recorded value is NULL rather than True.
     capture._STOP = asyncio.Event()
     capture.STATUS["devices"]["H10"] = {"battery": 100}
     capture._BATT_FLAT_SINCE["H10"] = -10_000.0
@@ -9559,7 +9561,7 @@ def test_the_capability_is_recorded_where_charging_is_MEASURED_and_gates_the_fla
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     assert (
-        capture.STATUS["devices"]["H10"]["charging"] is True
+        capture.STATUS["devices"]["H10"]["charging"] is None
         and capture.STATUS["devices"]["H10"]["charging_why"] == "flat-at-full"
     )
     capture._STOP.clear()
