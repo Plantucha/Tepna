@@ -66,7 +66,7 @@ function meanAbsDiff(a) {
 }
 
 /* Log band power of a 1 Hz series (linear detrend + Hann, direct DFT over the band's bins only). */
-export function bandPower(a, lo, hi) {
+function bandPower(a, lo, hi) {
   const n = a.length;
   if (n < 64) return NaN;
   const b = slope(a),
@@ -245,7 +245,7 @@ export const BLOCKS = {
    (Schumann 2010: alpha1 depends on age). NaN stays NaN — normalisation never invents a value. */
 export const CONTEXT_EPOCHS = [2, 10, 30];
 
-export function withContext(block, n) {
+function withContext(block, n) {
   const names = [],
     cols = [];
   for (let j = 0; j < block.cols.length; j++) {
@@ -283,7 +283,7 @@ export function withContext(block, n) {
 /* The column names a block produces, derived from an all-missing one-epoch night — so a night that
    LACKS the signal still yields the identical layout, filled with NaN (absent, never zero). */
 const _layout = {};
-export function blockLayout(b) {
+function blockLayout(b) {
   if (!_layout[b]) {
     const B = BLOCKS[b];
     const dummy = { nEpochs: 1, signals: { [B.input]: { fs: 1, data: new Float64Array(EPOCH_S).fill(NaN) } } };
@@ -294,7 +294,7 @@ export function blockLayout(b) {
 
 /* A night's feature matrix: the requested blocks (each with context) + time of night. Refuses an
    unimplemented block by name. Returns { names, X: Float32Array(n*k), k }. */
-export function nightFeatures(night, blockNames) {
+function nightFeatures(night, blockNames) {
   const n = night.nEpochs,
     names = [],
     cols = [];
@@ -326,7 +326,7 @@ export function nightFeatures(night, blockNames) {
    missing values go to. Leaf-wise growth, L2-regularised leaves. Deterministic (no row sampling). */
 const MISS = 255;
 
-export function makeBins(X, nRows, k, maxBins = 254, sampleEvery = 1) {
+function makeBins(X, nRows, k, maxBins = 254, sampleEvery = 1) {
   const edges = [];
   for (let j = 0; j < k; j++) {
     const v = [];
@@ -345,7 +345,7 @@ export function makeBins(X, nRows, k, maxBins = 254, sampleEvery = 1) {
   return edges;
 }
 
-export function binMatrix(X, nRows, k, edges) {
+function binMatrix(X, nRows, k, edges) {
   const B = new Uint8Array(nRows * k);
   for (let j = 0; j < k; j++) {
     const e = edges[j];
@@ -474,7 +474,7 @@ function growTree(B, k, rows, g, h, o) {
 }
 
 /* fit(X, y, nRows, k, opts, onIter) → model. y in 0..3; rows with y < 0 are ignored. */
-export function fitGBDT(X, y, nRows, k, opts = {}, onIter = null) {
+function fitGBDT(X, y, nRows, k, opts = {}, onIter = null) {
   const o = { iters: 300, lr: 0.1, maxLeaves: 31, minLeaf: 100, lambda: 1, minGain: 1e-6, K: 4, binSample: 1, ...opts };
   const rows = [];
   for (let i = 0; i < nRows; i++) if (y[i] >= 0) rows.push(i);
@@ -534,7 +534,7 @@ function walk(nodes, binOf) {
 }
 
 /* Class probabilities for raw feature rows (browser-safe; bins raw values with the model's own edges). */
-export function predictProba(model, X, nRows, k) {
+function predictProba(model, X, nRows, k) {
   const B = binMatrix(X, nRows, k, model.edges),
     K = model.K,
     out = new Float64Array(nRows * K);
@@ -553,7 +553,7 @@ export function predictProba(model, X, nRows, k) {
 }
 
 /* ── HMM smoothing ───────────────────────────────────────────────────────────────────────────── */
-export function transitions(labelSeqs, K = 4) {
+function transitions(labelSeqs, K = 4) {
   const T = Array.from({ length: K }, () => new Float64Array(K).fill(1));
   for (const y of labelSeqs) for (let i = 1; i < y.length; i++) if (y[i - 1] >= 0 && y[i] >= 0) T[y[i - 1]][y[i]]++;
   return T.map((row) => {
@@ -563,7 +563,7 @@ export function transitions(labelSeqs, K = 4) {
 }
 
 /* Viterbi over per-epoch posteriors (divided by the class prior → scaled likelihoods). */
-export function viterbi(P, n, K, logT, logPrior) {
+function viterbi(P, n, K, logT, logPrior) {
   const D = new Float64Array(n * K),
     Bk = new Int32Array(n * K);
   for (let c = 0; c < K; c++) D[c] = Math.log(P[c] + 1e-9);
@@ -596,7 +596,7 @@ export function viterbi(P, n, K, logT, logPrior) {
    epochs, tail mass as a self-transition), the bout-to-bout transition matrix, and an empirical time-of-night
    curve per stage (bins of `binEpochs` from record start) applied as log(p_s(bin) / p_s) with weight `timeW`.
    Emissions are the per-epoch posteriors divided by the class prior, as in `viterbi`. */
-export function hsmmFit(labelSeqs, K = 4, dMax = 120, binEpochs = 20, nBins = 60) {
+function hsmmFit(labelSeqs, K = 4, dMax = 120, binEpochs = 20, nBins = 60) {
   const dur = Array.from({ length: K }, () => new Float64Array(dMax + 1).fill(0.5)),
     tail = new Float64Array(K).fill(0.5);
   const A = Array.from({ length: K }, () => new Float64Array(K).fill(0.5)),
@@ -650,7 +650,7 @@ export function hsmmFit(labelSeqs, K = 4, dMax = 120, binEpochs = 20, nBins = 60
   return { K, dMax, binEpochs, nBins, logDur, logTail, logA, logFirst, logTime };
 }
 
-export function hsmmViterbi(P, n, K, M, logPrior, timeW = 1) {
+function hsmmViterbi(P, n, K, M, logPrior, timeW = 1) {
   const { dMax, logDur, logTail, logA, logFirst, logTime, binEpochs, nBins } = M;
   // cumulative per-state emissions: C[s*(n+1)+t] = Σ_{u<t} e[u][s]
   const C = new Float64Array(K * (n + 1));
@@ -723,12 +723,12 @@ export function hsmmViterbi(P, n, K, M, logPrior, timeW = 1) {
 }
 
 /* ── agreement ───────────────────────────────────────────────────────────────────────────────── */
-export function confusion(y, p, K = 4) {
+function confusion(y, p, K = 4) {
   const M = Array.from({ length: K }, () => new Float64Array(K));
   for (let i = 0; i < y.length; i++) if (y[i] >= 0) M[y[i]][p[i]]++;
   return M;
 }
-export function kappa(M) {
+function kappa(M) {
   const K = M.length;
   let n = 0,
     d = 0;
@@ -745,7 +745,7 @@ export function kappa(M) {
   for (let a = 0; a < K; a++) pe += (r[a] * c[a]) / (n * n);
   return (d / n - pe) / (1 - pe);
 }
-export function sumMatrices(Ms) {
+function sumMatrices(Ms) {
   const K = Ms[0].length,
     S = Array.from({ length: K }, () => new Float64Array(K));
   for (const M of Ms) for (let a = 0; a < K; a++) for (let b = 0; b < K; b++) S[a][b] += M[a][b];
@@ -753,7 +753,7 @@ export function sumMatrices(Ms) {
 }
 
 /* 95 % interval by resampling NIGHTS (epochs within a night are not independent). Seeded. */
-export function bootstrapKappa(perNight, B = 1000, seed = 1) {
+function bootstrapKappa(perNight, B = 1000, seed = 1) {
   let s = seed >>> 0;
   const rnd = () => {
     s = (s * 1664525 + 1013904223) >>> 0;
@@ -784,7 +784,7 @@ export const FORMULA_TERMS = [
   ['spo2.mad@60s', 'beat-scale SpO2 roughness (movement / wake)']
 ];
 
-export function formulaBasis(names, X, n, k) {
+function formulaBasis(names, X, n, k) {
   const idx = FORMULA_TERMS.map(([nm]) => names.indexOf(nm));
   if (idx.some((i) => i < 0))
     throw new Error(
@@ -817,7 +817,7 @@ export function formulaBasis(names, X, n, k) {
 
 /* Multinomial logistic (softmax) regression, L2-penalised, full-batch Adam on standardised columns.
    Returns coefficients in the ORIGINAL (unstandardised) units so the formula can be written down. */
-export function fitSoftmax(Z, y, n, m, o = {}) {
+function fitSoftmax(Z, y, n, m, o = {}) {
   const K = 4,
     l2 = o.l2 ?? 1e-3,
     iters = o.iters ?? 400,
@@ -876,7 +876,7 @@ export function fitSoftmax(Z, y, n, m, o = {}) {
   return { schema: 'tepna.stage-formula/1', K, terms: m, coef: B };
 }
 
-export function softmaxProba(F, Z, n, m) {
+function softmaxProba(F, Z, n, m) {
   const K = F.K,
     P = new Float64Array(n * K);
   for (let r = 0; r < n; r++) {
@@ -903,7 +903,7 @@ export function softmaxProba(F, Z, n, m) {
    and desaturation features measure those device habits, so they do not carry across labs. Harmonise
    every night to the same device: per-second SpO2 → centred 8 s moving mean over the measured seconds
    (so every source ends at least that smooth) → rounded to whole percent. Missing stays missing (§∅). */
-export function harmonizeSpo2(d, avgS = 8) {
+function harmonizeSpo2(d, avgS = 8) {
   const n = d.length,
     out = new Float64Array(n).fill(NaN),
     h = avgS >> 1;
@@ -920,3 +920,30 @@ export function harmonizeSpo2(d, avgS = 8) {
   }
   return out;
 }
+
+/* One export list, not `export function`: the owned bundler (tools/build-core.js, ESM phase 1) rewrites
+   `export const` and `export { … }` into the module registry but leaves `export function` in place, which is a
+   syntax error inside the inlined module wrapper. Plain declarations + this list keep node, tests and the
+   bundle on one file. */
+export {
+  bandPower,
+  withContext,
+  blockLayout,
+  nightFeatures,
+  makeBins,
+  binMatrix,
+  fitGBDT,
+  predictProba,
+  transitions,
+  viterbi,
+  hsmmFit,
+  hsmmViterbi,
+  confusion,
+  kappa,
+  sumMatrices,
+  bootstrapKappa,
+  formulaBasis,
+  fitSoftmax,
+  softmaxProba,
+  harmonizeSpo2
+};
