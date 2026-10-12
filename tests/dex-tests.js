@@ -14188,6 +14188,79 @@
       T.eq('NO row-value comparison or delta is left unguarded', unguarded + (names.length ? ' @ ' + names.join(',') : ''), 0 + '');
     });
 
+    group('§∅ · OxyDex — an absent accelerometer does not score as a still night', 'oxydex-dsp · absence', function (T) {
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var _OD = (_od && _od._bare) || _od;
+      var P = _OD && _OD.processNight;
+      if (typeof P !== 'function') {
+        T.ok('OxyDex.processNight is reachable', false, 'not loaded — this group must not read as a pass');
+        return;
+      }
+      /* `intraNightNSI` averages three normalised components, one of them `min(1, segMot / 30)` over
+         `r.motion > 0`. `null > 0` is FALSE, so an absent accelerometer contributed a PERFECT motion
+         score to a published stability index.
+         ⚠️ THE TRIPLE IS THE INSTRUMENT. Two nights would not have shown it: a single absent-motion
+         night produces a plausible number, and comparing it against nothing proves nothing. Three
+         nights identical BUT FOR the motion column separate the three possible readings —
+         "absent", "measured still" and "measured moving" — and the defect is precisely that the
+         first two were equal. */
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var mk = function (mot) {
+        var r = [];
+        for (var i = 0; i < 2400; i++) {
+          r.push({
+            tMs: t0 + i * 1000,
+            t: new Date(t0 + i * 1000),
+            spo2: 95 + (i % 7 === 0 ? -3 : 0),
+            hr: 58 + (i % 11),
+            motion: mot,
+            pi: null
+          });
+        }
+        return r;
+      };
+      var nsi = function (n) {
+        return ((n && n.rolling) || {}).intraNightNSI;
+      };
+      /* ⚠️ THE "MOVING" NIGHT MUST VARY, AND THE CONTROL IS WHAT TAUGHT ME THAT. My first version used
+         a constant `motion: 5`, and the control failed with a null index — correctly: a column that
+         never changes is what `_motionColumnStuck` exists to catch, so a constant 5 is an UNUSABLE
+         column, not a moving night. A measured-moving night is one whose motion column moves. */
+      var absent = P(mk(null)),
+        still = P(mk(0)),
+        moving = P(
+          mk(0).map(function (r, i) {
+            r.motion = i % 120 < 20 ? 4 : 0;
+            return r;
+          })
+        );
+      /* Before asserting the fix, assert the instrument discriminates at all: if a MEASURED still and
+         a MEASURED moving night scored the same, this group would be comparing noise and every
+         assertion below would be vacuous (the shape that made #3427's oscillation leg worthless). */
+      T.ok(
+        'the index DISCRIMINATES on measured motion (the group is non-vacuous)',
+        JSON.stringify(nsi(still)) !== JSON.stringify(nsi(moving)),
+        'still = ' + JSON.stringify(nsi(still)) + ' vs moving = ' + JSON.stringify(nsi(moving))
+      );
+      T.eq('an absent accelerometer yields NO index, not a flattering one', nsi(absent), null);
+      T.ok(
+        '…and it is no longer equal to a MEASURED still night',
+        JSON.stringify(nsi(absent)) !== JSON.stringify(nsi(still)),
+        'absent = ' + JSON.stringify(nsi(absent)) + ' vs still = ' + JSON.stringify(nsi(still))
+      );
+      T.ok(
+        'the reason is already on the night (no new field invented)',
+        ((absent && absent.stats) || {}).motionColumnAbsent === true,
+        JSON.stringify(((absent && absent.stats) || {}).motionColumnAbsent)
+      );
+      // CONTROLS · both MEASURED nights keep a real series, or the guard has disabled the metric.
+      T.ok('CONTROL · a measured STILL night still has an index', Array.isArray(nsi(still)) && nsi(still).length > 0, JSON.stringify(nsi(still)));
+      T.ok('CONTROL · a measured MOVING night still has an index', Array.isArray(nsi(moving)) && nsi(moving).length > 0, JSON.stringify(nsi(moving)));
+      /* And the sibling from #3439 must stay fixed — the two share one branch, so a later edit that
+         re-ordered it would break both and this pins them together. */
+      T.eq('and motionBursts is still null (the #3439 sibling, same branch)', ((absent && absent.extras) || {}).motionBursts, null);
+    });
+
     group('§∅ · OxyDex — an absent motion column is not a still night', 'oxydex-dsp · absence', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var _OD = (_od && _od._bare) || _od;
