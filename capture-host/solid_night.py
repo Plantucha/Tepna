@@ -435,6 +435,10 @@ def _withdraw(night_dir: str, replacement: dict, reason: str | None = None) -> d
 # carries the running commit, so the night converges after one pass.
 CODE_MOVED = "re-judged: the code that judges a night changed since this verdict was written ({old} → {new})"
 _HERE = os.path.dirname(os.path.abspath(__file__))
+# THE PATHSPEC NAMES THE REPO, NOT THE FOLDER THIS FILE WAS LOADED FROM. mutmut runs the suite from a copy
+# in `mutants/`, and a closure built from the loading folder asked git about `mutants/*.py`, which no commit
+# holds (CI run 38301300455 on #3507: every mutmut invocation crashed, so the gate decided 0 mutants).
+_REPO_DIR = "capture-host"
 _moved: dict[tuple[str, str], bool] = {}
 
 
@@ -449,8 +453,7 @@ def code_closure() -> list[str]:
             continue
         seen[path] = mod
         todo.extend(v for v in vars(mod).values() if isinstance(v, types.ModuleType))
-    base = os.path.basename(_HERE)
-    return sorted(f"{base}/{os.path.basename(p)}" for p in seen)
+    return sorted(f"{_REPO_DIR}/{os.path.basename(p)}" for p in seen)
 
 
 def code_moved(night_dir: str, running: str | None, run=None) -> str | None:
