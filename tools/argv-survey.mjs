@@ -55,7 +55,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { makeVerdict } from './verdict-emit.mjs';
 
@@ -64,8 +64,16 @@ import { makeVerdict } from './verdict-emit.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 
+/* ⚠️ THIS MODULE MUST NOT RUN WHEN IMPORTED (Magpie, 2026-10-12). Its probing half used to be bare
+   top-level statements ending in `process.exit(…)`, so `import * as m from './argv-survey.mjs'` did
+   not merely start a 45-tool sweep — it TERMINATED the importing process. Under the suite that reads
+   as a shard dying with no verdict (§4c), the one failure shape that is hardest to attribute to the
+   diff that caused it, and it is why no test group could read this gate's own criterion. The house
+   idiom, matching adev-curve.mjs and beat-correspondence.mjs. */
+const IS_MAIN = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
 const argv = process.argv.slice(2);
-refuseUnknownArgvOrExit(argv, { valued: ['--only', '--timeout-ms'], boolean: ['--json', '--selftest', '--verdict-sample'] }, { tool: 'argv-survey' });
+if (IS_MAIN) refuseUnknownArgvOrExit(argv, { valued: ['--only', '--timeout-ms'], boolean: ['--json', '--selftest', '--verdict-sample'] }, { tool: 'argv-survey' });
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => {
   const i = argv.indexOf(n);
@@ -75,12 +83,22 @@ const opt = (n, d) => {
 export const TOKEN = '--no-such-flag-9f3';
 const TIMEOUT_MS = Number(opt('--timeout-ms', '25000'));
 
-/* THE RATCHET, pre-stated (§🧾: a threshold derived from the data it judges is UNKNOWN). Measured
-   2026-09-28 over the inert population: 5 tools consume a bogus token as a PATH. That count must not
-   grow — a new tool that eats an unknown flag as an input path is a red with its name. The IGNORES
-   count is population data, not a criterion: it is the backlog the adoption programme is working
-   through, and it falls as tools adopt `argv-guard.mjs`. */
-export const SWALLOW_BAR = 5;
+/* THE RATCHET, pre-stated (§🧾: a threshold derived from the data it judges is UNKNOWN). The rule was
+   stated when the bar was 5: the count of tools that consume a bogus token as a PATH must not grow, and
+   a new one is a red with its name. The bar is therefore the size of the KNOWN-UNFIXED set, and it moves
+   only when that set is emptied one named tool at a time — never to whatever a run happened to measure.
+   2026-09-28, bar 5. 2026-10-12, bar 0: the four of those five still inside the inert population
+   (`geometry-probe`, `pb-operating-point`, `synth-desat-kinetics`, `tch-window-sensitivity`) adopted
+   `argv-guard.mjs`, each with its own assertion in the `argv` group of tests/dex-tests.js — exit 2, the
+   token named, nothing written — so the set is empty by construction and not by a tally.
+   Paired measurement, same host, same probe: main bd347e11 → swallows 4, REFUSES 2; this change →
+   swallows 0, REFUSES 6, every row treeMoved false.
+   Two populations this bar does NOT cover, so neither can be read out of a PASS: a tool whose closure
+   can write, exec or fetch is never probed (`geometry-scan`, `make-synthetic-edf` are both outside), and
+   an UNDECIDED-timeout row is excluded from `checked` rather than counted as safe. The IGNORES count is
+   population data, not a criterion: it is the backlog the adoption programme is working through, and it
+   falls as tools adopt `argv-guard.mjs`. */
+export const SWALLOW_BAR = 0;
 
 /* ── the write/exec surface, named explicitly so the safety criterion is auditable ─────────────── */
 const HAZARD = [
@@ -305,38 +323,40 @@ function selftest() {
 }
 
 /* ── main ──────────────────────────────────────────────────────────────────────────────────────── */
-if (flag('--selftest')) process.exit(selftest());
+if (IS_MAIN) {
+  if (flag('--selftest')) process.exit(selftest());
 
-if (flag('--verdict-sample')) {
-  console.log(JSON.stringify(surveyVerdict([{ verdict: 'IGNORES', treeMoved: false, tool: 'sample' }]), null, 1));
-  process.exit(0);
-}
-
-const only = opt('--only', null);
-const toolsDir = join(ROOT, 'tools');
-const population = inertPopulation(toolsDir).filter((n) => !only || n === only);
-if (only && population.length === 0) {
-  console.error(`✗ argv-survey: ${only} is not in the probe-safe population (it writes, execs or fetches, or does not read argv)`);
-  console.error('  Probing it needs someone who has read its no-argument path. Nothing was run.');
-  process.exit(2);
-}
-
-const MARK = { IGNORES: '✗', REFUSES: '✓', 'SWALLOWS-AS-POSITIONAL': '⚠', CRASHES: '💥', 'REACTS-other': '·', 'UNDECIDED-timeout': '⊘' };
-const rows = [];
-for (const name of population) {
-  const row = probeTool(join('tools', name), ROOT);
-  rows.push(row);
-  if (!flag('--json')) {
-    console.log(`${MARK[row.verdict] || '?'} ${row.verdict.padEnd(22)} ${name.padEnd(34)} exit ${String(row.exit.controlA)}/${String(row.exit.probe)}${row.treeMoved ? '  ⚠ TREE MOVED' : ''}`);
+  if (flag('--verdict-sample')) {
+    console.log(JSON.stringify(surveyVerdict([{ verdict: 'IGNORES', treeMoved: false, tool: 'sample' }]), null, 1));
+    process.exit(0);
   }
+
+  const only = opt('--only', null);
+  const toolsDir = join(ROOT, 'tools');
+  const population = inertPopulation(toolsDir).filter((n) => !only || n === only);
+  if (only && population.length === 0) {
+    console.error(`✗ argv-survey: ${only} is not in the probe-safe population (it writes, execs or fetches, or does not read argv)`);
+    console.error('  Probing it needs someone who has read its no-argument path. Nothing was run.');
+    process.exit(2);
+  }
+
+  const MARK = { IGNORES: '✗', REFUSES: '✓', 'SWALLOWS-AS-POSITIONAL': '⚠', CRASHES: '💥', 'REACTS-other': '·', 'UNDECIDED-timeout': '⊘' };
+  const rows = [];
+  for (const name of population) {
+    const row = probeTool(join('tools', name), ROOT);
+    rows.push(row);
+    if (!flag('--json')) {
+      console.log(`${MARK[row.verdict] || '?'} ${row.verdict.padEnd(22)} ${name.padEnd(34)} exit ${String(row.exit.controlA)}/${String(row.exit.probe)}${row.treeMoved ? '  ⚠ TREE MOVED' : ''}`);
+    }
+  }
+  const verdict = surveyVerdict(rows);
+  if (flag('--json')) {
+    console.log(JSON.stringify({ verdict, rows }, null, 1));
+  } else {
+    const tally = verdict.result.tally;
+    console.log(`\n--- ${rows.length} probed: ${JSON.stringify(tally)}`);
+    console.log(`--- ${verdict.status}: swallows ${verdict.result.swallows} against a bar of ${SWALLOW_BAR}${verdict.reason ? ` — ${verdict.reason}` : ''}`);
+    console.log('--- a REFUSES row means the tool adopted tools/argv-guard.mjs; an IGNORES row is the backlog.');
+  }
+  process.exit(verdict.status === 'FAIL' ? 1 : 0);
 }
-const verdict = surveyVerdict(rows);
-if (flag('--json')) {
-  console.log(JSON.stringify({ verdict, rows }, null, 1));
-} else {
-  const tally = verdict.result.tally;
-  console.log(`\n--- ${rows.length} probed: ${JSON.stringify(tally)}`);
-  console.log(`--- ${verdict.status}: swallows ${verdict.result.swallows} against a bar of ${SWALLOW_BAR}${verdict.reason ? ` — ${verdict.reason}` : ''}`);
-  console.log('--- a REFUSES row means the tool adopted tools/argv-guard.mjs; an IGNORES row is the backlog.');
-}
-process.exit(verdict.status === 'FAIL' ? 1 : 0);
