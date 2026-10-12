@@ -72,6 +72,7 @@ export const STEPS = [
   'test:trio-anchor',
   'test:fold-provenance',
   'test:seqnet-port',
+  'test:stage-lab-core',
   'build:check',
   'verify:analysis',
   'verify:docs',
