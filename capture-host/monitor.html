@@ -1444,12 +1444,25 @@ function nLost(v){
   const p = 100*v.gaps_s/v.span_s;
   return p===0 ? '0 % lost' : p<0.1 ? '<0.1 % lost' : p.toFixed(1)+' % lost';
 }
+/* ── ROW IDENTITY IS THE PAIR `(night band, recording start)`, NOT THE BAND ─────────────────────────
+   🔴 ONE BAND CAN CARRY TWO OR THREE ROWS and every one of them was keyed by the band alone. Measured
+   on a fixture of the owner's own screenshot night: the 10-09 evening ring plus the after-midnight
+   Polar sessions, a 09:18 ring session and a 13:00 one all band to `2026-10-09`, so `index_nights`
+   returned THREE rows with `night: "2026-10-09"` — three `id="nrow-2026-10-09"`, three identical
+   `data-night`, and `NIGHTS.find(x=>x.night===night)` resolving every click to the FIRST of them. The
+   server already publishes the second half (`recording_start`, #3385); only the page threw it away.
+   A date-keyed night (the CPAP trees carry no session stamp) has no recording start and keys by the
+   band alone, which is still unique: `_recordings` never emits both for one band. */
+function nRowKey(n){
+  const rs = n && typeof n.recording_start === 'string' ? n.recording_start : '';
+  return (n && n.night ? n.night : '') + (rs ? '@' + rs.slice(11) : '');
+}
 function nDevCell(n, d){
   const c = nCls(n, d), v = n[d.node];
   if(c==='none') return `<td><div class="ncell none off" title="${esc(d.name)} recorded nothing this night"><div class="top"><i class="ng none">–</i>—</div><div class="sub">not recorded</div><div class="nbar"></div></div></td>`;
   const w = v.coverage!=null ? Math.round(100*v.coverage) : Math.round(100*Math.min(1,(v.hours||0)/nSpan(n)));
   const sub = v.pending ? 'counting…' : v.fragments!=null ? `${v.fragments} frag · ${nLost(v)}` : (c==='rec' ? 'recorded' : 'not measured yet');
-  const tag = v.loadable ? `data-night="${esc(n.night)}" data-node="${esc(d.node)}" title="open ${esc(d.node)} with this night loaded"` : `title="${esc(NIGHT_WHY_NOT[d.node]||'shown, not offered')}"`;
+  const tag = v.loadable ? `data-night="${esc(nRowKey(n))}" data-node="${esc(d.node)}" title="open ${esc(d.node)} with this night loaded"` : `title="${esc(NIGHT_WHY_NOT[d.node]||'shown, not offered')}"`;
   return `<td><button type="button" class="ncell${v.loadable?'':' off'}" ${tag}><span class="top"><i class="ng ${c}">${NIGHT_GLYPH[c]}</i>${esc(nHrs(v.hours))}</span><span class="sub ${c==='part'||c==='low'?c:''}">${esc(sub)}</span><span class="nbar"><i class="${c}" style="width:${w}%"></i></span></button></td>`;
 }
 function nFusCell(n, f){
@@ -1458,7 +1471,7 @@ function nFusCell(n, f){
     const sub = v && v.bytes ? `${(v.files||[]).length} files · ${nMB(v.bytes)}` : 'no inputs this night';
     return `<td><div class="ncell off" title="${esc(f.off)}"><span class="top"><i class="ng ${v?'rec':'none'}">${v?'●':'–'}</i>${v?'inputs on disk':'—'}</span><span class="sub">${esc(sub)}</span><span class="nbar"><i class="rec" style="width:${v?100:0}%"></i></span></div></td>`;
   }
-  if(v===true) return `<td><button type="button" class="ncell" data-night="${esc(n.night)}" data-node="${esc(f.node)}" title="open ${esc(f.name)} with this night's inputs loaded and run"><span class="top"><i class="ng ok">✓</i>open</span><span class="sub">inputs on disk</span><span class="nbar"><i class="ok" style="width:100%"></i></span></button></td>`;
+  if(v===true) return `<td><button type="button" class="ncell" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}" title="open ${esc(f.name)} with this night's inputs loaded and run"><span class="top"><i class="ng ok">✓</i>open</span><span class="sub">inputs on disk</span><span class="nbar"><i class="ok" style="width:100%"></i></span></button></td>`;
   const miss = (f.needs||[]).filter(k=>!nHas(n,k)).map(k=>k==='ringppg'?'O2Ring PPG':NIGHT_DEVICES.find(d=>d.k===k).name);
   return `<td><div class="ncell none off" title="an input this tool needs is missing this night"><span class="top"><i class="ng none">–</i>—</span><span class="sub">${esc(miss.length?'no '+miss.join(', '):'input missing')}</span><span class="nbar"></span></div></td>`;
 }
@@ -1504,10 +1517,15 @@ function nSolidTxt(d){
   return [N_SOLID_TXT[v.status]||v.status, v.status==='PASS' ? 'every device passed' : v.status==='FAIL' ? (failed.length?failed.join(', ')+' failed':'failed') : 'a check could not run'];
 }
 function nSolidCell(n){
+  /* ∅ A DAYTIME ROW WEARS NO VERDICT. `SOLID-VERDICT.json` is the BAND's, so painting it here would
+     show the night's PASS on a 13:00 sitting that the band excluded — a borrowed reason, not this
+     row's (§∅). The band keeps the lookup; the row says what it is. */
+  if(n.daytime) return `<td><div class="ncell none off" title="this recording began in the [10:00, 18:00) daytime gap, which no night band covers — the night's own verdict is not this row's"><span class="top"><i class="ng none">–</i>—</span><span class="sub">daytime, not judged</span><span class="nbar"></span></div></td>`;
   const c = nSolidCls(n.night), [t, sub] = nSolidTxt(n.night);
-  return `<td><button type="button" class="ncell" data-drawer="${esc(n.night)}" title="each device's solid-night result"><span class="top"><i class="ng ${c}">${NIGHT_GLYPH[c]}</i>${esc(t)}</span><span class="sub ${c==='low'?'low':''}">${esc(sub)}</span></button></td>`;
+  return `<td><button type="button" class="ncell" data-drawer="${esc(nRowKey(n))}" title="each device's solid-night result"><span class="top"><i class="ng ${c}">${NIGHT_GLYPH[c]}</i>${esc(t)}</span><span class="sub ${c==='low'?'low':''}">${esc(sub)}</span></button></td>`;
 }
 function nSolidBlock(n){
+  if(n.daytime) return `<div class="nsb"><b>Solid night: not judged — this recording began at ${esc(String(n.recording_start||'').slice(11))}, inside the [10:00, 18:00) daytime gap no band covers</b></div>`;
   const s = NIGHT_SOLID[n.night];
   if(!s || s.state!=='ok') return `<div class="nsb"><b>Solid night: ${esc(nSolidTxt(n.night)[1])}</b>${s && s.state==='unreachable' ? ' — open the monitor through vigil.local to read night folders.' : ''}</div>`;
   const devs = Object.entries((s.v.result && s.v.result.devices) || {}).map(([k,x])=>{
@@ -1522,7 +1540,7 @@ function nDrawer(n){
     const v = n[f.node];
     if(f.off) return `<div><b>${esc(f.name)}</b><br>${esc(f.off)}${v&&v.files?'<br>'+v.files.length+' input files on disk':''}</div>`;
     if(v!==true) return `<div><b>${esc(f.name)}</b><br>an input is missing this night</div>`;
-    return `<div><b>${esc(f.name)}</b><div class="nchips"><button type="button" class="nchip" data-night="${esc(n.night)}" data-node="${esc(f.node)}">Open ${esc(f.name)}</button></div></div>`;
+    return `<div><b>${esc(f.name)}</b><div class="nchips"><button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}">Open ${esc(f.name)}</button></div></div>`;
   }).join('');
   return nSolidBlock(n) + NIGHT_DEVICES.map(d=>{
     const files = nDevFiles(n, d), v = n[d.node];
@@ -1532,7 +1550,7 @@ function nDrawer(n){
     const chips = NIGHT_COLS.filter(c=>c!=='Integrator' && n[c] && Array.isArray(n[c].files) && n[c].files.some(f=>typeof f==='string' && d.match.test(f))).map(c=>{
       const suf = [...new Set(n[c].files.filter(f=>typeof f==='string' && d.match.test(f)).map(f=>(nBase(f).match(/_([A-Z0-9]+)\.(txt|csv)$/)||[,'EDF'])[1]))].join(' ');
       return n[c].loadable
-        ? `<button type="button" class="nchip" data-night="${esc(n.night)}" data-node="${esc(c)}">${esc(c)}<small>${esc(suf)}</small></button>`
+        ? `<button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(c)}">${esc(c)}<small>${esc(suf)}</small></button>`
         : `<span class="nchip static" title="${esc(NIGHT_WHY_NOT[c]||'shown, not offered')}">${esc(c)}<small>${esc(suf)}</small></span>`;
     }).join('');
     return `<div><b>${esc(d.name)}${v&&nHas(n,d.k)?' · '+esc(nHrs(v.hours)):''}</b><br>${facts}<div class="nchips">${chips}</div></div>`;
@@ -1547,8 +1565,8 @@ function renderNights(){
   const sqCls = (n, c) => dev ? nCls(n, c) : (c.off ? (n[c.node] ? 'rec' : 'none') : (n[c.node]===true ? 'ok' : 'none'));
   // overview strip: oldest → newest, left to right; the solid-night row first
   const strip = [...recent].reverse();
-  let o = `<div class="lab"><b>Solid night</b></div>` + strip.map(n=>`<button type="button" class="nsq ${nSolidCls(n.night)}" data-go="${esc(n.night)}" aria-label="${esc(n.night)} solid night: ${esc(nSolidTxt(n.night)[0])}" title="${esc(n.night)} · solid night: ${esc(nSolidTxt(n.night)[0])}"></button>`).join('') + '<div class="sep"></div>';
-  for(const c of cols) o += `<div class="lab" title="${esc(c.name)}">${esc(c.name)}</div>` + strip.map(n=>`<button type="button" class="nsq ${sqCls(n,c)}" data-go="${esc(n.night)}" aria-label="${esc(n.night)} ${esc(c.name)}" title="${esc(n.night)} · ${esc(c.name)}"></button>`).join('');
+  let o = `<div class="lab"><b>Solid night</b></div>` + strip.map(n=>`<button type="button" class="nsq ${n.daytime?'none':nSolidCls(n.night)}" data-go="${esc(nRowKey(n))}" aria-label="${esc(n.night)} solid night: ${esc(nSolidTxt(n.night)[0])}" title="${esc(n.night)} · solid night: ${esc(nSolidTxt(n.night)[0])}"></button>`).join('') + '<div class="sep"></div>';
+  for(const c of cols) o += `<div class="lab" title="${esc(c.name)}">${esc(c.name)}</div>` + strip.map(n=>`<button type="button" class="nsq ${sqCls(n,c)}" data-go="${esc(nRowKey(n))}" aria-label="${esc(n.night)} ${esc(c.name)}" title="${esc(n.night)} · ${esc(c.name)}"></button>`).join('');
   o += '<div></div>' + strip.map((n,i)=>`<div class="day">${(i===0||i===strip.length-1||nWd(n.night)==='Mon')?+n.night.slice(8):''}</div>`).join('');
   const ov = $('#nightsOverview'); ov.style.setProperty('--n-days', strip.length); ov.innerHTML = o;
   $('#nightsOvWhy').textContent = dev
@@ -1563,8 +1581,13 @@ function renderNights(){
     : 'The tools that need more than one device. ✓ opens the tool with the night\'s inputs loaded and run; a dash names what was missing.';
   const open = new Set([...document.querySelectorAll('tr.ndrawer:not([hidden])')].map(e=>e.id));
   const span = cols.length + 2;
-  const row = (n, i) => `<tr class="${i%2?'nz':''}" id="nrow-${esc(n.night)}"><td><button type="button" class="ndate" data-drawer="${esc(n.night)}" aria-expanded="${open.has('ndr-'+n.night)}">${esc(n.night)}<small>${nWd(n.night)}${dev?' · longest '+esc(nHrs(nSpan(n))):''}</small></button></td>${nSolidCell(n)}${cols.map(c=>dev?nDevCell(n,c):nFusCell(n,c)).join('')}</tr>`
-    + `<tr class="ndrawer" id="ndr-${esc(n.night)}"${open.has('ndr-'+n.night)?'':' hidden'}><td colspan="${span}"><div class="ndr">${nDrawer(n)}</div></td></tr>`;
+  // how many rows this BAND carries — the recording's own start is shown only when it has to disambiguate
+  const bandN = {}; for(const n of NIGHTS) bandN[n.night] = (bandN[n.night]|0) + 1;
+  const row = (n, i) => { const k = nRowKey(n), rs = typeof n.recording_start === 'string' ? n.recording_start.slice(11) : '';
+    const sub = nWd(n.night) + (bandN[n.night] > 1 && rs ? ' · from '+rs : '') + (n.daytime ? ' · daytime, outside the band' : '')
+              + (dev ? ' · longest '+nHrs(nSpan(n)) : '');
+    return `<tr class="${i%2?'nz':''}" id="nrow-${esc(k)}"><td><button type="button" class="ndate" data-drawer="${esc(k)}" aria-expanded="${open.has('ndr-'+k)}">${esc(n.night)}<small>${esc(sub)}</small></button></td>${nSolidCell(n)}${cols.map(c=>dev?nDevCell(n,c):nFusCell(n,c)).join('')}</tr>`
+      + `<tr class="ndrawer" id="ndr-${esc(k)}"${open.has('ndr-'+k)?'':' hidden'}><td colspan="${span}"><div class="ndr">${nDrawer(n)}</div></td></tr>`; };
   let h = `<thead><tr><th>Night</th><th>Solid<small>the box's verdict</small></th>${cols.map(c=>`<th>${esc(c.name)}<small>${esc(c.sub)}</small></th>`).join('')}</tr></thead><tbody>${recent.map(row).join('')}</tbody>`;
   const months = new Map();
   for(const n of older){ const m=n.night.slice(0,7); if(!months.has(m)) months.set(m,[]); months.get(m).push(n); }
@@ -1674,12 +1697,15 @@ function nightFiles(n, node, rec){
   return { files: [], reason: node+"'s index entry is "+nightShape(v)+', not a node record with a string[] .files' };
 }
 
-async function openNight(night, node){
-  const n = NIGHTS.find(x=>x.night===night); if(!n) return;
+async function openNight(key, node){
+  /* BY THE ROW KEY, NOT THE BAND — and the parameter is named `key` because that is what every
+     `data-night` now carries. `NIGHTS.find(x=>x.night===night)` returned the FIRST row of a band
+     carrying three, so a click on the 09:18 row opened the NIGHT's files and named them in the toast. */
+  const n = NIGHTS.find(x=>nRowKey(x)===key); if(!n) return;
   /* HAND OVER ONE RECORDING, NOT THE FOLDER (NIGHT-IS-THE-RECORDING-2026-10-05 §⑥). */
   const pick = pickRecording(n);
   if(pick.ambiguous){
-    nToast(night+' holds no recording of its own — its sessions belong to '+pick.others.join(' and ')+
+    nToast(n.night+' holds no recording of its own — its sessions belong to '+pick.others.join(' and ')+
            '. Open that night instead; the monitor will not choose one for you.', true);
     return;
   }
@@ -1704,7 +1730,7 @@ async function openNight(night, node){
                  (pick.others.length>1?' (separate recordings)':' (a separate recording)') : '')
               + (noStamp.length ? ', plus '+noStamp.length+' file'+(noStamp.length>1?'s':'')+' carrying no session stamp' : '');
   nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+
-         (rec ? 'recording '+rec.recording : night)+extra+' …');
+         (rec ? 'recording '+rec.recording : n.night)+extra+' …');
   let files;
   try{
     files = await Promise.all(rels.map(async rel=>{ const r=await fetch('/captures/'+rel.split('/').map(encodeURIComponent).join('/')); if(!r.ok) throw new Error(r.status+' '+rel);

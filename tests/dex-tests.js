@@ -16336,8 +16336,11 @@
          the published debt. No text-level invariant has been named for either, so nothing here is gated for
          visibility's own sake, and no value-level assertion was rewritten as a source scan to make the
          listing look load-bearing. The one divergence measured inside provenance-ledger.js — `loadBrowser`
-         filters an absent fragment where `loadNode` throws — is residue
-         2026-09-27-loadbrowser-filters-an-absent-fragment-silently and changes no verdict today. */
+         filtered an absent fragment where `loadNode` throws — was residue
+         2026-09-27-loadbrowser-filters-an-absent-fragment-silently. It still moves no verdict (GATE A
+         already refuses by name on a bundle with no committed hash); what changed is that the absence now
+         carries its own reason: `loadBrowser` reports the paths that did not arrive and the banner names
+         them, gated by the `provenance · ledger · absent-fragment` groups. */
       var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-contracts.js', 'provenance-banner.js', 'support.js', 'xmt-fixture.js'];
       T.eq(
         'the invisible SET is exactly the published one (a swap cannot hide inside a stable count)',
@@ -71160,6 +71163,107 @@
       }
       var disjoint = RF([recAt('OxyDex', desatsA, t0, t0 + 8 * H), recAt('CPAPDex', lateDesats, t0 + 9 * H, t0 + 18 * H), recAt('ECGDex', surges.concat(lateSurges), t0, t0 + 18 * H)], {}).apnea || {};
       T.ok('a non-redundant observer is still counted (no silent loss)', (disjoint.total && disjoint.total.desat) === 60, 'desat=' + (disjoint.total && disjoint.total.desat));
+    });
+
+    /* §∅ — AN ABSENT FILE IS NOT A MISSING RECORD. `ProvenanceLedger.loadNode` THROWS on an absent
+       `provenance/<App>.json`; `loadBrowser` filtered the null out and assembled the smaller view, so the
+       gate page reported that bundle as "no committed manifestHash" — the reason of a ledger that WAS read
+       and found incomplete, borrowed by a file nobody read, carrying the wrong remedy with it (residue
+       2026-09-27-loadbrowser-filters-an-absent-fragment-silently). GATE A already refuses BY NAME on that
+       bundle (`gateACompare` → `missing-committed`), so no verdict moves here: what is gated is that the
+       absence gets its OWN reason, additively, and that the two functions naming a fragment file
+       (`fragmentFiles`, `fragmentFileFor`) cannot drift apart. */
+    group('an absent provenance fragment is reported by name, not assembled around (§∅)', 'provenance · ledger · absent-fragment', function (T) {
+      var PL = env.ProvenanceLedger || (typeof ProvenanceLedger !== 'undefined' ? ProvenanceLedger : null);
+      if (!PL) {
+        T.skip('ProvenanceLedger reachable', 'neither env.ProvenanceLedger nor the global is wired in this lane');
+        return;
+      }
+      T.ok('the loader exposes a pure missingFragments(apps, fragments)', typeof PL.missingFragments === 'function');
+      T.ok('…and a pure fragmentFileFor(bundleFile)', typeof PL.fragmentFileFor === 'function');
+      if (typeof PL.missingFragments !== 'function' || typeof PL.fragmentFileFor !== 'function') return;
+
+      /* The POSITION is what the null-filter destroys, so the helper is computed over the UNFILTERED list. */
+      T.eq('every fragment present → nothing is named', PL.missingFragments(['A', 'B'], [{ bundle: 'A.html' }, { bundle: 'B.html' }]), []);
+      T.eq('a null at position 0 and 2 → those two paths, in apps order', PL.missingFragments(['A', 'B', 'C'], [null, { bundle: 'B.html' }, null]), ['provenance/A.json', 'provenance/C.json']);
+      T.eq('a fragment list that never arrived at all → every app is named', PL.missingFragments(['A', 'B'], null), ['provenance/A.json', 'provenance/B.json']);
+      T.eq('no app list → nothing to name (never a fabricated path)', PL.missingFragments(null, []), []);
+      T.eq('an empty-string fetch is an absence too (the loader parses it to null)', PL.missingFragments(['A'], [null]), ['provenance/A.json']);
+      /* A present fragment names its own bundle (`fr.bundle`), which is exactly what is gone for an absent
+         one — so the path has to be DERIVED, and the derivation is single-sourced. */
+      T.eq('fragmentFileFor derives the fragment of a bundle file', PL.fragmentFileFor('MotionDex.html'), 'provenance/MotionDex.json');
+      T.eq('…and of the fusion bundle', PL.fragmentFileFor('Integrator.html'), 'provenance/Integrator.json');
+      T.eq('…and is a no-op-safe on a bare app name', PL.fragmentFileFor('MotionDex'), 'provenance/MotionDex.json');
+      T.eq('…and never fabricates a path from nothing', PL.fragmentFileFor(null), 'provenance/.json');
+      /* THE DRIFT GUARD: the two functions that name fragment files must agree over the real app list. */
+      var viaFiles = PL.fragmentFiles(PL.APPS)
+        .slice(2)
+        .map(function (f) {
+          return 'provenance/' + f;
+        });
+      var viaFor = PL.APPS.map(function (a) {
+        return PL.fragmentFileFor(a + '.html');
+      });
+      T.eq('fragmentFileFor agrees with fragmentFiles for every one of the 9 apps', viaFor, viaFiles);
+
+      /* The REAL loader over the REAL committed fragments (Node lane; the browser lane has no probe). */
+      var P = env.ledgerBrowserProbe;
+      if (!P) {
+        T.skip('loadBrowser reports the absent app', 'no loadBrowser probe in this lane (Node-lane only)');
+        return;
+      }
+      T.ok('the probe ran', !P.error, P.error);
+      if (P.error) return;
+      T.eq('all fragments served → `missing` is an empty list, present and additive', P.wholeMissing, []);
+      T.eq('the whole view already carried apps + both assembled ledgers', P.wholeKeys, ['apps', 'buildManifest', 'fixtureProvenance', 'missing']);
+      T.eq('one fragment fetching null → that path is named', P.goneMissing, ['provenance/' + P.miss + '.json']);
+      T.ok('…and the assembled view is still the SMALLER one (additive: no verdict moves)', P.goneBundles === P.wholeBundles - 1, 'gone=' + P.goneBundles + ' whole=' + P.wholeBundles);
+      T.ok('…with that bundle genuinely absent from the manifest, not zero-filled (§∅)', P.goneHasBundle === false, 'hasOwnProperty=' + P.goneHasBundle);
+      T.eq('the result keys are the same set either way — `missing` is not conditional', P.goneKeys, P.wholeKeys);
+      /* A null index.json falls back to the hard-coded APPS; the fallback must not then report 9 absences. */
+      /* POSITION, not count: the probe's missing app is a MIDDLE one, so an implementation that counted
+         after the null-filter would name the LAST app instead and red here. Both ends are asserted. */
+      T.eq('the LAST app in index.json is named correctly too', P.lastMissing, ['provenance/' + P.lastApp + '.json']);
+      T.ok('…and that view is also one bundle smaller', P.lastBundles === P.wholeBundles - 1, 'last=' + P.lastBundles);
+      T.eq('index.json absent but every fragment served → nothing is named', P.noIndexMissing, []);
+    });
+
+    /* The banner is the ONE source of the page's GATE-A reason (provenance-banner.js), so the named reason
+       is asserted against the real strings the reader sees, never a mirror. */
+    group('the gate banner gives an absent fragment its own reason, not the incomplete-ledger one', 'provenance · banner · absent-fragment', function (T) {
+      var pick = env.pickProvenanceBanner;
+      if (typeof pick !== 'function') {
+        T.skip('pickProvenanceBanner wired', 'load provenance-banner.js + expose env.pickProvenanceBanner');
+        return;
+      }
+      var base = { MANIFEST: { bundles: {} }, gateAFail: 0, gateAMissing: 1, gateAChecked: 8, gateAComplete: false, bundlesLength: 9, gateBChecked: 3 };
+      var without = pick(base).gateA;
+      var withOne = pick(Object.assign({}, base, { missingFragments: ['provenance/MotionDex.json'] })).gateA;
+      T.ok('unchanged when no fragment is missing — the field is optional', without.indexOf('DID NOT LOAD') < 0 && without.indexOf('no committed manifestHash') > 0, without.slice(0, 90));
+      T.ok('the absent FILE is named, with its path', withOne.indexOf('provenance/MotionDex.json') > 0, withOne.slice(-220));
+      T.ok('…and told apart from a ledger that was read and found incomplete', withOne.indexOf('ABSENT FILE') > 0 && withOne.indexOf('not an incomplete ledger') > 0);
+      T.ok('…and the remedy is to restore the file, never to re-record the hash', withOne.indexOf('would commit the absence') > 0);
+      T.ok(
+        'the clause is APPENDED — the incomplete-ledger reason it fails under is still there',
+        withOne.indexOf('no committed manifestHash') > 0 && withOne.indexOf(without) === 0,
+        'prefix kept=' + (withOne.indexOf(without) === 0)
+      );
+      T.ok('GATE A still FAILS — the reason moved, the verdict did not', withOne.indexOf('GATE A FAIL') === 0 || withOne.indexOf('pill bad') > 0);
+      var drifted = pick({
+        MANIFEST: { bundles: {} },
+        gateAFail: 2,
+        gateAMissing: 1,
+        gateAChecked: 9,
+        gateAComplete: true,
+        bundlesLength: 9,
+        missingFragments: ['provenance/PpgDex.json', 'provenance/HRVDex.json']
+      }).gateA;
+      T.ok('a drift elsewhere in the same run keeps its own reason', drifted.indexOf('2 bundle(s) drifted') > 0);
+      T.ok(
+        '…and both absent files are still named beside it',
+        drifted.indexOf('provenance/PpgDex.json') > 0 && drifted.indexOf('provenance/HRVDex.json') > 0 && drifted.indexOf('2 provenance fragment(s) DID NOT LOAD') > 0
+      );
+      T.ok('a non-array field is ignored rather than rendered', pick(Object.assign({}, base, { missingFragments: 'MotionDex' })).gateA === without);
     });
 
     group('codegen — the committed generated guide is byte-compared with its generator', 'codegen · frozen-copy · verify-codegen', function (T) {
