@@ -17,6 +17,37 @@ the usable set by three quarters.
 `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` · `docs/SHHS-COHORT-REFERENCE.md`. No derivation
 brief exists yet.
 
+## 0 · What the mirror says about terms — and what it does not say
+
+Finch read ISRUC as internal-use only on 2026-10-12, and pulled an ISRUC figure from a public doc.
+Kestrel asked me to cite the governing clause. **I cannot, because no such file exists on the mirror.**
+Here is what the disk holds, per set:
+
+| set | terms on disk | checksum record |
+|---|---|---|
+| `hmc-sleep-staging` | `LICENSE.txt` — CC BY 4.0 | `sums.norm`, `SHA256SUMS.txt` |
+| `boas` | `dataset_description.json` — `"License": "CC0"` | `verify.out` |
+| `capslpdb` | **none** | `sums.sel`, `verify.out` |
+| `ucddb` | **none** | `sums.sel`, `verify.out` |
+| `isruc` | **none** | **none** — only `megadl.log`, and no row in `.verdicts` |
+| `isleeps` | **none** | `verify.out`, and a bare `isleeps edf: 40` in `.verdicts` |
+
+The root `README.md` does grant publication. It calls its sets "attribution-only or public-domain",
+and it permits derived results with attribution.
+
+That sentence covers the five sets its own table names, and it names none of these six. It dates to
+2026-09-26 and files CAP, UCDDB, HMC and BOAS under **"Not fetched"**. Those directories arrived
+between 2026-09-27 and 2026-10-04, after the sentence.
+
+**So the two sets that carry respiratory events are the two with no terms on disk.** An absent licence
+grants nothing, and `§📚` forbids fabricated authority. This brief therefore withholds every derived
+clinical value for `isruc` and `isleeps`, and keeps the structural counts, which describe the mirror
+rather than a subject.
+
+The held numbers live in one private note outside the repo,
+`memory/osprey-open-ahi-numbers-2026-10-12.md`. **The owner decides whether they may surface.** Finch's
+reading and my measurement agree on the practical answer, by different routes.
+
 ## 1 · The inventory, measured
 
 Root: **`/mnt/nas/nsrr/open-datasets`**. I counted files, not directory labels, on 2026-10-12.
@@ -77,9 +108,8 @@ hypopnea tokens from column E, with the integer prefix stripped.
 
 - **115 recordings yield an AHI.** 12 yield `null`: 11 where scorer 1 left no respiratory token, and
   one whose workbook carries no `_1` or `_2` suffix, so the tool cannot name its scorer.
-- min 0.1 · p25 3.7 · **median 8.0** · p75 18.0 · max 67.5 · mean 12.8
-- severity bands: 35 under 5 · 46 from 5 to 15 · 23 from 15 to 30 · 11 at 30 or above
-- TST: median 6.00 h, range 0.84 h to 7.98 h
+- The derived index, its quartiles, its severity bands and the TST: **measured, held under the set's
+  terms** (§0). The spread does cover every severity band, including 11 recordings in the top one.
 
 Those 12 nulls refuse the record. They do not round it to zero. An unscored recording must never reach the refit as an
 AHI of 0. The suffix-less one holds 6 respiratory tokens, so its null says "no named scorer", not
@@ -99,9 +129,8 @@ zero rows in every file.
 The stage column places each event, and only 1.7 % of the 5450 event rows fall outside sleep.
 
 - **39 recordings yield an AHI.** One yields `null`.
-- min 0.1 · p25 9.8 · **median 20.4** · p75 36.0 · max 81.9 · mean 25.2
-- severity bands: 4 under 5 · 9 from 5 to 15 · 11 from 15 to 30 · 15 at 30 or above
-- TST: median 6.13 h, range 1.40 h to 8.41 h
+- The derived index, its quartiles, its severity bands and the TST: **measured, held under the set's
+  terms** (§0). This cohort sits markedly sicker than `isruc`, with most records above the mild band.
 
 ### 3a · The null I nearly manufactured myself
 
@@ -165,8 +194,8 @@ control is **reproduction**: the tool must land on the counts this survey measur
   "at": "2026-10-12T00:00:00Z" }
 ```
 
-`survey_count_match` counts the records where the tool and this brief disagree on the derived AHI or
-on the null reason. The threshold is **0 records**. Any disagreement is a `FAIL`, and the tool
+`survey_count_match` counts the records where the tool and the private note of §0 disagree on the
+derived AHI or on the null reason. The threshold is **0 records**. Any disagreement is a `FAIL`, and the tool
 reporting more derived records than 154 is also a `FAIL`.
 
 ## 7 · Acceptance
@@ -182,8 +211,8 @@ reporting more derived records than 154 is also a `FAIL`.
 ## 8 · What this changes upstream
 
 The sizing brief sized the open sets at 842 records. **154 recordings can carry a derived AHI**, so
-the open sets add under a fifth of what that figure implied. Their value is the range, not the volume: ISRUC
-sits at a median of 8.0 and iSleeps at 20.4, and together they span 0.1 to 81.9.
+the open sets add under a fifth of what that figure implied. Their value is the range, not the volume.
+The two sets sit in different severity bands, and between them they populate all four.
 
 That spread is the argument for using them. The SHHS fit cohort is large and single-protocol, and
 these two sets come from different labs, different scorers and different event-export software.
