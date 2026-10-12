@@ -33,6 +33,10 @@
  *   node tools/verify-fixtures.mjs            # verify + stamp verifiedUnder
  *   node tools/verify-fixtures.mjs --check    # report UNVERIFIED fixtures, write nothing (CI-safe)
  *
+ * THERE IS NO PER-NODE MODE. Verification runs the whole suite because that is what re-runs the
+ * fixtures; selecting one node would report a green over fixtures nobody re-ran. Any other token is
+ * refused before anything runs (`argv-guard.mjs`).
+ *
  * WHERE IT LOOKS. The corpus is 435 gitignored recordings; a worktree gets the tracked fifth and none
  * of them, so this searches $DEX_UPLOADS → the PRIMARY checkout's uploads/ → this checkout's, and
  * prints the search on refusal. docs/CORPUS-LOCATIONS.md lists the four places the data actually is.
@@ -43,6 +47,20 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+
+/* REFUSE AN UNREAD TOKEN BEFORE THE EIGHT-MINUTE RUN, not after it. The whole argv surface below is
+   three `process.argv.includes` lookups, so a token nobody looks up was indistinguishable from an
+   absent one — and the default for this tool is the STAMP path: a mistyped flag did not fail, it ran
+   the full 746-group suite and wrote `verifiedUnder`. Measured 2026-10-12: the re-bundle skill itself
+   published `--node <node>`, a flag that has never existed here, so the one documented way to verify a
+   single node's fixtures silently verified all of them (residue
+   `2026-10-12-verify-fixtures-swallows-the-node-flag-its-own-skill-tells-you-to-pass`).
+   Placed above every other statement because the guard's value is what it refuses to START; a refusal
+   printed after the corpus line and the suite banner costs the caller the same eight minutes.
+   `--help` is deliberately NOT in the accepted set: declaring a flag this tool does not implement would
+   run a full verification for someone asking what the flags are, and the refusal already prints them. */
+refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--check', '--json', '--selftest'] }, { tool: 'tools/verify-fixtures.mjs' });
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));

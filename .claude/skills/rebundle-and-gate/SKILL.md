@@ -14,7 +14,8 @@ The order is load-bearing; the rationale is `CLAUDE.md` §🔏 and its re-bundle
 3. `npm run check` — the FULL gate. Never `build.mjs --check` alone, never a hand-picked subset of the
    four generated trees.
 4. **Regen goldens LAST**: `node tools/regen-<node>-goldens.mjs`.
-5. `node tools/verify-fixtures.mjs --node <node>` when the compute closure moved.
+5. `node tools/verify-fixtures.mjs` when the compute closure moved. There is no per-node mode, and
+   `--node` was never a flag — the tool now refuses an unread token instead of running the whole suite.
 
 ## Measured
 

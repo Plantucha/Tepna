@@ -61986,6 +61986,7 @@
          in the boolean bucket — and the guard then reads its value as a stray positional and refuses
          THAT instead. Classify each helper by what its body does with argv: `includes(n)` tests
          presence, `indexOf(n)` plus `argv[i + 1]` reads a value. */
+      var directSeen = 0;
       adopters.forEach(function (name) {
         var src = TSg[name];
         var helpers = { flag: 'boolean', opt: 'valued', optAll: 'valued' };
@@ -62009,6 +62010,21 @@
             if (bucket.indexOf(cm[1]) < 0) bucket.push(cm[1]);
           }
         });
+        /* AND THE ADOPTERS WITH NO HELPER AT ALL. `verify-fixtures.mjs` reads its three flags as bare
+           `process.argv.includes('--check')` calls, so the helper scan above finds zero call sites and
+           the parity assertion below passes over a tool it never examined — §4b's "success reported
+           about something never examined", here about the very adoption being asserted. A direct
+           `includes(flag)` tests PRESENCE, so it lands in the boolean bucket; a direct VALUED read is
+           `indexOf` plus `argv[i + 1]`, which the helper scan already classifies. Measured 2026-10-12:
+           10 of the 17 adopters read at least one flag this way, 23 distinct flags between them, and
+           every one appears in its tool's declaration — so this leg enrolls them rather than reding
+           them. 22 of the 23 are new to `reads` here; the helper scan already held the other. */
+        for (const dm of src.matchAll(/argv\.includes\(\s*'(--[a-z0-9-]+)'/g)) {
+          if (reads.boolean.indexOf(dm[1]) < 0 && reads.valued.indexOf(dm[1]) < 0) {
+            reads.boolean.push(dm[1]);
+            directSeen++;
+          }
+        }
         var mV = src.match(/valued: \[([^\]]*)\]/),
           mB = src.match(/boolean: \[([^\]]*)\]/);
         var decV = mV ? mV[1] : '',
@@ -62032,6 +62048,10 @@
         });
         T.eq('…and a value-reading flag is declared VALUED, not boolean (' + name + ')', wrongArity, []);
       });
+      /* ANTI-VACUITY on the leg just added: a typo in that regex returns the direct-read tools to being
+         examined by nothing, and every one of them would still read as a pass. The floor is the measured
+         22 reads the leg adds, taken low. */
+      T.ok('the direct-argv parity leg actually read flags', directSeen >= 15, directSeen + ' direct flag read(s) found across ' + adopters.length + ' adopter(s)');
     });
 
     /* ════ THE SWALLOWERS, EXECUTED ════════════════════════════════════════════════════════════
