@@ -1,6 +1,41 @@
 {
   "schema": "tepna.verdict-adoption/1",
   "enumeratedWith": "git grep -lE <WORDS> -- tools/*.mjs capture-host/*.py (tools non-recursive)",
+  "contributions": {
+    "enumeratedFrom": "briefs/VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md §2",
+    "figures": {
+      "hat per-site σ (classic and drift-removed)": {
+        "file": "analysis-stats.js",
+        "method": "analytic",
+        "status": "pending",
+        "since": "2026-10-12"
+      },
+      "SOLID-NIGHT night verdict": {
+        "file": "capture-host/solid_night.py",
+        "method": "decomposition",
+        "status": "pending",
+        "since": "2026-10-12"
+      },
+      "LOSS verdict `worn_not_recorded_fraction`": {
+        "file": "capture-host/loss_audit.py",
+        "method": "decomposition",
+        "status": "pending",
+        "since": "2026-10-12"
+      },
+      "trio pooled hat §11 (`tch-pooled-hat-*.json`)": {
+        "file": "tools/trio-batch.mjs",
+        "method": "leave-one-out",
+        "status": "pending",
+        "since": "2026-10-12"
+      },
+      "Integrator fused sleep summary": {
+        "file": "integrator-dsp.js",
+        "method": "leave-one-out",
+        "status": "pending",
+        "since": "2026-10-12"
+      }
+    }
+  },
   "producers": {
     "capture-host/adapter_hci.py": {
       "bin": "decides",
