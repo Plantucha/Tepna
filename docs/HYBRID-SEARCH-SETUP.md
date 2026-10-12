@@ -54,7 +54,13 @@ restart and returned the right passages — the **vectors** persisted, not merel
 ## If `--hybrid` fails
 
 * `xerj HTTP …` or a connection error → the server is down: `systemctl --user status tepna-hybrid-index`
-* hits look stale → run `node tools/xerj-load.mjs` (idempotent; the timer does this hourly)
+* hits look stale → run `node tools/xerj-load.mjs` (the timer does this hourly). Each run builds a FRESH
+  `tepna-hybrid-<stamp>` index and moves the name `tepna-hybrid` to it; the replaced one is deleted.
+  Reloading INTO one index is what the loader did until 2026-10-11, and the engine's vector graph never
+  reclaims an overwrite: one index grew to 9.7 GB on disk and the server to 11.3 GB RSS.
+* searches take seconds, or the loader reports the engine's memory breaker → `du -sh
+  ~/.local/share/tepna/hybrid-index/*` — a `tepna-hybrid` directory (a real index wearing the alias's
+  name) is the pre-2026-10-11 shape; one run of the loader replaces it.
 * `loaded 0 documents` → **this is a failure, not a quiet success**: the cache, the corpus or the
   staleness rule stopped matching. The skip histogram in the output says which.
 * nothing is wrong with Rule 0 — re-run without `--hybrid` and the default path answers as always.

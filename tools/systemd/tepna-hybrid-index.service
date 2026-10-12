@@ -39,7 +39,7 @@
 #   3. systemctl --user daemon-reload
 #      systemctl --user enable --now tepna-hybrid-index.service
 #      systemctl --user enable --now tepna-hybrid-index-reload.timer
-#   4. node tools/xerj-load.mjs            # the first fill; idempotent, ~77 s for 58k documents
+#   4. node tools/xerj-load.mjs            # the first fill — a fresh generation, ~77 s for 58k documents
 #   5. node tools/doc-search.mjs --hybrid "a question"      # the one-line check
 # If the binary is absent the service fails loudly rather than degrading: a hybrid lane that silently
 # serves nothing is worse than one that is plainly down.

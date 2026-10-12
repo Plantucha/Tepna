@@ -15,9 +15,13 @@
 # text, so the failure mode is a SKIP, not corruption; but a skip means that file silently drops out of
 # the index until the next tick. Ordering turns a silent gap into a non-event.
 #
-# IDEMPOTENT BY CONSTRUCTION, which is what makes an hourly tick safe. Every document's `_id` is
-# `<path>#<chunk index>`, so a reload overwrites itself; it is also how this unit doubles as its own
-# recovery step — a half-finished run is fixed by the next one, with no state to reconcile.
+# ONE GENERATION PER TICK, which is what makes an hourly tick safe. A load writes a FRESH index named
+# `tepna-hybrid-<utc stamp>`, then moves the name `tepna-hybrid` to it in one request and deletes the one
+# it replaced. ⚠️ It was "idempotent by deterministic _id" until 2026-10-11: the engine's vector graph
+# appends on every overwrite and never reclaims, so 4,643 hourly overwrites grew ONE index to 9.7 GB on
+# disk and the server to 11.3 GB RSS, past its own memory breaker — every further write refused, every
+# search 13–22 s. A half-finished run is still fixed by the next one: it is never promoted, and the
+# next successful run retires it by name.
 #
 # 🔴 IT FAILS ON A LOAD OF ZERO, and that is deliberate. `xerj-load.mjs` exits non-zero when it loaded no
 # document, because "nothing to do" and "the cache, the corpus or the staleness rule stopped matching"

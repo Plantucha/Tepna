@@ -7,8 +7,10 @@
  * xerj-load — write doc-search's EXISTING chunks and cached bge-m3 vectors into a xerj index
  * carrying a `dense_vector` mapping, so one engine can serve BM25 + kNN + hybrid in one request.
  *
- *   node tools/xerj-load.mjs                 # load every eligible file (idempotent)
- *   node tools/xerj-load.mjs --limit 50      # a slice, for a probe
+ *   node tools/xerj-load.mjs                 # load every eligible file into a FRESH generation, then
+ *                                            # move the name to it and delete the one it replaced
+ *   node tools/xerj-load.mjs --limit 50      # a slice, for a probe — into `<index>-probe`, deleted
+ *                                            # at the end, never promoted
  *   node tools/xerj-load.mjs --dry-run       # count and classify, write nothing
  *   node tools/xerj-load.mjs --selftest      # the properties below
  *   node tools/xerj-load.mjs --json          # one tepna.verdict/1 on stdout
@@ -126,9 +128,9 @@ export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk) {
       return repaired;
     },
     docs: chunks.map((raw, i) => ({
-      /* A DETERMINISTIC id is what makes a reload idempotent: the same chunk overwrites itself
-         instead of accumulating a duplicate, so this tool is safe to re-run and resumable by
-         simply running again. */
+      /* A DETERMINISTIC id keeps one chunk one document WITHIN a generation. It does NOT make a
+         reload into the same index idempotent — the engine's vector graph appends on overwrite and
+         never reclaims (measured 2026-10-11, see `main`), which is why every load is a fresh index. */
       _id: `${file}#${i}`,
       path: file,
       chunk_index: i,
@@ -177,6 +179,28 @@ export function bulkBody(index, docs) {
     out.push(JSON.stringify(src));
   }
   return `${out.join('\n')}\n`;
+}
+
+/** One index per load: `<alias>-<UTC second stamp>`. `alias` is the name readers keep using. */
+export function generationName(alias, at = new Date()) {
+  return `${alias}-${at
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z')
+    .toLowerCase()}`;
+}
+
+/** Is `name` a generation of `alias` — and so ours to retire once it no longer serves the alias? */
+export function isGeneration(name, alias) {
+  const lit = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${lit}-\\d{8}t\\d{6}z$`).test(String(name));
+}
+
+/** The ONE request that moves readers: every old holder removed, the new one added, atomically. */
+export function swapActions(alias, olds, next) {
+  return {
+    actions: [...olds.filter((o) => o !== next).map((index) => ({ remove: { index, alias } })), { add: { index: next, alias } }]
+  };
 }
 
 export function selftest() {
@@ -236,6 +260,25 @@ export function selftest() {
   ok(pair.repaired === 0 && pair.text === 'a\u{1F600}b', 'a WELL-FORMED pair is left byte-identical');
   ok(JSON.parse(JSON.stringify({ t: lone.text })).t === 'a\uFFFDb', 'the repaired text survives a JSON round-trip');
 
+  /* 8 · ONE GENERATION PER LOAD. The 2026-10-11 defect: a reload into one index grew the HNSW graph
+         without bound. A load now names a fresh index, the alias moves in one request, and only a
+         name of exactly that shape is ever retired — never the alias, never a probe, never a sibling. */
+  const at = new Date('2026-10-11T22:05:09.123Z');
+  ok(generationName('tepna-hybrid', at) === 'tepna-hybrid-20261011t220509z', 'a generation is the alias plus a UTC second stamp');
+  ok(isGeneration(generationName('tepna-hybrid', at), 'tepna-hybrid'), 'a generation name is recognised as one');
+  ok(!isGeneration('tepna-hybrid', 'tepna-hybrid'), 'the alias itself is not a generation');
+  ok(!isGeneration('tepna-hybrid-probe', 'tepna-hybrid'), 'a probe index is not a generation');
+  ok(
+    !isGeneration('tepna-hybrid-x-20261011t220509z', 'tepna-hybrid') && !isGeneration('tepna-hybrid2-20261011t220509z', 'tepna-hybrid'),
+    'a sibling index with a stamp is not a generation of this alias'
+  );
+  const sw = swapActions('tepna-hybrid', ['tepna-hybrid-20261011t210000z', 'tepna-hybrid-20261011t220509z'], 'tepna-hybrid-20261011t220509z');
+  ok(
+    sw.actions.length === 2 && sw.actions[0].remove.index === 'tepna-hybrid-20261011t210000z' && sw.actions[1].add.index === 'tepna-hybrid-20261011t220509z',
+    'the swap removes every other holder and adds the new one, in one request'
+  );
+  ok(swapActions('a', [], 'a-20261011t220509z').actions.length === 1 && swapActions('a', [], 'a-20261011t220509z').actions[0].add.alias === 'a', 'with nothing to remove the swap is a single add');
+
   const line = fail.length ? `xerj-load selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
@@ -258,7 +301,7 @@ async function req(url, path, method, body, ndjson = false) {
   return { status: res.status, json, text };
 }
 
-export function verdictOf({ status, counts, reason }) {
+export function verdictOf({ status, counts, reason, generation = null }) {
   let commit = null;
   try {
     commit = createRequire(import.meta.url)('node:child_process')
@@ -273,7 +316,7 @@ export function verdictOf({ status, counts, reason }) {
     status,
     population: { checked: status === 'NOT_RUN' ? 0 : counts.loaded + counts.skipped, eligible, excluded: status === 'NOT_RUN' ? eligible : eligible - (counts.loaded + counts.skipped) },
     criterion: { name: 'every-eligible-cached-file-is-loaded-with-its-own-vectors', threshold: 0, unit: 'unexplained files', direction: 'eq' },
-    result: status === 'NOT_RUN' ? null : { ...counts },
+    result: status === 'NOT_RUN' ? null : { ...counts, generation },
     evidence: ['tools/xerj-load.mjs', 'tools/doc-search.mjs'],
     reason: reason === undefined ? null : reason,
     producedBy: commit ? { tool: 'tools/xerj-load.mjs', commit } : { tool: 'tools/xerj-load.mjs', commit: null, commitReason: 'git rev-parse unavailable' },
@@ -318,16 +361,26 @@ async function main() {
     process.exit(2);
   }
 
+  /* ONE GENERATION PER LOAD — `index` is the NAME readers use, and after this run it is an alias.
+     ⚠️ MEASURED 2026-10-11. Writing the same deterministic ids into ONE index every hour looked
+     idempotent and was not: the engine's HNSW graph appends a vector on every overwrite and never
+     reclaims the old one, then rewrites the whole graph file on every flush. After 4,643 bulk writes
+     the index measured 9.7 GB on disk (3.3 GB graph for 62k documents — 53 KB per 4 KB vector), the
+     server 11.3 GB RSS, searches 13–22 s, and the engine's memory breaker refused every further write.
+     So a load builds a FRESH index named `<index>-<UTC stamp>`, fills it, and only then moves the
+     alias to it in one request; the generation it replaced is deleted, which the engine honours on
+     disk. A `--limit` probe loads into `<index>-probe`, which is deleted at the end and never
+     promoted — a slice must not become what every reader sees. */
+  const probe = limit > 0;
+  const target = dry ? index : probe ? `${index}-probe` : generationName(index);
   if (!dry) {
-    const head = await req(url, `/${index}`, 'GET');
-    if (head.status === 404) {
-      const made = await req(url, `/${index}`, 'PUT', JSON.stringify(mapping()));
-      if (made.status >= 300) {
-        process.stderr.write(`xerj-load: could not create ${index}: ${made.text.slice(0, 200)}\n`);
-        process.exit(2);
-      }
-      process.stderr.write(`xerj-load: created index ${index} with a ${VECTOR_DIMS}-dim cosine dense_vector mapping\n`);
+    if (probe) await req(url, `/${target}`, 'DELETE');
+    const made = await req(url, `/${target}`, 'PUT', JSON.stringify(mapping()));
+    if (made.status >= 300) {
+      process.stderr.write(`xerj-load: could not create ${target}: ${made.text.slice(0, 200)}\n`);
+      process.exit(2);
     }
+    process.stderr.write(`xerj-load: created ${target} with a ${VECTOR_DIMS}-dim cosine dense_vector mapping\n`);
   }
 
   const counts = { files: 0, loaded: 0, skipped: 0, docs: 0, repairedChunks: 0, skips: {} };
@@ -338,7 +391,7 @@ async function main() {
       pending = [];
       return;
     }
-    const r = await req(url, '/_bulk', 'POST', bulkBody(index, pending), true);
+    const r = await req(url, '/_bulk', 'POST', bulkBody(target, pending), true);
     if (r.status >= 300 || (r.json && r.json.errors)) {
       const first = r.json?.items?.find((i) => i.index?.error)?.index?.error;
       throw new Error(`bulk failed (${r.status}): ${JSON.stringify(first || r.text.slice(0, 200))}`);
@@ -346,59 +399,71 @@ async function main() {
     pending = [];
   };
 
-  for await (const line of readLines(cachePath)) {
-    const t = line.trim();
-    if (!t) continue;
-    let entry;
-    try {
-      entry = JSON.parse(t);
-    } catch {
-      continue;
-    }
-    if (header === null && entry.model) {
-      header = entry.model;
-      /* THE MODEL IS PART OF THE CONTRACT. A cache written by a different embedder carries vectors
+  try {
+    await fill();
+  } catch (e) {
+    /* A half-built generation is never promoted, so readers still have the previous one; delete it
+       so it does not sit on disk, and let the error surface. If even that fails, the next successful
+       promotion retires it by name (`isGeneration`). */
+    if (!dry) await req(url, `/${target}`, 'DELETE').catch(() => {});
+    throw e;
+  }
+
+  async function fill() {
+    for await (const line of readLines(cachePath)) {
+      const t = line.trim();
+      if (!t) continue;
+      let entry;
+      try {
+        entry = JSON.parse(t);
+      } catch {
+        continue;
+      }
+      if (header === null && entry.model) {
+        header = entry.model;
+        /* THE MODEL IS PART OF THE CONTRACT. A cache written by a different embedder carries vectors
          from a different space; loading them under a 1024-dim bge-m3 mapping would produce a kNN
          ranking that means nothing and looks fine. */
-      if (header !== CACHE_MODEL) {
-        process.stderr.write(`xerj-load: REFUSING — cache model is ${header}, expected ${CACHE_MODEL}.\n`);
-        process.exit(2);
+        if (header !== CACHE_MODEL) {
+          process.stderr.write(`xerj-load: REFUSING — cache model is ${header}, expected ${CACHE_MODEL}.\n`);
+          process.exit(2);
+        }
+        continue;
       }
-      continue;
-    }
-    if (!entry.file) continue;
-    counts.files += 1;
-    /* EXTERNAL DOCS ARE IN SCOPE, and that is a fairness requirement rather than a convenience.
+      if (!entry.file) continue;
+      counts.files += 1;
+      /* EXTERNAL DOCS ARE IN SCOPE, and that is a fairness requirement rather than a convenience.
        doc-search ranks over repo AND external roots (today's own Rule 0 answer came from
        `ext:memory/...`), so an index holding only the repo would lose those hits and the benchmark
        would read as "hybrid is worse" when the real difference is a smaller corpus. The roots are
        vendor SDK source and the memory dir, each declaring its own source extensions — no
        recording, no capture — and every path still passes the FORBIDDEN assertion below. */
-    let body = null;
-    const abs = entry.file.startsWith(EXT_PREFIX) ? extAbs().get(entry.file) : join(ROOT, entry.file);
-    if (abs && existsSync(abs)) {
-      try {
-        body = readDoc(entry.file, readFileSync(abs, 'utf8'));
-      } catch {
-        body = null;
+      let body = null;
+      const abs = entry.file.startsWith(EXT_PREFIX) ? extAbs().get(entry.file) : join(ROOT, entry.file);
+      if (abs && existsSync(abs)) {
+        try {
+          body = readDoc(entry.file, readFileSync(abs, 'utf8'));
+        } catch {
+          body = null;
+        }
       }
+      const plan = planFile(entry, body);
+      if (!plan.ok) {
+        counts.skipped += 1;
+        counts.skips[plan.reason] = (counts.skips[plan.reason] || 0) + 1;
+        continue;
+      }
+      counts.loaded += 1;
+      counts.docs += plan.docs.length;
+      counts.repairedChunks += plan.repaired;
+      for (const d of plan.docs) {
+        pending.push(d);
+        if (pending.length >= batch) await flush();
+      }
+      if (limit && counts.loaded >= limit) break;
     }
-    const plan = planFile(entry, body);
-    if (!plan.ok) {
-      counts.skipped += 1;
-      counts.skips[plan.reason] = (counts.skips[plan.reason] || 0) + 1;
-      continue;
-    }
-    counts.loaded += 1;
-    counts.docs += plan.docs.length;
-    counts.repairedChunks += plan.repaired;
-    for (const d of plan.docs) {
-      pending.push(d);
-      if (pending.length >= batch) await flush();
-    }
-    if (limit && counts.loaded >= limit) break;
+    await flush();
   }
-  await flush();
 
   /* EXAMINED-NOTHING REFUSAL. A run that loaded no document is not a clean load; it means the cache,
      the corpus or the staleness rule stopped matching. Reporting PASS over 0 is the failure shape
@@ -407,8 +472,20 @@ async function main() {
   const status = nothing ? 'FAIL' : 'PASS';
   const reason = nothing ? `loaded 0 documents from ${counts.files} cache entries — skips: ${JSON.stringify(counts.skips)}` : null;
 
+  /* PROMOTE OR DISCARD. Readers move only to a generation that loaded something; a load of zero or a
+     probe is deleted and the alias stays where it was. */
+  let generation = null;
+  if (!dry) {
+    if (nothing || probe) {
+      await req(url, `/${target}`, 'DELETE');
+      generation = { index: target, promoted: false, deleted: true };
+    } else {
+      generation = { index: target, promoted: true, ...(await promote(url, index, target)) };
+    }
+  }
+
   if (asJson) {
-    process.stdout.write(`${JSON.stringify(verdictOf({ status, counts, reason }), null, 1)}\n`);
+    process.stdout.write(`${JSON.stringify(verdictOf({ status, counts, reason, generation }), null, 1)}\n`);
   } else {
     process.stdout.write(`xerj-load · ${dry ? 'DRY RUN · ' : ''}index ${index}\n`);
     process.stdout.write(`  cache entries (files)      : ${counts.files}\n`);
@@ -416,9 +493,48 @@ async function main() {
     process.stdout.write(`  skipped                    : ${counts.skipped}\n`);
     process.stdout.write(`  chunks with a split pair repaired : ${counts.repairedChunks}\n`);
     for (const [k, n] of Object.entries(counts.skips).sort((a, b) => b[1] - a[1])) process.stdout.write(`    ${k.padEnd(16)} ${n}\n`);
+    if (generation?.promoted)
+      process.stdout.write(`  generation ${generation.index} now serves ${index} · replaced ${generation.replaced.join(', ') || 'nothing'} · retired ${generation.retired.length}\n`);
+    else if (generation) process.stdout.write(`  ${probe ? 'probe' : 'empty generation'} ${generation.index} deleted · ${index} untouched\n`);
     if (nothing) process.stdout.write('  ✕ loaded NOTHING — see the skip histogram above\n');
   }
   process.exit(nothing ? 1 : 0);
+}
+
+/**
+ * Move `alias` to `next` in one request and retire what it pointed at.
+ *
+ * Three states are possible on entry, and the first run after this change meets the second:
+ *   - `alias` is an alias over one or more generations → swap, then delete those generations;
+ *   - `alias` is a REAL index wearing that name (every load before 2026-10-11) → an alias cannot
+ *     share a name with an index, so the real one is deleted first; readers see no index for the
+ *     moment between that delete and the swap, once, and the one-shot unit retries on failure;
+ *   - nothing holds the name → add the alias.
+ * Afterwards every other `<alias>-<stamp>` index is deleted too: an orphan of an aborted run.
+ */
+export async function promote(url, alias, next) {
+  const held = await req(url, `/_alias/${alias}`, 'GET');
+  const olds = held.json && typeof held.json === 'object' && !Array.isArray(held.json) ? Object.keys(held.json).filter((k) => k !== next) : [];
+  const replaced = [...olds];
+  if (olds.length === 0) {
+    const real = await req(url, `/${alias}`, 'GET');
+    if (real.status === 200) {
+      const gone = await req(url, `/${alias}`, 'DELETE');
+      if (gone.status >= 300) throw new Error(`could not delete the legacy index ${alias} (${gone.status}): ${gone.text.slice(0, 200)}`);
+      replaced.push(alias);
+    }
+  }
+  const sw = await req(url, '/_aliases', 'POST', JSON.stringify(swapActions(alias, olds, next)));
+  if (sw.status >= 300) throw new Error(`alias swap failed (${sw.status}): ${sw.text.slice(0, 200)}`);
+  const cat = await req(url, '/_cat/indices?h=index&format=json', 'GET');
+  const names = Array.isArray(cat.json) ? cat.json.map((r) => r.index).filter((n) => typeof n === 'string') : [];
+  const retired = [];
+  for (const n of names) {
+    if (n === next || !(olds.includes(n) || isGeneration(n, alias))) continue;
+    const d = await req(url, `/${n}`, 'DELETE');
+    if (d.status < 300) retired.push(n);
+  }
+  return { replaced, retired };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
