@@ -181,6 +181,13 @@ jobs:
       # contributor can fix it by running the tool, so none of the reasons for informational apply.
       - name: Tools index ≡ tools-index(source) (the fifth generated tree)
         run: node tools/tools-index.mjs --check
+      # The SIXTH generated tree, and it had no comparator at all until now: `codegen/generated/` is a
+      # frozen copy of `dex-gen.js` / `dex-registry-gen.js` output, and nothing re-ran either generator
+      # or compared the committed bytes, so the copy could diverge from the generator for any length of
+      # time with every gate green (residue `2026-09-20-codegen-generated-never-regenerated`). Same shape
+      # as the five guards above — committed artifact ≡ build(source) — pure Node, no corpus, no network.
+      - name: Codegen copies ≡ dex-gen(source) (the sixth generated tree)
+        run: npm run -s verify:codegen
       # VERDICT-CONTRACT §3 — the producers of a verdict word, ENUMERATED on the tree and held equal to a
       # committed manifest that bins every one (decides · already-json · word-only-with-reason · test).
       # A new tool that prints PASS/FAIL and is in no bin is a red with its name; an adoption is READ

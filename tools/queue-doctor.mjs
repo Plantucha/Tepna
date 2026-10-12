@@ -38,7 +38,7 @@
  *   node tools/queue-doctor.mjs --dry-run    # report only, change nothing
  *   node tools/queue-doctor.mjs --report     # report only, exit 1 if anything is stuck (for a timer)
  *
- * Exit: 0 acted or nothing to do · 1 --report found stuck PRs · 2 REFUSED (could not read state).
+ * Exit: 0 acted or nothing to do · 1 --report found stuck or RED PRs · 2 REFUSED (could not read state).
  */
 
 import { execFileSync } from 'node:child_process';
@@ -127,6 +127,19 @@ export function classify(pr, required, nowMs) {
   if (pr.mergeState === 'UNKNOWN') return { k: 'computing', why: 'GitHub still computing mergeability' };
   if (!pr.autoMerge) return { k: 'stuck-unarmed', why: 'green and mergeable but auto-merge NOT armed', idleMin };
   return { k: 'ready', why: 'green and current — auto-merge should take it' };
+}
+
+/**
+ * What the report must NAME. `stuck` is the green-and-cannot-merge set; `failing` is a PR whose REQUIRED
+ * checks are red. classify() has always returned `failing`, but the report printed only `stuck`, so a red
+ * (abandoned) PR read as "no PR is green-and-stuck" and `--report` exited 0 over it — a red PR looked like
+ * an idle queue. `--report` is clean only when BOTH are empty.
+ */
+export function attention(classified) {
+  return {
+    stuck: classified.filter((c) => c.k === 'stuck-behind' || c.k === 'stuck-unarmed'),
+    failing: classified.filter((c) => c.k === 'failing')
+  };
 }
 
 /**
@@ -262,7 +275,7 @@ function main() {
   const now = Date.now();
   const classified = prs.filter((p) => p.readable).map((p) => ({ pr: p, ...classify(p, required, now) }));
 
-  const stuck = classified.filter((c) => c.k === 'stuck-behind' || c.k === 'stuck-unarmed');
+  const { stuck, failing } = attention(classified);
   const stamp = new Date(now).toISOString().slice(11, 19);
 
   /* SAY THE THING NO VIEW SAYS. This line is the whole point of the tool: a PR that is green, armed
@@ -273,6 +286,11 @@ function main() {
   } else {
     console.log(`${stamp}  no PR is green-and-stuck (${classified.length} open)`);
   }
+  /* A RED PR IS NOT AN IDLE QUEUE. classify() says so (`failing`); the report must too. */
+  if (failing.length) {
+    console.log(`${stamp}  ✗ RED: ${failing.length} PR(s) with a failing REQUIRED check — updating cannot land them`);
+    for (const c of failing) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
+  }
   for (const p of unreadable) console.log(`    #${p.number}  checks unreadable — NOT counted either way`);
 
   const unarmed = stuck.filter((c) => c.k === 'stuck-unarmed');
@@ -280,7 +298,7 @@ function main() {
     console.log(`    → ${unarmed.length} need a human: arm auto-merge (\`gh pr merge <N> --auto --squash\`); updating cannot land them.`);
   }
 
-  if (REPORT) process.exit(stuck.length ? 1 : 0);
+  if (REPORT) process.exit(stuck.length || failing.length ? 1 : 0);
 
   const d = pick(classified);
   if (d.action !== 'update') {
