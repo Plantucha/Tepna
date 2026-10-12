@@ -763,16 +763,17 @@ _BATT_FULL_PCT = 100
 _BATT_FLAT_CHARGING_S = 2700.0  # 45 min; ~7 points of expected drain at the measured 9 %/h
 
 
-def full_battery_implies_charging(
+def flat_window_closed(
     level, seconds_flat, *, full_pct: int = _BATT_FULL_PCT, min_flat_s: float = _BATT_FLAT_CHARGING_S
 ) -> bool | None:
     """`True` when a FULL battery has stayed put long enough that a draining device would have moved.
 
-    ⚠️ THE NAME NOW OVERCLAIMS, AND THE CALLER NO LONGER READS IT THAT WAY. Owner ruling 2026-10-12:
-    flatness does not imply a charger, because the same flatness fits a fresh coin cell, and reading
-    it as a dock cost 140 drops on a worn strap (2026-09-22). `capture.py` publishes `charging: null`
-    on this `True` and names the observation instead. What this predicate decides is whether the FLAT
-    WINDOW HAS CLOSED, nothing about where the device is. The rename is residue, not done here.
+    ⚠️ THE NAME STATES THE OBSERVATION AND NOTHING ELSE, which is the whole of what changed here.
+    It read `full_battery_implies_charging` until 2026-10-12, and the owner's ruling that day took the
+    conclusion away from it: flatness does not imply a charger, because the same flatness fits a fresh
+    coin cell, and reading it as a dock cost 140 drops on a worn strap (2026-09-22). `capture.py`
+    publishes `charging: null` on this `True` and names the observation beside it. A name that asserts
+    a verdict the body never reaches is read by the next caller in place of the paragraph under it.
 
     PURE. `None` means "no claim" — below full (where the rising rule applies), on a short observation,
     or with nothing to read. Never returns False: a battery flat for ten minutes has not proved it is
@@ -812,7 +813,7 @@ def note_flat_battery(
     if prev != lvl or store.get(name) is None:
         store[name] = now
         return False
-    return bool(full_battery_implies_charging(lvl, now - store[name], min_flat_s=min_flat_s))
+    return bool(flat_window_closed(lvl, now - store[name], min_flat_s=min_flat_s))
 
 
 def stream_health(
