@@ -2005,6 +2005,45 @@ function readDrawnFlagScan() {
   return out;
 }
 
+/* §∅ — does `ProvenanceLedger.loadBrowser` REPORT a fragment that did not arrive, or assemble around it?
+   `loadNode` throws on an absent `provenance/<App>.json`; the browser loader filtered it and returned a
+   smaller view (residue 2026-09-27-loadbrowser-filters-an-absent-fragment-silently). `loadBrowser` is a
+   Promise and the assertion harness is synchronous, so the probe is awaited HERE and asserted there (the
+   readComputeHashProbe pattern). The fetcher serves the REAL committed fragments off disk and returns null
+   for ONE app, the way a deploy that missed a file does — no synthetic ledger, so a change to the real
+   fragment set cannot pass the probe while failing the page. */
+async function readLedgerBrowserProbe() {
+  try {
+    const dir = join(ROOT, 'provenance');
+    /* A MIDDLE app, deliberately: `provenance/index.json` ends with MotionDex, so probing the LAST app
+       would be named correctly even by an implementation that counted after the null-filter — the exact
+       positional bug the helper exists to avoid. Both are probed. */
+    const miss = 'PpgDex';
+    const lastApp = 'MotionDex';
+    const serve = (name) => readFileSync(join(dir, name.replace(/^provenance\//, '')), 'utf8');
+    const whole = await ProvenanceLedger.loadBrowser(serve);
+    const gone = await ProvenanceLedger.loadBrowser((name) => (name === `provenance/${miss}.json` ? null : serve(name)));
+    const noIndex = await ProvenanceLedger.loadBrowser((name) => (name === 'provenance/index.json' ? null : serve(name)));
+    const lastGone = await ProvenanceLedger.loadBrowser((name) => (name === `provenance/${lastApp}.json` ? null : serve(name)));
+    return {
+      miss,
+      wholeMissing: whole.missing,
+      wholeBundles: Object.keys(whole.buildManifest.bundles).length,
+      wholeKeys: Object.keys(whole).sort(),
+      goneMissing: gone.missing,
+      goneBundles: Object.keys(gone.buildManifest.bundles).length,
+      goneKeys: Object.keys(gone).sort(),
+      goneHasBundle: Object.prototype.hasOwnProperty.call(gone.buildManifest.bundles, `${miss}.html`),
+      noIndexMissing: noIndex.missing,
+      lastApp,
+      lastMissing: lastGone.missing,
+      lastBundles: Object.keys(lastGone.buildManifest.bundles).length
+    };
+  } catch (e) {
+    return { error: String((e && e.message) || e) };
+  }
+}
+
 // analysis-tools self-contained gate (LOCAL-DOWNLOAD / file:// fix): the 9 science tools are bundled to
 // self-contained single-file HTML by tools/build-analysis.mjs so they run when downloaded to disk. This
 // reads each committed tool HTML so the group can assert the file://-safe invariant (no external <script
@@ -3218,6 +3257,8 @@ async function main() {
     nonBundleCsp: readNonBundleCsp(),
     captureFilenameScan: readCaptureFilenameScan(),
     drawnFlagScan: readDrawnFlagScan(),
+    ProvenanceLedger, // the pure `missingFragments` / `fragmentFileFor` self-tests (browser lane: the global)
+    ledgerBrowserProbe: await readLedgerBrowserProbe(), // does loadBrowser REPORT an absent fragment by name?
     codegenManifests: readCodegenManifests(),
     codegenCheck,
     docsMdTwins: readDocsMdTwins(),
