@@ -24,11 +24,17 @@
 # which names a single unit), and REPORTS everything whose blast radius is root. That still closes the
 # first two events outright and makes the third visible — which is what was missing, since #914's drift
 # was silent for eight days, not unfixable.
+#
+# 🟢 OWNER RULING 2026-10-12 — OPTION (A): drift now installs itself, through a SECOND grant that keeps
+# the rule above. Step 4 calls tepna-sysfiles.sh, which is root-owned, reads nothing from this checkout
+# but the commit it is on, and installs from a fresh clone of GitHub `main` at that commit. The updater
+# still never passes `--install` to the checkout's own check-system-files.sh.
 set -uo pipefail
 
 REPO_DIR="${TEPNA_REPO_DIR:-/opt/tepna}"
 STATUS_JSON="${TEPNA_STATUS_JSON:-/srv/tepna/captures/status.json}"
 RESTART_SH="${TEPNA_RESTART_SH:-/usr/local/lib/tepna/tepna-restart.sh}"
+SYSFILES_SH="${TEPNA_SYSFILES_SH:-/usr/local/lib/tepna/tepna-sysfiles.sh}"
 # WHAT THE RUNNING DAEMON IS ACTUALLY ON.
 #
 # 🔴 NOT /run — THIS SERVICE RUNS AS `vigil`, AND /run IS root-OWNED 0755.
@@ -520,13 +526,25 @@ if [ -f "$REPO_DIR/capture-host/deploy/sync-apps.sh" ]; then
   fi
 fi
 
-# --- 4 · report /etc + root-helper drift; NEVER install it (see the header) --------------------
+# --- 4 · /etc + root-helper drift: install it FROM GITHUB through the helper, else report it ----
 # Runs on every tick, not only after a move: #914's drift appeared without this checkout changing at all.
+# The checkout's checker only DETECTS (never `--install`). The fix goes through $SYSFILES_SH, which
+# installs from a clone of `main` at this checkout's commit (owner ruling 2026-10-12, see the header).
+# The run fails only when drift REMAINS: the helper is absent, it refused, or its own re-check failed.
 if [ -f "$REPO_DIR/capture-host/deploy/check-system-files.sh" ]; then   # -f, not -x: run via bash (see step 3)
   if ! out="$(bash "$REPO_DIR/capture-host/deploy/check-system-files.sh" 2>&1)"; then
-    drifted=1
-    warn "/etc or /usr/local/lib drift — a HUMAN must run check-system-files.sh --install:"
-    printf '%s\n' "$out" >&2
+    if [ ! -f "$SYSFILES_SH" ]; then
+      drifted=1
+      warn "/etc or /usr/local/lib drift, and $SYSFILES_SH is not installed — a HUMAN must run check-system-files.sh --install:"
+      printf '%s\n' "$out" >&2
+    elif fix="$("${SUDO[@]}" "$SYSFILES_SH" install 2>&1)"; then
+      say "/etc or /usr/local/lib drift — installed from GitHub by $SYSFILES_SH:"
+      printf '%s\n' "$fix"
+    else
+      drifted=1
+      warn "/etc or /usr/local/lib drift, and $SYSFILES_SH did not clear it — a HUMAN must run check-system-files.sh --install:"
+      printf '%s\n' "$out" "--- $SYSFILES_SH install:" "$fix" >&2
+    fi
   fi
 fi
 
