@@ -10,7 +10,7 @@
  *   node tools/xerj-bench.mjs                  # score (uses the committed query set)
  *   node tools/xerj-bench.mjs --json           # one tepna.verdict/1
  *   node tools/xerj-bench.mjs --selftest
- *   node tools/xerj-bench.mjs --refusal [--json]   # the refusal floor against answerable + off-topic sets
+ *   node tools/xerj-bench.mjs --refusal [--rerank] [--json]  # the refusal floor against answerable + off-topic sets
  *
  * 🔴 THE GROUND TRUTH IS NOT THE RECORDED HITS, AND THAT IS THE WHOLE METHOD.
  * Every merged PR since Rule 0 opens with `Rule 0: <query> → <hits>`, so the obvious ground truth is
@@ -261,6 +261,10 @@ async function main() {
     const xq = await import('./xerj-query.mjs');
     const pos = JSON.parse(readFileSync(QUERY_SET, 'utf8'));
     const neg = JSON.parse(readFileSync(REFUSAL_SET, 'utf8')).queries;
+    /* --rerank judges the reranker floor instead. A query the reranker did not score is an error,
+       never a silent fall back to the other floor: that would score one floor under the other's name. */
+    const rerank = argv.includes('--rerank');
+    const floor = rerank ? { rerank: xq.REFUSE_RERANK } : { cos: xq.REFUSE_COS, bm25: xq.REFUSE_BM25 };
     const rows = [];
     let errors = 0;
     for (const [kind, set] of [
@@ -270,7 +274,8 @@ async function main() {
       for (let i = 0; i < set.length; i += 1) {
         const q = kind === 'pos' ? set[i].query : set[i];
         try {
-          const out = await xq.hybridSearch({ query: q });
+          const out = await xq.hybridSearch({ query: q, rerank });
+          if (rerank && !Number.isFinite(out.signals.rerank)) throw new Error(out.degraded);
           const hit =
             kind === 'pos'
               ? hitAt(
@@ -290,11 +295,11 @@ async function main() {
     const status = errors ? 'UNKNOWN' : n === 0 ? 'NOT_RUN' : r.pass ? 'PASS' : 'FAIL';
     if (argv.includes('--json')) {
       const v = Verdict.make({
-        gate: 'xerj-refusal',
+        gate: rerank ? 'xerj-refusal-rerank' : 'xerj-refusal',
         status,
         population: { checked: n, eligible: n + errors, excluded: errors },
         criterion: { name: 'refuses-no-correctly-answered-query-and-most-off-topic-queries', threshold: 0, unit: 'correct answers refused', direction: 'eq' },
-        result: { floor: { cos: xq.REFUSE_COS, bm25: xq.REFUSE_BM25 }, all: r.all, holdOut: r.holdOut },
+        result: { floor, all: r.all, holdOut: r.holdOut },
         evidence: ['tools/xerj-bench.mjs', 'tools/xerj-query.mjs', 'audits/XERJ-BENCH-QUERIES.json', 'audits/XERJ-REFUSAL-QUERIES.json'],
         reason: status === 'PASS' ? null : errors ? `${errors} quer(ies) did not reach the index` : `floor failed: ${JSON.stringify(r.all)}`,
         producedBy: { tool: 'tools/xerj-bench.mjs', commit: execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim() },
@@ -304,7 +309,7 @@ async function main() {
     } else {
       const f = (p) => `answerable refused ${p.posRefused}/${p.pos} (with a correct hit: ${p.posRefusedWithHit}) · off-topic refused ${p.negRefused}/${p.neg}`;
       process.stdout.write(
-        `xerj refusal floor · cosine < ${xq.REFUSE_COS} AND BM25 < ${xq.REFUSE_BM25}\n  all       ${f(r.all)}\n  hold-out  ${f(r.holdOut)}\n  ${status}${errors ? ` · ${errors} error(s)` : ''}\n`
+        `xerj refusal floor · ${rerank ? `reranker < ${xq.REFUSE_RERANK}` : `cosine < ${xq.REFUSE_COS} AND BM25 < ${xq.REFUSE_BM25}`}\n  all       ${f(r.all)}\n  hold-out  ${f(r.holdOut)}\n  ${status}${errors ? ` · ${errors} error(s)` : ''}\n`
       );
     }
     process.exit(status === 'PASS' ? 0 : 1);
