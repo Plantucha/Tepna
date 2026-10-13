@@ -73011,6 +73011,31 @@
       T.eq('…and all 1000 seconds count as measured', out.nMeasured + '/' + out.nTotal, '1000/1000');
     });
 
+    /* ── CLAUDE.md §👥.4 option 3 — an `EXIT=` sentinel dies WITH its writer (residue
+       2026-09-22-sentinel-waiter-outlives-its-producer). `( cmd ; echo "EXIT=$?" ) &` survives the CHILD
+       dying but not the SUBSHELL being SIGKILLed (§4c's watchdog): the line is never written and a bare
+       `until grep -q '^EXIT='` polls forever — measured 2 h 08 min. The prescription must carry its own
+       liveness bound. Node-lane only (env.claudeMdClaims.claudeMd is the file's text). */
+    group('CLAUDE.md §👥.4 — the EXIT= sentinel carries a liveness guard', 'docs · claude-md · sentinel', function (T) {
+      var C = env.claudeMdClaims;
+      if (!C || typeof C.claudeMd !== 'string') {
+        T.skip('env.claudeMdClaims provided to the runner', 'Node-lane only — wire env.claudeMdClaims (run-tests.mjs readClaudeMdClaims)');
+        return;
+      }
+      var md = C.claudeMd;
+      var a = md.indexOf('3. **Sentinel you control**');
+      var b = a < 0 ? -1 : md.indexOf('**The same self-match KILLS**', a);
+      T.ok('the option-3 item is found in §👥.4 (else this scan examined nothing)', a >= 0 && b > a, 'a=' + a + ' b=' + b);
+      if (!(a >= 0 && b > a)) return;
+      var opt3 = md.slice(a, b);
+      T.ok('option 3 is KEPT: a sentinel still outlives a waiter that starts after the producer', /until grep -q '\^EXIT='/.test(opt3) || /grep -q '\^EXIT='/.test(opt3));
+      T.ok('option 3 names the failure: the sentinel is never written when the subshell is SIGKILLed', /SIGKILL|kill -9/.test(opt3) && /forever|never/i.test(opt3));
+      T.ok('option 3 carries a PID guard beside the sentinel for the waiter that launched the producer', /kill -0 "\$PID"/.test(opt3) && /PID=\$!/.test(opt3), 'no `kill -0 "$PID"` guard in option 3');
+      T.ok('option 3 carries a deadline for a waiter in a DIFFERENT shell (no $PID there)', /for _ in \$\(seq \d+\)/.test(opt3) || /\btimeout\b/.test(opt3), 'no bounded loop / timeout in option 3');
+      var opt2 = md.slice(md.indexOf('2. **Own the PID**'), a);
+      T.ok('option 2 (own the PID) is untouched and still yields the exit code', /kill -0 "\$PID"/.test(opt2) && /wait "\$PID"; echo "EXIT=\$\?"/.test(opt2));
+    });
+
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.
        `totalGroups` stays the full declaration count, so "N of 134" is still honest. */
