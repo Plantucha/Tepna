@@ -27,8 +27,11 @@
  *   merge   a green, current, non-draft PR Kodiak has left for KODIAK_IDLE_MIN is merged by SHA
  *   alert   stuck, red-after-rerun, hand-rebase and a required check pending over STALE_PENDING_MIN
  *           are written to the landing page the board shows and to the journal
- * A `do-not-merge` label HOLDS a PR: the walker never touches it. Kodiak keeps the merge; `update`
- * and `merge` are fallbacks for the hours Kodiak is down, gated on its idleness, never a race with it.
+ * A `do-not-merge` label HOLDS a PR: the walker never readies, reruns, rebases or merges it. It still
+ * UPDATES a held PR that falls BEHIND main, at once and with no idleness gate, because Kodiak never
+ * updates a held PR and the owner's merge button otherwise reads "out-of-date" after every merge to
+ * main (owner, 2026-10-13: "let the walker update held PRs too"). Kodiak keeps the merge; `update` and
+ * `merge` on a green PR are fallbacks for the hours Kodiak is down, gated on its idleness, never a race.
  *
  * THE DECISION IS PURE. `classify()` and `plan()` take snapshots and return actions; `tests/dex-tests.js`
  * group `tools · pr-walker` pins them without `gh`, a network or a clock (the land-pr / queue-doctor
@@ -109,7 +112,12 @@ export function plan(classified, state, ctx) {
   let nonDraft = rows.filter((r) => !r.draft).length;
 
   for (const r of rows) {
-    if (r.state === 'held') continue;
+    if (r.state === 'held') {
+      /* The one thing a hold permits: keep the branch current, so the owner's merge is one click. A
+         held PR that CONFLICTS is not BEHIND (update-branch cannot merge it) and stays untouched. */
+      if (r.behind && !actions.some((a) => a.op === 'update')) actions.push({ op: 'update', number: r.number, why: 'held, behind main — updated so the owner can merge' });
+      continue;
+    }
     if (r.state === 'green' && r.draft) {
       if (nonDraft < cap) {
         actions.push({ op: 'ready', number: r.number, why: `green draft, pool ${nonDraft}/${cap}` });
@@ -352,6 +360,9 @@ function selftest() {
   );
   eq(p.actions.length, 1, 'one slot');
   eq(p.actions[0].number, 3, 'oldest first');
+  const held = plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL], mergeState: 'BEHIND' }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
+  eq(held.actions.map((a) => `${a.op}:${a.number}`).join(','), 'update:7', 'held behind ⇒ update at once');
+  eq(plan([classify(mk({ number: 7, isDraft: false, labels: [HOLD_LABEL] }), req)], { reruns: {}, rebased: {} }, { nowMs: 0, mainMovedAtMs: 0, cap: 4 }).actions.length, 0, 'held current ⇒ nothing');
   console.log(`all ${ran} selftests passed`);
 }
 

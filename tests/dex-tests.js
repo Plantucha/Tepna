@@ -37303,6 +37303,20 @@
       var p3 = pl([cl(P({ number: 3 }), REQ), cl(P({ number: 4 }), REQ)], ST({}), CTX({ cap: 1 }));
       T.eq('the cap counts the PRs readied THIS pass, not only those already out', ops(p3), 'ready:3');
       T.eq('a held PR gets no action', pl([cl(P({ number: 3, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).actions.length, 0);
+      /* Owner, 2026-10-13, on a merge button reading "out-of-date": "let the walker update held PRs too".
+         Kodiak never updates a held PR, so there is no race to wait out — the update is immediate. */
+      var heldBehind = cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel], mergeState: 'BEHIND' }), REQ);
+      var ph = pl([heldBehind], ST({}), CTX({ mainMovedAtMs: NOW }));
+      T.eq('a held PR BEHIND main is updated AT ONCE, with main having just moved (no Kodiak-quiet gate)', ops(ph), 'update:3');
+      T.eq('…and the update is the only thing a hold permits', ph.actions.length, 1);
+      T.eq('a held non-draft PR that is current still gets nothing', pl([cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).actions.length, 0);
+      T.eq(
+        'a held CONFLICTING PR is not updated — update-branch cannot merge a conflict',
+        pl([cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel], mergeState: 'DIRTY' }), REQ)], ST({}), CTX({})).actions.length,
+        0
+      );
+      var greenBehindQuiet = cl(P({ number: 4, isDraft: false, mergeState: 'BEHIND', updatedAtMs: NOW - 30 * MIN }), REQ);
+      T.eq('one update per pass: a held behind PR and a quiet green behind PR yield ONE update, oldest first', ops(pl([greenBehindQuiet, heldBehind], ST({}), CTX({}))), 'update:3');
       T.eq('and no alert — a hold is a decision, not a defect', pl([cl(P({ number: 3, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).alerts.length, 0);
 
       /* ── rerun once per head SHA, then it is a coder's ──────────────────────────────────── */
