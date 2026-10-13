@@ -9223,6 +9223,24 @@
       );
       T.ok('the digest reads the same list', /COMPUTE_MODULES\.map\(\(f\) => join\(ROOT, f\)\)/.test(tb), 'the digest must derive from the same array; a private copy reintroduces the drift');
 
+      /* ── a module's declared prerequisite loads BEFORE it ─────────────────────────────────────── */
+      /* 🔴 MEASURED 2026-10-13: #3543 made `dexScrubExport` REFUSE without `export-schema.js` in the realm,
+         and listed the pair in tests/run-tests.mjs but not here. The fold timer's next run (82 nights,
+         origin/main 6db3b3bc9) then threw `scrubExport needs the shared allow-list` on every ECGDex, PpgDex,
+         PpgDexFinger and OxyDex export while the trio verdict still read PASS — the criterion is overlap
+         hours, so the lost exports were visible only in the per-night log. The prerequisite is a fact
+         about dex-export.js, so the leg reads the pair, not a position. */
+      var iSchema = mods.indexOf('export-schema.js');
+      var iExport = mods.indexOf('dex-export.js');
+      T.ok('dex-export.js is in the closure', iExport >= 0, 'the fold scrubs every export through dexScrubExport, so the realm must carry it');
+      T.ok(
+        'export-schema.js loads before dex-export.js',
+        iSchema >= 0 && iSchema < iExport,
+        iSchema < 0
+          ? 'export-schema.js is absent from COMPUTE_MODULES — dexScrubExport throws on every export in the headless fold'
+          : 'export-schema.js is listed after dex-export.js (' + iSchema + ' vs ' + iExport + ')'
+      );
+
       /* ── the orchestrator's own text is OUTSIDE ────────────────────────────────────────────────── */
       var digest = tb.slice(tb.indexOf('const CODE_DIGEST'), tb.indexOf('const inputDigest'));
       /* 🔴 COMMENTS STRIPPED BEFORE SCANNING, and the first version of this leg failed without them: the
@@ -9261,12 +9279,12 @@
          equality so a future second literal is caught rather than inferred from the single-declaration
          check alone. */
       T.eq(
-        'the closure is exactly the eight modules the realm loads',
+        'the closure is exactly the nine modules the realm loads',
         mods.slice().sort().join(','),
-        ['clock.js', 'dex-export.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'kernel-constants.js', 'oxydex-dsp.js', 'oxydex-util.js', 'ppgdex-dsp.js'].sort().join(','),
+        ['clock.js', 'kernel-constants.js', 'export-schema.js', 'dex-export.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'oxydex-dsp.js', 'oxydex-util.js', 'ppgdex-dsp.js'].sort().join(','),
         'the compute closure changed. If a module was ADDED to the fold, add it here deliberately; if one was removed, the stamps it justified are stale in the other direction.'
       );
-      T.ok('the closure is not trivially small', mods.length >= 8, mods.length + ' modules — a shrunken list would blind the stamp, which is the direction that ships silently');
+      T.ok('the closure is not trivially small', mods.length >= 9, mods.length + ' modules — a shrunken list would blind the stamp, which is the direction that ships silently');
     });
 
     group('trio-batch forwards its night-selection flags to the child', 'trio-batch · cli-plumbing', function (T) {
