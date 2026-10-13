@@ -75,9 +75,13 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
-[ "${CLAUDE_ALLOW_UNFORMATTED:-}" = "1" ] && exit 0
-
+# ⚠ STDIN IS DRAINED FIRST, BEFORE ANY EXIT. The harness writes the tool-call JSON into this
+# hook's stdin, so a hatch that exits before reading it leaves the writer on a closed pipe and
+# the writer takes SIGPIPE (141 under `pipefail`). Same contract and same fix as trim-output.sh
+# (#3493). The test reads the WRITER's fate, because a verdict of "not 2" cannot see it.
 payload="$(cat 2>/dev/null)" || exit 0
+
+[ "${CLAUDE_ALLOW_UNFORMATTED:-}" = "1" ] && exit 0
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$cmd" ] && exit 0
 
