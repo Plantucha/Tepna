@@ -940,6 +940,18 @@
       "status": "exempt",
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
+    "tools/defect-bench.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/defect-bench.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "DEFECT-BENCHMARK builder (briefs/DEFECT-BENCHMARK-2026-10-12-BRIEF.md): --build proves each candidate task by running the fix commit's own tests against the parent checkout and the fix, and emits ONE tepna.verdict/1 over the included set. The criterion is pre-stated — every included task owns a proven fail-then-pass pair — so a task that cannot be proven is EXCLUDED by a named reason rather than counted. --verdict-sample prints the object alone for this check."
+    },
     "tools/device-stability.mjs": {
       "bin": "word-only",
       "status": "exempt",

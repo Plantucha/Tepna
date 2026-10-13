@@ -58207,8 +58207,8 @@
          gate held it in place: any correct fix reddened four assertions and read as a regression.
 
          Measured 2026-09-12 on real SHHS1 records, which is what forced this: mean 2.76 % of SaO₂
-         samples invalid, and shhs1-200001 held ONE value across 3840 s — 64 minutes of flat, invented
-         saturation, over which no desaturation can be detected and the rolling baseline is computed
+         samples invalid, and one record held ONE value across an unbroken run over an hour long — a
+         flat, invented saturation, over which no desaturation can be detected and the rolling baseline is computed
          from a run that never happened.
 
          The old "forward-fill keeps the trace continuous, which is what the ODI detector expects" was

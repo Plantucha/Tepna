@@ -80,6 +80,7 @@
  *   node tools/nsrr-score-pool.mjs --dir <d> --workers 8              # cap the pool
  *   node tools/nsrr-score-pool.mjs --dir <d> --precision 0.25         # stop at +/-0.25 events/h
  *   node tools/nsrr-score-pool.mjs --dir <d> --resume                 # continue from checkpoint
+ *   node tools/nsrr-score-pool.mjs --dir <d> --seed shhs2            # name the hash order
  *   node tools/nsrr-score-pool.mjs --scorer ./nsrr-stage-validate.mjs # drive a different scorer
  *
  * A SCORER is any module exporting `makeRealm()` and `scoreRecord(ctx, rec)` (or `poolScoreRecord`
@@ -121,6 +122,37 @@ export function shuffledOrder(ids, salt) {
     }))
     .sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : a.id < b.id ? -1 : 1))
     .map((o) => o.id);
+}
+
+/* ── the shuffle seed ─────────────────────────────────────────────────────────────────────────
+   `'shhs1'` was a literal at the one call site, which made the hold-out order a property of the
+   SOURCE rather than of the run: a second cohort, or a second fold of the same cohort, could not
+   get its own order without editing the tool, and no output recorded which order it had been
+   scored in. The literal is now this default, so every run made before this change reproduces
+   byte for byte, and `--seed` names the order when a caller wants a different one.
+
+   PARSED HERE, PURELY, FOR TWO REASONS. The pool's own `arg()` helper reads only the SPACE form
+   (`--k v`), so `--seed=x` would be ignored in silence and the run would quietly use the default
+   while its header claimed the caller's seed — a precise answer about the wrong order. And an
+   empty value (`--seed` at the end of the line, or `--seed=`) is the same failure wearing a
+   different hat. Both REFUSE. Two `--seed` flags refuse as well: a run has one hold-out order,
+   and picking the last silently discards the caller's other instruction. */
+export const DEFAULT_SEED = 'shhs1';
+
+export function seedFromArgv(argv) {
+  const list = Array.isArray(argv) ? argv : [];
+  const hits = [];
+  for (let i = 0; i < list.length; i++) {
+    const a = String(list[i] == null ? '' : list[i]);
+    if (a === '--seed') hits.push({ raw: a, value: i + 1 < list.length ? String(list[i + 1] == null ? '' : list[i + 1]) : null });
+    else if (a.startsWith('--seed=')) hits.push({ raw: a, value: a.slice('--seed='.length) });
+  }
+  if (!hits.length) return { seed: DEFAULT_SEED, explicit: false, error: null };
+  if (hits.length > 1) return { seed: null, explicit: true, error: '--seed given ' + hits.length + ' times; a run has one hold-out order' };
+  const v = hits[0].value;
+  if (v == null || v === '') return { seed: null, explicit: true, error: '--seed needs a value (`--seed shhs1` or `--seed=shhs1`)' };
+  if (v.startsWith('--')) return { seed: null, explicit: true, error: '--seed read the next flag (' + v + ') as its value' };
+  return { seed: v, explicit: true, error: null };
 }
 
 /* ── sequential precision ─────────────────────────────────────────────────────────────────────
@@ -283,6 +315,44 @@ function selftest() {
   const meanDir = dirPre.reduce((a, b) => a + b, 0) / dirPre.length;
   A('shuffle: CONTROL — directory order’s prefix is NOT spread (that is the bias)', Math.abs(meanDir - 200099.5) > 3000 === false || meanDir < 200050, 'mean id ' + meanDir.toFixed(0));
 
+  /* ── the seed ───────────────────────────────────────────────────────────────────────────────
+     The order the pool scores in used to be a literal, so the first thing these legs prove is that
+     naming it changed NOTHING: the default order is pinned to a digest computed before the literal
+     moved. Neutral ids, so no record identifier appears in this file. */
+  {
+    const nids = Array.from({ length: 200 }, (_, i) => 'rec-' + String(i).padStart(3, '0'));
+    const dig = (list) => createHash('sha256').update(list.join(',')).digest('hex').slice(0, 16);
+    A('seed: the default is the value the call site used to hardcode', DEFAULT_SEED === 'shhs1', DEFAULT_SEED);
+    A('seed: no flag reads as the default, and says it was not explicit', seedFromArgv([]).seed === DEFAULT_SEED && seedFromArgv([]).explicit === false);
+    A(
+      'seed: the default order is byte-identical to the pinned pre-change order',
+      dig(shuffledOrder(nids, seedFromArgv([]).seed)) === '95b46410acfe8251',
+      dig(shuffledOrder(nids, seedFromArgv([]).seed))
+    );
+    A('seed: CONTROL — another seed does NOT reproduce that order', dig(shuffledOrder(nids, 'other')) === 'bad98a632561ee6c' && dig(shuffledOrder(nids, 'other')) !== '95b46410acfe8251');
+    A('seed: the space form is read', seedFromArgv(['--seed', 'shhs2']).seed === 'shhs2');
+    A('seed: the equals form is read too, because the pool’s own arg() ignores it', seedFromArgv(['--seed=shhs2']).seed === 'shhs2');
+    A('seed: an explicit value reports itself as explicit', seedFromArgv(['--seed', 'shhs2']).explicit === true);
+    A('seed: a flag in the middle of a line is found', seedFromArgv(['--dir', 'd', '--seed', 'q', '--resume']).seed === 'q');
+    A('seed: a trailing --seed REFUSES rather than defaulting in silence', seedFromArgv(['--seed']).seed === null && /needs a value/.test(seedFromArgv(['--seed']).error));
+    A('seed: an empty equals value refuses', seedFromArgv(['--seed=']).seed === null && seedFromArgv(['--seed=']).error != null);
+    A('seed: --seed swallowing the next flag refuses', seedFromArgv(['--seed', '--resume']).seed === null && /next flag/.test(seedFromArgv(['--seed', '--resume']).error));
+    A(
+      'seed: two --seed flags refuse — a run has one order, so last-wins discards an instruction',
+      seedFromArgv(['--seed', 'a', '--seed=b']).seed === null && /one hold-out order/.test(seedFromArgv(['--seed', 'a', '--seed=b']).error)
+    );
+    A('seed: a value that merely CONTAINS --seed is not a flag', seedFromArgv(['--dir', 'x--seed=y']).explicit === false);
+    A('seed: a non-string argv member cannot crash the parser', seedFromArgv([null, undefined, 7, '--seed', 'ok']).seed === 'ok');
+    A('seed: a non-array argv reads as no flag', seedFromArgv(null).seed === DEFAULT_SEED && seedFromArgv(undefined).explicit === false);
+    /* the refusals in main() are asserted on its SOURCE: both are process.exit paths, and a leg that
+       spawned the pool would need a corpus */
+    const src = readFileSync(new URL(import.meta.url).pathname, 'utf8');
+    A('seed: main refuses --seed together with --no-shuffle', /seedRead\.explicit && noShuffle/.test(src));
+    A('seed: main refuses a resume whose checkpoint carries a different order', /ckSeed !== undefined && ckSeed !== runSeed/.test(src));
+    A('seed: an unrecorded checkpoint seed is reported as absent, never assumed to be the default', /predates seed recording/.test(src) && !/ckSeed \|\| DEFAULT_SEED/.test(src));
+    A('seed: the checkpoint and the results file both record the order they were scored in', (src.match(new RegExp('seed: ' + 'runSeed', 'g')) || []).length === 3);
+  }
+
   A('precision: refuses below the floor', medianHalfWidth([1, 2, 3]) === null);
   const wide = Array.from({ length: 200 }, (_, i) => (i % 2 ? -20 : 20));
   const tight = Array.from({ length: 200 }, (_, i) => (i % 2 ? -0.2 : 0.2));
@@ -433,6 +503,18 @@ async function main(argv) {
   const precision = arg('--precision', null) != null ? Number(arg('--precision', null)) : null;
   const noShuffle = argv.includes('--no-shuffle');
   const resume = argv.includes('--resume');
+  const seedRead = seedFromArgv(argv);
+  if (seedRead.error) {
+    console.error('\u2715 ' + seedRead.error);
+    process.exit(2);
+  }
+  const seed = seedRead.seed;
+  /* a named order and no order are contradictory instructions, and picking one silently would make
+     the header's `order` line a claim about something the run did not do */
+  if (seedRead.explicit && noShuffle) {
+    console.error('\u2715 --seed names a hash order; --no-shuffle asks for directory order. Pick one.');
+    process.exit(2);
+  }
   /* WHICH scorer this pool drives. The pool was born hardwired to the ODI driver, which meant the one
      other long serial run in this repo — `nsrr-stage-validate.mjs`, 5136 records — could not use the
      machinery built to end exactly that. A pool that parallelises one caller is a script. */
@@ -456,13 +538,28 @@ async function main(argv) {
     ? recs.map((r) => r.id)
     : shuffledOrder(
         recs.map((r) => r.id),
-        'shhs1'
+        seed
       );
   const byId = new Map(recs.map((r) => [r.id, r]));
   let queue = order.map((id) => byId.get(id));
   if (limit != null) queue = queue.slice(0, limit);
 
   const ck = resume ? loadCheckpoint(CKPT) : null;
+  /* ⚠️ RESUMING UNDER A DIFFERENT SEED IS A DIFFERENT SEQUENCE. The checkpoint carries the ids it
+     finished, not the order they came in, so continuing under another seed would score the rest of a
+     sequence those ids were never a prefix of — and the results file would name one seed for two
+     orders. A checkpoint written before the seed was recorded carries NO seed field: that is absence,
+     not `'shhs1'`, so it is reported rather than assumed, and refusing it would strand real hours. */
+  const ckSeed = ck && Object.hasOwn(ck, 'seed') ? ck.seed : undefined;
+  const runSeed = noShuffle ? null : seed;
+  if (ck && ckSeed !== undefined && ckSeed !== runSeed) {
+    console.error('✕ the checkpoint was scored under order ' + JSON.stringify(ckSeed) + ', this run asks for ' + JSON.stringify(runSeed) + '.');
+    console.error('  Pass the same --seed, or delete ' + CKPT + ' and start the new order from the top.');
+    process.exit(2);
+  }
+  if (ck && ckSeed === undefined) {
+    console.log('  ⚠ the checkpoint predates seed recording, so its order cannot be checked');
+  }
   const done = ck ? ck.done : [];
   const seen = new Set(done.map((r) => r.id));
   const total = queue.length;
@@ -482,7 +579,10 @@ async function main(argv) {
 
   console.log('▸ nsrr-score-pool');
   console.log('  records   ' + total + (done.length ? '  (' + done.length + ' already done, resuming)' : ''));
-  console.log('  order     ' + (noShuffle ? 'directory (BIASED prefix — early stop disabled)' : 'hash-shuffled — any prefix is a random sample'));
+  console.log(
+    '  order     ' +
+      (noShuffle ? 'directory (BIASED prefix — early stop disabled)' : 'hash-shuffled on seed ' + JSON.stringify(seed) + (seedRead.explicit ? '' : ' (default)') + ' — any prefix is a random sample')
+  );
   console.log('  scorer    ' + scorerSpec);
   console.log('  tier      ' + tier + why);
   console.log('  stop      ' + (precision != null ? 'when 95% half-width <= +/-' + precision + ' events/h (pre-stated)' : 'full corpus'));
@@ -551,7 +651,7 @@ async function main(argv) {
         done.push(m.row);
         fin++;
         stat = liveStat(done);
-        if (fin % 25 === 0) saveCheckpoint(CKPT, { done, n: fin, total });
+        if (fin % 25 === 0) saveCheckpoint(CKPT, { done, n: fin, total, seed: runSeed });
         beat(false);
         if (precision != null && !stopped) {
           const hw = stat.halfWidth;
@@ -567,10 +667,10 @@ async function main(argv) {
   });
 
   beat(true);
-  saveCheckpoint(CKPT, { done, n: fin, total });
+  saveCheckpoint(CKPT, { done, n: fin, total, seed: runSeed });
   mkdirSync(dirname(outPath), { recursive: true });
   const verdict = poolVerdict(scorerMod, liveStat(done), done, { total }, { scorerSpec, commit: headCommit(), evidence: [edfDir, xmlDir, outPath] });
-  writeFileSync(outPath, JSON.stringify({ generated: new Date().toISOString(), total, scored: fin, stopped, verdict, records: done }, null, 1));
+  writeFileSync(outPath, JSON.stringify({ generated: new Date().toISOString(), total, scored: fin, stopped, seed: runSeed, verdict, records: done }, null, 1));
 
   const mins = ((Date.now() - t0) / 60000).toFixed(1);
   const rps = (fin - done0) / Math.max(1e-9, (Date.now() - t0) / 1000);
