@@ -80,6 +80,7 @@ export const STEPS = [
   'verify:tools-index',
   'verify:workflow-timeouts',
   'verify:absence-regression',
+  'verify:astgrep',
   'verify:xss-sink',
   'verify:docs-constants',
   'verify:pr-compliance',

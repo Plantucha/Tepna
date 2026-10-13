@@ -2,8 +2,8 @@
   "name": "tepna",
   "version": "0.0.0",
   "private": true,
-  "description": "Tepna \u2014 the -Dex suite (browser-native, 100%-local physiological analyzers). DEV-TOOLING MANIFEST ONLY: private + unpublished, declares NO runtime dependencies, ships nothing, fetched by nothing at runtime \u2014 the 100%-local / offline / single-file invariant is untouched (same contract as tsconfig.json / types.yml). It is the command spine that unifies the OWN-THE-BUILD tooling (tools/build.mjs) with the DEV-TOOLCHAIN legs (tsc, ESLint) and the gate runners under one `npm run` surface.",
-  "_version_note": "This 0.0.0 is a placeholder, NOT the release identity. The canonical suite SemVer lives ONLY in suite.manifest.json (CONTROLLED-RELEASES-2026-07-05); do not conflate the two. Never hand-bump either \u2014 tools/release.mjs stamps suite.manifest.json from pending changes/*.md.",
+  "description": "Tepna — the -Dex suite (browser-native, 100%-local physiological analyzers). DEV-TOOLING MANIFEST ONLY: private + unpublished, declares NO runtime dependencies, ships nothing, fetched by nothing at runtime — the 100%-local / offline / single-file invariant is untouched (same contract as tsconfig.json / types.yml). It is the command spine that unifies the OWN-THE-BUILD tooling (tools/build.mjs) with the DEV-TOOLCHAIN legs (tsc, ESLint) and the gate runners under one `npm run` surface.",
+  "_version_note": "This 0.0.0 is a placeholder, NOT the release identity. The canonical suite SemVer lives ONLY in suite.manifest.json (CONTROLLED-RELEASES-2026-07-05); do not conflate the two. Never hand-bump either — tools/release.mjs stamps suite.manifest.json from pending changes/*.md.",
   "license": "Apache-2.0",
   "author": "Michal Planicka",
   "homepage": "https://github.com/",
@@ -50,6 +50,7 @@
     "verify:workflow-timeouts": "node tools/workflow-timeout-guard.mjs",
     "verify:verdict-adoption": "node tools/verdict-adoption.mjs --check",
     "verify:absence-regression": "node tools/absence-regression.mjs --base origin/main",
+  "verify:astgrep": "node tools/astgrep-gate.mjs",
     "verify:xss-sink": "node tools/xss-sink-gate.mjs --base origin/main",
     "verify:docs-constants": "node tools/docs-constants.mjs",
     "verify:pr-compliance": "node tools/pr-compliance.mjs",
@@ -73,6 +74,7 @@
     "node": ">=18"
   },
   "devDependencies": {
+    "@ast-grep/cli": "0.50.0",
     "@biomejs/biome": "2.5.3",
     "acorn": "8.18.0"
   }

@@ -193,6 +193,8 @@ TB_MAX_PPM = 50000.0  # CK_AXIS_MAX_PPM — a refusal bound with 16x headroom ov
 TB_FLOOR_S = 1.0  # take an anchor at least this often even when the residual never moves
 TB_WIN = 21  # CK_AXIS_WIN — running-median width, odd so the median is a real sample
 
+SEAM_STEP_NOT_FINITE = "non-finite"  # the sidecar wrote nan/inf: a step nobody measured (§∅)
+
 # ── SOLID-NIGHT §A5 — the unrecorded-shift TRIPWIRE ─────────────────────────────────────────────────
 # EVERY NUMBER HERE IS PRE-STATED IN THE BRIEF, measured over n = 36 clean nights (08-01 → 08-27 and
 # 09-13 → 09-23, storm nights excluded as unadjudicable), and NONE is derived from a night being judged
@@ -1028,16 +1030,24 @@ def recorded_seams(primary: str, start, end) -> list[dict]:
             if host is None:
                 continue  # an unplaceable seam row is not a step of zero — see below (§∅)
             try:
-                step_ms = float(cells[2])
+                raw_step = float(cells[2])
             except ValueError:
                 continue  # an unparseable seam row is not a step of zero — it is one this reader cannot
                 # place, so it splits nothing rather than splitting at the wrong sample (§∅)
+            # `float()` ACCEPTS "nan", "inf" and "-inf", so the guard above lets a non-finite step
+            # straight through. §∅: a step nobody measured is `null` beside a NAMED reason, never a
+            # float. Left as a float it also ranks: `max(..., key=abs)` loses every comparison against
+            # a NaN, so a real 244 s step beside one bad row rendered as `largest +nan s`.
+            # THE SEAM ITSELF STAYS. The split keys on `host_ms`, which this row carries and which
+            # parsed — so the axis still splits here, and only the magnitude goes absent. Dropping the
+            # row would move the judgement across a step the night recorded.
+            step_ms: float | None = raw_step
+            step_reason: str | None = None
+            if not math.isfinite(raw_step):
+                step_ms, step_reason = None, SEAM_STEP_NOT_FINITE
             if start is not None and (host < start or host > end):
                 continue  # a seam outside the worn interval does not split an axis nobody was wearing
-            # `float()` accepts "nan" and "inf". The SEAM is real (it splits on `host_ms`), the STEP beside
-            # it was not measured, so it is `None` — never a float that loses every `max` comparison and
-            # renders as "+nan s" (§∅: absence is null, never a number).
-            seams.append({"host_ms": host.timestamp() * 1000.0, "step_ms": step_ms if math.isfinite(step_ms) else None})
+            seams.append({"host_ms": host.timestamp() * 1000.0, "step_ms": step_ms, "step_reason": step_reason})
     seams.sort(key=lambda r: r["host_ms"])
     return seams
 
@@ -1702,15 +1712,19 @@ def timebase(night_dir: str, device: str, clock_tag: str, clock_files: list[str]
     segs.append(cur)
     seam_note = ""
     if seams:
+        # RANK OVER THE MEASURED STEPS ONLY. A seam whose step is absent still splits the axis, so it
+        # is counted in `len(seams)`, and the sentence says how many carry no number rather than
+        # letting one stand in for the largest (§∅: an output over absent input reports the absence).
         measured = [r for r in seams if r["step_ms"] is not None]
-        unmeasured = len(seams) - len(measured)
+        absent = len(seams) - len(measured)
+        reasons = sorted({r["step_reason"] for r in seams if r["step_reason"]})
         if measured:
             worst = max(measured, key=lambda r: abs(r["step_ms"]))
             largest = f"largest {worst['step_ms'] / 1000.0:+.3g} s"
-            if unmeasured:
-                largest += f" ({unmeasured} with no finite step recorded)"
+            if absent:
+                largest += f" over {len(measured)} with a step, {absent} without ({', '.join(reasons)})"
         else:
-            largest = "no finite step recorded"
+            largest = f"no step recorded on any of them ({', '.join(reasons)})"
         cause = _seam_cause(night_dir)
         seam_note = (
             f" — {len(seams)} recorded clock seam(s), {largest}"
