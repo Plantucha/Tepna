@@ -443,7 +443,14 @@ def _midnight_of(night_dir: str):
 # are all rates; float is the honest common type.
 _NOMINAL_HZ: dict[str, dict[str, float]] = {
     "H10": {"ecg": 130, "acc": 200, "hr": 1},
-    "Verity": {"ppg": 55, "acc": 52, "gyro": 52, "mag": 50, "ppi": 1},
+    # NO `ppi` HERE, AND IT MUST NEVER COME BACK. PPI is not a timed stream: the Verity emits one row
+    # per BEAT, so a row count over a span measures the heart rate and not the completeness of the
+    # capture. A nominal 1 Hz published over-unity coverage for every resting rate above 60 bpm --
+    # measured read-only on vigil 2026-10-12 from `/srv/tepna/captures/2026-10-08/QC-SUMMARY.json`:
+    # device `Polar Sense 0C301E3F`, 26024 ppi rows over a 24229 s span, `coverage.ppi` 1.07 against a
+    # 0.5 floor. `_EVENT_STREAMS` below carries it instead, with the reason it has no coverage.
+    # `2026-10-12-ppi-coverage-exceeds-one-on-a-one-hz-denominator`.
+    "Verity": {"ppg": 55, "acc": 52, "gyro": 52, "mag": 50},
     # O2Ring ppg is the observed ROW rate (~125.7), NOT the 125.000 ADC clock: the file counts one row per
     # sample PLUS one per inserted `156` beat marker, and a coverage figure divides ROW count by span — so
     # the honest denominator here is the row rate. DEVICE-RATE-TRUTH §2; distinct from capture.O2PPG_FS_DEFAULT.
@@ -465,6 +472,18 @@ _NOMINAL_HZ: dict[str, dict[str, float]] = {
 # measurement rate. NEVER use this as a coverage denominator against a row count.
 _MEASUREMENT_HZ = {
     "O2Ring": {"acc": 1.5625},
+}
+
+# Streams that carry ONE ROW PER EVENT rather than one row per time tick. They have no nominal rate, so
+# no row count over a span is a coverage for them, and the value maps each to the reason published in
+# its place (∅: an output over absent input reports the absence, with a NAMED reason).
+#
+# ⚠️ THIS IS NOT A GAP THAT A BETTER DENOMINATOR WOULD CLOSE. A partial PPI loss is not decidable
+# from a row count at all: 26024 rows and 20000 rows are a fast heart and a slow one as readily as a
+# complete capture and a lossy one. A stream that delivered NOTHING is still caught -- `rows == 0`
+# reaches `missing` above this guard -- so what is given up is a degraded-PPI signal that never existed.
+_EVENT_STREAMS: dict[str, str] = {
+    "ppi": "one row per beat, not per second — a row count measures heart rate, never completeness",
 }
 
 # Below this fraction of the expected rows a stream that DID produce data is still "degraded" — the trickle
@@ -3593,6 +3612,9 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         #: configured rate was substituted because none could be measured. The coverage number is
         #: worth exactly what its rate is worth, and before this the two were indistinguishable.
         coverage_basis: dict[str, str] = {}
+        #: Per stream: why this stream has NO coverage number. Only `_EVENT_STREAMS` land here, and a
+        #: stream is in exactly one of `coverage_basis` and this map — never both, never neither.
+        coverage_absent: dict[str, str] = {}
         for s in d.get("streams") or []:
             tags = stream_file_tags(s)
             # Everything is the CURRENT SESSION (the `current` set, unified across midnight) — so a stream
@@ -3616,6 +3638,14 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 # `missing` and does not make `ok` False (VIGIL: known-but-not-expected). Surfaced in
                 # `optional_absent` so the box still records that it exists.
                 (optional_absent if opt else missing).append(f"{name}:{s}")
+                continue
+            # 🔴 AN EVENT STREAM GETS NO COVERAGE, AND SAYS WHY. Before this, `ppi` carried a nominal
+            # 1 Hz and published 1.07 — a received-over-expected ratio cannot exceed 1, so the number
+            # refuted itself on the surface it was read from. The reason travels in `coverage_absent`
+            # beside the map rather than as a missing key, because an absent key is indistinguishable
+            # from a stream this reader never reached (∅).
+            if s in _EVENT_STREAMS:
+                coverage_absent[s] = _EVENT_STREAMS[s]
                 continue
             # THE MEASURED RATE WINS. Coverage asks "did we receive the packets the device was
             # SENDING"; whether it was sending at the rate we asked is a different question, answered
@@ -3713,6 +3743,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 "streams": streams,
                 "coverage": coverage,
                 "coverage_basis": coverage_basis,
+                "coverage_absent": coverage_absent,
                 "span_basis": span_basis,
                 "session_coverage": session_coverage,
                 "span_sec": round(dev_span) if dev_span else None,
@@ -3907,6 +3938,7 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
         cov: dict[str, float] = {}
         cov_session: dict[str, float] = {}
         cov_unknown: dict[str, float] = {}
+        cov_none: dict[str, str] = {}
         for _d in summary.get("devices") or []:
             _sb = _d.get("span_basis") or {}
             for _s, _c in (_d.get("coverage") or {}).items():
@@ -3918,6 +3950,10 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
                 # `cov_unknown` BY DESIGN (the note above). The cast says so; the behaviour is unchanged.
                 _basis: str = _sb.get(_s) or ""
                 {"device": cov, "session": cov_session}.get(_basis, cov_unknown)[_key] = _c
+            # AND THE STREAMS THAT HAVE NO COVERAGE AT ALL, with the reason, because a reader of the
+            # verdict object alone must not have to infer an absence from a key that is not there (∅).
+            for _s, _why in (_d.get("coverage_absent") or {}).items():
+                cov_none[f"{_d['name']}:{_s}"] = _why
         # Heterogeneous by construction (lists, dicts and counts under one roof), so the value type
         # is annotated once HERE rather than narrowed at each of its readers. Without it mypy infers
         # a union carrying None and every `set(result["missing"])` downstream reads as a possible
@@ -3926,6 +3962,7 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
             "coverage": cov,
             "coverage_session_basis": cov_session,
             "coverage_basis_unknown": cov_unknown,
+            "coverage_absent": cov_none,
             "missing": list(summary.get("missing") or []),
             "degraded": list(summary.get("degraded") or []),
             "gaps_in_night": list(summary.get("gaps_in_night") or []),
