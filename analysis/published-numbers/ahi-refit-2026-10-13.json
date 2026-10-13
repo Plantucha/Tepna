@@ -1,7 +1,7 @@
 {
   "schema": "tepna.published-number-record/1",
   "producer": "tools/nsrr-ahi-refit.mjs",
-  "producerCommit": "a7708988",
+  "producerCommit": "0601193c",
   "invocation": "node tools/nsrr-score-pool.mjs --scorer ./nsrr-oxydex-odi.mjs --out <scored-visitN.json> (per visit) · node tools/nsrr-ahi-refit.mjs --scored=<v1>,<v2> --boot=2000 --seed=ahi-refit-2026-10-13 --min-holdout=300 --out=<this file>",
   "generated": "2026-10-13",
   "inputs": {
@@ -112,9 +112,9 @@
       "reason": null,
       "producedBy": {
         "tool": "tools/nsrr-ahi-refit.mjs",
-        "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+        "commit": "0601193c2fe8564d9ac3388d2e90bbd3d835af0f"
       },
-      "at": "2026-10-13T22:04:17Z"
+      "at": "2026-10-13T22:05:53Z"
     },
     {
       "schema": "tepna.verdict/1",
@@ -183,9 +183,9 @@
       "reason": null,
       "producedBy": {
         "tool": "tools/nsrr-ahi-refit.mjs",
-        "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+        "commit": "0601193c2fe8564d9ac3388d2e90bbd3d835af0f"
       },
-      "at": "2026-10-13T22:04:20Z"
+      "at": "2026-10-13T22:05:57Z"
     },
     {
       "schema": "tepna.verdict/1",
@@ -254,9 +254,9 @@
       "reason": null,
       "producedBy": {
         "tool": "tools/nsrr-ahi-refit.mjs",
-        "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+        "commit": "0601193c2fe8564d9ac3388d2e90bbd3d835af0f"
       },
-      "at": "2026-10-13T22:04:23Z"
+      "at": "2026-10-13T22:06:00Z"
     },
     {
       "schema": "tepna.verdict/1",
@@ -325,13 +325,13 @@
       "reason": null,
       "producedBy": {
         "tool": "tools/nsrr-ahi-refit.mjs",
-        "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+        "commit": "0601193c2fe8564d9ac3388d2e90bbd3d835af0f"
       },
-      "at": "2026-10-13T22:04:26Z"
+      "at": "2026-10-13T22:06:03Z"
     }
   ],
   "result": {
-    "generated": "2026-10-13T22:04:13Z",
+    "generated": "2026-10-13T22:05:50Z",
     "harmonized": "shhs-harmonized-dataset-0.21.0.csv",
     "scored": [
       "scored-visit1.json",
@@ -768,9 +768,9 @@
         "reason": null,
         "producedBy": {
           "tool": "tools/nsrr-ahi-refit.mjs",
-          "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+          "commit": "0601193c2fe8564d9ac3388d2e90bbd3d835af0f"
         },
-        "at": "2026-10-13T22:04:17Z"
+        "at": "2026-10-13T22:05:53Z"
       },
       {
         "schema": "tepna.verdict/1",
@@ -839,9 +839,9 @@
         "reason": null,
         "producedBy": {
           "tool": "tools/nsrr-ahi-refit.mjs",
-          "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+          "commit": "0601193c2fe8564d9ac3388d2e90bbd3d835af0f"
         },
-        "at": "2026-10-13T22:04:20Z"
+        "at": "2026-10-13T22:05:57Z"
       },
       {
         "schema": "tepna.verdict/1",
@@ -910,9 +910,9 @@
         "reason": null,
         "producedBy": {
           "tool": "tools/nsrr-ahi-refit.mjs",
-          "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+          "commit": "0601193c2fe8564d9ac3388d2e90bbd3d835af0f"
         },
-        "at": "2026-10-13T22:04:23Z"
+        "at": "2026-10-13T22:06:00Z"
       },
       {
         "schema": "tepna.verdict/1",
@@ -981,9 +981,9 @@
         "reason": null,
         "producedBy": {
           "tool": "tools/nsrr-ahi-refit.mjs",
-          "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+          "commit": "0601193c2fe8564d9ac3388d2e90bbd3d835af0f"
         },
-        "at": "2026-10-13T22:04:26Z"
+        "at": "2026-10-13T22:06:03Z"
       }
     ]
   }
