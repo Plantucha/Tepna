@@ -37588,6 +37588,83 @@
       T.eq('empty builder set ⇒ SOURCE', cls('OverDex.html', new Set()), 'source');
     });
 
+    /* ════ A HAND-MADE SET PINS THE REASONING AND CANNOT PIN THE POPULATION ══════════════════════
+     The group above drives `classify` with a GEN set written by hand, which is the right instrument
+     for the ambiguous forms — and it is blind to the question "is this real path in the real set".
+     `docs/TOOLS-INDEX.md` sat on the wrong side of that blindness: `tools/tools-index.mjs` writes it,
+     nothing else does, and `generatedSet()` asked four builders that do not include it. So the
+     classifier called it SOURCE and `rebase-safe` STOPPED on a file no human edits, on every PR whose
+     branch and base both re-ran the indexer (measured 2026-10-13).
+
+     This group drives the REAL set. Two paths sit on either side of the line, and the line is not
+     "a builder writes it" — it is "does the rebuild RESTORE it", because auto-resolve throws one side
+     away and only the rebuild puts the right bytes back:
+
+       · `docs/TOOLS-INDEX.md`       GENERATED. Reads `tools/**`, no clock, byte-reproducible, ~35 ms.
+       · `docs/MUTATION-INVENTORY.md` SOURCE, and the tool must STOP on it. `mutation-suite.mjs
+         --inventory` stamps `last-verified` with TODAY, and its content comes from mutation journals
+         git ignores — with none present it writes nothing at all. Auto-resolving it would discard a
+         branch's inventory, leave it unrestorable and report ✓: the 2026-08-05 silent revert again.
+
+     Node-lane only (it spawns `build-docs.mjs --list-owned` and reads `tools/`), so the browser lane
+     SKIPs; CI runs the Node lane. ═══════════════════════════════════════════════════════════════ */
+    group('Rebase-safe — the REAL generated set covers every docs/ builder (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
+      var cls = env.rebaseClassify;
+      var mkSet = env.rebaseGeneratedSet;
+      var docsOut = env.rebaseDocsOutputFromText;
+      if (typeof cls !== 'function' || typeof mkSet !== 'function' || typeof docsOut !== 'function') {
+        T.skip('the real generated set is wired into this lane', 'Node-lane only (an ESM import of tools/rebase-safe.mjs plus a builder spawn) — the browser lane SKIPs');
+        return;
+      }
+
+      /* ANTI-VACUITY. A null set means a builder could not be asked, and `classify` then calls
+         EVERYTHING source — under which every assertion below about a source path passes while
+         saying nothing. So the set's own health is asserted first and the group returns on failure. */
+      var GEN = mkSet();
+      T.ok('ANTI-VACUITY · the builders answered, so the set exists', GEN instanceof Set, GEN instanceof Set ? GEN.size + ' owned path(s)' : 'generatedSet() returned ' + String(GEN));
+      if (!(GEN instanceof Set)) return;
+      T.ok('ANTI-VACUITY · the set holds a realistic number of builder-owned paths', GEN.size > 10, GEN.size + ' path(s)');
+      T.eq('ANTI-VACUITY · a bundle is in the real set, so GENERATED is reachable', cls('OxyDex.html', GEN), 'generated');
+      T.eq('ANTI-VACUITY · a DSP is SOURCE under the real set too', cls('oxydex-dsp.js', GEN), 'source');
+
+      // THE DEFECT. A conflict here is auto-resolved and the rebuild restores the bytes.
+      T.eq('docs/TOOLS-INDEX.md is GENERATED — tools-index.mjs owns it', cls('docs/TOOLS-INDEX.md', GEN), 'generated');
+
+      /* THE OTHER SIDE, asserted so a later session does not "finish the job" by adding every builder
+         that writes under docs/. This file is where auto-resolve would be the silent revert. */
+      T.eq('docs/MUTATION-INVENTORY.md is SOURCE — the rebuild cannot restore it, so the tool STOPS', cls('docs/MUTATION-INVENTORY.md', GEN), 'source');
+      ['docs/LEXICON.md', 'docs/EVENT-LEXICON.md', 'docs/CORPUS-LOCATIONS.md'].forEach(function (p) {
+        T.eq('an AUTHORED doc is still SOURCE under the real set: ' + p, cls(p, GEN), 'source');
+      });
+
+      /* THE AUTO-RESOLVE IS ONLY SAFE BECAUSE THE REBUILD RUNS. Classifying a path generated without
+         a step that rewrites it is the unrestorable case, so the step list is read from the source. */
+      var TS = env.toolSources;
+      if (!TS || !TS['rebase-safe.mjs']) {
+        T.skip('env.toolSources provided to the runner', 'Node-lane only (run-tests.mjs readToolSources) — the browser lane cannot list tools/');
+      } else {
+        var body = TS['rebase-safe.mjs'];
+        var stepsBlock = body.slice(body.indexOf('const steps = ['));
+        stepsBlock = stepsBlock.slice(0, stepsBlock.indexOf('];') + 2);
+        T.ok('ANTI-VACUITY · the rebuild step list was found in the source', stepsBlock.indexOf('const steps = [') === 0 && stepsBlock.length < 1500, stepsBlock.length + ' char(s)');
+        T.ok(
+          'rebuild() runs tools/tools-index.mjs, so the auto-resolved file is restored',
+          stepsBlock.indexOf("'tools/tools-index.mjs'") !== -1,
+          'step list: ' + stepsBlock.replace(/\s+/g, ' ').slice(0, 220)
+        );
+        T.ok('rebuild() does NOT run the mutation suite — it would stamp a verification nobody performed', stepsBlock.indexOf('mutation-suite') === -1, 'step list carries no mutation-suite step');
+      }
+
+      /* HOW THE BUILDER IS ASKED, failing closed on both ends. One declaration is an answer; none and
+         several are not, and a guess there is how a path gets auto-resolved on no evidence. */
+      T.eq('one declared docs/ output is read back', docsOut("const OUT = join(ROOT, 'docs', 'TOOLS-INDEX.md');"), 'docs/TOOLS-INDEX.md');
+      T.eq('no declaration ⇒ null, never a guess', docsOut("const OUT = join(ROOT, 'other', 'X.md');"), null);
+      T.eq('TWO declarations ⇒ null — the method cannot say which is the index', docsOut("join(ROOT, 'docs', 'A.md'); join(ROOT, 'docs', 'B.md');"), null);
+      T.eq('a computed path is not a declaration ⇒ null', docsOut("const OUT = join(ROOT, 'docs', NAME);"), null);
+      T.eq('unreadable source ⇒ null', docsOut(null), null);
+      T.eq('empty source ⇒ null', docsOut(''), null);
+    });
+
     /* ════ BIOME WAS GREEN ON THIS FILE BECAUSE IT NEVER OPENED IT ═══════════════════════════════
      `biome ci` refuses any file larger than `files.maxSize` and reports the refusal as a WARNING,
      which does not fail the job. The default cap is 1 MiB. `tests/dex-tests.js` passed that long ago
