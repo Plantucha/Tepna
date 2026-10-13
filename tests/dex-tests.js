@@ -38399,7 +38399,17 @@
                withdrawal itself, so retiring a row takes two rows and the second is a permanent public
                claim under a session's own name. */
             var withdrawn = /^withdrawn (\d{4}-\d{2}-\d{2}-[a-z0-9-]+)$/.exec(st);
-            var stateOk = st === 'OPEN' || !!promoted || !!withdrawn || /^fixed #\d+$/.test(st);
+            /* FIFTH STATE — `answered <ref>` (owner ruling 2026-10-12). The four above each assert
+               something happened to the DEFECT: a repair, a pickup, a refutation. A row that asked a
+               QUESTION and got its measurement asserts none of them, so it stayed OPEN — and OPEN means
+               work is owed. 27 of 169 OPEN rows read that way in the 2026-10-12 audit.
+               The `<ref>` is where the answer lives: the `#NNNN` that recorded the measurement, a ledger
+               key, or a backticked brief. A bare `answered` is REJECTED here — an answer with no pointer
+               is the prose-as-evidence the ledger's own evidence column forbids.
+               Unlike `withdrawn` it takes no corroboration: an answer is not a claim that the defect
+               never existed, so no second row has to say so. check8j resolves the pointer and stops. */
+            var answered = /^answered (#\d+|\d{4}-\d{2}-\d{2}-[a-z0-9-]+|`[A-Za-z0-9._-]+-BRIEF\.md`)$/.exec(st);
+            var stateOk = st === 'OPEN' || !!promoted || !!withdrawn || !!answered || /^fixed #\d+$/.test(st);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(c[1]) || !src || !stateOk || !c[3] || !c[4]) {
               out.malformed.push(
                 c[0] +
@@ -38407,13 +38417,23 @@
                   (!src
                     ? 'source not a backticked *-BRIEF.md, repo path or #PR'
                     : !stateOk
-                      ? 'state "' + st + '" not OPEN | → `brief` | fixed #N | withdrawn <key>'
+                      ? 'state "' + st + '" not OPEN | → `brief` | fixed #N | withdrawn <key> | answered <ref>'
                       : 'bad date or empty defect/evidence') +
                   ')'
               );
               return;
             }
-            out.rows.push({ id: c[0], date: c[1], source: src[1], srcKind: srcKind, state: st, withdrawnBy: withdrawn ? withdrawn[1] : null, defect: c[3], promoted: promoted ? promoted[1] : null });
+            out.rows.push({
+              id: c[0],
+              date: c[1],
+              source: src[1],
+              srcKind: srcKind,
+              state: st,
+              withdrawnBy: withdrawn ? withdrawn[1] : null,
+              answeredBy: answered ? answered[1] : null,
+              defect: c[3],
+              promoted: promoted ? promoted[1] : null
+            });
           });
         return out;
       }
@@ -38454,6 +38474,25 @@
         T.ok('self-test · …but EXISTS, so a reference to it resolves (no misdirected "no such row")', !!P.seen['2026-09-20-zz-broken']);
         T.eq('self-test · a valid row still carries its defect cell into seen', P.seen['2026-09-20-zz-ref'].defect.indexOf('WITHDRAWS') === 0, true);
         T.ok('self-test · a key that is genuinely absent is still absent', !P.seen['2026-09-20-zz-nonexistent']);
+      })();
+      /* self-test · THE FIFTH STATE'S SHAPE. `answered` is the only state whose argument is a CHOICE of
+         three forms, so each form is planted, and so is the form the owner's ruling rules out: a bare
+         `answered` with nothing after it. That one must red, or the state becomes a way to close a row
+         by assertion — the fabricated-close failure `withdrawn` was gated against on 2026-09-13. */
+      (function () {
+        var mk = function (st) {
+          return '| 2026-10-12-zz-ans | 2026-10-12 | `signal-spec.js` | d | e | ' + st + ' |\n';
+        };
+        var ok = function (st) {
+          var P = residueRows(mk(st));
+          return P.malformed.length === 0 && P.rows.length === 1 ? P.rows[0].answeredBy : 'MALFORMED';
+        };
+        T.eq('self-test · check8b ACCEPTS `answered #NNNN` and keeps the pointer', ok('answered #3466'), '#3466');
+        T.eq('self-test · …and `answered <ledger key>`', ok('answered 2026-10-04-two-neighbour-predicates'), '2026-10-04-two-neighbour-predicates');
+        T.eq('self-test · …and `answered `<NAME>-BRIEF.md``', ok('answered `X-2026-01-01-BRIEF.md`'), '`X-2026-01-01-BRIEF.md`');
+        T.eq('self-test · …and REJECTS a bare `answered` with no evidence', ok('answered'), 'MALFORMED');
+        T.eq('self-test · …and REJECTS prose where the pointer belongs', ok('answered by measurement'), 'MALFORMED');
+        T.eq('self-test · …and REJECTS a trailing annotation on the pointer', ok('answered #3466 (measured)'), 'MALFORMED');
       })();
       /* ── check8i · A WITHDRAWAL MUST BE CORROBORATED BY THE ROW IT NAMES ──────────────────────
          The fourth state exists so a row whose defect turned out not to exist can close honestly. The
@@ -38518,6 +38557,91 @@
         var un = [mk('2026-01-01-a', 'withdrawn 2026-01-02-b', 'x'), mk('2026-01-02-b', 'OPEN', 'unrelated finding')];
         T.eq('self-test · …and REJECTS one the named row never mentions', probe(un)[0], 'unsupported');
         T.eq('self-test · …and REJECTS a row withdrawing itself', probe([mk('2026-01-01-a', 'withdrawn 2026-01-01-a', 'x')])[0], 'self');
+      })();
+
+      /* ── check8j · AN `answered <ref>` POINTER MUST RESOLVE ────────────────────────────────
+         check8h exists because the 2026-09-02 key migration left row-to-row references pointing at ids
+         that no longer existed, with every assertion green. A fifth state whose whole content is a
+         pointer would reopen exactly that hole, so the two resolvable forms are resolved: a ledger key
+         must name a row that exists and is not this one, and a brief must be in `briefs/`.
+         A `#NNNN` is well-formed by construction and not resolvable offline — the same reasoning
+         check8d applies to a PR source cell, in a repo whose lanes have no network.
+         This is NOT check8i's corroboration: the named row need not name this one back. An answer is a
+         measurement on the record, not a claim that the defect never existed, and requiring a second row
+         to assert one would re-import the cost `withdrawn` pays for a reason that does not apply. */
+      var badAnswered = [];
+      RR.rows.forEach(function (r) {
+        if (!r.answeredBy) return;
+        var ref = r.answeredBy;
+        if (ref.charAt(0) === '#') return;
+        if (ref.charAt(0) === '`') {
+          if (!DL.briefs[ref.replace(/`/g, '')]) badAnswered.push(r.id + ' → ' + ref + ' (no such brief)');
+          return;
+        }
+        if (ref === r.id) {
+          badAnswered.push(r.id + ' answers ITSELF');
+          return;
+        }
+        if (!byKey[ref] && !RR.seen[ref]) badAnswered.push(r.id + ' → ' + ref + ' (no such row)');
+      });
+      T.ok(
+        'check8j · every `answered <ref>` names a PR, an existing ledger row, or a real brief',
+        badAnswered.length === 0,
+        badAnswered.length
+          ? badAnswered.slice(0, 5).join('; ')
+          : RR.rows.filter(function (r) {
+              return r.answeredBy;
+            }).length + ' answer pointer(s) resolved'
+      );
+      /* self-test — the check must FIRE on each resolvable form, or the pointer is decoration. */
+      (function () {
+        var probe = function (rows, briefs) {
+          var m = {},
+            bad = [];
+          rows.forEach(function (r) {
+            m[r.id] = r;
+          });
+          rows.forEach(function (r) {
+            if (!r.answeredBy) return;
+            var ref = r.answeredBy;
+            if (ref.charAt(0) === '#') return;
+            if (ref.charAt(0) === '`') {
+              if (!briefs[ref.replace(/`/g, '')]) bad.push('no-brief');
+              return;
+            }
+            if (ref === r.id) return bad.push('self');
+            if (!m[ref]) bad.push('dangling');
+          });
+          return bad;
+        };
+        var B = { 'REAL-2026-01-01-BRIEF.md': 'x' };
+        T.eq('self-test · check8j ACCEPTS a `#NNNN` answer (not resolvable offline, by design)', probe([{ id: '2026-01-01-a', answeredBy: '#2840' }], B).length, 0);
+        T.eq(
+          'self-test · …ACCEPTS a key that names another existing row',
+          probe(
+            [
+              { id: '2026-01-01-a', answeredBy: '2026-01-02-b' },
+              { id: '2026-01-02-b', answeredBy: null }
+            ],
+            B
+          ).length,
+          0
+        );
+        T.eq(
+          'self-test · …and does NOT require that row to name it back (not a withdrawal)',
+          probe(
+            [
+              { id: '2026-01-01-a', answeredBy: '2026-01-02-b' },
+              { id: '2026-01-02-b', answeredBy: null, defect: 'unrelated' }
+            ],
+            B
+          ).length,
+          0
+        );
+        T.eq('self-test · …REJECTS a key that names no row', probe([{ id: '2026-01-01-a', answeredBy: '2026-01-09-z' }], B)[0], 'dangling');
+        T.eq('self-test · …REJECTS a row answering itself', probe([{ id: '2026-01-01-a', answeredBy: '2026-01-01-a' }], B)[0], 'self');
+        T.eq('self-test · …ACCEPTS a brief that exists', probe([{ id: '2026-01-01-a', answeredBy: '`REAL-2026-01-01-BRIEF.md`' }], B).length, 0);
+        T.eq('self-test · …REJECTS a brief that does not', probe([{ id: '2026-01-01-a', answeredBy: '`GHOST-2026-01-01-BRIEF.md`' }], B)[0], 'no-brief');
       })();
 
       /* A residue's origin is not always a brief. `find_unwired.py` learning to stop counting a COMMENT
