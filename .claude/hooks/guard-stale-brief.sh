@@ -84,11 +84,14 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
-[ "${CLAUDE_ALLOW_STALE_BRIEF:-}" = "1" ] && exit 0
-
 # stdin is readable ONCE, and this hook now asks it two questions (Edit/Write carry a
 # `file_path`; Bash carries a `command`), so the payload is buffered rather than piped twice.
+# ⚠ STDIN IS DRAINED FIRST, BEFORE ANY EXIT. The harness writes the tool-call JSON into this
+# hook's stdin, so a hatch that exits before reading it leaves the writer on a closed pipe and
+# the writer takes SIGPIPE (141 under `pipefail`). Same contract and same fix as trim-output.sh
+# (#3493). The test reads the WRITER's fate, because a verdict of "not 2" cannot see it.
 payload="$(cat 2>/dev/null)" || exit 0
+[ "${CLAUDE_ALLOW_STALE_BRIEF:-}" = "1" ] && exit 0
 f="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$f" ] && [ -z "$cmd" ] && exit 0

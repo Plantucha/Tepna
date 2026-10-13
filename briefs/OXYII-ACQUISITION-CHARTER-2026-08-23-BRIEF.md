@@ -205,5 +205,6 @@ existing whitelist (`OXYII-PROTOCOL-HARVEST` deliberately excluded them; unchang
       commit → restart re-queues, trusts nothing).
 - [x] G4 merged: transitions journaled on a real night (13 nights of `OXYLIFE.csv` on the box, 2026-08-24 → 09-05); liveness states visible in STATUS — and, since 2026-09-05, in `/api/state` and on the monitor, which "in STATUS" had not implied (see the header).
 - [ ] Final report per spec §50 with the R1-scoped attestation and `THIRD-PARTY.md` checked.
+  - ✅ **R1 attestation GIVEN by the owner 2026-10-13** (D14 of `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md`, via Kestrel AskUserQuestion), scoped exactly as R1 states: newly written code under this work only, the protocol core grandfathered with its F2 attribution. The final report cites this line; the box above stays open until that report exists.
 - [ ] Existing suites untouched-green; no §1 KEEP row rewritten.
 - [ ] Follow-up brief spawned (or "nothing surfaced" recorded here).

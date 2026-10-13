@@ -57,13 +57,17 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
+# ⚠ STDIN IS DRAINED FIRST, BEFORE ANY EXIT. The harness writes the tool-call JSON into this
+# hook's stdin, so a hatch that exits before reading it leaves the writer on a closed pipe and
+# the writer takes SIGPIPE (141 under `pipefail`). Same contract and same fix as trim-output.sh
+# (#3493). The test reads the WRITER's fate, because a verdict of "not 2" cannot see it.
+payload="$(cat 2>/dev/null)" || exit 0
 [ "${CLAUDE_ALLOW_NO_DOC_SEARCH:-}" = "1" ] && exit 0
 command -v jq >/dev/null 2>&1 || exit 0
 command -v git >/dev/null 2>&1 || exit 0
 
 MAX_AGE_S="${DOC_SEARCH_MAX_AGE_S:-10800}"   # 3 h — overridable so the self-test can plant staleness
 
-payload="$(cat 2>/dev/null)" || exit 0
 f="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 tool="$(printf '%s' "$payload" | jq -r '.tool_name // empty' 2>/dev/null)"
