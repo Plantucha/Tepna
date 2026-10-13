@@ -35,7 +35,9 @@
  */
 
 import { execSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findings as steFindings, readGlossary, scan as steScan } from './ste-lint.mjs';
@@ -420,6 +422,32 @@ export function selftest() {
   const bodyOnly = checkCompliance({ body: good, files: null });
   ok(bodyOnly.checked.length === 2 && !bodyOnly.checked.includes('changeset-for-code-change'), 'without a diff the file checks are reported as NOT evaluated, not as passed');
 
+  /* THE RANGE IS THE PR'S OWN. A throwaway repository: the branch adds `changes/b.md`, then main
+     deletes `changes/a.md` the way a release consumes its changesets. Only `b.md` is the PR's. */
+  const repo = mkdtempSync(join(tmpdir(), 'pr-compliance-range-'));
+  try {
+    const g = (c) => execSync(`git -c user.name=t -c user.email=t@t -c commit.gpgsign=false ${c}`, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    g('init -q -b main');
+    mkdirSync(join(repo, 'changes'));
+    writeFileSync(join(repo, 'changes/a.md'), 'a\n');
+    g('add changes/a.md');
+    g('commit -q -m base');
+    g('checkout -q -b pr');
+    writeFileSync(join(repo, 'changes/b.md'), 'b\n');
+    g('add changes/b.md');
+    g('commit -q -m pr');
+    g('checkout -q main');
+    g('rm -q changes/a.md');
+    g('commit -q -m release');
+    const added = (range) => g(`diff --diff-filter=A --name-only ${range}`).split('\n').filter(Boolean);
+    ok(added(prRange('main', 'pr')).join() === 'changes/b.md', 'a branch cut before a release adds only its own file');
+    ok(added('main..pr').includes('changes/a.md'), 'CONTROL: two dots read the deleted changeset as a new file');
+  } catch (e) {
+    ok(false, `the range fixture ran: ${e.message}`);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+
   const line = fail.length ? `pr-compliance selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
@@ -450,6 +478,9 @@ function verdictOf({ status, failures, checked, reason }) {
   return v;
 }
 
+/** The PR's own change set: from the merge base of `base` and `head` to `head` (three dots). */
+export const prRange = (base, head) => `${base}...${head}`;
+
 function sh(cmd) {
   return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
@@ -477,13 +508,20 @@ function main() {
     return 0;
   }
 
+  /* THREE DOTS: the diff runs from the merge base, so it holds only what the PR changed. Two dots
+     compared base and head as trees, and a branch cut before a release then showed every changeset
+     the release deleted as a file the PR added. Measured 2026-10-12 on #3540 after v2.19.0: 90
+     deleted changesets read as new, and the check reported 50 findings against text the PR never
+     touched. */
   let files = null;
   let diffError = null;
   if (base) {
     try {
-      files = sh(`git diff --name-only ${base}..${head}`).split('\n').filter(Boolean);
+      files = sh(`git diff --name-only ${prRange(base, head)}`)
+        .split('\n')
+        .filter(Boolean);
     } catch {
-      diffError = `cannot diff ${base}..${head}`;
+      diffError = `cannot diff ${prRange(base, head)}`;
     }
   }
   let computeHashMoved = false;
@@ -495,7 +533,7 @@ function main() {
       // The gate scripts themselves reference computeHash by design; they never move it.
       if (f === 'tools/pr-compliance.mjs') continue;
       try {
-        const diff = sh(`git diff ${base}..${head} -U0 -- ${f}`);
+        const diff = sh(`git diff ${prRange(base, head)} -U0 -- ${f}`);
         // Parse diff hunks to get changed line numbers in the NEW file
         const hunks = [];
         let newLine = 0;
@@ -568,7 +606,7 @@ function main() {
   if (base && files) {
     try {
       const glossary = readGlossary();
-      newDocs = sh(`git diff --diff-filter=A --name-only ${base}..${head}`)
+      newDocs = sh(`git diff --diff-filter=A --name-only ${prRange(base, head)}`)
         .split('\n')
         .filter((f) => f.endsWith('.md'))
         .map((path) => ({ path, findings: steFindings(sh(`git show ${head}:"${path}"`), glossary) }));
