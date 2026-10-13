@@ -291,3 +291,97 @@ def test_a_successful_rebond_restores_the_full_budget():
     # SIBLING at the same indentation, so the block it "opens" is one line. Same reason as the flow
     # check above — a byte window spans whichever of those two shapes happens to fit in 300 chars.
     assert "rebond_attempts = 0" in suite_tail("capture.py", "re-bonded — PMD should hold again")
+
+
+# ── 2026-09-12-h10-rebond-waits-behind-psftp-sync ────────────────────────────────────────────────────
+# After an adapter swap the H10's re-bond sat behind five PS-FTP clock syncs that each need the bond it
+# lacked (14 min on vigil), and the task-start bond-error path wrote `last_error` and NO log line.
+
+
+def _rebond_vs_sync_run(monkeypatch, tmp_path, *, bonded, n_stop=3):
+    """Drive `run_polar` with sync ENABLED and the link refused; return the ordered events."""
+    from tests.test_capture_runners import _polar_common, _stop_after, _pdev
+
+    _polar_common(monkeypatch)
+    capture._CFG.clear()
+    capture._CFG.update({"time": {"auto_sync_devices": True}})
+    # Process-wide sync state other tests leave behind (a cooldown or a fresh stamp for this address makes
+    # the sync not-due, and the test would then assert about a loop that never asked for one).
+    monkeypatch.setattr(capture, "_CLOCK_SYNC_COOLDOWN", {})
+    monkeypatch.setattr(capture, "_CLOCK_SYNC_LAST_OK", {})
+    monkeypatch.setattr(capture.devcaps, "get", lambda *a, **k: None)  # unmeasured → the vendor string decides
+    capture.STATUS["devices"].pop("H10", None)  # a stale `charging` would also suppress the sync
+    events: list = []
+
+    async def is_bonded(addr, adapter=None):
+        return bonded
+
+    async def ensure(addr, adapter=None, *, force=False):
+        events.append("rebond" if force else "start-bond")
+        return True
+
+    async def sync(name, addr, root=None):
+        events.append("sync")
+
+    def refuse(addr, *a, **k):
+        raise OSError("le-connection-abort-by-local")
+
+    monkeypatch.setattr(capture.bonding, "is_bonded", is_bonded)
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", ensure)
+    monkeypatch.setattr(capture, "auto_sync_clock", sync)
+    monkeypatch.setattr(capture, "_connect", refuse)
+    _stop_after(monkeypatch, n_stop)
+    asyncio.run(capture.run_polar(_pdev(), str(tmp_path)))
+    return events
+
+
+def test_a_lost_bond_is_re_paired_BEFORE_the_reconnect_sync_not_the_fifth_iteration_later(tmp_path, monkeypatch):
+    """The PS-FTP sync needs an encrypted link, so a sync that is due while the bond is gone cannot
+    succeed. The first miss must re-bond ahead of it — three iterations never reach the 5th-iteration
+    cadence, so on the unfixed runner no re-bond happens at all in this window."""
+    events = _rebond_vs_sync_run(monkeypatch, tmp_path, bonded=False)
+    loop_syncs = [i for i, e in enumerate(events) if e == "sync"][1:]  # [0] is the task-start sync
+    assert loop_syncs, f"the reconnect loop never asked for a sync: {events}"
+    assert "rebond" in events[: loop_syncs[0]], (
+        f"a due sync ran before any re-bond although BlueZ reports no bond: {events}"
+    )
+
+
+def test_a_HEALTHY_bond_is_not_re_paired_ahead_of_the_sync(tmp_path, monkeypatch):
+    """Inverse control — without it the test above passes on a runner that re-pairs on every sync."""
+    events = _rebond_vs_sync_run(monkeypatch, tmp_path, bonded=True)
+    assert "sync" in events[1:], f"the loop must still sync: {events}"
+    assert "rebond" not in events, f"a bonded device was force-re-paired: {events}"
+
+
+def test_rebond_due_lets_a_pending_sync_override_the_cadence_but_nothing_else():
+    kw = {"attempts": 0, "every": 5, "limit": 72}
+    assert capture.rebond_due(True, False, iteration=2, sync_pending=True, **kw) is True
+    assert capture.rebond_due(True, False, iteration=2, sync_pending=False, **kw) is False
+    assert capture.rebond_due(True, True, iteration=2, sync_pending=True, **kw) is False  # bonded
+    assert capture.rebond_due(True, None, iteration=2, sync_pending=True, **kw) is False  # BlueZ silent
+    assert capture.rebond_due(False, False, iteration=2, sync_pending=True, **kw) is False  # not PMD
+    assert capture.rebond_due(True, False, iteration=2, sync_pending=True, attempts=72, every=5, limit=72) is False
+    assert capture.rebond_due(True, False, iteration=2, sync_pending=True, attempts=0, every=0, limit=72) is False
+
+
+def test_the_task_start_bond_error_is_LOGGED_not_only_written_to_the_card(tmp_path, monkeypatch, caplog):
+    """The `except` wrote `last_error` and nothing else — journald, the only record that survives a
+    restart, said nothing about why the strap never bonded."""
+    from tests.test_capture_runners import _polar_common, _stop_after, _pdev
+
+    _polar_common(monkeypatch)
+
+    async def boom(addr, adapter=None, *, force=False):
+        raise RuntimeError("dbus went away")
+
+    def refuse(addr, *a, **k):
+        raise OSError("le-connection-abort-by-local")
+
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", boom)
+    monkeypatch.setattr(capture, "_connect", refuse)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.run_polar(_pdev(), str(tmp_path)))
+    msgs = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any("bond error" in m and "dbus went away" in m for m in msgs), f"the bond error went unlogged: {msgs}"

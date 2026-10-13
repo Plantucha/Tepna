@@ -1101,3 +1101,118 @@ def test_a_name_with_a_NON_WORD_character_keeps_the_per_name_search():
         _old_uses("$go", text),
         _old_defs("$go", text, "function"),
     )
+
+
+# ── THE OBJECT (residue 2026-10-12-find-unwired-has-not-adopted-the-verdict-schema-so-check-sh-can-never-
+# read-pass) ─────────────────────────────────────────────────────────────────────────────────────────────
+# `check.sh` reads a tool of OURS by its own `tepna.verdict/1`; this was the last child without one, so the
+# box gate's object read UNKNOWN on a fully green run and could never be PASS.
+import json  # noqa: E402
+
+import verdict as VD  # noqa: E402
+
+
+def _res(*, live=0, allowed=0, stale=0, advisory=0):
+    """A synthetic `scan()` result: `allowed`/`live` rows spread over the gated scans, `stale` spent entries."""
+    rows = [{"key": "k%d" % i, "allowed": "explained"} for i in range(allowed)] + [
+        {"key": "u%d" % i, "allowed": None} for i in range(live)
+    ]
+    return {
+        "orphan_status_keys": rows[:1],
+        "orphan_functions": rows[1:],
+        "orphan_rendered": [],
+        "orphan_js": [],
+        "orphan_modules": [],
+        "stale_allowlist": [
+            {"list": "ALLOW_FUNCS", "name": "n%d" % i, "allowed": None, "reason": "r"} for i in range(stale)
+        ],
+        "divergent_provenance": [{"allowed": None}] * advisory + [{"allowed": "ok"}],
+        "examined_status_shapes": {"_set(name, key=…)": 4},
+    }
+
+
+def test_a_scan_with_nothing_unexplained_is_a_PASS_over_the_findings_it_examined():
+    v = find_unwired.verdict_object(_res(allowed=3))
+    VD.validate(v)
+    assert v["status"] == "PASS" and v["reason"] is None and v["gate"] == "find-unwired"
+    assert v["population"] == {"checked": 3, "eligible": 3, "excluded": 0}
+    assert v["result"]["unexplained"] == 0 and v["result"]["allowed"] == 3 and v["result"]["spentSuppressions"] == 0
+    assert v["criterion"]["threshold"] == 0 and v["criterion"]["direction"] == "eq"
+    assert v["producedBy"]["tool"] == "capture-host/tools/find_unwired.py"
+
+
+def test_an_unexplained_finding_is_a_FAIL_and_so_is_a_spent_suppression():
+    """The same sum `--check` exits 1 on: unexplained findings plus spent allowlist entries."""
+    v = find_unwired.verdict_object(_res(allowed=2, live=1))
+    VD.validate(v)
+    assert v["status"] == "FAIL" and v["result"]["unexplained"] == 1
+    assert "1 unexplained finding(s) and 0 spent allowlist entries among 3 examined" in v["reason"]
+    v = find_unwired.verdict_object(_res(allowed=2, stale=1))
+    assert v["status"] == "FAIL" and v["result"]["spentSuppressions"] == 1
+    assert "1 spent allowlist entry among 3 examined" in v["reason"]
+    assert v["population"] == {"checked": 3, "eligible": 3, "excluded": 0}
+
+
+def test_a_scan_that_examined_nothing_is_NOT_RUN_never_a_PASS():
+    v = find_unwired.verdict_object(_res())
+    VD.validate(v)
+    assert v["status"] == "NOT_RUN" and v["result"] is None
+    assert v["population"] == {"checked": 0, "eligible": 0, "excluded": 0} and "nothing was judged" in v["reason"]
+
+
+def test_the_ADVISORY_scan_rides_in_the_result_and_never_moves_the_status():
+    v = find_unwired.verdict_object(_res(allowed=2, advisory=2))
+    assert v["status"] == "PASS" and v["result"]["advisoryDivergentProvenance"] == 2
+
+
+def test_the_REAL_tree_object_agrees_with_the_exit_code(tree_scan):
+    """The object and `--check` must be one verdict: this tree's scan is clean (the gate's floor is 0), so
+    its object is a PASS over a non-empty population."""
+    v = find_unwired.verdict_object(tree_scan)
+    VD.validate(v)
+    assert v["status"] == "PASS" and v["population"]["checked"] > 0, v
+
+
+def test_verdict_sample_is_a_valid_PASS_object_and_needs_no_tree_or_interpreter_floor(monkeypatch, capsys):
+    monkeypatch.setattr(find_unwired, "interpreter_floor_reason", lambda vi: "below the floor")
+    assert find_unwired.main(["--verdict-sample"]) == 0
+    v = json.loads(capsys.readouterr().out)
+    VD.validate(v)
+    assert v["status"] == "PASS" and v["gate"] == "find-unwired"
+
+
+def test_check_with_verdict_out_writes_the_object_for_BOTH_exit_codes(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "v.json"
+    root = _tree(tmp_path, {"m.py": "def nobody_calls_me():\n    return 1\n"})
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    assert find_unwired.main(["--check", "--verdict-out", str(out)]) == 1
+    v = json.loads(out.read_text(encoding="utf-8"))
+    VD.validate(v)
+    assert v["status"] == "FAIL" and v["result"]["unexplained"] >= 1
+    assert f"verdict: FAIL → {out}" in capsys.readouterr().out
+    # …and green: explained, so exit 0 and a PASS object
+    monkeypatch.setitem(find_unwired.ALLOW_FUNCS, "nobody_calls_me", "synthetic")
+    monkeypatch.setitem(find_unwired.ALLOW_MODULES, "m", "synthetic fixture")
+    assert find_unwired.main(["--check", "--verdict-out", str(out)]) == 0
+    v = json.loads(out.read_text(encoding="utf-8"))
+    assert v["status"] == "PASS" and v["result"]["unexplained"] == 0
+
+
+def test_the_interpreter_floor_refusal_writes_a_NOT_RUN_object_and_exits_2(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "v.json"
+    monkeypatch.setattr(find_unwired, "interpreter_floor_reason", lambda vi: "too old to tokenize")
+    assert find_unwired.main(["--check", "--verdict-out", str(out)]) == 2
+    v = json.loads(out.read_text(encoding="utf-8"))
+    VD.validate(v)
+    assert v["status"] == "NOT_RUN" and "refused before scanning — too old to tokenize" in v["reason"]
+    assert "REFUSING" in capsys.readouterr().out
+    # without --verdict-out the refusal writes nothing and still exits 2
+    out.unlink()
+    assert find_unwired.main(["--check"]) == 2 and not out.exists()
+
+
+def test_verdict_out_without_a_path_is_a_usage_error_not_a_guess(capsys):
+    for argv in (["--check", "--verdict-out"], ["--check", "--verdict-out", "--json"]):
+        assert find_unwired.main(argv) == 2
+        assert "--verdict-out needs a path" in capsys.readouterr().out
+    assert find_unwired._verdict_out(["--check"]) is None

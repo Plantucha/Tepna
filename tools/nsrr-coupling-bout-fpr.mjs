@@ -461,7 +461,11 @@ function report(sum, opts) {
 function selftest() {
   const EC = loadCoupling();
   const fails = [];
-  const ok = (c, m) => (c ? null : fails.push(m));
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
+  const ok = (c, m) => {
+    ran++;
+    return c ? null : fails.push(m);
+  };
   // XML reader: resp + desat + span + tst, and a stage that is Wake does not count as sleep
   const xml =
     '<ScoredEvents>' +
@@ -529,7 +533,7 @@ function selftest() {
   const sum = summarise([m, m, m]);
   ok(sum.n === 3 && sum.shared.usable === 15 && sum.control.usable === 15, 'summarise pools trials');
   for (const f of fails) console.error('  ✗ ' + f);
-  console.log(fails.length ? 'selftest FAILED (' + fails.length + ' of 13)' : 'all 13 selftests passed');
+  console.log(fails.length ? `selftest FAILED (${fails.length} of ${ran})` : `all ${ran} selftests passed`);
   return fails.length ? 1 : 0;
 }
 

@@ -275,7 +275,9 @@ function main() {
    Every assertion below is a PLANT: the collision this tool was written for went green on a full
    docs-ledger run, so a selftest that only checks the happy path would reproduce that blindness. */
 if (process.argv.includes('--selftest')) {
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
   const assert = (c, m) => {
+    ran++;
     if (!c) {
       console.error('SELFTEST FAIL:', m);
       process.exit(1);
@@ -354,7 +356,7 @@ if (process.argv.includes('--selftest')) {
 
   // Phrased so `selftest-all.mjs` can PARSE the count: a tool that silently drops from 8
   // assertions to 1 still exits 0, and only a readable number makes that visible.
-  console.log('selftest: all 20 selftests passed');
+  console.log(`selftest: all ${ran} selftests passed`);
   process.exit(0);
 }
 

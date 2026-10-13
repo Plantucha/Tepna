@@ -633,7 +633,9 @@ function cmdRatchet(argv) {
 // ── selftest ───────────────────────────────────────────────────────────────────────────────────
 function selftest() {
   let fail = 0;
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
   const ck = (what, got, want) => {
+    ran++;
     const ok = JSON.stringify(got) === JSON.stringify(want);
     if (!ok) {
       fail++;
@@ -889,7 +891,7 @@ function selftest() {
   );
   ck('open counting ignores closed rows', openCount(led), 2);
 
-  console.log(fail ? `${fail} failed of 74` : 'all 74 selftests passed');
+  console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);
   return fail ? 1 : 0;
 }
 
