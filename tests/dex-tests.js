@@ -37145,6 +37145,155 @@
     /* ── queue-doctor: a red PR is an EVENT once, not a journal line every ten minutes (owner,
        2026-10-12: "some auto system should warn you" — #3477 and #3481 sat red for an hour under a
        running timer that printed the red on every run into a journal nobody read). ── */
+    group('PR walker — every state has exactly one action, and nothing a person has to type', 'tools · pr-walker', function (T) {
+      var cl = env.pwClassify,
+        pl = env.pwPlan,
+        rid = env.pwRunIdOf,
+        page = env.pwLandingPage;
+      if (typeof cl !== 'function' || typeof pl !== 'function') {
+        T.skip('pr-walker core is wired into this lane', 'browser lane cannot import tools/pr-walker.mjs');
+        return;
+      }
+      /* THE FAILURE (measured 2026-10-13 over the last 40 merged PRs): Kodiak merged a ready PR in a
+         median 0.2 h, but the same PRs sat a median 1.65 h — one 13.1 h — as drafts, because the old
+         walker undrafted only numbers the owner typed into a queue file, only while two or fewer were
+         out of draft. The owner's verdict: "I want automatic system". These cases pin the rules that
+         replaced every rule that needed a person. */
+      var REQ = ['test', 'biome'];
+      var NOW = 1760000000000;
+      var MIN = 60000;
+      var GREEN = [
+        { name: 'test', bucket: 'pass' },
+        { name: 'biome', bucket: 'pass' }
+      ];
+      var SHA = 'abcdef0123456789abcdef0123456789abcdef01';
+      var P = function (o) {
+        var b = { number: 1, isDraft: true, mergeState: 'CLEAN', labels: [], checks: GREEN, readable: true, headSha: SHA, updatedAtMs: NOW - 2 * MIN, branch: 'claude/x-k9w' };
+        for (var k in o) b[k] = o[k];
+        return b;
+      };
+      var ST = function (o) {
+        var b = { reruns: {}, rebased: {}, firstPending: {} };
+        for (var k in o) b[k] = o[k];
+        return b;
+      };
+      var CTX = function (o) {
+        var b = { nowMs: NOW, mainMovedAtMs: NOW - 60 * MIN, cap: env.pwCap };
+        for (var k in o) b[k] = o[k];
+        return b;
+      };
+      var ops = function (p) {
+        return p.actions
+          .map(function (a) {
+            return a.op + ':' + a.number;
+          })
+          .join(',');
+      };
+      var kinds = function (p) {
+        return p.alerts
+          .map(function (a) {
+            return a.kind + ':' + a.number;
+          })
+          .join(',');
+      };
+
+      /* ── classify: one state per PR, failing CLOSED ─────────────────────────────────────── */
+      T.eq('all required pass ⇒ green', cl(P({}), REQ).state, 'green');
+      T.eq('the hold label wins over everything', cl(P({ labels: [env.pwHoldLabel] }), REQ).state, 'held');
+      T.eq('held even when red AND conflicting', cl(P({ labels: [env.pwHoldLabel], mergeState: 'DIRTY', checks: [{ name: 'test', bucket: 'fail' }] }), REQ).state, 'held');
+      T.eq('an unreadable check list is unknown, never green', cl(P({ readable: false }), REQ).state, 'unknown');
+      T.eq('unreadable is not the same as an empty list', cl(P({ readable: false, checks: [] }), REQ).state, 'unknown');
+      T.eq('DIRTY ⇒ conflict', cl(P({ mergeState: 'DIRTY' }), REQ).state, 'conflict');
+      var red = cl(P({ checks: [{ name: 'test', bucket: 'fail', link: 'https://github.com/o/r/actions/runs/4242/job/99' }, GREEN[1]] }), REQ);
+      T.eq('a required fail ⇒ red', red.state, 'red');
+      T.eq('red names the failed required check', red.failed.join(','), 'test');
+      T.eq('red carries the run id parsed from the check link', red.runIds.join(','), '4242');
+      T.eq('runIdOf parses the run id', rid('https://github.com/o/r/actions/runs/7/job/8'), '7');
+      T.eq('runIdOf on a link without a run is null', rid('https://example.invalid/x'), null);
+      T.eq('an advisory (non-required) red does not block', cl(P({ checks: [{ name: 'mutation (advisory)', bucket: 'fail' }].concat(GREEN) }), REQ).state, 'green');
+      T.eq('FAIL CLOSED: with no ruleset, every reported check is required', cl(P({ checks: [{ name: 'mutation (advisory)', bucket: 'fail' }].concat(GREEN) }), []).state, 'red');
+      T.eq('a required check running ⇒ pending', cl(P({ checks: [{ name: 'test', bucket: 'pending' }, GREEN[1]] }), REQ).state, 'pending');
+      T.eq('a required check not yet reported while anything runs ⇒ pending', cl(P({ checks: [GREEN[0], { name: 'other', bucket: 'pending' }] }), REQ).state, 'pending');
+      T.eq('a required check never reported with nothing running ⇒ stuck', cl(P({ checks: [GREEN[0]] }), REQ).state, 'stuck');
+      T.eq('GitHub still computing mergeability ⇒ unknown', cl(P({ mergeState: 'UNKNOWN' }), REQ).state, 'unknown');
+      T.eq('BEHIND is carried as a flag on green', cl(P({ mergeState: 'BEHIND' }), REQ).behind, true);
+
+      /* ── plan: ready under the cap, oldest first ─────────────────────────────────────────── */
+      var three = [11, 12, 13].map(function (n) {
+        return cl(P({ number: n, isDraft: false }), REQ);
+      });
+      var p1 = pl(three.concat([cl(P({ number: 5 }), REQ), cl(P({ number: 3 }), REQ)]), ST({}), CTX({}));
+      T.eq('one slot under the cap goes to the OLDEST green draft', ops(p1), 'ready:3');
+      T.eq('the other green draft is reported as waiting, not forgotten', kinds(p1), 'waiting-for-slot:5');
+      var p2 = pl(three.concat([cl(P({ number: 14, isDraft: false }), REQ), cl(P({ number: 3 }), REQ)]), ST({}), CTX({}));
+      T.eq('at the cap nothing is readied', ops(p2), '');
+      T.eq('and the draft says why it waits', kinds(p2), 'waiting-for-slot:3');
+      var p3 = pl([cl(P({ number: 3 }), REQ), cl(P({ number: 4 }), REQ)], ST({}), CTX({ cap: 1 }));
+      T.eq('the cap counts the PRs readied THIS pass, not only those already out', ops(p3), 'ready:3');
+      T.eq('a held PR gets no action', pl([cl(P({ number: 3, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).actions.length, 0);
+      T.eq('and no alert — a hold is a decision, not a defect', pl([cl(P({ number: 3, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).alerts.length, 0);
+
+      /* ── rerun once per head SHA, then it is a coder's ──────────────────────────────────── */
+      var redPr = cl(P({ number: 7, isDraft: false, checks: [{ name: 'test', bucket: 'fail', link: 'https://github.com/o/r/actions/runs/4242/job/1' }, GREEN[1]] }), REQ);
+      var p4 = pl([redPr], ST({}), CTX({}));
+      T.eq('a required red is re-run once', ops(p4), 'rerun:7');
+      T.eq('the rerun names the run', p4.actions[0].runIds.join(','), '4242');
+      var reruns = {};
+      reruns[SHA] = 1;
+      var p5 = pl([redPr], ST({ reruns: reruns }), CTX({}));
+      T.eq('the same head SHA is never re-run twice', ops(p5), '');
+      T.eq("red after the rerun is alerted as a coder's", kinds(p5), 'red:7');
+      var redNoRun = cl(P({ number: 7, isDraft: false, checks: [{ name: 'test', bucket: 'fail' }, GREEN[1]] }), REQ);
+      T.eq('a red with no run id to re-run is alerted, not retried', kinds(pl([redNoRun], ST({}), CTX({}))), 'red:7');
+
+      /* ── rebase once per head SHA ───────────────────────────────────────────────────────── */
+      var conf = cl(P({ number: 8, isDraft: false, mergeState: 'DIRTY' }), REQ);
+      var p6 = pl([conf], ST({}), CTX({}));
+      T.eq('a conflict is rebased once', ops(p6), 'rebase:8');
+      T.eq('the rebase names the branch', p6.actions[0].branch, 'claude/x-k9w');
+      var rebased = {};
+      rebased[SHA] = 'stopped';
+      var p7 = pl([conf], ST({ rebased: rebased }), CTX({}));
+      T.eq('a SHA rebase-safe already stopped on is not retried', ops(p7), '');
+      T.eq('and the alert asks for a hand rebase', kinds(p7), 'hand-rebase:8');
+
+      /* ── stuck and stale-pending are alerts, never actions ───────────────────────────────── */
+      T.eq('stuck is alerted', kinds(pl([cl(P({ number: 9, isDraft: false, checks: [GREEN[0]] }), REQ)], ST({}), CTX({}))), 'stuck:9');
+      var pend = cl(P({ number: 10, isDraft: false, checks: [{ name: 'test', bucket: 'pending' }, GREEN[1]] }), REQ);
+      T.eq('a check pending 10 min is normal', pl([pend], ST({ firstPending: { 10: NOW - 10 * MIN } }), CTX({})).alerts.length, 0);
+      T.eq('past STALE_PENDING_MIN it is alerted', kinds(pl([pend], ST({ firstPending: { 10: NOW - (env.pwStaleMin + 1) * MIN } }), CTX({}))), 'stale-pending:10');
+
+      /* ── update / merge only when Kodiak has been quiet, one each per pass ─────────────── */
+      var IDLE = env.pwIdleMin;
+      var fresh = cl(P({ number: 20, isDraft: false, updatedAtMs: NOW - 2 * MIN }), REQ);
+      T.eq("a green PR Kodiak touched 2 min ago is Kodiak's", ops(pl([fresh], ST({}), CTX({}))), '');
+      var quietCur = cl(P({ number: 20, isDraft: false, updatedAtMs: NOW - (IDLE + 5) * MIN }), REQ);
+      T.eq('main moving 2 min ago means Kodiak is busy — no merge', ops(pl([quietCur], ST({}), CTX({ mainMovedAtMs: NOW - 2 * MIN }))), '');
+      T.eq('green, current, quiet past KODIAK_IDLE_MIN ⇒ merge by SHA', ops(pl([quietCur], ST({}), CTX({ mainMovedAtMs: NOW - (IDLE + 5) * MIN }))), 'merge:20');
+      T.eq('the merge names the SHA it observed', pl([quietCur], ST({}), CTX({ mainMovedAtMs: NOW - (IDLE + 5) * MIN })).actions[0].headSha, SHA);
+      var quietBehind = function (n) {
+        return cl(P({ number: n, isDraft: false, mergeState: 'BEHIND', updatedAtMs: NOW - (IDLE + 5) * MIN }), REQ);
+      };
+      var p8 = pl([quietBehind(21), quietBehind(22)], ST({}), CTX({ mainMovedAtMs: NOW - (IDLE + 5) * MIN }));
+      T.eq('behind ⇒ update, and only ONE update per pass (the second would be stale at once)', ops(p8), 'update:21');
+      var p9 = pl([quietBehind(21), quietCur], ST({}), CTX({ mainMovedAtMs: NOW - (IDLE + 5) * MIN }));
+      T.eq('a merge and an update in one pass are independent', ops(p9), 'merge:20,update:21');
+      T.eq(
+        'a DRAFT behind main is readied, never updated — Kodiak updates it once it is in the pool',
+        ops(pl([cl(P({ number: 30, mergeState: 'BEHIND', updatedAtMs: NOW - (IDLE + 5) * MIN }), REQ)], ST({}), CTX({ mainMovedAtMs: NOW - (IDLE + 5) * MIN }))),
+        'ready:30'
+      );
+
+      /* ── the landing page the board shows ───────────────────────────────────────────────── */
+      var txt = page([red, quietCur], { nonDraft: 1, cap: 4, alerts: [{ number: 7, kind: 'red', why: 'test red after 1 rerun(s)' }] }, [{ op: 'merge', number: 20, result: 'ok' }], {
+        at: '2026-10-13T18:00:00Z',
+        requiredSource: 'ruleset(9)'
+      });
+      T.ok('the header names the pass, the pool and the cap', /^pr-walker pass 2026-10-13T18:00:00Z · open 2 · out of draft 1\/4/.test(txt));
+      T.ok('one line per PR with its state and why', /\n#1 draft red {6}required red: test\n/.test(txt));
+      T.ok('the actions line names what was done and its result', /\nactions: merge #20 → ok\n/.test(txt));
+      T.ok('alerts are the last lines, prefixed so the board can colour them', /\nALERT #7 red: test red after 1 rerun\(s\)\n$/.test(txt));
+    });
     group('Queue-doctor — the red ledger writes a line once per change, and a clear is named', 'tools · queue-doctor-ledger', function (T) {
       var rl = env.qdRedLedger;
       if (typeof rl !== 'function') {

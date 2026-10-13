@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — the PR walker: one pass of tools/pr-walker.mjs every 90 s. Every open PR is classified
+# (held · conflict · red · pending · stuck · unknown · green) and the walker takes the one action the
+# state calls for: mark a green draft ready under the ≤ 4 cap, re-run a red required check once per
+# head SHA, rebase a conflicting fleet branch with rebase-safe once per head SHA, and update or merge a
+# green PR only after Kodiak has been quiet for 20 min. Nobody types a number into a queue file.
+#
+# INSTALL (the primary development machine; `node tools/pr-walker.mjs --print-install` prints this):
+#   systemctl --user disable --now tepna-walker.service 2>/dev/null; true   # the old queue-file walker
+#   git -C ~/Tepna worktree add ~/wt-walker-timer --detach origin/main      # the walker's OWN checkout
+#   ln -s ~/Tepna/node_modules ~/wt-walker-timer/node_modules
+#   cp ~/Tepna/tools/systemd/tepna-pr-walker.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tepna-pr-walker.timer
+#
+# The checkout is the walker's alone: the rebase of a conflicting PR happens there, never in a bird's
+# tree, and the unit fast-forwards it to origin/main before every pass (CLAUDE.md §👥.2 protects trees
+# other sessions dirty; this one is never dirtied).
+[Unit]
+Description=Tepna — PR walker: ready, rerun, rebase, update, merge (one pass)
+Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/pr-walker.mjs
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/wt-walker-timer
+ExecStartPre=/usr/bin/git fetch -q origin main
+ExecStartPre=/usr/bin/git checkout -q --detach origin/main
+ExecStart=/bin/sh -c '[ -f tools/pr-walker.mjs ] || { echo "pr-walker.mjs not on origin/main yet — nothing to run"; exit 0; }; exec node tools/pr-walker.mjs --worktree %h/wt-walker-timer'
+# A pass that cannot read GitHub exits non-zero so the timer's journal shows it; the next tick retries.
+TimeoutStartSec=20min

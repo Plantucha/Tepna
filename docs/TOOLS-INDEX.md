@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**257 tools** · 255 with a purpose line · **2 without**
+**258 tools** · 256 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -182,6 +182,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`ppi-jitter-vs-ecg.mjs`](../tools/ppi-jitter-vs-ecg.mjs) | O2RING-FINGER-HRV-VALIDATION §3, the PRIMARY endpoint PPI-jitter sd for the O2Ring FINGER pleth against paired H10 chest ECG, reported as median + IQR across nights so it is directly… |
 | [`ppi-match.mjs`](../tools/ppi-match.mjs) | PPG-beat ↔ ECG-beat alignment and jitter, shared by the §3 apparatus |
 | [`pr-compliance.mjs`](../tools/pr-compliance.mjs) | Enforces the standing PR rules from the fleet workflow: 1. Body starts with a "Rule 0:" line (the git-grep evidence line). |
+| [`pr-walker.mjs`](../tools/pr-walker.mjs) | pr-walker — the landing pipeline runs ITSELF: every open PR is classified each pass and the walker takes the one action its state calls for, with nobody typing a number into a queue file. |
 | [`probe-clock-equivalence.mjs`](../tools/probe-clock-equivalence.mjs) | A survivor is not automatically a gap: `if (lo < 0) lo = 0` mutated to `<=` still assigns 0 when lo IS 0, and no input will ever separate them. |
 | [`probe-coverage.mjs`](../tools/probe-coverage.mjs) | `probe-equivalence` scores each family against the mutants in its `fn`'s LINE RANGE. |
 | [`probe-equivalence.mjs`](../tools/probe-equivalence.mjs) | A survivor is not automatically a gap: `if (lo < 0) lo = 0` mutated to `<=` still assigns 0 when lo IS 0, and no input will ever separate them. |
