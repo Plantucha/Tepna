@@ -177,78 +177,76 @@
   // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
   // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
   // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
-  /* DEEP-AUDIT-VI F13 — the scrub is KEY-DRIVEN, never node-enumerated. A filename is an identifier
-     (an O2Ring export embeds the device serial and can embed a personal name), and it reaches the
-     envelope by three routes: `nights[].file` (OxyDex, `n.fname` verbatim), `sessions[].source`
-     (PpgDex, `r.fname`), and the per-element `provenance` copy every OxyDex night carries — the same
-     `inputs[].name / sha256 / lastModifiedMs` block the schema-level scrub already reduces. The 07-xx
-     scrub handled only `schema.provenance` + `recording.{device,serial,model}`, so with scrub ON the
-     export still named the upload (measured: `Jane_Smith_O2Ring S 2100_20260612230016.csv` survived).
+  /* THE SCRUB IS ALLOW-LIST DRIVEN (EXPORT-SCRUB-ALLOWLIST §3, owner ruling 2026-10-12). The key
+     sets live in `export-schema.js`, which nine bundles carry; this function owns the MECHANISM and
+     holds no key knowledge of its own. What the deny-list before it looked like, and why it had to
+     go: `_SCRUB_FILE_KEYS` + `_FILE_SHAPE_RE` + three per-block delete passes, every entry of which
+     was added AFTER a leak. A filename is an identifier (an O2Ring export embeds the device serial
+     and can embed a personal name) and it reached the envelope by four routes — `nights[].file`,
+     `sessions[].source`, the per-element `provenance` copy, and that copy's `schema.provenance`
+     twin. Each route cost its own measurement: with the 07-xx scrub ON, a real export still named
+     `Jane_Smith_O2Ring S 2100_20260612230016.csv`. Under an allow-list a fifth route needs no fifth
+     fix, because a key nobody declared never reaches the output.
      SELF-INGEST §5 acceptance: a scrubbed JSON contains no device serial, filename or input sha256. */
-  var _SCRUB_FILE_KEYS = ['file', 'fname', 'filename', 'fileName', 'sourceFile'];
-  // `source` is overloaded: ECGDex/GlucoDex write a semantic tag ('file', 'welltory'), PpgDex writes the
-  // raw filename. Strip it only when it is filename-SHAPED (a path separator or a dotted extension) —
-  // a tag has neither, and deleting a tag would change a scrubbed export's meaning, not its identity.
-  var _FILE_SHAPE_RE = /[\\/]|\.[A-Za-z0-9]{1,5}$/;
-  function _scrubProv(prov) {
-    if (!prov || typeof prov !== 'object') return prov;
-    return {
-      buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
-      generated: prov.generated != null ? prov.generated : null,
-      scrubbed: true,
-      // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
-      inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
-        return { bytes: inp && inp.bytes != null ? inp.bytes : null };
-      })
-    };
-  }
-  function _scrubRecordingBlock(rec) {
-    if (!rec || typeof rec !== 'object') return;
-    delete rec.device;
-    delete rec.serial;
-    delete rec.model;
-    if (typeof rec.source === 'string' && _FILE_SHAPE_RE.test(rec.source)) delete rec.source;
-  }
-  function _scrubElement(el) {
-    if (!el || typeof el !== 'object') return;
-    _SCRUB_FILE_KEYS.forEach(function (k) {
-      if (k in el) delete el[k];
-    });
-    if (typeof el.source === 'string' && _FILE_SHAPE_RE.test(el.source)) delete el.source;
-    if (el.provenance && typeof el.provenance === 'object') el.provenance = _scrubProv(el.provenance);
-    /* ⚠️ AND `el.schema.provenance`, which this function did not visit until 2026-10-06. A multi-record
-       element is not a summary block — ECGDex/PulseDex `recordings[]` and PpgDex `sessions[]` carry a
-       FULL v2.0 envelope per element, `schema.provenance.inputs[]` included, with
-       `{ name, bytes, lastModifiedMs, sha256 }` per input. `scrubExport` scrubs `out.schema.provenance`
-       at the TOP level only, so with scrub ON every per-element input name and sha256 survived —
-       against the §5 acceptance stated at the top of this file: a scrubbed JSON contains no device
-       serial, filename or input sha256. The §F1 pass fixed the per-element `provenance` copy and left
-       its envelope twin, and the F13 tests planted elements with NO `schema`, so they were green over a
-       live leak. */
-    if (el.schema && typeof el.schema === 'object' && el.schema.provenance && typeof el.schema.provenance === 'object') {
-      el.schema.provenance = _scrubProv(el.schema.provenance);
+  function _uniqSorted(list) {
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      if (seen[list[i]]) continue;
+      seen[list[i]] = true;
+      out.push(list[i]);
     }
-    _scrubRecordingBlock(el.recording);
+    return out.sort();
   }
-  function scrubExport(envelope) {
+  /* A surviving provenance block carries the mark, at every depth it survives at — the element copy
+     and its schema twin included, which is where the old scrub's two passes drifted apart. */
+  function _markProv(block) {
+    if (block && typeof block === 'object' && block.provenance && typeof block.provenance === 'object') {
+      block.provenance.scrubbed = true;
+    }
+  }
+  /* REFUSES when the allow-list is absent, and this is deliberate. The alternatives are both worse:
+     a silent pass-through emits the caller's identifiers under a `scrubbed: true` mark, and a
+     fallback deny-list is the fail-open code this replaced, kept alive in the one state nobody
+     tests. A privacy boundary that cannot read its own declaration has nothing honest to return.
+     CLAUDE.md §👥.3 is the precedent — an unguarded delegate throws, and guarding it converts the
+     crash into silent disablement. Load `export-schema.js` before this file (every bundle that
+     carries `dex-export.js` does; `dex-coload.js shared:` and the vm loaders in tools/ list both). */
+  /* Takes the allow-list as an ARGUMENT so the refusal below is reachable from a test without
+     deleting a global out from under a live realm. `scrubExport` is the one-line production path. */
+  function _scrubWith(S, envelope) {
     if (!envelope || typeof envelope !== 'object') return envelope;
-    var out = JSON.parse(JSON.stringify(envelope)); // deep clone — never mutate the caller
-    var sc = out.schema || (out.schema = {});
-    if (sc.provenance && typeof sc.provenance === 'object') sc.provenance = _scrubProv(sc.provenance);
+    if (!S || typeof S.project !== 'function') {
+      throw new Error('dex-export: scrubExport needs the shared allow-list from export-schema.js — refusing to mark an export scrubbed without it');
+    }
+    var dropped = [];
+    /* Deep clone first: `project` copies a declared metric bag by reference, and the output must not
+       alias the caller's data any more than it must not mutate it. */
+    var out = S.project('envelope', JSON.parse(JSON.stringify(envelope)), '', dropped);
+    if (!out.schema || typeof out.schema !== 'object') out.schema = {};
+    var sc = out.schema;
     sc.scrubbed = true;
-    // recording.contentId (identity-free) is KEPT; strip any device serial / model / filename a node may carry.
-    _scrubRecordingBlock(out.recording);
-    // Multi-record wrappers: strip the same identifying keys from each per-element block.
-    // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
-    // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
-    // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
-    ['nights', 'recordings', 'sessions'].forEach(function (key) {
-      if (Array.isArray(out[key])) out[key].forEach(_scrubElement);
-    });
+    /* §∅ — the absence is REPORTED, never silent. Every key the allow-list removed is named here as
+       a dotted block path, so a node author who adds a field reads it off the export instead of
+       discovering months later that fusion never received it. */
+    sc.scrubDropped = _uniqSorted(dropped);
+    _markProv(sc);
+    for (var a = 0; a < S.ELEMENT_ARRAYS.length; a++) {
+      var arr = out[S.ELEMENT_ARRAYS[a]];
+      if (!Array.isArray(arr)) continue;
+      for (var i = 0; i < arr.length; i++) {
+        if (!arr[i] || typeof arr[i] !== 'object') continue;
+        _markProv(arr[i]);
+        _markProv(arr[i].schema);
+      }
+    }
     return out;
   }
+  function scrubExport(envelope) {
+    return _scrubWith(root.ExportSchema, envelope);
+  }
 
-  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport, coverageFromSegments: coverageFromSegments };
+  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport, _scrubWith: _scrubWith, coverageFromSegments: coverageFromSegments };
   root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;

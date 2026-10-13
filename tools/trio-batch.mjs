@@ -86,6 +86,7 @@ import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { fitDatToSpo2Csv, readDat, readSpo2Csv, timefitDisagrees } from './o2ring-dat-timefit.mjs';
+import { buildRecord, appendFold, LEDGER_NAME } from './fold-provenance.mjs';
 
 const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
 const __dirname = dirname(__filename);
@@ -1747,6 +1748,74 @@ const inputDigest = (p) =>
       .sort()
       .join('\n')
   );
+/* ── 3a-bis · THE RUN LEDGER — `provenance/trio-fold.json` ──────────────────────────────────────
+ * The per-night `.trio-stamp` records that night's inputs + code. What no stamp can record is a
+ * property of the RUN: which trees were walked, what they were mounted on, and the one file set the
+ * whole fold read. `tools/fold-provenance.mjs` has carried that record's builder since 2026-09-24
+ * with NO writer — a library with zero callers is a check nobody runs, so this is its first one.
+ *
+ * It is built from the PLAN plus the stamps on disk, never from the dispatch: a `--skip-existing` run
+ * over an already-folded corpus then writes the same account as the `--force` run that folded it
+ * (only `at` moves), because the ledger describes the OUTPUT TREE and not which nights this process
+ * happened to recompute. A night carries its own stamped codeDigest, so a tree folded under two code
+ * states says so instead of inheriting the running tree's digest.
+ *
+ * Not in a CHILD: one child owns one night and would append a record per night. The parent owns it,
+ * for the same reason it owns the sidecars. */
+function planFiles(plans) {
+  const out = [];
+  for (const p of plans)
+    for (const k of Object.keys(p)) {
+      const v = p[k];
+      const list = Array.isArray(v) ? v : v && v.name ? [v] : [];
+      for (const f of list) {
+        let mt = null;
+        try {
+          mt = statSync(f.full).mtimeMs;
+        } catch {
+          /* gone since the scan → recorded as null, never as 0 (§∅) */
+        }
+        out.push({ full: f.full, bytes: f.bytes, mtimeMs: mt });
+      }
+    }
+  return out;
+}
+
+function writeFoldLedger(plans, { dry }) {
+  const nights = plans.map((p) => {
+    const dir = join(OUT, p.key);
+    let st = null;
+    try {
+      st = JSON.parse(readFileSync(join(dir, STAMP), 'utf8'));
+    } catch {
+      /* no stamp, or an unreadable one: the night reports as not ok with null digests */
+    }
+    return {
+      key: p.key,
+      inputsDigest: st && typeof st.inputsDigest === 'string' ? st.inputsDigest : null,
+      codeDigest: st && typeof st.codeDigest === 'string' ? st.codeDigest : null,
+      nodes: st && Array.isArray(st.nodes) ? st.nodes : null,
+      ok: !!st && countTrioExports(dir) === TRIO_NODES.length
+    };
+  });
+  const record = buildRecord({ at: new Date().toISOString(), codeDigest: CODE_DIGEST, srcRoots: [SRC], nights, files: planFiles(plans) });
+  const path = join(ROOT, 'provenance', LEDGER_NAME + '.json');
+  if (dry) return { record, path, written: false, index: null };
+  let prior = null;
+  try {
+    prior = JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    /* first fold on this checkout: the ledger is created, never silently skipped */
+  }
+  const ledger = appendFold(prior, record);
+  writeFileSync(path, JSON.stringify(ledger, null, 2) + '\n');
+  return { record, path, written: true, index: ledger.folds.length - 1 };
+}
+
+const foldLedgerLine = (r) =>
+  `fold ledger   : ${r.record.nightCount} night(s) · ${r.record.fileCount} file(s) · fileSet ${r.record.fileSetDigest} · code ${r.record.codeDigest}` +
+  (r.written ? ` → ${r.path} [fold #${r.index}]` : ' (not written: --dry-run)');
+
 if (SKIP_EXISTING && !FORCE && !DRY) {
   const keep = [];
   for (const p of work) {
@@ -1997,6 +2066,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   console.log(`\n${'─'.repeat(64)}`);
   console.log(`nights        : ${work.length} planned · ${complete} complete trio(s) on disk${failed ? ` · ${failed} child failure(s)` : ''}`);
   console.log(`wall-clock    : ${secs.toFixed(0)}s  (${(secs / Math.max(1, work.length)).toFixed(0)}s/night at ${plan.jobs}×${splitNodes ? `, nodes split ${TRIO_NODES.length}-way` : ''})`);
+  console.log(foldLedgerLine(writeFoldLedger(trio, { dry: DRY })));
   console.log(`\nnext: node tools/tch-multinight.mjs --dir ${opt('--out', 'uploads/trio')}`);
   process.exit(failed ? 1 : 0);
 }
@@ -3186,4 +3256,5 @@ if (noMotion)
       `                  ecgdex-dsp.js epoch push; PpgDex/OxyDex do. The motion-ρ leg of\n` +
       `                  TCH FU-III §1 needs that DSP change, not more data.)`
   );
+if (!CHILD) console.log(foldLedgerLine(writeFoldLedger(trio, { dry: DRY })));
 console.log(`\nnext: node tools/tch-multinight.mjs --dir ${opt('--out', 'uploads/trio')}`);
