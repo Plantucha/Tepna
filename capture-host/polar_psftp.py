@@ -54,6 +54,13 @@ async def _bt_disconnect(address: str):
 # real fault. 3 x 75 + 2 x 2 = 229 s.
 _LIST_ATTEMPT_TIMEOUT_S = 75.0
 
+# The backoff `pull_recording` waits between its attempts, named so a test can set it to zero. It is the
+# `_with_retry` default made explicit, NOT a new value (2.0 s). Left implicit, a mutant that makes the
+# transfer fail cost `attempts-1` real sleeps per test, and 55 of that function's 238 mutants read
+# TIMEOUT (unmeasured) instead of killed — which made the diff-scoped mutation gate refuse any change
+# inside the function.
+_PULL_RETRY_BACKOFF_S = 2.0
+
 MTU_CHAR = "fb005c51-02e7-f387-1cad-8acd2d8df0c8"  # RFC77_PFTP_MTU_CHARACTERISTIC
 GET = 0  # PbPFtpOperation.Command.GET
 USER_ROOT = "/U/0/"
@@ -799,7 +806,7 @@ async def pull_recording(
             m["truncated_dirs"] = list(fs.truncated_dirs)
         return m
 
-    got = await _with_retry(_once)
+    got = await _with_retry(_once, backoff=_PULL_RETRY_BACKOFF_S)
     manifest["files"] = got["files"]
     manifest["new_files"] = got["new_files"]
     manifest["short"] = got["short"]

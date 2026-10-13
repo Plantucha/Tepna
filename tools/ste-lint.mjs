@@ -87,35 +87,89 @@ export function readGlossary(root = ROOT) {
   return out;
 }
 
-/** Lines that are prose, with the skipped spans removed. Returns [{ n, text, procedure }]. */
-export function proseLines(src) {
+/**
+ * The population, measured. `checked` is the prose the rules ran over, `excluded` is every OTHER
+ * non-blank line — a table row, a quote, a heading, a fence and its contents, indented code, a
+ * citation line, the `Rule 0:` line, the trailer, and a line that is nothing but inline code.
+ *
+ * WHY THIS IS COUNTED. Before it was, a target whose prose all sat in table cells reported
+ * `0 finding(s) over 0 prose line(s)` with `excluded: 0` beside it, which reads as a clean run of a
+ * clean file. `briefs/RESIDUE.md` is the case that made it matter: 559 of its rows hold 148,443
+ * words and the 45 lines outside the table hold 724, so the verdict judged the preamble. The skip
+ * itself is deliberate and stays — cells are labels in `DOCS-INDEX.md`, whatever they hold here.
+ * What was wrong is an object that did not say so. §🧾 forbids a PASS over nothing examined; this
+ * makes `checked + excluded = eligible` carry the rest.
+ *
+ * Returns { prose: [{ n, text, procedure }], checked, excluded, eligible }.
+ */
+export function scan(src) {
   const out = [];
+  let excluded = 0;
   let fence = false;
   const lines = src.split('\n');
+  /* YAML FRONTMATTER at the top of a file is metadata, not prose: a changeset's `bump:` and a skill's
+     `name:` and `description:`. A skill's description is one long line by design, because the harness
+     matches a task against it; the first sweep of the skills read each one as a 40-word sentence. */
+  const front = lines[0] === '---' ? lines.indexOf('---', 1) : -1;
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
-    if (/^\s*(```|~~~)/.test(raw)) {
-      fence = !fence;
+    if (i <= front) {
+      if (raw.trim()) excluded += 1;
       continue;
     }
-    if (fence) continue;
-    if (/^\s{4,}\S/.test(raw)) continue; // indented code
-    if (/^\s*\|/.test(raw)) continue; // table row
-    if (/^\s*>/.test(raw)) continue; // quoted text — someone else's words
+    if (/^\s*(```|~~~)/.test(raw)) {
+      fence = !fence;
+      excluded += 1;
+      continue;
+    }
+    if (fence) {
+      if (raw.trim()) excluded += 1;
+      continue;
+    }
+    if (!raw.trim()) continue; // a blank line is not in the population at all
+    if (/^\s{4,}\S/.test(raw)) {
+      excluded += 1;
+      continue;
+    } // indented code
+    if (/^\s*\|/.test(raw)) {
+      excluded += 1;
+      continue;
+    } // table row
+    if (/^\s*>/.test(raw)) {
+      excluded += 1;
+      continue;
+    } // quoted text — someone else's words
     /* `--!>` also closes an HTML comment, and matching only `-->` left the line after one
        unskipped. CodeQL flagged it (high) and it was right: an incomplete end-tag match. */
-    if (/^\s*(?:#|<!--|--!?>|\[\^)/.test(raw)) continue; // heading, comment, footnote
-    if (/\bdoi:|https?:\/\/\S+\s*$/i.test(raw) && raw.trim().split(/\s+/).length < 14) continue; // a citation line
-    if (/^(?:Rule 0:|Fleet-Session:)/.test(raw)) continue; // a PR body's evidence line and trailer — read by form, not prose
+    if (/^\s*(?:#|<!--|--!?>|\[\^)/.test(raw)) {
+      excluded += 1;
+      continue;
+    } // heading, comment, footnote
+    if (/\bdoi:|https?:\/\/\S+\s*$/i.test(raw) && raw.trim().split(/\s+/).length < 14) {
+      excluded += 1;
+      continue;
+    } // a citation line
+    if (/^(?:Rule 0:|Fleet-Session:)/.test(raw)) {
+      excluded += 1;
+      continue;
+    } // a PR body's evidence line and trailer — read by form, not prose
     let text = raw
       .replace(/`[^`]*`/g, 'CODE')
       .replace(/https?:\/\/\S+/g, 'URL')
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
-    if (!text.trim()) continue;
+    if (!text.trim()) {
+      excluded += 1;
+      continue;
+    }
     const procedure = /^\s*(?:[-*+]|\d+\.)\s/.test(raw);
     out.push({ n: i + 1, text: text.trim(), procedure });
   }
-  return out;
+  return { prose: out, checked: out.length, excluded, eligible: out.length + excluded };
+}
+
+/** The prose alone. Kept at its old signature and return shape: every caller of it predates `scan`. */
+export function proseLines(src) {
+  return scan(src).prose;
 }
 
 export function sentences(text) {
@@ -132,7 +186,27 @@ const words = (s) =>
     .filter((w) => /[A-Za-z0-9]/.test(w));
 
 /* Passive: a form of "to be" plus a past participle. A heuristic, and it says so. */
-const PASSIVE = /\b(is|are|was|were|be|been|being)\s+(?:\w+ly\s+)?([a-z]+(?:ed|en))\b/;
+const PASSIVE = /\b(is|are|was|were|be|been|being)\s+(?:\w+ly\s+)?([a-z]+(?:ed|en))\b/g;
+/* Words the PASSIVE shape matches that are not participles. Measured on 2026-10-12 over the 767 tracked
+   Markdown files: "is green" 87, "is open" 41, "is then" 47, "is when" 7, "is often" 6 and "is even" 4
+   all read as passive, and none of them is a verb. */
+export const NOT_PARTICIPLE = new Set(['green', 'open', 'then', 'when', 'often', 'even', 'ten', 'seven', 'eleven', 'between', 'screen', 'token', 'oxygen', 'hyphen', 'sudden', 'golden']);
+/* `un-` plus a participle is a state, not an action: "the file is unchanged" names no actor because it
+   has none. Measured: unchanged 131, untouched 89, unaffected 68. A real verb that starts with `un-`
+   stays passive, and this list names those verbs. */
+const UN_VERB = /^un(?:block|lock|pack|load|mount|wrap|install|stage|do|set|pin|link|zip|register|subscribe|ify)/;
+function passiveMatch(s) {
+  for (const m of s.matchAll(PASSIVE)) {
+    const w = m[2];
+    if (NOT_PARTICIPLE.has(w)) continue;
+    if (w.startsWith('un') && !UN_VERB.test(w)) continue;
+    return m[0];
+  }
+  return null;
+}
+/* -ing words that are plain NOUNS, not a verb used as a noun. Measured on 2026-10-12: sibling 25,
+   ceiling 21, morning 11, and "meaning" in the first draft of the report that sized this backlog. */
+export const NOUN_ING = new Set(['sibling', 'ceiling', 'morning', 'evening', 'meaning', 'warning', 'nothing', 'something', 'anything', 'everything', 'thing', 'string', 'during']);
 const IMPERATIVE_HEAD = /^(?:Run|Read|Add|Use|Set|Check|Make|Write|Open|Close|Do|Keep|Put|Give|Take|Send|Build|Fix|Remove|Replace|Escape|Verify|Measure|Report|Stop|Start|Never|Always)\b/;
 /** A second instruction joined to the first. The verb list is the lowercase twin of the heads. */
 const JOINED_IMPERATIVE =
@@ -148,8 +222,8 @@ export function findings(src, glossary = { retired: new Map(), technical: new Se
       const w = words(s);
       const cap = procedure || IMPERATIVE_HEAD.test(s) ? MAX_WORDS_PROCEDURE : MAX_WORDS_PROSE;
       if (w.length > cap) add(n, 'long-sentence', `${w.length} words, limit ${cap}`);
-      const p = s.match(PASSIVE);
-      if (p) add(n, 'passive', `"${p[0]}"`);
+      const p = passiveMatch(s);
+      if (p) add(n, 'passive', `"${p}"`);
       /* More than one imperative in a sentence: one instruction per sentence. The SECOND one is
          lowercase and follows a joiner, so a case-sensitive scan of the leading form misses it —
          which is what the planted case caught. A bare case-insensitive scan would instead match the
@@ -157,11 +231,13 @@ export function findings(src, glossary = { retired: new Map(), technical: new Se
       if (IMPERATIVE_HEAD.test(s) && JOINED_IMPERATIVE.test(s)) add(n, 'two-imperatives', `"${s.match(JOINED_IMPERATIVE)[0].trim()}"`);
       for (const m of s.matchAll(/\b([a-z][a-z-]{3,}ing)\b/g)) {
         const t = m[1];
-        if (TECHNICAL_NAME.test(t) || glossary.technical.has(t)) continue;
-        /* A verb-noun only when it heads a noun phrase: "the <x>ing of", "a <x>ing". */
+        if (TECHNICAL_NAME.test(t) || glossary.technical.has(t) || NOUN_ING.has(t)) continue;
+        /* A verb-noun only when it heads a noun phrase: "the <x>ing of", "a <x>ing". The END OF A LINE is
+           not the end of a phrase: a hard-wrapped line that stops at "the existing" goes on with its
+           noun on the next line. Measured: existing 38, missing 15 and coupling 10 were mostly that. */
         /* The verb-noun shape is a DETERMINER, the -ing word, and then no noun: "the stamping of",
            "a reading." — not "the writing rules", where -ing modifies a following noun. */
-        if (new RegExp(`\\b(?:the|a|an|this|its|their)\\s+${t}(?=\\s+(?:of|is|was|has|had)\\b|[,.;:)]|$)`, 'i').test(s)) add(n, 'verb-noun', t);
+        if (new RegExp(`\\b(?:the|a|an|this|its|their)\\s+${t}(?=\\s+(?:of|is|was|has|had)\\b|[,.;:)])`, 'i').test(s)) add(n, 'verb-noun', t);
       }
       for (const [retired, approved] of glossary.retired) {
         if (new RegExp(`\\b${retired.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s)) add(n, 'retired-term', `"${retired}" → "${approved}"`);
@@ -174,7 +250,10 @@ export function findings(src, glossary = { retired: new Map(), technical: new Se
   const flush = () => {
     if (!para.length) return;
     const n = para[0].n;
-    const count = para.reduce((a, l) => a + sentences(l.text).length, 0);
+    /* The lines are JOINED before the count. Counted line by line, a hard-wrapped sentence counted once
+       per line, so a six-line paragraph of three sentences read as seven (write-in-ste skill, measured
+       2026-10-12). Joined, a sentence is a sentence wherever the line breaks. */
+    const count = sentences(para.map((l) => l.text).join(' ')).length;
     if (count > MAX_SENTENCES_PARAGRAPH) add(n, 'long-paragraph', `${count} sentences, limit ${MAX_SENTENCES_PARAGRAPH}`);
     para = [];
   };
@@ -203,7 +282,7 @@ function gitCommit() {
   }
 }
 
-export function verdictFor(label, f, lineCount, { advisory = false } = {}) {
+export function verdictFor(label, f, lineCount, { advisory = false, excluded = 0 } = {}) {
   const byRule = {};
   for (const x of f) byRule[x.rule] = (byRule[x.rule] || 0) + 1;
   const summary = Object.keys(byRule)
@@ -221,7 +300,7 @@ export function verdictFor(label, f, lineCount, { advisory = false } = {}) {
     reason = `advisory — ${f.length} finding(s); the rule is not armed on this run (--advisory)`;
   } else if (lineCount === 0) {
     status = 'NOT_RUN';
-    reason = 'no prose line examined';
+    reason = excluded ? `no prose line examined — all ${excluded} non-blank line(s) are table rows, quotes, headings, code or form lines` : 'no prose line examined';
   } else if (f.length) {
     status = 'FAIL';
     reason = `${f.length} finding(s): ${summary}`;
@@ -230,7 +309,9 @@ export function verdictFor(label, f, lineCount, { advisory = false } = {}) {
     gate: 'ste-lint',
     scope: 'internal',
     status,
-    population: { checked: lineCount, eligible: lineCount, excluded: 0 },
+    /* `excluded` defaults to 0 so the old three-argument call still produces a valid object, and
+       every caller in this repo now passes it. §🧾: checked + excluded = eligible. */
+    population: { checked: lineCount, eligible: lineCount + excluded, excluded },
     criterion: { name: 'ste_findings', threshold: 0, unit: 'findings', direction: 'lte' },
     result: { target: label, findings: f.length, byRule },
     evidence: ['tools/ste-lint.mjs', 'docs/GLOSSARY.md'],
@@ -249,12 +330,16 @@ function main() {
   const src = target === '-' ? readFileSync(0, 'utf8') : readFileSync(target, 'utf8');
   const g = readGlossary();
   const f = findings(src, g);
-  const lineCount = proseLines(src).length;
+  const pop = scan(src);
+  const lineCount = pop.checked;
   const advisory = argv.includes('--advisory');
-  const v = verdictFor(target === '-' ? '<stdin>' : target, f, lineCount, { advisory });
+  const v = verdictFor(target === '-' ? '<stdin>' : target, f, lineCount, { advisory, excluded: pop.excluded });
   console.log(JSON.stringify(v));
   if (!argv.includes('--json')) {
-    console.log(`\n▸ ${target}: ${f.length} finding(s) over ${lineCount} prose line(s)`);
+    /* The skipped count is printed BESIDE the finding count, because a reader who sees only
+       "0 finding(s) over 0 prose line(s)" reads a pass. */
+    const skipped = pop.excluded ? `, ${pop.excluded} of ${pop.eligible} line(s) not prose` : '';
+    console.log(`\n▸ ${target}: ${f.length} finding(s) over ${lineCount} prose line(s)${skipped}`);
     const byRule = v.result.byRule;
     for (const k of Object.keys(byRule).sort()) console.log(`   ${String(byRule[k]).padStart(4)}  ${k}`);
     for (const x of f.slice(0, 25)) console.log(`   ${target}:${x.line}  ${x.rule} — ${x.detail}`);
@@ -303,7 +388,25 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('a verb-noun is reported', rules('The stamping of the fixture failed.').includes('verb-noun'), true);
   ck('a technical name ending in -ing is NOT a verb-noun', rules('The oxydex reading is null.', G).includes('verb-noun'), false);
   ck('a retired term is reported with its approved form', findings('It is a proxy for the truth.', G).find((x) => x.rule === 'retired-term').detail, '"proxy" → "measured value"');
+  /* 🔴 THE FALSE POSITIVES, measured over the 767 tracked Markdown files on 2026-10-12. Each word had
+     its own count; each has its own case, and a real passive and a real verb-noun stay reported. */
+  for (const w of ['green', 'open', 'then', 'often', 'even']) ck(`"is ${w}" is not passive`, rules(`The check is ${w} now.`).includes('passive'), false);
+  for (const w of ['unchanged', 'untouched', 'unaffected', 'unmeasured']) ck(`"is ${w}" is a state, not passive`, rules(`The file is ${w} here.`).includes('passive'), false);
+  ck('…but "is unblocked" is a real passive', rules('The queue is unblocked by the walker.').includes('passive'), true);
+  ck('…and a sentence with a state AND a passive still reports the passive', rules('The file is unchanged and the row was written.').includes('passive'), true);
+  for (const w of ['sibling', 'ceiling', 'morning', 'meaning', 'warning']) ck(`"the ${w}." is a noun, not a verb-noun`, rules(`It reads the ${w}.`).includes('verb-noun'), false);
+  ck('a line that ends on "the existing" is a hard wrap, not a verb-noun', rules('It anchors to the existing\nvalue in the table.').includes('verb-noun'), false);
+  ck('…and "the stamping." at a sentence end is still a verb-noun', rules('It failed at the stamping.').includes('verb-noun'), true);
+  ck(
+    'a hard-wrapped paragraph of three sentences is not long',
+    rules('The first sentence runs\nonto a second line here. The second\nsentence does too. The third\nsentence is\nshort\nand wraps.').includes('long-paragraph'),
+    false
+  );
+  ck('…and seven real sentences on seven lines still are', rules('One.\nTwo.\nThree.\nFour.\nFive.\nSix.\nSeven.').includes('long-paragraph'), true);
   /* 🔴 THE SKIPS. A checker that flags the wrong span teaches people to ignore it. */
+  ck('YAML frontmatter is skipped', rules('---\nname: x\ndescription: ' + long + '\n---\n\nShort body.').length, 0);
+  ck('…but a rule line later in the file is not frontmatter', rules('Short body.\n\n---\n\n' + long).includes('long-sentence'), true);
+
   ck('fenced code is skipped', rules('```\n' + long + '\n```').length, 0);
   ck('a table row is skipped', rules('| ' + long + ' |').length, 0);
   ck('a quoted log line is skipped', rules('> ' + long).length, 0);
@@ -327,6 +430,72 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('no prose line examined is NOT_RUN, never PASS over nothing', verdictFor('x', [], 0).status, 'NOT_RUN');
   ck('--advisory is NOT_APPLICABLE, never PASS over findings', verdictFor('x', [{ line: 1, rule: 'passive', detail: '' }], 3, { advisory: true }).status, 'NOT_APPLICABLE');
   ck('…and it carries the count', verdictFor('x', [{ line: 1, rule: 'passive', detail: '' }], 3).result.findings, 1);
+  /* THE POPULATION — what the gate did NOT read (2026-10-12). Before `scan` counted it, every
+     verdict said `excluded: 0`, so a target whose prose sits in table cells reported
+     "0 finding(s) over 0 prose line(s)" with an object that claimed it had read the whole file. */
+  ck('a table-only target reports what it skipped', scan('| a | b |\n|---|---|\n| c | d |'), {
+    prose: [],
+    checked: 0,
+    excluded: 3,
+    eligible: 3
+  });
+  ck('…and the verdict over it is NOT_RUN with the skipped count', verdictFor('x', [], 0, { excluded: 3 }).population, {
+    checked: 0,
+    eligible: 3,
+    excluded: 3
+  });
+  ck('…and its reason names them', /all 3 non-blank line/.test(verdictFor('x', [], 0, { excluded: 3 }).reason), true);
+  ck('a blank line is in NO population', scan('The tool ran.\n\n\nThe gate passed.'), {
+    prose: [
+      { n: 1, text: 'The tool ran.', procedure: false },
+      { n: 4, text: 'The gate passed.', procedure: false }
+    ],
+    checked: 2,
+    excluded: 0,
+    eligible: 2
+  });
+  ck('a fence counts its delimiters and its contents', scan('```\nx = 1\n```').excluded, 3);
+  /* A line of nothing but inline code IS examined, because the stripper leaves the token `CODE`
+     behind — measured, after this test first asserted the opposite. A line that strips to NOTHING,
+     such as a bare link, is the one that leaves the prose set, and it is counted. */
+  ck('a line of only inline code is examined as one word', scan('`npm run check`').prose[0].text, 'CODE');
+  ck('a line that strips to nothing is excluded', scan('[](https://example.com)').checked, 0);
+  ck('…and it is counted', scan('[](https://example.com)').excluded, 1);
+  ck('proseLines keeps its old return shape', proseLines('The tool ran.'), [{ n: 1, text: 'The tool ran.', procedure: false }]);
+  ck('the three-argument verdict still makes a valid object', verdictFor('x', [], 3).population, { checked: 3, eligible: 3, excluded: 0 });
+  /* #3480's BODY, the case that opened this. Its prose lines are VERBATIM from the merged body; its
+     table rows are abbreviated, because the skip is by form and the cell content cannot change it.
+     The whole 42-line body measures `checked: 4, excluded: 24, eligible: 28` on 117f8427, and the
+     old tool reported `checked: 4, eligible: 4, excluded: 0` over it — a PASS that named 4 lines as
+     the entire population of a 28-line body. Check 6 caught that body's `fixed #3476` because it
+     reads the raw text; the writing rules never reached the 17 rows. */
+  {
+    const pr3480 = [
+      'Rule 0: `node tools/doc-search.mjs --read "residue-only PR sequencing"` → `ext:memory/osprey-state-2026-10-05.md` (0.033).',
+      '',
+      'RESIDUE-only, by the stopgap. `briefs/RESIDUE.md` is the one file this PR touches. Skills: `residue-row` for the row shape and the closed vocabulary, `worktree-to-pr` for the branch and this body.',
+      '',
+      '## 1 · Two closures against #3476, each verified by content',
+      '',
+      '| key | why it closes |',
+      '|---|---|',
+      '| `2026-09-22-link-sidecar-is-box-wide-not-per-device` | one tag list |',
+      '| `2026-09-23-a-journal-that-is-almost-entirely-one-line-is-reported-by-nothing` | measured |',
+      '',
+      "Both state cells now read `fixed #3476`. #3476 sits ahead of this PR in the walker's order, so that citation lands first.",
+      '',
+      'The ledger permits only a state cell to change. A measurement about a row cannot go into that row, so each of these appends instead.',
+      '',
+      'Fleet-Session: Osprey'
+    ].join('\n');
+    const pop = scan(pr3480);
+    ck('#3480 body: the prose lines are examined', pop.checked, 3);
+    ck('…and the 7 form lines are counted, not forgotten', pop.excluded, 7);
+    ck('…so the population adds up (§🧾 checked + excluded = eligible)', pop.checked + pop.excluded === pop.eligible, true);
+    const v = verdictFor('pr3480', findings(pr3480, G), pop.checked, { excluded: pop.excluded });
+    ck('…and the verdict no longer calls 3 lines the whole body', v.population.eligible === v.population.checked, false);
+    ck('…while the body itself still passes the rules it was written to', v.status, 'PASS');
+  }
   ck('the glossary reader survives an absent file', readGlossary('/nonexistent').retired.size, 0);
   /* A multi-name technical row registers EVERY name — the defect measured 2026-10-12. */
   {

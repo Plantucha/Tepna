@@ -3740,3 +3740,170 @@ def test_a_CLAIMED_UNCHECKED_mutant_is_counted_never_refused_and_never_passed():
     # and positive evidence still outranks every one of them
     assert len(M.classify(entry, [], {key}, generated={key}, unchecked={key})["refuted"]) == 1
     assert len(M.classify(entry, [{"key": key}], set(), generated={key}, unchecked={key})["excused"]) == 1
+
+
+# ── A KEY THAT CANNOT NAME ITS FUNCTION ─────────────────────────────────────────────────────────────
+# Residue `2026-10-04-an-equivalence-key-cannot-name-its-function` and
+# `2026-10-05-a-mutant-key-is-not-unique-within-a-module-for-a-bare-statement-mutation`. A mutant's key
+# is its changed diff lines; a bare statement's text is not distinctive, so two mutants in two functions
+# share one key. One entry then spoke for both, and two survivors collapsed into one map slot before any
+# entry was read. The qualifier is OPTIONAL, so every entry already recorded keeps its meaning.
+
+_BARE = "- continue | + break"
+
+
+def _surv(key, mutant=None, module="timeline.py"):
+    """A survivor record shaped the way the sweep builds one: `mutant` is the mutmut name, and it is
+    what carries the function. Omitting it is the shape a LATE survivor had before this change."""
+    out = {"key": key, "module": module}
+    if mutant is not None:
+        out["mutant"] = mutant
+    return out
+
+
+def test_an_entry_with_NO_function_speaks_for_the_whole_module_as_it_always_did():
+    """The back-compatibility arm, and the reason no recorded entry has to be re-verified. Every entry
+    in the committed ledger is this shape."""
+    e = [{"key": _BARE, "class": "no-distinguishing-input"}]
+    got = M.classify(e, [_surv(_BARE, "timeline.x_build__mutmut_7")], set())
+    assert [x["key"] for x in got["excused"]] == [_BARE], got
+    assert got["unclassified"] == [], got
+
+
+def test_an_entry_qualified_by_FUNCTION_excuses_only_that_function():
+    """The fix for #3245's entry: an argument that is correct for `unrecorded_shift` must not excuse the
+    same changed line in `timebase`. The second survivor is reported, which is the gate failing."""
+    e = [{"key": _BARE, "class": "no-distinguishing-input", "function": "build"}]
+    survivors = [_surv(_BARE, "timeline.x_build__mutmut_7"), _surv(_BARE, "timeline.x_prune__mutmut_2")]
+    got = M.classify(e, survivors, set())
+    assert [x["key"] for x in got["excused"]] == [_BARE], got
+    assert [x["mutant"] for x in got["unclassified"]] == ["timeline.x_prune__mutmut_2"], (
+        got["unclassified"],
+        "the sibling function's survivor must stay unexcused — one entry, one function",
+    )
+
+
+def test_two_survivors_sharing_one_KEY_are_both_reported():
+    """The half the row calls worse: `{sv["key"]: sv …}` collapsed them, so the gate reported ONE
+    survivor where two existed and the loss was invisible because the count simply looked lower."""
+    survivors = [_surv(_BARE, "timeline.x_build__mutmut_7"), _surv(_BARE, "timeline.x_prune__mutmut_2")]
+    got = M.classify([], survivors, set())
+    assert len(got["unclassified"]) == 2, (got["unclassified"], "two mutants, two rows")
+    assert sorted(x["mutant"] for x in got["unclassified"]) == [
+        "timeline.x_build__mutmut_7",
+        "timeline.x_prune__mutmut_2",
+    ], got["unclassified"]
+
+
+def test_a_qualified_entry_is_NOT_refuted_by_a_kill_in_a_SIBLING_function():
+    """The #3263 incident itself. The entry's argument was made about one function; the kill happened in
+    another that carries the same line. REFUTED instructs a reader to DELETE the claim, so a kill that
+    cannot be attributed to the claim's own function must not reach it."""
+    e = [{"key": _BARE, "class": "untestable-by-design", "function": "unrecorded_shift"}]
+    kills = {(_BARE, "timebase")}
+    got = M.classify(e, [], kills, generated={_BARE})
+    assert got["refuted"] == [], (got["refuted"], "a kill in `timebase` says nothing about `unrecorded_shift`")
+    assert [x["key"] for x in got["not_decided"]] == [_BARE], got
+
+
+def test_a_qualified_entry_IS_refuted_by_a_kill_in_its_OWN_function():
+    """The other arm, which is the one that must still bite: the claim is wrong and the gate says so."""
+    e = [{"key": _BARE, "class": "untestable-by-design", "function": "timebase"}]
+    got = M.classify(e, [], {(_BARE, "timebase")}, generated={_BARE})
+    assert [x["key"] for x in got["refuted"]] == [_BARE], got
+
+
+def test_an_UNATTRIBUTED_kill_refutes_an_unqualified_entry_and_not_a_qualified_one():
+    """A bare key in `killed` is a kill nobody placed. Against an entry that speaks for the module it is
+    the behaviour this gate has always had; against an entry that names one function it is a claim and a
+    kill about different things, so they do not meet."""
+    plain = [{"key": _BARE, "class": "no-distinguishing-input"}]
+    qualified = [{"key": _BARE, "class": "no-distinguishing-input", "function": "build"}]
+    assert [x["key"] for x in M.classify(plain, [], {_BARE}, generated={_BARE})["refuted"]] == [_BARE]
+    assert M.classify(qualified, [], {_BARE}, generated={_BARE})["refuted"] == [], (
+        "an unplaced kill must not delete a claim that names a function"
+    )
+
+
+def test_a_qualified_entry_does_not_match_a_survivor_whose_FUNCTION_cannot_be_read():
+    """`function_of_mutant` returns "" rather than guessing. A qualified entry over an unnamed mutant is
+    a claim nobody can check, so the survivor stays unexcused and the gate fails — the fail-closed arm,
+    and the reason a late survivor now carries its mutant name."""
+    e = [{"key": _BARE, "class": "no-distinguishing-input", "function": "build"}]
+    got = M.classify(e, [_surv(_BARE)], set())
+    assert got["excused"] == [], got
+    assert len(got["unclassified"]) == 1, got
+
+
+def test_a_survivor_may_declare_its_own_function_instead_of_carrying_a_mutant_name():
+    """`function` on the SURVIVOR is preferred over decoding the mutmut name, so a caller that already
+    knows the function does not have to re-encode it into a glob for this to read it back."""
+    e = [{"key": _BARE, "class": "no-distinguishing-input", "function": "build"}]
+    sv = {"key": _BARE, "module": "timeline.py", "function": "build"}
+    assert [x["key"] for x in M.classify(e, [sv], set())["excused"]] == [_BARE]
+
+
+def test_entry_matches_function_and_kill_attributed_to_are_pinned_directly():
+    """The two helpers on their own, because each arm above exercises them through `classify` and a
+    helper whose only coverage is an end-to-end path is a helper nobody can read a verdict off."""
+    assert M.entry_matches_function({}, "build") is True
+    assert M.entry_matches_function({"function": ""}, "build") is True  # empty is absent, not a filter
+    assert M.entry_matches_function({"function": "build"}, "build") is True
+    assert M.entry_matches_function({"function": "build"}, "prune") is False
+    assert M.entry_matches_function({"function": "build"}, "") is False
+    assert M.kill_attributed_to({}, "k", {"k"}) is True
+    assert M.kill_attributed_to({}, "k", {("k", "build")}) is True
+    assert M.kill_attributed_to({}, "k", {("other", "build")}) is False
+    assert M.kill_attributed_to({"function": "build"}, "k", {("k", "build")}) is True
+    assert M.kill_attributed_to({"function": "build"}, "k", {("k", "prune")}) is False
+    assert M.kill_attributed_to({"function": "build"}, "k", {"k"}) is False
+    assert M.kill_attributed_to({}, "k", None) is False
+
+
+# ── The two `.get` DEFAULTS in `classify` are one coupling, and only one input can see it ───────────
+# Four mutants of these two lines survived the diff-scoped gate on #3511. Two are killed below; two
+# are recorded in `tools/mutate-equivalence.json` with the proof, because the guard inside
+# `function_of_mutant` makes `""` and `None` the same argument.
+
+
+def test_a_survivor_with_no_key_cell_meets_a_KEYLESS_entry_on_the_empty_key():
+    """Both defaults are the SAME empty string, and that is the only place the two malformed shapes meet.
+
+    `classify` groups survivor rows under `sv.get("key", "")` and reads an entry's key as
+    `e.get("key", "")`. So a survivor whose key cell is absent is claimable by an entry carrying no
+    `key`, and by nothing else — change either default and the pair stops meeting. The ledger's own
+    schema test states the entry half of this ("it reads `.get("key", "")` and reports the entry
+    orphaned"), which holds for every REAL survivor, since a survivor is built from a diff key.
+    """
+    entry = {"class": "no-distinguishing-input", "probe": "the covering set, with the mutant planted"}
+    out = M.classify([entry], [{"mutant": "mod.x_f__mutmut_1"}], [])
+    assert len(out["excused"]) == 1, out
+    assert not out["unclassified"], out
+    assert not out["orphaned"], out
+
+
+def test_a_survivor_with_no_key_cell_is_NOT_excused_by_an_entry_that_carries_a_key():
+    """The half that matters in production: a keyed entry claims a keyed survivor and nothing else.
+
+    A survivor with no key is reported unclassified, so the gate fails on it rather than letting a
+    neighbouring entry absorb it."""
+    entry = {"key": "- a | + b", "class": "no-distinguishing-input", "probe": "ran it"}
+    out = M.classify([entry], [{"mutant": "mod.x_f__mutmut_1"}], [])
+    assert not out["excused"], out
+    assert len(out["unclassified"]) == 1, out
+    assert len(out["orphaned"]) == 1, out
+
+
+def test_function_of_mutant_reads_an_ABSENT_name_and_an_empty_one_identically():
+    """The canary under two recorded equivalence entries, so the claim cannot rot silently.
+
+    `classify` reads a survivor's mutant name as `sv.get("mutant", "")`. Mutating that default to
+    `None` is unobservable ONLY because `function_of_mutant` opens with `if not name: return ""` — both
+    arguments are falsy and both return the empty string. If that guard is ever narrowed to `== ""`,
+    this test goes red and the two ledger entries stop being true on the same day.
+    """
+    read = M.function_of_mutant
+    assert read("") == ""
+    assert read(None) == ""  # type: ignore[arg-type]
+    absent: dict = {}
+    assert read(absent.get("mutant", "")) == read(absent.get("mutant", None))  # type: ignore[arg-type]

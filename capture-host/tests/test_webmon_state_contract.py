@@ -261,7 +261,6 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
     d = _state(tmp_path, [DEV], {})["devices"][0]
     assert set(d) == DEVICE_KEYS
     assert d["connected"] is False, "never reported is a definite NO, not unknown"
-    assert d["charging"] is False
     for k in (
         "battery",
         "rssi",
@@ -273,6 +272,10 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
         "pull_progress",
         "link_epoch",
         "worn",
+        # `charging` SITS IN THIS LIST, not beside `connected` above. It read `is False` until
+        # 2026-10-12, which is the one field in this response where "never reported" was asserted to
+        # be a definite no: the daemon cannot know whether an unheard-from device is on its dock.
+        "charging",
         "last_error",
         "oxy_lifecycle",
         "oxy_recording",
@@ -286,6 +289,21 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
         "auth_unknown_links",
     ):
         assert d[k] is None, f"{k} must be null when the device has never reported"
+
+
+def test_a_FLAT_BATTERY_null_charging_reaches_the_API_as_a_null(tmp_path):
+    """∅ The whole point of the 2026-10-12 ruling, measured at the boundary that nearly ate it.
+
+    `capture.py` writes `charging=None, charging_why="flat-at-full"` when the only thing it has is a
+    battery that has not moved — flatness fits a dock and a fresh coin cell equally, so the daemon
+    makes no claim. This projection coerced that null with `bool()` until 2026-10-12, and `bool(None)`
+    is `False`: every HTTP reader was handed "NOT charging", which is the opposite verdict rather than
+    the absence of one. A measured `False` must still arrive as `False`, or the fix would have traded
+    one indistinguishable pair for another."""
+    unknown = _state(tmp_path, [DEV], {DEV["name"]: {"charging": None}})["devices"][0]
+    assert unknown["charging"] is None, "flatness alone proves no charger — the null must survive"
+    measured = _state(tmp_path, [DEV], {DEV["name"]: {"charging": False}})["devices"][0]
+    assert measured["charging"] is False, "a falling cell IS a verdict and must not become a null"
 
 
 def test_status_is_matched_to_a_device_by_NAME_not_by_position(tmp_path):

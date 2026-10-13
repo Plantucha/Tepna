@@ -228,6 +228,7 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
         "tepna-usbreset.sh",
         "tepna-btreset.sh",
         "tepna-wifi.sh",
+        "tepna-sysfiles.sh",
     ):
         body = f"#!/usr/bin/env bash\n# {h}\n"
         (tmp_path / "capture-host" / h).write_text(body)
@@ -335,6 +336,7 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
         "tepna-usbreset.sh",
         "tepna-btreset.sh",
         "tepna-wifi.sh",
+        "tepna-sysfiles.sh",
     ):
         body = f"#!/usr/bin/env bash\n# {h}\n"
         (src / h).write_text(body)
@@ -404,6 +406,7 @@ def test_the_four_privileged_helpers_are_installed_EXECUTABLE(tmp_path):
         "tepna-usbreset.sh",
         "tepna-btreset.sh",
         "tepna-wifi.sh",
+        "tepna-sysfiles.sh",
     ):
         (lib / h).unlink()
     # --install still exits 1 after repairing (it reports the drift it found), so the MODE is the
@@ -416,6 +419,7 @@ def test_the_four_privileged_helpers_are_installed_EXECUTABLE(tmp_path):
         "tepna-usbreset.sh",
         "tepna-btreset.sh",
         "tepna-wifi.sh",
+        "tepna-sysfiles.sh",
     ):
         assert os.access(lib / h, os.X_OK), f"{h} installed non-executable — every sudoers grant on it is dead"
 
@@ -694,6 +698,15 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #     never reach apt-get or a real /etc even in a root container;
     #   • tepna-m10-tune.sh writes no file at all; its only command, ubxtool, is reached through the
     #     TEPNA_UBXTOOL seam which every test sets — to a stub, or to a name that resolves to nothing.
+    # tepna-sysfiles.sh added 2026-10-12 (test_tepna_sysfiles_sh.py) — the NOPASSWD drift installer
+    # (owner ruling, option A). It CAN write /etc as root, so the confirmation is about the root path:
+    #   • as a non-root user it reads TEPNA_SYSFILES_REMOTE, TEPNA_REPO_DIR and TMPDIR, and `_run()`
+    #     sets all three unconditionally, so it clones a tmp_path upstream and writes only under tmp_path;
+    #   • the checker it runs is the UPSTREAM stub each test commits, never the real one;
+    #   • as root it ignores every override and would clone GitHub and install for real, so its `box`
+    #     fixture SKIPS when euid == 0;
+    #   • tepna-update.sh reaches it only through TEPNA_SYSFILES_SH, which test_vigil_update.py's
+    #     `_run()` points at a tmp_path stub, absent unless a test writes it.
     assert executed <= {
         "check-system-files.sh",
         "sync-apps.sh",
@@ -705,6 +718,7 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
         "tepna-usbreset.sh",
         "tepna-btreset.sh",
         "tepna-wifi.sh",
+        "tepna-sysfiles.sh",
         "check.sh",
         "tepna-update.sh",
         "vigil.sh",

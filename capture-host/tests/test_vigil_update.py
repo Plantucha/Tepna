@@ -54,6 +54,10 @@ def box(tmp_path):
     helper.write_text(f'#!/usr/bin/env bash\necho "$@" >> {called}\nexit 0\n')
     helper.chmod(0o755)
 
+    # The drift installer, ABSENT by default: a test that wants it writes it. Without the override the
+    # suite would sudo the box's real /usr/local/lib/tepna/tepna-sysfiles.sh, which clones GitHub.
+    sysfiles = tmp_path / "tepna-sysfiles.sh"
+
     # The deployed-SHA marker, isolated per test. On the box it lives in /run — cleared on boot, which
     # is correct, because after a boot the daemon started on whatever was checked out.
     return {
@@ -62,6 +66,7 @@ def box(tmp_path):
         "status": status,
         "helper": helper,
         "called": called,
+        "sysfiles": sysfiles,
         "mark": tmp_path / "deployed-sha",
         "fails": tmp_path / "update-fails",
         "defers": tmp_path / "update-defers",
@@ -100,6 +105,7 @@ def _run(box, *mode, **env):
         "TEPNA_REPO_DIR": str(box["repo"]),
         "TEPNA_STATUS_JSON": str(box["status"]),
         "TEPNA_RESTART_SH": str(box["helper"]),
+        "TEPNA_SYSFILES_SH": str(box["sysfiles"]),
         "TEPNA_SUDO": "env",
         "TEPNA_DEPLOYED_MARK": str(box["mark"]),
         # Isolated per test. Without this the suite would write the streak marker to the REAL
@@ -294,8 +300,41 @@ def test_it_REPORTS_etc_drift_and_never_installs_it(box):
     _upstream_checker(box, '#!/usr/bin/env bash\necho "ARGS:[$*]"\necho "tepna-clock.sh STALE"\nexit 1\n')
     r = _run(box)
     assert r.returncode == 1
-    assert "a HUMAN must run" in r.stderr
+    assert "is not installed" in r.stderr and "a HUMAN must run" in r.stderr
     assert "ARGS:[]" in r.stderr, "the updater passed --install; it must never write /etc"
+
+
+def _sysfiles(box, rc):
+    """A stand-in drift installer that records its argv and exits `rc`."""
+    box["sysfiles"].write_text(f'#!/usr/bin/env bash\necho "SYSFILES:[$*]"\nexit {rc}\n')
+    box["sysfiles"].chmod(0o755)
+
+
+def test_drift_is_INSTALLED_through_the_sysfiles_helper_and_the_run_is_green(box):
+    """Owner ruling 2026-10-12, option A: the helper installs from GitHub, so a cleared drift is not a
+    failure. The checkout's own checker still never sees `--install`."""
+    _upstream_checker(box, '#!/usr/bin/env bash\necho "ARGS:[$*]"\nexit 1\n')
+    _sysfiles(box, 0)
+    r = _run(box)
+    assert r.returncode == 0, r.stderr
+    assert "installed from GitHub" in r.stdout and "SYSFILES:[install]" in r.stdout
+    assert "a HUMAN must run" not in r.stderr and "--install" not in r.stdout + r.stderr
+
+
+def test_a_sysfiles_helper_that_does_not_clear_the_drift_fails_the_run_and_shows_both_reports(box):
+    _upstream_checker(box, '#!/usr/bin/env bash\necho "tepna-clock.sh STALE"\nexit 1\n')
+    _sysfiles(box, 1)
+    r = _run(box)
+    assert r.returncode == 1
+    assert "did not clear it" in r.stderr and "a HUMAN must run" in r.stderr
+    assert "tepna-clock.sh STALE" in r.stderr and "SYSFILES:[install]" in r.stderr
+
+
+def test_no_drift_never_calls_the_sysfiles_helper(box):
+    _upstream_checker(box, "#!/usr/bin/env bash\nexit 0\n")
+    _sysfiles(box, 0)
+    r = _run(box)
+    assert r.returncode == 0 and "SYSFILES" not in r.stdout + r.stderr
 
 
 def test_drift_does_not_prevent_the_restart(box):

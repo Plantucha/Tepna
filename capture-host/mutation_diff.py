@@ -768,6 +768,56 @@ def refutation_corroborated(first_exit, second_exit) -> tuple[bool, str]:
     return True, ""
 
 
+def entry_matches_function(entry: dict, fn: str) -> bool:
+    """Whether an equivalence entry may speak about a mutant in function `fn`.
+
+    An entry is matched on its KEY, and `diff_key` builds that key from the mutant's changed diff lines
+    alone. For an expression mutation the text is distinctive; for a BARE STATEMENT mutation it is not —
+    a `continue` turned into a `break` keys as `- continue | + break`, and one module holds fourteen bare
+    `continue` statements across six functions. One recorded argument then excused every other
+    function's occurrence of the same line, which is residue
+    `2026-10-05-a-mutant-key-is-not-unique-within-a-module-for-a-bare-statement-mutation`, and the day a
+    PR brought a second occurrence into scope the gate reported the collision as a REFUTED claim —
+    residue `2026-10-04-an-equivalence-key-cannot-name-its-function`, measured on #3263.
+
+    `function` is OPTIONAL and the absent case is today's behaviour exactly: an entry without it speaks
+    for the whole module, so no existing entry has to be re-verified. An entry that carries it speaks
+    for that function and no other.
+
+    ⚠️ AN UNREADABLE FUNCTION DOES NOT MATCH A QUALIFIED ENTRY. `function_of_mutant` returns "" rather
+    than guessing, and a qualified entry over an unnamed mutant is a claim nobody can check — so the
+    survivor stays unexcused and the gate fails. That is the fail-closed arm: the cost is a survivor
+    the reader must look at, and the alternative cost is an excuse granted to a mutant in an unknown
+    place."""
+    want = entry.get("function")
+    if not want:
+        return True
+    return want == fn
+
+
+def kill_attributed_to(entry: dict, key: str, kills) -> bool:
+    """Whether a CORROBORATED kill in `kills` refutes this entry.
+
+    `kills` holds bare keys (a kill nobody attributed to a function) or `(key, function)` pairs. REFUTED
+    is the one verdict in this module that destroys work — it instructs a reader to delete a recorded
+    claim — so attribution fails closed in BOTH directions:
+
+      · an entry with no `function` is refuted by any kill of its key, which is what it has always been;
+      · an entry WITH one is refuted only by a kill attributed to that same function, because the kill
+        that refuted #3245's entry was a kill in `timebase` over an argument made about `unrecorded_shift`;
+      · an UNATTRIBUTED kill never refutes a qualified entry. The claim is about one function and the
+        kill is about an unknown one, so the two do not meet.
+    """
+    want = entry.get("function")
+    for k in kills or ():
+        if isinstance(k, tuple):
+            if k[0] == key and (not want or want == k[1]):
+                return True
+        elif k == key and not want:
+            return True
+    return False
+
+
 def classify(entries, survivors, killed, generated=(), not_required=(), unchecked=()):
     """Split survivors against the recorded classification.
 
@@ -780,7 +830,15 @@ def classify(entries, survivors, killed, generated=(), not_required=(), unchecke
     `killed` are both POSITIVE observations and are tested as such; everything else falls through to
     `not_decided` or `orphaned`. Absence can no longer reach `refuted` by any path, because absence is
     what a reaped worker, a partial run and an unreported shard all look like."""
-    surv = {sv["key"]: sv for sv in survivors}
+    # ⚠️ A LIST PER KEY, NEVER ONE SURVIVOR PER KEY. This was `{sv["key"]: sv for sv in survivors}`,
+    # so two survivors sharing one key DEDUPLICATED here — the gate reported one survivor where two
+    # existed, before any entry was read, and the loss was invisible because the count simply looked
+    # lower. Two bare-statement mutants in different functions share a key by construction (see
+    # `entry_matches_function`), so this is reachable on any module with a repeated bare statement.
+    _rows = [(i, sv, sv.get("function") or function_of_mutant(sv.get("mutant", ""))) for i, sv in enumerate(survivors)]
+    surv: dict = {}
+    for _r in _rows:
+        surv.setdefault(_r[1].get("key", ""), []).append(_r)
     kills = set(killed or ())
     # JUST `generated`, and the two unions it used to carry are gone for two reasons. They were
     # PROVABLY DEAD: a key in `surv` or in `kills` is routed by the branches below before the `k in
@@ -815,11 +873,14 @@ def classify(entries, survivors, killed, generated=(), not_required=(), unchecke
         "claimed_not_required": [],
         "claimed_unchecked": [],
     }
-    claimed = set()
+    # The survivors an entry SPOKE FOR, by position in `survivors` — not by key, because one key may
+    # now name several survivors and an entry may speak for only some of them.
+    _claimed_rows: set = set()
     for e in entries or []:
         k = e.get("key", "")
-        claimed.add(k)
-        if k in surv:
+        _hits = [r for r in surv.get(k, ()) if entry_matches_function(e, r[2])]
+        if _hits:
+            _claimed_rows.update(r[0] for r in _hits)
             if e.get("class") in EXCUSING:
                 _why = float_boundary_unprobed(k, e.get("probe"))
                 if _why:
@@ -828,7 +889,7 @@ def classify(entries, survivors, killed, generated=(), not_required=(), unchecke
                     out["excused"].append(e)
             else:
                 out["real_gap"].append(e)  # recorded debt, still fails
-        elif k in kills:
+        elif kill_attributed_to(e, k, kills):
             out["refuted"].append(e)  # a CORROBORATED kill: a distinguishing input does exist
         elif k in unchk:
             out["claimed_unchecked"].append(
@@ -853,9 +914,9 @@ def classify(entries, survivors, killed, generated=(), not_required=(), unchecke
             )
         else:
             out["orphaned"].append(e)  # the line moved — excuses nothing until re-verified
-    for k, sv in surv.items():
-        if k not in claimed:
-            out["unclassified"].append(sv)
+    for _i, _sv, _fn in _rows:
+        if _i not in _claimed_rows:
+            out["unclassified"].append(_sv)
     return out
 
 

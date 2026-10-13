@@ -5568,3 +5568,170 @@ def test_a_night_whose_every_seam_step_is_non_finite_names_the_absence(tmp_path)
     r = tb["reason"]
     assert "1 recorded clock seam(s), no finite step recorded; no cause recorded this night" in r, r
     assert "nan" not in r.lower() and "largest" not in r, r
+
+
+def test_THE_MORNING_AUDIT_LENDS_ONLY_THIS_NIGHTS_FILES_never_the_next_nights_doff(tmp_path):
+    """🔴 Measured on vigil 2026-10-12. Folder D+1 holds night D's post-midnight tail AND night D+1's own
+    evening, and its audit is rewritten when night D+1 settles — after which its `worn_end` is D+1's doff.
+    Re-judging 2026-10-05 then adopted 2026-10-07 05:03 from the 10-06 audit; the band clipped it to 10:00
+    and the H10 and the Verity, both doffed at 04:20, read 51.7 % complete and FAILED.
+
+    Shape of the real audits: the morning folder's ends name an in-band tail file (session 10-05 22:17,
+    ends 04:20) and the next night's file (session 10-06 21:20, ends 10-07 05:04). Only the first is this
+    night's; the gap row and file record of the second must not cross either."""
+    d5 = tmp_path / "2026-10-05"
+    d6 = tmp_path / "2026-10-06"
+    d5.mkdir()
+    d6.mkdir()
+    dev = "Polar H10 SYNTH"
+    tail = "Polar_H10_SYNTH_20261005221717_ECG.txt"
+    nxt = "Polar_H10_SYNTH_20261006212015_ECG.txt"
+    own_end = {
+        "file": tail,
+        "usable": True,
+        "end_at": "2026-10-06T04:22:07",
+        "worn_end_at": "2026-10-06T04:20:30",
+        "reason": "doff",
+    }
+    next_end = {
+        "file": nxt,
+        "usable": True,
+        "end_at": "2026-10-07T05:04:10",
+        "worn_end_at": "2026-10-07T05:04:00",
+        "reason": "doff",
+    }
+    (d5 / si.LOSS_AUDIT_NAME).write_text(
+        json.dumps(
+            {
+                "journal": "ok",
+                "devices": {
+                    dev: {
+                        "wear": {
+                            "available": True,
+                            "worn_end": {"at": "2026-10-05T23:59:00", "reason": "doff", "file": tail},
+                        }
+                    }
+                },
+            }
+        )
+    )
+    (d6 / si.LOSS_AUDIT_NAME).write_text(
+        json.dumps(
+            {
+                "journal": "ok",
+                "devices": {
+                    dev: {
+                        "wear": {
+                            "available": True,
+                            "ends": [own_end, next_end],
+                            "worn_end": {"at": "2026-10-07T05:04:00", "reason": "doff", "file": nxt},
+                        },
+                        "gaps": [
+                            {"at": "2026-10-06T02:00:00", "s": 7.0, "file": tail},
+                            {"at": "2026-10-06T23:00:00", "s": 99.0, "file": nxt},
+                        ],
+                        "files": [{"file": tail}, {"file": nxt}],
+                    }
+                },
+            }
+        )
+    )
+    pooled = si._pooled_audit(str(d5))["devices"][dev]
+    assert pooled["wear"]["worn_end"] == {"at": "2026-10-06T04:20:30", "reason": "doff", "file": tail}, (
+        "the recording's end is its own tail's doff, not the next night's"
+    )
+    assert pooled["wear"]["ends"] == [own_end], "the next night's end does not cross"
+    assert pooled["wear_from"] == "2026-10-06", "a later in-band end is still adopted from the morning"
+    assert [r["file"] for r in pooled["gaps"]] == [tail], "nor does the next night's gap row"
+
+    # CONTROL: a morning audit with ONLY the next night's file lends nothing — the judged end stands
+    (d6 / si.LOSS_AUDIT_NAME).write_text(
+        json.dumps(
+            {
+                "devices": {
+                    dev: {
+                        "wear": {
+                            "available": True,
+                            "ends": [next_end],
+                            "worn_end": {"at": "2026-10-07T05:04:00", "reason": "doff", "file": nxt},
+                        }
+                    }
+                }
+            }
+        )
+    )
+    pooled = si._pooled_audit(str(d5))["devices"][dev]
+    assert pooled["wear"]["worn_end"]["at"] == "2026-10-05T23:59:00" and "wear_from" not in pooled
+
+
+def test_A_FILELESS_BOUNDARY_ROW_INTO_THE_NEXT_NIGHT_DOES_NOT_CROSS(tmp_path):
+    """🔴 Measured on vigil 2026-10-12: the 10-10 audit carries a `boundary: true` row with no `file`,
+    from night 10-09's doff at 07:38 to night 10-10's evening file — 47 226 s, starting exactly at 10-09's
+    worn end. Re-judged, 10-09 counted that 13 h gap "inside the worn interval" and FAILED. A boundary row
+    is kept only when the gap ENDS in the judged band; one between two fragments of this night stays."""
+    d9 = tmp_path / "2026-10-09"
+    d10 = tmp_path / "2026-10-10"
+    d9.mkdir()
+    d10.mkdir()
+    dev = "Polar Sense SYNTH"
+    (d9 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"journal": "ok", "devices": {dev: {}}}))
+    inside = {"at": "2026-10-10T02:00:00", "s": 600.0, "cause": "unattributed", "file": None, "boundary": True}
+    into_next = {"at": "2026-10-10T07:38:27", "s": 47226.0, "cause": "unattributed", "file": None, "boundary": True}
+    unreadable = {"at": None, "s": None, "file": None, "boundary": True}
+    (d10 / si.LOSS_AUDIT_NAME).write_text(json.dumps({"devices": {dev: {"gaps": [inside, into_next, unreadable]}}}))
+    gaps = si._pooled_audit(str(d9))["devices"][dev]["gaps"]
+    kept = [(g["at"], g["s"]) for g in gaps]
+    assert ("2026-10-10T07:38:27", 47226.0) not in kept, "the gap into the next night is not this night's"
+    assert ("2026-10-10T02:00:00", 600.0) in kept, "CONTROL: a break between this night's fragments stays"
+    assert (None, None) in kept, "a row it cannot place is left for continuity to judge, not dropped"
+
+
+def test_THE_BAND_VIEW_cuts_files_and_named_gaps_and_keeps_the_rest_of_wear():
+    """`_band_view` field by field — the pooled-audit tests reach it only through `_adopt_later_wear`,
+    which reads `wear` and `gaps`, so three of its cuts had no observer (the diff-scoped mutation gate on
+    #3477). A next-night `files` entry and a next-night gap row naming its file are dropped; a re-derived
+    `wear` keeps every field it did not re-derive."""
+    band = si.band_of("2026-10-09")
+    mine = "Polar_H10_SYNTH01_20261010015024_ECG.txt"
+    next_night = "Polar_H10_SYNTH01_20261010204501_ECG.txt"
+    dev = {
+        "files": [{"file": mine}, {"file": next_night}],
+        "gaps": [
+            {"at": "2026-10-10T03:00:00", "s": 60.0, "file": mine},
+            {"at": "2026-10-10T22:00:00", "s": 60.0, "file": next_night},
+        ],
+        "wear": {
+            "worn_end": {"at": "2026-10-11T05:03:00", "reason": "doff", "file": next_night},
+            "ends": [
+                {
+                    "usable": True,
+                    "end_at": "2026-10-10T04:20:00",
+                    "worn_end_at": "2026-10-10T04:20:00",
+                    "reason": "doff",
+                    "file": mine,
+                },
+            ],
+            "basis": "SYNTH-KEPT",
+        },
+    }
+    out = si._band_view(dev, band)
+    assert out["files"] == [{"file": mine}], out["files"]
+    assert [g["file"] for g in out["gaps"]] == [mine], out["gaps"]
+    assert out["wear"]["worn_end"]["file"] == mine, out["wear"]
+    assert out["wear"]["basis"] == "SYNTH-KEPT", "a re-derived wear keeps the fields it did not re-derive"
+
+
+def test_ENDS_IN_BAND_decides_only_fileless_readable_rows():
+    """`_ends_in_band`'s guard, one input per disjunct. A row that names a file is `keep`'s to decide and
+    passes here even when it ends past the band; a non-object row passes; no band passes; only a file-less
+    row with a readable `at`/`s` is judged by where it ends."""
+    band = si.band_of("2026-10-09")
+    past = {"at": "2026-10-10T07:38:27", "s": 47226.0}
+    assert si._ends_in_band("not a row", band) is True
+    assert si._ends_in_band(dict(past, file="Polar_H10_SYNTH01_20261010015024_RR.txt"), band) is True
+    assert si._ends_in_band(dict(past, file=None), None) is True
+    assert si._ends_in_band(dict(past, file=None), band) is False, "CONTROL: the rule still bites"
+    # the band is half-open, [18:00, 10:00): a gap ending EXACTLY at 10:00 leads into the next band
+    edge = dt.datetime.fromtimestamp(band[1] - 60).isoformat()
+    assert si._ends_in_band({"at": edge, "s": 60.0, "file": None}, band) is False
+    assert si._ends_in_band({"at": edge, "s": 59.0, "file": None}, band) is True

@@ -133,6 +133,9 @@ LEDGER = os.path.join(str(HERE), "tools", "mutate-equivalence.json")
 # read only by truthiness, never before assignment, or never at all — one key was already present); cpap_live.py ENTERS at
 # 1 and o2ring.py at 3 (detector_age_s `or`->`and` falls into the same except; pull_session's
 # default offset and two loop-boundary variants, on a 224-pull battery that REFUTED a fourth claim, now a test).
+# mutation_diff.py 38 -> 41 on 2026-10-12 (#3511): the floor trailed the file by one, and two `.get` defaults
+# feeding `function_of_mutant` in `classify` are equivalent by proof — that function opens `if not name:
+# return ""`, so `""` and `None` are one argument. A canary test retires both the day that guard narrows.
 RATCHET = {
     "acq_evidence_cpap.py": 1,
     "ble_visibility.py": 4,
@@ -151,19 +154,20 @@ RATCHET = {
     "glucodex-dsp.js": 48,
     "hrvdex-dsp.js": 71,
     "jitterfloor.py": 5,
-    "loss_audit.py": 20,
+    "loss_audit.py": 19,
     "mmeta.py": 9,
     "motiondex-dsp.js": 100,
-    "mutation_diff.py": 38,
+    "mutation_diff.py": 41,
     "mutation_pure.py": 5,
     "mutation_triage.py": 2,
     "night_report.py": 8,
-    "nightqc.py": 46,
-    "nights_index.py": 9,
+    "nightqc.py": 52,
+    "nights_index.py": 6,
     "oxy_inventory.py": 6,
     "oxy_transfer.py": 5,
     "o2ring.py": 3,
     "oxyii.py": 3,
+    "polar_psftp.py": 1,
     "ppg_grid_check.py": 2,
     "ppgdex-dsp.js": 130,
     "probe_oxyii_0x03.py": 3,
@@ -172,7 +176,7 @@ RATCHET = {
     "probe_ring_adv.py": 4,
     "pulsedex-dsp.js": 43,
     "solid_night.py": 2,
-    "solid_night_inputs.py": 34,
+    "solid_night_inputs.py": 33,
     "storage_targets.py": 3,
     "telemetry.py": 1,
     "timeline.py": 1,

@@ -85,6 +85,7 @@ from mutation_diff import (  # noqa: E402
     clean_run_failures,
     classify,
     diff_key,
+    function_of_mutant,
     kill_is_a_detection,
     refutation_corroborated,
     mutant_changed_lines,
@@ -481,6 +482,11 @@ def main(argv=None) -> int:
     # produces exit 3 on a tree whose tests all pass. See mutation_diff.kill_is_a_detection.
     _exit_by_key: dict = {}
     _mutant_of_key: dict = {}
+    # ⚠️ THE TWO MAPS ABOVE ARE KEYED ON THE DIFF TEXT ALONE, so a second mutant sharing one key
+    # OVERWRITES the first and its exit code is gone. That is how a kill in one function came to refute
+    # a claim made about another (residue `2026-10-04-an-equivalence-key-cannot-name-its-function`).
+    # This map keeps the pair, so a kill can be attributed to the function it happened in.
+    _exit_by_pair: dict = {}
     _work_of_key: dict = {}
     # The preflight proves mutmut IMPORTS; these prove it actually ran. Measured on this repo's own
     # venv, importable-but-unusable is a real state, not a hypothetical — so an import check alone
@@ -855,6 +861,7 @@ def main(argv=None) -> int:
                             generated_keys.add(k)
                             _exit_by_key[k] = _ecbk.get(full)
                             _mutant_of_key[k] = full
+                            _exit_by_pair[(k, full)] = _ecbk.get(full)
                             _work_of_key[k] = (module, work, _tests, _clean)
                 except OSError:
                     pass  # no mutants file ⇒ nothing to enumerate, stay silent
@@ -1106,14 +1113,19 @@ def main(argv=None) -> int:
     # contended run and the same 15 SURVIVING on a quiet one, deleted them, and nearly landed it.
     # So a kill must be a DETECTION (raw exit 1, never the status word) and must survive an isolated
     # re-run — and the re-run is judged for load too, because it meets the same contention.
-    _trusted = {k for k, ec in _exit_by_key.items() if kill_is_a_detection(ec)[0]}
+    # NAMED `_detected_pairs`, and the name is load-bearing twice over. A kill here is a DETECTION,
+    # never the status word — and the earlier name carried the word `trusted`, which CodeQL
+    # classifies as a secret: every key reaching the verdict file then read as a credential written
+    # in clear text (9 high alerts on #3511, all 31 flows sourced at this one line).
+    _detected_pairs = {(k, full) for (k, full), ec in _exit_by_pair.items() if kill_is_a_detection(ec)[0]}
     verdict_survivor_keys = {sv.get("key") for sv in verdict["survivors"]}
     _claimed_keys = {e.get("key", "") for e in entries}
     _corroborated: set = set()
     _uncorroborated: list = []
-    for _k in sorted(_trusted & _claimed_keys):
+    # EVERY detected kill of a claimed key, not one per key: two mutants sharing a key are two
+    # separate refutation questions and the earlier answer used to be overwritten by the later one.
+    for _k, _name in sorted(p for p in _detected_pairs if p[0] in _claimed_keys):
         _mod, _wk, _tst, _cln = _work_of_key.get(_k, (None, None, None, None))
-        _name = _mutant_of_key.get(_k)
         if not _name or _wk is None:
             _uncorroborated.append((_k, "the mutant could not be located for an isolated re-run"))
             continue
@@ -1128,9 +1140,11 @@ def main(argv=None) -> int:
             )
         except (OSError, ValueError, AttributeError, KeyError, subprocess.SubprocessError):
             _second = None  # a re-run that cannot be read corroborates NOTHING, so fail closed
-        _ok, _why = refutation_corroborated(_exit_by_key.get(_k), _second)
+        _ok, _why = refutation_corroborated(_exit_by_pair.get((_k, _name)), _second)
         if _ok:
-            _corroborated.add(_k)
+            # THE PAIR, so `classify` can tell a kill in this function from a kill in a sibling that
+            # happens to carry the same changed line.
+            _corroborated.add((_k, function_of_mutant(_name)))
             print("    ✓ corroborated: killed again in isolation, so a distinguishing input exists", flush=True)
         else:
             _uncorroborated.append((_k, _why))
@@ -1146,7 +1160,7 @@ def main(argv=None) -> int:
     _settled_late: dict = {}
     _unchecked_after_isolation: list = []
     for _k in sorted(_claimed_keys & generated_keys):
-        if _k in verdict_survivor_keys or _k in _corroborated or _exit_by_key.get(_k) is not None:
+        if _k in verdict_survivor_keys or any(_p[0] == _k for _p in _corroborated) or _exit_by_key.get(_k) is not None:
             continue
         if _k in not_required_keys:
             continue  # excluded on purpose — a different state, handled by `claimed_not_required`
@@ -1177,7 +1191,12 @@ def main(argv=None) -> int:
         # A late survivor must JOIN the survivors, or settling it would have hidden it.
         for _k, _ec in _settled_late.items():
             if _ec == 0:
-                verdict["survivors"].append({"key": _k, "module": _work_of_key.get(_k, (None,))[0]})
+                # `mutant` is carried because `classify` reads the survivor's FUNCTION off it; a
+                # survivor with no mutant name has no function, and a function-qualified entry then
+                # does not match it, which fails closed rather than excusing it.
+                verdict["survivors"].append(
+                    {"key": _k, "module": _work_of_key.get(_k, (None,))[0], "mutant": _mutant_of_key.get(_k)}
+                )
 
     cls = classify(
         entries,

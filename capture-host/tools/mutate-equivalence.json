@@ -15,6 +15,17 @@
     "not for matching, so a change to the mutation operator's output text does not silently orphan an",
     "entry.",
     "",
+    "THE PYTHON SIDE MATCHES ON `key` ALONE, and `key` is the mutant's changed diff lines. For an",
+    "expression mutation that text is distinctive; for a BARE STATEMENT it is not, so one entry spoke",
+    "for every function in the module carrying the same line (residue 2026-10-05-a-mutant-key-is-not-",
+    "unique-within-a-module-for-a-bare-statement-mutation), and a kill in a sibling function reported",
+    "the collision as REFUTED (residue 2026-10-04-an-equivalence-key-cannot-name-its-function, #3263).",
+    "`function` is an OPTIONAL field naming the enclosing function as `function_of_mutant` reports it",
+    "(`total_lost` for a module-level def, `GapCounters.total_lost` for a method). An entry without it",
+    "speaks for the whole module exactly as before, so nothing already recorded has to be re-verified;",
+    "an entry WITH it is excused, and refuted, only in that function. Add it to any NEW entry whose",
+    "changed line is a bare statement.",
+    "",
     "THE CLASSES, and they are not interchangeable:",
     "  · no-distinguishing-input  — a battery of inputs was run against original and mutant and every",
     "                               one produced byte-identical output. STRONG EVIDENCE, NOT PROOF: a",
@@ -1526,12 +1537,6 @@
   "loss_audit.py": [
     {
       "class": "no-distinguishing-input",
-      "key": "- \"gaps\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 1), \"cause\": c} for t, g, c in per_gap], | + \"gaps\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 2), \"cause\": c} for t, g, c in per_gap],",
-      "probe": "read of the producer, then a run: stream_gaps takes both stamps from nights_index.parse_stamp, whose two regexes (_ISO, _O2) capture to the SECOND, so every gap is a difference of whole-second datetimes, a float with no fractional part. A 4-rows-a-second stream with a 60.25 s hole was published as 61.0 (test_a_gap_is_published_as_a_float_of_whole_seconds_and_its_cause_window_is_inclusive, 2026-09-24).",
-      "why": "One and two decimals of a whole number are the same number. The mutants that drop the decimals (round(g) → int) are NOT equivalent and are killed by that test's isinstance(float)."
-    },
-    {
-      "class": "no-distinguishing-input",
       "key": "- \"delays\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 1), \"device_ns\": d} for t, g, d in delays], | + \"delays\": [{\"at\": t.isoformat(timespec=\"seconds\"), \"s\": round(g, 2), \"device_ns\": d} for t, g, d in delays],",
       "probe": "same producer as the `gaps` entry above: `g` is a difference of `nights_index.parse_stamp` values, which resolve to the whole second, so every published delay length is a whole number of seconds (the delay tests assert `s` exactly as a float, 2026-09-25).",
       "why": "One and two decimals of a whole number are the same number."
@@ -1645,6 +1650,18 @@
       "key": "- with open(tmp, \"w\", encoding=\"utf-8\") as fh: | + with open(tmp, \"w\", ) as fh:",
       "probe": "Ran `write_night` with a device named `Pölar H10 µ 02849638` and a clock-event line carrying `µ`, then read the written file as BYTES: `max(raw)` = 125, i.e. pure ASCII. `json.dump` defaults to `ensure_ascii=True`, so every non-ASCII character in the payload is escaped to `\\uXXXX` before it reaches the stream. Confirmed the default is still in force: `json.dumps({'k': 'µ'})` returns `{\"k\": \"\\u00b5\"}`.",
       "why": "The mutant changes the ENCODING of a stream whose payload cannot contain a byte above 127. This is an argument about the DATA, not about the box's locale: `ensure_ascii=True` is `json.dump`'s default and this call does not override it, so no input to `write_night` — no device name, no journal line, no reason string — can produce a character any ASCII-superset encoding would render differently. It becomes distinguishable the day this call passes `ensure_ascii=False`, which would be a deliberate change to how the audit is written and would come with its own test. `test_the_audit_json_is_written_to_be_READ_by_a_person` pins the file's shape; the encoding declaration stays because it is right, not because a test can see it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- \"host_span_s\": round(span, 3), | + \"host_span_s\": round(span, 4),",
+      "probe": "Measured, not argued. The writer of this file stamps the host clock to the MILLISECOND and no finer: `writers.py`'s OXYFRAME row builds `when.strftime(\"%Y-%m-%dT%H:%M:%S.\") + f\"{when.microsecond // 1000:03d}\"`, and over every microsecond value the field is 3 digits wide (measured across `range(0, 1_000_000, 7)`: the set of widths is `{3}`). `oxyframe_samples` reads those stamps with `nights_index.parse_host_stamp`, which keeps exactly the digits written, so `last - first` is always a whole number of milliseconds. Over 1,000,000 random spans up to 12 h with a random integer advance beside each, `max |round(x, 3) - round(x, 4)| = 0.0` for both this field and `host_minus_device_s`.",
+      "why": "The mutant asks for a FOURTH decimal of a number whose third is the last one the file carries. Three decimals is the published precision because three is the writer's precision — the pair is the point of reading this file with the sub-second stamp reader rather than the second-precision one. No 0x04 frame file can carry a span whose fourth decimal is anything but zero, so no input distinguishes the two roundings. It becomes distinguishable the day the writer stamps microseconds, which would be a deliberate change to the capture format and would arrive with its own test. `test_a_TWO_frame_run_reads_its_span_to_the_MILLISECOND_the_writer_STAMPED` pins the third decimal, which is what kills every mutant that drops the decimals altogether."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- \"host_minus_device_s\": None if advance is None else round(span - advance, 3), | + \"host_minus_device_s\": None if advance is None else round(span - advance, 4),",
+      "probe": "Measured, not argued. The writer of this file stamps the host clock to the MILLISECOND and no finer: `writers.py`'s OXYFRAME row builds `when.strftime(\"%Y-%m-%dT%H:%M:%S.\") + f\"{when.microsecond // 1000:03d}\"`, and over every microsecond value the field is 3 digits wide (measured across `range(0, 1_000_000, 7)`: the set of widths is `{3}`). `oxyframe_samples` reads those stamps with `nights_index.parse_host_stamp`, which keeps exactly the digits written, so `last - first` is always a whole number of milliseconds. Over 1,000,000 random spans up to 12 h with a random integer advance beside each, `max |round(x, 3) - round(x, 4)| = 0.0` for both this field and `host_minus_device_s`.",
+      "why": "The same argument one subtraction later: `advance` is an integer count of device-seconds, so `span - advance` is the span's own millisecond grid shifted by a whole number. A fourth decimal of zero stays zero under subtraction of an integer, and the probe measures that over 1,000,000 spans rather than reasoning about it. The mutants that return an INT here are killed by `test_a_TWO_frame_run_reads_its_span_to_the_MILLISECOND_the_writer_STAMPED`, which asserts -4.766 s; only the extra decimal is unreachable."
     }
   ],
   "mmeta.py": [
@@ -2860,6 +2877,20 @@
       "key": "- _missing = classify([{\"key\": \"a\", \"class\": \"no-distinguishing-input\"}], [], set(), generated={\"a\"}) | + _missing = classify([{\"key\": \"a\", \"class\": \"no-distinguishing-input\"}], [], None, generated={\"a\"})",
       "probe": "320 cases: `classify` over 4 entry sets x 4 survivor sets x 4 generated sets, with `killed` as each of set(), None, (), [], frozenset() and {} — comparing the full bucket-to-keys shape. ZERO distinguished. CANARIES FIRST so the battery is not blind: a NON-empty `killed` is seen every time — {'a'} in 24 cases, {'b'} in 12, {'z'} in 16.",
       "why": "`classify` normalises its third argument with `kills = set(killed or ())`, so every FALSY value — None, set(), (), [], frozenset(), {} — produces the identical empty set of corroborated kills. The mutant swaps one falsy value for another at a call site that passes no kills, so there is nothing for any input to distinguish. ⚠️ It would become distinguishable the moment that normalisation were removed (`set(killed)` raises on None), and making it strict WOULD retire this mutant by construction — that was considered and declined: the tolerance is cheap insurance on a pure function whose tests and selftest pass literals, and the same reasoning kept the `t1 > t0` guard in timeline.py whose false arm is also unreachable. Re-verify this entry if the normalisation changes."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "classify",
+      "key": "- _rows = [(i, sv, sv.get(\"function\") or function_of_mutant(sv.get(\"mutant\", \"\"))) for i, sv in enumerate(survivors)] | + _rows = [(i, sv, sv.get(\"function\") or function_of_mutant(sv.get(\"mutant\", None))) for i, sv in enumerate(survivors)]",
+      "probe": "planted each default in `classify` and ran `pytest tests/test_mutation_diff.py` (307 tests, 2026-10-12, #3511): 307 passed under both. The green run is the weaker half — the PROOF is that `sv.get(\"mutant\", X)` returns X only when the cell is absent, and `function_of_mutant` opens with `if not name: return \"\"`, so `\"\"` and `None` are the same argument. `test_function_of_mutant_reads_an_ABSENT_name_and_an_empty_one_identically` is the canary: narrowing that guard to `== \"\"` makes it red and retires these two entries the same day (verified by planting the narrowed guard, exactly one failure).",
+      "why": "The default is only reached by a survivor row carrying no `mutant` cell, and `function_of_mutant` maps every falsy argument to the empty string. So the mutated default changes which falsy value is passed and never the value returned, and no survivor set can distinguish the two."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "classify",
+      "key": "- _rows = [(i, sv, sv.get(\"function\") or function_of_mutant(sv.get(\"mutant\", \"\"))) for i, sv in enumerate(survivors)] | + _rows = [(i, sv, sv.get(\"function\") or function_of_mutant(sv.get(\"mutant\", ))) for i, sv in enumerate(survivors)]",
+      "probe": "planted each default in `classify` and ran `pytest tests/test_mutation_diff.py` (307 tests, 2026-10-12, #3511): 307 passed under both. The green run is the weaker half — the PROOF is that `sv.get(\"mutant\", X)` returns X only when the cell is absent, and `function_of_mutant` opens with `if not name: return \"\"`, so `\"\"` and `None` are the same argument. `test_function_of_mutant_reads_an_ABSENT_name_and_an_empty_one_identically` is the canary: narrowing that guard to `== \"\"` makes it red and retires these two entries the same day (verified by planting the narrowed guard, exactly one failure).",
+      "why": "The default is only reached by a survivor row carrying no `mutant` cell, and `function_of_mutant` maps every falsy argument to the empty string. So the mutated default changes which falsy value is passed and never the value returned, and no survivor set can distinguish the two."
     }
   ],
   "mutation_pure.py": [
@@ -3256,6 +3287,41 @@
       "key": "- if len(seen) > 1: | + if len(seen) >= 1:",
       "probe": "planted `if len(seen) >= 1:` in recorded_writer_offset and exercised every reachable cardinality of `seen` directly: 0 offsets (all blank) -> None, 1 offset -> -14400.0, 2 offsets (a DST seam) -> None — identical to the unmutated function in all three. tests/test_nightqc.py also passed 358/358 with the mutant in place.",
       "why": "THE MUTATED LINE IS UNREACHABLE FOR THE ONLY CARDINALITY THAT WOULD DISTINGUISH IT. It sits inside `if len(seen) != 1:`, so len(seen) is 0 or >= 2 wherever it is evaluated; `> 1` and `>= 1` agree on both (0: both false, >=2: both true) and differ only at len(seen) == 1, which the outer guard has already excluded. The predicate is a log-only branch, so even the message is unchanged. Not a missing test: no input can reach the difference."
+    },
+    {
+      "brief": "NIGHTQC in-night session joins, 2026-10-12 (#3497)",
+      "class": "no-distinguishing-input",
+      "key": "- _judged = sorted([cur, *_joined], key=lambda s: s[0]) | + _judged = sorted([cur, *_joined], key=None)",
+      "probe": "A bespoke 10-night battery for the join block (`tools/probe_equivalence.py` is polar_pmd-only by its own note). Each variant is nightqc.py copied into its own directory, one line replaced on an anchor asserted to match exactly once, imported ahead of the checkout with bytecode off, and run through `summarize(night, [H10], None, writer_offset=declared_offset(...))` over the same ten pre-built folders, comparing the FULL serialised summary per night and counting a length difference as a difference. The nights: one session; one in-band hole (105 min); three in-band holes (430 min); a later out-of-band session; three earlier out-of-band sessions; a sidecar only (no session); a touching seam; a zero-length stampless opener; both sides at once (2 joined, 1 excluded); four in-band sessions (375 min). CANARY RULE, and it fired: with the mutated copy second on sys.path the ORIGINAL module was imported and all six canaries read 0/10 — the battery was measuring nothing. Corrected, the six known-killable canaries read: judged count 9/10, gap total (`+=` -> `=`) 3/10, `_cur_end` max -> min 4/10, `_judged_start` [0] -> [-1] 4/10, `excluded` identity test inverted 4/10, join predicate inverted 7/10. Only then was each candidate run: 0 of 10 differ. Run empirically 2026-10-12 (Heron, #3497).",
+      "why": "`merge_sessions` output is ordered and DISJOINT, so no two judged sessions share a start and none ends before an earlier one ends: sorting by `s[0]`, by the whole list and by `s[1]` all produce the same order. A tie would have to be two sessions with the same start, which merge_sessions cannot emit — anything closer than `_SESSION_GAP_SEC` is one session. The order is read by `_judged[0][0]` and by the consecutive-pair walk, and the probe's `[0] -> [-1]` canary shows the battery sees that order when it moves."
+    },
+    {
+      "brief": "NIGHTQC in-night session joins, 2026-10-12 (#3497)",
+      "class": "no-distinguishing-input",
+      "key": "- _judged = sorted([cur, *_joined], key=lambda s: s[0]) | + _judged = sorted([cur, *_joined], )",
+      "probe": "A bespoke 10-night battery for the join block (`tools/probe_equivalence.py` is polar_pmd-only by its own note). Each variant is nightqc.py copied into its own directory, one line replaced on an anchor asserted to match exactly once, imported ahead of the checkout with bytecode off, and run through `summarize(night, [H10], None, writer_offset=declared_offset(...))` over the same ten pre-built folders, comparing the FULL serialised summary per night and counting a length difference as a difference. The nights: one session; one in-band hole (105 min); three in-band holes (430 min); a later out-of-band session; three earlier out-of-band sessions; a sidecar only (no session); a touching seam; a zero-length stampless opener; both sides at once (2 joined, 1 excluded); four in-band sessions (375 min). CANARY RULE, and it fired: with the mutated copy second on sys.path the ORIGINAL module was imported and all six canaries read 0/10 — the battery was measuring nothing. Corrected, the six known-killable canaries read: judged count 9/10, gap total (`+=` -> `=`) 3/10, `_cur_end` max -> min 4/10, `_judged_start` [0] -> [-1] 4/10, `excluded` identity test inverted 4/10, join predicate inverted 7/10. Only then was each candidate run: 0 of 10 differ. Run empirically 2026-10-12 (Heron, #3497).",
+      "why": "`merge_sessions` output is ordered and DISJOINT, so no two judged sessions share a start and none ends before an earlier one ends: sorting by `s[0]`, by the whole list and by `s[1]` all produce the same order. A tie would have to be two sessions with the same start, which merge_sessions cannot emit — anything closer than `_SESSION_GAP_SEC` is one session. The order is read by `_judged[0][0]` and by the consecutive-pair walk, and the probe's `[0] -> [-1]` canary shows the battery sees that order when it moves."
+    },
+    {
+      "brief": "NIGHTQC in-night session joins, 2026-10-12 (#3497)",
+      "class": "no-distinguishing-input",
+      "key": "- _judged = sorted([cur, *_joined], key=lambda s: s[0]) | + _judged = sorted([cur, *_joined], key=lambda s: s[1])",
+      "probe": "A bespoke 10-night battery for the join block (`tools/probe_equivalence.py` is polar_pmd-only by its own note). Each variant is nightqc.py copied into its own directory, one line replaced on an anchor asserted to match exactly once, imported ahead of the checkout with bytecode off, and run through `summarize(night, [H10], None, writer_offset=declared_offset(...))` over the same ten pre-built folders, comparing the FULL serialised summary per night and counting a length difference as a difference. The nights: one session; one in-band hole (105 min); three in-band holes (430 min); a later out-of-band session; three earlier out-of-band sessions; a sidecar only (no session); a touching seam; a zero-length stampless opener; both sides at once (2 joined, 1 excluded); four in-band sessions (375 min). CANARY RULE, and it fired: with the mutated copy second on sys.path the ORIGINAL module was imported and all six canaries read 0/10 — the battery was measuring nothing. Corrected, the six known-killable canaries read: judged count 9/10, gap total (`+=` -> `=`) 3/10, `_cur_end` max -> min 4/10, `_judged_start` [0] -> [-1] 4/10, `excluded` identity test inverted 4/10, join predicate inverted 7/10. Only then was each candidate run: 0 of 10 differ. Run empirically 2026-10-12 (Heron, #3497).",
+      "why": "`merge_sessions` output is ordered and DISJOINT, so no two judged sessions share a start and none ends before an earlier one ends: sorting by `s[0]`, by the whole list and by `s[1]` all produce the same order. A tie would have to be two sessions with the same start, which merge_sessions cannot emit — anything closer than `_SESSION_GAP_SEC` is one session. The order is read by `_judged[0][0]` and by the consecutive-pair walk, and the probe's `[0] -> [-1]` canary shows the battery sees that order when it moves."
+    },
+    {
+      "brief": "NIGHTQC in-night session joins, 2026-10-12 (#3497)",
+      "class": "no-distinguishing-input",
+      "key": "- _joined_ids = {id(s) for s in _joined} | + _joined_ids = {id(None) for s in _joined}",
+      "probe": "A bespoke 10-night battery for the join block (`tools/probe_equivalence.py` is polar_pmd-only by its own note). Each variant is nightqc.py copied into its own directory, one line replaced on an anchor asserted to match exactly once, imported ahead of the checkout with bytecode off, and run through `summarize(night, [H10], None, writer_offset=declared_offset(...))` over the same ten pre-built folders, comparing the FULL serialised summary per night and counting a length difference as a difference. The nights: one session; one in-band hole (105 min); three in-band holes (430 min); a later out-of-band session; three earlier out-of-band sessions; a sidecar only (no session); a touching seam; a zero-length stampless opener; both sides at once (2 joined, 1 excluded); four in-band sessions (375 min). CANARY RULE, and it fired: with the mutated copy second on sys.path the ORIGINAL module was imported and all six canaries read 0/10 — the battery was measuring nothing. Corrected, the six known-killable canaries read: judged count 9/10, gap total (`+=` -> `=`) 3/10, `_cur_end` max -> min 4/10, `_judged_start` [0] -> [-1] 4/10, `excluded` identity test inverted 4/10, join predicate inverted 7/10. Only then was each candidate run: 0 of 10 differ. Run empirically 2026-10-12 (Heron, #3497).",
+      "why": "A session can only JOIN with a POSITIVE length: `_joined` keeps what `_gap_class` calls in-night, and that test is `_overlap(s0, s1, b0, b1) > 0`, which a zero-length interval never satisfies (pinned by `test_a_ZERO_LENGTH_session_inside_the_band_cannot_join_and_reads_outside_band`). So a joined session's end is strictly after `_judged_start` and its start strictly before `_cur_end`, and both tests over `excluded` — `s[1] <= _judged_start` and `s[0] >= _cur_end` — reject it. The mutant leaks every joined session back into `excluded`, and `excluded` is read nowhere else, so the leaked members produce no line and no number. Inverting the same test IS killable (canary, 4/10), which separates 'the set is never read' from 'this value is unobservable'."
+    },
+    {
+      "brief": "NIGHTQC in-night session joins, 2026-10-12 (#3497)",
+      "class": "no-distinguishing-input",
+      "key": "- excluded = [s for s in others if id(s) not in _joined_ids] | + excluded = [s for s in others if id(None) not in _joined_ids]",
+      "probe": "A bespoke 10-night battery for the join block (`tools/probe_equivalence.py` is polar_pmd-only by its own note). Each variant is nightqc.py copied into its own directory, one line replaced on an anchor asserted to match exactly once, imported ahead of the checkout with bytecode off, and run through `summarize(night, [H10], None, writer_offset=declared_offset(...))` over the same ten pre-built folders, comparing the FULL serialised summary per night and counting a length difference as a difference. The nights: one session; one in-band hole (105 min); three in-band holes (430 min); a later out-of-band session; three earlier out-of-band sessions; a sidecar only (no session); a touching seam; a zero-length stampless opener; both sides at once (2 joined, 1 excluded); four in-band sessions (375 min). CANARY RULE, and it fired: with the mutated copy second on sys.path the ORIGINAL module was imported and all six canaries read 0/10 — the battery was measuring nothing. Corrected, the six known-killable canaries read: judged count 9/10, gap total (`+=` -> `=`) 3/10, `_cur_end` max -> min 4/10, `_judged_start` [0] -> [-1] 4/10, `excluded` identity test inverted 4/10, join predicate inverted 7/10. Only then was each candidate run: 0 of 10 differ. Run empirically 2026-10-12 (Heron, #3497).",
+      "why": "A session can only JOIN with a POSITIVE length: `_joined` keeps what `_gap_class` calls in-night, and that test is `_overlap(s0, s1, b0, b1) > 0`, which a zero-length interval never satisfies (pinned by `test_a_ZERO_LENGTH_session_inside_the_band_cannot_join_and_reads_outside_band`). So a joined session's end is strictly after `_judged_start` and its start strictly before `_cur_end`, and both tests over `excluded` — `s[1] <= _judged_start` and `s[0] >= _cur_end` — reject it. The mutant leaks every joined session back into `excluded`, and `excluded` is read nowhere else, so the leaked members produce no line and no number. Inverting the same test IS killable (canary, 4/10), which separates 'the set is never read' from 'this value is unobservable'."
     }
   ],
   "nights_index.py": [
@@ -3272,27 +3338,6 @@
       "key": "- stats: dict | None = None | + stats: dict | None = \"\"",
       "probe": "`stats` is written ONLY by `stats, pending = cached_stats(...)` and read ONLY through the falsy tests `stats[\"fragments\"] if stats else None` / `stats[\"coverage\"] if stats else None`. Ran the suite against the mutant: `\"\"` and `None` are both falsy, so every read takes the same branch. The initialiser's VALUE is unobservable; only its falsiness is. Confirmed no `is None` / `== None` test of `stats` exists: `grep -n 'stats is' nights_index.py` returns nothing for this local.",
       "why": "The mutant swaps one falsy sentinel for another in a local that is only ever truth-tested. `test_the_night_payload_carries_the_measured_values_not_just_the_keys` pins the populated branch and `test_a_node_with_no_primary_yields_no_fragments_rather_than_asking_for_one` pins the unpopulated one — both already green, and neither can separate `None` from `\"\"` because the code never asks which falsy value it is. It becomes killable only if a reader starts distinguishing them (an `is None`), which would be a real change."
-    },
-    {
-      "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
-      "class": "no-distinguishing-input",
-      "key": "- prims = _expand_alt(root, night_dir, primary, tree)[0] if primary else [] | + prims = _expand_alt(root, night_dir, primary, tree)[0] if (primary) or True else []",
-      "probe": "Enumerated NODES: no entry has a non-empty pattern list and an empty primary; GlucoDex and EEGDex are `((), None)`.",
-      "why": "The false branch is unreachable: the line runs only after `if not files: out[node] = None; continue`, so the node HAS files — and measured across `NODES`, every node with patterns also declares a primary (`nodes with patterns but no primary` → NONE; the only primary-less nodes, GlucoDex and EEGDex, declare NO patterns and so can never have files). No night can reach this line with `primary` falsy."
-    },
-    {
-      "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
-      "class": "no-distinguishing-input",
-      "key": "- out[tool] = all(_expand(root, night_dir, p) for p in required) | + out[tool] = all(_expand(None, night_dir, p) for p in required)",
-      "probe": "Enumerated every DERIVED pattern and tested each for \"/\": none has one. The sibling call sites that DO pass a \"/\"-bearing pattern (the CPAPDex node patterns) are covered by `test_the_primary_reads_from_the_tree_the_files_came_from`.",
-      "why": "`_expand` reads `root` ONLY through `base = root if \"/\" in pattern else night_dir`. Measured: NO pattern in `DERIVED` contains a \"/\" — every one is a bare filename glob — so `base` is always `night_dir` and the `root` argument is never evaluated. Passing None cannot change the result for any night. It becomes distinguishable the moment a DERIVED pattern gains a \"/\", which is a future edit, not a current input."
-    },
-    {
-      "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
-      "class": "no-distinguishing-input",
-      "key": "- out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(root, night_dir, p)) | + out[\"arrival\"] = sorted(os.path.relpath(f, root) for p in ARRIVAL for f in _expand(None, night_dir, p))",
-      "probe": "Enumerated both ARRIVAL patterns and tested each for \"/\": neither has one.",
-      "why": "Same mechanism as the DERIVED entry: both `ARRIVAL` patterns are bare filename globs with no \"/\", so `_expand`'s `base` is `night_dir` and `root` is unused inside the call. Note the OUTER `os.path.relpath(f, root)` still uses `root` and is asserted by `test_a_derived_tool_and_the_arrival_list_resolve_against_the_capture_ROOT` — only the inner argument is unobservable."
     },
     {
       "brief": "E10′ / NIGHT-0928-ERRORS-2026-09-29",
@@ -5284,14 +5329,6 @@
       "why": "FOR EVERY MODEL THAT DECLARES A CLOCK STREAM, `clock` EQUALS `primary` — H10 → ECG, VeritySense → PPG — and `score_devices` has already returned the `presence` band at `if not primaries` when that file is absent. So `stream_files(night_dir, model, clock_tag)` is non-empty whenever this line runs, `timebase` never reaches the branch that renders the tag, and the tag's VALUE cannot change an answer. The ring is the one model where clock ≠ primary and its clock is None, which the caller handles before this line. The invariant is not assumed: `test_the_CLOCK_TAG_per_model_is_the_stream_that_reports_a_DEVICE_time` asserts `all(m[\"clock\"] == m[\"primary\"] for m in MODELS.values() if m[\"clock\"] is not None)`, so the day a model declares a clock stream DIFFERENT from its primary that test fails, this mutant becomes reachable, and the right answer is a test of the rendered tag — not this entry. That is the falsifier, and it is a test rather than an argument."
     },
     {
-      "brief": "SOLID-NIGHT-2026-09-23 §3.4 (the declared-pause band, #3259) — drained 2026-10-03",
-      "class": "untestable-by-design",
-      "key": "- if span is None or span[0] is None or span[0] > start or span[1] < end: | + if span is None or span[1] is None or span[0] > start or span[1] < end:",
-      "op": "the span's FIRST member tested for absence replaced by its LAST",
-      "probe": "No probe, because no input can separate them: `span[0] is None` and `span[1] is None` are the SAME predicate for every span this function can receive, shown below. The reachable half of the guard IS tested — `test_an_AUDITED_FILE_WITH_NO_READABLE_STAMP_is_not_examined` plants a `(None, None)` span and both the original and this mutant refuse it identically.",
-      "why": "`first_last` SETS BOTH MEMBERS OR NEITHER. It walks the file, sets `first` on the first parseable row stamp and `last` on every one, so a file with no parseable stamp yields `(None, None)` and a file with any yields two real datetimes — a MIXED pair is unconstructible. Every `spans` value reaching `continuity` comes from that one function (`score_devices` builds `{p: first_last(p) for p in primaries}`), so testing the first member for absence and testing the last are the same test. The mutant is not a different question answered the same way; it is the same question. FALSIFY THIS by giving `spans` a value from any other source, or by making `first_last` able to return one None and one stamp — at which point the right answer is a test of which end is meant, not this entry."
-    },
-    {
       "brief": "NIGHT-IS-THE-RECORDING-2026-10-05 (the recording as the verdict's scope, #3297) — drained 2026-10-05",
       "class": "no-distinguishing-input",
       "key": "- p = line.rstrip(\"\\n\").split(\";\") | + p = line.lstrip(\"\\n\").split(\";\")",
@@ -5871,6 +5908,15 @@
       "key": "- return {\"ready\": ok, \"path\": mp, \"reason\": None if ok else f\"{mp or '(unset)'} does not exist\"} | + return {\"ready\": ok, \"path\": mp, \"reason\": None if ok else f\"{mp or '(UNSET)'} does not exist\"}",
       "probe": "Ran dest_status over 72 targets (protocol x mountpoint x kind battery: absent/empty/existent/nonexistent/out-of-root paths): the '(unset)' literal rendered 0 times. Run empirically 2026-10-08 on this VM.",
       "why": "About the CODE, not the suite: `mp = target.get(\"mountpoint\") or \"\"` is falsy exactly when the mountpoint is absent/empty, and a falsy mp takes the early return (\"no mountpoint configured\") two lines above — the f-string line is reached only with truthy mp, where `mp or '(unset)'` short-circuits to mp and the literal never evaluates. No input can render it, so no test can observe its spelling."
+    }
+  ],
+  "polar_psftp.py": [
+    {
+      "brief": "2026-09-27-pull-recording-mutants-time-out-not-survive (RESIDUE; drain batch 4)",
+      "class": "no-distinguishing-input",
+      "key": "- manifest = {\"session\": session, \"out_dir\": out_dir, \"files\": [], \"total_bytes\": 0} | + manifest = {\"session\": session, \"out_dir\": out_dir, \"files\": [], \"total_bytes\": 1}",
+      "probe": "Ran BOTH the original and the mutant over 14 scenarios — 7 trees (clean, no_trailing_slash, dir_row_only, short_file, big_unrelated_subtree, two_sessions_first, absent_session) x {one pull, a second pull into the same output directory} — comparing the FULL returned manifest and the sidecar's bytes each time. 0 of 14 raised and 0 of 14 differed. The whole capture-host suite under the mutant read 9892 passed, 3 skipped in 264.08s. Run empirically 2026-10-12, with the planted line asserted to be the file's only occurrence of that text — two literals of it exist, so an inexact plant probes a superset.",
+      "why": "`manifest[\"total_bytes\"]` is reassigned unconditionally at `polar_psftp.py:826` from `got[\"total_bytes\"]`, and the only `return` between the initialisation and that line belongs to the inner `_once`, which returns its own dict. So no observer of `pull_recording` can read the initial value. The KEY must stay: mutants 17-20 misspell an initial key and die against an exact-key-set assertion, which pins the shape while leaving this one value unobservable."
     }
   ]
 }
