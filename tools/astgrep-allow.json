@@ -205,6 +205,12 @@
         "why": "tally"
       },
       {
+        "file": "capture-host/loss_audit.py",
+        "match": "counts.get(t, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
         "file": "capture-host/mutation_diff.py",
         "match": "counts.get(fn, 0)",
         "ordinal": 0,
