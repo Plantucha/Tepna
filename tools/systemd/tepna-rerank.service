@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — the local reranker server behind the Rule-0 refusal floor (loopback only).
+#
+# WHY THIS UNIT EXISTS. `doc-search.mjs` asks this server on every hybrid search since the owner made
+# the reranker floor the default (2026-10-12, "wire all three"). Measured on the 52 Rule-0 queries and
+# 40 off-topic ones: the reranker floor refuses 40 of 40 off-topic queries, the cosine and BM25 floor
+# 38 of 40, and both refuse the same 1 of 52 answerable ones. Started by hand, the server ends with a
+# reboot; the search then falls back to the old floor with a one-line note, so an outage is visible
+# but quiet. This unit starts it at boot and restarts it on a crash.
+#
+# 🔴 LOOPBACK ONLY. The passages it scores are repo text. `--host 127.0.0.1` binds it; `IPAddressAllow`
+# and `IPAddressDeny` below enforce the same thing at the kernel. `xerj-query.mjs rerankTop` also
+# refuses a non-loopback URL. Change the bind address and all three go in the same edit.
+#
+# NO MODEL IS DOWNLOADED. The model is a local file whose SHA-256 was checked when it was fetched
+# (bge-reranker-v2-m3, Q8_0 GGUF). The server reads it and nothing else.
+#
+# GPU. `--device Vulkan0 -ngl 99` puts the model on the rig GPU (264 ms per query, measured
+# 2026-10-12). The unit keeps /dev/dri reachable, so it sets no PrivateDevices.
+#
+# INSTALL — primary development machine only, and NOT performed by the PR that adds this file.
+# The owner enables it; a session must not:
+#   1. stop the hand-started server first (it holds port 8091)
+#   2. ln -s ~/Tepna/tools/systemd/tepna-rerank.service ~/.config/systemd/user/
+#   3. systemctl --user daemon-reload
+#      systemctl --user enable --now tepna-rerank.service
+#   4. curl -s http://127.0.0.1:8091/health          # {"status":"ok"}
+#   5. node tools/doc-search.mjs --brief "a question"  # prints "reranker best score"
+[Unit]
+Description=Tepna — local reranker server for the Rule-0 refusal floor (loopback only)
+Documentation=https://github.com/Plantucha/Tepna/blob/main/docs/HYBRID-SEARCH-SETUP.md
+
+[Service]
+Type=simple
+ExecStart=%h/.local/opt/llama-vulkan-b11577/llama-b11577/llama-server --reranking --host 127.0.0.1 --port 8091 -m %h/.local/share/tepna/models/bge-reranker-v2-m3-Q8_0.gguf -c 8192 -ub 8192 -b 8192 -ngl 99 --device Vulkan0
+Restart=on-failure
+RestartSec=5
+# A dev tool must never outrank a session's gate or another timer's run.
+Nice=10
+IOSchedulingClass=idle
+IPAddressAllow=localhost
+IPAddressDeny=any
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=default.target
