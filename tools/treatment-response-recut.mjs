@@ -124,7 +124,9 @@ function headCommit() {
 
 function selftest() {
   let fail = 0;
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
   const ok = (n, c, d) => {
+    ran++;
     console.log((c ? '  ok   ' : '  FAIL ') + n + (!c && d != null ? '  — ' + d : ''));
     if (!c) fail++;
   };
@@ -174,7 +176,7 @@ function selftest() {
   );
   const E = recut({ minNights: 10, nIntervention: 0, nFlatControl: 0, localization: {}, detection: {} });
   ok('an empty run yields nulls, never zeros standing in for absence', E.detectors.fused.exactPct === null && E.detectors.fused.auc === null && E.detectors.fused.exactCi95Pct === null);
-  console.log(fail ? fail + ' failed of 13' : 'all 13 selftests passed');
+  console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);
   return fail ? 1 : 0;
 }
 

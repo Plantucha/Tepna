@@ -772,7 +772,11 @@ function report(rows, P, cov, roots) {
    must fire and a case that must not. ──────────────────────────────────────────────────────────── */
 function selftest() {
   const fails = [];
-  const ok = (c, m) => (c ? null : fails.push(m));
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
+  const ok = (c, m) => {
+    ran++;
+    return c ? null : fails.push(m);
+  };
   ok(
     band('medianAbsMs', 7.7) === 'CONSISTENT' && band('medianAbsMs', 8) === 'CONSISTENT' && band('medianAbsMs', 8.01) === 'SHORTFALL' && band('medianAbsMs', 21) === 'INVESTIGATE',
     'band edges are closed on the consistent side'
@@ -990,7 +994,7 @@ function selftest() {
       'verdict: --verdict-sample is internal-scope, SHORTFALL over the synthetic fixture, claims no commit, fixed `at`, valid: ' + V.validate(smp).errors.join(' | ')
     );
   }
-  console.log(fails.length ? fails.length + ' failed of 33' : 'all 33 selftests passed');
+  console.log(fails.length ? `${fails.length} failed of ${ran}` : `all ${ran} selftests passed`);
   return fails.length ? 1 : 0;
 }
 

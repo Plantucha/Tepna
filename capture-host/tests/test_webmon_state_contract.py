@@ -43,6 +43,7 @@ FULL_STATUS = {
     "worn_optical": False,
     "worn_optical_why": "not worn per ambient-stability",
     "charging": True,
+    "charging_why": "rising",
     "last_error": "gatt write failed",
     # The ring's readable clock + gated settings (2026-08-19) — values distinct from everything above.
     "ring_rtc_offset_s": -1.3,
@@ -119,6 +120,7 @@ DEVICE_KEYS = {
     "worn_optical",
     "worn_optical_why",
     "charging",
+    "charging_why",
     "last_error",
     "clock_uncorrectable",
     "rate_unmet",
@@ -224,6 +226,7 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     assert d["worn_optical"] is False, "the disagreeing opinion must reach the monitor, not just the log"
     assert d["worn_optical_why"] == "not worn per ambient-stability"
     assert d["charging"] is True
+    assert d["charging_why"] == "rising"
     assert d["last_error"] == "gatt write failed"
     # The ring's clock and settings read-backs: published into STATUS by the oxyii session, and — the
     # rule this file exists to enforce — forwarded here or not published at all.
@@ -276,6 +279,7 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
         # 2026-10-12, which is the one field in this response where "never reported" was asserted to
         # be a definite no: the daemon cannot know whether an unheard-from device is on its dock.
         "charging",
+        "charging_why",
         "last_error",
         "oxy_lifecycle",
         "oxy_recording",
@@ -304,6 +308,20 @@ def test_a_FLAT_BATTERY_null_charging_reaches_the_API_as_a_null(tmp_path):
     assert unknown["charging"] is None, "flatness alone proves no charger — the null must survive"
     measured = _state(tmp_path, [DEV], {DEV["name"]: {"charging": False}})["devices"][0]
     assert measured["charging"] is False, "a falling cell IS a verdict and must not become a null"
+
+
+def test_charging_why_reaches_the_API_beside_charging(tmp_path):
+    """∅ `charging: null` is no claim, and `charging_why: "flat-at-full"` is the only field that says which
+    silence it is. It was written into STATUS five times in `capture.py` and forwarded by nobody, so the
+    monitor could show an unknown and never say what the daemon observed. A why of `None` (a measured
+    `False` carries none) must stay `None`."""
+    flat = _state(tmp_path, [DEV], {DEV["name"]: {"charging": None, "charging_why": "flat-at-full"}})["devices"][0]
+    assert flat["charging"] is None
+    assert flat["charging_why"] == "flat-at-full", "the reason for the silence must reach the API"
+    dock = _state(tmp_path, [DEV], {DEV["name"]: {"charging": False, "charging_why": "pmd-in-charger"}})["devices"][0]
+    assert dock["charging_why"] == "pmd-in-charger"
+    off = _state(tmp_path, [DEV], {DEV["name"]: {"charging": False, "charging_why": None}})["devices"][0]
+    assert off["charging_why"] is None, "a measured False carries no why — it must not be invented"
 
 
 def test_status_is_matched_to_a_device_by_NAME_not_by_position(tmp_path):

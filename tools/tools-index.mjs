@@ -46,7 +46,7 @@ const OUT = join(ROOT, 'docs', 'TOOLS-INDEX.md');
 /* Any paragraph containing one of these is licence/boilerplate, not a purpose. Matched against the
    JOINED paragraph so a wrapped continuation is caught with its opening line. */
 const NOISE = /Licensed under|apache\.org\/licenses|WITHOUT WARRANTIES|Copyright \d{4}|SPDX-License|See LICENSE|You may obtain|except in compliance|limitations under/i;
-const RULE = /^[\s─━=*#·\-—_]+$/;
+const RULE = /^[\s─━═=*#·\-—_]+$/;
 
 function paragraphsOf(src) {
   const lines = String(src).split('\n').slice(0, 60);
@@ -77,10 +77,10 @@ function paragraphsOf(src) {
 
 function cleanParagraph(joined) {
   if (NOISE.test(joined)) return null;
-  let t = joined.replace(/^[─━=*·\-—\s]+/, '').trim();
+  let t = joined.replace(/^[─━═=*·\-—\s]+/, '').trim();
   if (/^[\w./-]+\.(mjs|js)\b\s*[—-]?\s*Tepna\s*$/.test(t)) return null;
   t = t.replace(/^[\w./-]+\.(mjs|js)\s+—\s+/, '');
-  t = t.replace(/[─━=]{3,}.*$/, '').trim();
+  t = t.replace(/[─━═=]{3,}.*$/, '').trim();
   t = t
     .replace(/\(?\s*(?:doi:\s*)?10\.\d{4,}\/[^\s,;)\]]+\s*\)?/gi, '')
     .replace(/\s{2,}/g, ' ')
@@ -125,10 +125,10 @@ export function purposeFromSource(src) {
   for (const p of paras) {
     const joined = p.join(' ');
     if (NOISE.test(joined)) continue;
-    let t = joined.replace(/^[─━=*·\-—\s]+/, '').trim();
+    let t = joined.replace(/^[─━═=*·\-—\s]+/, '').trim();
     if (/^[\w./-]+\.(mjs|js)\b\s*[—-]?\s*Tepna\s*$/.test(t)) continue;
     t = t.replace(/^[\w./-]+\.(mjs|js)\s+—\s+/, '');
-    t = t.replace(/[─━=]{3,}.*$/, '').trim(); // a trailing box-drawing rule on the same line
+    t = t.replace(/[─━═=]{3,}.*$/, '').trim(); // a trailing box-drawing rule on the same line
     /* 🔴 STRIP DOIs. A tool header may cite a paper properly — author, year, journal, DOI — but this
        index reproduces only ONE LINE of it, and a DOI severed from its attribution is exactly the
        "fabricated authority" CLAUDE.md §📚 forbids: the link still resolves and still lands on the
@@ -246,6 +246,23 @@ function selfTest() {
   eq(
     !/10\.\d{4}/.test(purposeFromSource(hdr(' * Uses the VICTOR-PURPURA edit distance (Victor & Purpura 1996, doi:10.1152/jn.1996.76.2.1310) on point processes.')) || ''),
     'a DOI is STRIPPED — a bare DOI on a generated surface is unattributed authority, and citation-ledger reds it'
+  );
+  /* 🔴 THE WIDE BOX RULE. `═` (U+2550) is the double-line bar 120 of 253 tool headers put between the
+     licence block and the purpose, and the rule list did not name it: the bar joined the purpose into
+     one paragraph, or hid the purpose behind a later paragraph, or left a header with no purpose at all. */
+  eq(purposeFromSource(hdr(' * ════════════════════\n * A real purpose after a wide rule.')) === 'A real purpose after a wide rule.', 'a double-line rule is not a purpose');
+  eq(
+    purposeFromSource(hdr(' * ════════════════════\n * First paragraph says what this does.\n *\n * A later paragraph says something else.')) === 'First paragraph says what this does.',
+    'a double-line rule does not hide the first paragraph behind a later one'
+  );
+  /* The shape `gen-comparator-twin.mjs` has: the licence block runs straight into the bar with no blank
+     line, so before the bar was a rule the licence and the purpose were ONE paragraph and the noise
+     filter dropped both — a tool WITH a purpose read as a tool with none. */
+  eq(
+    purposeFromSource(
+      '/*\n * x.mjs — Tepna\n * SPDX-License-Identifier: Apache-2.0\n * Licensed under the Apache License, Version 2.0.\n * ════════════════════\n * Generate the synthetic twin pair for the fixture.\n * ════════════════════ */'
+    ) === 'Generate the synthetic twin pair for the fixture.',
+    'a licence block that runs straight into a wide rule does not swallow the purpose after it'
   );
   /* A first paragraph that is only a POINTER carries no capability information — 46 of 171 rows were
      that thin on the first generation. Keep reading rather than stripping the reference: stripping

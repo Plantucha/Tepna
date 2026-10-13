@@ -104,7 +104,9 @@ export function render(text, exitCode) {
 
 function selftest() {
   let fail = 0;
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
   const ok = (n, c, d) => {
+    ran++;
     console.log((c ? '  ok   ' : '  FAIL ') + n + (!c && d != null ? '  — ' + d : ''));
     if (!c) fail++;
   };
@@ -146,7 +148,7 @@ function selftest() {
   const r7 = render(nd(bad), 0);
   ok('an INVALID object (PASS over checked 0) → UNKNOWN with the validator error', r7.status === 'UNKNOWN' && /examined-nothing/.test(r7.md), r7.md);
   ok('an eighth status word → UNKNOWN via the validator, never rendered as itself', render(nd({ ...pass, status: 'GREEN' }), 0).status === 'UNKNOWN');
-  console.log(fail ? fail + ' failed of 14' : 'all 14 selftests passed');
+  console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);
   return fail ? 1 : 0;
 }
 
