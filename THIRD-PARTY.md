@@ -129,7 +129,9 @@ verified** rather than quoting a licence.
 | tool | version or pin | licence | use | where it runs |
 |---|---|---|---|---|
 | **Node.js** | `>=18` (`package.json` engines); CI pins 20 and 22 | MIT (`Expat`, per the distribution's own copyright file) | runs the bundler, every gate and every tool under `tools/` | dev box · CI |
-| **Biome** (`@biomejs/biome`) | 2.5.3, the one `devDependency` | MIT OR Apache-2.0 | `npm run lint`, `npm run format` | dev box · CI |
+| **Biome** (`@biomejs/biome`) | 2.5.3, a `devDependency` | MIT OR Apache-2.0 | `npm run lint`, `npm run format` | dev box · CI |
+| **ast-grep** (`@ast-grep/cli`) | 0.50.0, a `devDependency` | MIT (read from the installed package metadata) | `npm run verify:astgrep`, the four house rules over the syntax tree | dev box · CI |
+| **Acorn** (`acorn`) | 8.18.0, a `devDependency` | MIT (read from the installed copy's own licence file) | parses a staged JS file in the write-time syntax guard | dev box |
 | **TypeScript** (`tsc`) | 5.5.4, pinned inside `npm run typecheck` | Apache-2.0 | `tsc --noEmit` over the JS surface | dev box · CI |
 | **Playwright** | 1.48.0, installed `--no-save` by the browser workflow | Apache-2.0 | drives the browser render-coverage gate | CI |
 | **pytest** | `>=9.1.1` | MIT | the capture-host suite | capture box · dev box · CI |
