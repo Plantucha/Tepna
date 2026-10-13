@@ -1,35 +1,44 @@
 #!/usr/bin/env node
-// Copyright 2026 Michal Planicka
-// SPDX-License-Identifier: Apache-2.0
-//
-// Refits the shipped AHI surrogates against each of the four harmonized NSRR AHI definitions and
-// scores every refit under the band the owner ratified on 2026-10-13
-// (`briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md` §4.4):
-//
-//   A refit supersedes the shipped coefficients for one definition only if, on records held out of
-//   its own fit, it improves rank correlation with that definition's scored index — Spearman rho,
-//   not absolute error — by a margin whose 95 % CI excludes 0 under a subject-clustered bootstrap.
-//
-// Rank, because the residue finding is that the bigger estimate wins on absolute error alone.
-// Subject-clustered, because the harmonized table repeats 2293 subjects and a bootstrap over rows
-// would understate the interval.
-//
-// THE SPLIT is the owner's ruling of 2026-10-12: subject-disjoint, SHHS1 subjects absent from SHHS2
-// fit, every SHHS2 subject holds out, no subject in both roles.
-//
-// WHAT THE VERDICT JUDGES, pre-stated here before any rho was computed: the multi-predictor
-// (Kulkas-form) refit against the shipped multi-predictor estimator. It is the only shipped form
-// whose coefficient vector has more than one free parameter, so it is the only one whose refit can
-// move a rank at all: `ahiODI4 = 1.1 * ODI4` is a positive monotone transform of ODI4, and any
-// refit `a0 + a1 * ODI4` with `a1 > 0` ranks the records identically. The ODI4 form's numbers
-// travel in `result.odi4Form` as a measured companion, never as the decision.
-//
-// ABSENCE (§∅): a record whose reference column holds no value leaves THAT definition's fit and
-// stays in the others; a record with an absent predictor is excluded and counted, never zero-filled.
-// Four definitions therefore carry four separate population counts.
-//
-// The output file carries AGGREGATES ONLY — no record identifier reaches it, because this repository
-// is public and the NSRR DAUA §5 forbids any excerpt of the Data.
+/*
+ * tools/nsrr-ahi-refit.mjs — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Refits the shipped AHI surrogates against each of the four harmonized NSRR AHI definitions, and
+ * scores every refit under the band the owner ratified on 2026-10-13
+ * (`briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md` §4.4):
+ *
+ *   A refit supersedes the shipped coefficients for one definition only if, on records held out of
+ *   its own fit, it improves rank correlation with that definition's scored index — Spearman rho,
+ *   not absolute error — by a margin whose 95 % CI excludes 0 under a subject-clustered bootstrap.
+ *
+ * Rank, because the residue finding is that the bigger estimate wins on absolute error alone.
+ * Subject-clustered, because the harmonized table repeats 2293 subjects and a bootstrap over rows
+ * would understate the interval.
+ *
+ * THE SPLIT is the owner's ruling of 2026-10-12: subject-disjoint, SHHS1 subjects absent from SHHS2
+ * fit, every SHHS2 subject holds out, no subject in both roles.
+ *
+ * WHAT THE VERDICT JUDGES, pre-stated here before any rho was computed: the multi-predictor
+ * (Kulkas-form) refit against the shipped multi-predictor estimator. It is the only shipped form
+ * whose coefficient vector has more than one free parameter, so it is the only one whose refit can
+ * move a rank at all: `ahiODI4 = 1.1 * ODI4` is a positive monotone transform of ODI4, and any
+ * refit `a0 + a1 * ODI4` with `a1 > 0` ranks the records identically. The ODI4 form's numbers
+ * travel in `result.odi4Form` as a measured companion, never as the decision. Two further
+ * companions ride beside it, also never the decision: `result.singlePredictorRho` (how each
+ * predictor ranks the reference alone — ODI3 by itself outranks the shipped multi-predictor
+ * estimator) and `result.shippedClamp` (what the shipped `max(0, ...)` costs in tied zeros).
+ *
+ * ABSENCE (§∅): a record whose reference column holds no value leaves THAT definition's fit and
+ * stays in the others; a record with an absent predictor is excluded and counted, never zero-filled.
+ * Four definitions therefore carry four separate population counts.
+ *
+ * The output file carries AGGREGATES ONLY — no record identifier reaches it, because this repository
+ * is public and the NSRR DAUA §5 forbids any excerpt of the Data.
+ */
 
 import fs from 'node:fs';
 import path from 'node:path';
