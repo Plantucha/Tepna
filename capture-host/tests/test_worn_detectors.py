@@ -155,8 +155,12 @@ def test_an_out_of_domain_rate_names_the_rate_so_the_operator_can_act():
 def test_each_optical_detector_carries_its_own_rate_and_is_named_in_the_reason():
     v176, why176 = telemetry.worn_verdict(ambient=WORN_SD, fs=176.0)
     assert (v176, "ambient-stability" in why176) == (True, True)
+    # The 55 Hz level detector REFUTES only, so a dark buffer gets no verdict — and the reason still
+    # has to name the detector that abstained, which is the half this test owns.
     v55, why55 = telemetry.worn_verdict(ambient=[140.0] * 400, fs=55.0)
-    assert (v55, "ambient-level" in why55) == (True, True)
+    assert (v55, "ambient-level" in why55) == (None, True)
+    vbright, whybright = telemetry.worn_verdict(ambient=[9e5] * 400, fs=55.0)
+    assert (vbright, "ambient-level" in whybright) == (False, True)
 
 
 def test_the_device_s_own_contact_bit_votes_and_needs_no_ambient_at_all():
@@ -509,7 +513,11 @@ def test_each_reason_names_its_detector_exactly():
     """EQUALITY, not `in`: a reason reading "XXpulse-prominenceXX" CONTAINS "pulse-prominence", so a
     substring check passed a mangled vote name. The reason string is what the worn record persists and
     what an operator reads."""
-    assert telemetry.worn_verdict(ambient=[140.0] * 400, fs=55.0) == (True, "worn per ambient-level")
+    assert telemetry.worn_verdict(ambient=[140.0] * 400, fs=55.0) == (
+        None,
+        "no verdict — ambient-level abstains: dark reads alike on skin and in a dark room",
+    )
+    assert telemetry.worn_verdict(ambient=[9e5] * 400, fs=55.0) == (False, "not worn per ambient-level")
     assert telemetry.worn_verdict(ppg=_pulse(), fs=176.0) == (True, "worn per pulse-prominence")
     assert telemetry.worn_verdict(charging=True) == (False, "not worn — on charger (a docked device is not on a wrist)")
     assert telemetry.worn_verdict() == (None, "no worn detector is available and in domain (PPG rate unknown)")

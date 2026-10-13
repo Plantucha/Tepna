@@ -17133,7 +17133,14 @@
          read NOWHERE: the dead-key leg above caught `cpFCorr,cpFACorr` crossing the boundary unread, the
          same defect this worker already records for `detailCorr` and for `vdCorr` before #2117. They are
          surfaced now, which is what moved them from DEAD to merely helper-reached. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 26, 'sensor-trio-worker.js': 34, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* sensor-trio-worker.js 34 -> 36 on 2026-10-12 (D7 option A, the owner's pick of the UNWEIGHTED hat as
+         canonical): the payload gains `estimator` (the machine name of the point estimator, `'classic'`) and
+         `fusedDiag` (the retired fused-weight triple, kept as a computed diagnostic and null when no corner
+         shipped a confidence array). Both are read in a helper rather than a handler body — `estimator` in
+         the night page's `kMethod` KPI builder and `fusedDiag` in the power tool's `fillRealTbl` row
+         tooltip — which is where those pages read every other aggregate key too. They are surfaced on
+         purpose: a worker key with no consumer is what the dead-key leg above would have called dead. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 26, 'sensor-trio-worker.js': 36, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
@@ -37581,6 +37588,83 @@
       T.eq('empty builder set ⇒ SOURCE', cls('OverDex.html', new Set()), 'source');
     });
 
+    /* ════ A HAND-MADE SET PINS THE REASONING AND CANNOT PIN THE POPULATION ══════════════════════
+     The group above drives `classify` with a GEN set written by hand, which is the right instrument
+     for the ambiguous forms — and it is blind to the question "is this real path in the real set".
+     `docs/TOOLS-INDEX.md` sat on the wrong side of that blindness: `tools/tools-index.mjs` writes it,
+     nothing else does, and `generatedSet()` asked four builders that do not include it. So the
+     classifier called it SOURCE and `rebase-safe` STOPPED on a file no human edits, on every PR whose
+     branch and base both re-ran the indexer (measured 2026-10-13).
+
+     This group drives the REAL set. Two paths sit on either side of the line, and the line is not
+     "a builder writes it" — it is "does the rebuild RESTORE it", because auto-resolve throws one side
+     away and only the rebuild puts the right bytes back:
+
+       · `docs/TOOLS-INDEX.md`       GENERATED. Reads `tools/**`, no clock, byte-reproducible, ~35 ms.
+       · `docs/MUTATION-INVENTORY.md` SOURCE, and the tool must STOP on it. `mutation-suite.mjs
+         --inventory` stamps `last-verified` with TODAY, and its content comes from mutation journals
+         git ignores — with none present it writes nothing at all. Auto-resolving it would discard a
+         branch's inventory, leave it unrestorable and report ✓: the 2026-08-05 silent revert again.
+
+     Node-lane only (it spawns `build-docs.mjs --list-owned` and reads `tools/`), so the browser lane
+     SKIPs; CI runs the Node lane. ═══════════════════════════════════════════════════════════════ */
+    group('Rebase-safe — the REAL generated set covers every docs/ builder (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
+      var cls = env.rebaseClassify;
+      var mkSet = env.rebaseGeneratedSet;
+      var docsOut = env.rebaseDocsOutputFromText;
+      if (typeof cls !== 'function' || typeof mkSet !== 'function' || typeof docsOut !== 'function') {
+        T.skip('the real generated set is wired into this lane', 'Node-lane only (an ESM import of tools/rebase-safe.mjs plus a builder spawn) — the browser lane SKIPs');
+        return;
+      }
+
+      /* ANTI-VACUITY. A null set means a builder could not be asked, and `classify` then calls
+         EVERYTHING source — under which every assertion below about a source path passes while
+         saying nothing. So the set's own health is asserted first and the group returns on failure. */
+      var GEN = mkSet();
+      T.ok('ANTI-VACUITY · the builders answered, so the set exists', GEN instanceof Set, GEN instanceof Set ? GEN.size + ' owned path(s)' : 'generatedSet() returned ' + String(GEN));
+      if (!(GEN instanceof Set)) return;
+      T.ok('ANTI-VACUITY · the set holds a realistic number of builder-owned paths', GEN.size > 10, GEN.size + ' path(s)');
+      T.eq('ANTI-VACUITY · a bundle is in the real set, so GENERATED is reachable', cls('OxyDex.html', GEN), 'generated');
+      T.eq('ANTI-VACUITY · a DSP is SOURCE under the real set too', cls('oxydex-dsp.js', GEN), 'source');
+
+      // THE DEFECT. A conflict here is auto-resolved and the rebuild restores the bytes.
+      T.eq('docs/TOOLS-INDEX.md is GENERATED — tools-index.mjs owns it', cls('docs/TOOLS-INDEX.md', GEN), 'generated');
+
+      /* THE OTHER SIDE, asserted so a later session does not "finish the job" by adding every builder
+         that writes under docs/. This file is where auto-resolve would be the silent revert. */
+      T.eq('docs/MUTATION-INVENTORY.md is SOURCE — the rebuild cannot restore it, so the tool STOPS', cls('docs/MUTATION-INVENTORY.md', GEN), 'source');
+      ['docs/LEXICON.md', 'docs/EVENT-LEXICON.md', 'docs/CORPUS-LOCATIONS.md'].forEach(function (p) {
+        T.eq('an AUTHORED doc is still SOURCE under the real set: ' + p, cls(p, GEN), 'source');
+      });
+
+      /* THE AUTO-RESOLVE IS ONLY SAFE BECAUSE THE REBUILD RUNS. Classifying a path generated without
+         a step that rewrites it is the unrestorable case, so the step list is read from the source. */
+      var TS = env.toolSources;
+      if (!TS || !TS['rebase-safe.mjs']) {
+        T.skip('env.toolSources provided to the runner', 'Node-lane only (run-tests.mjs readToolSources) — the browser lane cannot list tools/');
+      } else {
+        var body = TS['rebase-safe.mjs'];
+        var stepsBlock = body.slice(body.indexOf('const steps = ['));
+        stepsBlock = stepsBlock.slice(0, stepsBlock.indexOf('];') + 2);
+        T.ok('ANTI-VACUITY · the rebuild step list was found in the source', stepsBlock.indexOf('const steps = [') === 0 && stepsBlock.length < 1500, stepsBlock.length + ' char(s)');
+        T.ok(
+          'rebuild() runs tools/tools-index.mjs, so the auto-resolved file is restored',
+          stepsBlock.indexOf("'tools/tools-index.mjs'") !== -1,
+          'step list: ' + stepsBlock.replace(/\s+/g, ' ').slice(0, 220)
+        );
+        T.ok('rebuild() does NOT run the mutation suite — it would stamp a verification nobody performed', stepsBlock.indexOf('mutation-suite') === -1, 'step list carries no mutation-suite step');
+      }
+
+      /* HOW THE BUILDER IS ASKED, failing closed on both ends. One declaration is an answer; none and
+         several are not, and a guess there is how a path gets auto-resolved on no evidence. */
+      T.eq('one declared docs/ output is read back', docsOut("const OUT = join(ROOT, 'docs', 'TOOLS-INDEX.md');"), 'docs/TOOLS-INDEX.md');
+      T.eq('no declaration ⇒ null, never a guess', docsOut("const OUT = join(ROOT, 'other', 'X.md');"), null);
+      T.eq('TWO declarations ⇒ null — the method cannot say which is the index', docsOut("join(ROOT, 'docs', 'A.md'); join(ROOT, 'docs', 'B.md');"), null);
+      T.eq('a computed path is not a declaration ⇒ null', docsOut("const OUT = join(ROOT, 'docs', NAME);"), null);
+      T.eq('unreadable source ⇒ null', docsOut(null), null);
+      T.eq('empty source ⇒ null', docsOut(''), null);
+    });
+
     /* ════ BIOME WAS GREEN ON THIS FILE BECAUSE IT NEVER OPENED IT ═══════════════════════════════
      `biome ci` refuses any file larger than `files.maxSize` and reports the refusal as a WARNING,
      which does not fail the job. The default cap is 1 MiB. `tests/dex-tests.js` passed that long ago
@@ -49073,6 +49157,90 @@
       T.ok('§5 · tag-shaped source strings survive (no extension, no separator)', tagOnly.recording.source === 'ResMed AirSense 11 (EDF set)' && tagOnly.sessions[0].source === 'firmware 2.1 build');
     });
 
+    /* ════ EXPORT-SCRUB-ALLOWLIST §3/§5 — THE SCRUB IS A PROJECTION, AND IT NAMES WHAT IT DROPPED ════
+     The §5 groups above pin what must NOT survive. This one pins the two properties the allow-list
+     adds, and neither is testable by planting another identifier:
+       · The output key set EQUALS the allow-list intersected with the input keys (§5 step 2 states
+         the shape: "not 'contains no known-bad keys' — the current test shape, which is the
+         deny-list thinking"). An undeclared key is dropped WHATEVER it looks like, so a future
+         identifier needs no new assertion here.
+       · Every dropped key is NAMED in `schema.scrubDropped` (CLAUDE.md §∅ — an output over absent
+         input reports the absence). A fail-closed scrub that dropped a node's new metric silently
+         would trade a privacy leak for a data leak nobody could see.
+     Each property carries its control, because an allow-list that dropped everything and a report
+     that named everything would both pass a one-sided check. */
+    group('EXPORT-SCRUB-ALLOWLIST — the scrubbed envelope is the allow-list ∩ the input, and every drop is named', 'dex-export · export-schema · scrub · allow-list', function (T) {
+      var DX = env.DexExport;
+      var S = env.ExportSchema;
+      if (!(DX && typeof DX.scrubExport === 'function' && S && S.ALLOW && typeof S.project === 'function')) {
+        T.ok('env.DexExport.scrubExport + env.ExportSchema available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      /* `zzUndeclared*` is the point: a key no allow-list mentions, shaped like nothing in
+         particular. `hrv` and `stats` are the controls — declared, so they must survive. */
+      var raw = {
+        schema: { name: 'ganglior.node-export', version: '2.0', node: 'PpgDex' },
+        recording: { startEpochMs: 1781383783000, contentId: 'cid', zzUndeclaredRecordingKey: 'r' },
+        hrv: { rmssd: 42 },
+        zzUndeclaredEnvelopeKey: { anything: 1 },
+        sessions: [{ stats: { mean: 95.1 }, zzUndeclaredElementKey: 'e' }],
+        ganglior_events: []
+      };
+      var scr = DX.scrubExport(raw);
+
+      // ── property 1 · the key set is the allow-list ∩ the input, at three depths ──
+      function inter(block, obj) {
+        return Object.keys(obj)
+          .filter(function (k) {
+            return S.allows(block, k);
+          })
+          .sort();
+      }
+      T.eq('envelope keys === ALLOW.envelope ∩ input keys', Object.keys(scr).sort(), inter('envelope', raw));
+      T.eq('recording keys === ALLOW.recording ∩ input keys', Object.keys(scr.recording).sort(), inter('recording', raw.recording));
+      T.eq('element keys === ALLOW.element ∩ input keys', Object.keys(scr.sessions[0]).sort(), inter('element', raw.sessions[0]));
+      // control · the declared clinical content is still there (an empty output would pass the above)
+      T.eq('control · declared content survives at every depth', [scr.hrv.rmssd, scr.recording.contentId, scr.sessions[0].stats.mean].join(), '42,cid,95.1');
+      // and the undeclared keys are gone wherever they sat
+      T.eq(
+        'every undeclared key is absent, at every depth',
+        ['zzUndeclaredEnvelopeKey' in scr, 'zzUndeclaredRecordingKey' in scr.recording, 'zzUndeclaredElementKey' in scr.sessions[0]].join(),
+        'false,false,false'
+      );
+
+      // ── property 2 · the report names them, deduped and sorted ──
+      T.eq('schema.scrubDropped names every dropped key as a dotted path', scr.schema.scrubDropped, [
+        'recording.zzUndeclaredRecordingKey',
+        'sessions[].zzUndeclaredElementKey',
+        'zzUndeclaredEnvelopeKey'
+      ]);
+      // control · a scrub with nothing to drop reports an EMPTY list, never a missing field
+      var clean = DX.scrubExport({ schema: { name: 'ganglior.node-export' }, recording: { contentId: 'c' }, hrv: { rmssd: 1 } });
+      T.eq('control · nothing dropped ⇒ an empty report, and the field is still present', JSON.stringify(clean.schema.scrubDropped), '[]');
+      // two elements dropping the SAME key report it once (the path is the key's, not the element's)
+      var twin = DX.scrubExport({ schema: {}, nights: [{ zzSame: 1 }, { zzSame: 2 }] });
+      T.eq('a key dropped from two elements is named once', twin.schema.scrubDropped, ['nights[].zzSame']);
+
+      /* ── the refusal · no allow-list, no scrubbed document ──
+         Driven through `_scrubWith`, which takes the allow-list as an argument, so the refusal is
+         reachable without deleting a global out from under a live realm (the first draft of this
+         assertion did that and passed vacuously: the module captured its own realm's global at load,
+         so the delete reached nothing and the scrub kept working). */
+      var threw = null;
+      if (typeof DX._scrubWith !== 'function') {
+        T.ok('DexExport._scrubWith available (the refusal seam)', false);
+      } else {
+        try {
+          DX._scrubWith(null, { schema: {}, recording: { contentId: 'c' } });
+        } catch (e) {
+          threw = String((e && e.message) || e);
+        }
+        T.ok('without the allow-list the scrub REFUSES, naming the file it needs', !!threw && /export-schema/.test(threw), threw || 'no throw — it returned a document');
+        // control · the SAME call with the allow-list passed in produces a scrubbed document
+        T.ok('control · the same seam with the allow-list scrubs normally', DX._scrubWith(S, { schema: {}, recording: { contentId: 'c' } }).schema.scrubbed === true);
+      }
+    });
+
     /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════
        `_scrubElement` scrubbed `el.provenance` and `el.recording` and never visited
        `el.schema.provenance`, while `scrubExport` reduces `schema.provenance` at the TOP level only.
@@ -52614,6 +52782,10 @@
         'metric-registry.js': 'MetricRegistry',
         'dex-profile.js': 'DexProfile',
         'dex-export.js': 'DexExport',
+        /* The scrub's allow-list, shipped beside the scrub since EXPORT-SCRUB-ALLOWLIST.
+           `scrubExport` REFUSES without it, so a bundle that inlines one and not the other is a
+           broken export surface — classified here rather than exempted for that reason. */
+        'export-schema.js': 'ExportSchema',
         'dex-ingest.js': 'DexIngest',
         'dex-patient-gen.js': 'DexPatientGen',
         'quantity.js': 'Quantity',

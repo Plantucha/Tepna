@@ -2661,6 +2661,137 @@ def test_a_FOLDER_THAT_IS_NOT_A_DATE_anchors_the_window_at_MIDNIGHT(tmp_path, mo
     assert until == dt.datetime(2026, 10, 12, 6, 0, 0), until
 
 
+# ───────── THE JOURNAL'S SHAPE (residue 2026-09-23-a-journal-that-is-almost-entirely-one-line-is-reported-by-nothing)
+
+
+def _flooded_night():
+    """The row's own night, at FULL scale and generated rather than built: 206,800 ERROR lines, 206,800
+    `NoneType: None` tracebacks and 1,561 lines of real signal = 415,161 over 30,600 s.
+
+    Scale is load-bearing here. The first draft of this test used a 1/100 sample, which came out at
+    0.14 lines/s and 0.50 share — UNDER both bars — and read as a passing quiet night. A rate fixture
+    that is not at the measured rate tests a different night."""
+    for i in range(206_800):
+        yield (
+            f"2026-09-19T02:00:0{i % 10} vigil tepna-capture[1]: "
+            "ERROR CPAP durable sink failed - counted (sink_errors=0), stream continues"
+        )
+        yield "2026-09-19T02:00:00 vigil tepna-capture[1]: NoneType: None"
+    for i in range(1_561):
+        yield f"2026-09-19T0{i % 10}:{i % 60:02d}:00 vigil tepna-capture[1]: INFO Polar_H10 link epoch {i} opened"
+
+
+def test_the_journal_shape_fires_on_the_night_that_motivated_it_and_a_TOP_ONE_bar_could_not_have():
+    sh = loss_audit.journal_shape(_flooded_night(), 30600.0)
+    assert sh["lines"] == 415_161, sh["lines"]
+    assert sh["findings"] == ["uniform", "flooded", "error-rate"], sh["findings"]
+    assert sh["top_share"] == 1.0 and sh["templates"] == 3, sh
+    assert sh["lines_per_s"] == 13.5674 and sh["error_per_s"] == 6.7582, sh
+    # 🔴 THE POINT OF THE TOP-N SHARE. A failure logs a message AND its traceback, so the repeated unit
+    # is two lines and the single biggest template is only 49.8 % — under a 50 % bar. A top-1 criterion
+    # would have examined this exact night and reported nothing.
+    assert sh["dominant_share"] < 0.5, (
+        f"the calibration night's biggest single template must be under half, or the top-N share is "
+        f"not what makes this fire: {sh['dominant_share']}"
+    )
+    assert sh["dominant_share"] == 0.4981, sh["dominant_share"]
+    # the repeating LINE is published, so the morning's reader sees the message and not a severity
+    assert "CPAP durable sink failed" in sh["top"][0]["template"], sh["top"]
+    assert sh["top"][1]["template"].endswith("NoneType: None"), sh["top"]
+    # and the digits are blanked, which is why an incrementing counter cannot hide a flood as 206,800
+    # distinct messages
+    assert "sink_errors=#" in sh["top"][0]["template"], sh["top"][0]["template"]
+
+
+def test_a_quiet_night_is_nine_tenths_three_templates_and_the_volume_floor_keeps_it_OK():
+    """1,561 lines is what the flooded night left of its real signal, and a normal night is that size.
+    A share bar with no volume floor convicts every one of them."""
+    quiet = (
+        f"2026-09-20T0{i % 10}:{i % 60:02d}:00 vigil tepna-capture[1]: INFO window flushed dev{i % 4} n={i}"
+        for i in range(1_561)
+    )
+    sh = loss_audit.journal_shape(quiet, 30600.0)
+    assert sh["top_share"] == 1.0, "the fixture IS uniform — that is the trap the floor exists for"
+    assert sh["lines"] < loss_audit.JOURNAL_MIN_LINES, sh["lines"]
+    assert sh["findings"] == [], sh
+    # and the same journal at the flood's RATE still fires, because the rate finding needs no floor
+    quiet2 = (
+        f"2026-09-20T0{i % 10}:{i % 60:02d}:00 vigil tepna-capture[1]: INFO window flushed dev{i % 4} n={i}"
+        for i in range(1_561)
+    )
+    # 1,561 lines in 60 s is 26 lines/s, and no ERROR among them — one finding, named for what it is
+    assert loss_audit.journal_shape(quiet2, 60.0)["findings"] == ["flooded"]
+
+
+def test_an_unread_journal_is_None_and_a_read_empty_one_is_not_the_same_fact():
+    assert loss_audit.journal_shape(None, 30600.0) is None, "nobody looked — never a zeroed record (§∅)"
+    sh = loss_audit.journal_shape(["", "   ", "\t"], 30600.0)
+    assert sh is not None and sh["lines"] == 0 and sh["findings"] == ["empty"], sh
+    assert sh["dominant_share"] is None and sh["top"] == [] and sh["top_share"] is None, sh
+    # a share needs no clock, so a missing span nulls the two RATES and leaves the share standing
+    noclock = loss_audit.journal_shape([f"a vigil x[1]: ERROR boom {i}" for i in range(12_000)], None)
+    assert noclock["lines_per_s"] is None and noclock["error_per_s"] is None, noclock
+    assert noclock["findings"] == ["uniform"], noclock
+    # ERROR is counted at the head of a line as well as inside one
+    assert loss_audit.journal_shape(["ERROR at the head", "x y ERROR inside"], 10.0)["error_lines"] == 2
+
+
+def test_read_journal_shape_returns_None_when_journalctl_cannot_answer():
+    class R:
+        returncode = 0
+        stdout = "2026-09-19T02:00:00 vigil tepna-capture[1]: INFO connected\n-- no entries --\n"
+
+    sh = loss_audit.read_journal_shape(T0, T0 + dt.timedelta(hours=8), run=lambda *a, **k: R())
+    assert sh["lines"] == 2 and sh["span_s"] == 28800.0, sh
+    assert sh["findings"] == [], sh
+
+    def boom(*a, **k):
+        raise OSError("no journalctl")
+
+    assert loss_audit.read_journal_shape(T0, T0, run=boom) is None
+
+    def slow(*a, **k):
+        raise __import__("subprocess").TimeoutExpired(cmd="journalctl", timeout=120)
+
+    assert loss_audit.read_journal_shape(T0, T0, run=slow) is None
+
+    class Bad:
+        returncode = 1
+        stdout = ""
+
+    assert loss_audit.read_journal_shape(T0, T0, run=lambda *a, **k: Bad()) is None
+
+
+def test_the_audit_record_and_the_night_verdict_both_carry_the_journal_shape(tmp_path):
+    """The row's defect is that NOTHING reported the shape. Both artifacts the morning is read from now
+    do: the record beside the night, and the `night-loss` verdict."""
+    d = _night(tmp_path)
+    shape = {"lines": 415_161, "findings": ["uniform", "flooded", "error-rate"], "top": [{"template": "x"}]}
+    seen = {}
+
+    def _spy(since, until):
+        seen["window"] = (since, until)
+        return shape
+
+    a = loss_audit.audit_night(
+        d, DEV, journal=lambda *_a, **_k: [], clock_events=lambda *_a, **_k: [], journal_shape_of=_spy
+    )
+    assert seen["window"] == (dt.datetime(2026, 9, 19, 18, 0), dt.datetime(2026, 9, 21, 6, 0)), seen
+    assert a["journal_shape"] == shape, "the record beside the night must carry it — it is written every night"
+    v = loss_audit.night_verdict(a, night_dir=d, commit="deadbeef")
+    js_validate(v)
+    assert v["result"]["journal_shape"] == shape, v["result"]
+    # it does NOT move the status: the criterion is pre-stated and single
+    assert v["criterion"]["name"] == "worn_but_not_recorded_fraction", v["criterion"]
+    assert v["status"] in {"PASS", "FAIL", "NOT_APPLICABLE"}, v["status"]
+    # and an unreadable journal reaches the same two places as None, not as a zeroed shape
+    a2 = loss_audit.audit_night(
+        d, DEV, journal=lambda *_a, **_k: [], clock_events=lambda *_a, **_k: [], journal_shape_of=lambda *_a: None
+    )
+    assert a2["journal_shape"] is None
+    assert loss_audit.night_verdict(a2, night_dir=d)["result"]["journal_shape"] is None
+
+
 # ---------------------------------------------------------------------------------------------------
 # SAMPLES, NOT SECONDS — residue `2026-09-27-sample-shortfall-without-a-time-gap-is-unmeasured`.
 #
