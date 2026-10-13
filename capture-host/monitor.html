@@ -533,6 +533,13 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
            title="Last night's SOLID-NIGHT verdict — the capture-quality programme's one nightly answer, as written by the QC poller. PASS counts toward the run, FAIL and a settled UNKNOWN reset it, NOT_APPLICABLE skips. &quot;not settled&quot; is the ordinary state of a night still in progress, not a fault.">
         <div class="data-pill idle" id="snPill"><span class="data-dot"></span> <span id="snText">Night —</span></div>
         <div class="sidebar-data-info" id="snDetail"></div>
+        <!-- PROBE NIGHT: the operator's declaration that this night was testing, not measuring. The
+             judge then reads NOT_APPLICABLE and the run skips the night. A probe the DAEMON armed (the
+             heap probe) declares the night by itself and the button cannot withdraw it — the chip says
+             which source spoke. -->
+        <div class="sidebar-data-info" id="pnDetail"></div>
+        <button class="btn" id="pnBtn" style="margin-top:8px;font-size:11px;padding:4px 10px" hidden
+                onclick='toggleProbeNight(this)'>Mark probe night</button>
       </div>
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
@@ -2294,6 +2301,56 @@ function renderSolidNight(sn){
     : '';
   det.textContent = (sn.reason || '') + when;
   det.title = det.textContent;
+}
+
+// THE PROBE-NIGHT DECLARATION (SOLID-NIGHT-COWEAR-AND-PROBE §2). Every field /api/probe-night forwards
+// is drawn here: the night, whether it is declared, which source declared it, when, the reason the judge
+// will publish, the toggle's own state and whether the journal was read at all.
+//
+// ∅ TWO NULLS SAY DIFFERENT THINGS AND BOTH ARE DRAWN. `marker_on: null` is "nobody has pressed the
+// button for this night", not "off"; `journal_armed: null` is "no audit has read the journal yet", not
+// "no probe armed". A chip that painted either as a false would tell an operator the box had been
+// checked when nothing had looked.
+function renderProbeNight(pn){
+  const det = $('#pnDetail'), btn = $('#pnBtn');
+  if(!det || !btn) return;
+  if(!pn || pn.error){ det.textContent = pn && pn.error ? `probe night — ${pn.error}` : ''; btn.hidden = true; return; }
+  btn.hidden = false;
+  const journal = pn.journal_armed === true;
+  // The button only ever moves the TOGGLE, so it offers the opposite of the toggle — never of the
+  // declaration, which the journal can hold on by itself.
+  btn.textContent = pn.marker_on === true ? 'Clear probe night' : 'Mark probe night';
+  btn.disabled = false;
+  const where = pn.source === 'journal' ? 'the daemon armed the heap probe'
+              : pn.source === 'monitor' ? 'marked on the monitor' : null;
+  const bits = [`${pn.night || '—'}: ${pn.on ? 'probe night' : 'judged as a night'}`];
+  if(where) bits.push(`${where}${pn.at ? ' at ' + pn.at : ''}`);
+  if(journal && pn.marker_on === false) bits.push('the button is off, and the armed probe still declares it');
+  if(pn.marker_on === null) bits.push('no button press for this night');
+  if(pn.journal_armed === null) bits.push('no audit has read the journal yet');
+  det.textContent = bits.join(' · ');
+  det.title = pn.reason || det.textContent;
+}
+
+let PROBE_NIGHT = null;
+async function loadProbeNight(){
+  try{
+    const r = await fetch('/api/probe-night', {cache:'no-store'});
+    PROBE_NIGHT = r.ok ? await r.json() : {error:`HTTP ${r.status}`};
+  }catch(e){ PROBE_NIGHT = {error:String(e && e.message || e)}; }
+  renderProbeNight(PROBE_NIGHT);
+}
+
+async function toggleProbeNight(btn){
+  const want = !(PROBE_NIGHT && PROBE_NIGHT.marker_on === true);
+  if(btn){ btn.disabled = true; }
+  try{
+    const r = await fetch('/api/probe-night', {method:'POST', headers:{'Content-Type':'application/json'},
+                                               body: JSON.stringify({on: want})});
+    const j = await r.json();
+    PROBE_NIGHT = (j && j.probe_night) ? j.probe_night : {error: (j && j.error) || `HTTP ${r.status}`};
+  }catch(e){ PROBE_NIGHT = {error:String(e && e.message || e)}; }
+  renderProbeNight(PROBE_NIGHT);
 }
 
 function renderStoragePill(st){
@@ -4823,6 +4880,9 @@ $('#wifiForgetBtn').addEventListener('click', async function(){
   finally{ await loadWifi(); }
 });
 setInterval(loadWifi, 10000);
+// The probe declaration changes when a person presses a button or the daemon restarts, so it is
+// read on a slow timer rather than on the status round — the endpoint lists the captures tree.
+loadProbeNight(); setInterval(loadProbeNight, 60000);
 loadWifi();
 
 

@@ -5764,3 +5764,210 @@ def test_ENDS_IN_BAND_decides_only_fileless_readable_rows():
     edge = dt.datetime.fromtimestamp(band[1] - 60).isoformat()
     assert si._ends_in_band({"at": edge, "s": 60.0, "file": None}, band) is False
     assert si._ends_in_band({"at": edge, "s": 59.0, "file": None}, band) is True
+
+
+# ── §1 CO-WEAR: the scored interval begins when a hole becomes checkable ────────────────────────────
+#
+# SOLID-NIGHT-COWEAR-AND-PROBE-2026-10-13 §1, on the owner's words: *holes only matter if you cant
+# compute together with other devices*. Before the second device joins, a gap in the first device's
+# stream can be cross-checked against nothing, and an evening of strap-on-strap-off probing is exactly
+# what lies there — the night of 2026-10-05 FAILED on six ring gaps totalling 1830 s, every one of them
+# before the H10 and the Verity began recording at 22:17.
+VERITY = {"name": "Polar Verity Sense 0C301E3F", "model": "VeritySense"}
+VERITY_BASE = "Polar_VeritySense_0C301E3F_20260920230000"
+
+
+def _ppg(d, *, t0, seconds=600, name=VERITY_BASE):
+    """A Verity `_PPG.txt` whose FIRST ROW is `t0` — the only property co-wear start reads."""
+    rows = ["Phone timestamp;sensor timestamp [ns];channel 0"]
+    for i in range(0, int(seconds) + 1, 10):
+        rows.append(f"{(t0 + dt.timedelta(seconds=i)).isoformat(timespec='milliseconds')};{i};100")
+    (d / f"{name}_PPG.txt").write_text("\n".join(rows) + "\n")
+
+
+def _two_dev_audit(d, *, verity_gaps=(), verity_end, h10_end="2026-09-20T23:12:00"):
+    """A loss audit naming BOTH devices, so each has a worn interval and its own gap rows."""
+    (d / "LOSS-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "journal": "read",
+                "clock_events": [],
+                "devices": {
+                    VERITY["name"]: {
+                        "file": f"{VERITY_BASE}_PPG.txt",
+                        "gaps": [{"at": a, "s": s, "cause": c} for a, s, c in verity_gaps],
+                        "wear": {
+                            "available": True,
+                            "worn_end": {"at": verity_end, "reason": "doff", "file": f"{VERITY_BASE}_PPG.txt"},
+                        },
+                    },
+                    H10["name"]: {
+                        "file": f"{BASE}_ECG.txt",
+                        "gaps": [],
+                        "wear": {
+                            "available": True,
+                            "worn_end": {"at": h10_end, "reason": "doff", "file": f"{BASE}_ECG.txt"},
+                        },
+                    },
+                },
+            }
+        )
+    )
+
+
+def test_cowear_start_is_the_LATEST_first_row_and_names_the_device_that_set_it():
+    got, note = si.cowear_start(
+        {"ring": T0, "h10": T0 + dt.timedelta(minutes=77), "verity": T0 + dt.timedelta(hours=1)}
+    )
+    assert got == T0 + dt.timedelta(minutes=77)
+    assert "co-wear from 00:17:00" in note and "h10" in note and "3 recording device(s)" in note
+
+
+def test_one_recorded_device_is_single_device_and_no_cowear_start():
+    """There is no together. The night is judged exactly as it was before this rule existed."""
+    assert si.cowear_start({"ring": T0}) == (None, si.SINGLE_DEVICE)
+    assert si.cowear_start({}) == (None, si.SINGLE_DEVICE)
+    assert si.cowear_start(None) == (None, si.SINGLE_DEVICE)
+
+
+def test_a_device_that_never_recorded_does_not_move_cowear_start():
+    """§∅: an absent first row is `None`, not a stamp of zero and not a stamp of now. A device that
+    captured nothing is already its own outcome (§3.2) and must not pull co-wear to the end of time."""
+    assert si.cowear_start({"ring": T0, "h10": None}) == (None, si.SINGLE_DEVICE)
+    got, note = si.cowear_start({"ring": T0, "h10": None, "verity": T0 + dt.timedelta(minutes=5)})
+    assert got == T0 + dt.timedelta(minutes=5) and "2 recording device(s)" in note
+
+
+def test_pre_cowear_is_None_when_there_is_no_unscored_window():
+    """One device, co-wear at the first row, co-wear BEFORE it — three shapes of nothing to report."""
+    assert si.pre_cowear({"gaps": []}, None, T0) is None
+    assert si.pre_cowear({"gaps": []}, T0, None) is None
+    assert si.pre_cowear({"gaps": []}, T0, T0) is None
+    assert si.pre_cowear({"gaps": []}, T0, T0 - dt.timedelta(seconds=1)) is None
+
+
+def test_pre_cowear_counts_the_gaps_in_the_window_and_names_its_edges():
+    rows = [
+        ("2026-09-20T23:00:30", 667.0, "unattributed"),  # inside
+        ("2026-09-20T23:20:00", 24.0, "link-drop"),  # inside
+        ("2026-09-20T23:30:00", 263.0, "unattributed"),  # ON the co-wear edge: NOT scored, NOT pre
+        ("2026-09-20T23:40:00", 163.0, "unattributed"),  # after co-wear: the scored interval's own
+    ]
+    out = si.pre_cowear(
+        {"gaps": [{"at": a, "s": s, "cause": c} for a, s, c in rows]},
+        T0,
+        T0 + dt.timedelta(minutes=30),
+    )
+    assert out == {
+        "gaps": 2,
+        "seconds": 691.0,
+        "reason": None,
+        "from": "2026-09-20T23:00:00",
+        "to": "2026-09-20T23:30:00",
+    }
+    # The half-open window is the point: the gap AT the co-wear edge belongs to the scored interval,
+    # which `continuity` judges — counting it in both places would double-report one gap.
+
+
+def test_pre_cowear_reports_an_unexamined_window_as_null_counts_never_as_zero():
+    """🔴 §∅. An audit with no per-gap rows did not examine the window, and a `0` there would read as
+    *there were no gaps before co-wear* — the exact claim the audit cannot make."""
+    for dev in (None, {}, {"gaps": None}, {"gaps": "n/a"}):
+        out = si.pre_cowear(dev, T0, T0 + dt.timedelta(minutes=30))
+        assert out["gaps"] is None and out["seconds"] is None
+        assert "no per-gap times" in out["reason"]
+        assert out["from"] == "2026-09-20T23:00:00" and out["to"] == "2026-09-20T23:30:00"
+
+
+def test_a_single_device_night_says_single_device_and_cuts_nothing(tmp_path):
+    """The CONTROL for this whole rule: one device, and every figure is what it was before §1."""
+    _good_h10(tmp_path)
+    out = _bands(tmp_path)[H10["name"]]
+    assert out["cowear"] == si.SINGLE_DEVICE
+    assert out["pre_cowear"] is None
+    assert out["bands"]["continuity"]["status"] == "PASS"
+
+
+def test_the_scored_interval_starts_at_cowear_and_the_earlier_gaps_are_REPORTED_not_judged(tmp_path):
+    """THE 2026-10-05 SHAPE. The Verity records from 23:00 and takes six gaps totalling 1830 s while it
+    is the only device on the box; the H10 joins at 23:10. Co-wear start moves the Verity's scored
+    interval to 23:10, so `continuity` no longer sees those six gaps — and `pre_cowear` states them, in
+    full, beside the verdict. Reduced coverage ANNOTATES (§∅, owner 2026-09-17)."""
+    _good_h10(tmp_path)  # H10's ECG starts at 23:00:00 …
+    _ecg(tmp_path, seconds=120, t0=T0 + dt.timedelta(minutes=10))  # … rewritten to start at 23:10
+    _ppg(tmp_path, t0=T0, seconds=900)
+    early = [
+        ("2026-09-20T23:00:30", 667.0, "unattributed"),
+        ("2026-09-20T23:01:40", 24.0, "unattributed"),
+        ("2026-09-20T23:02:10", 263.0, "unattributed"),
+        ("2026-09-20T23:03:20", 213.0, "unattributed"),
+        ("2026-09-20T23:04:00", 163.0, "unattributed"),
+        ("2026-09-20T23:05:00", 500.0, "unattributed"),
+    ]
+    _two_dev_audit(tmp_path, verity_gaps=early, verity_end="2026-09-20T23:15:00")
+    out = _bands(tmp_path, devices=(H10, VERITY))
+
+    v = out[VERITY["name"]]
+    assert v["cowear"] == out[H10["name"]]["cowear"], "one co-wear start for the night, not one per device"
+    assert "co-wear from 23:10:00" in v["cowear"]
+    assert v["pre_cowear"] == {
+        "gaps": 6,
+        "seconds": 1830.0,
+        "reason": None,
+        "from": "2026-09-20T23:00:00",
+        "to": "2026-09-20T23:10:00",
+    }
+    # The six gaps are OUT of the band that decides the night: 1830 s of unattributed loss failed
+    # continuity before this rule, and the scored interval no longer contains them.
+    assert v["bands"]["continuity"]["status"] == "PASS", v["bands"]["continuity"]["reason"]
+
+    # The LATE joiner is untouched — co-wear moves a start FORWARD only, never back onto rows it has.
+    h = out[H10["name"]]
+    assert h["pre_cowear"] is None
+
+
+def test_a_device_whose_worn_interval_ENDS_before_cowear_examines_nothing_and_says_so(tmp_path):
+    """🔴 The empty interval must not read as a pass. A Verity doffed at 23:05 was never worn together
+    with the H10 that joined at 23:10, so both interval bands are UNKNOWN with the reason — and
+    `pre_cowear` still reports the whole stretch, because that is where its gaps are."""
+    _good_h10(tmp_path)
+    _ecg(tmp_path, seconds=120, t0=T0 + dt.timedelta(minutes=10))
+    _ppg(tmp_path, t0=T0, seconds=300)
+    _two_dev_audit(
+        tmp_path,
+        verity_gaps=[("2026-09-20T23:01:00", 60.0, "unattributed")],
+        verity_end="2026-09-20T23:05:00",
+    )
+    v = _bands(tmp_path, devices=(H10, VERITY))[VERITY["name"]]
+    assert v["bands"]["continuity"]["status"] == "UNKNOWN"
+    assert v["bands"]["completeness"]["status"] == "UNKNOWN"
+    assert v["bands"]["continuity"]["reason"] == si.NO_COWEAR_OVERLAP
+    assert v["pre_cowear"]["gaps"] == 1 and v["pre_cowear"]["seconds"] == 60.0
+
+
+def test_a_refused_device_carries_no_cowear_fields_and_still_refuses(tmp_path):
+    """A model with no stream map never reaches an interval, so there is nothing for §1 to say about
+    it. The key's ABSENCE is the contract `solid_night.DEVICE_EXTRAS` forwards against."""
+    _good_h10(tmp_path)
+    out = _bands(tmp_path, devices=(H10, {"name": "mystery", "model": "NOPE"}))
+    assert out["mystery"] == {"bands": {"presence": out["mystery"]["bands"]["presence"]}}
+    assert out["mystery"]["bands"]["presence"]["status"] == "UNKNOWN"
+    assert "cowear" not in out["mystery"] and "pre_cowear" not in out["mystery"]
+
+
+# ── §2 the probe declaration, as the judge asks for it ──────────────────────────────────────────────
+
+
+def test_probe_declaration_reads_the_pooled_audit_and_the_marker(tmp_path):
+    """`probe_declaration` is the judge's ONE question. It must see both halves: the journal records
+    the audit wrote beside the night, and the operator's marker in the folder."""
+    assert si.probe_declaration(str(tmp_path)) is None
+    (tmp_path / "PROBE-NIGHT.json").write_text(json.dumps({"on": True, "at": "2026-09-20T21:00:00", "by": "monitor"}))
+    got = si.probe_declaration(str(tmp_path))
+    assert got["on"] is True and got["source"] == "monitor"
+    (tmp_path / "LOSS-AUDIT.json").write_text(
+        json.dumps({"devices": {}, "probe_armed": [{"at": "2026-09-20T18:36:15", "line": "heap probe: ARMED"}]})
+    )
+    got = si.probe_declaration(str(tmp_path))
+    assert got["source"] == "journal", "a toggle cannot un-declare a probe the daemon armed"
+    assert got["at"] == "2026-09-20T18:36:15"

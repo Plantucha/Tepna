@@ -124,4 +124,10 @@ def test_sample_json_solid_night_passes_four_terms_and_names_the_one_it_waits_fo
     # adoption gate's corpus-free night could not show a clean night reading clean.
     assert o["reason"] is None
     assert o["result"]["failing"] == 0 and o["result"]["unknown"] == 0
-    assert o["result"]["devices"]["Polar H10 SAMPLE"] == {"status": "PASS", "reasons": []}
+    assert o["result"]["devices"]["Polar H10 SAMPLE"] == {
+        "status": "PASS",
+        "reasons": [],
+        # one device: co-wear is undefined, so the scored interval is the worn interval unchanged
+        "cowear": "single device",
+        "pre_cowear": None,
+    }

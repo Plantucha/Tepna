@@ -42,6 +42,8 @@ NOT_SETTLED = "not settled"
 EXIT_SOLID = 14
 VERDICT_NAME = "SOLID-VERDICT.json"
 NO_VERDICT = "no solid-night verdict was written for this settled night"
+#: What a device result carries beside its bands — see `solid_night_inputs.score_devices`.
+DEVICE_EXTRAS = ("cowear", "pre_cowear")
 CRITERION = {
     "name": "failing band decisions across the night's scored devices (SOLID-NIGHT §3.4)",
     "threshold": 0,
@@ -97,6 +99,7 @@ def compose(
     commit: str | None = None,
     at: str | None = None,
     scope: dict | None = None,
+    probe: dict | None = None,
 ) -> dict:
     """The night's `tepna.verdict/1`.
 
@@ -104,6 +107,12 @@ def compose(
     it read, which it was judged in, and what wear it excluded as daytime. New and optional so every
     existing caller keeps working; surfaced in `result.scope` because a verdict that does not say what it
     measured cannot be checked (QC-SCOPE-RESOLUTION-2026-07-28's L4, applied to the judge).
+
+    `probe` is this night's probe DECLARATION (`solid_night_inputs.probe_declaration`) or `None`. A
+    declared probe night is NOT_APPLICABLE and names which declaration spoke: the box was deliberately
+    injecting event-loop stalls, so the night can be judged neither solid nor not solid, and
+    `consecutive` skips it rather than counting or resetting it (SOLID-NIGHT-COWEAR-AND-PROBE §2). New
+    and optional, so every existing caller keeps the judge it has.
 
     `devices` is the night's EXPECTED list (§3.2 — per night, from the capture's own device set):
     `{name: {"applicable": False, "reason": str}}` for a witnessed no-wear device, otherwise
@@ -116,7 +125,14 @@ def compose(
     unknown = {n: rs for n, (st, rs) in outcomes.items() if st == "UNKNOWN"}
     result: dict[str, Any] = {
         "night": night,
-        "devices": {n: {"status": st, "reasons": rs} for n, (st, rs) in outcomes.items()},
+        # THE CO-WEAR FIELDS TRAVEL WITH THE DEVICE, not beside it: `pre_cowear` is what THIS device's
+        # scored interval left out, and a reader of one device's result must not have to join two maps
+        # to find out. Absent keys stay absent — `pending_verdict` composes band-less devices and has
+        # nothing to say about co-wear.
+        "devices": {
+            n: {"status": st, "reasons": rs, **{k: scored[n][k] for k in DEVICE_EXTRAS if k in scored[n]}}
+            for n, (st, rs) in outcomes.items()
+        },
         "not_applicable": {n: d.get("reason") for n, d in na.items()},
         "failing": sum(len(rs) for rs in failing.values()),
         "unknown": sum(len(rs) for rs in unknown.values()),
@@ -134,6 +150,19 @@ def compose(
     }
     if not settled:
         return _v.make(status="UNKNOWN", result=result, reason=NOT_SETTLED, **common)
+    # 🔴 PRECEDENCE 1b — A DECLARED PROBE NIGHT IS NOT_APPLICABLE, AHEAD OF EVERY BAND. The box was
+    # injecting event-loop stalls on purpose (the heap probe) or the operator said they were testing, so
+    # every band below is measuring the probe rather than the night. It sits after `not settled` because
+    # a night still arriving is pending whatever else is true of it, and before the scope and the band
+    # outcomes because a FAIL composed over a probe's own stalls is a false finding about the devices.
+    # `is True`, not a truthy read: a declaration that does not say `on` has declared nothing (§∅).
+    if probe is not None and probe.get("on") is True:
+        return _v.make(
+            status="NOT_APPLICABLE",
+            result=None,
+            reason=str(probe.get("reason") or "probe night: declared, and the declaration gives no reason"),
+            **common,
+        )
     # 🔴 A SCOPE THAT CANNOT BE RESOLVED IS NOT A NIGHT THAT FAILED. The third-folder branch is a
     # TRIPWIRE that must never fire — a band runs 18:00 -> 10:00 and so touches exactly two calendar
     # dates, which bounds a clipped recording to two folders structurally (measured: 111 night recordings
@@ -264,6 +293,7 @@ def night_verdict(night_dir: str, devices: list, *, commit: str | None = None, a
         commit=commit,
         at=at,
         scope=scope,
+        probe=_inputs.probe_declaration(night_dir),
     )
 
 

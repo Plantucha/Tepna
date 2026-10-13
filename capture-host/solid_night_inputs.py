@@ -53,6 +53,7 @@ from typing import Any
 import nights_index as _ni
 import loss_audit as _la
 import nightqc as _nqc
+import probe_night as _probe
 import writers as _wr
 
 LOSS_AUDIT_NAME = "LOSS-AUDIT.json"
@@ -1971,6 +1972,98 @@ def _adopt_later_wear(base: dict, other: dict, nxt: str, night_dir: str) -> None
         bd["seam_unassessed"] = why
 
 
+SINGLE_DEVICE = "single device"
+#: A device whose worn interval ENDS before co-wear began was never worn together with another device,
+#: so there is nothing for this rule to score. Named, because an empty interval must not read as a pass.
+NO_COWEAR_OVERLAP = "the worn interval ends before co-wear started: nothing of it was worn with another device"
+
+
+def cowear_start(first_rows: dict) -> tuple:
+    """`(start, note)` — when the night's devices began recording TOGETHER, and what that says.
+
+    SOLID-NIGHT-COWEAR-AND-PROBE §1, on the owner's ruling of 2026-10-13: *holes only matter if you
+    cannot compute together with other devices*. Before the second device joins, a hole in the first
+    device's stream can be cross-checked against nothing, and an evening of strap-on-strap-off probing
+    is exactly what lies there. So co-wear start is the LATEST first row among the expected devices that
+    recorded this night, and the scored interval of every device begins at it.
+
+    ONE recorded device → `(None, "single device")`: there is no together, the scored interval stays the
+    worn interval, and the night is judged as it is today. A device that never recorded is already its
+    own outcome (§3.2) and does not move co-wear start — it is absent from `first_rows`'s stamps, not a
+    stamp of zero (§∅)."""
+    stamps = {n: t for n, t in (first_rows or {}).items() if t is not None}
+    if len(stamps) < 2:
+        return None, SINGLE_DEVICE
+    name, start = max(stamps.items(), key=lambda kv: kv[1])
+    return start, (f"co-wear from {start:%H:%M:%S}, the latest first row of {len(stamps)} recording device(s) ({name})")
+
+
+def pre_cowear(audit_dev: dict | None, worn_start, scored_start) -> dict | None:
+    """What the scored interval does NOT cover, because it lies before co-wear — `{gaps, seconds, from, to}`.
+
+    🔴 REDUCED COVERAGE ANNOTATES, A DISCONTINUITY REFUSES (owner ruling 2026-09-17, CLAUDE.md §∅). The
+    gaps before co-wear are not scored, so the verdict has to SAY SO; a band that silently narrowed its
+    own interval would publish a pass over data it declined to look at.
+
+    `None` when there is no such window at all — one device, or co-wear at or before this device's first
+    row. The counts are `None` with a `reason` when the audit carries no gap rows: nothing was examined,
+    so neither count may read zero."""
+    if worn_start is None or scored_start is None or scored_start <= worn_start:
+        return None
+    window = {
+        "from": worn_start.isoformat(timespec="seconds"),
+        "to": scored_start.isoformat(timespec="seconds"),
+    }
+    rows = (audit_dev or {}).get("gaps")
+    if not isinstance(rows, list):
+        return {"gaps": None, "seconds": None, "reason": f"no per-gap times in {LOSS_AUDIT_NAME}", **window}
+    before = [
+        float(g["s"])
+        for g in rows
+        if isinstance(g, dict) and worn_start <= _dt.datetime.fromisoformat(g["at"]) < scored_start
+    ]
+    return {"gaps": len(before), "seconds": round(sum(before), 1), "reason": None, **window}
+
+
+def probe_declaration(night_dir: str) -> dict | None:
+    """This night's probe declaration, or `None` — `probe_night.declaration` over the pooled audit.
+
+    The judge asks ONE question of this module and gets the journal half and the toggle half already
+    reconciled; the pooling matters because a recording that spans midnight was audited in two folders
+    and only one of them read the journal."""
+    return _probe.declaration(night_dir, _pooled_audit(night_dir))
+
+
+def _device_context(night_dir: str, d: dict, audit: dict | None) -> dict:
+    """One expected device's inputs, read ONCE — the primary files, their spans, its audit entry.
+
+    ⚠️ THE FILE SCAN HAPPENS HERE AND NOWHERE ELSE, because co-wear start needs every device's first row
+    BEFORE any device can be scored, and `first_last` streams a whole primary stream to find it. A
+    second pass to collect the first rows would double the judge's I/O for the night — the cost the QC
+    child was just split out to contain. So the scan is done once, the context is kept, and `refusal`
+    carries the band that stops a device before any interval is computed."""
+    name = str(d.get("name") or d.get("model"))
+    model = str(d.get("model") or "")
+    ctx: dict = {"name": name, "model": model, "primaries": [], "spans": {}, "audit_dev": None, "first": None}
+    if model not in MODELS:
+        ctx["refusal"] = _decision("UNKNOWN", f"no stream map for model {model!r}")
+        return ctx
+    primaries = stream_files(night_dir, model, MODELS[model]["primary"])
+    if not primaries:
+        ctx["refusal"] = _decision("UNKNOWN", "no-wear or radio down — indistinguishable (§3.2)")
+        return ctx
+    spans = {p: first_last(p) for p in primaries}
+    starts = [v[0] for v in spans.values() if v[0] is not None]
+    ctx.update(
+        primaries=primaries,
+        spans=spans,
+        first=min(starts) if starts else None,
+        audit_dev=((audit or {}).get("devices") or {}).get(name),
+        refusal=None,
+    )
+    return ctx
+
+
 def _pooled_audit(night_dir: str) -> dict | None:
     """The loss audit for the RECORDING, not for the folder.
 
@@ -2000,23 +2093,21 @@ def _pooled_audit(night_dir: str) -> dict | None:
 
 
 def score_devices(night_dir: str, devices: list) -> dict:
-    """`{name: {"bands": {term: decision}}}` for `solid_night.compose`, one entry per expected device."""
+    """`{name: {"bands": {term: decision}, "cowear": str, "pre_cowear": dict | None}}` for `compose`.
+
+    The scored interval of every device starts at CO-WEAR (SOLID-NIGHT-COWEAR-AND-PROBE §1), so the
+    devices are read first and scored second: the latest first row is not known until the last of them
+    has been opened."""
     audit = _pooled_audit(night_dir)
+    ctxs = [_device_context(night_dir, d, audit) for d in expected_devices(night_dir, devices)]
+    cowear_at, cowear_note = cowear_start({c["name"]: c["first"] for c in ctxs})
     out: dict[str, dict] = {}
-    for d in expected_devices(night_dir, devices):
-        name = str(d.get("name") or d.get("model"))
-        model = str(d.get("model") or "")
-        if model not in MODELS:
-            out[name] = {"bands": {"presence": _decision("UNKNOWN", f"no stream map for model {model!r}")}}
+    for ctx in ctxs:
+        name, model = ctx["name"], ctx["model"]
+        if ctx["refusal"] is not None:
+            out[name] = {"bands": {"presence": ctx["refusal"]}}
             continue
-        primaries = stream_files(night_dir, model, MODELS[model]["primary"])
-        if not primaries:
-            out[name] = {
-                "bands": {"presence": _decision("UNKNOWN", "no-wear or radio down — indistinguishable (§3.2)")}
-            }
-            continue
-        spans = {p: first_last(p) for p in primaries}
-        audit_dev = ((audit or {}).get("devices") or {}).get(name)
+        primaries, spans, audit_dev = ctx["primaries"], ctx["spans"], ctx["audit_dev"]
         start, end, why = worn_interval(audit_dev, primaries, spans)
         # 🔴 TRUNCATE TO THE BAND. `completeness` takes its denominator from `rate x (end - start)`, so
         # the worn interval IS the denominator — and an interval that runs past the band's edge makes it
@@ -2025,6 +2116,12 @@ def score_devices(night_dir: str, devices: list) -> dict:
         # 09:00 inside a band that ends at 10:00 may run until 17:00. 9 of the mirror's 111 night
         # recordings have a raw extent that leaves their band.
         start, end, _trunc = _truncate_to_band(night_dir, start, end)
+        # THE SCORED INTERVAL. Co-wear moves the START only, and only forwards: a device that was already
+        # recording when the night came together is scored from the moment it could be cross-checked, and
+        # one that joined later keeps its own first row. `pre_cowear` reports what that leaves unscored.
+        scored_start, cowear_cut = start, None
+        if start is not None and cowear_at is not None and cowear_at > start:
+            scored_start, cowear_cut = cowear_at, pre_cowear(audit_dev, start, cowear_at)
         bands: dict[str, dict] = {}
         if audit is None:
             bands["continuity"] = _decision("UNKNOWN", f"{LOSS_AUDIT_NAME} absent or unreadable")
@@ -2032,15 +2129,27 @@ def score_devices(night_dir: str, devices: list) -> dict:
         elif why is not None:
             bands["continuity"] = _decision("UNKNOWN", f"no worn interval: {why}")
             bands["completeness"] = _decision("UNKNOWN", f"no worn interval: {why}")
+        elif end is not None and scored_start is not None and scored_start >= end:
+            # Examined nothing, and it says so rather than passing: see NO_COWEAR_OVERLAP.
+            bands["continuity"] = _decision("UNKNOWN", NO_COWEAR_OVERLAP)
+            bands["completeness"] = _decision("UNKNOWN", NO_COWEAR_OVERLAP)
         else:
-            bands["continuity"] = continuity(audit, audit_dev or {}, start, end, spans)
-            bands["completeness"] = completeness(night_dir, name, model, primaries, start, end)
+            bands["continuity"] = continuity(audit, audit_dev or {}, scored_start, end, spans)
+            bands["completeness"] = completeness(night_dir, name, model, primaries, scored_start, end)
         bands["validity"] = validity(night_dir, model)
         bands["clocks"] = clocks(night_dir, model)
         # THE TIMEBASE BAND READS THE CLOCK STREAM, NOT THE PRIMARY — see `MODELS` above. A model that
         # names no clock-bearing stream is NOT_APPLICABLE: the band was examined and the rule does not
         # bind (§🧾), which is a different statement from "we could not tell" and the one an operator
         # needs — the ring is not a broken clock, it is a device that exports none.
+        # ⚠️ THE CLOCK BANDS KEEP THE WORN INTERVAL, AND THAT IS NOT AN OVERSIGHT. Co-wear answers *could
+        # this hole have been cross-checked*, which is a question about HOLES — so it moves the two bands
+        # that judge holes and coverage, and nothing else. `rtc` and `timebase` judge the device's own
+        # axis against the host over what it actually recorded; narrowing their window would throw away
+        # evidence and could turn a decided band UNDECIDED (`timebase` refuses under 2400 s), which is a
+        # band reading worse after a rule meant to stop a false FAIL. Measured on 2026-10-05: with the
+        # clock bands narrowed the ring's `rtc` reason moved from -74 ppm over 7.5 h to +43 ppm over
+        # 5.8 h — the same PASS over less evidence, for no reason the rule gives.
         bands["rtc"] = rtc_band(night_dir, model, start, end)
         clock_tag = MODELS[model]["clock"]
         if clock_tag is None:
@@ -2053,5 +2162,5 @@ def score_devices(night_dir: str, devices: list) -> dict:
             # because the next reader will reach for `clocks` too.
             clock_files = stream_files(night_dir, model, clock_tag)
             bands["timebase"] = timebase(night_dir, name, clock_tag, clock_files, start, end)
-        out[name] = {"bands": bands}
+        out[name] = {"bands": bands, "cowear": cowear_note, "pre_cowear": cowear_cut}
     return out

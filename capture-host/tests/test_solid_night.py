@@ -389,7 +389,11 @@ def test_the_SAMPLE_is_a_night_that_passes_EVERY_band(tmp_path):
     assert v["result"]["unknown"] == 0, "a band that cannot decide makes the sample a different claim"
     assert v["result"]["not_applicable"] == {}
     assert v["result"]["night"] == "2026-01-01"
-    assert v["result"]["devices"] == {"Polar H10 SAMPLE": {"status": "PASS", "reasons": []}}
+    # The SAMPLE is ONE device, so co-wear is undefined and nothing lies before it — the two fields
+    # say that rather than being absent (SOLID-NIGHT-COWEAR-AND-PROBE §1).
+    assert v["result"]["devices"] == {
+        "Polar H10 SAMPLE": {"status": "PASS", "reasons": [], "cowear": "single device", "pre_cowear": None}
+    }
     assert v["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
 
 
@@ -1214,3 +1218,94 @@ def test_a_RE_JUDGE_WITHDRAWAL_SAYS_THE_CODE_MOVED(tmp_path):
     why = sn.CODE_MOVED.format(old="700811f5", new="bdbe3741")
     entry = sn._withdraw(str(night), {"status": "PASS", "reason": None, "at": AT}, why)
     assert entry is not None and entry["reason"] == why
+
+
+# ── §2 a DECLARED probe night is NOT_APPLICABLE, and §1's co-wear fields travel with the device ──────
+#
+# SOLID-NIGHT-COWEAR-AND-PROBE-2026-10-13. The box spent the night injecting event-loop stalls on
+# purpose (the heap probe: 25 stalls of 1-12 s, measured at `capture.py:12033`) or the operator says
+# they were testing. Either way every band below is measuring the probe rather than the night.
+
+JOURNAL_PROBE = {
+    "on": True,
+    "source": "journal",
+    "at": "2026-10-13T18:36:15",
+    "reason": "probe night: declared by journal heap-probe ARMED at 2026-10-13T18:36:15",
+}
+
+
+def _probe_night(devices, probe, settled=True):
+    v = sn.compose(night="2026-09-20", settled=settled, devices=devices, evidence=EV, commit=SHA, at=AT, probe=probe)
+    js_validate(v)
+    return v
+
+
+def test_a_declared_probe_night_is_not_applicable_ahead_of_a_failing_band():
+    """🔴 PRECEDENCE. A FAIL composed over the probe's own stalls is a false finding about the devices,
+    so the declaration sits ahead of every band outcome — and the reason names which half declared it,
+    because *NOT_APPLICABLE* without a source is unauditable."""
+    v = _probe_night({"H10": {"bands": {"continuity": _fail("87 s unattributed")}}}, JOURNAL_PROBE)
+    assert v["status"] == "NOT_APPLICABLE"
+    assert v["reason"] == JOURNAL_PROBE["reason"]
+    assert "2026-10-13T18:36:15" in v["reason"]
+    assert v["result"] is None, "§🧾 refuses a result beside NOT_APPLICABLE"
+    assert v["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
+
+
+def test_an_unsettled_probe_night_is_still_pending():
+    """A night still arriving is pending whatever else is true of it: the declaration can only be
+    acted on once there is a night to decline to judge."""
+    v = _probe_night({"H10": {"bands": {"continuity": OK}}}, JOURNAL_PROBE, settled=False)
+    assert v["status"] == "UNKNOWN" and v["reason"] == sn.NOT_SETTLED
+
+
+def test_a_probe_declaration_that_does_not_say_on_has_declared_nothing():
+    """§∅ with `is True`, not a truthy read. A block carrying a source and no `on` is a half-written
+    declaration, and a night must not be excused by one."""
+    for probe in (None, {}, {"on": False, "source": "monitor"}, {"on": "yes"}, {"source": "journal"}):
+        v = _probe_night({"H10": {"bands": {"continuity": _fail()}}}, probe)
+        assert v["status"] == "FAIL", probe
+
+
+def test_a_declaration_with_no_reason_still_names_itself_a_probe_night():
+    v = _probe_night({"H10": {"bands": {"continuity": OK}}}, {"on": True, "source": "monitor"})
+    assert v["status"] == "NOT_APPLICABLE" and "probe night" in v["reason"]
+
+
+def test_a_probe_night_neither_extends_nor_resets_the_run():
+    """The run is the capture-quality programme's exit condition, so what a probe night does to it is
+    the decision this rule exists to get right: a deliberately disturbed night is not a solid night and
+    not a failure either. `consecutive` already skips NOT_APPLICABLE — this pins that the probe path
+    produces exactly that status, which is what makes the skip apply."""
+    days = [("2026-09-18", "PASS", None), ("2026-09-19", "NOT_APPLICABLE", "probe"), ("2026-09-20", "PASS", None)]
+    assert sn.consecutive(days)["solid"] == 2
+    v = _probe_night({"H10": {"bands": {"continuity": _fail()}}}, JOURNAL_PROBE)
+    assert v["status"] == "NOT_APPLICABLE", "so the night above is the one the run skips"
+
+
+def test_the_cowear_fields_travel_with_the_device_and_an_absent_one_stays_absent():
+    """`DEVICE_EXTRAS` is the forwarding contract with `solid_night_inputs.score_devices`. A refused
+    device carries no co-wear fields at all, and the verdict must not invent them — a `pre_cowear` of
+    `null` on a device that was never scored would read as *nothing was cut*."""
+    cut = {"gaps": 6, "seconds": 1830.0, "reason": None, "from": "2026-10-05T20:19:00", "to": "2026-10-05T22:17:00"}
+    v = _night(
+        {
+            "ring": {"bands": {"continuity": OK}, "cowear": "co-wear from 22:17:00", "pre_cowear": cut},
+            "mystery": {"bands": {"presence": _unk("no stream map")}},
+        }
+    )
+    assert v["result"]["devices"]["ring"]["cowear"] == "co-wear from 22:17:00"
+    assert v["result"]["devices"]["ring"]["pre_cowear"] == cut
+    assert "cowear" not in v["result"]["devices"]["mystery"]
+    assert "pre_cowear" not in v["result"]["devices"]["mystery"]
+    assert sn.DEVICE_EXTRAS == ("cowear", "pre_cowear")
+
+
+def test_a_single_device_night_says_single_device_in_the_verdict():
+    v = _night({"H10": {"bands": {"continuity": OK}, "cowear": "single device", "pre_cowear": None}})
+    assert v["result"]["devices"]["H10"] == {
+        "status": "PASS",
+        "reasons": [],
+        "cowear": "single device",
+        "pre_cowear": None,
+    }
