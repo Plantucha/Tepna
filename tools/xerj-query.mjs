@@ -45,6 +45,26 @@ export const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
 export const REFUSE_COS = 0.8075;
 export const REFUSE_BM25 = 27;
 
+/**
+ * THE RERANKER FLOOR (`--rerank`, opt-in). bge-reranker-v2-m3 reads the query and each passage
+ * together and returns one relevance logit; its sigmoid is an ABSOLUTE score, where the cosine and the
+ * BM25 above are relative to this index. The reranker scores the fused top 20; the best score below
+ * the floor refuses. It never reorders the hits: on the 52 Rule-0 queries a reranked order put a
+ * truth file in the top 5 for 40, the fused order for 42.
+ *
+ * MEASURED 2026-10-12, same sets and same rule as the floor above (fit on even i, refuse no answerable
+ * query, refuse the most off-topic ones, ties to the lower floor). The fit half's highest off-topic
+ * score was 0.1047 and its lowest answerable score 0.278. On the hold-out the floor refused 1 of 26
+ * answerable queries, which had no truth file in its top 5, and 20 of 20 off-topic ones (the cosine
+ * and BM25 floor: 18 of 20). The server is a local llama.cpp `--reranking` process on loopback; when it
+ * does not answer, the search falls back to the floor above and says so.
+ */
+export const RERANK_URL = process.env.DEX_RERANK || 'http://127.0.0.1:8091';
+export const REFUSE_RERANK = 0.105;
+const RERANK_POOL = 20;
+export const belowRerankFloor = (score) => score < REFUSE_RERANK;
+const RERANK_TIMEOUT_MS = 5000;
+
 /** Both halves weak ⇒ refuse. A missing half (no vector) cannot be judged, so it never refuses. */
 export function belowFloor({ cos, bm25 }) {
   if (!Number.isFinite(cos) || !Number.isFinite(bm25)) return false;
@@ -160,7 +180,22 @@ export async function embedQuery(query, fetchFn = fetch) {
   return v;
 }
 
-export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_INDEX, topK = 5, fetchFn = fetch, embedFn = embedQuery }) {
+/** Best sigmoid relevance over `hits`, or throw. Loopback only: the passages are repo text. */
+export async function rerankTop(query, hits, { url = RERANK_URL, fetchFn = fetch, timeoutMs = RERANK_TIMEOUT_MS } = {}) {
+  if (!isLoopback(url)) throw new Error(`${url} is not loopback`);
+  const res = await fetchFn(`${url}/v1/rerank`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ query, documents: hits.map((h) => h.text), top_n: hits.length }),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!res.ok) throw new Error(`reranker HTTP ${res.status}`);
+  const logits = ((await res.json())?.results ?? []).map((r) => r.relevance_score).filter(Number.isFinite);
+  if (!logits.length) throw new Error('reranker returned no score');
+  return 1 / (1 + Math.exp(-Math.max(...logits)));
+}
+
+export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_INDEX, topK = 5, fetchFn = fetch, embedFn = embedQuery, rerank = false }) {
   if (!isLoopback(url)) throw new Error(`${url} is not loopback — this tool is dev-only`);
   let vector = null;
   let degraded = null;
@@ -171,17 +206,19 @@ export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_I
   }
   /* Over-fetch so the collapse has something to choose from: one file can legitimately own several
      of the top chunks, and taking topK before collapsing would return fewer than topK FILES. */
+  const pool = rerank ? Math.max(topK * 2, RERANK_POOL) : topK * 2;
+  const size = rerank ? pool * 5 : topK * 5;
   const ask = async (vec) => {
     const res = await fetchFn(`${url}/${index}/_search`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(searchBody(query, vec, topK * 5))
+      body: JSON.stringify(searchBody(query, vec, size))
     });
     if (!res.ok) throw new Error(`xerj HTTP ${res.status} — is the index loaded? (node tools/xerj-load.mjs)`);
     const j = await res.json();
     return collapseByPath(
       (j?.hits?.hits ?? []).map((h) => formatHit(h)),
-      topK * 2
+      pool
     );
   };
   const lex = await ask(null);
@@ -189,10 +226,19 @@ export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_I
   if (!vector) return { hits: lex.slice(0, topK), degraded, hybrid: false, signals: { cos: null, bm25 }, refused: false };
   const sem = await ask(vector);
   const signals = { cos: sem[0]?.score ?? null, bm25 };
-  return { hits: fuseRRF([lex, sem], topK), degraded, hybrid: true, lexTop: lex[0]?.path ?? null, semTop: sem[0]?.path ?? null, signals, refused: belowFloor(signals) };
+  const base = { degraded, hybrid: true, lexTop: lex[0]?.path ?? null, semTop: sem[0]?.path ?? null, signals };
+  if (!rerank) return { ...base, hits: fuseRRF([lex, sem], topK), refused: belowFloor(signals) };
+  const fused = fuseRRF([lex, sem], RERANK_POOL);
+  try {
+    signals.rerank = await rerankTop(query, fused, { fetchFn });
+    return { ...base, hits: fused.slice(0, topK), refused: belowRerankFloor(signals.rerank) };
+  } catch (e) {
+    const note = `no reranker (${e.message}) — the cosine and BM25 floor decides`;
+    return { ...base, degraded: degraded ? `${degraded}; ${note}` : note, hits: fused.slice(0, topK), refused: belowFloor(signals) };
+  }
 }
 
-export function selftest() {
+export async function selftest() {
   const fail = [];
   let ran = 0;
   const ok = (c, w) => {
@@ -284,6 +330,37 @@ export function selftest() {
   ok(isLoopback('http://127.0.0.1:9200'), 'loopback is accepted');
   ok(!isLoopback('http://10.1.2.3:9200'), 'a non-loopback host is refused');
 
+  /* 7 · THE RERANKER FLOOR refuses on the best score, keeps the fused order, and a dead server falls
+         back to the cosine and BM25 floor with a note. Fakes only: no index, no reranker. */
+  const doc = (p, sc) => ({ _score: sc, _source: { path: p, chunk_index: 0, chunk_count: 1, text: `text of ${p}` } });
+  const fake = (logits) => async (u, o) => {
+    if (u.endsWith('/v1/rerank')) {
+      if (!logits) throw new Error('connection refused');
+      return { ok: true, json: async () => ({ results: logits.map((l, index) => ({ index, relevance_score: l })) }) };
+    }
+    const knn = JSON.parse(o.body).knn;
+    return { ok: true, json: async () => ({ hits: { hits: knn ? [doc('b.md', 0.9), doc('a.md', 0.8)] : [doc('a.md', 40), doc('b.md', 30)] } }) };
+  };
+  const emb = async () => [1, 0];
+  const hi = await hybridSearch({ query: 'q', fetchFn: fake([-3, 2]), embedFn: emb, rerank: true });
+  ok(!hi.refused && Math.abs(hi.signals.rerank - 1 / (1 + Math.exp(-2))) < 1e-9, 'the reranker floor reads the BEST score of the pool');
+  const plain = await hybridSearch({ query: 'q', fetchFn: fake(null), embedFn: emb });
+  ok(hi.hits.map((h) => h.path).join() === plain.hits.map((h) => h.path).join(), '…and never reorders the fused hits');
+  const lo = await hybridSearch({ query: 'q', fetchFn: fake([-3, -2.3]), embedFn: emb, rerank: true });
+  ok(lo.refused && render(lo, 'q').includes('below the floor 0.105'), 'a best score under the floor refuses and names the reranker');
+  ok(!belowRerankFloor(REFUSE_RERANK) && belowRerankFloor(REFUSE_RERANK - 1e-6), 'a score AT the reranker floor answers — the floor is strict');
+  const dead = await hybridSearch({ query: 'q', fetchFn: fake(null), embedFn: emb, rerank: true });
+  ok(!Number.isFinite(dead.signals.rerank) && /no reranker/.test(dead.degraded) && dead.refused === belowFloor(dead.signals), 'a dead reranker falls back to the old floor and says so');
+  ok(!plain.degraded && plain.signals.rerank === undefined, 'CONTROL: without --rerank no reranker is asked');
+  ok(render(hi, 'q').includes('reranker best score 0.881') && !render(plain, 'q').includes('reranker'), 'an answer prints the absolute score; a plain search does not');
+  let threw = false;
+  try {
+    await rerankTop('q', [{ text: 't' }], { url: 'http://10.1.2.3:8091', fetchFn: fake([1]) });
+  } catch {
+    threw = true;
+  }
+  ok(threw, 'a non-loopback reranker is refused — the passages are repo text');
+
   const line = fail.length ? `xerj-query selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
@@ -295,12 +372,14 @@ export function render(out, query, { brief = false } = {}) {
   if (out.degraded) lines.push(`  ⚠ ${out.degraded}`, '');
   if (!out.hits.length) lines.push('  (no hit — is the index loaded? `node tools/xerj-load.mjs`)');
   if (out.refused) {
-    const { cos, bm25 } = out.signals;
-    lines.push(`  no prior work — both halves are below the refusal floor: cosine ${cos.toFixed(3)} < ${REFUSE_COS}, BM25 ${bm25.toFixed(1)} < ${REFUSE_BM25}.`);
+    const { cos, bm25, rerank } = out.signals;
+    if (Number.isFinite(rerank)) lines.push(`  no prior work — the reranker's best score ${rerank.toFixed(3)} is below the floor ${REFUSE_RERANK}.`);
+    else lines.push(`  no prior work — both halves are below the refusal floor: cosine ${cos.toFixed(3)} < ${REFUSE_COS}, BM25 ${bm25.toFixed(1)} < ${REFUSE_BM25}.`);
     lines.push('  The paths below are the weak best guesses, for reference only, not evidence:', '');
     for (const h of out.hits) lines.push(`    ${h.path}${h.where}`);
     return lines.join('\n');
   }
+  if (Number.isFinite(out.signals?.rerank)) lines.push(`  reranker best score ${out.signals.rerank.toFixed(3)} (floor ${REFUSE_RERANK}; the order below is the fused one)`, '');
   for (const h of out.hits) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
     if (brief) continue;
@@ -313,7 +392,7 @@ export function render(out, query, { brief = false } = {}) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const argv = process.argv.slice(2);
   if (argv.includes('--selftest')) {
-    const r = selftest();
+    const r = await selftest();
     process.stdout.write(`${r.line}\n`);
     for (const f of r.fail) process.stdout.write(`  ✕ ${f}\n`);
     process.exit(r.ok ? 0 : 1);
@@ -326,9 +405,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.stderr.write('usage: node tools/xerj-query.mjs "<question>"\n');
     process.exit(2);
   }
-  hybridSearch({ query })
+  hybridSearch({ query, rerank: argv.includes('--rerank') })
     .then((out) => {
-      process.stdout.write(`${render(out, query)}\n`);
+      process.stdout.write(`${render(out, query, { brief: argv.includes('--brief') })}\n`);
     })
     .catch((e) => {
       process.stderr.write(`xerj-query: ${e.message}\n`);
