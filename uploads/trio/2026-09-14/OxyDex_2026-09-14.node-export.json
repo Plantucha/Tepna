@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-10-03T23:14:47.886Z",
+    "generated": "2026-10-12T21:13:46.646Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -28476,6 +28476,7 @@
         "piFrames": 0,
         "motionPct": 0.5,
         "n": 13842,
+        "nSpo2": 13842,
         "startTs": 1789432749000,
         "artifactHrCleaned": 0,
         "artifactSpikesRemoved": 0
@@ -29005,6 +29006,7 @@
         "spo2IQR": 1,
         "condMeanBelow94": 92.94,
         "condPctBelow94": 0.6,
+        "condPctN": 13842,
         "nadirBins": {
           "above91": 1,
           "b90_91": 0,
@@ -29114,6 +29116,8 @@
           "basis": "wholeRecord"
         },
         "hrFreqBands": {
+          "hrBandsN": 12600,
+          "hrBandsTotal": 12600,
           "hrLfPow": 3.8,
           "hrHfPow": 0.1,
           "hrLfHf": 27,
@@ -29194,13 +29198,17 @@
           "spo2Kurt": 4.316,
           "spo2ExcessKurt": 1.316,
           "spo2SkewLabel": "Near-symmetric",
-          "spo2KurtLabel": "Normal-ish"
+          "spo2KurtLabel": "Normal-ish",
+          "nMeasured": 13842,
+          "nTotal": 13842
         },
         "hrCV": {
           "hrCV": 6.44,
           "hrCVmean": 57.3,
           "hrCVsd": 3.69,
-          "hrCVlabel": "Moderate"
+          "hrCVlabel": "Moderate",
+          "nMeasured": 13842,
+          "nTotal": 13842
         },
         "hypDose": {
           "hd94": 92,
@@ -29208,7 +29216,9 @@
           "hd88": 0,
           "hd94PerHr": 23.9,
           "desatAUC": 1178,
-          "hd94Label": "Low (<60/hr)"
+          "hd94Label": "Low (<60/hr)",
+          "nMeasured": 13842,
+          "nTotal": 13842
         },
         "t88t85": {
           "t88Sec": 0,
@@ -29217,7 +29227,9 @@
           "t85Sec": 0,
           "t85Min": 0,
           "t85Pct": 0,
-          "t88Label": "None"
+          "t88Label": "None",
+          "nMeasured": 13842,
+          "nTotal": 13842
         },
         "lcsp": {
           "lcspSec": 4754,
@@ -29230,7 +29242,9 @@
           "sd2": 5.2,
           "sd1sd2Ratio": 0.079,
           "sd1Label": "Normal (1Hz proxy)",
-          "sd2Label": "Normal (1Hz proxy)"
+          "sd2Label": "Normal (1Hz proxy)",
+          "nMeasured": 13778,
+          "nTotal": 13842
         },
         "o2hrEff": null,
         "condSpo2": {
@@ -29238,6 +29252,10 @@
           "spo2MovingMean": 96.33,
           "spo2MotionDelta": -0.46,
           "stillPct": 99.5,
+          "nStillMeasured": 13778,
+          "nStillTotal": 13778,
+          "nMovingMeasured": 64,
+          "nMovingTotal": 64,
           "motionArtifactLabel": "No significant difference"
         },
         "nadirTrend": null,
@@ -29290,7 +29308,7 @@
           "vo2High": 60.1,
           "vo2Category": "Unknown",
           "vo2Pct": "—",
-          "vo2Conf": 100,
+          "vo2Conf": 85,
           "hrRest": 53,
           "hrMax": 174,
           "hrMaxSource": "Age formula (Tanaka 2001)",
@@ -29300,7 +29318,8 @@
           "rmssdAdj": -0.9,
           "rmssdNote": "RMSSD 0.58bpm (1Hz proxy) → adj -0.9",
           "formula": "Uth-Sørensen 2004 (VO2max = 15.3 × HRmax/HRrest)",
-          "label": "Top-25% for age 49",
+          "label": "Top-25% for age 49 (assumed)",
+          "ageAssumed": true,
           "disclaimer": "Surrogate estimate ±10.8 ml/kg/min SEE (general pop.) · ±5.4 for trained athletes. Trend tracking only."
         },
         "bpProj": null,
@@ -29417,6 +29436,7 @@
             "rmssd": 4,
             "spo2": 25,
             "sleep": 6,
+            "sleepMax": 20,
             "hrFloor": 12,
             "hrSlope": 7
           },
@@ -29489,6 +29509,7 @@
           "modl": 92.64,
           "meanDipSlope": -4,
           "meanRecSlope": 0.2,
+          "meanRecSlopeN": 1,
           "clusteringIdx": 1,
           "firstHalfNadirs": 0,
           "lastHalfNadirs": 1
@@ -29574,7 +29595,8 @@
         },
         "ssi": {
           "ssi": 0.228,
-          "ssiLabel": "Low"
+          "ssiLabel": "Low",
+          "ssiBasis": 1
         },
         "circHR": {
           "circAmplitude": 0.73,
