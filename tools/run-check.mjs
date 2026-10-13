@@ -25,6 +25,17 @@
  * compare them once `check` calls this file. The selftest asserts every name here resolves to a real
  * npm script, so a typo fails loudly instead of silently never running.
  *
+ * STEP 33 `verify:fixture-currency` IS BLOCKING HERE AND INFORMATIONAL IN CI, DELIBERATELY. The
+ * comparison it runs — each fixture's `verifiedUnder` against the `computeHash` of the bundle on
+ * disk — is `tools/verify-fixtures.mjs --check`, and it has run in `tests.yml` under
+ * `continue-on-error: true` all along, because an outside contributor has no corpus to FIX a red
+ * with. Measured 2026-10-13 on #3543 (residue
+ * `2026-10-13-the-fixture-currency-check-runs-where-nobody-reads-it`): an edit to `dex-export.js`
+ * moved the compute closure of eight bundles, CI printed all 19 fixtures by name as UNVERIFIED, and
+ * the `tests` run still concluded `success` — so `gh pr checks` read 25 pass and no reviewer saw it.
+ * The one party who HAS the corpus is the author, and the author's gate is this file, which never
+ * ran the check at all. So the detector stays where it was and gains the one reader who can act.
+ *
  *   node tools/run-check.mjs             # the gate
  *   node tools/run-check.mjs --list      # print the ordered steps, run nothing
  *   node tools/run-check.mjs --json      # the gate, plus ONE tepna.verdict/1 object on stdout (log → stderr)
@@ -85,6 +96,7 @@ export const STEPS = [
   'verify:pr-compliance',
   'verify:verdict-adoption',
   'verify:manifest',
+  'verify:fixture-currency',
   'test:hooks'
 ];
 
