@@ -216,7 +216,7 @@ export function readChunk(text, cap = READ_CHARS) {
 
 /* The CLI flags this tool understands, stripped from the query words. Exported so the selftest can
    pin that a flag never leaks into the embedded query (it did once as a token-fallback term). */
-export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic', '--brief', '--rerank']);
+export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic', '--brief', '--rerank', '--no-rerank']);
 export function stripFlags(argv) {
   return (argv || []).filter((a) => !CLI_FLAGS.has(a));
 }
@@ -238,6 +238,14 @@ export function searchLane(argv) {
   if (a.includes('--semantic')) return 'semantic';
   return 'hybrid';
 }
+/* THE RERANKER FLOOR IS THE RULE-0 DEFAULT (owner, 2026-10-12: "wire all three"). The hybrid lane asks
+   the loopback reranker on every search; a server that does not answer drops the search onto the
+   cosine and BM25 floor with a one-line note, so the default costs nothing where the server is absent.
+   `--no-rerank` asks for the old floor by name; `--rerank` stays accepted and changes nothing. */
+export function wantRerank(argv) {
+  return !argv.includes('--no-rerank');
+}
+
 /* A bound on how long the default lane may hold the caller before the fallback runs. The timer is
    cleared on settle so a fast answer leaves no dangling handle; the label names what did not answer. */
 export function withTimeout(promise, ms, label) {
@@ -1068,6 +1076,9 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('--semantic is a flag, never a query word', !stripFlags(['--semantic', 'q']).includes('--semantic'));
   ok('--brief is a flag, never a query word', stripFlags(['--brief', 'q']).join(' ') === 'q');
   ok('--rerank is a flag, never a query word', stripFlags(['--rerank', 'q']).join(' ') === 'q');
+  ok('the reranker floor is the default', wantRerank(['node', 'x', 'q']) === true && wantRerank(['--rerank', 'q']) === true);
+  ok('--no-rerank asks for the old floor', wantRerank(['--no-rerank', 'q']) === false);
+  ok('--no-rerank is a flag, never a query word', stripFlags(['--no-rerank', 'q']).join(' ') === 'q');
   ok(
     '--brief keeps the paths-not-an-answer warning in one line',
     readWarningLines(true).filter((l) => l.includes('PATHS TO READ')).length === 1 && readWarningLines(true).filter(Boolean).length === 1
@@ -1105,12 +1116,12 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   if (lane !== 'semantic') {
     const q = stripFlags(process.argv.slice(2)).join(' ').trim();
     if (!q) {
-      console.error('usage: node tools/doc-search.mjs [--hybrid|--semantic] [--read] [--brief] [--rerank] "<what you are trying to find>"');
+      console.error('usage: node tools/doc-search.mjs [--hybrid|--semantic] [--read] [--brief] [--no-rerank] "<what you are trying to find>"');
       process.exit(2);
     }
     const xq = await import('./xerj-query.mjs');
     try {
-      const out = await withTimeout(xq.hybridSearch({ query: q, rerank: process.argv.includes('--rerank') }), HYBRID_TIMEOUT_MS, 'hybrid index');
+      const out = await withTimeout(xq.hybridSearch({ query: q, rerank: wantRerank(process.argv) }), HYBRID_TIMEOUT_MS, 'hybrid index');
       process.stdout.write(`${xq.render(out, q, { brief })}\n`);
       for (const line of readWarningLines(brief)) console.log(line);
       stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, q);
