@@ -37,27 +37,6 @@ _REAP_S = 2.0
 _GROUP_GRACE_S = 1.0
 
 
-def _group_leader(pid) -> bool:
-    """Does `pid` LEAD its own process group, and is that group not ours?
-
-    🔴 THE WORST FAILURE MODE OF A GROUP KILL IS KILLING YOUR OWN GROUP. Measured 2026-10-12
-    reproducing `2026-09-29-proc-util-kill-is-parent-only`: a child spawned without
-    `start_new_session=True` reported `pgid=2939605`, which was this process's own pgid. A `killpg`
-    there would have signalled the daemon, every sibling task's child, and the test runner. So the
-    group is signalled only when the child IS the leader of a group that is not ours — and a child
-    spawned the old way takes the single-process path unchanged.
-
-    `bool` is excluded because `isinstance(True, int)` is true and `os.getpgid(True)` reads pid 1.
-    """
-    if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
-        return False
-    try:
-        pgid = os.getpgid(pid)
-    except (ProcessLookupError, PermissionError, OSError):
-        return False
-    return pgid == pid and pgid != os.getpgrp()
-
-
 def _killpg(pgid, sig: int) -> None:
     """`os.killpg`, never raising, and NEVER our own process group.
 
@@ -108,6 +87,28 @@ async def communicate(proc, timeout: float, stdin: bytes | None = None) -> tuple
         raise
 
 
+def _leads_own_group(pid) -> bool:
+    """True only when `pid` is a REAL, POSITIVE pid that LEADS a process group which is not ours.
+
+    `os.killpg` on a child started WITHOUT `start_new_session=True` reaches the group it was born into,
+    which is the daemon's own — so the group is signalled only when the child leads one. A pid of 0 is
+    not "no pid": `os.killpg(0, sig)` addresses the CALLER's group, so it is refused here outright (a
+    double or a half-built proc object must fail safe, not reap the daemon). Same guard, same reason, as
+    `mutation_diff.kill_process_group`.
+
+    `bool` is excluded because `isinstance(True, int)` is true and `os.getpgid(True)` reads pid 1.
+    Measured 2026-10-12 while reproducing the row: a child spawned without `start_new_session=True`
+    reported a pgid equal to this process's own, so a `killpg` there would have signalled the daemon,
+    every sibling task's child, and the test runner."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return False
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:  # ProcessLookupError is a subclass: already gone and reaped
+        return False
+    return pgid == pid and pgid != os.getpgrp()
+
+
 async def kill(proc) -> None:
     """Kill a child, its descendants where it leads a group, and reap it. Never raises: teardown must
     not become a new failure mode.
@@ -128,7 +129,7 @@ async def kill(proc) -> None:
     process groups. A caller that is NOT under such a unit owes its own pass-through handler.
     """
     pid = getattr(proc, "pid", None)
-    lead = _group_leader(pid)
+    lead = _leads_own_group(pid)
     if lead:
         # SIGTERM to the group first, so a child with a tail to flush can write it. The grace is short
         # because every caller here has already spent its own.

@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**254 tools** · 252 with a purpose line · **2 without**
+**256 tools** · 254 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -26,6 +26,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`argv-guard.mjs`](../tools/argv-guard.mjs) | REFUSE AN ARGV TOKEN NOBODY READS. Residue `2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus`. |
 | [`argv-survey.mjs`](../tools/argv-survey.mjs) | WHICH TOOLS CAN TELL AN UNKNOWN FLAG FROM AN ABSENT ONE. Executable, controlled, and bounded to the tools it can prove are inert. |
 | [`assertion-strength.mjs`](../tools/assertion-strength.mjs) | WHICH ASSERTIONS PIN A DIRECTION WHERE THEY COULD PIN A VALUE |
+| [`astgrep-gate.mjs`](../tools/astgrep-gate.mjs) | Four shapes that a reviewer reads as a defect, matched on the syntax tree rather than on text. |
 | [`beat-capture-recapture.mjs`](../tools/beat-capture-recapture.mjs) | beat-capture-recapture — how many beats did EVERY detector miss? |
 | [`beat-comb-analysis.mjs`](../tools/beat-comb-analysis.mjs) | why two beat trains cannot tell you a clock offset WHY — IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF measured wrist↔finger beat correspondence with "nearest beat + linear median" and reported a… |
 | [`beat-correspondence.mjs`](../tools/beat-correspondence.mjs) | The formal object is the VICTOR–PURPURA edit distance on point processes (Victor & Purpura 1996,; INTERDISCIPLINARY-LITERATURE §13h.2): transform train A into train B at minimum cost —… |
@@ -61,6 +62,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`deep-desat-falsifier.mjs`](../tools/deep-desat-falsifier.mjs) | THE STANDING CROSS-SIGNAL FALSIFIER for called sleep stages (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §6 item 4 / REM-STAGING-REDESIGN §5): "REM/Deep should carry a stage-appropriate… |
 | [`deep-flow-join.mjs`](../tools/deep-flow-join.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ DEEP-epoch × flow-event join, with a PER-COHORT clock offset instead of one global shift. |
 | [`deep-vlf-probe.mjs`](../tools/deep-vlf-probe.mjs) | THE STANDING VLF-vs-CONTAMINATED-DEEP PROBE (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §9/§11/§12). |
+| [`defect-bench.mjs`](../tools/defect-bench.mjs) | ════════════════════════════════════════════════════════════════════════ tools/defect-bench.mjs — the frozen benchmark of past defects, built |
 | [`derive-sigma-window.mjs`](../tools/derive-sigma-window.mjs) | Headless derivation of the two raw-signal 1-Hz HR series a three-device σ window needs (VERITY-SIGMA-CORNER-BRIEF / SIGMA-WINDOW-DERIVATION.md): • Verity HR ← raw PPG via the suite's… |
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
 | [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | `tools/doc-search.mjs` appends `<ISO>\\t<query>` to `<git-common-dir>/tepna-mutation/ doc-search-sessions/<session_id>` on every search that ran. |

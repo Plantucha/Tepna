@@ -86,6 +86,7 @@ import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { fitDatToSpo2Csv, readDat, readSpo2Csv, timefitDisagrees } from './o2ring-dat-timefit.mjs';
+import { buildRecord, appendFold, LEDGER_NAME } from './fold-provenance.mjs';
 
 const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
 const __dirname = dirname(__filename);
@@ -400,9 +401,31 @@ function runVerdict(list, { dry }) {
   if (!chk.ok) throw new Error(`trio-batch: run verdict is invalid under verdict.js — ${chk.errors.join(' | ')}`);
   return v;
 }
+/* WHO MAY WRITE THE RUN VERDICT — pure, so `--selftest` pins the rule that was broken. `writeVerdicts`
+   sits ABOVE the `!CHILD` dispatch, and a child is this same script over ONE night, so every child
+   reached this line with a one-night plan and rewrote the shared file. The last child to exit won: a
+   106-night fold printed `106 folded` from the parent's own list and persisted `checked: 1` on disk, so
+   the file the console line pointed at was the one that was wrong (residue
+   `2026-10-12-trio-batch-verdicts-keeps-one-night-of-the-run`). The parent owns this file for the same
+   reason it owns the fold ledger and the sidecars: one child owns one night and cannot describe a run.
+   A dry run computes the object and prints it under `--json` without writing. */
+function mayWriteVerdicts({ child, dry }) {
+  return !child && !dry;
+}
+/* THE CONSOLE LINE, PURE — so `--selftest` pins the shape, and so the null case cannot be reasoned
+   about instead of tested. `runVerdict` returns `result: null` for NOT_RUN (zero nights) and
+   NOT_APPLICABLE (nights offered, none judged — a `--src` with no trio night), and the line read
+   `gateRun.result.folded` unguarded, so either status crashed the run with a TypeError AFTER every
+   night had folded. The null branch reports the ABSENCE with the gate's own reason beside it and
+   invents no count, per §∅: a `0 folded` here would be a number nobody measured. */
+function gateVerdictLine(run, path) {
+  const head = `gate verdict  : ${run.status}`;
+  if (!run.result) return `${head} — no night was judged (${run.reason || 'no reason given'}) → ${path}`;
+  return `${head} — ${run.result.folded} folded · ${run.result.rejected} rejected · ${run.result.notTrio} not trio → ${path}`;
+}
 function writeVerdicts(list, { dry }) {
   const run = runVerdict(list, { dry });
-  if (!dry && !DRY) {
+  if (mayWriteVerdicts({ child: CHILD, dry: dry || DRY })) {
     mkdirSync(OUT, { recursive: true });
     writeFileSync(join(OUT, 'trio-batch-verdicts.json'), JSON.stringify({ run, nights: list }, null, 1) + '\n');
   }
@@ -734,6 +757,21 @@ if (flag('--selftest')) {
     eq('…valid', val(runNone), true);
     const allPass = runVerdict([pass], { dry: false });
     eq('run with every judged night folded ⇒ PASS, reason null', allPass.status + ':' + allPass.reason, 'PASS:null');
+
+    /* WHO WRITES THE FILE. A child is this script over one night, so before 2026-10-13 every child
+       rewrote the shared run verdict and the last one to exit won — `106 folded` on screen,
+       `checked: 1` on disk (residue `2026-10-12-trio-batch-verdicts-keeps-one-night-of-the-run`). */
+    eq('the parent writes the run verdict', mayWriteVerdicts({ child: false, dry: false }), true);
+    eq('a CHILD never writes it — it owns one night and cannot describe a run', mayWriteVerdicts({ child: true, dry: false }), false);
+    eq('a dry run computes it and writes nothing', mayWriteVerdicts({ child: false, dry: true }), false);
+    eq('…and a dry CHILD writes nothing either', mayWriteVerdicts({ child: true, dry: true }), false);
+
+    /* THE CONSOLE LINE over a run that judged nothing. `result` is null for NOT_RUN and
+       NOT_APPLICABLE, and the line used to read `run.result.folded` unguarded. */
+    eq('the line quotes the three counts when the run judged nights', gateVerdictLine(run, 'OUT/f.json'), 'gate verdict  : SHORTFALL — 1 folded · 1 rejected · 1 not trio → OUT/f.json');
+    eq('…and over ZERO nights it reports the absence instead of crashing', /^gate verdict  : NOT_RUN — no night was judged \(.+\) → OUT\/f\.json$/.test(gateVerdictLine(runNone, 'OUT/f.json')), true);
+    eq('…and invents no count there (§∅: a 0 nobody measured)', /folded/.test(gateVerdictLine(runNone, 'OUT/f.json')), false);
+    eq('…same for a run that judged none of the nights it was offered', gateVerdictLine(runNa, 'OUT/f.json').startsWith('gate verdict  : NOT_APPLICABLE — no night was judged ('), true);
     nightVerdicts.length = before;
   }
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
@@ -1692,10 +1730,10 @@ for (const n of plan) {
 }
 // the run-level object; on a dry run it is computed and printed under --json but not written
 const gateRun = writeVerdicts(nightVerdicts, { dry: DRY });
-if (!DRY)
-  console.log(
-    `gate verdict  : ${gateRun.status} — ${gateRun.result.folded} folded · ${gateRun.result.rejected} rejected · ${gateRun.result.notTrio} not trio → ${join(OUT, 'trio-batch-verdicts.json')}`
-  );
+/* The line names the FILE, so only the process that owns the file may print it. A child's own line
+   would read `1 folded` and point at a path it no longer writes, and a failing child's tail is exactly
+   where a reader goes looking for the run (`childReport` quotes the last 12 lines on a non-zero exit). */
+if (!DRY && !CHILD) console.log(gateVerdictLine(gateRun, join(OUT, 'trio-batch-verdicts.json')));
 
 console.log(`\ntrio nights: ${trio.length}${LIMIT ? ` (limiting to ${LIMIT})` : ''}`);
 let work = LIMIT ? trio.slice(0, LIMIT) : trio;
@@ -1747,6 +1785,74 @@ const inputDigest = (p) =>
       .sort()
       .join('\n')
   );
+/* ── 3a-bis · THE RUN LEDGER — `provenance/trio-fold.json` ──────────────────────────────────────
+ * The per-night `.trio-stamp` records that night's inputs + code. What no stamp can record is a
+ * property of the RUN: which trees were walked, what they were mounted on, and the one file set the
+ * whole fold read. `tools/fold-provenance.mjs` has carried that record's builder since 2026-09-24
+ * with NO writer — a library with zero callers is a check nobody runs, so this is its first one.
+ *
+ * It is built from the PLAN plus the stamps on disk, never from the dispatch: a `--skip-existing` run
+ * over an already-folded corpus then writes the same account as the `--force` run that folded it
+ * (only `at` moves), because the ledger describes the OUTPUT TREE and not which nights this process
+ * happened to recompute. A night carries its own stamped codeDigest, so a tree folded under two code
+ * states says so instead of inheriting the running tree's digest.
+ *
+ * Not in a CHILD: one child owns one night and would append a record per night. The parent owns it,
+ * for the same reason it owns the sidecars. */
+function planFiles(plans) {
+  const out = [];
+  for (const p of plans)
+    for (const k of Object.keys(p)) {
+      const v = p[k];
+      const list = Array.isArray(v) ? v : v && v.name ? [v] : [];
+      for (const f of list) {
+        let mt = null;
+        try {
+          mt = statSync(f.full).mtimeMs;
+        } catch {
+          /* gone since the scan → recorded as null, never as 0 (§∅) */
+        }
+        out.push({ full: f.full, bytes: f.bytes, mtimeMs: mt });
+      }
+    }
+  return out;
+}
+
+function writeFoldLedger(plans, { dry }) {
+  const nights = plans.map((p) => {
+    const dir = join(OUT, p.key);
+    let st = null;
+    try {
+      st = JSON.parse(readFileSync(join(dir, STAMP), 'utf8'));
+    } catch {
+      /* no stamp, or an unreadable one: the night reports as not ok with null digests */
+    }
+    return {
+      key: p.key,
+      inputsDigest: st && typeof st.inputsDigest === 'string' ? st.inputsDigest : null,
+      codeDigest: st && typeof st.codeDigest === 'string' ? st.codeDigest : null,
+      nodes: st && Array.isArray(st.nodes) ? st.nodes : null,
+      ok: !!st && countTrioExports(dir) === TRIO_NODES.length
+    };
+  });
+  const record = buildRecord({ at: new Date().toISOString(), codeDigest: CODE_DIGEST, srcRoots: [SRC], nights, files: planFiles(plans) });
+  const path = join(ROOT, 'provenance', LEDGER_NAME + '.json');
+  if (dry) return { record, path, written: false, index: null };
+  let prior = null;
+  try {
+    prior = JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    /* first fold on this checkout: the ledger is created, never silently skipped */
+  }
+  const ledger = appendFold(prior, record);
+  writeFileSync(path, JSON.stringify(ledger, null, 2) + '\n');
+  return { record, path, written: true, index: ledger.folds.length - 1 };
+}
+
+const foldLedgerLine = (r) =>
+  `fold ledger   : ${r.record.nightCount} night(s) · ${r.record.fileCount} file(s) · fileSet ${r.record.fileSetDigest} · code ${r.record.codeDigest}` +
+  (r.written ? ` → ${r.path} [fold #${r.index}]` : ' (not written: --dry-run)');
+
 if (SKIP_EXISTING && !FORCE && !DRY) {
   const keep = [];
   for (const p of work) {
@@ -1997,6 +2103,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   console.log(`\n${'─'.repeat(64)}`);
   console.log(`nights        : ${work.length} planned · ${complete} complete trio(s) on disk${failed ? ` · ${failed} child failure(s)` : ''}`);
   console.log(`wall-clock    : ${secs.toFixed(0)}s  (${(secs / Math.max(1, work.length)).toFixed(0)}s/night at ${plan.jobs}×${splitNodes ? `, nodes split ${TRIO_NODES.length}-way` : ''})`);
+  console.log(foldLedgerLine(writeFoldLedger(trio, { dry: DRY })));
   console.log(`\nnext: node tools/tch-multinight.mjs --dir ${opt('--out', 'uploads/trio')}`);
   process.exit(failed ? 1 : 0);
 }
@@ -3186,4 +3293,5 @@ if (noMotion)
       `                  ecgdex-dsp.js epoch push; PpgDex/OxyDex do. The motion-ρ leg of\n` +
       `                  TCH FU-III §1 needs that DSP change, not more data.)`
   );
+if (!CHILD) console.log(foldLedgerLine(writeFoldLedger(trio, { dry: DRY })));
 console.log(`\nnext: node tools/tch-multinight.mjs --dir ${opt('--out', 'uploads/trio')}`);

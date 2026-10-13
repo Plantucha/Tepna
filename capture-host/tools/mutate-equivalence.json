@@ -4727,6 +4727,18 @@
       "key": "- span = 0.0 | + span = 1.0",
       "probe": "read summarise: `span` is read only at the marker-rate lines, inside `if out[\"rate_all_hz\"] is not None`, and rate_all_hz is set only inside `if len(with_recs) >= 2`, which assigns span first.",
       "why": "PROOF: the initialiser is dead on every path that reads span — the only read is guarded by a value set in the branch that overwrites it. 0.0, None and 1.0 alike are never observed. (Codex reader, verified by reading the guards.)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- ap.add_argument(\"--arg\", default=None, help=\"request-argument hex override, e.g. 0701\") | + ap.add_argument(\"--arg\", help=\"request-argument hex override, e.g. 0701\")",
+      "probe": "EXECUTED 2026-10-12 (Heron): two ArgumentParsers built side by side, one with `default=None` and one without, give equal `vars(parse_args([]))` ({'arg': None}), equal namespaces when the option is given, and `Action.default is None` on both. test_main_defaults_and_argument_types_reach_run asserts the default reaches run() as None.",
+      "why": "PROOF by the argparse contract: `add_argument(..., default=None)` and `add_argument(...)` construct the same Action (default=None is the library default), so no input can tell them apart."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- ap.add_argument(\"--json\", default=None, help=\"write the full per-reply log here\") | + ap.add_argument(\"--json\", help=\"write the full per-reply log here\")",
+      "probe": "EXECUTED 2026-10-12 (Heron): two ArgumentParsers built side by side, one with `default=None` and one without, give equal `vars(parse_args([]))` ({'json': None}), equal namespaces when the option is given, and `Action.default is None` on both. test_main_defaults_and_argument_types_reach_run asserts the default reaches run() as None.",
+      "why": "PROOF by the argparse contract: `add_argument(..., default=None)` and `add_argument(...)` construct the same Action (default=None is the library default), so no input can tell them apart."
     }
   ],
   "probe_ring_adv.py": [

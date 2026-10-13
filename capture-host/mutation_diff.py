@@ -2292,9 +2292,21 @@ def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -
       · `survived` == the length of the survivors LIST, and `undecided` likewise. Two fields of one
         verdict disagreeing about how many there are is what made a 26-entry list read as 12 in the
         `reason` string and 26 in `result.survived`, with nothing saying which was the count.
-      · `killed + survived + undecided <= decided <= generated`. Not equality: `excused` and
-        `empty_diff` mutants are decided and counted separately, and a mutant can be generated and
-        never decided (that is what `undecided` means).
+      · `killed + survived <= decided <= generated`. Not equality: `excused` and `empty_diff`
+        mutants are decided and counted separately.
+      · `decided + undecided <= generated`. `undecided` is the OTHER side of `decided`, not a part
+        of it — `mmeta.decided_under_glob` counts a mutant only when its exit code is non-null, and an
+        undecided mutant is exactly one whose code is null. So an undecided mutant is bounded by
+        `generated` and never by `decided`.
+
+    🔴 THE SECOND BULLET WAS ONCE INSIDE THE FIRST, and that made this function red every run that
+    had an undecided mutant. Measured on #3237's first CI run (36613550322): 109 decided, 23 undecided,
+    killed + survived 108 — all three honest — and the check fired with "killed + survived + undecided
+    (131) exceeds result.decided (109)". The verdict object then carried that string instead of
+    "23 mutant(s) UNDECIDED in kill_process_group", so a reader of the object alone was told the
+    counters were broken when what was broken was the diff's coverage. Both refusals were correct and
+    the second is downstream of the first, so nothing read as green; the cost was the less actionable
+    reason. `2026-09-29-verdict-self-check-counts-undecided-inside-a-sum-bounded-by-decided`.
 
     Returns the FIRST failing invariant with its numbers, because a caller that prints one reason is
     better served by a specific one than by a list it has to parse.
@@ -2316,14 +2328,22 @@ def result_inconsistency(result: dict, survivors_len: int, undecided_len: int) -
                 f"result.{field} is {result[field]} but the {field} list holds {n} — "
                 "two fields of one verdict disagreeing about the count"
             )
-    gen, dec = int(result["generated"]), int(result["decided"])
-    settled = int(result["killed"]) + int(result["survived"]) + int(result["undecided"])
+    gen, dec, und = int(result["generated"]), int(result["decided"]), int(result["undecided"])
+    settled = int(result["killed"]) + int(result["survived"])
     if dec > gen:
         return f"result.decided ({dec}) exceeds result.generated ({gen}) — more mutants decided than exist"
     if settled > dec:
         return (
-            f"result.killed + survived + undecided ({settled}) exceeds result.decided ({dec}) — "
+            f"result.killed + survived ({settled}) exceeds result.decided ({dec}) — "
             "outcomes recorded for mutants the run says it never settled"
+        )
+    # `undecided` is counted against `generated`, NOT against `decided` — see the docstring. This is the
+    # bound that still catches a double count: a run claiming to have accounted for more mutants than
+    # it generated has lost track of one of the two sets.
+    if dec + und > gen:
+        return (
+            f"result.decided + undecided ({dec + und}) exceeds result.generated ({gen}) — "
+            "more mutants accounted for than the run generated"
         )
     return None
 

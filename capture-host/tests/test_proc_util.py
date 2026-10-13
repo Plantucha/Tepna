@@ -11,6 +11,7 @@ These tests assert on the CHILD, not on the return value. A test that only check
 """
 
 import asyncio
+import contextlib
 import os
 import signal
 import sys
@@ -194,6 +195,138 @@ def test_kill_reaps_a_cooperative_child_without_error():
     assert order == ["kill", "wait"], "signal first, then reap — reversing it waits on a live child"
 
 
+# ── descendants: kill() must not stop at the direct child (residue 2026-09-29-proc-util-kill-is-parent-only) ──
+async def _forker(**spawn_kw):
+    """A child that forks a long sleeper and prints its pid. Returns (proc, grandchild_pid)."""
+    p = await asyncio.create_subprocess_exec(
+        "sh", "-c", "sleep 60 & echo $!; wait", stdout=asyncio.subprocess.PIPE, **spawn_kw
+    )
+    assert p.stdout is not None
+    return p, int((await p.stdout.readline()).strip())
+
+
+def test_kill_reaches_the_descendants_of_a_child_that_leads_its_own_group():
+    """THE DEFECT: `proc.kill()` signalled the direct child only, so a grandchild was re-parented and
+    kept running. Asserted on the GRANDCHILD, which is what the old code left alive."""
+
+    async def go():
+        p, gc = await _forker(start_new_session=True)
+        try:
+            await proc_util.kill(p)
+            await asyncio.sleep(0.1)
+            return gc, _alive(gc)
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(gc, 9)
+
+    gc, alive = _run(go())
+    assert not alive, f"grandchild {gc} outlived proc_util.kill() of the group leader"
+
+
+def test_kill_of_a_child_that_does_not_lead_a_group_never_signals_our_own_group():
+    """`killpg` on such a child would reach the daemon's own group. The fallback is the child alone,
+    which is what this helper did before — so the grandchild survives and WE do, by design."""
+
+    async def go():
+        p, gc = await _forker()  # no start_new_session: shares OUR group
+        try:
+            await proc_util.kill(p)
+            await asyncio.sleep(0.1)
+            return p.returncode, _alive(gc)
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(gc, 9)
+
+    rc, gc_alive = _run(go())
+    assert rc is not None, "the child itself is still killed and reaped"
+    assert gc_alive, "a non-leader's group is OURS and must not be signalled"
+
+
+@pytest.mark.parametrize("pid", [0, -5, True, None, "12"])
+def test_a_pid_that_is_not_a_real_positive_pid_is_never_given_to_killpg(monkeypatch, pid):
+    """`os.killpg(0, sig)` is "everyone here". A double with pid 0 must fall back to `proc.kill()`."""
+    groups = []
+    monkeypatch.setattr(os, "killpg", lambda *a: groups.append(a))
+    killed = []
+
+    class P:
+        def kill(self):
+            killed.append(True)
+
+        async def wait(self):
+            return 0
+
+    p = P()
+    p.pid = pid  # type: ignore[attr-defined]
+    asyncio.run(proc_util.kill(p))
+    assert groups == [] and killed == [True]
+
+
+def test_a_pid_that_has_already_gone_falls_back_without_raising(monkeypatch):
+    def gone(pid):
+        raise ProcessLookupError(pid)
+
+    monkeypatch.setattr(os, "getpgid", gone)
+    monkeypatch.setattr(os, "killpg", lambda *a: pytest.fail("no group to signal"))
+    killed = []
+
+    class P:
+        pid = 4321
+
+        def kill(self):
+            killed.append(True)
+
+        async def wait(self):
+            return 0
+
+    asyncio.run(proc_util.kill(P()))
+    assert killed == [True]
+
+
+def test_our_own_group_is_refused_even_when_the_pid_leads_it(monkeypatch):
+    """The second clause of the guard: `pgid == pid` alone is not enough — if the pid leads OUR group
+    (a double, or the daemon itself), `killpg` would reap the daemon."""
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(os, "getpgrp", lambda: 4321)
+    monkeypatch.setattr(os, "killpg", lambda *a: pytest.fail("signalled our own group"))
+    killed = []
+
+    class P:
+        pid = 4321
+
+        def kill(self):
+            killed.append(True)
+
+        async def wait(self):
+            return 0
+
+    asyncio.run(proc_util.kill(P()))
+    assert killed == [True]
+
+
+def test_a_refused_group_signal_falls_back_to_killing_the_child(monkeypatch):
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(os, "getpgrp", lambda: 1)
+
+    def refused(pgid, sig):
+        raise PermissionError("EPERM")
+
+    monkeypatch.setattr(os, "killpg", refused)
+    killed = []
+
+    class P:
+        pid = 4321
+
+        def kill(self):
+            killed.append(True)
+
+        async def wait(self):
+            return 0
+
+    asyncio.run(proc_util.kill(P()))
+    assert killed == [True], "a group we may not signal must not leave the child alive"
+
+
 # ── the GROUP: descendants, and the one group that must never be signalled ──────────────────────────
 # `2026-09-29-proc-util-kill-is-parent-only`. Reproduced 2026-10-12 before the fix: a child spawned
 # with `start_new_session=True` that forks a grandchild left `child_alive=False grandchild_alive=True`
@@ -279,7 +412,7 @@ def test_kill_bounds_the_GROUP_GRACE_rather_than_waiting_forever(monkeypatch):
     CALL in the test turns that hang into a failure in seconds.
     """
     sent = []
-    monkeypatch.setattr(proc_util, "_group_leader", lambda pid: True)
+    monkeypatch.setattr(proc_util, "_leads_own_group", lambda pid: True)
     monkeypatch.setattr(proc_util, "_killpg", lambda pgid, sig: sent.append(sig))
     # Shrunk so the PASSING path costs milliseconds. The mutant reads no constant at all, so this
     # cannot flatter it: it still waits forever and the outer bound is what fails.
@@ -315,7 +448,7 @@ def test_a_child_in_OUR_OWN_group_is_killed_ALONE():
     async def go():
         sibling = await _sleeper()
         target = await _sleeper()
-        leads = proc_util._group_leader(target.pid)
+        leads = proc_util._leads_own_group(target.pid)
         await proc_util.kill(target)
         return sibling, target.pid, sibling.pid, leads
 
@@ -388,25 +521,25 @@ def test_killpg_is_the_SECOND_independent_guard_and_never_raises(monkeypatch):
         proc_util._killpg(os.getpgrp() + 10_000_000, signal.SIGTERM)  # a group that died first is normal
 
 
-def test_group_leader_refuses_every_pid_that_does_not_LEAD_a_group_of_its_own(monkeypatch):
+def test_leads_own_group_refuses_every_pid_that_does_not_LEAD_a_group_of_its_own(monkeypatch):
     """Two independent conditions: the child must lead the group (`pgid == pid`) and that group must
     not be ours. A dead pid, a pid we may not read, and a pid that is not a pid all read False rather
-    than raising — `_group_leader` is called on the teardown path, where a raise is a new failure
+    than raising — `_leads_own_group` is called on the teardown path, where a raise is a new failure
     mode."""
-    assert proc_util._group_leader(os.getpid()) is False or os.getpgrp() != os.getpid()
+    assert proc_util._leads_own_group(os.getpid()) is False or os.getpgrp() != os.getpid()
     for bad in (True, False, None, "1234", 12.0, 0, -1):
-        assert proc_util._group_leader(bad) is False, f"_group_leader({bad!r}) must refuse"
+        assert proc_util._leads_own_group(bad) is False, f"_leads_own_group({bad!r}) must refuse"
 
     async def reaped_pid():
         p = await asyncio.create_subprocess_exec("true")
         await p.wait()
         return p.pid
 
-    assert proc_util._group_leader(_run(reaped_pid())) is False, "a reaped pid leads nothing"
+    assert proc_util._leads_own_group(_run(reaped_pid())) is False, "a reaped pid leads nothing"
 
     async def same_group_child():
         p = await _sleeper()
-        leads = proc_util._group_leader(p.pid)
+        leads = proc_util._leads_own_group(p.pid)
         await proc_util.kill(p)
         return leads
 
@@ -418,10 +551,10 @@ def test_group_leader_refuses_every_pid_that_does_not_LEAD_a_group_of_its_own(mo
             raise _e
 
         monkeypatch.setattr(proc_util.os, "getpgid", boom)
-        assert proc_util._group_leader(os.getpid()) is False, f"{type(exc).__name__} must read as False"
+        assert proc_util._leads_own_group(os.getpid()) is False, f"{type(exc).__name__} must read as False"
 
 
-def test_group_leader_decides_the_REFUSAL_before_it_reads_the_group(monkeypatch):
+def test_leads_own_group_decides_the_REFUSAL_before_it_reads_the_group(monkeypatch):
     """The guard's bound is `pid <= 0`, and neither `< 0` nor `<= 1` is the same rule.
 
     `0` means "the caller's own group" to every POSIX signal call, so it must fail safe BEFORE
@@ -437,19 +570,19 @@ def test_group_leader_decides_the_REFUSAL_before_it_reads_the_group(monkeypatch)
 
     monkeypatch.setattr(proc_util.os, "getpgid", getpgid)
     monkeypatch.setattr(proc_util.os, "getpgrp", lambda: 999_000)
-    assert proc_util._group_leader(0) is False
+    assert proc_util._leads_own_group(0) is False
     assert asked == [], f"pid 0 must be refused without any group read: {asked}"
-    assert proc_util._group_leader(1) is True, "pid 1 leads its own group, and that group is not ours"
+    assert proc_util._leads_own_group(1) is True, "pid 1 leads its own group, and that group is not ours"
 
 
-def test_group_leader_needs_BOTH_conditions_and_a_grandchild_shows_why(monkeypatch):
+def test_leads_own_group_needs_BOTH_conditions_and_a_grandchild_shows_why(monkeypatch):
     """`pgid == pid and pgid != os.getpgrp()`. A grandchild satisfies the second clause and fails the
     first: its group is not ours, and it does not lead that group. Reading `or` there would call a group
     kill on a pid whose group belongs to somebody else's leader — the group kill this module exists to
     bound."""
     monkeypatch.setattr(proc_util.os, "getpgrp", lambda: 999_000)
     monkeypatch.setattr(proc_util.os, "getpgid", lambda _pid: 777_000)  # a group this pid does not lead
-    assert proc_util._group_leader(12_345) is False, "a member of a foreign group does not lead it"
+    assert proc_util._leads_own_group(12_345) is False, "a member of a foreign group does not lead it"
 
 
 def test_both_pgid_guards_refuse_ZERO_and_pass_pgid_ONE(monkeypatch):
@@ -478,7 +611,7 @@ def test_a_leader_that_exits_during_the_GROUP_SIGTERM_is_not_killed_again(monkey
     A grace that waits for nothing, or a `returncode` read off the wrong object, reports a live child
     and signals a reaped one. The pgid the group gets is the LEADER's own pid, never another value."""
     sent = []
-    monkeypatch.setattr(proc_util, "_group_leader", lambda pid: True)
+    monkeypatch.setattr(proc_util, "_leads_own_group", lambda pid: True)
     monkeypatch.setattr(proc_util, "_killpg", lambda pgid, sig: sent.append((pgid, sig)))
 
     class P:

@@ -9,5 +9,8 @@
     "CPAPDex",
     "Integrator",
     "MotionDex"
+  ],
+  "runs": [
+    "trio-fold"
   ]
 }
