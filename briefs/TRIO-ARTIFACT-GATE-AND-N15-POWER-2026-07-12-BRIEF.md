@@ -293,3 +293,44 @@ boundary-prone solve rather than diagnosing when it fails.
 the N=10 vs N=15 tables drives the **real committed `sensor-trio-worker.js`** (its own channel pick, consensus,
 foot-to-foot PPI, TCH kernel and Verity gate), swapping only `ppgdex-dsp.js` old↔new — so the comparison is
 like-for-like against the published estimator.
+
+---
+
+## ⊕ 2026-10-12 — the canonical estimator is now the UNWEIGHTED hat, and this brief's N=15 material was always on it
+
+The owner picked **option A** of `TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12-BRIEF.md` §5 (relayed by
+Kestrel, 2026-10-12): the unweighted artifact-robust hat is canonical, and the fused-weight hat of
+`TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md` is retired to a diagnostic. This section records what that does
+to the N=15 power material, because the answer is "nothing", and that is worth being able to check.
+
+**The tables here predate the fused point.** The fused hat entered `sensor-trio-worker.js` as the point
+estimate on **2026-07-14** (`4d10a8164`). The 15-night hat row (2.60 / 1.58 / 1.85) comes from
+`PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md` §2, executed **2026-07-12**, and the
+published 10-night hat is older still. Both rows are therefore unweighted-hat numbers, and the owner's
+pick re-points the code at the estimator those rows were already computed with.
+
+**What the unweighted hat measures on today's corpus** (`tools/tch-fused-corpus.mjs --dir uploads/trio`,
+run 2026-10-12 over 147 night folders; 90 solved, 57 missing a node export):
+
+| | O2Ring | H10 | Verity |
+|---|---|---|---|
+| across-night median [IQR], unweighted | **2.91** [2.67–3.21] n=90 | **0.67** [0.45–0.97] n=87 | **0.79** [0.62–1.07] n=90 |
+| across-night median [IQR], fused (retired) | 2.80 [2.54–3.07] n=90 | 0.91 [0.68–1.20] n=90 | 0.68 [0.40–1.10] n=65 |
+| pooled-seconds broad hat, unweighted | **3.46** | **1.38** | **1.30** |
+
+The pooled-seconds row is over **1 510 146** overlapping seconds, from the tool's own per-night pair
+moments (`Σ w·Var + [Σ w·μ² − (Σ w·μ)²]`); adding the between-night bias term moves it by 0.4 % of
+`V_HV`, so the number is a within-night quantity either way. **A median over nights is not the
+pooled-seconds hat** — the tool prints that caveat itself — so the two rows answer different questions and
+must not be swapped for one another.
+
+**Why the corner counts differ.** The fused weighting nulls the Verity corner on **25 of 90** nights
+(negative variance); the unweighted hat nulls H10 on **3** (2026-07-06, 2026-07-08, 2026-07-09). The
+weighting costs 22 corner-nights, and every one of them is a negative variance the weights produced
+rather than the data. Neither estimator trips the Verity quality gate or the H10 lead gate on any of the
+90 nights, so the re-point changes no night's skip decision.
+
+**What is NOT changed here.** The planted σ stays at **2.72 / 1.86 / 1.94** and its single-value gate stays
+pinned to it: the planted truth and the paper's Tables 1–3 are one atomic unit, and moving it needs the
+publication-grade trial count that `TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md` blocker 1 still names.
+§6.2 and §6.3 stay parked on corpus size; the estimator choice does not bear on them.

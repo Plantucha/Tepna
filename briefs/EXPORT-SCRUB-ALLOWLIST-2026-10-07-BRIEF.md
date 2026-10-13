@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-10-07 · **Owner:** unassigned · **Relates:** `dex-export.js` `scrubExport`, `ganglior.node-export` contract, SELF-INGEST-FOLLOWUPS-II §F1, #3344
+**Status:** DONE — 2026-10-12 · **Created:** 2026-10-07 · **Owner:** unassigned · **Relates:** `dex-export.js` `scrubExport`, `ganglior.node-export` contract, SELF-INGEST-FOLLOWUPS-II §F1, #3344
 
 # Export scrub: from deny-list to allow-list
 
@@ -50,3 +50,29 @@ This is a contract change, not a bugfix — it needs the owner's ruling before c
 
 - Is there any consumer of scrubbed exports that reads a field not on the obvious allow-list (metrics beyond bytes/counts)?
 - Should the allow-list live in `dex-export.js` or in a schema file the nodes share?
+
+## 7 · What was built — 2026-10-12
+
+The owner ruled §6's second question on 2026-10-12: the allow-list lives in **one shared schema file**,
+`export-schema.js`, and every node-export and the Integrator read it. The file holds no DOM call and no
+node logic, so the test runner loads it in a vm realm beside the other spine modules.
+
+`scrubExport` now projects the envelope through `ExportSchema.project`. A key absent from the
+allow-list is absent from the output. `schema.scrubDropped` names every dropped key as a dotted block
+path, because §∅ asks a removal to announce itself. Without the shared file `scrubExport` **throws**
+rather than stamping `scrubbed: true`. So a bundle that never co-loaded the schema cannot ship an
+export claiming a scrub that nothing performed.
+
+**One deviation from §3.** The filename-shape regex did not go away. `tests/dex-tests.js` already pins
+`recording.source` surviving a scrub as `'file'`, and a semantic tag beside it
+(`'ResMed AirSense 11 (EDF set)'`). Dropping the regex would break both committed assertions. So
+`source` carries a declaration on the three blocks that hold it, and the regex moved out of the scrub
+body into a `GUARDS` entry in the schema file. A guarded key whose value looks like a path drops and
+gets named, like any undeclared key. The regex stopped being a secret; it did not stop existing.
+
+§3 really asks for a node-side repair — a node writing its semantic tag under a key no reader can mistake
+for a path. That repair rides a residue row, not this unit.
+
+The suite answered §6's first question, where inspection had not. An allow-list drawn from the corpus
+alone dropped `sessions[].hrvScore`, which a committed assertion reads. That key carries a declaration
+on the strength of the assertion, and the schema file says as much beside it.
