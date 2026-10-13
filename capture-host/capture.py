@@ -3506,7 +3506,7 @@ async def _exit_sdk_mode(ctrl, name: str) -> bool | None:
 
 # ⚠️ THE 45-MINUTE FLAT-BATTERY CLOCK MUST OUTLIVE THE CONNECTION, and it did not.
 #
-# `full_battery_implies_charging` needs 2700 s of a battery not moving at 100 %. That timer used to be a
+# `flat_window_closed` needs 2700 s of a battery not moving at 100 %. That timer used to be a
 # local inside `run_polar`'s `async with _connect(...)` block — i.e. INSIDE the reconnect loop — so every
 # dropped link reset it to None and restarted the count.
 #
@@ -3794,8 +3794,10 @@ async def run_polar(dev: dict, root: str):
                 _AMB_WINDOW = 220
                 _has_contact_bit = False
                 # When the battery level last CHANGED. A full cell cannot rise, so at 100 % the
-                # rising-charge rule in `_read_batt` is blind and flatness is the only substitute
-                # signal — see telemetry.full_battery_implies_charging.
+                # rising-charge rule in `_read_batt` is blind, and flatness is the only OBSERVATION
+                # left there. It is not a substitute signal: it fits a dock and a fresh cell equally,
+                # so since the owner's 2026-10-12 ruling it publishes `charging: null` and claims
+                # nothing — see telemetry.flat_window_closed.
                 # Say the contact-vs-optics conflict ONCE per session, not once per PPG window.
                 # At 176 Hz this branch runs ~every 1.25 s; an unthrottled warning would emit
                 # ~2900 identical lines a night and bury the one that matters.
@@ -4203,23 +4205,36 @@ async def run_polar(dev: dict, root: str):
                             elif isinstance(prev, int) and lvl < prev:
                                 _set(name, charging=False, charging_why=None)  # discharging again -> off the dock
                             _set(name, battery=lvl)
-                            # AT FULL, FLATNESS REPLACES RISING. The rule above cannot fire at 100 %
+                            # AT FULL, NOTHING REPLACES RISING. The rule above cannot fire at 100 %
                             # — there is nowhere to rise to — so a device docked while full reported
                             # charging=False indefinitely. Measured 2026-08-14: 80 min of 176 Hz
                             # streaming with battery pinned at 100 and nothing able to tell a dock
                             # from a wrist. Streaming drains ~9 %/h, so 45 min of no movement at full
-                            # is a charger.
+                            # WAS read as a charger, until that reading cost 140 drops on a worn strap
+                            # (2026-09-22). The flat observation is still recorded; it decides nothing.
                             # store is module-level, so a reconnect does not restart the clock
-                            # R2: the flat-at-full INFERENCE fires only on a unit observed to charge — a coin
-                            # cell at 100 % for 45 min is a fresh cell, not a dock (2026-09-22, 140 drops)
+                            # R2: the flat-at-full observation is recorded only for a unit observed to
+                            # charge — a coin cell at 100 % for 45 min is a fresh cell, not a dock
+                            # (2026-09-22, 140 drops)
+                            # 🔴 OWNER RULING 2026-10-12: STOP INFERRING A CHARGER FROM FLATNESS.
+                            # `charging` is NULL when flatness is the only evidence, because flatness
+                            # cannot separate a dock from a fresh cell and the daemon has no third
+                            # reading that can. The 2026-09-22 H10 cost 140 drops under a dock it was
+                            # never in; the 2026-08-14 docked Verity is accepted as lost. A value that
+                            # was not measured is null, never a value (CLAUDE.md §∅), so `charging_why`
+                            # still names the observation and the reason the value is absent is on the
+                            # record rather than replaced by a guess.
                             if (
                                 note_flat_battery(_BATT_FLAT_SINCE, name, prev, lvl, _time.monotonic())
                                 and devcaps.get(addr, "can_charge") is True
+                                # A MEASURED reason is never overwritten. `rising` and `pmd-in-charger`
+                                # are physical facts about where the device is; flatness is not, and
+                                # nulling one would lose a measurement to an observation that knows
+                                # less. The flat clock resets on any level change, so the `charging`
+                                # False written beside a FALLING level cannot be standing here either.
+                                and STATUS["devices"].get(name, {}).get("charging_why") in (None, "flat-at-full")
                             ):
-                                # the INFERENCE, named so worn_verdict can weigh it against a heartbeat. It
-                                # cannot fire on the read that measured a rise (lvl > prev resets the clock),
-                                # so it never overwrites `rising` within a session.
-                                _set(name, charging=True, charging_why="flat-at-full")
+                                _set(name, charging=None, charging_why="flat-at-full")
                     except Exception:
                         # The charging/flat-battery detector silently STOPS here — `charging` keeps whatever it last
                         # held, so a docked device goes on looking worn. Say it, or the detector is machinery that
@@ -4561,7 +4576,13 @@ async def run_polar(dev: dict, root: str):
                                     )
                                 stream_scale[meas] = pmd.axis_scale(meas, settings)  # device-reported range/resolution
                                 _register(meas, used_fs)
-                                _set(name, charging=False)
+                                # `charging_why` TRAVELS WITH `charging`, ALWAYS. A START that cleared the
+                                # flag and left the reason behind published a record that contradicted
+                                # itself — `charging: False` beside `charging_why: "pmd-in-charger"` or
+                                # `"flat-at-full"` from the session before it — and a reader taking the
+                                # reason as the explanation of the flag read a dock the same record denied.
+                                # The three battery-block writers already pair them; this one did not.
+                                _set(name, charging=False, charging_why=None)
                                 _CHARGING.discard(name)
                             elif transient:
                                 # Do NOT tear the stream down: the settings are fine, the device simply
@@ -9425,6 +9446,10 @@ async def loss_poller(cfg: dict, root: str):
                 if _m is not None and nightqc.data_settled(_m, settle, _t):
                     _settled[_n] = _m
             nights = [n for n in every if n in _settled]
+            # ONE re-judge per poll for a night whose verdict older judge code wrote (`solid_night.code_moved`):
+            # each costs a full audit and composition in this process (+311..+605 MB peak, measured on vigil
+            # 2026-10-12), so a deploy that touches the judge works through the window one night per tick.
+            rejudge = int(lcfg.get("rejudge_per_poll", 1))
             for night in nights[-int(lcfg.get("max_nights", 14)) :]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
@@ -9439,8 +9464,17 @@ async def loss_poller(cfg: dict, root: str):
                 # docstring above already promised "the night's PRIMARY files"; this is the code
                 # doing what it said.
                 newest = _settled[night]  # measured for the eligibility test above; a float by construction
-                # audit only when the night's DATA changed since the last audit (otherwise it stands)
-                if not (os.path.exists(vpath) and os.path.getmtime(vpath) >= newest):
+                # audit only when the night's DATA changed since the last audit (otherwise it stands) — or when
+                # the code that judged it has changed since, within this poll's re-judge budget
+                why = None
+                current = os.path.exists(vpath) and os.path.getmtime(vpath) >= newest
+                if current and rejudge > 0:
+                    why = await asyncio.to_thread(solid_night.code_moved, nd, commit)
+                    if why:
+                        rejudge -= 1
+                        current = False
+                        log.info("solid-night: %s — %s", night, why)
+                if not current:
                     obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
                     STATUS.setdefault("loss", {})[night] = {
                         "status": obj["status"],
@@ -9455,13 +9489,15 @@ async def loss_poller(cfg: dict, root: str):
                             dc,
                             obj.get("reason"),
                         )
-                await _solid_night(nd, night, cfg, every, active, commit)
+                await _solid_night(nd, night, cfg, every, active, commit, why)
             await _solid_pending(captures, every, active, cfg, settle, commit)
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("loss-audit: poll failed", exc_info=True)
 
 
-async def _solid_night(nd: str, night: str, cfg: dict, nights: list, active: set, commit) -> None:
+async def _solid_night(
+    nd: str, night: str, cfg: dict, nights: list, active: set, commit, why: str | None = None
+) -> None:
     """SOLID-NIGHT §2: the night's verdict, composed on the LOSS AUDIT'S OWN TRIGGER — it runs only for a
     settled night, after that night's audit, and again only when the audit is newer than the verdict (the
     audit re-runs when the night's data changes, and the verdict follows it). Its failure is its own: a
@@ -9475,10 +9511,22 @@ async def _solid_night(nd: str, night: str, cfg: dict, nights: list, active: set
         return  # composed since the audit last changed
     try:
         obj, run = await asyncio.to_thread(
-            solid_night.write_night, nd, cfg.get("devices", []), nights=nights, active=active, commit=commit
+            solid_night.write_night,
+            nd,
+            cfg.get("devices", []),
+            nights=nights,
+            active=active,
+            commit=commit,
+            reason=why,
         )
     except Exception:  # noqa: BLE001 — one night's verdict must not stop the poller
         log.warning("solid-night: %s — verdict not written", night, exc_info=True)
+        return
+    log.info("solid-night: %s %s — %s", night, obj["status"], run["statement"])
+    # A RE-JUDGED OLDER NIGHT IS WRITTEN BUT NOT PUBLISHED: the status card states the newest night, and
+    # `code_moved` now re-judges past nights routinely — the same never-backwards rule `_solid_pending` keeps.
+    shown = (STATUS.get("solid") or {}).get("night")
+    if shown is not None and night < shown:
         return
     STATUS["solid"] = {
         "night": night,
@@ -9488,7 +9536,6 @@ async def _solid_night(nd: str, night: str, cfg: dict, nights: list, active: set
         "solid": run["solid"],
         "exit": run["exit"],
     }
-    log.info("solid-night: %s %s — %s", night, obj["status"], run["statement"])
 
 
 async def _solid_pending(captures: str, every: list, active: set, cfg: dict, settle: float, commit) -> None:

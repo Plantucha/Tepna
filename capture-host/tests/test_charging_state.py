@@ -44,6 +44,22 @@ def test_polar_charge_is_inferred_from_a_RISING_battery():
     )
 
 
+def test_a_START_clears_the_reason_with_the_flag_it_contradicts():
+    """`charging` and `charging_why` are ONE published fact in two cells, and a writer that moves only
+    one of them leaves a record that argues with itself.
+
+    The PMD START path cleared the flag and said nothing about the reason, so a session that began
+    after a dock or a flat window published `charging: False` beside `charging_why: "pmd-in-charger"`
+    or `"flat-at-full"` — and a reader taking the reason as the explanation of the flag read a charger
+    the same record denied. The battery block's own writers have always paired them."""
+    src = module_source("capture.py")
+    paired = "_set(name, charging=False, charging_why=None)"
+    assert src.count(paired) == 2, (
+        "both writers that clear the flag must clear the reason — the START path and the discharging branch"
+    )
+    assert "_set(name, charging=False)\n" not in src, "a bare clear leaves the previous reason standing"
+
+
 def test_the_monitor_pill_describes_data_not_the_link():
     """The card said `live` whenever the stream was `active`, which means started — not delivering. On
     2026-07-19 seven of twelve streams read `live` at effFs 0.0."""
@@ -72,21 +88,41 @@ def test_not_worn_and_charging_are_amber_or_blue_never_red():
     assert "--blue" in chg and "--red" not in chg
 
 
+def test_the_charger_chip_reads_THREE_answers_and_never_a_truthy_flag():
+    """∅ `charging` is true / false / null on the wire since 2026-10-12, and a truthy test collapses
+    the null onto the false — which is the positive claim "not on a charger" standing in for no claim
+    at all. The null is the one the ruling created: a battery flat at full fits a dock and a fresh cell
+    equally, so the daemon stopped choosing. `worn === false` next door has been written this way
+    since the tri-state reached it, and the unknown is drawn rather than swallowed."""
+    html = open(__file__.replace("tests/test_charging_state.py", "monitor.html"), encoding="utf-8").read()
+    assert "dev.charging === true" in html, "the pill must claim the charger only on an explicit true"
+    assert "dev && dev.charging)" not in html, "a truthy test reads a null as 'not charging'"
+    assert "charger unknown" in html, "the third answer must be drawn, not left as an empty chip"
+    unknown = html.split("charger unknown")[0].rsplit("<span", 1)[1]
+    assert 'class="clk idle"' in unknown, "an unknown is neutral — amber or red would cry fault at it"
+
+
 # ── THE HOLE THE RISING RULE CANNOT REACH: a battery already at 100 % ───────────────────────────────
 # The tests above are source scans. This one EXECUTES, because the defect it covers is a wiring
-# question — does a `True` from the predicate actually reach the flag — and a scan cannot answer that.
+# question — does the predicate's result actually reach the flag — and a scan cannot answer that.
 
 
 @pytest.mark.sets_capture_events
-def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_path, monkeypatch):
+def test_a_FULL_flat_battery_publishes_charging_NULL_and_names_the_observation(tmp_path, monkeypatch):
     """A full cell has nowhere to rise to, so `lvl > prev` can never fire at 100 %. Measured
     2026-08-14: the Verity streamed 80 min at 176 Hz with `battery` pinned at 100 and `charging` False
     the whole time, so the contact bit's `worn: True` stood unopposed and the not-worn drop could never
     fire — an armband on a dock, indistinguishable from a wrist.
 
+    🔴 OWNER RULING 2026-10-12. Flatness no longer infers a charger. The same flatness also fits a
+    fresh coin cell, and that reading cost 140 drops on a worn H10 on 2026-09-22, so the daemon now
+    publishes `charging: None` and names the observation in `charging_why`. The 2026-08-14 docked
+    Verity is accepted as lost: a value nothing measured is null, never a value.
+
     The RULE (how long flat, at what level) is tested exhaustively and purely in
-    `test_worn_detectors.py`. What this asserts is the part a pure test cannot: that a `True` from it
-    reaches `charging`, on the second battery read, when the level has not moved."""
+    `test_worn_detectors.py`. What this asserts is the part a pure test cannot: that the predicate's
+    result reaches `charging` as a NULL with its reason, on the second battery read, when the level
+    has not moved."""
     import asyncio
     import sys as _sys
 
@@ -98,7 +134,7 @@ def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_pa
     T._polar_common(monkeypatch)
     # The predicate is stubbed rather than time-travelled: advancing `_time.monotonic` past 45 min
     # would also trip the 90 s stall watchdog and end the session before the second read.
-    # Patched at `note_flat_battery` rather than at `full_battery_implies_charging`: the clock now lives
+    # Patched at `note_flat_battery` rather than at `flat_window_closed`: the clock now lives
     # in a module-level store so it can survive reconnects, and the predicate is called from telemetry's
     # namespace, where a patch on `capture.` cannot reach it.
     monkeypatch.setattr(capture, "note_flat_battery", lambda *_a, **_k: True)
@@ -114,9 +150,70 @@ def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_pa
     asyncio.run(capture.run_polar(T._pdev(streams=["ppg"]), str(tmp_path)))
     st = capture.STATUS["devices"][T._pdev(streams=["ppg"])["name"]]
     assert st.get("battery") == 100, f"the fixture reads 100; the flat path needs prev == lvl: {st}"
-    assert st.get("charging") is True, (
-        f"a full, unmoving battery must set charging — this is the case `lvl > prev` cannot see: {st}"
+    assert st.get("charging") is None, (
+        f"a full, unmoving battery is a dock OR a fresh cell, so `charging` must be NULL: {st}"
     )
+    assert st.get("charging_why") == "flat-at-full", (
+        f"a null with no reason is an unexplained absence — the observation must still be named: {st}"
+    )
+
+
+@pytest.mark.sets_capture_events
+def test_flatness_never_nulls_a_MEASURED_charging_reason(tmp_path, monkeypatch):
+    """The guard the owner's ruling needs, and the one a null can destroy.
+
+    `charging` now goes NULL on flatness. A rise and the PMD's own IN_CHARGER answer are MEASUREMENTS
+    of where the device is, and a flat cell at 100 % is exactly what a device that finished charging
+    looks like — so the unguarded null would erase the measurement that put it there, every battery
+    read, for the rest of the session. That trades a false dock for a lost charge, which is the same
+    error pointing the other way.
+
+    The clock also resets on any level change, so the `charging: False` written beside a FALLING level
+    cannot be standing when this fires. `rising` is therefore the reachable case, and it is the one
+    asserted.
+
+    ⚠️ THE RISE IS MADE TO HAPPEN, NOT SEEDED, and that is the whole repair of this test. It used to
+    write `charging_why: "rising"` into STATUS before `run_polar` and rely on the PMD START not
+    clearing it — i.e. on the incoherence this file now forbids. Once the START pairs its own cleared
+    reason with its `charging: False`, a pre-seeded reason no longer survives to the flat read, and the
+    scenario was unreachable rather than failing. So the battery RISES across the two reads, 99 → 100,
+    which is the one path that writes `rising` where the guard can see it."""
+    import asyncio
+    import sys as _sys
+
+    _sys.path.insert(0, __import__("os").path.dirname(__file__))
+    import capture
+    import test_capture_runners as T
+
+    capture._STOP = asyncio.Event()
+    T._polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "note_flat_battery", lambda *_a, **_k: True)
+    capture.devcaps.reset()
+    addr = T._pdev()["address"]
+    capture.devcaps.record(addr, "can_charge", True, source="test: a unit observed to charge")
+    name = T._pdev(streams=["ppg"])["name"]
+    c = T.FlexPolarClient(data_frames=[T._ppg_frame()], batt_level=99)
+    # Two reads, two levels. `_read_batt` takes `prev` from STATUS's own `battery`, so the rise has to
+    # arrive as a SEQUENCE — a fixed level can never satisfy `lvl > prev` and a seeded reason is wiped
+    # by the START before the flat check ever runs.
+    levels = iter([99, 100])
+    _orig_read = c.read_gatt_char
+
+    async def _rising_read(uuid):
+        if uuid == capture.BATTERY_UUID:
+            c.batt_level = next(levels, 100)
+        return await _orig_read(uuid)
+
+    c.read_gatt_char = _rising_read
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 130)  # past `secs % 120` → a SECOND battery read
+    asyncio.run(capture.run_polar(T._pdev(streams=["ppg"]), str(tmp_path)))
+    st = capture.STATUS["devices"][name]
+    assert st.get("charging") is not None, (
+        f"flatness must not replace a measured value with a null — remove the `charging_why` guard at "
+        f"capture.py and this reads None: {st}"
+    )
+    assert st.get("charging_why") == "rising", f"the measured reason must survive the flat read: {st}"
 
 
 @pytest.mark.sets_capture_events
@@ -167,6 +264,18 @@ def test_flat_clock_does_not_fire_before_the_window():
 def test_flat_clock_fires_once_the_window_passes():
     store = {"V": 1000.0}
     assert telemetry.note_flat_battery(store, "V", 100, 100, 1000.0 + _FLAT + 1) is True
+
+
+def test_the_WINDOW_LENGTH_the_CALLER_PASSES_is_the_one_that_decides():
+    """`note_flat_battery` forwards `min_flat_s`, so a caller may shorten the window.
+
+    The second line is the counterfactual. Drop the keyword and the 2700 s default stays in place, so
+    the same 20 s observation reads False. That plant survived the mutation gate on 2026-10-12, because
+    every other test on this clock takes the default."""
+    store = {"V": 1000.0}
+    assert telemetry.note_flat_battery(store, "V", 100, 100, 1020.0, min_flat_s=10.0) is True
+    assert telemetry.note_flat_battery(store, "V", 100, 100, 1020.0) is False
+    assert store["V"] == 1000.0, "neither call restarted the clock, so the two readings are comparable"
 
 
 def test_a_moving_battery_restarts_the_clock():

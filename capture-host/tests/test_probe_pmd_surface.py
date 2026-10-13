@@ -503,10 +503,14 @@ def test_identity_is_skipped_when_the_device_has_gone(monkeypatch):
 # ── the sample stamp ─────────────────────────────────────────────────────────────────────────────────
 
 
-def _acc_frame(sensor_ns: int) -> bytes:
+def _acc_frame(sensor_ns: int, n: int = 1) -> bytes:
+    """One type-1 ACC frame. `sensor_ns` is the stamp of its LAST sample — the PMD header carries the
+    frame's tail and `decode_frame` back-times the rest — so `n > 1` is what makes the frame's first
+    and last sample two different instants, and the only way a test can see which one is read."""
     import struct
 
-    return bytes([pmd.ACC]) + struct.pack("<Q", sensor_ns) + b"\x01" + struct.pack("<hhh", 0, 0, 1000)
+    body = b"".join(struct.pack("<hhh", i, 0, 1000) for i in range(n))
+    return bytes([pmd.ACC]) + struct.pack("<Q", sensor_ns) + b"\x01" + body
 
 
 def test_a_sample_stamp_comes_from_the_device_clock_not_the_host(monkeypatch):
@@ -937,6 +941,39 @@ def test_the_sweep_writes_only_to_the_control_point(monkeypatch):
     _run(probe.execute_plan("AA:BB", None, probe.plan_sweep([]), {}))
     assert {ch for ch, _, _ in c.write_calls} == {pmd.PMD_CONTROL}
     assert all(resp is True for _, _, resp in c.write_calls)
+
+
+def test_the_sample_stamp_is_the_LAST_sample_IN_the_frame_not_the_first(monkeypatch):
+    """WHICH SAMPLE, not which frame. `test_only_the_first_frame_is_kept_as_the_sample_stamp` next door
+    pins the frame and its name reads as though it pinned both — and every fake frame in this file
+    carried exactly ONE sample, so `samples[-1]` → `samples[0]` survived the whole module (measured
+    2026-10-05: planted, 85 passed).
+
+    The choice is not arbitrary. A PMD frame's header stamp IS its last sample, and the last sample is
+    the instant closest to the frame leaving the device, which is the quantity the clock experiment
+    compares against the host. Reading the first would shift every device stamp by the frame's own
+    span — at 52 Hz and 9 samples, ~173 ms — as a CONSTANT offset, the shape least likely to look
+    wrong in a result and most likely to be read as a real device-versus-host divergence."""
+    ns = 835_228_200_000_000_000
+    frame = _acc_frame(ns, n=4)
+    c = _FakeClient([bytes.fromhex("f001020000000134000101100002010800040103")])
+    _patch_scan(monkeypatch, ["dev"])
+    _settings_unanswered(monkeypatch)
+    monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: c)
+
+    async def notify(char, cb):
+        if char == pmd.PMD_DATA:
+            asyncio.get_running_loop().call_soon(cb, 0, bytearray(frame))
+
+    monkeypatch.setattr(c, "start_notify", notify)
+    got = _run(probe.sample_stamp("AA:BB", None))
+    assert got == probe.device_time(ns)
+    # NOT VACUOUS, asserted rather than assumed: the frame has to decode to four samples spanning two
+    # distinct instants, or the line above would pass against a stamp read from either end.
+    _m, samples = pmd.decode_frame(frame, _dt.datetime.now())
+    assert len(samples) == 4
+    assert samples[0].sensor_ns != samples[-1].sensor_ns
+    assert got != probe.device_time(samples[0].sensor_ns), "reading the frame's FIRST sample shifts every stamp"
 
 
 def test_the_sample_stamp_subscribes_to_the_DATA_characteristic_and_unsubscribes(monkeypatch):

@@ -433,6 +433,12 @@ def on_body(st: "dict | None") -> "bool | None":
 # MEASURED VOTE OF THE OPPOSITE SIGN. `worn_verdict` reads `is_inferred()` rather than naming
 # `flat-at-full` inline, and `precedence_table_md()` renders this table for the brief's §2a — a test
 # diffs the two, so a vote added in code without a line in the brief (or the reverse) reds.
+#
+# 🔴 OWNER RULING 2026-10-12 — THE ONE INFERRED CHARGING VOTE NO LONGER REACHES THIS TABLE.
+# `capture.py` publishes `charging: None` for `flat-at-full`, so the daemon cannot hand this combiner
+# a truthy `charging` with an inferred reason, and the veto below cannot fire on one. The row and the
+# `is_stated_inferred` guard both STAY: the guard is the general rule, not a special case for one
+# reason, and it keeps the safe direction (a beat wins) for any inferred charging reason added next.
 WORN_VOTES: tuple[dict, ...] = (
     {
         "vote": "charging:rising",
@@ -450,7 +456,7 @@ WORN_VOTES: tuple[dict, ...] = (
         "vote": "charging:flat-at-full",
         "rank": 0,
         "source": "inferred",
-        "means": "a battery flat at 100 % for 45 min — a dock, OR a fresh coin cell (2026-09-22: 140 drops)",
+        "means": "a battery flat at 100 % for 45 min — a dock OR a fresh coin cell, so it publishes `charging` NULL and casts no vote (owner ruling 2026-10-12)",
     },
     {
         "vote": "hr-contact-bit",
@@ -616,7 +622,9 @@ def worn_verdict(
     """Combine every worn detector that is AVAILABLE and IN DOMAIN into one verdict plus its reason.
 
     `charging_why` says how `charging` was decided — `"rising"` / `"pmd-in-charger"` (measured) or
-    `"flat-at-full"` (inferred); it matters exactly once, against `beats` (below).
+    `"flat-at-full"` (inferred); it matters exactly once, against `beats` (below). Since the owner's
+    2026-10-12 ruling the daemon publishes `charging: None` for `flat-at-full`, so that pairing no
+    longer arrives from capture — a caller may still pass it, and the asymmetry below still holds.
 
     Returns `(verdict, why)`. `why` names which detectors voted, so "no verdict" is visible rather
     than silent — the failure this function was written after was not a wrong answer but a STALE one:
@@ -755,10 +763,17 @@ _BATT_FULL_PCT = 100
 _BATT_FLAT_CHARGING_S = 2700.0  # 45 min; ~7 points of expected drain at the measured 9 %/h
 
 
-def full_battery_implies_charging(
+def flat_window_closed(
     level, seconds_flat, *, full_pct: int = _BATT_FULL_PCT, min_flat_s: float = _BATT_FLAT_CHARGING_S
 ) -> bool | None:
     """`True` when a FULL battery has stayed put long enough that a draining device would have moved.
+
+    ⚠️ THE NAME STATES THE OBSERVATION AND NOTHING ELSE, which is the whole of what changed here.
+    It read `full_battery_implies_charging` until 2026-10-12, and the owner's ruling that day took the
+    conclusion away from it: flatness does not imply a charger, because the same flatness fits a fresh
+    coin cell, and reading it as a dock cost 140 drops on a worn strap (2026-09-22). `capture.py`
+    publishes `charging: null` on this `True` and names the observation beside it. A name that asserts
+    a verdict the body never reaches is read by the next caller in place of the paragraph under it.
 
     PURE. `None` means "no claim" — below full (where the rising rule applies), on a short observation,
     or with nothing to read. Never returns False: a battery flat for ten minutes has not proved it is
@@ -780,7 +795,7 @@ def full_battery_implies_charging(
 def note_flat_battery(
     store: dict, name: str, prev, lvl, now: float, *, min_flat_s: float = _BATT_FLAT_CHARGING_S
 ) -> bool:
-    """Advance a device's flat-battery clock and say whether it now implies charging.
+    """Advance a device's flat-battery clock and say whether the flat window has now closed.
 
     PURE apart from the `store` it is handed — which is the point: the clock lives in the CALLER's
     module-level dict rather than in a connection-scoped local, so it survives a reconnect.
@@ -798,7 +813,7 @@ def note_flat_battery(
     if prev != lvl or store.get(name) is None:
         store[name] = now
         return False
-    return bool(full_battery_implies_charging(lvl, now - store[name], min_flat_s=min_flat_s))
+    return bool(flat_window_closed(lvl, now - store[name], min_flat_s=min_flat_s))
 
 
 def stream_health(

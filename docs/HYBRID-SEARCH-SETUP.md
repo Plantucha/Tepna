@@ -25,6 +25,29 @@ node tools/xerj-load.mjs                                          # the first fi
 node tools/doc-search.mjs --hybrid "a question"                   # the one-line check
 ```
 
+## The reranker server — the OWNER enables it too
+
+Rule 0 asks this server on every hybrid search (owner, 2026-10-12). It scores the fused top 20 and
+refuses a search whose best score is under 0.105. It never changes the order of the hits. When the
+server does not answer, the search uses the cosine and BM25 floor and prints one line that says so.
+
+```sh
+# stop the hand-started server first: it holds port 8091
+ln -s ~/Tepna/tools/systemd/tepna-rerank.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now tepna-rerank.service
+curl -s http://127.0.0.1:8091/health                              # {"status":"ok"}
+node tools/doc-search.mjs --brief "a question"                    # prints "reranker best score"
+```
+
+| floor | answerable refused | off-topic refused | hold-out off-topic refused |
+|---|---|---|---|
+| cosine and BM25 | 1 of 52 | 38 of 40 | 18 of 20 |
+| reranker | 1 of 52 | 40 of 40 | 20 of 20 |
+
+`node tools/doc-search.mjs --no-rerank "…"` uses the old floor by name.
+`node tools/xerj-bench.mjs --refusal --rerank` repeats the measurement.
+
 ## What the three units are, and the two properties that matter
 
 | unit | what it does |
@@ -63,4 +86,6 @@ restart and returned the right passages — the **vectors** persisted, not merel
   name) is the pre-2026-10-11 shape; one run of the loader replaces it.
 * `loaded 0 documents` → **this is a failure, not a quiet success**: the cache, the corpus or the
   staleness rule stopped matching. The skip histogram in the output says which.
+* `⚠ no reranker (…)` under the hits → the reranker server is down: `systemctl --user status tepna-rerank`.
+  The search still answers, on the old floor.
 * nothing is wrong with Rule 0 — re-run without `--hybrid` and the default path answers as always.

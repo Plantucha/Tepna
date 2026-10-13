@@ -10,10 +10,24 @@
  *   3. If computeHash moved in the diff, the body carries the verbatim
  *      corpus re-verification sentence.
  *   4. If code files changed, a changes/ changeset was added.
- *   5. The body passes the writing rules (tools/ste-lint.mjs, strict) — owner, 2026-10-12.
+ *   5. The body passes the writing rules (tools/ste-lint.mjs, strict) — owner, 2026-10-12 — AND the
+ *      rules examined at least one line of it.
+ *   6. No GitHub closing keyword in the body sits next to a PR number that is still OPEN.
+ *   7. Each Markdown file the PR ADDS passes the writing rules (owner, 2026-10-12: the rules bind new
+ *      text, and old text stays as it is). An edit to an old file does not bind the old file.
+ *   8. A verdict object quoted in the body was produced on this PR's current code: no file the PR
+ *      changes moved between the verdict's `producedBy.commit` and the head.
+ *
+ * WHY 6 EXISTS, measured. `.kodiak.toml` sets `[merge.message] body = "pull_request_body"`, so the
+ * PR body BECOMES the squash commit message on main — and GitHub acts on closing keywords in a
+ * commit message pushed to the default branch. On 2026-10-12 #3480's body said `fixed #3476` inside
+ * backticks; #3480 merged at 16:18:16Z, and the timeline of #3476 records `closed by kodiakhq[bot]`
+ * at 16:18:22Z against the squash commit 0fca5c6e, six seconds later. The owner reopened it by hand
+ * at 17:11:49Z. Backticks do not protect: the squash message is plain text. The remedy is a wording
+ * one — "the #3476 closure" rather than "fixed #3476" — so this check quotes the line it refuses.
  *
  * In CI (pull_request event), the workflow passes:
- *   PR_BODY, PR_BASE_SHA, PR_HEAD_SHA via env.
+ *   PR_BODY, PR_BASE_SHA, PR_HEAD_SHA, PR_NUMBER via env, and GH_TOKEN for check 6's lookups.
  * On push/main or workflow_dispatch without a PR, exits 0 (nothing to check).
  *
  * Local use:
@@ -24,7 +38,7 @@ import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findings as steFindings, readGlossary } from './ste-lint.mjs';
+import { findings as steFindings, readGlossary, scan as steScan } from './ste-lint.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -37,15 +51,96 @@ const CORPUS_SENTENCE = 'computeHash moved — re-verification on the corpus owe
 const CODE_RE = /\.(mjs|js|py|sh|src\.html)$/;
 const BUNDLE_RE = /(^|\/)[A-Z][A-Za-z]*\.html$/;
 
+/* GitHub's nine closing keywords, then optional colon, whitespace, and a reference: a bare `#N`, a
+   cross-repo `owner/repo#N`, or a full pull/issues URL. All three forms close on merge. The keyword
+   must be followed by WHITESPACE — `fixed` with a backtick or any other character between it and the
+   `#` does not trigger GitHub, and does not trigger this check either. */
+/* The number of named checks `checkCompliance` can evaluate. The verdict's population is read against
+   it, so a new check raises this or the verdict reads a negative `excluded` and refuses to validate. */
+export const ELIGIBLE_CHECKS = 9;
+
+const CLOSING_CITATION_RE = /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s+(?:https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?:pull|issues)\/(\d+)|(?:[\w.-]+\/[\w.-]+)?#(\d+))/gi;
+
+/**
+ * Every closing-keyword citation in a body, with the line that carries it. PURE: it decides where a
+ * phrase sits, never whether the target is open — that needs the network and is resolved by the
+ * caller, like `computeHashMoved`.
+ *
+ * @param {string} body
+ * @returns {Array<{line: number, number: string, keyword: string, text: string}>}
+ */
+export function citedClosures(body = '') {
+  const out = [];
+  const lines = body.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    CLOSING_CITATION_RE.lastIndex = 0;
+    let m = CLOSING_CITATION_RE.exec(line);
+    while (m) {
+      out.push({ line: i + 1, number: m[2] || m[3], keyword: m[1], text: line.trim().slice(0, 160) });
+      m = CLOSING_CITATION_RE.exec(line);
+    }
+  }
+  return out;
+}
+
+/**
+ * Every `tepna.verdict/1` object quoted in a body, in order. A candidate is a balanced `{…}` span that
+ * parses as JSON and names the schema; a span that does not parse is skipped, because prose braces
+ * are not evidence. Nested objects inside a verdict are consumed with it. PURE.
+ *
+ * @param {string} body
+ * @returns {Array<{gate: string|null, commit: string|null}>}
+ */
+export function extractVerdicts(body = '') {
+  const out = [];
+  let i = body.indexOf('{');
+  while (i !== -1) {
+    let depth = 0;
+    let inStr = false;
+    let end = -1;
+    for (let j = i; j < body.length; j += 1) {
+      const c = body[j];
+      if (inStr) {
+        if (c === '\\') j += 1;
+        else if (c === '"') inStr = false;
+      } else if (c === '"') inStr = true;
+      else if (c === '{') depth += 1;
+      else if (c === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          end = j;
+          break;
+        }
+      }
+    }
+    if (end === -1) break;
+    let obj = null;
+    try {
+      obj = JSON.parse(body.slice(i, end + 1));
+    } catch {
+      obj = null;
+    }
+    if (obj && obj.schema === 'tepna.verdict/1') {
+      const commit = obj.producedBy && typeof obj.producedBy.commit === 'string' ? obj.producedBy.commit : null;
+      out.push({ gate: typeof obj.gate === 'string' ? obj.gate : null, commit });
+      i = body.indexOf('{', end + 1);
+    } else {
+      i = body.indexOf('{', i + 1);
+    }
+  }
+  return out;
+}
+
 /**
  * PURE CORE — every check that does not need git. `computeHashMoved` is passed IN, because deciding
  * it requires reading the diff; everything else is a property of the body and the file list, so a
  * selftest can plant each violation and its control without a repository.
  *
- * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null}} ctx
+ * @param {{body: string, files: string[]|null, computeHashMoved: boolean, ste: Array<{line:number,rule:string,detail:string}>|null, steChecked: number|null, prStates: Record<string,string>|null, self: string|null, newDocs: Array<{path:string, findings:Array<{line:number,rule:string,detail:string}>}>|null, freshness: Array<{gate: string|null, commit: string|null, state: string, moved?: string[]}>|null}} ctx
  * @returns {{failures: string[], checked: string[]}}
  */
-export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null }) {
+export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, steChecked = null, prStates = null, self = null, newDocs = null, freshness = null }) {
   const failures = [];
   const checked = [];
 
@@ -72,6 +167,87 @@ export function checkCompliance({ body = '', files = null, computeHashMoved = fa
         .map((x) => `line ${x.line} ${x.rule}: ${x.detail}`)
         .join('; ');
       failures.push(`body fails the writing rules — ${ste.length} finding(s) from tools/ste-lint.mjs: ${named}${ste.length > 5 ? '; …' : ''}`);
+    }
+    /* …AND THE POPULATION, because an empty finding list has two causes and this check could not
+       tell them apart. The linter reads no table cell, no quote, no heading and no form line
+       (tools/ste-lint.mjs §scan), so a body that puts its prose in a table scores 0 findings over 0
+       lines and passed here as clean. The case is not hypothetical: #3480's body is 28 non-blank
+       lines, 24 of them excluded, and check 6 exists because the `fixed #3476` that closed an open
+       PR sat in one of those cells. `steChecked` is the examined count from the same scan, resolved
+       by the caller like `ste` itself; `null` means it was not measured, reported as not evaluated.
+       The refusal fires ONLY on a body that HAS lines and had none of them read — an empty body is
+       check 1's business, and a body of four prose lines is examined, however much else it holds. */
+    if (steChecked !== null) {
+      checked.push('ste-population');
+      if (steChecked === 0 && body.split('\n').some((l) => l.trim())) {
+        failures.push(
+          'the writing rules examined 0 lines of this body — prose in a table cell, a quote or a code fence is not read (tools/ste-lint.mjs §scan), so 0 findings here means nothing was checked. Move the prose out of the table.'
+        );
+      }
+    }
+  }
+
+  /* 7 · EACH NEW MARKDOWN FILE PASSES THE WRITING RULES. The owner ruled on 2026-10-12 that the rules
+     bind new text and that old text stays as it is: 15,649 findings sat in the 767 tracked Markdown
+     files that day, 74 % of them in records (DONE briefs, audits, CHANGELOG). So the population is the
+     files this PR ADDS, read whole. An edit to an old file is not in it. `newDocs` is resolved by the
+     caller from the diff; `null` means it was not resolved, reported as not evaluated. */
+  if (newDocs) {
+    checked.push('new-doc-writing-rules');
+    for (const d of newDocs) {
+      if (!d.findings.length) continue;
+      const named = d.findings
+        .slice(0, 3)
+        .map((x) => `line ${x.line} ${x.rule}: ${x.detail}`)
+        .join('; ');
+      failures.push(`new file ${d.path} fails the writing rules — ${d.findings.length} finding(s) from tools/ste-lint.mjs: ${named}${d.findings.length > 3 ? '; …' : ''}`);
+    }
+  }
+
+  /* 6 · A CLOSING KEYWORD NEXT TO AN OPEN PR NUMBER. `prStates` maps each cited number to its state
+     and is resolved by the caller, so `null` means the lookup did not run and the check reports
+     itself as not evaluated rather than as passed. A number this PR cannot resolve is a FAILURE and
+     not a pass: the cheap remedy is to reword the phrase, and a citation of a number that resolves
+     to nothing is wrong on its own terms. A resolver that is wholly unavailable degrades to `null`,
+     because redding every PR in the repo over one network fault is the worse failure. */
+  if (prStates) {
+    checked.push('no-closing-keyword-on-an-open-pr');
+    for (const c of citedClosures(body)) {
+      /* A body closing ITSELF is exempt. Merging closes the PR anyway, and the residue-row rule
+         prescribes exactly that phrasing for a row whose whole life is this PR. */
+      if (self && c.number === String(self)) continue;
+      const st = prStates[c.number];
+      if (st === 'OPEN') {
+        failures.push(`line ${c.line} would close the still-open #${c.number} on merge — Kodiak squashes the body into the commit message. Reword as "the #${c.number} closure": "${c.text}"`);
+      } else if (!st || st === 'UNKNOWN') {
+        failures.push(`line ${c.line} cites #${c.number} after the closing keyword "${c.keyword}", and that number does not resolve — reword so no keyword sits next to it: "${c.text}"`);
+      }
+    }
+  }
+
+  /* 8 · A QUOTED VERDICT IS ABOUT THE CODE THAT MERGES. `freshness` holds one entry per verdict object
+     in the body, resolved by the caller against git; `null` means git was not consulted, and the
+     check reports itself as not evaluated. A body that quotes no verdict passes with nothing to
+     judge. The states:
+       fresh       — the verdict's commit is in this PR's history and no PR file moved since it.
+       stale       — a non-Markdown file this PR changes moved after the run, so the run did not
+                     see the code.
+       foreign     — the commit is not in this PR's history (a rebase or a squash dropped it).
+       unresolved  — the commit is not in the repository at all.
+       no-commit   — the object names no commit, so its age cannot be read.
+       base        — the commit is on the base branch: evidence about main, not a claim about
+                     this PR. It is excluded and passes.
+     WHY, measured 2026-10-12: CI re-runs every check on each push, but a local run quoted in the body
+     does not. #3506 quoted a local mutation verdict while its author still had commits to push. */
+  if (freshness) {
+    checked.push('quoted-verdict-is-fresh');
+    for (const f of freshness) {
+      const who = `${f.gate || 'a verdict'} at ${f.commit || '(no commit)'}`;
+      if (f.state === 'stale')
+        failures.push(`${who} is stale — ${f.moved.length} file(s) this PR changes moved after it ran: ${f.moved.slice(0, 5).join(', ')}. Re-run it on the head and quote the new object.`);
+      else if (f.state === 'foreign') failures.push(`${who} is not in this PR's history — a rebase or a squash dropped that commit. Re-run it on the head.`);
+      else if (f.state === 'unresolved') failures.push(`${who} does not resolve to a commit in this repository.`);
+      else if (f.state === 'no-commit') failures.push(`${who} names no producedBy.commit, so this gate cannot tell which code it examined.`);
     }
   }
 
@@ -100,9 +276,38 @@ export function selftest() {
   const has = (r, frag) => r.failures.some((f) => f.includes(frag));
 
   // CONTROL — a compliant body with a compliant file list must pass, or the gate blocks everything.
-  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [] });
+  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [], steChecked: 1, prStates: {}, newDocs: [], freshness: [] });
   ok(clean.failures.length === 0, 'CONTROL: a compliant body and changeset pass');
-  ok(clean.checked.length === 5, 'CONTROL: all five checks were evaluated, so the pass is not a skip');
+  ok(clean.checked.length === ELIGIBLE_CHECKS, 'CONTROL: every check was evaluated, so the pass is not a skip');
+  /* THE POPULATION BOUND. Twice on 2026-10-12 the verdict's `eligible` stayed one below the checks that
+     ran (6 of 7, then 7 of 8 after #3510), so `--json` threw on every full PR context: excluded = -1 fails Verdict.validate. */
+  ok(verdictOf({ status: 'PASS', failures: [], checked: clean.checked }).population.excluded === 0, 'a full run validates as a verdict — excluded is 0, never negative');
+
+  /* PLANTED VIOLATION 8 — a quoted verdict older than the code. The plant is #3506's shape: a local
+     mutation verdict in the body, then a push that moves a file the PR changes. */
+  const vObj = (commit) => JSON.stringify({ schema: 'tepna.verdict/1', gate: 'mutate', status: 'FAIL', producedBy: { tool: 't', commit } });
+  const quoted = `${good}\n\n\`\`\`json\n${vObj('22e9f71f')}\n\`\`\``;
+  const ex = extractVerdicts(quoted);
+  ok(ex.length === 1 && ex[0].commit === '22e9f71f' && ex[0].gate === 'mutate', 'the extractor finds a fenced verdict and reads its commit');
+  ok(extractVerdicts(`a {not json} b ${vObj('abc1234')} c {"schema":"other/1"}`).length === 1, 'prose braces and other schemas are not verdicts');
+  ok(
+    extractVerdicts(JSON.stringify({ schema: 'tepna.verdict/1', gate: 'g', result: { note: 'a } in a string' }, producedBy: { commit: 'abc1234' } })).length === 1,
+    'a brace inside a string does not end the object'
+  );
+  ok(extractVerdicts(`${vObj('aaaaaaa')} and ${vObj('bbbbbbb')}`).length === 2, 'two verdicts are both read');
+  ok(extractVerdicts('').length === 0 && extractVerdicts('{ unclosed').length === 0, 'CONTROL: an empty or torn body yields nothing');
+  const stale = [{ gate: 'mutate', commit: '22e9f71f', state: 'stale', moved: ['oxydex-dsp.js'] }];
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: stale }), 'is stale'), 'a verdict older than a PR file is caught');
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: stale }), 'oxydex-dsp.js'), '…and the failure names the file that moved');
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: 'abc1234', state: 'foreign' }] }), 'not in this PR'), 'a verdict on a dropped commit is caught');
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: 'abc1234', state: 'unresolved' }] }), 'does not resolve'), 'a verdict on an unknown commit is caught');
+  ok(has(checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: null, state: 'no-commit' }] }), 'names no producedBy.commit'), 'a verdict with no commit is caught');
+  ok(!checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: 'abc1234', state: 'fresh', moved: [] }] }).failures.length, 'CONTROL: a fresh verdict passes');
+  ok(
+    !checkCompliance({ body: quoted, files: null, freshness: [{ gate: 'g', commit: 'abc1234', state: 'base' }] }).failures.length,
+    'CONTROL: a verdict about the base branch is evidence about main and passes'
+  );
+  ok(!checkCompliance({ body: quoted, files: null }).checked.includes('quoted-verdict-is-fresh'), 'git not consulted ⇒ the check is NOT evaluated, not passed');
 
   // PLANTED VIOLATION 5 — the body fails the writing rules (owner, 2026-10-12: the linter bites).
   const passive = [{ line: 3, rule: 'passive', detail: '"was measured"' }];
@@ -110,6 +315,36 @@ export function selftest() {
   ok(has(checkCompliance({ body: good, files: null, ste: passive }), 'line 3 passive'), '…and the failure names the line and the rule');
   ok(!has(checkCompliance({ body: good, files: null, ste: [] }), 'writing rules'), 'CONTROL: no finding, no failure');
   ok(!checkCompliance({ body: good, files: null, ste: null }).checked.includes('ste-writing-rules'), 'lint not run ⇒ the check is reported as NOT evaluated, not as passed');
+
+  /* PLANTED VIOLATION 5b — THE BODY THE RULES NEVER READ. An empty finding list had two causes and
+     this check read both as clean. The planted body is #3480's shape: a Rule 0 line, a heading, a
+     table carrying the prose, and the trailer. Every one of those lines is skipped by form
+     (tools/ste-lint.mjs §scan), so the linter returns no finding from no line. The real #3480 body
+     measured `checked: 4, excluded: 24` — four prose lines out of twenty-eight — and this planted
+     one takes the limit case, where nothing at all is examined. */
+  const tabled = [
+    'Rule 0: `doc-search "x"` → a.md',
+    '',
+    '## 1 · What moved',
+    '',
+    '| key | why it closes |',
+    '|---|---|',
+    '| `2026-10-12-a-row` | The tag list is now single-sourced, and the sidecar is box-wide. |',
+    '',
+    'Fleet-Session: Magpie'
+  ].join('\n');
+  const tabledChecked = steScan(tabled).checked;
+  ok(tabledChecked === 0, 'the planted body really is unread — the linter examines 0 of its lines');
+  ok(steFindings(tabled, readGlossary()).length === 0, '…and it therefore reports 0 findings, which is the trap');
+  ok(has(checkCompliance({ body: tabled, files: null, ste: [], steChecked: tabledChecked }), 'examined 0 lines'), 'a body the rules never read is caught');
+  ok(has(checkCompliance({ body: tabled, files: null, ste: [], steChecked: 0 }), 'table cell'), '…and the failure names where the prose is hiding');
+  ok(!has(checkCompliance({ body: good, files: null, ste: [], steChecked: 1 }), 'examined 0 lines'), 'CONTROL: one examined line is enough — the check is about zero, not about coverage');
+  ok(!checkCompliance({ body: good, files: null, ste: [], steChecked: null }).checked.includes('ste-population'), 'population not measured ⇒ NOT evaluated, not passed');
+  ok(!has(checkCompliance({ body: '', files: null, ste: [], steChecked: 0 }), 'examined 0 lines'), "CONTROL: an EMPTY body is check 1's business, not this one");
+  ok(!has(checkCompliance({ body: '\n  \n', files: null, ste: [], steChecked: 0 }), 'examined 0 lines'), 'CONTROL: a whitespace-only body is not a hidden-prose body either');
+  /* The real #3480 body is 42 lines and is not pasted here. The shape above reproduces its defect;
+     the measured numbers for the merged body live in the changeset and in the residue row
+     `2026-10-12-ste-lint-skips-table-cells`. */
   // …and the import is LIVE: the real linter over a planted passive sentence, with the real glossary.
   const live = steFindings(`${good}\n\nThe value was measured by the tool.`, readGlossary());
   ok(
@@ -117,6 +352,38 @@ export function selftest() {
     'the real linter reports the planted passive sentence'
   );
   ok(steFindings(good, readGlossary()).length === 0, 'CONTROL: the compliant body has no finding');
+
+  /* PLANTED VIOLATION 6 — a closing keyword next to an OPEN number. The planted body is the real
+     one: #3480 said `fixed #3476` in a table cell and the squash closed #3476 six seconds after it
+     merged. The backticks are kept in the fixture on purpose, because they did not help. */
+  const closer = `${good}\n\n| row | state |\n|---|---|\n| a-row | \`fixed #3476\` |`;
+  const openTarget = { 3476: 'OPEN' };
+  ok(has(checkCompliance({ body: closer, files: null, prStates: openTarget }), 'still-open #3476'), 'a closing keyword next to an open PR number is caught');
+  ok(has(checkCompliance({ body: closer, files: null, prStates: openTarget }), 'line 9'), '…and the failure names the line');
+  ok(has(checkCompliance({ body: closer, files: null, prStates: openTarget }), 'the #3476 closure'), '…and it gives the wording that fixes it');
+  // CONTROLS. A merged or closed target is harmless; so is the wording this gate asks for.
+  ok(!checkCompliance({ body: closer, files: null, prStates: { 3476: 'MERGED' } }).failures.length, 'CONTROL: a MERGED target passes');
+  ok(!checkCompliance({ body: closer, files: null, prStates: { 3476: 'CLOSED' } }).failures.length, 'CONTROL: an already-closed target passes');
+  ok(!checkCompliance({ body: `${good}\n\nthe #3476 closure landed`, files: null, prStates: openTarget }).failures.length, 'CONTROL: "the #N closure" is the accepted wording');
+  ok(!checkCompliance({ body: `${good}\n\nthis fixed the defect`, files: null, prStates: openTarget }).failures.length, 'CONTROL: a keyword with no number is not a citation');
+  ok(!checkCompliance({ body: `${good}\n\nsee #3476 for the rest`, files: null, prStates: openTarget }).failures.length, 'CONTROL: a number with no keyword is not a citation');
+  ok(!checkCompliance({ body: `${good}\n\nthe fixed-point of #3476`, files: null, prStates: openTarget }).failures.length, 'CONTROL: a hyphenated word is not the keyword');
+  // SELF-CITATION is exempt — merging closes the PR anyway, and the residue-row rule prescribes it.
+  ok(!checkCompliance({ body: closer, files: null, prStates: openTarget, self: '3476' }).failures.length, 'CONTROL: a body closing ITSELF is exempt');
+  ok(has(checkCompliance({ body: closer, files: null, prStates: openTarget, self: '3999' }), 'still-open'), '…and the exemption is for its own number only');
+  // AN UNRESOLVED number fails, because the remedy is a reword and the citation is wrong anyway.
+  ok(has(checkCompliance({ body: closer, files: null, prStates: { 9999: 'MERGED' } }), 'does not resolve'), 'a cited number that does not resolve is caught');
+  ok(has(checkCompliance({ body: closer, files: null, prStates: { 3476: 'UNKNOWN' } }), 'does not resolve'), 'an UNKNOWN state is caught, not read as a pass');
+  // NO RESOLVER ⇒ the check is reported as not evaluated. Fail-open on absence is deliberate: see
+  // the comment on the check. The verdict's population makes the skip visible.
+  ok(!checkCompliance({ body: closer, files: null }).checked.includes('no-closing-keyword-on-an-open-pr'), 'no resolver ⇒ the check is NOT evaluated, not passed');
+  ok(!checkCompliance({ body: closer, files: null }).failures.length, '…and it does not fail either');
+  // THE THREE REFERENCE FORMS GitHub acts on, all caught by the extractor.
+  ok(citedClosures('closes owner/repo#12').length === 1, 'the cross-repo form owner/repo#N is a citation');
+  ok(citedClosures('resolved https://github.com/Plantucha/Tepna/pull/12')[0].number === '12', 'the full URL form is a citation');
+  ok(citedClosures('Fixes: #12')[0].number === '12', 'a colon after the keyword is still a citation');
+  ok(citedClosures('fixed #1 and closes #2').length === 2, 'two citations on one line are both reported');
+  ok(citedClosures('').length === 0, 'CONTROL: an empty body cites nothing');
 
   // PLANTED VIOLATION 1 — no Rule 0 line at all (what #3377 went red on).
   ok(has(checkCompliance({ body: 'no evidence line\n\nFleet-Session: Magpie', files: null }), 'Rule 0'), 'a missing Rule 0 line is caught');
@@ -139,6 +406,15 @@ export function selftest() {
     'CONTROL: the verbatim sentence satisfies it'
   );
 
+  // PLANTED VIOLATION 7 — a new Markdown file with a finding.
+  const newBad = [{ path: 'briefs/X-2026-10-12-BRIEF.md', findings: [{ line: 4, rule: 'passive', detail: '"was written"' }] }];
+  ok(has(checkCompliance({ body: good, files: null, newDocs: newBad }), 'new file briefs/X-2026-10-12-BRIEF.md'), 'a new doc with a finding is caught, by path');
+  ok(has(checkCompliance({ body: good, files: null, newDocs: newBad }), 'line 4 passive'), '…and the failure names the line and the rule');
+  ok(!checkCompliance({ body: good, files: null, newDocs: [{ path: 'a.md', findings: [] }] }).failures.length, 'CONTROL: a clean new doc passes');
+  ok(!checkCompliance({ body: good, files: null, newDocs: [] }).failures.length, 'CONTROL: a PR that adds no doc passes');
+  ok(checkCompliance({ body: good, files: null, newDocs: [] }).checked.includes('new-doc-writing-rules'), '…and the check still says it ran');
+  ok(!checkCompliance({ body: good, files: null }).checked.includes('new-doc-writing-rules'), 'newDocs not resolved ⇒ NOT evaluated, not passed');
+
   /* NO FILE LIST ⇒ THE DIFF CHECKS ARE NOT EVALUATED, and that is visible in `checked` rather than
      being indistinguishable from passing them. */
   const bodyOnly = checkCompliance({ body: good, files: null });
@@ -152,7 +428,7 @@ function verdictOf({ status, failures, checked, reason }) {
   const v = Verdict.make({
     gate: 'pr-compliance',
     status,
-    population: { checked: checked.length, eligible: 5, excluded: 5 - checked.length },
+    population: { checked: checked.length, eligible: ELIGIBLE_CHECKS, excluded: ELIGIBLE_CHECKS - checked.length },
     criterion: { name: 'pr-body-and-changeset-satisfy-every-applicable-compliance-check', threshold: 0, unit: 'failed checks', direction: 'eq' },
     result: status === 'NOT_RUN' ? null : { checksEvaluated: checked, failures },
     evidence: ['tools/pr-compliance.mjs', 'CLAUDE.md'],
@@ -286,17 +562,113 @@ function main() {
     }
   }
 
+  /* CHECK 7's POPULATION: the Markdown files this PR ADDS (`--diff-filter=A`, so a rename or an edit
+     of an old file is not in it), each read whole at the head. */
+  let newDocs = null;
+  if (base && files) {
+    try {
+      const glossary = readGlossary();
+      newDocs = sh(`git diff --diff-filter=A --name-only ${base}..${head}`)
+        .split('\n')
+        .filter((f) => f.endsWith('.md'))
+        .map((path) => ({ path, findings: steFindings(sh(`git show ${head}:"${path}"`), glossary) }));
+    } catch {
+      newDocs = null;
+    }
+  }
+
   const ste = body ? steFindings(body, readGlossary()) : null;
-  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste });
+  const steChecked = body ? steScan(body).checked : null;
+
+  /* CHECK 6's POPULATION, resolved here because it needs the network. One `gh api` call per distinct
+     cited number, and the numbers come from the body, so the usual count is nought to three. The
+     issues endpoint answers for a PR as well as an issue, which is what this needs: `open` is the
+     only state that matters, and a merged PR reads `closed` there.
+       A 404 is the number's own problem and becomes UNKNOWN, which the core refuses. Anything else —
+     no `gh`, no token, a rate limit — means the RESOLVER is unavailable, so the whole map goes to
+     `null` and the core reports the check as not evaluated. One network fault must not red every PR
+     in the repo; the verdict's population shows the skip. */
+  const cited = citedClosures(body);
+  let prStates = {};
+  let resolverNote = null;
+  for (const n of [...new Set(cited.map((c) => c.number))]) {
+    try {
+      prStates[n] = sh(`gh api repos/{owner}/{repo}/issues/${n} --jq .state`).toUpperCase() === 'OPEN' ? 'OPEN' : 'CLOSED';
+    } catch (e) {
+      const msg = String(e?.stderr || e?.message || '').split('\n')[0];
+      if (/404|Not Found/i.test(msg)) {
+        prStates[n] = 'UNKNOWN';
+      } else {
+        prStates = null;
+        resolverNote = `check 6 not evaluated — cannot resolve cited PR numbers: ${msg.slice(0, 140)}`;
+        break;
+      }
+    }
+  }
+
+  /* CHECK 8's POPULATION. Each quoted verdict's commit is placed against the base and the head, then
+     the files that moved after it are read and intersected with the PR's own file list. A merge from
+     main moves main's files, not the PR's, so Kodiak's base update does not stale a verdict. A
+     Markdown file is not code: a changeset or a brief written after the run does not stale it. Without
+     a diff there is no file list and the check is not evaluated. */
+  let freshness = null;
+  if (files && base) {
+    freshness = [];
+    const mine = new Set(files);
+    for (const v of extractVerdicts(body)) {
+      if (!v.commit) {
+        freshness.push({ ...v, state: 'no-commit' });
+        continue;
+      }
+      if (!/^[0-9a-f]{7,40}$/i.test(v.commit)) {
+        freshness.push({ ...v, state: 'unresolved' });
+        continue;
+      }
+      let full = null;
+      try {
+        full = sh(`git rev-parse --verify -q ${v.commit}^{commit}`);
+      } catch {
+        full = null;
+      }
+      if (!full) {
+        freshness.push({ ...v, state: 'unresolved' });
+        continue;
+      }
+      const isAnc = (a, b) => {
+        try {
+          execSync(`git merge-base --is-ancestor ${a} ${b}`, { stdio: 'ignore' });
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      if (isAnc(full, base)) {
+        freshness.push({ ...v, state: 'base' });
+        continue;
+      }
+      if (!isAnc(full, head)) {
+        freshness.push({ ...v, state: 'foreign' });
+        continue;
+      }
+      const moved = sh(`git diff --name-only ${full}..${head}`)
+        .split('\n')
+        .filter((f) => f && mine.has(f) && !f.endsWith('.md'));
+      freshness.push({ ...v, state: moved.length ? 'stale' : 'fresh', moved });
+    }
+  }
+
+  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, steChecked, prStates, self: process.env.PR_NUMBER || null, newDocs, freshness });
   if (diffError) failures.push(diffError);
   const status = failures.length ? 'FAIL' : 'PASS';
 
   if (asJson) {
     process.stdout.write(`${JSON.stringify(verdictOf({ status, failures, checked }), null, 1)}\n`);
   } else if (failures.length) {
+    if (resolverNote) console.error(`pr-compliance: ${resolverNote}`);
     console.error('pr-compliance: FAIL');
     for (const f of failures) console.error(`  ✕ ${f}`);
   } else {
+    if (resolverNote) console.error(`pr-compliance: ${resolverNote}`);
     console.log(`pr-compliance: ✓ PASS — ${checked.length} check(s) evaluated: ${checked.join(', ')}`);
   }
   return status === 'FAIL' ? 1 : 0;

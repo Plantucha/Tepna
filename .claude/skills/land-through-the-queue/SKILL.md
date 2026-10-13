@@ -23,8 +23,8 @@ description: Use when a finished PR has to reach main — the draft handoff to t
 ## Measured
 
 `wt-done.mjs` refused a merged unit's tree as IN USE by four `node -e setInterval(()=>{},1000)`
-keep-alive stubs whose cwd was inside it, started at the exact minute each of my gate runs was killed
-(2026-10-12). They were mine; they still had to be listed and read before killing, because a
+keep-alive stubs whose cwd was inside it, started at the exact minute something killed each of my gate runs
+(2026-10-12). They were mine; I still had to list and read them before the kill, because a
 `pkill -f <pattern>` whose own command line contains the pattern kills itself — the tell is exit 144
 on your own call.
 

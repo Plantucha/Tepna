@@ -354,8 +354,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "f380e5ba255b",
-        "computeHash": "ec8658467309"
+        "manifestHash": "295904a1424b",
+        "computeHash": "44ff572c3238"
       },
       "evidence": {
         "envelopeRef": null,
@@ -383,8 +383,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "f380e5ba255b",
-        "computeHash": "ec8658467309"
+        "manifestHash": "295904a1424b",
+        "computeHash": "44ff572c3238"
       },
       "evidence": {
         "envelopeRef": null,
@@ -412,8 +412,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "f380e5ba255b",
-        "computeHash": "ec8658467309"
+        "manifestHash": "295904a1424b",
+        "computeHash": "44ff572c3238"
       },
       "evidence": {
         "envelopeRef": null,
@@ -441,8 +441,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "f380e5ba255b",
-        "computeHash": "ec8658467309"
+        "manifestHash": "295904a1424b",
+        "computeHash": "44ff572c3238"
       },
       "evidence": {
         "envelopeRef": null,
@@ -820,19 +820,23 @@
       "spo2IQR": 97
     },
     "spo2Shape": {
-      "spo2Mean": 72.28,
-      "spo2SD": 41.79,
-      "spo2Skew": -1.147,
-      "spo2Kurt": 2.323,
-      "spo2ExcessKurt": -0.677,
+      "spo2Mean": 96.37,
+      "spo2SD": 2.51,
+      "spo2Skew": -10.316,
+      "spo2Kurt": 124.576,
+      "spo2ExcessKurt": 121.576,
       "spo2SkewLabel": "Left-skewed (hypox burden)",
-      "spo2KurtLabel": "Platykurtic"
+      "spo2KurtLabel": "Leptokurtic (heavy tails/events)",
+      "nMeasured": 5400,
+      "nTotal": 7200
     },
     "hrCV": {
-      "hrCV": 58.32,
-      "hrCVmean": 43.6,
-      "hrCVsd": 25.43,
-      "hrCVlabel": "High variability"
+      "hrCV": 7.15,
+      "hrCVmean": 58.1,
+      "hrCVsd": 4.16,
+      "hrCVlabel": "Moderate",
+      "nMeasured": 5400,
+      "nTotal": 7200
     },
     "hypDose": {
       "hd94": 1278,
@@ -862,11 +866,13 @@
       "lcspLabel": "Moderate"
     },
     "poincare": {
-      "sd1": 0.69,
-      "sd2": 35.97,
-      "sd1sd2Ratio": 0.019,
-      "sd1Label": "Normal (1Hz proxy)",
-      "sd2Label": "Normal (1Hz proxy)"
+      "sd1": 0.14,
+      "sd2": 5.88,
+      "sd1sd2Ratio": 0.024,
+      "sd1Label": "Low (1Hz proxy)",
+      "sd2Label": "Normal (1Hz proxy)",
+      "nMeasured": 5394,
+      "nTotal": 7200
     },
     "o2hrEff": {
       "o2hrEff": 0.09,
@@ -876,11 +882,15 @@
       "o2hrEffLabel": "Blunted arousal response"
     },
     "condSpo2": {
-      "spo2StillMean": 72.26,
+      "spo2StillMean": 96.37,
       "spo2MovingMean": 96.83,
-      "spo2MotionDelta": -24.57,
+      "spo2MotionDelta": -0.46,
       "stillPct": 99.9,
-      "motionArtifactLabel": "True apnea pattern (SpO2 worse at rest)"
+      "nStillMeasured": 5394,
+      "nStillTotal": 7194,
+      "nMovingMeasured": 6,
+      "nMovingTotal": 6,
+      "motionArtifactLabel": "No significant difference"
     },
     "nadirTrend": null,
     "iei": {

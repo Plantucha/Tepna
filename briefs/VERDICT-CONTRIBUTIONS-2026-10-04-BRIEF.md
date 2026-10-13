@@ -4,11 +4,32 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-10-04 ·
+**Status:** IN-PROGRESS — 2026-10-12 · **Created:** 2026-10-04 · **Residue:** 2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form
 
 # Attribution — every fused number says which input moved it (the `contributions` block; the "derivator", reading one)
 
-**SIZED, NOT BUILT.** Owner ruling 2026-10-04 ("we have unit integrator, should we build derivator?" → "both").
+**ACCEPTANCE ITEM 1 BUILT 2026-10-12** — `tepna.verdict/1` carries the optional `contributions`
+block, `verdict.js` validates every rule in §1, and `docs/VERDICT-CONTRACT.md` documents it.
+
+**THE §2 GATE LEG IS BUILT 2026-10-12** — `verify:verdict-adoption` carries a `contributions` leg
+whose population is the §2 table below. It parses that table at every run and compares it with the
+rows in `tools/verdict-adoption.json` both ways, so a figure added here with no row reds by name and
+a row matching no figure reds by name.
+
+All five figures sit at `status: pending` with a `since` date. An `adopted` row must name `emits`,
+the gate reads that object, and `validate()` must report `contributions` among the fields it
+EXAMINED — a valid object whose validator never looked at the block is a pass over something never
+read.
+
+The five figures themselves are not built. The two capture-host ones go to the box session, and the
+three JS ones follow the accepted order: the hat, then the trio pooled hat after the re-fold lands,
+then the Integrator. The final acceptance item needs a recorded night.
+
+Two rules reach further than §1 spells out, both written down in the contract doc: a `share` holds
+the computed ratio rather than a display rounding, and one unknown `delta` nulls every share and
+`dominant` rather than normalise over the legs that did run (§∅).
+
+**SIZED, NOT BUILT (§2 onward).** Owner ruling 2026-10-04 ("we have unit integrator, should we build derivator?" → "both").
 This brief is the first reading: the inverse of fusion. The Integrator combines node exports into one
 conclusion; a conclusion that cannot say which input moved it has to be re-derived by hand every time it
 surprises someone. It was, three times in the week of 2026-09-29 → 10-04, each time by a bird reading code:

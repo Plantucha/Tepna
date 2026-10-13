@@ -167,6 +167,12 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Check 6 needs the PR's own number, to exempt a body that closes ITSELF, and a token for
+          # the one `gh api` call per cited number. Without the token the lookup fails, the check
+          # reports itself as not evaluated, and the other five still run — so this env is what makes
+          # check 6 bite in CI rather than only on a rig.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: node tools/pr-compliance.mjs
       - name: Self-contained analysis tools ≡ bundle(source) (file://-safe drift guard)
         run: node tools/build-analysis.mjs --check

@@ -86,7 +86,15 @@ export function budgetBar({ spentPct, spentPctRange, reportedAt, nowMs }) {
 // ── COLLECTORS ────────────────────────────────────────────────────────────────────────────────────
 function usage(sinceSpec) {
   try {
-    const raw = sh('node', [path.join(REPO, 'tools', 'usage-guard.mjs'), '--json', ...(sinceSpec ? ['--since', sinceSpec] : [])], { cwd: REPO });
+    /* A second host's birds (TEPNA_USAGE_REMOTES, space-separated ssh hosts) and the Managed Agents run
+       logs (TEPNA_MA_LOGS, space-separated directories) join the table; each unread one is a reason. */
+    const remotes = (process.env.TEPNA_USAGE_REMOTES ?? 'vigil').split(/\s+/).filter(Boolean);
+    const maLogs = (process.env.TEPNA_MA_LOGS ?? path.join(homedir(), 'tepna-reviews')).split(/\s+/).filter(Boolean);
+    const raw = sh(
+      'node',
+      [path.join(REPO, 'tools', 'usage-guard.mjs'), '--json', ...(sinceSpec ? ['--since', sinceSpec] : []), ...remotes.flatMap((h) => ['--remote', h]), ...maLogs.flatMap((d) => ['--ma-log', d])],
+      { cwd: REPO }
+    );
     const u = JSON.parse(raw).usage;
     return {
       ok: true,
@@ -102,11 +110,34 @@ function usage(sinceSpec) {
         messages: s.messages,
         models: s.models || {},
         lastContextTokens: s.lastContextTokens,
-        lastContextAt: s.lastContextAt
-      }))
+        lastContextAt: s.lastContextAt,
+        host: s.host ?? null
+      })),
+      remotes: u.remotes ?? [],
+      managedAgents: u.managedAgents ?? { rows: [], read: [] },
+      roster: rosterNames()
     };
   } catch (e) {
     return fail(`usage-guard --json failed: ${e.message}`);
+  }
+}
+
+/* The roster, from the CLAUDE.md §0 table (`| **Name** | machine | lane |`): every bird gets a row in the
+   token table, and a bird with no transcript read in the window shows as unread, never as 0. */
+export function parseRoster(md) {
+  const sec =
+    String(md)
+      .split(/^### 0 · /m)[1]
+      ?.split(/^- /m)[0] ?? '';
+  const out = [];
+  for (const m of sec.matchAll(/^\| \*\*([A-Za-z]+)\*\* \|/gm)) out.push(m[1].toLowerCase());
+  return out;
+}
+function rosterNames() {
+  try {
+    return parseRoster(readFileSync(path.join(REPO, 'CLAUDE.md'), 'utf-8'));
+  } catch {
+    return [];
   }
 }
 
@@ -537,9 +568,32 @@ function renderUsage(u, label) {
       return `<tr><td>${esc(s.name || '(unnamed)')}</td><td class="n">${m(s.tokens)}</td><td class="n dim">${m(s.cacheRead)}</td><td class="n">${m(s.output)}</td><td class="n dim">${num(s.messages)}</td><td class="n dim">${num(s.lastContextTokens)}</td><td class="mdl">${models}</td></tr>`;
     })
     .join('');
+  const seen = new Set(named.map((s) => String(s.name).toLowerCase()));
+  const unreadRemotes = (u.remotes || []).filter((r) => !r.ok);
+  const why = unreadRemotes.length ? unreadRemotes.map((r) => r.reason).join('; ') : 'no transcript in the window on any host this board reads';
+  const missing = (u.roster || [])
+    .filter((n) => !seen.has(n))
+    .map(
+      (n) =>
+        `<tr><td>${esc(n)}</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="dim">not read: ${esc(why)}</td></tr>`
+    )
+    .join('');
+  const maRows = (u.managedAgents?.rows || [])
+    .map(
+      (a) =>
+        `<tr><td>API · managed agents</td><td class="n">${m(a.tokens)}</td><td class="n dim">${m(a.cacheRead)}</td><td class="n">${m(a.output)}</td><td class="n dim">${num(a.sessions)} runs</td><td class="n dim">${a.listCostUsd === null ? '—' : `$${a.listCostUsd.toFixed(2)}`}${a.costWithout ? ` <span class="dim">(+${num(a.costWithout)} unpriced)</span>` : ''}</td><td class="mdl">${esc(String(a.model).replace(/^claude-/, ''))}</td></tr>`
+    )
+    .join('');
+  const maUnread = (u.managedAgents?.read || []).filter((r) => !r.ok);
+  const maNote = !maRows
+    ? `<tr><td class="dim">API · managed agents</td><td colspan="6" class="dim">${maUnread.length ? `not read: ${esc(maUnread.map((r) => `${r.dir} ${r.reason}`).join('; '))}` : 'no run in the window'}</td></tr>`
+    : '';
   return `<table><thead><tr><th>${esc(label)}</th><th>fresh</th><th>cache←</th><th>out</th><th>msgs</th><th>last ctx</th><th>model</th></tr></thead><tbody>${rows}
     ${unnamed.length ? `<tr><td class="dim">+${unnamed.length} unnamed</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.tokens || 0), 0))}</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.cacheRead || 0), 0))}</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.output || 0), 0))}</td><td class="n dim">${num(unnamed.reduce((a, s) => a + (s.messages || 0), 0))}</td><td colspan="2" class="dim">sessions with no bird name, summed</td></tr>` : ''}
-    <tr class="tot"><td>fleet</td><td class="n">${m(u.fleetTokens)}</td><td class="n dim">${m(u.fleetCacheRead)}</td><td colspan="4" class="dim">cache reads are shown beside, never summed into fresh</td></tr></tbody></table>`;
+    ${missing}
+    <tr class="tot"><td>fleet</td><td class="n">${m(u.fleetTokens)}</td><td class="n dim">${m(u.fleetCacheRead)}</td><td colspan="4" class="dim">cache reads are shown beside, never summed into fresh</td></tr>
+    ${maRows}${maNote}
+    <tr><td colspan="7" class="dim">API rows: the provider's usage per run, list cost in the last-ctx column; billed as API credits, not summed into the fleet line</td></tr></tbody></table>`;
 }
 
 export function renderHtml(b) {
@@ -771,6 +825,26 @@ function runSelftest() {
       'the walker queue parses by whitespace across lines, in order'
     );
     ok(parseWalkerQueue('3478 3478 x 3479').join(',') === '3478,3479', 'a repeated or non-numeric queue token is dropped, never a throw');
+    ok(
+      parseRoster('## x\n| **Nope** | a | b |\n### 0 · Roster\n| session | machine | lane |\n|---|---|---|\n| **Kestrel** | rig | c |\n| **Wren** | box | m |\n- trailer\n| **Late** | x | y |\n').join(
+        ','
+      ) === 'kestrel,wren',
+      'the roster reads only the §0 table, lower-cased, so every bird gets a token row'
+    );
+    {
+      const u = {
+        ok: true,
+        fleetTokens: 10,
+        fleetCacheRead: 5,
+        sessions: [{ name: 'kestrel', tokens: 10, cacheRead: 5, output: 1, messages: 2, models: {}, lastContextTokens: 3 }],
+        remotes: [{ host: 'box', ok: false, reason: 'box not read (255)' }],
+        roster: ['kestrel', 'finch'],
+        managedAgents: { rows: [{ model: 'claude-sonnet-5-5', sessions: 2, tokens: 7, cacheRead: 9, output: 4, listCostUsd: 0.83, costWithout: 1 }], read: [] }
+      };
+      const h = renderUsage(u, 'bird');
+      ok(/<td>finch<\/td>(<td class="n dim">—<\/td>){5}<td class="dim">not read: box not read \(255\)/.test(h), 'a roster bird with no session reads as unread with the reason, never as 0');
+      ok(/API · managed agents<\/td><td class="n">/.test(h) && /\$0\.83/.test(h) && /\+1 unpriced/.test(h), 'the API row carries its list cost and counts an unpriced run');
+    }
     ok(
       formatTimerRow('Mon 2026-10-12 13:03:48 EDT 43min Mon 2026-10-12 12:02:43 EDT 17min ago tepna-release-due.timer tepna-release-due.service') ===
         'next 13:03 (43min left) · last 12:02 (17min ago)',

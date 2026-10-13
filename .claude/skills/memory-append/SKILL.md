@@ -15,8 +15,8 @@ overwrite leaves no conflict, no gate and no symptom.
 3. Body: the fact; for `feedback`/`project` follow with why it matters and how to apply it. Link
    related entries with `[[their-name]]` — liberally; a link to an entry that does not exist yet marks
    something worth writing.
-4. **The pointer goes in the entry's lane INDEX file**, not in `MEMORY.md` — that file is loaded whole
-   every session and is cut past ~24 KB. Only read-on-resume state belongs there.
+4. **The pointer goes in the entry's lane INDEX file**, not in `MEMORY.md` — every session loads that file whole,
+   and the harness cuts it past ~24 KB. Only read-on-resume state belongs there.
 5. Convert relative dates to absolute. Never record what the repo already states.
 
 ## Measured
@@ -25,7 +25,7 @@ The staleness guard fires on any memory file that moved during a command this se
 it reported a concurrent write roughly a dozen times in one evening on 2026-10-11, which is how often
 two sessions are in that directory at once.
 
-`MEMORY.md` is loaded in full every session, so a lesson written there rather than in its lane index
+Every session loads `MEMORY.md` in full, so a lesson written there rather than in its lane index
 costs every session tokens forever.
 
 Memory: the lane indexes `INDEX-fleet-ops`, `INDEX-git-and-queue`, `INDEX-code-and-capture`,
