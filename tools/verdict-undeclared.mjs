@@ -43,6 +43,11 @@ export const REASON =
  *   evidence    paths/globs a reader opens; the tool itself is always first
  *   note        optional, appended to the reason — e.g. a rule that lives in the code but was never
  *               pre-stated in a brief (it decides nothing here; the object still says UNKNOWN)
+ *   contributions  optional `{ of, unit, method, inputs[], dominant }` — the attribution block of
+ *               VERDICT-CONTRIBUTIONS-2026-10-04 §1, built by the figure's own kernel and carried
+ *               verbatim. A band-less statistic can still say WHICH input it is made of, and the
+ *               adoption gate reads exactly this field. It rides only on a status that has a result:
+ *               NOT_RUN examined nothing, so it attributes nothing.
  */
 export function undeclaredVerdict(f) {
   f = f || {};
@@ -63,6 +68,7 @@ export function undeclaredVerdict(f) {
     population: { checked, eligible, excluded: eligible - checked },
     criterion: { name: 'undeclared', threshold: 0, unit: '', direction: 'lte' },
     result: hasStat ? stat : null,
+    ...(f.contributions && hasStat ? { contributions: f.contributions } : {}),
     evidence: [f.tool, ...(f.evidence || [])],
     reason: hasStat ? REASON + (f.note ? ' — ' + f.note : '') : 'no record contributed to the statistic (' + checked + ' of ' + eligible + ') — nothing to report, bare or otherwise',
     producedBy,
@@ -97,7 +103,14 @@ export function verdictSample(tool) {
 
 function selftest() {
   let fail = 0;
+  let ran = 0;
+  /* The total is COUNTED, never typed: a literal `of 11` beside a growing list of assertions is a
+     count that stops describing the run the moment an assertion is added, and the lane aggregator reads
+     the printed number as this tool's assertion total (RESIDUE
+     2026-10-11-ten-tools-hardcode-a-selftest-count — this file is an eleventh instance, outside that
+     row's list of ten). */
   const ok = (n, c, d) => {
+    ran++;
     console.log((c ? '  ok   ' : '  FAIL ') + n + (!c && d != null ? '  — ' + d : ''));
     if (!c) fail++;
   };
@@ -128,7 +141,34 @@ function selftest() {
       return (r.producedBy.commit === null && !!r.producedBy.commitReason) || /^[0-9a-f]{7,40}$/.test(r.producedBy.commit);
     })()
   );
-  console.log(fail ? fail + ' failed of 11' : 'all 11 selftests passed');
+  /* The optional `contributions` passthrough: the builder carries a block it did not build, and the
+     shipped validator must report that it EXAMINED it — a block the validator never looked at is the
+     §4b shape the `checked` list exists to catch. */
+  const BLOCK = {
+    of: 'sigma2.chest',
+    unit: 'ms^2',
+    method: 'analytic',
+    inputs: [
+      { key: 'leg.chest-finger', share: 0.25, delta: 50 },
+      { key: 'leg.chest-ankle', share: 0.5, delta: 100 },
+      { key: 'leg.finger-ankle', share: 0.25, delta: -50 }
+    ],
+    dominant: 'leg.chest-ankle'
+  };
+  const wc = undeclaredVerdict({ tool: 'tools/x.mjs', stat: { value: 1 }, population: { checked: 3, eligible: 3 }, contributions: BLOCK, commit: 'abc1234', at: '2026-09-22T00:00:00Z' });
+  const wcv = V.validate(wc);
+  ok(
+    'a contributions block rides through verbatim, and verdict.js EXAMINED it',
+    wc.contributions === BLOCK && wcv.ok === true && wcv.checked.indexOf('contributions') >= 0,
+    JSON.stringify({ errors: wcv.errors, checked: wcv.checked })
+  );
+  const nrc = undeclaredVerdict({ tool: 'tools/x.mjs', stat: { value: 1 }, population: { checked: 0, eligible: 3 }, contributions: BLOCK, commit: 'abc1234', at: '2026-09-22T00:00:00Z' });
+  ok(
+    'NOT_RUN attributes nothing — no block beside a null result',
+    nrc.status === 'NOT_RUN' && nrc.contributions === undefined && val(nrc) === true,
+    JSON.stringify({ status: nrc.status, contributions: nrc.contributions })
+  );
+  console.log(fail ? fail + ' failed of ' + ran : 'all ' + ran + ' selftests passed');
   return fail ? 1 : 0;
 }
 
