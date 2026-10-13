@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**259 tools** · 258 with a purpose line · **1 without**
+**260 tools** · 259 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -125,6 +125,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
 | [`no-third-party-names.mjs`](../tools/no-third-party-names.mjs) | the name gate node tools/no-third-party-names.mjs # gate (exit 1 on a hit) node tools/no-third-party-names.mjs --json # the verdict alone |
 | [`nsrr-aai-validate.mjs`](../tools/nsrr-aai-validate.mjs) | DOES OXYDEX'S AUTONOMIC AROUSAL INDEX TRACK EXPERT-SCORED AROUSALS? |
+| [`nsrr-ahi-refit.mjs`](../tools/nsrr-ahi-refit.mjs) | Refits the shipped AHI surrogates against each of the four harmonized NSRR AHI definitions, and scores every refit under the band the owner ratified on 2026-10-13… |
 | [`nsrr-ahiest-validate.mjs`](../tools/nsrr-ahiest-validate.mjs) | DOES THE ELABORATE AHI ESTIMATE BEAT THE TRIVIAL ONE? — a POOL SCORER, not a tool. |
 | [`nsrr-coupling-bout-fpr.mjs`](../tools/nsrr-coupling-bout-fpr.mjs) | DEEP-AUDIT-V F8 — DOES THE EVENT-COUPLING NULL SURVIVE REAL OSA BOUT STRUCTURE? |
 | [`nsrr-criterion-sweep.mjs`](../tools/nsrr-criterion-sweep.mjs) | DERIVE THE DESATURATION CRITERION FROM THE DATA, INSTEAD OF ASSUMING IT. |
