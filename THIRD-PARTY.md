@@ -109,3 +109,65 @@ corroboration is belt-and-braces, not a licence grant either way.
 Polar, Polar H10 and Verity Sense are trademarks of Polar Electro Oy; Wellue
 and ViATOM are trademarks of their respective owners. Used for identification
 only, with no affiliation or endorsement implied.
+
+---
+
+## Development tools (not shipped)
+
+These tools build, check, search and measure the repo. **No shipped `Foo.html`
+bundles, links to, fetches or imports any of them.** The suite's runtime
+dependency list stays empty with every one of them installed, so the summary at
+the top of this file still holds.
+
+Each version is the repo's own pin where one exists. Each licence was read from
+the installed copy, from its own licence file, or from the tool's own output —
+never from memory. Where no copy was available to read, the row says **not
+verified** rather than quoting a licence.
+
+### Build, lint, type and test
+
+| tool | version or pin | licence | use | where it runs |
+|---|---|---|---|---|
+| **Node.js** | `>=18` (`package.json` engines); CI pins 20 and 22 | MIT (`Expat`, per the distribution's own copyright file) | runs the bundler, every gate and every tool under `tools/` | dev box · CI |
+| **Biome** (`@biomejs/biome`) | 2.5.3, the one `devDependency` | MIT OR Apache-2.0 | `npm run lint`, `npm run format` | dev box · CI |
+| **TypeScript** (`tsc`) | 5.5.4, pinned inside `npm run typecheck` | Apache-2.0 | `tsc --noEmit` over the JS surface | dev box · CI |
+| **Playwright** | 1.48.0, installed `--no-save` by the browser workflow | Apache-2.0 | drives the browser render-coverage gate | CI |
+| **pytest** | `>=9.1.1` | MIT | the capture-host suite | capture box · dev box · CI |
+| **pytest-cov** (with **coverage**) | `>=7.1.0` (coverage 7.15.2) | MIT (coverage: Apache-2.0) | the 100 % statement and branch floor | capture box · dev box · CI |
+| **pytest-xdist** | `>=3.8.0` | MIT | runs that suite in parallel | capture box · dev box · CI |
+| **pytest-timeout** | `>=2.4.0` | MIT | the per-test bound, so a hang still has a verdict | capture box · dev box · CI |
+| **pytest-asyncio** | `>=1.4.0` | not verified | the asynchronous capture tests | capture box · dev box · CI |
+| **Hypothesis** | `>=6.168.3` | MPL-2.0 | property tests over the clock surface | capture box · dev box · CI |
+| **Ruff** | `>=0.16.9` | MIT | Python lint, and `ruff format` for style | capture box · dev box · CI |
+| **mypy** | `>=2.3.1` | MIT | the ratcheting type gate | capture box · dev box · CI |
+| **mutmut** | `==3.8.0`, pinned exactly | BSD-3-Clause | the diff-scoped mutation gate | capture box · dev box · CI |
+| **ShellCheck** | 0.11.0, carried by the `shellcheck-py` wheel `>=0.11.0.1` | **GPL-3.0** (the wheel's own wrapper is MIT) | the shell lint in `capture-host/check.sh` | capture box · dev box · CI |
+| **detect-secrets** | `>=1.5.0` | not verified | the secrets audit against the committed baseline | CI |
+
+### Local search and local models
+
+Rule 0 of this repo runs a search before any build, so this table covers what
+that search uses. Each piece binds to the loopback interface and reaches no
+network.
+
+| tool | version or pin | licence | use | where it runs |
+|---|---|---|---|---|
+| **xerj** | v1.0.0-rc.93 | Apache-2.0 (read from its own repository; the binary prints none) | the hybrid index behind `tools/doc-search.mjs` | dev box, loopback only |
+| the **local model runtime** (`ollama`) | 0.34.4 | MIT (read from its own repository) | serves the two models below | dev box, loopback only |
+| **bge-m3** | the runtime's own tag | MIT (read from the model's own licence) | embeds a query and each document chunk for the search above | dev box, loopback only |
+| **qwen3-coder:30b** | the runtime's own tag | Apache-2.0 (read from the model's own licence) | the local review baseline that `tools/dsp-review-qwen.mjs` measures | dev box, loopback only |
+
+### Copyleft, and why it reaches nothing
+
+**One tool here carries the GPL, and it runs as a separate program.** A shell
+script invokes ShellCheck as a child process and reads its text output. Nothing
+links against it, and no file of this repo derives from it. The capture-host tests
+import Hypothesis, which carries MPL-2.0. Those tests ship in no bundle, and this
+project redistributes none of them. No `Foo.html` carries a byte of any tool on
+this page.
+
+### What is left out, and why
+
+- **Two licences stay unverified.** `capture-host/requirements-dev.txt` declares `pytest-asyncio` and `detect-secrets`, and CI installs both. Neither sits in the environment that supplied every other licence here, so this page quotes none for them.
+- **GitHub's own workflow actions.** `.github/workflows/` names checkout, language setup, cache, artifact upload, dependency review and code scanning. They run inside the hosted runner. No box of this project installs them, and this page reads no licence for them.
+- **A table row needs a caller.** This page lists no tool that the tracked tree never names. That rule kept a symbol indexer and a passage reranker out: neither appears anywhere in the tree today.
