@@ -80,14 +80,14 @@ ok(Math.abs(erf(4.5) - 0.9999999998033839) < 1e-12 && erf(0) === 0 && erf(-1.3) 
 // ── the fold hash, pinned to seqnet.py's own answers (GROUP_SUBJECTS on) ───────────────────────
 for (const [c, id, want] of [
   ['ucddb', 'ucddb002', 1],
-  ['shhs', 'shhs1-200001', 2],
-  ['shhs2', 'shhs2-200001', 2],
+  ['shhs', 'shhs1-900004', 2],
+  ['shhs2', 'shhs2-900004', 2],
   ['boas', 'sub-001', 3],
   ['challenge', 'tr03-0005', 4]
 ]) {
   ok(foldOf(c, id, true) === want, `foldOf(${c}, ${id}) = ${foldOf(c, id, true)}, python says ${want}`);
 }
-ok(foldOf('shhs', 'shhs1-200001', true) === foldOf('shhs2', 'shhs2-200001', true), 'SHHS1/SHHS2 nights of one subject share a fold');
+ok(foldOf('shhs', 'shhs1-900004', true) === foldOf('shhs2', 'shhs2-900004', true), 'SHHS1/SHHS2 nights of one subject share a fold');
 
 // ── the real-night parity verdict (tools/seqnet-eval.mjs) is pre-stated and never a pass by absence ──
 {

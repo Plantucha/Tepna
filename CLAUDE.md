@@ -98,8 +98,11 @@ node tools/rebase-safe.mjs --onto <ref>
 
 - **Generated** (auto-resolved, rebuilt): the 9 provenance bundles + 2 orchestrators (read from
   `manifest-gate.js MANIFEST_BUNDLES` + `build.mjs ORCHESTRATORS`), the analysis tools
-  (`build-analysis.mjs TOOLS`), `docs/**`, `provenance/**`. Never globbed; an unreadable builder list
-  fails closed.
+  (`build-analysis.mjs TOOLS`), the `docs/` paths their builders declare (`build-docs.mjs
+  --list-owned` plus `tools-index.mjs`'s single output), `provenance/**`. **`docs/MUTATION-INVENTORY.md`
+  is the one path a builder writes that stays SOURCE**, because its rebuild stamps today's
+  `last-verified` and reads journals git ignores, so no rebuild restores it. Never globbed; an
+  unreadable builder list fails closed.
 - **Source** (it stops): everything else. **`tests/dex-tests.js` conflicts on nearly every parallel PR** —
   restore `main`'s copy and re-run your insertion, never keep one side wholesale.
 - **After ANY rebase verify your change survived:** `git show HEAD:<file> | grep -c <identifier you added>`.

@@ -179,8 +179,8 @@ function edfToEcgRec(edf) {
    never equals 'REM': recall was STRUCTURALLY 0 and the confusion table keyed every expert stage to
    a single `[object Object]` column.
 
-   Measured 2026-09-12 on real SHHS records — shhs1-200001/2/3 each reported REM recall 0.0 % against
-   expert REM fractions of 11 / 5 / 10 %, which reads exactly like a stager that never fires.
+   Measured 2026-09-12 on real SHHS records — three records each reported REM recall 0.0 % against
+   expert REM fractions between 5 and 11 %, which reads exactly like a stager that never fires.
 
    ⚠️ WHY NO GATE COULD SEE IT, which is the part worth keeping. `--selftest` REFUSES to compute
    recall/precision from synthetic input — deliberately, because a synthetic record scored by the

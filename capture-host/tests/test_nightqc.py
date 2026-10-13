@@ -3,7 +3,6 @@
 import gc
 import json
 import logging
-import inspect
 import os
 import time
 
@@ -4120,27 +4119,29 @@ def test_attach_wear_is_the_one_place_wear_reaches_a_summary(tmp_path, _tz):
     )
 
 
-def test_neither_the_join_nor_the_wear_scan_is_offloaded_to_a_child(tmp_path):
-    """⚠️ A REGRESSION GUARD FOR A SILENT HANG, not a style check.
+def test_the_wear_scan_rides_the_summary_s_child_and_never_gets_a_SECOND_one(tmp_path):
+    """⚠️ A REGRESSION GUARD FOR A SILENT HANG, not a style check — and the hang is a SECOND child per
+    poll, which is still forbidden.
 
-    `capture._qc_offload` sends its target to a SPAWNED child when `_importable_by_reference` says the
-    module still binds that name to that object. Several poller tests patch `nightqc.summarize` with a
-    LAMBDA precisely so that check fails and the poll runs on a thread — a frozen `time.monotonic` and a
-    spawned child cannot coexist, because `multiprocessing` reads it for its deadlines and the child's
-    result never arrives. An earlier draft offloaded the wear scan as a SECOND child, which is a
-    module-level name those patches do not cover: `check.sh` then wedged twice at 98 % with all 24 xdist
-    workers idle and the controller in `futex_do_wait`, and the single test hung with a `multiprocessing`
-    queue feeder alive beside it.
+    `capture._qc_offload` sends its target to a SPAWNED child, and `multiprocessing` reads
+    `time.monotonic` for its deadlines: several poller tests freeze that clock, under which a child's
+    result never arrives. An earlier draft gave the wear scan a child OF ITS OWN and `check.sh` wedged
+    twice at 98 % with all 24 xdist workers idle and the controller in `futex_do_wait`, the single test
+    hanging with a `multiprocessing` queue feeder alive beside it.
 
-    So the scan's target stays `nightqc.summarize`, the wear scan goes on a thread (as `write_night`
-    already does with the same work), and the join is pure."""
+    What changed on 2026-10-13 (QC-SPAWN-CHILD) is where the scan runs, not that judgement. It ran on a
+    THREAD here, costing 6.9 s of GIL per poll (the 794 MB 2026-09-23 night) plus ~50 MB of arena
+    retention `mallinfo2` cannot see; it now runs inside `qc_child.scan_night`, which is the ONE child
+    the poll already pays for. So the two guards are: no `_qc_offload` of a `loss_audit` function
+    directly, and exactly two offload call sites in the file — one per poller.
+
+    The join stays in the parent, because it is pure and reads no file."""
     import capture
 
-    assert capture._importable_by_reference(nightqc.summarize), "the seam the poller tests patch"
-    src = inspect.getsource(capture.qc_poller)
-    assert "_qc_offload(nightqc.summarize," in src, "the scan's target must stay `nightqc.summarize`"
+    src = open(capture.__file__).read()
     assert "_qc_offload(loss_audit" not in src, "the wear scan must NOT get a child of its own"
-    assert "to_thread(loss_audit.wear_by_device" in src, "it runs on a thread, like write_night"
+    assert "to_thread(loss_audit.wear_by_device" not in src, "nor a thread: it rides the summary's child"
+    assert src.count("await _qc_offload(") == 2, "one offload per poller — a third is a second child per poll"
     assert "_qc_offload(nightqc.attach_wear" not in src, "the join is pure — never offloaded"
     # and the join really is pure: it reads no file, so it cannot need a child
     assert nightqc.attach_wear({"devices": []}, None) == {"devices": []}

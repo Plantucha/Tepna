@@ -4,6 +4,7 @@
 active night untouched, a daemon-caused night logged as a warning, one bad night does not stop it."""
 
 import asyncio
+import concurrent.futures.process  # lazily loaded by the package; an xdist worker may not have touched it
 import json
 import os
 import time
@@ -403,3 +404,71 @@ def test_a_re_judged_older_night_does_not_pull_the_status_card_back(tmp_path, mo
     _poll_once(monkeypatch, tmp_path)
     assert (d / capture.solid_night.VERDICT_NAME).exists(), "the older night's verdict is still written"
     assert capture.STATUS["solid"] == shown, "but the card keeps the newer night"
+
+
+# ── the audit and the verdict run OFF this process (QC-SPAWN-CHILD, 2026-10-13) ──────────────────────
+def test_where_the_audit_RAN_is_published_beside_what_it_found(tmp_path, monkeypatch):
+    """A full audit and composition cost this process +311..+605 MB of peak per night (vigil
+    2026-10-12), so both now run in the poll's one spawned child. Which process did the work is a fact
+    about the measurement, and it is published the way `qc.isolation` is — on the surface the finding
+    itself lands on. Here the suite's own fake keeps the work in this process, and the field says so."""
+    _night(tmp_path, "2026-09-18")
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    _poll_once(monkeypatch, tmp_path)
+    assert capture.STATUS["loss"]["2026-09-18"]["isolation"] == "thread"
+    assert capture._LOSS_ISOLATION == "thread" and capture.STATUS["loss"]["2026-09-18"]["status"] == "UNKNOWN"
+
+
+def test_a_poll_with_NOTHING_TO_DO_does_not_pay_for_a_child(tmp_path, monkeypatch):
+    """A box carrying settled nights polls every 30 minutes and almost always has no work: the audit is
+    current and the verdict is newer than it. Two stats answer that in this process, and a spawn to
+    discover it would be 0.3 s and a full interpreter per poll, forever."""
+    _night(tmp_path, "2026-09-18")
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    _poll_once(monkeypatch, tmp_path)  # the first poll audits and composes
+
+    async def refuse(*a, **k):
+        raise AssertionError("a poll with no work asked for a child")
+
+    monkeypatch.setattr(capture, "_qc_offload", refuse)
+    _poll_once(monkeypatch, tmp_path)  # the second has nothing to do
+
+
+def test_an_audit_that_raises_no_longer_takes_the_PENDING_statement_down_with_it(tmp_path, monkeypatch):
+    """🔴 A SECOND NIGHT'S ABSENCE CAUSED BY THE FIRST NIGHT'S FAILURE. When the audit ran in this frame
+    its exception left the per-night loop AND skipped `_solid_pending`, so a settled night that could
+    not be audited also suppressed the statement about the night still being captured — the morning card
+    kept a verdict under an older date. The batch returns the failure as a value, so both run."""
+    _night(tmp_path, "2026-09-18")  # settled, and its audit will raise
+    _night(tmp_path, "2026-09-19", data_age_s=0)  # still recording ⇒ the pending night
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    monkeypatch.setattr(capture.loss_audit, "write_night", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    _poll_once(monkeypatch, tmp_path)
+    assert capture.STATUS["solid"]["night"] == "2026-09-19"
+    assert capture.STATUS["solid"]["reason"] == "not settled", capture.STATUS["solid"]
+
+
+def test_a_CHILD_THAT_DIED_is_a_poll_that_did_not_run_and_the_poller_says_so(tmp_path, monkeypatch, caplog):
+    """A batch that did not run must not read as one that ran. `_qc_offload` lets `BrokenProcessPool`
+    propagate on purpose — a worker killed under us (the box OOM-killing the child is the case that
+    matters) is not a night without findings — and the poller's own handler is what names it. This is
+    the path the per-night `loss_error` does NOT cover: that one is the audit raising INSIDE a living
+    child, which comes back as a value."""
+    _night(tmp_path, "2026-09-18")
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+
+    async def died(*a, **k):
+        raise concurrent.futures.process.BrokenProcessPool("worker died")
+
+    monkeypatch.setattr(capture, "_qc_offload", died)
+    with caplog.at_level("WARNING"):
+        _poll_once(monkeypatch, tmp_path)
+    assert any("loss-audit: poll failed" in r.getMessage() for r in caplog.records)
+    assert "loss" not in capture.STATUS, "nothing is published about a night nothing audited"
