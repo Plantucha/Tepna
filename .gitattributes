@@ -95,7 +95,8 @@ briefs/RESIDUE.md           merge=residue
 #     merge=mutateledger, NOT installed → exit 1, conflict markers           ← the same as today
 #     merge=mutateledger, installed     → exit 0, 0 markers, every entry and every edit present
 # The uninstalled state is therefore the safe one (CLAUDE.md §👥.2b-bis), which is what makes the
-# attribute safe to ship ahead of anyone installing it.
+# attribute safe to ship ahead of anyone installing it. Git names no absent driver and prints no
+# warning there (measured on git 2.53.0) — it falls back to the built-in text merge, which conflicts.
 #   Install: node tools/mutate-ledger-merge.mjs --install
 #   Verify:  node tools/mutate-ledger-merge.mjs --verify
 capture-host/tools/mutate-equivalence.json  merge=mutateledger
