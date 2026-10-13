@@ -16,6 +16,13 @@ THE NUMBERS BELOW ARE MEASURED, NOT CHOSEN. 5730 windows of 30 s across 45 real 
 (2026-08-01 → 08-10) put |ambient| at ~140–190 worn and ~3.2e5–6.5e5 unworn — a log10 histogram of
 3795 windows at 1–3, FOUR at 4, and 1931 at 5. The threshold is the geometric midpoint of the widest
 empty interval in the middle 98 % (1993 → 13160), i.e. 5121, rounded to 5000.
+
+🔴 AND THE TEST IS ONE-SIDED (residue 2026-09-24-optical-worn-calls-a-removed-verity-worn-in-the-dark).
+Bright refutes wear. Dark does NOT confirm it: a removal in a dark bedroom reads dark too, 27 of the 47
+55 Hz removals in the corpus, |ambient| 136 .. 3 951. So `optical_worn` returns `False` or `None`, never
+`True`, and `ambient_level_undecidable` is what separates "dark, cannot say" from "no reading at all".
+Every dark-side assertion below reads BOTH, because `None` alone is also what an empty buffer returns —
+one function cannot distinguish the two cases, and a test that reads only `None` sees no mutant.
 """
 
 import os
@@ -24,7 +31,7 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from telemetry import _WORN_AMBIENT_MAX, optical_worn  # noqa: E402
+from telemetry import _WORN_AMBIENT_MAX, ambient_level_undecidable, optical_worn  # noqa: E402
 
 # Real per-window medians, transcribed from the corpus scan.
 WORN_REAL = [-207.0, -188.0, -160.0, -141.0, -129.0, -190.0]  # under skin: dark
@@ -35,8 +42,10 @@ def _many(vals, n=200):
     return [vals[i % len(vals)] for i in range(n)]
 
 
-def test_the_overnight_signal_reads_WORN():
-    assert optical_worn(_many(WORN_REAL)) is True
+def test_the_overnight_signal_IS_DARK_AND_UNDECIDABLE_not_worn():
+    """The dark signature itself is unchanged and still recognised — it just is not a worn verdict."""
+    assert optical_worn(_many(WORN_REAL)) is None
+    assert ambient_level_undecidable(_many(WORN_REAL)) is True
 
 
 def test_the_desk_signal_reads_UNWORN():
@@ -48,7 +57,7 @@ def test_the_threshold_sits_inside_the_MEASURED_gap():
     """1993 → 13160 was empty across 5730 windows. A threshold outside it would be a guess; inside it,
     the nearest real observation is a factor of ~2.5 away on either side."""
     assert 1993 < _WORN_AMBIENT_MAX < 13160
-    assert optical_worn(_many([-1993.0])) is True, "the top of the worn cluster stays worn"
+    assert ambient_level_undecidable(_many([-1993.0])) is True, "the top of the worn cluster stays dark"
     assert optical_worn(_many([-13160.0])) is False, "the bottom of the unworn cluster stays unworn"
 
 
@@ -57,13 +66,15 @@ def test_too_little_data_is_UNKNOWN_never_unworn(n):
     """⚠️ `None` is not `False`. A `False` here DROPS THE LINK for power and unblocks the CPAP harvest;
     returning it for a stream that just opened would disconnect a sensor the moment it connected."""
     assert optical_worn([-190.0] * n) is None
+    assert ambient_level_undecidable([-190.0] * n) is False, "and it is NOT the dark abstention"
 
 
 def test_the_verdict_is_a_MEDIAN_so_a_burst_cannot_flip_it():
     """A hand passing over the sensor, or a few saturated samples, must not move the answer. Under a
     mean, 20 % room-light samples would drag a worn median of ~190 above any sane threshold."""
     contaminated = _many(WORN_REAL, 160) + _many(UNWORN_REAL, 40)  # 20 % bright
-    assert optical_worn(contaminated) is True
+    assert ambient_level_undecidable(contaminated) is True
+    assert optical_worn(contaminated) is None
     assert sum(abs(v) for v in contaminated) / len(contaminated) > _WORN_AMBIENT_MAX, (
         "…and the mean really would have been fooled, so the median is doing the work"
     )
@@ -71,7 +82,7 @@ def test_the_verdict_is_a_MEDIAN_so_a_burst_cannot_flip_it():
 
 def test_sign_is_irrelevant():
     """The Verity reports ambient negative; nothing should depend on that convention."""
-    assert optical_worn([190.0] * 200) is True
+    assert ambient_level_undecidable([190.0] * 200) is True
     assert optical_worn([322929.0] * 200) is False
 
 
@@ -80,7 +91,8 @@ def test_the_threshold_is_EXCLUSIVE_so_a_median_sitting_on_it_is_unworn():
     on the data — but it must be PINNED, or the operator flips freely and no test notices. Exclusive is
     the conservative reading of "below this ⇒ under skin": on the line is not below it."""
     assert optical_worn([_WORN_AMBIENT_MAX] * 200) is False
-    assert optical_worn([_WORN_AMBIENT_MAX - 1] * 200) is True
+    assert ambient_level_undecidable([_WORN_AMBIENT_MAX] * 200) is False
+    assert ambient_level_undecidable([_WORN_AMBIENT_MAX - 1] * 200) is True
 
 
 def test_an_EVEN_length_buffer_medians_the_two_middle_values():
@@ -88,7 +100,7 @@ def test_an_EVEN_length_buffer_medians_the_two_middle_values():
     middle index is computed, which is how ten mutants lived on the old hand-rolled line. Straddle the
     threshold with two distinct middles so the answer depends on averaging THEM specifically."""
     lo, hi = _WORN_AMBIENT_MAX - 2000, _WORN_AMBIENT_MAX + 1000  # mean 4500 < 5000 ⇒ worn
-    assert optical_worn([1.0] * 99 + [lo, hi] + [9e5] * 99) is True
+    assert ambient_level_undecidable([1.0] * 99 + [lo, hi] + [9e5] * 99) is True
     lo2, hi2 = _WORN_AMBIENT_MAX - 500, _WORN_AMBIENT_MAX + 3000  # mean 6250 > 5000 ⇒ unworn
     assert optical_worn([1.0] * 99 + [lo2, hi2] + [9e5] * 99) is False
 
@@ -97,15 +109,46 @@ def test_min_samples_zero_still_needs_ONE_sample():
     """`max(1, min_samples)` is a floor, not a preference: a median of nothing is not a measurement, and
     computing one raises rather than returning a verdict."""
     assert optical_worn([], min_samples=0) is None
+    assert ambient_level_undecidable([], min_samples=0) is False
     assert optical_worn([None, float("nan")], min_samples=0) is None
-    assert optical_worn([190.0], min_samples=0) is True
+    assert ambient_level_undecidable([190.0], min_samples=0) is True
 
 
 def test_nan_and_none_are_dropped_not_counted():
     """A short frame or a parse miss must not be scored as darkness."""
-    assert optical_worn([None] * 300) is None
-    assert optical_worn([float("nan")] * 300) is None
-    assert optical_worn(_many(WORN_REAL) + [None, float("nan")]) is True
+    assert ambient_level_undecidable([None] * 300) is False
+    assert ambient_level_undecidable([float("nan")] * 300) is False
+    assert ambient_level_undecidable(_many(WORN_REAL) + [None, float("nan")]) is True
+    assert optical_worn(_many(WORN_REAL) + [None, float("nan")]) is None
+
+
+# ── residue 2026-09-24-optical-worn-calls-a-removed-verity-worn-in-the-dark ─────────────────────────
+# The removal epochs the row measured: 27 of 47 doff ends at 55 Hz, each one dark. Under the old rule
+# every value below was a confident WORN on a band that had just come off.
+REMOVED_IN_THE_DARK = [-136.0, -185.0, -98.0, -1204.0, -3951.0]  # measured 2026-07-26 → 09-23 (Wren)
+# The reason the daemon publishes for that abstention, asserted by equality where it is published.
+ABSTAINS = "no verdict — ambient-level abstains: dark reads alike on skin and in a dark room"
+
+
+@pytest.mark.parametrize("med", REMOVED_IN_THE_DARK)
+def test_a_removal_in_a_dark_room_is_NO_VERDICT_not_worn(med):
+    """§∅: the level did not measure wear here, so it reports the absence and names it."""
+    assert optical_worn([med] * 200) is None
+    assert ambient_level_undecidable([med] * 200) is True
+
+
+def test_a_BRIGHT_removal_still_refutes_wear_which_is_the_capability_that_is_kept():
+    """20 of the same 47 removals were in a lit room. Those still drop the link, exactly as before."""
+    assert optical_worn(_many(UNWORN_REAL)) is False
+    assert ambient_level_undecidable(_many(UNWORN_REAL)) is False
+
+
+def test_out_of_domain_is_NOT_the_dark_abstention():
+    """At 176 Hz the level test is out of calibration, which is a different fact from "dark is
+    ambiguous" — the daemon prints one or the other and they are not interchangeable."""
+    assert optical_worn(_many(WORN_REAL), fs=176.0) is None
+    assert ambient_level_undecidable(_many(WORN_REAL), fs=176.0) is False
+    assert ambient_level_undecidable(_many(WORN_REAL), fs=55.0) is True
 
 
 # ── through the real runner ─────────────────────────────────────────────────────────────────────────
@@ -165,10 +208,16 @@ def test_run_polar_publishes_UNWORN_for_a_desk_signal(tmp_path, monkeypatch):
     )
 
 
-def test_run_polar_publishes_WORN_for_an_on_body_signal(tmp_path, monkeypatch):
+def test_run_polar_publishes_THE_DARK_ABSTENTION_on_the_same_key(tmp_path, monkeypatch):
+    """The key and the publish path are what this test owns, and they are unchanged. What the dark
+    signal publishes is now `None` plus the named reason, per residue
+    2026-09-24-optical-worn-calls-a-removed-verity-worn-in-the-dark — a verdict nobody measured is not
+    written as one. The grace clock is still cleared, because `_publish_worn` clears it on any
+    non-`False`, so no device is dropped on evidence that stopped speaking."""
     st = _drive(tmp_path, monkeypatch, -190)
-    assert st.get("worn") is True, st
-    assert capture._WORN_SINCE.get("24:AC:AC:0C:30:1E") is None, "a worn strap holds no grace clock"
+    assert st.get("worn") is None, st
+    assert st.get("worn_why") == ABSTAINS, st
+    assert capture._WORN_SINCE.get("24:AC:AC:0C:30:1E") is None, "and no grace clock is left running"
 
 
 def test_the_verdict_feeds_the_EXISTING_power_drop(tmp_path, monkeypatch):
@@ -424,10 +473,10 @@ def test_the_detector_REFUSES_at_a_rate_it_was_never_calibrated_at():
 def test_the_calibrated_rate_still_works_and_an_UNKNOWN_rate_is_allowed():
     """`fs=None` means the caller cannot say. Refusing there would silently disable worn detection for
     every call site that predates the parameter — the concession is deliberate and documented."""
-    assert optical_worn(_many(WORN_REAL), fs=55) is True
+    assert ambient_level_undecidable(_many(WORN_REAL), fs=55) is True
     assert optical_worn(_many(UNWORN_REAL), fs=55) is False
-    assert optical_worn(_many(WORN_REAL)) is True  # no fs given → unchanged behaviour
-    assert optical_worn(_many(WORN_REAL), fs=None) is True
+    assert ambient_level_undecidable(_many(WORN_REAL)) is True  # no fs given → unchanged domain
+    assert ambient_level_undecidable(_many(WORN_REAL), fs=None) is True
 
 
 def test_calibrated_for_is_pure_and_tolerant_of_a_reported_rate_that_wobbles():

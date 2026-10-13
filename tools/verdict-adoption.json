@@ -248,6 +248,11 @@
       "status": "exempt",
       "reason": "the band SUPPLIERS: per-term PASS/FAIL/UNKNOWN decisions handed to solid_night.compose, never emitted on their own; the emitting producer is capture-host/solid_night.py (adopted)"
     },
+    "capture-host/telemetry.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "one occurrence, prose in the `optical_worn` docstring: \"DARK IS NOT A WORN VERDICT\" (residue 2026-09-24, the 55 Hz ambient-level test called 27 of 47 removals worn because a dark room reads like skin). The module decides nothing and prints no status - the worn detectors return True, False or None and `worn_verdict` composes a telemetry field from them."
+    },
     "capture-host/tests/_srcscan.py": {
       "bin": "test",
       "status": "exempt"

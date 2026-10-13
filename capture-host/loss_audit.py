@@ -26,6 +26,10 @@ would have caught 2026-09-03 (25 fragments) eighteen nights before 2026-09-20.
 
 The journal is read with `journalctl` (read-only, the capture unit only, the night's window); where
 it is unavailable every gap is `unattributed (no journal)` and the object says so.
+
+The audit also records the journal's own SHAPE (`journal_shape`, published again in the verdict's
+`result`): how many lines, how few distinct messages, and at what rate. A night's journal can be
+99.6 % one repeated message, and until this landed nothing reported that — see `journal_shape`.
 """
 
 from __future__ import annotations
@@ -58,6 +62,45 @@ CRITERION = {
     "unit": "fraction",
     "direction": "lte",
 }
+# ───────── THE JOURNAL'S SHAPE (residue 2026-09-23-a-journal-that-is-almost-entirely-one-line-is-reported-by-nothing)
+# A night's journal can be 99.6 % ONE repeated message and no artifact says so. Measured on vigil for
+# 2026-09-18 22:00 → 09-19 06:30: 415,161 lines, of which 206,800 `ERROR CPAP durable sink failed —
+# counted (sink_errors=0)` plus 206,800 `NoneType: None` = 99.6 %, leaving 1,561 lines of real signal.
+# The log bug itself was fixed (#2641 had slid a `_log.exception` into a timing `finally`, so it fired on
+# every SUCCESSFUL write); what was never fixed is that NOTHING DETECTED IT — a person found it five
+# nights later reading the journal for an unrelated reason.
+#
+# A failure path that also fires on success is a silent one: the real error, when it comes, is one line
+# in two hundred thousand. So the shape of the journal is itself a measurement, and the night-loss
+# verdict now reads it.
+#
+# THE THRESHOLDS ARE PRE-STATED AND CALIBRATED ON NIGHTS OTHER THAN THE ONES THEY JUDGE (§🧾). The
+# flooded night ran at 415,161 / 30,600 s = 13.6 lines/s with a 99.6 % dominant share and 6.8 ERROR/s;
+# the same window on 2026-09-17, 09-19, 09-20 and 09-22 — 365–440 recorded minutes each — returned a
+# grep count of ZERO for that message. Round numbers with two orders of magnitude of headroom below the
+# flood and above a normal night, so neither bound is a curve fitted to either:
+JOURNAL_TOP_N = 3  # how many templates the share is summed over — see why it cannot be ONE, below
+JOURNAL_TOP_SHARE = 0.90  # the top few templates taking nine tenths of the journal is a uniformity finding
+JOURNAL_MIN_LINES = 10_000  # ...but ONLY over a journal big enough for uniformity to mean anything
+JOURNAL_LINES_PER_S = 1.0  # a capture daemon does not have one event a second to report
+JOURNAL_ERROR_PER_S = 0.1  # ...and an ERROR every ten seconds all night is not an error
+# 🔴 THE SHARE IS SUMMED OVER THE TOP FEW TEMPLATES, NOT THE TOP ONE, AND THE FIRST DRAFT OF THIS RULE
+# COULD NOT FIRE ON ITS OWN CALIBRATION NIGHT. The flood was 206,800 ERROR lines PLUS 206,800
+# `NoneType: None` tracebacks — 99.6 % together, but the single biggest template is 206,800 / 415,161 =
+# 49.8 %, UNDER a 50 % bar. A logged failure arrives as a message and its traceback, so the repeated
+# unit is two lines, and a top-1 share measures half of it.
+# 🔴 AND THE VOLUME FLOOR IS NOT A DETAIL. A quiet night is a short journal, and a short journal is
+# easily nine tenths three templates — 1,561 lines of real signal is what the flooded night left, and a
+# bar without a floor convicts every normal night of being uniform. 10,000 lines sits 6.4x above that
+# normal night and 41x below the flood. The floor guards the SHARE only: the two rate findings carry
+# their own volume by construction.
+# Templates are formed by blanking every run of digits, so `sink_errors=0` and `sink_errors=12` collapse
+# onto one message. Without that, a flood whose counter increments reads as 206,800 DISTINCT messages
+# and the share is 1/206,800 — the uniformity is in the message, not in the bytes.
+_JOURNAL_STAMP = re.compile(r"^\S+ \S+ ")  # `short-iso` stamp + host, dropped before templating
+_JOURNAL_NUM = re.compile(r"\d+")
+_JOURNAL_TEMPLATE_CHARS = 160  # a template is a label for a reader, not a record of the line
+
 ATTRIB_WINDOW_S = 15.0
 # ...and the same reach FORWARD of the gap's start. A gap's start is the stream's LAST DELIVERED ROW, so
 # the daemon logs the action that caused it AFTER that row — measured on the H10 over 2026-09-17→23, all 39
@@ -262,6 +305,104 @@ def read_clock_events(
                 break
     out.sort(key=lambda r: r[0])
     return out
+
+
+def journal_shape(lines, span_s: float | None) -> dict | None:
+    """The night journal's SHAPE, or `None` when the journal could not be read.
+
+    `None`, never a zeroed record: "the journal holds no flood" and "nobody looked" are different facts,
+    and only the first may clear a night (§∅). `span_s` may be `None` — then the two RATE findings are
+    `None` and the share finding still stands, because a share needs no clock.
+
+    Streams `lines`, keeping a counter of TEMPLATES and no line bodies, so a 415,161-line night costs a
+    few hundred entries rather than the 40 MB it arrived as."""
+    if lines is None:
+        return None
+    counts: dict[str, int] = {}
+    total = 0
+    errors = 0
+    for ln in lines:
+        if not ln.strip():
+            continue
+        total += 1
+        if " ERROR " in ln or ln.startswith("ERROR "):
+            errors += 1
+        t = _JOURNAL_NUM.sub("#", _JOURNAL_STAMP.sub("", ln).strip())[:_JOURNAL_TEMPLATE_CHARS]
+        counts[t] = counts.get(t, 0) + 1
+    if total == 0:
+        # READ, and empty. A real state: the unit logged nothing in the window. Distinct from `None`.
+        return {
+            "lines": 0,
+            "templates": 0,
+            "span_s": span_s,
+            "top": [],
+            "dominant_share": None,
+            "top_share": None,
+            "lines_per_s": None,
+            "error_lines": 0,
+            "error_per_s": None,
+            "findings": ["empty"],
+        }
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:JOURNAL_TOP_N]
+    top = [{"template": t, "count": c, "share": round(c / total, 4)} for t, c in ranked]
+    top_share = sum(c for _, c in ranked) / total
+    lps = total / span_s if span_s else None
+    eps = errors / span_s if span_s else None
+    # Each finding NAMES what was measured and nothing more; none claims a cause. They are independent,
+    # and all three can hold at once — the flooded night held all three — so this is a list, not a
+    # severity. `top` carries the repeating messages verbatim so the morning's reader sees the LINE.
+    findings: list[str] = []
+    if total >= JOURNAL_MIN_LINES and top_share >= JOURNAL_TOP_SHARE:
+        findings.append("uniform")
+    if lps is not None and lps >= JOURNAL_LINES_PER_S:
+        findings.append("flooded")
+    if eps is not None and eps >= JOURNAL_ERROR_PER_S:
+        findings.append("error-rate")
+    return {
+        "lines": total,
+        "templates": len(counts),
+        "span_s": round(span_s, 1) if span_s else span_s,
+        "top": top,
+        "dominant_share": round(ranked[0][1] / total, 4),
+        "top_share": round(top_share, 4),
+        "lines_per_s": round(lps, 4) if lps is not None else None,
+        "error_lines": errors,
+        "error_per_s": round(eps, 4) if eps is not None else None,
+        "findings": findings,
+    }
+
+
+def read_journal_shape(since: _dt.datetime, until: _dt.datetime, run=subprocess.run) -> dict | None:
+    """`journal_shape` over the capture unit's whole window, or `None` when journalctl is unavailable.
+
+    A SECOND pass over the same window as `read_clock_events`, deliberately. That reader returns a
+    FILTERED record set — four phrases — and a share needs the denominator, every line the unit wrote.
+    Folding both into one call would mean either returning two unrelated things from one function or
+    filling a dict in place; one more read-only `journalctl` for the night is the cheaper price, and the
+    audit already makes one per device."""
+    try:
+        r = run(
+            [
+                "journalctl",
+                "-u",
+                "tepna-capture",
+                "--no-pager",
+                "-o",
+                "short-iso",
+                "--since",
+                since.strftime("%Y-%m-%d %H:%M:%S"),
+                "--until",
+                until.strftime("%Y-%m-%d %H:%M:%S"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    return journal_shape(r.stdout.split("\n"), (until - since).total_seconds())
 
 
 def read_journal(
@@ -1150,7 +1291,14 @@ def _device_keys(devices: list[dict]) -> list[str]:
     return out
 
 
-def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal, clock_events=read_clock_events) -> dict:
+def audit_night(
+    night_dir: str,
+    devices: list[dict],
+    *,
+    journal=read_journal,
+    clock_events=read_clock_events,
+    journal_shape_of=read_journal_shape,
+) -> dict:
     """The LOSS-AUDIT.json body: per device, the primary stream's gaps by cause, span, and whether the
     device's own evidence says it was worn that night."""
     night = os.path.basename(night_dir.rstrip("/"))
@@ -1178,6 +1326,8 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal, cl
         ]
     )
     out["clock_events_source"] = "journalctl -u tepna-capture" if ce is not None else "unavailable"
+    # The journal's SHAPE over the same window. `None` when it could not be read — see `journal_shape`.
+    out["journal_shape"] = journal_shape_of(since, until)
     # The ring's SAMPLE-based completeness, beside the night's time-based gap ledger and never folded
     # into it. The two are in different units and answer different questions; residue
     # `2026-09-27-sample-shortfall-without-a-time-gap-is-unmeasured` is the night where the time measure
@@ -1390,6 +1540,14 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
             for n, v in checked.items()
         },
         "journal": audit.get("journal"),
+        # THE JOURNAL'S SHAPE, so the morning's verdict names a flood instead of a person finding it five
+        # nights later. It does NOT move `status`: the criterion is pre-stated and single
+        # (`worn_but_not_recorded_fraction`), and widening a published criterion would break every stored
+        # verdict and every consumer of this gate for a finding that is not capture loss. Whether a
+        # flooded journal should FAIL a night is the owner's to rule; that it is REPORTED is this row.
+        # On the NOT_RUN / NOT_APPLICABLE paths above `result` is None by contract, so the shape's
+        # always-written home is `LOSS-AUDIT.json` — which is the artifact the row asked for.
+        "journal_shape": audit.get("journal_shape"),
     }
     if not devs:
         return _verdict.make(
@@ -1461,12 +1619,15 @@ def write_night(
     commit: str | None = None,
     journal=read_journal,
     clock_events=read_clock_events,
+    journal_shape_of=read_journal_shape,
 ) -> dict:
     """Audit + verdict beside the summary; returns the verdict. Never raises past a crash → UNKNOWN."""
     import json
 
     try:
-        audit = audit_night(night_dir, devices, journal=journal, clock_events=clock_events)
+        audit = audit_night(
+            night_dir, devices, journal=journal, clock_events=clock_events, journal_shape_of=journal_shape_of
+        )
         tmp = os.path.join(night_dir, AUDIT_NAME + ".tmp")
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(audit, fh, indent=1)
@@ -1506,4 +1667,8 @@ def sample_object() -> dict:
             [{"name": "Polar H10 SAMPLE", "model": "H10"}],
             commit=None,
             journal=lambda name, since, until: planted,
+            # A synthetic night has no journal, so the shape is `None` — the honest value, and a
+            # deterministic one. Reading this box's journald for a corpus-free sample would make the
+            # adoption gate's object depend on the machine that emitted it.
+            journal_shape_of=lambda since, until: None,
         )
