@@ -138,6 +138,59 @@ export function ctagsScopes(file, abs, run = spawnSync) {
 }
 
 /**
+ * JS SCOPES. ctags 6.2 gives no end line for a JS function, so no JS chunk named its function. The
+ * JS parser (a pinned devDependency) reads the file and returns every named function, class and
+ * method with its first and last line. A function takes the name of the declaration, variable,
+ * property or assignment that holds it, and a module wrapped in an immediately called function
+ * takes the name of its variable. Absent parser or a file it cannot parse ⇒ null, as for ctags.
+ */
+export const JS_EXT = /\.[cm]?js$/;
+
+/** The parser's `parse`, or null when the devDependency is absent. */
+export function jsParser(req = createRequire(import.meta.url)) {
+  try {
+    return req('acorn').parse;
+  } catch {
+    return null;
+  }
+}
+
+const FN_VALUE = new Set(['FunctionExpression', 'ArrowFunctionExpression', 'ClassExpression']);
+const keyName = (k) => (k?.type === 'Identifier' ? k.name : k?.type === 'PrivateIdentifier' ? `#${k.name}` : k?.type === 'Literal' ? String(k.value) : null);
+
+/** Source text → `[{ name, line, end }]` for every named scope, or null when it does not parse. */
+export function jsScopes(raw, parse = jsParser()) {
+  if (!parse) return null;
+  let ast = null;
+  for (const sourceType of ['module', 'script']) {
+    try {
+      ast = parse(raw, { ecmaVersion: 'latest', sourceType, locations: true, allowHashBang: true, allowReturnOutsideFunction: sourceType === 'script' });
+      break;
+    } catch {
+      ast = null;
+    }
+  }
+  if (!ast) return null;
+  const scopes = [];
+  const add = (name, n) => {
+    if (name && n.loc) scopes.push({ name: String(name), line: n.loc.start.line, end: n.loc.end.line });
+  };
+  for (const stack = [ast]; stack.length; ) {
+    const n = stack.pop();
+    if (n.type === 'FunctionDeclaration' || n.type === 'ClassDeclaration') add(n.id?.name, n);
+    else if (n.type === 'MethodDefinition') add(keyName(n.key), n);
+    else if ((n.type === 'Property' || n.type === 'PropertyDefinition') && FN_VALUE.has(n.value?.type)) add(keyName(n.key), n);
+    else if (n.type === 'VariableDeclarator' && (FN_VALUE.has(n.init?.type) || FN_VALUE.has(n.init?.callee?.type))) add(n.id?.name, n);
+    else if (n.type === 'AssignmentExpression' && FN_VALUE.has(n.right?.type)) add(n.left?.type === 'MemberExpression' ? keyName(n.left.property) : n.left?.name, n);
+    for (const v of Object.values(n)) {
+      if (Array.isArray(v)) for (const c of v) c && typeof c.type === 'string' && stack.push(c);
+      else if (v && typeof v.type === 'string') stack.push(v);
+    }
+  }
+  return scopes;
+}
+
+/**
  * WHERE EACH CHUNK SITS IN ITS FILE, as 1-based `[first, last]` lines, or `null` per chunk when it
  * cannot be placed. A hit printed as `[chunk 34/259]` sends the reader scrolling; `file:812-840`
  * opens at the passage. Two paths:
@@ -474,6 +527,44 @@ export function selftest() {
   ok(untagged.ok && !('symbols' in untagged.docs[0]), 'no scopes ⇒ no symbols field, never an empty one');
   ok(mapping(4).mappings.properties.symbols.type === 'keyword', 'the mapping carries the symbols field');
 
+  /* JS SCOPES: the parser names functions ctags leaves without an end line. */
+  const jsSrc = [
+    'export function top(a) {',
+    '  const inner = (x) => {',
+    '    return x + 1;',
+    '  };',
+    '  return inner(a);',
+    '}',
+    'class Box {',
+    '  open() {',
+    '    return 1;',
+    '  }',
+    '}',
+    'const api = { load: function () { return 2; } };',
+    'api.save = () => 3;',
+    'const n = 4;'
+  ].join('\n');
+  const jsc = jsScopes(jsSrc);
+  const sAt = (nm) => jsc?.find((t) => t.name === nm);
+  const iife = jsScopes('var Mod = (function () {\n  return { a: 1 };\n})();');
+  ok(iife?.[0]?.name === 'Mod' && iife[0].end === 3, 'a module in an immediately called function takes its variable name');
+  ok(sAt('top')?.line === 1 && sAt('top')?.end === 6, 'a function declaration spans its lines');
+  ok(sAt('inner')?.line === 2 && sAt('inner')?.end === 4, 'an arrow takes the name of its variable');
+  ok(sAt('Box')?.end === 11 && sAt('open')?.line === 8 && sAt('open')?.end === 10, 'a class and its method are scopes');
+  ok(sAt('load')?.line === 12 && sAt('save')?.line === 13, 'a property and an assignment name their function');
+  ok(!sAt('n') && !sAt('api'), 'a variable that holds no function is not a scope');
+  ok(enclosingSymbols(jsc, 3, 3).join() === 'inner,top', 'a chunk in the arrow names it before the function');
+  ok(jsScopes('return 1;')?.length === 0, 'a script with a top-level return parses');
+  ok(jsScopes('function (', jsParser()) === null, 'a file that does not parse gives null, not an empty list');
+  ok(jsScopes(jsSrc, null) === null, 'absent parser gives null');
+  ok(
+    jsParser(() => {
+      throw new Error('absent');
+    }) === null,
+    'jsParser returns null when the package is absent'
+  );
+  ok(JS_EXT.test('a.mjs') && JS_EXT.test('a.cjs') && JS_EXT.test('a.js') && !JS_EXT.test('a.json'), 'JS_EXT takes js, mjs and cjs only');
+
   const line = fail.length ? `xerj-load selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
@@ -578,7 +669,7 @@ async function main() {
     process.stderr.write(`xerj-load: created ${target} with a ${VECTOR_DIMS}-dim cosine dense_vector mapping\n`);
   }
 
-  const counts = { files: 0, loaded: 0, skipped: 0, docs: 0, repairedChunks: 0, tagged: 0, skips: {} };
+  const counts = { files: 0, loaded: 0, skipped: 0, docs: 0, repairedChunks: 0, tagged: 0, symbolDocs: 0, skips: {} };
   let pending = [];
   let header = null;
   const flush = async () => {
@@ -645,7 +736,7 @@ async function main() {
           rawText = null;
         }
       }
-      const scopes = rawText == null ? null : ctagsScopes(entry.file, abs);
+      const scopes = rawText == null ? null : JS_EXT.test(entry.file) ? jsScopes(rawText) : ctagsScopes(entry.file, abs);
       if (scopes?.length) counts.tagged += 1;
       const plan = planFile(entry, body, VECTOR_DIMS, chunk, rawText, scopes);
       if (!plan.ok) {
@@ -655,6 +746,7 @@ async function main() {
       }
       counts.loaded += 1;
       counts.docs += plan.docs.length;
+      counts.symbolDocs += plan.docs.filter((d) => d.symbols).length;
       counts.repairedChunks += plan.repaired;
       for (const d of plan.docs) {
         pending.push(d);
@@ -692,6 +784,7 @@ async function main() {
     process.stdout.write(`  loaded (file / chunk docs) : ${counts.loaded} / ${counts.docs}\n`);
     process.stdout.write(`  skipped                    : ${counts.skipped}\n`);
     process.stdout.write(`  chunks with a split pair repaired : ${counts.repairedChunks}\n`);
+    process.stdout.write(`  files / chunks naming a symbol : ${counts.tagged} / ${counts.symbolDocs}\n`);
     for (const [k, n] of Object.entries(counts.skips).sort((a, b) => b[1] - a[1])) process.stdout.write(`    ${k.padEnd(16)} ${n}\n`);
     if (generation?.promoted)
       process.stdout.write(`  generation ${generation.index} now serves ${index} · replaced ${generation.replaced.join(', ') || 'nothing'} · retired ${generation.retired.length}\n`);

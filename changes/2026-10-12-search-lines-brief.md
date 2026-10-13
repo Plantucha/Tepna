@@ -25,6 +25,8 @@ The floor was fit on the even half only. The refused answerable query had no tru
 
 A code hit also names the function that holds it (`tools/xerj-load.mjs`). An example is `allan.py:197-215 · gcov`. The loader runs universal-ctags on each code file and keeps the scopes with an end line. The search never reads the field, so no ranking moves. Without ctags, a hit has no symbol field.
 
-ctags 6.2.1 gives end lines for Python and the external SDK sources, not for JS or shell. So 489 of 492 Python files carry symbols, and no JS file does. A dry load tagged 1,564 files. I read 4 sampled names against their files, and all 4 are right.
+Version 6.2.1 of ctags gives end lines for Python and the external SDK sources, not for JS or shell. So the loader reads JS with a JS parser, a pinned devDependency (`acorn` 8.18.0, MIT, no dependencies). It ships in no bundle. A function takes the name of the declaration, variable, property or assignment that holds it. Without the parser, a JS hit has no symbol field.
+
+The parser reads all 427 tracked JS files and finds 9,863 scopes. A dry load gives symbols to 1,955 files and 21,449 of 59,347 chunks. I read 5 sampled ranges against their files, and all 5 are right. An example is `oxydex-dsp.js:4605-4620 · computeDesaturationProfile`.
 
 No bundle moves.
