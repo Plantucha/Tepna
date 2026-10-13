@@ -75,6 +75,7 @@
   },
   "devDependencies": {
     "@ast-grep/cli": "0.50.0",
-    "@biomejs/biome": "2.5.3"
+    "@biomejs/biome": "2.5.3",
+    "acorn": "8.18.0"
   }
 }

@@ -41,7 +41,17 @@
  * fraction from PulseDex), applied before any pair is compared. A window enters only if ALL THREE
  * streams pass independently — which is stricter than any single pair, and the same rule for each.
  *
+ * 3 · THE HAT SAYS WHICH LEG MOVED A CORNER. `--verdict` prints one `tepna.verdict/1` carrying the
+ *     `contributions` block of VERDICT-CONTRIBUTIONS-2026-10-04 §2 — the three legs' signed partials of
+ *     the corner's closed form, their shares, and the dominant one — so the question the brief opens on
+ *     ("which leg's variance drives the subtraction") is answered by the object instead of by a reader.
+ *     The status is UNKNOWN by design: a per-site sigma has no pre-stated band, and one written now
+ *     would be a number rather than a test.
+ *
  *   node tools/pat-three-corner.mjs --dir <captures root> [--night 2026-08-03] [--win 5] [--ecg-axis linear|counter|piecewise]
+ *   node tools/pat-three-corner.mjs --dir <captures root> --verdict [--corner auto|chest|finger|ankle]
+ *   node tools/pat-three-corner.mjs --verdict-sample     # the object over a PLANTED leg triple — reads no corpus
+ *   node tools/pat-three-corner.mjs --selftest
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,6 +59,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { ecgCounterTimeMs } from './pat-matchrate-strict.mjs';
+import { printVerdict, undeclaredVerdict } from './verdict-undeclared.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)(path.join(ROOT, 'tools', 'build-core.js'));
@@ -69,8 +80,26 @@ if (!['linear', 'counter', 'piecewise'].includes(ECG_AXIS)) {
   console.error('--ecg-axis must be linear|counter|piecewise');
   process.exit(2);
 }
-if (!DIR) {
-  console.error('need --dir <captures root>');
+/* `--verdict` prints ONE object on stdout and every line of prose on stderr, so the object can be
+   piped whole. `--verdict-sample` does the same over a PLANTED leg triple and reads no corpus at all,
+   which is what the adoption gate runs: `tools/verdict-adoption.mjs` executes the command it finds in
+   `emits` and parses its stdout, and a gate that needs a night folder cannot run in CI. */
+const SELFTEST = argv.includes('--selftest');
+const SAMPLE = argv.includes('--verdict-sample');
+const VERDICT = SAMPLE || argv.includes('--verdict');
+const CORNERS = ['chest', 'finger', 'ankle'];
+/* Which corner the object attributes. The contract carries ONE `contributions` block per object, so the
+   object names one corner; `auto` takes the REFUSED corner when there is one, because a refusal is the
+   case the brief opens on, and chest otherwise. At most one corner can be negative — a2 + b2 = SAB and
+   a pairwise variance is never negative — so `auto` is single-valued on real data. */
+const CORNER = arg('--corner', 'auto');
+if (!['auto', ...CORNERS].includes(CORNER)) {
+  console.error('--corner must be auto|chest|finger|ankle');
+  process.exit(2);
+}
+const say = VERDICT ? (...a) => console.error(...a) : (...a) => console.log(...a);
+if (!DIR && !SAMPLE && !SELFTEST) {
+  console.error('need --dir <captures root>   (or --verdict-sample / --selftest, neither of which reads a corpus)');
   process.exit(1);
 }
 
@@ -131,11 +160,6 @@ const iqr = (a) => {
   if (a.length < 4) return NaN;
   const s = [...a].sort((x, y) => x - y);
   return s[Math.floor(s.length * 0.75)] - s[Math.floor(s.length * 0.25)];
-};
-const varr = (a) => {
-  if (a.length < 2) return NaN;
-  const m = a.reduce((x, y) => x + y, 0) / a.length;
-  return a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1);
 };
 
 function artifactFrac(times) {
@@ -199,19 +223,37 @@ function lagsOf(X, Y, band) {
   return out;
 }
 
-console.log('THREE-CORNER PAT — A=H10 chest ECG · B=O2Ring finger · C=Verity ANKLE · ecg-axis ' + ECG_AXIS);
-console.log(`  ${WIN_MIN}-min fixed grid · reject on per-stream quality only · all three must pass independently`);
-console.log('  bands: A→B ' + JSON.stringify(BAND.AB) + '  A→C ' + JSON.stringify(BAND.AC) + '  B→C ' + JSON.stringify(BAND.BC) + ' ms\n');
-console.log('  night        win   lag A→B  A→C  B→C |  closure  |  IQR AB   AC   BC');
+/* After the realm is loaded and the helpers exist, and before anything reads a directory: the
+   selftest needs `AnalysisStats` and `med`, and must never need a corpus. */
+if (SELFTEST) process.exit(selftest());
+
+say('THREE-CORNER PAT — A=H10 chest ECG · B=O2Ring finger · C=Verity ANKLE · ecg-axis ' + ECG_AXIS);
+say(`  ${WIN_MIN}-min fixed grid · reject on per-stream quality only · all three must pass independently`);
+say('  bands: A→B ' + JSON.stringify(BAND.AB) + '  A→C ' + JSON.stringify(BAND.AC) + '  B→C ' + JSON.stringify(BAND.BC) + ' ms\n');
+say('  night        win   lag A→B  A→C  B→C |  closure  |  IQR AB   AC   BC');
 console.log('  ' + '-'.repeat(80));
 
-const nights = fs
-  .readdirSync(DIR)
-  .filter((d) => /^2026-/.test(d) && (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory())
-  .sort();
+const nights = (SAMPLE ? [] : fs.readdirSync(DIR)).filter((d) => /^2026-/.test(d) && (!ONLY || d === ONLY) && fs.statSync(path.join(DIR, d)).isDirectory()).sort();
 const V = { AB: [], AC: [], BC: [] },
   CLOSE = [],
   LAG = { AB: [], AC: [], BC: [] };
+/* `eligible` for the verdict's population: every window the fixed grid produced on a night that
+   reached the windowing step, counted BEFORE any per-stream rejection, so `checked + excluded =
+   eligible` holds by construction. A night that never got a grid — a missing corner, a failed
+   detector, under two windows of three-way overlap — contributes to NEITHER side: there was no window
+   to reject. The verdict's `reason` says so rather than letting the equality imply a wider population
+   than was ever windowed. */
+let gridWindows = 0;
+if (SAMPLE) {
+  /* A PLANTED leg triple, 49 windows, no corpus read. The medians are chosen so the CHEST corner is
+     refused — med_BC² > med_AB² + med_AC² — because the refused corner is the case the brief opens on
+     and the one whose block a reader most needs. The spread is symmetric about the median, so the
+     median is exact and the emitted object is identical on every machine. */
+  V.AB = plantedLeg(20);
+  V.AC = plantedLeg(30);
+  V.BC = plantedLeg(60);
+  gridWindows = V.AB.length;
+}
 for (const n of nights) {
   const dir = path.join(DIR, n),
     files = fs.readdirSync(dir);
@@ -259,6 +301,7 @@ for (const n of nights) {
     nightC = [];
   let kept = 0;
   for (let s = t0; s + wm <= tE; s += wm) {
+    gridWindows++;
     const aw = A.filter((t) => t >= s && t < s + wm),
       bw = B.filter((t) => t >= s && t < s + wm),
       cw = C.filter((t) => t >= s && t < s + wm);
@@ -295,22 +338,27 @@ for (const n of nights) {
   CLOSE.push(...nightC);
 }
 
-console.log('  ' + '-'.repeat(80));
+say('  ' + '-'.repeat(80));
 if (!V.AB.length) {
-  console.log('\n  no night produced a three-way window — that is the result.');
+  say('\n  no night produced a three-way window — that is the result.');
+  /* Under --verdict that is still a verdict: nothing was checked, so the object says NOT_RUN rather
+     than letting an empty stdout read as a tool that was never asked. */
+  if (VERDICT) emitHatVerdict(null);
   process.exit(0);
 }
-console.log(`\n  CORPUS — ${V.AB.length} windows with all three sensors passing quality`);
-console.log(`    median lag   A→B (chest→finger) ${med(LAG.AB).toFixed(0)} ms · A→C (chest→ankle) ${med(LAG.AC).toFixed(0)} ms · B→C (finger→ankle) ${med(LAG.BC).toFixed(0)} ms`);
-console.log(`    median IQR   AB ${med(V.AB).toFixed(0)} · AC ${med(V.AC).toFixed(0)} · BC ${med(V.BC).toFixed(0)} ms`);
-console.log(`\n  1 · CLOSURE   A→C − (A→B + B→C) = ${med(CLOSE).toFixed(1)} ms   (IQR ${iqr(CLOSE).toFixed(0)} ms, n=${CLOSE.length})`);
-console.log(`      ⚠️ VACUOUS — both paths select the same ankle beat, so this identity holds for ANY data.`);
-console.log(`      Verified 2026-08-09: 2001/2001 same-beat selection on a synthetic train. NOT evidence.`);
+if (SAMPLE) {
+  say(`\n  PLANTED SAMPLE — ${V.AB.length} synthetic windows per leg. NO corpus was read, and no number below describes any night.`);
+  say(`    planted median IQR   AB ${med(V.AB).toFixed(0)} · AC ${med(V.AC).toFixed(0)} · BC ${med(V.BC).toFixed(0)} ms`);
+} else {
+  say(`\n  CORPUS — ${V.AB.length} windows with all three sensors passing quality`);
+  say(`    median lag   A→B (chest→finger) ${med(LAG.AB).toFixed(0)} ms · A→C (chest→ankle) ${med(LAG.AC).toFixed(0)} ms · B→C (finger→ankle) ${med(LAG.BC).toFixed(0)} ms`);
+  say(`    median IQR   AB ${med(V.AB).toFixed(0)} · AC ${med(V.AC).toFixed(0)} · BC ${med(V.BC).toFixed(0)} ms`);
+  say(`\n  1 · CLOSURE   A→C − (A→B + B→C) = ${med(CLOSE).toFixed(1)} ms   (IQR ${iqr(CLOSE).toFixed(0)} ms, n=${CLOSE.length})`);
+  say(`      ⚠️ VACUOUS — both paths select the same ankle beat, so this identity holds for ANY data.`);
+  say(`      Verified 2026-08-09: 2001/2001 same-beat selection on a synthetic train. NOT evidence.`);
+}
 
 /* 2 · classic three-cornered hat on the pairwise variances (rho = 0, no truth corner) */
-const vAB = varr(V.AB.map((x) => x)),
-  vAC = varr(V.AC.map((x) => x)),
-  vBC = varr(V.BC.map((x) => x));
 /* Use the WITHIN-WINDOW scatter itself as the pairwise dispersion: square the median IQR to a
    variance-like quantity via the normal relation sigma = IQR/1.349, which is the robust estimator
    this repo already uses elsewhere. Stated explicitly because it is an assumption, not a fact. */
@@ -321,14 +369,151 @@ const SAB = s(V.AB) ** 2,
 const a2 = (SAB + SAC - SBC) / 2,
   b2 = (SAB + SBC - SAC) / 2,
   c2 = (SAC + SBC - SAB) / 2;
-console.log(`\n  2 · THREE-CORNERED HAT (classic, rho=0; sigma = IQR/1.349)`);
+say(`\n  2 · THREE-CORNERED HAT (classic, rho=0; sigma = IQR/1.349)`);
 const rep = (name, v) => (v > 0 ? `${Math.sqrt(v).toFixed(1)} ms` : `REFUSED (negative variance ${v.toFixed(0)}) — the model does not fit`);
-console.log(`      sigma A  H10 chest ECG   : ${rep('A', a2)}`);
-console.log(`      sigma B  O2Ring finger   : ${rep('B', b2)}`);
-console.log(`      sigma C  Verity ankle    : ${rep('C', c2)}`);
+say(`      sigma A  H10 chest ECG   : ${rep('A', a2)}`);
+say(`      sigma B  O2Ring finger   : ${rep('B', b2)}`);
+say(`      sigma C  Verity ankle    : ${rep('C', c2)}`);
 if (a2 <= 0 || b2 <= 0 || c2 <= 0)
-  console.log(
+  say(
     `      A negative variance is NOT square-rooted. It means the three pairwise dispersions are\n` +
       `      not consistent with three independent per-sensor noises — correlated error, or a leg\n` +
       `      measuring something other than transit. Reported, never hidden.`
   );
+
+/* ── 3 · THE VERDICT OBJECT — tepna.verdict/1 over the CLASSIC hat (VERDICT-CONTRIBUTIONS §2 row 1) ──
+   UNKNOWN BY DESIGN, through the shared band-less builder (`tools/verdict-undeclared.mjs`): a per-site
+   sigma has no pre-stated band, and a band written now would be a number rather than a test
+   (VERDICT-CONTRACT §1). What this object adds over the printed lines is the `contributions` block —
+   each leg's signed partial of the corner's closed form, its share of the total absolute movement, and
+   which leg dominates.
+
+   THE VARIANCES ATTRIBUTED ARE THE ONES THIS TOOL PRINTS: (median within-window IQR / 1.349)², not a
+   plain across-window variance. That is why the kernel is reached through `patHatContributionsFromVars`
+   and never through `patHatContributions`, which would re-estimate the legs from the windows and
+   attribute a dispersion the printed hat never solved.
+
+   `h` is `null` when no window survived: nothing was checked, so the builder returns NOT_RUN with a
+   null result and no block. Pure apart from the print. */
+function buildHatVerdict(h, pop, meta) {
+  const S = ctx.AnalysisStats;
+  if (!S || typeof S.patHatContributionsFromVars !== 'function') {
+    console.error('AnalysisStats.patHatContributionsFromVars unavailable — analysis-stats.js did not load into the realm');
+    process.exit(2);
+  }
+  const m = meta || {};
+  const r1 = (x) => (Number.isFinite(x) ? +x.toFixed(1) : null);
+  const cv = h ? { chest: h.a2, finger: h.b2, ankle: h.c2 } : null;
+  /* `rep()` above prints a refusal for any corner that is not strictly positive; the verdict uses the
+     same test, so the object and the lines above it can never disagree about which corner was refused. */
+  const refused = cv ? CORNERS.filter((c) => !(cv[c] > 0)) : [];
+  const corner = CORNER !== 'auto' ? CORNER : refused[0] || 'chest';
+  const blocks = h ? S.patHatContributionsFromVars(h.SAB, h.SAC, h.SBC) : null;
+  const notes = [];
+  if (m.sample)
+    notes.push(
+      'PLANTED, NOT MEASURED — `--verdict-sample` reads no corpus, and the three legs are synthetic per-window IQRs chosen to refuse the chest corner, so this object asserts the SHAPE and states nothing about any night'
+    );
+  if (cv) {
+    notes.push(`the block attributes sigma2.${corner} = ${r1(cv[corner])} ms², chosen by ${CORNER !== 'auto' ? 'the --corner flag' : refused.length ? 'the refusal' : 'the chest default'}`);
+    if (refused.length)
+      notes.push(
+        `the hat REFUSES ${refused.join(', ')} — a negative variance is reported, never square-rooted, and a negative corner cannot be separated from a precision limit without an interval, which this tool does not compute (AnalysisStats.patHatBootstrapCI does)`
+      );
+    notes.push('`eligible` counts the windows the fixed grid produced on nights that reached the windowing step; a night that never got a grid is in neither term');
+  }
+  return undeclaredVerdict({
+    tool: 'tools/pat-three-corner.mjs',
+    gate: 'pat-three-corner-hat',
+    stat: h
+      ? {
+          label: `classic three-cornered hat (rho = 0), sigma² per site, attributing ${corner}`,
+          corner,
+          ecgAxis: ECG_AXIS,
+          windowMin: WIN_MIN,
+          nights: m.nights == null ? null : m.nights,
+          sigma2Ms2: { chest: r1(h.a2), finger: r1(h.b2), ankle: r1(h.c2) },
+          sigmaMs: { chest: h.a2 > 0 ? r1(Math.sqrt(h.a2)) : null, finger: h.b2 > 0 ? r1(Math.sqrt(h.b2)) : null, ankle: h.c2 > 0 ? r1(Math.sqrt(h.c2)) : null },
+          refusedCorners: refused,
+          legVarMs2: { 'leg.chest-finger': r1(h.SAB), 'leg.chest-ankle': r1(h.SAC), 'leg.finger-ankle': r1(h.SBC) }
+        }
+      : null,
+    contributions: blocks ? blocks[corner] : null,
+    population: pop,
+    /* No night folder, device serial or capture path reaches the object — a count and a glob shape say
+       what a reader would open without naming a recording. */
+    evidence: m.sample ? ['<planted leg triple: 49 windows per leg, median IQR 20 / 30 / 60 ms>'] : ['<captures root>/2026-*/{Polar_H10_*_ECG.txt,o2ring*_PPG.txt,veritysense*_PPG.txt}'],
+    note: notes.join('; '),
+    ...(m.sample ? { commit: null, commitReason: '--verdict-sample: planted leg triple, no code identity claimed', at: '2026-10-12T00:00:00Z' } : {})
+  });
+}
+
+function emitHatVerdict(h) {
+  printVerdict(buildHatVerdict(h, { checked: V.AB.length, eligible: gridWindows }, { sample: SAMPLE, nights: SAMPLE ? null : nights.length }));
+}
+
+/* 49 synthetic per-window IQRs with an EXACT median: the spread is symmetric about `m`, so the planted
+   leg variance — and therefore every delta and share in the emitted block — is identical on every
+   machine and in every CI run. */
+function plantedLeg(m) {
+  const n = 49;
+  return Array.from({ length: n }, (_, i) => m + (i - (n - 1) / 2) * 0.5);
+}
+
+function selftest() {
+  let fail = 0;
+  let ran = 0;
+  /* The total is COUNTED, not typed — RESIDUE 2026-10-11-ten-tools-hardcode-a-selftest-count. */
+  const ok = (n, c, d) => {
+    ran++;
+    console.log((c ? '  ok   ' : '  FAIL ') + n + (!c && d != null ? '  — ' + d : ''));
+    if (!c) fail++;
+  };
+  const Vj = createRequire(import.meta.url)(path.join(ROOT, 'verdict.js'));
+  const legVar = (a) => (med(a) / 1.349) ** 2;
+  const SAB = legVar(plantedLeg(20)),
+    SAC = legVar(plantedLeg(30)),
+    SBC = legVar(plantedLeg(60));
+  const h = { SAB, SAC, SBC, a2: (SAB + SAC - SBC) / 2, b2: (SAB + SBC - SAC) / 2, c2: (SAC + SBC - SAB) / 2 };
+  const v = buildHatVerdict(h, { checked: 49, eligible: 49 }, { sample: true, nights: null });
+  const res = Vj.validate(v);
+  ok('the planted sample is a valid tepna.verdict/1', res.ok === true, (res.errors || []).join(' | '));
+  ok('…and the shipped validator EXAMINED the contributions block', (res.checked || []).indexOf('contributions') >= 0, JSON.stringify(res.checked));
+  ok('…status UNKNOWN, scope internal — a per-site sigma has no pre-stated band', v.status === 'UNKNOWN' && v.scope === 'internal', v.status + ' / ' + v.scope);
+  ok('…the plant refuses the chest corner, and the object attributes exactly that corner', h.a2 < 0 && v.contributions.of === 'sigma2.chest', JSON.stringify({ a2: h.a2, of: v.contributions.of }));
+  ok('…the reason says the legs were planted, so the sample can never read as a night', /PLANTED, NOT MEASURED/.test(v.reason), v.reason.slice(0, 80));
+  ok('…no night folder, serial or capture path rides in the object', !/uploads|srv|2026-\d\d-\d\d\//.test(JSON.stringify(v)), JSON.stringify(v.evidence));
+  const inp = v.contributions.inputs;
+  ok('…the three legs are the brief’s own keys, in order', inp.map((it) => it.key).join() === 'leg.chest-finger,leg.chest-ankle,leg.finger-ankle', JSON.stringify(inp.map((it) => it.key)));
+  const sum = inp.reduce((a, it) => a + it.delta, 0);
+  ok('…the deltas SUM to the corner the hat solved, so the block decomposes the figure', Math.abs(sum - h.a2) < 1e-9, sum + ' vs ' + h.a2);
+  ok(
+    '…the shares sum to 1 and name the dominant leg',
+    Math.abs(inp.reduce((a, it) => a + it.share, 0) - 1) < 1e-12 && v.contributions.dominant === 'leg.finger-ankle',
+    JSON.stringify({ dominant: v.contributions.dominant })
+  );
+  ok('…population is an equality over windows, not a floor', v.population.checked + v.population.excluded === v.population.eligible && v.population.checked === 49, JSON.stringify(v.population));
+  /* `--corner` overrides the refusal, and the override is the only thing that moves. */
+  const other = buildHatVerdict(h, { checked: 49, eligible: 60 }, { sample: true, nights: null });
+  ok('a second build over the same plant is byte-identical apart from the population', JSON.stringify({ ...other, population: v.population }) === JSON.stringify(v), 'the object is not deterministic');
+  /* Nothing checked → NOT_RUN, null result, and no block to attribute. */
+  const nr = buildHatVerdict(null, { checked: 0, eligible: 12 }, { sample: true, nights: null });
+  ok(
+    'no surviving window → NOT_RUN with a null result and no block',
+    nr.status === 'NOT_RUN' && nr.result === null && nr.contributions === undefined && Vj.validate(nr).ok === true,
+    JSON.stringify({ status: nr.status, errors: Vj.validate(nr).errors })
+  );
+  /* The kernel this tool calls must be the FromVars one: handing it the windows instead of the
+     variances attributes a different quantity, and this assertion is what would catch the swap. */
+  const S = ctx.AnalysisStats;
+  const byWindow = S.patHatContributions(plantedLeg(20), plantedLeg(30), plantedLeg(60));
+  ok(
+    'the windows route and the variances route are DIFFERENT quantities — the hat attributes the one it printed',
+    Math.abs(byWindow.chest.inputs[0].delta - inp[0].delta) > 1,
+    JSON.stringify({ byWindow: byWindow.chest.inputs[0].delta, printed: inp[0].delta })
+  );
+  console.log(fail ? fail + ' failed of ' + ran : 'all ' + ran + ' selftests passed');
+  return fail ? 1 : 0;
+}
+
+if (VERDICT) emitHatVerdict({ SAB, SAC, SBC, a2, b2, c2 });
