@@ -220,6 +220,12 @@ jobs:
       # needs one to FIX, and an outside contributor has none. Blocking here would wall off contributions,
       # so the HARD wall lives in release.mjs's pre-flight instead: harm materialises on SHIP, and the
       # person cutting a release is the one who HAS the corpus. Report loudly here; block there.
+      # ⚠ UPDATED 2026-10-13: "report loudly here" reported to nobody. On #3543 this step printed all
+      # 19 fixtures by name as UNVERIFIED and the run still concluded `success`, so `gh pr checks` read
+      # 25 pass and no reviewer saw a word of it. `npm run check` now runs the same command as its own
+      # `verify:fixture-currency` step, which is BLOCKING — the author has the corpus, so the
+      # author's gate is where a red can be acted on. This step stays informational for exactly the
+      # reason above, and the two must change together.
       - name: Fixture verification — unverified reproducibility claims (informational)
         run: node tools/verify-fixtures.mjs --check
         continue-on-error: true

@@ -705,6 +705,7 @@ function readSources() {
     // not a blob): the rig evals it in a `new Function` realm with deps passed as params + drives init/job.
     'qrs-equiv-worker.js',
     'qrs-yield-worker.js',
+    'export-schema.js',
     'dex-export.js',
     'ganglior-provenance.js',
     'signal-frame.js',
@@ -2433,6 +2434,7 @@ async function main() {
       'measurement-block.js',
       'verdict.js',
       'night-seal.js',
+      'export-schema.js',
       'dex-export.js',
       'signal-adapters.js',
       'adapters/polar-rr.js',
@@ -2806,6 +2808,7 @@ async function main() {
     NightSeal: ctx.NightSeal, // CAPTURE-NIGHT-SEAL phase C — the in-page tepna-seal/1 reader (Node runs it for real: crypto.subtle + DecompressionStream are globals)
     sealRun: await runSealReader(ctx), // the in-page reader RUN on the committed vector + all seven plants, results for the (synchronous) group (Node-lane only)
     DexExport: ctx.DexExport,
+    ExportSchema: ctx.ExportSchema,
     exportName: ctx.exportName,
     EXPORT_KINDS: ctx.EXPORT_KINDS,
     SignalSpec: ctx.SignalSpec,

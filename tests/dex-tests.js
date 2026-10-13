@@ -17133,7 +17133,14 @@
          read NOWHERE: the dead-key leg above caught `cpFCorr,cpFACorr` crossing the boundary unread, the
          same defect this worker already records for `detailCorr` and for `vdCorr` before #2117. They are
          surfaced now, which is what moved them from DEAD to merely helper-reached. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 26, 'sensor-trio-worker.js': 34, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* sensor-trio-worker.js 34 -> 36 on 2026-10-12 (D7 option A, the owner's pick of the UNWEIGHTED hat as
+         canonical): the payload gains `estimator` (the machine name of the point estimator, `'classic'`) and
+         `fusedDiag` (the retired fused-weight triple, kept as a computed diagnostic and null when no corner
+         shipped a confidence array). Both are read in a helper rather than a handler body — `estimator` in
+         the night page's `kMethod` KPI builder and `fusedDiag` in the power tool's `fillRealTbl` row
+         tooltip — which is where those pages read every other aggregate key too. They are surfaced on
+         purpose: a worker key with no consumer is what the dead-key leg above would have called dead. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 26, 'sensor-trio-worker.js': 36, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
@@ -49150,6 +49157,90 @@
       T.ok('§5 · tag-shaped source strings survive (no extension, no separator)', tagOnly.recording.source === 'ResMed AirSense 11 (EDF set)' && tagOnly.sessions[0].source === 'firmware 2.1 build');
     });
 
+    /* ════ EXPORT-SCRUB-ALLOWLIST §3/§5 — THE SCRUB IS A PROJECTION, AND IT NAMES WHAT IT DROPPED ════
+     The §5 groups above pin what must NOT survive. This one pins the two properties the allow-list
+     adds, and neither is testable by planting another identifier:
+       · The output key set EQUALS the allow-list intersected with the input keys (§5 step 2 states
+         the shape: "not 'contains no known-bad keys' — the current test shape, which is the
+         deny-list thinking"). An undeclared key is dropped WHATEVER it looks like, so a future
+         identifier needs no new assertion here.
+       · Every dropped key is NAMED in `schema.scrubDropped` (CLAUDE.md §∅ — an output over absent
+         input reports the absence). A fail-closed scrub that dropped a node's new metric silently
+         would trade a privacy leak for a data leak nobody could see.
+     Each property carries its control, because an allow-list that dropped everything and a report
+     that named everything would both pass a one-sided check. */
+    group('EXPORT-SCRUB-ALLOWLIST — the scrubbed envelope is the allow-list ∩ the input, and every drop is named', 'dex-export · export-schema · scrub · allow-list', function (T) {
+      var DX = env.DexExport;
+      var S = env.ExportSchema;
+      if (!(DX && typeof DX.scrubExport === 'function' && S && S.ALLOW && typeof S.project === 'function')) {
+        T.ok('env.DexExport.scrubExport + env.ExportSchema available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      /* `zzUndeclared*` is the point: a key no allow-list mentions, shaped like nothing in
+         particular. `hrv` and `stats` are the controls — declared, so they must survive. */
+      var raw = {
+        schema: { name: 'ganglior.node-export', version: '2.0', node: 'PpgDex' },
+        recording: { startEpochMs: 1781383783000, contentId: 'cid', zzUndeclaredRecordingKey: 'r' },
+        hrv: { rmssd: 42 },
+        zzUndeclaredEnvelopeKey: { anything: 1 },
+        sessions: [{ stats: { mean: 95.1 }, zzUndeclaredElementKey: 'e' }],
+        ganglior_events: []
+      };
+      var scr = DX.scrubExport(raw);
+
+      // ── property 1 · the key set is the allow-list ∩ the input, at three depths ──
+      function inter(block, obj) {
+        return Object.keys(obj)
+          .filter(function (k) {
+            return S.allows(block, k);
+          })
+          .sort();
+      }
+      T.eq('envelope keys === ALLOW.envelope ∩ input keys', Object.keys(scr).sort(), inter('envelope', raw));
+      T.eq('recording keys === ALLOW.recording ∩ input keys', Object.keys(scr.recording).sort(), inter('recording', raw.recording));
+      T.eq('element keys === ALLOW.element ∩ input keys', Object.keys(scr.sessions[0]).sort(), inter('element', raw.sessions[0]));
+      // control · the declared clinical content is still there (an empty output would pass the above)
+      T.eq('control · declared content survives at every depth', [scr.hrv.rmssd, scr.recording.contentId, scr.sessions[0].stats.mean].join(), '42,cid,95.1');
+      // and the undeclared keys are gone wherever they sat
+      T.eq(
+        'every undeclared key is absent, at every depth',
+        ['zzUndeclaredEnvelopeKey' in scr, 'zzUndeclaredRecordingKey' in scr.recording, 'zzUndeclaredElementKey' in scr.sessions[0]].join(),
+        'false,false,false'
+      );
+
+      // ── property 2 · the report names them, deduped and sorted ──
+      T.eq('schema.scrubDropped names every dropped key as a dotted path', scr.schema.scrubDropped, [
+        'recording.zzUndeclaredRecordingKey',
+        'sessions[].zzUndeclaredElementKey',
+        'zzUndeclaredEnvelopeKey'
+      ]);
+      // control · a scrub with nothing to drop reports an EMPTY list, never a missing field
+      var clean = DX.scrubExport({ schema: { name: 'ganglior.node-export' }, recording: { contentId: 'c' }, hrv: { rmssd: 1 } });
+      T.eq('control · nothing dropped ⇒ an empty report, and the field is still present', JSON.stringify(clean.schema.scrubDropped), '[]');
+      // two elements dropping the SAME key report it once (the path is the key's, not the element's)
+      var twin = DX.scrubExport({ schema: {}, nights: [{ zzSame: 1 }, { zzSame: 2 }] });
+      T.eq('a key dropped from two elements is named once', twin.schema.scrubDropped, ['nights[].zzSame']);
+
+      /* ── the refusal · no allow-list, no scrubbed document ──
+         Driven through `_scrubWith`, which takes the allow-list as an argument, so the refusal is
+         reachable without deleting a global out from under a live realm (the first draft of this
+         assertion did that and passed vacuously: the module captured its own realm's global at load,
+         so the delete reached nothing and the scrub kept working). */
+      var threw = null;
+      if (typeof DX._scrubWith !== 'function') {
+        T.ok('DexExport._scrubWith available (the refusal seam)', false);
+      } else {
+        try {
+          DX._scrubWith(null, { schema: {}, recording: { contentId: 'c' } });
+        } catch (e) {
+          threw = String((e && e.message) || e);
+        }
+        T.ok('without the allow-list the scrub REFUSES, naming the file it needs', !!threw && /export-schema/.test(threw), threw || 'no throw — it returned a document');
+        // control · the SAME call with the allow-list passed in produces a scrubbed document
+        T.ok('control · the same seam with the allow-list scrubs normally', DX._scrubWith(S, { schema: {}, recording: { contentId: 'c' } }).schema.scrubbed === true);
+      }
+    });
+
     /* ════ SELF-INGEST §5 — A PER-ELEMENT ENVELOPE IS SCRUBBED TOO (the shape F13 never planted) ════
        `_scrubElement` scrubbed `el.provenance` and `el.recording` and never visited
        `el.schema.provenance`, while `scrubExport` reduces `schema.provenance` at the TOP level only.
@@ -52691,6 +52782,10 @@
         'metric-registry.js': 'MetricRegistry',
         'dex-profile.js': 'DexProfile',
         'dex-export.js': 'DexExport',
+        /* The scrub's allow-list, shipped beside the scrub since EXPORT-SCRUB-ALLOWLIST.
+           `scrubExport` REFUSES without it, so a bundle that inlines one and not the other is a
+           broken export surface — classified here rather than exempted for that reason. */
+        'export-schema.js': 'ExportSchema',
         'dex-ingest.js': 'DexIngest',
         'dex-patient-gen.js': 'DexPatientGen',
         'quantity.js': 'Quantity',
