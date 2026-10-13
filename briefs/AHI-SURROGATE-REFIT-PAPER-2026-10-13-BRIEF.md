@@ -19,8 +19,8 @@ read the gap as an oversight.
 
 - The brief comes first, and it carries the outline and the methods.
 - It states **no result**, no lab agreement statistic, and no pooled agreement statistic.
-- It does **not** edit `papers/odi4-ahi-bias.html`. Kestrel asks the owner whether this paper is a new
-  page or an extension of that one.
+- It does **not** edit `papers/odi4-ahi-bias.html`. The owner ruled on 2026-10-13 that this paper is a
+  **new page** with its own DOI.
 - The paper takes **its own DOI**, never the software DOI.
 - Pooled numbers over the Sleep Heart Health Study follow the data-use agreement, section 16 (§5).
 - Lab results stay private until publication.
@@ -234,14 +234,14 @@ the repository.
 - Deriving an index for the open datasets. That is `OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md`.
 - Any claim that the elaborate shipped estimate is *wrong*. The residue row refuses that, and the
   split-half folds disagreed in sign.
-- Any edit to `papers/odi4-ahi-bias.html` while the owner decides new page against extension.
+- Any edit to `papers/odi4-ahi-bias.html`. The 2026-10-13 ruling leaves that page as it stands.
 - The other cohorts. The second data request covers them and sits under review.
 - Any agreement statistic between a lab index and an oximetry index, by the owner's order.
 
 ## 7 · Acceptance
 
 1. This brief carries the outline and the full methods, and states no result. ✅ **met 2026-10-13.**
-2. The owner answers whether the paper is a new page or an extension (§8, question 1).
+2. The paper is a new page carrying its own DOI. ✅ **met 2026-10-13** — the owner ruled it.
 3. The owner ratifies or replaces §4.4's criterion **before** the first scoring run.
 4. A harmonized-column reader exists, and every scored row carries `ahiVar` as a literal column name.
 5. One scoring pass per visit in scope, four fits from it, and four verdict objects naming their
@@ -253,9 +253,9 @@ the repository.
 
 ## 8 · Open decisions
 
-1. **New page or extension?** Kestrel asks the owner. The outline above suits a new page, and §1 gives
-   the three reasons. An extension would move §1 and §2 into the existing page's methods and split its
-   results in two.
+1. **New page or extension? ANSWERED 2026-10-13 — a new page with its own DOI.** The owner ruled by
+   AskUserQuestion, relayed by Kestrel, and `papers/odi4-ahi-bias.html` stays as it is. The outline
+   above already suited a new page, and §1 gives the three reasons.
 2. **The §4.4 criterion.** Blocking, per acceptance item 3.
 3. **The target venue.** It decides the abstract's shape and the figure count, and no session should
    guess it.
