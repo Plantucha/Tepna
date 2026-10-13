@@ -4,4 +4,7 @@ type: fixed
 brief: none
 ---
 
-Write a generated `README-SIDECARS.txt` beside the box-wide `LINK`/`CLOCK`/`OXYFRAME`/`OXYLIFE` sidecars so a per-device glob stops manufacturing an absence, and measure the night journal's own shape into `LOSS-AUDIT.json` and the `night-loss` verdict so a journal that is nine tenths one repeated message is named the next morning instead of five nights later.
+Write a generated `README-SIDECARS.txt` beside the box-wide sidecars.
+A per-device glob then stops manufacturing an absence.
+Record the night journal's own shape in `LOSS-AUDIT.json` and in the `night-loss` verdict.
+A journal that is nine tenths one repeated message now reads as a finding the next morning.
