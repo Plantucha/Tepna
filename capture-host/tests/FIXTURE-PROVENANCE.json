@@ -356,6 +356,12 @@
       "source": "stamps and bytes built in the test; no provenance claim in the file",
       "sha256": null
     },
+    "test_monitor_probe_night.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "stamps and bytes built in the test; no provenance claim in the file",
+      "sha256": null
+    },
     "test_monitor_ring_rtc_alarm.py": {
       "class": "authored",
       "kind": "constructed-stamps",
@@ -498,6 +504,12 @@
       "class": "authored",
       "kind": "constructed-stamps",
       "source": "stamps and bytes built in the test; no provenance claim in the file",
+      "sha256": null
+    },
+    "test_probe_night.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "stamps and journal lines built in the test; no provenance claim in the file",
       "sha256": null
     },
     "test_probe_pmd_surface.py": {
@@ -651,6 +663,12 @@
       "sha256": null
     },
     "test_webmon_nights.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "stamps and bytes built in the test; no provenance claim in the file",
+      "sha256": null
+    },
+    "test_webmon_probe_night.py": {
       "class": "authored",
       "kind": "constructed-stamps",
       "source": "stamps and bytes built in the test; no provenance claim in the file",

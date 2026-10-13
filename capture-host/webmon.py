@@ -23,6 +23,8 @@ import bonding
 import daemon_control
 import clockcfg
 import offline_lock
+import loss_audit
+import probe_night as _probe
 import polar_pmd as pmd  # for SDK_MODE — the feature bit, named once, not spelled "0x9" here
 import polar_psftp
 import storage_targets
@@ -51,6 +53,25 @@ _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
 # (see the block above `_tl_cache`), and a constant a test cannot import is a constant nothing guards.
 _TL_CACHE_TTL_S = 300.0
 _TL_CACHE_MAX = 8
+# The night-folder shape, for the probe endpoint's name check. `nights_index` keeps the same pattern
+# for its own listing; this one guards a WRITE, so it lives beside the handler that performs it.
+_NIGHT_NAME = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def newest_night(captures: str) -> str:
+    """The night folder being WRITTEN — the newest ACTIVITY, never the newest name, and `""` when the
+    captures directory cannot be listed.
+
+    After midnight the sensor writers stay in their session's start-date folder while only the sidecars
+    roll, so the newest NAME holds two files and no data. `sorted(... or True)` stood in the timeline
+    handler until 2026-08-01: an `or True` makes the whole condition constant, so the filter selected
+    nothing and the sort was thrown away by the `max` on the next line. ONE copy now, because the probe
+    toggle has to write into exactly the folder the timeline is showing."""
+    try:
+        nights = [n for n in os.listdir(captures) if os.path.isdir(os.path.join(captures, n))]
+        return max(nights, key=lambda n: os.path.getmtime(os.path.join(captures, n)), default="")
+    except OSError:
+        return ""
 
 
 def _valid_mac(a) -> bool:
@@ -1803,21 +1824,7 @@ def make_app(
             buckets = _timeline.DEFAULT_BUCKETS
         captures = os.path.join(cfg.get("root", "/srv/tepna"), "captures")
         if not night:
-            # Default to the night being WRITTEN, which is the folder with the newest activity — not
-            # the newest NAME. After midnight the sensor writers stay in their session's start-date
-            # folder while only the sidecars roll, so the newest name holds two files and no data.
-            # `sorted(... if _timeline._STAMP_RE.search(n + "_00000000000000_") or True)` stood here
-            # until 2026-08-01: an `or True` makes the whole condition constant, so the filter selected
-            # nothing and the sort was thrown away by the `max` on the next line. It existed only as a
-            # reference to a regex that has since moved into writers.file_stamp (audit F5) — and it
-            # broke outright when that regex went away, in a path whose two tests were the only thing
-            # that noticed. Replaced with what it actually did: pick the directory with the newest
-            # activity.
-            try:
-                nights = [n for n in os.listdir(captures) if os.path.isdir(os.path.join(captures, n))]
-                night = max(nights, key=lambda n: os.path.getmtime(os.path.join(captures, n)), default="")
-            except OSError:
-                night = ""
+            night = newest_night(captures)  # the folder being written — see `newest_night`
         if not night or "/" in night or ".." in night:
             return web.json_response({"error": "no night"}, status=400)
         key = (night, buckets)
@@ -1838,6 +1845,105 @@ def make_app(
         if len(_tl_cache) > _TL_CACHE_MAX:
             del _tl_cache[min(_tl_cache, key=lambda k: _tl_cache[k][0])]
         return web.json_response(out)
+
+    def _probe_night_dir(night: str) -> "tuple[str, str] | None":
+        """`(night, path)` for a probe request, or `None` when the name is not a night folder here.
+
+        A request may name a night; with none named it is the folder being written.
+
+        🔴 THE NAME THE PATH IS BUILT FROM COMES FROM `os.listdir`, NEVER FROM THE REQUEST. A rejected
+        traversal and a request string that never reaches a path at all are different defences, and
+        CodeQL read the first as path injection on this endpoint (py/path-injection HIGH, #3571,
+        2026-10-13) because a `"/" in night` guard proves nothing about what `os.path.join` then
+        produces. The request string is only ever COMPARED, so the value that reaches `open` and
+        `write_marker` is a real entry of the captures directory — and the endpoint WRITES, which is
+        why it gets the stronger form rather than the one `timeline_get` reads with."""
+        captures = os.path.join(cfg.get("root", "/srv/tepna"), "captures")
+        asked = str(night or "")
+        try:
+            names = os.listdir(captures)
+        except OSError:
+            return None
+        if asked:
+            # `fullmatch` over the night shape, on the LISTED name: an entry that is not a night folder
+            # is not markable even when it is asked for by its exact name (`cpap`, `stored`, `sniffer`
+            # all sit beside the nights). `fullmatch`, not `match`, for the reason `_valid_mac` gives.
+            found = [n for n in names if n == asked and _NIGHT_NAME.fullmatch(n)]
+            if not found:
+                return None
+            name = found[0]
+        else:
+            name = newest_night(captures)  # the folder being written, read from the filesystem
+            if not name:
+                return None
+        path = os.path.join(captures, name)
+        return (name, path) if os.path.isdir(path) else None
+
+    def _probe_state(night: str) -> dict:
+        """The night's probe block, from the marker and the loss audit's journal records."""
+        found = _probe_night_dir(night)
+        if found is None:
+            return {
+                "night": None,
+                "on": False,
+                "source": None,
+                "at": None,
+                "reason": None,
+                "marker_on": None,
+                "journal_armed": None,
+                "error": "no night folder",
+            }
+        _n, path = found
+        audit = None
+        try:
+            with open(os.path.join(path, loss_audit.AUDIT_NAME), encoding="utf-8") as fh:
+                audit = json.load(fh)
+        except (OSError, ValueError):
+            audit = None  # no audit yet: `journal_armed` stays null, which is not "no probe armed"
+        block = _probe.state(path, audit if isinstance(audit, dict) else None)
+        block["error"] = None
+        return block
+
+    async def probe_night_get(req):
+        """GET /api/probe-night[?night=YYYY-MM-DD] — is this night declared a probe night, and by what.
+
+        Off the status round deliberately: the monitor's Nights view asks for it beside the night's own
+        SOLID-VERDICT.json, and the status path must not grow a directory listing per poll."""
+        return web.json_response(await asyncio.to_thread(_probe_state, req.query.get("night") or ""))
+
+    async def probe_night_post(req):
+        """POST /api/probe-night {on: bool, night?: str} — the operator declares the night a probe night.
+
+        The owner's words, 2026-10-13: *a manual button to turn night to probe on/off*. A declared probe
+        night is NOT_APPLICABLE in the SOLID-NIGHT judge and skips the run — it is neither solid nor a
+        reset, because the box was being tested rather than measured.
+
+        OFF REWRITES THE MARKER, IT NEVER DELETES IT (`probe_night.write_marker`): the withdrawal is a
+        statement about the night too. A journal-armed probe stays declared whatever this button says —
+        a toggle cannot un-arm a probe that already traced — and the response shows which source
+        decided, so the button never reads as though it had won."""
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        on = body.get("on")
+        if not isinstance(on, bool):
+            return web.json_response({"ok": False, "error": "on must be true or false"}, status=400)
+        found = _probe_night_dir(str(body.get("night") or ""))
+        if found is None:
+            return web.json_response({"ok": False, "error": "no night folder to mark"}, status=404)
+        night, path = found
+        try:
+            await asyncio.to_thread(_probe.write_marker, path, on=on, at=_probe.now_iso(), by=_probe.BY_MONITOR)
+        except OSError as e:
+            return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        state_now = await asyncio.to_thread(_probe_state, night)
+        return web.json_response(
+            {
+                "ok": True,
+                "probe_night": state_now,
+                "note": "the judge reads this on the next QC pass; a journal-armed probe stays declared",
+            }
+        )
 
     def _timesync_refuse(worn, scope):
         """409 + the names + the measured price. `force:true` is an explicit act, not a bypass."""
@@ -2098,6 +2204,8 @@ def make_app(
             web.post("/api/daemon", daemon_post),
             web.get("/api/timeline", timeline_get),
             web.get("/api/nights", nights_get),
+            web.get("/api/probe-night", probe_night_get),
+            web.post("/api/probe-night", probe_night_post),
             web.get("/api/seal/card", seal_card_get),
             web.post("/api/seal/rotate", seal_rotate_h),
             web.get("/api/storage", storage_get),

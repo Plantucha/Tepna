@@ -46,6 +46,7 @@ import subprocess
 
 import nightqc
 import nights_index as _ni
+import probe_night as _probe
 import verdict as _verdict
 
 GATE = "night-loss"
@@ -412,6 +413,58 @@ def read_journal_shape(since: _dt.datetime, until: _dt.datetime, run=subprocess.
     if r.returncode != 0:
         return None
     return journal_shape(r.stdout.split("\n"), (until - since).total_seconds())
+
+
+def read_probe_armed(
+    since: _dt.datetime, until: _dt.datetime, run=subprocess.run
+) -> list[tuple[_dt.datetime, str]] | None:
+    """`[(local stamp, the raw line)]` for the window's `heap probe: ARMED` lines, or `None` when
+    journalctl is unavailable.
+
+    WHY THE AUDIT CARRIES THIS AT ALL (SOLID-NIGHT-COWEAR-AND-PROBE §2). The heap probe injects
+    event-loop stalls of 1-12 s on purpose, so a night it traced cannot be judged solid or not solid —
+    and the judge keeps no journal, by design. The component that already reads the journal for this
+    night writes what it read, beside the night, exactly as `read_clock_events` does and for the same
+    reason: journald rotates, and a night must stay answerable from its own files.
+
+    THE WINDOW IS THE AUDIT'S OWN (the night's date minus 6 h to plus 30 h), not the night band's: the
+    line is logged at DAEMON START, which is routinely hours before the band opens. A probe armed
+    before that window is not a declaration about this night — the probe is one-shot and finishes
+    within hours of arming (30 min to live capture, then two snapshots 60 min apart).
+
+    `None`, never `[]`, when the journal cannot be read: `[]` says no probe armed, which lets the
+    ordinary judge run, and the two must not collapse (§∅)."""
+    try:
+        r = run(
+            [
+                "journalctl",
+                "-u",
+                "tepna-capture",
+                "--no-pager",
+                "-o",
+                "short-iso",
+                "--since",
+                since.strftime("%Y-%m-%d %H:%M:%S"),
+                "--until",
+                until.strftime("%Y-%m-%d %H:%M:%S"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    out: list[tuple[_dt.datetime, str]] = []
+    for ln in r.stdout.split("\n"):
+        if _probe.ARMED_NEEDLE not in ln:
+            continue
+        m = re.match(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", ln)
+        if m:
+            out.append((_dt.datetime.fromisoformat(m.group(1)), ln))
+    out.sort(key=lambda r: r[0])
+    return out
 
 
 def read_journal(
@@ -1307,6 +1360,7 @@ def audit_night(
     journal=read_journal,
     clock_events=read_clock_events,
     journal_shape_of=read_journal_shape,
+    probe_armed=read_probe_armed,
 ) -> dict:
     """The LOSS-AUDIT.json body: per device, the primary stream's gaps by cause, span, and whether the
     device's own evidence says it was worn that night."""
@@ -1337,6 +1391,13 @@ def audit_night(
     out["clock_events_source"] = "journalctl -u tepna-capture" if ce is not None else "unavailable"
     # The journal's SHAPE over the same window. `None` when it could not be read — see `journal_shape`.
     out["journal_shape"] = journal_shape_of(since, until)
+    # THE PROBE DECLARATION'S JOURNAL HALF (SOLID-NIGHT-COWEAR-AND-PROBE §2), written beside the night
+    # for the reason `clock_events` above is: the verdict side has no journal and journald rotates.
+    # `None` (unread) stays distinct from `[]` (read, no probe armed) — only the second may let a night
+    # be judged.
+    pa = probe_armed(since, until)
+    out["probe_armed"] = None if pa is None else [{"at": t.isoformat(timespec="seconds"), "line": ln} for t, ln in pa]
+    out["probe_armed_source"] = "journalctl -u tepna-capture" if pa is not None else "unavailable"
     # The ring's SAMPLE-based completeness, beside the night's time-based gap ledger and never folded
     # into it. The two are in different units and answer different questions; residue
     # `2026-09-27-sample-shortfall-without-a-time-gap-is-unmeasured` is the night where the time measure
@@ -1629,13 +1690,19 @@ def write_night(
     journal=read_journal,
     clock_events=read_clock_events,
     journal_shape_of=read_journal_shape,
+    probe_armed=read_probe_armed,
 ) -> dict:
     """Audit + verdict beside the summary; returns the verdict. Never raises past a crash → UNKNOWN."""
     import json
 
     try:
         audit = audit_night(
-            night_dir, devices, journal=journal, clock_events=clock_events, journal_shape_of=journal_shape_of
+            night_dir,
+            devices,
+            journal=journal,
+            clock_events=clock_events,
+            journal_shape_of=journal_shape_of,
+            probe_armed=probe_armed,
         )
         tmp = os.path.join(night_dir, AUDIT_NAME + ".tmp")
         with open(tmp, "w", encoding="utf-8") as fh:
