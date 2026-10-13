@@ -1203,3 +1203,52 @@ def test_a_daemon_restart_between_the_two_folders_keeps_the_probe_from_pooling(t
     )
     out = timeline.build(str(tonight), _DEV, writer_offset=_DECLARED)
     assert out["t1"] - out["t0"] == 9.0, f"got {out['t1'] - out['t0']} s — the probe pooled across a recorded restart"
+
+
+# ── and the CLOCK test keeps a reach of its own, which the probe does NOT cover ──────────────────────
+# The probe recovers every case where `merge_sessions` JOINS the two folders, so both tests above stay
+# green with the clock test disabled. What the probe cannot recover is a previous day that pools as a
+# FOLDER without joining: its session ended hours before midnight, so no session holds a file from both
+# folders and the probe answers no. The clock test pools it anyway, and it is right to — the owner's
+# night band opens at 18:00, so an 18:00 session and a 00:00 session are one night.
+# Measured 2026-10-13 over a 133-case grid (previous start x length x tonight's open): disabling the
+# clock test moves `build`'s output in 29 of them, so it is not redundant.
+def test_the_CLOCK_test_pools_a_previous_day_THE_PROBE_CANNOT_RECOVER(tmp_path):
+    """Kills `_pool = None`, `0 <=` → `1 <=`, `0 <` and `earliest + midnight`, and the probe guard's
+    `and` → `or`.
+
+    Yesterday recorded 18:00:00 → 18:00:14 and stopped. Tonight opens at EXACTLY 00:00:00, so the clock
+    test pools yesterday's folder. No session spans both folders — the gap is 5 h 59 m — so the probe
+    cannot pool it, and every mutant above falls back on the probe's answer, which is no.
+
+    The judged session is then yesterday's 14 s run rather than tonight's 9 s one, which is how the
+    pooling becomes observable at all: an unpooled folder yields tonight's session and nothing else."""
+    _day(tmp_path, "2026-07-24", "180000", rows=15)
+    tonight = _day(tmp_path, "2026-07-25", "000000")
+    out = timeline.build(str(tonight), _DEV)
+    assert datetime.datetime.fromtimestamp(out["t0"], datetime.UTC).day == 24, (
+        "the previous day was not pooled, so the clock test's own reach is unobserved; window starts "
+        f"{datetime.datetime.fromtimestamp(out['t0'], datetime.UTC)}"
+    )
+    assert out["t1"] - out["t0"] == 14.0, f"got a {out['t1'] - out['t0']} s window — 9 s means tonight alone"
+
+
+def test_the_CLOCK_test_pools_at_EXACTLY_one_gap_WHERE_THE_PROBE_CANNOT(tmp_path):
+    """Kills `<= nightqc._SESSION_GAP_SEC` → `<`, the INCLUSIVE upper bound, in the same shape.
+
+    `test_a_session_opening_ONE_WHOLE_GAP_after_midnight_still_pools_the_previous_day` pins the same
+    bound, and the probe recovers that case because the two folders' sessions join. This one does not
+    join, so the bound is the only thing pooling it.
+
+    ⚠️ `test_a_session_a_FULL_GAP_after_midnight_does_NOT_pool` reads tonight at the same 01:00:00 and
+    asserts the window stays on day 25. Both are correct: there the previous session is 9 s, the same
+    length as tonight's, so pooling happens and the LATER session is judged. Here yesterday's run is
+    longer, so pooling is visible in the verdict."""
+    assert nightqc._SESSION_GAP_SEC == 3600.0
+    _day(tmp_path, "2026-07-24", "180000", rows=15)
+    tonight = _day(tmp_path, "2026-07-25", "010000")  # exactly one gap after midnight
+    out = timeline.build(str(tonight), _DEV)
+    assert datetime.datetime.fromtimestamp(out["t0"], datetime.UTC).day == 24, (
+        "exactly one gap after midnight did not pool, so the inclusive bound is unobserved here"
+    )
+    assert out["t1"] - out["t0"] == 14.0, f"got a {out['t1'] - out['t0']} s window — 9 s means tonight alone"
