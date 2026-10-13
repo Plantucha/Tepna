@@ -65,8 +65,8 @@
      became a FLAT RUN of the previous saturation for as long as it lasted, and a wholly-invalid
      channel was seeded with a hardcoded `97` (or `60` for HR) — a fabricated saturation and a
      fabricated heart rate. Measured 2026-09-12 over the first 15 SHHS1 records: mean 2.76 % of SaO₂
-     samples invalid, and shhs1-200001 held ONE value across 3840 s — 64 minutes of flat, invented
-     trace. During a hold no desaturation can be detected there and the rolling baseline is
+     samples invalid, and one record held ONE value across an unbroken run over an hour long — a
+     flat, invented trace. During a hold no desaturation can be detected there and the rolling baseline is
      contaminated by a run that never happened, so ODI-3/ODI-4 and every AHI estimate derived from
      them were computed partly over data that does not exist.
 
