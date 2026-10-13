@@ -448,6 +448,13 @@
        them. `ahiKulkas` is the internal linear model `0.8*ODI3 + 0.6*DesSev + 0.15*T95 - 1.2`
        (oxydex-dsp.js). Additive and null-safe; `ahiOxyEst` is unchanged for every existing caller. */
     out.ahiKulkas = night.ahiEst && night.ahiEst.ahiKulkas != null ? night.ahiEst.ahiKulkas : null;
+    /* The PREDICTOR, not only the estimate. `ahiKulkas` is `0.8*ODI3 + 0.6*DesSev + 0.15*T95 - 1.2`,
+       so a refit of those coefficients against a harmonized reference column needs DesSev itself;
+       surfacing only the combined estimate made the middle term unreachable to every caller of this
+       adapter, which is the whole NSRR lane (AHI-SURROGATE-REFIT-PAPER §4.3). ODI-3 and T95 were
+       already surfaced below. Additive and null-safe: `computeDesSev` refuses under 60 samples and
+       returns null, which this carries through rather than reading as a measured 0 (§∅). */
+    out.desSev = night.desSev && night.desSev.desSev != null ? night.desSev.desSev : null;
     out.minSpo2 = night.stats ? night.stats.minSpo2 : null;
     out.t90 = night.stats ? night.stats.t90pct : null;
     /* Additive (2026-09-22): the two saturation summaries the NSRR lane had reported through this adapter
@@ -605,7 +612,7 @@
      That is a reference measured on a different night, which `lookupAhi` must never substitute for an
      absent one. A subject reached by more than one visit therefore gets NO bare key, and the count of
      those sits in `ambiguous` for the caller to surface. */
-  function parseAhiCsv(text) {
+  function parseAhiCsv(text, opts) {
     var out = { byKey: {}, ahiVar: null, arousals: null, rows: 0, subjects: 0, visits: {}, ambiguous: 0, idVar: null, visitKeyed: false, wide: false, error: null };
     var lines = String(text == null ? '' : text)
       .split(/\r?\n/)
@@ -620,12 +627,25 @@
     var head = splitCsvLine(lines[0], delim).map(function (h) {
       return h.trim().replace(/^"|"$/g, '').toLowerCase();
     });
+    /* A caller that NAMES the column gets that column or an error — never a different definition's
+       value under the name it asked for. The refit scores four definitions out of one harmonized
+       file (`briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md` §4.4), and the default search
+       order below would hand all four fits the same column. New parameter, last and optional: a
+       caller that passes nothing reads exactly the bytes it read before. */
+    var want = opts && opts.ahiVar ? String(opts.ahiVar).trim().toLowerCase() : null;
+
     if (
       !head.some(function (h) {
         return isNaN(parseFloat(h));
       })
     ) {
       // simple `id,ahi` (header optional): every row is a pair, and no variable is being chosen.
+      if (want) {
+        /* No header, so nothing here can be the named column: the caller asked for a definition this
+           file cannot identify, and an unnamed pair would answer under the wrong name. */
+        out.error = 'requested AHI column "' + want + '" but this file is a bare id,ahi pair list with no header';
+        return out;
+      }
       lines.forEach(function (ln) {
         var c = splitCsvLine(ln, ln.indexOf('\t') >= 0 ? '\t' : ',');
         if (c.length < 2) return;
@@ -646,6 +666,14 @@
     if (idCol < 0) idCol = 0;
     out.idVar = head[idCol];
     var ahiCol = -1;
+    if (want) {
+      ahiCol = head.indexOf(want);
+      if (ahiCol < 0) {
+        out.error = 'requested AHI column "' + want + '" is not in this file';
+        return out;
+      }
+      out.ahiVar = want;
+    }
     for (var v = 0; v < NSRR_AHI_VARS.length && ahiCol < 0; v++) {
       var ix = head.indexOf(NSRR_AHI_VARS[v]);
       if (ix >= 0) {

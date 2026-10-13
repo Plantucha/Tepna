@@ -421,6 +421,13 @@ export function scoreRecord(ctx, rec) {
     minSpo2: out.minSpo2 != null ? +out.minSpo2 : null,
     odi3: out.odi3 != null ? +out.odi3 : null,
     odi4: out.odi4 != null ? +out.odi4 : null,
+    /* The two refit predictors the row used to drop. `ahiKulkas` is `0.8*ODI3 + 0.6*DesSev +
+       0.15*T95 - 1.2` and `ahiOxyEst` is `1.1*ODI-4`, so a pool row carrying only the estimates
+       cannot refit either coefficient set: DesSev is the one term of the linear model that no other
+       emitted field encodes (AHI-SURROGATE-REFIT-PAPER §4.2 names both in the scoring pass). Both
+       stay null when the adapter refused them. */
+    desSev: out.desSev != null ? +out.desSev : null,
+    ahiKulkas: out.ahiKulkas != null ? +out.ahiKulkas : null,
     ahiOxyEst: est != null ? +est : null,
     scoredAHI: ref != null ? +ref : null,
     residual: est != null && ref != null ? +(est - ref).toFixed(3) : null,

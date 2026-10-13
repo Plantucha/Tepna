@@ -1,0 +1,990 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/nsrr-ahi-refit.mjs",
+  "producerCommit": "a7708988",
+  "invocation": "node tools/nsrr-score-pool.mjs --scorer ./nsrr-oxydex-odi.mjs --out <scored-visitN.json> (per visit) · node tools/nsrr-ahi-refit.mjs --scored=<v1>,<v2> --boot=2000 --seed=ahi-refit-2026-10-13 --min-holdout=300 --out=<this file>",
+  "generated": "2026-10-13",
+  "inputs": {
+    "path": "NSRR SHHS visits 1 and 2 (EDF + annotations-events-nsrr XML) scored to a pool, joined to shhs-harmonized-dataset-0.21.0.csv — data-use agreement, NOT committed, never fetched by the suite",
+    "committed": false,
+    "files": 5494,
+    "digest": "7596f39a01d7",
+    "note": "digest = sha256[0:12] over the bytes of the scored pool files this refit reads; the corpus itself is not in the tree, so the record is recorded-only and reproducible from the same corpus + producerCommit"
+  },
+  "publishedIn": "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4",
+  "claims": {
+    "note": "values at published precision; full precision is under result",
+    "fitSubjects": 2843,
+    "holdoutSubjects": 2651,
+    "bootstrapReps": 2000,
+    "minHoldoutSubjects": 300,
+    "hp3uRhoShipped": 0.7897,
+    "hp3uRhoRefit": 0.8919,
+    "hp3uRhoDelta": 0.1022,
+    "hp3uCiLo": 0.0907,
+    "hp3uCiHi": 0.1141,
+    "hp3uRhoOdi3Alone": 0.8877,
+    "hp3r_aasm15RhoShipped": 0.764,
+    "hp3r_aasm15RhoRefit": 0.868,
+    "hp3r_aasm15RhoDelta": 0.1039,
+    "hp3r_aasm15CiLo": 0.092,
+    "hp3r_aasm15CiHi": 0.1172,
+    "hp3r_aasm15RhoOdi3Alone": 0.8642,
+    "hp4u_aasm15RhoShipped": 0.7877,
+    "hp4u_aasm15RhoRefit": 0.885,
+    "hp4u_aasm15RhoDelta": 0.0973,
+    "hp4u_aasm15CiLo": 0.0856,
+    "hp4u_aasm15CiHi": 0.1093,
+    "hp4u_aasm15RhoOdi3Alone": 0.8752,
+    "hp4rRhoShipped": 0.7523,
+    "hp4rRhoRefit": 0.854,
+    "hp4rRhoDelta": 0.1017,
+    "hp4rCiLo": 0.0891,
+    "hp4rCiHi": 0.115,
+    "hp4rRhoOdi3Alone": 0.8462,
+    "verdicts": "PASS · PASS · PASS · PASS"
+  },
+  "verdicts": [
+    {
+      "schema": "tepna.verdict/1",
+      "gate": "ahi-refit-nsrr_ahi_hp3u",
+      "status": "PASS",
+      "scope": "internal",
+      "population": {
+        "checked": 2651,
+        "excluded": 0,
+        "eligible": 2651
+      },
+      "criterion": {
+        "name": "spearman_rho_gain_ci95_low_nsrr_ahi_hp3u",
+        "threshold": 0,
+        "unit": "rho",
+        "direction": "gte",
+        "strict": true,
+        "band": "spearman rho gain over the shipped estimator on held-out records, 95 % CI excludes 0 under a subject-clustered bootstrap",
+        "prestatedIn": "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4",
+        "holdoutFloorSubjects": 300
+      },
+      "result": {
+        "rhoShipped": 0.789655,
+        "rhoRefit": 0.891866,
+        "rhoDelta": 0.102211,
+        "ci95": [
+          0.090701,
+          0.114086
+        ],
+        "holdoutSubjects": 2651,
+        "fitSubjects": 2843,
+        "refitKulkas": [
+          -0.007912,
+          1.521993,
+          0.070122,
+          -0.020943
+        ],
+        "shippedKulkas": [
+          -1.2,
+          0.8,
+          0.6,
+          0.15
+        ],
+        "odi4Form": {
+          "rhoShipped": 0.862366,
+          "rhoRefit": 0.862366,
+          "rankIdenticalToOdi4Unclamped": true
+        },
+        "singlePredictorRho": {
+          "odi3": 0.887682,
+          "odi4": 0.862366,
+          "desSev": 0.773143,
+          "t95": 0.341173
+        },
+        "shippedClamp": {
+          "zeroEstimates": 57,
+          "share": 0.021501,
+          "rhoUnclamped": 0.789658
+        }
+      },
+      "evidence": [
+        "tools/nsrr-ahi-refit.mjs",
+        "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+        "harmonized column nsrr_ahi_hp3u (native twin ahi_a0h3)"
+      ],
+      "reason": null,
+      "producedBy": {
+        "tool": "tools/nsrr-ahi-refit.mjs",
+        "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+      },
+      "at": "2026-10-13T22:04:17Z"
+    },
+    {
+      "schema": "tepna.verdict/1",
+      "gate": "ahi-refit-nsrr_ahi_hp3r_aasm15",
+      "status": "PASS",
+      "scope": "internal",
+      "population": {
+        "checked": 2651,
+        "excluded": 0,
+        "eligible": 2651
+      },
+      "criterion": {
+        "name": "spearman_rho_gain_ci95_low_nsrr_ahi_hp3r_aasm15",
+        "threshold": 0,
+        "unit": "rho",
+        "direction": "gte",
+        "strict": true,
+        "band": "spearman rho gain over the shipped estimator on held-out records, 95 % CI excludes 0 under a subject-clustered bootstrap",
+        "prestatedIn": "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4",
+        "holdoutFloorSubjects": 300
+      },
+      "result": {
+        "rhoShipped": 0.764043,
+        "rhoRefit": 0.867985,
+        "rhoDelta": 0.103942,
+        "ci95": [
+          0.091966,
+          0.117151
+        ],
+        "holdoutSubjects": 2651,
+        "fitSubjects": 2843,
+        "refitKulkas": [
+          3.0466,
+          1.575166,
+          0.040621,
+          -0.018708
+        ],
+        "shippedKulkas": [
+          -1.2,
+          0.8,
+          0.6,
+          0.15
+        ],
+        "odi4Form": {
+          "rhoShipped": 0.833116,
+          "rhoRefit": 0.833116,
+          "rankIdenticalToOdi4Unclamped": true
+        },
+        "singlePredictorRho": {
+          "odi3": 0.864234,
+          "odi4": 0.833116,
+          "desSev": 0.7456,
+          "t95": 0.325216
+        },
+        "shippedClamp": {
+          "zeroEstimates": 57,
+          "share": 0.021501,
+          "rhoUnclamped": 0.764057
+        }
+      },
+      "evidence": [
+        "tools/nsrr-ahi-refit.mjs",
+        "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+        "harmonized column nsrr_ahi_hp3r_aasm15 (native twin ahi_a0h3a)"
+      ],
+      "reason": null,
+      "producedBy": {
+        "tool": "tools/nsrr-ahi-refit.mjs",
+        "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+      },
+      "at": "2026-10-13T22:04:20Z"
+    },
+    {
+      "schema": "tepna.verdict/1",
+      "gate": "ahi-refit-nsrr_ahi_hp4u_aasm15",
+      "status": "PASS",
+      "scope": "internal",
+      "population": {
+        "checked": 2651,
+        "excluded": 0,
+        "eligible": 2651
+      },
+      "criterion": {
+        "name": "spearman_rho_gain_ci95_low_nsrr_ahi_hp4u_aasm15",
+        "threshold": 0,
+        "unit": "rho",
+        "direction": "gte",
+        "strict": true,
+        "band": "spearman rho gain over the shipped estimator on held-out records, 95 % CI excludes 0 under a subject-clustered bootstrap",
+        "prestatedIn": "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4",
+        "holdoutFloorSubjects": 300
+      },
+      "result": {
+        "rhoShipped": 0.787703,
+        "rhoRefit": 0.885028,
+        "rhoDelta": 0.097325,
+        "ci95": [
+          0.085599,
+          0.109278
+        ],
+        "holdoutSubjects": 2651,
+        "fitSubjects": 2843,
+        "refitKulkas": [
+          -1.302139,
+          1.135474,
+          0.159288,
+          -0.035965
+        ],
+        "shippedKulkas": [
+          -1.2,
+          0.8,
+          0.6,
+          0.15
+        ],
+        "odi4Form": {
+          "rhoShipped": 0.8745,
+          "rhoRefit": 0.8745,
+          "rankIdenticalToOdi4Unclamped": true
+        },
+        "singlePredictorRho": {
+          "odi3": 0.875227,
+          "odi4": 0.8745,
+          "desSev": 0.792927,
+          "t95": 0.319596
+        },
+        "shippedClamp": {
+          "zeroEstimates": 57,
+          "share": 0.021501,
+          "rhoUnclamped": 0.787709
+        }
+      },
+      "evidence": [
+        "tools/nsrr-ahi-refit.mjs",
+        "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+        "harmonized column nsrr_ahi_hp4u_aasm15 (native twin ahi_a0h4)"
+      ],
+      "reason": null,
+      "producedBy": {
+        "tool": "tools/nsrr-ahi-refit.mjs",
+        "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+      },
+      "at": "2026-10-13T22:04:23Z"
+    },
+    {
+      "schema": "tepna.verdict/1",
+      "gate": "ahi-refit-nsrr_ahi_hp4r",
+      "status": "PASS",
+      "scope": "internal",
+      "population": {
+        "checked": 2651,
+        "excluded": 0,
+        "eligible": 2651
+      },
+      "criterion": {
+        "name": "spearman_rho_gain_ci95_low_nsrr_ahi_hp4r",
+        "threshold": 0,
+        "unit": "rho",
+        "direction": "gte",
+        "strict": true,
+        "band": "spearman rho gain over the shipped estimator on held-out records, 95 % CI excludes 0 under a subject-clustered bootstrap",
+        "prestatedIn": "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4",
+        "holdoutFloorSubjects": 300
+      },
+      "result": {
+        "rhoShipped": 0.752252,
+        "rhoRefit": 0.853981,
+        "rhoDelta": 0.101729,
+        "ci95": [
+          0.089056,
+          0.114976
+        ],
+        "holdoutSubjects": 2651,
+        "fitSubjects": 2843,
+        "refitKulkas": [
+          2.100724,
+          1.274132,
+          0.1093,
+          -0.031449
+        ],
+        "shippedKulkas": [
+          -1.2,
+          0.8,
+          0.6,
+          0.15
+        ],
+        "odi4Form": {
+          "rhoShipped": 0.8301,
+          "rhoRefit": 0.8301,
+          "rankIdenticalToOdi4Unclamped": true
+        },
+        "singlePredictorRho": {
+          "odi3": 0.846153,
+          "odi4": 0.8301,
+          "desSev": 0.74923,
+          "t95": 0.300834
+        },
+        "shippedClamp": {
+          "zeroEstimates": 57,
+          "share": 0.021501,
+          "rhoUnclamped": 0.752264
+        }
+      },
+      "evidence": [
+        "tools/nsrr-ahi-refit.mjs",
+        "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+        "harmonized column nsrr_ahi_hp4r (native twin ahi_a0h4a)"
+      ],
+      "reason": null,
+      "producedBy": {
+        "tool": "tools/nsrr-ahi-refit.mjs",
+        "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+      },
+      "at": "2026-10-13T22:04:26Z"
+    }
+  ],
+  "result": {
+    "generated": "2026-10-13T22:04:13Z",
+    "harmonized": "shhs-harmonized-dataset-0.21.0.csv",
+    "scored": [
+      "scored-visit1.json",
+      "scored-visit2.json"
+    ],
+    "split": {
+      "fitRows": 2843,
+      "fitSubjects": 2843,
+      "holdoutRows": 2651,
+      "holdoutSubjects": 2651
+    },
+    "band": "spearman rho gain over the shipped estimator on held-out records, 95 % CI excludes 0 under a subject-clustered bootstrap",
+    "minHoldoutSubjects": 300,
+    "bootstrap": {
+      "reps": 2000,
+      "seed": "ahi-refit-2026-10-13",
+      "cluster": "subject"
+    },
+    "definitions": [
+      {
+        "column": "nsrr_ahi_hp3u",
+        "nativeTwin": "ahi_a0h3",
+        "rule": "apneas + hypopneas with >= 3 % desaturation",
+        "countsArousals": false,
+        "fit": {
+          "rowsOffered": 2843,
+          "subjectsOffered": 2843,
+          "rowsUsed": 2843,
+          "subjectsUsed": 2843,
+          "excludedNoReference": 0,
+          "excludedNoPredictor": 0
+        },
+        "holdout": {
+          "rowsOffered": 2651,
+          "subjectsOffered": 2651,
+          "rowsUsed": 2651,
+          "subjectsUsed": 2651,
+          "excludedNoReference": 0,
+          "excludedNoPredictor": 0
+        },
+        "coefficients": {
+          "shippedKulkas": [
+            -1.2,
+            0.8,
+            0.6,
+            0.15
+          ],
+          "refitKulkas": [
+            -0.007912409798789486,
+            1.521993479126752,
+            0.07012181186619114,
+            -0.020942948427013535
+          ],
+          "shippedOdi4": [
+            0,
+            1.1
+          ],
+          "refitOdi4": [
+            4.1541181093282695,
+            2.07546077963925
+          ]
+        },
+        "rho": {
+          "shipped": 0.7896551265070489,
+          "refit": 0.891866152534236,
+          "delta": 0.10221102602718701,
+          "ci": {
+            "reps": 2000,
+            "lo": 0.09070113235569954,
+            "hi": 0.11408647225575025,
+            "median": 0.10225111363699235
+          }
+        },
+        "odi4Form": {
+          "rhoShipped": 0.8623655840311806,
+          "rhoRefit": 0.8623655840311806,
+          "rankIdenticalToOdi4Unclamped": true,
+          "note": "a positive-slope refit of a single predictor is a monotone transform of it, so its rank — and therefore its Spearman rho — is invariant by construction",
+          "delta": 0
+        },
+        "singlePredictorRho": {
+          "odi3": 0.8876816602672625,
+          "odi4": 0.8623655840311806,
+          "desSev": 0.7731428044878403,
+          "t95": 0.3411725860409975
+        },
+        "shippedClamp": {
+          "zeroEstimates": 57,
+          "share": 0.02150132025650698,
+          "rhoUnclamped": 0.7896583323174609
+        },
+        "reference": {
+          "median": 11.35,
+          "n": 2651
+        },
+        "referenceTable": {
+          "rows": 8455,
+          "subjects": 5804,
+          "visits": {
+            "1": 5804,
+            "2": 2651
+          },
+          "ambiguous": 2651,
+          "countsArousals": false
+        }
+      },
+      {
+        "column": "nsrr_ahi_hp3r_aasm15",
+        "nativeTwin": "ahi_a0h3a",
+        "rule": "apneas + hypopneas with >= 3 % desaturation OR an arousal",
+        "countsArousals": true,
+        "fit": {
+          "rowsOffered": 2843,
+          "subjectsOffered": 2843,
+          "rowsUsed": 2843,
+          "subjectsUsed": 2843,
+          "excludedNoReference": 0,
+          "excludedNoPredictor": 0
+        },
+        "holdout": {
+          "rowsOffered": 2651,
+          "subjectsOffered": 2651,
+          "rowsUsed": 2651,
+          "subjectsUsed": 2651,
+          "excludedNoReference": 0,
+          "excludedNoPredictor": 0
+        },
+        "coefficients": {
+          "shippedKulkas": [
+            -1.2,
+            0.8,
+            0.6,
+            0.15
+          ],
+          "refitKulkas": [
+            3.0465996512410305,
+            1.575166154640065,
+            0.04062059752028722,
+            -0.018707541324283185
+          ],
+          "shippedOdi4": [
+            0,
+            1.1
+          ],
+          "refitOdi4": [
+            7.514504851010517,
+            2.0519558923514087
+          ]
+        },
+        "rho": {
+          "shipped": 0.7640434536825877,
+          "refit": 0.8679854581841145,
+          "delta": 0.1039420045015268,
+          "ci": {
+            "reps": 2000,
+            "lo": 0.0919658443506402,
+            "hi": 0.11715119625610067,
+            "median": 0.10388170207364344
+          }
+        },
+        "odi4Form": {
+          "rhoShipped": 0.8331164339465917,
+          "rhoRefit": 0.8331164339465917,
+          "rankIdenticalToOdi4Unclamped": true,
+          "note": "a positive-slope refit of a single predictor is a monotone transform of it, so its rank — and therefore its Spearman rho — is invariant by construction",
+          "delta": 0
+        },
+        "singlePredictorRho": {
+          "odi3": 0.8642341141094745,
+          "odi4": 0.8331164339465917,
+          "desSev": 0.7455996872722042,
+          "t95": 0.3252164066448678
+        },
+        "shippedClamp": {
+          "zeroEstimates": 57,
+          "share": 0.02150132025650698,
+          "rhoUnclamped": 0.7640567699897097
+        },
+        "reference": {
+          "median": 13.6,
+          "n": 2651
+        },
+        "referenceTable": {
+          "rows": 8455,
+          "subjects": 5804,
+          "visits": {
+            "1": 5804,
+            "2": 2651
+          },
+          "ambiguous": 2651,
+          "countsArousals": true
+        }
+      },
+      {
+        "column": "nsrr_ahi_hp4u_aasm15",
+        "nativeTwin": "ahi_a0h4",
+        "rule": "apneas + hypopneas with >= 4 % desaturation",
+        "countsArousals": false,
+        "fit": {
+          "rowsOffered": 2843,
+          "subjectsOffered": 2843,
+          "rowsUsed": 2843,
+          "subjectsUsed": 2843,
+          "excludedNoReference": 0,
+          "excludedNoPredictor": 0
+        },
+        "holdout": {
+          "rowsOffered": 2651,
+          "subjectsOffered": 2651,
+          "rowsUsed": 2651,
+          "subjectsUsed": 2651,
+          "excludedNoReference": 0,
+          "excludedNoPredictor": 0
+        },
+        "coefficients": {
+          "shippedKulkas": [
+            -1.2,
+            0.8,
+            0.6,
+            0.15
+          ],
+          "refitKulkas": [
+            -1.302139348014987,
+            1.1354743889931906,
+            0.15928808949398754,
+            -0.03596518741831152
+          ],
+          "shippedOdi4": [
+            0,
+            1.1
+          ],
+          "refitOdi4": [
+            0.9538144595335806,
+            1.8477398187643748
+          ]
+        },
+        "rho": {
+          "shipped": 0.7877031824840925,
+          "refit": 0.8850277930233471,
+          "delta": 0.09732461053925456,
+          "ci": {
+            "reps": 2000,
+            "lo": 0.08559855030752957,
+            "hi": 0.10927765368035323,
+            "median": 0.09725098313721531
+          }
+        },
+        "odi4Form": {
+          "rhoShipped": 0.8745002706015617,
+          "rhoRefit": 0.8745002706015617,
+          "rankIdenticalToOdi4Unclamped": true,
+          "note": "a positive-slope refit of a single predictor is a monotone transform of it, so its rank — and therefore its Spearman rho — is invariant by construction",
+          "delta": 0
+        },
+        "singlePredictorRho": {
+          "odi3": 0.8752271523094814,
+          "odi4": 0.8745002706015617,
+          "desSev": 0.7929273949259881,
+          "t95": 0.3195959641337409
+        },
+        "shippedClamp": {
+          "zeroEstimates": 57,
+          "share": 0.02150132025650698,
+          "rhoUnclamped": 0.7877086490471239
+        },
+        "reference": {
+          "median": 6.75,
+          "n": 2651
+        },
+        "referenceTable": {
+          "rows": 8455,
+          "subjects": 5804,
+          "visits": {
+            "1": 5804,
+            "2": 2651
+          },
+          "ambiguous": 2651,
+          "countsArousals": false
+        }
+      },
+      {
+        "column": "nsrr_ahi_hp4r",
+        "nativeTwin": "ahi_a0h4a",
+        "rule": "apneas + hypopneas with >= 4 % desaturation OR an arousal",
+        "countsArousals": true,
+        "fit": {
+          "rowsOffered": 2843,
+          "subjectsOffered": 2843,
+          "rowsUsed": 2843,
+          "subjectsUsed": 2843,
+          "excludedNoReference": 0,
+          "excludedNoPredictor": 0
+        },
+        "holdout": {
+          "rowsOffered": 2651,
+          "subjectsOffered": 2651,
+          "rowsUsed": 2651,
+          "subjectsUsed": 2651,
+          "excludedNoReference": 0,
+          "excludedNoPredictor": 0
+        },
+        "coefficients": {
+          "shippedKulkas": [
+            -1.2,
+            0.8,
+            0.6,
+            0.15
+          ],
+          "refitKulkas": [
+            2.100723685938893,
+            1.2741319813994205,
+            0.10929985858149713,
+            -0.031449071878202436
+          ],
+          "shippedOdi4": [
+            0,
+            1.1
+          ],
+          "refitOdi4": [
+            5.061144364640903,
+            1.868727767306739
+          ]
+        },
+        "rho": {
+          "shipped": 0.752252258825775,
+          "refit": 0.8539809569764394,
+          "delta": 0.10172869815066443,
+          "ci": {
+            "reps": 2000,
+            "lo": 0.08905631687384773,
+            "hi": 0.11497624567667178,
+            "median": 0.10171182152218028
+          }
+        },
+        "odi4Form": {
+          "rhoShipped": 0.8300998817954488,
+          "rhoRefit": 0.8300998817954488,
+          "rankIdenticalToOdi4Unclamped": true,
+          "note": "a positive-slope refit of a single predictor is a monotone transform of it, so its rank — and therefore its Spearman rho — is invariant by construction",
+          "delta": 0
+        },
+        "singlePredictorRho": {
+          "odi3": 0.8461525019328907,
+          "odi4": 0.8300998817954488,
+          "desSev": 0.7492302619585078,
+          "t95": 0.300834292228991
+        },
+        "shippedClamp": {
+          "zeroEstimates": 57,
+          "share": 0.02150132025650698,
+          "rhoUnclamped": 0.7522638268174107
+        },
+        "reference": {
+          "median": 9.7,
+          "n": 2651
+        },
+        "referenceTable": {
+          "rows": 8455,
+          "subjects": 5804,
+          "visits": {
+            "1": 5804,
+            "2": 2651
+          },
+          "ambiguous": 2651,
+          "countsArousals": true
+        }
+      }
+    ],
+    "verdicts": [
+      {
+        "schema": "tepna.verdict/1",
+        "gate": "ahi-refit-nsrr_ahi_hp3u",
+        "status": "PASS",
+        "scope": "internal",
+        "population": {
+          "checked": 2651,
+          "excluded": 0,
+          "eligible": 2651
+        },
+        "criterion": {
+          "name": "spearman_rho_gain_ci95_low_nsrr_ahi_hp3u",
+          "threshold": 0,
+          "unit": "rho",
+          "direction": "gte",
+          "strict": true,
+          "band": "spearman rho gain over the shipped estimator on held-out records, 95 % CI excludes 0 under a subject-clustered bootstrap",
+          "prestatedIn": "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4",
+          "holdoutFloorSubjects": 300
+        },
+        "result": {
+          "rhoShipped": 0.789655,
+          "rhoRefit": 0.891866,
+          "rhoDelta": 0.102211,
+          "ci95": [
+            0.090701,
+            0.114086
+          ],
+          "holdoutSubjects": 2651,
+          "fitSubjects": 2843,
+          "refitKulkas": [
+            -0.007912,
+            1.521993,
+            0.070122,
+            -0.020943
+          ],
+          "shippedKulkas": [
+            -1.2,
+            0.8,
+            0.6,
+            0.15
+          ],
+          "odi4Form": {
+            "rhoShipped": 0.862366,
+            "rhoRefit": 0.862366,
+            "rankIdenticalToOdi4Unclamped": true
+          },
+          "singlePredictorRho": {
+            "odi3": 0.887682,
+            "odi4": 0.862366,
+            "desSev": 0.773143,
+            "t95": 0.341173
+          },
+          "shippedClamp": {
+            "zeroEstimates": 57,
+            "share": 0.021501,
+            "rhoUnclamped": 0.789658
+          }
+        },
+        "evidence": [
+          "tools/nsrr-ahi-refit.mjs",
+          "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+          "harmonized column nsrr_ahi_hp3u (native twin ahi_a0h3)"
+        ],
+        "reason": null,
+        "producedBy": {
+          "tool": "tools/nsrr-ahi-refit.mjs",
+          "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+        },
+        "at": "2026-10-13T22:04:17Z"
+      },
+      {
+        "schema": "tepna.verdict/1",
+        "gate": "ahi-refit-nsrr_ahi_hp3r_aasm15",
+        "status": "PASS",
+        "scope": "internal",
+        "population": {
+          "checked": 2651,
+          "excluded": 0,
+          "eligible": 2651
+        },
+        "criterion": {
+          "name": "spearman_rho_gain_ci95_low_nsrr_ahi_hp3r_aasm15",
+          "threshold": 0,
+          "unit": "rho",
+          "direction": "gte",
+          "strict": true,
+          "band": "spearman rho gain over the shipped estimator on held-out records, 95 % CI excludes 0 under a subject-clustered bootstrap",
+          "prestatedIn": "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4",
+          "holdoutFloorSubjects": 300
+        },
+        "result": {
+          "rhoShipped": 0.764043,
+          "rhoRefit": 0.867985,
+          "rhoDelta": 0.103942,
+          "ci95": [
+            0.091966,
+            0.117151
+          ],
+          "holdoutSubjects": 2651,
+          "fitSubjects": 2843,
+          "refitKulkas": [
+            3.0466,
+            1.575166,
+            0.040621,
+            -0.018708
+          ],
+          "shippedKulkas": [
+            -1.2,
+            0.8,
+            0.6,
+            0.15
+          ],
+          "odi4Form": {
+            "rhoShipped": 0.833116,
+            "rhoRefit": 0.833116,
+            "rankIdenticalToOdi4Unclamped": true
+          },
+          "singlePredictorRho": {
+            "odi3": 0.864234,
+            "odi4": 0.833116,
+            "desSev": 0.7456,
+            "t95": 0.325216
+          },
+          "shippedClamp": {
+            "zeroEstimates": 57,
+            "share": 0.021501,
+            "rhoUnclamped": 0.764057
+          }
+        },
+        "evidence": [
+          "tools/nsrr-ahi-refit.mjs",
+          "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+          "harmonized column nsrr_ahi_hp3r_aasm15 (native twin ahi_a0h3a)"
+        ],
+        "reason": null,
+        "producedBy": {
+          "tool": "tools/nsrr-ahi-refit.mjs",
+          "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+        },
+        "at": "2026-10-13T22:04:20Z"
+      },
+      {
+        "schema": "tepna.verdict/1",
+        "gate": "ahi-refit-nsrr_ahi_hp4u_aasm15",
+        "status": "PASS",
+        "scope": "internal",
+        "population": {
+          "checked": 2651,
+          "excluded": 0,
+          "eligible": 2651
+        },
+        "criterion": {
+          "name": "spearman_rho_gain_ci95_low_nsrr_ahi_hp4u_aasm15",
+          "threshold": 0,
+          "unit": "rho",
+          "direction": "gte",
+          "strict": true,
+          "band": "spearman rho gain over the shipped estimator on held-out records, 95 % CI excludes 0 under a subject-clustered bootstrap",
+          "prestatedIn": "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4",
+          "holdoutFloorSubjects": 300
+        },
+        "result": {
+          "rhoShipped": 0.787703,
+          "rhoRefit": 0.885028,
+          "rhoDelta": 0.097325,
+          "ci95": [
+            0.085599,
+            0.109278
+          ],
+          "holdoutSubjects": 2651,
+          "fitSubjects": 2843,
+          "refitKulkas": [
+            -1.302139,
+            1.135474,
+            0.159288,
+            -0.035965
+          ],
+          "shippedKulkas": [
+            -1.2,
+            0.8,
+            0.6,
+            0.15
+          ],
+          "odi4Form": {
+            "rhoShipped": 0.8745,
+            "rhoRefit": 0.8745,
+            "rankIdenticalToOdi4Unclamped": true
+          },
+          "singlePredictorRho": {
+            "odi3": 0.875227,
+            "odi4": 0.8745,
+            "desSev": 0.792927,
+            "t95": 0.319596
+          },
+          "shippedClamp": {
+            "zeroEstimates": 57,
+            "share": 0.021501,
+            "rhoUnclamped": 0.787709
+          }
+        },
+        "evidence": [
+          "tools/nsrr-ahi-refit.mjs",
+          "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+          "harmonized column nsrr_ahi_hp4u_aasm15 (native twin ahi_a0h4)"
+        ],
+        "reason": null,
+        "producedBy": {
+          "tool": "tools/nsrr-ahi-refit.mjs",
+          "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+        },
+        "at": "2026-10-13T22:04:23Z"
+      },
+      {
+        "schema": "tepna.verdict/1",
+        "gate": "ahi-refit-nsrr_ahi_hp4r",
+        "status": "PASS",
+        "scope": "internal",
+        "population": {
+          "checked": 2651,
+          "excluded": 0,
+          "eligible": 2651
+        },
+        "criterion": {
+          "name": "spearman_rho_gain_ci95_low_nsrr_ahi_hp4r",
+          "threshold": 0,
+          "unit": "rho",
+          "direction": "gte",
+          "strict": true,
+          "band": "spearman rho gain over the shipped estimator on held-out records, 95 % CI excludes 0 under a subject-clustered bootstrap",
+          "prestatedIn": "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md §4.4",
+          "holdoutFloorSubjects": 300
+        },
+        "result": {
+          "rhoShipped": 0.752252,
+          "rhoRefit": 0.853981,
+          "rhoDelta": 0.101729,
+          "ci95": [
+            0.089056,
+            0.114976
+          ],
+          "holdoutSubjects": 2651,
+          "fitSubjects": 2843,
+          "refitKulkas": [
+            2.100724,
+            1.274132,
+            0.1093,
+            -0.031449
+          ],
+          "shippedKulkas": [
+            -1.2,
+            0.8,
+            0.6,
+            0.15
+          ],
+          "odi4Form": {
+            "rhoShipped": 0.8301,
+            "rhoRefit": 0.8301,
+            "rankIdenticalToOdi4Unclamped": true
+          },
+          "singlePredictorRho": {
+            "odi3": 0.846153,
+            "odi4": 0.8301,
+            "desSev": 0.74923,
+            "t95": 0.300834
+          },
+          "shippedClamp": {
+            "zeroEstimates": 57,
+            "share": 0.021501,
+            "rhoUnclamped": 0.752264
+          }
+        },
+        "evidence": [
+          "tools/nsrr-ahi-refit.mjs",
+          "briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md",
+          "harmonized column nsrr_ahi_hp4r (native twin ahi_a0h4a)"
+        ],
+        "reason": null,
+        "producedBy": {
+          "tool": "tools/nsrr-ahi-refit.mjs",
+          "commit": "a770898861e94189725c79b2eaf59dd548e60151"
+        },
+        "at": "2026-10-13T22:04:26Z"
+      }
+    ]
+  }
+}
