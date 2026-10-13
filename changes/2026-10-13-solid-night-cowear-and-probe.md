@@ -1,7 +1,7 @@
 ---
 bump: minor
 type: added
-brief: none
+brief: briefs/SOLID-NIGHT-COWEAR-AND-PROBE-2026-10-13-BRIEF.md
 ---
 
-Score each device's continuity from co-wear, report the earlier gaps as `pre_cowear`, and declare a probe night NOT_APPLICABLE from the journal or a monitor toggle.
+Score each device's continuity from co-wear and report the earlier gaps as `pre_cowear`. Exclude a gap the box's own restart caused. Declare a probe night NOT_APPLICABLE from the journal or a monitor toggle.
