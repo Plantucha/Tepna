@@ -140,13 +140,52 @@ got="$(CLAUDE_ALLOW_UNTRIMMED=1 hook "$(cat "$TMP/big.json")")"
 if [ "$got" = PASS ]; then echo "  ok    …and the hatch still releases it                PASS"
 else echo "  FAIL  the hatch over a 70 KB payload: $got, want PASS"; fail=$((fail+1)); fi
 
-# ⚠ NO LEG HERE FEEDS A COMMAND OF 300 KB, AND THAT IS A COST, NOT AN OVERSIGHT. The
-# rewriting path is superlinear in the length of the command: measured on this box,
-# 70 KB costs 871 ms, 100 KB 1.6 s and 300 KB 24.9 s, while the hatched path stays at
-# 4 ms whatever the size. A leg at 300 KB would make this 0.5 s self-test a 25 s one.
-# Over 128 KB (MAX_ARG_STRLEN) the final `jq --arg` cannot be reached at all and the hook
-# fails OPEN — untrimmed, undenied, exit 0 — which is the safe direction. Both are logged
-# as residue rather than pinned here.
+# ⚠ A COMMAND TOO LONG FOR ONE ARGV SLOT PASSES THROUGH, QUIETLY AND ON PURPOSE. The final
+# `jq --arg c "$wrapped"` cannot take a string over MAX_ARG_STRLEN (128 KB on Linux): jq
+# died, the hook printed jq's error on stderr and emitted nothing — rc 0, so the command
+# ran untrimmed, but with 75 bytes of noise and, before the cost fix, 25 s of rescanning
+# first. The hook now declares a ceiling (TRIM_MAX_CMD) and passes a longer command through
+# before doing any work. The three legs: just under the ceiling still REWRITES (so the
+# ceiling is not "everything big passes"), just over and 300 KB give NOTHING on stdout AND
+# NOTHING on stderr, exit 0. The text is `echo a | echo a | …| cat`: it holds pipes, so
+# the quadratic `${cmd##*|}` the cost fix removed cannot make this leg slow on any hook.
+max="$(sed -n 's/^TRIM_MAX_CMD=\([0-9][0-9]*\).*/\1/p' "$H")"
+if [ -n "$max" ] && [ "$max" -lt 131072 ]; then printf '  ok    the hook declares TRIM_MAX_CMD=%s, under MAX_ARG_STRLEN\n' "$max"
+else echo "  FAIL  the hook declares no TRIM_MAX_CMD under 131072 (got '${max}') — the legs below cannot be sized"; fail=$((fail+1)); max=126000; fi
+long_cmd() { # long_cmd <bytes> <file> — a pipe-rich command of about that length, ending in `| cat`
+  yes 'echo a | ' 2>/dev/null | tr -d '\n' | head -c "$1" > "$2"; printf 'cat' >> "$2"
+}
+long_leg() { # long_leg <bytes> <want WRAP|PASS> <label>
+  local n="$1" want="$2" label="$3" rc out err
+  long_cmd "$n" "$TMP/long"; payloadf "$TMP/long" > "$TMP/long.json"
+  bash "$H" < "$TMP/long.json" > "$TMP/long.out" 2> "$TMP/long.err"; rc=$?
+  out="$(wc -c < "$TMP/long.out")"; err="$(wc -c < "$TMP/long.err")"
+  if [ "$want" = WRAP ] && [ "$rc" = 0 ] && [ "$out" -gt 0 ] && [ "$err" = 0 ]; then
+    printf '  ok    %-56s WRAP\n' "$label"
+  elif [ "$want" = PASS ] && [ "$rc" = 0 ] && [ "$out" = 0 ] && [ "$err" = 0 ]; then
+    printf '  ok    %-56s PASS, stderr empty\n' "$label"
+  else
+    printf '  FAIL  %-56s rc=%s stdout=%s bytes stderr=%s bytes, want %s with both empty-handed\n' "$label" "$rc" "$out" "$err" "$want"; fail=$((fail+1))
+  fi
+}
+long_leg $((max - 1000)) WRAP 'a command just under the ceiling is still rewritten'
+long_leg $((max + 1000)) PASS '…and one just over it passes through, silently'
+long_leg 300000          PASS '…and so does one of 300 KB (no jq error on stderr)'
+# ⚠ THE REWRITING PATH IS LINEAR IN THE LENGTH OF THE COMMAND — measured, with the cause. The
+# cost sat in ONE expansion, `last="${cmd##*|}"` (the last pipeline stage), which bash 5.2
+# evaluates in quadratic time when the command holds no `|`, spaces or not. The sed and grep
+# passes are cheap (measured: 5 ms each at 70 KB). So the leg feeds ONE 120 KB command, under 128 KB so
+# the final `jq --arg` still fits, and gives the hook a hard budget with `timeout`. The
+# budget is generous on purpose (fixed: milliseconds; before the fix: 5.8 s at 100 KB and
+# 8+ s at 120 KB on a slow box, 1.6 s at 100 KB on rig-x870), so a loaded runner cannot
+# turn it red but the quadratic cannot hide under it. It also asserts the hook still
+# REWROTE the command, so a hook that merely gave up early cannot pass.
+head -c 120000 /dev/zero | tr '\0' x > "$TMP/blob"
+payloadf "$TMP/blob" > "$TMP/blob.json"
+timeout 3 bash "$H" < "$TMP/blob.json" > "$TMP/blob.out" 2>/dev/null; rc=$?
+if [ "$rc" = 124 ]; then echo "  FAIL  a 120 KB unbroken command took over 3 s — the rewriting path is superlinear"; fail=$((fail+1))
+elif [ "$rc" = 0 ] && [ -s "$TMP/blob.out" ]; then echo "  ok    a 120 KB unbroken command is rewritten inside 3 s     rc=0"
+else echo "  FAIL  the 120 KB unbroken command: rc=$rc, output $(wc -c < "$TMP/blob.out") bytes"; fail=$((fail+1)); fi
 
 echo "── the other input fields ───────────────────────────────────────────────"
 expectj PASS 'a background flag on the input'  "$(jq -nc '{tool_name:"Bash",tool_input:{command:"seq 1 500",run_in_background:true}}')"

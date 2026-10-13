@@ -1237,6 +1237,18 @@
       },
       "note": "the NAME GATE (owner ruling 2026-10-10): criterion third_party_name_hits lte 0 over every tracked file, no grandfathered set. Two constraints shape it — it holds its needles as base64 so it is not a hit on itself and so its own output can never reintroduce what it forbids (a failure names file and line, never the word), and it matches the FULL name on a word boundary, never a stem: the sweep began from a stem count of 73 files of which 40 were polysomnography, in two user-facing reference guides, a paper, and a public dataset's download paths."
     },
+    "tools/nsrr-ahi-refit.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/nsrr-ahi-refit.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the AHI surrogate refit (briefs/AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF.md \u00a74.4, band ratified by the owner 2026-10-13): one verdict per harmonized AHI definition, each naming its column in criterion. The band is pre-stated on the LOWER end of a 95 % CI over the Spearman rho gain against the shipped estimator, bootstrapped clustered on subject because the harmonized table repeats 2293 subjects \u2014 PASS only when the whole interval sits above 0, SHORTFALL when it contains 0, UNDERPOWERED under the pre-stated hold-out floor of 300 subjects (named with the count as numbers), NOT_RUN with a null result when no held-out record carries that column with every predictor. The refit judged is the multi-predictor form, pre-stated as the only shipped form whose rank a refit can move: a single-multiplier refit of ODI4 is a monotone transform of ODI4, and its invariance travels in result.odi4Form as a measured companion."
+    },
     "tools/nsrr-effort-typing.mjs": {
       "bin": "decides",
       "status": "adopted",

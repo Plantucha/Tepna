@@ -471,6 +471,25 @@ cp .git/index /tmp/r.idx && GIT_INDEX_FILE=/tmp/r.idx git add -A && GIT_INDEX_FI
 RELAX
 
 
+# ⚠ THE HOOK MUST DRAIN STDIN BEFORE THE HATCH EXITS, AND NO LEG ABOVE CAN SEE IT. Every
+# leg above reads the hook's verdict as DENY (exit 2) or ALLOW (anything else), so a hatch
+# release that left the writer on a closed pipe — the harness, in production — scored as
+# the ALLOW it wanted: the writer's 141 (SIGPIPE) is "not 2". This leg watches the WRITER's
+# fate instead. The pipe stays ON PURPOSE (a redirect has no writer to lose), the payload is
+# 100 KB so it cannot fit the 64 KB pipe buffer, and it repeats because the defect is a race.
+# Same contract trim-output.test.sh pins (#3493).
+TMP="$(mktemp -d)"   # this file has no scratch dir of its own
+head -c 100000 /dev/zero | tr '\0' x > "$TMP/stdin-big"
+jq -nc --rawfile c "$TMP/stdin-big" '{tool_input:{command:$c}}' > "$TMP/stdin-big.json"
+_worst=0
+for _i in 1 2 3 4 5; do
+  cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_BLANKET_GIT=1 bash "$H" >/dev/null 2>&1
+  _rc="${PIPESTATUS[0]}"; [ "$_rc" != 0 ] && _worst="$_rc"
+done
+if [ "$_worst" = 0 ]; then echo "  ok    the hatch drains 100 KB of stdin, 5 writers live   rc=0"
+else echo "  FAIL  the writer into the hatched hook exited $_worst (141 = SIGPIPE, the hook never read it)"; fail=$((fail+1)); fi
+rm -rf "$TMP"
+
 echo
 echo "### file integrity"
 if grep -qP '[\x00-\x08\x0b\x0c\x0e-\x1f]' "$H"; then

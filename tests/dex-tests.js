@@ -37303,6 +37303,20 @@
       var p3 = pl([cl(P({ number: 3 }), REQ), cl(P({ number: 4 }), REQ)], ST({}), CTX({ cap: 1 }));
       T.eq('the cap counts the PRs readied THIS pass, not only those already out', ops(p3), 'ready:3');
       T.eq('a held PR gets no action', pl([cl(P({ number: 3, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).actions.length, 0);
+      /* Owner, 2026-10-13, on a merge button reading "out-of-date": "let the walker update held PRs too".
+         Kodiak never updates a held PR, so there is no race to wait out — the update is immediate. */
+      var heldBehind = cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel], mergeState: 'BEHIND' }), REQ);
+      var ph = pl([heldBehind], ST({}), CTX({ mainMovedAtMs: NOW }));
+      T.eq('a held PR BEHIND main is updated AT ONCE, with main having just moved (no Kodiak-quiet gate)', ops(ph), 'update:3');
+      T.eq('…and the update is the only thing a hold permits', ph.actions.length, 1);
+      T.eq('a held non-draft PR that is current still gets nothing', pl([cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).actions.length, 0);
+      T.eq(
+        'a held CONFLICTING PR is not updated — update-branch cannot merge a conflict',
+        pl([cl(P({ number: 3, isDraft: false, labels: [env.pwHoldLabel], mergeState: 'DIRTY' }), REQ)], ST({}), CTX({})).actions.length,
+        0
+      );
+      var greenBehindQuiet = cl(P({ number: 4, isDraft: false, mergeState: 'BEHIND', updatedAtMs: NOW - 30 * MIN }), REQ);
+      T.eq('one update per pass: a held behind PR and a quiet green behind PR yield ONE update, oldest first', ops(pl([greenBehindQuiet, heldBehind], ST({}), CTX({}))), 'update:3');
       T.eq('and no alert — a hold is a decision, not a defect', pl([cl(P({ number: 3, labels: [env.pwHoldLabel] }), REQ)], ST({}), CTX({})).alerts.length, 0);
 
       /* ── rerun once per head SHA, then it is a coder's ──────────────────────────────────── */
@@ -59222,6 +59236,23 @@
       T.eq('parseAhiCsv · a file with no visit column is not visit-keyed', both.visitKeyed, false);
       var native = N.parseAhiCsv(['nsrrid,visitnumber,ahi_a0h3a,ahi_a0h4', '999999,1,11,7'].join('\n'));
       T.eq('parseAhiCsv · a native per-visit export still resolves to its arousal-inclusive column', native.ahiVar, 'ahi_a0h3a');
+
+      /* ── the CALLER names the definition (AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF §4.4) ──
+         One harmonized file carries all four definitions, and the refit scores each separately. The
+         preference order above picks ONE, so a four-definition caller must be able to ask for the
+         column it means — and must be refused rather than answered from a different definition. */
+      var four = ['nsrrid,visitnumber,nsrr_ahi_hp3u,nsrr_ahi_hp3r_aasm15,nsrr_ahi_hp4u_aasm15,nsrr_ahi_hp4r', '999999,1,30,33,20,22'].join('\n');
+      var hp4u = N.parseAhiCsv(four, { ahiVar: 'nsrr_ahi_hp4u_aasm15' });
+      T.eq('parseAhiCsv · a named column is read instead of the preference order', hp4u.ahiVar, 'nsrr_ahi_hp4u_aasm15');
+      T.eq('parseAhiCsv · …and the value is that column’s, not the preferred one’s', hp4u.byKey['visit1:999999'], 20);
+      T.eq('parseAhiCsv · …classified for arousals by the name the caller asked for', hp4u.arousals, false);
+      T.eq('parseAhiCsv · a second definition out of the same file reads its own value', N.parseAhiCsv(four, { ahiVar: 'nsrr_ahi_hp3u' }).byKey['visit1:999999'], 30);
+      T.eq('parseAhiCsv · the name is matched case- and space-insensitively', N.parseAhiCsv(four, { ahiVar: '  NSRR_AHI_HP4R ' }).byKey['visit1:999999'], 22);
+      var nope = N.parseAhiCsv(four, { ahiVar: 'nsrr_ahi_nope' });
+      T.ok('parseAhiCsv · a named column absent is an error, never another column', /requested AHI column "nsrr_ahi_nope"/.test(nope.error || ''));
+      T.eq('parseAhiCsv · …and nothing is read under the wrong name', Object.keys(nope.byKey).length, 0);
+      T.ok('parseAhiCsv · a headerless pair list cannot answer for a named column', /bare id,ahi pair list/.test(N.parseAhiCsv('999999,12.5\n', { ahiVar: 'nsrr_ahi_hp3u' }).error || ''));
+      T.eq('parseAhiCsv · a caller that names nothing reads exactly what it read before', N.parseAhiCsv(four).ahiVar, 'nsrr_ahi_hp3r_aasm15');
 
       // ── honest refusals ──
       T.eq('parseAhiCsv · a header with no recognised AHI column refuses rather than guessing', N.parseAhiCsv('nsrrid,visitnumber,age\n999999,1,55').ahiVar, null);
