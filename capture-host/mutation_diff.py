@@ -67,6 +67,9 @@ __all__ = [
     "SCRATCH_OWNER_FILE",
     "JOIN_SEC",
     "GENERATION_DONE_RE",
+    "GENERATION_COMPLETE_MARKER",
+    "mark_generation_complete",
+    "scratch_generation_reusable",
     "GROUP_GRACE_SEC",
     "kill_process_group",
     "REAP_SIGNALS",
@@ -697,7 +700,11 @@ def mutant_changed_lines(sv: dict) -> list[str]:
     """The mutant's -/+ pair, complete. Falls back to the capped `diff` only if `changed` is absent."""
     changed = (sv.get("changed") or "").strip()
     if changed:
-        return [seg.strip() for seg in changed.split(" | ") if seg.strip()]
+        # Split only where ` | ` is followed by the next line's own `- `/`+ ` marker (`diff_key` joins
+        # normalised -/+ lines, so every real boundary looks like that). A bare `split(" | ")` also cut
+        # a `scope: dict | None` annotation or a `a | b` expression and rendered a real survivor as an
+        # unkillable identical-source mutant (residue 2026-10-11-mutation-survivor-render-truncates-at-the-annotation).
+        return [seg.strip() for seg in re.split(r" \| (?=[-+] )", changed) if seg.strip()]
     return [
         ln
         for ln in (sv.get("diff") or "").splitlines()
@@ -2607,6 +2614,32 @@ def selftest() -> int:
             fail(f"  selftest FAIL annotation_only [{label}]: ({got_x}, {got_r!r})")
 
     return 0 if not fails else 1
+
+
+GENERATION_COMPLETE_MARKER = ".generation-complete"
+# Written into a scratch the moment mutmut reports its generation FINISHED, and required before that scratch
+# is reused. Residue 2026-10-11-a-killed-generation-is-reused-as-a-complete-one: mutmut 3.8 decides a
+# generated `mutants/<module>` is up to date from its mtime alone, and opens it for writing (truncating)
+# BEFORE it validates it, so a generation killed mid-write leaves a truncated file that every later call
+# accepts as complete — `unmodified=True`, no validation — and the stats pass then runs over a module that
+# does not parse. Reuse used to be keyed on that file merely EXISTING. Completeness is now a positive
+# observation (mutmut's own completion line), never inferred from a file being there.
+
+
+def mark_generation_complete(scratch) -> bool:
+    """Record that generation finished in `scratch`. False when the marker could not be written, in which
+    case the scratch is simply not reused — the safe direction."""
+    try:
+        (scratch / GENERATION_COMPLETE_MARKER).write_text("complete\n", encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
+def scratch_generation_reusable(scratch, module) -> bool:
+    """True only when `scratch` holds the generated `module` AND a run saw its generation finish. A
+    scratch with the file but no marker is a killed (or pre-marker) generation: not reusable."""
+    return (scratch / "work" / "mutants" / module).exists() and (scratch / GENERATION_COMPLETE_MARKER).exists()
 
 
 def refresh_scratch(tree, work, extras) -> int:

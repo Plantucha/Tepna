@@ -5,6 +5,7 @@ row, an unreadable directory and a filename that is not a capture. The rule thro
 own: a value it cannot prove is left absent, never guessed — an invented link state reads as evidence.
 """
 
+import calendar
 import datetime
 import logging
 import os
@@ -1116,3 +1117,89 @@ def test_bucket_stream_does_not_depend_on_the_ORDER_the_intervals_arrive_in():
     assert timeline.bucket_stream(iv, 0.0, 10.0, 2) == ["captured", "captured"], (
         "both buckets are fully covered by these two intervals, whichever order they arrive in"
     )
+
+
+# ── the pooling gate asks `merge_sessions`, not only the clock ───────────────────────────────────────
+# Residue row 2026-10-05-midnight-pooling-gate-is-narrower-than-the-session-gap-rule-it-guards. The clock
+# test measures midnight → session START; the session rule measures the running coverage's END.
+def _floating_epoch(stamp):
+    """A filename stamp as floating epoch seconds — the frame `session` is in."""
+    return calendar.timegm(datetime.datetime.strptime(stamp, "%Y%m%d%H%M%S").timetuple())
+
+
+def _small_hours_pair(tmp_path, prev_ends="20260725013000", tonight_opens="20260725020000", prev_exists=True):
+    """Yesterday's session opens 23:59:00 and runs to `prev_ends` (its mtime, in the absolute frame the
+    declared 7200 s offset selects); tonight opens `tonight_opens` and runs 9 s."""
+    off = _DECLARED["offset_sec"]
+    t_ = tmp_path / "2026-07-25"
+    t_.mkdir(parents=True)
+    rows = [f"2026-07-25T02:00:{i:02d}.000;{i}000000000;1" for i in range(10)]
+    f2 = t_ / f"Polar_H10_02849638_{tonight_opens}_ECG.txt"
+    f2.write_text("Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(rows) + "\n")
+    os.utime(f2, (_floating_epoch("20260725020009") + off,) * 2)
+    if prev_exists:
+        y = tmp_path / "2026-07-24"
+        y.mkdir(parents=True)
+        f1 = y / "Polar_H10_02849638_20260724235900_ECG.txt"
+        f1.write_text("Phone timestamp;sensor timestamp [ns];channel 0\n2026-07-24T23:59:00.000;0;1\n")
+        os.utime(f1, (_floating_epoch(prev_ends) + off,) * 2)
+    return t_
+
+
+def test_a_previous_day_running_to_0130_pools_with_a_session_opening_at_0200(tmp_path):
+    """The blind case the inclusive `<=` could not close. Tonight opens 02:00:00, 7200 s past midnight —
+    twice the gap — so the clock test refuses to look; but yesterday's session is still being written at
+    01:30, 1800 s before this one opens, which `merge_sessions` joins into ONE session. Pooled, the window
+    runs 23:59:00 → 02:00:09 = 7269 s; unpooled it is 9 s, a recording that reads short rather than
+    truncated."""
+    tonight = _small_hours_pair(tmp_path)
+    out = timeline.build(str(tonight), _DEV, writer_offset=_DECLARED)
+    assert out["t1"] - out["t0"] == 7269.0, (
+        f"got a {out['t1'] - out['t0']} s window — 9 s means the previous day was never asked, so the head "
+        "of one continuous session was dropped"
+    )
+    assert out["t0"] == _floating_epoch("20260724235900") + _DECLARED["offset_sec"], "the window opens where it opened"
+
+
+def test_a_previous_day_that_ended_more_than_a_gap_before_is_not_pooled(tmp_path):
+    """The probe is not a blanket: yesterday's session ends 00:30, 5400 s before tonight's 02:00 opens —
+    outside the gap, so `merge_sessions` keeps two sessions and the window stays this folder's 9 s."""
+    tonight = _small_hours_pair(tmp_path, prev_ends="20260725003000")
+    out = timeline.build(str(tonight), _DEV, writer_offset=_DECLARED)
+    assert out["t1"] - out["t0"] == 9.0, f"got {out['t1'] - out['t0']} s — an unrelated session was pooled"
+
+
+def test_the_probe_does_not_pool_or_report_a_previous_day_that_does_not_exist(tmp_path, caplog):
+    """In the probe window with no 2026-07-24 folder at all: nothing to pool, and no claim that a folder
+    that was never recorded could not be listed (`prev` is a truthy path string either way)."""
+    tonight = _small_hours_pair(tmp_path, prev_exists=False)
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        out = timeline.build(str(tonight), _DEV, writer_offset=_DECLARED)
+    assert out["t1"] - out["t0"] == 9.0
+    assert "cannot be listed" not in caplog.text
+
+
+def test_a_daemon_restart_between_the_two_folders_keeps_the_probe_from_pooling(tmp_path):
+    """The probe is handed the recorded seams of BOTH folders, as the merge below it is: a restart at
+    00:45 lies in (session start, file start], so the two runs are different sessions however close they
+    are, and the probe must not pool what `merge_sessions` would split.
+
+    Observable only because yesterday's file carries MORE rows than tonight's: a probe that ignored the
+    seam would pool, the later seam-aware merge would split again, `judged_session` would take the
+    row-heavier YESTERDAY, and the window would be yesterday's — not this folder's 9 s."""
+    tonight = _small_hours_pair(tmp_path)
+    y = tmp_path / "2026-07-24"
+    big = y / "Polar_H10_02849638_20260724235900_ECG.txt"
+    big.write_text(
+        "Phone timestamp;sensor timestamp [ns];channel 0\n"
+        + "".join(f"2026-07-25T00:00:{i:02d}.000;{i}000000000;1\n" for i in range(50))
+    )
+    os.utime(big, (_floating_epoch("20260725013000") + _DECLARED["offset_sec"],) * 2)
+    (y / "STARTS.csv").write_text(
+        "Phone timestamp;pid;git;dirty;adapter\n2026-07-25T00:45:00.000;400443;2cd12712;no;F4:CE:36:2E:CD:98\n"
+    )
+    assert nightqc.daemon_starts(str(y), offset_sec=_DECLARED["offset_sec"])["stamps"], (
+        "premise: the sidecar must parse into a seam, or this test observes nothing"
+    )
+    out = timeline.build(str(tonight), _DEV, writer_offset=_DECLARED)
+    assert out["t1"] - out["t0"] == 9.0, f"got {out['t1'] - out['t0']} s — the probe pooled across a recorded restart"

@@ -44,6 +44,56 @@ def test_a_FAULTED_probe_is_wear_UNKNOWN_and_journals_no_unworn_flip(tmp_path, m
     assert "fault" in (st.get("last_error") or "") and "unknown" in st["last_error"], st.get("last_error")
 
 
+def _live_reply_vitals(contact: int, spo2: int = 96, duration=900):
+    """A frame that carries VALID vitals AND a contact byte — the pair the vitals branch used to resolve by
+    throwing the contact byte away."""
+    hdr = bytearray(24)
+    hdr[5] = contact
+    hdr[6] = spo2
+    hdr[7] = 14
+    hdr[8] = 55
+    hdr[10] = 0x01
+    hdr[13] = 90
+    hdr[0:4] = int(duration).to_bytes(4, "little")
+    return oxyii.encode(oxyii.OP_LIVE, bytes(hdr))
+
+
+def _drive_vitals_frames(tmp_path, monkeypatch, contact):
+    capture._OXYII_PAUSE.clear()
+    capture._RECOVER.clear()
+    capture._OXYII_RTC_AT.clear()
+    replies = [_live_reply_vitals(contact) for _ in range(5)]
+    c = T.FakeGattClient()
+    c.on_live = lambda data: c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None
+    T._inject_connect_scan(monkeypatch, c)
+    T._stop_after(monkeypatch, 8)
+    T._run(capture.run_oxyii(T._o2dev(), str(tmp_path)))
+    st = capture.STATUS["devices"]["Ring"]
+    assert st.get("spo2") == 96, "the plant needs the VITALS branch: a valid SpO2 must have been published"
+    return st
+
+
+def test_a_FAULT_frame_carrying_a_valid_SPO2_does_not_publish_worn_True(tmp_path, monkeypatch):
+    """Residue 2026-10-04-ring-worn-is-inferred-from-valid-spo2-regardless-of-contact. The vitals branch set
+    `worn=True` on every frame with an in-range SpO2 whatever byte [5] said, so a probe FAULT (sensorState 3)
+    that parse_live reports as wear UNKNOWN (None) was published as a worn ring — an inference from the vitals
+    overriding the sensor's own statement. The sensor said it could not look: absent is None, never True."""
+    st = _drive_vitals_frames(tmp_path, monkeypatch, contact=3)
+    assert st.get("worn") is None, f"a probe fault with SpO2 96 published worn={st.get('worn')!r}"
+
+
+def test_a_LEAD_OFF_frame_carrying_a_valid_SPO2_publishes_worn_False(tmp_path, monkeypatch):
+    """The other half: contact 0 is an OBSERVED absence of a finger and is published as such, not overridden."""
+    st = _drive_vitals_frames(tmp_path, monkeypatch, contact=0)
+    assert st.get("worn") is False, st.get("worn")
+
+
+def test_the_CONTROL_a_NORMAL_contact_frame_with_vitals_still_publishes_worn_True(tmp_path, monkeypatch):
+    """Without this leg the two tests above pass on a loop that never publishes `worn` for a vitals frame."""
+    st = _drive_vitals_frames(tmp_path, monkeypatch, contact=1)
+    assert st.get("worn") is True, st.get("worn")
+
+
 # ── absence drain group 4a: the diff-scoped survivors in EdfSink / parse_live ────────────────────────
 
 

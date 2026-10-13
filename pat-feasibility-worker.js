@@ -505,12 +505,11 @@ function coupledPAT(rTimes, fTimes, band, names) {
     binsQualified: ds.binsQualified,
     binsTotal: ds.binsTotal,
     slope: slope,
-    linR2: linR2,
-    inPhysPct: pat.length
-      ? pat.filter(function (v) {
-          return v >= PLO && v <= PHI;
-        }).length / pat.length
-      : 0
+    linR2: linR2
+    /* NO `inPhysPct` (row 2026-09-28-inphyspct-is-one-by-construction): it was the share of `pat` inside
+       [PLO, PHI], but `pat` is built only from lags the coupling loop already admitted INSIDE that window,
+       so it was 1 whenever `pat` was non-empty — a number that cannot fail. `censoredPct` above is the live
+       statistic (the share the window discards). */
   };
 }
 // verdict() + its thresholds now live in pat-gate.js (single-sourced; ENGINE-VERIFICATION-FINDINGS §1.5).
@@ -1140,7 +1139,6 @@ self.onmessage = function (e) {
             binsTotal: c.binsTotal,
             slope: c.slope,
             linR2: c.linR2,
-            inPhysPct: c.inPhysPct,
             ppm: dpr.ppm,
             ppmReason: dpr.reason,
             residIQRReason: c.residIQRReason,
