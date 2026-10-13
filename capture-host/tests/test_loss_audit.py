@@ -2792,6 +2792,25 @@ def test_the_audit_record_and_the_night_verdict_both_carry_the_journal_shape(tmp
     assert loss_audit.night_verdict(a2, night_dir=d)["result"]["journal_shape"] is None
 
 
+def test_write_night_FORWARDS_the_journal_shape_reader_it_was_given(tmp_path):
+    """The sibling of the clock-event forward above, and the mutant that found it dropped the keyword
+    from the `audit_night` call. `audit_night` then falls back to `read_journal_shape`, which reads THIS
+    box's journald — so the daemon's record would carry the host's shape, the caller's injection would
+    vanish, and the test above could not see it because it calls `audit_night` directly."""
+    d = _night(tmp_path)
+    called: list = []
+    shape = {"lines": 7, "findings": ["uniform"], "top": [{"template": "y"}]}
+
+    def fake(since, until):
+        called.append((since, until))
+        return shape
+
+    loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=lambda *a: [], journal_shape_of=fake)
+    audit = json.load(open(os.path.join(d, "LOSS-AUDIT.json")))
+    assert called, "the injected shape reader was never called"
+    assert audit["journal_shape"] == shape, audit.get("journal_shape")
+
+
 def test_a_REPLACED_loss_verdict_is_recorded_before_the_overwrite(tmp_path):
     """`2026-10-05-the-loss-audit-replaces-its-own-verdict-with-no-withdrawal-record`. The poller
     re-runs this audit whenever the night's data is newer than the verdict, so a night whose files keep
