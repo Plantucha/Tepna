@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d920fe7fab27" data-compute-hash="8d27dbf0e3ed">
+<html lang="en" data-manifest-hash="0ded3a07ac93" data-compute-hash="d26301eb8f79">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-StVex8JHEr+hdTdSUc9Ly97WmGn/lEXN48uSBG4inuY=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-ajWNlNaEaBPs/BbUk/AkMgRgP57z0ERsNMqqvWLV/1k=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+UjkC3OC6kJ/ZPG1Yhj/qdTv/NFHr75D6vzCpbT6r/s=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-StVex8JHEr+hdTdSUc9Ly97WmGn/lEXN48uSBG4inuY=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.19.0</title>
@@ -13283,6 +13283,19 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
    exactly as in the original single-script monolith. No behavior change.
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
    ════════════════════════════════════════════════════════════════════════ */
+
+/* ── NSRR DATA ACKNOWLEDGEMENT (data access and use agreement §11, §16) ───────────────────────
+   Where this file names an SHHS-measured number: the Sleep Heart Health Study data were obtained
+   through the National Sleep Research Resource (NSRR) under its data access and use agreement.
+   Publications and presentations of those numbers carry the line
+   "NSRR R24 HL114473: NHLBI National Sleep Research Resource" and cite the SHHS references listed
+   on its NSRR page. Results of the analysis may be published; no part or excerpt of the Data
+   appears here.
+     · Quan SF, Howard BV, Iber C, et al. The Sleep Heart Health Study: design, rationale, and
+       methods. Sleep. 1997;20(12):1077–85. doi:10.1093/sleep/20.12.1077
+     · Zhang GQ, Cui L, Mueller R, et al. The National Sleep Research Resource: towards a sleep
+       data commons. J Am Med Inform Assoc. 2018;25(10):1351–1358. doi:10.1093/jamia/ocy064
+   Clause source: the signed agreement, §11 and §16. Cohort page: `docs/SHHS-COHORT-REFERENCE.md`. */
 
 // ═══════════════════════════════════════════════════════════════════════
 // OxyDex — Nocturnal Oximetry Analyzer  v1.0.0  ·  Tepna

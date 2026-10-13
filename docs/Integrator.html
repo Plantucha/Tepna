@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7b958e2d2a35" data-compute-hash="b7b00853ea15"><head>
+<html lang="en" data-manifest-hash="efe1340a4a81" data-compute-hash="bc0bc98bb6a2"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0zBavsQ5SJw2zYQUUijberGQybUVWPsK4auRLyraDKs=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XAB1W+kfysba1zTN0PUaFMO2ct9XTn7Vx+SQYDQMb5k=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XAB1W+kfysba1zTN0PUaFMO2ct9XTn7Vx+SQYDQMb5k=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.19.0</title>
@@ -5876,6 +5876,19 @@ body.light .cov-grid td.cg-node{ background:#fff; }
  * when the Integrator picked it up and was still being read as current.
  * Dual-realm.   Self-test:  node event-coupling.js --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── NSRR DATA ACKNOWLEDGEMENT (data access and use agreement §11, §16) ───────────────────────
+   Where this file names an SHHS-measured number: the Sleep Heart Health Study data were obtained
+   through the National Sleep Research Resource (NSRR) under its data access and use agreement.
+   Publications and presentations of those numbers carry the line
+   "NSRR R24 HL114473: NHLBI National Sleep Research Resource" and cite the SHHS references listed
+   on its NSRR page. Results of the analysis may be published; no part or excerpt of the Data
+   appears here.
+     · Quan SF, Howard BV, Iber C, et al. The Sleep Heart Health Study: design, rationale, and
+       methods. Sleep. 1997;20(12):1077–85. doi:10.1093/sleep/20.12.1077
+     · Zhang GQ, Cui L, Mueller R, et al. The National Sleep Research Resource: towards a sleep
+       data commons. J Am Med Inform Assoc. 2018;25(10):1351–1358. doi:10.1093/jamia/ocy064
+   Clause source: the signed agreement, §11 and §16. Cohort page: `docs/SHHS-COHORT-REFERENCE.md`. */
 (function (root) {
   'use strict';
 
@@ -6473,6 +6486,19 @@ body.light .cov-grid td.cg-node{ background:#fff; }
      parseTimestamp / tzOffset / fmtClock / fmtDate / fmtDateTime are
      duplicated locally (mirrored from pulsedex-dsp.js) — never a shared util.
    ════════════════════════════════════════════════════════════════════════ */
+
+/* ── NSRR DATA ACKNOWLEDGEMENT (data access and use agreement §11, §16) ───────────────────────
+   Where this file names an SHHS-measured number: the Sleep Heart Health Study data were obtained
+   through the National Sleep Research Resource (NSRR) under its data access and use agreement.
+   Publications and presentations of those numbers carry the line
+   "NSRR R24 HL114473: NHLBI National Sleep Research Resource" and cite the SHHS references listed
+   on its NSRR page. Results of the analysis may be published; no part or excerpt of the Data
+   appears here.
+     · Quan SF, Howard BV, Iber C, et al. The Sleep Heart Health Study: design, rationale, and
+       methods. Sleep. 1997;20(12):1077–85. doi:10.1093/sleep/20.12.1077
+     · Zhang GQ, Cui L, Mueller R, et al. The National Sleep Research Resource: towards a sleep
+       data commons. J Am Med Inform Assoc. 2018;25(10):1351–1358. doi:10.1093/jamia/ocy064
+   Clause source: the signed agreement, §11 and §16. Cohort page: `docs/SHHS-COHORT-REFERENCE.md`. */
 
 /* Bus name lives in ONE constant — rename Ganglior→Fascia is a one-line change. */
 const BUS = 'ganglior';
