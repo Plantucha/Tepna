@@ -16,7 +16,7 @@ manual button to turn night to probe on/off."* Lane: Heron (capture-host + box).
   start), worn end]`. **Co-wear start** is the latest first row among the night's expected devices that
   recorded this night (the declared list, SOLID-NIGHT §2, never the folder). The worn ends stay as §3.3
   and A1 define them.
-- **A gap before co-wear start is reduced coverage, never a band decision** (§∅ owner ruling
+- **A gap before co-wear start reduces coverage and never decides a band** (§∅ owner ruling
   2026-09-17: a discontinuity refuses, reduced coverage annotates). The device's result carries it as
   `pre_cowear: { gaps, seconds, from, to }` so the verdict says what it did not score.
 - **One expected device recorded** → co-wear start is undefined, the scored interval is the worn
@@ -33,12 +33,12 @@ Two declarations, either one suffices; the reason names which:
 
 - **Journal.** The daemon start that covers the night logged `heap probe: ARMED` (`capture.py`
   `consume_heap_request`). The probe injects event-loop stalls of 1–12 s on purpose (measured: 25 stalls,
-  58 of 64 H10 gaps over 1 s inside the traced window, `capture.py:12033`), so the night cannot be judged
+  58 of 64 H10 gaps over 1 s inside the traced window, `capture.py:12033`), so the judge cannot score the night
   solid or not solid.
 - **Manual toggle.** A button on `monitor.html` (the capture-host API, port on the box) turns the
   current night's probe flag on or off. On writes `PROBE-NIGHT.json` into the night folder:
   `{ "on": true, "at": "<ISO>", "by": "monitor" }`. Off rewrites it with `"on": false` and the
-  time, so the change is recorded, never deleted (captured bytes and their sidecars are immutable;
+  time, so the toggle records the change and never deletes it (captured bytes and their sidecars are immutable;
   correction lives beside, dated). The chip shows the current state; `find_unwired` must see every
   forwarded field drawn.
 - **Verdict.** A declared probe night is `NOT_APPLICABLE` with the reason
@@ -60,4 +60,4 @@ Two declarations, either one suffices; the reason names which:
 5. Deploy is owner-authorized. 🔴 A daemon restart tonight consumes the armed probe (the request arms at
    start only), so the code lands on main tonight and the box takes it on the morning restart unless the
    owner says otherwise; the judge re-runs 10-05 and 10-13 read-only from `/opt/tepna` after the update.
-6. Status → DONE only when 1–4 are measured on the box, with the two re-judged verdict files quoted.
+6. Status → DONE only when Heron measures 1–4 on the box and quotes the two re-judged verdict files.
