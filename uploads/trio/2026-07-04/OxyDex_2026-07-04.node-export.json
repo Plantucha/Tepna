@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-10-03T22:56:55.861Z",
+    "generated": "2026-10-12T20:43:33.080Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -18,8 +18,8 @@
     "source": "spo2",
     "startEpochMs": 1783205931000,
     "offsetMin": null,
-    "durationMin": 471.1,
-    "beats": 28264,
+    "durationMin": 471.2,
+    "beats": 28274,
     "coveragePct": null
   },
   "ganglior_events": [
@@ -37,7 +37,9 @@
         "recovery": 67,
         "nadir": 89,
         "onsetTMs": 1783206337000,
-        "endTMs": 1783206425000
+        "endTMs": 1783206425000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -54,7 +56,9 @@
         "recovery": 2,
         "nadir": 90,
         "onsetTMs": 1783206434000,
-        "endTMs": 1783206490000
+        "endTMs": 1783206490000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -71,7 +75,9 @@
         "recovery": 63,
         "nadir": 90,
         "onsetTMs": 1783206666000,
-        "endTMs": 1783206683000
+        "endTMs": 1783206683000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -88,7 +94,9 @@
         "recovery": 31,
         "nadir": 92,
         "onsetTMs": 1783206701000,
-        "endTMs": 1783206715000
+        "endTMs": 1783206715000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -105,7 +113,9 @@
         "recovery": 4,
         "nadir": 93,
         "onsetTMs": 1783206796000,
-        "endTMs": 1783206806000
+        "endTMs": 1783206806000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -122,7 +132,9 @@
         "recovery": 3,
         "nadir": 92,
         "onsetTMs": 1783206858000,
-        "endTMs": 1783206875000
+        "endTMs": 1783206875000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -139,7 +151,9 @@
         "recovery": 15,
         "nadir": 93,
         "onsetTMs": 1783206894000,
-        "endTMs": 1783206904000
+        "endTMs": 1783206904000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -156,7 +170,9 @@
         "recovery": 5,
         "nadir": 92,
         "onsetTMs": 1783206954000,
-        "endTMs": 1783206965000
+        "endTMs": 1783206965000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -173,7 +189,9 @@
         "recovery": 4,
         "nadir": 91,
         "onsetTMs": 1783211189000,
-        "endTMs": 1783211207000
+        "endTMs": 1783211207000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -190,7 +208,9 @@
         "recovery": 3,
         "nadir": 91,
         "onsetTMs": 1783218783000,
-        "endTMs": 1783218804000
+        "endTMs": 1783218804000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -207,7 +227,9 @@
         "recovery": 10,
         "nadir": 94,
         "onsetTMs": 1783225566000,
-        "endTMs": 1783225577000
+        "endTMs": 1783225577000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -224,7 +246,9 @@
         "recovery": 13,
         "nadir": 93,
         "onsetTMs": 1783225610000,
-        "endTMs": 1783225621000
+        "endTMs": 1783225621000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -241,7 +265,9 @@
         "recovery": null,
         "nadir": 93,
         "onsetTMs": 1783225668000,
-        "endTMs": 1783225686000
+        "endTMs": 1783225686000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -270,7 +296,9 @@
         "recovery": 5,
         "nadir": 93,
         "onsetTMs": 1783227593000,
-        "endTMs": 1783227603000
+        "endTMs": 1783227603000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -287,7 +315,9 @@
         "recovery": 3,
         "nadir": 92,
         "onsetTMs": 1783228317000,
-        "endTMs": 1783228327000
+        "endTMs": 1783228327000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -304,7 +334,9 @@
         "recovery": 7,
         "nadir": 93,
         "onsetTMs": 1783228523000,
-        "endTMs": 1783228542000
+        "endTMs": 1783228542000,
+        "hasGap": null,
+        "missingSec": null
       }
     }
   ],
@@ -879,13 +911,13 @@
         "tMin": 470,
         "hr": 55.6,
         "hrStat": "mean-rate",
-        "motionIndex": 1.625
+        "motionIndex": 1.405
       }
     ],
     "spo2": {
       "doc": "SpO₂ at the recorded 1 Hz, on a uniform grid from startEpochMs. values[i] is the saturation (%) at startEpochMs + i*1000 ms; null = the device reported no sample for that second — NOT zero and NOT the previous value. Emitted at source rate deliberately: binning is a bandwidth claim this node has not measured.",
       "hz": 1,
-      "n": 28264,
+      "n": 28274,
       "values": [
         89,
         89,
@@ -29150,13 +29182,23 @@
         98,
         98,
         98,
-        98
+        98,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
       ]
     },
     "hr": {
       "doc": "Pulse rate at the recorded 1 Hz, on the SAME uniform grid as spo2 (from startEpochMs). values[i] is the rate (bpm) at startEpochMs + i*1000 ms; null = the device reported no usable sample for that second — NOT zero and NOT the previous value. Index-aligned with spo2.values by construction (a row is kept only if BOTH columns parse and clear their sanity bands). This is the per-second series the three-cornered hat consumes; the 5-min epochs[].hr median is a summary of it, not a substitute — and `median(1 Hz rate)` is NOT the statistic ECGDex publishes (`60000/mean(RR)`), a confound worth ~0.3 bpm (R5-HR-TRIPLET-FOLLOWUPS §3), so do not difference the two nodes’ epoch HR and call it a device bias.",
       "hz": 1,
-      "n": 28264,
+      "n": 28274,
       "values": [
         58,
         57,
@@ -57421,7 +57463,17 @@
         59,
         59,
         59,
-        59
+        59,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
       ]
     }
   },
@@ -57436,9 +57488,9 @@
         "hash": "118ebed5"
       },
       "stats": {
-        "durationMin": 471.1,
+        "durationMin": 471.2,
         "start": "22:58:51",
-        "end": "06:49:54",
+        "end": "06:50:04",
         "meanSpo2": 96.1,
         "minSpo2": 89,
         "maxSpo2": 99,
@@ -57451,7 +57503,8 @@
         "meanPi": null,
         "piFrames": 0,
         "motionPct": 0.9,
-        "n": 28264,
+        "n": 28274,
+        "nSpo2": 28264,
         "startTs": 1783205931000,
         "artifactHrCleaned": 0,
         "artifactSpikesRemoved": 0
@@ -57461,8 +57514,8 @@
           {
             "key": "sbii",
             "label": "SBII",
-            "value": 34.368,
-            "displayVal": "34.368 %²·min/hr",
+            "value": 34.361,
+            "displayVal": "34.361 %²·min/hr",
             "score": 10,
             "sev": "r",
             "cat": "spo2"
@@ -57511,6 +57564,15 @@
             "score": 5,
             "sev": "w",
             "cat": "hr"
+          },
+          {
+            "key": "oxyCrash",
+            "label": "OxyCrash/hr",
+            "value": 1,
+            "displayVal": "1/hr",
+            "score": 3,
+            "sev": "w",
+            "cat": null
           },
           {
             "key": "hrnDip",
@@ -57623,20 +57685,11 @@
           {
             "key": "cdi",
             "label": "CDI/hr",
-            "value": 0.25,
-            "displayVal": "0.25/hr",
+            "value": 0.06,
+            "displayVal": "0.06/hr",
             "score": 0,
             "sev": "g",
             "cat": "spo2"
-          },
-          {
-            "key": "oxyCrash",
-            "label": "OxyCrash/hr",
-            "value": 0.9,
-            "displayVal": "0.9/hr",
-            "score": 0,
-            "sev": "g",
-            "cat": null
           },
           {
             "key": "ahiEst",
@@ -57677,8 +57730,8 @@
           {
             "key": "pred3p",
             "label": "pRED-3p",
-            "value": 2.52,
-            "displayVal": "2.52%",
+            "value": 2.51,
+            "displayVal": "2.51%",
             "score": 0,
             "sev": "g",
             "cat": "spo2"
@@ -57706,8 +57759,8 @@
           {
             "key": "sbii",
             "label": "SBII",
-            "value": 34.368,
-            "displayVal": "34.368 %²·min/hr",
+            "value": 34.361,
+            "displayVal": "34.361 %²·min/hr",
             "score": 10,
             "sev": "r",
             "cat": "spo2"
@@ -57749,7 +57802,7 @@
             "cat": "spo2"
           }
         ],
-        "impression": "Moderate burden: SBII 34.368 %²·min/hr, hypoxic load 6.113; otherwise stable baseline.",
+        "impression": "Moderate burden: SBII 34.361 %²·min/hr, hypoxic load 6.113; otherwise stable baseline.",
         "overallScore": 8
       },
       "odi4": {
@@ -57782,7 +57835,7 @@
           "value": 96.1,
           "window": {
             "startTMs": 1783205931000,
-            "endTMs": 1783234194000,
+            "endTMs": 1783234204000,
             "clockDomain": "device",
             "timingSource": "device",
             "spreadMs": null,
@@ -57798,8 +57851,8 @@
           },
           "basis": "measured",
           "quality": {
-            "n": 28264,
-            "durationMin": 471.1
+            "n": 28274,
+            "durationMin": 471.2
           },
           "uncertainty": null,
           "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries",
@@ -57810,7 +57863,7 @@
           "value": 0.1,
           "window": {
             "startTMs": 1783205931000,
-            "endTMs": 1783234194000,
+            "endTMs": 1783234204000,
             "clockDomain": "device",
             "timingSource": "device",
             "spreadMs": null,
@@ -57826,8 +57879,8 @@
           },
           "basis": "measured",
           "quality": {
-            "n": 28264,
-            "durationMin": 471.1
+            "n": 28274,
+            "durationMin": 471.2
           },
           "uncertainty": null,
           "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries",
@@ -57838,7 +57891,7 @@
           "value": 2,
           "window": {
             "startTMs": 1783205931000,
-            "endTMs": 1783234194000,
+            "endTMs": 1783234204000,
             "clockDomain": "device",
             "timingSource": "device",
             "spreadMs": null,
@@ -57854,8 +57907,8 @@
           },
           "basis": "derived",
           "quality": {
-            "n": 28264,
-            "durationMin": 471.1
+            "n": 28274,
+            "durationMin": 471.2
           },
           "uncertainty": null,
           "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries",
@@ -57866,7 +57919,7 @@
           "value": 1.8,
           "window": {
             "startTMs": 1783205931000,
-            "endTMs": 1783234194000,
+            "endTMs": 1783234204000,
             "clockDomain": "device",
             "timingSource": "device",
             "spreadMs": null,
@@ -57882,8 +57935,8 @@
           },
           "basis": "derived",
           "quality": {
-            "n": 28264,
-            "durationMin": 471.1
+            "n": 28274,
+            "durationMin": 471.2
           },
           "uncertainty": null,
           "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries",
@@ -57973,8 +58026,8 @@
           },
           {
             "start": "06:28",
-            "motionPct": 10,
-            "samples": 1264
+            "motionPct": 9.9,
+            "samples": 1274
           }
         ]
       },
@@ -58549,7 +58602,7 @@
         "dip3Rate": 6.4
       },
       "hrProfile": {
-        "circadianScore": 7.69,
+        "circadianScore": 7.55,
         "decCapacity": 0,
         "apEn": 0.9614,
         "bradyCount": 0,
@@ -58567,6 +58620,7 @@
         "spo2IQR": 1,
         "condMeanBelow94": 91.98,
         "condPctBelow94": 1.5,
+        "condPctN": 28264,
         "nadirBins": {
           "above91": 15,
           "b90_91": 4,
@@ -58576,7 +58630,7 @@
         }
       },
       "hrAdvanced": {
-        "rmssd": 0.58,
+        "rmssd": 0.68,
         "hrIQR": 3,
         "meanHRpb": 48.8,
         "meanHRnonPb": 50,
@@ -58589,11 +58643,11 @@
         "nsiComponents": 4
       },
       "sbii": {
-        "sbii": 34.368,
+        "sbii": 34.361,
         "sbiiQ": "Q5(high)"
       },
       "pred3p": {
-        "pred3p": 2.52,
+        "pred3p": 2.51,
         "pred3pQ": "Q1(low)"
       },
       "desSev": {
@@ -58657,7 +58711,7 @@
       },
       "flags": [
         "ODI4_BORDERLINE",
-        "SBII_Q5(34.368)"
+        "SBII_Q5(34.361)"
       ],
       "newMetrics": {
         "spo2Drift": {
@@ -58676,11 +58730,13 @@
           "overshootLabel": "Mild"
         },
         "spo2Ac1": {
-          "ac1": 0.974,
+          "ac1": 0.992,
           "ac1Label": "Sustained (hypoventilation)",
           "basis": "wholeRecord"
         },
         "hrFreqBands": {
+          "hrBandsN": 27000,
+          "hrBandsTotal": 27000,
           "hrLfPow": 2.5,
           "hrHfPow": 0.1,
           "hrLfHf": 17,
@@ -58699,7 +58755,7 @@
           "hrQ1": 48.5,
           "hrQ2": 49.5,
           "hrQ3": 48.8,
-          "hrQ4": 53,
+          "hrQ4": 52.9,
           "hrArc": 0.3,
           "remReemergence": true,
           "hrArcLabel": "Flat"
@@ -58753,13 +58809,17 @@
           "spo2Kurt": 9.246,
           "spo2ExcessKurt": 6.246,
           "spo2SkewLabel": "Left-skewed (hypox burden)",
-          "spo2KurtLabel": "Leptokurtic (heavy tails/events)"
+          "spo2KurtLabel": "Leptokurtic (heavy tails/events)",
+          "nMeasured": 28264,
+          "nTotal": 28274
         },
         "hrCV": {
           "hrCV": 8.39,
           "hrCVmean": 49.9,
           "hrCVsd": 4.19,
-          "hrCVlabel": "Moderate"
+          "hrCVlabel": "Moderate",
+          "nMeasured": 28264,
+          "nTotal": 28274
         },
         "hypDose": {
           "hd94": 848,
@@ -58767,7 +58827,9 @@
           "hd88": 0,
           "hd94PerHr": 108,
           "desatAUC": 3021,
-          "hd94Label": "Moderate"
+          "hd94Label": "Moderate",
+          "nMeasured": 28264,
+          "nTotal": 28274
         },
         "t88t85": {
           "t88Sec": 0,
@@ -58776,7 +58838,9 @@
           "t85Sec": 0,
           "t85Min": 0,
           "t85Pct": 0,
-          "t88Label": "None"
+          "t88Label": "None",
+          "nMeasured": 28264,
+          "nTotal": 28274
         },
         "lcsp": {
           "lcspSec": 3842,
@@ -58789,7 +58853,9 @@
           "sd2": 5.77,
           "sd1sd2Ratio": 0.071,
           "sd1Label": "Normal (1Hz proxy)",
-          "sd2Label": "Normal (1Hz proxy)"
+          "sd2Label": "Normal (1Hz proxy)",
+          "nMeasured": 28002,
+          "nTotal": 28274
         },
         "o2hrEff": {
           "o2hrEff": 0.3,
@@ -58803,6 +58869,10 @@
           "spo2MovingMean": 97.15,
           "spo2MotionDelta": -1.07,
           "stillPct": 99.1,
+          "nStillMeasured": 28002,
+          "nStillTotal": 28012,
+          "nMovingMeasured": 262,
+          "nMovingTotal": 262,
           "motionArtifactLabel": "True apnea pattern (SpO2 worse at rest)"
         },
         "nadirTrend": {
@@ -58879,7 +58949,7 @@
           "vo2High": 67.8,
           "vo2Category": "Unknown",
           "vo2Pct": "—",
-          "vo2Conf": 100,
+          "vo2Conf": 85,
           "hrRest": 46,
           "hrMax": 174,
           "hrMaxSource": "Age formula (Tanaka 2001)",
@@ -58889,7 +58959,8 @@
           "rmssdAdj": -0.9,
           "rmssdNote": "RMSSD 0.58bpm (1Hz proxy) → adj -0.9",
           "formula": "Uth-Sørensen 2004 (VO2max = 15.3 × HRmax/HRrest)",
-          "label": "Top-25% for age 49",
+          "label": "Top-25% for age 49 (assumed)",
+          "ageAssumed": true,
           "disclaimer": "Surrogate estimate ±10.8 ml/kg/min SEE (general pop.) · ±5.4 for trained athletes. Trend tracking only."
         },
         "bpProj": null,
@@ -59006,6 +59077,7 @@
             "rmssd": 4,
             "spo2": 13,
             "sleep": 15,
+            "sleepMax": 20,
             "hrFloor": 15,
             "hrSlope": 1
           },
@@ -59078,6 +59150,7 @@
           "modl": 92.76,
           "meanDipSlope": -2.526,
           "meanRecSlope": 0.208,
+          "meanRecSlopeN": 20,
           "clusteringIdx": 0.45,
           "firstHalfNadirs": 11,
           "lastHalfNadirs": 9
@@ -59086,7 +59159,7 @@
           "pbCycleLen": 118.7,
           "pbCycleLenSD": 55.6,
           "pbAmplitude": 5.5,
-          "pbLoad": 1.386,
+          "pbLoad": 1.385,
           "pbFirstThirdRatio": 1,
           "pbEarlyCount": 5,
           "pbLateCount": 0
@@ -59113,7 +59186,7 @@
           "spo2Range": 10,
           "tir9499": 98.5,
           "meanSpo2Early": 95.87,
-          "meanSpo2Late": 96.4,
+          "meanSpo2Late": 96.27,
           "hrRange": 46,
           "meanHrEarly": 48.5,
           "meanHrLate": 52.9,
@@ -59127,7 +59200,7 @@
           "worst10minSpo2": 95,
           "worst30minT95": 19.6,
           "spo2StableWindows": 84,
-          "cdi": 0.25,
+          "cdi": 0.06,
           "postDipHrResponse": 0.6,
           "hrDecelRuns": 0,
           "spo2HrDecouplingPct": 52.7,
@@ -59150,11 +59223,11 @@
         "fft": {
           "peakFreqHz": null,
           "peakCycSec": null,
-          "snr": 10.01,
+          "snr": 3.2,
           "threshold": 19.21,
           "bins": 318,
           "strided": true,
-          "rhoLag1": 0.974,
+          "rhoLag1": 0.9156,
           "detected": false
         },
         "hrEnt": {
@@ -59163,10 +59236,11 @@
         },
         "ssi": {
           "ssi": 0.218,
-          "ssiLabel": "Low"
+          "ssiLabel": "Low",
+          "ssiBasis": 1
         },
         "circHR": {
-          "circAmplitude": 1.5,
+          "circAmplitude": 1.47,
           "circNadirHour": 3.4
         },
         "spo2Ent": {
@@ -59197,8 +59271,8 @@
           "biLabel": "Irregular"
         },
         "oxyCrash": {
-          "oxyCrashCount": 7,
-          "oxyCrashRate": 0.9
+          "oxyCrashCount": 8,
+          "oxyCrashRate": 1
         },
         "hrnDip": {
           "hrnDip": 7.8,

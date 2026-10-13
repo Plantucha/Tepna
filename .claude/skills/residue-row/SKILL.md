@@ -12,8 +12,13 @@ Rules: `CLAUDE.md` §📌. Shape and vocabulary are gate-checked (`tools/residue
 - Key: `YYYY-MM-DD-short-slug`, never a counter. Source is the real origin — a brief, a repo path, or
   `#NNNN` — not the nearest brief.
 - Rows are **appended and closed, never edited**. A correction is a new row that names the old key.
-- The state vocabulary is a closed set: `OPEN`, `fixed #NNNN` (bare), `→ \`<NAME>-BRIEF.md\``, or
-  `withdrawn <key-of-the-row-stating-the-withdrawal>`. Nothing else passes.
+- The state vocabulary is a closed set of five: `OPEN`, `fixed #NNNN` (bare), `→ \`<NAME>-BRIEF.md\``,
+  `withdrawn <key-of-the-row-stating-the-withdrawal>`, or `answered <ref>`. Nothing else passes.
+- **`answered <ref>`** (owner ruling 2026-10-12) closes a row that asked for a MEASUREMENT and got it,
+  where no repair remains and the defect was real — so neither `fixed` nor `withdrawn` can state it
+  honestly. `<ref>` points at the answer: the `#NNNN` that recorded the measurement, a ledger key, or a
+  backticked brief. A bare `answered` reds check8b; a `<ref>` that resolves to nothing reds check8j. It
+  needs no corroborating row, because an answer does not claim the defect never existed.
 - **A row whose whole life is this PR travels inside it** — logged and closed as
   `fixed #<that same PR>`, the number read back from `gh pr view`, never typed. Touching *other* rows
   — closing someone else's, or one this PR does not fix — rides a separate RESIDUE-only PR, one in
@@ -34,7 +39,7 @@ DIFFERENT gates, measured 2026-10-12 against main's row `2026-10-12-wt-done-test
 
 | the edit | what reds it |
 |---|---|
-| state cell annotated | `docs-ledger` check8b (`tests/dex-tests.js`): `state "fixed #3401 (mechanism refuted)" not OPEN \| → \`brief\` \| fixed #N \| withdrawn <key>`. `tools/residue-ids.mjs` **passes** it — `ok — 0 row(s) added, none colliding, none mutated`, exit 0 |
+| state cell annotated | `docs-ledger` check8b (`tests/dex-tests.js`): `state "fixed #3401 (mechanism refuted)" not OPEN \| → \`brief\` \| fixed #N \| withdrawn <key> \| answered <ref>`. `tools/residue-ids.mjs` **passes** it — `ok — 0 row(s) added, none colliding, none mutated`, exit 0 |
 | any non-state cell edited | `tools/residue-ids.mjs` exit 1: `a non-state cell was edited (rows are append-and-close)` |
 
 So a closure's evidence belongs in the PR body, or in a NEW row that names the old key — never appended
