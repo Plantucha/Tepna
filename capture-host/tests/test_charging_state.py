@@ -26,12 +26,18 @@ def test_ring_charge_flag_is_read_from_batt_state_not_inferred():
     # Pinned to the DOCKED states since 2026-10-11: `bool(batt_state)` also read 3 (LOW, <10 %) as
     # charging, so a low ring on a finger showed `charging` on the monitor.
     src = module_source("capture.py")
-    pinned = 'charging=live.get("batt_state") in RING_DOCKED_BATT_STATES'
+    pinned = 'ring_charging(live.get("batt_state"))'
     assert pinned in src, "the O2Ring must take charging from its own batt_state, not from a battery trend"
-    assert src.count(pinned) == 2, (
+    assert src.count("charging=ring_docked,") == 2, (
         "both the worn and the NOT-worn path must report charge state — the ring keeps its link on the dock"
     )
+    assert src.count("charging_why=ring_docked_why,") == 2, (
+        "and both must name the observation: a flag with no reason cannot be told from an absence (§∅)"
+    )
     assert 'charging=bool(live.get("batt_state"))' not in src, "bool() reads LOW (3) as charging"
+    assert 'charging=live.get("batt_state") in RING_DOCKED_BATT_STATES' not in src, (
+        "the un-named pair is what residue 2026-10-12-the-rings-two-charging-writers-name-no-reason closed"
+    )
 
 
 def test_polar_charge_is_inferred_from_a_RISING_battery():

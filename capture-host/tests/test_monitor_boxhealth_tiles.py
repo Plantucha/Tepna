@@ -115,6 +115,32 @@ def test_a_device_name_cannot_inject_a_tag_into_the_cpap_tile():
     assert "&lt;img" in out, "the payload must be entity-encoded, not stripped — the text still shows"
 
 
+# ── the Tonight (QC) tile ────────────────────────────────────────────────────────────────────────────
+
+
+def test_a_partial_night_states_the_bound_of_the_gap_measure_it_shows():
+    """TWO GAP MEASURES SIT ON THIS PAGE AND THEY ANSWER DIFFERENT QUESTIONS. QC names a capture
+    session left out of the judged night; the Nights list's `N fragments` counts row-to-row holes
+    inside ONE FILE. On 09-28 one stream read `no gaps in the night` beside `2 fragments`, both
+    correct, with nothing on either surface saying so (residue 2026-09-29-two-gap-measures-one-surface).
+    The tile now carries the bound it measured against and names the other measure's scope."""
+    qc = (
+        "{ok:false, missing:[], degraded:[], gaps_bound_s:3600, "
+        "gaps:['23:10->01:40 150min gap; 1 later session(s), 9 rows, excluded from coverage [in-night]']}"
+    )
+    out = _render("null, " + qc)
+    assert "Partial night" in out
+    assert "a session splits at a gap over 60 min or at a daemon restart" in out
+    assert "row holes inside one file" in out, "the other measure's scope is named where both are read"
+
+
+def test_an_absent_bound_prints_no_bound_rather_than_a_typed_one():
+    """§∅. The threshold is published by `nightqc`, so an older summary carries none — and a 60 min
+    typed into the page would keep reading 60 after the constant moved."""
+    out = _render("null, {ok:false, missing:[], degraded:[], gaps:['an earlier session is excluded']}")
+    assert "Partial night" in out and "splits at a gap" not in out
+
+
 # ── the Clock tile ───────────────────────────────────────────────────────────────────────────────────
 
 

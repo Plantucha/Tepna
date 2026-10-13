@@ -401,6 +401,11 @@ def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
     assert "excluded from coverage" in s["gaps"][0] and "500 rows" in s["gaps"][0]
     assert "[outside-band]" in s["gaps"][0], "the class must be visible, never a silent green"
     assert s["gaps_in_night"] == [], "nothing was excluded from the night itself"
+    # THE MEASURE PUBLISHES ITS OWN BOUND, because the monitor shows it beside the nights list's
+    # per-file `fragments` count and the two read as contradicting each other otherwise (residue
+    # 2026-09-29-two-gap-measures-one-surface). A session also splits at a recorded daemon start, so
+    # this is the gap bound and never the whole account.
+    assert s["gaps_bound_s"] == nightqc._SESSION_GAP_SEC == 3600.0
 
 
 def test_a_daemon_restart_does_not_merge_two_sessions_into_one_union_span(tmp_path):
@@ -2370,6 +2375,23 @@ def test_qc_digest_omits_dat_fit_when_absent():
     assert ".dat" not in line and "RTC" in line
 
 
+def test_overlaps_band_is_the_joins_own_rule_and_it_measures_rather_than_contains():
+    """The JOIN's test, pinned apart from the label's because the two powers are opposite.
+
+    A join absorbs a session AND the hole before it into the judged night, so it may act only on
+    measured overlap. `_gap_class` can only keep a red, so it places a point by containment. Running
+    both rules off one answer made a stampless opener join a night over a 240 min hole, measured
+    2026-10-13 on `tests/test_qc_judged_session.py::…_counted_on_its_own_side`."""
+    b0, b1 = 1000.0, 2000.0
+    assert nightqc._overlaps_band(1500.0, 2500.0, b0, b1) is True, "measured overlap joins"
+    assert nightqc._overlaps_band(1999.5, 2500.0, b0, b1) is True, "half a second of it is overlap"
+    assert nightqc._overlaps_band(2000.0, 2500.0, b0, b1) is False, "touching the edge is not overlap"
+    assert nightqc._overlaps_band(2100.0, 2500.0, b0, b1) is False, "wholly outside never joins"
+    # THE ASYMMETRY ITSELF: the same point that `_gap_class` calls `in-night` does not join.
+    assert nightqc._overlaps_band(1500.0, 1500.0, b0, b1) is False, "a point has nothing to measure"
+    assert nightqc._gap_class([[1500.0, 1500.0]], b0, b1) == "in-night", "and it still charges the night"
+
+
 def test_gap_class_fails_closed_on_every_branch():
     """`_gap_class` is the only thing in this module that can turn a red into a green, so each of its
     branches is pinned directly rather than left to whichever ones `summarize` happens to reach.
@@ -2396,6 +2418,26 @@ def test_gap_class_fails_closed_on_every_branch():
     # it must act on positive evidence that the excluded time was outside the night — never on absence.
     assert nightqc._gap_class([[2100, 2500]], 2000.0, 1000.0) == "in-night", "no usable band ⇒ keep the gap"
     assert nightqc._gap_class([[2100, 2500]], 1000.0, 1000.0) == "in-night", "a zero-width band is not a band"
+    # A SESSION THAT IS A POINT IN TIME. `_overlap` scores `start == end` as exactly 0.0 against every
+    # band, so the `> 0` test read a point sitting INSIDE the night as outside it — a green resting on
+    # evidence the overlap never gathered. `merge_sessions` emits the shape on documented-normal inputs
+    # (residue 2026-10-12-a-zero-length-session-inside-the-band-reads-outside-band), so it is placed by
+    # containment, the idiom `night_view` already uses for a file of unknown span.
+    assert nightqc._gap_class([[1500.0, 1500.0]], b0, b1) == "in-night", "a point inside the band is a hole"
+    assert nightqc._gap_class([[1000.0, 1000.0]], b0, b1) == "in-night", "the band's own start is inside it"
+    assert nightqc._gap_class([[2000.0, 2000.0]], b0, b1) == "outside-band", "the end is the next night's"
+    assert nightqc._gap_class([[2500.0, 2500.0]], b0, b1) == "outside-band", "a point after the band is out"
+    # THE `continue` AFTER THAT BRANCH IS LOAD-BEARING. A point out of scope says nothing about the
+    # other excluded sessions, so the scan must go on; a mutant turning it into `break` returned
+    # after the first member and read a night WITH a hole as `outside-band` — the one direction a
+    # fail-closed rule must never fail in (mutant nightqc.x__gap_class__mutmut_14).
+    assert nightqc._gap_class([[2500.0, 2500.0], [1500, 1600]], b0, b1) == "in-night", (
+        "a point out of scope does not end the scan"
+    )
+    assert nightqc._gap_class([[500.0, 500.0]], b0, b1) == "outside-band", "a point before it is out"
+    # A REVERSED interval is no more measurable than a point, and it must not buy a green either.
+    assert nightqc._gap_class([[1600.0, 1500.0]], b0, b1) == "in-night", "unreadable span inside ⇒ a hole"
+    assert nightqc._gap_class([[500.0, 400.0]], b0, b1) == "outside-band", "unreadable span outside ⇒ out"
 
 
 def test_an_in_night_session_BEFORE_the_judged_half_joins_it_too(tmp_path):

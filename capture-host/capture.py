@@ -79,6 +79,7 @@ from telemetry import (
     note_flat_battery,
     on_body,
     ppi_contact,
+    ring_charging,
     sd_calibrated_for,
     worn_verdict,
     _ECG_BLOCK_N,
@@ -6194,6 +6195,9 @@ async def run_oxyii(dev: dict, root: str):
                                 oxy_arr_wr.write(now, name, "OXYLIVE_DURATION_S", _dur_ns, _dur_ns, 1)
                             except Exception:  # telemetry must never disturb the data callback
                                 pass
+                        # §∅: the flag and the NAME of what observed it travel together, so a published
+                        # `charging: false` can be told apart from an absence (telemetry.ring_charging).
+                        ring_docked, ring_docked_why = ring_charging(live.get("batt_state"))
                         if live["spo2"] is not None:
                             # `live["pr"]` passed through AS-IS, including None — `or 0` used to turn an
                             # unreadable pulse rate into a written 0 (VIGIL-PPG-GRID-AUDIT §5.2). The
@@ -6226,7 +6230,8 @@ async def run_oxyii(dev: dict, root: str):
                                 worn=True,
                                 last_sample=now.isoformat(),
                                 arrival_rows=oxy_arr_wr.rows,
-                                charging=live.get("batt_state") in RING_DOCKED_BATT_STATES,
+                                charging=ring_docked,
+                                charging_why=ring_docked_why,
                                 last_error=None,
                             )
                             _power_observe(name, worn=True, battery=live["batt"])
@@ -6241,7 +6246,8 @@ async def run_oxyii(dev: dict, root: str):
                                 worn=live["worn"],
                                 motion=live["motion"],
                                 battery=live["batt"],
-                                charging=live.get("batt_state") in RING_DOCKED_BATT_STATES,
+                                charging=ring_docked,
+                                charging_why=ring_docked_why,
                                 last_error=None
                                 if live["worn"]
                                 else (

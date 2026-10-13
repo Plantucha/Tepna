@@ -601,6 +601,26 @@ RING_DOCKED_BATT_STATES = frozenset({1, 2})
 # finger at 4 am showed 'charging' — and would have stopped recording behind a gate that trusted it.
 
 
+#: The name this module answers with when the ring's own flag is what decided the dock state. One
+#: spelling, read by every consumer that has to tell a measurement from an absence.
+RING_CHARGING_WHY = "ring-batt-state"
+
+
+def ring_charging(batt_state: object) -> tuple[bool | None, str | None]:
+    """PURE: is the ring docked, and WHAT OBSERVED IT — as a pair that travels together (§∅).
+
+    The ring needs no inference: `batt_state` is the device's own charge flag, the strongest evidence
+    any device here gives. What a reader still needs is the NAME of that observation beside the flag.
+    The four Polar writers already pair theirs (`rising`, `None`, `flat-at-full`, `pmd-in-charger`), and
+    without one a published `charging: false` cannot be told apart from no observation at all.
+
+    An absent flag is NOT "not charging". `oxyii.parse_live` fills the byte on every frame, so absence
+    means no frame was read — and the pair is then `(None, None)`, never a False nobody measured."""
+    if batt_state is None:
+        return None, None
+    return batt_state in RING_DOCKED_BATT_STATES, RING_CHARGING_WHY
+
+
 class RingRecordGate:
     """PURE: should THIS O2Ring frame reach disk? The owner's rule (2026-10-11): a device on its charger,
     off the body or idle records nothing.
