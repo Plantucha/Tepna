@@ -146,6 +146,81 @@ export function oracleFor(files) {
   return { kind: 'no-test-in-fix', testFiles: [] };
 }
 
+/* ── 2b · THE ORACLE IS AN ARGV ARRAY, AND `cmd` IS ITS HUMAN VIEW ────────────────────────────────
+   A pytest id carries its parameters, and a parametrized id legally holds spaces and quotes
+   (`test_absence_never_a_sha[echo '']`). Joining such ids with a space reads fine and runs WRONG:
+   a shell splits `[classify:an absent mutant was REFUTED]` into paths nobody has, pytest exits 4
+   over zero tests, and a runner that executes the string grades a solver on a test that never ran —
+   §4b's "success reported about something never examined" in its sharpest form. Measured 2026-10-12:
+   4 of the 97 tasks carry an id with a space. The proof sweep ran argv, so the proofs are sound and
+   only the stored string misled.
+
+   So `oracle.ids` is what a runner executes, and `oracle.cmd` is that same list quoted for a paste.
+   `cmdIds` reads the ids back out, and the selftest holds the two to each other over every task. */
+const SH_SAFE = /^[A-Za-z0-9_@%+=:,./-]+$/;
+
+export function shQuote(word) {
+  const s = String(word);
+  if (s !== '' && SH_SAFE.test(s)) return s;
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
+
+/* The POSIX-sh subset a quoted argv needs: single quotes, double quotes, and a backslash escape.
+   `'a'\''b'` is one word `a'b`, which is how `shQuote` writes an id holding an apostrophe. */
+export function shSplit(line) {
+  const out = [];
+  let cur = '';
+  let open = false;
+  let mode = '';
+  for (let i = 0; i < String(line).length; i++) {
+    const c = line[i];
+    if (mode === "'") {
+      if (c === "'") mode = '';
+      else cur += c;
+      continue;
+    }
+    if (mode === '"') {
+      if (c === '"') mode = '';
+      else if (c === '\\' && i + 1 < line.length && '"\\$`'.includes(line[i + 1])) cur += line[++i];
+      else cur += c;
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      mode = c;
+      open = true;
+      continue;
+    }
+    if (c === '\\' && i + 1 < line.length) {
+      cur += line[++i];
+      open = true;
+      continue;
+    }
+    if (/\s/.test(c)) {
+      if (cur !== '' || open) out.push(cur);
+      cur = '';
+      open = false;
+      continue;
+    }
+    cur += c;
+  }
+  if (cur !== '' || open) out.push(cur);
+  return out;
+}
+
+const CMD_HEAD = ['python3', '-m', 'pytest', '-q'];
+
+export function oracleCmd(ids) {
+  return CMD_HEAD.concat(ids.map(shQuote)).join(' ');
+}
+
+/* The ids a `cmd` would actually run, or null when it is not one of ours. A caller that gets null
+   has a command this tool did not write and must not guess at. */
+export function cmdIds(cmd) {
+  const words = shSplit(cmd);
+  for (let i = 0; i < CMD_HEAD.length; i++) if (words[i] !== CMD_HEAD[i]) return null;
+  return words.slice(CMD_HEAD.length);
+}
+
 /* ── 3 · THE PROOF — fail on the parent, pass on the fix ─────────────────────────────────────────── */
 function extract(sha, paths, dir) {
   mkdirSync(dir, { recursive: true });
@@ -308,7 +383,10 @@ function build() {
       parentCommit: git(['rev-parse', fixCommit + '^'])
         .trim()
         .slice(0, 12),
-      oracle: { kind: o.kind, cmd: 'python3 -m pytest -q ' + o.testFiles.map((f) => f.replace(/^capture-host\//, '')).join(' ') },
+      oracle: (() => {
+        const ids = o.testFiles.map((f) => f.replace(/^capture-host\//, ''));
+        return { kind: o.kind, ids, cmd: oracleCmd(ids) };
+      })(),
       testFiles: o.testFiles,
       srcFiles: files.filter((f) => !f.startsWith('capture-host/tests/') && !f.startsWith('tests/')),
       defect: r.defect,
@@ -350,7 +428,7 @@ function build() {
       const ids = pr.failToPass || c.testFiles.map((f) => f.replace(/^capture-host\//, ''));
       tasks.push({
         ...c,
-        oracle: { ...c.oracle, granularity: pr.granularity || 'file', cmd: 'python3 -m pytest -q ' + ids.join(' ') },
+        oracle: { ...c.oracle, granularity: pr.granularity || 'file', ids, cmd: oracleCmd(ids) },
         failToPass: ids,
         backgroundAtParent: pr.backgroundAtParent,
         proof: pr
@@ -473,6 +551,33 @@ if (DIRECT && has('--selftest')) {
   ck('a standalone js oracle is excluded BY NAME', oracleFor(['tools/a.mjs', 'tests/verify-manifest.mjs']).kind, 'oracle-js-tree');
   ck('a fix with no test is excluded BY NAME', oracleFor(['docs/a.md']).kind, 'no-test-in-fix');
   ck('a non-test path under tests/ is not an oracle lane', oracleFor(['tests/fixtures/x.json']).kind, 'oracle-other-test-path');
+
+  /* THE ORACLE IS AN ARGV, AND `cmd` IS A VIEW OF IT. The ids are the input a runner executes. */
+  ck('a plain id needs no quoting', shQuote('tests/test_a.py::test_b'), 'tests/test_a.py::test_b');
+  ck('an id holding a space is quoted', shQuote('tests/test_a.py::test_b[a b]'), "'tests/test_a.py::test_b[a b]'");
+  ck('an id holding an apostrophe survives the round trip', shSplit(shQuote("tests/t.py::test[echo '']")), ["tests/t.py::test[echo '']"]);
+  ck('a built cmd re-parses to the ids it was built from', cmdIds(oracleCmd(['a::b[x y]', "c::d[e '']", 'e::f'])), ['a::b[x y]', "c::d[e '']", 'e::f']);
+  ck('an empty argument stays one word', shSplit("a '' b"), ['a', '', 'b']);
+  ck('a command this tool did not write reads as null, never as an empty id list', cmdIds('pytest -q a::b'), null);
+  ck('the unquoted join is what breaks, which is why it is gone', shSplit('python3 -m pytest -q a::b[x y]').length, 6);
+
+  /* AND THE SET ITSELF: every stored cmd re-parses to that task's own ids. */
+  const setPath = join(ROOT, OUT_DEFAULT);
+  if (existsSync(setPath)) {
+    const set = JSON.parse(readFileSync(setPath, 'utf8'));
+    ck(
+      `all ${set.tasks.length} stored cmd(s) re-parse to their own ids`,
+      set.tasks.filter((t) => JSON.stringify(cmdIds(t.oracle.cmd)) !== JSON.stringify(t.oracle.ids)).map((t) => t.key),
+      []
+    );
+    ck(
+      'every task carries an ids array',
+      set.tasks.filter((t) => !Array.isArray(t.oracle.ids) || t.oracle.ids.length === 0).map((t) => t.key),
+      []
+    );
+    const spaced = set.tasks.filter((t) => (t.oracle.ids || []).some((i) => /\s/.test(i))).length;
+    console.log(`  · ${spaced} of ${set.tasks.length} task(s) carry an id with a space — the shape the quoting exists for`);
+  } else console.log('  ⚠ the set is absent, so the stored-cmd round trip RAN OVER NOTHING — build it, then re-run');
 
   /* THE ORACLE IS THE DIFFERENCE OF TWO ID SETS, and the background is the intersection. */
   const pOut = [
