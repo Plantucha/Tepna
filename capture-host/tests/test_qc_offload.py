@@ -71,6 +71,54 @@ def test_a_dead_worker_propagates_its_error_and_the_pool_is_still_shut_down(monk
 
 def test_the_poller_hands_summarize_to_the_child_and_not_to_a_thread():
     src = open(capture.__file__).read()
-    assert 'summ = await _qc_offload(nightqc.summarize, night, cfg.get("devices", []))' in src
+    assert "await _qc_offload(\n                qc_child.scan_night," in src
     assert "to_thread(nightqc.summarize" not in src
     assert 'summ["isolation"] = _QC_ISOLATION' in src, "the path taken travels on the summary, which is READ"
+
+
+def test_every_heavy_night_call_is_handed_to_the_child_and_none_of_them_to_a_thread():
+    """The four calls this seam exists for, by name. Each one measured its way in here: `summarize`
+    51 s of pure-Python CPU per poll, `wear_by_device` 6.9 s of GIL per poll plus ~50 MB of arena
+    retention `mallinfo2` cannot see, `write_night` and `solid_night.write_night` +311..+605 MB of peak
+    per night that the daemon then keeps. A `to_thread` on any of them is the defect coming back, and it
+    comes back by someone restoring one line — which is why this reads the source."""
+    src = open(capture.__file__).read()
+    for heavy in ("loss_audit.wear_by_device", "loss_audit.write_night", "solid_night.write_night"):
+        assert f"to_thread({heavy}" not in src, heavy
+        assert f"to_thread(\n            {heavy}" not in src, heavy
+    assert "await _qc_offload(\n                    qc_child.audit_and_compose," in src
+    assert '"isolation": _LOSS_ISOLATION,' in src, "where the audit ran travels beside what it found"
+
+
+def test_a_dependency_the_child_could_not_import_keeps_the_WHOLE_scan_in_this_process(monkeypatch):
+    """🔴 THE HATCH THE SUITE RUNS ON. `qc_child.scan_night` stays importable by reference however
+    `nightqc.summarize` is patched, so without `deps` every test that fakes a heavy function would have
+    watched the REAL one run in a child — no fake writes, no call list, and a green suite over code
+    nobody drove. One unimportable dependency keeps the whole scan here, where the fake is."""
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: {"night": n})
+
+    out = asyncio.run(
+        capture._qc_offload(
+            capture.qc_child.scan_night,
+            "/nonexistent",
+            [],
+            deps=(capture.nightqc.summarize, capture.loss_audit.wear_by_device),
+        )
+    )
+    assert capture._QC_ISOLATION == "thread"
+    assert out["summary"] == {"night": "/nonexistent"}, "the patched function is what ran"
+    # the control: with both dependencies real, the same call is a child
+    assert capture._importable_by_reference(capture.loss_audit.wear_by_device) is True
+
+
+def test_the_two_pollers_keep_their_own_isolation_record():
+    """One shared global would attribute whichever poller ran last to whichever asked, and the two run
+    concurrently in one loop. The field is only ever read when the paths DISAGREE, so a shared record is
+    wrong exactly when it matters."""
+
+    async def go():
+        await capture._qc_offload(_qc_child_target.pid_stamp, "n", [], record="loss")
+        await capture._qc_offload(lambda night, devices: {}, "n", [])
+
+    asyncio.run(go())
+    assert capture._LOSS_ISOLATION == "process" and capture._QC_ISOLATION == "thread"

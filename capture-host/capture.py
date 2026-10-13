@@ -59,6 +59,7 @@ import alerts
 import clock_offset
 import nightqc
 import nightarchive
+import qc_child  # the night-QC work that runs in the spawned child, never in this process
 import loss_audit
 import solid_night
 import seal
@@ -9091,7 +9092,11 @@ def _cpap_stream_watch_row(cfg, root, night_name):
 # Which path ran is recorded on the SUMMARY (`qc.isolation`), not as a STATUS key of its own: the
 # summary reaches QC-SUMMARY.json and status.json `qc`, both read; a key nobody reads is §∅'s
 # "reported and examined by nothing", and `tools/find_unwired.py` reds it.
-_QC_ISOLATION: str | None = None  # "process" | "thread" — the path the LAST scan took
+_QC_ISOLATION: str | None = None  # "process" | "thread" — the path the LAST QC scan took
+# ONE RECORD PER POLLER, not one shared global. Both pollers offload now, they run concurrently in
+# this loop, and a single global would attribute whichever ran last to whichever asked — a provenance
+# field that is wrong exactly when the two disagree, which is the only time it is read.
+_LOSS_ISOLATION: str | None = None  # "process" | "thread" — the path the LAST loss-audit batch took
 
 
 def _importable_by_reference(fn: Any) -> bool:
@@ -9103,17 +9108,31 @@ def _importable_by_reference(fn: Any) -> bool:
     return mod is not None and getattr(mod, getattr(fn, "__qualname__", ""), None) is fn
 
 
-async def _qc_offload(fn: Any, *args: Any) -> Any:
+async def _qc_offload(fn: Any, *args: Any, deps: tuple = (), record: str = "qc") -> Any:
     """Run one night-QC scan off the interpreter: in a spawned child when `fn` is importable by
     reference (the production case), on a thread otherwise. The pool lives exactly as long as the
     scan; a worker that died under us raises `BrokenProcessPool` and that error PROPAGATES — the
     poller's own `except` logs it, and a scan that did not run is not a scan that ran.
-    `_QC_ISOLATION` names the path taken on every call; the poller copies it onto the summary."""
-    global _QC_ISOLATION
-    if not _importable_by_reference(fn):
-        _QC_ISOLATION = "thread"
+    `_QC_ISOLATION` / `_LOSS_ISOLATION` name the path taken on every call; the poller publishes it
+    beside what the scan found.
+
+    🔴 `deps` IS WHAT KEEPS THE TEST SUITE DRIVING THIS CODE. `fn` is now a `qc_child` entry point
+    that calls `nightqc.summarize` / `loss_audit.write_night` / `solid_night.write_night` by module
+    attribute, and it stays importable by reference however those are patched — so the hatch every
+    poller test uses (monkeypatch the heavy function, watch the fake run) would have sent the REAL
+    function into a child instead, and the fake's writes and call lists would never have happened.
+    A caller therefore passes the live objects it expects the child to call, resolved at call time,
+    and ONE of them not being importable is enough to keep the whole scan in this process. That is
+    also the honest rule for production: a child can only run work whose every dependency it can
+    import by name."""
+    global _QC_ISOLATION, _LOSS_ISOLATION
+    path = "process" if _importable_by_reference(fn) and all(_importable_by_reference(d) for d in deps) else "thread"
+    if record == "qc":
+        _QC_ISOLATION = path
+    else:
+        _LOSS_ISOLATION = path
+    if path == "thread":
         return await asyncio.to_thread(fn, *args)
-    _QC_ISOLATION = "process"
     pool = concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"))
     try:
         return await asyncio.get_running_loop().run_in_executor(pool, fn, *args)
@@ -9178,38 +9197,42 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # stamps gapping in lockstep, and the monitor's "fragments" column rising for three
             # nodes at once. A child process shares no lock. QC is a REPORT: it must never cost the
             # recording it reports on — and a thread cannot keep that promise for CPU-bound work.
-            summ = await _qc_offload(nightqc.summarize, night, cfg.get("devices", []))
+            res = await _qc_offload(
+                qc_child.scan_night,
+                night,
+                cfg.get("devices", []),
+                deps=(nightqc.summarize, loss_audit.wear_by_device),
+            )
             # REFUSE AT THE BOUNDARY, naming what arrived. `summarize` is annotated `-> dict` and has no
             # string return, but the value crosses a spawn boundary and a consumer three frames later
             # reading `.get` on a non-dict raises an error that names neither the producer nor the value.
             # A measurement that is not the shape it claims is a fabricated value reaching a consumer
-            # (§∅), and the honest response at the edge is to say so.
+            # (§∅), and the honest response at the edge is to say so. The child's OWN contract is checked
+            # at the same edge and by the same line: a result that is not the documented envelope leaves
+            # `summ` as the thing that arrived, which is then named in the error.
+            summ = res.get("summary") if isinstance(res, dict) else res
             if not isinstance(summ, dict):
                 raise TypeError(
                     f"qc scan returned {type(summ).__name__}, not dict: {summ!r:.200} (isolation={_QC_ISOLATION})"
                 )
-            # THE WEAR SCAN RUNS ON A THREAD, not in a second child, and the precedent is in this file:
-            # `loss_audit.write_night` below already runs `wear_ends` for every device through
-            # `asyncio.to_thread`. A second `_qc_offload` would be a stricter standard than the codebase
-            # applies to the same work, and it is not free — `_importable_by_reference` sends a
-            # module-level function to a SPAWNED child, and several poller tests freeze `time.monotonic`,
-            # under which a spawn pool's deadlines never elapse and the child's result never arrives.
-            # Measured: adding that second offload wedged `check.sh` twice at 98 % with all 24 xdist
-            # workers idle and the controller in `futex_do_wait`.
+            # THE WEAR SCAN RAN IN THE SAME CHILD as the summary, inside `qc_child.scan_night`. It ran
+            # on a THREAD here until 2026-10-13, and the comment it replaces was right about the reason:
+            # a SECOND `_qc_offload` in one poll wedged `check.sh` twice at 98 % with all 24 xdist
+            # workers idle and the controller in `futex_do_wait`, because several poller tests freeze
+            # `time.monotonic` and a spawn pool's deadlines never elapse under a constant clock. What
+            # changed is not that judgement — it is that the wear scan now rides the child the summary
+            # already pays for, so the poll still spawns exactly ONE.
             #
-            # The cost is 6.9 s of GIL per poll — measured on the 794 MB 2026-09-23 night (H10 5.0 s,
-            # Verity 1.9 s), once on a page-cached tree, so treat it as an order of magnitude and not a
-            # distribution. Against `summarize`'s 51 s of pure-Python CPU that justified the child, and a
-            # 600 s poll interval, it is ~1 % duty.
+            # What leaves this process with it: 6.9 s of GIL per poll (the 794 MB 2026-09-23 night, H10
+            # 5.0 s + Verity 1.9 s) and ~50 MB of arena retention over 4 repeats that `mallinfo2` cannot
+            # see at all (`ext:wren-pr/to-kestrel-rss.md`, vigil 2026-10-12).
             #
-            # Its failure is not the night's: a wear scan that raises leaves `stopped_early_reason` None,
-            # which already means "not determined".
-            try:
-                _wear = await asyncio.to_thread(loss_audit.wear_by_device, night, cfg.get("devices", []))
-            except Exception as e:  # noqa: BLE001 - a wear scan is a REPORT, not the QC
-                log.warning("qc: wear scan failed, reasons unavailable: %s", e)
-                _wear = None
-            summ = nightqc.attach_wear(summ, _wear)
+            # Its failure is still not the night's: a wear scan that raises returns None WITH a reason,
+            # every `stopped_early_reason` stays None — which already means "not determined" — and the
+            # reason is logged HERE, because a spawned child has no handler for this logger.
+            if res.get("wear_reason"):
+                log.warning("qc: wear scan failed, reasons unavailable: %s", res["wear_reason"])
+            summ = nightqc.attach_wear(summ, res.get("wear"))
             summ["isolation"] = _QC_ISOLATION  # how this scan was produced, beside what it found
             # ── DID THE LIVE CPAP STREAM RECORD THE SESSION? ─────────────────────────────────────
             # On 2026-08-26 the machine ran a full night, `edf_dir` stayed empty, and NOTHING said so
@@ -9421,7 +9444,7 @@ async def loss_poller(cfg: dict, root: str):
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
-            # `active` is still computed, for `_solid_night` below — that consumer wants the broad
+            # `active` is still computed, for the verdict composition — that consumer wants the broad
             # "is anything writing here" answer. THIS poller does not, and borrowing it was the defect:
             # a night's eligibility is about its DEVICE DATA going quiet, and the poller's own
             # QC-SUMMARY / verdict writes land in the very folder it is asking about, so the night stayed
@@ -9450,6 +9473,7 @@ async def loss_poller(cfg: dict, root: str):
             # each costs a full audit and composition in this process (+311..+605 MB peak, measured on vigil
             # 2026-10-12), so a deploy that touches the judge works through the window one night per tick.
             rejudge = int(lcfg.get("rejudge_per_poll", 1))
+            jobs: "list[dict]" = []
             for night in nights[-int(lcfg.get("max_nights", 14)) :]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
@@ -9474,67 +9498,95 @@ async def loss_poller(cfg: dict, root: str):
                         rejudge -= 1
                         current = False
                         log.info("solid-night: %s — %s", night, why)
-                if not current:
-                    obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
-                    STATUS.setdefault("loss", {})[night] = {
-                        "status": obj["status"],
-                        "at": obj["at"],
-                        "daemon_caused_min": (obj.get("result") or {}).get("daemon_caused_min"),
-                    }
-                    dc = (obj.get("result") or {}).get("daemon_caused_min") or 0
-                    if dc:
-                        log.warning(
-                            "loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
-                            night,
-                            dc,
-                            obj.get("reason"),
-                        )
-                await _solid_night(nd, night, cfg, every, active, commit, why)
+                # NOTHING TO DO IS NOT A JOB. A box carrying 14 settled nights polls every 30 minutes
+                # and on almost every poll has no work at all; discovering that must not cost a spawn.
+                # Two stats answer it here. A night that WILL be audited always makes a job, because the
+                # audit is what moves the gate the verdict reads — which is why the child re-reads it.
+                if current and not qc_child.compose_due(nd):
+                    continue
+                jobs.append({"dir": nd, "night": night, "audit": not current, "why": why})
+            # 🔴 ONE CHILD FOR THE WHOLE POLL, and the heavy calls live in it. Each of these nights cost
+            # this process +311..+605 MB of peak (vigil 2026-10-12) for a full audit and composition,
+            # and a peak taken in the daemon is a peak the daemon keeps: glibc returns a 64 MB arena to
+            # the kernel only on its own terms, which is the retention `mallinfo2` cannot even see
+            # (`ext:wren-pr/to-kestrel-rss.md`). A child's peak leaves with the child. The batch shape
+            # is deliberate: `qc_child` explains why a SECOND spawn per poll is not available here.
+            if jobs:
+                for r in await _qc_offload(
+                    qc_child.audit_and_compose,
+                    jobs,
+                    cfg.get("devices", []),
+                    every,
+                    active,
+                    commit,
+                    deps=(loss_audit.write_night, solid_night.write_night),
+                    record="loss",
+                ):
+                    _publish_loss(r)
+            # AFTER a failed audit too. When this ran in-process an audit that raised left the loop by
+            # exception and took the pending statement with it, so the morning card kept a verdict about
+            # an older night — a second night's absence caused by the first night's failure. The batch
+            # returns the failure as a value, so this runs either way.
             await _solid_pending(captures, every, active, cfg, settle, commit)
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("loss-audit: poll failed", exc_info=True)
 
 
-async def _solid_night(
-    nd: str, night: str, cfg: dict, nights: list, active: set, commit, why: str | None = None
-) -> None:
-    """SOLID-NIGHT §2: the night's verdict, composed on the LOSS AUDIT'S OWN TRIGGER — it runs only for a
-    settled night, after that night's audit, and again only when the audit is newer than the verdict (the
-    audit re-runs when the night's data changes, and the verdict follows it). Its failure is its own: a
-    night whose verdict cannot be composed is logged and left without one (so the run reads it as
-    unassessed), and the loss audit above is never undone by it."""
-    vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
-    spath = os.path.join(nd, solid_night.VERDICT_NAME)
-    if not os.path.exists(vpath):
-        return  # no audit yet: nothing to compose over
-    if os.path.exists(spath) and os.path.getmtime(spath) >= os.path.getmtime(vpath):
-        return  # composed since the audit last changed
-    try:
-        obj, run = await asyncio.to_thread(
-            solid_night.write_night,
-            nd,
-            cfg.get("devices", []),
-            nights=nights,
-            active=active,
-            commit=commit,
-            reason=why,
-        )
-    except Exception:  # noqa: BLE001 — one night's verdict must not stop the poller
-        log.warning("solid-night: %s — verdict not written", night, exc_info=True)
-        return
-    log.info("solid-night: %s %s — %s", night, obj["status"], run["statement"])
-    # A RE-JUDGED OLDER NIGHT IS WRITTEN BUT NOT PUBLISHED: the status card states the newest night, and
-    # `code_moved` now re-judges past nights routinely — the same never-backwards rule `_solid_pending` keeps.
+def _publish_loss(r: dict) -> None:
+    """One night's audit and verdict, as the journal and the status surface see them.
+
+    The work itself ran in `qc_child.audit_and_compose`, which logs nothing — a spawned child has no
+    handler for this logger — so every reason it found is published HERE, in this process, and the
+    journal reads exactly as it did when the calls were made from this frame.
+
+    Each leg is published only if the child did it: §∅, an absent audit is no row rather than a row of
+    zeros, and a night whose verdict could not be composed keeps its audit and reads as unassessed."""
+    night = r["night"]
+    if r["loss"]:
+        STATUS.setdefault("loss", {})[night] = {
+            "status": r["loss"]["status"],
+            "at": r["loss"]["at"],
+            "daemon_caused_min": r["loss"]["daemon_caused_min"],
+            # WHERE THE AUDIT RAN, beside what it found — the same standard `qc.isolation` keeps for the
+            # QC scan. The degraded shape (this process, because a dependency was not importable) is a
+            # fact about the measurement, and a provenance field nobody can read is §∅'s own complaint.
+            "isolation": _LOSS_ISOLATION,
+        }
+        dc = r["loss"]["daemon_caused_min"] or 0
+        if dc:
+            log.warning(
+                "loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
+                night,
+                dc,
+                r["loss"]["reason"],
+            )
+    if r["loss_error"]:
+        # The batch stopped at this night, exactly as the in-process loop did when the audit raised. The
+        # child's traceback is TEXT: it is logged whole, so the journal keeps the frames it always had.
+        log.warning("loss-audit: poll failed — %s\n%s", night, r["loss_error"])
+    if r["solid_error"]:
+        log.warning("solid-night: %s — verdict not written\n%s", night, r["solid_error"])
+    if r["solid"]:
+        _publish_solid(night, r["solid"])
+
+
+def _publish_solid(night: str, s: dict) -> None:
+    """SOLID-NIGHT §2's verdict on the STATUS surface. The file was already written beside the night by
+    `qc_child.audit_and_compose`; this decides what the card SAYS.
+
+    A RE-JUDGED OLDER NIGHT IS WRITTEN BUT NOT PUBLISHED: the status card states the newest night, and
+    `code_moved` re-judges past nights routinely — the same never-backwards rule `_solid_pending` keeps."""
+    log.info("solid-night: %s %s — %s", night, s["status"], s["statement"])
     shown = (STATUS.get("solid") or {}).get("night")
     if shown is not None and night < shown:
         return
     STATUS["solid"] = {
         "night": night,
-        "status": obj["status"],
-        "reason": obj["reason"],
-        "run": run["statement"],
-        "solid": run["solid"],
-        "exit": run["exit"],
+        "status": s["status"],
+        "reason": s["reason"],
+        "run": s["statement"],
+        "solid": s["solid"],
+        "exit": s["exit"],
     }
 
 

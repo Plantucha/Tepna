@@ -522,7 +522,11 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # reads), the PURE `_as11_scan_hits` and `_pair_radios` (each tested directly), and the pairer's two new
     # bleak/hciconfig edges `scan` and `radios`, closures beside its `connect` like the `_open` ones above.
     # +5, which is the whole delta. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 303, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 303 → 304 on 2026-10-13 (QC-SPAWN-CHILD): `_solid_night` leaves, and `_publish_loss` plus
+    # `_publish_solid` arrive in its place — the composition itself moved to `qc_child.py`, which this
+    # module-level exclusion does not cover, so those three functions ARE mutated. +1, the whole delta.
+    # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
+    assert n == 304, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
