@@ -49,7 +49,7 @@ that the tool works; **the manuscript numbers are whatever the NSRR lane produce
    desaturation-based indices, reported as ODI-vs-AHI bias. The status pill turns amber and names the
    confound whenever the selected variable is desat-only or unrecognised. (Corrected 2026-08-16;
    `ahi_a0h4` had been first since the tool was written.)
-   Then drop the matching EDFs; stems like `shhs1-200001` auto-pair to nsrrid `200001`. (A plain
+   Then drop the matching EDFs; stems like `shhs1-900004` auto-pair to nsrrid `900004`. (A plain
    `id,ahi` two-column CSV still works as a fallback.)
 3. Read the **nsrr** row in the Sources card and `stats.json → perSource.nsrr`; export `figures.png`.
 4. Pre-register the analysis if you can — slope, LoA, and the correction are the primary endpoints.

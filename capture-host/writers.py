@@ -2815,6 +2815,62 @@ class RingClockLogWriter:
         return self._health.fsync_max_ms
 
 
+# ── Which sidecars are the BOX's, and the note that says so inside the night ───────────────────────
+#
+# THE ONE SOURCE for this list. `nightqc._SIDECAR_TAGS` reads it from here, and so does the note
+# written beside the files, so the night cannot describe itself differently from the way the QC pass
+# classifies it.
+#
+# 🔴 WHY A NOTE EXISTS AT ALL (residue 2026-09-22-link-sidecar-is-box-wide-not-per-device). Every
+# device stream in a night is named `<Vendor>_<Model>_<id>_<stamp>_<TAG>`, and these four are named
+# `Tepna_<stamp>_<TAG>` because the ADAPTER is box-wide, not a device. The convention is right and is
+# not being changed. What it costs is that the obvious per-device glob — `Polar_H10*_LINK.csv` —
+# returns nothing, and nothing is indistinguishable from "this device has no link record". That
+# happened on 2026-09-22: the H10's battery level was reported to the owner as "persisted nowhere, not
+# in the night files, not in QC-SUMMARY, not in the journal" while 14 files in that very folder
+# carried a `battery_pct` column with H10 rows in every one of them. An absence a reasonable glob
+# manufactures is still an absence a reader believes, so the night now names its own box-wide files.
+BOX_WIDE_SIDECAR_TAGS = ("LINK", "CLOCK", "OXYFRAME", "OXYLIFE")
+
+SIDECAR_NOTE_NAME = "README-SIDECARS.txt"
+
+
+def sidecar_note_text(tags=BOX_WIDE_SIDECAR_TAGS) -> str:
+    """The note's bytes, GENERATED from the tag list so the two cannot drift apart. PURE."""
+    return (
+        "# Written by tepna-capture (writers.write_sidecar_note), rewritten whenever this night's\n"
+        "# link log is (re)opened. Not a capture file: it carries no samples and no stamp.\n"
+        "#\n"
+        "# BOX-WIDE SIDECARS \u2014 one set per session for the WHOLE capture host, named\n"
+        "# Tepna_<YYYYMMDDHHMMSS>_<TAG>.csv, where <TAG> is one of:\n" + "".join(f"#   {t}\n" for t in tags) + "#\n"
+        "# Every other file in this folder is per-device: <Vendor>_<Model>_<id>_<stamp>_<TAG>.<ext>.\n"
+        "#\n"
+        "# So a per-device glob over a box-wide sidecar matches NOTHING, and that is not an absence:\n"
+        "#   ls Polar_H10*_LINK.csv   -> no match\n"
+        "#   ls Tepna_*_LINK.csv      -> the link rows for EVERY device, including the H10\n"
+        "#\n"
+        "# Select a device out of a box-wide sidecar by its `device` / `address` COLUMNS, never by the\n"
+        "# file name. `address` is the key that cannot be edited or collide; `device` is the human name\n"
+        "# and one re-pair has already rewritten it mid-night.\n"
+    )
+
+
+def write_sidecar_note(night_dir: str) -> str | None:
+    """Write the note into a night folder. Returns its path, or `None` when it could not be written.
+
+    Guarded like every other provenance write here: a note about the files must never be the reason a
+    night stops recording them."""
+    path = os.path.join(night_dir, SIDECAR_NOTE_NAME)
+    try:
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(sidecar_note_text())
+    except OSError as e:
+        # Said, not swallowed: the note's absence is exactly the condition it exists to prevent.
+        _log.warning("sidecar note unavailable in %s: %r", night_dir, e)
+        return None
+    return path
+
+
 class LinkLogWriter:
     """Per-session LINK PROVENANCE sidecar — the CONDITIONS a night was captured under.
 
@@ -2854,6 +2910,10 @@ class LinkLogWriter:
         self.path = path
         self._health = _FlushHealth(path)
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        # The note goes beside the first box-wide sidecar a night gets, which is this one: the LINK log
+        # is (re)opened at startup and at every midnight roll, so every folder that HAS a box-wide file
+        # also explains it. See BOX_WIDE_SIDECAR_TAGS.
+        write_sidecar_note(os.path.dirname(path) or ".")
         if adapter or hci:
             self._fh.write(f"# adapter={adapter or 'default'} hci={hci or 'unknown'}\n")
         self._fh.write(

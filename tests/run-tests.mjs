@@ -18,7 +18,14 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, classifyStamps as rebaseClassifyStamps, duplicateLedgerKeys as rebaseDuplicateLedgerKeys } from '../tools/rebase-safe.mjs';
+import {
+  classify as rebaseClassify,
+  parsePorcelain as rebaseParsePorcelain,
+  classifyStamps as rebaseClassifyStamps,
+  duplicateLedgerKeys as rebaseDuplicateLedgerKeys,
+  generatedSet as rebaseGeneratedSet,
+  docsOutputFromText as rebaseDocsOutputFromText
+} from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { classify as qdClassify, pick as qdPick, attention as qdAttention, redLedger as qdRedLedger, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_ROOT_ZERO_BYTE as commitShapeBaseline } from '../tools/commit-shape.mjs';
@@ -698,6 +705,7 @@ function readSources() {
     // not a blob): the rig evals it in a `new Function` realm with deps passed as params + drives init/job.
     'qrs-equiv-worker.js',
     'qrs-yield-worker.js',
+    'export-schema.js',
     'dex-export.js',
     'ganglior-provenance.js',
     'signal-frame.js',
@@ -2426,6 +2434,7 @@ async function main() {
       'measurement-block.js',
       'verdict.js',
       'night-seal.js',
+      'export-schema.js',
       'dex-export.js',
       'signal-adapters.js',
       'adapters/polar-rr.js',
@@ -2799,6 +2808,7 @@ async function main() {
     NightSeal: ctx.NightSeal, // CAPTURE-NIGHT-SEAL phase C — the in-page tepna-seal/1 reader (Node runs it for real: crypto.subtle + DecompressionStream are globals)
     sealRun: await runSealReader(ctx), // the in-page reader RUN on the committed vector + all seven plants, results for the (synchronous) group (Node-lane only)
     DexExport: ctx.DexExport,
+    ExportSchema: ctx.ExportSchema,
     exportName: ctx.exportName,
     EXPORT_KINDS: ctx.EXPORT_KINDS,
     SignalSpec: ctx.SignalSpec,
@@ -2934,6 +2944,15 @@ async function main() {
     beatCorrespondence: beatCorrespondence,
     circularStats: circularStats,
     rebaseClassify: rebaseClassify,
+    /* The REAL generated set, passed as a FUNCTION so nothing pays for it unless the group runs (it
+       shells out to `build-docs.mjs --list-owned`). The classifier group drives `classify` with a
+       hand-made set, which is right for the ambiguous forms and useless for the question "is this
+       actual path in the actual set" — and that gap is what let `docs/TOOLS-INDEX.md` read as source
+       for months. Both are needed: one pins the reasoning, the other pins the population. */
+    rebaseGeneratedSet: rebaseGeneratedSet,
+    /* How a builder is ASKED for its one `docs/` output, separated from the file read so the gate can
+       drive the two fail-closed cases — no declaration, and more than one — by value. */
+    rebaseDocsOutputFromText: rebaseDocsOutputFromText,
     /* the porcelain parse, separated from the I/O so the gate can drive it by value — see the group */
     rebaseParsePorcelain: rebaseParsePorcelain,
     /* The verification-stamp guard's decision core. Pure, so the gate drives it by value rather than

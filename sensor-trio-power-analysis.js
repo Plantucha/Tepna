@@ -428,7 +428,8 @@
   }
   // derived 1-Hz file ("tMs;hr;…[;c]") → per-second HR map, plus the per-second fused-hat confidence
   // when the file carries a `c` column. Parsing is single-sourced in analysis-stats.js (header-named
-  // columns; a pre-2026-09-26 file yields hasConf:false and the classic hat downstream).
+  // columns; a pre-2026-09-26 file yields hasConf:false, which since D7 option A means no fused
+  // DIAGNOSTIC for that window — the point is the unweighted hat either way).
   function derivedMap(text) {
     const d = AnalysisStats.parseDerivedHr(text, { hrMin: HR_MIN, hrMax: HR_MAX });
     const o = d.hr;
@@ -436,10 +437,13 @@
     o._hasConf = d.hasConf;
     return o;
   }
-  // within-window block bootstrap CI of one window's σ̂ (30-s blocks). Delegated to the shared kernel
-  // so the CI's ESTIMATOR FOLLOWS THE POINT (DEEP-AUDIT-VI F16): with the per-corner confidence
-  // series supplied every replicate runs the fused hat, resampling the confidences in lockstep with
-  // the same block indices; without them every replicate runs the classic hat. Deterministic `rnd`.
+  /* within-window block bootstrap CI of one window's σ̂ (30-s blocks). Delegated to the shared kernel
+     so the CI's ESTIMATOR FOLLOWS THE POINT (DEEP-AUDIT-VI F16): with the per-corner confidence series
+     supplied every replicate runs the fused hat, resampling the confidences in lockstep with the same
+     block indices; without them every replicate runs the classic hat. Deterministic `rnd`.
+     Since D7 option A the caller passes `null` — the point is the unweighted hat, so the replicates are
+     unweighted too. The `conf` parameter stays because the kernel's contract is what F16 pins, and the
+     day a window wants a fused CI it must arrive through here rather than through a second copy. */
   function blockCI(hh, vv, oo, B, conf) {
     return AnalysisStats.tchBlockBootstrapCI(hh, vv, oo, {
       cH: conf ? conf.cH : null,
@@ -475,15 +479,20 @@
         vv.push(V.get(k));
         oo.push(O.get(k));
       }
-      // The estimator follows the DATA: a derived file that carries the DSP's per-second confidence
-      // (`c`, written by tools/derive-sigma-window.mjs since 2026-09-26) runs the FUSED hat — that
-      // corner's flagged seconds leave its differences, the clean corners are untouched; a file
-      // without it runs the CLASSIC hat exactly as before (never c=1 by default — §∅). The O2Ring's
-      // 1-Hz CSV carries no confidence, so its corner is weight 1 either way.
-      const fused = !!(H._hasConf || V._hasConf);
-      const conf = fused ? { cH: AnalysisStats.confidenceSeries(H._c, ks), cV: AnalysisStats.confidenceSeries(V._c, ks), cO: ks.map(() => 1) } : null;
-      const s = fused ? tchSigmasFused(hh, vv, oo, conf.cH, conf.cV, conf.cO) : tchSigmas(hh, vv, oo);
-      const ci = blockCI(hh, vv, oo, 500, conf);
+      /* D7 option A — owner's pick 2026-10-12 (TCH-FUSED-DEGENERACY-MECHANISM §5): the point is the
+         UNWEIGHTED hat on every window, whatever the file carries, and the fused-weight hat is retired to
+         a DIAGNOSTIC beside it. The estimator no longer follows the data, because a per-window choice of
+         estimator is exactly what made two windows' σ incomparable.
+         A derived file that carries the DSP's per-second confidence (`c`, written by
+         tools/derive-sigma-window.mjs since 2026-09-26) still gets the diagnostic computed; a file
+         without it gets `null` for it, never c=1 by default (§∅). The O2Ring's 1-Hz CSV carries no
+         confidence, so its corner is weight 1 in the diagnostic. */
+      const hasConf = !!(H._hasConf || V._hasConf);
+      const conf = hasConf ? { cH: AnalysisStats.confidenceSeries(H._c, ks), cV: AnalysisStats.confidenceSeries(V._c, ks), cO: ks.map(() => 1) } : null;
+      const s = tchSigmas(hh, vv, oo);
+      const sFused = conf ? tchSigmasFused(hh, vv, oo, conf.cH, conf.cV, conf.cO) : null;
+      // F16: the CI's estimator follows the point's, so the bootstrap gets no confidences either.
+      const ci = blockCI(hh, vv, oo, 500, null);
       const rHV = pearson(hh, vv),
         rHO = pearson(hh, oo),
         rVO = pearson(vv, oo);
@@ -497,7 +506,9 @@
         n: ks.length,
         sigma: { o2: s.o2, h10: s.h10, verity: s.verity },
         ci,
-        estimator: fused ? 'fused' : 'classic',
+        estimator: 'classic', // the unweighted hat, in the kernel's own vocabulary
+        // the retired fused-weight hat, carried so the degeneracy stays readable beside the point
+        fusedDiag: sFused ? { o2: sFused.o2, h10: sFused.h10, verity: sFused.verity, neg: sFused.neg } : null,
         neg: s.neg,
         h10Unreliable: h10Cls !== 'ok',
         h10Fault: h10Cls !== 'ok' ? h10Cls : null,
@@ -1689,8 +1700,12 @@
         tb.appendChild(tr);
         continue;
       }
+      /* the retired fused-weight hat rides in the label's tooltip: visible to a reader who asks, never
+         beside the published σ as if it were an alternative answer (D7 option A, 2026-10-12) */
+      const fd = wn.fusedDiag;
+      const fdTxt = fd ? `retired fused diagnostic — O2 ${f2(fd.o2)} · H10 ${f2(fd.h10)} · Verity ${f2(fd.verity)}` : 'no DSP confidence in this window — no fused diagnostic';
       tr.innerHTML =
-        `<td>${wn.label}</td><td class="num">${wn.n.toLocaleString()}</td>` +
+        `<td title="${fdTxt}">${wn.label}</td><td class="num">${wn.n.toLocaleString()}</td>` +
         `<td class="num" style="color:#FFB84D">${f2(wn.sigma.o2)}</td>` +
         `<td class="num" style="color:#3DE0D0">${f2(wn.sigma.h10)}</td>` +
         `<td class="num" style="color:#B98AFF">${f2(wn.sigma.verity)}</td>` +

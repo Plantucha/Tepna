@@ -196,3 +196,73 @@ def write(path: str, obj: dict) -> None:
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(obj, fh, indent=2)
     os.replace(tmp, path)
+
+
+# ── WITHDRAWING A PUBLISHED VERDICT ─────────────────────────────────────────────────────────────────
+# How many superseded verdicts a night keeps beside it. Six judge passes published verdicts over
+# 2026-10-04 before its data was in, so a cap of one would have discarded five of the six and left
+# exactly the trail that was missing (#3292).
+WITHDRAWN_KEEP = 32
+
+
+def provenance(v: dict) -> dict:
+    """The identifying fields of a verdict, for a withdrawal record.
+
+    ⚠️ THE COMMIT LIVES IN `producedBy`, not at the top level — §🧾's own shape. Reading `v["commit"]`
+    publishes `null` for every real verdict while passing against a synthetic dict that carries a
+    top-level key, which is an unmeasured field presented as measured (§∅). The top-level read stays as
+    a fallback for a hand-written or legacy object."""
+    return {
+        "status": v.get("status"),
+        "reason": v.get("reason"),
+        "at": v.get("at"),
+        "commit": ((v.get("producedBy") or {}).get("commit")) or v.get("commit"),
+    }
+
+
+def withdraw(
+    verdict_path: str, record_path: str, replacement: dict, *, reason: str, keep: int = WITHDRAWN_KEEP
+) -> dict | None:
+    """Record the verdict about to be REPLACED, before it is. Returns the entry, or None when there was
+    nothing published to withdraw.
+
+    🔴 `os.replace` IS ATOMIC AND LOSSY, and the second property cost a night. Measured on the box
+    2026-10-04: six passes (12:30 … 19:37) published verdicts over a night whose data had not arrived,
+    the 19:37 UNKNOWN was overwritten by the 04:50 FAIL, and afterwards the night's own artefacts held
+    no evidence that any of the six existed — the trail was reconstructible only from the journal, which
+    rotates. A verdict is a published claim; withdrawing one is itself a fact, so it is recorded beside
+    the night rather than erased.
+
+    APPEND-ONLY and never fatal: a withdrawal that cannot be written must not stop the night getting its
+    correct verdict, so the failure is reported in the return value and the replacement proceeds. Losing
+    the record of a superseded claim is bad; refusing to publish the true one is worse.
+
+    This is the ONE copy of the mechanism. `solid_night` had it first (#3292) and the loss audit one
+    layer down did not, which is how a published LOSS verdict could vanish under its own re-run."""
+    try:
+        with open(verdict_path, encoding="utf-8") as fh:
+            prior = json.load(fh)
+    except (OSError, ValueError):
+        return None  # nothing published yet, or unreadable: a first verdict withdraws nothing
+    if not isinstance(prior, dict):
+        return None
+    entry = {
+        "withdrawn": provenance(prior),
+        "replaced_by": provenance(replacement),
+        "reason": reason,
+        "at": replacement.get("at"),
+    }
+    kept: list[str] = []
+    try:
+        if os.path.exists(record_path):
+            with open(record_path, encoding="utf-8") as fh:
+                kept = [ln for ln in fh if ln.strip()]
+        kept.append(json.dumps(entry) + "\n")
+        with open(record_path, "w", encoding="utf-8") as fh:
+            fh.writelines(kept[-keep:])
+    except OSError as exc:
+        entry["recorded"] = False
+        entry["record_error"] = str(exc)
+        return entry
+    entry["recorded"] = True
+    return entry

@@ -735,6 +735,25 @@ def test_SIX_SUCCESSIVE_REJUDGEMENTS_ARE_ALL_RECOVERABLE_in_order(tmp_path):
     assert [ln["withdrawn"]["at"][11:16] for ln in lines] == stamps, "in the order they were published"
 
 
+def test_THE_NIGHTS_OWN_CAP_governs_what_the_withdrawal_log_keeps(tmp_path, monkeypatch):
+    """`_withdraw` passes `keep=WITHDRAWN_KEEP`, this module's constant, read at the call.
+
+    The callee's own default carries the same 32 today, so dropping the argument changes nothing until
+    one of the two numbers moves — and then the night's log keeps the other module's count with nothing
+    to say so. The cap this test moves is this module's, so the call has to carry it."""
+    night = tmp_path / "2026-10-04"
+    night.mkdir()
+    monkeypatch.setattr(sn, "WITHDRAWN_KEEP", 2)
+    for i in range(4):
+        (night / sn.VERDICT_NAME).write_text(
+            json.dumps({"status": "UNKNOWN", "reason": f"pass {i}", "at": f"2026-10-04T1{i}:00:00Z", "commit": "c"})
+        )
+        sn._withdraw(str(night), {"status": "FAIL", "reason": "final", "at": "2026-10-05T03:50:02Z", "commit": "c"})
+    lines = [json.loads(ln) for ln in (night / sn.WITHDRAWN_NAME).read_text().splitlines() if ln.strip()]
+    assert len(lines) == 2, f"the cap this module declares is the one the log honours: {len(lines)}"
+    assert [ln["withdrawn"]["reason"] for ln in lines] == ["pass 2", "pass 3"], "and it keeps the LAST"
+
+
 def test_A_WITHDRAWAL_THAT_CANNOT_BE_WRITTEN_DOES_NOT_BLOCK_THE_TRUE_VERDICT(tmp_path):
     """Losing the record of a superseded claim is bad; refusing to publish the correct one is worse. So
     the failure is REPORTED in the entry and the replacement proceeds."""

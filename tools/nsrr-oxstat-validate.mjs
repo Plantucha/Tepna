@@ -83,8 +83,8 @@ export function poolScoreRecord(ctx, rec) {
   if (!stat || !stat.data) return { id: rec.id, err: 'no OX stat channel' };
 
   /* ⚠️ `processNight` MUTATES ITS INPUT — deliberately (`trimSensorWarmup` + `cleanArtifactHR` run
-     in place, OXYDEX-HR-ARTIFACT-RUNAWAY-FIX). Measured 2026-09-20: 10 leading rows dropped from
-     shhs1-200981, 164 from shhs1-200233. The first version of this tool ran `processNight` on the
+     in place, OXYDEX-HR-ARTIFACT-RUNAWAY-FIX). Measured 2026-09-20: `trimSensorWarmup` dropped leading
+     rows on records in the paired set. The first version of this tool ran `processNight` on the
      as-shipped rows and THEN masked those same rows against `OX stat[i]`, so on any record the DSP
      trimmed, the status index was misaligned with the row it described and the "paired design" was
      not paired. Each arm therefore gets its OWN rows from its own `edfToOxyRows` call, and every

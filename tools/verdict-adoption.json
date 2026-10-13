@@ -248,6 +248,11 @@
       "status": "exempt",
       "reason": "the band SUPPLIERS: per-term PASS/FAIL/UNKNOWN decisions handed to solid_night.compose, never emitted on their own; the emitting producer is capture-host/solid_night.py (adopted)"
     },
+    "capture-host/telemetry.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "one occurrence, prose in the `optical_worn` docstring: \"DARK IS NOT A WORN VERDICT\" (residue 2026-09-24, the 55 Hz ambient-level test called 27 of 47 removals worn because a dark room reads like skin). The module decides nothing and prints no status - the worn detectors return True, False or None and `worn_verdict` composes a telemetry field from them."
+    },
     "capture-host/tests/_srcscan.py": {
       "bin": "test",
       "status": "exempt"
@@ -411,6 +416,10 @@
       "status": "exempt"
     },
     "capture-host/tests/test_pull_session.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_qc_child.py": {
       "bin": "test",
       "status": "exempt"
     },
@@ -935,6 +944,18 @@
       "status": "exempt",
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
+    "tools/defect-bench.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/defect-bench.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "DEFECT-BENCHMARK builder (briefs/DEFECT-BENCHMARK-2026-10-12-BRIEF.md): --build proves each candidate task by running the fix commit's own tests against the parent checkout and the fix, and emits ONE tepna.verdict/1 over the included set. The criterion is pre-stated — every included task owns a proven fail-then-pass pair — so a task that cannot be proven is EXCLUDED by a named reason rather than counted. --verdict-sample prints the object alone for this check."
+    },
     "tools/device-stability.mjs": {
       "bin": "word-only",
       "status": "exempt",
@@ -1101,6 +1122,18 @@
         ]
       },
       "note": "wave-1 adopter (#2798): --json emits one tepna.verdict/1 per fixture (✗ hop ⇒ FAIL naming the hop; ∘ hop ⇒ NOT_RUN naming the hop, result null; all ✓ ⇒ PASS); the manifest reads the committed synthetic fixture, whose input is committed too, so the check is corpus-free and runs in CI"
+    },
+    "tools/mutate-ledger-merge.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/mutate-ledger-merge.mjs",
+          "--verify"
+        ]
+      },
+      "note": "the git merge driver for the three mutation ledgers: --verify decides ONE tepna.verdict/1 over the registered ledgers — PASS every ledger parses, carries no duplicated entry id and merges with itself byte-identically; FAIL names the offending ledger and why; the criterion is pre-stated (ledgers_with_an_unmergeable_shape <= 0) and the driver mode itself prints no verdict word, because git reads its exit code"
     },
     "tools/mutate.mjs": {
       "bin": "decides",
@@ -1734,7 +1767,7 @@
           "--verdict-sample"
         ]
       },
-      "note": "the corpus fold's per-night gate (VERDICT-CONTRACT §3b #7): every night the plan DECIDES on emits one tepna.verdict/1 — PASS entered the fold · FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) · NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) — plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json, never into a night directory; a dry run computes but does not write"
+      "note": "the corpus fold's per-night gate (VERDICT-CONTRACT §3b #7): every night the plan DECIDES on emits one tepna.verdict/1 — PASS entered the fold · FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) · NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) — plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json by the PARENT only, never into a night directory and never by a child (one child owns one night and cannot describe a run); a dry run computes but does not write"
     },
     "tools/trio-power-headless.mjs": {
       "bin": "decides",
@@ -1931,6 +1964,18 @@
       "bin": "test",
       "status": "exempt",
       "note": "golden-vector parity test for tools/seqnet-infer.mjs and the parityVerdict builder of tools/seqnet-eval.mjs; the verdict words appear only as planted expected statuses asserted against the builder — it decides nothing itself"
+    },
+    "tools/astgrep-gate.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/astgrep-gate.mjs",
+          "--json"
+        ]
+      },
+      "note": "the four reviewer bugs of CLAUDE.md §∅ and §🔒, matched on the syntax tree by ast-grep: `?? 0` and `.get(k, 0)` for absence, `new Date(<string>)` and `Date.parse` for a locale parse. Criterion unallowlisted_hits_plus_stale_allowlist_entries lte 0 over the (rule × tracked file) pairs in scope; population = those pairs, excluded 0. Every rule was counted on main before it was made to bite and every hit was read: 65 Python sites and 3 JS sites are legal and carry a reason, the two Date rules hit zero. A STALE allow-list entry fails as loudly as a new hit, and the positive controls run on every invocation, so a rule whose pattern breaks cannot read as a clean tree -- NOT_RUN when ast-grep is absent or a scope resolves to zero files, never a pass over nothing."
     }
   }
 }

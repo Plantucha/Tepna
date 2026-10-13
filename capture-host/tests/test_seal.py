@@ -32,6 +32,15 @@ import unseal  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NODE_VERIFIER = os.path.join(os.path.dirname(HERE), "tools", "verify-seals.mjs")
+# IS THIS TREE THE REAL `capture-host/`, or a mutation scratch's copy of it? A mutation scratch is a
+# FLATTENED repo: the tree sits at `<scratch>/work` and mutmut's transformed copy at `work/mutants`,
+# so a path derived repo-relative from `__file__` carries `work` or `mutants` where the checkout says
+# `capture-host`. Measured 2026-10-12 on drain batch 9: `unseal._evidence_path` produced
+# `mutants/tests/vectors/…`, two tests asserting the checkout's spelling failed, mutmut's run stopped
+# at the first failure, and every mutant of the module came back 0 tested. The EXACT spelling is a
+# claim about the checkout; the PROPERTY (the path is repo-relative, not a checkout's absolute path)
+# holds in both, so the tests below assert the property always and the spelling where it is true.
+TREE_IS_REAL = os.path.basename(HERE) == "capture-host"
 EXPECTED = json.load(open(os.path.join(V.VECTOR_DIR, "expected.json")))
 PIN = EXPECTED["boxKeyFingerprint"]
 
@@ -436,6 +445,19 @@ def test_the_commit_field_is_null_outside_a_git_tree_not_a_guess(monkeypatch):
     assert v["producedBy"]["commit"] is None and v["producedBy"]["commitReason"] == VD.NO_GIT_REASON
 
 
+def _in_tree(evidence):
+    """Each evidence path without its first segment — the tree's own name, which a scratch renames."""
+    return [e.split("/", 1)[1] for e in evidence]
+
+
+def _comparable(v):
+    """A verdict without the run's own provenance, and in a scratch without the tree's name either."""
+    out = {k: x for k, x in v.items() if k not in ("at", "producedBy")}
+    if not TREE_IS_REAL:
+        out["evidence"] = _in_tree(out["evidence"])
+    return out
+
+
 def test_the_committed_verdict_sample_is_the_live_object_modulo_provenance():
     """`tools/verdict-adoption.json` reads `verdict-sample.json` as a FILE, because the static CI runner's
     python3 has no `cryptography` and cannot run this reader. A committed object is a claim unless
@@ -445,8 +467,9 @@ def test_the_committed_verdict_sample_is_the_live_object_modulo_provenance():
         committed = json.load(fh)
     assert_valid_verdict(committed)
     live = unseal.verdict_sample()
-    strip = lambda v: {k: x for k, x in v.items() if k not in ("at", "producedBy")}  # noqa: E731
-    assert strip(committed) == strip(live), "the committed sample drifted from the reader — regenerate it ON PURPOSE"
+    assert _comparable(committed) == _comparable(live), (
+        "the committed sample drifted from the reader — regenerate it ON PURPOSE"
+    )
 
 
 def test_evidence_never_carries_a_checkout_s_absolute_path():
@@ -455,10 +478,13 @@ def test_evidence_never_carries_a_checkout_s_absolute_path():
     (a real sealed night under /srv) keeps the path it was given."""
     v = unseal.verdict_sample()
     assert not any(e.startswith(os.sep) for e in v["evidence"]), v["evidence"]
-    assert v["evidence"] == [
-        "capture-host/unseal.py",
-        "capture-host/tests/vectors/tepna-seal-1/TESTBOX0-2026-09-20.tepna",
-    ]
+    expected = ["capture-host/unseal.py", "capture-host/tests/vectors/tepna-seal-1/TESTBOX0-2026-09-20.tepna"]
+    if TREE_IS_REAL:
+        assert v["evidence"] == expected
+    else:
+        # A scratch names the tree `work` or `mutants`. The first segment is the tree's own name, and
+        # the rest is what the relativisation produced — which is the behaviour under test.
+        assert _in_tree(v["evidence"]) == _in_tree(expected), v["evidence"]
     assert unseal._evidence_path("/srv/tepna/sealed/BOX-2026-09-20.tepna") == "/srv/tepna/sealed/BOX-2026-09-20.tepna"
     with open(os.path.join(V.VECTOR_DIR, "verdict-sample.json"), encoding="utf-8") as fh:
         assert not any(e.startswith(os.sep) for e in json.load(fh)["evidence"]), (

@@ -1,0 +1,437 @@
+{
+  "schema": "tepna.astgrep-allow/1",
+  "README": "Written by hand, read by tools/astgrep-gate.mjs. An entry is keyed by rule, file, the matched TEXT normalised to single spaces, and an ORDINAL among identical triples in the file — never a line number, which moves on every edit above it (the absence-ledger key lesson, #3192). An entry whose hit is gone is a STALE EXEMPTION and reds the gate, so a fix cannot leave its licence behind (DEEP-AUDIT-IV §2, where one file-keyed exemption blinded a whole module to Clock Contract §5).",
+  "reasons": {
+    "tally": "A count of events, or a duration summed over them. The key is absent exactly when zero were counted, so the default is the measurement and not a gap — §∅ asks whether the device emitted it or our path manufactured it, and a tally manufactures nothing.",
+    "presence-test": "The default has only to fail a comparison or a truthiness test; the zero never reaches a published number. `p.get(key, 0) > 0` drops a point that lacks the key, and `mutants_bytes > 0` decides whether a reason mentions a size at all.",
+    "invalid-sentinel": "Zero is chosen because it is IMPOSSIBLE for the field, so the consumer refuses: an unknown month name yields month 0, `datetime()` raises ValueError, and the caller leaves `last_sync_utc` absent rather than rolling onto a wrong instant. The comment at the site says so.",
+    "config-default": "A configured value whose zero has a stated meaning at the site — `keep_nights` 0 disables retention, `ftype` 0 is the default PMD frame type. A configuration default is not a measurement.",
+    "protobuf-absent-is-zero": "Protobuf omits a zero-valued field on the wire, so for the TIME fields of a device-clock read, absent means zero by the format’s own rule. The DATE fields on the same line are read by index and not by `.get`, because a year, month or day of zero is impossible — the asymmetry is the honesty.",
+    "canonical-column": "A column index, defaulting to the canonical position of that column in the sidecar the writer emits. Named here because the latent case is real: a sidecar with a renamed header would read column 0 as the stamp rather than report the absence.",
+    "rate-table": "`SAMPLE_HZ` holds 0 for PPI deliberately — per-beat events, never back-timed — so zero is already in band in this table. An unknown measurement type cannot reach the back-timing step: `decode_frame` raises on it before `step_ns` is computed.",
+    "viewport-default": "A chart viewport bound. It draws an axis and publishes no number, and the maximum side of each pair defaults to 1 and to 50, which is what makes the pair a bound rather than a reading.",
+    "counted-zero": "`dawnPhenomenon` omits `nDays` on exactly one path, the early return that fires when no day yielded a dawn window, where the count of qualifying days is genuinely zero — so the default equals the truth. Its sibling `medianRiseMgdl` nulls on that same path because a median over zero days does not exist. Named rather than silent: the early return does not write the field, so a later early return added for a different reason would publish 0 as if days had been examined."
+  },
+  "allow": {
+    "no-nullish-zero": [
+      {
+        "file": "glucodex-app.js",
+        "match": "r.dawn.nDays ?? 0",
+        "ordinal": 0,
+        "why": "counted-zero"
+      },
+      {
+        "file": "glucodex-render.js",
+        "match": "opts.xmn ?? 0",
+        "ordinal": 0,
+        "why": "viewport-default"
+      },
+      {
+        "file": "glucodex-render.js",
+        "match": "opts.ymn ?? 0",
+        "ordinal": 0,
+        "why": "viewport-default"
+      }
+    ],
+    "no-new-date-string": [],
+    "no-date-parse": [],
+    "no-dict-get-zero": [
+      {
+        "file": "capture-host/allan.py",
+        "match": "p.get(\"tau\", 0)",
+        "ordinal": 0,
+        "why": "presence-test"
+      },
+      {
+        "file": "capture-host/allan.py",
+        "match": "p.get(key, 0)",
+        "ordinal": 0,
+        "why": "presence-test"
+      },
+      {
+        "file": "capture-host/allan.py",
+        "match": "p.get(\"tau\", 0)",
+        "ordinal": 1,
+        "why": "presence-test"
+      },
+      {
+        "file": "capture-host/allan.py",
+        "match": "p.get(key, 0)",
+        "ordinal": 1,
+        "why": "presence-test"
+      },
+      {
+        "file": "capture-host/ble_sniff.py",
+        "match": "advertisers.get(want, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/blestats.py",
+        "match": "store.get(key, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/blestats.py",
+        "match": "_ATTEMPTS.get((op, device), 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/blestats.py",
+        "match": "_SUCCESSES.get((op, device), 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/blestats.py",
+        "match": "_ATTEMPTS.get((op, device), 0)",
+        "ordinal": 1,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/blestats.py",
+        "match": "_SUCCESSES.get((op, device), 0)",
+        "ordinal": 1,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "_OXYII_RESTART_TOTAL.get(addr, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "_LINK_EPOCH.get(name, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "_CLOCK_ABSENT.get(name, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "_OXYII_RESTART_TOTAL.get(addr, 0)",
+        "ordinal": 1,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "_pmd_probe_seen.get(meas, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "failed_adrift.get(addr, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "failed_adrift.get(addr, 0)",
+        "ordinal": 1,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "scfg.get(\"keep_nights\", 0)",
+        "ordinal": 0,
+        "why": "config-default"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "pcfg.get(\"ftype\", 0)",
+        "ordinal": 0,
+        "why": "config-default"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "rec.get(\"n\", 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "self.counts.get(key, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "summary.get(\"rounds_committed\", 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/capture.py",
+        "match": "rec.get(\"attempts\", 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/cpap_harvest.py",
+        "match": "st.get(\"reaped\", 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/cpap_inventory.py",
+        "match": "by_state.get(r[\"state\"], 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/cpap_stream_watch.py",
+        "match": "classes.get(cls, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/host_clock.py",
+        "match": "_MONTHS.get(mt.group(1), 0)",
+        "ordinal": 0,
+        "why": "invalid-sentinel"
+      },
+      {
+        "file": "capture-host/loss_audit.py",
+        "match": "out.get(cause, 0.0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/loss_audit.py",
+        "match": "counts.get(t, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/mutation_diff.py",
+        "match": "counts.get(fn, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/mutation_triage.py",
+        "match": "counts.get(f, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/nightqc.py",
+        "match": "tally.get(bucket, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/nightqc.py",
+        "match": "counts.get(v, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/polar_pmd.py",
+        "match": "SAMPLE_HZ.get(meas, 0)",
+        "ordinal": 0,
+        "why": "rate-table"
+      },
+      {
+        "file": "capture-host/polar_pmd.py",
+        "match": "SAMPLE_HZ.get(meas, 0)",
+        "ordinal": 1,
+        "why": "rate-table"
+      },
+      {
+        "file": "capture-host/polar_psftp.py",
+        "match": "tt.get(1, 0)",
+        "ordinal": 0,
+        "why": "protobuf-absent-is-zero"
+      },
+      {
+        "file": "capture-host/polar_psftp.py",
+        "match": "tt.get(2, 0)",
+        "ordinal": 0,
+        "why": "protobuf-absent-is-zero"
+      },
+      {
+        "file": "capture-host/polar_psftp.py",
+        "match": "tt.get(3, 0)",
+        "ordinal": 0,
+        "why": "protobuf-absent-is-zero"
+      },
+      {
+        "file": "capture-host/polar_psftp.py",
+        "match": "tt.get(4, 0)",
+        "ordinal": 0,
+        "why": "protobuf-absent-is-zero"
+      },
+      {
+        "file": "capture-host/ppg_grid_check.py",
+        "match": "deltas.get(ns - prev_ns, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/probe_polar_onboard.py",
+        "match": "fs.get(\"n_sessions\", 0)",
+        "ordinal": 0,
+        "why": "presence-test"
+      },
+      {
+        "file": "capture-host/solid_night_inputs.py",
+        "match": "tally.get(d, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/solid_night_inputs.py",
+        "match": "row_bins.get(b, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/timeline.py",
+        "match": "idx.get(\"Phone timestamp\", 0)",
+        "ordinal": 0,
+        "why": "canonical-column"
+      },
+      {
+        "file": "capture-host/tools/mutate_triage.py",
+        "match": "counts.get(r[\"bucket\"], 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/tools/mutate_triage.py",
+        "match": "counts.get(\"REACHABLE\", 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/tools/mutate_triage.py",
+        "match": "counts.get(\"UNOBSERVABLE\", 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/tools/mutate.py",
+        "match": "out.get(\"mutants_bytes\", 0)",
+        "ordinal": 0,
+        "why": "presence-test"
+      },
+      {
+        "file": "capture-host/tools/mutate.py",
+        "match": "out.get(\"mutants_bytes\", 0)",
+        "ordinal": 1,
+        "why": "presence-test"
+      },
+      {
+        "file": "capture-host/tools/scan_coexistence.py",
+        "match": "secs.get(w[\"state\"], 0.0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/tools/scan_coexistence.py",
+        "match": "v['seconds'].get('off', 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/tools/scan_coexistence.py",
+        "match": "v['seconds'].get('on', 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "c.get(v, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "self._idx.get(channel, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "self._merges.get(channel, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "h.get(n, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "wh.get(n, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "self._warm.get(channel, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "hist.get(ln + 1, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "hist.get(ln, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "self.transitions.get(channel, 0)",
+        "ordinal": 0,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "self._warm.get(c, 0)",
+        "ordinal": 0,
+        "why": "presence-test"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "self._warm.get(channel, 0)",
+        "ordinal": 1,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "self._merges.get(channel, 0)",
+        "ordinal": 1,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "self._idx.get(channel, 0)",
+        "ordinal": 1,
+        "why": "tally"
+      },
+      {
+        "file": "capture-host/writers.py",
+        "match": "self.transitions.get(channel, 0)",
+        "ordinal": 1,
+        "why": "tally"
+      }
+    ]
+  }
+}
