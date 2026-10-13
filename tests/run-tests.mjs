@@ -28,6 +28,16 @@ import {
 } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { classify as qdClassify, pick as qdPick, attention as qdAttention, redLedger as qdRedLedger, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
+import {
+  classify as pwClassify,
+  plan as pwPlan,
+  runIdOf as pwRunIdOf,
+  landingPage as pwLandingPage,
+  CAP as PW_CAP,
+  KODIAK_IDLE_MIN as PW_IDLE_MIN,
+  STALE_PENDING_MIN as PW_STALE_MIN,
+  HOLD_LABEL as PW_HOLD_LABEL
+} from '../tools/pr-walker.mjs';
 import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_ROOT_ZERO_BYTE as commitShapeBaseline } from '../tools/commit-shape.mjs';
 import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
@@ -2976,6 +2986,16 @@ async function main() {
     qdRedLedger: qdRedLedger,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
+    /* pr-walker's PURE core: classify() and plan() decide every action the timer takes on a PR, and
+       the group `tools · pr-walker` pins them with planted snapshots — no `gh`, no clock. */
+    pwClassify: pwClassify,
+    pwPlan: pwPlan,
+    pwRunIdOf: pwRunIdOf,
+    pwLandingPage: pwLandingPage,
+    pwCap: PW_CAP,
+    pwIdleMin: PW_IDLE_MIN,
+    pwStaleMin: PW_STALE_MIN,
+    pwHoldLabel: PW_HOLD_LABEL,
     /* A RESOLVER FOR DECLARED NESTED BINDINGS (`emittedAt` in a registry). The resolvability gate must
        be able to prove a declared path is REAL, or `emittedAt` becomes a second excuse list beside the
        baseline it exists to shrink. Lazily parses the committed node exports (31 files, 1.2 MB) on the

@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — run the PR walker every 90 s
+
+[Timer]
+# 90 s matches Kodiak's own poll; a pass costs a handful of `gh` calls. Not Persistent: a pass missed
+# while the rig was off has nothing to catch up — the next pass reads the live state.
+OnBootSec=2min
+OnUnitActiveSec=90s
+Persistent=false
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

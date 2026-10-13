@@ -504,7 +504,11 @@ export function collect() {
        must say so with a date — a manual entry is a measurement of what a person copied, not of the
        night, and the board says which. Owner, 2026-10-11: "put placeholders in it". */
     solidNights: fileSection('solid-night', 'solid-night.md', 'the streak is computed on the capture box; until it publishes a summary, Kestrel hand-enters it here with a date'),
-    evaluation: todaySection('evaluation', 'evaluation.md', 'Kestrel writes this file; the board only reads it')
+    evaluation: todaySection('evaluation', 'evaluation.md', 'Kestrel writes this file; the board only reads it'),
+    /* The PR walker (tools/pr-walker.mjs, under tepna-pr-walker.timer) writes landing.md every pass:
+       one line per open PR with its state, the actions it took, and an ALERT line for every PR it can
+       no longer move (red after a rerun, a hand rebase, a stuck or stale required check). */
+    landing: fileSection('landing', 'landing.md', 'tools/pr-walker.mjs writes it every pass; absent until the timer is installed')
   };
   const banners = [];
   const cib = ciBanner(ci.ok ? ci.runs : null);
@@ -671,6 +675,7 @@ ${sec(
   b.banners.some((x) => x.level === 'red' && /release/i.test(x.why))
 )}
 ${sec('open PRs · walker', prBody, !b.prs.ok)}
+${sec('landing · pr-walker', b.landing.ok ? `<pre>${esc(b.landing.text)}</pre>` : unread(b.landing), b.landing.ok && /^ALERT /m.test(b.landing.text))}
 ${sec(
   'main CI',
   ciBody,
@@ -745,7 +750,8 @@ function runSelftest() {
     ownerDecisions: { ok: false, reason: 'o' },
     rule0: { ok: false, reason: 'x' },
     solidNights: { ok: false, reason: 's' },
-    evaluation: { ok: false, reason: 'e' }
+    evaluation: { ok: false, reason: 'e' },
+    landing: { ok: false, reason: 'l' }
   });
   ok(/not read —/.test(html) && !/>0</.test(html.replace(/width:0%/g, '')), 'an all-unread board renders "not read", never a 0');
   /* A hand-entered solid-night file renders its text (its first line names itself MANUAL with a date),
@@ -764,7 +770,8 @@ function runSelftest() {
     ownerDecisions: { ok: false, reason: 'o' },
     rule0: { ok: false, reason: 'x' },
     solidNights: { ok: true, text: 'MANUAL ENTRY (Kestrel, 2026-10-11) streak: 3', bytes: 40 },
-    evaluation: { ok: false, reason: 'e' }
+    evaluation: { ok: false, reason: 'e' },
+    landing: { ok: false, reason: 'l' }
   });
   const solidSec = htmlManual.split('solid-night streak')[1]?.split('</section>')[0] ?? '';
   ok(/MANUAL ENTRY \(Kestrel, 2026-10-11\) streak: 3/.test(solidSec) && !/not read —/.test(solidSec), 'a hand-entered solid-night file renders its text, and that section no longer reads as absent');
@@ -784,7 +791,8 @@ function runSelftest() {
         ownerDecisions: { ok: false, reason: 'o' },
         rule0: { ok: false, reason: 'x' },
         solidNights: { ok: false, reason: 's' },
-        evaluation: { ok: false, reason: 'e' }
+        evaluation: { ok: false, reason: 'e' },
+        landing: { ok: false, reason: 'l' }
       })
     ),
     'every interpolated value is escaped — the board reads PR titles and journal text'
