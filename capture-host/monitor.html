@@ -3790,7 +3790,17 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive, heartbe
       // outage used to make QC discard the pre-outage half and grade the remainder green
       // (CAPTURE-HOST-DEEP-AUDIT §A2).
       val = 'Partial night';
-      sub = esc(holes.join(' · ')) || 'an earlier session is excluded from these numbers';
+      // THE BOUND TRAVELS WITH THE COUNT. The Nights view shows a per-stream `N fragments` from a
+      // DIFFERENT measure — row-to-row holes wider than that file's own `gap_s`, inside ONE FILE — and
+      // on 09-28 the pair read `no gaps in the night` and `2 fragments` for one stream, both correct,
+      // with nothing on either surface saying they answer different questions (residue
+      // 2026-09-29-two-gap-measures-one-surface). No published bound ⇒ no clause, never a typed 60 min.
+      const gb = qc.gaps_bound_s;
+      const bound = typeof gb === 'number' && Number.isFinite(gb)
+        ? ' · a session splits at a gap over ' + Math.round(gb / 60) + ' min or at a daemon restart'
+          + '; a stream\u2019s fragment count measures row holes inside one file'
+        : '';
+      sub = (esc(holes.join(' · ')) || 'an earlier session is excluded from these numbers') + bound;
     }
     cards.push(`<div class="ov-stat" style="border-left-color:${between?'var(--border2)':(ok?'var(--status-ok)':'var(--status-caution)')}">
       <div class="lab">Tonight (QC)</div>

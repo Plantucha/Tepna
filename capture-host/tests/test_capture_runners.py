@@ -9668,6 +9668,10 @@ def test_run_oxyii_a_ring_on_its_charger_records_nothing_and_leaves_no_files(tmp
     assert said == ["Ring: on its charger — not recording"], said
     st = capture.STATUS["devices"]["Ring"]
     assert st["charging"] is True and st["worn"] is False
+    # THE FLAG TRAVELS WITH WHAT OBSERVED IT (§∅, telemetry.ring_charging). The ring's own byte is the
+    # strongest dock evidence here, and before this it was published as a bare True — indistinguishable
+    # from the Polars' inferred flags, which have always named their reason.
+    assert st["charging_why"] == "ring-batt-state"
 
 
 def test_run_oxyii_a_LOW_battery_on_the_finger_is_not_a_dock_and_keeps_recording(tmp_path, monkeypatch):
@@ -9683,6 +9687,9 @@ def test_run_oxyii_a_LOW_battery_on_the_finger_is_not_a_dock_and_keeps_recording
     _run(capture.run_oxyii(_o2dev(address=_SYN_RING), str(tmp_path)))
     assert [r["batt_state"] for r in _oxyframe_rows(tmp_path)] == ["3", "3"]
     assert capture.STATUS["devices"]["Ring"]["charging"] is False
+    assert capture.STATUS["devices"]["Ring"]["charging_why"] == "ring-batt-state", (
+        "a MEASURED not-docked names the byte it read — an absent reason would mean nobody looked"
+    )
 
 
 def test_run_oxyii_off_the_finger_past_the_grace_stops_writing_and_resumes_on_contact(tmp_path, monkeypatch):
