@@ -75,7 +75,17 @@
  * fallback is the `grep` you would have run anyway.
  *
  *   node tools/doc-search.mjs "has anyone measured the equivalent mutant ceiling?"
+ *   node tools/doc-search.mjs --no-map "…"      # without the repo-map lines (see below)
  *   node tools/doc-search.mjs --selftest
+ *
+ * ── THE REPO-MAP LINE (owner: "wire all three", 2026-10-12) ─────────────────────────────────────
+ * After the hits, one line per distinct CODE file among them, naming what that file declares and
+ * what it exposes — the two sets differ, and the gap is where a session loses time. The line is read
+ * from the map `tools/repo-map.mjs --write` wrote, never rebuilt: a full scan costs 0.9 s against a
+ * ~1 s answer. A file whose bytes no longer hash to the map's entry gets NO line, and the search
+ * says how many it suppressed, so a stale symbol list can never be read as current. `--brief` keeps
+ * the line; `--no-map` is the output as it was. A brief, a `docs/` page and an `ext:` path get no
+ * line and no note.
  *
  * ── EXTERNAL ROOTS — reference trees OUTSIDE the repo (owner-ordered 2026-09-06)
  * The repo's own answer is not the only one worth ranking: a device's wire behaviour is often
@@ -216,7 +226,7 @@ export function readChunk(text, cap = READ_CHARS) {
 
 /* The CLI flags this tool understands, stripped from the query words. Exported so the selftest can
    pin that a flag never leaks into the embedded query (it did once as a token-fallback term). */
-export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic', '--brief', '--rerank', '--no-rerank']);
+export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic', '--brief', '--rerank', '--no-rerank', '--no-map']);
 export function stripFlags(argv) {
   return (argv || []).filter((a) => !CLI_FLAGS.has(a));
 }
@@ -270,6 +280,33 @@ export function readWarningLines(brief = false) {
     '    because a plausible summary of a brief nobody opens is the failure it exists to prevent.',
     ''
   ];
+}
+
+/* ── THE REPO-MAP LINE (owner: "wire all three", 2026-10-12) ─────────────────────────────────────
+   A tool nothing points at goes unused, and every session passes through Rule 0 several times a day
+   — so the map that answers "what does this file declare, and what does it expose" prints beside the
+   paths it describes. Four properties, each deliberate:
+     · THE MAP IS READ, NEVER BUILT. A full scan costs 0.9 s against a ~1 s answer, so a search that
+       rebuilt it would double its own cost. `node tools/repo-map.mjs --write` writes it; a search
+       with no map says so once and prints no line.
+     · DYNAMICALLY IMPORTED AND FAIL-SILENT, the board's rule (see the footer below): a broken or
+       absent map must never cost a caller their search result.
+     · `--brief` KEEPS THE LINE. The short form drops the passage, which is the long part; the map
+       line is the one thing a path list alone cannot tell you, so shortening the output is no reason
+       to withhold it. A selftest pins that neither call site is conditioned on the brief flag.
+     · NOT ON A REFUSAL. When both halves fall below the floor, `render` says the paths are "weak best
+       guesses, for reference only, not evidence" — a symbol list under that banner invites reading
+       exactly what the banner disclaims. `--no-map` is the old output for a caller who wants it. */
+export function wantsMap(argv) {
+  return !(argv || []).includes('--no-map');
+}
+async function printMapLines(paths) {
+  try {
+    const { mapBlock } = await import('./repo-map.mjs');
+    for (const line of mapBlock(paths, { root: ROOT })) console.log(line);
+  } catch {
+    /* intentionally silent — a map is a reference, never a reason a search fails */
+  }
 }
 
 export function rank(queryVec, entries, query, topN = 8) {
@@ -1079,6 +1116,23 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('the reranker floor is the default', wantRerank(['node', 'x', 'q']) === true && wantRerank(['--rerank', 'q']) === true);
   ok('--no-rerank asks for the old floor', wantRerank(['--no-rerank', 'q']) === false);
   ok('--no-rerank is a flag, never a query word', stripFlags(['--no-rerank', 'q']).join(' ') === 'q');
+  /* ── THE REPO-MAP LINE: the flag, and that nothing was forgotten ─────────────────────────────────
+     The four states of the line itself are pinned where the renderer lives (`repo-map.mjs --selftest`,
+     with a literal map and an injected read, so they need no map on this box). What belongs HERE is
+     the wiring: a flag that never reaches the query, both lanes printing it, and the short form
+     keeping it. A map printed on the fallback lane only would be invisible to every default search. */
+  ok('the map prints by default', wantsMap(['node', 'x', 'q']) === true);
+  ok('--no-map asks for the old output', wantsMap(['--no-map', 'q']) === false);
+  ok('--no-map is a flag, never a query word', stripFlags(['--no-map', 'seam']).join(' ') === 'seam');
+  ok('--no-map does not change which lane answers', searchLane(['--no-map', 'q']) === 'hybrid');
+  {
+    const src = readFileSync(new URL(import.meta.url), 'utf-8');
+    const calls = (src.match(/await printMapLines\(/g) || []).length;
+    ok('BOTH lanes print the map block, not just one', calls === 2, `found ${calls} call(s) to printMapLines`);
+    ok('…and the hybrid lane does not print it over a refusal (the paths there are disclaimed)', /!out\.refused\) await printMapLines/.test(src));
+    const guarded = (src.match(/^.*printMapLines\(.*$/gm) || []).filter((l) => /\bbrief\b/.test(l));
+    ok('--brief KEEPS the map line (neither call site is conditioned on the brief flag)', guarded.length === 0, guarded.join(' | '));
+  }
   ok(
     '--brief keeps the paths-not-an-answer warning in one line',
     readWarningLines(true).filter((l) => l.includes('PATHS TO READ')).length === 1 && readWarningLines(true).filter(Boolean).length === 1
@@ -1116,13 +1170,14 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   if (lane !== 'semantic') {
     const q = stripFlags(process.argv.slice(2)).join(' ').trim();
     if (!q) {
-      console.error('usage: node tools/doc-search.mjs [--hybrid|--semantic] [--read] [--brief] [--no-rerank] "<what you are trying to find>"');
+      console.error('usage: node tools/doc-search.mjs [--hybrid|--semantic] [--read] [--brief] [--no-rerank] [--no-map] "<what you are trying to find>"');
       process.exit(2);
     }
     const xq = await import('./xerj-query.mjs');
     try {
       const out = await withTimeout(xq.hybridSearch({ query: q, rerank: wantRerank(process.argv) }), HYBRID_TIMEOUT_MS, 'hybrid index');
       process.stdout.write(`${xq.render(out, q, { brief })}\n`);
+      if (wantsMap(process.argv) && !out.refused) await printMapLines(out.hits.map((h) => h.path));
       for (const line of readWarningLines(brief)) console.log(line);
       stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, q);
       process.exit(0);
@@ -1141,7 +1196,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   const argv = stripFlags(process.argv.slice(2));
   const query = argv.join(' ').trim();
   if (!query) {
-    console.error('usage: node tools/doc-search.mjs [--read] [--brief] [--no-ext|--ext-only] [--pull-ext] "<what you are trying to find out>"');
+    console.error('usage: node tools/doc-search.mjs [--read] [--brief] [--no-ext|--ext-only] [--pull-ext] [--no-map] "<what you are trying to find out>"');
     process.exit(2);
   }
   if (pullExt && scope !== 'repo') {
@@ -1176,6 +1231,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
       console.log(readChunk(h.text, READ_CHARS));
     }
   }
+  if (wantsMap(process.argv)) await printMapLines(hits.map((h) => h.file));
   for (const line of readWarningLines(brief)) console.log(line);
   /* The stamp the edit guard reads (see SESSION STAMP above). After the hits, so a refused or
      crashed search leaves nothing — a stamp is evidence a search RAN, never that one was attempted. */
