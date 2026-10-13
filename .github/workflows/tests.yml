@@ -223,7 +223,7 @@ jobs:
       # ⚠ UPDATED 2026-10-13: "report loudly here" reported to nobody. On #3543 this step printed all
       # 19 fixtures by name as UNVERIFIED and the run still concluded `success`, so `gh pr checks` read
       # 25 pass and no reviewer saw a word of it. `npm run check` now runs the same command as its own
-      # step 33 (`verify:fixture-currency`), which is BLOCKING — the author has the corpus, so the
+      # `verify:fixture-currency` step, which is BLOCKING — the author has the corpus, so the
       # author's gate is where a red can be acted on. This step stays informational for exactly the
       # reason above, and the two must change together.
       - name: Fixture verification — unverified reproducibility claims (informational)

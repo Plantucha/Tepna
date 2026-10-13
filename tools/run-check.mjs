@@ -25,9 +25,10 @@
  * compare them once `check` calls this file. The selftest asserts every name here resolves to a real
  * npm script, so a typo fails loudly instead of silently never running.
  *
- * STEP 33 `verify:fixture-currency` IS BLOCKING HERE AND INFORMATIONAL IN CI, DELIBERATELY. The
- * comparison it runs — each fixture's `verifiedUnder` against the `computeHash` of the bundle on
- * disk — is `tools/verify-fixtures.mjs --check`, and it has run in `tests.yml` under
+ * THE STEP `verify:fixture-currency` IS BLOCKING HERE AND INFORMATIONAL IN CI, DELIBERATELY. (It is
+ * named, not numbered: the list below grows, and a comment naming a position goes stale with nothing
+ * reading it.) The comparison it runs — each fixture's `verifiedUnder` against the `computeHash` of
+ * the bundle on disk — is `tools/verify-fixtures.mjs --check`, and it has run in `tests.yml` under
  * `continue-on-error: true` all along, because an outside contributor has no corpus to FIX a red
  * with. Measured 2026-10-13 on #3543 (residue
  * `2026-10-13-the-fixture-currency-check-runs-where-nobody-reads-it`): an edit to `dex-export.js`
