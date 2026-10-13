@@ -9223,6 +9223,24 @@
       );
       T.ok('the digest reads the same list', /COMPUTE_MODULES\.map\(\(f\) => join\(ROOT, f\)\)/.test(tb), 'the digest must derive from the same array; a private copy reintroduces the drift');
 
+      /* ── a module's declared prerequisite loads BEFORE it ─────────────────────────────────────── */
+      /* 🔴 MEASURED 2026-10-13: #3543 made `dexScrubExport` REFUSE without `export-schema.js` in the realm,
+         and listed the pair in tests/run-tests.mjs but not here. The fold timer's next run (82 nights,
+         origin/main 6db3b3bc9) then threw `scrubExport needs the shared allow-list` on every ECGDex, PpgDex,
+         PpgDexFinger and OxyDex export while the trio verdict still read PASS — the criterion is overlap
+         hours, so the lost exports were visible only in the per-night log. The prerequisite is a fact
+         about dex-export.js, so the leg reads the pair, not a position. */
+      var iSchema = mods.indexOf('export-schema.js');
+      var iExport = mods.indexOf('dex-export.js');
+      T.ok('dex-export.js is in the closure', iExport >= 0, 'the fold scrubs every export through dexScrubExport, so the realm must carry it');
+      T.ok(
+        'export-schema.js loads before dex-export.js',
+        iSchema >= 0 && iSchema < iExport,
+        iSchema < 0
+          ? 'export-schema.js is absent from COMPUTE_MODULES — dexScrubExport throws on every export in the headless fold'
+          : 'export-schema.js is listed after dex-export.js (' + iSchema + ' vs ' + iExport + ')'
+      );
+
       /* ── the orchestrator's own text is OUTSIDE ────────────────────────────────────────────────── */
       var digest = tb.slice(tb.indexOf('const CODE_DIGEST'), tb.indexOf('const inputDigest'));
       /* 🔴 COMMENTS STRIPPED BEFORE SCANNING, and the first version of this leg failed without them: the
@@ -9261,12 +9279,12 @@
          equality so a future second literal is caught rather than inferred from the single-declaration
          check alone. */
       T.eq(
-        'the closure is exactly the eight modules the realm loads',
+        'the closure is exactly the nine modules the realm loads',
         mods.slice().sort().join(','),
-        ['clock.js', 'dex-export.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'kernel-constants.js', 'oxydex-dsp.js', 'oxydex-util.js', 'ppgdex-dsp.js'].sort().join(','),
+        ['clock.js', 'kernel-constants.js', 'export-schema.js', 'dex-export.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'oxydex-dsp.js', 'oxydex-util.js', 'ppgdex-dsp.js'].sort().join(','),
         'the compute closure changed. If a module was ADDED to the fold, add it here deliberately; if one was removed, the stamps it justified are stale in the other direction.'
       );
-      T.ok('the closure is not trivially small', mods.length >= 8, mods.length + ' modules — a shrunken list would blind the stamp, which is the direction that ships silently');
+      T.ok('the closure is not trivially small', mods.length >= 9, mods.length + ' modules — a shrunken list would blind the stamp, which is the direction that ships silently');
     });
 
     group('trio-batch forwards its night-selection flags to the child', 'trio-batch · cli-plumbing', function (T) {
@@ -73009,6 +73027,31 @@
       T.eq('…and the kurtosis', out.spo2Kurt, 88.31);
       T.eq('…so the night is still read as event-laden', out.spo2KurtLabel, 'Leptokurtic (heavy tails/events)');
       T.eq('…and all 1000 seconds count as measured', out.nMeasured + '/' + out.nTotal, '1000/1000');
+    });
+
+    /* ── CLAUDE.md §👥.4 option 3 — an `EXIT=` sentinel dies WITH its writer (residue
+       2026-09-22-sentinel-waiter-outlives-its-producer). `( cmd ; echo "EXIT=$?" ) &` survives the CHILD
+       dying but not the SUBSHELL being SIGKILLed (§4c's watchdog): the line is never written and a bare
+       `until grep -q '^EXIT='` polls forever — measured 2 h 08 min. The prescription must carry its own
+       liveness bound. Node-lane only (env.claudeMdClaims.claudeMd is the file's text). */
+    group('CLAUDE.md §👥.4 — the EXIT= sentinel carries a liveness guard', 'docs · claude-md · sentinel', function (T) {
+      var C = env.claudeMdClaims;
+      if (!C || typeof C.claudeMd !== 'string') {
+        T.skip('env.claudeMdClaims provided to the runner', 'Node-lane only — wire env.claudeMdClaims (run-tests.mjs readClaudeMdClaims)');
+        return;
+      }
+      var md = C.claudeMd;
+      var a = md.indexOf('3. **Sentinel you control**');
+      var b = a < 0 ? -1 : md.indexOf('**The same self-match KILLS**', a);
+      T.ok('the option-3 item is found in §👥.4 (else this scan examined nothing)', a >= 0 && b > a, 'a=' + a + ' b=' + b);
+      if (!(a >= 0 && b > a)) return;
+      var opt3 = md.slice(a, b);
+      T.ok('option 3 is KEPT: a sentinel still outlives a waiter that starts after the producer', /until grep -q '\^EXIT='/.test(opt3) || /grep -q '\^EXIT='/.test(opt3));
+      T.ok('option 3 names the failure: the sentinel is never written when the subshell is SIGKILLed', /SIGKILL|kill -9/.test(opt3) && /forever|never/i.test(opt3));
+      T.ok('option 3 carries a PID guard beside the sentinel for the waiter that launched the producer', /kill -0 "\$PID"/.test(opt3) && /PID=\$!/.test(opt3), 'no `kill -0 "$PID"` guard in option 3');
+      T.ok('option 3 carries a deadline for a waiter in a DIFFERENT shell (no $PID there)', /for _ in \$\(seq \d+\)/.test(opt3) || /\btimeout\b/.test(opt3), 'no bounded loop / timeout in option 3');
+      var opt2 = md.slice(md.indexOf('2. **Own the PID**'), a);
+      T.ok('option 2 (own the PID) is untouched and still yields the exit code', /kill -0 "\$PID"/.test(opt2) && /wait "\$PID"; echo "EXIT=\$\?"/.test(opt2));
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that

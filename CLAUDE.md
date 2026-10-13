@@ -145,11 +145,19 @@ until ! pgrep -f "pytest -q --cov"; do sleep 20; done      # ← NEVER EXITS: ma
    while kill -0 "$PID" 2>/dev/null; do sleep 20; done
    wait "$PID"; echo "EXIT=$?"
    ```
-3. **Sentinel you control** — the `&` is load-bearing:
+3. **Sentinel you control** — the `&` is load-bearing. ⚠️ A sentinel dies WITH its writer: `kill -9` on
+   the subshell (§4c's watchdog) leaves 0 sentinel lines and a bare `until grep` polls forever (measured
+   2026-09-22: 2 h 08 min). Guard it — a PID if YOU launched it, a deadline if you did not:
    ```sh
-   ( pytest … ; echo "EXIT=$?" ) > /tmp/mine.$$.log 2>&1 &
-   until grep -q '^EXIT=' /tmp/mine.$$.log; do sleep 20; done
+   ( pytest … ; echo "EXIT=$?" ) > /tmp/mine.$$.log 2>&1 & PID=$!   # same shell: PID guard beside the sentinel
+   until grep -q '^EXIT=' /tmp/mine.$$.log || ! kill -0 "$PID" 2>/dev/null; do sleep 20; done
+   grep '^EXIT=' /tmp/mine.$$.log || echo "producer died with no sentinel"   # a dead waiter is not a pass
+   # DIFFERENT shell (no $PID — only the sentinel outlives the producer): sentinel + deadline, e.g.
+   for _ in $(seq 180); do grep -q '^EXIT=' /tmp/mine.log && break; sleep 20; done   # 1 h cap
    ```
+   Keep BOTH forms: the PID guard needs a `$PID` only the launching shell has, the sentinel is all a
+   later or different-shell waiter can read but cannot see a producer SIGKILLed before it wrote — and a
+   deadline cannot tell dead from slow.
 
 **The same self-match KILLS**: any list-then-act line whose text contains its pattern (`pkill -f x`,
 `for p in $(pgrep -f x)…`, a `case` label, a `/proc` scan into `xargs kill`) acts on itself — tell: exit
