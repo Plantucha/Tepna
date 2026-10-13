@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
+import signal
 
 # How long to wait for a killed child to actually die before giving up on reaping it. SIGKILL is not
 # refusable, but a process in uninterruptible sleep (a hung USB/BLE ioctl — precisely what these
@@ -42,13 +44,44 @@ async def communicate(proc, timeout: float, stdin: bytes | None = None) -> tuple
         raise
 
 
+def _leads_own_group(pid) -> bool:
+    """True only when `pid` is a REAL, POSITIVE pid that LEADS a process group which is not ours.
+
+    `os.killpg` on a child started WITHOUT `start_new_session=True` reaches the group it was born into,
+    which is the daemon's own — so the group is signalled only when the child leads one. A pid of 0 is
+    not "no pid": `os.killpg(0, sig)` addresses the CALLER's group, so it is refused here outright (a
+    double or a half-built proc object must fail safe, not reap the daemon). Same guard, same reason, as
+    `mutation_diff.kill_process_group`."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return False
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:  # ProcessLookupError is a subclass: already gone and reaped
+        return False
+    return pgid == pid and pgid != os.getpgrp()
+
+
 async def kill(proc) -> None:
-    """Kill a child and reap it. Never raises: teardown must not become a new failure mode.
+    """Kill a child — and, when the child LEADS its own process group, every descendant in it — then reap.
+    Never raises: teardown must not become a new failure mode.
+
+    `proc.kill()` signals the direct child only, so a child that forks leaves the daemon's own orphans
+    (`TOOL-BUILD-STANDARD` §2.3: SIGKILL to the parent must end "every worker, thread and child").
+    A child that was spawned with `start_new_session=True` leads its own group, and then the whole group
+    is signalled. A child that does NOT lead one is killed alone, exactly as before: signalling its
+    "group" would be OUR group. So this is the helper half of the fix; it only reaches descendants for a
+    caller that spawns in its own session.
 
     The reap is not optional. Without `await proc.wait()` the killed child stays a zombie in the
     process table for the daemon's lifetime — which for a unit that is `Restart=always` with no
     `RuntimeMaxSec` means months."""
-    with contextlib.suppress(ProcessLookupError, OSError, ValueError):
-        proc.kill()
+    signalled_group = False
+    if _leads_own_group(getattr(proc, "pid", None)):
+        with contextlib.suppress(OSError):
+            os.killpg(proc.pid, signal.SIGKILL)
+            signalled_group = True
+    if not signalled_group:  # not a leader, or the group signal was refused: the child alone, as before
+        with contextlib.suppress(ProcessLookupError, OSError, ValueError):
+            proc.kill()
     with contextlib.suppress(Exception):
         await asyncio.wait_for(proc.wait(), _REAP_S)

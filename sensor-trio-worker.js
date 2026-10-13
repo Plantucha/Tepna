@@ -1097,7 +1097,19 @@ async function runRealNight(m) {
       var _co = Oconf && Oconf.has(ks[i]) ? Oconf.get(ks[i]) : 1;
       cO.push(Number.isFinite(_co) ? _co : 1);
     }
-    var s = tchSigmasFused(hh, vv, oo, cH, cV, cO); // fused-weight hat (per-corner DSP confidence)
+    /* D7 option A — owner's pick 2026-10-12, TCH-FUSED-DEGENERACY-MECHANISM §5: the CANONICAL point is
+       the UNWEIGHTED artifact-robust hat. The fused-weight hat is RETIRED TO A DIAGNOSTIC: it still runs
+       beside the point and still ships, labelled, but it is never the published σ.
+       Measured over the 90-night trio corpus (tools/tch-fused-corpus.mjs, 2026-10-12): the fused hat
+       nulls the Verity corner on 25 of 90 nights and the unweighted hat nulls the H10 corner on 3, so
+       the weighting COSTS 22 corner-nights; neither estimator trips the Verity quality gate or the H10
+       lead gate on any of the 90, so re-pointing changes no night's skip decision.
+       The confidences are still read — they weight the diagnostic and are reported as per-corner means
+       on the page — they no longer weight the number anyone quotes. */
+    var s = tchSigmas(hh, vv, oo);
+    // §∅: no confidence array arrived ⇒ the fused hat has nothing to weight with, so the diagnostic is
+    // null, not an equal-weight copy of the point wearing the fused name.
+    var sFused = Hconf || Vconf || Oconf ? tchSigmasFused(hh, vv, oo, cH, cV, cO) : null;
     var rHV = pearson(hh, vv),
       rHO = pearson(hh, oo),
       rVO = pearson(vv, oo);
@@ -1141,6 +1153,10 @@ async function runRealNight(m) {
     var h10Cls = h10FailureClass(s.h10, rHO, rHV, rVO);
     if (h10Cls !== 'ok') s.h10 = null;
     seed(m.seed >>> 0 || 0x51f0);
+    /* blockCI resamples the UNWEIGHTED hat, which since D7 option A is also the point — so this path's
+       point and CI run one estimator. They did not before: the point was fused here while blockCI was
+       classic, a latent F16 inconsistency that reached nothing, because both live callers pass
+       `wantSeries` and take the nightDerive CI instead. */
     var ci = m.wantSeries ? null : blockCI(hh, vv, oo, 400);
     // Keep the CI consistent with the point estimate: a corner whose full-window σ is null (TCH-negative,
     // or gated H10) must not carry a bootstrap CI (individual resamples can still land positive). This also
@@ -1157,6 +1173,10 @@ async function runRealNight(m) {
       o2Source: osrc,
       sigma: { o2: s.o2, h10: s.h10, verity: s.verity },
       neg: s.neg,
+      estimator: 'classic', // the unweighted hat, in the kernel's own vocabulary (AnalysisStats.tchBlockBootstrapCI)
+      /* The retired fused-weight hat, carried as a DIAGNOSTIC so the degeneracy stays visible on the page
+         next to the number it no longer produces. Read by sensor-trio-night.js's method KPI. */
+      fusedDiag: sFused ? { o2: sFused.o2, h10: sFused.h10, verity: sFused.verity, neg: sFused.neg } : null,
       h10Unreliable: h10Cls !== 'ok',
       h10Fault: h10Cls !== 'ok' ? h10Cls : null,
       ci: ci,
@@ -1191,7 +1211,7 @@ async function runRealNight(m) {
       out.cH = cH;
       out.cV = cV;
       out.cO = cO;
-    } // aligned per-second series + per-corner fused-hat confidence for the sigma-no-reference tool
+    } // aligned per-second series + per-corner DSP confidence (the fused diagnostic's weights, and the page's confidence means)
     return out;
   } catch (e) {
     return { skip: true, reason: (e && e.message) || String(e) };
@@ -1243,19 +1263,13 @@ self.onmessage = function (ev) {
         self.postMessage({ type: 'done', reqId: m.reqId, error: 'nightDerive: series missing or unequal' });
         return;
       }
-      // DEEP-AUDIT-VI F16 (PR #2070): the CI's estimator FOLLOWS the point's. runRealNight solved this night
-      // with the FUSED hat (tchSigmasFused — per-corner DSP confidence and the Tukey consensus trust), so every
-      // replicate resamples the confidences in LOCKSTEP with the same block indices and runs the same estimator,
-      // and so does every running prefix (the last one must equal the point). Classic only when no confidence
-      // arrays came back — then the point was classic too. Mirrors AnalysisStats.tchBlockBootstrapCI, which
-      // this worker cannot import; 30-s blocks and ≥20 replicates as blockCI above.
-      var cH = m.cH || null,
-        cV = m.cV || null,
-        cO = m.cO || null,
-        fused = !!(cH && cV && cO);
-      var hatOn = function (a, b, c, x, y, z) {
-        return fused ? tchSigmasFused(a, b, c, x, y, z) : tchSigmas(a, b, c);
-      };
+      /* DEEP-AUDIT-VI F16 (PR #2070): the CI's estimator FOLLOWS the point's — and since D7 option A
+         (owner's pick 2026-10-12) runRealNight's point is the UNWEIGHTED hat, every replicate and every
+         running prefix runs tchSigmas, with no confidence to resample in lockstep and no branch left to
+         drift. The last running prefix must still equal the point. The confidences still arrive and are
+         still reported as per-corner means below; they weight nothing that is published.
+         Mirrors AnalysisStats.tchBlockBootstrapCI, which this worker cannot import; 30-s blocks and
+         ≥20 replicates as blockCI above. */
       var B = m.B || 400,
         n = hh.length,
         bl = Math.min(n, 30),
@@ -1267,24 +1281,16 @@ self.onmessage = function (ev) {
       for (bi = 0; bi < B; bi++) {
         var H = [],
           V = [],
-          O = [],
-          CH = fused ? [] : null,
-          CV = fused ? [] : null,
-          CO = fused ? [] : null;
+          O = [];
         for (kk = 0; kk < nb; kk++) {
           var st = Math.floor(rnd() * (n - bl + 1));
           for (j = 0; j < bl; j++) {
             H.push(hh[st + j]);
             V.push(vv[st + j]);
             O.push(oo[st + j]);
-            if (fused) {
-              CH.push(cH[st + j]);
-              CV.push(cV[st + j]);
-              CO.push(cO[st + j]);
-            }
           }
         }
-        var sb = hatOn(H, V, O, CH, CV, CO);
+        var sb = tchSigmas(H, V, O);
         for (var di = 0; di < DKEYS.length; di++) {
           if (sb[DKEYS[di]] != null) acc[DKEYS[di]].push(sb[DKEYS[di]]);
         }
@@ -1299,14 +1305,11 @@ self.onmessage = function (ev) {
       var stepS = Math.max(60, m.stepSec || 300),
         running = [],
         e;
-      var prefix = function (arr, k) {
-        return arr ? arr.slice(0, k) : null;
-      };
       for (e = stepS; e < hh.length; e += stepS) {
-        var sp = hatOn(hh.slice(0, e), vv.slice(0, e), oo.slice(0, e), prefix(cH, e), prefix(cV, e), prefix(cO, e));
+        var sp = tchSigmas(hh.slice(0, e), vv.slice(0, e), oo.slice(0, e));
         running.push({ n: e, o2: sp.o2, h10: sp.h10, verity: sp.verity, neg: sp.neg });
       }
-      var sf = hatOn(hh, vv, oo, cH, cV, cO);
+      var sf = tchSigmas(hh, vv, oo);
       running.push({ n: hh.length, o2: sf.o2, h10: sf.h10, verity: sf.verity, neg: sf.neg });
       var dHV = [],
         dHO = [],
