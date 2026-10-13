@@ -16,6 +16,19 @@
 
    Exposes window.NSRR.
    ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── NSRR DATA ACKNOWLEDGEMENT (data access and use agreement §11, §16) ───────────────────────
+   Where this file names an SHHS-measured number: the Sleep Heart Health Study data were obtained
+   through the National Sleep Research Resource (NSRR) under its data access and use agreement.
+   Publications and presentations of those numbers carry the line
+   "NSRR R24 HL114473: NHLBI National Sleep Research Resource" and cite the SHHS references listed
+   on its NSRR page. Results of the analysis may be published; no part or excerpt of the Data
+   appears here.
+     · Quan SF, Howard BV, Iber C, et al. The Sleep Heart Health Study: design, rationale, and
+       methods. Sleep. 1997;20(12):1077–85. doi:10.1093/sleep/20.12.1077
+     · Zhang GQ, Cui L, Mueller R, et al. The National Sleep Research Resource: towards a sleep
+       data commons. J Am Med Inform Assoc. 2018;25(10):1351–1358. doi:10.1093/jamia/ocy064
+   Clause source: the signed agreement, §11 and §16. Cohort page: `docs/SHHS-COHORT-REFERENCE.md`. */
 (function (root) {
   'use strict';
 
@@ -65,8 +78,8 @@
      became a FLAT RUN of the previous saturation for as long as it lasted, and a wholly-invalid
      channel was seeded with a hardcoded `97` (or `60` for HR) — a fabricated saturation and a
      fabricated heart rate. Measured 2026-09-12 over the first 15 SHHS1 records: mean 2.76 % of SaO₂
-     samples invalid, and shhs1-200001 held ONE value across 3840 s — 64 minutes of flat, invented
-     trace. During a hold no desaturation can be detected there and the rolling baseline is
+     samples invalid, and one record held ONE value across an unbroken run over an hour long — a
+     flat, invented trace. During a hold no desaturation can be detected there and the rolling baseline is
      contaminated by a run that never happened, so ODI-3/ODI-4 and every AHI estimate derived from
      them were computed partly over data that does not exist.
 

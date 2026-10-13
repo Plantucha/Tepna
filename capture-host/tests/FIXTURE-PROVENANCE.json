@@ -536,6 +536,12 @@
       "source": "real device address(es) D1:98:62:7C:92:B3; was: stamps and bytes built in the test; no provenance claim in the file",
       "sha256": null
     },
+    "test_qc_child.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "stamps and bytes built in the test; no provenance claim in the file",
+      "sha256": null
+    },
     "test_qc_scope_resolution.py": {
       "class": "captured",
       "kind": "real-night-values+device-address",

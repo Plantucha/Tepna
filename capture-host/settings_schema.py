@@ -56,6 +56,17 @@ SETTINGS: dict[str, tuple] = {
     "heap_probe.interval_min": (float, 1, 240, True, 60, "Minutes between heap snapshots"),
     "heap_probe.snapshots": (int, 1, 12, True, 2, "How many snapshots to take before stopping"),
     "heap_probe.top": (int, 1, 50, True, 15, "How many growth rows to record per snapshot"),
+    # Daemon-RSS part A. `log_sec` sets the JOURNAL cadence only — the status file carries the block on
+    # every tick regardless, because the file answers "what is it now" and the journal answers "how did
+    # it get there". 0 keeps the block and writes no line.
+    "mem.log_sec": (
+        float,
+        0,
+        3600,
+        True,
+        60,
+        "Seconds between memory lines in the journal (RSS, glibc arenas, gc counters); 0 logs none",
+    ),
     "watchdog.enabled": (bool, None, None, False, True, "Auto-recover a wedged BLE controller"),
     "watchdog.interval_sec": (float, 15, 600, False, 60, "Watchdog check interval"),
     "watchdog.grace_checks": (int, 1, 10, False, 2, "Consecutive wedged checks before a power-cycle"),

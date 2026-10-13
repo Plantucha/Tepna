@@ -248,6 +248,11 @@
       "status": "exempt",
       "reason": "the band SUPPLIERS: per-term PASS/FAIL/UNKNOWN decisions handed to solid_night.compose, never emitted on their own; the emitting producer is capture-host/solid_night.py (adopted)"
     },
+    "capture-host/telemetry.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "one occurrence, prose in the `optical_worn` docstring: \"DARK IS NOT A WORN VERDICT\" (residue 2026-09-24, the 55 Hz ambient-level test called 27 of 47 removals worn because a dark room reads like skin). The module decides nothing and prints no status - the worn detectors return True, False or None and `worn_verdict` composes a telemetry field from them."
+    },
     "capture-host/tests/_srcscan.py": {
       "bin": "test",
       "status": "exempt"
@@ -411,6 +416,10 @@
       "status": "exempt"
     },
     "capture-host/tests/test_pull_session.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_qc_child.py": {
       "bin": "test",
       "status": "exempt"
     },
@@ -934,6 +943,18 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/defect-bench.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/defect-bench.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "DEFECT-BENCHMARK builder (briefs/DEFECT-BENCHMARK-2026-10-12-BRIEF.md): --build proves each candidate task by running the fix commit's own tests against the parent checkout and the fix, and emits ONE tepna.verdict/1 over the included set. The criterion is pre-stated — every included task owns a proven fail-then-pass pair — so a task that cannot be proven is EXCLUDED by a named reason rather than counted. --verdict-sample prints the object alone for this check."
     },
     "tools/device-stability.mjs": {
       "bin": "word-only",
@@ -1746,7 +1767,7 @@
           "--verdict-sample"
         ]
       },
-      "note": "the corpus fold's per-night gate (VERDICT-CONTRACT §3b #7): every night the plan DECIDES on emits one tepna.verdict/1 — PASS entered the fold · FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) · NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) — plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json, never into a night directory; a dry run computes but does not write"
+      "note": "the corpus fold's per-night gate (VERDICT-CONTRACT §3b #7): every night the plan DECIDES on emits one tepna.verdict/1 — PASS entered the fold · FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) · NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) — plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json by the PARENT only, never into a night directory and never by a child (one child owns one night and cannot describe a run); a dry run computes but does not write"
     },
     "tools/trio-power-headless.mjs": {
       "bin": "decides",

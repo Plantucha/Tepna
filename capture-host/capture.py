@@ -9,8 +9,9 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, collections, contextlib, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, collections, contextlib, ctypes, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
 import concurrent.futures, multiprocessing, sys as _sys
+import xml.etree.ElementTree as _ET  # glibc's malloc_info writes XML; see malloc_arenas()
 import build_id
 from writers import (
     ContactLedger,
@@ -59,6 +60,7 @@ import alerts
 import clock_offset
 import nightqc
 import nightarchive
+import qc_child  # the night-QC work that runs in the spawned child, never in this process
 import loss_audit
 import solid_night
 import seal
@@ -7241,8 +7243,11 @@ def status_path(root: str, instance: str | None = None) -> str:
 _LIVE_LOSS_SEEN: dict = {}
 
 
-async def status_loop(root: str, data_stale_sec: float = 120.0):
+async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: float = 60.0):
     path = status_path(root, INSTANCE)
+    # The journal cadence for the memory line, as a LOCAL: one status loop runs per process, so a module
+    # global would only make two tests share a deadline. 0 publishes the block and logs nothing.
+    next_mem_log = 0.0
     while not _STOP.is_set():
         # `updated` was written here on every publish and read by NOTHING — instance health ages
         # `heartbeat_ms` instead, deliberately. A field written forever and read never is
@@ -7280,6 +7285,20 @@ async def status_loop(root: str, data_stale_sec: float = 120.0):
         # same as the comment it replaced — an answer nobody has to look at.
         STATUS["devcaps"] = devcaps.snapshot()
         STATUS["gates"] = gate_state()
+        # DAEMON-RSS PART A. The climb Wren measured from OUTSIDE the process (94 → 549 MB, VmHWM 847 MB
+        # over the 10-11 night, smooth at ~+300 MB/6 h while streams record) cannot be attributed from
+        # outside: `/proc/<pid>/status` does not split live Python objects from memory Python freed and
+        # glibc kept, and `smaps`, which would, is root-only on the box. This publishes the split from
+        # inside — RSS beside `mallinfo2`'s in-use and free-inside-the-arena bytes, beside the gc
+        # counters that say whether collection is happening at all. Measured cost: 0.6 us per call with
+        # the GIL held, which is why `_resolve_mallinfo2` binds through PyDLL (see its docstring).
+        STATUS["mem"] = mem_snapshot()
+        # The file is rewritten every tick, so it cannot answer "how did it get there". The journal line
+        # is the series; its cadence is separate from the 10 s publish because 8640 lines a day for a
+        # smooth 6 h curve is volume without information.
+        if mem_log_sec > 0 and _time.monotonic() >= next_mem_log:
+            next_mem_log = _time.monotonic() + mem_log_sec
+            log.info("%s", mem_log_line(STATUS["mem"]))
         # LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture). `oxy_inventory.
         # reconcile()` already classifies a lost recording, but it is reached only at PULL and
         # COLD-START boundaries; the incident that opened the row was a LIVE session losing two files
@@ -9091,7 +9110,11 @@ def _cpap_stream_watch_row(cfg, root, night_name):
 # Which path ran is recorded on the SUMMARY (`qc.isolation`), not as a STATUS key of its own: the
 # summary reaches QC-SUMMARY.json and status.json `qc`, both read; a key nobody reads is §∅'s
 # "reported and examined by nothing", and `tools/find_unwired.py` reds it.
-_QC_ISOLATION: str | None = None  # "process" | "thread" — the path the LAST scan took
+_QC_ISOLATION: str | None = None  # "process" | "thread" — the path the LAST QC scan took
+# ONE RECORD PER POLLER, not one shared global. Both pollers offload now, they run concurrently in
+# this loop, and a single global would attribute whichever ran last to whichever asked — a provenance
+# field that is wrong exactly when the two disagree, which is the only time it is read.
+_LOSS_ISOLATION: str | None = None  # "process" | "thread" — the path the LAST loss-audit batch took
 
 
 def _importable_by_reference(fn: Any) -> bool:
@@ -9103,17 +9126,31 @@ def _importable_by_reference(fn: Any) -> bool:
     return mod is not None and getattr(mod, getattr(fn, "__qualname__", ""), None) is fn
 
 
-async def _qc_offload(fn: Any, *args: Any) -> Any:
+async def _qc_offload(fn: Any, *args: Any, deps: tuple = (), record: str = "qc") -> Any:
     """Run one night-QC scan off the interpreter: in a spawned child when `fn` is importable by
     reference (the production case), on a thread otherwise. The pool lives exactly as long as the
     scan; a worker that died under us raises `BrokenProcessPool` and that error PROPAGATES — the
     poller's own `except` logs it, and a scan that did not run is not a scan that ran.
-    `_QC_ISOLATION` names the path taken on every call; the poller copies it onto the summary."""
-    global _QC_ISOLATION
-    if not _importable_by_reference(fn):
-        _QC_ISOLATION = "thread"
+    `_QC_ISOLATION` / `_LOSS_ISOLATION` name the path taken on every call; the poller publishes it
+    beside what the scan found.
+
+    🔴 `deps` IS WHAT KEEPS THE TEST SUITE DRIVING THIS CODE. `fn` is now a `qc_child` entry point
+    that calls `nightqc.summarize` / `loss_audit.write_night` / `solid_night.write_night` by module
+    attribute, and it stays importable by reference however those are patched — so the hatch every
+    poller test uses (monkeypatch the heavy function, watch the fake run) would have sent the REAL
+    function into a child instead, and the fake's writes and call lists would never have happened.
+    A caller therefore passes the live objects it expects the child to call, resolved at call time,
+    and ONE of them not being importable is enough to keep the whole scan in this process. That is
+    also the honest rule for production: a child can only run work whose every dependency it can
+    import by name."""
+    global _QC_ISOLATION, _LOSS_ISOLATION
+    path = "process" if _importable_by_reference(fn) and all(_importable_by_reference(d) for d in deps) else "thread"
+    if record == "qc":
+        _QC_ISOLATION = path
+    else:
+        _LOSS_ISOLATION = path
+    if path == "thread":
         return await asyncio.to_thread(fn, *args)
-    _QC_ISOLATION = "process"
     pool = concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"))
     try:
         return await asyncio.get_running_loop().run_in_executor(pool, fn, *args)
@@ -9178,38 +9215,42 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             # stamps gapping in lockstep, and the monitor's "fragments" column rising for three
             # nodes at once. A child process shares no lock. QC is a REPORT: it must never cost the
             # recording it reports on — and a thread cannot keep that promise for CPU-bound work.
-            summ = await _qc_offload(nightqc.summarize, night, cfg.get("devices", []))
+            res = await _qc_offload(
+                qc_child.scan_night,
+                night,
+                cfg.get("devices", []),
+                deps=(nightqc.summarize, loss_audit.wear_by_device),
+            )
             # REFUSE AT THE BOUNDARY, naming what arrived. `summarize` is annotated `-> dict` and has no
             # string return, but the value crosses a spawn boundary and a consumer three frames later
             # reading `.get` on a non-dict raises an error that names neither the producer nor the value.
             # A measurement that is not the shape it claims is a fabricated value reaching a consumer
-            # (§∅), and the honest response at the edge is to say so.
+            # (§∅), and the honest response at the edge is to say so. The child's OWN contract is checked
+            # at the same edge and by the same line: a result that is not the documented envelope leaves
+            # `summ` as the thing that arrived, which is then named in the error.
+            summ = res.get("summary") if isinstance(res, dict) else res
             if not isinstance(summ, dict):
                 raise TypeError(
                     f"qc scan returned {type(summ).__name__}, not dict: {summ!r:.200} (isolation={_QC_ISOLATION})"
                 )
-            # THE WEAR SCAN RUNS ON A THREAD, not in a second child, and the precedent is in this file:
-            # `loss_audit.write_night` below already runs `wear_ends` for every device through
-            # `asyncio.to_thread`. A second `_qc_offload` would be a stricter standard than the codebase
-            # applies to the same work, and it is not free — `_importable_by_reference` sends a
-            # module-level function to a SPAWNED child, and several poller tests freeze `time.monotonic`,
-            # under which a spawn pool's deadlines never elapse and the child's result never arrives.
-            # Measured: adding that second offload wedged `check.sh` twice at 98 % with all 24 xdist
-            # workers idle and the controller in `futex_do_wait`.
+            # THE WEAR SCAN RAN IN THE SAME CHILD as the summary, inside `qc_child.scan_night`. It ran
+            # on a THREAD here until 2026-10-13, and the comment it replaces was right about the reason:
+            # a SECOND `_qc_offload` in one poll wedged `check.sh` twice at 98 % with all 24 xdist
+            # workers idle and the controller in `futex_do_wait`, because several poller tests freeze
+            # `time.monotonic` and a spawn pool's deadlines never elapse under a constant clock. What
+            # changed is not that judgement — it is that the wear scan now rides the child the summary
+            # already pays for, so the poll still spawns exactly ONE.
             #
-            # The cost is 6.9 s of GIL per poll — measured on the 794 MB 2026-09-23 night (H10 5.0 s,
-            # Verity 1.9 s), once on a page-cached tree, so treat it as an order of magnitude and not a
-            # distribution. Against `summarize`'s 51 s of pure-Python CPU that justified the child, and a
-            # 600 s poll interval, it is ~1 % duty.
+            # What leaves this process with it: 6.9 s of GIL per poll (the 794 MB 2026-09-23 night, H10
+            # 5.0 s + Verity 1.9 s) and ~50 MB of arena retention over 4 repeats that `mallinfo2` cannot
+            # see at all (`ext:wren-pr/to-kestrel-rss.md`, vigil 2026-10-12).
             #
-            # Its failure is not the night's: a wear scan that raises leaves `stopped_early_reason` None,
-            # which already means "not determined".
-            try:
-                _wear = await asyncio.to_thread(loss_audit.wear_by_device, night, cfg.get("devices", []))
-            except Exception as e:  # noqa: BLE001 - a wear scan is a REPORT, not the QC
-                log.warning("qc: wear scan failed, reasons unavailable: %s", e)
-                _wear = None
-            summ = nightqc.attach_wear(summ, _wear)
+            # Its failure is still not the night's: a wear scan that raises returns None WITH a reason,
+            # every `stopped_early_reason` stays None — which already means "not determined" — and the
+            # reason is logged HERE, because a spawned child has no handler for this logger.
+            if res.get("wear_reason"):
+                log.warning("qc: wear scan failed, reasons unavailable: %s", res["wear_reason"])
+            summ = nightqc.attach_wear(summ, res.get("wear"))
             summ["isolation"] = _QC_ISOLATION  # how this scan was produced, beside what it found
             # ── DID THE LIVE CPAP STREAM RECORD THE SESSION? ─────────────────────────────────────
             # On 2026-08-26 the machine ran a full night, `edf_dir` stayed empty, and NOTHING said so
@@ -9421,7 +9462,7 @@ async def loss_poller(cfg: dict, root: str):
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
-            # `active` is still computed, for `_solid_night` below — that consumer wants the broad
+            # `active` is still computed, for the verdict composition — that consumer wants the broad
             # "is anything writing here" answer. THIS poller does not, and borrowing it was the defect:
             # a night's eligibility is about its DEVICE DATA going quiet, and the poller's own
             # QC-SUMMARY / verdict writes land in the very folder it is asking about, so the night stayed
@@ -9450,6 +9491,7 @@ async def loss_poller(cfg: dict, root: str):
             # each costs a full audit and composition in this process (+311..+605 MB peak, measured on vigil
             # 2026-10-12), so a deploy that touches the judge works through the window one night per tick.
             rejudge = int(lcfg.get("rejudge_per_poll", 1))
+            jobs: "list[dict]" = []
             for night in nights[-int(lcfg.get("max_nights", 14)) :]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
@@ -9474,67 +9516,95 @@ async def loss_poller(cfg: dict, root: str):
                         rejudge -= 1
                         current = False
                         log.info("solid-night: %s — %s", night, why)
-                if not current:
-                    obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
-                    STATUS.setdefault("loss", {})[night] = {
-                        "status": obj["status"],
-                        "at": obj["at"],
-                        "daemon_caused_min": (obj.get("result") or {}).get("daemon_caused_min"),
-                    }
-                    dc = (obj.get("result") or {}).get("daemon_caused_min") or 0
-                    if dc:
-                        log.warning(
-                            "loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
-                            night,
-                            dc,
-                            obj.get("reason"),
-                        )
-                await _solid_night(nd, night, cfg, every, active, commit, why)
+                # NOTHING TO DO IS NOT A JOB. A box carrying 14 settled nights polls every 30 minutes
+                # and on almost every poll has no work at all; discovering that must not cost a spawn.
+                # Two stats answer it here. A night that WILL be audited always makes a job, because the
+                # audit is what moves the gate the verdict reads — which is why the child re-reads it.
+                if current and not qc_child.compose_due(nd):
+                    continue
+                jobs.append({"dir": nd, "night": night, "audit": not current, "why": why})
+            # 🔴 ONE CHILD FOR THE WHOLE POLL, and the heavy calls live in it. Each of these nights cost
+            # this process +311..+605 MB of peak (vigil 2026-10-12) for a full audit and composition,
+            # and a peak taken in the daemon is a peak the daemon keeps: glibc returns a 64 MB arena to
+            # the kernel only on its own terms, which is the retention `mallinfo2` cannot even see
+            # (`ext:wren-pr/to-kestrel-rss.md`). A child's peak leaves with the child. The batch shape
+            # is deliberate: `qc_child` explains why a SECOND spawn per poll is not available here.
+            if jobs:
+                for r in await _qc_offload(
+                    qc_child.audit_and_compose,
+                    jobs,
+                    cfg.get("devices", []),
+                    every,
+                    active,
+                    commit,
+                    deps=(loss_audit.write_night, solid_night.write_night),
+                    record="loss",
+                ):
+                    _publish_loss(r)
+            # AFTER a failed audit too. When this ran in-process an audit that raised left the loop by
+            # exception and took the pending statement with it, so the morning card kept a verdict about
+            # an older night — a second night's absence caused by the first night's failure. The batch
+            # returns the failure as a value, so this runs either way.
             await _solid_pending(captures, every, active, cfg, settle, commit)
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("loss-audit: poll failed", exc_info=True)
 
 
-async def _solid_night(
-    nd: str, night: str, cfg: dict, nights: list, active: set, commit, why: str | None = None
-) -> None:
-    """SOLID-NIGHT §2: the night's verdict, composed on the LOSS AUDIT'S OWN TRIGGER — it runs only for a
-    settled night, after that night's audit, and again only when the audit is newer than the verdict (the
-    audit re-runs when the night's data changes, and the verdict follows it). Its failure is its own: a
-    night whose verdict cannot be composed is logged and left without one (so the run reads it as
-    unassessed), and the loss audit above is never undone by it."""
-    vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
-    spath = os.path.join(nd, solid_night.VERDICT_NAME)
-    if not os.path.exists(vpath):
-        return  # no audit yet: nothing to compose over
-    if os.path.exists(spath) and os.path.getmtime(spath) >= os.path.getmtime(vpath):
-        return  # composed since the audit last changed
-    try:
-        obj, run = await asyncio.to_thread(
-            solid_night.write_night,
-            nd,
-            cfg.get("devices", []),
-            nights=nights,
-            active=active,
-            commit=commit,
-            reason=why,
-        )
-    except Exception:  # noqa: BLE001 — one night's verdict must not stop the poller
-        log.warning("solid-night: %s — verdict not written", night, exc_info=True)
-        return
-    log.info("solid-night: %s %s — %s", night, obj["status"], run["statement"])
-    # A RE-JUDGED OLDER NIGHT IS WRITTEN BUT NOT PUBLISHED: the status card states the newest night, and
-    # `code_moved` now re-judges past nights routinely — the same never-backwards rule `_solid_pending` keeps.
+def _publish_loss(r: dict) -> None:
+    """One night's audit and verdict, as the journal and the status surface see them.
+
+    The work itself ran in `qc_child.audit_and_compose`, which logs nothing — a spawned child has no
+    handler for this logger — so every reason it found is published HERE, in this process, and the
+    journal reads exactly as it did when the calls were made from this frame.
+
+    Each leg is published only if the child did it: §∅, an absent audit is no row rather than a row of
+    zeros, and a night whose verdict could not be composed keeps its audit and reads as unassessed."""
+    night = r["night"]
+    if r["loss"]:
+        STATUS.setdefault("loss", {})[night] = {
+            "status": r["loss"]["status"],
+            "at": r["loss"]["at"],
+            "daemon_caused_min": r["loss"]["daemon_caused_min"],
+            # WHERE THE AUDIT RAN, beside what it found — the same standard `qc.isolation` keeps for the
+            # QC scan. The degraded shape (this process, because a dependency was not importable) is a
+            # fact about the measurement, and a provenance field nobody can read is §∅'s own complaint.
+            "isolation": _LOSS_ISOLATION,
+        }
+        dc = r["loss"]["daemon_caused_min"] or 0
+        if dc:
+            log.warning(
+                "loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
+                night,
+                dc,
+                r["loss"]["reason"],
+            )
+    if r["loss_error"]:
+        # The batch stopped at this night, exactly as the in-process loop did when the audit raised. The
+        # child's traceback is TEXT: it is logged whole, so the journal keeps the frames it always had.
+        log.warning("loss-audit: poll failed — %s\n%s", night, r["loss_error"])
+    if r["solid_error"]:
+        log.warning("solid-night: %s — verdict not written\n%s", night, r["solid_error"])
+    if r["solid"]:
+        _publish_solid(night, r["solid"])
+
+
+def _publish_solid(night: str, s: dict) -> None:
+    """SOLID-NIGHT §2's verdict on the STATUS surface. The file was already written beside the night by
+    `qc_child.audit_and_compose`; this decides what the card SAYS.
+
+    A RE-JUDGED OLDER NIGHT IS WRITTEN BUT NOT PUBLISHED: the status card states the newest night, and
+    `code_moved` re-judges past nights routinely — the same never-backwards rule `_solid_pending` keeps."""
+    log.info("solid-night: %s %s — %s", night, s["status"], s["statement"])
     shown = (STATUS.get("solid") or {}).get("night")
     if shown is not None and night < shown:
         return
     STATUS["solid"] = {
         "night": night,
-        "status": obj["status"],
-        "reason": obj["reason"],
-        "run": run["statement"],
-        "solid": run["solid"],
-        "exit": run["exit"],
+        "status": s["status"],
+        "reason": s["reason"],
+        "run": s["statement"],
+        "solid": s["solid"],
+        "exit": s["exit"],
     }
 
 
@@ -11528,6 +11598,278 @@ def proc_rss_kb(status_path: str = "/proc/self/status") -> dict:
     except OSError:
         pass  # every key stays None: unreadable is not zero
     return out
+
+
+#: glibc's `struct mallinfo2` (malloc.h), ten `size_t` fields in DECLARATION ORDER — ctypes maps by
+#: position, so a reordered tuple silently relabels every number. BYTES, unlike `/proc/self/status`,
+#: which is kB; the two are published under different key names for that reason.
+_MALLINFO2_FIELDS = (
+    "arena",  # bytes the allocator holds via brk (the main arena)
+    "ordblks",  # free chunks
+    "smblks",  # free fastbin blocks
+    "hblks",  # mmapped regions
+    "hblkhd",  # bytes in those mmapped regions (where the 64 MB thread arenas show up)
+    "usmblks",  # always 0 since glibc 2.24; kept because the struct's layout is positional
+    "fsmblks",  # bytes in fastbin blocks
+    "uordblks",  # bytes in use by the program
+    "fordblks",  # bytes free inside the arenas — THE retention figure
+    "keepcost",  # releasable top-of-heap bytes
+)
+
+
+class _Mallinfo2(ctypes.Structure):
+    _fields_ = [(f, ctypes.c_size_t) for f in _MALLINFO2_FIELDS]
+
+
+#: Resolved once per process: the callable, or None plus the reason it is absent.
+_MALLINFO2: Any = None
+_MALLINFO2_REASON: str | None = None
+_MALLINFO2_TRIED = False
+
+
+def _resolve_mallinfo2() -> None:
+    """Bind `mallinfo2` through **PyDLL, not CDLL** — measured, and the difference is 4 orders of magnitude.
+
+    🔴 WHY PyDLL. `ctypes.CDLL` RELEASES the GIL around a foreign call, so the calling thread must
+    re-acquire it afterwards, and under `sys.getswitchinterval()` 5 ms with other threads allocating that
+    wait dominates everything. Measured on the rig (python 3.13.11, glibc 2.43, 8 churning threads), µs
+    per call, with two controls that separate the two candidate costs:
+
+        call                                     idle    2 threads   8 threads
+        A  CDLL  mallinfo2  (GIL released)         0.2      1738.4     24585.6
+        B  CDLL  getpid     (GIL released)         0.1       775.9     12217.2   ← no allocator lock
+        C  PyDLL mallinfo2  (GIL held)             0.1         0.2         0.6   ← arena wait only
+        D  gc.get_count()   (GIL held)             0.0         0.0         0.0   ← the floor
+
+    B is the control that settles it: a libc call that touches NO allocator lock pays the same 12 ms, so
+    the cost is the GIL re-acquisition and not the arena locks. C is the control for the other direction:
+    holding the GIL, the arena wait is 0.6 µs under the same churn. An instrument on the status loop that
+    cost 20 ms would be adding to `loop.lag_max_ms`, which is the metric this exists to explain.
+
+    Holding the GIL across the arena locks cannot deadlock: `malloc` never waits on the GIL, so the two
+    locks have no cycle.
+
+    §∅: a libc without `mallinfo2` (musl, or glibc before 2.33) leaves the reason set, and every field
+    reads `null`. `mallinfo` is NOT a fallback — its fields are `int` and wrap at 2 GB, which is inside
+    this daemon's range, and a wrapped number is worse than an absent one."""
+    global _MALLINFO2, _MALLINFO2_REASON, _MALLINFO2_TRIED
+    _MALLINFO2_TRIED = True
+    try:
+        fn = ctypes.PyDLL(None).mallinfo2
+    except (AttributeError, OSError) as e:  # absent symbol, or no self-dlopen on this platform
+        _MALLINFO2_REASON = f"mallinfo2 unavailable: {type(e).__name__}"
+        return
+    fn.restype = _Mallinfo2
+    fn.argtypes = []
+    _MALLINFO2 = fn
+
+
+def mallinfo2() -> dict:
+    """glibc's allocator accounting in BYTES, or every field `null` with a reason (§∅).
+
+    This is the half `/proc/self/status` cannot answer. RSS counts pages the kernel has given the
+    process; it does not say whether the bytes are live Python objects or memory Python freed and glibc
+    kept. `uordblks` (in use) against `fordblks` (free inside the arenas) splits exactly that, and
+    `hblkhd` is where per-thread 64 MB arenas appear — the retention Wren measured at ~50 MB per job
+    (`ext:wren-pr/to-kestrel-rss.md`) lands in those two.
+
+    The ten keys are ALWAYS present, so a reader never has to branch on shape — an unmeasured field is
+    `None`."""
+    if not _MALLINFO2_TRIED:
+        _resolve_mallinfo2()
+    out: dict[str, Any] = {k: None for k in _MALLINFO2_FIELDS}
+    out["reason"] = _MALLINFO2_REASON
+    if _MALLINFO2 is None:
+        return out
+    try:
+        m = _MALLINFO2()
+    except Exception as e:  # noqa: BLE001 — an instrument never takes the status loop down
+        out["reason"] = f"mallinfo2 call failed: {type(e).__name__}"
+        return out
+    for k in _MALLINFO2_FIELDS:
+        out[k] = int(getattr(m, k))
+    return out
+
+
+#: `malloc_info` writes XML to a FILE*, so four symbols are needed, not one: `open_memstream` gives a
+#: FILE* backed by a buffer, `malloc_info` fills it, `fclose` flushes, `free` releases the buffer.
+_MALLOC_INFO: Any = None
+_MALLOC_INFO_REASON: str | None = None
+_MALLOC_INFO_TRIED = False
+#: What the root-level elements of that XML are called, and what they are called here.
+_ARENA_KEYS = ("heaps", "fast", "rest", "mmap", "system_current", "system_max")
+
+
+def _resolve_malloc_info() -> None:
+    """Bind the four symbols through PyDLL — same GIL reasoning as `_resolve_mallinfo2`, measured there.
+
+    🔴 WHY THIS EXISTS BESIDE `mallinfo2`. `mallinfo2` reports **the main arena only** (man mallinfo,
+    BUGS). A threaded process gets a 64 MB arena per contending thread, and Wren's measurement is
+    exactly there: 4 repeats of `wear_by_device` left 81 MB resident instead of 29, about 50 MB of arena
+    retention that did not grow over the repeats (`ext:wren-pr/to-kestrel-rss.md`). `mallinfo2` cannot
+    see it, so publishing only `mallinfo2` would answer the easy half and look like an answer.
+    `malloc_info`'s root-level totals are the sums over EVERY arena, which is the figure the question
+    needs. Measured on the rig under 8 churning threads: 6.1 us per call, 4005 bytes of XML over 9
+    heaps."""
+    global _MALLOC_INFO, _MALLOC_INFO_REASON, _MALLOC_INFO_TRIED
+    _MALLOC_INFO_TRIED = True
+    try:
+        lib = ctypes.PyDLL(None)
+        oms, mi, fcl, fre = lib.open_memstream, lib.malloc_info, lib.fclose, lib.free
+    except (AttributeError, OSError) as e:
+        _MALLOC_INFO_REASON = f"malloc_info unavailable: {type(e).__name__}"
+        return
+    oms.restype = ctypes.c_void_p
+    oms.argtypes = [ctypes.POINTER(ctypes.c_char_p), ctypes.POINTER(ctypes.c_size_t)]
+    mi.restype = ctypes.c_int
+    mi.argtypes = [ctypes.c_int, ctypes.c_void_p]
+    fcl.restype = ctypes.c_int
+    fcl.argtypes = [ctypes.c_void_p]
+    fre.restype = None
+    fre.argtypes = [ctypes.c_void_p]
+    _MALLOC_INFO = (oms, mi, fcl, fre)
+
+
+def malloc_info_xml() -> tuple[bytes | None, str | None]:
+    """glibc's per-arena XML, or `(None, reason)`.
+
+    The buffer is freed on every path that allocated one — an instrument that leaks 4 kB a minute would
+    become the thing it is measuring."""
+    if not _MALLOC_INFO_TRIED:
+        _resolve_malloc_info()
+    if _MALLOC_INFO is None:
+        return None, _MALLOC_INFO_REASON
+    oms, mi, fcl, fre = _MALLOC_INFO
+    buf = ctypes.c_char_p()
+    size = ctypes.c_size_t()
+    try:
+        fh = oms(ctypes.byref(buf), ctypes.byref(size))
+        if not fh:
+            return None, "malloc_info: open_memstream returned NULL"
+        mi(0, fh)
+        fcl(fh)
+        return (ctypes.string_at(buf, size.value) if buf else None), None
+    except Exception as e:  # noqa: BLE001 — an instrument never takes the status loop down
+        return None, f"malloc_info call failed: {type(e).__name__}"
+    finally:
+        if buf:
+            fre(ctypes.cast(buf, ctypes.c_void_p))
+
+
+def parse_malloc_info(xml: bytes) -> dict:
+    """PURE: the ACROSS-ARENA totals from glibc's XML, in bytes.
+
+    Only the ROOT-level `<total>` and `<system>` elements are summed over every arena; the identically
+    named children inside each `<heap>` describe that heap alone. Reading a nested one as the total is
+    the mistake this function exists to make impossible — it iterates direct children only.
+
+    §∅: an element or an attribute glibc did not write stays `None`. Measured on glibc 2.43: a
+    single-arena process gets NO root-level `<total type="fast">` at all, so `fast` reads `null` there
+    rather than 0 — "the allocator reported no fastbin total" and "the fastbin total is zero" are
+    different facts. A malformed document raises, and the caller turns that into a reason."""
+    root = _ET.fromstring(xml)
+    out: dict[str, Any] = dict.fromkeys(_ARENA_KEYS)
+    out["heaps"] = len(root.findall("heap"))
+    for el in root:
+        name = {"total": el.get("type"), "system": f"system_{el.get('type')}"}.get(el.tag)
+        if name in _ARENA_KEYS:
+            raw = el.get("size")
+            out[name] = int(raw) if raw is not None and raw.isdigit() else None
+    return out
+
+
+def malloc_arenas() -> dict:
+    """Every arena's bytes, the half `mallinfo2` cannot report, or all-`null` with a reason (§∅).
+
+    `system_current` is what the allocator holds from the kernel across all arenas, and `rest` is what
+    is free inside them. RSS minus `system_current` is roughly what is NOT the allocator's — the split
+    this exists to make, and the one `/proc/<pid>/status` alone cannot."""
+    xml, reason = malloc_info_xml()
+    out: dict[str, Any] = dict.fromkeys(_ARENA_KEYS)
+    if xml is None:
+        out["reason"] = reason or "malloc_info: no document"
+        return out
+    try:
+        out = parse_malloc_info(xml)
+        out["reason"] = None
+    except _ET.ParseError as e:
+        out["reason"] = f"malloc_info XML unparsable: {e}"
+    return out
+
+
+def gc_counters() -> dict:
+    """The CHEAP half of `gc_snapshot()`: per-generation thresholds counts and collection totals.
+
+    Deliberately NOT `gc_snapshot()`, and deliberately NOT `len(gc.get_objects())`. `gc_snapshot`
+    reports this probe's own pass DURATIONS, which exist only inside an armed heap-probe window, and
+    `len(gc.get_objects())` materialises a list of every tracked object — on this daemon that is the
+    instrument becoming the leak. Both belong in the window, not on a loop that runs every 10 s.
+
+    §∅: a generation CPython does not report leaves `collections` `None` rather than 0, because 0
+    collections and no answer are different facts."""
+    stats = gc.get_stats()
+    counts = list(gc.get_count())
+    per = []
+    for gen in range(3):
+        s = stats[gen] if gen < len(stats) else {}
+        per.append(s.get("collections"))
+    return {"counts": counts, "collections": per, "enabled": gc.isenabled()}
+
+
+def mem_snapshot() -> dict:
+    """The four populations the RSS climb needs side by side, cheap enough for every status tick.
+
+    RSS is what the kernel gave us, `mallinfo2` is how the MAIN arena has carved it, `arenas` is the
+    same question across EVERY arena, and the gc counters say whether Python is collecting at all. Part
+    A of the daemon-RSS split (Wren, 2026-10-12: +300 MB over 6 h while streams record, smooth, with
+    per-job arena retention of ~50 MB on top). Which population it is cannot be told from outside the
+    process, which is why this is published from inside it."""
+    return {
+        "rss_kb": proc_rss_kb(),
+        "mallinfo2": mallinfo2(),
+        "arenas": malloc_arenas(),
+        "gc": gc_counters(),
+    }
+
+
+def mem_log_line(snap: dict) -> str:
+    """One journal line from a snapshot, as kB throughout, with `null` for an absent figure.
+
+    A line rather than only the status file: `status.json` is REWRITTEN every tick, so it answers "what
+    is it now" and never "how did it get there". The night's shape is the whole question here, and the
+    journal is the only surface on this box that keeps a series.
+
+    kB for every figure, including the `mallinfo2` and `malloc_info` ones that arrive in bytes, so the
+    numbers on one line are comparable without the reader converting. The `main` segment is the main
+    arena alone and the `all` segment is every arena, which is the comparison the line exists to make.
+    §∅: `null`, never 0, for anything unmeasured, and each absent instrument appends its own reason."""
+    rss, mi, ar, g = snap["rss_kb"], snap["mallinfo2"], snap["arenas"], snap["gc"]
+
+    def _kb(v, scale=1):
+        return "null" if v is None else str(v // scale)
+
+    line = (
+        "mem: VmRSS %s kB RssAnon %s kB · main arena %s kB hblkhd %s kB uordblks %s kB fordblks %s kB "
+        "keepcost %s kB · all arenas heaps %s system %s kB rest %s kB mmap %s kB · gc counts %s collections %s"
+    ) % (
+        _kb(rss.get("VmRSS")),
+        _kb(rss.get("RssAnon")),
+        _kb(mi.get("arena"), 1024),
+        _kb(mi.get("hblkhd"), 1024),
+        _kb(mi.get("uordblks"), 1024),
+        _kb(mi.get("fordblks"), 1024),
+        _kb(mi.get("keepcost"), 1024),
+        _kb(ar.get("heaps")),
+        _kb(ar.get("system_current"), 1024),
+        _kb(ar.get("rest"), 1024),
+        _kb(ar.get("mmap"), 1024),
+        ",".join(str(c) for c in g["counts"]),
+        ",".join("null" if c is None else str(c) for c in g["collections"]),
+    )
+    for reason in (mi.get("reason"), ar.get("reason")):
+        if reason is not None:
+            line += f" · {reason}"
+    return line
 
 
 #: How many decode sites to publish, and how deep a referrer walk may go. Bounded because the probe must
@@ -14216,7 +14558,14 @@ async def main():
     # Same `data_stale_sec` the alert loop uses — one grace, so `recording` cannot mean two things
     # depending on which loop a reader happened to ask.
     _BACKGROUND = [
-        ("status_loop", lambda: status_loop(root, float(_acfg.get("data_stale_sec", 120)))),
+        (
+            "status_loop",
+            lambda: status_loop(
+                root,
+                float(_acfg.get("data_stale_sec", 120)),
+                float((cfg.get("mem") or {}).get("log_sec", 60)),
+            ),
+        ),
         ("adapter_watchdog", lambda: adapter_watchdog(ADAPTER, cfg)),
         ("rssi_poller", lambda: rssi_poller(ADAPTER, cfg, root)),
         ("clock_watchdog", lambda: clock_watchdog(cfg, root)),

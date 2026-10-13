@@ -22,6 +22,7 @@
   "include": [
     "dex-contracts.js",
     "signal-frame.js",
+    "export-schema.js",
     "dex-export.js",
     "manifest-gate.js",
     "signal-spec.js",
