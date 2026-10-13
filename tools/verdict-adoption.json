@@ -1931,6 +1931,18 @@
       "bin": "test",
       "status": "exempt",
       "note": "golden-vector parity test for tools/seqnet-infer.mjs and the parityVerdict builder of tools/seqnet-eval.mjs; the verdict words appear only as planted expected statuses asserted against the builder — it decides nothing itself"
+    },
+    "tools/astgrep-gate.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/astgrep-gate.mjs",
+          "--json"
+        ]
+      },
+      "note": "the four reviewer bugs of CLAUDE.md §∅ and §🔒, matched on the syntax tree by ast-grep: `?? 0` and `.get(k, 0)` for absence, `new Date(<string>)` and `Date.parse` for a locale parse. Criterion unallowlisted_hits_plus_stale_allowlist_entries lte 0 over the (rule × tracked file) pairs in scope; population = those pairs, excluded 0. Every rule was counted on main before it was made to bite and every hit was read: 65 Python sites and 3 JS sites are legal and carry a reason, the two Date rules hit zero. A STALE allow-list entry fails as loudly as a new hit, and the positive controls run on every invocation, so a rule whose pattern breaks cannot read as a clean tree -- NOT_RUN when ast-grep is absent or a scope resolves to zero files, never a pass over nothing."
     }
   }
 }

@@ -1,0 +1,15 @@
+# tepna — ast-grep rule
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+id: no-date-parse
+language: js
+severity: error
+message: "`Date.parse` is a locale parse — the Clock Contract wants a regex plus `Date.UTC`"
+note: |
+  CLOCK CONTRACT §2.4, the same rule as `no-new-date-string` and the same remedy. `Date.parse` is
+  worse than its constructor twin in one way: it returns `NaN` rather than an Invalid Date object, and
+  `NaN` flows into arithmetic and renders as a dash rather than raising.
+
+  EVERY call matches, whatever the argument. There is no legal `Date.parse` on a node surface: a
+  numeric epoch needs no parse, and a string needs `parseTimestamp`.
+rule:
+  pattern: Date.parse($$$A)
