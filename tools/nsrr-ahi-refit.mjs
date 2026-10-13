@@ -614,6 +614,8 @@ async function main() {
       schema: 'tepna.published-number-record/1',
       producer: 'tools/nsrr-ahi-refit.mjs',
       producerCommit: prov.commit ? prov.commit.slice(0, 8) : null,
+      producerCommitNote:
+        'the branch commit HEAD sat at when the tool ran; a squash merge replaces it, so resolve the record through publishedIn and the pull request that carried it rather than expecting this sha on main',
       invocation: `node tools/nsrr-score-pool.mjs --scorer ./nsrr-oxydex-odi.mjs --out <scored-visitN.json> (per visit) · node tools/nsrr-ahi-refit.mjs --scored=<v1>,<v2> --boot=${BOOT_REPS} --seed=${BOOT_SEED} --min-holdout=${MIN_HOLDOUT_SUBJECTS} --out=<this file>`,
       generated: summary.generated.slice(0, 10),
       inputs: {
