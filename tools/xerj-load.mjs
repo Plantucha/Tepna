@@ -33,6 +33,7 @@
  * from OUR cache, already computed by doc-search against Ollama. `--embed-mode neural` would fetch a
  * model and is never used here.
  */
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -87,12 +88,53 @@ export function mapping(dims = VECTOR_DIMS) {
         chunk_count: { type: 'long' },
         line_start: { type: 'long' },
         line_end: { type: 'long' },
+        symbols: { type: 'keyword' },
         file_hash: { type: 'keyword' },
         text: { type: 'text' },
         vec: { type: 'dense_vector', dims, index: true, similarity: 'cosine' }
       }
     }
   };
+}
+
+/**
+ * WHICH FUNCTION A CODE CHUNK SITS IN. `file:812-840` says where; `· computeODI` says what, before the
+ * reader opens the file. universal-ctags reads the file and returns each scope with its first and last
+ * line. Only scopes with an end line count, so a chunk names a function only when it sits inside it.
+ * Display only: the search body never reads `symbols`, so no ranking moves.
+ */
+export const CTAGS_EXT = /\.(c?m?js|py|sh|ts|kt|java|swift|c|h|cc|cpp)$/;
+const SCOPE_KINDS = new Set(['function', 'method', 'class', 'member', 'getter', 'setter', 'constructor', 'interface', 'object']);
+
+/** ctags JSON lines → `[{ name, line, end }]` for scope kinds with an end line. */
+export function parseCtags(out) {
+  const scopes = [];
+  for (const ln of String(out ?? '').split('\n')) {
+    if (!ln.startsWith('{')) continue;
+    let t;
+    try {
+      t = JSON.parse(ln);
+    } catch {
+      continue;
+    }
+    if (t._type !== 'tag' || !SCOPE_KINDS.has(t.kind) || !Number.isInteger(t.line) || !Number.isInteger(t.end) || t.end < t.line) continue;
+    scopes.push({ name: t.name, line: t.line, end: t.end });
+  }
+  return scopes;
+}
+
+/** The scopes that overlap lines `[ls, le]`, innermost first, at most `max`, names unique. */
+export function enclosingSymbols(scopes, ls, le, max = 3) {
+  const hit = (scopes ?? []).filter((t) => t.line <= le && t.end >= ls).sort((a, b) => a.end - a.line - (b.end - b.line) || a.line - b.line);
+  return [...new Set(hit.map((t) => t.name))].slice(0, max);
+}
+
+/** Run ctags on one file. Absent ctags or a failed run ⇒ null: no symbol field, never a guessed one. */
+export function ctagsScopes(file, abs, run = spawnSync) {
+  if (!CTAGS_EXT.test(file)) return null;
+  const r = run('ctags', ['--output-format=json', '--fields=+nKe', '-f', '-', abs], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  if (r?.error || r?.status !== 0) return null;
+  return parseCtags(r.stdout);
 }
 
 /**
@@ -196,8 +238,9 @@ export function chunkLines(file, body, raw, chunks) {
  * @param {{file: string, h: string, vecs: number[][]}} entry
  * @param {string|null} body  the file body as `readDoc` returns it, or null when absent
  * @param {string|null} [raw]  the file as read from disk; absent ⇒ no line range, never a guessed one
+ * @param {{name: string, line: number, end: number}[]|null} [scopes]  ctags scopes; absent ⇒ no symbols
  */
-export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk, raw = null) {
+export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk, raw = null, scopes = null) {
   const file = entry?.file ?? '';
   if (!file) return { ok: false, reason: 'missing' };
   if (FORBIDDEN.some((re) => re.test(file))) return { ok: false, reason: 'forbidden' };
@@ -228,6 +271,10 @@ export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk, raw =
       chunk_count: chunks.length,
       /* An unknown range is ABSENT from the document, never 0 (CLAUDE.md §∅). */
       ...(lines?.[i] ? { line_start: lines[i][0], line_end: lines[i][1] } : {}),
+      ...(() => {
+        const sy = lines?.[i] && scopes ? enclosingSymbols(scopes, lines[i][0], lines[i][1]) : [];
+        return sy.length ? { symbols: sy } : {};
+      })(),
       file_hash: h,
       text: (() => {
         const r = sanitizeText(raw);
@@ -401,6 +448,32 @@ export function selftest() {
   ok(withRaw.ok && withRaw.docs[0].line_start === 1 && withRaw.docs[0].line_end === 1, 'CONTROL: with the raw file the same document is placed at line 1');
   ok(mapping(4).mappings.properties.line_start.type === 'long', 'the mapping carries the line fields');
 
+  /* CTAGS SYMBOLS: a chunk names the scopes it overlaps, innermost first; no ctags ⇒ no field. */
+  const tags = [
+    '{"_type": "tag", "name": "outer", "line": 1, "end": 100, "kind": "function"}',
+    '{"_type": "tag", "name": "inner", "line": 10, "end": 20, "kind": "method"}',
+    '{"_type": "tag", "name": "CONST", "line": 12, "kind": "variable"}',
+    '{"_type": "tag", "name": "noEnd", "line": 12, "kind": "function"}',
+    '{"_type": "tag", "name": "later", "line": 30, "end": 40, "kind": "function"}',
+    'not json'
+  ].join('\n');
+  const sc = parseCtags(tags);
+  ok(sc.length === 3 && !sc.some((t) => t.name === 'CONST' || t.name === 'noEnd'), 'ctags: only scope kinds WITH an end line count');
+  ok(enclosingSymbols(sc, 12, 15).join() === 'inner,outer', 'a chunk inside a method names it before the enclosing function');
+  ok(enclosingSymbols(sc, 18, 35).join() === 'inner,later,outer', 'a chunk across two functions names both');
+  ok(enclosingSymbols(sc, 200, 210).length === 0, 'a chunk outside every scope names none');
+  ok(enclosingSymbols(sc, 12, 15, 1).join() === 'inner', 'the cap keeps the innermost');
+  ok(ctagsScopes('a.md', '/x') === null, 'a non-code file is not tagged');
+  ok(ctagsScopes('a.js', '/x', () => ({ error: new Error('ENOENT') })) === null, 'absent ctags gives null, not an empty list');
+  ok(ctagsScopes('a.js', '/x', () => ({ status: 1, stdout: '' })) === null, 'a failed ctags run gives null');
+  ok(ctagsScopes('a.py', '/x', () => ({ status: 0, stdout: tags })).length === 3, 'CONTROL: a good run parses');
+  const tEntry = { file: 't.js', h: createHash('sha256').update('alpha beta').digest('hex').slice(0, 16), vecs: [[0, 0, 0, 0]] };
+  const tagged = planFile(tEntry, 'alpha beta', 4, (t) => [t], 'alpha beta', [{ name: 'fn', line: 1, end: 3 }]);
+  ok(tagged.ok && tagged.docs[0].symbols?.join() === 'fn', 'planFile writes the symbols of a placed chunk');
+  const untagged = planFile(tEntry, 'alpha beta', 4, (t) => [t], 'alpha beta', null);
+  ok(untagged.ok && !('symbols' in untagged.docs[0]), 'no scopes ⇒ no symbols field, never an empty one');
+  ok(mapping(4).mappings.properties.symbols.type === 'keyword', 'the mapping carries the symbols field');
+
   const line = fail.length ? `xerj-load selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
@@ -505,7 +578,7 @@ async function main() {
     process.stderr.write(`xerj-load: created ${target} with a ${VECTOR_DIMS}-dim cosine dense_vector mapping\n`);
   }
 
-  const counts = { files: 0, loaded: 0, skipped: 0, docs: 0, repairedChunks: 0, skips: {} };
+  const counts = { files: 0, loaded: 0, skipped: 0, docs: 0, repairedChunks: 0, tagged: 0, skips: {} };
   let pending = [];
   let header = null;
   const flush = async () => {
@@ -572,7 +645,9 @@ async function main() {
           rawText = null;
         }
       }
-      const plan = planFile(entry, body, VECTOR_DIMS, chunk, rawText);
+      const scopes = rawText == null ? null : ctagsScopes(entry.file, abs);
+      if (scopes?.length) counts.tagged += 1;
+      const plan = planFile(entry, body, VECTOR_DIMS, chunk, rawText, scopes);
       if (!plan.ok) {
         counts.skipped += 1;
         counts.skips[plan.reason] = (counts.skips[plan.reason] || 0) + 1;

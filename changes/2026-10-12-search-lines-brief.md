@@ -23,4 +23,8 @@ On the real corpus, the loader placed 56,110 of 57,447 chunks. I read two printe
 
 The floor was fit on the even half only. The refused answerable query had no truth file in its top 5 on either floor. `node tools/xerj-bench.mjs --refusal --rerank` repeats the measurement. When the reranker server does not answer, the search uses the old floor and prints a note. The server is not a unit yet, and its adoption is an owner decision.
 
+A code hit also names the function that holds it (`tools/xerj-load.mjs`). An example is `allan.py:197-215 · gcov`. The loader runs universal-ctags on each code file and keeps the scopes with an end line. The search never reads the field, so no ranking moves. Without ctags, a hit has no symbol field.
+
+ctags 6.2.1 gives end lines for Python and the external SDK sources, not for JS or shell. So 489 of 492 Python files carry symbols, and no JS file does. A dry load tagged 1,564 files. I read 4 sampled names against their files, and all 4 are right.
+
 No bundle moves.

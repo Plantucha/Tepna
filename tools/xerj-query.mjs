@@ -97,7 +97,7 @@ export function isLoopback(url) {
  * than the result set turns recall into luck.
  */
 export function searchBody(query, vector, topK = 5) {
-  const _source = ['path', 'chunk_index', 'chunk_count', 'line_start', 'line_end', 'text'];
+  const _source = ['path', 'chunk_index', 'chunk_count', 'line_start', 'line_end', 'symbols', 'text'];
   /* NEVER BOTH CLAUSES AT ONCE — see the note above: rc.93 answers such a request with a ranking
      belonging to neither half. A caller who wants both calls twice and fuses. */
   if (Array.isArray(vector) && vector.length) {
@@ -137,6 +137,8 @@ export function formatHit(hit, chars = 900) {
   const ls = Number.isInteger(s.line_start) ? s.line_start : null;
   const le = Number.isInteger(s.line_end) ? s.line_end : null;
   const where = ls !== null ? `:${ls}${le !== null && le !== ls ? `-${le}` : ''}` : s.chunk_count > 1 ? ` [chunk ${s.chunk_index + 1}/${s.chunk_count}]` : '';
+  /* The function the passage sits in, from the loader's ctags pass; an untagged chunk prints nothing. */
+  const sym = Array.isArray(s.symbols) && s.symbols.length ? ` · ${s.symbols.join(', ')}` : '';
   let text = String(s.text ?? '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -148,7 +150,7 @@ export function formatHit(hit, chars = 900) {
     const cut = text.lastIndexOf(' ', chars);
     text = `${text.slice(0, cut > chars * 0.6 ? cut : chars)}…`;
   }
-  return { score: hit?._score ?? 0, path, where, text };
+  return { score: hit?._score ?? 0, path, where: where + sym, text };
 }
 
 /**
@@ -360,6 +362,12 @@ export async function selftest() {
     threw = true;
   }
   ok(threw, 'a non-loopback reranker is refused — the passages are repo text');
+
+  /* 8 · SYMBOLS print after the line range; an untagged hit prints none. */
+  const symHit = formatHit({ _source: { path: 'a.js', line_start: 5, line_end: 9, symbols: ['inner', 'outer'], text: 'x' } });
+  ok(symHit.where === ':5-9 · inner, outer', 'a tagged hit prints its function after the lines');
+  ok(formatHit({ _source: { path: 'a.js', line_start: 5, line_end: 9, text: 'x' } }).where === ':5-9', 'CONTROL: an untagged hit prints the lines alone');
+  ok(searchBody('q', null).query.match.text && !JSON.stringify(searchBody('q', null).query).includes('symbols'), 'the search body never reads symbols — no ranking moves');
 
   const line = fail.length ? `xerj-query selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
