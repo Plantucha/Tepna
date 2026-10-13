@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** CHECKPOINT (living — last-verified **2026-09-25**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7** — and as of **2026-09-17** BOTH have moved: **D3 is ONE call** (re-verified,
+**Status:** CHECKPOINT (living — last-verified **2026-10-13**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7** — and as of **2026-09-17** BOTH have moved: **D3 is ONE call** (re-verified,
 below), and **D7 is RULED — derive the mechanism first**, which converts it from a pending decision
 into an analysis unit with no owner. **D6-adjacent note:** `BLE-TRANSPORT-REDESIGN` §1.1 was also ruled
 on 2026-09-17 (**BUILD**, promoted to `GATT-HANDLE-MAP-2026-09-17-BRIEF.md`), and the fleet-wide
@@ -72,6 +72,12 @@ stamped and its header contradicts its own ticked boxes. Treat this as an index 
 *say* blocks them.
 
 ### 🥇 D1 · Attended box time + a wear schedule — **unblocks 13**
+
+> ✅ **RULED 2026-10-13 17:45 EDT (owner, via Kestrel AskUserQuestion).** The owner asked whether tonight could
+> serve "with other tests". Tonight is the armed heap-probe night (tracing adds about 25 stalls of 1–12 s), so
+> it cannot be the CLEAN night the clock and solid-night items need. **Ruling: the owner wears the three
+> devices tonight for D10 only; the clean worn night comes on the first night after the probe is off.**
+> Kestrel puts that night on the board; the 13 briefs stay waiting on that one night, no longer on a call.
 
 The highest-leverage line on this page, and the cheapest to say yes to: it is a **scheduling request,
 not a judgement**. Several items are a single worn night; the three Polar items are one
@@ -297,6 +303,23 @@ it, which is the cheapest possible moment to ask.
 ---
 
 ### D10–D15 · Six gates that name the owner and were NEVER ASKED (Heron, 2026-09-25)
+
+> ✅ **ALL SIX RULED 2026-10-13 17:45–17:50 EDT (owner, via Kestrel AskUserQuestion, three rounds).**
+>
+> | | ruling | who acts | when |
+> |---|---|---|---|
+> | **D10** | **YES**, the four-device handle-map read happens tonight, the same night as the D1 wear, read-only, no deploy | Heron | night of 2026-10-13 |
+> | **D11** | **YES**, Heron builds the systemd unit (`MemoryMax`/`OOMScoreAdjust`) by PR, the owner installs it on vigil | Heron | after the Saturday 2026-10-17 16:00 reset (the 90 % rule: no new unit before it) |
+> | **D12** | **YES**, Heron prepares the exact `config.yaml` line, the owner applies it in daylight | Heron, owner | daylight, not a capture night |
+> | **D13** | **ADOPT ALL 12** rows now, each tool gains a `tepna.verdict/1` object by PR | Osprey | after the Saturday reset |
+> | **D14** | **ATTESTATION GIVEN**, scoped as R1 states (newly written code only); recorded in the charter | Kestrel (recorded) | 2026-10-13 |
+> | **D15** | **YES**, a daytime window after Saturday with no capture running | Heron | week of 2026-10-17 |
+>
+> Ruled in the same session, outside the D-list: the trio fold re-runs now (started 17:46 EDT); a gap whose
+> cause is `daemon:restart` never fails a night, the judge annotates it under its own cause and excludes it
+> (Heron, #3571); the three API-lane hook patches land by PR and the owner merges (#3572 and the trim-hook
+> PR, both held with `do-not-merge`); the API coder lane has a cap of **40 USD per day** (22.90 spent on
+> 2026-10-13 before the ruling).
 
 > ⬜ **UNASKED — not deferred, not refused, simply never put.** A sweep of all **24** non-DONE briefs
 > whose STATUS LINE names an owner gate, checked against D1–D9, the `owner-decisions-*.md` records and
