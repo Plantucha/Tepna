@@ -417,7 +417,7 @@
     render();
   }
 
-  // Tolerant id lookup: an EDF stem 'shhs1-200001' should match nsrrid '200001'.
+  // Tolerant id lookup: an EDF stem 'shhs1-900004' should match nsrrid '900004'.
   // Tries the full stem, then the trailing numeric id, then a 'cohortN-' strip.
   function lookupAhi(stem) {
     if (AHI_CSV[stem] != null) return { ahi: AHI_CSV[stem], via: 'csv' };
