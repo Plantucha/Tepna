@@ -158,7 +158,7 @@
     // ARTIFACT desaturations (§2, the tested SELFGATE verdict). Node-local; SpO2 is an OxyDex-only signal.
     NADIR_RAMP_START_MAX: 88, // opening qualifies as a settling ramp only if the FIRST sample is ≤ this
     NADIR_RAMP_RECOVER: 90, // …and it climbs to ≥ this (a normal plateau)
-    NADIR_RAMP_MAX_SEC: 120 // …within this many seconds (else it is real low SpO2, not sensor settling)
+    NADIR_RAMP_MAX_SEC: 120 // …within this many SECONDS of the first sample, measured on rows[].tMs (else it is real low SpO2, not sensor settling)
   };
 
   // Capture clean parser source for self-download (runs before any results are rendered)
@@ -3886,11 +3886,19 @@
     var times = spikes.map(function (s) {
       return parseTimeStr(s.time);
     });
-    for (var i = 1; i < times.length; i++) {
-      while (times[i] < times[i - 1]) times[i] += 86400;
+    // ∅ ABSENCE IS NULL: a spike whose time could not be read (null) is not an event at 00:00:00. The
+    // midnight roll-over is tracked against the last READ time, and an interval is measured only between
+    // two ADJACENT spikes that both carry one — no interval is invented across an unreadable stamp.
+    var lastRead = null;
+    for (var i = 0; i < times.length; i++) {
+      if (times[i] == null) continue;
+      if (lastRead != null) while (times[i] < lastRead) times[i] += 86400;
+      lastRead = times[i];
     }
     var intervals = [];
-    for (var i = 1; i < times.length; i++) intervals.push(Math.round((times[i] - times[i - 1]) / 60));
+    for (var i = 1; i < times.length; i++) {
+      if (times[i] != null && times[i - 1] != null) intervals.push(Math.round((times[i] - times[i - 1]) / 60));
+    }
     if (intervals.length < 3) return null;
     var sorted = intervals.slice().sort(function (a, b) {
       return a - b;
@@ -3915,9 +3923,10 @@
     return { avg: avgInterval, spread: spread, pattern: pattern, intervals: kept };
   }
 
+  // ∅ ABSENCE IS NULL: an unreadable stamp is null, never 0 (00:00:00 is a real time of day).
   function parseTimeStr(s) {
-    var m = s.match(/(\d{2}):(\d{2}):(\d{2})/);
-    return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0;
+    var m = typeof s === 'string' ? s.match(/(\d{2}):(\d{2}):(\d{2})/) : null;
+    return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : null;
   }
 
   // ── OXYDEX-PB-DETECTOR §2 · the periodicity gate ──────────────────────────────────────────────
@@ -4810,12 +4819,24 @@
        perfusion-settling ramp, and the walk below (`spo2 < 94`) then stepped through every subsequent
        hole and masked them all. A ramp is a measured climb; an unread first second is not one. */
     if (_has(rows[0].spo2) && rows[0].spo2 <= CFG.NADIR_RAMP_START_MAX) {
-      var lim = Math.min(n, CFG.NADIR_RAMP_MAX_SEC),
+      /* NADIR_RAMP_MAX_SEC is a DURATION, so the window is ELAPSED TIME on `tMs` from the first sample,
+         never a count of array positions (120 positions is 120 s only for a dense 1 Hz series: a gappy,
+         resampled or sparse-rate night masked the wrong stretch). A sample whose stamp is unreadable is
+         outside the window (unknown elapsed time is not evidence it was inside). Only a series whose
+         FIRST row carries no stamp at all falls back to the nominal 1 Hz position count. */
+      var t0Ramp = rows[0].tMs,
+        timed = t0Ramp != null && isFinite(t0Ramp),
+        winMs = CFG.NADIR_RAMP_MAX_SEC * 1000,
+        inWin = function (j) {
+          if (!timed) return j < CFG.NADIR_RAMP_MAX_SEC;
+          var tj = rows[j].tMs;
+          return tj != null && isFinite(tj) && tj - t0Ramp >= 0 && tj - t0Ramp < winMs;
+        },
         k = 0;
       // The walk STOPS at a hole rather than stepping through it: the ramp is the stretch observed to
       // be climbing, and an unread second is not evidence that it had not recovered yet.
-      while (k < lim && _has(rows[k].spo2) && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;
-      if (k > 0 && k < lim) {
+      while (k < n && inWin(k) && _has(rows[k].spo2) && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;
+      if (k > 0 && k < n && inWin(k)) {
         // reached a normal plateau within the window
         var openMin = rows[0].spo2; // require the region to START at (near) its own min
         for (var j = 1; j < k; j++) if (rows[j].spo2 < openMin) openMin = rows[j].spo2; // = a climb, not a dip after a normal start

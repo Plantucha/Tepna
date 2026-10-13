@@ -20,9 +20,8 @@
  * fractions. Phase 1 recomputes those from the tree and REFUSES the whole run on any disagreement. That
  * is what makes it safe for this tool to enumerate for itself rather than import the fold's rule: the
  * defect in the row is an instrument selecting differently from the fold, and a tool that did that here
- * could not reach a number without 23 committed fractions contradicting it first. (The sharing is logged
- * as its own row — the fold's `concurrentSet`/`mergeIv`/`ivIntersect`/`ivSpan` are module-local to
- * `trio-batch.mjs` — and is a separate unit.)
+ * could not reach a number without 23 committed fractions contradicting it first. (The interval rule
+ * itself — `mergeIv`/`ivIntersect`/`ivSpan` — is now the fold's, imported from `trio-anchor.mjs`.)
  *
  * THE INDEX IS COMPOSED, WHICH IS WHY THIS FITS IN MEMORY. `ecgdex-dsp.js` defines the CVHR index as
  * `events.length / (denomSec / 3600)` — events per hour of OBSERVED recording — and a fragment boundary is
@@ -45,6 +44,7 @@ import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, s
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ECG_FILES, PPG_FILES, hostWindowMs, realm } from './gap-s-sweep.mjs';
+import { ivIntersect, ivSpan, mergeIv } from './trio-anchor.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -98,38 +98,13 @@ export function windowOfFile(path, chunk = 1 << 16) {
    18 of 23 nights disagreed, with my hours far too LARGE (2026-09-16 read 22.4 h against 6.9 h) because
    a date directory can hold an 04:42 capture and a 22:38 one, and the outer span swallows the 18 hours
    between them. A night is the measure of the sessions, not the distance between the first and last.
-   This is the shape the fold uses (`trio-batch.mjs` `mergeIv`/`ivIntersect`/`ivSpan`, module-local —
-   sharing them is its own residue row). */
-export function mergeIv(windows) {
-  const ok = windows
-    .filter(Boolean)
-    .slice()
-    .sort((a, b) => a[0] - b[0]);
-  const out = [];
-  for (const [s, e] of ok) {
-    if (out.length && s <= out[out.length - 1][1]) out[out.length - 1][1] = Math.max(out[out.length - 1][1], e);
-    else out.push([s, e]);
-  }
-  return out;
-}
-export function ivIntersect(A, B) {
-  const out = [];
-  let i = 0,
-    j = 0;
-  while (i < A.length && j < B.length) {
-    const s = Math.max(A[i][0], B[j][0]),
-      e = Math.min(A[i][1], B[j][1]);
-    if (e > s) out.push([s, e]);
-    if (A[i][1] < B[j][1]) i++;
-    else j++;
-  }
-  return out;
-}
+   This is the fold's own rule, IMPORTED from `trio-anchor.mjs` (where `trio-batch.mjs` reads it too) —
+   no longer a local re-derivation (residue 2026-09-29-fold-session-merge-rule-is-module-local-to-trio-batch).
+   Re-exported so this module's surface is unchanged. */
+export { ivIntersect, ivSpan, mergeIv };
 export function ivUnion(A, B) {
   return mergeIv(A.concat(B));
 }
-export const ivSpan = (A) => A.reduce((t, [s, e]) => t + (e - s), 0);
-
 export function overlapOfSpans(ivE, ivP) {
   if (!ivE || !ivP || !ivE.length || !ivP.length) return null;
   const both = ivSpan(ivIntersect(ivE, ivP)) / 3.6e6;

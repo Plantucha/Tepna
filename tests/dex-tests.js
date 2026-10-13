@@ -16478,7 +16478,7 @@
       });
 
       /* The cap. Lower it — never raise it — when a file is wired into either lane. */
-      var INVISIBLE_CAP = 6; // 13 → 12 on 2026-09-21 (cohort-harness.html + qrs-equiv-analysis.js); 12 → 8 on 2026-09-27 (readSources walks the ANALYSIS TOOL bundles); 8 → 6 on 2026-09-27 (dex-coload.js AND provenance-ledger.js listed in BOTH lanes — see INVISIBLE_SET)
+      var INVISIBLE_CAP = 1; // 6 → 1 on 2026-10-13 (cohort-full.js, dex-contracts.js, provenance-banner.js, support.js, xmt-fixture.js listed in BOTH lanes; only cohort-worker.js remains). // 13 → 12 on 2026-09-21 (cohort-harness.html + qrs-equiv-analysis.js); 12 → 8 on 2026-09-27 (readSources walks the ANALYSIS TOOL bundles); 8 → 6 on 2026-09-27 (dex-coload.js AND provenance-ledger.js listed in BOTH lanes — see INVISIBLE_SET)
       T.ok('no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')', invisible.length <= INVISIBLE_CAP, invisible.length + ' invisible: ' + invisible.join(', '));
       T.ok('the cap is not STALE — lower it when the debt shrinks', invisible.length >= INVISIBLE_CAP, 'only ' + invisible.length + ' invisible now; set INVISIBLE_CAP = ' + invisible.length);
       /* ── THE SET, NOT ONLY THE COUNT (2026-09-27) ───────────────────────────────────────────────────
@@ -16517,7 +16517,7 @@
          already refuses by name on a bundle with no committed hash); what changed is that the absence now
          carries its own reason: `loadBrowser` reports the paths that did not arrive and the banner names
          them, gated by the `provenance · ledger · absent-fragment` groups. */
-      var INVISIBLE_SET = ['cohort-full.js', 'cohort-worker.js', 'dex-contracts.js', 'provenance-banner.js', 'support.js', 'xmt-fixture.js'];
+      var INVISIBLE_SET = ['cohort-worker.js'];
       T.eq(
         'the invisible SET is exactly the published one (a swap cannot hide inside a stable count)',
         invisible.slice().sort().join(','),
@@ -48869,6 +48869,56 @@
       }
     });
 
+    /* ════ OxyDex nadir ramp window is a DURATION, not an array-position count ════
+     (residue 2026-10-07-nadir-ramp-max-sec-is-a-duration-applied-as-an-index-count.) NADIR_RAMP_MAX_SEC is
+     seconds; computeGatedNadir used it as `Math.min(n, 120)` positions, which is 120 s only for a dense
+     1 Hz series. Rows here carry `tMs`, as every parsed row does. */
+    group('OxyDex nadir ramp window is elapsed seconds, not positions', 'oxydex-dsp', function (T) {
+      var OD = env.OxyDex;
+      if (!(OD && typeof OD.computeGatedNadir === 'function')) {
+        T.ok('env.OxyDex.computeGatedNadir available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var T0 = Date.UTC(2026, 5, 12, 22, 0, 0);
+      // climb: 81 → 89 in 1-point steps (9 samples of the climb), then a 97 plateau. `stepMs` is the sample period;
+      // `per` repeats each climb value that many samples (a faster sampling rate over the SAME physical climb).
+      function night(stepMs, per, plateauN) {
+        var rows = [],
+          v,
+          r;
+        for (v = 81; v <= 89; v++) for (r = 0; r < per; r++) rows.push({ tMs: T0 + rows.length * stepMs, spo2: v, hr: 60, motion: 0 });
+        var plat = plateauN;
+        for (var i = 0; i < plat; i++) rows.push({ tMs: T0 + rows.length * stepMs, spo2: 97, hr: 60, motion: 0 });
+        return rows;
+      }
+      // (1) a ramp that CLIMBS in 45 s of real time but takes 180 samples (4 Hz) → inside 120 s, must be masked.
+      //     Old code: k = 180 ≥ lim = 120 positions → "not within the window" → the 81 nadir was kept.
+      var fast = night(250, 20, 600);
+      var gFast = OD.computeGatedNadir(fast, { eventsAll: [] }, 81);
+      T.eq('a 4 Hz ramp that settles in 45 s is masked (nadir off 81 → 97)', gFast.min, 97);
+      T.eq('…and every one of its 180 samples is excluded', gFast.excluded, 180);
+      // (2) a ramp that takes 180 s of real time but only 36 samples (0.2 Hz) → OUTSIDE 120 s, so it is a real low.
+      //     Old code: k = 36 < 120 positions → masked → the genuine 81 was erased.
+      var slow = night(5000, 4, 200);
+      var gSlow = OD.computeGatedNadir(slow, { eventsAll: [] }, 81);
+      T.eq('a 0.2 Hz ramp that takes 180 s is NOT sensor settling (81 kept)', gSlow.min, 81);
+      T.eq('…and nothing is excluded', gSlow.excluded, 0);
+      // (3) CONTROL · dense 1 Hz keeps its answer: a 9 s climb is masked, exactly as before.
+      var dense = night(1000, 1, 600);
+      var gDense = OD.computeGatedNadir(dense, { eventsAll: [] }, 81);
+      T.eq('CONTROL · a dense 1 Hz 9 s ramp is still masked (→ 97)', gDense.min, 97);
+      T.eq('CONTROL · and excludes exactly its 9 samples', gDense.excluded, 9);
+      // (4) CONTROL · the boundary is on elapsed time: a plateau first reached at 119 s qualifies, at 120 s does not.
+      function boundary(plateauAtSec) {
+        var rows = [];
+        for (var s = 0; s < plateauAtSec; s++) rows.push({ tMs: T0 + s * 1000, spo2: s === 0 ? 85 : 86, hr: 60, motion: 0 });
+        for (var q = 0; q < 300; q++) rows.push({ tMs: T0 + (plateauAtSec + q) * 1000, spo2: 97, hr: 60, motion: 0 });
+        return rows;
+      }
+      T.eq('CONTROL · a plateau reached at 119 s is within the window (masked → 97)', OD.computeGatedNadir(boundary(119), { eventsAll: [] }, 85).min, 97);
+      T.eq('CONTROL · a plateau reached at 120 s is outside it (85 kept)', OD.computeGatedNadir(boundary(120), { eventsAll: [] }, 85).min, 85);
+    });
+
     /* ════ OxyDex node-export v2.0 envelope + ganglior_events[] (OXYDEX-NODE-EXPORT-ENVELOPE-2026-06-27) ════
      The emit-side contract for the UNCONDITIONAL v2.0 envelope. Runs LIVE in BOTH runners: a deterministic
      hand-built O2Ring CSV (two gradual desaturations, depth 7% + 9%, both passing the kinetics self-gate)
@@ -73237,6 +73287,114 @@
         });
       }
     );
+
+    group(
+      'RESIDUE js-mutation-timeout — the mutate step caps itself below the job and the report names a timeout (not `cancelled`)',
+      'mutation-workflow · timeout-announces-itself · residue',
+      function (T) {
+        /* A job that exhausts its own `timeout-minutes` reports `cancelled`, which `gh pr checks` renders
+           exactly like an Actions-incident cancellation. A STEP cap below the job's fails the step instead,
+           and the `if: always()` report step then says TIMED OUT. Node-lane only: the workflow is fs-read. */
+        var fs = null;
+        try {
+          fs = require('fs');
+        } catch (_) {}
+        if (!fs) {
+          T.skip('fs available', 'Node-lane only');
+          return;
+        }
+        var yml = '';
+        try {
+          yml = fs.readFileSync('.github/workflows/mutation.yml', 'utf8');
+        } catch (e) {
+          T.ok('.github/workflows/mutation.yml readable', false, String((e && e.message) || e));
+          return;
+        }
+        var jobCap = /^ {4}timeout-minutes:[ \t]*(\d+)/m.exec(yml);
+        T.ok('the job declares an integer timeout-minutes', !!jobCap, 'job cap not found');
+        var steps = yml.split(/^ {6}- (?=name:|uses:)/m).slice(1);
+        function stepNamed(n) {
+          return steps.filter(function (b) {
+            return b.indexOf('name: ' + n) === 0;
+          })[0];
+        }
+        var mut = stepNamed('Diff-scoped mutation'),
+          rep = stepNamed('Report the verdict');
+        T.ok('the Diff-scoped mutation step is present', !!mut, 'step not found');
+        T.ok('the Report the verdict step is present', !!rep, 'step not found');
+        if (!mut || !rep || !jobCap) return;
+        var stepCap = /^ {8}timeout-minutes:[ \t]*(\d+)/m.exec(mut);
+        T.ok('the mutate step declares its own integer timeout-minutes', !!stepCap, 'no step-level cap: a timeout reads as a bare `cancelled`');
+        T.ok(
+          'the step cap is strictly below the job cap, so the step fails before the job is cancelled',
+          !!stepCap && Number(stepCap[1]) < Number(jobCap[1]),
+          'step=' + (stepCap && stepCap[1]) + ' job=' + jobCap[1]
+        );
+        T.ok('the step records its start time before node runs', /t0=\$\(date \+%s\)[^\n]*GITHUB_OUTPUT[\s\S]*node tools\/mutate\.mjs/.test(mut), 'no t0 output ahead of the node call');
+        T.ok('the report runs always() and receives the start time', /if: always\(\)/.test(rep) && /T0: \$\{\{ steps\.mutate\.outputs\.t0 \}\}/.test(rep), 'report lacks T0');
+        T.ok('the report names TIMED OUT when no exit code was recorded', /-z "\$\{CODE\}"[\s\S]*TIMED OUT/.test(rep), 'report has no TIMED OUT branch');
+      }
+    );
+    /* RESIDUE 2026-10-06-parsetimestr-zero-on-unparseable (#3332) — ∅ ABSENCE IS NULL. `parseTimeStr` answered
+       0 (00:00:00) for a stamp it could not read, so `detectPeriodicity` placed a spike with no readable time
+       at midnight and measured intervals from it. The helper answers null; the periodicity gate measures only
+       between two spikes whose times were both read. */
+    group('OxyDex §∅ — parseTimeStr answers null for an unreadable stamp, and detectPeriodicity never places it at midnight', 'oxydex-dsp · absence-as-value · parsetimestr', function (T) {
+      var _odp = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var ODP = (_odp && _odp._bare) || _odp;
+      if (!ODP || typeof ODP.parseTimeStr !== 'function' || typeof ODP.detectPeriodicity !== 'function') {
+        T.ok('OxyDex parseTimeStr / detectPeriodicity are reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      T.eq('§∅ · an empty stamp is null, not 00:00:00', ODP.parseTimeStr(''), null);
+      T.eq('§∅ · a stamp with no HH:MM:SS is null', ODP.parseTimeStr('garbage'), null);
+      T.eq('CONTROL · a real midnight stamp is still 0', ODP.parseTimeStr('00:00:00'), 0);
+      T.eq('CONTROL · a readable stamp still parses', ODP.parseTimeStr('01:02:03'), 3723);
+      var mk = function (t) {
+        return { time: t };
+      };
+      var clean = ODP.detectPeriodicity(['01:00:00', '02:00:00', '03:00:00', '04:00:00', '05:00:00'].map(mk));
+      T.eq('CONTROL · hourly spikes with readable stamps are REGULAR', clean && clean.pattern, 'REGULAR');
+      /* One spike in the middle of a regular hourly train has no readable time. Placed at midnight it adds
+         a ~22 h interval and a 3 h one, drops regularity under 0.8, and the night reads aperiodic. */
+      var holed = ODP.detectPeriodicity(['01:00:00', '02:00:00', '', '03:00:00', '04:00:00', '05:00:00'].map(mk));
+      T.eq('§∅ · an unreadable stamp is not placed at midnight — the regular train is still REGULAR', holed && holed.pattern, 'REGULAR');
+      T.eq('…and only intervals between two READ times are measured (3 of 5, none invented)', holed && holed.intervals && holed.intervals.length, 3);
+      T.eq('…with the true 60 min spacing', holed && holed.avg, 60);
+      T.eq('ABSENCE · fewer than 3 readable intervals is null, never a pattern', ODP.detectPeriodicity(['01:00:00', '', '03:00:00', '', '05:00:00'].map(mk)), null);
+      // last: on the unfixed helper this THROWS, which would hide every assertion after it
+      T.eq('§∅ · a non-string stamp is null', ODP.parseTimeStr(undefined), null);
+    });
+
+    /* RESIDUE 2026-09-27-load-bearing-sources-no-gate-can-read — the unit-by-unit payment of that debt.
+       A file in neither lane's inventory is unscannable BY CONSTRUCTION, and pinning the set by name only
+       made the debt visible. This group asserts the files wired in so far are READABLE TEXT in the Node
+       lane (env.sources) AND listed in the browser lane's SOURCE_FILES — both or neither. It reads the
+       wiring itself, not the ratchet's count, so it cannot be satisfied by lowering a number.
+       `cohort-worker.js` is deliberately NOT here: wiring it in makes the worker-boundary gate scan it for
+       the first time (it is pinned INVENTORY_ABSENT there), which is its own triage unit. */
+    group('RESIDUE load-bearing-sources — wired sources are readable text in BOTH lanes', 'cohesion · source-visibility · residue', function (T) {
+      var SV = env.sourceVisibility;
+      if (!SV || !env.sources) {
+        T.skip('env.sourceVisibility provided to the runner', 'Node-lane only — the browser lane SKIPs, mirroring source-visibility');
+        return;
+      }
+      var WIRED = ['cohort-full.js', 'dex-contracts.js', 'provenance-banner.js', 'support.js', 'xmt-fixture.js'];
+      T.ok(
+        'ANTI-VACUITY · both lane inventories are populated',
+        SV.browser.length > 20 && Object.keys(env.sources).length > 20,
+        SV.browser.length + ' browser / ' + Object.keys(env.sources).length + ' node'
+      );
+      WIRED.forEach(function (f) {
+        var t = env.sources[f];
+        T.ok(
+          f + ' is readable text in the Node lane (env.sources)',
+          typeof t === 'string' && t.length > 500,
+          typeof t === 'string' ? t.length + ' bytes' : 'absent from env.sources — unscannable by any source gate'
+        );
+        T.ok(f + ' is listed in the browser lane (SOURCE_FILES)', SV.browser.indexOf(f) >= 0, 'absent from SOURCE_FILES — wire both lanes or neither');
+      });
+    });
 
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.

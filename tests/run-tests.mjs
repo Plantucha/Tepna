@@ -697,6 +697,14 @@ function readSources() {
     'pat-classic-vs-fused.js',
     'dex-coload.js',
     'provenance-ledger.js',
+    /* RESIDUE 2026-09-27-load-bearing-sources-no-gate-can-read — five more of the eight, wired in BOTH lanes
+       (SOURCE_FILES in Dex-Test-Suite.html carries the same five). `cohort-worker.js` is NOT here: the
+       worker-boundary gate pins it INVENTORY_ABSENT and scanning it is its own triage unit. */
+    'cohort-full.js',
+    'dex-contracts.js',
+    'provenance-banner.js',
+    'support.js',
+    'xmt-fixture.js',
     /* The cohort HARNESS page — its authored boot script is the realm tripwire (refuse rather than serve
        nulls, #2572); the gate drives it in a vm with the node's global absent and present, and pins its
        two maps equal so a node cannot slip past the check unexamined. The DSP blocks inlined above the

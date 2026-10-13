@@ -63,3 +63,42 @@ export const anchoredRec = (rec) => {
 export function utc(y, mo, d, h, mi, s) {
   return Date.UTC(y, mo - 1, d, h, mi, s);
 }
+
+/* ── THE NIGHT IS THE MERGED MEASURE OF ITS SESSIONS (residue
+   2026-09-29-fold-session-merge-rule-is-module-local-to-trio-batch) ─────────────────────────────────
+   Moved here from `trio-batch.mjs`, which runs its night loop at import and so cannot export anything a
+   second tool can load. `cvhr-fold-rescore.mjs` re-derived these and proved equivalence against 23
+   committed rows; it now imports the fold's own rule. Windows are `[t0, tEnd]` floating-ms pairs; an
+   absent window (null) is dropped, never merged as a zero (§∅). Pure: no I/O. */
+export function mergeIv(windows) {
+  const out = [];
+  for (const [s, e] of windows.filter(Boolean).sort((a, b) => a[0] - b[0])) {
+    if (out.length && s <= out[out.length - 1][1]) out[out.length - 1][1] = Math.max(out[out.length - 1][1], e);
+    else out.push([s, e]);
+  }
+  return out;
+}
+export function ivIntersect(A, B) {
+  const out = [];
+  let i = 0,
+    j = 0;
+  while (i < A.length && j < B.length) {
+    const s = Math.max(A[i][0], B[j][0]),
+      e = Math.min(A[i][1], B[j][1]);
+    if (e > s) out.push([s, e]);
+    if (A[i][1] < B[j][1]) i++;
+    else j++;
+  }
+  return out;
+}
+export const ivSpan = (A) => A.reduce((t, [s, e]) => t + (e - s), 0);
+
+/* Every record of a stream that touches the night's merged anchor — not the single best one. A record
+   contributing zero overlap is dropped (a daytime capture is not this night's sleep). `ivOf(rec)` gives
+   the record's `[t0, tEnd]`. Returns null when there are no records or no anchor, else the kept records
+   (the caller's own objects, input order) and the merged kept set's overlap with the anchor in ms. */
+export function concurrentWith(arr, anchorIv, ivOf) {
+  if (!arr.length || !anchorIv.length) return null;
+  const kept = arr.filter((r) => ivSpan(ivIntersect(mergeIv([ivOf(r)]), anchorIv)) > 0);
+  return { kept, overlapMs: ivSpan(ivIntersect(mergeIv(kept.map(ivOf)), anchorIv)) };
+}

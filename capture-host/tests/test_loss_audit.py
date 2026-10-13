@@ -3223,3 +3223,71 @@ def test_a_header_NAME_padded_on_EITHER_side_still_finds_its_column(tmp_path):
     rows = loss_audit.oxyframe_samples(str(f))
     assert [r[1] for r in rows] == [10, 11], "the padded counter name matched"
     assert [r[2] for r in rows] == [126, 126], "the LAST name matched with its newline off"
+
+
+# ── residue 2026-09-23-loss-audit-cannot-attribute-a-night-with-no-file ───────────────────────────────
+# `lost_min` is measured inside a recorded span, so a device with NO span contributed nothing and the
+# night-loss verdict scored a night that recorded one device of three as PASS. §∅: absence is its own
+# class, keyed on an EXPECTED device having no primary file — not inferred from missing rows.
+
+_THREE = [
+    {"name": "Polar H10 0284", "model": "H10"},
+    {"name": "O2Ring ABC", "model": "O2Ring-S"},
+    {"name": "Polar Verity 0C30", "model": "VeritySense"},
+]
+
+
+def test_a_night_with_an_expected_device_that_left_no_file_is_not_a_PASS(tmp_path):
+    """THE PLANT is the 2026-09-18 shape: the H10 recorded, the ring and the Verity left no primary file.
+    The audit must say, per device, that an EXPECTED device is absent; the verdict must name it and must
+    not PASS. An OPTIONAL backup that left no file, and a model with no primary stream, are NOT expected
+    and must not make a night UNKNOWN by construction (SOLID-NIGHT §3.2)."""
+    d = _night(tmp_path, holes=())  # the H10 is clean: 0 lost minutes, worn
+    devs = _THREE + [
+        {"name": "Backup", "model": "O2Ring-S", "optional": True},
+        {"name": "Muse", "model": "Athena"},
+    ]
+    a = loss_audit.audit_night(d, devs, journal=lambda *a: [])
+    assert a["devices"]["O2Ring ABC"]["night_absent"] is True
+    assert a["devices"]["Polar Verity 0C30"]["night_absent"] is True
+    assert a["devices"]["Backup"]["night_absent"] is False  # optional: not expected
+    assert "night_absent" not in a["devices"]["Muse"]  # no primary stream known: not a missing file
+    assert "night_absent" not in a["devices"]["Polar H10 0284"]
+    o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
+    verdict.validate(o)
+    assert js_validate(o)["ok"]
+    assert o["status"] == "UNKNOWN", o["status"]
+    assert "night absent" in o["reason"] and "O2Ring ABC" in o["reason"] and "Polar Verity 0C30" in o["reason"]
+    assert "Backup" not in o["reason"] and "Muse" not in o["reason"]
+    assert o["result"]["night_absent"] == ["O2Ring ABC", "Polar Verity 0C30"]
+    assert o["result"]["worn_but_not_recorded_fraction"] == 0.0  # the number is still published beside it
+    assert o["population"] == {"checked": 1, "eligible": 5, "excluded": 4}
+
+
+def test_a_FAIL_is_not_hidden_behind_a_night_absent_device(tmp_path):
+    """A clear failure on a device that did record outranks the absence (SOLID-NIGHT §3.1 precedence) and
+    still names the absent device in the object."""
+    d = _night(tmp_path)  # a 2 min hole in 10 min: far over the 1 % bar
+    planted = [(T0 + dt.timedelta(seconds=199), "daemon:not-worn drop")]
+    a = loss_audit.audit_night(d, _THREE, journal=lambda *a: planted)
+    o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
+    verdict.validate(o)
+    assert o["status"] == "FAIL"
+    assert o["result"]["night_absent"] == ["O2Ring ABC", "Polar Verity 0C30"]
+
+
+def test_a_night_where_every_device_recorded_reports_no_night_absent_and_still_PASSES(tmp_path):
+    d = _night(tmp_path, holes=())
+    a = loss_audit.audit_night(d, DEV, journal=lambda *a: [])
+    o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
+    assert o["status"] == "PASS" and o["reason"] is None
+    assert o["result"]["night_absent"] == []
+
+
+def test_an_absent_device_beside_a_night_with_no_worn_evidence_is_UNKNOWN_not_NOT_APPLICABLE(tmp_path):
+    """`NOT_APPLICABLE` says the criterion does not bind because nobody wore anything. With an expected
+    device missing that is not known, so the absence wins over the no-worn-evidence reading."""
+    d = _night(tmp_path, hr=0)  # the H10's HR file carries no beat: not worn
+    a = loss_audit.audit_night(d, _THREE, journal=lambda *a: [])
+    o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
+    assert o["status"] == "UNKNOWN" and "night absent" in o["reason"]
