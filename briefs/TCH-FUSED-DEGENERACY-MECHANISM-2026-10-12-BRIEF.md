@@ -221,8 +221,54 @@ the fused estimator still excludes roughly eight times as many nights as the unw
    `result.nights`.
 3. ✅ §8.1 refutes §2 **by name** — the O2Ring corner is not the exposed one — and carries the corrected
    route, in this brief rather than in a new one.
-4. ⬜ **Open — the owner picks A or B** (C's precondition failed). §8.2 is the evidence.
+4. ✅ **The owner picked A on 2026-10-12** (relayed by Kestrel), on §8.2's evidence: the unweighted hat
+   is canonical and the fused hat is retired to a computed diagnostic. §9 records what that changed.
 5. ✅ Nobody quotes a σ from a `hasConf: false` night. All 90 solved nights in this corpus carry per-beat
    `conf`, and the five σ triples in §8.2 are all `hasConf: true`.
+
+## 9 · OPTION A, IMPLEMENTED 2026-10-12
+
+The owner picked **A** (relayed by Kestrel). §5's five consequences, each as it landed:
+
+1. **The point estimator re-points.** `sensor-trio-worker.js` `runRealNight` now solves the point with
+   `tchSigmas(hh, vv, oo)` — the unweighted ("classic") hat — and `nightDerive`'s bootstrap replicates and
+   running prefixes run the same estimator, so no `hatOn`/`fused` switch survives. `sensor-trio-night.js`'s
+   `kMethod` KPI, `sensor-trio-power-analysis.js` and `sigma-no-reference-analysis.js` all read the new
+   payload. The machine value is **`estimator: 'classic'`**, the kernel's own vocabulary
+   (`AnalysisStats.tchBlockBootstrapCI` already took `'classic'`), with "unweighted hat" as the human label.
+2. **The fused hat is a diagnostic, not a deletion.** The payload carries `fusedDiag` — the fused triple,
+   computed only when at least one corner shipped a confidence array, **`null` otherwise** (§∅: never an
+   equal-weight copy wearing the fused name). It is rendered: the night page's `kMethod` sub-line and the
+   power tool's real-row tooltip. A worker key with no consumer is what the dead-key gate calls dead.
+3. **A latent inconsistency closed with the re-point.** The CI was already bootstrapped `'classic'` while
+   the point was fused — the F16 defect, in both directions (`sigma-no-reference-analysis.js`'s `aggregate`
+   passed `biggest.cH/cV/cO` into a CI around what is now an unweighted point). Point and CI now agree by
+   construction everywhere.
+4. **The N15 power numbers are re-stated, and were already unweighted.** Dated addenda in
+   `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` and `TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`.
+   The fused point entered `sensor-trio-worker.js` on **2026-07-14** (`4d10a8164`), and the 15-night hat row
+   was executed **2026-07-12** — so both rows of the N15 table pre-date the fused estimator and stand. The
+   pooled-seconds unweighted broad hat the gated box asked for is now measured: **O2Ring 3.46 · H10 1.38 ·
+   Verity 1.30 bpm** over 1,510,146 s. The planted σ (2.72 / 1.86 / 1.94) does **not** move — it is the
+   pre-fused raw-ECG estimate and the simulation's input; the remaining N15 blocker is the trial count.
+5. **Every σ quoted as fused is withdrawn, with the reason named.** Dated withdrawal banners in
+   `papers/sigma-no-reference.html` (whose headline triple 2.41 / 1.28 / 1.42 bpm is withdrawn in the
+   abstract, Table 3's σ rows, Figure 2, §2.3(3′), the Discussion and limitations (viii) and (x)) and in
+   `papers/sensor-trio-nights.html` (which quotes the companion triple in nine places). **No number
+   replaces them**: the unweighted triple measured here is a 90-night corpus against the paper's 26, so
+   re-deriving the paper's σ on its own nights under the unweighted hat is owed and not done, and until
+   then that paper states no reference-free per-device σ.
+
+**The corner measurement that justifies A over B** — made on the same 90 solved nights, so it is a
+comparison and not two runs: re-pointing changes **no night's skip decision** (the Verity quality gate
+trips on neither estimator, 0 of 90 either way). What it changes is which corner survives: the fused hat
+returns no σ for the **Verity** corner on **25** of 90 nights, the unweighted hat none for **H10** on **3**.
+The weighting decides which corner disappears, so each fused per-device median was taken over a different
+night set — which is what makes the published triple not three σ over one corpus.
+
+**What is NOT changed here.** `analysis-stats.js` is untouched, so no bundle `computeHash` moves and no
+fixture re-verifies. `tchSigmasFused` stays exported and tested — the DELEGATIONS leg requires both
+analysis pages to keep referencing it. The planted σ and its single-value gate stay pinned. §6.2 / §6.3 of
+`TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` stay parked.
 
 **Rule 0:** `node tools/doc-search.mjs --read "TCH fused degeneracy mechanism D7 measurements M1 M2 M3"` → this brief (0.620), `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md` (0.584), `briefs/RESIDUE.md` (0.574), `DOCS-INDEX.md` (0.570) — read 2026-10-12.

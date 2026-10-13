@@ -636,10 +636,20 @@
     for (const k of DKEYS) hero(k, real, derive);
     renderIndependence(real);
     kpi('kOverlap', hmOf(real.n), real.n + ' s on the aligned 1 Hz grid', 'good');
-    // the worker's point is the FUSED hat (tchSigmasFused: per-corner DSP confidence × Tukey consensus
-    // trust) — and so is every CI replicate and running prefix (DEEP-AUDIT-VI F16: the CI's estimator
-    // follows the point's), so the label names the estimator that actually produced the numbers
-    kpi('kMethod', real.neg ? 'negative variance' : 'fused hat', real.neg ? 'a corner is null — see the literature note' : 'DSP confidence × consensus trust', real.neg ? 'warn' : 'good');
+    /* D7 option A (owner's pick 2026-10-12): the worker's point is the UNWEIGHTED hat (tchSigmas), and so
+       is every CI replicate and running prefix (DEEP-AUDIT-VI F16: the CI's estimator follows the point's),
+       so the label names the estimator that actually produced the numbers. The retired fused-weight hat
+       rides along as `real.fusedDiag` and is shown as a DIAGNOSTIC in the sub-line — same three corners,
+       weighted by DSP confidence × consensus trust, never the published σ. `estimator` is the worker's own
+       machine field, read here rather than assumed, so the label cannot outlive a re-point. */
+    const fd = real.fusedDiag;
+    const fdTxt = fd ? DKEYS.map((k) => DEV[k].name.split(' ')[0] + ' ' + (fd[k] == null ? 'neg' : f2(fd[k]))).join(' · ') : 'no DSP confidence on this night';
+    kpi(
+      'kMethod',
+      real.neg ? 'negative variance' : real.estimator === 'classic' ? 'unweighted hat' : String(real.estimator),
+      (real.neg ? 'a corner is null — see the literature note' : 'equal-weight σ̂ over the three corners') + ' · retired fused diagnostic: ' + fdTxt,
+      real.neg ? 'warn' : 'good'
+    );
     kpi('kGate', real.h10Unreliable ? 'H10 nulled' : 'both gates ok', real.h10Unreliable ? real.h10Fault : 'Verity harmonic gate · H10 lead gate', real.h10Unreliable ? 'bad' : 'good');
     // every corner's source, because a σ̂ is only comparable across nights that read the same inputs
     const short = (x) =>

@@ -271,11 +271,13 @@
   // and clearly labelled as within-window (not the across-window CI the brief targets).
   /* DEEP-AUDIT-VI F16 — the CI's estimator must FOLLOW the point's. Delegated to
      AnalysisStats.tchBlockBootstrapCI (single-sourced, known-answer-gated): with the per-corner
-     confidence arrays present every replicate runs the FUSED hat — the estimator that produced the
-     live path's point — resampling the confidences in lockstep with the same block indices; without
-     them (the committed-TRIOS path, whose point is classic) every replicate runs the classic hat,
-     exactly as before. The old page-local copy bootstrapped tchSigmas unconditionally, so an
-     artifact-flagged night rendered a fused σ entirely outside its own classic CI. */
+     confidence arrays present every replicate runs the FUSED hat, resampling the confidences in
+     lockstep with the same block indices; without them every replicate runs the classic hat.
+     Since D7 option A (owner 2026-10-12) every point on this page is the UNWEIGHTED hat, so every
+     caller passes null and every replicate is classic. The signature keeps the arrays because F16 is a
+     rule about agreement, not a preference for one estimator: a fused point would have to come back
+     through here. The old page-local copy bootstrapped tchSigmas unconditionally while the point was
+     fused, so an artifact-flagged night rendered a point entirely outside its own CI. */
   function blockBootstrapCI(hh, vv, oo, cH, cV, cO) {
     return AnalysisStats.tchBlockBootstrapCI(hh, vv, oo, { cH, cV, cO, B: B_WITHIN, blockS: BLOCK_S });
   }
@@ -316,15 +318,21 @@
       vv.push(Vt.get(k));
       oo.push(Ot.get(k));
     }
-    // TCH-FUSED-ROBUST-HAT (closed 2026-09-26): the committed-corpus path runs the FUSED hat when the
-    // derived files carry the DSP's per-second confidence, and the CLASSIC hat when they do not. The
-    // estimator follows the data, never a default of 1 (§∅): a pre-2026-09-26 file yields exactly the
-    // numbers it always did. The O2Ring CSV carries no confidence — that corner is weight 1.
-    const fused = !!(Ht._hasConf || Vt._hasConf);
-    const cH = fused ? AnalysisStats.confidenceSeries(Ht._c, ks) : null,
-      cV = fused ? AnalysisStats.confidenceSeries(Vt._c, ks) : null,
-      cO = fused ? ks.map(() => 1) : null;
-    const s = fused ? tchSigmasFused(hh, vv, oo, cH, cV, cO) : tchSigmas(hh, vv, oo);
+    /* D7 option A — owner's pick 2026-10-12 (TCH-FUSED-DEGENERACY-MECHANISM §5): the point is the
+       UNWEIGHTED hat on every window, and the fused-weight hat of TCH-FUSED-ROBUST-HAT (closed
+       2026-09-26) is RETIRED TO A DIAGNOSTIC. The estimator no longer follows the data: a per-window
+       choice of estimator is what made two windows' σ incomparable, and the fused weighting's own
+       negative-variance rate is an artefact of the weights (25 of 90 corpus nights lose the Verity
+       corner under fused, 3 lose H10 under unweighted — tools/tch-fused-corpus.mjs, 2026-10-12).
+       The confidences still arrive and still weight the diagnostic, never a default of 1 (§∅): a
+       pre-2026-09-26 file gets no diagnostic at all rather than a fabricated one. The O2Ring CSV
+       carries no confidence — that corner is weight 1 in the diagnostic. */
+    const hasConf = !!(Ht._hasConf || Vt._hasConf);
+    const cH = hasConf ? AnalysisStats.confidenceSeries(Ht._c, ks) : null,
+      cV = hasConf ? AnalysisStats.confidenceSeries(Vt._c, ks) : null,
+      cO = hasConf ? ks.map(() => 1) : null;
+    const s = tchSigmas(hh, vv, oo);
+    const sFused = hasConf ? tchSigmasFused(hh, vv, oo, cH, cV, cO) : null;
     const HV = { ...ba(s.dHV), r: pearson(hh, vv) },
       HO = { ...ba(s.dHO), r: pearson(hh, oo) },
       VO = { ...ba(s.dVO), r: pearson(vv, oo) };
@@ -358,7 +366,9 @@
       t1: ks[ks.length - 1],
       verSQI: Vt._sqi,
       sigma: { h10: s.h10, verity: s.verity, o2: s.o2 },
-      estimator: fused ? 'fused' : 'classic',
+      estimator: 'classic', // the unweighted hat, in the kernel's own vocabulary
+      // the retired fused-weight hat, carried so the degeneracy stays readable beside the point
+      fusedDiag: sFused ? { h10: sFused.h10, verity: sFused.verity, o2: sFused.o2, neg: sFused.neg } : null,
       negVar: s.negVar,
       neg: s.neg,
       pair: { HV, HO, VO },
@@ -367,8 +377,10 @@
       hh,
       vv,
       oo,
-      // F16: the confidences ride the window so the within-window CI bootstraps the SAME estimator as
-      // the point (null ⇒ classic replicates). Stripped from stats.json like hh/vv/oo.
+      /* F16: the CI's estimator follows the point's, and since D7 option A the point is unweighted — so
+         the within-window CI runs classic replicates and these arrays weight only the diagnostic above.
+         They still ride the window because that is where a fused CI would have to come from if the
+         diagnostic ever needs one. Stripped from stats.json like hh/vv/oo. */
       cH,
       cV,
       cO,
@@ -382,7 +394,11 @@
     const N = windows.length,
       totalS = windows.reduce((s, w) => s + w.n, 0);
     const biggest = windows.reduce((a, b) => (b.n > a.n ? b : a), windows[0]);
-    const within = N < N_FOR_ACROSS ? blockBootstrapCI(biggest.hh, biggest.vv, biggest.oo, biggest.cH, biggest.cV, biggest.cO) : null;
+    /* F16 — the CI's estimator FOLLOWS the point's, and since D7 option A every point here is the
+       unweighted hat, so the replicates get NO confidences. Passing `biggest.cH/cV/cO` (which still ride
+       the window, for the diagnostic) would bootstrap the fused hat around an unweighted point and put
+       the point outside its own CI — the exact defect F16 was written for, in the other direction. */
+    const within = N < N_FOR_ACROSS ? blockBootstrapCI(biggest.hh, biggest.vv, biggest.oo, null, null, null) : null;
     const dev = {};
     for (const k of keys) {
       const vals = windows.map((w) => w.sigma[k]).filter((v) => v != null);
@@ -645,7 +661,7 @@
       const ctrl = w.pair.HO;
       const ctrlTxt = `<span style="color:${w.ctrlDrift ? '#FF6B7A' : '#39D98A'}">${sgn(ctrl.bias)} / ${f2(ctrl.sd)}</span>`;
       tr.innerHTML =
-        `<td>${w.label}${w.estimator === 'fused' ? ' <span class="muted" title="fused-weight hat — the derived files carry the DSP\'s per-second confidence">fused</span>' : ''}${negTxt}</td><td class="num">${w.n.toLocaleString()}</td><td class="num">${w.verSQI == null ? '—' : w.verSQI.toFixed(2)}</td>` +
+        `<td>${w.label}${w.fusedDiag ? ` <span class="muted" title="retired fused-weight diagnostic — O2 ${f2(w.fusedDiag.o2)} · H10 ${f2(w.fusedDiag.h10)} · Verity ${f2(w.fusedDiag.verity)}; the point beside it is the unweighted hat">fused diag</span>` : ''}${negTxt}</td><td class="num">${w.n.toLocaleString()}</td><td class="num">${w.verSQI == null ? '—' : w.verSQI.toFixed(2)}</td>` +
         `<td class="num" style="color:#FFB84D">${w.sigma.o2 == null ? 'neg' : w.sigma.o2.toFixed(2)}</td>` +
         `<td class="num" style="color:#3DE0D0">${w.sigma.h10 == null ? 'neg' : w.sigma.h10.toFixed(2)}</td>` +
         `<td class="num" style="color:#B98AFF">${w.sigma.verity == null ? 'neg' : w.sigma.verity.toFixed(2)}</td>` +
@@ -1118,8 +1134,27 @@
       });
       rows.push(['TCH_n_windows', H.N, 'total_simultaneous_s', H.totalS, 'neg_var_windows', H.negWindows, 'control_drift_windows', H.driftWindows]);
       rows.push([]);
-      rows.push(['TCH_per_window', 'label', 'n_s', 'verSQI', 'sigma_o2', 'sigma_h10', 'sigma_verity', 'HO_bias', 'HO_sd', 'neg', 'estimator']);
-      H.windows.forEach((w) => rows.push(['', w.label, w.n, w.verSQI, w.sigma.o2, w.sigma.h10, w.sigma.verity, w.pair.HO.bias, w.pair.HO.sd, w.neg, w.estimator || 'classic']));
+      // the published σ columns are the unweighted hat; `fuseddiag_*` is the retired estimator, for comparison only
+      rows.push(['TCH_per_window', 'label', 'n_s', 'verSQI', 'sigma_o2', 'sigma_h10', 'sigma_verity', 'HO_bias', 'HO_sd', 'neg', 'estimator', 'fuseddiag_o2', 'fuseddiag_h10', 'fuseddiag_verity']);
+      H.windows.forEach((w) => {
+        const fd = w.fusedDiag;
+        rows.push([
+          '',
+          w.label,
+          w.n,
+          w.verSQI,
+          w.sigma.o2,
+          w.sigma.h10,
+          w.sigma.verity,
+          w.pair.HO.bias,
+          w.pair.HO.sd,
+          w.neg,
+          w.estimator || 'classic',
+          fd ? fd.o2 : '',
+          fd ? fd.h10 : '',
+          fd ? fd.verity : ''
+        ]);
+      });
     }
     rows.push([]);
     rows.push(['verity_file', 'hr_usable', 'ppi_usable']);
@@ -1368,7 +1403,10 @@
       vv = res.vv,
       oo = res.oo,
       ks = res.keys;
-    const s = tchSigmasFused(hh, vv, oo, res.cH, res.cV, res.cO);
+    /* D7 option A: the point is the UNWEIGHTED hat here too — the worker already solves the night with it
+       and ships its own `fusedDiag`, so this path recomputes the point from the returned series and passes
+       the worker's diagnostic through rather than estimating a second one. */
+    const s = tchSigmas(hh, vv, oo);
     const HV = { ...ba(s.dHV), r: pearson(hh, vv) },
       HO = { ...ba(s.dHO), r: pearson(hh, oo) },
       VO = { ...ba(s.dVO), r: pearson(vv, oo) };
@@ -1380,7 +1418,8 @@
       t1: ks[ks.length - 1],
       verSQI: null,
       sigma: { h10: s.h10, verity: s.verity, o2: s.o2 },
-      estimator: 'fused',
+      estimator: 'classic',
+      fusedDiag: res.fusedDiag || null,
       negVar: s.negVar,
       neg: s.neg,
       pair: { HV, HO, VO },
@@ -1389,8 +1428,9 @@
       hh,
       vv,
       oo,
-      // F16: the per-corner DSP confidences ride the window so the within-window CI can bootstrap
-      // the SAME estimator as the point (stripped from stats.json like hh/vv/oo).
+      /* F16: the CI's estimator follows the point's, which is now unweighted — these per-corner DSP
+         confidences ride the window for the diagnostic and for any future fused CI, and weight nothing
+         that is published (stripped from stats.json like hh/vv/oo). */
       cH: res.cH,
       cV: res.cV,
       cO: res.cO,
