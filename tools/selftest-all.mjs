@@ -114,6 +114,34 @@ export function declaresNearMissSelftest(src) {
   return /--self-test/.test(s) || /function\s+selfTest\b/.test(s);
 }
 
+/* ── A COUNT IS COMPUTED, NEVER TYPED ─────────────────────────────────────────────────────────────
+   This script reads the number a tool prints as that tool's assertion total, and the whole point of
+   reading it is to SEE a suite shrink. A tool that prints a figure somebody typed
+   (`console.log(… 'all 14 selftests passed')`) defeats that in both directions: delete an assertion
+   and the typed 14 still prints; add one and it prints 14 anyway. Measured 2026-10-11 (residue
+   `ten-tools-hardcode-a-selftest-count`): ten tools typed it, and a planted extra assertion left the
+   literal version printing the old number with nothing red. By grep three of them could not even be
+   shown wrong (their assertion style differs from `ok(` — 14 vs 13, 33 vs 32, 74 vs 0), and that
+   unverifiability is the argument: the count has to be incremented by the assertion helper itself,
+   the way `browser-lane.mjs` (#3404) and this file's own `eq` do.
+
+   This is the static half of that rule: a PRINTING line (`console.log` / `console.error` /
+   `process.stdout.write`) whose summary text carries a DIGIT LITERAL — `all 19 selftests passed`,
+   `N assertions passed`, `… failed of 19` — is a typed count. An interpolated one (`${ran}`) carries
+   no digit and is not matched. Comments are skipped, and so is a line that is not itself a print (a
+   plant such as `suiteReported('✓ all 7 assertions passed')` quotes a summary, it does not print one).
+   PURE: returns the offending lines, trimmed. */
+export function literalCountLines(src) {
+  const out = [];
+  for (const raw of String(src || '').split('\n')) {
+    const s = raw.trim();
+    if (/^(\/\/|\/\*|\*)/.test(s)) continue;
+    if (!/console\.(log|error)\(|process\.stdout\.write\(/.test(s)) continue;
+    if (/\b\d+\s+(?:selftests?|assertions?)\s+passed\b/.test(s) || /\b(?:failed|FAILED)\b[^\n]*\bof\s+\d+\b/.test(s)) out.push(s.slice(0, 120));
+  }
+  return out;
+}
+
 /* ── RATCHET: tools whose selftest prints NO PARSEABLE ASSERTION COUNT ──────────────────────────────
    DEBT, NOT APPROVAL, and it may only go DOWN. The count is this script's entire added value over the
    CI loop — CI reads PASS either way, so a suite silently shrinking from 30 assertions to 3 is visible
@@ -381,6 +409,22 @@ if (argv.includes('--selftest')) {
     eq(none.status === 'NOT_RUN' && none.result === null, '§3d plant · nothing ran ⇒ NOT_RUN with result null');
     const sample = verdictSample();
     eq(sample.status === 'UNKNOWN' && sample.population.eligible === 5 && sample.producedBy.commit === null, '§3d · --verdict-sample is the honest shape: UNKNOWN over 4 checked of 5, no commit');
+  }
+  /* ── a COUNT IS COMPUTED, NEVER TYPED (residue 2026-10-11-ten-tools-hardcode-a-selftest-count) ──
+     Plants first — the detector's own sensitivity — then the real tree: no tool types its count. */
+  {
+    eq(literalCountLines("console.log(fail ? fail + ' failed of 14' : 'all 14 selftests passed');").length === 1, 'literal · the `all N selftests passed` spelling is a typed count');
+    eq(literalCountLines("console.log(fails.length ? 'selftest FAILED (' + fails.length + ' of 13)' : 'x');").length === 1, 'literal · a `FAILED … of N` denominator is a typed count');
+    eq(literalCountLines("console.log('selftest: all 20 selftests passed');").length === 1, 'literal · a prefixed spelling is still caught');
+    eq(literalCountLines('console.log(`all ${ran} selftests passed`);').length === 0, 'literal · an interpolated count is NOT flagged');
+    eq(literalCountLines('console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);').length === 0, 'literal · an interpolated denominator is NOT flagged');
+    eq(literalCountLines("// console.log('all 14 selftests passed')\n * 'all 14 selftests passed'").length === 0, 'literal · a comment is not a print');
+    eq(literalCountLines("ok(suiteReported('✓ all 7 assertions passed') === true);").length === 0, 'literal · a quoted plant that is not itself a print is not flagged');
+    const typed = readdirSync(TOOLS)
+      .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
+      .filter((f) => literalCountLines(readFileSync(join(TOOLS, f), 'utf8')).length > 0)
+      .sort();
+    eq(typed.length === 0, `no tool prints a typed assertion count — it must be incremented by the assertion helper (${typed.length}: ${typed.join(' · ')})`);
   }
   console.log(`all ${n} selftests passed`);
   process.exit(0);

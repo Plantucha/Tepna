@@ -6655,8 +6655,9 @@
          Same motivation as ECGDex's block: the published joint clock-skew framework — Abdessalem K.
          (2026), "A software-only framework for synchronization of independently clocked cardiac-linked
          biomedical signals", Meas Sci Technol
-         (doi:10.1088/1361-6501/ae6a09) — reaches 0.2-0.4 ms between independently-clocked sensors from
-         IBI sequences alone, and this suite exported none of its three. */
+         (doi:10.1088/1361-6501/ae6a09) — reduces the CLOCK-ONLY term of its synchronisation error to
+         0.2-0.4 ms between independently-clocked sensors from IBI sequences alone (the clock-only
+         residual, NOT end-to-end accuracy: total IBI RMSE after correction is 3.254-4.219 ms), and this suite exported none of its three. */
       out.timeseries = {
         doc: '5-min epochs — primary cross-node feed (posture rides on epochs[].position).',
         epochs: (r.epochs || []).map(function (e) {

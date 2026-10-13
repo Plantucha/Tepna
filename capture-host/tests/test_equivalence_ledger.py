@@ -201,14 +201,26 @@ def _identity(e):
 
 
 def _matcher_key(e):
-    """What the CLASSIFIER matches on, which is coarser than an entry's identity: the JS sibling keys on
-    `(line, op, before)` and records `after` "for a reader, not for matching" (this file's `_README`). One
-    source line can carry several mutants of one operator — three `>=` on one line are three mutants with
-    one matcher key — so a collision here is expected and is NOT a defect; `_identity` above includes
-    `after` because that is what distinguishes the entries as DATA."""
+    """What the CLASSIFIER matches on — the Python model of `survivorKey` in `tools/mutate.mjs`, which is
+    `line, op, before, after` (NUL-joined, `after ?? ''`) and is used by BOTH JS consumers: the classifier
+    and the recorded-selection path. `after` is IN the key because one source line can carry several mutants
+    of one operator — three `>=` on one line are three mutants — and `(line, op, before)` alone would
+    collapse them into one entry. So the matcher key and `_identity` coincide, and an entry is reachable
+    unless it duplicates another's whole quadruple. `after` absent reads as `""`, exactly as the JS does.
+    ⚠️ Residue 2026-10-12-equivalence-matcher-coarseness-is-in-the-python-model-not-the-js-matcher: this
+    function used to model the sibling as keying on the triple, and a green test asserted a cost the real
+    matcher does not have. `test_the_MODEL_reads_the_same_key_as_the_JS_matcher` now reads the sibling's
+    source rather than trusting this model."""
     if "key" in e:
         return ("key", e["key"])
-    return ("js", e.get("line"), e.get("op"), e.get("before"))
+    after = e.get("after")
+    return ("js", e.get("line"), e.get("op"), e.get("before"), "" if after is None else after)
+
+
+def _triple(e):
+    """The COARSER `(line, op, before)` triple an earlier reading of the matcher assumed. Kept only to count
+    what the real key resolves — see COARSE_TRIPLE_COLLISIONS."""
+    return (e.get("line"), e.get("op"), e.get("before"))
 
 
 def test_every_entry_carries_an_IDENTITY_under_its_own_shape():
@@ -222,12 +234,12 @@ def test_every_entry_carries_an_IDENTITY_under_its_own_shape():
         if mod == "_README":
             continue
         for i, e in enumerate(entries):
-            # Completeness is asked of the MATCHER's key only. `after` is optional in the data — 6 of
-            # the 596 entries omit it — and it is documentation, so demanding it would red a legitimate
-            # entry. `_identity` still includes it because two entries differing only in `after` are two
-            # entries; `None` is simply one of its values.
+            # Completeness is asked of `(line, op, before)` only. `after` is optional in the data — 6 of
+            # the 596 entries omit it — and the matcher reads an absent one as "" (`m.after ?? ''`), so
+            # demanding it would red a legitimate entry. `_identity` includes it because two entries
+            # differing only in `after` are two entries; `None` is simply one of its values.
             mk = _matcher_key(e)
-            if mk[0] == "js" and any(x is None for x in mk[1:]):
+            if mk[0] == "js" and any(x is None for x in mk[1:4]):
                 bad.append(f"{mod}[{i}]: no `key` and an incomplete (line, op, before): {sorted(e)}")
             if not e.get("class"):
                 bad.append(f"{mod}[{i}]: no `class` — nothing says whether it excuses anything")
@@ -279,8 +291,12 @@ def test_the_RATCHET_names_every_module_the_ledger_carries():
     )
 
 
-# The matcher's key is COARSER than an entry's identity, and that costs something measurable.
-COARSE_COLLISIONS = {
+# The `(line, op, before)` TRIPLE is coarser than the matcher's key, and the matcher resolves the difference.
+# Census (2026-10-12, 427 JS-side entries): 36 entries repeat an earlier entry's triple, across these five
+# modules, and ZERO repeat a whole `(line, op, before, after)` quadruple. These are NOT entries the
+# classifier cannot reach: `survivorKey` includes `after`, so every one of them is matched. The count is kept
+# so the ledger's shape stays measured; it no longer prices anything.
+COARSE_TRIPLE_COLLISIONS = {
     "glucodex-dsp.js": 5,
     "hrvdex-dsp.js": 15,
     "motiondex-dsp.js": 6,
@@ -289,31 +305,65 @@ COARSE_COLLISIONS = {
 }
 
 
-def test_the_MATCHER_KEY_collisions_are_counted_and_do_not_grow():
-    """⚠️ A PRE-EXISTING COST, measured while restoring the ledger and deliberately not fixed here.
-
-    The classifier matches a JS entry on `(line, op, before)` and `after` is documentation, so where one
-    line carries several mutants of one operator the FIRST entry wins and the others' `probe` and `why`
-    can never be read — 36 entries across five modules are in that position today. They are not wrong and
-    they are not duplicates (every entry is distinct once `after` is included); they are arguments the
-    tool cannot reach. Counted here so the number cannot grow unnoticed, and left for whoever decides
-    whether the matcher should take `after` into account — that is a change to how every existing entry
-    matches, which is not a restore PR's business."""
-    led = _load()
+def _collisions(keyfn):
     got = {}
-    for mod, entries in led.items():
+    for mod, entries in _load().items():
         if mod == "_README":
             continue
-        seen = {}
+        seen = set()
         n = 0
         for e in entries:
-            k = _matcher_key(e)
+            k = keyfn(e)
             if k in seen:
                 n += 1
-            seen[k] = True
+            seen.add(k)
         if n:
             got[mod] = n
-    assert got == COARSE_COLLISIONS, (
-        f"the count of entries the classifier can never reach changed: {got} vs {COARSE_COLLISIONS}. "
-        "Growing it hides an argument; shrinking it is good and wants the number lowered here."
+    return got
+
+
+def test_the_COARSE_TRIPLE_collisions_are_counted_and_the_MATCHER_KEY_resolves_every_one():
+    """Where one line carries several mutants of one operator, their entries share a `(line, op, before)`
+    triple. The real matcher keys on `after` as well (`survivorKey`), so none of them shadows another: the
+    triple collisions are counted (a census, pinned so it cannot drift unnoticed) and the matcher-key
+    collisions must be EMPTY — a non-empty result is two entries the classifier cannot tell apart."""
+    assert _collisions(_triple_of_js) == COARSE_TRIPLE_COLLISIONS, (
+        f"the count of coarse-triple collisions changed: {_collisions(_triple_of_js)} vs {COARSE_TRIPLE_COLLISIONS}"
     )
+    assert _collisions(_matcher_key) == {}, (
+        f"entries the classifier cannot tell apart (same line, op, before AND after): {_collisions(_matcher_key)}"
+    )
+
+
+def _triple_of_js(e):
+    return ("key", e["key"]) if "key" in e else _triple(e)
+
+
+def test_the_MODEL_reads_the_same_key_as_the_JS_matcher():
+    """The model above is only as true as the sibling it mirrors, and it was wrong for a while because it
+    described the sibling rather than reading it. So read it: `survivorKey` in `tools/mutate.mjs` must name
+    `after`, and the Python key must separate two entries that differ ONLY in `after`."""
+    with open(os.path.join(os.path.dirname(str(HERE)), "tools", "mutate.mjs"), encoding="utf-8") as fh:
+        src = fh.read()
+    start = src.index("export function survivorKey(")
+    body = src[start : src.index("\n}\n", start)]
+    assert "m.after" in body, f"the JS matcher key no longer includes `after`:\n{body}"
+    a = {"line": 7, "op": ">=", "before": "x >= 1", "after": "x > 1", "class": "equivalent"}
+    b = dict(a, after="x != 1")
+    assert _matcher_key(a) != _matcher_key(b), "two mutants of one operator on one line must stay two keys"
+    assert _matcher_key(dict(a, after=None)) == _matcher_key({k: v for k, v in a.items() if k != "after"}), (
+        "an absent `after` and a null one are the same key, as `m.after ?? ''` reads them"
+    )
+
+
+def test_the_README_does_not_tell_authors_that_after_is_not_matched_on():
+    """`tools/mutate-equivalence.json`'s `_README` instructed authors that `after` is "for a reader, not for
+    matching". It is part of the key, so an author who believed it would rewrite `after` and orphan the
+    entry. The README must say the key has four fields — in BOTH ledgers that carry it (the JS lane's
+    `tools/` one, which `mutate.mjs` reads, and this lane's)."""
+    root = os.path.dirname(str(HERE))
+    for path in (LEDGER, os.path.join(root, "tools", "mutate-equivalence.json")):
+        with open(path, encoding="utf-8") as fh:
+            text = " ".join(json.load(fh)["_README"])
+        assert "not for matching" not in text, f"{path}: the README still says `after` is not matched on"
+        assert "(line, op, before, after)" in text, f"{path}: the README must name the real four-field matcher key"

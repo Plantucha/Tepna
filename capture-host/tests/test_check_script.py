@@ -55,11 +55,45 @@ def _sandbox(
     mypy_line=None,
     timeout_plugin=True,
     runtime_deps=True,
+    unwired_rc=0,
+    unwired_object="PASS",
 ):
     """A PATH where each gate is a stub that records that it ran and exits as scripted."""
     binn = tmp_path / "bin"
     binn.mkdir()
     log = tmp_path / "ran.log"
+    # `find_unwired.py` is a tool of OURS that WRITES ITS OWN `tepna.verdict/1` (to --verdict-out), and
+    # check.sh reads that object, not its exit code. The stub writes the scripted kind of object —
+    # "PASS", "FAIL", "WRONG_GATE" or "NONE" (writes nothing: the crash / old-tool shape) — and exits
+    # `unwired_rc`. It runs under THIS interpreter for the same reason checkverdict.py does (see below).
+    _write_exec(
+        str(binn / "unwired_stub.py"),
+        f"""import sys
+sys.path.insert(0, {HERE!r})
+import verdict as VD
+
+rc, kind = int(sys.argv[1]), sys.argv[2]
+args = sys.argv[3:]
+out = args[args.index("--verdict-out") + 1] if "--verdict-out" in args else None  # an invocation without the flag writes nothing
+crit = {{"name": "unexplained_findings_plus_spent_suppressions", "threshold": 0, "unit": "findings", "direction": "eq"}}
+if kind != "NONE" and out:
+    failing = kind == "FAIL"
+    VD.write(
+        out,
+        VD.make(
+            gate="not-find-unwired" if kind == "WRONG_GATE" else "find-unwired",
+            status="FAIL" if failing else "PASS",
+            population={{"checked": 3, "eligible": 3, "excluded": 0}},
+            criterion=crit,
+            result={{"unexplained": 1 if failing else 0}},
+            evidence=["capture-host/tools/find_unwired.py"],
+            reason="1 unexplained finding(s)" if failing else None,
+            tool="capture-host/tools/find_unwired.py",
+        ),
+    )
+sys.exit(rc)
+""",
+    )
 
     # `mypy_found` scripts the SUMMARY LINE, not a line count: check.sh reads the count off mypy's
     # own "Found N errors" line, because the output also carries `note:` lines and counting those
@@ -105,6 +139,7 @@ for a in "$@"; do
     # diff (exit 2) — a ModuleNotFoundError inside the writer, which the shell reports as
     # "verdict: NOT WRITTEN" and this test reads as a missing file.
     checkverdict.py) exec {_PY} "$@" ;;
+    *find_unwired.py) exec {_PY} "{binn}/unwired_stub.py" {unwired_rc} {unwired_object} "$@" ;;
   esac
 done
 exit 0
@@ -121,6 +156,7 @@ exit {shellcheck_rc}
     env["PATH"] = f"{binn}{os.pathsep}{env['PATH']}"
     env["PYTHON"] = str(binn / "fakepy")
     env["CHECK_VERDICT_OUT"] = str(tmp_path / "check-verdict.json")  # never the real tree's file
+    env["UNWIRED_VERDICT_OUT"] = str(tmp_path / "unwired-verdict.json")  # …nor the real tree's unwired object
     env["MYPY_OUT"] = str(tmp_path / "mypy-latest.txt")  # per sandbox: eight boxes, eight files
     return env, log
 
@@ -572,27 +608,73 @@ def _verdict(tmp_path):
         return json.load(fh)
 
 
-def test_a_green_run_writes_the_object_over_the_five_blocking_children_UNKNOWN_until_unwired_adopts(tmp_path):
+def test_a_green_run_writes_the_object_over_the_five_blocking_children_and_it_reads_PASS(tmp_path):
+    """THE RESIDUE 2026-10-12-find-unwired-has-not-adopted-the-verdict-schema-so-check-sh-can-never-read-
+    pass. All five children exit 0 and the object read UNKNOWN anyway, because `unwired` was the last child
+    of ours that published no object — so a downstream reader keying on `status` could not tell a green
+    gate from a broken one. It now reads PASS, and `unwired` is read from ITS OWN object."""
     p, _ = _run(tmp_path)
     assert p.returncode == 0, "the shell's verdict is unchanged — §3d: the exit code STAYS"
     v = _verdict(tmp_path)
     assert v["schema"] == "tepna.verdict/1" and v["gate"] == "capture-host-check"
-    assert (
-        v["status"] == "UNKNOWN" and v["result"]["statuses"]["unwired"] == "UNKNOWN"
-    )  # ours, unadopted: by provenance
-    assert {k: s for k, s in v["result"]["statuses"].items() if k != "unwired"} == {
+    assert v["status"] == "PASS" and v["reason"] is None, v
+    assert v["result"]["statuses"] == {
         "ruff": "PASS",
         "format": "PASS",
         "shellcheck": "PASS",
         "pytest": "PASS",
+        "unwired": "PASS",
     }
+    assert v["result"]["unknown"] == 0 and v["result"]["notRun"] == 0 and v["result"]["fail"] == 0
     # 4 → 5 children with `format` blocking (2026-10-05). The population is the BLOCKING set, so this
     # equality is the one that would have caught a leg added to the printout and not to the object.
     assert v["population"] == {"checked": 5, "eligible": 5, "excluded": 0}
     assert (
         v["result"]["advisory"]["mypy"] == "NO_COUNT"
     )  # the fake mypy prints no summary line: an abort, carried as the token
-    assert "verdict: UNKNOWN" in p.stdout
+    assert "verdict: PASS" in p.stdout
+
+
+@pytest.mark.parametrize(
+    "kind, rc, want",
+    [
+        ("NONE", 0, "UNKNOWN"),  # exit 0 and NO object: an adopted tool that wrote nothing decided nothing
+        ("WRONG_GATE", 0, "UNKNOWN"),  # an object about some other gate is not unwired's
+        ("PASS", 1, "UNKNOWN"),  # a PASS object beside a non-zero exit contradicts itself
+        ("FAIL", 1, "FAIL"),  # its own FAIL object, and the run is FAIL naming it
+    ],
+)
+def test_unwired_is_read_from_ITS_OWN_object_never_from_the_exit_code_alone(tmp_path, kind, rc, want):
+    p, _ = _run(tmp_path, unwired_rc=rc, unwired_object=kind)
+    v = _verdict(tmp_path)
+    assert v["result"]["statuses"]["unwired"] == want, v
+    assert v["status"] == want, v
+    assert p.returncode == (1 if rc else 0), "§3d: the exit code STAYS the shell's verdict"
+
+
+def test_a_STALE_unwired_object_from_an_earlier_run_is_never_read_as_this_runs(tmp_path):
+    """check.sh removes the object before the child runs. Plant a PASS object where the child will write,
+    let the child write NOTHING: a script that did not clear the file would read the planted PASS."""
+    env, _ = _sandbox(tmp_path, unwired_object="NONE")
+    stale = tmp_path / "unwired-verdict.json"
+    import verdict as VD
+
+    VD.write(
+        str(stale),
+        VD.make(
+            gate="find-unwired",
+            status="PASS",
+            population={"checked": 3, "eligible": 3, "excluded": 0},
+            criterion={"name": "x", "threshold": 0, "unit": "findings", "direction": "eq"},
+            result={"unexplained": 0},
+            evidence=["capture-host/tools/find_unwired.py"],
+            reason=None,
+            tool="capture-host/tools/find_unwired.py",
+        ),
+    )  # a VALID PASS object: a script that failed to clear it would read this and call unwired green
+    subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    assert not stale.exists(), "check.sh did not clear the previous run's unwired object"
+    assert _verdict(tmp_path)["result"]["statuses"]["unwired"] == "UNKNOWN"
 
 
 def test_a_failing_child_is_a_FAIL_object_naming_it_and_the_exit_code_stays(tmp_path):
@@ -626,5 +708,5 @@ def test_every_path_check_sh_writes_is_redirectable():
     """The sandbox relies on both files being overridable; a default that crept back would make eight
     concurrent sandboxes share one file again (the 2026-09-22 race)."""
     code = open(CHECK, encoding="utf-8").read()
-    for var in ("MYPY_OUT", "CHECK_VERDICT_OUT"):
+    for var in ("MYPY_OUT", "CHECK_VERDICT_OUT", "UNWIRED_VERDICT_OUT"):
         assert f"${{{var}:-" in code, f"{var} is no longer an override — sandboxes would share the checkout's file"

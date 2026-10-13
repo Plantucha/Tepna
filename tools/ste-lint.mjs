@@ -174,7 +174,7 @@ export function proseLines(src) {
 
 export function sentences(text) {
   return text
-    .split(/(?<=[.!?])\s+(?=[A-Z(§`"'0-9])/)
+    .split(/(?<=[.!?][*_`"')\]]*)\s+(?=[A-Z(§`"'0-9])/)
     .map((s) => s.trim())
     .filter(Boolean);
 }
@@ -496,6 +496,24 @@ if (DIRECT && process.argv.includes('--selftest')) {
     ck('…and the verdict no longer calls 3 lines the whole body', v.population.eligible === v.population.checked, false);
     ck('…while the body itself still passes the rules it was written to', v.status, 'PASS');
   }
+  /* 🔴 A TERMINATOR INSIDE A MARKDOWN CLOSE. `**One … ten.** Eleven …` never split, because the splitter
+     wanted whitespace right after the `.`. The minimal pair below is the same ten and fourteen words,
+     bold and plain: the bold line read 24 words, the plain line read 10 and 14. */
+  const ten = 'One two three four five six seven eight nine ten.';
+  const fourteen = 'Eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree twentyfour.';
+  ck('a plain pair of sentences splits in two', sentences(`${ten} ${fourteen}`).length, 2);
+  ck('…and the SAME pair with the first one in bold splits in two', sentences(`**${ten}** ${fourteen}`).length, 2);
+  ck('…and the bold list item is not a long sentence', rules(`- **${ten}** ${fourteen}`).includes('long-sentence'), false);
+  ck('…and the plain list item is not either', rules(`- ${ten} ${fourteen}`).includes('long-sentence'), false);
+  for (const [n, a] of [
+    ['an underscore', '_Two words._'],
+    ['a bracket', '[Two words.]'],
+    ['a paren', '(Two words.)'],
+    ['a quote', '"Two words."'],
+    ['a backtick', '`Two words.`']
+  ])
+    ck(`a terminator inside ${n} close still splits`, sentences(`${a} Three words here.`).length, 2);
+  ck('…and a sentence with no terminator is still one', sentences('**Two words** three words here').length, 1);
   ck('the glossary reader survives an absent file', readGlossary('/nonexistent').retired.size, 0);
   /* A multi-name technical row registers EVERY name — the defect measured 2026-10-12. */
   {

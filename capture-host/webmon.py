@@ -455,6 +455,10 @@ def make_app(
                     # no claim at all — and `worn` two fields up has travelled as a raw tri-state for
                     # the same reason since #1228.
                     "charging": st.get("charging"),
+                    # WHY travels with the verdict, as `worn_why` does with `worn`: a null `charging`
+                    # is no claim, and `charging_why == "flat-at-full"` is the only field that says
+                    # which silence it is. In STATUS but not forwarded here is NOT published.
+                    "charging_why": st.get("charging_why"),
                     # How many of this device's flushes have FAILED. Distinct from `last_error`,
                     # which is about the LINK: a write failure means the samples arrived and may
                     # not have reached the disk, so the card can read perfectly live while the

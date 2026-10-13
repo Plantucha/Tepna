@@ -609,6 +609,10 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # line that reads them (`capture.py:9425`). That IS a real read, not a mention: the test opens
     # the brief. Staging it keeps the mutation scratch able to run the test, which is the point of
     # this population.
+    # 2026-10-13: ONE new REAL read, `tools/mutate.mjs` (~0.18 MB). `tests/test_equivalence_ledger.py` now
+    # opens it to check that the JS matcher's `survivorKey` names `after`, instead of trusting a Python
+    # model of it (residue 2026-10-12-equivalence-matcher-coarseness-is-in-the-python-model-not-the-js-
+    # matcher). A real read, not a mention: staging it keeps that test runnable inside a mutation scratch.
     assert got == [
         "Dex-Test-Suite.html",
         "README.md",
@@ -632,6 +636,7 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
         "suite.manifest.json",
         "tests/dex-tests.js",
         "tools/mutate-equivalence.json",
+        "tools/mutate.mjs",
         "tools/o2ring-dat-timefit.mjs",
         "tools/verdict-adoption.json",
         "tools/verify-seals.mjs",
