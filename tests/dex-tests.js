@@ -18042,6 +18042,61 @@
         );
         var refused = S.patDifferencedHat(WD.slice(0, 6), 300000);
         T.ok('a refused drift-removed hat carries no block — there is no figure to attribute', refused.ok === false && refused.contributions === undefined, JSON.stringify(refused));
+        /* ── H · THE VARIANCES ROUTE, for a caller whose pairwise dispersion is NOT `_patRobustVar` over
+           per-window values. `tools/pat-three-corner.mjs` squares the MEDIAN of the within-window IQRs,
+           so handing its windows to `patHatContributions` would attribute an across-window spread the
+           printed hat never solved — a block that does not sum to the figure beside it. The split is the
+           same one `tchSigmasPairwise` / `tchSigmasPairwiseFromVars` already carry, and these assertions
+           are what catch the swap. */
+        if (typeof S.patHatContributionsFromVars !== 'function') {
+          T.ok('AnalysisStats.patHatContributionsFromVars exported', false, 'the variances route is not reachable');
+        } else {
+          var FV = S.patHatContributionsFromVars(400, 900, 100),
+            offFV = 0;
+          var CLOSED = { chest: (400 + 900 - 100) / 2, finger: (400 + 100 - 900) / 2, ankle: (900 + 100 - 400) / 2 };
+          ['chest', 'finger', 'ankle'].forEach(function (c) {
+            if (Math.abs(sum(FV[c]) - CLOSED[c]) > 1e-12) offFV++;
+            if (FV[c].of !== 'sigma2.' + c || FV[c].unit !== 'ms^2' || FV[c].method !== 'analytic') offFV++;
+          });
+          T.ok(
+            'given three leg VARIANCES, each corner block sums to ½(V_ab + V_ac − V_bc) for that corner',
+            offFV === 0,
+            offFV + ' off; ' + JSON.stringify({ chest: sum(FV.chest), want: CLOSED.chest })
+          );
+          /* (IQR / 1.349)², re-derived here rather than imported, so the delegation is checked against an
+             independent computation of the same definition instead of against itself. */
+          function robVar(v) {
+            var b = v.slice().sort(function (x, y) {
+              return x - y;
+            });
+            var q = function (p) {
+              var i = (b.length - 1) * p,
+                lo = Math.floor(i),
+                hi = Math.ceil(i);
+              return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (i - lo);
+            };
+            var sd = (q(0.75) - q(0.25)) / 1.349;
+            return sd * sd;
+          }
+          T.ok(
+            'the windows route DELEGATES to it — the per-window spelling is the variances spelling over (IQR/1.349)²',
+            JSON.stringify(S.patHatContributions(LEG[0], LEG[1], LEG[2])) === JSON.stringify(S.patHatContributionsFromVars(robVar(LEG[0]), robVar(LEG[1]), robVar(LEG[2]))),
+            'the two spellings disagree'
+          );
+          var byWindow = S.patHatContributions([20, 20, 20, 20], [30, 30, 30, 30], [60, 60, 60, 60]),
+            byVar = S.patHatContributionsFromVars(220, 495, 1978);
+          T.ok(
+            'the two routes are DIFFERENT quantities — a zero-spread window list is a zero variance, the squared median is not',
+            byWindow.chest.inputs[0].delta === 0 && byVar.chest.inputs[0].delta === 110,
+            JSON.stringify({ byWindow: byWindow.chest.inputs[0].delta, byVar: byVar.chest.inputs[0].delta })
+          );
+          var oneAbsent = S.patHatContributionsFromVars(400, NaN, 100);
+          T.ok(
+            '∅ survives the split — a non-finite leg variance is delta null with a reason, and every share goes with it',
+            oneAbsent.chest.inputs[1].delta === null && oneAbsent.chest.inputs[0].share === null && oneAbsent.chest.dominant === null,
+            JSON.stringify(oneAbsent.chest)
+          );
+        }
       }
     );
 
