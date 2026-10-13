@@ -522,11 +522,17 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # reads), the PURE `_as11_scan_hits` and `_pair_radios` (each tested directly), and the pairer's two new
     # bleak/hciconfig edges `scan` and `radios`, closures beside its `connect` like the `_open` ones above.
     # +5, which is the whole delta. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    # 303 → 304 on 2026-10-13 (QC-SPAWN-CHILD): `_solid_night` leaves, and `_publish_loss` plus
+    # 303 → 313 on 2026-10-13 (daemon-RSS part A): the memory instruments, +10 and that is the whole
+    # delta. Two resolvers and two readers for the two glibc views — `_resolve_mallinfo2` / `mallinfo2`
+    # for the MAIN arena and `_resolve_malloc_info` / `malloc_info_xml` / `malloc_arenas` for every
+    # arena, which `mallinfo2` cannot report at all (man mallinfo, BUGS) — the PURE `parse_malloc_info`
+    # and the PURE `_kb` nested in `mem_log_line`, each a named function so a test can reach it without
+    # a libc, plus `gc_counters`, `mem_snapshot` and `mem_log_line` themselves.
+    # 313 → 314 on 2026-10-13 (QC-SPAWN-CHILD): `_solid_night` leaves, and `_publish_loss` plus
     # `_publish_solid` arrive in its place — the composition itself moved to `qc_child.py`, which this
     # module-level exclusion does not cover, so those three functions ARE mutated. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 304, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    assert n == 314, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

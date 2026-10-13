@@ -9,8 +9,9 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, collections, contextlib, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, collections, contextlib, ctypes, gc, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
 import concurrent.futures, multiprocessing, sys as _sys
+import xml.etree.ElementTree as _ET  # glibc's malloc_info writes XML; see malloc_arenas()
 import build_id
 from writers import (
     ContactLedger,
@@ -7242,8 +7243,11 @@ def status_path(root: str, instance: str | None = None) -> str:
 _LIVE_LOSS_SEEN: dict = {}
 
 
-async def status_loop(root: str, data_stale_sec: float = 120.0):
+async def status_loop(root: str, data_stale_sec: float = 120.0, mem_log_sec: float = 60.0):
     path = status_path(root, INSTANCE)
+    # The journal cadence for the memory line, as a LOCAL: one status loop runs per process, so a module
+    # global would only make two tests share a deadline. 0 publishes the block and logs nothing.
+    next_mem_log = 0.0
     while not _STOP.is_set():
         # `updated` was written here on every publish and read by NOTHING — instance health ages
         # `heartbeat_ms` instead, deliberately. A field written forever and read never is
@@ -7281,6 +7285,20 @@ async def status_loop(root: str, data_stale_sec: float = 120.0):
         # same as the comment it replaced — an answer nobody has to look at.
         STATUS["devcaps"] = devcaps.snapshot()
         STATUS["gates"] = gate_state()
+        # DAEMON-RSS PART A. The climb Wren measured from OUTSIDE the process (94 → 549 MB, VmHWM 847 MB
+        # over the 10-11 night, smooth at ~+300 MB/6 h while streams record) cannot be attributed from
+        # outside: `/proc/<pid>/status` does not split live Python objects from memory Python freed and
+        # glibc kept, and `smaps`, which would, is root-only on the box. This publishes the split from
+        # inside — RSS beside `mallinfo2`'s in-use and free-inside-the-arena bytes, beside the gc
+        # counters that say whether collection is happening at all. Measured cost: 0.6 us per call with
+        # the GIL held, which is why `_resolve_mallinfo2` binds through PyDLL (see its docstring).
+        STATUS["mem"] = mem_snapshot()
+        # The file is rewritten every tick, so it cannot answer "how did it get there". The journal line
+        # is the series; its cadence is separate from the 10 s publish because 8640 lines a day for a
+        # smooth 6 h curve is volume without information.
+        if mem_log_sec > 0 and _time.monotonic() >= next_mem_log:
+            next_mem_log = _time.monotonic() + mem_log_sec
+            log.info("%s", mem_log_line(STATUS["mem"]))
         # LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture). `oxy_inventory.
         # reconcile()` already classifies a lost recording, but it is reached only at PULL and
         # COLD-START boundaries; the incident that opened the row was a LIVE session losing two files
@@ -11582,6 +11600,278 @@ def proc_rss_kb(status_path: str = "/proc/self/status") -> dict:
     return out
 
 
+#: glibc's `struct mallinfo2` (malloc.h), ten `size_t` fields in DECLARATION ORDER — ctypes maps by
+#: position, so a reordered tuple silently relabels every number. BYTES, unlike `/proc/self/status`,
+#: which is kB; the two are published under different key names for that reason.
+_MALLINFO2_FIELDS = (
+    "arena",  # bytes the allocator holds via brk (the main arena)
+    "ordblks",  # free chunks
+    "smblks",  # free fastbin blocks
+    "hblks",  # mmapped regions
+    "hblkhd",  # bytes in those mmapped regions (where the 64 MB thread arenas show up)
+    "usmblks",  # always 0 since glibc 2.24; kept because the struct's layout is positional
+    "fsmblks",  # bytes in fastbin blocks
+    "uordblks",  # bytes in use by the program
+    "fordblks",  # bytes free inside the arenas — THE retention figure
+    "keepcost",  # releasable top-of-heap bytes
+)
+
+
+class _Mallinfo2(ctypes.Structure):
+    _fields_ = [(f, ctypes.c_size_t) for f in _MALLINFO2_FIELDS]
+
+
+#: Resolved once per process: the callable, or None plus the reason it is absent.
+_MALLINFO2: Any = None
+_MALLINFO2_REASON: str | None = None
+_MALLINFO2_TRIED = False
+
+
+def _resolve_mallinfo2() -> None:
+    """Bind `mallinfo2` through **PyDLL, not CDLL** — measured, and the difference is 4 orders of magnitude.
+
+    🔴 WHY PyDLL. `ctypes.CDLL` RELEASES the GIL around a foreign call, so the calling thread must
+    re-acquire it afterwards, and under `sys.getswitchinterval()` 5 ms with other threads allocating that
+    wait dominates everything. Measured on the rig (python 3.13.11, glibc 2.43, 8 churning threads), µs
+    per call, with two controls that separate the two candidate costs:
+
+        call                                     idle    2 threads   8 threads
+        A  CDLL  mallinfo2  (GIL released)         0.2      1738.4     24585.6
+        B  CDLL  getpid     (GIL released)         0.1       775.9     12217.2   ← no allocator lock
+        C  PyDLL mallinfo2  (GIL held)             0.1         0.2         0.6   ← arena wait only
+        D  gc.get_count()   (GIL held)             0.0         0.0         0.0   ← the floor
+
+    B is the control that settles it: a libc call that touches NO allocator lock pays the same 12 ms, so
+    the cost is the GIL re-acquisition and not the arena locks. C is the control for the other direction:
+    holding the GIL, the arena wait is 0.6 µs under the same churn. An instrument on the status loop that
+    cost 20 ms would be adding to `loop.lag_max_ms`, which is the metric this exists to explain.
+
+    Holding the GIL across the arena locks cannot deadlock: `malloc` never waits on the GIL, so the two
+    locks have no cycle.
+
+    §∅: a libc without `mallinfo2` (musl, or glibc before 2.33) leaves the reason set, and every field
+    reads `null`. `mallinfo` is NOT a fallback — its fields are `int` and wrap at 2 GB, which is inside
+    this daemon's range, and a wrapped number is worse than an absent one."""
+    global _MALLINFO2, _MALLINFO2_REASON, _MALLINFO2_TRIED
+    _MALLINFO2_TRIED = True
+    try:
+        fn = ctypes.PyDLL(None).mallinfo2
+    except (AttributeError, OSError) as e:  # absent symbol, or no self-dlopen on this platform
+        _MALLINFO2_REASON = f"mallinfo2 unavailable: {type(e).__name__}"
+        return
+    fn.restype = _Mallinfo2
+    fn.argtypes = []
+    _MALLINFO2 = fn
+
+
+def mallinfo2() -> dict:
+    """glibc's allocator accounting in BYTES, or every field `null` with a reason (§∅).
+
+    This is the half `/proc/self/status` cannot answer. RSS counts pages the kernel has given the
+    process; it does not say whether the bytes are live Python objects or memory Python freed and glibc
+    kept. `uordblks` (in use) against `fordblks` (free inside the arenas) splits exactly that, and
+    `hblkhd` is where per-thread 64 MB arenas appear — the retention Wren measured at ~50 MB per job
+    (`ext:wren-pr/to-kestrel-rss.md`) lands in those two.
+
+    The ten keys are ALWAYS present, so a reader never has to branch on shape — an unmeasured field is
+    `None`."""
+    if not _MALLINFO2_TRIED:
+        _resolve_mallinfo2()
+    out: dict[str, Any] = {k: None for k in _MALLINFO2_FIELDS}
+    out["reason"] = _MALLINFO2_REASON
+    if _MALLINFO2 is None:
+        return out
+    try:
+        m = _MALLINFO2()
+    except Exception as e:  # noqa: BLE001 — an instrument never takes the status loop down
+        out["reason"] = f"mallinfo2 call failed: {type(e).__name__}"
+        return out
+    for k in _MALLINFO2_FIELDS:
+        out[k] = int(getattr(m, k))
+    return out
+
+
+#: `malloc_info` writes XML to a FILE*, so four symbols are needed, not one: `open_memstream` gives a
+#: FILE* backed by a buffer, `malloc_info` fills it, `fclose` flushes, `free` releases the buffer.
+_MALLOC_INFO: Any = None
+_MALLOC_INFO_REASON: str | None = None
+_MALLOC_INFO_TRIED = False
+#: What the root-level elements of that XML are called, and what they are called here.
+_ARENA_KEYS = ("heaps", "fast", "rest", "mmap", "system_current", "system_max")
+
+
+def _resolve_malloc_info() -> None:
+    """Bind the four symbols through PyDLL — same GIL reasoning as `_resolve_mallinfo2`, measured there.
+
+    🔴 WHY THIS EXISTS BESIDE `mallinfo2`. `mallinfo2` reports **the main arena only** (man mallinfo,
+    BUGS). A threaded process gets a 64 MB arena per contending thread, and Wren's measurement is
+    exactly there: 4 repeats of `wear_by_device` left 81 MB resident instead of 29, about 50 MB of arena
+    retention that did not grow over the repeats (`ext:wren-pr/to-kestrel-rss.md`). `mallinfo2` cannot
+    see it, so publishing only `mallinfo2` would answer the easy half and look like an answer.
+    `malloc_info`'s root-level totals are the sums over EVERY arena, which is the figure the question
+    needs. Measured on the rig under 8 churning threads: 6.1 us per call, 4005 bytes of XML over 9
+    heaps."""
+    global _MALLOC_INFO, _MALLOC_INFO_REASON, _MALLOC_INFO_TRIED
+    _MALLOC_INFO_TRIED = True
+    try:
+        lib = ctypes.PyDLL(None)
+        oms, mi, fcl, fre = lib.open_memstream, lib.malloc_info, lib.fclose, lib.free
+    except (AttributeError, OSError) as e:
+        _MALLOC_INFO_REASON = f"malloc_info unavailable: {type(e).__name__}"
+        return
+    oms.restype = ctypes.c_void_p
+    oms.argtypes = [ctypes.POINTER(ctypes.c_char_p), ctypes.POINTER(ctypes.c_size_t)]
+    mi.restype = ctypes.c_int
+    mi.argtypes = [ctypes.c_int, ctypes.c_void_p]
+    fcl.restype = ctypes.c_int
+    fcl.argtypes = [ctypes.c_void_p]
+    fre.restype = None
+    fre.argtypes = [ctypes.c_void_p]
+    _MALLOC_INFO = (oms, mi, fcl, fre)
+
+
+def malloc_info_xml() -> tuple[bytes | None, str | None]:
+    """glibc's per-arena XML, or `(None, reason)`.
+
+    The buffer is freed on every path that allocated one — an instrument that leaks 4 kB a minute would
+    become the thing it is measuring."""
+    if not _MALLOC_INFO_TRIED:
+        _resolve_malloc_info()
+    if _MALLOC_INFO is None:
+        return None, _MALLOC_INFO_REASON
+    oms, mi, fcl, fre = _MALLOC_INFO
+    buf = ctypes.c_char_p()
+    size = ctypes.c_size_t()
+    try:
+        fh = oms(ctypes.byref(buf), ctypes.byref(size))
+        if not fh:
+            return None, "malloc_info: open_memstream returned NULL"
+        mi(0, fh)
+        fcl(fh)
+        return (ctypes.string_at(buf, size.value) if buf else None), None
+    except Exception as e:  # noqa: BLE001 — an instrument never takes the status loop down
+        return None, f"malloc_info call failed: {type(e).__name__}"
+    finally:
+        if buf:
+            fre(ctypes.cast(buf, ctypes.c_void_p))
+
+
+def parse_malloc_info(xml: bytes) -> dict:
+    """PURE: the ACROSS-ARENA totals from glibc's XML, in bytes.
+
+    Only the ROOT-level `<total>` and `<system>` elements are summed over every arena; the identically
+    named children inside each `<heap>` describe that heap alone. Reading a nested one as the total is
+    the mistake this function exists to make impossible — it iterates direct children only.
+
+    §∅: an element or an attribute glibc did not write stays `None`. Measured on glibc 2.43: a
+    single-arena process gets NO root-level `<total type="fast">` at all, so `fast` reads `null` there
+    rather than 0 — "the allocator reported no fastbin total" and "the fastbin total is zero" are
+    different facts. A malformed document raises, and the caller turns that into a reason."""
+    root = _ET.fromstring(xml)
+    out: dict[str, Any] = dict.fromkeys(_ARENA_KEYS)
+    out["heaps"] = len(root.findall("heap"))
+    for el in root:
+        name = {"total": el.get("type"), "system": f"system_{el.get('type')}"}.get(el.tag)
+        if name in _ARENA_KEYS:
+            raw = el.get("size")
+            out[name] = int(raw) if raw is not None and raw.isdigit() else None
+    return out
+
+
+def malloc_arenas() -> dict:
+    """Every arena's bytes, the half `mallinfo2` cannot report, or all-`null` with a reason (§∅).
+
+    `system_current` is what the allocator holds from the kernel across all arenas, and `rest` is what
+    is free inside them. RSS minus `system_current` is roughly what is NOT the allocator's — the split
+    this exists to make, and the one `/proc/<pid>/status` alone cannot."""
+    xml, reason = malloc_info_xml()
+    out: dict[str, Any] = dict.fromkeys(_ARENA_KEYS)
+    if xml is None:
+        out["reason"] = reason or "malloc_info: no document"
+        return out
+    try:
+        out = parse_malloc_info(xml)
+        out["reason"] = None
+    except _ET.ParseError as e:
+        out["reason"] = f"malloc_info XML unparsable: {e}"
+    return out
+
+
+def gc_counters() -> dict:
+    """The CHEAP half of `gc_snapshot()`: per-generation thresholds counts and collection totals.
+
+    Deliberately NOT `gc_snapshot()`, and deliberately NOT `len(gc.get_objects())`. `gc_snapshot`
+    reports this probe's own pass DURATIONS, which exist only inside an armed heap-probe window, and
+    `len(gc.get_objects())` materialises a list of every tracked object — on this daemon that is the
+    instrument becoming the leak. Both belong in the window, not on a loop that runs every 10 s.
+
+    §∅: a generation CPython does not report leaves `collections` `None` rather than 0, because 0
+    collections and no answer are different facts."""
+    stats = gc.get_stats()
+    counts = list(gc.get_count())
+    per = []
+    for gen in range(3):
+        s = stats[gen] if gen < len(stats) else {}
+        per.append(s.get("collections"))
+    return {"counts": counts, "collections": per, "enabled": gc.isenabled()}
+
+
+def mem_snapshot() -> dict:
+    """The four populations the RSS climb needs side by side, cheap enough for every status tick.
+
+    RSS is what the kernel gave us, `mallinfo2` is how the MAIN arena has carved it, `arenas` is the
+    same question across EVERY arena, and the gc counters say whether Python is collecting at all. Part
+    A of the daemon-RSS split (Wren, 2026-10-12: +300 MB over 6 h while streams record, smooth, with
+    per-job arena retention of ~50 MB on top). Which population it is cannot be told from outside the
+    process, which is why this is published from inside it."""
+    return {
+        "rss_kb": proc_rss_kb(),
+        "mallinfo2": mallinfo2(),
+        "arenas": malloc_arenas(),
+        "gc": gc_counters(),
+    }
+
+
+def mem_log_line(snap: dict) -> str:
+    """One journal line from a snapshot, as kB throughout, with `null` for an absent figure.
+
+    A line rather than only the status file: `status.json` is REWRITTEN every tick, so it answers "what
+    is it now" and never "how did it get there". The night's shape is the whole question here, and the
+    journal is the only surface on this box that keeps a series.
+
+    kB for every figure, including the `mallinfo2` and `malloc_info` ones that arrive in bytes, so the
+    numbers on one line are comparable without the reader converting. The `main` segment is the main
+    arena alone and the `all` segment is every arena, which is the comparison the line exists to make.
+    §∅: `null`, never 0, for anything unmeasured, and each absent instrument appends its own reason."""
+    rss, mi, ar, g = snap["rss_kb"], snap["mallinfo2"], snap["arenas"], snap["gc"]
+
+    def _kb(v, scale=1):
+        return "null" if v is None else str(v // scale)
+
+    line = (
+        "mem: VmRSS %s kB RssAnon %s kB · main arena %s kB hblkhd %s kB uordblks %s kB fordblks %s kB "
+        "keepcost %s kB · all arenas heaps %s system %s kB rest %s kB mmap %s kB · gc counts %s collections %s"
+    ) % (
+        _kb(rss.get("VmRSS")),
+        _kb(rss.get("RssAnon")),
+        _kb(mi.get("arena"), 1024),
+        _kb(mi.get("hblkhd"), 1024),
+        _kb(mi.get("uordblks"), 1024),
+        _kb(mi.get("fordblks"), 1024),
+        _kb(mi.get("keepcost"), 1024),
+        _kb(ar.get("heaps")),
+        _kb(ar.get("system_current"), 1024),
+        _kb(ar.get("rest"), 1024),
+        _kb(ar.get("mmap"), 1024),
+        ",".join(str(c) for c in g["counts"]),
+        ",".join("null" if c is None else str(c) for c in g["collections"]),
+    )
+    for reason in (mi.get("reason"), ar.get("reason")):
+        if reason is not None:
+            line += f" · {reason}"
+    return line
+
+
 #: How many decode sites to publish, and how deep a referrer walk may go. Bounded because the probe must
 #: not become the leak it is measuring: a referrer walk holds references while it runs, and an unbounded
 #: one over a million-object heap would both stall the loop and retain what it visits.
@@ -14268,7 +14558,14 @@ async def main():
     # Same `data_stale_sec` the alert loop uses — one grace, so `recording` cannot mean two things
     # depending on which loop a reader happened to ask.
     _BACKGROUND = [
-        ("status_loop", lambda: status_loop(root, float(_acfg.get("data_stale_sec", 120)))),
+        (
+            "status_loop",
+            lambda: status_loop(
+                root,
+                float(_acfg.get("data_stale_sec", 120)),
+                float((cfg.get("mem") or {}).get("log_sec", 60)),
+            ),
+        ),
         ("adapter_watchdog", lambda: adapter_watchdog(ADAPTER, cfg)),
         ("rssi_poller", lambda: rssi_poller(ADAPTER, cfg, root)),
         ("clock_watchdog", lambda: clock_watchdog(cfg, root)),
