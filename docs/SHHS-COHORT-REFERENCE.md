@@ -78,7 +78,7 @@ a median 742 samples (5.4 %) per night.
 as anything but its normal state is absent for computation**, and the rows carry the count
 (`oxStat.flaggedSec`, `inRangeFlaggedSec`). Effect on the shipped detector, paired over 278 records
 (`tools/nsrr-oxstat-validate.mjs`, 2026-09-20): **ODI-4 median −0.700 events/h** (95 % half-width
-±0.23), as-shipped median 3.05 → 2.2, lower on 261/278, ≥1.0/h on 111, worst `shhs1-204801` 30.8 → 16.2.
+±0.23), as-shipped median 3.05 → 2.2, lower on 261/278, ≥1.0/h on 111, worst record 30.8 → 16.2.
 **22 of 300 records carry no status channel**; those rows pass through untouched and the result reads
 `oxStat.present: false` — not flagged, not clean by fiat.
 
