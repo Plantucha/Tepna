@@ -26,6 +26,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`argv-guard.mjs`](../tools/argv-guard.mjs) | REFUSE AN ARGV TOKEN NOBODY READS. Residue `2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus`. |
 | [`argv-survey.mjs`](../tools/argv-survey.mjs) | WHICH TOOLS CAN TELL AN UNKNOWN FLAG FROM AN ABSENT ONE. Executable, controlled, and bounded to the tools it can prove are inert. |
 | [`assertion-strength.mjs`](../tools/assertion-strength.mjs) | WHICH ASSERTIONS PIN A DIRECTION WHERE THEY COULD PIN A VALUE |
+| [`astgrep-gate.mjs`](../tools/astgrep-gate.mjs) | Four shapes that a reviewer reads as a defect, matched on the syntax tree rather than on text. |
 | [`beat-capture-recapture.mjs`](../tools/beat-capture-recapture.mjs) | beat-capture-recapture — how many beats did EVERY detector miss? |
 | [`beat-comb-analysis.mjs`](../tools/beat-comb-analysis.mjs) | why two beat trains cannot tell you a clock offset WHY — IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF measured wrist↔finger beat correspondence with "nearest beat + linear median" and reported a… |
 | [`beat-correspondence.mjs`](../tools/beat-correspondence.mjs) | The formal object is the VICTOR–PURPURA edit distance on point processes (Victor & Purpura 1996,; INTERDISCIPLINARY-LITERATURE §13h.2): transform train A into train B at minimum cost —… |
