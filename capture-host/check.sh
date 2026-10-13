@@ -99,7 +99,14 @@ run_gate "pytest"     "$PY" -m pytest -q --cov --cov-branch --cov-fail-under=100
 # success about something it never examined". No other gate can see it: every instance HAS passing
 # tests, and the tests call the function directly, which is exactly the wiring production lacks. Seconds,
 # no network. The floor is 0 and the allowlist is the escape hatch, with a reason required per entry.
-run_gate "unwired"    "$PY" tools/find_unwired.py --check
+# THE OBJECT IS READ, NOT THE EXIT CODE (VERDICT-CONTRACT §3d; residue 2026-10-12-find-unwired-has-not-
+# adopted-the-verdict-schema-so-check-sh-can-never-read-pass). find_unwired is a tool of OURS, and its exit
+# 1 cannot separate a finding from an uncaught exception — so it writes its own `tepna.verdict/1` to
+# $UNWIRED_VERDICT_OUT and `checkverdict.py` reads that. The file is REMOVED FIRST: a stale object from an
+# earlier run must never be read as this run's, and a run that wrote none reads UNKNOWN, not green.
+UNWIRED_VERDICT="${UNWIRED_VERDICT_OUT:-.unwired-verdict.json}"
+rm -f "$UNWIRED_VERDICT"
+run_gate "unwired"    "$PY" tools/find_unwired.py --check --verdict-out "$UNWIRED_VERDICT"
 
 # ── ADVISORY GATES (PYTHON-TYPES-AND-FORMAT-2026-08-27) ─────────────────────────────────────────
 # These RUN and REPORT but cannot fail the run yet. Advisory here is not the ignorable kind: the
@@ -310,7 +317,8 @@ done
 # what a reader keys on instead of "all gates green". `CHECK_VERDICT_OUT` relocates the file (tests).
 child_pairs=(); for i in "${!names[@]}"; do child_pairs+=("${names[$i]}=${codes[$i]}"); done
 adv_args=();    for i in "${!adv_names[@]}"; do adv_args+=(--advisory "${adv_names[$i]}=${adv_states[$i]:-UNSPECIFIED}"); done
-"$PY" checkverdict.py --write "${CHECK_VERDICT_OUT:-.check-verdict.json}" "${adv_args[@]}" "${child_pairs[@]}" \
+"$PY" checkverdict.py --write "${CHECK_VERDICT_OUT:-.check-verdict.json}" "${adv_args[@]}" \
+  --object "unwired=$UNWIRED_VERDICT" "${child_pairs[@]}" \
   || printf '  verdict: NOT WRITTEN — checkverdict.py exited %s (the exit code below is still the gate)\n' "$?"
 
 if [ "$failed" -ne 0 ]; then

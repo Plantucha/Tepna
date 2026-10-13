@@ -3131,7 +3131,7 @@ def _clock_sync_cooling(addr, now_mono) -> bool:
     return bool(now_mono < _CLOCK_SYNC_COOLDOWN.get(addr, (0, 0.0))[1])
 
 
-def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
+def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit, sync_pending=False) -> bool:
     """PURE: should this reconnect attempt try to re-establish a LOST bond?
 
     Four conditions, each earning its place:
@@ -3147,12 +3147,18 @@ def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
 
     The cap counts re-bond ATTEMPTS, not reconnects, so at the defaults it still spans a whole night —
     which is the point. The 2026-07-29 loss needed a retry FOUR HOURS after the bond went stale, long
-    after any short-lived burst of attempts would have been exhausted."""
+    after any short-lived burst of attempts would have been exhausted.
+
+    `sync_pending` (added LAST, default False) is True when a PS-FTP clock sync is about to run. That
+    sync needs the encrypted link the missing bond denies it and holds a 120 s budget, so a re-pair that
+    waits for the every-Nth cadence sits behind up to N-1 syncs that cannot succeed (measured 2026-09-12:
+    14 min after an adapter swap). A pending sync is itself the expensive event, so one `is_bonded` beside
+    it is cheap by comparison, and the cadence stops gating — `limit` and `every <= 0` still do."""
     # `bonded is None`: bluetoothctl did not answer, so BlueZ — the authority above — said nothing. That is not
     # its "no bond", and it must not spend an attempt or force a re-pair (ABSENCE-SURVEY 3720ab19bc82).
     if not needs_pmd or bonded or bonded is None or every <= 0:
         return False
-    return attempts < limit and iteration % every == 0
+    return attempts < limit and (sync_pending or iteration % every == 0)
 
 
 async def auto_sync_clock(name, addr, root=None) -> bool:
@@ -3576,6 +3582,7 @@ async def run_polar(dev: dict, root: str):
                 log.warning("%s not bonded; PMD will likely drop until bonded", name)
         except Exception as e:
             _set(name, last_error=f"bond error: {e!r}")
+            log.warning("%s: bond error at task start: %r", name, e)
     # Sync the device clock BEFORE the PMD link is established. Polar stamps every sample with device
     # time, and an H10 resets to its 2019 firmware default whenever it leaves the strap — so without
     # this `sensor timestamp [ns]` is meaningless and siblings share no origin.
@@ -3601,10 +3608,11 @@ async def run_polar(dev: dict, root: str):
             while (addr in _POLAR_PAUSED or _RECOVER.is_set()) and not _STOP.is_set():
                 await asyncio.sleep(0.3)
             continue
-        # RE-SYNC ON RECONNECT. Must be here — before `_connect` — because the PS-FTP write needs the
-        # device's single BLE link (see the first-sync comment above). Skipped while the device is on
+        # RE-SYNC ON RECONNECT (decided here, RUN after the re-bond below). Must precede `_connect` because
+        # the PS-FTP write needs the device's single BLE link (see the first-sync comment above). Skipped while the device is on
         # its charger: a docked Polar cannot take the write, so trying only burns the watchdog's
         # give-up budget. Coming off the dock IS a reconnect, so the sync lands then.
+        sync_due = False
         if clock_sync_due(
             _clock_gate(name, addr, is_polar),
             (_CFG.get("time") or {}).get("auto_sync_devices", True),
@@ -3613,7 +3621,7 @@ async def run_polar(dev: dict, root: str):
             _clock_sync_cooling(addr, _time.monotonic()),
             _clock_sync_synced_age_s(addr, _time.monotonic()),
         ):
-            await auto_sync_clock(name, addr, root)
+            sync_due = True
         first_attempt = False
         # RE-BOND A LOST BOND. Also before `_connect`, and for the same reason the clock write is: the
         # pairing needs the device's own link. Without this a bond that goes stale mid-session is
@@ -3627,7 +3635,7 @@ async def run_polar(dev: dict, root: str):
             is_polar
             and needs_pmd
             and _REBOND_EVERY > 0
-            and iteration % _REBOND_EVERY == 0
+            and (sync_due or iteration % _REBOND_EVERY == 0)
             and rebond_attempts < _REBOND_LIMIT
         ):
             try:
@@ -3638,6 +3646,7 @@ async def run_polar(dev: dict, root: str):
                     rebond_attempts,
                     _REBOND_EVERY,
                     _REBOND_LIMIT,
+                    sync_pending=sync_due,
                 ):
                     rebond_attempts += 1
                     log.warning(
@@ -3650,6 +3659,11 @@ async def run_polar(dev: dict, root: str):
                         _set(name, last_error="bond lost — re-pairing failed; pair from the monitor page")
             except Exception as e:  # bonding must never take the capture task down
                 log.debug("%s: re-bond check failed: %r", name, e)
+        # The sync is RUN last because it needs the bond the block above may just have restored: PS-FTP
+        # wants an encrypted link, and a sync due while the bond was gone used to burn its whole 120 s
+        # budget (up to 12 NotConnected retries) before the every-5th-iteration re-bond ever ran.
+        if sync_due:
+            await auto_sync_clock(name, addr, root)
         writers: dict[int, StreamWriter] = {}
         stream_fs: dict[int, float] = {}  # actual negotiated sample rate per meas (ACC differs per device)
         stream_scale: dict[int, float] = {}  # raw-int → physical-unit factor per meas (GYRO dps / MAG gauss)

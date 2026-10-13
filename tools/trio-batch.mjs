@@ -65,6 +65,8 @@
  *                        written to <out>/trio-batch-verdicts.json on a real run — VERDICT-CONTRACT §3b #7)
  *     --verdict-sample   emit one synthetic run-level verdict and exit (the adoption gate's corpus-free probe)
  *     --selftest         known-answer checks for the nocturnal gate (no corpus, no I/O)
+ *     --code-digest      print the digest of THE CURRENT TREE's compute closure (the `codeDigest` every .trio-stamp
+ *                        records) as one line on stdout and exit — no --src, no corpus, nothing written
  *
  * PARALLELISM + MEMORY. Nights run as CHILD PROCESSES, pool-capped. The cap is PROBED, not assumed:
  * a night peaks at ~0.9 GB (a ~330 MB PPG text held while it parses into Float32 channels, plus a
@@ -110,7 +112,7 @@ refuseUnknownArgvOrExit(
   argv,
   {
     valued: ['--src', '--out', '--night', '--limit', '--min-hours', '--min-overlap', '--night-band', '--jobs', '--cpap', '--only-node'],
-    boolean: ['--keep-daytime', '--skip-existing', '--force', '--dry-run', '--json', '--verdict-sample', '--selftest', '--allow-partial', '--child']
+    boolean: ['--keep-daytime', '--skip-existing', '--force', '--dry-run', '--json', '--verdict-sample', '--selftest', '--allow-partial', '--child', '--code-digest']
   },
   { tool: 'trio-batch' }
 );
@@ -857,7 +859,7 @@ function childHeapMB(planned) {
   return Math.max(CHILD_HEAP_MB, Math.min(CHILD_HEAP_MB, perJobMB));
 }
 
-if (!SRC || !existsSync(SRC)) {
+if (!flag('--code-digest') && (!SRC || !existsSync(SRC))) {
   console.error('trio-batch: --src <capture dir> is required and must exist');
   process.exit(2);
 }
@@ -881,6 +883,42 @@ if (!SRC || !existsSync(SRC)) {
    fold's numbers, and hashing `__filename` made all 48 edits to this file (21 in July, 15 in August, 12
    in September — ~19/month) re-stale all 82 stamped nights at ~78 min per whole-corpus re-fold. */
 const COMPUTE_MODULES = ['clock.js', 'kernel-constants.js', 'export-schema.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'integrator-dsp.js'];
+const sha16 = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
+const CODE_DIGEST = (() => {
+  /* The closure, and ONLY the closure — see COMPUTE_MODULES. `__filename` is deliberately absent: this
+     file's own text cannot change a fold's output, and hashing it re-staled every stamped night on every
+     edit. A module missing from COMPUTE_MODULES is the dangerous direction, which is why the realm loads
+     from the same array. */
+  const srcs = COMPUTE_MODULES.map((f) => join(ROOT, f));
+  return sha16(srcs.map((f) => (existsSync(f) ? readFileSync(f, 'utf8') : '')).join('\0'));
+})();
+const inputDigest = (p) =>
+  sha16(
+    Object.keys(p)
+      .sort()
+      .flatMap((k) => {
+        const v = p[k];
+        return (Array.isArray(v) ? v : v && v.name ? [v] : []).map((f) => {
+          let mt = 0;
+          try {
+            mt = statSync(f.full).mtimeMs;
+          } catch {
+            /* gone → digest changes → recompute */
+          }
+          return `${k}\0${f.name}\0${f.bytes}\0${mt}`;
+        });
+      })
+      .sort()
+      .join('\n')
+  );
+/* `--code-digest` — the digest of the tree THIS process is running from, the one number a `.trio-stamp` records
+   as `codeDigest` and no other mode printed (residue 2026-10-12-trio-batch-prints-no-current-tree-digest).
+   It sits HERE, above the capture-root scan, so it needs no `--src` and touches nothing; it prints the same
+   `CODE_DIGEST` the stamps are compared against, never a second computation of the closure. */
+if (flag('--code-digest')) {
+  console.log(CODE_DIGEST);
+  process.exit(0);
+}
 
 /* ── 1 · headless DSP realm (mirrors tests/run-tests.mjs makeCtx/loadInto) ─── */
 function makeCtx() {
@@ -1757,34 +1795,6 @@ let work = LIMIT ? trio.slice(0, LIMIT) : trio;
  * The stamp is written ONLY after all three exports land, so a night an OOM-kill left half-written
  * (which has happened: 2026-07-06 kept only its ECGDex export) has no stamp and is always redone. */
 const STAMP = '.trio-stamp'; // NOT *.json — tch-multinight --dir globs /\.json$/i and must not see it
-const sha16 = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
-const CODE_DIGEST = (() => {
-  /* The closure, and ONLY the closure — see COMPUTE_MODULES. `__filename` is deliberately absent: this
-     file's own text cannot change a fold's output, and hashing it re-staled every stamped night on every
-     edit. A module missing from COMPUTE_MODULES is the dangerous direction, which is why the realm loads
-     from the same array. */
-  const srcs = COMPUTE_MODULES.map((f) => join(ROOT, f));
-  return sha16(srcs.map((f) => (existsSync(f) ? readFileSync(f, 'utf8') : '')).join('\0'));
-})();
-const inputDigest = (p) =>
-  sha16(
-    Object.keys(p)
-      .sort()
-      .flatMap((k) => {
-        const v = p[k];
-        return (Array.isArray(v) ? v : v && v.name ? [v] : []).map((f) => {
-          let mt = 0;
-          try {
-            mt = statSync(f.full).mtimeMs;
-          } catch {
-            /* gone → digest changes → recompute */
-          }
-          return `${k}\0${f.name}\0${f.bytes}\0${mt}`;
-        });
-      })
-      .sort()
-      .join('\n')
-  );
 /* ── 3a-bis · THE RUN LEDGER — `provenance/trio-fold.json` ──────────────────────────────────────
  * The per-night `.trio-stamp` records that night's inputs + code. What no stamp can record is a
  * property of the RUN: which trees were walked, what they were mounted on, and the one file set the
