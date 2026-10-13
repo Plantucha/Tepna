@@ -42,6 +42,11 @@ There are **no `node_modules` runtime dependencies** to enumerate: the tooling u
 standard library. If a third-party build/test dependency is ever added, it must be added to this
 table with its version and purpose.
 
+**The full build/test-time list lives in `THIRD-PARTY.md` § Development tools (not shipped)**, which
+names every such tool with its version or pin, its licence and the machines it runs on. The two
+entries above cover what runs the bundler itself; that section covers the lint, type, test, mutation,
+search and model tooling as well. Neither list reaches a bundle.
+
 ## 4 · Clinical references are NOT SOUP
 
 Formulas and thresholds are drawn from peer-reviewed literature (`THIRD-PARTY.md` §Clinical). These

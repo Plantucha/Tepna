@@ -30,6 +30,108 @@ changesets.)
 
 ---
 
+## [2.19.0] — 2026-10-13
+
+### Added
+- Add a fleet board — a static page regenerated every 10 minutes outside any checkout — carrying fresh tokens per bird with cache reads beside, the model split, the weekly-pool band, release watch with a banner for a due-and-stalled cut, open PRs with walker order, main CI, the herder, Rule 0 stamp age and the owner-decision queue; doc-search prints its three-line summary after every search.
+- Add nine hand-written Claude Code skills under `.claude/skills` for the recurring fleet procedures, each auto-invoked by its description and citing the slip that motivated it, so a session spends fewer tokens rediscovering a sequence than it did getting it wrong. (`TOKEN-DIET-2026-10-11-BRIEF.md`)
+- Deny a trailer-less git commit in a Claude Code session, so a missing Fleet-Session line costs one command now instead of an empty commit and a second CI round-trip later.
+- **`tools/fleet-turns.mjs` — turns, tool calls per turn and narration per session, from the local transcripts.** The measure behind the fleet rule "fewer turns" (owner, 2026-10-11). Measured on the week to 2026-10-11: three of four birds narrate on 56–60 % of their tool turns at 0.87–0.97 tool calls per turn. The brief carries the five diet rules, the proposed CLAUDE.md text and the handoff-file contract. No bundle moves. (`TOKEN-DIET-2026-10-11-BRIEF.md`)
+- A command that prints thousands of lines now reaches the transcript as 101 lines. `trim-output.sh` is
+- Require every workflow job to declare timeout-minutes, and set the twelve that lacked one from each job's own measured p95 and max duration, so a hung step fails in minutes instead of inheriting GitHub's 360-minute default.
+- **`tools/zotero-fill.mjs` — the citation ledger mirrored into the owner's reference library, one record per DOI, idempotent.** (`LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
+- Red a PR body that puts a GitHub closing keyword next to a still-open PR number, because Kodiak squashes the body into the commit message and GitHub acts on the phrase there.
+- Propose a frozen benchmark of past defects, built from closed RESIDUE rows whose fix commit carries a test. (`DEFECT-BENCHMARK-2026-10-12-BRIEF.md`)
+- A new consumer that decides on `hostAxis.independent` instead of `deviceDrawn` now reds the suite.
+- Add four more fleet skills under `.claude/skills` — sweeping every realm a shared module reaches, reading a CI result without reading a tail, landing a PR through Kodiak's queue, and reporting a measurement with its population — and correct `residue-row`, whose description and body still said a fix PR must not touch the ledger after the ruling that a row logged and closed as `fixed #<that same PR>` belongs with its fix. (`TOKEN-DIET-2026-10-11-BRIEF.md`)
+- The three-cornered hat now says which leg moved a corner. `analysis-stats.js` gains `hatContributions`, which builds the `tepna.verdict/1` `contributions` block for one corner by the `analytic` method. It also gains `patHatContributions`, which builds all three blocks on the brief's own leg keys in ms². The classic hat is a closed form, so each leg's term is its own partial of ±½ times its own variance. The three terms then sum to the corner exactly, and the suite asserts that identity over 900 corners against `threeCorneredHat` itself. (`VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md`)
+- tools/null-fuzz.mjs — the null-injection fuzzer for the DSP absence contract (§∅): P1 an all-null night yields null metrics, P2 nulls are ignored, never zeroed; targets oxydex, pulsedex, glucodex and the shared machinery; tepna.verdict/1 per target; adopted in tools/verdict-adoption.json via --verdict-sample. Built 2026-10-06, its findings landed through #3321 and siblings while the tool stayed in a worktree; landed now on the owner's order to adopt or delete unlanded work.
+- `tools/pr-compliance.mjs` check 8: a `tepna.verdict/1` object quoted in a PR body must come from this PR's current code. The check reads the object's `producedBy.commit` and places it against the base and the head. It fails when a non-Markdown file that the PR changes moved after the run. It also fails when the commit left the PR history, does not resolve, or is absent. A verdict on a base commit is evidence about main and passes. A merge from main does not stale a verdict, because the check reads only the PR's own files.
+- **A red PR is an event once, written to a file, not a journal line every ten minutes.**
+- **Every source file, its functions and its exports — one map, and it decides nothing.**
+- Give the residue ledger a fifth closing state, `answered <ref>`, on the owner's ruling of 2026-10-12. A row that asked for a measurement and got it can claim neither a repair nor a refutation. So it sat `OPEN`, and an `OPEN` row says the ledger still owes work. The `<ref>` names where the answer lives: the recording PR, a ledger key, or a brief. `docs-ledger` check8b fixes the shape and rejects a bare `answered`, and the new check8j resolves the pointer. Close 35 audited rows with it and with `fixed #NNNN`, state cells only. (`RESIDUE-ABSENCE-EVIDENCE-SWEEP-2026-09-18-BRIEF.md`)
+- Measure the ring night in SAMPLES as well as in seconds. Each run states its delivered PPG count, its ratio per device-second and its shortfall. The nominal rate of 125.000 states the denominator. The pair sits beside the time-based witness and grades nothing.
+- Run the stage-lab control net (TCN + biGRU + Viterbi) in dependency-free JS with a PyTorch-exact parity harness that emits a pre-stated tepna.verdict/1.
+- Land the sleep-stage lab's feature core (SpO₂ / pulse / motion blocks, harmonisation, context, GBDT, HMM, κ) as a pure ES module with its formula registry and ledger citations, so the OxyDex stager can be built on the code the control net was trained with.
+- **The hook names a file that no longer parses, while the edit is still in view.**
+- Install drifted /etc and helper files on vigil without a password, from a clone of GitHub `main`, never from the checkout. (`VIGIL-AUTO-UPDATE-FOLLOWUPS-2026-08-14-BRIEF.md`)
+- Measure which corner the fused three-cornered hat drives negative, and refute the predicted one. (`TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12-BRIEF.md`)
+- Launch one Claude session on one work unit from a handoff file — `tools/unit-launch.sh` reads `handoffs/<slug>.md`, cuts the worktree and branch, opens a tab, starts the session and prompts it, then records the pane and session id.
+- **The token table names every bird on the roster, reads the capture box's sessions, and shows the API lane on its own line.** (`USAGE-GUARD-2026-10-11-BRIEF.md`)
+- `verify:verdict-adoption` gains a `contributions` leg, and its population is a brief table rather (`VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md`)
+- Add one optional `contributions` block to `tepna.verdict/1`, so a fused figure can say which (`VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md`)
+- **A skill carries the STE structure rules, the linter commands and the measured traps.**
+- `tools/xerj-query.mjs` refuses a query when both halves of the hybrid search are weak. The top cosine is below 0.8075 and the top BM25 score is below 27. A refused search prints "no prior work" with the two scores and the weak paths, without passages. An absent half never refuses. `doc-search.mjs` shows the refusal in its hybrid lane.
+- **Every Integrator key declares whether it reaches a card or only the export.** (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- **The writing rules, checked — and an approved-word layer that is ours.**
+
+### Changed
+- **Sessions compact at 20 % of the context window instead of near its end** (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=20` in the project settings' `env`).
+- Rebuild the monitor's Nights page as the owner-approved design: a last-31-nights overview led by the box's solid-night verdict, one row per night with a column per device (H10, Verity, O2Ring, AirSense, Muse, CGM) showing hours, fragments and the share lost, a Fused & derived tab, older months folded, and every cell opening its analyzer with the night loaded.
+- `tools/fleet-turns.mjs` prints the two owner targets (tools/turn ≥ 2.0, ctx/turn median ≤ 300k) and names every bird that misses one. The token-diet brief gains rules 6 (window cap) and 7 (tools per turn) with the 2026-10-11 turn-trigger measurement behind them. (`TOKEN-DIET-2026-10-11-BRIEF.md`)
+- **The trim-output hook is wired, last in the Bash PreToolUse list** (`.claude/settings.json`). #3450 shipped the hook inert; the entry was pasted by the owner by hand after two sessions' classifiers refused the edit as self-modification. Last so every guard reads the original command text. A session picks it up at its next start. No bundle moves.
+- Ratchet the XSS backlog on unescaped SINKS (210 of 314) instead of files (42), because a file leaves the list only when its last sink is escaped — so the old baseline could not see a merged security fix.
+- Carry the NSRR acknowledgement and both SHHS cohort citations on every surface publishing an SHHS number.
+- The `residue-row` skill keeps a closing keyword away from a number in prose. Kodiak squashes the body into the commit message, and GitHub acts on the phrase there.
+- **The files that every session reads at start now pass the writing rules.**
+- **The writing rules bite: a finding is a red, and the compliance gate reads every PR body.**
+- **The writing rules bind each new Markdown file, and the linter stops flagging about 4,300 false findings.**
+- Re-fold the trio corpus under the closure that carries the null-blind fix, and re-derive the pooled-hat table over the same 90 nights.
+- **The `write-in-ste` skill names the new-file rule that #3510 added.**
+- **brief-gaps v2 — the criterion re-stated as a share, the pooling moved to chunk pairs. PASS.** (`BRIEF-GAPS-2026-10-11-BRIEF.md`)
+- **SPINE: `dex-escape.js` into the six bundles that lacked it.**
+
+### Fixed
+- The loss audit examined ONE folder's files while the judge grouped by the RECORDING, so a night whose (`NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md`)
+- **The board's solid-night section renders a hand-entered file, named as manual with a date, until the capture box publishes a summary the rig can read.** (`USAGE-GUARD-2026-10-11-BRIEF.md`)
+- The diff-scoped mutation gate refused whole runs (exit 2, verdict UNKNOWN) over mutants it had itself (`MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md`)
+- The Clock & NTP card called every network server "unreachable" while the box's own PPS was preferred.
+- Give each doc-search cache write its own temp file, so two sessions searching at once stop racing one shared `.tmp` name and discarding the loser's embeddings — measured at 6,062 chunks re-embedded in a single search — and unlink the temp file when a write fails so unique names cannot leak.
+- Guard all thirteen remaining OxyDex consumers that read a row's SpO2 or HR directly, so a carried hole stops fabricating a desaturation, an oscillation crossing, a settling ramp, an HR asymmetry or a spike recovery — and correct #3408's cool-down trim, which came from `94 - null`.
+- Publish motionBursts as null, not a confident zero, when the export carries no usable motion column — zero bursts reads as a still night over a sensor the device did not have.
+- Withhold intraNightNSI when the motion column is unusable — an absent accelerometer was contributing a perfect motion score to a published stability index, scoring identically to a measured still night.
+- Stop the periodic-breathing detector reading absent seconds as baseline excursions: the rolling median takes present values only, an absent sample closes no excursion, and a cycle spanning a dropout breaks the run instead of bridging it.
+- Guard the two row-value comparisons #3427 missed inside the functions it claimed — the artifact recovery walk was stepping through dropouts and cleaning 20 samples where 8 were artifact.
+- Four preprints asserted numbers in prose, captions and abstracts that the SAME file's correction or (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- Open the generated release PR body with a truthful `Rule 0:` line naming what the release actually read — `changes/*.md`, listed — so the required compliance gate stops redding every release PR, without inventing a doc-search query the release never ran.
+- Stop recording the O2Ring while it sits on its charger or has been off the finger for 180 s, read its low-battery state as low rather than charging, and write a docked Verity's PMD negotiation once per charging episode instead of once a minute.
+- `tepna-update.sh` read "no device is recording" as "the box is idle" and restarted the daemon. Measured (`VIGIL-AUTO-UPDATE-2026-08-04-BRIEF.md`)
+- **The hybrid-search loader builds one fresh index per run and moves the name to it** (`tools/xerj-load.mjs`). Reloading the same deterministic ids into one index every hour was not idempotent on this engine: its vector graph appends on every overwrite and never reclaims, so 4,643 hourly writes grew the index to 9.7 GB on disk (3.3 GB graph for 62k documents, 53 KB per 4 KB vector), the server to 11.3 GB RSS past its own memory breaker, and every search to 13–22 s. A load now writes `tepna-hybrid-<utc stamp>`, swaps the alias `tepna-hybrid` to it in one request, deletes what it replaced and any orphan of an aborted run; a `--limit` probe is never promoted; a load of zero leaves readers on the previous generation. The first run also replaces the legacy real index wearing the alias's name. Seven new selftests; the alias lifecycle was driven against scratch indices. No bundle moves. (`XERJ-HYBRID-SEARCH-2026-10-10-BRIEF.md`)
+- A provenance fragment that never arrived is now reported by name instead of wearing the reason of a
+- tools/board.mjs — the Open owner decisions panel read every table row containing the word "open" from OWNER-DECISION-QUEUE, so an answered PPGDEX row, a defect row and a table header rendered as open decisions. It now reads the last OWNER DECISIONS OPEN block of the board's evaluation.md (the coordinator's written list), names its source on the panel, and falls back to the brief's D<n> headings that lack RULED/ANSWERED only when the block is absent. Three planted selftest cases cover block, fallback and absence.
+- `tools/board.mjs`, from the owner's two reads of the page on 2026-10-12.
+- Name the journal scope that reads as silence, state the settle trigger as the later of two clocks, install chrony's 0.1 s logchange threshold at sync, and refuse a manual time sync while a worn device is recording unless the caller forces it.
+- Publish the capture-host `charging` tri-state through `/api/state`, and draw its unknown on the monitor. Pair the reason with the flag on the PMD START path. Rename the flat-battery predicate to the observation it decides. Pin which sample of a PMD frame the clock probe stamps.
+- Boot every kind of the cohort worker's realm in the suite, not only the lean `pulse` one, and assert statically that a kind whose modules call `escapeHTML` also loads the file that defines it — the gap that let #3462's oxy-realm break reach main while the suite stayed green.
+- Give the JS mutation diff gate the equivalence classification its own sweep path already reads, refute a ledger entry only from a positively recorded kill, resolve a superseded marker against the path that was walked, and name the two ways to get playwright that do not add a dependency.
+- An equivalence entry may name the function it speaks about. So one recorded argument no longer excuses a mutant in a sibling function. A kill in one function no longer refutes a claim about another. Two survivors sharing one key both reach the report.
+- Publish `charging: null` when a battery flat at 100 % is the only evidence, so a fresh coin cell is no longer read as a dock, and never null a measured charging reason.
+- Key each Nights row by the band AND the recording it names, so two or three recordings in one night (`NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md`)
+- Count a capture session inside the night band into the night's coverage and publish the hole before it as gap minutes, instead of excluding it and grading the night SHORTFALL.
+- Measure an after-midnight device's hours on the Nights page from the recording's own files, not the evening folder alone. (`NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md`)
+- **A caller can now name the shipped ODI criterion, and the kernel constant stays frozen**.
+- The `oxy` cohort-worker realm lists the files that call `escapeHTML` but not `dex-escape.js`, which defines it, so the blob worker threw `ReferenceError: escapeHTML is not defined` at module evaluation and every paper-scale rerun of an OxyDex analysis page died at `worker boot failed`. Adding the one entry and rebuilding the analysis tools restores the boot. The yield pin keys on the realm's own `SCRIPTS` table, so the new entry moves its detector closure: re-stamped from a paper-scale rerun on the fixed worker, which reproduced the pinned 233 / 239 exactly.
+- Five OxyDex consumers summed an absent second as a zero reading. The SpO2 shape block, the HR coefficient of variation, the Poincaré pair and the conditional SpO2 means now filter the absence they read. Each reports its coverage beside the value. The night-to-night CV no longer renders an unmeasured night as a red one.
+- capture-host: name the backoff `pull_recording` waits between attempts, so the test selection can zero it; the `_with_retry` default it replaced is unchanged at 2.0, and the mutants of that function now reach a verdict instead of timing out.
+- Read the night's recorded UTC offset with the right sign, so night QC stops placing every recording 8 h early and judging a 7.9 h night over 21 h as "31 % below rate".
+- Show "Between nights" on the Tonight (QC) tile after the judged night band closes, not a gap for every stream.
+- Six tools refuse an unrecognised flag by name at exit 2 instead of taking it as an input path — one of them had created a directory named `--help` and written five EDFs into it — `tools/argv-survey.mjs` no longer runs its sweep and exits the process when imported, and `wt-done --landed` retires a worktree whose branch was rebuilt or whose post-merge commits were refused by a date, by proving every identifier the branch added is present on `origin/main`.
+- **Two tool-lane residue rows, both the same shape: a comparator nobody ran.**
+- Report the O2Ring's dead stream-offset field by its own structural reason instead of `floorMap`'s (`PAT-HAT-RING-FLOOR-2026-10-04-BRIEF.md`)
+- **Every `SignalSpec` dsp resolver now reaches the node that owns the function, and every one of them has a reader**.
+- Re-judging a past night no longer borrows the next night's doff. A night's morning folder also holds the
+- Re-judge a settled night when its judge code moved after the stored verdict. Each loss-audit poll re-judges one night. A fixed judge no longer leaves an old FAIL on the Nights page.
+- Count the lines the writing rules never read, and refuse a body whose prose all sits in table cells.
+- Drain stdin in `trim-output.sh` before the environment hatch exits, so the harness writing the payload no longer takes SIGPIPE; measure the hook's verdict by redirect rather than through a pipeline, and add a leg that watches the writer's fate.
+- `tools/verify-fixtures.mjs` now refuses a token it does not read, before it reads or writes anything. Its whole argument surface was three `process.argv.includes` lookups, so a token nobody looked up was indistinguishable from an absent one, and the default this tool falls back to is the STAMP path: a mistyped flag did not fail, it ran the full 746-group suite and wrote `verifiedUnder`. The re-bundle skill published `node tools/verify-fixtures.mjs --node <node>`, a flag that never existed, so the one documented way to verify a single node's fixtures quietly verified all of them; the skill now names the call that exists and records that there is no per-node mode. The guard is the shared `tools/argv-guard.mjs`, which prints the accepted set and exits 2 in 0.01 s. The suite's adopter-parity leg also now reads flags taken straight from `process.argv`, because the helper scan found no call sites in this tool and passed over the adoption it was asserting; 10 of the 17 adopters read a flag that way, every one of their 23 flags is declared, and a floor of 15 under the measured 22 keeps the new leg from returning to vacuity.
+
+### Security
+- **The last open `js/xss-through-dom` alert (#164), with its yield pin re-cut.**
+- **Five of the seven CodeQL `js/xss-through-dom` sinks escape their untrusted value.**
+- **Two of the last three open `js/xss-through-dom` alerts, plus six tool realms that lacked the escaper.**
+
+---
+
 ## [2.18.0] — 2026-10-11
 
 ### Added
@@ -3005,7 +3107,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.18.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.19.0...HEAD
+[2.19.0]: https://github.com/Plantucha/Tepna/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/Plantucha/Tepna/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/Plantucha/Tepna/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/Plantucha/Tepna/compare/v2.15.0...v2.16.0

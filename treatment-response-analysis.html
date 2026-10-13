@@ -2656,12 +2656,16 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
      a plain variance beside it. An empty or single-window leg makes its variance non-finite, which the
      kernel lists as `delta: null` with a reason (∅), so a leg that never ran is never a leg of zero. */
   var PAT_LEG_KEYS = { ab: 'leg.chest-finger', ac: 'leg.chest-ankle', bc: 'leg.finger-ankle' };
-  function patHatContributions(ab, ac, bc, opts) {
+  /* THE SAME THREE BLOCKS OVER LEG VARIANCES ALREADY SOLVED, for a caller whose pairwise dispersion is
+     not `_patRobustVar` over per-window values. `tools/pat-three-corner.mjs` is one: its legs are
+     per-window IQRs and its printed hat squares the MEDIAN of those IQRs, so handing its windows to
+     `patHatContributions` would attribute an across-window spread the hat never solved — a block that
+     does not sum to the figure beside it. Split the way `tchSigmasPairwise` and
+     `tchSigmasPairwiseFromVars` already are, so the corner names, the leg keys and the `of` spelling
+     stay single-sourced and no caller retypes them. */
+  function patHatContributionsFromVars(vAB, vAC, vBC, opts) {
     var o = opts || {},
       pre = o.ofPrefix || 'sigma2',
-      vAB = _patRobustVar(ab),
-      vAC = _patRobustVar(ac),
-      vBC = _patRobustVar(bc),
       out = {};
     for (var k = 0; k < 3; k++) {
       out[PAT_CORNERS[k]] = hatContributions(vAB, vAC, vBC, {
@@ -2673,6 +2677,9 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       });
     }
     return out;
+  }
+  function patHatContributions(ab, ac, bc, opts) {
+    return patHatContributionsFromVars(_patRobustVar(ab), _patRobustVar(ac), _patRobustVar(bc), opts);
   }
   /* THE DRIFT-REMOVED HAT — the same solve on FIRST DIFFERENCES of adjacent windows' medians, each halved:
      ½·Var(x_{k+1} − x_k) is the Allan variance at τ = one window (Allan 1966, Proc. IEEE,
@@ -3235,6 +3242,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     patHatCornerStatus: patHatCornerStatus,
     patDifferencedHat: patDifferencedHat,
     patHatContributions: patHatContributions,
+    patHatContributionsFromVars: patHatContributionsFromVars,
     parseDerivedHr: parseDerivedHr,
     confidenceSeries: confidenceSeries,
     tchSigmasPairwise: tchSigmasPairwise,
