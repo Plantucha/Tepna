@@ -57,15 +57,18 @@
  *   node tools/repo-map.mjs --only <substring>   # files whose path contains it
  *   node tools/repo-map.mjs --symbol <name>      # every file declaring or exposing that name
  *   node tools/repo-map.mjs --json               # the whole map as one JSON object
+ *   node tools/repo-map.mjs --write              # the compact view doc-search reads, to shared state
  *   node tools/repo-map.mjs --selftest
  * ────────────────────────────────────────────────────────────────────────────────────────── */
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { resolveStatePath, sharedStatePath } from './mutation-map.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -342,8 +345,8 @@ export function pyExports(sym) {
 
 export function buildMap({ root = ROOT, python = 'python3' } = {}) {
   const files = [];
-  const js = discover(['.js', '.mjs'], { root });
-  const py = discover(['.py'], { root });
+  const js = discover(JS_EXTS, { root });
+  const py = discover(PY_EXTS, { root });
   for (const rel of js.paths) {
     let text;
     try {
@@ -361,6 +364,7 @@ export function buildMap({ root = ROOT, python = 'python3' } = {}) {
     const rec = pyRecs.get(rel);
     files.push({ file: rel, lang: 'py', method: 'ast', symbols: rec.symbols, reason: rec.reason, exports: pyExports(rec.symbols) });
   }
+  for (const f of files) stampIdentity(f, { root });
   const unparsed = files.filter((f) => !f.symbols);
   return {
     root: relative(resolve(root, '..'), root) || '.',
@@ -378,6 +382,160 @@ export function buildMap({ root = ROOT, python = 'python3' } = {}) {
       exports: files.reduce((n, f) => n + (f.exports ? f.exports.names.length : 0), 0)
     }
   };
+}
+
+/* ── THE CACHED MAP, AND THE LINE A SEARCH PRINTS FROM IT ─────────────────────────────────────────
+ * `doc-search.mjs` prints one line per code file in its hits, so the map reaches the reader who is
+ * already looking at that path. Rule 0 answers in about 1 s, and a full scan costs 0.9 s, so the
+ * search NEVER rebuilds: `--write` writes a compact view beside the other shared state and the
+ * search only reads it.
+ *
+ * ⚠️ IDENTITY IS THE FILE'S BYTES, NOT ITS MTIME. Measured 2026-10-12 on this repo: `clock.js` in a
+ * worktree created minutes earlier carries mtime 2026-10-12 21:27, its copy in the main checkout
+ * carries 2026-09-24, and the last commit to touch it is 2026-09-22 — identical bytes, 18 days
+ * apart. `git worktree add` stamps every file at checkout time, so "the map is older than the file"
+ * is TRUE for every file in the tree the fleet actually works in (§👥.1), and an mtime rule would
+ * print nothing there while reporting nothing wrong. A sha256 prefix compares what the map was built
+ * from against what is on disk now, in the main checkout and in a worktree alike.
+ *
+ * ⚠️ A SUPPRESSED LINE IS COUNTED AND SAID, never silently skipped. Per file the renderer prints
+ * nothing — a stale symbol list is worse than no list — but the caller is handed the reason, and the
+ * search prints ONE trailing note naming how many files were suppressed and why. "Nothing printed"
+ * and "nothing to print" are different states (§∅).
+ */
+export const MAP_BASENAME = 'repo-map.json';
+/* The extensions the map covers, in ONE place so discovery and the reader cannot drift apart.
+   ⚠️ This list decides whether an ABSENT map is worth mentioning, and nothing else. It never decides
+   what a file declares — that is the map, and a path the map does not hold gets no line whatever its
+   name. The header's warning about hardcoded lists stands: this one can only cost a missing note. */
+export const JS_EXTS = ['.js', '.mjs'];
+export const PY_EXTS = ['.py'];
+export function isMappedExt(rel) {
+  return [...JS_EXTS, ...PY_EXTS].some((e) => rel.endsWith(e));
+}
+/** Where `--write` puts the map: the git COMMON dir, so one copy serves every worktree. */
+export function mapWritePath(root = ROOT) {
+  return sharedStatePath(root, MAP_BASENAME)[0];
+}
+/** Where a reader looks: the first candidate that exists, else the shared location. */
+export function mapReadPath(root = ROOT, existsFn = existsSync) {
+  return resolveStatePath(root, MAP_BASENAME, existsFn);
+}
+/** sha256[0:12] over a file's bytes — the identity a reader compares against. */
+export function sha12(buf) {
+  return createHash('sha256').update(buf).digest('hex').slice(0, 12);
+}
+/** Stamp one record with the identity of the bytes it was built from. `sha: null` carries a reason. */
+export function stampIdentity(f, { root = ROOT, readFn = readFileSync } = {}) {
+  try {
+    const buf = readFn(join(root, f.file));
+    f.sha = sha12(buf);
+    f.bytes = buf.length;
+  } catch (e) {
+    f.sha = null;
+    f.shaReason = `unreadable: ${e.code || 'error'}`;
+  }
+  return f;
+}
+
+/* The reader's view: names only, no line numbers, keyed by path so a search looks a hit up rather
+   than scanning 919 records. Measured 2026-10-12 on this repo: the full map is 3.25 MB and parses in
+   8.1 ms, the compact view is 1.30 MB and parses in 2.4 ms (median of five). Both are cheap against
+   a ~1 s answer, so the 5.7 ms is NOT the case for this view — the case is that a reader wants names
+   and the keyed shape is what makes the lookup O(1). The sizes are here so nobody re-derives them. */
+export function compactMap(map) {
+  const files = {};
+  for (const f of map.files) {
+    files[f.file] = {
+      lang: f.lang,
+      method: f.method,
+      sha: f.sha ?? null,
+      fn: f.symbols ? f.symbols.functions.map((x) => x.name) : null,
+      cls: f.symbols ? (f.symbols.classes || []).map((c) => c.name) : null,
+      ex: f.exports ? f.exports.names.slice() : null,
+      reason: f.symbols ? null : f.reason || f.shaReason || 'unparsed'
+    };
+  }
+  return { schema: 'tepna.repo-map/1', at: new Date().toISOString(), root: map.root, totals: map.totals, files };
+}
+
+export function writeMap(compact, { root = ROOT, writeFn = writeFileSync, mkdirFn = mkdirSync } = {}) {
+  const p = mapWritePath(root);
+  mkdirFn(dirname(p), { recursive: true });
+  writeFn(p, `${JSON.stringify(compact)}\n`);
+  return p;
+}
+
+/** Read the compact view. Returns null for every failure — an absent map is a state, not an error. */
+export function loadRepoMap({ root = ROOT, path = null, readFn = readFileSync, existsFn = existsSync } = {}) {
+  try {
+    const p = path || mapReadPath(root, existsFn);
+    if (!existsFn(p)) return null;
+    const m = JSON.parse(readFn(p, 'utf-8'));
+    return m && m.schema === 'tepna.repo-map/1' && m.files ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `a b c +N` within a character budget, so one file cannot take the whole line. */
+export function capNames(names, budget) {
+  const out = [];
+  let used = 0;
+  for (let i = 0; i < names.length; i++) {
+    const cost = names[i].length + (out.length ? 1 : 0);
+    if (used + cost > budget) return `${out.join(' ')} +${names.length - i}`;
+    out.push(names[i]);
+    used += cost;
+  }
+  return out.join(' ') || '—';
+}
+
+/* The four states a hit can be in. `line` is set only in the first. */
+export function mapLine(rel, map, { root = ROOT, readFn = readFileSync, budget = 52 } = {}) {
+  if (!map) return { suppressed: 'no-map' };
+  const e = map.files[rel];
+  if (!e) return { suppressed: 'not-in-map' };
+  let sha = null;
+  try {
+    sha = sha12(readFn(join(root, rel)));
+  } catch {
+    return { suppressed: 'unreadable' };
+  }
+  if (!e.sha || e.sha !== sha) return { suppressed: 'changed' };
+  if (!e.fn) return { suppressed: 'unparsed' };
+  const fns = e.cls && e.cls.length ? [...e.fn, ...e.cls.map((c) => `${c}()`)] : e.fn;
+  const parts = [`fn ${fns.length}: ${capNames(fns, budget)}`];
+  if (e.ex) parts.push(`ex ${e.ex.length}: ${capNames(e.ex, budget)}`);
+  return { line: `    ↳ ${rel}  ${parts.join(' · ')}${e.method === 'regex' ? '  (regex, approximate)' : ''}` };
+}
+
+/* WHICH HITS GET A LINE. A path the map does not hold gets none — that covers a brief, a `docs/`
+   page and an `ext:` path from another tree in one rule, rather than a list of extensions that would
+   go stale the way the first draft of the discovery list did. */
+export function mapBlock(paths, { root = ROOT, map = undefined, readFn = readFileSync, loadFn = loadRepoMap } = {}) {
+  const m = map === undefined ? loadFn({ root }) : map;
+  const seen = new Set();
+  const lines = [];
+  const why = new Map();
+  for (const raw of paths) {
+    const rel = String(raw).split(' ')[0];
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const r = mapLine(rel, m, { root, readFn });
+    if (r.line) lines.push(r.line);
+    else if (r.suppressed === 'no-map') {
+      if (isMappedExt(rel)) why.set('no-map', (why.get('no-map') || 0) + 1);
+    } else if (r.suppressed !== 'not-in-map') why.set(r.suppressed, (why.get(r.suppressed) || 0) + 1);
+  }
+  if (!lines.length && !why.size) return [];
+  const out = lines.length ? ['', '  ▸ repo map · what each code file above declares and exposes', ...lines] : [];
+  if (why.has('no-map')) out.push('', '  ⚠ no repo map on this box — `node tools/repo-map.mjs --write` writes one (0.9 s).');
+  const changed = why.get('changed') || 0;
+  if (changed) out.push('', `  ⚠ ${changed} code file(s) above changed since the map was written, so no line is printed for them — re-run \`node tools/repo-map.mjs --write\`.`);
+  const unparsed = why.get('unparsed') || 0;
+  if (unparsed) out.push('', `  ⚠ ${unparsed} code file(s) above report symbols: null in the map, which is not zero symbols — \`node tools/repo-map.mjs --only <path>\` says why.`);
+  return out;
 }
 
 /* ── REPORT ──────────────────────────────────────────────────────────────────────────────────── */
@@ -537,6 +695,47 @@ function selftest() {
   eq(/NOT counted as zero/.test(report(m, {})), 'the report states that an unparsed file is not a zero');
   eq(/approximate/.test(report(m, {})), 'the report names the weaker method as approximate');
 
+  /* ── THE LINE A SEARCH PRINTS, over the four states a hit can be in ───────────────────────────
+     Every state is paired with its opposite, so a renderer that printed nothing at all and one that
+     printed a stale list both score as loudly as a correct one. The map here is a LITERAL and the
+     file read is INJECTED, so these cases need no map on the box and no file on disk. */
+  const mm = {
+    schema: 'tepna.repo-map/1',
+    files: {
+      'a.js': { lang: 'js', method: 'regex', sha: sha12(Buffer.from('fresh')), fn: ['alpha', 'beta'], cls: [], ex: ['alpha'], reason: null },
+      'b.py': { lang: 'py', method: 'ast', sha: sha12(Buffer.from('fresh')), fn: null, cls: null, ex: null, reason: 'python3-absent' }
+    }
+  };
+  const readFresh = () => Buffer.from('fresh');
+  const readEdited = () => Buffer.from('edited');
+
+  const present = mapLine('a.js', mm, { readFn: readFresh });
+  eq(/fn 2: alpha beta/.test(present.line || ''), 'MAP PRESENT and matching: the line names the functions it declares');
+  eq(/ex 1: alpha/.test(present.line || ''), '…and the exports, which are a different set from the declarations');
+  eq(/regex, approximate/.test(present.line || ''), '…and says the JS method is approximate, as the report does');
+  eq(mapLine('a.js', null, { readFn: readFresh }).suppressed === 'no-map', 'MAP ABSENT: no line, and the state is named `no-map` rather than an empty string');
+  eq(!mapLine('a.js', null, { readFn: readFresh }).line, '…and absolutely no line is produced from an absent map');
+  eq(mapLine('a.js', mm, { readFn: readEdited }).suppressed === 'changed', 'STALE ENTRY: the file on disk no longer hashes to what the map was built from');
+  eq(!mapLine('a.js', mm, { readFn: readEdited }).line, '…so no symbol list is printed for it (a stale list is worse than none)');
+  eq(mapLine('briefs/X-BRIEF.md', mm, { readFn: readFresh }).suppressed === 'not-in-map', 'NON-CODE HIT: a brief is not in the map, so it gets no line');
+  eq(mapLine('b.py', mm, { readFn: readFresh }).suppressed === 'unparsed', 'a record with symbols: null is unparsed, which is NOT a file with zero symbols');
+
+  /* The block, and the note that keeps a suppression from being silent. */
+  const blkFresh = mapBlock(['a.js', 'briefs/X-BRIEF.md'], { map: mm, readFn: readFresh }).join('\n');
+  eq(/fn 2: alpha beta/.test(blkFresh), 'the block prints the one code hit');
+  eq(!/⚠/.test(blkFresh), 'CONTROL: a non-code hit alone raises no warning — there is nothing wrong with a brief');
+  const blkStale = mapBlock(['a.js'], { map: mm, readFn: readEdited }).join('\n');
+  eq(/1 code file\(s\) above changed/.test(blkStale), 'a suppressed stale line is COUNTED and said, not silently skipped');
+  eq(/repo-map\.mjs --write/.test(blkStale), '…and the note names the command that refreshes the map');
+  eq(/no repo map on this box/.test(mapBlock(['a.js'], { map: null, readFn: readFresh }).join('\n')), 'with no map the block says so once, not once per file');
+  eq(mapBlock(['briefs/X-BRIEF.md'], { map: null, readFn: readFresh }).length === 0, 'CONTROL: no code hit and no map ⇒ nothing printed at all, not even the missing-map note');
+  eq(/no repo map/.test(mapBlock(['z.py'], { map: null, readFn: readFresh }).join('\n')), '…while a code hit with no map DOES raise it, so the note is not simply dead');
+  eq(mapBlock(['a.js', 'a.js'], { map: mm, readFn: readFresh }).filter((l) => /↳/.test(l)).length === 1, 'two hits in one file print ONE line (the map is per file, the hits are per chunk)');
+  eq(/↳ a\.js/.test(mapBlock(['a.js [chunk 3/9]'], { map: mm, readFn: readFresh }).join('\n')), "a hybrid hit's ` [chunk i/n]` suffix is not part of the path");
+  eq(capNames(['aa', 'bb', 'cc'], 5) === 'aa bb +1', 'capNames stops at the budget and says how many it did not print (2 + 1 + 2 fits, the next does not)');
+  eq(capNames(['aa', 'bb', 'cc'], 2) === 'aa +2', '…and a budget that fits one name prints one');
+  eq(capNames([], 20) === '—', 'an empty name list renders as a dash, not as an empty line');
+
   console.log(bad === 0 ? `repo-map: all ${n} selftests passed` : `repo-map: ${bad} of ${n} selftests FAILED`);
   return bad === 0 ? 0 : 1;
 }
@@ -545,13 +744,20 @@ function selftest() {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const argv = process.argv.slice(2);
-  refuseUnknownArgvOrExit(argv, { valued: ['--only', '--symbol'], boolean: ['--json', '--summary', '--selftest'] }, { tool: 'tools/repo-map.mjs' });
+  refuseUnknownArgvOrExit(argv, { valued: ['--only', '--symbol'], boolean: ['--json', '--summary', '--write', '--selftest'] }, { tool: 'tools/repo-map.mjs' });
   if (argv.includes('--selftest')) process.exit(selftest());
   const opt = (name) => {
     const i = argv.indexOf(name);
     return i >= 0 ? argv[i + 1] : null;
   };
   const map = buildMap();
-  if (argv.includes('--json')) console.log(JSON.stringify(map, null, 2));
+  if (argv.includes('--write')) {
+    const compact = compactMap(map);
+    const where = writeMap(compact, {});
+    const t = map.totals;
+    console.log(`wrote ${where}`);
+    console.log(`  ${t.files} file(s) · ${t.functions} function(s) · ${t.exports} export(s) · ${t.unparsed} with symbols: null (NOT zero)`);
+    console.log(`  ${Object.keys(compact.files).length} path(s) keyed; doc-search reads this file and never rebuilds it.`);
+  } else if (argv.includes('--json')) console.log(JSON.stringify(map, null, 2));
   else console.log(report(map, { summary: argv.includes('--summary'), only: opt('--only'), symbol: opt('--symbol') }));
 }
