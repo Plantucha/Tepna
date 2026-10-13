@@ -818,3 +818,99 @@ def test_the_REAL_trees_SHADOWED_set_is_exactly_the_two_we_know_about():
         pytest.skip("population pin is about the real checkout's root; this is a scratch copy")
     got = mutation_diff.tree_shadowed(here, mutation_diff.root_reads(here))
     assert got == ["README.md", "tools/mutate-equivalence.json"], got
+
+
+# ── THE READ BACK DOWN INTO `capture-host/` ─────────────────────────────────────────────────────────
+# `stage_root_reads` above answers the read UP, out of the tree. A staged root TOOL then resolves back
+# DOWN: `tools/verify-seals.mjs` reads `join(HERE, '..', 'capture-host', 'tests', 'vectors', …)`, and
+# the flattened scratch had no `capture-host` at either level. Measured 2026-10-12 on `verdict.py`:
+# node refused with ENOENT, mutmut's run stopped at the first failure, both globs recorded 0 tested,
+# and `mutate_diff` refused the diff. Each test here is plant-verified — removing the links reds it.
+
+
+def _scratch_with_a_staged_tool(tmp_path):
+    """A scratch carrying the two shapes the defect needs: a vector dir inside the tree copy, and a
+    root tool staged at BOTH levels the way `stage_root_reads` stages it."""
+    scratch = tmp_path / "scratch"
+    work = scratch / "work"
+    (work / "tests" / "vectors" / "tepna-seal-1").mkdir(parents=True)
+    (work / "tests" / "vectors" / "tepna-seal-1" / "expected.json").write_text('{"seal": "n.seal"}\n')
+    (work / "mutants" / "tests" / "vectors" / "tepna-seal-1").mkdir(parents=True)
+    (work / "mutants" / "tests" / "vectors" / "tepna-seal-1" / "expected.json").write_text('{"seal": "n"}\n')
+    for level in (work, scratch):
+        (level / "tools").mkdir(parents=True, exist_ok=True)
+        (level / "tools" / "verify-seals.mjs").write_text("// the staged root tool\n")
+    return scratch, work
+
+
+def _vector_as_the_tool_spells_it(tool_dir):
+    """The verifier's own expression, verbatim: `join(HERE, '..', 'capture-host', 'tests', …)`."""
+    import os
+
+    return os.path.join(str(tool_dir), "..", "capture-host", "tests", "vectors", "tepna-seal-1", "expected.json")
+
+
+def test_stage_capture_host_view_answers_the_tool_read_from_BOTH_run_locations(tmp_path):
+    """The mutants run names `work/tools/…`; the clean baseline names `<scratch>/tools/…`. Both resolve
+    a `capture-host/`-prefixed path, so both need a view — exactly the two destinations
+    `stage_root_reads` writes to."""
+    import os
+
+    scratch, work = _scratch_with_a_staged_tool(tmp_path)
+    for tool_dir in (work / "tools", scratch / "tools"):
+        assert not os.path.isfile(_vector_as_the_tool_spells_it(tool_dir))  # the defect, before the fix
+    made = mutation_diff.stage_capture_host_view(work)
+    assert made == [str(work / "capture-host"), str(scratch / "capture-host")], made
+    for tool_dir in (work / "tools", scratch / "tools"):
+        p = _vector_as_the_tool_spells_it(tool_dir)
+        assert os.path.isfile(p), p
+
+
+def test_stage_capture_host_view_is_IDEMPOTENT_on_a_reused_scratch(tmp_path):
+    """A reused scratch runs this again. A link already pointing the right way is left, and the second
+    call reports nothing created — a count a caller can log honestly."""
+    scratch, work = _scratch_with_a_staged_tool(tmp_path)
+    assert len(mutation_diff.stage_capture_host_view(work)) == 2
+    assert mutation_diff.stage_capture_host_view(work) == []
+    assert (work / "capture-host").readlink().as_posix() == "."
+    assert (scratch / "capture-host").readlink().as_posix() == "work"
+
+
+def test_stage_capture_host_view_VISITS_BOTH_parents_when_the_first_is_already_right(tmp_path):
+    """A reused scratch can hold ONE of the two views and not the other: an interrupted run staged the
+    mutants view and died before the baseline view. So a link that already points the right way skips
+    that parent — it does not end the loop. The two views serve two different runs, and the missing one
+    is the run that fails."""
+    import os
+
+    scratch, work = _scratch_with_a_staged_tool(tmp_path)
+    (work / "capture-host").symlink_to(".", target_is_directory=True)  # the mutants view, already staged
+    made = mutation_diff.stage_capture_host_view(work)
+    assert made == [str(scratch / "capture-host")], f"the second view is still owed: {made}"
+    assert os.path.isfile(_vector_as_the_tool_spells_it(scratch / "tools"))
+
+
+def test_stage_capture_host_view_RE_POINTS_a_link_aimed_elsewhere(tmp_path):
+    """A stale view is worse than none: it answers the read with the wrong bytes. So a symlink whose
+    target is not this scratch's own is re-pointed, and the re-point is reported."""
+    import os
+
+    scratch, work = _scratch_with_a_staged_tool(tmp_path)
+    (work / "elsewhere" / "tests" / "vectors" / "tepna-seal-1").mkdir(parents=True)
+    (work / "capture-host").symlink_to("elsewhere", target_is_directory=True)
+    made = mutation_diff.stage_capture_host_view(work)
+    assert str(work / "capture-host") in made
+    assert (work / "capture-host").readlink().as_posix() == "."
+    assert os.path.isfile(_vector_as_the_tool_spells_it(work / "tools"))
+
+
+def test_stage_capture_host_view_leaves_a_REAL_directory_alone(tmp_path):
+    """A real `capture-host` directory there is somebody else's file. Clobbering it is worse than the
+    read failing, so it is left untouched and is not reported as created."""
+    scratch, work = _scratch_with_a_staged_tool(tmp_path)
+    (work / "capture-host").mkdir()
+    (work / "capture-host" / "theirs.txt").write_text("not ours\n")
+    made = mutation_diff.stage_capture_host_view(work)
+    assert made == [str(scratch / "capture-host")], made
+    assert (work / "capture-host" / "theirs.txt").read_text() == "not ours\n"
+    assert not (work / "capture-host").is_symlink()

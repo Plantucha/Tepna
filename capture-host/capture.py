@@ -4937,7 +4937,17 @@ async def run_muse(dev: dict, root: str):
             # died on the first line — device off, bad address, no LSL stream — still showed a green card
             # all night while the loop respawned it every 5 s, and `alert_poller` keys on `connected`, so
             # nothing ever fired.
-            proc = await asyncio.create_subprocess_exec(*cmd)
+            # `start_new_session=True` puts the recorder in a process group of its own, so the
+            # teardown below can reach the helpers it forks. Without it the child shares OUR group and
+            # a group signal would hit the daemon and every sibling task's child — measured 2026-10-12
+            # reproducing `2026-09-29-proc-util-kill-is-parent-only`, where the plant's grandchild
+            # outlived `proc.kill()`. The upward direction stays covered because
+            # `deploy/tepna-capture.service` sets no `KillMode`, so systemd's default `control-group`
+            # reaps this child with the cgroup whatever its process group is.
+            proc = await asyncio.create_subprocess_exec(*cmd, start_new_session=True)
+            # The group id, kept NOW: a session leader's pgid IS its pid, and once the child is reaped
+            # `os.getpgid` can no longer tell us which group to sweep.
+            pgid = proc.pid
             _set(name, connected=True, address=addr, tool=tool, last_error=None, file=out)
             try:
                 while proc.returncode is None and not _STOP.is_set():
@@ -4968,6 +4978,10 @@ async def run_muse(dev: dict, root: str):
                         with contextlib.suppress(Exception):
                             proc.kill()
                             await asyncio.wait_for(proc.wait(), timeout=5)
+                # SIGKILL the recorder's OWN group, after it is gone and however it went. A recorder
+                # that exits cleanly orphans its helpers just as surely as one that is killed, and an
+                # orphan here holds the Muse's BLE link, so the next start cannot connect.
+                proc_util.sweep_group(pgid)
             # A tool that exits on its own is a FAULT, not a quiet restart: report the code so the
             # respawn loop is visible instead of looking like a healthy capture.
             if proc.returncode not in (0, None):
