@@ -37640,7 +37640,11 @@
         var stepsBlock = body.slice(body.indexOf('const steps = ['));
         stepsBlock = stepsBlock.slice(0, stepsBlock.indexOf('];') + 2);
         T.ok('ANTI-VACUITY · the rebuild step list was found in the source', stepsBlock.indexOf('const steps = [') === 0 && stepsBlock.length < 1500, stepsBlock.length + ' char(s)');
-        T.ok('rebuild() runs tools/tools-index.mjs, so the auto-resolved file is restored', stepsBlock.indexOf("'tools/tools-index.mjs'") !== -1, 'step list: ' + stepsBlock.replace(/\s+/g, ' ').slice(0, 220));
+        T.ok(
+          'rebuild() runs tools/tools-index.mjs, so the auto-resolved file is restored',
+          stepsBlock.indexOf("'tools/tools-index.mjs'") !== -1,
+          'step list: ' + stepsBlock.replace(/\s+/g, ' ').slice(0, 220)
+        );
         T.ok('rebuild() does NOT run the mutation suite — it would stamp a verification nobody performed', stepsBlock.indexOf('mutation-suite') === -1, 'step list carries no mutation-suite step');
       }
 
@@ -37649,7 +37653,7 @@
       T.eq('one declared docs/ output is read back', docsOut("const OUT = join(ROOT, 'docs', 'TOOLS-INDEX.md');"), 'docs/TOOLS-INDEX.md');
       T.eq('no declaration ⇒ null, never a guess', docsOut("const OUT = join(ROOT, 'other', 'X.md');"), null);
       T.eq('TWO declarations ⇒ null — the method cannot say which is the index', docsOut("join(ROOT, 'docs', 'A.md'); join(ROOT, 'docs', 'B.md');"), null);
-      T.eq('a computed path is not a declaration ⇒ null', docsOut('const OUT = join(ROOT, \'docs\', NAME);'), null);
+      T.eq('a computed path is not a declaration ⇒ null', docsOut("const OUT = join(ROOT, 'docs', NAME);"), null);
       T.eq('unreadable source ⇒ null', docsOut(null), null);
       T.eq('empty source ⇒ null', docsOut(''), null);
     });
