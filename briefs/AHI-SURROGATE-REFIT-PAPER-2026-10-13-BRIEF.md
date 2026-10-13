@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED — 2026-10-13 · **Created:** 2026-10-13 · **Follows:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` · **Relates:** `PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`, `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md`, `OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md` · **Touches:** a new `papers/` page, `papers/papers.html`, `papers/RERUN-RESULTS.md` (docs only — no bundle, no provenance)
+**Status:** IN-PROGRESS — 2026-10-13 · **Created:** 2026-10-13 · **Follows:** `AHI-SURROGATE-REFIT-SIZING-2026-10-12-BRIEF.md` · **Relates:** `PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`, `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md`, `OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md` · **Touches:** a new `papers/` page, `papers/papers.html`, `papers/RERUN-RESULTS.md` (docs only — no bundle, no provenance)
 
 # BRIEF — Paper: one oximetry AHI surrogate, four harmonized references, one subject-disjoint split
 
@@ -151,7 +151,7 @@ Each fit is ordinary least squares over the same predictor set the shipped estim
 against one reference column. The paper reports the four coefficient sets side by side with the shipped
 ones, and names the column in every caption, table header and verdict.
 
-### 4.4 The decision band, pre-stated and not yet ratified
+### 4.4 The decision band, pre-stated and ratified
 
 Four refits with four reported correlations is exactly the shape that
 `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md` exists to stop. A threshold written after the runs is a
@@ -165,8 +165,24 @@ Rank, because the residue row's whole finding is that the bigger estimate wins o
 Subject-clustered, because the harmonized table repeats 2293 subjects and a bootstrap over rows would
 understate the interval.
 
-🔴 The owner has not ratified it. The paper prints no result until the owner ratifies this criterion or
-replaces it, and the acceptance list in §7 carries that as a blocking item.
+**Ratified by the owner on 2026-10-13, as written above** (relayed through the coordinator): the refit
+scores against this band as written, pre-stated, so its verdict may read `PASS` or `SHORTFALL`. The
+first scoring run therefore proceeds, and §7's blocking item is met.
+
+Two things the band leaves to the tool, pre-stated here on 2026-10-13 **before any reference value was
+read** — a threshold chosen after seeing the data it judges would be `UNKNOWN` under §🧾:
+
+- **The hold-out floor is 300 subjects per definition.** At the ρ these surrogates reach (0.6–0.8 in
+  the 2026-09-22 full-corpus run), the standard error of a difference of dependent ρ is about
+  0.03–0.05 at n = 300, so a true gain of 0.05 is detectable and "the CI excludes 0" is a measurement
+  rather than luck. Under the floor the band cannot decide, so the verdict reads `UNDERPOWERED` and
+  names the floor and the count as numbers.
+- **The verdict judges the multi-predictor refit**, against the shipped multi-predictor estimator. It
+  is the only shipped form whose coefficient vector has more than one free parameter, so it is the only
+  one whose refit can move a rank at all: `ahiODI4 = 1.1 × ODI4` is a positive monotone transform of
+  ODI4, and any refit `a₀ + a₁·ODI4` with `a₁ > 0` ranks the records identically — its ρ is invariant by
+  construction. That invariance is a measured fact the run reports in `result.odi4Form`, never a
+  result about the refit.
 
 ### 4.5 Absence, exclusions and clocks
 
@@ -183,8 +199,10 @@ wall-clock milliseconds, so no viewer timezone moves a reported duration.
 ### 4.6 Verdicts
 
 Each definition emits one `tepna.verdict/1` object whose `criterion` names its column and the band from
-§4.4. A fit whose hold-out population falls under the pre-stated floor emits `UNDERPOWERED` with a
-reason, never a quiet pass.
+§4.4. A fit whose hold-out population falls under the pre-stated floor of 300 subjects emits
+`UNDERPOWERED` with a reason naming the floor and the count, never a quiet pass. A definition no
+held-out record carries together with every predictor emits `NOT_RUN` with a null result, because it
+examined nothing.
 
 The producing tool joins `tools/verdict-adoption.json` with an `emits.cmd`, and carries a
 `--verdict-sample` flag that prints the object alone. The adoption check parses that stdout as JSON.
@@ -196,7 +214,12 @@ the column, the population counts, and the verdict object that judged it. A read
 hand reruns one command per definition.
 
 The repository ships no record from the cohort, and the paper quotes none. The committed artefacts are
-the scored summary table, the coefficient sets and the verdict objects.
+the scored summary table, the coefficient sets and the verdict objects, and they travel as one
+`tepna.published-number-record/1` at `analysis/published-numbers/ahi-refit-2026-10-13.json`, the shape
+every other published number in that directory carries: producer, producer commit, the invocation that
+reproduces it, a digest over the uncommitted inputs, a `claims` block at published precision, and the
+four verdict objects. The scored pools it reads stay outside the tree, because they key on record
+identifiers.
 
 ⚠️ A coefficient change to `computeAHIestimates` re-bundles OxyDex, re-verifies its fixtures, and
 stalens every folded night, because `oxydex-dsp.js` sits in the trio fold's compute set. Sequence that
@@ -243,9 +266,16 @@ the repository.
 1. This brief carries the outline and the full methods, and states no result. ✅ **met 2026-10-13.**
 2. The paper is a new page carrying its own DOI. ✅ **met 2026-10-13** — the owner ruled it.
 3. The owner ratifies or replaces §4.4's criterion **before** the first scoring run.
+   ✅ **met 2026-10-13** — ratified as written; the hold-out floor and the judged form are pre-stated
+   in §4.4 on the same day, before any reference value was read.
 4. A harmonized-column reader exists, and every scored row carries `ahiVar` as a literal column name.
+   ✅ **met 2026-10-13** — `NSRR.parseAhiCsv` reads the four `nsrr_ahi_*` columns and takes the column
+   the caller names, so one file answers four definitions without one of them borrowing another's value.
 5. One scoring pass per visit in scope, four fits from it, and four verdict objects naming their
-   columns.
+   columns. ✅ **met 2026-10-13** — both SHHS visits scored in full, the subject-disjoint split cut as
+   the owner ruled, and the four verdicts written to
+   `analysis/published-numbers/ahi-refit-2026-10-13.json`. The numbers live in that record and in the
+   pull request, never here, because item 1 holds.
 6. The page carries the section 16 line, both cohort citations, the disclaimer and the `dxl-` stamp.
 7. The page carries its own DOI, and cites the software DOI only as the apparatus.
 8. Every citation of the published R² 0.27 names it as the fifth-definition control.

@@ -59237,6 +59237,23 @@
       var native = N.parseAhiCsv(['nsrrid,visitnumber,ahi_a0h3a,ahi_a0h4', '999999,1,11,7'].join('\n'));
       T.eq('parseAhiCsv · a native per-visit export still resolves to its arousal-inclusive column', native.ahiVar, 'ahi_a0h3a');
 
+      /* ── the CALLER names the definition (AHI-SURROGATE-REFIT-PAPER-2026-10-13-BRIEF §4.4) ──
+         One harmonized file carries all four definitions, and the refit scores each separately. The
+         preference order above picks ONE, so a four-definition caller must be able to ask for the
+         column it means — and must be refused rather than answered from a different definition. */
+      var four = ['nsrrid,visitnumber,nsrr_ahi_hp3u,nsrr_ahi_hp3r_aasm15,nsrr_ahi_hp4u_aasm15,nsrr_ahi_hp4r', '999999,1,30,33,20,22'].join('\n');
+      var hp4u = N.parseAhiCsv(four, { ahiVar: 'nsrr_ahi_hp4u_aasm15' });
+      T.eq('parseAhiCsv · a named column is read instead of the preference order', hp4u.ahiVar, 'nsrr_ahi_hp4u_aasm15');
+      T.eq('parseAhiCsv · …and the value is that column’s, not the preferred one’s', hp4u.byKey['visit1:999999'], 20);
+      T.eq('parseAhiCsv · …classified for arousals by the name the caller asked for', hp4u.arousals, false);
+      T.eq('parseAhiCsv · a second definition out of the same file reads its own value', N.parseAhiCsv(four, { ahiVar: 'nsrr_ahi_hp3u' }).byKey['visit1:999999'], 30);
+      T.eq('parseAhiCsv · the name is matched case- and space-insensitively', N.parseAhiCsv(four, { ahiVar: '  NSRR_AHI_HP4R ' }).byKey['visit1:999999'], 22);
+      var nope = N.parseAhiCsv(four, { ahiVar: 'nsrr_ahi_nope' });
+      T.ok('parseAhiCsv · a named column absent is an error, never another column', /requested AHI column "nsrr_ahi_nope"/.test(nope.error || ''));
+      T.eq('parseAhiCsv · …and nothing is read under the wrong name', Object.keys(nope.byKey).length, 0);
+      T.ok('parseAhiCsv · a headerless pair list cannot answer for a named column', /bare id,ahi pair list/.test(N.parseAhiCsv('999999,12.5\n', { ahiVar: 'nsrr_ahi_hp3u' }).error || ''));
+      T.eq('parseAhiCsv · a caller that names nothing reads exactly what it read before', N.parseAhiCsv(four).ahiVar, 'nsrr_ahi_hp3r_aasm15');
+
       // ── honest refusals ──
       T.eq('parseAhiCsv · a header with no recognised AHI column refuses rather than guessing', N.parseAhiCsv('nsrrid,visitnumber,age\n999999,1,55').ahiVar, null);
       T.ok('parseAhiCsv · …and says what it looked for', /no known AHI column/.test(N.parseAhiCsv('nsrrid,visitnumber,age\n999999,1,55').error || ''));
