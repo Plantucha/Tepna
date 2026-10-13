@@ -209,7 +209,10 @@ Tepna stands on others' documented work: [nglessner/o2ring-s-protocol](https://g
 descending from [osresearch/airbreak](https://github.com/osresearch/airbreak) (the CPAP protocol),
 [Polar Sensor Logger](https://play.google.com/store/apps/details?id=com.j_ware.polarsensorlogger) by j-ware,
 and the open-source foundations the capture lane leans on: [bleak](https://github.com/hbldh/bleak),
-[mutmut](https://github.com/boxed/mutmut), chrony. Built in the open with
+[mutmut](https://github.com/boxed/mutmut), chrony.
+[Development tools (not shipped)](THIRD-PARTY.md#development-tools-not-shipped)
+names every tool this repo builds, checks and searches with, gives each one's
+licence, and shows that none of them reaches a bundle. Built in the open with
 [![Built with Claude Code](https://img.shields.io/badge/built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)](https://claude.com/claude-code).
 
 ## Licensing
