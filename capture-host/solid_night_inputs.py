@@ -172,10 +172,22 @@ NO_DEVICE_AXIS = (
 # 2026-09-24 one-press, two-FAIL fix in `loss_audit.py`), and `daemon:charging hold` was never in the set
 # because the device reported charging — device-positive doff evidence, correct behaviour.
 DECLARED_PAUSE = "daemon:pull paused live"
+# 🔴 OWNER RULING 2026-10-13: A GAP THE DAEMON'S OWN RESTART TORE NEVER FAILS THE NIGHT. It is excluded
+# and annotated under its own cause with its seconds, the way the pre-co-wear gaps are excluded — only a
+# DECLARED probe night excuses other gaps. The same argument as `DECLARED_PAUSE` one line up, one step
+# further: the box chose to restart, the journal names the choice, and a discontinuity the system
+# declares is explained rather than a regression (§∅ annotates reduced coverage). The seconds still
+# reach the LOSS bar through `by_cause`, which is a different consumer and is untouched.
+# ⚠️ MEASURED BEFORE THE CHANGE, over the mirror's 90 nights of `LOSS-AUDIT.json`: exactly ONE night
+# (2026-09-27) carries a gap whose CAUSE is `daemon:restart` — two of them, 104 s on the Sense and 51 s
+# on the H10 at 22:38:12, and both bands FAILed on it. Five more gaps (2026-10-05) have a restart logged
+# INSIDE the gap but are attributed `unattributed`, and this rule does not reach them: `in_gap_cause` is
+# the audit's weaker evidence and never its attribution (`loss_audit.attribute_gaps_detail`). That gap
+# between the journal and the label is a loss-audit defect, logged separately, not a judge rule.
+RESTART = "daemon:restart"
 DAEMON_REGRESSION = (
     "daemon:clock re-sync",
     "daemon:stream stall re-negotiate",
-    "daemon:restart",
     "daemon:not-worn drop",
 )
 UNATTRIBUTED = "unattributed"
@@ -697,13 +709,25 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
     # can never soften a FAIL or an UNKNOWN that another rule reached, and no precedence moves. A band
     # that passes silently over a known discontinuity makes a healthy night unauditable later, which is
     # the half of §∅ that annotates rather than refuses.
+    # TWO ANNOTATIONS, ONE PASS. Both sit BELOW every deciding rule, so neither can soften a FAIL or an
+    # UNKNOWN another rule reached — a restart beside a real regression still FAILs on the regression.
+    # They are joined rather than branched three ways: one clause each keeps the pause sentence verbatim
+    # (three tests pin that wording) and adds no new precedence.
+    notes = []
+    restarts = [s for c, s in inside if c == RESTART]
+    if restarts:
+        notes.append(
+            f"excluded discontinuity: {len(restarts)} daemon restart(s), {sum(restarts):.0f} s "
+            f"({RESTART}) inside the worn interval — the box chose to restart, so the band excludes it",
+        )
     paused = [s for c, s in inside if c == DECLARED_PAUSE]
     if paused:
-        return _decision(
-            "PASS",
+        notes.append(
             f"explained discontinuity: {len(paused)} declared pause(s), {sum(paused):.0f} s "
             f"({DECLARED_PAUSE}) inside the worn interval — counted toward the LOSS bar, not a band failure",
         )
+    if notes:
+        return _decision("PASS", "; ".join(notes))
     return _decision("PASS")
 
 
@@ -2025,6 +2049,41 @@ def pre_cowear(audit_dev: dict | None, worn_start, scored_start) -> dict | None:
     return {"gaps": len(before), "seconds": round(sum(before), 1), "reason": None, **window}
 
 
+def restart_gaps(audit_dev: dict | None, start, end) -> dict | None:
+    """The restart gaps the band EXCLUDED inside the scored interval — `{gaps, seconds, from, to}`.
+
+    🔴 OWNER RULING 2026-10-13: a gap whose cause is `daemon:restart` never fails the night, so the
+    verdict has to say which gaps that cost it and how long they were. The same shape and the same
+    reason as `pre_cowear`: a band that silently drops a discontinuity publishes a pass over a hole
+    nobody can see afterwards.
+
+    `None` when nothing was excluded — no interval, no gap rows, or no restart among them. Nothing was
+    hidden in those three cases, so there is nothing to annotate; the band's own reason carries the
+    count whenever this field is set."""
+    if start is None or end is None:
+        return None
+    rows = (audit_dev or {}).get("gaps")
+    if not isinstance(rows, list):
+        return None  # `continuity` already refuses the interval: no gap was judged, so none was excluded
+    found = [
+        float(g["s"])
+        for g in rows
+        if isinstance(g, dict)
+        and g.get("cause") == RESTART
+        # THE BAND'S OWN POPULATION, CLOSED AT BOTH ENDS, because this field has to count exactly what
+        # `continuity` counted — it reads `start <= at <= end` four screens up.
+        and start <= _dt.datetime.fromisoformat(g["at"]) <= end
+    ]
+    if not found:
+        return None
+    return {
+        "gaps": len(found),
+        "seconds": round(sum(found), 1),
+        "from": start.isoformat(timespec="seconds"),
+        "to": end.isoformat(timespec="seconds"),
+    }
+
+
 def probe_declaration(night_dir: str) -> dict | None:
     """This night's probe declaration, or `None` — `probe_night.declaration` over the pooled audit.
 
@@ -2053,7 +2112,13 @@ def _device_context(night_dir: str, d: dict, audit: dict | None) -> dict:
         ctx["refusal"] = _decision("UNKNOWN", "no-wear or radio down — indistinguishable (§3.2)")
         return ctx
     spans = {p: first_last(p) for p in primaries}
-    starts = [v[0] for v in spans.values() if v[0] is not None]
+    # `None not in v`, not `v[0] is not None`: `first_last` sets both members or neither, so the two
+    # read the same and the gate could swap the index freely. Removing the subscript removes the
+    # mutant, and the one that remains (`not in` → `in`) keeps only the UNSTAMPED spans, where
+    # `min` then returns None and a first row is lost.
+    # The trailing `v[0] is not None` is what mypy needs and what the first clause already proves;
+    # it is still a live mutant, because flipping it empties the list and the night loses `first`.
+    starts = [v[0] for v in spans.values() if None not in v and v[0] is not None]
     ctx.update(
         primaries=primaries,
         spans=spans,
@@ -2093,7 +2158,7 @@ def _pooled_audit(night_dir: str) -> dict | None:
 
 
 def score_devices(night_dir: str, devices: list) -> dict:
-    """`{name: {"bands": {term: decision}, "cowear": str, "pre_cowear": dict | None}}` for `compose`.
+    """`{name: {"bands", "cowear", "pre_cowear", "restart_gaps"}}` for `compose`.
 
     The scored interval of every device starts at CO-WEAR (SOLID-NIGHT-COWEAR-AND-PROBE §1), so the
     devices are read first and scored second: the latest first row is not known until the last of them
@@ -2119,9 +2184,13 @@ def score_devices(night_dir: str, devices: list) -> dict:
         # THE SCORED INTERVAL. Co-wear moves the START only, and only forwards: a device that was already
         # recording when the night came together is scored from the moment it could be cross-checked, and
         # one that joined later keeps its own first row. `pre_cowear` reports what that leaves unscored.
-        scored_start, cowear_cut = start, None
-        if start is not None and cowear_at is not None and cowear_at > start:
-            scored_start, cowear_cut = cowear_at, pre_cowear(audit_dev, start, cowear_at)
+        # `max`, NOT a `>` test. Co-wear moves the start FORWARD only, and the comparison form left the
+        # diff-scoped gate a `>=` twin no assertion can see: at `cowear_at == start` both branches give
+        # the same scored start and the same `None` cut, so the mutant is invisible by construction.
+        # `max` states the rule with no operator to flip, and the mutant it does leave (`min`) scores a
+        # device from before co-wear, which a test sees immediately.
+        scored_start = start if start is None or cowear_at is None else max(start, cowear_at)
+        cowear_cut = pre_cowear(audit_dev, start, scored_start)
         bands: dict[str, dict] = {}
         if audit is None:
             bands["continuity"] = _decision("UNKNOWN", f"{LOSS_AUDIT_NAME} absent or unreadable")
@@ -2162,5 +2231,12 @@ def score_devices(night_dir: str, devices: list) -> dict:
             # because the next reader will reach for `clocks` too.
             clock_files = stream_files(night_dir, model, clock_tag)
             bands["timebase"] = timebase(night_dir, name, clock_tag, clock_files, start, end)
-        out[name] = {"bands": bands, "cowear": cowear_note, "pre_cowear": cowear_cut}
+        out[name] = {
+            "bands": bands,
+            "cowear": cowear_note,
+            "pre_cowear": cowear_cut,
+            # WHAT THE BAND EXCLUDED, beside what it never covered. Both keys are always present and
+            # `None` when empty, so a consumer reads one shape per device rather than testing for a key.
+            "restart_gaps": restart_gaps(audit_dev, scored_start, end),
+        }
     return out

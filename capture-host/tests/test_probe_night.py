@@ -285,3 +285,59 @@ def test_write_night_forwards_the_reader_so_the_record_reaches_the_file(tmp_path
     with open(os.path.join(str(tmp_path), _la.AUDIT_NAME), encoding="utf-8") as fh:
         assert json.load(fh)["probe_armed"] == []
     assert "window" in seen, "the audit asked for the window rather than being handed one"
+
+
+# ── what the diff-scoped mutation gate asked for ────────────────────────────────────────────────────
+
+
+def test_the_journal_read_carries_a_timeout_and_asks_for_the_text():
+    """A journal read with no timeout hangs the audit poll, which is a stall the box reports as loss.
+    120 s is the figure; `capture_output` and `text` are what make the lines readable at all."""
+    seen = {}
+
+    def run(cmd, **kw):
+        seen.update(kw)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    assert _la.read_probe_armed(SINCE, UNTIL, run=run) == []
+    assert seen["timeout"] == 120
+    assert seen["capture_output"] is True and seen["text"] is True
+
+
+def test_the_records_are_ordered_BY_STAMP_and_ties_keep_the_journals_own_order():
+    """Two records in one second is the ordinary case at daemon start, and `declaration` reads
+    `recs[0]` — so the key is the stamp, not the line, and not the whole tuple. Sorting by the line
+    text would order two stamps by their message, and sorting the tuple would order a tie
+    alphabetically; both put a different record first, which is the one the night's reason names."""
+    t1, t2 = "2026-10-13T18:36:15", "2026-10-13T22:10:00"
+    out = "\n".join(
+        [
+            f"{t2} vigil tepna-capture[1]: INFO heap probe: ARMED aaa",
+            f"{t1} vigil tepna-capture[1]: INFO heap probe: ARMED zzz",
+            f"{t1} vigil tepna-capture[1]: INFO heap probe: ARMED bbb",
+        ]
+    )
+    got = _la.read_probe_armed(SINCE, UNTIL, run=_run(out))
+    assert [(t.isoformat(), line[-3:]) for t, line in got] == [(t1, "zzz"), (t1, "bbb"), (t2, "aaa")]
+
+
+def test_the_state_block_carries_the_declarations_OWN_reason(tmp_path):
+    """The chip and the verdict must name the same source. A `reason` that went null here would leave
+    the monitor saying *probe night* with nothing to show for why."""
+    got = pn.state(str(tmp_path), {"probe_armed": [{"at": AT, "line": ARMED}]})
+    assert got["reason"] == pn.declaration(str(tmp_path), {"probe_armed": [{"at": AT, "line": ARMED}]})["reason"]
+    assert got["reason"] == f"probe night: declared by journal heap-probe ARMED at {AT}"
+
+    _marker(tmp_path, {"on": True, "at": "2026-10-13T20:00:00", "by": "monitor"})
+    assert pn.state(str(tmp_path), {"probe_armed": []})["reason"] == (
+        "probe night: declared by monitor toggle at 2026-10-13T20:00:00"
+    )
+
+
+def test_the_marker_is_written_as_READABLE_json_a_person_can_check_on_the_box(tmp_path):
+    """The operator's statement about the night is read by hand on the box more often than by code, so
+    the file is indented. One line of dense json is the form that gets mis-read."""
+    pn.write_marker(str(tmp_path), on=True, at=AT)
+    text = (tmp_path / pn.MARKER_NAME).read_text(encoding="utf-8")
+    assert '\n  "on": true,' in text and '\n  "at": "' in text
+    assert text.endswith("\n"), "and it ends with a newline, like every file the box writes"

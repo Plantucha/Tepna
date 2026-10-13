@@ -6,8 +6,9 @@ SOLID-NIGHT-COWEAR-AND-PROBE-2026-10-13 §2, on the owner's words: *possibly wit
 night to probe on/off*. The button on `monitor.html` reaches the night folder through here, and the
 SOLID-NIGHT judge reads the marker it writes on the next QC pass.
 
-The endpoint WRITES into the captures tree, so the night name it accepts is checked the way
-`timeline_get` checks it — a traversal must not reach a path outside that tree."""
+The endpoint WRITES into the captures tree, so the path it builds is built from an entry of
+`os.listdir`, never from the request string — a traversal must not reach a path outside that tree, and
+a guard that only inspects the string proves nothing about what `os.path.join` then produces."""
 
 import json
 import os
@@ -173,4 +174,33 @@ def test_a_write_that_fails_is_a_500_that_names_the_error(tmp_path, monkeypatch)
 def test_an_unlistable_captures_tree_is_no_night_rather_than_a_crash(tmp_path):
     """`newest_night` answers `""` when the tree cannot be listed — the box before its first capture."""
     status, j = _get(_mk(tmp_path)[0])
+    assert status == 200 and j["night"] is None and j["error"] == "no night folder"
+
+
+def test_A_NEIGHBOUR_OF_THE_NIGHTS_IS_NOT_MARKABLE_BY_ITS_OWN_NAME(tmp_path):
+    """`cpap`, `stored` and `sniffer` sit in the captures tree beside the night folders, and the newest
+    of them by mtime can be any of those. A write may land only in a folder whose name IS a night."""
+    _night(tmp_path)
+    (tmp_path / "captures" / "stored").mkdir()
+    status, j = _get(_mk(tmp_path)[0], "?night=stored")
+    assert status == 200 and j["night"] is None and j["error"] == "no night folder"
+    assert _post(_mk(tmp_path)[0], {"on": True, "night": "stored"})[1] == {
+        "ok": False,
+        "error": "no night folder to mark",
+    }
+    assert not (tmp_path / "captures" / "stored" / pn.MARKER_NAME).exists()
+
+
+def test_A_CAPTURES_TREE_WITH_NO_NIGHT_FOLDER_IN_IT_IS_NO_NIGHT(tmp_path):
+    """Two shapes that are not a night, and one answer for both: the tree lists, and nothing in it is a
+    night folder. The second shape is a FILE whose name reads like a night — the name check passes it
+    and the folder check refuses it, which is why both checks stay."""
+    cap = tmp_path / "captures"
+    cap.mkdir()
+    (cap / "status.json").write_text("{}")
+    status, j = _get(_mk(tmp_path)[0])
+    assert status == 200 and j["night"] is None and j["error"] == "no night folder"
+
+    (cap / "2026-10-13").write_text("not a folder")
+    status, j = _get(_mk(tmp_path)[0], "?night=2026-10-13")
     assert status == 200 and j["night"] is None and j["error"] == "no night folder"

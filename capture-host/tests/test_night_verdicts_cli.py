@@ -130,4 +130,6 @@ def test_sample_json_solid_night_passes_four_terms_and_names_the_one_it_waits_fo
         # one device: co-wear is undefined, so the scored interval is the worn interval unchanged
         "cowear": "single device",
         "pre_cowear": None,
+        # and nothing was excluded from the band: a clean night states that too, rather than omitting it
+        "restart_gaps": None,
     }

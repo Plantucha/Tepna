@@ -3171,15 +3171,16 @@ def test_a_DECLARED_PAUSE_inside_the_worn_interval_PASSES_and_the_BAND_NAMES_IT(
 
 
 def test_an_UNDECLARED_DAEMON_GAP_still_FAILS_so_the_rule_is_NARROWED_not_HOLLOWED(tmp_path):
-    """The control that binds. Dropping one cause from the regression set must not stop the set working:
-    `daemon:restart` is idle-gated, so one that tore a worn recording is still a defect and still fails.
+    """The control that binds. Two causes have now left the regression set — `DECLARED_PAUSE` on the
+    2026-10-03 ruling and `RESTART` on the 2026-10-13 one — and the set must still work: a clock re-sync
+    inside a worn recording is a fixed mechanism recurring, and it still fails.
 
     ⚠️ The control this unit was first specified with does NOT bind, measured on origin/main: the SAME
     gap "with no recorded cause" already PASSED before the change, because an uncaused 11 s gap goes down
     the UNATTRIBUTED path, which judges totals (60 s) and counts (5) rather than this gap. A control that
     passes both before and after proves nothing, so the real undeclared case is the one below."""
-    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 11.0, "daemon:restart")])
-    assert out == {"status": "FAIL", "reason": "daemon regression inside the worn interval: daemon:restart"}
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 11.0, "daemon:clock re-sync")])
+    assert out == {"status": "FAIL", "reason": "daemon regression inside the worn interval: daemon:clock re-sync"}
 
 
 def test_a_DECLARED_PAUSE_cannot_SOFTEN_a_real_regression_beside_it(tmp_path):
@@ -3190,11 +3191,11 @@ def test_a_DECLARED_PAUSE_cannot_SOFTEN_a_real_regression_beside_it(tmp_path):
         tmp_path,
         gaps=[
             ("2026-09-20T23:01:00", 11.0, si.DECLARED_PAUSE),
-            ("2026-09-20T23:01:30", 9.0, "daemon:restart"),
+            ("2026-09-20T23:01:30", 9.0, "daemon:clock re-sync"),
         ],
     )
     assert out["status"] == "FAIL", out
-    assert "daemon:restart" in out["reason"]
+    assert "daemon:clock re-sync" in out["reason"]
     assert "explained discontinuity" not in out["reason"]
 
 
@@ -3222,6 +3223,7 @@ def test_the_DECLARED_PAUSE_is_STILL_COUNTED_by_the_LOSS_AUDIT(tmp_path):
     got = loss_audit.by_cause_of([(at, 11.0, si.DECLARED_PAUSE)])
     assert got == {si.DECLARED_PAUSE: 11.0 / 60.0}, got
     assert si.DECLARED_PAUSE not in si.DAEMON_REGRESSION, "the band no longer fails it"
+    assert si.RESTART not in si.DAEMON_REGRESSION, "nor this one, on the owner's ruling of 2026-10-13"
 
 
 # ── §3.4 continuity, the edges of the rules the declared-pause change sits beside ───────────────────
@@ -5942,7 +5944,25 @@ def test_a_device_whose_worn_interval_ENDS_before_cowear_examines_nothing_and_sa
     assert v["bands"]["continuity"]["status"] == "UNKNOWN"
     assert v["bands"]["completeness"]["status"] == "UNKNOWN"
     assert v["bands"]["continuity"]["reason"] == si.NO_COWEAR_OVERLAP
+    # BOTH bands name it. A completeness UNKNOWN with no reason is an operator reading a refusal with
+    # no way to tell it from a measurement that failed.
+    assert v["bands"]["completeness"]["reason"] == si.NO_COWEAR_OVERLAP
     assert v["pre_cowear"]["gaps"] == 1 and v["pre_cowear"]["seconds"] == 60.0
+    # AND THE EDGE: a doff at exactly the co-wear start examines a ZERO-LENGTH interval, which is
+    # nothing, not a clean night. `>=` is the rule, and the band must not pass a window of no width.
+    e = tmp_path / "edge"
+    e.mkdir()
+    _good_h10(e)
+    _ecg(e, seconds=120, t0=T0 + dt.timedelta(minutes=10))
+    _ppg(e, t0=T0, seconds=900)
+    _two_dev_audit(
+        e,
+        verity_gaps=[("2026-09-20T23:01:00", 60.0, "unattributed")],
+        verity_end="2026-09-20T23:10:00",
+    )
+    edge = _bands(e, devices=(H10, VERITY))[VERITY["name"]]
+    assert edge["bands"]["continuity"]["reason"] == si.NO_COWEAR_OVERLAP
+    assert edge["bands"]["completeness"]["reason"] == si.NO_COWEAR_OVERLAP
 
 
 def test_a_refused_device_carries_no_cowear_fields_and_still_refuses(tmp_path):
@@ -5971,3 +5991,178 @@ def test_probe_declaration_reads_the_pooled_audit_and_the_marker(tmp_path):
     got = si.probe_declaration(str(tmp_path))
     assert got["source"] == "journal", "a toggle cannot un-declare a probe the daemon armed"
     assert got["at"] == "2026-09-20T18:36:15"
+
+
+# ── §3 the daemon's own restart, excluded and annotated (owner ruling 2026-10-13) ───────────────────
+
+
+def test_a_DAEMON_RESTART_inside_the_worn_interval_PASSES_and_the_band_SAYS_SO(tmp_path):
+    """🔴 OWNER RULING 2026-10-13: a gap whose cause is `daemon:restart` never fails the night. The box
+    chose to restart and the journal names the choice, so the discontinuity is declared, not a
+    regression — and the band publishes the count and the seconds, because a pass over a hole nobody
+    can see afterwards is the half of §∅ that annotates."""
+    out = _cont(tmp_path, gaps=[("2026-09-20T23:01:00", 104.0, "daemon:restart")])
+    assert out["status"] == "PASS", out
+    assert out["reason"] == (
+        "excluded discontinuity: 1 daemon restart(s), 104 s (daemon:restart) inside the worn interval "
+        "— the box chose to restart, so the band excludes it"
+    ), out["reason"]
+
+
+def test_a_RESTART_cannot_SOFTEN_a_REGRESSION_or_an_UNATTRIBUTED_BURST_beside_it(tmp_path):
+    """The exclusion sits BELOW every deciding rule, exactly where the declared pause sits. A night that
+    carries a restart AND a real defect fails on the defect, and the annotation never appears."""
+    hard = _cont(
+        tmp_path,
+        gaps=[
+            ("2026-09-20T23:01:00", 104.0, "daemon:restart"),
+            ("2026-09-20T23:01:30", 9.0, "daemon:clock re-sync"),
+        ],
+    )
+    assert hard["status"] == "FAIL" and "daemon:clock re-sync" in hard["reason"]
+    assert "excluded discontinuity" not in hard["reason"]
+    d = tmp_path / "burst"
+    d.mkdir()
+    # Five unattributed gaps still FAIL beside a restart: the exclusion takes the restart OUT of the
+    # population, it does not raise the bar for what is left.
+    burst = _cont(
+        d,
+        gaps=[("2026-09-20T23:01:00", 104.0, "daemon:restart")]
+        # inside the 23:00-23:03 worn interval, five of them, 100 s in all
+        + [(f"2026-09-20T23:0{i // 2}:{10 + 30 * (i % 2)}", 20.0, "unattributed") for i in range(5)],
+    )
+    assert burst["status"] == "FAIL" and "5 unattributed gap(s)" in burst["reason"]
+
+
+def test_a_RESTART_AND_A_DECLARED_PAUSE_both_annotate_one_PASS_in_order(tmp_path):
+    """Two annotations, one band. The restart clause comes first and the pause sentence is unchanged —
+    three tests pin that wording, so joining the clauses must not reword either."""
+    out = _cont(
+        tmp_path,
+        gaps=[
+            ("2026-09-20T23:01:00", 104.0, si.DECLARED_PAUSE),
+            ("2026-09-20T23:02:00", 51.0, "daemon:restart"),
+        ],
+    )
+    assert out["status"] == "PASS", out
+    assert out["reason"] == (
+        "excluded discontinuity: 1 daemon restart(s), 51 s (daemon:restart) inside the worn interval "
+        "— the box chose to restart, so the band excludes it"
+        "; explained discontinuity: 1 declared pause(s), 104 s (daemon:pull paused live) inside the "
+        "worn interval — counted toward the LOSS bar, not a band failure"
+    ), out["reason"]
+
+
+def test_a_RESTART_OUTSIDE_the_worn_interval_annotates_NOTHING(tmp_path):
+    """The population is the gaps that START inside the scored interval, for the annotation exactly as
+    for the decision. A bare PASS carries no reason at all."""
+    assert _cont(tmp_path, gaps=[("2026-09-20T23:10:00", 900.0, "daemon:restart")]) == {
+        "status": "PASS",
+        "reason": None,
+    }
+
+
+def test_restart_gaps_counts_what_the_band_excluded_and_names_the_interval():
+    """THE 2026-09-27 SHAPE, the mirror's one night with restart-attributed gaps: the Sense lost 104 s
+    and the H10 51 s at 22:38:12, and both bands FAILed on it before this rule. The field states what
+    the band stopped counting, in the band's own closed window."""
+    rows = [
+        ("2026-09-20T23:00:00", 104.0, "daemon:restart"),  # ON the start edge — the band counts it
+        ("2026-09-20T23:05:00", 51.0, "daemon:restart"),
+        ("2026-09-20T23:10:00", 7.0, "daemon:restart"),  # ON the end edge — the band counts it too
+        ("2026-09-20T23:10:01", 99.0, "daemon:restart"),  # one second past the end: outside
+        ("2026-09-20T23:02:00", 60.0, "unattributed"),  # not a restart
+    ]
+    dev = {"gaps": [{"at": a, "s": s, "cause": c} for a, s, c in rows]}
+    assert si.restart_gaps(dev, T0, T0 + dt.timedelta(minutes=10)) == {
+        "gaps": 3,
+        "seconds": 162.0,
+        "from": "2026-09-20T23:00:00",
+        "to": "2026-09-20T23:10:00",
+    }
+
+
+def test_restart_gaps_rounds_the_seconds_to_ONE_decimal():
+    """The audit writes fractional seconds, and the field is read by a human beside a band reason. One
+    decimal, pinned on a sum whose second and zeroth decimals differ from it."""
+    dev = {
+        "gaps": [
+            {"at": "2026-09-20T23:01:00", "s": 0.25, "cause": "daemon:restart"},
+            {"at": "2026-09-20T23:02:00", "s": 3.0, "cause": "daemon:restart"},
+        ]
+    }
+    assert si.restart_gaps(dev, T0, T0 + dt.timedelta(minutes=10))["seconds"] == 3.2
+
+
+def test_restart_gaps_is_None_when_NOTHING_was_excluded():
+    """Four shapes of nothing: no interval, no rows, rows that are not a list, and no restart among
+    them. `None` is the honest reading — the band hid nothing, so there is nothing to annotate, and a
+    `{gaps: 0}` would claim the audit examined a set it never had (§∅)."""
+    dev = {"gaps": [{"at": "2026-09-20T23:01:00", "s": 60.0, "cause": "unattributed"}]}
+    assert si.restart_gaps(dev, None, T0) is None
+    assert si.restart_gaps(dev, T0, None) is None
+    assert si.restart_gaps({"gaps": "n/a"}, T0, T0 + dt.timedelta(minutes=10)) is None
+    assert si.restart_gaps(None, T0, T0 + dt.timedelta(minutes=10)) is None
+    assert si.restart_gaps(dev, T0, T0 + dt.timedelta(minutes=10)) is None
+
+
+def test_the_RESTART_SECONDS_still_reach_the_LOSS_BAR(tmp_path):
+    """The owner's other half, as for the declared pause: the band excludes it AND the accounting keeps
+    it. Two consumers, two units — minutes in `by_cause`, seconds in the band reason."""
+    import loss_audit
+
+    at = dt.datetime(2026, 9, 27, 22, 38, 12)
+    assert loss_audit.by_cause_of([(at, 104.0, si.RESTART)]) == {si.RESTART: 104.0 / 60.0}
+
+
+def test_restart_gaps_travels_with_the_device_on_a_real_scored_night(tmp_path):
+    """End to end through `score_devices`: the field is present on every scored device, `None` where
+    nothing was excluded, and filled where the band dropped a restart."""
+    _good_h10(tmp_path, gaps=[("2026-09-20T23:01:00", 104.0, "daemon:restart")])
+    out = _bands(tmp_path)[H10["name"]]
+    assert out["bands"]["continuity"]["status"] == "PASS"
+    assert out["restart_gaps"] == {
+        "gaps": 1,
+        "seconds": 104.0,
+        "from": "2026-09-20T23:00:00",
+        "to": "2026-09-20T23:03:00",
+    }
+    clean = tmp_path / "clean"
+    clean.mkdir()
+    _good_h10(clean)
+    assert _bands(clean)[H10["name"]]["restart_gaps"] is None
+
+
+# ── the mutants the gate found in §1's own lines ────────────────────────────────────────────────────
+
+
+def test_pre_cowear_counts_a_gap_that_starts_EXACTLY_at_the_worn_START():
+    """The window is `[worn start, co-wear)`. A device's first gap can begin on its first row — the
+    2026-10-05 ring's first gap is 30 s in, but a drop at the first sample is the same shape — and a
+    window that excluded it would under-report the stretch nobody scored."""
+    dev = {"gaps": [{"at": "2026-09-20T23:00:00", "s": 12.0, "cause": "unattributed"}]}
+    out = si.pre_cowear(dev, T0, T0 + dt.timedelta(minutes=10))
+    assert out["gaps"] == 1 and out["seconds"] == 12.0
+
+
+def test_pre_cowear_rounds_the_seconds_to_ONE_decimal():
+    dev = {
+        "gaps": [
+            {"at": "2026-09-20T23:01:00", "s": 0.25, "cause": "unattributed"},
+            {"at": "2026-09-20T23:02:00", "s": 3.0, "cause": "unattributed"},
+        ]
+    }
+    assert si.pre_cowear(dev, T0, T0 + dt.timedelta(minutes=10))["seconds"] == 3.2
+
+
+def test_a_devices_FIRST_ROW_comes_from_a_STAMPED_span_never_from_an_unstamped_one(tmp_path):
+    """Co-wear start is built from `_device_context`'s `first`, so a device with one readable file and
+    one unreadable one must report the readable file's first row. An unstamped span carries `None` in
+    both members and contributes no stamp (§∅) — it must not become the first row by selection."""
+    _good_h10(tmp_path)
+    (tmp_path / f"{BASE}_ECG.txt").rename(tmp_path / f"{BASE}_ECG.txt.keep")
+    (tmp_path / f"{BASE}_ECG.txt").write_text("Phone timestamp;sensor timestamp [ns];ecg [uV]\n")  # header only
+    (tmp_path / f"{BASE}_ECG.txt.keep").rename(tmp_path / f"{BASE}2_ECG.txt")
+    ctx = si._device_context(str(tmp_path), H10, None)
+    assert ctx["first"] == T0, "the stamped file's first row, not the unstamped file's None"
+    assert len(ctx["spans"]) == 2 and any(v == (None, None) for v in ctx["spans"].values())

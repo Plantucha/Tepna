@@ -392,7 +392,13 @@ def test_the_SAMPLE_is_a_night_that_passes_EVERY_band(tmp_path):
     # The SAMPLE is ONE device, so co-wear is undefined and nothing lies before it — the two fields
     # say that rather than being absent (SOLID-NIGHT-COWEAR-AND-PROBE §1).
     assert v["result"]["devices"] == {
-        "Polar H10 SAMPLE": {"status": "PASS", "reasons": [], "cowear": "single device", "pre_cowear": None}
+        "Polar H10 SAMPLE": {
+            "status": "PASS",
+            "reasons": [],
+            "cowear": "single device",
+            "pre_cowear": None,
+            "restart_gaps": None,
+        }
     }
     assert v["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
 
@@ -1298,14 +1304,55 @@ def test_the_cowear_fields_travel_with_the_device_and_an_absent_one_stays_absent
     assert v["result"]["devices"]["ring"]["pre_cowear"] == cut
     assert "cowear" not in v["result"]["devices"]["mystery"]
     assert "pre_cowear" not in v["result"]["devices"]["mystery"]
-    assert sn.DEVICE_EXTRAS == ("cowear", "pre_cowear")
+    assert "restart_gaps" not in v["result"]["devices"]["mystery"]
+    assert sn.DEVICE_EXTRAS == ("cowear", "pre_cowear", "restart_gaps")
 
 
 def test_a_single_device_night_says_single_device_in_the_verdict():
-    v = _night({"H10": {"bands": {"continuity": OK}, "cowear": "single device", "pre_cowear": None}})
+    v = _night(
+        {"H10": {"bands": {"continuity": OK}, "cowear": "single device", "pre_cowear": None, "restart_gaps": None}}
+    )
     assert v["result"]["devices"]["H10"] == {
         "status": "PASS",
         "reasons": [],
         "cowear": "single device",
         "pre_cowear": None,
+        "restart_gaps": None,
     }
+
+
+def test_the_RESTART_ANNOTATION_travels_with_the_device(tmp_path):
+    """🔴 OWNER RULING 2026-10-13. The band excluded a restart, so the verdict carries what it excluded —
+    beside the device whose interval it was, not in a map a reader has to join."""
+    cut = {"gaps": 2, "seconds": 155.0, "from": "2026-09-27T22:00:00", "to": "2026-09-28T06:00:00"}
+    v = _night(
+        {
+            "Sense": {
+                "bands": {"continuity": OK},
+                "cowear": "co-wear from 22:17:00",
+                "pre_cowear": None,
+                "restart_gaps": cut,
+            }
+        }
+    )
+    assert v["result"]["devices"]["Sense"]["restart_gaps"] == cut
+
+
+def test_A_DECLARED_PROBE_NIGHT_TRAVELS_FROM_THE_FOLDER_TO_THE_PUBLISHED_VERDICT(tmp_path):
+    """The wiring, end to end: `night_verdict` reads the declaration beside the night, so the marker a
+    monitor toggle wrote decides the published verdict. Without that argument the composer judges the
+    bands and publishes a finding about the devices from a night the box spent being tested — which is
+    the whole defect the probe rule exists to stop (SOLID-NIGHT-COWEAR-AND-PROBE §2)."""
+    import probe_night as pn
+
+    night = tmp_path / sn.SAMPLE_NIGHT
+    night.mkdir()
+    devices = sn.sample_night(str(night))
+    plain = sn.night_verdict(str(night), devices, commit=SHA, at=AT)
+    assert plain["status"] != "NOT_APPLICABLE", "the control: this night is judged on its bands"
+
+    pn.write_marker(str(night), on=True, at="2026-01-01T21:00:00")
+    v = sn.night_verdict(str(night), devices, commit=SHA, at=AT)
+    js_validate(v)
+    assert v["status"] == "NOT_APPLICABLE"
+    assert v["reason"] == "probe night: declared by monitor toggle at 2026-01-01T21:00:00"

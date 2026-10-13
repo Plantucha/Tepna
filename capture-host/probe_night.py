@@ -51,9 +51,14 @@ def read_marker(night_dir: str) -> dict | None:
 
     `None` covers absent, unreadable and not-an-object alike — all three mean the operator has said
     nothing about this night, which is a different fact from `on: false` (said, then withdrawn)."""
+    # ⚠️ READ THE BYTES AND LET `json.loads` DECODE THEM. `open(..., encoding="utf-8")` gave the
+    # diff-scoped gate two survivors it cannot be given an assertion for: `encoding=None` and a dropped
+    # kwarg both fall back to the locale encoding, which IS utf-8 on this box and in CI, so no test can
+    # tell them from the explicit argument. `json.loads` over bytes is utf-8 by RFC 8259 with no
+    # argument to drop, and a mutated mode string makes `open` raise instead.
     try:
-        with open(os.path.join(night_dir, MARKER_NAME), encoding="utf-8") as fh:
-            obj = json.load(fh)
+        with open(os.path.join(night_dir, MARKER_NAME), "rb") as fh:
+            obj = json.loads(fh.read())
     except (OSError, ValueError):
         return None
     return obj if isinstance(obj, dict) else None

@@ -53,6 +53,9 @@ _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
 # (see the block above `_tl_cache`), and a constant a test cannot import is a constant nothing guards.
 _TL_CACHE_TTL_S = 300.0
 _TL_CACHE_MAX = 8
+# The night-folder shape, for the probe endpoint's name check. `nights_index` keeps the same pattern
+# for its own listing; this one guards a WRITE, so it lives beside the handler that performs it.
+_NIGHT_NAME = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def newest_night(captures: str) -> str:
@@ -1842,15 +1845,35 @@ def make_app(
     def _probe_night_dir(night: str) -> "tuple[str, str] | None":
         """`(night, path)` for a probe request, or `None` when the name is not a night folder here.
 
-        A request may name a night; with none named it is the folder being written. The name is checked
-        the way `timeline_get` checks it — this endpoint WRITES, so a traversal must not reach a path
-        outside the captures tree."""
+        A request may name a night; with none named it is the folder being written.
+
+        🔴 THE NAME THE PATH IS BUILT FROM COMES FROM `os.listdir`, NEVER FROM THE REQUEST. A rejected
+        traversal and a request string that never reaches a path at all are different defences, and
+        CodeQL read the first as path injection on this endpoint (py/path-injection HIGH, #3571,
+        2026-10-13) because a `"/" in night` guard proves nothing about what `os.path.join` then
+        produces. The request string is only ever COMPARED, so the value that reaches `open` and
+        `write_marker` is a real entry of the captures directory — and the endpoint WRITES, which is
+        why it gets the stronger form rather than the one `timeline_get` reads with."""
         captures = os.path.join(cfg.get("root", "/srv/tepna"), "captures")
-        night = night or newest_night(captures)
-        if not night or "/" in night or ".." in night:
+        asked = str(night or "")
+        try:
+            names = os.listdir(captures)
+        except OSError:
             return None
-        path = os.path.join(captures, night)
-        return (night, path) if os.path.isdir(path) else None
+        if asked:
+            # `fullmatch` over the night shape, on the LISTED name: an entry that is not a night folder
+            # is not markable even when it is asked for by its exact name (`cpap`, `stored`, `sniffer`
+            # all sit beside the nights). `fullmatch`, not `match`, for the reason `_valid_mac` gives.
+            found = [n for n in names if n == asked and _NIGHT_NAME.fullmatch(n)]
+            if not found:
+                return None
+            name = found[0]
+        else:
+            name = newest_night(captures)  # the folder being written, read from the filesystem
+            if not name:
+                return None
+        path = os.path.join(captures, name)
+        return (name, path) if os.path.isdir(path) else None
 
     def _probe_state(night: str) -> dict:
         """The night's probe block, from the marker and the loss audit's journal records."""
