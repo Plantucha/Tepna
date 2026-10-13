@@ -260,6 +260,33 @@ def test_a_ZERO_LENGTH_session_inside_the_band_cannot_join_BUT_IS_A_HOLE_IN_THE_
     assert r["gaps_in_night"] == earlier, "and the night carries it: the label cannot grant an unmeasured green"
 
 
+def test_a_ZERO_WIDTH_BAND_JOINS_NOTHING_and_keeps_every_exclusion(tmp_path, monkeypatch):
+    """A band that is not a band grants no join, and `_overlaps_band` is what makes that true.
+
+    The band's width is `24 - _NIGHT_BEGIN_H + _NIGHT_END_H` hours, so `BEGIN = 24` with `END = 0`
+    collapses it to a single instant. That is unreachable through today's constants, which is exactly
+    why it is pinned here: the join is the module's one power to absorb a session AND the hole before
+    it into the judged night, and it may act only on positive evidence that the session was in the
+    night.
+
+    `_overlaps_band` reads `_overlap(...) > 0`, and `_overlap` of a zero-width band is 0.0 for every
+    session, including one containing the instant. So the three in-night neighbours that join under
+    the real band stay excluded here, the judged night keeps its own span, and every gap stays a gap.
+    The same fixture joins three sessions one test above; the only thing changed is the band."""
+    monkeypatch.setattr(nightqc, "_NIGHT_BEGIN_H", 24)
+    monkeypatch.setattr(nightqc, "_NIGHT_END_H", 0)
+    night = _many_sessions(tmp_path)
+    b0, b1 = nightqc.night_band(_dt.strptime("20260815080000", "%Y%m%d%H%M%S").timestamp())
+    assert b1 == b0, (b0, b1, "the premise: the fixture's own band is a single instant")
+    r = _summarize(night, _DEV)
+    assert r["sessions_judged"] == 1, (r["sessions_judged"], "an unusable band is no evidence of a join")
+    assert r["joined_gaps"] == [] and r["night_gap_min"] == 0, r
+    # AND THE LABEL FAILS CLOSED THE OTHER WAY. `_gap_class` keeps every exclusion in the night, so
+    # the night reports its holes rather than laundering them as out of scope.
+    assert [g for g in r["gaps"] if "earlier session" in g], r["gaps"]
+    assert r["gaps_in_night"] == r["gaps"], (r["gaps_in_night"], "no usable band ⇒ keep the gaps")
+
+
 def test_the_later_gap_is_measured_to_the_NEAREST_later_session(tmp_path):
     r = _summarize(_many_sessions(tmp_path), _DEV)
     later = [g for g in r["gaps"] if "later session" in g]

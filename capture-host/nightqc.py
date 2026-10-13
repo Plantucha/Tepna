@@ -3474,13 +3474,22 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         # in-night, which there means KEEP THE GAP, never grant a green. A join is the opposite power, so
         # it tests the band itself first, and an unusable band keeps the old exclusion and its SHORTFALL.
         b0, b1 = night_band((cur[0] + cur[1]) / 2.0)
-        _band_ok = b1 > b0
         others = [s for s in sessions if s is not cur]
         # ⚠️ `_overlaps_band`, NOT `_gap_class`: a join acts on measured overlap only. `_gap_class`
         # places a POINT session by containment, which is right for keeping a red and wrong for
         # absorbing a session and its hole into the night (residue
         # 2026-10-12-a-zero-length-session-inside-the-band-reads-outside-band).
-        _joined = [s for s in others if _band_ok and _overlaps_band(s[0], s[1], b0, b1)]
+        #
+        # THE SEPARATE `b1 > b0` GUARD THAT USED TO STAND HERE IS NOW DEAD WEIGHT, and measured so.
+        # It was load-bearing while the join asked `_gap_class`, which FAILS CLOSED and answers
+        # `in-night` for an unusable band — so without the guard a zero-width band would have joined
+        # every session. `_overlaps_band` reads `_overlap(...) > 0`, and `_overlap` of a band of zero
+        # or negative width is 0.0 for every session, so the refusal now lives in the predicate the
+        # join actually reads. Keeping both left a line no input could distinguish: a mutant
+        # weakening it to `b1 >= b0` passed all 431 tests of this module's three suites
+        # (nightqc.x_summarize__mutmut_173). `test_a_ZERO_WIDTH_BAND_JOINS_NOTHING_…` pins the
+        # behaviour that makes one guard enough.
+        _joined = [s for s in others if _overlaps_band(s[0], s[1], b0, b1)]
         _judged = sorted([cur, *_joined], key=lambda s: s[0])
         _sessions_judged = len(_judged)
         current = [f for s in _judged for f in s[2]]

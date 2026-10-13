@@ -2427,6 +2427,13 @@ def test_gap_class_fails_closed_on_every_branch():
     assert nightqc._gap_class([[1000.0, 1000.0]], b0, b1) == "in-night", "the band's own start is inside it"
     assert nightqc._gap_class([[2000.0, 2000.0]], b0, b1) == "outside-band", "the end is the next night's"
     assert nightqc._gap_class([[2500.0, 2500.0]], b0, b1) == "outside-band", "a point after the band is out"
+    # THE `continue` AFTER THAT BRANCH IS LOAD-BEARING. A point out of scope says nothing about the
+    # other excluded sessions, so the scan must go on; a mutant turning it into `break` returned
+    # after the first member and read a night WITH a hole as `outside-band` — the one direction a
+    # fail-closed rule must never fail in (mutant nightqc.x__gap_class__mutmut_14).
+    assert nightqc._gap_class([[2500.0, 2500.0], [1500, 1600]], b0, b1) == "in-night", (
+        "a point out of scope does not end the scan"
+    )
     assert nightqc._gap_class([[500.0, 500.0]], b0, b1) == "outside-band", "a point before it is out"
     # A REVERSED interval is no more measurable than a point, and it must not buy a green either.
     assert nightqc._gap_class([[1600.0, 1500.0]], b0, b1) == "in-night", "unreadable span inside ⇒ a hole"
