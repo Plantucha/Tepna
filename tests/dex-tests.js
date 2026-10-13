@@ -17644,6 +17644,60 @@
       T.ok('the hat names WHICH leg refused and why', h.ok === false && /chest → finger: pulse-foot times are not in time order/.test(h.reason), h.reason);
     });
 
+    group('PAT coupling does not publish a statistic that is 1 by construction (inPhysPct)', 'pat · coupling · inPhysPct · plant', function (T) {
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      if (!wsrc || !env.PATGate || !env.PATAlign || !env.DexClock) {
+        T.skip('worker source / PATGate / PATAlign / DexClock not in env');
+        return;
+      }
+      var W = null;
+      try {
+        var shim = { postMessage: function () {} };
+        shim.self = shim;
+        W = new Function(
+          'ECGDSP',
+          'PPGDSP',
+          'PATGate',
+          'PATAlign',
+          'DexClock',
+          'AnalysisStats',
+          'self',
+          'importScripts',
+          'XMLHttpRequest',
+          wsrc.replace(/self\.onmessage[\s\S]*$/, '') + '\nreturn { coupledPAT: coupledPAT };'
+        )(
+          env.ECGDSP,
+          env.PPGDSP,
+          env.PATGate,
+          env.PATAlign,
+          env.DexClock,
+          env.AnalysisStats,
+          shim,
+          function () {},
+          function () {}
+        );
+      } catch (e) {
+        T.ok('the worker body EVALUATES', false, e.message);
+        return;
+      }
+      var R = [],
+        F = [];
+      for (var i = 0; i < 4000; i++) {
+        R.push(1e9 + i * 1000 + (i % 7) * 11);
+        F.push(R[i] + 400);
+      }
+      var cp = W.coupledPAT(R, F);
+      T.ok('CONTROL · the night couples', cp.ok && cp.nCoupled > 3900, cp.ok ? cp.nCoupled + ' pairs' : cp.reason);
+      T.ok('the live censoring statistic is still published beside it', 'censoredPct' in cp, Object.keys(cp).join(','));
+      T.ok('`inPhysPct` is NOT published — pairing enforces [PLO, PHI], so every coupled lag is inside it and the field was 1 on every night', !('inPhysPct' in cp), 'inPhysPct = ' + cp.inPhysPct);
+      var stillAssigned = /inPhysPct\s*:/.test(wsrc);
+      T.ok(
+        '…and the packed result no longer carries it either',
+        !stillAssigned,
+        stillAssigned ? 'a property named inPhysPct is still assigned in the worker source' : 'no inPhysPct property in the worker source'
+      );
+    });
+
     group(
       'PAT hat — a negative corner says WHICH negative, and the drift-removed hat recovers a shared drift (PAT-HAT-DRIFT-DIFFERENCED)',
       'analysis-stats · pat · hat · known-answer · plant',
@@ -45428,6 +45482,28 @@
       T.ok("an OPEN PR's tree is never removed by the flag — its fixes may still be made here", openPr.ok === false, openPr.why);
       var dirty = V({ prState: 'MERGED', dirtyCount: 2, isMain: false, unlanded: { ok: true, count: 3 }, landedElsewhere: proof });
       T.ok("nor a dirty tree — it may be someone's only copy", dirty.ok === false, dirty.why);
+    });
+
+    /* Row 2026-10-12-wt-done-resolves-the-repo-from-the-shell-cwd: invoked by ABSOLUTE path from a
+       directory that is not a repository, `wt-done` ran `git worktree list` against the shell's cwd and
+       died in a node stack trace. The tool knows where it lives and now names its own repository.
+       Observed through the real process: the cwd is a fresh temp dir with no `.git` above it. */
+    group('wt-done — resolves its repository from its own location, not the shell cwd', 'tools · wt-done · cwd', function (T) {
+      if (!env.nodeSpawnSync || !env.nodeFs || !env.nodeOs || !env.wtDone) {
+        T.skip('needs Node child_process and tools/wt-done.mjs — not available in the browser lane');
+        return;
+      }
+      var pathMod = env.nodePath;
+      var outside = env.nodeFs.mkdtempSync(pathMod.join(env.nodeOs.tmpdir(), 'wtdone-cwd-'));
+      T.ok('the tool exports the repository root it resolves from its own location', typeof env.wtDone.REPO_ROOT === 'string', String(env.wtDone.REPO_ROOT));
+      var tool = pathMod.join(env.wtDone.REPO_ROOT || process.cwd(), 'tools', 'wt-done.mjs');
+      T.ok('REPO_ROOT holds the tool it was derived from', env.nodeFs.existsSync(tool), tool);
+      var r = env.nodeSpawnSync(process.execPath, [tool, pathMod.join(outside, 'no-such-tree')], { cwd: outside, encoding: 'utf8' });
+      T.eq('a non-worktree path refuses with exit 1, not a crash', r.status, 1);
+      T.ok('and says why in one line', /not a registered worktree/.test(r.stderr), r.stderr);
+      T.ok('and prints no node stack trace', !/Command failed|node:internal/.test(r.stderr), r.stderr);
+      var l = env.nodeSpawnSync(process.execPath, [tool, '--list'], { cwd: outside, encoding: 'utf8' });
+      T.ok("--list from outside any repository reads the tool's own repository", /DENOMINATOR: \d+ worktree\(s\) registered/.test(l.stdout), l.stdout + l.stderr);
     });
 
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {

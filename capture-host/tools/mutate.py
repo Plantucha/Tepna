@@ -102,6 +102,8 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     stage_capture_host_view,
     stage_root_reads,
     GENERATION_DONE_RE,
+    mark_generation_complete,
+    scratch_generation_reusable,
     UNKNOWN_SIZE_WORKERS,
     generation_cap_sec,
     generation_timeout_reason,
@@ -439,7 +441,11 @@ def run_one(
         # Recorded AND printed: a scratch that was KEPT is the case that used to be a silent
         # deletion, and a reader watching disk fill needs to know why it is still there.
         plan["held_scratches"] = held
-    if reuse and (reusable / "work" / "mutants" / module).exists():
+    # REUSE ONLY A GENERATION A RUN SAW FINISH, not merely a file that exists: a generation killed
+    # mid-write leaves a truncated `mutants/<module>` that mutmut then accepts as up to date (see
+    # `mutation_diff.GENERATION_COMPLETE_MARKER`). The marker is written below, on mutmut's own
+    # completion line.
+    if reuse and scratch_generation_reusable(reusable, module):
         scratch, work = reusable, reusable / "work"
         # REFRESH EVERY SIBLING, not just tests/. The cache key is the MUTATED MODULE's hash alone,
         # which is right for the mutants (a pure function of that module) and blind to everything else
@@ -683,6 +689,7 @@ def run_one(
             # means generation is over, and #3202 proved the converse matters — that log carries this
             # line 0 times against 618 spinner lines, which is how we know it never left this phase.
             _gen_done.add(True)
+            mark_generation_complete(scratch)
             _beat(f"generation finished at {time.monotonic() - t0:.0f}s — mutants start now")
             return
         if "Generating mutants" in line:

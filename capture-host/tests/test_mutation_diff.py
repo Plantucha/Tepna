@@ -905,6 +905,19 @@ def test_mutant_changed_lines_drops_the_file_header_rows_in_the_fallback():
     assert out == [_LONG_MINUS]
 
 
+def test_mutant_changed_lines_does_not_cut_a_line_at_a_pipe_inside_it():
+    """Residue 2026-10-11-mutation-survivor-render-truncates-at-the-annotation. `diff_key` joins the -/+ lines
+    with ` | `, and a `dict | None` annotation (or a `a | b` expression) carries the same three characters,
+    so the printer cut the line there and `x_night_entry__mutmut_18` rendered as `- scope: dict` /
+    `+ scope: dict` — an apparently empty diff, i.e. a mutmut artefact nobody can kill."""
+    d = _d("    scope: dict | None = _sc if x else y", "    scope: dict | None = None if x else y")
+    out = M.mutant_changed_lines({"changed": M.diff_key(d)})
+    assert out == ["- scope: dict | None = _sc if x else y", "+ scope: dict | None = None if x else y"]
+    # a bitwise-or expression, on both sides, round-trips too
+    e = M.mutant_changed_lines({"changed": M.diff_key(_d("    f = a | b", "    f = a & b"))})
+    assert e == ["- f = a | b", "+ f = a & b"]
+
+
 def test_mutant_changed_lines_on_an_empty_record_is_empty_not_a_crash():
     assert M.mutant_changed_lines({}) == []
     assert M.mutant_changed_lines({"changed": "   ", "diff": ""}) == []
