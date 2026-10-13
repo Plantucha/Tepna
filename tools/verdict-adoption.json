@@ -956,6 +956,18 @@
       },
       "note": "DEFECT-BENCHMARK builder (briefs/DEFECT-BENCHMARK-2026-10-12-BRIEF.md): --build proves each candidate task by running the fix commit's own tests against the parent checkout and the fix, and emits ONE tepna.verdict/1 over the included set. The criterion is pre-stated — every included task owns a proven fail-then-pass pair — so a task that cannot be proven is EXCLUDED by a named reason rather than counted. --verdict-sample prints the object alone for this check."
     },
+    "tools/defect-bench-solve.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/defect-bench-solve.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "DEFECT-BENCHMARK solver runner (briefs/DEFECT-BENCHMARK-2026-10-12-BRIEF.md): runs a local model over the benchmark's tasks and scores each patch against that task's own oracle. The pre-stated criterion is NOT the score — a threshold read off the data it judges would be UNKNOWN — but the HARNESS's soundness: every task that reached a decision passed both controls, the fix's own sources green against the oracle and the untouched parent red. One control violation is FAIL; every task excluded is UNDERPOWERED; no task selected is NOT_RUN with a null result. The score rides in `result`. --verdict-sample prints the object alone over a scratch summary, with no model call and no benchmark read."
+    },
     "tools/device-stability.mjs": {
       "bin": "word-only",
       "status": "exempt",
