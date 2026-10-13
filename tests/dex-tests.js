@@ -17133,7 +17133,14 @@
          read NOWHERE: the dead-key leg above caught `cpFCorr,cpFACorr` crossing the boundary unread, the
          same defect this worker already records for `detailCorr` and for `vdCorr` before #2117. They are
          surfaced now, which is what moved them from DEAD to merely helper-reached. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 26, 'sensor-trio-worker.js': 34, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* sensor-trio-worker.js 34 -> 36 on 2026-10-12 (D7 option A, the owner's pick of the UNWEIGHTED hat as
+         canonical): the payload gains `estimator` (the machine name of the point estimator, `'classic'`) and
+         `fusedDiag` (the retired fused-weight triple, kept as a computed diagnostic and null when no corner
+         shipped a confidence array). Both are read in a helper rather than a handler body — `estimator` in
+         the night page's `kMethod` KPI builder and `fusedDiag` in the power tool's `fillRealTbl` row
+         tooltip — which is where those pages read every other aggregate key too. They are surfaced on
+         purpose: a worker key with no consumer is what the dead-key leg above would have called dead. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 26, 'sensor-trio-worker.js': 36, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
