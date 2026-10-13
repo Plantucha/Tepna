@@ -667,3 +667,15 @@ def test_ring_docked_states_are_charging_and_full_never_low():
     """`batt_state` 3 is LOW (<10 %). A low ring on a finger must keep recording."""
     assert telemetry.RING_DOCKED_BATT_STATES == frozenset({1, 2})
     assert 3 not in telemetry.RING_DOCKED_BATT_STATES and 0 not in telemetry.RING_DOCKED_BATT_STATES
+
+
+def test_ring_charging_hands_back_the_flag_AND_WHAT_OBSERVED_IT():
+    """§∅. The ring's own byte is the strongest dock evidence any device here gives, and a reader still
+    cannot use a published `charging: false` unless the record names what looked. The four Polar
+    writers pair a reason with every flag; this is the ring's one spelling of the same pair."""
+    assert telemetry.ring_charging(1) == (True, "ring-batt-state"), "1 is charging"
+    assert telemetry.ring_charging(2) == (True, "ring-batt-state"), "2 is full, still on the dock"
+    assert telemetry.ring_charging(0) == (False, "ring-batt-state"), "a measured NOT-docked, named"
+    assert telemetry.ring_charging(3) == (False, "ring-batt-state"), "3 is LOW, on a finger"
+    assert telemetry.ring_charging(None) == (None, None), "no frame was read: never a False nobody measured"
+    assert telemetry.RING_CHARGING_WHY == "ring-batt-state", "one spelling, read by every consumer"

@@ -28,6 +28,9 @@ def _summary(**kw):
         "missing": [],
         "degraded": [],
         "gaps_in_night": [],
+        # The bound production publishes beside that list (`_SESSION_GAP_SEC`). A fixture that omits it
+        # would let the verdict report a count with no question attached to it.
+        "gaps_bound_s": 3600.0,
         "span_sec": 7200,
     }
     base.update(kw)
@@ -75,6 +78,9 @@ def test_night_qc_shortfall_is_a_headline_met_with_a_session_excluded_inside_the
     )
     assert o["status"] == "SHORTFALL" and "excluded from the judgement" in o["reason"]
     assert o["result"]["gaps_in_night"]
+    # THE BOUND BESIDE THE COUNT: which gap question this verdict answered, in the verdict itself.
+    assert "a session splits at a gap over 3600 s, or at a recorded daemon start" in o["reason"]
+    assert o["result"]["gaps_bound_s"] == 3600.0
 
 
 def test_night_qc_underpowered_under_the_minimum_span_is_unknown_not_low():

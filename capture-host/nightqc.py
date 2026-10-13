@@ -218,6 +218,18 @@ def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
     return max(0.0, min(a1, b1) - max(b0, a0))
 
 
+def _overlaps_band(s0: float, s1: float, b0: float, b1: float) -> bool:
+    """MEASURED overlap with the band — the only test a JOIN may act on.
+
+    A join absorbs a session, and the hole before it, into the judged night. That is the opposite power
+    from `_gap_class`'s, which can only keep a red, so the two cannot share one answer about a session
+    whose geometry was never measured: a session that is a POINT in time (`start == end`, which
+    `merge_sessions` emits) scores 0.0 here and never joins, even when the point lies inside the band.
+    The night keeps the exclusion and `_gap_class` labels it `in-night` — both conservative, in opposite
+    directions, which is why this reads `> 0` where that one reads containment."""
+    return _overlap(s0, s1, b0, b1) > 0
+
+
 def _gap_sec_inside(a0: float, a1: float, holes: list[tuple[float, float]]) -> float:
     """Seconds of `holes` lying inside `[a0, a1]` — time no judged session was running.
 
@@ -252,7 +264,17 @@ def _gap_class(excluded: list, b0: float, b1: float) -> str:
     if not (b1 > b0):
         return "in-night"
     for sess in excluded:
-        if _overlap(sess[0], sess[1], b0, b1) > 0:
+        s0, s1 = sess[0], sess[1]
+        if not (s1 > s0):
+            # A POINT IN TIME, NOT AN INTERVAL, and `_overlap` scores it 0.0 against every band — so
+            # the `> 0` test below read a point sitting INSIDE the night as outside it, which is the
+            # one direction a fail-closed rule must never fail in. `merge_sessions` emits
+            # `start == end` on inputs that are documented-normal, so the shape arrives. Placed by
+            # containment, the idiom `night_view` already uses for a file of unknown or zero span.
+            if b0 <= s0 < b1:
+                return "in-night"
+            continue
+        if _overlap(s0, s1, b0, b1) > 0:
             return "in-night"
     return "outside-band"
 
@@ -3452,9 +3474,22 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         # in-night, which there means KEEP THE GAP, never grant a green. A join is the opposite power, so
         # it tests the band itself first, and an unusable band keeps the old exclusion and its SHORTFALL.
         b0, b1 = night_band((cur[0] + cur[1]) / 2.0)
-        _band_ok = b1 > b0
         others = [s for s in sessions if s is not cur]
-        _joined = [s for s in others if _band_ok and _gap_class([s], b0, b1) == "in-night"]
+        # ⚠️ `_overlaps_band`, NOT `_gap_class`: a join acts on measured overlap only. `_gap_class`
+        # places a POINT session by containment, which is right for keeping a red and wrong for
+        # absorbing a session and its hole into the night (residue
+        # 2026-10-12-a-zero-length-session-inside-the-band-reads-outside-band).
+        #
+        # THE SEPARATE `b1 > b0` GUARD THAT USED TO STAND HERE IS NOW DEAD WEIGHT, and measured so.
+        # It was load-bearing while the join asked `_gap_class`, which FAILS CLOSED and answers
+        # `in-night` for an unusable band — so without the guard a zero-width band would have joined
+        # every session. `_overlaps_band` reads `_overlap(...) > 0`, and `_overlap` of a band of zero
+        # or negative width is 0.0 for every session, so the refusal now lives in the predicate the
+        # join actually reads. Keeping both left a line no input could distinguish: a mutant
+        # weakening it to `b1 >= b0` passed all 431 tests of this module's three suites
+        # (nightqc.x_summarize__mutmut_173). `test_a_ZERO_WIDTH_BAND_JOINS_NOTHING_…` pins the
+        # behaviour that makes one guard enough.
+        _joined = [s for s in others if _overlaps_band(s[0], s[1], b0, b1)]
         _judged = sorted([cur, *_joined], key=lambda s: s[0])
         _sessions_judged = len(_judged)
         current = [f for s in _judged for f in s[2]]
@@ -3791,6 +3826,15 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # complete so nothing is hidden — a daytime sitting is still reported, still labelled, and a
             # consumer that wants every exclusion reads `gaps` exactly as before.
             "gaps_in_night": gaps_in_night,
+            # THE BOUND THIS MEASURE CARRIES, published because the monitor shows it beside a DIFFERENT
+            # gap measure and the two read as contradicting each other without their bounds: the nights
+            # list's `fragments` counts row-to-row holes wider than its own `gap_s` INSIDE ONE FILE,
+            # while these lines name a capture session left out of the judged night. On 09-28 the pair
+            # read `gaps_in_night: []` and `2 fragments` for one stream, and both were correct
+            # (residue 2026-09-29-two-gap-measures-one-surface).
+            # ⚠️ THE GAP BOUND, NEVER THE WHOLE ACCOUNT OF WHAT SPLITS A SESSION: a RECORDED DAEMON
+            # START splits one regardless of the gap, and carries no threshold to publish.
+            "gaps_bound_s": _SESSION_GAP_SEC,
             # THE HOLES INSIDE THE JUDGED NIGHT, one line each, and the minutes they total. A night
             # split by a daemon restart or a box-wide outage now reads as ONE night with a stated hole,
             # and these are the fields that state it. `night_gap_min` is 0 on a single-session night.
@@ -3970,6 +4014,8 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
             "missing": list(summary.get("missing") or []),
             "degraded": list(summary.get("degraded") or []),
             "gaps_in_night": list(summary.get("gaps_in_night") or []),
+            # The bound beside the count, so the verdict alone says WHICH gap measure it reports.
+            "gaps_bound_s": summary.get("gaps_bound_s"),
             # THE GAP MINUTES BESIDE THE NUMBER. A joined night is one night with a hole in it, and a
             # reader of the verdict alone must see the hole without opening the summary.
             "joined_gaps": list(summary.get("joined_gaps") or []),
@@ -4137,7 +4183,8 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
                 evidence=ev,
                 tool=_TOOL,
                 reason="every stream met coverage, but a capture session inside the night window was "
-                "excluded from the judgement: " + "; ".join(result["gaps_in_night"]),
+                f"excluded from the judgement (a session splits at a gap over {int(_SESSION_GAP_SEC)} s, "
+                "or at a recorded daemon start): " + "; ".join(result["gaps_in_night"]),
             )
         return _v.make(
             gate=_QC_GATE,

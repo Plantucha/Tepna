@@ -229,17 +229,21 @@ def _a_zero_length_session_opens_the_night(tmp_path):
     return d
 
 
-def test_a_ZERO_LENGTH_session_inside_the_band_cannot_join_and_reads_outside_band(tmp_path):
-    """The measured boundary of the join, pinned because it is the join's one asymmetric edge.
+def test_a_ZERO_LENGTH_session_inside_the_band_cannot_join_BUT_IS_A_HOLE_IN_THE_NIGHT(tmp_path):
+    """The join's one asymmetric edge, and the two opposite powers that meet on it.
 
-    `_gap_class` places a session by `_overlap(s0, s1, b0, b1) > 0`, and a zero-length interval scores
-    0 against any band — so the stampless 00:00 opener, which sits an hour and a half INSIDE the band
-    it is being tested against, is labelled `outside-band` and stays excluded. Both halves of that are
-    recorded here: the night keeps the exclusion (the conservative direction), and the label states a
-    placement the overlap never measured. Logged as residue
-    `2026-10-12-a-zero-length-session-inside-the-band-reads-outside-band`; the remedy is a band test
-    that treats containment and overlap as the same question, which moves what every night publishes
-    and is not this unit's to change.
+    The stampless 00:00 opener is a session of zero length sitting an hour and a half INSIDE the band
+    it is tested against, and `_overlap` scores it 0.0 against every band. Each caller now reads its
+    own rule, in its own conservative direction (residue
+    `2026-10-12-a-zero-length-session-inside-the-band-reads-outside-band`):
+
+    * `_overlaps_band` decides the JOIN, which absorbs a session and the hole before it into the
+      judged night. It acts on measured overlap only, so a point never joins — `sessions_judged`
+      stays 1 and the 120 min hole is not taken into the night's span.
+    * `_gap_class` decides the LABEL, whose only power is to turn a red into a labelled green. It
+      places a point by containment, the idiom `night_view` already uses, so a point inside the band
+      reads `in-night` and the night carries the hole. `outside-band` here was a green resting on
+      evidence the overlap never gathered.
 
     It also settles the `excluded` set's own geometry: a session can only JOIN with a positive length,
     so a joined session's end is strictly after `_judged_start` and its start strictly before
@@ -247,13 +251,40 @@ def test_a_ZERO_LENGTH_session_inside_the_band_cannot_join_and_reads_outside_ban
     `excluded` identity mutants (251, 253) have no distinguishing input and are recorded in
     `tools/mutate-equivalence.json` rather than killed here."""
     r = _summarize(_a_zero_length_session_opens_the_night(tmp_path), _DEV)
-    assert r["sessions_judged"] == 1, (r["sessions_judged"], "a zero-length session cannot overlap a band")
+    assert r["sessions_judged"] == 1, (r["sessions_judged"], "a point has no overlap, so it cannot join")
     assert r["joined_gaps"] == [] and r["night_gap_min"] == 0, r
     earlier = [g for g in r["gaps"] if "earlier session" in g]
     assert len(earlier) == 1, r["gaps"]
     assert "00:00->02:00 120min gap" in earlier[0], earlier[0]
-    assert "[outside-band]" in earlier[0], (earlier[0], "the label the overlap test produces")
-    assert r["gaps_in_night"] == [], "and so it is not charged as a hole in the night"
+    assert "[in-night]" in earlier[0], (earlier[0], "a point inside the band is placed by containment")
+    assert r["gaps_in_night"] == earlier, "and the night carries it: the label cannot grant an unmeasured green"
+
+
+def test_a_ZERO_WIDTH_BAND_JOINS_NOTHING_and_keeps_every_exclusion(tmp_path, monkeypatch):
+    """A band that is not a band grants no join, and `_overlaps_band` is what makes that true.
+
+    The band's width is `24 - _NIGHT_BEGIN_H + _NIGHT_END_H` hours, so `BEGIN = 24` with `END = 0`
+    collapses it to a single instant. That is unreachable through today's constants, which is exactly
+    why it is pinned here: the join is the module's one power to absorb a session AND the hole before
+    it into the judged night, and it may act only on positive evidence that the session was in the
+    night.
+
+    `_overlaps_band` reads `_overlap(...) > 0`, and `_overlap` of a zero-width band is 0.0 for every
+    session, including one containing the instant. So the three in-night neighbours that join under
+    the real band stay excluded here, the judged night keeps its own span, and every gap stays a gap.
+    The same fixture joins three sessions one test above; the only thing changed is the band."""
+    monkeypatch.setattr(nightqc, "_NIGHT_BEGIN_H", 24)
+    monkeypatch.setattr(nightqc, "_NIGHT_END_H", 0)
+    night = _many_sessions(tmp_path)
+    b0, b1 = nightqc.night_band(_dt.strptime("20260815080000", "%Y%m%d%H%M%S").timestamp())
+    assert b1 == b0, (b0, b1, "the premise: the fixture's own band is a single instant")
+    r = _summarize(night, _DEV)
+    assert r["sessions_judged"] == 1, (r["sessions_judged"], "an unusable band is no evidence of a join")
+    assert r["joined_gaps"] == [] and r["night_gap_min"] == 0, r
+    # AND THE LABEL FAILS CLOSED THE OTHER WAY. `_gap_class` keeps every exclusion in the night, so
+    # the night reports its holes rather than laundering them as out of scope.
+    assert [g for g in r["gaps"] if "earlier session" in g], r["gaps"]
+    assert r["gaps_in_night"] == r["gaps"], (r["gaps_in_night"], "no usable band ⇒ keep the gaps")
 
 
 def test_the_later_gap_is_measured_to_the_NEAREST_later_session(tmp_path):
