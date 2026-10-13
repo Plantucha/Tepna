@@ -1079,6 +1079,69 @@ def test_a_seam_sidecar_with_UNDECODABLE_BYTES_still_splits_the_axis(tmp_path):
     assert "2 segment(s)" in tb["reason"], tb["reason"]
 
 
+def test_a_NON_FINITE_seam_step_is_ABSENT_and_the_real_seam_still_ranks(tmp_path):
+    """`float()` accepts "nan", so the `ValueError` guard above lets a non-finite step through as a
+    float. `max(..., key=abs)` loses every comparison against a NaN, so one bad row made a real
+    2.44e8 s step render as "largest +nan s" — a number for a step nobody measured (§∅).
+
+    The seam ITSELF still splits the axis: the split keys on `host_ms`, which this row carries and
+    which parsed. Only the magnitude goes absent, and the sentence says how many carry no number.
+    """
+    tb = _split_night(
+        tmp_path,
+        SEAM_HDR + [_seam_row(6 * 60_000, float("nan")), _seam_row(12 * 60_000, 2.44e8 * 1000.0)],
+    )
+    r = tb["reason"]
+    assert "2 recorded clock seam(s), largest +2.44e+08 s" in r, r
+    assert "over 1 with a step, 1 without (non-finite)" in r, r
+    assert "nan" not in r, r
+    assert "the axis is judged in 3 segment(s), never across a step" in r, r
+
+
+def test_EVERY_non_finite_word_float_accepts_is_read_as_absent(tmp_path):
+    """`math.isfinite` covers three words, and a guard written as `step_ms != step_ms` (the NaN
+    identity trick) or `math.isnan` passes both infinities straight through. An infinite step then
+    WINS the `abs` ranking and renders as "largest +inf s"."""
+    for word in ("nan", "inf", "-inf"):
+        d = tmp_path / word.replace("-", "neg")
+        d.mkdir()
+        tb = _split_night(
+            d,
+            SEAM_HDR + [_seam_row(6 * 60_000, float(word)), _seam_row(12 * 60_000, 2.44e8 * 1000.0)],
+        )
+        r = tb["reason"]
+        assert "over 1 with a step, 1 without (non-finite)" in r, (word, r)
+        assert "largest +2.44e+08 s" in r, (word, r)
+        assert "+inf s" not in r and "-inf s" not in r and "nan s" not in r, (word, r)
+
+
+def test_a_MEASURED_seam_carries_NO_REASON_and_the_absent_one_carries_ITS_OWN(tmp_path):
+    """§∅ in both directions, read row by row. The reason field NAMES AN ABSENCE, so a row that has a
+    step must carry `None` there: an empty string is a reason nobody gave, and no reader can tell it
+    from one this writer failed to record. The rendered sentence cannot see this, because it quotes the
+    reasons of the rows with no step and never looks at the others.
+    """
+    _raw_seams(tmp_path, SEAM_HDR + [_seam_row(6 * 60_000, 244.0), _seam_row(12 * 60_000, float("nan"))])
+    rows = si.recorded_seams(str(tmp_path / f"{BASE}_ECG.txt"), None, None)
+    assert [r["step_ms"] for r in rows] == [244.0, None], rows
+    assert rows[0]["step_reason"] is None, rows[0]
+    assert rows[1]["step_reason"] == si.SEAM_STEP_NOT_FINITE, rows[1]
+
+
+def test_a_night_whose_ONLY_seam_carries_no_measured_step_SAYS_so(tmp_path):
+    """The other arm: with every step absent there is nothing to rank, so the note names the absence
+    instead of a magnitude. `max()` over the empty list raises `ValueError`, which the poller catches
+    as no verdict for the whole night — a torn sidecar would cost the night its assessment.
+
+    This fixture is the one exception to the shape above: the `else` arm is reachable only when NO
+    seam carries a step, so a real seam beside the bad row would hide it.
+    """
+    tb = _split_night(tmp_path, SEAM_HDR + [_seam_row(12 * 60_000, float("nan"))])
+    r = tb["reason"]
+    assert "1 recorded clock seam(s), no step recorded on any of them (non-finite)" in r, r
+    assert "the axis is judged in 2 segment(s), never across a step" in r, r
+
+
 # ── the cause reader (#3095's `_seam_cause`) ────────────────────────────────────────────────────────
 
 

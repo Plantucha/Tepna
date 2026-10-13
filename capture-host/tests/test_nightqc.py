@@ -570,6 +570,101 @@ def test_summarize_coverage_uses_configured_rate_and_skips_unknown(tmp_path, _tz
     assert s["degraded"] == [] and s["ok"] is True
 
 
+# ── a stream of EVENTS has no coverage (`2026-10-12-ppi-coverage-exceeds-one-on-a-one-hz-denominator`) ──
+
+
+def _verity_ppi_night(tmp_path, rates=None, ppi_rows=1070, streams=("ppg", "ppi")):
+    """A Verity night carrying PPG and PPI. The span is 1000 s, so `ppi_rows` IS the old denominator's
+    coverage figure in rows-per-second — 1070 rows reproduce the 1.07 measured on the 10-08 night."""
+    night = str(tmp_path / "2026-07-19")
+    os.makedirs(night)
+    base = _stamp_epoch()
+    ppg = _cap(night, "Polar_VeritySense_0C30_20260719220000_PPG.txt", 55_000)
+    ppi = _cap(night, "Polar_VeritySense_0C30_20260719220000_PPI.txt", ppi_rows)
+    _utime(ppg, base)
+    _utime(ppi, base + 1000)
+    dev = {"name": "Verity", "device_id": "0C30", "model": "VeritySense", "streams": list(streams)}
+    if rates:
+        dev["rates"] = rates
+    return night, [dev]
+
+
+def test_a_PPI_stream_gets_NO_coverage_and_NAMES_WHY(tmp_path, _tz):
+    """🔴 THE ROW. The table gave `ppi` a nominal 1 Hz and the Verity emits one row per BEAT, so every
+    resting rate above 60 bpm published a received-over-expected ratio ABOVE ONE. Measured read-only on
+    vigil 2026-10-12 from `/srv/tepna/captures/2026-10-08/QC-SUMMARY.json`: `coverage.ppi` 1.07 against
+    a 0.5 floor, on a device that recorded the whole night.
+
+    The number is not a low coverage and it is not a high one — it is not a coverage. So no number is
+    published, and the reason is, beside the map rather than as an absent key (§∅).
+    """
+    night, devs = _verity_ppi_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    v = s["devices"][0]
+    assert "ppi" not in v["coverage"], (v["coverage"], "a beat count is not a coverage")
+    assert "ppi" not in v["session_coverage"], v["session_coverage"]
+    assert "ppi" not in v["coverage_basis"], (v["coverage_basis"], "no number, so no basis for one")
+    assert "one row per beat" in v["coverage_absent"]["ppi"], v["coverage_absent"]
+    # The ROWS are still counted and the sibling stream is judged exactly as before.
+    assert v["streams"]["ppi"] == 1070 and v["coverage"]["ppg"] == 1.0, (v["streams"], v["coverage"])
+    assert s["degraded"] == [] and s["missing"] == [] and s["ok"] is True, s
+
+
+def test_a_PPI_stream_that_delivered_NOTHING_is_still_MISSING(tmp_path, _tz):
+    """What the absence costs, pinned. Dropping the coverage figure gives up a degraded-PPI signal, and
+    that signal never existed: 1070 beats and 800 beats are a fast heart and a slow one as readily as a
+    complete capture and a lossy one. A stream that produced NO rows is a different finding, and it is
+    caught above this guard by the `rows == 0` arm — so the guard must not swallow it."""
+    night, devs = _verity_ppi_night(tmp_path, ppi_rows=0)
+    s = _summarize_floating(night, devs)
+    assert s["missing"] == ["Verity:ppi"], s["missing"]
+    assert s["ok"] is False, "a declared stream that delivered nothing still fails the night"
+    assert "ppi" not in (s["devices"][0]["coverage_absent"] or {}), "a stream with no rows never reached the guard"
+
+
+def test_a_DEVICE_CONFIG_cannot_put_the_PPI_RATE_BACK(tmp_path, _tz):
+    """The guard sits BEFORE the rate lookup, and that ordering is the whole fix. `_expected_hz` reads
+    the device's own `rates` first, so a config carrying `ppi: 1` would re-fabricate the denominator the
+    nominal table just gave up — and a config is written by hand on the box, where nobody will read
+    this file. Moving the guard below the lookup leaves this test as the only thing that notices."""
+    night, devs = _verity_ppi_night(tmp_path, rates={"ppg": 55, "ppi": 1})
+    v = _summarize_floating(night, devs)["devices"][0]
+    assert "ppi" not in v["coverage"], (v["coverage"], "a configured 1 Hz is still not a rate PPI has")
+    assert "one row per beat" in v["coverage_absent"]["ppi"], v["coverage_absent"]
+
+
+def test_the_GUARD_SKIPS_ONE_STREAM_AND_NOT_THE_REST(tmp_path, _tz):
+    """The guard ends its own iteration, never the loop. With PPI declared FIRST, a `break` in its
+    place would leave every stream after it unread — no rows, no coverage, and a night that reads
+    complete because nothing looked at the rest of it. The sibling order in the fixture above cannot
+    see that: PPI is last there, so skipping one stream and stopping are the same thing."""
+    night, devs = _verity_ppi_night(tmp_path, streams=("ppi", "ppg"))
+    v = _summarize_floating(night, devs)["devices"][0]
+    assert v["streams"]["ppg"] == 55_000, (v["streams"], "the stream after PPI is still read")
+    assert v["coverage"]["ppg"] == 1.0, (v["coverage"], "and still judged")
+    assert "ppi" not in v["coverage"] and "one row per beat" in v["coverage_absent"]["ppi"], v
+
+
+def test_the_PPI_NOMINAL_is_gone_from_the_table_and_the_reason_is_in_its_place():
+    """The literal itself. `_expected_hz` falling back to `_NOMINAL_HZ["Verity"]["ppi"]` is what shipped
+    the 1.07, so re-adding the key must red here even if the loop guard above survives."""
+    dev = {"name": "Verity", "device_id": "0C30", "model": "VeritySense", "streams": ["ppi"]}
+    assert nightqc._expected_hz(dev, "ppi") is None, "PPI has no nominal rate — never a 1 Hz"
+    assert nightqc._expected_hz(dev, "ppg") == 55, "the sibling nominals are untouched"
+    assert "ppi" in nightqc._EVENT_STREAMS and "beat" in nightqc._EVENT_STREAMS["ppi"]
+
+
+def test_the_VERDICT_OBJECT_carries_the_absence_and_its_reason(tmp_path, _tz):
+    """§🧾: the object is the API. A reader of the verdict alone saw `coverage.ppi` 1.07 and had nothing
+    to tell it the figure was not a coverage; with the key simply gone it would have had nothing to tell
+    it the stream was not merely unreached. So the reason is published in the verdict too."""
+    night, devs = _verity_ppi_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    r = nightqc.qc_verdict(s, devs, night_dir=night)["result"]
+    assert "one row per beat" in r["coverage_absent"]["Verity:ppi"], r["coverage_absent"]
+    assert "Verity:ppi" not in r["coverage"] and "Verity:ppi" not in r["coverage_session_basis"], r
+
+
 def test_summarize_no_data_files_span_is_none(tmp_path, _tz):
     """A night with only a sidecar has no capture span to measure — coverage stays unknown, not zero."""
     night = str(tmp_path / "2026-07-19")

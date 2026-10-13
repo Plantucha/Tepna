@@ -1169,13 +1169,54 @@ def test_an_empty_result_block_names_EVERY_counter_it_lacks():
     assert why and all(k in why for k in ("generated", "decided", "killed", "survived", "undecided")), why
 
 
-def test_the_settled_total_ADDS_its_three_terms():
-    """`killed + survived + undecided` — a `-` on the last term would let a run with many undecided
-    mutants under-report what it settled and slip past the bound. Undecided is non-zero here ON PURPOSE:
-    with `undecided: 0` the sign is unobservable, which is why the shipped-artifact test could not see it."""
+def test_the_settled_total_ADDS_its_two_terms():
+    """`killed + survived` — a `-` on the second term would let a run with many survivors under-report
+    what it settled and slip past the bound. Survived is non-zero here ON PURPOSE: with `survived: 0`
+    the sign is unobservable, which is why the shipped-artifact test could not see it."""
     over = _res(generated=100, decided=5, killed=4, survived=2, undecided=3)
     why = M.result_inconsistency(over, survivors_len=2, undecided_len=3)
-    assert why and "(9) exceeds result.decided (5)" in why, why
+    assert why and "(6) exceeds result.decided (5)" in why, why
+
+
+def test_SETTLED_EXACTLY_EQUAL_TO_DECIDED_is_LEGAL():
+    """The bound is `<=`, and the equality is the HEALTHY shape: a run with no excused mutant settles
+    exactly what it decided. `>=` here would red every such run, and the neighbouring test only proves
+    that decided MAY exceed the settled outcomes, never that it may equal them."""
+    res = _res(generated=10, decided=8, killed=6, survived=2, undecided=1)
+    assert M.result_inconsistency(res, survivors_len=2, undecided_len=1) is None
+
+
+def test_an_UNDECIDED_mutant_is_NOT_counted_against_DECIDED():
+    """🔴 THE ROW. `undecided` once sat inside the `<= decided` sum, so every run with an undecided
+    mutant reported "this verdict's own numbers disagree" — and that derived complaint REPLACED the
+    real refusal in the verdict's `reason`.
+
+    These are #3237's measured numbers (run 36613550322): 109 decided, 23 undecided, 85 killed,
+    23 survived, 132 generated. Every one is honest. `mmeta.decided_under_glob` counts a mutant only
+    when its exit code is non-null and an undecided mutant is exactly one whose code is null, so the
+    two sets are disjoint and their sum is bounded by `generated`, never by `decided`.
+    """
+    res = _res(generated=132, decided=109, killed=85, survived=23, undecided=23)
+    assert M.result_inconsistency(res, survivors_len=23, undecided_len=23) is None
+
+
+def test_more_ACCOUNTED_FOR_than_GENERATED_is_still_caught():
+    """The bound `undecided` moved TO. Dropping it entirely would leave a run free to claim more
+    mutants than it ever generated, which is the double count the old sum did catch. `decided` alone is
+    within `generated` here, so only the pair exceeds it — the first two checks cannot see this."""
+    why = M.result_inconsistency(
+        _res(generated=10, decided=8, killed=5, survived=2, undecided=5), survivors_len=2, undecided_len=5
+    )
+    assert why and "result.decided + undecided (13) exceeds result.generated (10)" in why, why
+
+
+def test_the_accounted_for_total_ADDS_its_two_terms():
+    """`decided + undecided` with a `-` on the second term reads 3, under every bound, on a block that
+    accounts for 13 of 10 mutants. Both terms are non-zero so the sign is observable."""
+    why = M.result_inconsistency(
+        _res(generated=10, decided=8, killed=5, survived=2, undecided=5), survivors_len=2, undecided_len=5
+    )
+    assert why and "(13)" in why, why
 
 
 # ── every selftest check must be able to FAIL *and SAY WHICH* ──────────────────────────────────────

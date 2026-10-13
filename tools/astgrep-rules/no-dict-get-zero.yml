@@ -1,0 +1,20 @@
+# tepna — ast-grep rule
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+id: no-dict-get-zero
+language: python
+severity: error
+message: "`.get(key, 0)` turns a missing key into a number — absence is `None` (CLAUDE.md §∅)"
+note: |
+  §∅ on the capture host. `d.get(k, 0)` is the Python spelling of `?? 0`: a key the writer never set
+  reads as a measurement of zero. The capture host is where absence enters the suite, so the rule
+  binds here first.
+
+  THE TALLY IS THE LEGAL CASE AND IT IS THE MAJORITY. `counts[k] = counts.get(k, 0) + 1` counts
+  events, and a key absent from a tally means zero events were counted — which is a measurement, not
+  a gap. So is a presence test (`p.get(key, 0) > 0`), where the default only has to fail the
+  comparison. Each such site carries an allow-list entry naming its class, because the shape that
+  reads as a tally is not always one.
+rule:
+  any:
+    - pattern: $D.get($K, 0)
+    - pattern: $D.get($K, 0.0)
