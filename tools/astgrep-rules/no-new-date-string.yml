@@ -1,0 +1,24 @@
+# tepna — ast-grep rule
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+id: no-new-date-string
+language: js
+severity: error
+message: "`new Date(<string>)` is a locale parse — the Clock Contract wants a regex plus `Date.UTC`"
+note: |
+  CLOCK CONTRACT §2.4. A vendor stamp read by `new Date(str)` is parsed by the engine's locale rules:
+  `13/05/2026` is an invalid date in one engine and 13 May in another, and a zone-less ISO string is
+  read as UTC while a zone-less `YYYY/MM/DD HH:MM:SS` is read as local. `parseTimestamp` exists so
+  that every node reads a stamp the same way, by regex, into floating wall-clock ms.
+
+  THE ARGUMENT'S KIND IS THE WHOLE RULE. `new Date(tMs)` is legal and the repo makes 126 such calls in
+  its root modules alone, so a rule keyed on the call name would be 126 allow-list entries and no
+  tripwire. The constraint below matches a string or a template literal and nothing else, which is
+  what the regex lint in `tests/dex-tests.js` (DEV-TOOLCHAIN Part A · A1) cannot do: its
+  `/new Date\(\s*['"]/` sees the two quote characters and misses a backtick.
+rule:
+  pattern: new Date($S)
+constraints:
+  S:
+    any:
+      - kind: string
+      - kind: template_string

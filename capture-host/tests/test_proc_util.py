@@ -11,6 +11,7 @@ These tests assert on the CHILD, not on the return value. A test that only check
 """
 
 import asyncio
+import contextlib
 import os
 
 import pytest
@@ -189,3 +190,135 @@ def test_kill_reaps_a_cooperative_child_without_error():
 
     asyncio.run(proc_util.kill(P()))
     assert order == ["kill", "wait"], "signal first, then reap — reversing it waits on a live child"
+
+
+# ── descendants: kill() must not stop at the direct child (residue 2026-09-29-proc-util-kill-is-parent-only) ──
+async def _forker(**spawn_kw):
+    """A child that forks a long sleeper and prints its pid. Returns (proc, grandchild_pid)."""
+    p = await asyncio.create_subprocess_exec(
+        "sh", "-c", "sleep 60 & echo $!; wait", stdout=asyncio.subprocess.PIPE, **spawn_kw
+    )
+    assert p.stdout is not None
+    return p, int((await p.stdout.readline()).strip())
+
+
+def test_kill_reaches_the_descendants_of_a_child_that_leads_its_own_group():
+    """THE DEFECT: `proc.kill()` signalled the direct child only, so a grandchild was re-parented and
+    kept running. Asserted on the GRANDCHILD, which is what the old code left alive."""
+
+    async def go():
+        p, gc = await _forker(start_new_session=True)
+        try:
+            await proc_util.kill(p)
+            await asyncio.sleep(0.1)
+            return gc, _alive(gc)
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(gc, 9)
+
+    gc, alive = _run(go())
+    assert not alive, f"grandchild {gc} outlived proc_util.kill() of the group leader"
+
+
+def test_kill_of_a_child_that_does_not_lead_a_group_never_signals_our_own_group():
+    """`killpg` on such a child would reach the daemon's own group. The fallback is the child alone,
+    which is what this helper did before — so the grandchild survives and WE do, by design."""
+
+    async def go():
+        p, gc = await _forker()  # no start_new_session: shares OUR group
+        try:
+            await proc_util.kill(p)
+            await asyncio.sleep(0.1)
+            return p.returncode, _alive(gc)
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(gc, 9)
+
+    rc, gc_alive = _run(go())
+    assert rc is not None, "the child itself is still killed and reaped"
+    assert gc_alive, "a non-leader's group is OURS and must not be signalled"
+
+
+@pytest.mark.parametrize("pid", [0, -5, True, None, "12"])
+def test_a_pid_that_is_not_a_real_positive_pid_is_never_given_to_killpg(monkeypatch, pid):
+    """`os.killpg(0, sig)` is "everyone here". A double with pid 0 must fall back to `proc.kill()`."""
+    groups = []
+    monkeypatch.setattr(os, "killpg", lambda *a: groups.append(a))
+    killed = []
+
+    class P:
+        def kill(self):
+            killed.append(True)
+
+        async def wait(self):
+            return 0
+
+    p = P()
+    p.pid = pid  # type: ignore[attr-defined]
+    asyncio.run(proc_util.kill(p))
+    assert groups == [] and killed == [True]
+
+
+def test_a_pid_that_has_already_gone_falls_back_without_raising(monkeypatch):
+    def gone(pid):
+        raise ProcessLookupError(pid)
+
+    monkeypatch.setattr(os, "getpgid", gone)
+    monkeypatch.setattr(os, "killpg", lambda *a: pytest.fail("no group to signal"))
+    killed = []
+
+    class P:
+        pid = 4321
+
+        def kill(self):
+            killed.append(True)
+
+        async def wait(self):
+            return 0
+
+    asyncio.run(proc_util.kill(P()))
+    assert killed == [True]
+
+
+def test_our_own_group_is_refused_even_when_the_pid_leads_it(monkeypatch):
+    """The second clause of the guard: `pgid == pid` alone is not enough — if the pid leads OUR group
+    (a double, or the daemon itself), `killpg` would reap the daemon."""
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(os, "getpgrp", lambda: 4321)
+    monkeypatch.setattr(os, "killpg", lambda *a: pytest.fail("signalled our own group"))
+    killed = []
+
+    class P:
+        pid = 4321
+
+        def kill(self):
+            killed.append(True)
+
+        async def wait(self):
+            return 0
+
+    asyncio.run(proc_util.kill(P()))
+    assert killed == [True]
+
+
+def test_a_refused_group_signal_falls_back_to_killing_the_child(monkeypatch):
+    monkeypatch.setattr(os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(os, "getpgrp", lambda: 1)
+
+    def refused(pgid, sig):
+        raise PermissionError("EPERM")
+
+    monkeypatch.setattr(os, "killpg", refused)
+    killed = []
+
+    class P:
+        pid = 4321
+
+        def kill(self):
+            killed.append(True)
+
+        async def wait(self):
+            return 0
+
+    asyncio.run(proc_util.kill(P()))
+    assert killed == [True], "a group we may not signal must not leave the child alive"

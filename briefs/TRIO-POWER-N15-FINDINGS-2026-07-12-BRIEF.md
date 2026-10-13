@@ -445,3 +445,48 @@ Restamping a figure with a trial count it was not rendered at is the same defect
       the atomic unit had already broken; it had not. The new leg scrapes the **column**, not the
       values, so it cannot repeat that mistake — and this note exists so the next reader does not make
       it either.
+
+---
+
+## ⊕ 2026-10-12 — the power numbers re-stated on the UNWEIGHTED estimator, and the trial count is the one blocker left
+
+The owner picked **option A** of `TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12-BRIEF.md` §5 (relayed by
+Kestrel, 2026-10-12): the unweighted artifact-robust hat is canonical and the fused-weight hat is retired
+to a diagnostic. Three things follow for this brief.
+
+**1 · Both rows of "What the re-fit WOULD be" are already unweighted-hat numbers, so they stand as
+written.** The fused hat became the worker's point on 2026-07-14 (`4d10a8164`); the 15-night row was
+measured 2026-07-12 (`PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md` §2) and the
+10-night row is older. The min-N table in "The measured effect on the deliverable" is a simulation at the
+planted σ, which is also unweighted, so it does not move either. Nothing in this brief is re-stated
+because the estimator changed; it is re-stated here so a reader can see that it did not have to be.
+
+**2 · The pooled-seconds hat that the gated box asks for is now measured.** That box unblocks when the
+`SENSOR-TRIO` σ discrepancy is explained, and it names the pooled-seconds hat — not another median over
+nights — as the next step. Over the full trio corpus (`tools/tch-fused-corpus.mjs`, 2026-10-12; 90 solved
+nights of 147 folders, **1 510 146** overlapping seconds, within-night variances only):
+
+| | O2Ring | H10 | Verity |
+|---|---|---|---|
+| pooled-seconds broad hat, unweighted | **3.46** | **1.38** | **1.30** |
+| across-night median, unweighted | 2.91 | 0.67 | 0.79 |
+| across-night median, fused (retired) | 2.80 | 0.91 | 0.68 |
+
+All three corners are positive in every row. The published fused headline this is measured against is
+**2.41 / 1.28 / 1.42** (O2Ring / H10 / Verity), and the pooled-seconds unweighted triple does **not**
+reproduce it — H10 and Verity land near 1.3–1.4 where the paper reads 1.28 and 1.42, and the O2Ring corner
+is 3.46 against a published 2.41. This is a corpus of 90 nights against the paper's 26, so it is not the
+same population and is not offered as a reproduction. It is offered as the number the gated box asked for,
+so the discrepancy can be argued over a measurement rather than over an absence.
+
+**3 · The remaining blocker is the TRIAL COUNT, and only that.** Blocker 1 stands unchanged: the deltas in
+this brief are at 500 trials, the paper states 720 in all eight places, and a 50k/100k regeneration does
+not complete on this machine because the WebGPU lane accelerates only the N-sweep while the ρ- and
+duration-sweeps are CPU-bound and `stats.json` exports only when every phase finishes. Blocker 2 is closed
+(the single-value gate ships). So the re-fit waits on one thing: a run at the paper's own stated trial
+count, reproducing the published tables at the 10-night hat first.
+
+**What is NOT changed here.** The planted σ stays at **2.72 / 1.86 / 1.94** in all three files and the
+`Trio planted σ is single-valued` gate stays pinned to it. Re-fitting it is the gated box above, not this
+section, and the standing instruction in `SENSOR-TRIO-NIGHTS-PAPER` against swapping a re-derived σ into
+the paper is untouched.
