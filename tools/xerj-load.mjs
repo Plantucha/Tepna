@@ -527,36 +527,54 @@ export function selftest() {
   ok(untagged.ok && !('symbols' in untagged.docs[0]), 'no scopes ⇒ no symbols field, never an empty one');
   ok(mapping(4).mappings.properties.symbols.type === 'keyword', 'the mapping carries the symbols field');
 
-  /* JS SCOPES: the parser names functions ctags leaves without an end line. */
-  const jsSrc = [
-    'export function top(a) {',
-    '  const inner = (x) => {',
-    '    return x + 1;',
-    '  };',
-    '  return inner(a);',
-    '}',
-    'class Box {',
-    '  open() {',
-    '    return 1;',
-    '  }',
-    '}',
-    'const api = { load: function () { return 2; } };',
-    'api.save = () => 3;',
-    'const n = 4;'
-  ].join('\n');
-  const jsc = jsScopes(jsSrc);
+  /* JS SCOPES: the walker names functions ctags leaves without an end line. It runs here on a
+     hand-built syntax tree, so the checks hold where the parser is absent (CI installs no packages). */
+  const L = (a, b) => ({ start: { line: a }, end: { line: b } });
+  const id = (name) => ({ type: 'Identifier', name });
+  const fnx = (type, a, b) => ({ type, loc: L(a, b), body: { type: 'BlockStatement', body: [] } });
+  const decl = (name, a, b, init) => ({ type: 'VariableDeclaration', declarations: [{ type: 'VariableDeclarator', loc: L(a, b), id: id(name), init }] });
+  const tree = {
+    type: 'Program',
+    body: [
+      { type: 'FunctionDeclaration', id: id('top'), loc: L(1, 6), body: { type: 'BlockStatement', body: [decl('inner', 2, 4, fnx('ArrowFunctionExpression', 2, 4))] } },
+      {
+        type: 'ClassDeclaration',
+        id: id('Box'),
+        loc: L(7, 11),
+        body: { type: 'ClassBody', body: [{ type: 'MethodDefinition', key: id('open'), loc: L(8, 10), value: fnx('FunctionExpression', 8, 10) }] }
+      },
+      decl('api', 12, 12, { type: 'ObjectExpression', properties: [{ type: 'Property', key: id('load'), loc: L(12, 12), value: fnx('FunctionExpression', 12, 12) }] }),
+      {
+        type: 'ExpressionStatement',
+        expression: { type: 'AssignmentExpression', loc: L(13, 13), left: { type: 'MemberExpression', object: id('api'), property: id('save') }, right: fnx('ArrowFunctionExpression', 13, 13) }
+      },
+      decl('n', 14, 14, { type: 'Literal', value: 4 }),
+      decl('Mod', 15, 17, { type: 'CallExpression', callee: fnx('FunctionExpression', 15, 17), arguments: [] })
+    ]
+  };
+  const seen = [];
+  const stub = (raw, o) => {
+    seen.push(o.sourceType);
+    if (o.sourceType === 'module') throw new Error('not a module');
+    return tree;
+  };
+  const jsc = jsScopes('ignored', stub);
   const sAt = (nm) => jsc?.find((t) => t.name === nm);
-  const iife = jsScopes('var Mod = (function () {\n  return { a: 1 };\n})();');
-  ok(iife?.[0]?.name === 'Mod' && iife[0].end === 3, 'a module in an immediately called function takes its variable name');
+  ok(seen.join() === 'module,script', 'a file that is not a module is parsed again as a script');
   ok(sAt('top')?.line === 1 && sAt('top')?.end === 6, 'a function declaration spans its lines');
   ok(sAt('inner')?.line === 2 && sAt('inner')?.end === 4, 'an arrow takes the name of its variable');
   ok(sAt('Box')?.end === 11 && sAt('open')?.line === 8 && sAt('open')?.end === 10, 'a class and its method are scopes');
   ok(sAt('load')?.line === 12 && sAt('save')?.line === 13, 'a property and an assignment name their function');
+  ok(sAt('Mod')?.line === 15 && sAt('Mod')?.end === 17, 'a module in an immediately called function takes its variable name');
   ok(!sAt('n') && !sAt('api'), 'a variable that holds no function is not a scope');
   ok(enclosingSymbols(jsc, 3, 3).join() === 'inner,top', 'a chunk in the arrow names it before the function');
-  ok(jsScopes('return 1;')?.length === 0, 'a script with a top-level return parses');
-  ok(jsScopes('function (', jsParser()) === null, 'a file that does not parse gives null, not an empty list');
-  ok(jsScopes(jsSrc, null) === null, 'absent parser gives null');
+  ok(
+    jsScopes('x', () => {
+      throw new Error('bad');
+    }) === null,
+    'a file that does not parse gives null, not an empty list'
+  );
+  ok(jsScopes('x', null) === null, 'absent parser gives null');
   ok(
     jsParser(() => {
       throw new Error('absent');
@@ -564,8 +582,24 @@ export function selftest() {
     'jsParser returns null when the package is absent'
   );
   ok(JS_EXT.test('a.mjs') && JS_EXT.test('a.cjs') && JS_EXT.test('a.js') && !JS_EXT.test('a.json'), 'JS_EXT takes js, mjs and cjs only');
+  /* The real parser, where it is installed: the same shapes from source text. */
+  const realParse = jsParser();
+  let notRun = 0;
+  if (realParse) {
+    const real = jsScopes('export function top() {\n  const inner = () => 1;\n}\nvar Mod = (function () {\n  return 1;\n})();', realParse);
+    ok(
+      real
+        ?.map((t) => `${t.name}:${t.line}-${t.end}`)
+        .sort()
+        .join() === 'Mod:4-6,inner:2-2,top:1-3',
+      'the real parser gives the same scopes from source text'
+    );
+    ok(jsScopes('return 1;', realParse)?.length === 0, 'the real parser reads a script with a top-level return');
+    ok(jsScopes('function (', realParse) === null, 'the real parser gives null on a file that does not parse');
+  } else notRun = 3;
 
-  const line = fail.length ? `xerj-load selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
+  const absent = notRun ? ` (${notRun} JS parser checks not run: the parser is absent)` : '';
+  const line = fail.length ? `xerj-load selftest · ${fail.length} of ${ran} FAILED${absent}` : `all ${ran} selftests passed${absent}`;
   return { ok: fail.length === 0, ran, fail, line };
 }
 
