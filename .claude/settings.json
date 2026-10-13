@@ -118,6 +118,17 @@
         ]
       },
       {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-syntax.sh\"",
+            "timeout": 20,
+            "statusMessage": "checking that the file just written still parses"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
