@@ -1014,3 +1014,99 @@ def test_A_FRESH_PATH_STILL_GETS_ITS_HEADER(tmp_path):
         w = cls(p)
         w.close()
         assert _os.path.getsize(p) > 0, f"{cls.__name__} wrote no header to a fresh file"
+
+
+# ── The note that keeps a per-device glob from manufacturing an absence ─────────────────────────────
+#
+# Residue 2026-09-22-link-sidecar-is-box-wide-not-per-device: the link sidecar is `Tepna_<stamp>_LINK.csv`
+# — one per session for the whole box, because the ADAPTER is box-wide — while every device stream is
+# `<Vendor>_<Model>_<id>_<stamp>_<TAG>`. The obvious per-device glob therefore returns nothing, and on
+# 2026-09-22 that nothing was reported to the owner as "the battery level is persisted nowhere" while 14
+# files in the same folder carried `battery_pct` with H10 rows in every one.
+
+
+def test_the_glob_that_MANUFACTURED_the_absence_still_returns_nothing_and_the_note_says_where_to_look(tmp_path):
+    """The defect reproduced, then answered. Executed, not asserted about: the glob really runs."""
+    import glob
+    import os
+
+    import writers
+
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    w = LinkLogWriter(str(night / "Tepna_20260920223636_LINK.csv"), fsync=False)
+    w.write(dt.datetime(2026, 9, 20, 22, 36, 36), "Polar H10", True, -61, 100, address="24:AC:AC:02:84:96")
+    w.close()
+
+    # the reasonable reading, and its answer: a per-device glob over a box-wide file finds nothing
+    assert glob.glob(str(night / "Polar_H10*_LINK.csv")) == []
+    assert len(glob.glob(str(night / "Tepna_*_LINK.csv"))) == 1, "the rows were there the whole time"
+
+    note = night / writers.SIDECAR_NOTE_NAME
+    assert note.exists(), "a night with a box-wide sidecar must name it"
+    text = note.read_text(encoding="utf-8")
+    assert "Polar_H10*_LINK.csv" in text and "no match" in text, text
+    assert "Tepna_*_LINK.csv" in text
+    assert "`device` / `address` COLUMNS" in text, "it must say what to select on INSTEAD"
+    # the H10's row is reachable exactly the way the note says it is
+    rows = (night / "Tepna_20260920223636_LINK.csv").read_text(encoding="utf-8").splitlines()
+    assert any(r.split(";")[1] == "Polar H10" and r.split(";")[4] == "100" for r in rows[1:]), rows
+    assert os.path.basename(writers.SIDECAR_NOTE_NAME) == writers.SIDECAR_NOTE_NAME, "a name, not a path"
+
+
+def test_the_note_is_GENERATED_from_the_tag_list_not_typed_beside_it():
+    """A hand-written list would drift from the set `nightqc` filters on. Proved by moving the input."""
+    import writers
+
+    for tag in writers.BOX_WIDE_SIDECAR_TAGS:
+        assert f"#   {tag}\n" in writers.sidecar_note_text(), tag
+    moved = writers.sidecar_note_text(("LINK", "NEWTAG"))
+    assert "#   NEWTAG\n" in moved, "the text follows the list it is handed"
+    assert "#   OXYFRAME\n" not in moved, "…and only that list"
+
+
+def test_nightqc_filters_on_the_SAME_list_the_note_prints():
+    """One list, read from one place. A second copy is the drift this consolidation removes."""
+    import nightqc
+    import writers
+
+    from tests._srcscan import module_source
+
+    assert nightqc._SIDECAR_TAGS == set(writers.BOX_WIDE_SIDECAR_TAGS)
+    assert "_SIDECAR_TAGS = set(writers.BOX_WIDE_SIDECAR_TAGS)" in module_source("nightqc.py"), (
+        "nightqc must READ the list, not re-type it"
+    )
+
+
+def test_the_note_is_not_a_capture_file_and_cannot_be_read_as_device_data(tmp_path):
+    """It lives among the streams, so the parser that classifies them must reject it outright —
+    otherwise the box's own note would count as a device's newest data and move `_current_night`."""
+    import os
+
+    import nightqc
+    import writers
+
+    assert nightqc.parse_capture_name(writers.SIDECAR_NOTE_NAME) is None
+    night = tmp_path / "2026-09-20"
+    night.mkdir()
+    (night / "Polar_H10_02849638_20260920223636_ECG.txt").write_text("x\n", encoding="utf-8")
+    before = nightqc.newest_data_mtime(str(night))
+    assert isinstance(before, float) and before > 0, (
+        f"anti-vacuity: the comparison below needs a real baseline, got {before!r}"
+    )
+    writers.write_sidecar_note(str(night))
+    os_stat = (night / writers.SIDECAR_NOTE_NAME).stat()
+    os.utime(night / writers.SIDECAR_NOTE_NAME, (os_stat.st_atime + 10_000, os_stat.st_mtime + 10_000))
+    assert nightqc.newest_data_mtime(str(night)) == before, "the box talking about itself is not data"
+
+
+def test_a_note_that_cannot_be_written_says_so_and_costs_the_night_nothing(tmp_path, caplog):
+    """The absence of the note is the very condition it exists to prevent, so it is logged, not
+    swallowed — and it returns None rather than raising into a capture path."""
+    import logging
+
+    import writers
+
+    with caplog.at_level(logging.WARNING):
+        assert writers.write_sidecar_note(str(tmp_path / "no-such-folder")) is None
+    assert any("sidecar note unavailable" in r.getMessage() for r in caplog.records), caplog.records
