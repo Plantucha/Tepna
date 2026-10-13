@@ -47,7 +47,7 @@
   var SEV_COLOR = { none: '#39D98A', mild: '#3DE0D0', mod: '#FFB84D', severe: '#FF6B7A' };
   var POINTS = []; // {src, id, odi4, ahi, sev, minSpo2, durMin, ahiSrc}
   var NSRR_FILES = {}; // base name → {edf?, xml?}
-  var AHI_CSV = {}; // id → scoredAHI
+  var AHI_CSV = { byKey: {} }; // NSRR.parseAhiCsv table: key → scoredAHI, plus the chosen variable
 
   function $(id) {
     return document.getElementById(id);
@@ -393,10 +393,11 @@
         var opts = { id: keys[k], edfBuffer: buf };
         if (rec.xml) opts.xmlText = await readTxt(rec.xml);
         else {
-          var csvAhi = lookupAhi(keys[k]);
+          var csvAhi = window.NSRR.lookupAhi(AHI_CSV, keys[k]);
           if (csvAhi != null) {
             opts.scoredAHI = csvAhi.ahi;
-            opts.ahiVar = csvAhi.via;
+            opts.ahiVar = csvAhi.ahiVar || csvAhi.via;
+            opts.ahiVia = csvAhi.via;
           }
         }
         var res = window.NSRR.analyzeRecord(opts);
@@ -417,124 +418,55 @@
     render();
   }
 
-  // Tolerant id lookup: an EDF stem 'shhs1-900004' should match nsrrid '900004'.
-  // Tries the full stem, then the trailing numeric id, then a 'cohortN-' strip.
-  function lookupAhi(stem) {
-    if (AHI_CSV[stem] != null) return { ahi: AHI_CSV[stem], via: 'csv' };
-    var num = (stem.match(/(\d{3,})\s*$/) || [])[1];
-    if (num && AHI_CSV[num] != null) return { ahi: AHI_CSV[num], via: 'csv(id)' };
-    var strip = stem.replace(/^[a-z]+\d*[-_]/i, '');
-    if (AHI_CSV[strip] != null) return { ahi: AHI_CSV[strip], via: 'csv(id)' };
-    return null;
-  }
-
-  /* NSRR harmonized AHI variables, best-first.
-     ⚠ THIS ORDER IS A SCIENTIFIC CHOICE, NOT A CONVENIENCE — do not sort it back.
-
-     This tool exists to measure how much a pulse-oximeter ODI UNDER-counts AHI, and the
-     mechanism it is measuring is that ODI is blind to hypopneas which terminate in an
-     arousal WITHOUT a qualifying desaturation. So the reference definition decides the
-     answer before any data is read: pick a reference that is itself defined by
-     desaturation (`ahi_a0h4` = apneas + hypopneas with ≥4 % desat) and reference and
-     estimator share the blind spot, the missed events are missing from BOTH sides, and
-     the tool reports a small bias — about a comparison it never actually made.
-
-     `ahi_a0h4` was first in this list until 2026-08-16, i.e. the default was the one
-     variable guaranteed to mask the effect. Arousal-inclusive definitions (trailing `a`)
-     now lead, lowest desaturation threshold first, since that is the most inclusive
-     reference and therefore the one that can SEE the events ODI misses. */
-  var NSRR_AHI_VARS = ['ahi_a0h3a', 'ahi_a0h4a', 'ahi_a0h3', 'ahi_a0h4', 'ahi_c0h3', 'ahi_c0h4', 'ahi_ap0nop', 'poohi3', 'poohi4', 'rdi3p', 'rdi4p', 'oahi3', 'oahi4', 'ahi', 'rdi'];
-
-  /* Reference definitions that count arousal-terminated hypopneas. Explicit rather than a
-     suffix regex: `rdi3p`/`poohi3` also end in a digit-plus-letter shape, and guessing wrong
-     here mislabels the confound in the direction that hides it. Unknown ⇒ null ⇒ warn. */
-  var AHI_VARS_WITH_AROUSAL = ['ahi_a0h3a', 'ahi_a0h4a', 'ahi_c0h3a', 'ahi_c0h4a', 'ahi_o0h3a', 'ahi_o0h4a'];
-  function ahiCountsArousals(v) {
-    if (!v) return null;
-    if (AHI_VARS_WITH_AROUSAL.indexOf(v) >= 0) return true;
-    if (NSRR_AHI_VARS.indexOf(v) >= 0) return false;
-    return null; // unrecognised variable — caller must not assume either way
-  }
-  var NSRR_ID_VARS = ['nsrrid', 'pptid', 'subject', 'id', 'studyid', 'mesaid', 'idtype'];
-
+  /* The NSRR dataset-CSV reader lives in `nsrr-adapter.js` (`NSRR.parseAhiCsv` / `NSRR.lookupAhi`)
+     with the rest of the NSRR knowledge, including the preference order, the arousal classification
+     and the visit keying. It sat here, where no test lane could execute it: this module's tail wires
+     twelve DOM handlers, so only its TEXT was ever loaded. This page chooses nothing — it names what
+     the reader chose. */
   function onAhiCsv(text) {
-    AHI_CSV = {};
-    var lines = text.split(/\r?\n/).filter(function (l) {
-      return l.trim();
-    });
-    if (!lines.length) {
-      setStatus('empty CSV', 'idle');
+    AHI_CSV = window.NSRR.parseAhiCsv(text);
+    if (AHI_CSV.error) {
+      setStatus(AHI_CSV.error, 'idle');
       return;
     }
-    var delim = lines[0].indexOf('\t') >= 0 ? '\t' : ',';
-    var head = lines[0].split(delim).map(function (h) {
-      return h.trim().replace(/^"|"$/g, '').toLowerCase();
-    });
-    var headerLooksReal = head.some(function (h) {
-      return isNaN(parseFloat(h));
-    });
-
-    if (headerLooksReal) {
-      // wide NSRR harmonized CSV: find the id column + the best AHI variable present
-      var idCol = -1;
-      for (var a = 0; a < NSRR_ID_VARS.length && idCol < 0; a++) idCol = head.indexOf(NSRR_ID_VARS[a]);
-      if (idCol < 0) idCol = 0;
-      var ahiCol = -1,
-        ahiVar = null;
-      for (var v = 0; v < NSRR_AHI_VARS.length && ahiCol < 0; v++) {
-        var ix = head.indexOf(NSRR_AHI_VARS[v]);
-        if (ix >= 0) {
-          ahiCol = ix;
-          ahiVar = NSRR_AHI_VARS[v];
-        }
-      }
-      if (ahiCol < 0) {
-        setStatus('no known AHI column (looked for ahi_a0h4, poohi4, rdi4p…)', 'idle');
-        return;
-      }
-      var n = 0;
-      for (var r = 1; r < lines.length; r++) {
-        var c = lines[r].split(delim);
-        if (c.length <= Math.max(idCol, ahiCol)) continue;
-        var id = c[idCol].trim().replace(/^"|"$/g, '');
-        var ahi = parseFloat(c[ahiCol]);
-        if (id && isFinite(ahi)) {
-          AHI_CSV[id] = ahi;
-          n++;
-        }
-      }
-      AHI_CSV.__var = ahiVar;
-      /* Name the confound at the moment the reference is chosen. The variable name was always
-         printed, but as a neutral fact — and a reader who does not already know that `…h4`
-         means "4 % desaturation, arousals not counted" cannot tell that this one choice
-         bounds the result. A desat-only reference does not invalidate the run; it makes it a
-         DIFFERENT measurement (agreement between two desaturation-based indices), and that is
-         what must not be reported as ODI-vs-AHI bias. */
-      var arousals = ahiCountsArousals(ahiVar);
-      var note =
-        arousals === true
-          ? ' · arousal-inclusive reference ✓'
-          : arousals === false
-            ? ' · ⚠ DESATURATION-ONLY reference — shares ODI’s blind spot, so bias will read LOW'
-            : ' · ⚠ unrecognised AHI variable — confirm whether it counts arousal-terminated hypopneas';
-      AHI_CSV.__arousals = arousals;
-      setStatus(n + ' rows · AHI var “' + ahiVar + '” · id col “' + head[idCol] + '”' + note + ' (add EDFs to pair)', arousals === true ? 'done' : 'warn');
+    if (!AHI_CSV.wide) {
+      setStatus(AHI_CSV.rows + ' AHI rows loaded (add EDFs to pair)', 'idle');
       return;
     }
-
-    // fallback: simple id,ahi (header optional)
-    var cnt = 0;
-    lines.forEach(function (ln) {
-      var c = ln.split(/[,\t]/);
-      if (c.length < 2) return;
-      var id = c[0].trim(),
-        ahi = parseFloat(c[1]);
-      if (id && isFinite(ahi)) {
-        AHI_CSV[id.replace(/\.(edf|xml)$/i, '')] = ahi;
-        cnt++;
-      }
-    });
-    setStatus(cnt + ' AHI rows loaded (add EDFs to pair)', 'idle');
+    /* Name the confound at the moment the reference is chosen. The variable name was always printed,
+       but as a neutral fact — and a reader who does not already know that `…h4` means "4 %
+       desaturation, arousals not counted" cannot tell that this one choice bounds the result. A
+       desat-only reference does not invalidate the run; it makes it a DIFFERENT measurement
+       (agreement between two desaturation-based indices), and that is what must not be reported as
+       ODI-vs-AHI bias. */
+    var arousals = AHI_CSV.arousals;
+    var note =
+      arousals === true
+        ? ' · arousal-inclusive reference ✓'
+        : arousals === false
+          ? ' · ⚠ DESATURATION-ONLY reference — shares ODI’s blind spot, so bias will read LOW'
+          : ' · ⚠ unrecognised AHI variable — confirm whether it counts arousal-terminated hypopneas';
+    /* A pooled file holds several visits per subject, and only the EDF name says which night a
+       record is. Say how many rows each visit contributed, and how many subjects can be reached by
+       their visit alone — those are the ones a visit-less stem gets no answer for. */
+    var visitNote = '';
+    if (AHI_CSV.visitKeyed) {
+      var vs = Object.keys(AHI_CSV.visits).sort();
+      visitNote =
+        ' · visit' +
+        (vs.length > 1 ? 's' : '') +
+        ' ' +
+        vs
+          .map(function (v) {
+            return v + ':' + AHI_CSV.visits[v];
+          })
+          .join(', ') +
+        (AHI_CSV.ambiguous ? ' · ⚠ ' + AHI_CSV.ambiguous + ' subject(s) appear in more than one visit — the EDF name must carry the visit' : '');
+    }
+    setStatus(
+      AHI_CSV.rows + ' rows · ' + AHI_CSV.subjects + ' subject(s) · AHI var “' + AHI_CSV.ahiVar + '” · id col “' + AHI_CSV.idVar + '”' + visitNote + note + ' (add EDFs to pair)',
+      arousals === true ? 'done' : 'warn'
+    );
   }
 
   // ── rendering ──

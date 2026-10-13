@@ -90,6 +90,23 @@ tool in the tree can read a harmonized column today.** The sink already exists, 
 `nsrr-adapter.js:448-450` takes `opts.scoredAHI` with `opts.ahiVar`, and stamps `ahiSource` from it. R1's
 *"each calibration named by its definition"* therefore needs a reader plus a loop, not a redesign.
 
+### 3b · The reader exists, and the four definitions were always reachable (2026-10-13)
+
+`NSRR.parseAhiCsv` and `NSRR.lookupAhi` now live in `nsrr-adapter.js`. They read an NSRR dataset CSV and stamp each row with its exact column name. Acceptance item 3 is met. The reader also corrects two silent defects, both measured on the real files.
+
+§3's claim that no tool can read a harmonized column was right about the SPELLING. It was wrong about the four definitions. `ahi_a0h3a`, `ahi_a0h4a`, `ahi_a0h3` and `ahi_a0h4` were already in the preference list. Each per-visit CSV carries all four, at columns 1229-1232. So the refit could have run from the two per-visit files with no reader change.
+
+Each harmonized column agrees with exactly one native over 5804 SHHS1 subjects. Agreement is within 0.005 events/h on 100.00 % of them. The pairs are `nsrr_ahi_hp3u` with `ahi_a0h3`, `nsrr_ahi_hp3r_aasm15` with `ahi_a0h3a`, `nsrr_ahi_hp4u_aasm15` with `ahi_a0h4`, and `nsrr_ahi_hp4r` with `ahi_a0h4a`. Every other pairing agrees on at most 3 % of subjects and differs by up to 43.6 events/h.
+
+The data dictionary names the native source for two of the four, and the join supplies the other two. So the harmonized spelling is a portability convenience, not the thing that unblocks the refit.
+
+What DID block the refit is that either file would have been read wrongly:
+
+- **The visit**: `shhs-harmonized-dataset-0.21.0.csv` pools both visits into one file, keyed by `nsrrid` plus `visitnumber`. 4311 of its 5804 subjects carry two rows, with the visit-2 row last. A visit-blind map hands the visit-2 AHI to a visit-1 night for 2651 subjects. Mean |Δ| is 9.10 events/h and max 92.58, which corrupts the hold-out. The reader keys by visit and refuses rather than borrowing the other visit's night.
+- **Quoted fields**: `shhs2-dataset-0.21.0.csv` carries a free-text `comm` column at position 856, ahead of the AHI columns. That column holds a comma on 701 of its 4311 rows. A naive split then reads a neighbouring variable on 685 of the 2651 rows that carry a value. Median |Δ| is 4.50 events/h and max 102.23, and every one of those values parses as a number. The hold-out is exactly that file.
+
+Against the three real files the reader selects `nsrr_ahi_hp3r_aasm15` from the harmonized CSV. That file reads as 8455 rows over 5804 subjects, visits 1:5804 and 2:2651, with 2651 ambiguous. Each per-visit CSV resolves to `ahi_a0h3a`. So §6's arousal-inclusive-first rule holds for all three.
+
 ## 4 · Cost, measured
 
 `nsrr-oxydex-odi.mjs --dir` scores **4.15 s/record** serially (`tools/nsrr-score-pool.mjs:11`; the
@@ -158,6 +175,7 @@ harmonized table repeats 2293 subjects and a bootstrap over rows would understat
    ✅ **met 2026-10-12.**
 2. §6's criterion ratified or replaced **before** the first scoring run.
 3. A harmonized-column reader exists and every scored row carries `ahiVar` = the exact column name.
+   ✅ **met 2026-10-13** — `NSRR.parseAhiCsv` / `NSRR.lookupAhi`, §3b.
 4. One scoring run per visit in scope; four fits from it; four `tepna.verdict/1` objects, one per
    definition, each naming its column in `criterion`.
 5. Any coefficient change to `computeAHIestimates` re-bundles OxyDex and re-verifies its fixtures —
