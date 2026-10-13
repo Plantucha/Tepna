@@ -3940,3 +3940,233 @@ def test_function_of_mutant_reads_an_ABSENT_name_and_an_empty_one_identically():
     assert read(None) == ""  # type: ignore[arg-type]
     absent: dict = {}
     assert read(absent.get("mutant", "")) == read(absent.get("mutant", None))  # type: ignore[arg-type]
+
+
+# ── WHICH OCCURRENCE SURVIVED (residue 2026-09-28-mutate-diff-does-not-say-which-occurrence-…) ─────
+# `- continue` / `+ break` over a function with three `continue`s is three identical-looking rewrites.
+# The survivor record now carries `file_line`, so a drain aims at the mutant reported and not at every
+# candidate. Measured on #3188: the covered sibling was killed and the UNCOVERED one survived.
+_SKIPS = """import os
+
+
+def scan_night(rows, root):
+    out = []
+    for r in rows:
+        if not r:
+            continue
+        path = os.path.join(root, r)
+        if not os.path.isfile(path):
+            continue
+        try:
+            out.append(int(r))
+        except ValueError:
+            continue
+    return out
+"""
+_SKIP_LINES = [i for i, ln in enumerate(_SKIPS.splitlines(), 1) if ln.strip() == "continue"]
+
+
+def _skip_show(nth, src=_SKIPS):
+    """What `mutmut show` prints for `continue` -> `break` on the nth `continue` of `_SKIPS`'s function."""
+    import difflib
+
+    lines = src.splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("def "))
+    orig = lines[start:]
+    hit = [i for i, ln in enumerate(orig) if ln.strip() == "continue"][nth]
+    mut = list(orig)
+    mut[hit] = mut[hit].replace("continue", "break")
+    return "\n".join(difflib.unified_diff(orig, mut, "m.py", "m.py", lineterm=""))
+
+
+@pytest.mark.parametrize("nth", [0, 1, 2])
+def test_mutant_file_line_names_WHICH_continue_survived(nth):
+    assert M.mutant_file_line(_skip_show(nth), _SKIPS, "m.x_scan_night__mutmut_2") == _SKIP_LINES[nth]
+
+
+def test_the_three_reports_are_indistinguishable_without_the_line():
+    keys = {M.diff_key(_skip_show(i)) for i in range(3)}
+    assert len(keys) == 1, "the premise: one key, three occurrences — the ledger key cannot tell them apart"
+    assert len({M.mutant_file_line(_skip_show(i), _SKIPS, "x_scan_night__mutmut_2") for i in range(3)}) == 3
+
+
+def test_mutant_file_line_accounts_for_the_comments_and_decorator_mutmut_keeps_above_a_function():
+    src = "import os\n\n\n# banner one\n\n# banner two\n@staticmethod\ndef g(rows):\n    for r in rows:\n        continue\n"
+    import difflib
+
+    orig = src.splitlines()[3:]
+    mut = [ln.replace("continue", "break") for ln in orig]
+    show = "\n".join(difflib.unified_diff(orig, mut, "m.py", "m.py", lineterm=""))
+    assert M.mutant_file_line(show, src, "x_g__mutmut_1") == 10
+
+
+def test_mutant_file_line_finds_a_METHOD_by_its_class_and_refuses_a_name_defined_twice():
+    src = "class A:\n    def f(self):\n        return 1\n\n\nclass B:\n    def f(self):\n        return 1\n"
+    show = "--- m\n+++ m\n@@ -1,2 +1,2 @@\n def f(self):\n-    return 1\n+    return 2"
+    assert M.mutant_file_line(show, src, "m.xǁBǁf__mutmut_1") == 8
+    assert M.mutant_file_line(show, src, "m.xǁAǁf__mutmut_1") == 3
+    assert M.mutant_file_line(show, src, "m.xǁCǁf__mutmut_1") is None  # no such class
+    twice = "def f():\n    return 1\n\n\ndef f():\n    return 1\n"
+    show1 = "--- m\n+++ m\n@@ -1,2 +1,2 @@\n def f():\n-    return 1\n+    return 2"
+    assert M.mutant_file_line(show1, twice, "m.x_f__mutmut_1") is None  # ambiguous: refuse, never pick one
+    dup_cls = "class A:\n    pass\n\n\nclass A:\n    def f(self):\n        return 1\n"
+    assert M.mutant_file_line(show, dup_cls, "m.xǁAǁf__mutmut_1") is None
+
+
+def test_mutant_file_line_is_None_never_a_guess():
+    ok = _skip_show(2)
+    assert M.mutant_file_line(ok, _SKIPS, "x_scan_night__mutmut_2") == _SKIP_LINES[2]
+    assert M.mutant_file_line("", _SKIPS, "x_scan_night__mutmut_2") is None  # no diff
+    assert M.mutant_file_line("--- m\n+++ m\n@@ -1,1 +1,1 @@\n+only added", _SKIPS, "x_scan_night__mutmut_2") is None
+    assert M.mutant_file_line("--- m\n+++ m\n@@ x\n-def scan_night", _SKIPS, "x_scan_night__mutmut_2") is None
+    assert M.mutant_file_line(ok, _SKIPS, "not a mutant name") is None
+    assert M.mutant_file_line(ok, "def broken(:\n", "x_scan_night__mutmut_2") is None  # unparseable
+    assert M.mutant_file_line(ok, "x = 1\x00\n", "x_scan_night__mutmut_2") is None  # NUL byte: ValueError
+    assert M.mutant_file_line(ok, _SKIPS, "x_other__mutmut_2") is None  # function absent
+    # the module drifted since the mutant was generated: the text at that position disagrees
+    assert M.mutant_file_line(ok, _SKIPS.replace("continue", "pass"), "x_scan_night__mutmut_2") is None
+    # a hunk that would start above line 1
+    assert M.mutant_file_line("--- m\n+++ m\n@@ -0,1 +0,1 @@\n-x", _SKIPS, "x_scan_night__mutmut_2") is None
+
+
+def test_mutant_file_line_stops_at_the_first_hunk_that_removes_and_skips_no_newline_markers():
+    show = (
+        "--- m\n+++ m\n@@ -1,1 +1,2 @@\n+added only\n@@ -2,2 +2,2 @@\n     out = []\n"
+        "-    for r in rows:\n+    for q in rows:\n\\ No newline at end of file\n@@ -9,1 +9,1 @@\n-zzz\n+yyy"
+    )
+    assert M.mutant_file_line(show, _SKIPS, "x_scan_night__mutmut_2") == 6
+
+
+def test_survivor_location_prints_a_line_or_nothing():
+    assert M.survivor_location({"file_line": 78}) == " (line 78)"
+    for absent in ({}, {"file_line": None}, {"file_line": 0}, {"file_line": True}, {"file_line": "78"}):
+        assert M.survivor_location(absent) == "", absent
+
+
+def test_mutate_diff_records_and_prints_the_line():
+    """Wiring, on the AST: the survivor record carries `file_line` from `mutant_file_line`, and the
+    printer prints it through `survivor_location` — a pure function nobody calls reports nothing."""
+    import ast as _ast
+    import pathlib as _pl
+
+    src = (_pl.Path(__file__).resolve().parent.parent / "tools" / "mutate_diff.py").read_text()
+    tree = _ast.parse(src)
+    keys = {
+        k.value for d in _ast.walk(tree) if isinstance(d, _ast.Dict) for k in d.keys if isinstance(k, _ast.Constant)
+    }
+    assert "file_line" in keys
+    called = {n.func.id for n in _ast.walk(tree) if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)}
+    assert {"mutant_file_line", "survivor_location"} <= called
+
+
+def test_mutant_file_line_agrees_with_the_real_mutmut_show(tmp_path):
+    """The independent check: mutmut's OWN diff generator, not a hand-built one, over a function with
+    a comment above it, a decorator and three `continue`s, and a method of the same shape. Run in a
+    child process in its own directory because mutmut reads its config from the CWD."""
+    pytest.importorskip("mutmut")
+    import json
+    import subprocess
+
+    src = (
+        "import os\n\n\nclass A:\n    # about f\n\n    def f(self, rows):\n        for r in rows:\n"
+        "            if not r:\n                continue\n            try:\n                int(r)\n"
+        "            except ValueError:\n                continue\n        return 1\n\n\n# banner\n"
+        "@staticmethod\ndef g(rows):\n    for r in rows:\n        if not r:\n            continue\n"
+        "        try:\n            int(r)\n        except ValueError:\n            continue\n    return 1\n"
+    )
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "m.py").write_text(src)
+    (tmp_path / "setup.cfg").write_text("[mutmut]\nsource_paths=pkg/\n")
+    child = (
+        "import json\n"
+        "from mutmut.mutation.diff_apply import get_diff_for_mutant\n"
+        "from mutmut.mutation.file_mutation import mutate_file_contents\n"
+        "src = open('pkg/m.py').read()\n"
+        "res = mutate_file_contents('pkg/m.py', src)\n"
+        "print(json.dumps({n: get_diff_for_mutant('pkg.m.' + n, source=res.code, path='pkg/m.py')"
+        " for n in res.mutant_names}))\n"
+    )
+    r = subprocess.run([sys.executable, "-c", child], cwd=tmp_path, capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr[-400:]
+    shows = json.loads(r.stdout.strip().splitlines()[-1])
+    lines = src.splitlines()
+    assert len(shows) >= 8
+    broke = {}
+    for name, show in shows.items():
+        removed = [ln[1:].strip() for ln in show.splitlines() if ln.startswith("-") and not ln.startswith("---")]
+        got = M.mutant_file_line(show, src, "pkg.m." + name)
+        assert got is not None, name
+        assert lines[got - 1].strip() == removed[0], (name, got)
+        if "+            break" in show or "+                break" in show:
+            broke.setdefault(name.split("__")[0], set()).add(got)
+    # `continue` -> `break` is reported identically for each occurrence; the line tells them apart
+    assert {k: sorted(v) for k, v in broke.items()} == {"xǁAǁf": [10, 14], "x_g": [23, 27]}
+
+
+# ── residue 2026-10-13-twenty-five-mutants-survive-in-checkverdict-and-mutation-diff-after-pr-3567 ──────
+# Each test below fails on the named mutant of `_first_removal_hunk` / `mutant_file_line` / `survivor_location`.
+
+
+def _unified(orig_lines, mut_lines):
+    import difflib
+
+    return "\n".join(difflib.unified_diff(orig_lines, mut_lines, "m.py", "m.py", lineterm=""))
+
+
+def test_mutant_file_line_reads_a_diff_that_has_no_hunk_header_as_None_not_a_crash():
+    """Removed lines before any `@@` belong to no hunk: absent, never a TypeError on an unset start."""
+    src = "def f():\n    return 1\n"
+    assert M.mutant_file_line("--- m\n+++ m\n-    return 1\n+    return 2", src, "m.x_f__mutmut_1") is None
+    assert M._first_removal_hunk(" def f():\n-    return 1") is None
+
+
+def test_the_first_removed_line_of_a_multi_line_removal_is_the_first_not_the_last():
+    src = "def f():\n    a = 1\n    b = 2\n    return a\n"
+    show = "--- m\n+++ m\n@@ -1,4 +1,3 @@\n def f():\n-    a = 1\n-    b = 2\n+    a = 2\n     return a"
+    assert M.mutant_file_line(show, src, "m.x_f__mutmut_1") == 2
+    assert M._first_removal_hunk(show) == (1, ["def f():", "    a = 1", "    b = 2", "    return a"], 2)
+
+
+def test_mutant_file_line_names_a_function_that_starts_on_line_one():
+    """`at == 1` is a real position (function at the file's top, hunk at its first line), not 'above line 1'."""
+    src = "def f():\n    return 1\n"
+    show = "--- m\n+++ m\n@@ -1,2 +1,2 @@\n def f():\n-    return 1\n+    return 2"
+    assert M.mutant_file_line(show, src, "m.x_f__mutmut_1") == 2
+
+
+def test_a_function_on_line_one_does_not_climb_into_the_END_of_the_file():
+    """Nothing is above line 1: `lines[top - 2]` at top == 1 would wrap to the LAST line, and a trailing
+    comment there pulled `top` to 0 and refused a locatable survivor."""
+    src = "def f():\n    return 1\n# trailing note\n"
+    show = "--- m\n+++ m\n@@ -1,2 +1,2 @@\n def f():\n-    return 1\n+    return 2"
+    assert M.mutant_file_line(show, src, "m.x_f__mutmut_1") == 2
+
+
+def test_a_comment_on_line_one_above_a_function_on_line_two_is_kept_by_the_climb():
+    src = "# about f\ndef f(rows):\n    for r in rows:\n        continue\n"
+    orig = src.splitlines()
+    mut = [ln.replace("continue", "break") for ln in orig]
+    assert M.mutant_file_line(_unified(orig, mut), src, "m.x_f__mutmut_1") == 4
+
+
+def test_a_single_blank_line_above_the_comment_mutmut_keeps_is_dropped_one_line_at_a_time():
+    """One LEADING blank is skipped by exactly one line: skipping two lands past the comment mutmut keeps."""
+    src = "import os\n\n# about g\ndef g(rows):\n    for r in rows:\n        continue\n"
+    orig = src.splitlines()[2:]
+    mut = [ln.replace("continue", "break") for ln in orig]
+    assert M.mutant_file_line(_unified(orig, mut), src, "m.x_g__mutmut_1") == 6
+
+
+def test_survivor_location_prints_line_one_because_one_is_a_line():
+    assert M.survivor_location({"file_line": 1}) == " (line 1)"
+
+
+def test_a_source_the_parser_and_splitlines_number_differently_is_refused_not_renumbered():
+    """A form feed is a line break to `str.splitlines` and plain whitespace to the parser, so the two count
+    this file's lines differently. The function is on line 1 to the parser; `lines[0]` is the empty piece
+    before the form feed. The text at that position disagrees with the hunk, so the answer is None —
+    skipping that piece (`top <= first`) lines the text up and returns a number from the WRONG counting."""
+    src = "\x0cdef f():\n    return 1\n"
+    show = "--- m\n+++ m\n@@ -1,2 +1,2 @@\n def f():\n-    return 1\n+    return 2"
+    assert M.mutant_file_line(show, src, "m.x_f__mutmut_1") is None
+    assert M.mutant_file_line(show, src.replace("\x0c", ""), "m.x_f__mutmut_1") == 2  # the same text, no form feed

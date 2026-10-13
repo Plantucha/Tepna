@@ -1207,7 +1207,14 @@ function chargeChip(dev){
   // about a measurement that was taken, so it needs a device that is answering.
   // `dev &&` is load-bearing on THIS line and not on the one above it: a null `dev` makes `c`
   // undefined, `undefined == null` is true, and the gate would dereference the thing it is guarding.
-  if(c == null && dev && dev.connected) return `<span class="clk idle" title="The charger is UNKNOWN for this device, which is not the same as off it. The battery has held full long enough that a streaming device would have drained — but a fresh cell reads identically, so the daemon claims nothing either way (owner ruling 2026-10-12, after a flat reading on a worn strap cost 140 link drops). Look at the strap if it matters; nothing here can tell you.">⚡? charger unknown</span>`;
+  // `charging_why` TRAVELS WITH THE VERDICT (RESIDUE 2026-10-12-charging-why-never-reaches-the-api):
+  // a null `charging` is no claim, and `charging_why` is the only field that says WHICH silence it is.
+  // `flat-at-full` is the closed observation window above; any other why is drawn verbatim, and an
+  // absent why draws nothing extra — never a default (CLAUDE.md §∅).
+  if(c == null && dev && dev.connected){
+    const why = (dev.charging_why == null) ? '' : (' · ' + esc(String(dev.charging_why)));
+    return `<span class="clk idle" title="The charger is UNKNOWN for this device, which is not the same as off it. The battery has held full long enough that a streaming device would have drained — but a fresh cell reads identically, so the daemon claims nothing either way (owner ruling 2026-10-12, after a flat reading on a worn strap cost 140 link drops). Look at the strap if it matters; nothing here can tell you.">⚡? charger unknown${why}</span>`;
+  }
   return '';
 }
 

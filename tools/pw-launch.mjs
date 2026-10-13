@@ -135,7 +135,11 @@ export async function launch(launcher, opts = {}, io = {}) {
 
 async function selftest() {
   const fails = [];
-  const ok = (c, m) => (c ? null : fails.push(m));
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
+  const ok = (c, m) => {
+    ran++;
+    return c ? null : fails.push(m);
+  };
   const dir = mkdtempSync(join(tmpdir(), 'pw-launch-'));
   writeFileSync(dir + '/on', '1\n');
   writeFileSync(dir + '/off', '0\n');
@@ -231,7 +235,7 @@ async function selftest() {
   });
   ok(thrown2 && /Executable doesn't exist/.test(thrown2.message) && mcalls.length === 1, 'missing browser, no system Chrome: rethrown, one attempt');
   for (const f of fails) console.error('  ✗ ' + f);
-  console.log(fails.length ? fails.length + ' failed of 19' : 'all 19 selftests passed');
+  console.log(fails.length ? `${fails.length} failed of ${ran}` : `all ${ran} selftests passed`);
   return fails.length ? 1 : 0;
 }
 

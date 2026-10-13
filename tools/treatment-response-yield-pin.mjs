@@ -177,7 +177,9 @@ function gitCommit() {
 
 function selftest() {
   let fail = 0;
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
   const ok = (name, cond, detail) => {
+    ran++;
     if (!cond) fail++;
     console.log((cond ? '  ✓ ' : '  ✗ ') + name + (detail ? '  — ' + detail : ''));
   };
@@ -254,7 +256,7 @@ function selftest() {
     ok('selection FILLS the target at the stated configuration — the generator is not the constraint', real.filledTarget === true && real.txCandidates === CONFIG.nSubj, JSON.stringify(real));
   } else fail++;
 
-  console.log(fail ? fail + ' failed of 16' : 'all 16 selftests passed');
+  console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);
   return fail ? 1 : 0;
 }
 

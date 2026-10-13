@@ -88,7 +88,7 @@
           "--verdict-sample"
         ]
       },
-      "note": "check.sh's runner-level object (VERDICT-CONTRACT §3d, #2672's advisory token one level up): population = the four blocking children ruff · shellcheck · pytest · unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS · issues code FAIL · 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN · abnormal codes and pytest 5 UNKNOWN); unwired is OURS and unadopted, so it is UNKNOWN by provenance and the object reads UNKNOWN on a green run until find_unwired emits its own object (§3d's lever); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
+      "note": "check.sh's runner-level object (VERDICT-CONTRACT §3d, #2672's advisory token one level up): population = the four blocking children ruff · shellcheck · pytest · unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS · issues code FAIL · 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN · abnormal codes and pytest 5 UNKNOWN); unwired is OURS and ADOPTED (find_unwired emits its own object, read by checkverdict.ADOPTED_OURS; a missing, invalid, foreign or self-contradicting object is UNKNOWN by provenance, so the object reads PASS on a green run and never green on a silent child); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
     },
     "capture-host/clock_offset.py": {
       "bin": "word-only",
@@ -521,9 +521,16 @@
       "reason": "an audit stamp in a docstring (VERDICT: KEEP AS IS), not an emitted verdict"
     },
     "capture-host/tools/find_unwired.py": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "verdict words appear only in comments"
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/tools/find_unwired.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "ADOPTED 2026-10-13 (residue 2026-10-12-find-unwired-has-not-adopted-the-verdict-schema-so-check-sh-can-never-read-pass): --check --verdict-out writes ONE tepna.verdict/1 over the findings the scan examined (every row of the five gated scans, allowed or not, plus every allowlist entry checked for being spent); criterion = unexplained findings + spent suppressions == 0, the same sum --check exits 1 on, pre-stated; PASS none unexplained · FAIL any · NOT_RUN a scan that examined nothing or was refused by the interpreter floor (exit 2); the advisory provenance scan rides in result and never moves the status. capture-host/check.sh reads THIS object for its unwired child (checkverdict.ADOPTED_OURS), so a green run reads PASS. Sampled with --verdict-sample, which is synthetic and needs no tree and no particular interpreter."
     },
     "capture-host/tools/mutate.py": {
       "bin": "word-only",

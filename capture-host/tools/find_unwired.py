@@ -39,6 +39,8 @@ Usage:
     python3 tools/find_unwired.py            # report (always exits 0)
     python3 tools/find_unwired.py --json     # machine-readable
     python3 tools/find_unwired.py --check    # exit 1 on anything unexplained (run by check.sh)
+    python3 tools/find_unwired.py --check --verdict-out PATH   # …and write ONE tepna.verdict/1 beside it
+    python3 tools/find_unwired.py --verdict-sample             # the adoption gate's object (synthetic)
 """
 
 from __future__ import annotations
@@ -53,6 +55,9 @@ import tokenize
 from collections import Counter
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+sys.path.insert(0, HERE)
+import verdict as VD  # noqa: E402
 
 # ── THE INTERPRETER FLOOR, AND WHY A GATE HAS ONE (residue 2026-09-25-find-unwired-verdict-depends-
 # on-the-interpreter-version) ───────────────────────────────────────────────────────────────────
@@ -1164,15 +1169,149 @@ def scan(root: "str | None" = None) -> dict:
     }
 
 
+# ── THE OBJECT (VERDICT-CONTRACT §3b/§3d — residue 2026-10-12-find-unwired-has-not-adopted-the-verdict-
+# schema-so-check-sh-can-never-read-pass) ────────────────────────────────────────────────────────────
+# `check.sh` aggregates its blocking children into ONE object, and reads a tool of OURS by provenance:
+# a child that publishes no `tepna.verdict/1` counts UNKNOWN whatever its exit code. This was the last
+# such child, so the box gate's machine-readable status could never be PASS on a fully green run. The
+# tool now states its own verdict, over its own population: THE FINDINGS IT EXAMINED — every row of the
+# five gated scans (allowed or not) plus every allowlist entry it checked for being spent. The criterion
+# is pre-stated and does not move with the data: unexplained findings + spent suppressions == 0, exactly
+# the sum `--check` already exits 1 on. Scan 7 (divergent provenance) is ADVISORY and stays outside it,
+# carried in `result` for a reader and nowhere in the status.
+#
+# ⚠️ AN EMPTY POPULATION IS NOT_RUN, NEVER PASS. A scan that examined no finding (an empty tree, a
+# broken enumeration) has said nothing, and the contract forbids a PASS over `checked: 0` for exactly
+# that reason. The real tree always carries allowlisted rows, so this arm fires only for a blind scan.
+GATE = "find-unwired"
+TOOL = "capture-host/tools/find_unwired.py"
+CRITERION = {
+    "name": "unexplained_findings_plus_spent_suppressions",
+    "threshold": 0,
+    "unit": "findings",
+    "direction": "eq",
+}
+_GATED_SCANS = ("orphan_status_keys", "orphan_functions", "orphan_rendered", "orphan_js", "orphan_modules")
+
+
+def verdict_object(res: dict) -> dict:
+    """ONE `tepna.verdict/1` over a `scan()` result. PURE."""
+    rows = [r for scan_name in _GATED_SCANS for r in res[scan_name]]
+    live = [r for r in rows if not r["allowed"]]
+    stale = res["stale_allowlist"]
+    examined = len(rows) + len(stale)
+    pop = {"checked": examined, "eligible": examined, "excluded": 0}
+    result = {
+        "unexplained": len(live),
+        "allowed": len(rows) - len(live),
+        "spentSuppressions": len(stale),
+        "byScan": {scan_name: len(res[scan_name]) for scan_name in _GATED_SCANS},
+        "advisoryDivergentProvenance": sum(1 for r in res["divergent_provenance"] if not r["allowed"]),
+        "examinedStatusShapes": dict(res["examined_status_shapes"]),
+    }
+    evidence = [TOOL]
+    if examined == 0:
+        return VD.make(
+            gate=GATE,
+            status="NOT_RUN",
+            population=pop,
+            criterion=CRITERION,
+            result=None,
+            evidence=evidence,
+            tool=TOOL,
+            reason="the scan examined no finding and no allowlist entry — nothing was judged",
+        )
+    n = len(live) + len(stale)
+    if n:
+        return VD.make(
+            gate=GATE,
+            status="FAIL",
+            population=pop,
+            criterion=CRITERION,
+            result=result,
+            evidence=evidence,
+            tool=TOOL,
+            reason="%d unexplained finding(s) and %d spent allowlist entr%s among %d examined"
+            % (len(live), len(stale), "y" if len(stale) == 1 else "ies", examined),
+        )
+    return VD.make(
+        gate=GATE,
+        status="PASS",
+        population=pop,
+        criterion=CRITERION,
+        result=result,
+        evidence=evidence,
+        tool=TOOL,
+        reason=None,
+    )
+
+
+def refusal_object(why: str) -> dict:
+    """The scan could not run (the interpreter floor): examined nothing, so NOT_RUN with the reason. PURE."""
+    return VD.make(
+        gate=GATE,
+        status="NOT_RUN",
+        population={"checked": 0, "eligible": 0, "excluded": 0},
+        criterion=CRITERION,
+        result=None,
+        evidence=[TOOL],
+        tool=TOOL,
+        reason="refused before scanning — " + why,
+    )
+
+
+def verdict_sample() -> dict:
+    """The object the adoption gate reads (`--verdict-sample`): a SYNTHETIC scan result — two explained
+    findings, nothing unexplained, nothing spent — so it needs no tree and no particular interpreter."""
+    row = {"key": "synthetic", "allowed": "explained"}
+    return verdict_object(
+        {
+            "orphan_status_keys": [row],
+            "orphan_functions": [row],
+            "orphan_rendered": [],
+            "orphan_js": [],
+            "orphan_modules": [],
+            "stale_allowlist": [],
+            "divergent_provenance": [],
+            "examined_status_shapes": {"_set(name, key=…)": 1},
+        }
+    )
+
+
+def _verdict_out(argv: list[str]) -> "str | None":
+    """The PATH after `--verdict-out`, or None when the flag is absent. A flag with no path raises
+    ValueError — `main` turns it into a usage error rather than guessing a location."""
+    if "--verdict-out" not in argv:
+        return None
+    i = argv.index("--verdict-out")
+    if i + 1 >= len(argv) or argv[i + 1].startswith("--"):
+        raise ValueError("--verdict-out needs a path")
+    return argv[i + 1]
+
+
 def main(argv: list[str]) -> int:
+    if argv == ["--verdict-sample"]:  # the adoption gate's cmd — no tree, no interpreter floor
+        print(json.dumps(verdict_sample(), indent=1))
+        return 0
+    try:
+        out_path = _verdict_out(argv)
+    except ValueError as e:
+        print("usage: find_unwired.py [--json | --check] [--verdict-out PATH] | --verdict-sample — " + str(e))
+        return 2
     # REFUSE before scanning, in every mode: a `--json` dump from a blind tokenizer is as wrong as a
     # `--check` verdict from one, and a bare report read by a human is the mode most likely to be
     # believed. 2 is the code every gate in this tree uses for "could not examine", distinct from 1.
     floor_why = interpreter_floor_reason(sys.version_info)
     if floor_why:
         print("✖ REFUSING — " + floor_why)
+        if out_path:
+            VD.write(out_path, refusal_object(floor_why))
         return 2
     res = scan()
+    if out_path:
+        obj = verdict_object(res)
+        VD.write(out_path, obj)
+        print("  verdict: %s → %s" % (obj["status"], out_path))
     if "--json" in argv:
         print(json.dumps(res, indent=2))
         return 0

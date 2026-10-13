@@ -2727,11 +2727,23 @@ async function main() {
   };
   const env = {
     ppgdexDspSource: _readOpt('ppgdex-dsp.js'),
+    /* .gitignore text + a probe of one COMMITTED trio export, for the `gitignore · disclosure-claims` gate:
+       a disclosure rule's stated reason is read against the file it is about. Lazy — the export is ~1 MB. */
+    gitignoreSource: _readOpt('.gitignore'),
+    trioPerBeatProbe: () => {
+      try {
+        const j = JSON.parse(readFileSync(join(ROOT, 'uploads/trio/2026-06-10/PpgDex_2026-06-10.node-export.json'), 'utf8'));
+        return { n: j.timeseries.ppi.ms.length };
+      } catch {
+        return null;
+      }
+    },
     nodeFs: _nodeFs,
     nodeOs: _nodeOs,
     nodePath: _nodePath.default || _nodePath,
     wtDone: _wtDone,
     nodeSpawnSync: spawnSync,
+    repoRoot: ROOT, // the checkout this runner stands in — lets a group re-derive a tool's answer from the files on disk
     /* §timingSource vocabulary gate — the EMITTERS' source, scanned for `timingSource` string
        literals so a value added without a vocabulary entry reds. Source text rather than imports
        because the literals live inside functions the suite never calls on every path. */

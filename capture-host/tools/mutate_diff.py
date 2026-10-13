@@ -89,6 +89,8 @@ from mutation_diff import (  # noqa: E402
     kill_is_a_detection,
     refutation_corroborated,
     mutant_changed_lines,
+    mutant_file_line,
+    survivor_location,
     in_glob_scope,
     source_function_of_glob,
     undecided_by_function,
@@ -926,6 +928,9 @@ def main(argv=None) -> int:
                         "module": module,
                         "key": diff_key(show.stdout),
                         "changed": diff_key(show.stdout),
+                        # WHICH occurrence: the FILE line of the first changed line, null when it cannot
+                        # be derived AND checked against the module's text.
+                        "file_line": mutant_file_line(show.stdout, _read_source(HERE / module), name),
                         "diff": show.stdout[:400],
                         "work": str(work),
                     }
@@ -1680,7 +1685,7 @@ def main(argv=None) -> int:
         "  The unit is the FUNCTION, not the line: a survivor here may sit on a line you did not touch.\n"
     )
     for s in cls["unclassified"]:
-        print(f"  ── {s['mutant']}")
+        print(f"  ── {s['mutant']}{survivor_location(s)}")
         for ln in mutant_changed_lines(s):
             print(f"     {ln}")
     for e in cls["real_gap"]:

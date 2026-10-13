@@ -23,12 +23,13 @@ from (ruff 0.16.0 · shellcheck 0.11.0 · pytest 9.1.1), and any code a contract
   · anything else → UNKNOWN with the code in the reason.
 
 A TOOL OF OURS NEVER GETS THAT EXEMPTION — it adopts `tepna.verdict/1` or counts UNKNOWN BY PROVENANCE.
-`find_unwired.py` is ours and publishes no contract (it exits 1 for a finding AND for an uncaught
-exception, which no reader of the code can separate), so its exit 0 is NOT a PASS here: `unwired` is
-UNKNOWN whenever it ran, and check.sh's object cannot read PASS until find_unwired emits its own object
-(a separate manifest row). That is §3d's lever working as designed — the runner is never greener than
-its least-adopted child — and a green `all gates green` line beside an UNKNOWN object is the honest
-state of this gate today.
+`find_unwired.py` ADOPTED (residue 2026-10-12-find-unwired-has-not-adopted-the-verdict-schema-so-check-sh-
+can-never-read-pass): `--check --verdict-out` writes its own object over the findings it examined, and
+this module reads THAT, not the exit code — the exit code still cannot separate a finding from an uncaught
+exception, the object can (a crash writes none). So `unwired` is read from its object when it ran and
+published one; a missing, unreadable, invalid or foreign object, or a PASS object beside a non-zero exit,
+is UNKNOWN. A green run therefore reads PASS, and PASS can no longer mean "unwired was never asked".
+`UNADOPTED_OURS` stays as the floor for the NEXT tool of ours that joins this gate before it adopts.
 
 Aggregation is §3d's precedence, not a vote: FAIL > UNKNOWN > PASS, and `checked = 0` is NOT_RUN. The
 advisory legs (mypy · format) are NOT in the population — they cannot fail the run — and ride along in
@@ -71,14 +72,37 @@ CONTRACTS: dict[str, dict[int, tuple[str, str]]] = {
     },
 }
 # Children of OURS that have not adopted the contract: read by PROVENANCE, never by an exit code they do
-# not publish — any code but 127 is UNKNOWN. Emptied one name at a time as each adopts.
-UNADOPTED_OURS = frozenset({"unwired"})
+# not publish — any code but 127 is UNKNOWN. Emptied one name at a time as each adopts (`unwired` was the
+# last, and left on 2026-10-12); a new tool of ours joins here until it emits its own object.
+UNADOPTED_OURS: frozenset[str] = frozenset()
+# Children of OURS that HAVE adopted: `{name: the gate its object must carry}`. Read from the child's own
+# object (§3d provenance "object"), never from its exit code alone.
+ADOPTED_OURS = {"unwired": "find-unwired"}
 
 
-def child_status(name: str, rc: int) -> tuple[str, str]:
-    """`(status, detail)` for one child from its documented exit code. PURE."""
+def _object_status(name: str, rc: int, obj: dict | None) -> tuple[str, str]:
+    """`(status, detail)` for an ADOPTED child of ours from its own object. PURE. An object that is not
+    there, does not validate, names another gate, or says PASS beside a non-zero exit decided nothing."""
+    if obj is None:
+        return "UNKNOWN", f"exit {rc} — no tepna.verdict/1 object was written; an adopted tool of ours must publish one"
+    try:
+        VD.validate(obj)
+    except ValueError as e:
+        return "UNKNOWN", f"exit {rc} — its object is not a valid tepna.verdict/1 ({e})"
+    if obj["gate"] != ADOPTED_OURS[name]:
+        return "UNKNOWN", f"exit {rc} — the object is gate {obj['gate']!r}, not {ADOPTED_OURS[name]!r}"
+    if obj["status"] == "PASS" and rc != 0:
+        return "UNKNOWN", f"exit {rc} contradicts its own PASS object"
+    return obj["status"], f"exit {rc} — its own object: {obj['status']}"
+
+
+def child_status(name: str, rc: int, obj: dict | None = None) -> tuple[str, str]:
+    """`(status, detail)` for one child from its documented exit code — or, for an adopted tool of ours,
+    from its own object `obj`. PURE."""
     if rc == 127:
         return "NOT_RUN", "exit 127 — the tool is not installed; nothing was examined"
+    if name in ADOPTED_OURS:
+        return _object_status(name, rc, obj)
     if name in UNADOPTED_OURS:
         return (
             "UNKNOWN",
@@ -93,10 +117,14 @@ def child_status(name: str, rc: int) -> tuple[str, str]:
     return "UNKNOWN", f"exit {rc} — not a code {name}'s contract names"
 
 
-def aggregate(children: dict[str, int], advisory: dict[str, str] | None = None) -> dict:
-    """§3d over `{child: exit code}`: FAIL > UNKNOWN > PASS; NOT_RUN children are excluded and make the
-    run UNKNOWN (no invocation of check.sh declares an exclusion); no child examined ⇒ NOT_RUN. PURE."""
-    rows = {name: child_status(name, rc) for name, rc in children.items()}
+def aggregate(
+    children: dict[str, int], advisory: dict[str, str] | None = None, objects: dict[str, dict | None] | None = None
+) -> dict:
+    """§3d over `{child: exit code}` (and `objects`, the adopted children's own objects): FAIL > UNKNOWN >
+    PASS; NOT_RUN children are excluded and make the run UNKNOWN (no invocation of check.sh declares an
+    exclusion); no child examined ⇒ NOT_RUN. PURE."""
+    objs = objects or {}
+    rows = {name: child_status(name, rc, objs.get(name)) for name, rc in children.items()}
     statuses = {name: st for name, (st, _) in rows.items()}
     not_run = [n for n, st in statuses.items() if st == "NOT_RUN"]
     failed = [n for n, st in statuses.items() if st == "FAIL"]
@@ -174,35 +202,70 @@ def parse_pairs(pairs: list[str]) -> dict[str, int]:
 
 
 def verdict_sample() -> dict:
-    """The object the adoption gate reads (`--verdict-sample`): a green run of the four children — UNKNOWN,
-    because `unwired` has not adopted; the sample is the gate's real shape today, not a flattering one."""
+    """The object the adoption gate reads (`--verdict-sample`): a green run of the four children, `unwired`
+    read from a synthetic PASS object of its own — the gate's real green shape now that it has adopted."""
+    unwired = VD.make(
+        gate=ADOPTED_OURS["unwired"],
+        status="PASS",
+        population={"checked": 1, "eligible": 1, "excluded": 0},
+        criterion={
+            "name": "unexplained_findings_plus_spent_suppressions",
+            "threshold": 0,
+            "unit": "findings",
+            "direction": "eq",
+        },
+        result={"unexplained": 0},
+        evidence=["capture-host/tools/find_unwired.py"],
+        reason=None,
+        tool="capture-host/tools/find_unwired.py",
+    )
     return aggregate(
-        {"ruff": 0, "shellcheck": 0, "pytest": 0, "unwired": 0}, {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"}
+        {"ruff": 0, "shellcheck": 0, "pytest": 0, "unwired": 0},
+        {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"},
+        {"unwired": unwired},
     )
 
 
+def load_object(path: str) -> dict | None:
+    """An adopted child's object off disk, or None when there is none to read (absent, unreadable, not JSON,
+    or not an object) — `child_status` turns None into UNKNOWN, so no failure here can read as green."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            obj = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
 def main(argv: list[str]) -> int:
-    """`--verdict-sample` · `--write <path> [--advisory k=v ...] name=rc ...` (writes the object, prints one
-    line, exits 0 — the exit code check.sh returns stays its own, §3d "the exit code STAYS")."""
+    """`--verdict-sample` · `--write <path> [--advisory k=v ...] [--object name=path ...] name=rc ...` (writes
+    the object, prints one line, exits 0 — the exit code check.sh returns stays its own, §3d "the exit code
+    STAYS"). `--object` names the file an ADOPTED child wrote its own object to."""
     if argv == ["--verdict-sample"]:
         print(json.dumps(verdict_sample(), indent=1))
         return 0
     if len(argv) < 2 or argv[0] != "--write":
         print(
-            "usage: checkverdict.py --verdict-sample | --write <path> [--advisory k=v ...] name=rc ...", file=sys.stderr
+            "usage: checkverdict.py --verdict-sample | --write <path> [--advisory k=v ...] [--object name=path ...]"
+            " name=rc ...",
+            file=sys.stderr,
         )
         return 2
     path, rest = argv[1], argv[2:]
     advisory: dict[str, str] = {}
+    objects: dict[str, dict | None] = {}
     pairs: list[str] = []
     it = iter(rest)
     for a in it:
         if a == "--advisory":
             k, _, v = next(it, "=").partition("=")
             advisory[k] = v
+        elif a == "--object":
+            k, _, v = next(it, "=").partition("=")
+            objects[k] = load_object(v)
         else:
             pairs.append(a)
-    obj = aggregate(parse_pairs(pairs), advisory)
+    obj = aggregate(parse_pairs(pairs), advisory, objects)
     VD.write(path, obj)
     print(f"  verdict: {obj['status']} → {path}")
     return 0

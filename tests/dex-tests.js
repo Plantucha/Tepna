@@ -73054,6 +73054,159 @@
       T.ok('option 2 (own the PID) is untouched and still yields the exit code', /kill -0 "\$PID"/.test(opt2) && /wait "\$PID"; echo "EXIT=\$\?"/.test(opt2));
     });
 
+    /* ════ .gitignore — a disclosure rule's stated REASON must describe what is tracked ═══════════════
+       Residue 2026-09-24-gitignore-licenses-trio-on-a-stale-claim. The `uploads/trio/**` un-ignore is
+       correct policy (owner-confirmed 2026-09-24) but its comment justified it with "emits 5-min summary
+       epochs — NO raw signal samples", and the tracked exports carry a full-resolution PER-BEAT series
+       (`timeseries.ppi.ms`: ~21 000 values for one night, against ~100 for 5-min epochs). The next person
+       to argue "this file is as safe as trio" would have reasoned from that false premise. The same block
+       said device serials were scrubbed from ALL tracked files while five tracked filenames still read
+       `O2Ring S 2100_…csv`. Neither is a leak; both were a description that stopped matching.
+       This reads the claim in .gitignore against the committed export it is about, so the prose cannot
+       drift from the corpus again. Node lane only (the browser lane has neither file). */
+    group('.gitignore — the trio un-ignore is not justified by a claim the exports contradict', 'gitignore · disclosure-claims', function (T) {
+      var src = env.gitignoreSource;
+      if (typeof src !== 'string') {
+        T.skip('.gitignore readable', 'Node-lane only — the browser lane does not provide the repo files');
+        return;
+      }
+      var probe = env.trioPerBeatProbe ? env.trioPerBeatProbe() : null;
+      T.ok('the tracked trio PpgDex export is readable and carries timeseries.ppi.ms (COMMITTED — absence is a regression, not a skip)', !!probe && probe.n > 0, 'probe=' + JSON.stringify(probe));
+      if (!probe) return;
+      var EPOCHS_PER_NIGHT = 288; // 24 h of 5-min epochs — the most a "summary epochs" export could hold
+      T.ok('anti-vacuity: that export really holds a per-beat series, not epochs (' + probe.n + ' > ' + EPOCHS_PER_NIGHT + ')', probe.n > EPOCHS_PER_NIGHT);
+      T.ok(
+        '.gitignore does not call the trio exports epoch-only / "NO raw signal samples"',
+        !/NO raw signal samples|emits 5-min summary epochs/i.test(src),
+        'the exports carry ' + probe.n + ' per-beat values'
+      );
+      var trioAt = src.indexOf('Trio TCH corpus');
+      var trioBlock = trioAt < 0 ? '' : src.slice(trioAt, src.indexOf('!uploads/trio/**', trioAt));
+      T.ok('the trio block exists and names the per-beat series it does track', trioBlock.length > 0 && /per-beat/i.test(trioBlock));
+      var o2 = src.split('\n').filter(function (l) {
+        return /^!uploads\/O2Ring S 2100_/.test(l);
+      });
+      T.eq('five O2Ring CSVs are un-ignored by their exporter-given names', o2.length, 5);
+      T.ok('the serial-scrub note does not say ALL tracked files while those filenames are tracked', !(o2.length > 0 && /scrubbed from ALL tracked files/i.test(src)));
+    });
+
+    group('§∅ — ecgdex-dsp std/median/quant return null for an input too short to measure, never 0', 'ecgdex-dsp · absence-as-value · empty-helpers', function (T) {
+      /* RESIDUE 2026-10-06-zero-on-empty-dsp-helpers, ECGDex HALF. Six helpers answered `0` for an input too
+         short to measure: ecgdex-dsp `std`/`median`/`quant` (fixed here) and pulsedex-dsp `std`/`sdsd`/
+         `medianOf` (NOT fixed: editing pulsedex-dsp.js moves the `treatment-response · pinned yield` pin,
+         whose re-stamp needs a paper-scale re-cut budgeted in hours). A 0 is a LEGAL
+         dispersion and a LEGAL median, so the next caller cannot tell "measured flat" from "nothing to
+         measure" — the shape #3346 fixed one function away in `rmssd`, where it reached Math.log(0). The
+         one call site that was NOT guarded is pinned end to end: `validateRR` exported `devSDNN: 0` for a
+         one-beat device record. The CONTROLS are the other half: a measured 0 must stay a 0. */
+      var E0 = env.ECGDSP || env.EcgDsp;
+      T.ok('ECGDSP reachable', !!(E0 && E0.validateRR), 'ecgdex-dsp.js did not load');
+      if (!E0 || !E0.validateRR) return;
+      /* A helper that is not exported answers with its own name, so the assertion that needed it FAILS
+         BY NAME instead of the whole group dying on a TypeError before the reachable ones run. */
+      var pick = function (o, k) {
+        return typeof o[k] === 'function'
+          ? o[k]
+          : function () {
+              return 'NOT EXPORTED: ' + k;
+            };
+      };
+      var E = { std: pick(E0, 'std'), median: pick(E0, 'median'), quant: pick(E0, 'quant'), validateRR: E0.validateRR };
+      var show = function (v) {
+        return String(v);
+      };
+      // ── ECGDex ──
+      T.ok('ecgdex std([]) is null, not 0', E.std([]) === null, 'got ' + show(E.std([])));
+      T.ok('ecgdex std([5]) is null — one value has no sample SD', E.std([5]) === null, 'got ' + show(E.std([5])));
+      T.ok('ecgdex median([]) is null, not 0', E.median([]) === null, 'got ' + show(E.median([])));
+      T.ok('ecgdex quant([], 0.5) is null, not 0', E.quant([], 0.5) === null, 'got ' + show(E.quant([], 0.5)));
+      // ── the call site that was NOT guarded: a one-beat device record ──
+      var vr = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }]);
+      T.ok('the plant is reachable — validateRR accepted a 1-beat device record', !!vr && vr.nDev === 1, 'nDev=' + (vr && vr.nDev));
+      T.ok('validateRR · devSDNN is null for a one-beat device record, not a measured 0', vr.devSDNN === null, 'got ' + show(vr.devSDNN));
+      T.ok('validateRR · dSDNN stays null (no reference)', vr.dSDNN === null, 'got ' + show(vr.dSDNN));
+      T.ok('validateRR · selfSDNN is still the measured number', typeof vr.selfSDNN === 'number' && vr.selfSDNN > 0, 'got ' + show(vr.selfSDNN));
+      // ── CONTROLS: a measured zero stays a zero, and a measurable input is unchanged ──
+      T.eq('CONTROL · ecgdex std([5, 5]) is a MEASURED 0', E.std([5, 5]), 0);
+      T.eq('CONTROL · ecgdex median([0]) is a MEASURED 0', E.median([0]), 0);
+      T.eq('CONTROL · ecgdex median([1, 2, 3, 4]) is 2.5', E.median([1, 2, 3, 4]), 2.5);
+      T.eq('CONTROL · ecgdex quant([1, 2, 3, 4, 5], 0.5) is 3', E.quant([1, 2, 3, 4, 5], 0.5), 3);
+      T.eq('CONTROL · ecgdex std([-1, 1]) is the sample SD', E.std([-1, 1]), 1.4142135623730951);
+      var ok2 = E.validateRR([800, 810, 795, 805, 820, 790, 800, 815], [{ rr: 800 }, { rr: 810 }, { rr: 795 }, { rr: 805 }, { rr: 820 }, { rr: 790 }]);
+      T.ok('CONTROL · a measurable device record keeps a finite devSDNN', typeof ok2.devSDNN === 'number' && isFinite(ok2.devSDNN), 'got ' + show(ok2.devSDNN));
+    });
+
+    /* ════ trio-batch PRINTS THE DIGEST OF THE CURRENT TREE (residue 2026-10-12-trio-batch-prints-no-current-tree-digest) ══
+       `CODE_DIGEST` reached no stdout path and no verdict file, so checking whether today's code still matches the
+       `codeDigest` a `.trio-stamp` records meant reimplementing the closure by hand. `--code-digest` prints it. The oracle
+       here IS that reimplementation, done once, in a child, from the files on disk — so the tool's answer is compared with
+       an independent derivation rather than with itself. */
+    group('trio-batch --code-digest prints the digest of the current tree', 'trio-batch · code-digest · cli', function (T) {
+      var probe = env.probeToolArgv;
+      if (typeof probe !== 'function' || !env.nodeSpawnSync || !env.repoRoot) {
+        T.skip('env.probeToolArgv / nodeSpawnSync / repoRoot provided to the runner', 'Node-lane only (spawns the tool) — the browser lane cannot spawn');
+        return;
+      }
+      var tb = (env.sources && env.sources['tools/trio-batch.mjs']) || '';
+      var decl = tb.match(/const COMPUTE_MODULES = \[([^\]]*)\]/);
+      T.ok('trio-batch source wired and its closure list readable', !!decl, 'the closure array is missing from env.sources');
+      if (!decl) return;
+      var mods = decl[1]
+        .split(',')
+        .map(function (x) {
+          return x.trim().replace(/^'|'$/g, '');
+        })
+        .filter(Boolean);
+      var r = probe('tools/trio-batch.mjs', ['--code-digest']);
+      T.eq('--code-digest is a known flag and exits 0 with no --src', r.status, 0);
+      T.ok('…printing exactly one 16-hex line on stdout', /^[0-9a-f]{16}\n$/.test(String(r.out)), JSON.stringify(String(r.out).slice(0, 200)));
+      T.eq('…and writing nothing in the cwd', r.wrote, []);
+      /* THE ORACLE — the eight-line closure re-derived from disk: module texts joined by NUL, sha256, first 16 hex. */
+      var src =
+        "const fs=require('fs'),path=require('path'),crypto=require('crypto');" +
+        'const root=' +
+        JSON.stringify(env.repoRoot) +
+        ';const mods=' +
+        JSON.stringify(mods) +
+        ';' +
+        "const t=mods.map(f=>{const p=path.join(root,f);return fs.existsSync(p)?fs.readFileSync(p,'utf8'):''}).join('\\0');" +
+        "process.stdout.write(crypto.createHash('sha256').update(t).digest('hex').slice(0,16)+'\\n')";
+      var o = env.nodeSpawnSync(process.execPath, ['-e', src], { encoding: 'utf8' });
+      T.ok('the oracle ran', o.status === 0 && /^[0-9a-f]{16}\n$/.test(String(o.stdout)), String(o.stderr).slice(0, 200));
+      T.eq('the printed digest equals the closure re-derived independently from the files on disk', String(r.out), String(o.stdout));
+      /* an unrelated mode is unaffected: without the flag and without --src the tool still refuses */
+      var bare = probe('tools/trio-batch.mjs', []);
+      T.eq('CONTROL · no flag and no --src still refuses with exit 2', bare.status, 2);
+    });
+
+    group(
+      'RESIDUE clock-only-residual — the 0.2-0.4 ms figure is quoted as the CLOCK-ONLY term, with the total beside it',
+      'ecgdex-dsp · ppgdex-dsp · literature-claim · clock-only-residual',
+      function (T) {
+        /* Abdessalem K. (2026), Meas Sci Technol, doi:10.1088/1361-6501/ae6a09: 0.2-0.4 ms is the
+         CLOCK-ONLY residual; total IBI RMSE after correction is 3.254-3.263 / 4.215-4.219 ms. Both
+         DSP sources carry the citation paragraph; a bare "to 0.2-0.4 ms" reads as end-to-end accuracy.
+         Checks the paragraph around the DOI, comments INCLUDED (this is a comment-level claim). */
+        ['ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(function (f) {
+          var src = (env.sources || {})[f] || '';
+          if (!src) {
+            T.skip(f + ' citation paragraph', 'sources not provided in this runner');
+            return;
+          }
+          var at = src.indexOf('10.1088/1361-6501/ae6a09');
+          T.ok(f + ': the Abdessalem citation is present', at >= 0, 'citation located');
+          if (at < 0) return;
+          var para = src.slice(at, at + 700);
+          var end = para.indexOf('*/');
+          if (end >= 0) para = para.slice(0, end);
+          var flat = para.replace(/\s+/g, ' ').toLowerCase();
+          T.ok(f + ': the 0.2-0.4 ms figure is still quoted', flat.indexOf('0.2-0.4 ms') >= 0, 'figure absent');
+          T.ok(f + ': it is qualified as the CLOCK-ONLY residual', flat.indexOf('clock-only') >= 0, 'qualifier absent: ' + flat);
+          T.ok(f + ': the total IBI RMSE (3.254-4.219 ms) is stated beside it', flat.indexOf('3.254') >= 0 && flat.indexOf('4.219') >= 0, 'total absent: ' + flat);
+        });
+      }
+    );
+
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.
        `totalGroups` stays the full declaration count, so "N of 134" is still honest. */

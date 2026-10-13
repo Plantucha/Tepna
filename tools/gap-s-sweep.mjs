@@ -344,7 +344,9 @@ export function report(rows, values, shipped) {
 
 function selftest() {
   let fail = 0;
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
   const ok = (n, c, d) => {
+    ran++;
     console.log((c ? '  ok   ' : '  FAIL ') + n + (!c && d != null ? '  — ' + d : ''));
     if (!c) fail++;
   };
@@ -451,7 +453,7 @@ function selftest() {
   }
   const R0 = report([{ night: 'x', byValue: { 10: { ecg: { index: null, reason: 'threw' }, ppg: { index: null } } } }], [10], 10);
   ok('report: refused nights count as refused and yield nulls, never zeros', R0.perValue['10'].ecg.refused === 1 && R0.perValue['10'].ecg.medianIndex === null);
-  console.log(fail ? fail + ' failed of 19' : 'all 19 selftests passed');
+  console.log(fail ? `${fail} failed of ${ran}` : `all ${ran} selftests passed`);
   return fail ? 1 : 0;
 }
 
