@@ -5,7 +5,9 @@
 # machine (cpap_supervisor). This module holds NO transport and NO real clock: the device read
 # and the monotonic clock are injected, so the whole poll cycle is unit-tested against fakes
 # with the stdlib alone. The BLE connect/establish/get_items shim lives in the operator probe
-# (probe_as11_shadow.py); the daemon hook is a later increment.
+# (probe_as11_shadow.py). The daemon hook SHIPS — `capture.py` starts this runner behind
+# `as11_detector.enabled` (default OFF, `config.example.yaml`), increments 1-2 of
+# `AS11-SESSION-DETECTOR-IMPLEMENTATION-2026-08-24-BRIEF.md`, which is DONE.
 #
 # READ-ONLY: it only feeds already-read device values into the classifier and journals the
 # would-have decision. In shadow mode it drives nothing — the SESSIONDETECT.csv trace is the
@@ -98,7 +100,11 @@ class ShadowDetector:
     failed. `mono` is a monotonic seconds clock (injected for determinism). `writer`, if given,
     is a `*LifeLogWriter`-style sidecar (duck-typed on `.write(decision)` → `decision.as_row()`)
     that records EVERY would-have decision — the shadow trace. Nothing here drives the
-    controller; acting mode is a later increment.
+    controller. Increment 3 of the brief, acting mode, is CLOSED AS SATISFIED (lead ruling
+    2026-09-19): the detector already CAUSES action, because `auto_start` fires on this poll's
+    `Therapy` sighting in 11 of 11 journal-bounded sessions, 3-17 s before the stream starts. The
+    reopening criterion is verbatim an action at a therapy boundary that `auto_start` does not
+    already take. So the box is closed, not unbuilt, and this adapter stays read-only.
     """
 
     def __init__(self, supervisor, *, read, mono, writer=None, poll_interval_s: float = 30.0):

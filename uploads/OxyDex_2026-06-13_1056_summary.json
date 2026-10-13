@@ -362,8 +362,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "54cbcf574fe2",
-          "computeHash": "9244f3ea92a8"
+          "manifestHash": "295904a1424b",
+          "computeHash": "44ff572c3238"
         },
         "evidence": {
           "envelopeRef": null,
@@ -391,8 +391,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "54cbcf574fe2",
-          "computeHash": "9244f3ea92a8"
+          "manifestHash": "295904a1424b",
+          "computeHash": "44ff572c3238"
         },
         "evidence": {
           "envelopeRef": null,
@@ -420,8 +420,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "54cbcf574fe2",
-          "computeHash": "9244f3ea92a8"
+          "manifestHash": "295904a1424b",
+          "computeHash": "44ff572c3238"
         },
         "evidence": {
           "envelopeRef": null,
@@ -449,8 +449,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "54cbcf574fe2",
-          "computeHash": "9244f3ea92a8"
+          "manifestHash": "295904a1424b",
+          "computeHash": "44ff572c3238"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1233,19 +1233,23 @@
         "spo2IQR": 2
       },
       "spo2Shape": {
-        "spo2Mean": 95.89,
-        "spo2SD": 2.31,
-        "spo2Skew": -27.431,
-        "spo2Kurt": 1136.265,
-        "spo2ExcessKurt": 1133.265,
-        "spo2SkewLabel": "Left-skewed (hypox burden)",
-        "spo2KurtLabel": "Leptokurtic (heavy tails/events)"
+        "spo2Mean": 95.93,
+        "spo2SD": 1.35,
+        "spo2Skew": -0.472,
+        "spo2Kurt": 6.279,
+        "spo2ExcessKurt": 3.279,
+        "spo2SkewLabel": "Near-symmetric",
+        "spo2KurtLabel": "Leptokurtic (heavy tails/events)",
+        "nMeasured": 26145,
+        "nTotal": 26155
       },
       "hrCV": {
-        "hrCV": 8.31,
-        "hrCVmean": 50.6,
-        "hrCVsd": 4.21,
-        "hrCVlabel": "Moderate"
+        "hrCV": 8.07,
+        "hrCVmean": 50.7,
+        "hrCVsd": 4.09,
+        "hrCVlabel": "Moderate",
+        "nMeasured": 26145,
+        "nTotal": 26155
       },
       "hypDose": {
         "hd94": 1716,
@@ -1275,11 +1279,13 @@
         "lcspLabel": "Moderate"
       },
       "poincare": {
-        "sd1": 0.46,
-        "sd2": 5.82,
-        "sd1sd2Ratio": 0.079,
+        "sd1": 0.4,
+        "sd2": 5.68,
+        "sd1sd2Ratio": 0.07,
         "sd1Label": "Normal (1Hz proxy)",
-        "sd2Label": "Normal (1Hz proxy)"
+        "sd2Label": "Normal (1Hz proxy)",
+        "nMeasured": 25911,
+        "nTotal": 26155
       },
       "o2hrEff": {
         "o2hrEff": 0.16,
@@ -1289,10 +1295,14 @@
         "o2hrEffLabel": "Blunted arousal response"
       },
       "condSpo2": {
-        "spo2StillMean": 95.9,
-        "spo2MovingMean": 95.26,
-        "spo2MotionDelta": 0.64,
+        "spo2StillMean": 95.92,
+        "spo2MovingMean": 96.07,
+        "spo2MotionDelta": -0.15,
         "stillPct": 99.1,
+        "nStillMeasured": 25911,
+        "nStillTotal": 25919,
+        "nMovingMeasured": 234,
+        "nMovingTotal": 236,
         "motionArtifactLabel": "No significant difference"
       },
       "nadirTrend": {
