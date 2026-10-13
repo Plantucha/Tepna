@@ -352,64 +352,36 @@ WITHDRAWN_NAME = "SOLID-VERDICT-WITHDRAWN.jsonl"
 WITHDRAWN_KEEP = 32
 
 
-def _provenance(v: dict) -> dict:
-    """The identifying fields of a verdict, for the withdrawal record.
+# Why a re-judge supersedes: the audit it reads re-ran over data that had arrived since.
+_REJUDGED = (
+    "re-judged: the night's loss audit re-ran over data that had arrived since, so this verdict "
+    "was composed over an input set that no longer describes the night"
+)
 
-    ⚠️ THE COMMIT LIVES IN `producedBy`, not at the top level — §🧾's own shape. My first version read
-    `v.get("commit")` and would have published `null` for every real verdict while passing against
-    synthetic dicts that carried a top-level key. A fixture has to carry the property the code reasons
-    about; this one did not, and the result would have been an unmeasured field presented as measured
-    (§∅). The top-level read stays as a fallback for a hand-written or legacy object."""
-    return {
-        "status": v.get("status"),
-        "reason": v.get("reason"),
-        "at": v.get("at"),
-        "commit": ((v.get("producedBy") or {}).get("commit")) or v.get("commit"),
-    }
+
+def _provenance(v: dict) -> dict:
+    """The identifying fields of a verdict, for the withdrawal record — `verdict.provenance`.
+
+    ⚠️ THE COMMIT LIVES IN `producedBy`, not at the top level, and a fixture that carried a top-level
+    key would pass against code that published `null` for every real verdict."""
+    return _v.provenance(v)
 
 
 def _withdraw(night_dir: str, replacement: dict, reason: str | None = None) -> dict | None:
     """Record the verdict about to be REPLACED, before it is. Returns the withdrawal entry, or None.
 
-    🔴 `os.replace` IS ATOMIC AND LOSSY, and the second property cost a night. Measured on the box
-    2026-10-04: six judge passes (12:30 … 19:37) published verdicts over a night whose data had not
-    arrived, the 19:37 UNKNOWN was overwritten by the 04:50 FAIL, and afterwards the night's own
-    artefacts held no evidence that any of the six existed — the trail was reconstructible only from the
-    journal, which rotates. A verdict is a published claim; withdrawing one is itself a fact, so it is
-    recorded beside the night rather than erased.
-
-    APPEND-ONLY and never fatal: a withdrawal that cannot be written must not stop the night getting its
-    correct verdict, so the failure is reported in the return value and the replacement proceeds. Losing
-    the record of a superseded claim is bad; refusing to publish the true one is worse."""
-    path = os.path.join(night_dir, VERDICT_NAME)
-    prior = _inputs.read_json(path)
-    if prior is None:
-        return None  # nothing published yet: a first verdict withdraws nothing
-    entry = {
-        "withdrawn": _provenance(prior),
-        "replaced_by": _provenance(replacement),
-        "reason": reason
-        or (
-            "re-judged: the night's loss audit re-ran over data that had arrived since, so this verdict "
-            "was composed over an input set that no longer describes the night"
-        ),
-        "at": replacement.get("at"),
-    }
-    kept: list[str] = []
-    try:
-        wpath = os.path.join(night_dir, WITHDRAWN_NAME)
-        if os.path.exists(wpath):
-            with open(wpath, encoding="utf-8") as fh:
-                kept = [ln for ln in fh if ln.strip()]
-        kept.append(json.dumps(entry) + "\n")
-        with open(wpath, "w", encoding="utf-8") as fh:
-            fh.writelines(kept[-WITHDRAWN_KEEP:])
-    except OSError as exc:
-        entry["recorded"] = False
-        entry["record_error"] = str(exc)
-        return entry
-    entry["recorded"] = True
-    return entry
+    🔴 `os.replace` IS ATOMIC AND LOSSY, and the second property cost a night (2026-10-04: six passes
+    published, five unrecoverable). The mechanism now lives ONCE in `verdict.withdraw`, because the loss
+    audit one layer down had the same defect and no copy of the fix — `2026-10-05-the-loss-audit-\
+    replaces-its-own-verdict-with-no-withdrawal-record`. This keeps the night-shaped signature: a
+    directory, not two paths."""
+    return _v.withdraw(
+        os.path.join(night_dir, VERDICT_NAME),
+        os.path.join(night_dir, WITHDRAWN_NAME),
+        replacement,
+        reason=reason or _REJUDGED,
+        keep=WITHDRAWN_KEEP,
+    )
 
 
 # ── A VERDICT IS STALE WHEN THE CODE THAT JUDGED IT HAS CHANGED ─────────────────────────────────────

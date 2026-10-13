@@ -220,3 +220,98 @@ def test_what_verdict_js_refuses_the_python_half_refuses_too():
         assert not js_validate(o)["ok"], bad
         with pytest.raises(ValueError):
             verdict.validate(o)
+
+
+# ── withdrawing a published verdict (`2026-10-05-the-loss-audit-replaces-its-own-verdict-…`) ────────
+def _published(tmp_path, obj):
+    path = tmp_path / verdict_file()
+    path.write_text(json.dumps(obj), encoding="utf-8")
+    return str(path)
+
+
+def verdict_file():
+    return "A-VERDICT.json"
+
+
+def _rec(tmp_path):
+    return str(tmp_path / "A-VERDICT-WITHDRAWN.jsonl")
+
+
+def test_a_FIRST_verdict_withdraws_nothing(tmp_path):
+    """A night with no published claim has nothing to supersede, and an empty record file would be a
+    withdrawal of a verdict that never existed."""
+    entry = verdict.withdraw(str(tmp_path / verdict_file()), _rec(tmp_path), _ok(), reason="r")
+    assert entry is None
+    assert not os.path.exists(_rec(tmp_path))
+
+
+def test_a_REPLACED_verdict_is_recorded_with_the_commit_from_producedBy(tmp_path):
+    """🔴 `os.replace` IS ATOMIC AND LOSSY. Measured on the box 2026-10-04: six passes published over a
+    night whose data had not arrived, and afterwards the night's artefacts held no evidence that any of
+    the six existed. The commit is read from `producedBy`, where §🧾 puts it — a top-level read
+    publishes `null` for every real verdict while passing against a synthetic dict."""
+    prior = _ok(status="UNKNOWN", reason="data not in yet")
+    prior["producedBy"] = {"tool": "t", "commit": "abc1234"}
+    prior["at"] = "2026-10-04T19:37:00Z"
+    new = _ok(status="FAIL", reason="two devices failed")
+    new["producedBy"] = {"tool": "t", "commit": "def5678"}
+    new["at"] = "2026-10-05T04:50:00Z"
+    entry = verdict.withdraw(_published(tmp_path, prior), _rec(tmp_path), new, reason="re-judged")
+    assert entry["recorded"] is True
+    assert entry["withdrawn"] == {
+        "status": "UNKNOWN",
+        "reason": "data not in yet",
+        "at": "2026-10-04T19:37:00Z",
+        "commit": "abc1234",
+    }
+    assert entry["replaced_by"]["commit"] == "def5678" and entry["replaced_by"]["status"] == "FAIL"
+    assert entry["reason"] == "re-judged" and entry["at"] == "2026-10-05T04:50:00Z"
+    lines = [json.loads(ln) for ln in open(_rec(tmp_path), encoding="utf-8") if ln.strip()]
+    assert len(lines) == 1 and lines[0]["withdrawn"]["status"] == "UNKNOWN"
+
+
+def test_a_legacy_top_level_commit_is_the_fallback_not_the_first_read(tmp_path):
+    prior = _ok(status="FAIL", reason="r")
+    prior["commit"] = "0ddba11"
+    prior.pop("producedBy", None)
+    entry = verdict.withdraw(_published(tmp_path, prior), _rec(tmp_path), _ok(), reason="r")
+    assert entry["withdrawn"]["commit"] == "0ddba11"
+
+
+def test_the_record_is_APPEND_ONLY_and_keeps_the_cap(tmp_path):
+    """Six passes judged 2026-10-04 before its data was in, so the cap is not one. It keeps the LAST
+    `keep` records: a night that keeps being re-judged must not grow a file without bound, and the
+    oldest claim is the one furthest from what the night turned out to be."""
+    path = _published(tmp_path, _ok(status="FAIL", reason="r"))
+    for i in range(5):
+        new = _ok(status="PASS")
+        new["at"] = f"2026-10-05T0{i}:00:00Z"
+        verdict.withdraw(path, _rec(tmp_path), new, reason="r", keep=3)
+    lines = [json.loads(ln) for ln in open(_rec(tmp_path), encoding="utf-8") if ln.strip()]
+    assert [ln["at"] for ln in lines] == [
+        "2026-10-05T02:00:00Z",
+        "2026-10-05T03:00:00Z",
+        "2026-10-05T04:00:00Z",
+    ], "the cap keeps the LAST keep entries, oldest dropped"
+    assert verdict.WITHDRAWN_KEEP == 32, "the default cap is the one #3292 measured against six passes"
+
+
+def test_a_prior_file_that_is_not_a_verdict_OBJECT_withdraws_nothing(tmp_path):
+    """Unreadable and not-an-object are not a published claim, and inventing a withdrawal for one would
+    put a fabricated status into the record (§∅)."""
+    p = tmp_path / verdict_file()
+    for raw in ("{not json", "[1, 2]", "null"):
+        p.write_text(raw, encoding="utf-8")
+        assert verdict.withdraw(str(p), _rec(tmp_path), _ok(), reason="r") is None
+    assert not os.path.exists(_rec(tmp_path))
+
+
+def test_a_withdrawal_that_CANNOT_be_written_still_lets_the_verdict_through(tmp_path):
+    """Losing the record of a superseded claim is bad; refusing to publish the true one is worse. So the
+    failure is REPORTED in the return value — an unrecorded withdrawal that read as recorded would be
+    the §∅ shape, an absence presented as a fact."""
+    blocked = tmp_path / "blocked"
+    blocked.mkdir()  # a directory cannot be opened for writing: IsADirectoryError, an OSError
+    entry = verdict.withdraw(_published(tmp_path, _ok(status="FAIL", reason="r")), str(blocked), _ok(), reason="r")
+    assert entry["recorded"] is False and entry["record_error"]
+    assert entry["withdrawn"]["status"] == "FAIL", "the entry still says what was withdrawn"
