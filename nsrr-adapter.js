@@ -391,7 +391,7 @@
 
   /* Full record: EDF buffer (+ optional XML text, or an explicit scoredAHI override) → result row. */
   function analyzeRecord(opts) {
-    // opts: { id, edfBuffer, xmlText?, scoredAHI?, ahiVar? }
+    // opts: { id, edfBuffer, xmlText?, scoredAHI?, ahiVar?, ahiVia? }
     var out = { id: opts.id || 'record', err: null };
     if (!root.CpapEdf || !root.CpapEdf.readEDF) {
       out.err = 'CpapEdf not loaded';
@@ -460,7 +460,12 @@
 
     if (opts.scoredAHI != null && isFinite(opts.scoredAHI)) {
       out.scoredAHI = +opts.scoredAHI;
+      /* `ahiSource` is the reference's own IDENTITY — the exact dataset column name, so a scored row
+         says which of the four AHI definitions it was compared against (AHI-SURROGATE-REFIT-SIZING
+         item 3). It used to carry the lookup ROUTE instead (`csv`, `csv(id)`), which names how the
+         value was found and nothing about what it means. The route keeps its own field. */
       out.ahiSource = opts.ahiVar || 'provided';
+      out.ahiVia = opts.ahiVia || null;
     } else if (opts.xmlText) {
       var p = parseNsrrXml(opts.xmlText, conv.t0Ms);
       if (p.error) out.xmlErr = p.error;
@@ -475,12 +480,258 @@
     return out;
   }
 
+  /* ════ NSRR dataset CSV → reference AHI (AHI-SURROGATE-REFIT-SIZING-2026-10-12 item 3) ════
+     `odi-bias-analysis.js` held this reader, where nothing could execute it: that page's tail wires
+     twelve DOM handlers, so neither test lane loads the module — only its TEXT, for a source scan.
+     The knowledge is about the NSRR dataset rather than about one page, so it sits beside the rest of
+     the adapter and is asserted headlessly.
+
+     ⚠ THE PREFERENCE ORDER IS A SCIENTIFIC CHOICE, NOT A CONVENIENCE — do not sort it back.
+     The mechanism this page measures is that ODI is blind to hypopneas which terminate in an arousal
+     WITHOUT a qualifying desaturation. So the reference definition decides the answer before any data
+     is read: pick a reference that is itself defined by desaturation (`ahi_a0h4` = apneas + hypopneas
+     with >= 4 % desat) and reference and estimator share the blind spot, the events ODI cannot see are
+     absent from BOTH sides, and the tool reports a small bias — about a comparison it never made.
+     `ahi_a0h4` led this list until 2026-08-16, i.e. the default was the one variable guaranteed to mask
+     the effect. Arousal-inclusive definitions now lead, lowest desaturation threshold first, since that
+     is the most inclusive reference and therefore the one that can SEE the events ODI misses.
+
+     The four `nsrr_ahi_*` names are the harmonized dataset's own, read from
+     `shhs-data-dictionary-0.21.0-variables.csv` (NSRR SHHS 0.21.0, offline):
+       `nsrr_ahi_hp3r_aasm15`  apneas + hypopneas, >= 30 % flow reduction and >= 3 % desat OR arousal
+       `nsrr_ahi_hp4r`         apneas + hypopneas, >= 4 % desat OR arousal        (source `:ahi_a0h4a:`)
+       `nsrr_ahi_hp3u`         apneas + hypopneas, >= 3 % desat                   (source `:ahi_a0h3:`)
+       `nsrr_ahi_hp4u_aasm15`  apneas + hypopneas, >= 30 % flow reduction and >= 4 % desat
+     A trailing `r` counts arousal-terminated hypopneas and `u` does not, which is the only property
+     this ordering depends on. The dictionary names the native twin for two of the four; the other two
+     were joined to theirs over 5804 SHHS1 subjects on 2026-10-13. Each harmonized column agrees with
+     exactly one native to within 0.005 events/h on 100.00 % of subjects — `nsrr_ahi_hp3u` with
+     `ahi_a0h3`, `nsrr_ahi_hp3r_aasm15` with `ahi_a0h3a`, `nsrr_ahi_hp4u_aasm15` with `ahi_a0h4`,
+     `nsrr_ahi_hp4r` with `ahi_a0h4a` — while every other pairing agrees on at most 3 % of subjects and
+     differs by up to 43.6 events/h. A harmonized name may therefore precede its native twin, because
+     that order costs at most 0.005 events/h. Adding the four changes no existing selection either: no
+     NSRR dataset file carries both spellings (the harmonized CSV holds the four `nsrr_ahi_*` columns
+     and no native one, each per-visit CSV the reverse), so the four can only turn today's refusal into
+     a read. */
+  var NSRR_AHI_VARS = [
+    'nsrr_ahi_hp3r_aasm15',
+    'ahi_a0h3a',
+    'nsrr_ahi_hp4r',
+    'ahi_a0h4a',
+    'nsrr_ahi_hp3u',
+    'ahi_a0h3',
+    'nsrr_ahi_hp4u_aasm15',
+    'ahi_a0h4',
+    'ahi_c0h3',
+    'ahi_c0h4',
+    'ahi_ap0nop',
+    'poohi3',
+    'poohi4',
+    'rdi3p',
+    'rdi4p',
+    'oahi3',
+    'oahi4',
+    'ahi',
+    'rdi'
+  ];
+
+  /* Reference definitions that count arousal-terminated hypopneas. Explicit rather than a suffix
+     regex: `rdi3p`/`poohi3` also end in a digit-plus-letter shape, and guessing wrong here mislabels
+     the confound in the direction that hides it. Unknown ⇒ null ⇒ the caller warns. */
+  var AHI_VARS_WITH_AROUSAL = ['nsrr_ahi_hp3r_aasm15', 'nsrr_ahi_hp4r', 'ahi_a0h3a', 'ahi_a0h4a', 'ahi_c0h3a', 'ahi_c0h4a', 'ahi_o0h3a', 'ahi_o0h4a'];
+
+  function ahiCountsArousals(v) {
+    if (!v) return null;
+    if (AHI_VARS_WITH_AROUSAL.indexOf(v) >= 0) return true;
+    if (NSRR_AHI_VARS.indexOf(v) >= 0) return false;
+    return null; // unrecognised variable — caller must not assume either way
+  }
+
+  var NSRR_ID_VARS = ['nsrrid', 'pptid', 'subject', 'id', 'studyid', 'mesaid', 'idtype'];
+
+  /* RFC 4180 field split, because a naive `split(delim)` reads the wrong column on a real NSRR
+     dataset CSV. `shhs2-dataset-0.21.0.csv` carries a free-text `comm` column at position 856 that
+     holds a comma on 701 of its 4311 rows, and the four native AHI columns sit at 1229-1232, i.e.
+     AFTER it. Measured 2026-10-13: a naive split shifts the read onto a neighbouring variable on 685
+     of the 2651 rows that carry a value (25.8 %), and every one of those 685 values still parses as a
+     number, so it is stored rather than skipped — median |delta| 4.50 events/h, mean 7.09, max
+     102.23, and 46.3 % of them differ by more than 5. A plausible wrong reference clears every range check, so quoting has
+     to be honoured here rather than assumed away. */
+  function splitCsvLine(line, delim) {
+    var out = [],
+      cur = '',
+      q = false,
+      s = String(line == null ? '' : line),
+      d = delim || ',';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (q) {
+        if (ch !== '"') cur += ch;
+        else if (s.charAt(i + 1) === '"') {
+          cur += '"';
+          i++;
+        } else q = false;
+      } else if (ch === '"') q = true;
+      else if (ch === d) {
+        out.push(cur);
+        cur = '';
+      } else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+
+  function cell(c, i) {
+    return i >= 0 && i < c.length ? c[i].trim().replace(/^"|"$/g, '') : '';
+  }
+
+  /* Only SHHS encodes the visit in the record id — `shhs1-999999` is subject 999999 at visit 1 — and
+     SHHS is the only cohort this repository is licensed for. Any other stem answers null, and then a
+     bare subject id is used only where it is unambiguous. */
+  function stemVisit(stem) {
+    var m = /^shhs(\d+)[-_]/i.exec(String(stem == null ? '' : stem));
+    return m ? m[1] : null;
+  }
+
+  /* Read an NSRR dataset CSV into `{ byKey, ahiVar, arousals, … }`. Two shapes: a wide dataset export
+     (a real header, one chosen AHI variable) and a simple `id,ahi` pair list.
+
+     The visit travels IN THE KEY for a wide file that carries `visitnumber`, because the harmonized
+     dataset pools every visit into one file keyed by `nsrrid` + `visitnumber`, where a bare `nsrrid`
+     names no single recording. Measured 2026-10-13 on `shhs-harmonized-dataset-0.21.0.csv`: 4311 of
+     its 5804 subjects carry two rows, the visit-2 row comes last in all 4311, and 2651 of those hold
+     a visit-2 value — so a visit-blind `byKey[id] = ahi` would hand the visit-2 AHI to a visit-1
+     recording for 2651 subjects, mean |delta| 9.10 events/h, max 92.58, and 30.2 % of them over 10.
+     That is a reference measured on a different night, which `lookupAhi` must never substitute for an
+     absent one. A subject reached by more than one visit therefore gets NO bare key, and the count of
+     those sits in `ambiguous` for the caller to surface. */
+  function parseAhiCsv(text) {
+    var out = { byKey: {}, ahiVar: null, arousals: null, rows: 0, subjects: 0, visits: {}, ambiguous: 0, idVar: null, visitKeyed: false, wide: false, error: null };
+    var lines = String(text == null ? '' : text)
+      .split(/\r?\n/)
+      .filter(function (l) {
+        return l.trim();
+      });
+    if (!lines.length) {
+      out.error = 'empty CSV';
+      return out;
+    }
+    var delim = lines[0].indexOf('\t') >= 0 ? '\t' : ',';
+    var head = splitCsvLine(lines[0], delim).map(function (h) {
+      return h.trim().replace(/^"|"$/g, '').toLowerCase();
+    });
+    if (
+      !head.some(function (h) {
+        return isNaN(parseFloat(h));
+      })
+    ) {
+      // simple `id,ahi` (header optional): every row is a pair, and no variable is being chosen.
+      lines.forEach(function (ln) {
+        var c = splitCsvLine(ln, ln.indexOf('\t') >= 0 ? '\t' : ',');
+        if (c.length < 2) return;
+        var id = cell(c, 0),
+          ahi = parseFloat(c[1]);
+        if (id && isFinite(ahi)) {
+          out.byKey[id.replace(/\.(edf|xml)$/i, '')] = ahi;
+          out.rows++;
+        }
+      });
+      out.subjects = out.rows;
+      return out;
+    }
+
+    out.wide = true;
+    var idCol = -1;
+    for (var a = 0; a < NSRR_ID_VARS.length && idCol < 0; a++) idCol = head.indexOf(NSRR_ID_VARS[a]);
+    if (idCol < 0) idCol = 0;
+    out.idVar = head[idCol];
+    var ahiCol = -1;
+    for (var v = 0; v < NSRR_AHI_VARS.length && ahiCol < 0; v++) {
+      var ix = head.indexOf(NSRR_AHI_VARS[v]);
+      if (ix >= 0) {
+        ahiCol = ix;
+        out.ahiVar = NSRR_AHI_VARS[v];
+      }
+    }
+    if (ahiCol < 0) {
+      out.error = 'no known AHI column (looked for nsrr_ahi_hp3r_aasm15, ahi_a0h3a, poohi4, rdi4p…)';
+      return out;
+    }
+    out.arousals = ahiCountsArousals(out.ahiVar);
+
+    var visitCol = head.indexOf('visitnumber');
+    var bare = {},
+      seen = {};
+    for (var r = 1; r < lines.length; r++) {
+      var c = splitCsvLine(lines[r], delim);
+      if (c.length <= (idCol > ahiCol ? idCol : ahiCol)) continue;
+      var id = cell(c, idCol),
+        ahi = parseFloat(c[ahiCol]);
+      if (!id || !isFinite(ahi)) continue;
+      var visit = visitCol >= 0 ? cell(c, visitCol) : '';
+      if (/^\d+$/.test(visit)) {
+        out.byKey['visit' + visit + ':' + id] = ahi;
+        out.visits[visit] = (out.visits[visit] || 0) + 1;
+        out.visitKeyed = true;
+        bare[id] = Object.prototype.hasOwnProperty.call(bare, id) ? null : ahi;
+      } else {
+        bare[id] = ahi; // no visit column ⇒ one row per recording, last row wins (unchanged)
+      }
+      if (!seen[id]) {
+        seen[id] = 1;
+        out.subjects++;
+      }
+      out.rows++;
+    }
+    for (var b in bare) {
+      if (!Object.prototype.hasOwnProperty.call(bare, b)) continue;
+      if (bare[b] === null) out.ambiguous++;
+      else out.byKey[b] = bare[b];
+    }
+    return out;
+  }
+
+  /* Tolerant id lookup: an EDF stem `shhs1-999999` should match nsrrid `999999`. Tries the full stem,
+     then the trailing numeric id, then a `cohortN-` strip — under the stem's own visit first whenever
+     the table is visit-keyed. Returns `{ ahi, ahiVar, via }`, where `ahiVar` is the exact column name
+     the value came from, or null when this table holds no reference for THIS recording. */
+  function lookupAhi(table, stem) {
+    if (!table || !table.byKey || !stem) return null;
+    var map = table.byKey,
+      s = String(stem);
+    var num = (s.match(/(\d{3,})\s*$/) || [])[1];
+    var strip = s.replace(/^[a-z]+\d*[-_]/i, '');
+    var visit = stemVisit(s);
+    if (visit && table.visitKeyed) {
+      var cands = [s, num, strip];
+      for (var i = 0; i < cands.length; i++) {
+        var k = cands[i] == null ? null : 'visit' + visit + ':' + cands[i];
+        if (k && map[k] != null) return { ahi: map[k], ahiVar: table.ahiVar, via: 'csv(visit ' + visit + ')' };
+      }
+      /* The visit is KNOWN and that visit has no row. Falling through to the bare id would answer with
+         the other visit's night, so this refuses: an absent reference, never a borrowed one. */
+      return null;
+    }
+    if (map[s] != null) return { ahi: map[s], ahiVar: table.ahiVar, via: 'csv' };
+    if (num && map[num] != null) return { ahi: map[num], ahiVar: table.ahiVar, via: 'csv(id)' };
+    if (strip && map[strip] != null) return { ahi: map[strip], ahiVar: table.ahiVar, via: 'csv(id)' };
+    return null;
+  }
+
   function severityOf(ahi) {
     return ahi == null ? null : ahi < 5 ? 'none' : ahi < 15 ? 'mild' : ahi < 30 ? 'mod' : 'severe';
   }
 
   root.NSRR = {
     edfToOxyRows: edfToOxyRows,
+    parseAhiCsv: parseAhiCsv,
+    lookupAhi: lookupAhi,
+    ahiCountsArousals: ahiCountsArousals,
+    splitCsvLine: splitCsvLine,
+    stemVisit: stemVisit,
+    AHI_VARS: NSRR_AHI_VARS,
+    AHI_VARS_WITH_AROUSAL: AHI_VARS_WITH_AROUSAL,
+    ID_VARS: NSRR_ID_VARS,
     parseNsrrXml: parseNsrrXml,
     analyzeRecord: analyzeRecord,
     severityOf: severityOf,

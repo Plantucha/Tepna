@@ -58949,6 +58949,18 @@
       // The two nights differ ONLY in edge slope — same count, depth, spacing and duration — so this
       // pair pins the self-gate's discrimination, not merely "some input gives zero".
       T.ok('CONTROL · shape is the ONLY difference: 12.0/h vs 0/h off the same 12 events', rec.odi4 === 12 && squared.odi4 === 0, 'ramped=' + rec.odi4 + ' square=' + squared.odi4);
+
+      /* AHI-SURROGATE-REFIT-SIZING item 3 — a scored record must name the AHI DEFINITION it was
+         compared against, end to end. `ahiSource` carried the lookup route (`csv`, `csv(id)`), which
+         says how the value was found and nothing about what it means, so a refit could not tell which
+         of the four definitions a row belongs to. The route keeps its own field. */
+      var withRef = env.NSRR.analyzeRecord({ id: 'shhs1-999999', edfBuffer: edfBuf, scoredAHI: 21.5, ahiVar: 'nsrr_ahi_hp3r_aasm15', ahiVia: 'csv(visit 1)' });
+      T.eq('a CSV-provided reference is carried through unchanged', withRef.scoredAHI, 21.5);
+      T.eq('…and ahiSource is the exact dataset COLUMN NAME, not the lookup route', withRef.ahiSource, 'nsrr_ahi_hp3r_aasm15');
+      T.eq('…while the route travels in its own field', withRef.ahiVia, 'csv(visit 1)');
+      var noVar = env.NSRR.analyzeRecord({ id: 'shhs1-999999', edfBuffer: edfBuf, scoredAHI: 21.5 });
+      T.eq('a reference with no named variable still says so rather than inventing one', noVar.ahiSource, 'provided');
+      T.eq('…and its route is null, never a borrowed string', noVar.ahiVia, null);
     });
 
     /* ════ 21c-ter · NO CONSUMER MAY REACH AN OxyDex HELPER AS A BARE GLOBAL ════
@@ -59041,22 +59053,20 @@
      This group EVALUATES the list rather than grepping for a name: a text match would pass on a
      file that merely mentions `ahi_a0h3a` in a comment, which is the substring-hole failure this
      suite keeps rediscovering. Ordering is the contract, so ordering is what is asserted. */
-    group('ODI-bias reference AHI cannot share ODI’s blind spot', 'odi-bias · nsrr · source-scan', function (T) {
-      var src = (env.sources || {})['odi-bias-analysis.js'];
-      // ANTI-VACUITY: a scan over absent text passes while examining nothing.
-      T.ok('odi-bias-analysis.js source loaded (scan is non-vacuous)', typeof src === 'string' && src.length > 2000, 'len=' + (typeof src === 'string' ? src.length : 'absent'));
-      if (typeof src !== 'string' || src.length < 2000) return;
-
-      var m = /var\s+NSRR_AHI_VARS\s*=\s*(\[[^\]]*\])/.exec(src);
-      T.ok('NSRR_AHI_VARS literal is parseable from source', !!m);
-      if (!m) return;
-      var vars = JSON.parse(m[1].replace(/'/g, '"'));
+    group('ODI-bias reference AHI cannot share ODI’s blind spot', 'nsrr-adapter · odi-bias · known-answer', function (T) {
+      /* The preference list used to be a literal inside `odi-bias-analysis.js`, read here by regex
+         because that page cannot load headless (its tail wires twelve DOM handlers). It now lives in
+         `nsrr-adapter.js`, which both lanes execute, so these assertions read the SHIPPED value. */
+      var N = env.NSRR;
+      T.ok('NSRR.AHI_VARS + ahiCountsArousals are wired into env (both lanes)', !!(N && N.AHI_VARS && typeof N.ahiCountsArousals === 'function'), 'window.NSRR.AHI_VARS absent');
+      if (!N || !N.AHI_VARS) return;
+      var vars = N.AHI_VARS;
       T.ok('the preference list is populated', vars.length > 5, 'n=' + vars.length);
 
-      /* Arousal-inclusive definitions carry a trailing `a`. Listed explicitly, not matched by suffix:
-         `rdi3p`/`poohi3` share the digit-plus-letter shape and a regex that swept them in would
-         mislabel a desat-only reference as safe — an error in the direction that hides the defect. */
-      var AROUSAL = ['ahi_a0h3a', 'ahi_a0h4a', 'ahi_c0h3a', 'ahi_c0h4a', 'ahi_o0h3a', 'ahi_o0h4a'];
+      /* Arousal-inclusive definitions are listed explicitly, not matched by suffix: `rdi3p`/`poohi3`
+         share the digit-plus-letter shape, and a regex that swept them in would mislabel a desat-only
+         reference as safe — an error in the direction that hides the defect. */
+      var AROUSAL = ['nsrr_ahi_hp3r_aasm15', 'nsrr_ahi_hp4r', 'ahi_a0h3a', 'ahi_a0h4a', 'ahi_c0h3a', 'ahi_c0h4a', 'ahi_o0h3a', 'ahi_o0h4a'];
       T.ok('an arousal-inclusive variable is preferred FIRST', AROUSAL.indexOf(vars[0]) >= 0, 'first = ' + vars[0]);
 
       var iDesat = vars.indexOf('ahi_a0h4');
@@ -59072,9 +59082,154 @@
       }
       T.ok('no desat-only variable outranks any arousal-inclusive one', lastArous < 0 || lastArous < firstDesat, 'lastArousal@' + lastArous + ' firstDesatOnly@' + firstDesat);
 
+      /* The classifier is what the warning depends on, so assert it directly rather than through the
+         string the page prints. A `null` for an unknown name is load-bearing: it makes the caller warn
+         instead of assuming either answer. */
+      T.eq('ahiCountsArousals · nsrr_ahi_hp3r_aasm15 counts arousal-terminated hypopneas', N.ahiCountsArousals('nsrr_ahi_hp3r_aasm15'), true);
+      T.eq('ahiCountsArousals · nsrr_ahi_hp4r likewise (the dictionary names :ahi_a0h4a: as its source)', N.ahiCountsArousals('nsrr_ahi_hp4r'), true);
+      T.eq('ahiCountsArousals · nsrr_ahi_hp3u is desaturation-only', N.ahiCountsArousals('nsrr_ahi_hp3u'), false);
+      T.eq('ahiCountsArousals · nsrr_ahi_hp4u_aasm15 is desaturation-only', N.ahiCountsArousals('nsrr_ahi_hp4u_aasm15'), false);
+      T.eq('ahiCountsArousals · rdi3p is NOT read as arousal-inclusive by its shape', N.ahiCountsArousals('rdi3p'), false);
+      T.eq('ahiCountsArousals · an unrecognised name ⇒ null, never a default', N.ahiCountsArousals('ahi_zzz9q'), null);
+      T.eq('ahiCountsArousals · an absent name ⇒ null', N.ahiCountsArousals(''), null);
+
+      // All four harmonized definitions are reachable, or a harmonized CSV still reads as "no AHI column".
+      var four = ['nsrr_ahi_hp3r_aasm15', 'nsrr_ahi_hp4r', 'nsrr_ahi_hp3u', 'nsrr_ahi_hp4u_aasm15'];
+      T.ok(
+        'all four harmonized AHI definitions are recognised (refit acceptance item 3)',
+        four.every(function (v) {
+          return vars.indexOf(v) >= 0;
+        }),
+        four
+          .filter(function (v) {
+            return vars.indexOf(v) < 0;
+          })
+          .join(',') || 'all present'
+      );
+
       // The confound must be NAMED at selection time, not left as a neutral variable name.
-      T.ok('a desat-only selection warns rather than reporting silently', /ahiCountsArousals/.test(src) && /DESATURATION-ONLY/.test(src));
-      T.ok('an unrecognised variable warns rather than defaulting either way', /return null;/.test(src) && /unrecognised AHI variable/.test(src));
+      var src = (env.sources || {})['odi-bias-analysis.js'];
+      T.ok('odi-bias-analysis.js source loaded (the scan below is non-vacuous)', typeof src === 'string' && src.length > 2000, 'len=' + (typeof src === 'string' ? src.length : 'absent'));
+      if (typeof src !== 'string' || src.length < 2000) return;
+      T.ok('a desat-only selection warns rather than reporting silently', /DESATURATION-ONLY/.test(src) && /arousals === false/.test(src));
+      T.ok('an unrecognised variable warns rather than defaulting either way', /unrecognised AHI variable/.test(src));
+      T.ok('the page reads the shared reader rather than keeping a second copy', /NSRR\.parseAhiCsv/.test(src) && !/var\s+NSRR_AHI_VARS/.test(src));
+    });
+
+    /* ════ NSRR DATASET CSV → REFERENCE AHI — known-answer (AHI-SURROGATE-REFIT-SIZING item 3) ════
+       Three separately-silent defects, each of which hands a scored row a plausible wrong number:
+
+       1 · THE VISIT. The harmonized dataset pools every visit into ONE file keyed by `nsrrid` +
+           `visitnumber`, so a bare `nsrrid` names no single recording. Measured 2026-10-13 on
+           `shhs-harmonized-dataset-0.21.0.csv`: 4311 of its 5804 subjects carry two rows, the visit-2
+           row is last in all 4311, and 2651 of those hold a visit-2 value — so a visit-blind map hands
+           the visit-2 AHI to a visit-1 night for 2651 subjects, mean |Δ| 9.10 events/h, max 92.58.
+       2 · THE QUOTING. `shhs2-dataset-0.21.0.csv` holds a free-text `comm` column at position 856 that
+           carries a comma on 701 of its 4311 rows, and the AHI columns sit at 1229-1232, after it. A
+           naive split therefore reads a neighbouring variable on 685 of the 2651 rows that carry a
+           value (25.8 %) — median |Δ| 4.50 events/h, max 102.23 — and every one of those values parses
+           as a number, so it is stored rather than skipped.
+       3 · THE IDENTITY. `ahiSource` carried the lookup route, so a row never said which of the four
+           definitions it was scored against. That leg is pinned in the EDF-buffer group above.
+
+       Each assertion below is one comparison, and each is separately wrong in a way no range check
+       catches, because every value involved is a legal AHI. */
+    group('NSRR dataset CSV → reference AHI — known-answer (refit item 3)', 'nsrr-adapter · ingest · known-answer', function (T) {
+      var N = env.NSRR;
+      var ready = !!(N && typeof N.parseAhiCsv === 'function' && typeof N.lookupAhi === 'function' && typeof N.splitCsvLine === 'function' && typeof N.stemVisit === 'function');
+      T.ok('NSRR.parseAhiCsv · lookupAhi · splitCsvLine · stemVisit are wired into env (both lanes)', ready, 'window.NSRR reader absent');
+      if (!ready) return;
+
+      // ── the field splitter ──
+      T.eq('splitCsvLine · a plain row splits on the delimiter', N.splitCsvLine('a,b,c', ',').join('|'), 'a|b|c');
+      T.eq('splitCsvLine · a comma INSIDE quotes stays in its field (the `comm` column)', N.splitCsvLine('1,"left, then right",9.5', ',').join('|'), '1|left, then right|9.5');
+      T.eq('splitCsvLine · …so a later column keeps its position', N.splitCsvLine('1,"a,b,c,d",9.5', ',')[2], '9.5');
+      T.eq('splitCsvLine · a doubled quote is one literal quote', N.splitCsvLine('1,"say ""hi"" now",2', ',')[1], 'say "hi" now');
+      T.eq('splitCsvLine · a trailing empty field is kept (absence, not a dropped column)', N.splitCsvLine('1,2,', ',').length, 3);
+      T.eq('splitCsvLine · tab-delimited rows split on the tab', N.splitCsvLine('1\t2\t3', '\t').join('|'), '1|2|3');
+      T.eq('splitCsvLine · an absent line is one empty field, never a throw', N.splitCsvLine(null, ',').join('|'), '');
+
+      // ── the visit in the record id ──
+      T.eq('stemVisit · shhs1-999999 is visit 1', N.stemVisit('shhs1-999999'), '1');
+      T.eq('stemVisit · shhs2_999999 is visit 2 (either separator)', N.stemVisit('shhs2_999999'), '2');
+      T.eq('stemVisit · a cohort that does not encode a visit ⇒ null', N.stemVisit('mesa-sleep-0001'), null);
+      T.eq('stemVisit · a bare subject id ⇒ null', N.stemVisit('999999'), null);
+      T.eq('stemVisit · an absent stem ⇒ null', N.stemVisit(null), null);
+
+      /* ── a pooled two-visit file, the harmonized dataset's own shape ──
+         Subject 999999 is recorded at both visits; 999998 only at visit 1. Three rows, two subjects,
+         and the free-text column carries a comma on two of the three rows. */
+      var pooled = ['nsrrid,visitnumber,comm,nsrr_ahi_hp3r_aasm15', '999999,1,"flow drop, scored",10', '999999,2,"follow-up, repeat study",30', '999998,1,clean,20'].join('\n');
+      var t = N.parseAhiCsv(pooled);
+      T.eq('parseAhiCsv · the arousal-inclusive harmonized column is chosen', t.ahiVar, 'nsrr_ahi_hp3r_aasm15');
+      T.eq('parseAhiCsv · …and it is classified as counting arousals', t.arousals, true);
+      T.eq('parseAhiCsv · the id column is found by name', t.idVar, 'nsrrid');
+      T.eq('parseAhiCsv · every row is read', t.rows, 3);
+      T.eq('parseAhiCsv · …over two distinct subjects', t.subjects, 2);
+      T.eq('parseAhiCsv · the file is recognised as visit-keyed', t.visitKeyed, true);
+      T.eq('parseAhiCsv · visit 1 contributed two rows', t.visits['1'], 2);
+      T.eq('parseAhiCsv · visit 2 contributed one', t.visits['2'], 1);
+      T.eq('parseAhiCsv · the visit travels in the key · visit 1', t.byKey['visit1:999999'], 10);
+      T.eq('parseAhiCsv · …and visit 2 is a separate entry, not an overwrite', t.byKey['visit2:999999'], 30);
+      T.eq('parseAhiCsv · a subject reached by two visits gets NO bare key', t.byKey['999999'], undefined);
+      T.eq('parseAhiCsv · …and is counted as ambiguous', t.ambiguous, 1);
+      T.eq('parseAhiCsv · a single-visit subject keeps a bare key', t.byKey['999998'], 20);
+      T.eq('parseAhiCsv · the quoted comma did not shift the AHI column', t.byKey['visit1:999998'], 20);
+
+      // ── the lookup: the stem's own visit, or nothing ──
+      var r1 = N.lookupAhi(t, 'shhs1-999999');
+      T.eq('lookupAhi · a visit-1 stem reads the visit-1 row', r1 && r1.ahi, 10);
+      T.eq('lookupAhi · …and names the column it came from', r1 && r1.ahiVar, 'nsrr_ahi_hp3r_aasm15');
+      T.eq('lookupAhi · …and says which visit answered', r1 && r1.via, 'csv(visit 1)');
+      T.eq('lookupAhi · a visit-2 stem reads the visit-2 row (30, not 10)', (N.lookupAhi(t, 'shhs2-999999') || {}).ahi, 30);
+      /* THE DEFECT THIS READER EXISTS FOR: 999998 was never recorded at visit 2. A bare-id fallback
+         would answer 20 — a reference measured on a different night — so the lookup refuses. */
+      T.eq('lookupAhi · a visit the subject never attended ⇒ null, never the other visit’s night', N.lookupAhi(t, 'shhs2-999998'), null);
+      T.eq('lookupAhi · an unknown subject ⇒ null', N.lookupAhi(t, 'shhs1-888888'), null);
+      T.eq('lookupAhi · an absent table ⇒ null, never a throw', N.lookupAhi(null, 'shhs1-999999'), null);
+      T.eq('lookupAhi · an absent stem ⇒ null', N.lookupAhi(t, ''), null);
+
+      /* A cohort whose stem carries no visit still resolves through the bare id, but only where that
+         id is unambiguous — which is the 999998 case, and never the two-visit 999999. */
+      T.eq('lookupAhi · a visit-less stem reads an unambiguous subject', (N.lookupAhi(t, 'mesa-sleep-999998') || {}).ahi, 20);
+      T.eq('lookupAhi · …and gets nothing for an ambiguous one', N.lookupAhi(t, 'mesa-sleep-999999'), null);
+
+      // ── the preference order decides which definition is read, per file ──
+      var desatOnly = N.parseAhiCsv(['nsrrid,visitnumber,nsrr_ahi_hp4u_aasm15', '999999,1,12'].join('\n'));
+      T.eq('parseAhiCsv · a file carrying only a desat-only column uses it', desatOnly.ahiVar, 'nsrr_ahi_hp4u_aasm15');
+      T.eq('parseAhiCsv · …and reports that it shares ODI’s blind spot', desatOnly.arousals, false);
+      var both = N.parseAhiCsv(['nsrrid,nsrr_ahi_hp3u,nsrr_ahi_hp4r', '999999,8,14'].join('\n'));
+      T.eq('parseAhiCsv · an arousal-inclusive column outranks a desat-only one in the same file', both.ahiVar, 'nsrr_ahi_hp4r');
+      T.eq('parseAhiCsv · …so the value read is the arousal-inclusive one', both.byKey['999999'], 14);
+      T.eq('parseAhiCsv · a file with no visit column is not visit-keyed', both.visitKeyed, false);
+      var native = N.parseAhiCsv(['nsrrid,visitnumber,ahi_a0h3a,ahi_a0h4', '999999,1,11,7'].join('\n'));
+      T.eq('parseAhiCsv · a native per-visit export still resolves to its arousal-inclusive column', native.ahiVar, 'ahi_a0h3a');
+
+      // ── honest refusals ──
+      T.eq('parseAhiCsv · a header with no recognised AHI column refuses rather than guessing', N.parseAhiCsv('nsrrid,visitnumber,age\n999999,1,55').ahiVar, null);
+      T.ok('parseAhiCsv · …and says what it looked for', /no known AHI column/.test(N.parseAhiCsv('nsrrid,visitnumber,age\n999999,1,55').error || ''));
+      T.eq('parseAhiCsv · empty text ⇒ a named error, never an empty table reported as a read', N.parseAhiCsv('').error, 'empty CSV');
+      T.eq('parseAhiCsv · an absent argument ⇒ the same named error', N.parseAhiCsv(null).error, 'empty CSV');
+      var blank = N.parseAhiCsv(['nsrrid,visitnumber,nsrr_ahi_hp3u', '999999,1,', '999998,1,9'].join('\n'));
+      T.eq('parseAhiCsv · a blank AHI cell is skipped, never read as 0 (§∅)', blank.byKey['visit1:999999'], undefined);
+      T.eq('parseAhiCsv · …and the row carrying a value is still read', blank.byKey['visit1:999998'], 9);
+      T.eq('parseAhiCsv · …so the row count is the rows that CARRY a value', blank.rows, 1);
+
+      /* ── the simple `id,ahi` pair list keeps working ──
+         The pair branch is entered only when EVERY first-row cell parses as a number, which is the
+         shipped rule (`headerLooksReal` in the old reader) and is kept verbatim: a first row that
+         carries any word is a header, and a header with no recognised AHI column refuses rather than
+         reading two unnamed columns as a pair list. */
+      var simple = N.parseAhiCsv(['999999.edf,12.5', '999998,8'].join('\n'));
+      T.eq('parseAhiCsv · a headerless id,ahi list is read as pairs', simple.rows, 2);
+      T.eq('parseAhiCsv · …with the EDF extension stripped from the key', simple.byKey['999999'], 12.5);
+      T.eq('parseAhiCsv · …and no variable is claimed for it', simple.ahiVar, null);
+      T.eq('parseAhiCsv · …nor is it reported as a wide dataset export', simple.wide, false);
+      T.eq('lookupAhi · a pair list resolves through the numeric id inside the stem', (N.lookupAhi(simple, 'shhs1-999999') || {}).via, 'csv(id)');
+      T.eq('lookupAhi · …and gives that row’s value', (N.lookupAhi(simple, 'shhs1-999999') || {}).ahi, 12.5);
+      var stemPairs = N.parseAhiCsv(['shhs1-999999,12.5', 'shhs1-999998,8'].join('\n'));
+      T.ok('parseAhiCsv · a stem-keyed list with no header reads as a header and refuses, never as pairs', /no known AHI column/.test(stemPairs.error || ''));
+      T.eq('parseAhiCsv · …so no row is invented for it', stemPairs.rows, 0);
     });
 
     /* ════ 21d · OVERDEX FOLDER WALKER — known-answer (TEST-COVERAGE-FOLLOWUPS §5) ════
