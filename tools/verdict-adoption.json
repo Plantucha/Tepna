@@ -414,6 +414,10 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_qc_child.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
     "capture-host/tests/test_qc_poller_verdicts.py": {
       "bin": "test",
       "status": "exempt"

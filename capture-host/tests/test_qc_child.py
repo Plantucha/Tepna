@@ -39,13 +39,15 @@ def test_scan_night_returns_the_summary_and_the_wear_ends_from_ONE_call(tmp_path
     is deliberately NOT applied here: it is pure and cheap, and the parent is where the boundary check
     that refuses a non-dict summary already lives."""
     monkeypatch.setattr(nightqc, "summarize", lambda nd, dv: {"night": os.path.basename(nd), "devices": dv})
-    monkeypatch.setattr(loss_audit, "wear_by_device", lambda nd, dv: {"H10": {"worn_end_at": "x"}})
+    # BOTH fakes read BOTH arguments. A fake that ignores them lets the night and the device list swap
+    # places unnoticed, which is a real call-site defect and is invisible to an assertion on the shape.
+    monkeypatch.setattr(loss_audit, "wear_by_device", lambda nd, dv: {"dir": os.path.basename(nd), "devices": dv})
 
     out = qc_child.scan_night(str(tmp_path / "2026-10-13"), [{"name": "H10"}])
 
     assert out == {
         "summary": {"night": "2026-10-13", "devices": [{"name": "H10"}]},
-        "wear": {"H10": {"worn_end_at": "x"}},
+        "wear": {"dir": "2026-10-13", "devices": [{"name": "H10"}]},
         "wear_reason": None,
     }
 
@@ -55,13 +57,17 @@ def test_a_wear_scan_that_raises_is_an_ABSENCE_WITH_A_REASON_and_never_an_empty_
     it for a scan that FAILED would publish "nobody was worn" as a measurement. The reason travels back
     as a value because a spawned child has no handler for the daemon's logger."""
     monkeypatch.setattr(nightqc, "summarize", lambda nd, dv: {"night": "n"})
+    seen: list = []
 
     def boom(nd, dv):
+        seen.append((nd, dv))
         raise OSError("wear stream unreadable")
 
     monkeypatch.setattr(loss_audit, "wear_by_device", boom)
 
-    out = qc_child.scan_night(str(tmp_path), [])
+    out = qc_child.scan_night(str(tmp_path), [{"name": "H10"}])
+
+    assert seen == [(str(tmp_path), [{"name": "H10"}])], "the scan is asked about THIS night and THESE devices"
 
     assert out["wear"] is None, "an empty mapping would be a claim about every device"
     assert out["wear_reason"] == "OSError: wear stream unreadable"
@@ -102,13 +108,18 @@ def test_an_audit_newer_than_the_verdict_is_due_again(tmp_path):
 
 
 # ── audit_and_compose ───────────────────────────────────────────────────────────────────────────────
+#: One real device list, so every call-site assertion below reads a value and not an empty list — an
+#: empty one is equal to almost anything a wrong call site could hand the audit.
+DEV = [{"name": "H10", "kind": "polar"}]
+
+
 def _job(d, night="2026-10-12", *, audit=True, why=None):
     return {"dir": str(d), "night": night, "audit": audit, "why": why}
 
 
 def _writer(calls, *, write_file=True, dc=0.0):
     def write_night(nd, devices, commit=None):
-        calls.append((os.path.basename(nd), commit))
+        calls.append((os.path.basename(nd), devices, commit))
         if write_file:
             _audit(nd)
         return {"status": "FAIL", "at": "2026-10-12T00:00:00Z", "result": {"daemon_caused_min": dc}, "reason": "a bar"}
@@ -118,7 +129,16 @@ def _writer(calls, *, write_file=True, dc=0.0):
 
 def _composer(calls):
     def write_night(nd, devices, *, nights, active, commit=None, reason=None):
-        calls.append({"night": os.path.basename(nd), "nights": nights, "active": active, "reason": reason})
+        calls.append(
+            {
+                "night": os.path.basename(nd),
+                "devices": devices,
+                "nights": nights,
+                "active": active,
+                "commit": commit,
+                "reason": reason,
+            }
+        )
         _verdict(nd)
         return (
             {"status": "UNKNOWN", "reason": "not scored"},
@@ -136,10 +156,19 @@ def test_a_job_is_audited_then_composed_and_only_the_PROJECTIONS_come_back(tmp_p
     monkeypatch.setattr(loss_audit, "write_night", _writer(a, dc=3.0))
     monkeypatch.setattr(solid_night, "write_night", _composer(c))
 
-    out = qc_child.audit_and_compose([_job(tmp_path, why="judge moved")], [], ["2026-10-12"], {"x"}, "abc1234")
+    out = qc_child.audit_and_compose([_job(tmp_path, why="judge moved")], DEV, ["2026-10-12"], {"x"}, "abc1234")
 
-    assert a == [(os.path.basename(str(tmp_path)), "abc1234")], "the commit reaches the audit"
-    assert c[0]["nights"] == ["2026-10-12"] and c[0]["active"] == {"x"} and c[0]["reason"] == "judge moved"
+    assert a == [(os.path.basename(str(tmp_path)), DEV, "abc1234")], "the night, the devices and the commit"
+    assert c == [
+        {
+            "night": os.path.basename(str(tmp_path)),
+            "devices": DEV,
+            "nights": ["2026-10-12"],
+            "active": {"x"},
+            "commit": "abc1234",
+            "reason": "judge moved",
+        }
+    ], "every argument the verdict is composed from comes from the parent, unchanged"
     assert out == [
         {
             "night": "2026-10-12",
@@ -183,6 +212,31 @@ def test_an_audit_that_writes_no_verdict_file_composes_over_nothing(tmp_path, mo
 
     assert a and c == []
     assert out[0]["loss"]["status"] == "FAIL" and out[0]["solid"] is None
+
+
+def test_a_night_with_nothing_to_compose_does_not_END_the_poll(tmp_path, monkeypatch):
+    """The not-due branch goes on to the next job. A `break` there would let one quiet night hide every
+    later night of the same poll — and the parent sends them oldest first, so the newest would go."""
+    one, two = tmp_path / "2026-10-12", tmp_path / "2026-10-13"
+    for d in (one, two):
+        d.mkdir()
+    a, c = [], []
+    rec = _writer(a)
+
+    def write_night(nd, devices, commit=None):
+        obj = rec(nd, devices, commit=commit)
+        if os.path.basename(nd) == "2026-10-12":
+            os.remove(os.path.join(nd, loss_audit.VERDICT_NAME))  # this night's audit wrote no file
+        return obj
+
+    monkeypatch.setattr(loss_audit, "write_night", write_night)
+    monkeypatch.setattr(solid_night, "write_night", _composer(c))
+
+    out = qc_child.audit_and_compose([_job(one, "2026-10-12"), _job(two, "2026-10-13")], DEV, [], set(), None)
+
+    assert [r["night"] for r in out] == ["2026-10-12", "2026-10-13"], "the quiet night did not end the poll"
+    assert out[0]["solid"] is None and out[1]["solid"]["solid"] == 0
+    assert [x["night"] for x in c] == ["2026-10-13"], "only the night with an audit beside it was composed"
 
 
 def test_an_audit_that_raises_STOPS_the_batch_and_the_nights_already_done_still_come_back(tmp_path, monkeypatch):
