@@ -1,11 +1,11 @@
 {
   "schema": "tepna.defect-bench/1",
   "_doc": "A frozen benchmark of past defects. Tasks are residue rows closed `fixed #N` whose fix test FAILS on the parent commit and PASSES on the fix commit. Built by tools/defect-bench.mjs; brief briefs/DEFECT-BENCHMARK-2026-10-12-BRIEF.md.",
-  "builtAt": "2026-10-13T04:31:40Z",
-  "commit": "52dee4ec718d",
+  "builtAt": "2026-10-13T09:33:17Z",
+  "commit": "9358b2d9d08a",
   "splitRule": "sha256(key)[0:8] as int — even → dev, odd → heldout",
   "population": {
-    "residueRows": 579,
+    "residueRows": 580,
     "closedRows": 357,
     "closedRowsLineWide": 385,
     "closedPRs": 283,
