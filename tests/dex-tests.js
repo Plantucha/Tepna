@@ -18042,6 +18042,61 @@
         );
         var refused = S.patDifferencedHat(WD.slice(0, 6), 300000);
         T.ok('a refused drift-removed hat carries no block — there is no figure to attribute', refused.ok === false && refused.contributions === undefined, JSON.stringify(refused));
+        /* ── H · THE VARIANCES ROUTE, for a caller whose pairwise dispersion is NOT `_patRobustVar` over
+           per-window values. `tools/pat-three-corner.mjs` squares the MEDIAN of the within-window IQRs,
+           so handing its windows to `patHatContributions` would attribute an across-window spread the
+           printed hat never solved — a block that does not sum to the figure beside it. The split is the
+           same one `tchSigmasPairwise` / `tchSigmasPairwiseFromVars` already carry, and these assertions
+           are what catch the swap. */
+        if (typeof S.patHatContributionsFromVars !== 'function') {
+          T.ok('AnalysisStats.patHatContributionsFromVars exported', false, 'the variances route is not reachable');
+        } else {
+          var FV = S.patHatContributionsFromVars(400, 900, 100),
+            offFV = 0;
+          var CLOSED = { chest: (400 + 900 - 100) / 2, finger: (400 + 100 - 900) / 2, ankle: (900 + 100 - 400) / 2 };
+          ['chest', 'finger', 'ankle'].forEach(function (c) {
+            if (Math.abs(sum(FV[c]) - CLOSED[c]) > 1e-12) offFV++;
+            if (FV[c].of !== 'sigma2.' + c || FV[c].unit !== 'ms^2' || FV[c].method !== 'analytic') offFV++;
+          });
+          T.ok(
+            'given three leg VARIANCES, each corner block sums to ½(V_ab + V_ac − V_bc) for that corner',
+            offFV === 0,
+            offFV + ' off; ' + JSON.stringify({ chest: sum(FV.chest), want: CLOSED.chest })
+          );
+          /* (IQR / 1.349)², re-derived here rather than imported, so the delegation is checked against an
+             independent computation of the same definition instead of against itself. */
+          function robVar(v) {
+            var b = v.slice().sort(function (x, y) {
+              return x - y;
+            });
+            var q = function (p) {
+              var i = (b.length - 1) * p,
+                lo = Math.floor(i),
+                hi = Math.ceil(i);
+              return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (i - lo);
+            };
+            var sd = (q(0.75) - q(0.25)) / 1.349;
+            return sd * sd;
+          }
+          T.ok(
+            'the windows route DELEGATES to it — the per-window spelling is the variances spelling over (IQR/1.349)²',
+            JSON.stringify(S.patHatContributions(LEG[0], LEG[1], LEG[2])) === JSON.stringify(S.patHatContributionsFromVars(robVar(LEG[0]), robVar(LEG[1]), robVar(LEG[2]))),
+            'the two spellings disagree'
+          );
+          var byWindow = S.patHatContributions([20, 20, 20, 20], [30, 30, 30, 30], [60, 60, 60, 60]),
+            byVar = S.patHatContributionsFromVars(220, 495, 1978);
+          T.ok(
+            'the two routes are DIFFERENT quantities — a zero-spread window list is a zero variance, the squared median is not',
+            byWindow.chest.inputs[0].delta === 0 && byVar.chest.inputs[0].delta === 110,
+            JSON.stringify({ byWindow: byWindow.chest.inputs[0].delta, byVar: byVar.chest.inputs[0].delta })
+          );
+          var oneAbsent = S.patHatContributionsFromVars(400, NaN, 100);
+          T.ok(
+            '∅ survives the split — a non-finite leg variance is delta null with a reason, and every share goes with it',
+            oneAbsent.chest.inputs[1].delta === null && oneAbsent.chest.inputs[0].share === null && oneAbsent.chest.dominant === null,
+            JSON.stringify(oneAbsent.chest)
+          );
+        }
       }
     );
 
@@ -38399,7 +38454,17 @@
                withdrawal itself, so retiring a row takes two rows and the second is a permanent public
                claim under a session's own name. */
             var withdrawn = /^withdrawn (\d{4}-\d{2}-\d{2}-[a-z0-9-]+)$/.exec(st);
-            var stateOk = st === 'OPEN' || !!promoted || !!withdrawn || /^fixed #\d+$/.test(st);
+            /* FIFTH STATE — `answered <ref>` (owner ruling 2026-10-12). The four above each assert
+               something happened to the DEFECT: a repair, a pickup, a refutation. A row that asked a
+               QUESTION and got its measurement asserts none of them, so it stayed OPEN — and OPEN means
+               work is owed. 27 of 169 OPEN rows read that way in the 2026-10-12 audit.
+               The `<ref>` is where the answer lives: the `#NNNN` that recorded the measurement, a ledger
+               key, or a backticked brief. A bare `answered` is REJECTED here — an answer with no pointer
+               is the prose-as-evidence the ledger's own evidence column forbids.
+               Unlike `withdrawn` it takes no corroboration: an answer is not a claim that the defect
+               never existed, so no second row has to say so. check8j resolves the pointer and stops. */
+            var answered = /^answered (#\d+|\d{4}-\d{2}-\d{2}-[a-z0-9-]+|`[A-Za-z0-9._-]+-BRIEF\.md`)$/.exec(st);
+            var stateOk = st === 'OPEN' || !!promoted || !!withdrawn || !!answered || /^fixed #\d+$/.test(st);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(c[1]) || !src || !stateOk || !c[3] || !c[4]) {
               out.malformed.push(
                 c[0] +
@@ -38407,13 +38472,23 @@
                   (!src
                     ? 'source not a backticked *-BRIEF.md, repo path or #PR'
                     : !stateOk
-                      ? 'state "' + st + '" not OPEN | → `brief` | fixed #N | withdrawn <key>'
+                      ? 'state "' + st + '" not OPEN | → `brief` | fixed #N | withdrawn <key> | answered <ref>'
                       : 'bad date or empty defect/evidence') +
                   ')'
               );
               return;
             }
-            out.rows.push({ id: c[0], date: c[1], source: src[1], srcKind: srcKind, state: st, withdrawnBy: withdrawn ? withdrawn[1] : null, defect: c[3], promoted: promoted ? promoted[1] : null });
+            out.rows.push({
+              id: c[0],
+              date: c[1],
+              source: src[1],
+              srcKind: srcKind,
+              state: st,
+              withdrawnBy: withdrawn ? withdrawn[1] : null,
+              answeredBy: answered ? answered[1] : null,
+              defect: c[3],
+              promoted: promoted ? promoted[1] : null
+            });
           });
         return out;
       }
@@ -38454,6 +38529,25 @@
         T.ok('self-test · …but EXISTS, so a reference to it resolves (no misdirected "no such row")', !!P.seen['2026-09-20-zz-broken']);
         T.eq('self-test · a valid row still carries its defect cell into seen', P.seen['2026-09-20-zz-ref'].defect.indexOf('WITHDRAWS') === 0, true);
         T.ok('self-test · a key that is genuinely absent is still absent', !P.seen['2026-09-20-zz-nonexistent']);
+      })();
+      /* self-test · THE FIFTH STATE'S SHAPE. `answered` is the only state whose argument is a CHOICE of
+         three forms, so each form is planted, and so is the form the owner's ruling rules out: a bare
+         `answered` with nothing after it. That one must red, or the state becomes a way to close a row
+         by assertion — the fabricated-close failure `withdrawn` was gated against on 2026-09-13. */
+      (function () {
+        var mk = function (st) {
+          return '| 2026-10-12-zz-ans | 2026-10-12 | `signal-spec.js` | d | e | ' + st + ' |\n';
+        };
+        var ok = function (st) {
+          var P = residueRows(mk(st));
+          return P.malformed.length === 0 && P.rows.length === 1 ? P.rows[0].answeredBy : 'MALFORMED';
+        };
+        T.eq('self-test · check8b ACCEPTS `answered #NNNN` and keeps the pointer', ok('answered #3466'), '#3466');
+        T.eq('self-test · …and `answered <ledger key>`', ok('answered 2026-10-04-two-neighbour-predicates'), '2026-10-04-two-neighbour-predicates');
+        T.eq('self-test · …and `answered `<NAME>-BRIEF.md``', ok('answered `X-2026-01-01-BRIEF.md`'), '`X-2026-01-01-BRIEF.md`');
+        T.eq('self-test · …and REJECTS a bare `answered` with no evidence', ok('answered'), 'MALFORMED');
+        T.eq('self-test · …and REJECTS prose where the pointer belongs', ok('answered by measurement'), 'MALFORMED');
+        T.eq('self-test · …and REJECTS a trailing annotation on the pointer', ok('answered #3466 (measured)'), 'MALFORMED');
       })();
       /* ── check8i · A WITHDRAWAL MUST BE CORROBORATED BY THE ROW IT NAMES ──────────────────────
          The fourth state exists so a row whose defect turned out not to exist can close honestly. The
@@ -38518,6 +38612,91 @@
         var un = [mk('2026-01-01-a', 'withdrawn 2026-01-02-b', 'x'), mk('2026-01-02-b', 'OPEN', 'unrelated finding')];
         T.eq('self-test · …and REJECTS one the named row never mentions', probe(un)[0], 'unsupported');
         T.eq('self-test · …and REJECTS a row withdrawing itself', probe([mk('2026-01-01-a', 'withdrawn 2026-01-01-a', 'x')])[0], 'self');
+      })();
+
+      /* ── check8j · AN `answered <ref>` POINTER MUST RESOLVE ────────────────────────────────
+         check8h exists because the 2026-09-02 key migration left row-to-row references pointing at ids
+         that no longer existed, with every assertion green. A fifth state whose whole content is a
+         pointer would reopen exactly that hole, so the two resolvable forms are resolved: a ledger key
+         must name a row that exists and is not this one, and a brief must be in `briefs/`.
+         A `#NNNN` is well-formed by construction and not resolvable offline — the same reasoning
+         check8d applies to a PR source cell, in a repo whose lanes have no network.
+         This is NOT check8i's corroboration: the named row need not name this one back. An answer is a
+         measurement on the record, not a claim that the defect never existed, and requiring a second row
+         to assert one would re-import the cost `withdrawn` pays for a reason that does not apply. */
+      var badAnswered = [];
+      RR.rows.forEach(function (r) {
+        if (!r.answeredBy) return;
+        var ref = r.answeredBy;
+        if (ref.charAt(0) === '#') return;
+        if (ref.charAt(0) === '`') {
+          if (!DL.briefs[ref.replace(/`/g, '')]) badAnswered.push(r.id + ' → ' + ref + ' (no such brief)');
+          return;
+        }
+        if (ref === r.id) {
+          badAnswered.push(r.id + ' answers ITSELF');
+          return;
+        }
+        if (!byKey[ref] && !RR.seen[ref]) badAnswered.push(r.id + ' → ' + ref + ' (no such row)');
+      });
+      T.ok(
+        'check8j · every `answered <ref>` names a PR, an existing ledger row, or a real brief',
+        badAnswered.length === 0,
+        badAnswered.length
+          ? badAnswered.slice(0, 5).join('; ')
+          : RR.rows.filter(function (r) {
+              return r.answeredBy;
+            }).length + ' answer pointer(s) resolved'
+      );
+      /* self-test — the check must FIRE on each resolvable form, or the pointer is decoration. */
+      (function () {
+        var probe = function (rows, briefs) {
+          var m = {},
+            bad = [];
+          rows.forEach(function (r) {
+            m[r.id] = r;
+          });
+          rows.forEach(function (r) {
+            if (!r.answeredBy) return;
+            var ref = r.answeredBy;
+            if (ref.charAt(0) === '#') return;
+            if (ref.charAt(0) === '`') {
+              if (!briefs[ref.replace(/`/g, '')]) bad.push('no-brief');
+              return;
+            }
+            if (ref === r.id) return bad.push('self');
+            if (!m[ref]) bad.push('dangling');
+          });
+          return bad;
+        };
+        var B = { 'REAL-2026-01-01-BRIEF.md': 'x' };
+        T.eq('self-test · check8j ACCEPTS a `#NNNN` answer (not resolvable offline, by design)', probe([{ id: '2026-01-01-a', answeredBy: '#2840' }], B).length, 0);
+        T.eq(
+          'self-test · …ACCEPTS a key that names another existing row',
+          probe(
+            [
+              { id: '2026-01-01-a', answeredBy: '2026-01-02-b' },
+              { id: '2026-01-02-b', answeredBy: null }
+            ],
+            B
+          ).length,
+          0
+        );
+        T.eq(
+          'self-test · …and does NOT require that row to name it back (not a withdrawal)',
+          probe(
+            [
+              { id: '2026-01-01-a', answeredBy: '2026-01-02-b' },
+              { id: '2026-01-02-b', answeredBy: null, defect: 'unrelated' }
+            ],
+            B
+          ).length,
+          0
+        );
+        T.eq('self-test · …REJECTS a key that names no row', probe([{ id: '2026-01-01-a', answeredBy: '2026-01-09-z' }], B)[0], 'dangling');
+        T.eq('self-test · …REJECTS a row answering itself', probe([{ id: '2026-01-01-a', answeredBy: '2026-01-01-a' }], B)[0], 'self');
+        T.eq('self-test · …ACCEPTS a brief that exists', probe([{ id: '2026-01-01-a', answeredBy: '`REAL-2026-01-01-BRIEF.md`' }], B).length, 0);
+        T.eq('self-test · …REJECTS a brief that does not', probe([{ id: '2026-01-01-a', answeredBy: '`GHOST-2026-01-01-BRIEF.md`' }], B)[0], 'no-brief');
       })();
 
       /* A residue's origin is not always a brief. `find_unwired.py` learning to stop counting a COMMENT
@@ -72111,6 +72290,173 @@
       var drift = CC(M, G, true);
       T.ok('a drifted copy is REFUSED with a non-zero exit', drift.status === 1, 'status=' + drift.status);
       T.ok('the refusal names the stale file', /differs from the output of dex-gen\.js/.test(drift.out), drift.out.trim());
+    });
+
+    /* §∅ · FOUR CONSUMERS SUMMED AN ABSENT SECOND AS A ZERO READING ─────────────────────────────
+       Found while diffing a 102-night re-fold against its committed exports: 89 of 550 files carried
+       a moved value and every one was an OxyDex export. The writer had begun appending a ten-sample
+       null tail (10 s at 1 Hz) per affected night — absence carried as null, exactly §∅ — and these
+       four consumers read it arithmetically. `a + null` is `a` in JS, so an absent second enters as
+       0 % saturation or 0 bpm while the denominator still counts it. Sibling functions in this file
+       (`computeT88T85`, `computeHypoxicDose`) already filter `spo2 != null`, which is why the six
+       scored metrics — ODI4, ODI3, T90, mean SpO2, hypoxic burden, dip-3 rate — were untouched in all
+       89 nights and only the shape, variability and conditional blocks moved.
+       ARITHMETIC, NOT INFERENCE (2026-06-10, the real night): measured samples alone give n 25557,
+       mean 96.36, SD 0.94, skew -1.039, kurtosis 6.604. The same series with ten zeros appended gives
+       96.32, 2.12, -36.569, 1655.192 — and the re-folded export stated those four figures to every
+       decimal. The labels went with them: "Leptokurtic (heavy tails/events)", "Left-skewed (hypox
+       burden)", "Motion artifact likely". Ten absent seconds manufactured a clinical-sounding reading.
+       MEASURED BOTH WAYS against main's own sources, on the 1000-sample synthetic series below: the
+       kurtosis goes 1.7 -> 98.838 and its label Platykurtic -> Leptokurtic; the HR CV goes 1.68 ->
+       10.14 and its label "Low (<6%)" -> "Moderate"; SD2 goes 0.71 -> 8.26 and its label likewise.
+       Three of the four labels flip on ten absent seconds out of a thousand.
+       And one committed fixture on main carries the defect TODAY: of the two exports holding a
+       spo2Shape block, `uploads/synthetic_oxydex_gap_golden.node-export.json` — the fixture built to
+       exercise absence, 1800 of 7200 seconds unmeasured — states spo2Mean 72.28 and spo2SD 41.79
+       beside its own stats.meanSpo2 of 96.4, and labels the night "True apnea pattern (SpO2 worse at
+       rest)". Its clean twin (`synthetic_oxydex_golden`, nSpo2 == n) states 96.48 / 1.06.
+       WHY THE FILTER IS NOT `!= 0`: a low saturation is a real reading. The last leg plants ten
+       genuine 70 % seconds and asserts the fix and main agree to every decimal on them. */
+    function _nbSeries(n) {
+      var r = [];
+      for (var i = 0; i < n; i++) r.push({ tMs: i * 1000, spo2: 96 + ((i * 7) % 5) * 0.2, hr: 58 + ((i * 3) % 7) * 0.5, motion: 0 });
+      return r;
+    }
+    function _nbMixed(n) {
+      // every tenth second carries motion, and rest sits LOWER than movement, so the delta is real
+      var r = [];
+      for (var i = 0; i < n; i++) {
+        var mv = i % 10 === 0;
+        r.push({ tMs: i * 1000, spo2: mv ? 97 : 95 + ((i * 7) % 3) * 0.5, hr: 58 + ((i * 3) % 7) * 0.5, motion: mv ? 1 : 0 });
+      }
+      return r;
+    }
+    function _nbPad(rows, k) {
+      // the tail the fold's writer appends: absent seconds, carried as null, motion still read as 0
+      var out = rows.slice();
+      for (var i = 0; i < k; i++) out.push({ tMs: (rows.length + i) * 1000, spo2: null, hr: null, motion: 0 });
+      return out;
+    }
+    function _nbBare(T, fn) {
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_od && _od._bare) || _od;
+      if (!OD || typeof OD[fn] !== 'function') {
+        // NOT a skip: a skip is neither pass nor fail, and this group would then shrink the gate silently.
+        T.ok('OxyDex._bare.' + fn + ' is reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+        return null;
+      }
+      return OD[fn];
+    }
+
+    group('OxyDex §∅ — computeSpO2Shape does not sum an absent second as 0 % saturation', 'oxydex-dsp · absence-as-value · shape', function (T) {
+      var f = _nbBare(T, 'computeSpO2Shape');
+      if (!f) return;
+      var clean = _nbSeries(1000);
+      var a = f(clean),
+        b = f(_nbPad(clean, 10));
+      // (a) THE FIX — the ten absent seconds move no moment and no label. RED on main at every line.
+      T.eq('§∅ · the mean is unmoved by a ten-sample null tail', b.spo2Mean, a.spo2Mean);
+      T.eq('§∅ · the SD is unmoved', b.spo2SD, a.spo2SD);
+      T.eq('§∅ · the skew is unmoved', b.spo2Skew, a.spo2Skew);
+      T.eq('§∅ · the kurtosis is unmoved (main: 1.7 -> 98.838)', b.spo2Kurt, a.spo2Kurt);
+      T.eq('§∅ · the kurtosis LABEL is unmoved (main: Platykurtic -> Leptokurtic)', b.spo2KurtLabel, a.spo2KurtLabel);
+      T.eq('§∅ · the skew LABEL is unmoved (main: Near-symmetric -> Left-skewed)', b.spo2SkewLabel, a.spo2SkewLabel);
+      // (b) coverage beside the value — reduced coverage ANNOTATES (owner ruling 2026-09-17)
+      T.eq('§∅ · nMeasured counts the measured seconds only', b.nMeasured, 1000);
+      T.eq('§∅ · nTotal counts the rows, so the absence is visible', b.nTotal, 1010);
+      // CONTROLS — these pass on main too, so a red above is the absence path and not the harness.
+      T.eq('CONTROL · the measured-only mean is the real one', a.spo2Mean, 96.4);
+      T.eq('CONTROL · the measured-only SD is the real one', a.spo2SD, 0.28);
+      T.eq('CONTROL · the clean series is Platykurtic, not an event-laden night', a.spo2KurtLabel, 'Platykurtic');
+      T.eq('CONTROL · a fully measured series reports full coverage', a.nMeasured + '/' + a.nTotal, '1000/1000');
+      /* THE FLOOR COUNTS MEASURED SECONDS, NOT ROWS. The diff-scoped mutation gate (#3506) found
+         `m < 60` blind in both directions: `m < 0` never refuses, `m <= 60` refuses one second early.
+         59 measured seconds behind a hundred absent ones is under the floor however long the array is. */
+      T.eq('§∅ · 59 measured seconds is under the floor, so the shape refuses', f(_nbPad(_nbSeries(59), 100)), null);
+      T.ok('§∅ · 60 measured seconds clears it', f(_nbSeries(60)) !== null, 'the floor is `m < 60`, so exactly 60 is enough');
+    });
+
+    group('OxyDex §∅ — computeHRCV does not sum an absent second as 0 bpm', 'oxydex-dsp · absence-as-value · hrcv', function (T) {
+      var f = _nbBare(T, 'computeHRCV');
+      if (!f) return;
+      var clean = _nbSeries(1000);
+      var a = f(clean),
+        b = f(_nbPad(clean, 10));
+      T.eq('§∅ · the coefficient of variation is unmoved (main: 1.68 -> 10.14)', b.hrCV, a.hrCV);
+      T.eq('§∅ · its LABEL is unmoved (main: "Low (<6%)" -> "Moderate")', b.hrCVlabel, a.hrCVlabel);
+      T.eq('§∅ · the mean HR is unmoved', b.hrCVmean, a.hrCVmean);
+      T.eq('§∅ · the SD is unmoved', b.hrCVsd, a.hrCVsd);
+      T.eq('§∅ · coverage is reported beside the value', b.nMeasured + '/' + b.nTotal, '1000/1010');
+      T.eq('CONTROL · the measured-only CV is the real one', a.hrCV, 1.68);
+      T.eq('CONTROL · the clean series is low-variability, not an aroused night', a.hrCVlabel, 'Low (<6%)');
+      T.eq('CONTROL · the measured-only mean HR is the real one', a.hrCVmean, 59.5);
+      // the same floor, same two blind directions — see the note in the shape group above
+      T.eq('§∅ · 59 measured seconds is under the floor, so the CV refuses', f(_nbPad(_nbSeries(59), 100)), null);
+      T.ok('§∅ · 60 measured seconds clears it', f(_nbSeries(60)) !== null, 'the floor is `m < 60`, so exactly 60 is enough');
+      /* `!mean || mean <= 0` guards the DENOMINATOR, and `isFinite` admits a negative reading, so the
+         second clause is the one that catches a mean no heart can have. Dropping it leaves a CV of -0. */
+      var _negHR = _nbSeries(200).map(function (r) {
+        return { tMs: r.tMs, spo2: r.spo2, hr: -10, motion: 0 };
+      });
+      T.eq('§∅ · a negative mean HR refuses, it does not report a coefficient over it', f(_negHR), null);
+    });
+
+    group('OxyDex §∅ — computePoincareSD does not read an absent beat as a 0 bpm excursion', 'oxydex-dsp · absence-as-value · poincare', function (T) {
+      var f = _nbBare(T, 'computePoincareSD');
+      if (!f) return;
+      var clean = _nbSeries(1000);
+      var a = f(clean),
+        b = f(_nbPad(clean, 10));
+      /* The motion filter had ALREADY made this array non-contiguous, so dropping the absent beats
+         changes nothing about contiguity — it only stops a 0 bpm sample entering a successive
+         difference as a ~60 bpm step. */
+      T.eq('§∅ · SD1 is unmoved by a ten-sample null tail', b.sd1, a.sd1);
+      T.eq('§∅ · SD2 is unmoved (main: 0.71 -> 8.26)', b.sd2, a.sd2);
+      T.eq('§∅ · the ratio is unmoved', b.sd1sd2Ratio, a.sd1sd2Ratio);
+      T.eq('§∅ · the SD2 LABEL is unmoved (main: Low sympathetic modulation -> Normal)', b.sd2Label, a.sd2Label);
+      T.eq('§∅ · coverage is reported beside the pair', b.nMeasured + '/' + b.nTotal, '1000/1010');
+      T.eq('CONTROL · the measured-only SD1 is the real one', a.sd1, 1.22);
+      T.eq('CONTROL · the measured-only SD2 is the real one', a.sd2, 0.71);
+      T.eq('CONTROL · the clean series reads low sympathetic modulation', a.sd2Label, 'Low sympathetic modulation (1Hz proxy)');
+    });
+
+    group('OxyDex §∅ — computeConditionalSpO2 filters the SpO2 it sums, not only the motion it groups by', 'oxydex-dsp · absence-as-value · conditional', function (T) {
+      var f = _nbBare(T, 'computeConditionalSpO2');
+      if (!f) return;
+      var mixed = _nbMixed(1000);
+      var a = f(mixed),
+        b = f(_nbPad(mixed, 10));
+      /* Both filters read the MOTION channel and the sums then read SpO2, so a still-but-unmeasured
+         second entered the still mean as 0 %. Absence is not shared evenly between rest and movement,
+         so the DELTA moved too — and the delta is what the label calls an apnea pattern. */
+      T.eq('§∅ · the still mean is unmoved by a ten-sample null tail (main: 95.5 -> 94.45)', b.spo2StillMean, a.spo2StillMean);
+      T.eq('§∅ · the moving mean is unmoved', b.spo2MovingMean, a.spo2MovingMean);
+      T.eq('§∅ · the DELTA is unmoved (main: -1.5 -> -2.55, a 70 % error)', b.spo2MotionDelta, a.spo2MotionDelta);
+      T.eq('§∅ · the label is unmoved', b.motionArtifactLabel, a.motionArtifactLabel);
+      T.eq('§∅ · coverage beside the still mean', b.nStillMeasured + '/' + b.nStillTotal, '900/910');
+      T.eq('§∅ · coverage beside the moving mean', b.nMovingMeasured + '/' + b.nMovingTotal, '100/100');
+      T.eq('CONTROL · the measured-only still mean is the real one', a.spo2StillMean, 95.5);
+      T.eq('CONTROL · the measured-only moving mean is the real one', a.spo2MovingMean, 97);
+      T.eq('CONTROL · the measured-only delta is the real one', a.spo2MotionDelta, -1.5);
+      T.eq('CONTROL · stillPct reads the motion channel, so it keeps the whole recording as its denominator', b.stillPct, 90.1);
+    });
+
+    group('OxyDex §∅ — the filter is absence, NEVER `!= 0`: a genuine 70 % second survives', 'oxydex-dsp · absence-as-value · genuine-zero-trap', function (T) {
+      var f = _nbBare(T, 'computeSpO2Shape');
+      if (!f) return;
+      /* CLAUDE.md §∅: "`0` is a legal sample, so the fix is never `!= 0` in a DSP." A desaturation to
+         70 % is a real reading and must keep moving every moment. Measured against main's own sources:
+         the two agree to every decimal on this input (95.39 / 2.62 / -9.083 / 88.31), which is the
+         proof that the change removed a fabrication and not a signal. */
+      var rows = _nbMixed(1000);
+      for (var i = 500; i < 510; i++) rows[i].spo2 = 70;
+      var out = f(rows);
+      T.eq('a genuine 70 % second still moves the mean (main agrees: 95.39)', out.spo2Mean, 95.39);
+      T.eq('…and the SD', out.spo2SD, 2.62);
+      T.eq('…and the skew', out.spo2Skew, -9.083);
+      T.eq('…and the kurtosis', out.spo2Kurt, 88.31);
+      T.eq('…so the night is still read as event-laden', out.spo2KurtLabel, 'Leptokurtic (heavy tails/events)');
+      T.eq('…and all 1000 seconds count as measured', out.nMeasured + '/' + out.nTotal, '1000/1000');
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that

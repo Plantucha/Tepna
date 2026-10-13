@@ -6141,38 +6141,50 @@
   function computeSpO2Shape(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var s = rows.map(function (r) {
-      return r.spo2;
-    });
+    // §∅: every moment here is a sum, and `a + null` is a — so an absent second
+    // enters the distribution as 0 % saturation and drags the mean, the SD, the
+    // skew and the kurtosis with it. Ten absent seconds in a clean night moved
+    // the kurtosis from 6.6 to 1655 and flipped the label to "Leptokurtic".
+    var s = [];
+    for (var si = 0; si < n; si++) {
+      var sv = rows[si].spo2;
+      if (sv != null && isFinite(sv)) s.push(sv);
+    }
+    var m = s.length;
+    if (m < 60) return null;
     var mean =
       s.reduce(function (a, b) {
         return a + b;
-      }, 0) / n;
+      }, 0) / m;
     var m2 = 0,
       m3 = 0,
       m4 = 0;
-    for (var i = 0; i < n; i++) {
+    for (var i = 0; i < m; i++) {
       var d = s[i] - mean;
       m2 += d * d;
       m3 += d * d * d;
       m4 += d * d * d * d;
     }
-    m2 /= n;
-    m3 /= n;
-    m4 /= n;
+    m2 /= m;
+    m3 /= m;
+    m4 /= m;
     var sd = Math.sqrt(m2);
     if (sd === 0) return null;
     var skew = +(m3 / (sd * sd * sd)).toFixed(3);
     var kurt = +(m4 / (m2 * m2)).toFixed(3); // excess kurtosis = kurt - 3
     var excessKurt = +(kurt - 3).toFixed(3);
     return {
-      spo2Mean: isFinite(mean) ? +mean.toFixed(2) : 0,
-      spo2SD: isFinite(sd) ? +sd.toFixed(2) : 0,
+      // §∅: an unmeasurable mean is null, never a 0 % saturation
+      spo2Mean: isFinite(mean) ? +mean.toFixed(2) : null,
+      spo2SD: isFinite(sd) ? +sd.toFixed(2) : null,
       spo2Skew: skew,
       spo2Kurt: kurt,
       spo2ExcessKurt: excessKurt,
       spo2SkewLabel: skew < -0.5 ? 'Left-skewed (hypox burden)' : skew > 0.5 ? 'Right-skewed' : 'Near-symmetric',
-      spo2KurtLabel: excessKurt > 2 ? 'Leptokurtic (heavy tails/events)' : excessKurt < 0 ? 'Platykurtic' : 'Normal-ish'
+      spo2KurtLabel: excessKurt > 2 ? 'Leptokurtic (heavy tails/events)' : excessKurt < 0 ? 'Platykurtic' : 'Normal-ish',
+      // §∅: coverage beside the value — the shape is over measured seconds only
+      nMeasured: m,
+      nTotal: n
     };
   }
 
@@ -6180,22 +6192,38 @@
   function computeHRCV(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var hr = rows.map(function (r) {
-      return r.hr;
-    });
+    // §∅: `a + null` is a, so an absent second reads as 0 bpm — it lowers the mean
+    // and inflates the SD, and the coefficient of variation is their ratio, so a
+    // dropout alone can carry the night from "Low" to "High variability".
+    var hr = [];
+    for (var hi = 0; hi < n; hi++) {
+      var hv = rows[hi].hr;
+      if (hv != null && isFinite(hv)) hr.push(hv);
+    }
+    var m = hr.length;
+    if (m < 60) return null;
     var mean =
       hr.reduce(function (a, b) {
         return a + b;
-      }, 0) / n;
-    if (mean === 0) return null;
+      }, 0) / m;
+    if (!mean || mean <= 0) return null;
     var sd = Math.sqrt(
       hr.reduce(function (a, b) {
         return a + (b - mean) * (b - mean);
-      }, 0) / n
+      }, 0) / m
     );
-    if (!mean || mean <= 0) return null;
-    var cv = isFinite(sd / mean) ? +((sd / mean) * 100).toFixed(2) : 0;
-    return { hrCV: cv, hrCVmean: +mean.toFixed(1), hrCVsd: +sd.toFixed(2), hrCVlabel: cv > 12 ? 'High variability' : cv > 6 ? 'Moderate' : 'Low (<6%)' };
+    // §∅: an unmeasurable ratio is null, never a 0 % coefficient
+    var cv = isFinite(sd / mean) ? +((sd / mean) * 100).toFixed(2) : null;
+    if (cv === null) return null;
+    return {
+      hrCV: cv,
+      hrCVmean: +mean.toFixed(1),
+      hrCVsd: +sd.toFixed(2),
+      hrCVlabel: cv > 12 ? 'High variability' : cv > 6 ? 'Moderate' : 'Low (<6%)',
+      // §∅: coverage beside the value — the CV is over measured seconds only
+      nMeasured: m,
+      nTotal: n
+    };
   }
 
   // ── 5. Hypoxic Dose + Desaturation AUC ────────────────────────────
@@ -6327,9 +6355,13 @@
   function computePoincareSD(rows) {
     var n = rows.length;
     if (n < 120) return null;
+    // §∅: the motion filter already made this array non-contiguous, so dropping the
+    // absent beats changes nothing about contiguity — it only stops `a + null` and
+    // `hr[i + 1] - null` from reading an unmeasured second as 0 bpm, which lands in
+    // SD2 as a ~60 bpm excursion and in SD1 as a step of the same size.
     var hr = rows
       .filter(function (r) {
-        return r.motion === 0;
+        return r.motion === 0 && r.hr != null && isFinite(r.hr);
       })
       .map(function (r) {
         return r.hr;
@@ -6361,7 +6393,10 @@
       sd1sd2Ratio: ratio,
       // 1Hz proxy thresholds in bpm (not ms); sd1≈RMSSD/√2 ≈ 0.3-0.6 bpm typical
       sd1Label: sd1 < 0.4 ? 'Low (1Hz proxy)' : sd1 > 1.0 ? 'High (1Hz proxy)' : 'Normal (1Hz proxy)',
-      sd2Label: sd2 < 2 ? 'Low sympathetic modulation (1Hz proxy)' : 'Normal (1Hz proxy)'
+      sd2Label: sd2 < 2 ? 'Low sympathetic modulation (1Hz proxy)' : 'Normal (1Hz proxy)',
+      // §∅: coverage beside the value — the pair is over measured still seconds only
+      nMeasured: m,
+      nTotal: n
     };
   }
 
@@ -6420,16 +6455,31 @@
       return r.motion > 0;
     });
     if (!still.length) return null;
+    // §∅: the two filters read the MOTION channel, and the sums then read SpO2 — a
+    // second that was still but unmeasured entered its mean as 0 %. Absence is not
+    // distributed evenly between rest and movement, so the DELTA moved too, and the
+    // delta is what the label calls an apnea pattern.
+    function _measured(src_) {
+      var out = [];
+      for (var i = 0; i < src_.length; i++) {
+        var v = src_[i].spo2;
+        if (v != null && isFinite(v)) out.push(v);
+      }
+      return out;
+    }
+    var stillV = _measured(still);
+    var movingV = _measured(moving);
+    if (!stillV.length) return null;
     var meanStill = +(
-      still.reduce(function (a, r) {
-        return a + r.spo2;
-      }, 0) / still.length
+      stillV.reduce(function (a, v) {
+        return a + v;
+      }, 0) / stillV.length
     ).toFixed(2);
-    var meanMoving = moving.length
+    var meanMoving = movingV.length
       ? +(
-          moving.reduce(function (a, r) {
-            return a + r.spo2;
-          }, 0) / moving.length
+          movingV.reduce(function (a, v) {
+            return a + v;
+          }, 0) / movingV.length
         ).toFixed(2)
       : null;
     var delta = meanMoving !== null ? +(meanStill - meanMoving).toFixed(2) : null;
@@ -6437,7 +6487,13 @@
       spo2StillMean: meanStill,
       spo2MovingMean: meanMoving,
       spo2MotionDelta: delta,
+      // stillPct reads the motion channel, so its denominator stays the whole recording
       stillPct: +((still.length / n) * 100).toFixed(1),
+      // §∅: coverage beside each mean — how many of those seconds carried a reading
+      nStillMeasured: stillV.length,
+      nStillTotal: still.length,
+      nMovingMeasured: movingV.length,
+      nMovingTotal: moving.length,
       // delta = stillMean - movingMean: positive → rest has higher SpO2 → motion creates artifact
       motionArtifactLabel:
         delta !== null && delta > 1 ? 'Motion artifact likely (SpO2 lower during movement)' : delta !== null && delta < -1 ? 'True apnea pattern (SpO2 worse at rest)' : 'No significant difference'

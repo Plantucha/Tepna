@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-10-12 · **Promoted from:** residue `2026-09-16-tch-degeneracy-is-estimator-not-data` (owner ruling 2026-10-12, relayed) · **Answers:** `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md` §D7 · **Relates:** `TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md` (DONE 2026-09-26), `TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md`, `TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`
+**Status:** IN-PROGRESS (§8 MEASURES M1–M3 on 2026-10-12 and REFUTES §2's O2Ring-corner prediction. All 25 fused negatives sit on the Verity corner, none on the O2Ring. M2 removes 20 of them, so the per-pair measure asymmetry IS the mechanism. Its route runs through V_HO, not V_HV. §5's precondition for option C fails. The owner picks A or B.) · **Created:** 2026-10-12 · **Promoted from:** residue `2026-09-16-tch-degeneracy-is-estimator-not-data` (owner ruling 2026-10-12, relayed) · **Answers:** `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md` §D7 · **Relates:** `TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md` (DONE 2026-09-26), `TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md`, `TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`
 
 # Why the fused hat goes degenerate and the unweighted one does not — the mechanism, derived
 
@@ -147,3 +147,82 @@ magnitudes with `tch-fused-corpus` σ magnitudes. The new-generation fused tripl
 ρ\* 0.576) — that is with the owner as a planted-σ check and decides nothing here.
 
 **Rule 0:** `node tools/doc-search.mjs "three-cornered hat negative variance fused weighting degeneracy mechanism"` → `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md` (0.033), `INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md` (0.032), `sigma-no-reference-analysis.js` (0.030), `papers/sigma-no-reference.html` (0.030), `analysis-stats.js` (0.016) — read 2026-10-12; no prior brief carries the derivation, D7 § carries the ruling.
+
+## 8 · M1–M3, MEASURED 2026-10-12 — §2's structure holds, its route is refuted by name
+
+```sh
+node tools/tch-degeneracy-d7.mjs --dir uploads/trio --json     # three tepna.verdict/1 objects + per-night rows
+node tools/tch-degeneracy-d7.mjs --selftest                    # 42 planted assertions, no corpus
+```
+
+The §4 criteria are unchanged. `tools/tch-degeneracy-d7.mjs` calls the production `tchSigmasFused` for
+all three columns and re-implements no estimator; for M2's single weight it passes
+`g = √(cH·cV·cO)` to all three corners, which makes `w_HV = w_HO = w_VO = t·cH·cV·cO` exactly.
+
+**The population moved, and this section reports it rather than hiding it.** §1's run read 118 night
+directories and solved 64.
+This corpus holds 147 and solves 90 — the committed fold has grown since 2026-09-16. §4's "≥ 9 of 12" is
+therefore carried as the **share** 0.75, which is that ratio, not a number fitted to this run.
+
+| | measurement | status | result |
+|---|---|---|---|
+| **M1** | which corner carries the fused negatives | **FAIL** | **25 of 25 negative corners are Verity (PpgDex)**; h10 0, O2Ring **0**. 25 of 90 nights (27.8 %), all `hasConf: true` |
+| **M2** | one common weight `t·cH·cV·cO` | **FAIL** | **5 of 90 nights stay negative** — 20 of the 25 are removed, and the 5 that remain move to the **h10** corner |
+| **M3** | pairwise-ρ hat on M2's residue | **PASS** | all 5 converge to three positive σ at a minimum ρ of **0.19 – 0.26** |
+
+### 8.1 §2's prediction is refuted, and the correct route is measured
+
+§2 predicted the **O2Ring** corner, reasoning that `w_HV = t·h·v` carries two sub-unit confidences, so a
+higher-confidence beat subset dominates `V_HV`, which enters `σ²_O` with a minus sign. The corner
+is **Verity**, with nothing on the O2Ring corner at all. Under the uniform-⅓ null that
+`TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` §6.2 used to refuse an attribution at n = 8,
+`P(X ≥ 25 | 25, ⅓) = 1.2 × 10⁻¹²` (3.5 × 10⁻¹² if tripled for having named the leading corner after
+looking). At that n the attribution is a finding by §6.2's own standard.
+
+§2's **structure** survives — the per-pair measure asymmetry is the mechanism, and M2 removing 20 of 25
+negatives is the direct evidence. Its **route** does not, and the tool measures the correct one. The
+corpus pins `cO = 1` (`tools/tch-fused-corpus.mjs:201`), so `g² = cH·cV·cO = cH·cV` and the common weight
+**is** `w_HV`: `V_HV` is unchanged (median relative shift 0, max 3.6 × 10⁻¹⁵ — a control, and it holds),
+and M2 re-estimates only the two single-factor pairs. Moving them onto the two-factor measure changes
+`V_HO` by a median of **−8.5 %** (−12 % to −16 % on the negative nights) and `V_VO` by **−1.4 %**. So the
+pair estimated under the *looser* measure is `V_HO`, not `V_HV`, and
+`σ²_V = ½(V_HV + V_VO − V_HO)` is the half-sum that `V_HO` enters with a minus sign. **The exposed corner
+is the one opposite the single-factor pair most inflated by its own measure — Verity, as measured.**
+
+### 8.2 §5's precondition for option C is NOT met
+
+§5 makes C available only if M2 returns 0. It returned 5, so the brief's own rule bars C, and this
+section proposes no replacement — §6.4 leaves the pick to the owner. What the measurement adds to the choice:
+
+- The per-pair asymmetry accounts for **20 of the 25** exclusions. One common measure would cut the fused
+  exclusion rate from 27.8 % to 5.6 %.
+- The residual 5 sit on the **h10** corner, which is where the unweighted hat's own negatives sit
+  (2026-07-06, 07-08, 07-09), so the residue is not an artifact of weighting.
+- M3 resolves all 5 at ρ ≥ 0.19–0.26. `correlated` sweeps ρ upward and stops at the **first** value
+  admitting a non-negative solution, so that is a **lower bound** on the common-mode correlation, never an
+  estimate — ρ is not identifiable reference-free
+  (`CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14` §1). At that first ρ the smallest corner sits **at** the
+  boundary by construction, which is why the Verity σ in those five triples reads 0.0003–0.019 bpm. That
+  is the search stopping, not a sensor measured as perfect, and §6.2's "~0 by construction, not by
+  measurement" is the same caveat one estimator earlier.
+
+### 8.3 Two numbers in §1 moved with the corpus, and §7 keeps them out of scope
+
+§7 excludes re-measuring 12/64-vs-0/64, and this unit did not set out to. Both columns come from one run,
+so recomputing M1 on 90 nights recomputes the control too, and it moved: fused **25/90 (27.8 %)** against
+§1's 12/64 (18.8 %), and unweighted **3/90 (3.3 %)** against §1's 0/64. Reported because it moved, not as
+a re-measurement — the 2026-09-16 numbers stand for the 2026-09-16 corpus. §1's *claim* is unaffected:
+the fused estimator still excludes roughly eight times as many nights as the unweighted one.
+
+### 8.4 Acceptance
+
+1. ✅ M1, M2, M3 ran with §4's criteria unchanged, each emitting one `tepna.verdict/1`.
+2. ✅ The corner distribution is on record — in `result.negativeCornerCounts` and per night in
+   `result.nights`.
+3. ✅ §8.1 refutes §2 **by name** — the O2Ring corner is not the exposed one — and carries the corrected
+   route, in this brief rather than in a new one.
+4. ⬜ **Open — the owner picks A or B** (C's precondition failed). §8.2 is the evidence.
+5. ✅ Nobody quotes a σ from a `hasConf: false` night. All 90 solved nights in this corpus carry per-beat
+   `conf`, and the five σ triples in §8.2 are all `hasConf: true`.
+
+**Rule 0:** `node tools/doc-search.mjs --read "TCH fused degeneracy mechanism D7 measurements M1 M2 M3"` → this brief (0.620), `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md` (0.584), `briefs/RESIDUE.md` (0.574), `DOCS-INDEX.md` (0.570) — read 2026-10-12.

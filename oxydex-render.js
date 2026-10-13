@@ -1740,12 +1740,15 @@ function renderAll() {
             t4html += metric('NSI Mean', nsiMean, nsiVals.length + 'n · ± ' + nsiSD, nsiMean < 30 ? 'good' : nsiMean < 60 ? 'warn' : 'bad');
           }
           // SpO2 night-to-night CV
+          // §∅: `v !== null` passes an undefined meanSpo2, which makes the mean NaN —
+          // and `NaN < 0.5` and `NaN < 1` are both false, so an absent night rendered
+          // as a red "bad" night-to-night CV.
           var spo2Vals = nights
             .map(function (n) {
               return n.stats ? n.stats.meanSpo2 : null;
             })
             .filter(function (v) {
-              return v !== null;
+              return v != null && isFinite(v);
             });
           if (spo2Vals.length >= 3) {
             var spo2Mean =

@@ -1496,6 +1496,42 @@
         "BRIEF-GAPS-2026-10-11-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.19.0",
+      "date": "2026-10-13",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "43f265efc964",
+        "OxyDex": "295904a1424b",
+        "PulseDex": "cd94b132ca5e",
+        "GlucoDex": "3831e65a9982",
+        "PpgDex": "1386b3a837d7",
+        "HRVDex": "06b06f3ccbf2",
+        "CPAPDex": "cec5a82d126d",
+        "Integrator": "57b3c633f843",
+        "MotionDex": "0b347d75d30b"
+      },
+      "briefs": [
+        "NIGHT-IS-THE-RECORDING-2026-10-05-BRIEF.md",
+        "USAGE-GUARD-2026-10-11-BRIEF.md",
+        "MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md",
+        "TOKEN-DIET-2026-10-11-BRIEF.md",
+        "COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md",
+        "VIGIL-AUTO-UPDATE-2026-08-04-BRIEF.md",
+        "XERJ-HYBRID-SEARCH-2026-10-10-BRIEF.md",
+        "LITERATURE-USE-POLICY-2026-07-11-BRIEF.md",
+        "DEFECT-BENCHMARK-2026-10-12-BRIEF.md",
+        "VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md",
+        "RESIDUE-ABSENCE-EVIDENCE-SWEEP-2026-09-18-BRIEF.md",
+        "PAT-HAT-RING-FLOOR-2026-10-04-BRIEF.md",
+        "VIGIL-AUTO-UPDATE-FOLLOWUPS-2026-08-14-BRIEF.md",
+        "TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12-BRIEF.md",
+        "BRIEF-GAPS-2026-10-11-BRIEF.md",
+        "INTEGRATOR-SURFACE-2026-10-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

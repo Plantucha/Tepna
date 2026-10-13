@@ -197,6 +197,24 @@ column — `/tmp` is a 30 GB tmpfs invisible to `ps`. Deleting orphans there is 
   `gh pr list --state open --json statusCheckRollup --jq '[.[].statusCheckRollup[]?|.status]|group_by(.)|map({(.[0]):length})|add'`
 - **Remove your worktree when the PR merges: `node tools/wt-done.mjs <path>`**, one path per call.
 
+### 6 · Tokens: the window is the cost (owner, 2026-10-11; brief TOKEN-DIET-2026-10-11)
+
+- **One session per work-unit.** Start from `handoffs/<unit>.md`, finish, write the handoff back, exit.
+  No multi-day sessions. `tools/unit-launch.sh` starts one.
+- **Never park loaded.** A bird that must wait keeps a heartbeat under an hour, or exits and resumes
+  from its handoff. A session idle with a full window pays for the window at every heartbeat.
+- **Fewer turns.** Put every independent tool call in one turn. Do not write a sentence between calls.
+  Measured per bird by `node tools/fleet-turns.mjs`; read your own row before you start.
+- **Write the handoff before you stop,** at every unit boundary and before a compaction: unit, branch,
+  worktree, the exact stopping point, the next step, open questions, the doc-search query that found
+  the prior work. The index is the memory; the note is what the index finds.
+- **Tool output is trimmed by a hook** (`trim-output.sh`): over 200 lines you see the head, the tail,
+  a count and a path. Read the file when the tail is not the verdict (§4b).
+- **Window cap 300k.** Compact or exit at a unit boundary before the window passes 300k tokens. The floor
+  is 80k; the rest is conversation you carry. Write the handoff first.
+- **Two tools per turn.** `fleet-turns.mjs` prints tools/turn with its target (≥ 2.0) and the window
+  median with its cap. A row that misses either is the first thing to fix in your next unit.
+
 ---
 
 ## 📌 Brief lifecycle (*why → RATIONALE §📌*)

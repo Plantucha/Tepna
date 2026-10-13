@@ -344,8 +344,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "54cbcf574fe2",
-          "computeHash": "9244f3ea92a8"
+          "manifestHash": "295904a1424b",
+          "computeHash": "44ff572c3238"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -372,8 +372,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "54cbcf574fe2",
-          "computeHash": "9244f3ea92a8"
+          "manifestHash": "295904a1424b",
+          "computeHash": "44ff572c3238"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -400,8 +400,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "54cbcf574fe2",
-          "computeHash": "9244f3ea92a8"
+          "manifestHash": "295904a1424b",
+          "computeHash": "44ff572c3238"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -428,8 +428,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "54cbcf574fe2",
-          "computeHash": "9244f3ea92a8"
+          "manifestHash": "295904a1424b",
+          "computeHash": "44ff572c3238"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -734,13 +734,17 @@
         "spo2Kurt": 8.608,
         "spo2ExcessKurt": 5.608,
         "spo2SkewLabel": "Near-symmetric",
-        "spo2KurtLabel": "Leptokurtic (heavy tails/events)"
+        "spo2KurtLabel": "Leptokurtic (heavy tails/events)",
+        "nMeasured": 25660,
+        "nTotal": 25660
       },
       "hrCV": {
         "hrCV": 6.33,
         "hrCVmean": 51.7,
         "hrCVsd": 3.27,
-        "hrCVlabel": "Moderate"
+        "hrCVlabel": "Moderate",
+        "nMeasured": 25660,
+        "nTotal": 25660
       },
       "hypDose": {
         "hd94": 93,
@@ -774,7 +778,9 @@
         "sd2": 4.6,
         "sd1sd2Ratio": 0.08,
         "sd1Label": "Low (1Hz proxy)",
-        "sd2Label": "Normal (1Hz proxy)"
+        "sd2Label": "Normal (1Hz proxy)",
+        "nMeasured": 25503,
+        "nTotal": 25660
       },
       "o2hrEff": null,
       "condSpo2": {
@@ -782,6 +788,10 @@
         "spo2MovingMean": 97.08,
         "spo2MotionDelta": -0.5,
         "stillPct": 99.4,
+        "nStillMeasured": 25503,
+        "nStillTotal": 25503,
+        "nMovingMeasured": 157,
+        "nMovingTotal": 157,
         "motionArtifactLabel": "No significant difference"
       },
       "nadirTrend": null,
