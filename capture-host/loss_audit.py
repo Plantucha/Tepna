@@ -52,6 +52,15 @@ GATE = "night-loss"
 TOOL = "capture-host/loss_audit.py"
 AUDIT_NAME = "LOSS-AUDIT.json"
 VERDICT_NAME = "LOSS-VERDICT.json"
+# A superseded LOSS verdict is RECORDED, not erased: the poller re-runs this audit whenever the night's
+# data is newer than it, so a night whose files keep arriving had each prior claim overwritten with no
+# trace (`2026-10-05-the-loss-audit-replaces-its-own-verdict-with-no-withdrawal-record`). The mechanism
+# is `verdict.withdraw`, the same one `solid_night` uses one layer up.
+WITHDRAWN_NAME = "LOSS-VERDICT-WITHDRAWN.jsonl"
+REAUDITED = (
+    "re-audited: the night's data changed after this verdict was published, so the audit ran again "
+    "over an input set this verdict does not describe"
+)
 # THE OWNER'S BAR, 2026-09-29: worn-but-not-recorded must be at most 1 % of the worn minutes. Stated
 # here as a number with its source, before any night is judged by it — a threshold derived from the data
 # it judges is UNKNOWN by the verdict contract, not a bar.
@@ -1637,8 +1646,12 @@ def write_night(
         obj = _verdict.unknown(
             gate=GATE, criterion=CRITERION, evidence=[TOOL, os.path.join(night_dir, AUDIT_NAME)], tool=TOOL, exc=exc
         )
+    vpath = os.path.join(night_dir, VERDICT_NAME)
+    # BEFORE the replace, and never fatal: an unrecordable withdrawal must not stop the night getting
+    # its correct verdict. A first verdict withdraws nothing and returns None.
+    _verdict.withdraw(vpath, os.path.join(night_dir, WITHDRAWN_NAME), obj, reason=REAUDITED)
     try:
-        _verdict.write(os.path.join(night_dir, VERDICT_NAME), obj)
+        _verdict.write(vpath, obj)
     except (OSError, ValueError):
         pass  # the object is returned to the caller either way; the file is the convenience
     return obj

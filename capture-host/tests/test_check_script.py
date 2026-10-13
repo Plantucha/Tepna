@@ -18,6 +18,7 @@ shortcut: what is being tested is check.sh's own control flow, not pytest's.
 """
 
 import pathlib
+import shlex
 import re
 import os
 import shutil
@@ -36,6 +37,11 @@ def _write_exec(path, body):
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(body)
     os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
+
+# The interpreter THIS suite runs under, for the stub below. `python3` from PATH is not it, and
+# under the mutation gate only this one can import the transformed module's `mutmut`.
+_PY = shlex.quote(sys.executable)
 
 
 def _sandbox(
@@ -91,7 +97,14 @@ for a in "$@"; do
       ;;
     pytest) echo pytest >> "{log}"; exit {pytest_rc} ;;
     mypy)   {mypy_emit}; exit 0 ;;   # NOT logged: `ran` is the BLOCKING gate set, and mypy is advisory
-    checkverdict.py) exec python3 "$@" ;;   # the verdict writer runs for REAL — it is what the object tests read
+    # The verdict writer runs for REAL — it is what the object tests read. It must run under THIS
+    # interpreter, never `python3` from PATH. `checkverdict.py` imports `verdict.py`, and under the
+    # mutation gate that module is mutmut's transformed copy, which imports `mutmut` at module
+    # scope. Only the interpreter running this suite has it. Measured 2026-10-12: with `python3`
+    # here, every mutant of `verdict.py` read as UNDECIDED and `mutate_diff` refused the whole
+    # diff (exit 2) — a ModuleNotFoundError inside the writer, which the shell reports as
+    # "verdict: NOT WRITTEN" and this test reads as a missing file.
+    checkverdict.py) exec {_PY} "$@" ;;
   esac
 done
 exit 0

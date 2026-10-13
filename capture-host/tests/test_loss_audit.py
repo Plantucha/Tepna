@@ -2792,6 +2792,49 @@ def test_the_audit_record_and_the_night_verdict_both_carry_the_journal_shape(tmp
     assert loss_audit.night_verdict(a2, night_dir=d)["result"]["journal_shape"] is None
 
 
+def test_write_night_FORWARDS_the_journal_shape_reader_it_was_given(tmp_path):
+    """The sibling of the clock-event forward above, and the mutant that found it dropped the keyword
+    from the `audit_night` call. `audit_night` then falls back to `read_journal_shape`, which reads THIS
+    box's journald — so the daemon's record would carry the host's shape, the caller's injection would
+    vanish, and the test above could not see it because it calls `audit_night` directly."""
+    d = _night(tmp_path)
+    called: list = []
+    shape = {"lines": 7, "findings": ["uniform"], "top": [{"template": "y"}]}
+
+    def fake(since, until):
+        called.append((since, until))
+        return shape
+
+    loss_audit.write_night(d, DEV, journal=lambda *a: [], clock_events=lambda *a: [], journal_shape_of=fake)
+    audit = json.load(open(os.path.join(d, "LOSS-AUDIT.json")))
+    assert called, "the injected shape reader was never called"
+    assert audit["journal_shape"] == shape, audit.get("journal_shape")
+
+
+def test_a_REPLACED_loss_verdict_is_recorded_before_the_overwrite(tmp_path):
+    """`2026-10-05-the-loss-audit-replaces-its-own-verdict-with-no-withdrawal-record`. The poller
+    re-runs this audit whenever the night's data is newer than the verdict, so a night whose files keep
+    arriving had each prior claim replaced by `os.replace` — atomic and lossy. #3292 fixed this shape one
+    layer up in `solid_night` and did not widen into the audit, which has its own verdict and its own
+    re-run trigger. The mechanism is now `verdict.withdraw`, used by both."""
+    d = _night(tmp_path)
+    wpath = os.path.join(d, "LOSS-VERDICT-WITHDRAWN.jsonl")
+
+    first = loss_audit.write_night(d, DEV, commit="abc1234", journal=lambda *a: [], clock_events=lambda *a: [])
+    assert not os.path.exists(wpath), "a FIRST verdict withdraws nothing"
+
+    second = loss_audit.write_night(d, DEV, commit="def5678", journal=lambda *a: [], clock_events=lambda *a: [])
+    rows = [json.loads(ln) for ln in open(wpath, encoding="utf-8") if ln.strip()]
+    assert len(rows) == 1, rows
+    assert rows[0]["withdrawn"]["status"] == first["status"]
+    assert rows[0]["withdrawn"]["commit"] == "abc1234", "the claim that was published, not the one replacing it"
+    assert rows[0]["replaced_by"]["commit"] == "def5678" and rows[0]["replaced_by"]["status"] == second["status"]
+    # `recorded` is the RETURN value's report of whether the append succeeded, not part of the record
+    # on disk — the row on disk IS the withdrawal, so a flag there would be a claim about itself.
+    assert "re-audited" in rows[0]["reason"] and "recorded" not in rows[0]
+    assert json.load(open(os.path.join(d, "LOSS-VERDICT.json")))["producedBy"]["commit"] == "def5678"
+
+
 # ---------------------------------------------------------------------------------------------------
 # SAMPLES, NOT SECONDS — residue `2026-09-27-sample-shortfall-without-a-time-gap-is-unmeasured`.
 #

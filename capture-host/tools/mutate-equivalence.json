@@ -2624,7 +2624,63 @@
       "why": "In toG. Original and mutant produced byte-identical output on every input."
     }
   ],
+  "proc_util.py": [
+    {
+      "brief": "drain batch 9 (`2026-09-29-proc-util-kill-is-parent-only`) — recorded 2026-10-12",
+      "class": "untestable-by-design",
+      "function": "_killpg",
+      "key": "- with contextlib.suppress(ProcessLookupError, PermissionError, OSError): | + with contextlib.suppress(PermissionError, OSError):",
+      "op": "`ProcessLookupError` dropped from a suppress tuple that keeps `OSError`",
+      "probe": "Measured 2026-10-12 on Python 3.13.11: `issubclass(ProcessLookupError, OSError)` and `issubclass(PermissionError, OSError)` both read True. `test_killpg_is_the_SECOND_independent_guard_and_never_raises` raises each of `ProcessLookupError`, `PermissionError` and `OSError` from a replaced `os.killpg` and the call still returns, under the original tuple and under each narrowed one. The whole `test_proc_util.py` file reads 21 passed under each.",
+      "why": "THE NARROWED TUPLE SUPPRESSES THE SAME SET, BECAUSE `OSError` IS STILL IN IT. Both removed names are subclasses of `OSError`, which every mutant of this line keeps, and `contextlib.suppress` catches by `isinstance`. So the suppression set is unchanged for every exception any input can raise here, and a test can observe no difference. The NAMES stay in the code: they say which two failures are the expected ones on a teardown path, which is a reader's fact, not a behaviour. A mutant that dropped `OSError` itself would NOT be equivalent, and no entry here excuses one."
+    },
+    {
+      "brief": "drain batch 9 (`2026-09-29-proc-util-kill-is-parent-only`) — recorded 2026-10-12",
+      "class": "untestable-by-design",
+      "function": "_killpg",
+      "key": "- with contextlib.suppress(ProcessLookupError, PermissionError, OSError): | + with contextlib.suppress(ProcessLookupError, OSError):",
+      "op": "`PermissionError` dropped from a suppress tuple that keeps `OSError`",
+      "probe": "Measured 2026-10-12 on Python 3.13.11: `issubclass(ProcessLookupError, OSError)` and `issubclass(PermissionError, OSError)` both read True. `test_killpg_is_the_SECOND_independent_guard_and_never_raises` raises each of `ProcessLookupError`, `PermissionError` and `OSError` from a replaced `os.killpg` and the call still returns, under the original tuple and under each narrowed one. The whole `test_proc_util.py` file reads 21 passed under each.",
+      "why": "THE NARROWED TUPLE SUPPRESSES THE SAME SET, BECAUSE `OSError` IS STILL IN IT. Both removed names are subclasses of `OSError`, which every mutant of this line keeps, and `contextlib.suppress` catches by `isinstance`. So the suppression set is unchanged for every exception any input can raise here, and a test can observe no difference. The NAMES stay in the code: they say which two failures are the expected ones on a teardown path, which is a reader's fact, not a behaviour. A mutant that dropped `OSError` itself would NOT be equivalent, and no entry here excuses one."
+    },
+    {
+      "brief": "drain batch 9 (`2026-09-29-proc-util-kill-is-parent-only`) — recorded 2026-10-12",
+      "class": "untestable-by-design",
+      "function": "kill",
+      "key": "- with contextlib.suppress(ProcessLookupError, OSError, ValueError): | + with contextlib.suppress(OSError, ValueError):",
+      "op": "`ProcessLookupError` dropped from the child-kill suppress tuple that keeps `OSError`",
+      "probe": "Measured 2026-10-12 on Python 3.13.11: `issubclass(ProcessLookupError, OSError)` and `issubclass(PermissionError, OSError)` both read True. `test_killpg_is_the_SECOND_independent_guard_and_never_raises` raises each of `ProcessLookupError`, `PermissionError` and `OSError` from a replaced `os.killpg` and the call still returns, under the original tuple and under each narrowed one. The whole `test_proc_util.py` file reads 21 passed under each.",
+      "why": "THE NARROWED TUPLE SUPPRESSES THE SAME SET, BECAUSE `OSError` IS STILL IN IT. Both removed names are subclasses of `OSError`, which every mutant of this line keeps, and `contextlib.suppress` catches by `isinstance`. So the suppression set is unchanged for every exception any input can raise here, and a test can observe no difference. The NAMES stay in the code: they say which two failures are the expected ones on a teardown path, which is a reader's fact, not a behaviour. A mutant that dropped `OSError` itself would NOT be equivalent, and no entry here excuses one."
+    }
+  ],
   "mutation_diff.py": [
+    {
+      "brief": "drain batch 9 (`2026-09-29-proc-util-kill-is-parent-only`) — recorded 2026-10-12",
+      "class": "untestable-by-design",
+      "function": "stage_capture_host_view",
+      "key": "- link.symlink_to(target, target_is_directory=True) | + link.symlink_to(target, target_is_directory=None)",
+      "op": "the symlink's Windows-only directory flag, =None",
+      "probe": "Measured 2026-10-12 on Python 3.13.11, linux: a `t/` directory was linked four ways in one temporary directory — `target_is_directory=True`, `=False`, `=None`, and the argument omitted — and all four links read identically. `os.readlink` returns `t`, `is_dir()` True, `is_symlink()` True and `lstat().st_mode` `0o120777` in every case. The staging function's own four tests pass under each spelling, and the whole `test_mutation_scratch_reuse.py` file reads 33 passed.",
+      "why": "THE FLAG IS A WINDOWS-ONLY ARGUMENT AND POSIX DISCARDS IT. `pathlib.Path.symlink_to` forwards `target_is_directory` to `os.symlink`, whose third parameter is documented as ignored on POSIX: a symlink there carries no record of whether its target is a directory, and the kernel resolves the target at use time. So `True`, `False`, `None` and the omission produce the same inode on this platform, and no input can distinguish them. The ARGUMENT STAYS IN THE CODE because it is correct on the platform that reads it, and this repo's own convention is to spell the intent. A probe, not an argument, is recorded above."
+    },
+    {
+      "brief": "drain batch 9 (`2026-09-29-proc-util-kill-is-parent-only`) — recorded 2026-10-12",
+      "class": "untestable-by-design",
+      "function": "stage_capture_host_view",
+      "key": "- link.symlink_to(target, target_is_directory=True) | + link.symlink_to(target, )",
+      "op": "the symlink's Windows-only directory flag, the argument dropped",
+      "probe": "Measured 2026-10-12 on Python 3.13.11, linux: a `t/` directory was linked four ways in one temporary directory — `target_is_directory=True`, `=False`, `=None`, and the argument omitted — and all four links read identically. `os.readlink` returns `t`, `is_dir()` True, `is_symlink()` True and `lstat().st_mode` `0o120777` in every case. The staging function's own four tests pass under each spelling, and the whole `test_mutation_scratch_reuse.py` file reads 33 passed.",
+      "why": "THE FLAG IS A WINDOWS-ONLY ARGUMENT AND POSIX DISCARDS IT. `pathlib.Path.symlink_to` forwards `target_is_directory` to `os.symlink`, whose third parameter is documented as ignored on POSIX: a symlink there carries no record of whether its target is a directory, and the kernel resolves the target at use time. So `True`, `False`, `None` and the omission produce the same inode on this platform, and no input can distinguish them. The ARGUMENT STAYS IN THE CODE because it is correct on the platform that reads it, and this repo's own convention is to spell the intent. A probe, not an argument, is recorded above."
+    },
+    {
+      "brief": "drain batch 9 (`2026-09-29-proc-util-kill-is-parent-only`) — recorded 2026-10-12",
+      "class": "untestable-by-design",
+      "function": "stage_capture_host_view",
+      "key": "- link.symlink_to(target, target_is_directory=True) | + link.symlink_to(target, target_is_directory=False)",
+      "op": "the symlink's Windows-only directory flag, =False",
+      "probe": "Measured 2026-10-12 on Python 3.13.11, linux: a `t/` directory was linked four ways in one temporary directory — `target_is_directory=True`, `=False`, `=None`, and the argument omitted — and all four links read identically. `os.readlink` returns `t`, `is_dir()` True, `is_symlink()` True and `lstat().st_mode` `0o120777` in every case. The staging function's own four tests pass under each spelling, and the whole `test_mutation_scratch_reuse.py` file reads 33 passed.",
+      "why": "THE FLAG IS A WINDOWS-ONLY ARGUMENT AND POSIX DISCARDS IT. `pathlib.Path.symlink_to` forwards `target_is_directory` to `os.symlink`, whose third parameter is documented as ignored on POSIX: a symlink there carries no record of whether its target is a directory, and the kernel resolves the target at use time. So `True`, `False`, `None` and the omission produce the same inode on this platform, and no input can distinguish them. The ARGUMENT STAYS IN THE CODE because it is correct on the platform that reads it, and this repo's own convention is to spell the intent. A probe, not an argument, is recorded above."
+    },
     {
       "class": "no-distinguishing-input",
       "key": "- inside_old body: a < old_end and | + a < old_end or",

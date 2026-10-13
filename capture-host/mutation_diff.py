@@ -2886,6 +2886,46 @@ def stage_root_reads(tree, work, names) -> int:
     return n
 
 
+def stage_capture_host_view(work) -> list[str]:
+    """Make the scratch answer to a `capture-host/`-prefixed path. Returns the links it created.
+
+    🔴 THE SCRATCH IS A FLATTENED REPO, AND A STAGED ROOT TOOL RESOLVES BACK DOWN INTO `capture-host/`.
+    `stage_root_reads` puts a repo-root read at BOTH levels a `tests/../..`-shaped read can resolve
+    from, which fixes the read UP. The read back DOWN had no answer: `tools/verify-seals.mjs`, staged
+    as a root read, resolves its vectors as `join(HERE, '..', 'capture-host', 'tests', 'vectors',
+    'tepna-seal-1')`, and in the scratch `HERE/..` holds no `capture-host` at all.
+
+    Measured 2026-10-12 on drain batch 9 (`verdict.py`): the stats run reached
+    `test_the_vector_selftest_emits_a_PASS_verdict_on_stdout_and_prose_on_stderr`, node refused with
+    ENOENT on `work/capture-host/tests/vectors/tepna-seal-1/expected.json`, mutmut's run stopped at the
+    first failure, BOTH `verdict.py` globs recorded 0 tested mutants, and `mutate_diff` refused the
+    whole diff. It bites only when the mutated module's covering set names `tests/test_seal.py`, which
+    is why narrower modules never met it.
+
+    A symlink rather than a copy, so the two views can never drift: `work/capture-host -> .` serves the
+    MUTANTS run (its tests sit at `work/mutants/tests`, so the verifier they name is `work/tools/…`),
+    and `<scratch>/capture-host -> work` serves the CLEAN BASELINE (tests at `work/tests`, verifier
+    `<scratch>/tools/…`). The pair mirrors `stage_root_reads`'s two destinations exactly.
+
+    An existing entry that is NOT a symlink is left alone — a real directory there is somebody else's
+    file, and clobbering it is worse than the read failing. A symlink pointing elsewhere is re-pointed,
+    because a reused scratch must not keep a stale view.
+    """
+    work = pathlib.Path(work)
+    made: list[str] = []
+    for parent, target in ((work, "."), (work.parent, work.name)):
+        link = parent / "capture-host"
+        if link.is_symlink():
+            if link.readlink().as_posix() == target:
+                continue
+            link.unlink()
+        elif link.exists():
+            continue
+        link.symlink_to(target, target_is_directory=True)
+        made.append(str(link))
+    return made
+
+
 # Every line `mutmut results` prints is a mutant that was NOT killed — that is mutmut's own contract,
 # not an enumeration of ours: `results()` walks `exit_code_by_key` and does
 # `if status == "killed" and not all: continue`. So the listing is exactly the non-killed set.

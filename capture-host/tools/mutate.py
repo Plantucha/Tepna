@@ -99,6 +99,7 @@ from mutation_diff import (  # noqa: E402  (after the sys.path fix above)
     refresh_scratch,
     resolve_interpreter,
     root_reads,
+    stage_capture_host_view,
     stage_root_reads,
     GENERATION_DONE_RE,
     UNKNOWN_SIZE_WORKERS,
@@ -468,6 +469,9 @@ def run_one(
         # A reused scratch refreshes the root reads too — the same drift class as the siblings.
         plan["root_reads"] = root_reads(HERE)
         plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
+        # AND THE READ BACK DOWN. A staged root tool resolves `capture-host/<path>`, which the flattened
+        # scratch has no answer for until these two links exist (`stage_capture_host_view`).
+        plan["capture_host_view"] = stage_capture_host_view(work)
     else:
         scratch = reusable if reuse else Path(tempfile.mkdtemp(prefix=f"mut-{module[:-3]}-"))
         work = scratch / "work"
@@ -490,6 +494,9 @@ def run_one(
         # from the tests each run, never listed by hand (`mutation_diff.root_reads`).
         plan["root_reads"] = root_reads(HERE)
         plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
+        # AND THE READ BACK DOWN. A staged root tool resolves `capture-host/<path>`, which the flattened
+        # scratch has no answer for until these two links exist (`stage_capture_host_view`).
+        plan["capture_host_view"] = stage_capture_host_view(work)
     # `--deselect <nodeid>` rides in the same pytest arg list as the file selection. It is appended
     # HERE rather than inside `tests_for` because that function's result is also counted as "test
     # file(s)" by `--list`, where CLI flags would corrupt the count.
