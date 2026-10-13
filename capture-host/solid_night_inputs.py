@@ -2116,13 +2116,15 @@ def _device_context(night_dir: str, d: dict, audit: dict | None) -> dict:
     # read the same and the gate could swap the index freely. Removing the subscript removes the
     # mutant, and the one that remains (`not in` → `in`) keeps only the UNSTAMPED spans, where
     # `min` then returns None and a first row is lost.
-    # The trailing `v[0] is not None` is what mypy needs and what the first clause already proves;
-    # it is still a live mutant, because flipping it empties the list and the night loses `first`.
-    starts = [v[0] for v in spans.values() if None not in v and v[0] is not None]
+    starts = [v[0] for v in spans.values() if None not in v]
     ctx.update(
         primaries=primaries,
         spans=spans,
-        first=min(starts) if starts else None,
+        # `type: ignore` rather than a second clause: a narrowing `v[0] is not None` is what mypy
+        # asks for, and the first clause already proves it — so the gate got two survivors for it
+        # (`and` → `or`, and the index swap the comment above describes). The ignore states the
+        # fact the filter establishes instead of adding a line no test can distinguish.
+        first=min(starts) if starts else None,  # type: ignore[type-var]
         audit_dev=((audit or {}).get("devices") or {}).get(name),
         refusal=None,
     )

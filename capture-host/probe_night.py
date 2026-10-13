@@ -27,6 +27,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import pathlib
 
 MARKER_NAME = "PROBE-NIGHT.json"
 #: The journal line `heap_probe` writes once the request is consumed and the probe will trace.
@@ -51,14 +52,14 @@ def read_marker(night_dir: str) -> dict | None:
 
     `None` covers absent, unreadable and not-an-object alike — all three mean the operator has said
     nothing about this night, which is a different fact from `on: false` (said, then withdrawn)."""
-    # ⚠️ READ THE BYTES AND LET `json.loads` DECODE THEM. `open(..., encoding="utf-8")` gave the
-    # diff-scoped gate two survivors it cannot be given an assertion for: `encoding=None` and a dropped
-    # kwarg both fall back to the locale encoding, which IS utf-8 on this box and in CI, so no test can
-    # tell them from the explicit argument. `json.loads` over bytes is utf-8 by RFC 8259 with no
-    # argument to drop, and a mutated mode string makes `open` raise instead.
+    # ⚠️ READ THE BYTES, AND READ THEM THROUGH A CALL WITH NO ARGUMENT TO DROP. `open(...,
+    # encoding="utf-8")` gave the diff-scoped gate two survivors no assertion can reach: `encoding=None`
+    # and a dropped kwarg both fall back to the locale encoding, which IS utf-8 on this box and in CI.
+    # `open(path, "rb")` then left a third — a dropped MODE reads the same file in text mode, and
+    # `json.loads` takes a str as happily as it takes bytes. `Path.read_bytes()` takes no argument at
+    # all, so the mutant has nothing to remove, and `json.loads` over bytes is utf-8 by RFC 8259.
     try:
-        with open(os.path.join(night_dir, MARKER_NAME), "rb") as fh:
-            obj = json.loads(fh.read())
+        obj = json.loads(pathlib.Path(night_dir, MARKER_NAME).read_bytes())
     except (OSError, ValueError):
         return None
     return obj if isinstance(obj, dict) else None

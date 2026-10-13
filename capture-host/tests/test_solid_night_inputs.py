@@ -6082,6 +6082,23 @@ def test_restart_gaps_counts_what_the_band_excluded_and_names_the_interval():
     }
 
 
+def test_restart_gaps_REFUSES_A_HALF_OPEN_INTERVAL_even_when_the_rows_HOLD_a_restart():
+    """Both edges or nothing. A band with one end missing has no closed window to exclude inside, and
+    the rows here DO hold a restart — so a function that read the one end it had would publish an
+    exclusion over an interval the band never scored. The previous shape of this control used rows with
+    no restart in them, which made the refusal indistinguishable from *nothing to annotate*."""
+    dev = {
+        "gaps": [
+            {"at": "2026-09-20T23:01:00", "s": 104.0, "cause": "daemon:restart"},
+            {"at": "2026-09-20T23:05:00", "s": 51.0, "cause": "daemon:restart"},
+        ]
+    }
+    assert si.restart_gaps(dev, None, T0 + dt.timedelta(minutes=10)) is None
+    assert si.restart_gaps(dev, T0, None) is None
+    assert si.restart_gaps(dev, None, None) is None
+    assert si.restart_gaps(dev, T0, T0 + dt.timedelta(minutes=10)) is not None, "the control"
+
+
 def test_restart_gaps_rounds_the_seconds_to_ONE_decimal():
     """The audit writes fractional seconds, and the field is read by a human beside a band reason. One
     decimal, pinned on a sum whose second and zeroth decimals differ from it."""
