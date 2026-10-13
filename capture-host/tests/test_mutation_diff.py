@@ -4101,3 +4101,72 @@ def test_mutant_file_line_agrees_with_the_real_mutmut_show(tmp_path):
             broke.setdefault(name.split("__")[0], set()).add(got)
     # `continue` -> `break` is reported identically for each occurrence; the line tells them apart
     assert {k: sorted(v) for k, v in broke.items()} == {"xǁAǁf": [10, 14], "x_g": [23, 27]}
+
+
+# ── residue 2026-10-13-twenty-five-mutants-survive-in-checkverdict-and-mutation-diff-after-pr-3567 ──────
+# Each test below fails on the named mutant of `_first_removal_hunk` / `mutant_file_line` / `survivor_location`.
+
+
+def _unified(orig_lines, mut_lines):
+    import difflib
+
+    return "\n".join(difflib.unified_diff(orig_lines, mut_lines, "m.py", "m.py", lineterm=""))
+
+
+def test_mutant_file_line_reads_a_diff_that_has_no_hunk_header_as_None_not_a_crash():
+    """Removed lines before any `@@` belong to no hunk: absent, never a TypeError on an unset start."""
+    src = "def f():\n    return 1\n"
+    assert M.mutant_file_line("--- m\n+++ m\n-    return 1\n+    return 2", src, "m.x_f__mutmut_1") is None
+    assert M._first_removal_hunk(" def f():\n-    return 1") is None
+
+
+def test_the_first_removed_line_of_a_multi_line_removal_is_the_first_not_the_last():
+    src = "def f():\n    a = 1\n    b = 2\n    return a\n"
+    show = "--- m\n+++ m\n@@ -1,4 +1,3 @@\n def f():\n-    a = 1\n-    b = 2\n+    a = 2\n     return a"
+    assert M.mutant_file_line(show, src, "m.x_f__mutmut_1") == 2
+    assert M._first_removal_hunk(show) == (1, ["def f():", "    a = 1", "    b = 2", "    return a"], 2)
+
+
+def test_mutant_file_line_names_a_function_that_starts_on_line_one():
+    """`at == 1` is a real position (function at the file's top, hunk at its first line), not 'above line 1'."""
+    src = "def f():\n    return 1\n"
+    show = "--- m\n+++ m\n@@ -1,2 +1,2 @@\n def f():\n-    return 1\n+    return 2"
+    assert M.mutant_file_line(show, src, "m.x_f__mutmut_1") == 2
+
+
+def test_a_function_on_line_one_does_not_climb_into_the_END_of_the_file():
+    """Nothing is above line 1: `lines[top - 2]` at top == 1 would wrap to the LAST line, and a trailing
+    comment there pulled `top` to 0 and refused a locatable survivor."""
+    src = "def f():\n    return 1\n# trailing note\n"
+    show = "--- m\n+++ m\n@@ -1,2 +1,2 @@\n def f():\n-    return 1\n+    return 2"
+    assert M.mutant_file_line(show, src, "m.x_f__mutmut_1") == 2
+
+
+def test_a_comment_on_line_one_above_a_function_on_line_two_is_kept_by_the_climb():
+    src = "# about f\ndef f(rows):\n    for r in rows:\n        continue\n"
+    orig = src.splitlines()
+    mut = [ln.replace("continue", "break") for ln in orig]
+    assert M.mutant_file_line(_unified(orig, mut), src, "m.x_f__mutmut_1") == 4
+
+
+def test_a_single_blank_line_above_the_comment_mutmut_keeps_is_dropped_one_line_at_a_time():
+    """One LEADING blank is skipped by exactly one line: skipping two lands past the comment mutmut keeps."""
+    src = "import os\n\n# about g\ndef g(rows):\n    for r in rows:\n        continue\n"
+    orig = src.splitlines()[2:]
+    mut = [ln.replace("continue", "break") for ln in orig]
+    assert M.mutant_file_line(_unified(orig, mut), src, "m.x_g__mutmut_1") == 6
+
+
+def test_survivor_location_prints_line_one_because_one_is_a_line():
+    assert M.survivor_location({"file_line": 1}) == " (line 1)"
+
+
+def test_a_source_the_parser_and_splitlines_number_differently_is_refused_not_renumbered():
+    """A form feed is a line break to `str.splitlines` and plain whitespace to the parser, so the two count
+    this file's lines differently. The function is on line 1 to the parser; `lines[0]` is the empty piece
+    before the form feed. The text at that position disagrees with the hunk, so the answer is None —
+    skipping that piece (`top <= first`) lines the text up and returns a number from the WRONG counting."""
+    src = "\x0cdef f():\n    return 1\n"
+    show = "--- m\n+++ m\n@@ -1,2 +1,2 @@\n def f():\n-    return 1\n+    return 2"
+    assert M.mutant_file_line(show, src, "m.x_f__mutmut_1") is None
+    assert M.mutant_file_line(show, src.replace("\x0c", ""), "m.x_f__mutmut_1") == 2  # the same text, no form feed

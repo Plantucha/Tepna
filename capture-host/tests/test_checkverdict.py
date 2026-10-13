@@ -203,3 +203,87 @@ def test_cli_reads_an_adopted_childs_object_off_disk_and_a_bad_file_is_UNKNOWN_n
     # with no --object at all (the pre-adoption invocation) unwired is likewise UNKNOWN
     assert C.main(args) == 0
     ok(json.load(open(out)), "UNKNOWN")
+
+
+# ── residue 2026-10-13-twenty-five-mutants-survive-in-checkverdict-and-mutation-diff-after-pr-3567 ──────
+# Fifteen mutants survived in the functions #3567 changed. Each test below fails on the named mutant.
+
+
+def test_no_child_examined_with_nothing_missing_carries_the_bare_reason_with_no_dangling_dash():
+    """`{}` has no NOT_RUN child to name, so the reason is the sentence alone — the `if not_run` guard must
+    not be taken (`or True` rendered a trailing ' — ' with an empty detail)."""
+    assert C.aggregate({})["reason"] == "no child ran to a verdict"
+    assert C.aggregate({"ruff": 127})["reason"].startswith("no child ran to a verdict — ruff: exit 127")
+
+
+def test_load_object_reads_the_file_as_utf8_whatever_the_locale(tmp_path, monkeypatch):
+    """The reader names its codec: a child's object must not decode differently under another locale."""
+    path = tmp_path / "o.json"
+    path.write_text(json.dumps({"reason": "—"}, ensure_ascii=False), encoding="utf-8")
+    seen: list[dict] = []
+    real_open = open
+
+    def spy(*a, **kw):
+        seen.append(kw)
+        return real_open(*a, **kw)
+
+    monkeypatch.setattr(C, "open", spy, raising=False)
+    assert C.load_object(str(path)) == {"reason": "—"}
+    assert seen == [{"encoding": "utf-8"}]
+
+
+def test_verdict_sample_prints_one_space_indented_json(capsys):
+    assert C.main(["--verdict-sample"]) == 0
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert json.loads(out)["status"] == "PASS" and len(lines) > 5
+    assert lines[1].startswith(' "') and not lines[1].startswith("  "), "indent=1, exactly"
+
+
+def test_write_with_a_path_and_no_children_is_a_NOT_RUN_object_not_a_usage_error(tmp_path, capsys):
+    """`--write <path>` alone has len(argv) == 2: it is complete, so it writes (an empty run is NOT_RUN, §∅)."""
+    out = tmp_path / "v.json"
+    assert C.main(["--write", str(out)]) == 0
+    v = json.load(open(out))
+    assert v["status"] == "NOT_RUN" and v["reason"] == "no child ran to a verdict"
+    assert "usage" not in capsys.readouterr().err
+
+
+def test_advisory_and_object_values_split_at_the_FIRST_equals(tmp_path):
+    """`k=a=b` is key `k`, value `a=b`: an advisory token or a file path may itself contain '='."""
+    out = tmp_path / "v.json"
+    d = tmp_path / "dir=with=equals"
+    d.mkdir()
+    obj = d / "u.json"
+    obj.write_text(json.dumps(unwired_obj()), encoding="utf-8")
+    args = ["--write", str(out), "--advisory", "mypy=a=b", "--object", f"unwired={obj}"]
+    assert C.main([*args, "ruff=0", "shellcheck=0", "pytest=0", "unwired=0"]) == 0
+    v = ok(json.load(open(out)), "PASS")
+    assert v["result"]["advisory"] == {"mypy": "a=b"}, "the advisory split at the first '='"
+    assert v["result"]["statuses"]["unwired"] == "PASS", "the object path kept its own '='"
+
+
+def test_a_trailing_object_flag_without_a_value_is_an_empty_unreadable_object_not_a_crash(tmp_path):
+    out = tmp_path / "v.json"
+    assert C.main(["--write", str(out), "ruff=0", "--object"]) == 0
+    assert json.load(open(out))["status"] == "PASS"
+
+
+def test_the_sample_hands_aggregate_a_green_unwired_object_and_the_two_advisory_tokens(monkeypatch):
+    """`verdict_sample` is the adoption gate's green shape: the synthetic child object must itself state a
+    clean run (threshold 0, nothing unexplained) and the advisory tokens must reach the verdict."""
+    seen: list[tuple] = []
+    real = C.aggregate
+
+    def spy(children, advisory=None, objects=None):
+        seen.append((children, advisory, objects))
+        return real(children, advisory, objects)
+
+    monkeypatch.setattr(C, "aggregate", spy)
+    v = C.verdict_sample()
+    ((children, advisory, objects),) = seen
+    assert children == GREEN
+    assert advisory == {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"}
+    assert v["result"]["advisory"] == advisory
+    u = objects["unwired"]
+    assert u["criterion"]["threshold"] == 0 and u["result"] == {"unexplained": 0} and u["status"] == "PASS"
