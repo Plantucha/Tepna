@@ -178,7 +178,57 @@ export function generatedSet() {
   const owned = askBuildDocs();
   if (!owned) return null; // FAIL CLOSED — an unanswerable builder means we know nothing
   owned.forEach((p) => bundles.add(p));
+  /* `build-docs.mjs` is not the only builder that writes under `docs/`. `tools/tools-index.mjs`
+     writes ONE file there, and the classifier called it SOURCE, so `rebase-safe` STOPPED on a file
+     no human edits (measured 2026-10-13: `--classify docs/TOOLS-INDEX.md` → `source`). Ask that
+     builder for the path instead of typing it here, so a rename in the builder reaches this tool.
+
+     WHY ONLY THIS ONE, AND WHY `docs/MUTATION-INVENTORY.md` STAYS SOURCE. The test is not "a builder
+     writes it" — it is "does the rebuild RESTORE it", because auto-resolve throws one side away and
+     the rebuild is the only thing that puts the right bytes back. `tools-index.mjs` reads `tools/**`,
+     carries no clock, and reproduces its output byte for byte, so taking either side is harmless.
+     `tools/mutation-suite.mjs --inventory` does neither: it stamps `last-verified` with TODAY (so a
+     rebuild would dirty the file and claim a verification no sweep performed), and its content comes
+     from mutation journals that git ignores and that differ per checkout — with none present it logs
+     `no journals in this checkout` and writes nothing at all. Auto-resolving that file would discard
+     a branch's regenerated inventory, leave it unrestorable, and report `✓` — the exact silent revert
+     the 2026-08-05 pass removed the `docs/` prefix rule to prevent. So it is SOURCE and the tool
+     stops on it, which is the expensive-but-correct side of the trade.
+
+     ONE DELIBERATE DISAGREEMENT WITH THE HOOK. `.claude/hooks/guard-shared-tree.sh` keeps every
+     `docs/**.md` as source (its note 5), so a hand-typed `git checkout <ref> -- docs/TOOLS-INDEX.md`
+     stays DENIED even though this classifier now calls that path generated. The hook's own note says a
+     guard and the tool it points at must not disagree, and the asymmetry is kept anyway because it
+     runs in the safe direction: an over-deny costs one command and points at `npm run rebase`, which
+     is the right answer for a conflict in a built file, while an exemption would let a hand-rolled
+     restore reach the 28 authored specs that live beside it. `rebase-safe` never needs the exemption —
+     it resolves and then REBUILDS, inside this process, where no hook applies. */
+  const idx = askSingleDocsOutput('tools/tools-index.mjs');
+  if (!idx) return null; // FAIL CLOSED — same rule: an unanswerable builder means we know nothing
+  bundles.add(idx);
   return bundles;
+}
+
+/* The ONE `docs/` path a builder declares, read out of its source text. Returns null — never a
+   guess — when the file is unreadable (0 matches) or declares more than one (≥2), because a second
+   output means this method can no longer say WHICH one is the index. Both cases fail closed in
+   `generatedSet()`, where the whole set collapses to "everything is source". */
+export function docsOutputFromText(text) {
+  if (typeof text !== 'string' || !text) return null;
+  const hits = text.match(/join\(\s*ROOT\s*,\s*'docs'\s*,\s*'[^']+'\s*\)/g) || [];
+  if (hits.length !== 1) return null;
+  const m = hits[0].match(/'docs'\s*,\s*'([^']+)'/);
+  return m && m[1] ? 'docs/' + m[1] : null;
+}
+
+function askSingleDocsOutput(file) {
+  const abs = join(ROOT, file);
+  if (!existsSync(abs)) return null;
+  try {
+    return docsOutputFromText(readFileSync(abs, 'utf8'));
+  } catch {
+    return null;
+  }
 }
 
 function askBuildDocs() {
@@ -278,7 +328,11 @@ function rebuild() {
   const steps = [
     ['tools/build.mjs', ['--all']],
     ['tools/build-analysis.mjs', []],
-    ['tools/build-docs.mjs', []]
+    ['tools/build-docs.mjs', []],
+    /* `docs/TOOLS-INDEX.md` is in the generated set, so a conflict there is auto-resolved — and an
+       auto-resolve is only safe because this step puts the right bytes back. It reads `tools/**`,
+       writes one file and costs ~35 ms, so it runs on every rebase rather than only on a conflict. */
+    ['tools/tools-index.mjs', []]
   ];
   for (const [script, args] of steps) {
     if (!existsSync(join(ROOT, script))) continue;
