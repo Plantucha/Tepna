@@ -54,18 +54,12 @@ would answer 250 again. Nights 2026-10-10 and 2026-10-11 had no reply at the cap
 | 2026-10-12 | 27 | 27 |
 
 These counts come from the `0x04` frame's `ppg_n` column. The poller asked one second later, not at
-once. So one controlled probe is still owed:
+once, so a back-to-back request was never tested.
 
-1. Run `capture-host/probe_oxyii_0x03.py` on a worn ring under the deadman helper. The owner authorises this box work.
-2. Pause the poll for 5 s, so the ring fills past the cap.
-3. Send a second request within 100 ms of the first reply at the cap.
-4. Record the declared count of both replies over at least 20 such events.
+**Option 2 closes on this evidence (owner, 2026-10-13: "No probe").** The brief records the buffer
+depth as 250 samples, about 2 s. The drain loop does not go into `run_oxyii`.
 
-**Criterion, stated before the probe.** A deeper backlog exists when the second reply carries 50 or
-more samples in at least 3 of 20 events. Then the drain loop goes into `run_oxyii`. Otherwise Option 2
-closes, and the brief records the buffer depth as 250 samples.
-
-**A cheap variant that needs no probe.** The worst-case freeze the ring survives is the buffer depth
+**A cheap variant stays open.** The worst-case freeze the ring survives is the buffer depth
 minus the time since the last poll. At a 1.0 s period that margin is 1.0 s. At a 0.5 s period it is
 1.5 s. The `0x05` path already polls twice per cycle (`capture.py:6545`). A half-second `0x04` period
 costs radio time and battery, so it needs its own A/B night before it ships.
@@ -149,8 +143,7 @@ more survive steps 1 and 2.
 
 | decision | rule |
 |---|---|
-| Option 2 builds the drain loop | a second reply of 50 or more samples in at least 3 of 20 probe events |
-| Option 2 closes | fewer than 3 of 20 |
+| Option 2 | closed by the owner on the 27-of-27 night evidence, with no probe |
 | Option 3 builds | any stall of 1.0 s or longer inside a worn interval, over 3 nights after the #3554 deploy |
 | Option 3 closes | no such stall over those 3 nights |
 | a job moves to a child | the sampler names it in a stall of 500 ms or more, over 3 nights |
@@ -162,11 +155,10 @@ Option 3 count.
 ## 6 · Acceptance
 
 1. The stall sampler ships, and three nights of `STALLS.jsonl` counts are in this brief.
-2. The probe verdict for Option 2 is in this brief, with the 20 events in a table.
-3. Heron's three-night stall count for Option 3 is in this brief.
-4. Each option that builds lands with a test. The test freezes the parent loop for 5 s and finds no lost sample from a fake ring.
-5. `capture-host/check.sh` exits 0, with 100 % branch coverage and the diff-scoped mutation gate.
-6. The owner authorises the deploy in Heron's pane.
+2. Heron's three-night stall count for Option 3 is in this brief.
+3. Each option that builds lands with a test. The test freezes the parent loop for 5 s and finds no lost sample from a fake ring.
+4. `capture-host/check.sh` exits 0, with 100 % branch coverage and the diff-scoped mutation gate.
+5. The owner authorises the deploy in Heron's pane.
 
 ## 7 · Related defect, logged apart
 
