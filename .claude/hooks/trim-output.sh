@@ -42,7 +42,8 @@
 # convenience, so every doubt resolves to the original command. Six shapes pass through:
 # a command that already bounds its own output, a command that writes to a file, a
 # heredoc, a background command, a command that can end the shell (`exit`, `exec`), and
-# an already-wrapped command. A `>` inside a quoted string reads as a file write and
+# an already-wrapped command. A seventh case is a size, not a shape: a command over
+# TRIM_MAX_CMD bytes cannot fit the one argv slot the rewrite leaves through, so it passes. A `>` inside a quoted string reads as a file write and
 # also passes through. That is the safe direction.
 #
 # ⚠ IT NEVER CHANGES THE EXIT CODE. The wrapper stores `$?` from the command itself and
@@ -59,6 +60,13 @@ set -uo pipefail
 TRIM_HEAD=60
 TRIM_TAIL=40
 TRIM_THRESHOLD=200
+# The longest command this hook will rewrite, in bytes. The rewrite leaves the hook through
+# `jq --arg`, and one argv string cannot exceed MAX_ARG_STRLEN (131072 on Linux). The
+# wrapper adds about 410 bytes and a scratch path of up to PATH_MAX (4096), so 126000 keeps
+# every rewrite inside the slot. A longer command passes through unchanged and unannounced:
+# trimming is a convenience, and "jq dies, prints on stderr, emits nothing" is the same
+# pass-through reached by accident, with noise.
+TRIM_MAX_CMD=126000
 
 # ⚠ STDIN IS DRAINED FIRST, BEFORE ANY EXIT. The harness writes the tool-call JSON into
 # this hook's stdin, so a hook that exits before reading it leaves the writer holding a
@@ -73,6 +81,11 @@ payload="$(cat 2>/dev/null)" || exit 0
 [ "${CLAUDE_ALLOW_UNTRIMMED:-}" = "1" ] && exit 0
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$cmd" ] && exit 0
+
+# Over the ceiling the rewrite could not be emitted (see TRIM_MAX_CMD), so decide that before
+# any scan of the command. `wc -c` counts BYTES; `${#cmd}` counts characters in a UTF-8 locale.
+cmd_bytes="$(printf '%s' "$cmd" | wc -c | tr -d ' ')"
+[ "$cmd_bytes" -gt "$TRIM_MAX_CMD" ] && exit 0
 
 # The settings matcher already selects Bash. This repeats the test, because a hook that
 # rewrote an `Edit` input would corrupt a file.
@@ -119,7 +132,12 @@ fi
 # 6 · A command that already bounds its own output. Read the LAST pipeline stage only,
 #     because that stage decides what reaches the transcript. A command with no pipe
 #     gives the whole command here, so a bare `head -5 f` is also bounded.
-last="${cmd##*|}"
+# ⚠ THE LAST STAGE IS CUT WITH `%`, NOT `##`. `${cmd##*|}` (longest prefix) is QUADRATIC in
+# the length of the command when no `|` is in it: measured 2.8 s for one 70 KB token, and
+# 25 s at 300 KB, in bash 5.2 — that one expansion was the whole superlinear cost of this hook.
+# `${cmd%|*}` (shortest suffix) cuts at the same last `|` in linear time (1 ms at 70 KB).
+rest="${cmd%|*}"
+if [ "$rest" = "$cmd" ]; then last="$cmd"; else last="${cmd:${#rest}+1}"; fi
 if printf '%s' "$last" | grep -qE '(^|[[:space:]])(head|tail|wc)([[:space:]]|$)'; then
   exit 0
 fi
