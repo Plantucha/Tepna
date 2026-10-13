@@ -127,6 +127,7 @@ systemd/tepna-sniff.service|$ETC_SYSTEMD/tepna-sniff.service|MANAGED|0644
 systemd/tepna-sniff.timer|$ETC_SYSTEMD/tepna-sniff.timer|MANAGED|0644
 tepna-clock.sh|$LIB_TEPNA/tepna-clock.sh|MANAGED|0755
 tepna-restart.sh|$LIB_TEPNA/tepna-restart.sh|MANAGED|0755
+tepna-sysfiles.sh|$LIB_TEPNA/tepna-sysfiles.sh|MANAGED|0755
 tepna-rssi.sh|$LIB_TEPNA/tepna-rssi.sh|MANAGED|0755
 tepna-usbreset.sh|$LIB_TEPNA/tepna-usbreset.sh|MANAGED|0755
 tepna-btreset.sh|$LIB_TEPNA/tepna-btreset.sh|MANAGED|0755

@@ -362,3 +362,44 @@ def test_an_empty_captures_tree_publishes_nothing_rather_than_a_night_shaped_nul
     monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
     _poll_once(monkeypatch, tmp_path, devices=_cfg_devices())
     assert "solid" not in capture.STATUS
+
+
+def test_a_verdict_older_judge_code_wrote_is_re_judged_one_night_per_poll(tmp_path, monkeypatch, caplog):
+    """The 2026-10-09 defect: a settled night's data never changes, so its verdict stood after the judge was
+    fixed. Two nights judged under OLD; the daemon restarts on NEW with the judge changed between them. Each
+    poll re-judges ONE night, the withdrawal says why, and once both carry NEW the poller stands down."""
+    a, b = _night(tmp_path, "2026-09-17"), _night(tmp_path, "2026-09-18")
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    audits = []
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer(audits))
+    monkeypatch.setattr(capture.solid_night, "_moved", {})
+    monkeypatch.setattr(capture.solid_night._bid, "_git", lambda *a, **k: "capture-host/solid_night_inputs.py")
+    monkeypatch.setattr(capture.verdict, "commit_sha", lambda: "01d01d01")
+    _poll_once(monkeypatch, tmp_path)
+    assert audits == ["2026-09-17", "2026-09-18"]
+    monkeypatch.setattr(capture.verdict, "commit_sha", lambda: "4e44e401")
+    with caplog.at_level("INFO"):
+        _poll_once(monkeypatch, tmp_path)
+    assert audits[2:] == ["2026-09-17"], "one re-judge per poll: each is a full audit in the daemon"
+    why = capture.solid_night.CODE_MOVED.format(old="01d01d01", new="4e44e401")
+    assert any(why in r.getMessage() for r in caplog.records)
+    w = json.loads((a / capture.solid_night.WITHDRAWN_NAME).read_text().splitlines()[-1])
+    assert w["reason"] == why and w["replaced_by"]["commit"] == "4e44e401"
+    _poll_once(monkeypatch, tmp_path)
+    assert audits[3:] == ["2026-09-18"]
+    wb = [json.loads(ln) for ln in (b / capture.solid_night.WITHDRAWN_NAME).read_text().splitlines()]
+    assert [w["reason"] for w in wb] == [why], wb
+    _poll_once(monkeypatch, tmp_path)
+    assert audits[4:] == [], "both nights carry the running commit now: nothing is re-judged"
+
+
+def test_a_re_judged_older_night_does_not_pull_the_status_card_back(tmp_path, monkeypatch):
+    d = _night(tmp_path, "2026-09-18")
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer([]))
+    shown = {"night": "2026-09-19", "status": "PASS"}
+    monkeypatch.setattr(capture, "STATUS", {"solid": dict(shown)})
+    _poll_once(monkeypatch, tmp_path)
+    assert (d / capture.solid_night.VERDICT_NAME).exists(), "the older night's verdict is still written"
+    assert capture.STATUS["solid"] == shown, "but the card keeps the newer night"

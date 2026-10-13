@@ -1623,6 +1623,18 @@
       },
       "note": "residue 2026-09-06-t-stuck-validated-on-ring-only: does writers.T_STUCK = 200 SAMPLES transfer to the four streams RUN_MIN_BY_STREAM extends it to? Criterion pre-registered in the tool header before any stream was read - a bracketed multiplicative gap of >= 4x above p99.99 containing 200. The per-channel words (HOLD/FAIL-LOW/FAIL-HIGH/NO GAP/NOT-EXERCISED) are the tool's own reading and live in result; the contract's closed vocabulary is reached by an explicit map, precedence FAIL > UNKNOWN > UNDERPOWERED > PASS, never a vote. NOT-EXERCISED maps to UNKNOWN and not NOT_APPLICABLE: the contract refused that on the first attempt because NOT_APPLICABLE must carry result: null, and here the result (550M samples, p99.99, N = 0) IS the finding. Population = channel-reports; checked = those the criterion bound on."
     },
+    "tools/tch-degeneracy-d7.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/tch-degeneracy-d7.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "D7 (TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12-BRIEF §4): three verdicts per run, one per pre-stated measurement — M1 which corner carries the fused hat's negative variances (criterion: the O2Ring corner holds >= 0.75 of them, §4's own 9-of-12 carried as a share because the corpus grew from 118 night dirs to 147), M2 whether one common weight t*cH*cV*cO removes them, M3 whether the pairwise-rho hat resolves what M2 leaves. Thresholds come from the brief, written before any of the three ran on these nights. NOT_APPLICABLE when a measurement's population is empty (no negative night for M1, none left for M3) and result is null there, per the contract. --verdict-sample prints M1 alone over a planted anti-correlated pair with a known negative corner; --selftest runs 39 planted assertions including the half-sum inversion and the published P=0.088 of TRIO-ARTIFACT-GATE-AND-N15-POWER §6.2. Calls the production tchSigmasFused for every column and re-implements no estimator."
+    },
     "tools/tch-degeneracy-stats.mjs": {
       "bin": "word-only",
       "status": "exempt",

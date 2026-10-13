@@ -154,7 +154,10 @@ function pairMoments(hh, vv, oo) {
 /* Exported so the pooled-seconds hat can reuse this alignment rather than duplicating it —
    the per-second key-matching here is the load-bearing part (R5-HR-TRIPLET §5) and a second
    copy would drift. `pairs` is ADDITIVE; existing consumers read the same fields as before. */
-export function solveNight(dir, night) {
+/* The READER half of a night, split out so a second measurement can apply a DIFFERENT weight
+   vector to the SAME series without a second reader (D7, `TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12`).
+   Returns the per-second aligned triplet and its per-corner confidences, or `{ night, skip }`. */
+export function nightSeries(dir, night) {
   const rd = (node) => {
     const p = join(dir, night, `${node}_${night}.node-export.json`);
     try {
@@ -199,15 +202,25 @@ export function solveNight(dir, night) {
     one.push(1);
   }
 
+  return { night, ks, hh, vv, oo, cH, cV, cO, one, hasConf: h.hasConf && v.hasConf };
+}
+
+export function solveNight(dir, night) {
+  const S = nightSeries(dir, night);
+  if (S.skip) return S;
+  const { ks, hh, vv, oo, cH, cV, cO, one } = S;
+
   const fused = AS.tchSigmasFused(hh, vv, oo, cH, cV, cO);
   const plain = AS.tchSigmasFused(hh, vv, oo, one, one, one); // same code path, weights disabled
   const r = (a, b) => AS.pearson(a, b);
   return {
     night,
     n: ks.length,
-    hasConf: h.hasConf && v.hasConf,
-    fused: { h10: fused.h10, verity: fused.verity, o2: fused.o2, neg: fused.neg },
-    plain: { h10: plain.h10, verity: plain.verity, o2: plain.o2, neg: plain.neg },
+    hasConf: S.hasConf,
+    /* `negVar` is ADDITIVE and carries the SIGNED σ² of each corner the half-sum drove ≤ 0 —
+       the field D7's M1 reads to say WHICH corner went negative, not merely that one did. */
+    fused: { h10: fused.h10, verity: fused.verity, o2: fused.o2, neg: fused.neg, negVar: fused.negVar },
+    plain: { h10: plain.h10, verity: plain.verity, o2: plain.o2, neg: plain.neg, negVar: plain.negVar },
     r: { hv: r(hh, vv), ho: r(hh, oo), vo: r(vv, oo) },
     /* Per-night PAIRWISE moments — the inputs a pooled-seconds hat needs. A pooled variance is
        Σ w·Var + [Σ w·μ² − (Σ w·μ)²]: within-night plus a BETWEEN-night bias term, and the second

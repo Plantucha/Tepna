@@ -17838,6 +17838,213 @@
       }
     );
 
+    group(
+      'The hat says WHICH leg moved a corner — `contributions`, analytic (VERDICT-CONTRIBUTIONS-2026-10-04 §2)',
+      'analysis-stats · pat · hat · contributions · verdict · known-answer · plant',
+      function (T) {
+        var S = env.AnalysisStats;
+        if (!S) {
+          T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+          return;
+        }
+        if (typeof S.hatContributions !== 'function' || typeof S.patHatContributions !== 'function') {
+          T.ok('AnalysisStats contributions kernel present', false, 'hatContributions / patHatContributions not exported');
+          return;
+        }
+        var KEYS = { ab: 'leg.chest-finger', ac: 'leg.chest-ankle', bc: 'leg.finger-ankle' };
+        var CORNER = { a: 'chest', b: 'finger', c: 'ankle' };
+        function blk(vAB, vAC, vBC, corner, opts) {
+          var o = { corner: corner, of: 'sigma2.' + CORNER[corner], unit: 'ms^2', keys: KEYS };
+          for (var k in opts || {}) o[k] = opts[k];
+          return S.hatContributions(vAB, vAC, vBC, o);
+        }
+        function sum(b) {
+          return b.inputs.reduce(function (s, it) {
+            return s + it.delta;
+          }, 0);
+        }
+        /* ── A · THE IDENTITY. `analytic` claims the three terms ARE the corner: each is the leg's own
+           partial (±½) times the leg's own variance, so they sum to the figure. 300 random triples,
+           all three corners, against `threeCorneredHat` itself — never a second copy of the algebra. */
+        var s = 20261012 >>> 0;
+        function r() {
+          s = (Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9) >>> 0;
+          return (s & 0xffffff) / 0x1000000;
+        }
+        var worst = 0,
+          offIdentity = 0,
+          offShare = 0,
+          offDom = 0;
+        for (var i = 0; i < 300; i++) {
+          var v = [2000 * r(), 2000 * r(), 2000 * r()],
+            hat = S.threeCorneredHat(v[0], v[1], v[2]);
+          ['a', 'b', 'c'].forEach(function (c) {
+            var b = blk(v[0], v[1], v[2], c),
+              want = hat[c],
+              err = Math.abs(sum(b) - want) / Math.max(1, Math.abs(want));
+            if (err > worst) worst = err;
+            if (err > 1e-12) offIdentity++;
+            var tot = b.inputs.reduce(function (t, it) {
+                return t + Math.abs(it.delta);
+              }, 0),
+              ss = 0,
+              dom = null,
+              mx = -1;
+            b.inputs.forEach(function (it) {
+              ss += it.share;
+              if (Math.abs(it.share - Math.abs(it.delta) / tot) > 1e-12) offShare++;
+              if (Math.abs(it.delta) > mx) {
+                mx = Math.abs(it.delta);
+                dom = it.key;
+              }
+            });
+            if (Math.abs(ss - 1) > 1e-9) offShare++;
+            if (b.dominant !== dom) offDom++;
+          });
+        }
+        T.ok('the three deltas sum to the corner the hat solved, over 900 corners', offIdentity === 0, offIdentity + ' off; worst relative error ' + worst.toExponential(2));
+        T.ok('every share is |delta| / Σ|delta| and the shares sum to 1', offShare === 0, offShare + ' off');
+        T.ok('`dominant` is the key with the largest |delta|', offDom === 0, offDom + ' off');
+        /* ── B · THE NEGATIVE CORNER — the question the brief opens on. A variance is never negative, so
+           exactly one delta per corner is ≤ 0: the SUBTRACTED leg. When it dominates, the corner is
+           negative and the block names it. */
+        var neg = blk(100, 120, 900, 'a');
+        T.ok(
+          'a negative corner names the subtracted leg as dominant, and it is the only negative delta',
+          S.threeCorneredHat(100, 120, 900).a < 0 &&
+            neg.dominant === KEYS.bc &&
+            neg.inputs.filter(function (it) {
+              return it.delta < 0;
+            }).length === 1 &&
+            neg.inputs[2].delta === -450,
+          JSON.stringify(neg)
+        );
+        /* ── C · ∅ — a leg that did not run is UNKNOWN, never 0, and it takes the denominator with it. */
+        var absent = blk(400, null, 100, 'c', { reasons: { ac: 'chest→ankle: 0 windows passed rejection' } });
+        T.ok(
+          'an absent leg is listed with delta null and a reason, and every share and `dominant` go null with it',
+          absent.inputs[1].delta === null &&
+            /0 windows passed rejection/.test(absent.inputs[1].reason) &&
+            absent.inputs.every(function (it) {
+              return it.share === null;
+            }) &&
+            absent.dominant === null &&
+            absent.inputs.length === 3,
+          JSON.stringify(absent)
+        );
+        var zeros = blk(0, 0, 0, 'b');
+        T.ok(
+          'three zero variances make Σ|delta| zero, so no share is 0/0',
+          zeros.inputs.every(function (it) {
+            return it.delta === 0 && it.share === null;
+          }) && zeros.dominant === null,
+          JSON.stringify(zeros)
+        );
+        /* ── D · A LABEL IS NOT OPTIONAL. An unnamed or unit-less figure is a wrong-unit bug, so the
+           kernel refuses rather than defaulting (CLAUDE.md §📏, §🎫). */
+        var threw = 0;
+        [
+          { corner: 'd', of: 'x', unit: '' },
+          { corner: 'a', unit: 'ms^2' },
+          { corner: 'a', of: 'x' }
+        ].forEach(function (bad) {
+          try {
+            S.hatContributions(1, 2, 3, bad);
+          } catch (e) {
+            if (/opts\.(corner|of|unit)/.test(e.message)) threw++;
+          }
+        });
+        T.ok('an unknown corner, a missing `of` and a missing `unit` each throw, naming the option', threw === 3, threw + ' of 3');
+        /* ── E · THE REAL VALIDATOR. A block this kernel builds must pass `verdict.js` — and the
+           validator must have LOOKED at it (`checked` names it), not merely failed to object. */
+        var V = env.Verdict;
+        if (!V || typeof V.validate !== 'function') {
+          T.skip('every emitted block validates under verdict.js', 'env.Verdict not provided to the runner');
+        } else {
+          function wrap(b) {
+            return {
+              schema: 'tepna.verdict/1',
+              gate: 'pat-three-corner',
+              status: 'UNKNOWN',
+              scope: 'internal',
+              population: { checked: 1, eligible: 1, excluded: 0 },
+              criterion: { name: 'sigma2_chest', threshold: 0, unit: 'ms^2', direction: 'gte' },
+              result: { chest: -340 },
+              evidence: ['tests/dex-tests.js'],
+              reason: 'a per-site σ has no pre-stated band',
+              contributions: b,
+              producedBy: { tool: 'tests/dex-tests.js', commit: null, commitReason: 'the suite is not a producer' },
+              at: '2026-10-12T00:00:00Z'
+            };
+          }
+          var bad = 0,
+            unread = 0,
+            firstErr = '';
+          [blk(400, 900, 100, 'a'), neg, absent, zeros].forEach(function (b) {
+            var res = V.validate(wrap(b));
+            if (!res.ok) {
+              bad++;
+              if (!firstErr) firstErr = (res.errors || []).join(' · ');
+            }
+            if (!res.checked || res.checked.indexOf('contributions') < 0) unread++;
+          });
+          T.ok('all four blocks validate under the shipped verdict.js, and it examined the block each time', bad === 0 && unread === 0, bad + ' invalid, ' + unread + ' unexamined; ' + firstErr);
+        }
+        /* ── F · THE PAT WRAPPER attributes the variances the hat ACTUALLY SOLVED — `_patRobustVar`
+           through `patHatSolve`, on the brief's own leg keys. */
+        var LEG = [[], [], []];
+        for (var w = 0; w < 60; w++) {
+          LEG[0].push(400 + 40 * (r() - 0.5));
+          LEG[1].push(500 + 90 * (r() - 0.5));
+          LEG[2].push(100 + 12 * (r() - 0.5));
+        }
+        var pc = S.patHatContributions(LEG[0], LEG[1], LEG[2]),
+          solved = S.patHatSolve(LEG[0], LEG[1], LEG[2]),
+          offPat = 0;
+        ['chest', 'finger', 'ankle'].forEach(function (c) {
+          if (Math.abs(sum(pc[c]) - solved[c]) / Math.max(1, Math.abs(solved[c])) > 1e-12) offPat++;
+          if (pc[c].of !== 'sigma2.' + c || pc[c].unit !== 'ms^2' || pc[c].method !== 'analytic') offPat++;
+          if (
+            pc[c].inputs
+              .map(function (it) {
+                return it.key;
+              })
+              .join() !== 'leg.chest-finger,leg.chest-ankle,leg.finger-ankle'
+          )
+            offPat++;
+        });
+        T.ok(
+          'each corner block sums to that corner of patHatSolve, labelled ms² on the brief’s leg keys',
+          offPat === 0,
+          offPat +
+            ' off; ' +
+            JSON.stringify(
+              pc.chest.inputs.map(function (it) {
+                return it.key + ' ' + it.delta.toFixed(1);
+              })
+            )
+        );
+        var emptyLeg = S.patHatContributions([], LEG[1], LEG[2]);
+        T.ok(
+          'a leg with no window is ∅ — delta null with a reason, not a leg of zero',
+          emptyLeg.chest.inputs[0].delta === null && emptyLeg.chest.dominant === null && /absent/.test(emptyLeg.chest.inputs[0].reason),
+          JSON.stringify(emptyLeg.chest.inputs[0])
+        );
+        /* ── G · THE DRIFT-REMOVED HALF carries the same block over the DIFFERENCED variances, labelled
+           so no reader compares it to the classic σ; a refusal publishes no block at all. */
+        var WD = [];
+        for (var k2 = 0; k2 < 40; k2++) WD.push({ t: k2 * 300000, ab: 400 + 30 * (r() - 0.5), ac: 500 + 70 * (r() - 0.5), bc: 100 + 10 * (r() - 0.5) });
+        var df = S.patDifferencedHat(WD, 300000);
+        T.ok(
+          'the drift-removed hat publishes a `sigma2.drift-removed.*` block that sums to its own variance',
+          df.ok === true && df.contributions.ankle.of === 'sigma2.drift-removed.ankle' && Math.abs(sum(df.contributions.ankle) - df.variance.ankle) / Math.max(1, Math.abs(df.variance.ankle)) < 1e-12,
+          JSON.stringify({ of: df.contributions && df.contributions.ankle.of, sum: sum(df.contributions.ankle), variance: df.variance.ankle })
+        );
+        var refused = S.patDifferencedHat(WD.slice(0, 6), 300000);
+        T.ok('a refused drift-removed hat carries no block — there is no figure to attribute', refused.ok === false && refused.contributions === undefined, JSON.stringify(refused));
+      }
+    );
+
     group('Analysis-page statistics kernels — known-answer (TEST-COVERAGE-ANALYSIS)', 'analysis-stats · statistics · known-answer', function (T) {
       var S = env.AnalysisStats;
       if (!S) {
@@ -71904,6 +72111,173 @@
       var drift = CC(M, G, true);
       T.ok('a drifted copy is REFUSED with a non-zero exit', drift.status === 1, 'status=' + drift.status);
       T.ok('the refusal names the stale file', /differs from the output of dex-gen\.js/.test(drift.out), drift.out.trim());
+    });
+
+    /* §∅ · FOUR CONSUMERS SUMMED AN ABSENT SECOND AS A ZERO READING ─────────────────────────────
+       Found while diffing a 102-night re-fold against its committed exports: 89 of 550 files carried
+       a moved value and every one was an OxyDex export. The writer had begun appending a ten-sample
+       null tail (10 s at 1 Hz) per affected night — absence carried as null, exactly §∅ — and these
+       four consumers read it arithmetically. `a + null` is `a` in JS, so an absent second enters as
+       0 % saturation or 0 bpm while the denominator still counts it. Sibling functions in this file
+       (`computeT88T85`, `computeHypoxicDose`) already filter `spo2 != null`, which is why the six
+       scored metrics — ODI4, ODI3, T90, mean SpO2, hypoxic burden, dip-3 rate — were untouched in all
+       89 nights and only the shape, variability and conditional blocks moved.
+       ARITHMETIC, NOT INFERENCE (2026-06-10, the real night): measured samples alone give n 25557,
+       mean 96.36, SD 0.94, skew -1.039, kurtosis 6.604. The same series with ten zeros appended gives
+       96.32, 2.12, -36.569, 1655.192 — and the re-folded export stated those four figures to every
+       decimal. The labels went with them: "Leptokurtic (heavy tails/events)", "Left-skewed (hypox
+       burden)", "Motion artifact likely". Ten absent seconds manufactured a clinical-sounding reading.
+       MEASURED BOTH WAYS against main's own sources, on the 1000-sample synthetic series below: the
+       kurtosis goes 1.7 -> 98.838 and its label Platykurtic -> Leptokurtic; the HR CV goes 1.68 ->
+       10.14 and its label "Low (<6%)" -> "Moderate"; SD2 goes 0.71 -> 8.26 and its label likewise.
+       Three of the four labels flip on ten absent seconds out of a thousand.
+       And one committed fixture on main carries the defect TODAY: of the two exports holding a
+       spo2Shape block, `uploads/synthetic_oxydex_gap_golden.node-export.json` — the fixture built to
+       exercise absence, 1800 of 7200 seconds unmeasured — states spo2Mean 72.28 and spo2SD 41.79
+       beside its own stats.meanSpo2 of 96.4, and labels the night "True apnea pattern (SpO2 worse at
+       rest)". Its clean twin (`synthetic_oxydex_golden`, nSpo2 == n) states 96.48 / 1.06.
+       WHY THE FILTER IS NOT `!= 0`: a low saturation is a real reading. The last leg plants ten
+       genuine 70 % seconds and asserts the fix and main agree to every decimal on them. */
+    function _nbSeries(n) {
+      var r = [];
+      for (var i = 0; i < n; i++) r.push({ tMs: i * 1000, spo2: 96 + ((i * 7) % 5) * 0.2, hr: 58 + ((i * 3) % 7) * 0.5, motion: 0 });
+      return r;
+    }
+    function _nbMixed(n) {
+      // every tenth second carries motion, and rest sits LOWER than movement, so the delta is real
+      var r = [];
+      for (var i = 0; i < n; i++) {
+        var mv = i % 10 === 0;
+        r.push({ tMs: i * 1000, spo2: mv ? 97 : 95 + ((i * 7) % 3) * 0.5, hr: 58 + ((i * 3) % 7) * 0.5, motion: mv ? 1 : 0 });
+      }
+      return r;
+    }
+    function _nbPad(rows, k) {
+      // the tail the fold's writer appends: absent seconds, carried as null, motion still read as 0
+      var out = rows.slice();
+      for (var i = 0; i < k; i++) out.push({ tMs: (rows.length + i) * 1000, spo2: null, hr: null, motion: 0 });
+      return out;
+    }
+    function _nbBare(T, fn) {
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_od && _od._bare) || _od;
+      if (!OD || typeof OD[fn] !== 'function') {
+        // NOT a skip: a skip is neither pass nor fail, and this group would then shrink the gate silently.
+        T.ok('OxyDex._bare.' + fn + ' is reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+        return null;
+      }
+      return OD[fn];
+    }
+
+    group('OxyDex §∅ — computeSpO2Shape does not sum an absent second as 0 % saturation', 'oxydex-dsp · absence-as-value · shape', function (T) {
+      var f = _nbBare(T, 'computeSpO2Shape');
+      if (!f) return;
+      var clean = _nbSeries(1000);
+      var a = f(clean),
+        b = f(_nbPad(clean, 10));
+      // (a) THE FIX — the ten absent seconds move no moment and no label. RED on main at every line.
+      T.eq('§∅ · the mean is unmoved by a ten-sample null tail', b.spo2Mean, a.spo2Mean);
+      T.eq('§∅ · the SD is unmoved', b.spo2SD, a.spo2SD);
+      T.eq('§∅ · the skew is unmoved', b.spo2Skew, a.spo2Skew);
+      T.eq('§∅ · the kurtosis is unmoved (main: 1.7 -> 98.838)', b.spo2Kurt, a.spo2Kurt);
+      T.eq('§∅ · the kurtosis LABEL is unmoved (main: Platykurtic -> Leptokurtic)', b.spo2KurtLabel, a.spo2KurtLabel);
+      T.eq('§∅ · the skew LABEL is unmoved (main: Near-symmetric -> Left-skewed)', b.spo2SkewLabel, a.spo2SkewLabel);
+      // (b) coverage beside the value — reduced coverage ANNOTATES (owner ruling 2026-09-17)
+      T.eq('§∅ · nMeasured counts the measured seconds only', b.nMeasured, 1000);
+      T.eq('§∅ · nTotal counts the rows, so the absence is visible', b.nTotal, 1010);
+      // CONTROLS — these pass on main too, so a red above is the absence path and not the harness.
+      T.eq('CONTROL · the measured-only mean is the real one', a.spo2Mean, 96.4);
+      T.eq('CONTROL · the measured-only SD is the real one', a.spo2SD, 0.28);
+      T.eq('CONTROL · the clean series is Platykurtic, not an event-laden night', a.spo2KurtLabel, 'Platykurtic');
+      T.eq('CONTROL · a fully measured series reports full coverage', a.nMeasured + '/' + a.nTotal, '1000/1000');
+      /* THE FLOOR COUNTS MEASURED SECONDS, NOT ROWS. The diff-scoped mutation gate (#3506) found
+         `m < 60` blind in both directions: `m < 0` never refuses, `m <= 60` refuses one second early.
+         59 measured seconds behind a hundred absent ones is under the floor however long the array is. */
+      T.eq('§∅ · 59 measured seconds is under the floor, so the shape refuses', f(_nbPad(_nbSeries(59), 100)), null);
+      T.ok('§∅ · 60 measured seconds clears it', f(_nbSeries(60)) !== null, 'the floor is `m < 60`, so exactly 60 is enough');
+    });
+
+    group('OxyDex §∅ — computeHRCV does not sum an absent second as 0 bpm', 'oxydex-dsp · absence-as-value · hrcv', function (T) {
+      var f = _nbBare(T, 'computeHRCV');
+      if (!f) return;
+      var clean = _nbSeries(1000);
+      var a = f(clean),
+        b = f(_nbPad(clean, 10));
+      T.eq('§∅ · the coefficient of variation is unmoved (main: 1.68 -> 10.14)', b.hrCV, a.hrCV);
+      T.eq('§∅ · its LABEL is unmoved (main: "Low (<6%)" -> "Moderate")', b.hrCVlabel, a.hrCVlabel);
+      T.eq('§∅ · the mean HR is unmoved', b.hrCVmean, a.hrCVmean);
+      T.eq('§∅ · the SD is unmoved', b.hrCVsd, a.hrCVsd);
+      T.eq('§∅ · coverage is reported beside the value', b.nMeasured + '/' + b.nTotal, '1000/1010');
+      T.eq('CONTROL · the measured-only CV is the real one', a.hrCV, 1.68);
+      T.eq('CONTROL · the clean series is low-variability, not an aroused night', a.hrCVlabel, 'Low (<6%)');
+      T.eq('CONTROL · the measured-only mean HR is the real one', a.hrCVmean, 59.5);
+      // the same floor, same two blind directions — see the note in the shape group above
+      T.eq('§∅ · 59 measured seconds is under the floor, so the CV refuses', f(_nbPad(_nbSeries(59), 100)), null);
+      T.ok('§∅ · 60 measured seconds clears it', f(_nbSeries(60)) !== null, 'the floor is `m < 60`, so exactly 60 is enough');
+      /* `!mean || mean <= 0` guards the DENOMINATOR, and `isFinite` admits a negative reading, so the
+         second clause is the one that catches a mean no heart can have. Dropping it leaves a CV of -0. */
+      var _negHR = _nbSeries(200).map(function (r) {
+        return { tMs: r.tMs, spo2: r.spo2, hr: -10, motion: 0 };
+      });
+      T.eq('§∅ · a negative mean HR refuses, it does not report a coefficient over it', f(_negHR), null);
+    });
+
+    group('OxyDex §∅ — computePoincareSD does not read an absent beat as a 0 bpm excursion', 'oxydex-dsp · absence-as-value · poincare', function (T) {
+      var f = _nbBare(T, 'computePoincareSD');
+      if (!f) return;
+      var clean = _nbSeries(1000);
+      var a = f(clean),
+        b = f(_nbPad(clean, 10));
+      /* The motion filter had ALREADY made this array non-contiguous, so dropping the absent beats
+         changes nothing about contiguity — it only stops a 0 bpm sample entering a successive
+         difference as a ~60 bpm step. */
+      T.eq('§∅ · SD1 is unmoved by a ten-sample null tail', b.sd1, a.sd1);
+      T.eq('§∅ · SD2 is unmoved (main: 0.71 -> 8.26)', b.sd2, a.sd2);
+      T.eq('§∅ · the ratio is unmoved', b.sd1sd2Ratio, a.sd1sd2Ratio);
+      T.eq('§∅ · the SD2 LABEL is unmoved (main: Low sympathetic modulation -> Normal)', b.sd2Label, a.sd2Label);
+      T.eq('§∅ · coverage is reported beside the pair', b.nMeasured + '/' + b.nTotal, '1000/1010');
+      T.eq('CONTROL · the measured-only SD1 is the real one', a.sd1, 1.22);
+      T.eq('CONTROL · the measured-only SD2 is the real one', a.sd2, 0.71);
+      T.eq('CONTROL · the clean series reads low sympathetic modulation', a.sd2Label, 'Low sympathetic modulation (1Hz proxy)');
+    });
+
+    group('OxyDex §∅ — computeConditionalSpO2 filters the SpO2 it sums, not only the motion it groups by', 'oxydex-dsp · absence-as-value · conditional', function (T) {
+      var f = _nbBare(T, 'computeConditionalSpO2');
+      if (!f) return;
+      var mixed = _nbMixed(1000);
+      var a = f(mixed),
+        b = f(_nbPad(mixed, 10));
+      /* Both filters read the MOTION channel and the sums then read SpO2, so a still-but-unmeasured
+         second entered the still mean as 0 %. Absence is not shared evenly between rest and movement,
+         so the DELTA moved too — and the delta is what the label calls an apnea pattern. */
+      T.eq('§∅ · the still mean is unmoved by a ten-sample null tail (main: 95.5 -> 94.45)', b.spo2StillMean, a.spo2StillMean);
+      T.eq('§∅ · the moving mean is unmoved', b.spo2MovingMean, a.spo2MovingMean);
+      T.eq('§∅ · the DELTA is unmoved (main: -1.5 -> -2.55, a 70 % error)', b.spo2MotionDelta, a.spo2MotionDelta);
+      T.eq('§∅ · the label is unmoved', b.motionArtifactLabel, a.motionArtifactLabel);
+      T.eq('§∅ · coverage beside the still mean', b.nStillMeasured + '/' + b.nStillTotal, '900/910');
+      T.eq('§∅ · coverage beside the moving mean', b.nMovingMeasured + '/' + b.nMovingTotal, '100/100');
+      T.eq('CONTROL · the measured-only still mean is the real one', a.spo2StillMean, 95.5);
+      T.eq('CONTROL · the measured-only moving mean is the real one', a.spo2MovingMean, 97);
+      T.eq('CONTROL · the measured-only delta is the real one', a.spo2MotionDelta, -1.5);
+      T.eq('CONTROL · stillPct reads the motion channel, so it keeps the whole recording as its denominator', b.stillPct, 90.1);
+    });
+
+    group('OxyDex §∅ — the filter is absence, NEVER `!= 0`: a genuine 70 % second survives', 'oxydex-dsp · absence-as-value · genuine-zero-trap', function (T) {
+      var f = _nbBare(T, 'computeSpO2Shape');
+      if (!f) return;
+      /* CLAUDE.md §∅: "`0` is a legal sample, so the fix is never `!= 0` in a DSP." A desaturation to
+         70 % is a real reading and must keep moving every moment. Measured against main's own sources:
+         the two agree to every decimal on this input (95.39 / 2.62 / -9.083 / 88.31), which is the
+         proof that the change removed a fabrication and not a signal. */
+      var rows = _nbMixed(1000);
+      for (var i = 500; i < 510; i++) rows[i].spo2 = 70;
+      var out = f(rows);
+      T.eq('a genuine 70 % second still moves the mean (main agrees: 95.39)', out.spo2Mean, 95.39);
+      T.eq('…and the SD', out.spo2SD, 2.62);
+      T.eq('…and the skew', out.spo2Skew, -9.083);
+      T.eq('…and the kurtosis', out.spo2Kurt, 88.31);
+      T.eq('…so the night is still read as event-laden', out.spo2KurtLabel, 'Leptokurtic (heavy tails/events)');
+      T.eq('…and all 1000 seconds count as measured', out.nMeasured + '/' + out.nTotal, '1000/1000');
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that
