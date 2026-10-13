@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**259 tools** · 257 with a purpose line · **2 without**
+**259 tools** · 258 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -19,65 +19,65 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`acc-acc-control.mjs`](../tools/acc-acc-control.mjs) | the CALIBRATION CONTROL for wide-range clock alignment. Backs CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF §2c. |
 | [`acc-select-compare.mjs`](../tools/acc-select-compare.mjs) | EXTERNAL-METHODS-SURVEY-FOLLOWUPS §2. Two tools pick a night's ACC fragments by different rules and disagree about which nights are alignable: |
 | [`acc-shared-movement.mjs`](../tools/acc-shared-movement.mjs) | EXTERNAL-METHODS-SURVEY §3's question, in our own units. §3: Brønd et al. |
-| [`adev-curve.mjs`](../tools/adev-curve.mjs) | ════════════════════════════════════════════════════════════════════════════════════════════════ READ THE ADEV CURVE A NODE EXPORT NOW CARRIES — the consumer residue… |
-| [`analysis-rerun.mjs`](../tools/analysis-rerun.mjs) | Built for `briefs/COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`: the six cohort-gen-pinned papers are re-cut under 2.0, and each paper's numbers come from one browser tool. |
+| [`adev-curve.mjs`](../tools/adev-curve.mjs) | READ THE ADEV CURVE A NODE EXPORT NOW CARRIES — the consumer residue `2026-09-21-adev-curve-not-exported-by-either-node` said the curve was owed before it was published: "an export-shape… |
+| [`analysis-rerun.mjs`](../tools/analysis-rerun.mjs) | RE-RUN THE SYNTHETIC ANALYSIS TOOLS HEADLESSLY AND CAPTURE THEIR RESULT OBJECTS. |
 | [`aperiodic-method-compare.mjs`](../tools/aperiodic-method-compare.mjs) | EXTERNAL-METHODS-SURVEY §2's measurement. The question: our aperiodic alignment failed with a correlation/argmax method, and Schranz et al. |
 | [`aperiodic-offset.mjs`](../tools/aperiodic-offset.mjs) | aperiodic-offset — target 1 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE, finally testable. |
 | [`argv-guard.mjs`](../tools/argv-guard.mjs) | REFUSE AN ARGV TOKEN NOBODY READS. Residue `2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus`. |
 | [`argv-survey.mjs`](../tools/argv-survey.mjs) | WHICH TOOLS CAN TELL AN UNKNOWN FLAG FROM AN ABSENT ONE. Executable, controlled, and bounded to the tools it can prove are inert. |
 | [`assertion-strength.mjs`](../tools/assertion-strength.mjs) | WHICH ASSERTIONS PIN A DIRECTION WHERE THEY COULD PIN A VALUE |
-| [`astgrep-gate.mjs`](../tools/astgrep-gate.mjs) | Four shapes that a reviewer reads as a defect, matched on the syntax tree rather than on text. |
+| [`astgrep-gate.mjs`](../tools/astgrep-gate.mjs) | FOUR REVIEWER BUGS, MATCHED ON THE SYNTAX TREE — §∅ and the Clock Contract, mechanised. |
 | [`beat-capture-recapture.mjs`](../tools/beat-capture-recapture.mjs) | beat-capture-recapture — how many beats did EVERY detector miss? |
 | [`beat-comb-analysis.mjs`](../tools/beat-comb-analysis.mjs) | why two beat trains cannot tell you a clock offset WHY — IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF measured wrist↔finger beat correspondence with "nearest beat + linear median" and reported a… |
-| [`beat-correspondence.mjs`](../tools/beat-correspondence.mjs) | The formal object is the VICTOR–PURPURA edit distance on point processes (Victor & Purpura 1996,; INTERDISCIPLINARY-LITERATURE §13h.2): transform train A into train B at minimum cost —… |
+| [`beat-correspondence.mjs`](../tools/beat-correspondence.mjs) | THE BEAT-CORRESPONDENCE AUDIT — the measurement `papers/dead-ends.html` §2.7 names as outstanding: "matching beat counts to 0.02 % refutes net dropout but not local insertion/deletion… |
 | [`beat-error-recovery.mjs`](../tools/beat-error-recovery.mjs) | beat-error-recovery — target 6 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE: inject beat-detection errors of KNOWN type and rate into a real beat train, run the shipped HRV path, and measure the… |
 | [`beat-injection-recovery.mjs`](../tools/beat-injection-recovery.mjs) | beat-injection-recovery — the artificial-star test for a beat detector. |
-| [`beat-leg-closure.mjs`](../tools/beat-leg-closure.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ THREE-SOURCE DRIFT CLOSURE for H10 ↔ Verity ↔ capture host (WEARABLE-DRIFT-DIRECT §7.3/§7.4). |
+| [`beat-leg-closure.mjs`](../tools/beat-leg-closure.mjs) | THREE-SOURCE DRIFT CLOSURE for H10 ↔ Verity ↔ capture host (WEARABLE-DRIFT-DIRECT §7.3/§7.4). |
 | [`board.mjs`](../tools/board.mjs) | THE FLEET BOARD — one static page that answers "what is happening and what is wrong". |
 | [`box-sample.mjs`](../tools/box-sample.mjs) | // // box-sample.mjs — periodic resource sampler for a remote capture host. |
-| [`brief-gaps.mjs`](../tools/brief-gaps.mjs) | ════════════════════════════════════════════════════════════════════════ tools/brief-gaps.mjs — a text-network gap detector over the briefs |
-| [`brief-verified-index.mjs`](../tools/brief-verified-index.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ WHEN WAS EACH OPEN BRIEF LAST *VERIFIED* — not last edited, and not how open it looks. |
+| [`brief-gaps.mjs`](../tools/brief-gaps.mjs) | a text-network gap detector over the briefs node tools/brief-gaps.mjs # ranked reading list + verdict node tools/brief-gaps.mjs --json # the verdict alone node tools/brief-gaps.mjs… |
+| [`brief-verified-index.mjs`](../tools/brief-verified-index.mjs) | WHEN WAS EACH OPEN BRIEF LAST *VERIFIED* — not last edited, and not how open it looks. |
 | [`browser-lane.mjs`](../tools/browser-lane.mjs) | ONE COMMAND for the local browser lane: `npm run gates:browser:local`. |
 | [`build-analysis.mjs`](../tools/build-analysis.mjs) | Make the science/analysis tools SELF-CONTAINED single-file HTML, so they run when a user downloads ONE.html to disk and opens it over file:// — the way the bundled apps already do. |
 | [`build-docs.mjs`](../tools/build-docs.mjs) | Build the public GitHub-Pages deploy snapshot in../docs (the served root per docs/SITE-DEPLOY-AND-LAYOUT.md §D) from the repo-root source of truth. |
 | [`build.mjs`](../tools/build.mjs) | **⚠ NO PURPOSE LINE — add one to the header** |
-| [`buzz-fiducial-correlate.mjs`](../tools/buzz-fiducial-correlate.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ O2RING-BUZZ-FIDUCIAL step 2/3 — correlate a commanded APERIODIC buzz sequence against the ring's… |
-| [`buzz-onset-extract.mjs`](../tools/buzz-onset-extract.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ EXTRACT COMMANDED-BUZZ ONSETS from ACC / ring-motion streams and turn them into numbers: the… |
+| [`buzz-fiducial-correlate.mjs`](../tools/buzz-fiducial-correlate.mjs) | O2RING-BUZZ-FIDUCIAL step 2/3 — correlate a commanded APERIODIC buzz sequence against the ring's own motion channel, and report the host-axis residual. |
+| [`buzz-onset-extract.mjs`](../tools/buzz-onset-extract.mjs) | EXTRACT COMMANDED-BUZZ ONSETS from ACC / ring-motion streams and turn them into numbers: the command→artifact latency per fire, and the pairwise inter-device onset delta per event. |
 | [`capture-recapture.mjs`](../tools/capture-recapture.mjs) | HOW MANY BEATS DID *EVERY* DETECTOR MISS — epidemiology's capture–recapture, imported. |
 | [`cgm-variability-check.mjs`](../tools/cgm-variability-check.mjs) | does GlucoDex's variability family actually need a ROBUST scale? |
-| [`check-stranded.mjs`](../tools/check-stranded.mjs) | A squash merge collapses a PR's diff AS OF MERGE TIME. Anything pushed to the branch afterwards stays on the branch ref and is never on `main`. |
-| [`ci-timing.mjs`](../tools/ci-timing.mjs) | CLAUDE.md §👥.5 costs this out: `main` moves a MEDIAN 7.2 min between merges, CI is ~10–12 min across the required checks, and `protect-main` sets `required_status_checks.strict = true`,… |
-| [`circular-stats.mjs`](../tools/circular-stats.mjs) | INTERDISCIPLINARY-LITERATURE §13h.1: the "phase concentration" this repo computes in `_wrappedSlopeFit` (integrator-dsp.js — R = √(Σcos² + Σsin²)/n over per-block offsets wrapped modulo… |
+| [`check-stranded.mjs`](../tools/check-stranded.mjs) | DID YOUR WORK ACTUALLY REACH `main`? — the stranded-commit detector. |
+| [`ci-timing.mjs`](../tools/ci-timing.mjs) | WHICH CHECK IS THE MERGE RACE? — per-job CI timings, measured. |
+| [`circular-stats.mjs`](../tools/circular-stats.mjs) | CIRCULAR STATISTICS — the null the suite's own phase statistic lacked. |
 | [`closure-tol-hac.mjs`](../tools/closure-tol-hac.mjs) | derive the 3-source clock-closure tolerance from the legs' own PRECISION instead of their MAGNITUDE. |
 | [`codex-export.mjs`](../tools/codex-export.mjs) | THE SOURCE-ONLY EXPORT AN EXTERNAL READER MAY SEE. Owner ruling 2026-10-04: an external model (Codex) may read SOURCE, never the CORPUS. |
-| [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | `cohort-gen.js` samples synthetic patients; the SHHS1 corpus holds 5136 scored real ones. |
+| [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | DOES THE SYNTHETIC COHORT LOOK LIKE A REAL ONE? — and what would it take to project it onto one. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
-| [`corpus-census.mjs`](../tools/corpus-census.mjs) | ════════════════════════════════════════════════════════════════════════════════════════════════ A CENSUS COMMITS ITS FILE LIST, OR IT CANNOT BE DIFFED — residue… |
+| [`corpus-census.mjs`](../tools/corpus-census.mjs) | A CENSUS COMMITS ITS FILE LIST, OR IT CANNOT BE DIFFED — residue `2026-09-20-census-file-list-not-retained`. |
 | [`corpus-scope.mjs`](../tools/corpus-scope.mjs) | // // corpus-scope.mjs — count a file pattern across EVERY corpus root, and say which roots were searched. |
 | [`corpus-tier.mjs`](../tools/corpus-tier.mjs) | KEEP THE LAST 30 NIGHTS LOCAL; EVERYTHING OLDER BECOMES A SYMLINK INTO THE NAS. |
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |
 | [`cpap-sa2-agreement.mjs`](../tools/cpap-sa2-agreement.mjs) | the CPAP's wired SpO₂ against the ring's WHY — CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF. |
-| [`cvhr-fold-rescore.mjs`](../tools/cvhr-fold-rescore.mjs) | Residue `2026-09-22-cvhr-overlap-four-of-six-were-the-sweeps-selection`. |
+| [`cvhr-fold-rescore.mjs`](../tools/cvhr-fold-rescore.mjs) | THE CROSS-NODE CVHR ρ ON THE FOLD'S NIGHT SELECTION — a re-score, not a sweep. |
 | [`deep-desat-falsifier.mjs`](../tools/deep-desat-falsifier.mjs) | THE STANDING CROSS-SIGNAL FALSIFIER for called sleep stages (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §6 item 4 / REM-STAGING-REDESIGN §5): "REM/Deep should carry a stage-appropriate… |
-| [`deep-flow-join.mjs`](../tools/deep-flow-join.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ DEEP-epoch × flow-event join, with a PER-COHORT clock offset instead of one global shift. |
+| [`deep-flow-join.mjs`](../tools/deep-flow-join.mjs) | DEEP-epoch × flow-event join, with a PER-COHORT clock offset instead of one global shift. |
 | [`deep-vlf-probe.mjs`](../tools/deep-vlf-probe.mjs) | THE STANDING VLF-vs-CONTAMINATED-DEEP PROBE (DEEP-STAGE-DESAT-CONFOUND-2026-07-29 §9/§11/§12). |
 | [`defect-bench-solve.mjs`](../tools/defect-bench-solve.mjs) | // // Solver runner for audits/DEFECT-BENCHMARK.json. Measures the BENCHMARK // METHOD with a local model, never the fleet. |
-| [`defect-bench.mjs`](../tools/defect-bench.mjs) | ════════════════════════════════════════════════════════════════════════ tools/defect-bench.mjs — the frozen benchmark of past defects, built |
+| [`defect-bench.mjs`](../tools/defect-bench.mjs) | the frozen benchmark of past defects, built node tools/defect-bench.mjs --build # enumerate, classify, write the set node tools/defect-bench.mjs --build --prove 8 # …and prove up to 8 more… |
 | [`derive-sigma-window.mjs`](../tools/derive-sigma-window.mjs) | Headless derivation of the two raw-signal 1-Hz HR series a three-device σ window needs (VERITY-SIGMA-CORNER-BRIEF / SIGMA-WINDOW-DERIVATION.md): • Verity HR ← raw PPG via the suite's… |
 | [`device-stability.mjs`](../tools/device-stability.mjs) | PER-DEVICE TIMING STABILITY, measured against the capture host. |
-| [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | `tools/doc-search.mjs` appends `<ISO>\\t<query>` to `<git-common-dir>/tepna-mutation/ doc-search-sessions/<session_id>` on every search that ran. |
+| [`doc-search-audit.mjs`](../tools/doc-search-audit.mjs) | WHO IS USING THE SEMANTIC SEARCH — the per-session query stamps, counted (rule 0's audit). |
 | [`doc-search.mjs`](../tools/doc-search.mjs) | "HAS THIS ALREADY BEEN DECIDED?" OVER 460+ DOCUMENTS CLAUDE.md records this failure repeatedly and by name: four sessions independently proposing a fix the repo had already measured… |
 | [`docs-constants.mjs`](../tools/docs-constants.mjs) | CLAUDE.md states numeric claims about the code. When the code changes and the doc doesn't (or vice versa), they drift — the §🔒.7 "99 % vs 67 %" incident (#3367). |
 | [`dsp-review-qwen.mjs`](../tools/dsp-review-qwen.mjs) | IDLE-TIME DSP REVIEW — the local model loops through DSP files proposing improvements: inefficiencies, logical problems, signal-flow violations, and concrete refactors. |
 | [`dual-clock-rate.mjs`](../tools/dual-clock-rate.mjs) | DIRECT device-vs-host rate, from the two clocks already in every raw file. |
-| [`ecg-apnea-correlate.mjs`](../tools/ecg-apnea-correlate.mjs) | Correlates every candidate in ECGDex's `apnea` block against the CPAP's OWN device-scored `residualAHI`, across the nights where both exist. |
-| [`ecg-physionet-differential.mjs`](../tools/ecg-physionet-differential.mjs) | The suite has never had independent ground truth for Pan–Tompkins. |
-| [`ecg-rate-transfer.mjs`](../tools/ecg-rate-transfer.mjs) | Every HRV claim this suite makes on external 125 Hz polysomnography rests on an unstated premise: that the detector tuned and validated at the Polar H10's **130 Hz** finds the same beats… |
-| [`eegdex-selftest.mjs`](../tools/eegdex-selftest.mjs) | ═════════════════════════════════════════════════════════════════════════════ Assertions for `eegdex-dsp.js`, on PLANTED signals rather than the corpus — a staging engine that only… |
+| [`ecg-apnea-correlate.mjs`](../tools/ecg-apnea-correlate.mjs) | THE STANDING APNEA-CORRELATE HARNESS (ECGDEX-CARDIOPULMONARY-COUPLING §9 / -FOLLOWUPS §4). |
+| [`ecg-physionet-differential.mjs`](../tools/ecg-physionet-differential.mjs) | SCORE THE SHIPPED QRS DETECTOR AGAINST INDEPENDENTLY ANNOTATED BEATS. |
+| [`ecg-rate-transfer.mjs`](../tools/ecg-rate-transfer.mjs) | DOES PAN–TOMPKINS TRANSFER FROM 130 Hz TO 125 Hz? — experiment E3 of `briefs/SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`. |
+| [`eegdex-selftest.mjs`](../tools/eegdex-selftest.mjs) | Assertions for `eegdex-dsp.js`, on PLANTED signals rather than the corpus — a staging engine that only demonstrates itself on real EEG cannot show WHY it is right, and a corpus test cannot… |
 | [`eqc-power.mjs`](../tools/eqc-power.mjs) | how many simultaneous epochs does Extended Quadruple Collocation need before it can say WHICH pair of sources shares error? |
 | [`eqc-run.mjs`](../tools/eqc-run.mjs) | Extended Quadruple Collocation on the real 4-stream corpus. WHAT IT ANSWERS. |
-| [`extreme-mutate.mjs`](../tools/extreme-mutate.mjs) | EXTREME MUTATION (Descartes, Niedermayr et al.; see the STAMP tool and the industrial study in arXiv:2103.08480). |
+| [`extreme-mutate.mjs`](../tools/extreme-mutate.mjs) | PSEUDO-TESTED FUNCTIONS — delete the whole body and see whether anything notices. |
 | [`find-copied-bodies.mjs`](../tools/find-copied-bodies.mjs) | FIND TESTS THAT EXERCISE A PRIVATE COPY INSTEAD OF THE SHIPPED SYMBOL. |
 | [`find-unwired-js.mjs`](../tools/find-unwired-js.mjs) | THE JS SIBLING OF `capture-host/tools/find_unwired.py`. Finds machinery that exists, is tested, and is connected to NOTHING — on the JS side, which that tool does not reach. |
 | [`findings-ledger.mjs`](../tools/findings-ledger.mjs) | THE FINDINGS LEDGER — C1 of the qwen engineering program (QWEN-ENGINEERING-PROGRAM 2026-08-27 §4). |
@@ -85,191 +85,191 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`fold-provenance.mjs`](../tools/fold-provenance.mjs) | // // Run-level provenance for a trio fold: WHICH nights, from WHICH files, on WHICH volumes. |
 | [`formula-constant-audit.mjs`](../tools/formula-constant-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 2, made repeatable — the sibling of `severity-ladder-audit.mjs` (dimension 3). |
 | [`frozen-timeline-check.mjs`](../tools/frozen-timeline-check.mjs) | do the shipped bundles render BLANK when the document timeline never advances (print · PDF export · headless capture · a throttled background tab)? |
-| [`gap-s-sweep.mjs`](../tools/gap-s-sweep.mjs) | ECG-SATURATION-ABSENCE §"GAP_S": the cut that turns an inter-beat interval into an ABSENCE (`spansGap`, excluded, never median-filled) is `GAP_S = 10 s` in ecgdex-dsp.js and… |
+| [`gap-s-sweep.mjs`](../tools/gap-s-sweep.mjs) | WHERE DOES THE CVHR INDEX MOVE AS THE GAP CUT MOVES, ON BOTH NODES? |
 | [`gate-subject.mjs`](../tools/gate-subject.mjs) | print WHAT the gate is about to examine, before it examines it. |
 | [`gate-tightness.mjs`](../tools/gate-tightness.mjs) | A SOURCE-SCAN ASSERTION THAT A RENAME CAN SATISFY Reported by a peer session, with one confirmed instance. |
 | [`gemini-review.mjs`](../tools/gemini-review.mjs) | THE SECOND READER, ON EXACTLY THE FORM CODEX WAS GIVEN. Owner ruling 2026-10-05: Codex's free tier is exhausted until 2026-11-03, so try Gemini's. |
-| [`gen-comparator-twin.mjs`](../tools/gen-comparator-twin.mjs) | **⚠ NO PURPOSE LINE — add one to the header** |
-| [`gen-maskoff-twin.mjs`](../tools/gen-maskoff-twin.mjs) | `detectBreaths().breathRate` divided breaths by the WHOLE RECORDING (`durSec = recordsRead × recDur`) while every sibling ventilation figure computed beside it is `_filterBy(..., maskOn)`. |
+| [`gen-comparator-twin.mjs`](../tools/gen-comparator-twin.mjs) | Generate the committed SYNTHETIC live-vs-SD BRP pin-twin pair for the CPAPDex comparator fixture (CPAPDEX-LIVE-SD-COMPARATOR-2026-08-23-BRIEF). |
+| [`gen-maskoff-twin.mjs`](../tools/gen-maskoff-twin.mjs) | THE MASK-OFF TWIN (DEEP-AUDIT-VI-FOLLOWUPS §1.9). `detectBreaths().breathRate` divided breaths by the WHOLE RECORDING (`durSec = recordsRead × recDur`) while every sibling ventilation… |
 | [`geometry-passthrough.mjs`](../tools/geometry-passthrough.mjs) | DOES THE ALIGNMENT CHAIN INTRODUCE GEOMETRY THAT WAS NOT IN ITS INPUT? |
 | [`geometry-probe.mjs`](../tools/geometry-probe.mjs) | GEOMETRIC PROBES FOR THE TIMELINE-ALIGNMENT CHAIN (PAT-GEOMETRY-PROBE-2026-08-11). |
 | [`geometry-scan.mjs`](../tools/geometry-scan.mjs) | WALK THE TIMELINE-ALIGNMENT CHAIN AND PROBE EVERY STAGE (PAT-GEOMETRY-PROBE-2026-08-11). |
-| [`guarantees.mjs`](../tools/guarantees.mjs) | This repo writes its invariants into prose: "never fabricate on miss", "the bound is a REFUSAL, not a clamp", "a refusal is a RESULT". |
+| [`guarantees.mjs`](../tools/guarantees.mjs) | GUARANTEE CENSUS — find the promises the comments make, and ask which of them nothing checks. |
 | [`guide-anchor-audit.mjs`](../tools/guide-anchor-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 5, mechanised — the third sibling of `severity-ladder-audit.mjs` (dim 3) and `formula-constant-audit.mjs` (dim 2). |
 | [`guide-directive-audit.mjs`](../tools/guide-directive-audit.mjs) | Dimension 3 asks that every normative band be either (a) a published/consensus target, cited, or (b) explicitly marked relative via `no-norm-note` - no fabricated clinical cut-points. |
 | [`hostaxis-estimator-bakeoff.mjs`](../tools/hostaxis-estimator-bakeoff.mjs) | is a SYMMETRIC filter the right shape for a ONE-SIDED error? |
 | [`integrator-block-precision.mjs`](../tools/integrator-block-precision.mjs) | JOINT-UNWRAP-ATTEMPT §4's one open item The brief's remaining box: |
-| [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | ════════════════════════════════════════════════════════════════════════ tools/integrator-surface-gate.mjs — every Integrator key declares its surface |
-| [`js-lex.mjs`](../tools/js-lex.mjs) | Extracted from `tools/mutate.mjs` when `tools/guarantees.mjs` needed the same distinction — mutate wants the CODE (mutate only real code), guarantees wants its inverse (read only real… |
-| [`killcheck.mjs`](../tools/killcheck.mjs) | The loop this programme runs is: write a test → re-apply that function's recorded survivors → count how many now fail. |
+| [`integrator-surface-gate.mjs`](../tools/integrator-surface-gate.mjs) | every Integrator key declares its surface node tools/integrator-surface-gate.mjs # gate node tools/integrator-surface-gate.mjs --json # verdict only node tools/integrator-surface-gate.mjs… |
+| [`js-lex.mjs`](../tools/js-lex.mjs) | THE ONE REGEX-AWARE JS LEXER, shared by the tools that need to tell code from prose. |
+| [`killcheck.mjs`](../tools/killcheck.mjs) | DID THE TEST I JUST WROTE ACTUALLY KILL ANYTHING? — measured, per function, in parallel. |
 | [`known-clock-recovery.mjs`](../tools/known-clock-recovery.mjs) | known-clock-recovery — inject a KNOWN clock defect, run the production estimator, measure what comes back. |
-| [`land-pr.mjs`](../tools/land-pr.mjs) | THE RACE THIS EXISTS FOR (measured 2026-08-09). `main` moves a median 7.2 min between merges (min 1.2, max 120; only 8 of 19 recent gaps were >= 12 min), CI is ~10-12 min over 7 required… |
+| [`land-pr.mjs`](../tools/land-pr.mjs) | LAND A PR WITHOUT HAND-POLLING — and without any of the four traps that make hand-polling lie. |
 | [`make-synthetic-edf.mjs`](../tools/make-synthetic-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC ResMed EDF file set. WHY THIS EXISTS. |
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
-| [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §3's done-when asks for "a written walk-through tracing ODI-4 → window → channel → envelope → raw.dat" that is CHECKABLE. |
+| [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | WALK A MEASUREMENT BACK TO ITS RAW INPUT — the roadmap §3 backward walk-through, as a check. |
 | [`motion-rho-vs-minrho.mjs`](../tools/motion-rho-vs-minrho.mjs) | is the shipped correlation proxy in the right range, on the right nights? |
 | [`mutate-ledger-merge.mjs`](../tools/mutate-ledger-merge.mjs) | mutate-ledger-merge — a git merge driver for the mutation ledgers. |
 | [`mutate-recover.mjs`](../tools/mutate-recover.mjs) | ONE DEFINITION OF THE RECOVERY, imported by `mutate.mjs` AND `mutation-crawl.mjs`. |
-| [`mutate-triage.mjs`](../tools/mutate-triage.mjs) | `tools/mutate.mjs` answers "what fraction of mutants does the suite kill?". |
-| [`mutate.mjs`](../tools/mutate.mjs) | This repo's central anxiety is the hollow gate: an assertion that passes, is quoted as evidence, and could never have failed. |
+| [`mutate-triage.mjs`](../tools/mutate-triage.mjs) | THE TRIAGE HALF OF MUTATION TESTING — the part that turns a percentage into a work list. |
+| [`mutate.mjs`](../tools/mutate.mjs) | MUTATION HARNESS — break the code on purpose and find out which gates do not notice. |
 | [`mutation-adoption-delta.mjs`](../tools/mutation-adoption-delta.mjs) | // // mutation-adoption-delta.mjs — did adopting those drafts actually KILL anything? |
 | [`mutation-ai-probe.mjs`](../tools/mutation-ai-probe.mjs) | ask the local model for an input that separates a survivor from the real code, then CHECK whether it does by running both. |
 | [`mutation-crawl.mjs`](../tools/mutation-crawl.mjs) | MUTATION CRAWL — run the MEASUREMENT unattended, so a person only does the judgement. |
-| [`mutation-map.mjs`](../tools/mutation-map.mjs) | `tools/per-group-coverage.mjs` builds a line→groups map so `mutate.mjs` runs 3 groups per mutant instead of 300 (MUTATION-PROGRAM-FOLLOWUPS §6 calls that the one optimisation worth… |
-| [`mutation-reach.mjs`](../tools/mutation-reach.mjs) | A mutant on a line NO test executes cannot be killed. Running it is guaranteed waste, and reporting the result as "survived" fuses two findings that have OPPOSITE fixes: |
-| [`mutation-suite.mjs`](../tools/mutation-suite.mjs) | THIS TOOL REUSES; IT DOES NOT REPLACE. `mutate.mjs` (2032 lines) already does the hard part — mutant generation, the worker pool, the journal, `--resume` with jammed-mutant quarantine, the… |
-| [`mutation-summary.mjs`](../tools/mutation-summary.mjs) | `mutation.yml` used to render the gate's EXIT CODE: `0 → **PASS**`. |
+| [`mutation-map.mjs`](../tools/mutation-map.mjs) | WHERE THE COVERAGE MAP LIVES, AND WHETHER IT STILL DESCRIBES THIS CODE. |
+| [`mutation-reach.mjs`](../tools/mutation-reach.mjs) | REACHED vs ASSERTED — the two halves of a survivor, which the queue currently fuses. |
+| [`mutation-suite.mjs`](../tools/mutation-suite.mjs) | ONE FRONT END FOR THE MUTATION LANE — fast, resumable, killable, and it does not sit there. |
+| [`mutation-summary.mjs`](../tools/mutation-summary.mjs) | RENDER THE DIFF GATE'S VERDICT OBJECT FOR THE CI JOB SUMMARY — the first CI CONSUMER of `tepna.verdict/1` (VERDICT-CONTRACT §1: the object is the API; the exit code is for the shell). |
 | [`mutation-survivors.mjs`](../tools/mutation-survivors.mjs) | THE SURVIVOR LEDGER — brief: briefs/MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md Residue: 2026-09-24-mutation-survivors-outlive-the-pr-that-reported-them |
-| [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
+| [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | THE RANKED REMAINING WORK — regenerated, never transcribed. The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
-| [`no-third-party-names.mjs`](../tools/no-third-party-names.mjs) | ════════════════════════════════════════════════════════════════════════ tools/no-third-party-names.mjs — the name gate |
-| [`nsrr-aai-validate.mjs`](../tools/nsrr-aai-validate.mjs) | `aai` is user-visible and graded `heuristic`, and its own registry citation says why: "internal. |
-| [`nsrr-ahiest-validate.mjs`](../tools/nsrr-ahiest-validate.mjs) | `computeAHIestimates` (oxydex-dsp.js) produces TWO estimates of the same quantity: |
-| [`nsrr-coupling-bout-fpr.mjs`](../tools/nsrr-coupling-bout-fpr.mjs) | Measures, on SHHS1, the false-positive rate of `event-coupling.js`'s circular-shift null when two INDEPENDENT streams share a real OSA night's bout-scale rate profile — as a curve in the… |
-| [`nsrr-criterion-sweep.mjs`](../tools/nsrr-criterion-sweep.mjs) | `tools/nsrr-oxydex-odi.mjs` scores the SHIPPED detector against expert scoring at a fixed criterion. |
-| [`nsrr-effort-typing.mjs`](../tools/nsrr-effort-typing.mjs) | WHY THIS EXISTS our chest accelerometer, central apneas below half baseline.... |
-| [`nsrr-oxstat-validate.mjs`](../tools/nsrr-oxstat-validate.mjs) | §∅ says a value that was not measured is null, and — for the case where the sentinel is IN BAND — that "a consumer cannot null what it cannot distinguish", so "validity must travel… |
-| [`nsrr-oxydex-odi.mjs`](../tools/nsrr-oxydex-odi.mjs) | The second NSRR arm. `tools/nsrr-stage-validate.mjs` drives the ECG channel into the sleep stager; this one drives the **SaO2** channel into OxyDex and compares its AHI estimate to the AHI… |
-| [`nsrr-resprate-validate.mjs`](../tools/nsrr-resprate-validate.mjs) | `2026-09-03-oxydex-proxy-resprate-unattributed` (OPEN) records that OxyDex computes a proxy respiration rate from heart-rate spectral content, writes it into the node export as… |
-| [`nsrr-score-pool.mjs`](../tools/nsrr-score-pool.mjs) | `nsrr-oxydex-odi.mjs --dir` scores serially: measured 4.15 s/record, so 5136 records is ~5.9 h in one core of twenty-four, with no progress output, no checkpoint, and nothing to show if it… |
-| [`nsrr-stage-validate.mjs`](../tools/nsrr-stage-validate.mjs) | REM-STAGING-FOLLOWUPS §2b: "the shipped conjunction scored against REAL PSG labels; REM recall/precision recorded. |
+| [`no-third-party-names.mjs`](../tools/no-third-party-names.mjs) | the name gate node tools/no-third-party-names.mjs # gate (exit 1 on a hit) node tools/no-third-party-names.mjs --json # the verdict alone |
+| [`nsrr-aai-validate.mjs`](../tools/nsrr-aai-validate.mjs) | DOES OXYDEX'S AUTONOMIC AROUSAL INDEX TRACK EXPERT-SCORED AROUSALS? |
+| [`nsrr-ahiest-validate.mjs`](../tools/nsrr-ahiest-validate.mjs) | DOES THE ELABORATE AHI ESTIMATE BEAT THE TRIVIAL ONE? — a POOL SCORER, not a tool. |
+| [`nsrr-coupling-bout-fpr.mjs`](../tools/nsrr-coupling-bout-fpr.mjs) | DEEP-AUDIT-V F8 — DOES THE EVENT-COUPLING NULL SURVIVE REAL OSA BOUT STRUCTURE? |
+| [`nsrr-criterion-sweep.mjs`](../tools/nsrr-criterion-sweep.mjs) | DERIVE THE DESATURATION CRITERION FROM THE DATA, INSTEAD OF ASSUMING IT. |
+| [`nsrr-effort-typing.mjs`](../tools/nsrr-effort-typing.mjs) | DOES RESPIRATORY EFFORT ACTUALLY COLLAPSE DURING A CENTRAL APNEA? |
+| [`nsrr-oxstat-validate.mjs`](../tools/nsrr-oxstat-validate.mjs) | DOES THE OXIMETER'S OWN VALIDITY FLAG CHANGE ODI-4? — a POOL SCORER, not a tool. |
+| [`nsrr-oxydex-odi.mjs`](../tools/nsrr-oxydex-odi.mjs) | SCORE OxyDex's ODI-4 → AHI ESTIMATE AGAINST EXPERT-SCORED PSG AHI. |
+| [`nsrr-resprate-validate.mjs`](../tools/nsrr-resprate-validate.mjs) | IS OXYDEX'S PROXY RESPIRATION RATE RIGHT? — a POOL SCORER, not a tool. |
+| [`nsrr-score-pool.mjs`](../tools/nsrr-score-pool.mjs) | SCORE A CORPUS IN PARALLEL — resumable, observable, and able to STOP WHEN THE ANSWER IS IN. |
+| [`nsrr-stage-validate.mjs`](../tools/nsrr-stage-validate.mjs) | SCORE THE SHIPPED SLEEP STAGER AGAINST EXPERT PSG LABELS. REM-STAGING-FOLLOWUPS §2b: "the shipped conjunction scored against REAL PSG labels; REM recall/precision recorded. |
 | [`null-fuzz.mjs`](../tools/null-fuzz.mjs) | Fuzzes OxyDex's processNight with random dropout patterns and asserts the §∅ contract: STATISTICS ARE COMPUTED OVER MEASURED SAMPLES, NEVER OVER ABSENT ONES (oxydex-dsp.js, the `§∅` block… |
-| [`o2ring-dat-timefit.mjs`](../tools/o2ring-dat-timefit.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ PIN THE O2RING'S STORED-SESSION CLOCK TO HOST TIME by fitting the onboard.dat against the live… |
+| [`o2ring-dat-timefit.mjs`](../tools/o2ring-dat-timefit.mjs) | PIN THE O2RING'S STORED-SESSION CLOCK TO HOST TIME by fitting the onboard.dat against the live SPO2.csv — the SAME 1 Hz session from the SAME ring, one stored, one delivered live and… |
 | [`o2ring-finger-roundtrip.mjs`](../tools/o2ring-finger-roundtrip.mjs) | // PPGDEX-O2RING-FINGER-SITE §6 — the round-trip acceptance, on a REAL capture. |
 | [`o2ring-finger-validate-batch.mjs`](../tools/o2ring-finger-validate-batch.mjs) | // Batch real-data validation of the O2Ring finger-site round-trip (PPGDEX-O2RING-FINGER-SITE §6). |
-| [`o2ring-frame-cadence.mjs`](../tools/o2ring-frame-cadence.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ IS THE O2RING'S ~1 Hz CADENCE A FIRMWARE CLOCK OR HOST BLE FRAMING? |
-| [`o2ring-step-imbalance.mjs`](../tools/o2ring-step-imbalance.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2 — does the step imbalance track the POLL INTERVAL? |
-| [`odi4-shhs-recut.mjs`](../tools/odi4-shhs-recut.mjs) | WHY THIS FILE EXISTS. Table 3 was published 2026-09-13 (#2475) from a pool run and hand arithmetic: no script, no committed record, so when the input under it moved twice — the `OX stat`… |
-| [`oracle-ecg-firmware-rr.mjs`](../tools/oracle-ecg-firmware-rr.mjs) | Runs MEASUREMENT-PROVENANCE-ROADMAP §5's first target over the real corpus: every H10 night that carries both `_ECG.txt` and `_RR.txt` is scored as ECGDex's own R-peak train… |
-| [`oracle-ppg-device-beats.mjs`](../tools/oracle-ppg-device-beats.mjs) | The twin of `tools/oracle-ecg-firmware-rr.mjs`, and it deliberately differs in exactly one place. |
-| [`oxy-hr-bias.mjs`](../tools/oxy-hr-bias.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ R5-HR-TRIPLET-REFERENCE §5 — "Investigate OxyDex's −0.36 bpm bias." |
+| [`o2ring-frame-cadence.mjs`](../tools/o2ring-frame-cadence.mjs) | IS THE O2RING'S ~1 Hz CADENCE A FIRMWARE CLOCK OR HOST BLE FRAMING? |
+| [`o2ring-step-imbalance.mjs`](../tools/o2ring-step-imbalance.mjs) | O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2 — does the step imbalance track the POLL INTERVAL? |
+| [`odi4-shhs-recut.mjs`](../tools/odi4-shhs-recut.mjs) | THE SHHS1 TABLES OF `papers/odi4-ahi-bias.html` §3.2, RE-CUT FROM A COMMITTED RECORD — Table 3 (ODI-4 vs scored AHI and vs the expert desaturation index on the same nights), Table 4's… |
+| [`oracle-ecg-firmware-rr.mjs`](../tools/oracle-ecg-firmware-rr.mjs) | THE ORACLE HARNESS, ECG LEG — Tepna's Pan–Tompkins against an INDEPENDENT detector on real H10 nights |
+| [`oracle-ppg-device-beats.mjs`](../tools/oracle-ppg-device-beats.mjs) | THE ORACLE HARNESS, PPG LEG — PpgDex's foot detector against the RING'S OWN beat markers |
+| [`oxy-hr-bias.mjs`](../tools/oxy-hr-bias.mjs) | R5-HR-TRIPLET-REFERENCE §5 — "Investigate OxyDex's −0.36 bpm bias." |
 | [`oxydex-export-staleness.mjs`](../tools/oxydex-export-staleness.mjs) | re-run OxyDex on each export's OWN named source file and report which exports no longer reproduce. |
 | [`pat-axis-leg-audit.mjs`](../tools/pat-axis-leg-audit.mjs) | PAT-ROOT-CAUSE-FORENSICS §2/§3/§5: do the two legs of a PAT measurement ride the SAME time axis? |
-| [`pat-buzz-stability.mjs`](../tools/pat-buzz-stability.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ DRIFT OR NOISE? |
-| [`pat-connection-stability.mjs`](../tools/pat-connection-stability.mjs) | `pat-align.js:335` states the assumption the dip path rests on: |
-| [`pat-dip-index.mjs`](../tools/pat-dip-index.mjs) | Runs `PATAlign.patDipEvents` (twin-gated in `tests/dex-tests.js`, `pat-align · dip-detector`) over real nights, using `pat-finger-coupler.mjs`'s own train extraction — the same R-peak and… |
-| [`pat-dip-validate.mjs`](../tools/pat-dip-validate.mjs) | Two questions, answered together because they share one machinery: 1. |
+| [`pat-buzz-stability.mjs`](../tools/pat-buzz-stability.mjs) | DRIFT OR NOISE? — decompose a buzz sequence's per-event timing offsets into the two components the ΔPAT dip index cares about, on the captures that already exist. |
+| [`pat-connection-stability.mjs`](../tools/pat-connection-stability.mjs) | IS THE PER-CONNECTION OFFSET ACTUALLY CONSTANT WITHIN A CONNECTION? |
+| [`pat-dip-index.mjs`](../tools/pat-dip-index.mjs) | THE ΔPAT DIP INDEX PER NIGHT — the relative estimand (PAT-RELATIVE-REFRAME-2026-08-17 §3.1). |
+| [`pat-dip-validate.mjs`](../tools/pat-dip-validate.mjs) | DOES THE ΔPAT DIP INDEX POINT AT THE EVENTS THE CPAP SAW? — the Katz test + the empirical null (PAT-RELATIVE-REFRAME §3.2 / §5, wired 2026-08-17). |
 | [`pat-drift-attribution.mjs`](../tools/pat-drift-attribution.mjs) | PAT-ROOT-CAUSE-FORENSICS §14: is the slow lag trend INSTRUMENTAL? |
-| [`pat-ecg-axis-residual.mjs`](../tools/pat-ecg-axis-residual.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ H_axis P1 (PPG-FOOT-PLACEMENT-FOLLOWUPS §1, frozen pre-registration) — anchors only, no… |
+| [`pat-ecg-axis-residual.mjs`](../tools/pat-ecg-axis-residual.mjs) | H_axis P1 (PPG-FOOT-PLACEMENT-FOLLOWUPS §1, frozen pre-registration) — anchors only, no oracle. |
 | [`pat-fiducial-compare.mjs`](../tools/pat-fiducial-compare.mjs) | EXTERNAL-METHODS-SURVEY §1's measurement. §1 asks a question the brief could not answer when it was written: PPGDex places PAT at the pulse FOOT, and Ajtay et al. |
 | [`pat-fiducial-jitter.mjs`](../tools/pat-fiducial-jitter.mjs) | PAT-ROOT-CAUSE-FORENSICS §7, rescoped. §7 asks: "even with a PERFECT clock, how much uncertainty does the foot introduce?" Every prior attempt answered a different question, and two… |
 | [`pat-fiducial.mjs`](../tools/pat-fiducial.mjs) | HALF-AMPLITUDE pulse fiducial, for EXTERNAL-METHODS-SURVEY §1. |
-| [`pat-finger-coupler.mjs`](../tools/pat-finger-coupler.mjs) | That tool aligns two devices through shared mechanical motion in BOTH ACC streams. |
-| [`pat-host-offset.mjs`](../tools/pat-host-offset.mjs) | WHAT CHANGES vs `tools/pat-matchrate-strict.mjs`, and why each change is forced: |
-| [`pat-hrv-windows.mjs`](../tools/pat-hrv-windows.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ PAT THE WAY HRV IS DONE — 5-minute windows, artifact segments discarded, report the… |
-| [`pat-literature-spec.mjs`](../tools/pat-literature-spec.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ PAT MEASURED TO THE PUBLISHED SPEC, PLUS AN ERROR BUDGET THAT WORKS BACKWARDS FROM IT. |
-| [`pat-matchrate-strict.mjs`](../tools/pat-matchrate-strict.mjs) | WHY THE SHIPPED matchRate HAS A 60 % FLOOR — two independent reasons, and only the first is the one the brief names: |
+| [`pat-finger-coupler.mjs`](../tools/pat-finger-coupler.mjs) | DOES THE O2RING FINGER PPG COUPLE TO H10 ECG? — the leg `pat-matchrate-strict.mjs` cannot run. |
+| [`pat-host-offset.mjs`](../tools/pat-host-offset.mjs) | PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4, the shipped form of the scout. |
+| [`pat-hrv-windows.mjs`](../tools/pat-hrv-windows.mjs) | PAT THE WAY HRV IS DONE — 5-minute windows, artifact segments discarded, report the DISTRIBUTION. |
+| [`pat-literature-spec.mjs`](../tools/pat-literature-spec.mjs) | PAT MEASURED TO THE PUBLISHED SPEC, PLUS AN ERROR BUDGET THAT WORKS BACKWARDS FROM IT. |
+| [`pat-matchrate-strict.mjs`](../tools/pat-matchrate-strict.mjs) | PAT-UNDER-PERBLOCK-ALIGNMENT §4, open item 1: "A stricter `matchRate` whose chance floor is not 60 %. |
 | [`pat-mode-posture.mjs`](../tools/pat-mode-posture.mjs) | // // pat-mode-posture.mjs — does the PAT lag mode follow the BODY or the CLOCK-ON-THE-WALL? |
-| [`pat-per-led.mjs`](../tools/pat-per-led.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ EACH LED AS AN INDEPENDENT DETECTOR — and a three-cornered hat that measures FIDUCIAL JITTER… |
-| [`pat-ppg-ppg-control.mjs`](../tools/pat-ppg-ppg-control.mjs) | ⚠️ SENSOR PLACEMENT IS PART OF THE RESULT AND MUST BE STATED. |
+| [`pat-per-led.mjs`](../tools/pat-per-led.mjs) | EACH LED AS AN INDEPENDENT DETECTOR — and a three-cornered hat that measures FIDUCIAL JITTER directly. |
+| [`pat-ppg-ppg-control.mjs`](../tools/pat-ppg-ppg-control.mjs) | THE POSITIVE CONTROL THE PAT WORK NEVER HAD — O2Ring FINGER pulse vs Verity pulse. |
 | [`pat-residual-structure.mjs`](../tools/pat-residual-structure.mjs) | PAT-ROOT-CAUSE-FORENSICS §14: is the leftover 20–40 ms ERROR or SIGNAL? |
-| [`pat-three-corner.mjs`](../tools/pat-three-corner.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ ALL THREE PAT PAIRS, ON ONE 5-MIN GRID — plus a CLOSURE test and a three-cornered hat. |
+| [`pat-three-corner.mjs`](../tools/pat-three-corner.mjs) | ALL THREE PAT PAIRS, ON ONE 5-MIN GRID — plus a CLOSURE test and a three-cornered hat. |
 | [`pat-window-oracle.mjs`](../tools/pat-window-oracle.mjs) | PAT-ROOT-CAUSE-FORENSICS §11/§13: is there signal under the window? |
-| [`pat-window-scaling.mjs`](../tools/pat-window-scaling.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ DOES PAT SCATTER GROW WITH WINDOW LENGTH? |
-| [`pb-agreement.mjs`](../tools/pb-agreement.mjs) | §1.1 tried to answer this EPISODE BY EPISODE — do OxyDex's PB episodes overlap the device's CSR spans — and got 0 of 20. |
-| [`pb-fusion-blast.mjs`](../tools/pb-fusion-blast.mjs) | The parent brief established (§5.2) that OxyDex emits `periodic_breathing` on 36 of 37 nights and that the detector is, to a good approximation, measuring mild hypoxemia burden rather than… |
+| [`pat-window-scaling.mjs`](../tools/pat-window-scaling.mjs) | DOES PAT SCATTER GROW WITH WINDOW LENGTH? — the one measurement that separates DRIFT from PHYSIOLOGY. |
+| [`pb-agreement.mjs`](../tools/pb-agreement.mjs) | DOES OXYDEX'S PERIODIC BREATHING AGREE WITH THE DEVICE'S? (MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS §1.1, re-run per CROSS-DEVICE-CLOCK-SKEW §3.4.) |
+| [`pb-fusion-blast.mjs`](../tools/pb-fusion-blast.mjs) | DOES OXYDEX'S ALWAYS-ON `periodic_breathing` CHANNEL INFLATE AN INTEGRATOR CORROBORATION COUNT? |
 | [`pb-operating-point.mjs`](../tools/pb-operating-point.mjs) | what does OxyDex's periodic-breathing detector actually track? |
-| [`per-group-coverage.mjs`](../tools/per-group-coverage.mjs) | Aggregate coverage (`npm run coverage:json`, read by tools/mutation-reach.mjs) answers "does ANY test execute this line". |
-| [`pin-coverage.mjs`](../tools/pin-coverage.mjs) | WHY IT EXISTS. `pinnedSpans` has detected O2Ring in-band blanking since #2317 and the export has REPORTED it as `quality.pinnedCoverage`, but nothing consumed it: every rMSSD/SD1/LF:HF was… |
-| [`pletha-marker-oracle.mjs`](../tools/pletha-marker-oracle.mjs) | `pinnedSpans` (ppgdex-dsp.js) steps over an ISOLATED `156` when merging spans — it treats a lone 156 as the O2Ring's inserted beat-marker row and a RUN of 156s as signal that happens to… |
+| [`per-group-coverage.mjs`](../tools/per-group-coverage.mjs) | WHICH GROUP EXECUTES WHICH LINE — the map two separate optimisations have been blocked on. |
+| [`pin-coverage.mjs`](../tools/pin-coverage.mjs) | HOW MUCH OF THE CORPUS IS IN-BAND BLANKING? — the denominator behind `nPinSpanIntervals`. |
+| [`pletha-marker-oracle.mjs`](../tools/pletha-marker-oracle.mjs) | SCORE THE "ISOLATED 156 IS A MARKER" HEURISTIC AGAINST THE DEVICE'S OWN BEAT FLAG. |
 | [`ppg-bridge-hrv-validate.mjs`](../tools/ppg-bridge-hrv-validate.mjs) | does O2RING-PPG-GAP §4 move finger HRV toward or away from chest ECG? |
 | [`ppg-foot-consensus-e1.mjs`](../tools/ppg-foot-consensus-e1.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-1 E-1 asks: "does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3 drop rate without admitting false beats? |
-| [`ppg-foot-residual-sweep.mjs`](../tools/ppg-foot-residual-sweep.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ THE RESIDUAL 2.2–13.2 ms — per-night inter-LED foot dispersion against PRE-REGISTERED… |
+| [`ppg-foot-residual-sweep.mjs`](../tools/ppg-foot-residual-sweep.mjs) | THE RESIDUAL 2.2–13.2 ms — per-night inter-LED foot dispersion against PRE-REGISTERED candidates. |
 | [`ppg-fusion-e3.mjs`](../tools/ppg-fusion-e3.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-3 §3.1 REFUTED waveform-level fusion of the three optical channels: out-of-sample it scored 0.95x (mean-of-3), 0.95x (PCA-1) and 0.97x (GEV… |
-| [`ppg-gap-bridge-scan.mjs`](../tools/ppg-gap-bridge-scan.mjs) | §4 (bridged-interval exclusion) is PROPOSED-deferred, and its stated reason is: |
-| [`ppg2w-rate.mjs`](../tools/ppg2w-rate.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ MEASURE THE O2RING ppg2w SAMPLE RATE against the calibrated 125 Hz pleth. |
-| [`ppg2w-spo2-fit.mjs`](../tools/ppg2w-spo2-fit.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ DOES THE 0x05 TWO-CHANNEL RATIO TRACK THE DEVICE'S OWN SpO₂? |
+| [`ppg-gap-bridge-scan.mjs`](../tools/ppg-gap-bridge-scan.mjs) | IS O2RING-PPG-GAP §4 REALLY UNEXERCISED BY REAL DATA? §4 (bridged-interval exclusion) is PROPOSED-deferred, and its stated reason is: |
+| [`ppg2w-rate.mjs`](../tools/ppg2w-rate.mjs) | MEASURE THE O2RING ppg2w SAMPLE RATE against the calibrated 125 Hz pleth. |
+| [`ppg2w-spo2-fit.mjs`](../tools/ppg2w-spo2-fit.mjs) | DOES THE 0x05 TWO-CHANNEL RATIO TRACK THE DEVICE'S OWN SpO₂? |
 | [`ppi-jitter-vs-ecg.mjs`](../tools/ppi-jitter-vs-ecg.mjs) | O2RING-FINGER-HRV-VALIDATION §3, the PRIMARY endpoint PPI-jitter sd for the O2Ring FINGER pleth against paired H10 chest ECG, reported as median + IQR across nights so it is directly… |
 | [`ppi-match.mjs`](../tools/ppi-match.mjs) | PPG-beat ↔ ECG-beat alignment and jitter, shared by the §3 apparatus |
 | [`pr-compliance.mjs`](../tools/pr-compliance.mjs) | Enforces the standing PR rules from the fleet workflow: 1. Body starts with a "Rule 0:" line (the git-grep evidence line). |
 | [`pr-walker.mjs`](../tools/pr-walker.mjs) | pr-walker — the landing pipeline runs ITSELF: every open PR is classified each pass and the walker takes the one action its state calls for, with nobody typing a number into a queue file. |
-| [`probe-clock-equivalence.mjs`](../tools/probe-clock-equivalence.mjs) | A survivor is not automatically a gap: `if (lo < 0) lo = 0` mutated to `<=` still assigns 0 when lo IS 0, and no input will ever separate them. |
-| [`probe-coverage.mjs`](../tools/probe-coverage.mjs) | `probe-equivalence` scores each family against the mutants in its `fn`'s LINE RANGE. |
-| [`probe-equivalence.mjs`](../tools/probe-equivalence.mjs) | A survivor is not automatically a gap: `if (lo < 0) lo = 0` mutated to `<=` still assigns 0 when lo IS 0, and no input will ever separate them. |
-| [`probe-reach.mjs`](../tools/probe-reach.mjs) | `probe-coverage` answers "could the prober form an opinion about this survivor" — a question about which `fn` names the families NAME. |
+| [`probe-clock-equivalence.mjs`](../tools/probe-clock-equivalence.mjs) | IS A SURVIVING clock.js MUTANT A TEST GAP, OR IS IT UNKILLABLE? |
+| [`probe-coverage.mjs`](../tools/probe-coverage.mjs) | A BATTERY CAN ONLY CLASSIFY SURVIVORS INSIDE ITS FAMILIES' FUNCTIONS — AND NOTHING SAID SO. |
+| [`probe-equivalence.mjs`](../tools/probe-equivalence.mjs) | IS A SURVIVING MUTANT A TEST GAP, OR IS IT UNKILLABLE? — the general form. |
+| [`probe-reach.mjs`](../tools/probe-reach.mjs) | WHICH FUNCTIONS DOES A BATTERY ACTUALLY EXECUTE? — the other half of `probe-coverage`. |
 | [`pulse-agreement.mjs`](../tools/pulse-agreement.mjs) | the O2Ring's 1 Hz VENDOR pulse vs an HR derived from its own finger PPG. |
-| [`pulse-template-toa.mjs`](../tools/pulse-template-toa.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ FOURIER-DOMAIN TEMPLATE TIME-OF-ARRIVAL for the PPG pulse — CROSS-DOMAIN-METHODS §2. |
-| [`pw-launch.mjs`](../tools/pw-launch.mjs) | Residue `2026-09-05-playwright-blocked-by-apparmor-userns`: on Ubuntu 23.10+ with `kernel.apparmor_restrict_unprivileged_userns = 1`, `chromium.launch()` RESOLVES and the first `newPage()`… |
+| [`pulse-template-toa.mjs`](../tools/pulse-template-toa.mjs) | FOURIER-DOMAIN TEMPLATE TIME-OF-ARRIVAL for the PPG pulse — CROSS-DOMAIN-METHODS §2. |
+| [`pw-launch.mjs`](../tools/pw-launch.mjs) | ONE PLACE THAT KNOWS WHY CHROMIUM CANNOT START ON THIS BOX — the Playwright launch arguments every headless tool and gate shares, with the AppArmor user-namespace case detected and named. |
 | [`queue-doctor.mjs`](../tools/queue-doctor.mjs) | queue-doctor — drain a PR queue that CANNOT drain itself, and NAME the state that no view reports. |
 | [`qwen-agent.mjs`](../tools/qwen-agent.mjs) | READ-ONLY LOCAL-MODEL AGENT — owner-directed 2026-08-27: "make sure qwen will read CLAUDE.md and have access to bge and other stuff so it can behave like normal Claude coder." |
 | [`qwen-mypy-fix.mjs`](../tools/qwen-mypy-fix.mjs) | // // qwen-mypy-fix.mjs — the mypy burn-down FIX lane (PYTHON-TYPES-AND-FORMAT §P2, qwen half). |
 | [`r5-hr-reference.mjs`](../tools/r5-hr-reference.mjs) | R5 (TCH-REFERENCE-VALIDATION §7) on the HR triplet — and the answer is that IT CANNOT BE RUN. |
-| [`reanchor-equivalence.mjs`](../tools/reanchor-equivalence.mjs) | `tools/mutate-equivalence.json` is keyed on `(line, op, before)`. |
-| [`rebase-safe.mjs`](../tools/rebase-safe.mjs) | WHY THIS EXISTS. Several sessions work this repo at once and `main` moves during every review cycle, so almost every PR must rebase at least once. |
-| [`regen-cpap-goldens.mjs`](../tools/regen-cpap-goldens.mjs) | It drives the SAME chains the equivalence/golden gates drive, in a vm realm co-loaded like CPAPDex.src.html: cpapdex_synthetic_golden _synthEdfSet → buildSessionFromEdf → buildNight →… |
-| [`regen-ecgdex-goldens.mjs`](../tools/regen-ecgdex-goldens.mjs) | ECGDex carried a COMMITTED, code-gated synthetic golden (synthetic_ecgdex_golden.node-export.json, CPAP-REAL-CORPUS §P9) with a live CI equiv/GATE-C leg (env.equiv.ecgdex_synth) but NO… |
-| [`regen-glucodex-goldens.mjs`](../tools/regen-glucodex-goldens.mjs) | It drives the SAME seam the equivalence gate drives — GlucoDex.compute({text: CSV}) — in a vm realm co-loaded like GlucoDex.src.html: GlucoDex_2026-06-27_equiv real Abbott Lingo CSV [real… |
-| [`regen-goldens-core.mjs`](../tools/regen-goldens-core.mjs) | Nothing here hashes or writes a value by hand: outputHash/inputHashes come from ManifestGate.sha16 (the exact function the gates hash with), the merge preserves the equivalence gate's… |
-| [`regen-goldens.mjs`](../tools/regen-goldens.mjs) | node tools/regen-goldens.mjs --node CPAPDex # regenerate + re-record + report what moved node tools/regen-goldens.mjs --node GlucoDex --check # report only, write nothing (CI-safe) node… |
-| [`regen-hrvdex-goldens.mjs`](../tools/regen-hrvdex-goldens.mjs) | HRVDex carried a COMMITTED, code-gated synthetic golden (synthetic_hrvdex_golden.node-export.json, CPAP-REAL-CORPUS §P9) with a live CI equiv/GATE-C leg (env.equiv.hrvdex_synth) but NO… |
-| [`regen-integrator-goldens.mjs`](../tools/regen-integrator-goldens.mjs) | WHY IT EXISTS (DEEP-AUDIT-III §6.6 → FOLLOWUPS §1.5). `tools/regen-goldens.mjs`'s NODES map covered all 8 nodes but NOT the Integrator — yet provenance/Integrator.json carries a code-gated… |
-| [`regen-motiondex-goldens.mjs`](../tools/regen-motiondex-goldens.mjs) | It drives the SAME seam the equivalence gate drives — MotionDex.buildNodeExport(MotionDex.compute({ acc, chestAcc: acc })) — in a vm realm co-loaded like MotionDex.src.html (headless… |
-| [`regen-oxydex-goldens.mjs`](../tools/regen-oxydex-goldens.mjs) | OxyDex was the one code-gated node WITHOUT a regenerator (CPAPDex/GlucoDex/PulseDex/MotionDex all had one), so DEEP-AUDIT-II §2.1/§2.2 — which moves every OxyDex export — had no sanctioned… |
+| [`reanchor-equivalence.mjs`](../tools/reanchor-equivalence.mjs) | THE CLASSIFICATION DECAYS BECAUSE ITS KEY CONTAINS A LINE NUMBER. |
+| [`rebase-safe.mjs`](../tools/rebase-safe.mjs) | REBASE ONTO origin/main WITHOUT SILENTLY REVERTING SOURCE. WHY THIS EXISTS. |
+| [`regen-cpap-goldens.mjs`](../tools/regen-cpap-goldens.mjs) | Regenerate CPAPDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
+| [`regen-ecgdex-goldens.mjs`](../tools/regen-ecgdex-goldens.mjs) | Regenerate ECGDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
+| [`regen-glucodex-goldens.mjs`](../tools/regen-glucodex-goldens.mjs) | Regenerate GlucoDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
+| [`regen-goldens-core.mjs`](../tools/regen-goldens-core.mjs) | Shared scaffolding for the per-node golden regenerators (CPAP-REAL-CORPUS-FOLLOWUPS-III §3). |
+| [`regen-goldens.mjs`](../tools/regen-goldens.mjs) | Unified entry for the per-node golden regenerators (CPAP-REAL-CORPUS-FOLLOWUPS-III §3). |
+| [`regen-hrvdex-goldens.mjs`](../tools/regen-hrvdex-goldens.mjs) | Regenerate HRVDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
+| [`regen-integrator-goldens.mjs`](../tools/regen-integrator-goldens.mjs) | Regenerate the Integrator's committed golden by RE-RUNNING THE REAL MODULES on inputs rebuilt in-code — never by hand-editing a value (CLAUDE.md §🔏). |
+| [`regen-motiondex-goldens.mjs`](../tools/regen-motiondex-goldens.mjs) | Regenerate MotionDex's committed node-export fixture by RE-RUNNING THE REAL MODULES on the committed input and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
+| [`regen-oxydex-goldens.mjs`](../tools/regen-oxydex-goldens.mjs) | Regenerate OxyDex's committed golden fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-ppgdex-goldens.mjs`](../tools/regen-ppgdex-goldens.mjs) | Regenerate PpgDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs, then re-recording each fixture. |
-| [`regen-pulsedex-goldens.mjs`](../tools/regen-pulsedex-goldens.mjs) | It drives the SAME seam the equivalence gate drives — RR text → PulseDex.parseRRInput(frame) → PulseDex.compute({intervals,tsMs,t0Ms,offsetMin}) — in a vm realm co-loaded like… |
+| [`regen-pulsedex-goldens.mjs`](../tools/regen-pulsedex-goldens.mjs) | Regenerate PulseDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`release-due.mjs`](../tools/release-due.mjs) | release-due — cut the release AUTOMATICALLY when it is due, and NAME the distance when it is not. |
 | [`release-land.mjs`](../tools/release-land.mjs) | THE WHOLE RELEASE, ONE COMMAND, NO OPERATOR MEMORY — stamp → build → gate → PR → merge → tag → GitHub Release → cleanup. |
 | [`release.mjs`](../tools/release.mjs) | CONTROLLED-RELEASES-2026-07-05 — cut a controlled Tepna release. |
 | [`repo-map.mjs`](../tools/repo-map.mjs) | MAP EVERY AUTHORED SOURCE FILE TO THE FUNCTIONS AND EXPORTS IT DECLARES — so a symbol can be found without already knowing which of the 426 JS and 492 Python files holds it (measured… |
-| [`residue-cite-drift.mjs`](../tools/residue-cite-drift.mjs) | Every row in `briefs/RESIDUE.md` cites source LINES (`capture.py:5306`), and ordinary code motion rots them into false refutations of TRUE rows: a verifier opens the cited line, finds… |
+| [`residue-cite-drift.mjs`](../tools/residue-cite-drift.mjs) | WHICH RESIDUE ROWS CITE A LINE THAT HAS MOVED — residue `2026-09-20-ledger-line-citations-rot`. |
 | [`residue-ids.mjs`](../tools/residue-ids.mjs) | the CROSS-TREE half of the residue ledger's id contract. WHY THIS EXISTS. |
 | [`residue-merge.mjs`](../tools/residue-merge.mjs) | residue-merge — a git merge driver for `briefs/RESIDUE.md` that APPENDS like `union` and REFUSES to duplicate a row id. |
-| [`resp-acc-headless.mjs`](../tools/resp-acc-headless.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ Drive `resp-acc-analysis.html` THROUGH ITS OWN UI, headlessly, against a real corpus. |
+| [`resp-acc-headless.mjs`](../tools/resp-acc-headless.mjs) | Drive `resp-acc-analysis.html` THROUGH ITS OWN UI, headlessly, against a real corpus. |
 | [`resp-cardiac-suppression-e8.mjs`](../tools/resp-cardiac-suppression-e8.mjs) | MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §8 §8 names cardiac suppression as "the highest-value untried improvement": an adaptive notch at the measured f_HR and 2f_HR on the H10's… |
-| [`rho-overlap-power.mjs`](../tools/rho-overlap-power.mjs) | `INTEGRATOR-TCH-FU-IV-FOLLOWUPS` §4 asks for a minimum aligned-overlap rule and is explicit that it must come "from how rho's stability varies with n on the corpus, not from a round number". |
+| [`rho-overlap-power.mjs`](../tools/rho-overlap-power.mjs) | HOW MUCH OVERLAP DOES rho NEED? — measured, so a minimum-n rule can be DERIVED or REFUSED. |
 | [`run-check.mjs`](../tools/run-check.mjs) | `npm run check` used to be a 16-step `&&` chain. That is fine when a step fails on its merits and useless when one fails for an unrelated reason: the shell stops, npm prints the failure,… |
 | [`run-progress.mjs`](../tools/run-progress.mjs) | SHARED PROGRESS, ETA AND RESUME FOR THE MULTI-HOUR TOOLS Every long-runner here had the same two holes, and both cost real time: |
 | [`run-tests-verdict.mjs`](../tools/run-tests-verdict.mjs) | THE TEST RUNNER'S tepna.verdict/1 OBJECT — VERDICT-CONTRACT §3d, the third and largest runner adopter, through the same `aggregateChildren` as run-check (#2827) and selftest-all (#2828). |
 | [`screen-draft-inputs.mjs`](../tools/screen-draft-inputs.mjs) | ADVISORY screen over drafted assertion INPUTS. WHY THIS EXISTS. |
-| [`selftest-all.mjs`](../tools/selftest-all.mjs) | ⚠️ THIS IS NOT THE GATE, and an earlier draft of this header wrongly said it was. |
+| [`selftest-all.mjs`](../tools/selftest-all.mjs) | RUN EVERY TOOL'S SELFTEST — locally, in parallel, with assertion counts. |
 | [`seqnet-eval.mjs`](../tools/seqnet-eval.mjs) | run the JS port over REAL cached nights exactly as seqnet.py does (same fold hash, same column drop, same presence flags, same tensorise, same Viterbi) and score it: pooled/per-cohort κ,… |
-| [`seqnet-infer.mjs`](../tools/seqnet-infer.mjs) | The architecture: 1×1 stem → six residual dilated-conv blocks → bidirectional GRU → linear → softmax → HMM Viterbi (ARCHITECTURE-PRINCIPLES §0: browser-native, no install, no network). |
+| [`seqnet-infer.mjs`](../tools/seqnet-infer.mjs) | run the stage-lab control net (seqnet.py's TCN + biGRU + Viterbi) in plain JS with no runtime library, so a trained stager can ship inside a bundled offline Tepna instrument. |
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
 | [`stage-lab-core.mjs`](../tools/stage-lab-core.mjs) | PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with. |
-| [`ste-lint.mjs`](../tools/ste-lint.mjs) | ════════════════════════════════════════════════════════════════════════ tools/ste-lint.mjs — the writing rules, checked |
-| [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | Level A (`tools/extreme-mutate.mjs`) empties a whole function body. |
+| [`ste-lint.mjs`](../tools/ste-lint.mjs) | the writing rules, checked node tools/ste-lint.mjs <file.md> # exit 1 on any finding node tools/ste-lint.mjs - < body.md # a PR body on stdin node tools/ste-lint.mjs <file> --json # the… |
+| [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | LEVEL B — PSEUDO-TESTED STATEMENTS. Delete ONE statement and see whether anything notices. |
 | [`strip-markup.mjs`](../tools/strip-markup.mjs) | import { fileURLToPath } from 'node:url'; import { resolve } from 'node:path'; |
 | [`stuck-run-lengths.mjs`](../tools/stuck-run-lengths.mjs) | // // stuck-run-lengths.mjs — is T_STUCK = 200 samples a threshold for this stream, or only for the one // it was derived from? |
 | [`survivor-witness.mjs`](../tools/survivor-witness.mjs) | A WITNESS INPUT FOR EVERY SURVIVOR THAT HAS ONE 4708 operator mutants survive the JS sweeps unresolved. |
-| [`sync-docs-index.mjs`](../tools/sync-docs-index.mjs) | `docs-ledger` check3b requires every DOCS-INDEX row's status marker to equal its brief's HEADER status, and the header is the declared source of truth. |
+| [`sync-docs-index.mjs`](../tools/sync-docs-index.mjs) | FLIP A BRIEF'S STATUS, THEN RUN THIS. It carries the flip into DOCS-INDEX.md. |
 | [`synth-desat-kinetics.mjs`](../tools/synth-desat-kinetics.mjs) | measure whether a synthetic SpO₂ corpus desaturates at a PHYSIOLOGICAL rate, and how much of it OxyDex's artifact self-gate rejects. |
 | [`tch-bootstrap-ci.mjs`](../tools/tch-bootstrap-ci.mjs) | error bars for the three-cornered-hat sigmas. THE GAP. This suite quotes TCH sigmas as bare numbers — ECGDex 0.30, PpgDex 0.33, OxyDex 1.10 bpm — in briefs, changesets and PR bodies, with… |
-| [`tch-degeneracy-d7.mjs`](../tools/tch-degeneracy-d7.mjs) | ══════════════════════════════════════════════════════════════════════════ D7 · WHY THE FUSED THREE-CORNERED HAT GOES NEGATIVE, measured three ways. |
-| [`tch-degeneracy-stats.mjs`](../tools/tch-degeneracy-stats.mjs) | That item reads: *"several nights still yield negative variance (σ = null) or implausibly small σ … That is the known quiet-order / correlated-error regime … a SEPARATE defect from… |
+| [`tch-degeneracy-d7.mjs`](../tools/tch-degeneracy-d7.mjs) | D7 · WHY THE FUSED THREE-CORNERED HAT GOES NEGATIVE, measured three ways. |
+| [`tch-degeneracy-stats.mjs`](../tools/tch-degeneracy-stats.mjs) | HOW OFTEN DOES THE THREE-CORNERED HAT GO DEGENERATE, AND ON WHAT KIND OF NIGHT? |
 | [`tch-estimator-bakeoff.mjs`](../tools/tch-estimator-bakeoff.mjs) | INTEGRATOR-TCH-ML-ESTIMATOR §2 bake-off QUESTION (from the brief): does a MAXIMUM-LIKELIHOOD TCH or a GROSLAMBERT / two-sample COVARIANCE estimator recover the quiet-corner σ closer to… |
-| [`tch-firmware-reference.mjs`](../tools/tch-firmware-reference.mjs) | sensor-trio-night.html splits the HR disagreement of H10 · Verity · O2Ring into one σ per device with a three-cornered hat. |
+| [`tch-firmware-reference.mjs`](../tools/tch-firmware-reference.mjs) | THE HR THREE-CORNERED HAT, CHECKED AGAINST A REFERENCE IT DOES NOT CONTAIN — every night, as a verdict. |
 | [`tch-fused-corpus.mjs`](../tools/tch-fused-corpus.mjs) | the PER-SECOND fused-weight three-cornered hat, over a committed trio corpus, in Node. |
 | [`tch-minrho-corpus.mjs`](../tools/tch-minrho-corpus.mjs) | HOW MUCH shared error does the data actually require? WHY. The bootstrap (`tch-bootstrap-ci.mjs`) found that 41.7 % of within-night replicates produce a non-physical negative-variance… |
 | [`tch-multinight.mjs`](../tools/tch-multinight.mjs) | multi-night three-cornered-hat A/B harness (classic reference-free σ vs per-night motion-derived ρ) |
 | [`tch-per-epoch-rho.mjs`](../tools/tch-per-epoch-rho.mjs) | See briefs/TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md §3 |
-| [`tch-pooled-hat.mjs`](../tools/tch-pooled-hat.mjs) | ══════════════════════════════════════════════════════════════════════════ THE POOLED-SECONDS HAT, and why it differs from a median over nights. |
+| [`tch-pooled-hat.mjs`](../tools/tch-pooled-hat.mjs) | THE POOLED-SECONDS HAT, and why it differs from a median over nights. |
 | [`tch-reference-validation.mjs`](../tools/tch-reference-validation.mjs) | See briefs/TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md |
-| [`tch-third-corner.mjs`](../tools/tch-third-corner.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ THE O2RING AS A REAL THIRD CORNER — its own clock, not the host's. |
+| [`tch-third-corner.mjs`](../tools/tch-third-corner.mjs) | THE O2RING AS A REAL THIRD CORNER — its own clock, not the host's. |
 | [`tch-window-sensitivity.mjs`](../tools/tch-window-sensitivity.mjs) | how much of the night did you keep, and what did that do to σ? |
 | [`tools-index.mjs`](../tools/tools-index.mjs) | GENERATE `docs/TOOLS-INDEX.md` — one line per tool, so a capability can be FOUND without already knowing its filename. |
-| [`treatment-response-recut.mjs`](../tools/treatment-response-recut.mjs) | Owner ruling 2026-09-21 (OWNER-DECISION-QUEUE D9.2): the paper's Table 1 states 912 intervention + 918 flat-control patients at ≥ 10 nights, and that configuration is not recoverable from… |
-| [`treatment-response-yield-pin.mjs`](../tools/treatment-response-yield-pin.mjs) | WHY THIS EXISTS (residue `2026-09-22-cohort-gen-yield-moved-again`). |
+| [`treatment-response-recut.mjs`](../tools/treatment-response-recut.mjs) | `papers/treatment-response.html` TABLE 1, RE-CUT AT WHAT THE GENERATOR YIELDS — a committed record. |
+| [`treatment-response-yield-pin.mjs`](../tools/treatment-response-yield-pin.mjs) | THE PINNED YIELD — how many synthetic patients qualify for `papers/treatment-response.html`, and which of the two inputs is answerable for the number. |
 | [`trio-anchor.mjs`](../tools/trio-anchor.mjs) | import { closeSync, openSync, readSync, statSync } from 'node:fs'; |
 | [`trio-batch.mjs`](../tools/trio-batch.mjs) | TRIO BATCH — raw Polar Sensor Logger + O2Ring capture folder → per-night trio node-exports, in the exact shape `tools/tch-multinight.mjs --dir` ingests (one subdir per night, three… |
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
 | [`usage-guard.mjs`](../tools/usage-guard.mjs) | USAGE GUARD — what the fleet has SPENT, measured, and what nobody can measure, said so. |
 | [`validate-exports.mjs`](../tools/validate-exports.mjs) | run the SHIPPED `validateNodeExport()` over every committed node export. |
-| [`verdict-adoption.mjs`](../tools/verdict-adoption.mjs) | The brief's first adopter list was a recency sample (eleven tools); enumerated, the population is ~150 files across both lanes. |
-| [`verdict-emit.mjs`](../tools/verdict-emit.mjs) | import { makeVerdict } from './verdict-emit.mjs'; const v = makeVerdict({ gate, status, population, criterion, result, evidence, reason, tool, commit?, at? |
-| [`verdict-undeclared.mjs`](../tools/verdict-undeclared.mjs) | VERDICT-CONTRACT §1: a threshold derived from the data it judges is UNKNOWN, not PASS. |
+| [`verdict-adoption.mjs`](../tools/verdict-adoption.mjs) | THE VERDICT-CONTRACT ADOPTION GATE — every producer of a verdict word, enumerated and binned, as an EQUALITY (VERDICT-CONTRACT §3 / §3b step 2). |
+| [`verdict-emit.mjs`](../tools/verdict-emit.mjs) | ONE tepna.verdict/1 OBJECT, BUILT AND VALIDATED — the four lines every adopting tool would otherwise copy (VERDICT-CONTRACT §1/§2). |
+| [`verdict-undeclared.mjs`](../tools/verdict-undeclared.mjs) | THE VERDICT OBJECT FOR A STATISTIC THAT HAS NO PRE-STATED BAND — tepna.verdict/1, status UNKNOWN. |
 | [`verify-draft-kills.mjs`](../tools/verify-draft-kills.mjs) | // // verify-draft-kills.mjs — does a drafted assertion, AS WRITTEN, actually kill its mutant? |
 | [`verify-drafts.mjs`](../tools/verify-drafts.mjs) | // // verify-drafts.mjs — re-verify qwen mutation drafts IN THE REALM THAT WILL RUN THEM. |
-| [`verify-fixtures.mjs`](../tools/verify-fixtures.mjs) | WHY IT EXISTS. `build.mjs` re-stamps a fixture's `manifestHash` whenever the bundle moves. |
+| [`verify-fixtures.mjs`](../tools/verify-fixtures.mjs) | THE ONLY TOOL ALLOWED TO WRITE `verifiedUnder` (FIXTURE-VERIFICATION-GATE-2026-07-14 §2). |
 | [`verify-seals.mjs`](../tools/verify-seals.mjs) | // // VERIFY A `tepna-seal/1` FILE — the Node twin of capture-host/unseal.py (CAPTURE-NIGHT-SEAL §5, §6). |
 | [`wearable-sync.mjs`](../tools/wearable-sync.mjs) | wearable-sync — ARE THE WEARABLES ON THE SAME TIMELINE? Two accelerometers strapped to one body see the same turn at the same instant — physics, no physiology in between — so ACC-vs-ACC is… |
 | [`withdraw-fragment-verdict.mjs`](../tools/withdraw-fragment-verdict.mjs) | WITHDRAW A VERDICT THAT JUDGED A FRAGMENT, WITH ITS REASON RECORDED |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
 | [`workflow-timeout-guard.mjs`](../tools/workflow-timeout-guard.mjs) | EVERY WORKFLOW JOB DECLARES `timeout-minutes`. Without one a job inherits GitHub's 360-minute default, so a hung step burns six hours of the concurrency pool before anything notices. |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |
-| [`xerj-bench.mjs`](../tools/xerj-bench.mjs) | node tools/xerj-bench.mjs --harvest # rebuild the query set from merged PR bodies node tools/xerj-bench.mjs # score (uses the committed query set) node tools/xerj-bench.mjs --json # one… |
-| [`xerj-load.mjs`](../tools/xerj-load.mjs) | node tools/xerj-load.mjs # load every eligible file into a FRESH generation, then # move the name to it and delete the one it replaced node tools/xerj-load.mjs --limit 50 # a slice, for a… |
-| [`xerj-query.mjs`](../tools/xerj-query.mjs) | node tools/doc-search.mjs --hybrid "<question>" # the intended entry point node tools/xerj-query.mjs "<question>" # the same, standalone node tools/xerj-query.mjs --selftest |
+| [`xerj-bench.mjs`](../tools/xerj-bench.mjs) | xerj-bench — score bge-alone vs hybrid vs xerj-BM25 on REAL past Rule-0 queries. |
+| [`xerj-load.mjs`](../tools/xerj-load.mjs) | xerj-load — write doc-search's EXISTING chunks and cached bge-m3 vectors into a xerj index carrying a `dense_vector` mapping, so one engine can serve BM25 + kNN + hybrid in one request. |
+| [`xerj-query.mjs`](../tools/xerj-query.mjs) | xerj-query — ask the hybrid index (BM25 + bge-m3 kNN, one request) and print the enclosing passage. |
 | [`xss-sink-gate.mjs`](../tools/xss-sink-gate.mjs) | #3318/#3343 fixed XSS sinks by routing all untrusted strings through the canonical escaper (dex-escape.js: escapeHTML). |
 | [`zotero-fill.mjs`](../tools/zotero-fill.mjs) | ZOTERO FILL — the citation ledger, pushed into the owner's reference library as first-class records. |

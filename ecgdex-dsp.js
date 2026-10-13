@@ -26,8 +26,12 @@
     for (let i = 0; i < a.length; i++) s += a[i];
     return s / a.length;
   };
+  /* ∅ ABSENCE IS NULL. Fewer than two values have no sample SD, and `0` is a LEGAL SD (a perfectly flat
+     series), so the old `return 0` told the next caller "measured, and flat" about an input nothing was
+     measured on. `null` is the honest answer; every caller either guards the length or rounds through
+     `_rmOrNull`. (RESIDUE 2026-10-06-zero-on-empty-dsp-helpers) */
   const std = (a) => {
-    if (a.length < 2) return 0;
+    if (a.length < 2) return null;
     const m = mean(a);
     let s = 0;
     for (let i = 0; i < a.length; i++) s += (a[i] - m) * (a[i] - m);
@@ -109,14 +113,16 @@
     for (let i = 1; i < a.length; i++) if (Math.abs(a[i] - a[i - 1]) > 50) n++;
     return n;
   };
+  // ∅ an empty input has no median — `null`, never a 0 that reads as a measured one.
   const median = (a) => {
-    if (!a.length) return 0;
+    if (!a.length) return null;
     const s = [...a].sort((x, y) => x - y),
       n = s.length;
     return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
   };
+  // ∅ same for a quantile of nothing.
   const quant = (a, q) => {
-    if (!a.length) return 0;
+    if (!a.length) return null;
     const s = [...a].sort((x, y) => x - y),
       i = (s.length - 1) * q,
       l = Math.floor(i),
@@ -212,7 +218,7 @@
     // its siblings. Negligible for large N; the fleet now agrees by construction.
     const sdsd = Math.sqrt(dvar / Math.max(1, dc - 1));
     const s1 = sdsd / Math.sqrt(2);
-    const sdnnv = std(nn);
+    const sdnnv = /** @type {number} */ (std(nn)); // n >= 3 here (refused above), so the SD is measured
     const s2 = Math.sqrt(Math.max(0, 2 * sdnnv * sdnnv - s1 * s1));
     return { sd1: s1, sd2: s2 };
   }
@@ -1782,7 +1788,7 @@
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
           rmssd: _rmOrNull(rmssd(seg, segSkip), 1),
-          sdnn: +std(seg).toFixed(1),
+          sdnn: +(/** @type {number} */ (std(seg)).toFixed(1)), // >= 20 scorable beats (refused below that)
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
           pnn: +pnn50(seg, segSkip).toFixed(1),
@@ -1834,7 +1840,7 @@
     for (const w of windows) {
       const lnR = w.epochs.map((e) => Math.log(Math.max(1, e.rmssd)));
       const m = mean(lnR),
-        sd = std(lnR);
+        sd = /** @type {number} */ (std(lnR)); // a window holds >= 3 epochs
       // n = epochs in this window. A trailing group is admitted with as few as 3
       // (≈15 min, not a full 30-min window) — see the `>= 3` guards above; carry n
       // so an under-sampled window is VISIBLE rather than silently equal-weighted
@@ -2942,7 +2948,7 @@
     const _rrOnly = nnSpansGap.some((v) => v) ? nn.filter((_, i) => !nnSpansGap[i]) : nn;
     const _base = _rrOnly.length >= 2 ? _rrOnly : nn; // never let the omission empty the record
     const meanRR = mean(_base),
-      sdnn = std(_base),
+      sdnn = /** @type {number} */ (std(_base)), // _base holds >= 2 values: N >= 12 above, and the gap-free set only replaces nn when it has >= 2
       rm = rmssd(nn, _gapPair),
       pn = pnn50(nn, _gapPair);
     const hr = +(60000 / meanRR).toFixed(1);
@@ -3043,7 +3049,7 @@
       dispSd = +median(epochs.map((e) => e.sdnn)).toFixed(1);
       dispHr = +median(epochs.map((e) => e.hr)).toFixed(1);
       dispPn = +median(epochs.map((e) => e.pnn)).toFixed(1);
-      sdann = +std(epochs.map((e) => e.meanRR)).toFixed(1);
+      sdann = +(/** @type {number} */ (std(epochs.map((e) => e.meanRR))).toFixed(1)); // epochs.length >= 3
       sdnnIdx = +mean(epochs.map((e) => e.sdnn)).toFixed(1);
     }
 
@@ -3112,7 +3118,7 @@
 
     prog(86, 'Non-linear (DFA · SampEn · fragmentation)…');
     const dfa1 = dfaAlpha1(repSeg);
-    const sampen = sampEn(repSeg, 2, 0.2 * std(repSeg));
+    const sampen = sampEn(repSeg, 2, 0.2 * /** @type {number} */ (std(repSeg))); // repSeg is nn (N >= 12) or a >= 20-beat window
     const triIdx = triangularIndex(nn);
     const dc = prsaCapacity(nn, 1),
       ac = prsaCapacity(nn, -1);
@@ -3174,7 +3180,15 @@
     // per-epoch respiratory-rate spread (EDR) — CPAPDex can flag resp-rate instability without airflow
     const respVals = epochs.filter((e) => e.resp != null && e.resp > 0).map((e) => e.resp);
     const respStats =
-      respVals.length >= 3 ? { n: respVals.length, min: +arrMin(respVals).toFixed(1), max: +arrMax(respVals).toFixed(1), median: +median(respVals).toFixed(1), sd: +std(respVals).toFixed(2) } : null;
+      respVals.length >= 3
+        ? {
+            n: respVals.length,
+            min: +arrMin(respVals).toFixed(1),
+            max: +arrMax(respVals).toFixed(1),
+            median: _rmOrNull(median(respVals), 1),
+            sd: _rmOrNull(std(respVals), 2)
+          }
+        : null;
 
     prog(94, 'Morphology · ectopy · rhythm…');
     let morph = null;
@@ -3486,8 +3500,8 @@
       selfRMSSD: _rmOrNull(selfRMSSD, 1),
       devRMSSD: _rmOrNull(devRMSSD, 1),
       dRMSSD: _pctDiff(selfRMSSD, devRMSSD, 1),
-      selfSDNN: +selfSDNN.toFixed(1),
-      devSDNN: +devSDNN.toFixed(1),
+      selfSDNN: _rmOrNull(selfSDNN, 1),
+      devSDNN: _rmOrNull(devSDNN, 1),
       dSDNN: _pctDiff(selfSDNN, devSDNN, 1),
       selfMean: +selfMean.toFixed(1),
       devMean: +devMean.toFixed(1),
@@ -4202,7 +4216,7 @@
           ez.push(zs[i]);
         }
         if (seg.length > fs * 30) {
-          actSeries.push({ tMin: e.tMin, act: +std(seg).toFixed(1), resp: e.resp || null });
+          actSeries.push({ tMin: e.tMin, act: +(/** @type {number} */ (std(seg)).toFixed(1)), resp: e.resp || null }); // seg.length > fs * 30
           const pp = _posture(median(ex), median(ey), median(ez));
           postureSeries.push({ tMin: e.tMin, label: pp.label, tilt: pp.tiltDeg });
         }
@@ -4466,7 +4480,8 @@
         if (dt > 0) cad.push(60 / dt);
       }
       const mc = cad.length ? mean(cad) : 0,
-        cv = cad.length > 1 && mc > 0 ? (std(cad) / mc) * 100 : 0;
+        sdCad = cad.length > 1 ? std(cad) : null,
+        cv = sdCad != null && mc > 0 ? (sdCad / mc) * 100 : 0;
       return { startMin: +((b[0] / fs - off) / 60).toFixed(2), durSec: +durS.toFixed(0), steps: b.length, cadence: +mc.toFixed(0), cadenceCV: +cv.toFixed(0) };
     });
     const totalSteps = boutObjs.reduce((s, b) => s + b.steps, 0);
@@ -4597,7 +4612,12 @@
     const hi = rracc.filter((e) => e.conf === 'high'),
       rrVals = hi.map((e) => e.rr);
     const rraccSummary = rracc.length
-      ? { mean: rrVals.length ? +mean(rrVals).toFixed(1) : null, sd: rrVals.length > 1 ? +std(rrVals).toFixed(1) : null, highPct: Math.round((hi.length / rracc.length) * 100), nEpochs: rracc.length }
+      ? {
+          mean: rrVals.length ? +mean(rrVals).toFixed(1) : null,
+          sd: _rmOrNull(std(rrVals), 1),
+          highPct: Math.round((hi.length / rracc.length) * 100),
+          nEpochs: rracc.length
+        }
       : null;
 
     // ── Feature 2: RRacc vs EDR agreement (paired at the 5-min EDR cadence) ──
@@ -4612,7 +4632,7 @@
       if (pairs.length >= 3) {
         const deltas = pairs.map((p) => p.acc - p.edr),
           md = mean(deltas),
-          sdd = std(deltas),
+          sdd = /** @type {number} */ (std(deltas)), // pairs.length >= 3
           mae = mean(deltas.map((d) => Math.abs(d)));
         const ax = pairs.map((p) => p.acc),
           ex = pairs.map((p) => p.edr),
@@ -4829,6 +4849,7 @@
     beatConfidence,
     hrConfidence,
     median,
+    quant,
     mean,
     std,
     rmssd,
@@ -6660,8 +6681,9 @@
          That matters beyond convenience. The published joint clock-skew framework — Abdessalem K.
          (2026), "A software-only framework for synchronization of independently clocked cardiac-linked
          biomedical signals", Meas Sci Technol
-         (doi:10.1088/1361-6501/ae6a09) — synchronises independently-clocked sensors to 0.2-0.4 ms from
-         IBI SEQUENCES ALONE — and this suite has three interval sources (chest RR, arm PPI, finger
+         (doi:10.1088/1361-6501/ae6a09) — reduces the CLOCK-ONLY term of its synchronisation error to
+         0.2-0.4 ms from IBI SEQUENCES ALONE (the clock-only residual, NOT end-to-end accuracy: total
+         IBI RMSE after correction is 3.254-4.219 ms) — and this suite has three interval sources (chest RR, arm PPI, finger
          PPI) and exported none of them, which is why its alignment work has been fighting +/-45 s
          plateaus. */
       out.timeseries = {
