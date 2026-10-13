@@ -528,8 +528,11 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # arena, which `mallinfo2` cannot report at all (man mallinfo, BUGS) — the PURE `parse_malloc_info`
     # and the PURE `_kb` nested in `mem_log_line`, each a named function so a test can reach it without
     # a libc, plus `gc_counters`, `mem_snapshot` and `mem_log_line` themselves.
+    # 313 → 314 on 2026-10-13 (QC-SPAWN-CHILD): `_solid_night` leaves, and `_publish_loss` plus
+    # `_publish_solid` arrive in its place — the composition itself moved to `qc_child.py`, which this
+    # module-level exclusion does not cover, so those three functions ARE mutated. +1, the whole delta.
     # `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 313, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    assert n == 314, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

@@ -3982,6 +3982,48 @@ def test_qc_poller_refuses_a_scan_result_that_is_not_a_dict(tmp_path, monkeypatc
     assert any("not a summary" in m for m in msgs), "it names the VALUE, not only the type"
 
 
+def test_qc_poller_refuses_a_CHILD_ENVELOPE_that_is_not_the_documented_shape(tmp_path, monkeypatch, caplog):
+    """The same edge, one layer out. The child returns `{"summary", "wear", "wear_reason"}`; a result
+    that is not that envelope is refused by the same line and named, rather than failing later on a
+    `.get` that names neither the producer nor the value."""
+    import datetime as _dtm
+
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    monkeypatch.setattr(capture.qc_child, "scan_night", lambda n, d: "no envelope")
+    night = tmp_path / "captures" / "2026-07-19"
+    night.mkdir(parents=True)
+    with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
+        f.write("h\n1\n")
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller({"qc": {"poll_sec": 600}, "devices": []}, str(tmp_path)))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("returned str, not dict" in m and "no envelope" in m for m in msgs), msgs
+
+
+def test_qc_poller_logs_the_childs_OWN_wear_reason_because_a_child_has_no_logger(tmp_path, monkeypatch, caplog):
+    """The wear scan runs in the spawned child now, and a spawned child has no handler for this package's
+    logger — a `log.warning` there reaches nothing. The reason therefore travels back as a value and is
+    logged in THIS process, so the journal line an operator greps for is unchanged."""
+    import datetime as _dtm
+
+    monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
+    monkeypatch.setattr(
+        capture.qc_child,
+        "scan_night",
+        lambda n, d: {"summary": {"night": "2026-07-19"}, "wear": None, "wear_reason": "OSError: unreadable"},
+    )
+    night = tmp_path / "captures" / "2026-07-19"
+    night.mkdir(parents=True)
+    with open(night / "Polar_H10_02849638_20260719_ECG.txt", "w") as f:
+        f.write("h\n1\n")
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("WARNING"):
+        _run(capture.qc_poller({"qc": {"poll_sec": 600}, "devices": []}, str(tmp_path)))
+    assert any("wear scan failed, reasons unavailable: OSError: unreadable" in r.getMessage() for r in caplog.records)
+    assert capture.STATUS["qc"]["night"] == "2026-07-19", "the night is still summarised"
+
+
 def test_qc_poller_skips_when_no_night_dir_yet(tmp_path, monkeypatch):
     """Nothing captured tonight → the poller must not create an empty night folder."""
     import datetime as _dtm

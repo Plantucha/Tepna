@@ -8,6 +8,19 @@
    Load order: oxydex-util → oxydex-profile → oxydex-dsp → oxydex-render → oxydex-app.
    ════════════════════════════════════════════════════════════════════════ */
 
+/* ── NSRR DATA ACKNOWLEDGEMENT (data access and use agreement §11, §16) ───────────────────────
+   Where this file names an SHHS-measured number: the Sleep Heart Health Study data were obtained
+   through the National Sleep Research Resource (NSRR) under its data access and use agreement.
+   Publications and presentations of those numbers carry the line
+   "NSRR R24 HL114473: NHLBI National Sleep Research Resource" and cite the SHHS references listed
+   on its NSRR page. Results of the analysis may be published; no part or excerpt of the Data
+   appears here.
+     · Quan SF, Howard BV, Iber C, et al. The Sleep Heart Health Study: design, rationale, and
+       methods. Sleep. 1997;20(12):1077–85. doi:10.1093/sleep/20.12.1077
+     · Zhang GQ, Cui L, Mueller R, et al. The National Sleep Research Resource: towards a sleep
+       data commons. J Am Med Inform Assoc. 2018;25(10):1351–1358. doi:10.1093/jamia/ocy064
+   Clause source: the signed agreement, §11 and §16. Cohort page: `docs/SHHS-COHORT-REFERENCE.md`. */
+
 // ═══════════════════════════════════════════════════════════════════════
 // OxyDex — Nocturnal Oximetry Analyzer  v1.0.0  ·  Tepna
 // ═══════════════════════════════════════════════════════════════════════

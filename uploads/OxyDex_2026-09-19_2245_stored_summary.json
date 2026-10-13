@@ -344,8 +344,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "d920fe7fab27",
-          "computeHash": "8d27dbf0e3ed"
+          "manifestHash": "0ded3a07ac93",
+          "computeHash": "d26301eb8f79"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -372,8 +372,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "d920fe7fab27",
-          "computeHash": "8d27dbf0e3ed"
+          "manifestHash": "0ded3a07ac93",
+          "computeHash": "d26301eb8f79"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -400,8 +400,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "d920fe7fab27",
-          "computeHash": "8d27dbf0e3ed"
+          "manifestHash": "0ded3a07ac93",
+          "computeHash": "d26301eb8f79"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -428,8 +428,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "d920fe7fab27",
-          "computeHash": "8d27dbf0e3ed"
+          "manifestHash": "0ded3a07ac93",
+          "computeHash": "d26301eb8f79"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -858,6 +858,7 @@
         "rmssdNote": "RMSSD 0.53bpm (1Hz proxy) → adj -0.9",
         "formula": "Uth-Sørensen 2004 (VO2max = 15.3 × HRmax/HRrest)",
         "label": "Top-25% for age 49",
+        "ageAssumed": false,
         "disclaimer": "Surrogate estimate ±10.8 ml/kg/min SEE (general pop.) · ±5.4 for trained athletes. Trend tracking only."
       },
       "bpProj": null,
@@ -940,6 +941,17 @@
           }
         ],
         "readiness": 60,
+        "readinessBasis": {
+          "scored": [
+            "rmssd",
+            "spo2",
+            "sleep",
+            "hrFloor",
+            "hrSlope"
+          ],
+          "weightPresent": 100,
+          "weightTotal": 100
+        },
         "readinessTier": "Moderate",
         "readinessColor": "warn",
         "recZones": [
@@ -963,6 +975,7 @@
           "rmssd": 4,
           "spo2": 25,
           "sleep": 15,
+          "sleepMax": 20,
           "hrFloor": 15,
           "hrSlope": 1
         },
