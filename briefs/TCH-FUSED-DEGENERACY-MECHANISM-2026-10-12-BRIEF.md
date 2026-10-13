@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (§8 MEASURES M1–M3 on 2026-10-12 and REFUTES §2's O2Ring-corner prediction. All 25 fused negatives sit on the Verity corner, none on the O2Ring. M2 removes 20 of them, so the per-pair measure asymmetry IS the mechanism. Its route runs through V_HO, not V_HV. §5's precondition for option C fails. The owner picks A or B.) · **Created:** 2026-10-12 · **Promoted from:** residue `2026-09-16-tch-degeneracy-is-estimator-not-data` (owner ruling 2026-10-12, relayed) · **Answers:** `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md` §D7 · **Relates:** `TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md` (DONE 2026-09-26), `TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md`, `TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`
+**Status:** DONE — 2026-10-12 (§8 MEASURES M1–M3 and REFUTES §2's O2Ring-corner prediction. All 25 fused negatives sit on the Verity corner, none on the O2Ring. M2 removes 20 of them, so the per-pair measure asymmetry IS the mechanism. Its route runs through V_HO, not V_HV. §5's precondition for option C fails. The owner picked **A** on 2026-10-12; §9 records what that changed, down to the two papers whose fused σ it withdraws.) · **Created:** 2026-10-12 · **Promoted from:** residue `2026-09-16-tch-degeneracy-is-estimator-not-data` (owner ruling 2026-10-12, relayed) · **Answers:** `OWNER-DECISION-QUEUE-2026-09-03-BRIEF.md` §D7 · **Relates:** `TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md` (DONE 2026-09-26), `TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md`, `TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`
 
 # Why the fused hat goes degenerate and the unweighted one does not — the mechanism, derived
 
