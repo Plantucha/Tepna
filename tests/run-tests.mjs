@@ -2731,6 +2731,7 @@ async function main() {
     nodeOs: _nodeOs,
     nodePath: _nodePath.default || _nodePath,
     wtDone: _wtDone,
+    nodeSpawnSync: spawnSync,
     /* §timingSource vocabulary gate — the EMITTERS' source, scanned for `timingSource` string
        literals so a value added without a vocabulary entry reds. Source text rather than imports
        because the literals live inside functions the suite never calls on every path. */

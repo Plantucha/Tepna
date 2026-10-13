@@ -33,8 +33,15 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readlinkSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+
+/* THE TOOL KNOWS WHERE IT LIVES (row 2026-10-12-wt-done-resolves-the-repo-from-the-shell-cwd). The two
+   repo-level git calls (`worktree list`, `worktree remove`) used to read the SHELL's cwd, so an
+   invocation by absolute path from outside any repository died in a node stack trace. They now name the
+   repository this file belongs to with `-C`; every per-tree call already did, through the tree's path. */
+export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export function parseWorktrees(porcelain) {
   /* `git worktree list --porcelain` → [{path, branch}] — branch null for detached/bare. */
@@ -469,7 +476,20 @@ function dirtyCountFor(wtPath) {
 }
 
 function main(argv) {
-  const wts = parseWorktrees(run('git', ['worktree', 'list', '--porcelain']));
+  let wts;
+  try {
+    wts = parseWorktrees(run('git', ['-C', REPO_ROOT, 'worktree', 'list', '--porcelain']));
+  } catch (e) {
+    /* Name the reason rather than print a stack: a refusal is a sentence. */
+    console.error(
+      `✕ cannot list worktrees of ${REPO_ROOT}: ${
+        String((e && e.stderr) || (e && e.message) || e)
+          .trim()
+          .split('\n')[0]
+      }`
+    );
+    return 2;
+  }
   if (argv.includes('--list')) {
     console.log(`DENOMINATOR: ${wts.length} worktree(s) registered`);
     for (const w of wts) {
@@ -542,7 +562,7 @@ function main(argv) {
       fail++;
       continue;
     }
-    run('git', ['worktree', 'remove', abs]); // no --force, deliberately
+    run('git', ['-C', REPO_ROOT, 'worktree', 'remove', abs]); // no --force, deliberately
     console.log(`✓ removed ${t} (${v.why})`);
   }
   return fail ? 1 : 0;

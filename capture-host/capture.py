@@ -6227,14 +6227,17 @@ async def run_oxyii(dev: dict, root: str):
                                 pr=live["pr"],
                                 battery=live["batt"],
                                 motion=live["motion"],
-                                worn=True,
+                                # ∅ THE SENSOR'S OWN STATEMENT, never an inference from the vitals: a probe
+                                # fault (contact 2/3) that carries an in-range SpO2 is wear UNKNOWN (None),
+                                # exactly as the no-vitals branch below publishes it.
+                                worn=live["worn"],
                                 last_sample=now.isoformat(),
                                 arrival_rows=oxy_arr_wr.rows,
                                 charging=ring_docked,
                                 charging_why=ring_docked_why,
                                 last_error=None,
                             )
-                            _power_observe(name, worn=True, battery=live["batt"])
+                            _power_observe(name, worn=live["worn"], battery=live["batt"])  # None moves nothing
                         else:
                             BUS.push("motion_o2", [live["motion"]])
                             BUS.push("pi_o2", [live["pi"]])

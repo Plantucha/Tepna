@@ -526,16 +526,35 @@ def build(
         # a previous-day session that crossed midnight pushes past 00:00. A session opening at exactly one
         # gap was therefore refused while `merge_sessions`, given both folders, returns ONE session:
         # measured, a 3669 s session published as a 9 s window. Inclusive closes that boundary. It does NOT
-        # close the class — a previous day running to 01:30 still merges with a 02:00 session this gate
-        # never looks for — and the remedy is to stop re-implementing the rule here at all. Residue row
-        # `2026-10-05-midnight-pooling-gate-is-narrower-than-the-session-gap-rule-it-guards` is OPEN for it.
+        # close the class on its own — which is why the probe below asks `merge_sessions` as well. Residue
+        # row `2026-10-05-midnight-pooling-gate-is-narrower-than-the-session-gap-rule-it-guards`.
         _stamped = [f["session"] for f in data if f["session"] is not None]
         earliest = min(_stamped) if _stamped else None
-        if midnight is not None and earliest is not None and 0 <= earliest - midnight <= nightqc._SESSION_GAP_SEC:
-            prev = nightqc._prev_day_dir(night_dir)
+        _pool = midnight is not None and earliest is not None and 0 <= earliest - midnight <= nightqc._SESSION_GAP_SEC
+        prev = nightqc._prev_day_dir(night_dir)
+        prev_data = None
+        # ...AND THE QUESTION ITSELF, ASKED OF THE AUTHORITY, when the cheap clock test above said no. The
+        # clock test measures midnight → session START, so a previous day that ran to 01:30 never pooled
+        # with a 02:00 session although `merge_sessions` joins them. Inside `nightqc.prev_probe_window`
+        # (the cost guard `summarize` already uses) the previous folder is scanned and `merge_sessions`
+        # itself — not a second copy of its rule — says whether any of ITS files share a session with one
+        # of this folder's. Additive: the clock test still pools on its own, so nothing that pooled stops.
+        if not _pool and earliest is not None and nightqc.prev_probe_window(earliest, midnight):
             if prev and os.path.isdir(prev):
-                data = [f for f in nightqc.scan_night(prev) if f["stream"] not in nightqc._SIDECAR_TAGS] + data
-                dirs.insert(0, prev)
+                prev_data = [f for f in nightqc.scan_night(prev) if f["stream"] not in nightqc._SIDECAR_TAGS]
+                _prev_ids = {id(f) for f in prev_data}
+                _probe_seams = sorted(
+                    {t for d in (prev, night_dir) for t in nightqc.daemon_starts(d, offset_sec=_offset)["stamps"]}
+                )
+                _pool = any(
+                    any(id(f) in _prev_ids for f in sess[2]) and any(id(f) not in _prev_ids for f in sess[2])
+                    for sess in nightqc.merge_sessions(prev_data + data, starts=_probe_seams, offset_sec=_offset)
+                )
+        if _pool and prev and os.path.isdir(prev):
+            if prev_data is None:
+                prev_data = [f for f in nightqc.scan_night(prev) if f["stream"] not in nightqc._SIDECAR_TAGS]
+            data = prev_data + data
+            dirs.insert(0, prev)
     link = read_link_samples(dirs)
     # The sidecar's stamps come back floating; raise them into the same frame as the session bounds.
     link = {k: [(ts + _shift, c, r) for ts, c, r in v] for k, v in link.items()}

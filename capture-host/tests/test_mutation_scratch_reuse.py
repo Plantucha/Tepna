@@ -127,7 +127,7 @@ def test_the_tool_delegates_to_the_in_floor_function_and_it_refreshes_everything
 
     tool = pathlib.Path(__file__).resolve().parents[1] / "tools" / "mutate.py"
     src = tool.read_text()
-    reuse = src[src.index("if reuse and (") : src.index('plan["reused_scratch"]')]
+    reuse = src[src.index("if reuse and ") : src.index('plan["reused_scratch"]')]
     assert "refresh_scratch(" in reuse, "the reuse path no longer refreshes the siblings"
     assert 'copytree(HERE / "tests"' not in reuse, "the tests-only refresh is back"
 
@@ -914,3 +914,52 @@ def test_stage_capture_host_view_leaves_a_REAL_directory_alone(tmp_path):
     assert made == [str(scratch / "capture-host")], made
     assert (work / "capture-host" / "theirs.txt").read_text() == "not ours\n"
     assert not (work / "capture-host").is_symlink()
+
+
+# ── a killed generation is not a finished one (`2026-10-11-a-killed-generation-is-reused-as-a-complete-one`) ──
+# mutmut 3.8 decides `mutants/<module>` is up to date by mtime alone and truncates it before validating, so
+# a generation killed mid-write left a file `unmodified=True` accepted on the next call. Reuse used to be
+# keyed on the file existing; it is now keyed on a marker written from mutmut's own completion line.
+
+
+def test_a_scratch_with_a_generated_file_but_no_completion_marker_is_not_reusable(tmp_path):
+    """The defect, planted: a TRUNCATED mutants file (787 of 1270 bytes in the measured case) with a fresh
+    mtime — exactly what a mid-write kill leaves — must not be reused."""
+    scratch = tmp_path / "mut-target-abc123"
+    (scratch / "work" / "mutants").mkdir(parents=True)
+    (scratch / "work" / "mutants" / "target.py").write_text("def x_f__mutmut_orig(:\n")  # unparseable, truncated
+    assert mutation_diff.scratch_generation_reusable(scratch, "target.py") is False
+
+
+def test_a_scratch_whose_generation_finished_is_reusable(tmp_path):
+    """CONTROL: the speed-up the reuse exists for (22 min → 18 s on capture.py) is kept once a run saw
+    generation finish."""
+    scratch = tmp_path / "mut-target-abc123"
+    (scratch / "work" / "mutants").mkdir(parents=True)
+    (scratch / "work" / "mutants" / "target.py").write_text("def x_f__mutmut_orig():\n    return 1\n")
+    assert mutation_diff.mark_generation_complete(scratch) is True
+    assert mutation_diff.scratch_generation_reusable(scratch, "target.py") is True
+
+
+def test_a_marker_without_the_generated_file_is_not_reusable(tmp_path):
+    scratch = tmp_path / "mut-target-abc123"
+    scratch.mkdir()
+    assert mutation_diff.mark_generation_complete(scratch) is True
+    assert mutation_diff.scratch_generation_reusable(scratch, "target.py") is False
+
+
+def test_a_marker_that_cannot_be_written_means_not_reusable_never_an_error(tmp_path):
+    """The safe direction: no marker ⇒ no reuse. An unwritable scratch must not fail the run."""
+    assert mutation_diff.mark_generation_complete(tmp_path / "does-not-exist") is False
+
+
+def test_the_tool_keys_reuse_on_the_marker_and_writes_it_on_mutmuts_completion_line():
+    """`tools/mutate.py` is outside the coverage floor, so the WIRING is pinned here: reuse goes through
+    `scratch_generation_reusable` (not a bare `.exists()`), and the marker is written from the branch that
+    reads mutmut's own completion line, not after the run."""
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parents[1] / "tools" / "mutate.py").read_text()
+    assert "if reuse and scratch_generation_reusable(reusable, module):" in src
+    done_branch = src[src.index("if GENERATION_DONE_RE.search(line):") :].split("return", 1)[0]
+    assert "_gen_done.add(True)" in done_branch and "mark_generation_complete(scratch)" in done_branch
