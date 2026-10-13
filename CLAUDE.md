@@ -57,7 +57,7 @@ The per-session suffix prevents two sessions deriving one branch name for one de
 - **Never** `git reset --hard` / `git checkout .` / `git restore .` / `git stash` / `git clean -f` on a
   tree you did not dirty.
 - **Never move a branch ref by hand** — `git update-ref`, `git branch -f`, `git push . <src>:<b>`,
-  `git fetch origin main:main`. If the branch is checked out anywhere the ref advances and the tree does
+  `git fetch origin main:main`. If any checkout holds the branch the ref advances and the tree does
   not, so every file a later merge added reads as `deleted` and a blanket add stages the removal. To
   advance a ref, do it in the checkout that holds it: `git -C <checkout> merge --ff-only origin/<b>`.
 - **`git rev-list --count main..origin/main` = 0 does NOT mean synced** — measure the TREE:
@@ -211,7 +211,7 @@ column — `/tmp` is a 30 GB tmpfs invisible to `ps`. Deleting orphans there is 
 - **Write the handoff before you stop,** at every unit boundary and before a compaction: unit, branch,
   worktree, the exact stopping point, the next step, open questions, the doc-search query that found
   the prior work. The index is the memory; the note is what the index finds.
-- **Tool output is trimmed by a hook** (`trim-output.sh`): over 200 lines you see the head, the tail,
+- **A hook trims tool output** (`trim-output.sh`): over 200 lines you see the head, the tail,
   a count and a path. Read the file when the tail is not the verdict (§4b).
 - **Window cap 300k.** Compact or exit at a unit boundary before the window passes 300k tokens. The floor
   is 80k; the rest is conversation you carry. Write the handoff first.
@@ -237,9 +237,9 @@ line after any SPDX comment:
 - **Residue → `briefs/RESIDUE.md`, one row per verified defect, never a new `-FOLLOWUPS-` brief**
   (owner, 2026-09-02): `| <key> | logged | source | defect | evidence | state |`, key
   `YYYY-MM-DD-short-slug` (never a counter), source = a brief (which gets `**Residue:** <key>` on its
-  status line), a repo path, or `#NNNN` — the real origin, never the nearest brief. Rows are appended and
-  closed (`fixed #NNNN` or `→ \`<NAME>-BRIEF.md\``), never edited. A `-FOLLOWUPS-` brief is created only by
-  the session picking a row up.
+  status line), a repo path, or `#NNNN` — the real origin, never the nearest brief. You append a row
+  and close it (`fixed #NNNN` or `→ \`<NAME>-BRIEF.md\``), and you never edit one. Only the session
+  picking a row up creates a `-FOLLOWUPS-` brief.
 - **Supersession:** `Superseded-by: <NAME>` on the old, `Supersedes: <NAME>` on the new.
 - **`DOCS-INDEX.md` is the dashboard** — add a row for every new doc; reorganise the view, not the files.
 - 🔍 **Search before you size or build: `node tools/doc-search.mjs --read "<the thing>"`** (owner
@@ -261,8 +261,8 @@ line after any SPDX comment:
   `guard-stale-brief.sh` (covers `briefs/*.md` + `DOCS-INDEX.md`; reads local `origin/main`, never
   fetches). Hatch `CLAUDE_ALLOW_STALE_BRIEF=1` — **exported**, the only form an `Edit`/`Write` sees.
 - **Gate:** `docs-ledger` (Node lane) reds a stray root brief, a malformed header on a brief dated
-  ≥ 2026-07-03, an unindexed brief, a dead `DOCS-INDEX.md` link, a one-sided supersede pair. Older
-  headerless briefs are grandfathered — never fabricate a status.
+  ≥ 2026-07-03, an unindexed brief, a dead `DOCS-INDEX.md` link, a one-sided supersede pair. The gate
+  exempts older headerless briefs — never fabricate a status.
 - **Repo layout:** root holds only entry docs (`README.md`, `CLAUDE.md`, `ARCHITECTURE-PRINCIPLES.md`,
   `ORIENTATION.md`, `DOCS-INDEX.md`, `CONTRIBUTING.md`, `AUDIT-PROMPT.md`), standard OSS files, and all
   runtime/build files (`*.js` / `*.html` / `*.src.html` / `*.css` / `*.json` — never move). Archival docs go
@@ -281,8 +281,8 @@ thousands of in-band zeros through every green gate because the rule was never w
   (`PPG-ABSENCE-AS-VALUE`, DONE 2026-09-21); consumers read the sidecar.
 - **Captured bytes are immutable.** Correction lives beside the file, dated and attributed.
 - **Detect by RUN LENGTH against the stream's own distribution, never by value membership** (a
-  value-keyed detector flags every singleton beat marker). Run it on every device from day 1 and keep
-  it as a tripwire.
+  value-keyed detector flags every singleton beat marker). Run it on every device from day 1. Keep it
+  as a tripwire.
 - **An output over absent input reports the absence.** 🔴 Owner ruling 2026-09-17: **a DISCONTINUITY
   refuses; reduced COVERAGE annotates.** A clock seam, blanking run or absent span → `null` + a named
   reason (`clock-seam`, not a borrowed one). Dropouts and short windows → the value with `n` / the covered
@@ -312,11 +312,11 @@ the API.
 - `checked + excluded = eligible`; `PASS` over `checked: 0` or with empty `evidence` is invalid; every
   non-`PASS` carries a `reason`.
 - `criterion` is pre-stated; a threshold derived from the data it judges is `UNKNOWN`.
-- Adoption is a named set with a gate (`PARTIAL-ADOPTION-DETECTION`); a status-printing tool outside it is red.
+- Adoption is a named set with a gate (`PARTIAL-ADOPTION-DETECTION`); the gate reds a status-printing tool outside it.
 
 ## 📏 Units — metric is canonical (non-negotiable)
 Store and compute in metric (kg, cm, °C, mmol/L; clinical metric units where conventional: mmHg, bpm,
-mL/kg/min, m). Never persist an imperial number. An imperial display switch is allowed, metric is the
+mL/kg/min, m). Never persist an imperial number. An imperial display switch may exist, metric is the
 first-load default, and conversion happens only at the display/input boundary over one cited metric
 NORMS table — no imperial-keyed tables or duplicate formulas.
 
@@ -347,8 +347,8 @@ Raw ECG (Polar H10) and PPG (Polar Verity Sense) also arrive as **Polar Sensor L
 format; regex its stamps per the Clock Contract, never `new Date(str)`.
 
 **Honest HR:** the Verity onboard `_HR.txt` is all-zero and `_PPI.txt` often header-only — derive
-Verity HR from raw `_PPG.txt` (PPGDSP 3-LED consensus → `buildPPI` → Malik `correctRR`). The H10 `_HR.txt`
-is smoothed — derive H10 HR from `_ECG.txt` via Pan–Tompkins (`ECGDSP.parseECG → bandpass →
+Verity HR from raw `_PPG.txt` (PPGDSP 3-LED consensus → `buildPPI` → Malik `correctRR`). The H10 smooths
+its own `_HR.txt` — derive H10 HR from `_ECG.txt` via Pan–Tompkins (`ECGDSP.parseECG → bandpass →
 detectPeaks`). Never fuse or compare onboard summaries.
 
 **A real tri-device corpus exists** — O2Ring + Polar H10 (device `H10-01`) + Polar Verity Sense
@@ -377,7 +377,7 @@ Ledgers are per-app `provenance/<App>.json` fragments (+ `_meta.json`, `index.js
 - **GATE A — code identity.** Each bundle's **`manifestHash`** must equal `BUILD-MANIFEST.json`: per
   `data-inline-src` block `logicalName \0 sha256(text)`, sorted, SHA-256[0:12] — deterministic, moving
   only on a code change (`manifest-gate.js manifestHashFromText`; `tests/verify-manifest.mjs`). A legacy
-  gzip+UUID bundle hashes to `null`. `buildHash` is retired: still stamped into exports, read by nothing.
+  gzip+UUID bundle hashes to `null`. `buildHash` has retired: the build still stamps it, nothing reads it.
 - **GATE B — known answers.** Each fixture in `FIXTURE-PROVENANCE.json` is `hash(input) + manifestHash →
   hash(output)`; reproducible only while all three still match (`manifest-gate.js gateBEvaluate`).
   Records are `{ bundle, manifestHash, inputHashes, outputHash }` or `{ bundle, historical:true,
@@ -412,7 +412,7 @@ npm run check                         # ← the FULL gate. Not `build.mjs --chec
   bundles — the 9 in `manifest-gate.js MANIFEST_BUNDLES` (8 apps + `Integrator.html`) plus
   **`CLAIM orchestrators = 2`** orchestrators (`Data Unifier.html`, `OverDex.html`); GATE A covers the 9,
   `--check` all 11 (markers machine-checked).
-- **A moved fixture OUTPUT is regenerated by re-running the app on its committed inputs**, never by
+- **Regenerate a moved fixture OUTPUT by re-running the app on its committed inputs**, never by
   editing a hash: `tools/regen-<node>-goldens.mjs` — nine of them (`cpap` 5 fixtures · `ecgdex` 4 ·
   `glucodex` 3 · `hrvdex` 3 · `integrator` 3 · `motiondex` 1 · `oxydex` 3 · `ppgdex` 6 · `pulsedex` 3) on
   `regen-goldens.mjs` + `regen-goldens-core.mjs`. Check for your node's tool before costing a regen.
@@ -423,8 +423,8 @@ npm run check                         # ← the FULL gate. Not `build.mjs --chec
 
 ruff · shellcheck · `pytest -q --cov --cov-branch --cov-fail-under=100` · `tools/find_unwired.py --check` ·
 mypy against a ratcheting baseline (flips BLOCKING at 0). **A pytest line without `--cov` does not
-evaluate the floor at all** (no `TOTAL` row is the tell) — run the script. `shellcheck` missing exits 127:
-a missing tool, not a failing gate.
+evaluate the floor at all** (no `TOTAL` row is the tell) — run the script. An absent `shellcheck` exits 127:
+an absent tool, not a failing gate.
 
 ### 🔒 Export-inertness is COMPUTED, never claimed
 
@@ -432,8 +432,8 @@ a missing tool, not a failing gate.
   **denylist** — an unknown asset is inside it). Render/CSS/app edit ⇒ `computeHash` stable ⇒
   export-inert, proven. DSP/clock/export/registry edit ⇒ both move ⇒ re-verification owed.
 - **`verifiedUnder`**: the code that actually re-ran the app and reproduced the bytes. Written **only** by
-  **`tools/verify-fixtures.mjs`** after a green real-corpus run; `build.mjs` is forbidden to write it
-  (gate-asserted). The tool refuses when an input is missing or the suite is red; regenerate a moved
+  **`tools/verify-fixtures.mjs`** after a green real-corpus run; `build.mjs` must never write it
+  (gate-asserted). The tool refuses when an input is absent, or when the suite reds; regenerate a moved
   fixture first, never re-stamp around it. It finds the corpus via `$DEX_UPLOADS` → the primary
   checkout's `uploads/` → this checkout's (`docs/CORPUS-LOCATIONS.md`; a worktree has no corpus).
 - **`tools/release.mjs` refuses to cut a release while any corpus-backed fixture is UNVERIFIED.**
@@ -447,12 +447,12 @@ never hue). **Every surfaced number carries a badge** — KPI, card, hero, chart
 an unbadged number is a bug of wrong-unit severity. Two placements only: `.ev-corner` bottom-right of a
 `position:relative` card, or inline `.ev` before the label in dense text. New surfaces inherit nothing —
 wire `MetricRegistry.badge()`. **Badge the series, not the caption** (owner 2026-08-16): an unbadged
-caption is correct when every series it draws is badged.
+caption is correct when a badge sits on every series it draws.
 - **Visuals:** `metric-registry.js` injects the CSS (`MetricRegistry.BADGE_CSS`); `dex-badges.css` is
   its byte-faithful mirror for static docs. Never hardcode disc CSS.
 - **Grades:** each node's `<node>-registry.js` `evidence` field; a tier is a node fact. `*_DEFS` in
-  `*-cross.js` is a projection (gate `registry-defs-parity`). Retired vocabulary (proxy, composite,
-  "provisionally validated") never reappears.
+  `*-cross.js` is a projection (gate `registry-defs-parity`). Retired vocabulary (`proxy`, `composite`,
+  `provisionally validated`) never reappears.
 - **Gate `cohesion-badges`:** engine ≡ CSS, guides `<link>` the CSS, guide grades ≡ registry — fix the DOC.
 - An inert shared-module addition does not require re-bundling.
 
@@ -505,7 +505,7 @@ a `Date` or a string as truth. Per record `tMs`; per recording `t0Ms` = first va
    14-digit `YYYYMMDDHHMMSS`.
 5. Time-only `HH:MM[:SS]` + `opts.dateAnchorMs`, rolling the date at each midnight wrap
    (`opts.prevTMs`). No anchor → `null`.
-6. Otherwise `null`. **Never** fall back to now — a missing stamp is visible, never fabricated.
+6. Otherwise `null`. **Never** fall back to now — an absent stamp is visible, never fabricated.
 7. Components are range-validated (`clock.js:_ckMk`: real calendar day, `0–23:0–59:0–59.0–999`) —
    `Date.UTC` silently rolls bad components onto a wrong instant. The one legal overflow is ISO
    `24:00:00` → next-day `00:00:00`; **no bare `h > 23` guard.**
