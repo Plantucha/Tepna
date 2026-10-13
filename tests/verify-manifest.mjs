@@ -63,6 +63,20 @@ const ManifestGate = require(join(ROOT, 'manifest-gate.js'));
 // { buildManifest:{bundles}, fixtureProvenance:{fixtures} } shape the gate cores expect.
 const ProvenanceLedger = require(join(ROOT, 'provenance-ledger.js'));
 import { aggregateChildren, makeVerdict } from '../tools/verdict-emit.mjs';
+import { LEDGER_NAME, ledgerFindings } from '../tools/fold-provenance.mjs';
+
+/* `provenance/index.json` runs[] — the assembled ledger exposes `apps` and nothing else, and reading
+   the file here (rather than widening the ledger's contract) keeps a run fragment invisible to every
+   consumer that assembles bundles and fixtures. Unreadable or absent ⇒ [], which then reds the
+   set-equality check above by NAME instead of passing an unexamined tree. */
+function idxIndexRuns() {
+  try {
+    const idx = JSON.parse(readFileSync(join(ROOT, 'provenance', 'index.json'), 'utf8'));
+    return Array.isArray(idx.runs) ? idx.runs : [];
+  } catch {
+    return [];
+  }
+}
 
 /* ── VERDICT-CONTRACT §3d — one tepna.verdict/1 object over the two gates ─────────────────────────
    Population = the bundles GATE A checks + the fixtures GATE B audits (+ the page-wiring guard).
@@ -244,13 +258,33 @@ async function main() {
   // and an index entry with no fragment would already have thrown in loadNode above.
   const canonical = ManifestGate.MANIFEST_BUNDLES.map((b) => b.replace(/\.html$/, '')).sort();
   const idxApps = [...(ledger.apps || [])].sort();
+  /* RUN fragments: provenance that belongs to a RUN rather than to a bundle (today `trio-fold`, the
+     trio fold's run-level record). They are DECLARED in provenance/index.json under `runs` for the
+     same reason the apps are: an undeclared *.json here must stay red, or a fragment added without an
+     index entry would be un-gated — the exact hole the app half of this check was built to close. A
+     run fragment carries no manifestHash and no fixtures, so the ledger loader never reads it; this
+     check is the only thing that does, which is why it checks the SHAPE and not just the name. */
+  const idxRuns = [...(idxIndexRuns() || [])].sort();
   const onDisk = readdirSync(join(ROOT, 'provenance'))
     .filter((f) => f.endsWith('.json') && f !== 'index.json' && f !== '_meta.json')
     .map((f) => f.replace(/\.json$/, ''))
     .sort();
   if (JSON.stringify(idxApps) !== JSON.stringify(canonical)) return die(2, 'provenance/index.json apps ≠ canonical bundles\n  index: ' + idxApps.join(', ') + '\n  canon: ' + canonical.join(', '));
-  if (JSON.stringify(onDisk) !== JSON.stringify(idxApps)) return die(2, 'provenance/ fragment files ≠ index.json apps\n  on-disk: ' + onDisk.join(', ') + '\n  index:   ' + idxApps.join(', '));
-  out(paint('  ✓ provenance/ fragment set consistent with index.json (' + onDisk.length + ' apps)', C.dim));
+  const declared = [...idxApps, ...idxRuns].sort();
+  if (JSON.stringify(onDisk) !== JSON.stringify(declared))
+    return die(2, 'provenance/ fragment files ≠ index.json apps + runs\n  on-disk: ' + onDisk.join(', ') + '\n  index:   ' + declared.join(', '));
+  for (const r of idxRuns) {
+    const rp = join(ROOT, 'provenance', r + '.json');
+    let parsed = null;
+    try {
+      parsed = JSON.parse(readFileSync(rp, 'utf8'));
+    } catch (e) {
+      return die(2, 'provenance/' + r + '.json declared under runs but unreadable: ' + e.message);
+    }
+    const findings = r === LEDGER_NAME ? ledgerFindings(parsed) : ['no shape check is wired for the run fragment "' + r + '"'];
+    if (findings.length) return die(2, 'provenance/' + r + '.json is malformed:\n    ' + findings.join('\n    '));
+  }
+  out(paint('  ✓ provenance/ fragment set consistent with index.json (' + idxApps.length + ' apps, ' + idxRuns.length + ' run)', C.dim));
 
   // scope (SECTION-SCOPED-RUNS): which bundles this run checks — all, or the --bundle= filtered set
   const _bmatch = bundleMatcher(BUNDLE_FILTER);
