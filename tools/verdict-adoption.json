@@ -1102,6 +1102,18 @@
       },
       "note": "wave-1 adopter (#2798): --json emits one tepna.verdict/1 per fixture (✗ hop ⇒ FAIL naming the hop; ∘ hop ⇒ NOT_RUN naming the hop, result null; all ✓ ⇒ PASS); the manifest reads the committed synthetic fixture, whose input is committed too, so the check is corpus-free and runs in CI"
     },
+    "tools/mutate-ledger-merge.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/mutate-ledger-merge.mjs",
+          "--verify"
+        ]
+      },
+      "note": "the git merge driver for the three mutation ledgers: --verify decides ONE tepna.verdict/1 over the registered ledgers — PASS every ledger parses, carries no duplicated entry id and merges with itself byte-identically; FAIL names the offending ledger and why; the criterion is pre-stated (ledgers_with_an_unmergeable_shape <= 0) and the driver mode itself prints no verdict word, because git reads its exit code"
+    },
     "tools/mutate.mjs": {
       "bin": "decides",
       "status": "adopted",

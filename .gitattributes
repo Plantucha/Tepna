@@ -76,3 +76,28 @@ tests/changes-list.txt      merge=union
 # better still.  Install:  node tools/residue-merge.mjs --install
 briefs/RESIDUE.md           merge=residue
 *.tepna binary
+
+# ── The mutation ledgers: union the ENTRIES, refuse a duplicated id (2026-10-13) ────────────────
+# `capture-host/tools/mutate-equivalence.json`, `tools/mutate-equivalence.json` and
+# `mutation-survivors.json` are append-heavy ledgers that several sessions write in parallel, and none
+# of them had a driver (residue 2026-09-29-equivalence-and-survivor-ledgers-have-no-merge-driver). So
+# every concurrent PR owed a hand three-way merge over JSON text, and the obvious hand resolution is
+# silently destructive: on #3237 "first occurrence wins in base→ours→theirs order" REVERTED five
+# in-place edits main had made to existing `nights_index.py` entries. Nothing conflicted and nothing
+# failed, which is why the class has no symptom.
+#
+# `merge=union` is NOT an option here — a JSON ledger is not line-oriented, and union would emit
+# duplicated keys and broken syntax. `tools/mutate-ledger-merge.mjs` merges over ENTRY IDS instead:
+# an addition on either side is kept, a deletion is honoured, an entry changed on exactly one side
+# takes that side, and an entry changed on BOTH sides stops the merge. Measured 2026-10-13 in a
+# synthetic repo, two appends and an append against an edit of an existing entry:
+#     no attribute (today)         → exit 1, conflict markers, a hand merge  ← where #3237 lost five edits
+#     merge=mutateledger, NOT installed → exit 1, conflict markers           ← the same as today
+#     merge=mutateledger, installed     → exit 0, 0 markers, every entry and every edit present
+# The uninstalled state is therefore the safe one (CLAUDE.md §👥.2b-bis), which is what makes the
+# attribute safe to ship ahead of anyone installing it.
+#   Install: node tools/mutate-ledger-merge.mjs --install
+#   Verify:  node tools/mutate-ledger-merge.mjs --verify
+capture-host/tools/mutate-equivalence.json  merge=mutateledger
+tools/mutate-equivalence.json               merge=mutateledger
+mutation-survivors.json                     merge=mutateledger
