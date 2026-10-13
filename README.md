@@ -12,7 +12,7 @@
 **Your data never leaves the browser — and CI proves it on every commit.**
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
-[![Suite v2.18.0](https://img.shields.io/badge/suite-v2.18.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
+[![Suite v2.19.0](https://img.shields.io/badge/suite-v2.19.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
 [![DOI](https://zenodo.org/badge/1286425809.svg)](https://doi.org/10.5281/zenodo.22068939)
 
@@ -20,7 +20,7 @@
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#every-number-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
-![Releases](https://img.shields.io/badge/releases-44_shipped-555)
+![Releases](https://img.shields.io/badge/releases-45_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
@@ -34,10 +34,10 @@ Tepna is a set of single-signal analyzers for the physiology sensors people actu
 oximeter, a chest strap, an armband, a CGM, a CPAP machine — plus one capture box that records them
 all night on one clock. Each analyzer reads **one** raw signal, derives its metrics, and reports over a
 shared bus (**Ganglior**) so a fusion layer (the **Integrator**) can read across signals. Every number
-carries an **evidence grade**. Nothing is uploaded, ever: a headless gate boots every shipped surface
+carries an **evidence grade**. The suite uploads nothing, ever: a headless gate boots every shipped surface
 and fails the build if anything reaches for the network.
 
-What it finds that **holds** ships as a graded metric. What **fails** is published too — [*Dead
+What it finds that **holds** ships as a graded metric. The project publishes what **fails** too — [*Dead
 Ends*](papers/dead-ends.html) is the citable map of the walls. The long-form *why* is
 [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.md).
 
@@ -90,7 +90,7 @@ only a louder one.
 | **experimental** | internally consistent, not externally confirmed | composite indices |
 | **heuristic** | directional only | sleep-derived BP estimate |
 
-The eight registries define **520 graded metrics**; just under half are measured or validated and
+The eight registries define **520 graded metrics**; just under half have the measured or validated grade and
 nearly two-fifths sit at experimental or heuristic. The distribution is the honest version of the
 count, which is why the ladder leads. If you read nothing else, read the validated row.
 
@@ -105,10 +105,10 @@ Policy with `connect-src 'none'` and hash-only `script-src`. [`verify-provenance
 content-addresses every bundle and every known-answer fixture, so a shipped app is provably the code
 it claims to be.
 
-**Nine checks are required on every pull request:** `tests` (**12,123 assertions** across **733 groups**,
+**Every pull request must pass nine checks:** `tests` (**12,570 assertions** across **755 groups**,
 six partitioned shards) · `no-network` · `types` · `biome` · `browser-gates` (every bundle booted
-headless, computed values asserted in the DOM) · `stale-file` (a brief cannot be overwritten by an
-edit that never read the upstream version) · `capture-host` on py3.12 and py3.13 —
+headless, computed values asserted in the DOM) · `stale-file` (an edit that never read the upstream
+version cannot overwrite a brief) · `capture-host` on py3.12 and py3.13 —
 **9,300+ Python tests** at a 100 % statement *and* branch floor — and a diff-scoped **mutation** gate
 that breaks the lines a PR touched and refuses to merge what the suite would not notice. `CodeQL` runs beside them,
 and a `static` job re-derives every ledger the tree claims so a stale artefact reds the PR.
@@ -136,17 +136,17 @@ Per-device capture instructions without the box live in [`how-to-collect/`](how-
 
 ## Method, in four rules
 
-- **Measurement before interpretation.** A number is not a measurement until the acquisition path
-  that produced it has been checked. ECGDex's `estimatedAHI` was withdrawn in v2.0.0, not relabelled:
+- **Measurement before interpretation.** A number is not a measurement until someone checks the
+  acquisition path that produced it. ECGDex's `estimatedAHI` was withdrawn in v2.0.0, not relabelled:
   it correlated with device-scored AHI at r = −0.151.
 - **Time is a measurement.** Two devices reporting milliseconds need not share one. The Clock Contract
   puts every stream on a floating wall-clock axis, reconciles device crystals against the capture
   host with a running median that refuses rather than guesses, and names a drawn axis as drawn.
 - **Agreement is not confirmation.** Two sensors agreeing is evidence only if they are independent;
-  whether a recording holds a second clock at all is decided by the spread of residuals, not by a rate.
-- **The gates are tested too.** `tools/mutate.mjs` and the Python mutation gate break the code on
-  purpose and report what the suite fails to notice; surviving mutants are ledgered with the probe
-  that excused them, never waved through.
+  the spread of residuals, not a rate, decides whether a recording holds a second clock at all.
+- **The suite tests the gates too.** `tools/mutate.mjs` and the Python mutation gate break the code on
+  purpose and report what the suite fails to notice; the ledger records each surviving mutant with
+  the probe that excused it, and never waves one through.
 
 **In `2.17.0` (2026-09-27 → 2026-10-05, 125 commits, 99 changesets).** The capture lane learned to
 judge a night on its own: the loss audit got its bar, SOLID-NIGHT its tripwire for unrecorded clock
@@ -159,7 +159,7 @@ Codex as a second opinion under mechanical verification. Full history in the **[
 
 ## Suite at a glance
 
-**Suite version:** 2.18.0 &nbsp;—&nbsp; **44** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
+**Suite version:** 2.19.0 &nbsp;—&nbsp; **45** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
 
 Every one of the **23 working preprints** in [`papers/`](papers/papers.html) regenerates from the live
 tool behind it. The methods overview is [`Science.html`](Science.html); the system design is
@@ -209,7 +209,10 @@ Tepna stands on others' documented work: [nglessner/o2ring-s-protocol](https://g
 descending from [osresearch/airbreak](https://github.com/osresearch/airbreak) (the CPAP protocol),
 [Polar Sensor Logger](https://play.google.com/store/apps/details?id=com.j_ware.polarsensorlogger) by j-ware,
 and the open-source foundations the capture lane leans on: [bleak](https://github.com/hbldh/bleak),
-[mutmut](https://github.com/boxed/mutmut), chrony. Built in the open with
+[mutmut](https://github.com/boxed/mutmut), chrony.
+[Development tools (not shipped)](THIRD-PARTY.md#development-tools-not-shipped)
+names every tool this repo builds, checks and searches with, gives each one's
+licence, and shows that none of them reaches a bundle. Built in the open with
 [![Built with Claude Code](https://img.shields.io/badge/built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)](https://claude.com/claude-code).
 
 ## Licensing

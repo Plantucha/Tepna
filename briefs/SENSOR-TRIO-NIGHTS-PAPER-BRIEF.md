@@ -616,7 +616,7 @@ The derivation holds to floating point. **The prediction it makes, however, is f
 > | h10 | CLAIM tch3LhsH10 = 0.014019917 FROM analysis/published-numbers/tch-pooled-hat-2026-10-03.json#claims/lhsH10 | CLAIM tch3GapH10 = 0.014019917 FROM analysis/published-numbers/tch-pooled-hat-2026-10-03.json#claims/gapH10 | 4.7e-16 |
 > | verity | CLAIM tch3LhsVerity = 0.000163184 FROM analysis/published-numbers/tch-pooled-hat-2026-10-03.json#claims/lhsVerity | CLAIM tch3GapVerity = 0.000163184 FROM analysis/published-numbers/tch-pooled-hat-2026-10-03.json#claims/gapVerity | 5.5e-16 |
 > | o2 | CLAIM tch3LhsO2 = 0.023873666 FROM analysis/published-numbers/tch-pooled-hat-2026-10-03.json#claims/lhsO2 | CLAIM tch3GapO2 = 0.023873666 FROM analysis/published-numbers/tch-pooled-hat-2026-10-03.json#claims/gapO2 | 1.2e-15 |
-> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=6f6b14e7bcd4 output=75759356c807 generated=2026-10-03 -->
+> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=6f6b14e7bcd4 output=75759356c807 generated=2026-10-03 -->
 >
 > **What moved, and the one corner where it matters.** h10 +2.1 % (0.013725969 → 0.014019917), o2 +0.9 %
 > (0.023664828 → 0.023873666), and **verity −44.7 % (0.000295251 → 0.000163184)**. The between-night SHARES
@@ -635,6 +635,48 @@ The derivation holds to floating point. **The prediction it makes, however, is f
 > The producer was re-run and the record re-cut; neither digest was hand-edited.
 > `tch-pooled-hat-2026-10-03.json` supersedes the 09-29 record as that one superseded 09-22.
 >
+>
+> ⚠️ **2026-10-12: this stamp was DEMOTED from clearable to recorded-only** — `inputs=uploads/trio
+> inputsDigest=6f6b14e7bcd4` became `inputs=6f6b14e7bcd4`. The 2026-10-12 re-fold replaced every tracked
+> file under `uploads/trio` again, so the corpus this table was cut from no longer exists in the tree and
+> the recomputed digest reads `5390791458eb`. The digest is kept as the RECORDED value it always was and
+> the clearable stamp moves to the block below. This is the second demotion of the same shape; the 10-03
+> note above gives the reason and it has not changed. The table text is untouched; `output` did not move.
+>
+> ### ⚠️ RE-DERIVED 2026-10-12 — the SAME 90 nights, re-folded under the null-blind closure; the population did NOT change, so every number below is the fold
+> The 2026-10-12 re-fold carries #3506's §∅ fix: five OxyDex consumers stopped summing a carried `null`
+> as `0`. It rewrote `uploads/trio` under closure `54df21a0a400403d`: the **same 658 tracked files and the
+> same 90 usable nights**
+> (CLAIM tch4NightsUsed = 90 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/nightsUsed),
+> digest `6f6b14e7bcd4` → `5390791458eb`, CLAIM tch4PooledSeconds = 1510146 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/pooledSeconds pooled seconds (was 1,510,244 — **−98, 0.0065 %**).
+> The night set is identical in membership to the 10-03 block's, so the movement is the closure fix and
+> nothing else.
+>
+> | corner | σ²_pooled − σ²_weighted | ½(B_AB + B_AC − B_BC) | \|Δ\| |
+> |---|---|---|---|
+> | h10 | CLAIM tch4LhsH10 = 0.014025171 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/lhsH10 | CLAIM tch4GapH10 = 0.014025171 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/gapH10 | 6.0e-16 |
+> | verity | CLAIM tch4LhsVerity = 0.000159799 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/lhsVerity | CLAIM tch4GapVerity = 0.000159799 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/gapVerity | 2.9e-16 |
+> | o2 | CLAIM tch4LhsO2 = 0.023737541 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/lhsO2 | CLAIM tch4GapO2 = 0.023737541 FROM analysis/published-numbers/tch-pooled-hat-2026-10-12.json#claims/gapO2 | 1.7e-15 |
+> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=5390791458eb output=b214f558d44e generated=2026-10-12 -->
+>
+> **What moved.** h10 +0.04 % (0.014019917 → 0.014025171), o2 −0.57 % (0.023873666 → 0.023737541), and
+> verity −2.07 % (0.000163184 → 0.000159799). The between-night SHARES (B/within) are **0.395 / 0.272 /
+> 0.175 %** against the recorded 0.19–0.46 %, so every corner stays inside the range and §11's refutation
+> holds. Identity holds to 1.7e-15 on all three corners. The three `medianSigma` values do not move at
+> all to six decimals (0.773566 / 0.929767 / 3.329850), which is the strongest statement here: the fix
+> changed what the corpus reports in 21 slots and left the σ estimates where they were.
+>
+> **The H10↔Verity within-night term came back down: 3.609066 → 3.587244, −0.60 %**, against H10↔O2Ring
+> −0.13 % and Verity↔O2Ring −0.04 %. The 10-03 block logged that pair's +17.2 % as its honest cost and
+> left the mechanism unestablished. This re-fold does not settle it: a −0.60 % move is not the inverse of
+> a +17.2 % one, so that residue stands as written.
+>
+> **What this block does NOT claim.** The §∅ fix changed OxyDex consumers, so the O2Ring corner is where
+> a change was expected, and it moved 0.57 %. Why the Verity corner moved 2.07 % is NOT established here.
+> Both corners sit far inside the recorded share range, so no conclusion in §11 turns on either.
+>
+> The producer was re-run and the record re-cut; neither digest was hand-edited.
+> `tch-pooled-hat-2026-10-12.json` supersedes the 10-03 record as that one superseded 09-29.
 >
 ### ❌ B is 0.1 % — the mechanism I pre-registered does NOT explain the spread
 

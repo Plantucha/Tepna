@@ -1,6 +1,48 @@
 {
   "schema": "tepna.verdict-adoption/1",
   "enumeratedWith": "git grep -lE <WORDS> -- tools/*.mjs capture-host/*.py (tools non-recursive)",
+  "contributions": {
+    "enumeratedFrom": "briefs/VERDICT-CONTRIBUTIONS-2026-10-04-BRIEF.md §2",
+    "figures": {
+      "hat per-site σ (classic and drift-removed)": {
+        "file": "analysis-stats.js",
+        "method": "analytic",
+        "status": "adopted",
+        "since": "2026-10-12",
+        "emits": {
+          "cmd": [
+            "node",
+            "tools/pat-three-corner.mjs",
+            "--verdict-sample"
+          ]
+        }
+      },
+      "SOLID-NIGHT night verdict": {
+        "file": "capture-host/solid_night.py",
+        "method": "decomposition",
+        "status": "pending",
+        "since": "2026-10-12"
+      },
+      "LOSS verdict `worn_not_recorded_fraction`": {
+        "file": "capture-host/loss_audit.py",
+        "method": "decomposition",
+        "status": "pending",
+        "since": "2026-10-12"
+      },
+      "trio pooled hat §11 (`tch-pooled-hat-*.json`)": {
+        "file": "tools/trio-batch.mjs",
+        "method": "leave-one-out",
+        "status": "pending",
+        "since": "2026-10-12"
+      },
+      "Integrator fused sleep summary": {
+        "file": "integrator-dsp.js",
+        "method": "leave-one-out",
+        "status": "pending",
+        "since": "2026-10-12"
+      }
+    }
+  },
   "producers": {
     "capture-host/adapter_hci.py": {
       "bin": "decides",
@@ -1325,6 +1367,18 @@
       },
       "note": "PAT-ROOT-CAUSE-FORENSICS §14 — is the leftover 20–40 ms ERROR or SIGNAL? The tool decides per night against its OWN pre-stated band (rho1 >= BAND_STRUCTURED 0.30) and printed a TALLY; the row's previous reason was copy-pasted and false. ⚠️ PASS/FAIL name CRITERION SATISFACTION, not goodness, and here they invert instinct: STRUCTURED means the residual is physiological PAT variation, UNSTRUCTURED means the budget has a hole. Adoption also forced the population to be honest — five bare `continue`s dropped a night out of the TALLY with no record, so `excluded` is now a NAMED skip census and checked + excluded = eligible. Found by residue 2026-09-22-word-only-claims-go-stale."
     },
+    "tools/pat-three-corner.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pat-three-corner.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "VERDICT-CONTRIBUTIONS-2026-10-04 §2 row 1, the closed-form half: the CLASSIC three-cornered hat (rho = 0) over the three PAT legs emits one object carrying the `contributions` block for one corner — each leg's signed partial of ½(V_ab + V_ac − V_bc), its share of Σ|delta|, and the dominant leg. UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs: a per-site sigma has no pre-stated band. The contract carries ONE block per object, so `--corner` names the corner and the default `auto` takes the REFUSED one (at most one corner can be negative). The variances attributed are the ones the tool PRINTS — (median within-window IQR / 1.349)² — so the kernel is reached through patHatContributionsFromVars, never patHatContributions, which would re-estimate the legs from the windows. `--verdict-sample` plants 49 synthetic windows per leg (median IQR 20 / 30 / 60 ms, chosen to refuse the chest corner), reads no corpus, names no night, and carries a fixed `at`; prose goes to stderr so stdout is the object alone. The correlated solve stays unattributed — residue 2026-10-12-hat-contribution-row-names-a-solve-with-no-closed-form."
+    },
     "tools/pat-window-oracle.mjs": {
       "bin": "decides",
       "status": "adopted",
@@ -1587,6 +1641,18 @@
         ]
       },
       "note": "residue 2026-09-06-t-stuck-validated-on-ring-only: does writers.T_STUCK = 200 SAMPLES transfer to the four streams RUN_MIN_BY_STREAM extends it to? Criterion pre-registered in the tool header before any stream was read - a bracketed multiplicative gap of >= 4x above p99.99 containing 200. The per-channel words (HOLD/FAIL-LOW/FAIL-HIGH/NO GAP/NOT-EXERCISED) are the tool's own reading and live in result; the contract's closed vocabulary is reached by an explicit map, precedence FAIL > UNKNOWN > UNDERPOWERED > PASS, never a vote. NOT-EXERCISED maps to UNKNOWN and not NOT_APPLICABLE: the contract refused that on the first attempt because NOT_APPLICABLE must carry result: null, and here the result (550M samples, p99.99, N = 0) IS the finding. Population = channel-reports; checked = those the criterion bound on."
+    },
+    "tools/tch-degeneracy-d7.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/tch-degeneracy-d7.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "D7 (TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12-BRIEF §4): three verdicts per run, one per pre-stated measurement — M1 which corner carries the fused hat's negative variances (criterion: the O2Ring corner holds >= 0.75 of them, §4's own 9-of-12 carried as a share because the corpus grew from 118 night dirs to 147), M2 whether one common weight t*cH*cV*cO removes them, M3 whether the pairwise-rho hat resolves what M2 leaves. Thresholds come from the brief, written before any of the three ran on these nights. NOT_APPLICABLE when a measurement's population is empty (no negative night for M1, none left for M3) and result is null there, per the contract. --verdict-sample prints M1 alone over a planted anti-correlated pair with a known negative corner; --selftest runs 39 planted assertions including the half-sum inversion and the published P=0.088 of TRIO-ARTIFACT-GATE-AND-N15-POWER §6.2. Calls the production tchSigmasFused for every column and re-implements no estimator."
     },
     "tools/tch-degeneracy-stats.mjs": {
       "bin": "word-only",
