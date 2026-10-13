@@ -39,7 +39,13 @@ jobs:
   diff:
     name: Mutate only the JS lines this PR changed
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # 25 → 45 by the owner's call, 2026-10-12. NOT a p95 re-derivation: the job hit the old cap three
+    # times running on #3314 — run 37363987960 attempt 3 spent 25m13s and all three attempts report
+    # `cancelled`, which reads in `gh pr checks` exactly like an Actions-incident cancellation. Which
+    # pass spends the budget is still unmeasured, so a wider cap buys the job room to finish and says
+    # nothing about why it needed the room. The residue row keeps that measurement owed:
+    # 2026-10-05-the-js-mutation-job-cannot-finish-on-the-pr-that-makes-its-own-target-fast
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:

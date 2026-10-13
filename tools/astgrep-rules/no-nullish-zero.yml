@@ -1,0 +1,21 @@
+# tepna — ast-grep rule
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+id: no-nullish-zero
+language: js
+severity: error
+message: "`?? 0` turns an absent value into a number — absence is `null` (CLAUDE.md §∅)"
+note: |
+  §∅ ABSENCE IS NULL. `?? 0` fires exactly when the left side is `null` or `undefined`, so it is the
+  one operator that cannot be anything but an absence default. A `0` published that way is
+  indistinguishable from a measured zero, which is a legal reading everywhere in this suite: SpO2
+  never reads 0 but an ECG sample crosses it and an accelerometer axis rests there.
+
+  A DISPLAY BOUND IS NOT A MEASUREMENT. A chart viewport default (`opts.ymn ?? 0`) draws an axis and
+  publishes nothing, so it is allow-listed by site with that reason rather than rewritten. `|| 0` is
+  deliberately NOT this rule: it also fires on a measured zero and on an empty string, so its hits
+  are a different question, and `tools/absence-regression.mjs` already gates the `tMs: … || 0` case
+  on the diff.
+rule:
+  any:
+    - pattern: $A ?? 0
+    - pattern: $A ?? 0.0

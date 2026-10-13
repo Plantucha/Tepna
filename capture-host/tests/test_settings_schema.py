@@ -164,7 +164,7 @@ def test_every_declared_default_is_a_valid_value_for_its_own_setting():
 
 
 # How many schema defaults the source scan can currently reach and verify. See the equality below.
-SOURCE_CHECKED_PATHS = 16  # 11 before heap_probe's five keys joined (#2999); see the equality below
+SOURCE_CHECKED_PATHS = 17  # 11 before heap_probe's five (#2999), +1 for mem.log_sec; see the equality below
 
 
 def _cfg_section_of(node):
