@@ -3018,7 +3018,23 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   // SpO2 dip and recovery slopes + MODL + desaturation clustering
   // Builds nadir events inline (same ODI-4 rolling-window logic as computeSpO2Advanced)
-  function computeDesatSlopes(rows, blArr) {
+  /* ── THE ODI CRITERION, RESOLVED IN ONE PLACE (residue 2026-09-13-odi-threshold-has-no-injection-point)
+     `DexKernel.K` is FROZEN and stays frozen: assigning `K.ODI_DROP` throws, which is right for a clinical
+     constant nobody should retune by accident. What was missing was a way to ASK for another criterion
+     without editing source, so no tool could measure the SHIPPED index — the one `processNight` publishes,
+     after gating, artifact handling and its own denominator — under an alternative threshold. Measured over
+     99 SHHS1 records: the raw detector at the shipped parameter values gives a median 9.12 events/h against
+     the 2.70 `processNight` publishes, a 3.38x gap, so a sweep over `detectDesatEvents` is not a sweep of the
+     shipped index and must never be quoted as one.
+     Every helper in the ODI family now takes the criterion as its LAST, OPTIONAL argument. Absent (or null)
+     means the frozen kernel constant, so a call written before the argument existed computes exactly what it
+     computed before — that is what keeps the committed fixtures byte-identical. The VALIDATION lives in
+     `processNight` (the public entry), not here: a helper called directly is the caller's own business. */
+  function _odiDropOf(v) {
+    return v == null ? DexKernel.K.ODI_DROP : v;
+  }
+
+  function computeDesatSlopes(rows, blArr, odiDrop) {
     var n = rows.length;
     if (n < 60) return null;
     var spo2 = rows.map(function (r) {
@@ -3029,7 +3045,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // anti-chatter HYSTERESIS close (no exitPct) — the SATELLITE set (slopes/MODL/clustering); chatter-
     // merging is desirable here, so this is intentionally NOT event-for-event with the simple-close
     // headline ODI-4 count. §1: shared p90-ceiling blArr threaded (bit-identical, one walk not many).
-    var events = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var events = detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), blArr: blArr });
 
     if (!events.length)
       return {
@@ -3492,7 +3508,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // ═══════════════════════════════════════════════════════════════
   // v20.3: TIER 2 — Rolling Window Metrics (8 metrics)
   // ═══════════════════════════════════════════════════════════════
-  function computeRollingMetrics(rows, desat, comp, blArr) {
+  function computeRollingMetrics(rows, desat, comp, blArr, odiDrop) {
     var n = rows.length;
     if (n < 600) return null;
     var spo2 = rows.map(function (r) {
@@ -3582,7 +3598,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // the pre-unification separate loop. postDipDeltas.length below is the real gate, and it scores the
     // SET THIS USES (ODI-4 entry + anti-chatter HYSTERESIS close — §3 satellite set), not the simple-
     // close self-gated nadir.count. §1: shared p90-ceiling blArr threaded. DEX-EVENT-UNIFY-FOLLOWUPS-II.
-    detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, blArr: blArr }).forEach(function (e) {
+    detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), blArr: blArr }).forEach(function (e) {
       var postIdx = Math.min(n - 1, e.nadirIdx + 60);
       if (postIdx < n && e.nadirIdx < n) postDipDeltas.push(hr[postIdx] - hr[e.nadirIdx]);
     });
@@ -4293,7 +4309,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   }
 
   // Breathing Irregularity — CV of inter-nadir intervals
-  function computeBreathingIrregularity(desat, rows, blArr) {
+  function computeBreathingIrregularity(desat, rows, blArr, odiDrop) {
     if (!rows || rows.length < 60) return null;
     var spo2 = rows.map(function (r) {
       return r.spo2;
@@ -4302,7 +4318,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // self-gated nadir.count, a DIFFERENT set than the hysteresis-close inter-nadir set scored here;
     // the `nadirTimes.length < 3` check below is the real gate, on the SET THIS USES. §3 close-mode:
     // ODI-4 entry + anti-chatter HYSTERESIS close (satellite set). §1: shared p90-ceiling blArr threaded.
-    var nadirTimes = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
+    var nadirTimes = detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), blArr: blArr }).map(function (e) {
       return e.nadirIdx;
     });
     if (nadirTimes.length < 3) return null;
@@ -4700,7 +4716,36 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
      pre-call array, keep your own copy; if you read `rows` after the call, you are reading the night as
      the detector saw it, which is the right population to pair with the verdicts (pb-operating-point
      does exactly that, and says so). */
-  function processNight(rows, fname) {
+  function processNight(rows, fname, params) {
+    /* THE ODI CRITERION INJECTION POINT (residue 2026-09-13-odi-threshold-has-no-injection-point).
+       `params` is OPTIONAL and LAST, so every call written before it existed is unchanged — and with it
+       absent the resolved criterion IS `DexKernel.K.ODI_DROP`, read here and threaded from this one site,
+       so the published night is byte-identical. `K` is not unfrozen and nothing writes to it.
+       It FAILS CLOSED in two directions, because a criterion that silently falls back is worse than none:
+       a `dropPct` that is present but not a finite positive number REFUSES (a caller asking for a
+       criterion must never be handed the default under its own name), and an unknown key REFUSES (a sweep
+       passing `minSec` would otherwise read as honoured while the detector ignored it).
+       One override, one coherent night: the criterion reaches EVERY ODI-family helper this function calls
+       (slopes, rolling, breathing irregularity, desat profile, advanced, SBII, severity), not just the
+       headline, because an ODI-4 computed at 3 % beside a severity family still at 4 % is a night no
+       reader could interpret. `odi3` keeps its literal 3 % — it is its own named index, not this
+       criterion — so an override of 3 makes the two agree by arithmetic, which `odiCriterion` records. */
+    var odiDrop = DexKernel.K.ODI_DROP;
+    if (params != null) {
+      var _okKeys = { dropPct: 1 };
+      for (var _k in params) {
+        if (Object.prototype.hasOwnProperty.call(params, _k) && !_okKeys[_k]) {
+          throw new Error('processNight: unknown params key "' + _k + '" — the only override is dropPct');
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(params, 'dropPct') && params.dropPct != null) {
+        if (typeof params.dropPct !== 'number' || !isFinite(params.dropPct) || params.dropPct <= 0) {
+          throw new Error('processNight: params.dropPct must be a finite number > 0, got ' + String(params.dropPct));
+        }
+        odiDrop = params.dropPct;
+      }
+    }
+    var _odiOverridden = odiDrop !== DexKernel.K.ODI_DROP;
     var warmupTrim = trimSensorWarmup(rows); // FIRST — drop device warm-up/cool-down placeholder edge rows (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2)
     var artifactsCleaned = cleanArtifactHR(rows); // then clean HR before any analysis
     var date = rows.length ? fmtDate(rows[0].t) : 'Unknown';
@@ -4756,7 +4801,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        `stats.n` for duration and coverage. */
     var _measuredN = 0;
     for (var _mi = 0; _mi < rows.length; _mi++) if (rows[_mi].spo2 != null && isFinite(rows[_mi].spo2)) _measuredN++;
-    var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, _measuredN, blArr);
+    var odi4 = detectODI(spo2s, odiDrop, _measuredN, blArr);
     var odi3 = detectODI(spo2s, 3, _measuredN, blArr, pulseSeries);
     var hb = computeHypoxicBurden(rows);
     /* NO MOTION READING ANYWHERE ⇒ THE MOTION FAMILY IS ABSENT, NOT ZERO (DA-V §2.3 F15).
@@ -4773,7 +4818,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var _motionUnusable = _motionAbsent || _motionStuck === true;
     var motion = _motionUnusable ? null : computeMotionProfile(rows);
     var durationHr = /** @type {number} */ (stats.durationMin) / 60;
-    var desat = computeDesaturationProfile(rows, tIdx, odi4, blArr);
+    var desat = computeDesaturationProfile(rows, tIdx, odi4, blArr, odiDrop);
     // OXIMETER SELF-GATE (Part A): exclude self-gated artifact desaturations from
     // the ODI-4 rate. The desat profile and the ODI counter share the same
     // inclusive bl-ODI_DROP entry, so each flagged artifact corresponds to one
@@ -4852,19 +4897,19 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        known. `stab` has no other consumer before `buildFlags` below, so nothing else moves. */
     var stab = computeSleepStabilityScore(stats, hrv, osc, hb);
     var cross = computeCrossSignal(rows, osc, spikes, odi4, durationHr);
-    var spo2Adv = computeSpO2Advanced(rows, blArr); // nadir events computed inline
+    var spo2Adv = computeSpO2Advanced(rows, blArr, odiDrop); // nadir events computed inline
     var hrAdv = computeHRAdvanced(rows, osc);
     var comp = computeComposite(rows, spikes, desat, cross, motSleep, durationHr);
     // v20: literature-validated metrics
     // §2.1/§2.2 — both score the ARTIFACT-GATED canonical desat set (`desat.events`), so the
     // self-gate exclusion already applied to ODI-4 above is inherited instead of re-derived.
-    var sbii = computeSBII(rows, desat, durationHr, blArr);
+    var sbii = computeSBII(rows, desat, durationHr, blArr, odiDrop);
     var pred3p = computePRED3p(rows, null, blArr);
-    var desSev = computeDesSev(rows, blArr, desat);
+    var desSev = computeDesSev(rows, blArr, desat, odiDrop);
     var ctPrec = computeCTprecise(rows);
     // v20.2: 15 new metrics
     var ct94 = computeCT94(rows);
-    var slopes = computeDesatSlopes(rows, blArr);
+    var slopes = computeDesatSlopes(rows, blArr, odiDrop);
     var pbMet = computePBmetrics(rows, osc);
     var sleepArch = computeSleepArch(rows);
     /* `wasoMin` is a MOTION metric wearing a sleep-architecture name — it counts `r.motion > 0` after
@@ -4905,7 +4950,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        can still tell "this oximeter has no accelerometer" from "the writer emitted a stuck column".
        Conditional assignment, like its siblings: a healthy night's export stays byte-identical. */
     if (_motionUnusable && extras) extras.motionBursts = /** @type {any} */ (null);
-    var rolling = computeRollingMetrics(rows, desat, comp, blArr);
+    var rolling = computeRollingMetrics(rows, desat, comp, blArr, odiDrop);
     /* 🔴 §∅: `intraNightNSI` AVERAGES THREE COMPONENTS, one of them `min(1, segMot / 30)` over
        `r.motion > 0` — and `null > 0` is FALSE, so a night with no accelerometer scored as a night
        measured and found perfectly still. Measured on three nights identical but for the motion
@@ -4933,7 +4978,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var vagal = computeVagalIndex(hrv, extras);
     var recIdx = computeRecoveryIndex(slopes);
     var sleepP = computeSleepPressure(sleepArch, extras);
-    var breathI = computeBreathingIrregularity(desat, rows, blArr);
+    var breathI = computeBreathingIrregularity(desat, rows, blArr, odiDrop);
     var oxyCrash = computeOxyCrash(rows);
     var hrnDip = computeHRNoctDip(hrv, stats);
     var desatAsym = computeDesatAsymmetry(slopes);
@@ -5134,6 +5179,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       }
     }
     night_obj.summary = computeSmartSummary(night_obj);
+    /* THE CRITERION TRAVELS WITH THE NUMBER — but only when it is not the shipped one. `stats` and this
+       object are serialized WHOLESALE into the export, so an always-present `odiCriterion` would move
+       EVERY night's export bytes, including the committed provenance fixtures (the same reason
+       `sensorWarmupTrimmed` is attached conditionally, a few hundred lines up). Absent therefore means
+       "the frozen kernel constant", which is what every export in the corpus already means; present means
+       a reader must not compare this night's ODI with a default-criterion one. */
+    if (_odiOverridden) night_obj.odiCriterion = { dropPct: odiDrop, kernelDefault: DexKernel.K.ODI_DROP };
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: deterministic, identity-free recording handle.
     // processNight is the ONE site BOTH the app (exportJSON→allNights→oxyBuildNightElement) AND
     // the headless OxyDex.compute path reach, so the id is single-sourced and can't drift between
@@ -6335,7 +6387,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   }
 
   // 1. DESATURATION PROFILE — 8 SpO2-derived metrics
-  function computeDesaturationProfile(rows, tIdx, odi4, blArr) {
+  function computeDesaturationProfile(rows, tIdx, odi4, blArr, odiDrop) {
     // §∅: the measured series — absences are null, and every aggregate below
     // skips them explicitly (null is not 0).
     var spo2 = measuredSpO2(rows);
@@ -6411,7 +6463,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // ODI-4 (detectODI) — nadir.count now agrees with ODI-4 by construction instead of
     // drifting on a private trailing-MEAN loop. The recovery look-forward (secs back to the
     // onset baseline − 1) + the oximeter self-gate are preserved on top of the shared set.
-    var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
+    var nadirEvents = detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), exitPct: _odiDropOf(odiDrop), blArr: blArr }).map(function (e) {
       /* §∅ — AN IN-BAND SENTINEL THE FILE ITSELF READS TWO OPPOSITE WAYS. When the look-forward
          window expires without SpO2 returning to baseline-1, recovery was NOT OBSERVED — but `0`
          is a legal recovery time, so `meanRecovery` averaged it in as "recovered instantly" (and
@@ -6832,7 +6884,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // ═══════════════════════════════════════════
 
   // 5. Extended SpO2 metrics (WtDSI, IQR, conditional mean, nadir histogram)
-  function computeSpO2Advanced(rows, blArr) {
+  function computeSpO2Advanced(rows, blArr, odiDrop) {
     // §∅: measured series — absences are null, skipped explicitly below
     var spo2 = measuredSpO2(rows);
     var n = spo2.length,
@@ -6850,7 +6902,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // `nadir` is the ABSOLUTE SpO₂ floor of the event and is carried because nadirBins is keyed by
     // absolute level (above91/b90_91/…). It used to be dropped here, which forced the histogram to
     // bin on `depth` under absolute-level key names — see the nadirBins comment below.
-    var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
+    var nadirEvents = detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), blArr: blArr }).map(function (e) {
       return { depth: e.depth, duration: e.durationSec, nadir: e.nadir };
     });
 
@@ -7920,38 +7972,50 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   function computeSpO2Shape(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var s = rows.map(function (r) {
-      return r.spo2;
-    });
+    // §∅: every moment here is a sum, and `a + null` is a — so an absent second
+    // enters the distribution as 0 % saturation and drags the mean, the SD, the
+    // skew and the kurtosis with it. Ten absent seconds in a clean night moved
+    // the kurtosis from 6.6 to 1655 and flipped the label to "Leptokurtic".
+    var s = [];
+    for (var si = 0; si < n; si++) {
+      var sv = rows[si].spo2;
+      if (sv != null && isFinite(sv)) s.push(sv);
+    }
+    var m = s.length;
+    if (m < 60) return null;
     var mean =
       s.reduce(function (a, b) {
         return a + b;
-      }, 0) / n;
+      }, 0) / m;
     var m2 = 0,
       m3 = 0,
       m4 = 0;
-    for (var i = 0; i < n; i++) {
+    for (var i = 0; i < m; i++) {
       var d = s[i] - mean;
       m2 += d * d;
       m3 += d * d * d;
       m4 += d * d * d * d;
     }
-    m2 /= n;
-    m3 /= n;
-    m4 /= n;
+    m2 /= m;
+    m3 /= m;
+    m4 /= m;
     var sd = Math.sqrt(m2);
     if (sd === 0) return null;
     var skew = +(m3 / (sd * sd * sd)).toFixed(3);
     var kurt = +(m4 / (m2 * m2)).toFixed(3); // excess kurtosis = kurt - 3
     var excessKurt = +(kurt - 3).toFixed(3);
     return {
-      spo2Mean: isFinite(mean) ? +mean.toFixed(2) : 0,
-      spo2SD: isFinite(sd) ? +sd.toFixed(2) : 0,
+      // §∅: an unmeasurable mean is null, never a 0 % saturation
+      spo2Mean: isFinite(mean) ? +mean.toFixed(2) : null,
+      spo2SD: isFinite(sd) ? +sd.toFixed(2) : null,
       spo2Skew: skew,
       spo2Kurt: kurt,
       spo2ExcessKurt: excessKurt,
       spo2SkewLabel: skew < -0.5 ? 'Left-skewed (hypox burden)' : skew > 0.5 ? 'Right-skewed' : 'Near-symmetric',
-      spo2KurtLabel: excessKurt > 2 ? 'Leptokurtic (heavy tails/events)' : excessKurt < 0 ? 'Platykurtic' : 'Normal-ish'
+      spo2KurtLabel: excessKurt > 2 ? 'Leptokurtic (heavy tails/events)' : excessKurt < 0 ? 'Platykurtic' : 'Normal-ish',
+      // §∅: coverage beside the value — the shape is over measured seconds only
+      nMeasured: m,
+      nTotal: n
     };
   }
 
@@ -7959,22 +8023,38 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   function computeHRCV(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var hr = rows.map(function (r) {
-      return r.hr;
-    });
+    // §∅: `a + null` is a, so an absent second reads as 0 bpm — it lowers the mean
+    // and inflates the SD, and the coefficient of variation is their ratio, so a
+    // dropout alone can carry the night from "Low" to "High variability".
+    var hr = [];
+    for (var hi = 0; hi < n; hi++) {
+      var hv = rows[hi].hr;
+      if (hv != null && isFinite(hv)) hr.push(hv);
+    }
+    var m = hr.length;
+    if (m < 60) return null;
     var mean =
       hr.reduce(function (a, b) {
         return a + b;
-      }, 0) / n;
-    if (mean === 0) return null;
+      }, 0) / m;
+    if (!mean || mean <= 0) return null;
     var sd = Math.sqrt(
       hr.reduce(function (a, b) {
         return a + (b - mean) * (b - mean);
-      }, 0) / n
+      }, 0) / m
     );
-    if (!mean || mean <= 0) return null;
-    var cv = isFinite(sd / mean) ? +((sd / mean) * 100).toFixed(2) : 0;
-    return { hrCV: cv, hrCVmean: +mean.toFixed(1), hrCVsd: +sd.toFixed(2), hrCVlabel: cv > 12 ? 'High variability' : cv > 6 ? 'Moderate' : 'Low (<6%)' };
+    // §∅: an unmeasurable ratio is null, never a 0 % coefficient
+    var cv = isFinite(sd / mean) ? +((sd / mean) * 100).toFixed(2) : null;
+    if (cv === null) return null;
+    return {
+      hrCV: cv,
+      hrCVmean: +mean.toFixed(1),
+      hrCVsd: +sd.toFixed(2),
+      hrCVlabel: cv > 12 ? 'High variability' : cv > 6 ? 'Moderate' : 'Low (<6%)',
+      // §∅: coverage beside the value — the CV is over measured seconds only
+      nMeasured: m,
+      nTotal: n
+    };
   }
 
   // ── 5. Hypoxic Dose + Desaturation AUC ────────────────────────────
@@ -8106,9 +8186,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   function computePoincareSD(rows) {
     var n = rows.length;
     if (n < 120) return null;
+    // §∅: the motion filter already made this array non-contiguous, so dropping the
+    // absent beats changes nothing about contiguity — it only stops `a + null` and
+    // `hr[i + 1] - null` from reading an unmeasured second as 0 bpm, which lands in
+    // SD2 as a ~60 bpm excursion and in SD1 as a step of the same size.
     var hr = rows
       .filter(function (r) {
-        return r.motion === 0;
+        return r.motion === 0 && r.hr != null && isFinite(r.hr);
       })
       .map(function (r) {
         return r.hr;
@@ -8140,7 +8224,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       sd1sd2Ratio: ratio,
       // 1Hz proxy thresholds in bpm (not ms); sd1≈RMSSD/√2 ≈ 0.3-0.6 bpm typical
       sd1Label: sd1 < 0.4 ? 'Low (1Hz proxy)' : sd1 > 1.0 ? 'High (1Hz proxy)' : 'Normal (1Hz proxy)',
-      sd2Label: sd2 < 2 ? 'Low sympathetic modulation (1Hz proxy)' : 'Normal (1Hz proxy)'
+      sd2Label: sd2 < 2 ? 'Low sympathetic modulation (1Hz proxy)' : 'Normal (1Hz proxy)',
+      // §∅: coverage beside the value — the pair is over measured still seconds only
+      nMeasured: m,
+      nTotal: n
     };
   }
 
@@ -8199,16 +8286,31 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       return r.motion > 0;
     });
     if (!still.length) return null;
+    // §∅: the two filters read the MOTION channel, and the sums then read SpO2 — a
+    // second that was still but unmeasured entered its mean as 0 %. Absence is not
+    // distributed evenly between rest and movement, so the DELTA moved too, and the
+    // delta is what the label calls an apnea pattern.
+    function _measured(src_) {
+      var out = [];
+      for (var i = 0; i < src_.length; i++) {
+        var v = src_[i].spo2;
+        if (v != null && isFinite(v)) out.push(v);
+      }
+      return out;
+    }
+    var stillV = _measured(still);
+    var movingV = _measured(moving);
+    if (!stillV.length) return null;
     var meanStill = +(
-      still.reduce(function (a, r) {
-        return a + r.spo2;
-      }, 0) / still.length
+      stillV.reduce(function (a, v) {
+        return a + v;
+      }, 0) / stillV.length
     ).toFixed(2);
-    var meanMoving = moving.length
+    var meanMoving = movingV.length
       ? +(
-          moving.reduce(function (a, r) {
-            return a + r.spo2;
-          }, 0) / moving.length
+          movingV.reduce(function (a, v) {
+            return a + v;
+          }, 0) / movingV.length
         ).toFixed(2)
       : null;
     var delta = meanMoving !== null ? +(meanStill - meanMoving).toFixed(2) : null;
@@ -8216,7 +8318,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       spo2StillMean: meanStill,
       spo2MovingMean: meanMoving,
       spo2MotionDelta: delta,
+      // stillPct reads the motion channel, so its denominator stays the whole recording
       stillPct: +((still.length / n) * 100).toFixed(1),
+      // §∅: coverage beside each mean — how many of those seconds carried a reading
+      nStillMeasured: stillV.length,
+      nStillTotal: still.length,
+      nMovingMeasured: movingV.length,
+      nMovingTotal: moving.length,
       // delta = stillMean - movingMean: positive → rest has higher SpO2 → motion creates artifact
       motionArtifactLabel:
         delta !== null && delta > 1 ? 'Motion artifact likely (SpO2 lower during movement)' : delta !== null && delta < -1 ? 'True apnea pattern (SpO2 worse at rest)' : 'No significant difference'
@@ -9009,7 +9117,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // SBII (Sleep Breathing Impairment Index) — Hui 2024, best predictor CVD mortality
   // Formula: Σ(D_i² × T_i_min) / TRT_hr  [%²·min/hr] — each event contributes depth² × duration
   // nadir events computed inline from ODI-4 rolling baseline; result normalized per hour
-  function computeSBII(rows, desat, durationHr, blArr) {
+  function computeSBII(rows, desat, durationHr, blArr, odiDrop) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
@@ -9036,7 +9144,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // keeping `nadir`+`depth`). Read both, or the profile path silently yields NaN — which
     // JSON-serialises to null and, being NaN, fails every quintile comparison so the label
     // lands on 'Q5(high)'. A wrong-but-plausible worst-case grade, from a units mismatch.
-    var _src = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var _src = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), exitPct: _odiDropOf(odiDrop), blArr: blArr });
     var nadirEvents = _src
       .map(function (e) {
         var dur = e.durationSec != null ? e.durationSec : e.duration;
@@ -9099,7 +9207,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Formula: Σ(desaturation_area) / total_time
   // Where desaturation_area = area between baseline (left peak) and SpO2 nadir per event
   // This is the proper "area under desaturation curve" without requiring manually scored events
-  function computeDesSev(rows, blArr, desat) {
+  function computeDesSev(rows, blArr, desat, odiDrop) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
@@ -9123,7 +9231,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // desaturations. Falls back to deriving that canonical set when no profile is supplied so
     // direct callers keep working — the fallback is NOT artifact-gated, so the profile path is
     // preferred. Kulkas' area-under-the-curve concept is unchanged; only the event set is.
-    var _evts = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var _evts = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), exitPct: _odiDropOf(odiDrop), blArr: blArr });
     // Two event shapes (see computeSBII): the raw primitive carries `baseline`, while the
     // profile's re-shaped events drop it and keep `nadir`+`depth` — from which the onset
     // baseline is recoverable exactly. Without this the subtraction is NaN, every `d > 0`

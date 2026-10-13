@@ -33,6 +33,7 @@
  * from OUR cache, already computed by doc-search against Ollama. `--embed-mode neural` would fetch a
  * model and is never used here.
  */
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -85,12 +86,195 @@ export function mapping(dims = VECTOR_DIMS) {
         path: { type: 'keyword' },
         chunk_index: { type: 'long' },
         chunk_count: { type: 'long' },
+        line_start: { type: 'long' },
+        line_end: { type: 'long' },
+        symbols: { type: 'keyword' },
         file_hash: { type: 'keyword' },
         text: { type: 'text' },
         vec: { type: 'dense_vector', dims, index: true, similarity: 'cosine' }
       }
     }
   };
+}
+
+/**
+ * WHICH FUNCTION A CODE CHUNK SITS IN. `file:812-840` says where; `· computeODI` says what, before the
+ * reader opens the file. universal-ctags reads the file and returns each scope with its first and last
+ * line. Only scopes with an end line count, so a chunk names a function only when it sits inside it.
+ * Display only: the search body never reads `symbols`, so no ranking moves.
+ */
+export const CTAGS_EXT = /\.(c?m?js|py|sh|ts|kt|java|swift|c|h|cc|cpp)$/;
+const SCOPE_KINDS = new Set(['function', 'method', 'class', 'member', 'getter', 'setter', 'constructor', 'interface', 'object']);
+
+/** ctags JSON lines → `[{ name, line, end }]` for scope kinds with an end line. */
+export function parseCtags(out) {
+  const scopes = [];
+  for (const ln of String(out ?? '').split('\n')) {
+    if (!ln.startsWith('{')) continue;
+    let t;
+    try {
+      t = JSON.parse(ln);
+    } catch {
+      continue;
+    }
+    if (t._type !== 'tag' || !SCOPE_KINDS.has(t.kind) || !Number.isInteger(t.line) || !Number.isInteger(t.end) || t.end < t.line) continue;
+    scopes.push({ name: t.name, line: t.line, end: t.end });
+  }
+  return scopes;
+}
+
+/** The scopes that overlap lines `[ls, le]`, innermost first, at most `max`, names unique. */
+export function enclosingSymbols(scopes, ls, le, max = 3) {
+  const hit = (scopes ?? []).filter((t) => t.line <= le && t.end >= ls).sort((a, b) => a.end - a.line - (b.end - b.line) || a.line - b.line);
+  return [...new Set(hit.map((t) => t.name))].slice(0, max);
+}
+
+/** Run ctags on one file. Absent ctags or a failed run ⇒ null: no symbol field, never a guessed one. */
+export function ctagsScopes(file, abs, run = spawnSync) {
+  if (!CTAGS_EXT.test(file)) return null;
+  const r = run('ctags', ['--output-format=json', '--fields=+nKe', '-f', '-', abs], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  if (r?.error || r?.status !== 0) return null;
+  return parseCtags(r.stdout);
+}
+
+/**
+ * JS SCOPES. ctags 6.2 gives no end line for a JS function, so no JS chunk named its function. The
+ * JS parser (a pinned devDependency) reads the file and returns every named function, class and
+ * method with its first and last line. A function takes the name of the declaration, variable,
+ * property or assignment that holds it, and a module wrapped in an immediately called function
+ * takes the name of its variable. Absent parser or a file it cannot parse ⇒ null, as for ctags.
+ */
+export const JS_EXT = /\.[cm]?js$/;
+
+/** The parser's `parse`, or null when the devDependency is absent. */
+export function jsParser(req = createRequire(import.meta.url)) {
+  try {
+    return req('acorn').parse;
+  } catch {
+    return null;
+  }
+}
+
+const FN_VALUE = new Set(['FunctionExpression', 'ArrowFunctionExpression', 'ClassExpression']);
+const keyName = (k) => (k?.type === 'Identifier' ? k.name : k?.type === 'PrivateIdentifier' ? `#${k.name}` : k?.type === 'Literal' ? String(k.value) : null);
+
+/** Source text → `[{ name, line, end }]` for every named scope, or null when it does not parse. */
+export function jsScopes(raw, parse = jsParser()) {
+  if (!parse) return null;
+  let ast = null;
+  for (const sourceType of ['module', 'script']) {
+    try {
+      ast = parse(raw, { ecmaVersion: 'latest', sourceType, locations: true, allowHashBang: true, allowReturnOutsideFunction: sourceType === 'script' });
+      break;
+    } catch {
+      ast = null;
+    }
+  }
+  if (!ast) return null;
+  const scopes = [];
+  const add = (name, n) => {
+    if (name && n.loc) scopes.push({ name: String(name), line: n.loc.start.line, end: n.loc.end.line });
+  };
+  for (const stack = [ast]; stack.length; ) {
+    const n = stack.pop();
+    if (n.type === 'FunctionDeclaration' || n.type === 'ClassDeclaration') add(n.id?.name, n);
+    else if (n.type === 'MethodDefinition') add(keyName(n.key), n);
+    else if ((n.type === 'Property' || n.type === 'PropertyDefinition') && FN_VALUE.has(n.value?.type)) add(keyName(n.key), n);
+    else if (n.type === 'VariableDeclarator' && (FN_VALUE.has(n.init?.type) || FN_VALUE.has(n.init?.callee?.type))) add(n.id?.name, n);
+    else if (n.type === 'AssignmentExpression' && FN_VALUE.has(n.right?.type)) add(n.left?.type === 'MemberExpression' ? keyName(n.left.property) : n.left?.name, n);
+    for (const v of Object.values(n)) {
+      if (Array.isArray(v)) for (const c of v) c && typeof c.type === 'string' && stack.push(c);
+      else if (v && typeof v.type === 'string') stack.push(v);
+    }
+  }
+  return scopes;
+}
+
+/**
+ * WHERE EACH CHUNK SITS IN ITS FILE, as 1-based `[first, last]` lines, or `null` per chunk when it
+ * cannot be placed. A hit printed as `[chunk 34/259]` sends the reader scrolling; `file:812-840`
+ * opens at the passage. Two paths:
+ *   EXACT  — the body IS the file (Markdown, Python, shell, external code). Replay the whitespace
+ *            collapse `chunk()` applies, keep each kept character's raw offset, and read the lines
+ *            off the raw offsets of the chunk's first and last character.
+ *   ANCHOR — the body is DERIVED (JS comments, HTML text). Find the chunk's first and last whole
+ *            words in the raw file, allowing comment decoration, tags and entities between words.
+ *            A chunk whose words cannot be found is `null`; a guessed line is worse than none.
+ * Pure: `chunks` is the list `planFile` already holds, so the pairing with vector i cannot drift.
+ */
+export function chunkLines(file, body, raw, chunks) {
+  const src = String(raw);
+  const starts = [0];
+  for (let i = 0; i < src.length; i++) if (src[i] === '\n') starts.push(i + 1);
+  const lineAt = (off) => {
+    let lo = 0;
+    let hi = starts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (starts[mid] <= off) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo + 1;
+  };
+  const prefix = `${file} :: `;
+  if (body === src) {
+    const S = `${prefix}${body}`;
+    let c = '';
+    const orig = [];
+    let inWs = false;
+    for (let i = 0; i < S.length; i++) {
+      if (/\s/.test(S[i])) {
+        if (!inWs) {
+          c += ' ';
+          orig.push(i);
+        }
+        inWs = true;
+      } else {
+        c += S[i];
+        orig.push(i);
+        inWs = false;
+      }
+    }
+    let lead = 0;
+    while (c[lead] === ' ') lead++;
+    let end = c.length;
+    while (end > lead && c[end - 1] === ' ') end--;
+    c = c.slice(lead, end);
+    const map = orig.slice(lead, end);
+    let from = 0;
+    return chunks.map((ch) => {
+      const at = c.indexOf(ch, from);
+      if (at < 0 || !ch.length) return null;
+      from = at + 1;
+      const a = Math.max(0, map[at] - prefix.length);
+      const b = Math.max(0, map[at + ch.length - 1] - prefix.length);
+      return [lineAt(a), lineAt(b)];
+    });
+  }
+  const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const SEP = '(?:[\\s*/#─-╿]|<[^>]*>|&[a-z]+;)+';
+  const find = (words, from) => {
+    if (!words.length) return null;
+    const re = new RegExp(words.map(esc).join(SEP), 'g');
+    re.lastIndex = from;
+    const m = re.exec(src);
+    return m ? { at: m.index, end: m.index + m[0].length - 1 } : null;
+  };
+  const K = 4;
+  let from = 0;
+  return chunks.map((ch, i) => {
+    let t = String(ch);
+    if (t.startsWith(prefix)) t = t.slice(prefix.length);
+    const w = t.split(' ').filter(Boolean);
+    /* A chunk is cut at a fixed character count, so its first and last words may be halves. */
+    if (i > 0) w.shift();
+    if (i < chunks.length - 1) w.pop();
+    const head = find(w.slice(0, K), from);
+    if (!head) return null;
+    from = head.at + 1;
+    const tail = find(w.slice(-K), head.at);
+    return tail ? [lineAt(head.at), lineAt(tail.end)] : null;
+  });
 }
 
 /**
@@ -106,8 +290,10 @@ export function mapping(dims = VECTOR_DIMS) {
  *
  * @param {{file: string, h: string, vecs: number[][]}} entry
  * @param {string|null} body  the file body as `readDoc` returns it, or null when absent
+ * @param {string|null} [raw]  the file as read from disk; absent ⇒ no line range, never a guessed one
+ * @param {{name: string, line: number, end: number}[]|null} [scopes]  ctags scopes; absent ⇒ no symbols
  */
-export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk) {
+export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk, raw = null, scopes = null) {
   const file = entry?.file ?? '';
   if (!file) return { ok: false, reason: 'missing' };
   if (FORBIDDEN.some((re) => re.test(file))) return { ok: false, reason: 'forbidden' };
@@ -122,6 +308,7 @@ export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk) {
   if (chunks.length !== vecs.length) return { ok: false, reason: 'chunk-mismatch' };
   if (vecs.some((v) => !Array.isArray(v) || v.length !== dims)) return { ok: false, reason: 'bad-dims' };
   let repaired = 0;
+  const lines = raw == null ? null : chunkLines(file, body, raw, chunks);
   return {
     ok: true,
     get repaired() {
@@ -135,6 +322,12 @@ export function planFile(entry, body, dims = VECTOR_DIMS, chunkFn = chunk) {
       path: file,
       chunk_index: i,
       chunk_count: chunks.length,
+      /* An unknown range is ABSENT from the document, never 0 (CLAUDE.md §∅). */
+      ...(lines?.[i] ? { line_start: lines[i][0], line_end: lines[i][1] } : {}),
+      ...(() => {
+        const sy = lines?.[i] && scopes ? enclosingSymbols(scopes, lines[i][0], lines[i][1]) : [];
+        return sy.length ? { symbols: sy } : {};
+      })(),
       file_hash: h,
       text: (() => {
         const r = sanitizeText(raw);
@@ -279,7 +472,134 @@ export function selftest() {
   );
   ok(swapActions('a', [], 'a-20261011t220509z').actions.length === 1 && swapActions('a', [], 'a-20261011t220509z').actions[0].add.alias === 'a', 'with nothing to remove the swap is a single add');
 
-  const line = fail.length ? `xerj-load selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
+  /* 9 · LINE RANGES. A hit names `file:first-last`; an unplaceable chunk carries no range at all. */
+  const md = Array.from({ length: 120 }, (_, i) => `line${i + 1} has  some\twords here`).join('\n');
+  const mdChunks = chunk(`docs/m.md :: ${md}`);
+  const mdLines = chunkLines('docs/m.md', md, md, mdChunks);
+  const rawLines = md.split('\n');
+  ok(mdChunks.length > 2 && mdLines.every(Boolean), 'EXACT: every chunk of a Markdown body is placed');
+  ok(mdLines[0][0] === 1 && mdLines[mdLines.length - 1][1] === 120, 'EXACT: the first chunk opens at line 1 and the last closes at the last line');
+  ok(
+    mdChunks.every((c, i) => {
+      const words = c.replace(/^docs\/m\.md :: /, '').split(' ');
+      return rawLines[mdLines[i][0] - 1].includes(words[0]) && rawLines[mdLines[i][1] - 1].includes(words[words.length - 1]);
+    }),
+    "EXACT: each chunk's first and last fragments sit on its first and last line"
+  );
+  ok(
+    mdLines.every((r, i) => i === 0 || r[0] >= mdLines[i - 1][0]),
+    'EXACT: the ranges advance with the chunk index'
+  );
+  const js = '/* alpha beta gamma delta\n * epsilon zeta eta theta */\nrun();\n\n// iota kappa lambda mu\n';
+  const jsBody = readDoc('t.js', js);
+  const jsLines = chunkLines('t.js', jsBody, js, chunk(`t.js :: ${jsBody}`));
+  ok(jsLines.length === 1 && jsLines[0]?.[0] === 1 && jsLines[0]?.[1] === 5, 'ANCHOR: JS comment text is placed across decoration and code');
+  ok(chunkLines('t.js', 'derived', 'nothing here', ['t.js :: zzz qqq'])[0] === null, 'ANCHOR: words absent from the file give null, not a guess');
+  const noRaw = planFile({ file: 'docs/a.md', h, vecs: [vec(4)] }, body, 4, (t) => [t]);
+  ok(noRaw.ok && !('line_start' in noRaw.docs[0]), 'without the raw file the document carries no line field, not 0');
+  const withRaw = planFile({ file: 'docs/a.md', h, vecs: [vec(4)] }, body, 4, (t) => [t], body);
+  ok(withRaw.ok && withRaw.docs[0].line_start === 1 && withRaw.docs[0].line_end === 1, 'CONTROL: with the raw file the same document is placed at line 1');
+  ok(mapping(4).mappings.properties.line_start.type === 'long', 'the mapping carries the line fields');
+
+  /* CTAGS SYMBOLS: a chunk names the scopes it overlaps, innermost first; no ctags ⇒ no field. */
+  const tags = [
+    '{"_type": "tag", "name": "outer", "line": 1, "end": 100, "kind": "function"}',
+    '{"_type": "tag", "name": "inner", "line": 10, "end": 20, "kind": "method"}',
+    '{"_type": "tag", "name": "CONST", "line": 12, "kind": "variable"}',
+    '{"_type": "tag", "name": "noEnd", "line": 12, "kind": "function"}',
+    '{"_type": "tag", "name": "later", "line": 30, "end": 40, "kind": "function"}',
+    'not json'
+  ].join('\n');
+  const sc = parseCtags(tags);
+  ok(sc.length === 3 && !sc.some((t) => t.name === 'CONST' || t.name === 'noEnd'), 'ctags: only scope kinds WITH an end line count');
+  ok(enclosingSymbols(sc, 12, 15).join() === 'inner,outer', 'a chunk inside a method names it before the enclosing function');
+  ok(enclosingSymbols(sc, 18, 35).join() === 'inner,later,outer', 'a chunk across two functions names both');
+  ok(enclosingSymbols(sc, 200, 210).length === 0, 'a chunk outside every scope names none');
+  ok(enclosingSymbols(sc, 12, 15, 1).join() === 'inner', 'the cap keeps the innermost');
+  ok(ctagsScopes('a.md', '/x') === null, 'a non-code file is not tagged');
+  ok(ctagsScopes('a.js', '/x', () => ({ error: new Error('ENOENT') })) === null, 'absent ctags gives null, not an empty list');
+  ok(ctagsScopes('a.js', '/x', () => ({ status: 1, stdout: '' })) === null, 'a failed ctags run gives null');
+  ok(ctagsScopes('a.py', '/x', () => ({ status: 0, stdout: tags })).length === 3, 'CONTROL: a good run parses');
+  const tEntry = { file: 't.js', h: createHash('sha256').update('alpha beta').digest('hex').slice(0, 16), vecs: [[0, 0, 0, 0]] };
+  const tagged = planFile(tEntry, 'alpha beta', 4, (t) => [t], 'alpha beta', [{ name: 'fn', line: 1, end: 3 }]);
+  ok(tagged.ok && tagged.docs[0].symbols?.join() === 'fn', 'planFile writes the symbols of a placed chunk');
+  const untagged = planFile(tEntry, 'alpha beta', 4, (t) => [t], 'alpha beta', null);
+  ok(untagged.ok && !('symbols' in untagged.docs[0]), 'no scopes ⇒ no symbols field, never an empty one');
+  ok(mapping(4).mappings.properties.symbols.type === 'keyword', 'the mapping carries the symbols field');
+
+  /* JS SCOPES: the walker names functions ctags leaves without an end line. It runs here on a
+     hand-built syntax tree, so the checks hold where the parser is absent (CI installs no packages). */
+  const L = (a, b) => ({ start: { line: a }, end: { line: b } });
+  const id = (name) => ({ type: 'Identifier', name });
+  const fnx = (type, a, b) => ({ type, loc: L(a, b), body: { type: 'BlockStatement', body: [] } });
+  const decl = (name, a, b, init) => ({ type: 'VariableDeclaration', declarations: [{ type: 'VariableDeclarator', loc: L(a, b), id: id(name), init }] });
+  const tree = {
+    type: 'Program',
+    body: [
+      { type: 'FunctionDeclaration', id: id('top'), loc: L(1, 6), body: { type: 'BlockStatement', body: [decl('inner', 2, 4, fnx('ArrowFunctionExpression', 2, 4))] } },
+      {
+        type: 'ClassDeclaration',
+        id: id('Box'),
+        loc: L(7, 11),
+        body: { type: 'ClassBody', body: [{ type: 'MethodDefinition', key: id('open'), loc: L(8, 10), value: fnx('FunctionExpression', 8, 10) }] }
+      },
+      decl('api', 12, 12, { type: 'ObjectExpression', properties: [{ type: 'Property', key: id('load'), loc: L(12, 12), value: fnx('FunctionExpression', 12, 12) }] }),
+      {
+        type: 'ExpressionStatement',
+        expression: { type: 'AssignmentExpression', loc: L(13, 13), left: { type: 'MemberExpression', object: id('api'), property: id('save') }, right: fnx('ArrowFunctionExpression', 13, 13) }
+      },
+      decl('n', 14, 14, { type: 'Literal', value: 4 }),
+      decl('Mod', 15, 17, { type: 'CallExpression', callee: fnx('FunctionExpression', 15, 17), arguments: [] })
+    ]
+  };
+  const seen = [];
+  const stub = (raw, o) => {
+    seen.push(o.sourceType);
+    if (o.sourceType === 'module') throw new Error('not a module');
+    return tree;
+  };
+  const jsc = jsScopes('ignored', stub);
+  const sAt = (nm) => jsc?.find((t) => t.name === nm);
+  ok(seen.join() === 'module,script', 'a file that is not a module is parsed again as a script');
+  ok(sAt('top')?.line === 1 && sAt('top')?.end === 6, 'a function declaration spans its lines');
+  ok(sAt('inner')?.line === 2 && sAt('inner')?.end === 4, 'an arrow takes the name of its variable');
+  ok(sAt('Box')?.end === 11 && sAt('open')?.line === 8 && sAt('open')?.end === 10, 'a class and its method are scopes');
+  ok(sAt('load')?.line === 12 && sAt('save')?.line === 13, 'a property and an assignment name their function');
+  ok(sAt('Mod')?.line === 15 && sAt('Mod')?.end === 17, 'a module in an immediately called function takes its variable name');
+  ok(!sAt('n') && !sAt('api'), 'a variable that holds no function is not a scope');
+  ok(enclosingSymbols(jsc, 3, 3).join() === 'inner,top', 'a chunk in the arrow names it before the function');
+  ok(
+    jsScopes('x', () => {
+      throw new Error('bad');
+    }) === null,
+    'a file that does not parse gives null, not an empty list'
+  );
+  ok(jsScopes('x', null) === null, 'absent parser gives null');
+  ok(
+    jsParser(() => {
+      throw new Error('absent');
+    }) === null,
+    'jsParser returns null when the package is absent'
+  );
+  ok(JS_EXT.test('a.mjs') && JS_EXT.test('a.cjs') && JS_EXT.test('a.js') && !JS_EXT.test('a.json'), 'JS_EXT takes js, mjs and cjs only');
+  /* The real parser, where it is installed: the same shapes from source text. */
+  const realParse = jsParser();
+  let notRun = 0;
+  if (realParse) {
+    const real = jsScopes('export function top() {\n  const inner = () => 1;\n}\nvar Mod = (function () {\n  return 1;\n})();', realParse);
+    ok(
+      real
+        ?.map((t) => `${t.name}:${t.line}-${t.end}`)
+        .sort()
+        .join() === 'Mod:4-6,inner:2-2,top:1-3',
+      'the real parser gives the same scopes from source text'
+    );
+    ok(jsScopes('return 1;', realParse)?.length === 0, 'the real parser reads a script with a top-level return');
+    ok(jsScopes('function (', realParse) === null, 'the real parser gives null on a file that does not parse');
+  } else notRun = 3;
+
+  const absent = notRun ? ` (${notRun} JS parser checks not run: the parser is absent)` : '';
+  const line = fail.length ? `xerj-load selftest · ${fail.length} of ${ran} FAILED${absent}` : `all ${ran} selftests passed${absent}`;
   return { ok: fail.length === 0, ran, fail, line };
 }
 
@@ -383,7 +703,7 @@ async function main() {
     process.stderr.write(`xerj-load: created ${target} with a ${VECTOR_DIMS}-dim cosine dense_vector mapping\n`);
   }
 
-  const counts = { files: 0, loaded: 0, skipped: 0, docs: 0, repairedChunks: 0, skips: {} };
+  const counts = { files: 0, loaded: 0, skipped: 0, docs: 0, repairedChunks: 0, tagged: 0, symbolDocs: 0, skips: {} };
   let pending = [];
   let header = null;
   const flush = async () => {
@@ -439,15 +759,20 @@ async function main() {
        vendor SDK source and the memory dir, each declaring its own source extensions — no
        recording, no capture — and every path still passes the FORBIDDEN assertion below. */
       let body = null;
+      let rawText = null;
       const abs = entry.file.startsWith(EXT_PREFIX) ? extAbs().get(entry.file) : join(ROOT, entry.file);
       if (abs && existsSync(abs)) {
         try {
-          body = readDoc(entry.file, readFileSync(abs, 'utf8'));
+          rawText = readFileSync(abs, 'utf8');
+          body = readDoc(entry.file, rawText);
         } catch {
           body = null;
+          rawText = null;
         }
       }
-      const plan = planFile(entry, body);
+      const scopes = rawText == null ? null : JS_EXT.test(entry.file) ? jsScopes(rawText) : ctagsScopes(entry.file, abs);
+      if (scopes?.length) counts.tagged += 1;
+      const plan = planFile(entry, body, VECTOR_DIMS, chunk, rawText, scopes);
       if (!plan.ok) {
         counts.skipped += 1;
         counts.skips[plan.reason] = (counts.skips[plan.reason] || 0) + 1;
@@ -455,6 +780,7 @@ async function main() {
       }
       counts.loaded += 1;
       counts.docs += plan.docs.length;
+      counts.symbolDocs += plan.docs.filter((d) => d.symbols).length;
       counts.repairedChunks += plan.repaired;
       for (const d of plan.docs) {
         pending.push(d);
@@ -492,6 +818,7 @@ async function main() {
     process.stdout.write(`  loaded (file / chunk docs) : ${counts.loaded} / ${counts.docs}\n`);
     process.stdout.write(`  skipped                    : ${counts.skipped}\n`);
     process.stdout.write(`  chunks with a split pair repaired : ${counts.repairedChunks}\n`);
+    process.stdout.write(`  files / chunks naming a symbol : ${counts.tagged} / ${counts.symbolDocs}\n`);
     for (const [k, n] of Object.entries(counts.skips).sort((a, b) => b[1] - a[1])) process.stdout.write(`    ${k.padEnd(16)} ${n}\n`);
     if (generation?.promoted)
       process.stdout.write(`  generation ${generation.index} now serves ${index} · replaced ${generation.replaced.join(', ') || 'nothing'} · retired ${generation.retired.length}\n`);

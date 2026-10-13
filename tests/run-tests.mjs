@@ -20,7 +20,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, 
 import { createRequire } from 'node:module';
 import { classify as rebaseClassify, parsePorcelain as rebaseParsePorcelain, classifyStamps as rebaseClassifyStamps, duplicateLedgerKeys as rebaseDuplicateLedgerKeys } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
-import { classify as qdClassify, pick as qdPick, attention as qdAttention, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
+import { classify as qdClassify, pick as qdPick, attention as qdAttention, redLedger as qdRedLedger, IDLE_MIN as QD_IDLE_MIN, STARVED_MIN as QD_STARVED_MIN } from '../tools/queue-doctor.mjs';
 import { classify as commitShape, classifyRootAdd as commitShapeRootAdd, KNOWN_ROOT_ZERO_BYTE as commitShapeBaseline } from '../tools/commit-shape.mjs';
 import { elementBlocks } from '../tools/strip-markup.mjs';
 import * as YieldPin from '../tools/treatment-response-yield-pin.mjs';
@@ -31,7 +31,7 @@ import * as deviceStability from '../tools/device-stability.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
 import { suiteVerdict, unionVerdict } from '../tools/run-tests-verdict.mjs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { spawn, spawnSync, execSync } from 'node:child_process';
@@ -1984,6 +1984,66 @@ function readCaptureFilenameScan() {
   return out;
 }
 
+/* DRAWN-AXIS FLAG RATCHET (residue 2026-09-25-drawn-consumers-closure-unverified) — every authored JS
+   source that could consume `hostAxis`, as TEXT. The gate in dex-tests.js pins the set of files that
+   DECIDE on an `.independent` field while carrying no `deviceDrawn` site, so a new consumer written
+   against the column-comparison flag instead of the provenance flag reds. Population is derived, not
+   curated: root `*.js` (the bundled runtime sources) + `tools/*.{js,mjs}` (the fleet tooling that
+   reads the same axis). `experiments/**` is deliberately out — the probes there read the flag to
+   demonstrate its false positive. Node-lane only (fs read); the browser lane SKIPs. */
+function readDrawnFlagScan() {
+  const pick = (dir, re) => {
+    const d = join(ROOT, dir);
+    if (!existsSync(d)) return [];
+    return readdirSync(d)
+      .filter((f) => re.test(f))
+      .map((f) => (dir ? `${dir}/${f}` : f));
+  };
+  const files = [...pick('', /\.js$/), ...pick('tools', /\.m?js$/)];
+  const out = {};
+  for (const f of files) out[f] = readFileSync(join(ROOT, f), 'utf8');
+  return out;
+}
+
+/* §∅ — does `ProvenanceLedger.loadBrowser` REPORT a fragment that did not arrive, or assemble around it?
+   `loadNode` throws on an absent `provenance/<App>.json`; the browser loader filtered it and returned a
+   smaller view (residue 2026-09-27-loadbrowser-filters-an-absent-fragment-silently). `loadBrowser` is a
+   Promise and the assertion harness is synchronous, so the probe is awaited HERE and asserted there (the
+   readComputeHashProbe pattern). The fetcher serves the REAL committed fragments off disk and returns null
+   for ONE app, the way a deploy that missed a file does — no synthetic ledger, so a change to the real
+   fragment set cannot pass the probe while failing the page. */
+async function readLedgerBrowserProbe() {
+  try {
+    const dir = join(ROOT, 'provenance');
+    /* A MIDDLE app, deliberately: `provenance/index.json` ends with MotionDex, so probing the LAST app
+       would be named correctly even by an implementation that counted after the null-filter — the exact
+       positional bug the helper exists to avoid. Both are probed. */
+    const miss = 'PpgDex';
+    const lastApp = 'MotionDex';
+    const serve = (name) => readFileSync(join(dir, name.replace(/^provenance\//, '')), 'utf8');
+    const whole = await ProvenanceLedger.loadBrowser(serve);
+    const gone = await ProvenanceLedger.loadBrowser((name) => (name === `provenance/${miss}.json` ? null : serve(name)));
+    const noIndex = await ProvenanceLedger.loadBrowser((name) => (name === 'provenance/index.json' ? null : serve(name)));
+    const lastGone = await ProvenanceLedger.loadBrowser((name) => (name === `provenance/${lastApp}.json` ? null : serve(name)));
+    return {
+      miss,
+      wholeMissing: whole.missing,
+      wholeBundles: Object.keys(whole.buildManifest.bundles).length,
+      wholeKeys: Object.keys(whole).sort(),
+      goneMissing: gone.missing,
+      goneBundles: Object.keys(gone.buildManifest.bundles).length,
+      goneKeys: Object.keys(gone).sort(),
+      goneHasBundle: Object.prototype.hasOwnProperty.call(gone.buildManifest.bundles, `${miss}.html`),
+      noIndexMissing: noIndex.missing,
+      lastApp,
+      lastMissing: lastGone.missing,
+      lastBundles: Object.keys(lastGone.buildManifest.bundles).length
+    };
+  } catch (e) {
+    return { error: String((e && e.message) || e) };
+  }
+}
+
 // analysis-tools self-contained gate (LOCAL-DOWNLOAD / file:// fix): the 9 science tools are bundled to
 // self-contained single-file HTML by tools/build-analysis.mjs so they run when downloaded to disk. This
 // reads each committed tool HTML so the group can assert the file://-safe invariant (no external <script
@@ -2893,6 +2953,7 @@ async function main() {
     qdClassify: qdClassify,
     qdPick: qdPick,
     qdAttention: qdAttention,
+    qdRedLedger: qdRedLedger,
     qdIdleMin: QD_IDLE_MIN,
     qdStarvedMin: QD_STARVED_MIN,
     /* A RESOLVER FOR DECLARED NESTED BINDINGS (`emittedAt` in a registry). The resolvability gate must
@@ -3090,6 +3151,46 @@ async function main() {
       }
     })(),
     toolSources: readToolSources(),
+    /* RUN A TOOL AND READ ITS EXIT CODE — residue 2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path
+       and 2026-10-11-help-flag-made-a-directory. A source scan cannot tell a refusal from a stack
+       trace: both "name the token", and the difference IS the exit code and whether anything was
+       written. Runs in a fresh temp cwd and reports what appeared there, so a tool that writes on its
+       way to an error leaves the evidence where the assertion can see it — `--help` became a DIRECTORY
+       once, and that is the shape this catches. */
+    probeToolArgv: (rel, args, { timeoutMs = 25000 } = {}) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'argv-probe-'));
+      try {
+        const r = spawnSync(process.execPath, [join(ROOT, rel), ...args], { cwd, encoding: 'utf8', timeout: timeoutMs });
+        return {
+          status: r.status,
+          signal: r.signal,
+          out: `${r.stdout || ''}${r.stderr || ''}`,
+          wrote: readdirSync(cwd).sort()
+        };
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    },
+    /* IMPORT A TOOL IN A CHILD PROCESS and read exported values out of it — never in this process.
+       `tools/argv-survey.mjs` used to run its 45-tool sweep and then `process.exit()` at import, so an
+       `import` of it TERMINATED the importer; asserting its guard from inside the suite would therefore
+       kill the shard with no verdict (§4c) the moment the guard regressed. In a child, the same
+       regression is a timeout or a non-zero exit — an assertion that names the file. */
+    importToolInChild: (rel, names, { timeoutMs = 10000 } = {}) => {
+      const url = pathToFileURL(join(ROOT, rel)).href;
+      const src = `import * as m from ${JSON.stringify(url)};\nconsole.log('__READ__' + JSON.stringify(Object.fromEntries(${JSON.stringify(names)}.map((k) => [k, m[k] === undefined ? null : m[k]]))));`;
+      const t0 = Date.now();
+      const r = spawnSync(process.execPath, ['--input-type=module', '-e', src], { encoding: 'utf8', timeout: timeoutMs });
+      const out = `${r.stdout || ''}${r.stderr || ''}`;
+      const line = out.split('\n').find((l) => l.startsWith('__READ__'));
+      let read = null;
+      try {
+        read = line ? JSON.parse(line.slice(8)) : null;
+      } catch {
+        read = null;
+      }
+      return { status: r.status, signal: r.signal, out, read, ms: Date.now() - t0 };
+    },
     sources: readSources(),
     // Must come AFTER `sources:` — readSources() is what fills TOOL_TEXTS.
     get toolTexts() {
@@ -3196,6 +3297,9 @@ async function main() {
     nodeSurfaces: readNodeSurfaces(),
     nonBundleCsp: readNonBundleCsp(),
     captureFilenameScan: readCaptureFilenameScan(),
+    drawnFlagScan: readDrawnFlagScan(),
+    ProvenanceLedger, // the pure `missingFragments` / `fragmentFileFor` self-tests (browser lane: the global)
+    ledgerBrowserProbe: await readLedgerBrowserProbe(), // does loadBrowser REPORT an absent fragment by name?
     codegenManifests: readCodegenManifests(),
     codegenCheck,
     docsMdTwins: readDocsMdTwins(),

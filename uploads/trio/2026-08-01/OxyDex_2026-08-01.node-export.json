@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-10-03T23:03:06.318Z",
+    "generated": "2026-10-12T20:53:55.620Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -37,7 +37,9 @@
         "recovery": 2,
         "nadir": 90,
         "onsetTMs": 1785653523000,
-        "endTMs": 1785653555000
+        "endTMs": 1785653555000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -54,7 +56,9 @@
         "recovery": 3,
         "nadir": 92,
         "onsetTMs": 1785655613000,
-        "endTMs": 1785655631000
+        "endTMs": 1785655631000,
+        "hasGap": null,
+        "missingSec": null
       }
     },
     {
@@ -71,7 +75,9 @@
         "recovery": 4,
         "nadir": 94,
         "onsetTMs": 1785656378000,
-        "endTMs": 1785656391000
+        "endTMs": 1785656391000,
+        "hasGap": null,
+        "missingSec": null
       }
     }
   ],
@@ -67763,6 +67769,7 @@
         "piFrames": 0,
         "motionPct": 0.9,
         "n": 33392,
+        "nSpo2": 33392,
         "startTs": 1785624452000,
         "artifactHrCleaned": 0,
         "artifactSpikesRemoved": 0
@@ -68480,6 +68487,7 @@
         "spo2IQR": 1,
         "condMeanBelow94": 92.21,
         "condPctBelow94": 0.2,
+        "condPctN": 33392,
         "nadirBins": {
           "above91": 5,
           "b90_91": 3,
@@ -68576,6 +68584,8 @@
           "basis": "wholeRecord"
         },
         "hrFreqBands": {
+          "hrBandsN": 32400,
+          "hrBandsTotal": 32400,
           "hrLfPow": 3.5,
           "hrHfPow": 0.1,
           "hrLfHf": 27.5,
@@ -68645,13 +68655,17 @@
           "spo2Kurt": 5.441,
           "spo2ExcessKurt": 2.441,
           "spo2SkewLabel": "Left-skewed (hypox burden)",
-          "spo2KurtLabel": "Leptokurtic (heavy tails/events)"
+          "spo2KurtLabel": "Leptokurtic (heavy tails/events)",
+          "nMeasured": 33392,
+          "nTotal": 33392
         },
         "hrCV": {
           "hrCV": 6.69,
           "hrCVmean": 53,
           "hrCVsd": 3.54,
-          "hrCVlabel": "Moderate"
+          "hrCVlabel": "Moderate",
+          "nMeasured": 33392,
+          "nTotal": 33392
         },
         "hypDose": {
           "hd94": 129,
@@ -68659,7 +68673,9 @@
           "hd88": 0,
           "hd94PerHr": 13.9,
           "desatAUC": 2358,
-          "hd94Label": "Low (<60/hr)"
+          "hd94Label": "Low (<60/hr)",
+          "nMeasured": 33392,
+          "nTotal": 33392
         },
         "t88t85": {
           "t88Sec": 0,
@@ -68668,7 +68684,9 @@
           "t85Sec": 0,
           "t85Min": 0,
           "t85Pct": 0,
-          "t88Label": "None"
+          "t88Label": "None",
+          "nMeasured": 33392,
+          "nTotal": 33392
         },
         "lcsp": {
           "lcspSec": 4154,
@@ -68681,7 +68699,9 @@
           "sd2": 4.99,
           "sd1sd2Ratio": 0.082,
           "sd1Label": "Normal (1Hz proxy)",
-          "sd2Label": "Normal (1Hz proxy)"
+          "sd2Label": "Normal (1Hz proxy)",
+          "nMeasured": 33094,
+          "nTotal": 33392
         },
         "o2hrEff": {
           "o2hrEff": 0.61,
@@ -68695,6 +68715,10 @@
           "spo2MovingMean": 96.95,
           "spo2MotionDelta": -0.19,
           "stillPct": 99.1,
+          "nStillMeasured": 33094,
+          "nStillTotal": 33094,
+          "nMovingMeasured": 298,
+          "nMovingTotal": 298,
           "motionArtifactLabel": "No significant difference"
         },
         "nadirTrend": null,
@@ -68764,7 +68788,7 @@
           "vo2High": 64.2,
           "vo2Category": "Unknown",
           "vo2Pct": "—",
-          "vo2Conf": 100,
+          "vo2Conf": 85,
           "hrRest": 49,
           "hrMax": 174,
           "hrMaxSource": "Age formula (Tanaka 2001)",
@@ -68774,7 +68798,8 @@
           "rmssdAdj": -0.9,
           "rmssdNote": "RMSSD 0.58bpm (1Hz proxy) → adj -0.9",
           "formula": "Uth-Sørensen 2004 (VO2max = 15.3 × HRmax/HRrest)",
-          "label": "Top-25% for age 49",
+          "label": "Top-25% for age 49 (assumed)",
+          "ageAssumed": true,
           "disclaimer": "Surrogate estimate ±10.8 ml/kg/min SEE (general pop.) · ±5.4 for trained athletes. Trend tracking only."
         },
         "bpProj": null,
@@ -68891,6 +68916,7 @@
             "rmssd": 4,
             "spo2": 25,
             "sleep": 15,
+            "sleepMax": 20,
             "hrFloor": 12,
             "hrSlope": 7
           },
@@ -68963,6 +68989,7 @@
           "modl": 93.81,
           "meanDipSlope": -2.208,
           "meanRecSlope": 0.37,
+          "meanRecSlopeN": 8,
           "clusteringIdx": 1,
           "firstHalfNadirs": 0,
           "lastHalfNadirs": 8
@@ -69048,7 +69075,8 @@
         },
         "ssi": {
           "ssi": 0.012,
-          "ssiLabel": "Low"
+          "ssiLabel": "Low",
+          "ssiBasis": 1
         },
         "circHR": {
           "circAmplitude": 2.17,

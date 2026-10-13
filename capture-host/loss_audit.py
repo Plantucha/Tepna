@@ -631,6 +631,170 @@ def _iso(t) -> "str | None":
     return t.isoformat() if t is not None else None
 
 
+#: The ring's NOMINAL PPG ADC rate, from `capture.O2PPG_FS_DEFAULT = 125.000` (the crystal sample
+#: clock). It is the denominator `shortfall_at_nominal` is stated against, and it is NOT a bar: the
+#: corpus reads 124.53-125.92 delivered samples per device-second across clean hours, so a single
+#: expected rate cannot decide whether a given hour lost signal. The number is published WITH the
+#: ratio it was computed from, so a reader can restate the shortfall against any rate they can defend.
+RING_NOMINAL_FS = 125.000
+#: `ppg_n` and `duration_s` by HEADER NAME, never by position — `writers.OXYFRAME_COLUMNS` may grow at
+#: the tail and an index counted from the end has no contract (that rule is written there, and three
+#: writer tests moved onto the wrong column when `alarm_raw` was appended).
+_OXYFRAME_COUNTER = "duration_s"
+_OXYFRAME_SAMPLES = "ppg_n"
+
+
+def _cell_int(cols: list[str], parts: list[str], name: str) -> int | None:
+    """One named cell of a 0x04 frame row as an int, or None — a torn, blank or absent cell is NOT a 0.
+
+    `0` is a legal reading of both columns this is used for: a frame can carry no PPG samples, and
+    `duration_s` reads 0 on a ring with no session open. So absence travels as `None` and the caller
+    counts it, rather than summing a zero that looks like a measurement (§∅)."""
+    if name not in cols:
+        return None
+    i = cols.index(name)
+    if i >= len(parts):
+        return None
+    try:
+        return int(parts[i].strip())
+    except ValueError:
+        return None
+
+
+def oxyframe_samples(path: str) -> list[tuple[_dt.datetime, int | None, int | None]]:
+    """`[(host stamp, duration_s, ppg_n)]` for one 0x04 frame file, in file order, by header name.
+
+    The stamp is read to the MILLISECOND the writer wrote, because the spans built from it are
+    published to three decimals.
+
+    A row before any header line is skipped: without the header there is no column contract, and
+    guessing one is how a positional reader of a grown layout reports a different field's number."""
+    out: list[tuple[_dt.datetime, int | None, int | None]] = []
+    cols: list[str] | None = None
+    with open(path, "rb") as fh:
+        for raw in fh:
+            line = raw.decode("utf-8", "replace")
+            if line.startswith("Phone timestamp"):
+                # No `rstrip` ahead of the split: every name is stripped here and every cell is stripped
+                # in `_cell_int`, so trimming the newline first only adds a line no input can distinguish.
+                cols = [c.strip() for c in line.split(";")]
+                continue
+            if cols is None:
+                continue
+            # `parse_host_stamp`, not `parse_stamp`: `O2PpgGrid`'s writer stamps this file to the
+            # MILLISECOND (`writers.py`, `OXYFRAME` row: `%Y-%m-%dT%H:%M:%S.` + `microsecond // 1000`),
+            # and `host_span_s` below is published to three decimals. Reading with the second-precision
+            # sibling throws those digits away and makes the published precision empty — the two-readers
+            # rule `parse_host_stamp` states, applied to the reader that measures with them.
+            stamp = _ni.parse_host_stamp(line)
+            if stamp is None:
+                continue
+            parts = line.split(";")
+            out.append((stamp, _cell_int(cols, parts, _OXYFRAME_COUNTER), _cell_int(cols, parts, _OXYFRAME_SAMPLES)))
+    return out
+
+
+def _completeness_of_run(run: list[tuple[_dt.datetime, int | None, int | None]]) -> dict:
+    """One recording run's two completeness measures, each stated in its own unit.
+
+    THE TWO ANSWER DIFFERENT QUESTIONS AND THE PAIR IS THE POINT.
+
+      * `host_minus_device_s` is the measure `O2PpgGrid`'s docstring names: host seconds elapsed minus
+        the seconds of signal the ring says it produced. It reads near zero when no time passed without
+        signal, which is the honest answer about TIME.
+      * `samples_per_device_second` and `shortfall_at_nominal` are in SAMPLES. They are what reads short
+        when every second carried signal and that second's frames carried fewer samples than the ring's
+        own production rate. On 2026-09-07 the first measure read -1.2, -0.9, -1.0 and -0.5 s across
+        hours 23-02 while about 4,600 samples per hour were absent (residue
+        `2026-09-27-sample-shortfall-without-a-time-gap-is-unmeasured`).
+
+    Neither is folded into the other, and neither is folded into the grid. A near-zero time measure
+    beside a sample shortfall is not a contradiction, and inserting a gap for the shortfall would
+    fabricate a hole in a stretch that really was covered.
+
+    ⚠️ A SHORTFALL IS NOT LOSS. Whether the absent samples ever existed is not decidable from the 0x04
+    file alone, so this reports the numbers and grades nothing.
+    """
+    counters = [d for _t, d, _n in run if d is not None]
+    samples = [n for _t, _d, n in run if n is not None]
+    first, last = run[0][0], run[-1][0]
+    span = (last - first).total_seconds()
+    # INCLUSIVE for the ratio's denominator, EXCLUSIVE for the advance: a run of frames stamped d0..dk
+    # covers (dk - d0 + 1) device-seconds of signal, while the counter ADVANCED by (dk - d0). Mixing the
+    # two is a one-second error in a 3,600-second hour and a 50 % error in a two-frame run.
+    advance = None if len(counters) < 2 else counters[-1] - counters[0]
+    device_seconds = None if not counters else counters[-1] - counters[0] + 1
+    delivered = sum(samples) if samples else None
+    # `delivered == 0` is a MEASUREMENT (frames arrived and carried no PPG samples), so the test is
+    # `is None` and never falsiness — the two differ exactly where the answer is most interesting.
+    # ONE guard for both numbers, rather than a second one phrased through the first: `device_seconds`
+    # being truthy covers the absent case and the zero case together, and the pair is computed where
+    # that is already known. No guard against a NEGATIVE count is written:
+    # a run's readable counters are non-decreasing by construction, because a backward step is what
+    # `sample_completeness` splits a run on. A guard no input can reach is a survivor nobody can kill.
+    ratio: float | None = None
+    shortfall: int | None = None
+    if delivered is not None and device_seconds:
+        ratio = delivered / device_seconds
+        shortfall = round(RING_NOMINAL_FS * device_seconds) - delivered
+    return {
+        "first": _iso(first),
+        "last": _iso(last),
+        "host_span_s": round(span, 3),
+        "device_seconds": device_seconds,
+        "device_advance_s": advance,
+        "host_minus_device_s": None if advance is None else round(span - advance, 3),
+        "delivered": delivered,
+        "samples_per_device_second": None if ratio is None else round(ratio, 3),
+        "shortfall_at_nominal": shortfall,
+        "frames": len(run),
+        "frames_without_counter": len(run) - len(counters),
+        "frames_without_samples": len(run) - len(samples),
+    }
+
+
+def sample_completeness(night_dir: str) -> dict:
+    """The night's ring runs, each with its time-based and its SAMPLE-based completeness measure.
+
+    A backward step in `duration_s` starts a new run, by the same rule `witness_judges` uses: the ring
+    closed that session and opened another, so nothing about the old counter bounds the new one.
+
+    Frames whose counter or sample count is absent are COUNTED, not dropped and not zeroed — reduced
+    coverage annotates the number beside it, where a discontinuity would refuse it (owner ruling
+    2026-09-17). An absent `ppg_n` column reads `frames_without_samples == frames`, which is how an
+    older layout says it cannot answer rather than saying nothing was delivered.
+    """
+    rows: list[tuple[_dt.datetime, int | None, int | None]] = []
+    unreadable: list[dict] = []
+    files = _recording_glob(night_dir, _RING_OXYFRAME)
+    for path in files:
+        try:
+            rows.extend(oxyframe_samples(path))
+        except OSError as exc:
+            # One unreadable frame file is not the absence of the measure, the same rule the rest of the
+            # audit already follows one level down.
+            unreadable.append({"file": os.path.basename(path), "reason": f"unreadable: {exc!r}"})
+    rows.sort(key=lambda r: r[0])
+    runs: list[list[tuple[_dt.datetime, int | None, int | None]]] = []
+    # The last READABLE counter, carried forward rather than re-scanned: a night runs to tens of
+    # thousands of frames, and re-reading the open run per row is quadratic in that count.
+    last: int | None = None
+    for row in rows:
+        if runs and not (row[1] is not None and last is not None and row[1] < last):
+            runs[-1].append(row)
+        else:
+            runs.append([row])
+        if row[1] is not None:
+            last = row[1]
+    return {
+        "nominal_fs": RING_NOMINAL_FS,
+        "files": len(files),
+        "unreadable": unreadable,
+        "runs": [_completeness_of_run(r) for r in runs],
+        "reason": None if runs else "no readable 0x04 frame row this night",
+    }
+
+
 def boundary_gap(prev: dict, nxt: dict) -> tuple | None:
     """The gap BETWEEN two consecutive fragments, judged the way an in-file gap is — or None if there is none.
 
@@ -1098,10 +1262,15 @@ def wear_ends(night_dir: str, model: str) -> dict:
             ends.append(_ring_end(f, night_dir, contact) if ring else _wear_end(f, night_dir, model))
         except OSError as exc:
             ends.append({"file": os.path.basename(f), "usable": False, "reason": f"unreadable: {exc!r}"})
+    return {"available": True, "ends": ends, "worn_end": worn_end_of(ends)}
+
+
+def worn_end_of(ends: list[dict]) -> dict | None:
+    """The device's worn-interval END from its file ends — the latest usable one — or None when none is
+    usable. ONE rule, shared with `solid_night_inputs`, which re-derives it over a band-filtered subset."""
     usable = [e for e in ends if e["usable"]]
     last = max(usable, key=lambda e: e["end_at"]) if usable else None
-    worn_end = {"at": last["worn_end_at"], "reason": last["reason"], "file": last["file"]} if last else None
-    return {"available": True, "ends": ends, "worn_end": worn_end}
+    return {"at": last["worn_end_at"], "reason": last["reason"], "file": last["file"]} if last else None
 
 
 def _device_keys(devices: list[dict]) -> list[str]:
@@ -1159,6 +1328,11 @@ def audit_night(
     out["clock_events_source"] = "journalctl -u tepna-capture" if ce is not None else "unavailable"
     # The journal's SHAPE over the same window. `None` when it could not be read — see `journal_shape`.
     out["journal_shape"] = journal_shape_of(since, until)
+    # The ring's SAMPLE-based completeness, beside the night's time-based gap ledger and never folded
+    # into it. The two are in different units and answer different questions; residue
+    # `2026-09-27-sample-shortfall-without-a-time-gap-is-unmeasured` is the night where the time measure
+    # read near zero per hour while about 4,600 samples an hour were absent.
+    out["ring_samples"] = sample_completeness(night_dir)
     for d in devices:
         if not isinstance(d, dict):
             continue

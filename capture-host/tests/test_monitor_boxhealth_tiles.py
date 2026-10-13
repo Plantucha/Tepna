@@ -232,3 +232,60 @@ def test_a_tile_with_no_fault_renders_NO_ask():
         html = _render("null, null, null, null, null, " + cpap + ", null")
         assert "re-pair" not in html, cpap
         assert 'class="sub bad"' not in html, cpap
+
+
+# ── Tonight (QC) between nights ───────────────────────────────────────────────────────────────────────
+# Owner 2026-10-12 16:41 EDT: the tile read "11 gaps" in the daytime with nobody wearing anything. A
+# synthetic 16 h band as absolute UTC seconds, the shape nightqc publishes as `night_window`.
+_BAND_END = 1_700_056_800
+_QC_ALL_MISSING = {
+    "night": "2026-01-02",
+    "ok": False,
+    "missing": ["Ring-A:spo2", "Strap-B:ecg"],
+    "degraded": [],
+    "gaps": [],
+    "night_window": {"begin": _BAND_END - 16 * 3600, "end": _BAND_END},
+}
+
+
+def _qc_tile(qc, heartbeat_ms):
+    return _render(f"null, {json.dumps(qc)}, null, null, null, null, null, {json.dumps(heartbeat_ms)}")
+
+
+def test_after_the_judged_band_closes_the_tile_says_between_nights_not_gaps():
+    html = _qc_tile(_QC_ALL_MISSING, (_BAND_END + 6 * 3600) * 1000)
+    assert "Between nights" in html
+    assert "gap" not in html
+    assert "var(--border2)" in html and "var(--status-caution)" not in html
+
+
+def test_inside_the_band_missing_streams_still_read_as_gaps():
+    html = _qc_tile(_QC_ALL_MISSING, (_BAND_END - 1) * 1000)
+    assert "2 gaps" in html and "Between nights" not in html
+    assert "var(--status-caution)" in html
+
+
+def test_the_band_end_itself_is_between_nights():
+    assert "Between nights" in _qc_tile(_QC_ALL_MISSING, _BAND_END * 1000)
+
+
+@pytest.mark.parametrize("heartbeat", [None, "x"])
+def test_no_box_clock_never_guesses_between(heartbeat):
+    assert "2 gaps" in _qc_tile(_QC_ALL_MISSING, heartbeat)
+
+
+@pytest.mark.parametrize("window", [None, {"begin": 0}, {"begin": 0, "end": None}])
+def test_no_band_end_never_guesses_between(window):
+    qc = dict(_QC_ALL_MISSING, night_window=window)
+    assert "2 gaps" in _qc_tile(qc, (_BAND_END + 6 * 3600) * 1000)
+
+
+def test_a_complete_night_after_its_band_reads_between_not_complete():
+    qc = dict(_QC_ALL_MISSING, ok=True, missing=[], total_rows=10)
+    html = _qc_tile(qc, (_BAND_END + 60) * 1000)
+    assert "Between nights" in html and "Complete" not in html
+
+
+def test_the_page_passes_the_box_heartbeat_to_the_tile():
+    src = open(MON, encoding="utf-8").read()
+    assert "s.cpap_live, s.heartbeat_ms);" in src

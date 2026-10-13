@@ -40,6 +40,7 @@ DROPIN="$ETC_ROOT/etc/systemd/timesyncd.conf.d/tepna-ntp.conf"
 # `chronyc reload sources`) and `confdir /etc/chrony/conf.d`. Writing sources rather than a full config
 # means we never clobber the distro's own chrony.conf.
 CHRONY_SOURCES="$ETC_ROOT/etc/chrony/sources.d/tepna.sources"
+CHRONY_LOGCHANGE="$ETC_ROOT/etc/chrony/conf.d/tepna-logchange.conf"
 
 # Which daemon is actually steering the clock? Prefer what is RUNNING over what is installed — a box can
 # have both packages present with only one active.
@@ -52,6 +53,33 @@ time_daemon() {
   command -v chronyc >/dev/null 2>&1 && { echo chrony; return; }
   echo timesyncd
 }
+# THE STEP THE RE-ARM PERMITS MUST BE LOGGED. The `sync` verb arms `makestep 0.1 3`, which permits a
+# step over 0.1 s on each of the next three updates. Chrony's DEFAULT is `logchange 1.0`, so it records
+# only a step over 1.0 s. The whole 0.1-1.0 s band was therefore permitted here and recorded nowhere.
+# Measured on vigil 2026-09-24: 71 `New makestep 0.100000 3` lines since 08-07, and ZERO step-outcome
+# lines of any vocabulary. A step of 0.1 s is four orders above the host's own discipline (RMS offset
+# 58 us) and moves every capture stamp at once, so the OUTCOME belongs in the journal beside the ARM.
+# `logchange 0.1` changes no step POLICY — it only lowers what chrony writes down.
+#
+# ⚠ conf.d BINDS AT CHRONYD START. `chronyc reload sources` reloads SOURCES only, and `sync`
+# deliberately never restarts chronyd (a restart leaves the host UNSYNCHRONISED for ~60 s). So this
+# installs the directive and reports WHICH STATE it is in. It never claims the directive is active --
+# claiming an effect we cannot read is the one failure this script's header exists to warn about.
+ensure_logchange() {
+  if [ -f "$CHRONY_LOGCHANGE" ] && grep -qx 'logchange 0.1' "$CHRONY_LOGCHANGE" 2>/dev/null; then
+    echo present
+    return
+  fi
+  mkdir -p "$(dirname "$CHRONY_LOGCHANGE")"
+  {
+    echo '# Managed by the Tepna Vigil monitor — do not hand-edit.'
+    echo '# tepna-clock.sh sync arms makestep 0.1 3; the chrony default logchange 1.0 would not'
+    echo '# record a step inside the 0.1-1.0 s band that arm permits. Binds at the next chronyd start.'
+    echo 'logchange 0.1'
+  } > "$CHRONY_LOGCHANGE"
+  echo written
+}
+
 DAEMON="$(time_daemon)"
 
 verb="${1:-}"
@@ -107,8 +135,13 @@ case "$verb" in
       # source to reach 0 and leaves the host UNSYNCHRONISED for ~60 s. On a box whose whole purpose is
       # stamping captures, briefly destroying the clock to "sync" it is worse than reporting a failure.
       # And the old code echoed "makestep" whichever branch ran, so the message could not be trusted.
+      # Install the step LOG threshold before arming the step, so the arm and its record move together.
+      case "$(ensure_logchange)" in
+        present) lcmsg="logchange 0.1 already in $CHRONY_LOGCHANGE" ;;
+        *) lcmsg="logchange 0.1 written to $CHRONY_LOGCHANGE — it binds at the next chronyd start, so a step inside the 0.1-1.0 s band stays unlogged until then" ;;
+      esac
       if chronyc burst 4/4 >/dev/null 2>&1 && chronyc makestep 0.1 3 >/dev/null 2>&1; then
-        echo "ok: resync triggered (chrony burst + conditional step)"
+        echo "ok: resync triggered (chrony burst + conditional step); $lcmsg"
       else
         echo "chronyc could not be reached — is chronyd running?" >&2; exit 1
       fi

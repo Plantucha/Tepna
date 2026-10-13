@@ -180,10 +180,18 @@ const STREAM = !has('--quiet-stream');
    and the two can disagree badly. Measured 2026-09-14 on the 24-core box (`tepna-nightly-triage`
    driving this tool at the core-derived 16): the unit's own cgroup reported a MemoryPeak of
    **16.57 GB** for those 16 workers — **~1.04 GB per job end-to-end**.
-   ⚠️ Derive the per-job figure from the CGROUP PEAK, not from summing child RSS. A `ps` snapshot of
-   the same 16 workers totalled 7.88 GB (mean 504 MB, median 499, p90 749, max 1038) — less than HALF
-   the true peak, because workers spike at different moments and an instantaneous sum never sees the
-   overlap. Sizing from the snapshot would have doubled the pool that already hurt.
+   ⚠️ **`MemoryPeak` IS A CGROUP FIGURE AND IS NOT THE WORKERS' MEMORY** (residue
+   `2026-09-23-memorypeak-is-a-cgroup-figure`): it charges reclaimable page cache to the unit, so it
+   over-reads a process's own footprint by an amount that is not a ratio — measured on vigil over 2 038
+   samples, cgroup-peak ÷ VmHWM ran **0.78x to 8.41x across six segments of one daemon**. So 16.57 GB
+   is an UPPER BOUND on what those 16 workers needed, and the per-job figure below inherits that: it
+   sizes a POOL conservatively (the direction that only ever shrinks it) and must never be quoted as a
+   per-process number or used to set a `MemoryMax` — §4c's cap goes on the consumer, sized from VmHWM.
+   The honest per-process figure is still unmeasured here and the residue row stays open for it.
+   ⚠️ And do NOT reach for a `ps` snapshot as the alternative: the same 16 workers totalled 7.88 GB
+   (mean 504 MB, median 499, p90 749, max 1038) — less than half the cgroup peak, because workers spike
+   at different moments and an instantaneous sum never sees the overlap. Both instruments are wrong in
+   known directions; this one is wrong in the safe one.
    The consequence on a small machine is the one that matters: 16 workers × ~1 GB is fine on a 59 GB
    box with nothing else running and fatal on a CI runner or a laptop, and nothing in the core-derived
    form can tell those apart. */
@@ -1054,14 +1062,26 @@ export function readJournal(text) {
   return { done, jammed, retry };
 }
 
-export function classifySurvivors(entries, survivors, generated) {
+export function survivorKey(m) {
+  /* ONE key for entries, survivors, generated and killed mutants — see classifySurvivors for why `after`
+     is part of it. Exported so the diff gate subtracts what the classifier excused by the SAME rule. */
+  return m.line + '\u0000' + m.op + '\u0000' + m.before + '\u0000' + (m.after ?? '');
+}
+export function classifySurvivors(entries, survivors, generated, killed) {
   /* `after` is part of the key for the reason findCanary documents: line+op+before collapses two
      same-operator mutants on one line into one entry, so a classification computed for one silently
      covers the other. Kept NUL-separated like `jkey` so a field boundary cannot be forged by text. */
-  const key = (m) => m.line + '\u0000' + m.op + '\u0000' + m.before + '\u0000' + (m.after ?? '');
+  const key = survivorKey;
   const surv = new Set((survivors || []).map(key));
   const gen = new Set((generated || []).map(key));
-  const out = { excused: [], realGap: [], refuted: [], orphaned: [], unclassified: [] };
+  /* A KILL IS A DETECTION RECORDED, NOT A SURVIVOR THAT IS MISSING. `killed` is the mutants this run
+     (or the journal it replayed) POSITIVELY recorded as KILLED. This function used to read refuted off
+     absence — generated and not a survivor => "something killed it" — and absence is also what an
+     INVALID mutant, a quarantined jammer, a thinned-out mutant and a partial run look like, so it could
+     tell a reader to delete a correct claim (the defect the Python gate's classify was fixed for).
+     Omitted (`undefined`) means no kill was recorded, so NOTHING can be refuted: fail closed. */
+  const kil = new Set((killed || []).map(key));
+  const out = { excused: [], realGap: [], refuted: [], orphaned: [], unclassified: [], notDecided: [] };
   const seen = new Set();
   for (const e of entries || []) {
     const k = key(e);
@@ -1071,7 +1091,11 @@ export function classifySurvivors(entries, survivors, generated) {
       continue;
     }
     if (!surv.has(k)) {
-      // generated and did NOT survive => something killed it
+      if (!kil.has(k)) {
+        // generated, not a survivor, and no recorded kill: the claim is UNMEASURED, never refuted
+        out.notDecided.push(e);
+        continue;
+      }
       if (EXCUSING.has(e.class)) out.refuted.push(e);
       continue; // a `real-gap` entry that is now killed is debt paid, not an error
     }
@@ -1080,6 +1104,12 @@ export function classifySurvivors(entries, survivors, generated) {
   }
   for (const s of survivors || []) if (!seen.has(key(s))) out.unclassified.push(s);
   return out;
+}
+/* The survivors the diff gate must still BLOCK on: everything the classifier did not excuse — realGap
+   and unclassified stay in. PURE. */
+export function blockingSurvivors(classification, survivors) {
+  const excused = new Set((classification.excused || []).map(survivorKey));
+  return (survivors || []).filter((x) => !excused.has(survivorKey(x)));
 }
 
 const CANARY_FILE = join(ROOT, 'tools', 'mutate-canaries.json');
@@ -1268,6 +1298,7 @@ async function runFile(file) {
     _dirty.delete(abs);
   };
   const survivors = [];
+  const killedMu = []; // the mutants POSITIVELY recorded KILLED — the only evidence a refutation may use
   /* INVALID mutants are LISTED, not just counted. They were a bare number, and a bare number cannot be
      reconciled against anything — so a mutant that never ran was indistinguishable from one that ran
      and died. That is not hypothetical: two consecutive full sweeps of clock.js, on byte-identical
@@ -1393,8 +1424,10 @@ async function runFile(file) {
       const rec0 = prior.done.get(jkey(m));
       if (rec0 === undefined) continue;
       const v = rec0.v;
-      if (v === 'KILLED') killed++;
-      else if (v === 'INVALID') {
+      if (v === 'KILLED') {
+        killed++;
+        killedMu.push(m);
+      } else if (v === 'INVALID') {
         invalid++;
         invalids.push({ ...m, reason: 'recorded in a previous run' });
       } else survivors.push(m);
@@ -1467,6 +1500,7 @@ async function runFile(file) {
       const rec0 = prior.done.get(jkey(m));
       if (rec0 && mayReuse(rec0, fnHash(m.line), _groupHash)) {
         killed++;
+        killedMu.push(m);
         done++;
         reusedCount++;
         for (const g of rec0.ks || []) killers.set(g, (killers.get(g) || 0) + 1);
@@ -1562,6 +1596,7 @@ async function runFile(file) {
     }
     if (verdict === 'KILLED') {
       killed++;
+      killedMu.push(mu);
       if (!firstKill && ks.length) firstKill = { mu, killers: ks };
       for (const g of ks) killers.set(g, (killers.get(g) || 0) + 1);
     } else if (verdict === 'INVALID') {
@@ -1784,13 +1819,16 @@ async function runFile(file) {
        is the whole argument the brief makes. `distinguishable` is what the 90 % target should be read
        against once that call is made. */
     equivalence: (function () {
-      const c = classifySurvivors(loadEquivalence()[file], survivors, all);
+      const c = classifySurvivors(loadEquivalence()[file], survivors, all, killedMu);
       return {
         excused: c.excused.length,
         realGap: c.realGap.length,
         unclassified: c.unclassified.length,
         refuted: c.refuted,
         orphaned: c.orphaned,
+        notDecided: c.notDecided,
+        // what the diff gate still blocks on: the survivors no recorded equivalence entry excuses
+        blocking: blockingSurvivors(c, survivors).map((x) => ({ line: x.line, op: x.op, before: x.before, after: x.after })),
         // the honest denominator: what a test COULD have killed
         distinguishable: picked.length - (canaryMu ? 1 : 0) - invalid - c.excused.length
       };
@@ -1843,6 +1881,11 @@ export function verdictObject(status, { checked, eligible, result, reason, evide
 }
 /* The decision over a finished run: the SAME order as the exit block below, so the code and the status
    cannot disagree. `results` are runFile() rows; `meta` = { base, commit, at }. Returns { verdict, code }. */
+/* The survivors one runFile row asks the gate to block on: its classified `blocking` list when it has
+   one, else every raw survivor (no classification ⇒ nothing is excused). */
+function survivorsToBlock(r) {
+  return r.equivalence && Array.isArray(r.equivalence.blocking) ? r.equivalence.blocking : r.survivors;
+}
 export function diffVerdict(results, meta) {
   meta = meta || {};
   const ok = results.filter((r) => !r.error);
@@ -1862,13 +1905,38 @@ export function diffVerdict(results, meta) {
       .join('; ');
     return { code: 0, verdict: mk('NOT_RUN', { checked: 0, eligible: 0, result: null, reason: results.length + ' file(s), none measured — ' + (why || 'no files') }) };
   }
-  const surv = ok.flatMap((r) => r.survivors.map((s) => ({ file: r.file, ...s })));
+  /* THE LEDGER IS READ HERE TOO. This counted raw survivors, so a mutant a recorded `equivalent` /
+     `no-distinguishing-input` entry excuses still made the gate FAIL while the sweep path in the same
+     file subtracted it. `runFile` classifies (see `equivalence.blocking`) and this takes what it did not
+     excuse. A row with no classification (`blocking` absent) is read RAW — the old behaviour, and the
+     fail-closed one: an unclassified survivor blocks. */
+  const surv = ok.flatMap((r) => survivorsToBlock(r).map((s) => ({ file: r.file, ...s })));
+  const rawSurv = ok.reduce((a, r) => a + r.survivors.length, 0);
+  /* REFUTED means a kill was POSITIVELY RECORDED against an entry claiming the mutant cannot be killed
+     (`classifySurvivors` never reads it off absence), so the claim is wrong and that is a FAIL, as in
+     the Python gate. ORPHANED / not-decided are reported, never blocking: in a diff run most entries name
+     lines the change did not touch, and an entry whose mutant was not decided excused nothing. */
+  const refuted = ok.flatMap((r) => ((r.equivalence && r.equivalence.refuted) || []).map((e) => ({ file: r.file, ...e })));
+  const orphaned = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.orphaned) || []).length, 0);
+  const notDecided = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.notDecided) || []).length, 0);
   const voided = ok.filter((r) => r.voided);
   const unrun = ok.reduce((a, r) => a + r.invalid, 0);
   const tested = ok.reduce((a, r) => a + r.tested, 0);
   const killed = ok.reduce((a, r) => a + r.killed, 0);
   const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
-  const result = { tested, killed, survivors: surv.length, invalid: unrun, changedLines: lines, files: ok.length, skipped: results.length - ok.length };
+  const result = {
+    tested,
+    killed,
+    survivors: surv.length,
+    excused: rawSurv - surv.length,
+    refuted: refuted.length,
+    orphaned,
+    notDecided,
+    invalid: unrun,
+    changedLines: lines,
+    files: ok.length,
+    skipped: results.length - ok.length
+  };
   const pop = { checked: tested - unrun, eligible: tested, result };
   if (voided.length)
     return {
@@ -1877,6 +1945,22 @@ export function diffVerdict(results, meta) {
     };
   if (unrun)
     return { code: 3, verdict: mk('UNKNOWN', { ...pop, reason: unrun + ' of ' + tested + ' mutant(s) never ran (did not compile, or timed out under load) — nothing was proven about them' }) };
+  if (refuted.length && !surv.length)
+    return {
+      code: 1,
+      verdict: mk('FAIL', {
+        ...pop,
+        reason:
+          refuted.length +
+          ' equivalence entr(ies) REFUTED — a kill was recorded for a mutant the ledger says cannot be killed: ' +
+          refuted
+            .slice(0, 5)
+            .map((e) => e.file + ':' + e.line + ' [' + e.op + ']')
+            .join(', ') +
+          (refuted.length > 5 ? ', …' : '') +
+          ' — correct the entry in tools/mutate-equivalence.json'
+      })
+    };
   if (surv.length)
     return {
       code: 1,
@@ -2147,7 +2231,7 @@ function selftest() {
     { line: 3, op: 'bool && → ||', before: 'c', class: 'real-gap' }, // survived but debt, stays countable
     { line: 9, op: 'cmp < → <=', before: 'z', class: 'untestable-by-design' } // matches nothing => orphaned
   ];
-  const cls = classifySurvivors(entries, survived, genAll);
+  const cls = classifySurvivors(entries, survived, genAll, [M(2, 'cmp > → >=', 'b')]);
   ck('classify · an excusing class that SURVIVED is excused', cls.excused.length, 1);
   ck('classify · an excusing class that was KILLED is REFUTED, never absorbed', cls.refuted.length, 1);
   ck('classify · a real-gap survivor is NOT excused', cls.realGap.length, 1);
@@ -2170,6 +2254,24 @@ function selftest() {
   const eqCls = classifySurvivors([{ line: 5, op: 'cmp <= → <', before: 'e', class: 'equivalent' }], eqGen, eqGen);
   ck('classify · a proven-equivalent survivor is EXCUSED', eqCls.excused.length, 1);
   ck('classify · …and is NOT reported as a real gap', eqCls.realGap.length, 0);
+
+  /* ⚠️ ABSENCE IS NOT A KILL (residue 2026-10-05-the-js-diff-gate-ignores-the-equivalence-ledger).
+     The same entries, the same generated set, but NO recorded kill: the claim on line 2 is unmeasured —
+     an INVALID mutant, a quarantined jammer or a partial run all look exactly like this — so it must
+     land in notDecided and never in refuted. */
+  const absent = classifySurvivors(entries, survived, genAll);
+  ck('classify · generated, not a survivor, NO recorded kill ⇒ NOT DECIDED, never refuted', absent.refuted.length + ':' + absent.notDecided.length, '0:1');
+  ck('classify · …and a kill recorded for a DIFFERENT mutant refutes nothing here', classifySurvivors(entries, survived, genAll, [M(1, 'cmp < → <=', 'a')]).refuted.length, 0);
+  ck(
+    'classify · a non-excusing (real-gap) entry that was killed is debt paid, not refuted',
+    classifySurvivors([{ line: 2, op: 'cmp > → >=', before: 'b', class: 'real-gap' }], [], genAll, [M(2, 'cmp > → >=', 'b')]).refuted.length,
+    0
+  );
+  /* blockingSurvivors -- what the diff gate subtracts: ONLY survivors an excusing entry covers. */
+  const blk = blockingSurvivors(cls, survived);
+  ck('blocking · the excused survivor leaves, the real-gap and the unclassified one stay', blk.map((x) => x.line).join(','), '3,4');
+  ck('blocking · no classification excuses nothing', blockingSurvivors({ excused: [] }, survived).length, 3);
+  ck('blocking · an undefined survivor list is empty, not a crash', blockingSurvivors(cls, undefined).length, 0);
 
   /* An empty classification must change nothing -- the mechanism is opt-in per file. */
   const none = classifySurvivors(undefined, survived, genAll);
@@ -2271,6 +2373,25 @@ function selftest() {
     ck('…valid under verdict.js', val(pass.verdict), true);
     ck('…population is an equality over mutants', JSON.stringify(pass.verdict.population), '{"checked":10,"eligible":10,"excluded":0}');
     ck('…scope internal (P5)', pass.verdict.scope, 'internal');
+    /* THE LEDGER IS READ BY THE DIFF GATE (residue …-the-js-diff-gate-ignores-the-equivalence-ledger…).
+       A survivor an entry excuses leaves the blocking list: a fully drained file is PASS, not FAIL. */
+    const _s7 = { line: 7, op: 'num → 0', before: 'x', after: 'y' };
+    const drained = diffVerdict([row({ killed: 9, survivors: [_s7], equivalence: { blocking: [], refuted: [], orphaned: [], notDecided: [] } })], meta);
+    ck('every survivor EXCUSED by the ledger → PASS, exit 0 (was FAIL on the raw count)', drained.verdict.status + ':' + drained.code, 'PASS:0');
+    ck('…the excused one is counted in the result, not hidden', drained.verdict.result.excused + ':' + drained.verdict.result.survivors, '1:0');
+    ck('…valid', val(drained.verdict), true);
+    const stillBlocks = diffVerdict([row({ killed: 9, survivors: [_s7], equivalence: { blocking: [_s7], refuted: [], orphaned: [], notDecided: [] } })], meta);
+    ck('a survivor the ledger does NOT excuse still FAILS', stillBlocks.verdict.status + ':' + stillBlocks.code + ':' + /a\.js:7/.test(stillBlocks.verdict.reason), 'FAIL:1:true');
+    const _ref = { line: 9, op: 'cmp > → >=', class: 'equivalent', before: 'b' };
+    const refuted = diffVerdict([row({ equivalence: { blocking: [], refuted: [_ref], orphaned: [], notDecided: [] } })], meta);
+    ck(
+      'a REFUTED entry (a recorded kill against a claimed-equivalent mutant) → FAIL, exit 1, names it',
+      refuted.verdict.status + ':' + refuted.code + ':' + /REFUTED.*a\.js:9/.test(refuted.verdict.reason),
+      'FAIL:1:true'
+    );
+    ck('…valid', val(refuted.verdict), true);
+    const quiet = diffVerdict([row({ equivalence: { blocking: [], refuted: [], orphaned: [_ref, _ref], notDecided: [_ref] } })], meta);
+    ck('ORPHANED and NOT-DECIDED entries are REPORTED in the result and block nothing', quiet.verdict.status + ':' + quiet.verdict.result.orphaned + ':' + quiet.verdict.result.notDecided, 'PASS:2:1');
     const f = diffVerdict([row({ killed: 9, survivors: [{ line: 7, op: 'num → 0', before: 'x' }] })], meta);
     ck('a survivor → FAIL, exit 1, reason names it', f.verdict.status + ':' + f.code + ':' + /a\.js:7/.test(f.verdict.reason), 'FAIL:1:true');
     ck('…valid', val(f.verdict), true);
@@ -2548,7 +2669,7 @@ function reportOne(r) {
   /* THE DISTINGUISHABLE RATE, printed beside the raw one rather than replacing it. A reader must be
      able to see both denominators and the gap between them -- that gap IS the finding. */
   const eq = r.equivalence;
-  if (eq && (eq.excused || eq.realGap || eq.unclassified || eq.refuted.length || eq.orphaned.length)) {
+  if (eq && (eq.excused || eq.realGap || eq.unclassified || eq.refuted.length || eq.orphaned.length || (eq.notDecided && eq.notDecided.length))) {
     const dScore = eq.distinguishable > 0 ? ((r.killed / eq.distinguishable) * 100).toFixed(0) : '\u2014';
     console.log(
       '    equivalence: ' + eq.excused + ' excused, ' + eq.realGap + ' real-gap, ' + eq.unclassified + ' UNCLASSIFIED' + '   [' + dScore + ' % of ' + eq.distinguishable + ' distinguishable]'
@@ -2567,6 +2688,11 @@ function reportOne(r) {
           e.class +
           '" but was KILLED.\n' +
           '        A distinguishing input exists after all. Correct the entry in tools/mutate-equivalence.json.'
+      );
+    // generated, not a survivor, and NO recorded kill: unmeasured, so neither excused nor refuted
+    if (eq.notDecided && eq.notDecided.length)
+      console.log(
+        '      \u25cb ' + eq.notDecided.length + ' entr(ies) NOT DECIDED \u2014 the mutant was generated but no kill or survival was recorded for it in this run; the claim is unchecked, not refuted.'
       );
     for (const e of eq.orphaned)
       console.log('      \u26a0 ORPHANED ' + r.file + ':' + e.line + '  [' + e.op + '] matches no generated mutant - the line moved or the code changed. Excluded from every count until re-verified.');
@@ -2660,7 +2786,9 @@ if (!AS_JSON) {
      · survivors exit 1, listed with file:line and the exact edit that went unnoticed. */
 if (DIFF) {
   const ok = results.filter((r) => !r.error);
-  const surv = ok.flatMap((r) => r.survivors.map((s) => ({ file: r.file, ...s })));
+  const surv = ok.flatMap((r) => survivorsToBlock(r).map((s) => ({ file: r.file, ...s })));
+  const excusedN = ok.reduce((a, r) => a + r.survivors.length, 0) - surv.length;
+  const refutedAll = ok.flatMap((r) => ((r.equivalence && r.equivalence.refuted) || []).map((e) => ({ file: r.file, ...e })));
   const voided = ok.filter((r) => r.voided);
   const unrun = ok.reduce((a, r) => a + r.invalid, 0);
   const tested = ok.reduce((a, r) => a + r.tested, 0);
@@ -2679,7 +2807,17 @@ if (DIFF) {
     console.error('  Each is an edit you made that no test can see. Add an assertion, or explain why it is unobservable:\n');
     for (const s of surv.slice(0, 20)) console.error('    ' + s.file + ':' + s.line + '  [' + s.op + ']\n      ' + String(s.before).trim().slice(0, 100));
     if (surv.length > 20) console.error('    … and ' + (surv.length - 20) + ' more');
-  } else if (verdict.status === 'PASS' && !AS_JSON) console.log('\n✓ mutation gate: all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.');
+  } else if (refutedAll.length) {
+    console.error('\n✕ MUTATION GATE — ' + refutedAll.length + ' equivalence entr(ies) REFUTED: a kill was recorded for a mutant the ledger says cannot be killed.');
+    for (const e of refutedAll.slice(0, 20)) console.error('    ' + e.file + ':' + e.line + '  [' + e.op + '] is classified "' + e.class + '"');
+    console.error('  Correct the entry in tools/mutate-equivalence.json — never weaken the test that killed it.');
+  } else if (verdict.status === 'PASS' && !AS_JSON)
+    console.log(
+      '\n✓ mutation gate: ' +
+        (excusedN
+          ? tested + ' mutant(s) on ' + lines + ' changed line(s) — ' + (tested - excusedN) + ' killed, ' + excusedN + ' excused by a recorded equivalence entry.'
+          : 'all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.')
+    );
   else if (!AS_JSON) console.log('\n○ mutation gate ' + verdict.status + ' — ' + verdict.reason);
   emitVerdict(verdict);
   if (code) process.exit(code);

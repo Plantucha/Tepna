@@ -874,6 +874,7 @@ function ringDevColumn(sidecarText, nRows) {
        Telling a reader "a pre-E11 capture" about a split night sends them to the wrong fix. */
     return {
       ok: false,
+      kind: 'no-position',
       reason: /;PPG_FRAME_A;/.test(String(sidecarText))
         ? 'the ring’s wave arrived on 0x03 (LIVE_SAMPLES_A) in split mode, which carries no cumulative stream position — the frames are logged, the device position is not, so the finger has no floor to anchor'
         : 'no positioned `PPG_FRAME` rows in the ring sidecar — a pre-E11 capture carries arrival rows with no stream position'
@@ -909,6 +910,7 @@ function ringDevColumn(sidecarText, nRows) {
   if (!advances && frames.length > 1)
     return {
       ok: false,
+      kind: 'offset-dead',
       reason:
         'ring-offset-never-advances: all ' +
         frames.length +
@@ -921,6 +923,7 @@ function ringDevColumn(sidecarText, nRows) {
     if (k && frames[k][0] < frames[k - 1][0] + frames[k - 1][1])
       return {
         ok: false,
+        kind: 'overlap',
         reason:
           'ring frame positions overlap or go backwards at frame ' + k + ' (' + frames[k][0] + ' after ' + (frames[k - 1][0] + frames[k - 1][1]) + ') — one device position would map to two samples'
       };
@@ -929,6 +932,7 @@ function ringDevColumn(sidecarText, nRows) {
   if (total !== nRows)
     return {
       ok: false,
+      kind: 'accounting',
       reason: total + ' samples declared across ' + frames.length + ' ring frames vs ' + nRows + ' rows in `_PPG.txt` — the row accounting differs, so positions cannot be mapped'
     };
   var out = new Float64Array(nRows),
@@ -936,6 +940,27 @@ function ringDevColumn(sidecarText, nRows) {
   for (var f = 0; f < frames.length; f++) for (var j = 0; j < frames[f][1]; j++) out[w++] = (frames[f][0] + j) * RING_MS_PER_SAMPLE;
   return { ok: true, dev: out, frames: frames.length, samples: total };
 }
+/* ── WHICH REFUSAL A READER SEES WHEN BOTH HALVES REFUSE ─────────────────────────────────────────────
+   Measured 2026-10-12 over every real ring session this firmware has produced — 9 sessions on 8 nights,
+   2026-10-04 → 10-11, 215,532 `PPG_FRAME` rows — `floorMap` refuses FIRST, with "device-counter segments
+   overlap (the counter went backwards)". So `ring-offset-never-advances`, written for exactly this
+   firmware and pinned by the suite, was UNREACHABLE on real data: all nine nights reported a corrupt
+   capture, which is the reading the refusal exists to prevent. The overlap is a CONSEQUENCE of the dead
+   field — every frame sits at one position, so the segments trivially collide — so the message named the
+   symptom and buried the cause.
+
+   The two refusals are not peers. A DEVICE-level absence (the offset field is dead, or the opcode carries
+   no position at all) holds for every night this firmware will ever record; `floorMap`'s overlap and
+   spread complaints describe THIS capture. So a structural kind outranks `floorMap`, and the per-capture
+   kinds stay behind it — there `floorMap`'s message is the more specific of the two. */
+var RING_STRUCTURAL = { 'offset-dead': 1, 'no-position': 1 };
+function ringLegRefusal(floor, dev) {
+  if (dev && !dev.ok && RING_STRUCTURAL[dev.kind]) return { ok: false, reason: 'O2Ring PPG: ' + dev.reason };
+  if (floor && !floor.ok) return { ok: false, reason: 'O2Ring PPG: ' + floor.reason };
+  if (dev && !dev.ok) return { ok: false, reason: 'O2Ring PPG: ' + dev.reason };
+  return null;
+}
+
 /* Host time on the floor axis of each (fractional) sample position: interpolated device time + floor offset.
    Positions whose device time falls outside every anchored segment are DROPPED and counted, never placed. */
 /* One device, one counter: every stream it sends is stamped by the same clock, so the device is anchored on
@@ -1263,10 +1288,14 @@ self.onmessage = function (e) {
                     'no arrival sidecar for the O2Ring — E11 (#3267) writes one per PPG frame, so a capture from before the box restarted on it has none, and the synthesized grid may not stand in for a floor'
                 };
               else {
+                /* Both halves are asked, then `ringLegRefusal` ranks them — a structural absence must not be
+                   masked by a per-capture complaint. `ringDevColumn` tests non-advance BEFORE it allocates, so
+                   the dead-field path still allocates nothing; the only new cost is a column built and then
+                   discarded when the offset advances AND the floor refuses, which this firmware cannot reach. */
                 var fR = floorMap(t[iArrR], 'PPG_FRAME', ringPacket),
-                  devR = fR.ok ? ringDevColumn(t[iArrR], fin.nSamples) : null;
-                if (!fR.ok) ringLeg = { ok: false, reason: 'O2Ring PPG: ' + fR.reason };
-                else if (!devR.ok) ringLeg = { ok: false, reason: 'O2Ring PPG: ' + devR.reason };
+                  devR = ringDevColumn(t[iArrR], fin.nSamples),
+                  ringBad = ringLegRefusal(fR, devR);
+                if (ringBad) ringLeg = ringBad;
                 else {
                   var FR = floorTimes(devR.dev, fin.feetIdx, fR),
                     cpFCorr = coupledPAT(R.hostMs, FR.hostMs),

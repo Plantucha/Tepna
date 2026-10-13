@@ -86,7 +86,15 @@ export function budgetBar({ spentPct, spentPctRange, reportedAt, nowMs }) {
 // ── COLLECTORS ────────────────────────────────────────────────────────────────────────────────────
 function usage(sinceSpec) {
   try {
-    const raw = sh('node', [path.join(REPO, 'tools', 'usage-guard.mjs'), '--json', ...(sinceSpec ? ['--since', sinceSpec] : [])], { cwd: REPO });
+    /* A second host's birds (TEPNA_USAGE_REMOTES, space-separated ssh hosts) and the Managed Agents run
+       logs (TEPNA_MA_LOGS, space-separated directories) join the table; each unread one is a reason. */
+    const remotes = (process.env.TEPNA_USAGE_REMOTES ?? 'vigil').split(/\s+/).filter(Boolean);
+    const maLogs = (process.env.TEPNA_MA_LOGS ?? path.join(homedir(), 'tepna-reviews')).split(/\s+/).filter(Boolean);
+    const raw = sh(
+      'node',
+      [path.join(REPO, 'tools', 'usage-guard.mjs'), '--json', ...(sinceSpec ? ['--since', sinceSpec] : []), ...remotes.flatMap((h) => ['--remote', h]), ...maLogs.flatMap((d) => ['--ma-log', d])],
+      { cwd: REPO }
+    );
     const u = JSON.parse(raw).usage;
     return {
       ok: true,
@@ -102,11 +110,63 @@ function usage(sinceSpec) {
         messages: s.messages,
         models: s.models || {},
         lastContextTokens: s.lastContextTokens,
-        lastContextAt: s.lastContextAt
-      }))
+        lastContextAt: s.lastContextAt,
+        host: s.host ?? null
+      })),
+      remotes: u.remotes ?? [],
+      managedAgents: u.managedAgents ?? { rows: [], read: [] },
+      roster: rosterNames()
     };
   } catch (e) {
     return fail(`usage-guard --json failed: ${e.message}`);
+  }
+}
+
+/* The roster, from the CLAUDE.md §0 table (`| **Name** | machine | lane |`): every bird gets a row in the
+   token table, and a bird with no transcript read in the window shows as unread, never as 0. */
+export function parseRoster(md) {
+  const sec =
+    String(md)
+      .split(/^### 0 · /m)[1]
+      ?.split(/^- /m)[0] ?? '';
+  const out = [];
+  for (const m of sec.matchAll(/^\| \*\*([A-Za-z]+)\*\* \|/gm)) out.push(m[1].toLowerCase());
+  return out;
+}
+function rosterNames() {
+  try {
+    return parseRoster(readFileSync(path.join(REPO, 'CLAUDE.md'), 'utf-8'));
+  } catch {
+    return [];
+  }
+}
+
+/* The walker's queue, in order, from its persisted file. Pure parse on the text so --selftest can plant it. */
+export function parseWalkerQueue(txt) {
+  const seen = new Set();
+  const out = [];
+  for (const tok of String(txt).split(/\s+/)) {
+    if (!/^\d+$/.test(tok)) continue;
+    const n = Number(tok);
+    if (!seen.has(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  }
+  return out;
+}
+function walkerQueue() {
+  const f = process.env.TEPNA_WALKER_QUEUE || path.join(homedir(), '.local', 'state', 'tepna', 'walker', 'undraft-queue.txt');
+  if (!existsSync(f)) return [];
+  try {
+    return parseWalkerQueue(
+      readFileSync(f, 'utf-8')
+        .split('\n')
+        .filter((l) => !/^\s*#/.test(l))
+        .join(' ')
+    );
+  } catch {
+    return [];
   }
 }
 
@@ -121,13 +181,18 @@ function prs() {
       }
       return { number: p.number, title: p.title.slice(0, 92), draft: p.isDraft, state: p.mergeStateStatus, buckets, updatedAt: p.updatedAt };
     });
-    /* WALKER ORDER is the serial queue's own order: oldest non-draft first, which is the order Kodiak
-       takes them. Drafts are listed after, because a draft is held on purpose. */
-    const order = list
+    /* WALKER ORDER is the walker's own queue file when it exists (Kestrel's undraft walker reads it
+       by whitespace; numbers no longer open are skipped). Without the file it is Kodiak's order:
+       oldest non-draft first. The board printed "walker order: #3473" on 2026-10-12 while nine PRs
+       sat in the queue, because it read only the undrafted ones. */
+    const open = new Map(list.map((p) => [p.number, p]));
+    const queued = walkerQueue().filter((n) => open.has(n));
+    const nonDraft = list
       .filter((p) => !p.draft)
       .sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1))
       .map((p) => p.number);
-    return { ok: true, list, walkerOrder: order, openNonDraft: order.length };
+    const order = queued.length ? queued : nonDraft;
+    return { ok: true, list, walkerOrder: order, walkerSource: queued.length ? 'walker queue file' : 'Kodiak order of the non-drafts (no walker queue file)', openNonDraft: nonDraft.length };
   } catch (e) {
     return fail(`gh pr list failed: ${e.message}`);
   }
@@ -145,6 +210,17 @@ function mainCi() {
   } catch (e) {
     return fail(`gh run list failed: ${e.message}`);
   }
+}
+
+/* One systemctl list-timers row → "next HH:MM (in X) · last HH:MM (Y ago)". Pure; the raw row is kept
+   when the shape is not the one measured on 2026-10-12. */
+export function formatTimerRow(row) {
+  const r = String(row || '').trim();
+  if (!r) return '';
+  const m = r.match(/^\w+ (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}):\d{2} \w+\s+(.+?)\s+\w+ (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}):\d{2} \w+\s+(.+?)\s+\S+\.timer/);
+  if (!m) return r;
+  const left = /left$/.test(m[3]) ? m[3] : `${m[3]} left`;
+  return `next ${m[2]} (${left}) · last ${m[5]} (${m[6]})`;
 }
 
 function release() {
@@ -180,11 +256,16 @@ function release() {
     out.landStuckHours = upd && cur ? +((Date.now() - Date.parse(upd[1])) / 3.6e6).toFixed(1) : null;
   } catch (e) {
     out.land = null;
-    out.landNote = `release-land --status unreadable: ${String(e.message).split('\n')[0].slice(0, 90)}`;
+    /* --status exits 1 with "no release-land run recorded on this machine" when nothing has run here;
+       that is a reading, not a failure to read (the board printed "Command failed: node …" for it). */
+    const said = String(e.stdout || '')
+      .trim()
+      .split('\n')[0];
+    out.landNote = /no release-land run recorded/.test(said) ? said : `release-land --status unreadable: ${String(e.message).split('\n')[0].slice(0, 90)}`;
   }
   try {
     const t = sh('bash', ['-c', 'systemctl --user list-timers tepna-release-due.timer --all --no-pager 2>/dev/null | sed -n 2p']);
-    out.dueTimer = t || null;
+    out.dueTimer = formatTimerRow(t) || null;
     const j = sh('bash', ['-c', 'journalctl --user -u tepna-release-due -n 40 --no-pager 2>/dev/null | grep -oE "\\"status\\": *\\"[A-Z_]+\\"" | tail -1']);
     const m = j.match(/"([A-Z_]+)"/);
     out.lastVerdict = m ? m[1] : null;
@@ -195,34 +276,73 @@ function release() {
   return out;
 }
 
+/* One row per agent, from every RUNNING herdr session — the birds live in a named session
+   (`herdr --session birds`), and a bare `herdr agent list` under the board's timer reaches only the
+   default session, which is stopped: measured 2026-10-12, the board printed "(no agents listed)"
+   while four birds were working. Pure parse so --selftest can plant the JSON. */
+export function herderRows(json, session) {
+  let j;
+  try {
+    j = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  const agents = j?.result?.agents;
+  if (!Array.isArray(agents)) return [];
+  return agents.map((a) => `${String(a.name ?? '?').padEnd(10)} ${String(a.agent_status ?? '?').padEnd(8)} ${a.pane_id ?? ''}  ${session}`);
+}
+
 function herder() {
   try {
-    return { ok: true, agents: sh('bash', ['-c', 'herdr agent list 2>/dev/null | head -20']) || '(no agents listed)' };
+    const sessions = sh('bash', ['-c', 'herdr session list 2>/dev/null'])
+      .split('\n')
+      .map((l) => l.trim().split(/\s+/))
+      .filter((c) => c.length >= 2 && c[1] === 'running')
+      .map((c) => c[0]);
+    const rows = [];
+    for (const sname of sessions) {
+      const out = sh('bash', ['-c', `herdr --session ${sname} agent list 2>/dev/null`]);
+      rows.push(...herderRows(out, sname));
+    }
+    if (!rows.length && !sessions.length) {
+      const out = sh('bash', ['-c', 'herdr agent list 2>/dev/null']);
+      rows.push(...herderRows(out, 'default'));
+    }
+    return { ok: true, agents: rows.length ? rows.join('\n') : `(no agents listed — running sessions: ${sessions.join(', ') || 'none'})` };
   } catch (e) {
     return fail(`herdr agent list failed: ${e.message}`);
   }
 }
 
 /* The live queue is the LAST "OWNER DECISIONS OPEN" block of Kestrel's evaluation.md (OUT_DIR): the
-   header line, then the indented lines under it, items separated by " · ". Pure, so --selftest can
-   plant it. Returns null when the file has no such block. */
-function parseOwnerDecisions(txt) {
+   header line, then EITHER indented lines joined and split on " · " (the 2026-10-11 form) OR one
+   numbered / bulleted line per item (the 2026-10-12 form — the board read a live eight-item block as
+   "0 open" because the lines were not indented). The block ends at the first blank line. Pure, so
+   --selftest can plant it. Returns null when the file has no such block. */
+export function parseOwnerDecisions(txt) {
   const lines = txt.split('\n');
   let start = -1;
   lines.forEach((l, i) => {
     if (/^OWNER DECISIONS OPEN\b/.test(l)) start = i;
   });
   if (start < 0) return null;
-  const body = [];
+  const indented = [];
+  const listed = [];
   for (let i = start + 1; i < lines.length; i++) {
-    if (!/^\s+\S/.test(lines[i])) break;
-    body.push(lines[i].trim());
+    const l = lines[i];
+    if (!l.trim()) break;
+    const m = l.match(/^\s*(?:\d+[.)]|[-*•])\s+(.*)$/);
+    if (m) listed.push(m[1].trim());
+    else if (/^\s+\S/.test(l)) indented.push(l.trim());
+    else break;
   }
-  const items = body
-    .join(' ')
-    .split(/\s+·\s+/)
-    .map((x) => x.trim())
-    .filter(Boolean);
+  const items = listed.length
+    ? listed
+    : indented
+        .join(' ')
+        .split(/\s+·\s+/)
+        .map((x) => x.trim())
+        .filter(Boolean);
   return { header: lines[start].trim(), items };
 }
 
@@ -271,11 +391,64 @@ function fileSection(name, rel, note) {
   }
 }
 
+/* Today's entries only (owner, 2026-10-12: "Kestrel daily evaluation should have only today data").
+   An entry starts at a `### ` heading or a `Kestrel daily evaluation — ` line; entries whose heading
+   carries `today` (YYYY-MM-DD) are kept in order. With none dated today the LATEST entry is shown
+   under a dated note, never silently. Pure; the file is append-only, so the slice is by heading. */
+export function todaysEntries(txt, today) {
+  const parts = txt.split(/^(?=### |Kestrel daily evaluation — )/m).filter((p) => p.trim());
+  const dateOf = (p) => (p.match(/^(?:### |Kestrel daily evaluation — )(\d{4}-\d{2}-\d{2})/) || [])[1] || null;
+  const mine = parts.filter((p) => dateOf(p) === today);
+  if (mine.length) return { text: mine.join('\n'), note: null };
+  const last = parts.length ? parts[parts.length - 1] : '';
+  const when = (last.split('\n')[0].match(/\d{4}-\d{2}-\d{2}/) || ['undated'])[0];
+  return { text: last, note: `(no entry dated ${today}; showing the latest, ${when})` };
+}
+
+function todaySection(name, rel, note) {
+  const f = path.join(OUT_DIR, rel);
+  if (!existsSync(f)) return { ok: false, reason: `${rel} not written yet — ${note}` };
+  try {
+    const txt = readFileSync(f, 'utf-8');
+    const today = new Date().toISOString().slice(0, 10);
+    const t = todaysEntries(txt, localYMD(new Date()));
+    const text = (t.note ? `${t.note}\n\n` : '') + t.text;
+    return { ok: true, text: text.slice(0, 8000), bytes: txt.length, today: today };
+  } catch (e) {
+    return fail(`${rel} unreadable: ${e.message}`);
+  }
+}
+
+/* The rig's local calendar date — the owner's "today", not UTC's (evaluation headings carry EDT). */
+function localYMD(d) {
+  const z = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+}
+
 function planPct() {
   const f = path.join(OUT_DIR, 'plan.json');
   if (!existsSync(f)) return { spentPct: null, reportedAt: null };
   try {
     const j = JSON.parse(readFileSync(f, 'utf-8'));
+    const pts = Array.isArray(j.usage) ? j.usage.filter((p) => p && typeof p.all === 'number' && p.at) : [];
+    /* THE LAST USAGE POINT WINS. Kestrel appends `usage[]` points from the owner's screenshots; the
+       top-level spentPct is the older single-number form and goes stale the moment a point is added
+       (measured 2026-10-12: the bar read 50 % from 10:35 while a 56 % point from 12:28 sat beside it). */
+    if (pts.length) {
+      const last = pts[pts.length - 1];
+      const prev = pts.length > 1 ? pts[pts.length - 2] : null;
+      const hours = prev ? (Date.parse(last.at) - Date.parse(prev.at)) / 3.6e6 : null;
+      const rate = (k) => (prev && hours > 0 && typeof prev[k] === 'number' && typeof last[k] === 'number' ? +((last[k] - prev[k]) / hours).toFixed(2) : null);
+      return {
+        spentPct: last.all,
+        spentPctRange: null,
+        reportedAt: last.at,
+        note: null,
+        point: { all: last.all, fable: typeof last.fable === 'number' ? last.fable : null, session: typeof last.session === 'number' ? last.session : null, at: last.at, resets: last.resets || null },
+        rate: { all: rate('all'), fable: rate('fable'), hours: hours == null ? null : +hours.toFixed(1) },
+        points: pts.slice(-4)
+      };
+    }
     return {
       spentPct: typeof j.spentPct === 'number' ? j.spentPct : null,
       spentPctRange: Array.isArray(j.spentPctRange) ? j.spentPctRange : null,
@@ -317,6 +490,9 @@ export function collect() {
     usage7d: u7,
     budget: budgetBar({ spentPct: plan.spentPct, spentPctRange: plan.spentPctRange, reportedAt: plan.reportedAt, nowMs: now }),
     planNote: plan.note || null,
+    planPoint: plan.point || null,
+    planRate: plan.rate || null,
+    planPoints: plan.points || null,
     prs: pr,
     mainCi: ci,
     release: rel,
@@ -328,7 +504,7 @@ export function collect() {
        must say so with a date — a manual entry is a measurement of what a person copied, not of the
        night, and the board says which. Owner, 2026-10-11: "put placeholders in it". */
     solidNights: fileSection('solid-night', 'solid-night.md', 'the streak is computed on the capture box; until it publishes a summary, Kestrel hand-enters it here with a date'),
-    evaluation: fileSection('evaluation', 'evaluation.md', 'Kestrel writes this file; the board only reads it')
+    evaluation: todaySection('evaluation', 'evaluation.md', 'Kestrel writes this file; the board only reads it')
   };
   const banners = [];
   const cib = ciBanner(ci.ok ? ci.runs : null);
@@ -376,25 +552,64 @@ function unread(s) {
 
 function renderUsage(u, label) {
   if (!u.ok) return unread(u);
-  const rows = u.sessions
+  const named = u.sessions.filter((s) => s.name);
+  const unnamed = u.sessions.filter((s) => !s.name);
+  const rows = named
     .sort((a, b) => b.tokens - a.tokens)
     .map((s) => {
+      /* MODEL, not a token dump: "opus-5 ×1,332" reads; "claude-opus-5 1,332" ran into the count.
+         Synthetic rows (the harness's own placeholders) carry no model and are left out of the column. */
       const models =
         Object.entries(s.models || {})
-          .map(([k, v]) => `${esc(k)}&nbsp;${num(v)}`)
+          .filter(([k]) => !/^<synthetic>$/.test(k))
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `${esc(k.replace(/^claude-/, ''))}&nbsp;<span class="dim">×${num(v)}</span>`)
           .join('<br>') || '—';
       return `<tr><td>${esc(s.name || '(unnamed)')}</td><td class="n">${m(s.tokens)}</td><td class="n dim">${m(s.cacheRead)}</td><td class="n">${m(s.output)}</td><td class="n dim">${num(s.messages)}</td><td class="n dim">${num(s.lastContextTokens)}</td><td class="mdl">${models}</td></tr>`;
     })
     .join('');
+  const seen = new Set(named.map((s) => String(s.name).toLowerCase()));
+  const unreadRemotes = (u.remotes || []).filter((r) => !r.ok);
+  const why = unreadRemotes.length ? unreadRemotes.map((r) => r.reason).join('; ') : 'no transcript in the window on any host this board reads';
+  const missing = (u.roster || [])
+    .filter((n) => !seen.has(n))
+    .map(
+      (n) =>
+        `<tr><td>${esc(n)}</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="dim">not read: ${esc(why)}</td></tr>`
+    )
+    .join('');
+  const maRows = (u.managedAgents?.rows || [])
+    .map(
+      (a) =>
+        `<tr><td>API · managed agents</td><td class="n">${m(a.tokens)}</td><td class="n dim">${m(a.cacheRead)}</td><td class="n">${m(a.output)}</td><td class="n dim">${num(a.sessions)} runs</td><td class="n dim">${a.listCostUsd === null ? '—' : `$${a.listCostUsd.toFixed(2)}`}${a.costWithout ? ` <span class="dim">(+${num(a.costWithout)} unpriced)</span>` : ''}</td><td class="mdl">${esc(String(a.model).replace(/^claude-/, ''))}</td></tr>`
+    )
+    .join('');
+  const maUnread = (u.managedAgents?.read || []).filter((r) => !r.ok);
+  const maNote = !maRows
+    ? `<tr><td class="dim">API · managed agents</td><td colspan="6" class="dim">${maUnread.length ? `not read: ${esc(maUnread.map((r) => `${r.dir} ${r.reason}`).join('; '))}` : 'no run in the window'}</td></tr>`
+    : '';
   return `<table><thead><tr><th>${esc(label)}</th><th>fresh</th><th>cache←</th><th>out</th><th>msgs</th><th>last ctx</th><th>model</th></tr></thead><tbody>${rows}
-    <tr class="tot"><td>fleet</td><td class="n">${m(u.fleetTokens)}</td><td class="n dim">${m(u.fleetCacheRead)}</td><td colspan="4" class="dim">cache reads are shown beside, never summed into fresh</td></tr></tbody></table>`;
+    ${unnamed.length ? `<tr><td class="dim">+${unnamed.length} unnamed</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.tokens || 0), 0))}</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.cacheRead || 0), 0))}</td><td class="n dim">${m(unnamed.reduce((a, s) => a + (s.output || 0), 0))}</td><td class="n dim">${num(unnamed.reduce((a, s) => a + (s.messages || 0), 0))}</td><td colspan="2" class="dim">sessions with no bird name, summed</td></tr>` : ''}
+    ${missing}
+    <tr class="tot"><td>fleet</td><td class="n">${m(u.fleetTokens)}</td><td class="n dim">${m(u.fleetCacheRead)}</td><td colspan="4" class="dim">cache reads are shown beside, never summed into fresh</td></tr>
+    ${maRows}${maNote}
+    <tr><td colspan="7" class="dim">API rows: the provider's usage per run, list cost in the last-ctx column; billed as API credits, not summed into the fleet line</td></tr></tbody></table>`;
 }
 
 export function renderHtml(b) {
   const banners = b.banners.map((x) => `<div class="banner ${x.level}">${x.level === 'red' ? '🔴' : '⚠️'} ${esc(x.why)}</div>`).join('');
   const prBody = !b.prs.ok
     ? unread(b.prs)
-    : `<p class="dim">walker order: ${b.prs.walkerOrder.length ? b.prs.walkerOrder.map((n) => `#${n}`).join(' → ') : '(empty)'}</p><table><thead><tr><th>PR</th><th>title</th><th>state</th><th>checks</th></tr></thead><tbody>${b.prs.list
+    : `<p class="dim">walker order: ${
+        b.prs.walkerOrder.length
+          ? b.prs.walkerOrder
+              .map((n) => {
+                const p = b.prs.list.find((x) => x.number === n);
+                return `#${n}${p && p.draft ? '' : '<b>·open</b>'}`;
+              })
+              .join(' → ')
+          : '(empty)'
+      } <span class="dim">(${esc(b.prs.walkerSource || '')}; ${b.prs.openNonDraft} undrafted)</span></p><table><thead><tr><th>PR</th><th>title</th><th>state</th><th>checks</th></tr></thead><tbody>${b.prs.list
         .map(
           (p) =>
             `<tr><td>#${p.number}${p.draft ? ' <span class="dim">draft</span>' : ''}</td><td>${esc(p.title)}</td><td>${esc(p.state)}</td><td class="dim">${esc(
@@ -419,7 +634,7 @@ export function renderHtml(b) {
   const bud = b.budget.ok
     ? `<div class="bar"><div style="margin-left:${Math.max(0, Math.min(100, b.budget.lo))}%;width:${Math.max(1, Math.min(100, b.budget.hi) - Math.max(0, b.budget.lo))}%"></div></div>
        <p><b>${esc(b.budget.label)}</b>${b.budget.range ? ' <span class="dim">(a band, as reported — not collapsed to a midpoint)</span>' : ''} of the weekly pool, as last reported by the owner${b.budget.ageHours != null ? ` <span class="${b.budget.stale ? 'red' : 'dim'}">(${b.budget.ageHours} h ago${b.budget.stale ? ' — STALE' : ''})</span>` : ''}</p>
-       ${b.planNote ? `<p class="dim">${esc(b.planNote)}</p>` : ''}`
+       ${b.planPoint ? `<p>All <b>${b.planPoint.all} %</b>${b.planPoint.fable != null ? ` · Fable <b>${b.planPoint.fable} %</b>` : ''}${b.planPoint.session != null ? ` · session ${b.planPoint.session} %` : ''} <span class="dim">at ${esc(String(b.planPoint.at).slice(11, 16))} local${b.planPoint.resets ? `, week resets ${esc(String(b.planPoint.resets).slice(0, 16).replace('T', ' '))}` : ''}</span></p>${b.planRate && b.planRate.all != null ? `<p class="dim">pace since the previous point (${b.planRate.hours} h): All ${b.planRate.all} %/h${b.planRate.fable != null ? ` · Fable ${b.planRate.fable} %/h` : ''}</p>` : ''}` : b.planNote ? `<p class="dim">${esc(b.planNote)}</p>` : ''}`
     : unread(b.budget);
   const od = b.ownerDecisions;
   return `<!doctype html>
@@ -582,6 +797,66 @@ function runSelftest() {
     const first = parseOwnerDecisions('OWNER DECISIONS OPEN\n  a thing · b thing (with, commas) · c thing\n');
     ok(first && first.items.length === 3 && first.items[1] === 'b thing (with, commas)', 'items split on " · " only, commas stay inside an item');
     ok(parseOwnerDecisions('no block here\n| **85** | open row |\n') === null, 'a file without the block yields null, never a table row that says "open"');
+  }
+  {
+    const numbered = parseOwnerDecisions('### tick\n- note\n\nOWNER DECISIONS OPEN\n1. deploy main\n2. heap probe (box)\n3. reload skills\n\n### later\n');
+    ok(
+      numbered && numbered.items.length === 3 && numbered.items[1] === 'heap probe (box)',
+      'an unindented numbered list is one item per line, ended by the blank line (2026-10-12: a live 8-item block read as 0 open)'
+    );
+    const bulleted = parseOwnerDecisions('OWNER DECISIONS OPEN\n- a\n- b\n');
+    ok(bulleted && bulleted.items.length === 2, 'a bulleted list is one item per line');
+  }
+  {
+    const txt = '### 2026-10-11 09:00 EDT (the cadence starts 2026-10-12)\nold\n\nKestrel daily evaluation — 2026-10-12 07:41 EDT\nmorning\n\n### 2026-10-12 11:35 EDT — tick\nnoon\n';
+    const t = todaysEntries(txt, '2026-10-12');
+    ok(
+      t.note === null && !t.text.includes('old') && t.text.includes('morning') && t.text.includes('noon'),
+      'the evaluation section keeps every entry whose heading DATE is today and drops older ones, even one that mentions today in its text'
+    );
+    const none = todaysEntries(txt, '2026-10-13');
+    ok(none.note === '(no entry dated 2026-10-13; showing the latest, 2026-10-12)' && none.text.includes('noon'), 'with no entry dated today the latest entry is shown under a dated note');
+  }
+  {
+    const rows = herderRows('{"id":"x","result":{"agents":[{"name":"kestrel","agent_status":"working","pane_id":"w1:p1"},{"name":"magpie","agent_status":"idle","pane_id":"w1:p6"}]}}', 'birds');
+    ok(rows.length === 2 && /^kestrel\s+working\s+w1:p1\s+birds$/.test(rows[0]), 'herder rows are name · status · pane · session from the session JSON');
+    ok(
+      parseWalkerQueue('# queue\n3475\n3476\n3478 3479 3480 3481 3482 3483\n').join(',') === '3475,3476,3478,3479,3480,3481,3482,3483',
+      'the walker queue parses by whitespace across lines, in order'
+    );
+    ok(parseWalkerQueue('3478 3478 x 3479').join(',') === '3478,3479', 'a repeated or non-numeric queue token is dropped, never a throw');
+    ok(
+      parseRoster('## x\n| **Nope** | a | b |\n### 0 · Roster\n| session | machine | lane |\n|---|---|---|\n| **Kestrel** | rig | c |\n| **Wren** | box | m |\n- trailer\n| **Late** | x | y |\n').join(
+        ','
+      ) === 'kestrel,wren',
+      'the roster reads only the §0 table, lower-cased, so every bird gets a token row'
+    );
+    {
+      const u = {
+        ok: true,
+        fleetTokens: 10,
+        fleetCacheRead: 5,
+        sessions: [{ name: 'kestrel', tokens: 10, cacheRead: 5, output: 1, messages: 2, models: {}, lastContextTokens: 3 }],
+        remotes: [{ host: 'box', ok: false, reason: 'box not read (255)' }],
+        roster: ['kestrel', 'finch'],
+        managedAgents: { rows: [{ model: 'claude-sonnet-5-5', sessions: 2, tokens: 7, cacheRead: 9, output: 4, listCostUsd: 0.83, costWithout: 1 }], read: [] }
+      };
+      const h = renderUsage(u, 'bird');
+      ok(/<td>finch<\/td>(<td class="n dim">—<\/td>){5}<td class="dim">not read: box not read \(255\)/.test(h), 'a roster bird with no session reads as unread with the reason, never as 0');
+      ok(/API · managed agents<\/td><td class="n">/.test(h) && /\$0\.83/.test(h) && /\+1 unpriced/.test(h), 'the API row carries its list cost and counts an unpriced run');
+    }
+    ok(
+      formatTimerRow('Mon 2026-10-12 13:03:48 EDT 43min Mon 2026-10-12 12:02:43 EDT 17min ago tepna-release-due.timer tepna-release-due.service') ===
+        'next 13:03 (43min left) · last 12:02 (17min ago)',
+      'a list-timers row renders as next · last'
+    );
+    ok(
+      formatTimerRow('Mon 2026-10-12 13:03:48 EDT 1h 43min left Mon 2026-10-12 12:02:43 EDT 17min ago tepna-release-due.timer tepna-release-due.service') ===
+        'next 13:03 (1h 43min left) · last 12:02 (17min ago)',
+      'a two-token "left" survives'
+    );
+    ok(formatTimerRow('something else') === 'something else' && formatTimerRow('') === '', 'an unrecognised row is kept raw, an empty one stays empty');
+    ok(herderRows('not json', 'birds').length === 0 && herderRows('{"result":{}}', 'birds').length === 0, 'unparseable or agent-less herder output yields no rows, never a throw');
   }
   console.log(fails.length ? `board selftest: ${fails.length} FAILED of ${ran}\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
   process.exit(fails.length ? 1 : 0);

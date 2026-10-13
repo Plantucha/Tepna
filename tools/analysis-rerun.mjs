@@ -167,6 +167,32 @@ export function paperScaleReady(t) {
   return !!(t && t.inputs && Object.keys(t.inputs).length);
 }
 
+/* §2.7 — WHAT THE REFUSAL SAYS WHEN playwright CANNOT BE LOADED, and it depends on whether the repo
+   declares it. It used to say `npm i -D playwright` unconditionally; `package.json` does not declare it,
+   so a session following that line literally COMMITTED a dependency change it never intended. The
+   instruction now never adds a dependency: with none declared it names the two ways to get the module
+   without touching the manifest (link the checkout that has it — `node_modules` is gitignored — or
+   `npm i --no-save`), and only once someone declares it does it say `npm ci`, which is why the
+   `declared` answer is read from package.json rather than assumed. PURE. */
+export function playwrightMissingLines(declared) {
+  return declared
+    ? ['playwright is not installed — it is declared in package.json, so `npm ci` installs it.']
+    : [
+        'playwright is not installed, and it is NOT declared in package.json — `npm ci` will not provide it.',
+        '  · in a fresh worktree, link the checkout that has it: `ln -s <that checkout>/node_modules node_modules` (node_modules is gitignored)',
+        '  · or install it without touching the manifest: `npm i --no-save playwright` (dev-only, never bundled)',
+        '  Do not add it with -D / --save-dev unless you mean to put a dependency in the repo.'
+      ];
+}
+export function playwrightDeclared(root) {
+  try {
+    const pj = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    return !!((pj.devDependencies && pj.devDependencies.playwright) || (pj.dependencies && pj.dependencies.playwright));
+  } catch {
+    return false; // unreadable manifest: do not claim a declaration that cannot be shown
+  }
+}
+
 /* §2.8 — floors at 1, clamped to the host, never above what was asked */
 export function poolSize(requested, nproc) {
   const want = Number.isFinite(requested) && requested > 0 ? Math.floor(requested) : 1;
@@ -274,7 +300,7 @@ async function main(argv) {
     ({ chromium } = await import('playwright'));
   } catch {
     /* §2.7 — one tier only, and the absence is stated, not degraded around */
-    console.error('playwright is not installed — `npm i -D playwright` (dev-only, never bundled).');
+    for (const line of playwrightMissingLines(playwrightDeclared(ROOT))) console.error(line);
     console.error('There is NO second tier: these numbers exist only inside the page.');
     return 2;
   }
@@ -490,6 +516,22 @@ function selftest() {
   A('poolSize: never exceeds what was asked', poolSize(2, 64) === 2);
   A('poolSize: clamps to cpus-2', poolSize(99, 8) === 6);
   A('poolSize: a nonsense request becomes 1, not NaN', poolSize(Number.NaN, 8) === 1 && poolSize(-3, 8) === 1);
+
+  const _undeclared = playwrightMissingLines(false).join('\n');
+  A(
+    'refusal: with playwright undeclared it names the symlink and --no-save, never a command that adds a dependency',
+    /ln -s/.test(_undeclared) && /--no-save/.test(_undeclared) && !/i -D playwright/.test(_undeclared)
+  );
+  A('refusal: …and says plainly that `npm ci` will not provide it', /NOT declared/.test(_undeclared) && /npm ci. will not/.test(_undeclared));
+  A(
+    'refusal: once declared, it says `npm ci` and no longer claims it is undeclared',
+    /npm ci/.test(playwrightMissingLines(true).join('\n')) && !/NOT declared/.test(playwrightMissingLines(true).join('\n'))
+  );
+  A(
+    'refusal: the claim is checked against THIS repo — package.json must not declare it while the message says it is absent',
+    playwrightDeclared(ROOT) === false || /npm ci/.test(playwrightMissingLines(playwrightDeclared(ROOT)).join('\n'))
+  );
+  A('refusal: an unreadable manifest claims no declaration', playwrightDeclared(join(ROOT, 'tools', 'no-such-dir')) === false);
 
   const ck = join(ROOT, '.cache', 'analysis-rerun-selftest.json');
   saveCheckpoint(ck, { started: null, done: { 'a.html': { ms: 1 } } });

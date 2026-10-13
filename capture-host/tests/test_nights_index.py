@@ -1523,3 +1523,187 @@ def test_THREE_recordings_in_one_band_each_get_their_own_row(tmp_path):
     assert [k for k, _ in recs] == ["2026-10-09"] * 3, recs
     starts = sorted(min(s) for _k, s in recs)
     assert len(set(starts)) == 3, f"each row carries its own start: {starts}"
+
+
+def _span_rows(start, minutes):
+    """Phone-stamped rows one minute apart from `start` (YYYY-MM-DDTHH:MM) — a stream with a real span."""
+    import datetime as _d
+
+    t0 = _d.datetime.fromisoformat(start)
+    rows = (f"{(t0 + _d.timedelta(minutes=m)).isoformat(timespec='milliseconds')};{m};{m}" for m in range(minutes + 1))
+    return "Phone timestamp;sensor timestamp [ns];v\n" + "\n".join(rows) + "\n"
+
+
+def test_an_AFTER_MIDNIGHT_device_s_cell_is_MEASURED_not_just_listed(tmp_path):
+    """🔴 2026-10-09 ON THE BOX: the row listed the H10 and Verity files from the 2026-10-10 folder, and
+    both cells read `hours: null` — "not measured yet" beside a measured ring. The file list took the
+    recording's scope; the primary re-read in `night_entry` did not, so it looked in the evening folder
+    alone and found nothing to measure. `test_a_night_whose_polar_streams_start_after_midnight_is_ONE_row`
+    asserts presence only, which is why it stayed green over a cell with no number in it."""
+    c = os.path.join(str(tmp_path), "captures")
+    _put(c, "2026-10-09", "Wellue_O2Ring-S_SYN_20261009212546_SPO2.csv", "Time,Oxygen Level\n", "20261010030000")
+    for dev, stamp, start, minutes, end in (
+        ("Polar_H10_SYNTH01", "20261010015024", "2026-10-10T01:50", 120, "20261010035024"),
+        ("Polar_VeritySense_SYNTH02", "20261010014748", "2026-10-10T01:47", 90, "20261010031748"),
+    ):
+        for suf in ("ECG", "RR") if "H10" in dev else ("PPG", "PPI"):
+            _put(c, "2026-10-10", f"{dev}_{stamp}_{suf}.txt", _span_rows(start, minutes), end)
+    rows = ni.index_nights(str(tmp_path), budget_s=None)
+    night = [r for r in rows if r["night"] == "2026-10-09"]
+    assert len(night) == 1, [(r["night"], r.get("recording_start")) for r in rows]
+    r = night[0]
+    assert r["ECGDex"]["hours"] == 2.0 and r["ECGDex"]["fragments"] == 1, r["ECGDex"]
+    assert r["PPGDex"]["hours"] == 1.5, r["PPGDex"]
+    assert r["PulseDex"]["hours"] == 1.5, r["PulseDex"]
+    assert r["HRVDex"]["hours"] == 2.0, r["HRVDex"]
+
+
+def test_the_PRIMARY_is_THIS_row_s_recording_when_a_band_holds_two(tmp_path):
+    """The chain half of the same rule. A morning session in the same band, in the same folder and with
+    the LARGER file, is a second row; the night row must measure its own ECG, never the morning's because
+    `max(…, key=getsize)` saw both."""
+    c = os.path.join(str(tmp_path), "captures")
+    for stamp, start, minutes, end in (
+        ("20261009220000", "2026-10-09T22:00", 60, "20261009230000"),
+        ("20261010083000", "2026-10-10T08:30", 90, "20261010100000"),
+    ):
+        _put(c, "2026-10-09", f"Polar_H10_SYNTH01_{stamp}_ECG.txt", _span_rows(start, minutes), end)
+    rows = ni.index_nights(str(tmp_path), budget_s=None)
+    assert len(rows) == 2, [r.get("recording_start") for r in rows]
+    by_start = {r["recording_start"][-5:]: r["ECGDex"]["hours"] for r in rows}
+    assert by_start == {"22:00": 1.0, "08:30": 1.5}, by_start
+
+
+def test_a_node_with_files_and_NO_PRIMARY_lists_them_unmeasured(tmp_path, monkeypatch):
+    """`prims = … if primary else []`: a node may declare capture patterns without a primary to measure
+    (a stream the page lists but cannot time). Its cell lists the files with `hours: None` — it does not
+    crash the night row by expanding a `None` pattern. No node in today's `NODES` has that shape, so the
+    branch is driven with a patched table; the guard is what keeps a future one from emptying the page."""
+    c = os.path.join(str(tmp_path), "captures")
+    _put(
+        c,
+        "2026-10-09",
+        "Polar_H10_SYNTH01_20261009220000_ECG.txt",
+        _span_rows("2026-10-09T22:00", 60),
+        "20261009230000",
+    )
+    monkeypatch.setattr(ni, "NODES", {"ECGDex": (("Polar_H10_*_ECG.txt",), None)})
+    cell = ni.night_entry(c, os.path.join(c, "2026-10-09"))["ECGDex"]
+    assert cell["files"] == ["2026-10-09/Polar_H10_SYNTH01_20261009220000_ECG.txt"], cell
+    assert cell["hours"] is None and cell["fragments"] is None and cell["pending"] is False, cell
+
+
+def test_THE_SCREENSHOT_NIGHT_is_one_row_and_the_daytime_sitting_is_flagged(tmp_path):
+    """🔴 THE OWNER'S QUESTION, 2026-10-12: "why does the 18:00 rule not show on the HTML monitor?" —
+    from a Nights view where 2026-10-09 read "Polar Sense, Polar H10 failed / not measured yet" beside a
+    fully green 2026-10-10.
+
+    This fixture IS that night: the ring at 21:25 in folder 2026-10-09, the Verity at 01:47 and the H10
+    at 01:50 in folder 2026-10-10. Band keying (#3385) already joins them, so the FIRST assertion is a
+    REGRESSION PIN, not new work, and it is here because the screenshot is what the deployed box shows,
+    not what this tree does.
+
+    The new facts are the other two rows the same band carries, and they are DIFFERENT QUESTIONS:
+      · 09:18 is INSIDE `[18:00, 10:00)`, so its files are admitted and it is a second RECORDING — not
+        daytime. The 10:00 edge is an owner ruling; moving it to catch this would move every span.
+      · 13:00 is in the gap no band covers. `night_band` still hands it the previous evening's band, so
+        it gets a row whose every cell is `None` — a session that recorded fine, published as a night
+        that recorded nothing. `daytime` is what stops that reading (§∅)."""
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _put(c, "2026-10-09", "Wellue_O2Ring-S_S8AW_20261009212500_SPO2.csv", "Time,SpO2,PR\n", "20261010031300")
+    _put(c, "2026-10-10", "Polar_VeritySense_A1B2_20261010014700_PPG.txt", "t\n1\n", "20261010074700")
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010015000_ECG.txt", "t\n1\n", "20261010075000")
+    _put(c, "2026-10-10", "Wellue_O2Ring-S_S8AW_20261010091800_SPO2.csv", "Time,SpO2,PR\n", "20261010094800")
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010130000_ECG.txt", "t\n1\n", "20261010133000")
+
+    rows = ni.index_nights(root, budget_s=None)
+    by_start = {r["recording_start"][11:]: r for r in rows}
+    assert sorted(by_start) == ["09:18", "13:00", "21:25"], sorted(by_start)
+    assert {r["night"] for r in rows} == {"2026-10-09"}, (
+        "all three band to the 10-09 evening — one band, three rows: " + str([r["night"] for r in rows])
+    )
+
+    # ① THE NIGHT IS ONE ROW, ACROSS TWO FOLDERS — the screenshot's two half-nights.
+    night = by_start["21:25"]
+    assert night["OxyDex"] and night["PPGDex"] and night["ECGDex"], (
+        "the ring (folder 10-09) and the two after-midnight Polar streams (folder 10-10) are ONE row"
+    )
+    assert any("2026-10-09/" in f for f in night["OxyDex"]["files"]), night["OxyDex"]["files"]
+    assert any("2026-10-10/" in f for f in night["ECGDex"]["files"]), night["ECGDex"]["files"]
+    assert night["daytime"] is False
+
+    # ② 09:18 — its own row, files ADMITTED, and NOT daytime. The band edge is the owner's.
+    morning = by_start["09:18"]
+    assert morning["daytime"] is False, "09:18 is inside [18:00, 10:00); flagging it needs a wear rule"
+    assert morning["OxyDex"] and morning["OxyDex"]["files"], "its files are in the band and stay listed"
+    assert morning["ECGDex"] is None, "and it carries only its own session's streams"
+
+    # ③ 13:00 — flagged, and the flag is the ONLY thing distinguishing it from an empty night.
+    day = by_start["13:00"]
+    assert day["daytime"] is True
+    assert all(day[k] is None for k in ("OxyDex", "PPGDex", "ECGDex")), (
+        "the band admits nothing, which is exactly why the row needs the flag: " + str(_nodes(day))
+    )
+
+    # ANTI-VACUITY ON THE FLAG ITSELF: it must discriminate, not be constant over the population.
+    assert {r["daytime"] for r in rows} == {True, False}, [r["daytime"] for r in rows]
+
+
+def test_the_daytime_flag_sits_on_nightqc_s_OWN_band_edges(tmp_path):
+    """A second copy of 18 and 10 would drift the moment the owner moves an edge again — it was already
+    moved once (20 → 18 by ruling, 2026-10-05). So the edges are read from `nightqc` and the test
+    MONKEYPATCHES them: a flag computed from literals stays `True` at 13:00 and this reds."""
+    import nightqc
+
+    root = str(tmp_path)
+    c = os.path.join(root, "captures")
+    _put(c, "2026-10-10", "Polar_H10_0284_20261010130000_ECG.txt", "t\n1\n", "20261010133000")
+    d = os.path.join(c, "2026-10-09")
+    os.makedirs(d, exist_ok=True)
+
+    recs = ni._recordings(root)
+    assert len(recs) == 1, recs
+    stamps = recs[0][1]
+    assert ni.night_entry(root, d, None, stamps)["daytime"] is True
+
+    end, begin = nightqc._NIGHT_END_H, nightqc._NIGHT_BEGIN_H
+    try:
+        nightqc._NIGHT_END_H, nightqc._NIGHT_BEGIN_H = 14, 18  # 13:00 is now INSIDE the night
+        assert ni.night_entry(root, d, None, stamps)["daytime"] is False, (
+            "the flag read a literal 10 instead of nightqc._NIGHT_END_H"
+        )
+    finally:
+        nightqc._NIGHT_END_H, nightqc._NIGHT_BEGIN_H = end, begin
+
+
+def test_BOTH_DAYTIME_EDGES_ARE_INCLUSIVE_ONE_SIDE_ONLY(tmp_path):
+    """`<=` → `<` on the left edge and `<` → `<=` on the right, both named by CI as survivors of the
+    test above: 13:00 is strictly inside the gap, so it cannot see either. Each mutant differs from the
+    rule on EXACTLY ONE hour, and those two hours are the band's own edges.
+
+    The asymmetry is the band, not a style choice. `_NIGHT_END_H` 10 is where the previous evening's
+    band ENDS, so a session beginning at 10:00 belongs to no band and is daytime; `_NIGHT_BEGIN_H` 18 is
+    where the next band BEGINS, so a session beginning at 18:00 is that night's and is not. Read the
+    other way round, a 10:00 start would be charged to a band that had already closed and an 18:00 start
+    would be charged to nothing — both publishing "no night covers this" over a session a band does."""
+    for hhmmss, want, why in (
+        ("100000", True, "10:00 is where the previous band ENDS — the session belongs to no band"),
+        ("180000", False, "18:00 is where the next band BEGINS — the session is that night's"),
+    ):
+        root = str(tmp_path / hhmmss)
+        c = os.path.join(root, "captures")
+        _put(
+            c,
+            "2026-10-10",
+            f"Polar_H10_0284_20261010{hhmmss}_ECG.txt",
+            "t\n1\n",
+            "20261010" + ("103000" if hhmmss == "100000" else "183000"),
+        )
+        d = os.path.join(c, "2026-10-09")
+        os.makedirs(d, exist_ok=True)
+
+        recs = ni._recordings(root)
+        assert len(recs) == 1, recs
+        got = ni.night_entry(root, d, None, recs[0][1])["daytime"]
+        assert got is want, f"a start at {hhmmss[:2]}:00 read daytime={got}: {why}"

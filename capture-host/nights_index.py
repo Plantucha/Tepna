@@ -577,7 +577,25 @@ def night_entry(
         # without it two rows in one band are indistinguishable to every consumer — the page, a cache key,
         # a test. Published as wall-clock because that is what a reader compares against the device's own
         # screen; the epoch is `min(stamps)` and stays internal.
-        out["recording_start"] = _dt.datetime.fromtimestamp(min(stamps)).strftime("%Y-%m-%d %H:%M")
+        began = _dt.datetime.fromtimestamp(min(stamps))
+        out["recording_start"] = began.strftime("%Y-%m-%d %H:%M")
+        # ⚠️ A ROW THE BAND ADMITS NOTHING INTO, AND IT READS AS AN EMPTY NIGHT. `night_band` hands a
+        # 13:00 session the PREVIOUS evening's band — one that ended at 10:00 and does not contain it
+        # (the mismatch `_recordings` measures and records) — so this row exists while `in_band`
+        # correctly keeps every one of its files OUT: each node cell comes back `None` and the row says
+        # "recorded nothing" about a session that recorded fine. That is §∅ with the roles reversed, OUR
+        # grouping publishing an absence the capture does not have, so the row carries which one it is.
+        #
+        # THE HOURS ARE `nightqc`'s OWN EDGES, never a second copy of them: a start at or after
+        # `_NIGHT_END_H` and before `_NIGHT_BEGIN_H` is in the daytime gap no band covers. The flag is
+        # the START's, not the span's — a night session running past 10:00 is still the night's.
+        #
+        # ⚠️ AND IT DOES NOT REACH THE 09:18 CASE, which is deliberate and is NOT the same question. The
+        # band edge is an owner ruling (`nightqc`: moved 20 → 18 by ruling, not by a refit), so 09:18 is
+        # INSIDE 10-09's band and its files are rightly admitted; it is a second RECORDING in that band
+        # and `recording_start` is what distinguishes it. Flagging it would need a wear rule nobody has
+        # given — `_recordings`' docstring and §⑤ both record that it is open.
+        out["daytime"] = nightqc._NIGHT_END_H <= began.hour < nightqc._NIGHT_BEGIN_H
     # THE RECORDING'S FOLDER SET, ASKED OF THE JUDGE ONCE PER NIGHT. Once, because `recording_scope`
     # counts files per folder and `_expand` is called per node per pattern — asking it there would pay
     # that walk dozens of times against a deadline this function is explicitly budgeted by.
@@ -612,7 +630,15 @@ def night_entry(
         hours = None
         stats: dict | None = None
         pending = False
-        prims = _expand_alt(root, night_dir, primary, tree)[0] if primary else []
+        # 🔴 THE PRIMARY IS ENUMERATED BY THE SAME RULE AS THE FILES — scope AND chain — or a cell lists
+        # bytes it never measures. Without the scope this re-read saw the evening folder alone, so a
+        # recording whose Polar sets start after midnight (their bytes under the next date) carried its
+        # files and `hours: null` — 2026-10-09 on the box: H10 and Verity "not measured yet" beside a
+        # measured ring. Without the chain, `max(…, key=getsize)` could measure a second recording in the
+        # same band instead of this row's.
+        prims = _expand_alt(root, night_dir, primary, tree, scope)[0] if primary else []
+        if stamps is not None:
+            prims = [f for f in prims if (t := session_epoch(f)) is None or t in stamps]
         if prims:
             f = max(prims, key=os.path.getsize)
             if f.lower().endswith(".edf"):

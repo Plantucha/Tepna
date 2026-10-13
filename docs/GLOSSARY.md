@@ -48,6 +48,7 @@ A technical name keeps its form. The linter reports none of these as a verb-noun
 | `DexClock`, `MetricRegistry`, `PPGDSP`, `ECGDSP` | technical name — module globals |
 | `manifestHash`, `computeHash`, `verifiedUnder` | technical name — provenance fields |
 | `tMs`, `t0Ms`, `offsetMin`, `hostAxis`, `relSec` | technical name — Clock Contract fields |
+| `finding`, `recording` | technical name — a gate's unit of output (`ste-lint`, `residue-ids`, CLAUDE.md §📚 "never silence a finding") and the capture unit (`recording.startEpochMs` in the export contract) |
 
 ## What the rules are
 

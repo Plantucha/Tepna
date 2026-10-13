@@ -24,6 +24,53 @@ export const DEFAULT_INDEX = 'tepna-hybrid';
 export const OLLAMA = process.env.DEX_OLLAMA || 'http://127.0.0.1:11434';
 export const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
 
+/**
+ * THE REFUSAL FLOOR. A ranker always returns a top 5, also for a question the corpus cannot answer, and
+ * a confident rank on an unrelated DSP file is how a wrong answer enters a unit. So the hybrid lane
+ * says "no prior work" when BOTH halves are weak: the best kNN cosine is below `REFUSE_COS` AND the
+ * best BM25 score is below `REFUSE_BM25`. One strong half is enough to answer.
+ *
+ * MEASURED 2026-10-12 (`node tools/xerj-bench.mjs --refusal`). Population: the 52 real Rule-0 queries
+ * of `audits/XERJ-BENCH-QUERIES.json` (answerable) and the 40 off-topic queries of
+ * `audits/XERJ-REFUSAL-QUERIES.json`, length-matched (median 14 words each). The floor was FIT on the
+ * even-indexed half of each set, under a rule stated before the fit: refuse no answerable query, and
+ * refuse the most off-topic ones; ties go to the lower floor. On the odd-indexed half, which the fit
+ * never saw, it refused 1 of 26 answerable queries and 18 of 20 off-topic ones. The one answerable
+ * query it refused had no ground-truth file in its hybrid top 5 either.
+ *
+ * Limits. The off-topic set is invented, not harvested, and it holds no near-domain question (a
+ * physiology topic that Tepna does not cover). The floor is a property of this index and this
+ * embedder: a re-load with another model moves the cosine scale, so re-run the bench after one.
+ */
+export const REFUSE_COS = 0.8075;
+export const REFUSE_BM25 = 27;
+
+/**
+ * THE RERANKER FLOOR (`--rerank`, opt-in). bge-reranker-v2-m3 reads the query and each passage
+ * together and returns one relevance logit; its sigmoid is an ABSOLUTE score, where the cosine and the
+ * BM25 above are relative to this index. The reranker scores the fused top 20; the best score below
+ * the floor refuses. It never reorders the hits: on the 52 Rule-0 queries a reranked order put a
+ * truth file in the top 5 for 40, the fused order for 42.
+ *
+ * MEASURED 2026-10-12, same sets and same rule as the floor above (fit on even i, refuse no answerable
+ * query, refuse the most off-topic ones, ties to the lower floor). The fit half's highest off-topic
+ * score was 0.1047 and its lowest answerable score 0.278. On the hold-out the floor refused 1 of 26
+ * answerable queries, which had no truth file in its top 5, and 20 of 20 off-topic ones (the cosine
+ * and BM25 floor: 18 of 20). The server is a local llama.cpp `--reranking` process on loopback; when it
+ * does not answer, the search falls back to the floor above and says so.
+ */
+export const RERANK_URL = process.env.DEX_RERANK || 'http://127.0.0.1:8091';
+export const REFUSE_RERANK = 0.105;
+const RERANK_POOL = 20;
+export const belowRerankFloor = (score) => score < REFUSE_RERANK;
+const RERANK_TIMEOUT_MS = 5000;
+
+/** Both halves weak ⇒ refuse. A missing half (no vector) cannot be judged, so it never refuses. */
+export function belowFloor({ cos, bm25 }) {
+  if (!Number.isFinite(cos) || !Number.isFinite(bm25)) return false;
+  return cos < REFUSE_COS && bm25 < REFUSE_BM25;
+}
+
 export function isLoopback(url) {
   try {
     const h = new URL(url).hostname;
@@ -50,7 +97,7 @@ export function isLoopback(url) {
  * than the result set turns recall into luck.
  */
 export function searchBody(query, vector, topK = 5) {
-  const _source = ['path', 'chunk_index', 'chunk_count', 'text'];
+  const _source = ['path', 'chunk_index', 'chunk_count', 'line_start', 'line_end', 'symbols', 'text'];
   /* NEVER BOTH CLAUSES AT ONCE — see the note above: rc.93 answers such a request with a ranking
      belonging to neither half. A caller who wants both calls twice and fuses. */
   if (Array.isArray(vector) && vector.length) {
@@ -85,7 +132,13 @@ export function fuseRRF(lists, topK = 5, k = 60) {
 export function formatHit(hit, chars = 900) {
   const s = hit?._source ?? {};
   const path = s.path ?? '(unknown)';
-  const where = s.chunk_count > 1 ? ` [chunk ${s.chunk_index + 1}/${s.chunk_count}]` : '';
+  /* `file:first-last` opens at the passage. An index built before the loader wrote line fields, or a
+     chunk the loader could not place, keeps the chunk position — absent lines are never printed as 0. */
+  const ls = Number.isInteger(s.line_start) ? s.line_start : null;
+  const le = Number.isInteger(s.line_end) ? s.line_end : null;
+  const where = ls !== null ? `:${ls}${le !== null && le !== ls ? `-${le}` : ''}` : s.chunk_count > 1 ? ` [chunk ${s.chunk_index + 1}/${s.chunk_count}]` : '';
+  /* The function the passage sits in, from the loader's ctags pass; an untagged chunk prints nothing. */
+  const sym = Array.isArray(s.symbols) && s.symbols.length ? ` · ${s.symbols.join(', ')}` : '';
   let text = String(s.text ?? '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -97,7 +150,7 @@ export function formatHit(hit, chars = 900) {
     const cut = text.lastIndexOf(' ', chars);
     text = `${text.slice(0, cut > chars * 0.6 ? cut : chars)}…`;
   }
-  return { score: hit?._score ?? 0, path, where, text };
+  return { score: hit?._score ?? 0, path, where: where + sym, text };
 }
 
 /**
@@ -129,7 +182,22 @@ export async function embedQuery(query, fetchFn = fetch) {
   return v;
 }
 
-export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_INDEX, topK = 5, fetchFn = fetch, embedFn = embedQuery }) {
+/** Best sigmoid relevance over `hits`, or throw. Loopback only: the passages are repo text. */
+export async function rerankTop(query, hits, { url = RERANK_URL, fetchFn = fetch, timeoutMs = RERANK_TIMEOUT_MS } = {}) {
+  if (!isLoopback(url)) throw new Error(`${url} is not loopback`);
+  const res = await fetchFn(`${url}/v1/rerank`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ query, documents: hits.map((h) => h.text), top_n: hits.length }),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!res.ok) throw new Error(`reranker HTTP ${res.status}`);
+  const logits = ((await res.json())?.results ?? []).map((r) => r.relevance_score).filter(Number.isFinite);
+  if (!logits.length) throw new Error('reranker returned no score');
+  return 1 / (1 + Math.exp(-Math.max(...logits)));
+}
+
+export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_INDEX, topK = 5, fetchFn = fetch, embedFn = embedQuery, rerank = false }) {
   if (!isLoopback(url)) throw new Error(`${url} is not loopback — this tool is dev-only`);
   let vector = null;
   let degraded = null;
@@ -140,26 +208,39 @@ export async function hybridSearch({ query, url = DEFAULT_URL, index = DEFAULT_I
   }
   /* Over-fetch so the collapse has something to choose from: one file can legitimately own several
      of the top chunks, and taking topK before collapsing would return fewer than topK FILES. */
+  const pool = rerank ? Math.max(topK * 2, RERANK_POOL) : topK * 2;
+  const size = rerank ? pool * 5 : topK * 5;
   const ask = async (vec) => {
     const res = await fetchFn(`${url}/${index}/_search`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(searchBody(query, vec, topK * 5))
+      body: JSON.stringify(searchBody(query, vec, size))
     });
     if (!res.ok) throw new Error(`xerj HTTP ${res.status} — is the index loaded? (node tools/xerj-load.mjs)`);
     const j = await res.json();
     return collapseByPath(
       (j?.hits?.hits ?? []).map((h) => formatHit(h)),
-      topK * 2
+      pool
     );
   };
   const lex = await ask(null);
-  if (!vector) return { hits: lex.slice(0, topK), degraded, hybrid: false };
+  const bm25 = lex[0]?.score ?? null;
+  if (!vector) return { hits: lex.slice(0, topK), degraded, hybrid: false, signals: { cos: null, bm25 }, refused: false };
   const sem = await ask(vector);
-  return { hits: fuseRRF([lex, sem], topK), degraded, hybrid: true, lexTop: lex[0]?.path ?? null, semTop: sem[0]?.path ?? null };
+  const signals = { cos: sem[0]?.score ?? null, bm25 };
+  const base = { degraded, hybrid: true, lexTop: lex[0]?.path ?? null, semTop: sem[0]?.path ?? null, signals };
+  if (!rerank) return { ...base, hits: fuseRRF([lex, sem], topK), refused: belowFloor(signals) };
+  const fused = fuseRRF([lex, sem], RERANK_POOL);
+  try {
+    signals.rerank = await rerankTop(query, fused, { fetchFn });
+    return { ...base, hits: fused.slice(0, topK), refused: belowRerankFloor(signals.rerank) };
+  } catch (e) {
+    const note = `no reranker (${e.message}) — the cosine and BM25 floor decides`;
+    return { ...base, degraded: degraded ? `${degraded}; ${note}` : note, hits: fused.slice(0, topK), refused: belowFloor(signals) };
+  }
 }
 
-export function selftest() {
+export async function selftest() {
   const fail = [];
   let ran = 0;
   const ok = (c, w) => {
@@ -224,20 +305,92 @@ export function selftest() {
   ok(collapseByPath(many, 2).length === 2, 'topK still caps the collapsed list');
   ok(collapseByPath([], 5).length === 0, 'an empty result collapses to empty, not an error');
 
-  // 5 · LOOPBACK ONLY.
+  /* 5 · THE REFUSAL FLOOR needs BOTH halves weak, and a half that was not measured never refuses. */
+  ok(belowFloor({ cos: REFUSE_COS - 0.01, bm25: REFUSE_BM25 - 1 }), 'both halves below the floor ⇒ refuse');
+  ok(!belowFloor({ cos: REFUSE_COS + 0.01, bm25: REFUSE_BM25 - 1 }), 'a strong cosine alone answers');
+  ok(!belowFloor({ cos: REFUSE_COS - 0.01, bm25: REFUSE_BM25 + 1 }), 'a strong BM25 alone answers');
+  ok(!belowFloor({ cos: REFUSE_COS, bm25: REFUSE_BM25 }), 'a score AT the floor answers — the floor is strict');
+  ok(!belowFloor({ cos: null, bm25: 1 }) && !belowFloor({ cos: 0.1, bm25: null }), 'a missing half is not evidence of a weak half');
+  const refusedOut = render({ hits: [{ score: 0.016, path: 'a.js', where: '', text: 'long passage' }], refused: true, signals: { cos: 0.75, bm25: 12 } }, 'q');
+  ok(refusedOut.includes('no prior work'), 'a refusal prints "no prior work"');
+  ok(refusedOut.includes('a.js') && !refusedOut.includes('long passage'), '…lists the weak paths for reference, without their passages');
+  ok(refusedOut.includes('0.750') && refusedOut.includes('12.0'), '…and prints both scores against the floor');
+  ok(!render({ hits: [{ score: 0.016, path: 'a.js', where: '', text: 'long passage' }], refused: false }, 'q').includes('no prior work'), 'CONTROL: an answer is not a refusal');
+
+  // 5b · LINE RANGES AND --brief.
+  const placed = formatHit({ _source: { path: 'docs/a.md', chunk_index: 2, chunk_count: 7, line_start: 40, line_end: 52, text: 'docs/a.md :: t' } });
+  ok(placed.where === ':40-52', 'a placed chunk prints file:first-last');
+  ok(formatHit({ _source: { path: 'a', chunk_index: 0, chunk_count: 2, line_start: 9, line_end: 9, text: 'a :: t' } }).where === ':9', 'a one-line range prints one number');
+  ok(formatHit({ _source: { path: 'a', chunk_index: 0, chunk_count: 2, line_start: null, text: 'a :: t' } }).where === ' [chunk 1/2]', 'a null line keeps the chunk position, never :0');
+  ok(searchBody('q', null)._source.includes('line_start'), 'the search asks for the line fields');
+  const one = [{ score: 0.03, path: 'a.js', where: ':3-9', text: 'long passage' }];
+  const briefOut = render({ hits: one, refused: false }, 'q', { brief: true });
+  ok(briefOut.includes('a.js:3-9') && !briefOut.includes('long passage'), '--brief prints the hit line without its passage');
+  ok(render({ hits: one, refused: false }, 'q').includes('long passage'), 'CONTROL: without --brief the passage prints');
+
+  // 6 · LOOPBACK ONLY.
   ok(isLoopback('http://127.0.0.1:9200'), 'loopback is accepted');
   ok(!isLoopback('http://10.1.2.3:9200'), 'a non-loopback host is refused');
+
+  /* 7 · THE RERANKER FLOOR refuses on the best score, keeps the fused order, and a dead server falls
+         back to the cosine and BM25 floor with a note. Fakes only: no index, no reranker. */
+  const doc = (p, sc) => ({ _score: sc, _source: { path: p, chunk_index: 0, chunk_count: 1, text: `text of ${p}` } });
+  const fake = (logits) => async (u, o) => {
+    if (u.endsWith('/v1/rerank')) {
+      if (!logits) throw new Error('connection refused');
+      return { ok: true, json: async () => ({ results: logits.map((l, index) => ({ index, relevance_score: l })) }) };
+    }
+    const knn = JSON.parse(o.body).knn;
+    return { ok: true, json: async () => ({ hits: { hits: knn ? [doc('b.md', 0.9), doc('a.md', 0.8)] : [doc('a.md', 40), doc('b.md', 30)] } }) };
+  };
+  const emb = async () => [1, 0];
+  const hi = await hybridSearch({ query: 'q', fetchFn: fake([-3, 2]), embedFn: emb, rerank: true });
+  ok(!hi.refused && Math.abs(hi.signals.rerank - 1 / (1 + Math.exp(-2))) < 1e-9, 'the reranker floor reads the BEST score of the pool');
+  const plain = await hybridSearch({ query: 'q', fetchFn: fake(null), embedFn: emb });
+  ok(hi.hits.map((h) => h.path).join() === plain.hits.map((h) => h.path).join(), '…and never reorders the fused hits');
+  const lo = await hybridSearch({ query: 'q', fetchFn: fake([-3, -2.3]), embedFn: emb, rerank: true });
+  ok(lo.refused && render(lo, 'q').includes('below the floor 0.105'), 'a best score under the floor refuses and names the reranker');
+  ok(!belowRerankFloor(REFUSE_RERANK) && belowRerankFloor(REFUSE_RERANK - 1e-6), 'a score AT the reranker floor answers — the floor is strict');
+  const dead = await hybridSearch({ query: 'q', fetchFn: fake(null), embedFn: emb, rerank: true });
+  ok(!Number.isFinite(dead.signals.rerank) && /no reranker/.test(dead.degraded) && dead.refused === belowFloor(dead.signals), 'a dead reranker falls back to the old floor and says so');
+  ok(!plain.degraded && plain.signals.rerank === undefined, 'CONTROL: without --rerank no reranker is asked');
+  ok(render(hi, 'q').includes('reranker best score 0.881') && !render(plain, 'q').includes('reranker'), 'an answer prints the absolute score; a plain search does not');
+  let threw = false;
+  try {
+    await rerankTop('q', [{ text: 't' }], { url: 'http://10.1.2.3:8091', fetchFn: fake([1]) });
+  } catch {
+    threw = true;
+  }
+  ok(threw, 'a non-loopback reranker is refused — the passages are repo text');
+
+  /* 8 · SYMBOLS print after the line range; an untagged hit prints none. */
+  const symHit = formatHit({ _source: { path: 'a.js', line_start: 5, line_end: 9, symbols: ['inner', 'outer'], text: 'x' } });
+  ok(symHit.where === ':5-9 · inner, outer', 'a tagged hit prints its function after the lines');
+  ok(formatHit({ _source: { path: 'a.js', line_start: 5, line_end: 9, text: 'x' } }).where === ':5-9', 'CONTROL: an untagged hit prints the lines alone');
+  ok(searchBody('q', null).query.match.text && !JSON.stringify(searchBody('q', null).query).includes('symbols'), 'the search body never reads symbols — no ranking moves');
 
   const line = fail.length ? `xerj-query selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
 
-export function render(out, query) {
+/* `brief`: one line per hit, without the passage (`doc-search --brief`). The path is the answer's
+   address; the reader opens it. A refusal prints the same in both modes. */
+export function render(out, query, { brief = false } = {}) {
   const lines = [`▸ hybrid (BM25 + bge-m3 kNN, one request) · "${query}"`, ''];
   if (out.degraded) lines.push(`  ⚠ ${out.degraded}`, '');
   if (!out.hits.length) lines.push('  (no hit — is the index loaded? `node tools/xerj-load.mjs`)');
+  if (out.refused) {
+    const { cos, bm25, rerank } = out.signals;
+    if (Number.isFinite(rerank)) lines.push(`  no prior work — the reranker's best score ${rerank.toFixed(3)} is below the floor ${REFUSE_RERANK}.`);
+    else lines.push(`  no prior work — both halves are below the refusal floor: cosine ${cos.toFixed(3)} < ${REFUSE_COS}, BM25 ${bm25.toFixed(1)} < ${REFUSE_BM25}.`);
+    lines.push('  The paths below are the weak best guesses, for reference only, not evidence:', '');
+    for (const h of out.hits) lines.push(`    ${h.path}${h.where}`);
+    return lines.join('\n');
+  }
+  if (Number.isFinite(out.signals?.rerank)) lines.push(`  reranker best score ${out.signals.rerank.toFixed(3)} (floor ${REFUSE_RERANK}; the order below is the fused one)`, '');
   for (const h of out.hits) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
+    if (brief) continue;
     lines.push(`        ${h.text}`);
     lines.push('');
   }
@@ -247,7 +400,7 @@ export function render(out, query) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const argv = process.argv.slice(2);
   if (argv.includes('--selftest')) {
-    const r = selftest();
+    const r = await selftest();
     process.stdout.write(`${r.line}\n`);
     for (const f of r.fail) process.stdout.write(`  ✕ ${f}\n`);
     process.exit(r.ok ? 0 : 1);
@@ -260,9 +413,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.stderr.write('usage: node tools/xerj-query.mjs "<question>"\n');
     process.exit(2);
   }
-  hybridSearch({ query })
+  hybridSearch({ query, rerank: argv.includes('--rerank') })
     .then((out) => {
-      process.stdout.write(`${render(out, query)}\n`);
+      process.stdout.write(`${render(out, query, { brief: argv.includes('--brief') })}\n`);
     })
     .catch((e) => {
       process.stderr.write(`xerj-query: ${e.message}\n`);

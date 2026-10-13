@@ -9,7 +9,9 @@ precedence, the population equality, the settle trigger and the consecutive coun
 sidecar, ADAPTERHCI) are wired in later units; keeping them out of here keeps this testable on its own.
 
 PRECEDENCE (§3.1), first match wins:
-  1. UNKNOWN `not settled`  — until night N+1's first data write; overrides everything.
+  1. UNKNOWN `not settled`  — until night N's OWN device data has been quiet for the settle window
+                              (`nightqc.data_settled`; N+1's first write is NOT the trigger, and a device
+                              worn past it holds N open); overrides everything.
   2. FAIL                   — any scored device FAILs any band. A clear failure is not hidden behind
                               another device's UNKNOWN.
   3. UNKNOWN                — no FAIL, but some band on some scored device could not be decided.
@@ -26,8 +28,11 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import sys
+import types
 from typing import Any
 
+import build_id as _bid
 import solid_night_inputs as _inputs
 import verdict as _v
 
@@ -244,8 +249,9 @@ def consecutive(nights: list[tuple[str, str, str | None]]) -> dict:
 def night_verdict(night_dir: str, devices: list, *, commit: str | None = None, at: str | None = None) -> dict:
     """A SETTLED night's verdict, its band decisions supplied from the files beside it (`solid_night_inputs`).
 
-    Only ever called for a settled night: the caller runs on the loss audit's own trigger, which fires once
-    night N+1 has begun (§2's settle trigger), so `settled` is True by construction here."""
+    Only ever called for a settled night: the caller runs on the loss audit's own trigger — night N's newest
+    DEVICE-data write plus the settle window (`nightqc.data_settled`), seen on the next loss-poller tick
+    (`loss_audit.poll_sec`) — so `settled` is True by construction here."""
     scope = _inputs.recording_scope(night_dir)
     return compose(
         night=os.path.basename(night_dir.rstrip("/")),
@@ -362,7 +368,7 @@ def _provenance(v: dict) -> dict:
     }
 
 
-def _withdraw(night_dir: str, replacement: dict) -> dict | None:
+def _withdraw(night_dir: str, replacement: dict, reason: str | None = None) -> dict | None:
     """Record the verdict about to be REPLACED, before it is. Returns the withdrawal entry, or None.
 
     🔴 `os.replace` IS ATOMIC AND LOSSY, and the second property cost a night. Measured on the box
@@ -382,7 +388,8 @@ def _withdraw(night_dir: str, replacement: dict) -> dict | None:
     entry = {
         "withdrawn": _provenance(prior),
         "replaced_by": _provenance(replacement),
-        "reason": (
+        "reason": reason
+        or (
             "re-judged: the night's loss audit re-ran over data that had arrived since, so this verdict "
             "was composed over an input set that no longer describes the night"
         ),
@@ -405,15 +412,86 @@ def _withdraw(night_dir: str, replacement: dict) -> dict | None:
     return entry
 
 
+# ── A VERDICT IS STALE WHEN THE CODE THAT JUDGED IT HAS CHANGED ─────────────────────────────────────
+# 🔴 THE POLLER RE-JUDGES A NIGHT ONLY WHEN ITS DATA CHANGES, AND A SETTLED NIGHT'S DATA NEVER DOES. So
+# a verdict a defective judge wrote stayed on the Nights page after the fix was running. Measured on the
+# box 2026-10-12: night 10-09 still read FAIL ("Polar Sense, Polar H10 failed", both at 71.40 %
+# completeness), written by 700811f5 before #3477; the same night replayed under bdbe3741 reads PASS on
+# all three devices. Of 10 settled nights, 4 stored verdicts differed from a replay (10-02 UNKNOWN→PASS,
+# 10-04 FAIL→PASS, 10-05 UNKNOWN→FAIL, 10-09 FAIL→PASS) and 10-03 had none.
+#
+# The verdict already says which code wrote it (`producedBy.commit`). A night is re-judged when git
+# reports a change, between that commit and the RUNNING one, in any file of the judge's own source
+# closure. The running commit is the one the daemon read at start (`verdict.commit_sha`), never HEAD:
+# a pulled-but-not-restarted tree is not the code that would re-judge.
+#
+# THE CLOSURE IS DERIVED, NOT LISTED. It is every module in this directory reachable from this one
+# through module globals, so a new import is covered without anyone remembering to add it.
+# `test_the_code_closure_reaches_every_module_the_judge_reads` pins the modules it must reach.
+#
+# WHEN GIT CANNOT ANSWER: an unknown RUNNING commit (a tarball deploy) never re-judges, because the new
+# verdict would carry no commit either and the night would loop. An unknown STORED commit (null, or a
+# sha git cannot resolve) does re-judge: nothing vouches for the code that wrote it, and the new verdict
+# carries the running commit, so the night converges after one pass.
+CODE_MOVED = "re-judged: the code that judges a night changed since this verdict was written ({old} → {new})"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+# THE PATHSPEC NAMES THE REPO, NOT THE FOLDER THIS FILE WAS LOADED FROM. mutmut runs the suite from a copy
+# in `mutants/`, and a closure built from the loading folder asked git about `mutants/*.py`, which no commit
+# holds (CI run 38301300455 on #3507: every mutmut invocation crashed, so the gate decided 0 mutants).
+_REPO_DIR = "capture-host"
+_moved: dict[tuple[str, str], bool] = {}
+
+
+def code_closure() -> list[str]:
+    """The judge's source files, as paths relative to the repo root, sorted."""
+    # A set, not a dict: only the paths are read, so a stored module value was a mutant no test could see.
+    seen: set[str] = set()
+    todo = [sys.modules[__name__]]
+    # A FOR OVER THE GROWING LIST, NOT `while todo: todo.pop()`: a mutant of the pop never ends (CI run 38302543948).
+    for mod in todo:
+        path = getattr(mod, "__file__", None)
+        if not path or os.path.dirname(os.path.abspath(path)) != _HERE or path in seen:
+            continue
+        seen.add(path)
+        todo.extend(v for v in vars(mod).values() if isinstance(v, types.ModuleType))
+    return sorted(f"{_REPO_DIR}/{os.path.basename(p)}" for p in seen)
+
+
+def code_moved(night_dir: str, running: str | None, run=None) -> str | None:
+    """Why the night's stored verdict must be re-judged because judge code differs from `running`, or None."""
+    if not running:
+        return None
+    prior = _inputs.read_json(os.path.join(night_dir, VERDICT_NAME))
+    if prior is None:
+        return None  # no verdict yet: the poller's own first-verdict path composes it
+    stored = _provenance(prior)["commit"]
+    if stored == running:
+        return None
+    key = (str(stored), running)
+    if key not in _moved:
+        diff = None
+        if stored:
+            repo = os.path.dirname(_HERE)
+            diff = _bid._git(repo, ["diff", "--name-only", stored, running, "--", *code_closure()], run=run)
+        _moved[key] = diff != ""  # None (git could not say) re-judges, per the block comment above
+    return CODE_MOVED.format(old=stored, new=running) if _moved[key] else None
+
+
 def write_night(
-    night_dir: str, devices: list, *, nights: list[str], active: set[str], commit: str | None = None
+    night_dir: str,
+    devices: list,
+    *,
+    nights: list[str],
+    active: set[str],
+    commit: str | None = None,
+    reason: str | None = None,
 ) -> tuple[dict, dict]:
     """Write the night's verdict beside its loss audit, with the run AS OF this night in `result.run` — the
     owner's exit counter, "S solid of N nights over D days" (§3.1). Returns `(verdict, run)` — the run
     separately, because a NOT_APPLICABLE verdict carries `result: null` by contract and has nowhere to hold it.
 
     A verdict already published here is WITHDRAWN with its reason (`_withdraw`) before it is replaced,
-    never silently overwritten."""
+    never silently overwritten. `reason` names why it is replaced when that is not new data (`code_moved`)."""
     obj = night_verdict(night_dir, devices, commit=commit)
     captures = os.path.dirname(night_dir.rstrip("/"))
     night = os.path.basename(night_dir.rstrip("/"))
@@ -423,7 +501,7 @@ def write_night(
         obj["result"]["run"] = run
     _v.validate(obj)
     # WITHDRAW BEFORE REPLACING, not after: the prior verdict has to be read while it is still there.
-    withdrawn = _withdraw(night_dir, obj)
+    withdrawn = _withdraw(night_dir, obj, reason)
     if withdrawn is not None and obj.get("result") is not None:
         obj["result"]["withdrew"] = withdrawn
     _v.validate(obj)

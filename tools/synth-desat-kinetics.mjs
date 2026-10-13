@@ -29,8 +29,9 @@
  *
  * Exit code 1 if any file exceeds the physiological ceiling, so CI can gate it.
  * ════════════════════════════════════════════════════════════════════════════ */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 /* The gate this tool mirrors. Kept as a LITERAL rather than imported from
    oxydex-dsp: if the DSP's constant is ever loosened to make a bad fixture pass,
@@ -114,6 +115,13 @@ function selftest() {
 }
 
 const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  console.log('usage: node tools/synth-desat-kinetics.mjs <dir-or-csv>…  |  --selftest');
+  process.exit(0);
+}
+/* Every positional went straight into `statSync`, so an unknown flag died on an uncaught ENOENT at
+   exit 1 (residue 2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path). */
+refuseUnknownArgvOrExit(args, { boolean: ['--selftest', '--help', '-h'], positional: true }, { tool: 'tools/synth-desat-kinetics.mjs' });
 if (args.includes('--selftest')) selftest();
 if (!args.length) {
   console.error('usage: node tools/synth-desat-kinetics.mjs <dir-or-csv>...  |  --selftest');
@@ -122,6 +130,12 @@ if (!args.length) {
 
 const files = [];
 for (const a of args) {
+  /* Same half as pb-operating-point: a mistyped path threw an uncaught ENOENT from `statSync` at exit 1. */
+  if (!existsSync(a)) {
+    console.error(`✗ tools/synth-desat-kinetics.mjs: no such file or directory: ${a}`);
+    console.error('  nothing was read and nothing was written.');
+    process.exit(2);
+  }
   if (statSync(a).isDirectory()) {
     for (const f of readdirSync(a)) if (/\.csv$/i.test(f) && /o2ring/i.test(f)) files.push(join(a, f));
   } else files.push(a);

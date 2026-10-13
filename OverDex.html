@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a7055f7cf469" data-compute-hash="2810ea1ffc15"><head>
+<html lang="en" data-manifest-hash="cbbd914df417" data-compute-hash="0d280f979d2f"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0zBavsQ5SJw2zYQUUijberGQybUVWPsK4auRLyraDKs=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-3Q/zJPAZXa9aUNHFRr9W+hC8tug2ir45uezrw3XRY4Y=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-e8j3LRjA6HkUkH/sRDCf6rxzCYi1dWuPxVNm9eXFsd8=' 'sha256-eWsh+QRtO5wrmZ/hzAyVzRMqbH1dOIcbO18q6HTO9mE=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-hmy9mmbIJyKBPZ5j4GTtgKXiBEkRp1TklL2bGK9Co64=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j/Sci6OKS0mEvMXOjGicK42hYZYO2CL7vYBp02vyU9c=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qohQ1Zh5MOTt5AEvTGsXIJizmJcSO5Qv2qaw5zAPlqc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0zBavsQ5SJw2zYQUUijberGQybUVWPsK4auRLyraDKs=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-aUXQ8YiPzV1xUUFYYb4+kgud55WOH0FrHCoA9sTWrZE=' 'sha256-ajWNlNaEaBPs/BbUk/AkMgRgP57z0ERsNMqqvWLV/1k=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-e8j3LRjA6HkUkH/sRDCf6rxzCYi1dWuPxVNm9eXFsd8=' 'sha256-eWsh+QRtO5wrmZ/hzAyVzRMqbH1dOIcbO18q6HTO9mE=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-hmy9mmbIJyKBPZ5j4GTtgKXiBEkRp1TklL2bGK9Co64=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j/Sci6OKS0mEvMXOjGicK42hYZYO2CL7vYBp02vyU9c=' 'sha256-nq+Pp61XGHLwm1BW7KeSoe1Yk6TjLeB3n7KhOaDZ06o=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qohQ1Zh5MOTt5AEvTGsXIJizmJcSO5Qv2qaw5zAPlqc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -10150,11 +10150,13 @@ window.IntegratorDSP = {
  * to the spec; nodes + the unifier read field names + units FROM the spec, not
  * from memory. Plain global, DOM-free, loadable in node:vm.
  *
- * The `dsp` resolvers reference page-scope globals and are LAZY (only invoked
- * when a consumer actually computes) — namespaced nodes return their object;
- * the bare-global nodes (PulseDex/OxyDex/HRVDex) return the function(s) they
- * expose, which is exactly why those must be co-loaded in isolation (a bare
- * global collides if two such DSPs share one page — see signal-adapters.js).
+ * The `dsp` resolvers are LAZY (only invoked when a consumer actually computes)
+ * and they resolve through the NODE'S OWN NAMESPACE: a node with a namespace
+ * object returns it, and a node whose entry point is a single function returns
+ * that function off the namespace (`PulseDex.parseRRInput`) or off the `_bare`
+ * helper object each migrated node also exposes. A page-scope global is the last
+ * resort, and it serves a classic single-node realm only — `nsFn` below says why
+ * a name two nodes share never falls back to one.
  * Per CLAUDE.md §Units, every unit here is metric/SI-canonical.
  * ──────────────────────────────────────────────────────────────────────── */
 (function (root) {
@@ -10167,6 +10169,34 @@ window.IntegratorDSP = {
     }
   }
 
+  /* nsFn — resolve one function THROUGH the node that owns it.
+
+     Measured 2026-10-12 (SIGNAL-ADAPTER-FOLLOWUPS-II §8): a bare `root[name]` lookup returned
+     `undefined` for `rr` (both members), for `spo2`, and for the `parse` member of `hrv` in every
+     realm a consumer computes in. Each shipped host page and the Node suite set
+     `__DEX_NAMESPACED__` before co-loading PulseDex, OxyDex and HRVDex, which is exactly the flag
+     that stops those three from putting their helpers on the page, so the bare name they were
+     looked up by no longer exists. The node surface is what the orchestrator's own host shims read
+     (`root.PulseDex.parseRRInput`), so resolving there puts the spec and the shims on one function.
+
+     The bare step is OPT-IN (`allowBare`) rather than a default, because most of these names are
+     not unique to one node. `parseCSV` is OxyDex's SpO2 parser and also HRVDex's summary parser,
+     and five node DSPs each define a `compute`, so on a classic page carrying two of them a bare
+     lookup returns whichever loaded last. That is not a fallback but a coin toss, and handing a
+     consumer the wrong parser is worse than handing it a visible `undefined`. `allowBare` is set
+     only where the name belongs to exactly one node across every DSP in the repo: `parseRRInput`
+     and `_pdSeriesStats` are PulseDex's alone. */
+  function nsFn(nsName, fnName, allowBare) {
+    var o = g(nsName);
+    if (o) {
+      if (typeof o[fnName] === 'function') return o[fnName];
+      if (o._bare && typeof o._bare[fnName] === 'function') return o._bare[fnName];
+    }
+    if (!allowBare) return undefined;
+    var bare = g(fnName);
+    return typeof bare === 'function' ? bare : undefined;
+  }
+
   var SignalSpec = {
     // ── intervals (RR / PPI) ────────────────────────────────────────────────
     rr: {
@@ -10174,9 +10204,9 @@ window.IntegratorDSP = {
       unit: 'ms',
       frameFields: ['intervals', 'tsMs', 't0Ms', 'offsetMin'],
       dsp: function () {
-        return { parse: g('parseRRInput'), stats: g('_pdSeriesStats') };
+        return { parse: nsFn('PulseDex', 'parseRRInput', true), stats: nsFn('PulseDex', '_pdSeriesStats', true) };
       }
-    }, // PulseDex: bare global
+    }, // PulseDex: parseRRInput is public, _pdSeriesStats rides `_bare`
     // ── sampled waveforms / traces ──────────────────────────────────────────
     ecg: {
       kind: 'samples',
@@ -10217,9 +10247,9 @@ window.IntegratorDSP = {
       unit: '%',
       frameFields: ['samples', 't0Ms'],
       dsp: function () {
-        return { parse: g('parseCSV') };
+        return { parse: nsFn('OxyDex', 'parseCSV') };
       }
-    }, // OxyDex: bare global + DOM side-effects
+    }, // OxyDex: `parseCSV` is a name two nodes answer to — namespace only, never the bare global
     // ── pre-computed HRV SUMMARY (Welltory-style spot reads) — NOT a raw signal:
     //    each "sample" is an already-computed HRV measurement at an irregular time,
     //    so there is no fs; per-sample tsMs carries the timing (cgm-like). ──
@@ -10228,10 +10258,13 @@ window.IntegratorDSP = {
       unit: 'ms',
       frameFields: ['samples', 'tsMs', 't0Ms'],
       dsp: function () {
-        var H = g('HRVDex');
-        return { parse: g('parseCSV'), rows: H && H.parseRows, compute: H && H.compute };
+        return {
+          parse: nsFn('HRVDex', 'parseCSV'),
+          rows: nsFn('HRVDex', 'parseRows'),
+          compute: nsFn('HRVDex', 'compute')
+        };
       }
-    }, // HRVDex: bare global + DOM/localStorage commit path
+    }, // HRVDex: parseRows/compute are public, parseCSV rides `_bare` under the shared name
     // ── NEW signal types: EEGDex / SpiroDex still need real new DSP; the
     //    adapter layer standardizes their INGEST, not the per-signal math. ──
     eeg: {
@@ -13893,7 +13926,23 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
   // SpO2 dip and recovery slopes + MODL + desaturation clustering
   // Builds nadir events inline (same ODI-4 rolling-window logic as computeSpO2Advanced)
-  function computeDesatSlopes(rows, blArr) {
+  /* ── THE ODI CRITERION, RESOLVED IN ONE PLACE (residue 2026-09-13-odi-threshold-has-no-injection-point)
+     `DexKernel.K` is FROZEN and stays frozen: assigning `K.ODI_DROP` throws, which is right for a clinical
+     constant nobody should retune by accident. What was missing was a way to ASK for another criterion
+     without editing source, so no tool could measure the SHIPPED index — the one `processNight` publishes,
+     after gating, artifact handling and its own denominator — under an alternative threshold. Measured over
+     99 SHHS1 records: the raw detector at the shipped parameter values gives a median 9.12 events/h against
+     the 2.70 `processNight` publishes, a 3.38x gap, so a sweep over `detectDesatEvents` is not a sweep of the
+     shipped index and must never be quoted as one.
+     Every helper in the ODI family now takes the criterion as its LAST, OPTIONAL argument. Absent (or null)
+     means the frozen kernel constant, so a call written before the argument existed computes exactly what it
+     computed before — that is what keeps the committed fixtures byte-identical. The VALIDATION lives in
+     `processNight` (the public entry), not here: a helper called directly is the caller's own business. */
+  function _odiDropOf(v) {
+    return v == null ? DexKernel.K.ODI_DROP : v;
+  }
+
+  function computeDesatSlopes(rows, blArr, odiDrop) {
     var n = rows.length;
     if (n < 60) return null;
     var spo2 = rows.map(function (r) {
@@ -13904,7 +13953,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // anti-chatter HYSTERESIS close (no exitPct) — the SATELLITE set (slopes/MODL/clustering); chatter-
     // merging is desirable here, so this is intentionally NOT event-for-event with the simple-close
     // headline ODI-4 count. §1: shared p90-ceiling blArr threaded (bit-identical, one walk not many).
-    var events = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var events = detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), blArr: blArr });
 
     if (!events.length)
       return {
@@ -14367,7 +14416,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // ═══════════════════════════════════════════════════════════════
   // v20.3: TIER 2 — Rolling Window Metrics (8 metrics)
   // ═══════════════════════════════════════════════════════════════
-  function computeRollingMetrics(rows, desat, comp, blArr) {
+  function computeRollingMetrics(rows, desat, comp, blArr, odiDrop) {
     var n = rows.length;
     if (n < 600) return null;
     var spo2 = rows.map(function (r) {
@@ -14457,7 +14506,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // the pre-unification separate loop. postDipDeltas.length below is the real gate, and it scores the
     // SET THIS USES (ODI-4 entry + anti-chatter HYSTERESIS close — §3 satellite set), not the simple-
     // close self-gated nadir.count. §1: shared p90-ceiling blArr threaded. DEX-EVENT-UNIFY-FOLLOWUPS-II.
-    detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, blArr: blArr }).forEach(function (e) {
+    detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), blArr: blArr }).forEach(function (e) {
       var postIdx = Math.min(n - 1, e.nadirIdx + 60);
       if (postIdx < n && e.nadirIdx < n) postDipDeltas.push(hr[postIdx] - hr[e.nadirIdx]);
     });
@@ -15168,7 +15217,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
 
   // Breathing Irregularity — CV of inter-nadir intervals
-  function computeBreathingIrregularity(desat, rows, blArr) {
+  function computeBreathingIrregularity(desat, rows, blArr, odiDrop) {
     if (!rows || rows.length < 60) return null;
     var spo2 = rows.map(function (r) {
       return r.spo2;
@@ -15177,7 +15226,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // self-gated nadir.count, a DIFFERENT set than the hysteresis-close inter-nadir set scored here;
     // the `nadirTimes.length < 3` check below is the real gate, on the SET THIS USES. §3 close-mode:
     // ODI-4 entry + anti-chatter HYSTERESIS close (satellite set). §1: shared p90-ceiling blArr threaded.
-    var nadirTimes = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
+    var nadirTimes = detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), blArr: blArr }).map(function (e) {
       return e.nadirIdx;
     });
     if (nadirTimes.length < 3) return null;
@@ -15575,7 +15624,36 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
      pre-call array, keep your own copy; if you read `rows` after the call, you are reading the night as
      the detector saw it, which is the right population to pair with the verdicts (pb-operating-point
      does exactly that, and says so). */
-  function processNight(rows, fname) {
+  function processNight(rows, fname, params) {
+    /* THE ODI CRITERION INJECTION POINT (residue 2026-09-13-odi-threshold-has-no-injection-point).
+       `params` is OPTIONAL and LAST, so every call written before it existed is unchanged — and with it
+       absent the resolved criterion IS `DexKernel.K.ODI_DROP`, read here and threaded from this one site,
+       so the published night is byte-identical. `K` is not unfrozen and nothing writes to it.
+       It FAILS CLOSED in two directions, because a criterion that silently falls back is worse than none:
+       a `dropPct` that is present but not a finite positive number REFUSES (a caller asking for a
+       criterion must never be handed the default under its own name), and an unknown key REFUSES (a sweep
+       passing `minSec` would otherwise read as honoured while the detector ignored it).
+       One override, one coherent night: the criterion reaches EVERY ODI-family helper this function calls
+       (slopes, rolling, breathing irregularity, desat profile, advanced, SBII, severity), not just the
+       headline, because an ODI-4 computed at 3 % beside a severity family still at 4 % is a night no
+       reader could interpret. `odi3` keeps its literal 3 % — it is its own named index, not this
+       criterion — so an override of 3 makes the two agree by arithmetic, which `odiCriterion` records. */
+    var odiDrop = DexKernel.K.ODI_DROP;
+    if (params != null) {
+      var _okKeys = { dropPct: 1 };
+      for (var _k in params) {
+        if (Object.prototype.hasOwnProperty.call(params, _k) && !_okKeys[_k]) {
+          throw new Error('processNight: unknown params key "' + _k + '" — the only override is dropPct');
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(params, 'dropPct') && params.dropPct != null) {
+        if (typeof params.dropPct !== 'number' || !isFinite(params.dropPct) || params.dropPct <= 0) {
+          throw new Error('processNight: params.dropPct must be a finite number > 0, got ' + String(params.dropPct));
+        }
+        odiDrop = params.dropPct;
+      }
+    }
+    var _odiOverridden = odiDrop !== DexKernel.K.ODI_DROP;
     var warmupTrim = trimSensorWarmup(rows); // FIRST — drop device warm-up/cool-down placeholder edge rows (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2)
     var artifactsCleaned = cleanArtifactHR(rows); // then clean HR before any analysis
     var date = rows.length ? fmtDate(rows[0].t) : 'Unknown';
@@ -15631,7 +15709,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        `stats.n` for duration and coverage. */
     var _measuredN = 0;
     for (var _mi = 0; _mi < rows.length; _mi++) if (rows[_mi].spo2 != null && isFinite(rows[_mi].spo2)) _measuredN++;
-    var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, _measuredN, blArr);
+    var odi4 = detectODI(spo2s, odiDrop, _measuredN, blArr);
     var odi3 = detectODI(spo2s, 3, _measuredN, blArr, pulseSeries);
     var hb = computeHypoxicBurden(rows);
     /* NO MOTION READING ANYWHERE ⇒ THE MOTION FAMILY IS ABSENT, NOT ZERO (DA-V §2.3 F15).
@@ -15648,7 +15726,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var _motionUnusable = _motionAbsent || _motionStuck === true;
     var motion = _motionUnusable ? null : computeMotionProfile(rows);
     var durationHr = /** @type {number} */ (stats.durationMin) / 60;
-    var desat = computeDesaturationProfile(rows, tIdx, odi4, blArr);
+    var desat = computeDesaturationProfile(rows, tIdx, odi4, blArr, odiDrop);
     // OXIMETER SELF-GATE (Part A): exclude self-gated artifact desaturations from
     // the ODI-4 rate. The desat profile and the ODI counter share the same
     // inclusive bl-ODI_DROP entry, so each flagged artifact corresponds to one
@@ -15727,19 +15805,19 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        known. `stab` has no other consumer before `buildFlags` below, so nothing else moves. */
     var stab = computeSleepStabilityScore(stats, hrv, osc, hb);
     var cross = computeCrossSignal(rows, osc, spikes, odi4, durationHr);
-    var spo2Adv = computeSpO2Advanced(rows, blArr); // nadir events computed inline
+    var spo2Adv = computeSpO2Advanced(rows, blArr, odiDrop); // nadir events computed inline
     var hrAdv = computeHRAdvanced(rows, osc);
     var comp = computeComposite(rows, spikes, desat, cross, motSleep, durationHr);
     // v20: literature-validated metrics
     // §2.1/§2.2 — both score the ARTIFACT-GATED canonical desat set (`desat.events`), so the
     // self-gate exclusion already applied to ODI-4 above is inherited instead of re-derived.
-    var sbii = computeSBII(rows, desat, durationHr, blArr);
+    var sbii = computeSBII(rows, desat, durationHr, blArr, odiDrop);
     var pred3p = computePRED3p(rows, null, blArr);
-    var desSev = computeDesSev(rows, blArr, desat);
+    var desSev = computeDesSev(rows, blArr, desat, odiDrop);
     var ctPrec = computeCTprecise(rows);
     // v20.2: 15 new metrics
     var ct94 = computeCT94(rows);
-    var slopes = computeDesatSlopes(rows, blArr);
+    var slopes = computeDesatSlopes(rows, blArr, odiDrop);
     var pbMet = computePBmetrics(rows, osc);
     var sleepArch = computeSleepArch(rows);
     /* `wasoMin` is a MOTION metric wearing a sleep-architecture name — it counts `r.motion > 0` after
@@ -15780,7 +15858,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        can still tell "this oximeter has no accelerometer" from "the writer emitted a stuck column".
        Conditional assignment, like its siblings: a healthy night's export stays byte-identical. */
     if (_motionUnusable && extras) extras.motionBursts = /** @type {any} */ (null);
-    var rolling = computeRollingMetrics(rows, desat, comp, blArr);
+    var rolling = computeRollingMetrics(rows, desat, comp, blArr, odiDrop);
     /* 🔴 §∅: `intraNightNSI` AVERAGES THREE COMPONENTS, one of them `min(1, segMot / 30)` over
        `r.motion > 0` — and `null > 0` is FALSE, so a night with no accelerometer scored as a night
        measured and found perfectly still. Measured on three nights identical but for the motion
@@ -15808,7 +15886,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var vagal = computeVagalIndex(hrv, extras);
     var recIdx = computeRecoveryIndex(slopes);
     var sleepP = computeSleepPressure(sleepArch, extras);
-    var breathI = computeBreathingIrregularity(desat, rows, blArr);
+    var breathI = computeBreathingIrregularity(desat, rows, blArr, odiDrop);
     var oxyCrash = computeOxyCrash(rows);
     var hrnDip = computeHRNoctDip(hrv, stats);
     var desatAsym = computeDesatAsymmetry(slopes);
@@ -16009,6 +16087,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       }
     }
     night_obj.summary = computeSmartSummary(night_obj);
+    /* THE CRITERION TRAVELS WITH THE NUMBER — but only when it is not the shipped one. `stats` and this
+       object are serialized WHOLESALE into the export, so an always-present `odiCriterion` would move
+       EVERY night's export bytes, including the committed provenance fixtures (the same reason
+       `sensorWarmupTrimmed` is attached conditionally, a few hundred lines up). Absent therefore means
+       "the frozen kernel constant", which is what every export in the corpus already means; present means
+       a reader must not compare this night's ODI with a default-criterion one. */
+    if (_odiOverridden) night_obj.odiCriterion = { dropPct: odiDrop, kernelDefault: DexKernel.K.ODI_DROP };
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: deterministic, identity-free recording handle.
     // processNight is the ONE site BOTH the app (exportJSON→allNights→oxyBuildNightElement) AND
     // the headless OxyDex.compute path reach, so the id is single-sourced and can't drift between
@@ -17210,7 +17295,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
 
   // 1. DESATURATION PROFILE — 8 SpO2-derived metrics
-  function computeDesaturationProfile(rows, tIdx, odi4, blArr) {
+  function computeDesaturationProfile(rows, tIdx, odi4, blArr, odiDrop) {
     // §∅: the measured series — absences are null, and every aggregate below
     // skips them explicitly (null is not 0).
     var spo2 = measuredSpO2(rows);
@@ -17286,7 +17371,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // ODI-4 (detectODI) — nadir.count now agrees with ODI-4 by construction instead of
     // drifting on a private trailing-MEAN loop. The recovery look-forward (secs back to the
     // onset baseline − 1) + the oximeter self-gate are preserved on top of the shared set.
-    var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
+    var nadirEvents = detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), exitPct: _odiDropOf(odiDrop), blArr: blArr }).map(function (e) {
       /* §∅ — AN IN-BAND SENTINEL THE FILE ITSELF READS TWO OPPOSITE WAYS. When the look-forward
          window expires without SpO2 returning to baseline-1, recovery was NOT OBSERVED — but `0`
          is a legal recovery time, so `meanRecovery` averaged it in as "recovered instantly" (and
@@ -17707,7 +17792,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // ═══════════════════════════════════════════
 
   // 5. Extended SpO2 metrics (WtDSI, IQR, conditional mean, nadir histogram)
-  function computeSpO2Advanced(rows, blArr) {
+  function computeSpO2Advanced(rows, blArr, odiDrop) {
     // §∅: measured series — absences are null, skipped explicitly below
     var spo2 = measuredSpO2(rows);
     var n = spo2.length,
@@ -17725,7 +17810,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // `nadir` is the ABSOLUTE SpO₂ floor of the event and is carried because nadirBins is keyed by
     // absolute level (above91/b90_91/…). It used to be dropped here, which forced the histogram to
     // bin on `depth` under absolute-level key names — see the nadirBins comment below.
-    var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
+    var nadirEvents = detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), blArr: blArr }).map(function (e) {
       return { depth: e.depth, duration: e.durationSec, nadir: e.nadir };
     });
 
@@ -18795,38 +18880,50 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function computeSpO2Shape(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var s = rows.map(function (r) {
-      return r.spo2;
-    });
+    // §∅: every moment here is a sum, and `a + null` is a — so an absent second
+    // enters the distribution as 0 % saturation and drags the mean, the SD, the
+    // skew and the kurtosis with it. Ten absent seconds in a clean night moved
+    // the kurtosis from 6.6 to 1655 and flipped the label to "Leptokurtic".
+    var s = [];
+    for (var si = 0; si < n; si++) {
+      var sv = rows[si].spo2;
+      if (sv != null && isFinite(sv)) s.push(sv);
+    }
+    var m = s.length;
+    if (m < 60) return null;
     var mean =
       s.reduce(function (a, b) {
         return a + b;
-      }, 0) / n;
+      }, 0) / m;
     var m2 = 0,
       m3 = 0,
       m4 = 0;
-    for (var i = 0; i < n; i++) {
+    for (var i = 0; i < m; i++) {
       var d = s[i] - mean;
       m2 += d * d;
       m3 += d * d * d;
       m4 += d * d * d * d;
     }
-    m2 /= n;
-    m3 /= n;
-    m4 /= n;
+    m2 /= m;
+    m3 /= m;
+    m4 /= m;
     var sd = Math.sqrt(m2);
     if (sd === 0) return null;
     var skew = +(m3 / (sd * sd * sd)).toFixed(3);
     var kurt = +(m4 / (m2 * m2)).toFixed(3); // excess kurtosis = kurt - 3
     var excessKurt = +(kurt - 3).toFixed(3);
     return {
-      spo2Mean: isFinite(mean) ? +mean.toFixed(2) : 0,
-      spo2SD: isFinite(sd) ? +sd.toFixed(2) : 0,
+      // §∅: an unmeasurable mean is null, never a 0 % saturation
+      spo2Mean: isFinite(mean) ? +mean.toFixed(2) : null,
+      spo2SD: isFinite(sd) ? +sd.toFixed(2) : null,
       spo2Skew: skew,
       spo2Kurt: kurt,
       spo2ExcessKurt: excessKurt,
       spo2SkewLabel: skew < -0.5 ? 'Left-skewed (hypox burden)' : skew > 0.5 ? 'Right-skewed' : 'Near-symmetric',
-      spo2KurtLabel: excessKurt > 2 ? 'Leptokurtic (heavy tails/events)' : excessKurt < 0 ? 'Platykurtic' : 'Normal-ish'
+      spo2KurtLabel: excessKurt > 2 ? 'Leptokurtic (heavy tails/events)' : excessKurt < 0 ? 'Platykurtic' : 'Normal-ish',
+      // §∅: coverage beside the value — the shape is over measured seconds only
+      nMeasured: m,
+      nTotal: n
     };
   }
 
@@ -18834,22 +18931,38 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function computeHRCV(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var hr = rows.map(function (r) {
-      return r.hr;
-    });
+    // §∅: `a + null` is a, so an absent second reads as 0 bpm — it lowers the mean
+    // and inflates the SD, and the coefficient of variation is their ratio, so a
+    // dropout alone can carry the night from "Low" to "High variability".
+    var hr = [];
+    for (var hi = 0; hi < n; hi++) {
+      var hv = rows[hi].hr;
+      if (hv != null && isFinite(hv)) hr.push(hv);
+    }
+    var m = hr.length;
+    if (m < 60) return null;
     var mean =
       hr.reduce(function (a, b) {
         return a + b;
-      }, 0) / n;
-    if (mean === 0) return null;
+      }, 0) / m;
+    if (!mean || mean <= 0) return null;
     var sd = Math.sqrt(
       hr.reduce(function (a, b) {
         return a + (b - mean) * (b - mean);
-      }, 0) / n
+      }, 0) / m
     );
-    if (!mean || mean <= 0) return null;
-    var cv = isFinite(sd / mean) ? +((sd / mean) * 100).toFixed(2) : 0;
-    return { hrCV: cv, hrCVmean: +mean.toFixed(1), hrCVsd: +sd.toFixed(2), hrCVlabel: cv > 12 ? 'High variability' : cv > 6 ? 'Moderate' : 'Low (<6%)' };
+    // §∅: an unmeasurable ratio is null, never a 0 % coefficient
+    var cv = isFinite(sd / mean) ? +((sd / mean) * 100).toFixed(2) : null;
+    if (cv === null) return null;
+    return {
+      hrCV: cv,
+      hrCVmean: +mean.toFixed(1),
+      hrCVsd: +sd.toFixed(2),
+      hrCVlabel: cv > 12 ? 'High variability' : cv > 6 ? 'Moderate' : 'Low (<6%)',
+      // §∅: coverage beside the value — the CV is over measured seconds only
+      nMeasured: m,
+      nTotal: n
+    };
   }
 
   // ── 5. Hypoxic Dose + Desaturation AUC ────────────────────────────
@@ -18981,9 +19094,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function computePoincareSD(rows) {
     var n = rows.length;
     if (n < 120) return null;
+    // §∅: the motion filter already made this array non-contiguous, so dropping the
+    // absent beats changes nothing about contiguity — it only stops `a + null` and
+    // `hr[i + 1] - null` from reading an unmeasured second as 0 bpm, which lands in
+    // SD2 as a ~60 bpm excursion and in SD1 as a step of the same size.
     var hr = rows
       .filter(function (r) {
-        return r.motion === 0;
+        return r.motion === 0 && r.hr != null && isFinite(r.hr);
       })
       .map(function (r) {
         return r.hr;
@@ -19015,7 +19132,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       sd1sd2Ratio: ratio,
       // 1Hz proxy thresholds in bpm (not ms); sd1≈RMSSD/√2 ≈ 0.3-0.6 bpm typical
       sd1Label: sd1 < 0.4 ? 'Low (1Hz proxy)' : sd1 > 1.0 ? 'High (1Hz proxy)' : 'Normal (1Hz proxy)',
-      sd2Label: sd2 < 2 ? 'Low sympathetic modulation (1Hz proxy)' : 'Normal (1Hz proxy)'
+      sd2Label: sd2 < 2 ? 'Low sympathetic modulation (1Hz proxy)' : 'Normal (1Hz proxy)',
+      // §∅: coverage beside the value — the pair is over measured still seconds only
+      nMeasured: m,
+      nTotal: n
     };
   }
 
@@ -19074,16 +19194,31 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       return r.motion > 0;
     });
     if (!still.length) return null;
+    // §∅: the two filters read the MOTION channel, and the sums then read SpO2 — a
+    // second that was still but unmeasured entered its mean as 0 %. Absence is not
+    // distributed evenly between rest and movement, so the DELTA moved too, and the
+    // delta is what the label calls an apnea pattern.
+    function _measured(src_) {
+      var out = [];
+      for (var i = 0; i < src_.length; i++) {
+        var v = src_[i].spo2;
+        if (v != null && isFinite(v)) out.push(v);
+      }
+      return out;
+    }
+    var stillV = _measured(still);
+    var movingV = _measured(moving);
+    if (!stillV.length) return null;
     var meanStill = +(
-      still.reduce(function (a, r) {
-        return a + r.spo2;
-      }, 0) / still.length
+      stillV.reduce(function (a, v) {
+        return a + v;
+      }, 0) / stillV.length
     ).toFixed(2);
-    var meanMoving = moving.length
+    var meanMoving = movingV.length
       ? +(
-          moving.reduce(function (a, r) {
-            return a + r.spo2;
-          }, 0) / moving.length
+          movingV.reduce(function (a, v) {
+            return a + v;
+          }, 0) / movingV.length
         ).toFixed(2)
       : null;
     var delta = meanMoving !== null ? +(meanStill - meanMoving).toFixed(2) : null;
@@ -19091,7 +19226,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       spo2StillMean: meanStill,
       spo2MovingMean: meanMoving,
       spo2MotionDelta: delta,
+      // stillPct reads the motion channel, so its denominator stays the whole recording
       stillPct: +((still.length / n) * 100).toFixed(1),
+      // §∅: coverage beside each mean — how many of those seconds carried a reading
+      nStillMeasured: stillV.length,
+      nStillTotal: still.length,
+      nMovingMeasured: movingV.length,
+      nMovingTotal: moving.length,
       // delta = stillMean - movingMean: positive → rest has higher SpO2 → motion creates artifact
       motionArtifactLabel:
         delta !== null && delta > 1 ? 'Motion artifact likely (SpO2 lower during movement)' : delta !== null && delta < -1 ? 'True apnea pattern (SpO2 worse at rest)' : 'No significant difference'
@@ -19884,7 +20025,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // SBII (Sleep Breathing Impairment Index) — Hui 2024, best predictor CVD mortality
   // Formula: Σ(D_i² × T_i_min) / TRT_hr  [%²·min/hr] — each event contributes depth² × duration
   // nadir events computed inline from ODI-4 rolling baseline; result normalized per hour
-  function computeSBII(rows, desat, durationHr, blArr) {
+  function computeSBII(rows, desat, durationHr, blArr, odiDrop) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
@@ -19911,7 +20052,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // keeping `nadir`+`depth`). Read both, or the profile path silently yields NaN — which
     // JSON-serialises to null and, being NaN, fails every quintile comparison so the label
     // lands on 'Q5(high)'. A wrong-but-plausible worst-case grade, from a units mismatch.
-    var _src = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var _src = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), exitPct: _odiDropOf(odiDrop), blArr: blArr });
     var nadirEvents = _src
       .map(function (e) {
         var dur = e.durationSec != null ? e.durationSec : e.duration;
@@ -19974,7 +20115,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // Formula: Σ(desaturation_area) / total_time
   // Where desaturation_area = area between baseline (left peak) and SpO2 nadir per event
   // This is the proper "area under desaturation curve" without requiring manually scored events
-  function computeDesSev(rows, blArr, desat) {
+  function computeDesSev(rows, blArr, desat, odiDrop) {
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
@@ -19998,7 +20139,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // desaturations. Falls back to deriving that canonical set when no profile is supplied so
     // direct callers keep working — the fallback is NOT artifact-gated, so the profile path is
     // preferred. Kulkas' area-under-the-curve concept is unchanged; only the event set is.
-    var _evts = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr });
+    var _evts = desat && Array.isArray(desat.events) ? desat.events : detectDesatEvents(spo2, { dropPct: _odiDropOf(odiDrop), exitPct: _odiDropOf(odiDrop), blArr: blArr });
     // Two event shapes (see computeSBII): the raw primitive carries `baseline`, while the
     // profile's re-shaped events drop it and keep `nadir`+`depth` — from which the onset
     // baseline is recoverable exactly. Without this the subtraction is NaN, every `d > 0`
@@ -46387,6 +46528,12 @@ __exports.CPAPDex = window.CPAPDex;
   var DIRECTIONS = ['lte', 'gte', 'eq', 'within'];
   /* P5 rides in the object: only a `publishable` verdict may be quoted outside the repo. Two values, closed. */
   var SCOPES = ['internal', 'publishable'];
+  /* The closed method set for `contributions` (VERDICT-CONTRIBUTIONS-2026-10-04 §1), pre-stated per
+     figure: recompute without the input · a closed-form partial derivative · the figure is a sum or a
+     count and each input's term IS its contribution. */
+  var CONTRIBUTION_METHODS = ['leave-one-out', 'analytic', 'decomposition'];
+  /* Shares are a ratio of floats; the brief states the tolerance, so it lives here and not in a caller. */
+  var SHARE_TOL = 1e-9;
   var SHA_RE = /^[0-9a-f]{7,40}$/;
   var ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
@@ -46398,6 +46545,103 @@ __exports.CPAPDex = window.CPAPDex;
   }
   function _nonEmpty(s) {
     return typeof s === 'string' && s.trim().length > 0;
+  }
+
+  /**
+   * _contributions(c, push) — the OPTIONAL attribution block (VERDICT-CONTRIBUTIONS-2026-10-04 §1).
+   *
+   * A fused figure — one computed from more than one node's export, or from more than one device's leg —
+   * publishes what it is made of: `{ of, unit, method, inputs: [{ key, share, delta }], dominant }`.
+   *
+   * THE ∅ RULE IS THE WHOLE POINT. An input that was absent or refused is LISTED with `delta: null`
+   * and the refusal's reason — never omitted and never 0, because a leg that could not run is a
+   * contribution of *unknown*, not a contribution of nothing. And a share is a fraction of a total:
+   * one unknown term makes the denominator `Σ|delta|` unknown, so EVERY share and `dominant` go null
+   * with it. Normalising over the legs that did run would manufacture a denominator, which is the
+   * §∅ shape this contract exists to refuse. The same holds when every delta is 0: `0/0` is not 0.
+   */
+  function _contributions(c, push) {
+    if (!_isObj(c)) {
+      push('contributions must be an object { of, unit, method, inputs[], dominant }, or absent — never a bare array or a number');
+      return;
+    }
+    if (!_nonEmpty(c.of)) push('contributions.of must name the figure being attributed (non-empty string)');
+    if (typeof c.unit !== 'string') push('contributions.unit must be a string (use "" for a dimensionless count, never omit it)');
+    if (CONTRIBUTION_METHODS.indexOf(c.method) < 0)
+      push('contributions.method must be one of ' + CONTRIBUTION_METHODS.join('|') + ', got ' + JSON.stringify(c.method) + ' — a closed set, pre-stated per figure');
+    if (!Array.isArray(c.inputs)) {
+      push('contributions.inputs must be an array of { key, share, delta }');
+      return;
+    }
+    if (c.inputs.length < 2) push('contributions.inputs lists ' + c.inputs.length + ' input(s) — a figure with one input has nothing to attribute and carries NO block, so a block needs at least 2');
+    var seen = {};
+    var unknown = 0;
+    var sumAbs = 0;
+    var sumShare = 0;
+    var maxAbs = -1;
+    var shareOk = true;
+    c.inputs.forEach(function (it, i) {
+      var at = 'contributions.inputs[' + i + ']';
+      if (!_isObj(it)) {
+        push(at + ' must be an object { key, share, delta }');
+        shareOk = false;
+        return;
+      }
+      if (!_nonEmpty(it.key)) push(at + '.key must name the input (non-empty string)');
+      else if (seen[it.key]) push(at + '.key "' + it.key + '" is listed twice — one share per input');
+      else seen[it.key] = 1;
+      if (it.delta === null) {
+        unknown++;
+        if (!_nonEmpty(it.reason)) push(at + ' carries delta: null with no reason — ∅: an absent or refused input says WHY it is unknown, and is never 0 and never omitted');
+        if (it.share !== null) push(at + ' carries delta: null, so its own share is UNKNOWN and must be null, got ' + JSON.stringify(it.share));
+      } else if (typeof it.delta !== 'number' || !Number.isFinite(it.delta)) {
+        push(at + ".delta must be a finite number in the figure's own unit, or null with a reason, got " + JSON.stringify(it.delta));
+        shareOk = false;
+      } else {
+        sumAbs += Math.abs(it.delta);
+        if (Math.abs(it.delta) > maxAbs) maxAbs = Math.abs(it.delta);
+      }
+    });
+    /* The denominator is unknown — one unknown term, or every delta 0. Refuse a number for any share. */
+    if (unknown > 0 || (shareOk && maxAbs >= 0 && sumAbs === 0)) {
+      var why = unknown > 0 ? unknown + ' input(s) carry delta: null, so Σ|delta| is UNKNOWN' : 'every delta is 0, so Σ|delta| is 0 and a share would be 0/0';
+      c.inputs.forEach(function (it, i) {
+        if (it && it.delta !== null && it.share !== null)
+          push('contributions.inputs[' + i + '].share must be null (present, not omitted) — ' + why + '; normalising over the legs that DID run manufactures a denominator (∅)');
+      });
+      if (c.dominant !== null) push('contributions.dominant must be null (present, not omitted) — ' + why + ', so no input is known to be the largest');
+      return;
+    }
+    if (!shareOk) return;
+    c.inputs.forEach(function (it, i) {
+      if (!_isObj(it) || it.delta === null) return;
+      var want = Math.abs(it.delta) / sumAbs;
+      if (typeof it.share !== 'number' || !Number.isFinite(it.share)) {
+        push('contributions.inputs[' + i + '].share must be a finite number, got ' + JSON.stringify(it.share));
+        return;
+      }
+      sumShare += it.share;
+      if (Math.abs(it.share - want) > SHARE_TOL)
+        push('contributions.inputs[' + i + '].share is ' + it.share + ' but |delta| / Σ|delta| is ' + want + ' — a share is computed from the deltas, never asserted beside them');
+    });
+    if (c.inputs.length && Math.abs(sumShare - 1) > SHARE_TOL)
+      push('contributions shares sum to ' + sumShare + ', not 1 ± ' + SHARE_TOL + ' — the listed inputs ARE the decomposition, so a sum below 1 hides an input and above 1 double-counts one');
+    var dom = null;
+    for (var k = 0; k < c.inputs.length; k++) {
+      var e = c.inputs[k];
+      if (_isObj(e) && e.delta !== null && Math.abs(e.delta) === maxAbs) {
+        dom = e.key;
+        if (c.dominant === e.key) return;
+      }
+    }
+    if (c.dominant !== dom)
+      push(
+        'contributions.dominant must be the key with the largest |delta| (' +
+          JSON.stringify(dom) +
+          '), got ' +
+          JSON.stringify(c.dominant) +
+          ' — it is what a render names first and what a reader quotes'
+      );
   }
 
   /**
@@ -46487,6 +46731,14 @@ __exports.CPAPDex = window.CPAPDex;
       if (!reasonOk) push('UNKNOWN requires reason — what could not be decided, and why');
     }
 
+    // ── contributions: OPTIONAL. A fused figure says which input moved it ───────────────────
+    //    Absent from a verdict that attributes nothing, so no existing producer gains a leg: the
+    //    `checked[]` denominator grows only for an object that carries the block.
+    if (obj.contributions !== undefined && obj.contributions !== null) {
+      checked.push('contributions');
+      _contributions(obj.contributions, push);
+    }
+
     // ── evidence: what a reader opens to re-derive the verdict ───────────────────────────────
     checked.push('evidence');
     if (!Array.isArray(obj.evidence)) push('evidence must be an array of paths/globs/records a reader would open');
@@ -46515,7 +46767,7 @@ __exports.CPAPDex = window.CPAPDex;
    */
   function make(f) {
     f = f || {};
-    return {
+    var v = {
       schema: SCHEMA,
       gate: f.gate,
       status: f.status,
@@ -46528,9 +46780,21 @@ __exports.CPAPDex = window.CPAPDex;
       producedBy: f.producedBy,
       at: f.at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
     };
+    /* OPTIONAL and additive: a producer that attributes nothing emits exactly the bytes it did before. */
+    if (f.contributions !== undefined) v.contributions = f.contributions;
+    return v;
   }
 
-  var API = { SCHEMA: SCHEMA, STATUSES: STATUSES.slice(), SCOPES: SCOPES.slice(), DIRECTIONS: DIRECTIONS.slice(), validate: validate, make: make };
+  var API = {
+    SCHEMA: SCHEMA,
+    STATUSES: STATUSES.slice(),
+    SCOPES: SCOPES.slice(),
+    DIRECTIONS: DIRECTIONS.slice(),
+    CONTRIBUTION_METHODS: CONTRIBUTION_METHODS.slice(),
+    SHARE_TOL: SHARE_TOL,
+    validate: validate,
+    make: make
+  };
   root.Verdict = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

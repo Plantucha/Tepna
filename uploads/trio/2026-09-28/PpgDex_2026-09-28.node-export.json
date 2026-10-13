@@ -9,7 +9,7 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-03T23:17:51.019Z",
+    "generated": "2026-10-12T21:20:15.535Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -883,6 +883,7 @@
     "ppiAgreementPct": 99,
     "ppiCorrFootPct": 0.4,
     "ppiCorrPeakPct": 0.5,
+    "deviceBeats": null,
     "pinnedCoverage": [
       {
         "channel": 0,

@@ -218,6 +218,16 @@ def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
     return max(0.0, min(a1, b1) - max(b0, a0))
 
 
+def _gap_sec_inside(a0: float, a1: float, holes: list[tuple[float, float]]) -> float:
+    """Seconds of `holes` lying inside `[a0, a1]` — time no judged session was running.
+
+    The judged window is the envelope across the joined sessions, and the holes between them are not
+    capture. Subtracting them is what keeps a joined night from charging a device for time the box
+    itself was down: residue `2026-09-25-coverage-spans-two-capture-sessions` measured a union span
+    reporting 0.46-0.52 on streams that recorded perfectly through one of the two sessions."""
+    return sum(_overlap(a0, a1, h0, h1) for h0, h1 in holes)
+
+
 def _gap_class(excluded: list, b0: float, b1: float) -> str:
     """Is excluded capture a HOLE IN THIS NIGHT, or capture lying outside the judged night's band?
 
@@ -3365,6 +3375,13 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
     # green when it can positively show the excluded time was outside the night — never by absence.
     gaps: list[str] = []
     gaps_in_night: list[str] = []
+    # THE HOLES INSIDE THE JUDGED NIGHT, which are a different thing from the exclusions beside it.
+    # `gaps_in_night` says a session inside the night was LEFT OUT; these say it was taken IN and the
+    # hole before it is published rather than charged to a device (owner ruling 2026-10-12).
+    joined_gaps: list[str] = []
+    _join_gap_spans: list[tuple[float, float]] = []
+    _joined_gap_sec = 0.0
+    _sessions_judged = 0
     # ∅ A NIGHT CAN HOLD FILES AND STILL HAVE NO PLACEABLE SESSION, which is new and is why this gates
     # on `sessions` rather than on `data`. In the floating frame a file with no start stamp cannot be
     # placed at all (`file_interval` returns None for it), so a night of only stampless files yields rows
@@ -3396,8 +3413,44 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         # rows count what was actually captured. Ties break toward the later session, preserving the old
         # behaviour for the single-session days it was written for.
         cur = judged_session(sessions)
-        current = cur[2]
-        _cur_end = cur[1]
+        # ⚠️ AN IN-NIGHT SESSION JOINS THE JUDGEMENT (owner ruling 2026-10-12).
+        #
+        # Judging ONE session and excluding every other made a split night a SHORTFALL: the headline
+        # held, and the verdict said a session inside the night window was left out. Measured on the box
+        # once the band rows landed: 10-10 takes in one session over a 73 min hole, 10-11 takes in two
+        # over 117 min, and both nights were reported against their own capture. The owner ruled that
+        # every such session joins the night's coverage and that the verdict carries the gap minutes
+        # beside the number.
+        #
+        # 🔴 THE HOLE IS NOT CHARGED TO A DEVICE, and that is the whole of the care here. Residue
+        # `2026-09-25-coverage-spans-two-capture-sessions` (fixed #3131) measured what a UNION span does:
+        # nine streams that recorded perfectly through one session read 0.46-0.52 against the union and
+        # the verdict read FAIL. So the judged window is the envelope MINUS the holes between the joined
+        # sessions, each hole is published in `joined_gaps` and totalled in `night_gap_min`, and coverage
+        # keeps answering the question it states — did we receive the packets the device was SENDING.
+        #
+        # JOINS ON POSITIVE EVIDENCE ONLY. `_gap_class` fails closed: a night with no usable band reads
+        # in-night, which there means KEEP THE GAP, never grant a green. A join is the opposite power, so
+        # it tests the band itself first, and an unusable band keeps the old exclusion and its SHORTFALL.
+        b0, b1 = night_band((cur[0] + cur[1]) / 2.0)
+        _band_ok = b1 > b0
+        others = [s for s in sessions if s is not cur]
+        _joined = [s for s in others if _band_ok and _gap_class([s], b0, b1) == "in-night"]
+        _judged = sorted([cur, *_joined], key=lambda s: s[0])
+        _sessions_judged = len(_judged)
+        current = [f for s in _judged for f in s[2]]
+        _cur_end = max(s[1] for s in _judged)
+        _judged_start = _judged[0][0]
+        # Merged sessions are disjoint and ordered, so each consecutive pair names one hole.
+        for _a, _b in zip(_judged, _judged[1:]):
+            _join_gap_spans.append((_a[1], _b[0]))
+            _joined_gap_sec += _b[0] - _a[1]
+            _line = (
+                f"{_hhmm(_a[1])}->{_hhmm(_b[0])} {round((_b[0] - _a[1]) / 60)}min gap; "
+                f"{known_rows(_b[2])} rows joined into the night's coverage [in-night joined]"
+            )
+            gaps.append(_line)
+            joined_gaps.append(_line)
         # ⚠️ NO RECOVERED OFFSET, NO SPAN — and the refusal is the point of the floor, not a shortfall
         # of it. In the floating frame a session's end is its own last stamp plus its own recorded
         # duration, so `end − start` IS that duration: publishing it as the session's ELAPSED time would
@@ -3409,7 +3462,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             span = None
             _span_reason = _off["reason"]
         else:
-            span = cur[1] - cur[0]
+            span = (_cur_end - _judged_start) - _joined_gap_sec
             span = span if span >= _MIN_SPAN_SEC else None
             _span_reason = None if span else "under the minimum judgeable span"
         # ⚠️ EXCLUDED IS EXCLUDED, WHICHEVER SIDE IT SITS ON.
@@ -3421,19 +3474,21 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         # green having thrown away part of itself — exactly the §A2 regression, re-entered through a door
         # the one-sided test could not see. (Reachability is not hypothetical: the measured 2026-07-24
         # box-wide silence ran 58.6 min, 85 s under the split threshold.)
-        others = [s for s in sessions if s is not cur]
-        if others:
-            before = [s for s in others if s[1] <= cur[0]]
-            after = [s for s in others if s[0] >= cur[1]]
+        _joined_ids = {id(s) for s in _joined}
+        excluded = [s for s in others if id(s) not in _joined_ids]
+        if excluded:
+            before = [s for s in excluded if s[1] <= _judged_start]
+            after = [s for s in excluded if s[0] >= _cur_end]
             # `prior_gap_sec` keeps naming the gap to the nearest EARLIER session, which is what its
-            # consumers read; the nearest later one is reported in the message rather than renamed.
-            b0, b1 = night_band((cur[0] + cur[1]) / 2.0)
+            # consumers read; the nearest later one is reported in the message rather than renamed. It
+            # names an EXCLUDED neighbour only — a joined session's hole is inside the judged window and
+            # travels in `joined_gaps`, so the two never describe the same minutes.
             if before:
                 prev = max(before, key=lambda s: s[1])
-                prior_gap = cur[0] - prev[1]
+                prior_gap = _judged_start - prev[1]
                 cls = _gap_class(before, b0, b1)
                 line = (
-                    f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
+                    f"{_hhmm(prev[1])}->{_hhmm(_judged_start)} {round(prior_gap / 60)}min gap; "
                     f"{len(before)} earlier session(s), "
                     f"{known_rows([f for s in before for f in s[2]])} rows, excluded from coverage"
                     f" [{cls}]"
@@ -3445,7 +3500,7 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 nxt = min(after, key=lambda s: s[0])
                 cls = _gap_class(after, b0, b1)
                 line = (
-                    f"{_hhmm(cur[1])}->{_hhmm(nxt[0])} {round((nxt[0] - cur[1]) / 60)}min gap; "
+                    f"{_hhmm(_cur_end)}->{_hhmm(nxt[0])} {round((nxt[0] - _cur_end) / 60)}min gap; "
                     f"{len(after)} later session(s), "
                     f"{known_rows([f for s in after for f in s[2]])} rows, excluded from coverage"
                     f" [{cls}]"
@@ -3501,13 +3556,27 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         # a missing measurement — so an incomplete set falls back to the session span and says so, the
         # same shape `coverage_basis` already uses for the rate (§∅: absence is not a smaller number).
         if _dev_files and all(f.get("span_sec") for f in _dev_files):
-            dev_span = _dev_end - min(f["mtime"] - f["span_sec"] for f in _dev_files)
+            _dev_start = min(f["mtime"] - f["span_sec"] for f in _dev_files)
+            # The same last write as `_dev_end`, re-taken without the `default=None` the empty case needs:
+            # inside this branch the set is non-empty, so there is a float here and the hole arithmetic
+            # below says so rather than carrying an Optional it cannot reach.
+            _dev_stop = max(f["mtime"] for f in _dev_files)
+            # A joined night's envelope spans the hole between its sessions, and the device was not
+            # recording across it. Charging that time here is the union-span defect of #3131, measured
+            # at 0.46-0.52 on streams that lost nothing, so the hole comes off the denominator and is
+            # published in `joined_gaps` instead.
+            dev_span = (_dev_stop - _dev_start) - _gap_sec_inside(_dev_start, _dev_stop, _join_gap_spans)
             if dev_span < _MIN_SPAN_SEC:
                 dev_span = None
         # Session end − this device's last write. Published so a reader sees 28.4 min on the Verity
         # rather than "8 % of nothing"; the session end it is measured against is named beside it.
+        # The hole between joined sessions comes off this too: the question is how long the box kept
+        # recording after this device stopped, and an unsubtracted hole answered it with the 5.2 h the
+        # #3131 row measured on an H10 that had not stopped early at all.
         stopped_early_s = (
-            round(_cur_end - _dev_end) if (_cur_end is not None and _dev_end is not None and span is not None) else None
+            round(_cur_end - _dev_end - _gap_sec_inside(_dev_end, _cur_end, _join_gap_spans))
+            if (_cur_end is not None and _dev_end is not None and span is not None)
+            else None
         )
         streams: dict[str, int | None] = {}
         coverage: dict[str, float] = {}
@@ -3691,6 +3760,14 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             # complete so nothing is hidden — a daytime sitting is still reported, still labelled, and a
             # consumer that wants every exclusion reads `gaps` exactly as before.
             "gaps_in_night": gaps_in_night,
+            # THE HOLES INSIDE THE JUDGED NIGHT, one line each, and the minutes they total. A night
+            # split by a daemon restart or a box-wide outage now reads as ONE night with a stated hole,
+            # and these are the fields that state it. `night_gap_min` is 0 on a single-session night.
+            "joined_gaps": joined_gaps,
+            "night_gap_min": round(_joined_gap_sec / 60),
+            # How many capture sessions the figures above rest on, so a reader never has to infer it
+            # from the length of a gap list.
+            "sessions_judged": _sessions_judged,
             "optional_absent": optional_absent,
             # Every session on this night, oldest first — so `span_sec`/`coverage`/`missing`/`silent_sec`
             # being CURRENT-session-scoped is visible rather than implied.
@@ -3788,10 +3865,14 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
     the states a machine must not confuse:
 
       PASS          every declared stream on every non-optional device delivered rows this session at
-                    coverage ≥ 0.5 of rate × span, and no session inside the night window was excluded
+                    coverage ≥ 0.5 of rate × span, and every session inside the night window joined the
+                    judgement — the holes between them are published, in `joined_gaps` line by line and
+                    in `night_gap_min` as minutes (owner ruling 2026-10-12: count it in, annotate it)
       FAIL          a RECORDING device has a missing or degraded stream (reason names each, with %)
-      SHORTFALL     the headline held but a session inside the night was excluded from the judgement
-                    (`gaps_in_night`) — met on the whole, not on a stated sub-population
+      SHORTFALL     the headline held but a session inside the night stayed OUT of the judgement
+                    (`gaps_in_night`) — met on the whole, not on a stated sub-population. Since the
+                    join landed this is the no-usable-band case: `_gap_class` fails closed to in-night,
+                    and a join may rest only on positive evidence that the session belongs to the night
       UNDERPOWERED  span < _MIN_SPAN_SEC: coverage is unknown there, not low
       UNKNOWN       every expected device produced NOTHING, so no sibling witnesses the radio: nobody
                     wore the kit and a dead adapter are indistinguishable from here
@@ -3852,6 +3933,11 @@ def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> di
             "missing": list(summary.get("missing") or []),
             "degraded": list(summary.get("degraded") or []),
             "gaps_in_night": list(summary.get("gaps_in_night") or []),
+            # THE GAP MINUTES BESIDE THE NUMBER. A joined night is one night with a hole in it, and a
+            # reader of the verdict alone must see the hole without opening the summary.
+            "joined_gaps": list(summary.get("joined_gaps") or []),
+            "night_gap_min": summary.get("night_gap_min"),
+            "sessions_judged": summary.get("sessions_judged"),
             "span_sec": summary.get("span_sec"),
         }
         span = summary.get("span_sec")
