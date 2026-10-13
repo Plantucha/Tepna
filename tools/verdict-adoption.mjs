@@ -51,6 +51,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -296,6 +297,74 @@ export function checkWordOnlyClaim(manifest, readSource, ratchet = WO_CLAIM_RATC
   }
   for (const p of ratchet) if (!claims.includes(p)) errors.push(`${p}: in WO_CLAIM_RATCHET but is not a word-only row claiming no emission — remove the stale entry`);
   return { ok: errors.length === 0, errors, checked: claims.length, conceded: conceded.length, wordOnly: wordOnly.length, noLocator, flagged };
+}
+
+/* ── A WORD-ONLY ROW ALSO ASSERTS A NEGATIVE THE GATE CAN TEST DIRECTLY: NO VERDICT OBJECT ────────
+   `checkWordOnlyClaim` above reads for decision WORDS on a print line. A producer that starts emitting
+   a real `tepna.verdict/1` OBJECT does not have to print one: residue
+   `2026-10-11-word-only-bin-exempts-a-producer-from-object-validation` measured it on
+   `tools/geometry-scan.mjs` — #3402 made it build and write a verdict object, its row still read
+   `word-only` / "verdict words appear only in comments", and this gate stayed GREEN, because a
+   word-only row is exempt from the object checks and nothing tested the bin's own negative. The row
+   was re-binned only because a human read the manifest.
+
+   So the negative is tested on its own terms: outside its selftest body, a `word-only` producer must
+   not CONSTRUCT a verdict object — a literal `schema: 'tepna.verdict/1'`, or a call to a builder
+   (`makeVerdict(`, `Verdict.make(`, `V.make(`, `verdict.make(`, `verdict_object(`). A DEFINITION of a
+   builder is not a call (the shared libraries `verdict-emit.mjs` / `verdict.py` define, they do not
+   emit), a comment is not a construction, and a selftest may build objects to feed a validator.
+   Applies to EVERY word-only row, claiming or conceding: conceding that words are printed is not
+   conceding that a decision OBJECT is. ⚠️ STATIC, so a producer that delegates the build to another
+   module is outside what this can see — that blind spot is named here rather than implied away.
+   Measured on the tree this landed on: 0 of 83 word-only rows construct one. */
+const BUILDS_OBJECT = [/\bschema['"]?\s*[:=]\s*['"]tepna\.verdict\/1['"]/, /(?<!function\s)\bmakeVerdict\s*\(/, /\b(?:Verdict|V|verdict|VERDICT)\.make\s*\(/, /(?<!def\s)\bverdict_object\s*\(/];
+
+/** Lines where the source CONSTRUCTS a tepna.verdict/1 object outside its selftest body. PURE. */
+export function verdictObjectLines(src, isPy) {
+  const span = selftestSpan(src, isPy);
+  const scanned = span ? src.slice(0, span[0]) + src.slice(span[1]) : src;
+  const out = [];
+  for (const raw of scanned.split('\n')) {
+    const s = raw.trim();
+    if (/^(\/\/|\/\*|\*|#)/.test(s)) continue;
+    if (BUILDS_OBJECT.some((r) => r.test(s))) out.push(s.slice(0, 120));
+  }
+  return out;
+}
+
+/* The ONE shared builder: `tools/verdict-emit.mjs` exists to construct the object on behalf of every
+   adopter (`makeVerdict`, `aggregateChildren`), and its row says so. It is a library whose callers
+   emit, not a producer, so it is named here, by path, rather than excused by a pattern. A listed
+   path that is no longer a word-only row, or no longer builds, reds — the list cannot go stale. */
+export const OBJECT_BUILDER_LIBRARIES = new Set(['tools/verdict-emit.mjs']);
+
+/** Judge every `word-only` row: it must not construct a verdict object. PURE — `readSource(p)` injected. */
+export function checkWordOnlyObject(manifest, readSource, libraries = OBJECT_BUILDER_LIBRARIES) {
+  const rows = (manifest && manifest.producers) || {};
+  const wordOnly = Object.keys(rows)
+    .filter((p) => rows[p] && rows[p].bin === 'word-only')
+    .sort();
+  const errors = [];
+  const flagged = [];
+  for (const p of wordOnly) {
+    const src = readSource(p);
+    if (src == null) {
+      errors.push(`${p}: word-only row whose source could not be read — an unreadable bin is not a held negative`);
+      continue;
+    }
+    const lines = verdictObjectLines(src, p.endsWith('.py'));
+    if (libraries.has(p)) {
+      if (!lines.length) errors.push(`${p}: in OBJECT_BUILDER_LIBRARIES but no longer constructs an object — remove the stale entry`);
+      continue;
+    }
+    if (!lines.length) continue;
+    flagged.push({ path: p, lines });
+    errors.push(
+      `${p}: binned word-only (exempt from object validation) but it CONSTRUCTS a tepna.verdict/1 object outside its selftest — ${lines[0]} — re-bin it \`decides\` with an \`emits\` the gate can run`
+    );
+  }
+  for (const p of libraries) if (!wordOnly.includes(p)) errors.push(`${p}: in OBJECT_BUILDER_LIBRARIES but is not a word-only row — remove the stale entry`);
+  return { ok: errors.length === 0, errors, checked: wordOnly.length, flagged };
 }
 
 /* Pure: judge the decides set against the ratchet. Returns { ok, errors[], gated, ungated }. */
@@ -884,7 +953,87 @@ function selftest() {
     );
   }
 
-  const N = 66;
+  /* ── a word-only row must not construct a verdict object (2026-10-11) ──────────────────────────
+     The measured case is `tools/geometry-scan.mjs`: its row read word-only/exempt while the source
+     built a real object, and the gate stayed green. Plants for each arm, the sensitivity first. */
+  {
+    const W = (producers) => ({ schema: 'tepna.verdict-adoption/1', producers });
+    const wo = { bin: 'word-only', status: 'exempt', reason: 'verdict words appear only in comments' };
+    const SRC = {
+      'tools/lit.mjs': "function selftest() { ok('x', true); }\nconst v = {\n  schema: 'tepna.verdict/1',\n  gate: 'x'\n};\n",
+      'tools/call.mjs': "import { makeVerdict } from './verdict-emit.mjs';\nconst v = makeVerdict({ gate: 'x' });\n",
+      'tools/vmake.mjs': 'const v = V.make({ gate: "x" });\n',
+      'tools/py.py': 'def verdict_object(a):\n    pass\n\nx = verdict_object(1)\n',
+      // not constructions
+      'tools/comment.mjs': "// schema: 'tepna.verdict/1' is mentioned here, and makeVerdict( too\nfunction selftest() { ok('a', true); }\n",
+      'tools/selftest-only.mjs': "const run = () => 1;\nfunction selftest() {\n  const o = { schema: 'tepna.verdict/1' };\n  ok('a', !!o);\n}\n",
+      'tools/definer.mjs': 'export function makeVerdict(f) { return f; }\n',
+      'tools/pydef.py': 'def verdict_object(a):\n    return a\n'
+    };
+    const read = (q) => SRC[q] ?? null;
+    for (const f of ['tools/lit.mjs', 'tools/call.mjs', 'tools/vmake.mjs', 'tools/py.py']) {
+      const w = checkWordOnlyObject(W({ [f]: wo }), read, new Set());
+      ok(
+        !w.ok && w.errors[0].startsWith(`${f}: binned word-only`) && /CONSTRUCTS a tepna\.verdict\/1 object/.test(w.errors[0]),
+        `a word-only row whose source constructs an object reds BY NAME (${f}), got ${w.errors[0]}`
+      );
+    }
+    for (const f of ['tools/comment.mjs', 'tools/selftest-only.mjs', 'tools/definer.mjs', 'tools/pydef.py']) {
+      ok(checkWordOnlyObject(W({ [f]: wo }), read, new Set()).ok, `${f}: a comment, a selftest-built object or a bare builder DEFINITION is not an emission`);
+    }
+    // a conceding reason does not buy an exemption from the OBJECT check
+    const conceding = { bin: 'word-only', status: 'exempt', reason: 'a QUEUE decision in its own vocabulary — not a gate over data' };
+    ok(!checkWordOnlyObject(W({ 'tools/lit.mjs': conceding }), read, new Set()).ok, 'a row that concedes printed words is still refused when it constructs an object');
+    let w = checkWordOnlyObject(W({ 'tools/absent.mjs': wo }), read, new Set());
+    ok(!w.ok && /could not be read/.test(w.errors[0]), 'an unreadable word-only source reds rather than passing');
+    // the named library list cannot go stale
+    w = checkWordOnlyObject(W({ 'tools/lit.mjs': wo }), read, new Set(['tools/lit.mjs']));
+    ok(w.ok, 'a named builder library is excused by path');
+    w = checkWordOnlyObject(W({ 'tools/definer.mjs': wo }), read, new Set(['tools/definer.mjs']));
+    ok(!w.ok && /no longer constructs an object/.test(w.errors[0]), 'a library entry that no longer builds reds until removed');
+    w = checkWordOnlyObject(W({ 'tools/lit.mjs': wo }), read, new Set(['tools/gone.mjs']));
+    ok(
+      w.errors.some((e) => /tools\/gone\.mjs: in OBJECT_BUILDER_LIBRARIES but is not a word-only row/.test(e)),
+      'a stale library entry is a red'
+    );
+    /* THE MEASURED CASE, on the real source: geometry-scan's row reverted to what it read before #3402. */
+    const { readSource } = treeReaders(ROOT);
+    const real = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+    ok(checkWordOnlyObject(real, readSource).ok, 'the committed manifest: no word-only row constructs a verdict object');
+    const stale = { ...real, producers: { ...real.producers, 'tools/geometry-scan.mjs': wo } };
+    w = checkWordOnlyObject(stale, readSource);
+    ok(!w.ok && w.errors.some((e) => e.startsWith('tools/geometry-scan.mjs: binned word-only')), 'MEASURED CASE: geometry-scan re-binned word-only/exempt is refused on its real source');
+    // …and the pre-existing word-only judge is blind to exactly this, which is why a second check exists
+    ok(checkWordOnlyClaim(stale, readSource).ok, 'the word-printing judge alone stays GREEN on the stale geometry-scan row (the original defect)');
+  }
+
+  /* BLACK BOX, same measured case: run THIS script, as the CLI, in a scratch checkout holding the real
+     geometry-scan source and a manifest that bins it word-only/exempt. The gate must name it. */
+  {
+    const real = path.join(ROOT, 'tools', 'geometry-scan.mjs');
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'verdict-adoption-'));
+    try {
+      fs.mkdirSync(path.join(scratch, 'tools'));
+      fs.copyFileSync(fileURLToPath(import.meta.url), path.join(scratch, 'tools', 'verdict-adoption.mjs'));
+      fs.copyFileSync(real, path.join(scratch, 'tools', 'geometry-scan.mjs'));
+      fs.copyFileSync(path.join(ROOT, 'verdict.js'), path.join(scratch, 'verdict.js'));
+      fs.writeFileSync(
+        path.join(scratch, 'tools', 'verdict-adoption.json'),
+        JSON.stringify({ schema: 'tepna.verdict-adoption/1', producers: { 'tools/geometry-scan.mjs': { bin: 'word-only', status: 'exempt', reason: 'verdict words appear only in comments' } } })
+      );
+      const git = (...a) => execFileSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=selftest', ...a], { cwd: scratch, stdio: 'ignore' });
+      git('init', '-q');
+      git('add', '-A');
+      git('commit', '-qm', 'scratch');
+      const run = spawnSync(process.execPath, [path.join(scratch, 'tools', 'verdict-adoption.mjs'), '--check', '--base', 'HEAD'], { cwd: scratch, encoding: 'utf8' });
+      const out = `${run.stdout}${run.stderr}`;
+      ok(run.status === 1 && /✗ tools\/geometry-scan\.mjs: binned word-only/.test(out), `BLACK BOX: the CLI gate names a word-only geometry-scan that builds a verdict object (exit ${run.status})`);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+
+  const N = 83;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${N}`);
@@ -912,6 +1061,7 @@ function main() {
   const { readSource, testRefs } = treeReaders(ROOT);
   const g = checkGated(manifest, readSource, testRefs);
   const w = checkWordOnlyClaim(manifest, readSource);
+  const wo = checkWordOnlyObject(manifest, readSource);
   const bi = argv.indexOf('--base');
   const baseRef = bi >= 0 && argv[bi + 1] ? argv[bi + 1] : 'origin/main';
   const { mergeBase, manifest: baseManifest } = baseManifestAt(ROOT, baseRef);
@@ -920,6 +1070,7 @@ function main() {
     `verdict-adoption: ${w.checked} word-only row(s) CLAIM nothing is emitted \u00b7 ${w.conceded} concede emission and say why ` +
       `= ${w.wordOnly} word-only \u2014 ${w.flagged.length} still print a decision outside their selftest, all in WO_CLAIM_RATCHET (debt, may only shrink)`
   );
+  console.log(`verdict-adoption: ${wo.checked} word-only row(s) examined for a constructed tepna.verdict/1 object outside their selftest \u2014 ${wo.flagged.length} construct one (must be 0)`);
   console.log(
     `verdict-adoption: ${w.noLocator} of the ${w.checked} have no recognisable selftest locator, so their WHOLE file is scanned \u2014 ` + `that bias runs toward false positives, never toward misses`
   );
@@ -944,7 +1095,7 @@ function main() {
   );
   if (Array.isArray(V.CONTRIBUTION_METHODS) && V.CONTRIBUTION_METHODS.slice().sort().join('|') !== CONTRIBUTION_METHODS.slice().sort().join('|'))
     cr.errors.push(`contributions: the method set here (${CONTRIBUTION_METHODS.join('|')}) differs from verdict.js (${V.CONTRIBUTION_METHODS.join('|')}) — verdict.js owns it, so follow it here`);
-  const errors = [...r.errors, ...g.errors, ...w.errors, ...rt.errors, ...cr.errors];
+  const errors = [...r.errors, ...g.errors, ...w.errors, ...wo.errors, ...rt.errors, ...cr.errors];
   if (errors.length) {
     console.log(errors.map((e) => '  ✗ ' + e).join('\n'));
     console.log(`\n✗ ${errors.length} red(s) — the population and the manifest are not equal, an adoption does not hold, or a check has no test`);

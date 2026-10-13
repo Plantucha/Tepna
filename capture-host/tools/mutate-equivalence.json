@@ -11,9 +11,11 @@
     "consumed by `tools/mutate.mjs` (see `classifySurvivors`) so a run reports `killed / distinguishable`",
     "beside the raw rate rather than instead of it.",
     "",
-    "MATCHED ON (line, op, before) — the same key `findCanary` uses. `after` is recorded for a reader,",
-    "not for matching, so a change to the mutation operator's output text does not silently orphan an",
-    "entry.",
+    "MATCHED ON (line, op, before, after) — `survivorKey` in `tools/mutate.mjs`, the one key the classifier,",
+    "the recorded-selection path and `findCanary` all use. `after` IS part of the key: one source line can",
+    "carry several mutants of one operator, and (line, op, before) alone would collapse them into one entry.",
+    "An entry that omits `after` reads as the empty string (`m.after ?? ''`). Rewording an operator's output",
+    "text therefore DOES orphan the entries it produced: re-record them.",
     "",
     "THE PYTHON SIDE MATCHES ON `key` ALONE, and `key` is the mutant's changed diff lines. For an",
     "expression mutation that text is distinctive; for a BARE STATEMENT it is not, so one entry spoke",
@@ -2961,6 +2963,13 @@
       "key": "- (scratch / GENERATION_COMPLETE_MARKER).write_text(\"complete\\n\", encoding=\"utf-8\") | + (scratch / GENERATION_COMPLETE_MARKER).write_text(\"complete\\n\", )",
       "probe": "Hand-applied 2026-10-13 one at a time with PYTHONDONTWRITEBYTECODE=1 against tests/test_mutation_scratch_reuse.py + tests/test_mutation_diff.py (350 tests), and reverted with the file confirmed byte-identical. Under C.UTF-8 both SURVIVED (350 passed). Under LC_ALL=C PYTHONCOERCECLOCALE=0 PYTHONUTF8=0, where locale.getencoding() reads ANSI_X3.4-1968, the failing set was the SAME 6 tests as the UNMUTATED baseline — 0 extra — so the ascii locale kills neither. Positive control on this very function (`return True` → `return False`) failed 2 tests under C.UTF-8, so the suite can see this function's behaviour.",
       "why": "The payload is the ASCII string `complete\\n`, and every codec `locale.getencoding()` can return on this platform encodes it to the same bytes. The marker is also never DECODED: its only readers are `scratch_generation_reusable`, which calls `.exists()`, and this writer. So neither the bytes nor any read of them can differ. The explicit encoding stays, because a file this module writes must not depend on the ambient locale — the reasoning the four `read_text(encoding=...)` entries in this module already record."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "function": "_first_removal_hunk",
+      "key": "- old_side: list[str] = [] | + old_side: list[str] = None",
+      "probe": "Measured 2026-10-13 with Python 3.11 + mutmut 3.8.0 on 83d16d55: the mutant (`old_side: list[str] = None`) was built as a copy of mutation_diff.py and `_first_removal_hunk` was run on original and mutant over 148,741 candidate `mutmut show` texts — every ordered combination of up to 4 lines, and 20,000 random 5-7-line texts per length, drawn from 17 line shapes (a matching `@@ -1,2 +1,2 @@`, `@@ -3 +3 @@`, an unmatched `@@ x`, a bare `@@`, `---`/`+++` headers, a `\\ No newline` marker, `-`/`+`/context lines, empty lines) — with 0 disagreements in the returned tuple or its None. Positive control: the two SIBLING mutants on the same function (`start: int | None = \"\"` and `and`→`or` on `first_removed`) are killed by tests/test_mutation_diff.py, so the suite can see this function.",
+      "why": "THE INITIAL VALUE IS NEVER READ. The only reader of `old_side` is `old_side.append(...)`, and it sits below `if start is None or ...: continue`; `start` stays None until the first `@@` header, and that same branch assigns `old_side = []` in the one statement that can set `start` to an integer. So no path appends to, or returns, the initial binding: it is overwritten before every read, and `None` and `[]` are one value to every reader. The annotation-bearing initialiser stays in the code because it declares the type for the reader."
     }
   ],
   "mutation_pure.py": [

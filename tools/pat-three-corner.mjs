@@ -54,7 +54,9 @@
  *   node tools/pat-three-corner.mjs --selftest
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -210,6 +212,32 @@ const beatsPPG = (f) => {
   return a && a.tt && a.tt.length > 100 ? a.tt.map((s) => r.t0Ms + s * 1000) : null;
 };
 
+/* WHICH THREE FILES ARE THE NIGHT. A folder can hold more than one recording per device (a
+   00:26-07:09 night AND the 22:00-04:20 one after it), and the hat is only meaningful over ONE
+   recording seen by all three corners. Picking each device's largest file independently composed a
+   trio that never existed (ECG + ankle from the earlier night, ring from the later: overlap -14.9 h)
+   and printed "no three-way window" as if that were a fact about the DATA. So the triple is chosen
+   JOINTLY: the combination with the largest three-way overlap `min(z) - max(a)` wins, ties go to the
+   larger summed span, then to the path order, so the pick is deterministic. If NO combination
+   overlaps, the best (negative) one still comes back and the caller's overlap guard refuses it —
+   now truthfully, because no choice of files would have produced a window. Pure over `{f, a, z, span}`. */
+function pickTrio(ecg, ring, ankle) {
+  let best = null;
+  for (const eF of ecg)
+    for (const oF of ring)
+      for (const vF of ankle) {
+        const overlap = Math.min(eF.z, oF.z, vF.z) - Math.max(eF.a, oF.a, vF.a);
+        const total = eF.span + oF.span + vF.span;
+        const key = eF.f + '\0' + oF.f + '\0' + vF.f;
+        if (!best || overlap > best.overlap || (overlap === best.overlap && (total > best.total || (total === best.total && key < best.key)))) best = { eF, oF, vF, overlap, total, key };
+      }
+  if (best) return { eF: best.eF, oF: best.oF, vF: best.vF };
+  /* a device with NO candidate: nothing can be composed, but the caller's "missing a corner" line must
+     still say which corners DO exist, so hand back each device's largest file. */
+  const largest = (c) => [...c].sort((a, b) => b.span - a.span)[0];
+  return { eF: largest(ecg), oF: largest(ring), vF: largest(ankle) };
+}
+
 /* pair X→Y inside an anatomy-specific band; returns the per-beat delays */
 function lagsOf(X, Y, band) {
   const out = [];
@@ -257,7 +285,7 @@ if (SAMPLE) {
 for (const n of nights) {
   const dir = path.join(DIR, n),
     files = fs.readdirSync(dir);
-  const big = (re) =>
+  const cands = (re) =>
     files
       .filter((f) => re.test(f))
       .map((f) => {
@@ -268,11 +296,9 @@ for (const n of nights) {
         } catch {}
         return s ? { f: p, ...s } : null;
       })
-      .filter(Boolean)
-      .sort((a, b) => b.span - a.span)[0];
-  const eF = big(/Polar_H10_.*_ECG\.txt$/i),
-    oF = big(/o2ring.*_PPG\.txt$/i),
-    vF = big(/veritysense.*_PPG\.txt$/i);
+      .filter(Boolean);
+  const { eF, oF, vF } = pickTrio(cands(/Polar_H10_.*_ECG\.txt$/i), cands(/o2ring.*_PPG\.txt$/i), cands(/veritysense.*_PPG\.txt$/i));
+  if (eF && oF && vF) say(`  ${n}  trio: ${path.basename(eF.f)} + ${path.basename(oF.f)} + ${path.basename(vF.f)}`);
   if (!eF || !oF || !vF) {
     console.log(`  ${n}  ⊘ missing a corner (ECG ${!!eF} · ring ${!!oF} · ankle ${!!vF})`);
     continue;
@@ -512,6 +538,59 @@ function selftest() {
     Math.abs(byWindow.chest.inputs[0].delta - inp[0].delta) > 1,
     JSON.stringify({ byWindow: byWindow.chest.inputs[0].delta, printed: inp[0].delta })
   );
+  /* ── WHICH THREE FILES ARE THE NIGHT (residue 2026-10-05-pat-three-corner-picks-the-biggest-file…) ──
+     The folder is the MEASURED 2026-10-04 shape: an early night (00:28-07:05) and a late one
+     (22:00-04:20), where the early one is larger for the ECG and the ankle and the late one for the
+     ring. Largest-per-device composed ECG+ankle from the early night and the ring from the late one. */
+  const H = 3600e3,
+    T0 = Date.UTC(2026, 9, 4, 0, 0, 0);
+  const sp = (name, fromH, toH) => ({ f: name, a: T0 + fromH * H, z: T0 + toH * H, span: (toH - fromH) * H });
+  const eEarly = sp('ecg-early', 0.47, 7.08),
+    eLate = sp('ecg-late', 22, 28.33),
+    oEarly = sp('ring-early', 0.53, 6.7),
+    oLate = sp('ring-late', 22, 28.25),
+    vEarly = sp('ank-early', 0.53, 7.07),
+    vLate = sp('ank-late', 22.03, 28.33);
+  /* THROUGH THE CLI first, on files the tool really reads: the stubs carry only the two timestamp rows
+     `spanOf` needs, so the detectors refuse them — the line under test is the SELECTION, printed
+     before any detector runs. */
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pat3-sel-'));
+  try {
+    const night = path.join(root, '2026-10-04');
+    fs.mkdirSync(night);
+    const stub = (name, s) => fs.writeFileSync(path.join(night, name), `Phone timestamp;sensor timestamp [ns];v\nx;${BigInt(s.a) * 1000000n};0\nx;${BigInt(s.z) * 1000000n};0\n`);
+    stub('Polar_H10_x_20261004002801_ECG.txt', eEarly);
+    stub('Polar_H10_x_20261004220023_ECG.txt', eLate);
+    stub('O2Ring_x_20261004003220_PPG.txt', oEarly);
+    stub('O2Ring_x_20261004220023_PPG.txt', oLate);
+    stub('Polar_VeritySense_x_20261004003220_PPG.txt', vEarly);
+    stub('Polar_VeritySense_x_20261004220206_PPG.txt', vLate);
+    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--dir', root], { encoding: 'utf8', timeout: 60000 });
+    const line = String(r.stdout || '')
+      .split('\n')
+      .find((l) => /trio:/.test(l));
+    ok(
+      'the CLI selects ONE recording’s files for the night and names them',
+      !!line && /20261004220023_ECG.*20261004220023_PPG.*20261004220206_PPG/.test(line) && !/00(28|32)/.test(line),
+      line || 'no `trio:` line printed — the selection is invisible: ' + String(r.stdout || r.stderr).slice(-200)
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+  const pk = pickTrio([eEarly, eLate], [oEarly, oLate], [vEarly, vLate]);
+  ok(
+    'a folder holding two recordings yields ONE recording’s trio, not the largest file per device',
+    [pk.eF, pk.oF, pk.vF].map((x) => x.f).join() === 'ecg-late,ring-late,ank-late',
+    [pk.eF, pk.oF, pk.vF].map((x) => x.f).join()
+  );
+  const lone = pickTrio([eEarly], [oEarly], [vEarly]);
+  ok('a single recording is unchanged', [lone.eF, lone.oF, lone.vF].map((x) => x.f).join() === 'ecg-early,ring-early,ank-early', JSON.stringify(lone));
+  const apart = pickTrio([eEarly], [oLate], [vEarly]);
+  ok('with NO overlapping combination the pick is still returned, for the overlap guard to refuse', !!(apart.eF && apart.oF && apart.vF), JSON.stringify(apart));
+  const tie = pickTrio([sp('b', 0, 2), sp('a', 0, 2)], [sp('o', 0, 2)], [sp('v', 0, 2)]);
+  ok('equal overlap AND span → the lexicographically first path, so the pick is deterministic', tie.eF.f === 'a', tie.eF.f);
+  const miss = pickTrio([eEarly], [], [vEarly]);
+  ok('a missing corner is reported as missing, and the others still named', !!miss.eF && !miss.oF && !!miss.vF, JSON.stringify(miss));
   console.log(fail ? fail + ' failed of ' + ran : 'all ' + ran + ' selftests passed');
   return fail ? 1 : 0;
 }

@@ -143,7 +143,9 @@ if (flag('--selftest')) {
      actually reach, and the two that matter most are the ones that used to be silent: an absent backend
      (which continued onto the CPU pool) and a cpu-pool run (which printed under a GPU tool's name). */
   const fails = [];
+  let ran = 0; // incremented by the assertion helper itself — a count is computed, never typed
   const ok = (c, m) => {
+    ran++;
     if (!c) fails.push(m);
   };
   const base = { minN: { o2: 3, h10: 5, verity: 2 }, trials: 200, wallSec: 2, target: 0.15, maxN: 20, commit: 'deadbeef', at: '2026-09-27T00:00:00Z' };
@@ -182,7 +184,7 @@ if (flag('--selftest')) {
     'the criterion is identical across every status'
   );
 
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'all 15 selftests passed');
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
   process.exit(fails.length ? 1 : 0);
 }
 

@@ -96,6 +96,8 @@ __all__ = [
     "is_string_only",
     "diff_key",
     "mutant_changed_lines",
+    "mutant_file_line",
+    "survivor_location",
     "float_boundary_unprobed",
     "annotation_only",
     "functions_with_changed_ast",
@@ -710,6 +712,91 @@ def mutant_changed_lines(sv: dict) -> list[str]:
         for ln in (sv.get("diff") or "").splitlines()
         if ln.startswith(("-", "+")) and not ln.startswith(("---", "+++"))
     ]
+
+
+# ── WHICH OCCURRENCE SURVIVED (residue 2026-09-28-mutate-diff-does-not-say-which-occurrence-…) ────
+# A survivor was printed as a line REWRITE (`- continue` / `+ break`), so when that line occurs several
+# times in one function the report could not say which occurrence survived — and the occurrence the
+# suite already covers is the one a reader checks. Measured twice on #3188: the covered sibling was
+# killed, the uncovered one survived, and reading the report at face value would have closed both.
+# The record now carries `file_line`, the FILE line of the first changed line, or None.
+def _first_removal_hunk(show_output: str) -> tuple[int, list[str], int] | None:
+    """`(old_start, old_side, first_removed)` of the first hunk that REMOVES a line, else None.
+
+    `old_start` is the hunk's first line, FUNCTION-RELATIVE (mutmut diffs `cst.Module([function]).code`,
+    so numbering starts at the function's first line); `old_side` is the hunk's context + removed lines
+    as the original had them; `first_removed` is the function-relative number of the first `-` line."""
+    start: int | None = None
+    old_side: list[str] = []
+    first_removed: int | None = None
+    for ln in show_output.splitlines():
+        if ln.startswith("@@"):
+            if first_removed is not None:
+                break
+            m = re.match(r"@@ -(\d+)", ln)
+            start, old_side = (int(m.group(1)) if m else None), []
+            continue
+        if start is None or ln.startswith(("---", "+++", "\\", "+")):
+            continue
+        if ln.startswith("-") and first_removed is None:
+            first_removed = start + len(old_side)
+        old_side.append(ln[1:])
+    if start is None or first_removed is None:
+        return None
+    return start, old_side, first_removed
+
+
+def mutant_file_line(show_output: str, source: str, mutant_name: str) -> int | None:
+    """The 1-indexed FILE line of the first line a mutant changes, or None. PURE.
+
+    Names WHICH occurrence of an ambiguous line survived: `continue` -> `break` on one of three
+    `continue`s is three identical-looking rewrites, and only the position tells them apart.
+
+    ∅ NULL, NEVER A GUESS. The number is derived (function start in `source` by AST, comment/blank
+    lines above it that mutmut keeps, plus the hunk's function-relative offset) and then CHECKED: the
+    whole old side of the hunk must equal the source lines at that position, whitespace aside. Any
+    shortfall — an unparseable file, a function that is absent or defined twice, a diff with no removed
+    line, an unreadable name, a position whose text disagrees — is None, never 0 and never a nearby line."""
+    qual = function_of_mutant(mutant_name)
+    hunk = _first_removal_hunk(show_output)
+    if not qual or hunk is None:
+        return None
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return None
+    scope, _, fname = qual.rpartition(".")
+    body = tree.body
+    if scope:
+        classes = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == scope]
+        if len(classes) != 1:
+            return None
+        body = classes[0].body
+    defs = [n for n in body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == fname]
+    if len(defs) != 1:
+        return None
+    node = defs[0]
+    lines = source.splitlines()
+    first = min([node.lineno] + [d.lineno for d in node.decorator_list])
+    # mutmut keeps the comment lines directly above the function and drops only LEADING blank lines.
+    top = first
+    while top > 1 and (not lines[top - 2].strip() or lines[top - 2].lstrip().startswith("#")):
+        top -= 1
+    while top < first and not lines[top - 1].strip():
+        top += 1
+    old_start, old_side, first_removed = hunk
+    at = top + old_start - 1
+    want = [ln.strip() for ln in old_side]
+    if at < 1 or [ln.strip() for ln in lines[at - 1 : at - 1 + len(want)]] != want:
+        return None
+    return top + first_removed - 1
+
+
+def survivor_location(sv: dict) -> str:
+    """` (line N)` for a survivor record that knows its file line, else `""` — absence prints as nothing,
+    never as `line 0`."""
+    line = sv.get("file_line")
+    return f" (line {line})" if isinstance(line, int) and not isinstance(line, bool) and line > 0 else ""
 
 
 # ── A KILL IS A DETECTION, OR IT IS NOTHING (2026-10-05) ──────────────────────────────────────────
