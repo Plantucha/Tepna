@@ -99,24 +99,27 @@ parsers and the exclusion names. `--verdict-sample` prints the verdict object al
 `verify:verdict-adoption` parses.
 
 The first full sweep ran at `f53ad543f8b6`: **95 tasks proven over 138 candidates and 344 closed rows**,
-45 in the dev half and 50 in the held-out half, verdict `PASS`. Eighty-nine tasks carry an id-level
-oracle and six carry a file-level one, 863 fail-to-pass ids in all, and 36 tasks carry background
-failures their solver is not graded on — 491 ids of background in total.
+45 in the dev half and 50 in the held-out half, verdict `PASS`. The artifact this change commits is the
+re-run at `3b2394fa9793`, after the v2.19.0 release and seven further closed rows reached `main`:
+**97 tasks proven over 145 candidates and 357 closed rows**, 45 in the dev half and 52 in the held-out
+half, verdict `PASS`. Ninety-one tasks carry an id-level oracle and six carry a file-level one, 881
+fail-to-pass ids in all, and 36 tasks carry background failures their solver is not graded on — 491 ids
+of background in total.
 
-Every one of the 249 exclusions carries a reason and a count:
+Every one of the 260 exclusions carries a reason and a count, at that same commit:
 
 | count | reason | what it means |
 |---|---|---|
-| 109 | `no-test-in-fix` | the fix commit touched no test file, so there is no oracle to run |
-| 80 | `oracle-shared-suite` | the oracle is `tests/dex-tests.js`, whose narrowest check is a group filter this tool cannot derive from a diff yet |
-| 33 | `file-not-green-at-fix` | the test file errors during collection inside a `capture-host`-only extract — 25 of the 33 error at the fix commit too, so the file reaches outside the extract |
+| 112 | `no-test-in-fix` | the fix commit touched no test file, so there is no oracle to run |
+| 83 | `oracle-shared-suite` | the oracle is `tests/dex-tests.js`, whose narrowest check is a group filter this tool cannot derive from a diff yet |
+| 38 | `file-not-green-at-fix` | the test file errors during collection inside a `capture-host`-only extract — 30 of the 38 error at the fix commit too, so the file reaches outside the extract |
 | 12 | `oracle-js-tree` | a `tests/*.mjs` oracle needs the whole tree plus `node_modules` in the extract |
 | 8 | `no-fail-at-parent` | the test passes on the parent already, so the fix changed nothing the test can see |
 | 3 | `no-commit-for-pr` | the PR number in the state cell resolves to no commit on `main` |
 | 1 each | `oracle-other-test-path` · `ambiguous-commit-for-pr` · `no-pass-at-fix` · `ids-pass-alone-at-parent` | a non-test path under `tests/`, two commits for one PR, a fix that repaired no id in its own file, and an id that fails only inside its file |
 
-Two measurements cost real tasks and are worth naming. A file-level oracle threw away 38 of the
-candidates the id-level one keeps: 19 of those 38 showed the same ~31 failures at both commits, and the
+Two measurements cost real tasks and are worth naming. At the first sweep's commit a file-level oracle
+threw away 38 of the candidates the id-level one keeps: 19 of those 38 showed the same ~31 failures at both commits, and the
 other 19 failed on tests that read the surrounding repository. And a `\S+` cut on pytest's own summary
 line truncated a parametrized id — `test_an_unusable_version_report_is_absence_never_a_sha[echo '']`
 became `…_a_sha[echo` — so pytest selected nothing, answered "no tests ran", and four tasks read as
@@ -129,9 +132,9 @@ that anything solved anything.
 
 Acceptance item 4 is not built. No solver has run, so there is no configuration to score.
 
-Two extensions stay unbuilt and named. Eight of the 33 `file-not-green-at-fix` tasks collect at the fix
+Two extensions stay unbuilt and named. Eight of the 38 `file-not-green-at-fix` tasks collect at the fix
 commit and fail only on background, so taking the fix's passing ids as the oracle would recover them.
-And a wider extract would carry the files the other 25 reach for, at eight times the bytes per task —
+And a wider extract would carry the files the other 30 reach for, at eight times the bytes per task —
 `capture-host` alone archives to 14.6 MB against 114.7 MB for the tree without `uploads/`, measured
 2026-10-12 — and it would not help a test that reads a git-tracked file mode, because an extract is not
 a git repository.

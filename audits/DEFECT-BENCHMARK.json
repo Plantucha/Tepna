@@ -1,15 +1,15 @@
 {
   "schema": "tepna.defect-bench/1",
   "_doc": "A frozen benchmark of past defects. Tasks are residue rows closed `fixed #N` whose fix test FAILS on the parent commit and PASSES on the fix commit. Built by tools/defect-bench.mjs; brief briefs/DEFECT-BENCHMARK-2026-10-12-BRIEF.md.",
-  "builtAt": "2026-10-13T01:55:38Z",
-  "commit": "f53ad543f8b6",
+  "builtAt": "2026-10-13T02:15:31Z",
+  "commit": "3b2394fa9793",
   "splitRule": "sha256(key)[0:8] as int — even → dev, odd → heldout",
   "population": {
-    "residueRows": 569,
-    "closedRows": 344,
-    "closedRowsLineWide": 372,
-    "closedPRs": 275,
-    "candidates": 138
+    "residueRows": 576,
+    "closedRows": 357,
+    "closedRowsLineWide": 385,
+    "closedPRs": 283,
+    "candidates": 145
   },
   "tasks": [
     {
@@ -3576,6 +3576,62 @@
       }
     },
     {
+      "key": "2026-10-04-an-equivalence-key-cannot-name-its-function",
+      "pr": 3511,
+      "half": "heldout",
+      "fixCommit": "f7d4d5adc0b3",
+      "parentCommit": "ff2bb7ef3aa9",
+      "oracle": {
+        "kind": "capture-host-pytest",
+        "cmd": "python3 -m pytest -q tests/test_equivalence_ledger.py::test_the_ENTRY_COUNT_per_module_never_silently_DROPS tests/test_mutation_diff.py::test_an_entry_qualified_by_FUNCTION_excuses_only_that_function tests/test_mutation_diff.py::test_two_survivors_sharing_one_KEY_are_both_reported tests/test_mutation_diff.py::test_a_qualified_entry_IS_refuted_by_a_kill_in_its_OWN_function tests/test_mutation_diff.py::test_an_UNATTRIBUTED_kill_refutes_an_unqualified_entry_and_not_a_qualified_one tests/test_mutation_diff.py::test_a_qualified_entry_does_not_match_a_survivor_whose_FUNCTION_cannot_be_read tests/test_mutation_diff.py::test_entry_matches_function_and_kill_attributed_to_are_pinned_directly tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_meets_a_KEYLESS_entry_on_the_empty_key tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_is_NOT_excused_by_an_entry_that_carries_a_key",
+        "granularity": "ids"
+      },
+      "testFiles": [
+        "capture-host/tests/test_equivalence_ledger.py",
+        "capture-host/tests/test_mutation_diff.py"
+      ],
+      "srcFiles": [
+        "capture-host/mutation_diff.py",
+        "capture-host/tools/mutate-equivalence.json",
+        "capture-host/tools/mutate_diff.py",
+        "changes/2026-10-12-equivalence-entry-names-its-function.md"
+      ],
+      "defect": "**A Python equivalence entry is matched on its KEY ALONE, so one entry speaks for every function in the module whose source carries that same line — and the day a PR puts the second one in scope, the gate reports the collision as a REFUTED claim.** `classify` keys on `e.get(\"key\", \"\")` and nothing else; the key is the mutant's diff text. `if len(anchors) < TB_MIN_ANCHORS:` appears in BOTH `unrecorded_shift` (solid_night_inputs.py:847) and `timebase` (:1004). #3245 recorded it as `untestable-by-design` with an argument that is correct FOR `unrecorded_shift` — three anchors cannot span the 210 s a vantage needs, because the segment split puts any pair over 60 s apart in different segments — and #3263 changed `timebase`, which put its occurrence in scope for the first time. There the mutant is killable and WAS killed (the band returns a different message for an under-minimum anchor count), so the gate reported REFUTED. It was right by its own rule and the argument was not wrong; the ENTRY was, because it cannot say which function it is about. Remedy per the README (fix the entry, never the test) was to DELETE it, which is what #3263 did — and the cost is that `unrecorded_shift`'s occurrence is now unexcusable too, so the next PR touching that function sees an unexplained survivor with a correct argument sitting in a deleted row. The fix is a function qualifier in the entry schema, matched alongside the key. ⚠️ SIBLING, DIFFERENT AXIS: `2026-09-29-equivalence-matcher-key-is-coarser-than-an-entry` is the JS side dropping `after` from the key; this is the Python side having no FUNCTION in it. Same class — a key coarser than the thing it identifies — and neither is fixed.",
+      "evidence": "Measured 2026-10-04 on `claude/clock-stream-spec-mg`: `grep -c 'if len(anchors) < TB_MIN_ANCHORS:' solid_night_inputs.py` = 2; `mutate_diff --base origin/main` verdict FAIL, `\"refuted\": 1`, naming the #3245 entry while `population.checked` = 2 (`timebase`, `score_devices`) and `unrecorded_shift` is not in the diff at all; `mutation_diff.classify` matches on `k = e.get(\"key\", \"\")` with no function field in the schema",
+      "failToPass": [
+        "tests/test_equivalence_ledger.py::test_the_ENTRY_COUNT_per_module_never_silently_DROPS",
+        "tests/test_mutation_diff.py::test_an_entry_qualified_by_FUNCTION_excuses_only_that_function",
+        "tests/test_mutation_diff.py::test_two_survivors_sharing_one_KEY_are_both_reported",
+        "tests/test_mutation_diff.py::test_a_qualified_entry_IS_refuted_by_a_kill_in_its_OWN_function",
+        "tests/test_mutation_diff.py::test_an_UNATTRIBUTED_kill_refutes_an_unqualified_entry_and_not_a_qualified_one",
+        "tests/test_mutation_diff.py::test_a_qualified_entry_does_not_match_a_survivor_whose_FUNCTION_cannot_be_read",
+        "tests/test_mutation_diff.py::test_entry_matches_function_and_kill_attributed_to_are_pinned_directly",
+        "tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_meets_a_KEYLESS_entry_on_the_empty_key",
+        "tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_is_NOT_excused_by_an_entry_that_carries_a_key"
+      ],
+      "backgroundAtParent": 0,
+      "proof": {
+        "ok": true,
+        "reason": null,
+        "granularity": "ids",
+        "failToPass": [
+          "tests/test_equivalence_ledger.py::test_the_ENTRY_COUNT_per_module_never_silently_DROPS",
+          "tests/test_mutation_diff.py::test_an_entry_qualified_by_FUNCTION_excuses_only_that_function",
+          "tests/test_mutation_diff.py::test_two_survivors_sharing_one_KEY_are_both_reported",
+          "tests/test_mutation_diff.py::test_a_qualified_entry_IS_refuted_by_a_kill_in_its_OWN_function",
+          "tests/test_mutation_diff.py::test_an_UNATTRIBUTED_kill_refutes_an_unqualified_entry_and_not_a_qualified_one",
+          "tests/test_mutation_diff.py::test_a_qualified_entry_does_not_match_a_survivor_whose_FUNCTION_cannot_be_read",
+          "tests/test_mutation_diff.py::test_entry_matches_function_and_kill_attributed_to_are_pinned_directly",
+          "tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_meets_a_KEYLESS_entry_on_the_empty_key",
+          "tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_is_NOT_excused_by_an_entry_that_carries_a_key"
+        ],
+        "backgroundAtParent": 0,
+        "atParent": "FAILED tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_meets_a_KEYLESS_entry_on_the_empty_key | FAILED tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_is_NOT_excused_by_an_entry_that_carries_a_key | 9 failed in 0.25s",
+        "atFix": ".........                                                                [100%] | 9 passed in 0.09s",
+        "at": "2026-10-13T02:15:05Z"
+      }
+    },
+    {
       "key": "2026-10-05-refuted-was-derived-from-absence-and-from-pytests-internal-error",
       "pr": 3310,
       "half": "heldout",
@@ -4414,6 +4470,70 @@
         "atParent": "FAILED tests/test_mutation_diff.py::test_a_scan_WITHOUT_a_glob_does_not_say_for_None | FAILED tests/test_mutation_diff.py::test_a_scan_with_NO_HELPER_still_produces_a_readable_refusal | 20 failed in 0.25s",
         "atFix": "....................                                                     [100%] | 20 passed in 0.10s",
         "at": "2026-10-13T01:44:24Z"
+      }
+    },
+    {
+      "key": "2026-10-04-two-neighbour-predicates-agree-unless-a-session-is-zero-length",
+      "pr": 3266,
+      "half": "heldout",
+      "fixCommit": "1f6a027c3aa1",
+      "parentCommit": "d49a6624f396",
+      "oracle": {
+        "kind": "capture-host-pytest",
+        "cmd": "python3 -m pytest -q tests/test_nightqc.py::test_count_rows tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[UTC] tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[America/New_York] tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[Asia/Kolkata] tests/test_nightqc.py::test_known_rows_leaves_out_an_unreadable_file_rather_than_zeroing_it tests/test_nightqc.py::test_a_night_dir_that_is_not_a_directory_does_not_raise tests/test_nightqc.py::test_night_view_skips_an_unreadable_file_and_keeps_counting_the_rest tests/test_nightqc.py::test_a_degraded_line_ROUNDS_its_percent_and_never_truncates_it tests/test_nightqc_verdicts.py::test_an_absent_device_whose_NAME_CARRIES_A_COLON_is_still_excluded_whole",
+        "granularity": "ids"
+      },
+      "testFiles": [
+        "capture-host/tests/test_nightqc.py",
+        "capture-host/tests/test_nightqc_verdicts.py"
+      ],
+      "srcFiles": [
+        "DOCS-INDEX.md",
+        "audits/ABSENCE-SURVEY-2026-09-22-RATCHET.json",
+        "audits/ABSENCE-SURVEY-2026-09-22-STATE.json",
+        "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+        "briefs/RESIDUE.md",
+        "capture-host/nightqc.py",
+        "capture-host/tools/mutate-equivalence.json",
+        "changes/2026-10-04-absence-drain-group-1-and-ratchet.md",
+        "package.json",
+        "tools/absence-ledger.mjs",
+        "tools/run-check.mjs",
+        "tools/verdict-adoption.json"
+      ],
+      "defect": "**Two `summarize` survivors neither die nor can be called equivalent, and the gap is one unexamined case.** `others = [s for s in sessions if s is not cur]`, then `before = [s for s in others if s[1] <= cur[0]]` and `after = [s for s in others if s[0] >= cur[1]]`. The mutants `after: s[1] >= cur[1]` and `before: s[1] <= cur[1]` survive the whole suite (delta +0 against a clean 0-failed baseline, 2026-10-04). Under `merge_sessions`' **documented** disjointness (`sessions[-1][1] = min(sessions[-1][1], seam)  # disjoint by construction`; sessions may TOUCH but not overlap) every member of `others` satisfies either `s[1] <= cur[0]` or `s[0] >= cur[1]`, and on both of those the original and the mutant agree — so they look like `no-distinguishing-input`. **The exception is a ZERO-LENGTH `cur`:** if `cur[0] == cur[1]`, an earlier TOUCHING neighbour has `s[1] == cur[0] == cur[1]`, so the mutant admits an EARLIER session into `after` and the gap line changes; the mirror argument makes a zero-length LATER neighbour enter `before`. Whether `merge_sessions` can emit a session with `start == end` is **not established**, so the equivalence is NOT claimed and the entries stay open — recording an unproven `no-distinguishing-input` is how #3243 came to delete a refuted one. Remedy: decide the zero-length question, then either a test that plants it (a kill) or an equivalence entry whose probe names the impossibility",
+      "evidence": "Measured 2026-10-04 on `claude/summarize-survivor-drain-hrn`: 13 plants from the ledger's own `-`/`+` pairs against baseline `0 failed / 328 passed`, 11 killed at delta +1/+2, these two at delta +0; `nightqc.py` restored byte-identical each time. Code read at `nightqc.py:3234-3237` and `merge_sessions`' construction comment",
+      "failToPass": [
+        "tests/test_nightqc.py::test_count_rows",
+        "tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[UTC]",
+        "tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[America/New_York]",
+        "tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[Asia/Kolkata]",
+        "tests/test_nightqc.py::test_known_rows_leaves_out_an_unreadable_file_rather_than_zeroing_it",
+        "tests/test_nightqc.py::test_a_night_dir_that_is_not_a_directory_does_not_raise",
+        "tests/test_nightqc.py::test_night_view_skips_an_unreadable_file_and_keeps_counting_the_rest",
+        "tests/test_nightqc.py::test_a_degraded_line_ROUNDS_its_percent_and_never_truncates_it",
+        "tests/test_nightqc_verdicts.py::test_an_absent_device_whose_NAME_CARRIES_A_COLON_is_still_excluded_whole"
+      ],
+      "backgroundAtParent": 0,
+      "proof": {
+        "ok": true,
+        "reason": null,
+        "granularity": "ids",
+        "failToPass": [
+          "tests/test_nightqc.py::test_count_rows",
+          "tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[UTC]",
+          "tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[America/New_York]",
+          "tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[Asia/Kolkata]",
+          "tests/test_nightqc.py::test_known_rows_leaves_out_an_unreadable_file_rather_than_zeroing_it",
+          "tests/test_nightqc.py::test_a_night_dir_that_is_not_a_directory_does_not_raise",
+          "tests/test_nightqc.py::test_night_view_skips_an_unreadable_file_and_keeps_counting_the_rest",
+          "tests/test_nightqc.py::test_a_degraded_line_ROUNDS_its_percent_and_never_truncates_it",
+          "tests/test_nightqc_verdicts.py::test_an_absent_device_whose_NAME_CARRIES_A_COLON_is_still_excluded_whole"
+        ],
+        "backgroundAtParent": 0,
+        "atParent": "FAILED tests/test_nightqc.py::test_a_degraded_line_ROUNDS_its_percent_and_never_truncates_it | FAILED tests/test_nightqc_verdicts.py::test_an_absent_device_whose_NAME_CARRIES_A_COLON_is_still_excluded_whole | 9 failed in 0.43s",
+        "atFix": ".........                                                                [100%] | 9 passed in 0.23s",
+        "at": "2026-10-13T02:15:28Z"
       }
     },
     {
@@ -5669,6 +5789,16 @@
       "reason": "no-test-in-fix"
     },
     {
+      "key": "2026-09-13-ppg2w-200hz-was-already-written-down",
+      "pr": 2666,
+      "reason": "no-test-in-fix"
+    },
+    {
+      "key": "2026-09-13-odi-threshold-has-no-injection-point",
+      "pr": 3490,
+      "reason": "oracle-shared-suite"
+    },
+    {
       "key": "2026-09-13-convention-measured-on-the-signal-subset",
       "pr": 2442,
       "reason": "ambiguous-commit-for-pr"
@@ -6339,8 +6469,28 @@
       "reason": "no-test-in-fix"
     },
     {
+      "key": "2026-10-12-an-assertion-label-can-name-a-stronger-condition-than-its-body",
+      "pr": 3490,
+      "reason": "oracle-shared-suite"
+    },
+    {
+      "key": "2026-10-12-js-mutation-gate-has-one-undecided-state-where-python-has-three",
+      "pr": 3486,
+      "reason": "no-test-in-fix"
+    },
+    {
       "key": "2026-10-12-the-trim-hook-exited-before-draining-stdin",
       "pr": 3493,
+      "reason": "no-test-in-fix"
+    },
+    {
+      "key": "2026-10-12-verify-fixtures-swallows-the-node-flag-its-own-skill-tells-you-to-pass",
+      "pr": 3496,
+      "reason": "oracle-shared-suite"
+    },
+    {
+      "key": "2026-10-12-a-closing-keyword-beside-a-pr-number-closes-the-wrong-pr",
+      "pr": 3495,
       "reason": "no-test-in-fix"
     },
     {
@@ -6435,6 +6585,13 @@
       "atFix": ".                                                                        [100%] | 1 passed in 0.05s"
     },
     {
+      "key": "2026-09-27-pull-recording-mutants-time-out-not-survive",
+      "pr": 3505,
+      "reason": "file-not-green-at-fix",
+      "atParent": "ERROR tests/test_polar_psftp_client.py | !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!! | 1 error in 0.14s",
+      "atFix": "ERROR tests/test_polar_psftp_client.py | !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!! | 1 error in 0.13s"
+    },
+    {
       "key": "2026-09-02-oxyii-acks-unparsed",
       "pr": 2271,
       "reason": "file-not-green-at-fix",
@@ -6517,6 +6674,34 @@
       "reason": "file-not-green-at-fix",
       "atParent": "ERROR tests/test_reconnect_backoff_cap.py | !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!! | 1 error in 0.77s",
       "atFix": "ERROR tests/test_reconnect_backoff_cap.py | !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!! | 1 error in 0.77s"
+    },
+    {
+      "key": "2026-10-05-sample-stamp-reads-the-last-sample-and-no-test-reads-which",
+      "pr": 3518,
+      "reason": "file-not-green-at-fix",
+      "atParent": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.25s",
+      "atFix": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.26s"
+    },
+    {
+      "key": "2026-10-12-api-state-coerces-a-null-charging-to-false",
+      "pr": 3518,
+      "reason": "file-not-green-at-fix",
+      "atParent": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.26s",
+      "atFix": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.26s"
+    },
+    {
+      "key": "2026-10-12-full-battery-implies-charging-name-overclaims",
+      "pr": 3518,
+      "reason": "file-not-green-at-fix",
+      "atParent": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.26s",
+      "atFix": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.27s"
+    },
+    {
+      "key": "2026-10-12-start-leaves-charging-why-stale",
+      "pr": 3518,
+      "reason": "file-not-green-at-fix",
+      "atParent": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.24s",
+      "atFix": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.25s"
     },
     {
       "key": "2026-09-02-oxyii-branchcode-named-firmware",
@@ -7832,6 +8017,16 @@
       "atFix": "........................................................................ [ 90%] | ........                                                                 [100%] | 80 passed in 0.68s",
       "at": "2026-10-13T01:36:57Z"
     },
+    "2026-09-27-pull-recording-mutants-time-out-not-survive": {
+      "ok": false,
+      "reason": "file-not-green-at-fix",
+      "granularity": null,
+      "failToPass": null,
+      "backgroundAtParent": null,
+      "atParent": "ERROR tests/test_polar_psftp_client.py | !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!! | 1 error in 0.14s",
+      "atFix": "ERROR tests/test_polar_psftp_client.py | !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!! | 1 error in 0.13s",
+      "at": "2026-10-13T02:14:42Z"
+    },
     "2026-09-29-a-merge-keyed-js-entries-on-a-field-they-do-not-have": {
       "ok": true,
       "reason": null,
@@ -8026,6 +8221,26 @@
       "atParent": "FAILED tests/test_timeline_gaps.py::test_EXACTLY_the_degraded_floor_is_degraded_not_idle | FAILED tests/test_timeline_gaps.py::test_bucket_stream_does_not_depend_on_the_ORDER_the_intervals_arrive_in | 16 failed in 0.15s",
       "atFix": "................                                                         [100%] | 16 passed in 0.06s",
       "at": "2026-10-13T01:41:52Z"
+    },
+    "2026-10-04-an-equivalence-key-cannot-name-its-function": {
+      "ok": true,
+      "reason": null,
+      "granularity": "ids",
+      "failToPass": [
+        "tests/test_equivalence_ledger.py::test_the_ENTRY_COUNT_per_module_never_silently_DROPS",
+        "tests/test_mutation_diff.py::test_an_entry_qualified_by_FUNCTION_excuses_only_that_function",
+        "tests/test_mutation_diff.py::test_two_survivors_sharing_one_KEY_are_both_reported",
+        "tests/test_mutation_diff.py::test_a_qualified_entry_IS_refuted_by_a_kill_in_its_OWN_function",
+        "tests/test_mutation_diff.py::test_an_UNATTRIBUTED_kill_refutes_an_unqualified_entry_and_not_a_qualified_one",
+        "tests/test_mutation_diff.py::test_a_qualified_entry_does_not_match_a_survivor_whose_FUNCTION_cannot_be_read",
+        "tests/test_mutation_diff.py::test_entry_matches_function_and_kill_attributed_to_are_pinned_directly",
+        "tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_meets_a_KEYLESS_entry_on_the_empty_key",
+        "tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_is_NOT_excused_by_an_entry_that_carries_a_key"
+      ],
+      "backgroundAtParent": 0,
+      "atParent": "FAILED tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_meets_a_KEYLESS_entry_on_the_empty_key | FAILED tests/test_mutation_diff.py::test_a_survivor_with_no_key_cell_is_NOT_excused_by_an_entry_that_carries_a_key | 9 failed in 0.25s",
+      "atFix": ".........                                                                [100%] | 9 passed in 0.09s",
+      "at": "2026-10-13T02:15:05Z"
     },
     "2026-10-05-refuted-was-derived-from-absence-and-from-pytests-internal-error": {
       "ok": true,
@@ -8355,6 +8570,26 @@
       "atFix": "....................                                                     [100%] | 20 passed in 0.10s",
       "at": "2026-10-13T01:44:24Z"
     },
+    "2026-10-04-two-neighbour-predicates-agree-unless-a-session-is-zero-length": {
+      "ok": true,
+      "reason": null,
+      "granularity": "ids",
+      "failToPass": [
+        "tests/test_nightqc.py::test_count_rows",
+        "tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[UTC]",
+        "tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[America/New_York]",
+        "tests/test_nightqc.py::test_an_unreadable_capture_is_unknown_never_missing_or_zero[Asia/Kolkata]",
+        "tests/test_nightqc.py::test_known_rows_leaves_out_an_unreadable_file_rather_than_zeroing_it",
+        "tests/test_nightqc.py::test_a_night_dir_that_is_not_a_directory_does_not_raise",
+        "tests/test_nightqc.py::test_night_view_skips_an_unreadable_file_and_keeps_counting_the_rest",
+        "tests/test_nightqc.py::test_a_degraded_line_ROUNDS_its_percent_and_never_truncates_it",
+        "tests/test_nightqc_verdicts.py::test_an_absent_device_whose_NAME_CARRIES_A_COLON_is_still_excluded_whole"
+      ],
+      "backgroundAtParent": 0,
+      "atParent": "FAILED tests/test_nightqc.py::test_a_degraded_line_ROUNDS_its_percent_and_never_truncates_it | FAILED tests/test_nightqc_verdicts.py::test_an_absent_device_whose_NAME_CARRIES_A_COLON_is_still_excluded_whole | 9 failed in 0.43s",
+      "atFix": ".........                                                                [100%] | 9 passed in 0.23s",
+      "at": "2026-10-13T02:15:28Z"
+    },
     "2026-09-07-pull-stored-arity-mismatch": {
       "ok": false,
       "reason": "file-not-green-at-fix",
@@ -8559,6 +8794,46 @@
       "atParent": "ERROR tests/test_reconnect_backoff_cap.py | !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!! | 1 error in 0.77s",
       "atFix": "ERROR tests/test_reconnect_backoff_cap.py | !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!! | 1 error in 0.77s",
       "at": "2026-10-13T01:47:10Z"
+    },
+    "2026-10-05-sample-stamp-reads-the-last-sample-and-no-test-reads-which": {
+      "ok": false,
+      "reason": "file-not-green-at-fix",
+      "granularity": null,
+      "failToPass": null,
+      "backgroundAtParent": null,
+      "atParent": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.25s",
+      "atFix": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.26s",
+      "at": "2026-10-13T02:15:29Z"
+    },
+    "2026-10-12-api-state-coerces-a-null-charging-to-false": {
+      "ok": false,
+      "reason": "file-not-green-at-fix",
+      "granularity": null,
+      "failToPass": null,
+      "backgroundAtParent": null,
+      "atParent": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.26s",
+      "atFix": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.26s",
+      "at": "2026-10-13T02:15:30Z"
+    },
+    "2026-10-12-full-battery-implies-charging-name-overclaims": {
+      "ok": false,
+      "reason": "file-not-green-at-fix",
+      "granularity": null,
+      "failToPass": null,
+      "backgroundAtParent": null,
+      "atParent": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.26s",
+      "atFix": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.27s",
+      "at": "2026-10-13T02:15:31Z"
+    },
+    "2026-10-12-start-leaves-charging-why-stale": {
+      "ok": false,
+      "reason": "file-not-green-at-fix",
+      "granularity": null,
+      "failToPass": null,
+      "backgroundAtParent": null,
+      "atParent": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.24s",
+      "atFix": "ERROR tests/test_webmon_state_contract.py | !!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!! | 2 errors in 0.25s",
+      "at": "2026-10-13T02:15:31Z"
     },
     "2026-09-02-oxyii-branchcode-named-firmware": {
       "ok": false,
