@@ -114,7 +114,7 @@ function realm() {
   ctx.document = { createElement: el, getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, head: el(), body: el(), documentElement: el() };
   ctx.navigator = { userAgent: 'node' };
   vm.createContext(ctx);
-  for (const f of ['dex-escape.js', 'kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js']) {
+  for (const f of require('./realm-manifest.js').OXY_DSP_REALM) {
     vm.runInContext(DexBuild.classicify(readFileSync(join(ROOT, f), 'utf8'), f), ctx, { filename: f });
   }
   return ctx;

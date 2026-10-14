@@ -57,6 +57,7 @@ const arg = (f) => {
 const req = createRequire(import.meta.url);
 const ManifestGate = req(path.join(REPO, 'manifest-gate.js'));
 const DexBuild = req('./build-core.js');
+const { OXY_ECG_REALM } = req('./realm-manifest.js');
 
 /* ── the ECGDex leg (MEASUREMENT-PROVENANCE-ROADMAP §12, the second emitter — #2801) ──────────────
    Same hops as OxyDex, two differences by design: `envelope` is null-with-reason on all four (the
@@ -152,26 +153,8 @@ function realm() {
   sb.globalThis = sb;
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
-  for (const f of [
-    'kernel-constants.js',
-    'signal-frame.js',
-    'dex-export.js',
-    'oxydex-util.js',
-    'crossnight-envelope.js',
-    'metric-registry.js',
-    'dex-escape.js',
-    'dex-profile.js',
-    'oxydex-registry.js',
-    'oxydex-cross.js',
-    'clock.js',
-    'oxydex-profile.js',
-    'oxydex-dsp.js',
-    // the ECGDex leg — the same list regen-ecgdex-goldens co-loads (registry before the DSP, morph after)
-    'ecgdex-registry.js',
-    'ecgdex-dsp.js',
-    'ecgdex-morph.js'
-  ])
-    vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
+  // the OxyDex realm plus the ECGDex leg — one list, in tools/realm-manifest.js
+  for (const f of OXY_ECG_REALM) vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
 

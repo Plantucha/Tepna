@@ -57,22 +57,9 @@ export function patchConstant(src, decl, value, name) {
   return src.replace(decl, (m, ws) => `${ws}const ${name} = ${value};`);
 }
 
-export const ECG_FILES = ['kernel-constants.js', 'clock.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-dsp.js', 'ecgdex-morph.js'];
-export const PPG_FILES = [
-  'kernel-constants.js',
-  'clock.js',
-  'signal-frame.js',
-  'dex-export.js',
-  'metric-registry.js',
-  'dex-escape.js',
-  'dex-profile.js',
-  'crossnight-envelope.js',
-  'ppgdex-registry.js',
-  'ppgdex-dsp.js',
-  'ppgdex-morph.js',
-  'ppgdex-cross.js',
-  'ppgdex-profile.js'
-];
+/* The realm lists live in tools/realm-manifest.js; re-exported under these names for cvhr-fold-rescore.mjs. */
+export const ECG_FILES = req('./realm-manifest.js').ECG_REALM;
+export const PPG_FILES = req('./realm-manifest.js').PPG_REALM;
 
 function sandbox() {
   const sb = {
