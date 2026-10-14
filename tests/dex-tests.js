@@ -73396,6 +73396,164 @@
       });
     });
 
+    /* RESIDUE 2026-10-06-the-test-lanes-two-inventories-disagree-undetected. Dex-Test-Suite.html
+       EVALUATES one set of files (`<script src>` + `fetchText` → `(0, eval)`) and lets a scan READ another
+       (`SOURCE_FILES` + `DexCoload.adapters`). A file the browser evaluates and the Node lane reads as
+       text, but the browser does not list, is the dangerous direction: a source scan sees it in Node and
+       not in the browser, and reports a FALSE finding about the code (the phantom `NEW: [hrRest]` came from
+       `hrvdex-profile.js`). This compares the two inventories, so the next such file reds by name.
+       Node-lane only (fs-read); the browser lane SKIPs. */
+    group('browser lane — every file it EVALUATES that the Node lane reads as text is also in SOURCE_FILES', 'cohesion · lane-inventories · source-files', function (T) {
+      var INV = env.browserLaneInventories;
+      if (!INV || !env.sources) {
+        T.skip('env.browserLaneInventories provided to the runner', 'Node-lane only — wire env.browserLaneInventories (run-tests.mjs)');
+        return;
+      }
+      /* Anti-vacuity: each parse must find its population, or a comparison over nothing reads as clean. */
+      T.ok('SOURCE_FILES parsed', INV.listed.length > 50, INV.listed.length + ' entries');
+      T.ok('<script src> tags parsed', INV.tags > 30, INV.tags + ' tags');
+      T.ok('fetchText → eval loads parsed', INV.evals > 10, INV.evals + ' loads');
+      T.ok('the fetchText loop list parsed', INV.looped > 0, INV.looped + ' files');
+      var adapters = (env.DexCoload && env.DexCoload.adapters) || [];
+      T.ok('DexCoload.adapters available (the browser concatenates it onto SOURCE_FILES)', adapters.length > 0, adapters.length + ' adapters');
+      var listed = {};
+      INV.listed.concat(adapters).forEach(function (f) {
+        listed[f] = true;
+      });
+      var missing = INV.evaluated.filter(function (f) {
+        return Object.prototype.hasOwnProperty.call(env.sources, f) && !listed[f];
+      });
+      T.eq('no file is EVALUATED in the browser lane and readable in the Node lane but absent from SOURCE_FILES', missing, []);
+      /* PLANT: drop a file that is in both inventories from the list; the same filter must name it. */
+      var plantListed = {};
+      Object.keys(listed).forEach(function (f) {
+        if (f !== 'hrvdex-profile.js') plantListed[f] = true;
+      });
+      var planted = INV.evaluated.filter(function (f) {
+        return Object.prototype.hasOwnProperty.call(env.sources, f) && !plantListed[f];
+      });
+      T.ok('PLANT · unlisting hrvdex-profile.js is detected by name', planted.indexOf('hrvdex-profile.js') >= 0, JSON.stringify(planted));
+    });
+    /* RESIDUE 2026-10-12-load-bearing-sources-debt-is-six-of-eight-unpaid — five of the six unscannable
+       root sources are now listed in BOTH lanes (`readSources()` + `SOURCE_FILES`), "together or
+       neither". The visibility ratchet above only asks for ONE lane, so this group pins BOTH by name.
+       `cohort-worker.js` stays out: the worker-boundary gate pins it as INVENTORY_ABSENT and reds the
+       day it reaches env.sources until it is declared in PAIRS or EXCLUDED — a decision, not a listing.
+       Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, as the ratchet does. */
+    group('Paid source-visibility debt — each wired file is readable in BOTH lanes', 'cohesion · source-visibility · both-lanes', function (T) {
+      var SV = env.sourceVisibility;
+      if (!SV || !env.sources) {
+        T.skip('env.sourceVisibility provided to the runner', 'Node-lane only — wire env.sourceVisibility (run-tests.mjs)');
+        return;
+      }
+      T.ok("the browser lane's SOURCE_FILES parsed", SV.browser.length > 20, SV.browser.length + ' entries');
+      ['cohort-full.js', 'dex-contracts.js', 'provenance-banner.js', 'support.js', 'xmt-fixture.js'].forEach(function (f) {
+        T.ok(f + ' is in the root inventory', SV.files.indexOf(f) !== -1, 'not a root *.js — the pin is stale');
+        T.ok(f + ' text is in env.sources (Node lane, readSources)', typeof env.sources[f] === 'string' && env.sources[f].length > 0, 'add it to readSources() in tests/run-tests.mjs');
+        T.ok(f + ' is in SOURCE_FILES (browser lane)', SV.browser.indexOf(f) !== -1, 'add it to SOURCE_FILES in Dex-Test-Suite.html');
+      });
+    });
+
+    /* RESIDUE 2026-10-11-one-module-list-in-six-tool-literals — six tools built their vm realm from six
+       inline module arrays, so #3437 had to add `dex-escape.js` six times. The fix shape (Kestrel,
+       2026-10-11) is ONE realm manifest the tools read: `tools/realm-manifest.js`. This group reds when
+       the manifest is absent, when one of the six still carries its own array of repo modules, and when
+       a manifest realm loads a module that calls `escapeHTML` but not `dex-escape.js`.
+       Node-lane only — env.toolSources / env.drawnFlagScan are fs-read; the browser lane SKIPs. */
+    group('RESIDUE one-module-list-in-six-tool-literals — the six tool vm realms read ONE realm manifest', 'tools · realm-manifest · single-source', function (T) {
+      var TS = env.toolSources,
+        ALL = env.drawnFlagScan;
+      if (!TS || !ALL) {
+        T.skip('env.toolSources / env.drawnFlagScan provided to the runner', 'Node-lane only (run-tests.mjs readToolSources / readDrawnFlagScan)');
+        return;
+      }
+      var SIX = ['gap-s-sweep.mjs', 'measurement-walk.mjs', 'regen-oxydex-goldens.mjs', 'regen-ppgdex-goldens.mjs', 'oxydex-export-staleness.mjs', 'pb-operating-point.mjs'];
+      function code(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+      }
+      var rootMods = Object.keys(ALL).filter(function (k) {
+        return k.indexOf('/') < 0 && /\.js$/.test(k);
+      });
+      function isRootMod(name) {
+        return rootMods.indexOf(name) >= 0;
+      }
+      /* the arrays of repo modules a source declares: an array literal holding TWO or more root module names */
+      function moduleArrays(src) {
+        return (code(src).match(/\[[^[\]]*\]/g) || []).filter(function (arr) {
+          var names = (arr.match(/'([\w.-]+\.js)'/g) || []).map(function (q) {
+            return q.slice(1, -1);
+          });
+          return names.filter(isRootMod).length >= 2;
+        });
+      }
+      T.ok('CLASSIFIER · an inline realm array is found', moduleArrays("for (const f of ['kernel-constants.js', 'clock.js']) run(f);").length === 1);
+      T.ok('CLASSIFIER · a single module path is not an array', moduleArrays("readFileSync(join(ROOT, 'oxydex-dsp.js'))").length === 0);
+      T.ok('CLASSIFIER · a commented-out array is not counted', moduleArrays("/* ['kernel-constants.js', 'clock.js'] */ var x = 1;").length === 0);
+
+      var man = ALL['tools/realm-manifest.js'];
+      T.ok('tools/realm-manifest.js exists', !!man, 'there is no shared realm manifest, so each tool keeps its own copy of the module list');
+      SIX.forEach(function (n) {
+        var src = TS[n];
+        T.ok(n + ' is present in tools/', !!src, 'the population moved — re-measure it');
+        if (!src) return;
+        T.ok(n + ' reads the shared manifest', /\brealm-manifest\.js['"]/.test(code(src)), 'no reference to ./realm-manifest.js');
+        var arrs = moduleArrays(src);
+        T.eq(n + ' declares no inline array of repo modules', arrs.length, 0, arrs.join(' | ').slice(0, 300));
+      });
+      T.ok(
+        'gap-s-sweep.mjs still exports ECG_FILES and PPG_FILES (cvhr-fold-rescore.mjs imports them)',
+        /export const ECG_FILES\b/.test(TS['gap-s-sweep.mjs'] || '') && /export const PPG_FILES\b/.test(TS['gap-s-sweep.mjs'] || '')
+      );
+      if (!man) return;
+
+      /* the manifest is evaluated, not read as text */
+      var vmM = typeof require === 'function' ? require('node:vm') : null;
+      if (!vmM) {
+        T.skip('node:vm available', 'realm-loading is Node-lane only');
+        return;
+      }
+      var box = { module: { exports: {} } };
+      box.exports = box.module.exports;
+      vmM.createContext(box);
+      vmM.runInContext(man, box, { filename: 'tools/realm-manifest.js' });
+      var M = box.module.exports;
+      var names = Object.keys(M).filter(function (k) {
+        return Array.isArray(M[k]);
+      });
+      T.ok('the manifest exports at least one realm list', names.length > 0, Object.keys(M).join(','));
+      var callsEscape = rootMods.filter(function (f) {
+        return f !== 'dex-escape.js' && /\bescapeHTML\s*\(/.test(code(ALL[f]));
+      });
+      T.ok('CONTROL · at least one root module calls escapeHTML (else the check below is vacuous)', callsEscape.length > 0);
+      names.forEach(function (k) {
+        var L = M[k];
+        var missing = L.filter(function (f) {
+          return !isRootMod(f);
+        });
+        T.eq(k + ': every entry is a root module that exists', missing, []);
+        T.eq(
+          k + ': no entry is listed twice',
+          L.filter(function (f, i) {
+            return L.indexOf(f) !== i;
+          }),
+          []
+        );
+        /* PRESENCE, not order: the calls are made at run time in one shared realm (oxydex-util.js loads
+           before dex-escape.js in the OxyDex realm and its call still resolves). #3437's defect was the
+           escaper ABSENT from a realm that loads a caller. */
+        var callers = L.filter(function (f) {
+          return callsEscape.indexOf(f) >= 0;
+        });
+        T.ok(
+          k + ': a realm that loads an escapeHTML caller also loads dex-escape.js',
+          callers.length === 0 || L.indexOf('dex-escape.js') >= 0,
+          'callers ' + callers.join(', ') + ' without dex-escape.js'
+        );
+      });
+    });
+
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.
        `totalGroups` stays the full declaration count, so "N of 134" is still honest. */
