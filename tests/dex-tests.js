@@ -73396,6 +73396,73 @@
       });
     });
 
+    /* AUDIT 2026-10-13 · oxydex-dsp units + Clock Contract. `recording.coverage.segments[].startMs`
+       is floating wall-clock MS, a NUMBER — ECGDex, PpgDex and GlucoDex emit it so. OxyDex built its
+       segments from `rows[i].t`, the compat Date, so JSON wrote a "…Z" ISO string, and the
+       Integrator's `recSegments` (`isFinite(startMs)`) dropped every OxyDex segment: the gap-aware
+       overlap fell back to the envelope. The sibling gate feeds a numeric `t` and cannot see this. */
+    group('OxyDex coverage segments carry numeric floating ms, and the Integrator reads them', 'oxydex-dsp · coverage · clock-contract · units', function (T) {
+      var O = env.OxyDex,
+        I = env.IntegratorDSP;
+      if (!O || typeof O.coverage !== 'function') {
+        T.skip('OxyDex.coverage available', 'wire env.OxyDex into this lane');
+        return;
+      }
+      var t0 = U(2026, 5, 10, 22, 0, 0),
+        rows = [];
+      // The REAL parsed-row shape: parseCSV writes tMs (a number) AND t (a compat Date).
+      for (var i = 0; i < 600; i++) rows.push({ tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: 96, hr: 58 });
+      for (var j = 0; j < 600; j++) {
+        var ms = t0 + (1800 + j) * 1000;
+        rows.push({ tMs: ms, t: new Date(ms), spo2: 96, hr: 58 });
+      }
+      var cov = O.coverage(rows, t0);
+      T.ok('a 20-min hole yields a two-segment coverage block', !!cov && Array.isArray(cov.segments) && cov.segments.length === 2, JSON.stringify(cov));
+      if (!cov || !Array.isArray(cov.segments)) return;
+      var wire = JSON.parse(JSON.stringify(cov));
+      T.eq('segments[0].startMs survives JSON as a number', typeof wire.segments[0].startMs, 'number');
+      T.eq('segments[0].startMs is the floating t0Ms of the first row', wire.segments[0].startMs, t0);
+      T.eq('segments[1].startMs is the floating ms after the hole', wire.segments[1].startMs, t0 + 1800 * 1000);
+      if (!I || typeof I.recSegments !== 'function') {
+        T.skip('IntegratorDSP.recSegments available', 'not wired into this lane');
+        return;
+      }
+      var segs = I.recSegments({ coverage: wire });
+      T.eq('the Integrator reads both OxyDex segments off the wire', segs ? segs.length : null, 2);
+    });
+
+    group('§∅ · OxyDex — computeHRAdvanced skips an ABSENT heart rate, like its sibling computeHRV (plant-backed)', 'oxydex-dsp · absence · sibling-divergence · plant', function (T) {
+      /* Class 14: `computeHRV` filters `r.hr != null && isFinite(r.hr)` into its still pool; its sibling
+         `computeHRAdvanced` filters only motion and artifact, so a null HR reached the successive
+         difference (`60 - null` is 60) and the window mean (`a + null` is a). Metamorphic invariant:
+         adding ABSENT-HR seconds to a still night changes no HR statistic of its measured seconds. */
+      var B = (env.OxyDex && env.OxyDex._bare) || null;
+      if (!B || typeof B.computeHRAdvanced !== 'function') {
+        T.skip('OxyDex._bare.computeHRAdvanced reachable', 'not wired in this lane');
+        return;
+      }
+      // A still night: SpO2 96, HR alternating 60/61, so the 1 Hz RMSSD proxy is exactly 1 bpm.
+      var clean = [],
+        holed = [];
+      for (var i = 0; i < 1800; i++) {
+        var r = { spo2: 96, hr: 60 + (i % 2), motion: 0 };
+        clean.push(r);
+        holed.push(r);
+        // Every 90th second, an extra second with no HR reading (20 of 1820 = 1.1 %).
+        if (i % 90 === 45) holed.push({ spo2: 96, hr: null, motion: 0 });
+      }
+      var c = B.computeHRAdvanced(clean, null);
+      var h = B.computeHRAdvanced(holed, null);
+      T.eq('ANTI-VACUITY · the clean night reports an RMSSD proxy of 1 bpm', c && c.rmssd, 1);
+      T.eq('20 absent HR seconds do NOT inflate the RMSSD proxy', h && h.rmssd, c && c.rmssd);
+      T.eq('20 absent HR seconds leave the HR IQR unchanged', h && h.hrIQR, c && c.hrIQR);
+      T.eq('20 absent HR seconds do NOT lower the window mean HR', h && h.meanHRpb, c && c.meanHRpb);
+      T.eq('…and the non-PB window mean HR', h && h.meanHRnonPb, c && c.meanHRnonPb);
+      var none = [];
+      for (var k = 0; k < 120; k++) none.push({ spo2: 96, hr: null, motion: 0 });
+      T.eq('a still night with no HR reading refuses (null), never an RMSSD', JSON.stringify(B.computeHRAdvanced(none, null)), 'null');
+    });
+
     /* RESIDUE 2026-10-06-the-test-lanes-two-inventories-disagree-undetected. Dex-Test-Suite.html
        EVALUATES one set of files (`<script src>` + `fetchText` → `(0, eval)`) and lets a scan READ another
        (`SOURCE_FILES` + `DexCoload.adapters`). A file the browser evaluates and the Node lane reads as

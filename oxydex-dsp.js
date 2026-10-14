@@ -5167,8 +5167,9 @@
 
   // 6. Extended HR metrics (RMSSD proxy, IQR, PB contrast)
   function computeHRAdvanced(rows, osc) {
+    // ∅ an absent HR is not a sample — the computeHRV filter, ported: `60 - null` is 60 and `a + null` is a
     var clean = rows.filter(function (r) {
-      return r.motion === 0 && !r.hrArtifact;
+      return r.motion === 0 && !r.hrArtifact && r.hr != null && isFinite(r.hr);
     });
     if (clean.length < 60) return null;
     var hrs = clean.map(function (r) {
@@ -5207,7 +5208,7 @@
       });
       var hrVals = sl
         .filter(function (r) {
-          return r.motion === 0;
+          return r.motion === 0 && r.hr != null && isFinite(r.hr);
         })
         .map(function (r) {
           return r.hr;
@@ -6045,6 +6046,9 @@
     for (var i = 0; i < rows.length; i++) {
       var t = rows[i] && rows[i].t;
       if (t == null || !isFinite(t)) continue;
+      /* Clock Contract §1 — a segment edge is floating ms, a NUMBER. `row.t` is the compat Date, and a
+         Date edge serialised as a "…Z" ISO string that the Integrator's `isFinite(startMs)` dropped. */
+      t = +t;
       /* ⚠️ AN ABSENT READING IS NOT A MISSING KEY, and the difference is a published contract. This
          function is called with bare stamp rows (`{ t }`) as well as with real recording rows, and
          treating a missing `spo2` property as an absence made EVERY such row break a segment — the
