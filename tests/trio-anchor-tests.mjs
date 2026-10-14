@@ -7,10 +7,13 @@
    same reason `tools/drift-report.js` was extracted. The rule lives in its own module for exactly that
    reason, and these are its plants: the real 2026-08-24 shape (a name 18.7 h early), the `.dat`
    exception, and a correctly-named file that must come out byte-identical. */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { anchoredRec, startOf, utc } from '../tools/trio-anchor.mjs';
+// A namespace import, so an ABSENT export reads as a failed assertion below rather than a link error.
+import * as Anchor from '../tools/trio-anchor.mjs';
 
 let pass = 0;
 const fails = [];
@@ -86,6 +89,98 @@ try {
   eq(late.t0, utc(2026, 8, 24, 22, 22, 32), 'content wins even when the name is later');
 } finally {
   rmSync(DIR, { recursive: true, force: true });
+}
+
+/* ── THE FOLD'S SESSION-MERGE RULE IS ONE SHARED ANSWER (residue
+   2026-09-29-fold-session-merge-rule-is-module-local-to-trio-batch) ──────────────────────────────
+   `trio-batch.mjs` held `mergeIv` / `ivIntersect` / `ivSpan` / the concurrent-set rule as module-local
+   consts, so `tools/cvhr-fold-rescore.mjs` re-derived them and proved equivalence per tool. The rule now
+   lives here and both tools import it. These legs pin the rule and that neither tool re-derives it. */
+{
+  const H = 3.6e6;
+  const names = ['mergeIv', 'ivIntersect', 'ivSpan', 'concurrentWith'];
+  for (const k of names) ok(typeof Anchor[k] === 'function', `trio-anchor.mjs exports ${k} (the fold's session-merge rule is shared, not module-local)`);
+  if (names.every((k) => typeof Anchor[k] === 'function')) {
+    const { mergeIv, ivIntersect, ivSpan, concurrentWith } = Anchor;
+    eq(
+      ivSpan(
+        mergeIv([
+          [0, H],
+          [2 * H, 3 * H]
+        ])
+      ),
+      2 * H,
+      'a stream is the MEASURE of its sessions, not the outer span (the formulation the CVHR control rejected)'
+    );
+    eq(
+      JSON.stringify(
+        mergeIv([
+          [2 * H, 3 * H],
+          [0, H],
+          [H, 1.5 * H]
+        ])
+      ),
+      JSON.stringify([
+        [0, 1.5 * H],
+        [2 * H, 3 * H]
+      ]),
+      'touching sessions merge, independent of input order'
+    );
+    eq(mergeIv([null, [0, H]]).length, 1, 'an absent window is dropped, not merged as a zero');
+    eq(
+      JSON.stringify(
+        ivIntersect(
+          [
+            [0, 2 * H],
+            [3 * H, 5 * H]
+          ],
+          [[H, 4 * H]]
+        )
+      ),
+      JSON.stringify([
+        [H, 2 * H],
+        [3 * H, 4 * H]
+      ]),
+      'the intersection of two merged sets is per-block'
+    );
+    const anchor = mergeIv([
+      [0, 2 * H],
+      [3 * H, 5 * H]
+    ]);
+    const recs = [
+      { id: 'in', iv: [H, 2.5 * H] },
+      { id: 'day', iv: [10 * H, 11 * H] },
+      { id: 'edge', iv: [5 * H, 6 * H] },
+      { id: 'late', iv: [4 * H, 7 * H] }
+    ];
+    const c = concurrentWith(recs, anchor, (r) => r.iv);
+    eq(c.kept.map((r) => r.id).join(','), 'in,late', 'every record touching the anchor is kept; zero-overlap and endpoint-only records are dropped');
+    eq(c.kept[0], recs[0], 'the kept records are the caller’s own objects');
+    eq(c.overlapMs, 2 * H, 'the overlap is the MERGED kept set ∩ anchor');
+    eq(
+      concurrentWith([], anchor, (r) => r.iv),
+      null,
+      'no records → null, never an empty overlap of 0'
+    );
+    eq(
+      concurrentWith(recs, [], (r) => r.iv),
+      null,
+      'no anchor → null'
+    );
+  }
+  const here = dirname(fileURLToPath(import.meta.url));
+  const tb = readFileSync(join(here, '..', 'tools', 'trio-batch.mjs'), 'utf8');
+  const cv = readFileSync(join(here, '..', 'tools', 'cvhr-fold-rescore.mjs'), 'utf8');
+  const imports = (src, k) => new RegExp(`import\\s*\\{[^}]*\\b${k}\\b[^}]*\\}\\s*from\\s*'\\./trio-anchor\\.mjs'`).test(src);
+  const localDef = (src, k) => new RegExp(`(^|\\n)\\s*(export\\s+)?(const\\s+${k}\\s*=|function\\s+${k}\\s*\\()`).test(src);
+  for (const k of ['mergeIv', 'ivIntersect', 'ivSpan', 'concurrentWith']) {
+    ok(imports(tb, k), `trio-batch.mjs imports ${k} from ./trio-anchor.mjs`);
+    ok(!localDef(tb, k), `trio-batch.mjs does not re-derive ${k} locally`);
+  }
+  for (const k of ['mergeIv', 'ivIntersect', 'ivSpan']) {
+    ok(imports(cv, k), `cvhr-fold-rescore.mjs imports ${k} from ./trio-anchor.mjs rather than re-deriving it`);
+    ok(!localDef(cv, k), `cvhr-fold-rescore.mjs does not re-derive ${k} locally`);
+  }
 }
 
 if (fails.length) {

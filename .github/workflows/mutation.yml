@@ -63,10 +63,21 @@ jobs:
       # call, the code taken from the command itself before anything else touches `$?`, and an
       # explicit `exit 0` so "advisory" is a property of THIS step rather than of a
       # `continue-on-error` that would also swallow a genuine harness crash.
+      #
+      # THE STEP DECLARES ITS OWN CAP, BELOW THE JOB'S. A job that runs out its `timeout-minutes` is
+      # reported `cancelled` — identical in `gh pr checks` to an Actions-incident cancellation, and
+      # the residue row `2026-10-05-the-js-mutation-job-cannot-finish-on-the-pr-that-makes-its-own-target-fast`
+      # records three attempts spent before the 25m13s duration was read. A step that exceeds its own
+      # `timeout-minutes` instead FAILS the step, the job stays alive, and the `if: always()` report
+      # below still runs and says TIMED OUT. 42 leaves the job's 45 a margin for checkout, setup,
+      # the report and the artifact upload. This does not change WHICH pass consumes the budget
+      # (still unmeasured) nor the owner's 45-minute job cap.
       - name: Diff-scoped mutation
         id: mutate
+        timeout-minutes: 42
         run: |
           BASE="origin/${{ github.event.pull_request.base.ref || 'main' }}"
+          echo "t0=$(date +%s)" >> "$GITHUB_OUTPUT"
           set +e
           node tools/mutate.mjs --diff "$BASE" --json > mutation-diff.ndjson 2> mutation-diff.log
           CODE=$?
@@ -85,8 +96,25 @@ jobs:
         if: always()
         env:
           CODE: ${{ steps.mutate.outputs.code }}
+          T0: ${{ steps.mutate.outputs.t0 }}
         run: |
           {
+            # No exit code was recorded: `node` never returned. If the step ran out its own cap
+            # (42 min = 2520 s, minus a little clock slack) say TIMED OUT by name with the elapsed
+            # seconds, so a timeout never has to be inferred from a duration; any other early
+            # stop is reported as "did not complete", never as a timeout.
+            if [ -z "${CODE}" ]; then
+              if [ -n "${T0}" ] && [ $(( $(date +%s) - T0 )) -ge 2400 ]; then
+                echo "### ⏱ TIMED OUT — \`mutate.mjs --diff\` ran $(( $(date +%s) - T0 ))s against its 42-minute step cap and recorded no exit code"
+                echo
+                echo "This is a TIMEOUT of this step, not an Actions-incident cancellation."
+              elif [ -n "${T0}" ]; then
+                echo "### ⚠ DID NOT COMPLETE — \`mutate.mjs --diff\` recorded no exit code after $(( $(date +%s) - T0 ))s"
+              else
+                echo "### ⚠ DID NOT COMPLETE — \`mutate.mjs --diff\` never started (no start time, no exit code)"
+              fi
+              echo
+            fi
             node tools/mutation-summary.mjs mutation-diff.ndjson "${CODE:-none}"
             echo
             echo '```'

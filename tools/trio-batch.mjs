@@ -79,7 +79,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync, fstatSync, realpathSync } from 'node:fs';
 import { refuseUnknownArgvOrExit } from './argv-guard.mjs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
-import { anchoredRec, startOf } from './trio-anchor.mjs';
+import { anchoredRec, concurrentWith, ivIntersect, ivSpan, mergeIv, startOf } from './trio-anchor.mjs';
 import { join, dirname, resolve, basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -776,6 +776,60 @@ if (flag('--selftest')) {
     eq('…same for a run that judged none of the nights it was offered', gateVerdictLine(runNa, 'OUT/f.json').startsWith('gate verdict  : NOT_APPLICABLE — no night was judged ('), true);
     nightVerdicts.length = before;
   }
+
+  /* THE SESSION-MERGE RULE, imported from trio-anchor.mjs so a second tool shares it (residue
+     2026-09-29-fold-session-merge-rule-is-module-local-to-trio-batch). Known answers on [t0, tEnd]. */
+  const hr = 3600e3;
+  ok(
+    'merged measure of two 1 h sessions 2 h apart is 2 h, not the 3 h outer span',
+    H(
+      ivSpan(
+        mergeIv([
+          [at(0, 22), at(0, 23)],
+          [at(1, 1), at(1, 2)]
+        ])
+      )
+    ),
+    2
+  );
+  ok(
+    'touching sessions merge into one block',
+    mergeIv([
+      [0, hr],
+      [hr, 2 * hr]
+    ]).length,
+    1
+  );
+  ok(
+    'intersection is per block',
+    H(
+      ivSpan(
+        ivIntersect(
+          [
+            [0, 2 * hr],
+            [3 * hr, 5 * hr]
+          ],
+          [[hr, 4 * hr]]
+        )
+      )
+    ),
+    2
+  );
+  const cw = concurrentWith(
+    [
+      [hr, 2.5 * hr],
+      [10 * hr, 11 * hr],
+      [5 * hr, 6 * hr]
+    ],
+    [
+      [0, 2 * hr],
+      [3 * hr, 5 * hr]
+    ],
+    (r) => r
+  );
+  ok('concurrent set keeps only records with positive overlap (endpoint-only and daytime dropped)', cw.kept.length, 1);
+  ok('…and its overlap is the merged kept set ∩ anchor', H(cw.overlapMs), 1);
+  ok('no records is null, never a zero overlap', concurrentWith([], [[0, hr]], (r) => r) === null ? 1 : 0, 1);
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
   process.exit(fail ? 1 : 0);
 }
@@ -1537,37 +1591,24 @@ const windowOf = (rec) => {
    distributions, the three-cornered hat — was therefore computed on a subsample selected for being
    artifact-free. That is a bias, not a sampling choice, and it gets worse the churnier the box gets.
    */
-const mergeIv = (recs) => {
-  const out = [];
-  for (const r of recs.map(windowOf).sort((a, b) => a.t0 - b.t0)) {
-    if (out.length && r.t0 <= out[out.length - 1][1]) out[out.length - 1][1] = Math.max(out[out.length - 1][1], r.tEnd);
-    else out.push([r.t0, r.tEnd]);
-  }
-  return out;
+/* The interval rule (`mergeIv` / `ivIntersect` / `ivSpan`) and the concurrent-set rule live in
+   `trio-anchor.mjs`, so a second tool imports this fold's answer instead of re-deriving it. A record's
+   window is `windowOf` here; `recIv` merges records through it. */
+const ivOfRec = (rec) => {
+  const w = windowOf(rec);
+  return [w.t0, w.tEnd];
 };
-const ivIntersect = (A, B) => {
-  const out = [];
-  let i = 0,
-    j = 0;
-  while (i < A.length && j < B.length) {
-    const s = Math.max(A[i][0], B[j][0]),
-      e = Math.min(A[i][1], B[j][1]);
-    if (e > s) out.push([s, e]);
-    if (A[i][1] < B[j][1]) i++;
-    else j++;
-  }
-  return out;
-};
-const ivSpan = (A) => A.reduce((t, [s, e]) => t + (e - s), 0);
+const recIv = (recs) => mergeIv(recs.map(ivOfRec));
 
 /* Every record of a stream that touches the night's merged anchor window — not the single best one.
    A record contributing zero overlap is still dropped (a daytime capture is not this night's sleep),
    so the concurrency guarantee the original comment insists on is preserved: what changes is that
    concurrency is now judged against the whole anchor, and ALL concurrent sessions are kept. */
 const concurrentSet = (arr, anchorIv, label, key, minOverlapH) => {
-  if (!arr.length || !anchorIv.length) return null;
-  const kept = arr.filter((r) => ivSpan(ivIntersect(mergeIv([r]), anchorIv)) > 0);
-  const ovMs = ivSpan(ivIntersect(mergeIv(kept), anchorIv));
+  const c = concurrentWith(arr, anchorIv, ivOfRec);
+  if (!c) return null;
+  const kept = c.kept;
+  const ovMs = c.overlapMs;
   const H = (ms) => (ms / 3600e3).toFixed(1);
   if (ovMs < minOverlapH * 3600e3) {
     console.log(`    \u2717 ${key}: ${label} — NO concurrent recording (merged overlap ${H(ovMs)} h < ${minOverlapH} h) — night rejected`);
@@ -1601,7 +1642,7 @@ for (const n of plan) {
   // most fragmented stream on this box (153-324 SpO2 files a night, longest single 0.57 h), so
   // anchoring on its longest SINGLE file capped the entire fold at that file's length. That is why
   // OxyDex contributed 14 epochs to a night where ECGDex contributed 78.
-  const anchorIv = mergeIv(n.oxy);
+  const anchorIv = recIv(n.oxy);
   if (!anchorIv.length) {
     console.log(`  ⊘ ${n.key} — not a trio night (no O2Ring anchor)`);
     nightVerdict(n.key, 'NOT_APPLICABLE', {
@@ -1662,7 +1703,7 @@ for (const n of plan) {
      ECG and PPG present this is byte-identical to the previous `ECG ∩ PPG ∩ anchor`; with one
      missing it degrades to the pair, and with both missing to the anchor's own nocturnal blocks —
      rather than intersecting with an empty set and silently losing the night. */
-  const legIv = [pick.ecg, pick.ppg].filter((l) => l && l.length).map(mergeIv);
+  const legIv = [pick.ecg, pick.ppg].filter((l) => l && l.length).map(recIv);
   const threeIvAll = legIv.reduce(function (acc, l) {
     return ivIntersect(acc, l);
   }, anchorIv);
@@ -1745,7 +1786,7 @@ for (const n of plan) {
   }
   // Every stream is now clipped to the sleep window: a session that does not touch it is not part of
   // this night, whatever its date key says.
-  const inSleep = (l) => (l ? l.filter((r) => ivSpan(ivIntersect(mergeIv([r]), threeIv)) > 0) : l);
+  const inSleep = (l) => (l ? l.filter((r) => ivSpan(ivIntersect(recIv([r]), threeIv)) > 0) : l);
   pick.oxy = inSleep(pick.oxy);
   pick.ecg = inSleep(pick.ecg);
   pick.ppg = inSleep(pick.ppg);

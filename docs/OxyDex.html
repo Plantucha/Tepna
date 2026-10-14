@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0ded3a07ac93" data-compute-hash="d26301eb8f79">
+<html lang="en" data-manifest-hash="5644fda9fbdf" data-compute-hash="e49b8035d641">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+UjkC3OC6kJ/ZPG1Yhj/qdTv/NFHr75D6vzCpbT6r/s=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-StVex8JHEr+hdTdSUc9Ly97WmGn/lEXN48uSBG4inuY=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-StVex8JHEr+hdTdSUc9Ly97WmGn/lEXN48uSBG4inuY=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UkFC/BhbCvDP4+3JXRToah43Kh/LA28tdy5q58M/r/U=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.19.0</title>
@@ -13434,7 +13434,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // ARTIFACT desaturations (§2, the tested SELFGATE verdict). Node-local; SpO2 is an OxyDex-only signal.
     NADIR_RAMP_START_MAX: 88, // opening qualifies as a settling ramp only if the FIRST sample is ≤ this
     NADIR_RAMP_RECOVER: 90, // …and it climbs to ≥ this (a normal plateau)
-    NADIR_RAMP_MAX_SEC: 120 // …within this many seconds (else it is real low SpO2, not sensor settling)
+    NADIR_RAMP_MAX_SEC: 120 // …within this many SECONDS of the first sample, measured on rows[].tMs (else it is real low SpO2, not sensor settling)
   };
 
   // Capture clean parser source for self-download (runs before any results are rendered)
@@ -17162,11 +17162,19 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var times = spikes.map(function (s) {
       return parseTimeStr(s.time);
     });
-    for (var i = 1; i < times.length; i++) {
-      while (times[i] < times[i - 1]) times[i] += 86400;
+    // ∅ ABSENCE IS NULL: a spike whose time could not be read (null) is not an event at 00:00:00. The
+    // midnight roll-over is tracked against the last READ time, and an interval is measured only between
+    // two ADJACENT spikes that both carry one — no interval is invented across an unreadable stamp.
+    var lastRead = null;
+    for (var i = 0; i < times.length; i++) {
+      if (times[i] == null) continue;
+      if (lastRead != null) while (times[i] < lastRead) times[i] += 86400;
+      lastRead = times[i];
     }
     var intervals = [];
-    for (var i = 1; i < times.length; i++) intervals.push(Math.round((times[i] - times[i - 1]) / 60));
+    for (var i = 1; i < times.length; i++) {
+      if (times[i] != null && times[i - 1] != null) intervals.push(Math.round((times[i] - times[i - 1]) / 60));
+    }
     if (intervals.length < 3) return null;
     var sorted = intervals.slice().sort(function (a, b) {
       return a - b;
@@ -17191,9 +17199,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     return { avg: avgInterval, spread: spread, pattern: pattern, intervals: kept };
   }
 
+  // ∅ ABSENCE IS NULL: an unreadable stamp is null, never 0 (00:00:00 is a real time of day).
   function parseTimeStr(s) {
-    var m = s.match(/(\d{2}):(\d{2}):(\d{2})/);
-    return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0;
+    var m = typeof s === 'string' ? s.match(/(\d{2}):(\d{2}):(\d{2})/) : null;
+    return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : null;
   }
 
   // ── OXYDEX-PB-DETECTOR §2 · the periodicity gate ──────────────────────────────────────────────
@@ -18086,12 +18095,24 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        perfusion-settling ramp, and the walk below (`spo2 < 94`) then stepped through every subsequent
        hole and masked them all. A ramp is a measured climb; an unread first second is not one. */
     if (_has(rows[0].spo2) && rows[0].spo2 <= CFG.NADIR_RAMP_START_MAX) {
-      var lim = Math.min(n, CFG.NADIR_RAMP_MAX_SEC),
+      /* NADIR_RAMP_MAX_SEC is a DURATION, so the window is ELAPSED TIME on `tMs` from the first sample,
+         never a count of array positions (120 positions is 120 s only for a dense 1 Hz series: a gappy,
+         resampled or sparse-rate night masked the wrong stretch). A sample whose stamp is unreadable is
+         outside the window (unknown elapsed time is not evidence it was inside). Only a series whose
+         FIRST row carries no stamp at all falls back to the nominal 1 Hz position count. */
+      var t0Ramp = rows[0].tMs,
+        timed = t0Ramp != null && isFinite(t0Ramp),
+        winMs = CFG.NADIR_RAMP_MAX_SEC * 1000,
+        inWin = function (j) {
+          if (!timed) return j < CFG.NADIR_RAMP_MAX_SEC;
+          var tj = rows[j].tMs;
+          return tj != null && isFinite(tj) && tj - t0Ramp >= 0 && tj - t0Ramp < winMs;
+        },
         k = 0;
       // The walk STOPS at a hole rather than stepping through it: the ramp is the stretch observed to
       // be climbing, and an unread second is not evidence that it had not recovered yet.
-      while (k < lim && _has(rows[k].spo2) && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;
-      if (k > 0 && k < lim) {
+      while (k < n && inWin(k) && _has(rows[k].spo2) && rows[k].spo2 < CFG.NADIR_RAMP_RECOVER) k++;
+      if (k > 0 && k < n && inWin(k)) {
         // reached a normal plateau within the window
         var openMin = rows[0].spo2; // require the region to START at (near) its own min
         for (var j = 1; j < k; j++) if (rows[j].spo2 < openMin) openMin = rows[j].spo2; // = a climb, not a dip after a normal start

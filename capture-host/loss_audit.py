@@ -1414,7 +1414,17 @@ def audit_night(
             continue
         files = _recording_glob(night_dir, pat)
         if not files:
-            out["devices"][name] = {"primary": pat, "file": None, "reason": "no primary file this night"}
+            # ∅ NIGHT ABSENT is its own class (residue 2026-09-23-loss-audit-cannot-attribute-a-night-with-no-file).
+            # `lost_min` is measured INSIDE a recorded span, so a device with no span contributes nothing and
+            # reads exactly like a clean one. The flag is written HERE, from the device's own declaration
+            # (`optional` ⇒ a manual backup, not expected — SOLID-NIGHT §3.2), so the verdict keys on it
+            # rather than inferring absence from missing rows.
+            out["devices"][name] = {
+                "primary": pat,
+                "file": None,
+                "reason": "no primary file this night",
+                "night_absent": not d.get("optional"),
+            }
             continue
         # EVERY fragment, not the largest one. `max(getsize)` audited a single file per device, so on a
         # fragmented night the ledger read as the whole night while most of the recorded span was never
@@ -1600,7 +1610,11 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
     worn_span = sum(v["span_min"] for v in checked.values() if v.get("worn_evidence"))
     worn_lost = sum(v["worn_lost_min"] or 0.0 for v in checked.values() if v.get("worn_evidence"))
     frac = round(worn_lost / worn_span, 4) if worn_span > 0 else None
+    # EXPECTED devices that left no primary file. Excluded from `checked` (nothing to measure) but never
+    # from the verdict: a PASS over the devices that DID record says nothing about these.
+    absent = sorted(n for n, v in devs.items() if isinstance(v, dict) and v.get("night_absent") is True)
     result = {
+        "night_absent": absent,
         "worn_but_not_recorded_fraction": frac,
         "worn_lost_min": round(worn_lost, 1),
         "worn_span_min": round(worn_span, 1),
@@ -1640,6 +1654,21 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
             result=None,
             evidence=evidence,
             reason="no configured device left a primary stream this night",
+            tool=TOOL,
+            commit=commit,
+        )
+    if absent and not (frac is not None and frac > THRESHOLD):
+        # A clear FAIL below outranks this (a failure is not hidden behind an unknown). Otherwise neither
+        # PASS nor NOT_APPLICABLE can be said over a population with an expected device missing.
+        return _verdict.make(
+            gate=GATE,
+            status="UNKNOWN",
+            population=pop,
+            criterion=CRITERION,
+            result=result,
+            evidence=evidence,
+            reason=f"night absent: expected device(s) left no primary file — {', '.join(absent)}; "
+            f"the {len(checked)} that recorded cannot speak for them",
             tool=TOOL,
             commit=commit,
         )
