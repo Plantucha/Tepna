@@ -3162,6 +3162,25 @@ async function main() {
         return null;
       }
     })(),
+    /* RESIDUE 2026-10-06-the-test-lanes-two-inventories-disagree-undetected — the browser lane keeps
+       TWO inventories: `SOURCE_FILES` (the text a scan can READ) and the `<script src>` tags plus the
+       `fetchText(…)` + `(0, eval)` loads (what it EVALUATES). Parsed here so a group can compare them;
+       `sourceVisibility.browser` above drops `/` paths, so this parse keeps them. Node-lane only (fs). */
+    browserLaneInventories: (() => {
+      try {
+        const suite = readFileSync(join(ROOT, 'Dex-Test-Suite.html'), 'utf8');
+        const j = suite.indexOf('const SOURCE_FILES');
+        const seg = j >= 0 ? suite.slice(j, suite.indexOf('];', j)) : '';
+        const listed = [...seg.matchAll(/'([A-Za-z0-9_./-]+\.(?:js|mjs|html|css))'/g)].map((m) => m[1]);
+        const tags = [...suite.matchAll(/^[ \t]*<script src="([^"]+\.js)"><\/script>/gm)].map((m) => m[1]);
+        const evals = [...suite.matchAll(/await fetchText\('([^']+\.js)'\); if\(\w+\) \(0, eval\)/g)].map((m) => m[1]);
+        const loop = /for \(const (\w+) of \[([^\]]*)\]\) \{\s*const (\w+) = await fetchText\(\1\); if\(\3\) \(0, eval\)/.exec(suite);
+        const looped = loop ? [...loop[2].matchAll(/'([^']+\.js)'/g)].map((m) => m[1]) : [];
+        return { listed, evaluated: [...new Set(tags.concat(evals, looped))], tags: tags.length, evals: evals.length, looped: looped.length };
+      } catch {
+        return null;
+      }
+    })(),
     nodeUiSources: (() => {
       try {
         const out = {};

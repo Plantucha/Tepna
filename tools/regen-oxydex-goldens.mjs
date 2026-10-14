@@ -44,6 +44,7 @@ const CORPUS = resolveCorpus(REPO);
 const CHECK = process.argv.includes('--check');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
+const { OXY_REALM } = createRequire(import.meta.url)('./realm-manifest.js');
 
 /* ── the OxyDex.src.html script order (headless subset — no render/app) ── */
 function realm() {
@@ -103,22 +104,7 @@ function realm() {
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
   // clock.js BEFORE oxydex-dsp.js — the delegating DSP aliases DexClock.parseTimestamp at load.
-  for (const f of [
-    'kernel-constants.js',
-    'signal-frame.js',
-    'dex-export.js',
-    'oxydex-util.js',
-    'crossnight-envelope.js',
-    'metric-registry.js',
-    'dex-escape.js',
-    'dex-profile.js',
-    'oxydex-registry.js',
-    'oxydex-cross.js',
-    'clock.js',
-    'oxydex-profile.js',
-    'oxydex-dsp.js'
-  ])
-    vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
+  for (const f of OXY_REALM) vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
 

@@ -283,7 +283,12 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
   /* DEEP-AUDIT-III-FOLLOWUPS-II §6.9 — the OTHER host-booting orchestrator; same omission as
      motiondex-dsp.js above, same consequence. A scan over "every host-booting surface" that can
      see only one of the two surfaces reports itself clean while the other is blind. */
-  'data-unifier-app.js'].concat(ADAPTER_SOURCES);
+  'data-unifier-app.js',
+  /* RESIDUE 2026-10-06-the-test-lanes-two-inventories-disagree-undetected — EVALUATED here by
+     `<script src>` and read as text by the Node lane, but not listed, so a scan saw less in this lane.
+     Gate: `browser lane — every file it EVALUATES … is also in SOURCE_FILES` (tests/dex-tests.js). */
+  'kernel-constants.js','synth-gen.js','cohort-gen.js','dex-patient-gen.js','cpapdex-coimport.js',
+  'signal-spec.js','signal-adapters.js','quantity.js','event-coupling.js'].concat(ADAPTER_SOURCES);
 
 let ALL_GROUPS = [];
 
