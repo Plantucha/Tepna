@@ -3291,3 +3291,22 @@ def test_an_absent_device_beside_a_night_with_no_worn_evidence_is_UNKNOWN_not_NO
     a = loss_audit.audit_night(d, _THREE, journal=lambda *a: [])
     o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
     assert o["status"] == "UNKNOWN" and "night absent" in o["reason"]
+
+
+def test_the_night_absent_UNKNOWN_carries_the_commit_and_yields_only_to_a_loss_OVER_the_bar(tmp_path):
+    """Two mutants no test could see (local diff-scoped gate, 2026-10-13). (1) The UNKNOWN object is
+    provenance too: its `producedBy.commit` is the commit passed in, never a default. (2) A loss EXACTLY at
+    the bar is not a FAIL (the FAIL criterion is strictly over it), so with an expected device absent the
+    night still reads UNKNOWN — only a loss strictly over the bar outranks the absence."""
+    d = _night(tmp_path, holes=())
+    a = loss_audit.audit_night(d, _THREE, journal=lambda *a: [])
+    o = loss_audit.night_verdict(a, night_dir=d, commit="abc1234")
+    assert o["status"] == "UNKNOWN"
+    assert o["producedBy"]["commit"] == "abc1234", "the commit is provenance of the run, not a default"
+    # a 5-row hole is a 6 s gap over the 5 s cadence cut, 6 / 599 s rounds to exactly the 1 % bar
+    d2 = _night(tmp_path / "at-the-bar", holes=((200, 205),))
+    a2 = loss_audit.audit_night(d2, _THREE, journal=lambda *a: [])
+    o2 = loss_audit.night_verdict(a2, night_dir=d2, commit="abc1234")
+    assert o2["result"]["worn_but_not_recorded_fraction"] == loss_audit.THRESHOLD, o2["result"]
+    assert o2["status"] == "UNKNOWN", o2["status"]
+    assert o2["producedBy"]["commit"] == "abc1234"
