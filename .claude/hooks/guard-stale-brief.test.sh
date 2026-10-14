@@ -384,17 +384,12 @@ expectr ALLOW "two heredocs: path as prose in one, write verb in the other (the 
 # the write verb came from the interpreter block and not from the prose one.
 expectr ALLOW "…and with the second block a plain append instead" \
   "{\"tool_input\":{\"command\":\"cd $STALE && cat > /tmp/note.md <<'MD'\nthe row lives in briefs/SHARED-BRIEF.md\nMD\nprintf x >> /tmp/other.md\"}}"
-# ⚠ KNOWN GAP, PINNED RATHER THAN HIDDEN (row 2026-09-23-heredoc-strip-is-decided-once-for-many).
-# The anti-vacuity leg for this pair SHOULD be a DENY — a guarded path inside an INTERPRETER body is
-# code, and the strip is about which body is data, never about how many bodies there are. It is an
-# ALLOW today, in BOTH copies, because the rule decides interpreter-vs-data ONCE for the FIRST
-# heredoc and then applies `sed … /g`, which blanks every later body including an interpreter's.
-# Measured on the sibling with a positive control, so this is a false NEGATIVE in the blanket-git
-# guard and not merely cosmetic here: `git add -A` DENIES inside one interpreter heredoc and ALLOWS
-# when a plain heredoc precedes it. Pre-existing on main, inherited by this port rather than
-# introduced by it, and fixed in its own unit — this line asserts what the hook DOES so the day it
-# starts denying, the suite says so.
-expectr ALLOW "⚠ KNOWN GAP: a path in a SECOND, interpreter heredoc is stripped too" \
+# THE FORMER KNOWN GAP, NOW CLOSED (row 2026-09-23-heredoc-strip-is-decided-once-for-many). A guarded
+# path inside an INTERPRETER body is code, and the strip is about which body is data, never about how
+# many bodies there are. The rule used to decide interpreter-vs-data ONCE for the FIRST heredoc and
+# then blank every later body with `sed … /g`, so this was an ALLOW in both copies; it is now decided
+# PER heredoc, and this is the anti-vacuity leg for the pair above — a DENY.
+expectr DENY "a path in a SECOND, interpreter heredoc is code, not stripped" \
   "{\"tool_input\":{\"command\":\"cd $STALE && cat > /tmp/note.md <<'MD'\nharmless prose\nMD\npython3 - <<'PY'\nopen('briefs/SHARED-BRIEF.md','w').write('x')\nPY\"}}"
 
 echo

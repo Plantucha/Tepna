@@ -315,6 +315,50 @@ body mentioning git add -A
 A
 git clean -f
 A"
+# ⚠ ONE DECISION PER HEREDOC, NOT ONE FOR THE FIRST (residue 2026-09-23-heredoc-strip-is-decided-once-
+# for-many). The interpreter-vs-data test used to run on the FIRST heredoc only and `sed … /g` then
+# blanked every later body on that decision — so a plain heredoc ahead of an interpreter one hid the
+# interpreter's program from every rule. Each pair below is a DENY and its benign positive control,
+# so a fix that merely stopped stripping (or one that stripped everything) fails one of them.
+chk DENY "cat > note.md <<MD
+harmless
+MD
+bash <<SH
+git add -A
+SH"
+chk DENY "cat > note.md <<'MD'
+harmless
+MD
+python3 - <<'PY'
+import os
+os.system('git clean -f')
+PY"
+chk allow "cat > note.md <<MD
+harmless
+MD
+bash <<SH
+echo hello
+SH"
+# …and the data bodies on EITHER side of an interpreter one are still data (prose describing a rule).
+chk allow "cat > a.md <<MA
+prose about git add -A
+MA
+bash <<SH
+echo hello
+SH
+cat > b.md <<MB
+prose about git clean -f
+MB"
+chk DENY "cat > a.md <<MA
+prose about git add -A
+MA
+bash <<SH
+echo hello
+SH
+cat > b.md <<MB
+prose
+MB
+git clean -f"
 # The quote bypass the raw match exists for stays closed — this is what the row's own remedy
 # (strip quotes for every rule) would have reopened.
 chk DENY 'bash -c "git add -A"'

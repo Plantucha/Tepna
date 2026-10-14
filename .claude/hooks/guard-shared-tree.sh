@@ -71,23 +71,42 @@ cmd_noquotes="$(printf '%s' "$cmd_noquotes" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0
 #    where the body is the program. `$cmd_nohere` therefore blanks heredoc bodies for ALL rules, and
 #    LEAVES the interpreter ones in place — a property of the shell, not a heuristic tuned to today.
 #    Quote-stripping stays `commit`-only for exactly the same reason it always was.
-cmd_nohere="$cmdn"
-_hdw0="$(printf '%s' "$cmdn" | grep -oE "<<-?'?[A-Za-z_][A-Za-z0-9_]*'?" | head -1 | sed -E "s/^<<-?'?//; s/'$//")"
-if [ -n "$_hdw0" ]; then
-  # Does the command OWNING the heredoc read it as a program? Tested on the text before the `<<`,
-  # which is where the interpreter is named. If so the body is CODE and every rule keeps it raw.
-  _pre0="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?[A-Za-z_].*//")"
-  if printf '%s' "$_pre0" | grep -qE '(^|[;&|[:space:]])(bash|sh|zsh|python3?|node|perl|ruby|php)([[:space:]]|$)'; then
-    : # interpreter heredoc — the body is the program, so it stays visible to every rule
-  # ⚠ AND THE STRIP FAILS CLOSED, reusing the rule the rebase-guard learned the hard way: `.*` is
-  #   greedy and newlines are folded, so a terminator word appearing a SECOND time as a standalone
-  #   token lets the strip swallow real commands after the heredoc (measured 2026-08-05: a body
-  #   ending `A`, then a real `git checkout origin/main -- oxydex-dsp.js`, then a stray `A` — the
-  #   checkout was stripped and the rule passed). POSIX sed has no lazy quantifier, so strip only
-  #   when the terminator appears EXACTLY ONCE standalone; anything else keeps the full text.
-  elif [ "$(printf '%s' "$cmdn" | grep -oE "(^|[[:space:]])$_hdw0([[:space:]]|$)" | wc -l)" -eq 1 ]; then
-    cmd_nohere="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
+# ⚠ THE DECISION IS MADE PER HEREDOC, WALKING THE TEXT (residue 2026-09-23-heredoc-strip-is-decided-once-
+#   for-many). It used to be made ONCE, for the first heredoc, and applied to all of them with `sed … /g`,
+#   so a plain heredoc ahead of an interpreter one (`cat > n.md <<MD … MD` then `bash <<SH git add -A SH`)
+#   blanked the interpreter's program too and every rule went blind to it. Now each `<<WORD` is judged on
+#   the text between the previous heredoc's closer and itself — which is where its owner is named.
+cmd_nohere=""
+_hd_rest="$cmdn"
+_hd_open="<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?"
+while [[ "$_hd_rest" =~ $_hd_open ]]; do
+  _hd_tok="${BASH_REMATCH[0]}"; _hd_w="${BASH_REMATCH[1]}"
+  _hd_pre="${_hd_rest%%"$_hd_tok"*}"
+  _hd_post="${_hd_rest#*"$_hd_tok"}"
+  # ⚠ THE STRIP FAILS CLOSED, reusing the rule the rebase-guard learned the hard way: a terminator word
+  #   appearing a SECOND time as a standalone token lets a strip swallow real commands after the heredoc
+  #   (measured 2026-08-05: a body ending `A`, then a real `git checkout origin/main -- oxydex-dsp.js`,
+  #   then a stray `A` — the checkout was stripped and the rule passed). So act only when the terminator
+  #   appears EXACTLY ONCE standalone in the whole command; otherwise keep the rest of the text raw.
+  if [ "$(printf '%s' "$cmdn" | grep -oE "(^|[[:space:]])$_hd_w([[:space:]]|$)" | wc -l)" -ne 1 ] \
+     || ! [[ "$_hd_post" =~ (^|[[:space:]])"$_hd_w"([[:space:]]|$) ]]; then
+    break
   fi
+  _hd_end="${BASH_REMATCH[0]}"
+  _hd_body="${_hd_post%%"$_hd_end"*}"
+  _hd_after="${_hd_post#*"$_hd_end"}"
+  # Does the command OWNING this heredoc read it as a program? If so the body is CODE and every rule
+  # keeps it raw — but it is still SKIPPED PAST to its closer, so text inside a program is never
+  # mistaken for a further heredoc opener.
+  if printf '%s' "$_hd_pre" | grep -qE '(^|[;&|[:space:]])(bash|sh|zsh|python3?|node|perl|ruby|php)([[:space:]]|$)'; then
+    cmd_nohere="$cmd_nohere$_hd_pre$_hd_tok$_hd_body$_hd_end"
+  else
+    cmd_nohere="$cmd_nohere$_hd_pre "
+  fi
+  _hd_rest="$_hd_after"
+done
+if [ -n "$_hd_rest" ]; then
+  cmd_nohere="$cmd_nohere$_hd_rest"
 fi
 
 GITX='(^|[^[:alnum:]_-])([^[:space:];&|]*/)?git([[:space:]]+(-[cC][[:space:]]*("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--git-dir=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--work-tree=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--exec-path=[^[:space:]]*|--no-pager))*[[:space:]]+'
