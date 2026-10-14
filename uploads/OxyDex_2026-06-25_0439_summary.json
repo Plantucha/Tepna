@@ -362,8 +362,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5644fda9fbdf",
-          "computeHash": "e49b8035d641"
+          "manifestHash": "51ee056e012b",
+          "computeHash": "d73f562c02a9"
         },
         "evidence": {
           "envelopeRef": null,
@@ -391,8 +391,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5644fda9fbdf",
-          "computeHash": "e49b8035d641"
+          "manifestHash": "51ee056e012b",
+          "computeHash": "d73f562c02a9"
         },
         "evidence": {
           "envelopeRef": null,
@@ -420,8 +420,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5644fda9fbdf",
-          "computeHash": "e49b8035d641"
+          "manifestHash": "51ee056e012b",
+          "computeHash": "d73f562c02a9"
         },
         "evidence": {
           "envelopeRef": null,
@@ -449,8 +449,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "5644fda9fbdf",
-          "computeHash": "e49b8035d641"
+          "manifestHash": "51ee056e012b",
+          "computeHash": "d73f562c02a9"
         },
         "evidence": {
           "envelopeRef": null,
@@ -851,7 +851,7 @@
       }
     },
     "hrAdvanced": {
-      "rmssd": 0.74,
+      "rmssd": 0.57,
       "hrIQR": 3,
       "meanHRpb": 51.5,
       "meanHRnonPb": 49.7,
