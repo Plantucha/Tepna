@@ -113,14 +113,7 @@
       "why": "KILLABLE — the guard fires on the NORMAL case, so interpolation is skipped and every mid-interval query snaps to the left anchor."
     }
   ],
-  "cpap_edf.py": [
-    {
-      "class": "no-distinguishing-input",
-      "key": "- [0] * n_records) # values are recomputed on write; placeholders here | + [1] * n_records) # values are recomputed on write; placeholders here",
-      "probe": "same lane, same reasoning: the placeholder value is never emitted.",
-      "why": "A PROOF: the Crc16 lane's samples are placeholders that write_edf NEVER reads — it recomputes the checksum from the other signals' bytes per record (crc16_ccitt), and read-back overwrites them with those computed values. So [0], [1], or None all produce byte-identical output. No input distinguishes."
-    }
-  ],
+  "cpap_edf.py": [],
   "cpap_edf_writer.py": [
     {
       "brief": "CPAP controller-fix mutation-harden (#1701 follow-up)",
@@ -2685,24 +2678,6 @@
     },
     {
       "class": "no-distinguishing-input",
-      "key": "- inside_old body: a < old_end and | + a < old_end or",
-      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
-      "why": "The predicate's BODY is masked by its guard for every observed input. Given the filter `a <= start and old_end <= b`, and `start <= old_end` by construction of `changed_span`, we have a <= start <= old_end <= b — so `a < old_end` and `start < b` can only differ from True when a == start == old_end (a pure insertion at a span start). ⚠️ That case IS reachable in isolation (`x=\"ab\"` -> `x=z\"ab\"` yields a == start == old_end == 2), so this is NOT dead code — but the VERDICT does not change, because `inside_old` is ANDed with `inside_new` and the difference is masked. Recorded as no-distinguishing-input at the function's OUTPUT, which is what the gate observes. NOT simplified in code: 'no corpus diff changed the verdict' does not license removing a predicate, and that inference is the error this whole program exists to catch."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- inside_old body: a < old_end | + a <= old_end",
-      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
-      "why": "The predicate's BODY is masked by its guard for every observed input. Given the filter `a <= start and old_end <= b`, and `start <= old_end` by construction of `changed_span`, we have a <= start <= old_end <= b — so `a < old_end` and `start < b` can only differ from True when a == start == old_end (a pure insertion at a span start). ⚠️ That case IS reachable in isolation (`x=\"ab\"` -> `x=z\"ab\"` yields a == start == old_end == 2), so this is NOT dead code — but the VERDICT does not change, because `inside_old` is ANDed with `inside_new` and the difference is masked. Recorded as no-distinguishing-input at the function's OUTPUT, which is what the gate observes. NOT simplified in code: 'no corpus diff changed the verdict' does not license removing a predicate, and that inference is the error this whole program exists to catch."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- inside_old body: start < b for | + start <= b for",
-      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
-      "why": "The predicate's BODY is masked by its guard for every observed input. Given the filter `a <= start and old_end <= b`, and `start <= old_end` by construction of `changed_span`, we have a <= start <= old_end <= b — so `a < old_end` and `start < b` can only differ from True when a == start == old_end (a pure insertion at a span start). ⚠️ That case IS reachable in isolation (`x=\"ab\"` -> `x=z\"ab\"` yields a == start == old_end == 2), so this is NOT dead code — but the VERDICT does not change, because `inside_old` is ANDed with `inside_new` and the difference is masked. Recorded as no-distinguishing-input at the function's OUTPUT, which is what the gate observes. NOT simplified in code: 'no corpus diff changed the verdict' does not license removing a predicate, and that inference is the error this whole program exists to catch."
-    },
-    {
-      "class": "no-distinguishing-input",
       "key": "- if a <= start | + if a < start",
       "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
       "why": "A boundary of the containment guard that no reachable span geometry exercises: `_string_spans` returns non-overlapping half-open spans whose bounds cannot coincide with a change offset in the way these flips require. Evidenced, not argued — see the probe."
@@ -2710,12 +2685,6 @@
     {
       "class": "no-distinguishing-input",
       "key": "- old_end <= b) | + old_end < b)",
-      "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
-      "why": "A boundary of the containment guard that no reachable span geometry exercises: `_string_spans` returns non-overlapping half-open spans whose bounds cannot coincide with a change offset in the way these flips require. Evidenced, not argued — see the probe."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- a <= start (inside_new) | + a < start",
       "probe": "CANARY-VALIDATED CORPUS, run 2026-08-28. 2004 diffs over 8 base lines carrying string literals in every structural position, across four families: single-character substitution/deletion/insertion, TWO-PAIR diffs (first pair identical), two-character window replacement, and TRANSPOSITIONS. ⚠️ THE FIRST TWO CORPORA FAILED THEIR OWN CANARIES (1/3 then 2/3) and their nulls were discarded as blind; families were added until all THREE known-killable canaries were distinguished — `continue`->`break`, `scan_is_reliable(old) and`->`or`, and the guard `a <= start and old_end`->`or`. Only then was a no-difference result treated as evidence. Canaries were widened by FAMILY, never by adding the known killer itself, which would make the canary pass trivially.",
       "why": "A boundary of the containment guard that no reachable span geometry exercises: `_string_spans` returns non-overlapping half-open spans whose bounds cannot coincide with a change offset in the way these flips require. Evidenced, not argued — see the probe."
     },
@@ -2730,12 +2699,6 @@
       "key": "- saw_change = False | + saw_change = None",
       "probe": "AST ENUMERATION, exhaustive rather than sampled: exactly THREE occurrences of `saw_change` in `string_only_verdict` — two Stores (lines 191, 197) and a single Load, `if not saw_change` (line 207). Confirmed against the same 2004-diff canary-validated corpus: no difference.",
       "why": "A PROOF, not a judgement. The initial value's ONLY read is a truthiness test, and `not False` and `not None` are both True. There is no identity comparison, no arithmetic, no serialisation, and the variable is unconditionally reassigned to True when a span is found. No input can distinguish them."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- hi = max((getattr(n, \"end_lineno\", lo) or lo) ...) | + getattr(n, \"end_lineno\", None)",
-      "probe": "Direct: functions_covering() over a module-level function, a method, and a function nested inside a method, targeting the def line and body lines in each. Identical in every case. Also covered by the 2004-diff canary-validated corpus used for this module's other entries.",
-      "why": "A PROOF: the getattr default is consumed immediately by `or lo`. If `end_lineno` is absent the original yields `lo or lo` and the mutant `None or lo` — both `lo`. The two can only differ if `lo` itself were falsy, and `lo` is `child.lineno`, a 1-based line number that is always >= 1. So no AST, and no input, distinguishes them."
     },
     {
       "class": "no-distinguishing-input",
@@ -2792,24 +2755,6 @@
       "probe": "2- and 3-segment capture-host/… literals; the 3-segment case kills the rsplit sibling, and neither maxsplit variant changes [0]. Validated on #2872's branch: 14 → 6, no REFUTED.",
       "why": "EQUIVALENT — `[0]` is the FIRST segment whatever the maxsplit: `split('/', 1)[0]`, `split('/', 2)[0]` and `split('/')[0]` all return the text before the first separator. ⚠️ The sibling mutation `split(None, 1)` is NOT equivalent — it splits on whitespace — and is killed by test_root_reads_excludes_the_TREE_ITSELF_by_its_first_segment.",
       "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=None, errors=\"replace\")):",
-      "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
-      "why": "`encoding=None` selects the locale's preferred encoding, which is UTF-8 on CI (ubuntu-latest) and on the box; the output is byte-identical to the explicit `utf-8`. Distinguishable only under a non-UTF-8 locale, which no supported host runs — and the explicit argument exists so that stays true."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(errors=\"replace\")):",
-      "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
-      "why": "Dropping `encoding=` is the same `encoding=None` default as the entry above: locale-preferred, UTF-8 on every supported host."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"utf-8\", errors=\"replace\")): | + for lit in re.findall(r\"\"\"[\"']([^\"'\\n]+)[\"']\"\"\", t.read_text(encoding=\"UTF-8\", errors=\"replace\")):",
-      "probe": "Run 2026-09-25 in a 3.11 venv, UTF-8 locale (`locale.getpreferredencoding(False)` = utf-8), against a `.py` holding one Latin-1 byte and one `\\xff` in a comment above a root-file literal (the plant `test_root_reads_survives_a_NON_UTF8_byte_in_a_test_file`): original and the three variants each return the same text and the literal is found. The other three mutants on this line (`errors=None`, `errors=` dropped, `errors=\"REPLACE\"`) raise UnicodeDecodeError / LookupError on the same input and are KILLED by that plant.",
-      "why": "`\"UTF-8\"` and `\"utf-8\"` name one codec — `codecs.lookup` normalises case — so the decode is byte-identical for every input."
     },
     {
       "class": "no-distinguishing-input",
@@ -3467,6 +3412,7 @@
       "before": "with open(ledger_path, \"a\", encoding=\"utf-8\") as fh:",
       "op": "kwarg encoding=\"utf-8\" → None",
       "class": "untestable-by-design",
+      "key": "- with open(ledger_path, \"a\", encoding=\"utf-8\") as fh: | + with open(ledger_path, \"a\", encoding=None) as fh:",
       "brief": "OXYII-ACQUISITION-CHARTER G1",
       "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
       "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
@@ -3476,24 +3422,7 @@
       "before": "with open(ledger_path, \"a\", encoding=\"utf-8\") as fh:",
       "op": "kwarg encoding=\"utf-8\" → removed",
       "class": "untestable-by-design",
-      "brief": "OXYII-ACQUISITION-CHARTER G1",
-      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
-      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
-    },
-    {
-      "line": 152,
-      "before": "with open(ledger_path, encoding=\"utf-8\") as fh:",
-      "op": "kwarg encoding=\"utf-8\" → None",
-      "class": "untestable-by-design",
-      "brief": "OXYII-ACQUISITION-CHARTER G1",
-      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
-      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
-    },
-    {
-      "line": 152,
-      "before": "with open(ledger_path, encoding=\"utf-8\") as fh:",
-      "op": "kwarg encoding=\"utf-8\" → removed",
-      "class": "untestable-by-design",
+      "key": "- with open(ledger_path, \"a\", encoding=\"utf-8\") as fh: | + with open(ledger_path, \"a\") as fh:",
       "brief": "OXYII-ACQUISITION-CHARTER G1",
       "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
       "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
@@ -3506,34 +3435,6 @@
       "key": "- fh.truncate(selection.resume.offset) | + fh.truncate(None)",
       "probe": "existing content in {b'', b'AB', b'ABXYZW', b'A'*50} x offset in {0,1,2,6,50} x chunk sets {(cd), (c,d), (empty), none} — 52 cases, 0 produced differing bytes",
       "why": "`file.truncate(None)` truncates at the CURRENT stream position, and the line immediately above is `fh.seek(selection.resume.offset)` — so the position already IS that offset and the two calls compute the same thing. The explicit argument stays because it states the intent independently of the preceding seek: if a later edit moves or removes that seek, the explicit form keeps working and the implicit one silently truncates somewhere else."
-    },
-    {
-      "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §2",
-      "class": "untestable-by-design",
-      "key": "- resume_strategy(0, reported, allow_resume=allow_resume), 1)) | + resume_strategy(0, reported, allow_resume=allow_resume), ))",
-      "probe": "Selection(..., 1) == Selection(...) with attempt defaulted -> True; both .attempt == 1",
-      "why": "The dropped literal is `attempt=1`, and `Selection.attempt` is a dataclass field whose DEFAULT is 1 — so the explicit argument and the default are the same value by construction. Verified as dataclass equality, not by argument alone."
-    },
-    {
-      "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §5",
-      "class": "untestable-by-design",
-      "key": "- resume_strategy(0, reported, allow_resume=allow_resume), 1)) | + resume_strategy(0, None, allow_resume=allow_resume), 1))",
-      "probe": "resume_strategy(0, X, allow_resume=Y) evaluated over X in {None,0,1,8,500,1e9} x Y in {True,False} — 12 combinations, 1 distinct result: ('restart', 0, 'no partial bytes on disk')",
-      "why": "The call site passes the LITERAL 0 as partial_bytes, and `resume_strategy` returns `Resume(RESTART, 0, 'no partial bytes on disk')` on that first branch before reading either later argument. So no input to `select()` can reach a use of them here — the difference is unreachable by construction at this call site, not merely untested. ⚠ It is equivalent HERE and nowhere else: the same operators on the OTHER `resume_strategy(have, reported, ...)` call (where `have` comes from the ledger) ARE killable and are killed by test_select_feeds_the_ledger_size_and_the_reported_size_into_the_decision and test_select_passes_allow_resume_through."
-    },
-    {
-      "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §5",
-      "class": "untestable-by-design",
-      "key": "- resume_strategy(0, reported, allow_resume=allow_resume), 1)) | + resume_strategy(0, reported, allow_resume=None), 1))",
-      "probe": "resume_strategy(0, X, allow_resume=Y) evaluated over X in {None,0,1,8,500,1e9} x Y in {True,False} — 12 combinations, 1 distinct result: ('restart', 0, 'no partial bytes on disk')",
-      "why": "The call site passes the LITERAL 0 as partial_bytes, and `resume_strategy` returns `Resume(RESTART, 0, 'no partial bytes on disk')` on that first branch before reading either later argument. So no input to `select()` can reach a use of them here — the difference is unreachable by construction at this call site, not merely untested. ⚠ It is equivalent HERE and nowhere else: the same operators on the OTHER `resume_strategy(have, reported, ...)` call (where `have` comes from the ledger) ARE killable and are killed by test_select_feeds_the_ledger_size_and_the_reported_size_into_the_decision and test_select_passes_allow_resume_through."
-    },
-    {
-      "brief": "OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md §5",
-      "class": "untestable-by-design",
-      "key": "- resume_strategy(0, reported, allow_resume=allow_resume), 1)) | + resume_strategy(0, reported, ), 1))",
-      "probe": "resume_strategy(0, X, allow_resume=Y) evaluated over X in {None,0,1,8,500,1e9} x Y in {True,False} — 12 combinations, 1 distinct result: ('restart', 0, 'no partial bytes on disk')",
-      "why": "The call site passes the LITERAL 0 as partial_bytes, and `resume_strategy` returns `Resume(RESTART, 0, 'no partial bytes on disk')` on that first branch before reading either later argument. So no input to `select()` can reach a use of them here — the difference is unreachable by construction at this call site, not merely untested. ⚠ It is equivalent HERE and nowhere else: the same operators on the OTHER `resume_strategy(have, reported, ...)` call (where `have` comes from the ledger) ARE killable and are killed by test_select_feeds_the_ledger_size_and_the_reported_size_into_the_decision and test_select_passes_allow_resume_through."
     }
   ],
   "oxyii.py": [
@@ -5980,13 +5881,6 @@
       "key": "- kind = target.get(\"kind\") or PROTOCOLS.get(target.get(\"protocol\", \"\"), (\"transfer\",))[0] | + kind = target.get(\"kind\") or PROTOCOLS.get(target.get(\"protocol\", ), (\"transfer\",))[0]",
       "probe": "Same 60-combination battery as mutmut_11 (dict.get with no default is None on a missing key): 0 of 60 differed. Run empirically 2026-10-08 on this VM.",
       "why": "dict.get(\"protocol\") with no default returns None on a missing key, so this mutant is input-identical to mutmut_11, which is equivalent by the PROTOCOLS-key argument above: neither \"\" nor None is a key, both hit the (\"transfer\",) default."
-    },
-    {
-      "brief": "dest_status local-branch reason: the '(unset)' literal is unreachable (mutmut_67)",
-      "class": "untestable-by-design",
-      "key": "- return {\"ready\": ok, \"path\": mp, \"reason\": None if ok else f\"{mp or '(unset)'} does not exist\"} | + return {\"ready\": ok, \"path\": mp, \"reason\": None if ok else f\"{mp or '(UNSET)'} does not exist\"}",
-      "probe": "Ran dest_status over 72 targets (protocol x mountpoint x kind battery: absent/empty/existent/nonexistent/out-of-root paths): the '(unset)' literal rendered 0 times. Run empirically 2026-10-08 on this VM.",
-      "why": "About the CODE, not the suite: `mp = target.get(\"mountpoint\") or \"\"` is falsy exactly when the mountpoint is absent/empty, and a falsy mp takes the early return (\"no mountpoint configured\") two lines above — the f-string line is reached only with truthy mp, where `mp or '(unset)'` short-circuits to mp and the literal never evaluates. No input can render it, so no test can observe its spelling."
     }
   ],
   "polar_psftp.py": [
