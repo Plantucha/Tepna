@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** REFERENCE (living — last-verified 2026-09-13) · **Created:** 2026-09-13
+**Status:** REFERENCE (living — last-verified 2026-10-15) · **Created:** 2026-09-13
 
 # The Tool Build Standard — what any long-running analysis tool in this repo must do
 
@@ -53,6 +53,11 @@ carries **results**, not merely a position — a checkpoint you can read a parti
 worth more than one you can only restart from. Write it atomically (temp file, then rename) so a
 concurrent reader never sees a half-written file, and discard an unparseable one rather than
 half-trusting it.
+
+A multi-phase build checkpoints **each phase's completed units**, not just the final artefact. The
+coverage-map builder ran one instrumented process per group and wrote the map only at the end; two
+runtime restarts (2h14m and 54m in) lost everything both times, while the per-file sweep beside it
+resumed cleanly from its journal. The unit of checkpointing is the unit of work, wherever it lives.
 
 *Verify:* kill the process mid-run, restart with `--resume`, and assert the output contains each
 unit exactly once. *Measured:* required by the ~6 h corpus runs; a resumed run must produce
@@ -232,6 +237,28 @@ read every step.** A subset that passed is not evidence about the steps it did n
 An inapplicable requirement is stated as inapplicable. Silence is indistinguishable from oversight,
 and a reviewer cannot tell a considered omission from a forgotten one.
 
+### 2.12 · Unattended runs finish without a human between passes
+
+A tool that can be resumed can be resumed by the tool. When a bounded in-run watchdog (the §2.3
+stall-restart) exhausts itself and the run is still INCOMPLETE, the tool offers a mode that keeps
+re-entering from the checkpoint until the work completes or a declared pass cap is hit — no manual
+re-invocation between passes. Each pass re-enters the same bounded watchdog, so the outer loop
+cannot spin forever on a permanently wedged unit; it just stops needing a person to type the same
+command again.
+
+*Measured:* a file sweep stalled four times, was recorded INCOMPLETE, and waited for a human to
+re-run the identical command — which resumed from the journal and made progress. The human added
+nothing the tool could not have done itself.
+
+### 2.13 · Compliance is declared in a machine-readable form
+
+§2.11 requires the declaration; this clause requires the shape. Each long-running tool carries a
+short manifest — one line per clause of this standard — stating `met`, `n/a` with a reason, or
+`missing`. Prose alone rots: a paragraph claiming resumability is never re-checked, while a manifest
+entry can be spot-verified by a gate or a reviewer. The manifest lives where the tool's documentation
+already lives (its header comment or a sibling file), not in a central registry that drifts from the
+tools it describes.
+
 ## 3 · Failure catalogue
 
 Each entry is a real defect, retained because the failure mode is not obvious from the rule alone.
@@ -280,7 +307,7 @@ decided.**
 Before opening a pull request for a long-running tool:
 
 - [ ] §2.1 semantic search run; query and top hits recorded
-- [ ] §2.2 killed mid-run and resumed; 0 duplicates, 0 re-processed units
+- [ ] §2.2 killed mid-run and resumed; 0 duplicates, 0 re-processed units; multi-phase builds checkpoint each phase
 - [ ] §2.3 `SIGKILL` verified to take every worker; checkpoint stable afterwards
 - [ ] §2.4 heartbeat shows a real running value on a partial run, not a placeholder
 - [ ] §2.6 per-unit profile recorded; compute strategy follows from it in writing
@@ -290,6 +317,8 @@ Before opening a pull request for a long-running tool:
 - [ ] §2.10 `npm run check` run IN FULL (not a hand-picked subset) and green, including
       `verify:tools-index` after adding any `tools/` file
 - [ ] §2.11 every unimplemented requirement declared
+- [ ] §2.12 unattended mode verified: an INCOMPLETE run resumes itself to completion or the declared cap
+- [ ] §2.13 machine-readable compliance manifest present and accurate
 
 ## 5 · Relationship to existing convention
 
@@ -302,3 +331,8 @@ read a verdict off a truncated result) applies to every summary it prints.
 judgement calls — "is this clamp justified?" — would convict working tools, and an invariant that
 convicts correct code is the wrong invariant. This is a review reference; if a clause later proves
 mechanically checkable, that is its own unit of work.
+
+The mechanically-checkable subset is the exception that proves the rule. `--selftest` presence is
+already gated; checkpoint-file existence, heartbeat emission, PID-file killability and a parseable
+§2.13 manifest are similarly checkable without judging quality. A gate that asserts *presence* of the
+mechanism — never the *quality* of its judgement calls — convicts nothing that works.
