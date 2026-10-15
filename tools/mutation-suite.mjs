@@ -31,6 +31,7 @@
  * USAGE
  *   node tools/mutation-suite.mjs                      # sweep the fleet, resuming what it can
  *   node tools/mutation-suite.mjs --file oxydex-dsp.js # one file (repeatable)
+ *   node tools/mutation-suite.mjs --file oxydex-dsp.js --until-done  # keep resuming to COMPLETE
  *   node tools/mutation-suite.mjs --status             # read state, run nothing
  *   node tools/mutation-suite.mjs --kill               # stop a running suite, by PID
  *   node tools/mutation-suite.mjs --build-map          # (re)build the coverage map, stamped
@@ -87,6 +88,12 @@ const JOBS = Math.max(2, Number(opt('--jobs', String(Math.max(2, cpus().length -
 const STALL_MS = Math.max(60, Number(opt('--stall-min', '10')) * 60) * 1000;
 const MAX_RESTARTS = Math.max(0, Number(opt('--max-restarts', '3')));
 const QUIET = has('--quiet');
+/* --until-done: an INCOMPLETE file is an interruption, not a result. Re-running the same command
+   resumes from the journal, so loop the file until it completes or the pass cap is hit. Each pass
+   re-enters runFile's own stall watchdog (bounded by --max-restarts), so this cannot spin forever
+   on a permanently wedged mutant — it just stops needing a human between passes. */
+const UNTIL_DONE = has('--until-done');
+const MAX_PASSES = Math.max(1, Number(opt('--max-passes', '5')) || 5);
 /* An UNKNOWN lane is a stop, never a silent default. `--lane pseduo` running the operators lane and
    reporting operator numbers under a pseudo heading is the shape of error this repo keeps paying for:
    a run that succeeded at something other than what was asked. */
@@ -552,6 +559,26 @@ async function runFile(file, ident, loaded, lane) {
   }
 }
 
+/* --until-done: runFile already auto-resumes within a pass (bounded by --max-restarts), but a file
+   that exhausts its restarts is returned INCOMPLETE and the suite moves on — a human must re-run
+   the same command to continue. For unattended runs that is the wrong default: the journal persists,
+   so re-invoking is always progress. Loop the file until it completes or the pass cap is hit. */
+async function runFileUntilDone(file, ident, loaded, lane) {
+  const allStalls = [];
+  let pass = 0;
+  let r;
+  do {
+    pass++;
+    if (pass > 1) log('   ↻ --until-done pass ' + pass + '/' + MAX_PASSES + ' — resuming ' + file + ' (' + r.reason + ')');
+    r = await runFile(file, ident, loaded, lane);
+    if (Array.isArray(r.stalls)) allStalls.push(...r.stalls);
+  } while (UNTIL_DONE && r.incomplete && pass < MAX_PASSES);
+  r.stalls = allStalls;
+  if (UNTIL_DONE && r.incomplete)
+    log('   ✗ --until-done gave up after ' + pass + ' pass(es) — ' + file + ' is still INCOMPLETE (' + r.reason + '). Re-run with a higher --max-passes, or investigate the wedged mutant.');
+  return r;
+}
+
 // ── commands ───────────────────────────────────────────────────────────────────────────────────
 function cmdKill() {
   const p = pidFile();
@@ -621,7 +648,9 @@ function cmdBuildMap() {
   const dest = mapCandidates(ROOT)[0];
   mkdirSync(dirname(dest), { recursive: true });
   log('building the coverage map → ' + dest);
-  log('(one c8 run per group; ~10 min. It is written STAMPED, so a later sweep can tell whether it still applies.)');
+  log('(one interval-coverage run per group; tens of minutes on this box. Each completed group is');
+  log(' checkpointed, so a killed build resumes where it stopped instead of restarting.');
+  log(' The map is written STAMPED, so a later sweep can tell whether it still applies.)');
   execFileSync('node', ['tools/per-group-coverage.mjs', '--out', dest, '--jobs', String(JOBS)], { cwd: ROOT, stdio: 'inherit' });
   log('✓ map written to the git common dir — every worktree of this repo can now see it');
 }
@@ -1478,6 +1507,9 @@ function selftest() {
 
   console.log('\nparseArgv — an unknown flag must not launch a multi-hour sweep');
   ck('--help is a known flag, and asks for help', parseArgv(['--help']), { unknown: [], help: true });
+  ck('--until-done is a known flag', parseArgv(['--until-done']), { unknown: [], help: false });
+  ck('--max-passes takes a value, not mistaken for a flag', parseArgv(['--max-passes', '7']), { unknown: [], help: false });
+  ck('--until-done composes with --file', parseArgv(['--file', 'oxydex-dsp.js', '--until-done']), { unknown: [], help: false });
   ck('-h too', parseArgv(['-h']).help, true);
   ck('a typo is UNKNOWN rather than a fleet launch', parseArgv(['--satus']), { unknown: ['--satus'], help: false });
   /* Arity, not pattern: the value of a known flag is consumed, so it is never reported as unknown. */
@@ -2434,6 +2466,8 @@ export const CLI_FLAGS = {
   '--jobs': 1,
   '--stall-min': 1,
   '--max-restarts': 1,
+  '--max-passes': 1,
+  '--until-done': 0,
   '--lane': 1,
   // Added 2026-08-23 after all five were REFUSED in production. The table had been written from the
   // tool's DOCUMENTED flags rather than the ones it actually reads, so `--crawl-dir` — implemented at
@@ -2473,6 +2507,8 @@ const USAGE = [
   '    --jobs N           worker pool          (default: cores minus 2, min 2)',
   '    --stall-min N      watchdog patience    (default 10)',
   '    --max-restarts N   bounded auto-resume  (default 3)',
+  '    --until-done       keep resuming INCOMPLETE files (default off)',
+  '    --max-passes N     passes per file with --until-done (default 5)',
   '    --lane L           operators (default) | pseudo | delete   — they are NOT comparable',
   '    --quiet            no per-mutant lines, keep the heartbeat',
   '',
@@ -2546,7 +2582,7 @@ if (INVOKED_DIRECTLY) {
         log('skip ' + f + ' (not found)');
         continue;
       }
-      results.push(await runFile(f, ident, loaded, LANE));
+      results.push(await runFileUntilDone(f, ident, loaded, LANE));
     }
     log('\n── suite done');
     for (const r of results)

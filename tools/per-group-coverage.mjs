@@ -49,9 +49,15 @@
  *   node tools/per-group-coverage.mjs --jobs 12
  *   node tools/per-group-coverage.mjs --out PATH
  *   node tools/per-group-coverage.mjs --selftest
+ *
+ * RESUME — each completed group is checkpointed beside the map (`.pgc-tmp/checkpoint.json`,
+ * written atomically). Re-running the same command verifies the checkpoint's identity (source,
+ * suite and runner hashes) and skips the groups it already holds; a source edit between the kill
+ * and the resume discards the checkpoint and starts fresh. A finished build deletes the checkpoint
+ * with the rest of the tmp dir.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -154,6 +160,32 @@ function coverOne(index, tmpDir) {
   });
 }
 
+/* ── CHECKPOINT: a killed map build resumes instead of restarting ──────────────────────────────
+   The build is one c8 run per group — minutes of embarrassingly parallel work with no intermediate
+   output. Killed at 90 % it previously restarted from zero (measured: two runtime restarts, 2h14m
+   and 54m, both lost). Each completed group is now checkpointed beside the map it builds; a re-run
+   verifies the checkpoint's identity and skips the groups it already holds.
+
+   The identity check is the whole safety case: group coverage is keyed on LINE NUMBERS, so a
+   checkpoint written before a source edit would attribute stale lines. A mismatch discards the
+   checkpoint and starts fresh — fail-closed, the same direction as verifyFor. */
+export function checkpointDecision(ckpt, ident) {
+  if (!ckpt || typeof ckpt !== 'object') return { use: false, reason: 'no checkpoint' };
+  if (!Array.isArray(ckpt.results)) return { use: false, reason: 'checkpoint has no results array' };
+  const id = ckpt.identity;
+  if (!id || typeof id !== 'object') return { use: false, reason: 'checkpoint carries no identity' };
+  const ws = ident.sources || {};
+  const cs = id.sources || {};
+  if (Object.keys(ws).length !== Object.keys(cs).length) return { use: false, reason: 'checkpoint stamps a different file set' };
+  for (const f of Object.keys(ws)) {
+    if (!(f in cs)) return { use: false, reason: 'checkpoint predates ' + f + ' (unstamped)' };
+    if (cs[f] !== ws[f]) return { use: false, reason: f + ' changed since the checkpoint — line numbers moved' };
+  }
+  if (id.tests !== ident.tests) return { use: false, reason: 'tests/dex-tests.js changed since the checkpoint — group indices may have shifted' };
+  if (id.runner !== ident.runner) return { use: false, reason: 'tests/run-tests.mjs changed since the checkpoint — it enumerates the group indices' };
+  return { use: true, reason: 'checkpoint identity matches' };
+}
+
 // ── selftest ────────────────────────────────────────────────────────────────────────────────
 if (IS_MAIN && has('--selftest')) {
   let pass = 0,
@@ -214,6 +246,22 @@ if (IS_MAIN && has('--selftest')) {
     );
   }
   ok('§1: the default --out IS the shared candidate mutation-map reads first', /tepna-mutation\/per-group\.json$/.test(mapCandidates(ROOT)[0]), mapCandidates(ROOT)[0]);
+
+  /* checkpointDecision — a killed build resumes; a stale checkpoint is discarded, never trusted. */
+  const CID = { sources: { 'a-dsp.js': 'AAA', 'b-dsp.js': 'BBB' }, tests: 'TTT', runner: 'RRR' };
+  const cks = (over) => ({ identity: { ...CID, ...(over || {}) }, results: [], baseline: null });
+  ok('checkpoint: none → fresh', checkpointDecision(null, CID).use === false);
+  ok('checkpoint: unparseable shape → fresh', checkpointDecision({ nope: 1 }, CID).use === false);
+  ok('checkpoint: no results array → fresh', checkpointDecision({ identity: CID }, CID).use === false);
+  ok('checkpoint: no identity → fresh', checkpointDecision({ results: [] }, CID).use === false);
+  ok('checkpoint: matching identity → resume', checkpointDecision(cks(), CID).use === true);
+  ok('checkpoint: moved source → discard', checkpointDecision(cks({ sources: { 'a-dsp.js': 'OLD', 'b-dsp.js': 'BBB' } }), CID).use === false);
+  ok('checkpoint: …saying the file moved', /a-dsp\.js changed/.test(checkpointDecision(cks({ sources: { 'a-dsp.js': 'OLD', 'b-dsp.js': 'BBB' } }), CID).reason));
+  ok('checkpoint: different file set → discard', checkpointDecision(cks({ sources: { 'a-dsp.js': 'AAA' } }), CID).use === false);
+  ok('checkpoint: moved suite → discard', checkpointDecision(cks({ tests: 'OLD' }), CID).use === false);
+  ok('checkpoint: moved runner → discard', checkpointDecision(cks({ runner: 'OLD' }), CID).use === false);
+  ok('checkpoint: null runner on either side → discard', checkpointDecision(cks({ runner: null }), CID).use === false);
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -234,26 +282,71 @@ if (IS_MAIN && !has('--selftest')) {
   if (limit) groups = groups.slice(0, limit);
   console.log(`▸ per-group coverage — ${groups.length} group(s), ${jobs} worker(s)\n`);
 
+  /* ── RESUME ────────────────────────────────────────────────────────────────────────────────
+     A checkpoint beside the map holds { identity, baseline, results } — one entry per completed
+     group, written atomically after each. On re-run the identity is verified before anything is
+     reused: coverage is keyed on line numbers, so a source edit between the kill and the resume
+     must discard the checkpoint, not poison the map with stale attributions. */
+  const ckptPath = join(tmpDir, 'checkpoint.json');
+  const ckptIdent = buildIdentity(ROOT, DSP_FILES);
+  let ckpt = null;
+  try {
+    ckpt = JSON.parse(readFileSync(ckptPath, 'utf8'));
+  } catch {
+    ckpt = null; /* absent or unparseable → fresh run; an unparseable checkpoint is discarded, never half-trusted */
+  }
+  const ckDec = checkpointDecision(ckpt, ckptIdent);
+  const doneIdx = new Set();
+  let results = [];
+  let baseline = null;
+  let resumed = false;
+  if (ckDec.use) {
+    for (const r of ckpt.results) {
+      results.push(r);
+      doneIdx.add(r.index);
+    }
+    baseline = ckpt.baseline;
+    resumed = true;
+    console.log(`  ↻ resuming checkpoint: ${results.length} group(s) already covered, ${groups.length - results.length} to go`);
+  } else if (ckpt) {
+    console.log(`  checkpoint present but unusable (${ckDec.reason}) — starting fresh`);
+  }
+  /* Atomic write: temp file + rename, so a kill mid-write never leaves a half-written checkpoint
+     for the next run to half-trust. */
+  const writeCkpt = () => {
+    const tmp = ckptPath + '.tmp';
+    writeFileSync(tmp, JSON.stringify({ identity: ckptIdent, baseline, results }));
+    renameSync(tmp, ckptPath);
+  };
+
   /* BASELINE FIRST — the load-time coverage every group pays. `--group-index=999999` matches no
      group, so zero group bodies run while every DSP is still loaded. If it fails we do NOT subtract:
      an un-subtracted map over-selects, which costs time; a wrongly-subtracted one under-selects,
-     which skips tests that would have killed mutants. */
-  console.log('  measuring load-time baseline (no group executes)…');
-  const baseRes = await coverOne(999999, tmpDir);
-  const baseline = baseRes.unknown ? null : baseRes.files;
-  if (!baseline) console.log(`  ⚠ baseline FAILED (${baseRes.reason}) — not subtracting; the map will over-select (safe, slower).`);
-  else
+     which skips tests that would have killed mutants. Skipped on resume — the checkpoint already
+     holds the baseline it was measured under. */
+  if (!resumed) {
+    console.log('  measuring load-time baseline (no group executes)…');
+    const baseRes = await coverOne(999999, tmpDir);
+    baseline = baseRes.unknown ? null : baseRes.files;
+    if (!baseline) console.log(`  ⚠ baseline FAILED (${baseRes.reason}) — not subtracting; the map will over-select (safe, slower).`);
+    else
+      console.log(
+        `  baseline: ${Object.entries(baseline)
+          .map(([f, l]) => f.replace('-dsp.js', '') + ' ' + l.length)
+          .join(' · ')}\n`
+      );
+  } else if (baseline) {
     console.log(
-      `  baseline: ${Object.entries(baseline)
+      `  baseline (from checkpoint): ${Object.entries(baseline)
         .map(([f, l]) => f.replace('-dsp.js', '') + ' ' + l.length)
         .join(' · ')}\n`
     );
+  }
   const baseSets = {};
   for (const f of Object.keys(baseline || {})) baseSets[f] = new Set(baseline[f]);
 
-  const results = [];
-  let done = 0;
-  const queue = groups.slice();
+  let done = results.length;
+  const queue = groups.filter((g) => !doneIdx.has(g.index));
   const t0 = Date.now();
   const worker = async () => {
     for (;;) {
@@ -270,6 +363,7 @@ if (IS_MAIN && !has('--selftest')) {
       }
       results.push({ ...r, title: g.title, tag: g.tag });
       done++;
+      writeCkpt(); /* checkpoint every completed group — a kill loses at most the in-flight ones */
       if (done % 10 === 0 || done === groups.length) {
         const el = Math.round((Date.now() - t0) / 1000);
         console.log(`  ${done}/${groups.length}  (${el}s elapsed)`);
