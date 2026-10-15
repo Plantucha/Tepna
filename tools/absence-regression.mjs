@@ -183,7 +183,7 @@ function main() {
   const base = fullTree ? EMPTY_TREE : baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
   const head = 'HEAD';
 
-  const diff = sh(`git diff ${base}..${head} -U0 -- '*.js' ':!tests/'`);
+  const diff = sh(`git diff ${base}..${head} -U0 -- '*.js' '*.src.html' ':!tests/'`);
   const { hits, scanned } = classifyAdded(diff.split('\n'));
 
   if (fullTree) {

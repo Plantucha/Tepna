@@ -295,7 +295,7 @@ function main() {
   const baseIdx = process.argv.indexOf('--base');
   const base = fullTree ? EMPTY_TREE : baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
 
-  const diff = sh(`git diff ${base}..HEAD -U3 -- '*.js' ':!tests/' ':!tools/'`);
+  const diff = sh(`git diff ${base}..HEAD -U3 -- '*.js' '*.src.html' ':!tests/' ':!tools/'`);
   const { violations, sinksAdded } = scanDiff(diff.split('\n'));
 
   if (fullTree) {
