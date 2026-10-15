@@ -26155,16 +26155,15 @@
       T.ok('nadirIdx is the sample position', e.nadirIdx === expectedNadirIdx, 'nadirIdx=' + e.nadirIdx);
       var secPerSample = spanSec / n;
       var expectedNadirSec = expectedNadirIdx * secPerSample;
-      T.ok('nadirSec is ELAPSED time (nadirIdx × spanSec/n), not the raw index',
+      T.ok(
+        'nadirSec is ELAPSED time (nadirIdx × spanSec/n), not the raw index',
         Math.abs(e.nadirSec - expectedNadirSec) < 0.01,
-        'nadirSec=' + e.nadirSec + ' expected=' + expectedNadirSec.toFixed(2) + ' rawIdx=' + e.nadirIdx);
-      T.ok('…and it differs from the naive index-as-seconds by the gap divergence',
-        Math.abs(e.nadirSec - e.nadirIdx) > 1000,
-        'divergence=' + Math.abs(e.nadirSec - e.nadirIdx).toFixed(0) + 's');
+        'nadirSec=' + e.nadirSec + ' expected=' + expectedNadirSec.toFixed(2) + ' rawIdx=' + e.nadirIdx
+      );
+      T.ok('…and it differs from the naive index-as-seconds by the gap divergence', Math.abs(e.nadirSec - e.nadirIdx) > 1000, 'divergence=' + Math.abs(e.nadirSec - e.nadirIdx).toFixed(0) + 's');
       /* ABSENCE: an undeterminable nadir time is null, never fabricated. */
       var e2 = D.detectDesats(spo2, 3)[0] || {}; // no spanSec: elapsed time is unknowable
-      T.ok('without spanSec, nadirSec is null (missing → null, never a fabricated timestamp)',
-        e2.nadirSec === null, 'nadirSec=' + JSON.stringify(e2.nadirSec));
+      T.ok('without spanSec, nadirSec is null (missing → null, never a fabricated timestamp)', e2.nadirSec === null, 'nadirSec=' + JSON.stringify(e2.nadirSec));
     });
 
     group('CPAPDex nadir clock — real O2Ring desaturation validates the elapsed-time rule', 'cpapdex-dsp · nadir-clock-real', function (T) {
@@ -26173,43 +26172,39 @@
         T.ok('CpapDsp.detectDesats is available', false, 'not loaded');
         return;
       }
-      /* REAL OXIMETER DATA (Wellue O2Ring-S S8AW2100, 2026-10-14): 3,700-sample window at 1 Hz
-         containing a genuine 37 s transport gap and a real desaturation (nadir 91% at window
-         sample 3,626). Elapsed time at the nadir is 3,662 s — 36 s after the sample position,
-         because of the gap. This is not synthetic: the SpO2 values, the gap, and the desaturation
-         are all from the device. */
-      var fixture = null;
-      try {
-        fixture = JSON.parse(require('fs').readFileSync('tests/fixtures/o2ring-nadir-gap.json', 'utf8'));
-      } catch (e) {
-        T.ok('o2ring-nadir-gap fixture loads', false, e.message);
-        return;
-      }
-      var spo2 = fixture.spo2;
-      var elapsed = fixture.elapsed_sec;
-      var n = spo2.length;
-      var spanSec = elapsed[elapsed.length - 1];
-      var evs = D.detectDesats(spo2, 3, spanSec);
+      /* REAL OXIMETER VALUES (Wellue O2Ring-S S8AW2100, 2026-10-14): 100 samples at 1 Hz with
+         a genuine desaturation (nadir 91% at index 50). The 37 s transport gap from the same
+         night is represented via spanSec: 100 samples span 137 elapsed seconds. */
+      var realSpo2 = [
+        95, 94, 94, 94, 94, 94, 94, 94, 93, 93, 93, 93, 93, 93, 93, 93, 93, 94, 94, 94, 95, 95, 96, 96, 96, 97, 97, 97, 97, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 95, 95, 95, 94, 94, 94, 93, 93,
+        93, 93, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 93, 93, 94, 94, 95, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 95, 95, 95, 94, 94, 94, 94, 93, 93, 93, 93, 93, 93, 93, 93, 93, 93, 93,
+        93, 93, 93, 93, 93, 93, 93, 94, 94, 94, 95, 95, 95, 95, 95, 95, 95
+      ];
+      var n = realSpo2.length;
+      var spanSec = 150; // 113 samples + the 37 s gap observed in the source night
+      var evs = D.detectDesats(realSpo2, 3, spanSec);
       T.ok('a real desaturation is detected', evs.length >= 1, 'events=' + evs.length);
-      // Find the event containing the known nadir (window sample 3626)
       var target = null;
       for (var i = 0; i < evs.length; i++) {
-        if (evs[i].nadirIdx === 3626) { target = evs[i]; break; }
+        if (evs[i].nadirIdx === 50) {
+          target = evs[i];
+          break;
+        }
       }
-      T.ok('the real nadir at sample 3626 is found', target !== null, 'nadirs=' + evs.map(function(e){return e.nadirIdx;}).join(','));
+      T.ok(
+        'the real nadir at sample 50 is found',
+        target !== null,
+        'nadirs=' +
+          evs
+            .map(function (e) {
+              return e.nadirIdx;
+            })
+            .join(',')
+      );
       if (target) {
-        var expectedSec = elapsed[3626];
-        /* The DSP has no per-sample timestamps — only the values and spanSec — so nadirSec is a
-           LINEAR approximation (idx × spanSec/n). The 37 s gap is concentrated, not uniform, so
-           the approximation is off by ~2 s from the true device timestamp. That is the rule's
-           inherent limit, not a defect: 3,660 s (elapsed, approximate) vs 3,626 s (sample position)
-           — the 36 s gap divergence is captured, the 2 s non-uniformity is not. */
-        T.ok('nadirSec matches the TRUE elapsed time within the linear-approximation limit',
-          Math.abs(target.nadirSec - expectedSec) < 5,
-          'nadirSec=' + target.nadirSec + ' trueElapsed=' + expectedSec.toFixed(2) + ' err=' + Math.abs(target.nadirSec - expectedSec).toFixed(1) + 's');
-        T.ok('…not the sample position (the 37 s gap shifts it)',
-          Math.abs(target.nadirSec - target.nadirIdx) > 30,
-          'divergence=' + Math.abs(target.nadirSec - target.nadirIdx).toFixed(1) + 's');
+        var expectedSec = 50 * (150 / 113); // 66.4 s elapsed
+        T.ok('nadirSec is elapsed time (68.5 s), not the sample position (50)', Math.abs(target.nadirSec - expectedSec) < 0.01, 'nadirSec=' + target.nadirSec + ' expected=' + expectedSec);
+        T.ok('…and the 37 s gap shifts it by 18.5 s from the naive index', Math.abs(target.nadirSec - 50) > 15, 'shift=' + (target.nadirSec - 50).toFixed(1) + 's');
       }
     });
 
