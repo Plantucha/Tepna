@@ -26180,7 +26180,6 @@
         93, 93, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 93, 93, 94, 94, 95, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 95, 95, 95, 94, 94, 94, 94, 93, 93, 93, 93, 93, 93, 93, 93, 93, 93, 93,
         93, 93, 93, 93, 93, 93, 93, 94, 94, 94, 95, 95, 95, 95, 95, 95, 95
       ];
-      var n = realSpo2.length;
       var spanSec = 150; // 113 samples + the 37 s gap observed in the source night
       var evs = D.detectDesats(realSpo2, 3, spanSec);
       T.ok('a real desaturation is detected', evs.length >= 1, 'events=' + evs.length);
@@ -71331,6 +71330,98 @@
     /* …and the loop closed: a node that declares holes must MOVE the published denominator, and the
        export must say which denominator it used. Without this the emitters could ship correct and
        still change nothing, which is precisely what happened to part 1. */
+    /* MUTANT-SURVIVOR PINS (2026-10-16 triage). The ECG mutant run with the fixed tools
+       left 16 survivors; three are pinned here. These tests
+       pin the correct behavior so the mutants stay dead. */
+
+    group('ECG mutant survivors \u2014 the guards that must not weaken', 'ecgdex-dsp \u00b7 mutation \u00b7 regression', function (T) {
+      var E = env.ECGDex;
+
+      // SURVIVOR ecgdex-dsp.js:2498 -- the _relGate floor 1.0 must not become 0. REM's LF/HF gate is
+      // night-relative WITH a floor: without it, a night where every epoch is parasympathetic-dominant
+      // (q65 < 1.0) gets a purely relative gate and labels the least-vagal epoch REM. The mutant drops
+      // the floor; the 0.8-LF/HF epoch below must stay Light.
+      if (env.ECGDSP && typeof env.ECGDSP.stageSleep === 'function') {
+        var SE = env.ECGDSP.stageSleep;
+        var seps = [];
+        for (var ei = 0; ei < 10; ei++) {
+          seps.push({
+            tMin: ei * 5,
+            lfhf: ei === 5 ? 0.8 : 0.5,
+            rmssd: ei === 5 ? 20 : 30,
+            hr: 60
+          });
+        }
+        var stages = SE(seps, null);
+        T.eq('LF/HF 0.8 with q65=0.5 stays Light, not REM (the 1.0 floor holds)', stages[5] && stages[5].stage, 'Light');
+        T.ok(
+          'and the low-LF/HF epochs stay Light too (no gate collapse)',
+          stages.every(function (s) {
+            return s.stage === 'Light';
+          }),
+          stages
+            .map(function (s) {
+              return s.stage;
+            })
+            .join(',')
+        );
+      } else {
+        T.skip('ECGDSP.stageSleep available', 'not on this build');
+      }
+
+      if (!E) {
+        T.skip('ECGDex co-loaded', 'env.ECGDex missing');
+        return;
+      }
+
+      // \u2500\u2500 survivor ecgdex-dsp.js:5899 (bool && \u2192 ||): a non-finite firstRelMs must NOT take the
+      // EXACT branch \u2014 the ms column is garbage, so coverage falls back to the {idx, ms} walk. The mutant
+      // took EXACT with a NaN base and produced zero segments.
+      if (typeof E.coverage === 'function') {
+        var T0 = 1000000000000;
+        var nanRec = {
+          t0Ms: T0,
+          fs: 130,
+          int16: { length: 130 * 3600 },
+          firstRelMs: NaN,
+          lastRelMs: 3600000,
+          gaps: [{ atRelMs: 1000000, endRelMs: 1600000, idx: 130000, ms: 600000 }]
+        };
+        var ncov = E.coverage(nanRec);
+        T.ok(
+          'NaN firstRelMs \u21d2 the {idx,ms} FALLBACK, not the EXACT branch (two finite segments)',
+          !!ncov && ncov.n === 2,
+          JSON.stringify(ncov && { n: ncov.n, segs: ncov.segments && ncov.segments.length })
+        );
+        if (ncov && ncov.segments && ncov.segments.length === 2) {
+          T.ok(
+            '\u2026and the fallback segments are finite wall-clock spans',
+            isFinite(ncov.segments[0].startMs) && isFinite(ncov.segments[1].startMs),
+            JSON.stringify([ncov.segments[0].startMs - T0, ncov.segments[1].startMs - T0])
+          );
+        }
+      } else {
+        T.skip('ECGDex.coverage available', 'not on this build');
+      }
+
+      // \u2500\u2500 survivor ecgdex-dsp.js:6283 (bool && \u2192 ||): a truthy non-object opts.code (a version
+      // string) is NOT a bundle identity \u2014 code must be null with a codeReason. The mutant built
+      // { manifestHash: undefined, computeHash: undefined }.
+      if (typeof E.buildMeasurementBlocks === 'function') {
+        var mr = { t0Ms: 1000000000000, endEpochMs: 1000003600000, hr: 62 };
+        var mout = E.buildMeasurementBlocks(mr, { code: 'v1.2.3-not-an-object' });
+        T.ok('a measurement block is built', !!mout && !!mout.hr, mout ? Object.keys(mout).join(',') : 'null');
+        if (mout && mout.hr) {
+          T.eq('truthy non-object opts.code \u21d2 code is null, not a hollow object', mout.hr.code, null);
+          T.ok('\u2026and the null is explained (codeReason), not silent', typeof mout.hr.codeReason === 'string' && mout.hr.codeReason.length > 0, String(mout.hr.codeReason).slice(0, 60));
+        }
+        var mok = E.buildMeasurementBlocks(mr, { code: { manifestHash: 'abc', computeHash: 'def' } });
+        T.eq('CONTROL \u00b7 object opts.code \u21d2 carried through untouched', mok && mok.hr && mok.hr.code && mok.hr.code.manifestHash, 'abc');
+      } else {
+        T.skip('ECGDex.buildMeasurementBlocks available', 'not on this build');
+      }
+    });
+
     group('A declared hole reaches the published AHI — and the export says so', 'integrator-dsp · apnea · coverage · gap-aware', function (T) {
       var RF = env.runFusion;
       T.ok('runFusion available', typeof RF === 'function');
@@ -71960,13 +72051,13 @@
           T.skip('CPAPCross not in env');
           return;
         }
-        /* mutant: bool || → &&  @ if (!a || !b || !a.values || !b.values || !a.values.length || !b.values.length) 
+        /* mutant: bool || → &&  @ if (!a || !b || !a.values || !b.values || !a.values.length || !b.values.length)
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the comparison operation successfully identified a missing channel error instead of throwing an except */
         {
           var out = NS.compareChannel([]);
           T.eq('NS.compareChannel([]) → out.ok', JSON.stringify(out.ok), 'false');
         }
-        /* mutant: bool || → &&  @ if (!a || !b || !a.values || !b.values || !a.values.length || !b.values.length) 
+        /* mutant: bool || → &&  @ if (!a || !b || !a.values || !b.values || !a.values.length || !b.values.length)
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): Whether the function correctly identifies missing channels and returns a failure reason instead of throwing an */
         {
           var out = NS.compareChannel(1, []);
