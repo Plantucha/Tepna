@@ -32,7 +32,7 @@ body[data-conn="reconnecting"]::before{
 :root{
   --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
   --border:#1e2d42; --border2:#253550;
-  --text:#F4F7FB; --text2:#9FB0C3; --text3:#8C9DB3; --text4:#6E7F94;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#9DB1C7; --text4:#7F92A9;
   --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#a78bfa;
   --accent:var(--teal);
   --status-ok:var(--green); --status-caution:var(--amber); --status-concern:var(--red);
@@ -133,7 +133,7 @@ body.light .sidebar-logo-rule{border-top-color:rgba(0,0,0,.08);}
 .topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
   background:linear-gradient(90deg,rgba(61,224,208,.35),rgba(88,166,255,.2),transparent 70%);}
 .topbar-title{font-size:22px;font-weight:var(--fw-bold);letter-spacing:-.02em;}
-.topbar-sub{font-size:12px;color:var(--text3);margin-top:2px;}
+.topbar-sub{font-size:12px;color:var(--text2);margin-top:2px;}
 .topbar-actions{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;justify-content:flex-end;}
 .version-badge{display:inline-flex;align-items:center;background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.2);
   border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;color:var(--teal);margin-left:8px;vertical-align:middle;}
@@ -199,6 +199,9 @@ body.light .section-title::after{background:rgba(0,0,0,.06);}
 .ov-stat .val{font-size:22px;font-weight:700;line-height:1;font-family:ui-monospace,monospace;letter-spacing:-.02em;}
 .ov-stat .val.val-addr{font-size:12px;letter-spacing:0;line-height:1.3;word-break:break-all;}   /* full BLE MAC must wrap inside the card, not overflow it */
 .ov-stat .sub{font-size:11px;color:var(--text3);margin-top:4px;}
+/* QC device-group rows: the device name reads one step brighter than the channel list so the
+   grouped "Device · n — ch, ch" rows scan as rows, not as a continued sentence. */
+.ov-stat .sub .qc-dev{color:var(--text2);font-weight:600;}
 /* `.bad` here is ALWAYS parent-scoped (.batt.bad, .rssi.bad, .clk.bad, .nfr.bad) — there is no generic
    rule, so `class="sub bad"` without this line renders in the ordinary grey and a warning that must be
    acted on reads as one more detail. */
@@ -3754,7 +3757,7 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive, heartbe
     const colour = failing ? 'var(--status-bad)' : (never ? 'var(--status-caution)' : 'var(--status-ok)');
     cards.push(`<div class="ov-stat" style="border-left-color:${colour}">
       <div class="lab">Alerts</div>
-      <div class="val" style="font-size:15px">${failing?'FAILING':(never?'unproven':'ok')}</div>
+      <div class="val" style="font-size:15px">${failing?'FAILING':(never?'unproven':'OK')}</div>
       <div class="sub">${failing ? esc(String(alerts.last_error)).slice(0,80)
                        : never ? 'enabled, nothing delivered yet'
                        : ('last '+esc(when)+' UTC · '+esc(alerts.delivered)+' delivered'
@@ -3816,13 +3819,29 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive, heartbe
     const warn = !!storage.low;
     const keep = storage.keep_nights>0 ? ('keep '+storage.keep_nights+' nights') : 'no auto-prune';
     cards.push(`<div class="ov-stat" style="border-left-color:${warn?'var(--status-caution)':'var(--status-ok)'}">
-      <div class="lab">Disk</div>
+      <div class="lab">Disk · free</div>
       <div class="val">${esc(storage.free_gb)} GB</div>
       <div class="sub">${storage.free_pct!=null ? esc(storage.free_pct)+'% free' : 'free fraction unknown'} · ${esc(keep)}${warn?' · LOW':''}</div></div>`);
   }
   if(qc){
     const miss = qc.missing||[], degr = qc.degraded||[], holes = qc.gaps||[];
     const ok = !!qc.ok;                    // ok now means: no gap AND no trickle AND the whole night
+    // GROUP BY DEVICE for the gap/low lists. "Wellue O2Ring-S:spo2" splits on the LAST colon into
+    // device + channel (a device name may itself contain one). Eleven "Device:channel" strings
+    // comma-joined read as a wall; three device rows (device · count — channels) scan at a glance.
+    function groupChans(list){
+      const byDev = {}, order = [];
+      (list||[]).forEach(e=>{
+        const s = String(e), i = s.lastIndexOf(':');
+        const dev = i>0 ? s.slice(0,i) : s, ch = i>0 ? s.slice(i+1) : '';
+        if(!byDev[dev]){ byDev[dev] = []; order.push(dev); }
+        if(ch) byDev[dev].push(ch);
+      });
+      return order.map(d=>({dev:d, chans:byDev[d]}));
+    }
+    const chanRows = list => groupChans(list).map(g=>
+      `<span class="qc-dev">${esc(g.dev)}</span> · ${g.chans.length} — ${esc(g.chans.join(', '))}`
+    ).join('<br>');
     // A gap (a stream with no data) is worse than a trickle (a stream well below its rate), but neither
     // is "Complete". Report whichever is present so a night that merely under-delivered can't read green.
     let val, sub;
@@ -3843,10 +3862,10 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive, heartbe
       sub = (qc.total_rows||0).toLocaleString()+' rows · '+esc(qc.night);
     } else if(miss.length){
       val = miss.length+' gap'+(miss.length===1?'':'s');
-      sub = 'no data: '+esc(miss.join(', '))+(degr.length?(' · low: '+esc(degr.join(', '))):'');
+      sub = 'no data:<br>'+chanRows(miss)+(degr.length?('<br>low: '+esc(degr.join(', '))):'');
     } else if(degr.length){
       val = degr.length+' low';                      // data present but under-rate — the honesty case
-      sub = 'below rate: '+esc(degr.join(', '));
+      sub = 'below rate:<br>'+chanRows(degr);
     } else {
       // EVERY DECLARED STREAM DELIVERED — BUT NOT ACROSS THE WHOLE NIGHT. The numbers above describe
       // the CURRENT session only, because a hole longer than the session threshold sits between it and
