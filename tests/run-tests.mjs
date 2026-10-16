@@ -600,6 +600,10 @@ function readSources() {
     'oxydex-util.js',
     'pulsedex-dsp.js',
     'oxydex-dsp.js',
+    /* OXYDEX-ACCURACY-HARNESS: listed in BOTH lanes. The browser lane's SOURCE_FILES scans it, so
+       readSources() must too — otherwise the id-emission ratchet sees a different `body` per lane
+       and the undeclared baseline can't be equal in both (ct90 is name-referenced here). */
+    'oxydex-accuracy.js',
     'hrvdex-dsp.js',
     'integrator-dsp.js',
     'ppgdex-dsp.js',
