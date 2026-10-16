@@ -306,7 +306,7 @@ export function progressSignal({ parsed, text, bytes }) {
  * whoever spawned it, and a process at 100 % CPU proves nothing about whether it is advancing.
  */
 export function readJournalProgress(text) {
-  const out = { started: 0, done: 0, killed: 0, survived: 0, invalid: 0, records: [] };
+  const out = { started: 0, done: 0, killed: 0, survived: 0, invalid: 0, quarantined: 0, records: [] };
   for (const line of String(text).split('\n')) {
     if (!line) continue;
     let o;
@@ -324,6 +324,8 @@ export function readJournalProgress(text) {
     out.done++;
     if (o.v === 'KILLED') out.killed++;
     else if (o.v === 'INVALID') out.invalid++;
+    /* QUARANTINED is unmeasured, not survived: lumping it into survived would let a wedged sweep
+       report survivors it never actually tested. */ else if (o.v === 'QUARANTINED') out.quarantined++;
     else out.survived++;
     out.records.push(o);
   }
@@ -1350,6 +1352,15 @@ function selftest() {
   ck('a START with no verdict is IN FLIGHT', pr.inFlight, 1);
   ck('a torn final line is discarded, never fatal', pr.done, 2);
   ck('an empty journal is zero, not a crash', readJournalProgress('').done, 0);
+  ck(
+    'a QUARANTINED mutant is counted apart, never as survived',
+    (() => {
+      const q = readJournalProgress('{"k":"q"}\n{"k":"q","v":"QUARANTINED","r":"no-progress"}');
+      return q.quarantined + ':' + q.survived;
+    })(),
+    '1:0'
+  );
+  ck('a scope header is not a mutant start', readJournalProgress('{"h":"scope","v":1}\n{"k":"q"}').started, 1);
 
   console.log('\nstallVerdict — stuck and slow look identical from outside; only the journal tells them apart');
   ck('progress means not stuck, however long it took', stallVerdict({ doneNow: 5, donePrev: 4, msSinceProgress: 9e9, stallMs: 1000 }).stuck, false);

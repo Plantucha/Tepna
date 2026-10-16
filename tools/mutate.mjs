@@ -147,13 +147,27 @@ const BUDGET = +opt('--budget', '0');
 const DRY = has('--dry-run');
 const AS_JSON = has('--json');
 /* ── RESUME + STREAM ─────────────────────────────────────────────────────────────────────────
-   `--resume`   pick up from the journal, quarantining any mutant that started and never finished
+   `--resume`   pick up from the journal, quarantining any mutant that started and never finished.
+                The journal's scope header must match this invocation field-for-field, or the run
+                refuses (fail-closed) rather than misattributing verdicts.
    `--journal`  path override; `--no-journal` disables recording entirely
-   `--quiet-stream` suppress the per-mutant line (the aggregate progress line still prints) */
+   `--quiet-stream` suppress the per-mutant line (the aggregate progress line still prints)
+   `--quarantine-timeout <ms>`  SIGKILL a mutant whose suite run goes silent for this long (default
+                300000, 0 disables); journaled QUARANTINED, excluded from the kill rate
+   `--verdict`  print the TOOL-BUILD-STANDARD section 2.13 compliance manifest as JSON on stdout */
 const RESUME = has('--resume');
 const INCREMENTAL = has('--incremental');
 const JOURNAL = has('--no-journal') ? false : opt('--journal', null);
 const STREAM = !has('--quiet-stream');
+/* `--quarantine-timeout <ms>` — the no-progress watchdog (default 300000). A mutant whose suite run
+   emits no stdout for this long is SIGKILLed and journaled QUARANTINED, and the sweep moves on.
+   Elapsed-time timeouts cannot tell a slow box from a jammed mutant; silence can: a healthy suite
+   streams group results continuously, while a wedged one goes quiet. 0 disables it (the elapsed
+   timeout still bounds the run). Pooled path only; --jobs 1 keeps the sync runner's elapsed timeout. */
+const QUARANTINE_MS = +opt('--quarantine-timeout', '300000');
+/* `--verdict` — print the TOOL-BUILD-STANDARD section 2.13 machine-readable compliance manifest as
+   JSON on stdout after the run. */
+const WANT_VERDICT = has('--verdict');
 /* Mutants are independent, so this is embarrassingly parallel — but every mutant rewrites the SAME
    file, so they cannot share a tree. Each worker gets its own `git worktree` (shares the object store)
    and mutates its own copy: the isolation CLAUDE.md §👥 already prescribes, applied to the harness
@@ -454,6 +468,29 @@ export function invalidWarning(invalid, tested, killed) {
     ' is not.\n'
   );
 }
+/* The honest denominator: mutants that were actually measured. INVALID never ran and QUARANTINED
+   never completed, so both are excluded — a rate over either would be a number about nothing.
+   Pure and exported so --selftest pins it. */
+export function measuredDenominator(r) {
+  return r.tested - r.invalid - (r.quarantined || 0);
+}
+/* A quarantine is not a verdict — it is the harness saying "this mutant wedged me". One is a bad
+   mutant; many is a sick suite or a loaded box, and the reader cannot tell which without being told
+   the count. Pure and exported so --selftest pins it. */
+export function quarantineWarning(q, tested, quarantineMs) {
+  if (!(q > 0)) return null;
+  return (
+    '\n  \u26a0 ' +
+    q +
+    ' of ' +
+    tested +
+    ' mutant(s) QUARANTINED \u2014 no suite output for ' +
+    Math.round(quarantineMs / 1000) +
+    's, SIGKILLed, journaled.\n' +
+    '    A couple is a jammed mutant; many is a sick suite or a box under load. They are listed in\n' +
+    '    `quarantinedMu` and excluded from the kill rate \u2014 unmeasured, not survived.\n'
+  );
+}
 /* ── DIFF-SCOPED MUTATION ───────────────────────────────────────────────────────────────────────
    Sweeping a whole DSP is unaffordable: `oxydex-dsp.js` alone generates 2678 mutants, ~38 h at 20
    workers, and the fleet is ~11,500. That cost is why mutation testing gets run once, admired, and
@@ -742,7 +779,7 @@ export function suiteArgs(filter) {
   if (typeof filter === 'string' && filter) return ['tests/run-tests.mjs', '--group=' + filter];
   return ['tests/run-tests.mjs'];
 }
-function runSuiteAsync(filter, cwd, timeoutMs) {
+function runSuiteAsync(filter, cwd, timeoutMs, quarantineMs) {
   return new Promise((resolve) => {
     /* DEX_BAIL stops the suite at the first FAILING group. Measured on a real clock.js mutant:
        289 s → 2 s, same exit code, same killers. It only ever shortens a run that is already red, so
@@ -757,12 +794,60 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
       env: BAIL ? { ...process.env, DEX_BAIL: '1' } : process.env
     });
     let out = '';
+    /* The promise settles exactly once: the no-progress watchdog and the close handler race, and
+       whichever fires first wins. Without the guard a SIGKILLed child whose 'close' arrives late
+       would resolve twice — the second resolution is silently dropped by the Promise, but the
+       explicit guard makes the single settlement visible rather than relied-upon. */
+    let settled = false;
+    const finish = (v) => {
+      if (settled) return;
+      settled = true;
+      if (watch) clearInterval(watch);
+      resolve(v);
+    };
+    /* ── THE NO-PROGRESS WATCHDOG ──
+       Elapsed-time timeouts cannot tell a slow box from a jammed mutant: both look like "too long".
+       Silence can. A healthy suite streams group results to stdout continuously; a mutant that wedges
+       the suite (an infinite loop, a deadlock) goes quiet. When no stdout has arrived for
+       `quarantineMs`, the child is SIGKILLed and the mutant is journaled QUARANTINED — and the sweep
+       moves on instead of stalling a worker for the rest of the elapsed timeout. This is the
+       in-process half of quarantine; the journal half (started-twice-never-finished) still applies
+       on --resume for anything the watchdog could not see. */
+    let lastOut = Date.now();
+    const qms = quarantineMs == null ? QUARANTINE_MS : quarantineMs;
+    let watch = null;
+    if (qms > 0) {
+      /* Check often enough to be prompt, seldom enough to be cheap; unref'd so the timer alone
+         never keeps the event loop alive. */
+      const step = Math.min(15000, Math.max(1000, qms));
+      watch = setInterval(() => {
+        if (settled) return;
+        if (Date.now() - lastOut >= qms) {
+          /* SIGKILL, not SIGTERM: a wedged suite can ignore TERM, and KILL cannot be caught. The
+             stdout pipe is destroyed too — a grandchild holding it open would otherwise keep
+             'close' pending forever, which is one of the shapes the ECG stalls took. */
+          try {
+            ch.kill('SIGKILL');
+          } catch (_) {
+            /* already gone */
+          }
+          try {
+            ch.stdout.destroy();
+          } catch (_) {
+            /* already gone */
+          }
+          finish({ verdict: 'QUARANTINED', killers: [], reason: 'no-progress' });
+        }
+      }, step);
+      if (watch.unref) watch.unref();
+    }
     ch.stdout.on('data', (d) => {
       out += d;
+      lastOut = Date.now();
     });
-    ch.on('error', () => resolve({ verdict: 'INVALID', killers: [] }));
+    ch.on('error', () => finish({ verdict: 'INVALID', killers: [] }));
     ch.on('close', (code, signal) => {
-      if (code === 0) return resolve({ verdict: 'SURVIVED', killers: [] });
+      if (code === 0) return finish({ verdict: 'SURVIVED', killers: [] });
       /* WHY it produced nothing matters, and the two causes look identical in the count. A mutant that
          HANGS was killed by the timeout (`code === null`, `signal` set); one that could not LOAD exited
          with a status. Both yield no assertion output, and lumping them together produced a wrong
@@ -776,7 +861,7 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
          Recording the reason lets a reader tell a real infinite loop from a busy afternoon; guessing
          between them is what produced the wrong diagnosis in the first place. */
       const reason = code === null || signal ? 'timeout' : 'no-output';
-      /* A NON-ZERO EXIT IS NOT AUTOMATICALLY A KILL. `/^\d{10,0}$/` is a syntactically invalid regex:
+      /* A NON-ZERO EXIT IS NOT AUTOMATICALLY A KILL. `/^\\d{10,0}$/` is a syntactically invalid regex:
          the file cannot be parsed, node exits 2, and the old classifier scored that as KILLED —
          indistinguishable from a mutant a test actually caught. Every kill rate this tool has ever
          reported was inflated by however many mutants produce unparseable code, systematically and in
@@ -787,11 +872,11 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
          did not run ⇒ INVALID, which `tested − invalid` already excludes from the denominator.
          Deliberately conservative — it only reclassifies runs that produced ZERO assertions, so a
          mutant that merely makes a group throw still counts as killed. */
-      if (verdictFromOutput(out) === 'INVALID') return resolve({ verdict: 'INVALID', killers: [], reason });
+      if (verdictFromOutput(out) === 'INVALID') return finish({ verdict: 'INVALID', killers: [], reason });
       const seen = new Set();
       KILLER_RE.lastIndex = 0;
       for (let m = KILLER_RE.exec(out); m !== null; m = KILLER_RE.exec(out)) seen.add(m[1]);
-      resolve({ verdict: 'KILLED', killers: Array.from(seen) });
+      finish({ verdict: 'KILLED', killers: Array.from(seen) });
     });
   });
 }
@@ -1060,6 +1145,51 @@ export function readJournal(text) {
     (n >= 2 ? jammed : retry).push(k);
   }
   return { done, jammed, retry };
+}
+
+/* ── JOURNAL SCOPE HEADER — fail-closed resume ──────────────────────────────────────────
+   The journal records WHAT was swept, not just the verdicts: without it, `--resume` happily
+   replays a 60-mutant journal onto a `--limit 30` invocation and reports a "complete" rate over
+   half the population. The header is the first record of a fresh journal; on resume the current
+   invocation's scope must match it field-for-field, or the run refuses (exit 2) rather than
+   misattributing work. A journal that predates the header resumes with a warning — it cannot be
+   verified, but refusing every old journal would strand real work. Pure and exported so
+   --selftest pins the round-trip and the refusal. */
+export function buildScope(o) {
+  o = o || {};
+  return {
+    h: 'scope',
+    v: 1,
+    file: o.file || null,
+    /* JSON has no Infinity: --diff/--only default to unlimited, recorded as the string. */
+    limit: Number.isFinite(o.limit) ? o.limit : 'unlimited',
+    filter: o.filter == null ? null : o.filter,
+    bail: !!o.bail,
+    full: !!o.full,
+    only: o.only || null,
+    diff: o.diff || null
+  };
+}
+export function readScopeHeader(text) {
+  for (const line of String(text || '').split('\n')) {
+    if (!line.trim()) continue;
+    let rec;
+    try {
+      rec = JSON.parse(line);
+    } catch (_) {
+      return null; // torn first line — unverifiable
+    }
+    /* An old journal's first record is a mutant start/verdict, never a header. */
+    return rec && rec.h === 'scope' ? rec : null;
+  }
+  return null;
+}
+export function scopeDiff(a, b) {
+  const out = [];
+  for (const k of ['file', 'limit', 'filter', 'bail', 'full', 'only', 'diff']) {
+    if (a[k] !== b[k]) out.push(k + ': journal=' + JSON.stringify(a[k]) + ' now=' + JSON.stringify(b[k]));
+  }
+  return out;
 }
 
 export function survivorKey(m) {
@@ -1371,7 +1501,23 @@ async function runFile(file) {
   const jkey = (m) => m.line + '\u0000' + m.op + '\u0000' + m.before + '\u0000' + m.after;
   let prior = { done: new Map(), jammed: [] };
   if ((RESUME || INCREMENTAL) && existsSync(journalPath)) {
-    prior = readJournal(readFileSync(journalPath, 'utf8'));
+    const journalText = readFileSync(journalPath, 'utf8');
+    prior = readJournal(journalText);
+    const scopeThen = readScopeHeader(journalText);
+    const scopeNow = buildScope({ file, limit: LIMIT, filter, bail: BAIL, full: FULL, only: ONLY, diff: DIFF ? DIFF_BASE : null });
+    if (scopeThen) {
+      const mism = scopeDiff(scopeThen, scopeNow);
+      if (mism.length) {
+        process.stderr.write(
+          '\n  ✕ RESUME REFUSED — the journal was written by a different sweep:\n' +
+            mism.map((m) => '    · ' + m).join('\n') +
+            '\n    Resume only the identical invocation, or drop --resume for a fresh run. A scope\n    change mid-history would silently misattribute verdicts.\n'
+        );
+        process.exit(2);
+      }
+    } else {
+      process.stderr.write('  ⚠ journal predates scope encoding — scope UNVERIFIED on this resume\n');
+    }
     process.stderr.write(
       '  resuming: ' + prior.done.size + ' mutant(s) already recorded' + (prior.jammed.length ? ', ' + prior.jammed.length + ' QUARANTINED as jammed (started, never finished)' : '') + '\n'
     );
@@ -1400,6 +1546,10 @@ async function runFile(file) {
       process.stderr.write('  ⚠ JOURNAL DISABLED — ' + String((e && e.message) || e).slice(0, 90) + '\n    this run is NOT resumable.\n');
     }
   };
+  /* The scope header goes down FIRST on a fresh journal — it is what a later --resume compares
+     against. Via jwrite (not a separate writeFileSync) so a broken journal says so once, like any
+     other write failure. */
+  if (!RESUME && !INCREMENTAL) jwrite(buildScope({ file, limit: LIMIT, filter, bail: BAIL, full: FULL, only: ONLY, diff: DIFF ? DIFF_BASE : null }));
 
   /* Apply the journal: replay recorded verdicts into the counters, and DROP both the finished
      mutants and the quarantined jammers from the queue. `picked` is re-bound rather than mutated so
@@ -1430,9 +1580,16 @@ async function runFile(file) {
       } else if (v === 'INVALID') {
         invalid++;
         invalids.push({ ...m, reason: 'recorded in a previous run' });
+      } else if (v === 'QUARANTINED') {
+        /* Quarantined in a previous run: never measured, so it joins the quarantine list for the
+           report but NOT done/resumedCount — it was not attempted by this run and must not inflate
+           `tested`. The picked-filter below already drops it from the queue via prior.done. */
+        quarantined.push({ line: m.line, op: m.op, before: m.before, after: m.after, reason: 'quarantined in a previous run' });
       } else survivors.push(m);
-      done++;
-      resumedCount++;
+      if (v !== 'QUARANTINED') {
+        done++;
+        resumedCount++;
+      }
     }
     picked = picked.filter((m) => !prior.done.has(jkey(m)) && !jam.has(jkey(m)));
     process.stderr.write(
@@ -1523,6 +1680,7 @@ async function runFile(file) {
   let resumedCount = 0;
   let killed = 0,
     invalid = 0,
+    quarantinedThisRun = 0,
     done = 0;
   const trees = [];
   const _t0 = Date.now();
@@ -1547,7 +1705,20 @@ async function runFile(file) {
        quarter. The number that explained it was in a field you had to open the JSON to see. A count
        that changes how you read every other count belongs beside them. */
     const body =
-      file + '  ' + done + '/' + picked.length + '  killed ' + killed + '  survived ' + survivors.length + (invalid ? '  invalid ' + invalid : '') + '  [' + (trees.length || 1) + ' job(s)]';
+      file +
+      '  ' +
+      done +
+      '/' +
+      picked.length +
+      '  killed ' +
+      killed +
+      '  survived ' +
+      survivors.length +
+      (invalid ? '  invalid ' + invalid : '') +
+      (quarantinedThisRun ? '  quarantined ' + quarantinedThisRun : '') +
+      '  [' +
+      (trees.length || 1) +
+      ' job(s)]';
     if (process.stderr.isTTY) {
       process.stderr.write('\r  ' + body + '   ');
       return;
@@ -1602,6 +1773,13 @@ async function runFile(file) {
     } else if (verdict === 'INVALID') {
       invalid++;
       invalids.push({ ...mu, reason: (typeof v === 'string' ? null : v.reason) || 'no-output' });
+    } else if (verdict === 'QUARANTINED') {
+      /* A quarantined mutant never completed a verdict, so like INVALID it is excluded from the
+         kill-rate denominator — unmeasured, not survived. It stays in the report (and the journal)
+         as its own kind, because "the suite timed out" and "the mutant wedged the suite" are
+         different diagnoses with different fixes. */
+      quarantinedThisRun++;
+      quarantined.push({ line: mu.line, op: mu.op, before: mu.before, after: mu.after, reason: (typeof v === 'string' ? null : v.reason) || 'no-progress' });
     } else survivors.push(mu);
     jwrite({
       k: jkey(mu),
@@ -1615,7 +1793,7 @@ async function runFile(file) {
        sweep is alive; it does not tell you WHAT it is finding, and on a 13 h run the difference
        between "still working" and "working on something useful" is worth a line each. */
     if (STREAM) {
-      const mark = verdict === 'KILLED' ? '✓ KILLED  ' : verdict === 'INVALID' ? '⊘ invalid ' : '✗ SURVIVED';
+      const mark = verdict === 'KILLED' ? '✓ KILLED  ' : verdict === 'INVALID' ? '⊘ invalid ' : verdict === 'QUARANTINED' ? '⚠ QUARANTINED' : '✗ SURVIVED';
       /* ETA from the SAME trailing window the aggregate line uses, so the two can never disagree.
          Below 3 completions the rate is dominated by pool build-out and is marked `~` rather than
          printed as if it were a measurement. */
@@ -1700,6 +1878,8 @@ async function runFile(file) {
           killed,
           invalid,
           invalids,
+          quarantined: quarantinedThisRun,
+          quarantinedMu: quarantined,
           killers: Array.from(killers.entries())
             .sort((a, b) => b[1] - a[1])
             .map(([group, n]) => ({ group, n })),
@@ -1748,6 +1928,8 @@ async function runFile(file) {
      problem, and the reader has no way to know which they are looking at unless the tool says so. */
   const warn = invalidWarning(invalid, picked.length, killed);
   if (warn) process.stderr.write(warn);
+  const qwarn = quarantineWarning(quarantinedThisRun, picked.length, QUARANTINE_MS);
+  if (qwarn) process.stderr.write(qwarn);
   if (canaryState === 'FAILED') {
     process.stderr.write(
       '\n  ✕ CANARY SURVIVED on ' +
@@ -1804,6 +1986,10 @@ async function runFile(file) {
     tested: picked.length - (canaryMu ? 1 : 0) + resumedCount + reusedCount,
     killed: canaryState === 'FAILED' ? null : killed,
     invalid,
+    /* Mutants quarantined THIS run (they are in `tested`, hence excluded from the rate) and the full
+       quarantine list for the report (this run's plus any carried over from a resumed journal). */
+    quarantined: quarantinedThisRun,
+    quarantinedMu: quarantined,
     // the mutants that never RAN — listed, so a survivor can never hide as a bare count again
     invalids,
     /* WHICH groups did the killing, and how many mutants each accounted for. The union over a whole
@@ -1879,6 +2065,53 @@ export function verdictObject(status, { checked, eligible, result, reason, evide
     base: base == null ? null : base
   };
 }
+/* ── §2.13 COMPLIANCE MANIFEST ──────────────────────────────────────────────────────────────
+   TOOL-BUILD-STANDARD §2.13: each long-running tool carries a short manifest — one line per clause
+   of the standard — stating `met`, `n/a` with a reason, or `missing`. Prose alone rots; a manifest
+   entry can be spot-verified by a gate or a reviewer. This is the tool's declaration about its own
+   construction; `--verdict` prints it as JSON. Statuses are closed (the three words), and an `n/a`
+   without a reason is a lie by omission — the selftest pins both. */
+export const COMPLIANCE_CLAUSES = Object.freeze([
+  {
+    clause: '2.1',
+    title: 'Search before asserting a capability does not exist',
+    status: 'met',
+    reason: 'fleet builds run Rule-0 doc-search before new tools; this tool reuses tests/run-tests.mjs and verdict.js instead of reimplementing'
+  },
+  { clause: '2.2', title: 'Resumable from the last completed unit', status: 'met', reason: 'per-mutant journal plus --resume; the scope header refuses a cross-scope resume fail-closed' },
+  { clause: '2.3', title: 'Stoppable and killable', status: 'met', reason: 'SIGTERM/SIGKILL via mutate-recover; the no-progress watchdog SIGKILLs wedged mutants' },
+  { clause: '2.4', title: 'Continuously observable', status: 'met', reason: 'per-minute heartbeat, per-mutant STREAM lines, progress line with ETA' },
+  { clause: '2.5', title: 'Heartbeat that survives redirection', status: 'met', reason: 'heartbeat and progress go to stderr, never stdout' },
+  {
+    clause: '2.6',
+    title: 'The parallelism must be measured, not assumed',
+    status: 'met',
+    reason: 'pool sized from measured cores and per-job memory; the per-mutant timeout is calibrated at 5x a timed clean run'
+  },
+  { clause: '2.7', title: 'Degrade by capability, and report the tier taken', status: 'met', reason: 'DEX_BAIL tiers and the serial --jobs 1 fallback each announce themselves on stderr' },
+  { clause: '2.8', title: 'Size the pool to the machine, and justify the clamp', status: 'met', reason: 'cpus() and MemAvailable with a measured per-job figure; an explicit --jobs always wins' },
+  { clause: '2.9', title: 'Generic across callers, or explicitly single-purpose', status: 'met', reason: 'explicitly single-purpose: JS DSP mutation harness, declared in the header' },
+  { clause: '2.10', title: 'Run the full gate as the delivery step', status: 'n/a', reason: 'delivery-process clause: it binds PRs (npm run check), not this tool\u2019s runtime' },
+  { clause: '2.11', title: 'Declare what is not implemented', status: 'met', reason: 'the header documents known limits: bail attribution breadth, timeout-vs-hang ambiguity' },
+  {
+    clause: '2.12',
+    title: 'Unattended runs finish without a human between passes',
+    status: 'met',
+    reason: 'the no-progress quarantine lets a sweep finish without intervention; the journal resumes the rest'
+  },
+  { clause: '2.13', title: 'Compliance is declared in a machine-readable form', status: 'met', reason: 'this manifest, via --verdict' }
+]);
+export function complianceManifest(run) {
+  return {
+    schema: 'tepna.tool-compliance/1',
+    tool: 'tools/mutate.mjs',
+    standard: 'briefs/TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md',
+    clauses: COMPLIANCE_CLAUSES.map((c) => ({ clause: c.clause, title: c.title, status: c.status, reason: c.reason || null })),
+    run: run || null,
+    producedBy: { tool: 'tools/mutate.mjs', commit: headCommit() },
+    at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  };
+}
 /* The decision over a finished run: the SAME order as the exit block below, so the code and the status
    cannot disagree. `results` are runFile() rows; `meta` = { base, commit, at }. Returns { verdict, code }. */
 /* The survivors one runFile row asks the gate to block on: its classified `blocking` list when it has
@@ -1920,7 +2153,7 @@ export function diffVerdict(results, meta) {
   const orphaned = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.orphaned) || []).length, 0);
   const notDecided = ok.reduce((a, r) => a + ((r.equivalence && r.equivalence.notDecided) || []).length, 0);
   const voided = ok.filter((r) => r.voided);
-  const unrun = ok.reduce((a, r) => a + r.invalid, 0);
+  const unrun = ok.reduce((a, r) => a + r.invalid + (r.quarantined || 0), 0);
   const tested = ok.reduce((a, r) => a + r.tested, 0);
   const killed = ok.reduce((a, r) => a + r.killed, 0);
   const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
@@ -2315,6 +2548,60 @@ function selftest() {
   ck('journal · junk lines are skipped', readJournal('not json\n{"k":"z","v":"KILLED"}').done.get('z').v, 'KILLED');
   ck('journal · a record with no key is ignored', readJournal('{"v":"KILLED"}').done.size, 0);
 
+  /* GAP 1 - hang quarantine: a silent mutant is QUARANTINED in-process, not retried into a stall */
+  ck(
+    'quarantine - a QUARANTINED journal record is done, never retried, never re-jammed',
+    (() => {
+      const q = readJournal('{"k":"q"}\n{"k":"q","v":"QUARANTINED","r":"no-progress"}');
+      return q.done.get('q').v + ':' + q.jammed.length + ':' + q.retry.length;
+    })(),
+    'QUARANTINED:0:0'
+  );
+  ck('quarantine - the honest denominator excludes quarantined as well as invalid', measuredDenominator({ tested: 60, invalid: 3, quarantined: 2 }), 55);
+  ck('quarantine - the warning fires on any quarantine and stays silent at zero', (quarantineWarning(0, 60, 300000) === null) + ':' + (quarantineWarning(2, 60, 300000) !== null), 'true:true');
+
+  /* GAP 2 - journal scope header: resume across a changed scope must refuse, fail-closed */
+  ck(
+    'scope - the header round-trips through the journal',
+    (() => {
+      const s = buildScope({ file: 'x-dsp.js', limit: 60, filter: 'x', bail: true, full: false, only: null, diff: null });
+      return readScopeHeader(JSON.stringify(s) + '\n{"k":"a"}').file;
+    })(),
+    'x-dsp.js'
+  );
+  ck('scope - a journal without a header reads as unverifiable, never as matching', readScopeHeader('{"k":"a"}' + '\n' + '{"k":"a","v":"KILLED"}'), null);
+  ck(
+    'scope - a changed --limit is a mismatch that must refuse resume',
+    scopeDiff(
+      buildScope({ file: 'x-dsp.js', limit: 60, filter: 'x', bail: true, full: false, only: null, diff: null }),
+      buildScope({ file: 'x-dsp.js', limit: 30, filter: 'x', bail: true, full: false, only: null, diff: null })
+    ).length > 0,
+    true
+  );
+  ck(
+    'scope - identical scopes diff clean',
+    scopeDiff(
+      buildScope({ file: 'x-dsp.js', limit: 60, filter: 'x', bail: true, full: false, only: null, diff: null }),
+      buildScope({ file: 'x-dsp.js', limit: 60, filter: 'x', bail: true, full: false, only: null, diff: null })
+    ).length,
+    0
+  );
+
+  /* GAP 3 - section 2.13 compliance manifest: one line per clause, met/n-a/missing */
+  ck('compliance - one line per clause of the standard', complianceManifest(null).clauses.length, 13);
+  ck(
+    'compliance - every clause carries a closed status',
+    complianceManifest(null).clauses.every((c) => ['met', 'n/a', 'missing'].indexOf(c.status) >= 0),
+    true
+  );
+  ck(
+    'compliance - an n/a clause states its reason (never a bare n/a)',
+    complianceManifest(null)
+      .clauses.filter((c) => c.status === 'n/a')
+      .every((c) => typeof c.reason === 'string' && c.reason.trim().length > 0),
+    true
+  );
+
   /* KEY UNIQUENESS — the collision that reached main (see findCanary's header). Both mutants are the
      same operator on the same line with identical `before` text: pulsedex-dsp.js:197's `<= 1500`
      threshold and its `Math.max(0.55, …)` floor. */
@@ -2661,7 +2948,8 @@ function reportOne(r) {
     console.log('  ' + r.file + '\n    ⊘ ' + r.error + '\n');
     return;
   }
-  const score = r.tested - r.invalid ? ((r.killed / (r.tested - r.invalid)) * 100).toFixed(0) : '—';
+  const measured = measuredDenominator(r);
+  const score = measured ? ((r.killed / measured) * 100).toFixed(0) : '—';
   console.log(
     '  ' + r.file + '   groups: ' + r.groupsRun + ' (' + r.groupCount + ' tagged' + (r.groupsSelected != null && r.groupsSelected !== r.groupCount ? ', ' + r.groupsSelected + ' RUN' : '') + ')'
   );
@@ -2754,7 +3042,7 @@ try {
 if (!AS_JSON) {
   const ok = results.filter((r) => !r.error);
   const k = ok.reduce((a, r) => a + r.killed, 0);
-  const n = ok.reduce((a, r) => a + (r.tested - r.invalid), 0);
+  const n = ok.reduce((a, r) => a + measuredDenominator(r), 0);
   const gen = ok.reduce((a, r) => a + r.generated, 0);
   console.log(
     '  ── ' +
@@ -2790,7 +3078,7 @@ if (DIFF) {
   const excusedN = ok.reduce((a, r) => a + r.survivors.length, 0) - surv.length;
   const refutedAll = ok.flatMap((r) => ((r.equivalence && r.equivalence.refuted) || []).map((e) => ({ file: r.file, ...e })));
   const voided = ok.filter((r) => r.voided);
-  const unrun = ok.reduce((a, r) => a + r.invalid, 0);
+  const unrun = ok.reduce((a, r) => a + r.invalid + (r.quarantined || 0), 0);
   const tested = ok.reduce((a, r) => a + r.tested, 0);
   const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
   /* ONE decision, made by diffVerdict (pure, selftest-pinned); the prose below explains it and the
@@ -2801,7 +3089,7 @@ if (DIFF) {
     console.error('  Kills are not being detected, so "all killed" would prove nothing. Not a pass.');
   } else if (unrun) {
     console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + unrun + ' of ' + tested + ' mutants never ran.');
-    console.error('  They did not compile, or timed out under load. Nothing was proven about them.');
+    console.error('  They did not compile, timed out under load, or were quarantined for going silent. Nothing was proven about them.');
   } else if (surv.length) {
     console.error('\n✕ MUTATION GATE — ' + surv.length + ' of ' + tested + ' mutants on your ' + lines + ' changed line(s) SURVIVED.');
     console.error('  Each is an edit you made that no test can see. Add an assertion, or explain why it is unobservable:\n');
@@ -2821,4 +3109,24 @@ if (DIFF) {
   else if (!AS_JSON) console.log('\n○ mutation gate ' + verdict.status + ' — ' + verdict.reason);
   emitVerdict(verdict);
   if (code) process.exit(code);
+}
+
+/* ── --verdict: the §2.13 machine-readable compliance manifest ──────────────────────────────
+   One JSON object on stdout, beside (never instead of) the prose above. `run` carries this run's
+   outcome facts; `clauses` is the tool's standing declaration about its own construction. */
+if (WANT_VERDICT) {
+  const vok = results.filter((r) => !r.error);
+  process.stdout.write(
+    JSON.stringify(
+      complianceManifest({
+        files: results.length,
+        measured: vok.length,
+        tested: vok.reduce((a, r) => a + r.tested, 0),
+        killed: vok.reduce((a, r) => a + (r.killed || 0), 0),
+        invalid: vok.reduce((a, r) => a + r.invalid, 0),
+        quarantined: vok.reduce((a, r) => a + (r.quarantined || 0), 0),
+        canaryFailed: vok.some((r) => r.canary === 'FAILED')
+      })
+    ) + '\n'
+  );
 }
