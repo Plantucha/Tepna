@@ -2389,11 +2389,13 @@ def test_resumable_set_legacy_finds_the_set_inside_the_window(tmp_path):
     import writers, datetime as dt, os, time
 
     d = str(tmp_path)
-    f = tmp_path / "Polar_H10_02849638_20260819210000_ECG.txt"
+    # Stamp is "now" minus 2 min: a live session, not a stale one (2026-10-14 stale-stamp guard).
+    stamp = (dt.datetime.now() - dt.timedelta(minutes=2)).strftime("%Y%m%d%H%M%S")
+    f = tmp_path / f"Polar_H10_02849638_{stamp}_ECG.txt"
     f.write_text("hdr\n1;2;3;4\n")
     now = dt.datetime.now()
     got = writers.resumable_set(d, "Polar", "H10", "02849638", now, 300.0)
-    assert got[0] == dt.datetime(2026, 8, 19, 21, 0, 0), got
+    assert got[0] == dt.datetime.strptime(stamp, "%Y%m%d%H%M%S"), got
     # DENY twin: age the file past the window — a true outage must fragment
     old = time.time() - 400
     os.utime(str(f), (old, old))
