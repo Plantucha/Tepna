@@ -646,7 +646,7 @@
   function _spo2Valid(v) {
     return v != null && isFinite(v) && v >= OXI.SPO2_MIN && v <= OXI.SPO2_MAX;
   }
-  function detectDesats(spo2, drop) {
+  function detectDesats(spo2, drop, spanSec) {
     drop = drop || OXI.DROP;
     var n = spo2.length,
       W = OXI.BASE_WIN,
@@ -656,6 +656,15 @@
       nad = 100,
       nadIdx = 0,
       base = 95;
+    /* NADIR CLOCK RULE (2026-10-15): a nadir timestamp is ELAPSED CLOCK TIME, not sample position.
+       On a gappy night, sample index i did not occur at i seconds — the H10 night of 2026-10-12
+       has sample 14,676 at 16,005 s elapsed (22 min divergence from 22 genuine gaps). `spanSec` is
+       the true elapsed span; without it the elapsed time is unknowable and nadirSec is null
+       (missing → null, never fabricated). */
+    var secPerSample = spanSec != null && n > 0 ? spanSec / n : null;
+    function toSec(idx) {
+      return secPerSample != null ? +(idx * secPerSample).toFixed(2) : null;
+    }
     /* 🔴 `endIdx` IS A SAMPLE INDEX, so it is clamped; `duration` is a COUNT, so it is not.
        `close(n)` is the unconditional end-of-record flush, and it used to publish `endIdx: end` with
        `end === n` — one past the last sample. Measured on main 2026-10-11 with a desat running to the
@@ -681,7 +690,10 @@
           terminal: end >= n,
           depth: +(base - nad).toFixed(1),
           duration: end - st,
-          nadir: nad
+          nadir: nad,
+          startSec: toSec(st),
+          nadirSec: toSec(nadIdx),
+          endSec: toSec(Math.min(n - 1, end))
         });
       inEv = false;
     }
@@ -750,7 +762,7 @@
        pooled denominator — you pool a numerator and a denominator, never rates). */
     var spanSec = durSec || n;
     var hours = n > 0 ? (valid * (spanSec / n)) / 3600 : 0;
-    var events = detectDesats(spo2, OXI.DROP);
+    var events = detectDesats(spo2, OXI.DROP, durSec);
     events.forEach(function (ev) {
       selfGateDesat(ev, pulse, spo2);
     });

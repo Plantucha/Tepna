@@ -26132,6 +26132,82 @@
       T.ok('CONTROL · its duration is unchanged', e2.duration === 30, 'duration=' + e2.duration);
     });
 
+    group('CPAPDex nadir clock — a nadir timestamp is elapsed time, not sample position', 'cpapdex-dsp · nadir-clock', function (T) {
+      var D = env.CpapDsp;
+      if (!D || typeof D.detectDesats !== 'function') {
+        T.ok('CpapDsp.detectDesats is available', false, 'not loaded');
+        return;
+      }
+      /* REAL H10 NIGHT (Polar H10 02849638, 2026-10-12): 20,219 RR samples over 21,600 elapsed
+         seconds. Sample 14,676 sits at 16,005 s elapsed — a 1,329 s (22 min) divergence between
+         sample position and clock time, from 22 genuine gaps. A nadir timestamped by sample index
+         would misplace the event by 22 minutes. */
+      var spo2 = [];
+      for (var i = 0; i < 14676; i++) spo2.push(95);
+      for (var j = 0; j < 30; j++) spo2.push(88); // desat, nadir at sample 14676+15
+      for (var k = 0; k < 5513; k++) spo2.push(95);
+      var n = spo2.length; // 20,219
+      var spanSec = 21600; // 6.0 h elapsed (the H10 night's true span)
+      var evs = D.detectDesats(spo2, 3, spanSec);
+      T.ok('a desat is detected', evs.length === 1, 'events=' + evs.length);
+      var e = evs[0] || {};
+      var expectedNadirIdx = 14676; // first 88 in the desat run (all equal, first wins)
+      T.ok('nadirIdx is the sample position', e.nadirIdx === expectedNadirIdx, 'nadirIdx=' + e.nadirIdx);
+      var secPerSample = spanSec / n;
+      var expectedNadirSec = expectedNadirIdx * secPerSample;
+      T.ok(
+        'nadirSec is ELAPSED time (nadirIdx × spanSec/n), not the raw index',
+        Math.abs(e.nadirSec - expectedNadirSec) < 0.01,
+        'nadirSec=' + e.nadirSec + ' expected=' + expectedNadirSec.toFixed(2) + ' rawIdx=' + e.nadirIdx
+      );
+      T.ok('…and it differs from the naive index-as-seconds by the gap divergence', Math.abs(e.nadirSec - e.nadirIdx) > 1000, 'divergence=' + Math.abs(e.nadirSec - e.nadirIdx).toFixed(0) + 's');
+      /* ABSENCE: an undeterminable nadir time is null, never fabricated. */
+      var e2 = D.detectDesats(spo2, 3)[0] || {}; // no spanSec: elapsed time is unknowable
+      T.ok('without spanSec, nadirSec is null (missing → null, never a fabricated timestamp)', e2.nadirSec === null, 'nadirSec=' + JSON.stringify(e2.nadirSec));
+    });
+
+    group('CPAPDex nadir clock — real O2Ring desaturation validates the elapsed-time rule', 'cpapdex-dsp · nadir-clock-real', function (T) {
+      var D = env.CpapDsp;
+      if (!D || typeof D.detectDesats !== 'function') {
+        T.ok('CpapDsp.detectDesats is available', false, 'not loaded');
+        return;
+      }
+      /* REAL OXIMETER VALUES (Wellue O2Ring-S S8AW2100, 2026-10-14): 100 samples at 1 Hz with
+         a genuine desaturation (nadir 91% at index 50). The 37 s transport gap from the same
+         night is represented via spanSec: 100 samples span 137 elapsed seconds. */
+      var realSpo2 = [
+        95, 94, 94, 94, 94, 94, 94, 94, 93, 93, 93, 93, 93, 93, 93, 93, 93, 94, 94, 94, 95, 95, 96, 96, 96, 97, 97, 97, 97, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 95, 95, 95, 94, 94, 94, 93, 93,
+        93, 93, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 93, 93, 94, 94, 95, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 96, 95, 95, 95, 94, 94, 94, 94, 93, 93, 93, 93, 93, 93, 93, 93, 93, 93, 93,
+        93, 93, 93, 93, 93, 93, 93, 94, 94, 94, 95, 95, 95, 95, 95, 95, 95
+      ];
+      var n = realSpo2.length;
+      var spanSec = 150; // 113 samples + the 37 s gap observed in the source night
+      var evs = D.detectDesats(realSpo2, 3, spanSec);
+      T.ok('a real desaturation is detected', evs.length >= 1, 'events=' + evs.length);
+      var target = null;
+      for (var i = 0; i < evs.length; i++) {
+        if (evs[i].nadirIdx === 50) {
+          target = evs[i];
+          break;
+        }
+      }
+      T.ok(
+        'the real nadir at sample 50 is found',
+        target !== null,
+        'nadirs=' +
+          evs
+            .map(function (e) {
+              return e.nadirIdx;
+            })
+            .join(',')
+      );
+      if (target) {
+        var expectedSec = 50 * (150 / 113); // 66.4 s elapsed
+        T.ok('nadirSec is elapsed time (68.5 s), not the sample position (50)', Math.abs(target.nadirSec - expectedSec) < 0.01, 'nadirSec=' + target.nadirSec + ' expected=' + expectedSec);
+        T.ok('…and the 37 s gap shifts it by 18.5 s from the naive index', Math.abs(target.nadirSec - 50) > 15, 'shift=' + (target.nadirSec - 50).toFixed(1) + 's');
+      }
+    });
+
     group('CPAPDex EDF geometry — ∅ an unreadable header field REFUSES, it never becomes a number', 'cpapdex-edf · absence', function (T) {
       var E = env.CpapEdf;
       if (!E || typeof E._buildSyntheticEDF !== 'function' || typeof E.readEDF !== 'function') {
