@@ -84,35 +84,7 @@
       "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
     }
   ],
-  "clock.js": [
-    {
-      "before": "var win = opts && opts.window > 0 ? opts.window : CK_AXIS_WIN;",
-      "brief": "MUTATION-EQUIVALENCE §3",
-      "class": "real-gap",
-      "line": 284,
-      "op": "cmp > → >=",
-      "probe": "anchor geometries n=2/3/4/11/41/60 × window 0/1/2/3/99",
-      "why": "KILLABLE and now killed — `{window: 0}` is accepted as a window, so `win >> 1` is 0, the running median collapses to a single point and stops smoothing silently. Listed here so the classification is complete, NOT to excuse it: it stays in the distinguishable denominator."
-    },
-    {
-      "before": "if (span > 0) {",
-      "brief": "MUTATION-EQUIVALENCE §3",
-      "class": "real-gap",
-      "line": 325,
-      "op": "cmp > → >=",
-      "probe": "all anchors sharing one devMs",
-      "why": "KILLABLE — all anchors at one `devMs` gives a zero span, so the mutant divides by zero: `ppm` goes NaN AND `ok` flips false, turning a degenerate input into a refusal for the wrong reason."
-    },
-    {
-      "before": "if (!(dx > 0)) return sm[i];",
-      "brief": "MUTATION-EQUIVALENCE §3",
-      "class": "real-gap",
-      "line": 396,
-      "op": "drop !",
-      "probe": "correctionAt queried mid-interval",
-      "why": "KILLABLE — the guard fires on the NORMAL case, so interpolation is skipped and every mid-interval query snaps to the left anchor."
-    }
-  ],
+  "clock.js": [],
   "cpap_edf.py": [],
   "cpap_edf_writer.py": [
     {
@@ -328,15 +300,6 @@
       "before": "if (s < nadir) nadir = s;",
       "class": "no-distinguishing-input",
       "line": 718,
-      "op": "cmp < → <=",
-      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js",
-      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input."
-    },
-    {
-      "after": "for (var m = 0; m <= pulse.length; m++) {",
-      "before": "for (var m = 0; m < pulse.length; m++) {",
-      "class": "no-distinguishing-input",
-      "line": 722,
       "op": "cmp < → <=",
       "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js",
       "why": "In oximetryLane. Original and mutant produced byte-identical output on every input."
@@ -1023,60 +986,6 @@
       "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
     },
     {
-      "after": "const meanRR_s = typeof DexUnits !== 'undefined' || DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
-      "before": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
-      "class": "no-distinguishing-input",
-      "line": 640,
-      "op": "bool && → ||",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
-    },
-    {
-      "after": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits || DexUnits.asSecondsRR ? DexUnits.asSe",
-      "before": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
-      "class": "no-distinguishing-input",
-      "line": 640,
-      "op": "bool && → ||",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
-    },
-    {
-      "after": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
-      "before": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
-      "class": "no-distinguishing-input",
-      "line": 640,
-      "op": "num → 0",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
-    },
-    {
-      "after": "const rmssd_s = typeof DexUnits !== 'undefined' || DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
-      "before": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
-      "class": "no-distinguishing-input",
-      "line": 650,
-      "op": "bool && → ||",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
-    },
-    {
-      "after": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits || DexUnits.asSecondsRR ? DexUnits.asSec",
-      "before": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
-      "class": "no-distinguishing-input",
-      "line": 650,
-      "op": "bool && → ||",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
-    },
-    {
-      "after": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
-      "before": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
-      "class": "no-distinguishing-input",
-      "line": 650,
-      "op": "num → 0",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
-    },
-    {
       "after": "var _mxdmnS = r._baevskyS || r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;",
       "before": "var _mxdmnS = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;",
       "class": "no-distinguishing-input",
@@ -1221,25 +1130,6 @@
       "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
     },
     {
-      "after": "const _altFR = p_prof.elev < 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
-      "before": "const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
-      "brief": " · MUTATION-COVERAGE-SELECTION §4.4 harvest 2026-08-19",
-      "class": "equivalent",
-      "line": 755,
-      "op": "cmp <= → <",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input. — UPGRADED 2026-08-19 from no-distinguishing-input to EQUIVALENT with proof (declared at the dex-tests altitude boundary): at elev exactly 1500 the else-branch computes max(0.55, 1 − 0/300×0.01) = 1, identical to the <= branch. The two forms agree on every input."
-    },
-    {
-      "after": "const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
-      "before": "const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
-      "class": "no-distinguishing-input",
-      "line": 736,
-      "op": "num → 0",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
-    },
-    {
       "after": "if (_dk || !_seenvo2.has(_dk)) {",
       "before": "if (_dk && !_seenvo2.has(_dk)) {",
       "class": "no-distinguishing-input",
@@ -1326,15 +1216,6 @@
       "class": "no-distinguishing-input",
       "line": 854,
       "op": "cmp < → <=",
-      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
-      "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
-    },
-    {
-      "after": "if (!isNaN(ac_raw[j]) || !isNaN(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);",
-      "before": "if (!isNaN(ac_raw[j]) && !isNaN(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);",
-      "class": "no-distinguishing-input",
-      "line": 855,
-      "op": "bool && → ||",
       "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js",
       "why": "In computeDerived. Original and mutant produced byte-identical output on every input."
     },
@@ -3579,15 +3460,6 @@
       "why": "In parsePPG. Original and mutant produced byte-identical output on every input."
     },
     {
-      "after": "if (!isFinite(v1) && !isFinite(v2)) continue;",
-      "before": "if (!isFinite(v1) || !isFinite(v2)) continue;",
-      "class": "no-distinguishing-input",
-      "line": 353,
-      "op": "bool || → &&",
-      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
-      "why": "In parsePPG. Original and mutant produced byte-identical output on every input."
-    },
-    {
       "after": "const va = pc.amb > 0 ? parseFloat(p[pc.amb]) : NaN;",
       "before": "const va = pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN;",
       "class": "no-distinguishing-input",
@@ -3737,15 +3609,6 @@
       "class": "no-distinguishing-input",
       "line": 470,
       "op": "bool && → ||",
-      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
-      "why": "In parsePPG. Original and mutant produced byte-identical output on every input."
-    },
-    {
-      "after": "const axisDrawn = quantizedShare != null && quantizedShare > 0.99;",
-      "before": "const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;",
-      "class": "no-distinguishing-input",
-      "line": 477,
-      "op": "cmp >= → >",
       "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
       "why": "In parsePPG. Original and mutant produced byte-identical output on every input."
     },
@@ -4443,15 +4306,6 @@
       "why": "In markO2Sentinels. Original and mutant produced byte-identical output on every input."
     },
     {
-      "after": "if (!cnt || Math.abs(O2_PPG_INVALID - sum / cnt) >= O2_SENTINEL_ISOLATION) {",
-      "before": "if (!cnt || Math.abs(O2_PPG_INVALID - sum / cnt) > O2_SENTINEL_ISOLATION) {",
-      "class": "no-distinguishing-input",
-      "line": 262,
-      "op": "cmp > → >=",
-      "probe": "markO2Sentinels · the 156 invalid marker (direct): 15 inputs, 15 distinct baseline answers; 5/5 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
-      "why": "In markO2Sentinels. Original and mutant produced byte-identical output on every input."
-    },
-    {
       "after": "if (refRate == null || !isFinite(refRate) || refRate < 0) return refIdx;",
       "before": "if (refRate == null || !isFinite(refRate) || refRate <= 0) return refIdx;",
       "class": "no-distinguishing-input",
@@ -4612,15 +4466,6 @@
       "op": "cmp > → >=",
       "probe": "intervalsSpanningTimeGap · beats that straddle a discontinuity (direct): 16 inputs, 6 distinct baseline answers; 6/6 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
       "why": "In intervalsSpanningTimeGap. Original and mutant produced byte-identical output on every input."
-    },
-    {
-      "after": "if (dev.length < 3 || selfNN.length <= 3) return { hasData: true, usable: false, nDevice: dev.length",
-      "before": "if (dev.length < 3 || selfNN.length < 3) return { hasData: true, usable: false, nDevice: dev.length ",
-      "class": "no-distinguishing-input",
-      "line": 2691,
-      "op": "cmp < → <=",
-      "probe": "validatePPI · device PPI against our own (direct): 23 inputs, 14 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js",
-      "why": "In validatePPI. Original and mutant produced byte-identical output on every input."
     },
     {
       "before": "opts = opts || {};",
