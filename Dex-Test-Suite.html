@@ -333,6 +333,10 @@ async function main(){
   // ESM-MIGRATION deep-3: oxydex-dsp.js is a dual-mode ES module — same treatment (oxydex-util.js +
   // clock.js loaded classically above; __DEX_NAMESPACED__ true → attaches only window.OxyDex).
   { const _od = await fetchText('oxydex-dsp.js'); if(_od) (0, eval)(esmClassicify(_od)); }
+  // OXYDEX-ACCURACY-HARNESS: oxydex-accuracy.js is a DOM-free dual-mode module (attaches
+  // globalThis.OxyAccuracy; esmClassicify strips the trailing export for classic eval) — eval it
+  // here so the OxyDex math known-answer groups run in THIS lane, not just Node.
+  { const _oa = await fetchText('oxydex-accuracy.js'); if(_oa) (0, eval)(esmClassicify(_oa)); }
   // MotionDex (MOTIONDEX-BUILD-2026-07-17): dual-mode ES module — classic-load it here (clock.js loaded
   // classically above → window.DexClock present). A clean IIFE that attaches only window.MOTIONDSP /
   // window.MotionDex and leaks no bare names, so its equiv leg (env.equiv.motiondex) runs in this lane too.
