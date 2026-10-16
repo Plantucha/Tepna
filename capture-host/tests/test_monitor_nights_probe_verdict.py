@@ -11,13 +11,14 @@ node — the same recipe as the solid-night card tests.
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
 
 import pytest
 
-MON = "monitor.html"
+MON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monitor.html")
 
 
 def _extract():
