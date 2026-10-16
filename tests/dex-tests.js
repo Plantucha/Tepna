@@ -73798,7 +73798,10 @@
       /* Hand-computed: 96-4=92, 3-4=-1→0 (clamp), null stays null. */
       T.eq('synthetic: injectBias([96,3,null], -4) is [92,0,null]', OA.injectBias([96, 3, null], -4), [92, 0, null]);
       /* Row objects: shallow-copied, spo2 biased, other fields untouched, input not mutated. */
-      var rows = [{ tMs: 1, spo2: 96, hr: 60 }, { tMs: 2, spo2: null, hr: 61 }];
+      var rows = [
+        { tMs: 1, spo2: 96, hr: 60 },
+        { tMs: 2, spo2: null, hr: 61 }
+      ];
       var out = OA.injectBias(rows, -2);
       T.eq('synthetic: row spo2 96-2=94', out[0].spo2, 94);
       T.eq('synthetic: row spo2 null stays null', out[1].spo2, null);
@@ -73818,11 +73821,7 @@
       }
       /* Hand-computed: ODI 8.0 → 4.0 under +2% bias. absDelta -4.0, relDelta -0.5,
          and the 5/h severity band is crossed downward. */
-      var r = OA.sensitivityReport(
-        { odi3: 8.0, nadir: 91, t90: 5.0, events: [{ startSec: 10, endSec: 40 }] },
-        { odi3: 4.0, nadir: 93, t90: 2.0, events: [] },
-        2
-      );
+      var r = OA.sensitivityReport({ odi3: 8.0, nadir: 91, t90: 5.0, events: [{ startSec: 10, endSec: 40 }] }, { odi3: 4.0, nadir: 93, t90: 2.0, events: [] }, 2);
       T.eq('synthetic: ODI absDelta is -4.0', r.deltas.odi3.absDelta, -4.0);
       T.eq('synthetic: ODI relDelta is -0.5', r.deltas.odi3.relDelta, -0.5);
       T.eq('synthetic: ODI crosses the 5/h band downward', r.deltas.odi3.boundaryCross && r.deltas.odi3.boundaryCross.boundary, 5);
@@ -73839,11 +73838,7 @@
       T.eq('synthetic: absDelta is null when base is null', rn.deltas.odi3.absDelta, null);
       T.eq('synthetic: relDelta is null when base is null', rn.deltas.odi3.relDelta, null);
       /* Phantom: an event appears only under -bias. */
-      var rp = OA.sensitivityReport(
-        { odi3: 2.0, events: [] },
-        { odi3: 6.0, events: [{ startSec: 100, endSec: 130 }] },
-        -2
-      );
+      var rp = OA.sensitivityReport({ odi3: 2.0, events: [] }, { odi3: 6.0, events: [{ startSec: 100, endSec: 130 }] }, -2);
       T.eq('synthetic: one phantom event under -bias', rp.nPhantom, 1);
       T.eq('synthetic: zero masked events under -bias', rp.nMasked, 0);
       /* Report carries the bias level and the method. */
@@ -73981,6 +73976,41 @@
       if (json.kind === 'fusion' || (json.window && json.findings)) {
         T.ok(key + ': window present', json.window && typeof json.window === 'object');
         T.ok(key + ': no NaN/Infinity anywhere', countNonFinite(json) === 0);
+        return;
+      }
+      // synthetic known-answer fixture (e.g. oxydex-math-known-answer): NOT an export — a
+      // committed battery of hand-computed expected values. SYNTHETIC must be explicit, every
+      // series case carries its samples and its independently-computed expectations.
+      if (json.SYNTHETIC === true && json.series && typeof json.series === 'object') {
+        T.ok(
+          key + ': provenance present',
+          json.provenance && typeof json.provenance.origin === 'string' && typeof json.provenance.purpose === 'string',
+          'hand-computed values must say where they came from'
+        );
+        var cases = Object.keys(json.series);
+        T.ok(key + ': at least one series case', cases.length > 0);
+        var badCase = 0;
+        cases.forEach(function (cn) {
+          var c = json.series[cn];
+          if (!c || !Array.isArray(c.spo2) || c.spo2.length === 0) {
+            badCase++;
+            return;
+          }
+          if (!isFin(c.sampleSec) || c.sampleSec <= 0) {
+            badCase++;
+            return;
+          }
+          if (!isFin(c.t0Ms)) {
+            badCase++;
+            return;
+          }
+          if (!c.expected || typeof c.expected !== 'object') {
+            badCase++;
+            return;
+          }
+        });
+        T.ok(key + ': every series case has spo2[], finite sampleSec/t0Ms, and an expected object', badCase === 0, badCase + ' malformed');
+        T.ok(key + ': no NaN/Infinity anywhere', countNonFinite(json) === 0, countNonFinite(json) + ' bad numbers');
         return;
       }
       T.ok(key + ': recognized export shape', false, 'unknown schema — add a contract');

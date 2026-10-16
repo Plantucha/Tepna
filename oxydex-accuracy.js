@@ -1,3 +1,7 @@
+/*
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ */
 /* ════ OxyDex · Accuracy Harness — OxyAccuracy (oxydex-accuracy.js) ══════════════════════════════════
    Harness machinery for the OxyDex math-correctness validation (Targets 1–2 of the
    reframed accuracy design). NOT shipped metrics: this module exists so the test
@@ -117,11 +121,10 @@
   function crossesBoundary(base, biased, bounds) {
     for (var i = 0; i < bounds.length; i++) {
       var b = bounds[i];
-      var baseSide = base < b ? -1 : (base > b ? 1 : 0);
-      var biasedSide = biased < b ? -1 : (biased > b ? 1 : 0);
+      var baseSide = base < b ? -1 : base > b ? 1 : 0;
+      var biasedSide = biased < b ? -1 : biased > b ? 1 : 0;
       if (baseSide !== biasedSide) {
-        return { boundary: b, from: base, to: biased,
-                 direction: biasedSide > baseSide ? 'up' : 'down' };
+        return { boundary: b, from: base, to: biased, direction: biasedSide > baseSide ? 'up' : 'down' };
       }
     }
     return null;
@@ -146,7 +149,7 @@
   OxyAccuracy.sensitivityReport = function (baseMetrics, biasedMetrics, biasPct) {
     var report = {
       method: 'injectBias clamp [0,100], nulls preserved; +bias masks desaturations, -bias invents them',
-      biasPct: (typeof biasPct === 'number' && !Number.isNaN(biasPct)) ? biasPct : null,
+      biasPct: typeof biasPct === 'number' && !Number.isNaN(biasPct) ? biasPct : null,
       deltas: {},
       maskedEvents: [],
       phantomEvents: [],
@@ -167,10 +170,10 @@
     for (k in keys) {
       var base = baseMetrics[k];
       var biased = biasedMetrics[k];
-      var bNum = (typeof base === 'number' && !Number.isNaN(base)) ? base : null;
-      var dNum = (typeof biased === 'number' && !Number.isNaN(biased)) ? biased : null;
-      var absDelta = (bNum == null || dNum == null) ? null : dNum - bNum;
-      var relDelta = (bNum == null || bNum === 0 || dNum == null) ? null : (dNum - bNum) / Math.abs(bNum);
+      var bNum = typeof base === 'number' && !Number.isNaN(base) ? base : null;
+      var dNum = typeof biased === 'number' && !Number.isNaN(biased) ? biased : null;
+      var absDelta = bNum == null || dNum == null ? null : dNum - bNum;
+      var relDelta = bNum == null || bNum === 0 || dNum == null ? null : (dNum - bNum) / Math.abs(bNum);
       var boundaryCross = null;
       var bk = boundaryKey(k);
       if (absDelta != null && bk && BOUNDARIES[bk === 'odi' ? 'odi' : bk]) {
@@ -225,4 +228,4 @@
 // ESM-MIGRATION: dual-mode re-export like the other DSP modules. The IIFE above
 // attaches OxyAccuracy to the shared root (classic co-load); this lets ESM
 // consumers import it directly.
-export const OxyAccuracy = (typeof globalThis !== 'undefined' ? globalThis.OxyAccuracy : null);
+export const OxyAccuracy = typeof globalThis !== 'undefined' ? globalThis.OxyAccuracy : null;
