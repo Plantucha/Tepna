@@ -1,0 +1,449 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+/* The reconnect banner. `data-conn` was written by the boot retry and read by NOTHING — no rule, no
+   JS — so the "surface the waiting state instead of a blank grid" path left a blank grid. This is the
+   reader; the attribute is cleared on the first successful load. */
+body[data-conn="reconnecting"]::before{
+  content:"reconnecting to the box…";
+  position:fixed; inset:0 0 auto 0; z-index:9999;
+  padding:.5rem 1rem; text-align:center;
+  background:#8a6d1f; color:#fff; font:600 13px/1.4 system-ui,sans-serif;
+}
+/* ══════════════════════════════════════════════════════════════════════════
+   Tepna design tokens — curated subset of ans-design.css §1 (dark) + §2 (light)
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C; --surface3:#1E2835;
+  --border:#1e2d42; --border2:#253550;
+  --text:#F4F7FB; --text2:#9FB0C3; --text3:#9DB1C7; --text4:#7F92A9;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A; --purple:#a78bfa;
+  --accent:var(--teal);
+  --status-ok:var(--green); --status-caution:var(--amber); --status-concern:var(--red);
+  /* Used by three cards' WORST branch (backup failing, system files drifted, CPAP bad) and
+     never defined until 2026-08-28. `border-left-color:var(--status-bad)` with no fallback is
+     an invalid value, so those cards fell back to currentColor and the most severe state drew
+     LESS alarming than the caution state directly above it. */
+  --status-bad:var(--red);
+  --b:1px solid rgba(255,255,255,.05); --s:0 8px 24px rgba(0,0,0,.24);
+  --r-sm:12px; --r-md:18px; --r-lg:24px;
+  --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px;
+  --fw-semibold:600; --fw-bold:700;
+  --trace:var(--green);
+  --ev-ink:#aab8cc;
+  color-scheme:dark;
+}
+body.light{
+  --bg:#F2F5F9; --surface:#FFFFFF; --surface2:#EBF0F7; --surface3:#DDE4EF;
+  --border:#C8D4E4; --border2:#B0C0D8;
+  --text:#0F1923; --text2:#3A4E65; --text3:#5A7090; --text4:#5D7A96;
+  --b:1px solid rgba(0,0,0,.07); --s:0 4px 18px rgba(0,0,0,.10);
+  --ev-ink:#5A7090;
+  color-scheme:light;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{
+  font-family:'Inter',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg); color:var(--text); font-size:14px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(61,224,208,.04), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 100%, rgba(88,166,255,.03), transparent 60%);
+}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(61,224,208,.18);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:rgba(61,224,208,.28);}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+button:focus:not(:focus-visible){outline:none;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+@keyframes cardEntrance{from{opacity:0;transform:translateY(12px) scale(.98);}to{opacity:1;transform:translateY(0) scale(1);}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(57,217,138,.4);}50%{box-shadow:0 0 0 5px rgba(57,217,138,0);}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
+
+/* ── App shell ─────────────────────────────────────────────────────────── */
+.app{display:grid; grid-template-columns:248px 1fr; min-height:100vh; position:relative; z-index:1;}
+.sidebar{
+  background:linear-gradient(180deg,rgba(18,24,33,.99),rgba(11,15,20,.99));
+  border-right:var(--b); padding:var(--sp-5) var(--sp-3);
+  position:sticky; top:0; height:100vh; overflow-y:auto;
+  display:flex; flex-direction:column; backdrop-filter:blur(18px);
+}
+body.light .sidebar{background:linear-gradient(180deg,#FFFFFF,#F8FAFC);}
+.sidebar::before{content:'';position:absolute;top:0;left:0;right:0;height:180px;
+  background:radial-gradient(ellipse at 50% 0%,rgba(61,224,208,.07),transparent 70%);pointer-events:none;}
+.logo{display:flex;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-6);padding:0 var(--sp-2);}
+.logo-badge{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--teal),var(--blue));
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 20px rgba(61,224,208,.22);}
+.logo-title{font-weight:var(--fw-semibold);font-size:15px;letter-spacing:-.015em;}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.sidebar-logo-rule{border:none;border-top:1px solid rgba(255,255,255,.06);margin:0 var(--sp-2) var(--sp-3);}
+body.light .sidebar-logo-rule{border-top-color:rgba(0,0,0,.08);}
+.nav-section-label{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--text4);
+  padding:0 var(--sp-2);margin:var(--sp-5) 0 var(--sp-2);font-weight:var(--fw-semibold);}
+.nav{display:flex;flex-direction:column;gap:2px;}
+.nav-item{display:flex;align-items:center;gap:var(--sp-3);padding:9px var(--sp-3);border-radius:10px;
+  color:var(--text2);font-size:13px;cursor:pointer;transition:background .12s,color .12s,box-shadow .12s;letter-spacing:-.01em;}
+.nav-item:hover{background:rgba(61,224,208,.05);color:var(--text);box-shadow:inset 3px 0 0 rgba(61,224,208,.3);}
+.nav-item.active{background:rgba(61,224,208,.12);color:var(--teal);font-weight:var(--fw-semibold);box-shadow:inset 3px 0 0 var(--teal);}
+.nav-item .nav-badge{margin-left:auto;background:rgba(61,224,208,.12);color:var(--teal);padding:1px 7px;border-radius:999px;font-size:10px;font-weight:600;}
+/* Sidebar live counters (moved out of the Overview strip so they persist across views). Compact rows,
+   not cards — the sidebar is narrow, and the adapter MAC must wrap rather than overflow. */
+.side-stats{margin:var(--sp-4) 0 0;display:flex;flex-direction:column;gap:6px;}
+.side-stat{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:8px 10px;border-left:3px solid var(--border2);}
+.side-stat .lab{font-size:10px;color:var(--text4);text-transform:uppercase;letter-spacing:.09em;font-weight:700;}
+.side-stat .val{font-size:17px;font-weight:700;line-height:1.15;font-family:ui-monospace,monospace;margin-top:2px;}
+.side-stat .sub{font-size:10px;color:var(--text3);margin-top:2px;line-height:1.35;word-break:break-word;}
+.side-stat .sub.addr{font-family:ui-monospace,monospace;word-break:break-all;}
+/* Capture timeline. Two strips on ONE time axis: state above, dBm below, so a drop can be read
+   against the signal that preceded it. State is encoded by HEIGHT as well as hue — the suite's badge
+   convention is deliberately "shape, never hue alone", and a colour-only strip fails the same reader. */
+.ov-tl{margin:6px 0 2px;}
+.ov-tl-state{width:100%;height:10px;display:block;border-radius:2px;}
+.ov-tl-rssi{width:100%;height:16px;display:block;margin-top:2px;opacity:.9;}
+.ov-tl-legend{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);
+  font-family:ui-monospace,monospace;margin-top:2px;}
+.sidebar-bottom{margin-top:auto;padding-top:22px;}
+.sidebar-data-card{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:12px 14px;}
+.sidebar-data-info{margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55;font-family:ui-monospace,monospace;}
+
+/* ── Main + topbar ─────────────────────────────────────────────────────── */
+.main-wrap{padding:var(--sp-6) var(--sp-6) 80px;max-width:1300px;margin:0 auto;width:100%;min-width:0;animation:fadeIn .3s ease;}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-5);gap:var(--sp-4);
+  flex-wrap:wrap;padding-bottom:var(--sp-5);position:relative;}
+.topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,rgba(61,224,208,.35),rgba(88,166,255,.2),transparent 70%);}
+.topbar-title{font-size:22px;font-weight:var(--fw-bold);letter-spacing:-.02em;}
+.topbar-sub{font-size:12px;color:var(--text2);margin-top:2px;}
+.topbar-actions{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;justify-content:flex-end;}
+.version-badge{display:inline-flex;align-items:center;background:rgba(61,224,208,.08);border:1px solid rgba(61,224,208,.2);
+  border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;color:var(--teal);margin-left:8px;vertical-align:middle;}
+
+/* ── Buttons / pills ───────────────────────────────────────────────────── */
+button{font:inherit;}
+.btn{background:var(--surface2);border:var(--b);color:var(--text2);border-radius:10px;padding:7px 14px;cursor:pointer;
+  font-size:12px;font-weight:var(--fw-semibold);transition:all .15s;}
+.btn:hover{background:rgba(255,255,255,.04);color:var(--text);border-color:rgba(255,255,255,.08);}
+.ctl-label{display:inline-block;min-width:6.6rem;flex:none;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn:active{transform:scale(.97);}
+/* ── ONE GEOMETRY, THREE COLOURS ────────────────────────────────────────────────────────────────────
+   `.btn-primary` and `.btn-destructive` used to be STANDALONE rules that each re-declared padding,
+   radius, font-size and weight — so the three button types disagreed by construction:
+
+       .btn            padding 7px 14px · radius 10px · 12px · semibold
+       .btn-primary    padding 8px 18px · radius 10px · inherited · 700
+       .btn-destructive padding 6px 11px · radius  8px · 11px · 500
+
+   Three sizes and two corner radii in one toolbar. Because each variant was self-sufficient the markup
+   drifted too — 9 buttons wrote the variant class ALONE, 2 composed it with `btn`,
+   1 did not — and BOTH forms rendered, which is exactly why the split survived unnoticed.
+
+   Geometry now lives ONLY here; the variants set colour. Weight is the one exception and is deliberate:
+   it signals hierarchy (which button is the primary action) rather than shape. Compose them —
+   base + variant — and a variant on its own is now visibly wrong, which is the point. */
+.btn-primary{background:linear-gradient(135deg,var(--teal),var(--blue));color:#041014;border:none;
+  font-weight:700;}
+.btn-primary:hover{background:linear-gradient(135deg,var(--teal),var(--blue));opacity:.92;
+  box-shadow:0 0 20px rgba(61,224,208,.25);color:#041014;border:none;}
+.btn-destructive{background:transparent;border:1px solid rgba(255,107,122,.22);
+  color:rgba(255,107,122,.75);}
+.btn-destructive:hover{background:rgba(255,107,122,.08);color:var(--red);
+  border-color:rgba(255,107,122,.45);}
+.data-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.18);
+  color:var(--green);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;}
+.data-pill.idle{background:rgba(110,133,168,.12);border-color:rgba(110,133,168,.2);color:var(--text3);}
+.data-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2.5s ease-in-out infinite;}
+.data-pill.idle .data-dot{background:var(--text4);animation:none;}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.03em;}
+.pill-green{background:rgba(45,212,191,.12);color:var(--status-ok);border:1px solid rgba(45,212,191,.2);}
+.pill-amber{background:rgba(245,158,11,.12);color:var(--status-caution);border:1px solid rgba(245,158,11,.2);}
+.pill-gray{background:rgba(110,133,168,.12);color:var(--text2);border:1px solid rgba(110,133,168,.15);}
+.pill-blue{background:rgba(88,166,255,.15);color:var(--blue);border:1px solid rgba(88,166,255,.2);}
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
+.section-title{display:flex;align-items:baseline;gap:var(--sp-3);font-size:13px;color:var(--text2);
+  margin:var(--sp-6) 0 var(--sp-3);font-weight:var(--fw-bold);}
+.section-title:first-child{margin-top:0;}
+.section-title::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--teal);flex-shrink:0;opacity:.9;}
+.section-title::after{content:'';height:1px;flex:1;background:rgba(255,255,255,.05);}
+body.light .section-title::after{background:rgba(0,0,0,.06);}
+.card{background:var(--surface);border:var(--b);border-radius:var(--r-md);padding:var(--sp-5);position:relative;
+  overflow:hidden;transition:border-color .2s,transform .15s,box-shadow .15s;animation:cardEntrance .4s ease both;}
+.card h3{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;letter-spacing:-.01em;}
+.card .hint{color:var(--text3);font-size:12px;margin-top:var(--sp-3);line-height:1.5;}
+
+/* ── Overview stream grid ──────────────────────────────────────────────── */
+.ov-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:var(--sp-5);}
+.ov-stat{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:12px 14px;border-left:3px solid var(--border2);}
+.ov-stat .lab{font-size:11px;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:6px;}
+.ov-stat .val{font-size:22px;font-weight:700;line-height:1;font-family:ui-monospace,monospace;letter-spacing:-.02em;}
+.ov-stat .val.val-addr{font-size:12px;letter-spacing:0;line-height:1.3;word-break:break-all;}   /* full BLE MAC must wrap inside the card, not overflow it */
+.ov-stat .sub{font-size:11px;color:var(--text3);margin-top:4px;}
+/* QC device-group rows: the device name reads one step brighter than the channel list so the
+   grouped "Device · n — ch, ch" rows scan as rows, not as a continued sentence. */
+.ov-stat .sub .qc-dev{color:var(--text2);font-weight:600;}
+/* `.bad` here is ALWAYS parent-scoped (.batt.bad, .rssi.bad, .clk.bad, .nfr.bad) — there is no generic
+   rule, so `class="sub bad"` without this line renders in the ordinary grey and a warning that must be
+   acted on reads as one more detail. */
+.ov-stat .sub.bad{color:var(--red);}
+
+.ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--sp-4);}
+.ov-card{background:var(--surface);border:var(--b);border-radius:var(--r-md);padding:16px 18px 14px;position:relative;
+  overflow:hidden;transition:border-color .2s,transform .15s,box-shadow .15s;animation:cardEntrance .4s ease both;}
+.ov-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--card-accent,var(--teal)),var(--blue));opacity:0;transition:opacity .25s;}
+.ov-card:hover{border-color:rgba(61,224,208,.18);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.28);}
+.ov-card:hover::before{opacity:1;}
+.ov-card.inactive{opacity:.55;}
+.ov-card.inactive:hover{transform:none;border-color:var(--border);box-shadow:none;}
+.ov-card[data-stream="ecg"]{--card-accent:var(--green);--trace-c:var(--green);}
+.ov-card[data-stream="ppg"]{--card-accent:var(--blue);--trace-c:var(--blue);}
+.ov-card[data-stream="spo2"]{--card-accent:var(--teal);--trace-c:var(--teal);}
+.ov-card[data-stream="pr"]{--card-accent:var(--purple);--trace-c:var(--purple);}
+.ov-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.ov-head .name{font-size:13px;font-weight:700;color:var(--text);}
+.ov-head .st{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  padding:2px 8px;border-radius:999px;border:1px solid var(--border2);color:var(--text4);}
+.ov-head .st.live{color:var(--green);border-color:rgba(57,217,138,.35);background:rgba(57,217,138,.08);}
+/* Not-worn / no-data / weak: AMBER, never red. The sensor is linked and the box is healthy — the user
+   simply isn't wearing it, or it's on a dock. Red here would cry fault at a normal state and train
+   people to ignore the colour that should mean something is actually broken. */
+.ov-head .st.warn{color:var(--amber);border-color:rgba(255,184,77,.35);background:rgba(255,184,77,.07);}
+/* Charging is an EXPECTED state — blue, matching .clk.chg (see chargeChip). */
+.ov-head .st.chg{color:var(--blue);border-color:rgba(88,166,255,.35);background:rgba(88,166,255,.07);}
+.ov-value{display:flex;align-items:flex-end;gap:8px;margin-bottom:8px;}
+.ov-value .big{font-size:34px;font-weight:700;line-height:1;font-family:ui-monospace,monospace;letter-spacing:-.02em;}
+.ov-value .big.ok{color:var(--status-ok);} .ov-value .big.warn{color:var(--status-caution);} .ov-value .big.bad{color:var(--status-concern);}
+.ov-value .big.muted{color:var(--text4);}
+.ov-value .unit{font-size:13px;color:var(--text3);padding-bottom:4px;}
+.ov-value .aux{margin-left:auto;font-size:13px;color:var(--text2);font-family:ui-monospace,monospace;padding-bottom:3px;}
+.ov-axes{display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;}
+.ov-axis{font-size:12px;font-weight:600;font-family:ui-monospace,monospace;letter-spacing:.02em;}
+.ov-axis b{font-size:18px;margin-left:4px;font-weight:700;}
+.ov-value .unit{white-space:nowrap;}
+.ov-mini{position:relative;}
+.ov-mini canvas{width:100%;height:84px;display:block;background:rgba(8,13,18,.6);border-radius:8px;}
+body.light .ov-mini canvas{background:rgba(15,25,35,.04);}
+.ov-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:11px;color:var(--text4);font-family:ui-monospace,monospace;}
+
+/* ── Live scope + morphology ───────────────────────────────────────────── */
+.streamsel{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-bottom:var(--sp-4);}
+.streamsel .btn.active{background:rgba(61,224,208,.13);border-color:rgba(61,224,208,.3);color:var(--teal);}
+.scope-wrap{position:relative;}
+canvas#scope{width:100%;height:340px;display:block;background:rgba(8,13,18,.6);border-radius:8px;}
+canvas#beat{width:100%;height:300px;display:block;background:rgba(8,13,18,.6);border-radius:8px;}
+body.light canvas#scope,body.light canvas#beat{background:rgba(15,25,35,.04);}
+.readout{position:absolute;top:.8rem;left:1rem;font-family:ui-monospace,monospace;font-size:.8rem;color:var(--text3);}
+.readout b{color:var(--text);font-size:1.6rem;}
+.spin{color:var(--text3);font-size:.8rem;}
+
+/* Morphology table */
+table.beat{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:14px;}
+table.beat th,table.beat td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);}
+table.beat th{color:var(--text4);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+table.beat td.v{font-family:ui-monospace,monospace;color:var(--text);white-space:nowrap;}
+table.beat td.norm{color:var(--text3);font-size:12px;}
+table.beat tr.hi td.v{color:var(--amber);}
+table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
+
+/* ── Devices ───────────────────────────────────────────────────────────── */
+.dev{display:flex;align-items:center;gap:.6rem;padding:12px 0;border-top:1px solid var(--border);}
+.dev:first-of-type{border-top:none;}
+.dev .meta{flex:1;min-width:0;}
+.dev .name{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dev .sub{font-size:11px;color:var(--text3);font-family:ui-monospace,monospace;margin-top:2px;}
+.dbadge{font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--border2);color:var(--text3);}
+.dbadge.on{color:var(--green);border-color:rgba(57,217,138,.35);}
+.dbadge.warn{color:var(--amber);border-color:rgba(255,184,77,.35);}
+
+/* ── Battery chip (drawn, not emoji — colored by level) ────────────────── */
+.batt{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;font-family:ui-monospace,monospace;
+  padding:1px 7px;border-radius:999px;border:1px solid var(--border2);color:var(--text3);white-space:nowrap;}
+.batt.ok{color:var(--green);border-color:rgba(57,217,138,.35);}
+.batt.warn{color:var(--amber);border-color:rgba(255,184,77,.35);}
+.batt.bad{color:var(--red);border-color:rgba(255,107,122,.45);}
+.batt-ico{position:relative;display:inline-block;width:15px;height:8px;border:1px solid currentColor;border-radius:2px;opacity:.85;}
+.batt-ico::after{content:'';position:absolute;right:-3px;top:2px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0;}
+.ov-pills{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:7px;
+  padding-top:7px;border-top:1px solid var(--border);min-height:20px;}
+.ov-pills:empty{display:none;}
+.dlbar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;gap:14px;
+  padding:12px 20px;background:linear-gradient(90deg,rgba(61,224,208,.14),rgba(61,224,208,.05));
+  border-top:2px solid var(--teal);backdrop-filter:blur(8px);}
+.dlbar-txt{font-size:13px;font-weight:700;color:var(--teal);white-space:nowrap;}
+.dlbar-track{flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden;}
+.dlbar-fill{height:100%;background:var(--teal);border-radius:999px;transition:width .25s ease;width:0;}
+.dlbar-pct{font-size:15px;font-weight:700;font-family:ui-monospace,monospace;color:var(--teal);min-width:3.5rem;text-align:right;}
+.setrow{display:flex;align-items:center;gap:.6rem;padding:4px 0;font-size:12px;}
+.setrow .k{font-family:ui-monospace,monospace;min-width:15rem;}
+.ratesel{font-size:11px;padding:1px 4px;background:var(--surface);color:var(--text);border:var(--b);border-radius:6px;}
+.setrow .mb{color:var(--text3);font-size:11px;}
+/* Rate advice — the REASON behind a `recommended` tick, on its own line under the control. Inherits the
+   .mb hint colour and size rather than inventing a look, so it reads as guidance and not as a warning;
+   `b` carries the verdict, the rest the justification. Full width so it wraps under the row instead of
+   squeezing the control. */
+.setrow .rate-why{flex-basis:100%;color:var(--text3);font-size:11px;line-height:1.45;margin:2px 0 6px 0;}
+.setrow .rate-why b{color:var(--text2);font-weight:600;}
+.batt-fill{position:absolute;left:1px;top:1px;bottom:1px;background:currentColor;border-radius:1px;transition:width .3s;}
+/* Link/RSSI pill — sits beside the battery pill. Drawn signal bars + dBm (or rate-based quality when the
+   privileged RSSI helper isn't granted), colored like the battery meter. Never blank on a live device. */
+.rssi{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;font-family:ui-monospace,monospace;
+  padding:1px 7px;border-radius:999px;border:1px solid var(--border2);color:var(--text3);white-space:nowrap;}
+.rssi.ok{color:var(--green);border-color:rgba(57,217,138,.35);}
+.rssi.warn{color:var(--amber);border-color:rgba(255,184,77,.35);}
+.rssi.bad{color:var(--red);border-color:rgba(255,107,122,.45);}
+/* Device-clock pill: the device's OWN time + skew vs host. Polar stamps every sample with device time,
+   so this is the visual confirmation that a sync took (and that an H10 hasn't reset to its 2019 default). */
+.clk{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;font-family:ui-monospace,monospace;
+  padding:1px 7px;border-radius:999px;border:1px solid var(--border2);color:var(--text3);white-space:nowrap;}
+.clk.ok{color:var(--green);border-color:rgba(57,217,138,.35);}
+.clk.warn{color:var(--amber);border-color:rgba(255,184,77,.35);}
+.clk.bad{color:var(--red);border-color:rgba(255,107,122,.45);}
+/* charging is an EXPECTED device state, not a fault — blue, never red/amber (see chargeChip). */
+.clk.chg{color:var(--blue);border-color:rgba(88,166,255,.35);}
+.rssi-ico{display:inline-flex;align-items:flex-end;gap:1px;height:9px;}
+.rssi-ico i{display:block;width:2px;background:currentColor;opacity:.22;border-radius:1px;}
+.rssi-ico i:nth-child(1){height:3px;} .rssi-ico i:nth-child(2){height:5px;}
+.rssi-ico i:nth-child(3){height:7px;} .rssi-ico i:nth-child(4){height:9px;}
+.rssi-ico i.on{opacity:1;}
+
+/* ── Clock & NTP card ──────────────────────────────────────────────────── */
+.clk-status{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 22px;margin:14px 0 4px;}
+.clk-row{display:flex;align-items:baseline;gap:8px;font-size:12.5px;min-width:0;}
+.clk-lab{color:var(--text4);text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;font-weight:700;flex:none;width:64px;}
+.clk-val{color:var(--text);font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.clk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0 12px;}
+.clk-field{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+.clk-field input,.clk-field select{font:inherit;font-size:13px;text-transform:none;letter-spacing:0;font-weight:400;
+  background:var(--surface2);border:var(--b);color:var(--text);border-radius:9px;padding:8px 11px;transition:border-color .15s;}
+.clk-field input:focus,.clk-field select:focus{border-color:rgba(61,224,208,.4);outline:none;}
+.clk-field input::placeholder{color:var(--text4);}
+.clk-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;}
+table.clksrc{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0 10px;}
+table.clksrc th,table.clksrc td{text-align:left;padding:5px 10px;border-bottom:1px solid var(--border);}
+table.clksrc th{color:var(--text4);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+table.clksrc td.v{font-family:ui-monospace,monospace;white-space:nowrap;}
+#clkSources .clk-val{white-space:normal;overflow:visible;text-overflow:clip;}  /* the stats carry their units; wrap, never ellipsize */
+table.clksrc tr.sel td{color:var(--text);} table.clksrc tr.sel td.v:first-of-type{font-weight:700;}
+table.clksrc tr.ref td{color:var(--teal, #3de0d0);}
+#clkCard code{font-family:ui-monospace,monospace;font-size:11px;background:var(--surface2);border:var(--b);padding:1px 6px;border-radius:5px;color:var(--text2);}
+
+/* ── Evidence discs (byte-faithful to dex-badges.css) ──────────────────── */
+.ev{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;vertical-align:baseline;margin-right:5px;opacity:.85;}
+.ev-measured{background:var(--ev-ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--ev-ink);}
+.ev-validated{background:var(--ev-ink);box-shadow:0 0 0 1px var(--ev-ink) inset;}
+.ev-emerging{background:linear-gradient(90deg,var(--ev-ink) 0 50%,transparent 50% 100%);box-shadow:0 0 0 1.5px var(--ev-ink) inset;}
+.ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}
+.ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}
+
+/* ── Nights ────────────────────────────────────────────────────────────────
+   One index (/api/nights), two tabs: DEVICES and FUSED & DERIVED. Above each table, the last 31
+   nights at a glance — one square per row per night, the box's SOLID-NIGHT verdict first. Below,
+   the last 31 nights open and older months folded into one line each (owner, 2026-10-11: "it's
+   basically done … wire it up"). Every cell is one button into openNight().
+   THE TOKEN BLOCK IS THE PILOT of the suite-wide design-token brief: palette, status shapes, bar and
+   type live here and nowhere else in this view, so the brief can lift them as written.
+   STATUS IS HUE AND GLYPH, NEVER HUE ALONE: ✓ full · ◐ partial · ✕ short · ● recorded, coverage not
+   measured · ? not measured yet · – not recorded. */
+#view-nights{
+  --n-ok:var(--green); --n-part:var(--amber); --n-low:var(--red); --n-rec:var(--teal); --n-unk:var(--text3);
+  --n-track:rgba(255,255,255,.07); --n-hatch:rgba(255,255,255,.10); --n-hover:rgba(61,224,208,.06);
+  --n-bar:8px; --n-cell-r:8px; --n-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+body.light #view-nights{ --n-track:rgba(0,0,0,.08); --n-hatch:rgba(0,0,0,.10); --n-hover:rgba(14,158,145,.08); }
+.ntabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--sp-4);}
+.ntabs button{font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:8px 14px;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--text2);}
+.ntabs button[aria-selected="true"]{background:var(--teal);border-color:var(--teal);color:var(--bg);}
+.ntabs button:focus-visible,.nsq:focus-visible,.ncell:focus-visible,.nchip:focus-visible,.nmg:focus-visible,.ndate:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+.nwhy{margin:0 0 var(--sp-3);color:var(--text3);font-size:12.5px;max-width:80ch;}
+.nlegend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--text2);margin-top:var(--sp-3);}
+.nlegend span{display:inline-flex;align-items:center;gap:6px;}
+.ng{display:inline-grid;place-items:center;width:18px;height:18px;flex:none;border-radius:5px;font:700 11px/1 var(--n-mono);}
+.ng.ok{background:color-mix(in srgb,var(--n-ok) 18%,transparent);color:var(--n-ok);}
+.ng.part{background:color-mix(in srgb,var(--n-part) 22%,transparent);color:var(--n-part);}
+.ng.low{background:color-mix(in srgb,var(--n-low) 22%,transparent);color:var(--n-low);}
+.ng.rec{background:color-mix(in srgb,var(--n-rec) 16%,transparent);color:var(--n-rec);}
+.ng.unk{border:1px dashed var(--n-unk);color:var(--n-unk);}
+.ng.none{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 3px,transparent 3px 6px);color:var(--text4);}
+.nov{overflow-x:auto;}
+.novg{display:grid;grid-template-columns:86px repeat(var(--n-days,31),minmax(9px,1fr));gap:3px;align-items:center;min-width:380px;}
+.novg .lab{font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.novg .lab b{color:var(--text);}
+.novg .sep{grid-column:1/-1;height:4px;}
+.novg .day{font:10px/1 var(--n-mono);color:var(--text4);text-align:center;white-space:nowrap;}
+.nsq{all:unset;cursor:pointer;aspect-ratio:1;border-radius:3px;min-height:9px;}
+.nsq.ok{background:var(--n-ok);opacity:.55;}.nsq.part{background:var(--n-part);}.nsq.low{background:var(--n-low);}
+.nsq.rec{background:var(--n-rec);opacity:.4;}.nsq.unk{box-shadow:inset 0 0 0 1px var(--n-unk);}
+.nsq.none{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 2px,transparent 2px 4px);}
+.nights-wrap{overflow-x:auto;margin:0 -6px;}
+table.nights{width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;}
+table.nights th{font-weight:700;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text4);text-align:left;padding:6px;border-bottom:1px solid var(--border);white-space:nowrap;}
+table.nights th small{display:block;font-weight:500;letter-spacing:0;text-transform:none;font-size:10.5px;}
+table.nights td{padding:6px 4px;vertical-align:middle;}
+table.nights tr.nz td{background:color-mix(in srgb,var(--surface2) 55%,transparent);}
+.ndate{font:600 13px/1.2 var(--n-mono);color:var(--text);white-space:nowrap;padding:4px 2px;background:none;border:0;cursor:pointer;text-align:left;}
+.ndate small{display:block;font-weight:400;font-size:11px;line-height:1.3;font-family:inherit;color:var(--text4);}
+.ncell{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:104px;width:100%;padding:6px;border-radius:var(--n-cell-r);border:1px solid transparent;}
+.ncell:hover{border-color:color-mix(in srgb,var(--teal) 45%,transparent);background:var(--n-hover);}
+.ncell.off{cursor:default;}.ncell.off:hover{border-color:transparent;background:none;}
+.ncell .top{display:flex;align-items:center;gap:7px;font:12.5px/1 var(--n-mono);color:var(--text);}
+.ncell .sub{font:11px/1.2 var(--n-mono);color:var(--text3);white-space:nowrap;}
+.ncell .sub.part{color:var(--n-part);}.ncell .sub.low{color:var(--n-low);}
+.nbar{height:var(--n-bar);border-radius:calc(var(--n-bar)/2);background:var(--n-track);overflow:hidden;}
+.nbar i{display:block;height:100%;border-radius:calc(var(--n-bar)/2);}
+.nbar i.ok{background:var(--n-ok);opacity:.6;}.nbar i.part{background:var(--n-part);}.nbar i.low{background:var(--n-low);}
+.nbar i.rec{background:var(--n-rec);opacity:.45;}.nbar i.unk{background:var(--n-unk);opacity:.35;}
+.ncell.none .nbar{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 3px,transparent 3px 6px);}
+tr.ndrawer td{padding:0 4px 12px;}
+.ndr{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;background:var(--surface2);border-radius:10px;padding:10px;}
+.ndr > div{font-size:12px;color:var(--text2);line-height:1.5;min-width:0;}
+.ndr b{color:var(--text);font-size:12.5px;}
+.ndr .nsb{grid-column:1/-1;border-bottom:1px solid var(--border);padding-bottom:8px;}
+.ndr .nsbd{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px 14px;margin-top:4px;}
+.ndr ul{margin:3px 0 0;padding-left:18px;color:var(--text3);word-break:break-word;}
+.nchips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
+.nchip{font-family:inherit;font-weight:600;font-size:11px;line-height:1;cursor:pointer;color:var(--teal);background:transparent;border:1px solid color-mix(in srgb,var(--teal) 40%,transparent);border-radius:999px;padding:5px 9px;}
+.nchip:hover{background:var(--n-hover);}
+.nchip.static{cursor:default;color:var(--text3);border-style:dashed;}
+.nchip small{font:400 10.5px var(--n-mono);color:var(--text3);margin-left:4px;}
+.nmg{all:unset;box-sizing:border-box;cursor:pointer;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;width:100%;padding:11px 8px;border-top:1px solid var(--border);font-size:13px;}
+.nmg b{font-weight:650;color:var(--text);}.nmg span{color:var(--text3);font-size:12px;}
+.nmg i{display:inline-block;transition:transform .15s;margin-right:6px;color:var(--text4);font-style:normal;}
+.nmg[aria-expanded="true"] i{transform:rotate(90deg);}
+tr.nflash td{animation:nflash 1.4s ease-out;}
+@keyframes nflash{from{background:color-mix(in srgb,var(--teal) 22%,transparent);}}
+@media (prefers-reduced-motion:reduce){tr.nflash td{animation:none;}.nmg i{transition:none;}}
+.ntoast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface3);color:var(--text);border:1px solid rgba(61,224,208,.35);
+  border-radius:12px;padding:10px 14px;font-size:12.5px;max-width:min(680px,92vw);box-shadow:0 8px 24px rgba(0,0,0,.24);display:none;font-family:ui-monospace,monospace;line-height:1.45;word-break:break-all;z-index:50;}
+.ntoast.on{display:block;}.ntoast.err{border-color:var(--red);}
+
+/* ── View routing + responsive ─────────────────────────────────────────── */
+.view{display:none;}
+.view.active{display:block;animation:fadeIn .25s ease;}
+.stack{display:flex;flex-direction:column;gap:var(--sp-4);}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr;}
+  .sidebar{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;overflow:visible;}
+  .sidebar-bottom{display:none;}
+  .logo{margin-bottom:0;}
+  .sidebar-logo-rule,.nav-section-label{display:none;}
+  .nav{flex-direction:row;flex-wrap:wrap;}
+  .main-wrap{padding:var(--sp-4) var(--sp-4) 64px;}
+}
+</style></head>
+<body style="padding:32px;max-width:900px">
+<h3 style="color:var(--text2);font-family:system-ui">Preview — QC card (11 gaps, grouped)</h3>
+<div class="ov-strip" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin:16px 0 32px"><div class="ov-stat" style="border-left-color:var(--status-caution)">
+      <div class="lab">Tonight (QC)</div>
+      <div class="val" style="font-size:15px">11 gaps</div>
+      <div class="sub">no data:<br><span class="qc-dev">Wellue O2Ring-S</span> · 5 — spo2, ppg, acc, pleth, hr<br><span class="qc-dev">Polar Sense 0C301E3F</span> · 3 — acc, ppg, ppi<br><span class="qc-dev">Polar H10 02849638</span> · 3 — ecg, acc, hr</div></div>
+</div>
+<h3 style="color:var(--text2);font-family:system-ui">Preview — QC card (complete night)</h3>
+<div class="ov-strip" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin:16px 0"><div class="ov-stat" style="border-left-color:var(--status-ok)">
+      <div class="lab">Tonight (QC)</div>
+      <div class="val" style="font-size:22px">Complete</div>
+      <div class="sub">412,003 rows · 2026-10-15</div></div>
+</div>
+</body></html>
