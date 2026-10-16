@@ -71331,43 +71331,44 @@
        export must say which denominator it used. Without this the emitters could ship correct and
        still change nothing, which is precisely what happened to part 1. */
     /* MUTANT-SURVIVOR PINS (2026-10-16 triage). The ECG mutant run with the fixed tools
-       left 16 survivors; two were genuine logic gaps in exported pure functions. These tests
+       left 16 survivors; three are pinned here. These tests
        pin the correct behavior so the mutants stay dead. */
-
-    // SURVIVOR ecgdex-dsp.js:2498 -- the _relGate floor 1.0 must not become 0. REM's LF/HF gate is
-    // night-relative WITH a floor: without it, a night where every epoch is parasympathetic-dominant
-    // (q65 < 1.0) gets a purely relative gate and labels the least-vagal epoch REM. The mutant drops
-    // the floor; the 0.8-LF/HF epoch below must stay Light.
-    if (env.ECGDSP && typeof env.ECGDSP.stageSleep === 'function') {
-      var SE = env.ECGDSP.stageSleep;
-      var seps = [];
-      for (var ei = 0; ei < 10; ei++) {
-        seps.push({
-          tMin: ei * 5,
-          lfhf: ei === 5 ? 0.8 : 0.5,
-          rmssd: ei === 5 ? 20 : 30,
-          hr: 60
-        });
-      }
-      var stages = SE(seps, null);
-      T.eq('LF/HF 0.8 with q65=0.5 stays Light, not REM (the 1.0 floor holds)', stages[5] && stages[5].stage, 'Light');
-      T.ok(
-        'and the low-LF/HF epochs stay Light too (no gate collapse)',
-        stages.every(function (s) {
-          return s.stage === 'Light';
-        }),
-        stages
-          .map(function (s) {
-            return s.stage;
-          })
-          .join(',')
-      );
-    } else {
-      T.skip('ECGDSP.stageSleep available', 'not on this build');
-    }
 
     group('ECG mutant survivors \u2014 the guards that must not weaken', 'ecgdex-dsp \u00b7 mutation \u00b7 regression', function (T) {
       var E = env.ECGDex;
+
+      // SURVIVOR ecgdex-dsp.js:2498 -- the _relGate floor 1.0 must not become 0. REM's LF/HF gate is
+      // night-relative WITH a floor: without it, a night where every epoch is parasympathetic-dominant
+      // (q65 < 1.0) gets a purely relative gate and labels the least-vagal epoch REM. The mutant drops
+      // the floor; the 0.8-LF/HF epoch below must stay Light.
+      if (env.ECGDSP && typeof env.ECGDSP.stageSleep === 'function') {
+        var SE = env.ECGDSP.stageSleep;
+        var seps = [];
+        for (var ei = 0; ei < 10; ei++) {
+          seps.push({
+            tMin: ei * 5,
+            lfhf: ei === 5 ? 0.8 : 0.5,
+            rmssd: ei === 5 ? 20 : 30,
+            hr: 60
+          });
+        }
+        var stages = SE(seps, null);
+        T.eq('LF/HF 0.8 with q65=0.5 stays Light, not REM (the 1.0 floor holds)', stages[5] && stages[5].stage, 'Light');
+        T.ok(
+          'and the low-LF/HF epochs stay Light too (no gate collapse)',
+          stages.every(function (s) {
+            return s.stage === 'Light';
+          }),
+          stages
+            .map(function (s) {
+              return s.stage;
+            })
+            .join(',')
+        );
+      } else {
+        T.skip('ECGDSP.stageSleep available', 'not on this build');
+      }
+
       if (!E) {
         T.skip('ECGDex co-loaded', 'env.ECGDex missing');
         return;
