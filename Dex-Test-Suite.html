@@ -225,7 +225,7 @@ const ADAPTER_SOURCES = (function () {
   return m.slice();
 })();
 const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/verify-fixtures.mjs',
-      'tools/drift-report.js','clock.js','oxydex-util.js','integrator-longitudinal.js','hrvdex-profile.js','oxydex-profile.js','overdex-walk.js','resp-acc-analysis.js','tools/tch-corpus.js','oxydex-registry.js','ecgdex-registry.js','ppgdex-registry.js','pulsedex-registry.js','hrvdex-registry.js','glucodex-registry.js','motiondex-registry.js','cpapdex-registry.js','metric-registry.js','pulsedex-dsp.js','oxydex-dsp.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js','qrs-equiv-worker.js','qrs-yield-worker.js',
+      'tools/drift-report.js','clock.js','oxydex-util.js','integrator-longitudinal.js','hrvdex-profile.js','oxydex-profile.js','overdex-walk.js','resp-acc-analysis.js','tools/tch-corpus.js','oxydex-registry.js','ecgdex-registry.js','ppgdex-registry.js','pulsedex-registry.js','hrvdex-registry.js','glucodex-registry.js','motiondex-registry.js','cpapdex-registry.js','metric-registry.js','pulsedex-dsp.js','oxydex-dsp.js','oxydex-accuracy.js','hrvdex-dsp.js','integrator-dsp.js','integrator-tch.js','integrator-app.js','integrator-render.js','ppgdex-dsp.js','glucodex-dsp.js','ecgdex-dsp.js','qrs-equiv-worker.js','qrs-yield-worker.js',
   'ecgdex-cross.js','oxydex-cross.js','pulsedex-cross.js','ppgdex-cross.js',
   'crossnight-envelope.js','ecgdex-app.js','ppgdex-app.js','pulsedex-app.js','pulsedex-render.js','motiondex-render.js','hrvdex-app.js','oxydex-app.js','oxydex-render.js','oxydex-fusion.js','dex-escape.js','dex-forget.js','dex-actions.js','dex-profile.js','dex-coload.js','provenance-ledger.js','cohort-full.js','dex-contracts.js','provenance-banner.js','support.js','xmt-fixture.js','sensor-trio-worker.js',
  /* THE WHOLE `*-registry.js` FAMILY, completed 2026-10-06. `oxydex-registry.js` arrived first (the day
@@ -333,6 +333,10 @@ async function main(){
   // ESM-MIGRATION deep-3: oxydex-dsp.js is a dual-mode ES module — same treatment (oxydex-util.js +
   // clock.js loaded classically above; __DEX_NAMESPACED__ true → attaches only window.OxyDex).
   { const _od = await fetchText('oxydex-dsp.js'); if(_od) (0, eval)(esmClassicify(_od)); }
+  // OXYDEX-ACCURACY-HARNESS: oxydex-accuracy.js is a DOM-free dual-mode module (attaches
+  // globalThis.OxyAccuracy; esmClassicify strips the trailing export for classic eval) — eval it
+  // here so the OxyDex math known-answer groups run in THIS lane, not just Node.
+  { const _oa = await fetchText('oxydex-accuracy.js'); if(_oa) (0, eval)(esmClassicify(_oa)); }
   // MotionDex (MOTIONDEX-BUILD-2026-07-17): dual-mode ES module — classic-load it here (clock.js loaded
   // classically above → window.DexClock present). A clean IIFE that attaches only window.MOTIONDSP /
   // window.MotionDex and leaks no bare names, so its equiv leg (env.equiv.motiondex) runs in this lane too.
@@ -724,6 +728,7 @@ async function main(){
     DexClock: window.DexClock,
     PulseDex: window.PulseDex,
     OxyDex: window.OxyDex,
+    OxyAccuracy: window.OxyAccuracy,
     HRVDex: window.HRVDex,
     MotionDex: window.MotionDex,
     MOTIONDSP: window.MOTIONDSP,
