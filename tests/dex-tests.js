@@ -7002,7 +7002,7 @@
         hrvdex: 'camq ortho',
         motiondex: 'activityCounts effortAmp effortPresent respRate',
         oxydex:
-          'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 ct90 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
+          'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
         ppgdex:
           'accHz agingIdx agreement analyzable beatLatency beatLatencyMad beatPpiDelta cleanPulses correction detectorStability dicrotic gyroHz ledAgreement meanAbsDev meanPPI meanSqi motionIdx notchTime pulseWidth reflectionIdx',
         pulsedex: 'accelCap ansPsns ansSns artifacts decelCap htn maxRR medianRR minRR modeRR mxdmn nBeats recovIndex recovery rsaProxy sdnnZ vagalEff'
@@ -73787,6 +73787,81 @@
         );
       });
     });
+    group('OxyDex math — injectBias is exact, clamped to [0,100], and null-preserving (synthetic)', 'oxydex · math-correctness · known-answer', function (T) {
+      var OA = env.OxyAccuracy;
+      if (!OA || typeof OA.injectBias !== 'function') {
+        T.ok('OxyAccuracy.injectBias is reachable', false, 'oxydex-accuracy.js not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      /* Hand-computed: 96+2=98, 98+2=100 (clamp), null stays null, 99+2=101→100 (clamp). */
+      T.eq('synthetic: injectBias([96,98,null,99], +2) is [98,100,null,100]', OA.injectBias([96, 98, null, 99], 2), [98, 100, null, 100]);
+      /* Hand-computed: 96-4=92, 3-4=-1→0 (clamp), null stays null. */
+      T.eq('synthetic: injectBias([96,3,null], -4) is [92,0,null]', OA.injectBias([96, 3, null], -4), [92, 0, null]);
+      /* Row objects: shallow-copied, spo2 biased, other fields untouched, input not mutated. */
+      var rows = [
+        { tMs: 1, spo2: 96, hr: 60 },
+        { tMs: 2, spo2: null, hr: 61 }
+      ];
+      var out = OA.injectBias(rows, -2);
+      T.eq('synthetic: row spo2 96-2=94', out[0].spo2, 94);
+      T.eq('synthetic: row spo2 null stays null', out[1].spo2, null);
+      T.eq('synthetic: row other fields preserved', out[0].hr, 60);
+      T.eq('synthetic: input not mutated', rows[0].spo2, 96);
+      /* Contract edges: non-array → null, NaN bias → null, NaN sample → null. */
+      T.eq('synthetic: injectBias(non-array) is null', OA.injectBias('nope', 2), null);
+      T.eq('synthetic: injectBias with NaN bias is null', OA.injectBias([96], NaN), null);
+      T.eq('synthetic: NaN sample becomes null, never NaN', OA.injectBias([NaN], 2), [null]);
+    });
+
+    group('OxyDex math — sensitivityReport deltas, boundary crossings, masked/phantom events (synthetic)', 'oxydex · math-correctness · bias-sensitivity', function (T) {
+      var OA = env.OxyAccuracy;
+      if (!OA || typeof OA.sensitivityReport !== 'function') {
+        T.ok('OxyAccuracy.sensitivityReport is reachable', false, 'oxydex-accuracy.js not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      /* Hand-computed: ODI 8.0 → 4.0 under +2% bias. absDelta -4.0, relDelta -0.5,
+         and the 5/h severity band is crossed downward. */
+      var r = OA.sensitivityReport({ odi3: 8.0, nadir: 91, t90: 5.0, events: [{ startSec: 10, endSec: 40 }] }, { odi3: 4.0, nadir: 93, t90: 2.0, events: [] }, 2);
+      T.eq('synthetic: ODI absDelta is -4.0', r.deltas.odi3.absDelta, -4.0);
+      T.eq('synthetic: ODI relDelta is -0.5', r.deltas.odi3.relDelta, -0.5);
+      T.eq('synthetic: ODI crosses the 5/h band downward', r.deltas.odi3.boundaryCross && r.deltas.odi3.boundaryCross.boundary, 5);
+      T.eq('synthetic: ODI crossing direction is down', r.deltas.odi3.boundaryCross && r.deltas.odi3.boundaryCross.direction, 'down');
+      /* Nadir 91 → 93: no boundary crossed (88% threshold untouched). */
+      T.eq('synthetic: nadir crosses no boundary', r.deltas.nadir.boundaryCross, null);
+      /* Masked event: the base event has no overlapping biased event. */
+      T.eq('synthetic: one masked event', r.nMasked, 1);
+      T.eq('synthetic: zero phantom events', r.nPhantom, 0);
+      /* Absence rules: relDelta is null on zero base (never 0/0), deltas null on null input. */
+      var rz = OA.sensitivityReport({ odi3: 0 }, { odi3: 1 }, 2);
+      T.eq('synthetic: relDelta is null when base is 0', rz.deltas.odi3.relDelta, null);
+      var rn = OA.sensitivityReport({ odi3: null }, { odi3: 4.0 }, 2);
+      T.eq('synthetic: absDelta is null when base is null', rn.deltas.odi3.absDelta, null);
+      T.eq('synthetic: relDelta is null when base is null', rn.deltas.odi3.relDelta, null);
+      /* Phantom: an event appears only under -bias. */
+      var rp = OA.sensitivityReport({ odi3: 2.0, events: [] }, { odi3: 6.0, events: [{ startSec: 100, endSec: 130 }] }, -2);
+      T.eq('synthetic: one phantom event under -bias', rp.nPhantom, 1);
+      T.eq('synthetic: zero masked events under -bias', rp.nMasked, 0);
+      /* Report carries the bias level and the method. */
+      T.eq('synthetic: report carries biasPct', r.biasPct, 2);
+      T.ok('synthetic: report method names the clamp', r.method.indexOf('[0,100]') >= 0);
+    });
+
+    group('OxyDex math — absence survives bias injection (null stays null)', 'oxydex · math-correctness · absence', function (T) {
+      var OA = env.OxyAccuracy;
+      if (!OA || typeof OA.injectBias !== 'function') {
+        T.ok('OxyAccuracy.injectBias is reachable', false, 'oxydex-accuracy.js not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      /* All-null series: bias must not invent data. */
+      T.eq('synthetic: all-null stays all-null under +4%', OA.injectBias([null, null, null], 4), [null, null, null]);
+      T.eq('synthetic: all-null stays all-null under -4%', OA.injectBias([null, null], -4), [null, null]);
+      /* Empty series: not an error, just empty. */
+      T.eq('synthetic: empty series stays empty', OA.injectBias([], 2), []);
+      /* sensitivityReport on empty metrics: deltas empty, zero events — never fabricated zeros. */
+      var r = OA.sensitivityReport({}, {}, 2);
+      T.eq('synthetic: empty metrics give zero masked', r.nMasked, 0);
+      T.eq('synthetic: empty metrics give zero phantom', r.nPhantom, 0);
+    });
 
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.
@@ -73901,6 +73976,41 @@
       if (json.kind === 'fusion' || (json.window && json.findings)) {
         T.ok(key + ': window present', json.window && typeof json.window === 'object');
         T.ok(key + ': no NaN/Infinity anywhere', countNonFinite(json) === 0);
+        return;
+      }
+      // synthetic known-answer fixture (e.g. oxydex-math-known-answer): NOT an export — a
+      // committed battery of hand-computed expected values. SYNTHETIC must be explicit, every
+      // series case carries its samples and its independently-computed expectations.
+      if (json.SYNTHETIC === true && json.series && typeof json.series === 'object') {
+        T.ok(
+          key + ': provenance present',
+          json.provenance && typeof json.provenance.origin === 'string' && typeof json.provenance.purpose === 'string',
+          'hand-computed values must say where they came from'
+        );
+        var cases = Object.keys(json.series);
+        T.ok(key + ': at least one series case', cases.length > 0);
+        var badCase = 0;
+        cases.forEach(function (cn) {
+          var c = json.series[cn];
+          if (!c || !Array.isArray(c.spo2) || c.spo2.length === 0) {
+            badCase++;
+            return;
+          }
+          if (!isFin(c.sampleSec) || c.sampleSec <= 0) {
+            badCase++;
+            return;
+          }
+          if (!isFin(c.t0Ms)) {
+            badCase++;
+            return;
+          }
+          if (!c.expected || typeof c.expected !== 'object') {
+            badCase++;
+            return;
+          }
+        });
+        T.ok(key + ': every series case has spo2[], finite sampleSec/t0Ms, and an expected object', badCase === 0, badCase + ' malformed');
+        T.ok(key + ': no NaN/Infinity anywhere', countNonFinite(json) === 0, countNonFinite(json) + ' bad numbers');
         return;
       }
       T.ok(key + ': recognized export shape', false, 'unknown schema — add a contract');

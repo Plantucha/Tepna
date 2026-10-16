@@ -600,6 +600,10 @@ function readSources() {
     'oxydex-util.js',
     'pulsedex-dsp.js',
     'oxydex-dsp.js',
+    /* OXYDEX-ACCURACY-HARNESS: listed in BOTH lanes. The browser lane's SOURCE_FILES scans it, so
+       readSources() must too — otherwise the id-emission ratchet sees a different `body` per lane
+       and the undeclared baseline can't be equal in both (ct90 is name-referenced here). */
+    'oxydex-accuracy.js',
     'hrvdex-dsp.js',
     'integrator-dsp.js',
     'ppgdex-dsp.js',
@@ -2480,7 +2484,9 @@ async function main() {
     // collide with integrator-dsp.js's bare parseTimestamp/mean (loaded above). This is what
     // lets the Phase-9 compute() FUNCTIONAL floor run in Node CI, not just the browser rig (-II §3).
     ctx.__DEX_NAMESPACED__ = true;
-    ['oxydex-util.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'glucodex-dsp.js', 'pat-gate.js', 'signal-orchestrate.js', 'dex-coload.js'].forEach((f) => loadInto(ctx, f));
+    ['oxydex-util.js', 'pulsedex-dsp.js', 'oxydex-dsp.js', 'oxydex-accuracy.js', 'hrvdex-dsp.js', 'glucodex-dsp.js', 'pat-gate.js', 'signal-orchestrate.js', 'dex-coload.js'].forEach((f) =>
+      loadInto(ctx, f)
+    );
   } catch (e) {
     console.error(paint('SETUP ERROR: ' + e.message, C.red));
     process.exit(2);
@@ -2830,6 +2836,7 @@ async function main() {
     DexClock: ctx.DexClock,
     PulseDex: ctx.PulseDex,
     OxyDex: ctx.OxyDex,
+    OxyAccuracy: ctx.OxyAccuracy,
     HRVDex: ctx.HRVDex,
     MotionDex: ctx.MotionDex,
     MOTIONDSP: ctx.MOTIONDSP,
