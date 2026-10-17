@@ -265,6 +265,11 @@
       "bin": "test",
       "status": "exempt"
     },
+    "capture-host/tests/test_monitor_nights_probe_verdict.py": {
+      "bin": "test",
+      "status": "exempt",
+      "reason": "Test for probe-night verdict display, prints verdict words in assertions"
+    },
     "capture-host/tests/test_adapter_hci.py": {
       "bin": "test",
       "status": "exempt"

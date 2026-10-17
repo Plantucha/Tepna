@@ -385,6 +385,7 @@ body.light #view-nights{ --n-track:rgba(0,0,0,.08); --n-hatch:rgba(0,0,0,.10); -
 .ng.rec{background:color-mix(in srgb,var(--n-rec) 16%,transparent);color:var(--n-rec);}
 .ng.unk{border:1px dashed var(--n-unk);color:var(--n-unk);}
 .ng.none{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 3px,transparent 3px 6px);color:var(--text4);}
+.ng.probe{background:color-mix(in srgb,var(--blue) 18%,transparent);color:var(--blue);}
 .nov{overflow-x:auto;}
 .novg{display:grid;grid-template-columns:86px repeat(var(--n-days,31),minmax(9px,1fr));gap:3px;align-items:center;min-width:380px;}
 .novg .lab{font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -395,6 +396,7 @@ body.light #view-nights{ --n-track:rgba(0,0,0,.08); --n-hatch:rgba(0,0,0,.10); -
 .nsq.ok{background:var(--n-ok);opacity:.55;}.nsq.part{background:var(--n-part);}.nsq.low{background:var(--n-low);}
 .nsq.rec{background:var(--n-rec);opacity:.4;}.nsq.unk{box-shadow:inset 0 0 0 1px var(--n-unk);}
 .nsq.none{background:repeating-linear-gradient(135deg,var(--n-hatch) 0 2px,transparent 2px 4px);}
+.nsq.probe{background:var(--blue);opacity:.55;}
 .nights-wrap{overflow-x:auto;margin:0 -6px;}
 table.nights{width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;}
 table.nights th{font-weight:700;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text4);text-align:left;padding:6px;border-bottom:1px solid var(--border);white-space:nowrap;}
@@ -1449,7 +1451,7 @@ const NIGHT_FUSED = [
   {name:'PAT',          sub:'ECG → pulse arrival',        node:'PAT', needs:['h10','verity']},
   {name:'PAT fused',    sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg']},
 ];
-const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–'};
+const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–', probe:'◔'};
 let NIGHTS_TAB = 'dev';
 const NIGHTS_OPEN_MONTHS = new Set();
 const nWd = d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T00:00:00Z').getUTCDay()];
@@ -1515,8 +1517,8 @@ function nFusCell(n, f){
    "not judged"; a folder this page cannot reach at all (the monitor opened on :8760, not through Caddy)
    is "unavailable here" — the two are never collapsed (§∅). */
 const NIGHT_SOLID = {}; let NIGHTS_CAPTURES = null;   // null = not probed yet
-const N_SOLID_CLS = {PASS:'ok', FAIL:'low', UNKNOWN:'unk'};
-const N_SOLID_TXT = {PASS:'solid', FAIL:'not solid', UNKNOWN:'unknown'};
+const N_SOLID_CLS = {PASS:'ok', FAIL:'low', UNKNOWN:'unk', NOT_APPLICABLE:'probe'};
+const N_SOLID_TXT = {PASS:'solid', FAIL:'not solid', UNKNOWN:'unknown', NOT_APPLICABLE:'probe night'};
 async function nProbeCaptures(rows){
   if(NIGHTS_CAPTURES!==null) return NIGHTS_CAPTURES;
   const any = rows.map(n=>NIGHT_COLS.map(c=>n[c]&&Array.isArray(n[c].files)?n[c].files[0]:null).find(Boolean)).find(Boolean);
@@ -1550,7 +1552,7 @@ function nSolidTxt(d){
   if(s.state==='bad') return ['?', 'verdict unreadable'];
   const v = s.v, devs = (v.result && v.result.devices) || {};
   const failed = Object.entries(devs).filter(([,x])=>x && x.status==='FAIL').map(([k])=>k.replace(/\s+[0-9A-F]{6,}$/i,''));
-  return [N_SOLID_TXT[v.status]||v.status, v.status==='PASS' ? 'every device passed' : v.status==='FAIL' ? (failed.length?failed.join(', ')+' failed':'failed') : 'a check could not run'];
+  return [N_SOLID_TXT[v.status]||v.status, v.status==='PASS' ? 'every device passed' : v.status==='FAIL' ? (failed.length?failed.join(', ')+' failed':'failed') : v.status==='NOT_APPLICABLE' ? 'declared a probe night — skipped by the run' : 'a check could not run'];
 }
 function nSolidCell(n){
   /* ∅ A DAYTIME ROW WEARS NO VERDICT. `SOLID-VERDICT.json` is the BAND's, so painting it here would
@@ -1608,7 +1610,7 @@ function renderNights(){
   $('#nightsOvWhy').textContent = dev
     ? 'One square per device per night, coloured by how much of the night that device covered; the first row is the box\'s solid-night verdict. Click a square to jump to its row.'
     : 'One square per tool per night: green when every input it needs was recorded. Click a square to jump to its row.';
-  $('#nightsLegend').innerHTML = '<span><b>Solid night:</b></span><span><i class="ng ok">✓</i>solid</span><span><i class="ng low">✕</i>not solid</span><span><i class="ng unk">?</i>unknown</span><span><i class="ng none">–</i>not judged</span><span style="flex-basis:100%;height:0"></span>'
+  $('#nightsLegend').innerHTML = '<span><b>Solid night:</b></span><span><i class="ng ok">✓</i>solid</span><span><i class="ng low">✕</i>not solid</span><span><i class="ng unk">?</i>unknown</span><span><i class="ng probe">◔</i>probe night</span><span><i class="ng none">–</i>not judged</span><span style="flex-basis:100%;height:0"></span>'
     + (dev ? '<span><i class="ng ok">✓</i>≥ 95 % covered</span><span><i class="ng part">◐</i>60–95 %</span><span><i class="ng low">✕</i>&lt; 60 %</span><span><i class="ng rec">●</i>recorded, coverage not measured</span><span><i class="ng unk">?</i>not measured yet</span><span><i class="ng none">–</i>not recorded</span>'
            : '<span><i class="ng ok">✓</i>every input on disk</span><span><i class="ng rec">●</i>inputs on disk, opens on rig</span><span><i class="ng none">–</i>an input is missing</span>');
   $('#nightsTitle').textContent = dev ? 'Every night, by device' : 'Every night, fused and derived';
