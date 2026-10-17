@@ -37,6 +37,10 @@ These run only on a developer/CI machine and are absent from every released bund
 |---|---|---|
 | **Node.js** | Runs `tools/build.mjs`, `tests/run-tests.mjs`, `tools/release.mjs`, `verify-manifest.mjs` | Any maintained LTS; no pinned native deps |
 | **The bundler** | Inlines source into standalone bundles | **Repo-owned** (`tools/build.mjs`) — not third-party, not SOUP |
+| **bleak** | Capture-host BLE central (radio interface) | 3.0.2, MIT — declared in `capture-host/requirements.txt` |
+| **PyYAML** | Capture-host config parsing (`config.yaml`) | 6.0.3, MIT — declared in `capture-host/requirements.txt` |
+| **aiohttp** | Capture-host monitor and control surface (`webmon.py`) | 3.14.4, Apache-2.0 AND MIT — declared in `capture-host/requirements.txt` |
+| **cryptography** | Capture-host AES-256-CBC for the ResMed AS11 channel (`as11_cipher.py`) | 50.0.2, Apache-2.0 OR BSD-3-Clause — declared in `capture-host/requirements.txt` |
 
 There are **no `node_modules` runtime dependencies** to enumerate: the tooling uses only the Node
 standard library. If a third-party build/test dependency is ever added, it must be added to this
