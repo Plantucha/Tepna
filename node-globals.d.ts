@@ -31,6 +31,7 @@ declare var safeEl: any; // oxydex-util.js — element lookup helper
 declare var escHTML: any; // oxydex-util.js — HTML escape
 declare var computeCeilingBaselineArr: any; // oxydex-util.js — ceiling-baseline series helper
 declare var _csvParseErrors: any; // window state — accumulated CSV parse diagnostics
+declare var _batchNewNights: any; // window state — nights added in the current upload batch (stale-metrics warning)
 declare var _oxyReview: any; // window state — self-ingest review-mode payload
 declare var _oxyW2: any; // window state — pending _PPG2W.txt texts awaiting their _SPO2.csv pair (waveform SpO₂)
 declare var _oxyW2S: any; // window state — parsed _SPO2.csv rows awaiting their _PPG2W.txt pair
