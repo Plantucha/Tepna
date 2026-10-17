@@ -110,6 +110,19 @@ Polar, Polar H10 and Verity Sense are trademarks of Polar Electro Oy; Wellue
 and ViATOM are trademarks of their respective owners. Used for identification
 only, with no affiliation or endorsement implied.
 
+### Runtime libraries
+
+The capture-host installs four third-party Python libraries at runtime.
+`capture-host/requirements.txt` declares them. I read each licence from its
+installed distribution.
+
+| Library | Version | Licence | Purpose |
+|---|---|---|---|
+| **bleak** | 3.0.2 | MIT | Cross-platform BLE central; the capture daemon's radio interface. |
+| **PyYAML** | 6.0.3 | MIT | Parses `config.yaml`. |
+| **aiohttp** | 3.14.4 | Apache-2.0 AND MIT | The monitor and control surface (`webmon.py`): scan, bond, forget, and the live waveform stream. |
+| **cryptography** | 50.0.2 | Apache-2.0 OR BSD-3-Clause | AES-256-CBC for the ResMed AS11 encrypted BLE channel (`as11_cipher.py`). |
+
 ---
 
 ## Development tools (not shipped)
