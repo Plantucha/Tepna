@@ -797,11 +797,9 @@ def resumable_set(
     prefix = f"{vendor}_{model}_{device_id}_"
     prev = prev_night_dir(ndir)
     cands: list[tuple[float, str, str]] = []
-    for d in (ndir, prev):
+    for d in (d for d in (ndir, prev) if d):
         # `prev` is always a DIFFERENT day than `ndir` when it is not None, so there is no same-folder
         # case to guard against — a guard for one would be an unreachable branch, not a safety net.
-        if not d:
-            continue
         found = _newest_set_in(d, prefix)
         if found is not None:
             cands.append((found[0], found[1], d))
@@ -813,9 +811,23 @@ def resumable_set(
     if (now.timestamp() - mtime) >= window_s:
         return None
     try:
-        return _dt.datetime.strptime(stamp, "%Y%m%d%H%M%S"), where
+        stamp_dt = _dt.datetime.strptime(stamp, "%Y%m%d%H%M%S")
     except ValueError:
         return None
+    # STALE-STAMP GUARD (2026-10-14): MTIME is not data-recency. A stored-session pull (or any
+    # non-data open) freshens MTIME without writing samples, so a set whose stamp is hours old
+    # can look "recently written" and get resumed for a new session — mislabeling the new data
+    # with the old stamp (06:31 stamp reused at 18:01 for a 21:53 session; the evening data then
+    # banded to the wrong night). If the stamp itself is older than the resume window by an
+    # order of magnitude, the "recent write" was not data: mint a fresh set.
+    # (A long continuous session is unaffected: its stamp ages with the session, and a restart
+    # within the window resumes it by MTIME before this guard is reached... no — this guard runs
+    # after the MTIME check. A 7-hour-old stamp with fresh MTIME from continuous writing WOULD
+    # be blocked. That fragmentation is acceptable: the two sets band correctly by their stamps,
+    # whereas a mislabeled resume corrupts the night attribution.)
+    if (now - stamp_dt).total_seconds() > window_s * 12:
+        return None
+    return stamp_dt, where
 
 
 def file_device_id(fname: str) -> str | None:
