@@ -73863,6 +73863,79 @@
       T.eq('synthetic: empty metrics give zero phantom', r.nPhantom, 0);
     });
 
+    /* ════ OxyDex Target 1 — the known-answer fixture drives the REAL DSP helpers ════
+       #3590 shipped `tests/fixtures/oxydex-math-known-answer.json` with hand-computed expectations, and
+       the only consumer was the shape check in validateExport: no DSP function ever read it. This
+       group builds the parsed-row shape (`tMs` + compat `t`, cadence from `sampleSec`) and asserts the
+       fixture's numbers against `computeStats` and `computeCTprecise` through `OxyDex._bare`.
+       Semantics it pins: `computeCTprecise` counts ROWS at the O2Ring's 1 Hz cadence (`ct90s` is a row
+       count), so a sparse series reads seconds as `count × sampleSec`; `computeStats` reads MEASURED
+       values only (`nadir_gappy`'s nulls are absence, never 0 — §∅). */
+    group('OxyDex known-answer fixture — the real helpers reproduce the hand-computed values', 'oxydex-dsp · math-correctness · known-answer · fixtures · absence', function (T) {
+      var fx = (env.fixtures || {})['oxydex-math-known-answer'];
+      var B = (env.OxyDex && env.OxyDex._bare) || null;
+      if (!fx || !fx.series) {
+        T.skip('oxydex-math-known-answer fixture loaded', 'runner passed no such fixture');
+        return;
+      }
+      if (!B || typeof B.computeStats !== 'function' || typeof B.computeCTprecise !== 'function') {
+        T.skip('OxyDex._bare computeStats/computeCTprecise available', 'wire env.OxyDex into this lane');
+        return;
+      }
+      function rowsOf(c) {
+        var rows = [];
+        for (var i = 0; i < c.spo2.length; i++) {
+          var ms = c.t0Ms + i * c.sampleSec * 1000;
+          rows.push({ tMs: ms, t: new Date(ms), spo2: c.spo2[i], hr: null, motion: 0 });
+        }
+        return rows;
+      }
+      var names = Object.keys(fx.series);
+      T.ok('fixture carries series cases', names.length > 0);
+      names.forEach(function (name) {
+        var c = fx.series[name],
+          E = c.expected || {},
+          rows = rowsOf(c),
+          measured = rows.filter(function (r) {
+            return r.spo2 != null;
+          }).length;
+        var st = null,
+          ct = null,
+          threw = null;
+        try {
+          st = B.computeStats(rows);
+          ct = B.computeCTprecise(rows);
+        } catch (e) {
+          threw = e;
+        }
+        T.ok(name + ': helpers accept the parsed-row shape (hr null, ' + rows.length + ' rows)', !threw && st && ct, threw ? String(threw) : '');
+        if (!st || !ct) return;
+        if ('mean' in E) T.eq(name + ': meanSpo2 over measured values', st.meanSpo2, E.mean);
+        if ('min' in E) T.eq(name + ': minSpo2', st.minSpo2, E.min);
+        if ('max' in E) T.eq(name + ': maxSpo2', st.maxSpo2, E.max);
+        if ('nadir' in E) T.eq(name + ': minSpo2 is the nadir', st.minSpo2, E.nadir);
+        if ('nadirIdx' in E)
+          T.eq(
+            name + ': the nadir sits at the expected sample index',
+            rows
+              .map(function (r) {
+                return r.spo2;
+              })
+              .indexOf(st.minSpo2),
+            E.nadirIdx
+          );
+        if ('nullCount' in E) {
+          T.eq(name + ': absent samples in the series', rows.length - measured, E.nullCount);
+          T.ok(name + ': an absent sample is not read as 0 (minSpo2 stays measured)', st.minSpo2 != null && st.minSpo2 > 0, String(st.minSpo2));
+        }
+        if ('nadirMeasured' in E) T.eq(name + ': minSpo2 ignores absent samples', st.minSpo2, E.nadirMeasured);
+        if ('below90Count' in E) T.eq(name + ': ct90s counts rows below 90', ct.ct90s, E.below90Count);
+        if ('below88Count' in E) T.eq(name + ': ct88s counts rows below 88', ct.ct88s, E.below88Count);
+        if ('below90Sec' in E) T.eq(name + ': ct90s × sampleSec = seconds below 90', ct.ct90s * c.sampleSec, E.below90Sec);
+        if ('below88Sec' in E) T.eq(name + ': ct88s × sampleSec = seconds below 88', ct.ct88s * c.sampleSec, E.below88Sec);
+      });
+    });
+
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.
        `totalGroups` stays the full declaration count, so "N of 134" is still honest. */
