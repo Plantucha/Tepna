@@ -23,7 +23,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "4f6d78abcaab",
       "oxydex-profile.js": "541a3ca4d4c1",
-      "oxydex-dsp.js": "a50aa3668d52"
+      "oxydex-dsp.js": "67823e8864cb"
     },
     "pulse": {
       "synth-gen.js": "5da30a5e5fcd",
@@ -51,6 +51,13 @@
       "nIntervention": 233,
       "nFlatControl": 239,
       "source": "#2825 analysis/published-numbers/treatment-response-2026-09-22.json"
+    },
+    {
+      "date": "2026-10-17",
+      "file": "oxydex-dsp.js",
+      "old": "a50aa3668d52",
+      "new": "67823e8864cb",
+      "reason": "PR #3595: UI-level changes (EDF rejection, stale-metrics warning) \u2014 no DSP computation change"
     }
   ],
   "measuredAt": "2026-10-14T01:57:06.174Z",
