@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="51ee056e012b" data-compute-hash="d73f562c02a9">
+<html lang="en" data-manifest-hash="ac365c41b882" data-compute-hash="6352f6dd8914">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EU/FGsM10uNQ/isoUgi2K4qVMPZfX1msMKVeVVYvQTE=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-StVex8JHEr+hdTdSUc9Ly97WmGn/lEXN48uSBG4inuY=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3KvPhldddORipcvZQn+2KCH7WgDrPUqD7DLJmP2siMs=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-NQjdOOuZVX6grXFAvbiMBOTQKtfgU2vDUZ8Tim3lBdE=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.19.0</title>
@@ -3561,6 +3561,7 @@ body[data-mode="research"]  .research-accordion[data-tier="research"]  { display
   background:radial-gradient(circle,rgba(45,212,191,.06),transparent 60%);
 }
 .readiness-score  { font-size:var(--fs-metric-hero); font-weight:var(--fw-bold); line-height:1; letter-spacing:-.04em; color:var(--readiness-color, var(--status-ok)); }
+.rs-unit { font-size:0.4em; font-weight:var(--fw-normal); color:var(--dim); margin-left:4px; }
 .readiness-tier   { font-size:13px; letter-spacing:.04em; text-transform:none; color:var(--text2); margin-top:var(--sp-3); font-weight:var(--fw-semibold); }
 .readiness-date   { font-size:11px; letter-spacing:0; text-transform:none; margin-top:var(--sp-2); }
 .readiness-note   { font-size:var(--fs-body); color:var(--text2); margin-top:var(--sp-4); max-width:420px; text-align:center; line-height:1.55; }
@@ -13736,6 +13737,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             }
             night.key = key;
             allNights[key] = night;
+            window._batchNewNights = (window._batchNewNights || 0) + 1;
           });
         });
         // FINISHED-WORK-IMPROVEMENTS §A 2a — after every file resolves, match each .bin/.dat night
@@ -13756,6 +13758,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         }
         var nights = Object.keys(allNights);
         console.log('[O2Ring] Parsed nights:', Object.keys(allNights).length); // N2: dropped the date-list dump
+        // If this batch added no new nights but had parse errors, the displayed
+        // metrics are stale (from previously loaded files). Warn prominently.
+        var _newNights = window._batchNewNights || 0;
+        window._batchNewNights = 0;
+        if (_newNights === 0 && window._csvParseErrors && window._csvParseErrors.length && nights.length) {
+          window._csvParseErrors.unshift('Note: no new nights were added from these files — the metrics below are from previously loaded files.');
+        }
         if (!nights.length) {
           var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\n\nDebug info:\n' + window._csvParseErrors.join('\n') : '';
           var errMsg = 'No valid data found. Upload raw O2Ring CSV files (O2Ring S *.csv) or pre-processed .json/.jsonl summaries.' + dbg;
@@ -13858,6 +13867,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   function readFile(file) {
     return new Promise(function (resolve) {
+      // OxyDex loads O2Ring data only (.dat/.bin/.csv). Reject EDF and other
+      // non-oximetry formats early — drag-and-drop bypasses the file input's
+      // accept filter, and EDF binary decodes to 0-row garbage.
+      if (/\.edf$/i.test(file.name)) {
+        if (!window._csvParseErrors) window._csvParseErrors = [];
+        window._csvParseErrors.push(escHTML(file.name) + ': EDF format not supported \u2014 OxyDex loads O2Ring .dat/.bin/.csv files only.');
+        resolve(null);
+        return;
+      }
       var reader = new FileReader();
       reader.onload = function (e) {
         try {
@@ -23626,7 +23644,7 @@ function renderAll() {
       html += '<div class="readiness-hero" id="sec-readiness" style="--readiness-color:' + rCls + '"' + (rColor === 'good' ? ' data-pulse="true"' : '') + '>';
       html += '<div class="readiness-hero-label">Recovery Readiness · Last Night</div>';
       html += '<div class="readiness-date-badge">' + escHTML(last.date) + '</div>';
-      html += '<div class="readiness-score">' + (rScore != null ? rScore : '—') + '</div>';
+      html += '<div class="readiness-score">' + (rScore != null ? rScore + '<span class="rs-unit">%</span>' : '—') + '</div>';
       html += '<div class="readiness-tier">' + (rTier || 'Upload overnight data') + '</div>';
 
       // Mini-metrics row
