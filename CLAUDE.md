@@ -45,10 +45,16 @@ Identities are stable; role and machine are metadata — update the row, never t
 
 ```sh
 git worktree add ../wt-<task>-<3 chars> -b claude/<task>-<3 chars> origin/main
+ln -s /home/michal/Tepna/node_modules ../wt-<task>-<3 chars>/node_modules
 ```
 
 **Always** when touching a bundle, a ledger or a DSP; a one-file doc edit in a clean tree needs none.
 The per-session suffix prevents two sessions deriving one branch name for one defect (§2d).
+
+A worktree does not share the primary checkout's `node_modules`. Without the symlink,
+`npx --no-install biome` falls back to npx's cache — which may hold an unrelated package
+squatting the name (measured: `biome@0.3.3`, "a simple way to manage environment variables").
+It runs, changes nothing, and exits 0. Symlink the primary `node_modules` into every worktree.
 
 ### 2 · Never blanket-stage, never destroy or re-point a tree you did not dirty
 
