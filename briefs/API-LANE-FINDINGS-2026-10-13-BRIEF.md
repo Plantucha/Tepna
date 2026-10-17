@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED — 2026-10-13 · **Created:** 2026-10-13 · **Residue:** 2026-10-13-oxydex-coverage-segments-reach-the-integrator-as-strings, 2026-10-13-computehradvanced-keeps-an-absent-hr-as-a-sample
+**Status:** IN-PROGRESS — 2026-10-17 (items 1–3 met: #3579, #3580 and #3581 merged; items 4–6 open) · **Created:** 2026-10-13 · **Residue:** 2026-10-13-oxydex-coverage-segments-reach-the-integrator-as-strings, 2026-10-13-computehradvanced-keeps-an-absent-hr-as-a-sample
 
 # API coder lane findings — 2026-10-13
 
@@ -30,17 +30,17 @@ The residue lanes read the repo at `eef31a054`. The audit lane read it at `67db6
 
 | key | lane | file | proof | next |
 |---|---|---|---|---|
-| `2026-09-23-heredoc-strip-is-decided-once-for-many` | max, max1 | `.claude/hooks/guard-shared-tree.sh` | PROVEN (verify-lane) | hook file: own PR held `do-not-merge`, the owner merges |
+| `2026-09-23-heredoc-strip-is-decided-once-for-many` | max, max1 | `.claude/hooks/guard-shared-tree.sh` | PROVEN (verify-lane) | hook file: landed in #3581, merged by the owner |
 | `2026-09-23-loss-audit-cannot-attribute-a-night-with-no-file` | max, max1 | `CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md` | PROVEN; landed in #3577 | none |
 | `2026-09-27-load-bearing-sources-no-gate-can-read` | max, max1 | `tests/run-tests.mjs` | PROVEN; landed in #3577 | none |
 | `2026-09-29-fold-session-merge-rule-is-module-local-to-trio-batch` | max, max1 | `tools/trio-batch.mjs` | PROVEN; landed in #3577 | none |
 | `2026-10-05-the-js-mutation-job-cannot-finish-on-the-pr-that-makes-its-own-target-fast` | max, max1 | `.github/workflows/mutation.yml` | PROVEN; landed in #3577 | none |
 | `2026-10-06-parsetimestr-zero-on-unparseable` | max, max1 | `oxydex-dsp.js` | PROVEN; landed in #3577 | none |
-| `2026-10-06-the-test-lanes-two-inventories-disagree-undetected` | max | `Dex-Test-Suite.html` | PROVEN (verify-lane) | follow-up PR A with the two rows below |
+| `2026-10-06-the-test-lanes-two-inventories-disagree-undetected` | max | `Dex-Test-Suite.html` | PROVEN (verify-lane) | landed in #3579 with the two rows below |
 | `2026-10-07-nadir-ramp-max-sec-is-a-duration-applied-as-an-index-count` | max, max1 | `oxydex-dsp.js` | PROVEN; landed in #3577 | none |
 | `2026-10-10-a-closes-residue-claim-is-never-checked-against-the-row` | max | `briefs/RESIDUE.md` | NOT PROVEN: the patch carries no test hunk | re-derive the test, then verify |
-| `2026-10-11-one-module-list-in-six-tool-literals` | max | `tools/measurement-walk.mjs` | PROVEN (verify-lane) | follow-up PR A |
-| `2026-10-12-load-bearing-sources-debt-is-six-of-eight-unpaid` | max | `tests/dex-tests.js` | PROVEN (verify-lane) | follow-up PR A |
+| `2026-10-11-one-module-list-in-six-tool-literals` | max | `tools/measurement-walk.mjs` | PROVEN (verify-lane) | landed in #3579 |
+| `2026-10-12-load-bearing-sources-debt-is-six-of-eight-unpaid` | max | `tests/dex-tests.js` | PROVEN (verify-lane) | landed in #3579 |
 | `2026-10-12-seven-hooks-exit-before-draining-stdin-and-their-tests-cannot-see-it` | max | `#3493` | SUPERSEDED: #3572 landed the fix | none |
 | `2026-10-12-the-night-band-mixes-a-floating-stamp-with-a-local-epoch` | max | `capture-host/nightqc.py` | UNVERIFIED | re-run the test on main, then with the patch |
 | `2026-10-12-four-capture-host-runtime-libraries-are-named-in-no-licence-doc` | max | `THIRD-PARTY.md` | NOT PROVEN: a doc-only check the verifier refuses | add the THIRD-PARTY rows by hand |
@@ -56,8 +56,8 @@ The residue lanes read the repo at `eef31a054`. The audit lane read it at `67db6
 | `brief-mutation-survivor-ledger-2026-09-28` | briefs1 | `briefs/MUTATION-SURVIVOR-LEDGER-2026-09-28-BRIEF.md` | UNVERIFIED | re-run the test on main, then with the patch |
 | `brief-o2ring-power-aware-ble-lifecycle-2026-09-05` | briefs1 | `briefs/O2RING-POWER-AWARE-BLE-LIFECYCLE-2026-09-05-BRIEF.md` | UNVERIFIED | re-run the test on main, then with the patch |
 | `brief-open-dataset-ahi-derivation-2026-10-12` | briefs1 | `briefs/OPEN-DATASET-AHI-DERIVATION-2026-10-12-BRIEF.md` | UNVERIFIED | re-run the test on main, then with the patch |
-| `audit-2026-10-13-oxydex-dsp-units-clock` | audit | `oxydex-dsp.js` | PROVEN (verify-lane) | audit PR B |
-| `audit-2026-10-13-oxydex-dsp-siblings` | audit | `oxydex-dsp.js` | PROVEN (verify-lane); moves one fixture | audit PR B |
+| `audit-2026-10-13-oxydex-dsp-units-clock` | audit | `oxydex-dsp.js` | PROVEN (verify-lane) | landed in #3580 |
+| `audit-2026-10-13-oxydex-dsp-siblings` | audit | `oxydex-dsp.js` | PROVEN (verify-lane); moves one fixture | landed in #3580 |
 
 Follow-up PR A carries three proven patches that share `tests/dex-tests.js`, `tests/run-tests.mjs` and `Dex-Test-Suite.html`. Audit PR B carries the two OxyDex patches. It re-bundles OxyDex, both orchestrators, the analysis tools and the docs copies, re-runs `tools/verify-fixtures.mjs`, and regenerates the gap fixture with `tools/regen-oxydex-goldens.mjs`.
 
@@ -137,9 +137,9 @@ The 86 untouched audit rows wait in the lane input. A completed row cost about 4
 
 ## 6 · Acceptance
 
-1. Follow-up PR A lands the three proven patches that share the test spine.
-2. Audit PR B lands the two OxyDex patches and closes the two residue rows this brief logs.
-3. The held hook PR carries the heredoc-strip patch for the owner to merge.
+1. Follow-up PR A lands the three proven patches that share the test spine. Met: #3579 merged 2026-10-14.
+2. Audit PR B lands the two OxyDex patches and closes the two residue rows this brief logs. Met: #3580 merged 2026-10-14.
+3. The held hook PR carries the heredoc-strip patch for the owner to merge. Met: the owner merged #3581 on 2026-10-17.
 4. The owner answers board items 11 (avahi unit) and 12 (credits for the 86 audit rows).
 5. A session verifies or withdraws each of the 13 UNVERIFIED patches and records the result here.
 6. A human reads each NOT_A_DEFECT claim and closes the row as `withdrawn` or leaves it open.
