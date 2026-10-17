@@ -62,3 +62,25 @@ def test_old_mtime_is_not_resumed():
         now = dt.datetime(2026, 10, 14, 18, 1, 38)
         result = resumable_set(ndir, "Wellue", "O2Ring-S", "S8AW2100", now, window_s=300)
         assert result is None
+
+
+def test_boundary_exactly_12x_window_resumes():
+    """At exactly window*12, the guard uses > (strict), so it resumes. Kills the >= mutant."""
+    with tempfile.TemporaryDirectory() as tmp:
+        # Stamp exactly 3600s (12*300) old, MTIME fresh
+        now = dt.datetime(2026, 10, 14, 18, 1, 38)
+        stamp = (now - dt.timedelta(seconds=3600)).strftime("%Y%m%d%H%M%S")
+        ndir = _make_set(tmp, stamp, mtime_age_s=60)
+        result = resumable_set(ndir, "Wellue", "O2Ring-S", "S8AW2100", now, window_s=300)
+        assert result is not None, "at exactly 12x window, should resume (strict >)"
+
+
+def test_boundary_just_over_12x_window_does_not_resume():
+    """Just over window*12, the guard blocks. Kills the *13 mutant."""
+    with tempfile.TemporaryDirectory() as tmp:
+        # Stamp 3700s old (>12*300, <13*300), MTIME fresh
+        now = dt.datetime(2026, 10, 14, 18, 1, 38)
+        stamp = (now - dt.timedelta(seconds=3700)).strftime("%Y%m%d%H%M%S")
+        ndir = _make_set(tmp, stamp, mtime_age_s=60)
+        result = resumable_set(ndir, "Wellue", "O2Ring-S", "S8AW2100", now, window_s=300)
+        assert result is None, "just over 12x window, should NOT resume"
