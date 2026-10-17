@@ -64,7 +64,22 @@ export function ciBanner(runs) {
 }
 
 /** Budget bar. `spentPct` is the OWNER'S last reported number — this machine cannot read the plan. */
-export function budgetBar({ spentPct, spentPctRange, reportedAt, nowMs }) {
+export function budgetBar({ spentPct, spentPctRange, reportedAt, nowMs, resets = null }) {
+  /* A READING FROM THE LAST WEEK IS NOT THIS WEEK'S. A point carries the instant its pool resets; once
+     that has passed the number describes a pool that no longer exists. Measured 2026-10-17: a 99 % point
+     from 10-13 20:50 stood on the board 3 h 49 min after the 16:00 reset as a "94.9 h old" STALE bar, and
+     the owner read it as a live cap. The bar now reports the absence of a new-week reading instead. */
+  const resetMs = resets ? Date.parse(resets) : NaN;
+  if (isFinite(resetMs) && resetMs <= nowMs) {
+    const last = spentPct != null ? `${spentPct} %` : Array.isArray(spentPctRange) ? `${spentPctRange.join('–')} %` : 'a reading';
+    return {
+      ok: false,
+      weekReset: true,
+      resets,
+      lastPct: spentPct,
+      reason: `the week reset at ${String(resets).slice(0, 16).replace('T', ' ')}; the last point (${last} at ${String(reportedAt).slice(0, 16).replace('T', ' ')}) belongs to the pool before it — type /usage and append a point to plan.json`
+    };
+  }
   /* 🔴 A RANGE STAYS A RANGE. The owner reports what the provider shows them, and that is often a band
      ("27–32 % at 15 h"). Collapsing it to a midpoint would publish a precision nobody measured — the
      §∅ rule at the display boundary: a figure that was not measured as a point is not drawn as one.
@@ -115,7 +130,8 @@ function usage(sinceSpec) {
       })),
       remotes: u.remotes ?? [],
       managedAgents: u.managedAgents ?? { rows: [], read: [] },
-      roster: rosterNames()
+      roster: rosterNames(),
+      rosterHosts: rosterHosts()
     };
   } catch (e) {
     return fail(`usage-guard --json failed: ${e.message}`);
@@ -132,6 +148,39 @@ export function parseRoster(md) {
   const out = [];
   for (const m of sec.matchAll(/^\| \*\*([A-Za-z]+)\*\* \|/gm)) out.push(m[1].toLowerCase());
   return out;
+}
+/* Name → machine column of the same table, so an unread bird's reason names ITS host, not whichever
+   remote failed. Measured 2026-10-17: one failing ssh to the box was printed as the reason on finch,
+   a roaming bird no host this board reads has ever carried. */
+export function parseRosterHosts(md) {
+  const sec =
+    String(md)
+      .split(/^### 0 · /m)[1]
+      ?.split(/^- /m)[0] ?? '';
+  const out = {};
+  for (const m of sec.matchAll(/^\| \*\*([A-Za-z]+)\*\* \| ([^|]*)\|/gm)) out[m[1].toLowerCase()] = m[2].trim();
+  return out;
+}
+function rosterHosts() {
+  try {
+    return parseRosterHosts(readFileSync(path.join(REPO, 'CLAUDE.md'), 'utf-8'));
+  } catch {
+    return {};
+  }
+}
+/* The reason an unread roster bird shows. Pure, so --selftest can plant a failed remote beside a
+   roaming bird and a local one. A failed remote is the reason ONLY for a bird whose roster machine
+   names that host; a local bird with no transcript in the window says so; a roaming bird says that no
+   host this board reads carries it. */
+export function unreadReason(name, u) {
+  const machine = String((u.rosterHosts || {})[name] || '');
+  const remotes = u.remotes || [];
+  const failed = remotes.filter((r) => !r.ok).find((r) => machine.toLowerCase().includes(String(r.host).toLowerCase()));
+  if (failed) return failed.reason;
+  if (!machine) return 'machine not in the §0 roster table';
+  if (/roaming/i.test(machine)) return `no host this board reads carries it (${machine})`;
+  const read = ['this machine', ...remotes.filter((r) => r.ok).map((r) => r.host)];
+  return `no transcript in the window on ${read.join(', ')}`;
 }
 function rosterNames() {
   try {
@@ -443,6 +492,7 @@ function planPct() {
         spentPct: last.all,
         spentPctRange: null,
         reportedAt: last.at,
+        resets: last.resets || null,
         note: null,
         point: { all: last.all, fable: typeof last.fable === 'number' ? last.fable : null, session: typeof last.session === 'number' ? last.session : null, at: last.at, resets: last.resets || null },
         rate: { all: rate('all'), fable: rate('fable'), hours: hours == null ? null : +hours.toFixed(1) },
@@ -488,7 +538,7 @@ export function collect() {
     host: process.env.HOSTNAME || 'rig',
     usage24h: u24,
     usage7d: u7,
-    budget: budgetBar({ spentPct: plan.spentPct, spentPctRange: plan.spentPctRange, reportedAt: plan.reportedAt, nowMs: now }),
+    budget: budgetBar({ spentPct: plan.spentPct, spentPctRange: plan.spentPctRange, reportedAt: plan.reportedAt, nowMs: now, resets: plan.resets ?? null }),
     planNote: plan.note || null,
     planPoint: plan.point || null,
     planRate: plan.rate || null,
@@ -519,6 +569,7 @@ export function collect() {
     else if (rb.amber) banners.push({ level: 'amber', why: rb.why });
   }
   if (board.budget.ok && board.budget.stale) banners.push({ level: 'amber', why: `the plan % is ${board.budget.ageHours} h old — re-read /usage and update plan.json` });
+  if (!board.budget.ok && board.budget.weekReset) banners.push({ level: 'amber', why: board.budget.reason });
   board.banners = banners;
   return board;
 }
@@ -527,7 +578,7 @@ export function collect() {
 export function summarize(b) {
   const u = b.usage24h;
   const tok = u.ok ? `${(u.fleetTokens / 1e6).toFixed(1)}M fresh/24h` : 'usage unread';
-  const bud = b.budget.ok ? `plan ${b.budget.label}${b.budget.stale ? ' (STALE)' : ''}` : 'plan %: not reported';
+  const bud = b.budget.ok ? `plan ${b.budget.label}${b.budget.stale ? ' (STALE)' : ''}` : b.budget.weekReset ? 'plan %: week reset, new week unread' : 'plan %: not reported';
   const pr = b.prs.ok ? `${b.prs.openNonDraft} open` : 'PRs unread';
   const rel = b.release.ok ? `v${String(b.release.lastTag).replace(/^v/, '')} +${b.release.commitsSince}c/${b.release.ageDays}d` : 'release unread';
   const red = b.banners.filter((x) => x.level === 'red');
@@ -573,13 +624,11 @@ function renderUsage(u, label) {
     })
     .join('');
   const seen = new Set(named.map((s) => String(s.name).toLowerCase()));
-  const unreadRemotes = (u.remotes || []).filter((r) => !r.ok);
-  const why = unreadRemotes.length ? unreadRemotes.map((r) => r.reason).join('; ') : 'no transcript in the window on any host this board reads';
   const missing = (u.roster || [])
     .filter((n) => !seen.has(n))
     .map(
       (n) =>
-        `<tr><td>${esc(n)}</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="dim">not read: ${esc(why)}</td></tr>`
+        `<tr><td>${esc(n)}</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="dim">not read: ${esc(unreadReason(n, u))}</td></tr>`
     )
     .join('');
   const maRows = (u.managedAgents?.rows || [])
@@ -719,6 +768,16 @@ function runSelftest() {
   const fresh = budgetBar({ spentPct: 30, reportedAt: new Date(Date.now() - 3.6e6).toISOString(), nowMs: Date.now() });
   ok(fresh.ok && !fresh.stale && fresh.ageHours === 1, 'a 1 h old reading is fresh and carries its age');
   ok(budgetBar({ spentPct: 30, reportedAt: new Date(Date.now() - 30 * 3.6e6).toISOString(), nowMs: Date.now() }).stale, 'a 30 h old reading is STALE — an old number is not a current number');
+  {
+    const gone = budgetBar({ spentPct: 99, reportedAt: '2026-10-13T20:50-04:00', nowMs: Date.parse('2026-10-17T23:49Z'), resets: '2026-10-17T16:00-04:00' });
+    ok(
+      !gone.ok && gone.weekReset && /week reset at 2026-10-17 16:00/.test(gone.reason) && /99 %/.test(gone.reason),
+      'a point whose pool has reset is NOT a current reading — it reports the reset and the absence of a new one'
+    );
+    const live = budgetBar({ spentPct: 99, reportedAt: '2026-10-13T20:50-04:00', nowMs: Date.parse('2026-10-14T00:00Z'), resets: '2026-10-17T16:00-04:00' });
+    ok(live.ok && live.spentPct === 99, 'before the reset the same point is the reading');
+    ok(budgetBar({ spentPct: 40, reportedAt: new Date().toISOString(), nowMs: Date.now(), resets: 'not a date' }).ok, 'an unparseable reset instant is ignored, never a false reset');
+  }
   const band = budgetBar({ spentPct: null, spentPctRange: [27, 32], reportedAt: new Date(Date.now() - 3.6e6).toISOString(), nowMs: Date.now() });
   ok(band.ok && band.range && band.label === '27–32%' && band.lo === 27 && band.hi === 32, 'a reported BAND stays a band and is labelled as one');
   ok(!('spentPct' in band) || band.spentPct == null, 'a band does not invent a point value — no midpoint is published');
@@ -840,17 +899,33 @@ function runSelftest() {
       'the roster reads only the §0 table, lower-cased, so every bird gets a token row'
     );
     {
+      const md = '### 0 · Roster\n| session | machine | lane |\n|---|---|---|\n| **Kestrel** | rig-x870 | c |\n| **Finch** | roaming (bridge) | f |\n| **Wren** | vigil | m |\n- trailer\n';
+      const hosts = parseRosterHosts(md);
+      ok(hosts.kestrel === 'rig-x870' && hosts.finch === 'roaming (bridge)' && hosts.wren === 'vigil', 'the roster machine column is read per bird');
+      const u = { rosterHosts: hosts, remotes: [{ host: 'vigil', ok: false, reason: 'vigil not read (255)' }] };
+      ok(unreadReason('wren', u) === 'vigil not read (255)', 'a failed remote is the reason for the bird whose machine is that host');
+      ok(/no host this board reads/.test(unreadReason('finch', u)), 'a roaming bird does NOT inherit the failed remote — it has no host this board reads');
+      ok(/no transcript in the window on this machine$/.test(unreadReason('kestrel', u)), 'a local bird with nothing in the window says so, and does not name the failed remote');
+      ok(/this machine, vigil$/.test(unreadReason('kestrel', { rosterHosts: hosts, remotes: [{ host: 'vigil', ok: true }] })), 'with the remote read, the local reason lists every host that was read');
+      ok(/not in the §0 roster/.test(unreadReason('ghost', u)), 'a name outside the table says so');
+    }
+    {
       const u = {
         ok: true,
         fleetTokens: 10,
         fleetCacheRead: 5,
         sessions: [{ name: 'kestrel', tokens: 10, cacheRead: 5, output: 1, messages: 2, models: {}, lastContextTokens: 3 }],
         remotes: [{ host: 'box', ok: false, reason: 'box not read (255)' }],
-        roster: ['kestrel', 'finch'],
+        roster: ['kestrel', 'finch', 'osprey'],
+        rosterHosts: { kestrel: 'rig', finch: 'box', osprey: 'rig' },
         managedAgents: { rows: [{ model: 'claude-sonnet-5-5', sessions: 2, tokens: 7, cacheRead: 9, output: 4, listCostUsd: 0.83, costWithout: 1 }], read: [] }
       };
       const h = renderUsage(u, 'bird');
-      ok(/<td>finch<\/td>(<td class="n dim">—<\/td>){5}<td class="dim">not read: box not read \(255\)/.test(h), 'a roster bird with no session reads as unread with the reason, never as 0');
+      ok(/<td>finch<\/td>(<td class="n dim">—<\/td>){5}<td class="dim">not read: box not read \(255\)/.test(h), 'a roster bird on the failed host reads as unread with that reason, never as 0');
+      ok(
+        /<td>osprey<\/td>(<td class="n dim">—<\/td>){5}<td class="dim">not read: no transcript in the window on this machine</.test(h),
+        'a local bird with nothing in the window does NOT inherit the failed remote as its reason'
+      );
       ok(/API · managed agents<\/td><td class="n">/.test(h) && /\$0\.83/.test(h) && /\+1 unpriced/.test(h), 'the API row carries its list cost and counts an unpriced run');
     }
     ok(
