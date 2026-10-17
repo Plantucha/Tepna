@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  stitched-31d.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  31-day stitched results: per-night three-cornered-hat sigmas aggregated
+  across the last 31 solid nights. All inline, no CDN — works offline.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>31-day stitched — Tepna</title>
+<style>
+:root{
+  --bg:#0B0F14; --surface:#121821; --surface2:#18212C;
+  --border:#1e2d42; --text:#F4F7FB; --text2:#9FB0C3; --text3:#6F8096;
+  --teal:#3DE0D0; --blue:#58A6FF; --green:#39D98A; --amber:#FFB84D; --red:#FF6B7A;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.55;padding:24px;max-width:1100px;margin:0 auto}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:var(--text3);font-size:13px;margin-bottom:20px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.tabs button{background:var(--surface);border:1px solid var(--border);color:var(--text2);padding:8px 14px;border-radius:10px;font-size:13px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--teal);color:#041014;border-color:var(--teal);font-weight:600}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px}
+.card h2{font-size:15px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.metric{background:var(--surface2);border-radius:10px;padding:12px}
+.metric .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)}
+.metric .val{font-size:22px;font-weight:700;margin:4px 0}
+.metric .ci{font-size:12px;color:var(--text2)}
+canvas{width:100%;height:220px;background:var(--surface2);border-radius:10px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+.tbl th{text-align:left;color:var(--text3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:8px;border-bottom:1px solid var(--border)}
+.tbl td{padding:8px;border-bottom:1px solid var(--border)}
+.tbl tr.gap td{color:var(--text3);font-style:italic}
+.note{color:var(--text3);font-size:12px;margin-top:12px}
+.err{color:var(--red)}
+.ok{color:var(--green)}
+</style>
+</head>
+<body>
+<h1>31-day stitched results</h1>
+<p class="sub" id="meta">Per-night three-cornered-hat, aggregated across the last 31 solid nights. Gaps mark absent nights — never zero-filled.</p>
+<div class="tabs" id="tabs" role="tablist"></div>
+<div id="content"></div>
+<script>
+'use strict';
+// Tool definitions: key matches the stitch_31d.py TOOLS map.
+var TOOLS = [
+  {key:'3corner',        label:'3-corner hat'},
+  {key:'3corner_fused',  label:'3-hat fused'},
+  {key:'pat_h10_verity', label:'PAT H10\u2192Verity'},
+  {key:'pat_h10_o2ring', label:'PAT H10\u2192O2Ring'},
+  {key:'pat_verity_o2ring', label:'PAT Verity\u2192O2Ring'},
+  {key:'pat_fused',      label:'PAT fused'}
+];
+var DEV_LABEL = {h10:'Polar H10', verity:'Verity Sense', o2:'O2Ring-S'};
+var DEV_COLOR = {h10:'#3DE0D0', verity:'#58A6FF', o2:'#39D98A'};
+
+function fmt(x, d){ if(x===null||x===undefined||typeof x!=='number'||!isFinite(x)) return '\u2014'; return x.toFixed(d===undefined?2:d); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function drawChart(canvas, nights){
+  // Bar chart: per-night sigma per device. Gap nights draw as hatched empty slots.
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width = canvas.offsetWidth * 2, H = canvas.height = 440;
+  ctx.clearRect(0,0,W,H);
+  var ok = nights.filter(function(n){return n.status==='ok'&&n.sigma;});
+  if(!ok.length){ ctx.fillStyle='#6F8096'; ctx.font='28px system-ui'; ctx.fillText('no computed nights', 20, 40); return; }
+  var maxV = 0;
+  ok.forEach(function(n){ ['h10','verity','o2'].forEach(function(k){ if(typeof n.sigma[k]==='number'&&n.sigma[k]>maxV) maxV=n.sigma[k]; }); });
+  maxV = Math.ceil(maxV*1.15) || 1;
+  var padL=70, padB=50, padT=20, cw=(W-padL-10)/nights.length, ch=H-padT-padB;
+  // axes
+  ctx.strokeStyle='#1e2d42'; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,padT+ch); ctx.lineTo(W-10,padT+ch); ctx.stroke();
+  ctx.fillStyle='#6F8096'; ctx.font='22px system-ui';
+  for(var g=0; g<=4; g++){ var v=maxV*g/4, y=padT+ch-(v/maxV)*ch;
+    ctx.fillText(v.toFixed(1), 8, y+8);
+    ctx.strokeStyle='#18212C'; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-10,y); ctx.stroke(); }
+  ctx.fillText('\u03c3 (bpm)', 8, padT+10);
+  // bars: 3 grouped bars per night
+  var devs=['h10','verity','o2'], bw=Math.max(2,(cw-6)/3);
+  nights.forEach(function(n,i){
+    var x = padL + i*cw + 3;
+    if(n.status!=='ok'||!n.sigma){
+      // gap: hatched slot
+      ctx.strokeStyle='#4E5A6B'; ctx.setLineDash([6,4]);
+      ctx.strokeRect(x, padT, cw-6, ch); ctx.setLineDash([]);
+      return;
+    }
+    devs.forEach(function(k,di){
+      var v=n.sigma[k]; if(typeof v!=='number') return;
+      var bh=(v/maxV)*ch, bx=x+di*bw, by=padT+ch-bh;
+      ctx.fillStyle=DEV_COLOR[k]; ctx.globalAlpha=0.85;
+      ctx.fillRect(bx, by, bw-1, bh); ctx.globalAlpha=1;
+    });
+    // night label every 5th
+    if(i%5===0||i===nights.length-1){
+      ctx.fillStyle='#4E5A6B'; ctx.font='18px system-ui'; ctx.save();
+      ctx.translate(x+cw/2, H-8); ctx.fillText(String(n.night).slice(5), -14, 0); ctx.restore();
+    }
+  });
+  // legend
+  var lx=padL;
+  devs.forEach(function(k){
+    ctx.fillStyle=DEV_COLOR[k]; ctx.fillRect(lx, 8, 22, 14);
+    ctx.fillStyle='#9FB0C3'; ctx.font='22px system-ui'; ctx.fillText(DEV_LABEL[k], lx+30, 22);
+    lx += 30 + ctx.measureText(DEV_LABEL[k]).width + 30;
+  });
+}
+
+function renderTool(tool, data){
+  var el = document.getElementById('content');
+  if(!data){ el.innerHTML='<div class="card"><p class="err">No result file. The stitch runs when a solid night lands.</p></div>'; return; }
+  if(data.error){ el.innerHTML='<div class="card"><h2>'+esc(tool.label)+'</h2><p class="err">'+esc(data.error)+'</p><p class="note">Computed '+esc(data.at||'unknown')+'.</p></div>'; return; }
+  var agg = data.aggregate||{}, html='';
+  html += '<div class="card"><h2>'+esc(tool.label)+' — aggregate across '+data.n_nights+' nights</h2><div class="grid">';
+  ['h10','verity','o2'].forEach(function(k){
+    var a=agg[k]||{};
+    html += '<div class="metric"><div class="lbl">'+esc(DEV_LABEL[k])+' \u03c3</div>'
+      + '<div class="val">'+fmt(a.median)+' <span style="font-size:13px;color:var(--text3)">bpm</span></div>'
+      + '<div class="ci">95% CI '+fmt(a.ci_lo)+' \u2013 '+fmt(a.ci_hi)+' · n='+a.n+'</div></div>';
+  });
+  html += '</div>';
+  html += '<div class="grid">'
+    + '<div class="metric"><div class="lbl">Nights</div><div class="val">'+data.n_nights+'</div><div class="ci">'+data.n_gaps+' gaps (absent, not zero)</div></div>'
+    + '<div class="metric"><div class="lbl">Overlap</div><div class="val">'+fmt(data.overlap_s_total/3600,1)+' <span style="font-size:13px;color:var(--text3)">h</span></div><div class="ci">total co-recorded</div></div>';
+  var r=data.r_mean||{};
+  html += '<div class="metric"><div class="lbl">Mean r</div><div class="val" style="font-size:16px">H\u2013V '+fmt(r.hv)+' · H\u2013O '+fmt(r.ho)+' · V\u2013O '+fmt(r.vo)+'</div><div class="ci">pairwise correlation</div></div>';
+  html += '</div></div>';
+  // per-night chart
+  html += '<div class="card"><h2>Per-night \u03c3</h2><canvas id="chart"></canvas>'
+    + '<p class="note">Each group: H10 (teal), Verity (blue), O2Ring (green). Hatched slots are gap nights.</p></div>';
+  // per-night table
+  html += '<div class="card"><h2>Night detail</h2><table class="tbl"><thead><tr><th>Night</th><th>Status</th><th>H10 \u03c3</th><th>Verity \u03c3</th><th>O2 \u03c3</th><th>Overlap</th></tr></thead><tbody>';
+  (data.nights||[]).forEach(function(n){
+    var cls = n.status==='ok'?'':'gap';
+    var st = n.status==='ok'?'<span class="ok">computed</span>':esc(n.status||'gap');
+    html += '<tr class="'+cls+'"><td>'+esc(n.night)+'</td><td>'+st+'</td>'
+      + '<td>'+fmt(n.sigma&&n.sigma.h10)+'</td><td>'+fmt(n.sigma&&n.sigma.verity)+'</td><td>'+fmt(n.sigma&&n.sigma.o2)+'</td>'
+      + '<td>'+(n.overlap_s?fmt(n.overlap_s/60,0)+' min':'\u2014')+'</td></tr>';
+  });
+  html += '</tbody></table><p class="note">Model: '+esc(data.model||'unknown')+'. Computed '+esc(data.at||'unknown')+'.</p></div>';
+  el.innerHTML = html;
+  drawChart(document.getElementById('chart'), data.nights||[]);
+}
+
+function selectTool(key){
+  document.querySelectorAll('#tabs button').forEach(function(b){ b.setAttribute('aria-selected', String(b.dataset.tool===key)); });
+  var tool = TOOLS.find(function(t){return t.key===key;});
+  document.getElementById('content').innerHTML='<div class="card"><p>Loading\u2026</p></div>';
+  fetch('/api/stitched/'+key, {cache:'no-store'}).then(function(r){
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  }).then(function(data){ renderTool(tool, data); })
+  .catch(function(e){
+    document.getElementById('content').innerHTML='<div class="card"><h2>'+esc(tool.label)+'</h2>'
+      +'<p>Not yet computed — the stitch runs when a solid night lands.</p>'
+      +'<p class="note">'+esc(String(e))+'</p></div>';
+  });
+}
+
+(function init(){
+  var tabs=document.getElementById('tabs');
+  TOOLS.forEach(function(t){
+    var b=document.createElement('button');
+    b.textContent=t.label; b.dataset.tool=t.key; b.setAttribute('role','tab');
+    b.onclick=function(){ selectTool(t.key); history.replaceState(null,'','?tool='+t.key); };
+    tabs.appendChild(b);
+  });
+  var q=new URLSearchParams(location.search).get('tool');
+  var first = TOOLS.some(function(t){return t.key===q;}) ? q : '3corner';
+  selectTool(first);
+})();
+</script>
+</body>
+</html>

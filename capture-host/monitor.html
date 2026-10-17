@@ -452,6 +452,7 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
   .nav{flex-direction:row;flex-wrap:wrap;}
   .main-wrap{padding:var(--sp-4) var(--sp-4) 64px;}
 }
+.s31{background:rgba(61,224,208,.1);border:1px solid rgba(61,224,208,.25);color:#3DE0D0;font-size:11px;padding:3px 10px;border-radius:999px;cursor:pointer;margin-top:4px}.s31:hover{background:rgba(61,224,208,.2)}
 </style>
 </head>
 <body>
@@ -1446,10 +1447,10 @@ const NIGHT_DEVICES = [
 // The fused tab. `node` is the openNight key; 3-hat fused and PAT fused open the same page today.
 const NIGHT_FUSED = [
   {name:'Integrator',   sub:'every stream, one timeline', node:'Integrator', off:'folds run on rig — opens here once the box makes the fold'},
-  {name:'3-corner hat', sub:'H10 · Verity · O2Ring',      node:'3 corner hat', needs:['h10','verity','ring']},
-  {name:'3-hat fused',  sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg']},
-  {name:'PAT',          sub:'ECG → pulse arrival',        node:'PAT', needs:['h10','verity']},
-  {name:'PAT fused',    sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg']},
+  {name:'3-corner hat', sub:'H10 · Verity · O2Ring',      node:'3 corner hat', needs:['h10','verity','ring'], stitch:'3corner'},
+  {name:'3-hat fused',  sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg'], stitch:'3corner_fused'},
+  {name:'PAT',          sub:'ECG → pulse arrival',        node:'PAT', needs:['h10','verity'], stitch:'pat_h10_verity'},
+  {name:'PAT fused',    sub:'classic beside fused',       node:'PAT fused', needs:['h10','verity','ringppg'], stitch:'pat_fused'},
 ];
 const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–', probe:'◔'};
 let NIGHTS_TAB = 'dev';
@@ -1626,7 +1627,7 @@ function renderNights(){
               + (dev ? ' · longest '+nHrs(nSpan(n)) : '');
     return `<tr class="${i%2?'nz':''}" id="nrow-${esc(k)}"><td><button type="button" class="ndate" data-drawer="${esc(k)}" aria-expanded="${open.has('ndr-'+k)}">${esc(n.night)}<small>${esc(sub)}</small></button></td>${nSolidCell(n)}${cols.map(c=>dev?nDevCell(n,c):nFusCell(n,c)).join('')}</tr>`
       + `<tr class="ndrawer" id="ndr-${esc(k)}"${open.has('ndr-'+k)?'':' hidden'}><td colspan="${span}"><div class="ndr">${nDrawer(n)}</div></td></tr>`; };
-  let h = `<thead><tr><th>Night</th><th>Solid<small>the box's verdict</small></th>${cols.map(c=>`<th>${esc(c.name)}<small>${esc(c.sub)}</small></th>`).join('')}</tr></thead><tbody>${recent.map(row).join('')}</tbody>`;
+  let h = `<thead><tr><th>Night</th><th>Solid<small>the box's verdict</small></th>${cols.map(c=>`<th>${esc(c.name)}<small>${esc(c.sub)}</small>${(!dev&&c.stitch)?`<br><button type="button" class="s31" data-stitch="${esc(c.stitch)}">31-day</button>`:''}</th>`).join('')}</tr></thead><tbody>${recent.map(row).join('')}</tbody>`;
   const months = new Map();
   for(const n of older){ const m=n.night.slice(0,7); if(!months.has(m)) months.set(m,[]); months.get(m).push(n); }
   for(const [m, ns] of months){
@@ -1639,6 +1640,10 @@ function renderNights(){
        + `<tbody${isOpen?'':' hidden'}>${isOpen?ns.map(row).join(''):''}</tbody>`;
   }
   $('#nightsTable').innerHTML = h;
+  // 31-day stitched buttons: event delegation (headers re-render each time).
+  $('#nightsTable').querySelectorAll('button.s31').forEach(function(b){
+    b.onclick = function(){ window.open('/stitched-31d.html?tool='+encodeURIComponent(b.dataset.stitch), '_blank'); };
+  });
   nLoadSolid(rows.map(n=>n.night));   // every night's verdict: the folded months count them too
 }
 let nightsPoll=null;
