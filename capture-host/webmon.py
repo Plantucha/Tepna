@@ -513,6 +513,25 @@ def make_app(
             os.path.join(_HERE, "monitor.html"), headers={"Cache-Control": "no-cache, must-revalidate"}
         )
 
+    async def stitched_page(_req):
+        # 31-day stitched results page. Same no-cache policy as the monitor:
+        # the page shows precomputed values that refresh when a solid night lands.
+        return web.FileResponse(
+            os.path.join(_HERE, "stitched-31d.html"), headers={"Cache-Control": "no-cache, must-revalidate"}
+        )
+
+    async def stitched_result(req):
+        # Serve /srv/tepna/stitched/<tool>/RESULT.json. Tool names come from
+        # the stitch_31d.py TOOLS map; anything else is a 404.
+        tool = req.match_info.get("tool", "")
+        allowed = {"3corner", "3corner_fused", "pat_h10_verity", "pat_h10_o2ring", "pat_verity_o2ring", "pat_fused"}
+        if tool not in allowed:
+            return web.json_response({"ok": False, "error": "unknown tool"}, status=404)
+        path = os.path.join(cfg.get("root", "/srv/tepna"), "stitched", tool, "RESULT.json")
+        if not os.path.exists(path):
+            return web.json_response({"ok": False, "error": "not yet computed"}, status=404)
+        return web.FileResponse(path, headers={"Cache-Control": "no-cache, must-revalidate"})
+
     def _cpap_live_block(c):
         """The serve-time "is therapy running NOW" view, as its OWN top-level block.
 
@@ -2181,6 +2200,8 @@ def make_app(
     app.add_routes(
         [
             web.get("/", index),
+            web.get("/stitched-31d.html", stitched_page),
+            web.get("/api/stitched/{tool}", stitched_result),
             web.get("/api/state", state),
             web.get("/api/version", version_get),
             web.get("/api/wifi", wifi_get),
