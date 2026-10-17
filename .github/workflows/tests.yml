@@ -138,6 +138,11 @@ jobs:
       # passed 56/56 because that tree could not see R7–R10. Same shallow-clone refusal as above.
       - name: Residue ids — no collision with main's ledger, and no row edited or removed
         run: node tools/residue-ids.mjs --base origin/main
+      # A merged body can say `Closes residue <key>` while that row still reads OPEN, and until
+      # 2026-10-17 nothing compared the two (row 2026-10-10-a-closes-residue-claim-is-never-checked-
+      # against-the-row). Full history: every close claim in the log vs that row's state cell at HEAD.
+      - name: Residue claims — every `Closes residue` claim in history has a closed row
+        run: node tools/residue-ids.mjs --full-tree
       # A job with no `timeout-minutes` inherits GitHub's 360-minute default, so a hung step burns
       # six hours of the concurrency pool while the fleet correctly reads the queue as serialising
       # (CLAUDE.md §👥.5) — the reading that is right almost always and therefore hides a real hang.
