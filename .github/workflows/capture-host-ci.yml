@@ -181,7 +181,7 @@ jobs:
           # dependency there declares it to humans and to `check.sh`, and NOT to the job that runs the
           # tests. Measured: the property suite passed locally (my venv had it from a manual install)
           # and both matrix legs failed collection here with ModuleNotFoundError.
-          pip install pytest pytest-cov pytest-xdist pytest-timeout ruff shellcheck-py hypothesis
+          pip install pytest pytest-cov pytest-xdist pytest-timeout pytest-asyncio ruff shellcheck-py hypothesis
           pip install -r requirements.txt
       - name: Lint (ruff — real errors only)
         if: needs.changes.outputs.run == 'true'
