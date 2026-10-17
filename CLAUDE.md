@@ -56,6 +56,13 @@ A worktree does not share the primary checkout's `node_modules`. Without the sym
 squatting the name (measured: `biome@0.3.3`, "a simple way to manage environment variables").
 It runs, changes nothing, and exits 0. Symlink the primary `node_modules` into every worktree.
 
+**Check for filename collisions before creating a new tool.** Two sessions naming a new
+artifact after the same defect derive the same name (§🐦.2d's branch-name finding applied
+to FILES). A new file has no lease: it conflicts at merge if both sides are committed,
+and is overwritten silently if a session writes without looking. Before `muse.write` to
+`tools/<name>.mjs`, run `ls tools/<name>.mjs` and `git log --oneline --all -- tools/<name>.mjs`.
+`changes/` (dated keys) and the residue ledger (gate) have collision protection; `tools/` does not.
+
 ### 2 · Never blanket-stage, never destroy or re-point a tree you did not dirty
 
 - **Stage by explicit path.** No `git add -A` / `git add .` / `git commit -a`. `git status` before every
