@@ -118,8 +118,8 @@ expect_from "$W"   DENY  "anti-vacuity: cwd IS the dirty repo, no cd, no -C"    
 expect_from "$TMP" ALLOW "RESIDUAL: no cd, no -C, cwd outside ⇒ nothing to examine" "git commit -m x"
 
 # ── escape hatch, and the fail-open cases ─────────────────────────────────────────
-got="$(jq -nc --arg c 'git commit -m wip' '{tool_input:{command:$c}}' | CLAUDE_ALLOW_UNFORMATTED=1 bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
-if [ "$got" = ALLOW ]; then echo "  ok    CLAUDE_ALLOW_UNFORMATTED=1 lets a WIP commit through"
+got="$(jq -nc --arg c 'git commit -m wip' '{tool_input:{command:$c}}' | CLAUDE_ALLOW_UNFORMATTED_RUFF=1 bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
+if [ "$got" = ALLOW ]; then echo "  ok    CLAUDE_ALLOW_UNFORMATTED_RUFF=1 lets a WIP commit through"
 else echo "  FAIL  escape hatch denied"; fail=$((fail+1)); fi
 
 got="$(printf 'not json' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
@@ -128,7 +128,7 @@ else echo "  FAIL  malformed payload denied"; fail=$((fail+1)); fi
 
 # ── the message must carry the fix, not just the refusal ──────────────────────────
 msg="$(jq -nc --arg c 'git commit -m x' '{tool_input:{command:$c}}' | bash "$H" 2>&1 >/dev/null)"
-for want in 'ruff check --fix' 'capture-host/dirty.py' 'CLAUDE_ALLOW_UNFORMATTED=1' 'check.sh'; do
+for want in 'ruff check --fix' 'capture-host/dirty.py' 'CLAUDE_ALLOW_UNFORMATTED_RUFF=1' 'check.sh'; do
   if printf '%s' "$msg" | grep -qF "$want"; then printf '  ok    message carries %-40s\n' "$want"
   else printf '  FAIL  message missing %s\n' "$want"; fail=$((fail+1)); fi
 done
@@ -147,7 +147,7 @@ head -c 100000 /dev/zero | tr '\0' x > "$TMP/stdin-big"
 jq -nc --rawfile c "$TMP/stdin-big" '{tool_input:{command:$c}}' > "$TMP/stdin-big.json"
 _worst=0
 for _i in 1 2 3 4 5; do
-  cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_UNFORMATTED=1 bash "$H" >/dev/null 2>&1
+  cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_UNFORMATTED_RUFF=1 bash "$H" >/dev/null 2>&1
   _rc="${PIPESTATUS[0]}"; [ "$_rc" != 0 ] && _worst="$_rc"
 done
 if [ "$_worst" = 0 ]; then echo "  ok    the hatch drains 100 KB of stdin, 5 writers live   rc=0"
