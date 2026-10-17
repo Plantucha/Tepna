@@ -799,7 +799,7 @@ def test_the_nights_view_is_the_owner_approved_design():
     assert "'/SOLID-VERDICT.json'" in html
     # every status class has a glyph, and no two classes share one: hue is never the only signal
     glyphs = dict(re.findall(r"(\w+):'([^']+)'", html.split("const NIGHT_GLYPH = {")[1].split("};")[0]))
-    assert set(glyphs) == {"ok", "part", "low", "rec", "unk", "none"} and len(set(glyphs.values())) == 6, glyphs
+    assert set(glyphs) == {"ok", "part", "low", "rec", "unk", "none", "probe"} and len(set(glyphs.values())) == 7, glyphs
     # a 404 is "not judged"; a folder this page cannot reach is "unavailable here" — never collapsed
     assert "r.status===404" in html and "'unavailable here'" in html and "'not judged'" in html
     # the CPAP's EDF carries no coverage: it reads RECORDED, never a coverage it was not measured to have
