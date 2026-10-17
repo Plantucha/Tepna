@@ -1,6 +1,6 @@
 ---
 bump: patch
-type: docs
+type: fixed
 ---
 
 # Capture-host runtime libraries get licence docs
