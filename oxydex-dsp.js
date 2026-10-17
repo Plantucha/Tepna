@@ -460,6 +460,7 @@
             }
             night.key = key;
             allNights[key] = night;
+            window._batchNewNights = (window._batchNewNights || 0) + 1;
           });
         });
         // FINISHED-WORK-IMPROVEMENTS §A 2a — after every file resolves, match each .bin/.dat night
@@ -480,6 +481,13 @@
         }
         var nights = Object.keys(allNights);
         console.log('[O2Ring] Parsed nights:', Object.keys(allNights).length); // N2: dropped the date-list dump
+        // If this batch added no new nights but had parse errors, the displayed
+        // metrics are stale (from previously loaded files). Warn prominently.
+        var _newNights = window._batchNewNights || 0;
+        window._batchNewNights = 0;
+        if (_newNights === 0 && window._csvParseErrors && window._csvParseErrors.length && nights.length) {
+          window._csvParseErrors.unshift('Note: no new nights were added from these files — the metrics below are from previously loaded files.');
+        }
         if (!nights.length) {
           var dbg = window._csvParseErrors && window._csvParseErrors.length ? '\n\nDebug info:\n' + window._csvParseErrors.join('\n') : '';
           var errMsg = 'No valid data found. Upload raw O2Ring CSV files (O2Ring S *.csv) or pre-processed .json/.jsonl summaries.' + dbg;
@@ -582,6 +590,15 @@
 
   function readFile(file) {
     return new Promise(function (resolve) {
+      // OxyDex loads O2Ring data only (.dat/.bin/.csv). Reject EDF and other
+      // non-oximetry formats early — drag-and-drop bypasses the file input's
+      // accept filter, and EDF binary decodes to 0-row garbage.
+      if (/\.edf$/i.test(file.name)) {
+        if (!window._csvParseErrors) window._csvParseErrors = [];
+        window._csvParseErrors.push(escHTML(file.name) + ': EDF format not supported \u2014 OxyDex loads O2Ring .dat/.bin/.csv files only.');
+        resolve(null);
+        return;
+      }
       var reader = new FileReader();
       reader.onload = function (e) {
         try {

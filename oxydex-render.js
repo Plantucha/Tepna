@@ -940,7 +940,7 @@ function renderAll() {
       html += '<div class="readiness-hero" id="sec-readiness" style="--readiness-color:' + rCls + '"' + (rColor === 'good' ? ' data-pulse="true"' : '') + '>';
       html += '<div class="readiness-hero-label">Recovery Readiness · Last Night</div>';
       html += '<div class="readiness-date-badge">' + escHTML(last.date) + '</div>';
-      html += '<div class="readiness-score">' + (rScore != null ? rScore : '—') + '</div>';
+      html += '<div class="readiness-score">' + (rScore != null ? rScore + '<span class="rs-unit">%</span>' : '—') + '</div>';
       html += '<div class="readiness-tier">' + (rTier || 'Upload overnight data') + '</div>';
 
       // Mini-metrics row
