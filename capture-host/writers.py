@@ -797,11 +797,9 @@ def resumable_set(
     prefix = f"{vendor}_{model}_{device_id}_"
     prev = prev_night_dir(ndir)
     cands: list[tuple[float, str, str]] = []
-    for d in (ndir, prev):
+    for d in (d for d in (ndir, prev) if d):
         # `prev` is always a DIFFERENT day than `ndir` when it is not None, so there is no same-folder
         # case to guard against — a guard for one would be an unreachable branch, not a safety net.
-        if not d:
-            continue
         found = _newest_set_in(d, prefix)
         if found is not None:
             cands.append((found[0], found[1], d))

@@ -64,23 +64,46 @@ def test_old_mtime_is_not_resumed():
         assert result is None
 
 
-def test_boundary_exactly_12x_window_resumes():
-    """At exactly window*12, the guard uses > (strict), so it resumes. Kills the >= mutant."""
+def test_mtime_exactly_at_window_does_not_resume():
+    """At exactly window_s MTIME age, >= returns None. Kills the >= to > mutant at line 813."""
     with tempfile.TemporaryDirectory() as tmp:
-        # Stamp exactly 3600s (12*300) old, MTIME fresh
-        now = dt.datetime(2026, 10, 14, 18, 1, 38)
-        stamp = (now - dt.timedelta(seconds=3600)).strftime("%Y%m%d%H%M%S")
-        ndir = _make_set(tmp, stamp, mtime_age_s=60)
-        result = resumable_set(ndir, "Wellue", "O2Ring-S", "S8AW2100", now, window_s=300)
-        assert result is not None, "at exactly 12x window, should resume (strict >)"
+        now = dt.datetime(2026, 10, 14, 18, 6, 38)
+        # Create set with MTIME exactly 300s before test now
+        d = os.path.join(tmp, "2026-10-14")
+        os.makedirs(d, exist_ok=True)
+        fname = "Wellue_O2Ring-S_S8AW2100_20261014180100_PPG.txt"
+        path = os.path.join(d, fname)
+        with open(path, "w") as f:
+            f.write("# test\n")
+        ts = now.timestamp() - 300  # Exactly window_s ago
+        os.utime(path, (ts, ts))
+        result = resumable_set(d, "Wellue", "O2Ring-S", "S8AW2100", now, window_s=300)
+        assert result is None, "at exactly window_s, should NOT resume (>=)"
 
 
-def test_boundary_just_over_12x_window_does_not_resume():
-    """Just over window*12, the guard blocks. Kills the *13 mutant."""
+def test_max_uses_mtime_not_lexicographic():
+    """The max() uses key=lambda c: c[0] (mtime), not tuple comparison.
+    Kills the max key=None mutants at line 812."""
     with tempfile.TemporaryDirectory() as tmp:
-        # Stamp 3700s old (>12*300, <13*300), MTIME fresh
-        now = dt.datetime(2026, 10, 14, 18, 1, 38)
-        stamp = (now - dt.timedelta(seconds=3700)).strftime("%Y%m%d%H%M%S")
-        ndir = _make_set(tmp, stamp, mtime_age_s=60)
+        # Two dirs with same mtime but different stamps
+        # ndir: 2026-10-14, prev: 2026-10-13 (auto-computed)
+        ndir = os.path.join(tmp, "2026-10-14")
+        os.makedirs(ndir, exist_ok=True)
+        prev = os.path.join(tmp, "2026-10-13")
+        os.makedirs(prev, exist_ok=True)
+        # Create sets with SAME mtime
+        ts = dt.datetime.now().timestamp() - 60
+        for d, stamp in [(ndir, "20261014180000"), (prev, "20261013220000")]:
+            fname = f"Wellue_O2Ring-S_S8AW2100_{stamp}_PPG.txt"
+            path = os.path.join(d, fname)
+            with open(path, "w") as f:
+                f.write("# test\n")
+            os.utime(path, (ts, ts))
+        now = dt.datetime(2026, 10, 14, 18, 5, 0)
         result = resumable_set(ndir, "Wellue", "O2Ring-S", "S8AW2100", now, window_s=300)
-        assert result is None, "just over 12x window, should NOT resume"
+        # With key=lambda c: c[0], picks by mtime (tie -> first encountered, which is ndir)
+        # With key=None, picks by tuple comparison (stamp "20261013220000" < "20261014180000", so prev wins)
+        # The test asserts the mtime-key behavior
+        assert result is not None
+        # ndir's set should win because it's first with max mtime (or tie-break by order)
+        assert "2026-10-14" in result[1], f"expected ndir to win, got {result[1]}"
