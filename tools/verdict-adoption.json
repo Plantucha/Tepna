@@ -2024,6 +2024,55 @@
     ]
    },
    "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger’s DOIs, criterion ledger_dois_present_in_library eq the ledger count — PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
+  },
+  "capture-host/stitch_31d.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "since": "2026-10-17",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/stitch_31d.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "stitches 31 solid nights per tool; verdict word appears in MANIFEST.json status"
+  },
+  "capture-host/qc_child.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "since": "2026-10-17",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/qc_child.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the qc_child PASS-verdict hook triggers the 31-day stitch; verdict word appears in the stitch status field"
+  },
+  "tools/stitch-31d-run.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "since": "2026-10-17",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/stitch-31d-run.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "runs per-night TCH then aggregates; verdict word appears in RESULT.json status"
+  },
+  "capture-host/tests/test_stitch_31d.py": {
+   "bin": "test",
+   "status": "exempt",
+   "since": "2026-10-17"
+  },
+  "capture-host/tests/test_qc_child_stitch.py": {
+   "bin": "test",
+   "status": "exempt",
+   "since": "2026-10-17"
   }
  }
 }

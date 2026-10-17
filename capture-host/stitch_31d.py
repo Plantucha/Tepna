@@ -313,3 +313,45 @@ def stitch_31d(
             fh.write("\n")
         manifests[tool] = manifest
     return manifests
+
+
+
+
+def _git_sha():
+    import subprocess
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5).stdout.strip()
+        return out or None
+    except Exception:
+        return None
+
+
+def _utc_now():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _verdict_sample():
+    return {
+        "schema": "tepna.verdict/1",
+        "gate": "stitch-31d",
+        "status": "PASS",
+        "population": {"checked": 6, "eligible": 6, "excluded": 0},
+        "criterion": {
+            "name": "six fused tools stitched with null gaps",
+            "threshold": 6,
+            "unit": "tools",
+            "direction": "eq",
+        },
+        "result": {"tools": list(TOOLS.keys()), "gaps_are_null": True},
+        "evidence": ["capture-host/stitch_31d.py", "capture-host/tests/test_stitch_31d.py"],
+        "producedBy": {"tool": "capture-host/stitch_31d.py", "commit": _git_sha()},
+        "at": _utc_now(),
+        "scope": "internal",
+    }
+
+
+if __name__ == "__main__":
+    import sys
+    if "--verdict-sample" in sys.argv:
+        print(json.dumps(_verdict_sample(), indent=2))

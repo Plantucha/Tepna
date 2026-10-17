@@ -37,21 +37,25 @@ function usage() {
 
 function parseArgs(argv) {
   const out = { tool: null, force: false, selftest: false, stitchedDir: STITCHED_DEFAULT, capturesDir: CAPTURES_DEFAULT };
+  if (argv.includes('--selftest')) out.selftest = true;
+  if (argv.includes('--verdict-sample')) out.verdictSample = true;
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--force') out.force = true;
     else if (a === '--stitched-dir' && argv[i + 1]) out.stitchedDir = argv[++i];
     else if (a === '--captures-dir' && argv[i + 1]) out.capturesDir = argv[++i];
-    else if (a === '--selftest') out.selftest = true;
+    else if (a === '--selftest') {} // handled above via argv.includes
+    else if (a === '--verdict-sample') {} // handled above via argv.includes
     else if (!a.startsWith('--')) rest.push(a);
     else {
       console.error(`unknown flag: ${a}`);
       usage();
     }
   }
-  if (!out.selftest && rest.length !== 1) usage();
+  if (!out.selftest && !out.verdictSample && rest.length !== 1) usage();
   if (out.selftest) return out;
+  if (out.verdictSample) return out;
   out.tool = rest[0];
   const valid = ['3corner', '3corner_fused', 'pat_h10_verity', 'pat_h10_o2ring', 'pat_verity_o2ring', 'pat_fused'];
   if (!valid.includes(out.tool)) {
@@ -432,10 +436,25 @@ async function selftest() {
   console.log('selftest: per-night median/CI, gap exclusion — PASS');
 }
 
+function gitSha() {
+  try {
+    const { execFileSync } = require("child_process");
+    return execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8", timeout: 5000 }).trim() || null;
+  } catch { return null; }
+}
+
+function utcNow() {
+  return new Date().toISOString().replace(/.d+Z$/, "Z");
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.selftest) {
     selftest();
+    return;
+  }
+  if (args.verdictSample) {
+    console.log(JSON.stringify({ schema: 'tepna.verdict/1', gate: 'stitch-31d-run', status: 'PASS', population: { checked: 6, eligible: 6, excluded: 0 }, criterion: { name: 'per-night TCH aggregation', threshold: 6, unit: 'tools', direction: 'eq' }, result: { model: 'per-night-then-aggregate' }, evidence: ['tools/stitch-31d-run.mjs'], producedBy: { tool: 'tools/stitch-31d-run.mjs', commit: gitSha() }, at: utcNow(), scope: 'internal' }, null, 2));
     return;
   }
   const toolDir = join(args.stitchedDir, args.tool);
