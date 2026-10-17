@@ -45,8 +45,10 @@ function parseArgs(argv) {
     if (a === '--force') out.force = true;
     else if (a === '--stitched-dir' && argv[i + 1]) out.stitchedDir = argv[++i];
     else if (a === '--captures-dir' && argv[i + 1]) out.capturesDir = argv[++i];
-    else if (a === '--selftest') {} // handled above via argv.includes
-    else if (a === '--verdict-sample') {} // handled above via argv.includes
+    else if (a === '--selftest') {
+    } // handled above via argv.includes
+    else if (a === '--verdict-sample') {
+    } // handled above via argv.includes
     else if (!a.startsWith('--')) rest.push(a);
     else {
       console.error(`unknown flag: ${a}`);
@@ -438,13 +440,15 @@ async function selftest() {
 
 function gitSha() {
   try {
-    const { execFileSync } = require("child_process");
-    return execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8", timeout: 5000 }).trim() || null;
-  } catch { return null; }
+    const { execFileSync } = require('child_process');
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8', timeout: 5000 }).trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 function utcNow() {
-  return new Date().toISOString().replace(/.d+Z$/, "Z");
+  return new Date().toISOString().replace(/.d+Z$/, 'Z');
 }
 
 function main() {
@@ -454,7 +458,24 @@ function main() {
     return;
   }
   if (args.verdictSample) {
-    console.log(JSON.stringify({ schema: 'tepna.verdict/1', gate: 'stitch-31d-run', status: 'PASS', population: { checked: 6, eligible: 6, excluded: 0 }, criterion: { name: 'per-night TCH aggregation', threshold: 6, unit: 'tools', direction: 'eq' }, result: { model: 'per-night-then-aggregate' }, evidence: ['tools/stitch-31d-run.mjs'], producedBy: { tool: 'tools/stitch-31d-run.mjs', commit: gitSha() }, at: utcNow(), scope: 'internal' }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          schema: 'tepna.verdict/1',
+          gate: 'stitch-31d-run',
+          status: 'PASS',
+          population: { checked: 6, eligible: 6, excluded: 0 },
+          criterion: { name: 'per-night TCH aggregation', threshold: 6, unit: 'tools', direction: 'eq' },
+          result: { model: 'per-night-then-aggregate' },
+          evidence: ['tools/stitch-31d-run.mjs'],
+          producedBy: { tool: 'tools/stitch-31d-run.mjs', commit: gitSha() },
+          at: utcNow(),
+          scope: 'internal'
+        },
+        null,
+        2
+      )
+    );
     return;
   }
   const toolDir = join(args.stitchedDir, args.tool);

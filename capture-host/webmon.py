@@ -43,6 +43,19 @@ from writers import missing_identity, StreamWriter
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _log = logging.getLogger("tepna.webmon")
 
+# The 31-day stitch tool names the monitor serves at /api/stitched/<tool>.
+# Keys are the URL segment; values are the on-disk directory under
+# /srv/tepna/stitched/. The handler looks the directory up in this table so
+# the request string never reaches the path builder (CodeQL py/path-injection).
+_STITCH_TOOL_DIRS = {
+    "3corner": "3corner",
+    "3corner_fused": "3corner_fused",
+    "pat_h10_verity": "pat_h10_verity",
+    "pat_h10_o2ring": "pat_h10_o2ring",
+    "pat_verity_o2ring": "pat_verity_o2ring",
+    "pat_fused": "pat_fused",
+}
+
 # A device address reaches bonding.* which f-string-interpolates it into a newline-delimited
 # bluetoothctl stdin script (VIGIL-DEEP-ANALYSIS §2A) — so an address carrying a newline could inject
 # control commands (power off / remove <other-sensor>). Validate the EXACT MAC shape at this boundary.
@@ -524,10 +537,10 @@ def make_app(
         # Serve /srv/tepna/stitched/<tool>/RESULT.json. Tool names come from
         # the stitch_31d.py TOOLS map; anything else is a 404.
         tool = req.match_info.get("tool", "")
-        allowed = {"3corner", "3corner_fused", "pat_h10_verity", "pat_h10_o2ring", "pat_verity_o2ring", "pat_fused"}
-        if tool not in allowed:
+        tool_dir = _STITCH_TOOL_DIRS.get(tool)
+        if tool_dir is None:
             return web.json_response({"ok": False, "error": "unknown tool"}, status=404)
-        path = os.path.join(cfg.get("root", "/srv/tepna"), "stitched", tool, "RESULT.json")
+        path = os.path.join(cfg.get("root", "/srv/tepna"), "stitched", tool_dir, "RESULT.json")
         if not os.path.exists(path):
             return web.json_response({"ok": False, "error": "not yet computed"}, status=404)
         return web.FileResponse(path, headers={"Cache-Control": "no-cache, must-revalidate"})
