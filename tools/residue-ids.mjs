@@ -43,6 +43,7 @@
  *   node tools/residue-ids.mjs                  # this branch vs origin/main
  *   node tools/residue-ids.mjs --base <ref>
  *   node tools/residue-ids.mjs --json
+ *   node tools/residue-ids.mjs --full-tree      # every merged commit's `Closes residue <key>` claim vs that row's state
  * ════════════════════════════════════════════════════════════════════════ */
 
 import { execFileSync } from 'node:child_process';
@@ -57,7 +58,10 @@ export const LEDGER_PATH = 'briefs/RESIDUE.md';
  * duplicating it here would mean two definitions of a well-formed row. This reads identity.
  *
  * @param {string} text
- * @returns {Array<{id: string, n: number, key: string}>}
+ * `state` is the last cell (OPEN · `→ brief` · `fixed #N` · `withdrawn <key>`), read for the full-tree claim
+ * check; it is NOT part of `key`, which stays frozen-cells-only so closing a row is still not a mutation.
+ *
+ * @returns {Array<{id: string, key: string, state: string}>}
  */
 export function parseRows(text) {
   const rows = [];
@@ -68,9 +72,63 @@ export function parseRows(text) {
     // leading '' + 6 cells + trailing '' — a malformed row is check8b's finding, not ours;
     // take what identity we can and let the other gate speak to its shape.
     const key = cells.slice(1, 6).join('|').trim();
-    rows.push({ id: m[1], key });
+    const state = cells.length >= 2 ? cells[cells.length - 2].trim() : '';
+    rows.push({ id: m[1], key, state });
   }
   return rows;
+}
+
+/* ── THE FULL-TREE HALF: a close CLAIM against the row's state cell ───────────────────────────────
+   Row 2026-10-10-a-closes-residue-claim-is-never-checked-against-the-row. The ledger closes a row by
+   editing only its state cell, in the session that fixes it — so the commit message that SAYS
+   `Closes residue <key>` and the cell that must read `fixed #N` are written together, and nothing failed
+   when only one of them was. Measured by the sweep that found it: 2 of 161 OPEN rows carried a landed
+   claim. The diff gates cannot see this (they judge a branch against a base; the claim is in history), so
+   this reads the whole log once and the ledger once. */
+const KEY = '\\d{4}-\\d{2}-\\d{2}-[a-z0-9-]+';
+// a claim may name several keys: `Closes residue `a` and `b`` / `a, b`. A key after `;` or a full stop is
+// NOT chained — `Closes residue a; also appends b` closes a and merely mentions b.
+const CLAIM_RE = new RegExp(`\\bclos(?:es|ed|e)\\s+residue[:\\s]+\\**\`?${KEY}\`?\\**(?:\\s*(?:,|&|\\band\\b)\\s*(?:and\\s+)?\\**\`?${KEY}\`?\\**)*`, 'gi');
+const KEY_RE = new RegExp(KEY, 'g');
+
+/**
+ * Pure. `logText` is `git log --format=%x1e%H%x1f%B` — records split on U+001E, hash and body on U+001F.
+ * @returns {Array<{commit: string, key: string}>} one entry per (commit, key), in log order
+ */
+export function closeClaims(logText) {
+  const out = [];
+  for (const rec of String(logText ?? '')
+    .split('\x1e')
+    .slice(1)) {
+    const at = rec.indexOf('\x1f');
+    if (at < 0) continue;
+    const commit = rec.slice(0, at).trim();
+    const seen = new Set();
+    for (const m of rec.slice(at + 1).matchAll(CLAIM_RE)) {
+      for (const k of m[0].match(KEY_RE) || []) {
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push({ commit, key: k });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Pure. A claim is UNCLOSED when its row still reads `OPEN`, and DANGLING when it names no row at all —
+ * a typo'd key closes nothing either. Any other state (`fixed #N`, `→ brief`, `withdrawn <key>`) satisfies it.
+ * @param {Array<{commit: string, key: string}>} claims
+ * @param {Array<{id: string, state: string}>} rows  parseRows output for the ledger at HEAD
+ */
+export function unclosedClaims(claims, rows) {
+  const stateOf = new Map(rows.map((r) => [r.id, r.state]));
+  const problems = [];
+  for (const c of claims) {
+    if (!stateOf.has(c.key)) problems.push(`${c.commit.slice(0, 8)} claims to close ${c.key} — the ledger has no such row`);
+    else if (stateOf.get(c.key) === 'OPEN') problems.push(`${c.commit.slice(0, 8)} claims to close ${c.key} — the row still reads OPEN`);
+  }
+  return problems;
 }
 
 /**
@@ -220,6 +278,22 @@ function main() {
     ]);
   }
 
+  if (argv.includes('--full-tree')) {
+    const ledger = readAt('HEAD');
+    if (ledger === null) refuse(`\`${LEDGER_PATH}\` does not exist at HEAD.`, ['A claim cannot be checked against a ledger that is not there.']);
+    const claims = closeClaims(git(['log', '--format=%x1e%H%x1f%B']));
+    const problems = unclosedClaims(claims, parseRows(ledger));
+    if (asJson) process.stdout.write(`${JSON.stringify({ claims: claims.length, problems }, null, 2)}\n`);
+    else if (problems.length) {
+      process.stderr.write(`residue-ids --full-tree: ${problems.length} of ${claims.length} close claim(s) not reflected in the ledger\n`);
+      for (const p of problems) process.stderr.write(`  ✗ ${p}\n`);
+      process.stderr.write(
+        '\n  A row is closed by editing ONLY its state cell (`fixed #N`) — verify the fix in code first,\n  then close it; a claim whose fix did not land is a NEW row, not an edit.\n'
+      );
+    } else process.stdout.write(`residue-ids --full-tree: ok — ${claims.length} close claim(s), every row closed\n`);
+    process.exit(problems.length ? 1 : 0);
+  }
+
   let baseText;
   let tipText;
   let mergeBase = base;
@@ -353,6 +427,36 @@ if (process.argv.includes('--selftest')) {
   // 5 — non-vacuous: the parser must actually see rows, or every assertion above passes on empty input
   assert(parseRows(BASE).length === 2 && parseRows('').length === 0, 'parseRows reads rows (and only rows)');
   assert(parseRows('| 2026-09-02-alpha | d |').length === 1, 'a malformed row still yields its identity — shape is check8b’s job');
+
+  // 6 — THE FULL-TREE CLAIM CHECK (row 2026-10-10-a-closes-residue-claim-is-never-checked-against-the-row).
+  //     A claim whose row still reads OPEN FIRES; a closed one, a promoted one and a withdrawn one are
+  //     silent; a claim naming no row FIRES; two keys in one claim are BOTH read; a key after `;` is not.
+  const log = (...msgs) => msgs.map((m, i) => `\x1e${'c0ffee0'}${i}\x1f${m}\n`).join('');
+  const led = parseRows([row(A, 'd', 'OPEN'), row(B, 'd', 'fixed #1'), row(C, 'd', '→ `X-BRIEF.md`'), row('2026-09-02-delta', 'd', 'withdrawn 2026-09-02-alpha')].join('\n'));
+  assert(led.map((r) => r.state).join('~') === 'OPEN~fixed #1~→ `X-BRIEF.md`~withdrawn 2026-09-02-alpha', 'parseRows reads the state cell');
+  let cl = closeClaims(log(`fix: x\n\nCloses residue \`${A}\`.`));
+  assert(cl.length === 1 && cl[0].key === A && cl[0].commit === 'c0ffee00', 'a close claim is read with its commit');
+  assert(unclosedClaims(cl, led).length === 1 && /still reads OPEN/.test(unclosedClaims(cl, led)[0]), 'a claim over an OPEN row FIRES');
+  assert(
+    unclosedClaims(closeClaims(log(`Closes residue \`${B}\``, `closes residue ${C}`, `Closes residue **\`2026-09-02-delta\`**`)), led).length === 0,
+    'fixed / promoted / withdrawn rows satisfy a claim, in any markup'
+  );
+  assert(/no such row/.test(unclosedClaims(closeClaims(log('Closes residue `2026-09-02-nope`')), led)[0] || ''), 'a claim naming no row FIRES');
+  assert(
+    closeClaims(log(`Closes residue \`${A}\` and \`${B}\`, \`${C}\``))
+      .map((c) => c.key)
+      .join() === [A, B, C].join(),
+    'a chained claim names every key'
+  );
+  assert(
+    closeClaims(log(`Closes residue \`${A}\`; also appends \`${B}\``))
+      .map((c) => c.key)
+      .join() === A,
+    'a key after a semicolon is mentioned, not closed'
+  );
+  assert(closeClaims(log('A commit can say `Closes residue <key>` and nothing follows')).length === 0, 'the placeholder is not a claim');
+  assert(closeClaims(log(`Closes residue \`${A}\` ... Closes residue \`${A}\``)).length === 1, 'one claim per (commit, key)');
+  assert(closeClaims('').length === 0 && closeClaims(undefined).length === 0, 'an empty log has no claims');
 
   // Phrased so `selftest-all.mjs` can PARSE the count: a tool that silently drops from 8
   // assertions to 1 still exits 0, and only a readable number makes that visible.

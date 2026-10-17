@@ -64,6 +64,7 @@
     "verify:commit-shape": "node tools/commit-shape.mjs",
     "verify:seals": "node tools/verify-seals.mjs --vectors",
     "verify:residue-ids": "node tools/residue-ids.mjs --base origin/main",
+    "verify:residue-claims": "node tools/residue-ids.mjs --full-tree",
     "verify:survivor-ratchet": "node tools/mutation-survivors.mjs ratchet --expect 30",
     "verify:absence": "node tools/absence-ledger.mjs --ratchet",
     "verify:shard-timings": "node tests/verify-shard-timings.mjs",
