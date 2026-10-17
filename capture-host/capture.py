@@ -9529,7 +9529,7 @@ async def loss_poller(cfg: dict, root: str):
             # 2026-10-12), so a deploy that touches the judge works through the window one night per tick.
             rejudge = int(lcfg.get("rejudge_per_poll", 1))
             jobs: "list[dict]" = []
-            for night in nights[-int(lcfg.get("max_nights", 14)) :]:
+            for night in nights[-int(lcfg.get("max_nights", 31)) :]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
                 # THE NIGHT'S DATA, NOT THE NIGHT'S DIRECTORY. `nightqc.newest_data_mtime` ranks
