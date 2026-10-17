@@ -42,7 +42,9 @@
 # (`check.sh` also treats a missing tool as a MISSING TOOL rather than a failing
 # gate — shellcheck absent exits 127 and is reported as such.)
 #
-# Escape hatch: CLAUDE_ALLOW_UNFORMATTED=1 — shared with guard-format.sh on
+# Escape hatch: CLAUDE_ALLOW_UNFORMATTED_RUFF=1 — for a deliberate WIP commit.
+# (Split from the shared CLAUDE_ALLOW_UNFORMATTED per residue 2026-09-22-a-hatch-that-leaves-no-trace:
+#  one variable per guard. The old shared name no longer works here.)
 # purpose. One WIP-commit escape hatch is one thing to remember; two would mean
 # discovering the second only after the first failed to work.
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -54,7 +56,7 @@ set -uo pipefail
 # (#3493). The test reads the WRITER's fate, because a verdict of "not 2" cannot see it.
 payload="$(cat 2>/dev/null)" || exit 0
 
-[ "${CLAUDE_ALLOW_UNFORMATTED:-}" = "1" ] && exit 0
+[ "${CLAUDE_ALLOW_UNFORMATTED_RUFF:-}" = "1" ] && exit 0
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$cmd" ] && exit 0
 
@@ -126,7 +128,7 @@ Then re-stage and commit.
   \`capture-host/check.sh\` runs ruff · shellcheck · pytest together and is the one local
   invocation that answers for all three.
 
-Deliberate WIP commit? CLAUDE_ALLOW_UNFORMATTED=1
+Deliberate WIP commit? CLAUDE_ALLOW_UNFORMATTED_RUFF=1
 
 $(printf '%s' "$out" | head -40)
 EOF

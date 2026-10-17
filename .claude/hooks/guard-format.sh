@@ -71,7 +71,9 @@
 # invents violations in clean files, which is strictly worse than the silence being
 # closed here. The `cd "$root"` on the run line is load-bearing, not tidiness.
 #
-# Escape hatch: CLAUDE_ALLOW_UNFORMATTED=1 — for a deliberate WIP commit.
+# Escape hatch: CLAUDE_ALLOW_UNFORMATTED_FORMAT=1 — for a deliberate WIP commit.
+# (Split from the shared CLAUDE_ALLOW_UNFORMATTED per residue 2026-09-22-a-hatch-that-leaves-no-trace:
+#  one variable per guard, so bypassing the format check does not silently bypass ruff.)
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
@@ -81,7 +83,7 @@ set -uo pipefail
 # (#3493). The test reads the WRITER's fate, because a verdict of "not 2" cannot see it.
 payload="$(cat 2>/dev/null)" || exit 0
 
-[ "${CLAUDE_ALLOW_UNFORMATTED:-}" = "1" ] && exit 0
+[ "${CLAUDE_ALLOW_UNFORMATTED_FORMAT:-}" = "1" ] && exit 0
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$cmd" ] && exit 0
 
@@ -204,7 +206,7 @@ below says which rule.
 ⚠ If these files are inlined into a bundle, formatting changes the inlined text — so re-run
   \`node tools/build.mjs --app <App>\` AFTER formatting, not before, or the bundle drifts.
 
-Deliberate WIP commit? CLAUDE_ALLOW_UNFORMATTED=1
+Deliberate WIP commit? CLAUDE_ALLOW_UNFORMATTED_FORMAT=1
 
 $(printf '%s' "$out" | head -40)
 EOF

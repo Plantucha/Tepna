@@ -28,7 +28,7 @@ head -c 100000 /dev/zero | tr '\0' x > "$TMP/stdin-big"
 jq -nc --rawfile c "$TMP/stdin-big" '{tool_input:{command:$c}}' > "$TMP/stdin-big.json"
 _worst=0
 for _i in 1 2 3 4 5; do
-  cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_UNFORMATTED=1 bash "$H" >/dev/null 2>&1
+  cat "$TMP/stdin-big.json" | CLAUDE_ALLOW_UNFORMATTED_FORMAT=1 bash "$H" >/dev/null 2>&1
   _rc="${PIPESTATUS[0]}"; [ "$_rc" != 0 ] && _worst="$_rc"
 done
 if [ "$_worst" = 0 ]; then echo "  ok    the hatch drains 100 KB of stdin, 5 writers live   rc=0"
@@ -141,8 +141,8 @@ expect_from "$TMP" ALLOW "RESIDUAL: cd to a tree the command creates ⇒ fallbac
 
 echo
 echo "### escape hatch + degenerate inputs"
-got="$(jq -nc --arg c 'git commit -m wip' '{tool_input:{command:$c}}' | CLAUDE_ALLOW_UNFORMATTED=1 bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
-if [ "$got" = ALLOW ]; then echo "  ok    CLAUDE_ALLOW_UNFORMATTED=1 releases it"
+got="$(jq -nc --arg c 'git commit -m wip' '{tool_input:{command:$c}}' | CLAUDE_ALLOW_UNFORMATTED_FORMAT=1 bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
+if [ "$got" = ALLOW ]; then echo "  ok    CLAUDE_ALLOW_UNFORMATTED_FORMAT=1 releases it"
 else echo "  FAIL  escape hatch did not release"; fail=$((fail+1)); fi
 expect ALLOW "no command in the payload"                       ""
 got="$(printf 'not json' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
