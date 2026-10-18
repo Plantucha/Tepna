@@ -2491,6 +2491,7 @@ async function main() {
       'adapters/o2ring-ppg2w.js',
       'adapters/polar-h10-ecg.js',
       'adapters/resmed-edf.js',
+      'adapters/polar-acc.js',
       'quantity.js',
       'dex-ingest.js',
       'provenance-banner.js',

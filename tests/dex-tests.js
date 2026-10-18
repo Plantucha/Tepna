@@ -35083,6 +35083,56 @@
      rec.deviceACC → analyze() stamps epochs[].position (posture). Lock: (1) nearest-by-stamp pairing,
      (2) the adapter attaches the sidecars (and a no-companion call leaves the single-text frame
      unchanged), (3) compute() turns deviceACC into REAL postures (vs all-'unknown' without). ════ */
+    /* ════ ACC → MotionDex (2026-10-18). Before this, no adapter routed a Polar `_ACC.txt`: OverDex set
+       it aside and MotionDex reached the Integrator only from a hand-exported JSON. The ACC routes to
+       `polar-acc` (signalType 'acc'), a chest frame and an arm frame of one night become ONE MotionDex
+       run, and the sidecar/IMU files stay companions, never primaries. ════ */
+    group('ACC routes to MotionDex — polar-acc adapter, chest + arm pairing, one MotionDex export', 'polar-acc · signal-orchestrate · motiondex-dsp', function (T) {
+      var SA = env.SignalAdapters,
+        SF = env.SignalFrame,
+        ORCH = env.SignalOrchestrate,
+        MD = env.MotionDex;
+      if (!(SA && SF && ORCH && MD && typeof ORCH.emitAccNodeExport === 'function')) {
+        T.ok('SignalAdapters + SignalOrchestrate.emitAccNodeExport + MotionDex co-loaded', false, 'load adapters/polar-acc.js and motiondex-dsp.js into both runners');
+        return;
+      }
+      var chestN = 'Polar_H10_AAAA_20260617_010000_ACC.txt',
+        armN = 'Polar_VeritySense_BBBB_20260617_010100_ACC.txt';
+      var chestT = MD.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 21 }),
+        armT = MD.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 7 });
+      var rc = SA.route({ name: chestN }, chestT.slice(0, 4096));
+      T.eq('a Polar _ACC.txt routes to polar-acc', rc && rc.best && rc.best.adapter && rc.best.adapter.id, 'polar-acc');
+      T.eq('  as signalType acc', rc && rc.best && rc.best.signalType, 'acc');
+      var rr = SA.route({ name: 'Polar_H10_AAAA_20260617_010000_ACCRUNS.txt' }, 'start;end\n');
+      T.ok('  the ACCRUNS validity sidecar is never a polar-acc primary', !(rr && rr.best && rr.best.adapter && rr.best.adapter.id === 'polar-acc'));
+      T.ok('  companionKinds(acc) = accruns/gyro/magn', JSON.stringify(ORCH.companionKinds('acc')) === JSON.stringify(['accruns', 'gyro', 'magn']));
+      T.ok('  canEmit(acc) — MotionDex is a compute host', ORCH.canEmit('acc') === true);
+      var ad = rc.best.adapter;
+      var fc = SA.runAdapter(ad, chestT, { files: [chestN], parseSensorXYZ: MD.parseSensorXYZ }),
+        fa = SA.runAdapter(ad, armT, { files: [armN], parseSensorXYZ: MD.parseSensorXYZ });
+      T.ok('chest frame is a valid usable acc frame', fc && fc.usable && SF.validateFrame(fc).ok, fc && fc.reason);
+      T.eq('  H10 → site chest', fc && fc.site, 'chest');
+      T.eq('  Verity Sense → site arm', fa && fa.site, 'arm');
+      T.ok('  fs is MEASURED from the span (~26 Hz synthetic), never nominal', fc && fc.fs > 24 && fc.fs < 28, fc && fc.fs);
+      var emit = ORCH.pairMotionFrames([fc, fa]);
+      T.eq('chest + arm of one night pair into ONE run', emit.length, 1);
+      T.ok('  the chest frame carries the arm frame as partner', emit[0] === fc && fc.partner === fa);
+      var far = SA.runAdapter(ad, armT, { files: [armN], parseSensorXYZ: MD.parseSensorXYZ });
+      far.t0Ms = fc.t0Ms + 25 * 3600000;
+      var fc2 = SA.runAdapter(ad, chestT, { files: [chestN], parseSensorXYZ: MD.parseSensorXYZ });
+      T.eq('  an arm ACC more than a day away is a different recording (two runs)', ORCH.pairMotionFrames([fc2, far]).length, 2);
+      var exp = ORCH.emitAccNodeExport(emit[0], { MotionDex: MD, DexKernel: env.DexKernel || null });
+      T.eq('the export is a MotionDex node-export', exp && exp.schema && exp.schema.node, 'MotionDex');
+      T.ok(
+        '  both sites reached compute (chestAcc + acc streams counted)',
+        exp && exp.motion && exp.motion.streams && exp.motion.streams.chestAcc > 0 && exp.motion.streams.acc > 0,
+        exp && exp.motion && JSON.stringify(exp.motion.streams)
+      );
+      T.eq('  ingest names the adapter', exp && exp.schema && exp.schema.ingest && exp.schema.ingest.adapter, 'polar-acc');
+      var lone = ORCH.emitAccNodeExport(SA.runAdapter(ad, armT, { files: [armN], parseSensorXYZ: MD.parseSensorXYZ }), { MotionDex: MD, DexKernel: null });
+      T.ok('  an arm frame alone still runs (no chest stream)', lone && lone.motion && lone.motion.streams && lone.motion.streams.acc > 0 && !lone.motion.streams.chestAcc);
+    });
+
     group(
       'Companion-bundle ingest — ECG/PPG sidecars reach compute() via ctx.companions (HANDOFF §2(b))',
       'polar-h10-ecg · polar-sense-ppg · signal-orchestrate · pat-gate · signal-adapters',
@@ -42442,10 +42492,11 @@
         T.ok('SignalOrchestrate.canEmit present', false, 'load signal-orchestrate.js into both runners');
         return;
       }
-      ['rr', 'spo2', 'hrv', 'cgm', 'ppg', 'ecg', 'cpap'].forEach(function (t) {
+      // 'acc' joined 2026-10-18: the ACC routes to MotionDex (adapters/polar-acc.js). Deliberate contract change.
+      ['rr', 'spo2', 'hrv', 'cgm', 'ppg', 'ecg', 'cpap', 'acc'].forEach(function (t) {
         T.ok('canEmit(' + t + ') = true (has an emit path)', ORCH.canEmit(t) === true);
       });
-      ['acc', 'hr', 'eeg', 'flow', 'unknown', ''].forEach(function (t) {
+      ['hr', 'eeg', 'flow', 'unknown', ''].forEach(function (t) {
         T.ok('canEmit(' + t + ') = false (aux / unmigrated)', ORCH.canEmit(t) === false);
       });
       T.ok('canEmit(null/undefined) = false (no fabrication)', ORCH.canEmit(null) === false && ORCH.canEmit(undefined) === false);
@@ -42603,7 +42654,8 @@
         ecg: { object: env.ECGDex },
         ppg: { object: env.PpgDex },
         cgm: { object: env.GLUDSP },
-        cpap: { object: env.CPAPDex }
+        cpap: { object: env.CPAPDex },
+        acc: { object: env.MotionDex } // 2026-10-18: the ACC routes to MotionDex (adapters/polar-acc.js)
       };
       var types = ORCH.emittableTypes();
       T.ok('emittableTypes() is non-empty (the per-type assertions would examine nothing otherwise)', types.length > 0, types.join(','));
@@ -42648,11 +42700,12 @@
         });
       });
       /* The aux + un-migrated types resolve to `undefined` because no node owns them yet, and that
-         is a measured fact rather than a convention: `hr` and `acc` are auxiliary channels with no
-         DSP of their own, and `eeg`/`flow` name DSPs that do not exist in the repo. A resolver here
-         that starts answering means a node landed, and the type then owes an emit path and a row in
-         the table above — so this is a tripwire on growth, not a prohibition. */
-      ['hr', 'acc', 'eeg', 'flow'].forEach(function (t) {
+         is a measured fact rather than a convention: `hr` is an auxiliary channel with no DSP of its
+         own, and `eeg`/`flow` name DSPs that do not exist in the repo. A resolver here that starts
+         answering means a node landed, and the type then owes an emit path and a row in the table
+         above — so this is a tripwire on growth, not a prohibition. It fired for `acc` on 2026-10-18,
+         when adapters/polar-acc.js routed the ACC to MotionDex; `acc` moved to the table above. */
+      ['hr', 'eeg', 'flow'].forEach(function (t) {
         T.ok('SignalSpec.' + t + '.dsp() is undefined — no node owns it yet (tripwire: wire it above when one does)', SS[t] && SS[t].dsp() === undefined);
       });
     });
@@ -52831,8 +52884,8 @@
       };
       // node-name per signalType (the host shim emitNodeExport reads) + a synthetic canonical-frame
       // provider that builds EXACTLY the shape signal-orchestrate hands compute().
-      var NODE_OF = { rr: 'PulseDex', spo2: 'OxyDex', hrv: 'HRVDex', cgm: 'GlucoDex', ppg: 'PpgDex', ecg: 'ECGDex', cpap: 'CPAPDex' };
-      var AUX = { acc: 1, hr: 1 }; // companion channels — no node/emit path by design
+      var NODE_OF = { rr: 'PulseDex', spo2: 'OxyDex', hrv: 'HRVDex', cgm: 'GlucoDex', ppg: 'PpgDex', ecg: 'ECGDex', cpap: 'CPAPDex', acc: 'MotionDex' };
+      var AUX = { hr: 1 }; // companion channels — no node/emit path by design ('acc' left 2026-10-18: it routes to MotionDex)
       var providers = {
         rr: function () {
           var nn = [],
@@ -52898,6 +52951,15 @@
           var fr = SF.toSignalFrame('cpap', { samples: (fl && fl.data) || null, fs: (fl && fl.fs) || 25, t0Ms: t0, usable: !!(fl && fl.data && fl.data.length) }, { adapter: 'synthetic' });
           fr.edfSets = [set];
           return fr;
+        },
+        // acc (2026-10-18): MotionDex's own synthetic PSL ACC text through the REAL polar-acc adapter.
+        acc: function () {
+          var MDX = env.MotionDex,
+            SAD = env.SignalAdapters;
+          if (!(MDX && typeof MDX.genSynthetic === 'function' && SAD && typeof SAD.byId === 'function')) return null;
+          var ad = SAD.byId('polar-acc');
+          if (!ad) return null;
+          return SAD.runAdapter(ad, MDX.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 21 }), { files: ['Polar_H10_AAAA_20260617_010000_ACC.txt'], parseSensorXYZ: MDX.parseSensorXYZ });
         }
       };
       // ── exercise(st): build the canonical frame signal-orchestrate hands compute() for signalType
@@ -53622,6 +53684,8 @@
         'o2ring-ppg2w.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'oxydex-spo2.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-acc.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'polar-h10-ecg.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
@@ -62685,7 +62749,13 @@
                adapter must be SET ASIDE, never guessed. */
             var accHead = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n2026-06-17T01:06:19.794;599630060275983872;211;23;975';
             var rAcc = SA.route({ name: 'Polar_H10_AAAAAAAA_20260617_010616_ACC.txt' }, accHead);
-            T.ok('*_ACC.txt is SET ASIDE, not analyzed as RR (gravity is not a heartbeat)', rAcc.unknown === true, rAcc.best ? 'routed to ' + rAcc.best.id + ' @' + rAcc.best.confidence : 'unknown');
+            /* 2026-10-18: the ACC now HAS an adapter (polar-acc → MotionDex), so it is analyzed as motion.
+               The invariant this line guards is unchanged: gravity never reaches an RR parser. */
+            T.ok(
+              '*_ACC.txt routes to polar-acc / acc — never analyzed as RR (gravity is not a heartbeat)',
+              !!(rAcc.best && rAcc.best.id === 'polar-acc' && rAcc.best.signalType === 'acc'),
+              rAcc.best ? 'routed to ' + rAcc.best.id + ' @' + rAcc.best.confidence : 'unknown'
+            );
             var rMag = SA.route(
               { name: 'Polar_Sense_BBBBBBBB_20260609_194340_MAGN.txt' },
               'Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]\n2026-06-09T19:43:40.000;834363822717523328;0.12;-0.44;0.31'
