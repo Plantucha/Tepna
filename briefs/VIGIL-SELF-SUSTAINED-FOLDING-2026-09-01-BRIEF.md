@@ -38,6 +38,11 @@ design: production vigil = capture + fold + QC on 8 GB RAM, alone.
    sized to the box, `nice`, scheduled in the daytime dead zone after capture closes; the capture
    daemon carries negative `OOMScoreAdjust`. The failure mode must be "tonight's fold is missing",
    never "tonight's recording is lost".
+   **BUILT 2026-10-17 (Heron, rig) — the rails ship as files, the install is owed:**
+   `capture-host/systemd/tepna-fold.service` with its timer, `OOMScoreAdjust=-500` on
+   `capture-host/deploy/tepna-capture.service`, the wrapper `capture-host/deploy/tepna-fold.sh`, and a
+   planner in `tools/trio-batch.mjs` that reads its own cgroup ceiling. The item reads met once the
+   owner installs the units on vigil and restarts the capture daemon.
 3. **Node-export bytes are unchanged** by any memory work (substance-diff over the refolded corpus,
    volatile keys stripped) — this is a representation change, gate-provable as export-inert.
 4. The DSPs' whole-text browser contract is **not forked**: memory work lands in the Node fold path
