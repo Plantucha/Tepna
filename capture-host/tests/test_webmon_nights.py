@@ -445,6 +445,9 @@ def test_the_click_hands_over_ONE_RECORDING_and_names_a_multi_recording_folder()
     assert "recordings_unassigned" in on and "carrying no session stamp" in on, (
         "∅ a file with no session stamp is handed over and SAID, never dropped silently"
     )
+    assert "ownAll.indexOf(f) >= 0" in on, (
+        "an unstamped file goes only to the node whose own list holds it — the CPAP EDFs reached OxyDex on 2026-10-18"
+    )
 
 
 def _extract_fn(html, name, until):
