@@ -715,7 +715,7 @@ function download(content, fname, type) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }, 1000);
-  } catch (e) {
+  } catch {
     window.open('data:' + type + ';charset=utf-8,' + encodeURIComponent(content), '_blank');
   }
 }

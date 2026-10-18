@@ -187,7 +187,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
   function _css(v) {
     try {
       return getComputedStyle(document.body).getPropertyValue(v).trim() || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }

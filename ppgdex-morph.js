@@ -17,11 +17,6 @@
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
   'use strict';
-  const mean = (a) => {
-    let s = 0;
-    for (let i = 0; i < a.length; i++) s += a[i];
-    return a.length ? s / a.length : 0;
-  };
   const median = (a) => {
     if (!a.length) return 0;
     const s = [...a].sort((x, y) => x - y),

@@ -49,8 +49,6 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { makeVerdict } from './verdict-emit.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-
 /* The pre-stated acceptance bands. Constants, so the report cannot quietly use different ones. */
 export const BAND_MEDIAN_ABS_MS = 4;
 export const BAND_CORRESPONDENCE = 0.99;

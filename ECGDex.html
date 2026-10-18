@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0738ad7a9fd0" data-compute-hash="e3d1d0075e1e">
+<html lang="en" data-manifest-hash="f1784c8cacc5" data-compute-hash="76c3376c61f2">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+DMxKj19C+r2oJ2mME0Wfi50h62Tqn+Adk/bA3XjY0I=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A8QRvCYLHC0S8qUbFM0gzbfkhyZ+dfjft3sQQrCc6BM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-D3oNahN1uDfbl7h2fgbxNAfQOXhp4WOVpmH/8FnFEAI=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HQmpxoKi3JipnqVIPvKd9Uw9+OuY/5r26p/emwRO4nk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-X14KyJJxLR8/HKzEnkJbn34oAwBnF0kbzGCqjKgOu7g=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-rKaNN0Ty7SX+P/hqThFsDPpnNNxRWZ1qeyOfye3zhi8=' 'sha256-tVgYMqIFMTmSfhst++Y/uSAWTLsBNE8tdlP+VByK2/k=' 'sha256-tddD0f4n4/0SctOR+t6ziGNCiH/GZ6G3Q5Iib/iByoM=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.19.0</title>
@@ -3435,7 +3435,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       return crypto.subtle.digest('SHA-256', bytes).then(hex, function () {
         return null;
       });
-    } catch (e) {
+    } catch {
       return Promise.resolve(null);
     }
   }
@@ -3444,7 +3444,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   function floatMs(inst) {
     try {
       return inst - new Date(inst).getTimezoneOffset() * 60000;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -3467,10 +3467,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         parts.push(s.textContent || '');
       });
       if (parts.length) return parts.join('\n');
-    } catch (e) {}
+    } catch {}
     try {
       return document.documentElement.outerHTML;
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -3556,7 +3556,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       sha256(content).then(function (h) {
         if (h) rec.sha256 = h.slice(0, 16);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // Passive FileReader hook — records the File + its decoded result as a side
@@ -3573,17 +3573,17 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
             function () {
               try {
                 noteInput(file, self.result);
-              } catch (e) {}
+              } catch {}
             },
             { once: true }
           );
-        } catch (e) {}
+        } catch {}
         return orig.apply(this, arguments);
       };
       wrapped._gpWrapped = true;
       FileReader.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   // Passive Blob hook — captures nodes that ingest via Blob.text() / Blob.arrayBuffer()
   // instead of FileReader (PpgDex's f.text(), other large text reads). Only Files with
@@ -3601,17 +3601,17 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
               function (res) {
                 try {
                   noteInput(self, res);
-                } catch (e) {}
+                } catch {}
               },
               function () {}
             );
-        } catch (e) {}
+        } catch {}
         return p;
       };
       wrapped._gpWrapped = true;
       Blob.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   window.GangliorProvenance = {
     // Synchronous snapshot for splicing into an export's schema. buildHash is
@@ -3695,7 +3695,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   function _kernelHash() {
     try {
       return (root.DexKernel && root.DexKernel.HASH) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -4721,7 +4721,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         _warned[id] = true;
         try {
           console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
-        } catch (e) {}
+        } catch {}
       }
       return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
     }
@@ -4787,14 +4787,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           } // migrate forward
         }
       }
-    } catch (e) {}
+    } catch {}
     return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
   }
   function setTier(tier) {
     if (TIERS.indexOf(tier) < 0) tier = 'core';
     try {
       global.localStorage.setItem(STORAGE_KEY, tier);
-    } catch (e) {}
+    } catch {}
     applyTier(tier);
     return tier;
   }
@@ -4988,7 +4988,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       st.id = ID;
       st.textContent = css;
       (document.head || document.documentElement).appendChild(st);
-    } catch (e) {}
+    } catch {}
   }
   inject();
   // re-assert once the parser has built <head>, in case this ran before it existed
@@ -5098,7 +5098,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         lk.forEach(function (k) {
           if (out.indexOf(k) < 0) out.push(k);
         });
-    } catch (e) {}
+    } catch {}
     return out;
   }
   // Every IndexedDB database to delete on a full erase (Integrator store + analysis checkpoints).
@@ -5116,7 +5116,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (ls === undefined) {
       try {
         ls = root.localStorage;
-      } catch (e) {
+      } catch {
         ls = null;
       }
     }
@@ -5125,14 +5125,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         try {
           if (ls.getItem(k) != null) removed.push(k);
           ls.removeItem(k);
-        } catch (e) {}
+        } catch {}
       });
     }
     var db = opts.indexedDB;
     if (db === undefined) {
       try {
         db = root.indexedDB;
-      } catch (e) {
+      } catch {
         db = null;
       }
     }
@@ -5141,7 +5141,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         try {
           db.deleteDatabase(name);
           idb.push(name);
-        } catch (e) {}
+        } catch {}
       });
     }
     return { removed: removed, idb: idb };
@@ -5173,16 +5173,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       var ok = true;
       try {
         ok = root.confirm('Erase ALL Tepna data on this device?\n\nThis removes your profile, every node’s saved readings, and the Integrator’s longitudinal history. It cannot be undone.');
-      } catch (e) {}
+      } catch {}
       if (!ok) return;
       eraseAll();
       try {
         btn.disabled = true;
         btn.textContent = 'Erased — reloading…';
-      } catch (e) {}
+      } catch {}
       try {
         root.location.reload();
-      } catch (e) {}
+      } catch {}
     });
 
     wrap.appendChild(note);
@@ -5294,7 +5294,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         global.localStorage.getItem(STORAGE_KEY);
         return (_storeRef = global.localStorage);
       }
-    } catch (e) {}
+    } catch {}
     return (_storeRef = _memStore);
   }
   function _setStore(obj) {
@@ -5436,12 +5436,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     var r = null;
     try {
       r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-    } catch (e) {}
+    } catch {}
     if (!r) {
       migrate();
       try {
         r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-      } catch (e) {}
+      } catch {}
     }
     _rec = r || _blank();
     if (!_rec.manual) _rec.manual = {};
@@ -5481,7 +5481,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       if (_chg) {
         try {
           _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-        } catch (e) {}
+        } catch {}
       }
     }
     if (!_rec.detected) _rec.detected = {};
@@ -5499,7 +5499,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     load();
     try {
       _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-    } catch (e) {}
+    } catch {}
     return _rec;
   }
 
@@ -5524,7 +5524,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   function _readJSON(k) {
     try {
       return JSON.parse(_store().getItem(k) || 'null');
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -5636,14 +5636,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       try {
         _store().setItem(STORAGE_KEY, JSON.stringify(rec));
         saved = _store().getItem(STORAGE_KEY) != null;
-      } catch (e) {}
+      } catch {}
       _rec = rec;
       if (saved) {
         var st2 = _store();
         LEGACY_KEYS.forEach(function (k) {
           try {
             st2.removeItem(k);
-          } catch (e) {}
+          } catch {}
         });
       }
       return true;
@@ -5700,8 +5700,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
   // Flat resolved profile (metric) — what node compute code consumes (≈ legacy getProfile()).
   function get() {
-    var rec = load(),
-      pd = popDefaults(rec);
+    var rec = load();
     var p = { age: resolve('age').v, sex: rec.sex, units: rec.units || 'metric' };
     [
       'weight',
@@ -5868,7 +5867,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       if (_org && _org[f]) return _org[f];
       try {
         return resolve(f).origin;
-      } catch (e) {
+      } catch {
         return 'pop';
       }
     }
@@ -6381,7 +6380,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           try {
             _el.focus();
             if (_caret != null && _el.setSelectionRange) _el.setSelectionRange(_caret, _caret);
-          } catch (e) {}
+          } catch {}
         }
       }
       // SECURITY-REMEDIATION-2026-07-11 F5: append the shared "erase all data on this device"
@@ -6389,7 +6388,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       // innerHTML wipe, so it rides every panel re-render across the 6 profile apps.
       try {
         if (global.DexForget) global.DexForget.ensureControl(mount);
-      } catch (e) {}
+      } catch {}
     }
 
     function wire() {
@@ -6517,7 +6516,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // Run migration on load (idempotent; no-op if tepna_profile already exists).
   try {
     migrate();
-  } catch (e) {}
+  } catch {}
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script data-inline-src="ecgdex-registry.js">/* ════════════════════════════════════════════════════════════════════════
@@ -9094,7 +9093,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       s.id = 'dex-synth-css';
       s.textContent = CSS;
       (document.head || document.documentElement).appendChild(s);
-    } catch (e) {
+    } catch {
       /* no-DOM (worker) — ignore */
     }
   }
@@ -9202,8 +9201,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
    loads BEFORE this file in every
    host + bundle (dex-coload.js / *.src.html). Local aliases keep every internal call site
    and the back-compat re-export tail byte-compatible. ── */
-  var tzOffset = DexClock.tzOffset,
-    _ckP2 = DexClock._ckP2,
+  var _ckP2 = DexClock._ckP2,
     _ckNumEpoch = DexClock._ckNumEpoch,
     _ckZoneMin = DexClock._ckZoneMin,
     _ckDMY = DexClock._ckDMY,
@@ -9311,8 +9309,6 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       mxDMn: +((mx - mn) / 1000).toFixed(3) // variation range, SECONDS (Welltory convention)
     };
   }
-  const sd1 = (r) => r / Math.sqrt(2);
-  const sd2 = (s, r) => Math.sqrt(Math.max(0, 2 * s * s - (r * r) / 2));
   // Geometric Poincaré: SD1/SD2 computed directly from the rotated coordinates of the
   // SAME NN array that gets plotted — guarantees the ellipse matches the scatter cloud.
   // SD1 = SDSD/√2 (short axis, beat-to-beat), SD2 = √(2·SDNN² − SD1²) (long axis).
@@ -9490,7 +9486,6 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       bw = 0; // bw = slow correlated (fractal) drift
     let sinusRR = 900; // running "expected" sinus interval
     let pendingComp = 0; // ms of compensatory pause owed to the next beat
-    let bi = 0;
     while (t < durSec - 0.4) {
       const sa = stageAt(t);
       // respiration (RSA) — vagal scales HF amplitude; resp rate wanders slowly
@@ -9544,7 +9539,6 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       gtType.push(type);
       beatT.push(t);
       t += rr / 1000;
-      bi++;
     }
 
     // ── render PQRST morphology into µV samples ──
@@ -9869,8 +9863,6 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // fires when no beat was detected within a 2.5 s window — precisely the stuck-threshold case,
     // whether that stall is mid-record or an opening-transient lead-in.
     const idleLimit = Math.round(2.5 * fs);
-    const rr = [];
-    let rrAvg = 0;
     for (let i = 1; i < N - 1; i++) {
       if (integ[i] > integ[i - 1] && integ[i] >= integ[i + 1] && integ[i] > THRI) {
         if (i - last > refractory) {
@@ -9885,16 +9877,6 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
             }
           }
           peaks.push(bi);
-          if (last >= 0) {
-            const d = i - last;
-            if (d > 0) {
-              rr.push(d);
-              if (rr.length > 8) rr.shift();
-              let s = 0;
-              for (let k = 0; k < rr.length; k++) s += rr[k];
-              rrAvg = s / rr.length;
-            }
-          }
           last = i;
           SPKI = 0.125 * integ[i] + 0.875 * SPKI;
         } else {
@@ -10563,8 +10545,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const fNyq = _meanRRs > 0 ? 1 / (2 * _meanRRs) : fHi;
     const fCal = Math.max(fHi, Math.min(fNyq, 2)); // never below the band; ceiling guards absurd RR
     const nfFull = Math.max(nf, Math.round((fCal - fLo) / df) + 1);
-    let tp = 0, // in-band total — the Task-Force identity vlf+lf+hf
-      tpFull = 0, // full-support total — the Parseval denominator
+    let tpFull = 0, // full-support total — the Parseval denominator
       vlf = 0,
       lf = 0,
       hf = 0,
@@ -10601,7 +10582,6 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
          the entire out-of-band tail — turning a fix into a much worse version of the same bug — and
          would let respRate's peak search wander above 0.4 Hz. */
       if (f < fHi) {
-        tp += e;
         if (f < 0.04) vlf += e;
         else if (f < 0.15) lf += e;
         else {
@@ -11719,9 +11699,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // local SQI near a time
     const sqiAt = (sec) => {
       // nearest beat
-      let lo = 0,
-        hi = times.length - 1,
-        best = 0;
+      let best = 0;
       for (let k = 0; k < times.length; k++) {
         if (Math.abs(times[k] - sec) < Math.abs(times[best] - sec)) best = k;
       }
@@ -12341,7 +12319,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         }
         morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, _sqiMorph);
         if (morph) morph.beatsArtifactMasked = _maskedBeats;
-      } catch (e) {
+      } catch {
         morph = null;
       }
     }
@@ -15264,7 +15242,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           var bn = BigInt(nsRaw);
           if (ns0 === null) ns0 = bn;
           relNs = Number(bn - ns0);
-        } catch (e) {}
+        } catch {}
       }
       var ts = parseTimestamp(p[0]);
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, relNs: relNs, x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1] });
@@ -16182,7 +16160,7 @@ __exports.ECGDex = window.ECGDex;
 function evBadge(label, fallback) {
   try {
     return (window.EcgRegistry && window.EcgRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -16734,8 +16712,7 @@ window.evBadge = evBadge;
       H = 260,
       P = { l: 48, r: 16, t: 18, b: 30 };
     const beat = mb.beat,
-      L = beat.length,
-      fs = mb.fs;
+      L = beat.length;
     let ymn = Infinity,
       ymx = -Infinity;
     for (const v of beat) {
@@ -16747,7 +16724,6 @@ window.evBadge = evBadge;
     ymx += pad;
     const sx = (i) => P.l + (i / (L - 1)) * (W - P.l - P.r);
     const sy = (v) => H - P.b - ((v - ymn) / (ymx - ymn)) * (H - P.t - P.b);
-    const msAt = (i) => ((i - mb.pre) / fs) * 1000;
     const path = beat.map((v, i) => (i ? 'L' : 'M') + sx(i).toFixed(1) + ' ' + sy(v).toFixed(1)).join(' ');
     const m = del.marks,
       B = m.B;
@@ -17281,8 +17257,6 @@ __exports.ECGUI = window.ECGUI;
     // — anchor Q/J to medW (QRS ≈40% before R, 60% after) so QRS, the J-point, and
     // the downstream QT all stay physiological. medW is the cross-checked truth.
     var medW = mb.medW != null && isFinite(mb.medW) ? mb.medW : null;
-    var Qon0 = Qon,
-      Joff0 = Joff;
     if (medW && (qrsSaturated || Math.abs(ms(Joff - Qon) - medW) > 30)) {
       Qon = Math.max(1, R - Math.round(((medW * 0.4) / 1000) * fs));
       Joff = Math.min(beat.length - 2, R + Math.round(((medW * 0.6) / 1000) * fs));
@@ -17488,12 +17462,12 @@ __exports.ECGUI = window.ECGUI;
       twa = null;
     try {
       qtcTr = qtcTrend(int16, fs, refIdx, rrArr, sqi, cls.types, 15, cls.medW);
-    } catch (e) {
+    } catch {
       qtcTr = null;
     }
     try {
       twa = tWaveAlternans(int16, fs, refIdx, rrArr, sqi, cls.types);
-    } catch (e) {
+    } catch {
       twa = null;
     }
     return { ...cls, medianBeat: mb, delin: del, af, qtcTrend: qtcTr, twa };
@@ -17525,7 +17499,6 @@ __exports.ECGUI = window.ECGUI;
   let _dexPanel = null; // handle to the shared DexProfile.renderPanel() instance
 
   // ─── stats ────────────────────────────────────────────────────────────────────
-  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
   const median = (a) => {
     if (!a.length) return null;
     const s = [...a].sort((x, y) => x - y),
@@ -17567,7 +17540,7 @@ __exports.ECGUI = window.ECGUI;
       const org = (f) => {
         try {
           return DP().resolve(f).origin;
-        } catch (e) {
+        } catch {
           return 'pop';
         }
       };
@@ -17611,7 +17584,7 @@ __exports.ECGUI = window.ECGUI;
     if (DP()) {
       try {
         DP().migrate();
-      } catch (e) {}
+      } catch {}
       const p = DP().get(),
         man = DP().getRecord().manual || {};
       const set = (id, val) => {
@@ -17634,7 +17607,7 @@ __exports.ECGUI = window.ECGUI;
     let saved = null;
     try {
       saved = JSON.parse(localStorage.getItem('ecgdex_profile') || 'null');
-    } catch (e) {}
+    } catch {}
     if (saved)
       KEYS.forEach((k) => {
         const el = $(k);
@@ -17673,7 +17646,7 @@ __exports.ECGUI = window.ECGUI;
     });
     try {
       localStorage.setItem('ecgdex_profile', JSON.stringify(o));
-    } catch (e) {}
+    } catch {}
   }
 
   // population means + altitude VO₂ factor
@@ -17791,7 +17764,7 @@ __exports.ECGUI = window.ECGUI;
         DP().setDetected(_det);
         DP().prefillFrom(_det);
         if (_dexPanel) _dexPanel.refresh();
-      } catch (e) {}
+      } catch {}
     }
     return r;
   }
@@ -18427,16 +18400,6 @@ __exports.ECGUI = window.ECGUI;
     }
     const denom = V1 > 0 ? V1 - V2 / V1 : 0;
     return denom > 0 ? Math.sqrt(acc / denom) : 0;
-  }
-  function sd(a) {
-    if (a.length < 2) return 0;
-    const m = mean(a);
-    let s = 0;
-    for (const v of a) {
-      const d = v - m;
-      s += d * d;
-    }
-    return Math.sqrt(s / (a.length - 1));
   }
   function median(a) {
     if (!a.length) return NaN;
@@ -19839,7 +19802,6 @@ self.onmessage = async (e) => {
   }
 
   function renderKPI(r) {
-    const p = r.profile || {};
     /* ANS Age KPI tile REMOVED 2026-06-23 (BADGE-COVERAGE-AUDIT-FOLLOWUPS R9, external-review WP-A):
      discredited population-regression-as-age, already nulled in the node-export + deleted from the
      other nodes (OxyDex 2026-06-21, PulseDex R1). ECGDex UI had missed the removal. Do not reinstate. */
@@ -19930,7 +19892,6 @@ self.onmessage = async (e) => {
   }
 
   function renderQuality(r) {
-    const exReason = [];
     $('qualityCard').innerHTML = `
     <div class="q-grid">
       <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × coverage</div></div>
@@ -20926,7 +20887,7 @@ self.onmessage = async (e) => {
         if (!R || !R.idForLabel) return '';
         const id = R.idForLabel(label);
         return (id && R.REGISTRY[id] && R.REGISTRY[id].evidence) || '';
-      } catch (e) {
+      } catch {
         return '';
       }
     };
@@ -21194,7 +21155,7 @@ self.onmessage = async (e) => {
     if (!g) return '';
     try {
       return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-    } catch (e) {
+    } catch {
       return String(g);
     }
   }
@@ -22126,38 +22087,6 @@ self.onmessage = async (e) => {
       showOK('Exported ' + list.length + ' recordings (array of v2.0 envelopes + crossNight aggregates).');
     }
   }
-  function exportGanglior() {
-    if (!RESULT) return;
-    const r = RESULT;
-    // SIGNAL-ADAPTER-PHASE9 (ECGDex leg, node 3/4 · brief §1B): delegate to the SHARED
-    // ecgBuildNodeExport in the DSP so this app's Ganglior stream is byte-identical to the
-    // headless ECGDex.compute() the Data Unifier / OverDex emit. ONE event source
-    // (analyze→r.events), ONE envelope builder; kernel/provenance ride in via opts.
-    const build = (window.ECGDSP && ECGDSP.buildNodeExport) || (window.ECGDex && ECGDex.buildNodeExport) || null;
-    // MEASUREMENT-PROVENANCE-ROADMAP §12 — the running bundle's code identity, read off the <html>
-    // stamp HERE (the app layer) and passed in, because the born-clean DSP may not touch `document`.
-    const ds = document.documentElement.dataset;
-    const code = /^[0-9a-f]{12}$/.test(ds.manifestHash || '') && /^[0-9a-f]{12}$/.test(ds.computeHash || '') ? { manifestHash: ds.manifestHash, computeHash: ds.computeHash } : null;
-    const out = build
-      ? build(r, {
-          kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
-          provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null,
-          offsetMin: r.offsetMin ?? null,
-          code
-        })
-      : null;
-    if (!out) {
-      showErr('Ganglior export unavailable — ECGDSP.buildNodeExport not loaded.');
-      return;
-    }
-    dl(JSON.stringify(out, null, 2), exportName({ node: 'ECGDex', t0Ms: r.t0Ms, kind: 'ganglior', ext: 'json' }), 'application/json;charset=utf-8');
-    showOK('Ganglior event stream exported (' + (out.ganglior_events ? out.ganglior_events.length : 0) + ' events).');
-  }
-  function copyTable() {
-    const rows = document.querySelectorAll('#tblWrap table tr');
-    const txt = [...rows].map((r) => [...r.cells].map((c) => c.textContent.trim()).join('\t')).join('\n');
-    navigator.clipboard.writeText(txt).then(() => showOK('Metrics table copied.'));
-  }
 
   function resetAll() {
     document.body.classList.remove('has-data');
@@ -22338,7 +22267,7 @@ self.onmessage = async (e) => {
       let stored = null;
       try {
         stored = localStorage.getItem('dex_depth_tier');
-      } catch (e) {}
+      } catch {}
       MetricRegistry.mountDepthSelector($('modeBar'));
       if (!stored) MetricRegistry.setTier('research');
     }

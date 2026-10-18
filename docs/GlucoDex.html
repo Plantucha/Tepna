@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="6f3ddd7e4cbd" data-compute-hash="36c39009b58d">
+<html lang="en" data-manifest-hash="88bfa298a1ae" data-compute-hash="e56f5befe184">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7xQ3yWR2EpiBDMPUDFxtl1NKMYlxsxc9AVgtJkApTU8=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-P+WBHl2NZMnspXKVsRndFmJ2S3rONWAPda5O6KP93tk=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-eWsh+QRtO5wrmZ/hzAyVzRMqbH1dOIcbO18q6HTO9mE=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-h95qlGwJbswZZeH6T7TC0i9UaSf9RL2QgJdu2YYk8jA=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-4gr1AFPOVqvkbjF26J/mVl+7/g1uOSE83ww/EQIo5bU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RX0HMY6N7TblHdA7zhcG9yrxp94BBx8pbWjtYUJrsDA=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-eidMuu8Ahm8YoSjl85IVc5StyfxwVTzyjJIaVCprjfo=' 'sha256-qzpUtdWH1TlUe+keMoviP5ddzz3oKD3bFygdJMXw118='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.19.0</title>
@@ -3354,7 +3354,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       return crypto.subtle.digest('SHA-256', bytes).then(hex, function () {
         return null;
       });
-    } catch (e) {
+    } catch {
       return Promise.resolve(null);
     }
   }
@@ -3363,7 +3363,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   function floatMs(inst) {
     try {
       return inst - new Date(inst).getTimezoneOffset() * 60000;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -3386,10 +3386,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         parts.push(s.textContent || '');
       });
       if (parts.length) return parts.join('\n');
-    } catch (e) {}
+    } catch {}
     try {
       return document.documentElement.outerHTML;
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -3475,7 +3475,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       sha256(content).then(function (h) {
         if (h) rec.sha256 = h.slice(0, 16);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // Passive FileReader hook — records the File + its decoded result as a side
@@ -3492,17 +3492,17 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
             function () {
               try {
                 noteInput(file, self.result);
-              } catch (e) {}
+              } catch {}
             },
             { once: true }
           );
-        } catch (e) {}
+        } catch {}
         return orig.apply(this, arguments);
       };
       wrapped._gpWrapped = true;
       FileReader.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   // Passive Blob hook — captures nodes that ingest via Blob.text() / Blob.arrayBuffer()
   // instead of FileReader (PpgDex's f.text(), other large text reads). Only Files with
@@ -3520,17 +3520,17 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
               function (res) {
                 try {
                   noteInput(self, res);
-                } catch (e) {}
+                } catch {}
               },
               function () {}
             );
-        } catch (e) {}
+        } catch {}
         return p;
       };
       wrapped._gpWrapped = true;
       Blob.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   window.GangliorProvenance = {
     // Synchronous snapshot for splicing into an export's schema. buildHash is
@@ -3614,7 +3614,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   function _kernelHash() {
     try {
       return (root.DexKernel && root.DexKernel.HASH) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -4640,7 +4640,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         _warned[id] = true;
         try {
           console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
-        } catch (e) {}
+        } catch {}
       }
       return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
     }
@@ -4706,14 +4706,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           } // migrate forward
         }
       }
-    } catch (e) {}
+    } catch {}
     return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
   }
   function setTier(tier) {
     if (TIERS.indexOf(tier) < 0) tier = 'core';
     try {
       global.localStorage.setItem(STORAGE_KEY, tier);
-    } catch (e) {}
+    } catch {}
     applyTier(tier);
     return tier;
   }
@@ -4907,7 +4907,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       st.id = ID;
       st.textContent = css;
       (document.head || document.documentElement).appendChild(st);
-    } catch (e) {}
+    } catch {}
   }
   inject();
   // re-assert once the parser has built <head>, in case this ran before it existed
@@ -5017,7 +5017,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         lk.forEach(function (k) {
           if (out.indexOf(k) < 0) out.push(k);
         });
-    } catch (e) {}
+    } catch {}
     return out;
   }
   // Every IndexedDB database to delete on a full erase (Integrator store + analysis checkpoints).
@@ -5035,7 +5035,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (ls === undefined) {
       try {
         ls = root.localStorage;
-      } catch (e) {
+      } catch {
         ls = null;
       }
     }
@@ -5044,14 +5044,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         try {
           if (ls.getItem(k) != null) removed.push(k);
           ls.removeItem(k);
-        } catch (e) {}
+        } catch {}
       });
     }
     var db = opts.indexedDB;
     if (db === undefined) {
       try {
         db = root.indexedDB;
-      } catch (e) {
+      } catch {
         db = null;
       }
     }
@@ -5060,7 +5060,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         try {
           db.deleteDatabase(name);
           idb.push(name);
-        } catch (e) {}
+        } catch {}
       });
     }
     return { removed: removed, idb: idb };
@@ -5092,16 +5092,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       var ok = true;
       try {
         ok = root.confirm('Erase ALL Tepna data on this device?\n\nThis removes your profile, every node’s saved readings, and the Integrator’s longitudinal history. It cannot be undone.');
-      } catch (e) {}
+      } catch {}
       if (!ok) return;
       eraseAll();
       try {
         btn.disabled = true;
         btn.textContent = 'Erased — reloading…';
-      } catch (e) {}
+      } catch {}
       try {
         root.location.reload();
-      } catch (e) {}
+      } catch {}
     });
 
     wrap.appendChild(note);
@@ -5213,7 +5213,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         global.localStorage.getItem(STORAGE_KEY);
         return (_storeRef = global.localStorage);
       }
-    } catch (e) {}
+    } catch {}
     return (_storeRef = _memStore);
   }
   function _setStore(obj) {
@@ -5355,12 +5355,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     var r = null;
     try {
       r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-    } catch (e) {}
+    } catch {}
     if (!r) {
       migrate();
       try {
         r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-      } catch (e) {}
+      } catch {}
     }
     _rec = r || _blank();
     if (!_rec.manual) _rec.manual = {};
@@ -5400,7 +5400,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       if (_chg) {
         try {
           _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-        } catch (e) {}
+        } catch {}
       }
     }
     if (!_rec.detected) _rec.detected = {};
@@ -5418,7 +5418,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     load();
     try {
       _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-    } catch (e) {}
+    } catch {}
     return _rec;
   }
 
@@ -5443,7 +5443,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   function _readJSON(k) {
     try {
       return JSON.parse(_store().getItem(k) || 'null');
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -5555,14 +5555,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       try {
         _store().setItem(STORAGE_KEY, JSON.stringify(rec));
         saved = _store().getItem(STORAGE_KEY) != null;
-      } catch (e) {}
+      } catch {}
       _rec = rec;
       if (saved) {
         var st2 = _store();
         LEGACY_KEYS.forEach(function (k) {
           try {
             st2.removeItem(k);
-          } catch (e) {}
+          } catch {}
         });
       }
       return true;
@@ -5619,8 +5619,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 
   // Flat resolved profile (metric) — what node compute code consumes (≈ legacy getProfile()).
   function get() {
-    var rec = load(),
-      pd = popDefaults(rec);
+    var rec = load();
     var p = { age: resolve('age').v, sex: rec.sex, units: rec.units || 'metric' };
     [
       'weight',
@@ -5787,7 +5786,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       if (_org && _org[f]) return _org[f];
       try {
         return resolve(f).origin;
-      } catch (e) {
+      } catch {
         return 'pop';
       }
     }
@@ -6300,7 +6299,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           try {
             _el.focus();
             if (_caret != null && _el.setSelectionRange) _el.setSelectionRange(_caret, _caret);
-          } catch (e) {}
+          } catch {}
         }
       }
       // SECURITY-REMEDIATION-2026-07-11 F5: append the shared "erase all data on this device"
@@ -6308,7 +6307,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       // innerHTML wipe, so it rides every panel re-render across the 6 profile apps.
       try {
         if (global.DexForget) global.DexForget.ensureControl(mount);
-      } catch (e) {}
+      } catch {}
     }
 
     function wire() {
@@ -6436,7 +6435,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // Run migration on load (idempotent; no-op if tepna_profile already exists).
   try {
     migrate();
-  } catch (e) {}
+  } catch {}
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script data-inline-src="glucodex-registry.js">/* ════════════════════════════════════════════════════════════════════════
@@ -6976,8 +6975,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         numHits = 0,
         intHits = 0,
         inBand = 0,
-        total = 0,
-        sum = 0;
+        total = 0;
       /* SERIAL-INTEGER DETECTION (DEEP-AUDIT-VI F6). Dexcom Clarity's first column is a row
          counter (Index = 1, 2, 3, …) whose values sit inside the [2, 600] "physiologic" band for
          the whole 60-row sample — so it scored within ONE hit of the real glucose column, and a
@@ -6999,7 +6997,6 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         const num = parseFloat(cell.replace(',', '.'));
         if (isFinite(num) && /^[\s+-]*[\d.,]+\s*$/.test(cell)) {
           numHits++;
-          sum += num;
           if ((num >= 2 && num <= 30) || (num >= 30 && num <= 600)) inBand++;
           if (Number.isInteger(num)) intHits++;
           if (prevNum !== null) {
@@ -7743,7 +7740,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const days = byDay(c);
     let sum = 0,
       nd = 0;
-    for (const [k, cells] of days) {
+    for (const [, cells] of days) {
       let lrMax = 0,
         hrMax = 0,
         cnt = 0;
@@ -7771,7 +7768,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (!meals || !meals.length) return null;
     const days = byDay(c);
     const acc = meals.map((m) => ({ label: m.label, category: m.category, minOfDay: m.minOfDay, baselines: [], peaks: [], ttp: [], d2h: [], ret: [] }));
-    for (const [k, cells] of days) {
+    for (const [, cells] of days) {
       for (let mi = 0; mi < meals.length; mi++) {
         const m = meals[mi];
         const base = [];
@@ -8579,7 +8576,6 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       }
       mealMarkers = [...byMeal.values()].map((m) => {
         const mod = Math.round(m.minSum / m.n);
-        const carbs = Math.round(m.carbs / Math.max(1, [...byMeal.values()].length > 0 ? 1 : 1));
         return { minOfDay: mod, category: carbCategory(m.carbs / Math.max(1, m.n * 0 + 1)), label: m.label, carbsAvg: Math.round(m.carbs) };
       });
       // category from per-occurrence average carbs
@@ -9022,7 +9018,7 @@ __exports.GlucoDex = window.GlucoDex;
 function evBadge(label, fallback) {
   try {
     return (window.GlucoRegistry && window.GlucoRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -9050,7 +9046,7 @@ window.evBadge = evBadge;
   let _gluDispUnit = 'mgdl';
   try {
     if (typeof localStorage !== 'undefined' && localStorage.getItem('glucodex_dispUnit') === 'mmol') _gluDispUnit = 'mmol';
-  } catch (e) {}
+  } catch {}
   const GluDisp = {
     get unit() {
       return _gluDispUnit;
@@ -9062,7 +9058,7 @@ window.evBadge = evBadge;
       _gluDispUnit = u === 'mmol' ? 'mmol' : 'mgdl';
       try {
         localStorage.setItem('glucodex_dispUnit', _gluDispUnit);
-      } catch (e) {}
+      } catch {}
       return _gluDispUnit;
     },
     label() {
@@ -9319,7 +9315,6 @@ window.evBadge = evBadge;
       ctx.strokeStyle = 'rgba(61,224,208,.5)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      const step = Math.max(1, Math.floor(this.N / W));
       let pen = false;
       for (let px = 0; px < W; px++) {
         const i = Math.floor((px / W) * this.N);
@@ -9450,7 +9445,6 @@ window.evBadge = evBadge;
     const sx = (h) => P.l + (h / 24) * (W - P.l - P.r);
     const sy = (v) => H - P.b - ((Math.min(ymx, Math.max(ymn, v)) - ymn) / (ymx - ymn)) * (H - P.t - P.b);
     const band = (key0, key1) => {
-      let d = 'M';
       const up = [],
         dn = [];
       for (const b of pts) {
@@ -9684,7 +9678,7 @@ __exports.GLUUI = window.GLUUI;
   function getCalib() {
     try {
       return localStorage.getItem('glucodex_calib') === 'true';
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -9702,7 +9696,7 @@ __exports.GLUUI = window.GLUUI;
       const org = (f) => {
         try {
           return DP().resolve(f).origin;
-        } catch (e) {
+        } catch {
           return 'pop';
         }
       };
@@ -9751,7 +9745,7 @@ __exports.GLUUI = window.GLUUI;
     if (DP()) {
       try {
         DP().migrate();
-      } catch (e) {}
+      } catch {}
       const p = DP().get(),
         man = DP().getRecord().manual || {};
       const set = (id, val) => {
@@ -9775,7 +9769,7 @@ __exports.GLUUI = window.GLUUI;
     let s = null;
     try {
       s = JSON.parse(localStorage.getItem('glucodex_profile') || 'null');
-    } catch (e) {}
+    } catch {}
     if (s)
       KEYS.forEach((k) => {
         const el = $(k);
@@ -9807,7 +9801,7 @@ __exports.GLUUI = window.GLUUI;
       const cb = $('gluCalib');
       try {
         localStorage.setItem('glucodex_calib', cb && cb.checked ? 'true' : 'false');
-      } catch (e) {}
+      } catch {}
       return;
     }
     const o = {};
@@ -9817,7 +9811,7 @@ __exports.GLUUI = window.GLUUI;
     });
     try {
       localStorage.setItem('glucodex_profile', JSON.stringify(o));
-    } catch (e) {}
+    } catch {}
   }
 
   // ─── Glycemic Stability score (TIR + CV + hypo) ────────────────────────────────
@@ -9845,7 +9839,6 @@ __exports.GLUUI = window.GLUUI;
       tgtHi = clamp(p.tgtHi || 180, 130, 260);
     // therapy reframes hypo risk (insulin therapies carry real hypo danger)
     const onInsulin = ['basal', 'mdi', 'pump'].includes(p.therapy);
-    const hypo = r.tir.tbr1 + r.tir.tbr2;
     const hypoGoal = onInsulin ? 4 : 1; // consensus TBR<4% on insulin
     // GMI vs lab A1c validation (the family self-vs-device check)
     let gmiCheck = null;
@@ -11300,7 +11293,7 @@ __exports.GLUUI = window.GLUUI;
       s.id = 'dex-synth-css';
       s.textContent = CSS;
       (document.head || document.documentElement).appendChild(s);
-    } catch (e) {
+    } catch {
       /* no-DOM (worker) — ignore */
     }
   }
@@ -11359,13 +11352,13 @@ __require('glucodex-profile.js');
   let MEALS = [];
   try {
     MEALS = JSON.parse(localStorage.getItem('glucodex_meals') || '[]');
-  } catch (e) {
+  } catch {
     MEALS = [];
   }
   function saveMeals() {
     try {
       localStorage.setItem('glucodex_meals', JSON.stringify(MEALS));
-    } catch (e) {}
+    } catch {}
   }
 
   // analyze with the profile's optional lab-A1c sensor-bias calibration folded in:
@@ -11489,7 +11482,7 @@ __require('glucodex-profile.js');
         try {
           FUSION = computeFusion(r, ECGJSON);
           r.fusion = FUSION;
-        } catch (e) {
+        } catch {
           FUSION = null;
         }
       }
@@ -11531,7 +11524,7 @@ __require('glucodex-profile.js');
     if (!g) return '';
     try {
       return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-    } catch (e) {
+    } catch {
       return String(g);
     }
   }
@@ -11698,7 +11691,7 @@ __require('glucodex-profile.js');
     host.style.display = '';
     try {
       document.body.classList.add('has-data');
-    } catch (e) {}
+    } catch {}
   }
   function glucoClearReview() {
     var h = document.getElementById('glucoReviewCard');
@@ -11799,7 +11792,6 @@ __require('glucodex-profile.js');
   }
 
   function renderKPI(r) {
-    const p = r.profile || {};
     const hypo = +(r.tir.tbr1 + r.tir.tbr2).toFixed(1);
     // Metabolic Age REMOVED 2026-06-21 (external-review WP-A)
     const personalized = [
@@ -12138,7 +12130,6 @@ __require('glucodex-profile.js');
 
   function renderDaily(r) {
     // build per-day 24h overlay traces from cleaned series
-    const cad = r.cadence;
     const days = new Map();
     for (let i = 0; i < r.series.N; i++) {
       if (r.series.gF[i] === r.series.FLAG.WARMUP) continue;
@@ -12217,7 +12208,7 @@ __require('glucodex-profile.js');
       let json;
       try {
         json = JSON.parse(e.target.result);
-      } catch (err) {
+      } catch {
         showErr('Could not parse ECGDex JSON.');
         return;
       }
@@ -12679,9 +12670,7 @@ __require('glucodex-profile.js');
           : '';
         if (t) {
           const pts = t.pairs.map((p, i) => ({ x: i, y: p.qtc }));
-          const gpts = t.pairs.map((p, i) => ({ x: i, y: p.glu }));
           const rstr = t.r == null ? '—' : t.r;
-          const rsev = t.r == null ? 'neutral' : t.r <= -0.4 ? 'bad' : t.r <= -0.2 ? 'warn' : 'ok';
           return `<div class="mini-h" style="margin-top:12px">${evBadge('QTc')}Nocturnal QTc ⟷ glucose trend <span class="mini-sub">${t.n} epochs aligned · r = ${rstr}</span></div>
             ${twaPill ? `<div class="gang-summary">${twaPill}</div>` : ''}
             ${UI.lineChart(pts, UI.COLORS.red, { W: 680, H: 140, xfmt: (x) => 'e' + (x + 1) })}
@@ -12928,13 +12917,6 @@ __require('glucodex-profile.js');
   }
   function csvDoc(rows) {
     return '\uFEFF' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
-  }
-  function csvClean(t) {
-    const s = String(t == null ? '' : t)
-      .replace(/[\u2191\u2193\u2192\u2197\u2198\u2B06\u2B07]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return s === '' || s === '—' || s === '–' || /^n\/?a$/i.test(s) ? '' : s;
   }
 
   function exportCleanCSV() {
@@ -13270,7 +13252,7 @@ __require('glucodex-profile.js');
         if (!R || !R.idForLabel) return '';
         const id = R.idForLabel(label);
         return (id && R.REGISTRY[id] && R.REGISTRY[id].evidence) || '';
-      } catch (e) {
+      } catch {
         return '';
       }
     };
@@ -13290,23 +13272,6 @@ __require('glucodex-profile.js');
     if (!RESULT) return;
     dl(_summaryCSV(), exportName({ node: 'GlucoDex', t0Ms: RESULT.t0Ms, kind: 'summary', ext: 'csv' }), 'text/csv');
     showOK('Summary CSV exported (tidy: metric · value · unit · range · status · notes).');
-  }
-  function exportGanglior() {
-    if (!RESULT) return;
-    const r = RESULT;
-    // ONE shared builder (glucodex-dsp.js) — same node-export compute() emits, so the
-    // app stream and the headless/Unifier export stay byte-identical (brief §1B parity).
-    const out = (window.GlucoDex || window.GLUDSP).buildNodeExport(r, {
-      kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
-      provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null
-    });
-    dl(JSON.stringify(out, null, 2), exportName({ node: 'GlucoDex', t0Ms: r.t0Ms, kind: 'ganglior', ext: 'json' }), 'application/json;charset=utf-8');
-    showOK('Ganglior event stream exported (' + (r.events ? r.events.length : 0) + ' events).');
-  }
-  function copyTable() {
-    const rows = document.querySelectorAll('#tblWrap table tr');
-    const txt = [...rows].map((r) => [...r.cells].map((c) => c.textContent.trim()).join('\t')).join('\n');
-    navigator.clipboard.writeText(txt).then(() => showOK('Metrics table copied.'));
   }
 
   function resetAll() {
@@ -13421,7 +13386,7 @@ __require('glucodex-profile.js');
     let r;
     try {
       r = analyzeWithProfile(LASTPARSED, null);
-    } catch (e) {
+    } catch {
       return;
     }
     RESULT = r;
@@ -13429,7 +13394,7 @@ __require('glucodex-profile.js');
       try {
         FUSION = computeFusion(r, ECGJSON);
         r.fusion = FUSION;
-      } catch (e) {}
+      } catch {}
     }
     r.events = r.events.concat(FUSION && FUSION.events ? FUSION.events : []);
     if (window.GLUProfile) window.GLUProfile.render(r);

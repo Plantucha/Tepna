@@ -81,8 +81,7 @@
    loads BEFORE this file in every
    host + bundle (dex-coload.js / *.src.html). Local aliases keep every internal call site
    and the back-compat re-export tail byte-compatible. ── */
-  var tzOffset = DexClock.tzOffset,
-    _ckP2 = DexClock._ckP2,
+  var _ckP2 = DexClock._ckP2,
     _ckNumEpoch = DexClock._ckNumEpoch,
     _ckZoneMin = DexClock._ckZoneMin,
     _ckDMY = DexClock._ckDMY,
@@ -190,8 +189,6 @@
       mxDMn: +((mx - mn) / 1000).toFixed(3) // variation range, SECONDS (Welltory convention)
     };
   }
-  const sd1 = (r) => r / Math.sqrt(2);
-  const sd2 = (s, r) => Math.sqrt(Math.max(0, 2 * s * s - (r * r) / 2));
   // Geometric Poincaré: SD1/SD2 computed directly from the rotated coordinates of the
   // SAME NN array that gets plotted — guarantees the ellipse matches the scatter cloud.
   // SD1 = SDSD/√2 (short axis, beat-to-beat), SD2 = √(2·SDNN² − SD1²) (long axis).
@@ -369,7 +366,6 @@
       bw = 0; // bw = slow correlated (fractal) drift
     let sinusRR = 900; // running "expected" sinus interval
     let pendingComp = 0; // ms of compensatory pause owed to the next beat
-    let bi = 0;
     while (t < durSec - 0.4) {
       const sa = stageAt(t);
       // respiration (RSA) — vagal scales HF amplitude; resp rate wanders slowly
@@ -423,7 +419,6 @@
       gtType.push(type);
       beatT.push(t);
       t += rr / 1000;
-      bi++;
     }
 
     // ── render PQRST morphology into µV samples ──
@@ -748,8 +743,6 @@
     // fires when no beat was detected within a 2.5 s window — precisely the stuck-threshold case,
     // whether that stall is mid-record or an opening-transient lead-in.
     const idleLimit = Math.round(2.5 * fs);
-    const rr = [];
-    let rrAvg = 0;
     for (let i = 1; i < N - 1; i++) {
       if (integ[i] > integ[i - 1] && integ[i] >= integ[i + 1] && integ[i] > THRI) {
         if (i - last > refractory) {
@@ -764,16 +757,6 @@
             }
           }
           peaks.push(bi);
-          if (last >= 0) {
-            const d = i - last;
-            if (d > 0) {
-              rr.push(d);
-              if (rr.length > 8) rr.shift();
-              let s = 0;
-              for (let k = 0; k < rr.length; k++) s += rr[k];
-              rrAvg = s / rr.length;
-            }
-          }
           last = i;
           SPKI = 0.125 * integ[i] + 0.875 * SPKI;
         } else {
@@ -1442,8 +1425,7 @@
     const fNyq = _meanRRs > 0 ? 1 / (2 * _meanRRs) : fHi;
     const fCal = Math.max(fHi, Math.min(fNyq, 2)); // never below the band; ceiling guards absurd RR
     const nfFull = Math.max(nf, Math.round((fCal - fLo) / df) + 1);
-    let tp = 0, // in-band total — the Task-Force identity vlf+lf+hf
-      tpFull = 0, // full-support total — the Parseval denominator
+    let tpFull = 0, // full-support total — the Parseval denominator
       vlf = 0,
       lf = 0,
       hf = 0,
@@ -1480,7 +1462,6 @@
          the entire out-of-band tail — turning a fix into a much worse version of the same bug — and
          would let respRate's peak search wander above 0.4 Hz. */
       if (f < fHi) {
-        tp += e;
         if (f < 0.04) vlf += e;
         else if (f < 0.15) lf += e;
         else {
@@ -2598,9 +2579,7 @@
     // local SQI near a time
     const sqiAt = (sec) => {
       // nearest beat
-      let lo = 0,
-        hi = times.length - 1,
-        best = 0;
+      let best = 0;
       for (let k = 0; k < times.length; k++) {
         if (Math.abs(times[k] - sec) < Math.abs(times[best] - sec)) best = k;
       }
@@ -3220,7 +3199,7 @@
         }
         morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, _sqiMorph);
         if (morph) morph.beatsArtifactMasked = _maskedBeats;
-      } catch (e) {
+      } catch {
         morph = null;
       }
     }
@@ -6143,7 +6122,7 @@
           var bn = BigInt(nsRaw);
           if (ns0 === null) ns0 = bn;
           relNs = Number(bn - ns0);
-        } catch (e) {}
+        } catch {}
       }
       var ts = parseTimestamp(p[0]);
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, relNs: relNs, x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1] });

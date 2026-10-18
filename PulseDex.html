@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1dffdfc0819b" data-compute-hash="f78feb656df2"><head>
+<html lang="en" data-manifest-hash="ff4d69bd1127" data-compute-hash="59282933bd37"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UcR7Jy7/9dHTsfHQudniZhvWtTyKV5zNwekAQ6Z2qrY=' 'sha256-WkGDapTmwwRvgmUS1rniaL/BHGE1zCVehZYkX13gAmM=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YOmbIdOyUnED1B/cPAwmHvEXMaLmzBhlqxFRSVQNLm0=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+Zpjuz9HNd+LLNjkoKzMtvjd/eUkluuel1K4d1OmNQg=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1guj4HFcatABnfRfnxeGisCEql9GXUHFLGRjoSG++hU=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F3NHiGTYMI9L2FxTH1NkmMI68ps02XdfPhj+h8DZ74U=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-pjsZSrNAaZH9vKKKd7Co81sel60gUKh93MH/+BvPuJc=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.19.0</title>
@@ -3229,7 +3229,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       return crypto.subtle.digest('SHA-256', bytes).then(hex, function () {
         return null;
       });
-    } catch (e) {
+    } catch {
       return Promise.resolve(null);
     }
   }
@@ -3238,7 +3238,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   function floatMs(inst) {
     try {
       return inst - new Date(inst).getTimezoneOffset() * 60000;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -3261,10 +3261,10 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
         parts.push(s.textContent || '');
       });
       if (parts.length) return parts.join('\n');
-    } catch (e) {}
+    } catch {}
     try {
       return document.documentElement.outerHTML;
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -3350,7 +3350,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       sha256(content).then(function (h) {
         if (h) rec.sha256 = h.slice(0, 16);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // Passive FileReader hook — records the File + its decoded result as a side
@@ -3367,17 +3367,17 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
             function () {
               try {
                 noteInput(file, self.result);
-              } catch (e) {}
+              } catch {}
             },
             { once: true }
           );
-        } catch (e) {}
+        } catch {}
         return orig.apply(this, arguments);
       };
       wrapped._gpWrapped = true;
       FileReader.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   // Passive Blob hook — captures nodes that ingest via Blob.text() / Blob.arrayBuffer()
   // instead of FileReader (PpgDex's f.text(), other large text reads). Only Files with
@@ -3395,17 +3395,17 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
               function (res) {
                 try {
                   noteInput(self, res);
-                } catch (e) {}
+                } catch {}
               },
               function () {}
             );
-        } catch (e) {}
+        } catch {}
         return p;
       };
       wrapped._gpWrapped = true;
       Blob.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   window.GangliorProvenance = {
     // Synchronous snapshot for splicing into an export's schema. buildHash is
@@ -3489,7 +3489,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   function _kernelHash() {
     try {
       return (root.DexKernel && root.DexKernel.HASH) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -3872,7 +3872,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
         _warned[id] = true;
         try {
           console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
-        } catch (e) {}
+        } catch {}
       }
       return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
     }
@@ -3938,14 +3938,14 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
           } // migrate forward
         }
       }
-    } catch (e) {}
+    } catch {}
     return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
   }
   function setTier(tier) {
     if (TIERS.indexOf(tier) < 0) tier = 'core';
     try {
       global.localStorage.setItem(STORAGE_KEY, tier);
-    } catch (e) {}
+    } catch {}
     applyTier(tier);
     return tier;
   }
@@ -4139,7 +4139,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       st.id = ID;
       st.textContent = css;
       (document.head || document.documentElement).appendChild(st);
-    } catch (e) {}
+    } catch {}
   }
   inject();
   // re-assert once the parser has built <head>, in case this ran before it existed
@@ -4249,7 +4249,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
         lk.forEach(function (k) {
           if (out.indexOf(k) < 0) out.push(k);
         });
-    } catch (e) {}
+    } catch {}
     return out;
   }
   // Every IndexedDB database to delete on a full erase (Integrator store + analysis checkpoints).
@@ -4267,7 +4267,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     if (ls === undefined) {
       try {
         ls = root.localStorage;
-      } catch (e) {
+      } catch {
         ls = null;
       }
     }
@@ -4276,14 +4276,14 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
         try {
           if (ls.getItem(k) != null) removed.push(k);
           ls.removeItem(k);
-        } catch (e) {}
+        } catch {}
       });
     }
     var db = opts.indexedDB;
     if (db === undefined) {
       try {
         db = root.indexedDB;
-      } catch (e) {
+      } catch {
         db = null;
       }
     }
@@ -4292,7 +4292,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
         try {
           db.deleteDatabase(name);
           idb.push(name);
-        } catch (e) {}
+        } catch {}
       });
     }
     return { removed: removed, idb: idb };
@@ -4324,16 +4324,16 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       var ok = true;
       try {
         ok = root.confirm('Erase ALL Tepna data on this device?\n\nThis removes your profile, every node’s saved readings, and the Integrator’s longitudinal history. It cannot be undone.');
-      } catch (e) {}
+      } catch {}
       if (!ok) return;
       eraseAll();
       try {
         btn.disabled = true;
         btn.textContent = 'Erased — reloading…';
-      } catch (e) {}
+      } catch {}
       try {
         root.location.reload();
-      } catch (e) {}
+      } catch {}
     });
 
     wrap.appendChild(note);
@@ -4445,7 +4445,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
         global.localStorage.getItem(STORAGE_KEY);
         return (_storeRef = global.localStorage);
       }
-    } catch (e) {}
+    } catch {}
     return (_storeRef = _memStore);
   }
   function _setStore(obj) {
@@ -4587,12 +4587,12 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     var r = null;
     try {
       r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-    } catch (e) {}
+    } catch {}
     if (!r) {
       migrate();
       try {
         r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-      } catch (e) {}
+      } catch {}
     }
     _rec = r || _blank();
     if (!_rec.manual) _rec.manual = {};
@@ -4632,7 +4632,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       if (_chg) {
         try {
           _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-        } catch (e) {}
+        } catch {}
       }
     }
     if (!_rec.detected) _rec.detected = {};
@@ -4650,7 +4650,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     load();
     try {
       _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-    } catch (e) {}
+    } catch {}
     return _rec;
   }
 
@@ -4675,7 +4675,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   function _readJSON(k) {
     try {
       return JSON.parse(_store().getItem(k) || 'null');
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -4787,14 +4787,14 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       try {
         _store().setItem(STORAGE_KEY, JSON.stringify(rec));
         saved = _store().getItem(STORAGE_KEY) != null;
-      } catch (e) {}
+      } catch {}
       _rec = rec;
       if (saved) {
         var st2 = _store();
         LEGACY_KEYS.forEach(function (k) {
           try {
             st2.removeItem(k);
-          } catch (e) {}
+          } catch {}
         });
       }
       return true;
@@ -4851,8 +4851,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
 
   // Flat resolved profile (metric) — what node compute code consumes (≈ legacy getProfile()).
   function get() {
-    var rec = load(),
-      pd = popDefaults(rec);
+    var rec = load();
     var p = { age: resolve('age').v, sex: rec.sex, units: rec.units || 'metric' };
     [
       'weight',
@@ -5019,7 +5018,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       if (_org && _org[f]) return _org[f];
       try {
         return resolve(f).origin;
-      } catch (e) {
+      } catch {
         return 'pop';
       }
     }
@@ -5532,7 +5531,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
           try {
             _el.focus();
             if (_caret != null && _el.setSelectionRange) _el.setSelectionRange(_caret, _caret);
-          } catch (e) {}
+          } catch {}
         }
       }
       // SECURITY-REMEDIATION-2026-07-11 F5: append the shared "erase all data on this device"
@@ -5540,7 +5539,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       // innerHTML wipe, so it rides every panel re-render across the 6 profile apps.
       try {
         if (global.DexForget) global.DexForget.ensureControl(mount);
-      } catch (e) {}
+      } catch {}
     }
 
     function wire() {
@@ -5668,7 +5667,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   // Run migration on load (idempotent; no-op if tepna_profile already exists).
   try {
     migrate();
-  } catch (e) {}
+  } catch {}
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script data-inline-src="pulsedex-registry.js">/* ════════════════════════════════════════════════════════════════════════
@@ -8587,7 +8586,7 @@ const { fmtClock, vo2Base, vo2Adj, altVO2Factor, lineChartSVG, triIdxGrade } = w
 function evBadge(label, fallback) {
   try {
     return (window.PulseRegistry && window.PulseRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -9076,7 +9075,7 @@ function _pulseFmtGen(g) {
   if (!g) return '';
   try {
     return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-  } catch (e) {
+  } catch {
     return String(g);
   }
 }
@@ -9251,12 +9250,12 @@ function pulseRenderReview(review) {
   host.style.display = '';
   try {
     document.body.classList.add('has-data');
-  } catch (e) {}
+  } catch {}
 }
 function pulseClearReview() {
   try {
     window._pulseReview = null;
-  } catch (e) {}
+  } catch {}
   var host = document.getElementById('pulseReviewCard');
   if (host) {
     host.innerHTML = '';
@@ -9306,7 +9305,7 @@ Object.assign(window, {
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { parseTimestamp, nu, triIdxGrade } = window.PulseDex._bare;
+const { parseTimestamp, triIdxGrade } = window.PulseDex._bare;
 // This surface spells the OK band 'good'; the shared owner returns the fleet 'ok'. Adapt the
 // vocabulary here rather than re-deriving the cut-points, so there is still exactly one decision.
 const _triCls = (g) => (g === 'ok' ? 'good' : g);
@@ -9864,14 +9863,14 @@ function loadProfile() {
         set('profRHR', man.hrRest != null ? man.hrRest : '');
         set('profElev', p.elevation != null ? p.elevation : '');
       }
-    } catch (e) {}
+    } catch {}
     renderProfileDerivedPx();
     return;
   }
   let saved = null;
   try {
     saved = JSON.parse(localStorage.getItem('pulsedex_profile') || 'null');
-  } catch (e) {}
+  } catch {}
   if (saved) {
     PX_PROFILE_KEYS.forEach((k) => {
       const el = document.getElementById(k);
@@ -9905,7 +9904,7 @@ function saveProfile() {
         if (document.getElementById('profRHR')) DexProfile.setManual('hrRest', num(g('profRHR')) > 0 ? num(g('profRHR')) : null);
         if (document.getElementById('profElev')) DexProfile.setManual('elevation', num(g('profElev')));
       }
-    } catch (e) {}
+    } catch {}
     return;
   }
   const o = {};
@@ -9915,7 +9914,7 @@ function saveProfile() {
   });
   try {
     localStorage.setItem('pulsedex_profile', JSON.stringify(o));
-  } catch (e) {}
+  } catch {}
 }
 
 // user edited a field → persist + mark it as a manual override + re-derive
@@ -10327,16 +10326,6 @@ Object.assign(window, {
     }
     const denom = V1 > 0 ? V1 - V2 / V1 : 0;
     return denom > 0 ? Math.sqrt(acc / denom) : 0;
-  }
-  function sd(a) {
-    if (a.length < 2) return 0;
-    const m = mean(a);
-    let s = 0;
-    for (const v of a) {
-      const d = v - m;
-      s += d * d;
-    }
-    return Math.sqrt(s / (a.length - 1));
   }
   function median(a) {
     if (!a.length) return NaN;
@@ -11852,7 +11841,7 @@ Object.assign(window, {
       s.id = 'dex-synth-css';
       s.textContent = CSS;
       (document.head || document.documentElement).appendChild(s);
-    } catch (e) {
+    } catch {
       /* no-DOM (worker) — ignore */
     }
   }
@@ -12697,7 +12686,7 @@ function loadRawFiles(fileList) {
       try {
         var j = JSON.parse(it.text);
         return j && j.schema && j.schema.name === 'ganglior.node-export';
-      } catch (e) {
+      } catch {
         return false;
       }
     });
@@ -13727,13 +13716,6 @@ function csvCell(v) {
 function csvDoc(rows) {
   return '\uFEFF' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
-function csvClean(t) {
-  const s = String(t == null ? '' : t)
-    .replace(/[\u2191\u2193\u2192\u2197\u2198\u2B06\u2B07]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return s === '' || s === '—' || s === '–' || /^n\/?a$/i.test(s) ? '' : s;
-}
 
 // Append this measurement as one new line to the supplied Welltory file (or start
 // a fresh log). Output is Welltory-compatible (HRVDex ingests it) + extra columns.
@@ -13804,7 +13786,6 @@ function exportJSON() {
 // Wrap PulseDex's existing windowed analysis as a ganglior.node-export so the
 // Integrator can fuse PulseDex as a first-class node. Mirrors ECGDex exportGanglior.
 // Bus name in ONE constant; events carry absolute floating tMs + legacy t "HH:MM:SS".
-const PULSEDEX_BUS = 'ganglior';
 function _pdClockS(ms) {
   const d = new Date(ms),
     p = (n) => (n < 10 ? '0' : '') + n;
@@ -13848,7 +13829,7 @@ function _summaryCSV() {
       if (!R || !R.idForLabel) return '';
       const id = R.idForLabel(label);
       return (id && R.REGISTRY[id] && R.REGISTRY[id].evidence) || '';
-    } catch (e) {
+    } catch {
       return '';
     }
   };
@@ -13868,11 +13849,6 @@ function exportSummaryCSV() {
   if (!lastResult) return;
   dl(_summaryCSV(), exportName({ node: 'PulseDex', t0Ms: lastResult.t0Ms, kind: 'summary', ext: 'csv', contentId: lastResult.contentId }), 'text/csv');
   showOK('Summary CSV exported (tidy: metric · value · unit · range · status · notes).');
-}
-function copyTable() {
-  const rows = document.querySelectorAll('#tblWrap table tr');
-  const txt = [...rows].map((r) => [...r.cells].map((c) => c.textContent.trim()).join('\t')).join('\n');
-  navigator.clipboard.writeText(txt).then(() => showOK('Table copied to clipboard'));
 }
 
 // ─── RESET ────────────────────────────────────────────────────────────────────

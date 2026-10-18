@@ -18736,15 +18736,9 @@
         ['nights-icc-analysis.js', ['AnalysisStats.iccOneWay', 'AnalysisStats.spearmanBrown', 'AnalysisStats.minOccForReliability']],
         [
           'sigma-no-reference-analysis.js',
-          [
-            'AnalysisStats.tchSigmas',
-            'AnalysisStats.tchSigmasFused',
-            'AnalysisStats.tchBlockBootstrapCI',
-            'AnalysisStats.blandAltman',
-            'AnalysisStats.pearson',
-            'AnalysisStats.parseDerivedHr',
-            'AnalysisStats.confidenceSeries'
-          ]
+          /* tchSigmasFused, parseDerivedHr and confidenceSeries left with the dead run() fetch path
+             (2026-10-18); the folder-drop path computes no fused hat and parses nothing itself. */
+          ['AnalysisStats.tchSigmas', 'AnalysisStats.tchBlockBootstrapCI', 'AnalysisStats.blandAltman', 'AnalysisStats.pearson']
         ],
         /* TCH-FUSED-ROBUST-HAT, closed 2026-09-26: the power tool carried its OWN copy of the classic hat
            (byte-equivalent, measured 2026-08-04) with no parity gate, so a kernel fix would not have
@@ -36289,11 +36283,6 @@
             out.push({ name: m[1], carries: guarded || /\brunsText\b/.test(c.slice(start, end)) });
           }
           return out;
-        }
-        function bare(src) {
-          return calls(src).filter(function (x) {
-            return !x.carries;
-          }).length;
         }
 
         /* ── the classifier must DISCRIMINATE, in both directions, before it judges ── */

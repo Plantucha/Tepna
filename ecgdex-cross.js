@@ -64,16 +64,6 @@
     const denom = V1 > 0 ? V1 - V2 / V1 : 0;
     return denom > 0 ? Math.sqrt(acc / denom) : 0;
   }
-  function sd(a) {
-    if (a.length < 2) return 0;
-    const m = mean(a);
-    let s = 0;
-    for (const v of a) {
-      const d = v - m;
-      s += d * d;
-    }
-    return Math.sqrt(s / (a.length - 1));
-  }
   function median(a) {
     if (!a.length) return NaN;
     const b = [...a].sort((x, y) => x - y),

@@ -308,7 +308,6 @@
     var dv = new DataView(buf);
     var annotations = [];
     var clock = parseEdfClock(startdate, starttime);
-    var recDurMs = (recDurSec || 0) * 1000;
 
     for (var r = 0; r < recordsRead; r++) {
       var p = dataStart + r * bytesPerRecord;

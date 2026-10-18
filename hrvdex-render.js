@@ -13,7 +13,7 @@
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { mean, smooth, getFilteredRows, computeCAMQ, _hrvUpdateExportHint } = window.HRVDex._bare;
+const { smooth, getFilteredRows, computeCAMQ, _hrvUpdateExportHint } = window.HRVDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via HrvRegistry (hrvdex-registry.js). Zero-touch; safe no-op if the
@@ -21,7 +21,7 @@ const { mean, smooth, getFilteredRows, computeCAMQ, _hrvUpdateExportHint } = win
 function evBadge(label, fallback) {
   try {
     return (window.HrvRegistry && window.HrvRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -61,7 +61,7 @@ function switchTab(id, el) {
       var y = anchor.getBoundingClientRect().top + window.pageYOffset - 12;
       window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     }
-  } catch (e) {}
+  } catch {}
   setTimeout(() => rerender(), 50);
 }
 
@@ -80,7 +80,7 @@ function setMode(mode, btn) {
     });
     try {
       localStorage.setItem('hrvdex_dashMode', mode);
-    } catch (e) {}
+    } catch {}
   }
   var hint = document.getElementById('modeHint');
   if (hint) {
@@ -109,7 +109,7 @@ function setMode(mode, btn) {
       var y = anchor.getBoundingClientRect().top + window.pageYOffset - 12;
       window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     }
-  } catch (e) {}
+  } catch {}
 }
 
 // Positionally tier every tab's charts so Core/Advanced/Research filters work
@@ -149,7 +149,7 @@ else document.addEventListener('DOMContentLoaded', applyChartTiers);
   } else {
     try {
       saved = localStorage.getItem('hrvdex_dashMode') || 'core';
-    } catch (e) {}
+    } catch {}
     document.body.dataset.mode = saved;
   }
   function syncBtns() {
@@ -1463,9 +1463,6 @@ function renderTable(rows) {
 function renderCardiovascularResearch(rows) {
   if (!rows || !rows.length) return;
   // Render each chart if its canvas exists
-  var dates = rows.map(function (r) {
-    return r._date;
-  });
 
   // ch_htn_pattern (HRV→hypertension-risk) REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴).
 
@@ -1502,7 +1499,7 @@ function drawSimpleLine(canvasId, dates, values, opts) {
   if (canvas._chart) {
     try {
       canvas._chart.destroy();
-    } catch (e) {}
+    } catch {}
   }
   var ctx = canvas.getContext('2d');
   var labels = dates.map(function (d) {

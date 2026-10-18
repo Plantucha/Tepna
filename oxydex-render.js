@@ -221,7 +221,6 @@ function oxyEventTimeline(events, multiNight) {
 // §4 · the clinical "bring-to-doctor" summary. Findings → KPIs → event timeline (each badged) →
 // provenance + intended-use disclaimer + dxl- stamp. Faithfully renders the EXPORT's stored values.
 function oxyClinicalSummary(review, nights) {
-  var s = _oxyBuildStamp(review);
   var asc = nights.slice().reverse(); // nights is DESC (newest first) → ascending for date range
   var first = asc[0],
     last = asc[asc.length - 1];
@@ -884,7 +883,6 @@ function renderAll() {
     // Apply global View Window (affects trend charts + night list)
     // nights are DESC-sorted (newest first); slice(0, N) keeps the N newest.
     if (_gcWin && _gcWin < 999 && nights.length > _gcWin) nights = nights.slice(0, _gcWin);
-    var single = nights.length === 1;
     var html = '';
 
     // ── SELF-INGEST review mode (SELF-INGEST-2026-06-27) ─────────────────────────────────────────────
@@ -2325,7 +2323,7 @@ function ssKPI(label, valHtml, cls, sublabel) {
 function evBadge(label, fallback) {
   try {
     return (window.OxyRegistry && window.OxyRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -2363,20 +2361,6 @@ function ssIssuesBars(top5, cat) {
       '</div></div>';
   });
   return h + '</div>';
-}
-function switchSStab(id, el) {
-  var card = el.closest('.smart-summary');
-  card.querySelectorAll('.ss-tab').forEach(function (t) {
-    t.classList.remove('active');
-  });
-  card.querySelectorAll('.ss-tab-content').forEach(function (t) {
-    t.classList.remove('active');
-  });
-  el.classList.add('active');
-  var tabs = card.querySelectorAll('.ss-tab-content');
-  tabs.forEach(function (t) {
-    if (t.id && t.id.startsWith('sstab-' + id)) t.classList.add('active');
-  });
 }
 function setGCWindow(days, el) {
   _gcWin = days;
@@ -3575,7 +3559,7 @@ function renderResearchMetrics(n) {
         if (typeof v === 'object') {
           try {
             v = Array.isArray(v) ? v.join(' / ') : JSON.stringify(v);
-          } catch (e) {
+          } catch {
             return;
           }
           if (v.length > 80) v = v.slice(0, 77) + '…';

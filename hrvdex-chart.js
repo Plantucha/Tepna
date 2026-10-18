@@ -111,7 +111,7 @@
       });
       try {
         this._ro.observe(canvas.parentElement || canvas);
-      } catch (e) {}
+      } catch {}
     }
     registry.push(this);
     this.draw();
@@ -139,7 +139,7 @@
     if (this._ro) {
       try {
         this._ro.disconnect();
-      } catch (e) {}
+      } catch {}
       this._ro = null;
     }
     if (this.canvas && this.ctx) {
@@ -187,7 +187,7 @@
       items = items.filter(function (it) {
         try {
           return filt(it);
-        } catch (e) {
+        } catch {
           return true;
         }
       });
@@ -388,7 +388,6 @@
       } else if (d.fill === true) {
         ctx.beginPath();
         var s2 = false,
-          fx0 = null,
           fx1 = null;
         for (var k = 0; k < p.length; k++) {
           if (!p[k]) continue;
@@ -396,7 +395,6 @@
             ctx.moveTo(p[k].x, Y + H);
             ctx.lineTo(p[k].x, p[k].y);
             s2 = true;
-            fx0 = p[k].x;
           } else ctx.lineTo(p[k].x, p[k].y);
           fx1 = p[k].x;
         }

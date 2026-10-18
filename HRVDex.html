@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="78b40410506f" data-compute-hash="5a003f08ff73">
+<html lang="en" data-manifest-hash="b3ca4cd0902a" data-compute-hash="e34440af3a0c">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+xo3JQS0wh0fnKBErkDsMeA5DhkyX1GM8xpq5UxqESo=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0DQHWzcJEMTDK0okzsLrElRNNuIqt6zybEklrP0095E=' 'sha256-0sBgsT0FUUGnrESWUupXxRjP+ZNL/bPHjx7y4A2kzYQ=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0DQHWzcJEMTDK0okzsLrElRNNuIqt6zybEklrP0095E=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ggK2C8qSnaWmYsJs/pi8GwuHfcZqFNkh5V3JH3HWXVY=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-wQSzoNwWpbIfmh9kMjUs40V1eTfx9BQIQe+GNHljJyE=' 'sha256-yp99IYcHo3eEDeDkAmSBzj/KMTEKxYTqR3gtVnlGR/o='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.19.0</title>
@@ -4156,7 +4156,7 @@ body.light .topbar::after{ opacity:.25; }
       });
       try {
         this._ro.observe(canvas.parentElement || canvas);
-      } catch (e) {}
+      } catch {}
     }
     registry.push(this);
     this.draw();
@@ -4184,7 +4184,7 @@ body.light .topbar::after{ opacity:.25; }
     if (this._ro) {
       try {
         this._ro.disconnect();
-      } catch (e) {}
+      } catch {}
       this._ro = null;
     }
     if (this.canvas && this.ctx) {
@@ -4232,7 +4232,7 @@ body.light .topbar::after{ opacity:.25; }
       items = items.filter(function (it) {
         try {
           return filt(it);
-        } catch (e) {
+        } catch {
           return true;
         }
       });
@@ -4433,7 +4433,6 @@ body.light .topbar::after{ opacity:.25; }
       } else if (d.fill === true) {
         ctx.beginPath();
         var s2 = false,
-          fx0 = null,
           fx1 = null;
         for (var k = 0; k < p.length; k++) {
           if (!p[k]) continue;
@@ -4441,7 +4440,6 @@ body.light .topbar::after{ opacity:.25; }
             ctx.moveTo(p[k].x, Y + H);
             ctx.lineTo(p[k].x, p[k].y);
             s2 = true;
-            fx0 = p[k].x;
           } else ctx.lineTo(p[k].x, p[k].y);
           fx1 = p[k].x;
         }
@@ -4789,7 +4787,7 @@ body.light .topbar::after{ opacity:.25; }
       return crypto.subtle.digest('SHA-256', bytes).then(hex, function () {
         return null;
       });
-    } catch (e) {
+    } catch {
       return Promise.resolve(null);
     }
   }
@@ -4798,7 +4796,7 @@ body.light .topbar::after{ opacity:.25; }
   function floatMs(inst) {
     try {
       return inst - new Date(inst).getTimezoneOffset() * 60000;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -4821,10 +4819,10 @@ body.light .topbar::after{ opacity:.25; }
         parts.push(s.textContent || '');
       });
       if (parts.length) return parts.join('\n');
-    } catch (e) {}
+    } catch {}
     try {
       return document.documentElement.outerHTML;
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -4910,7 +4908,7 @@ body.light .topbar::after{ opacity:.25; }
       sha256(content).then(function (h) {
         if (h) rec.sha256 = h.slice(0, 16);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // Passive FileReader hook — records the File + its decoded result as a side
@@ -4927,17 +4925,17 @@ body.light .topbar::after{ opacity:.25; }
             function () {
               try {
                 noteInput(file, self.result);
-              } catch (e) {}
+              } catch {}
             },
             { once: true }
           );
-        } catch (e) {}
+        } catch {}
         return orig.apply(this, arguments);
       };
       wrapped._gpWrapped = true;
       FileReader.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   // Passive Blob hook — captures nodes that ingest via Blob.text() / Blob.arrayBuffer()
   // instead of FileReader (PpgDex's f.text(), other large text reads). Only Files with
@@ -4955,17 +4953,17 @@ body.light .topbar::after{ opacity:.25; }
               function (res) {
                 try {
                   noteInput(self, res);
-                } catch (e) {}
+                } catch {}
               },
               function () {}
             );
-        } catch (e) {}
+        } catch {}
         return p;
       };
       wrapped._gpWrapped = true;
       Blob.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   window.GangliorProvenance = {
     // Synchronous snapshot for splicing into an export's schema. buildHash is
@@ -5049,7 +5047,7 @@ body.light .topbar::after{ opacity:.25; }
   function _kernelHash() {
     try {
       return (root.DexKernel && root.DexKernel.HASH) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -6075,7 +6073,7 @@ body.light .topbar::after{ opacity:.25; }
         _warned[id] = true;
         try {
           console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
-        } catch (e) {}
+        } catch {}
       }
       return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
     }
@@ -6141,14 +6139,14 @@ body.light .topbar::after{ opacity:.25; }
           } // migrate forward
         }
       }
-    } catch (e) {}
+    } catch {}
     return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
   }
   function setTier(tier) {
     if (TIERS.indexOf(tier) < 0) tier = 'core';
     try {
       global.localStorage.setItem(STORAGE_KEY, tier);
-    } catch (e) {}
+    } catch {}
     applyTier(tier);
     return tier;
   }
@@ -6342,7 +6340,7 @@ body.light .topbar::after{ opacity:.25; }
       st.id = ID;
       st.textContent = css;
       (document.head || document.documentElement).appendChild(st);
-    } catch (e) {}
+    } catch {}
   }
   inject();
   // re-assert once the parser has built <head>, in case this ran before it existed
@@ -6452,7 +6450,7 @@ body.light .topbar::after{ opacity:.25; }
         lk.forEach(function (k) {
           if (out.indexOf(k) < 0) out.push(k);
         });
-    } catch (e) {}
+    } catch {}
     return out;
   }
   // Every IndexedDB database to delete on a full erase (Integrator store + analysis checkpoints).
@@ -6470,7 +6468,7 @@ body.light .topbar::after{ opacity:.25; }
     if (ls === undefined) {
       try {
         ls = root.localStorage;
-      } catch (e) {
+      } catch {
         ls = null;
       }
     }
@@ -6479,14 +6477,14 @@ body.light .topbar::after{ opacity:.25; }
         try {
           if (ls.getItem(k) != null) removed.push(k);
           ls.removeItem(k);
-        } catch (e) {}
+        } catch {}
       });
     }
     var db = opts.indexedDB;
     if (db === undefined) {
       try {
         db = root.indexedDB;
-      } catch (e) {
+      } catch {
         db = null;
       }
     }
@@ -6495,7 +6493,7 @@ body.light .topbar::after{ opacity:.25; }
         try {
           db.deleteDatabase(name);
           idb.push(name);
-        } catch (e) {}
+        } catch {}
       });
     }
     return { removed: removed, idb: idb };
@@ -6527,16 +6525,16 @@ body.light .topbar::after{ opacity:.25; }
       var ok = true;
       try {
         ok = root.confirm('Erase ALL Tepna data on this device?\n\nThis removes your profile, every node’s saved readings, and the Integrator’s longitudinal history. It cannot be undone.');
-      } catch (e) {}
+      } catch {}
       if (!ok) return;
       eraseAll();
       try {
         btn.disabled = true;
         btn.textContent = 'Erased — reloading…';
-      } catch (e) {}
+      } catch {}
       try {
         root.location.reload();
-      } catch (e) {}
+      } catch {}
     });
 
     wrap.appendChild(note);
@@ -6678,7 +6676,7 @@ body.light .topbar::after{ opacity:.25; }
         global.localStorage.getItem(STORAGE_KEY);
         return (_storeRef = global.localStorage);
       }
-    } catch (e) {}
+    } catch {}
     return (_storeRef = _memStore);
   }
   function _setStore(obj) {
@@ -6820,12 +6818,12 @@ body.light .topbar::after{ opacity:.25; }
     var r = null;
     try {
       r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-    } catch (e) {}
+    } catch {}
     if (!r) {
       migrate();
       try {
         r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-      } catch (e) {}
+      } catch {}
     }
     _rec = r || _blank();
     if (!_rec.manual) _rec.manual = {};
@@ -6865,7 +6863,7 @@ body.light .topbar::after{ opacity:.25; }
       if (_chg) {
         try {
           _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-        } catch (e) {}
+        } catch {}
       }
     }
     if (!_rec.detected) _rec.detected = {};
@@ -6883,7 +6881,7 @@ body.light .topbar::after{ opacity:.25; }
     load();
     try {
       _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-    } catch (e) {}
+    } catch {}
     return _rec;
   }
 
@@ -6908,7 +6906,7 @@ body.light .topbar::after{ opacity:.25; }
   function _readJSON(k) {
     try {
       return JSON.parse(_store().getItem(k) || 'null');
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -7020,14 +7018,14 @@ body.light .topbar::after{ opacity:.25; }
       try {
         _store().setItem(STORAGE_KEY, JSON.stringify(rec));
         saved = _store().getItem(STORAGE_KEY) != null;
-      } catch (e) {}
+      } catch {}
       _rec = rec;
       if (saved) {
         var st2 = _store();
         LEGACY_KEYS.forEach(function (k) {
           try {
             st2.removeItem(k);
-          } catch (e) {}
+          } catch {}
         });
       }
       return true;
@@ -7084,8 +7082,7 @@ body.light .topbar::after{ opacity:.25; }
 
   // Flat resolved profile (metric) — what node compute code consumes (≈ legacy getProfile()).
   function get() {
-    var rec = load(),
-      pd = popDefaults(rec);
+    var rec = load();
     var p = { age: resolve('age').v, sex: rec.sex, units: rec.units || 'metric' };
     [
       'weight',
@@ -7252,7 +7249,7 @@ body.light .topbar::after{ opacity:.25; }
       if (_org && _org[f]) return _org[f];
       try {
         return resolve(f).origin;
-      } catch (e) {
+      } catch {
         return 'pop';
       }
     }
@@ -7765,7 +7762,7 @@ body.light .topbar::after{ opacity:.25; }
           try {
             _el.focus();
             if (_caret != null && _el.setSelectionRange) _el.setSelectionRange(_caret, _caret);
-          } catch (e) {}
+          } catch {}
         }
       }
       // SECURITY-REMEDIATION-2026-07-11 F5: append the shared "erase all data on this device"
@@ -7773,7 +7770,7 @@ body.light .topbar::after{ opacity:.25; }
       // innerHTML wipe, so it rides every panel re-render across the 6 profile apps.
       try {
         if (global.DexForget) global.DexForget.ensureControl(mount);
-      } catch (e) {}
+      } catch {}
     }
 
     function wire() {
@@ -7901,7 +7898,7 @@ body.light .topbar::after{ opacity:.25; }
   // Run migration on load (idempotent; no-op if tepna_profile already exists).
   try {
     migrate();
-  } catch (e) {}
+  } catch {}
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script data-inline-src="hrvdex-registry.js">/* ════════════════════════════════════════════════════════════════════════
@@ -9591,14 +9588,14 @@ body.light .topbar::after{ opacity:.25; }
     if (!allRows || !allRows.length) {
       try {
         localStorage.removeItem(HRV_STORE_KEY);
-      } catch (e) {}
+      } catch {}
       return { ok: true };
     }
     const seeds = allRows.map(_seedFromRow);
     try {
       localStorage.setItem(HRV_STORE_KEY, JSON.stringify(seeds));
       return { ok: true };
-    } catch (e) {
+    } catch {
       // Quota / storage disabled. Don't fail SILENTLY (FOLLOWUP-FINDINGS P5.2): the
       // "missing → visible, never fabricated" rule applies to the saved mirror too. Keep
       // the most-recent measurements that DO fit (halving the tail until it persists) and
@@ -9629,7 +9626,7 @@ body.light .topbar::after{ opacity:.25; }
     try {
       const raw = localStorage.getItem(HRV_STORE_KEY);
       if (raw) seeds = JSON.parse(raw);
-    } catch (e) {
+    } catch {
       seeds = null;
     }
     if (!Array.isArray(seeds) || !seeds.length) return false;
@@ -9806,7 +9803,7 @@ body.light .topbar::after{ opacity:.25; }
     let data;
     try {
       data = JSON.parse(text);
-    } catch (e) {
+    } catch {
       _ui.setStatus('⚠ Could not read that file as CSV or JSON.');
       return;
     }
@@ -10272,7 +10269,6 @@ body.light .topbar::after{ opacity:.25; }
     return dx * dy > 0 ? num / Math.sqrt(dx * dy) : NaN;
   }
   function linRegSlope(x, y) {
-    const n = x.length;
     const mx = mean(x),
       my = mean(y);
     const num = x.reduce((s, xi, i) => s + (xi - mx) * (y[i] - my), 0);
@@ -10776,7 +10772,7 @@ __exports.HRVDex = window.HRVDex;
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { mean, smooth, getFilteredRows, computeCAMQ, _hrvUpdateExportHint } = window.HRVDex._bare;
+const { smooth, getFilteredRows, computeCAMQ, _hrvUpdateExportHint } = window.HRVDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via HrvRegistry (hrvdex-registry.js). Zero-touch; safe no-op if the
@@ -10784,7 +10780,7 @@ const { mean, smooth, getFilteredRows, computeCAMQ, _hrvUpdateExportHint } = win
 function evBadge(label, fallback) {
   try {
     return (window.HrvRegistry && window.HrvRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -10824,7 +10820,7 @@ function switchTab(id, el) {
       var y = anchor.getBoundingClientRect().top + window.pageYOffset - 12;
       window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     }
-  } catch (e) {}
+  } catch {}
   setTimeout(() => rerender(), 50);
 }
 
@@ -10843,7 +10839,7 @@ function setMode(mode, btn) {
     });
     try {
       localStorage.setItem('hrvdex_dashMode', mode);
-    } catch (e) {}
+    } catch {}
   }
   var hint = document.getElementById('modeHint');
   if (hint) {
@@ -10872,7 +10868,7 @@ function setMode(mode, btn) {
       var y = anchor.getBoundingClientRect().top + window.pageYOffset - 12;
       window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     }
-  } catch (e) {}
+  } catch {}
 }
 
 // Positionally tier every tab's charts so Core/Advanced/Research filters work
@@ -10912,7 +10908,7 @@ else document.addEventListener('DOMContentLoaded', applyChartTiers);
   } else {
     try {
       saved = localStorage.getItem('hrvdex_dashMode') || 'core';
-    } catch (e) {}
+    } catch {}
     document.body.dataset.mode = saved;
   }
   function syncBtns() {
@@ -12226,9 +12222,6 @@ function renderTable(rows) {
 function renderCardiovascularResearch(rows) {
   if (!rows || !rows.length) return;
   // Render each chart if its canvas exists
-  var dates = rows.map(function (r) {
-    return r._date;
-  });
 
   // ch_htn_pattern (HRV→hypertension-risk) REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴).
 
@@ -12265,7 +12258,7 @@ function drawSimpleLine(canvasId, dates, values, opts) {
   if (canvas._chart) {
     try {
       canvas._chart.destroy();
-    } catch (e) {}
+    } catch {}
   }
   var ctx = canvas.getContext('2d');
   var labels = dates.map(function (d) {
@@ -12363,12 +12356,6 @@ const DXP = () => window.DexProfile;
 // ══════════════════════════════════════════════════════════════════
 // INFER PROFILE FROM LOADED DATA
 // ══════════════════════════════════════════════════════════════════
-function clearEstimate(inputId, labelId) {
-  // User typed a value: drop the "estimated" border tint but KEEP the projection
-  // sublabel visible as a reference (matches OxyDex behavior).
-  const el = document.getElementById(inputId);
-  if (el) el.style.borderColor = '';
-}
 
 function inferFromData() {
   if (!allRows || allRows.length < 3) return;
@@ -12436,7 +12423,7 @@ function inferFromData() {
   if (DXP()) {
     try {
       DXP().prefillFrom({ hrRest: restingHR, vo2: vo2Est });
-    } catch (e) {}
+    } catch {}
   }
   /* ⚠️ NO READER — measured 2026-09-05, repo-wide: `_projVO2` occurs at exactly three sites and all
      three are WRITES or comments in this file (:89, :520, :524). The live refresh at :524 is real and
@@ -12538,7 +12525,7 @@ function loadProfile() {
         set('prof_hrrest', man.hrRest != null ? man.hrRest : '');
         set('prof_elev', p.elevation != null ? p.elevation : '');
       }
-    } catch (e) {}
+    } catch {}
     updateProfile();
     _hrvLoading = false;
     return;
@@ -12686,7 +12673,7 @@ function updateProfile() {
         DXP().setManual('hrMax', num(g('prof_hrmax')) > 0 ? num(g('prof_hrmax')) : null);
         DXP().setManual('hrRest', num(g('prof_hrrest')) > 0 ? num(g('prof_hrrest')) : null);
         DXP().setManual('elevation', num(g('prof_elev')));
-      } catch (e) {}
+      } catch {}
   } else {
     PROFILE_KEYS.forEach((k) => {
       const el = document.getElementById(k);
@@ -14276,7 +14263,7 @@ if (window.HRVDex && window.HRVDex.setHooks) window.HRVDex.setHooks({ inferFromD
       s.id = 'dex-synth-css';
       s.textContent = CSS;
       (document.head || document.documentElement).appendChild(s);
-    } catch (e) {
+    } catch {
       /* no-DOM (worker) — ignore */
     }
   }
@@ -14318,7 +14305,7 @@ __require('hrvdex-profile.js');
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { parseCSV, HRV_STORE_KEY, restoreHRVRows, ingestGangliorJSON, mean, getFilteredRows, hrvBuildNodeExport } = window.HRVDex._bare;
+const { parseCSV, HRV_STORE_KEY, restoreHRVRows, ingestGangliorJSON, getFilteredRows, hrvBuildNodeExport } = window.HRVDex._bare;
 // mutable page state: bridge bare window.{allRows,windowDays,charts} ↔ the DSP-owned
 // HRVDex.* (the DSP's window proxies are spray-guarded and no longer install here;
 // hrvdex-render/-profile and this file read/write them bare).
@@ -14447,7 +14434,7 @@ function _hrvMaybeReview(text) {
         return true;
       }
     }
-  } catch (e) {}
+  } catch {}
   return false;
 }
 function _hrvesc(s) {
@@ -14464,7 +14451,7 @@ function _hrvFmtGen(g) {
   if (!g) return '';
   try {
     return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-  } catch (e) {
+  } catch {
     return String(g);
   }
 }
@@ -14534,15 +14521,10 @@ function hrvReviewView(review) {
   };
   var last = ms.length ? ms[ms.length - 1] : {};
   var meanRm = mean(
-      ms.map(function (m) {
-        return m.rmssd;
-      })
-    ),
-    meanSd = mean(
-      ms.map(function (m) {
-        return m.sdnn;
-      })
-    );
+    ms.map(function (m) {
+      return m.rmssd;
+    })
+  );
   var h =
     '<div class="hrvrv-banner" role="status">' +
     '<span class="hrvrv-tag"><span class="hrvrv-dot"></span>Review mode</span>' +
@@ -14670,14 +14652,7 @@ function hrvRenderReview(review) {
   host.style.display = '';
   try {
     window.scrollTo(0, 0);
-  } catch (e) {}
-}
-function hrvClearReview() {
-  var h = document.getElementById('hrvReviewCard');
-  if (h) {
-    h.innerHTML = '';
-    h.style.display = 'none';
-  }
+  } catch {}
 }
 // F5 (SELF-INGEST-FOLLOWUPS-II): fleet convention — the review renderer is reachable via the node
 // namespace (<Node>.reviewView / .renderReview) so the suite's live review probe (and any global
@@ -14792,7 +14767,7 @@ function clearAll() {
   allRows = [];
   try {
     localStorage.removeItem(typeof HRV_STORE_KEY !== 'undefined' ? HRV_STORE_KEY : 'hrvdex_rows_v1');
-  } catch (e) {}
+  } catch {}
   var mu = document.getElementById('mainUI');
   if (mu) mu.style.display = 'none';
   var pp = document.getElementById('profilePanel');
@@ -14823,7 +14798,7 @@ function _hrvInit() {
   } catch (_) {}
   try {
     if (typeof restoreHRVRows === 'function') restoreHRVRows();
-  } catch (e) {}
+  } catch {}
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _hrvInit);
 else _hrvInit();
@@ -14864,7 +14839,7 @@ function setProgress(pct) {
     }
     try {
       localStorage.setItem(STORAGE_KEY, theme);
-    } catch (e) {}
+    } catch {}
   }
 
   window.toggleTheme = function () {
@@ -14875,7 +14850,7 @@ function setProgress(pct) {
   var saved = 'dark';
   try {
     saved = localStorage.getItem(STORAGE_KEY) || 'dark';
-  } catch (e) {}
+  } catch {}
   applyTheme(saved);
 })();
 

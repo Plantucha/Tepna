@@ -72,7 +72,7 @@ try {
     typeof PPGDSP.detectChannel === 'function' &&
     typeof PPGDSP.buildPPI === 'function' &&
     typeof PPGDSP.correctRR === 'function';
-} catch (e) {
+} catch {
   HAVE_PPGDSP = false;
 }
 
@@ -519,17 +519,6 @@ function movavg(a, w) {
     s += a[i];
     if (i >= w) s -= a[i - w];
     o[i] = s / Math.min(i + 1, w);
-  }
-  return o;
-}
-function movrms(a, w) {
-  var o = new Float64Array(a.length),
-    s = 0,
-    i;
-  for (i = 0; i < a.length; i++) {
-    s += a[i] * a[i];
-    if (i >= w) s -= a[i - w] * a[i - w];
-    o[i] = Math.sqrt(s / Math.min(i + 1, w));
   }
   return o;
 }
@@ -993,7 +982,7 @@ function o2MarkerHrMap(text) {
       if (Math.abs(vals[j] - med) <= 20) out.set(secs[j], vals[j]);
     }
     return out.size >= 30 ? out : null;
-  } catch (e) {
+  } catch {
     return null;
   }
 }

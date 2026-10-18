@@ -107,7 +107,6 @@ const NODES = {
     recomputedOnly: true
   }
 };
-const IDS = NODES.OxyDex.ids; // the selftest's fixture shape
 
 /* The headless OxyDex realm, in OxyDex.src.html order (same recipe as regen-oxydex-goldens). */
 function realm() {

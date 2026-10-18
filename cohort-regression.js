@@ -114,12 +114,12 @@
       }
       try {
         oxyCSV = await fetchText(DIR + cfg.oxy);
-      } catch (e) {
+      } catch {
         oxyCSV = null;
       }
       try {
         rrText = await fetchText(DIR + cfg.rr);
-      } catch (e) {
+      } catch {
         rrText = null;
       }
 
@@ -127,7 +127,6 @@
         return e.type === 'apnea' || e.type === 'hypopnea';
       });
       var truthAHI = gt.ahiTarget;
-      var truthHours = gt.durSec / 3600;
       var truthFloor =
         100 -
         Math.max.apply(
@@ -148,7 +147,6 @@
           row.checks.push(['OxyDex ran', false, res.error]);
         } else {
           var sc = res.score.nights[0] || {};
-          var env = (res.envelope.nights || [])[0] || {};
           row.odi = sc.odi;
           row.minSpo2 = sc.minSpo2;
           row.t0Oxy = sc.t0Ms;

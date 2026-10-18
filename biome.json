@@ -34,7 +34,7 @@
         "noUnsafeFinally": "error",
         "noSelfAssign": "error",
         "useIsNan": "error",
-        "noUnusedVariables": "warn",
+        "noUnusedVariables": "error",
         "noConstantCondition": "error",
         "useValidTypeof": "error",
         "noGlobalObjectCalls": "error",
@@ -55,6 +55,12 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["synth-gen.js", "oxydex-util.js", "oxydex-profile.js", "pulsedex-dsp.js"],
+      "linter": { "rules": { "correctness": { "noUnusedVariables": "warn" } } }
+    }
+  ],
   "assist": {
     "enabled": false
   }

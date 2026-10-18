@@ -14,7 +14,6 @@
   const KEYS = ['ppgAge', 'ppgSex', 'ppgWeight', 'ppgHeight', 'ppgHRmax', 'ppgRHR', 'ppgVO2', 'ppgElev', 'ppgCPAP'];
   let reRenderFn = null;
   let _dexPanel = null; // handle to the shared DexProfile.renderPanel() instance
-  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
   const median = (a) => {
     if (!a.length) return null;
     const s = [...a].sort((x, y) => x - y),
@@ -49,7 +48,7 @@
       const org = (f) => {
         try {
           return DP().resolve(f).origin;
-        } catch (e) {
+        } catch {
           return 'pop';
         }
       };
@@ -92,7 +91,7 @@
     if (DP()) {
       try {
         DP().migrate();
-      } catch (e) {}
+      } catch {}
       const p = DP().get(),
         man = DP().getRecord().manual || {};
       const set = (id, val) => {
@@ -115,7 +114,7 @@
     let saved = null;
     try {
       saved = JSON.parse(localStorage.getItem('ppgdex_profile') || 'null');
-    } catch (e) {}
+    } catch {}
     if (saved)
       KEYS.forEach((k) => {
         const el = $(k);
@@ -151,7 +150,7 @@
     });
     try {
       localStorage.setItem('ppgdex_profile', JSON.stringify(o));
-    } catch (e) {}
+    } catch {}
   }
 
   function popNorms(sex) {
@@ -219,7 +218,7 @@
         DP().setDetected(_det);
         DP().prefillFrom(_det);
         if (_dexPanel) _dexPanel.refresh();
-      } catch (e) {}
+      } catch {}
     }
     return r;
   }

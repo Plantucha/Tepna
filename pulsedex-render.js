@@ -20,7 +20,7 @@ const { fmtClock, vo2Base, vo2Adj, altVO2Factor, lineChartSVG, triIdxGrade } = w
 function evBadge(label, fallback) {
   try {
     return (window.PulseRegistry && window.PulseRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -509,7 +509,7 @@ function _pulseFmtGen(g) {
   if (!g) return '';
   try {
     return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-  } catch (e) {
+  } catch {
     return String(g);
   }
 }
@@ -684,12 +684,12 @@ function pulseRenderReview(review) {
   host.style.display = '';
   try {
     document.body.classList.add('has-data');
-  } catch (e) {}
+  } catch {}
 }
 function pulseClearReview() {
   try {
     window._pulseReview = null;
-  } catch (e) {}
+  } catch {}
   var host = document.getElementById('pulseReviewCard');
   if (host) {
     host.innerHTML = '';

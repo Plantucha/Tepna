@@ -30,7 +30,7 @@
   function getCalib() {
     try {
       return localStorage.getItem('glucodex_calib') === 'true';
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -48,7 +48,7 @@
       const org = (f) => {
         try {
           return DP().resolve(f).origin;
-        } catch (e) {
+        } catch {
           return 'pop';
         }
       };
@@ -97,7 +97,7 @@
     if (DP()) {
       try {
         DP().migrate();
-      } catch (e) {}
+      } catch {}
       const p = DP().get(),
         man = DP().getRecord().manual || {};
       const set = (id, val) => {
@@ -121,7 +121,7 @@
     let s = null;
     try {
       s = JSON.parse(localStorage.getItem('glucodex_profile') || 'null');
-    } catch (e) {}
+    } catch {}
     if (s)
       KEYS.forEach((k) => {
         const el = $(k);
@@ -153,7 +153,7 @@
       const cb = $('gluCalib');
       try {
         localStorage.setItem('glucodex_calib', cb && cb.checked ? 'true' : 'false');
-      } catch (e) {}
+      } catch {}
       return;
     }
     const o = {};
@@ -163,7 +163,7 @@
     });
     try {
       localStorage.setItem('glucodex_profile', JSON.stringify(o));
-    } catch (e) {}
+    } catch {}
   }
 
   // ─── Glycemic Stability score (TIR + CV + hypo) ────────────────────────────────
@@ -191,7 +191,6 @@
       tgtHi = clamp(p.tgtHi || 180, 130, 260);
     // therapy reframes hypo risk (insulin therapies carry real hypo danger)
     const onInsulin = ['basal', 'mdi', 'pump'].includes(p.therapy);
-    const hypo = r.tir.tbr1 + r.tir.tbr2;
     const hypoGoal = onInsulin ? 4 : 1; // consensus TBR<4% on insulin
     // GMI vs lab A1c validation (the family self-vs-device check)
     let gmiCheck = null;

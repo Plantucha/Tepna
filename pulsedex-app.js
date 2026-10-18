@@ -175,7 +175,7 @@ function loadRawFiles(fileList) {
       try {
         var j = JSON.parse(it.text);
         return j && j.schema && j.schema.name === 'ganglior.node-export';
-      } catch (e) {
+      } catch {
         return false;
       }
     });
@@ -1205,13 +1205,6 @@ function csvCell(v) {
 function csvDoc(rows) {
   return '\uFEFF' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
-function csvClean(t) {
-  const s = String(t == null ? '' : t)
-    .replace(/[\u2191\u2193\u2192\u2197\u2198\u2B06\u2B07]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return s === '' || s === '—' || s === '–' || /^n\/?a$/i.test(s) ? '' : s;
-}
 
 // Append this measurement as one new line to the supplied Welltory file (or start
 // a fresh log). Output is Welltory-compatible (HRVDex ingests it) + extra columns.
@@ -1282,7 +1275,6 @@ function exportJSON() {
 // Wrap PulseDex's existing windowed analysis as a ganglior.node-export so the
 // Integrator can fuse PulseDex as a first-class node. Mirrors ECGDex exportGanglior.
 // Bus name in ONE constant; events carry absolute floating tMs + legacy t "HH:MM:SS".
-const PULSEDEX_BUS = 'ganglior';
 function _pdClockS(ms) {
   const d = new Date(ms),
     p = (n) => (n < 10 ? '0' : '') + n;
@@ -1326,7 +1318,7 @@ function _summaryCSV() {
       if (!R || !R.idForLabel) return '';
       const id = R.idForLabel(label);
       return (id && R.REGISTRY[id] && R.REGISTRY[id].evidence) || '';
-    } catch (e) {
+    } catch {
       return '';
     }
   };
@@ -1346,11 +1338,6 @@ function exportSummaryCSV() {
   if (!lastResult) return;
   dl(_summaryCSV(), exportName({ node: 'PulseDex', t0Ms: lastResult.t0Ms, kind: 'summary', ext: 'csv', contentId: lastResult.contentId }), 'text/csv');
   showOK('Summary CSV exported (tidy: metric · value · unit · range · status · notes).');
-}
-function copyTable() {
-  const rows = document.querySelectorAll('#tblWrap table tr');
-  const txt = [...rows].map((r) => [...r.cells].map((c) => c.textContent.trim()).join('\t')).join('\n');
-  navigator.clipboard.writeText(txt).then(() => showOK('Table copied to clipboard'));
 }
 
 // ─── RESET ────────────────────────────────────────────────────────────────────

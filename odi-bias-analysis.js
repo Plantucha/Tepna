@@ -518,7 +518,6 @@
       ys = POINTS.map(function (p) {
         return p.ahi;
       });
-    var fitOnOdi = ols(xs, ys); // AHI = a·ODI + b  (for correction / fitTag)
     var ahiArr = ys,
       odiArr = xs;
     var fitScatter = ols(ahiArr, odiArr); // ODI = m·AHI + b  (undercount slope, for scatter+headline)
@@ -1283,7 +1282,7 @@
       var pat;
       try {
         pat = CohortGen.patient(seed++);
-      } catch (e) {
+      } catch {
         continue;
       }
       for (var k = 0; k < pat.nights.length && POOL.length < target; k++) {
@@ -1301,7 +1300,7 @@
           var night = processNight(rows, 'pool');
           var odi4 = night.odi4 ? night.odi4.rate : null;
           if (odi4 != null && isFinite(odi4)) POOL.push({ odi4: odi4, ahi: nt.cfg.ahi });
-        } catch (e) {
+        } catch {
           /* skip */
         }
       }

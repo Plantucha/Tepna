@@ -19,7 +19,6 @@ import { PPGUI } from './ppgdex-render.js';
   const DSP = PPGDSP,
     UI = PPGUI;
   const ING = window.DexIngest; // §2/§3 (ECG-INGEST-FOLLOWUPS): shared, gate-backed file-ingest classification (dex-ingest.js)
-  const F = DSP; // fmt helpers
   // foreign / set-aside stream labels for the no-PPG drop report (§2)
   const _PPG_FOREIGN_LABEL = {
     ecg: 'raw ECG (→ ECGDex)',
@@ -201,7 +200,7 @@ import { PPGUI } from './ppgdex-render.js';
           renderSession(allSessions[activeKey]);
           try {
             localStorage.setItem('ppgdex_active', activeKey);
-          } catch (e) {}
+          } catch {}
           let msg = 'Analyzed ' + added + ' session' + (added > 1 ? 's' : '') + ' · ' + Object.keys(allSessions).length + ' loaded total.';
           if (skipped.length) {
             const dups = skipped.filter((s) => s.kind === 'duplicate').length,
@@ -334,7 +333,7 @@ import { PPGUI } from './ppgdex-render.js';
     try {
       const v = localStorage.getItem(SITE_DECL_KEY);
       return SITE_CHOICES.some((c) => c.v === v) ? v : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -352,7 +351,7 @@ import { PPGUI } from './ppgdex-render.js';
     try {
       if (v) localStorage.setItem(SITE_DECL_KEY, v);
       else localStorage.removeItem(SITE_DECL_KEY);
-    } catch (e) {
+    } catch {
       /* private mode — the declaration simply does not persist */
     }
   }
@@ -392,7 +391,6 @@ import { PPGUI } from './ppgdex-render.js';
   }
 
   function renderKPI(r) {
-    const p = r.profile || {};
     const pb = r.perfusionIndex == null ? 'neutral' : r.perfusionIndex >= 1 ? 'ok' : r.perfusionIndex >= 0.4 ? 'warn' : 'bad';
     // ANS Age REMOVED 2026-06-21 (external-review WP-A)
     const items = [
@@ -900,7 +898,7 @@ import { PPGUI } from './ppgdex-render.js';
         activeKey = btn.getAttribute('data-key');
         try {
           localStorage.setItem('ppgdex_active', activeKey);
-        } catch (e) {}
+        } catch {}
         renderSession(allSessions[activeKey]);
       })
     );
@@ -1331,7 +1329,7 @@ import { PPGUI } from './ppgdex-render.js';
     if (!g) return '';
     try {
       return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-    } catch (e) {
+    } catch {
       return String(g);
     }
   }
@@ -1501,7 +1499,7 @@ import { PPGUI } from './ppgdex-render.js';
     host.style.display = '';
     try {
       window.scrollTo(0, 0);
-    } catch (e) {}
+    } catch {}
   }
   function ppgClearReview() {
     var h = document.getElementById('ppgReviewCard');
@@ -1519,49 +1517,6 @@ import { PPGUI } from './ppgdex-render.js';
       window.PpgDex.renderReview = ppgRenderReview;
     }
   } catch (_rvx) {}
-  function exportGanglior() {
-    const list = sessionsSorted();
-    if (!list.length) return;
-    const _ts = list.map((x) => x.t0Ms).filter((v) => v != null);
-    const _aT0 = _ts.length ? Math.min.apply(null, _ts) : null;
-    const _aSpan = _ts.length > 1 ? Math.round((Math.max.apply(null, _ts) - Math.min.apply(null, _ts)) / 864e5) : null;
-    // MEASUREMENT-PROVENANCE-ROADMAP §12 — the running bundle's code identity, read off the <html>
-    // stamp HERE (the app layer) and passed in, because the born-clean DSP may not touch `document`.
-    const ds = document.documentElement.dataset;
-    const code = /^[0-9a-f]{12}$/.test(ds.manifestHash || '') && /^[0-9a-f]{12}$/.test(ds.computeHash || '') ? { manifestHash: ds.manifestHash, computeHash: ds.computeHash } : null;
-    const stamp = { kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null, provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null, code };
-    let out;
-    if (list.length === 1) {
-      // ONE shared builder (ppgdex-dsp.js) — the SAME node-export compute() emits, so the app
-      // stream and the headless/Unifier export stay byte-identical (brief §1B parity).
-      out = (window.PpgDex || window.PPGDSP).buildNodeExport(list[0], stamp);
-    } else {
-      // multi-session aggregate (app-only path — compute() is single-recording). Each session's
-      // events come from the SAME r.events source; only the cross-session envelope is local here.
-      const events = [];
-      list.forEach((s) => {
-        s.events.forEach((e) => events.push({ t: e.t, tMs: e.tMs, impulse: e.impulse, node: e.node, conf: e.conf, meta: e.meta, session: s.t0Ms }));
-      });
-      const t0 = list[0].t0Ms;
-      out = {
-        kernel: stamp.kernel,
-        schema: {
-          name: 'ganglior.node-export',
-          version: '2.0',
-          node: 'PpgDex',
-          nodeVersion: '1.0',
-          bus: 'ganglior',
-          generated: new Date().toISOString(),
-          provenance: stamp.provenance,
-          doc: 'PpgDex PPG-derived events across sessions → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.'
-        },
-        recording: { source: 'ppg', startEpochMs: t0 != null ? t0 : null, sessions: list.length, events: events.length },
-        ganglior_events: events,
-        reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
-      };
-    }
-    download(JSON.stringify(out, null, 2), exportName({ node: 'PpgDex', t0Ms: _aT0, kind: 'ganglior', ext: 'json', spanDays: _aSpan }), 'application/json;charset=utf-8');
-  }
   function exportPPI() {
     const r = allSessions[activeKey];
     if (!r) return;
@@ -1640,7 +1595,7 @@ import { PPGUI } from './ppgdex-render.js';
     }
     try {
       localStorage.removeItem('ppgdex_active');
-    } catch (e) {}
+    } catch {}
     document.body.classList.remove('has-data');
     ['scopeSection', 'qualitySection', 'chartsSection', 'morphSection', 'motionSection', 'validationSection', 'gangliorSection', 'tableSection', 'crossNightSection', 'ctxBanner'].forEach((id) => {
       const el = $(id);

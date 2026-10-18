@@ -124,7 +124,7 @@ import { CpapRender } from './cpapdex-render.js';
     if (global.MetricRegistry)
       try {
         global.MetricRegistry.applyTier(global.MetricRegistry.getTier());
-      } catch (e) {}
+      } catch {}
     var hdr = $('nightHeader');
     if (hdr) {
       var multi = LOADED_NIGHTS.length > 1;
@@ -175,7 +175,7 @@ import { CpapRender } from './cpapdex-render.js';
     if (global.MetricRegistry)
       try {
         global.MetricRegistry.applyTier(global.MetricRegistry.getTier());
-      } catch (e) {}
+      } catch {}
     var els = review.elements || [];
     var t0 = els[0] && els[0].recording ? els[0].recording.startEpochMs : null;
     var hdr = $('nightHeader');
@@ -444,7 +444,7 @@ import { CpapRender } from './cpapdex-render.js';
         var parsed = null;
         try {
           parsed = JSON.parse(rd.result);
-        } catch (e) {
+        } catch {
           peerMsgs.push(f.name + ' (invalid JSON)');
           done();
           return;
@@ -497,7 +497,7 @@ import { CpapRender } from './cpapdex-render.js';
           var res = global.CpapCoimport ? global.CpapCoimport.ingest(parsed, f.name) : null;
           if (res && res.count) peerMsgs.push(res.node + (res.count > 1 ? ' ×' + res.count : ''));
           else peerMsgs.push(f.name + ' (unrecognized — need an OxyDex/ECGDex node-export)');
-        } catch (e) {
+        } catch {
           peerMsgs.push(f.name + ' (invalid JSON)');
         }
         done();
@@ -529,8 +529,7 @@ import { CpapRender } from './cpapdex-render.js';
   function loadDemo() {
     setStatus('Loading demo night…', 'busy');
     var entries = [],
-      pending = DEMO_FILES.length,
-      failed = 0;
+      pending = DEMO_FILES.length;
     DEMO_FILES.forEach(function (name) {
       fetch('uploads/' + name)
         .then(function (r) {
@@ -540,9 +539,7 @@ import { CpapRender } from './cpapdex-render.js';
         .then(function (buf) {
           entries.push({ name: name, buf: buf });
         })
-        .catch(function () {
-          failed++;
-        })
+        .catch(function () {})
         .then(function () {
           if (--pending === 0) {
             if (!entries.length) {
@@ -748,9 +745,7 @@ import { CpapRender } from './cpapdex-render.js';
       return;
     }
     if (!LOADED_NIGHTS.length || !global.CpapFusion) return;
-    var D = CpapDsp,
-      payload,
-      fname;
+    var payload, fname;
     if (LOADED_NIGHTS.length >= 3 && global.CPAPCross && global.CrossNightEnvelope) {
       var chrono = LOADED_NIGHTS.slice().sort(function (a, b) {
         return (a.t0Ms || 0) - (b.t0Ms || 0);
@@ -987,7 +982,7 @@ import { CpapRender } from './cpapdex-render.js';
     if (global.MetricRegistry)
       try {
         global.MetricRegistry.mountDepthSelector($('modeBar'));
-      } catch (e) {}
+      } catch {}
     if (location.hash === '#demo') setTimeout(loadDemo, 200);
   }
 

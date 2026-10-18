@@ -191,13 +191,6 @@
     var m = s.length >> 1;
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
   }
-  function mean(a) {
-    return a.length
-      ? a.reduce(function (x, y) {
-          return x + y;
-        }, 0) / a.length
-      : null;
-  }
 
   // ── run ──
   var targetN;
@@ -232,7 +225,7 @@
     workers.forEach(function (w) {
       try {
         w.w.terminate();
-      } catch (e) {}
+      } catch {}
     });
     /* ANNOTATE the finished run with any job that failed. Reduced coverage is reported beside the
        result, never folded into it: a run that lost jobs is not the same measurement as one that did not,
@@ -339,7 +332,7 @@
     });
     try {
       window.QRS_YIELD = RESULT;
-    } catch (e) {}
+    } catch {}
 
     drawRecall(agg);
     drawDissoc();
