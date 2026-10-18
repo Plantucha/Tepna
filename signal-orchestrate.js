@@ -72,14 +72,16 @@
     _glucoWin = null,
     _ppgWin = null,
     _ecgWin = null,
-    _cpapWin = null;
+    _cpapWin = null,
+    _motionWin = null;
   var _pulseReady = null,
     _oxyReady = null,
     _hrvReady = null,
     _glucoReady = null,
     _ppgReady = null,
     _ecgReady = null,
-    _cpapReady = null;
+    _cpapReady = null,
+    _motionReady = null;
 
   function pulseHost() {
     if (_pulseReady) return _pulseReady;
@@ -313,6 +315,83 @@
     });
   }
 
+  // motionHost(): MotionDex IMU host shim. MotionDex is a co-load global (same realm), resolved like ecgHost.
+  function motionHost() {
+    if (_motionReady) return _motionReady;
+    _motionReady = _await('MotionDex').then(function () {
+      _motionWin = { MotionDex: root.MotionDex, DexKernel: root.DexKernel };
+      return _motionWin;
+    });
+    return _motionReady;
+  }
+  function motionWin() {
+    return _motionWin;
+  }
+
+  /* ── ACC SignalFrame → ganglior.node-export via MotionDex's PUBLIC headless compute ──
+     The ACC is MotionDex's own signal. Before 2026-10-18 no adapter routed it, so OverDex set every
+     `_ACC.txt` aside and MotionDex reached the Integrator only from a hand-exported JSON. MotionDex
+     reads TWO sites in ONE run (motiondex-app.js does the same): the chest ACC carries posture and
+     respiratory effort, the arm ACC carries actigraphy. So a chest frame and an arm frame of the same
+     night are ONE MotionDex recording, and `frame.partner` (set by pairMotionFrames) is the other
+     site. Two separate runs would publish two MotionDex records with one stamp, and the Integrator's
+     ±30 s dedupe would drop the second as a duplicate. */
+  function emitAccNodeExport(frame, mw) {
+    mw = mw || _motionWin;
+    if (!(mw && mw.MotionDex && typeof mw.MotionDex.compute === 'function' && typeof mw.MotionDex.buildNodeExport === 'function'))
+      throw new Error('signal-orchestrate: MotionDex.compute unavailable (co-load motiondex-dsp.js)');
+    var input = {},
+      files = [];
+    [frame, frame.partner].forEach(function (f) {
+      if (!f || !f.usable) return;
+      var slot = f.site === 'chest' ? 'chestAcc' : 'acc';
+      if (input[slot]) return; // one stream per slot; a second same-site frame is not merged
+      input[slot] = f.samples;
+      if (f.site !== 'chest') {
+        if (f.gyro) input.gyro = f.gyro;
+        if (f.mag) input.mag = f.mag;
+      }
+      ((f.provenance && f.provenance.files) || []).forEach(function (n) {
+        files.push(n);
+      });
+    });
+    var summary = mw.MotionDex.compute(input);
+    var exp = mw.MotionDex.buildNodeExport(summary, { kernel: mw.DexKernel || root.DexKernel || null });
+    if (exp && exp.schema && !exp.schema.ingest)
+      exp.schema.ingest = { adapter: frame.provenance.adapter, vendor: frame.provenance.vendor, device: frame.provenance.device, via: frame.provenance.via || 'signal-orchestrate', files: files };
+    return exp;
+  }
+
+  /* pairMotionFrames(frames) → [frame], each chest frame carrying `.partner` = the arm frame nearest
+     to it in t0Ms, within MAX_COMPANION_GAP_MS (a different night is never a partner). An arm frame
+     no chest frame claimed runs on its own. A frame without a t0Ms is never paired: no clock, no match.
+     Pure: it sets `.partner` and returns the frames to emit, in input order. */
+  function pairMotionFrames(frames) {
+    var chest = [],
+      arm = [];
+    (frames || []).forEach(function (f) {
+      if (f) (f.site === 'chest' ? chest : arm).push(f);
+    });
+    var taken = [];
+    chest.forEach(function (c) {
+      var best = null,
+        bestGap = Infinity;
+      arm.forEach(function (a) {
+        if (taken.indexOf(a) >= 0 || c.t0Ms == null || a.t0Ms == null) return;
+        var gap = Math.abs(a.t0Ms - c.t0Ms);
+        if (gap <= MAX_COMPANION_GAP_MS && gap < bestGap) {
+          best = a;
+          bestGap = gap;
+        }
+      });
+      c.partner = best;
+      if (best) taken.push(best);
+    });
+    return (frames || []).filter(function (f) {
+      return f && taken.indexOf(f) < 0;
+    });
+  }
+
   // ── node-export one-line summary (SIGNAL-ADAPTER-FOLLOWUPS-II §5 / -III §3) ──
   // ONE node-agnostic summarizer keyed on exp.schema.node, shared by BOTH surfaces
   // (OverDex _computedDetail · the Unifier _emitNote) so the per-node one-liner lives
@@ -345,6 +424,9 @@
     if (node === 'ECGDex') {
       return nEv + ' events · raw ECG';
     }
+    if (node === 'MotionDex') {
+      return nEv + ' posture changes · accelerometer';
+    }
     if (node === 'CPAPDex') {
       var nS = exp.recording && exp.recording.sessionCount != null ? exp.recording.sessionCount : exp.recording && Array.isArray(exp.recording.sessions) ? exp.recording.sessions.length : '?';
       var ahi = exp.metrics && exp.metrics.residualAHI != null ? exp.metrics.residualAHI : '—';
@@ -367,6 +449,7 @@
     if (st === 'ppg') return emitPpgNodeExport(frame, host || _ppgWin);
     if (st === 'ecg') return emitEcgNodeExport(frame, host || _ecgWin);
     if (st === 'cpap') return emitCpapNodeExport(frame, host || _cpapWin);
+    if (st === 'acc') return emitAccNodeExport(frame, host || _motionWin);
     throw new Error('signal-orchestrate: no compute path for signalType "' + st + '"');
   }
 
@@ -393,7 +476,8 @@
   var _COMPANION_KINDS = {
     ecg: ['rr', 'hr', 'acc', 'runs', 'accruns'],
     ppg: ['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns'],
-    spo2: ['spo2', 'ppg2wruns']
+    spo2: ['spo2', 'ppg2wruns'],
+    acc: ['accruns', 'gyro', 'magn']
   };
   // DEEP-AUDIT-II §10.2 — a sidecar is written in the SAME recording session (its filename stamp is
   // minutes from the primary's). A candidate whose nearest stamp is more than a day away is a
@@ -535,7 +619,7 @@
   // a co-load that WAS present — so the file silently dropped out of exports[] and the run carried on.
   // The list and the hosts are now ONE table: a type is emittable IFF a host function exists to boot
   // it, so the two cannot drift apart again. Adding a node means adding one row here.
-  var _HOSTS = { rr: pulseHost, spo2: oxyHost, hrv: hrvHost, cgm: glucoHost, ppg: ppgHost, ecg: ecgHost, cpap: cpapHost };
+  var _HOSTS = { rr: pulseHost, spo2: oxyHost, hrv: hrvHost, cgm: glucoHost, ppg: ppgHost, ecg: ecgHost, cpap: cpapHost, acc: motionHost };
   var _EMITTABLE = {};
   Object.keys(_HOSTS).forEach(function (k) {
     _EMITTABLE[k] = 1;
@@ -612,6 +696,10 @@
     cpapHost: cpapHost,
     cpapWin: cpapWin,
     emitCpapNodeExport: emitCpapNodeExport,
+    motionHost: motionHost,
+    motionWin: motionWin,
+    emitAccNodeExport: emitAccNodeExport,
+    pairMotionFrames: pairMotionFrames,
     emitNodeExport: emitNodeExport,
     nodeExportSummary: nodeExportSummary,
     companionKinds: companionKinds,
