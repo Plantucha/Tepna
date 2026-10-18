@@ -96,6 +96,7 @@ export const STEPS = [
   'verify:astgrep',
   'verify:xss-sink',
   'verify:docs-constants',
+  'verify:brief-header-claims',
   'verify:pr-compliance',
   'verify:verdict-adoption',
   'verify:manifest',

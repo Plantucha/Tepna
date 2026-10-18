@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**260 tools** · 259 with a purpose line · **1 without**
+**261 tools** · 260 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -36,6 +36,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`board.mjs`](../tools/board.mjs) | THE FLEET BOARD — one static page that answers "what is happening and what is wrong". |
 | [`box-sample.mjs`](../tools/box-sample.mjs) | // // box-sample.mjs — periodic resource sampler for a remote capture host. |
 | [`brief-gaps.mjs`](../tools/brief-gaps.mjs) | a text-network gap detector over the briefs node tools/brief-gaps.mjs # ranked reading list + verdict node tools/brief-gaps.mjs --json # the verdict alone node tools/brief-gaps.mjs… |
+| [`brief-header-claims.mjs`](../tools/brief-header-claims.mjs) | A TRIAGE STAMP IS EVIDENCE-SHAPED, AND NOTHING CHECKED THAT ITS NUMBERS WERE READ. |
 | [`brief-verified-index.mjs`](../tools/brief-verified-index.mjs) | WHEN WAS EACH OPEN BRIEF LAST *VERIFIED* — not last edited, and not how open it looks. |
 | [`browser-lane.mjs`](../tools/browser-lane.mjs) | ONE COMMAND for the local browser lane: `npm run gates:browser:local`. |
 | [`build-analysis.mjs`](../tools/build-analysis.mjs) | Make the science/analysis tools SELF-CONTAINED single-file HTML, so they run when a user downloads ONE.html to disk and opens it over file:// — the way the bundled apps already do. |

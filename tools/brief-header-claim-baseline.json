@@ -1,0 +1,1180 @@
+{
+ "schema": "tepna.brief-header-claim-baseline/1",
+ "frozen": "2026-10-17",
+ "note": "Count-shaped assertions standing in brief **Status:** headers when the ratchet was frozen. GRANDFATHERED, never verified: an entry here is a number a stamp asserts and no artifact re-resolves. The only legal edit is REMOVAL — source the number as `CLAIM <name> = <value> FROM <path>#<pointer>` (resolved by tests/dex-tests.js §8d¹) or reword the header. Growth is refused by `--base`. Some entries are extraction false positives; they cost nothing here, which is why the ratchet is frozen rather than mandated.",
+ "residue": "2026-09-07-drain-stamp-asserted-a-count-it-never-read",
+ "tupleCount": 782,
+ "headerCount": 194,
+ "headers": {
+  "briefs/ABSENCE-SURVEY-2026-09-22-BRIEF.md": [
+   "zero sentinel",
+   "290 confirmed",
+   "923 raw",
+   "633 refuted",
+   "0 unjudged",
+   "78 high",
+   "159 medium",
+   "53 low",
+   "290 overall",
+   "13 capture-host",
+   "290 residue",
+   "384 drafts"
+  ],
+  "briefs/ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md": [
+   "1 MEASURED",
+   "1000 packets",
+   "715 packets",
+   "4 sites",
+   "18 sites",
+   "138 anchors",
+   "4 INDEPENDENT",
+   "8 discards",
+   "1 stream",
+   "1 evidence",
+   "33 device-counter",
+   "0 landings",
+   "6 landings"
+  ],
+  "briefs/AMBULATORY-MODE-BRIEF.md": [
+   "36 matches"
+  ],
+  "briefs/API-LANE-FINDINGS-2026-10-13-BRIEF.md": [
+   "3 met",
+   "6 open"
+  ],
+  "briefs/APNEA-TYPING-FUSION-2026-07-18-BRIEF.md": [
+   "26 nights"
+  ],
+  "briefs/ARCHITECTURE-DEBT-REDUCTION-FOLLOWUPS-2026-07-15-BRIEF.md": [
+   "14 corpus-backed",
+   "0 unverified"
+  ],
+  "briefs/AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md": [
+   "0 across",
+   "03 analysis",
+   "37 POLL",
+   "11 sessions",
+   "0 rows",
+   "03 clause"
+  ],
+  "briefs/AS11-SESSION-DETECTOR-IMPLEMENTATION-2026-08-24-BRIEF.md": [
+   "2 BUILT",
+   "263 rows",
+   "3 CLOSED",
+   "10195 rows",
+   "3 across",
+   "000 rows",
+   "3 transitions",
+   "11 journal-bounded"
+  ],
+  "briefs/BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md": [
+   "5 mutants"
+  ],
+  "briefs/BLE-SNIFFER-DUTY-CYCLE-2026-09-07-BRIEF.md": [
+   "4 Done-when",
+   "11 absence"
+  ],
+  "briefs/BLE-TIMEBASE-AT-THE-EDGE-2026-09-16-BRIEF.md": [
+   "6 fixtures"
+  ],
+  "briefs/BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md": [
+   "3 MET",
+   "2 holds",
+   "zero failures",
+   "264 polls"
+  ],
+  "briefs/BRIEF-CODE-ANCHOR-CHECK-2026-09-11-BRIEF.md": [
+   "15 false",
+   "zero sensitivity",
+   "15 candidates",
+   "zero true"
+  ],
+  "briefs/CAPTURE-FILESET-RESUME-2026-08-19-BRIEF.md": [
+   "3 field-measured",
+   "2 sets",
+   "4 closed",
+   "1 closed"
+  ],
+  "briefs/CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md": [
+   "09 sibling"
+  ],
+  "briefs/CAPTURE-HOST-MUTATION-FLEET-2026-08-04-BRIEF.md": [
+   "145 killed"
+  ],
+  "briefs/CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md": [
+   "zero low-disk",
+   "1 parked"
+  ],
+  "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md": [
+   "21 nights",
+   "244 daemon-caused"
+  ],
+  "briefs/CITATION-INTEGRATION-2026-08-23-BRIEF.md": [
+   "7 records"
+  ],
+  "briefs/CLAUDE-MD-REDUNDANCY-AUDIT-2026-08-27-BRIEF.md": [
+   "zero dedicated"
+  ],
+  "briefs/CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS-2026-08-02-BRIEF.md": [
+   "40 lines"
+  ],
+  "briefs/CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md": [
+   "zero survivors",
+   "7 tags"
+  ],
+  "briefs/CLOCK-PARSE-EQUIVALENCE-2026-08-09-BRIEF.md": [
+   "8 probed",
+   "0 killable"
+  ],
+  "briefs/COHESION-ROLLOUT-BRIEF.md": [
+   "8 nodes"
+  ],
+  "briefs/CORPUS-TIER-30-NIGHTS-2026-09-20-BRIEF.md": [
+   "517 files",
+   "29 refusals",
+   "18 fixtures",
+   "0 stamped",
+   "166 immutable",
+   "0 differ",
+   "517 symlink",
+   "228 late"
+  ],
+  "briefs/CPAP-ACQ-P4-SPOOL-TRANSACTION-2026-08-23-BRIEF.md": [
+   "5 Done-when",
+   "1 claims",
+   "11 drop",
+   "1 cursor",
+   "2 StartSpool"
+  ],
+  "briefs/CPAP-AS11-BLE-WIRE-NOW-2026-09-07-BRIEF.md": [
+   "1 parked"
+  ],
+  "briefs/CPAP-AUTOHARVEST-FOLLOWUPS-II-2026-08-03-BRIEF.md": [
+   "0 behind"
+  ],
+  "briefs/CPAP-EAGER-START-2026-09-01-BRIEF.md": [
+   "zero discard"
+  ],
+  "briefs/CPAP-REAL-CORPUS-2026-07-11-BRIEF.md": [
+   "180 real",
+   "6 months",
+   "39 paired",
+   "17 quad-modal"
+  ],
+  "briefs/CPAP-SPOOL-ACQUISITION-2026-08-25-BRIEF.md": [
+   "19 pass",
+   "1 night",
+   "2 rows",
+   "22 consecutive"
+  ],
+  "briefs/CPAPDEX-KICKOFF.md": [
+   "9 leg"
+  ],
+  "briefs/CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md": [
+   "2 fitting"
+  ],
+  "briefs/CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md": [
+   "2 fragments",
+   "237 PPG",
+   "46 box",
+   "37 have",
+   "33 nights",
+   "37 nights",
+   "77 landings",
+   "7 files"
+  ],
+  "briefs/CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md": [
+   "5 Done-when",
+   "7 protocol",
+   "5 boxes",
+   "13 files",
+   "7 landings"
+  ],
+  "briefs/DEEP-AUDIT-2026-07-11-BRIEF.md": [
+   "21 findings"
+  ],
+  "briefs/DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md": [
+   "8 apps",
+   "76 real",
+   "76 nights",
+   "21 findings"
+  ],
+  "briefs/DEEP-AUDIT-II-2026-07-18-BRIEF.md": [
+   "22 punch-list",
+   "15 items"
+  ],
+  "briefs/DEEP-AUDIT-III-2026-07-26-BRIEF.md": [
+   "28 executed"
+  ],
+  "briefs/DEEP-AUDIT-IV-2026-08-04-BRIEF.md": [
+   "2 RETIRED",
+   "5 nights",
+   "3 blocked",
+   "155 fusable",
+   "54 hrv"
+  ],
+  "briefs/DEEP-AUDIT-V-2026-08-04-BRIEF.md": [
+   "21 cite"
+  ],
+  "briefs/DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md": [
+   "68 tiles",
+   "68 rows",
+   "2 emoji",
+   "0 labels"
+  ],
+  "briefs/DEEP-AUDIT-VI-2026-09-01-BRIEF.md": [
+   "18 findings",
+   "20 PRs",
+   "56 agents",
+   "10 charter-guided",
+   "2 adversarial",
+   "41 raw",
+   "20 confirmed",
+   "2 lenses",
+   "1 contested"
+  ],
+  "briefs/DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md": [
+   "18 DEEP-AUDIT-VI"
+  ],
+  "briefs/DEEP-SCOUT-HOLLOW-GATES-2026-07-18-BRIEF.md": [
+   "7 closed",
+   "1 LOW",
+   "7 call-site",
+   "7 adapter"
+  ],
+  "briefs/DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md": [
+   "21 gates"
+  ],
+  "briefs/DELIVERY-PROCESS-OVERHAUL-2026-08-18-BRIEF.md": [
+   "104 pending",
+   "12 uncommitted",
+   "180 it",
+   "6 ok",
+   "11 workflows",
+   "25 pending"
+  ],
+  "briefs/DEV-TOOLCHAIN-2026-06-30-BRIEF.md": [
+   "3 HTML"
+  ],
+  "briefs/DEVICE-RATE-TRUTH-2026-08-05-BRIEF.md": [
+   "530 files",
+   "018 samples"
+  ],
+  "briefs/DEX-CITATION-FORMULA-AUDIT-BRIEF.md": [
+   "86 DOIs"
+  ],
+  "briefs/DEX-METRIC-REMOVAL-AUDIT-BRIEF.md": [
+   "55 groups"
+  ],
+  "briefs/DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md": [
+   "4 self-tests"
+  ],
+  "briefs/ECG-INGEST-FOLLOWUPS-GATE-RATIFY-2026-06-28-BRIEF.md": [
+   "0 differing",
+   "9 render-coverage",
+   "zero reds"
+  ],
+  "briefs/ECG-PPG-FOLLOWUPS-HANDOFF-2026-06-27-BRIEF.md": [
+   "3 node-independent"
+  ],
+  "briefs/ECG-SATURATION-ABSENCE-2026-09-18-BRIEF.md": [
+   "23 box",
+   "30 phone",
+   "1 detail"
+  ],
+  "briefs/ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md": [
+   "2 shipped",
+   "2 FINISHED"
+  ],
+  "briefs/ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md": [
+   "0 ran"
+  ],
+  "briefs/ENVELOPE-ANCHOR-EXPORT-2026-08-01-BRIEF.md": [
+   "67 anchors",
+   "75 movements"
+  ],
+  "briefs/ESM-MIGRATION-2026-07-15-BRIEF.md": [
+   "3 fan-out",
+   "4 executed",
+   "14 reach-ins",
+   "0 reach-ins"
+  ],
+  "briefs/ESM-MIGRATION-FOLLOWUPS-2026-07-16-BRIEF.md": [
+   "7 nodes",
+   "4 executed"
+  ],
+  "briefs/ESM-MIGRATION-FOLLOWUPS-II-2026-07-16-BRIEF.md": [
+   "7 node",
+   "2 EXECUTED"
+  ],
+  "briefs/ESM-MIGRATION-SPIKE-FINDINGS-2026-07-15.md": [
+   "0 spike"
+  ],
+  "briefs/EXPORT-HARDENING-FOLLOWUP-BRIEF.md": [
+   "8 items",
+   "98 committed",
+   "0 failing"
+  ],
+  "briefs/EXPORT-HYGIENE-2026-06-27-BRIEF.md": [
+   "1 PulseDex",
+   "7 exporters",
+   "8 re-bundled",
+   "88 groups"
+  ],
+  "briefs/EXPORT-HYGIENE-FOLLOWUPS-2026-06-29-BRIEF.md": [
+   "7 exporters",
+   "8 re-bundled",
+   "88 groups"
+  ],
+  "briefs/EXPORT-HYGIENE-FOLLOWUPS-II-2026-06-29-BRIEF.md": [
+   "3 SINGLE-recording",
+   "2 code-gated",
+   "7 nodes"
+  ],
+  "briefs/EXPORT-IDENTITY-2026-06-27-BRIEF.md": [
+   "1 node",
+   "8 re-bundled",
+   "88 groups",
+   "2 groups"
+  ],
+  "briefs/EXPORT-IDENTITY-FOLLOWUPS-2026-06-29-BRIEF.md": [
+   "8 re-bundled",
+   "2 Dex-Test-Suite"
+  ],
+  "briefs/FINDINGS-AND-FIXES-BRIEF.md": [
+   "6 analysis",
+   "720 trials",
+   "10 cohort-gen",
+   "5 bundles",
+   "5 manifestHashes"
+  ],
+  "briefs/GATE-LIVE-RUNNABILITY-2026-06-28-BRIEF.md": [
+   "0 CLI",
+   "0 fails",
+   "5 new",
+   "0 reds",
+   "8 load",
+   "3 minor"
+  ],
+  "briefs/GATE-LIVE-RUNNABILITY-FOLLOWUPS-2026-06-28-BRIEF.md": [
+   "1276 passed",
+   "0 fails",
+   "0 reds"
+  ],
+  "briefs/GATT-HANDLE-MAP-2026-09-17-BRIEF.md": [
+   "6 sites"
+  ],
+  "briefs/GENERATOR-FOLLOWUPS-III-2026-08-08-BRIEF.md": [
+   "2 stale"
+  ],
+  "briefs/GENERIC-EMIT-GATE-FOLLOWUPS-II-2026-06-28-BRIEF.md": [
+   "2 teeth",
+   "24 byte-identical",
+   "8 render-coverage",
+   "78 across",
+   "2 hardening"
+  ],
+  "briefs/GENERIC-EMIT-GATE-FOLLOWUPS-III-2026-06-28-BRIEF.md": [
+   "5 red-fires",
+   "zero console",
+   "2 origin"
+  ],
+  "briefs/GLUCODEX-FUSION-WINDOWING-BRIEF.md": [
+   "35 glucodex"
+  ],
+  "briefs/GlucoDex-BUILD-BRIEF.md": [
+   "3 code-gated"
+  ],
+  "briefs/HANDOFF.md": [
+   "13 remediation"
+  ],
+  "briefs/HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md": [
+   "0 hits"
+  ],
+  "briefs/HOSTAXIS-STABILITY-FOLLOWUPS-2026-08-15-BRIEF.md": [
+   "1 next"
+  ],
+  "briefs/INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md": [
+   "0 ran",
+   "43 clearing",
+   "4 beat-correspondence",
+   "54 pairings"
+  ],
+  "briefs/INTEGRATOR-TCH-ML-ESTIMATOR-2026-07-11-BRIEF.md": [
+   "3 single-channel",
+   "3 swap",
+   "4 ML"
+  ],
+  "briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md": [
+   "1744 passed",
+   "0 boot-skips",
+   "2102 passed"
+  ],
+  "briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II-2026-07-04-BRIEF.md": [
+   "2102 passed",
+   "0 boot-skips"
+  ],
+  "briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md": [
+   "24 solve",
+   "24 nights",
+   "5 failures",
+   "6 synthetic",
+   "30 checks"
+  ],
+  "briefs/KNOWN-CLOCK-ADVERSARIAL-CAPTURE-2026-08-14-BRIEF.md": [
+   "8 need",
+   "258 sessions",
+   "1 EXECUTED",
+   "8 night",
+   "18 nothing",
+   "4 devices",
+   "243 polls",
+   "19 the",
+   "1 parked"
+  ],
+  "briefs/KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md": [
+   "437 streams",
+   "429 reported",
+   "8 refused",
+   "437 inapplicable",
+   "58 med",
+   "58 inapplicable",
+   "8 refusals",
+   "8 streams",
+   "50 zero-device-span",
+   "0 refusals",
+   "5 bundles"
+  ],
+  "briefs/LOST-APPARATUS-INVENTORY-2026-08-26-BRIEF.md": [
+   "11 lost"
+  ],
+  "briefs/MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md": [
+   "11 owned",
+   "0 stale",
+   "27 assertions",
+   "16 steps",
+   "9514 assertions"
+  ],
+  "briefs/MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md": [
+   "zero window",
+   "5 fusion",
+   "52 real",
+   "22 criteria"
+  ],
+  "briefs/METROLOGY-METHOD-ADOPTION-2026-08-14-BRIEF.md": [
+   "1 SHIPPED",
+   "2 BUILT",
+   "3 ANSWERED",
+   "4 RULED"
+  ],
+  "briefs/MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md": [
+   "27 unrelated",
+   "2 brpm"
+  ],
+  "briefs/MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS-2026-07-22-BRIEF.md": [
+   "057 epochs",
+   "1 stale",
+   "925 commits",
+   "0 pending",
+   "56 pending"
+  ],
+  "briefs/MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md": [
+   "2 items"
+  ],
+  "briefs/MULTI-SENSOR-DERIVATIONS-FOLLOWUPS-2026-07-18-BRIEF.md": [
+   "3 legs",
+   "1 motion",
+   "24 landings",
+   "11 files"
+  ],
+  "briefs/MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md": [
+   "37 trio",
+   "197 CPAP"
+  ],
+  "briefs/MUTATION-ACCOUNTING-LOOP-2026-08-27-BRIEF.md": [
+   "6 Done-when",
+   "3 open",
+   "6 open",
+   "4 entries",
+   "3 number",
+   "02 drain",
+   "3 ticked",
+   "8 mutation-specific",
+   "1 commits",
+   "1 stale",
+   "56 pending"
+  ],
+  "briefs/MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md": [
+   "8 survivors",
+   "14 claims",
+   "0 killable"
+  ],
+  "briefs/MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md": [
+   "2 landed",
+   "3 stays"
+  ],
+  "briefs/MUTATION-PIPELINE-INTEGRITY-2026-08-24-BRIEF.md": [
+   "514 briefs",
+   "1665 measured",
+   "1 ticked",
+   "1 overtaken",
+   "6 open",
+   "7 open",
+   "8 Done-when",
+   "3 commits",
+   "1 stale",
+   "56 pending"
+  ],
+  "briefs/MUTATION-PROGRAM-2026-08-09-BRIEF.md": [
+   "12 Done-when",
+   "12 boxes",
+   "422 entries",
+   "4 classes",
+   "13 loop-condition",
+   "5 ticked",
+   "7 open",
+   "8 landings",
+   "1 commits",
+   "1 stale",
+   "56 pending"
+  ],
+  "briefs/MUTATION-PROGRAM-FOLLOWUPS-2026-08-11-BRIEF.md": [
+   "3 ticked",
+   "11 open",
+   "02 verdict",
+   "24 pseudo-tested",
+   "02 drain",
+   "9 open",
+   "5 ticked",
+   "1 commits",
+   "1 stale",
+   "56 pending"
+  ],
+  "briefs/MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md": [
+   "11 sections",
+   "02 verdict",
+   "8 mutation-specific",
+   "13 touch",
+   "02 stands",
+   "3 commits",
+   "1 stale",
+   "56 pending"
+  ],
+  "briefs/NODE-EXPORT-DURATION-SEMANTICS-2026-07-27-BRIEF.md": [
+   "616 real"
+  ],
+  "briefs/NRF52840-DONGLE-FLASHING-2026-09-07-BRIEF.md": [
+   "20 dBm",
+   "18 dBm"
+  ],
+  "briefs/O2RING-AUTONOMOUS-HARVEST-2026-08-26-BRIEF.md": [
+   "32 acceptance"
+  ],
+  "briefs/O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS-2026-08-03-BRIEF.md": [
+   "6 done-when",
+   "1 lock"
+  ],
+  "briefs/O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md": [
+   "2 SHIPPED",
+   "0 measured",
+   "1 decoded",
+   "2 captures"
+  ],
+  "briefs/O2RING-PHASE4-PREMISE-REVIEW-2026-08-06-BRIEF.md": [
+   "0 commits"
+  ],
+  "briefs/O2RING-PPG-GAP-2026-07-22-BRIEF.md": [
+   "18 firing",
+   "130 dropped"
+  ],
+  "briefs/O2RING-PRESENCE-TRIGGER-IMPL-2026-08-26-BRIEF.md": [
+   "0 lines",
+   "8 Done-when",
+   "75 sites",
+   "41 assertions",
+   "174 downgrade",
+   "174 distinct",
+   "174 scan"
+  ],
+  "briefs/O2RING-PROTOCOL-2026-07-17-BRIEF.md": [
+   "30 stored"
+  ],
+  "briefs/O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md": [
+   "zero hardware",
+   "60 real",
+   "1075 files",
+   "1066 non-empty",
+   "11 bundles"
+  ],
+  "briefs/O2RING-RAW-DUAL-WAVELENGTH-FOLLOWUPS-2026-08-05-BRIEF.md": [
+   "7 worn",
+   "420 buffers",
+   "39 real",
+   "35 unsaturated",
+   "693 rows",
+   "56 nights",
+   "6 range",
+   "100 populations"
+  ],
+  "briefs/O2RING-TIME-CAPABILITY-WIRING-2026-08-19-BRIEF.md": [
+   "zero while"
+  ],
+  "briefs/OPERATIONAL-MATURITY-AUDIT-2026-08-27-BRIEF.md": [
+   "72 unattended",
+   "7 boxes"
+  ],
+  "briefs/OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md": [
+   "7 device-identity",
+   "16 long-run",
+   "17 has",
+   "14 consecutive",
+   "72 unattended"
+  ],
+  "briefs/OWN-THE-BUILD-2026-06-30-BRIEF.md": [
+   "1 ESLint"
+  ],
+  "briefs/OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md": [
+   "2 verified"
+  ],
+  "briefs/OXYDEX-ODI-CEILING-FIX-BRIEF.md": [
+   "4 call"
+  ],
+  "briefs/OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md": [
+   "90 window"
+  ],
+  "briefs/OXYDEX-PB-DETECTOR-FOLLOWUPS-2026-08-17-BRIEF.md": [
+   "18 nights",
+   "61 pairing",
+   "183 CPAP",
+   "12 paired",
+   "1 concluded",
+   "13 landings",
+   "zero repairs",
+   "4 occurrences",
+   "13 commits",
+   "1 stale",
+   "56 pending"
+  ],
+  "briefs/OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md": [
+   "4 ANSWERED",
+   "7 assertions"
+  ],
+  "briefs/OXYDEX-PULSE-RESOURCING-2026-07-18-BRIEF.md": [
+   "4 phases",
+   "2 EXECUTED",
+   "3 EXECUTED",
+   "4 EXECUTED"
+  ],
+  "briefs/OXYDEX-PULSE-RESOURCING-FOLLOWUPS-2026-07-20-BRIEF.md": [
+   "614 paired"
+  ],
+  "briefs/OXYII-ACQUISITION-CHARTER-2026-08-23-BRIEF.md": [
+   "28 nights",
+   "13 nights",
+   "688 episodes",
+   "8 UNOBSERVABLE",
+   "4 REACHABLE",
+   "8 box",
+   "245 kills",
+   "0 survivors"
+  ],
+  "briefs/OXYII-DAT-AUTO-HARVEST-REFINEMENT-2026-08-24-BRIEF.md": [
+   "3 missing",
+   "7 need",
+   "3 restart-matrix",
+   "114 rows",
+   "23 sessions",
+   "23 carry",
+   "25 first",
+   "zero QUARANTINE",
+   "75 pulls",
+   "56 sessions",
+   "55 identical",
+   "03 correction",
+   "3 parked"
+  ],
+  "briefs/OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23-BRIEF.md": [
+   "150 pulls",
+   "76 clean",
+   "0 restarts",
+   "13 stamp",
+   "21 reading",
+   "15 ruled"
+  ],
+  "briefs/OXYII-PRESENCE-MODEL-2026-08-23-BRIEF.md": [
+   "10 worn",
+   "60 worst",
+   "22 sessions"
+  ],
+  "briefs/PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md": [
+   "13 plants"
+  ],
+  "briefs/PAT-FEASIBILITY-2026-07-08-BRIEF.md": [
+   "24 pairings",
+   "16 gated"
+  ],
+  "briefs/PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md": [
+   "20 modes",
+   "2 verdicts",
+   "01 stamp",
+   "633 Verity",
+   "01 STAMP",
+   "2 files",
+   "72514 consensus",
+   "0 fall",
+   "141 lines"
+  ],
+  "briefs/PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md": [
+   "364 usable",
+   "839 beats",
+   "01 stamp",
+   "01 STAMP",
+   "2 repo-tree",
+   "1131 raw",
+   "43 usable",
+   "9 boxes",
+   "4 occurrences"
+  ],
+  "briefs/PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md": [
+   "01 stamp",
+   "300 misses",
+   "5 out-of-window",
+   "01 STAMP",
+   "1131 raw",
+   "48 nights",
+   "35 pts",
+   "9 cells",
+   "8 rows",
+   "18 ratio",
+   "110 ECG",
+   "555 PPG",
+   "0 landings"
+  ],
+  "briefs/PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md": [
+   "1 EXECUTED",
+   "6 cells",
+   "3 verdicts",
+   "2 ANSWERED",
+   "01 stamp",
+   "43 box",
+   "4 SIGNAL",
+   "20 PARTIAL",
+   "0 UNDEFINED",
+   "01 STAMP",
+   "9 cells",
+   "8 rows"
+  ],
+  "briefs/PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md": [
+   "5 pairwise",
+   "15 total",
+   "3 noise",
+   "2 noise",
+   "3 SECOND",
+   "5 while",
+   "2 open",
+   "11 sections",
+   "6 Done-when",
+   "2 executed",
+   "9 ticked",
+   "2 unticked"
+  ],
+  "briefs/PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md": [
+   "69 certified",
+   "2 open",
+   "10 impossible",
+   "1 landing",
+   "80 landings"
+  ],
+  "briefs/PAT-PROXIMAL-DISTAL-PAIR-2026-08-04-BRIEF.md": [
+   "29 pairs"
+  ],
+  "briefs/PAT-RESIDUAL-ATTRIBUTION-2026-08-28-BRIEF.md": [
+   "0 clean",
+   "1 landing",
+   "zero state"
+  ],
+  "briefs/PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md": [
+   "1131 raw",
+   "8 rows",
+   "22 files",
+   "6 landings",
+   "1 file",
+   "0 landings",
+   "9 commits",
+   "1 stale",
+   "56 pending"
+  ],
+  "briefs/PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md": [
+   "57 count"
+  ],
+  "briefs/PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF.md": [
+   "11 tests",
+   "5 call"
+  ],
+  "briefs/PINNED-SPAN-POPULATIONS-2026-09-18-BRIEF.md": [
+   "968 captures",
+   "18 stamp"
+  ],
+  "briefs/POLAR-OFFLINE-DOWNLOAD-2026-07-17-BRIEF.md": [
+   "1 entries",
+   "1 parked"
+  ],
+  "briefs/POLAR-ONBOARD-BACKUP-2026-08-01-BRIEF.md": [
+   "zero hits"
+  ],
+  "briefs/POLAR-ONBOARD-BACKUP-FOLLOWUPS-2026-08-11-BRIEF.md": [
+   "4 holds"
+  ],
+  "briefs/PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md": [
+   "19 night",
+   "3 stuck",
+   "0 rail-pinned"
+  ],
+  "briefs/PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md": [
+   "31 June",
+   "27 coverage",
+   "15 nights",
+   "13 landings",
+   "2 files",
+   "672 samples"
+  ],
+  "briefs/PPGDEX-FOLLOWUPS-2026-06-27-BRIEF.md": [
+   "7 retirement"
+  ],
+  "briefs/PPGDEX-MULTICHANNEL-FUSION-2026-07-18-BRIEF.md": [
+   "12 nights",
+   "1 MEASURED",
+   "12 corpus",
+   "140 nights",
+   "159 committed",
+   "4 stay"
+  ],
+  "briefs/PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md": [
+   "313 feet",
+   "48 gated",
+   "3 optical",
+   "48 assertions",
+   "4 directions",
+   "4 nights",
+   "3340 green"
+  ],
+  "briefs/PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md": [
+   "4 all-LED-double",
+   "0 fixtures",
+   "26 nights",
+   "4 nights",
+   "3 consensus",
+   "17 trio",
+   "17 HR-clean",
+   "4 recovered",
+   "0 regressions"
+  ],
+  "briefs/PUBLISHED-NUMBER-PROVENANCE-2026-09-15-BRIEF.md": [
+   "1 BUILT",
+   "2 STAMP",
+   "26 sourced",
+   "2 keeps",
+   "2 BUILT",
+   "2 rather"
+  ],
+  "briefs/PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md": [
+   "19 re-measure",
+   "33 files",
+   "332 checked",
+   "341 checked",
+   "101 short",
+   "103 errors",
+   "362 source",
+   "102 recorded"
+  ],
+  "briefs/R5-HR-TRIPLET-REFERENCE-2026-07-12-BRIEF.md": [
+   "2 need",
+   "0 landings"
+  ],
+  "briefs/RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md": [
+   "16 live",
+   "82 live",
+   "30 dB",
+   "5 services",
+   "14 characteristics",
+   "5 done-when",
+   "99 tests"
+  ],
+  "briefs/RADIO-FAILOVER-DISTRESS-SIGNAL-2026-08-29-BRIEF.md": [
+   "1 rated",
+   "51 passed"
+  ],
+  "briefs/REBUNDLE-PASS-BRIEF.md": [
+   "11 owned",
+   "0 legacy"
+  ],
+  "briefs/REFERENCE-GUIDE-AUDIT-BRIEF.md": [
+   "7 guides",
+   "0 console",
+   "4 gate-enforced",
+   "5 conflicting",
+   "198 laddered",
+   "4 real",
+   "3 has",
+   "5 swept",
+   "768 links",
+   "246 abbreviations",
+   "2 defects",
+   "2 swept",
+   "113 formulas",
+   "2 real",
+   "3 because",
+   "8 files",
+   "3 CLOSED",
+   "3 band",
+   "3 agrees",
+   "3 HR",
+   "381 formulas",
+   "67 constant-bearing",
+   "6 flags",
+   "1 real",
+   "5 flags",
+   "7 CLOSED",
+   "0 ISO",
+   "2 wall-clock",
+   "3 correction-history",
+   "53 lower-tier",
+   "20 cut",
+   "111 testable",
+   "6 clean",
+   "2 survivors"
+  ],
+  "briefs/REGISTRY-INVERSION-2026-07-03-BRIEF.md": [
+   "0 audit",
+   "3 deliberately"
+  ],
+  "briefs/REGISTRY-PROJECTION-2026-07-04-BRIEF.md": [
+   "1 gate",
+   "2 DEFS-fix",
+   "0 decision"
+  ],
+  "briefs/REM-STAGING-FOLLOWUPS-2026-08-02-BRIEF.md": [
+   "99 records",
+   "99 EDF",
+   "5136 annotation",
+   "99 ids",
+   "73 open",
+   "20 target",
+   "52 open",
+   "99 SHHS",
+   "73 recorded",
+   "1 parked"
+  ],
+  "briefs/REPO-DISCOVERABILITY-2026-07-03-BRIEF.md": [
+   "13 GitHub"
+  ],
+  "briefs/REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md": [
+   "13 GitHub"
+  ],
+  "briefs/RESIDUE-ABSENCE-EVIDENCE-SWEEP-2026-09-18-BRIEF.md": [
+   "8 items"
+  ],
+  "briefs/RING-POLL-SPLIT-2026-10-04-BRIEF.md": [
+   "2958 saturated",
+   "20 bytes"
+  ],
+  "briefs/RUN-POLAR-MUTATION-PASS-2026-08-08-BRIEF.md": [
+   "45 timeouts",
+   "45 mutants",
+   "22 landings",
+   "22 change",
+   "22 commits",
+   "38 commits",
+   "1 stale",
+   "56 pending"
+  ],
+  "briefs/SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md": [
+   "16 assertions"
+  ],
+  "briefs/SELF-INGEST-FOLLOWUPS-2026-07-03-BRIEF.md": [
+   "6 nodes",
+   "5 NODES",
+   "1773 passed"
+  ],
+  "briefs/SELF-INGEST-FOLLOWUPS-II-2026-07-04-BRIEF.md": [
+   "6 nodes"
+  ],
+  "briefs/SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md": [
+   "52 open",
+   "73 recorded",
+   "99 records",
+   "64 minutes"
+  ],
+  "briefs/SIGNAL-ADAPTER-AND-FRONTIER-2026-06-23-BRIEF.md": [
+   "10 all",
+   "9 per-node",
+   "2 historical",
+   "zero gate",
+   "7 needed",
+   "13 code-gated",
+   "1 vs",
+   "3 manifest",
+   "10 metrics",
+   "5 grades",
+   "10 cards",
+   "10 badges",
+   "7 hand-written",
+   "60 fully"
+  ],
+  "briefs/SIGNAL-ADAPTER-PHASE9-REMAINING-NODES-2026-06-25-BRIEF.md": [
+   "4 nodes"
+  ],
+  "briefs/SOLID-NIGHT-2026-09-23-BRIEF.md": [
+   "31 nights",
+   "7 settled",
+   "39 gaps",
+   "16 gaps",
+   "28 nights"
+  ],
+  "briefs/SYNTH-TEXTURE-PAPERS-RERUN-2026-06-24-BRIEF.md": [
+   "6 papers"
+  ],
+  "briefs/SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS-2026-07-07-BRIEF.md": [
+   "5 COMPLETE",
+   "6 papers",
+   "2117 passed",
+   "2 skipped",
+   "137 groups"
+  ],
+  "briefs/TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md": [
+   "0 pooled",
+   "200 random",
+   "9 solvable"
+  ],
+  "briefs/TCH-FUSED-DEGENERACY-MECHANISM-2026-10-12-BRIEF.md": [
+   "25 fused"
+  ],
+  "briefs/TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md": [
+   "0 hits",
+   "19 drain",
+   "115 nights",
+   "72 carrying",
+   "3 corners",
+   "0 landings",
+   "0 occurrences",
+   "45 landings"
+  ],
+  "briefs/TCH-FUSED-ROBUST-HAT-FOLLOWUPS-2026-07-14-BRIEF.md": [
+   "1 owes",
+   "2 REFUTED",
+   "4 REFUTED",
+   "5 EXECUTED",
+   "0 corpus-wide"
+  ],
+  "briefs/TEST-COVERAGE-FOLLOWUPS-II-2026-07-17-BRIEF.md": [
+   "4 workers"
+  ],
+  "briefs/TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md": [
+   "15 power",
+   "125 trio",
+   "40 available",
+   "39 nights",
+   "40 committed"
+  ],
+  "briefs/TRIO-BATCH-O2RING-DAT-2026-07-13-BRIEF.md": [
+   "zero diffs",
+   "6 previously-invisible"
+  ],
+  "briefs/TRIO-METHODS-REUSE-2026-07-06-BRIEF.md": [
+   "2 the",
+   "1 the",
+   "8 assertions",
+   "2125 passed",
+   "138 groups"
+  ],
+  "briefs/TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md": [
+   "25 post-host-axis",
+   "15 further",
+   "115 night-dirs",
+   "21 files",
+   "140 nights",
+   "387 committed",
+   "zero unstamped",
+   "1 stale",
+   "925 commits",
+   "0 pending",
+   "56 pending"
+  ],
+  "briefs/UNWIRED-ORPHAN-TRIAGE-2026-08-27-BRIEF.md": [
+   "5 red-on-stale"
+  ],
+  "briefs/VERDICT-CONTRACT-2026-09-21-BRIEF.md": [
+   "1 machine",
+   "9 valid",
+   "203 producers",
+   "203 binned",
+   "69 adopted",
+   "69 validated",
+   "4 pending",
+   "0 de-adopted",
+   "77 word-only",
+   "4 ungated",
+   "7 landed",
+   "2 mostly",
+   "24 rows",
+   "23 pending",
+   "2 runners",
+   "3 design",
+   "2 decide-nothing",
+   "152 producers",
+   "38 adoptions"
+  ],
+  "briefs/VIGIL-AUTO-UPDATE-FOLLOWUPS-2026-08-14-BRIEF.md": [
+   "78 passed",
+   "9 tests"
+  ],
+  "briefs/VIGIL-BLUETOOTH-ADAPTERS-2026-09-05-BRIEF.md": [
+   "1083 polls",
+   "0 journal"
+  ],
+  "briefs/VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05-BRIEF.md": [
+   "89 tests",
+   "9 gate",
+   "3 killed",
+   "35 gate",
+   "12 killed",
+   "2 needs",
+   "3 puts",
+   "16 shell-surface",
+   "23 audit",
+   "9 killed"
+  ],
+  "briefs/VIGIL-OFFLOAD-AND-RETENTION-2026-07-20-BRIEF.md": [
+   "28 archive",
+   "62 night",
+   "1 file",
+   "3 exports",
+   "0 until",
+   "10 nights"
+  ],
+  "briefs/VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md": [
+   "42 nights",
+   "20 relink",
+   "24 connect",
+   "19 stamp",
+   "2 WEDGEFIRE",
+   "1 recorded"
+  ],
+  "briefs/VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md": [
+   "92 files",
+   "1388 files",
+   "2282 files",
+   "06 box"
+  ],
+  "briefs/ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md": [
+   "13 except",
+   "2 probe",
+   "2 TRIAGED",
+   "2 status",
+   "20 dBm",
+   "1 remainder",
+   "2 jitter",
+   "1 flash"
+  ]
+ }
+}
