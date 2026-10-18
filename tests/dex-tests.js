@@ -9388,7 +9388,9 @@
           'tools/known-clock-recovery.mjs':
             'REPORTS — an estimator oracle over an INJECTED rate. It forwards `deviceDrawn`/`drawnShare` into every output row and deliberately measures recovery ACROSS drawn streams, so gating them out would delete the population it exists to characterise.',
           'tools/pat-axis-leg-audit.mjs':
-            'REPORTS — the output IS the provenance line, printing `drawn=` beside `ppm=`, `independent=` and `spreadMs=`. Its predicted-drift figure is a diagnostic shown next to the flag, never applied as a correction.'
+            'REPORTS — the output IS the provenance line, printing `drawn=` beside `ppm=`, `independent=` and `spreadMs=`. Its predicted-drift figure is a diagnostic shown next to the flag, never applied as a correction.',
+          'tools/tch-firmware-reference.mjs':
+            'REPORTS — its `--axis host|wall` switch decides whether the DSPs may run the one correction they already own, and the tool itself applies no rate. `axisSummary` tallies `deviceDrawn` FIRST, so a drawn host column never counts as independence, and its `ppmMedian` rides beside the call count as a diagnostic.'
         };
         var POP = [],
           AXIS = [],
@@ -9444,7 +9446,7 @@
           OWNFIT.join(', '),
           'tools/beat-comb-analysis.mjs, tools/beat-leg-closure.mjs, tools/dual-clock-rate.mjs, tools/integrator-block-precision.mjs'
         );
-        T.eq('POPULATION is 11 — the published denominator', POP.length, 11, 'POPULATION=' + POP.join(', '));
+        T.eq('POPULATION is 12 — the published denominator', POP.length, 12, 'POPULATION=' + POP.join(', '));
       }
     });
 

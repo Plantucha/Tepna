@@ -1803,7 +1803,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "classic hat vs the two-detector (ECGDex + H10 firmware) reference; PASS/FAIL on the fraction of optical night-corners within band, UNDERPOWERED below 10 nights → verdictObject(); --json emits the object at the top level, --verdict-sample the synthetic-shape object the gate reads"
+   "note": "classic hat vs the two-detector (ECGDex + H10 firmware) reference; PASS/FAIL on the fraction of optical night-corners within band, UNDERPOWERED below 10 nights → verdictObject(); --json emits the ALL-population object at the top level (unchanged shape for tepna-tchref-nightly.service) with the rolling-30 and solid-stratum objects beside it in `verdicts`, --verdict-sample the synthetic-shape object the gate reads; --axis host|wall selects whether DexClock.hostAxis disciplines the corners, and a non-PASS reason names the axis because a σ is not comparable across axes"
   },
   "tools/tch-multinight.mjs": {
    "bin": "decides",
