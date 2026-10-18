@@ -9,10 +9,11 @@ _pre = argparse.ArgumentParser(add_help=False); _pre.add_argument('--seqnet-dir'
 _known, _ = _pre.parse_known_args(); sys.path.insert(0, _known.seqnet_dir)
 import seqnet as S  # noqa: E402
 
-def export_state(model, meta):
+def export_state(model, meta, fp16=False):
     layers = {}
     for name, t in model.state_dict().items():
         a = t.detach().cpu().numpy().astype(np.float32)
+        if fp16: a = a.astype(np.float16).astype(np.float32)
         layers[name] = {'shape': list(a.shape), 'data': [float(x) for x in a.ravel()]}
     return {'format': 'tepna-seqnet/1', 'arch': {'K': S.K, 'ch': 64, 'k': 5, 'dilations': [1, 2, 4, 8, 16, 32], 'groupnorm_groups': 8, 'gn_eps': 1e-5},
             'meta': meta, 'layers': layers}
@@ -20,7 +21,8 @@ def export_state(model, meta):
 ap = argparse.ArgumentParser(parents=[_pre]); ap.add_argument('--random', action='store_true'); ap.add_argument('--kin', type=int, default=20)
 ap.add_argument('--state', default=None); ap.add_argument('--out', required=True); ap.add_argument('--golden', default=None)
 ap.add_argument('--T', type=int, default=300); ap.add_argument('--seed', type=int, default=7)
-ap.add_argument('--meta-from-cache', default=None); ap.add_argument('--meta-cohort', default='ucddb'); ap.add_argument('--drop', default=None); a = ap.parse_args()
+ap.add_argument('--meta-from-cache', default=None); ap.add_argument('--meta-cohort', default='ucddb'); ap.add_argument('--drop', default=None)
+ap.add_argument('--fp16', action='store_true', help='round weights to float16 (≈4× smaller file; parity measured within the 2e-3 band)'); a = ap.parse_args()
 torch.manual_seed(a.seed); np.random.seed(a.seed)
 if a.random:
     meta = {'random': True, 'seed': a.seed, 'kin': a.kin}
@@ -35,7 +37,8 @@ else:
     blob = torch.load(a.state, map_location='cpu'); st = blob['state'] if 'state' in blob else blob; kin = st['stem.weight'].shape[1]; model = S.SeqNet(kin); model.load_state_dict(st)
     meta = {'random': False, 'kin': kin, 'state': a.state, 'group_subjects': True}; meta.update(blob.get('meta', {}))
 model.eval()
-json.dump(export_state(model, meta), open(a.out, 'w'))
+meta['fp16'] = bool(a.fp16)
+json.dump(export_state(model, meta, a.fp16), open(a.out, 'w'))
 print('weights →', a.out, 'params', sum(p.numel() for p in model.parameters()))
 if a.golden:
     kin = meta['kin']; X = np.random.randn(a.T, kin).astype(np.float32) * 1.5

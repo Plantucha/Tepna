@@ -20,7 +20,7 @@
  */
 
 /** Exact erf (W. J. Cody's rational approximation, |err| < 1e-15), so GELU matches torch's erf GELU. */
-export function erf(x) {
+function erf(x) {
   const ax = Math.abs(x);
   let r;
   if (ax < 0.5) {
@@ -73,7 +73,7 @@ const gelu = (x) => 0.5 * x * (1 + erf(x / Math.SQRT2));
 const sigmoid = (x) => 1 / (1 + Math.exp(-x));
 
 /** Parse the exported JSON into typed arrays keyed by state_dict name. */
-export function loadWeights(json) {
+function loadWeights(json) {
   const w = {};
   for (const [name, { shape, data }] of Object.entries(json.layers)) w[name] = { shape, data: Float32Array.from(data) };
   return { arch: json.arch, meta: json.meta, w };
@@ -188,7 +188,7 @@ function gruDirection(X, T, C, Wih, Whh, bih, bhh, reverse) {
  * Forward pass. X: Float32Array [T][kin] (already tensorised: features, missing fraction, presence flags).
  * Returns { logits: [T][K], proba: [T][K], hidden: [T][2ch] } as Float32Arrays, plus T and K.
  */
-export function seqnetForward(model, X, T, opts = {}) {
+function seqnetForward(model, X, T, opts = {}) {
   const { arch, w } = model;
   const C = arch.ch,
     K = arch.K,
@@ -231,7 +231,7 @@ export function seqnetForward(model, X, T, opts = {}) {
  * seqnet.py / stage-lab.mjs fold hash: the night's 5-fold bucket from its cohort + id (31-multiplier string hash,
  * uint32). With `groupSubjects`, SHHS1 and SHHS2 nights of one subject share a key so they land in one fold.
  */
-export function foldOf(cohort, nid, groupSubjects) {
+function foldOf(cohort, nid, groupSubjects) {
   const key = groupSubjects && /^shhs[12]-/.test(nid) ? 'shhs' + nid.replace(/^shhs[12]-/, '') : cohort + nid;
   let h = 0;
   for (const ch of key) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0;
@@ -239,7 +239,7 @@ export function foldOf(cohort, nid, groupSubjects) {
 }
 
 /** HMM Viterbi exactly as seqnet.py: D = log(P + 1e-9) − logPrior, D[0] += logPrior, then max-product with logT. */
-export function viterbi(P, T, K, logT, logPrior) {
+function viterbi(P, T, K, logT, logPrior) {
   const D = new Float64Array(T * K),
     B = new Int32Array(T * K);
   for (let c = 0; c < K; c++) D[c] = Math.log(P[c] + 1e-9) - logPrior[c] + logPrior[c];
@@ -270,3 +270,8 @@ export function viterbi(P, T, K, logT, logPrior) {
   for (let t = T - 1; t > 0; t--) path[t - 1] = B[t * K + path[t]];
   return path;
 }
+
+/* One export list, no `export function` / `export const`: the owned bundler leaves `export function` in place and
+   rewrites `export const X =` to `__exports.X =` (dropping the local binding); plain declarations + this list serve
+   node, the tests and the OxyDex bundle alike. */
+export { erf, loadWeights, seqnetForward, foldOf, viterbi };

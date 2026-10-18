@@ -3001,6 +3001,32 @@ function nightDetail(n, idx) {
       '</div>';
     html += '</div>'; // /.sec-section secondary
   }
+  // Sleep Stages — the control stager (oxydex-stager.js): shown only once a weights file is loaded.
+  // The label says what it is; the file's own provenance (tag, fold, inner-validation κ) rides the card.
+  if (n.stager && n.stager.stages && n.stager.stages.length) {
+    var st = n.stager,
+      sm = st.minutes || {},
+      sModel = st.model || {};
+    var sProv =
+      (sModel.tag || 'weights') +
+      (sModel.fold != null ? ' · fold ' + sModel.fold : '') +
+      (sModel.innerValKappa != null ? ' · inner-val κ ' + Number(sModel.innerValKappa).toFixed(3) : '') +
+      (sModel.random ? ' · RANDOM weights' : '');
+    html += '<div class="sec-section" data-tier="secondary">';
+    html += '<div class="sec-label">Sleep Stages <span class="cite-note">(control model — not shipped · ' + escHTML(sProv) + ' · motion absent)</span></div>';
+    html += typeof window !== 'undefined' && window.OxyDexStager ? window.OxyDexStager.hypnogramSvg(st.stages, 640, 56) : '';
+    html +=
+      '<div class="grid">' +
+      metric('Wake', sm.wake != null ? Math.round(sm.wake) : '—', 'min', '', 'secondary', 'data-key="d_stager_wake"') +
+      metric('Light', sm.light != null ? Math.round(sm.light) : '—', 'min', '', 'secondary', 'data-key="d_stager_light"') +
+      metric('Deep', sm.deep != null ? Math.round(sm.deep) : '—', 'min', '', 'secondary', 'data-key="d_stager_deep"') +
+      metric('REM', sm.rem != null ? Math.round(sm.rem) : '—', 'min', '', 'secondary', 'data-key="d_stager_rem"') +
+      metric('Epochs', st.nEpochs, '× 30 s', '', 'secondary', 'data-key="d_stager_epochs"') +
+      '</div>';
+    html += '</div>'; // /.sec-section secondary
+  } else if (n.stagerError) {
+    html += '<div class="sec-section" data-tier="secondary"><div class="sec-label">Sleep Stages <span class="cite-note">not staged — ' + escHTML(n.stagerError) + '</span></div></div>';
+  }
   /* GATE THE SECTION ON THE SECTION, THE TILE ON THE TILE (DEEP-AUDIT-V §2.3 F22).
      This was `if (n.cross && n.cross.crcIdx != null)`, which was harmless only because the DSP could
      never emit a null `crcIdx` — it emitted an un-computed 0 instead. Now that it correctly emits null

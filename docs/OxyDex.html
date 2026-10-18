@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ac365c41b882" data-compute-hash="6352f6dd8914">
+<html lang="en" data-manifest-hash="d05c5e20c656" data-compute-hash="98764cfcd2c0">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3KvPhldddORipcvZQn+2KCH7WgDrPUqD7DLJmP2siMs=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5ZLJK5w3c4ZE4Pf3RYuX07Tk6CVUrLM9IbXDA0WCiDQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-NQjdOOuZVX6grXFAvbiMBOTQKtfgU2vDUZ8Tim3lBdE=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-zncOPy653eUk97qsPTn1jEKEKdYLBpxrVlC2uXTQhiw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3KvPhldddORipcvZQn+2KCH7WgDrPUqD7DLJmP2siMs=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DVov9N3bSr4KfqTAmFvBFEn7yUKa4RvLB+6d+RVs8cU=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-FIeLhiVIwXlWli84JsO8pwB+w7MSraz2zlO2J/dl6jg=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GvJedQIA5mipODsrZEOPs7qsNVEAfXvMdPvF+pgtUDA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-OdrNZ5OEXZskxQDjKkYI6QNPs9WRiNDX8vpMjZODCjs=' 'sha256-OlU0jGA0OnZ42Fdafhb1v9ikML39C1Hlaiwi6Hnx54g=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y3eHxgXSrqZOYF3ebpjtM+zG21Sn40g2cYqKkh8oYeM=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-mLZfCITgcjZtNh01pmNgE3ul+98wFvTf5jQmsfIm+pI=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.19.0</title>
@@ -6259,6 +6259,16 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   </div>
 </div>
 
+<!-- Sleep stager — a tepna-seqnet/1 weights file the user loads; the net is a CONTROL model, not a shipped artefact (oxydex-stager.js) -->
+<div id="stagerZone" class="ecg-xcheck">
+  <div class="ecg-xcheck-h">🛏 Sleep stages <span>optional · load a tepna-seqnet weights file to stage every loaded night from SpO₂ and pulse · control model — not shipped</span></div>
+  <div class="ecg-xcheck-row">
+    <label for="stagerWeightsInput" class="ecg-xcheck-btn">＋ Load stager weights</label>
+    <input type="file" id="stagerWeightsInput" accept=".json" style="display:none">
+    <span class="ecg-xcheck-status" id="stagerStatus">No weights loaded</span>
+  </div>
+</div>
+
 <div id="userProfilePanel" role="complementary" aria-label="User Profile configuration panel" class="hidden">
   <div id="profileHeader" data-act="toggleProfile">
     <h3>👤 User Profile &nbsp;<span class="inline-warn">— personalizes all formulas &amp; norms</span></h3>
@@ -10516,6 +10526,27 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     },
     ultradianCycles: { label: 'Ultradian Cycles', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'heuristic', cite: 'Count of detected ultradian cycles — the detector is ours' },
     ultradianValleys: { label: 'HR Valleys', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Valley count from the same detector' },
+    /* Sleep stages from the control net (oxydex-stager.js, unit 2b): the net is a user-loaded, un-shipped
+       artefact, so every tile is `experimental` — the number is the model's, graded by its own file's provenance. */
+    stagerWake: {
+      label: 'Wake',
+      unit: 'min',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Minutes staged Wake by the loaded control net (stage-lab seqnet; weights user-loaded, not shipped)'
+    },
+    stagerLight: { label: 'Light', unit: 'min', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Minutes staged Light (N1+N2) by the loaded control net' },
+    stagerDeep: { label: 'Deep', unit: 'min', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Minutes staged Deep (N3) by the loaded control net' },
+    stagerRem: { label: 'REM', unit: 'min', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: 'Minutes staged REM by the loaded control net' },
+    stagerEpochs: {
+      label: 'Epochs',
+      unit: 'count',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Whole 30 s epochs the night offered the stager — a count, not a model output'
+    },
     crcIdx: { label: 'CRC Index', unit: '', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Cardio-respiratory coupling index, bespoke' },
     /* OXYDEX-FFT-CYCLE-NULL §6 — `computeSpO2FFT`'s two published fields. Both reach the user (the CSV
        carries "FFT Peak Freq (Hz)" / "FFT Cycle Length (s)") and neither had a registry row, so any
@@ -25705,6 +25736,32 @@ function nightDetail(n, idx) {
       '</div>';
     html += '</div>'; // /.sec-section secondary
   }
+  // Sleep Stages — the control stager (oxydex-stager.js): shown only once a weights file is loaded.
+  // The label says what it is; the file's own provenance (tag, fold, inner-validation κ) rides the card.
+  if (n.stager && n.stager.stages && n.stager.stages.length) {
+    var st = n.stager,
+      sm = st.minutes || {},
+      sModel = st.model || {};
+    var sProv =
+      (sModel.tag || 'weights') +
+      (sModel.fold != null ? ' · fold ' + sModel.fold : '') +
+      (sModel.innerValKappa != null ? ' · inner-val κ ' + Number(sModel.innerValKappa).toFixed(3) : '') +
+      (sModel.random ? ' · RANDOM weights' : '');
+    html += '<div class="sec-section" data-tier="secondary">';
+    html += '<div class="sec-label">Sleep Stages <span class="cite-note">(control model — not shipped · ' + escHTML(sProv) + ' · motion absent)</span></div>';
+    html += typeof window !== 'undefined' && window.OxyDexStager ? window.OxyDexStager.hypnogramSvg(st.stages, 640, 56) : '';
+    html +=
+      '<div class="grid">' +
+      metric('Wake', sm.wake != null ? Math.round(sm.wake) : '—', 'min', '', 'secondary', 'data-key="d_stager_wake"') +
+      metric('Light', sm.light != null ? Math.round(sm.light) : '—', 'min', '', 'secondary', 'data-key="d_stager_light"') +
+      metric('Deep', sm.deep != null ? Math.round(sm.deep) : '—', 'min', '', 'secondary', 'data-key="d_stager_deep"') +
+      metric('REM', sm.rem != null ? Math.round(sm.rem) : '—', 'min', '', 'secondary', 'data-key="d_stager_rem"') +
+      metric('Epochs', st.nEpochs, '× 30 s', '', 'secondary', 'data-key="d_stager_epochs"') +
+      '</div>';
+    html += '</div>'; // /.sec-section secondary
+  } else if (n.stagerError) {
+    html += '<div class="sec-section" data-tier="secondary"><div class="sec-label">Sleep Stages <span class="cite-note">not staged — ' + escHTML(n.stagerError) + '</span></div></div>';
+  }
   /* GATE THE SECTION ON THE SECTION, THE TILE ON THE TILE (DEEP-AUDIT-V §2.3 F22).
      This was `if (n.cross && n.cross.crcIdx != null)`, which was harmless only because the DSP could
      never emit a null `crcIdx` — it emitted an un-computed 0 instead. Now that it correctly emits null
@@ -28799,6 +28856,1458 @@ Object.assign(window, {
   };
 })(window);
 </script>
+<script data-inline-src="tools/stage-lab-core.mjs">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("tools/stage-lab-core.mjs",function(__require,__exports){
+/*
+ * stage-lab-core.mjs — sleep staging from any mix of signals: feature blocks, context, a histogram GBDT, HMM
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. See the LICENSE and
+ * NOTICE files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * PURE ESM, NO node: IMPORTS — so a browser app can import the same model code it was trained with.
+ *
+ * THE SHAPE, and why it is this shape. Staging will grow signal by signal: SpO2 first (the owner's
+ * target: beat the published oximeter-only comparator's figures on the oximeter alone), then pulse, ECG-HRV, motion and
+ * EEG. So a NIGHT is a 30 s epoch grid plus NAMED SIGNALS, and each signal family is one FEATURE
+ * BLOCK in `BLOCKS`. Adding EEG is adding a block; nothing downstream changes. A block whose input a
+ * night lacks returns NaN columns — ABSENCE IS NULL (CLAUDE.md §∅) — and the GBDT routes NaN down its
+ * own learned branch, so a model trained with a signal still runs on a night without it.
+ *
+ * NOT IMPLEMENTED (declared, Tool Build Standard §2.11): the ecg-hrv, motion and eeg blocks. They are
+ * registered with `implemented: false` so a caller asking for them gets a refusal, never zeros.
+ */
+
+const EPOCH_S = 30;
+const STAGES = ['Wake', 'Light', 'Deep', 'REM']; // AASM collapse: N1+N2 = Light, N3(+N4) = Deep
+const STAGE_INDEX = { W: 0, Wake: 0, N1: 1, N2: 1, N3: 2, N4: 2, R: 3, REM: 3 };
+
+/* ── small numeric helpers (NaN-aware: a NaN is a missing value, never a number) ─────────────────── */
+const finite = (a) => a.filter(Number.isFinite);
+function mean(a) {
+  let s = 0;
+  for (const v of a) s += v;
+  return a.length ? s / a.length : NaN;
+}
+function std(a) {
+  if (a.length < 2) return NaN;
+  const m = mean(a);
+  let s = 0;
+  for (const v of a) s += (v - m) ** 2;
+  return Math.sqrt(s / a.length);
+}
+function quantile(sorted, q) {
+  if (!sorted.length) return NaN;
+  const p = (sorted.length - 1) * q,
+    i = Math.floor(p);
+  return sorted[i] + (sorted[Math.min(i + 1, sorted.length - 1)] - sorted[i]) * (p - i);
+}
+function slope(a) {
+  const n = a.length;
+  if (n < 3) return NaN;
+  let sx = 0,
+    sy = 0,
+    sxy = 0,
+    sxx = 0;
+  for (let i = 0; i < n; i++) {
+    sx += i;
+    sy += a[i];
+    sxy += i * a[i];
+    sxx += i * i;
+  }
+  return (n * sxy - sx * sy) / (n * sxx - sx * sx);
+}
+function meanAbsDiff(a) {
+  let s = 0;
+  for (let i = 1; i < a.length; i++) s += Math.abs(a[i] - a[i - 1]);
+  return a.length > 1 ? s / (a.length - 1) : NaN;
+}
+
+/* Log band power of a 1 Hz series (linear detrend + Hann, direct DFT over the band's bins only). */
+function bandPower(a, lo, hi) {
+  const n = a.length;
+  if (n < 64) return NaN;
+  const b = slope(a),
+    m0 = mean(a) - (b * (n - 1)) / 2,
+    x = new Float64Array(n);
+  for (let i = 0; i < n; i++) x[i] = (a[i] - (m0 + b * i)) * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1)));
+  let p = 0;
+  for (let k = Math.ceil(lo * n); k < hi * n && k <= n / 2; k++) {
+    let re = 0,
+      im = 0;
+    const w = (2 * Math.PI * k) / n;
+    for (let i = 0; i < n; i++) {
+      re += x[i] * Math.cos(w * i);
+      im -= x[i] * Math.sin(w * i);
+    }
+    p += re * re + im * im;
+  }
+  return Math.log(p + 1e-6);
+}
+
+/* ── FEATURE BLOCKS ──────────────────────────────────────────────────────────────────────────────
+   extract(night) → { names, cols } where cols[j] is a Float64Array(nEpochs), or null if the input is absent. */
+const SCALES = [30, 60, 150, 300]; // half-windows (s): 1, 2, 5, 10 min
+const MOTION_BIT_G = 0.02; // 1-bit motion threshold on the per-second |a| std (g); stated, not tuned
+
+function windowAt(s, c, h) {
+  return finite(Array.from(s.subarray(Math.max(0, c - h), Math.min(s.length, c + h))));
+}
+
+function multiScale(s, n, prefix, extra) {
+  const names = [],
+    cols = [];
+  const add = (nm) => {
+    names.push(prefix + nm);
+    const c = new Float64Array(n).fill(NaN);
+    cols.push(c);
+    return c;
+  };
+  for (const h of SCALES) {
+    const cm = add(`mean@${2 * h}s`),
+      cs = add(`sd@${2 * h}s`),
+      cr = add(`p90-p10@${2 * h}s`),
+      cl = add(`slope@${2 * h}s`),
+      cd = add(`mad@${2 * h}s`);
+    for (let i = 0; i < n; i++) {
+      const w = windowAt(s, i * EPOCH_S + EPOCH_S / 2, h);
+      if (w.length < h) continue; // under half the window measured: not a value
+      const srt = w.slice().sort((a, b) => a - b);
+      cm[i] = mean(w);
+      cs[i] = std(w);
+      cr[i] = quantile(srt, 0.9) - quantile(srt, 0.1);
+      cl[i] = slope(w);
+      cd[i] = meanAbsDiff(w);
+    }
+  }
+  extra(add);
+  return { names, cols };
+}
+
+const BLOCKS = {
+  spo2: {
+    implemented: true,
+    input: 'spo2',
+    extract(night) {
+      const s = night.signals.spo2;
+      if (!s) return null; // absent → the block is absent
+      const n = night.nEpochs,
+        d = s.data;
+      return multiScale(d, n, 'spo2.', (add) => {
+        const ev = add('desat3.count@10m'),
+          fr = add('desat3.frac@10m'),
+          dp = add('drop.max@10m'),
+          ac = add('lag1ac@10m'),
+          b1 = add('lnpow.005-.02Hz'),
+          b2 = add('lnpow.02-.05Hz'),
+          b3 = add('lnpow.05-.1Hz');
+        for (let i = 0; i < n; i++) {
+          const w = windowAt(d, i * EPOCH_S + EPOCH_S / 2, 300);
+          if (w.length < 300) continue;
+          let run = -Infinity,
+            cnt = 0,
+            inD = 0,
+            prev = false,
+            mx = 0;
+          for (const v of w) {
+            run = Math.max(run, v);
+            const dr = run - v,
+              isD = dr >= 3;
+            if (isD && !prev) cnt++;
+            if (isD) inD++;
+            prev = isD;
+            if (dr > mx) mx = dr;
+          }
+          ev[i] = cnt;
+          fr[i] = inD / w.length;
+          dp[i] = mx;
+          const m = mean(w);
+          let num = 0,
+            den = 0;
+          for (let k = 0; k < w.length; k++) {
+            den += (w[k] - m) ** 2;
+            if (k) num += (w[k] - m) * (w[k - 1] - m);
+          }
+          ac[i] = den > 0 ? num / den : NaN;
+          b1[i] = bandPower(w, 0.005, 0.02);
+          b2[i] = bandPower(w, 0.02, 0.05);
+          b3[i] = bandPower(w, 0.05, 0.1);
+        }
+      });
+    }
+  },
+  pulse: {
+    // 1 Hz pulse rate, as an oximeter reports it
+    implemented: true,
+    input: 'pulse',
+    extract(night) {
+      const s = night.signals.pulse;
+      if (!s) return null;
+      const n = night.nEpochs,
+        d = s.data;
+      return multiScale(d, n, 'pulse.', (add) => {
+        const v = add('lnpow.01-.04Hz'),
+          l = add('lnpow.04-.15Hz'),
+          // v19 (Vaquerizo-Villar 2025, Eng Appl AI 162:112562): the macro band 0.004–0.020 Hz (wake high, REM 0.010–0.020)
+          // and the respiratory-modulation band 0.18–0.40 Hz (NREM) — an oximeter's 1 Hz PR DOES carry it; both over the
+          // same 10-min window (resolution 1/600 Hz).
+          m = add('lnpow.004-.02Hz'),
+          r = add('lnpow.18-.40Hz');
+        for (let i = 0; i < n; i++) {
+          const w = windowAt(d, i * EPOCH_S + EPOCH_S / 2, 300);
+          if (w.length < 300) continue;
+          v[i] = bandPower(w, 0.01, 0.04);
+          l[i] = bandPower(w, 0.04, 0.15);
+          m[i] = bandPower(w, 0.004, 0.02);
+          r[i] = bandPower(w, 0.18, 0.4);
+        }
+      });
+    }
+  },
+  'ecg-hrv': { implemented: false, input: 'ecg' },
+  motion: {
+    /* 1 Hz wrist/finger ACTIVITY (std of |a| within the second, g). Two column families from ONE input so a bench run
+       can drop either by name (brief §16, v17): `motion.*` = the activity itself; `mbit.*` = the same statistics over a
+       1-bit "moved this second" flag (activity > MOTION_BIT_G), the poorest signal a ring could report. */
+    implemented: true,
+    input: 'motion',
+    extract(night) {
+      const s = night.signals.motion;
+      if (!s) return null;
+      const n = night.nEpochs,
+        d = s.data,
+        bit = Float64Array.from(d, (v) => (Number.isFinite(v) ? (v > MOTION_BIT_G ? 1 : 0) : NaN));
+      const still = (x, pre) => (add) => {
+        const q = add('still-run@600s'); // seconds since the last movement, capped at 10 min: the classic actigraphy cue
+        let run = 600;
+        const last = new Float64Array(x.length);
+        for (let i = 0; i < x.length; i++) {
+          if (Number.isFinite(x[i])) run = x[i] > (pre === 'mbit.' ? 0.5 : MOTION_BIT_G) ? 0 : Math.min(600, run + 1);
+          last[i] = run;
+        }
+        for (let i = 0; i < n; i++) {
+          const t = Math.min(x.length - 1, i * EPOCH_S + EPOCH_S - 1);
+          if (t >= 0) q[i] = last[t];
+        }
+      };
+      const a = multiScale(d, n, 'motion.', still(d, 'motion.')),
+        b = multiScale(bit, n, 'mbit.', still(bit, 'mbit.'));
+      return { names: [...a.names, ...b.names], cols: [...a.cols, ...b.cols] };
+    }
+  },
+  eeg: { implemented: false, input: 'eeg' }
+};
+
+/* ── CONTEXT: per-night robust normalisation + multi-scale temporal context, for ANY block ────────
+   Night-relative because the literature and our own data agree the absolute levels vary by person
+   (Schumann 2010: alpha1 depends on age). NaN stays NaN — normalisation never invents a value. */
+const CONTEXT_EPOCHS = [2, 10, 30];
+
+function withContext(block, n) {
+  const names = [],
+    cols = [];
+  for (let j = 0; j < block.cols.length; j++) {
+    const c = block.cols[j],
+      f = finite(Array.from(c)).sort((a, b) => a - b);
+    const med = quantile(f, 0.5),
+      iqr = quantile(f, 0.75) - quantile(f, 0.25) || 1;
+    const z = Float64Array.from(c, (v) => (Number.isFinite(v) && f.length >= 10 ? (v - med) / iqr : NaN));
+    names.push(block.names[j]);
+    cols.push(z);
+    for (const k of CONTEXT_EPOCHS) {
+      // centred mean over the finite values in ±k epochs
+      const m = new Float64Array(n).fill(NaN);
+      for (let i = 0; i < n; i++) {
+        let s = 0,
+          q = 0;
+        for (let t = Math.max(0, i - k); t <= Math.min(n - 1, i + k); t++)
+          if (Number.isFinite(z[t])) {
+            s += z[t];
+            q++;
+          }
+        if (q) m[i] = s / q;
+      }
+      names.push(`${block.names[j]}@±${k}ep`);
+      cols.push(m);
+      if (k === CONTEXT_EPOCHS[CONTEXT_EPOCHS.length - 1]) {
+        names.push(`${block.names[j]}-ctx${k}`);
+        cols.push(Float64Array.from(z, (v, i) => v - m[i]));
+      }
+    }
+  }
+  return { names, cols };
+}
+
+/* The column names a block produces, derived from an all-missing one-epoch night — so a night that
+   LACKS the signal still yields the identical layout, filled with NaN (absent, never zero). */
+const _layout = {};
+function blockLayout(b) {
+  if (!_layout[b]) {
+    const B = BLOCKS[b];
+    const dummy = { nEpochs: 1, signals: { [B.input]: { fs: 1, data: new Float64Array(EPOCH_S).fill(NaN) } } };
+    _layout[b] = withContext(B.extract(dummy), 1).names;
+  }
+  return _layout[b];
+}
+
+/* A night's feature matrix: the requested blocks (each with context) + time of night. Refuses an
+   unimplemented block by name. Returns { names, X: Float32Array(n*k), k }. */
+function nightFeatures(night, blockNames) {
+  const n = night.nEpochs,
+    names = [],
+    cols = [];
+  for (const b of blockNames) {
+    const B = BLOCKS[b];
+    if (!B) throw new Error(`unknown feature block "${b}"`);
+    if (!B.implemented) throw new Error(`feature block "${b}" is declared but NOT IMPLEMENTED`);
+    const raw = B.extract(night);
+    if (raw) {
+      const ctx = withContext(raw, n);
+      names.push(...ctx.names);
+      cols.push(...ctx.cols);
+    } else
+      for (const nm of blockLayout(b)) {
+        names.push(nm);
+        cols.push(new Float64Array(n).fill(NaN));
+      }
+  }
+  names.push('time_of_night');
+  cols.push(Float64Array.from({ length: n }, (_, i) => i / n));
+  const k = cols.length,
+    X = new Float32Array(n * k);
+  for (let j = 0; j < k; j++) for (let i = 0; i < n; i++) X[i * k + j] = cols[j][i];
+  return { names, X, k };
+}
+
+/* ── HISTOGRAM GBDT (multiclass softmax) ──────────────────────────────────────────────────────────
+   Bins: per-feature quantile edges, <= 254 bins; bin 255 is MISSING. Each split learns which side
+   missing values go to. Leaf-wise growth, L2-regularised leaves. Deterministic (no row sampling). */
+const MISS = 255;
+
+function makeBins(X, nRows, k, maxBins = 254, sampleEvery = 1) {
+  const edges = [];
+  for (let j = 0; j < k; j++) {
+    const v = [];
+    for (let i = 0; i < nRows; i += sampleEvery) {
+      const x = X[i * k + j];
+      if (Number.isFinite(x)) v.push(x);
+    }
+    v.sort((a, b) => a - b);
+    const e = [];
+    for (let b = 1; b < maxBins; b++) {
+      const q = quantile(v, b / maxBins);
+      if (Number.isFinite(q) && (!e.length || q > e[e.length - 1])) e.push(q);
+    }
+    edges.push(e);
+  }
+  return edges;
+}
+
+function binMatrix(X, nRows, k, edges) {
+  const B = new Uint8Array(nRows * k);
+  for (let j = 0; j < k; j++) {
+    const e = edges[j];
+    for (let i = 0; i < nRows; i++) {
+      const x = X[i * k + j];
+      if (!Number.isFinite(x)) {
+        B[i * k + j] = MISS;
+        continue;
+      }
+      let lo = 0,
+        hi = e.length; // first edge > x
+      while (lo < hi) {
+        const m = (lo + hi) >> 1;
+        if (e[m] <= x) lo = m + 1;
+        else hi = m;
+      }
+      B[i * k + j] = lo;
+    }
+  }
+  return B;
+}
+
+function histogram(B, k, rows, g, h) {
+  const H = new Float64Array(k * 256 * 3);
+  for (const r of rows) {
+    const o = r * k,
+      gr = g[r],
+      hr = h[r];
+    for (let j = 0; j < k; j++) {
+      const p = (j * 256 + B[o + j]) * 3;
+      H[p] += gr;
+      H[p + 1] += hr;
+      H[p + 2]++;
+    }
+  }
+  return H;
+}
+
+function bestSplit(H, k, lambda, minLeaf) {
+  let best = { gain: 0 };
+  for (let j = 0; j < k; j++) {
+    let G = 0,
+      Hs = 0,
+      N = 0;
+    for (let b = 0; b < 256; b++) {
+      const p = (j * 256 + b) * 3;
+      G += H[p];
+      Hs += H[p + 1];
+      N += H[p + 2];
+    }
+    const pm = (j * 256 + MISS) * 3,
+      Gm = H[pm],
+      Hm = H[pm + 1],
+      Nm = H[pm + 2];
+    const parent = (G * G) / (Hs + lambda);
+    let gl = 0,
+      hl = 0,
+      nl = 0;
+    for (let b = 0; b < MISS - 1; b++) {
+      const p = (j * 256 + b) * 3;
+      gl += H[p];
+      hl += H[p + 1];
+      nl += H[p + 2];
+      for (const missLeft of [false, true]) {
+        const GL = gl + (missLeft ? Gm : 0),
+          HL = hl + (missLeft ? Hm : 0),
+          NL = nl + (missLeft ? Nm : 0);
+        const GR = G - GL,
+          HR = Hs - HL,
+          NR = N - NL;
+        if (NL < minLeaf || NR < minLeaf) continue;
+        const gain = (GL * GL) / (HL + lambda) + (GR * GR) / (HR + lambda) - parent;
+        if (gain > best.gain) best = { gain, f: j, bin: b, missLeft };
+      }
+    }
+  }
+  return best;
+}
+
+function growTree(B, k, rows, g, h, o) {
+  const nodes = [];
+  const leafVal = (rs) => {
+    let G = 0,
+      Hs = 0;
+    for (const r of rs) {
+      G += g[r];
+      Hs += h[r];
+    }
+    return (-G / (Hs + o.lambda)) * o.lr;
+  };
+  const root = { id: 0, rows, H: histogram(B, k, rows, g, h) };
+  nodes.push({ leaf: leafVal(rows) });
+  root.split = bestSplit(root.H, k, o.lambda, o.minLeaf);
+  const open = [root];
+  let leaves = 1;
+  while (leaves < o.maxLeaves) {
+    open.sort((a, b) => (b.split.gain || 0) - (a.split.gain || 0));
+    const nd = open.shift();
+    if (!nd || !(nd.split.gain > o.minGain)) break;
+    const { f, bin, missLeft } = nd.split,
+      L = [],
+      R = [];
+    for (const r of nd.rows) {
+      const v = B[r * k + f];
+      (v === MISS ? missLeft : v <= bin) ? L.push(r) : R.push(r);
+    }
+    const small = L.length < R.length ? L : R,
+      Hs = histogram(B, k, small, g, h),
+      Hb = nd.H.map((v, i) => v - Hs[i]);
+    const [HL, HR] = small === L ? [Hs, Hb] : [Hb, Hs];
+    const li = nodes.length,
+      ri = li + 1;
+    nodes.push({ leaf: leafVal(L) }, { leaf: leafVal(R) });
+    nodes[nd.id] = { f, bin, missLeft, l: li, r: ri };
+    for (const [id, rs, H] of [
+      [li, L, HL],
+      [ri, R, HR]
+    ]) {
+      const c = { id, rows: rs, H };
+      c.split = bestSplit(H, k, o.lambda, o.minLeaf);
+      open.push(c);
+    }
+    leaves++;
+  }
+  return nodes;
+}
+
+/* fit(X, y, nRows, k, opts, onIter) → model. y in 0..3; rows with y < 0 are ignored. */
+function fitGBDT(X, y, nRows, k, opts = {}, onIter = null) {
+  const o = { iters: 300, lr: 0.1, maxLeaves: 31, minLeaf: 100, lambda: 1, minGain: 1e-6, K: 4, binSample: 1, ...opts };
+  const rows = [];
+  for (let i = 0; i < nRows; i++) if (y[i] >= 0) rows.push(i);
+  const edges = makeBins(X, nRows, k, 254, o.binSample),
+    B = binMatrix(X, nRows, k, edges);
+  const prior = new Float64Array(o.K);
+  for (const r of rows) prior[y[r]]++;
+  const base = Array.from(prior, (c) => Math.log((c + 1) / (rows.length + o.K)));
+  const F = new Float64Array(nRows * o.K);
+  for (const r of rows) for (let c = 0; c < o.K; c++) F[r * o.K + c] = base[c];
+  const trees = [],
+    g = new Float64Array(nRows),
+    h = new Float64Array(nRows);
+  for (let it = 0; it < o.iters; it++) {
+    const P = softmaxRows(F, rows, o.K);
+    const round = [];
+    for (let c = 0; c < o.K; c++) {
+      for (const r of rows) {
+        const p = P[r * o.K + c];
+        g[r] = p - (y[r] === c ? 1 : 0);
+        h[r] = Math.max(p * (1 - p), 1e-6);
+      }
+      const t = growTree(B, k, rows, g, h, o);
+      for (const r of rows) F[r * o.K + c] += walk(t, (j) => B[r * k + j]);
+      round.push(t);
+    }
+    trees.push(round);
+    if (onIter) onIter(it + 1, o.iters);
+  }
+  return { schema: 'tepna.stage-gbdt/1', K: o.K, base, edges, trees };
+}
+
+function softmaxRows(F, rows, K) {
+  const P = new Float64Array(F.length);
+  for (const r of rows) {
+    let m = -Infinity;
+    for (let c = 0; c < K; c++) m = Math.max(m, F[r * K + c]);
+    let s = 0;
+    for (let c = 0; c < K; c++) {
+      const e = Math.exp(F[r * K + c] - m);
+      P[r * K + c] = e;
+      s += e;
+    }
+    for (let c = 0; c < K; c++) P[r * K + c] /= s;
+  }
+  return P;
+}
+
+function walk(nodes, binOf) {
+  let i = 0;
+  for (;;) {
+    const nd = nodes[i];
+    if ('leaf' in nd) return nd.leaf;
+    const v = binOf(nd.f);
+    i = (v === MISS ? nd.missLeft : v <= nd.bin) ? nd.l : nd.r;
+  }
+}
+
+/* Class probabilities for raw feature rows (browser-safe; bins raw values with the model's own edges). */
+function predictProba(model, X, nRows, k) {
+  const B = binMatrix(X, nRows, k, model.edges),
+    K = model.K,
+    out = new Float64Array(nRows * K);
+  for (let r = 0; r < nRows; r++) {
+    const f = model.base.slice();
+    for (const round of model.trees) for (let c = 0; c < K; c++) f[c] += walk(round[c], (j) => B[r * k + j]);
+    const m = Math.max(...f);
+    let s = 0;
+    for (let c = 0; c < K; c++) {
+      f[c] = Math.exp(f[c] - m);
+      s += f[c];
+    }
+    for (let c = 0; c < K; c++) out[r * K + c] = f[c] / s;
+  }
+  return out;
+}
+
+/* ── HMM smoothing ───────────────────────────────────────────────────────────────────────────── */
+function transitions(labelSeqs, K = 4) {
+  const T = Array.from({ length: K }, () => new Float64Array(K).fill(1));
+  for (const y of labelSeqs) for (let i = 1; i < y.length; i++) if (y[i - 1] >= 0 && y[i] >= 0) T[y[i - 1]][y[i]]++;
+  return T.map((row) => {
+    const s = row.reduce((a, b) => a + b, 0);
+    return Array.from(row, (v) => Math.log(v / s));
+  });
+}
+
+/* Viterbi over per-epoch posteriors (divided by the class prior → scaled likelihoods). */
+function viterbi(P, n, K, logT, logPrior) {
+  const D = new Float64Array(n * K),
+    Bk = new Int32Array(n * K);
+  for (let c = 0; c < K; c++) D[c] = Math.log(P[c] + 1e-9);
+  for (let t = 1; t < n; t++)
+    for (let c = 0; c < K; c++) {
+      let best = -Infinity,
+        arg = 0;
+      for (let a = 0; a < K; a++) {
+        const v = D[(t - 1) * K + a] + logT[a][c];
+        if (v > best) {
+          best = v;
+          arg = a;
+        }
+      }
+      D[t * K + c] = best + Math.log(P[t * K + c] + 1e-9) - logPrior[c];
+      Bk[t * K + c] = arg;
+    }
+  const path = new Int32Array(n);
+  let last = 0;
+  for (let c = 1; c < K; c++) if (D[(n - 1) * K + c] > D[(n - 1) * K + last]) last = c;
+  path[n - 1] = last;
+  for (let t = n - 1; t > 0; t--) path[t - 1] = Bk[t * K + path[t]];
+  return path;
+}
+
+/* ── explicit-duration HSMM with a time-of-night prior (brief §10, v13) ──────────────────────────
+   A plain HMM gives every stage a geometric bout length, which sleep does not have (REM bouts lengthen through
+   the night, N3 fronts the night — Borbély 1982 two-process model; McCarley & Hobson 1975 NREM–REM oscillator).
+   This decoder learns, from the TRAINING hypnograms only: the bout-duration histogram per stage (1..dMax
+   epochs, tail mass as a self-transition), the bout-to-bout transition matrix, and an empirical time-of-night
+   curve per stage (bins of `binEpochs` from record start) applied as log(p_s(bin) / p_s) with weight `timeW`.
+   Emissions are the per-epoch posteriors divided by the class prior, as in `viterbi`. */
+function hsmmFit(labelSeqs, K = 4, dMax = 120, binEpochs = 20, nBins = 60) {
+  const dur = Array.from({ length: K }, () => new Float64Array(dMax + 1).fill(0.5)),
+    tail = new Float64Array(K).fill(0.5);
+  const A = Array.from({ length: K }, () => new Float64Array(K).fill(0.5)),
+    first = new Float64Array(K).fill(1);
+  const tb = Array.from({ length: nBins }, () => new Float64Array(K).fill(1)),
+    marg = new Float64Array(K).fill(1);
+  for (const y of labelSeqs) {
+    let prev = -1,
+      len = 0,
+      firstSeen = false;
+    for (let t = 0; t <= y.length; t++) {
+      const s = t < y.length ? y[t] : -2;
+      if (t < y.length && s >= 0) {
+        tb[Math.min(nBins - 1, (t / binEpochs) | 0)][s]++;
+        marg[s]++;
+        if (!firstSeen) {
+          first[s]++;
+          firstSeen = true;
+        }
+      }
+      if (s === prev) {
+        len++;
+        continue;
+      }
+      if (prev >= 0) {
+        if (len <= dMax) dur[prev][len]++;
+        else tail[prev]++;
+        if (s >= 0) A[prev][s]++;
+      }
+      prev = s;
+      len = 1;
+    }
+  }
+  const logDur = dur.map((h, s) => {
+    const tot = h.reduce((a, b) => a + b, 0) - 0.5 + tail[s];
+    return Float64Array.from(h, (v, d) => (d === 0 ? -Infinity : Math.log(v / tot)));
+  });
+  const logTail = Array.from(tail, (v, s) => Math.log(v / (dur[s].reduce((a, b) => a + b, 0) - 0.5 + v)));
+  const logA = A.map((row, s) => {
+    row[s] = 0;
+    const tot = row.reduce((a, b) => a + b, 0);
+    return Array.from(row, (v, c) => (c === s ? -Infinity : Math.log(v / tot)));
+  });
+  const fs = first.reduce((a, b) => a + b, 0),
+    logFirst = Array.from(first, (v) => Math.log(v / fs));
+  const mt = marg.reduce((a, b) => a + b, 0);
+  const logTime = tb.map((row) => {
+    const tot = row.reduce((a, b) => a + b, 0);
+    return Array.from(row, (v, s) => Math.log(v / tot) - Math.log(marg[s] / mt));
+  });
+  return { K, dMax, binEpochs, nBins, logDur, logTail, logA, logFirst, logTime };
+}
+
+function hsmmViterbi(P, n, K, M, logPrior, timeW = 1) {
+  const { dMax, logDur, logTail, logA, logFirst, logTime, binEpochs, nBins } = M;
+  // cumulative per-state emissions: C[s*(n+1)+t] = Σ_{u<t} e[u][s]
+  const C = new Float64Array(K * (n + 1));
+  for (let s = 0; s < K; s++)
+    for (let t = 0; t < n; t++) {
+      const bin = Math.min(nBins - 1, (t / binEpochs) | 0);
+      C[s * (n + 1) + t + 1] = C[s * (n + 1) + t] + Math.log(P[t * K + s] + 1e-9) - logPrior[s] + timeW * logTime[bin][s];
+    }
+  const D = new Float64Array(n * K).fill(-Infinity),
+    Bd = new Int32Array(n * K),
+    Bs = new Int32Array(n * K).fill(-1);
+  const bp = new Float64Array(n * K),
+    bpArg = new Int32Array(n * K); // best predecessor ending at t, entering s
+  for (let t = 0; t < n; t++) {
+    for (let s = 0; s < K; s++) {
+      const base = s * (n + 1);
+      for (let d = 1; d <= Math.min(dMax, t + 1); d++) {
+        const t0 = t - d + 1,
+          seg = C[base + t + 1] - C[base + t0];
+        let v,
+          from = -1;
+        if (t0 === 0) v = logFirst[s] + logDur[s][d] + seg;
+        else {
+          v = bp[(t0 - 1) * K + s] + logDur[s][d] + seg;
+          from = bpArg[(t0 - 1) * K + s];
+        }
+        if (v > D[t * K + s]) {
+          D[t * K + s] = v;
+          Bd[t * K + s] = d;
+          Bs[t * K + s] = from;
+        }
+      }
+      // over-long bout: a segment of exactly dMax that continues in the same state (tail mass)
+      if (t >= dMax) {
+        const t0 = t - dMax + 1,
+          v = D[(t0 - 1) * K + s] + logTail[s] + C[base + t + 1] - C[base + t0];
+        if (v > D[t * K + s]) {
+          D[t * K + s] = v;
+          Bd[t * K + s] = dMax;
+          Bs[t * K + s] = s;
+        }
+      }
+    }
+    for (let s = 0; s < K; s++) {
+      let best = -Infinity,
+        arg = 0;
+      for (let a = 0; a < K; a++) {
+        const v = D[t * K + a] + logA[a][s];
+        if (v > best) {
+          best = v;
+          arg = a;
+        }
+      }
+      bp[t * K + s] = best;
+      bpArg[t * K + s] = arg;
+    }
+  }
+  const path = new Int32Array(n);
+  let t = n - 1,
+    s = 0;
+  for (let c = 1; c < K; c++) if (D[t * K + c] > D[t * K + s]) s = c;
+  while (t >= 0) {
+    const d = Bd[t * K + s],
+      from = Bs[t * K + s];
+    for (let u = t - d + 1; u <= t; u++) path[u] = s;
+    t -= d;
+    s = from;
+  }
+  return path;
+}
+
+/* ── agreement ───────────────────────────────────────────────────────────────────────────────── */
+function confusion(y, p, K = 4) {
+  const M = Array.from({ length: K }, () => new Float64Array(K));
+  for (let i = 0; i < y.length; i++) if (y[i] >= 0) M[y[i]][p[i]]++;
+  return M;
+}
+function kappa(M) {
+  const K = M.length;
+  let n = 0,
+    d = 0;
+  const r = new Float64Array(K),
+    c = new Float64Array(K);
+  for (let a = 0; a < K; a++)
+    for (let b = 0; b < K; b++) {
+      n += M[a][b];
+      r[a] += M[a][b];
+      c[b] += M[a][b];
+      if (a === b) d += M[a][b];
+    }
+  let pe = 0;
+  for (let a = 0; a < K; a++) pe += (r[a] * c[a]) / (n * n);
+  return (d / n - pe) / (1 - pe);
+}
+function sumMatrices(Ms) {
+  const K = Ms[0].length,
+    S = Array.from({ length: K }, () => new Float64Array(K));
+  for (const M of Ms) for (let a = 0; a < K; a++) for (let b = 0; b < K; b++) S[a][b] += M[a][b];
+  return S;
+}
+
+/* 95 % interval by resampling NIGHTS (epochs within a night are not independent). Seeded. */
+function bootstrapKappa(perNight, B = 1000, seed = 1) {
+  let s = seed >>> 0;
+  const rnd = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  const ks = [];
+  for (let b = 0; b < B; b++) {
+    const pick = perNight.map(() => perNight[Math.floor(rnd() * perNight.length)]);
+    ks.push(kappa(sumMatrices(pick)));
+  }
+  ks.sort((a, b) => a - b);
+  return [quantile(ks, 0.025), quantile(ks, 0.975)];
+}
+
+/* ── THE FORMULA: per-stage log-odds = Σ literature-motivated terms, each a line plus ONE bend ────────
+   The owner's route to a licence-clean artifact: a few dozen coefficients on published physiology, not a
+   black box. Each SpO2 term enters as z (per-night normalised) and max(0, z) — a straight line with one bend
+   at the night's median ("minor curve additions"). Time enters as the published shapes: Process-S decay
+   exp(-t/0.25), REM propensity rising with t, and wake at the recording edges. */
+const FORMULA_TERMS = [
+  ['spo2.sd@60s@±10ep', 'short-window SpO2 variability (irregular breathing: REM up, deep down)'],
+  ['spo2.sd@600s@±10ep', 'long-window SpO2 variability'],
+  ['spo2.desat3.count@10m@±10ep', 'desaturation density (REM-predominant in apnoea)'],
+  ['spo2.lnpow.02-.05Hz@±10ep', 'cyclic-desaturation band power (unstable sleep)'],
+  ['spo2.mean@600s@±10ep', 'SpO2 level (slightly lower asleep than awake)'],
+  ['spo2.slope@600s@±10ep', 'SpO2 trend'],
+  ['spo2.lag1ac@10m@±10ep', 'SpO2 autocorrelation (smoothness)'],
+  ['spo2.mad@60s', 'beat-scale SpO2 roughness (movement / wake)']
+];
+
+function formulaBasis(names, X, n, k) {
+  const idx = FORMULA_TERMS.map(([nm]) => names.indexOf(nm));
+  if (idx.some((i) => i < 0))
+    throw new Error(
+      'formula term missing from features: ' +
+        FORMULA_TERMS.filter((_, j) => idx[j] < 0)
+          .map((t) => t[0])
+          .join(', ')
+    );
+  const t = names.indexOf('time_of_night'),
+    m = idx.length * 2 + 3,
+    Z = new Float64Array(n * m),
+    labels = [];
+  for (const [nm] of FORMULA_TERMS) labels.push(nm, `max(0,${nm})`);
+  labels.push('exp(-t/0.25)', 't', 'edges');
+  for (let r = 0; r < n; r++) {
+    let o = r * m;
+    for (const j of idx) {
+      const v = X[r * k + j],
+        z = Number.isFinite(v) ? v : 0;
+      Z[o++] = z;
+      Z[o++] = Math.max(0, z);
+    } // missing → the night's median (0)
+    const tt = X[r * k + t];
+    Z[o++] = Math.exp(-tt / 0.25);
+    Z[o++] = tt;
+    Z[o++] = Math.exp(-tt / 0.05) + Math.exp(-(1 - tt) / 0.05);
+  }
+  return { Z, m, labels };
+}
+
+/* Multinomial logistic (softmax) regression, L2-penalised, full-batch Adam on standardised columns.
+   Returns coefficients in the ORIGINAL (unstandardised) units so the formula can be written down. */
+function fitSoftmax(Z, y, n, m, o = {}) {
+  const K = 4,
+    l2 = o.l2 ?? 1e-3,
+    iters = o.iters ?? 400,
+    lr = o.lr ?? 0.05;
+  const rows = [];
+  for (let i = 0; i < n; i++) if (y[i] >= 0) rows.push(i);
+  const mu = new Float64Array(m),
+    sd = new Float64Array(m);
+  for (const r of rows) for (let j = 0; j < m; j++) mu[j] += Z[r * m + j];
+  for (let j = 0; j < m; j++) mu[j] /= rows.length;
+  for (const r of rows) for (let j = 0; j < m; j++) sd[j] += (Z[r * m + j] - mu[j]) ** 2;
+  for (let j = 0; j < m; j++) sd[j] = Math.sqrt(sd[j] / rows.length) || 1;
+  const W = new Float64Array(K * (m + 1)),
+    M1 = new Float64Array(W.length),
+    M2 = new Float64Array(W.length),
+    G = new Float64Array(W.length),
+    p = new Float64Array(K);
+  for (let it = 1; it <= iters; it++) {
+    G.fill(0);
+    for (const r of rows) {
+      let mx = -Infinity;
+      for (let c = 0; c < K; c++) {
+        let s = W[c * (m + 1) + m];
+        for (let j = 0; j < m; j++) s += W[c * (m + 1) + j] * ((Z[r * m + j] - mu[j]) / sd[j]);
+        p[c] = s;
+        if (s > mx) mx = s;
+      }
+      let S = 0;
+      for (let c = 0; c < K; c++) {
+        p[c] = Math.exp(p[c] - mx);
+        S += p[c];
+      }
+      for (let c = 0; c < K; c++) {
+        const e = p[c] / S - (y[r] === c ? 1 : 0);
+        for (let j = 0; j < m; j++) G[c * (m + 1) + j] += e * ((Z[r * m + j] - mu[j]) / sd[j]);
+        G[c * (m + 1) + m] += e;
+      }
+    }
+    for (let q = 0; q < W.length; q++) {
+      const g = G[q] / rows.length + (q % (m + 1) === m ? 0 : l2 * W[q]);
+      M1[q] = 0.9 * M1[q] + 0.1 * g;
+      M2[q] = 0.999 * M2[q] + 0.001 * g * g;
+      W[q] -= (lr * (M1[q] / (1 - 0.9 ** it))) / (Math.sqrt(M2[q] / (1 - 0.999 ** it)) + 1e-8);
+    }
+  }
+  const B = Array.from({ length: K }, (_, c) => {
+    const w = [];
+    let b = W[c * (m + 1) + m];
+    for (let j = 0; j < m; j++) {
+      const v = W[c * (m + 1) + j] / sd[j];
+      w.push(v);
+      b -= v * mu[j];
+    }
+    return { w, b };
+  });
+  return { schema: 'tepna.stage-formula/1', K, terms: m, coef: B };
+}
+
+function softmaxProba(F, Z, n, m) {
+  const K = F.K,
+    P = new Float64Array(n * K);
+  for (let r = 0; r < n; r++) {
+    let mx = -Infinity;
+    const s = new Float64Array(K);
+    for (let c = 0; c < K; c++) {
+      let v = F.coef[c].b;
+      for (let j = 0; j < m; j++) v += F.coef[c].w[j] * Z[r * m + j];
+      s[c] = v;
+      if (v > mx) mx = v;
+    }
+    let S = 0;
+    for (let c = 0; c < K; c++) {
+      s[c] = Math.exp(s[c] - mx);
+      S += s[c];
+    }
+    for (let c = 0; c < K; c++) P[r * K + c] = s[c] / S;
+  }
+  return P;
+}
+
+/* ── VIRTUAL OXIMETER: one SpO2 device for every cohort (brief §6, v9) ─────────────────────────────
+   Labs differ in averaging time (2–16 s), resolution (whole % vs decimals) and sampling; the variability
+   and desaturation features measure those device habits, so they do not carry across labs. Harmonise
+   every night to the same device: per-second SpO2 → centred 8 s moving mean over the measured seconds
+   (so every source ends at least that smooth) → rounded to whole percent. Missing stays missing (§∅). */
+function harmonizeSpo2(d, avgS = 8) {
+  const n = d.length,
+    out = new Float64Array(n).fill(NaN),
+    h = avgS >> 1;
+  for (let i = 0; i < n; i++) {
+    if (!Number.isFinite(d[i])) continue;
+    let s = 0,
+      q = 0;
+    for (let j = Math.max(0, i - h); j < Math.min(n, i + avgS - h); j++)
+      if (Number.isFinite(d[j])) {
+        s += d[j];
+        q++;
+      }
+    out[i] = Math.round(s / q);
+  }
+  return out;
+}
+
+/* One export list, no `export function` and no `export const`: the owned bundler (tools/build-core.js, ESM
+   phase 1) leaves `export function` in place (a syntax error inside the module wrapper) and rewrites
+   `export const X =` into `__exports.X =`, which removes the local binding every later reference needs. Plain declarations + this list keep node, tests and the
+   bundle on one file. */
+__exports.bandPower = bandPower; __exports.withContext = withContext; __exports.blockLayout = blockLayout; __exports.nightFeatures = nightFeatures; __exports.makeBins = makeBins; __exports.binMatrix = binMatrix; __exports.fitGBDT = fitGBDT; __exports.predictProba = predictProba; __exports.transitions = transitions; __exports.viterbi = viterbi; __exports.hsmmFit = hsmmFit; __exports.hsmmViterbi = hsmmViterbi; __exports.confusion = confusion; __exports.kappa = kappa; __exports.sumMatrices = sumMatrices; __exports.bootstrapKappa = bootstrapKappa; __exports.formulaBasis = formulaBasis; __exports.fitSoftmax = fitSoftmax; __exports.softmaxProba = softmaxProba; __exports.harmonizeSpo2 = harmonizeSpo2; __exports.EPOCH_S = EPOCH_S; __exports.STAGES = STAGES; __exports.STAGE_INDEX = STAGE_INDEX; __exports.MOTION_BIT_G = MOTION_BIT_G; __exports.BLOCKS = BLOCKS; __exports.CONTEXT_EPOCHS = CONTEXT_EPOCHS; __exports.FORMULA_TERMS = FORMULA_TERMS;
+
+});})();</script>
+<script data-inline-src="tools/seqnet-infer.mjs">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("tools/seqnet-infer.mjs",function(__require,__exports){
+/* Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ════════════════════════════════════════════════════════════════════════
+ * seqnet-infer.mjs — run the stage-lab control net (seqnet.py's TCN + biGRU + Viterbi) in plain JS with no runtime library, so a trained stager can ship inside a bundled offline Tepna instrument.
+ *
+ * The architecture: 1×1 stem → six residual dilated-conv blocks → bidirectional GRU → linear → softmax →
+ * HMM Viterbi (ARCHITECTURE-PRINCIPLES §0: browser-native, no install, no network).
+ *
+ * Weights come from `seqnet_export.py` as `tepna-seqnet/1` JSON: PyTorch state_dict names, shapes
+ * and flat float32 data. Layouts here are [T][C] row-major Float32Arrays; PyTorch's are [B][C][T]
+ * for convs and [B][T][C] for the GRU — the transposes are folded into the index arithmetic.
+ *
+ * PyTorch semantics reproduced exactly (the parity test holds the port to 1e-4 on golden vectors):
+ *   Conv1d k=5 dilation d padding 2d ('same' length), GroupNorm(8, 64) over (channels-in-group × T)
+ *   with eps 1e-5, exact (erf) GELU, GRU gate order (r, z, n) with n = tanh(W_in x + b_in + r ⊙ (W_hn h + b_hn)),
+ *   h' = (1 − z) ⊙ n + z ⊙ h; the backward direction runs the sequence reversed and is concatenated after
+ *   the forward half. Dropout is identity (eval mode).
+ */
+
+/** Exact erf (W. J. Cody's rational approximation, |err| < 1e-15), so GELU matches torch's erf GELU. */
+function erf(x) {
+  const ax = Math.abs(x);
+  let r;
+  if (ax < 0.5) {
+    const t = x * x;
+    const p = [3.1611237438705656, 1.13864154151050156e2, 3.77485237685302021e2, 3.20937758913846947e3, 1.85777706184603153e-1];
+    const q = [2.36012909523441209e1, 2.44024637934444173e2, 1.28261652607737228e3, 2.84423683343917062e3];
+    let xn = p[4] * t,
+      xd = t;
+    for (let i = 0; i < 3; i++) {
+      xn = (xn + p[i]) * t;
+      xd = (xd + q[i]) * t;
+    }
+    return (x * (xn + p[3])) / (xd + q[3]);
+  }
+  if (ax <= 4) {
+    const p = [
+      5.64188496988670089e-1, 8.88314979438837594, 6.61191906371416295e1, 2.98635138197400131e2, 8.8195222124176909e2, 1.71204761263407058e3, 2.05107837782607147e3, 1.23033935479799725e3,
+      2.15311535474403846e-8
+    ];
+    const q = [1.57449261107098347e1, 1.17693950891312499e2, 5.37181101862009858e2, 1.62138957456669019e3, 3.29079923573345963e3, 4.36261909014324716e3, 3.43936767414372164e3, 1.23033935480374942e3];
+    let xn = p[8] * ax,
+      xd = ax;
+    for (let i = 0; i < 7; i++) {
+      xn = (xn + p[i]) * ax;
+      xd = (xd + q[i]) * ax;
+    }
+    r = (xn + p[7]) / (xd + q[7]);
+    const xsq = Math.trunc(ax * 16) / 16,
+      del = (ax - xsq) * (ax + xsq);
+    r = 1 - Math.exp(-xsq * xsq) * Math.exp(-del) * r;
+  } else {
+    const p = [3.05326634961232344e-1, 3.60344899949804439e-1, 1.25781726111229246e-1, 1.60837851487422766e-2, 6.58749161529837803e-4, 1.63153871373020978e-2];
+    const q = [2.56852019228982242, 1.87295284992346725, 5.27905102951428412e-1, 6.05183413124413191e-2, 2.33520497626869185e-3];
+    const t = 1 / (ax * ax);
+    let xn = p[5] * t,
+      xd = t;
+    for (let i = 0; i < 4; i++) {
+      xn = (xn + p[i]) * t;
+      xd = (xd + q[i]) * t;
+    }
+    r = (t * (xn + p[4])) / (xd + q[4]);
+    r = (0.5641895835477563 - r) / ax;
+    const xsq = Math.trunc(ax * 16) / 16,
+      del = (ax - xsq) * (ax + xsq);
+    r = 1 - Math.exp(-xsq * xsq) * Math.exp(-del) * r;
+  }
+  return x < 0 ? -r : r;
+}
+const gelu = (x) => 0.5 * x * (1 + erf(x / Math.SQRT2));
+const sigmoid = (x) => 1 / (1 + Math.exp(-x));
+
+/** Parse the exported JSON into typed arrays keyed by state_dict name. */
+function loadWeights(json) {
+  const w = {};
+  for (const [name, { shape, data }] of Object.entries(json.layers)) w[name] = { shape, data: Float32Array.from(data) };
+  return { arch: json.arch, meta: json.meta, w };
+}
+
+/** 1×1 conv: X[T][cin] → Y[T][cout]. weight [cout][cin][1], bias [cout]. */
+function conv1x1(X, T, cin, weight, bias, cout) {
+  const Y = new Float32Array(T * cout);
+  for (let t = 0; t < T; t++) {
+    const xo = t * cin,
+      yo = t * cout;
+    for (let o = 0; o < cout; o++) {
+      let s = bias[o];
+      const wo = o * cin;
+      for (let i = 0; i < cin; i++) s += weight[wo + i] * X[xo + i];
+      Y[yo + o] = s;
+    }
+  }
+  return Y;
+}
+
+/** Dilated 'same' conv, kernel k, dilation d, padding d·(k−1)/2: X[T][C] → Y[T][C]. weight [C][C][k]. */
+function convDilated(X, T, C, k, d, weight, bias) {
+  const Y = new Float32Array(T * C),
+    pad = (d * (k - 1)) / 2;
+  for (let t = 0; t < T; t++) {
+    const yo = t * C;
+    for (let o = 0; o < C; o++) {
+      let s = bias[o];
+      const wo = o * C * k;
+      for (let j = 0; j < k; j++) {
+        const tt = t - pad + j * d;
+        if (tt < 0 || tt >= T) continue;
+        const xo = tt * C,
+          wj = wo + j;
+        for (let i = 0; i < C; i++) s += weight[wj + i * k] * X[xo + i];
+      }
+      Y[yo + o] = s;
+    }
+  }
+  return Y;
+}
+
+/** GroupNorm over (channels-in-group × T), per sample, then affine. In place on a [T][C] array. */
+function groupNorm(X, T, C, groups, eps, gamma, beta) {
+  const per = C / groups;
+  for (let g = 0; g < groups; g++) {
+    const c0 = g * per,
+      c1 = c0 + per;
+    let mean = 0;
+    for (let t = 0; t < T; t++) for (let c = c0; c < c1; c++) mean += X[t * C + c];
+    mean /= T * per;
+    let v = 0;
+    for (let t = 0; t < T; t++)
+      for (let c = c0; c < c1; c++) {
+        const dlt = X[t * C + c] - mean;
+        v += dlt * dlt;
+      }
+    const inv = 1 / Math.sqrt(v / (T * per) + eps);
+    for (let t = 0; t < T; t++)
+      for (let c = c0; c < c1; c++) {
+        const i = t * C + c;
+        X[i] = (X[i] - mean) * inv * gamma[c] + beta[c];
+      }
+  }
+  return X;
+}
+
+/** One residual block: x + c2(gelu(gn(c1(x)))). */
+function block(X, T, C, k, d, w, i, groups, eps) {
+  const p = `blocks.${i}.`;
+  const h = convDilated(X, T, C, k, d, w[p + 'c1.weight'].data, w[p + 'c1.bias'].data);
+  groupNorm(h, T, C, groups, eps, w[p + 'n.weight'].data, w[p + 'n.bias'].data);
+  for (let j = 0; j < h.length; j++) h[j] = gelu(h[j]);
+  const y = conv1x1(h, T, C, w[p + 'c2.weight'].data, w[p + 'c2.bias'].data, C);
+  for (let j = 0; j < y.length; j++) y[j] += X[j];
+  return y;
+}
+
+/** One GRU direction. X[T][C] → H[T][C]; `reverse` runs t from T−1 down and writes into the same t. */
+function gruDirection(X, T, C, Wih, Whh, bih, bhh, reverse) {
+  const H = new Float32Array(T * C),
+    h = new Float32Array(C),
+    gi = new Float32Array(3 * C),
+    gh = new Float32Array(3 * C);
+  for (let step = 0; step < T; step++) {
+    const t = reverse ? T - 1 - step : step,
+      xo = t * C;
+    for (let g = 0; g < 3 * C; g++) {
+      let si = bih[g],
+        sh = bhh[g];
+      const wo = g * C;
+      for (let i = 0; i < C; i++) {
+        si += Wih[wo + i] * X[xo + i];
+        sh += Whh[wo + i] * h[i];
+      }
+      gi[g] = si;
+      gh[g] = sh;
+    }
+    for (let c = 0; c < C; c++) {
+      const r = sigmoid(gi[c] + gh[c]);
+      const z = sigmoid(gi[C + c] + gh[C + c]);
+      const n = Math.tanh(gi[2 * C + c] + r * gh[2 * C + c]);
+      h[c] = (1 - z) * n + z * h[c];
+    }
+    H.set(h, xo);
+  }
+  return H;
+}
+
+/**
+ * Forward pass. X: Float32Array [T][kin] (already tensorised: features, missing fraction, presence flags).
+ * Returns { logits: [T][K], proba: [T][K], hidden: [T][2ch] } as Float32Arrays, plus T and K.
+ */
+function seqnetForward(model, X, T, opts = {}) {
+  const { arch, w } = model;
+  const C = arch.ch,
+    K = arch.K,
+    k = arch.k,
+    groups = arch.groupnorm_groups,
+    eps = arch.gn_eps;
+  const kin = w['stem.weight'].shape[1];
+  if (X.length !== T * kin) throw new Error(`seqnetForward: X has ${X.length} values, expected T·kin = ${T}·${kin}`);
+  let h = conv1x1(X, T, kin, w['stem.weight'].data, w['stem.bias'].data, C);
+  const taps = { stem: opts.taps ? Float32Array.from(h) : null };
+  arch.dilations.forEach((d, i) => {
+    h = block(h, T, C, k, d, w, i, groups, eps);
+    if (opts.taps && i === 0) taps.block0 = Float32Array.from(h);
+  });
+  if (opts.taps) taps.blocks = Float32Array.from(h);
+  const fwd = gruDirection(h, T, C, w['gru.weight_ih_l0'].data, w['gru.weight_hh_l0'].data, w['gru.bias_ih_l0'].data, w['gru.bias_hh_l0'].data, false);
+  const bwd = gruDirection(h, T, C, w['gru.weight_ih_l0_reverse'].data, w['gru.weight_hh_l0_reverse'].data, w['gru.bias_ih_l0_reverse'].data, w['gru.bias_hh_l0_reverse'].data, true);
+  const hidden = new Float32Array(T * 2 * C);
+  for (let t = 0; t < T; t++) {
+    hidden.set(fwd.subarray(t * C, t * C + C), t * 2 * C);
+    hidden.set(bwd.subarray(t * C, t * C + C), t * 2 * C + C);
+  }
+  const logits = conv1x1(hidden, T, 2 * C, w['out.weight'].data, w['out.bias'].data, K);
+  const proba = new Float32Array(T * K);
+  for (let t = 0; t < T; t++) {
+    let m = -Infinity;
+    for (let c = 0; c < K; c++) m = Math.max(m, logits[t * K + c]);
+    let s = 0;
+    for (let c = 0; c < K; c++) {
+      const e = Math.exp(logits[t * K + c] - m);
+      proba[t * K + c] = e;
+      s += e;
+    }
+    for (let c = 0; c < K; c++) proba[t * K + c] /= s;
+  }
+  return { logits, proba, hidden, T, K, taps };
+}
+
+/**
+ * seqnet.py / stage-lab.mjs fold hash: the night's 5-fold bucket from its cohort + id (31-multiplier string hash,
+ * uint32). With `groupSubjects`, SHHS1 and SHHS2 nights of one subject share a key so they land in one fold.
+ */
+function foldOf(cohort, nid, groupSubjects) {
+  const key = groupSubjects && /^shhs[12]-/.test(nid) ? 'shhs' + nid.replace(/^shhs[12]-/, '') : cohort + nid;
+  let h = 0;
+  for (const ch of key) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0;
+  return h % 5;
+}
+
+/** HMM Viterbi exactly as seqnet.py: D = log(P + 1e-9) − logPrior, D[0] += logPrior, then max-product with logT. */
+function viterbi(P, T, K, logT, logPrior) {
+  const D = new Float64Array(T * K),
+    B = new Int32Array(T * K);
+  for (let c = 0; c < K; c++) D[c] = Math.log(P[c] + 1e-9) - logPrior[c] + logPrior[c];
+  for (let t = 1; t < T; t++) {
+    for (let c = 0; c < K; c++) {
+      let best = -Infinity,
+        arg = 0;
+      for (let p = 0; p < K; p++) {
+        const v = D[(t - 1) * K + p] + logT[p * K + c];
+        if (v > best) {
+          best = v;
+          arg = p;
+        }
+      }
+      D[t * K + c] = Math.log(P[t * K + c] + 1e-9) - logPrior[c] + best;
+      B[t * K + c] = arg;
+    }
+  }
+  const path = new Int32Array(T);
+  let arg = 0,
+    best = -Infinity;
+  for (let c = 0; c < K; c++)
+    if (D[(T - 1) * K + c] > best) {
+      best = D[(T - 1) * K + c];
+      arg = c;
+    }
+  path[T - 1] = arg;
+  for (let t = T - 1; t > 0; t--) path[t - 1] = B[t * K + path[t]];
+  return path;
+}
+
+/* One export list, no `export function` / `export const`: the owned bundler leaves `export function` in place and
+   rewrites `export const X =` to `__exports.X =` (dropping the local binding); plain declarations + this list serve
+   node, the tests and the OxyDex bundle alike. */
+__exports.erf = erf; __exports.loadWeights = loadWeights; __exports.seqnetForward = seqnetForward; __exports.foldOf = foldOf; __exports.viterbi = viterbi;
+
+});})();</script>
+<script data-inline-src="oxydex-stager.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("oxydex-stager.js",function(__require,__exports){
+/* Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ════════════════════════════════════════════════════════════════════════
+ * oxydex-stager.js — sleep stages for an OxyDex night from the control net: the night's 1 Hz SpO₂ and
+ * pulse series → the stage-lab feature layout → a `tepna-seqnet/1` weights file the user loads → the
+ * JS port of the net → Viterbi → one stage per 30 s epoch.
+ *
+ * THE WEIGHTS ARE NOT IN THIS REPO. The control net is trained on data under access agreements, so the
+ * instrument carries the MECHANISM only: a user loads a weights file through the "Load stager weights"
+ * input, every loaded night is staged in the browser, and the card says "control model — not shipped"
+ * with the file's own provenance (training tag, fold, inner-validation κ). Nothing is fetched.
+ *
+ * WHAT THE NET SEES, AND WHAT IT DOES NOT. SpO₂ (harmonised the lab's way: 8 s centred mean, whole
+ * percent, 50–100 else missing) and pulse (30–200 bpm else missing). The ring's motion byte is NOT fed:
+ * the lab's motion block was trained on wrist-accelerometer activity and no training cohort carries the
+ * ring byte, so feeding it would be an untrained input dressed as a measurement. The motion block is
+ * ABSENT (its presence flag is 0 and its columns are missing), exactly as for the PSG cohorts the net
+ * learned on. The columns the net consumes are selected BY NAME from the weights file's own list; a
+ * name the layout does not produce is a refusal, never a zero.
+ *
+ * Pure except the DOM wiring at the bottom, which only runs inside a page. Exports through one list
+ * (the owned bundler leaves `export function` in place and strips `export const`'s binding).
+ */
+const { EPOCH_S, STAGES, harmonizeSpo2, nightFeatures } = __require('tools/stage-lab-core.mjs');
+const { loadWeights, seqnetForward, viterbi } = __require('tools/seqnet-infer.mjs');
+
+const BLOCKS_USED = ['spo2', 'pulse', 'motion'];
+const BLOCK_PREFIXES = ['spo2.', 'pulse.', 'motion.'];
+const WEIGHTS_FORMAT = 'tepna-seqnet/1';
+const CLIP = 8;
+
+/** A 1 Hz series (OxyDex: numbers or null per second) → Float64Array with NaN for missing/out-of-range. */
+function seriesToSignal(series, lo, hi) {
+  const n = series ? series.length : 0;
+  const d = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const v = series[i];
+    d[i] = typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : NaN;
+  }
+  return d;
+}
+
+/**
+ * The stage-lab night contract from OxyDex's per-night series. `nEpochs` is the whole-epoch count;
+ * a trailing partial epoch is dropped (the lab does the same). Motion is deliberately absent (header).
+ */
+function nightFromSeries(spo2Series, hrSeries) {
+  const len = Math.max(spo2Series ? spo2Series.length : 0, hrSeries ? hrSeries.length : 0);
+  const nEpochs = Math.floor(len / EPOCH_S);
+  if (nEpochs < 1) return null;
+  const signals = {};
+  if (spo2Series && spo2Series.length) signals.spo2 = { fs: 1, data: harmonizeSpo2(seriesToSignal(spo2Series, 50, 100)) };
+  if (hrSeries && hrSeries.length) signals.pulse = { fs: 1, data: seriesToSignal(hrSeries, 30, 200) };
+  return { nEpochs, signals };
+}
+
+/** Parse + validate a weights file. Throws with a plain reason; never returns a half-loaded model. */
+function parseWeights(json) {
+  if (!json || json.format !== WEIGHTS_FORMAT) throw new Error(`not a ${WEIGHTS_FORMAT} weights file`);
+  const meta = json.meta || {};
+  if (!Array.isArray(meta.names) || !meta.names.length) throw new Error('weights file carries no feature-name list (meta.names)');
+  if (!Array.isArray(meta.logT) || !Array.isArray(meta.logPrior)) throw new Error('weights file carries no HMM priors (meta.logT / meta.logPrior)');
+  const model = loadWeights(json);
+  if (!model.w['stem.weight']) throw new Error('weights file has no stem.weight');
+  const kin = model.w['stem.weight'].shape[1];
+  const prefixes = meta.block_prefixes || BLOCK_PREFIXES;
+  if (kin !== meta.names.length + 1 + prefixes.length) throw new Error(`stem width ${kin} ≠ ${meta.names.length} names + 1 missing-fraction + ${prefixes.length} presence flags`);
+  return { model, meta, prefixes };
+}
+
+/**
+ * seqnet.py's tensorise, by NAME: the kept columns in the model's order, the per-epoch missing fraction,
+ * one presence flag per block (1 when any epoch of any of the block's kept columns is finite), NaN → 0,
+ * clip ±8. A name the layout does not produce is a refusal.
+ */
+function tensoriseByNames(feat, names, prefixes) {
+  const idx = new Map(feat.names.map((nm, j) => [nm, j]));
+  const cols = names.map((nm) => {
+    const j = idx.get(nm);
+    if (j === undefined) throw new Error(`the weights file expects feature "${nm}", which this layout does not produce`);
+    return j;
+  });
+  const T = feat.X.length / feat.k;
+  const kk = cols.length;
+  const kin = kk + 1 + prefixes.length;
+  const presence = prefixes.map((pre) => {
+    let seen = false;
+    for (let c = 0; c < kk && !seen; c++) {
+      if (!names[c].startsWith(pre)) continue;
+      for (let t = 0; t < T; t++)
+        if (Number.isFinite(feat.X[t * feat.k + cols[c]])) {
+          seen = true;
+          break;
+        }
+    }
+    return seen ? 1 : 0;
+  });
+  const X = new Float32Array(T * kin);
+  for (let t = 0; t < T; t++) {
+    let miss = 0;
+    for (let c = 0; c < kk; c++) {
+      let v = feat.X[t * feat.k + cols[c]];
+      if (!Number.isFinite(v)) {
+        miss++;
+        v = 0;
+      }
+      X[t * kin + c] = v > CLIP ? CLIP : v < -CLIP ? -CLIP : v;
+    }
+    X[t * kin + kk] = miss / kk;
+    for (let b = 0; b < prefixes.length; b++) X[t * kin + kk + 1 + b] = presence[b];
+  }
+  return { X, kin, T, presence };
+}
+
+/** Stage one night with a parsed weights file. Returns null when the night has no whole epoch. */
+function stageNight(parsed, night) {
+  if (!night) return null;
+  const { model, meta, prefixes } = parsed;
+  const feat = nightFeatures(night, BLOCKS_USED);
+  const { X, T, presence } = tensoriseByNames(feat, meta.names, prefixes);
+  const r = seqnetForward(model, X, T);
+  const K = r.K;
+  const logT = Float64Array.from(meta.logT.flat());
+  const logPrior = Float64Array.from(meta.logPrior);
+  const stages = viterbi(r.proba, T, K, logT, logPrior);
+  const counts = new Array(K).fill(0);
+  for (let t = 0; t < T; t++) counts[stages[t]]++;
+  const minutes = {};
+  STAGES.forEach((s, i) => {
+    minutes[s.toLowerCase()] = (counts[i] * EPOCH_S) / 60;
+  });
+  return {
+    epochSec: EPOCH_S,
+    nEpochs: T,
+    stages,
+    proba: r.proba,
+    minutes,
+    presence: { spo2: presence[0], pulse: presence[1], motion: presence[2] },
+    model: {
+      tag: meta.tag || null,
+      fold: meta.fold != null ? meta.fold : null,
+      innerValKappa: meta.inner_val_kappa != null ? meta.inner_val_kappa : null,
+      classWeight: meta.class_weight || null,
+      cohorts: typeof meta.cohorts === 'string' ? meta.cohorts.split(',').length : null,
+      random: !!meta.random
+    }
+  };
+}
+
+function stageFromSeries(parsed, spo2Series, hrSeries) {
+  return stageNight(parsed, nightFromSeries(spo2Series, hrSeries));
+}
+
+/** A hypnogram strip as inline SVG: one lane per stage (Wake top … REM bottom), one bar per epoch. */
+function hypnogramSvg(stages, width, height) {
+  const T = stages.length;
+  const W = width || 640;
+  const H = height || 56;
+  const laneH = H / STAGES.length;
+  const colours = ['#c0392b', '#2980b9', '#1f4e79', '#8e44ad'];
+  let bars = '';
+  let run = 0;
+  for (let t = 0; t <= T; t++) {
+    if (t === T || stages[t] !== stages[run]) {
+      const s = stages[run];
+      const x = (run / T) * W;
+      const w = ((t - run) / T) * W;
+      bars += `<rect x="${x.toFixed(2)}" y="${(s * laneH).toFixed(2)}" width="${Math.max(w, 0.5).toFixed(2)}" height="${laneH.toFixed(2)}" fill="${colours[s]}"/>`;
+      run = t;
+    }
+  }
+  const labels = STAGES.map((s, i) => `<text x="2" y="${(i * laneH + laneH * 0.72).toFixed(2)}" font-size="${Math.min(10, laneH - 2).toFixed(1)}" fill="#fff" opacity="0.85">${s}</text>`).join('');
+  return `<svg class="hypnogram" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="hypnogram, ${T} epochs">${bars}${labels}</svg>`;
+}
+
+/* ── DOM wiring: the weights input stages every loaded night, then re-renders ─────────────────────── */
+function wireStager(doc, win) {
+  const inp = doc.getElementById('stagerWeightsInput');
+  const status = doc.getElementById('stagerStatus');
+  if (!inp || inp._wired) return;
+  inp._wired = 1;
+  const setS = (msg, ok) => {
+    if (status) {
+      status.textContent = msg;
+      status.classList.toggle('ok', !!ok);
+    }
+  };
+  inp.addEventListener('change', function () {
+    const file = this.files && this.files[0];
+    this.value = '';
+    if (!file) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      let parsed;
+      try {
+        parsed = parseWeights(JSON.parse(rd.result));
+      } catch (e) {
+        setS('⚠ ' + e.message, false);
+        return;
+      }
+      win._stagerModel = parsed;
+      const nights = win.allNights ? Object.values(win.allNights) : [];
+      let staged = 0;
+      for (const n of nights) {
+        try {
+          n.stager = stageFromSeries(parsed, n.spo2Series, n.hrSeries);
+          n.stagerError = n.stager ? null : 'no whole 30 s epoch';
+          if (n.stager) staged++;
+        } catch (e) {
+          n.stager = null;
+          n.stagerError = e.message;
+        }
+      }
+      const m = parsed.meta;
+      setS(
+        `✓ ${m.tag || 'weights'}${m.fold != null ? ' · fold ' + m.fold : ''}${m.inner_val_kappa != null ? ' · inner-val κ ' + Number(m.inner_val_kappa).toFixed(3) : ''} · ${staged}/${nights.length} night(s) staged · control model, not shipped`,
+        true
+      );
+      try {
+        if (typeof win.renderAll === 'function' && nights.length) win.renderAll();
+      } catch (_e) {
+        /* the card re-renders on the next load */
+      }
+    };
+    rd.onerror = () => setS('⚠ could not read file', false);
+    rd.readAsText(file);
+  });
+}
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+  const w = /** @type {any} */ (window);
+  w.OxyDexStager = { parseWeights, stageFromSeries, stageNight, nightFromSeries, hypnogramSvg };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => wireStager(document, w));
+  else wireStager(document, w);
+}
+
+__exports.BLOCKS_USED = BLOCKS_USED; __exports.BLOCK_PREFIXES = BLOCK_PREFIXES; __exports.WEIGHTS_FORMAT = WEIGHTS_FORMAT; __exports.seriesToSignal = seriesToSignal; __exports.nightFromSeries = nightFromSeries; __exports.parseWeights = parseWeights; __exports.tensoriseByNames = tensoriseByNames; __exports.stageNight = stageNight; __exports.stageFromSeries = stageFromSeries; __exports.hypnogramSvg = hypnogramSvg; __exports.wireStager = wireStager;
+
+});})();</script>
 <script data-inline-src="oxydex-app.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("oxydex-app.js",function(__require,__exports){
 /* ════ OxyDex · APP · UI HELPERS · EXPORTS (oxydex-app.js) ──────────────────────────────────────────────────
  * Copyright 2026 Michal Planicka
@@ -29684,7 +31193,7 @@ window.oxyRenderSpo2w = function (res, stem) {
 // FOLLOWUPS-II item 3: inject app's UI hooks into the DSP (it no longer reaches them as bare globals).
 if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ setStatus, setProgress, showError });
 
-});__M.require("oxydex-app.js");})();</script>
+});__M.require("oxydex-stager.js");__M.require("oxydex-app.js");})();</script>
 </div><!-- /.main-wrap -->
 </div><!-- /.app -->
 

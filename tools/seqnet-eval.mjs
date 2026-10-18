@@ -252,8 +252,8 @@ export function verdictSample() {
     { cohort: 'a', id: '2', n: 850, maxDelta: 9e-4 }
   ];
   return parityVerdict(nights, {
-    kappaJs: 0.6081,
-    kappaPy: 0.6083,
+    kappaJs: 0.5,
+    kappaPy: 0.501,
     evidence: ['--verdict-sample: planted per-night deltas, no model read'],
     commit: null,
     commitReason: '--verdict-sample: planted nights, no model read, no code identity claimed'
