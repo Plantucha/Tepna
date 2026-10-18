@@ -53,11 +53,25 @@
  * are numbers about a person's nights) and a run scores only the nights the ledger lacks, then pools ALL
  * rows for the verdict. The corpus stays where it is; nothing here is committed data.
  *
+ * THREE POPULATIONS, ONE VERDICT EACH (TCH-REFERENCE-POPULATIONS §3): all eligible nights (the headline),
+ * the rolling last 30 (a trend, never the headline), and the solid stratum — the nights whose own
+ * `SOLID-VERDICT.json` reads PASS, read from the captures tree read-only. A night with no verdict file is
+ * OUTSIDE the stratum, not a failed night.
+ *
+ * `--axis host|wall` IS THE PAIRED COMPARISON, and `host` is what the tool has always done: every corner
+ * already rides the host-disciplined axis through its own DSP (`tMsAt` → `correctionAt`, `relSec`), so
+ * `wall` is the counterfactual that makes `DexClock.hostAxis` refuse and leaves each device on its raw
+ * counter. See `axisPatch` for the measurement behind that sentence. A LEDGER ROW IS KEYED BY NIGHT AND
+ * AXIS, so a wall row can never satisfy a host run.
+ *
  *   node tools/tch-firmware-reference.mjs --selftest
  *   node tools/tch-firmware-reference.mjs --verdict-sample            # corpus-free shape the adoption gate reads
  *   node tools/tch-firmware-reference.mjs --dir <captures root> [--night 2026-09-25]… [--ledger f.jsonl] [--json]
+ *   node tools/tch-firmware-reference.mjs --dir <root> --axis wall --ledger wall.jsonl --json
+ *   node tools/tch-firmware-reference.mjs --dir <root> --solid auto | --solid <file|2026-09-28,2026-09-30>
  * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
@@ -108,8 +122,10 @@ export function withinBand(est, truth) {
   return Number.isFinite(est) && Number.isFinite(truth) && (Math.abs(est - truth) <= BAND_ABS || Math.abs(est - truth) <= BAND_REL * truth);
 }
 /* Consensus reference: pairs of consecutive self↔firmware matches whose intervals agree within AGREE_MS.
-   selfMs/selfNN: our beat times (host ms) and the NN interval ending at each; fwMs/fwRR: firmware beat
-   times already on the host axis (lag-corrected) and its intervals. Returns [[sec, hr], …]. */
+   selfMs/selfNN: our beat times (wall-clock ms on the ECG record's own axis — see the dated note at
+   the call site, which measures why that is NOT `tMsAt`'s axis) and the NN interval ending at each;
+   fwMs/fwRR: firmware beat times carried onto the same axis by the coincidence lag, and its
+   intervals. Returns [[sec, hr], …]. */
 export function consensusPairs(selfMs, selfNN, fwMs, fwRR, tolMs = 150) {
   const P = pairByTime(selfMs, fwMs, tolMs).pairs,
     out = [];
@@ -195,30 +211,217 @@ export function pool(rows) {
   out.medians.rho = { hv: med((r) => r.rho.hv), ho: med((r) => r.rho.ho), vo: med((r) => r.rho.vo) };
   return out;
 }
+/* ── the axis switch and the three populations (TCH-REFERENCE-POPULATIONS §5.1) ─────────────────── */
+export const AXES = ['host', 'wall'];
+export const ROLLING_N = 30;
+export const AXIS_WALL_REASON = '--axis wall: host discipline suppressed for the paired comparison';
+export const SOLID_GATE = 'solid-night';
+
+/* WHO ALREADY RIDES THE HOST AXIS — measured in the source before this option was written, because
+   the brief's §2.3 reads as if nobody does. `sensor-trio-worker.js` indeed calls no `DexClock.hostAxis`,
+   and it does not need to: the DSPs it delegates to own that call. ECGDex's `tMsAt` rides
+   `correctionAt` (`ecgdex-dsp.js:5510`, and `ecgHrMap` uses `rec.tMsAt` for the beat's position in
+   time), and PpgDex builds `relSec` from it (`ppgdex-dsp.js:1268`), which is what carries the Verity
+   and the O2Ring corners. This tool loads `clock.js` into its realm, so EVERY corner it joins is
+   already host-disciplined today.
+
+   `--axis wall` is therefore the COUNTERFACTUAL leg of §3's paired comparison, not the status quo: it
+   makes `hostAxis` return its own documented refusal, and each parser then falls back to the raw
+   device counter — "ok:false ⇒ caller keeps the raw device axis" (`clock.js`, hostAxis's contract).
+   NOTHING HERE CORRECTS A RATE (Clock Contract §7 forbids a node hand-rolling one); the only lever is
+   whether the one correction the DSPs already own is allowed to run. In ECGDex that one refusal moves
+   both legs at once — `fs` stays on the device clock and `tMsAt` stays on the device counter — which is
+   exactly the "no host discipline" leg and is stated here so nobody reads `wall` as time-only.
+
+   In BOTH modes the wrapper RECORDS each call, so a night can report whether a second clock existed at
+   all. Clock Contract §7: read `independent`, never a ~0 ppm — AND read `deviceDrawn` first, because a
+   host column synthesized from the device stamp can read `independent` while carrying no second clock
+   at all (`CK_AXIS_DRAWN_SHARE` in `clock.js`). A drawn axis may be PLACED on a host timeline, never
+   SPENT as a clock, so the summary tallies it as its own outcome instead of as independence. This tool
+   REPORTS those flags beside the ppm and applies no rate itself. */
+export function axisPatch(ctx, axis) {
+  if (AXES.indexOf(axis) < 0) throw new Error('unknown axis "' + axis + '" — one of ' + AXES.join('|'));
+  const D = ctx && ctx.DexClock;
+  if (!D || typeof D.hostAxis !== 'function') return { axis, patched: false, reason: 'the realm carries no DexClock.hostAxis, so there is nothing to discipline or to suppress' };
+  const real = D.hostAxis;
+  ctx.__axis = axis;
+  ctx.__axisCalls = [];
+  ctx.__axisTag = null;
+  const wrapped = function (anchors, opts) {
+    const r = axis === 'wall' ? { ok: false, reason: AXIS_WALL_REASON, n: anchors ? anchors.length : 0 } : real(anchors, opts);
+    ctx.__axisCalls.push({
+      tag: ctx.__axisTag,
+      ok: !!r.ok,
+      n: Number.isFinite(r.n) ? r.n : null,
+      ppm: Number.isFinite(r.ppm) ? r.ppm : null,
+      independent: r.independent === undefined ? null : r.independent,
+      deviceDrawn: r.deviceDrawn === undefined ? null : r.deviceDrawn,
+      drawnShare: Number.isFinite(r.drawnShare) ? r.drawnShare : null
+    });
+    return r;
+  };
+  try {
+    D.hostAxis = wrapped;
+  } catch {
+    /* a frozen export is replaced wholesale below */
+  }
+  if (D.hostAxis !== wrapped) ctx.DexClock = Object.assign({}, D, { hostAxis: wrapped });
+  return { axis, patched: true, reason: null };
+}
+/* What the recorder saw, per corner. `independent` counts, never a mean ppm: a tally of real second
+   clocks is the thing a reader of a corrected axis needs first — and `deviceDrawn` decides FIRST, so a
+   drawn host column is tallied as `drawn` rather than inflating either `independent` or `inert`. */
+export function axisSummary(calls) {
+  const by = {};
+  for (const c of calls || []) {
+    const k = c.tag || 'untagged';
+    if (!by[k]) by[k] = { calls: 0, refused: 0, drawn: 0, independent: 0, inert: 0, _ppm: [] };
+    const s = by[k];
+    s.calls++;
+    if (!c.ok) s.refused++;
+    if (c.deviceDrawn === true) s.drawn++;
+    else if (c.independent === true) s.independent++;
+    else if (c.independent === false) s.inert++;
+    if (c.ppm != null) s._ppm.push(c.ppm);
+  }
+  for (const k of Object.keys(by)) {
+    by[k].ppmMedian = median(by[k]._ppm);
+    delete by[k]._ppm;
+  }
+  return by;
+}
+
+/* THE SOLID STRATUM comes from the box's per-night `SOLID-VERDICT.json`, READ-ONLY (brief §3). A night
+   with no verdict file is OUTSIDE the stratum and is NOT a failed night — ∅: absence is not a 0, and
+   it is not a FAIL either. A file whose gate is not `solid-night` is unreadable here rather than
+   assumed: fail closed, and say how many. */
+export function solidFromDir(dir, nights) {
+  const inSet = [],
+    absent = [],
+    notPass = [],
+    unreadable = [];
+  for (const n of nights || []) {
+    const p = path.join(dir, n, 'SOLID-VERDICT.json');
+    let v = null;
+    try {
+      v = JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch {
+      absent.push(n);
+      continue;
+    }
+    if (!v || v.gate !== SOLID_GATE) unreadable.push(n);
+    else if (v.status === 'PASS') inSet.push(n);
+    else notPass.push(n);
+  }
+  return { nights: inSet, absent, notPass, unreadable, parsed: true, source: 'SOLID-VERDICT.json (gate ' + SOLID_GATE + ', status PASS) under the captures root', reason: null };
+}
+/* `--solid auto` | a path to a list | a comma- or space-separated list of YYYY-MM-DD.
+   A spec that names no night is an ERROR, never an empty stratum: a typo must not read as "no solid
+   nights", which is the examined-nothing shape with a number beside it. */
+export function parseSolidSpec(spec, opts) {
+  opts = opts || {};
+  if (spec == null || spec === '') return { nights: [], parsed: false, source: null, reason: 'no --solid list given' };
+  if (spec === 'auto') {
+    if (!opts.dir) return { nights: [], parsed: false, source: null, reason: '--solid auto needs --dir to find the per-night SOLID-VERDICT.json' };
+    return solidFromDir(opts.dir, opts.nights || []);
+  }
+  let text = spec,
+    source = '--solid <list>';
+  if (fs.existsSync(spec)) {
+    text = fs.readFileSync(spec, 'utf8');
+    source = spec;
+  }
+  const nights = [
+    ...new Set(
+      text
+        .split('\n')
+        .map((l) => l.replace(/#.*$/, ''))
+        .join(' ')
+        .split(/[\s,]+/)
+        .filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t))
+    )
+  ].sort();
+  if (!nights.length) return { nights: [], parsed: false, source: null, reason: 'no YYYY-MM-DD night in --solid ' + JSON.stringify(spec.slice(0, 60)) };
+  return { nights, parsed: true, source, absent: [], notPass: [], unreadable: [], reason: null };
+}
+
+/* The night span a population covers — the date range §6 asks every verdict to carry. */
+export function dateSpan(rows) {
+  /* A DATE range, so only a night that IS a date contributes: a synthetic row's name is not a date,
+     and reporting `synthetic-0 → synthetic-9` as a range would be a shape with no meaning. */
+  const d = (rows || [])
+    .map((r) => r && r.night)
+    .filter((n) => typeof n === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(n))
+    .sort();
+  return { first: d.length ? d[0] : null, last: d.length ? d[d.length - 1] : null };
+}
+/* THREE POPULATIONS, one verdict each (brief §3). `rolling30` is a TREND and never the headline, so
+   it carries its own gate name; `solid` is a STRATUM beside the headline. A listed solid night the run
+   holds no row for is simply not in the population — it was not examined, so it is neither checked nor
+   excluded here, and `listed` says how many the list named. */
+export function selectPopulations(rows, solid) {
+  const byDate = (rows || []).slice().sort((a, b) => (a.night < b.night ? -1 : a.night > b.night ? 1 : 0));
+  const set = new Set((solid && solid.nights) || []);
+  const inSet = byDate.filter((r) => set.has(r.night));
+  return [
+    { name: 'all', gate: 'tch-firmware-reference', label: 'all eligible nights', rows: byDate, listed: null, notRun: null },
+    { name: 'rolling30', gate: 'tch-firmware-reference:rolling30', label: 'rolling last ' + ROLLING_N + ' eligible nights', rows: byDate.slice(-ROLLING_N), listed: null, notRun: null },
+    {
+      name: 'solid',
+      gate: 'tch-firmware-reference:solid',
+      label: 'solid nights only (' + SOLID_GATE + ' PASS)',
+      rows: inSet,
+      listed: set.size,
+      notRun: inSet.length ? null : ((solid && solid.reason) || 'the solid list names ' + set.size + ' night(s) and this run scored none of them') + ' — no solid stratum was examined'
+    }
+  ];
+}
+/* A LEDGER ROW IS KEYED BY NIGHT **AND** AXIS. Without the axis a wall-axis row satisfies a host-axis
+   run and the paired comparison silently compares a population with itself. A legacy row carries no
+   `axis` field and reads as `host`, which is what it was: every row written before this option existed
+   was produced with `clock.js` in the realm, i.e. host-disciplined. */
+export function ledgerKey(night, axis) {
+  return String(night) + '\u0000' + (axis || 'host');
+}
+
 export function verdictObject(P, rows, meta) {
   meta = meta || {};
   const r3 = (x) => (Number.isFinite(x) ? +x.toFixed(3) : null);
+  const span = dateSpan(rows);
+  const axis = meta.axis || 'host';
   let status,
     reason = null;
-  if (P.nights < MIN_NIGHTS) {
+  if (meta.notRun) {
+    status = 'NOT_RUN';
+    reason = meta.notRun;
+  } else if (P.nights < MIN_NIGHTS) {
     status = 'UNDERPOWERED';
-    reason = `${P.nights} night(s) scored < the pre-stated minimum of ${MIN_NIGHTS}`;
+    reason = `${P.nights} night(s) scored < the pre-stated minimum of ${MIN_NIGHTS} · axis ${axis}`;
   } else if (P.classic.frac >= PASS_FRAC) status = 'PASS';
   else {
     status = 'FAIL';
-    reason = `classic hat: ${P.classic.pass}/${P.classic.total} optical night-corners within ±${BAND_ABS} bpm or ±${BAND_REL * 100} % of the reference-measured σ (< ${PASS_FRAC * 100} %); Verity σ̂ ${r3(P.medians.verity.classic)} vs true ${r3(P.medians.verity.trueSd)} bpm, ρ(V,O) ${r3(P.medians.rho.vo)}`;
+    reason = `classic hat: ${P.classic.pass}/${P.classic.total} optical night-corners within ±${BAND_ABS} bpm or ±${BAND_REL * 100} % of the reference-measured σ (< ${PASS_FRAC * 100} %); Verity σ̂ ${r3(P.medians.verity.classic)} vs true ${r3(P.medians.verity.trueSd)} bpm, ρ(V,O) ${r3(P.medians.rho.vo)} · axis ${axis}`;
   }
   const m = {};
   for (const k of KEYS) m[k] = { trueSd: r3(P.medians[k].trueSd), bias: r3(P.medians[k].bias), classic: r3(P.medians[k].classic), correlated: r3(P.medians[k].correlated) };
   return {
     schema: 'tepna.verdict/1',
-    gate: 'tch-firmware-reference',
+    gate: meta.gate || 'tch-firmware-reference',
+    axis,
     scope: 'internal',
     status,
-    population: { checked: P.nights, eligible: rows.length, excluded: rows.length - P.nights },
+    population: {
+      name: meta.population || 'all',
+      checked: P.nights,
+      eligible: rows.length,
+      excluded: rows.length - P.nights,
+      first: span.first,
+      last: span.last,
+      ...(meta.listed == null ? {} : { listed: meta.listed })
+    },
     criterion: { name: 'classic_hat_optical_corners_within_band_fraction', threshold: PASS_FRAC, unit: 'fraction', direction: 'gte' },
     result:
-      status === 'UNDERPOWERED' && !P.nights
+      status === 'NOT_RUN' || (status === 'UNDERPOWERED' && !P.nights)
         ? null
         : {
             classicPassFraction: r3(P.classic.frac),
@@ -280,7 +483,9 @@ export function verdictSample() {
 
 function selftest() {
   const fails = [];
+  let ran = 0;
   const ok = (c, m) => {
+    ran++;
     if (!c) fails.push(m);
   };
   const V = req(path.join(ROOT, 'verdict.js'));
@@ -316,12 +521,102 @@ function selftest() {
   const bad = [{ night: 'x', ok: false, reason: 'no overlap' }];
   const vb = verdictObject(pool(bad), bad, { at: '2026-09-26T20:00:00Z' });
   ok(vb.population.checked === 0 && vb.population.excluded === 1 && V.validate(vb).ok, 'an all-refused run is UNDERPOWERED over checked 0, and says so');
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (13/13)');
+  // 6 · the axis switch: one call site, both modes recorded, and an unknown axis fails closed
+  const fakeReal = (anchors) => ({ ok: true, n: anchors.length, ppm: -20.5, independent: true, correctionAt: () => 5 });
+  const A3 = [
+    { devMs: 0, hostMs: 0 },
+    { devMs: 1000, hostMs: 1001 },
+    { devMs: 2000, hostMs: 2003 }
+  ];
+  const cH = { DexClock: { hostAxis: fakeReal } };
+  ok(axisPatch(cH, 'host').patched === true, 'axisPatch installs on a realm that carries DexClock.hostAxis');
+  cH.__axisTag = 'h10';
+  const rH = cH.DexClock.hostAxis(A3);
+  ok(rH.ok === true && rH.ppm === -20.5 && typeof rH.correctionAt === 'function', 'ANTI-VACUITY · host mode passes the real axis through untouched, `correctionAt` included');
+  const cW = { DexClock: { hostAxis: fakeReal } };
+  axisPatch(cW, 'wall');
+  cW.__axisTag = 'verity';
+  const rW = cW.DexClock.hostAxis(A3);
+  ok(rW.ok === false && rW.reason === AXIS_WALL_REASON && rW.correctionAt === undefined, "wall mode returns hostAxis's OWN refusal shape, so every parser keeps the raw device axis");
+  ok(axisSummary(cH.__axisCalls).h10.independent === 1 && axisSummary(cW.__axisCalls).verity.refused === 1, 'both modes RECORD the call, tagged by corner — `independent`, never a ~0 ppm');
+  /* A DRAWN AXIS IS NOT A SECOND CLOCK, and it arrives wearing independence. Shown to discriminate in
+     both directions on the same recorder: the drawn call lands in `drawn` and NOT in `independent`,
+     while the call above (no `deviceDrawn`) still counts as independent. */
+  const cD = { DexClock: { hostAxis: () => ({ ok: true, n: 3, ppm: -20.5, independent: true, deviceDrawn: true, drawnShare: 0.91, correctionAt: () => 0 }) } };
+  axisPatch(cD, 'host');
+  cD.__axisTag = 'o2';
+  cD.DexClock.hostAxis(A3);
+  const sD = axisSummary(cD.__axisCalls).o2;
+  ok(sD.drawn === 1 && sD.independent === 0 && sD.inert === 0, 'a drawn host column tallies as `drawn`, never as independence (Clock Contract §7)');
+  let threw = null;
+  try {
+    axisPatch({ DexClock: { hostAxis: fakeReal } }, 'wallclock');
+  } catch (e) {
+    threw = String((e && e.message) || e);
+  }
+  ok(threw != null && /unknown axis/.test(threw), 'an unknown --axis THROWS rather than quietly running one of the two');
+  const bare = axisPatch({}, 'host');
+  ok(bare.patched === false && /no DexClock/.test(bare.reason), 'a realm with no DexClock says so instead of crashing mid-night');
+  ok(
+    ledgerKey('2026-09-26', 'wall') !== ledgerKey('2026-09-26', 'host') && ledgerKey('2026-09-26', null) === ledgerKey('2026-09-26', 'host'),
+    'the ledger key separates the two axes, and a legacy row with no axis reads as host — which is what it was'
+  );
+  // 7 · the solid stratum, read-only from each night's own verdict; a typo never reads as "no solid nights"
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tchref-solid-'));
+  const plant = (n, o) => {
+    fs.mkdirSync(path.join(tmp, n));
+    if (o) fs.writeFileSync(path.join(tmp, n, 'SOLID-VERDICT.json'), JSON.stringify(o));
+  };
+  plant('2026-09-01', { gate: SOLID_GATE, status: 'PASS' });
+  plant('2026-09-02', { gate: SOLID_GATE, status: 'UNKNOWN' });
+  plant('2026-09-03', null);
+  plant('2026-09-04', { gate: 'solid-night-draft', status: 'PASS' });
+  const sd = solidFromDir(tmp, ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04']);
+  ok(
+    sd.nights.join(',') === '2026-09-01' && sd.notPass.length === 1 && sd.absent.length === 1 && sd.unreadable.length === 1,
+    'solid = PASS under gate ' + SOLID_GATE + '; a non-PASS, an absent file and a foreign gate each stay OUT and are counted separately'
+  );
+  const lf = path.join(tmp, 'list.txt');
+  fs.writeFileSync(lf, '# 2026-08-31 was excluded\n2026-09-01\n2026-09-02\n');
+  ok(parseSolidSpec(lf, {}).nights.join(',') === '2026-09-01,2026-09-02', 'a --solid FILE reads one night per line, and a # comment contributes none of its dates');
+  ok(parseSolidSpec('2026-09-02, 2026-09-01', {}).nights.join(',') === '2026-09-01,2026-09-02', 'a --solid comma list parses and sorts');
+  const typo = parseSolidSpec('2026-9-1', {});
+  ok(typo.parsed === false && !typo.nights.length && /no YYYY-MM-DD/.test(typo.reason), 'a malformed --solid spec FAILS CLOSED with a reason, never as an empty stratum');
+  ok(parseSolidSpec('auto', {}).parsed === false && /needs --dir/.test(parseSolidSpec('auto', {}).reason), '--solid auto without --dir names what it lacks');
+  fs.rmSync(tmp, { recursive: true, force: true });
+  // 8 · three populations, one verdict each, each carrying ITS OWN date range
+  const dates = Array.from({ length: 40 }, (_, i) => '2026-09-' + String(i + 1).padStart(2, '0'));
+  const dated = syntheticRows(40, 0.4).map((r, i) => ({ ...r, night: dates[i] }));
+  const sol = { nights: [dates[0], dates[5], dates[39], '2026-12-31'], parsed: true, reason: null };
+  const pops = selectPopulations(dated, sol);
+  ok(pops.length === 3 && pops.map((p) => p.name).join(',') === 'all,rolling30,solid', 'three populations: all · rolling30 · solid');
+  ok(pops[1].rows.length === ROLLING_N && pops[1].rows[0].night === dates[10] && pops[1].rows[ROLLING_N - 1].night === dates[39], 'rolling30 takes the LAST 30 by date, not the first 30');
+  ok(pops[2].rows.length === 3 && pops[2].listed === 4, 'a listed solid night this run holds no row for is not in the population, and `listed` says how many the list named');
+  const pv = pops.map((p) =>
+    verdictObject(pool(p.rows), p.rows, { roots: ['<synthetic>'], commit: null, axis: 'wall', gate: p.gate, population: p.name, listed: p.listed, notRun: p.notRun, at: '2026-10-18T00:00:00Z' })
+  );
+  ok(
+    pv.every((v) => V.validate(v).ok),
+    'every population verdict validates: ' + pv.map((v) => V.validate(v).errors.join(' | ')).join(' // ')
+  );
+  ok(pv[0].population.first === dates[0] && pv[0].population.last === dates[39] && pv[1].population.first === dates[10], 'each verdict carries the date range of ITS OWN population');
+  ok(
+    pv[0].gate === 'tch-firmware-reference' && pv[1].gate === 'tch-firmware-reference:rolling30' && pv[2].gate === 'tch-firmware-reference:solid',
+    'the headline keeps the gate name existing readers quote; the trend and the stratum name themselves'
+  );
+  ok(
+    pv[2].status === 'UNDERPOWERED' && pv.every((v) => v.axis === 'wall' && (v.status === 'PASS' || /axis wall/.test(v.reason || ''))),
+    'the axis rides every verdict and every non-PASS reason names it — a σ is not comparable across axes'
+  );
+  const noSolid = selectPopulations(dated, parseSolidSpec(null, {}))[2];
+  const nv = verdictObject(pool(noSolid.rows), noSolid.rows, { roots: ['<synthetic>'], commit: null, gate: noSolid.gate, population: 'solid', notRun: noSolid.notRun, at: '2026-10-18T00:00:00Z' });
+  ok(nv.status === 'NOT_RUN' && nv.result === null && V.validate(nv).ok, 'no --solid list ⇒ the solid verdict reads NOT_RUN with result null — never a PASS, a FAIL or an UNDERPOWERED over nothing');
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${ran})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length ? 1 : 0;
 }
 
 /* ── corpus side: the page's own worker functions in a headless realm ─────────────────────────── */
-function loadRealm() {
+function loadRealm(axis) {
   const DexBuild = req(path.join(ROOT, 'tools', 'build-core.js'));
   const ctx = vm.createContext({
     console: { log() {}, warn() {}, error() {} },
@@ -356,6 +651,11 @@ function loadRealm() {
   ctx.postMessage = () => {};
   for (const f of ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js', 'sensor-trio-worker.js'])
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(ROOT, f), 'utf8')), ctx, { filename: f });
+  /* The realm carries `clock.js`, so every parser below disciplines its own axis unless this says
+     otherwise. The patch also RECORDS each call, which is how a night reports whether the device had a
+     second clock at all. */
+  const patched = axisPatch(ctx, axis || 'host');
+  if (!patched.patched) throw new Error('axis ' + (axis || 'host') + ' not installed: ' + patched.reason);
   return ctx;
 }
 function largest(dir, re) {
@@ -365,7 +665,12 @@ function largest(dir, re) {
 export function scoreNightDir(ctx, dir) {
   const E = ctx.ECGDSP,
     fn = (n) => vm.runInContext(n, ctx),
-    night = path.basename(dir);
+    night = path.basename(dir),
+    axis = ctx.__axis || 'host',
+    tag = (t) => {
+      ctx.__axisTag = t;
+    };
+  if (Array.isArray(ctx.__axisCalls)) ctx.__axisCalls.length = 0;
   const f = {
     ecg: largest(dir, /H10.*_ECG\.txt$/),
     rr: largest(dir, /H10.*_RR\.txt$/),
@@ -374,15 +679,25 @@ export function scoreNightDir(ctx, dir) {
     spo2: largest(dir, /_SPO2\.csv$/)
   };
   const missing = ['ecg', 'rr', 'ppg'].filter((k) => !f[k]).concat(f.ring || f.spo2 ? [] : ['ring']);
-  if (missing.length) return { night, ok: false, reason: 'missing ' + missing.join(', ') };
+  if (missing.length) return { night, axis, ok: false, reason: 'missing ' + missing.join(', ') };
   try {
     const ecgTxt = fs.readFileSync(f.ecg, 'utf8');
+    tag('reference·h10');
     const rec = E.parseECG(ecgTxt),
       dev = E.parseDeviceRR(fs.readFileSync(f.rr, 'utf8')),
       r = E.analyze(rec, null);
     const t0 = r.t0Ms || rec.t0Ms || 0,
       selfMs = [],
       selfNN = [];
+    /* ⚠️ THE REFERENCE AND THE H10 CORNER DO NOT SHARE AN AXIS (read 2026-10-18, Osprey; left
+       standing on purpose). `analyze` builds `r.tt` from `rec.devMsAt` — the RAW device counter,
+       with no `correctionAt` (`ecgdex-dsp.js:2824-2831`) — while the H10 corner's HR series below
+       rides `rec.tMsAt`, which adds the correction (`ecgdex-dsp.js:5610`). Under `--axis host` the
+       two therefore diverge across a night by the host discipline's own correction, and the H10's
+       apparent error against a reference derived from its own beats carries that divergence; under
+       `--axis wall` both collapse onto the device counter and agree. Moving the reference onto
+       `tMsAt` changes the estimator's inputs, which the brief puts out of scope (§7), so this stays
+       a named defect rather than a silent repair. */
     for (let i = 0; i < r.nn.length; i++) {
       const x = r.nn[i];
       if (Number.isFinite(x) && x >= 200 && x <= 3000 && Number.isFinite(r.tt[i])) {
@@ -408,8 +723,11 @@ export function scoreNightDir(ctx, dir) {
     const cp = consensusPairs(selfMs, selfNN, fwMs, fwRR);
     const REF = perSecondMedian(cp.pairs);
     const unwrap = (x) => (x && x.hr ? x.hr : x);
-    const H = unwrap(fn('ecgHrMap')(ecgTxt)),
-      V = unwrap(fn('ppgHrMapReal')(fs.readFileSync(f.ppg, 'utf8')));
+    tag('h10');
+    const H = unwrap(fn('ecgHrMap')(ecgTxt));
+    tag('verity');
+    const V = unwrap(fn('ppgHrMapReal')(fs.readFileSync(f.ppg, 'utf8')));
+    tag('o2');
     let O = null,
       o2Source = null;
     if (f.ring) {
@@ -425,11 +743,11 @@ export function scoreNightDir(ctx, dir) {
       O = fn('o2PulseMap')(fs.readFileSync(f.spo2, 'utf8'));
       if (O) o2Source = 'ring·SpO2-csv';
     }
-    if (!H || !V || !O) return { night, ok: false, reason: 'a corner produced no HR map (' + (!H ? 'H10 ' : '') + (!V ? 'Verity ' : '') + (!O ? 'O2Ring' : '') + ')' };
+    if (!H || !V || !O) return { night, axis, ok: false, reason: 'a corner produced no HR map (' + (!H ? 'H10 ' : '') + (!V ? 'Verity ' : '') + (!O ? 'O2Ring' : '') + ')' };
     const s = scoreSeries(REF, H, V, O);
-    return { night, o2Source, reference: { consecutivePairs: cp.consecutive, agreeing: cp.pairs.length, seconds: REF.size }, ...s };
+    return { night, axis, o2Source, reference: { consecutivePairs: cp.consecutive, agreeing: cp.pairs.length, seconds: REF.size }, hostAxis: axisSummary(ctx.__axisCalls), ...s };
   } catch (e) {
-    return { night, ok: false, reason: String((e && e.message) || e).slice(0, 160) };
+    return { night, axis, ok: false, reason: String((e && e.message) || e).slice(0, 160) };
   }
 }
 
@@ -444,8 +762,12 @@ async function main(argv) {
     return i >= 0 && argv[i + 1] != null ? argv[i + 1] : null;
   };
   const dir = arg('--dir');
-  if (!dir || !fs.existsSync(dir)) {
-    console.error('usage: node tools/tch-firmware-reference.mjs --selftest | --verdict-sample | --dir <captures root> [--night YYYY-MM-DD]… [--ledger f.jsonl] [--json]');
+  const axis = arg('--axis') || 'host';
+  if (!dir || !fs.existsSync(dir) || AXES.indexOf(axis) < 0) {
+    console.error(
+      'usage: node tools/tch-firmware-reference.mjs --selftest | --verdict-sample | --dir <captures root> [--axis host|wall] [--solid auto|<file|list>] [--night YYYY-MM-DD]… [--ledger f.jsonl] [--json]'
+    );
+    if (AXES.indexOf(axis) < 0) console.error('  --axis must be one of ' + AXES.join('|') + ', got ' + JSON.stringify(axis));
     return 2;
   }
   const only = argv.flatMap((a, i) => (a === '--night' && argv[i + 1] ? [argv[i + 1]] : []));
@@ -455,7 +777,7 @@ async function main(argv) {
     for (const l of fs.readFileSync(ledger, 'utf8').split('\n'))
       if (l.trim()) {
         const r = JSON.parse(l);
-        seen.set(r.night, r);
+        seen.set(ledgerKey(r.night, r.axis), r);
       }
   const nights = fs
     .readdirSync(dir)
@@ -463,14 +785,21 @@ async function main(argv) {
     .sort();
   let ctx = null;
   for (const n of nights) {
-    if (seen.has(n)) continue;
-    ctx = ctx || loadRealm();
+    if (seen.has(ledgerKey(n, axis))) continue;
+    ctx = ctx || loadRealm(axis);
     const row = scoreNightDir(ctx, path.join(dir, n));
-    seen.set(n, row);
+    seen.set(ledgerKey(n, axis), row);
     if (ledger) fs.appendFileSync(ledger, JSON.stringify(row) + '\n');
-    console.error(`${n}  ${row.ok ? 'scored ' + row.n + ' s' : 'refused: ' + row.reason}`);
+    console.error(`${n}  axis ${axis}  ${row.ok ? 'scored ' + row.n + ' s' : 'refused: ' + row.reason}`);
   }
-  const rows = [...seen.values()].filter((r) => !only.length || only.includes(r.night)).sort((a, b) => (a.night < b.night ? -1 : 1));
+  /* A row from the OTHER axis is a different measurement of the same night, never a substitute. */
+  const rows = [...seen.values()].filter((r) => (r.axis || 'host') === axis && (!only.length || only.includes(r.night))).sort((a, b) => (a.night < b.night ? -1 : 1));
+  const solidSpec = arg('--solid');
+  const solid = parseSolidSpec(solidSpec, { dir, nights: rows.map((r) => r.night) });
+  if (solidSpec && !solid.parsed) {
+    console.error('--solid: ' + solid.reason);
+    return 2;
+  }
   let commit = null;
   try {
     commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: HERE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -478,11 +807,23 @@ async function main(argv) {
     /* not a checkout → commit null with commitReason */
   }
   const P = pool(rows);
-  const verdict = verdictObject(P, rows, { roots: [dir], commit });
-  if (argv.includes('--json')) console.log(JSON.stringify({ ...verdict, detail: { pooled: P, nights: rows } }, null, 1));
+  const pops = selectPopulations(rows, solid);
+  const verdicts = pops.map((p) => verdictObject(pool(p.rows), p.rows, { roots: [dir], commit, axis, gate: p.gate, population: p.name, listed: p.listed, notRun: p.notRun }));
+  /* The ALL population stays at the top level, byte-shape unchanged for every existing reader
+     (`tepna-tchref-nightly.service` writes this object straight to its verdict file); the two new
+     populations ride beside it in `verdicts`. */
+  const verdict = verdicts[0];
+  if (argv.includes('--json'))
+    console.log(
+      JSON.stringify(
+        { ...verdict, verdicts, detail: { axis, solid, populations: pops.map((p) => ({ name: p.name, label: p.label, nights: p.rows.length, listed: p.listed })), pooled: P, nights: rows } },
+        null,
+        1
+      )
+    );
   else {
     const f = (x) => (Number.isFinite(x) ? x.toFixed(2) : '—');
-    console.log(`HR three-cornered hat vs the two-detector reference — ${P.nights} night(s) scored of ${rows.length}`);
+    console.log(`HR three-cornered hat vs the two-detector reference — ${P.nights} night(s) scored of ${rows.length} · axis ${axis}`);
     for (const k of KEYS) {
       const M = P.medians[k];
       console.log(
@@ -493,6 +834,12 @@ async function main(argv) {
     console.log(
       `  classic ${P.classic.pass}/${P.classic.total} · correlated ${P.correlated.pass}/${P.correlated.total} (refused ${P.correlated.refused}) within ±${BAND_ABS} bpm or ±${BAND_REL * 100} %`
     );
+    for (const v of verdicts)
+      console.log(
+        `  ${v.population.name.padEnd(9)} ${v.status.padEnd(13)} checked ${v.population.checked}/${v.population.eligible}` +
+          (v.population.first ? ` · ${v.population.first} → ${v.population.last}` : '') +
+          (v.population.listed == null ? '' : ` · ${v.population.listed} listed`)
+      );
     console.log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdict.status, population: verdict.population, reason: verdict.reason }));
   }
   return 0;
