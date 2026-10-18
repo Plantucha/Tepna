@@ -376,9 +376,18 @@ export function parseRemoteFold(raw, host) {
   }));
   return { host, ok: true, sessions, herder: names ? "names from that host's herdr agent list" : "that host's herder not readable" };
 }
-export function remoteSessions(host, sinceMs, exec = execFileSync) {
+export function sshConfigArgs(home = homedir()) {
+  /* -F ~/.ssh/config. Without it ssh also reads /etc/ssh/ssh_config.d/*. A systemd user service with
+     ProtectHome= runs in a user namespace where root maps to nobody; ssh then refuses the root-owned
+     system config ("Bad owner or permissions") and exits 255. Measured 2026-10-17 on the board timer:
+     the table read "vigil not read (255)" for 18 h while the same command from a shell read the host.
+     The board's other vigil readers already pass -F; this is the one that did not. */
+  const cfg = join(home, '.ssh', 'config');
+  return existsSync(cfg) ? ['-F', cfg] : [];
+}
+export function remoteSessions(host, sinceMs, exec = execFileSync, home = homedir()) {
   try {
-    const raw = exec('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', host, 'python3', '-', String(Math.floor(sinceMs))], {
+    const raw = exec('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', ...sshConfigArgs(home), host, 'python3', '-', String(Math.floor(sinceMs))], {
       input: REMOTE_FOLD_PY,
       encoding: 'utf8',
       timeout: 90000,
@@ -914,6 +923,31 @@ export function selftest() {
     throw Object.assign(new Error('x'), { status: 255 });
   });
   ok('an unreachable host is a reason, never a zero row', unreachable.ok === false && unreachable.sessions.length === 0 && /not read \(255\)/.test(unreachable.reason));
+  {
+    const hdir = mkdtempSync(join(tmpdir(), 'ug-home-'));
+    try {
+      ok('no ~/.ssh/config: ssh is called without -F', sshConfigArgs(hdir).length === 0);
+      mkdirSync(join(hdir, '.ssh'));
+      writeFileSync(join(hdir, '.ssh', 'config'), 'Host box\n');
+      let seen = null;
+      remoteSessions(
+        'box',
+        t0,
+        (cmd, args) => {
+          seen = args;
+          return '{"sessions":[],"names":null}';
+        },
+        hdir
+      );
+      const fi = seen ? seen.indexOf('-F') : -1;
+      ok(
+        'with ~/.ssh/config the remote fold passes -F <that file> before the host, so a sandbox that hides /etc/ssh cannot fail it',
+        fi > 0 && seen[fi + 1] === join(hdir, '.ssh', 'config') && seen.indexOf('box') > fi
+      );
+    } finally {
+      rmSync(hdir, { recursive: true, force: true });
+    }
+  }
 
   /* MANAGED AGENTS: the last session GET carries the cumulative usage; earlier GETs and events are not summed. */
   const ma = {};
