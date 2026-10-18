@@ -9506,6 +9506,40 @@
         );
         T.eq('POPULATION is 12 — the published denominator', POP.length, 12, 'POPULATION=' + POP.join(', '));
       }
+
+      /* THE NOTE IN `clock.js` IS A CLAIM ABOUT THREE NODES, so it drifts when they migrate and nothing
+         reds. It did: the note named all three as still reading `independent` for a drawn axis while two
+         had moved, and a reader who trusted it re-opened finished work (residue
+         2026-09-25-drawn-consumers-closure-unverified, measured three-to-zero by residue
+         2026-10-12-clock-js-names-two-migrated-drawn-consumers-as-live). Corrected 2026-10-18 and pinned
+         here, so the NEXT migration reds this group instead of staling the prose. Each assertion reads
+         the node's code AND the sentence, because either side drifting is the same defect. */
+      var SRC = env.sources || {};
+      var note = SRC['clock.js'] == null ? null : (/⚠ CONSEQUENCE, split[\s\S]*?\*\//.exec(SRC['clock.js']) || [''])[0];
+      if (note == null) {
+        T.skip('the clock.js drawn-consumer note', 'clock.js not in env.sources — the scan would read nothing');
+      } else if (note === '') {
+        T.ok('the clock.js drawn-consumer note is findable', false, 'the CONSEQUENCE block was rewritten — re-measure the three nodes and re-pin the claims here');
+      } else {
+        var ecgSrc = SRC['ecgdex-dsp.js'] || '';
+        var integSrc = SRC['integrator-dsp.js'] || '';
+        var patSrc = SRC['pat-gate.js'] || '';
+        T.ok(
+          'ECGDex RELABELS a drawn axis rather than refusing it, and the note says so',
+          /timingSource: ecgHostAx\.independent === false \? 'device' : ecgAxisDrawn \? 'host'/.test(ecgSrc) && /RELABELS/.test(note),
+          'either ECGDex stopped relabelling or the note stopped saying it does'
+        );
+        T.ok(
+          'Integrator REFUSES on `deviceDrawn !== true`, and the note says so',
+          /deviceDrawn !== true/.test(integSrc) && /REFUSES on it/.test(note),
+          'either the Integrator refusal moved or the note stopped naming it'
+        );
+        T.ok(
+          'pat-gate carries NO `deviceDrawn` site, which is what the note claims',
+          patSrc !== '' && patSrc.indexOf('deviceDrawn') < 0 && /carries no `deviceDrawn` site/.test(note),
+          'pat-gate.js now reads deviceDrawn, or the note no longer says it does not — correct the note in clock.js'
+        );
+      }
     });
 
     /* ════ THE HAT ROWS RENDER THE PER-CORNER STATUS (PAT-HAT-DRIFT-DIFFERENCED, 2026-09-27) ═════════
