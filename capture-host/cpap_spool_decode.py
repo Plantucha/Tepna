@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pathlib
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -34,26 +35,45 @@ class TruncatedRound(ValueError):
     """A field declared more bytes than the round holds. Raised, never decoded as a short value."""
 
 
+_VARINT_MAX = 10  # a 64-bit varint spends 7 payload bits per byte, so ten bytes is its ceiling
+
+
 def _varint(buf: bytes, i: int) -> tuple[int, int]:
+    """Read one varint at `i`; return `(value, index after it)`.
+
+    ⚠️ BOUNDED BY A SLICE, not `while True` with a hand-advanced index. One mutation of such an
+    index stalls the loop and it spins forever; the mutation gate then reports that mutant UNDECIDED
+    and REFUSES the whole run, because an unmeasured mutant is not a killed one (CLAUDE.md §🧪).
+    The window here is the varint's own ceiling, so the bound costs nothing and no single mutation
+    can hang the scan.
+    """
+    window = buf[i : i + _VARINT_MAX]
     shift = val = 0
-    while True:
-        if i >= len(buf):
-            raise TruncatedRound(f"varint runs off the end at byte {i} of {len(buf)}")
-        b = buf[i]
-        i += 1
+    for k, b in enumerate(window):
         val |= (b & 0x7F) << shift
         if not b & 0x80:
-            return val, i
+            return val, i + k + 1
         shift += 7
-        if shift > 63:
-            raise TruncatedRound(f"varint longer than 10 bytes at byte {i}")
+    if len(window) < _VARINT_MAX:
+        raise TruncatedRound(f"varint runs off the end at byte {i + len(window)} of {len(buf)}")
+    raise TruncatedRound(f"varint longer than {_VARINT_MAX} bytes at byte {i + len(window)}")
 
 
-def walk(buf: bytes):
+def walk(buf: bytes, max_fields: int | None = None):
     """Yield `(field, wire_type, value, n_bytes)` for one message level. `n_bytes` is the whole
-    field's span, tag included, so a caller can account for every byte it does not interpret."""
+    field's span, tag included, so a caller can account for every byte it does not interpret.
+
+    ⚠️ `max_fields` BOUNDS THE SCAN, for the reason `_varint` gives: a `while i < n` loop over an
+    index the body advances hangs under one mutation of that index, and the mutation gate refuses a
+    run holding an unmeasured mutant. The default bound is one field per byte plus one, which no
+    message can reach — every field spends at least a tag byte and a value byte — so the bound never
+    binds on real input and a stalled index terminates instead of spinning. Bytes left unread when
+    the bound runs out are reported, never decoded short.
+    """
     i, n = 0, len(buf)
-    while i < n:
+    for _ in range(n if max_fields is None else max_fields):
+        if i >= n:
+            break
         start = i
         v: Any  # int for wire types 0/1/5, bytes for 2
         tag, i = _varint(buf, i)
@@ -73,6 +93,8 @@ def walk(buf: bytes):
         else:
             raise TruncatedRound(f"wire type {wt} (field {fn}) at byte {start} is not one Summary uses")
         yield fn, wt, v, i - start
+    if i < n:
+        raise TruncatedRound(f"{n - i} byte(s) unread after the {max_fields}-field scan bound")
 
 
 def _int64(v: int) -> int:
@@ -229,14 +251,15 @@ def local_day(rec: dict) -> str | None:
 def iter_committed(root: str):
     """`(ledger_row, path)` for each committed round, in ledger order. A row whose file is missing is
     yielded with `path=None` so the caller reports it instead of skipping it."""
-    with open(os.path.join(root, "cpap_spool_ledger.jsonl"), encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            row = json.loads(line)
-            p = os.path.join(root, "committed", row["file"])
-            yield row, (p if os.path.exists(p) else None)
+    # read_bytes, not `open(..., encoding=...)`: `json.loads` takes bytes, and a dropped or
+    # defaulted encoding kwarg is a change no test on a UTF-8 host can observe.
+    for line in pathlib.Path(root, "cpap_spool_ledger.jsonl").read_bytes().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        row = json.loads(line)
+        p = os.path.join(root, "committed", row["file"])
+        yield row, (p if os.path.exists(p) else None)
 
 
 def _physical(sig) -> list[float]:
@@ -261,7 +284,10 @@ def str_days(raw: bytes) -> dict:
     spr = int(sig["MaskOn"].spr)
     days = {}
     for r, dn in enumerate(dates):
-        pairs = [(int(a), int(b)) for a, b in zip(on[r * spr : (r + 1) * spr], off[r * spr : (r + 1) * spr]) if a >= 0]
+        on_r, off_r = on[r * spr : (r + 1) * spr], off[r * spr : (r + 1) * spr]
+        # `strict`: the two signals carry the same slots per record by construction. A length
+        # mismatch is a malformed card, and zip would silently drop the extra slots.
+        pairs = [(int(a), int(b)) for a, b in zip(on_r, off_r, strict=True) if a >= 0]
         day = (datetime(1970, 1, 1) + timedelta(days=int(dn))).date().isoformat()
         days[day] = {"duration_min": int(dur[r]), "sessions": pairs}
     return days
@@ -302,11 +328,12 @@ def main(argv=None) -> int:
     ap.add_argument("root", help="the spool store root (holds cpap_spool_ledger.jsonl and committed/)")
     ap.add_argument("--str", dest="str_path", help="SD-card STR.edf: compare usage per day, to the minute")
     a = ap.parse_args(argv)
-    bad = 0
+    bad = rounds = 0
     latest: dict = {}  # day -> record from the LAST round that served it (ledger order)
     for row, path in iter_committed(a.root):
         if row.get("spool_type") != "Summary":
             continue
+        rounds += 1
         if path is None:
             print(json.dumps({"file": row["file"], "error": "missing"}))
             bad += 1
@@ -318,7 +345,10 @@ def main(argv=None) -> int:
             print(json.dumps({"file": row["file"], "error": f"truncated: {e}"}))
             bad += 1
             continue
-        bad += r["unknown_bytes"] > 0
+        # Truthiness, never `> 0`: the smallest unknown field spans two bytes (a tag and a value),
+        # so `> 0` and `> 1` agree on every reachable total and no test could separate them.
+        if r["unknown_bytes"]:
+            bad += 1
         for rec in r["records"]:
             day = local_day(rec)
             latest[day] = rec
@@ -341,6 +371,9 @@ def main(argv=None) -> int:
         miss = sum(not c["match"] for c in rows)
         print(json.dumps({"compare_days": len(rows), "mismatched_days": miss}))
         bad += miss
+    # The exit code collapses every count to 1, so the counts are PRINTED. A tally nothing reports
+    # cannot be checked, by a reader or by a test.
+    print(json.dumps({"rounds": rounds, "problems": bad}))
     return 1 if bad else 0
 
 

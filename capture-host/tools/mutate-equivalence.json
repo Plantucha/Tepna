@@ -161,6 +161,16 @@
       "probe": "os.path.join(root,) == root: the mutant fsyncs the store ROOT instead of committed/. Both opens succeed and rename durability is unobservable without power-loss/fault injection — the same unit-untestable fsync class recorded for oxy_transfer (G1) and routed to the chaos lane (P7-analog). The sibling relative-path mutant IS killed (cwd-independence test); this one differs only in which real directory's metadata gets the fsync."
     }
   ],
+  "cpap_spool_decode.py": [
+    {
+      "brief": "CPAP-AS11-BLE-WIRE-NOW WU1 (Summary spool decoder)",
+      "class": "untestable-by-design",
+      "function": "walk",
+      "key": "- break | + return",
+      "probe": "Applied the mutant by hand to capture-host/cpap_spool_decode.py and ran BOTH the 42-test file (all green under the mutant) and the decoder over the 23 committed rounds in the read-only mirror /srv/data/tepna-corpus/smoketest-captures/cpap-spool: output byte-identical to the unmutated run (cmp). Run 2026-10-18.",
+      "why": "The two exits ARE the same exit. The loop breaks only under `if i >= n`, and the only statement after the loop is `if i < n: raise`, whose test is then false — so `break` falls through to the same return the mutant takes directly. The bound itself is what the loop exists for (CLAUDE.md §🧪: a hand-advanced `while` index reports UNDECIDED, not killed); it is `range(len(buf))`, bounded by the DATA and by nothing computed, so no slack-bound mutant is reachable either."
+    }
+  ],
   "cpap_stream.py": [
     {
       "brief": "CPAP controller-fix mutation-harden (#1701 follow-up)",
