@@ -903,6 +903,64 @@
       T.ok('control · a measured night reports numbers (mean SpO2 96, mean HR 60)', real.meanSpo2 === 96 && real.meanHr === 60, JSON.stringify({ meanSpo2: real.meanSpo2, meanHr: real.meanHr }));
       T.ok('control · min/max SpO2 and HR are numbers on the measured night', real.minSpo2 === 96 && real.maxSpo2 === 96 && real.minHr === 60 && real.maxHr === 60);
     });
+    /* MUTATION KILLS — the processNight boundary family. Four surviving mutants from the
+       2026-10-18 mutation run, each pinned at the exact boundary its mutant moved. The fifth
+       survivor (L6321, `v < 90` → `v <= 90` in the hd90 accumulator) is a genuine equivalent:
+       v = 90 enters the mutant branch and adds 90 - 90 = 0, so no test can separate them. */
+    group('OxyDex mutation kills — the processNight boundary family', 'oxydex-dsp · mutation-kill', function (T) {
+      var _odm = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var ODM = (_odm && _odm._bare) || _odm;
+      if (!ODM || typeof ODM.processNight !== 'function') {
+        T.ok('OxyDex.processNight is reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      var t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+
+      /* L4962 · the bradycardia run counter fires at HR < 40. Fifteen consecutive HR = 30 rows
+         make one event. The mutant (`r.hr < 0`) sees none. The plant descends and re-ascends at
+         2 bpm per sample, because a sudden 70 → 30 step is a 40 bpm jump and the HR-artifact
+         cleaner would clamp it as non-physiologic. */
+      var bRows = [];
+      for (var bi = 0; bi < 900; bi++) {
+        var bHr = 70;
+        if (bi >= 400 && bi < 420) bHr = 70 - 2 * (bi - 400);
+        else if (bi >= 420 && bi < 435) bHr = 30;
+        else if (bi >= 435 && bi < 455) bHr = 30 + 2 * (bi - 435);
+        bRows.push({ tMs: t0 + bi * 1000, t: new Date(t0 + bi * 1000), spo2: 96, hr: bHr, motion: 0 });
+      }
+      var bNight = ODM.processNight(bRows, 'mut-brady.csv');
+      T.eq('L4962 · fifteen consecutive HR=30 rows count one bradycardia event', bNight && bNight.hrProf && bNight.hrProf.bradyCount, 1);
+      T.eq('L4962 · the plant survived HR artifact cleaning untouched', bNight && bNight.stats && bNight.stats.artifactHrCleaned, 0);
+
+      /* L5700 · the respiratory proxy refuses under 600 rows. processNight does NOT publish the
+         proxy (it is owner-retracted to a null), so the kill runs against the exported kernel.
+         300 rows of sinusoidal HR return null on the original. The mutant (`n < 0`) skips the
+         floor and attempts the spectral scan, returning a computed object. */
+      var rRows = [];
+      for (var ri = 0; ri < 300; ri++) {
+        rRows.push({ tMs: t0 + ri * 1000, t: new Date(t0 + ri * 1000), spo2: 96, hr: 65 + 3 * Math.sin(2 * Math.PI * 0.25 * ri), motion: 0 });
+      }
+      T.eq('L5700 · 300 rows are below the 600-row proxy floor, so the proxy is null', ODM.computeRespRateProxy(rRows), null);
+
+      /* L4848 · the untimed nadir-ramp window is `j < 120`, not `j <= 120`. An untimed night whose
+         climb reaches the 90 % plateau at exactly index 120 is OUTSIDE the window. The original
+         masks nothing (the min stays 85). The mutant treats index 120 as inside and masks rows
+         0-119, so the min becomes 91. */
+      var gRows = [];
+      for (var gi = 0; gi < 130; gi++) {
+        gRows.push({ spo2: gi === 0 ? 85 : gi < 120 ? 87 : gi === 120 ? 91 : 95, hr: 70, motion: 0 });
+      }
+      var gated = ODM.computeGatedNadir(gRows, null, 85);
+      T.eq('L4848 · a ramp reaching the plateau at exactly index 120 is not masked (min stays 85)', gated && gated.min, 85);
+      T.eq('L4848 · …and nothing is excluded', gated && gated.excluded, 0);
+
+      /* L4492 · the gradeClass ladder: score 50 is 'bad' (below 60), not 'warn'. The mutant
+         (`score >= 0`) promotes every sub-60 score to 'warn'. The inputs pin every subscore at
+         50 (hrFloor dropped as null, the rest renormalised over 0.9), so the weighted score is 50. */
+      var stab = ODM.computeSleepStabilityScore({ spo2Std: 1.25, motionPct: 1.1, t95pct: 10 }, null, { episodeCount: 10 }, { rate: 7.5 });
+      T.eq('L4492 · the pinned score is 50', stab && stab.score, 50);
+      T.eq('L4492 · score 50 grades bad, not warn', stab && stab.gradeClass, 'bad');
+    });
 
     /* THE ODI CRITERION HAS AN INJECTION POINT (residue 2026-09-13-odi-threshold-has-no-injection-point).
        `DexKernel.K.ODI_DROP` is a frozen clinical constant and stays frozen; what was missing was a way
