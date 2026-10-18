@@ -9448,7 +9448,14 @@
           'tools/pat-axis-leg-audit.mjs':
             'REPORTS — the output IS the provenance line, printing `drawn=` beside `ppm=`, `independent=` and `spreadMs=`. Its predicted-drift figure is a diagnostic shown next to the flag, never applied as a correction.',
           'tools/tch-firmware-reference.mjs':
-            'REPORTS — its `--axis host|wall` switch decides whether the DSPs may run the one correction they already own, and the tool itself applies no rate. `axisSummary` tallies `deviceDrawn` FIRST, so a drawn host column never counts as independence, and its `ppmMedian` rides beside the call count as a diagnostic.'
+            'REPORTS — its `--axis host|wall` switch decides whether the DSPs may run the one correction they already own, and the tool itself applies no rate. `axisSummary` tallies `deviceDrawn` FIRST, so a drawn host column never counts as independence, and its `ppmMedian` rides beside the call count as a diagnostic.',
+          /* Joined the population 2026-10-18 on a PROSE field, not on code: the only axis token it
+             carries is the `axisNote` STRING it publishes, which tells a reader of the record which leg
+             the sibling tool ran. The scan strips comments and not string literals, so a published
+             sentence still over-flags — which is this population's stated design (a new tool lands here
+             rather than staying invisible), and the honest classification is a reason, not a guard. */
+          'tools/tch-reference-record.mjs':
+            "REPORTS — it republishes the sibling reference run's pooled figures and applies no rate at all: it never calls `hostAxis`, never reads a `.ppm`, and its axis mention is the `axisNote` sentence inside the record it writes."
         };
         var POP = [],
           AXIS = [],
@@ -9504,7 +9511,10 @@
           OWNFIT.join(', '),
           'tools/beat-comb-analysis.mjs, tools/beat-leg-closure.mjs, tools/dual-clock-rate.mjs, tools/integrator-block-precision.mjs'
         );
-        T.eq('POPULATION is 12 — the published denominator', POP.length, 12, 'POPULATION=' + POP.join(', '));
+        /* 12 measured 2026-09-27; 13 from 2026-10-18, when `tch-reference-record.mjs` joined on its
+           published `axisNote` sentence (see its EXCLUDED row). The number is a ratchet on a derived
+           set, so it moves only beside a classification. */
+        T.eq('POPULATION is 13 — the published denominator', POP.length, 13, 'POPULATION=' + POP.join(', '));
       }
 
       /* THE NOTE IN `clock.js` IS A CLAIM ABOUT THREE NODES, so it drifts when they migrate and nothing
@@ -11340,6 +11350,195 @@
         checkedPairs === 3,
         'only ' + checkedPairs + ' of 3 pairs collapsed upward — the loop passed by skipping the rest'
       );
+    });
+    /* ════ THE CARD'S POOLED NOTE IS COMPOSED FROM THE PUBLISHED RECORD ══════════════════════════════
+       TCH-REFERENCE-POPULATIONS §2 defect 1: `sensor-trio-night.js` hard-coded "37 nights" and three
+       pooled σ, and kept printing them for three weeks after the reference population had grown to 54 —
+       with every gate green, because nothing tied the sentence to the run. §5.3 moved the figures into
+       `analysis/published-numbers/tch-firmware-reference-<date>.json`, whose generated twin
+       `codegen/generated/tch-reference-record.js` is inlined into the page by `tools/build-analysis.mjs`.
+
+       WHAT THIS GROUP PINS, and why each leg is here rather than in the tool's own selftest:
+       · the twin is DATA, not code — it is inlined verbatim into a 1.3 MB page, so a function body
+         arriving there would execute unreviewed;
+       · the record's two populations stay separable (a count from one set with a range from the other is
+         the §2 defect in a different place), and every verdict obeys `checked + excluded = eligible`;
+       · PRIVACY, re-implemented here rather than borrowed: the tool scrubs absolute paths, date lists
+         and per-night rows and emits a PASS about its own work. A check that calls the scrubber it is
+         checking passes with it, so this walks the leaves itself (owner ruling 2026-09-24: per-night
+         values stay off the public repo);
+       · the card reads the record and composes BOTH populations, and the composed slice carries NO
+         pooled figure as a literal — which is the only leg that would have caught the original defect.
+       The two HTML invariants (the note host is empty in the built page; the twin is inlined AHEAD of
+       the card) live in `tools/tch-reference-record.mjs --selftest`, because the built page is in
+       neither lane's `env.sources` — it is the inlined bundle itself. ═══════════════════════════════ */
+    group('the card composes its pooled note from the published record, with nothing typed', 'sensor-trio · published-record · §∅', function (T) {
+      var twin = env.sources && env.sources['codegen/generated/tch-reference-record.js'];
+      var card = env.sources && env.sources['sensor-trio-night.js'];
+      T.ok('the generated twin is readable in this lane', !!twin, twin ? twin.length + ' bytes' : 'codegen/generated/tch-reference-record.js not in env.sources — list it in BOTH lanes');
+      T.ok('the card source is readable in this lane', !!card, card ? card.length + ' bytes' : 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
+      if (!twin || !card) return;
+
+      /* ── the twin is a generated DATA file ───────────────────────────────────────────────────────── */
+      T.ok(
+        'the twin says what generated it and that it must not be edited',
+        /@generated by tools\/tch-reference-record\.mjs/.test(twin) && /DO NOT EDIT/.test(twin),
+        'a generated file that does not say so gets hand-edited'
+      );
+      T.ok('the twin assigns exactly one global', (twin.match(/window\.TCH_REFERENCE_RECORD\s*=/g) || []).length === 1, 'the page reads window.TCH_REFERENCE_RECORD at module evaluation');
+      var body = twin.slice(twin.indexOf('window.TCH_REFERENCE_RECORD'));
+      T.ok(
+        'the twin carries DATA only — no function, arrow, call or template in the payload',
+        !/\bfunction\b|=>|\brequire\(|\beval\(|`/.test(body),
+        'this file is inlined verbatim into sensor-trio-night.html; anything executable there runs unreviewed'
+      );
+
+      var rec = null,
+        parseErr = null;
+      try {
+        rec = JSON.parse(body.slice(body.indexOf('{'), body.lastIndexOf('}') + 1));
+      } catch (e) {
+        parseErr = String(e && e.message);
+      }
+      T.ok(
+        'the twin payload is plain JSON — the twin and the record are the same bytes',
+        !!rec,
+        rec ? Object.keys(rec).length + ' top-level field(s) parsed' : 'JSON.parse failed: ' + String(parseErr)
+      );
+      if (!rec) return;
+      T.ok('the record declares its schema', rec.schema === 'tepna.published-number-record/1', String(rec.schema));
+      T.ok(
+        'the record names the brief it discharges and the record it supersedes',
+        /BRIEF\.md$/.test(String(rec.brief)) && /^analysis\/published-numbers\/.*\.json$/.test(String(rec.supersedes)),
+        String(rec.brief) + ' / ' + String(rec.supersedes)
+      );
+      T.ok(
+        'the record is dated and names the dated file it supersedes by pattern, so no test pins one run',
+        /^\d{4}-\d{2}-\d{2}$/.test(String(rec.generated)) && /^analysis\/published-numbers\/tch-firmware-reference-\d{4}-\d{2}-\d{2}\.json$/.test(String(rec.supersedes)),
+        'generated ' + String(rec.generated) + ', supersedes ' + String(rec.supersedes)
+      );
+
+      /* ── TWO POPULATIONS, NEVER MIXED ────────────────────────────────────────────────────────────── */
+      var cl = rec.claims || {};
+      T.ok('the scored count never exceeds the eligible count', cl.nightsScored > 0 && cl.nightsEligible >= cl.nightsScored, cl.nightsScored + ' scored of ' + cl.nightsEligible + ' eligible');
+      T.ok(
+        'the claims date range is the SCORED span, inside the eligible span',
+        cl.dateFirst >= cl.eligibleFirst && cl.dateLast <= cl.eligibleLast && cl.dateFirst <= cl.dateLast,
+        'scored ' + cl.dateFirst + '→' + cl.dateLast + ' vs eligible ' + cl.eligibleFirst + '→' + cl.eligibleLast
+      );
+      T.ok(
+        'the record says in its own text which span is which',
+        /SCORED/.test(String(rec.claimsNote)) && /ELIGIBLE/.test(String(rec.claimsNote)),
+        'claimsNote must name both spans — a reader of the JSON has only this'
+      );
+      var pops = [],
+        axKeys = Object.keys(rec.axes || {});
+      for (var ai = 0; ai < axKeys.length; ai++) {
+        var P = rec.axes[axKeys[ai]].populations || {};
+        for (var pk in P) if (P[pk]) pops.push({ ax: axKeys[ai], k: pk, v: P[pk] });
+      }
+      T.ok('ANTI-VACUITY · the record carries populations to check', pops.length >= 4, pops.length + ' population verdict(s) across ' + axKeys.length + ' axis/axes');
+      var badPop = pops.filter(function (p) {
+        var q = p.v.population || {};
+        return !(q.checked + q.excluded === q.eligible);
+      });
+      T.ok(
+        'every population verdict satisfies checked + excluded = eligible',
+        badPop.length === 0,
+        badPop
+          .map(function (p) {
+            return p.ax + ':' + p.k;
+          })
+          .join(', ')
+      );
+      var badStatus = pops.filter(function (p) {
+        return ['PASS', 'FAIL', 'SHORTFALL', 'UNDERPOWERED', 'NOT_RUN', 'NOT_APPLICABLE', 'UNKNOWN'].indexOf(p.v.status) < 0 || (p.v.status !== 'PASS' && !p.v.reason);
+      });
+      T.ok(
+        'every population verdict carries one of the seven statuses, and a reason when it is not PASS',
+        badStatus.length === 0,
+        badStatus
+          .map(function (p) {
+            return p.ax + ':' + p.k + '=' + p.v.status;
+          })
+          .join(', ')
+      );
+
+      /* ── PRIVACY, walked here rather than taken from the tool's own PASS ─────────────────────────── */
+      var leaks = [],
+        seen = 0;
+      (function walk(node, at) {
+        if (node === null || node === undefined) return;
+        if (typeof node === 'string') {
+          seen++;
+          if (/(^|[\s"'(])\/(home|srv|mnt|media|Users|var)\//.test(node)) leaks.push(at + ': absolute path');
+          return;
+        }
+        if (typeof node !== 'object') {
+          seen++;
+          return;
+        }
+        if (Array.isArray(node)) {
+          var dates = node.filter(function (x) {
+            return typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x);
+          }).length;
+          if (dates > 2) leaks.push(at + ': ' + dates + ' ISO dates in one array — a date RANGE is two');
+          var rows = node.filter(function (x) {
+            return x && typeof x === 'object' && ('trueSd' in x || 'bias' in x || 'hat' in x || 'night' in x);
+          }).length;
+          if (rows > 0) leaks.push(at + ': ' + rows + ' per-night row(s)');
+          for (var i = 0; i < node.length; i++) walk(node[i], at + '[' + i + ']');
+          return;
+        }
+        for (var k in node) walk(node[k], at + '.' + k);
+      })(rec, '$');
+      T.ok('ANTI-VACUITY · the privacy walk reached the leaves', seen > 100, seen + ' leaf value(s) examined');
+      T.ok(
+        'the published record carries no absolute path, no night list and no per-night row',
+        leaks.length === 0,
+        leaks.slice(0, 6).join(' · ') + (leaks.length > 6 ? ' · +' + (leaks.length - 6) + ' more' : '')
+      );
+
+      /* ── the card reads it, and types nothing ────────────────────────────────────────────────────── */
+      T.ok('the card reads the record global', /window\.TCH_REFERENCE_RECORD/.test(card), 'the note must come from the record, not from this file');
+      T.ok(
+        'the card names its pooled population as a count AND a span',
+        /nightsScored\s*\+\s*' nights, '\s*\+\s*TCHCLAIMS\.dateFirst/.test(card),
+        '§5.3 — the note names its population ("N nights, first → last")'
+      );
+      T.ok(
+        'the card names the night its heroes describe',
+        /heroNight'\)\.textContent = nt\.key/.test(card) && /renderReferenceNote\(nt\.key\)/.test(card),
+        '§6 — the card must name BOTH of its populations'
+      );
+      T.ok(
+        'an absent record REFUSES the note instead of falling back to a stale sentence',
+        /REFUSED/.test(card) && /did not load/.test(card),
+        '§∅ — a stale pooled sentence that reads as current is worse than a visible absence'
+      );
+      T.ok('the superseded record is named nowhere in the card', !/tch-firmware-reference-2026-09-26/.test(card), 'the retired run must not survive as a constant or a citation');
+
+      /* THE LEG THAT WOULD HAVE CAUGHT THE ORIGINAL DEFECT: the composed slice — from the reference
+         comment to the end of the composition — may hold no pooled figure as a literal. Decimals are
+         banned outright; the only multi-digit integer allowed is the 100 of a percentage. */
+      var i0 = card.indexOf('WHAT THE REFERENCE SAYS ABOUT EACH HERO'),
+        i1 = card.indexOf('const tchChecked');
+      T.ok('ANTI-VACUITY · the composed slice was located and is substantial', i0 > 0 && i1 > i0 && i1 - i0 > 1500, 'slice ' + i0 + '→' + i1);
+      if (i0 > 0 && i1 > i0) {
+        var slice = card.slice(i0, i1);
+        var dec = slice.match(/\d+\.\d+/g) || [];
+        var ints = (slice.match(/(?:^|[^\w.])(\d{2,})(?![\w.])/g) || []).map(function (s) {
+          return s.replace(/[^\d]/g, '');
+        });
+        T.ok('no pooled figure is typed into the composition — no decimal literal at all', dec.length === 0, dec.join(', '));
+        T.ok(
+          'the only multi-digit integer in the composition is the 100 of a percentage',
+          ints.filter(function (n) {
+            return n !== '100';
+          }).length === 0,
+          ints.join(', ') + ' — a night count or a σ belongs in the record'
+        );
+      }
     });
     group("the paper's power tool and the gated TCH kernel compute the same hat", 'sensor-trio · tch-parity', function (T) {
       var K = env.IntegratorTCH;
