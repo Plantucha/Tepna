@@ -132,7 +132,7 @@ if (process.argv.includes('--selftest')) {
   const assert = (c, m) => {
     ran++;
     if (!c) {
-      console.error(`FAIL: ${m}`);
+      console.error(`selftest assertion broke: ${m}`);
       process.exit(1);
     }
   };
