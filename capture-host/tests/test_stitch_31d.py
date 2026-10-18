@@ -200,8 +200,8 @@ def test_sidecars_collected_per_night(tmp_path):
             "Polar_H10_1_HR.txt": HR_HEADER + HR_ROWS_A,
             "CLOCKSYNC.csv": (
                 "Phone timestamp;device;address;event;skew_sec;detail\n"
-                "2026-10-16T04:24:48.306;Polar H10 02849638;24:AC:AC:02:84:96;synced;1.25;ok\n"
-                "2026-10-16T04:25:34.236;Polar Sense 0C301E3F;24:AC:AC:0C:30:1E;synced;-0.75;ok\n"
+                "2026-10-16T04:24:48.306;Polar H10 02849638;AA:BB:CC:00:00:01;synced;1.25;ok\n"
+                "2026-10-16T04:25:34.236;Polar Sense 0C301E3F;AA:BB:CC:00:00:02;synced;-0.75;ok\n"
             ),
             "LOSS-AUDIT.json": json.dumps(
                 {

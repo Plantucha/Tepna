@@ -793,6 +793,18 @@
       "kind": "device-protocol",
       "source": "probe output, Verity Sense 24:AC:AC:0C:30:1E, probed_at 2026-08-10 (the file's own fields)",
       "sha256": "6cee78e6d1e140f69345175ee2413b40450fe1b73fe983053948c232cb285966"
+    },
+    "test_qc_child_stitch.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "stamps and bytes built in the test; no provenance claim in the file",
+      "sha256": null
+    },
+    "test_stitch_31d.py": {
+      "class": "authored",
+      "kind": "constructed-stamps",
+      "source": "stamps and bytes built in the test; no provenance claim in the file",
+      "sha256": null
     }
   }
 }
