@@ -46680,6 +46680,63 @@
       );
       T.ok('RRacc summary mean finite & highPct ∈ [0,100]', !!ex.rraccSummary && isFin(ex.rraccSummary.mean) && ex.rraccSummary.highPct >= 0 && ex.rraccSummary.highPct <= 100);
 
+      // Feature 1b — the rate is not quantised to the 1.875 br/min FFT bin. A pure breath at 0.27 Hz
+      // (16.2 br/min) sits 0.36 bin off the grid: the bare bin read 16.9, the refined peak reads 16.2.
+      var mkAcc = function (rateAt) {
+        var fsA = 25,
+          out = [],
+          ph = 0;
+        for (var i = 0; i < fsA * 600; i++) {
+          ph += (2 * Math.PI * rateAt(i / fsA)) / 60 / fsA;
+          out.push({ tsMs: 1000 + Math.round((i * 1000) / fsA), x: 0, y: 0, z: Math.round(1000 + 40 * Math.sin(ph)) });
+        }
+        return out;
+      };
+      var exFix = D.accExtras(
+        mkAcc(function () {
+          return 16.2;
+        }),
+        25,
+        1000,
+        600,
+        [],
+        []
+      );
+      var fixHi = exFix
+        ? exFix.rracc.filter(function (e) {
+            return e.conf === 'high';
+          })
+        : [];
+      T.ok(
+        'RRacc off the bin grid: every high-confidence epoch within 0.3 br/min of 16.2',
+        fixHi.length >= 15 &&
+          fixHi.every(function (e) {
+            return Math.abs(e.rr - 16.2) <= 0.3;
+          }),
+        fixHi.length +
+          ' epochs · ' +
+          fixHi
+            .map(function (e) {
+              return e.rr;
+            })
+            .join(',')
+      );
+      var exRamp = D.accExtras(
+        mkAcc(function (t) {
+          return 12 + (6 * t) / 600;
+        }),
+        25,
+        1000,
+        600,
+        [],
+        []
+      );
+      var rampVals = {};
+      (exRamp ? exRamp.rracc : []).forEach(function (e) {
+        rampVals[e.rr] = 1;
+      });
+      T.ok('a 12 → 18 br/min ramp gives at least 12 distinct RRacc values over 20 epochs (the bare bin gave 5)', Object.keys(rampVals).length >= 12, Object.keys(rampVals).join(','));
+
       // Feature 2 — RRacc vs EDR agreement (EDR epochs exist on an overnight run)
       T.ok('agreement present (EDR epochs available)', !!ex.agreement);
       if (ex.agreement) {

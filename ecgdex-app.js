@@ -1136,6 +1136,21 @@ self.onmessage = async (e) => {
     }
     return tMin.toFixed(0) + 'm';
   }
+  // per-5-min RRacc (median of high-confidence 30-s epochs), keyed by epoch tMin. The export's
+  // timeseries.epochs[].accResp and the agreement card's night chart read this one builder.
+  function _accRespAt(accEx, epochs) {
+    const at = {};
+    if (accEx && accEx.rracc) {
+      (epochs || []).forEach((e) => {
+        const w = accEx.rracc.filter((x) => x.conf === 'high' && x.tStartMin >= e.tMin && x.tStartMin < e.tMin + 5).map((x) => x.rr);
+        if (w.length) {
+          w.sort((a, b) => a - b);
+          at[e.tMin.toFixed(1)] = +w[w.length >> 1].toFixed(1);
+        }
+      });
+    }
+    return at;
+  }
   function _zoneColor(c) {
     return { gray: '#6F8096', blue: UI.COLORS.blue, green: UI.COLORS.green, amber: UI.COLORS.amber, red: UI.COLORS.red }[c] || '#6F8096';
   }
@@ -1189,7 +1204,7 @@ self.onmessage = async (e) => {
   </svg>`;
   }
   // Feature 2 card
-  function _accCardAgreement(ex) {
+  function _accCardAgreement(ex, r) {
     const ag = ex.agreement;
     let body;
     if (!ag) {
@@ -1218,13 +1233,69 @@ self.onmessage = async (e) => {
       </div>
       <div style="margin:8px 0 2px">${pill} <span class="acc-pill-note">${ag.n} paired 5-min epochs · |Δ| &gt; 3 br/min flagged as disagreement</span></div>
       ${narrowNote}
+      ${_rrNightChart(ex, r)}
       ${_blandAltman(ag)}`;
     }
     return `<section class="section-card" data-tier="secondary" id="accAgreementCard">
     <div class="section-card-title">${evBadge('RRacc vs EDR Agreement')}RRacc vs EDR Agreement</div>
     ${body}
-    <div class="q-note" style="margin-top:8px">Disagreement may reflect body-movement artifact in the ACC or ECG motion noise — cross-reference with the motion trace above. Bland–Altman: x = mean of the pair, y = RRacc − EDR; dashed lines = bias (blue) and ± 1.96 SD limits of agreement (grey). The dots stack into near-vertical columns because RRacc comes off a 30-s FFT quantised to ~1.9 br/min bins (8 Hz grid ÷ 256-pt FFT) and dominates the pair-mean on x: every epoch sharing an RRacc bin lands at nearly the same x while its Δ spreads on y — the accelerometer's frequency resolution, not a plotting artifact.</div>
+    <div class="q-note" style="margin-top:8px">Disagreement may reflect body-movement artifact in the ACC or ECG motion noise — cross-reference with the motion trace above. Bland–Altman: x = mean of the pair, y = RRacc − EDR; dashed lines = bias (blue) and ± 1.96 SD limits of agreement (grey). x = (RRacc + EDR)/2 and y = RRacc − EDR share EDR, so epochs with one RRacc value a sit on the line y = 2a − 2x. RRacc is the 30-s FFT peak refined between bins, so it is not held to the 1.875 br/min bin grid (8 Hz ÷ 256) and the cloud does not form those lines. Parallel lines of slope −2 here mean a quantised RRacc, not a physiological coupling. Across the night: the per-5-min RRacc (median of high-confidence 30-s epochs) and EDR; a gap is an epoch with no value, never bridged.</div>
   </section>`;
+  }
+  function _rrNightChart(ex, r) {
+    const C = UI.COLORS,
+      W = 600,
+      H = 140,
+      P = { l: 42, r: 12, t: 12, b: 22 };
+    const eps = (r && r.epochs) || [];
+    const accAt = _accRespAt(ex, eps);
+    const rows = eps.map((e) => ({ t: e.tMin, edr: e.resp > 0 ? e.resp : null, acc: accAt[e.tMin.toFixed(1)] != null ? accAt[e.tMin.toFixed(1)] : null }));
+    const vals = [];
+    rows.forEach((p) => {
+      if (p.edr != null) vals.push(p.edr);
+      if (p.acc != null) vals.push(p.acc);
+    });
+    if (rows.length < 3 || vals.length < 3) return '';
+    const xmn = rows[0].t,
+      xmx = rows[rows.length - 1].t || xmn + 1,
+      ymn = Math.floor(Math.min.apply(null, vals)) - 1,
+      ymx = Math.ceil(Math.max.apply(null, vals)) + 1;
+    const sx = (x) => P.l + ((x - xmn) / (xmx - xmn || 1)) * (W - P.l - P.r);
+    const sy = (y) => H - P.b - ((y - ymn) / (ymx - ymn || 1)) * (H - P.t - P.b);
+    // an absent epoch breaks the line: a gap is drawn as a gap
+    const path = (k) => {
+      let d = '',
+        pen = false;
+      for (const p of rows) {
+        if (p[k] == null) {
+          pen = false;
+          continue;
+        }
+        d += (pen ? 'L' : 'M') + sx(p.t).toFixed(1) + ' ' + sy(p[k]).toFixed(1);
+        pen = true;
+      }
+      return d;
+    };
+    const step = Math.max(1, Math.round((ymx - ymn) / 3));
+    const ticks = [];
+    for (let v = Math.ceil(ymn); v <= ymx; v += step) ticks.push(v);
+    const mono = 'font-family="IBM Plex Mono,monospace"';
+    const evg = (lbl) => {
+      const b = evBadge(lbl);
+      return b ? '<span style="margin-right:5px">' + b + '</span>' : '';
+    };
+    return `<div class="acc-pill-note" style="margin:10px 0 2px"><b>Across the night</b> · br/min per 5-min epoch ·
+      <span style="color:${C.teal}">${evg('ACC Resp Rate')}RRacc</span> ·
+      <span style="color:${C.blue}">${evg('Resp Rate')}EDR</span></div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="RRacc and EDR breathing rate across the night" style="width:100%;height:auto">
+    <line x1="${P.l}" y1="${H - P.b}" x2="${W - P.r}" y2="${H - P.b}" stroke="${C.axis}"/>
+    <line x1="${P.l}" y1="${P.t}" x2="${P.l}" y2="${H - P.b}" stroke="${C.axis}"/>
+    ${ticks.map((v) => `<line x1="${P.l}" y1="${sy(v).toFixed(1)}" x2="${W - P.r}" y2="${sy(v).toFixed(1)}" stroke="${C.grid}"/><text x="${P.l - 6}" y="${(sy(v) + 3).toFixed(1)}" fill="${C.dim}" font-size="9" text-anchor="end" ${mono}>${v}</text>`).join('')}
+    <path d="${path('edr')}" fill="none" stroke="${C.blue}" stroke-width="1.6" stroke-linejoin="round" opacity=".9"/>
+    <path d="${path('acc')}" fill="none" stroke="${C.teal}" stroke-width="1.4" stroke-linejoin="round"/>
+    <text x="${P.l}" y="${H - 6}" fill="${C.dim}" font-size="9" text-anchor="start" ${mono}>${_fmtEpochClock(r, xmn)}</text>
+    <text x="${W - P.r}" y="${H - 6}" fill="${C.dim}" font-size="9" text-anchor="end" ${mono}>${_fmtEpochClock(r, xmx)}</text>
+  </svg>`;
   }
   function _blandAltman(ag) {
     const C = UI.COLORS,
@@ -2272,16 +2343,7 @@ self.onmessage = async (e) => {
     // ACC full-pipeline (reuse the render-time computation when present; else compute once)
     const accEx = r._accEx || (r.deviceACC && r.deviceACC.length && DSP.accExtras ? DSP.accExtras(r.deviceACC, r.accFs, r.t0Ms, r.durSec, r.epochs, r.stages) : null);
     // per-5-min RRacc (median of high-confidence 30-s epochs) for timeseries alignment
-    const accRespAt = {};
-    if (accEx && accEx.rracc) {
-      r.epochs.forEach((e) => {
-        const w = accEx.rracc.filter((x) => x.conf === 'high' && x.tStartMin >= e.tMin && x.tStartMin < e.tMin + 5).map((x) => x.rr);
-        if (w.length) {
-          w.sort((a, b) => a - b);
-          accRespAt[e.tMin.toFixed(1)] = +w[w.length >> 1].toFixed(1);
-        }
-      });
-    }
+    const accRespAt = _accRespAt(accEx, r.epochs);
     const _geom = _baevskyGeom(r.nn); // Baevsky-SI inputs for the envelope (FOLLOWUP P4)
     const out = {
       kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
