@@ -216,6 +216,8 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
         "tepna-update-pending.service",
         "tepna-update-pending.timer",
         "tepna-radioclock.service",
+        "tepna-fold.service",
+        "tepna-fold.timer",
     ):
         (src / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
@@ -324,6 +326,8 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
         "tepna-update-pending.service",
         "tepna-update-pending.timer",
         "tepna-radioclock.service",
+        "tepna-fold.service",
+        "tepna-fold.timer",
     ):
         (src / "systemd" / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
@@ -728,6 +732,9 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
         "tepna-btattach.sh",
         "enable-gps-stratum1.sh",
         "tepna-m10-tune.sh",
+        # 2026-10-17: the fold wrapper. Read before adding it — it runs `mkdir -p "$OUT"` and
+        # `exec node tools/trio-batch.mjs`, so it touches no systemctl, udev, mount, ip or /etc.
+        "tepna-fold.sh",
     }, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here"

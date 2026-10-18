@@ -613,6 +613,10 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # opens it to check that the JS matcher's `survivorKey` names `after`, instead of trusting a Python
     # model of it (residue 2026-10-12-equivalence-matcher-coarseness-is-in-the-python-model-not-the-js-
     # matcher). A real read, not a mention: staging it keeps that test runnable inside a mutation scratch.
+    # 2026-10-17: ONE new MENTION, `tools/trio-batch.mjs` (0.21 MB, measured). `tests/test_fold_unit.py` names the
+    # fold tool by BASENAME while building a stub tree under tmp_path, and the basename rule flags that.
+    # A mention, not a read — the test never opens the real file. Staged anyway, because the rule
+    # over-flags by design and one small copy is the cheaper of the two errors.
     assert got == [
         "Dex-Test-Suite.html",
         "README.md",
@@ -638,6 +642,7 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
         "tools/mutate-equivalence.json",
         "tools/mutate.mjs",
         "tools/o2ring-dat-timefit.mjs",
+        "tools/trio-batch.mjs",
         "tools/verdict-adoption.json",
         "tools/verify-seals.mjs",
         "uploads/synthetic_ecgdex_h10.txt",
