@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — run the board nudge every 3 hours
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=3h
+Persistent=false
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
