@@ -40,6 +40,9 @@ Identities are stable; role and machine are metadata — update the row, never t
   agent-neutral check stays `tools/pr-compliance.mjs` on the PR. Hatch `CLAUDE_ALLOW_NO_TRAILER=1`.
 - **Triage stamps the brief** in the same session: `PROPOSED (core BUILT, remainder X-blocked — verified
   YYYY-MM-DD: …)`. An untouched header throws the triage away.
+- **Execution stamps the brief too.** The PR that discharges a brief item ticks that item's box and
+  moves the status line in the same diff. A finished item that still reads open costs the next session a
+  full trace to prove it done.
 
 ### 1 · Work in your own worktree
 
