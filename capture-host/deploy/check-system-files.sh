@@ -125,6 +125,8 @@ systemd/tepna-update-pending.timer|$ETC_SYSTEMD/tepna-update-pending.timer|MANAG
 systemd/tepna-radioclock.service|$ETC_SYSTEMD/tepna-radioclock.service|MANAGED|0644
 systemd/tepna-sniff.service|$ETC_SYSTEMD/tepna-sniff.service|MANAGED|0644
 systemd/tepna-sniff.timer|$ETC_SYSTEMD/tepna-sniff.timer|MANAGED|0644
+systemd/tepna-fold.service|$ETC_SYSTEMD/tepna-fold.service|MANAGED|0644
+systemd/tepna-fold.timer|$ETC_SYSTEMD/tepna-fold.timer|MANAGED|0644
 tepna-clock.sh|$LIB_TEPNA/tepna-clock.sh|MANAGED|0755
 tepna-restart.sh|$LIB_TEPNA/tepna-restart.sh|MANAGED|0755
 tepna-sysfiles.sh|$LIB_TEPNA/tepna-sysfiles.sh|MANAGED|0755

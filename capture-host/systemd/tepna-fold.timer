@@ -1,0 +1,20 @@
+# tepna-capture — the fold's timer (SYSTEM scope; see the .service header)
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# 10:00 local — the daytime dead zone acceptance 2 asks for. It sits after the morning report's 08:30
+# (which reads the night that just closed) and well before the 13:00 SD harvest and the 13:30 archive
+# pull, so a fold never competes with either for the disk. No night plausibly runs at 10:00.
+#
+# Persistent so a box that was powered down at 10:00 folds when it comes back: the morning the box was
+# off is exactly the morning whose nights nobody has folded. RandomizedDelaySec keeps it off the
+# minute boundary every other timer on the box fires on.
+[Unit]
+Description=Tepna — daily fold timer (daytime, after capture has closed)
+
+[Timer]
+OnCalendar=*-*-* 10:00:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

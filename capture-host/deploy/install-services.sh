@@ -27,6 +27,26 @@ else
   echo "  ✗ NOT active:"; journalctl -u tepna-capture -n 15 --no-pager | sed 's/^/    /'
 fi
 
+say "1c/5  self-sustained fold (VIGIL-SELF-SUSTAINED-FOLDING)"
+# From the repo for the same reason as every unit above — a hand-placed copy is a file nothing keeps in
+# step. The fold runs UNPRIVILEGED as vigil inside a 4G cgroup fence, so the worst it can do to a
+# recording is nothing.
+FOLD_SRC="$(cd "$(dirname "$0")/.." && pwd)/systemd"
+if [ -f "$FOLD_SRC/tepna-fold.service" ] && [ -f "$FOLD_SRC/tepna-fold.timer" ]; then
+  install -m644 "$FOLD_SRC/tepna-fold.service" /etc/systemd/system/tepna-fold.service
+  install -m644 "$FOLD_SRC/tepna-fold.timer"   /etc/systemd/system/tepna-fold.timer
+  systemctl daemon-reload
+  # `enable --now` the TIMER, never the service: the service is oneshot, so starting it here would run
+  # a whole corpus fold in the middle of an install.
+  systemctl enable --now tepna-fold.timer
+  echo "  ✓ fold timer enabled ($(systemctl show tepna-fold.timer -p NextElapseUSecRealtime --value 2>/dev/null || echo 'next firing unknown'))"
+  # The box has no node runtime as shipped. The wrapper exits 4 and says so, which systemd reads as
+  # success, so an un-owed Node install shows here rather than as a daily failure mail.
+  command -v node >/dev/null 2>&1 || echo "  ⚠ no node on this box — every firing will exit 4 (nothing folded) until a runtime is installed"
+else
+  echo "  ⚠ fold unit absent from $FOLD_SRC — skipped"
+fi
+
 say "1b/5  unattended deploy completion (VIGIL-AUTO-UPDATE)"
 # Installed from the repo for the same reason as the capture unit above — a hand-placed copy is a file
 # nothing keeps in step. The updater it schedules runs UNPRIVILEGED as vigil and cannot write /etc; the
