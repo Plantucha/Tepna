@@ -1598,9 +1598,6 @@ function nDrawer(n){
 function renderNights(){
   if(!NIGHTS || !NIGHTS.length){ $('#nightsTable').innerHTML='<tbody><tr><td class="nwhy">no nights on disk</td></tr></tbody>'; $('#nightsOverview').innerHTML=''; return; }
   const rows=[...NIGHTS].reverse(), recent=rows.slice(0,31), older=rows.slice(31);
-    var _dbg = document.getElementById('nightsSummary');
-    if(_dbg) _dbg.innerHTML='<p class="nwhy" style="color:red">summary error: '+String(_e).slice(0,100)+'</p>';
-  }
   $('#navNightsN').style.display=''; $('#navNightsN').textContent=rows.length;
   document.querySelectorAll('[data-ntab]').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.ntab===NIGHTS_TAB)));
   const dev = NIGHTS_TAB==='dev', cols = dev ? NIGHT_DEVICES : NIGHT_FUSED;
