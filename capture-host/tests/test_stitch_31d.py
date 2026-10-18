@@ -9,6 +9,7 @@ timeline must make the discontinuity visible, not fabricate continuity.
 import json
 import os
 import re
+import subprocess
 
 
 import stitch_31d
@@ -379,9 +380,24 @@ def test_stitch_tool_skips_blank_lines_in_source_files(tmp_path):
 # ── provenance helpers: _git_sha / _utc_now / _verdict_sample ─────────────────
 
 
-def test_git_sha_reports_the_running_tree():
-    sha = stitch_31d._git_sha()
-    assert sha and re.fullmatch(r"[0-9a-f]{7,40}", sha), "short sha of the checkout"
+def test_git_sha_reports_the_running_tree(monkeypatch):
+    # Hermetic: the mutation gate runs a copy with no .git, so the test stubs git itself.
+    seen = {}
+
+    def fake_run(argv, **kw):
+        seen["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, stdout="9bb6267\n", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    assert stitch_31d._git_sha() == "9bb6267"
+    assert seen["argv"] == ["git", "rev-parse", "--short", "HEAD"]
+
+
+def test_git_sha_is_absence_when_git_prints_nothing(monkeypatch):
+    monkeypatch.setattr(
+        "subprocess.run", lambda argv, **kw: subprocess.CompletedProcess(argv, 128, stdout="", stderr="")
+    )
+    assert stitch_31d._git_sha() is None
 
 
 def test_git_sha_is_absence_when_git_fails(monkeypatch):
