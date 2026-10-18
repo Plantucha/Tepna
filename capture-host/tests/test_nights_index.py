@@ -113,7 +113,7 @@ def test_a_full_trio_night_fills_every_column_from_its_own_files(tmp_path):
         "cpap-ble/DATALOG/20260919/20260919_220000_BRP.edf"
     ]
     assert e["GlucoDex"] is None and e["EEGDex"] is None, "no CGM, no Muse: absent, never 0"
-    assert e["Integrator"]["loadable"] is False and e["ECGDex"]["loadable"] is True
+    assert e["Integrator"]["loadable"] is True and e["ECGDex"]["loadable"] is True
     assert e["3 corner hat"] is True and e["PAT"] is True
     # `recordings`/`recordings_unassigned` joined the entry on 2026-10-05: the folder is not the recording,
     # so the index publishes the band grouping BESIDE the folder-wide view. Additive by design — every key
