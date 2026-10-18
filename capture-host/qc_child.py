@@ -150,8 +150,11 @@ def audit_and_compose(jobs: list, devices: list, nights: list, active: set, comm
 
 def _git_sha():
     import subprocess
+
     try:
-        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5).stdout.strip()
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5
+        ).stdout.strip()
         return out or None
     except Exception:
         return None
@@ -159,31 +162,37 @@ def _git_sha():
 
 def _utc_now():
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _verdict_sample():
     import json as _json
-    return _json.dumps({
-        "schema": "tepna.verdict/1",
-        "gate": "qc-child-stitch-hook",
-        "status": "PASS",
-        "population": {"checked": 1, "eligible": 1, "excluded": 0},
-        "criterion": {
-            "name": "PASS verdict triggers stitch; non-PASS skips",
-            "threshold": 1,
-            "unit": "hook",
-            "direction": "eq",
+
+    return _json.dumps(
+        {
+            "schema": "tepna.verdict/1",
+            "gate": "qc-child-stitch-hook",
+            "status": "PASS",
+            "population": {"checked": 1, "eligible": 1, "excluded": 0},
+            "criterion": {
+                "name": "PASS verdict triggers stitch; non-PASS skips",
+                "threshold": 1,
+                "unit": "hook",
+                "direction": "eq",
+            },
+            "result": {"trigger": "PASS", "skip": ["FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
+            "evidence": ["capture-host/qc_child.py", "capture-host/tests/test_qc_child_stitch.py"],
+            "producedBy": {"tool": "capture-host/qc_child.py", "commit": _git_sha()},
+            "at": _utc_now(),
+            "scope": "internal",
         },
-        "result": {"trigger": "PASS", "skip": ["FAIL", "UNKNOWN", "NOT_APPLICABLE"]},
-        "evidence": ["capture-host/qc_child.py", "capture-host/tests/test_qc_child_stitch.py"],
-        "producedBy": {"tool": "capture-host/qc_child.py", "commit": _git_sha()},
-        "at": _utc_now(),
-        "scope": "internal",
-    }, indent=2)
+        indent=2,
+    )
 
 
 if __name__ == "__main__":
     import sys
+
     if "--verdict-sample" in sys.argv:
         print(_verdict_sample())

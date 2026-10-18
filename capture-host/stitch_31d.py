@@ -315,12 +315,13 @@ def stitch_31d(
     return manifests
 
 
-
-
 def _git_sha():
     import subprocess
+
     try:
-        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5).stdout.strip()
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5
+        ).stdout.strip()
         return out or None
     except Exception:
         return None
@@ -328,6 +329,7 @@ def _git_sha():
 
 def _utc_now():
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -353,5 +355,6 @@ def _verdict_sample():
 
 if __name__ == "__main__":
     import sys
+
     if "--verdict-sample" in sys.argv:
         print(json.dumps(_verdict_sample(), indent=2))
