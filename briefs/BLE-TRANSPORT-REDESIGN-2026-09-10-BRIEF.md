@@ -223,7 +223,7 @@ between a suite and being green about nothing.
 |---|---|---|
 | 1.5 denominators · 1.6 retry visibility · 1.7 adapter leases | small, additive | pickup |
 | 1.3 per-unit capability records | small | pickup |
-| 1.2 sample envelope | medium — touches every writer and consumer | pickup, after the §∅ mechanism review lands |
+| 1.2 sample envelope | medium — touches every writer and consumer | ⏩ promoted 2026-09-17 → `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` |
 | 1.4 timebase at the edge | medium — Clock Contract adjacent, so serialised | pickup, brief of its own |
 | **1.1 own the handle map** | **large — architectural** | **owner** |
 
