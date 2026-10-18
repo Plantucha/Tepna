@@ -122,6 +122,7 @@
 <script src="adapters/o2ring-ppg2w.js"></script>
 <script src="adapters/polar-h10-ecg.js"></script>
 <script src="adapters/resmed-edf.js"></script>
+<script src="adapters/polar-acc.js"></script>
 <!-- units-as-quantities (DexUnits.guardBaevsky) — the welltory-summary adapter applies the Baevsky unit guard at ingest -->
 <script src="quantity.js"></script>
 <!-- §3 namespaced co-load (SIGNAL-ADAPTER-FOLLOWUPS): set the flag, then load the migrated
@@ -136,6 +137,7 @@
 <script type="module" src="glucodex-dsp.js"></script>
 <script type="module" src="ppgdex-dsp.js"></script>
 <script type="module" src="ecgdex-dsp.js"></script>
+<script type="module" src="motiondex-dsp.js"></script>
 <!-- CPAP (EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III §3): the sibling orchestrator carried the identical
      gap OverDex had — it registers `resmed-edf` through signal-adapters but never booted the node
      behind it, so a dropped ResMed night could not compute here either. Fixed together, because
