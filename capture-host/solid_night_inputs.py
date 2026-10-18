@@ -1845,6 +1845,27 @@ def _audit_spans(audit_dev: dict, judged_date) -> bool:
     return False
 
 
+def _wear_end_is_this_bands(worn_end: dict, night_dir: str) -> bool:
+    """Does the file this wear end was measured FROM belong to the judged band? PURE.
+
+    ⚠️ IT IS A REFUSAL, NOT A FILTER, so every answer it cannot give is False. A wear end with no
+    `file`, a name carrying no session stamp, or a folder that names no band gives no evidence that the
+    end belongs here — and adopting on no evidence is exactly how the next night's doff became this
+    night's worn interval. The judged folder's OWN wear end is never routed through this; only an
+    adoption from the neighbouring folder is, so a refusal costs the night nothing it measured itself.
+
+    The stamp comes from `writers.file_stamp` for the reason recorded in `in_band` and `_audit_spans`
+    (audit F5): an unanchored 14-digit search takes the FIRST run in the name, which on
+    `Polar_H10_20250101000000_20260725225058_ECG.txt` is the device SERIAL."""
+    band = band_of(night_dir)
+    if band is None:
+        return False
+    f = worn_end.get("file")
+    if not isinstance(f, str) or not f:
+        return False
+    return in_band(f, band)
+
+
 def _adopt_later_wear(base: dict, other: dict, nxt: str, night_dir: str) -> None:
     """Take `other`'s wear ends into `base` where they are LATER, recording which folder they came from.
 
@@ -1859,9 +1880,25 @@ def _adopt_later_wear(base: dict, other: dict, nxt: str, night_dir: str) -> None
         if not isinstance(od, dict):
             continue  # one unusable entry must not drop the devices listed after it
         bd = (base.setdefault("devices", {})).setdefault(name, {})
-        o_end = ((od.get("wear") or {}).get("worn_end") or {}).get("at")
+        o_worn = (od.get("wear") or {}).get("worn_end") or {}
+        o_end = o_worn.get("at")
         b_end = ((bd.get("wear") or {}).get("worn_end") or {}).get("at")
-        if o_end and (not b_end or str(o_end) > str(b_end)):
+        # 🔴 "LATEST ACROSS THE SCOPE" CANNOT TELL THIS RECORDING'S MORNING FROM THE NEXT ONE'S EVENING.
+        # Measured on the box 2026-10-11 for the night of 10-09: the 10-10 folder's audit lists the same
+        # two Polars with `worn_end` 2026-10-11 06:56 — the doff of the 10-10 NIGHT (sessions
+        # `20261010204526_PPG` / `20261010204501_ECG`) — and because that end is LATER it was adopted
+        # over each device's own morning doff (Verity 07:38:27, H10 07:38:00), then clamped to the band
+        # end 10:00. The arithmetic closed exactly on the wrong number: Verity's first row 01:47:53 to
+        # 10:00 is 29,527 s, and 29,527 x 55 Hz = 1,623,985 — the expected-row figure the FAIL verdict
+        # published. Against the devices' own doffs the same night reads 100.2 % and 100.6 %.
+        #
+        # So lateness is not the question; MEMBERSHIP is. A wear end may only be adopted when its own
+        # source file's session start falls in THIS band — the same `in_band` / `writers.file_stamp`
+        # test `_audit_spans` uses, and the same rule that decides the folder set in the first place.
+        # A file stamped after the band's end cannot be this night's by construction, however late the
+        # doff it carries. (Latent in #3297, which introduced the latest-wins rule; whether the scope
+        # change in #3395 is what made this particular value reachable is NOT verified.)
+        if o_end and (not b_end or str(o_end) > str(b_end)) and _wear_end_is_this_bands(o_worn, night_dir):
             bd["wear"] = od["wear"]
             bd["wear_from"] = os.path.basename(nxt)
         # THE GAP ROWS MERGE BY FILE IDENTITY, and the SEAM between the two halves is judged separately,
