@@ -3,13 +3,20 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-10-18 · **Created:** 2026-10-13 · **Follows:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`
+**Status:** DONE — 2026-10-18 · **Created:** 2026-10-13 · **Follows:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md`
 
 # The hat's reference check: which nights, which clock, and how the card stays current
 
 **One line.** The trio page's validation note quotes one frozen run over 37 nights from 2026-09-26.
 This brief makes the check name its nights, report three populations, and measure what the uncorrected
 device clocks cost.
+
+**Done 2026-10-18.** §5.1 landed as #3619; §8 recorded the first full-corpus run (54 nights of 94,
+2026-07-27 → 2026-10-16) and judged the paired drift; §5.2–5.4 landed with
+`tools/tch-reference-record.mjs`, the 2026-10-18 record and a card that composes every pooled figure
+from it; §9 answers §4's owed CI comparison and reads UNDERPOWERED with its n and its bound. What the
+work found and did not fix is in §9's second half: the pre-stated bias criterion lands on a quantity
+the headline misread is not in, which needs a successor brief with its own threshold stated first.
 
 ## 1 · What is already measured and must not be re-measured
 
@@ -107,10 +114,27 @@ effect. It is a paired comparison over the same nights, so it needs fewer nights
    refused — never a near-zero ppm read as agreement.
 2. A new published-number record replaces the 2026-09-26 one. It holds pooled figures only, with the
    night count and the date range. The owner ruled on 2026-09-24 that per-night rows stay off the public
-   repo.
+   repo. — **BUILT 2026-10-18.** `tools/tch-reference-record.mjs` reads the two §8 run objects and writes
+   `analysis/published-numbers/tch-firmware-reference-2026-10-18.json`
+   (`supersedes` the 2026-09-26 record) plus its generated twin
+   `codegen/generated/tch-reference-record.js`. It emits `tch-reference-record:no-private-data`, which
+   walks every leaf of the record it is about to write — no absolute filesystem path, no array of more
+   than two ISO dates, no per-night row — rewrites the run verdicts' `evidence` to a corpus placeholder,
+   re-reads what it wrote, and REFUSES to write on anything but PASS. The record states which of its two
+   date spans is the scored one and which the eligible one (`claimsNote`), because quoting a count from
+   one set with a range from the other is §2's defect in a different place.
 3. `sensor-trio-night.js` reads the note from that record and stops hard-coding it. The note names its
-   population ("N nights, first → last"). The hero names its night.
-4. The rolling-30 trend goes to the board, not to the card.
+   population ("N nights, first → last"). The hero names its night. — **BUILT 2026-10-18.** The twin is
+   inlined ahead of the card by `tools/build-analysis.mjs`, and every pooled figure on the card — the
+   night count, the dates, the σ, the band counts, the in-band fractions, ρ — is composed from it. The
+   note names BOTH populations (one night in the heroes, the pooled corpus and the solid stratum in the
+   note); with no record it REFUSES the note with a named reason rather than falling back to a stale
+   sentence (§∅). Pinned by a new `tests/dex-tests.js` group: the composed slice may hold no decimal
+   literal at all and no multi-digit integer but the 100 of a percentage, and the twin must be data —
+   no function, arrow, call or template reaches the page.
+4. The rolling-30 trend goes to the board, not to the card. — **BUILT 2026-10-18.** The card renders no
+   rolling window (asserted: the composition reads only the `all` and `solid` populations), and the
+   trend went to the fleet board with the §9 figures.
 
 ## 6 · Acceptance
 
@@ -150,6 +174,41 @@ off the card, and this supports that.
 **The drawn-axis flag earned itself on the first run.** Across the corpus the recorder saw 11 O2Ring
 calls whose host axis was DRAWN, plus 3 O2Ring refusals and 1 Verity refusal. Reading `independent`
 alone would have counted those 11 as a second clock.
+
+## 9 · §4's CI comparison, answered (2026-10-18) — and what it cannot answer
+
+§8 left this owed. `tools/tch-reference-record.mjs` emits one `tch-reference-record:bias-stratum`
+verdict per axis: the solid stratum's mean bias against the all-nights mean and its 95 % CI, a
+20 000-draw bootstrap of the mean on a fixed seed, so a reader reproduces it byte-for-byte. Both legs
+are evaluated at the three decimals the record publishes, which is the precision a reader can re-check.
+
+**Both axes read `UNDERPOWERED` — 10 solid nights against a pre-stated minimum of 20** (twice the
+sibling tool's `MIN_NIGHTS`, fixed before any value was read, per §4's "report it with its n and a
+bound"). The per-corner comparison is reported, not decided:
+
+| corner | all-nights mean bias (host) | 95 % CI | solid-stratum mean | same sign | inside the CI |
+|---|---|---|---|---|---|
+| H10 (reported, never judged) | +0.043 bpm | [+0.034, +0.054] | +0.051 | yes | yes |
+| Verity | 0.000 bpm | [−0.010, +0.011] | +0.020 | no | no |
+| O2Ring | −0.116 bpm | [−0.192, −0.048] | −0.104 | yes | yes |
+
+**On the one judged corner whose bias is distinguishable from zero, the stratum agrees with all nights.**
+The O2Ring's interval excludes zero and the stratum mean sits inside it: for that corner §4's criterion
+reads "the estimator, not the nights".
+
+🔴 **But the criterion carries no information about the corner the headline misread is about.** The
+Verity's mean bias is ~0 on every population and its CI straddles zero, so "same sign" is a coin flip on
+noise and "inside the CI" is a test of an interval ±0.01 bpm wide. The misread §2 is about is in **σ̂**
+(the classic hat under-reads the Verity, in band on 29 of 54 nights), not in bias. A pre-stated
+criterion that lands on the wrong quantity is reported as it fell — nobody adjusts a threshold after the
+first run (§4) — and the finding is that this criterion needs a σ̂-based successor before it can answer
+the question it was written for. That successor is NOT proposed here; it needs its own pre-stated
+threshold, stated before the run that judges it.
+
+The wall axis reads the same shape on the judged corners — Verity zero-crossing, O2Ring meets — and
+differs only on the H10, whose stratum mean (+0.034) falls outside its narrower all-nights CI
+[+0.010, +0.028]. That is the §8 H10 inflation again, in the one corner §2 forbids judging, and it is
+reported for completeness.
 
 ## 7 · Out of scope
 
