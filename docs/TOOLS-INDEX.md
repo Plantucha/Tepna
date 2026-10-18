@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**262 tools** · 261 with a purpose line · **1 without**
+**263 tools** · 262 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -76,6 +76,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`ecg-apnea-correlate.mjs`](../tools/ecg-apnea-correlate.mjs) | THE STANDING APNEA-CORRELATE HARNESS (ECGDEX-CARDIOPULMONARY-COUPLING §9 / -FOLLOWUPS §4). |
 | [`ecg-physionet-differential.mjs`](../tools/ecg-physionet-differential.mjs) | SCORE THE SHIPPED QRS DETECTOR AGAINST INDEPENDENTLY ANNOTATED BEATS. |
 | [`ecg-rate-transfer.mjs`](../tools/ecg-rate-transfer.mjs) | DOES PAN–TOMPKINS TRANSFER FROM 130 Hz TO 125 Hz? — experiment E3 of `briefs/SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`. |
+| [`edge-settle.mjs`](../tools/edge-settle.mjs) | // // edge-settle.mjs — where does each sensor's signal settle at the start and the end of a session, // and where is the one window that every sensor covers with clean signal? |
 | [`eegdex-selftest.mjs`](../tools/eegdex-selftest.mjs) | Assertions for `eegdex-dsp.js`, on PLANTED signals rather than the corpus — a staging engine that only demonstrates itself on real EEG cannot show WHY it is right, and a corpus test cannot… |
 | [`eqc-power.mjs`](../tools/eqc-power.mjs) | how many simultaneous epochs does Extended Quadruple Collocation need before it can say WHICH pair of sources shares error? |
 | [`eqc-run.mjs`](../tools/eqc-run.mjs) | Extended Quadruple Collocation on the real 4-stream corpus. WHAT IT ANSWERS. |
