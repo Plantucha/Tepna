@@ -178,12 +178,13 @@
         return undefined;
       }
     },
+    // acc (2026-10-18): adapters/polar-acc.js routes the Polar ACC to MotionDex, so the resolver names it.
     acc: {
       kind: 'samples',
       unit: 'g',
       frameFields: ['samples', 'fs', 't0Ms'],
       dsp: function () {
-        return undefined;
+        return g('MotionDex');
       }
     }
   };

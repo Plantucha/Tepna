@@ -1838,6 +1838,18 @@
    },
    "note": "classic hat vs the two-detector (ECGDex + H10 firmware) reference; PASS/FAIL on the fraction of optical night-corners within band, UNDERPOWERED below 10 nights → verdictObject(); --json emits the ALL-population object at the top level (unchanged shape for tepna-tchref-nightly.service) with the rolling-30 and solid-stratum objects beside it in `verdicts`, --verdict-sample the synthetic-shape object the gate reads; --axis host|wall selects whether DexClock.hostAxis disciplines the corners, and a non-PASS reason names the axis because a σ is not comparable across axes"
   },
+  "tools/tch-reference-record.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-reference-record.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the PUBLIC record of the sibling tool's reference check \u2014 pooled figures only, because the per-night rows are numbers about a person's nights and the owner ruled (2026-09-24) they stay off the repo. Two decisions: `:no-private-data` walks every leaf of the record it is about to write (no absolute path, no array of more than two ISO dates, no per-night row) and REFUSES to write on anything but PASS; `:bias-stratum`, one per axis, answers TCH-REFERENCE-POPULATIONS \u00a74's owed comparison \u2014 is the solid stratum's mean bias the same sign as the all-nights mean and inside its bootstrap CI \u2014 and reads UNDERPOWERED below twice the sibling's MIN_NIGHTS, a bound fixed before any value was read. --verdict-sample prints the bias-stratum object alone, over a synthetic record, so the gate parses stdout as JSON"
+  },
   "tools/tch-multinight.mjs": {
    "bin": "decides",
    "status": "adopted",

@@ -9448,7 +9448,14 @@
           'tools/pat-axis-leg-audit.mjs':
             'REPORTS — the output IS the provenance line, printing `drawn=` beside `ppm=`, `independent=` and `spreadMs=`. Its predicted-drift figure is a diagnostic shown next to the flag, never applied as a correction.',
           'tools/tch-firmware-reference.mjs':
-            'REPORTS — its `--axis host|wall` switch decides whether the DSPs may run the one correction they already own, and the tool itself applies no rate. `axisSummary` tallies `deviceDrawn` FIRST, so a drawn host column never counts as independence, and its `ppmMedian` rides beside the call count as a diagnostic.'
+            'REPORTS — its `--axis host|wall` switch decides whether the DSPs may run the one correction they already own, and the tool itself applies no rate. `axisSummary` tallies `deviceDrawn` FIRST, so a drawn host column never counts as independence, and its `ppmMedian` rides beside the call count as a diagnostic.',
+          /* Joined the population 2026-10-18 on a PROSE field, not on code: the only axis token it
+             carries is the `axisNote` STRING it publishes, which tells a reader of the record which leg
+             the sibling tool ran. The scan strips comments and not string literals, so a published
+             sentence still over-flags — which is this population's stated design (a new tool lands here
+             rather than staying invisible), and the honest classification is a reason, not a guard. */
+          'tools/tch-reference-record.mjs':
+            "REPORTS — it republishes the sibling reference run's pooled figures and applies no rate at all: it never calls `hostAxis`, never reads a `.ppm`, and its axis mention is the `axisNote` sentence inside the record it writes."
         };
         var POP = [],
           AXIS = [],
@@ -9504,7 +9511,10 @@
           OWNFIT.join(', '),
           'tools/beat-comb-analysis.mjs, tools/beat-leg-closure.mjs, tools/dual-clock-rate.mjs, tools/integrator-block-precision.mjs'
         );
-        T.eq('POPULATION is 12 — the published denominator', POP.length, 12, 'POPULATION=' + POP.join(', '));
+        /* 12 measured 2026-09-27; 13 from 2026-10-18, when `tch-reference-record.mjs` joined on its
+           published `axisNote` sentence (see its EXCLUDED row). The number is a ratchet on a derived
+           set, so it moves only beside a classification. */
+        T.eq('POPULATION is 13 — the published denominator', POP.length, 13, 'POPULATION=' + POP.join(', '));
       }
 
       /* THE NOTE IN `clock.js` IS A CLAIM ABOUT THREE NODES, so it drifts when they migrate and nothing
@@ -11340,6 +11350,195 @@
         checkedPairs === 3,
         'only ' + checkedPairs + ' of 3 pairs collapsed upward — the loop passed by skipping the rest'
       );
+    });
+    /* ════ THE CARD'S POOLED NOTE IS COMPOSED FROM THE PUBLISHED RECORD ══════════════════════════════
+       TCH-REFERENCE-POPULATIONS §2 defect 1: `sensor-trio-night.js` hard-coded "37 nights" and three
+       pooled σ, and kept printing them for three weeks after the reference population had grown to 54 —
+       with every gate green, because nothing tied the sentence to the run. §5.3 moved the figures into
+       `analysis/published-numbers/tch-firmware-reference-<date>.json`, whose generated twin
+       `codegen/generated/tch-reference-record.js` is inlined into the page by `tools/build-analysis.mjs`.
+
+       WHAT THIS GROUP PINS, and why each leg is here rather than in the tool's own selftest:
+       · the twin is DATA, not code — it is inlined verbatim into a 1.3 MB page, so a function body
+         arriving there would execute unreviewed;
+       · the record's two populations stay separable (a count from one set with a range from the other is
+         the §2 defect in a different place), and every verdict obeys `checked + excluded = eligible`;
+       · PRIVACY, re-implemented here rather than borrowed: the tool scrubs absolute paths, date lists
+         and per-night rows and emits a PASS about its own work. A check that calls the scrubber it is
+         checking passes with it, so this walks the leaves itself (owner ruling 2026-09-24: per-night
+         values stay off the public repo);
+       · the card reads the record and composes BOTH populations, and the composed slice carries NO
+         pooled figure as a literal — which is the only leg that would have caught the original defect.
+       The two HTML invariants (the note host is empty in the built page; the twin is inlined AHEAD of
+       the card) live in `tools/tch-reference-record.mjs --selftest`, because the built page is in
+       neither lane's `env.sources` — it is the inlined bundle itself. ═══════════════════════════════ */
+    group('the card composes its pooled note from the published record, with nothing typed', 'sensor-trio · published-record · §∅', function (T) {
+      var twin = env.sources && env.sources['codegen/generated/tch-reference-record.js'];
+      var card = env.sources && env.sources['sensor-trio-night.js'];
+      T.ok('the generated twin is readable in this lane', !!twin, twin ? twin.length + ' bytes' : 'codegen/generated/tch-reference-record.js not in env.sources — list it in BOTH lanes');
+      T.ok('the card source is readable in this lane', !!card, card ? card.length + ' bytes' : 'sensor-trio-night.js not in env.sources — list it in BOTH lanes');
+      if (!twin || !card) return;
+
+      /* ── the twin is a generated DATA file ───────────────────────────────────────────────────────── */
+      T.ok(
+        'the twin says what generated it and that it must not be edited',
+        /@generated by tools\/tch-reference-record\.mjs/.test(twin) && /DO NOT EDIT/.test(twin),
+        'a generated file that does not say so gets hand-edited'
+      );
+      T.ok('the twin assigns exactly one global', (twin.match(/window\.TCH_REFERENCE_RECORD\s*=/g) || []).length === 1, 'the page reads window.TCH_REFERENCE_RECORD at module evaluation');
+      var body = twin.slice(twin.indexOf('window.TCH_REFERENCE_RECORD'));
+      T.ok(
+        'the twin carries DATA only — no function, arrow, call or template in the payload',
+        !/\bfunction\b|=>|\brequire\(|\beval\(|`/.test(body),
+        'this file is inlined verbatim into sensor-trio-night.html; anything executable there runs unreviewed'
+      );
+
+      var rec = null,
+        parseErr = null;
+      try {
+        rec = JSON.parse(body.slice(body.indexOf('{'), body.lastIndexOf('}') + 1));
+      } catch (e) {
+        parseErr = String(e && e.message);
+      }
+      T.ok(
+        'the twin payload is plain JSON — the twin and the record are the same bytes',
+        !!rec,
+        rec ? Object.keys(rec).length + ' top-level field(s) parsed' : 'JSON.parse failed: ' + String(parseErr)
+      );
+      if (!rec) return;
+      T.ok('the record declares its schema', rec.schema === 'tepna.published-number-record/1', String(rec.schema));
+      T.ok(
+        'the record names the brief it discharges and the record it supersedes',
+        /BRIEF\.md$/.test(String(rec.brief)) && /^analysis\/published-numbers\/.*\.json$/.test(String(rec.supersedes)),
+        String(rec.brief) + ' / ' + String(rec.supersedes)
+      );
+      T.ok(
+        'the record is dated and names the dated file it supersedes by pattern, so no test pins one run',
+        /^\d{4}-\d{2}-\d{2}$/.test(String(rec.generated)) && /^analysis\/published-numbers\/tch-firmware-reference-\d{4}-\d{2}-\d{2}\.json$/.test(String(rec.supersedes)),
+        'generated ' + String(rec.generated) + ', supersedes ' + String(rec.supersedes)
+      );
+
+      /* ── TWO POPULATIONS, NEVER MIXED ────────────────────────────────────────────────────────────── */
+      var cl = rec.claims || {};
+      T.ok('the scored count never exceeds the eligible count', cl.nightsScored > 0 && cl.nightsEligible >= cl.nightsScored, cl.nightsScored + ' scored of ' + cl.nightsEligible + ' eligible');
+      T.ok(
+        'the claims date range is the SCORED span, inside the eligible span',
+        cl.dateFirst >= cl.eligibleFirst && cl.dateLast <= cl.eligibleLast && cl.dateFirst <= cl.dateLast,
+        'scored ' + cl.dateFirst + '→' + cl.dateLast + ' vs eligible ' + cl.eligibleFirst + '→' + cl.eligibleLast
+      );
+      T.ok(
+        'the record says in its own text which span is which',
+        /SCORED/.test(String(rec.claimsNote)) && /ELIGIBLE/.test(String(rec.claimsNote)),
+        'claimsNote must name both spans — a reader of the JSON has only this'
+      );
+      var pops = [],
+        axKeys = Object.keys(rec.axes || {});
+      for (var ai = 0; ai < axKeys.length; ai++) {
+        var P = rec.axes[axKeys[ai]].populations || {};
+        for (var pk in P) if (P[pk]) pops.push({ ax: axKeys[ai], k: pk, v: P[pk] });
+      }
+      T.ok('ANTI-VACUITY · the record carries populations to check', pops.length >= 4, pops.length + ' population verdict(s) across ' + axKeys.length + ' axis/axes');
+      var badPop = pops.filter(function (p) {
+        var q = p.v.population || {};
+        return !(q.checked + q.excluded === q.eligible);
+      });
+      T.ok(
+        'every population verdict satisfies checked + excluded = eligible',
+        badPop.length === 0,
+        badPop
+          .map(function (p) {
+            return p.ax + ':' + p.k;
+          })
+          .join(', ')
+      );
+      var badStatus = pops.filter(function (p) {
+        return ['PASS', 'FAIL', 'SHORTFALL', 'UNDERPOWERED', 'NOT_RUN', 'NOT_APPLICABLE', 'UNKNOWN'].indexOf(p.v.status) < 0 || (p.v.status !== 'PASS' && !p.v.reason);
+      });
+      T.ok(
+        'every population verdict carries one of the seven statuses, and a reason when it is not PASS',
+        badStatus.length === 0,
+        badStatus
+          .map(function (p) {
+            return p.ax + ':' + p.k + '=' + p.v.status;
+          })
+          .join(', ')
+      );
+
+      /* ── PRIVACY, walked here rather than taken from the tool's own PASS ─────────────────────────── */
+      var leaks = [],
+        seen = 0;
+      (function walk(node, at) {
+        if (node === null || node === undefined) return;
+        if (typeof node === 'string') {
+          seen++;
+          if (/(^|[\s"'(])\/(home|srv|mnt|media|Users|var)\//.test(node)) leaks.push(at + ': absolute path');
+          return;
+        }
+        if (typeof node !== 'object') {
+          seen++;
+          return;
+        }
+        if (Array.isArray(node)) {
+          var dates = node.filter(function (x) {
+            return typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x);
+          }).length;
+          if (dates > 2) leaks.push(at + ': ' + dates + ' ISO dates in one array — a date RANGE is two');
+          var rows = node.filter(function (x) {
+            return x && typeof x === 'object' && ('trueSd' in x || 'bias' in x || 'hat' in x || 'night' in x);
+          }).length;
+          if (rows > 0) leaks.push(at + ': ' + rows + ' per-night row(s)');
+          for (var i = 0; i < node.length; i++) walk(node[i], at + '[' + i + ']');
+          return;
+        }
+        for (var k in node) walk(node[k], at + '.' + k);
+      })(rec, '$');
+      T.ok('ANTI-VACUITY · the privacy walk reached the leaves', seen > 100, seen + ' leaf value(s) examined');
+      T.ok(
+        'the published record carries no absolute path, no night list and no per-night row',
+        leaks.length === 0,
+        leaks.slice(0, 6).join(' · ') + (leaks.length > 6 ? ' · +' + (leaks.length - 6) + ' more' : '')
+      );
+
+      /* ── the card reads it, and types nothing ────────────────────────────────────────────────────── */
+      T.ok('the card reads the record global', /window\.TCH_REFERENCE_RECORD/.test(card), 'the note must come from the record, not from this file');
+      T.ok(
+        'the card names its pooled population as a count AND a span',
+        /nightsScored\s*\+\s*' nights, '\s*\+\s*TCHCLAIMS\.dateFirst/.test(card),
+        '§5.3 — the note names its population ("N nights, first → last")'
+      );
+      T.ok(
+        'the card names the night its heroes describe',
+        /heroNight'\)\.textContent = nt\.key/.test(card) && /renderReferenceNote\(nt\.key\)/.test(card),
+        '§6 — the card must name BOTH of its populations'
+      );
+      T.ok(
+        'an absent record REFUSES the note instead of falling back to a stale sentence',
+        /REFUSED/.test(card) && /did not load/.test(card),
+        '§∅ — a stale pooled sentence that reads as current is worse than a visible absence'
+      );
+      T.ok('the superseded record is named nowhere in the card', !/tch-firmware-reference-2026-09-26/.test(card), 'the retired run must not survive as a constant or a citation');
+
+      /* THE LEG THAT WOULD HAVE CAUGHT THE ORIGINAL DEFECT: the composed slice — from the reference
+         comment to the end of the composition — may hold no pooled figure as a literal. Decimals are
+         banned outright; the only multi-digit integer allowed is the 100 of a percentage. */
+      var i0 = card.indexOf('WHAT THE REFERENCE SAYS ABOUT EACH HERO'),
+        i1 = card.indexOf('const tchChecked');
+      T.ok('ANTI-VACUITY · the composed slice was located and is substantial', i0 > 0 && i1 > i0 && i1 - i0 > 1500, 'slice ' + i0 + '→' + i1);
+      if (i0 > 0 && i1 > i0) {
+        var slice = card.slice(i0, i1);
+        var dec = slice.match(/\d+\.\d+/g) || [];
+        var ints = (slice.match(/(?:^|[^\w.])(\d{2,})(?![\w.])/g) || []).map(function (s) {
+          return s.replace(/[^\d]/g, '');
+        });
+        T.ok('no pooled figure is typed into the composition — no decimal literal at all', dec.length === 0, dec.join(', '));
+        T.ok(
+          'the only multi-digit integer in the composition is the 100 of a percentage',
+          ints.filter(function (n) {
+            return n !== '100';
+          }).length === 0,
+          ints.join(', ') + ' — a night count or a σ belongs in the record'
+        );
+      }
     });
     group("the paper's power tool and the gated TCH kernel compute the same hat", 'sensor-trio · tch-parity', function (T) {
       var K = env.IntegratorTCH;
@@ -35083,6 +35282,56 @@
      rec.deviceACC → analyze() stamps epochs[].position (posture). Lock: (1) nearest-by-stamp pairing,
      (2) the adapter attaches the sidecars (and a no-companion call leaves the single-text frame
      unchanged), (3) compute() turns deviceACC into REAL postures (vs all-'unknown' without). ════ */
+    /* ════ ACC → MotionDex (2026-10-18). Before this, no adapter routed a Polar `_ACC.txt`: OverDex set
+       it aside and MotionDex reached the Integrator only from a hand-exported JSON. The ACC routes to
+       `polar-acc` (signalType 'acc'), a chest frame and an arm frame of one night become ONE MotionDex
+       run, and the sidecar/IMU files stay companions, never primaries. ════ */
+    group('ACC routes to MotionDex — polar-acc adapter, chest + arm pairing, one MotionDex export', 'polar-acc · signal-orchestrate · motiondex-dsp', function (T) {
+      var SA = env.SignalAdapters,
+        SF = env.SignalFrame,
+        ORCH = env.SignalOrchestrate,
+        MD = env.MotionDex;
+      if (!(SA && SF && ORCH && MD && typeof ORCH.emitAccNodeExport === 'function')) {
+        T.ok('SignalAdapters + SignalOrchestrate.emitAccNodeExport + MotionDex co-loaded', false, 'load adapters/polar-acc.js and motiondex-dsp.js into both runners');
+        return;
+      }
+      var chestN = 'Polar_H10_AAAA_20260617_010000_ACC.txt',
+        armN = 'Polar_VeritySense_BBBB_20260617_010100_ACC.txt';
+      var chestT = MD.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 21 }),
+        armT = MD.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 7 });
+      var rc = SA.route({ name: chestN }, chestT.slice(0, 4096));
+      T.eq('a Polar _ACC.txt routes to polar-acc', rc && rc.best && rc.best.adapter && rc.best.adapter.id, 'polar-acc');
+      T.eq('  as signalType acc', rc && rc.best && rc.best.signalType, 'acc');
+      var rr = SA.route({ name: 'Polar_H10_AAAA_20260617_010000_ACCRUNS.txt' }, 'start;end\n');
+      T.ok('  the ACCRUNS validity sidecar is never a polar-acc primary', !(rr && rr.best && rr.best.adapter && rr.best.adapter.id === 'polar-acc'));
+      T.ok('  companionKinds(acc) = accruns/gyro/magn', JSON.stringify(ORCH.companionKinds('acc')) === JSON.stringify(['accruns', 'gyro', 'magn']));
+      T.ok('  canEmit(acc) — MotionDex is a compute host', ORCH.canEmit('acc') === true);
+      var ad = rc.best.adapter;
+      var fc = SA.runAdapter(ad, chestT, { files: [chestN], parseSensorXYZ: MD.parseSensorXYZ }),
+        fa = SA.runAdapter(ad, armT, { files: [armN], parseSensorXYZ: MD.parseSensorXYZ });
+      T.ok('chest frame is a valid usable acc frame', fc && fc.usable && SF.validateFrame(fc).ok, fc && fc.reason);
+      T.eq('  H10 → site chest', fc && fc.site, 'chest');
+      T.eq('  Verity Sense → site arm', fa && fa.site, 'arm');
+      T.ok('  fs is MEASURED from the span (~26 Hz synthetic), never nominal', fc && fc.fs > 24 && fc.fs < 28, fc && fc.fs);
+      var emit = ORCH.pairMotionFrames([fc, fa]);
+      T.eq('chest + arm of one night pair into ONE run', emit.length, 1);
+      T.ok('  the chest frame carries the arm frame as partner', emit[0] === fc && fc.partner === fa);
+      var far = SA.runAdapter(ad, armT, { files: [armN], parseSensorXYZ: MD.parseSensorXYZ });
+      far.t0Ms = fc.t0Ms + 25 * 3600000;
+      var fc2 = SA.runAdapter(ad, chestT, { files: [chestN], parseSensorXYZ: MD.parseSensorXYZ });
+      T.eq('  an arm ACC more than a day away is a different recording (two runs)', ORCH.pairMotionFrames([fc2, far]).length, 2);
+      var exp = ORCH.emitAccNodeExport(emit[0], { MotionDex: MD, DexKernel: env.DexKernel || null });
+      T.eq('the export is a MotionDex node-export', exp && exp.schema && exp.schema.node, 'MotionDex');
+      T.ok(
+        '  both sites reached compute (chestAcc + acc streams counted)',
+        exp && exp.motion && exp.motion.streams && exp.motion.streams.chestAcc > 0 && exp.motion.streams.acc > 0,
+        exp && exp.motion && JSON.stringify(exp.motion.streams)
+      );
+      T.eq('  ingest names the adapter', exp && exp.schema && exp.schema.ingest && exp.schema.ingest.adapter, 'polar-acc');
+      var lone = ORCH.emitAccNodeExport(SA.runAdapter(ad, armT, { files: [armN], parseSensorXYZ: MD.parseSensorXYZ }), { MotionDex: MD, DexKernel: null });
+      T.ok('  an arm frame alone still runs (no chest stream)', lone && lone.motion && lone.motion.streams && lone.motion.streams.acc > 0 && !lone.motion.streams.chestAcc);
+    });
+
     group(
       'Companion-bundle ingest — ECG/PPG sidecars reach compute() via ctx.companions (HANDOFF §2(b))',
       'polar-h10-ecg · polar-sense-ppg · signal-orchestrate · pat-gate · signal-adapters',
@@ -42442,10 +42691,11 @@
         T.ok('SignalOrchestrate.canEmit present', false, 'load signal-orchestrate.js into both runners');
         return;
       }
-      ['rr', 'spo2', 'hrv', 'cgm', 'ppg', 'ecg', 'cpap'].forEach(function (t) {
+      // 'acc' joined 2026-10-18: the ACC routes to MotionDex (adapters/polar-acc.js). Deliberate contract change.
+      ['rr', 'spo2', 'hrv', 'cgm', 'ppg', 'ecg', 'cpap', 'acc'].forEach(function (t) {
         T.ok('canEmit(' + t + ') = true (has an emit path)', ORCH.canEmit(t) === true);
       });
-      ['acc', 'hr', 'eeg', 'flow', 'unknown', ''].forEach(function (t) {
+      ['hr', 'eeg', 'flow', 'unknown', ''].forEach(function (t) {
         T.ok('canEmit(' + t + ') = false (aux / unmigrated)', ORCH.canEmit(t) === false);
       });
       T.ok('canEmit(null/undefined) = false (no fabrication)', ORCH.canEmit(null) === false && ORCH.canEmit(undefined) === false);
@@ -42603,7 +42853,8 @@
         ecg: { object: env.ECGDex },
         ppg: { object: env.PpgDex },
         cgm: { object: env.GLUDSP },
-        cpap: { object: env.CPAPDex }
+        cpap: { object: env.CPAPDex },
+        acc: { object: env.MotionDex } // 2026-10-18: the ACC routes to MotionDex (adapters/polar-acc.js)
       };
       var types = ORCH.emittableTypes();
       T.ok('emittableTypes() is non-empty (the per-type assertions would examine nothing otherwise)', types.length > 0, types.join(','));
@@ -42648,11 +42899,12 @@
         });
       });
       /* The aux + un-migrated types resolve to `undefined` because no node owns them yet, and that
-         is a measured fact rather than a convention: `hr` and `acc` are auxiliary channels with no
-         DSP of their own, and `eeg`/`flow` name DSPs that do not exist in the repo. A resolver here
-         that starts answering means a node landed, and the type then owes an emit path and a row in
-         the table above — so this is a tripwire on growth, not a prohibition. */
-      ['hr', 'acc', 'eeg', 'flow'].forEach(function (t) {
+         is a measured fact rather than a convention: `hr` is an auxiliary channel with no DSP of its
+         own, and `eeg`/`flow` name DSPs that do not exist in the repo. A resolver here that starts
+         answering means a node landed, and the type then owes an emit path and a row in the table
+         above — so this is a tripwire on growth, not a prohibition. It fired for `acc` on 2026-10-18,
+         when adapters/polar-acc.js routed the ACC to MotionDex; `acc` moved to the table above. */
+      ['hr', 'eeg', 'flow'].forEach(function (t) {
         T.ok('SignalSpec.' + t + '.dsp() is undefined — no node owns it yet (tripwire: wire it above when one does)', SS[t] && SS[t].dsp() === undefined);
       });
     });
@@ -52831,8 +53083,8 @@
       };
       // node-name per signalType (the host shim emitNodeExport reads) + a synthetic canonical-frame
       // provider that builds EXACTLY the shape signal-orchestrate hands compute().
-      var NODE_OF = { rr: 'PulseDex', spo2: 'OxyDex', hrv: 'HRVDex', cgm: 'GlucoDex', ppg: 'PpgDex', ecg: 'ECGDex', cpap: 'CPAPDex' };
-      var AUX = { acc: 1, hr: 1 }; // companion channels — no node/emit path by design
+      var NODE_OF = { rr: 'PulseDex', spo2: 'OxyDex', hrv: 'HRVDex', cgm: 'GlucoDex', ppg: 'PpgDex', ecg: 'ECGDex', cpap: 'CPAPDex', acc: 'MotionDex' };
+      var AUX = { hr: 1 }; // companion channels — no node/emit path by design ('acc' left 2026-10-18: it routes to MotionDex)
       var providers = {
         rr: function () {
           var nn = [],
@@ -52898,6 +53150,15 @@
           var fr = SF.toSignalFrame('cpap', { samples: (fl && fl.data) || null, fs: (fl && fl.fs) || 25, t0Ms: t0, usable: !!(fl && fl.data && fl.data.length) }, { adapter: 'synthetic' });
           fr.edfSets = [set];
           return fr;
+        },
+        // acc (2026-10-18): MotionDex's own synthetic PSL ACC text through the REAL polar-acc adapter.
+        acc: function () {
+          var MDX = env.MotionDex,
+            SAD = env.SignalAdapters;
+          if (!(MDX && typeof MDX.genSynthetic === 'function' && SAD && typeof SAD.byId === 'function')) return null;
+          var ad = SAD.byId('polar-acc');
+          if (!ad) return null;
+          return SAD.runAdapter(ad, MDX.genSynthetic({ sec: 300, hz: 26, brpm: 15, seed: 21 }), { files: ['Polar_H10_AAAA_20260617_010000_ACC.txt'], parseSensorXYZ: MDX.parseSensorXYZ });
         }
       };
       // ── exercise(st): build the canonical frame signal-orchestrate hands compute() for signalType
@@ -53622,6 +53883,8 @@
         'o2ring-ppg2w.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'oxydex-spo2.js':
+          'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
+        'polar-acc.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
         'polar-h10-ecg.js':
           'vendor adapter — exposes NO global of its own; it self-registers into SignalAdapters on load, so there is nothing for a RESOLVE entry to assert. COVERING GATE: `Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)` asserts the manifest adapter ids EQUAL the ids actually registered via SignalAdapters.list() (see the self-consistency leg in that group) — an EQUALITY over the whole adapter set, which is strictly stronger than a per-file presence test.',
@@ -62685,7 +62948,13 @@
                adapter must be SET ASIDE, never guessed. */
             var accHead = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n2026-06-17T01:06:19.794;599630060275983872;211;23;975';
             var rAcc = SA.route({ name: 'Polar_H10_AAAAAAAA_20260617_010616_ACC.txt' }, accHead);
-            T.ok('*_ACC.txt is SET ASIDE, not analyzed as RR (gravity is not a heartbeat)', rAcc.unknown === true, rAcc.best ? 'routed to ' + rAcc.best.id + ' @' + rAcc.best.confidence : 'unknown');
+            /* 2026-10-18: the ACC now HAS an adapter (polar-acc → MotionDex), so it is analyzed as motion.
+               The invariant this line guards is unchanged: gravity never reaches an RR parser. */
+            T.ok(
+              '*_ACC.txt routes to polar-acc / acc — never analyzed as RR (gravity is not a heartbeat)',
+              !!(rAcc.best && rAcc.best.id === 'polar-acc' && rAcc.best.signalType === 'acc'),
+              rAcc.best ? 'routed to ' + rAcc.best.id + ' @' + rAcc.best.confidence : 'unknown'
+            );
             var rMag = SA.route(
               { name: 'Polar_Sense_BBBBBBBB_20260609_194340_MAGN.txt' },
               'Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]\n2026-06-09T19:43:40.000;834363822717523328;0.12;-0.44;0.31'
