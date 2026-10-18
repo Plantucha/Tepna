@@ -159,7 +159,6 @@ function genTestCases() {
       }
 
       case 'count_where_div': {
-        const [op, thresh, divisor] = c.args;
         // For usageHours: count pressure > 0 / 3600
         // With maskOn 0.25h to 7.5h → 7.25 hours
         cases.push({
@@ -185,7 +184,6 @@ function genTestCases() {
 
       case 'event_rate': {
         const types = c.eventTypes;
-        const denom = c.denominator;
         // Generate 5 known events over 8 hours
         const eventList = types.map((t, i) => `{ type: '${t}', time: ${(i + 1) * 3600}, duration: 20 }`).join(', ');
         const expected = types.length / 8;

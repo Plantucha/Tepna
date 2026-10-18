@@ -42,7 +42,7 @@
       s.id = 'long-synth-css';
       s.textContent = css;
       (global.document.head || global.document.documentElement).appendChild(s);
-    } catch (e) {}
+    } catch {}
   })();
   var fmtDate = D
     ? D.fmtDate
@@ -53,7 +53,6 @@
         }
         return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
       };
-  var fmtDayShort = D ? D.fmtDayShort : fmtDate;
   var nodeColor = D
     ? D.nodeColor
     : function () {
@@ -427,7 +426,7 @@
   function evBadge(def) {
     try {
       return def && def.evidence && global.MetricRegistry ? global.MetricRegistry.badge(def.evidence, def.cite) : '';
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -606,14 +605,14 @@
   function _readSynthPref() {
     try {
       return localStorage.getItem(_synthPrefKey()) !== '0';
-    } catch (e) {
+    } catch {
       return true;
     }
   } // default: show
   function _writeSynthPref(inc) {
     try {
       localStorage.setItem(_synthPrefKey(), inc ? '1' : '0');
-    } catch (e) {}
+    } catch {}
   }
 
   function render() {

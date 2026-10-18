@@ -155,7 +155,7 @@ function selftest() {
   let booted = false;
   try {
     booted = typeof realm().window.OxyDex._bare.processNight === 'function';
-  } catch (e) {
+  } catch {
     booted = false;
   }
   ok('the OxyDex realm boots and exposes processNight (non-vacuity)', booted);

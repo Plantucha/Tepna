@@ -495,8 +495,6 @@
     // — anchor Q/J to medW (QRS ≈40% before R, 60% after) so QRS, the J-point, and
     // the downstream QT all stay physiological. medW is the cross-checked truth.
     var medW = mb.medW != null && isFinite(mb.medW) ? mb.medW : null;
-    var Qon0 = Qon,
-      Joff0 = Joff;
     if (medW && (qrsSaturated || Math.abs(ms(Joff - Qon) - medW) > 30)) {
       Qon = Math.max(1, R - Math.round(((medW * 0.4) / 1000) * fs));
       Joff = Math.min(beat.length - 2, R + Math.round(((medW * 0.6) / 1000) * fs));
@@ -702,12 +700,12 @@
       twa = null;
     try {
       qtcTr = qtcTrend(int16, fs, refIdx, rrArr, sqi, cls.types, 15, cls.medW);
-    } catch (e) {
+    } catch {
       qtcTr = null;
     }
     try {
       twa = tWaveAlternans(int16, fs, refIdx, rrArr, sqi, cls.types);
-    } catch (e) {
+    } catch {
       twa = null;
     }
     return { ...cls, medianBeat: mb, delin: del, af, qtcTrend: qtcTr, twa };

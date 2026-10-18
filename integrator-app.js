@@ -103,7 +103,7 @@
     if (L) {
       try {
         L.render();
-      } catch (e) {}
+      } catch {}
     }
   }
   function removeAt(i) {
@@ -158,7 +158,7 @@
           WARN.push('✓ Longitudinal: absorbed ' + li.rows + ' day-summary row' + (li.rows === 1 ? '' : 's') + ' from ' + li.nodes.join(', ') + ' (persisted).');
           _longDirty = true;
         }
-      } catch (e) {
+      } catch {
         /* never let longitudinal break fusion ingest */
       }
     }
@@ -411,8 +411,7 @@
     if (!b) return;
     b.addEventListener('click', function () {
       var files = ['uploads/trio/2026-06-12/ECGDex_2026-06-12.node-export.json', 'uploads/trio/2026-06-12/OxyDex_2026-06-12.node-export.json'];
-      var pending = files.length,
-        got = 0;
+      var pending = files.length;
       files.forEach(function (path) {
         fetch(path)
           .then(function (r) {
@@ -421,7 +420,6 @@
           })
           .then(function (json) {
             ingestJSON(json, path.split('/').pop());
-            got++;
           })
           .catch(function (err) {
             WARN.push('Sample "' + path + '" unavailable (' + err.message + ') — drag files in manually.');
@@ -692,7 +690,7 @@
       L.open().then(function () {
         try {
           L.render();
-        } catch (e) {}
+        } catch {}
       });
     }
     recompute();

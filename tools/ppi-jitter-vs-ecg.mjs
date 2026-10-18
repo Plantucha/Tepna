@@ -84,12 +84,6 @@ const SLEEP_ONLY = has('--sleep-only');
    Superseded note (was: ⚠ INCOMPLETE — the FINGER side merges, the ECG side does not yet). */
 const MERGE = !has('--no-merge');
 const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600 * 1000).toISOString().slice(0, 10);
-const isSleepNight = (name, durSec) => {
-  const m = /_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name) || /(\d{8})(\d{2})(\d{2})(\d{2})_PPG/.exec(name);
-  const hh = m ? +(m.length > 6 ? m[4] : m[2]) : null;
-  if (hh == null || !(durSec >= 4 * 3600)) return false;
-  return hh >= 20 || hh < 4;
-};
 const DEVICE = String(opt('--device', 'o2ring')).toLowerCase();
 /* ⚠️ THE SAME DEVICE IS NAMED TWO WAYS, and matching only one reports an EMPTY corpus as no data.
    The Verity Sense appears as `Polar_VeritySense_<serial>` when the capture host wrote it and as

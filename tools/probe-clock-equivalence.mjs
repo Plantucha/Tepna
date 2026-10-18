@@ -300,14 +300,14 @@ function fp(dc) {
     for (const op of OPTS) {
       try {
         o.push(JSON.stringify(dc.parseTimestamp(s, op)));
-      } catch (e) {
+      } catch {
         o.push('T');
       }
     }
   for (const l of DMY_LISTS) {
     try {
       o.push(JSON.stringify(dc.resolveDMY ? dc.resolveDMY(l) : null));
-    } catch (e) {
+    } catch {
       o.push('T');
     }
   }
@@ -319,7 +319,7 @@ function fp(dc) {
     for (const a of ['+02:00', '-05:30', '+0000', 'Z', '1785763530', '0', 5, '05', '5', null]) {
       try {
         o.push(f + JSON.stringify(dc[f](a)));
-      } catch (e) {
+      } catch {
         o.push('T');
       }
     }
@@ -334,7 +334,7 @@ function fp(dc) {
           for (const locked of [true, false]) {
             try {
               o.push('D' + JSON.stringify(dc._ckDMY(a, b, pref, locked)));
-            } catch (e) {
+            } catch {
               o.push('T');
             }
           }
@@ -367,7 +367,7 @@ for (const m of killed) {
   let f;
   try {
     f = fp(r.dc);
-  } catch (e) {
+  } catch {
     f = 'T';
   }
   if (f === B) {
@@ -391,7 +391,7 @@ for (const m of survivors) {
   let f;
   try {
     f = fp(r.dc);
-  } catch (e) {
+  } catch {
     f = 'THREW';
   }
   if (f !== B) sv.distinguishable++;

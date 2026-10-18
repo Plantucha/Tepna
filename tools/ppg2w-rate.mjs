@@ -165,11 +165,9 @@ export function fillFromReplies(replies, cap = PPG2W_REPLY_CAP, minN = 8) {
 }
 
 function selftest() {
-  let pass = 0,
-    fail = 0;
+  let fail = 0;
   const ok = (n, c, d = '') => {
     if (c) {
-      pass++;
       console.log(`  ok   ${n}`);
     } else {
       fail++;

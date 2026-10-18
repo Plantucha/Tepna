@@ -484,8 +484,7 @@ function oxyEcgFusionSection(n, ecg) {
   if (!n || !ecg) return '';
   var F = oxyComputeFusion(n, ecg);
   if (!F) return '';
-  var s = n.stats || {},
-    hrv = n.hrv || {};
+  var hrv = n.hrv || {};
   var rec = F.rec,
     t = F.t,
     ap = F.ap,
@@ -970,7 +969,7 @@ function buildFullMetricsTable(n) {
         if (typeof v === 'object') {
           try {
             v = Array.isArray(v) ? v.slice(0, 12).join(' / ') : JSON.stringify(v);
-          } catch (e) {
+          } catch {
             return;
           }
           if (v.length > 90) v = v.slice(0, 87) + '…';
@@ -1042,7 +1041,7 @@ function oxyFrontFullTable(n) {
   var tbl;
   try {
     tbl = buildFullMetricsTable(n);
-  } catch (e) {
+  } catch {
     return '';
   }
   if (!tbl) return '';
@@ -1076,7 +1075,7 @@ function handleEcgJson(file) {
     var obj;
     try {
       obj = JSON.parse(rd.result);
-    } catch (e) {
+    } catch {
       setS('⚠ not valid JSON', false);
       return;
     }
@@ -1103,7 +1102,7 @@ function handleEcgJson(file) {
     // re-render so the hero card + fusion section pick up the paired ECG
     try {
       if (typeof renderAll === 'function' && typeof allNights !== 'undefined' && Object.keys(allNights).length) renderAll();
-    } catch (e) {}
+    } catch {}
   };
   rd.onerror = function () {
     setS('⚠ could not read file', false);

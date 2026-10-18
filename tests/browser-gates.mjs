@@ -183,7 +183,7 @@ async function gateTestSuite() {
     // ceiling. polling:500 (a timer, not the default rAF) also leaves the page idle so its `_rcYield`
     // requestIdleCallback scheduler (Dex-Test-Suite.html ~line 1075) fires between rig boots.
     await page.waitForFunction(() => window.__rcState === 'done', null, { timeout: 900000, polling: 500 });
-  } catch (err) {
+  } catch {
     // waitForFunction rejects on EITHER a genuine 5-min stall OR an early execution-context loss
     // (renderer crash). Distinguish them and report the state actually reached, so the next run is
     // actionable instead of the old blanket "did not finish within 5 min" that masked the crash.

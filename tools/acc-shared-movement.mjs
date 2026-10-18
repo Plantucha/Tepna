@@ -49,12 +49,6 @@ const av = (k, d) => {
 
 /* The filename's YYYYMMDDHHMMSS, so candidate ACC files are shortlisted without parsing 339 MB to
    find out they do not overlap — `pat-matchrate-strict.mjs`'s lesson, same reason. */
-function nameStartMs(f) {
-  const m = /_(\d{14})_/.exec(f);
-  if (!m) return null;
-  const s = m[1];
-  return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
-}
 
 /* 🔴 NO SHORTLIST. Every fragment is bounded from its first and last LINE — a few KB per file, no
    parsing — and the pair is chosen over the complete set. Measured 2026-08-23 by

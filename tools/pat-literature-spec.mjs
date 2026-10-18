@@ -213,10 +213,10 @@ for (const n of nights) {
     P = null;
   try {
     E = ecgRpeakTimes(fs.readFileSync(eF.f, 'utf8'));
-  } catch (e) {}
+  } catch {}
   try {
     P = ppgFootTimes(fs.readFileSync(pF.f, 'utf8'));
-  } catch (e) {}
+  } catch {}
   if (!E || !P) {
     console.log(`  ${n}  ⊘ extractor failed (ECG ${!!E} · PPG ${!!P})`);
     continue;

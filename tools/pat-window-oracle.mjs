@@ -189,7 +189,7 @@ export function oracleNight(rTimes, fTimes, halfWidth, searchMax = MODE_SEARCH_M
      outside. */
   const _split = overlapSplit(rTimes, fTimes);
   if (_split.refusal) return { refusal: _split.refusal };
-  const { lo, hi, rIn, mid, rA, rB } = _split;
+  const { lo, hi, mid, rA, rB } = _split;
 
   const mode = lagMode(rawLags(rA, fTimes, searchMax), searchMax); // FIRST half only — out of sample
   if (mode == null) return { refusal: 'no mode — fewer than 30 first-half lags in the search range' };

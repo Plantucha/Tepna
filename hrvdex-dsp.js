@@ -327,14 +327,14 @@
     if (!allRows || !allRows.length) {
       try {
         localStorage.removeItem(HRV_STORE_KEY);
-      } catch (e) {}
+      } catch {}
       return { ok: true };
     }
     const seeds = allRows.map(_seedFromRow);
     try {
       localStorage.setItem(HRV_STORE_KEY, JSON.stringify(seeds));
       return { ok: true };
-    } catch (e) {
+    } catch {
       // Quota / storage disabled. Don't fail SILENTLY (FOLLOWUP-FINDINGS P5.2): the
       // "missing → visible, never fabricated" rule applies to the saved mirror too. Keep
       // the most-recent measurements that DO fit (halving the tail until it persists) and
@@ -365,7 +365,7 @@
     try {
       const raw = localStorage.getItem(HRV_STORE_KEY);
       if (raw) seeds = JSON.parse(raw);
-    } catch (e) {
+    } catch {
       seeds = null;
     }
     if (!Array.isArray(seeds) || !seeds.length) return false;
@@ -542,7 +542,7 @@
     let data;
     try {
       data = JSON.parse(text);
-    } catch (e) {
+    } catch {
       _ui.setStatus('⚠ Could not read that file as CSV or JSON.');
       return;
     }
@@ -1008,7 +1008,6 @@
     return dx * dy > 0 ? num / Math.sqrt(dx * dy) : NaN;
   }
   function linRegSlope(x, y) {
-    const n = x.length;
     const mx = mean(x),
       my = mean(y);
     const num = x.reduce((s, xi, i) => s + (xi - mx) * (y[i] - my), 0);

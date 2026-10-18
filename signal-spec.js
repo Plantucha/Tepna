@@ -29,7 +29,7 @@
   function g(name) {
     try {
       return root[name];
-    } catch (e) {
+    } catch {
       return undefined;
     }
   }

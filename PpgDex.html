@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="980192ff8d6a" data-compute-hash="b9712a5b3aec">
+<html lang="en" data-manifest-hash="f98ba9fe8953" data-compute-hash="a9141203d3c5">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-VEru6R4raVp1L/miJqQVTsnqJnNV8iqTUGbhNLrHdsU=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bHcLnVhIAd1f015+DTeUSIw4PGc5LSzJ0UD1bNuwJk0=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-gCWeWHL/WDuToOHOSpVRk7dpGOBIt4LizLoql9xiA1U=' 'sha256-gEGuDdK3q07wMJlMBWiieVfaqaa12SjeMcTAAw4L/1w=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-3IUQgcSOji2CeRMbcMgIbQ+j+8z6+T9s9DeZGqBO7KA=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B61UJ8P2DNnIuDvsjPXZKu2g2w21NBZSUTjx0Hp5DWE=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-NjntMXCQa7Ujm45zxhn5RagnUXecQAsomLdGhIqDXRg=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SmpXVGv3UiSan1RutMGVD9icclMVZ+aRLGkAKqXHMjw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bHcLnVhIAd1f015+DTeUSIw4PGc5LSzJ0UD1bNuwJk0=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-flm4ipqXTvF1D6hK27nlMYhGsNWStbs09r+kik/YDS4=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-rCirk2YDG5hFUST54QihtO4S/eA0Q5IdiVoSV+cCE9U=' 'sha256-z8IJkvGtS/6EXJq/GTxC7f6JF6g2ecKNz4bxeNHWj4c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.19.0</title>
@@ -3295,7 +3295,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       return crypto.subtle.digest('SHA-256', bytes).then(hex, function () {
         return null;
       });
-    } catch (e) {
+    } catch {
       return Promise.resolve(null);
     }
   }
@@ -3304,7 +3304,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   function floatMs(inst) {
     try {
       return inst - new Date(inst).getTimezoneOffset() * 60000;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -3327,10 +3327,10 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         parts.push(s.textContent || '');
       });
       if (parts.length) return parts.join('\n');
-    } catch (e) {}
+    } catch {}
     try {
       return document.documentElement.outerHTML;
-    } catch (e) {
+    } catch {
       return '';
     }
   }
@@ -3416,7 +3416,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       sha256(content).then(function (h) {
         if (h) rec.sha256 = h.slice(0, 16);
       });
-    } catch (e) {}
+    } catch {}
   }
 
   // Passive FileReader hook — records the File + its decoded result as a side
@@ -3433,17 +3433,17 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
             function () {
               try {
                 noteInput(file, self.result);
-              } catch (e) {}
+              } catch {}
             },
             { once: true }
           );
-        } catch (e) {}
+        } catch {}
         return orig.apply(this, arguments);
       };
       wrapped._gpWrapped = true;
       FileReader.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   // Passive Blob hook — captures nodes that ingest via Blob.text() / Blob.arrayBuffer()
   // instead of FileReader (PpgDex's f.text(), other large text reads). Only Files with
@@ -3461,17 +3461,17 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
               function (res) {
                 try {
                   noteInput(self, res);
-                } catch (e) {}
+                } catch {}
               },
               function () {}
             );
-        } catch (e) {}
+        } catch {}
         return p;
       };
       wrapped._gpWrapped = true;
       Blob.prototype[m] = wrapped;
     });
-  } catch (e) {}
+  } catch {}
 
   window.GangliorProvenance = {
     // Synchronous snapshot for splicing into an export's schema. buildHash is
@@ -3555,7 +3555,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   function _kernelHash() {
     try {
       return (root.DexKernel && root.DexKernel.HASH) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -4581,7 +4581,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         _warned[id] = true;
         try {
           console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
-        } catch (e) {}
+        } catch {}
       }
       return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
     }
@@ -4647,14 +4647,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
           } // migrate forward
         }
       }
-    } catch (e) {}
+    } catch {}
     return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
   }
   function setTier(tier) {
     if (TIERS.indexOf(tier) < 0) tier = 'core';
     try {
       global.localStorage.setItem(STORAGE_KEY, tier);
-    } catch (e) {}
+    } catch {}
     applyTier(tier);
     return tier;
   }
@@ -4848,7 +4848,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       st.id = ID;
       st.textContent = css;
       (document.head || document.documentElement).appendChild(st);
-    } catch (e) {}
+    } catch {}
   }
   inject();
   // re-assert once the parser has built <head>, in case this ran before it existed
@@ -4958,7 +4958,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         lk.forEach(function (k) {
           if (out.indexOf(k) < 0) out.push(k);
         });
-    } catch (e) {}
+    } catch {}
     return out;
   }
   // Every IndexedDB database to delete on a full erase (Integrator store + analysis checkpoints).
@@ -4976,7 +4976,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     if (ls === undefined) {
       try {
         ls = root.localStorage;
-      } catch (e) {
+      } catch {
         ls = null;
       }
     }
@@ -4985,14 +4985,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         try {
           if (ls.getItem(k) != null) removed.push(k);
           ls.removeItem(k);
-        } catch (e) {}
+        } catch {}
       });
     }
     var db = opts.indexedDB;
     if (db === undefined) {
       try {
         db = root.indexedDB;
-      } catch (e) {
+      } catch {
         db = null;
       }
     }
@@ -5001,7 +5001,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         try {
           db.deleteDatabase(name);
           idb.push(name);
-        } catch (e) {}
+        } catch {}
       });
     }
     return { removed: removed, idb: idb };
@@ -5033,16 +5033,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       var ok = true;
       try {
         ok = root.confirm('Erase ALL Tepna data on this device?\n\nThis removes your profile, every node’s saved readings, and the Integrator’s longitudinal history. It cannot be undone.');
-      } catch (e) {}
+      } catch {}
       if (!ok) return;
       eraseAll();
       try {
         btn.disabled = true;
         btn.textContent = 'Erased — reloading…';
-      } catch (e) {}
+      } catch {}
       try {
         root.location.reload();
-      } catch (e) {}
+      } catch {}
     });
 
     wrap.appendChild(note);
@@ -5154,7 +5154,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         global.localStorage.getItem(STORAGE_KEY);
         return (_storeRef = global.localStorage);
       }
-    } catch (e) {}
+    } catch {}
     return (_storeRef = _memStore);
   }
   function _setStore(obj) {
@@ -5296,12 +5296,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     var r = null;
     try {
       r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-    } catch (e) {}
+    } catch {}
     if (!r) {
       migrate();
       try {
         r = JSON.parse(_store().getItem(STORAGE_KEY) || 'null');
-      } catch (e) {}
+      } catch {}
     }
     _rec = r || _blank();
     if (!_rec.manual) _rec.manual = {};
@@ -5341,7 +5341,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       if (_chg) {
         try {
           _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-        } catch (e) {}
+        } catch {}
       }
     }
     if (!_rec.detected) _rec.detected = {};
@@ -5359,7 +5359,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     load();
     try {
       _store().setItem(STORAGE_KEY, JSON.stringify(_rec));
-    } catch (e) {}
+    } catch {}
     return _rec;
   }
 
@@ -5384,7 +5384,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   function _readJSON(k) {
     try {
       return JSON.parse(_store().getItem(k) || 'null');
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -5496,14 +5496,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       try {
         _store().setItem(STORAGE_KEY, JSON.stringify(rec));
         saved = _store().getItem(STORAGE_KEY) != null;
-      } catch (e) {}
+      } catch {}
       _rec = rec;
       if (saved) {
         var st2 = _store();
         LEGACY_KEYS.forEach(function (k) {
           try {
             st2.removeItem(k);
-          } catch (e) {}
+          } catch {}
         });
       }
       return true;
@@ -5560,8 +5560,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
 
   // Flat resolved profile (metric) — what node compute code consumes (≈ legacy getProfile()).
   function get() {
-    var rec = load(),
-      pd = popDefaults(rec);
+    var rec = load();
     var p = { age: resolve('age').v, sex: rec.sex, units: rec.units || 'metric' };
     [
       'weight',
@@ -5728,7 +5727,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       if (_org && _org[f]) return _org[f];
       try {
         return resolve(f).origin;
-      } catch (e) {
+      } catch {
         return 'pop';
       }
     }
@@ -6241,7 +6240,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
           try {
             _el.focus();
             if (_caret != null && _el.setSelectionRange) _el.setSelectionRange(_caret, _caret);
-          } catch (e) {}
+          } catch {}
         }
       }
       // SECURITY-REMEDIATION-2026-07-11 F5: append the shared "erase all data on this device"
@@ -6249,7 +6248,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       // innerHTML wipe, so it rides every panel re-render across the 6 profile apps.
       try {
         if (global.DexForget) global.DexForget.ensureControl(mount);
-      } catch (e) {}
+      } catch {}
     }
 
     function wire() {
@@ -6377,7 +6376,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   // Run migration on load (idempotent; no-op if tepna_profile already exists).
   try {
     migrate();
-  } catch (e) {}
+  } catch {}
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script data-inline-src="ppgdex-registry.js">/* ════════════════════════════════════════════════════════════════════════
@@ -14005,11 +14004,6 @@ __exports.PpgDex = window.PpgDex;
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
   'use strict';
-  const mean = (a) => {
-    let s = 0;
-    for (let i = 0; i < a.length; i++) s += a[i];
-    return a.length ? s / a.length : 0;
-  };
   const median = (a) => {
     if (!a.length) return 0;
     const s = [...a].sort((x, y) => x - y),
@@ -14670,16 +14664,6 @@ __exports.PpgDex = window.PpgDex;
     const denom = V1 > 0 ? V1 - V2 / V1 : 0;
     return denom > 0 ? Math.sqrt(acc / denom) : 0;
   }
-  function sd(a) {
-    if (a.length < 2) return 0;
-    const m = mean(a);
-    let s = 0;
-    for (const v of a) {
-      const d = v - m;
-      s += d * d;
-    }
-    return Math.sqrt(s / (a.length - 1));
-  }
   function median(a) {
     if (!a.length) return NaN;
     const b = [...a].sort((x, y) => x - y),
@@ -15039,7 +15023,7 @@ __exports.PpgDex = window.PpgDex;
 function evBadge(label, fallback) {
   try {
     return (window.PpgRegistry && window.PpgRegistry.badgeForLabel(label, fallback !== false)) || '';
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -15468,8 +15452,7 @@ window.evBadge = evBadge;
       H = 260,
       P = { l: 30, r: 16, t: 24, b: 34 };
     const beat = del.beat || mb.beat,
-      L = beat.length,
-      fs = mb.fs;
+      L = beat.length;
     let ymn = Infinity,
       ymx = -Infinity;
     for (const v of beat) {
@@ -15608,7 +15591,6 @@ __exports.PPGUI = window.PPGUI;
   const KEYS = ['ppgAge', 'ppgSex', 'ppgWeight', 'ppgHeight', 'ppgHRmax', 'ppgRHR', 'ppgVO2', 'ppgElev', 'ppgCPAP'];
   let reRenderFn = null;
   let _dexPanel = null; // handle to the shared DexProfile.renderPanel() instance
-  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
   const median = (a) => {
     if (!a.length) return null;
     const s = [...a].sort((x, y) => x - y),
@@ -15643,7 +15625,7 @@ __exports.PPGUI = window.PPGUI;
       const org = (f) => {
         try {
           return DP().resolve(f).origin;
-        } catch (e) {
+        } catch {
           return 'pop';
         }
       };
@@ -15686,7 +15668,7 @@ __exports.PPGUI = window.PPGUI;
     if (DP()) {
       try {
         DP().migrate();
-      } catch (e) {}
+      } catch {}
       const p = DP().get(),
         man = DP().getRecord().manual || {};
       const set = (id, val) => {
@@ -15709,7 +15691,7 @@ __exports.PPGUI = window.PPGUI;
     let saved = null;
     try {
       saved = JSON.parse(localStorage.getItem('ppgdex_profile') || 'null');
-    } catch (e) {}
+    } catch {}
     if (saved)
       KEYS.forEach((k) => {
         const el = $(k);
@@ -15745,7 +15727,7 @@ __exports.PPGUI = window.PPGUI;
     });
     try {
       localStorage.setItem('ppgdex_profile', JSON.stringify(o));
-    } catch (e) {}
+    } catch {}
   }
 
   function popNorms(sex) {
@@ -15813,7 +15795,7 @@ __exports.PPGUI = window.PPGUI;
         DP().setDetected(_det);
         DP().prefillFrom(_det);
         if (_dexPanel) _dexPanel.refresh();
-      } catch (e) {}
+      } catch {}
     }
     return r;
   }
@@ -17304,7 +17286,7 @@ __exports.PPGUI = window.PPGUI;
       s.id = 'dex-synth-css';
       s.textContent = CSS;
       (document.head || document.documentElement).appendChild(s);
-    } catch (e) {
+    } catch {
       /* no-DOM (worker) — ignore */
     }
   }
@@ -17886,7 +17868,6 @@ const { PPGUI } = __require('ppgdex-render.js');
   const DSP = PPGDSP,
     UI = PPGUI;
   const ING = window.DexIngest; // §2/§3 (ECG-INGEST-FOLLOWUPS): shared, gate-backed file-ingest classification (dex-ingest.js)
-  const F = DSP; // fmt helpers
   // foreign / set-aside stream labels for the no-PPG drop report (§2)
   const _PPG_FOREIGN_LABEL = {
     ecg: 'raw ECG (→ ECGDex)',
@@ -18068,7 +18049,7 @@ const { PPGUI } = __require('ppgdex-render.js');
           renderSession(allSessions[activeKey]);
           try {
             localStorage.setItem('ppgdex_active', activeKey);
-          } catch (e) {}
+          } catch {}
           let msg = 'Analyzed ' + added + ' session' + (added > 1 ? 's' : '') + ' · ' + Object.keys(allSessions).length + ' loaded total.';
           if (skipped.length) {
             const dups = skipped.filter((s) => s.kind === 'duplicate').length,
@@ -18201,7 +18182,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     try {
       const v = localStorage.getItem(SITE_DECL_KEY);
       return SITE_CHOICES.some((c) => c.v === v) ? v : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -18219,7 +18200,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     try {
       if (v) localStorage.setItem(SITE_DECL_KEY, v);
       else localStorage.removeItem(SITE_DECL_KEY);
-    } catch (e) {
+    } catch {
       /* private mode — the declaration simply does not persist */
     }
   }
@@ -18259,7 +18240,6 @@ const { PPGUI } = __require('ppgdex-render.js');
   }
 
   function renderKPI(r) {
-    const p = r.profile || {};
     const pb = r.perfusionIndex == null ? 'neutral' : r.perfusionIndex >= 1 ? 'ok' : r.perfusionIndex >= 0.4 ? 'warn' : 'bad';
     // ANS Age REMOVED 2026-06-21 (external-review WP-A)
     const items = [
@@ -18767,7 +18747,7 @@ const { PPGUI } = __require('ppgdex-render.js');
         activeKey = btn.getAttribute('data-key');
         try {
           localStorage.setItem('ppgdex_active', activeKey);
-        } catch (e) {}
+        } catch {}
         renderSession(allSessions[activeKey]);
       })
     );
@@ -19198,7 +19178,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     if (!g) return '';
     try {
       return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-    } catch (e) {
+    } catch {
       return String(g);
     }
   }
@@ -19368,7 +19348,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     host.style.display = '';
     try {
       window.scrollTo(0, 0);
-    } catch (e) {}
+    } catch {}
   }
   function ppgClearReview() {
     var h = document.getElementById('ppgReviewCard');
@@ -19386,49 +19366,6 @@ const { PPGUI } = __require('ppgdex-render.js');
       window.PpgDex.renderReview = ppgRenderReview;
     }
   } catch (_rvx) {}
-  function exportGanglior() {
-    const list = sessionsSorted();
-    if (!list.length) return;
-    const _ts = list.map((x) => x.t0Ms).filter((v) => v != null);
-    const _aT0 = _ts.length ? Math.min.apply(null, _ts) : null;
-    const _aSpan = _ts.length > 1 ? Math.round((Math.max.apply(null, _ts) - Math.min.apply(null, _ts)) / 864e5) : null;
-    // MEASUREMENT-PROVENANCE-ROADMAP §12 — the running bundle's code identity, read off the <html>
-    // stamp HERE (the app layer) and passed in, because the born-clean DSP may not touch `document`.
-    const ds = document.documentElement.dataset;
-    const code = /^[0-9a-f]{12}$/.test(ds.manifestHash || '') && /^[0-9a-f]{12}$/.test(ds.computeHash || '') ? { manifestHash: ds.manifestHash, computeHash: ds.computeHash } : null;
-    const stamp = { kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null, provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null, code };
-    let out;
-    if (list.length === 1) {
-      // ONE shared builder (ppgdex-dsp.js) — the SAME node-export compute() emits, so the app
-      // stream and the headless/Unifier export stay byte-identical (brief §1B parity).
-      out = (window.PpgDex || window.PPGDSP).buildNodeExport(list[0], stamp);
-    } else {
-      // multi-session aggregate (app-only path — compute() is single-recording). Each session's
-      // events come from the SAME r.events source; only the cross-session envelope is local here.
-      const events = [];
-      list.forEach((s) => {
-        s.events.forEach((e) => events.push({ t: e.t, tMs: e.tMs, impulse: e.impulse, node: e.node, conf: e.conf, meta: e.meta, session: s.t0Ms }));
-      });
-      const t0 = list[0].t0Ms;
-      out = {
-        kernel: stamp.kernel,
-        schema: {
-          name: 'ganglior.node-export',
-          version: '2.0',
-          node: 'PpgDex',
-          nodeVersion: '1.0',
-          bus: 'ganglior',
-          generated: new Date().toISOString(),
-          provenance: stamp.provenance,
-          doc: 'PpgDex PPG-derived events across sessions → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.'
-        },
-        recording: { source: 'ppg', startEpochMs: t0 != null ? t0 : null, sessions: list.length, events: events.length },
-        ganglior_events: events,
-        reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
-      };
-    }
-    download(JSON.stringify(out, null, 2), exportName({ node: 'PpgDex', t0Ms: _aT0, kind: 'ganglior', ext: 'json', spanDays: _aSpan }), 'application/json;charset=utf-8');
-  }
   function exportPPI() {
     const r = allSessions[activeKey];
     if (!r) return;
@@ -19507,7 +19444,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     }
     try {
       localStorage.removeItem('ppgdex_active');
-    } catch (e) {}
+    } catch {}
     document.body.classList.remove('has-data');
     ['scopeSection', 'qualitySection', 'chartsSection', 'morphSection', 'motionSection', 'validationSection', 'gangliorSection', 'tableSection', 'crossNightSection', 'ctxBanner'].forEach((id) => {
       const el = $(id);

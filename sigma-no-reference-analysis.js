@@ -46,190 +46,24 @@
  * compared). Verity Sense = PPG HR only. SpO₂ trueness is NOT obtainable here
  * (no CO-oximeter / arterial reference).
  *
- * 100% local. Self-contained Clock-Contract parser (mirrored per CLAUDE.md).
+ * 100% local. sensor-trio-worker.js parses a dropped capture folder.
  */
 (function () {
   'use strict';
 
-  // ── Co-recorded H10 (ECG, RR) + O2Ring (pulse) nights ────────────────────
-  const NIGHTS = [
-    { id: '06-10', h10: 'uploads/Polar_H10_AAAAAAAA_20260610_211534_RR.txt', o2: 'uploads/O2Ring S 2100_20260610211847.csv' },
-    { id: '06-11', h10: 'uploads/Polar_H10_AAAAAAAA_20260611_210410_RR.txt', o2: 'uploads/O2Ring S 2100_20260611210603.csv' },
-    { id: '06-12', h10: 'uploads/Polar_H10_AAAAAAAA_20260612_225442_RR.txt', o2: 'uploads/O2Ring S 2100_20260612230016.csv' },
-    { id: '06-14', h10: 'uploads/Polar_H10_AAAAAAAA_20260614_212037_RR.txt', o2: 'uploads/O2Ring S 2100_20260614211954.csv' },
-    { id: '06-15', h10: 'uploads/Polar_H10_AAAAAAAA_20260615_215320_RR.txt', o2: 'uploads/O2Ring S 2100_20260615215711.csv' },
-    { id: '06-17', h10: 'uploads/Polar_H10_AAAAAAAA_20260617_222343_RR.txt', o2: 'uploads/O2Ring S 2100_20260617222311.csv' },
-    { id: '06-18', h10: 'uploads/Polar_H10_AAAAAAAA_20260618_214247_RR.txt', o2: 'uploads/O2Ring S 2100_20260618214109.csv' }
-  ];
-
-  // ── Three-device overlap WINDOWS (the σ-corner: was one TRIO, now TRIOS[]) ──
-  // Each entry is one simultaneous window carrying all three HR series:
-  //   • h10    : H10 HR from RAW ECG via ECGDSP (Pan-Tompkins QRS) — gold leg
-  //   • verity : Verity HR from RAW PPG via PPGDSP (SQI-gated) — recovers dead onboard HR
-  //   • o2     : O2Ring native per-second pulse CSV
-  //   • h10rr  : (optional) onboard RR, kept ONLY as a same-device concordance check
-  // To add a window: derive the two raw series (SIGMA-WINDOW-DERIVATION.md),
-  // commit them as uploads/*-derived-YYYY-MM-DD-HR.txt, append an entry here.
-  // The builder finds the maximal all-three-present span on the floating-ms grid.
-  const TRIOS = [
-    {
-      label: '2026-06-10/11 · overnight',
-      h10: 'uploads/h10-ecg-derived-2026-06-11-HR.txt',
-      h10rr: 'uploads/Polar_H10_AAAAAAAA_20260610_211534_RR.txt',
-      o2: 'uploads/O2Ring S 2100_20260610211847.csv',
-      verity: 'uploads/verity-ppg-derived-2026-06-11-HR.txt'
-    },
-    {
-      label: '2026-06-11/12 · overnight',
-      h10: 'uploads/h10-ecg-derived-2026-06-12-HR.txt',
-      h10rr: 'uploads/Polar_H10_AAAAAAAA_20260611_210410_RR.txt',
-      o2: 'uploads/O2Ring S 2100_20260611210603.csv',
-      verity: 'uploads/verity-ppg-derived-2026-06-12-HR.txt'
-    },
-    // 2026-06-12/13 EXCLUDED: failed the pre-registered H10↔O2Ring control leg
-    // (SD 8.63 vs ~2.7; H10 σ 8.55) — noisy ECG derivation that night. Dropped, not hidden.
-    {
-      label: '2026-06-14/15 · overnight',
-      h10: 'uploads/h10-ecg-derived-2026-06-15-HR.txt',
-      h10rr: 'uploads/Polar_H10_AAAAAAAA_20260614_212037_RR.txt',
-      o2: 'uploads/O2Ring S 2100_20260614211954.csv',
-      verity: 'uploads/verity-ppg-derived-2026-06-15-HR.txt'
-    },
-    {
-      label: '2026-06-15/16 · overnight',
-      h10: 'uploads/h10-ecg-derived-2026-06-16-HR.txt',
-      h10rr: 'uploads/Polar_H10_AAAAAAAA_20260615_215320_RR.txt',
-      o2: 'uploads/O2Ring S 2100_20260615215711.csv',
-      verity: 'uploads/verity-ppg-derived-2026-06-16-HR.txt'
-    },
-    {
-      label: '2026-06-16/17 · 01:06\u201303:04',
-      h10: 'uploads/h10-ecg-derived-2026-06-17-HR.txt', // ECG → QRS (gold)
-      h10rr: 'uploads/Polar_H10_AAAAAAAA_20260617_010614_RR.txt', // onboard RR (concordance)
-      o2: 'uploads/O2Ring S 2100_20260616221235.csv',
-      verity: 'uploads/verity-ppg-derived-2026-06-17-HR.txt' // raw PPG → HR
-    },
-    {
-      // H10 raw ECG was flat that night (no skin contact); the gold leg falls back
-      // to the onboard RR detector (firmware QRS). Footnoted asterisk — paper §3.2.
-      label: '2026-06-18/19 · overnight (H10 leg = onboard RR)',
-      h10: 'uploads/h10-rr-derived-2026-06-19-HR.txt',
-      o2: 'uploads/O2Ring S 2100_20260618214109.csv',
-      verity: 'uploads/verity-ppg-derived-2026-06-19-HR.txt'
-    }
-  ];
-
-  // Verity Sense capture-quality probe (HR stream + PPI), across the corpus.
-  const VERITY = [
-    { hr: 'uploads/Polar_Sense_BBBBBBBB_20260610_211537_HR.txt' },
-    { hr: 'uploads/Polar_Sense_BBBBBBBB_20260611_210414_HR.txt' },
-    { hr: 'uploads/Polar_Sense_BBBBBBBB_20260615_215324_HR.txt' },
-    { hr: 'uploads/Polar_Sense_BBBBBBBB_20260617_222348_HR.txt' },
-    { hr: 'uploads/Polar_Sense_BBBBBBBB_20260616_221112_HR.txt', ppi: 'uploads/Polar_Sense_BBBBBBBB_20260616_221112_PPI.txt' },
-    { hr: 'uploads/Polar_Sense_BBBBBBBB_20260618_214253_HR.txt' }
-  ];
+  // The committed TRIOS[] window list and its fetch builder went with the dead run() path.
+  // Windows now arrive by folder drop only (FOLDER INGESTION below).
 
   const H10COL = '#3DE0D0',
     O2COL = '#FFB84D',
     VERCOL = '#B98AFF',
     FLAGCOL = '#FF6B7A';
-  const HR_MIN = 30,
-    HR_MAX = 220;
-  const MIN_WIN_S = 1000; // keep a window only if ≥ this many simultaneous seconds (brief §2.5)
   const BLOCK_S = 30; // block length (s) for the within-window block bootstrap
   const B_WITHIN = 600; // block-bootstrap reps (single/few-window sampling CI)
   const B_ACROSS = 2000; // across-window bootstrap reps (N≥3)
   const N_FOR_ACROSS = 3; // ≥ this many windows → across-window CI; else within-window CI
 
-  // ── Clock Contract parser (subset; mirrored, not shared) ─────────────────
-  function parseTimestamp(raw) {
-    if (raw == null) return null;
-    const s = String(raw).trim();
-    if (!s) return null;
-    let m;
-    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/);
-    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], m[7] ? +m[7].padEnd(3, '0') : 0);
-    m = s.match(/^(\d{2}):(\d{2}):(\d{2})\s+(\d{2})\/(\d{2})\/(\d{4})$/); // HH:MM:SS DD/MM/YYYY (DMY)
-    if (m) return Date.UTC(+m[6], +m[5] - 1, +m[4], +m[1], +m[2], +m[3]);
-    return null; // never fabricate
-  }
-  const sFloor = (t) => Math.floor(t / 1000) * 1000;
-
-  async function fetchText(p) {
-    const r = await fetch(encodeURI(p));
-    if (!r.ok) throw new Error('fetch ' + p + ' → ' + r.status);
-    return r.text();
-  }
-
-  // Interval file (H10 RR / Verity PPI) → 1-Hz mean instantaneous HR
-  function intervalMap(text, sep, col) {
-    const bucket = new Map(),
-      L = text.split(/\r?\n/);
-    for (let i = 1; i < L.length; i++) {
-      if (!L[i]) continue;
-      const c = L[i].split(sep);
-      const t = parseTimestamp(c[0]);
-      if (t == null) continue;
-      const iv = +c[col];
-      if (!(iv > 250 && iv < 2200)) continue;
-      const hr = 60000 / iv;
-      if (hr < HR_MIN || hr > HR_MAX) continue;
-      const k = sFloor(t),
-        a = bucket.get(k) || [0, 0];
-      a[0] += hr;
-      a[1]++;
-      bucket.set(k, a);
-    }
-    const o = new Map();
-    bucket.forEach((a, k) => o.set(k, a[0] / a[1]));
-    return o;
-  }
-  // 1-Hz bpm file (Polar HR col1 ';' / O2Ring pulse col2 ',')
-  function bpmMap(text, sep, col) {
-    const o = new Map(),
-      L = text.split(/\r?\n/);
-    for (let i = 1; i < L.length; i++) {
-      if (!L[i]) continue;
-      const c = L[i].split(sep);
-      const t = parseTimestamp(c[0]);
-      if (t == null) continue;
-      const hr = +c[col];
-      if (!(hr >= HR_MIN && hr <= HR_MAX)) continue;
-      o.set(sFloor(t), hr);
-    }
-    return o;
-  }
-  function countBpm(text, sep, col) {
-    let n = 0;
-    const L = text.split(/\r?\n/);
-    for (let i = 1; i < L.length; i++) {
-      if (!L[i]) continue;
-      const c = L[i].split(sep);
-      const hr = +c[col];
-      if (hr >= HR_MIN && hr <= HR_MAX) n++;
-    }
-    return n;
-  }
-  // derived file: "tMs;hr;…[;c]" — col0 is a numeric floating-ms second (Verity PPG-derived & H10
-  // ECG-derived share this). Parsing is single-sourced in analysis-stats.js (header-named columns):
-  // `_sqi` is the first sqiMean (unchanged display), `_c` the per-second fused-hat confidence when the
-  // file carries a `c` column (tools/derive-sigma-window.mjs since 2026-09-26), `_hasConf` says so.
-  function derivedMap(text) {
-    const d = AnalysisStats.parseDerivedHr(text, { hrMin: HR_MIN, hrMax: HR_MAX });
-    const o = d.hr;
-    o._sqi = d.sqi;
-    o._c = d.c;
-    o._hasConf = d.hasConf;
-    return o;
-  }
-
   // ── Stats ────────────────────────────────────────────────────────────────
-  const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
-  const variance = (a) => {
-    const m = mean(a);
-    return a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1);
-  };
-  const sd = (a) => Math.sqrt(variance(a));
   // pearson · ba · threeCorneredHat · tchSigmas · tchSigmasFused single-sourced in analysis-stats.js
   // (TEST-COVERAGE-ANALYSIS 2026-07-15) — known-answer + AF-safety tested in dex-tests.js. Aliased
   // here so every call site is untouched; behavior is identical (threeCorneredHat is reached
@@ -263,7 +97,6 @@
   // clean ones. A GENTLE cross-sensor consensus (Tukey C=30) is a soft secondary net. Missing
   // confidences default to 1 ⇒ (near-)classic variance. Single-sourced in analysis-stats.js (the
   // known-answer + AF-safety gate lives there) — this page DELEGATES, matching tchSigmas above.
-  var tchSigmasFused = AnalysisStats.tchSigmasFused;
 
   // Within-window block bootstrap: resample contiguous BLOCK_S-second blocks of the
   // aligned (H,V,O) triples, recompute TCH σ each rep → percentile CI per device.
@@ -299,94 +132,6 @@
   window.SIGMA_RESULT = RESULT;
 
   // ── Build one three-device window from a TRIOS entry (intersection on tMs) ──
-  async function buildWindow(entry) {
-    let Ht, Ot, Vt;
-    try {
-      Ht = derivedMap(await fetchText(entry.h10));
-      Ot = bpmMap(await fetchText(entry.o2), ',', 2);
-      Vt = derivedMap(await fetchText(entry.verity));
-    } catch (e) {
-      return { skip: true, label: entry.label, reason: e.message };
-    }
-    const ks = [...Ht.keys()].filter((k) => Ot.has(k) && Vt.has(k)).sort((a, b) => a - b);
-    if (ks.length < MIN_WIN_S) return { skip: true, label: entry.label, reason: `only ${ks.length} simultaneous s (< ${MIN_WIN_S})` };
-    const hh = [],
-      vv = [],
-      oo = [];
-    for (const k of ks) {
-      hh.push(Ht.get(k));
-      vv.push(Vt.get(k));
-      oo.push(Ot.get(k));
-    }
-    /* D7 option A — owner's pick 2026-10-12 (TCH-FUSED-DEGENERACY-MECHANISM §5): the point is the
-       UNWEIGHTED hat on every window, and the fused-weight hat of TCH-FUSED-ROBUST-HAT (closed
-       2026-09-26) is RETIRED TO A DIAGNOSTIC. The estimator no longer follows the data: a per-window
-       choice of estimator is what made two windows' σ incomparable, and the fused weighting's own
-       negative-variance rate is an artefact of the weights (25 of 90 corpus nights lose the Verity
-       corner under fused, 3 lose H10 under unweighted — tools/tch-fused-corpus.mjs, 2026-10-12).
-       The confidences still arrive and still weight the diagnostic, never a default of 1 (§∅): a
-       pre-2026-09-26 file gets no diagnostic at all rather than a fabricated one. The O2Ring CSV
-       carries no confidence — that corner is weight 1 in the diagnostic. */
-    const hasConf = !!(Ht._hasConf || Vt._hasConf);
-    const cH = hasConf ? AnalysisStats.confidenceSeries(Ht._c, ks) : null,
-      cV = hasConf ? AnalysisStats.confidenceSeries(Vt._c, ks) : null,
-      cO = hasConf ? ks.map(() => 1) : null;
-    const s = tchSigmas(hh, vv, oo);
-    const sFused = hasConf ? tchSigmasFused(hh, vv, oo, cH, cV, cO) : null;
-    const HV = { ...ba(s.dHV), r: pearson(hh, vv) },
-      HO = { ...ba(s.dHO), r: pearson(hh, oo) },
-      VO = { ...ba(s.dVO), r: pearson(vv, oo) };
-    // built-in control leg: H10↔O2Ring must be tight every window (bias≈0, SD≈2.7)
-    const ctrlDrift = Math.abs(HO.bias) > 1.0 || HO.sd < 2.0 || HO.sd > 3.5;
-    // same-device concordance (ECG-derived H10 vs onboard RR), if present
-    let concord = null;
-    if (entry.h10rr) {
-      try {
-        const Rt = intervalMap(await fetchText(entry.h10rr), ';', 1);
-        const ek = [...Ht.keys()].filter((k) => Rt.has(k));
-        if (ek.length > 120) {
-          const de = ek.map((k) => Ht.get(k) - Rt.get(k));
-          concord = {
-            ...ba(de),
-            r: pearson(
-              ek.map((k) => Ht.get(k)),
-              ek.map((k) => Rt.get(k))
-            ),
-            n: ek.length
-          };
-        }
-      } catch (e) {
-        /* optional */
-      }
-    }
-    return {
-      label: entry.label,
-      n: ks.length,
-      t0: ks[0],
-      t1: ks[ks.length - 1],
-      verSQI: Vt._sqi,
-      sigma: { h10: s.h10, verity: s.verity, o2: s.o2 },
-      estimator: 'classic', // the unweighted hat, in the kernel's own vocabulary
-      // the retired fused-weight hat, carried so the degeneracy stays readable beside the point
-      fusedDiag: sFused ? { h10: sFused.h10, verity: sFused.verity, o2: sFused.o2, neg: sFused.neg } : null,
-      negVar: s.negVar,
-      neg: s.neg,
-      pair: { HV, HO, VO },
-      ctrlDrift,
-      concord,
-      hh,
-      vv,
-      oo,
-      /* F16: the CI's estimator follows the point's, and since D7 option A the point is unweighted — so
-         the within-window CI runs classic replicates and these arrays weight only the diagnostic above.
-         They still ride the window because that is where a fused CI would have to come from if the
-         diagnostic ever needs one. Stripped from stats.json like hh/vv/oo. */
-      cH,
-      cV,
-      cO,
-      keys: ks // kept for block bootstrap / 3-device overlay; stripped from stats.json
-    };
-  }
 
   // ── Aggregate per-device σ across windows: median + CI + N + total seconds ──
   function aggregate(windows) {
@@ -435,127 +180,6 @@
       negWindows: windows.filter((w) => w.neg).length,
       driftWindows: windows.filter((w) => w.ctrlDrift).length
     };
-  }
-
-  async function run() {
-    setStatus('run', 'loading real device files…');
-    const per = [];
-    const grids = [];
-    let allD = [],
-      allH = [],
-      allO = [];
-    for (const N of NIGHTS) {
-      let H, O;
-      try {
-        H = intervalMap(await fetchText(N.h10), ';', 1);
-        O = bpmMap(await fetchText(N.o2), ',', 2);
-      } catch (e) {
-        console.warn(N.id, e.message);
-        continue;
-      }
-      const ks = [...H.keys()].filter((k) => O.has(k)).sort((a, b) => a - b);
-      if (ks.length < 60) continue;
-      const hh = [],
-        oo = [],
-        dd = [];
-      for (const k of ks) {
-        hh.push(H.get(k));
-        oo.push(O.get(k));
-        dd.push(O.get(k) - H.get(k));
-      }
-      const b = ba(dd);
-      b.id = N.id;
-      b.r = pearson(oo, hh);
-      b.t0 = ks[0];
-      per.push(b);
-      grids.push({ id: N.id, t: ks, h10: hh, o2: oo });
-      allD = allD.concat(dd);
-      allH = allH.concat(hh);
-      allO = allO.concat(oo);
-    }
-    if (!per.length) {
-      setStatus('idle', 'no co-recorded overlap');
-      return;
-    }
-
-    // motion-flag a night whose SD exceeds 1.8× the median night SD
-    const medSD = median(per.map((p) => p.sd));
-    per.forEach((p) => {
-      p.flag = p.sd > 1.8 * medSD;
-    });
-    const cleanD = [];
-    grids.forEach((g, i) => {
-      if (!per[i].flag) for (let j = 0; j < g.t.length; j++) cleanD.push(g.o2[j] - g.h10[j]);
-    });
-
-    const pooledAll = ba(allD);
-    pooledAll.r = pearson(allO, allH);
-    const pooledClean = ba(cleanD);
-    const repH = repeatSigma(allH); // H10 short-term precision (valid transfer std)
-    const repOraw = repeatSigma(allO); // O2Ring self-residual (degenerate: smoothed output)
-    const sigmaRef = (SD) => Math.sqrt(Math.max(0, SD * SD - (repH || 0) * (repH || 0)));
-
-    // Verity capture-quality probe
-    const verity = [];
-    for (const V of VERITY) {
-      const row = { file: V.hr.split('/').pop() };
-      try {
-        row.hrUsable = countBpm(await fetchText(V.hr), ';', 1);
-      } catch (e) {
-        row.hrUsable = null;
-      }
-      if (V.ppi) {
-        try {
-          row.ppiUsable = intervalMap(await fetchText(V.ppi), ';', 1).size;
-        } catch (e) {
-          row.ppiUsable = null;
-        }
-      }
-      verity.push(row);
-    }
-    const verityTotal = verity.reduce((s, r) => s + (r.hrUsable || 0) + (r.ppiUsable || 0), 0);
-
-    // ── Multi-window three-cornered hat (the σ-corner upgrade) ──────────────
-    const windows = [];
-    const skipped = [];
-    for (const entry of TRIOS) {
-      const w = await buildWindow(entry);
-      if (w.skip) {
-        skipped.push(w);
-        console.warn('window skipped:', w.label, w.reason);
-      } else windows.push(w);
-    }
-    const hat = windows.length
-      ? Object.assign(aggregate(windows), { status: 'populated', windows, skipped })
-      : {
-          status: 'unpopulated',
-          windows: [],
-          skipped,
-          reason:
-            'No three-device window has all three raw-derived HR series committed. Derive Verity HR from raw PPG (PPGDSP) and H10 HR from raw ECG (ECGDSP) for a co-recorded night (SIGMA-WINDOW-DERIVATION.md), commit them, and append a TRIOS entry.'
-        };
-
-    Object.assign(RESULT, {
-      per,
-      grids,
-      pooledAll,
-      pooledClean,
-      repH,
-      repOraw,
-      sigmaO2_all: sigmaRef(pooledAll.sd),
-      sigmaO2_clean: sigmaRef(pooledClean.sd),
-      hat,
-      verity,
-      verityTotal,
-      medSD
-    });
-    render();
-    const tail = windows.length ? `${windows.length} window${windows.length > 1 ? 's' : ''} · ${RESULT.hat.totalS.toLocaleString()} simultaneous s · CI ${RESULT.hat.ciKind}` : 'hat unpopulated';
-    setStatus('done', `done · 6 pair-nights · ${allD.length.toLocaleString()} s · 3-device hat: ${tail}`);
-    ['dlCsv', 'dlStats', 'dlFig'].forEach((id) => {
-      const e = document.getElementById(id);
-      if (e) e.disabled = false;
-    });
   }
 
   // ── Render ───────────────────────────────────────────────────────────
@@ -1193,31 +817,6 @@
   // JSON so the broad corpus is reproducible without the (large, private) raw folder.
   // The two per-second figures (overlay, Bland–Altman) need raw samples not stored in
   // the summary, so they show a note; Run corpus / folder-drop render them live.
-  async function loadBroadHat() {
-    setStatus('run', 'loading committed 10-night broad hat…');
-    let J;
-    try {
-      J = JSON.parse(await fetchText('uploads/sigma-no-reference-broadhat.json'));
-    } catch (e) {
-      setStatus('idle', 'broad-hat JSON not found: ' + e.message);
-      return;
-    }
-    if (!J || !J.hat || J.hat.status !== 'populated') {
-      setStatus('idle', 'broad-hat JSON malformed');
-      return;
-    }
-    J._summaryOnly = true;
-    J.grids = [];
-    Object.keys(RESULT).forEach((k) => delete RESULT[k]);
-    Object.assign(RESULT, J);
-    render();
-    const H = RESULT.hat;
-    setStatus('done', `committed broad hat · ${H.N} nights · ${H.totalS.toLocaleString()} simultaneous s · CI ${H.ciKind}`);
-    ['dlCsv', 'dlStats', 'dlFig'].forEach((id) => {
-      const e = $(id);
-      if (e) e.disabled = false;
-    });
-  }
 
   // ════════════════════════════════════════════════════════════════════════
   //  FOLDER INGESTION (parity with sensor-trio-power-analysis) — drop a capture
@@ -1345,7 +944,7 @@
         let w;
         try {
           w = new Worker('sensor-trio-worker.js');
-        } catch (e) {
+        } catch {
           return;
         }
         const rec = { w, ready: false, _r: null };
@@ -1618,8 +1217,8 @@
   window.addEventListener('DOMContentLoaded', () => {
     // The committed-corpus buttons (Run corpus / Load 10-night broad hat) were removed: they
     // fetched gitignored uploads/ files that don't exist in a public checkout (and the no-network
-    // CSP blocks fetch anyway). Drag-drop below is the sole data path. run()/loadBroadHat() remain
-    // defined but unwired — inert dead code, never invoked.
+    // CSP blocks fetch anyway). Drag-drop below is the sole data path. The unwired run()/loadBroadHat()
+    // fetch path was removed as dead code.
     // per-figure PNG downloads (named to match the paper's figure files)
     document.querySelectorAll('.dlbtn[data-canvas]').forEach((b) =>
       b.addEventListener('click', () => {

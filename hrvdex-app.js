@@ -15,7 +15,7 @@ import './hrvdex-profile.js';
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { parseCSV, HRV_STORE_KEY, restoreHRVRows, ingestGangliorJSON, mean, getFilteredRows, hrvBuildNodeExport } = window.HRVDex._bare;
+const { parseCSV, HRV_STORE_KEY, restoreHRVRows, ingestGangliorJSON, getFilteredRows, hrvBuildNodeExport } = window.HRVDex._bare;
 // mutable page state: bridge bare window.{allRows,windowDays,charts} ↔ the DSP-owned
 // HRVDex.* (the DSP's window proxies are spray-guarded and no longer install here;
 // hrvdex-render/-profile and this file read/write them bare).
@@ -144,7 +144,7 @@ function _hrvMaybeReview(text) {
         return true;
       }
     }
-  } catch (e) {}
+  } catch {}
   return false;
 }
 function _hrvesc(s) {
@@ -161,7 +161,7 @@ function _hrvFmtGen(g) {
   if (!g) return '';
   try {
     return String(g).replace('T', ' ').replace(/\..*$/, '').replace(/Z$/, ' UTC');
-  } catch (e) {
+  } catch {
     return String(g);
   }
 }
@@ -231,15 +231,10 @@ function hrvReviewView(review) {
   };
   var last = ms.length ? ms[ms.length - 1] : {};
   var meanRm = mean(
-      ms.map(function (m) {
-        return m.rmssd;
-      })
-    ),
-    meanSd = mean(
-      ms.map(function (m) {
-        return m.sdnn;
-      })
-    );
+    ms.map(function (m) {
+      return m.rmssd;
+    })
+  );
   var h =
     '<div class="hrvrv-banner" role="status">' +
     '<span class="hrvrv-tag"><span class="hrvrv-dot"></span>Review mode</span>' +
@@ -367,14 +362,7 @@ function hrvRenderReview(review) {
   host.style.display = '';
   try {
     window.scrollTo(0, 0);
-  } catch (e) {}
-}
-function hrvClearReview() {
-  var h = document.getElementById('hrvReviewCard');
-  if (h) {
-    h.innerHTML = '';
-    h.style.display = 'none';
-  }
+  } catch {}
 }
 // F5 (SELF-INGEST-FOLLOWUPS-II): fleet convention — the review renderer is reachable via the node
 // namespace (<Node>.reviewView / .renderReview) so the suite's live review probe (and any global
@@ -489,7 +477,7 @@ function clearAll() {
   allRows = [];
   try {
     localStorage.removeItem(typeof HRV_STORE_KEY !== 'undefined' ? HRV_STORE_KEY : 'hrvdex_rows_v1');
-  } catch (e) {}
+  } catch {}
   var mu = document.getElementById('mainUI');
   if (mu) mu.style.display = 'none';
   var pp = document.getElementById('profilePanel');
@@ -520,7 +508,7 @@ function _hrvInit() {
   } catch (_) {}
   try {
     if (typeof restoreHRVRows === 'function') restoreHRVRows();
-  } catch (e) {}
+  } catch {}
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _hrvInit);
 else _hrvInit();
@@ -561,7 +549,7 @@ function setProgress(pct) {
     }
     try {
       localStorage.setItem(STORAGE_KEY, theme);
-    } catch (e) {}
+    } catch {}
   }
 
   window.toggleTheme = function () {
@@ -572,7 +560,7 @@ function setProgress(pct) {
   var saved = 'dark';
   try {
     saved = localStorage.getItem(STORAGE_KEY) || 'dark';
-  } catch (e) {}
+  } catch {}
   applyTheme(saved);
 })();
 

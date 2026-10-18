@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="770cbcfad791" data-compute-hash="535e99622c9c"><head>
+<html lang="en" data-manifest-hash="3e294405345c" data-compute-hash="df47b5467c89"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-3D7v1D6rS1tQErjeIrGxxxNh1mNkKbVMKamqIXmtWvU=' 'sha256-3KvPhldddORipcvZQn+2KCH7WgDrPUqD7DLJmP2siMs=' 'sha256-58O6BxAcjgCbtJyPkzKKtexLOYodIHAExwfRPPPFcOI=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-A8QRvCYLHC0S8qUbFM0gzbfkhyZ+dfjft3sQQrCc6BM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GMmPvLCp12nTB2A3edxKqYW9nOEcn4mUbSDIB8uSFEI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-aUXQ8YiPzV1xUUFYYb4+kgud55WOH0FrHCoA9sTWrZE=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bHcLnVhIAd1f015+DTeUSIw4PGc5LSzJ0UD1bNuwJk0=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-eWsh+QRtO5wrmZ/hzAyVzRMqbH1dOIcbO18q6HTO9mE=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qohQ1Zh5MOTt5AEvTGsXIJizmJcSO5Qv2qaw5zAPlqc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0Qs4SriqBrDji3VeXHKouMn+JhP2MlGWYDlcHTWjpaQ=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-3KvPhldddORipcvZQn+2KCH7WgDrPUqD7DLJmP2siMs=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9MYsm63BCay+lNUnXT4RsvPIypOPWXAmkEgAfrwlHFc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bHcLnVhIAd1f015+DTeUSIw4PGc5LSzJ0UD1bNuwJk0=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j+uc35jR2+U1GxBKynzcGafDKeJUi78ANcVhUwMwuaU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -1125,7 +1125,7 @@
         _warned[id] = true;
         try {
           console.warn('[MetricRegistry] no registry entry for "' + id + '" — defaulting depth:advanced / evidence:experimental');
-        } catch (e) {}
+        } catch {}
       }
       return { id: id, label: id, unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'experimental', cite: '', _missing: true };
     }
@@ -1191,14 +1191,14 @@
           } // migrate forward
         }
       }
-    } catch (e) {}
+    } catch {}
     return TIERS.indexOf(v) >= 0 ? v : 'core'; // default Core (brief §locked-4)
   }
   function setTier(tier) {
     if (TIERS.indexOf(tier) < 0) tier = 'core';
     try {
       global.localStorage.setItem(STORAGE_KEY, tier);
-    } catch (e) {}
+    } catch {}
     applyTier(tier);
     return tier;
   }
@@ -10574,7 +10574,7 @@ window.IntegratorDSP = {
   function g(name) {
     try {
       return root[name];
-    } catch (e) {
+    } catch {
       return undefined;
     }
   }
@@ -10819,7 +10819,7 @@ window.IntegratorDSP = {
   function _kernelHash() {
     try {
       return (root.DexKernel && root.DexKernel.HASH) || null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -11196,7 +11196,7 @@ window.IntegratorDSP = {
         c = 0;
       try {
         c = +a.detect(file || {}, headText || '') || 0;
-      } catch (e) {
+      } catch {
         c = 0;
       }
       if (c > 0) out.push({ id: a.id, adapter: a, signalType: a.signalType, vendor: a.vendor, confidence: Math.max(0, Math.min(1, c)) });
@@ -22903,14 +22903,14 @@ __exports.OxyDex = window.OxyDex;
     if (!allRows || !allRows.length) {
       try {
         localStorage.removeItem(HRV_STORE_KEY);
-      } catch (e) {}
+      } catch {}
       return { ok: true };
     }
     const seeds = allRows.map(_seedFromRow);
     try {
       localStorage.setItem(HRV_STORE_KEY, JSON.stringify(seeds));
       return { ok: true };
-    } catch (e) {
+    } catch {
       // Quota / storage disabled. Don't fail SILENTLY (FOLLOWUP-FINDINGS P5.2): the
       // "missing → visible, never fabricated" rule applies to the saved mirror too. Keep
       // the most-recent measurements that DO fit (halving the tail until it persists) and
@@ -22941,7 +22941,7 @@ __exports.OxyDex = window.OxyDex;
     try {
       const raw = localStorage.getItem(HRV_STORE_KEY);
       if (raw) seeds = JSON.parse(raw);
-    } catch (e) {
+    } catch {
       seeds = null;
     }
     if (!Array.isArray(seeds) || !seeds.length) return false;
@@ -23118,7 +23118,7 @@ __exports.OxyDex = window.OxyDex;
     let data;
     try {
       data = JSON.parse(text);
-    } catch (e) {
+    } catch {
       _ui.setStatus('⚠ Could not read that file as CSV or JSON.');
       return;
     }
@@ -23584,7 +23584,6 @@ __exports.OxyDex = window.OxyDex;
     return dx * dy > 0 ? num / Math.sqrt(dx * dy) : NaN;
   }
   function linRegSlope(x, y) {
-    const n = x.length;
     const mx = mean(x),
       my = mean(y);
     const num = x.reduce((s, xi, i) => s + (xi - mx) * (y[i] - my), 0);
@@ -26137,8 +26136,7 @@ __exports.PulseDex = window.PulseDex;
         numHits = 0,
         intHits = 0,
         inBand = 0,
-        total = 0,
-        sum = 0;
+        total = 0;
       /* SERIAL-INTEGER DETECTION (DEEP-AUDIT-VI F6). Dexcom Clarity's first column is a row
          counter (Index = 1, 2, 3, …) whose values sit inside the [2, 600] "physiologic" band for
          the whole 60-row sample — so it scored within ONE hit of the real glucose column, and a
@@ -26160,7 +26158,6 @@ __exports.PulseDex = window.PulseDex;
         const num = parseFloat(cell.replace(',', '.'));
         if (isFinite(num) && /^[\s+-]*[\d.,]+\s*$/.test(cell)) {
           numHits++;
-          sum += num;
           if ((num >= 2 && num <= 30) || (num >= 30 && num <= 600)) inBand++;
           if (Number.isInteger(num)) intHits++;
           if (prevNum !== null) {
@@ -26904,7 +26901,7 @@ __exports.PulseDex = window.PulseDex;
     const days = byDay(c);
     let sum = 0,
       nd = 0;
-    for (const [k, cells] of days) {
+    for (const [, cells] of days) {
       let lrMax = 0,
         hrMax = 0,
         cnt = 0;
@@ -26932,7 +26929,7 @@ __exports.PulseDex = window.PulseDex;
     if (!meals || !meals.length) return null;
     const days = byDay(c);
     const acc = meals.map((m) => ({ label: m.label, category: m.category, minOfDay: m.minOfDay, baselines: [], peaks: [], ttp: [], d2h: [], ret: [] }));
-    for (const [k, cells] of days) {
+    for (const [, cells] of days) {
       for (let mi = 0; mi < meals.length; mi++) {
         const m = meals[mi];
         const base = [];
@@ -27740,7 +27737,6 @@ __exports.PulseDex = window.PulseDex;
       }
       mealMarkers = [...byMeal.values()].map((m) => {
         const mod = Math.round(m.minSum / m.n);
-        const carbs = Math.round(m.carbs / Math.max(1, [...byMeal.values()].length > 0 ? 1 : 1));
         return { minOfDay: mod, category: carbCategory(m.carbs / Math.max(1, m.n * 0 + 1)), label: m.label, carbsAvg: Math.round(m.carbs) };
       });
       // category from per-occurrence average carbs
@@ -35141,8 +35137,7 @@ __exports.PpgDex = window.PpgDex;
    loads BEFORE this file in every
    host + bundle (dex-coload.js / *.src.html). Local aliases keep every internal call site
    and the back-compat re-export tail byte-compatible. ── */
-  var tzOffset = DexClock.tzOffset,
-    _ckP2 = DexClock._ckP2,
+  var _ckP2 = DexClock._ckP2,
     _ckNumEpoch = DexClock._ckNumEpoch,
     _ckZoneMin = DexClock._ckZoneMin,
     _ckDMY = DexClock._ckDMY,
@@ -35250,8 +35245,6 @@ __exports.PpgDex = window.PpgDex;
       mxDMn: +((mx - mn) / 1000).toFixed(3) // variation range, SECONDS (Welltory convention)
     };
   }
-  const sd1 = (r) => r / Math.sqrt(2);
-  const sd2 = (s, r) => Math.sqrt(Math.max(0, 2 * s * s - (r * r) / 2));
   // Geometric Poincaré: SD1/SD2 computed directly from the rotated coordinates of the
   // SAME NN array that gets plotted — guarantees the ellipse matches the scatter cloud.
   // SD1 = SDSD/√2 (short axis, beat-to-beat), SD2 = √(2·SDNN² − SD1²) (long axis).
@@ -35429,7 +35422,6 @@ __exports.PpgDex = window.PpgDex;
       bw = 0; // bw = slow correlated (fractal) drift
     let sinusRR = 900; // running "expected" sinus interval
     let pendingComp = 0; // ms of compensatory pause owed to the next beat
-    let bi = 0;
     while (t < durSec - 0.4) {
       const sa = stageAt(t);
       // respiration (RSA) — vagal scales HF amplitude; resp rate wanders slowly
@@ -35483,7 +35475,6 @@ __exports.PpgDex = window.PpgDex;
       gtType.push(type);
       beatT.push(t);
       t += rr / 1000;
-      bi++;
     }
 
     // ── render PQRST morphology into µV samples ──
@@ -35808,8 +35799,6 @@ __exports.PpgDex = window.PpgDex;
     // fires when no beat was detected within a 2.5 s window — precisely the stuck-threshold case,
     // whether that stall is mid-record or an opening-transient lead-in.
     const idleLimit = Math.round(2.5 * fs);
-    const rr = [];
-    let rrAvg = 0;
     for (let i = 1; i < N - 1; i++) {
       if (integ[i] > integ[i - 1] && integ[i] >= integ[i + 1] && integ[i] > THRI) {
         if (i - last > refractory) {
@@ -35824,16 +35813,6 @@ __exports.PpgDex = window.PpgDex;
             }
           }
           peaks.push(bi);
-          if (last >= 0) {
-            const d = i - last;
-            if (d > 0) {
-              rr.push(d);
-              if (rr.length > 8) rr.shift();
-              let s = 0;
-              for (let k = 0; k < rr.length; k++) s += rr[k];
-              rrAvg = s / rr.length;
-            }
-          }
           last = i;
           SPKI = 0.125 * integ[i] + 0.875 * SPKI;
         } else {
@@ -36502,8 +36481,7 @@ __exports.PpgDex = window.PpgDex;
     const fNyq = _meanRRs > 0 ? 1 / (2 * _meanRRs) : fHi;
     const fCal = Math.max(fHi, Math.min(fNyq, 2)); // never below the band; ceiling guards absurd RR
     const nfFull = Math.max(nf, Math.round((fCal - fLo) / df) + 1);
-    let tp = 0, // in-band total — the Task-Force identity vlf+lf+hf
-      tpFull = 0, // full-support total — the Parseval denominator
+    let tpFull = 0, // full-support total — the Parseval denominator
       vlf = 0,
       lf = 0,
       hf = 0,
@@ -36540,7 +36518,6 @@ __exports.PpgDex = window.PpgDex;
          the entire out-of-band tail — turning a fix into a much worse version of the same bug — and
          would let respRate's peak search wander above 0.4 Hz. */
       if (f < fHi) {
-        tp += e;
         if (f < 0.04) vlf += e;
         else if (f < 0.15) lf += e;
         else {
@@ -37658,9 +37635,7 @@ __exports.PpgDex = window.PpgDex;
     // local SQI near a time
     const sqiAt = (sec) => {
       // nearest beat
-      let lo = 0,
-        hi = times.length - 1,
-        best = 0;
+      let best = 0;
       for (let k = 0; k < times.length; k++) {
         if (Math.abs(times[k] - sec) < Math.abs(times[best] - sec)) best = k;
       }
@@ -38280,7 +38255,7 @@ __exports.PpgDex = window.PpgDex;
         }
         morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, _sqiMorph);
         if (morph) morph.beatsArtifactMasked = _maskedBeats;
-      } catch (e) {
+      } catch {
         morph = null;
       }
     }
@@ -41203,7 +41178,7 @@ __exports.PpgDex = window.PpgDex;
           var bn = BigInt(nsRaw);
           if (ns0 === null) ns0 = bn;
           relNs = Number(bn - ns0);
-        } catch (e) {}
+        } catch {}
       }
       var ts = parseTimestamp(p[0]);
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, relNs: relNs, x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1] });
@@ -42417,7 +42392,6 @@ __exports.ECGDex = window.ECGDex;
     var dv = new DataView(buf);
     var annotations = [];
     var clock = parseEdfClock(startdate, starttime);
-    var recDurMs = (recDurSec || 0) * 1000;
 
     for (var r = 0; r < recordsRead; r++) {
       var p = dataStart + r * bytesPerRecord;
@@ -43550,8 +43524,7 @@ __exports.ECGDex = window.ECGDex;
       n = flow.length;
     var W = Math.max(1, Math.round(fs * 4)); // running-mean window for detrend
     // running mean via prefix sums
-    var run = 0,
-      breaths = 0,
+    var breaths = 0,
       lastSign = 0,
       inspSamp = 0,
       expSamp = 0;
@@ -44027,7 +44000,6 @@ __exports.ECGDex = window.ECGDex;
       nH = 0,
       nRE = 0,
       pbSec = 0,
-      durSec = 0,
       pbDurSec = 0,
       pbSessions = 0;
     // ventilation / flow-limitation / snore lanes, pooled the same way (brief §F1)
@@ -44061,7 +44033,6 @@ __exports.ECGDex = window.ECGDex;
         nRE += p.nRE;
       }
       pbSec += p.pbSec;
-      durSec += p.durSec;
       /* §3a — a session with no CSL lane leaves the PB DENOMINATOR, it does not merely add
          zero to the numerator. Dividing PB seconds by the whole night's duration when only
          one of three sessions was scored dilutes the percentage threefold. */
@@ -47567,7 +47538,7 @@ __exports.CPAPDex = window.CPAPDex;
     var text;
     try {
       text = dec().decode(entries['bag-info.txt']);
-    } catch (e) {
+    } catch {
       throw SealRefused('zip', 'bag-info.txt is not UTF-8');
     }
     var info = {};
@@ -47582,7 +47553,7 @@ __exports.CPAPDex = window.CPAPDex;
     var text;
     try {
       text = dec().decode(entries[name]);
-    } catch (e) {
+    } catch {
       throw SealRefused('zip', name + ' is not UTF-8');
     }
     var want = {};
@@ -47889,7 +47860,7 @@ __exports.CPAPDex = window.CPAPDex;
   function tag(file, relPath) {
     try {
       Object.defineProperty(file, 'relPath', { value: relPath || file.name, configurable: true });
-    } catch (e) {
+    } catch {
       /* some File impls are frozen — fall back to a parallel field */ file._relPath = relPath || file.name;
     }
     return file;
@@ -48132,7 +48103,7 @@ __exports.CPAPDex = window.CPAPDex;
       var early = null;
       try {
         early = JSON.parse(text);
-      } catch (e) {
+      } catch {
         early = null;
       }
       if (early && typeof early === 'object') {
@@ -48265,7 +48236,7 @@ __exports.CPAPDex = window.CPAPDex;
                     var f = new File([r.files[c.name]], c.name);
                     try {
                       Object.defineProperty(f, 'relPath', { value: prefix + c.name, configurable: true });
-                    } catch (e) {
+                    } catch {
                       f._relPath = prefix + c.name;
                     }
                     f.__seal = {
@@ -48525,7 +48496,6 @@ __exports.CPAPDex = window.CPAPDex;
 
     renderManifest();
     renderFusion(FUSION, exports, WARN, RECS);
-    var ap = FUSION.apnea;
     setStatus('fused ' + RECS.length + ' recording' + (RECS.length === 1 ? '' : 's') + ' · ' + FUSION.findings.length + ' finding' + (FUSION.findings.length === 1 ? '' : 's'), 'done');
   }
 

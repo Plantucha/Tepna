@@ -829,8 +829,7 @@
       n = flow.length;
     var W = Math.max(1, Math.round(fs * 4)); // running-mean window for detrend
     // running mean via prefix sums
-    var run = 0,
-      breaths = 0,
+    var breaths = 0,
       lastSign = 0,
       inspSamp = 0,
       expSamp = 0;
@@ -1306,7 +1305,6 @@
       nH = 0,
       nRE = 0,
       pbSec = 0,
-      durSec = 0,
       pbDurSec = 0,
       pbSessions = 0;
     // ventilation / flow-limitation / snore lanes, pooled the same way (brief §F1)
@@ -1340,7 +1338,6 @@
         nRE += p.nRE;
       }
       pbSec += p.pbSec;
-      durSec += p.durSec;
       /* §3a — a session with no CSL lane leaves the PB DENOMINATOR, it does not merely add
          zero to the numerator. Dividing PB seconds by the whole night's duration when only
          one of three sessions was scored dilutes the percentage threefold. */

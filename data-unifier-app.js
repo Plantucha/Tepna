@@ -30,12 +30,6 @@
   function pulseHost() {
     return ORCH.pulseHost();
   }
-  function oxyHost() {
-    return ORCH.oxyHost();
-  }
-  function hrvHost() {
-    return ORCH.hrvHost();
-  }
   // Emit through the shared signalType-dispatched entry (SIGNAL-ADAPTER-FOLLOWUPS-II §4),
   // then stamp this surface's `via`. ONE call site for every signal — no per-signal switch.
   function emitNodeExport(frame) {

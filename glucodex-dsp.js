@@ -271,8 +271,7 @@
         numHits = 0,
         intHits = 0,
         inBand = 0,
-        total = 0,
-        sum = 0;
+        total = 0;
       /* SERIAL-INTEGER DETECTION (DEEP-AUDIT-VI F6). Dexcom Clarity's first column is a row
          counter (Index = 1, 2, 3, …) whose values sit inside the [2, 600] "physiologic" band for
          the whole 60-row sample — so it scored within ONE hit of the real glucose column, and a
@@ -294,7 +293,6 @@
         const num = parseFloat(cell.replace(',', '.'));
         if (isFinite(num) && /^[\s+-]*[\d.,]+\s*$/.test(cell)) {
           numHits++;
-          sum += num;
           if ((num >= 2 && num <= 30) || (num >= 30 && num <= 600)) inBand++;
           if (Number.isInteger(num)) intHits++;
           if (prevNum !== null) {
@@ -1038,7 +1036,7 @@
     const days = byDay(c);
     let sum = 0,
       nd = 0;
-    for (const [k, cells] of days) {
+    for (const [, cells] of days) {
       let lrMax = 0,
         hrMax = 0,
         cnt = 0;
@@ -1066,7 +1064,7 @@
     if (!meals || !meals.length) return null;
     const days = byDay(c);
     const acc = meals.map((m) => ({ label: m.label, category: m.category, minOfDay: m.minOfDay, baselines: [], peaks: [], ttp: [], d2h: [], ret: [] }));
-    for (const [k, cells] of days) {
+    for (const [, cells] of days) {
       for (let mi = 0; mi < meals.length; mi++) {
         const m = meals[mi];
         const base = [];
@@ -1874,7 +1872,6 @@
       }
       mealMarkers = [...byMeal.values()].map((m) => {
         const mod = Math.round(m.minSum / m.n);
-        const carbs = Math.round(m.carbs / Math.max(1, [...byMeal.values()].length > 0 ? 1 : 1));
         return { minOfDay: mod, category: carbCategory(m.carbs / Math.max(1, m.n * 0 + 1)), label: m.label, carbsAvg: Math.round(m.carbs) };
       });
       // category from per-occurrence average carbs

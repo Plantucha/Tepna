@@ -27,7 +27,7 @@
   function tag(file, relPath) {
     try {
       Object.defineProperty(file, 'relPath', { value: relPath || file.name, configurable: true });
-    } catch (e) {
+    } catch {
       /* some File impls are frozen — fall back to a parallel field */ file._relPath = relPath || file.name;
     }
     return file;

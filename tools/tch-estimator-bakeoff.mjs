@@ -182,8 +182,7 @@ function solveLin(A, b) {
   return x;
 }
 function sigmaFromS2(s2) {
-  const sigma = {},
-    culpritOf = {};
+  const sigma = {};
   for (const k of LABELS) {
     const v = s2[k] == null ? null : Math.max(s2[k], 0);
     sigma[k] = v == null ? null : Math.sqrt(v);

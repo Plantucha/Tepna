@@ -9,8 +9,7 @@
 (function () {
   'use strict';
   var PTS = []; // {age, ahi, rmssd, sev, cpap}
-  var harness = null,
-    pend = new Map(),
+  var pend = new Map(),
     seq = 1;
 
   function $(id) {
@@ -96,15 +95,6 @@
         }, 0) / a.length
       : null;
   }
-  function sd(a) {
-    if (a.length < 2) return null;
-    var m = mean(a),
-      s = 0;
-    a.forEach(function (v) {
-      s += (v - m) * (v - m);
-    });
-    return Math.sqrt(s / (a.length - 1));
-  }
   // ols · olsFit · roc single-sourced in analysis-stats.js (TEST-COVERAGE-ANALYSIS 2026-07-15) —
   // known-answer tested in dex-tests.js. Aliased so call sites are untouched; behavior is identical.
   var ols = AnalysisStats.ols;
@@ -162,7 +152,7 @@
         };
       });
       db.close();
-    } catch (e) {}
+    } catch {}
   }
   async function ckptLoad() {
     try {
@@ -179,7 +169,7 @@
       });
       db.close();
       return o;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -192,7 +182,7 @@
         tx.oncomplete = res;
       });
       db.close();
-    } catch (e) {}
+    } catch {}
   }
   function genVer() {
     return (window.CohortGen && CohortGen.VERSION) || '?';
@@ -208,7 +198,7 @@
     try {
       var l = JSON.parse(localStorage.getItem('hrvconf_lock') || 'null');
       return l && Date.now() - l.ts < 6000 ? l : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -219,13 +209,13 @@
   function lockBeat() {
     try {
       localStorage.setItem('hrvconf_lock', JSON.stringify({ id: RUN_ID, ts: Date.now() }));
-    } catch (e) {}
+    } catch {}
   }
   function lockRelease() {
     try {
       var l = lockFresh();
       if (l && l.id === RUN_ID) localStorage.removeItem('hrvconf_lock');
-    } catch (e) {}
+    } catch {}
   }
 
   // ── run ──
@@ -323,7 +313,7 @@
     else ckptSave({ ver: ver, N: N, nextSeed: nextSeed, pts: PTS, savedAt: Date.now() });
     try {
       localStorage.setItem('hrvconf_ptPerSec', String(pdone / Math.max(0.001, elapsed)));
-    } catch (e) {}
+    } catch {}
     setProg(1);
     if ($('cancel')) $('cancel').style.display = 'none';
     setStatus(
@@ -332,7 +322,7 @@
     );
     try {
       updEta();
-    } catch (e) {}
+    } catch {}
     if (PTS.length >= 8) analyze();
     $('run').disabled = false;
     ['dlCsv', 'dlStats', 'dlFig'].forEach(function (id) {
@@ -355,7 +345,7 @@
         if ($('nIn')) $('nIn').value = ck.N;
         setStatus('resuming previous run ' + ck.nextSeed + '/' + ck.N + '…', 'run');
         run(ck);
-      } catch (e) {}
+      } catch {}
     }
     tryResume();
   })();
@@ -538,7 +528,7 @@
        `nights-icc-analysis.js`'s `window.NIGHTS_ICC`. */
     try {
       window.HRV_CONFOUND = RESULT;
-    } catch (e) {}
+    } catch {}
 
     drawVsAge(ref);
     drawVsAhi();
@@ -769,8 +759,7 @@
     );
   };
   $('dlFig').onclick = function () {
-    var ids = ['vsAge', 'vsAhi', 'roc'],
-      gap = 16;
+    var gap = 16;
     var c0 = $('vsAge');
     var W = c0.width * 2 + gap * 3,
       H = c0.height * 2 + gap * 3;

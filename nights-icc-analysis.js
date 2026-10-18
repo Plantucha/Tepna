@@ -138,7 +138,7 @@
         };
       });
       db.close();
-    } catch (e) {}
+    } catch {}
   }
   async function ckptLoad() {
     try {
@@ -155,7 +155,7 @@
       });
       db.close();
       return o;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -168,7 +168,7 @@
         tx.oncomplete = res;
       });
       db.close();
-    } catch (e) {}
+    } catch {}
   }
   function genVer() {
     return (window.CohortGen && CohortGen.VERSION) || '?';
@@ -178,7 +178,7 @@
     try {
       var l = JSON.parse(localStorage.getItem('nicc_lock') || 'null');
       return l && Date.now() - l.ts < 6000 ? l : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -189,13 +189,13 @@
   function lockBeat() {
     try {
       localStorage.setItem('nicc_lock', JSON.stringify({ id: RUN_ID, ts: Date.now() }));
-    } catch (e) {}
+    } catch {}
   }
   function lockRelease() {
     try {
       var l = lockFresh();
       if (l && l.id === RUN_ID) localStorage.removeItem('nicc_lock');
-    } catch (e) {}
+    } catch {}
   }
   function fmtETA(sec) {
     if (!isFinite(sec) || sec < 0) return '—';
@@ -231,31 +231,6 @@
   }
 
   // ── split the continuous CGM stream into per-calendar-day CSVs (floating wall-clock) ──
-  function splitCgmByDay(csv) {
-    var lines = (csv || '').split(/\r?\n/);
-    if (lines.length < 3) return [];
-    var header = lines[0];
-    var byDay = {};
-    for (var i = 1; i < lines.length; i++) {
-      var ln = lines[i];
-      if (!ln.trim()) continue;
-      var comma = ln.indexOf(',');
-      if (comma < 10) continue;
-      var ts = ln.slice(0, comma).trim();
-      var day = ts.slice(0, 10); // YYYY-MM-DD prefix of the zoned ISO stamp
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
-      (byDay[day] || (byDay[day] = [])).push(ln);
-    }
-    var out = [];
-    Object.keys(byDay)
-      .sort()
-      .forEach(function (day) {
-        var rows = byDay[day];
-        if (rows.length < 200) return; // need ≥~16 h of 5-min readings for a stable daily CV
-        out.push({ day: day, n: rows.length, csv: header + '\n' + rows.join('\n') + '\n' });
-      });
-    return out;
-  }
 
   // ── ANOVA one-way random-effects ICC(1,1) over ragged subjects ──
   // Kernels single-sourced in analysis-stats.js (TEST-COVERAGE-ANALYSIS 2026-07-15) — known-answer
@@ -321,7 +296,7 @@
       var pf;
       try {
         pf = CohortGen.sampleProfile(seed);
-      } catch (e) {
+      } catch {
         seed++;
         continue;
       }
@@ -376,14 +351,14 @@
     else ckptSave({ ver: ver, targetSubj: targetSubj, minNights: minNights, cursor: cursor, SUBJ: SUBJ, savedAt: Date.now() });
     try {
       localStorage.setItem('nicc_ptPerSec', String(pdone / Math.max(0.001, elapsed)));
-    } catch (e) {}
+    } catch {}
 
     setProg(1);
     if ($('cancel')) $('cancel').style.display = 'none';
     setStatus((CANCEL ? 'cancelled — partial · ' : 'done · ') + SUBJ.length + ' subjects in ' + fmtETA(elapsed), CANCEL ? 'idle' : 'done');
     try {
       updEta();
-    } catch (e) {}
+    } catch {}
     if (SUBJ.length) analyze();
     $('run').disabled = false;
     ['dlCsv', 'dlStats', 'dlFig'].forEach(function (id) {
@@ -523,7 +498,7 @@
     drawRepro(stats);
     try {
       window.NIGHTS_ICC = RESULT;
-    } catch (e) {}
+    } catch {}
   }
   function fmtN(n) {
     return n == null ? '—' : isFinite(n) ? n : '∞';
@@ -922,7 +897,7 @@
         if ($('minN')) $('minN').value = ck.minNights;
         setStatus('resuming previous run ' + ck.cursor + '…', 'run');
         run(ck);
-      } catch (e) {}
+      } catch {}
     }
     tryResume();
   })();

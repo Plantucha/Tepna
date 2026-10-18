@@ -154,7 +154,7 @@
         if (m != null) wasMoving = m;
       }
       chans.push({ node: 'MotionDex', channel: 'movement_onset', times: mv });
-    } catch (e) {
+    } catch {
       /* a channel that cannot be built is simply absent — the fit reports each channel's reason */
     }
     // the posture shift that often follows an arousal
@@ -174,7 +174,7 @@
         .forEach(function (k) {
           chans.push({ node: 'MotionDex', channel: k, times: byImp[k] });
         });
-    } catch (e2) {
+    } catch {
       /* same — absence is reported by the fit, never silently filled */
     }
     return chans;

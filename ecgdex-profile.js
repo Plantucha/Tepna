@@ -21,7 +21,6 @@
   let _dexPanel = null; // handle to the shared DexProfile.renderPanel() instance
 
   // ─── stats ────────────────────────────────────────────────────────────────────
-  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
   const median = (a) => {
     if (!a.length) return null;
     const s = [...a].sort((x, y) => x - y),
@@ -63,7 +62,7 @@
       const org = (f) => {
         try {
           return DP().resolve(f).origin;
-        } catch (e) {
+        } catch {
           return 'pop';
         }
       };
@@ -107,7 +106,7 @@
     if (DP()) {
       try {
         DP().migrate();
-      } catch (e) {}
+      } catch {}
       const p = DP().get(),
         man = DP().getRecord().manual || {};
       const set = (id, val) => {
@@ -130,7 +129,7 @@
     let saved = null;
     try {
       saved = JSON.parse(localStorage.getItem('ecgdex_profile') || 'null');
-    } catch (e) {}
+    } catch {}
     if (saved)
       KEYS.forEach((k) => {
         const el = $(k);
@@ -169,7 +168,7 @@
     });
     try {
       localStorage.setItem('ecgdex_profile', JSON.stringify(o));
-    } catch (e) {}
+    } catch {}
   }
 
   // population means + altitude VO₂ factor
@@ -287,7 +286,7 @@
         DP().setDetected(_det);
         DP().prefillFrom(_det);
         if (_dexPanel) _dexPanel.refresh();
-      } catch (e) {}
+      } catch {}
     }
     return r;
   }

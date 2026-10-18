@@ -83,7 +83,7 @@
         c = 0;
       try {
         c = +a.detect(file || {}, headText || '') || 0;
-      } catch (e) {
+      } catch {
         c = 0;
       }
       if (c > 0) out.push({ id: a.id, adapter: a, signalType: a.signalType, vendor: a.vendor, confidence: Math.max(0, Math.min(1, c)) });
