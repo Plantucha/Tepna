@@ -2035,6 +2035,25 @@ function readDrawnFlagScan() {
   return out;
 }
 
+/* VALIDITY-SIDECAR READ RATCHET (SAMPLE-VALIDITY-ENVELOPE done-when 4) — every authored JS source that
+   can call a sample parser that accepts `runsText`, as TEXT. Root `*.js` (the bundled runtime sources and
+   workers), `adapters/*.js` (the SignalAdapters the Unifier routes through) and `tools/*.{js,mjs}` (the fleet
+   tooling that parses the same captures). `tools/probe-batteries/**` is out: those are mutation batteries
+   that drive a parser on planted text, not readers of a capture. Node-lane only (fs read). */
+function readValiditySidecarScan() {
+  const pick = (dir, re) => {
+    const d = join(ROOT, dir);
+    if (!existsSync(d)) return [];
+    return readdirSync(d)
+      .filter((f) => re.test(f))
+      .map((f) => (dir ? `${dir}/${f}` : f));
+  };
+  const files = [...pick('', /\.js$/), ...pick('adapters', /\.js$/), ...pick('tools', /\.m?js$/)];
+  const out = {};
+  for (const f of files) out[f] = readFileSync(join(ROOT, f), 'utf8');
+  return out;
+}
+
 /* §∅ — does `ProvenanceLedger.loadBrowser` REPORT a fragment that did not arrive, or assemble around it?
    `loadNode` throws on an absent `provenance/<App>.json`; the browser loader filtered it and returned a
    smaller view (residue 2026-09-27-loadbrowser-filters-an-absent-fragment-silently). `loadBrowser` is a
@@ -3384,6 +3403,7 @@ async function main() {
     nonBundleCsp: readNonBundleCsp(),
     captureFilenameScan: readCaptureFilenameScan(),
     drawnFlagScan: readDrawnFlagScan(),
+    validitySidecarScan: readValiditySidecarScan(),
     ProvenanceLedger, // the pure `missingFragments` / `fragmentFileFor` self-tests (browser lane: the global)
     ledgerBrowserProbe: await readLedgerBrowserProbe(), // does loadBrowser REPORT an absent fragment by name?
     codegenManifests: readCodegenManifests(),
