@@ -253,13 +253,27 @@ written"*), and the two should share one rule.
 **Not claimed:** which frame types the ring did or did not send. Wren is measuring that; this item is only
 about what the files on disk mean.
 
-## ⑤ Two cases the ruling does not yet cover
+## ⑤ Two cases the ruling did not cover — the first is now ruled and built
 
-- **A daytime session** (`20261004095250`, 09:52) is not a night under "first donning after 18:00", but it
-  exists and is currently filed in a night folder. Where does it go, and is it judged at all?
+- ✅ **A daytime session** (`20261004095250`, 09:52) is not a night under "first donning after 18:00", but
+  it exists, and a night folder holds it. Where does it go, and does anything judge it?
+  **RULED by the owner 2026-10-13** (AskUserQuestion, relayed by Kestrel) and **BUILT**: the noon-to-noon
+  window a night starts in gives its key, and the evening date labels it, so no session falls between two
+  nights; a session starting from 10:00 through 18:00 also carries a `daytime` flag and is never judged
+  as a night. The owner's reason: research actigraphy tools use this window, and a 06:00 cut splits a
+  06:30 re-pair off its night.
+  **And the ruling did not move the judge.** Implementing it as one band reds 24 tests across six files,
+  which is how the band's two jobs came apart: ATTRIBUTION (which night a session belongs to) is now
+  `nightqc.night_key_band`, noon-to-noon and tiling; ADMISSION (what counts as that night's signal) stays
+  `nightqc.night_band` at 18:00→10:00. A tiling band would have let a daylight sitting contribute its
+  rows to a night and an afternoon sidecar stand as a night's clock evidence — §∅ inverted, and the
+  opposite of "never judged as a night". Measured over the 96-night mirror: 1250 sessions re-key across
+  75 nights, every one of them starting 12:00–17:59, and no verdict can move, because both key-band call
+  sites sit in `nights_index`.
 - **The 10-03 tail** (`…00262*`–`…00322*`) belongs to the 10-03 recording. Under (b) it is grouped there
   with no file moved; under (a) it must be re-filed, which is migration over the whole corpus rather than
-  two folders.
+  two folders. **STILL OPEN** — no ruling, and acceptance item "a row for whichever of ⑤'s two cases the
+  owner does not rule on" now names this one.
 
 ## ⑥ Migration, reworded by ② (scope (3))
 
