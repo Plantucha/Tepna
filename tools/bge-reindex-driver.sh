@@ -68,5 +68,11 @@ curl -sf --max-time 5 http://127.0.0.1:11434/api/tags >/dev/null 2>&1 || {
 }
 
 cd "$ROOT" || exit 0
+# THE AGENT BOARD JOINS THE SAME TICK (owner 2026-10-17: "wire agent board to rule 0"). Rulings and
+# handoffs now arrive on the board, a SQLite file doc-search cannot read. board-corpus.mjs writes one
+# Markdown file per entry into the folder the `agent-board` external root names. Best-effort: a board
+# failure is logged and the index tick still runs.
+board=$(timeout 120 node tools/board-corpus.mjs 2>&1 | tail -1)
+echo "$(date -Is) ${board:-board-corpus: no output}" >>"$LOG"
 out=$(timeout 900 node tools/doc-search.mjs --pull-ext "index freshness tick" 2>&1 | grep -iE "embed|chunk|ext:" | head -8 | tr '\n' ' ')
 echo "$(date -Is) [$ROOT @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)] ${out:-'(no embed line — check doc-search output)'}" >>"$LOG"
