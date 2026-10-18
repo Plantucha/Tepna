@@ -60,12 +60,12 @@ NODES: dict[str, tuple[tuple[Pattern, ...], Pattern | None]] = {
     "GlucoDex": ((), None),  # no CGM on the box — always absent, never a fabricated 0
     # HRVDex ingests Welltory CSV or an ECGDex EXPORT — never a raw Polar file (a raw RR.txt handed to
     # it is dropped without a word, measured 2026-09-20). The box holds neither, so like the
-    # Integrator its cell is the raw input that reaches it through ECGDex, and it is not offered as a click.
+    # Integrator its cell is the raw input that reaches it through ECGDex. Unlike the Integrator, it is not a click.
     "HRVDex": (("Polar_H10_*_HR.txt", "Polar_H10_*_RR.txt", "Polar_VeritySense_*_PPI.txt"), "Polar_H10_*_RR.txt"),
     "EEGDex": ((), None),  # no Muse on the box
-    # The Integrator ingests NODE EXPORTS (ganglior.node-export JSON), which the box does not hold —
-    # folds run on rig (tools/trio-batch.mjs). Its cell is the raw input it WOULD fold, marked
-    # `loadable: False` so the monitor shows the figure and does not offer a click.
+    # The Integrator ingests NODE EXPORTS (ganglior.node-export JSON), which the box does not hold. Its
+    # cell is the raw input a fold takes, and the monitor's click opens OverDex with those files: OverDex
+    # runs each analyzer in the browser and fuses the exports with the Integrator's engine.
     "Integrator": (
         (
             "Polar_H10_*_ECG.txt",
@@ -77,7 +77,7 @@ NODES: dict[str, tuple[tuple[Pattern, ...], Pattern | None]] = {
         "Polar_VeritySense_*_PPG.txt",
     ),
 }
-NOT_LOADABLE = frozenset({"Integrator", "HRVDex"})
+NOT_LOADABLE = frozenset({"HRVDex"})
 # derived tools: eligible when every required input exists; they open with those inputs loaded
 DERIVED: dict[str, tuple[str, ...]] = {
     # the hat's O2Ring corner is the ring's PULSE from its _SPO2.csv (sensor-trio-power-analysis.js role `o2`), not the

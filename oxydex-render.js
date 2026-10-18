@@ -2630,6 +2630,371 @@ function _o2AcqPanel(ev) {
   return h;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  NIGHT TRACES — the night's own signals across the recording (render-only).
+//  Reads n.spo2Series / n.hrSeries (1 Hz grid, null = no sample), n.tchEpochs (5-min motion) and
+//  n.desat.events. One plot column holds the min–max of its seconds, so a nadir stays visible at
+//  any zoom. A column with no sample is a GAP in the trace, never a zero (CLAUDE.md §∅).
+// ═══════════════════════════════════════════════════════════════════════════
+function _ntBuckets(arr, W) {
+  var n = arr.length,
+    out = [];
+  for (var px = 0; px < W; px++) {
+    var a = Math.floor((px * n) / W),
+      b = Math.max(a + 1, Math.floor(((px + 1) * n) / W)),
+      lo = null,
+      hi = null;
+    for (var i = a; i < b && i < n; i++) {
+      var v = arr[i];
+      if (v == null) continue;
+      if (lo == null || v < lo) lo = v;
+      if (hi == null || v > hi) hi = v;
+    }
+    out.push(lo == null ? null : [lo, hi]);
+  }
+  return out;
+}
+function _ntPct(arr, p) {
+  var v = [];
+  for (var i = 0; i < arr.length; i++) if (arr[i] != null) v.push(arr[i]);
+  if (!v.length) return null;
+  v.sort(function (x, y) {
+    return x - y;
+  });
+  return v[Math.min(v.length - 1, Math.max(0, Math.round(p * (v.length - 1))))];
+}
+function _ntClock(t0Ms, sec) {
+  var d = new Date(t0Ms + sec * 1000),
+    h = d.getUTCHours(),
+    m = d.getUTCMinutes();
+  return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+}
+/** opts: { nSec, yMin, yMax, color, refs:[{y,label,color}], spans:[{a,b}], spanColor, bars:[{a,b,v}], intY, unit, H } */
+function nightTraceSvg(arr, t0Ms, opts) {
+  var W = 680,
+    H = opts.H || 130,
+    P = { l: 40, r: 10, t: 8, b: 20 },
+    pw = W - P.l - P.r,
+    ph = H - P.t - P.b,
+    nSec = opts.nSec,
+    lo = opts.yMin,
+    hi = opts.yMax;
+  var sx = function (sec) {
+    return P.l + (sec / nSec) * pw;
+  };
+  var sy = function (v) {
+    var c = Math.max(lo, Math.min(hi, v));
+    return P.t + ph - ((c - lo) / (hi - lo)) * ph;
+  };
+  var g = '';
+  for (var t = 0; t <= 2; t++) {
+    var yv = lo + ((hi - lo) * t) / 2;
+    g += '<line x1="' + P.l + '" y1="' + sy(yv).toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + sy(yv).toFixed(1) + '" stroke="' + C.grid + '"/>';
+    g +=
+      '<text x="' +
+      (P.l - 5) +
+      '" y="' +
+      (sy(yv) + 3).toFixed(1) +
+      '" fill="' +
+      C.text +
+      '" font-size="9" text-anchor="end">' +
+      (opts.intY || hi - lo >= 4 ? Math.round(yv) : yv.toFixed(2)) +
+      '</text>';
+  }
+  for (var k = 0; k <= 4; k++) {
+    var xs = (nSec * k) / 4;
+    g +=
+      '<text x="' +
+      sx(xs).toFixed(1) +
+      '" y="' +
+      (H - 6) +
+      '" fill="' +
+      C.text +
+      '" font-size="9" text-anchor="' +
+      (k === 0 ? 'start' : k === 4 ? 'end' : 'middle') +
+      '">' +
+      _ntClock(t0Ms, xs) +
+      '</text>';
+  }
+  (opts.spans || []).forEach(function (s) {
+    g += '<rect x="' + sx(s.a).toFixed(1) + '" y="' + P.t + '" width="' + Math.max(1, sx(s.b) - sx(s.a)).toFixed(1) + '" height="' + ph + '" fill="' + (opts.spanColor || C.red) + '" opacity=".22"/>';
+  });
+  (opts.refs || []).forEach(function (r) {
+    g += '<line x1="' + P.l + '" y1="' + sy(r.y).toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + sy(r.y).toFixed(1) + '" stroke="' + r.color + '" stroke-dasharray="4 3" opacity=".8"/>';
+    g += '<text x="' + (W - P.r - 2) + '" y="' + (sy(r.y) - 3).toFixed(1) + '" fill="' + r.color + '" font-size="9" text-anchor="end">' + r.label + '</text>';
+  });
+  if (opts.bars) {
+    opts.bars.forEach(function (b) {
+      if (b.v == null) return;
+      g +=
+        '<rect x="' +
+        sx(b.a).toFixed(1) +
+        '" y="' +
+        sy(b.v).toFixed(1) +
+        '" width="' +
+        Math.max(1, sx(b.b) - sx(b.a) - 1).toFixed(1) +
+        '" height="' +
+        (P.t + ph - sy(b.v)).toFixed(1) +
+        '" fill="' +
+        opts.color +
+        '" opacity=".75"/>';
+    });
+  } else {
+    // One closed band per run of columns that hold a sample: the top edge left→right, the bottom right→left.
+    var bk = _ntBuckets(arr, pw),
+      run = [];
+    var flush = function () {
+      if (!run.length) return;
+      var d = '';
+      for (var i = 0; i < run.length; i++) d += (i ? 'L' : 'M') + run[i].x.toFixed(1) + ' ' + sy(run[i].hi).toFixed(1);
+      for (var j = run.length - 1; j >= 0; j--) d += 'L' + (run[j].x + 1).toFixed(1) + ' ' + sy(run[j].lo).toFixed(1);
+      g += '<path d="' + d + 'Z" fill="' + opts.color + '" stroke="' + opts.color + '" stroke-width="0.8" stroke-linejoin="round"/>';
+      run = [];
+    };
+    for (var px = 0; px < bk.length; px++) {
+      if (bk[px] == null) flush();
+      else run.push({ x: P.l + px, lo: bk[px][0], hi: bk[px][1] });
+    }
+    flush();
+  }
+  return makeSVG(W, H, g);
+}
+/** Asleep/Awake strip on the traces' time axis: two lanes, one bar per run, a null run left blank. */
+function sleepWakeSvg(sw, t0Ms, nSec) {
+  var W = 680,
+    H = 70,
+    P = { l: 40, r: 10, t: 6, b: 20 },
+    pw = W - P.l - P.r,
+    lane = (H - P.t - P.b) / 2,
+    g = '';
+  var sx = function (sec) {
+    return P.l + (Math.min(sec, nSec) / nSec) * pw;
+  };
+  var endSec = sw.nEpochs * sw.epochSec;
+  [
+    ['Awake', 0],
+    ['Asleep', 1]
+  ].forEach(function (L) {
+    var y = P.t + L[1] * lane;
+    g += '<line x1="' + P.l + '" y1="' + (y + lane / 2).toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + (y + lane / 2).toFixed(1) + '" stroke="' + C.grid + '"/>';
+    g += '<text x="' + (P.l - 5) + '" y="' + (y + lane / 2 + 3).toFixed(1) + '" fill="' + C.text + '" font-size="9" text-anchor="end">' + L[0] + '</text>';
+  });
+  sw.segments.forEach(function (s, i) {
+    if (s.stage == null) return;
+    var a = s.tMin * 60,
+      b = i + 1 < sw.segments.length ? sw.segments[i + 1].tMin * 60 : endSec,
+      wake = s.stage === 'Wake';
+    g +=
+      '<rect x="' +
+      sx(a).toFixed(1) +
+      '" y="' +
+      (P.t + (wake ? 0 : lane) + 2).toFixed(1) +
+      '" width="' +
+      Math.max(0.6, sx(b) - sx(a)).toFixed(1) +
+      '" height="' +
+      (lane - 4).toFixed(1) +
+      '" fill="' +
+      (wake ? C.amber : C.purple) +
+      '" opacity=".85"/>';
+  });
+  for (var k = 0; k <= 4; k++) {
+    var xs = (nSec * k) / 4;
+    g +=
+      '<text x="' +
+      sx(xs).toFixed(1) +
+      '" y="' +
+      (H - 6) +
+      '" fill="' +
+      C.text +
+      '" font-size="9" text-anchor="' +
+      (k === 0 ? 'start' : k === 4 ? 'end' : 'middle') +
+      '">' +
+      _ntClock(t0Ms, xs) +
+      '</text>';
+  }
+  return makeSVG(W, H, g);
+}
+/** Minutes at each whole SpO₂ percent, lo..100. An absent second counts in no bin. */
+function spo2HistSvg(sp, lo) {
+  var W = 680,
+    H = 120,
+    P = { l: 40, r: 10, t: 8, b: 20 },
+    pw = W - P.l - P.r,
+    ph = H - P.t - P.b,
+    nb = 101 - lo,
+    cnt = [],
+    i,
+    mx = 0,
+    g = '';
+  for (i = 0; i < nb; i++) cnt.push(0);
+  for (i = 0; i < sp.length; i++) {
+    var v = sp[i];
+    if (v == null) continue;
+    var b = Math.round(v) - lo;
+    if (b < 0) b = 0;
+    if (b >= nb) b = nb - 1;
+    cnt[b]++;
+  }
+  for (i = 0; i < nb; i++) if (cnt[i] > mx) mx = cnt[i];
+  if (!mx) return '';
+  var bw = pw / nb,
+    yTop = mx / 60;
+  for (var t = 0; t <= 2; t++) {
+    var yv = (yTop * t) / 2,
+      y = P.t + ph - (ph * t) / 2;
+    g += '<line x1="' + P.l + '" y1="' + y.toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + y.toFixed(1) + '" stroke="' + C.grid + '"/>';
+    g += '<text x="' + (P.l - 5) + '" y="' + (y + 3).toFixed(1) + '" fill="' + C.text + '" font-size="9" text-anchor="end">' + (yTop < 4 ? yv.toFixed(1) : Math.round(yv)) + '</text>';
+  }
+  for (i = 0; i < nb; i++) {
+    var pct = lo + i,
+      h = (cnt[i] / mx) * ph,
+      x = P.l + i * bw,
+      col = pct < 88 ? C.red : pct < 90 ? C.amber : C.blue;
+    if (cnt[i]) {
+      g +=
+        '<rect x="' +
+        (x + 0.5).toFixed(1) +
+        '" y="' +
+        (P.t + ph - h).toFixed(1) +
+        '" width="' +
+        Math.max(1, bw - 1).toFixed(1) +
+        '" height="' +
+        h.toFixed(1) +
+        '" fill="' +
+        col +
+        '" opacity=".8"><title>' +
+        (i === 0 && lo > 0 ? '≤' : '') +
+        pct +
+        ' % · ' +
+        (cnt[i] / 60).toFixed(1) +
+        ' min</title></rect>';
+    }
+    if (pct % 5 === 0 || i === nb - 1) g += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 6) + '" fill="' + C.text + '" font-size="9" text-anchor="middle">' + pct + '</text>';
+  }
+  return makeSVG(W, H, g);
+}
+function _ntBadge(ev, cite) {
+  return typeof window !== 'undefined' && window.MetricRegistry ? window.MetricRegistry.badge(ev, cite) : '';
+}
+function nightTraces(n) {
+  var sp = n.spo2Series,
+    hr = n.hrSeries,
+    t0 = n.t0Ms;
+  if (t0 == null || !Array.isArray(sp) || sp.length < 60) return '';
+  var nSec = sp.length,
+    html = '<div class="sec-section" data-tier="primary"><div class="sec-label">Night traces</div>';
+  var sw = n.sleepWake;
+  if (sw && Array.isArray(sw.segments) && sw.segments.length) {
+    var swCite = 'Motion + pulse-rate heuristic, 2 states. Like any motion-led detector it reads still, quiet wake as asleep, so it over-counts sleep. Not sleep staging.';
+    html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('heuristic', swCite) + 'Asleep / Awake · 30-s epochs';
+    html += ' <span class="cite-note">' + Math.round(sw.asleepMin) + ' min asleep · ' + Math.round(sw.wakeMin) + ' min awake · over-counts sleep</span></div>';
+    html += sleepWakeSvg(sw, t0, nSec);
+    html += '</div>';
+  }
+  // SpO₂ — fixed top at 100 %, the floor follows the night's own low end so a deep nadir stays on the plot.
+  var spLo = _ntPct(sp, 0.002);
+  if (spLo != null) {
+    var yMin = Math.min(85, Math.floor((spLo - 2) / 5) * 5);
+    var evs = (n.desat && n.desat.events) || [],
+      spans = [];
+    evs.forEach(function (e) {
+      if (e.startTMs == null || e.endTMs == null) return;
+      spans.push({ a: (e.startTMs - t0) / 1000, b: (e.endTMs - t0) / 1000 });
+    });
+    html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('measured', 'SpO₂ per second, as the oximeter recorded it') + 'SpO₂ %';
+    if (spans.length) html += ' · ' + _ntBadge('validated', 'AASM 4 % desaturation events — the ODI-4 count') + spans.length + ' desaturations shaded';
+    html += '</div>';
+    html += nightTraceSvg(sp, t0, {
+      nSec: nSec,
+      yMin: yMin,
+      yMax: 100,
+      color: C.blue,
+      spans: spans,
+      refs: [
+        { y: 90, label: '90 %', color: C.amber },
+        { y: 88, label: '88 %', color: C.red }
+      ]
+    });
+    html += '</div>';
+  }
+  // Desaturations per clock hour, on the traces' time axis. The first and last hours are partial; the bar title gives the covered minutes.
+  if (evs.length) {
+    var hr0 = Math.floor(t0 / 3600000) * 3600000,
+      hb = [],
+      hMax = 0;
+    for (var hs = hr0; hs < t0 + nSec * 1000; hs += 3600000) hb.push({ a: Math.max(0, (hs - t0) / 1000), b: Math.min(nSec, (hs + 3600000 - t0) / 1000), v: 0 });
+    evs.forEach(function (e) {
+      var et = e.tMs != null ? e.tMs : e.startTMs;
+      if (et == null) return;
+      var k = Math.floor((et - hr0) / 3600000);
+      if (k >= 0 && k < hb.length) hb[k].v++;
+    });
+    hb.forEach(function (b) {
+      if (b.v > hMax) hMax = b.v;
+    });
+    html +=
+      '<div class="chart-wrap"><div class="chart-title">' +
+      _ntBadge('validated', 'AASM 4 % desaturation events, counted per clock hour. The first and last hours are partial.') +
+      'Desaturations per hour';
+    html += ' <span class="cite-note">first and last hours partial</span></div>';
+    html += nightTraceSvg(null, t0, { nSec: nSec, yMin: 0, yMax: Math.max(2, hMax + (hMax % 2)), intY: true, color: C.red, bars: hb, H: 90 });
+    html += '</div>';
+  }
+  // Time at each SpO₂ level — minutes per whole percent, the floor of the trace above as the lowest bin.
+  if (spLo != null) {
+    var hist = spo2HistSvg(sp, yMin);
+    if (hist) {
+      html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('measured', 'Minutes the oximeter read each whole SpO₂ percent') + 'Time at each SpO₂ level · minutes';
+      html += ' <span class="cite-note">amber below 90 %, red below 88 %</span></div>';
+      html += hist + '</div>';
+    }
+  }
+  // Pulse rate — the axis comes from the 0.5–99.5 percentile, so one artifact second cannot flatten the night.
+  if (Array.isArray(hr) && hr.length === nSec) {
+    var hLo = _ntPct(hr, 0.005),
+      hHi = _ntPct(hr, 0.995);
+    if (hLo != null && hHi != null) {
+      // Periodic-breathing episodes from the SpO₂ oscillation detector, shaded on the pulse trace — the oximetry analogue of ECGDex's cyclic-HR chart.
+      // windowSec counts rows; the detector itself reads a row as one second.
+      var osc = Array.isArray(n.oscEpisodes) ? n.oscEpisodes : [],
+        oSpans = [];
+      osc.forEach(function (e) {
+        if (e.tMs == null || e.windowSec == null) return;
+        var a = (e.tMs - t0) / 1000;
+        oSpans.push({ a: a, b: Math.min(nSec, a + e.windowSec) });
+      });
+      html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('measured', 'Pulse rate per second, as the oximeter recorded it') + 'Pulse rate · bpm';
+      if (oSpans.length)
+        html +=
+          ' · ' +
+          _ntBadge('emerging', 'Periodic-breathing episodes — OxyDex detector on oximetry alone (no airflow/effort channel)') +
+          oSpans.length +
+          ' periodic-breathing episode' +
+          (oSpans.length === 1 ? '' : 's') +
+          ' shaded';
+      html += '</div>';
+      html += nightTraceSvg(hr, t0, { nSec: nSec, yMin: Math.floor(hLo / 5) * 5 - 5, yMax: Math.ceil(hHi / 5) * 5 + 5, color: C.green, spans: oSpans, spanColor: C.purple });
+      html += '</div>';
+    }
+  }
+  // Motion — the 5-min motion index the node exports (tchEpochs). An epoch with no motion reading draws no bar.
+  var ep = Array.isArray(n.tchEpochs) ? n.tchEpochs : [];
+  var bars = [],
+    mHi = 0;
+  ep.forEach(function (e) {
+    if (e.motionIndex == null) return;
+    bars.push({ a: e.tMin * 60, b: Math.min(nSec, e.tMin * 60 + 300), v: e.motionIndex });
+    if (e.motionIndex > mHi) mHi = e.motionIndex;
+  });
+  if (bars.length) {
+    html += '<div class="chart-wrap"><div class="chart-title">' + _ntBadge('measured', 'Mean motion reading per 5-min epoch') + 'Motion · 5-min mean</div>';
+    html += nightTraceSvg(null, t0, { nSec: nSec, yMin: 0, yMax: mHi > 0 ? mHi : 1, color: C.purple, bars: bars, H: 90 });
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 function nightDetail(n, idx) {
   var s = n.stats || {},
     html = '';
@@ -2858,6 +3223,11 @@ function nightDetail(n, idx) {
     html += '</div>'; // /.proj-grid
   }
 
+  try {
+    html += nightTraces(n);
+  } catch (e) {
+    html += '<div class="render-error-inline">⚠️ Traces error: ' + escHTML(e.message) + '</div>';
+  }
   html += '<div class="sec-section" data-tier="primary">';
   html += '<div class="sec-label">Recording</div>';
   html +=

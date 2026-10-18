@@ -309,19 +309,36 @@
     });
   }
 
+  /* Run & fuse stays DISABLED until the files are read and classified. Pressed earlier, runAndFuse
+     sees an empty ITEMS and returns without a word. The box's Nights page hands a night's files to
+     #files and then presses this button once it is enabled, the same contract the batch tools keep. */
+  function setRunReady(ok) {
+    var b = document.getElementById('runBtn');
+    if (b) b.disabled = !ok;
+  }
   function ingest(files) {
     if (!files || !files.length) return;
     setStatus('reading ' + files.length + ' file' + (files.length === 1 ? '' : 's') + '…', 'run');
+    setRunReady(false);
     FUSION = null;
     FUSED_EXPORT = null;
     SEALS = [];
-    expandSeals(files).then(function (ex) {
-      return ingestFiles(ex.files, ex.refused);
-    });
+    expandSeals(files).then(
+      function (ex) {
+        return ingestFiles(ex.files, ex.refused);
+      },
+      function (e) {
+        setRunReady(ITEMS.length > 0);
+        setStatus('could not read the files: ' + ((e && e.message) || e), 'err');
+      }
+    );
   }
   function ingestFiles(files, refused) {
     refused = refused || [];
-    if (!files.length && !refused.length) return;
+    if (!files.length && !refused.length) {
+      setRunReady(ITEMS.length > 0);
+      return;
+    }
     Promise.all(
       files.map(function (f) {
         return readText(f).then(
@@ -352,6 +369,7 @@
       });
       ITEMS = items;
       renderManifest();
+      setRunReady(ITEMS.length > 0);
       var counts = tally();
       setStatus(counts.raw + ' raw · ' + counts.export + ' node-export · ' + counts.ambiguous + ' ambiguous · ' + counts.unknown + ' set aside', 'idle');
     });

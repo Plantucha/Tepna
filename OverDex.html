@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="097bf823035d" data-compute-hash="33ad62e67d19"><head>
+<html lang="en" data-manifest-hash="5ac120fb60db" data-compute-hash="b6bfa9e599be"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0Qs4SriqBrDji3VeXHKouMn+JhP2MlGWYDlcHTWjpaQ=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3KvPhldddORipcvZQn+2KCH7WgDrPUqD7DLJmP2siMs=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9MYsm63BCay+lNUnXT4RsvPIypOPWXAmkEgAfrwlHFc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bHcLnVhIAd1f015+DTeUSIw4PGc5LSzJ0UD1bNuwJk0=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j+uc35jR2+U1GxBKynzcGafDKeJUi78ANcVhUwMwuaU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0Qs4SriqBrDji3VeXHKouMn+JhP2MlGWYDlcHTWjpaQ=' 'sha256-16Xd/c0X0lr96BN2eY6WONJJeAPrp5j+T2zKzY6WITg=' 'sha256-17b1/M+/34w1K52HLyKEnrYnmltMcu3OJrHzs0qeyM0=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-3eQvU3Dn49HVxF0POs3SAcYr3plrSdEGD7dahyP+F90=' 'sha256-6j611wpupwogNDPZ16bnjZfTfCzmfSdK+hnFoOAOxBY=' 'sha256-6zdAWTbABJgTpJIGZt0CH39byvIjCsM7IXwmQCh10QI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8CgaXQckIjoXwqroQNpM1Ym1YEvJnMG5lN0y2r1c37M=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BcVZbb4bLz0VScj/rfw1UzfXC6m0H+rxOZiTAfpGojc=' 'sha256-E3YweNbXEzR2hxsyCYFg7YorFc/MkJstnsNeUtVxMFA=' 'sha256-F5VBJbe89Ni/Ot1V5+ZbPzTMyNaIhEQlIgLT0ebP104=' 'sha256-FRmXwVeLmk/oKNu5BL8gBiQVUsH88GJmm92tz4RR/9M=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HooyAfmdktXcAPQYWTnvPdhsNVm1ZOxucKcw4uQgcf8=' 'sha256-Ko/DvSdMQhzg+SoAnXC2gjnLqvIIzdedxXmK0NiHZMs=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-T214q8qrtQ+o+krWUUOqzR+d2ldPI5dkYH6RaJrdPoU=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-V79NZ+9D9sxM3S2J+j/RLGBpqec4tixqA+g2FeMyDzg=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-akwItgz3Mku2BuYaWY4cOJyo5mHuVqQrHcB9szOWv4Y=' 'sha256-bHcLnVhIAd1f015+DTeUSIw4PGc5LSzJ0UD1bNuwJk0=' 'sha256-cMs4L/sAniGsWhN0yT84vREUkHMfFButr5W0ljondW4=' 'sha256-ezr3pk0/xocfAgnipgsvcGdSUCk1HsVz8lWlhkl9Rfw=' 'sha256-fOxAcG4FGOYjHtLk+7Sbd1mzABUQSzPGmybpbJk9b6c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j+uc35jR2+U1GxBKynzcGafDKeJUi78ANcVhUwMwuaU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pc+ATfpUDwVI25XViqYny9sJtx25+SaT0x/JzIx476Y=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-y+kvb0FzvlB2bDDBQK0Bom0m43IhFNYikjLL+SDNbRI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -95,6 +95,7 @@
   .runbar{position:sticky;bottom:0;margin-top:22px;padding:14px 0;background:linear-gradient(to top,var(--bg) 70%,transparent);display:flex;gap:12px;align-items:center;}
   button.primary{font-family:var(--sans);font-size:13.5px;font-weight:680;padding:11px 22px;border-radius:9px;border:1px solid transparent;background:var(--teal);color:#06251f;cursor:pointer;}
   button.primary:hover{filter:brightness(1.06);}
+  button.primary:disabled{opacity:.45;cursor:default;filter:none;}
 
   /* fusion result */
   #fusion{margin-top:14px;background:var(--surface);border:1px solid rgba(61,224,208,.22);border-radius:16px;padding:24px;display:none;}
@@ -177,7 +178,7 @@
   <div id="manifest"></div>
 
   <div class="runbar">
-    <button class="primary" id="runBtn">Run &amp; fuse →</button>
+    <button class="primary" id="runBtn" disabled>Run &amp; fuse →</button>
     <span class="muted small">routes every file, runs each node through its public compute path, fuses the exports</span>
   </div>
 
@@ -16526,6 +16527,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        runs fine and produces plausible numbers from the same exports.
        Same 1 Hz uniform grid + explicit holes as spo2Series, from the same rows. */
     night_obj.hrSeries = oxyBuildSpo2Series(rows, t0Ms, 'hr');
+    // Asleep/Awake per 30-s epoch — see computeSleepWake. Additive; null under 1 h or without stamps.
+    night_obj.sleepWake = computeSleepWake(rows, t0Ms);
     /* MEASUREMENT-PROVENANCE-ROADMAP §3 — the END of the measured window, from the last stamped row
        (`stats.durationMin` is rounded to 0.1 min and would put the window edge up to 6 s off the
        signal). Internal to the night object; the export reaches it only through the measurement block. */
@@ -19970,6 +19973,123 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
 
   // ── 18. REM-Proxy & NREM-Deep Proxy Windows ──────────────────────
+  /* ASLEEP / AWAKE PER 30-s EPOCH — the night's hypnogram from what an oximeter records (owner 2026-10-18).
+     An O2Ring carries a 1 Hz pulse RATE and a motion column, not beat-to-beat intervals, so ECGDex's
+     RMSSD + LF/HF staging cannot port. A 4-stage heuristic from rate + motion was built and judged
+     first, against a criterion written before the run, over the 42 real nights >= 4 h:
+       stage shares plausible   0 / 42  (Light ~85 %, REM ~5 %)       need >= 80 %
+       Deep in first half       35 / 40 = 88 %                         need >= 70 %
+       REM in second half       22 / 39 = 56 %  (a looser variant 48 %)  need >= 70 %
+     REM placement was no better than chance, so the owner's fallback ships: two states only.
+     Wake = SUSTAINED movement (moved in >= 3 of the 5 epochs centred here) or a pulse-rate surge
+     > night median + 12 bpm with movement within one epoch. Before the first 10-min run of sleep and
+     after the last, the epoch is Wake. Over the same 42 nights the median asleep share is 95.5 %
+     (min 80.9 %): like any motion-led detector it reads quiet, still wake as asleep, so it over-counts
+     sleep. Epochs are binned on tMs; an epoch with no pulse AND no motion reading is null (a gap),
+     and an unread motion value is unknown, never still (§∅). */
+  function computeSleepWake(rows, t0Ms) {
+    if (!rows || !rows.length || t0Ms == null) return null;
+    var EP = 30000,
+      last = null;
+    for (var q = rows.length - 1; q >= 0; q--)
+      if (rows[q] && rows[q].tMs != null) {
+        last = rows[q].tMs;
+        break;
+      }
+    if (last == null || last < t0Ms) return null;
+    var nE = Math.floor((last - t0Ms) / EP) + 1;
+    if (nE < 120 || nE > 48 * 120) return null; // < 1 h, or a broken stamp
+    var hS = new Array(nE),
+      hC = new Array(nE),
+      mSeen = new Array(nE),
+      mAny = new Array(nE),
+      e,
+      k;
+    for (e = 0; e < nE; e++) hS[e] = hC[e] = mSeen[e] = 0;
+    for (e = 0; e < nE; e++) mAny[e] = false;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || r.tMs == null) continue;
+      e = Math.floor((r.tMs - t0Ms) / EP);
+      if (e < 0 || e >= nE) continue;
+      if (typeof r.hr === 'number' && r.hr >= 30 && r.hr <= 220) {
+        hS[e] += r.hr;
+        hC[e]++;
+      }
+      if (typeof r.motion === 'number' && isFinite(r.motion)) {
+        mSeen[e]++;
+        if (r.motion > 0) mAny[e] = true;
+      }
+    }
+    /** @type {(number|null)[]} */
+    var hr = [];
+    /** @type {(boolean|null)[]} */
+    var mv = [];
+    /** @type {number[]} */
+    var hs = [];
+    for (e = 0; e < nE; e++) {
+      var hv = hC[e] >= 15 ? hS[e] / hC[e] : null;
+      hr.push(hv);
+      mv.push(mSeen[e] >= 15 ? mAny[e] : null);
+      if (hv != null) hs.push(hv);
+    }
+    if (!hs.length) return null;
+    hs.sort(function (a, b) {
+      return a - b;
+    });
+    var hrMed = hs[hs.length >> 1],
+      st = new Array(nE);
+    for (e = 0; e < nE; e++) {
+      if (hr[e] == null && mv[e] == null) {
+        st[e] = null;
+        continue;
+      }
+      var k5 = 0,
+        near = false;
+      for (k = -2; k <= 2; k++) {
+        if (mv[e + k] === true) {
+          k5++;
+          if (k >= -1 && k <= 1) near = true;
+        }
+      }
+      var he = hr[e];
+      st[e] = k5 >= 3 || (he != null && he > hrMed + 12 && near) ? 'Wake' : 'Asleep';
+    }
+    // first and last 10-min (20-epoch) run of sleep: outside them the epoch is Wake
+    var on = -1,
+      off = -1,
+      c = 0;
+    for (e = 0; e < nE && on < 0; e++) {
+      c = st[e] === 'Asleep' ? c + 1 : 0;
+      if (c >= 20) on = e - 19;
+    }
+    c = 0;
+    for (e = nE - 1; e >= 0 && off < 0; e--) {
+      c = st[e] === 'Asleep' ? c + 1 : 0;
+      if (c >= 20) off = e + 19;
+    }
+    for (e = 0; e < nE; e++) if (st[e] != null && (on < 0 || e < on || e > off)) st[e] = 'Wake';
+    // compact: one segment per run of one state; a null run is a gap
+    var segs = [],
+      asleep = 0,
+      wake = 0;
+    for (e = 0; e < nE; e++) {
+      if (st[e] === 'Asleep') asleep++;
+      else if (st[e] === 'Wake') wake++;
+      if (!segs.length || segs[segs.length - 1].stage !== st[e]) segs.push({ tMin: e / 2, stage: st[e] });
+    }
+    return {
+      method: 'motion+pulse-rate heuristic, 2 states',
+      epochSec: 30,
+      nEpochs: nE,
+      segments: segs,
+      asleepMin: asleep / 2,
+      wakeMin: wake / 2,
+      onsetMin: on < 0 ? null : on / 2,
+      finalWakeMin: on < 0 ? null : (off + 1) / 2
+    };
+  }
+
   function computeSleepStageProxy(rows) {
     var n = rows.length;
     if (n < 1800) return null;
@@ -22519,6 +22639,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     computeRMSSDarc,
     computeSpike50PctRecovery,
     computeSleepStageProxy,
+    computeSleepWake,
     computeVO2maxEstimate,
     computeKarvonenZones,
     computeSBII,
@@ -48297,19 +48418,36 @@ __exports.CPAPDex = window.CPAPDex;
     });
   }
 
+  /* Run & fuse stays DISABLED until the files are read and classified. Pressed earlier, runAndFuse
+     sees an empty ITEMS and returns without a word. The box's Nights page hands a night's files to
+     #files and then presses this button once it is enabled, the same contract the batch tools keep. */
+  function setRunReady(ok) {
+    var b = document.getElementById('runBtn');
+    if (b) b.disabled = !ok;
+  }
   function ingest(files) {
     if (!files || !files.length) return;
     setStatus('reading ' + files.length + ' file' + (files.length === 1 ? '' : 's') + '…', 'run');
+    setRunReady(false);
     FUSION = null;
     FUSED_EXPORT = null;
     SEALS = [];
-    expandSeals(files).then(function (ex) {
-      return ingestFiles(ex.files, ex.refused);
-    });
+    expandSeals(files).then(
+      function (ex) {
+        return ingestFiles(ex.files, ex.refused);
+      },
+      function (e) {
+        setRunReady(ITEMS.length > 0);
+        setStatus('could not read the files: ' + ((e && e.message) || e), 'err');
+      }
+    );
   }
   function ingestFiles(files, refused) {
     refused = refused || [];
-    if (!files.length && !refused.length) return;
+    if (!files.length && !refused.length) {
+      setRunReady(ITEMS.length > 0);
+      return;
+    }
     Promise.all(
       files.map(function (f) {
         return readText(f).then(
@@ -48340,6 +48478,7 @@ __exports.CPAPDex = window.CPAPDex;
       });
       ITEMS = items;
       renderManifest();
+      setRunReady(ITEMS.length > 0);
       var counts = tally();
       setStatus(counts.raw + ' raw · ' + counts.export + ' node-export · ' + counts.ambiguous + ' ambiguous · ' + counts.unknown + ' set aside', 'idle');
     });

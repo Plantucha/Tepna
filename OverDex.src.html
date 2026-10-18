@@ -95,6 +95,7 @@
   .runbar{position:sticky;bottom:0;margin-top:22px;padding:14px 0;background:linear-gradient(to top,var(--bg) 70%,transparent);display:flex;gap:12px;align-items:center;}
   button.primary{font-family:var(--sans);font-size:13.5px;font-weight:680;padding:11px 22px;border-radius:9px;border:1px solid transparent;background:var(--teal);color:#06251f;cursor:pointer;}
   button.primary:hover{filter:brightness(1.06);}
+  button.primary:disabled{opacity:.45;cursor:default;filter:none;}
 
   /* fusion result */
   #fusion{margin-top:14px;background:var(--surface);border:1px solid rgba(61,224,208,.22);border-radius:16px;padding:24px;display:none;}
@@ -177,7 +178,7 @@
   <div id="manifest"></div>
 
   <div class="runbar">
-    <button class="primary" id="runBtn">Run &amp; fuse →</button>
+    <button class="primary" id="runBtn" disabled>Run &amp; fuse →</button>
     <span class="muted small">routes every file, runs each node through its public compute path, fuses the exports</span>
   </div>
 
