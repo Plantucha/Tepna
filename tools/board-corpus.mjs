@@ -17,6 +17,12 @@
  * One file per entry, not per thread: doc-search skips a file over 256 KB, and the main thread
  * held 72 entries after two days. A file per thread would leave the index the day it grows.
  *
+ * ONLY THE KINDS THAT CARRY A DECISION ARE INDEXED (owner, 2026-10-17): `decision`, `handoff`,
+ * `finding` and `answer`. A `note`, `question` or `warning` is a doorbell; the repo and memory hold
+ * the durable record. Short, repetitive status posts would otherwise crowd briefs and code out of
+ * Rule 0's top five hits as the board grows. A ruling must therefore go out as `--kind decision`.
+ * A file for an entry outside these kinds is removed like a file for a deleted entry.
+ *
  * The tool writes a file only when its text changed and removes a file only when its entry left
  * the snapshot. It touches only `<digits>.md` files inside `<digits>/` folders of `<out>`.
  *
@@ -34,6 +40,7 @@ import { join } from 'node:path';
 export const DEFAULT_OUT = process.env.TEPNA_BOARD_CORPUS || join(homedir(), '.local/share/tepna/board-corpus');
 const BOARD_CLI = process.env.AGENT_BOARD || join(homedir(), '.local/bin/agent-board');
 const ID = /^\d+$/;
+export const INDEXED_KINDS = new Set(['decision', 'handoff', 'finding', 'answer']);
 const ENTRY_FILE = /^(\d+)\.md$/;
 
 /* One entry as a document. The header lines carry what a reader searches by: the thread, the
@@ -61,7 +68,7 @@ export function plan(snapshot) {
   for (const t of snapshot?.threads ?? []) {
     if (!ID.test(String(t.id))) continue;
     for (const e of t.entries ?? []) {
-      if (!ID.test(String(e.id))) continue;
+      if (!ID.test(String(e.id)) || !INDEXED_KINDS.has(e.kind)) continue;
       want.set(`${t.id}/${e.id}.md`, entryMarkdown(t, e));
     }
   }
@@ -143,8 +150,9 @@ if (process.argv.includes('--selftest')) {
         title: 'Fleet',
         archived: false,
         entries: [
-          { id: '7', author: 'kestrel:x', kind: 'note', body: 'Ruling one.\n', createdAt: '2026-10-17T01:00:00Z', addresses: ['osprey'] },
+          { id: '7', author: 'kestrel:x', kind: 'decision', body: 'Ruling one.\n', createdAt: '2026-10-17T01:00:00Z', addresses: ['osprey'] },
           { id: '8', author: 'heron:y', kind: 'answer', body: 'Reply.', createdAt: '2026-10-17T02:00:00Z', addresses: [] },
+          { id: '10', author: 'kestrel:x', kind: 'note', body: 'Status ping.', createdAt: '2026-10-17T03:00:00Z', addresses: [] },
           { id: '../9', author: 'z', kind: 'note', body: 'escape', createdAt: '' }
         ]
       },
@@ -152,7 +160,8 @@ if (process.argv.includes('--selftest')) {
     ]
   };
   const want = plan(snap);
-  assert(want.size === 2, 'two entries with numeric ids are planned, a bad id is skipped');
+  assert(want.size === 2, 'two entries are planned: a bad id and a note are skipped');
+  assert(!want.has('1/10.md'), 'a note is a doorbell and is not indexed');
   assert(!JSON.stringify([...want.keys()]).includes('..'), 'no planned path leaves the output folder');
   const doc = want.get('1/7.md');
   assert(doc.startsWith('# Board #7 · Fleet'), 'the title names the entry and the thread');
