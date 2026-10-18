@@ -35,7 +35,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -416,6 +416,27 @@ export function selftest() {
   ok(!checkCompliance({ body: good, files: null, newDocs: [] }).failures.length, 'CONTROL: a PR that adds no doc passes');
   ok(checkCompliance({ body: good, files: null, newDocs: [] }).checked.includes('new-doc-writing-rules'), '…and the check still says it ran');
   ok(!checkCompliance({ body: good, files: null }).checked.includes('new-doc-writing-rules'), 'newDocs not resolved ⇒ NOT evaluated, not passed');
+  {
+    /* THE LOCAL RUN: a changeset with a 30-word sentence must red `npm run check`, not only CI. */
+    const long =
+      '---\nbump: patch\n---\n\nThis sentence about the board and the timer and the sandbox and the box goes on and on past the limit that the writing rules set for any description here.\n';
+    const files = { 'changes/a.md': long, 'changes/b.md': '---\nbump: patch\n---\n\nThe gate reads the file.\n', 'tools/x.mjs': '' };
+    const run = (cmd) => (cmd.startsWith('git rev-parse') ? 'abc' : cmd.includes('...') ? 'changes/a.md\ntools/x.mjs' : cmd.startsWith('git ls-files') ? 'changes/b.md\nchanges/gone.md' : '');
+    const read = (p) => {
+      if (!(p in files)) throw new Error('ENOENT');
+      return files[p];
+    };
+    const docs = localNewDocs(run, read);
+    ok(docs.length === 2, 'local: committed and untracked Markdown files are both read, a deleted one is skipped');
+    const fails = newDocFailures(docs);
+    ok(fails.length === 1 && fails[0].includes('changes/a.md') && fails[0].includes('long-sentence'), 'local: the long changeset sentence fails, by path and rule');
+    ok(
+      localNewDocs(() => {
+        throw new Error('no origin/main');
+      }, read) === null,
+      'local: no origin/main ⇒ null, NOT_RUN, never a pass'
+    );
+  }
 
   /* NO FILE LIST ⇒ THE DIFF CHECKS ARE NOT EVALUATED, and that is visible in `checked` rather than
      being indistinguishable from passing them. */
@@ -481,6 +502,50 @@ function verdictOf({ status, failures, checked, reason }) {
 /** The PR's own change set: from the merge base of `base` and `head` to `head` (three dots). */
 export const prRange = (base, head) => `${base}...${head}`;
 
+/** The failures check 7 reports for a list of `{path, findings}` — the same words the PR run uses. */
+export function newDocFailures(docs) {
+  const out = [];
+  for (const d of docs) {
+    if (!d.findings.length) continue;
+    const named = d.findings
+      .slice(0, 3)
+      .map((x) => `line ${x.line} ${x.rule}`)
+      .join(', ');
+    out.push(`new file ${d.path} fails the writing rules — ${d.findings.length} finding(s) from tools/ste-lint.mjs: ${named}${d.findings.length > 3 ? '; …' : ''}`);
+  }
+  return out;
+}
+
+/** The Markdown files a LOCAL branch adds against origin/main: committed (three dots), staged or
+    unstaged, and untracked. Read from the working tree, which is what the next commit carries.
+    `null` when origin/main is not there to diff against. */
+export function localNewDocs(run = sh, read = (p) => readFileSync(p, 'utf-8')) {
+  let paths;
+  try {
+    run('git rev-parse --verify --quiet origin/main');
+    paths = [
+      ...run(`git diff --diff-filter=A --name-only ${prRange('origin/main', 'HEAD')}`).split('\n'),
+      ...run('git diff --diff-filter=A --name-only HEAD').split('\n'),
+      ...run('git diff --cached --diff-filter=A --name-only').split('\n'),
+      ...run('git ls-files --others --exclude-standard').split('\n')
+    ];
+  } catch {
+    return null;
+  }
+  const glossary = readGlossary();
+  const out = [];
+  for (const path of [...new Set(paths.filter((f) => f.endsWith('.md')))]) {
+    let text;
+    try {
+      text = read(path);
+    } catch {
+      continue; // added on the branch, then deleted in the tree: the next commit does not carry it
+    }
+    out.push({ path, findings: steFindings(text, glossary) });
+  }
+  return out;
+}
+
 function sh(cmd) {
   return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
@@ -502,9 +567,26 @@ function main() {
      gate has nothing to judge. It is NOT_RUN rather than PASS — the distinction the contract exists
      for, since "compliant" and "not applicable here" are different claims. */
   if (!body && !base) {
+    /* NO PR CONTEXT IS A LOCAL RUN (`npm run check`). The body checks have nothing to read, but
+       check 7 does: the Markdown files this branch adds, against `origin/main`. Before this, the local
+       gate skipped the whole tool, so a changeset with a long sentence passed `npm run check` and
+       went red in CI. Measured 2026-10-17: #3607, #3608 and #3611 each failed CI on exactly that. */
+    const local = localNewDocs();
+    if (local) {
+      const failures = newDocFailures(local);
+      const status = failures.length ? 'FAIL' : 'PASS';
+      if (asJson) process.stdout.write(`${JSON.stringify(verdictOf({ status, failures, checked: ['new-doc-writing-rules'], reason: failures.length ? failures.join('; ') : null }), null, 1)}\n`);
+      else {
+        console.log(`pr-compliance (local): ${status} — ${local.length} new Markdown file(s) against origin/main; the body checks run on the PR`);
+        for (const f of failures) console.log(`  ✕ ${f}`);
+      }
+      return failures.length ? 1 : 0;
+    }
     if (asJson)
-      process.stdout.write(`${JSON.stringify(verdictOf({ status: 'NOT_RUN', failures: [], checked: [], reason: 'no PR context (not a pull_request event) — nothing was examined' }), null, 1)}\n`);
-    else console.log('pr-compliance: no PR context (not a pull_request event) — skip');
+      process.stdout.write(
+        `${JSON.stringify(verdictOf({ status: 'NOT_RUN', failures: [], checked: [], reason: 'no PR context and no origin/main to diff against — nothing was examined' }), null, 1)}\n`
+      );
+    else console.log('pr-compliance: no PR context and no origin/main — skip');
     return 0;
   }
 
