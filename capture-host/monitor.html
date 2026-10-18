@@ -1769,8 +1769,12 @@ async function openNight(key, node){
   /* ∅ A file with no session stamp belongs to no band — the CPAP trees are keyed by DATE. They are handed
      over with the recording (they are this FOLDER's) and SAID, rather than dropped silently or filed under
      a band they were never stamped for. */
+  /* ONLY TO THE APP THAT READS THEM. The unstamped files are the CPAP trees, and they went to EVERY click:
+     a click on the ring's cell (2026-10-18) handed OxyDex its SpO₂ CSV plus five CPAP EDFs, and OxyDex listed
+     each one as a parse issue. A file joins the hand-over only when this node's own folder-level list holds it. */
+  const ownAll = n[node] && Array.isArray(n[node].files) ? n[node].files : [];
   const noStamp = rec && Array.isArray(n.recordings_unassigned)
-    ? n.recordings_unassigned.filter(f => typeof f === 'string' && rels.indexOf(f) < 0) : [];
+    ? n.recordings_unassigned.filter(f => typeof f === 'string' && rels.indexOf(f) < 0 && ownAll.indexOf(f) >= 0) : [];
   if(noStamp.length) rels.push(...noStamp);
   // A per-click query so the browser can never hand back a CACHED app from before a deploy (2026-09-26: both
   // derived pages rendered their pre-#3117 copies after the box was serving the new ones, and the old PAT page
