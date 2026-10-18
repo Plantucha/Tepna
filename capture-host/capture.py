@@ -13031,6 +13031,25 @@ def _maybe_start_as11_shadow(
     return task
 
 
+# The end of the last RETAINED therapy session, on the monotonic clock. Written by
+# `_cpap_autostart_loop`, read and cleared by `_cpap_spool_loop`. A false start never writes it.
+_CPAP_THERAPY_END: dict[str, Any] = {"mono": None}
+
+
+def _post_therapy_pull_due(end_mono, after_s, now_mono, therapy) -> bool:
+    """Is the post-therapy spool pull due? PURE.
+
+    The owner asked for the pull straight after therapy, not at the next morning window. The device
+    still writes the night's Summary record after the mask comes off, so the pull waits `after_s`
+    from the end of the stream. It also waits while the detector still reads Therapy: auto-stop fired
+    five minutes ahead of `fg_state` leaving Therapy on its first live night (2026-08-29).
+    `therapy is None` means the detector cannot see the machine; that does not hold the pull, because
+    a detector that is off would then hold it forever."""
+    if after_s is None or end_mono is None:
+        return False
+    return now_mono - end_mono >= after_s and therapy is not True
+
+
 async def _cpap_spool_loop(
     *,
     at_hour,
@@ -13045,6 +13064,10 @@ async def _cpap_spool_loop(
     now=None,
     cycle=None,
     st=None,
+    after_therapy_s=None,
+    harvest_hours=frozenset(),
+    mono=None,
+    get_therapy=None,
 ):
     """The scheduled stored-spool pull: once per day, inside its window, only when nothing contends.
 
@@ -13054,7 +13077,18 @@ async def _cpap_spool_loop(
     the sensors retries next minute instead of silently skipping the day (`cpap_harvest.due_now`
     carries the same scar, from the 19:25 restart that re-armed a 13:00 job).
 
+    POST-THERAPY PULL (`after_therapy_s`): when the auto-start loop retains a therapy session, the
+    pull also runs `after_therapy_s` after that session ends, at any hour. The window pull stays as
+    the backstop. The post-therapy pull never STARTS inside the Wi-Fi harvest hours: both are 2.4 GHz
+    and neither interlock sees the other (`spool_arming` refuses an overlapping WINDOW for the same
+    reason). A deferral keeps the trigger, as it keeps the day.
+
+    A LINK HELD BY ANOTHER ACTOR IS A DEFERRAL, NOT AN ATTEMPT. On 2026-10-13 the shadow poll held the
+    AS11 link at 10:00:46, the pull failed `LinkBusy`, and the day was consumed with no retry. The
+    shadow poll holds the link for seconds, so the next minute's try gets it.
+
     Every collaborator is injected so the schedule is testable with no clock, no radio and no sleep."""
+    import as11_link_guard
     import cpap_harvest
     import cpap_spool_caller
 
@@ -13062,13 +13096,21 @@ async def _cpap_spool_loop(
     now = now or (lambda: _dt.datetime.now())
     cycle = cycle or cpap_spool_caller.spool_pull_cycle
     st = st or (lambda **kw: None)
+    mono = mono or _time.monotonic
+    get_therapy = get_therapy or (lambda: (STATUS.get("cpap") or {}).get("therapy"))
     last_run_date = None
     while not _STOP.is_set():
         await sleep(60)
         if _STOP.is_set():
             break
         t = now()
-        if not cpap_harvest.due_now(t, at_hour, last_run_date, window_h):
+        window_due = cpap_harvest.due_now(t, at_hour, last_run_date, window_h)
+        end_mono = _CPAP_THERAPY_END["mono"]
+        kicked = not window_due and _post_therapy_pull_due(end_mono, after_therapy_s, mono(), get_therapy())
+        if not window_due and not kicked:
+            continue
+        if kicked and t.hour in harvest_hours:
+            st(state="waiting", detail="the post-therapy pull waits out the Wi-Fi harvest hours")
             continue
         why = cpap_spool_caller.pull_blocked(
             recovering=_RECOVER.is_set(),
@@ -13079,12 +13121,25 @@ async def _cpap_spool_loop(
             # Deliberately does NOT consume the day — see the docstring.
             st(state="waiting", detail=why)
             continue
-        last_run_date = cpap_harvest.window_start_date(t, at_hour, window_h) or t.date()
+        # Either path consumes the trigger: a window pull reads the same page the post-therapy pull would.
+        _CPAP_THERAPY_END["mono"] = None
+        prev_run_date = last_run_date
+        if window_due:
+            last_run_date = cpap_harvest.window_start_date(t, at_hour, window_h) or t.date()
+        else:
+            log.info("CPAP spool pull: post-therapy trigger — the session ended %.0f s ago", mono() - end_mono)
         st(state="running", detail=None)
         try:
             summary = await cycle(
                 connect=connect_factory, creds=creds, root=root, epoch_start=epoch_start, spool_type=spool_type
             )
+        except as11_link_guard.LinkBusy as e:
+            # A deferral — see the docstring. Give back the day, or the trigger, and try next minute.
+            log.info("CPAP spool pull deferred: %s — retrying next minute", e)
+            st(state="waiting", detail=str(e))
+            last_run_date = prev_run_date
+            _CPAP_THERAPY_END["mono"] = end_mono
+            continue
         except Exception as e:  # noqa: BLE001 — a scheduled job must survive any pull failure
             # Same reasoning as run_shadow_loop's broad except: the bleak connect raises
             # BleakError subclasses that are NOT OSError, and one such error silently killed a
@@ -13305,6 +13360,7 @@ async def _cpap_autostart_loop(
                 )
             else:
                 log.info("CPAP auto-start: session ended and RETAINED (%s)", verdict_why)
+                _CPAP_THERAPY_END["mono"] = _time.monotonic()
             streaming_since_ms = None
         due, why = cpap_live.autostart_due(watch, t, max_attempts=max_attempts, already_streaming=running)
         if not due:
@@ -13559,6 +13615,13 @@ def _maybe_start_cpap_spool_pull(
 
     spool_root = resolve_spool_root(scfg.get("root"), root)
     epoch_start = scfg.get("epoch_start", cpap_spool_caller.SPOOL_EPOCH_START_DEFAULT)
+    after_therapy_s = cpap_spool_caller.after_therapy_seconds(scfg)
+    # Only an ENABLED harvest can contend — the same rule `spool_arming` applies to the window.
+    harvest_hours = (
+        frozenset(cpap_spool_caller.window_hours(int(ccfg.get("at_hour", 13)), 2))
+        if ccfg.get("enabled")
+        else frozenset()
+    )
 
     # 🔴 `st` IS LOAD-BEARING AND WAS OMITTED HERE, so the loop fell back to its own
     # `st = st or (lambda **kw: None)` default and every state it published went NOWHERE in production.
@@ -13587,6 +13650,8 @@ def _maybe_start_cpap_spool_pull(
                 spool_type=scfg.get("spool_type", "Summary"),
                 is_capturing=_either_busy(cpap_ctl._running, also_busy),
                 st=_spool_st,
+                after_therapy_s=after_therapy_s,
+                harvest_hours=harvest_hours,
             ),
             "CPAP stored-spool pull",
         )
@@ -13594,13 +13659,16 @@ def _maybe_start_cpap_spool_pull(
     TASK_LABELS[id(task)] = "CPAP stored-spool pull"
     tasks.append(task)
     log.info(
-        "CPAP stored-spool pull: ARMED — %s spool, window %02d:00-%02d:00 on %s, from %s → %s",
+        "CPAP stored-spool pull: ARMED — %s spool, window %02d:00-%02d:00 on %s, from %s → %s; %s",
         scfg.get("spool_type", "Summary"),
         arming["at_hour"],
         (arming["at_hour"] + arming["window_h"]) % 24,
         hci,
         epoch_start,
         spool_root,
+        "post-therapy pull OFF"
+        if after_therapy_s is None
+        else f"post-therapy pull {after_therapy_s:.0f} s after each retained session",
     )
     return task
 

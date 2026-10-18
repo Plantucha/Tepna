@@ -130,10 +130,24 @@ def test_the_armed_path_routes_through_the_resolver(tmp_path, caplog):
 
 
 # ── _cpap_spool_loop ─────────────────────────────────────────────────────────
-def _drive(*, blocked_by=None, cycle=None, ticks=2, recovering=False):
-    """Run the loop for `ticks` minutes of injected time, then stop it. Returns (calls, states)."""
+def _drive(
+    *,
+    blocked_by=None,
+    cycle=None,
+    ticks=2,
+    recovering=False,
+    hour=10,
+    end_mono=None,
+    after_therapy_s=None,
+    therapy=None,
+    harvest_hours=frozenset(),
+):
+    """Run the loop for `ticks` minutes of injected time, then stop it. Returns (calls, states).
+
+    The injected monotonic clock reads 1000 s; `end_mono` is when the last retained session ended."""
     calls, states = [], []
     n = {"i": 0}
+    capture._CPAP_THERAPY_END["mono"] = end_mono
 
     async def _sleep(_s):
         n["i"] += 1
@@ -158,15 +172,133 @@ def _drive(*, blocked_by=None, cycle=None, ticks=2, recovering=False):
                 epoch_start="2026-08-01T00:00:00.000Z",
                 is_capturing=lambda: False,
                 sleep=_sleep,
-                now=lambda: _dt.datetime(2026, 8, 26, 10, 30),
+                now=lambda: _dt.datetime(2026, 8, 26, hour, 30),
                 cycle=_cycle,
                 st=lambda **kw: states.append(kw),
+                after_therapy_s=after_therapy_s,
+                harvest_hours=harvest_hours,
+                mono=lambda: 1000.0,
+                get_therapy=lambda: therapy,
             )
         )
     finally:
         capture._STOP.clear()
         capture._RECOVER.clear()
     return calls, states
+
+
+def _cycles(*results):
+    """A `cycle` that returns or raises each result in turn, then repeats the last."""
+    q = list(results)
+
+    def _next():
+        r = q.pop(0) if len(q) > 1 else q[0]
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    return _next
+
+
+OK = {"rounds_committed": 1, "cursor": "C"}
+
+
+def test_a_retained_session_pulls_after_the_delay_OUTSIDE_the_window(caplog):
+    with caplog.at_level("INFO"):
+        calls, states = _drive(hour=6, end_mono=600.0, after_therapy_s=300.0, ticks=3)
+    assert len(calls) == 1, "one pull per retained session, not one per minute"
+    assert capture._CPAP_THERAPY_END["mono"] is None, "the pull consumes the trigger"
+    assert "post-therapy trigger — the session ended 400 s ago" in caplog.text
+    assert states[-1]["state"] == "idle"
+
+
+def test_the_post_therapy_pull_waits_out_its_delay():
+    calls, _ = _drive(hour=6, end_mono=800.0, after_therapy_s=300.0, ticks=3)
+    assert calls == [], "200 s after the session is inside the 300 s the device needs"
+    assert capture._CPAP_THERAPY_END["mono"] == 800.0
+
+
+def test_the_post_therapy_pull_waits_while_the_detector_still_reads_THERAPY():
+    calls, _ = _drive(hour=6, end_mono=0.0, after_therapy_s=300.0, therapy=True, ticks=3)
+    assert calls == []
+    calls, _ = _drive(hour=6, end_mono=0.0, after_therapy_s=300.0, therapy=False, ticks=1)
+    assert len(calls) == 1, "out of Therapy, the pull runs"
+
+
+def test_an_UNSEEN_machine_does_not_hold_the_post_therapy_pull():
+    calls, _ = _drive(hour=6, end_mono=0.0, after_therapy_s=300.0, therapy=None, ticks=1)
+    assert len(calls) == 1, "a detector that is off would otherwise hold the pull forever"
+
+
+def test_the_post_therapy_pull_is_OFF_when_unset():
+    calls, _ = _drive(hour=6, end_mono=0.0, after_therapy_s=None, ticks=2)
+    assert calls == []
+
+
+def test_no_retained_session_means_no_post_therapy_pull():
+    calls, _ = _drive(hour=6, end_mono=None, after_therapy_s=300.0, ticks=2)
+    assert calls == []
+
+
+def test_the_post_therapy_pull_never_starts_inside_the_HARVEST_hours():
+    calls, states = _drive(hour=13, end_mono=0.0, after_therapy_s=300.0, harvest_hours=frozenset({13, 14}), ticks=2)
+    assert calls == []
+    assert states[0] == {"state": "waiting", "detail": "the post-therapy pull waits out the Wi-Fi harvest hours"}
+    assert capture._CPAP_THERAPY_END["mono"] == 0.0, "a deferral keeps the trigger"
+
+
+def test_a_blocked_post_therapy_pull_KEEPS_the_trigger():
+    calls, states = _drive(hour=6, end_mono=0.0, after_therapy_s=300.0, recovering=True, ticks=2)
+    assert calls == [] and [s["state"] for s in states] == ["waiting"] * 2
+    assert capture._CPAP_THERAPY_END["mono"] == 0.0
+
+
+def test_a_window_pull_consumes_a_pending_trigger_too():
+    calls, _ = _drive(hour=10, end_mono=0.0, after_therapy_s=300.0, ticks=3)
+    assert len(calls) == 1, "the window pull reads the same page; a second pull would add nothing"
+    assert capture._CPAP_THERAPY_END["mono"] is None
+
+
+def test_a_BUSY_link_is_a_deferral_and_the_window_retries_next_minute(caplog):
+    """2026-10-13: the shadow poll held the link at 10:00:46, and the day was lost with no retry."""
+    import as11_link_guard
+
+    busy = as11_link_guard.LinkBusy("shadow-poll")
+    with caplog.at_level("INFO"):
+        calls, states = _drive(cycle=_cycles(busy, OK), ticks=3)
+    assert len(calls) == 2, "the busy minute gives the day back; the next minute pulls"
+    assert states[1]["state"] == "waiting" and "shadow-poll" in states[1]["detail"]
+    assert states[-1]["state"] == "idle"
+    assert "CPAP spool pull deferred" in caplog.text
+
+
+def test_a_BUSY_link_keeps_the_post_therapy_trigger():
+    import as11_link_guard
+
+    calls, _ = _drive(
+        hour=6, end_mono=0.0, after_therapy_s=300.0, cycle=_cycles(as11_link_guard.LinkBusy("shadow-poll"), OK), ticks=3
+    )
+    assert len(calls) == 2
+    assert capture._CPAP_THERAPY_END["mono"] is None
+
+
+def test_post_therapy_due_reads_each_input():
+    due = capture._post_therapy_pull_due
+    assert due(0.0, 300.0, 300.0, False) is True, "the delay is inclusive"
+    assert due(0.0, 300.0, 299.9, False) is False
+    assert due(0.0, 300.0, 400.0, True) is False
+    assert due(None, 300.0, 400.0, None) is False
+    assert due(0.0, None, 400.0, None) is False
+
+
+def test_after_therapy_seconds_reads_the_key():
+    import cpap_spool_caller as C
+
+    assert C.after_therapy_seconds({}) == 300.0
+    assert C.after_therapy_seconds({"after_therapy_s": 60}) == 60.0
+    assert C.after_therapy_seconds({"after_therapy_s": 0}) == 0.0
+    for off in (None, False, True, -1, "300"):
+        assert C.after_therapy_seconds({"after_therapy_s": off}) is None, off
 
 
 def test_a_due_and_clear_window_pulls_exactly_once_per_day():
@@ -277,7 +409,10 @@ def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog, monk
                 "spool_type": "Detail",
                 "epoch_start": "2026-01-01T00:00:00.000Z",
                 "root": str(tmp_path / "sp"),
-            }
+                "after_therapy_s": 90,
+            },
+            "enabled": True,
+            "at_hour": 15,
         }
     }
     with caplog.at_level("INFO"):
@@ -298,6 +433,27 @@ def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog, monk
     assert kw["at_hour"] == 9 and kw["window_h"] == 3
     assert kw["root"] == str(tmp_path / "sp")
     assert "Detail spool" in caplog.text and "09:00-12:00" in caplog.text
+    assert kw["after_therapy_s"] == 90.0
+    assert kw["harvest_hours"] == frozenset({15, 16}), "an ENABLED harvest's hours hold the post-therapy pull"
+    assert "post-therapy pull 90 s after each retained session" in caplog.text
+
+
+def test_a_DISABLED_harvest_holds_no_hours_and_OFF_says_so(tmp_path, caplog, monkeypatch):
+    rec = _record_supervised_wiring(monkeypatch)
+
+    def _create_task(coro):
+        coro.close()
+        return "TASK"
+
+    cfg = {"cpap": {"spool_pull": {"enabled": True, "after_therapy_s": None}, "at_hour": 13}}
+    with caplog.at_level("INFO"):
+        capture._maybe_start_cpap_spool_pull(
+            cfg, "cfg.yaml", str(tmp_path), _Ctl(), [], load_creds=lambda _p: CREDS, create_task=_create_task
+        )
+    kw = rec["loop_kwargs"]
+    assert kw["harvest_hours"] == frozenset()
+    assert kw["after_therapy_s"] is None
+    assert "post-therapy pull OFF" in caplog.text
 
 
 def test_a_loop_started_during_shutdown_does_nothing_at_all():

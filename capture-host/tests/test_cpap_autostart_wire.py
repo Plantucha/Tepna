@@ -24,9 +24,11 @@ HDR = "host_ms;prior;state;transition;action;trigger;confidence;reachable;fg_sta
 def _reset():
     capture._STOP.clear()
     capture._CPAP_AUTOSTART.update({"watch": None, "root": None})
+    capture._CPAP_THERAPY_END["mono"] = None
     yield
     capture._STOP.clear()
     capture._CPAP_AUTOSTART.update({"watch": None, "root": None})
+    capture._CPAP_THERAPY_END["mono"] = None
 
 
 def _journal(root, rows):
@@ -220,6 +222,7 @@ def test_a_FALSE_START_is_discarded_journalled_and_costs_an_attempt(tmp_path):
     )
     rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
     assert rec["attempts"] == 1 and rec["last_error"].startswith("false start:")
+    assert capture._CPAP_THERAPY_END["mono"] is None, "a false start is not therapy and arms no spool pull"
 
 
 def test_a_discard_survives_a_missing_file_and_NAMES_a_stubborn_one(tmp_path, caplog):
@@ -266,6 +269,7 @@ def test_a_LONG_session_is_retained_and_spends_nothing(tmp_path):
     assert calls == ["start"] and gone == []
     rec = json.loads(open(capture._cpap_autostart_path(str(tmp_path))).read())
     assert rec["attempts"] == 0
+    assert capture._CPAP_THERAPY_END["mono"] is not None, "a retained session arms the post-therapy spool pull"
 
 
 def test_the_loop_does_NOT_start_while_a_stream_is_already_running(tmp_path):
